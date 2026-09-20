@@ -7,6 +7,30 @@ import { CatalogProductCard } from "./CatalogProductCard";
 
 const SHOWCASE_LIMIT = 10;
 const FASHION_VENDOR_ID = "vendor_e8cb57b3c67b469d9a9d";
+const FASHION_CATEGORY_CODES = new Set([
+  "handbags",
+  "mens-bags",
+  "unisex-bags",
+  "backpacks",
+  "wallets-cardholders",
+  "luggage-travel-bags",
+  "belts",
+  "scarves-hats-gloves",
+  "rings",
+  "necklaces",
+  "bracelets",
+  "earrings",
+  "watches",
+  "sunglasses",
+  "optical-frames",
+  "optical-accessories",
+  "womens-underwear",
+  "mens-underwear",
+  "socks-hosiery",
+  "sports-clothing",
+  "fashion-accessories-other",
+  "fashion-personal-accessories"
+]);
 
 type FacetOption = Readonly<{ value: string; label: string; count: number }>;
 type FashionAudience = "women" | "men" | "accessories";
@@ -41,10 +65,29 @@ function showcase(products: readonly CatalogCard[], seed: string): readonly Cata
   return [...products].sort((left, right) => rank(`${seed}:${left.id}`) - rank(`${seed}:${right.id}`)).slice(0, SHOWCASE_LIMIT);
 }
 
-function audienceFor(entry: FacetOption): FashionAudience {
+function isFashionFacet(entry: FacetOption): boolean {
+  const value = normalized(entry.value);
   const label = normalized(entry.label);
-  if (label.includes("γυναικ")) return "women";
-  if (label.includes("ανδρ")) return "men";
+  if (FASHION_CATEGORY_CODES.has(value)) return true;
+  if (["fashion-", "womens-", "mens-", "kids-"].some((prefix) => value.startsWith(prefix))) return true;
+  return ["γυναικ", "ανδρ", "παιδικ", "ρουχ", "παπουτ", "sneaker", "μποτ", "σανδαλ", "τσαντ", "σακιδ", "πορτοφολ", "αποσκευ", "ζων", "κασκολ", "καπελ", "γαντ", "δαχτυλ", "κολιε", "σκουλαρ", "βραχιολ", "κοσμη", "ρολογ", "γυαλ", "εσωρουχ", "μαγιο"].some((word) => label.includes(word));
+}
+
+function audienceFor(entry: FacetOption): FashionAudience {
+  const value = normalized(entry.value);
+  const label = normalized(entry.label);
+  if (
+    value.startsWith("fashion-womens-") ||
+    value.startsWith("womens-") ||
+    value === "handbags" ||
+    label.includes("γυναικ")
+  ) return "women";
+  if (
+    value.startsWith("fashion-mens-") ||
+    value.startsWith("mens-") ||
+    value === "mens-bags" ||
+    label.includes("ανδρ")
+  ) return "men";
   return "accessories";
 }
 
@@ -126,8 +169,9 @@ export function CategoryCatalogBrowser({ products, categoryName }: { products: r
         if (!response.ok) throw new Error(`Fashion facets failed with ${response.status}`);
         const payload = await response.json() as { facets?: { total?: number; categories?: readonly FacetOption[] } };
         if (!cancelled) {
-          setFashionFacets(payload.facets?.categories ?? []);
-          setFashionTotal(payload.facets?.total ?? 0);
+          const fashionCategories = (payload.facets?.categories ?? []).filter(isFashionFacet);
+          setFashionFacets(fashionCategories);
+          setFashionTotal(fashionCategories.reduce((sum, entry) => sum + entry.count, 0));
         }
       } catch (error) {
         console.error("Fashion guide facets failed", error);
