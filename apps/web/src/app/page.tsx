@@ -38,7 +38,7 @@ const EDITORIAL_COLLECTIONS = [
   {
     eyebrow: "Λίγος χρόνος για σένα",
     title: "Μια ώρα για σένα",
-    copy: "Serum, ενυδάτωση, καθαρισμός, σώμα και μαλλιά — από όσα είναι πραγματικά διαθέσιμα τώρα.",
+    copy: "Serum, ενυδάτωση, καθαρισμός, σώμα και μαλλιά — όλα όσα χρειάζεσαι για μια μικρή στιγμή φροντίδας.",
     href: "/collections/self-care-reset",
     className: styles.collectionMountain
   },
@@ -323,7 +323,7 @@ export default async function Home() {
       <section className={`${styles.collectionsSection} shell`} aria-labelledby="collections-title">
         <div className={styles.sectionHeading}>
           <div><span className={styles.kicker}>Επιλογές με λόγο ύπαρξης</span><h2 id="collections-title">Ιδέες, όχι απλώς φίλτρα.</h2></div>
-          <p>Συνδυασμοί από όσα είναι πραγματικά διαθέσιμα τώρα στο ΚΟΝΤΑ ΜΟΥ — για στιγμές που συμβαίνουν όντως.</p>
+          <p>Μικρές έτοιμες ιδέες για πραγματικές στιγμές — με προϊόντα που μπορείς να βρεις τώρα στο ΚΟΝΤΑ ΜΟΥ.</p>
         </div>
         <div className={styles.collectionGrid}>
           {EDITORIAL_COLLECTIONS.map((collection) => (
