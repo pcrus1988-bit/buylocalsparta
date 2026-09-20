@@ -18,6 +18,7 @@ const nodeArgs = [
 // Keep supplier workers gated on the exact production schema before spawning.
 const DATABASE_READINESS_RETRY_MS = 5_000;
 const DATABASE_READINESS_TIMEOUT_MS = 10 * 60_000;
+// Railway deploy trigger: supplier workers must always start from the current main schema contract.
 
 function safeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
