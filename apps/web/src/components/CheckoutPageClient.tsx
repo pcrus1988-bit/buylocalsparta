@@ -108,6 +108,20 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("hosted");
   const [mollieInfoOpen, setMollieInfoOpen] = useState(false);
 
+  useEffect(() => {
+    if (!mollieInfoOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMollieInfoOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [mollieInfoOpen]);
+
   const partnerItems = useMemo(() => items.filter((item) => item.fulfilmentKind === "partner"), [items]);
   const localItems = useMemo(() => items.filter((item) => item.fulfilmentKind === "local"), [items]);
   const partnerSubtotalMinor = useMemo(() => partnerItems.reduce((sum, item) => sum + item.priceMinor * item.quantity, 0), [partnerItems]);
@@ -471,10 +485,28 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
         <button className="mollie-modal-close" type="button" aria-label="Κλείσιμο" onClick={() => setMollieInfoOpen(false)}>×</button>
         <div className="mollie-modal-head">
           <img src="https://framerusercontent.com/images/nZbkYqzNfjeTaOidYm2CXg3vvDA.png?height=240&width=510" alt="Mollie" />
-          <div><strong id="mollie-info-title">Ασφαλής επεξεργασία πληρωμών μέσω Mollie</strong><span>Πληροφορίες για καταναλωτές από τη Mollie.</span></div>
+          <div><strong id="mollie-info-title">Ασφαλής online πληρωμή μέσω Mollie</strong><span>Η online πληρωμή ολοκληρώνεται στο περιβάλλον της Mollie.</span></div>
         </div>
-        <div className="mollie-modal-frame"><iframe src="https://www.mollie.com/el/consumers" title="Mollie — πληροφορίες για καταναλωτές" loading="lazy" referrerPolicy="strict-origin-when-cross-origin" /></div>
-        <p className="mollie-modal-fallback">Αν η επίσημη σελίδα δεν μπορεί να εμφανιστεί μέσα στο παράθυρο, <a href="https://www.mollie.com/el/consumers" target="_blank" rel="noreferrer">άνοιξέ τη στη Mollie ↗</a>.</p>
+        <div className="mollie-modal-content">
+          <div className="mollie-trust-intro">
+            <span className="mollie-lock" aria-hidden="true">🔒</span>
+            <div>
+              <h3>Πληρώνεις με ασφάλεια, χωρίς να δίνεις στοιχεία κάρτας στο ΚΟΝΤΑ ΜΟΥ.</h3>
+              <p>Όταν συνεχίσεις στην πληρωμή, μεταφέρεσαι στη Mollie για να επιλέξεις και να ολοκληρώσεις τη διαθέσιμη μέθοδο πληρωμής. Το ΚΟΝΤΑ ΜΟΥ δεν συλλέγει ούτε αποθηκεύει τα στοιχεία της κάρτας σου.</p>
+            </div>
+          </div>
+
+          <div className="mollie-trust-grid">
+            <div><span>01</span><strong>Ασφαλής μετάβαση</strong><p>Η πληρωμή ολοκληρώνεται εκτός του KONTA ΜΟΥ, στο περιβάλλον πληρωμών της Mollie.</p></div>
+            <div><span>02</span><strong>Διαθέσιμες μέθοδοι</strong><p>Η Mollie εμφανίζει τις ενεργές επιλογές που είναι διαθέσιμες για τη συγκεκριμένη παραγγελία.</p></div>
+            <div><span>03</span><strong>Χωρίς αποθήκευση κάρτας</strong><p>Τα στοιχεία κάρτας δεν αποθηκεύονται από το ΚΟΝΤΑ ΜΟΥ.</p></div>
+          </div>
+
+          <div className="mollie-official">
+            <div><strong>Θέλεις περισσότερες πληροφορίες;</strong><span>Δες την επίσημη σελίδα της Mollie για καταναλωτές.</span></div>
+            <a className="button mollie-official-link" href="https://www.mollie.com/el/consumers" target="_blank" rel="noreferrer">Επίσημη σελίδα Mollie ↗</a>
+          </div>
+        </div>
       </section>
     </div> : null}
     {summary}
