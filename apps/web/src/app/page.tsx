@@ -5,6 +5,7 @@ import { getVisitorKey } from "../lib/visitor";
 import { CatalogProductCard } from "../components/CatalogProductCard";
 import { HomeQuickSearch } from "../components/HomeQuickSearch";
 import { HomeHeroCarousel } from "../components/HomeHeroCarousel";
+import { HomeDiscoveryStage } from "../components/HomeDiscoveryStage";
 import { getAvailableStorefrontCategories } from "../lib/available-catalog-taxonomy";
 import { listHomepageHeroSlides } from "../lib/homepage-hero-runtime";
 import { getHomepagePublicVendorDirectory } from "../lib/homepage-vendor-directory";
@@ -186,7 +187,6 @@ export default async function Home() {
         <section
           className={`${styles.hero} shell`}
           id="top"
-          style={{ gridTemplateColumns: "minmax(0, 1fr)" }}
         >
           <div className={styles.heroCopy}>
             <a className={styles.locationPill} href="/choose-location" aria-label="Αλλαγή περιοχής">
@@ -208,6 +208,16 @@ export default async function Home() {
               <a href="/fitting-room">Style Builder <span aria-hidden="true">↗</span></a>
             </div>
           </div>
+          <HomeDiscoveryStage
+            products={featuredProducts.slice(0, 5).map((product) => ({
+              id: product.id,
+              slug: product.slug,
+              title: product.title,
+              price: product.price,
+              mediaId: product.mediaId,
+              sourceImageAvailable: product.sourceImageAvailable
+            }))}
+          />
         </section>
       </HomeHeroCarousel>
 
