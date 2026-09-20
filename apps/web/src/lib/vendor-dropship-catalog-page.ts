@@ -11,6 +11,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 const DEFAULT_PAGE_SIZE = 36;
 const MAX_PAGE_SIZE = 60;
 const LIVE_FALLBACK_FAMILY_CAP = 0; // Production storefronts must not rebuild missing supplier families inside a customer request.
+const LIVE_DEGRADED_FALLBACK_SEED_CAP = 2_000; // Bounded indexed recovery used only when the projection returns no matches.
 
 export type VendorDropshipSort = "recommended" | "price_asc" | "price_desc" | "name_asc";
 
@@ -133,6 +134,180 @@ function familyOrder(sort: VendorDropshipSort): string {
   return "fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
 }
 
+
+async function getLiveVendorFamilyWindow(input: Readonly<{
+  vendorId: string;
+  query: string;
+  categories: readonly string[];
+  brand: string;
+  color: string;
+  sizes: readonly string[];
+  fit: string;
+  material: string;
+  searchPrefix: string;
+  sort: VendorDropshipSort;
+  offset: number;
+  limit: number;
+}>) {
+  const pool = getProductionPostgresRuntime().nativePool;
+  const orderBy = familyOrder(input.sort);
+  return pool.query<FamilySelectionRow>(\`
+    WITH vendor_suppliers AS MATERIALIZED (
+      SELECT ds.id
+      FROM dropship_suppliers ds
+      JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
+      WHERE v.public_id=$1
+        AND v.status='active'
+        AND ds.active=true
+        AND ds.api_authoritative_availability=true
+    ), live_seed AS MATERIALIZED (
+      SELECT
+        supplier.id AS supplier_id,
+        candidate.external_product_id,
+        candidate.vendor_offer_id,
+        candidate.availability_expires_at
+      FROM vendor_suppliers supplier
+      JOIN LATERAL (
+        SELECT
+          dso.external_product_id,
+          dso.vendor_offer_id,
+          dso.availability_expires_at
+        FROM dropship_supplier_offers dso
+        JOIN vendor_offers seed_vo ON seed_vo.id=dso.vendor_offer_id
+        JOIN canonical_variants seed_cv ON seed_cv.id=seed_vo.canonical_variant_id
+        JOIN categories seed_category ON seed_category.id=seed_cv.category_id
+        JOIN vendor_locations seed_location ON seed_location.id=seed_vo.location_id
+        WHERE dso.supplier_id=supplier.id
+          AND dso.active=true
+          AND dso.cached_available=true
+          AND COALESCE(dso.cached_quantity,0)>=1
+          AND dso.availability_expires_at IS NOT NULL
+          AND dso.availability_expires_at>now()
+          AND seed_vo.status='approved'
+          AND seed_vo.merchant_visible=true
+          AND seed_vo.merchant_pause_active=false
+          AND seed_vo.customer_price_minor>0
+          AND (seed_vo.cost_ceiling_minor IS NULL OR seed_vo.supplier_unit_price_minor<=seed_vo.cost_ceiling_minor)
+          AND seed_location.active=true
+          AND COALESCE(seed_cv.commerce_channel,'normal')='normal'
+          AND seed_cv.active=true
+          AND seed_cv.suppressed=false
+          AND seed_cv.recalled=false
+          AND bls_private.vendor_category_effectively_visible(seed_vo.vendor_id,seed_cv.category_id)
+          AND (cardinality($3::text[])=0 OR seed_category.code=ANY($3::text[]))
+        ORDER BY dso.updated_at DESC,dso.id DESC
+        LIMIT $12
+      ) candidate ON true
+    ), families AS MATERIALIZED (
+      SELECT
+        seed.supplier_id::text AS dropship_supplier_id,
+        seed.external_product_id AS dropship_external_product_id,
+        MAX(seed.availability_expires_at) AS available_until,
+        MAX(vo.updated_at) AS newest_at,
+        MIN(vo.customer_price_minor) AS min_price_minor,
+        COALESCE(array_agg(DISTINCT c.code) FILTER (WHERE c.code IS NOT NULL),'{}'::text[]) AS category_codes,
+        COALESCE(array_agg(DISTINCT lower(COALESCE(b.name,pfb.name,'')))
+          FILTER (WHERE COALESCE(b.name,pfb.name,'')<>''),'{}'::text[]) AS brand_names_normalized,
+        COALESCE(array_agg(DISTINCT NULLIF(BTRIM(COALESCE(
+          el.specifications->>'color',
+          en.specifications->>'color',
+          cv.variant_attributes->>'color',
+          ''
+        )),'')) FILTER (WHERE NULLIF(BTRIM(COALESCE(
+          el.specifications->>'color',
+          en.specifications->>'color',
+          cv.variant_attributes->>'color',
+          ''
+        )), '') IS NOT NULL),'{}'::text[]) AS colors,
+        COALESCE(array_agg(DISTINCT NULLIF(BTRIM(size_entry.value),''))
+          FILTER (WHERE NULLIF(BTRIM(size_entry.value),'') IS NOT NULL),'{}'::text[]) AS sizes,
+        COALESCE(array_agg(DISTINCT lower(NULLIF(BTRIM(COALESCE(
+          el.specifications->>'fit',
+          en.specifications->>'fit',
+          ''
+        )),''))) FILTER (WHERE NULLIF(BTRIM(COALESCE(
+          el.specifications->>'fit',
+          en.specifications->>'fit',
+          ''
+        )), '') IS NOT NULL),'{}'::text[]) AS fits,
+        '{}'::text[] AS materials,
+        MIN(COALESCE(el.title,en.title,cv.model,cv.slug)) AS sort_title,
+        to_tsvector('simple',COALESCE(string_agg(DISTINCT concat_ws(' ',
+          COALESCE(el.title,en.title,cv.model,cv.slug),
+          COALESCE(b.name,pfb.name,''),
+          COALESCE(cv.gtin,''),
+          COALESCE(cv.mpn,''),
+          c.code
+        ),' '),'')) AS search_vector
+      FROM live_seed seed
+      JOIN vendor_offers vo ON vo.id=seed.vendor_offer_id
+      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+      JOIN categories c ON c.id=cv.category_id
+      LEFT JOIN product_families pf ON pf.id=cv.family_id
+      LEFT JOIN brands b ON b.id=cv.brand_id
+      LEFT JOIN brands pfb ON pfb.id=pf.brand_id
+      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      LEFT JOIN LATERAL unnest(ARRAY[
+        cv.variant_attributes->>'italian_size_men',
+        cv.variant_attributes->>'italian_size_women',
+        cv.variant_attributes->>'shoe_size_women',
+        cv.variant_attributes->>'shoe_size_men',
+        cv.variant_attributes->>'waist_size',
+        cv.variant_attributes->>'belt_size',
+        cv.variant_attributes->>'waist_length_size',
+        cv.variant_attributes->>'hat_size',
+        cv.variant_attributes->>'swimwear_sleepwear_size',
+        cv.variant_attributes->>'shoe_size',
+        cv.variant_attributes->>'earrings_size',
+        cv.variant_attributes->>'bracelets_size',
+        cv.variant_attributes->>'gloves_size_women',
+        cv.variant_attributes->>'ring_size',
+        cv.variant_attributes->>'gloves_size_men',
+        cv.variant_attributes->>'size'
+      ]) AS size_entry(value) ON true
+      GROUP BY seed.supplier_id,seed.external_product_id
+    )
+    SELECT
+      fm.dropship_supplier_id AS supplier_id,
+      fm.dropship_external_product_id AS external_product_id,
+      COUNT(*) OVER()::int AS total_families
+    FROM families fm
+    WHERE fm.available_until>now()
+      AND (cardinality($3::text[])=0 OR fm.category_codes && $3::text[])
+      AND ($4::text='' OR fm.brand_names_normalized @> ARRAY[lower($4)]::text[])
+      AND ($5::text='' OR EXISTS (
+        SELECT 1 FROM unnest(fm.colors) candidate(value)
+        WHERE lower(candidate.value)=lower($5)
+      ))
+      AND (cardinality($6::text[])=0 OR fm.sizes && $6::text[])
+      AND ($7::text='' OR EXISTS (
+        SELECT 1 FROM unnest(fm.fits) candidate(value)
+        WHERE lower(candidate.value)=lower($7)
+      ))
+      AND ($8::text='' OR fm.materials @> ARRAY[lower($8)]::text[])
+      AND (
+        $2::text='' OR
+        ($9::text<>'' AND fm.search_vector @@ to_tsquery('simple',$9))
+      )
+    ORDER BY ${orderBy}
+    LIMIT $10 OFFSET $11
+  \`, [
+    input.vendorId,
+    input.query,
+    input.categories,
+    input.brand,
+    input.color,
+    input.sizes,
+    input.fit,
+    input.material,
+    input.searchPrefix,
+    input.limit,
+    input.offset,
+    LIVE_DEGRADED_FALLBACK_SEED_CAP
+  ]);
+}
+
 /**
  * Filtered vendor catalogue discovery is family-first. The read model narrows the
  * catalogue to a page of supplier product identities; only those identities are
@@ -157,7 +332,7 @@ export async function getVendorDropshipCatalogPage(
   const searchPrefix = prefixTsQuery(query);
   const runtime = getProductionPostgresRuntime();
 
-  const familyWindow = await runtime.nativePool.query<FamilySelectionRow>(`
+  let familyWindow = await runtime.nativePool.query<FamilySelectionRow>(`
     WITH vendor_suppliers AS MATERIALIZED (
       SELECT ds.id,ds.id::text AS supplier_id,ds.code
       FROM dropship_suppliers ds
@@ -333,6 +508,23 @@ export async function getVendorDropshipCatalogPage(
     ORDER BY ${familyOrder(sort)}
     LIMIT $10 OFFSET $11
   `, [vendorId, query, categories, brand, color, sizes, fit, material, searchPrefix, limit, offset, LIVE_FALLBACK_FAMILY_CAP]);
+
+  if (!familyWindow.rows.length) {
+    familyWindow = await getLiveVendorFamilyWindow({
+      vendorId,
+      query,
+      categories,
+      brand,
+      color,
+      sizes,
+      fit,
+      material,
+      searchPrefix,
+      sort,
+      offset,
+      limit
+    });
+  }
 
   if (!familyWindow.rows.length) return { products: [], total: 0, offset, limit };
   const total = safePositiveInt(familyWindow.rows[0]?.total_families, 0);
