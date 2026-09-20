@@ -3,23 +3,21 @@ import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
 import { runSymphonyaAutoPublicationSweep } from "../../../../lib/symphonya-auto-publication-runtime";
 import {
   refreshSymphonyaOfferStockByExternalIds,
-  runSymphonyaStockSyncSlice
+  runSymphonyaStockSyncBurst
 } from "../../../../lib/symphonya-stock-sync-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 55;
 
-// Vercel kills this route at 55s. A full-catalogue page and a priority refresh
-// are each bounded supplier calls, but running both sequentially can exceed that
-// wall-clock budget even when the first call succeeds. Alternate cron slots so
-// one invocation performs exactly one supplier workload. Priority slots publish
-// immediately after refreshing near-storefront candidates.
+// Scheduled production runs use a three-page concurrent cursor burst. This keeps
+// the full supplier catalogue inside the two-hour availability TTL while staying
+// below Vercel's 55-second execution cap. Manual mode=priority remains available
+// for targeted recovery of storefront products.
 const PRIORITY_BATCH_LIMIT = 200;
 const PUBLISHED_REFRESH_LIMIT = 120;
 const PRIORITY_REFRESH_WINDOW_MINUTES = 60;
-const FULL_CURSOR_BUDGET_MS = 28_000;
-const FULL_CURSOR_MAX_PAGES = 1;
+const FULL_CURSOR_MAX_PAGES = 3;
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();
@@ -35,16 +33,10 @@ export async function GET(request: Request) {
 
   try {
     const startedAt = Date.now();
-    const defaultMode = defaultCronStockMode(new Date(startedAt));
-    const executionMode = requestedMode === "cursor" || requestedMode === "priority"
-      ? requestedMode
-      : defaultMode;
+    const executionMode = requestedMode === "priority" ? "priority" : "cursor";
 
     const stock = executionMode === "cursor"
-      ? await runSymphonyaStockSyncSlice({
-          maxDurationMs: FULL_CURSOR_BUDGET_MS,
-          maxPages: FULL_CURSOR_MAX_PAGES
-        })
+      ? await runSymphonyaStockSyncBurst(FULL_CURSOR_MAX_PAGES)
       : null;
 
     let publishedIds: string[] = [];
@@ -52,6 +44,10 @@ export async function GET(request: Request) {
     let priorityIds: string[] = [];
     let priorityOffersUpdated = 0;
     let publication = null;
+
+    if (executionMode === "cursor" && stock?.claimed && stock.pages > 0) {
+      publication = await runSymphonyaAutoPublicationSweep();
+    }
 
     if (executionMode === "priority") {
       publishedIds = await oldestPublishedExternalIds(PUBLISHED_REFRESH_LIMIT);
@@ -91,12 +87,6 @@ export async function GET(request: Request) {
     console.error(JSON.stringify({ level: "error", event: "symphonya.stock_cron_failed", message, at: new Date().toISOString() }));
     return Response.json({ error: message }, { status: 500, headers: { "cache-control": "no-store" } });
   }
-}
-
-function defaultCronStockMode(now: Date): "cursor" | "priority" {
-  // Scheduled minutes are 07/17/27/37/47/57. Ten-minute buckets tolerate a
-  // small scheduler delay while preserving deterministic cursor/priority turns.
-  return Math.floor(now.getUTCMinutes() / 10) % 2 === 0 ? "cursor" : "priority";
 }
 
 async function oldestPublishedExternalIds(limit: number): Promise<string[]> {
