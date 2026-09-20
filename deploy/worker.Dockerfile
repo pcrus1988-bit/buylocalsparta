@@ -1,3 +1,4 @@
+# Railway source rebuild trigger: 2026-09-20 schema-258
 # Deployment refresh: schema 257 readiness hardening
 FROM node:24-bookworm-slim
 
