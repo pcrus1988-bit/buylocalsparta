@@ -378,11 +378,11 @@ async function runNovaAvailabilityRefreshSweepUnlocked(
  * full sweep without relying on session advisory locks through transaction-mode pooling.
  */
 export async function runNovaAvailabilityRefreshSlice(
-  requestedMaxPages = 14
+  requestedMaxPages = 8
 ): Promise<NovaAvailabilityRefreshSliceResult> {
   const maxPages = Number.isSafeInteger(requestedMaxPages) && requestedMaxPages > 0
-    ? Math.min(requestedMaxPages, 20)
-    : 14;
+    ? Math.min(requestedMaxPages, 8)
+    : 8;
   const db = getProductionPostgresRuntime().sqlPool;
   const leaseOwner = await claimNovaAvailabilityLease(db, "vercel_failover");
 
