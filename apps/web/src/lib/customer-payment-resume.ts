@@ -31,17 +31,40 @@ async function activePaymentWindow(principal: SessionPrincipal, orderId: string,
   return uow.withTransaction({ actorUserId: principal.userId, marketId: "sparta", platformAccess: true }, async (tx) => {
     const result = await tx.query<SqlRow>(`
       SELECT o.status::text AS order_status,
-             COUNT(DISTINCT ol.id)::int AS line_count,
-             COUNT(DISTINCT ol.id) FILTER (
-               WHERE sr.status='active' AND sr.expires_at>$3
+             COUNT(*)::int AS line_count,
+             COUNT(*) FILTER (
+               WHERE local_reservation.expires_at IS NOT NULL
+                  OR dropship_availability.expires_at IS NOT NULL
              )::int AS active_reserved_line_count,
-             MIN(sr.expires_at) FILTER (
-               WHERE sr.status='active' AND sr.expires_at>$3
-             ) AS reservation_expires_at
+             MIN(COALESCE(local_reservation.expires_at,dropship_availability.expires_at)) AS reservation_expires_at
       FROM customer_orders o
       JOIN users u ON u.id=o.user_id
       JOIN order_lines ol ON ol.order_id=o.id
-      LEFT JOIN stock_reservations sr ON sr.order_line_id=ol.id
+      LEFT JOIN LATERAL (
+        SELECT MAX(sr.expires_at) AS expires_at
+        FROM stock_reservations sr
+        WHERE sr.order_line_id=ol.id
+          AND sr.status='active' AND sr.expires_at>$3
+      ) local_reservation ON true
+      LEFT JOIN LATERAL (
+        SELECT MAX(LEAST(o.created_at + interval '24 hours',dso.availability_expires_at)) AS expires_at
+        FROM dropship_supplier_offers dso
+        JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+        JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
+        WHERE dso.vendor_offer_id=ol.assigned_offer_id
+          AND dso.active=true
+          AND ds.active=true
+          AND ds.api_authoritative_availability=true
+          AND dso.cached_available=true
+          AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=ol.quantity)
+          AND dso.availability_expires_at IS NOT NULL
+          AND dso.availability_expires_at>$3
+          AND vo.status='approved'
+          AND vo.merchant_visible=true
+          AND vo.merchant_pause_active=false
+          AND vo.customer_price_minor>0
+          AND o.created_at + interval '24 hours'>$3
+      ) dropship_availability ON true
       WHERE o.public_id=$1 AND u.public_id=$2
       GROUP BY o.id,o.status
     `, [orderId, principal.userId, new Date(now)]);
