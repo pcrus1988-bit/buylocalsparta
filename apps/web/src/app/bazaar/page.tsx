@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteHeader } from "../../components/SiteHeader";
 import { SiteFooter } from "../../components/SiteFooter";
-import { bazaarDisplayConditionLabel, bazaarProductDisclosure, bazaarSourceLabel, getBazaarCatalog } from "../../lib/bazaar-catalog";
+import { bazaarConditionLabel, bazaarDisplayConditionLabel, bazaarProductDisclosure, bazaarSourceLabel, getBazaarCatalog } from "../../lib/bazaar-catalog";
 import { getCachedBazaarFacets } from "../../lib/bazaar-facets";
 import { publicBrandLogoUrl } from "../../lib/brand-logo";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
