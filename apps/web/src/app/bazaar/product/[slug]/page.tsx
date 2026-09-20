@@ -6,7 +6,7 @@ import { BazaarImageGallery } from "../../../../components/BazaarImageGallery";
 import { ProductPurchaseInfoDialogs } from "../../../../components/ProductPurchaseInfoDialogs";
 import { SiteHeader } from "../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../components/SiteFooter";
-import { bazaarConditionLabel, getBazaarProductBySlug } from "../../../../lib/bazaar-catalog";
+import { bazaarDisplayConditionLabel, bazaarProductDisclosure, bazaarSourceLabel, getBazaarProductBySlug } from "../../../../lib/bazaar-catalog";
 import { getBazaarMediaGallery } from "../../../../lib/bazaar-media-gallery";
 import { publicBrandLogoUrl } from "../../../../lib/brand-logo";
 
@@ -61,7 +61,7 @@ export async function generateMetadata({ params }: BazaarProductPageProps): Prom
   const description = plainSupplierDescription(product.description);
   return {
     title: `${product.title} · BAZAAR | KONTA MOY`,
-    description: description ?? `${bazaarConditionLabel(product.condition)} στο Greece-wide BAZAAR του KONTA MOY.`,
+    description: description ?? `${bazaarDisplayConditionLabel(product.condition, product.bazaarSource)} στο Greece-wide BAZAAR του KONTA MOY.`,
     alternates: { canonical: `/bazaar/product/${product.slug}` }
   };
 }
@@ -72,11 +72,12 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
   if (!product) notFound();
 
   const imageSrc = product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
-  const defectLike = product.condition === "preowned_defect" || product.condition === "open_box";
+  const defectLike = product.condition === "preowned_defect" || product.condition === "open_box" || product.bazaarSource === "supplier_tester";
   const description = plainSupplierDescription(product.description);
   const available = product.availableToSell > 0;
   const price = euro(product.priceMinor);
   const brandLogoUrl = publicBrandLogoUrl(product.brandLogoObjectKey);
+  const testerDisclosure = bazaarProductDisclosure(product.bazaarSource);
 
   let galleryMedia: Awaited<ReturnType<typeof getBazaarMediaGallery>> = [];
   try {
@@ -120,7 +121,7 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
       <BazaarImageGallery images={galleryImages} title={product.title} savingsPercent={product.savingsPercent} />
 
       <div style={{ display: "grid", gap: 18, minWidth: 0 }}>
-        <div className="eyebrow">{bazaarConditionLabel(product.condition)} · BAZAAR</div>
+        <div className="eyebrow">{bazaarDisplayConditionLabel(product.condition, product.bazaarSource)} · BAZAAR</div>
         {product.brand ? <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 30, fontWeight: 900 }}>
           {brandLogoUrl ? <img src={brandLogoUrl} alt="" aria-hidden="true" loading="eager" decoding="async" style={{ display: "block", maxHeight: 28, maxWidth: 130, width: "auto", height: "auto", objectFit: "contain" }} /> : null}
           <span>{product.brand}</span>
@@ -132,6 +133,11 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
           <strong style={{ fontSize: "clamp(2rem,5vw,3.8rem)", letterSpacing: "-.04em" }}>{price}</strong>
           {product.savingsPercent ? <span style={{ fontWeight: 900 }}>Κερδίζεις {product.savingsPercent}% έναντι ΠΛΤ</span> : null}
         </div>
+
+        {testerDisclosure ? <div style={{ padding: 18, borderRadius: 18, border: "2px solid currentColor", background: "#fff4df" }}>
+          <strong>TESTER · {product.bazaarSource ? bazaarSourceLabel(product.bazaarSource) : "BAZAAR"}</strong>
+          <p style={{ margin: "8px 0 0", lineHeight: 1.45 }}>{testerDisclosure}</p>
+        </div> : null}
 
         <AddToCartButton product={{
           id: product.id,
@@ -157,14 +163,18 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
         <ProductPurchaseInfoDialogs supplierFulfilled={product.supplierFulfilled} />
 
         <div style={{ padding: 18, borderRadius: 18, background: defectLike ? "#fff1d9" : "rgba(255,255,255,.65)" }}>
-          <strong>Κατάσταση: {bazaarConditionLabel(product.condition)}</strong>
+          <strong>Κατάσταση: {bazaarDisplayConditionLabel(product.condition, product.bazaarSource)}</strong>
           <p style={{ marginBottom: 0 }}>
             {product.condition === "preloved" ? "Προηγουμένως ιδιόκτητο προϊόν. Η κατάσταση και η διαθεσιμότητα αφορούν το συγκεκριμένο BAZAAR τεμάχιο." : null}
             {product.condition === "preowned_defect" ? "Προηγουμένως ιδιόκτητο ή/και με δηλωμένη φθορά/ελάττωμα. Έλεγξε προσεκτικά την περιγραφή και τις φωτογραφίες πριν από αγορά." : null}
             {product.condition === "open_box" ? "Ανοιγμένη συσκευασία ή επιστροφή/open-box. Η κατάσταση αφορά το συγκεκριμένο τεμάχιο." : null}
             {product.condition === "new" ? "Το προϊόν ταξινομείται φυσικά ως νέο αλλά πωλείται αποκλειστικά μέσω BAZAAR, π.χ. ως εγκεκριμένη επιστροφή." : null}
             {product.condition === "refurbished" ? "Ανακατασκευασμένο προϊόν που διατίθεται αποκλειστικά μέσω BAZAAR." : null}
-            {product.condition === "used" ? "Μεταχειρισμένο προϊόν που διατίθεται αποκλειστικά μέσω BAZAAR." : null}
+            {product.condition === "used"
+              ? product.bazaarSource === "supplier_tester"
+                ? "Ανοιγμένο προϊόν TESTER. Ενδέχεται να έχει χρησιμοποιηθεί ελαφρά και η πραγματική ποσότητα μπορεί να είναι μικρότερη από την ονομαστική."
+                : "Μεταχειρισμένο προϊόν που διατίθεται αποκλειστικά μέσω BAZAAR."
+              : null}
           </p>
         </div>
 
