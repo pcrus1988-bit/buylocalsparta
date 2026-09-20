@@ -40,6 +40,12 @@ const materializationCatchupMaxPasses = positiveInteger(
 
 novaApiKeyFromEnvironment();
 const readiness = await productionDatabaseReadiness();
+log("info", "nova.database_readiness", {
+  ok: readiness.ok,
+  appliedSchemaVersion: readiness.appliedSchemaVersion,
+  expectedSchemaVersion: readiness.expectedSchemaVersion,
+  message: readiness.message
+});
 if (!readiness.ok) throw new Error(`Nova catalogue worker refused to start: ${readiness.message}`);
 await assertNovaRuntimeInvariants();
 
