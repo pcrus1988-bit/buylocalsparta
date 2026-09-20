@@ -106,6 +106,7 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
   const [giftCardCode, setGiftCardCode] = useState("");
   const [giftCardHint, setGiftCardHint] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("hosted");
+  const [mollieInfoOpen, setMollieInfoOpen] = useState(false);
 
   const partnerItems = useMemo(() => items.filter((item) => item.fulfilmentKind === "partner"), [items]);
   const localItems = useMemo(() => items.filter((item) => item.fulfilmentKind === "local"), [items]);
@@ -444,10 +445,15 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
         <div className="eyebrow">03 · Πληρωμή</div>
         <h2>{paymentMode === "mollie" ? "Ασφαλής online πληρωμή" : "Δοκιμαστική πληρωμή"}</h2>
         {paymentMode === "mollie" ? <div className="fulfilment-options" aria-label="Τρόπος πληρωμής">
-          <label className={`fulfilment-option ${paymentMethod === "hosted" ? "selected" : ""}`}><input type="radio" name="payment-method" value="hosted" checked={paymentMethod === "hosted"} onChange={() => setPaymentMethod("hosted")} /><span><strong>Κάρτα & διαθέσιμες μέθοδοι</strong><small>Η Mollie θα εμφανίσει τις ενεργές μεθόδους που είναι διαθέσιμες για την παραγγελία σου.</small></span></label>
-          <label className={`fulfilment-option ${paymentMethod === "klarna" ? "selected" : ""}`}><input type="radio" name="payment-method" value="klarna" checked={paymentMethod === "klarna"} onChange={() => setPaymentMethod("klarna")} /><span><strong>Klarna</strong><small>Αγορά τώρα, πληρωμή αργότερα. Η τελική έγκριση και οι διαθέσιμες επιλογές καθορίζονται από την Klarna.</small></span></label>
+          <label className={`fulfilment-option ${paymentMethod === "hosted" ? "selected" : ""}`}><input type="radio" name="payment-method" value="hosted" checked={paymentMethod === "hosted"} onChange={() => setPaymentMethod("hosted")} /><span><span className="payment-option-heading"><strong>Κάρτα & διαθέσιμες μέθοδοι</strong><span className="payment-method-marks" aria-label="Visa και Mastercard"><span className="payment-method-mark payment-visa" aria-label="Visa">VISA</span><span className="payment-method-mark payment-mastercard-mark" aria-label="Mastercard"><i className="payment-mastercard-symbol" aria-hidden="true" /></span></span></span><small>Η Mollie θα εμφανίσει τις ενεργές μεθόδους που είναι διαθέσιμες για την παραγγελία σου.</small></span></label>
+          <label className={`fulfilment-option ${paymentMethod === "klarna" ? "selected" : ""}`}><input type="radio" name="payment-method" value="klarna" checked={paymentMethod === "klarna"} onChange={() => setPaymentMethod("klarna")} /><span><span className="payment-option-heading"><strong>Klarna</strong><span className="payment-method-marks"><span className="payment-method-mark payment-klarna" aria-label="Klarna">Klarna.</span></span></span><small>Αγορά τώρα, πληρωμή αργότερα. Η τελική έγκριση και οι διαθέσιμες επιλογές καθορίζονται από την Klarna.</small></span></label>
         </div> : null}
-        <div className="payment-placeholder"><strong>{paymentMode === "mollie" ? paymentMethod === "klarna" ? "Klarna μέσω Mollie" : "Mollie Smart Checkout" : "Development payment adapter"}</strong><span>{paymentMode === "mollie" ? paymentMethod === "klarna" ? "Θα μεταφερθείς απευθείας στη ροή Klarna μέσω Mollie. Το ΚΟΝΤΑ ΜΟΥ στέλνει μόνο τα στοιχεία παραγγελίας που απαιτούνται για την αξιολόγηση και την πληρωμή." : "Αν απομένει ποσό μετά τη δωροκάρτα, θα μεταφερθείς στη Mollie μόνο για αυτό το υπόλοιπο. Το ΚΟΝΤΑ ΜΟΥ δεν συλλέγει ούτε αποθηκεύει στοιχεία κάρτας." : "Αυτή η ροή χρησιμοποιείται μόνο εκτός production για λειτουργικές δοκιμές και δεν αποτελεί πραγματική χρέωση."}</span></div>
+        <div className="payment-placeholder payment-trust-panel">
+          <div className="payment-trust-row">
+            <div className="payment-trust-copy"><strong>{paymentMode === "mollie" ? paymentMethod === "klarna" ? "Klarna μέσω Mollie" : "Mollie Smart Checkout" : "Development payment adapter"}</strong><span>{paymentMode === "mollie" ? paymentMethod === "klarna" ? "Θα μεταφερθείς απευθείας στη ροή Klarna μέσω Mollie. Το ΚΟΝΤΑ ΜΟΥ στέλνει μόνο τα στοιχεία παραγγελίας που απαιτούνται για την αξιολόγηση και την πληρωμή." : "Αν απομένει ποσό μετά τη δωροκάρτα, θα μεταφερθείς στη Mollie μόνο για αυτό το υπόλοιπο. Το ΚΟΝΤΑ ΜΟΥ δεν συλλέγει ούτε αποθηκεύει στοιχεία κάρτας." : "Αυτή η ροή χρησιμοποιείται μόνο εκτός production για λειτουργικές δοκιμές και δεν αποτελεί πραγματική χρέωση."}</span></div>
+            {paymentMode === "mollie" ? <button className="mollie-logo-button" type="button" onClick={() => setMollieInfoOpen(true)} aria-haspopup="dialog" aria-label="Πληροφορίες για ασφαλείς πληρωμές μέσω Mollie"><img src="https://framerusercontent.com/images/nZbkYqzNfjeTaOidYm2CXg3vvDA.png?height=240&width=510" alt="Mollie" /><span className="mollie-powered-label">Payments powered by</span><span className="mollie-more">Μάθε περισσότερα ↗</span></button> : null}
+          </div>
+        </div>
         <details className="checkout-gift-card" open={Boolean(giftCardCode.trim() || giftCardHint)}>
           <summary><span>Έχεις δωροκάρτα ΚΟΝΤΑ ΜΟΥ;</span><small>Προαιρετικό · πάτησε για εισαγωγή κωδικού</small></summary>
           <div className="checkout-gift-card-content">
@@ -460,6 +466,17 @@ export function CheckoutPageClient({ checkoutEnabled, paymentMode, boxNowEnabled
       <button className="button checkout-submit" disabled={submitBlocked} type="submit">{busy ? "Προετοιμασία…" : giftCardCode.trim() ? "Εφαρμογή δωροκάρτας & συνέχεια" : paymentMode === "mollie" ? paymentMethod === "klarna" ? "Συνέχεια με Klarna" : "Συνέχεια στην ασφαλή πληρωμή" : "Δημιουργία δοκιμαστικής παραγγελίας"}</button>
       {result && <div className={`checkout-result ${result.ok ? "success" : "error"}`} role="status"><strong>{result.ok ? "Έτοιμο" : "Δεν ολοκληρώθηκε"}</strong><p>{result.message}</p>{result.totalMinor !== undefined && <p><strong>Σύνολο: {money(result.totalMinor)}</strong></p>}{result.orderId && <code>Order: {result.orderId}</code>}</div>}
     </form>
+    {mollieInfoOpen ? <div className="mollie-overlay" role="presentation" onClick={() => setMollieInfoOpen(false)}>
+      <section className="mollie-modal" role="dialog" aria-modal="true" aria-labelledby="mollie-info-title" onClick={(event) => event.stopPropagation()}>
+        <button className="mollie-modal-close" type="button" aria-label="Κλείσιμο" onClick={() => setMollieInfoOpen(false)}>×</button>
+        <div className="mollie-modal-head">
+          <img src="https://framerusercontent.com/images/nZbkYqzNfjeTaOidYm2CXg3vvDA.png?height=240&width=510" alt="Mollie" />
+          <div><strong id="mollie-info-title">Ασφαλής επεξεργασία πληρωμών μέσω Mollie</strong><span>Πληροφορίες για καταναλωτές από τη Mollie.</span></div>
+        </div>
+        <div className="mollie-modal-frame"><iframe src="https://www.mollie.com/el/consumers" title="Mollie — πληροφορίες για καταναλωτές" loading="lazy" referrerPolicy="strict-origin-when-cross-origin" /></div>
+        <p className="mollie-modal-fallback">Αν η επίσημη σελίδα δεν μπορεί να εμφανιστεί μέσα στο παράθυρο, <a href="https://www.mollie.com/el/consumers" target="_blank" rel="noreferrer">άνοιξέ τη στη Mollie ↗</a>.</p>
+      </section>
+    </div> : null}
     {summary}
   </div>;
 }
