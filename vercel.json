@@ -15,12 +15,16 @@
       "schedule": "*/10 * * * *"
     },
     {
+      "path": "/api/cron/nova-availability-failover",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/symphonya-catalogue",
       "schedule": "2 * * * *"
     },
     {
       "path": "/api/cron/symphonya-stock",
-      "schedule": "7,17,27,37,47,57 * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/symphonya-pipeline",
