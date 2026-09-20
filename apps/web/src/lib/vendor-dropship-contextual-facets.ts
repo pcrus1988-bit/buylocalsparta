@@ -155,34 +155,11 @@ export async function getContextualVendorDropshipFacets(
       FROM public.storefront_dropship_family_filter_read_model_v2 fm
       JOIN suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
       WHERE fm.available_until>now()
-        AND (
-          supplier.code<>'symphonya'
-          OR EXISTS (
-            SELECT 1
-            FROM dropship_supplier_offers live_dso
-            JOIN vendor_offers live_vo ON live_vo.id=live_dso.vendor_offer_id
-            JOIN canonical_variants live_cv ON live_cv.id=live_vo.canonical_variant_id
-            JOIN vendor_locations live_location ON live_location.id=live_vo.location_id
-            WHERE live_dso.supplier_id=supplier.id
-              AND live_dso.external_product_id=fm.dropship_external_product_id
-              AND live_dso.active=true
-              AND live_dso.cached_available=true
-              AND COALESCE(live_dso.cached_quantity,0)>=1
-              AND live_dso.availability_expires_at IS NOT NULL
-              AND live_dso.availability_expires_at>now()
-              AND live_vo.status='approved'
-              AND live_vo.merchant_visible=true
-              AND live_vo.merchant_pause_active=false
-              AND live_vo.customer_price_minor>0
-              AND (live_vo.cost_ceiling_minor IS NULL OR live_vo.supplier_unit_price_minor<=live_vo.cost_ceiling_minor)
-              AND live_location.active=true
-              AND COALESCE(live_cv.commerce_channel,'normal')='normal'
-              AND live_cv.active=true
-              AND live_cv.suppressed=false
-              AND live_cv.recalled=false
-              AND bls_private.vendor_category_effectively_visible(live_vo.vendor_id,live_cv.category_id)
-          )
-        )
+        -- Facets are navigational counts, not the purchase authority. Use the
+        -- bounded family read model here and leave live supplier revalidation to
+        -- the page query/checkout path. Per-family live checks made every filter
+        -- change unnecessarily expensive and could starve the page request of a
+        -- DB connection.
     ), live_fallback AS MATERIALIZED (
       SELECT
         dso.supplier_id::text AS dropship_supplier_id,
