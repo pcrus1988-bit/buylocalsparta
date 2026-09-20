@@ -103,6 +103,20 @@ export async function getFastShopTaxonomy(
 ): Promise<AvailableCatalogTaxonomy> {
   if (!productionDatabaseConfigured()) return fallbackTaxonomy();
 
+  // The default /shop browse must not block product rendering on a catalogue-wide
+  // DISTINCT/JSON facet aggregation. Detailed facets are useful only after the
+  // customer introduces taxonomy/search context; the top-level category vocabulary
+  // is governed application data and can be returned immediately.
+  const hasFacetContext = Boolean(
+    category.trim()
+      || query.trim()
+      || filters.subcategory?.trim()
+      || filters.brand?.trim()
+      || filters.color?.trim()
+      || filters.size?.trim()
+  );
+  if (!hasFacetContext) return fallbackTaxonomy();
+
   const prefixes = categoryPrefixes(category);
   const search = query.trim();
   const selectedSizes = decodeCatalogSizeGroup(filters.size ?? "");
