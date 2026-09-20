@@ -25,6 +25,7 @@ function product(overrides: Partial<SymphonyaSourceProduct> = {}): SymphonyaSour
     descriptionEn: "A floral fragrance.",
     howToUseEn: "Spray lightly.",
     wholesaleCostMinor: 5000,
+    rrpMinor: 9000,
     currency: "EUR",
     stock: 4,
     warehouse: "Warehouse 1",
@@ -46,11 +47,15 @@ test("Symphonya evidence remains supplier-scoped and stages rather than publishi
   assert.equal(normalized.localisationCandidates.supplierGreekName, "Πολυτελές Eau de Parfum");
   assert.equal(normalized.localisationCandidates.servingLayer, "product_translations");
   assert.equal(normalized.localisationCandidates.customerFacingDirectSupplierTextAllowed, false);
+  assert.equal(normalized.prices.msrpMinor, 9000);
+  assert.equal(normalized.prices.msrpRaw, 90);
+  assert.equal(normalized.variants[0].msrpMinor, 9000);
+  assert.equal(normalized.variants[0].msrpRaw, 90);
 });
 
 test("stock, warehouse and wholesale-cost changes do not change the meaningful source content hash", () => {
-  const left = normalizeSymphonyaProduct(product({ stock: 1, warehouse: "Warehouse 1", wholesaleCostMinor: 5000 }));
-  const right = normalizeSymphonyaProduct(product({ stock: 99, warehouse: "Warehouse 2", wholesaleCostMinor: 9999 }));
+  const left = normalizeSymphonyaProduct(product({ stock: 1, warehouse: "Warehouse 1", wholesaleCostMinor: 5000, rrpMinor: 9000 }));
+  const right = normalizeSymphonyaProduct(product({ stock: 99, warehouse: "Warehouse 2", wholesaleCostMinor: 9999, rrpMinor: 12000 }));
   assert.equal(left.sourceContentHash, right.sourceContentHash);
 });
 
