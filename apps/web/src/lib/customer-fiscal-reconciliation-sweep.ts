@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { deliverAcceptedCustomerTaxDocumentById } from "./customer-tax-delivery";
+import { finalizeCapturedCustomerPayment } from "./customer-payment-finalization";
 import { reconcileCustomerFiscalDocument } from "./customer-fiscal-reconciliation";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
@@ -10,6 +11,8 @@ export type CustomerFiscalReconciliationSweep = Readonly<{
   pending: number;
   failed: number;
   emailFailed: number;
+  backfilled: number;
+  backfillFailed: number;
 }>;
 
 const MIN_RECONCILIATION_AGE_MS = 4 * 60_000;
@@ -75,6 +78,49 @@ export async function runCustomerFiscalReconciliationSweep(
     let pending = 0;
     let failed = 0;
     let emailFailed = 0;
+    let backfilled = 0;
+    let backfillFailed = 0;
+
+    const missingFiscalOrders = await db.query<{ order_id: string }>(`
+      SELECT o.public_id AS order_id
+      FROM customer_orders o
+      JOIN payments p ON p.order_id=o.id
+      WHERE o.status IN ('confirmed','partially_fulfilled','fulfilled','completed')
+        AND p.status IN ('captured','partially_refunded','refunded')
+        AND (
+          p.captured_minor
+          + COALESCE((
+              SELECT SUM(ABS(gcl.amount_minor))
+              FROM gift_card_ledger gcl
+              WHERE gcl.order_public_id=o.public_id AND gcl.entry_type='redeem'
+            ),0)
+        ) >= o.total_minor
+        AND NOT EXISTS (
+          SELECT 1
+          FROM tax_documents td
+          WHERE td.order_id=o.id
+            AND td.type IN ('pending_customer_sale','retail_receipt','customer_invoice')
+        )
+      ORDER BY o.confirmed_at ASC NULLS LAST,o.created_at ASC
+      LIMIT $1
+    `, [limit]);
+
+    for (const missing of missingFiscalOrders.rows) {
+      const orderId = missing.order_id?.trim();
+      if (!orderId) continue;
+      try {
+        await finalizeCapturedCustomerPayment(orderId, Date.now());
+        backfilled += 1;
+      } catch (error) {
+        backfillFailed += 1;
+        console.error(JSON.stringify({
+          level: "error",
+          event: "customer_tax.missing_fiscal_backfill_failed",
+          orderId,
+          message: error instanceof Error ? error.message : String(error)
+        }));
+      }
+    }
 
     for (const candidate of candidates.rows) {
       const documentId = candidate.public_id?.trim();
@@ -146,7 +192,7 @@ export async function runCustomerFiscalReconciliationSweep(
     }
 
     completed = true;
-    return { checked, accepted, emailed, pending, failed, emailFailed };
+    return { checked, accepted, emailed, pending, failed, emailFailed, backfilled, backfillFailed };
   } catch (error) {
     failureMessage = error instanceof Error ? error.message : String(error);
     throw error;
@@ -172,5 +218,5 @@ export async function runCustomerFiscalReconciliationSweep(
 }
 
 function emptySweep(): CustomerFiscalReconciliationSweep {
-  return { checked: 0, accepted: 0, emailed: 0, pending: 0, failed: 0, emailFailed: 0 };
+  return { checked: 0, accepted: 0, emailed: 0, pending: 0, failed: 0, emailFailed: 0, backfilled: 0, backfillFailed: 0 };
 }

@@ -51,6 +51,14 @@ export async function prepareCustomerFiscalDocument(input:PrepareInput):Promise<
         WHERE td.public_id=$1 FOR UPDATE OF td,o`,[documentId]);
     if(!document.rowCount)throw new Error("Tax document not found");
     const d=document.rows[0]!;
+    const giftCardTender=await client.query<{ redeemed_minor:string|number }>(`
+      SELECT COALESCE(SUM(ABS(gcl.amount_minor)),0) AS redeemed_minor
+      FROM gift_card_ledger gcl
+      JOIN customer_orders o ON o.public_id=gcl.order_public_id
+      WHERE o.id=$1::uuid AND gcl.entry_type='redeem'
+    `,[d.order_uuid]);
+    const giftCardRedeemedMinor=integer(giftCardTender.rows[0]?.redeemed_minor??0);
+    if(giftCardRedeemedMinor>0)throw new Error("Gift-card split tender requires an accountant-approved AADE payment-method mapping before automatic fiscal transmission; Mollie must not be reported for the full receipt value");
     if(d.transmission_status==="accepted"||d.document_number){
       if(d.transmission_status==="ready"||d.transmission_status==="accepted"){
         await client.query("COMMIT");

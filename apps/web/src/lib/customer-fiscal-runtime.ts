@@ -75,23 +75,45 @@ export async function capturePaidOrderForFiscalIssuance(orderId: string, now = D
       discount_minor: string | number; tax_minor: string | number; total_minor: string | number;
       billing_address_snapshot: Record<string, unknown>; created_at: Date; confirmed_at: Date | null; payment_id: string;
       provider: string; provider_transaction_id: string | null; provider_order_code: string | null; captured_minor: string | number;
+      gift_card_redeemed_minor: string | number;
     }>(`SELECT o.id::text AS order_uuid,o.public_id AS order_public_id,o.order_number,o.market_id::text,o.user_id::text,
               u.email,o.currency,o.subtotal_minor,o.shipping_minor,o.discount_minor,o.tax_minor,o.total_minor,
-              o.billing_address_snapshot,o.created_at,o.confirmed_at,p.public_id AS payment_id,p.provider,p.provider_transaction_id,p.provider_order_code,p.captured_minor
+              o.billing_address_snapshot,o.created_at,o.confirmed_at,p.public_id AS payment_id,p.provider,p.provider_transaction_id,p.provider_order_code,p.captured_minor,
+              COALESCE((
+                SELECT SUM(ABS(gcl.amount_minor))
+                FROM gift_card_ledger gcl
+                WHERE gcl.order_public_id=o.public_id AND gcl.entry_type='redeem'
+              ),0) AS gift_card_redeemed_minor
          FROM customer_orders o
          JOIN payments p ON p.order_id=o.id
          LEFT JOIN users u ON u.id=o.user_id
         WHERE o.public_id=$1 AND o.status = ANY($2::order_status[]) AND p.status IN ('captured','partially_refunded','refunded')
-          AND p.captured_minor >= o.total_minor
+          AND (
+            p.captured_minor
+            + COALESCE((
+                SELECT SUM(ABS(gcl.amount_minor))
+                FROM gift_card_ledger gcl
+                WHERE gcl.order_public_id=o.public_id AND gcl.entry_type='redeem'
+              ),0)
+          ) >= o.total_minor
         FOR UPDATE OF o,p`, [orderId, [...PAID_FISCAL_ELIGIBLE_ORDER_STATUSES]]);
     if (!order.rowCount) {
       await client.query("ROLLBACK");
       return { captured: false };
     }
     const row = order.rows[0]!;
-    const lines = await client.query(`SELECT ol.public_id,ol.quantity,ol.retail_unit_price_minor,ol.tax_rate_bps,ol.tax_minor,
+    const [lines, giftCards] = await Promise.all([
+      client.query(`SELECT ol.public_id,ol.quantity,ol.retail_unit_price_minor,ol.tax_rate_bps,ol.tax_minor,
               ol.discount_allocation_minor,ol.product_snapshot
-         FROM order_lines ol WHERE ol.order_id=$1::uuid ORDER BY ol.created_at,ol.id`, [row.order_uuid]);
+         FROM order_lines ol WHERE ol.order_id=$1::uuid ORDER BY ol.created_at,ol.id`, [row.order_uuid]),
+      client.query<{ gift_card_id: string; code_suffix: string; amount_minor: string | number }>(`
+        SELECT gc.public_id AS gift_card_id,gc.code_suffix,ABS(gcl.amount_minor) AS amount_minor
+        FROM gift_card_ledger gcl
+        JOIN gift_cards gc ON gc.id=gcl.gift_card_id
+        WHERE gcl.order_public_id=$1 AND gcl.entry_type='redeem'
+        ORDER BY gcl.created_at
+      `, [row.order_public_id])
+    ]);
     const totalMinor = integer(row.total_minor);
     const taxMinor = integer(row.tax_minor);
     if (taxMinor < 0 || taxMinor > totalMinor) throw new Error("Invalid captured order tax totals");
@@ -118,7 +140,14 @@ export async function capturePaidOrderForFiscalIssuance(orderId: string, now = D
         provider: row.provider,
         transactionId: row.provider_transaction_id,
         orderCode: row.provider_order_code,
-        capturedMinor: integer(row.captured_minor)
+        capturedMinor: integer(row.captured_minor),
+        giftCardRedeemedMinor: integer(row.gift_card_redeemed_minor),
+        totalTenderedMinor: integer(row.captured_minor) + integer(row.gift_card_redeemed_minor),
+        giftCards: giftCards.rows.map((giftCard) => ({
+          id: giftCard.gift_card_id,
+          codeSuffix: giftCard.code_suffix,
+          amountMinor: integer(giftCard.amount_minor)
+        }))
       },
       lines: lines.rows
     };
