@@ -265,7 +265,7 @@ export default async function Home() {
                 const isSpBusinessLab = vendor.id === "vendor_e8cb57b3c67b469d9a9d";
                 const displayName = isSpBusinessLab ? "SP BUSINESS LAB" : vendor.name;
                 const imageSrc = isSpBusinessLab
-                  ? "/sp-business-lab-luxury.svg"
+                  ? "/sp-business-lab-luxury-image"
                   : vendor.mediaId
                     ? `/api/media/${encodeURIComponent(vendor.mediaId)}`
                     : vendor.story?.mediaUrl;
