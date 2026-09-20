@@ -6,7 +6,7 @@ import { BazaarImageGallery } from "../../../../components/BazaarImageGallery";
 import { ProductPurchaseInfoDialogs } from "../../../../components/ProductPurchaseInfoDialogs";
 import { SiteHeader } from "../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../components/SiteFooter";
-import { bazaarDisplayConditionLabel, bazaarProductDisclosure, bazaarSourceLabel, getBazaarProductBySlug } from "../../../../lib/bazaar-catalog";
+import { bazaarDisplayConditionLabel, bazaarProductDisclosure, getBazaarProductBySlug } from "../../../../lib/bazaar-catalog";
 import { getBazaarMediaGallery } from "../../../../lib/bazaar-media-gallery";
 import { publicBrandLogoUrl } from "../../../../lib/brand-logo";
 
@@ -134,10 +134,26 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
           {product.savingsPercent ? <span style={{ fontWeight: 900 }}>Κερδίζεις {product.savingsPercent}% έναντι ΠΛΤ</span> : null}
         </div>
 
-        {testerDisclosure ? <div style={{ padding: 18, borderRadius: 18, border: "2px solid currentColor", background: "#fff4df" }}>
-          <strong>TESTER · {product.bazaarSource ? bazaarSourceLabel(product.bazaarSource) : "BAZAAR"}</strong>
-          <p style={{ margin: "8px 0 0", lineHeight: 1.45 }}>{testerDisclosure}</p>
-        </div> : null}
+        {testerDisclosure ? <details style={{
+          borderRadius: 14,
+          border: "1px solid rgba(22,55,45,.45)",
+          background: "#fff8ea",
+          padding: "10px 12px"
+        }}>
+          <summary style={{
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            listStyle: "none",
+            fontSize: ".88rem"
+          }}>
+            <strong>TESTER · Ανοιγμένο προϊόν</strong>
+            <span style={{ fontSize: ".8rem", textDecoration: "underline", whiteSpace: "nowrap" }}>Περισσότερα</span>
+          </summary>
+          <p style={{ margin: "10px 0 2px", lineHeight: 1.4, fontSize: ".88rem" }}>{testerDisclosure}</p>
+        </details> : null}
 
         <AddToCartButton product={{
           id: product.id,
@@ -162,21 +178,21 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
 
         <ProductPurchaseInfoDialogs supplierFulfilled={product.supplierFulfilled} />
 
-        <div style={{ padding: 18, borderRadius: 18, background: defectLike ? "#fff1d9" : "rgba(255,255,255,.65)" }}>
-          <strong>Κατάσταση: {bazaarDisplayConditionLabel(product.condition, product.bazaarSource)}</strong>
-          <p style={{ marginBottom: 0 }}>
-            {product.condition === "preloved" ? "Προηγουμένως ιδιόκτητο προϊόν. Η κατάσταση και η διαθεσιμότητα αφορούν το συγκεκριμένο BAZAAR τεμάχιο." : null}
-            {product.condition === "preowned_defect" ? "Προηγουμένως ιδιόκτητο ή/και με δηλωμένη φθορά/ελάττωμα. Έλεγξε προσεκτικά την περιγραφή και τις φωτογραφίες πριν από αγορά." : null}
-            {product.condition === "open_box" ? "Ανοιγμένη συσκευασία ή επιστροφή/open-box. Η κατάσταση αφορά το συγκεκριμένο τεμάχιο." : null}
-            {product.condition === "new" ? "Το προϊόν ταξινομείται φυσικά ως νέο αλλά πωλείται αποκλειστικά μέσω BAZAAR, π.χ. ως εγκεκριμένη επιστροφή." : null}
-            {product.condition === "refurbished" ? "Ανακατασκευασμένο προϊόν που διατίθεται αποκλειστικά μέσω BAZAAR." : null}
-            {product.condition === "used"
-              ? product.bazaarSource === "supplier_tester"
-                ? "Ανοιγμένο προϊόν TESTER. Ενδέχεται να έχει χρησιμοποιηθεί ελαφρά και η πραγματική ποσότητα μπορεί να είναι μικρότερη από την ονομαστική."
-                : "Μεταχειρισμένο προϊόν που διατίθεται αποκλειστικά μέσω BAZAAR."
-              : null}
-          </p>
-        </div>
+        {product.bazaarSource === "supplier_tester"
+          ? <div style={{ padding: "10px 12px", borderRadius: 14, background: "rgba(255,255,255,.55)", fontSize: ".88rem" }}>
+              <strong>Κατάσταση: TESTER</strong>
+            </div>
+          : <div style={{ padding: 18, borderRadius: 18, background: defectLike ? "#fff1d9" : "rgba(255,255,255,.65)" }}>
+              <strong>Κατάσταση: {bazaarDisplayConditionLabel(product.condition, product.bazaarSource)}</strong>
+              <p style={{ marginBottom: 0 }}>
+                {product.condition === "preloved" ? "Προηγουμένως ιδιόκτητο προϊόν. Η κατάσταση και η διαθεσιμότητα αφορούν το συγκεκριμένο BAZAAR τεμάχιο." : null}
+                {product.condition === "preowned_defect" ? "Προηγουμένως ιδιόκτητο ή/και με δηλωμένη φθορά/ελάττωμα. Έλεγξε προσεκτικά την περιγραφή και τις φωτογραφίες πριν από αγορά." : null}
+                {product.condition === "open_box" ? "Ανοιγμένη συσκευασία ή επιστροφή/open-box. Η κατάσταση αφορά το συγκεκριμένο τεμάχιο." : null}
+                {product.condition === "new" ? "Το προϊόν ταξινομείται φυσικά ως νέο αλλά πωλείται αποκλειστικά μέσω BAZAAR, π.χ. ως εγκεκριμένη επιστροφή." : null}
+                {product.condition === "refurbished" ? "Ανακατασκευασμένο προϊόν που διατίθεται αποκλειστικά μέσω BAZAAR." : null}
+                {product.condition === "used" ? "Μεταχειρισμένο προϊόν που διατίθεται αποκλειστικά μέσω BAZAAR." : null}
+              </p>
+            </div>}
 
         {description ? <div><h2 style={{ fontSize: "1.15rem" }}>Περιγραφή</h2><p style={{ whiteSpace: "pre-wrap" }}>{description}</p></div> : null}
       </div>

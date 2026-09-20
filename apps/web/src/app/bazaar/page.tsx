@@ -97,7 +97,10 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
               </div> : null}
               <h3><Link href={`/bazaar/product/${encodeURIComponent(product.slug)}`}>{product.title}</Link></h3>
               {product.bazaarSource ? <p style={{ margin: "0 0 10px", fontSize: ".86rem", fontWeight: 800 }}>{bazaarSourceLabel(product.bazaarSource)}</p> : null}
-              {bazaarProductDisclosure(product.bazaarSource) ? <p style={{ margin: "0 0 10px", fontSize: ".82rem", lineHeight: 1.35, fontWeight: 800 }}>Ανοιγμένο TESTER · πιθανή απόκλιση από την ονομαστική ποσότητα.</p> : null}
+              {bazaarProductDisclosure(product.bazaarSource) ? <details style={{ margin: "0 0 10px", fontSize: ".78rem" }}>
+                <summary style={{ cursor: "pointer", fontWeight: 800 }}>TESTER · Περισσότερα</summary>
+                <p style={{ margin: "6px 0 0", lineHeight: 1.35 }}>Ανοιγμένο προϊόν · ενδέχεται να έχει χρησιμοποιηθεί ελαφρά και η πραγματική ποσότητα να είναι μικρότερη από την ονομαστική.</p>
+              </details> : null}
               <div className="price">
                 {product.msrpMinor && product.msrpMinor > product.priceMinor ? <s style={{ opacity: .55, fontSize: ".7em" }}>ΠΛΤ {euro(product.msrpMinor)}</s> : null}
                 <span>{euro(product.priceMinor)}</span>
