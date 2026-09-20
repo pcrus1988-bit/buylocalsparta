@@ -12,6 +12,15 @@ export async function GET(request: Request) {
   if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production") {
     return Response.json({ ok: true, status: "skipped", reason: "production_only" }, { headers: { "cache-control": "no-store" } });
   }
+
+  if (!process.env.VERCEL_OIDC_TOKEN?.trim()) {
+    console.warn(JSON.stringify({ level: "warn", event: "merchant.status_reconciliation_skipped", reason: "oidc_token_unavailable" }));
+    return Response.json(
+      { ok: true, status: "skipped", reason: "oidc_token_unavailable" },
+      { headers: { "cache-control": "no-store" } }
+    );
+  }
+
   try {
     const reconciliation = await reconcileGoogleMerchantStatus();
     console.info(JSON.stringify({ level: "info", event: "merchant.status_reconciliation", ...reconciliation }));
