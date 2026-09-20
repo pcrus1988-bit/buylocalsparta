@@ -156,6 +156,15 @@ function dropshipSort(sort?: string): string {
   return "fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
 }
 
+function dropshipFilteredSort(sort?: string): string {
+  if (sort === "price-asc") return "fm.min_price_minor ASC,fm.dropship_supplier_id,fm.dropship_external_product_id";
+  if (sort === "price-desc") return "fm.min_price_minor DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
+  // Category browse should not let one freshly updated supplier/subcategory monopolize
+  // the whole first page. Interleave supplier/category buckets while keeping recency
+  // inside each bucket. Explicit customer price sorts remain exact.
+  return "fm.diversity_rank ASC,fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
+}
+
 /**
  * Dropship discovery reads one narrow row per supplier product family. The normal
  * no-filter browse path can use the precomputed total and a top-N btree lookup;
@@ -174,6 +183,7 @@ export async function getDropshipStorefrontReadModelWindow(
     input.maxPriceMinor !== undefined
   );
   const orderBy = dropshipSort(input.sort);
+  const filteredOrderBy = dropshipFilteredSort(input.sort);
 
   if (!hasFilters) {
     const result = await pool.query<StorefrontDropshipFamilyCandidate>(`
@@ -439,15 +449,28 @@ export async function getDropshipStorefrontReadModelWindow(
         sizes_text,
         search_vector
       FROM filtered_hot_symphonya
+    ), filtered_matching AS MATERIALIZED (
+      SELECT fm.*
+      FROM filtered_combined fm
+      WHERE fm.available_until>now()
+        ${FAMILY_FILTER_SQL}
+    ), filtered_ranked AS (
+      SELECT
+        fm.*,
+        ROW_NUMBER() OVER (
+          PARTITION BY
+            fm.dropship_supplier_id,
+            COALESCE(fm.category_codes[1],fm.department_codes[1],'')
+          ORDER BY fm.newest_at DESC,fm.dropship_external_product_id
+        ) AS diversity_rank
+      FROM filtered_matching fm
     )
     SELECT
       fm.dropship_supplier_id AS supplier_id,
       fm.dropship_external_product_id AS external_product_id,
       COUNT(*) OVER() AS total_families
-    FROM filtered_combined fm
-    WHERE fm.available_until>now()
-      ${FAMILY_FILTER_SQL}
-    ORDER BY ${orderBy}
+    FROM filtered_ranked fm
+    ORDER BY ${filteredOrderBy}
     LIMIT $10 OFFSET $11
   `, familyFilterParameters);
   return result.rows;
