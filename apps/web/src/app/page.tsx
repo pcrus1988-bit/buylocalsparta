@@ -262,8 +262,14 @@ export default async function Home() {
           {activeVendors.length ? (
             <div className={styles.windowRail} aria-label="Ενεργά τοπικά καταστήματα">
               {activeVendors.map((vendor, index) => {
-                const imageSrc = vendor.mediaId ? `/api/media/${encodeURIComponent(vendor.mediaId)}` : vendor.story?.mediaUrl;
-                const category = vendor.taxonomies[0]?.categoryLabel ?? "Τοπικό κατάστημα";
+                const isSpBusinessLab = vendor.id === "vendor_e8cb57b3c67b469d9a9d";
+                const displayName = isSpBusinessLab ? "SP BUSINESS LAB" : vendor.name;
+                const imageSrc = isSpBusinessLab
+                  ? "/sp-business-lab-luxury.svg"
+                  : vendor.mediaId
+                    ? `/api/media/${encodeURIComponent(vendor.mediaId)}`
+                    : vendor.story?.mediaUrl;
+                const category = isSpBusinessLab ? "Μόδα & ομορφιά" : vendor.taxonomies[0]?.categoryLabel ?? "Τοπικό κατάστημα";
                 const intro = vendor.story?.excerpt
                   ?? vendor.profileShortDescription
                   ?? (vendor.canonicalCount > 0 ? `${vendor.canonicalCount} ενεργά προϊόντα στην τοπική αγορά.` : "Γνώρισε το κατάστημα και όσα μπορεί να σε βοηθήσει να βρεις.");
@@ -272,7 +278,7 @@ export default async function Home() {
                 const vendorProducts = featuredProducts.filter((product) => product.vendorId === vendor.id).slice(0, 3);
                 return (
                   <article className={styles.shopWindow} key={vendor.id}>
-                    <a href={vendorHref} aria-label={`Μπες στο κατάστημα ${vendor.name}`}>
+                    <a href={vendorHref} aria-label={`Μπες στο κατάστημα ${displayName}`}>
                       <div className={`${styles.shopWindowImage} ${imageSrc ? styles.hasPhoto : ""}`} style={imageSrc ? { backgroundImage: `url(${imageSrc})` } : undefined}>
                         {!imageSrc ? <span className={styles.windowNumber}>{String(index + 1).padStart(2, "0")}</span> : null}
                         <span className={styles.windowStatus}>Ανοιχτή βιτρίνα</span>
@@ -280,7 +286,7 @@ export default async function Home() {
                     </a>
                     <div className={styles.shopWindowCopy}>
                       <small>{category}</small>
-                      <strong><a href={vendorHref}>{vendor.name}</a></strong>
+                      <strong><a href={vendorHref}>{displayName}</a></strong>
                       <span>{intro}</span>
                       {vendor.adviser ? <span>Μπορείς να ρωτήσεις {vendor.adviser} πριν αγοράσεις.</span> : null}
                       {vendorProducts.length ? (
