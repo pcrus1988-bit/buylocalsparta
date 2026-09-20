@@ -8,7 +8,8 @@ import { SiteHeader } from "../../../../components/SiteHeader";
 import { SiteFooter } from "../../../../components/SiteFooter";
 import { bazaarDisplayConditionLabel, bazaarProductDisclosure, bazaarProductNoticeSummary, bazaarProductNoticeTitle, getBazaarProductBySlug } from "../../../../lib/bazaar-catalog";
 import { getBazaarMediaGallery } from "../../../../lib/bazaar-media-gallery";
-import { publicBrandLogoUrl } from "../../../../lib/brand-logo";\nimport { publicDescriptionText } from "../../../../lib/public-description-text";
+import { publicBrandLogoUrl } from "../../../../lib/brand-logo";
+import { publicDescriptionText } from "../../../../lib/public-description-text";
 
 type BazaarProductPageProps = Readonly<{ params: Promise<{ slug: string }> }>;
 
