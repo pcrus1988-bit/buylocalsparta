@@ -29,7 +29,7 @@ type Detail = {
   csrfToken: string;
   invoice?: { documentNumber: string; type: string; mark: string; uid?: string; qrUrl?: string; issuedAt: number; downloadUrl: string };
   lines: ReadonlyArray<{ id: string; canonicalVariantId: string; productSlug?: string; title: string; quantity: number; fulfilledQuantity: number; refundedQuantity: number; returnableQuantity: number; status: string; retailUnitPrice: string; vendorId: string; vendorName: string }>;
-  fulfilments: ReadonlyArray<{ id: string; sourceId: string; status: string; vendorId: string; vendorName: string; deliveryCharge: string; lineIds: readonly string[]; manualSupplier: boolean; supplierName?: string; carrier?: string; trackingNumber?: string; shipmentStatus?: string; deliveryNote?: string }>;
+  fulfilments: ReadonlyArray<{ id: string; sourceId: string; status: string; vendorId: string; vendorName: string; deliveryCharge: string; lineIds: readonly string[]; manualSupplier: boolean; carrier?: string; trackingNumber?: string; shipmentStatus?: string; deliveryNote?: string }>;
   pickups: ReadonlyArray<{ id: string; fulfilmentId: string; vendorName: string; status: "ready" | "collected" | "expired"; readyAt: number; expiresAt: number; collectedAt?: number; shortCode: string; qrUrl: string }>;
   returns: ReadonlyArray<CustomerReturnCaseView>;
 };
@@ -139,12 +139,12 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
       </div>
 
       {data.fulfilmentMode === "local_delivery" && manualSupplierDelivery && <div className="order-detail-card is-refined">
-        <div className="eyebrow">Παράδοση συνεργάτη</div>
-        <h2 style={{ marginBottom: 6 }}>Αποστολή από συνεργαζόμενο προμηθευτή</h2>
-        <p style={{ marginTop: 0 }}>Η παραγγελία αποστέλλεται από τον συνεργάτη. Το live tracking ΚΟΝΤΑ ΜΟΥ δεν χρησιμοποιείται σε αυτή τη ροή. Μόλις καταχωριστεί ο αριθμός αποστολής, θα εμφανιστεί εδώ.</p>
+        <div className="eyebrow">Αποστολή παραγγελίας</div>
+        <h2 style={{ marginBottom: 6 }}>Η αποστολή σου ετοιμάζεται</h2>
+        <p style={{ marginTop: 0 }}>Μόλις καταχωριστεί ο αριθμός αποστολής, θα εμφανιστεί εδώ μαζί με τον μεταφορέα. Το live tracking ΚΟΝΤΑ ΜΟΥ δεν χρησιμοποιείται για αυτή την αποστολή.</p>
         {data.fulfilments.filter((item) => item.manualSupplier).map((item) => <div className="workspace-inline-note" key={item.id} style={{ marginTop: 12 }}>
-          <strong>{item.supplierName ?? item.vendorName}</strong>
-          {item.trackingNumber ? <p style={{ marginBottom: 0 }}>Μεταφορέας: <strong>{item.carrier ?? "—"}</strong><br />Αριθμός αποστολής: <strong>{item.trackingNumber}</strong>{item.deliveryNote ? <><br />Σημείωση: {item.deliveryNote}</> : null}</p> : <p style={{ marginBottom: 0 }}>Η παραγγελία έχει επιβεβαιωθεί. Αναμένουμε τα στοιχεία αποστολής από τον συνεργάτη.</p>}
+          <strong>{item.vendorName}</strong>
+          {item.trackingNumber ? <p style={{ marginBottom: 0 }}>Μεταφορέας: <strong>{item.carrier ?? "—"}</strong><br />Αριθμός αποστολής: <strong>{item.trackingNumber}</strong>{item.deliveryNote ? <><br />Σημείωση: {item.deliveryNote}</> : null}</p> : <p style={{ marginBottom: 0 }}>Η παραγγελία έχει επιβεβαιωθεί και ετοιμάζεται για αποστολή. Τα στοιχεία αποστολής θα εμφανιστούν εδώ μόλις είναι διαθέσιμα.</p>}
         </div>)}
       </div>}
 
