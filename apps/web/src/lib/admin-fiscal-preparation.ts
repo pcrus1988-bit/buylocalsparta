@@ -51,14 +51,23 @@ export async function prepareCustomerFiscalDocument(input:PrepareInput):Promise<
         WHERE td.public_id=$1 FOR UPDATE OF td,o`,[documentId]);
     if(!document.rowCount)throw new Error("Tax document not found");
     const d=document.rows[0]!;
-    const giftCardTender=await client.query<{ redeemed_minor:string|number }>(`
-      SELECT COALESCE(SUM(ABS(gcl.amount_minor)),0) AS redeemed_minor
+    const giftCardTender=await client.query<{ redeemed_minor:string|number; min_vat_rate_bps:number|null; max_vat_rate_bps:number|null; valid_spv:boolean|null }>(`
+      SELECT COALESCE(SUM(ABS(gcl.amount_minor)),0) AS redeemed_minor,
+             MIN(gc.voucher_vat_rate_bps) AS min_vat_rate_bps,
+             MAX(gc.voucher_vat_rate_bps) AS max_vat_rate_bps,
+             BOOL_AND(gc.voucher_type='single_purpose' AND gc.voucher_tax_country='GR') AS valid_spv
       FROM gift_card_ledger gcl
+      JOIN gift_cards gc ON gc.id=gcl.gift_card_id
       JOIN customer_orders o ON o.public_id=gcl.order_public_id
       WHERE o.id=$1::uuid AND gcl.entry_type='redeem'
     `,[d.order_uuid]);
     const giftCardRedeemedMinor=integer(giftCardTender.rows[0]?.redeemed_minor??0);
-    if(giftCardRedeemedMinor>0)throw new Error("Gift-card split tender requires an accountant-approved AADE payment-method mapping before automatic fiscal transmission; Mollie must not be reported for the full receipt value");
+    const giftCardVatRateBps=giftCardRedeemedMinor>0?integer(giftCardTender.rows[0]?.min_vat_rate_bps):0;
+    if(giftCardRedeemedMinor>0&&(
+      giftCardTender.rows[0]?.valid_spv!==true||
+      giftCardTender.rows[0]?.max_vat_rate_bps==null||
+      integer(giftCardTender.rows[0]?.max_vat_rate_bps)!==giftCardVatRateBps
+    ))throw new Error("Gift-card redemption does not have one consistent Greek single-purpose voucher VAT profile");
     if(d.transmission_status==="accepted"||d.document_number){
       if(d.transmission_status==="ready"||d.transmission_status==="accepted"){
         await client.query("COMMIT");
@@ -126,7 +135,7 @@ export async function prepareCustomerFiscalDocument(input:PrepareInput):Promise<
        WHERE ol.order_id=$1::uuid ORDER BY ol.created_at,ol.id`,[d.order_uuid,d.market_id,p.version,issueDate]);
     if(!lines.rowCount)throw new Error("Order has no lines");
 
-    const preparedLines=lines.rows.map((line,index)=>{
+    const fullPreparedLines=lines.rows.map((line,index)=>{
       if(!line.profile_id||line.vat_category==null||line.vat_rate_bps==null||!line.approval_version||!line.profile_hash)throw new Error(`Order line ${line.line_id} lacks an approved effective product VAT profile for Accounting Policy ${p.version}`);
       if(line.approval_version!==p.version)throw new Error(`Order line ${line.line_id} VAT profile was approved under mapping ${line.approval_version}, not ${p.version}`);
       if(integer(line.captured_tax_rate_bps)!==integer(line.vat_rate_bps))throw new Error(`Order line ${line.line_id} captured VAT rate does not match its approved VAT profile`);
@@ -136,8 +145,19 @@ export async function prepareCustomerFiscalDocument(input:PrepareInput):Promise<
       return{lineNumber:index+1,lineId:line.line_id,quantity:integer(line.quantity),netMinor:net,vatMinor:vat,grossMinor:gross,vatCategory:integer(line.vat_category),vatRateBps:integer(line.vat_rate_bps),vatExemptionCategory:line.vat_exemption_category==null?undefined:integer(line.vat_exemption_category),profileId:line.profile_id,profileHash:line.profile_hash,title:productTitle(line.product_snapshot)};
     });
 
+    let remainingSpvMinor=giftCardRedeemedMinor;
+    const preparedLines=fullPreparedLines.map((line)=>{
+      if(remainingSpvMinor<=0||line.vatRateBps!==giftCardVatRateBps)return line;
+      const redeemedGross=Math.min(remainingSpvMinor,line.grossMinor);
+      remainingSpvMinor-=redeemedGross;
+      const grossMinor=line.grossMinor-redeemedGross;
+      const vatMinor=grossMinor===line.grossMinor?line.vatMinor:vatFromGross(grossMinor,line.vatRateBps);
+      return{...line,grossMinor,vatMinor,netMinor:grossMinor-vatMinor};
+    }).filter((line)=>line.grossMinor>0).map((line,index)=>({...line,lineNumber:index+1}));
+    if(remainingSpvMinor!==0)throw new Error("SPV redemption exceeds merchandise with the voucher VAT rate");
+
     const vatTreatments=new Map<string,{grossMinor:number;vatCategory:number;vatRateBps:number;vatExemptionCategory?:number;profileIds:Set<string>;profileHashes:Set<string>}>();
-    for(const line of preparedLines){
+    for(const line of fullPreparedLines){
       const key=vatTreatmentKey(line.vatCategory,line.vatRateBps,line.vatExemptionCategory);const existing=vatTreatments.get(key);
       if(existing){existing.grossMinor+=line.grossMinor;existing.profileIds.add(line.profileId);existing.profileHashes.add(line.profileHash);}
       else vatTreatments.set(key,{grossMinor:line.grossMinor,vatCategory:line.vatCategory,vatRateBps:line.vatRateBps,vatExemptionCategory:line.vatExemptionCategory,profileIds:new Set([line.profileId]),profileHashes:new Set([line.profileHash])});
@@ -158,7 +178,7 @@ export async function prepareCustomerFiscalDocument(input:PrepareInput):Promise<
 
     const aa=String(integer(s.next_aa));const documentNumber=`${s.series}-${aa}`;
     const xml=buildMyDataXml({sellerTaxNumber:p.seller_tax_number,series:s.series,aa,issueDate,invoiceType:m.invoice_type,currency:d.currency.trim(),paymentType,grossMinor:summedGross,transactionId,paymentTid,ecrToken,lines:fiscalLines,incomeCategory:m.income_category,e3Code:m.e3_code,totalNetMinor:summedNet,totalVatMinor:summedVat});
-    const currentPayload=record(d.payload_snapshot);const preparedPayload={...currentPayload,lifecycle:"prepared_for_aade",preparedAt:new Date(now).toISOString(),preparation:{eventCode,accountingPolicyPublicId:p.public_id,policyVersion:p.version,policyHash:p.policy_hash,invoiceType:m.invoice_type,series:s.series,aa,issueDate,capturedTotals:{netMinor:capturedNet,vatMinor:capturedVat,grossMinor:capturedGross},fiscalTotals:{netMinor:summedNet,vatMinor:summedVat,grossMinor:summedGross},shipping:{grossMinor:shippingMinor,allocationMethod:"pro_rata_by_merchandise_gross",vatTreatment:"inherit_approved_merchandise_vat",allocationCount:shippingLines.length},payment:{processor,processorMethod,mydataPaymentType:paymentType,transactionId:transactionId??null,tid:paymentTid??null,ecrTokenAttached:Boolean(ecrToken),remoteEcommerce,posInterconnectionExempt:remoteEcommerce,exemptionBasis:remoteEcommerce?"A.1160/2025 remote e-commerce/marketplace":null},lines:fiscalLines.map(x=>({lineId:x.lineId,profileId:x.profileId,profileHash:x.profileHash,vatCategory:x.vatCategory,vatRateBps:x.vatRateBps,vatExemptionCategory:x.vatExemptionCategory??null,netMinor:x.netMinor,vatMinor:x.vatMinor,grossMinor:x.grossMinor}))},mydataXml:xml};
+    const currentPayload=record(d.payload_snapshot);const preparedPayload={...currentPayload,lifecycle:"prepared_for_aade",preparedAt:new Date(now).toISOString(),preparation:{eventCode,accountingPolicyPublicId:p.public_id,policyVersion:p.version,policyHash:p.policy_hash,invoiceType:m.invoice_type,series:s.series,aa,issueDate,capturedTotals:{netMinor:capturedNet,vatMinor:capturedVat,grossMinor:capturedGross},fiscalTotals:{netMinor:summedNet,vatMinor:summedVat,grossMinor:summedGross},shipping:{grossMinor:shippingMinor,allocationMethod:"pro_rata_by_merchandise_gross",vatTreatment:"inherit_approved_merchandise_vat",allocationCount:shippingLines.length},spvRedemption:{redeemedMinor:giftCardRedeemedMinor,vatRateBps:giftCardVatRateBps||null,vatRecognizedAtIssue:giftCardRedeemedMinor>0,redemptionCreatesIndependentTaxableTransaction:false},payment:{processor,processorMethod,mydataPaymentType:paymentType,transactionId:transactionId??null,tid:paymentTid??null,ecrTokenAttached:Boolean(ecrToken),remoteEcommerce,posInterconnectionExempt:remoteEcommerce,exemptionBasis:remoteEcommerce?"A.1160/2025 remote e-commerce/marketplace":null},lines:fiscalLines.map(x=>({lineId:x.lineId,profileId:x.profileId,profileHash:x.profileHash,vatCategory:x.vatCategory,vatRateBps:x.vatRateBps,vatExemptionCategory:x.vatExemptionCategory??null,netMinor:x.netMinor,vatMinor:x.vatMinor,grossMinor:x.grossMinor}))},mydataXml:xml};
     const updated=await client.query(`UPDATE tax_documents SET type='retail_receipt',document_number=$2,mapping_version=$3,invoice_type_code=$4,document_series=$5,document_aa=$6,issue_date=$7::date,accounting_policy_id=$8::uuid,fiscalisation_route='aade_direct_erp',payment_processor=$9,payment_processor_method=$10,mydata_payment_type=$11,payment_transaction_id=$12,payment_tid=$13,provider_payment_signature=NULL,ecr_token=$14::jsonb,net_minor=$15,tax_minor=$16,gross_minor=$17,payload_snapshot=$18::jsonb,transmission_status='ready',last_error=NULL WHERE id=$1::uuid AND type='pending_customer_sale' AND document_number IS NULL`,[d.document_uuid,documentNumber,p.version,m.invoice_type,s.series,aa,issueDate,p.id,processor,processorMethod,paymentType,transactionId??null,paymentTid??null,ecrToken?JSON.stringify(ecrToken):null,summedNet,summedVat,summedGross,JSON.stringify(preparedPayload)]);
     if(!updated.rowCount)throw new Error("Fiscal document changed while it was being prepared");
     await client.query(`UPDATE mydata_fiscal_series SET next_aa=next_aa+1,updated_at=now() WHERE id=$1::uuid`,[s.id]);
@@ -177,6 +197,7 @@ function record(value:unknown):Record<string,unknown>{return value&&typeof value
 function isRemoteEcommerceMolliePayment(payload:Record<string,unknown>):boolean{if(stringValue(payload.paymentChannel)==="remote_ecommerce")return true;return ["creating","created","manual_review"].includes(stringValue(payload.paymentCreationState));}
 function productTitle(snapshot:Record<string,unknown>):string|undefined{for(const key of ["title","name","item_name"]){const value=snapshot?.[key];if(typeof value==="string"&&value.trim())return value.trim();}return undefined;}
 function vatTreatmentKey(vatCategory:number,vatRateBps:number,vatExemptionCategory?:number):string{return `${vatCategory}|${vatRateBps}|${vatExemptionCategory??""}`;}
+function vatFromGross(grossMinor:number,vatRateBps:number):number{if(grossMinor<=0||vatRateBps<=0)return 0;return Math.round((grossMinor*vatRateBps)/(10000+vatRateBps));}
 function integer(value:unknown):number{const n=Number(value);if(!Number.isSafeInteger(n))throw new Error("Expected safe integer minor-unit value");return n;}function sum(values:readonly number[]):number{return values.reduce((a,b)=>a+b,0);}function money(minor:number):string{return (minor/100).toFixed(2);}function decimalQuantity(quantity:number):string{return quantity.toFixed(3).replace(/\.0+$/,"").replace(/(\.\d*?)0+$/,"$1");}
 function escapeXml(value:string):string{return value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");}
 function athensDate(now:number):string{const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Athens",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date(now));const m=Object.fromEntries(parts.filter(x=>x.type!=="literal").map(x=>[x.type,x.value]));return `${m.year}-${m.month}-${m.day}`;}
