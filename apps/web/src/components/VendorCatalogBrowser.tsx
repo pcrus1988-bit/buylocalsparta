@@ -449,6 +449,12 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
       setRemoteLoading(true);
       setRemoteError(false);
       setRemoteTotal(undefined);
+      // Never leave products from the previous filter visible while a new
+      // server-filtered page is loading. If the request fails, stale items from
+      // another category would otherwise look like valid results.
+      setRemoteProducts([]);
+      setRemoteOffset(0);
+      setRemoteNextOffset(null);
       try {
         const payload = await fetchPage(publicVendorId, filters, 0, controller.signal);
         if (serial !== requestSerial.current) return;
@@ -474,7 +480,10 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   }, [demoMode, fetchPage, filters, publicVendorId, query]);
 
   useEffect(() => {
-    if (!publicVendorId || demoMode) return;
+    // Page results are the latency-critical request. Do not compete for a
+    // production DB connection with the heavier contextual-facet request.
+    // Once the page settles, this effect reruns and refreshes the facets.
+    if (!publicVendorId || demoMode || remoteLoading) return;
     const serial = ++facetRequestSerial.current;
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
@@ -520,7 +529,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [demoMode, filters, publicVendorId, query]);
+  }, [demoMode, filters, publicVendorId, query, remoteLoading]);
 
   const facetFallbackProducts = remoteProducts ?? products;
   const categories = useMemo(
