@@ -10,7 +10,6 @@ on:
         type: boolean
   schedule:
     - cron: "*/10 * * * *"
-    - cron: "17 * * * *"
   push:
     branches:
       - main
@@ -47,7 +46,7 @@ jobs:
       BLS_DB_POOL_MAX: "2"
       BLS_NOVA_WORKER_ID: github-actions:${{ github.run_id }}:${{ github.run_attempt }}
       BLS_NOVA_RUN_ONCE: "true"
-      BLS_NOVA_RUN_AVAILABILITY_REFRESH: ${{ (github.event_name == 'workflow_dispatch' && inputs.full_availability_refresh) || github.event.schedule == '17 * * * *' }}
+      BLS_NOVA_RUN_AVAILABILITY_REFRESH: ${{ github.event_name == 'workflow_dispatch' && inputs.full_availability_refresh }}
       BLS_NOVA_AUTO_PRICING_ENABLED: "true"
       BLS_NOVA_AUTO_PUBLICATION_ENABLED: "true"
       BLS_NOVA_CATEGORY_REPAIR_ENABLED: "true"

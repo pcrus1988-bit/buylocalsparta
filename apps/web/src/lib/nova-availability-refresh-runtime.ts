@@ -14,6 +14,8 @@ const AVAILABILITY_TTL_HOURS = 2;
 const DEFAULT_AVAILABILITY_REQUESTS_PER_MINUTE = 60;
 const DEFAULT_FULL_SWEEP_PAGE_SIZE = 100;
 const FALLBACK_FULL_SWEEP_PAGE_SIZE = 50;
+const DEFAULT_FULL_SWEEP_PAGE_CONCURRENCY = 8;
+const MAX_FULL_SWEEP_PAGE_CONCURRENCY = 12;
 const RATE_LIMIT_BACKOFF_MS = [5_000, 10_000, 20_000, 30_000] as const;
 const AVAILABILITY_LEASE_SECONDS = 90;
 
@@ -63,9 +65,16 @@ export function novaAvailabilityRequestsPerMinute(env: NodeJS.ProcessEnv = proce
     : DEFAULT_AVAILABILITY_REQUESTS_PER_MINUTE;
 }
 
+export function novaAvailabilityPageConcurrency(env: NodeJS.ProcessEnv = process.env): number {
+  const parsed = Number(env.BLS_NOVA_AVAILABILITY_PAGE_CONCURRENCY ?? DEFAULT_FULL_SWEEP_PAGE_CONCURRENCY);
+  return Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= MAX_FULL_SWEEP_PAGE_CONCURRENCY
+    ? parsed
+    : DEFAULT_FULL_SWEEP_PAGE_CONCURRENCY;
+}
+
 async function claimNovaAvailabilityLease(
   db: SqlExecutor,
-  purpose: "railway_full_sweep" | "vercel_failover"
+  purpose: "worker_full_sweep" | "vercel_failover"
 ): Promise<string | null> {
   const owner = `${purpose}:${randomUUID()}`;
   const result = await db.query<SqlRow>(`
@@ -269,7 +278,7 @@ async function refreshNovaAvailabilityPage(
           'productId', x.external_product_id,
           'variantId', x.external_variant_id,
           'refreshedAt', $3::timestamptz,
-          'refreshPolicy', 'hourly_paginated_full_sweep_2h_ttl_rate_limited'
+          'refreshPolicy', 'actions_batched_full_sweep_2h_ttl_rate_limited'
         ),
         updated_at=$3::timestamptz
     FROM jsonb_to_recordset($1::jsonb) AS x(
@@ -311,7 +320,7 @@ async function refreshNovaAvailabilityPage(
  */
 export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilityRefreshResult> {
   const db = getProductionPostgresRuntime().sqlPool;
-  const leaseOwner = await claimNovaAvailabilityLease(db, "railway_full_sweep");
+  const leaseOwner = await claimNovaAvailabilityLease(db, "worker_full_sweep");
   if (!leaseOwner) {
     return { attemptedProducts: 0, refreshedProducts: 0, failedProducts: 0, updatedOffers: 0 };
   }
@@ -328,37 +337,67 @@ async function runNovaAvailabilityRefreshSweepUnlocked(
 ): Promise<NovaAvailabilityRefreshResult> {
   const storeId = await resolveNovaStoreId(db);
   const client = createNovaAvailabilityClient();
+  const pageConcurrency = novaAvailabilityPageConcurrency();
   let page = 1;
   let perPage = DEFAULT_FULL_SWEEP_PAGE_SIZE;
+  let totalPages: number | null = null;
   let attemptedProducts = 0;
   let refreshedProducts = 0;
   let updatedOffers = 0;
 
   while (true) {
     await renewNovaAvailabilityLease(db, leaseOwner);
-    let result;
+
+    // Fetch page 1 alone so we can learn Nova's total-page headers and safely
+    // fall back from 100 -> 50 products/page if this account rejects 100.
+    const batchWidth = page === 1 ? 1 : pageConcurrency;
+    const lastPage = totalPages === null
+      ? page + batchWidth - 1
+      : Math.min(totalPages, page + batchWidth - 1);
+    const pageNumbers = Array.from({ length: lastPage - page + 1 }, (_, index) => page + index);
+
+    let results;
     try {
-      result = await listProductsWithRateLimitBackoff(client, storeId, page, perPage);
+      results = await Promise.all(
+        pageNumbers.map((currentPage) =>
+          listProductsWithRateLimitBackoff(client, storeId, currentPage, perPage)
+        )
+      );
     } catch (error) {
-      // Nova has historically rejected a requested page size of 100 in some account
-      // configurations. Fall back once to the already-supported 50-product page size.
-      if (page === 1 && perPage > FALLBACK_FULL_SWEEP_PAGE_SIZE && error instanceof NovaV1ApiError && error.status === 422) {
+      if (
+        page === 1
+        && pageNumbers.length === 1
+        && perPage > FALLBACK_FULL_SWEEP_PAGE_SIZE
+        && error instanceof NovaV1ApiError
+        && error.status === 422
+      ) {
         perPage = FALLBACK_FULL_SWEEP_PAGE_SIZE;
         continue;
       }
       throw error;
     }
 
-    if (result.items.length === 0) break;
-    attemptedProducts += result.items.length;
-    const checkedAt = new Date();
-    updatedOffers += await refreshNovaAvailabilityPage(result.items, storeId, checkedAt, db);
-    refreshedProducts += result.items.length;
+    if (results.length === 0) break;
+    const firstReportedTotalPages = results.find((result) => result.totalPages !== null)?.totalPages ?? null;
+    if (firstReportedTotalPages !== null) totalPages = firstReportedTotalPages;
 
-    const pageComplete = result.items.length < perPage
-      || (result.totalPages !== null && page >= result.totalPages);
-    if (pageComplete) break;
-    page += 1;
+    const terminalIndex = results.findIndex((result, index) =>
+      result.items.length < perPage
+      || (result.totalPages !== null && pageNumbers[index] >= result.totalPages)
+    );
+    const successfulPages = terminalIndex >= 0 ? results.slice(0, terminalIndex + 1) : results;
+    const products = successfulPages.flatMap((result) => [...result.items]);
+
+    if (products.length === 0) break;
+
+    attemptedProducts += products.length;
+    const checkedAt = new Date();
+    updatedOffers += await refreshNovaAvailabilityPage(products, storeId, checkedAt, db);
+    refreshedProducts += products.length;
+
+    if (terminalIndex >= 0) break;
+    if (totalPages !== null && lastPage >= totalPages) break;
+    page = lastPage + 1;
   }
 
   return {
@@ -367,6 +406,47 @@ async function runNovaAvailabilityRefreshSweepUnlocked(
     failedProducts: 0,
     updatedOffers
   };
+}
+
+export type NovaStorefrontProjectionRefreshResult = Readonly<{
+  refreshedViews: readonly Readonly<{ name: string; durationMs: number }>[];
+}>;
+
+const NOVA_STOREFRONT_PROJECTION_STEPS = [
+  { name: "storefront_catalog_read_model", timeoutMs: 480_000 },
+  { name: "storefront_dropship_family_read_model", timeoutMs: 480_000 },
+  { name: "storefront_dropship_family_filter_read_model", timeoutMs: 360_000 },
+  { name: "storefront_dropship_family_filter_read_model_v2", timeoutMs: 360_000 },
+  { name: "storefront_dropship_vendor_facets", timeoutMs: 120_000 },
+  { name: "storefront_facet_read_model", timeoutMs: 240_000 },
+  { name: "storefront_filter_read_model", timeoutMs: 480_000 },
+  { name: "storefront_vendor_assortment_read_model", timeoutMs: 240_000 }
+] as const;
+
+/**
+ * Refresh the storefront discovery projections immediately after a successful
+ * authoritative availability sweep. This runs once per completed sweep rather
+ * than once per supplier page, preserving freshness without recreating the
+ * overlapping materialized-view load that previously caused storefront timeouts.
+ */
+export async function refreshNovaStorefrontAvailabilityReadModels(): Promise<NovaStorefrontProjectionRefreshResult> {
+  const runtime = getProductionPostgresRuntime();
+  const client = await runtime.nativePool.connect();
+  const refreshedViews: Array<{ name: string; durationMs: number }> = [];
+
+  try {
+    for (const step of NOVA_STOREFRONT_PROJECTION_STEPS) {
+      const startedAt = Date.now();
+      await client.query(`SET statement_timeout = '${step.timeoutMs}ms'`);
+      await client.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY public.${step.name}`);
+      refreshedViews.push({ name: step.name, durationMs: Date.now() - startedAt });
+    }
+  } finally {
+    await client.query("RESET statement_timeout").catch(() => undefined);
+    client.release();
+  }
+
+  return { refreshedViews };
 }
 
 /**
