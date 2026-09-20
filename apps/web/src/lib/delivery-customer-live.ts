@@ -141,6 +141,18 @@ async function authorisedJob(principal: SessionPrincipal, jobId: string): Promis
     WHERE j.public_id = $1
       AND u.public_id = $2
       AND j.status <> 'cancelled'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM fulfilment_orders fo
+        JOIN fulfilment_order_lines fol ON fol.fulfilment_order_id=fo.id
+        JOIN order_lines ol ON ol.id=fol.order_line_id
+        JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=ol.assigned_offer_id
+        JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+        WHERE fo.order_id=o.id
+          AND ds.active=true
+          AND ds.provider_kind IN ('brandsgateway_shopwoo','symphonya')
+          AND (ds.order_forwarding_enabled=false OR ds.tracking_sync_enabled=false)
+      )
     LIMIT 1
   `, [jobId, principal.userId]);
 

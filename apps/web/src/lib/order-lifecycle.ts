@@ -348,6 +348,47 @@ export async function syncVendorFulfilmentLifecycle(principal: SessionPrincipal,
       } else {
         throw new Error("Ready action is not supported for this fulfilment mode");
       }
+    } else if (input.action === "shipped") {
+      const shipment = await client.query<{ carrier: string | null; tracking_number: string | null; delivery_note: string | null }>(`
+        SELECT s.carrier,s.tracking_number,s.proof->>'manualDeliveryNote' AS delivery_note
+        FROM shipments s
+        WHERE s.fulfilment_order_id=$1 AND s.status<>'cancelled'
+        ORDER BY s.updated_at DESC LIMIT 1
+      `, [row.fulfilment_uuid]);
+      const details = shipment.rows[0];
+      await insertTimelineOnce(client, {
+        orderUuid: row.order_uuid,
+        fulfilmentUuid: row.fulfilment_uuid,
+        vendorUuid: row.vendor_uuid,
+        eventType: "fulfilment.shipped",
+        actorType: "vendor",
+        actorPublicId: principal.userId,
+        message: `${row.vendor_name}: η αποστολή καταχωρίστηκε και παραδόθηκε στον μεταφορέα.`,
+        metadata: { fulfilmentId: row.fulfilment_id, carrier: details?.carrier ?? null, trackingNumber: details?.tracking_number ?? null },
+        now
+      });
+      if (row.user_uuid) {
+        await notifyCustomerState(client, {
+          userUuid: row.user_uuid,
+          orderId: row.order_id,
+          fulfilmentId: row.fulfilment_id,
+          state: "shipped",
+          title: "Η παραγγελία σου στάλθηκε",
+          inAppBody: details?.tracking_number
+            ? `${row.vendor_name}: ${details.carrier ?? "Μεταφορέας"} · ${details.tracking_number}`
+            : `${row.vendor_name}: η αποστολή καταχωρίστηκε.`,
+          emailBody: [
+            `Η παραγγελία ${row.order_id} στάλθηκε από το «${row.vendor_name}».`,
+            details?.carrier ? `Μεταφορέας: ${details.carrier}` : "",
+            details?.tracking_number ? `Αριθμός αποστολής: ${details.tracking_number}` : "",
+            details?.delivery_note ? `Σημείωση: ${details.delivery_note}` : "",
+            "",
+            "Σε αυτή τη χειροκίνητη ροή συνεργάτη δεν χρησιμοποιείται live tracking ΚΟΝΤΑ ΜΟΥ.",
+            `Παραγγελία: ${publicBaseUrl()}/account/orders/${encodeURIComponent(row.order_id)}`
+          ].filter(Boolean).join("\n"),
+          now
+        });
+      }
     } else if (input.action === "delivered") {
       await finalizeOrderFromFulfilments(client, row.order_uuid, now);
       await insertTimelineOnce(client, {

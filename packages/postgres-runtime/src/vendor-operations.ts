@@ -63,12 +63,42 @@ export class PostgresVendorOperationsService {
                fo.status::text AS status,fo.mode::text AS mode,COALESCE(co.shipping_address_snapshot->>'postcode',co.billing_address_snapshot->>'postcode','23100') AS postcode,
                co.created_at,(co.user_id IS NOT NULL) AS customer_identified,
                COALESCE(SUM(ol.retail_unit_price_minor*ol.quantity),0) AS merchandise_minor,
-               COALESCE(fo.delivery_charge_minor,0) AS delivery_minor
+               COALESCE(fo.delivery_charge_minor,0) AS delivery_minor,
+               EXISTS (
+                 SELECT 1
+                 FROM fulfilment_order_lines mfol
+                 JOIN order_lines mol ON mol.id=mfol.order_line_id
+                 JOIN dropship_supplier_offers mdso ON mdso.vendor_offer_id=mol.assigned_offer_id
+                 JOIN dropship_suppliers mds ON mds.id=mdso.supplier_id
+                 WHERE mfol.fulfilment_order_id=fo.id
+                   AND mds.active=true
+                   AND mds.provider_kind IN ('brandsgateway_shopwoo','symphonya')
+                   AND (mds.order_forwarding_enabled=false OR mds.tracking_sync_enabled=false)
+               ) AS manual_supplier,
+               (
+                 SELECT string_agg(DISTINCT mds.display_name, ', ' ORDER BY mds.display_name)
+                 FROM fulfilment_order_lines mfol
+                 JOIN order_lines mol ON mol.id=mfol.order_line_id
+                 JOIN dropship_supplier_offers mdso ON mdso.vendor_offer_id=mol.assigned_offer_id
+                 JOIN dropship_suppliers mds ON mds.id=mdso.supplier_id
+                 WHERE mfol.fulfilment_order_id=fo.id
+                   AND mds.active=true
+                   AND mds.provider_kind IN ('brandsgateway_shopwoo','symphonya')
+               ) AS supplier_name,
+               shipment.carrier,shipment.tracking_number,shipment.status AS shipment_status,
+               shipment.proof->>'manualDeliveryNote' AS delivery_note
         FROM fulfilment_orders fo JOIN customer_orders co ON co.id=fo.order_id
         LEFT JOIN fulfilment_order_lines fol ON fol.fulfilment_order_id=fo.id
         LEFT JOIN order_lines ol ON ol.id=fol.order_line_id
+        LEFT JOIN LATERAL (
+          SELECT s.carrier,s.tracking_number,s.status,s.proof
+          FROM shipments s
+          WHERE s.fulfilment_order_id=fo.id AND s.status<>'cancelled'
+          ORDER BY s.updated_at DESC
+          LIMIT 1
+        ) shipment ON true
         WHERE fo.vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$1)
-        GROUP BY fo.id,co.id ORDER BY co.created_at DESC`, [vendorId]);
+        GROUP BY fo.id,co.id,shipment.carrier,shipment.tracking_number,shipment.status,shipment.proof ORDER BY co.created_at DESC`, [vendorId]);
       const lineResult = await tx.query<SqlRow>(`
         SELECT fo.public_id AS fulfilment_id,ol.public_id AS line_id,COALESCE(ol.product_snapshot->>'title',cv.model,cv.slug) AS title,ol.quantity,ol.status
         FROM fulfilment_orders fo JOIN fulfilment_order_lines fol ON fol.fulfilment_order_id=fo.id JOIN order_lines ol ON ol.id=fol.order_line_id
@@ -94,7 +124,8 @@ export class PostgresVendorOperationsService {
         const orderStatus=text(row.order_status,"order_status"), mode=text(row.mode,"mode"), status=text(row.status,"status"), id=text(row.fulfilment_id,"fulfilment_id");
         return { id, orderId:text(row.order_id,"order_id"), orderStatus,status,mode,postcode:text(row.postcode,"postcode"),createdAt:epoch(row.created_at,"created_at"),
           customerIdentified:Boolean(row.customer_identified),merchandiseSubtotal:euro(int(row.merchandise_minor,"merchandise_minor")),deliveryCharge:euro(int(row.delivery_minor,"delivery_minor")),
-          lines:linesByFulfilment.get(id)??[],actions:fulfilmentActions(orderStatus,mode,status) };
+          manualSupplier:Boolean(row.manual_supplier),supplierName:optionalText(row.supplier_name),carrier:optionalText(row.carrier),trackingNumber:optionalText(row.tracking_number),shipmentStatus:optionalText(row.shipment_status),deliveryNote:optionalText(row.delivery_note),
+          lines:linesByFulfilment.get(id)??[],actions:fulfilmentActions(orderStatus,mode,status,Boolean(row.manual_supplier)) };
       });
       return {
         vendor:{id:text(vendor.rows[0].public_id,"public_id"),name:text(vendor.rows[0].trading_name,"trading_name"),adviser:text(vendor.rows[0].adviser,"adviser")},
@@ -149,6 +180,59 @@ export class PostgresVendorOperationsService {
         throw new Error("Local delivery completion is confirmed by the delivery driver after scanning the customer QR.");
       } else throw new Error("Unsupported fulfilment action");
       return {ok:true};
+    },{isolation:"serializable"});
+  }
+
+  async recordManualShipment(principal: SessionPrincipal,input:{fulfilmentId:string;carrier:string;trackingNumber:string;deliveryNote?:string;now?:number}) {
+    const vendorId=requiredVendorId(principal);const now=input.now??Date.now();
+    const carrier=input.carrier.trim().slice(0,80),trackingNumber=input.trackingNumber.trim().slice(0,160),deliveryNote=input.deliveryNote?.trim().slice(0,1000)||undefined;
+    if(!carrier) throw new Error("Carrier is required");
+    if(!trackingNumber) throw new Error("Tracking number is required");
+    return this.#uow.withTransaction(vendorScope(principal.userId,vendorId),async(tx)=>{
+      const found=await tx.query<SqlRow>(`
+        SELECT fo.id::text AS fulfilment_uuid,fo.public_id AS fulfilment_id,fo.status::text AS fulfilment_status,fo.mode::text AS mode,
+               fo.location_id::text AS location_uuid,co.id::text AS order_uuid,co.public_id AS order_id,co.status::text AS order_status,
+               COALESCE(co.shipping_address_snapshot->>'postcode',co.billing_address_snapshot->>'postcode','23100') AS to_postcode,
+               vl.postcode AS from_postcode,vb.id::text AS vendor_uuid,
+               EXISTS (
+                 SELECT 1 FROM fulfilment_order_lines fol
+                 JOIN order_lines ol ON ol.id=fol.order_line_id
+                 JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=ol.assigned_offer_id
+                 JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+                 WHERE fol.fulfilment_order_id=fo.id
+                   AND ds.active=true
+                   AND ds.provider_kind IN ('brandsgateway_shopwoo','symphonya')
+                   AND (ds.order_forwarding_enabled=false OR ds.tracking_sync_enabled=false)
+               ) AS manual_supplier
+        FROM fulfilment_orders fo
+        JOIN customer_orders co ON co.id=fo.order_id
+        JOIN vendor_businesses vb ON vb.id=fo.vendor_id
+        JOIN vendor_locations vl ON vl.id=fo.location_id
+        WHERE fo.public_id=$1 AND vb.public_id=$2
+        FOR UPDATE OF fo
+      `,[input.fulfilmentId,vendorId]);
+      if(!found.rowCount) throw new Error("Vendor fulfilment access denied");
+      const row=found.rows[0];
+      if(!Boolean(row.manual_supplier)) throw new Error("Manual shipment is available only while supplier order forwarding/tracking is not automated");
+      const orderStatus=text(row.order_status,"order_status"),status=text(row.fulfilment_status,"fulfilment_status"),mode=text(row.mode,"mode");
+      if(!["authorised","confirmed","partially_fulfilled"].includes(orderStatus)) throw new Error("Order must have secured payment before shipment");
+      if(mode==="pickup") throw new Error("Manual shipment is not valid for pickup orders");
+      if(!["accepted","picking","packed","ready_for_handover","shipped"].includes(status)) throw new Error("Accept the order before adding shipment details");
+
+      const fulfilmentUuid=text(row.fulfilment_uuid,"fulfilment_uuid");
+      const existing=await tx.query<SqlRow>(`SELECT id::text AS shipment_uuid FROM shipments WHERE fulfilment_order_id=$1::uuid AND status<>'cancelled' ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`,[fulfilmentUuid]);
+      const proof=JSON.stringify({manual:true,manualDeliveryNote:deliveryNote??null,recordedBy:principal.userId});
+      if(existing.rowCount){
+        await tx.query(`UPDATE shipments SET carrier=$2,service='manual_partner',tracking_number=$3,status='handed_to_carrier',shipped_at=COALESCE(shipped_at,$4),handed_over_at=COALESCE(handed_over_at,$4),proof=COALESCE(proof,'{}'::jsonb)||$5::jsonb,provider_creation_state='confirmed',provider_confirmed_at=COALESCE(provider_confirmed_at,$4),provider_state=COALESCE(provider_state,'{}'::jsonb)||$6::jsonb,updated_at=$4 WHERE id=$1::uuid`,
+          [text(existing.rows[0].shipment_uuid,"shipment_uuid"),carrier,trackingNumber,new Date(now),proof,JSON.stringify({source:"vendor_manual",providerAutomation:false})]);
+      } else {
+        await tx.query(`INSERT INTO shipments(id,public_id,order_id,fulfilment_order_id,vendor_id,location_id,carrier,service,tracking_number,status,from_postcode,to_postcode,package_count,currency,shipped_at,handed_over_at,proof,provider_creation_state,provider_confirmed_at,provider_state,created_at,updated_at)
+          VALUES($1,$2,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,'manual_partner',$8,'handed_to_carrier',$9,$10,1,'EUR',$11,$11,$12::jsonb,'confirmed',$11,$13::jsonb,$11,$11)`,
+          [randomUUID(),`shipment_${randomUUID().replaceAll("-","")}`,text(row.order_uuid,"order_uuid"),fulfilmentUuid,text(row.vendor_uuid,"vendor_uuid"),text(row.location_uuid,"location_uuid"),carrier,trackingNumber,optionalText(row.from_postcode)??null,optionalText(row.to_postcode)??null,new Date(now),proof,JSON.stringify({source:"vendor_manual",providerAutomation:false})]);
+      }
+      await tx.query(`UPDATE fulfilment_orders SET status='shipped',updated_at=$2 WHERE id=$1::uuid`,[fulfilmentUuid,new Date(now)]);
+      await tx.query(`UPDATE delivery_jobs SET live_tracking_enabled=false,updated_at=$2 WHERE order_id=$1::uuid AND status NOT IN ('completed','cancelled')`,[text(row.order_uuid,"order_uuid"),new Date(now)]);
+      return {ok:true,carrier,trackingNumber,deliveryNote};
     },{isolation:"serializable"});
   }
 
@@ -320,4 +404,4 @@ export class PostgresVendorOperationsService {
 }
 
 function requiredVendorId(principal:SessionPrincipal):string{if(!principal.vendorId||!principal.roles.some(r=>r.startsWith("vendor_")))throw new Error("VENDOR_AUTH_REQUIRED");return principal.vendorId}
-function fulfilmentActions(orderStatus:string,mode:string,status:string):readonly string[]{if(!["authorised","confirmed","partially_fulfilled"].includes(orderStatus))return[];if(status==="awaiting_acceptance")return["accept","reject"];if(mode==="pickup"&&["accepted","picking","packed"].includes(status))return["ready"];if(mode==="local_delivery"&&["accepted","picking","packed"].includes(status))return["ready"];return[]}
+function fulfilmentActions(orderStatus:string,mode:string,status:string,manualSupplier=false):readonly string[]{if(!["authorised","confirmed","partially_fulfilled"].includes(orderStatus))return[];if(status==="awaiting_acceptance")return["accept","reject"];if(manualSupplier)return[];if(mode==="pickup"&&["accepted","picking","packed"].includes(status))return["ready"];if(mode==="local_delivery"&&["accepted","picking","packed"].includes(status))return["ready"];return[]}
