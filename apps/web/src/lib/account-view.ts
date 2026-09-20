@@ -48,6 +48,115 @@ async function orderProductSlugMap(canonicalVariantIds: readonly string[]): Prom
   }
 }
 
+
+type CustomerOrderCommercialSnapshot = Readonly<{
+  taxMinor: number;
+  giftCards: readonly Readonly<{ number: string; codeSuffix: string; amountMinor: number }>[];
+  fulfilments: ReadonlyMap<string, Readonly<{
+    manualSupplier: boolean;
+    supplierName?: string;
+    carrier?: string;
+    trackingNumber?: string;
+    shipmentStatus?: string;
+    deliveryNote?: string;
+  }>>;
+}>;
+
+async function customerOrderCommercialSnapshot(principal: SessionPrincipal, orderId: string): Promise<CustomerOrderCommercialSnapshot> {
+  if (!productionDatabaseConfigured()) return { taxMinor: 0, giftCards: [], fulfilments: new Map() };
+  const db = getProductionPostgresRuntime().nativePool;
+  try {
+    const [header, giftCards, fulfilments] = await Promise.all([
+      db.query<{ tax_minor: string | number }>(`
+        SELECT o.tax_minor
+        FROM customer_orders o JOIN users u ON u.id=o.user_id
+        WHERE o.public_id=$1 AND u.public_id=$2
+        LIMIT 1
+      `, [orderId, principal.userId]),
+      db.query<{ number: string; code_suffix: string; amount_minor: string | number }>(`
+        SELECT gc.public_id AS number,gc.code_suffix,ABS(gcl.amount_minor) AS amount_minor
+        FROM gift_card_ledger gcl
+        JOIN gift_cards gc ON gc.id=gcl.gift_card_id
+        JOIN customer_orders o ON o.public_id=gcl.order_public_id
+        JOIN users u ON u.id=o.user_id
+        WHERE o.public_id=$1 AND u.public_id=$2 AND gcl.entry_type='redeem'
+        ORDER BY gcl.created_at
+      `, [orderId, principal.userId]),
+      db.query<{
+        fulfilment_id: string;
+        manual_supplier: boolean;
+        supplier_name: string | null;
+        carrier: string | null;
+        tracking_number: string | null;
+        shipment_status: string | null;
+        delivery_note: string | null;
+      }>(`
+        SELECT fo.public_id AS fulfilment_id,
+          EXISTS (
+            SELECT 1
+            FROM fulfilment_order_lines fol2
+            JOIN order_lines ol2 ON ol2.id=fol2.order_line_id
+            JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=ol2.assigned_offer_id
+            JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+            WHERE fol2.fulfilment_order_id=fo.id
+              AND ds.active=true
+              AND ds.provider_kind IN ('brandsgateway_shopwoo','symphonya')
+              AND (ds.order_forwarding_enabled=false OR ds.tracking_sync_enabled=false)
+          ) AS manual_supplier,
+          (
+            SELECT string_agg(DISTINCT ds.display_name, ', ' ORDER BY ds.display_name)
+            FROM fulfilment_order_lines fol2
+            JOIN order_lines ol2 ON ol2.id=fol2.order_line_id
+            JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=ol2.assigned_offer_id
+            JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+            WHERE fol2.fulfilment_order_id=fo.id
+              AND ds.active=true
+              AND ds.provider_kind IN ('brandsgateway_shopwoo','symphonya')
+          ) AS supplier_name,
+          shipment.carrier,shipment.tracking_number,shipment.status AS shipment_status,
+          shipment.proof->>'manualDeliveryNote' AS delivery_note
+        FROM fulfilment_orders fo
+        JOIN customer_orders o ON o.id=fo.order_id
+        JOIN users u ON u.id=o.user_id
+        LEFT JOIN LATERAL (
+          SELECT s.carrier,s.tracking_number,s.status,s.proof
+          FROM shipments s
+          WHERE s.fulfilment_order_id=fo.id AND s.status<>'cancelled'
+          ORDER BY s.updated_at DESC
+          LIMIT 1
+        ) shipment ON true
+        WHERE o.public_id=$1 AND u.public_id=$2
+        ORDER BY fo.created_at
+      `, [orderId, principal.userId])
+    ]);
+    const taxMinor = Number(header.rows[0]?.tax_minor ?? 0);
+    return {
+      taxMinor: Number.isSafeInteger(taxMinor) ? taxMinor : 0,
+      giftCards: giftCards.rows.map((row) => ({
+        number: String(row.number),
+        codeSuffix: String(row.code_suffix),
+        amountMinor: Math.abs(Number(row.amount_minor) || 0)
+      })),
+      fulfilments: new Map(fulfilments.rows.map((row) => [String(row.fulfilment_id), {
+        manualSupplier: Boolean(row.manual_supplier),
+        supplierName: row.supplier_name?.trim() || undefined,
+        carrier: row.carrier?.trim() || undefined,
+        trackingNumber: row.tracking_number?.trim() || undefined,
+        shipmentStatus: row.shipment_status?.trim() || undefined,
+        deliveryNote: row.delivery_note?.trim() || undefined
+      }] as const))
+    };
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: "warn",
+      event: "account.order_commercial_snapshot_degraded",
+      orderId,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return { taxMinor: 0, giftCards: [], fulfilments: new Map() };
+  }
+}
+
 export async function accountDashboard(principal: SessionPrincipal, now = Date.now()) {
   const [state, catalog, ordersRaw] = await Promise.all([
     customerStateSnapshot(principal.userId, now),
@@ -138,15 +247,16 @@ export async function accountOrderDetail(principal: SessionPrincipal, orderIdent
   const hasFulfilledQuantity = order.lines.some((line) => line.fulfilledQuantity > line.refundedQuantity || line.status === "fulfilled");
   const canCancel = !["cancelled", "fulfilled", "completed", "refunded"].includes(order.status) && !physicalHandoverStarted && !hasFulfilledQuantity;
   const vendorIds = [...new Set([...order.lines.map((line) => line.vendorId), ...order.fulfilments.map((fulfilment) => fulfilment.vendorId)])];
-  const [vendorEntries, pickups, invoice, returns, productSlugs] = await Promise.all([
+  const [vendorEntries, pickups, invoice, returns, productSlugs, commercial] = await Promise.all([
     Promise.all(vendorIds.map(async (id) => [id, (await getPublicVendor(id))?.name ?? id] as const)),
     customerPickupCredentials(principal, orderId),
     customerFiscalDocumentForOrder(orderId),
     customerReturnsSnapshot(principal, orderId),
-    orderProductSlugMap(order.lines.map((line) => line.canonicalVariantId))
+    orderProductSlugMap(order.lines.map((line) => line.canonicalVariantId)),
+    customerOrderCommercialSnapshot(principal, orderId)
   ]);
   const vendorNames = new Map(vendorEntries);
-  return orderDetailProjection(order, principal.userId, resolved.referenceNumber, principal.csrfToken, canCancel, vendorNames, productSlugs, pickups, returns, invoice ? {
+  return orderDetailProjection(order, principal.userId, resolved.referenceNumber, principal.csrfToken, canCancel, vendorNames, productSlugs, pickups, returns, commercial, invoice ? {
     documentNumber: invoice.documentNumber,
     type: invoice.type,
     mark: invoice.mark,
@@ -200,6 +310,7 @@ function orderDetailProjection(
   productSlugs: ReadonlyMap<string, string>,
   pickups: readonly CustomerPickupCredential[],
   returns: CustomerReturnsSnapshot,
+  commercial: CustomerOrderCommercialSnapshot,
   invoice?: { documentNumber: string; type: string; mark: string; uid?: string; qrUrl?: string; issuedAt: number; downloadUrl: string }
 ) {
   const lineTokens = new Map(order.lines.map((line) => [line.id, customerOrderLineActionToken(userId, order.id, line.id)] as const));
@@ -221,6 +332,12 @@ function orderDetailProjection(
     merchandiseSubtotal: formatMoney(order.merchandiseSubtotal),
     deliveryCharge: formatMoney(order.deliveryCharge),
     discount: formatMoney(order.discount),
+    vat: formatMoney({ minor: commercial.taxMinor, currency: "EUR" }),
+    giftCards: commercial.giftCards.map((card) => ({
+      number: card.number,
+      codeSuffix: card.codeSuffix,
+      amount: formatMoney({ minor: card.amountMinor, currency: "EUR" })
+    })),
     total: formatMoney(order.total),
     cancellationReason: order.cancellationReason,
     cancelledAt: order.cancelledAt,
@@ -241,17 +358,27 @@ function orderDetailProjection(
       vendorId: line.vendorId,
       vendorName: vendorNames.get(line.vendorId) ?? line.vendorId
     })),
-    fulfilments: order.fulfilments.filter((fulfilment) => fulfilment.status !== "rejected").map((fulfilment, index) => ({
-      id: `part-${index + 1}`,
-      status: fulfilment.status,
-      vendorId: fulfilment.vendorId,
-      vendorName: vendorNames.get(fulfilment.vendorId) ?? fulfilment.vendorId,
-      deliveryCharge: formatMoney(fulfilment.deliveryCharge),
-      lineIds: fulfilment.lineIds.flatMap((lineId) => {
-        const token = lineTokens.get(lineId);
-        return token ? [token] : [];
-      })
-    })),
+    fulfilments: order.fulfilments.filter((fulfilment) => fulfilment.status !== "rejected").map((fulfilment, index) => {
+      const shipment = commercial.fulfilments.get(fulfilment.id);
+      return {
+        id: `part-${index + 1}`,
+        sourceId: fulfilment.id,
+        status: fulfilment.status,
+        vendorId: fulfilment.vendorId,
+        vendorName: vendorNames.get(fulfilment.vendorId) ?? fulfilment.vendorId,
+        deliveryCharge: formatMoney(fulfilment.deliveryCharge),
+        manualSupplier: shipment?.manualSupplier ?? false,
+        supplierName: shipment?.supplierName,
+        carrier: shipment?.carrier,
+        trackingNumber: shipment?.trackingNumber,
+        shipmentStatus: shipment?.shipmentStatus,
+        deliveryNote: shipment?.deliveryNote,
+        lineIds: fulfilment.lineIds.flatMap((lineId) => {
+          const token = lineTokens.get(lineId);
+          return token ? [token] : [];
+        })
+      };
+    }),
     pickups,
     returns: browserReturns
   };

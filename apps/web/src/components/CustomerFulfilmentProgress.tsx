@@ -1,5 +1,5 @@
 type FulfilmentLine = Readonly<{ id: string; title: string; quantity: number }>;
-type FulfilmentPart = Readonly<{ id: string; status: string; vendorId: string; vendorName: string; deliveryCharge: string; lineIds: readonly string[] }>;
+type FulfilmentPart = Readonly<{ id: string; status: string; vendorId: string; vendorName: string; deliveryCharge: string; lineIds: readonly string[]; manualSupplier?: boolean; supplierName?: string; carrier?: string; trackingNumber?: string; shipmentStatus?: string; deliveryNote?: string }>;
 
 type Tone = "pending" | "progress" | "action" | "success" | "problem";
 
@@ -36,8 +36,10 @@ function toneFor(status: string, fulfilmentMode: string): Tone {
   return "pending";
 }
 
-function nextStep(status: string, fulfilmentMode: string): string {
+function nextStep(status: string, fulfilmentMode: string, manualSupplier = false): string {
   if (status === "awaiting_acceptance") return "Περιμένουμε το κατάστημα να επιβεβαιώσει αυτό το τμήμα της παραγγελίας.";
+  if (manualSupplier && status === "accepted") return "Η παραγγελία επιβεβαιώθηκε. Ο συνεργάτης ετοιμάζει την αποστολή και θα προστεθεί αριθμός αποστολής όταν είναι διαθέσιμος.";
+  if (manualSupplier && status === "shipped") return "Η αποστολή καταχωρίστηκε από τον συνεργάτη. Το live tracking ΚΟΝΤΑ ΜΟΥ δεν χρησιμοποιείται σε αυτή τη ροή.";
   if (status === "accepted") return "Το κατάστημα το έχει αποδεχθεί και θα ξεκινήσει την προετοιμασία.";
   if (status === "picking") return "Το κατάστημα συγκεντρώνει τα προϊόντα σου.";
   if (status === "packed") return fulfilmentMode === "pickup" ? "Το τμήμα έχει συσκευαστεί και ετοιμάζεται για παραλαβή." : "Το τμήμα έχει συσκευαστεί και ετοιμάζεται για αποστολή.";
@@ -92,7 +94,11 @@ export function CustomerFulfilmentProgress({ fulfilments, lines, fulfilmentMode 
         return <article className={`customer-fulfilment-card is-${tone}`} key={item.id}>
           <div className="customer-fulfilment-card-head"><div><span>Τμήμα {index + 1}</span><strong>{item.vendorName}</strong></div><span className="status-pill">{statusLabel(item.status, fulfilmentMode)}</span></div>
           <p className="customer-fulfilment-items">{itemCopy(item, lines)}</p>
-          <div className="customer-fulfilment-next"><span>{tone === "action" ? "Δική σου ενέργεια" : tone === "problem" ? "Χρειάζεται προσοχή" : tone === "success" ? "Ολοκληρώθηκε" : "Τι ακολουθεί"}</span><p>{nextStep(item.status, fulfilmentMode)}</p></div>
+          <div className="customer-fulfilment-next"><span>{tone === "action" ? "Δική σου ενέργεια" : tone === "problem" ? "Χρειάζεται προσοχή" : tone === "success" ? "Ολοκληρώθηκε" : "Τι ακολουθεί"}</span><p>{nextStep(item.status, fulfilmentMode, item.manualSupplier)}</p></div>
+          {item.manualSupplier && <div className="customer-fulfilment-next">
+            <span>Στοιχεία αποστολής συνεργάτη</span>
+            <p>{item.trackingNumber ? <>{item.carrier ? `${item.carrier} · ` : ""}<strong>{item.trackingNumber}</strong>{item.deliveryNote ? <> · {item.deliveryNote}</> : null}</> : "Δεν έχει καταχωριστεί ακόμη αριθμός αποστολής."}</p>
+          </div>}
           <small className="customer-fulfilment-charge">Χρέωση παράδοσης: {item.deliveryCharge}</small>
         </article>;
       })}

@@ -20,6 +20,8 @@ type Detail = {
   merchandiseSubtotal: string;
   deliveryCharge: string;
   discount: string;
+  vat: string;
+  giftCards: ReadonlyArray<{ number: string; codeSuffix: string; amount: string }>;
   total: string;
   cancellationReason?: string;
   cancelledAt?: number;
@@ -27,7 +29,7 @@ type Detail = {
   csrfToken: string;
   invoice?: { documentNumber: string; type: string; mark: string; uid?: string; qrUrl?: string; issuedAt: number; downloadUrl: string };
   lines: ReadonlyArray<{ id: string; canonicalVariantId: string; productSlug?: string; title: string; quantity: number; fulfilledQuantity: number; refundedQuantity: number; returnableQuantity: number; status: string; retailUnitPrice: string; vendorId: string; vendorName: string }>;
-  fulfilments: ReadonlyArray<{ id: string; status: string; vendorId: string; vendorName: string; deliveryCharge: string; lineIds: readonly string[] }>;
+  fulfilments: ReadonlyArray<{ id: string; sourceId: string; status: string; vendorId: string; vendorName: string; deliveryCharge: string; lineIds: readonly string[]; manualSupplier: boolean; supplierName?: string; carrier?: string; trackingNumber?: string; shipmentStatus?: string; deliveryNote?: string }>;
   pickups: ReadonlyArray<{ id: string; fulfilmentId: string; vendorName: string; status: "ready" | "collected" | "expired"; readyAt: number; expiresAt: number; collectedAt?: number; shortCode: string; qrUrl: string }>;
   returns: ReadonlyArray<CustomerReturnCaseView>;
 };
@@ -62,9 +64,10 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentError, setPaymentError] = useState("");
   const [error, setError] = useState("");
+  const manualSupplierDelivery = data.fulfilments.some((item) => item.manualSupplier);
 
   useEffect(() => {
-    if (data.fulfilmentMode !== "local_delivery") {
+    if (data.fulfilmentMode !== "local_delivery" || manualSupplierDelivery) {
       setDeliveryJob(undefined);
       return undefined;
     }
@@ -88,7 +91,7 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
       active = false;
       window.clearInterval(timer);
     };
-  }, [data.id, data.fulfilmentMode]);
+  }, [data.id, data.fulfilmentMode, manualSupplierDelivery]);
 
   async function resumePayment() {
     setPaymentBusy(true);
@@ -135,7 +138,17 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
         <strong>{data.total}</strong>
       </div>
 
-      {data.fulfilmentMode === "local_delivery" && <div className="order-detail-card is-refined">
+      {data.fulfilmentMode === "local_delivery" && manualSupplierDelivery && <div className="order-detail-card is-refined">
+        <div className="eyebrow">Παράδοση συνεργάτη</div>
+        <h2 style={{ marginBottom: 6 }}>Αποστολή από συνεργαζόμενο προμηθευτή</h2>
+        <p style={{ marginTop: 0 }}>Η παραγγελία αποστέλλεται από τον συνεργάτη. Το live tracking ΚΟΝΤΑ ΜΟΥ δεν χρησιμοποιείται σε αυτή τη ροή. Μόλις καταχωριστεί ο αριθμός αποστολής, θα εμφανιστεί εδώ.</p>
+        {data.fulfilments.filter((item) => item.manualSupplier).map((item) => <div className="workspace-inline-note" key={item.id} style={{ marginTop: 12 }}>
+          <strong>{item.supplierName ?? item.vendorName}</strong>
+          {item.trackingNumber ? <p style={{ marginBottom: 0 }}>Μεταφορέας: <strong>{item.carrier ?? "—"}</strong><br />Αριθμός αποστολής: <strong>{item.trackingNumber}</strong>{item.deliveryNote ? <><br />Σημείωση: {item.deliveryNote}</> : null}</p> : <p style={{ marginBottom: 0 }}>Η παραγγελία έχει επιβεβαιωθεί. Αναμένουμε τα στοιχεία αποστολής από τον συνεργάτη.</p>}
+        </div>)}
+      </div>}
+
+      {data.fulfilmentMode === "local_delivery" && !manualSupplierDelivery && <div className="order-detail-card is-refined">
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
           <div>
             <div className="eyebrow">Τοπική παράδοση</div>
@@ -219,6 +232,8 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
         <div className="summary-row"><span>Εμπορεύματα</span><strong>{data.merchandiseSubtotal}</strong></div>
         <div className="summary-row"><span>Παράδοση</span><strong>{data.deliveryCharge}</strong></div>
         <div className="summary-row"><span>Έκπτωση</span><strong>{data.discount}</strong></div>
+        {data.giftCards.map((card) => <div className="summary-row" key={card.number}><span>Δωροκάρτα <small style={{ display: "block" }}>{card.number} · κωδ. …{card.codeSuffix}</small></span><strong>-{card.amount}</strong></div>)}
+        <div className="summary-row"><span>ΦΠΑ (περιλαμβάνεται)</span><strong>{data.vat}</strong></div>
         <div className="summary-row"><span>Σύνολο</span><strong>{data.total}</strong></div>
         {data.cancellationReason && <div className="workspace-inline-note">Ακύρωση: {data.cancellationReason}{data.cancelledAt ? ` · ${date(data.cancelledAt)}` : ""}</div>}
       </div>
