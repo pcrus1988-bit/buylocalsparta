@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { SqlExecutor, SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime.ts";
 import { normalizeNovaProduct } from "../../../../integrations/dropship-suppliers/src/nova-normalize.ts";
@@ -14,6 +15,7 @@ const DEFAULT_AVAILABILITY_REQUESTS_PER_MINUTE = 20;
 const DEFAULT_FULL_SWEEP_PAGE_SIZE = 100;
 const FALLBACK_FULL_SWEEP_PAGE_SIZE = 50;
 const RATE_LIMIT_BACKOFF_MS = [5_000, 10_000, 20_000, 30_000] as const;
+const AVAILABILITY_LEASE_SECONDS = 90;
 
 type AvailabilityVariant = Readonly<{
   externalVariantId: string;
@@ -59,6 +61,65 @@ export function novaAvailabilityRequestsPerMinute(env: NodeJS.ProcessEnv = proce
   return Number.isSafeInteger(parsed) && parsed >= 1 && parsed <= 60
     ? parsed
     : DEFAULT_AVAILABILITY_REQUESTS_PER_MINUTE;
+}
+
+async function claimNovaAvailabilityLease(
+  db: SqlExecutor,
+  purpose: "railway_full_sweep" | "vercel_failover"
+): Promise<string | null> {
+  const owner = `${purpose}:${randomUUID()}`;
+  const result = await db.query<SqlRow>(`
+    UPDATE public.catalog_sources
+    SET metadata=jsonb_set(
+          COALESCE(metadata, '{}'::jsonb),
+          '{novaAvailabilityLease}',
+          jsonb_build_object(
+            'owner', $1::text,
+            'purpose', $2::text,
+            'claimedAt', now(),
+            'expiresAt', now() + make_interval(secs => $3::double precision)
+          ),
+          true
+        ),
+        updated_at=now()
+    WHERE code='nova-brandsgateway'
+      AND (
+        NULLIF(metadata #>> '{novaAvailabilityLease,expiresAt}', '') IS NULL
+        OR (metadata #>> '{novaAvailabilityLease,expiresAt}')::timestamptz <= now()
+      )
+    RETURNING id
+  `, [owner, purpose, AVAILABILITY_LEASE_SECONDS]);
+  return result.rowCount === 1 ? owner : null;
+}
+
+async function renewNovaAvailabilityLease(db: SqlExecutor, owner: string): Promise<void> {
+  const result = await db.query(`
+    UPDATE public.catalog_sources
+    SET metadata=jsonb_set(
+          COALESCE(metadata, '{}'::jsonb),
+          '{novaAvailabilityLease}',
+          COALESCE(metadata->'novaAvailabilityLease', '{}'::jsonb)
+            || jsonb_build_object(
+              'renewedAt', now(),
+              'expiresAt', now() + make_interval(secs => $2::double precision)
+            ),
+          true
+        ),
+        updated_at=now()
+    WHERE code='nova-brandsgateway'
+      AND metadata #>> '{novaAvailabilityLease,owner}'=$1
+  `, [owner, AVAILABILITY_LEASE_SECONDS]);
+  if (result.rowCount !== 1) throw new Error("NOVA_AVAILABILITY_LEASE_LOST");
+}
+
+async function releaseNovaAvailabilityLease(db: SqlExecutor, owner: string): Promise<void> {
+  await db.query(`
+    UPDATE public.catalog_sources
+    SET metadata=COALESCE(metadata, '{}'::jsonb) - 'novaAvailabilityLease',
+        updated_at=now()
+    WHERE code='nova-brandsgateway'
+      AND metadata #>> '{novaAvailabilityLease,owner}'=$1
+  `, [owner]);
 }
 
 async function resolveNovaStoreId(
@@ -249,32 +310,21 @@ async function refreshNovaAvailabilityPage(
  * only when they belong to the supplier's configured owner vendor.
  */
 export async function runNovaAvailabilityRefreshSweep(): Promise<NovaAvailabilityRefreshResult> {
-  const runtime = getProductionPostgresRuntime();
-  const lockClient = await runtime.nativePool.connect();
-  let claimed = false;
+  const db = getProductionPostgresRuntime().sqlPool;
+  const leaseOwner = await claimNovaAvailabilityLease(db, "railway_full_sweep");
+  if (!leaseOwner) {
+    return { attemptedProducts: 0, refreshedProducts: 0, failedProducts: 0, updatedOffers: 0 };
+  }
   try {
-    const lock = await lockClient.query<{ claimed: boolean }>(
-      "SELECT pg_try_advisory_lock(hashtext($1)) AS claimed",
-      ["kontamou:nova-availability-refresh"]
-    );
-    claimed = lock.rows[0]?.claimed === true;
-    if (!claimed) {
-      return { attemptedProducts: 0, refreshedProducts: 0, failedProducts: 0, updatedOffers: 0 };
-    }
-    return await runNovaAvailabilityRefreshSweepUnlocked(lockClient);
+    return await runNovaAvailabilityRefreshSweepUnlocked(db, leaseOwner);
   } finally {
-    if (claimed) {
-      await lockClient.query(
-        "SELECT pg_advisory_unlock(hashtext($1))",
-        ["kontamou:nova-availability-refresh"]
-      ).catch(() => undefined);
-    }
-    lockClient.release();
+    await releaseNovaAvailabilityLease(db, leaseOwner).catch(() => undefined);
   }
 }
 
 async function runNovaAvailabilityRefreshSweepUnlocked(
-  db: SqlExecutor
+  db: SqlExecutor,
+  leaseOwner: string
 ): Promise<NovaAvailabilityRefreshResult> {
   const storeId = await resolveNovaStoreId(db);
   const client = createNovaAvailabilityClient();
@@ -285,6 +335,7 @@ async function runNovaAvailabilityRefreshSweepUnlocked(
   let updatedOffers = 0;
 
   while (true) {
+    await renewNovaAvailabilityLease(db, leaseOwner);
     let result;
     try {
       result = await listProductsWithRateLimitBackoff(client, storeId, page, perPage);
@@ -323,8 +374,8 @@ async function runNovaAvailabilityRefreshSweepUnlocked(
  *
  * The cursor is stored in catalog_sources metadata so each short cron invocation
  * advances through the official paginated supplier feed without pretending stale
- * evidence is fresh. A shared advisory lock prevents overlap with the Railway full
- * sweep once that worker is healthy again.
+ * evidence is fresh. A short database-backed lease prevents overlap with the Railway
+ * full sweep without relying on session advisory locks through transaction-mode pooling.
  */
 export async function runNovaAvailabilityRefreshSlice(
   requestedMaxPages = 14
@@ -332,31 +383,25 @@ export async function runNovaAvailabilityRefreshSlice(
   const maxPages = Number.isSafeInteger(requestedMaxPages) && requestedMaxPages > 0
     ? Math.min(requestedMaxPages, 20)
     : 14;
-  const runtime = getProductionPostgresRuntime();
-  const lockClient = await runtime.nativePool.connect();
-  let claimed = false;
+  const db = getProductionPostgresRuntime().sqlPool;
+  const leaseOwner = await claimNovaAvailabilityLease(db, "vercel_failover");
+
+  if (!leaseOwner) {
+    return {
+      claimed: false,
+      startPage: 1,
+      nextPage: 1,
+      pageSize: DEFAULT_FULL_SWEEP_PAGE_SIZE,
+      pagesProcessed: 0,
+      attemptedProducts: 0,
+      refreshedProducts: 0,
+      updatedOffers: 0,
+      cycleCompleted: false
+    };
+  }
 
   try {
-    const lock = await lockClient.query<{ claimed: boolean }>(
-      "SELECT pg_try_advisory_lock(hashtext($1)) AS claimed",
-      ["kontamou:nova-availability-refresh"]
-    );
-    claimed = lock.rows[0]?.claimed === true;
-    if (!claimed) {
-      return {
-        claimed: false,
-        startPage: 1,
-        nextPage: 1,
-        pageSize: DEFAULT_FULL_SWEEP_PAGE_SIZE,
-        pagesProcessed: 0,
-        attemptedProducts: 0,
-        refreshedProducts: 0,
-        updatedOffers: 0,
-        cycleCompleted: false
-      };
-    }
-
-    const cursorResult = await lockClient.query<SqlRow>(`
+    const cursorResult = await db.query<SqlRow>(`
       SELECT
         CASE
           WHEN COALESCE(metadata #>> '{novaAvailabilityFailover,nextPage}', '') ~ '^[0-9]+$'
@@ -382,7 +427,7 @@ export async function runNovaAvailabilityRefreshSlice(
     }
 
     const startPage = page;
-    const storeId = await resolveNovaStoreId(lockClient);
+    const storeId = await resolveNovaStoreId(db);
     const client = createNovaAvailabilityClient();
     let pagesProcessed = 0;
     let attemptedProducts = 0;
@@ -391,6 +436,7 @@ export async function runNovaAvailabilityRefreshSlice(
     let cycleCompleted = false;
 
     while (pagesProcessed < maxPages) {
+      await renewNovaAvailabilityLease(db, leaseOwner);
       let result;
       try {
         result = await listProductsWithRateLimitBackoff(client, storeId, page, perPage);
@@ -407,13 +453,13 @@ export async function runNovaAvailabilityRefreshSlice(
       if (result.items.length === 0) {
         page = 1;
         cycleCompleted = true;
-        await persistNovaAvailabilityFailoverCursor(page, perPage, cycleCompleted, lockClient);
+        await persistNovaAvailabilityFailoverCursor(page, perPage, cycleCompleted, db);
         break;
       }
 
       attemptedProducts += result.items.length;
       const checkedAt = new Date();
-      updatedOffers += await refreshNovaAvailabilityPage(result.items, storeId, checkedAt, lockClient);
+      updatedOffers += await refreshNovaAvailabilityPage(result.items, storeId, checkedAt, db);
       refreshedProducts += result.items.length;
       pagesProcessed += 1;
 
@@ -422,7 +468,7 @@ export async function runNovaAvailabilityRefreshSlice(
 
       page = pageComplete ? 1 : page + 1;
       cycleCompleted = pageComplete;
-      await persistNovaAvailabilityFailoverCursor(page, perPage, cycleCompleted, lockClient);
+      await persistNovaAvailabilityFailoverCursor(page, perPage, cycleCompleted, db);
       if (pageComplete) break;
     }
 
@@ -438,11 +484,7 @@ export async function runNovaAvailabilityRefreshSlice(
       cycleCompleted
     };
   } finally {
-    if (claimed) {
-      await lockClient.query("SELECT pg_advisory_unlock(hashtext($1))", ["kontamou:nova-availability-refresh"])
-        .catch(() => undefined);
-    }
-    lockClient.release();
+    await releaseNovaAvailabilityLease(db, leaseOwner).catch(() => undefined);
   }
 }
 
