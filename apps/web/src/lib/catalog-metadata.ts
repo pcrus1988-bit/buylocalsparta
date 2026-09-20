@@ -1,5 +1,6 @@
 import { normalizeCatalogAttributeKey } from "./catalog-attribute-facets";
-import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";\nimport { publicDescriptionText } from "./public-description-text";
+import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { publicDescriptionText } from "./public-description-text";
 
 export type CatalogMetadata = Readonly<{
   id: string;
