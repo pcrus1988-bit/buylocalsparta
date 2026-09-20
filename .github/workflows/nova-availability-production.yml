@@ -8,16 +8,6 @@ on:
         required: false
         default: false
         type: boolean
-  schedule:
-    - cron: "7,37 * * * *"
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/nova-availability-production.yml"
-      - "workers/nova-availability-worker.ts"
-      - "apps/web/src/lib/nova-availability-refresh-runtime.ts"
-      - "integrations/dropship-suppliers/src/nova-v1.ts"
 
 permissions:
   contents: read
@@ -41,7 +31,7 @@ jobs:
       BLS_DB_POOL_MAX: "2"
       BLS_NOVA_AVAILABILITY_REQUESTS_PER_MINUTE: "60"
       BLS_NOVA_AVAILABILITY_PAGE_CONCURRENCY: "12"
-      BLS_NOVA_FULL_PROJECTION_REFRESH: ${{ github.event_name == 'workflow_dispatch' && inputs.refresh_full_read_models }}
+      BLS_NOVA_FULL_PROJECTION_REFRESH: ${{ inputs.refresh_full_read_models }}
 
     steps:
       - name: Checkout
