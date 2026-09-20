@@ -4,7 +4,7 @@ import { EXPECTED_SCHEMA_VERSION, createPostgresRuntimeFromEnv, type ProductionP
 const WEB_EXPECTED_SCHEMA_VERSION = EXPECTED_SCHEMA_VERSION;
 const globalKey = "__buyLocalSpartaPostgresRuntime" as const;
 const globals = globalThis as typeof globalThis & { [globalKey]?: ProductionPostgresRuntime };
-const WEB_DB_POOL_MAX = "2";
+const WEB_DB_POOL_MAX = "1";
 const WEB_DB_CONNECT_TIMEOUT_MS = "15000";
 const WEB_DB_IDLE_TIMEOUT_MS = "5000";
 
@@ -44,9 +44,9 @@ if (process.env.VERCEL_ENV === "preview"
  * PostgreSQL runtime is a singleton only inside one instance, so using the package default
  * of ten connections per instance can multiply into a much larger database connection
  * footprint. Supabase transaction-mode pooling is already in front of the database. Keep
- * the pool deliberately small, but allow two clients: several governed jobs hold one
- * advisory-lock/transaction client while invoking another DB-backed service, and a pool
- * of one self-starves those flows until connectionTimeoutMillis fires. Release idle clients
+ * the pool deliberately small at one client per serverless instance. Code paths that need
+ * cross-service work must not hold a client while opening another transaction from the same
+ * pool; those flows use short transactions or durable leases instead. Release idle clients
  * quickly; operators can still override either setting explicitly
  * for a dedicated/pooler-backed deployment after measuring connection demand.
  * Production builds remain schema-gated through EXPECTED_SCHEMA_VERSION and the migration
