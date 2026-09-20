@@ -66,7 +66,7 @@ const getCachedHomepageHeroSlides = unstable_cache(
 
 const getCachedHomepageVendors = unstable_cache(
   () => getHomepagePublicVendorDirectory(),
-  ["homepage-public-vendor-directory-v2"],
+  ["homepage-public-vendor-directory-v3"],
   { revalidate: HOMEPAGE_REVALIDATE_SECONDS }
 );
 
