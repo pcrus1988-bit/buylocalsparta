@@ -55,6 +55,7 @@ export type SymphonyaStockRow = Readonly<{
   permitted: boolean;
   priceHeld?: boolean;
   wholesaleCostMinor?: number;
+  rrpMinor?: number;
   currency?: string;
   raw: Readonly<Record<string, unknown>>;
 }>;
