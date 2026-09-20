@@ -14,6 +14,7 @@ import { customerPickupCredentials, repairCustomerOrderLifecycle, type CustomerP
 import { marketplaceReferenceMap } from "./public-reference-service";
 import { requireCustomerOrderReference } from "./customer-order-reference";
 import { customerOrderLineActionToken, requireCustomerOrderLineInternalId } from "./customer-order-line-action-token";
+import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import {
   customerBrowserNotification,
   customerBrowserPreferences,
@@ -22,6 +23,30 @@ import {
   customerBrowserSavedProductAlert,
   customerBrowserSavedSearch
 } from "./customer-account-browser-view";
+
+async function orderProductSlugMap(canonicalVariantIds: readonly string[]): Promise<ReadonlyMap<string, string>> {
+  const ids = [...new Set(canonicalVariantIds.map((value) => value.trim()).filter(Boolean))];
+  if (ids.length === 0 || !productionDatabaseConfigured()) return new Map();
+  try {
+    const result = await getProductionPostgresRuntime().nativePool.query<{ id: string; slug: string }>(`
+      SELECT cv.public_id AS id,cv.slug
+      FROM canonical_variants cv
+      JOIN markets m ON m.id=cv.market_id
+      WHERE cv.public_id=ANY($1::text[])
+        AND m.code='sparta'
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
+    `, [ids]);
+    return new Map(result.rows.map((row) => [String(row.id), String(row.slug)] as const));
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: "warn",
+      event: "account.order_product_slug_lookup_degraded",
+      canonicalVariantCount: ids.length,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return new Map();
+  }
+}
 
 export async function accountDashboard(principal: SessionPrincipal, now = Date.now()) {
   const [state, catalog, ordersRaw] = await Promise.all([
@@ -113,15 +138,14 @@ export async function accountOrderDetail(principal: SessionPrincipal, orderIdent
   const hasFulfilledQuantity = order.lines.some((line) => line.fulfilledQuantity > line.refundedQuantity || line.status === "fulfilled");
   const canCancel = !["cancelled", "fulfilled", "completed", "refunded"].includes(order.status) && !physicalHandoverStarted && !hasFulfilledQuantity;
   const vendorIds = [...new Set([...order.lines.map((line) => line.vendorId), ...order.fulfilments.map((fulfilment) => fulfilment.vendorId)])];
-  const [vendorEntries, pickups, invoice, returns, catalog] = await Promise.all([
+  const [vendorEntries, pickups, invoice, returns, productSlugs] = await Promise.all([
     Promise.all(vendorIds.map(async (id) => [id, (await getPublicVendor(id))?.name ?? id] as const)),
     customerPickupCredentials(principal, orderId),
     customerFiscalDocumentForOrder(orderId),
     customerReturnsSnapshot(principal, orderId),
-    getPublicCatalogProducts()
+    orderProductSlugMap(order.lines.map((line) => line.canonicalVariantId))
   ]);
   const vendorNames = new Map(vendorEntries);
-  const productSlugs = new Map(catalog.map((product) => [product.id, product.slug]));
   return orderDetailProjection(order, principal.userId, resolved.referenceNumber, principal.csrfToken, canCancel, vendorNames, productSlugs, pickups, returns, invoice ? {
     documentNumber: invoice.documentNumber,
     type: invoice.type,
