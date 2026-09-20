@@ -3,7 +3,9 @@ import { cookies } from "next/headers";
 import { getAccountSession } from "../../lib/account-session";
 import { resolveHubContext } from "../../lib/hub-resolver";
 import { HUB_LOCALITY_COOKIE } from "../../lib/primary-location-gateway";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { SiteHeader } from "../../components/SiteHeader";
+import { SiteFooter } from "../../components/SiteFooter";
 import { FittingRoomExperience } from "../../components/FittingRoomExperience";
 import styles from "./page.module.css";
 
@@ -20,11 +22,12 @@ function safeVendor(value: string | undefined): string | undefined {
   return /^[A-Za-z0-9_-]{3,128}$/.test(candidate) ? candidate : undefined;
 }
 
-export const metadata: Metadata = {
-  title: "Fitting Room · KONTA MOY",
-  description: "Μπες στο Fitting Room του ΚΟΝΤΑ ΜΟΥ, πες μας τι σου αρέσει και φτιάξε ολοκληρωμένα looks που μπορείς να αλλάξεις, να αποθηκεύσεις και να μοιραστείς.",
-  robots: { index: true, follow: true }
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/fitting-room", {
+    title: "Fitting Room · KONTA MOY",
+    description: "Μπες στο Fitting Room του ΚΟΝΤΑ ΜΟΥ, πες μας τι σου αρέσει και φτιάξε ολοκληρωμένα looks που μπορείς να αλλάξεις, να αποθηκεύσεις και να μοιραστείς."
+  });
+}
 
 export default async function FittingRoomPage({ searchParams }: Props) {
   const params = await searchParams;
@@ -48,6 +51,7 @@ export default async function FittingRoomPage({ searchParams }: Props) {
         csrfToken={principal?.csrfToken}
         savedLookId={savedLookId}
       />
+      <SiteFooter />
     </main>
   );
 }
