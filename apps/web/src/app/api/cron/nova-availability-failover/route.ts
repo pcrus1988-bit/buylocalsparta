@@ -32,15 +32,14 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Railway is currently unavailable, so this endpoint is the active availability
-    // recovery path for the large Nova/BrandsGateway catalogue. One 100-product page
-    // per minute cannot keep the catalogue inside the authoritative two-hour TTL.
-    // Process up to eight pages per invocation: the Nova client still enforces the
-    // provider's 60 requests/minute ceiling and the DB-backed lease prevents overlap.
-    const configured = Number(process.env.BLS_NOVA_AVAILABILITY_FAILOVER_PAGES_PER_RUN || 8);
+    // Keep the Vercel failover deliberately bounded. The full-catalogue worker is the
+    // throughput path; this route shares the production DB with storefront traffic and
+    // has a hard 55s runtime ceiling. A recent eight-page run hit that ceiling, so use
+    // small checkpointed slices until the external worker is available again.
+    const configured = Number(process.env.BLS_NOVA_AVAILABILITY_FAILOVER_PAGES_PER_RUN || 2);
     const maxPages = Number.isSafeInteger(configured) && configured > 0
-      ? Math.min(configured, 8)
-      : 8;
+      ? Math.min(configured, 2)
+      : 2;
     const result = await runNovaAvailabilityRefreshSlice(maxPages);
     console.info(JSON.stringify({
       level: "info",
