@@ -111,6 +111,7 @@ export async function runSymphonyaCatalogueMaterializationSlice(): Promise<Symph
     let priorityBatch = false;
     let candidateRows: readonly SqlRow[] = [];
 
+    // Run the fashion/clothing catch-up before resuming the full supplier cursor.
     if (context.fashionPriorityCursor !== PRIORITY_COMPLETE_SENTINEL) {
       const priorityCandidates = await pool.query<SqlRow>(`
         SELECT p.id,p.snapshot_id,p.source_product_key,p.title,p.normalized_payload
