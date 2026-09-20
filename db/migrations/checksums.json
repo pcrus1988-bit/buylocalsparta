@@ -251,5 +251,5 @@
   "0257_symphonya_testers_bazaar_only.sql": "ce1aeff32988a16026a1b0b78191bd750a63fb6ac3738e425196590d9b8ff415",
   "0258_symphonya_samples_bazaar_only.sql": "53e7de6d4fdc5272bcca4cd466caed94700c305706f39245e354d0468e6b7329",
   "0259_dropship_spv_tax_rules.sql": "10ec70ddfb4d0410afd2c5b5061fd096e4a00911599499391b76c76b9a17cb05",
-  "0260_spv_gift_card_fiscal_capture.sql": "b21213be5d1380d6cba97d8b93928cc7d62a11cd80715e8ecccd90cd0848ee82"
+  "0260_spv_gift_card_fiscal_capture.sql": "0d6a72088672c2cce8d5d78e62082334a5242c824bd4fcf84f4e26f96801a6d2"
 }
