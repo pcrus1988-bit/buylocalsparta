@@ -15,7 +15,9 @@ type ColorStudioDefinition = Readonly<{
   categoryCode: string;
   categoryLabel: string;
   studioLabel: string;
+  displayLabel: string;
   hint: string;
+  tone: string;
   shopHref: string;
 }>;
 
@@ -24,63 +26,81 @@ const COLOR_STUDIOS: readonly ColorStudioDefinition[] = [
     categoryCode: "studio-nails",
     categoryLabel: "Βερνίκια νυχιών",
     studioLabel: "NAIL STUDIO",
-    hint: "Βερνίκια και αποχρώσεις νυχιών",
+    displayLabel: "Νύχια",
+    hint: "Βρες βερνίκια στην απόχρωση που έχεις στο μυαλό σου.",
+    tone: "nail",
     shopHref: "/shop?category=beauty"
   },
   {
     categoryCode: "studio-lips",
     categoryLabel: "Χείλη",
     studioLabel: "LIP STUDIO",
-    hint: "Κραγιόν και χρώμα χειλιών",
+    displayLabel: "Χείλη",
+    hint: "Ανακάλυψε κραγιόν και προϊόντα χειλιών στο σωστό χρώμα.",
+    tone: "lip",
     shopHref: "/shop?category=beauty"
   },
   {
     categoryCode: "studio-eye-makeup",
     categoryLabel: "Μάτια",
     studioLabel: "EYE STUDIO",
-    hint: "Σκιές και χρώμα ματιών",
+    displayLabel: "Μάτια",
+    hint: "Βρες σκιές και χρωματικές επιλογές για τα μάτια.",
+    tone: "eye",
     shopHref: "/shop?category=beauty"
   },
   {
     categoryCode: "studio-makeup",
     categoryLabel: "Μακιγιάζ",
     studioLabel: "MAKEUP STUDIO",
-    hint: "Χρωματικές επιλογές μακιγιάζ",
+    displayLabel: "Μακιγιάζ",
+    hint: "Ξεκίνα από το χρώμα και βρες το μακιγιάζ που ταιριάζει.",
+    tone: "makeup",
     shopHref: "/shop?category=beauty"
   },
   {
     categoryCode: "studio-hair-color",
     categoryLabel: "Χρώμα μαλλιών",
     studioLabel: "HAIR COLOR STUDIO",
-    hint: "Αποχρώσεις και προϊόντα μαλλιών",
+    displayLabel: "Μαλλιά",
+    hint: "Δες αποχρώσεις και προϊόντα μαλλιών κοντά στο χρώμα σου.",
+    tone: "hair",
     shopHref: "/shop?category=beauty"
   },
   {
     categoryCode: "studio-shoes",
     categoryLabel: "Παπούτσια",
     studioLabel: "SHOE STUDIO",
-    hint: "Παπούτσια στο χρώμα που ψάχνεις",
+    displayLabel: "Παπούτσια",
+    hint: "Βρες παπούτσια που δένουν με το χρώμα ή το look σου.",
+    tone: "shoe",
     shopHref: "/shop?category=fashion"
   },
   {
     categoryCode: "studio-bags",
     categoryLabel: "Τσάντες & αξεσουάρ",
     studioLabel: "ACCESSORY STUDIO",
-    hint: "Τσάντες και αξεσουάρ ανά χρώμα",
+    displayLabel: "Τσάντες & αξεσουάρ",
+    hint: "Βρες την τσάντα ή το αξεσουάρ που ολοκληρώνει την παλέτα σου.",
+    tone: "accessory",
     shopHref: "/shop?category=fashion"
   },
   {
     categoryCode: "studio-fashion",
     categoryLabel: "Μόδα",
     studioLabel: "FASHION STUDIO",
-    hint: "Ρούχα και fashion επιλογές ανά χρώμα",
+    displayLabel: "Μόδα",
+    hint: "Ανακάλυψε ρούχα και fashion επιλογές ξεκινώντας από το χρώμα.",
+    tone: "fashion",
     shopHref: "/shop?category=fashion"
   },
   {
     categoryCode: "studio-home",
     categoryLabel: "Σπίτι & διακόσμηση",
     studioLabel: "HOME COLOR STUDIO",
-    hint: "Αντικείμενα για τον χώρο σου",
+    displayLabel: "Σπίτι",
+    hint: "Ταίριαξε αντικείμενα και διακόσμηση με τα χρώματα του χώρου σου.",
+    tone: "home",
     shopHref: "/shop?category=home-living"
   }
 ] as const;
@@ -142,12 +162,12 @@ export default async function ColorFinderPage({ searchParams }: Props) {
 
   if (!requestedCategoryCode) {
     return (
-      <main className={styles.page}>
+      <main className={`${styles.page} ${styles.hubPage}`}>
         <div className={styles.topBar}>
-          <Link href={backHref} className={styles.back}>← KONTA MOY</Link>
+          <Link href={backHref} className={styles.back}>← ΚΟΝΤΑ ΜΟΥ</Link>
           <div className={styles.wordmark}>
             <strong>COLOR FINDER</strong>
-            <span>ALL STUDIOS · by KONTA MOY</span>
+            <span>by KONTA MOY</span>
           </div>
           <Link
             href={vendorId ? `/vendor/${encodeURIComponent(vendorId)}` : "/shop"}
@@ -159,12 +179,31 @@ export default async function ColorFinderPage({ searchParams }: Props) {
 
         <section className={styles.studioHub} aria-labelledby="color-studios-title">
           <div className={styles.studioHero}>
-            <span>COLOR FIRST · CHOOSE YOUR STUDIO</span>
-            <h1 id="color-studios-title">One color.<br />Every studio.</h1>
-            <p>
-              Διάλεξε πού θέλεις να ψάξεις. Κάθε studio προσαρμόζει τα προϊόντα και την εμπειρία
-              στο είδος που σε ενδιαφέρει — όχι μόνο στα νύχια.
-            </p>
+            <div className={styles.studioHeroCopy}>
+              <span className={styles.heroEyebrow}>KONTA MOY · COLOR FINDER</span>
+              <h1 id="color-studios-title">
+                Διάλεξε χρώμα.<br />
+                <em>Βρες αυτό που σου ταιριάζει.</em>
+              </h1>
+            </div>
+            <div className={styles.studioHeroAside}>
+              <span className={styles.studioCount}>9 COLOR STUDIOS</span>
+              <p>
+                Ξεκίνα από την απόχρωση που θέλεις — ή πάρε ένα χρώμα από φωτογραφία —
+                και διάλεξε πού θέλεις να το βρεις.
+              </p>
+              <div className={styles.heroPalette} aria-hidden="true">
+                <i /><i /><i /><i /><i /><i /><i />
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.studioSectionHead}>
+            <div>
+              <span>ΤΑ STUDIOS</span>
+              <h2>Σε τι θέλεις να βρεις το χρώμα σου;</h2>
+            </div>
+            <p>Διάλεξε μία κατηγορία για να ξεκινήσεις.</p>
           </div>
 
           <div className={styles.studioGrid}>
@@ -173,25 +212,39 @@ export default async function ColorFinderPage({ searchParams }: Props) {
                 key={studio.categoryCode}
                 href={studioHref(studio, vendorId, returnTo)}
                 className={styles.studioCard}
+                data-tone={studio.tone}
               >
                 <div className={styles.studioCardTop}>
                   <span>{String(index + 1).padStart(2, "0")}</span>
-                  <small>OPEN STUDIO ↗</small>
+                  <small>{studio.studioLabel}</small>
                 </div>
-                <div>
-                  <strong>{studio.studioLabel}</strong>
+
+                <div className={styles.studioArt} aria-hidden="true">
+                  <span className={styles.studioGlow} />
+                  <div className={styles.studioSwatches}>
+                    <i /><i /><i /><i /><i />
+                  </div>
+                </div>
+
+                <div className={styles.studioCardCopy}>
+                  <h3>{studio.displayLabel}</h3>
                   <p>{studio.hint}</p>
+                  <span className={styles.studioCta}>
+                    Βρες το χρώμα σου <b>→</b>
+                  </span>
                 </div>
               </Link>
             ))}
           </div>
 
           <div className={styles.studioHubNote}>
-            <span>COLOR FINDER</span>
-            <p>
-              Μπορείς επίσης να ανοίξεις το Color Finder μέσα από μια συγκεκριμένη κατηγορία ή
-              κατάστημα. Τότε θα ανοίγει απευθείας το κατάλληλο studio.
-            </p>
+            <div className={styles.noteMark}>◎</div>
+            <div>
+              <strong>Έχεις το χρώμα μπροστά σου;</strong>
+              <p>
+                Σε κάθε studio μπορείς να διαλέξεις απόχρωση ή να πάρεις χρώμα από φωτογραφία.
+              </p>
+            </div>
           </div>
         </section>
 
