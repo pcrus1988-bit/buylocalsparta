@@ -32,13 +32,15 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Vercel is a failover worker, not the primary full-catalogue sweep. Keep each
-    // invocation deliberately small so supplier/DB slowdown cannot occupy the
-    // runtime window or compete with storefront requests.
-    const configured = Number(process.env.BLS_NOVA_AVAILABILITY_FAILOVER_PAGES_PER_RUN || 1);
+    // Railway is currently unavailable, so this endpoint is the active availability
+    // recovery path for the large Nova/BrandsGateway catalogue. One 100-product page
+    // per minute cannot keep the catalogue inside the authoritative two-hour TTL.
+    // Process up to eight pages per invocation: the Nova client still enforces the
+    // provider's 60 requests/minute ceiling and the DB-backed lease prevents overlap.
+    const configured = Number(process.env.BLS_NOVA_AVAILABILITY_FAILOVER_PAGES_PER_RUN || 8);
     const maxPages = Number.isSafeInteger(configured) && configured > 0
-      ? Math.min(configured, 2)
-      : 1;
+      ? Math.min(configured, 8)
+      : 8;
     const result = await runNovaAvailabilityRefreshSlice(maxPages);
     console.info(JSON.stringify({
       level: "info",
