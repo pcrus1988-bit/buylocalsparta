@@ -359,6 +359,7 @@ function normalizeProduct(row: unknown, currency: string): SymphonyaSourceProduc
     descriptionEn: optionalString(description, "short_description", "shortDescription") ?? optionalString(record, "short_description", "SHORT DESCRIPTION"),
     howToUseEn: optionalString(description, "how_to_use", "howToUse") ?? optionalString(record, "how_to_use", "HOW TO USE"),
     wholesaleCostMinor: optionalMoneyMinor(record, "price", "wholesale_price", "PRICE"),
+    rrpMinor: optionalMoneyMinor(record, "rrp", "RRP", "msrp", "MSRP", "recommended_retail_price", "recommendedRetailPrice"),
     currency,
     stock: optionalNumber(record, "stock", "qty", "quantity", "STOCK"),
     warehouse: optionalString(record, "warehouse", "WAREHOUSE"),
