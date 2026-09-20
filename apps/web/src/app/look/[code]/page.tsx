@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SharedLookActions } from "../../../components/SharedLookActions";
+import { SiteFooter } from "../../../components/SiteFooter";
 import { productPublicPath } from "../../../lib/product-url";
 import { getSharedStyleLook, type StyleLookItem } from "../../../lib/style-builder-runtime";
 import { styleLookShareTokenFromCode } from "../../../lib/style-look-share-code";
@@ -162,6 +163,7 @@ export default async function SharedLookPage({ params }: Props) {
       <div className={styles.mobileActions}>
         <SharedLookActions items={actionItems} vendorId={vendorId} />
       </div>
+      <SiteFooter />
     </main>
   );
 }
