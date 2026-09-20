@@ -118,13 +118,7 @@ export async function runSymphonyaCatalogueMaterializationSlice(): Promise<Symph
           FROM public.catalog_source_product_latest p
          WHERE p.source_id=$1::uuid
            AND ($2::text IS NULL OR p.source_product_key>$2)
-           AND (
-             lower(COALESCE(p.normalized_payload #>> '{categoryDetails,cat}',''))='clothing'
-             OR (
-               lower(COALESCE(p.normalized_payload #>> '{categoryDetails,cat}',''))='fashion'
-               AND lower(COALESCE(p.normalized_payload #>> '{categoryDetails,scat}','')) IN ('fashion accessories','bags & backpacks')
-             )
-           )
+           AND lower(COALESCE(p.normalized_payload #>> '{categoryDetails,cat}','')) IN ('fashion','clothing')
          ORDER BY p.source_product_key
          LIMIT $3
       `, [context.sourceId, context.fashionPriorityCursor, batchSize()]);
