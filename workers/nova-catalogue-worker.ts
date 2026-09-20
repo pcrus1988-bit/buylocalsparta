@@ -18,6 +18,8 @@ import { novaApiKeyFromEnvironment } from "../integrations/dropship-suppliers/sr
 
 // Railway deployment marker: schema-258 BrandsGateway availability recovery; rebuild 2026-09-20-railway-watch-fixed.
 const workerId = process.env.BLS_NOVA_WORKER_ID?.trim() || `nova-catalogue-worker:${hostname()}:${process.pid}`;
+const runOnce = environmentFlag(process.env.BLS_NOVA_RUN_ONCE, false);
+const runOnceAvailabilityRefresh = environmentFlag(process.env.BLS_NOVA_RUN_AVAILABILITY_REFRESH, false);
 const pollMs = positiveInteger(process.env.BLS_NOVA_POLL_MS, 5_000, "BLS_NOVA_POLL_MS");
 const retryMs = positiveInteger(process.env.BLS_NOVA_RETRY_MS, 30_000, "BLS_NOVA_RETRY_MS");
 const availabilityRefreshMs = positiveInteger(
@@ -46,7 +48,7 @@ await waitForDatabaseReadiness();
 await assertNovaRuntimeInvariants();
 
 let stopping = false;
-let nextAvailabilityRefreshAt = 0;
+let nextAvailabilityRefreshAt = runOnce && !runOnceAvailabilityRefresh ? Number.POSITIVE_INFINITY : 0;
 let nextColorProfileAt = 0;
 const requestStop = (signal: string) => {
   if (stopping) return;
@@ -67,7 +69,9 @@ log("info", "nova.worker_started", {
     promotion: "worker",
     applicationSideAiGeneration: false
   },
-  runtimeInvariantsVerified: true
+  runtimeInvariantsVerified: true,
+  executionMode: runOnce ? "run_once" : "continuous",
+  runOnceAvailabilityRefresh
 });
 
 try {
@@ -177,10 +181,15 @@ try {
       }
 
       if (stopping) break;
+      if (runOnce) {
+        log("info", "nova.run_once_complete", { workerId, claimed: result.claimed });
+        break;
+      }
       await delay(result.claimed ? pollMs : Math.max(pollMs, 15_000));
     } catch (error) {
       log("error", "nova.catalogue_sync_failed", { workerId, error: safeError(error) });
       if (stopping) break;
+      if (runOnce) throw error;
       await delay(retryMs);
     }
   }
@@ -252,6 +261,14 @@ async function waitForDatabaseReadiness(): Promise<void> {
   }
 
   throw new Error(`Nova catalogue worker refused to start after waiting for database readiness: ${lastMessage}`);
+}
+
+function environmentFlag(raw: string | undefined, fallback: boolean): boolean {
+  if (!raw?.trim()) return fallback;
+  const value = raw.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(value)) return true;
+  if (["0", "false", "no", "off"].includes(value)) return false;
+  throw new Error(`Invalid boolean environment flag: ${raw}`);
 }
 
 function positiveInteger(raw: string | undefined, fallback: number, name: string): number {
