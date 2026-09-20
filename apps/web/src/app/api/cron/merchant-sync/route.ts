@@ -14,6 +14,18 @@ export async function GET(request: Request) {
     return Response.json({ ok: true, status: "skipped", reason: "production_only" }, { headers: { "cache-control": "no-store" } });
   }
 
+  // Workload Identity Federation cannot run without the token injected by
+  // Vercel. Treat a missing token as an environment/configuration condition,
+  // not as an application failure: avoid doing catalogue/DB preparation work
+  // for a job that cannot submit anything to Google Merchant.
+  if (!process.env.VERCEL_OIDC_TOKEN?.trim()) {
+    console.warn(JSON.stringify({ level: "warn", event: "merchant.catalogue_sync_skipped", reason: "oidc_token_unavailable" }));
+    return Response.json(
+      { ok: true, status: "skipped", reason: "oidc_token_unavailable" },
+      { headers: { "cache-control": "no-store" } }
+    );
+  }
+
   try {
     const sync = await syncGoogleMerchantCatalogue();
     const failed = sync.status === "partial";
