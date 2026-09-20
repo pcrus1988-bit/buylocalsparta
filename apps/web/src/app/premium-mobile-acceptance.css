@@ -547,3 +547,106 @@
     border-radius: 22px 0 0 22px !important;
   }
 }
+
+
+/* 20 Sep 2026 · /shop price range */
+.catalog-price-range {
+  min-width: 0;
+  margin: 10px 0 2px;
+  padding: 0;
+  border: 0;
+}
+.catalog-price-range legend {
+  margin-bottom: 9px;
+  padding: 0;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+}
+.catalog-price-range-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+.catalog-price-field {
+  min-width: 0;
+  margin: 0 !important;
+}
+.catalog-price-field > span:first-child {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 800;
+}
+.catalog-price-input {
+  position: relative;
+  display: block;
+}
+.catalog-price-input input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 34px 0 11px !important;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8f4eb;
+  color: var(--ink);
+  font: inherit;
+}
+.catalog-price-input b {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  color: var(--ink-soft);
+  font-size: 13px;
+  pointer-events: none;
+}
+.catalog-price-separator {
+  padding-bottom: 13px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .catalog-price-range {
+    margin-top: 14px !important;
+    padding-top: 16px !important;
+    border-top: 1px solid rgba(18,55,44,.10) !important;
+  }
+  .catalog-price-range legend {
+    margin-bottom: 10px !important;
+    font-size: 12px !important;
+    line-height: 1.25;
+  }
+  .catalog-price-range-fields {
+    gap: 7px;
+  }
+  .catalog-price-field > span:first-child {
+    margin-bottom: 6px;
+    font-size: 10px;
+  }
+  .catalog-price-input input {
+    min-height: 50px !important;
+    border: 1px solid rgba(18,55,44,.17) !important;
+    border-radius: 14px !important;
+    background: #fffdfa !important;
+    padding: 0 35px 0 13px !important;
+    font-family: var(--font-comfortaa), sans-serif !important;
+    font-size: 14px !important;
+    box-shadow: none !important;
+  }
+  .catalog-price-input input:focus-visible {
+    border-color: var(--ink) !important;
+    outline: 3px solid rgba(18,55,44,.12) !important;
+    outline-offset: 2px;
+  }
+  .catalog-price-input b {
+    right: 12px;
+    font-size: 14px;
+  }
+  .catalog-price-separator {
+    padding-bottom: 16px;
+  }
+}
