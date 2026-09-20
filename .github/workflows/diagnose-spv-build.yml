@@ -1,0 +1,19 @@
+name: Diagnose SPV build
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - name: Build web as preview
+        env:
+          VERCEL_ENV: preview
+        run: npm run build:web
