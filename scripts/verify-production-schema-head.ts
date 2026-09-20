@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { loadManifest, loadMigrations, migrationDirectoryFrom, verifyMigrationManifest, type MigrationFile } from "./migration-lib.ts";
 
-const productionOnly = process.argv.includes("--vercel-production-only");
+// Diagnostic branch: force one clean preview build from the current main tree.\nconst productionOnly = process.argv.includes("--vercel-production-only");
 if (productionOnly && process.env.VERCEL_ENV !== "production") {
   console.log(`Production schema gate skipped for VERCEL_ENV=${process.env.VERCEL_ENV ?? "unset"}.`);
 } else {
