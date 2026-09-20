@@ -54,7 +54,6 @@ type CustomerOrderCommercialSnapshot = Readonly<{
   giftCards: readonly Readonly<{ number: string; codeSuffix: string; amountMinor: number }>[];
   fulfilments: ReadonlyMap<string, Readonly<{
     manualSupplier: boolean;
-    supplierName?: string;
     carrier?: string;
     trackingNumber?: string;
     shipmentStatus?: string;
@@ -85,7 +84,6 @@ async function customerOrderCommercialSnapshot(principal: SessionPrincipal, orde
       db.query<{
         fulfilment_id: string;
         manual_supplier: boolean;
-        supplier_name: string | null;
         carrier: string | null;
         tracking_number: string | null;
         shipment_status: string | null;
@@ -103,16 +101,6 @@ async function customerOrderCommercialSnapshot(principal: SessionPrincipal, orde
               AND ds.provider_kind IN ('brandsgateway_shopwoo','symphonya')
               AND (ds.order_forwarding_enabled=false OR ds.tracking_sync_enabled=false)
           ) AS manual_supplier,
-          (
-            SELECT string_agg(DISTINCT ds.display_name, ', ' ORDER BY ds.display_name)
-            FROM fulfilment_order_lines fol2
-            JOIN order_lines ol2 ON ol2.id=fol2.order_line_id
-            JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=ol2.assigned_offer_id
-            JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
-            WHERE fol2.fulfilment_order_id=fo.id
-              AND ds.active=true
-              AND ds.provider_kind IN ('brandsgateway_shopwoo','symphonya')
-          ) AS supplier_name,
           shipment.carrier,shipment.tracking_number,shipment.status AS shipment_status,
           shipment.proof->>'manualDeliveryNote' AS delivery_note
         FROM fulfilment_orders fo
@@ -139,7 +127,6 @@ async function customerOrderCommercialSnapshot(principal: SessionPrincipal, orde
       })),
       fulfilments: new Map(fulfilments.rows.map((row) => [String(row.fulfilment_id), {
         manualSupplier: Boolean(row.manual_supplier),
-        supplierName: row.supplier_name?.trim() || undefined,
         carrier: row.carrier?.trim() || undefined,
         trackingNumber: row.tracking_number?.trim() || undefined,
         shipmentStatus: row.shipment_status?.trim() || undefined,
@@ -368,7 +355,6 @@ function orderDetailProjection(
         vendorName: vendorNames.get(fulfilment.vendorId) ?? fulfilment.vendorId,
         deliveryCharge: formatMoney(fulfilment.deliveryCharge),
         manualSupplier: shipment?.manualSupplier ?? false,
-        supplierName: shipment?.supplierName,
         carrier: shipment?.carrier,
         trackingNumber: shipment?.trackingNumber,
         shipmentStatus: shipment?.shipmentStatus,
