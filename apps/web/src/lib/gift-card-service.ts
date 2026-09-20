@@ -101,16 +101,29 @@ export async function redeemGiftCardForOrder(principal: SessionPrincipal, input:
     if (String(order.currency) !== "EUR") throw new Error("Η δωροκάρτα μπορεί να χρησιμοποιηθεί μόνο σε παραγγελίες EUR");
 
     const totalMinor = asInt(order.total_minor);
-    const subtotalMinor = asInt(order.subtotal_minor);
     const deliveryMinor = asInt(order.shipping_minor);
-    const discountMinor = asInt(order.discount_minor);
-    const merchandiseEligibleMinor = Math.max(0, subtotalMinor - discountMinor);
 
     const cardResult = await tx.query<SqlRow>(`SELECT * FROM gift_cards WHERE public_id=$1 FOR UPDATE`, [input.giftCardId]);
     if (!cardResult.rowCount) throw new Error("Η δωροκάρτα δεν βρέθηκε");
     const card = cardResult.rows[0];
     if (String(card.market_id) !== String(order.market_uuid)) throw new Error("Η δωροκάρτα δεν ισχύει για αυτή την αγορά");
     if (String(card.holder_user_id ?? "") !== userUuid) throw new Error("Σύνδεσε πρώτα τη δωροκάρτα με τον λογαριασμό σου");
+    if (String(card.voucher_type) !== "single_purpose" || String(card.voucher_tax_country) !== "GR") {
+      throw new Error("Η δωροκάρτα δεν έχει ενεργό ελληνικό φορολογικό προφίλ ΚΣΣ.");
+    }
+    const voucherVatRateBps = asInt(card.voucher_vat_rate_bps);
+    const eligibleLines = await tx.query<SqlRow>(`
+      SELECT ol.public_id,
+             (ol.retail_unit_price_minor * ol.quantity - ol.discount_allocation_minor)::bigint AS eligible_gross_minor
+        FROM order_lines ol
+       WHERE ol.order_id=$1::uuid
+         AND ol.tax_rate_bps=$2
+       ORDER BY ol.created_at,ol.id
+    `, [order.order_uuid, voucherVatRateBps]);
+    const merchandiseEligibleMinor = eligibleLines.rows.reduce((sum, line) => sum + Math.max(0, asInt(line.eligible_gross_minor)), 0);
+    if (merchandiseEligibleMinor <= 0) {
+      throw new Error(`Η δωροκάρτα ΚΣΣ ${(voucherVatRateBps / 100).toFixed(0)}% μπορεί να χρησιμοποιηθεί μόνο σε προϊόντα με τον ίδιο συντελεστή ΦΠΑ.`);
+    }
 
     const prior = await tx.query<SqlRow>(`SELECT amount_minor FROM gift_card_ledger WHERE idempotency_key=$1 LIMIT 1`, [idempotencyKey]);
     if (prior.rowCount) {
@@ -141,7 +154,7 @@ export async function redeemGiftCardForOrder(principal: SessionPrincipal, input:
     const ledgerPublicId = `gift_ledger_${randomUUID()}`;
     const updatedCard = await tx.query<SqlRow>(`UPDATE gift_cards SET balance_minor=$2,status=CASE WHEN $2=0 THEN 'depleted' ELSE 'active' END,updated_at=$3 WHERE id=$1::uuid RETURNING *`, [card.id, nextBalance, new Date(now)]);
     await tx.query(`INSERT INTO gift_card_ledger(public_id,gift_card_id,entry_type,amount_minor,balance_after_minor,currency,idempotency_key,order_public_id,actor_user_id,reason,metadata,created_at)
-      VALUES($1,$2::uuid,'redeem',$3,$4,'EUR',$5,$6,$7::uuid,'checkout_redemption',$8::jsonb,$9)`, [ledgerPublicId, card.id, -amountMinor, nextBalance, idempotencyKey, input.orderId, userUuid, JSON.stringify({ giftCardId: input.giftCardId, merchandiseEligibleMinor, deliveryExcludedMinor: deliveryMinor, remainingPayableMinor }), new Date(now)]);
+      VALUES($1,$2::uuid,'redeem',$3,$4,'EUR',$5,$6,$7::uuid,'checkout_redemption',$8::jsonb,$9)`, [ledgerPublicId, card.id, -amountMinor, nextBalance, idempotencyKey, input.orderId, userUuid, JSON.stringify({ giftCardId: input.giftCardId, voucherType: "single_purpose", voucherVatRateBps, voucherTaxCountry: "GR", vatRecognizedAtIssue: true, redemptionCreatesIndependentTaxableTransaction: false, merchandiseEligibleMinor, deliveryExcludedMinor: deliveryMinor, remainingPayableMinor }), new Date(now)]);
 
     if (remainingPayableMinor === 0) {
       await tx.query(`UPDATE payments SET provider='gift_card',provider_payment_id=$2,status='captured',authorised_minor=$3,captured_minor=$3,provider_payload=provider_payload||$4::jsonb,updated_at=$5 WHERE id=$1::uuid`, [order.payment_uuid, ledgerPublicId, amountMinor, JSON.stringify({ giftCardId: input.giftCardId, giftCardLedgerId: ledgerPublicId, giftCardAmountMinor: amountMinor, deliveryExcludedMinor: deliveryMinor, externalAmountMinor: 0 }), new Date(now)]);
