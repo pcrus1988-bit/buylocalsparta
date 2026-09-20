@@ -6,6 +6,7 @@ import { VendorAskLocalPanel } from "../../../components/VendorAskLocalPanel";
 import { VendorCatalogBrowser } from "../../../components/VendorCatalogBrowser";
 import storefrontStyles from "../../../components/VendorStorefront.module.css";
 import { getAccountSession } from "../../../lib/account-session";
+import { getFastVendorDropshipCatalogPage } from "../../../lib/vendor-dropship-fast-page";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
@@ -18,6 +19,8 @@ const VENDOR_ID = "vendor_e8cb57b3c67b469d9a9d";
 const DISPLAY_NAME = "SP BUSINESS LAB";
 const SPECIAL_DESCRIPTION =
   "Luxury items, αγαπημένα designer brands και haute couture. Κοντά σου — μέσα από μια επιλεγμένη premium συλλογή στο ΚΟΝΤΑ ΜΟΥ.";
+
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
   const [vendor, { settings }, overrides] = await Promise.all([
@@ -72,8 +75,21 @@ export default async function SpBusinessLabStorefront() {
   if (!vendor) notFound();
 
   const isResearch = vendor.directoryStatus === "research";
-  const principal = isResearch ? undefined : await getAccountSession();
-  const products = [] as const;
+  const [principal, initialCatalog] = isResearch
+    ? [undefined, undefined] as const
+    : await Promise.all([
+        getAccountSession(),
+        getFastVendorDropshipCatalogPage(VENDOR_ID, { offset: 0, limit: 20 }).catch((error) => {
+          console.error(JSON.stringify({
+            level: "warn",
+            event: "storefront.sp_business_lab_initial_catalog_failed",
+            vendorId: VENDOR_ID,
+            message: error instanceof Error ? error.message : String(error)
+          }));
+          return undefined;
+        })
+      ]);
+  const products = initialCatalog?.products ?? [];
 
   const structuredData = {
     "@context": "https://schema.org",
