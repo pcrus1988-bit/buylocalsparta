@@ -55,7 +55,10 @@ export async function loadManifest(path: string): Promise<ChecksumManifest> {
         throw new Error(`Migration checksum ${migrationFilename} in ${filename} is invalid`);
       }
       if (Object.hasOwn(merged, migrationFilename)) {
-        throw new Error(`Migration checksum ${migrationFilename} is registered more than once`);
+        if (merged[migrationFilename] !== checksum) {
+          throw new Error(`Migration checksum ${migrationFilename} is registered with conflicting values`);
+        }
+        continue;
       }
       merged[migrationFilename] = checksum;
     }
