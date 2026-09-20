@@ -1,6 +1,7 @@
 import { normalizeSearchText } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { approvedCatalogImages } from "./public-media-service";\nimport { publicDescriptionText } from "./public-description-text";
+import { approvedCatalogImages } from "./public-media-service";
+import { publicDescriptionText } from "./public-description-text";
 
 export type BazaarCondition = "preloved" | "preowned_defect" | "open_box" | "new" | "refurbished" | "used";
 export type BazaarSource =
