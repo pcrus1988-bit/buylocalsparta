@@ -1,0 +1,69 @@
+name: Symphonya stock production
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "12,42 * * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/symphonya-stock-production.yml"
+      - "workers/symphonya-stock-worker.ts"
+      - "apps/web/src/lib/symphonya-stock-sync-runtime.ts"
+      - "apps/web/src/lib/symphonya-auto-publication-runtime.ts"
+      - "integrations/dropship-suppliers/src/symphonya-http.ts"
+      - "integrations/dropship-suppliers/src/symphonya-v1.ts"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: symphonya-stock-production
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Symphonya stock + publication
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SYMPHONYA_API_KEY: ${{ secrets.SYMPHONYA_API_KEY }}
+      PGSSLMODE: require
+      BLS_DB_APPLICATION_NAME: github-actions:symphonya-stock
+      BLS_DB_CONNECT_TIMEOUT_MS: "30000"
+      BLS_DB_POOL_MAX: "2"
+      SYMPHONYA_REQUEST_TIMEOUT_MS: "20000"
+      SYMPHONYA_STOCK_MAX_PAGES_PER_SLICE: "20"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify production credentials
+        shell: bash
+        run: |
+          if [[ -z "${DATABASE_URL}" ]]; then
+            echo "::error::GitHub Actions secret DATABASE_URL is missing."
+            exit 78
+          fi
+          if [[ -z "${SYMPHONYA_API_KEY}" ]]; then
+            echo "::error::GitHub Actions secret SYMPHONYA_API_KEY is missing."
+            exit 78
+          fi
+
+      - name: Refresh Symphonya stock and publish eligible products
+        run: node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs workers/symphonya-stock-worker.ts
