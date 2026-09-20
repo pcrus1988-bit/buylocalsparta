@@ -317,7 +317,7 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
             bazaarSource: existingBazaarSource
           },
           expected: commercePolicy
-        }, "symphonya_commerce_policy_transition");
+        }, "canonical_identity_ambiguous");
 
         canonicalVariantId = null;
       }
