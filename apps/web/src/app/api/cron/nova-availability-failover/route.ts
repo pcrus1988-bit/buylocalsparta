@@ -32,10 +32,13 @@ export async function GET(request: Request) {
   }
 
   try {
-    const configured = Number(process.env.BLS_NOVA_AVAILABILITY_FAILOVER_PAGES_PER_RUN || 8);
+    // Vercel is a failover worker, not the primary full-catalogue sweep. Keep each
+    // invocation deliberately small so supplier/DB slowdown cannot occupy the
+    // runtime window or compete with storefront requests.
+    const configured = Number(process.env.BLS_NOVA_AVAILABILITY_FAILOVER_PAGES_PER_RUN || 1);
     const maxPages = Number.isSafeInteger(configured) && configured > 0
-      ? Math.min(configured, 8)
-      : 8;
+      ? Math.min(configured, 2)
+      : 1;
     const result = await runNovaAvailabilityRefreshSlice(maxPages);
     console.info(JSON.stringify({
       level: "info",
