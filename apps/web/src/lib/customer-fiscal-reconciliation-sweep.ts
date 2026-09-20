@@ -98,6 +98,11 @@ export async function runCustomerFiscalReconciliationSweep(
               WHERE gcl.order_public_id=o.public_id AND gcl.entry_type='redeem'
             ),0)
         ) >= o.total_minor
+        AND o.total_minor > COALESCE((
+          SELECT SUM(ABS(gcl.amount_minor))
+          FROM gift_card_ledger gcl
+          WHERE gcl.order_public_id=o.public_id AND gcl.entry_type='redeem'
+        ),0)
         AND NOT EXISTS (
           SELECT 1
           FROM tax_documents td
