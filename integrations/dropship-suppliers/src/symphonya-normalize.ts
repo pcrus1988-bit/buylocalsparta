@@ -41,6 +41,8 @@ export function normalizeSymphonyaProduct(product: SymphonyaSourceProduct): Symp
   const images = normalizeSourceImages(product.images ?? []);
   const stockQuantity = safeQuantity(product.stock);
   const buyingCostMinor = safeMoneyMinor(product.wholesaleCostMinor);
+  const parsedMsrpMinor = safeMoneyMinor(product.rrpMinor);
+  const msrpMinor = parsedMsrpMinor !== null && parsedMsrpMinor > 0 ? parsedMsrpMinor : null;
   const beauty = classifySymphonyaBeauty(product);
   const categoryPath = compactArray([
     clean(product.category),
@@ -118,9 +120,9 @@ export function normalizeSymphonyaProduct(product: SymphonyaSourceProduct): Symp
         mpn: null,
         regularPriceRaw: null,
         salePriceRaw: buyingCostMinor === null ? null : buyingCostMinor / 100,
-        msrpRaw: null,
+        msrpRaw: msrpMinor === null ? null : msrpMinor / 100,
         buyingCostRaw: buyingCostMinor === null ? null : buyingCostMinor / 100,
-        msrpMinor: null,
+        msrpMinor,
         buyingCostMinor,
         manageStock: true,
         inStock: stockQuantity !== null ? stockQuantity > 0 : false,
@@ -152,8 +154,8 @@ export function normalizeSymphonyaProduct(product: SymphonyaSourceProduct): Symp
         currency: clean(product.currency)?.toUpperCase() ?? "EUR",
         buyingCostRaw: buyingCostMinor === null ? null : buyingCostMinor / 100,
         buyingCostMinor,
-        msrpRaw: null,
-        msrpMinor: null,
+        msrpRaw: msrpMinor === null ? null : msrpMinor / 100,
+        msrpMinor,
         semanticsVerified: true,
         supplierPriceMeaning: "wholesale_buying_cost",
         customerSellingPriceSource: "konta_mou_structured_pricing"
