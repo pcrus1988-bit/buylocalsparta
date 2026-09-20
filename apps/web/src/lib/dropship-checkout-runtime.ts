@@ -208,8 +208,11 @@ export async function checkoutApiAuthoritativeDropship(
       revalidatedAt = evidence.checkedAt;
     } else if (row.supplier_code === SYMPHONYA_SUPPLIER_CODE) {
       const symphonyaRuntimeEnabled = process.env.SYMPHONYA_ENABLED?.trim().toLowerCase() === "true";
-      if (!row.order_forwarding_enabled || !symphonyaRuntimeEnabled) {
-        throw new Error("Τα προϊόντα Symphonya είναι διαθέσιμα για προβολή, αλλά οι αγορές τους δεν έχουν ενεργοποιηθεί ακόμη μέχρι να ολοκληρωθεί ο έλεγχος αυτόματης προώθησης παραγγελίας στον προμηθευτή.");
+      // Checkout and payment are intentionally independent from automatic supplier-order
+      // forwarding. Until forwarding is enabled, paid Symphonya orders remain in the
+      // normal fulfilment workflow for manual supplier submission.
+      if (!symphonyaRuntimeEnabled) {
+        throw new Error("Η ζωντανή επιβεβαίωση διαθεσιμότητας Symphonya είναι προσωρινά μη διαθέσιμη. Δοκίμασε ξανά σε λίγο.");
       }
       symphonyaClient ??= new SymphonyaHttpTransport({
         apiKey: symphonyaApiKeyFromEnvironment(),
@@ -359,7 +362,7 @@ export async function checkoutApiAuthoritativeDropship(
         taxRateBps,
         lineTax,
         line.supplierCostMinor,
-        JSON.stringify({ postcode: input.postcode, mode: supplierFulfilmentMode, supplier: row.supplier_code, externalVariantId: row.external_variant_id, revalidatedAt: new Date(line.revalidatedAt).toISOString() }),
+        JSON.stringify({ postcode: input.postcode, mode: supplierFulfilmentMode, supplier: row.supplier_code, externalVariantId: row.external_variant_id, revalidatedAt: new Date(line.revalidatedAt).toISOString(), supplierOrderForwarding: row.order_forwarding_enabled ? "automatic" : "manual" }),
         JSON.stringify({ assignedOfferId: row.offer_public_id, vendorId: row.vendor_public_id, fairness: "api_authoritative_dropship" }),
         createdAt
       ]);
