@@ -42,25 +42,23 @@ function emptyFacetContext(context: VendorDropshipFacetContext): boolean {
 }
 
 async function optionalFacets(vendorId: string, context: VendorDropshipFacetContext) {
-  // The Fashion Guide opens before the customer has selected any filters. Its
-  // first facet request must use the small pre-aggregated projection instead of
-  // scanning the contextual family filter model for the whole supplier catalogue.
-  // Contextual facets are still used once the customer narrows the catalogue.
+  // Initial storefront/fashion-guide facet loads must stay on the small
+  // pre-aggregated projection. Falling through to the live contextual query when
+  // that projection is temporarily empty reconstructs facets across the supplier
+  // catalogue and can consume the single web DB connection until acquisition
+  // timeouts cascade into the product page request. An empty projection is a
+  // valid degraded response; Agent 3 owns keeping the projection refreshed.
   if (emptyFacetContext(context)) {
     try {
       const preaggregated = await getVendorDropshipFacets(vendorId);
-      // A successful query is not necessarily a healthy projection. During a
-      // delayed/failed materialized-view refresh the table can be legitimately
-      // empty while live supplier offers are available. Fall through to the live
-      // contextual path instead of presenting an empty category/filter UI.
-      if (preaggregated.total > 0 || preaggregated.categories.length > 0) {
-        return preaggregated;
+      if (preaggregated.total === 0 && preaggregated.categories.length === 0) {
+        console.warn(JSON.stringify({
+          level: "warn",
+          event: "storefront.vendor_catalog_facets_preaggregated_empty",
+          vendorId
+        }));
       }
-      console.warn(JSON.stringify({
-        level: "warn",
-        event: "storefront.vendor_catalog_facets_preaggregated_empty",
-        vendorId
-      }));
+      return preaggregated;
     } catch (error) {
       console.error(JSON.stringify({
         level: "warn",
@@ -68,6 +66,7 @@ async function optionalFacets(vendorId: string, context: VendorDropshipFacetCont
         vendorId,
         message: error instanceof Error ? error.message : String(error)
       }));
+      return undefined;
     }
   }
 
@@ -113,8 +112,6 @@ export async function GET(request: Request, { params }: RouteContext) {
   const sort = sortParam(url);
   const offset = intParam(url, "offset", 0, 100_000);
   const limit = Math.max(1, intParam(url, "limit", 20, 60));
-  // Customer-facing dropship catalogues must never expose unavailable supplier stock.
-  // Keep the query parameter out of this policy: availability is a storefront invariant.
   const availableOnly = true;
   const includeFacets = url.searchParams.get("facets") === "1";
   const facetsOnly = includeFacets && url.searchParams.get("facetsOnly") === "1";
@@ -126,13 +123,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       if (!facets) {
         return Response.json(
           { error: "catalogue_facets_unavailable" },
-          {
-            status: 503,
-            headers: {
-              "Cache-Control": "no-store",
-              "Retry-After": "1"
-            }
-          }
+          { status: 503, headers: { "Cache-Control": "no-store", "Retry-After": "1" } }
         );
       }
       return Response.json({
