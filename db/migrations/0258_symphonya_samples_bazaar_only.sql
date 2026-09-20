@@ -28,6 +28,21 @@ COMMENT ON CONSTRAINT canonical_variants_bazaar_source_check
 ON public.canonical_variants IS
   'Allows governed BAZAAR provenance including supplier tester and supplier sample inventory.';
 
+ALTER TABLE public.canonical_variants
+  DROP CONSTRAINT IF EXISTS canonical_variants_bazaar_not_new_check;
+
+ALTER TABLE public.canonical_variants
+  ADD CONSTRAINT canonical_variants_bazaar_not_new_check
+  CHECK (
+    commerce_channel <> 'bazaar'
+    OR condition <> 'new'
+    OR bazaar_source='supplier_sample'
+  );
+
+COMMENT ON CONSTRAINT canonical_variants_bazaar_not_new_check
+ON public.canonical_variants IS
+  'BAZAAR stock is not classified as new except explicit supplier_sample inventory, which is a new small-format sample rather than opened/used stock.';
+
 CREATE TEMP TABLE _symphonya_sample_targets
 ON COMMIT DROP
 AS
