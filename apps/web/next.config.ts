@@ -106,6 +106,8 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["pg"],
   poweredByHeader: false,
   images: {
+    // next/image defaults to q=75 unless the requested quality is explicitly allowed.
+    qualities: [75, 90],
     remotePatterns: [
       {
         protocol: "https",
