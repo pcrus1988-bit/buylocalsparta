@@ -19,6 +19,10 @@ function log(level: "info" | "error", event: string, details: Record<string, unk
   console[level](JSON.stringify({ level, event, at: new Date().toISOString(), ...details }));
 }
 
+function fullProjectionRefreshEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.BLS_NOVA_FULL_PROJECTION_REFRESH?.trim().toLowerCase() === "true";
+}
+
 async function main(): Promise<void> {
   novaApiKeyFromEnvironment();
   const readiness = await productionDatabaseReadiness();
@@ -30,7 +34,8 @@ async function main(): Promise<void> {
   log("info", "nova.availability_actions_started", {
     requestsPerMinute: novaAvailabilityRequestsPerMinute(),
     pageConcurrency: novaAvailabilityPageConcurrency(),
-    availabilityTtlHours: 2
+    availabilityTtlHours: 2,
+    fullProjectionRefresh: fullProjectionRefreshEnabled()
   });
 
   const sweepStartedAt = Date.now();
@@ -40,18 +45,31 @@ async function main(): Promise<void> {
     durationMs: Date.now() - sweepStartedAt
   });
 
-  if (sweep.refreshedProducts > 0) {
-    const projectionStartedAt = Date.now();
-    const projections = await refreshNovaStorefrontAvailabilityReadModels();
-    log("info", "nova.availability_actions_storefront_projections_refreshed", {
-      durationMs: Date.now() - projectionStartedAt,
-      refreshedViews: projections.refreshedViews
-    });
-  } else {
+  if (sweep.refreshedProducts <= 0) {
     log("info", "nova.availability_actions_storefront_projection_skipped", {
       reason: "availability_lease_not_claimed_or_supplier_feed_empty"
     });
+    return;
   }
+
+  // Each authoritative supplier batch already refreshes
+  // bls_private.storefront_dropship_live_family. That is the customer-facing
+  // freshness overlay, so scheduled runs do not need to rebuild every large
+  // materialized storefront view and compete with live traffic for DB connections.
+  if (!fullProjectionRefreshEnabled()) {
+    log("info", "nova.availability_actions_incremental_projection_completed", {
+      refreshedProducts: sweep.refreshedProducts,
+      mode: "live_family_overlay"
+    });
+    return;
+  }
+
+  const projectionStartedAt = Date.now();
+  const projections = await refreshNovaStorefrontAvailabilityReadModels();
+  log("info", "nova.availability_actions_storefront_projections_refreshed", {
+    durationMs: Date.now() - projectionStartedAt,
+    refreshedViews: projections.refreshedViews
+  });
 }
 
 try {
