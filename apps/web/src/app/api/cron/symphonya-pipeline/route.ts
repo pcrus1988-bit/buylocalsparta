@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     enrichment: process.env.BLS_SYMPHONYA_ENRICHMENT_PREPARATION_BATCH_SIZE,
     promotion: process.env.BLS_CATALOGUE_ENRICHMENT_PROMOTION_BATCH_SIZE
   };
-  process.env.BLS_SYMPHONYA_MATERIALIZATION_BATCH_SIZE = phase === "materialization" ? "50" : "10";
+  process.env.BLS_SYMPHONYA_MATERIALIZATION_BATCH_SIZE = "10";
   process.env.BLS_SYMPHONYA_AUTO_PRICING_BATCH_SIZE = "100";
   process.env.BLS_SYMPHONYA_ENRICHMENT_PREPARATION_BATCH_SIZE = "50";
   process.env.BLS_CATALOGUE_ENRICHMENT_PROMOTION_BATCH_SIZE = "50";
