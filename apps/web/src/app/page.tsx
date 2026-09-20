@@ -36,25 +36,25 @@ const FAQ_ITEMS = [
 
 const EDITORIAL_COLLECTIONS = [
   {
-    eyebrow: "Απόδραση",
-    title: "Σαββατοκύριακο στον Ταΰγετο",
-    copy: "Μικρές και μεγάλες επιλογές για μία εξόρμηση, από καταστήματα που βρίσκονται κοντά σου.",
-    href: "/collections/taygetos-weekend",
+    eyebrow: "Λίγος χρόνος για σένα",
+    title: "Μια ώρα για σένα",
+    copy: "Serum, ενυδάτωση, καθαρισμός, σώμα και μαλλιά — από όσα είναι πραγματικά διαθέσιμα τώρα.",
+    href: "/collections/self-care-reset",
     className: styles.collectionMountain
   },
   {
-    eyebrow: "Νέα αρχή",
-    title: "Το πρώτο σου σπίτι",
-    copy: "Χρήσιμα αντικείμενα, εργαλεία και λεπτομέρειες που κάνουν έναν χώρο πραγματικά δικό σου.",
-    href: "/collections/first-home",
-    className: styles.collectionHome
+    eyebrow: "Απόψε",
+    title: "Έξοδος απόψε",
+    copy: "Άρωμα, χείλη, μάτια, νύχια και οι τελευταίες λεπτομέρειες πριν κλείσεις την πόρτα.",
+    href: "/collections/night-out-ready",
+    className: styles.collectionGift
   },
   {
-    eyebrow: "Για κάποιον δικό σου",
-    title: "Δώρα με προσωπικότητα",
-    copy: "Ιδέες από διαφορετικά τοπικά καταστήματα, χωρίς να ψάχνεις σε δεκάδες ξεχωριστά e-shops.",
-    href: "/collections/gifts-with-personality",
-    className: styles.collectionGift
+    eyebrow: "Όταν θες μια σίγουρη ιδέα",
+    title: "Δώρο χωρίς άγχος",
+    copy: "Αρώματα, αρωματικά κεριά και προσωπική φροντίδα για ένα δώρο που δεν μοιάζει πρόχειρο.",
+    href: "/collections/gift-with-scent",
+    className: styles.collectionHome
   }
 ] as const;
 
@@ -323,7 +323,7 @@ export default async function Home() {
       <section className={`${styles.collectionsSection} shell`} aria-labelledby="collections-title">
         <div className={styles.sectionHeading}>
           <div><span className={styles.kicker}>Επιλογές με λόγο ύπαρξης</span><h2 id="collections-title">Ιδέες, όχι απλώς φίλτρα.</h2></div>
-          <p>Συνδυασμοί προϊόντων από διαφορετικά καταστήματα που ξεκινούν από μία πραγματική στιγμή της ζωής.</p>
+          <p>Συνδυασμοί από όσα είναι πραγματικά διαθέσιμα τώρα στο ΚΟΝΤΑ ΜΟΥ — για στιγμές που συμβαίνουν όντως.</p>
         </div>
         <div className={styles.collectionGrid}>
           {EDITORIAL_COLLECTIONS.map((collection) => (
