@@ -24,9 +24,12 @@ test("same colour has zero perceptual distance", () => {
   assert.equal(colorMatchPercent(0), 100);
 });
 
-test("canonicalizes common nail shade vocabulary without treating a search colour as product evidence", () => {
+test("canonicalizes catalogue colours from both explicit attributes and product titles", () => {
   assert.equal(resolveCatalogColor({ color: "Pearly Pink Bubble" })?.hex, "#D9859B");
   assert.equal(resolveCatalogColor({ title: "Dior Vernis 900 Black Rivoli" })?.hex, "#19191B");
+  assert.equal(resolveCatalogColor({ title: "Beige Polyester Athletic Sneakers" })?.hex, "#C4A68C");
+  assert.equal(resolveCatalogColor({ title: "Sensai Lipstick 03 Shakuyaku Red" })?.hex, "#C8323E");
+  assert.equal(resolveCatalogColor({ title: "Koleston 8/97 Light Blonde Chestnut Pearl" })?.hex, "#7A4B37");
   assert.equal(inferColorFinish("Pearly Pink Bubble"), "pearly");
 });
 

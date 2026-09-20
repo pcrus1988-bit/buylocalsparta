@@ -46,6 +46,19 @@ const MIN_MATCH_PERCENT = 49;
 const MIN_PROFILE_CONFIDENCE = 0.5;
 const CATALOGUE_REQUEST_TIMEOUT_MS = 7_000;
 
+const DEFAULT_STUDIO_COLORS: Readonly<Record<ColorFinderContext["key"], string>> = {
+  nails: "#B52E2E",
+  lips: "#B52E2E",
+  eyes: "#806056",
+  makeup: "#C79C88",
+  hair: "#795649",
+  footwear: "#19191B",
+  bags: "#19191B",
+  fashion: "#19191B",
+  home: "#C4A68C",
+  generic: "#B52E2E"
+};
+
 const FINISH_LABELS: Readonly<Record<ColorFinish, string>> = {
   cream: "Cream",
   pearly: "Pearly",
@@ -79,13 +92,13 @@ export function ColorFinderExperience({
     products.length ? "ready" : "loading"
   );
   const [catalogReloadKey, setCatalogReloadKey] = useState(0);
-  const [selectedHex, setSelectedHex] = useState("#B52E2E");
+  const [selectedHex, setSelectedHex] = useState(() => DEFAULT_STUDIO_COLORS[context.key]);
   const [finish, setFinish] = useState<FinishFilter>("all");
   const [productType, setProductType] = useState<ProductTypeFilter>("all");
   const [brand, setBrand] = useState("all");
   const [sortMode, setSortMode] = useState<SortMode>("match");
   const [selectorMode, setSelectorMode] = useState<SelectorMode>("picker");
-  const [pickerHsv, setPickerHsv] = useState<HsvColor>(() => hexToHsv("#B52E2E"));
+  const [pickerHsv, setPickerHsv] = useState<HsvColor>(() => hexToHsv(DEFAULT_STUDIO_COLORS[context.key]));
   const [urlReady, setUrlReady] = useState(false);
   const [shareStatus, setShareStatus] = useState<"idle" | "copied">("idle");
   const [visibleLimit, setVisibleLimit] = useState(24);
