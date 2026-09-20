@@ -7,15 +7,26 @@ import { SiteHeader } from "../../../../components/SiteHeader";
 import { OrderDetailClient } from "../../../../components/OrderDetailClient";
 import { getAccountSession } from "../../../../lib/account-session";
 import { accountOrderDetail } from "../../../../lib/account-view";
+import { reconcileCustomerMollieOrder } from "../../../../lib/customer-mollie-reconciliation";
 
 type Props = Readonly<{ params: Promise<{ id: string }> }>;
 export const metadata: Metadata = { title: "Παραγγελία", robots: { index: false, follow: false } };
 
 export default async function OrderPage({ params }: Props) {
-  const principal = await getAccountSession();
-  if (!principal) redirect("/login?next=/account/orders");
   const { id } = await params;
+  const principal = await getAccountSession();
+  if (!principal) redirect(`/login?next=${encodeURIComponent(`/account/orders/${id}`)}`);
   try {
+    try {
+      await reconcileCustomerMollieOrder(principal, id, "manual");
+    } catch (error) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "mollie.customer_order_reconciliation_failed",
+        orderId: id,
+        message: error instanceof Error ? error.message : String(error)
+      }));
+    }
     const detail = await accountOrderDetail(principal, id);
     if (id !== detail.referenceNumber) redirect(`/account/orders/${encodeURIComponent(detail.referenceNumber)}`);
     return <main className="account-order-page">

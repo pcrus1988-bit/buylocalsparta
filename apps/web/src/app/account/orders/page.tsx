@@ -6,9 +6,10 @@ import { CustomerHowItWorks, CustomerLifecycle, customerOrderLifecycle } from ".
 import { SiteHeader } from "../../../components/SiteHeader";
 import { getAccountSession } from "../../../lib/account-session";
 import { accountDashboard } from "../../../lib/account-view";
+import { reconcileCustomerMollieOrder } from "../../../lib/customer-mollie-reconciliation";
 
 export const metadata: Metadata = { title: "Οι παραγγελίες μου", robots: { index: false, follow: false } };
-type Props = Readonly<{ searchParams: Promise<{ view?: string }> }>;
+type Props = Readonly<{ searchParams: Promise<{ view?: string; payment?: string; orderId?: string }> }>;
 
 const date = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 const complete = (status: string) => /ολοκληρώ|παραλήφθηκε|ακυρ|επιστράφηκαν τα χρήματα/i.test(status);
@@ -17,9 +18,35 @@ const orderActionLabel = (status: string) => status.includes("Αναμονή π�
 const orderActionClass = (status: string) => /Αναμονή πληρωμής|Έτοιμη για παραλαβή/.test(status) ? "button" : "button button-secondary";
 
 export default async function CustomerOrdersPage({ searchParams }: Props) {
+  const params = await searchParams;
+  const mollieReturnOrderId = typeof params.orderId === "string" ? params.orderId.trim() : "";
+  const isMollieReturn = params.payment === "mollie" && Boolean(mollieReturnOrderId);
   const principal = await getAccountSession();
-  if (!principal) redirect("/login?next=/account/orders");
-  const [{ view }, dashboard] = await Promise.all([searchParams, accountDashboard(principal)]);
+  if (!principal) {
+    const next = isMollieReturn
+      ? `/account/orders?payment=mollie&orderId=${encodeURIComponent(mollieReturnOrderId)}`
+      : "/account/orders";
+    redirect(`/login?next=${encodeURIComponent(next)}`);
+  }
+
+  if (isMollieReturn) {
+    let target = `/account/orders/${encodeURIComponent(mollieReturnOrderId)}`;
+    try {
+      const reconciliation = await reconcileCustomerMollieOrder(principal, mollieReturnOrderId, "redirect");
+      target = `/account/orders/${encodeURIComponent(reconciliation.referenceNumber)}`;
+    } catch (error) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "mollie.customer_return_reconciliation_failed",
+        orderId: mollieReturnOrderId,
+        message: error instanceof Error ? error.message : String(error)
+      }));
+    }
+    redirect(target);
+  }
+
+  const dashboard = await accountDashboard(principal);
+  const { view } = params;
   const selected = ["active", "pickup", "shipping", "completed", "all"].includes(view ?? "") ? view! : "active";
   const orders = dashboard.orders.filter((order) => {
     if (selected === "all") return true;
