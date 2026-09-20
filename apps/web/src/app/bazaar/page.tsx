@@ -112,7 +112,7 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
   const hasAnyFilters = hasCatalogFilters || hasExperienceFilters;
 
   const [products, facets] = await Promise.all([
-    getBazaarCatalog({ query, condition, source, brand, category, limit: 160 }),
+    getBazaarCatalog({ query, condition, source, brand, category, limit: 120 }),
     getCachedBazaarFacets()
   ]);
 
@@ -156,7 +156,7 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8);
 
-  const marketProducts = filteredProducts.slice(0, 60);
+  const marketProducts = filteredProducts.slice(0, 48);
 
   return (
     <main className={styles.page}>
