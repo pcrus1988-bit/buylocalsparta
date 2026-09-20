@@ -1,0 +1,28 @@
+name: Debug Vercel web build
+
+on:
+  push:
+    branches:
+      - debug/vercel-build-20260921
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: production
+      VERCEL: "1"
+      VERCEL_ENV: preview
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Reproduce Vercel build
+        run: npm --workspace @buy-local-sparta/web run build
