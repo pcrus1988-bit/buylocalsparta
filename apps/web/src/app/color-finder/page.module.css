@@ -290,8 +290,21 @@
 
 .studioArt {
   position: relative;
-  min-height: 138px;
-  margin: 18px 0 16px;
+  height: clamp(190px, 17vw, 250px);
+  min-height: 190px;
+  margin: 14px 0 18px;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+  isolation: isolate;
+}
+
+.studioImage {
+  object-fit: contain;
+  object-position: center;
+  padding: 8px 24px 0;
+  filter: drop-shadow(0 18px 26px color-mix(in srgb, var(--tone-b) 18%, transparent));
+  transition: transform .28s ease, filter .28s ease;
 }
 
 .studioSymbol {
@@ -369,6 +382,11 @@
 .studioCard:hover .studioSymbol {
   transform: translateY(-50%) scale(1.035) rotate(-1deg);
   filter: drop-shadow(0 22px 30px color-mix(in srgb, var(--tone-b) 24%, transparent));
+}
+
+.studioCard:hover .studioImage {
+  transform: translateY(-2px) scale(1.025);
+  filter: drop-shadow(0 24px 34px color-mix(in srgb, var(--tone-b) 24%, transparent));
 }
 
 .studioSwatches {
@@ -600,7 +618,12 @@
   }
 
   .studioArt {
-    min-height: 108px;
+    height: 180px;
+    min-height: 180px;
+  }
+
+  .studioImage {
+    padding: 6px 20px 0;
   }
 
   .studioSymbol {
