@@ -2,6 +2,12 @@ name: NOVA availability production
 
 on:
   workflow_dispatch:
+    inputs:
+      refresh_full_read_models:
+        description: "Also rebuild the large materialized storefront read models"
+        required: false
+        default: false
+        type: boolean
   schedule:
     - cron: "7,37 * * * *"
   push:
@@ -31,10 +37,11 @@ jobs:
       NOVA_API_KEY: ${{ secrets.NOVA_API_KEY }}
       PGSSLMODE: require
       BLS_DB_APPLICATION_NAME: github-actions:nova-availability
-      BLS_DB_CONNECT_TIMEOUT_MS: "15000"
+      BLS_DB_CONNECT_TIMEOUT_MS: "30000"
       BLS_DB_POOL_MAX: "2"
       BLS_NOVA_AVAILABILITY_REQUESTS_PER_MINUTE: "60"
       BLS_NOVA_AVAILABILITY_PAGE_CONCURRENCY: "12"
+      BLS_NOVA_FULL_PROJECTION_REFRESH: ${{ github.event_name == 'workflow_dispatch' && inputs.refresh_full_read_models }}
 
     steps:
       - name: Checkout
