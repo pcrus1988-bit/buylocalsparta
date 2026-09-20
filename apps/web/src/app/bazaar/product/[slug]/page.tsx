@@ -72,7 +72,7 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
   if (!product) notFound();
 
   const imageSrc = product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
-  const defectLike = product.condition === "preowned_defect" || product.condition === "open_box";
+  const defectLike = product.condition === "preowned_defect" || product.condition === "open_box" || product.bazaarSource === "supplier_tester";
   const description = plainSupplierDescription(product.description);
   const available = product.availableToSell > 0;
   const price = euro(product.priceMinor);
@@ -170,7 +170,11 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
             {product.condition === "open_box" ? "Ανοιγμένη συσκευασία ή επιστροφή/open-box. Η κατάσταση αφορά το συγκεκριμένο τεμάχιο." : null}
             {product.condition === "new" ? "Το προϊόν ταξινομείται φυσικά ως νέο αλλά πωλείται αποκλειστικά μέσω BAZAAR, π.χ. ως εγκεκριμένη επιστροφή." : null}
             {product.condition === "refurbished" ? "Ανακατασκευασμένο προϊόν που διατίθεται αποκλειστικά μέσω BAZAAR." : null}
-            {product.condition === "used" ? "Μεταχειρισμένο προϊόν που διατίθεται αποκλειστικά μέσω BAZAAR." : null}
+            {product.condition === "used"
+              ? product.bazaarSource === "supplier_tester"
+                ? "Ανοιγμένο προϊόν TESTER. Ενδέχεται να έχει χρησιμοποιηθεί ελαφρά και η πραγματική ποσότητα μπορεί να είναι μικρότερη από την ονομαστική."
+                : "Μεταχειρισμένο προϊόν που διατίθεται αποκλειστικά μέσω BAZAAR."
+              : null}
           </p>
         </div>
 

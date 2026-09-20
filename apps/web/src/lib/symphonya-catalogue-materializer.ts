@@ -263,12 +263,13 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
        WHERE linked_source.source_id=$1::uuid
          AND linked_source.source_product_key=$2
          AND linked_cv.commerce_channel=$3
+         AND ($3='normal' OR linked_cv.bazaar_source=$4)
          AND l.link_status='approved'
          AND l.canonical_variant_id IS NOT NULL
        GROUP BY l.canonical_variant_id
        ORDER BY max(l.updated_at) DESC,l.canonical_variant_id::text
        LIMIT 2
-    `, [context.sourceId, source.sourceProductKey, commercePolicy.commerceChannel]);
+    `, [context.sourceId, source.sourceProductKey, commercePolicy.commerceChannel, commercePolicy.bazaarSource]);
     if (!canonicalVariantId && approvedLink.rows.length > 1) {
       blockedAmbiguous += 1;
       await upsertReview(context, source, null, {
@@ -302,13 +303,15 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
             FROM public.canonical_variants
            WHERE family_id=$1::uuid
              AND commerce_channel=$2
-             AND variant_attributes->>'source'=$3
-             AND variant_attributes->>'externalVariantId'=$4
+             AND ($2='normal' OR bazaar_source=$3)
+             AND variant_attributes->>'source'=$4
+             AND variant_attributes->>'externalVariantId'=$5
            ORDER BY created_at,id
            LIMIT 2
         `, [
           requiredText(recoveryFamily.rows[0].id, "recovery family id"),
           commercePolicy.commerceChannel,
+          commercePolicy.bazaarSource,
           SOURCE_MARKER,
           variant.externalVariantId
         ]);
@@ -336,6 +339,7 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
               FROM public.canonical_variants cv
              WHERE cv.market_id=$1::uuid
                AND cv.commerce_channel=$4
+               AND ($4='normal' OR cv.bazaar_source=$5)
                AND cv.recalled=false
                AND cv.gtin=$2
             UNION ALL
@@ -348,11 +352,12 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
                AND pi.normalized_value=$2
                AND cv.market_id=$1::uuid
                AND cv.commerce_channel=$4
+               AND ($4='normal' OR cv.bazaar_source=$5)
                AND cv.recalled=false
           ) q
          ORDER BY q.id::text
          LIMIT 2
-      `, [context.marketId, gtin.value, gtin.type, commercePolicy.commerceChannel]);
+      `, [context.marketId, gtin.value, gtin.type, commercePolicy.commerceChannel, commercePolicy.bazaarSource]);
 
       if (matches.rows.length > 1) {
         blockedAmbiguous += 1;
