@@ -152,7 +152,7 @@ async function getLiveVendorFamilyWindow(input: Readonly<{
 }>) {
   const pool = getProductionPostgresRuntime().nativePool;
   const orderBy = familyOrder(input.sort);
-  return pool.query<FamilySelectionRow>(\`
+  return pool.query<FamilySelectionRow>(`
     WITH vendor_suppliers AS MATERIALIZED (
       SELECT ds.id
       FROM dropship_suppliers ds
@@ -293,7 +293,7 @@ async function getLiveVendorFamilyWindow(input: Readonly<{
       )
     ORDER BY ${orderBy}
     LIMIT $10 OFFSET $11
-  \`, [
+  `, [
     input.vendorId,
     input.query,
     input.categories,
@@ -704,7 +704,7 @@ function mergeFacetProjectionRows(
 ): FacetProjectionRow[] {
   const merged = new Map<string, FacetProjectionRow>();
   for (const row of [...base, ...supplement]) {
-    const key = \`\${row.facet_type}\\u0000\${row.value}\`;
+    const key = `\${row.facet_type}\\u0000\${row.value}`;
     const existing = merged.get(key);
     if (!existing) {
       merged.set(key, { ...row, count: safePositiveInt(row.count, 0) });
@@ -722,7 +722,7 @@ function mergeFacetProjectionRows(
 async function readLiveVendorFacetSupplement(vendorId: string): Promise<FacetProjectionRow[]> {
   if (!productionDatabaseConfigured()) return [];
   const pool = getProductionPostgresRuntime().nativePool;
-  const result = await pool.query<FacetProjectionRow>(\`
+  const result = await pool.query<FacetProjectionRow>(`
     WITH suppliers AS MATERIALIZED (
       SELECT ds.id,ds.id::text AS supplier_id
       FROM dropship_suppliers ds
@@ -858,7 +858,7 @@ async function readLiveVendorFacetSupplement(vendorId: string): Promise<FacetPro
     UNION ALL SELECT * FROM brand_values
     UNION ALL SELECT * FROM color_values
     UNION ALL SELECT * FROM size_values
-  \`, [vendorId,LIVE_DEGRADED_FACET_SEED_CAP]);
+  `, [vendorId,LIVE_DEGRADED_FACET_SEED_CAP]);
   return result.rows;
 }
 
