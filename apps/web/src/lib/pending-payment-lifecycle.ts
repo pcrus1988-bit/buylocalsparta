@@ -6,7 +6,9 @@ import { molliePaymentsEnabled, requireMolliePayments } from "./mollie-runtime";
 const TWO_HOURS_MS = 2 * 60 * 60 * 1_000;
 const TWENTY_TWO_HOURS_MS = 22 * 60 * 60 * 1_000;
 const PAYMENT_WINDOW_MS = 24 * 60 * 60 * 1_000;
-const BATCH_LIMIT = 250;
+// Keep each minute-level cron run short so payment maintenance cannot monopolize
+// a serverless DB client while storefront traffic is active.
+const BATCH_LIMIT = 50;
 
 type PendingOrder = Readonly<{
   order_uuid: string;
