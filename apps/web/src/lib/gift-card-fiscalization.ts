@@ -269,7 +269,7 @@ type Snapshot = Readonly<{
 
 async function loadGiftCardDocument(giftCardId: string): Promise<Snapshot | undefined> {
   const result = await getProductionPostgresRuntime().nativePool.query<{
-    public_id: string; document_number: string | null; transmission_status: string; aade_mark: string | null; last_error: string | null; payload_snapshot: Record<string, unknown>; created_at: Date;
+    public_id: string; document_number: string | null; transmission_status: string; aade_mark: string | null; last_error: string | null; payload_snapshot: Record<string, unknown>; created_at: Date | string;
   }>(`
     SELECT td.public_id,td.document_number,td.transmission_status,td.aade_mark,td.last_error,td.payload_snapshot,td.created_at
       FROM tax_documents td
@@ -286,13 +286,13 @@ async function loadGiftCardDocument(giftCardId: string): Promise<Snapshot | unde
     aadeMark: row.aade_mark,
     lastError: row.last_error,
     backfill: record(row.payload_snapshot).capturedFrom === "gift_card_issue_ledger_backfill",
-    createdAt: row.created_at.getTime()
+    createdAt: timestampMs(row.created_at)
   };
 }
 
 async function loadDocumentSnapshot(documentId: string): Promise<Snapshot> {
   const result = await getProductionPostgresRuntime().nativePool.query<{
-    public_id: string; document_number: string | null; transmission_status: string; aade_mark: string | null; last_error: string | null; payload_snapshot: Record<string, unknown>; created_at: Date;
+    public_id: string; document_number: string | null; transmission_status: string; aade_mark: string | null; last_error: string | null; payload_snapshot: Record<string, unknown>; created_at: Date | string;
   }>("SELECT public_id,document_number,transmission_status,aade_mark,last_error,payload_snapshot,created_at FROM tax_documents WHERE public_id=$1 LIMIT 1", [documentId]);
   const row = result.rows[0];
   if (!row) throw new Error("SPV tax document not found");
@@ -303,7 +303,7 @@ async function loadDocumentSnapshot(documentId: string): Promise<Snapshot> {
     aadeMark: row.aade_mark,
     lastError: row.last_error,
     backfill: record(row.payload_snapshot).capturedFrom === "gift_card_issue_ledger_backfill",
-    createdAt: row.created_at.getTime()
+    createdAt: timestampMs(row.created_at)
   };
 }
 
@@ -347,6 +347,11 @@ function athensDate(now: number): string {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Athens", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(now));
   const value = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
   return `${value.year}-${value.month}-${value.day}`;
+}
+function timestampMs(value: Date | string): number {
+  const ms = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  if (!Number.isFinite(ms)) throw new Error("Invalid SPV tax document created_at");
+  return ms;
 }
 function integer(value: unknown): number { const n = Number(value); if (!Number.isSafeInteger(n)) throw new Error("Expected safe integer"); return n; }
 function money(minor: number): string { return (minor / 100).toFixed(2); }
