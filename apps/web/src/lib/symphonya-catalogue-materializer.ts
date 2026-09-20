@@ -2,6 +2,7 @@ import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { resolveSymphonyaCategoryCode } from "./symphonya-category-mapping";
 import { canonicalSymphonyaSlug } from "./symphonya-canonical-slug";
+import { resolveSymphonyaCommercePolicy } from "./symphonya-commerce-policy";
 
 const SUPPLIER_CODE = "symphonya";
 const EXPECTED_OWNER_VENDOR = "vendor_e8cb57b3c67b469d9a9d";
@@ -198,6 +199,7 @@ async function releaseMaterializationLease(sourceId: string): Promise<void> {
 async function materializeProduct(context: SupplierContext, source: SourceProduct) {
   const pool = getProductionPostgresRuntime().sqlPool;
   const payload = source.normalizedPayload;
+  const commercePolicy = resolveSymphonyaCommercePolicy(source.title, payload);
   const variants = normalizedVariants(payload);
   const brandId = await resolveOrCreateBrand(payload);
   const sourceCategoryId = await resolveSourceCategoryId(context, source);
@@ -211,9 +213,13 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
   for (const variant of variants) {
     const existingSupplierOffer = await pool.query<SqlRow>(`
       SELECT dso.vendor_offer_id::text vendor_offer_id,
-             vo.canonical_variant_id::text canonical_variant_id
+             vo.canonical_variant_id::text canonical_variant_id,
+             cv.commerce_channel,
+             cv.condition,
+             cv.bazaar_source
         FROM public.dropship_supplier_offers dso
         JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
+        JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
        WHERE dso.supplier_id=$1::uuid
          AND dso.external_variant_id=$2
        LIMIT 1
@@ -222,20 +228,47 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
     let canonicalVariantId = optionalText(existingSupplierOffer.rows[0]?.canonical_variant_id);
     let matchMethod: "exact_gtin" | "enrichment" = "enrichment";
 
+    if (canonicalVariantId) {
+      const existingChannel = optionalText(existingSupplierOffer.rows[0]?.commerce_channel) ?? "normal";
+      const existingCondition = optionalText(existingSupplierOffer.rows[0]?.condition) ?? "new";
+      const existingBazaarSource = optionalText(existingSupplierOffer.rows[0]?.bazaar_source);
+      if (
+        existingChannel !== commercePolicy.commerceChannel
+        || existingCondition !== commercePolicy.condition
+        || existingBazaarSource !== commercePolicy.bazaarSource
+      ) {
+        blockedAmbiguous += 1;
+        await upsertReview(context, source, canonicalVariantId, {
+          reason: "symphonya_commerce_policy_mismatch",
+          externalVariantId: variant.externalVariantId,
+          actual: {
+            commerceChannel: existingChannel,
+            condition: existingCondition,
+            bazaarSource: existingBazaarSource
+          },
+          expected: commercePolicy
+        }, "symphonya_commerce_policy_mismatch");
+        continue;
+      }
+    }
+
     const approvedLink = await pool.query<SqlRow>(`
       SELECT l.canonical_variant_id::text canonical_variant_id,
              (array_agg(l.match_method ORDER BY l.updated_at DESC,l.id DESC))[1] match_method
         FROM public.catalog_source_product_links l
         JOIN public.catalog_source_products linked_source
           ON linked_source.id=l.source_product_id
+        JOIN public.canonical_variants linked_cv
+          ON linked_cv.id=l.canonical_variant_id
        WHERE linked_source.source_id=$1::uuid
          AND linked_source.source_product_key=$2
+         AND linked_cv.commerce_channel=$3
          AND l.link_status='approved'
          AND l.canonical_variant_id IS NOT NULL
        GROUP BY l.canonical_variant_id
        ORDER BY max(l.updated_at) DESC,l.canonical_variant_id::text
        LIMIT 2
-    `, [context.sourceId, source.sourceProductKey]);
+    `, [context.sourceId, source.sourceProductKey, commercePolicy.commerceChannel]);
     if (!canonicalVariantId && approvedLink.rows.length > 1) {
       blockedAmbiguous += 1;
       await upsertReview(context, source, null, {
@@ -268,13 +301,14 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
           SELECT id::text id
             FROM public.canonical_variants
            WHERE family_id=$1::uuid
-             AND commerce_channel='normal'
-             AND variant_attributes->>'source'=$2
-             AND variant_attributes->>'externalVariantId'=$3
+             AND commerce_channel=$2
+             AND variant_attributes->>'source'=$3
+             AND variant_attributes->>'externalVariantId'=$4
            ORDER BY created_at,id
            LIMIT 2
         `, [
           requiredText(recoveryFamily.rows[0].id, "recovery family id"),
+          commercePolicy.commerceChannel,
           SOURCE_MARKER,
           variant.externalVariantId
         ]);
@@ -301,7 +335,7 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
             SELECT cv.id
               FROM public.canonical_variants cv
              WHERE cv.market_id=$1::uuid
-               AND cv.commerce_channel='normal'
+               AND cv.commerce_channel=$4
                AND cv.recalled=false
                AND cv.gtin=$2
             UNION ALL
@@ -313,12 +347,12 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
                AND pi.identifier_type=$3
                AND pi.normalized_value=$2
                AND cv.market_id=$1::uuid
-               AND cv.commerce_channel='normal'
+               AND cv.commerce_channel=$4
                AND cv.recalled=false
           ) q
          ORDER BY q.id::text
          LIMIT 2
-      `, [context.marketId, gtin.value, gtin.type]);
+      `, [context.marketId, gtin.value, gtin.type, commercePolicy.commerceChannel]);
 
       if (matches.rows.length > 1) {
         blockedAmbiguous += 1;
@@ -367,8 +401,8 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
           commerce_channel,bazaar_source,variant_attributes,platform_price_minor,
           currency,tax_rate_bps,active,suppressed,recalled
         ) VALUES(
-          $1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,NULL,$7,'new',
-          'normal',NULL,$8::jsonb,NULL,'EUR',$9,false,false,false
+          $1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,NULL,$7,$8,
+          $9,$10,$11::jsonb,NULL,'EUR',$12,false,false,false
         )
         RETURNING id::text id
       `, [
@@ -379,11 +413,17 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
         slug,
         gtin?.value ?? null,
         productModel(payload),
+        commercePolicy.condition,
+        commercePolicy.commerceChannel,
+        commercePolicy.bazaarSource,
         JSON.stringify({
           ...variant.attributes,
           source: SOURCE_MARKER,
           externalProductId: source.sourceProductKey,
-          externalVariantId: variant.externalVariantId
+          externalVariantId: variant.externalVariantId,
+          supplierTester: commercePolicy.supplierTester,
+          commerceChannel: commercePolicy.commerceChannel,
+          ...(commercePolicy.bazaarSource ? { bazaarSource: commercePolicy.bazaarSource } : {})
         }),
         DEFAULT_TAX_RATE_BPS
       ]);
@@ -489,7 +529,11 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
         publicationState: "STAGED",
         pricingPending: true,
         supplierContentSource: "catalog_source_products",
-        schemaPolicy: "catalog_identity_v3_simplified"
+        schemaPolicy: "catalog_identity_v3_simplified",
+        supplierTester: commercePolicy.supplierTester,
+        commerceChannel: commercePolicy.commerceChannel,
+        bazaarSource: commercePolicy.bazaarSource,
+        catalogueRouting: commercePolicy.supplierTester ? "symphonya_tester_bazaar_v1" : "symphonya_normal_v1"
       }),
       Math.max(0, variant.buyingCostMinor ?? 0),
       variant.msrpMinor

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteHeader } from "../../components/SiteHeader";
 import { SiteFooter } from "../../components/SiteFooter";
-import { bazaarConditionLabel, bazaarSourceLabel, getBazaarCatalog } from "../../lib/bazaar-catalog";
+import { bazaarDisplayConditionLabel, bazaarProductDisclosure, bazaarSourceLabel, getBazaarCatalog } from "../../lib/bazaar-catalog";
 import { getCachedBazaarFacets } from "../../lib/bazaar-facets";
 import { publicBrandLogoUrl } from "../../lib/brand-logo";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
@@ -16,7 +16,7 @@ function valueOf(value: string | string[] | undefined): string {
 export async function generateMetadata({ searchParams }: BazaarPageProps): Promise<Metadata> {
   const base = await governedStaticSeoMetadata("/bazaar", {
     title: "BAZAAR",
-    description: "Preloved, Preowned / Defect, open-box και επιλεγμένα επιστρεφόμενα προϊόντα από όλη την Ελλάδα, σε ξεχωριστό BAZAAR του KONTA MOY."
+    description: "Preloved, Preowned / Defect, open-box, tester και επιλεγμένα επιστρεφόμενα προϊόντα από όλη την Ελλάδα, σε ξεχωριστό BAZAAR του KONTA MOY."
   });
   const params = await searchParams;
   const hasQueryState = Object.values(params).some((value) => valueOf(value).trim().length > 0);
@@ -50,7 +50,7 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
         <div className="eyebrow">KONTA MOY · Greece-wide</div>
         <h1 style={{ fontSize: "clamp(3rem, 9vw, 7.5rem)", letterSpacing: "-0.07em", lineHeight: .82, margin: 0 }}>BAZAAR</h1>
         <p className="lead" style={{ maxWidth: 760, fontSize: "clamp(1.05rem, 2vw, 1.35rem)" }}>
-          Preloved, Preowned / Defect, open-box και επιλεγμένες επιστροφές. Κάθε προϊόν είναι ξεχωριστά ταξινομημένο και δεν εμφανίζεται ποτέ στον κανονικό κατάλογο του KONTA MOY.
+          Preloved, Preowned / Defect, open-box, tester και επιλεγμένες επιστροφές. Κάθε προϊόν είναι ξεχωριστά ταξινομημένο και δεν εμφανίζεται ποτέ στον κανονικό κατάλογο του KONTA MOY.
         </p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <span style={{ border: "1px solid currentColor", borderRadius: 999, padding: "8px 13px", fontWeight: 800 }}>ΕΛΛΑΔΑ · Χωρίς τοπικό περιορισμό</span>
@@ -90,13 +90,14 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
               <img src={imageSrc} alt={product.mediaAlt ?? product.title} loading={index < 4 ? "eager" : "lazy"} decoding="async" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", padding: 16, background: "#fff" }} />
             </Link>
             <div className="product-body">
-              <div className="eyebrow">{bazaarConditionLabel(product.condition)}</div>
+              <div className="eyebrow">{bazaarDisplayConditionLabel(product.condition, product.bazaarSource)}</div>
               {product.brand ? <div className="catalog-card-brand">
                 {brandLogoUrl ? <img src={brandLogoUrl} alt="" aria-hidden="true" loading="lazy" decoding="async" /> : null}
                 <span>{product.brand}</span>
               </div> : null}
               <h3><Link href={`/bazaar/product/${encodeURIComponent(product.slug)}`}>{product.title}</Link></h3>
               {product.bazaarSource ? <p style={{ margin: "0 0 10px", fontSize: ".86rem", fontWeight: 800 }}>{bazaarSourceLabel(product.bazaarSource)}</p> : null}
+              {bazaarProductDisclosure(product.bazaarSource) ? <p style={{ margin: "0 0 10px", fontSize: ".82rem", lineHeight: 1.35, fontWeight: 800 }}>Ανοιγμένο TESTER · πιθανή απόκλιση από την ονομαστική ποσότητα.</p> : null}
               <div className="price">
                 {product.msrpMinor && product.msrpMinor > product.priceMinor ? <s style={{ opacity: .55, fontSize: ".7em" }}>ΠΛΤ {euro(product.msrpMinor)}</s> : null}
                 <span>{euro(product.priceMinor)}</span>

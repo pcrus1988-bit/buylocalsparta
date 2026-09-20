@@ -1,6 +1,7 @@
 export const BAZAAR_SOURCES = [
   "supplier_preloved",
   "supplier_preowned_defect",
+  "supplier_tester",
   "customer_return",
   "open_box",
   "display_stock",

@@ -6,6 +6,7 @@ export type BazaarCondition = "preloved" | "preowned_defect" | "open_box" | "new
 export type BazaarSource =
   | "supplier_preloved"
   | "supplier_preowned_defect"
+  | "supplier_tester"
   | "customer_return"
   | "open_box"
   | "display_stock"
@@ -64,6 +65,7 @@ export type BazaarFilters = Readonly<{
 const BAZAAR_SOURCES: readonly BazaarSource[] = [
   "supplier_preloved",
   "supplier_preowned_defect",
+  "supplier_tester",
   "customer_return",
   "open_box",
   "display_stock",
@@ -267,10 +269,20 @@ export function bazaarSourceLabel(source: BazaarSource): string {
   switch (source) {
     case "supplier_preloved": return "Supplier Preloved";
     case "supplier_preowned_defect": return "Supplier Preowned / Defect";
+    case "supplier_tester": return "Tester προμηθευτή";
     case "customer_return": return "Επιστροφή πελάτη";
     case "open_box": return "Open box";
     case "display_stock": return "Εκθεσιακό τεμάχιο";
     case "damaged_packaging": return "Φθαρμένη συσκευασία";
     case "admin_curated": return "Επιλογή BAZAAR";
   }
+}
+
+export function bazaarDisplayConditionLabel(condition: BazaarCondition, source?: BazaarSource): string {
+  return source === "supplier_tester" ? "TESTER" : bazaarConditionLabel(condition);
+}
+
+export function bazaarProductDisclosure(source?: BazaarSource): string | undefined {
+  if (source !== "supplier_tester") return undefined;
+  return "Προϊόν TESTER: έχει ανοιχτεί για δοκιμή και ενδέχεται να έχει χρησιμοποιηθεί ελαφρά. Η πραγματική ποσότητα μπορεί να είναι μικρότερη από την ονομαστική αναγραφόμενη ποσότητα.";
 }
