@@ -18,6 +18,7 @@ export type CatalogCard = Readonly<{
   title: string;
   price: string;
   priceMinor: number;
+  msrpMinor?: number | null;
   categoryCode: string;
   departmentCode?: string;
   categoryLabel?: string;
