@@ -27,6 +27,7 @@ import { formatStorefrontAttributeAdvisory } from "../../lib/storefront-attribut
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { getCrawlerCatalogCards } from "../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../lib/request-audience";
+import { getCachedPublishedDropshipShopPage, hasLiveLocalShopProducts } from "../../lib/cached-public-shop-page";
 
 const SHOP_PAGE_SIZE = 30;
 
@@ -204,28 +205,32 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       products.push(...dropshipPage.products.filter((product) => !seen.has(product.id)).slice(0, remaining));
     }
   } else {
-    const localPage = await getShopCatalogPage({
-      visitorKey,
-      postcode: "23100",
-      query: catalogQuery,
-      category,
-      filters: productFilters,
-      attributeFilters,
-      minPriceMinor,
-      maxPriceMinor,
-      sort,
-      limit: SHOP_PAGE_SIZE,
-      offset: pageOffset
-    });
+    const localProductsAvailable = await hasLiveLocalShopProducts();
 
-    products = [...await enrichCatalogCardsWithLocalProof(localPage.products, visitorKey, "23100")];
-    const expectedLocalCount = Math.max(0, Math.min(SHOP_PAGE_SIZE, localPage.total - pageOffset));
-    const atFinalLocalWindow = pageOffset + SHOP_PAGE_SIZE >= localPage.total;
-
-    if (allowDropship && atFinalLocalWindow) {
-      const dropshipOffset = Math.max(0, pageOffset - localPage.total);
-      const dropshipSlots = Math.max(0, SHOP_PAGE_SIZE - expectedLocalCount);
-      const dropshipPage = await getPublishedDropshipCatalogPage({
+    if (!localProductsAvailable) {
+      // When there is no live local-stock catalogue, avoid performing visitor-specific
+      // fairness/assignment work only to discover an empty local window. Dropship
+      // discovery is public/non-personalized and can safely use the short shared cache;
+      // checkout still revalidates authoritative supplier availability.
+      if (allowDropship) {
+        const dropshipPage = await getCachedPublishedDropshipShopPage({
+          query: catalogQuery,
+          category,
+          filters: productFilters,
+          attributeFilters,
+          minPriceMinor,
+          maxPriceMinor,
+          sort,
+          limit: SHOP_PAGE_SIZE,
+          offset: pageOffset
+        });
+        products = [...dropshipPage.products];
+        hasNextPage = dropshipPage.total > pageOffset + SHOP_PAGE_SIZE;
+      }
+    } else {
+      const localPage = await getShopCatalogPage({
+        visitorKey,
+        postcode: "23100",
         query: catalogQuery,
         category,
         filters: productFilters,
@@ -233,17 +238,37 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         minPriceMinor,
         maxPriceMinor,
         sort,
-        limit: Math.max(1, dropshipSlots),
-        offset: dropshipOffset
+        limit: SHOP_PAGE_SIZE,
+        offset: pageOffset
       });
 
-      if (dropshipSlots > 0) {
-        const seen = new Set(products.map((product) => product.id));
-        products.push(...dropshipPage.products.filter((product) => !seen.has(product.id)).slice(0, dropshipSlots));
+      products = [...await enrichCatalogCardsWithLocalProof(localPage.products, visitorKey, "23100")];
+      const expectedLocalCount = Math.max(0, Math.min(SHOP_PAGE_SIZE, localPage.total - pageOffset));
+      const atFinalLocalWindow = pageOffset + SHOP_PAGE_SIZE >= localPage.total;
+
+      if (allowDropship && atFinalLocalWindow) {
+        const dropshipOffset = Math.max(0, pageOffset - localPage.total);
+        const dropshipSlots = Math.max(0, SHOP_PAGE_SIZE - expectedLocalCount);
+        const dropshipPage = await getPublishedDropshipCatalogPage({
+          query: catalogQuery,
+          category,
+          filters: productFilters,
+          attributeFilters,
+          minPriceMinor,
+          maxPriceMinor,
+          sort,
+          limit: Math.max(1, dropshipSlots),
+          offset: dropshipOffset
+        });
+
+        if (dropshipSlots > 0) {
+          const seen = new Set(products.map((product) => product.id));
+          products.push(...dropshipPage.products.filter((product) => !seen.has(product.id)).slice(0, dropshipSlots));
+        }
+        hasNextPage = dropshipPage.total > dropshipOffset + dropshipSlots;
+      } else {
+        hasNextPage = localPage.hasMore || pageOffset + SHOP_PAGE_SIZE < localPage.total;
       }
-      hasNextPage = dropshipPage.total > dropshipOffset + dropshipSlots;
-    } else {
-      hasNextPage = localPage.hasMore || pageOffset + SHOP_PAGE_SIZE < localPage.total;
     }
   }
 
