@@ -122,7 +122,7 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
     const result = await pool.query<SqlRow>(`
       WITH eligible AS MATERIALIZED (
         SELECT vo.id offer_id,vo.vendor_id,vo.public_id,
-               cv.id canonical_id,cv.family_id,dso.id supplier_offer_id
+               cv.id canonical_id,cv.family_id,dso.id supplier_offer_id,dso.external_product_id
           FROM public.dropship_supplier_offers dso
           JOIN public.dropship_suppliers ds
             ON ds.id=dso.supplier_id
@@ -233,9 +233,22 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
           FROM offer_changed
         RETURNING id
       )
-      SELECT count(*)::int published FROM offer_changed
+      SELECT count(*)::int published,
+             COALESCE(array_agg(DISTINCT e.external_product_id),'{}'::text[]) external_product_ids
+        FROM offer_changed oc
+        JOIN eligible e ON e.offer_id=oc.id
     `, [SUPPLIER_CODE, PUBLICATION_BATCH_SIZE]);
     published = Number(result.rows[0]?.published ?? 0);
+    const rawProjectedIds = result.rows[0]?.external_product_ids;
+    const projectedIds = Array.isArray(rawProjectedIds)
+      ? rawProjectedIds.map((value: unknown) => String(value ?? "").trim()).filter(Boolean)
+      : [];
+    if (projectedIds.length) {
+      await pool.query(
+        `SELECT bls_private.refresh_symphonya_storefront_live_families($1::text[])`,
+        [projectedIds]
+      );
+    }
   }
 
   return {
