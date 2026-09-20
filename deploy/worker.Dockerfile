@@ -1,3 +1,4 @@
+# Deployment refresh: schema 257 readiness hardening
 FROM node:24-bookworm-slim
 
 ENV NODE_ENV=production \
