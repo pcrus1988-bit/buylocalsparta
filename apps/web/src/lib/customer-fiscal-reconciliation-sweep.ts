@@ -3,7 +3,7 @@ import { deliverAcceptedCustomerTaxDocumentById } from "./customer-tax-delivery"
 import { finalizeCapturedCustomerPayment } from "./customer-payment-finalization";
 import { reconcileCustomerFiscalDocument } from "./customer-fiscal-reconciliation";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { backfillVendorPhysicalSpvIssues } from "./gift-card-fiscalization";
+import { finalizePendingGiftCardSpvIssues } from "./gift-card-fiscalization";
 
 export type CustomerFiscalReconciliationSweep = Readonly<{
   checked: number;
@@ -84,7 +84,7 @@ export async function runCustomerFiscalReconciliationSweep(
     let emailFailed = 0;
     let backfilled = 0;
     let backfillFailed = 0;
-    const spvIssue = await backfillVendorPhysicalSpvIssues(limit, now);
+    const spvIssue = await finalizePendingGiftCardSpvIssues(limit, now);
 
     const pendingPreparationOrders = await db.query<{ order_id: string }>(`
       SELECT DISTINCT o.public_id AS order_id
@@ -236,7 +236,7 @@ export async function runCustomerFiscalReconciliationSweep(
     }
 
     completed = true;
-    return { checked, accepted, emailed, pending, failed, emailFailed, backfilled, backfillFailed, spvIssueChecked: spvIssue.checked, spvIssueAccepted: spvIssue.accepted, spvIssueFailed: spvIssue.failed };
+    return { checked, accepted, emailed, pending, failed, emailFailed, backfilled, backfillFailed, spvIssueChecked: spvIssue.processed, spvIssueAccepted: spvIssue.accepted, spvIssueFailed: spvIssue.failed + spvIssue.manualReview };
   } catch (error) {
     failureMessage = error instanceof Error ? error.message : String(error);
     throw error;
