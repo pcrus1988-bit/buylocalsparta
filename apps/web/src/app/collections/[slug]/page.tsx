@@ -161,7 +161,7 @@ export default async function EditorialCollectionPage({ params }: Props) {
 
   return <main className={`${styles.page} ${accentClass}`}>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replaceAll("<", "\\u003c") }} />
-    <div className="announcement">Ιδέες που ξεκινούν από όσα είναι πραγματικά διαθέσιμα τώρα στο ΚΟΝΤΑ ΜΟΥ.</div>
+    <div className="announcement">Ιδέες για τη στιγμή σου, όλα σε ένα μέρος.</div>
     <SiteHeader />
 
     <section className={styles.hero}>
@@ -184,17 +184,17 @@ export default async function EditorialCollectionPage({ params }: Props) {
     <section className={styles.products}>
       <div className="shell">
         <div className={styles.heading}>
-          <div><span className={styles.kicker}>Διαθέσιμα τώρα</span><h2>Πραγματικές επιλογές για αυτή τη στιγμή.</h2></div>
-          <p>Η συλλογή χρησιμοποιεί μόνο προϊόντα με ενεργή τιμή και διαθέσιμη αγορά. Η σύνθεση ανανεώνεται μαζί με τον κατάλογο, ώστε η ιδέα να οδηγεί σε προϊόντα που υπάρχουν πραγματικά.</p>
+          <div><span className={styles.kicker}>Για να διαλέξεις πιο εύκολα</span><h2>Ιδέες που μπορείς να βάλεις στο καλάθι τώρα.</h2></div>
+          <p>Συγκεντρώσαμε επιλογές που ταιριάζουν στη στιγμή — και τις ανανεώνουμε όσο αλλάζει η διαθεσιμότητα.</p>
         </div>
-        {products.length ? <div className={styles.grid}>{products.map((product, index) => <CatalogProductCard product={product} index={index} key={product.id} />)}</div> : <div className={styles.empty}><div className="eyebrow">Η συλλογή ενημερώνεται</div><h2>Δεν υπάρχουν αρκετές διαθέσιμες επιλογές αυτή τη στιγμή.</h2><p>Πες μας τι ψάχνεις και το Ask Local θα το δρομολογήσει σε κατάλληλο κατάστημα.</p><a className="button" href="/ask-local">Ρώτησε τοπικά</a></div>}
+        {products.length ? <div className={styles.grid}>{products.map((product, index) => <CatalogProductCard product={product} index={index} key={product.id} />)}</div> : <div className={styles.empty}><div className="eyebrow">Νέες επιλογές έρχονται</div><h2>Δεν βρήκαμε αρκετές προτάσεις για αυτή τη στιγμή.</h2><p>Πες μας τι έχεις στο μυαλό σου και θα σε βοηθήσουμε να βρεις κάτι που ταιριάζει.</p><a className="button" href="/ask-local">Ρώτησε τοπικά</a></div>}
       </div>
     </section>
 
     <section className={styles.ask}>
       <div className={`shell ${styles.askInner}`}>
-        <div><h2>Θες κάτι πιο συγκεκριμένο;</h2><p>Η συλλογή είναι αφετηρία, όχι κατάλογος χωρίς τέλος. Περιέγραψε τι ψάχνεις και το Ask Local μπορεί να σε βοηθήσει να το περιορίσεις.</p></div>
-        <a className="button" href="/ask-local">Ask Local</a>
+        <div><h2>Θες κάτι πιο συγκεκριμένο;</h2><p>Πες μας για ποιον είναι, τι σου αρέσει ή περίπου τι θέλεις να ξοδέψεις — και θα σε βοηθήσουμε να βρεις την κατάλληλη επιλογή.</p></div>
+        <a className="button" href="/ask-local">Ρώτησε τοπικά</a>
       </div>
     </section>
 
