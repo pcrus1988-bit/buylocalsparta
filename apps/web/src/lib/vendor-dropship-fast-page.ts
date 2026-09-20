@@ -74,10 +74,10 @@ export async function getFastVendorDropshipCatalogPage(
 
   const runtime = getProductionPostgresRuntime();
 
-  // Blend the indexed catalogue with suppliers that do not have any fresh
-  // projection yet. This keeps the fast path cheap for healthy suppliers while
-  // ensuring newly-onboarded suppliers (for example Symphonya) are represented
-  // from page 1 instead of only after thousands of projected products.
+  // Blend the indexed catalogue with fresh supplier families that are not yet
+  // represented by the projection. This keeps the fast path cheap when the
+  // materialized view is current, while preventing a partially refreshed supplier
+  // from being treated as fully projected after only one family becomes visible.
   const markerResult = await runtime.nativePool.query<FastPageMarkerRow>(`
     WITH vendor_suppliers AS MATERIALIZED (
       SELECT ds.id,ds.id::text AS supplier_id
@@ -95,13 +95,24 @@ export async function getFastVendorDropshipCatalogPage(
       FROM public.storefront_dropship_family_read_model fm
       JOIN vendor_suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
       WHERE fm.available_until>now()
-    ), missing_suppliers AS MATERIALIZED (
+    ), fallback_suppliers AS MATERIALIZED (
       SELECT supplier.id,supplier.supplier_id
       FROM vendor_suppliers supplier
-      WHERE NOT EXISTS (
+      WHERE EXISTS (
         SELECT 1
-        FROM stable projected
-        WHERE projected.supplier_id=supplier.supplier_id
+        FROM dropship_supplier_offers candidate
+        WHERE candidate.supplier_id=supplier.id
+          AND candidate.active=true
+          AND candidate.cached_available=true
+          AND COALESCE(candidate.cached_quantity,0)>=1
+          AND candidate.availability_expires_at IS NOT NULL
+          AND candidate.availability_expires_at>now()
+          AND NOT EXISTS (
+            SELECT 1
+            FROM stable projected
+            WHERE projected.supplier_id=supplier.supplier_id
+              AND projected.external_product_id=candidate.external_product_id
+          )
       )
     ), live_fallback AS MATERIALIZED (
       SELECT
@@ -109,7 +120,7 @@ export async function getFastVendorDropshipCatalogPage(
         dso.external_product_id,
         MAX(vo.updated_at) AS newest_at
       FROM dropship_supplier_offers dso
-      JOIN missing_suppliers supplier ON supplier.id=dso.supplier_id
+      JOIN fallback_suppliers supplier ON supplier.id=dso.supplier_id
       JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
       JOIN vendor_locations l ON l.id=vo.location_id
@@ -129,6 +140,12 @@ export async function getFastVendorDropshipCatalogPage(
         AND cv.suppressed=false
         AND cv.recalled=false
         AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM stable projected
+          WHERE projected.supplier_id=dso.supplier_id::text
+            AND projected.external_product_id=dso.external_product_id
+        )
       GROUP BY dso.supplier_id,dso.external_product_id
     ), combined AS (
       SELECT supplier_id,external_product_id,newest_at,0::int AS source_priority FROM stable
