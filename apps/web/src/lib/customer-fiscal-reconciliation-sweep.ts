@@ -62,8 +62,8 @@ export async function runCustomerFiscalReconciliationSweep(
   let failureMessage: string | undefined;
   try {
     const cutoff = new Date(now - MIN_RECONCILIATION_AGE_MS);
-    const candidates = await db.query<{ public_id: string }>(
-      `SELECT td.public_id
+    const candidates = await db.query<{ public_id: string; order_id: string | null }>(
+      `SELECT td.public_id,td.order_id::text AS order_id
          FROM tax_documents td
         WHERE td.type IN ('retail_receipt','customer_invoice')
           AND td.transmission_status='manual_review'
@@ -85,6 +85,41 @@ export async function runCustomerFiscalReconciliationSweep(
     let backfilled = 0;
     let backfillFailed = 0;
     const spvIssue = await backfillVendorPhysicalSpvIssues(limit, now);
+
+    const pendingPreparationOrders = await db.query<{ order_id: string }>(`
+      SELECT DISTINCT o.public_id AS order_id
+      FROM tax_documents td
+      JOIN customer_orders o ON o.id=td.order_id
+      JOIN payments p ON p.order_id=o.id
+      WHERE td.type='pending_customer_sale'
+        AND td.document_number IS NULL
+        AND td.transmission_status IN ('not_ready','manual_review')
+        AND p.status IN ('captured','partially_refunded','refunded')
+        AND EXISTS (
+          SELECT 1 FROM gift_card_ledger gcl
+          WHERE gcl.order_public_id=o.public_id AND gcl.entry_type='redeem'
+        )
+      ORDER BY o.public_id
+      LIMIT $1
+    `,[limit]);
+
+    for (const pendingDocument of pendingPreparationOrders.rows) {
+      const orderId=pendingDocument.order_id?.trim();
+      if(!orderId)continue;
+      try{
+        const result=await finalizeCapturedCustomerPayment(orderId,Date.now());
+        if(result.fiscalStatus==="accepted")backfilled+=1;
+        else if(result.fiscalStatus==="manual_review"||result.fiscalStatus==="rejected")backfillFailed+=1;
+      }catch(error){
+        backfillFailed+=1;
+        console.error(JSON.stringify({
+          level:"error",
+          event:"customer_tax.pending_preparation_retry_failed",
+          orderId,
+          message:error instanceof Error?error.message:String(error)
+        }));
+      }
+    }
 
     const missingFiscalOrders = await db.query<{ order_id: string }>(`
       SELECT o.public_id AS order_id
@@ -139,17 +174,19 @@ export async function runCustomerFiscalReconciliationSweep(
         }
 
         accepted += 1;
-        try {
-          const delivery = await deliverAcceptedCustomerTaxDocumentById(documentId);
-          if (delivery.sent) emailed += 1;
-        } catch (error) {
-          emailFailed += 1;
-          console.error(JSON.stringify({
-            level: "error",
-            event: "customer_tax.reconciliation_email_failed",
-            documentId,
-            message: error instanceof Error ? error.message : String(error)
-          }));
+        if (candidate.order_id) {
+          try {
+            const delivery = await deliverAcceptedCustomerTaxDocumentById(documentId);
+            if (delivery.sent) emailed += 1;
+          } catch (error) {
+            emailFailed += 1;
+            console.error(JSON.stringify({
+              level: "error",
+              event: "customer_tax.reconciliation_email_failed",
+              documentId,
+              message: error instanceof Error ? error.message : String(error)
+            }));
+          }
         }
       } catch (error) {
         failed += 1;
@@ -173,6 +210,7 @@ export async function runCustomerFiscalReconciliationSweep(
         WHERE td.type IN ('retail_receipt','customer_invoice')
           AND td.transmission_status='accepted'
           AND td.aade_mark IS NOT NULL
+          AND td.order_id IS NOT NULL
           AND td.customer_email_status='not_sent'
         ORDER BY td.issued_at ASC NULLS LAST,td.created_at ASC
         LIMIT $1`,
