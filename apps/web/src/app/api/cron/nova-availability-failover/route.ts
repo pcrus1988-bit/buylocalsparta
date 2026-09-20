@@ -32,10 +32,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    const configured = Number(process.env.BLS_NOVA_AVAILABILITY_FAILOVER_PAGES_PER_RUN || 20);
+    const configured = Number(process.env.BLS_NOVA_AVAILABILITY_FAILOVER_PAGES_PER_RUN || 8);
     const maxPages = Number.isSafeInteger(configured) && configured > 0
-      ? Math.min(configured, 20)
-      : 20;
+      ? Math.min(configured, 8)
+      : 8;
     const result = await runNovaAvailabilityRefreshSlice(maxPages);
     console.info(JSON.stringify({
       level: "info",
