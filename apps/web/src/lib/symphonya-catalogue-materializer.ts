@@ -246,7 +246,8 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
 
   for (const variant of variants) {
     const existingSupplierOffer = await pool.query<SqlRow>(`
-      SELECT dso.vendor_offer_id::text vendor_offer_id,
+      SELECT dso.id::text supplier_offer_id,
+             dso.vendor_offer_id::text vendor_offer_id,
              vo.canonical_variant_id::text canonical_variant_id,
              cv.commerce_channel,
              cv.condition,
@@ -271,9 +272,44 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
         || existingCondition !== commercePolicy.condition
         || existingBazaarSource !== commercePolicy.bazaarSource
       ) {
-        blockedAmbiguous += 1;
+        const supplierOfferId = requiredText(existingSupplierOffer.rows[0]?.supplier_offer_id, "supplier offer id");
+        const vendorOfferId = requiredText(existingSupplierOffer.rows[0]?.vendor_offer_id, "vendor offer id");
+
+        // Fail closed on a supplier classification transition. The previous
+        // offer is removed from discovery before its supplier identity is
+        // retired, then this same pass is free to materialize a fresh
+        // canonical strictly inside the newly classified commerce channel.
+        await pool.query(`
+          WITH hidden_offer AS (
+            UPDATE public.vendor_offers
+               SET merchant_visible=false,
+                   merchant_pause_active=true,
+                   updated_at=now()
+             WHERE id=$1::uuid
+             RETURNING id
+          )
+          UPDATE public.dropship_supplier_offers
+             SET external_variant_id=external_variant_id
+                   || '#retired-channel-'
+                   || left(replace(id::text,'-',''),16),
+                 active=false,
+                 cached_available=false,
+                 cached_quantity=0,
+                 availability_expires_at=now(),
+                 availability_payload=COALESCE(availability_payload,'{}'::jsonb)
+                   || jsonb_build_object(
+                     'channelTransitionRetired',true,
+                     'previousCommerceChannel',$3,
+                     'targetCommerceChannel',$4,
+                     'retiredAt',now()
+                   ),
+                 updated_at=now()
+           WHERE id=$2::uuid
+             AND EXISTS (SELECT 1 FROM hidden_offer)
+        `, [vendorOfferId, supplierOfferId, existingChannel, commercePolicy.commerceChannel]);
+
         await upsertReview(context, source, canonicalVariantId, {
-          reason: "symphonya_commerce_policy_mismatch",
+          reason: "symphonya_commerce_policy_transition",
           externalVariantId: variant.externalVariantId,
           actual: {
             commerceChannel: existingChannel,
@@ -281,8 +317,9 @@ async function materializeProduct(context: SupplierContext, source: SourceProduc
             bazaarSource: existingBazaarSource
           },
           expected: commercePolicy
-        }, "symphonya_commerce_policy_mismatch");
-        continue;
+        }, "symphonya_commerce_policy_transition");
+
+        canonicalVariantId = null;
       }
     }
 
