@@ -247,11 +247,6 @@ async function refreshNovaAvailabilityProductWithClient(
     updatedOffers += update.rowCount;
   }
 
-  await db.query(
-    `SELECT bls_private.refresh_nova_storefront_live_families($1::text[])`,
-    [[externalProductId]]
-  );
-
   return { externalProductId, updatedOffers };
 }
 
@@ -308,12 +303,6 @@ async function refreshNovaAvailabilityPage(
         OR (x.external_sku IS NOT NULL AND dso.external_sku=x.external_sku)
       )
   `, [JSON.stringify(rows), NOVA_SUPPLIER_CODE, checkedAt]);
-
-  const touchedProductIds = [...new Set(rows.map((row) => row.external_product_id))];
-  await db.query(
-    `SELECT bls_private.refresh_nova_storefront_live_families($1::text[])`,
-    [touchedProductIds]
-  );
 
   return update.rowCount;
 }
