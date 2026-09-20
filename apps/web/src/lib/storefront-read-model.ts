@@ -173,7 +173,7 @@ async function getLiveDropshipFallbackWindow(
   const pool = getProductionPostgresRuntime().nativePool;
   const orderBy = dropshipSort(input.sort);
   const baseParameters = parameters(input).slice(0, 9);
-  const result = await pool.query<StorefrontDropshipFamilyCandidate>(\`
+  const result = await pool.query<StorefrontDropshipFamilyCandidate>(`
     WITH RECURSIVE category_tree AS (
       SELECT
         c.id,
@@ -343,7 +343,7 @@ async function getLiveDropshipFallbackWindow(
       ${FAMILY_FILTER_SQL}
     ORDER BY ${orderBy}
     LIMIT $10 OFFSET $11
-  \`, [...baseParameters, input.limit, input.offset, LIVE_DEGRADED_DROPSHIP_SEED_CAP]);
+  `, [...baseParameters, input.limit, input.offset, LIVE_DEGRADED_DROPSHIP_SEED_CAP]);
   return result.rows;
 }
 
