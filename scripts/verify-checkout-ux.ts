@@ -33,7 +33,9 @@ if (!dropshipCheckout.includes("const deliveryChargeMinor = dropshipDeliveryChar
 if (!dropshipCheckout.includes("groupDeliveryChargeMinor") || !dropshipCheckout.includes("delivery_charge_minor")) failures.push("Dropshipping delivery charge must be persisted to one fulfilment group for order financial recalculation");
 if (!dropshipCheckout.includes("discovery.rows.length !== requestedIds.length")) failures.push("Mixed local and dropshipping carts must continue to fail closed server-side");
 if (dropshipCheckout.includes("!row.order_forwarding_enabled || !symphonyaRuntimeEnabled")) failures.push("Symphonya checkout must not depend on automatic supplier-order forwarding being enabled");
-if (!dropshipCheckout.includes('supplierOrderForwarding: row.order_forwarding_enabled ? "automatic" : "manual"')) failures.push("Dropshipping order snapshots must record whether supplier forwarding is automatic or manual");
+if (!dropshipCheckout.includes('availabilityValidation = "fresh_cache"')) failures.push("Symphonya checkout must fall back to a still-fresh supplier cache when live revalidation is unavailable");
+if (!dropshipCheckout.includes("autoForwardedSymphonyaLines")) failures.push("Symphonya supplier-order minimum must only gate automatically forwarded supplier orders");
+if (!dropshipCheckout.includes('availabilityValidation: line.availabilityValidation') || !dropshipCheckout.includes('supplierOrderForwarding: row.order_forwarding_enabled ? "automatic" : "manual"')) failures.push("Dropshipping order snapshots must record validation source and whether supplier forwarding is automatic or manual");
 if (!mollieWebhook.includes("parseMollieWebhookBody") || !mollieWebhook.includes("reconcileMolliePaymentSafely")) failures.push("Mollie webhook must verify provider state through server-side retrieval/reconciliation");
 if (!cart.includes("robots: { index: false, follow: false }")) failures.push("Cart must remain a noindex utility route");
 if (!paymentSecurity.includes("Mollie")) failures.push("Payment security page must explain the active Mollie hosted checkout");
