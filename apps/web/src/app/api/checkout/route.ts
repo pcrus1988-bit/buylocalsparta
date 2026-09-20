@@ -13,6 +13,21 @@ type RawItem = Readonly<{ canonicalVariantId?: unknown; quantity?: unknown }>;
 const ONLINE_PAYMENT_MINIMUM_AMOUNT_MINOR = 100;
 function boundedString(value: unknown, fallback: string, maxLength: number): string { if (typeof value !== "string") return fallback; const trimmed = value.trim(); return trimmed && trimmed.length <= maxLength ? trimmed : fallback; }
 function sha256(value: string): string { return createHash("sha256").update(value).digest("hex"); }
+function transientDatabaseConnectionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("timeout exceeded when trying to connect")
+    || message.includes("Connection terminated unexpectedly")
+    || message.includes("ECONNRESET")
+    || message.includes("ETIMEDOUT");
+}
+async function withTransientDatabaseRetry<T>(operation: () => Promise<T>): Promise<T> {
+  try { return await operation(); }
+  catch (error) {
+    if (!transientDatabaseConnectionError(error)) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    return operation();
+  }
+}
 function belowMinimumPaymentResponse(remainingMinor: number) {
   return Response.json({
     error: `Απομένουν ${(remainingMinor / 100).toFixed(2)} € για online πληρωμή. Η ελάχιστη online πληρωμή είναι 1,00 €.`,
@@ -98,7 +113,7 @@ export async function POST(request: Request) {
       return { canonicalVariantId, quantity };
     });
 
-    const principal = await getAccountSession();
+    const principal = await withTransientDatabaseRetry(() => getAccountSession());
     if (!principal?.roles.includes("customer")) {
       return Response.json({ error: "Συνδέσου στον λογαριασμό σου για να ολοκληρώσεις την παραγγελία." }, { status: 401 });
     }
@@ -107,7 +122,7 @@ export async function POST(request: Request) {
     const billingAddressId = boundedString(body.billingAddressId, "", 128);
     const deliveryAddressId = boundedString(body.deliveryAddressId, "", 128);
     if (!billingAddressId) throw new Error("Επίλεξε διεύθυνση τιμολόγησης.");
-    const addressProfile = await customerCheckoutProfile(principal);
+    const addressProfile = await withTransientDatabaseRetry(() => customerCheckoutProfile(principal));
     if (!addressProfile.fullName || addressProfile.fullName.trim().split(/\s+/).length < 2) throw new Error("Συμπλήρωσε το πλήρες ονοματεπώνυμό σου πριν από την παραγγελία.");
     const billingAddress = addressProfile.addresses.find((address) => address.id === billingAddressId);
     if (!billingAddress) throw new Error("Η επιλεγμένη διεύθυνση τιμολόγησης δεν ανήκει στον λογαριασμό σου.");
@@ -142,7 +157,7 @@ export async function POST(request: Request) {
     }
 
     const runtime = getProductionPostgresRuntime();
-    await assertCheckoutRequestIntegrity(runtime, {
+    await withTransientDatabaseRetry(() => assertCheckoutRequestIntegrity(runtime, {
       checkoutKey,
       actorUserId: principal.userId,
       postcode,
@@ -152,12 +167,12 @@ export async function POST(request: Request) {
       paymentMethod,
       items,
       shipping
-    });
+    }));
 
     if (!giftCardId && molliePaymentsEnabled() && fulfilmentMode === "pickup") {
       let pickupTotalMinor = 0;
       for (const item of items) {
-        const availability = await runtime.customerCommerce.publicCanonicalAvailability(item.canonicalVariantId, { postcode, fulfilmentMode, quantity: item.quantity });
+        const availability = await withTransientDatabaseRetry(() => runtime.customerCommerce.publicCanonicalAvailability(item.canonicalVariantId, { postcode, fulfilmentMode, quantity: item.quantity }));
         if (!availability) throw new Error(`Product ${item.canonicalVariantId} is unavailable`);
         pickupTotalMinor += availability.product.priceMinor * item.quantity;
       }
@@ -165,8 +180,8 @@ export async function POST(request: Request) {
     }
 
     const now = Date.now();
-    const order = await checkoutCustomer({ checkoutKey, visitorKey, customerId: principal.userId, postcode, fulfilmentMode, items, shipping, now });
-    await attachCustomerOrderAddresses(principal, { orderId: order.id, billingAddressId, deliveryAddressId: fulfilmentMode === "local_delivery" ? deliveryAddress?.id : undefined, now });
+    const order = await withTransientDatabaseRetry(() => checkoutCustomer({ checkoutKey, visitorKey, customerId: principal.userId, postcode, fulfilmentMode, items, shipping, now }));
+    await withTransientDatabaseRetry(() => attachCustomerOrderAddresses(principal, { orderId: order.id, billingAddressId, deliveryAddressId: fulfilmentMode === "local_delivery" ? deliveryAddress?.id : undefined, now }));
 
     let giftCard: { id: string; suffix: string; balanceMinor: number; amountMinor: number; deliveryMinor: number; remainingPayableMinor: number } | undefined;
     if (giftCardId) {
@@ -207,6 +222,13 @@ export async function POST(request: Request) {
     }
     return Response.json({ ...order, giftCard }, { status: 201 });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "checkout_failed" }, { status: 400 });
+    const message = error instanceof Error ? error.message : "checkout_failed";
+    console.error(JSON.stringify({
+      level: "error",
+      event: "checkout.request_failed",
+      transientDatabaseConnection: transientDatabaseConnectionError(error),
+      message
+    }));
+    return Response.json({ error: message }, { status: transientDatabaseConnectionError(error) ? 503 : 400 });
   }
 }
