@@ -188,74 +188,21 @@ export async function getDropshipStorefrontReadModelWindow(
 
   if (!hasFilters) {
     const result = await pool.query<StorefrontDropshipFamilyCandidate>(`
-      WITH stable AS MATERIALIZED (
-        SELECT
-          fm.dropship_supplier_id,
-          fm.dropship_external_product_id,
-          fm.newest_at,
-          fm.min_price_minor
-        FROM public.storefront_dropship_family_read_model fm
-        WHERE fm.available_until>now()
-      ), hot_symphonya AS MATERIALIZED (
-        SELECT
-          dso.supplier_id::text AS dropship_supplier_id,
-          dso.external_product_id AS dropship_external_product_id,
-          MAX(vo.updated_at) AS newest_at,
-          MIN(vo.customer_price_minor) AS min_price_minor
-        FROM public.dropship_supplier_offers dso
-        JOIN public.dropship_suppliers ds
-          ON ds.id=dso.supplier_id
-         AND ds.code='symphonya'
-         AND ds.active=true
-         AND ds.api_authoritative_availability=true
-        JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
-        JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
-        JOIN public.vendor_businesses v ON v.id=vo.vendor_id
-        JOIN public.vendor_locations l ON l.id=vo.location_id
-        WHERE dso.active=true
-          AND dso.cached_available=true
-          AND COALESCE(dso.cached_quantity,0)>=1
-          AND dso.availability_expires_at IS NOT NULL
-          AND dso.availability_expires_at>now()
-          AND vo.status='approved'
-          AND vo.merchant_visible=true
-          AND vo.merchant_pause_active=false
-          AND vo.customer_price_minor>0
-          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-          AND COALESCE(cv.commerce_channel,'normal')='normal'
-          AND cv.active=true
-          AND cv.suppressed=false
-          AND cv.recalled=false
-          AND v.status='active'
-          AND l.active=true
-          AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
-          AND NOT EXISTS (
-            SELECT 1
-            FROM stable projected
-            WHERE projected.dropship_supplier_id=dso.supplier_id::text
-              AND projected.dropship_external_product_id=dso.external_product_id
-          )
-        GROUP BY dso.supplier_id,dso.external_product_id
-        ORDER BY MAX(vo.updated_at) DESC,dso.supplier_id,dso.external_product_id
-        LIMIT $3
-      ), combined AS (
-        SELECT dropship_supplier_id,dropship_external_product_id,newest_at,min_price_minor FROM stable
-        UNION ALL
-        SELECT dropship_supplier_id,dropship_external_product_id,newest_at,min_price_minor FROM hot_symphonya
-      ), deduplicated AS (
-        SELECT DISTINCT ON (dropship_supplier_id,dropship_external_product_id)
-          dropship_supplier_id,dropship_external_product_id,newest_at,min_price_minor
-        FROM combined
-        ORDER BY dropship_supplier_id,dropship_external_product_id,newest_at DESC
+      WITH total AS MATERIALIZED (
+        SELECT COUNT(*)::bigint AS total_families
+        FROM public.storefront_dropship_family_read_model
+        WHERE available_until>now()
       )
       SELECT
         fm.dropship_supplier_id AS supplier_id,
         fm.dropship_external_product_id AS external_product_id,
-        COUNT(*) OVER() AS total_families
-      FROM deduplicated fm
+        total.total_families
+      FROM public.storefront_dropship_family_read_model fm
+      CROSS JOIN total
+      WHERE fm.available_until>now()
       ORDER BY ${orderBy}
       LIMIT $1 OFFSET $2
-    `, [input.limit, input.offset, HOT_SYMPHONYA_FAMILY_CAP]);
+    `, [input.limit, input.offset]);
     return result.rows;
   }
 
