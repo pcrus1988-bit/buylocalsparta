@@ -32,15 +32,15 @@ async function waitForDatabaseReadiness(): Promise<void> {
     try {
       const readiness = await productionDatabaseReadiness();
       if (readiness.ok) {
-        if (attempt > 1) {
-          console.info(JSON.stringify({
-            level: "info",
-            event: "catalogue_supplier_supervisor.database_ready",
-            at: new Date().toISOString(),
-            attempt,
-            waitedMs: Date.now() - startedAt
-          }));
-        }
+        console.info(JSON.stringify({
+          level: "info",
+          event: "catalogue_supplier_supervisor.database_ready",
+          at: new Date().toISOString(),
+          attempt,
+          waitedMs: Date.now() - startedAt,
+          expectedSchemaVersion: readiness.expectedSchemaVersion,
+          appliedSchemaVersion: readiness.appliedSchemaVersion ?? null
+        }));
         return;
       }
       lastMessage = readiness.message;
