@@ -32,6 +32,8 @@ if (!dropshipPricing.includes("subtotalMinor > 0 && subtotalMinor < DROPSHIP_FRE
 if (!dropshipCheckout.includes("const deliveryChargeMinor = dropshipDeliveryChargeMinor(subtotalMinor)")) failures.push("Dropshipping checkout must calculate delivery from the authoritative dropshipping subtotal");
 if (!dropshipCheckout.includes("groupDeliveryChargeMinor") || !dropshipCheckout.includes("delivery_charge_minor")) failures.push("Dropshipping delivery charge must be persisted to one fulfilment group for order financial recalculation");
 if (!dropshipCheckout.includes("discovery.rows.length !== requestedIds.length")) failures.push("Mixed local and dropshipping carts must continue to fail closed server-side");
+if (dropshipCheckout.includes("!row.order_forwarding_enabled || !symphonyaRuntimeEnabled")) failures.push("Symphonya checkout must not depend on automatic supplier-order forwarding being enabled");
+if (!dropshipCheckout.includes('supplierOrderForwarding: row.order_forwarding_enabled ? "automatic" : "manual"')) failures.push("Dropshipping order snapshots must record whether supplier forwarding is automatic or manual");
 if (!mollieWebhook.includes("parseMollieWebhookBody") || !mollieWebhook.includes("reconcileMolliePaymentSafely")) failures.push("Mollie webhook must verify provider state through server-side retrieval/reconciliation");
 if (!cart.includes("robots: { index: false, follow: false }")) failures.push("Cart must remain a noindex utility route");
 if (!paymentSecurity.includes("Mollie")) failures.push("Payment security page must explain the active Mollie hosted checkout");
