@@ -365,8 +365,8 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
 
         {!hasAnyFilters && filteredProducts.length > marketProducts.length ? (
           <p className={styles.moreHint}>
-            Το BAZAAR δεν χρειάζεται να μοιάζει με αποθήκη 240 προϊόντων. Δείχνουμε ένα δυνατό, ευανάγνωστο mix
-            και τα φίλτρα από πάνω σε οδηγούν γρήγορα σε περισσότερες συγκεκριμένες ευκαιρίες.
+            Κάθε επίσκεψη ξεκινά με ένα δυνατό mix ευκαιριών. Ψάξε ανά πάγκο ή χρησιμοποίησε τα φίλτρα
+            για να ανακαλύψεις ακόμα πιο συγκεκριμένα λαβράκια.
           </p>
         ) : null}
       </section>
