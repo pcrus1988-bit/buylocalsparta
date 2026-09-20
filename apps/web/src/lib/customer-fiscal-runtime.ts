@@ -140,7 +140,7 @@ export async function capturePaidOrderForFiscalIssuance(orderId: string, now = D
       }
       await client.query(`UPDATE payments
           SET provider_payload=provider_payload||$2::jsonb,updated_at=$3
-        WHERE id=$1::uuid`,[
+        WHERE public_id=$1`,[
           row.payment_id,
           JSON.stringify({
             spvRedemptionFiscalStatus:"not_separate_transaction",
