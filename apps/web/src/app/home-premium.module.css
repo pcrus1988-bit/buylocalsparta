@@ -60,8 +60,6 @@
 .heroTitle em { color: var(--home-brass); font-style: italic; font-weight: 400; }
 .heroLead { max-width: 680px; margin: 0; color: var(--home-muted); font-size: clamp(17px, 1.7vw, 21px); line-height: 1.62; }
 .heroSearch { max-width: 720px; margin-top: 30px; }
-.heroLinks { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 18px; }
-.heroLinks a { font-size: 12px; font-weight: 800; padding-bottom: 4px; border-bottom: 1px solid rgba(23,56,45,.26); }
 .heroScene { position: relative; min-height: 560px; display: grid; place-items: center; }
 .sceneWindow {
   position: relative;
@@ -187,7 +185,7 @@
 }
 
 @media (max-width: 760px) {
-  .hero { min-height: auto; grid-template-columns: 1fr; padding-top: 28px; gap: 30px; }
+  .hero { min-height: auto; grid-template-columns: 1fr; padding-top: 18px; gap: 16px; }
   .heroCopy { display: flex; flex-direction: column; }
   .locationPill { order: 0; align-self: flex-start; }
   .heroEyebrow { order: 1; margin-top: 20px; }
@@ -401,7 +399,7 @@
     order: 6;
     width: 100%;
     max-width: 520px;
-    margin: 2px auto 0;
+    margin: -4px auto 0;
     border-radius: 24px;
   }
   .discoveryStageViewport,
