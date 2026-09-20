@@ -47,13 +47,67 @@ export function resolveSymphonyaCategoryCode(payloadValue: unknown, sourceTitle 
 
   if (cat === "fashion") {
     const gender = normalize(optionalText(record(payload.gender).name) ?? "");
-    if (scat === "fashion accessories" && containsAny(evidence, ["sunglasses", "sun glasses"])) return "sunglasses";
-    if (scat === "fashion accessories" && containsAny(evidence, ["wallet", "cardholder", "card holder"])) return "wallets-cardholders";
+    const fashionEvidence = `${scat} ${sscat} ${title}`;
+
+    if (scat === "fashion accessories") {
+      if (containsAny(fashionEvidence, ["sunglasses case", "glasses case", "eyewear case"])) return "optical-accessories";
+      if (containsAny(fashionEvidence, ["sunglasses", "sun glasses"])) return "sunglasses";
+      if (containsAny(fashionEvidence, ["wallet", "cardholder", "card holder"])) return "wallets-cardholders";
+      if (containsAny(fashionEvidence, ["belt"])) return "belts";
+      if (containsAny(fashionEvidence, ["scarf", "hat", "glove"])) return "scarves-hats-gloves";
+      if (containsAny(fashionEvidence, ["bracelet"])) return "bracelets";
+      if (containsAny(fashionEvidence, ["ring"])) return "rings";
+      if (containsAny(fashionEvidence, ["necklace", "pendant"])) return "necklaces";
+      if (containsAny(fashionEvidence, ["ear cuff", "earring"])) return "earrings";
+      if (containsAny(fashionEvidence, ["watch"])) return "watches";
+      if (containsAny(fashionEvidence, ["keyring", "key ring", "folding fan", "textile mask"])) return "fashion-accessories-other";
+    }
+
     if (scat === "bags & backpacks") {
-      if (containsAny(`${sscat} ${title}`, ["backpack", "rucksack"])) return "backpacks";
+      if (containsAny(fashionEvidence, ["backpack", "rucksack"])) return "backpacks";
+      if (containsAny(fashionEvidence, ["travel bag", "luggage", "duffel", "weekender"])) return "luggage-travel-bags";
       if (gender === "male" || gender === "men" || gender === "for men") return "mens-bags";
       if (gender === "female" || gender === "women" || gender === "for women") return "handbags";
       return "unisex-bags";
+    }
+
+    // Supplier "Gifts" are usually gift-with-purchase packaging or promotional
+    // items. They are intentionally not promoted into the normal fashion tree.
+  }
+
+  if (cat === "clothing") {
+    const gender = normalize(optionalText(record(payload.gender).name) ?? "");
+    const clothingEvidence = `${scat} ${sscat} ${title}`;
+    const women = gender === "female" || gender === "women" || gender === "for women";
+    const men = gender === "male" || gender === "men" || gender === "for men";
+
+    if (containsAny(clothingEvidence, ["sunglasses case", "glasses case", "eyewear case"])) return "optical-accessories";
+    if (containsAny(clothingEvidence, ["arm warmer", "muff", "scarf", "glove", "hat"])) return "scarves-hats-gloves";
+
+    if (containsAny(clothingEvidence, ["jacket", "coat"])) {
+      if (women) return "fashion-womens-jackets-coats";
+      if (men) return "fashion-mens-jackets-coats";
+    }
+    if (containsAny(clothingEvidence, ["shorts"])) {
+      if (women) return "fashion-womens-shorts";
+      if (men) return "fashion-mens-shorts";
+    }
+    if (containsAny(clothingEvidence, ["leggings", "tights"])) {
+      if (scat === "sportswear") {
+        if (women) return "fashion-womens-activewear";
+        if (men) return "fashion-mens-activewear";
+      }
+      if (women) return "fashion-womens-trousers-jeans";
+      if (men) return "fashion-mens-trousers-jeans";
+    }
+    if (containsAny(clothingEvidence, ["shirts & tees", "shirt & tee", "t-shirt", "t shirt", "strappy vest", "tank top"])) {
+      if (women) return "fashion-womens-tops";
+      if (men) return "fashion-mens-tshirts-tops";
+    }
+    if (scat === "sportswear") {
+      if (women) return "fashion-womens-activewear";
+      if (men) return "fashion-mens-activewear";
+      return "sports-clothing";
     }
   }
 
