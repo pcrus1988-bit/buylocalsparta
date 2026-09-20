@@ -219,10 +219,21 @@ function mollieConfigForRuntime(env: NodeJS.ProcessEnv): MollieConfig {
 function molliePublicBaseUrlFromEnv(env: NodeJS.ProcessEnv): string {
   const configured = env.MOLLIE_PUBLIC_BASE_URL?.trim();
   if (configured) return configured;
+
+  // Production payment redirects must stay on the branded customer origin.
+  // VERCEL_URL is deployment-specific (for example buylocalsparta-<hash>-*.vercel.app)
+  // and cannot share the kontamou.site customer session cookie after Mollie returns.
+  if (env.VERCEL_ENV === "production" || env.BLS_DEPLOYMENT_ENVIRONMENT === "production") {
+    return "https://kontamou.site";
+  }
+
   const vercelHost = env.VERCEL_URL?.trim() || env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
   if (vercelHost) return /^https?:\/\//i.test(vercelHost) ? vercelHost : `https://${vercelHost}`;
   if (env.NODE_ENV !== "production") return "http://localhost:3000";
-  throw new Error("MOLLIE_PUBLIC_BASE_URL or a Vercel public URL is required when Mollie payments are enabled");
+
+  // Non-Vercel production runtimes use the same canonical customer origin unless
+  // an explicit MOLLIE_PUBLIC_BASE_URL override is configured.
+  return "https://kontamou.site";
 }
 
 function requiredSecret(raw: string | undefined, name: string): string { const value = raw?.trim(); if (!value || value.length < 32) throw new Error(`${name} must be at least 32 characters`); return value; }
