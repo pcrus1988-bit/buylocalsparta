@@ -21,7 +21,7 @@ test("unresolved moisture maps to diagnosis-first blocking facts", () => {
   assert.deepEqual(
     mapBuildStudioScenario({ module: "paint", surface: "bathroom", condition: "mould" }),
     {
-      scenarioKey: "paint_interior_mould_damp",
+      scenarioKey: "paint_bathroom_high_humidity",
       facts: { significant_moisture: true, source_known: false }
     }
   );
@@ -57,15 +57,27 @@ test("ETICS remains blocked until safe access is confirmed", () => {
   );
 });
 
-test("unresearched combinations stay unmapped instead of borrowing a nearby scenario", () => {
-  assert.equal(
+test("second-batch below-grade moisture stays diagnosis-first", () => {
+  assert.deepEqual(
     mapBuildStudioScenario({ module: "waterproofing", location: "basement", problem: "leak" }),
-    null
+    {
+      scenarioKey: "waterproof_basement_below_grade_moisture",
+      facts: { significant_moisture: true, source_known: false, active_water_ingress: true }
+    }
   );
-  assert.equal(
+});
+
+test("second-batch roof insulation stays blocked until build-up and access are known", () => {
+  assert.deepEqual(
     mapBuildStudioScenario({ module: "insulation", location: "roof", goal: "both" }),
-    null
+    {
+      scenarioKey: "insulation_roof_general",
+      facts: { roof_build_up_known: false, work_at_height: true, safe_access_confirmed: false }
+    }
   );
+});
+
+test("unresearched combinations stay unmapped instead of borrowing a nearby scenario", () => {
   assert.equal(
     mapBuildStudioScenario({ module: "repair", issue: "holes", severity: "local" }),
     null
