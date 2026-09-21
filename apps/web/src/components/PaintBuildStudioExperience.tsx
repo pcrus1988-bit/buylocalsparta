@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ColorStudioSelector, type ColorStudioShadeCandidate } from "./ColorStudioSelector";
-import { BuildStudioProductChooser } from "./BuildStudioProductChooser";
+import { BuildStudioGuidanceResult } from "./BuildStudioGuidanceResult";
+import { mapBuildStudioScenario, type BuildGuidanceScenarioRequest } from "../lib/build-guidance-scenario-map";
 import {
   BUILD_MODULES,
   INSULATION_GOALS,
@@ -403,19 +404,15 @@ export function PaintBuildStudioExperience() {
         ) : null}
 
         {screen === "paint-result" ? (
-          <ResultScreen
+          <BuildStudioGuidanceResult
             eyebrow="Η ΤΕΛΕΙΑ ΠΙΝΕΛΙΑ · Η ΛΥΣΗ ΣΟΥ"
             title={paintRecommendation.systemName}
             summary={`${paintSurfaceDefinition.label} · ${paintCondition.label} · ${paintArea} m²`}
-            layers={[
-              ...(paintRecommendation.primerRequired && paintRecommendation.primerLabel
-                ? [paintRecommendation.primerLabel]
-                : []),
-              paintRecommendation.topcoatLabel
-            ]}
-            preparation={paintRecommendation.preparation}
-            warnings={paintRecommendation.warnings}
-            quantity={paintRecommendation.quantityNote}
+            scenarioRequest={mapBuildStudioScenario({
+              module: "paint",
+              surface: paintSurfaceKey,
+              condition: paintConditionKey
+            })}
             candidateTerms={[
               paintRecommendation.topcoatLabel,
               ...paintRecommendation.catalogueTags
@@ -468,6 +465,11 @@ export function PaintBuildStudioExperience() {
             eyebrow="ΣΤΕΓΑΝΟΠΟΙΗΣΗ · Η ΛΥΣΗ ΣΟΥ"
             recommendation={waterproofRecommendation}
             context={`${selectedChoiceLabel(WATERPROOF_LOCATIONS, waterproofLocation)} · ${selectedChoiceLabel(WATERPROOF_PROBLEMS, waterproofProblem)}`}
+            scenarioRequest={mapBuildStudioScenario({
+              module: "waterproofing",
+              location: waterproofLocation,
+              problem: waterproofProblem
+            })}
             onRestart={goHub}
           />
         ) : null}
@@ -515,6 +517,11 @@ export function PaintBuildStudioExperience() {
             eyebrow="ΘΕΡΜΟΜΟΝΩΣΗ · Η ΛΥΣΗ ΣΟΥ"
             recommendation={insulationRecommendation}
             context={`${selectedChoiceLabel(INSULATION_LOCATIONS, insulationLocation)} · ${selectedChoiceLabel(INSULATION_GOALS, insulationGoal)}`}
+            scenarioRequest={mapBuildStudioScenario({
+              module: "insulation",
+              location: insulationLocation,
+              goal: insulationGoal
+            })}
             onRestart={goHub}
           />
         ) : null}
@@ -562,6 +569,11 @@ export function PaintBuildStudioExperience() {
             eyebrow="ΕΠΙΣΚΕΥΗ ΤΟΙΧΟΥ · Η ΛΥΣΗ ΣΟΥ"
             recommendation={repairRecommendation}
             context={`${selectedChoiceLabel(REPAIR_ISSUES, repairIssue)} · ${selectedChoiceLabel(REPAIR_SEVERITIES, repairSeverity)}`}
+            scenarioRequest={mapBuildStudioScenario({
+              module: "repair",
+              issue: repairIssue,
+              severity: repairSeverity
+            })}
             onRestart={goHub}
           />
         ) : null}
@@ -667,112 +679,27 @@ function AreaScreen({
   );
 }
 
-function ResultScreen({
-  eyebrow,
-  title,
-  summary,
-  layers,
-  preparation,
-  warnings,
-  quantity,
-  candidateTerms,
-  colour,
-  onRestart
-}: {
-  eyebrow: string;
-  title: string;
-  summary: string;
-  layers: readonly string[];
-  preparation: readonly string[];
-  warnings: readonly string[];
-  quantity: string;
-  candidateTerms: readonly string[];
-  colour?: string;
-  onRestart: () => void;
-}) {
-  return (
-    <section className={styles.resultScreen}>
-      <div className={styles.resultIntro}>
-        <span className={styles.kicker}>{eyebrow}</span>
-        <h1>{title}</h1>
-        <p>{summary}</p>
-        {colour ? (
-          <div className={styles.resultSwatch}>
-            <span style={{ background: colour }} />
-            <div><small>ΤΟ ΧΡΩΜΑ ΣΟΥ</small><strong>{colour}</strong></div>
-          </div>
-        ) : null}
-      </div>
-
-      <div className={styles.resultCard}>
-        <ResultColumn number="01" title="Σύστημα" items={layers} />
-        <ResultColumn number="02" title="Προεργασία" items={preparation} />
-        <div className={styles.resultColumn}>
-          <span>03</span>
-          <h2>Ποσότητα</h2>
-          <p className={styles.quantityCopy}>{quantity}</p>
-        </div>
-      </div>
-
-      {warnings.length ? (
-        <div className={styles.warningPanel}>
-          <strong>Σημαντικό πριν ξεκινήσεις</strong>
-          {warnings.map((warning) => <p key={warning}>{warning}</p>)}
-        </div>
-      ) : null}
-
-      <BuildStudioProductChooser terms={candidateTerms} />
-
-      <div className={styles.resultActions}>
-        <a href="/ask-local" className={styles.secondaryAction}>ΡΩΤΗΣΕ ΕΝΑ ΚΑΤΑΣΤΗΜΑ</a>
-        <button type="button" className={styles.secondaryAction} onClick={onRestart}>ΝΕΟ ΕΡΓΟ</button>
-      </div>
-    </section>
-  );
-}
-
 function BuildResult({
   eyebrow,
   recommendation,
   context,
+  scenarioRequest,
   onRestart
 }: {
   eyebrow: string;
   recommendation: BuildProjectRecommendation;
   context: string;
+  scenarioRequest: BuildGuidanceScenarioRequest | null;
   onRestart: () => void;
 }) {
   return (
-    <ResultScreen
+    <BuildStudioGuidanceResult
       eyebrow={eyebrow}
       title={recommendation.title}
-      summary={`${context} · ${recommendation.areaM2} m² — ${recommendation.summary}`}
-      layers={recommendation.layers}
-      preparation={recommendation.preparation}
-      warnings={recommendation.warnings}
-      quantity={recommendation.quantityNote}
+      summary={`${context} · ${recommendation.areaM2} m²`}
+      scenarioRequest={scenarioRequest}
       candidateTerms={recommendation.catalogueTags}
       onRestart={onRestart}
     />
-  );
-}
-
-function ResultColumn({
-  number,
-  title,
-  items
-}: {
-  number: string;
-  title: string;
-  items: readonly string[];
-}) {
-  return (
-    <div className={styles.resultColumn}>
-      <span>{number}</span>
-      <h2>{title}</h2>
-      <ol>
-        {items.length ? items.map((item) => <li key={item}>{item}</li>) : <li>Δεν απαιτείται επιπλέον βήμα.</li>}
-      </ol>
-    </div>
   );
 }
