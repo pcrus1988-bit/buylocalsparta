@@ -189,7 +189,22 @@ export function PaintBuildStudioExperience() {
     const previousOverscroll = document.body.style.overscrollBehavior;
     document.body.style.overflow = "hidden";
     document.body.style.overscrollBehavior = "none";
+
+    const request = () => {
+      if (document.fullscreenElement) return;
+      void document.documentElement.requestFullscreen?.().catch(() => undefined);
+    };
+
+    // Best effort on arrival. Browsers normally reject this without user activation,
+    // so the first touch/click/key inside the Studio retries synchronously.
+    request();
+    const activate = () => request();
+    document.addEventListener("pointerdown", activate, { capture: true, once: true });
+    document.addEventListener("keydown", activate, { capture: true, once: true });
+
     return () => {
+      document.removeEventListener("pointerdown", activate, true);
+      document.removeEventListener("keydown", activate, true);
       document.body.style.overflow = previousOverflow;
       document.body.style.overscrollBehavior = previousOverscroll;
     };
@@ -229,7 +244,11 @@ export function PaintBuildStudioExperience() {
   }
 
   return (
-    <div className={styles.fullscreenStudio} role="application" aria-label="KONTA MOY Paint & Build Studio">
+    <div
+      className={`${styles.fullscreenStudio} ${screen === "hub" ? styles.hubMode : ""}`}
+      role="application"
+      aria-label="KONTA MOY Paint & Build Studio"
+    >
       <header className={styles.studioHeader}>
         <button type="button" className={styles.brandButton} onClick={goHub} aria-label="Paint & Build Studio αρχική">
           <span>KONTA MOY</span>
