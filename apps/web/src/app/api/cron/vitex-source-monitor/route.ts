@@ -63,8 +63,8 @@ async function getMonitorConfig(): Promise<MonitorConfig | null> {
   return {
     enabled: value.enabled === true,
     batchLimit: Number.isSafeInteger(batchLimit) && batchLimit > 0
-      ? Math.min(batchLimit, 12)
-      : 8,
+      ? Math.min(batchLimit, 4)
+      : 4,
     officialHosts: Array.isArray(value.officialHosts)
       ? value.officialHosts.filter((item): item is string => typeof item === "string")
       : ["vitex.gr", "www.vitex.gr"]
@@ -121,7 +121,7 @@ async function processSource(
     const response = await fetch(source.source_url, {
       redirect: "follow",
       cache: "no-store",
-      signal: AbortSignal.timeout(18_000),
+      signal: AbortSignal.timeout(10_000),
       headers: {
         "user-agent": "KONTA-MOU-Vitex-Source-Monitor/1.0",
         "accept": "application/pdf,*/*;q=0.8"
@@ -130,6 +130,9 @@ async function processSource(
 
     if (!response.ok) {
       throw new Error(`origin_http_${response.status}`);
+    }
+    if (!isOfficialVitexUrl(response.url, officialHosts)) {
+      throw new Error("origin_redirected_non_official_host");
     }
 
     const contentLengthHeader = response.headers.get("content-length");
@@ -234,7 +237,143 @@ async function processSource(
         change_detected_at: now
       };
 
-      let inserted = await client.query<{ id: string }>(`
+      const affectedProducts = await client.query<{ product_id: string }>(`
+        SELECT DISTINCT product_id
+        FROM (
+          SELECT $2::uuid AS product_id
+          UNION ALL
+          SELECT e.product_id
+          FROM public.manufacturer_instruction_evidence e
+          WHERE e.source_id=$1
+            AND e.is_current=true
+          UNION ALL
+          SELECT a.product_id
+          FROM public.manufacturer_application_profiles a
+          WHERE a.primary_source_id=$1
+            AND a.is_current=true
+        ) affected
+        WHERE product_id IS NOT NULL
+      `, [current.id, current.product_id]);
+
+      const affectedProductIds = affectedProducts.rows.map((row) => row.product_id);
+
+      await client.query(`
+        UPDATE public.manufacturer_application_rules r
+        SET active=false,
+            valid_to=$2::date,
+            updated_at=now()
+        WHERE r.active=true
+          AND r.source_evidence_id IN (
+            SELECT e.id
+            FROM public.manufacturer_instruction_evidence e
+            WHERE e.source_id=$1
+              AND e.is_current=true
+          )
+      `, [current.id, today]);
+
+      await client.query(`
+        UPDATE public.manufacturer_surface_compatibility c
+        SET is_current=false,
+            valid_to=$2::date
+        WHERE c.is_current=true
+          AND c.source_evidence_id IN (
+            SELECT e.id
+            FROM public.manufacturer_instruction_evidence e
+            WHERE e.source_id=$1
+              AND e.is_current=true
+          )
+      `, [current.id, today]);
+
+      await client.query(`
+        UPDATE public.manufacturer_product_compatibility c
+        SET is_current=false,
+            valid_to=$2::date
+        WHERE c.is_current=true
+          AND c.source_evidence_id IN (
+            SELECT e.id
+            FROM public.manufacturer_instruction_evidence e
+            WHERE e.source_id=$1
+              AND e.is_current=true
+          )
+      `, [current.id, today]);
+
+      await client.query(`
+        UPDATE public.manufacturer_package_sizes p
+        SET active=false
+        WHERE p.active=true
+          AND p.source_evidence_id IN (
+            SELECT e.id
+            FROM public.manufacturer_instruction_evidence e
+            WHERE e.source_id=$1
+              AND e.is_current=true
+          )
+      `, [current.id]);
+
+      await client.query(`
+        UPDATE public.manufacturer_instruction_evidence
+        SET is_current=false,
+            valid_to=$2::date
+        WHERE source_id=$1
+          AND is_current=true
+      `, [current.id, today]);
+
+      if (affectedProductIds.length > 0) {
+        await client.query(`
+          UPDATE public.manufacturer_application_profiles
+          SET verification_status='needs_review',
+              last_verified_at=NULL,
+              updated_at=now()
+          WHERE product_id = ANY($1::uuid[])
+            AND is_current=true
+            AND verification_status='verified'
+        `, [affectedProductIds]);
+
+        await client.query(`
+          UPDATE public.manufacturer_products
+          SET verification_status='needs_review',
+              last_verified_at=NULL,
+              updated_at=now()
+          WHERE id = ANY($1::uuid[])
+            AND verification_status='verified'
+        `, [affectedProductIds]);
+      }
+
+      await client.query(`
+        UPDATE public.manufacturer_systems s
+        SET verification_status='needs_review',
+            last_verified_at=NULL,
+            updated_at=now()
+        WHERE s.verification_status='verified'
+          AND (
+            s.primary_source_id=$1
+            OR EXISTS (
+              SELECT 1
+              FROM public.manufacturer_system_components sc
+              JOIN public.manufacturer_instruction_evidence e
+                ON e.id=sc.source_evidence_id
+              WHERE sc.system_id=s.id
+                AND e.source_id=$1
+            )
+          )
+      `, [current.id]);
+
+      await client.query(`
+        UPDATE public.manufacturer_technical_sources
+        SET is_current=false,
+            valid_to=$2::date,
+            superseded_by=NULL,
+            metadata=COALESCE(metadata,'{}'::jsonb) || $3::jsonb
+        WHERE id=$1
+      `, [
+        current.id,
+        today,
+        JSON.stringify({
+          superseded_due_to_checksum_change_at: now,
+          superseded_by_checksum_sha256: checksum
+        })
+      ]);
+
+      const inserted = await client.query<{ id: string }>(`
         INSERT INTO public.manufacturer_technical_sources
           (manufacturer, product_id, source_type, source_title, source_url,
            document_revision, publication_date, language, page_count, section_heading,
@@ -242,7 +381,6 @@ async function processSource(
            is_current, superseded_by, metadata)
         VALUES
           ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::timestamptz,$12,$13,$14::date,NULL,true,NULL,$15::jsonb)
-        ON CONFLICT DO NOTHING
         RETURNING id
       `, [
         current.manufacturer,
@@ -262,49 +400,14 @@ async function processSource(
         JSON.stringify(nextMetadata)
       ]);
 
-      if (inserted.rowCount !== 1) {
-        inserted = await client.query<{ id: string }>(`
-          SELECT id
-          FROM public.manufacturer_technical_sources
-          WHERE manufacturer=$1
-            AND source_url=$2
-            AND COALESCE(document_revision,'')=COALESCE($3,'')
-            AND checksum_sha256=$4
-          ORDER BY created_at DESC
-          LIMIT 1
-        `, [current.manufacturer, current.source_url, current.document_revision, checksum]);
-      }
-
       const nextId = inserted.rows[0]?.id;
       if (!nextId) throw new Error("new_source_version_insert_failed");
 
       await client.query(`
         UPDATE public.manufacturer_technical_sources
-        SET is_current=false,
-            valid_to=$2::date,
-            superseded_by=$3,
-            metadata=COALESCE(metadata,'{}'::jsonb) || $4::jsonb
+        SET superseded_by=$2
         WHERE id=$1
-      `, [
-        current.id,
-        today,
-        nextId,
-        JSON.stringify({
-          superseded_due_to_checksum_change_at: now,
-          superseded_by_checksum_sha256: checksum
-        })
-      ]);
-
-      if (current.product_id) {
-        await client.query(`
-          UPDATE public.manufacturer_products
-          SET verification_status='needs_review',
-              last_verified_at=NULL,
-              updated_at=now()
-          WHERE id=$1
-            AND verification_status='verified'
-        `, [current.product_id]);
-      }
+      `, [current.id, nextId]);
 
       await client.query("COMMIT");
       return {
@@ -348,7 +451,7 @@ async function run(request: Request): Promise<Response> {
     : "auto";
   const requestedLimit = Number(url.searchParams.get("limit") || config.batchLimit);
   const limit = Number.isSafeInteger(requestedLimit) && requestedLimit > 0
-    ? Math.min(requestedLimit, config.batchLimit, 12)
+    ? Math.min(requestedLimit, config.batchLimit, 4)
     : config.batchLimit;
 
   const modePredicate = mode === "bootstrap"
