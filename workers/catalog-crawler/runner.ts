@@ -2,7 +2,9 @@ import {
   analyzeHtmlProductPage,
   discoverHtmlUrls,
   extractJsonLdProductCandidates,
+  extractFournarakisCategoryProductUrls,
   extractFournarakisProductCandidates,
+  isFournarakisSourceUrl,
   normalizeFournarakisDiscoveredUrl,
   parseRobotsTxt,
   parseSitemapXml,
@@ -102,7 +104,10 @@ export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly
     discovered.push({ url: page.normalizedUrl, depth: page.depth, fromPageId: page.discoveredFromPageId });
   }
 
-  if (options.job.crawlMode !== "single") {
+  // A category crawl must remain scoped to the selected category. In particular,
+  // Fournarakis publishes a site-wide sitemap, so loading it here would turn a
+  // four-product category test into a full-catalogue crawl.
+  if (options.job.crawlMode !== "single" && options.job.crawlMode !== "category") {
     const sitemapUrls = await discoverFromSitemaps({
       startUrl: normalizedSeed,
       robots,
@@ -178,7 +183,13 @@ export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly
     processed += 1;
 
     if (html && options.job.crawlMode !== "single" && item.depth < maxDepth) {
-      const links = [...discoverHtmlUrls(html, response.finalUrl, Math.min(policy.maxPages * 4, 50_000))];
+      const fournarakisCategoryLinks =
+        options.job.crawlMode === "category" && isFournarakisSourceUrl(normalizedSeed)
+          ? extractFournarakisCategoryProductUrls(html, response.finalUrl)
+          : undefined;
+      const links = fournarakisCategoryLinks
+        ? [...fournarakisCategoryLinks]
+        : [...discoverHtmlUrls(html, response.finalUrl, Math.min(policy.maxPages * 4, 50_000))];
       links.sort((left, right) => productLikelihood(right) - productLikelihood(left));
       const before = discovered.length;
       for (const url of links) {

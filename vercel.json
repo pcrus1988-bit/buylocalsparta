@@ -11,6 +11,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/catalogue-crawler",
+      "schedule": "*/10 * * * *"
+    },
+    {
       "path": "/api/cron/nova-canonical-media",
       "schedule": "*/10 * * * *"
     },

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  extractFournarakisCategoryProductUrls,
   extractFournarakisProductCandidates,
   isFournarakisProductUrl,
   isPublicIpAddress,
@@ -202,4 +203,31 @@ test("Fournarakis adapter parses the server-side inline const data payload witho
   assert.deepEqual(candidates[0].categoryPath, ["Εργαλεία", "Χρωματοπωλείο", "Ρολά", "Ρολά Δερμάτινα"]);
   assert.equal((candidates[0].rawPayload as Record<string, unknown>).requiresPricingPdfJoin, true);
   assert.equal((candidates[0].rawPayload as Record<string, unknown>).webPriceAuthoritative, false);
+});
+
+
+test("Fournarakis category discovery reads only product URLs from the embedded category payload", () => {
+  const sourceUrl = "https://www.fournarakis.gr/el/catalog/c/170/raoula-odigi-siromenis-portas";
+  const payload = {
+    breadcrumbs: [{ label: "ΕΡΓΑΛΕΙΑ", href: "/el/catalog/c/6/ergalia" }],
+    items: [
+      { code_catalogue: "4475", href: "/el/product/4475/raoulo-bidwto-me-rouleman-gia-syromenh-porta" },
+      { code_catalogue: "3900", href: "/el/product/3900/raoulo-me-rouleman-gia-syromenh-porta-me-mpouloni" },
+      { code_catalogue: "3899", href: "/el/product/3899/odhgos-syromenhs-portas-nailon-me-bida-paksimadia" },
+      { code_catalogue: "1470", href: "/el/product/1470/raoulo-me-rouleman-gia-syromenh-porta-me-bash" }
+    ],
+    facets: [
+      { items: [{ url: "/el/catalog/c/6/ergalia" }, { url: "/el/catalog/c/170/raoula-odigi-siromenis-portas?tags=must_have" }] }
+    ],
+    count: 4,
+    pager: { current: 1, total: 1 }
+  };
+  const html = '<html><body><script>let data = ' + JSON.stringify(payload) + ';</script><div id="search-app"></div></body></html>';
+
+  assert.deepEqual(extractFournarakisCategoryProductUrls(html, sourceUrl), [
+    "https://www.fournarakis.gr/el/product/4475/raoulo-bidwto-me-rouleman-gia-syromenh-porta",
+    "https://www.fournarakis.gr/el/product/3900/raoulo-me-rouleman-gia-syromenh-porta-me-mpouloni",
+    "https://www.fournarakis.gr/el/product/3899/odhgos-syromenhs-portas-nailon-me-bida-paksimadia",
+    "https://www.fournarakis.gr/el/product/1470/raoulo-me-rouleman-gia-syromenh-porta-me-bash"
+  ]);
 });

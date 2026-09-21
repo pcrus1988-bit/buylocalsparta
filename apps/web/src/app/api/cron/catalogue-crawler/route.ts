@@ -8,8 +8,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 700;
 
-const CRON_SCHEDULE = "*/30 * * * *";
-const SLICE_MS = 10 * 60 * 1000;
+const CRON_SCHEDULE = "*/10 * * * *";
+const SLICE_MS = 9 * 60 * 1000;
 const LEASE_SECONDS = 720;
 const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_SITEMAPS = 32;
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
   const runtimeDb = getProductionPostgresRuntime();
 
   // Only one live catalogue worker is allowed at a time. This keeps crawl rate
-  // limits meaningful even though Vercel invokes the scheduler every minute.
+  // limits meaningful even though Vercel invokes the scheduler every ten minutes.
   const activeResult = await runtimeDb.sqlPool.query<SqlRow>(`
     SELECT count(*)::integer AS active_count
     FROM public.catalog_web_crawl_jobs

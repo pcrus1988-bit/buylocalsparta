@@ -23,6 +23,40 @@ export function isFournarakisProductUrl(rawUrl: string): boolean {
   }
 }
 
+
+export function extractFournarakisCategoryProductUrls(html: string, sourceUrl: string): readonly string[] {
+  if (!isFournarakisSourceUrl(sourceUrl)) return [];
+  let pageUrl: URL;
+  try {
+    pageUrl = new URL(sourceUrl);
+  } catch {
+    return [];
+  }
+  if (!CATALOG_PATH.test(pageUrl.pathname)) return [];
+
+  const embedded = extractFournarakisInlineData(html);
+  if (!embedded) return [];
+
+  const result: string[] = [];
+  for (const item of arrayValue(embedded.items)) {
+    const href = stringValue(recordValue(item)?.href);
+    if (!href) continue;
+    try {
+      const resolved = new URL(href, sourceUrl);
+      if (!isFournarakisProductUrl(resolved.toString())) continue;
+      resolved.protocol = "https:";
+      resolved.hostname = "www.fournarakis.gr";
+      resolved.search = "";
+      resolved.hash = "";
+      const normalized = resolved.toString();
+      if (!result.includes(normalized)) result.push(normalized);
+    } catch {
+      // Ignore malformed supplier links and keep the category crawl bounded.
+    }
+  }
+  return result;
+}
+
 export function normalizeFournarakisDiscoveredUrl(rawUrl: string, seedUrl: string): string | undefined {
   if (!isFournarakisSourceUrl(seedUrl)) return rawUrl;
   let url: URL;
@@ -87,7 +121,7 @@ export function extractFournarakisProductCandidates(html: string, sourceUrl: str
 type FournarakisInlineProduct = Record<string, unknown>;
 
 function extractFournarakisInlineData(html: string): FournarakisInlineProduct | undefined {
-  const marker = /(?:^|[;\s])const\s+data\s*=\s*/g;
+  const marker = /(?:^|[;\s])(?:const|let)\s+data\s*=\s*/g;
   const match = marker.exec(html);
   if (!match) return undefined;
   const start = html.indexOf("{", match.index + match[0].length);
