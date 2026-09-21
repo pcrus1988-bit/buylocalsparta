@@ -18,6 +18,14 @@ export type BuildStudioCandidate = Readonly<{
   vendorName?: string;
   score: number;
   matchedTerms: readonly string[];
+  manufacturerProductId: string;
+  manufacturerEligibilityStatus:
+    | "eligible"
+    | "eligible_with_preparation"
+    | "requires_specific_primer"
+    | "requires_system_component";
+  manufacturerRuleKey: string;
+  technicalVerificationStatus: "verified";
 }>;
 
 function ProductArtwork({ product }: { product: BuildStudioCandidate }) {
@@ -36,12 +44,25 @@ function ProductArtwork({ product }: { product: BuildStudioCandidate }) {
   );
 }
 
+function eligibilityLabel(status: BuildStudioCandidate["manufacturerEligibilityStatus"]): string {
+  if (status === "eligible_with_preparation") return "Επαληθευμένο · με προεργασία";
+  if (status === "requires_specific_primer") return "Επαληθευμένο · απαιτεί αστάρι";
+  if (status === "requires_system_component") return "Επαληθευμένο · μέρος συστήματος";
+  return "Τεχνικά επαληθευμένο";
+}
+
 export function BuildStudioProductChooser({
   terms,
-  heading = "Διάλεξε το προϊόν για το έργο σου"
+  scenarioKey,
+  facts = {},
+  heading = "Επαληθευμένες επιλογές προϊόντος",
+  onManufacturerProductChange
 }: {
   terms: readonly string[];
+  scenarioKey: string;
+  facts?: Readonly<Record<string, unknown>>;
   heading?: string;
+  onManufacturerProductChange?: (manufacturerProductId: string | undefined) => void;
 }) {
   const [products, setProducts] = useState<readonly BuildStudioCandidate[]>([]);
   const [selectedId, setSelectedId] = useState<string>();
@@ -51,9 +72,11 @@ export function BuildStudioProductChooser({
     () => [...new Set(terms.map((term) => term.trim()).filter(Boolean))].slice(0, 8).join("|"),
     [terms]
   );
+  const factsJson = useMemo(() => JSON.stringify(facts), [facts]);
 
   useEffect(() => {
-    if (!queryKey) {
+    onManufacturerProductChange?.(undefined);
+    if (!queryKey || !scenarioKey) {
       setProducts([]);
       setSelectedId(undefined);
       setState("empty");
@@ -66,6 +89,8 @@ export function BuildStudioProductChooser({
 
     const params = new URLSearchParams();
     params.set("term", queryKey);
+    params.set("scenario", scenarioKey);
+    if (factsJson !== "{}") params.set("facts", factsJson);
 
     void fetch(`/api/build-studio/candidates?${params.toString()}`, {
       method: "GET",
@@ -75,11 +100,21 @@ export function BuildStudioProductChooser({
     })
       .then(async (response) => {
         if (!response.ok) throw new Error(`build-studio candidates: ${response.status}`);
-        return response.json() as Promise<{ products?: BuildStudioCandidate[]; degraded?: boolean }>;
+        return response.json() as Promise<{
+          products?: BuildStudioCandidate[];
+          degraded?: boolean;
+          technicalVerificationRequired?: boolean;
+        }>;
       })
       .then((payload) => {
         if (controller.signal.aborted) return;
-        const next = Array.isArray(payload.products) ? payload.products : [];
+        const next = Array.isArray(payload.products)
+          ? payload.products.filter((product) =>
+              product.technicalVerificationStatus === "verified"
+              && typeof product.manufacturerProductId === "string"
+              && product.manufacturerProductId.length > 0
+            )
+          : [];
         setProducts(next);
         if (payload.degraded) setState("degraded");
         else setState(next.length ? "ready" : "empty");
@@ -91,18 +126,29 @@ export function BuildStudioProductChooser({
       });
 
     return () => controller.abort();
-  }, [queryKey]);
+  }, [factsJson, onManufacturerProductChange, queryKey, scenarioKey]);
 
   const selected = products.find((product) => product.id === selectedId);
+
+  function select(product: BuildStudioCandidate) {
+    setSelectedId(product.id);
+    onManufacturerProductChange?.(product.manufacturerProductId);
+  }
+
+  function clearSelection() {
+    setSelectedId(undefined);
+    onManufacturerProductChange?.(undefined);
+  }
 
   return (
     <section className={styles.chooser} aria-labelledby="build-studio-products">
       <div className={styles.heading}>
         <div>
-          <span>PROJECT PRODUCT</span>
+          <span>VERIFIED PROJECT PRODUCT</span>
           <h2 id="build-studio-products">{heading}</h2>
           <p>
-            Οι επιλογές μένουν μέσα στο Studio. Διάλεξε αυτή που θέλεις και συνέχισε να χτίζεις το έργο σου.
+            Εμφανίζονται μόνο προϊόντα που έχουν συνδεθεί με το συγκεκριμένο έργο μέσω επαληθευμένων
+            οδηγιών κατασκευαστή. Η ομοιότητα τίτλου ή κατηγορίας από μόνη της δεν θεωρείται συμβατότητα.
           </p>
         </div>
         {selected ? (
@@ -116,7 +162,7 @@ export function BuildStudioProductChooser({
       {state === "loading" ? (
         <div className={styles.loadingState} role="status">
           <i />
-          <strong>Βρίσκω τα διαθέσιμα προϊόντα που ταιριάζουν στο έργο…</strong>
+          <strong>Ελέγχω διαθέσιμα προϊόντα με τεχνικά επαληθευμένη καταλληλότητα…</strong>
         </div>
       ) : null}
 
@@ -129,7 +175,7 @@ export function BuildStudioProductChooser({
                 <button
                   type="button"
                   className={styles.selectCard}
-                  onClick={() => setSelectedId(product.id)}
+                  onClick={() => select(product)}
                   aria-pressed={active}
                 >
                   <div className={styles.imageStage}>
@@ -141,7 +187,7 @@ export function BuildStudioProductChooser({
                     <small>{product.brand || product.categoryLabel || "KONTA MOY"}</small>
                     <strong>{product.title}</strong>
                     <div className={styles.meta}>
-                      <span>{product.matchedTerms.slice(0, 2).join(" · ") || "Συμβατή κατηγορία"}</span>
+                      <span>{eligibilityLabel(product.manufacturerEligibilityStatus)}</span>
                       <em>{product.price}</em>
                     </div>
                   </div>
@@ -155,18 +201,19 @@ export function BuildStudioProductChooser({
 
       {state === "empty" ? (
         <div className={styles.emptyState}>
-          <strong>Δεν υπάρχει ακόμη διαθέσιμο live προϊόν για αυτό το ακριβές σύστημα.</strong>
+          <strong>Δεν υπάρχουν ακόμη τεχνικά επαληθευμένες επιλογές προϊόντος για αυτό το έργο.</strong>
           <p>
-            Η τεχνική πρόταση του Studio παραμένει αποθηκευμένη στην οθόνη. Καθώς εμπλουτίζεται ο κατάλογος,
-            τα συμβατά προϊόντα θα εμφανίζονται εδώ αυτόματα.
+            Το Studio δεν θα παρουσιάσει ένα προϊόν ως κατάλληλο μόνο επειδή ταιριάζει σε λέξεις-κλειδιά.
+            Οι επιλογές θα εμφανιστούν όταν υπάρχει επαληθευμένο manufacturer profile, ακριβής σύνδεση
+            με το προϊόν του καταλόγου και τεκμηριωμένος κανόνας καταλληλότητας για αυτό το σενάριο.
           </p>
         </div>
       ) : null}
 
       {state === "degraded" ? (
         <div className={styles.emptyState}>
-          <strong>Οι διαθέσιμες επιλογές δεν φόρτωσαν αυτή τη στιγμή.</strong>
-          <p>Δεν σε στέλνω στο Shop. Μπορείς να παραμείνεις στο έργο και να ξαναδοκιμάσεις.</p>
+          <strong>Ο τεχνικός έλεγχος των διαθέσιμων προϊόντων δεν είναι διαθέσιμος αυτή τη στιγμή.</strong>
+          <p>Για ασφάλεια δεν εμφανίζουμε μη επαληθευμένες εναλλακτικές ως συμβατές.</p>
           <button type="button" onClick={() => window.location.reload()}>Ξαναφόρτωση Studio</button>
         </div>
       ) : null}
@@ -174,11 +221,11 @@ export function BuildStudioProductChooser({
       {selected ? (
         <div className={styles.selectionBar}>
           <div>
-            <span>ΣΤΟ ΕΡΓΟ ΣΟΥ</span>
+            <span>ΣΤΟ ΕΡΓΟ ΣΟΥ · ΕΠΑΛΗΘΕΥΜΕΝΟ</span>
             <strong>{selected.title}</strong>
             <small>{selected.price}</small>
           </div>
-          <button type="button" onClick={() => setSelectedId(undefined)}>Άλλαξε επιλογή</button>
+          <button type="button" onClick={clearSelection}>Άλλαξε επιλογή</button>
         </div>
       ) : null}
     </section>
