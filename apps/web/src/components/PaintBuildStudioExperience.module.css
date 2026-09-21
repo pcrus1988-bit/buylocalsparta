@@ -1043,3 +1043,183 @@
   .progressTrack span { transition: none; }
   .moduleCard:hover { transform: none; }
 }
+
+
+/* Final verified project-guide screen */
+.finalizePrompt {
+  margin-top: 18px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid rgba(203,178,122,.34);
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(203,178,122,.11), rgba(255,255,255,.025));
+}
+.finalizePrompt > div { display: grid; gap: 6px; max-width: 680px; }
+.finalizePrompt small,
+.finalActionPanel small {
+  color: var(--studio-gold);
+  font: 850 8px/1 system-ui, sans-serif;
+  letter-spacing: .16em;
+}
+.finalizePrompt strong,
+.finalActionPanel strong {
+  color: #e8e0d7;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.finalizePrompt .primaryAction { flex: 0 0 auto; }
+
+.finalIntro { max-width: 980px; padding-bottom: 10px; }
+.finalIntro h1 {
+  margin: 18px 0 14px;
+  font: 500 clamp(42px, 5.4vw, 82px)/.94 Georgia, "Times New Roman", serif;
+  letter-spacing: -.05em;
+}
+.finalIntro p { max-width: 760px; margin: 0; color: #aaa29a; font-size: 14px; line-height: 1.58; }
+
+.finalGroup {
+  margin-top: 22px;
+  padding: clamp(20px, 3vw, 32px);
+  border: 1px solid var(--studio-line);
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(255,255,255,.045), rgba(255,255,255,.014));
+}
+.finalGroupHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--studio-line);
+}
+.finalGroupHeader > span {
+  min-width: 36px;
+  color: var(--studio-gold);
+  font: 700 22px/1 Georgia, serif;
+}
+.finalGroupHeader > div { display: grid; gap: 5px; }
+.finalGroupHeader small {
+  color: #777069;
+  font: 850 7px/1 system-ui, sans-serif;
+  letter-spacing: .17em;
+}
+.finalGroupHeader h2 {
+  margin: 0;
+  color: var(--studio-ivory);
+  font: 500 clamp(24px, 3vw, 38px)/1 Georgia, "Times New Roman", serif;
+  letter-spacing: -.025em;
+}
+
+.finalProjectMeta {
+  padding-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.finalProjectMeta > div {
+  position: relative;
+  min-height: 90px;
+  padding: 16px;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  border: 1px solid var(--studio-line);
+  border-radius: 15px;
+  background: rgba(0,0,0,.14);
+}
+.finalProjectMeta small {
+  color: #777069;
+  font: 800 7px/1 system-ui, sans-serif;
+  letter-spacing: .16em;
+}
+.finalProjectMeta strong { color: #ddd5cc; font-size: 12px; line-height: 1.45; }
+.finalProjectMeta i {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  width: 22px;
+  height: 22px;
+  border: 3px solid #eee8df;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.12);
+}
+
+.finalMaterialCard {
+  margin-top: 18px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid rgba(203,178,122,.25);
+  border-radius: 16px;
+  background: rgba(203,178,122,.06);
+}
+.finalMaterialCard > div { display: grid; gap: 6px; }
+.finalMaterialCard small {
+  color: var(--studio-gold);
+  font: 850 8px/1 system-ui, sans-serif;
+  letter-spacing: .12em;
+}
+.finalMaterialCard strong { color: #f0e9e0; font: 650 18px/1.25 Georgia, serif; }
+.finalMaterialCard span { color: #938b83; font-size: 10px; line-height: 1.4; }
+.finalMaterialCard a {
+  flex: 0 0 auto;
+  color: var(--studio-ivory);
+  font: 800 9px/1 system-ui, sans-serif;
+  text-decoration: none;
+  letter-spacing: .07em;
+}
+
+.finalActionPanel {
+  margin-top: 22px;
+  padding: 22px;
+  border: 1px solid rgba(203,178,122,.34);
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(203,178,122,.09), rgba(255,255,255,.02));
+}
+.finalActionPanel > div:first-child { display: grid; gap: 6px; }
+.finalActionPanel .resultActions { padding-bottom: 0; }
+.finalActionPanel button:disabled { opacity: .58; cursor: default; }
+.actionStatus {
+  margin: 10px 0 0;
+  color: #a69d94;
+  font-size: 10px;
+  line-height: 1.45;
+}
+.documentLink {
+  display: inline-block;
+  margin-top: 10px;
+  color: var(--studio-gold);
+  font: 850 9px/1.2 system-ui, sans-serif;
+  letter-spacing: .07em;
+  text-decoration: none;
+}
+
+.resultColumn li small {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--studio-gold);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+@media (max-width: 680px) {
+  .finalizePrompt,
+  .finalMaterialCard {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .finalizePrompt .primaryAction,
+  .finalMaterialCard a {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .finalProjectMeta { grid-template-columns: 1fr; }
+  .finalGroup { padding: 17px; border-radius: 19px; }
+  .finalGroupHeader h2 { font-size: 23px; }
+  .finalIntro h1 { font-size: 34px; }
+}
