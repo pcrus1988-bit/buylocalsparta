@@ -90,6 +90,7 @@ export type BuildCustomerGuide = Readonly<{
   timings: readonly BuildGuidanceUiItem[];
   avoid: readonly BuildGuidanceUiItem[];
   warnings: readonly BuildGuidanceUiItem[];
+  afterApplication: readonly BuildGuidanceUiItem[];
   quantity: Readonly<{
     status: "manufacturer_not_selected" | "manufacturer_data_missing" | "manufacturer_data_available";
     explanationEl: string;
@@ -159,6 +160,9 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
   const instructionEvidence = asArray(manufacturer.instruction_evidence);
   const kontaMou = asRecord(guidance.konta_mou_rules);
   const stops = asArray(kontaMou.triggered_stop_conditions);
+  const profileWrapper = asRecord(general.profile);
+  const profileData = hasObjectValues(profileWrapper.data) ? asRecord(profileWrapper.data) : profileWrapper;
+  const profileEvidence = asArray(profileWrapper.evidence);
 
   const beforeYouStart: BuildGuidanceUiItem[] = diagnostics.map((entry, index) => {
     const { data, evidence } = wrapperParts(entry);
@@ -371,6 +375,24 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
     });
   }
 
+  const afterApplication: BuildGuidanceUiItem[] = [];
+  for (const [index, text] of stringValues(profileData.inspection_after_application).entries()) {
+    afterApplication.push({
+      key: `inspection-${index + 1}`,
+      sourceLayer: "GENERAL_GUIDANCE",
+      textEl: text,
+      evidence: profileEvidence
+    });
+  }
+  for (const [index, text] of stringValues(profileData.maintenance_guidance).entries()) {
+    afterApplication.push({
+      key: `maintenance-${index + 1}`,
+      sourceLayer: "GENERAL_GUIDANCE",
+      textEl: text,
+      evidence: profileEvidence
+    });
+  }
+
   const quantity = manufacturerStatus === "verified" && manufacturer.quantity_inputs_available === true
     ? {
         status: "manufacturer_data_available" as const,
@@ -398,6 +420,59 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
     timings,
     avoid,
     warnings,
+    afterApplication,
     quantity
+  };
+}
+
+export type BuildQuantityEstimate = Readonly<{
+  status: "available" | "missing_manufacturer_values" | "manufacturer_not_selected";
+  areaM2: number;
+  unit?: "L";
+  min?: number;
+  max?: number;
+  coatsMin?: number;
+  coatsMax?: number;
+  basisEl: string;
+}>;
+
+export function calculateBuildQuantity(guidance: BuildProjectGuidance, areaInput: number): BuildQuantityEstimate {
+  const areaM2 = Math.max(0, Math.min(100000, Number.isFinite(areaInput) ? areaInput : 0));
+  const manufacturer = asRecord(guidance.manufacturer_guidance);
+  const status = textValue(manufacturer.status) ?? "not_selected";
+  if (status !== "verified") {
+    return {
+      status: status === "not_selected" ? "manufacturer_not_selected" : "missing_manufacturer_values",
+      areaM2,
+      basisEl: status === "not_selected"
+        ? "Επίλεξε επαληθευμένο προϊόν για υπολογισμό ποσότητας."
+        : "Λείπουν επαληθευμένες τιμές κατασκευαστή για ασφαλή υπολογισμό."
+    };
+  }
+
+  const profile = asRecord(manufacturer.application_profile);
+  const coverageMin = numberValue(profile.coverage_m2_per_litre_min);
+  const coverageMax = numberValue(profile.coverage_m2_per_litre_max);
+  const coatsMin = numberValue(profile.number_of_coats_min);
+  const coatsMax = numberValue(profile.number_of_coats_max);
+  if (!areaM2 || !coverageMin || !coverageMax || !coatsMin || !coatsMax || coverageMin <= 0 || coverageMax <= 0 || coatsMin <= 0 || coatsMax <= 0) {
+    return {
+      status: "missing_manufacturer_values",
+      areaM2,
+      basisEl: "Δεν υπάρχουν πλήρη επαληθευμένα coverage + αριθμός στρώσεων για θεωρητικό υπολογισμό. Δεν γίνεται υπόθεση."
+    };
+  }
+
+  const min = areaM2 * Math.min(coatsMin, coatsMax) / Math.max(coverageMin, coverageMax);
+  const max = areaM2 * Math.max(coatsMin, coatsMax) / Math.min(coverageMin, coverageMax);
+  return {
+    status: "available",
+    areaM2,
+    unit: "L",
+    min: Math.round(min * 100) / 100,
+    max: Math.round(max * 100) / 100,
+    coatsMin: Math.min(coatsMin, coatsMax),
+    coatsMax: Math.max(coatsMin, coatsMax),
+    basisEl: "Θεωρητική ποσότητα από τα επαληθευμένα m²/L και τις στρώσεις του επιλεγμένου προϊόντος. Δεν προστέθηκε αυθαίρετος συντελεστής απωλειών· απορροφητικότητα, τραχύτητα και μέθοδος εφαρμογής μπορούν να αλλάξουν την πραγματική κατανάλωση."
   };
 }
