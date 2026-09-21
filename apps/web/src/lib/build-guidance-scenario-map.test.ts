@@ -2,19 +2,29 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mapBuildStudioScenario } from "./build-guidance-scenario-map";
 
-test("maps only reviewed paint scenarios", () => {
+test("maps reviewed interior paint scenarios without merging distinct substrates or failures", () => {
   assert.deepEqual(
     mapBuildStudioScenario({ module: "paint", surface: "interior-wall", condition: "sound" }),
     { scenarioKey: "paint_interior_repaint_sound", facts: {} }
   );
-  assert.equal(
-    mapBuildStudioScenario({ module: "paint", surface: "interior-wall", condition: "new" }),
-    null
+  assert.deepEqual(
+    mapBuildStudioScenario({ module: "paint", surface: "interior-wall", condition: "new-plaster" }),
+    { scenarioKey: "paint_interior_new_plaster", facts: {} }
   );
-  assert.equal(
-    mapBuildStudioScenario({ module: "paint", surface: "interior-wall", condition: "cracks" }),
-    null
+  assert.deepEqual(
+    mapBuildStudioScenario({ module: "paint", surface: "interior-wall", condition: "new-gypsum" }),
+    { scenarioKey: "paint_interior_new_gypsum_board", facts: {} }
   );
+  assert.deepEqual(
+    mapBuildStudioScenario({ module: "paint", surface: "interior-wall", condition: "hairline-cracks" }),
+    { scenarioKey: "repair_hairline_wall_crack", facts: {} }
+  );
+  assert.deepEqual(
+    mapBuildStudioScenario({ module: "paint", surface: "interior-wall", condition: "peeling" }),
+    { scenarioKey: "paint_existing_peeling", facts: {} }
+  );
+  assert.equal(mapBuildStudioScenario({ module: "paint", surface: "interior-wall", condition: "new" }), null);
+  assert.equal(mapBuildStudioScenario({ module: "paint", surface: "interior-wall", condition: "cracks" }), null);
 });
 
 test("unresolved moisture maps to diagnosis-first blocking facts", () => {
@@ -88,5 +98,31 @@ test("ambiguous new interior substrate remains fail-closed instead of guessing p
   assert.equal(
     mapBuildStudioScenario({ module: "paint", surface: "interior-wall", condition: "new" }),
     null
+  );
+});
+
+
+test("maps reviewed waterproofing maintenance and detail scenarios", () => {
+  assert.deepEqual(
+    mapBuildStudioScenario({ module: "waterproofing", location: "roof", problem: "maintenance" }),
+    { scenarioKey: "waterproof_existing_system_maintenance", facts: { existing_coating_known_compatible: false } }
+  );
+  assert.deepEqual(
+    mapBuildStudioScenario({ module: "waterproofing", location: "balcony", problem: "cracks" }),
+    { scenarioKey: "waterproof_details_parapets_joints_penetrations", facts: { cracks_or_joints_present: true } }
+  );
+});
+
+test("bathroom sound condition and condensation goal use reviewed dedicated guidance", () => {
+  assert.deepEqual(
+    mapBuildStudioScenario({ module: "paint", surface: "bathroom", condition: "sound" }),
+    { scenarioKey: "paint_bathroom_high_humidity", facts: { significant_moisture: false } }
+  );
+  assert.deepEqual(
+    mapBuildStudioScenario({ module: "insulation", location: "interior-wall", goal: "condensation" }),
+    {
+      scenarioKey: "insulation_thermal_bridge_condensation",
+      facts: { condensation_present: true, cause_confirmed: false }
+    }
   );
 });

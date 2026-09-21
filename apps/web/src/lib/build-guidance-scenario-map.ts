@@ -48,15 +48,18 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
     if (input.surface === "interior-wall") {
       if (input.condition === "sound") return request("paint_interior_repaint_sound");
       if (input.condition === "stains") return request("paint_interior_stained");
+      if (input.condition === "new-plaster") return request("paint_interior_new_plaster");
+      if (input.condition === "new-gypsum") return request("paint_interior_new_gypsum_board");
+      if (input.condition === "hairline-cracks") return request("repair_hairline_wall_crack");
+      if (input.condition === "peeling") return request("paint_existing_peeling");
       if (input.condition === "damp") {
         return request("paint_interior_mould_damp", {
           significant_moisture: true,
           source_known: false
         });
       }
-      // Current "new" UI choice also includes plasterboard, while the reviewed
-      // first-batch record is specifically newly plastered wall. Do not over-map.
-      // Current "cracks" choice also combines cracking and peeling.
+      // Legacy ambiguous choices deliberately remain fail-closed.
+      // New UI choices split plaster vs gypsum board and hairline cracks vs peeling.
       return null;
     }
 
@@ -93,11 +96,16 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
       if (input.condition === "rust") return request("paint_metal_rusty", ferrousFacts);
     }
 
-    if (input.surface === "bathroom" && (input.condition === "damp" || input.condition === "mould")) {
-      return request("paint_bathroom_high_humidity", {
-        significant_moisture: true,
-        source_known: false
-      });
+    if (input.surface === "bathroom") {
+      if (input.condition === "sound") {
+        return request("paint_bathroom_high_humidity", { significant_moisture: false });
+      }
+      if (input.condition === "damp" || input.condition === "mould") {
+        return request("paint_bathroom_high_humidity", {
+          significant_moisture: true,
+          source_known: false
+        });
+      }
     }
 
     return null;
@@ -111,11 +119,34 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
           drainage_or_falls_assessed: false
         });
       }
+      if (input.problem === "maintenance") {
+        return request("waterproof_existing_system_maintenance", {
+          existing_coating_known_compatible: false
+        });
+      }
+      if (input.problem === "cracks") {
+        return request("waterproof_details_parapets_joints_penetrations", {
+          cracks_or_joints_present: true
+        });
+      }
       return request("waterproof_flat_roof", input.problem === "leak" ? { active_water_ingress: true } : {});
     }
 
-    if (input.location === "balcony" && input.problem === "leak") {
-      return request("waterproof_balcony_leak", { active_water_ingress: true });
+    if (input.location === "balcony") {
+      if (input.problem === "leak") {
+        return request("waterproof_balcony_leak", { active_water_ingress: true });
+      }
+      if (input.problem === "maintenance") {
+        return request("waterproof_existing_system_maintenance", {
+          existing_coating_known_compatible: false
+        });
+      }
+      if (input.problem === "cracks") {
+        return request("waterproof_details_parapets_joints_penetrations", {
+          cracks_or_joints_present: true
+        });
+      }
+      return null;
     }
 
     if (input.location === "exterior-wall") {
@@ -148,6 +179,12 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
       });
     }
     if (input.location === "interior-wall") {
+      if (input.goal === "condensation") {
+        return request("insulation_thermal_bridge_condensation", {
+          condensation_present: true,
+          cause_confirmed: false
+        });
+      }
       return request("insulation_internal_condensation_risk");
     }
     if (input.location === "roof") {

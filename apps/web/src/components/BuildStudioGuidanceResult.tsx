@@ -107,6 +107,7 @@ function ProjectGuidanceScreen({
         <span className={styles.kicker}>{eyebrow}</span>
         <h1>{title}</h1>
         <p>{summary}</p>
+        <div className={styles.confirmedBadge}>ΑΝΑΦΟΡΑ ΕΡΓΟΥ · {snapshotId}</div>
         {colour ? (
           <div className={styles.resultSwatch}>
             <span style={{ background: colour }} />
@@ -123,7 +124,6 @@ function ProjectGuidanceScreen({
         <div className={styles.resultCard}>
           <GuideList title="Πριν ξεκινήσεις" items={guide.beforeYouStart} />
           <GuideList title="Προετοιμασία" items={guide.preparation} />
-          <GuideList title="Τι χρειάζεσαι" items={guide.whatYouNeed} />
         </div>
         <div className={styles.resultCard}>
           <GuideList title="Βήμα-βήμα" items={guide.stepByStep} />
@@ -153,6 +153,9 @@ function ProjectGuidanceScreen({
             <strong>{quantityText}</strong>
             <span>{quantity.basisEl}</span>
           </div>
+        </div>
+        <div className={styles.resultCard}>
+          <GuideList title="Τι χρειάζεσαι" items={guide.whatYouNeed} />
         </div>
       </div>
 

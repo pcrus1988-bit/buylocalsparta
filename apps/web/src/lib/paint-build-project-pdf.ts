@@ -68,7 +68,15 @@ function section(title: string, items: readonly BuildGuidanceUiItem[]) {
   ];
 }
 
-export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapshot): Record<string, unknown> {
+function factValue(value: unknown): string {
+  if (typeof value === "boolean") return value ? "Ναι" : "Όχι";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") return value;
+  if (value == null) return "—";
+  return JSON.stringify(value);
+}
+
+export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapshot, referenceId?: string): Record<string, unknown> {
   const project = snapshot.project;
   const guide = snapshot.customerGuide;
   const selected = project.selectedProduct;
@@ -87,6 +95,7 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
       table: {
         widths: [118, "*"],
         body: [
+          ["Αναφορά έργου", referenceId || "—"],
           ["Δημιουργήθηκε", createdLabel],
           ["Τύπος έργου", project.projectType],
           ["Επιφάνεια", project.areaM2 ? `${project.areaM2} m²` : "—"],
@@ -109,9 +118,17 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
   }
 
   content.push({ text: "ΤΟ ΕΡΓΟ ΣΟΥ", style: "groupTitle", margin: [0, 12, 0, 5] });
+  const projectFacts = Object.entries(snapshot.guidance.effective_facts ?? {})
+    .filter(([key]) => !["exact_product_selected", "manufacturer_verified_application_profile", "guidance_conflict"].includes(key));
+  if (projectFacts.length) {
+    content.push({ text: "Απαντήσεις / δεδομένα έργου", style: "sectionTitle", margin: [0, 10, 0, 5] });
+    content.push({
+      ul: projectFacts.map(([key, value]) => ({ text: `${key}: ${factValue(value)}`, margin: [0, 0, 0, 3] })),
+      style: "body"
+    });
+  }
   content.push(...section("Πριν ξεκινήσεις", guide.beforeYouStart));
   content.push(...section("Προετοιμασία", guide.preparation));
-  content.push(...section("Τι χρειάζεσαι", guide.whatYouNeed));
   content.push(...section("Βήμα-βήμα", guide.stepByStep));
 
   content.push({ text: "ΤΑ ΥΛΙΚΑ ΣΟΥ", style: "groupTitle", margin: [0, 18, 0, 6], pageBreak: "before" });
@@ -130,6 +147,8 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
   } else {
     content.push({ text: "Δεν έχει αποθηκευτεί επιβεβαιωμένο προϊόν στο συγκεκριμένο snapshot.", style: "body" });
   }
+
+  content.push(...section("Τι χρειάζεσαι", guide.whatYouNeed));
 
   const quantity = snapshot.quantityEstimate;
   content.push({ text: "Ποσότητα", style: "sectionTitle", margin: [0, 13, 0, 5] });
@@ -206,7 +225,7 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
   };
 }
 
-export async function renderPaintBuildProjectPdf(snapshot: PaintBuildProjectSnapshot): Promise<Buffer> {
+export async function renderPaintBuildProjectPdf(snapshot: PaintBuildProjectSnapshot, referenceId?: string): Promise<Buffer> {
   const pdfMakeModule = await import("pdfmake/build/pdfmake.js");
   const fontsModule = await import("pdfmake/build/vfs_fonts.js");
   const pdfMake = (pdfMakeModule.default ?? pdfMakeModule) as any;
@@ -222,7 +241,7 @@ export async function renderPaintBuildProjectPdf(snapshot: PaintBuildProjectSnap
   };
   return await new Promise<Buffer>((resolve, reject) => {
     try {
-      pdfMake.createPdf(buildPaintBuildProjectDocument(snapshot)).getBuffer((buffer: Uint8Array) => resolve(Buffer.from(buffer)));
+      pdfMake.createPdf(buildPaintBuildProjectDocument(snapshot, referenceId)).getBuffer((buffer: Uint8Array) => resolve(Buffer.from(buffer)));
     } catch (error) {
       reject(error);
     }
