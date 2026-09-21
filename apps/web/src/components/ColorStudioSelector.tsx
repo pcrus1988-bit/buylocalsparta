@@ -468,13 +468,13 @@ export function ColorStudioSelector({
     setPhotoSampleHex(undefined);
   }
 
-  function useSelectedPhotoColor() {
+  function useSelectedPhotoColor(): boolean {
     const canvas = canvasRef.current;
-    if (!canvas || !crop || !photoReady) return;
+    if (!canvas || !crop || !photoReady) return false;
     const context = canvas.getContext("2d", { willReadFrequently: true });
     if (!context) {
       setPhotoError("Δεν μπορέσαμε να αναλύσουμε το επιλεγμένο χρώμα.");
-      return;
+      return false;
     }
 
     try {
@@ -486,14 +486,16 @@ export function ColorStudioSelector({
       const detectedHex = representativeHex(imageData.data, width, height);
       if (!detectedHex) {
         setPhotoError("Δεν βρέθηκε αρκετό χρωματικό δείγμα μέσα στο πλαίσιο.");
-        return;
+        return false;
       }
 
       onChange(detectedHex);
       setPhotoSampleHex(detectedHex);
       setPhotoError(undefined);
+      return true;
     } catch {
       setPhotoError("Δεν μπορέσαμε να αναλύσουμε το επιλεγμένο σημείο.");
+      return false;
     }
   }
 
@@ -721,8 +723,11 @@ export function ColorStudioSelector({
                 className={styles.photoAction}
                 disabled={photoPickMode === "spot" ? !photoSampleHex : !photoReady}
                 onClick={() => {
-                  if (photoPickMode === "area") useSelectedPhotoColor();
-                  else onConfirm();
+                  if (photoPickMode === "area") {
+                    if (useSelectedPhotoColor()) window.requestAnimationFrame(onConfirm);
+                  } else {
+                    onConfirm();
+                  }
                 }}
               >
                 {photoPickMode === "spot" ? "ΔΕΣ ΤΙ ΤΑΙΡΙΑΖΕΙ" : "ΧΡΗΣΙΜΟΠΟΙΗΣΕ ΤΟ ΧΡΩΜΑ"}
