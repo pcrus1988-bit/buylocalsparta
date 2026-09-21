@@ -44,6 +44,29 @@ export type PaintPackage = Readonly<{
   quantity: number;
 }>;
 
+export type PaintCatalogueCandidate = Readonly<{
+  productId: string;
+  productName: string;
+  manufacturer?: string;
+  href: string;
+  colourHex?: string;
+  colourName?: string;
+  colourCode?: string;
+  catalogueTags: readonly string[];
+  surfaceKeys?: readonly PaintSurfaceKey[];
+  conditionKeys?: readonly string[];
+  finishLabel?: string;
+  available?: boolean;
+}>;
+
+export type PaintCandidateMatch = Readonly<{
+  candidate: PaintCatalogueCandidate;
+  exactShade: boolean;
+  colourDistance: number | null;
+  compatibilityScore: number;
+  matchReasons: readonly string[];
+}>;
+
 export type PaintRecommendation = Readonly<{
   surface: PaintSurface;
   condition: PaintCondition;
@@ -257,6 +280,76 @@ function packagePlan(requiredLitres: number, packageSizes: readonly number[] = [
 
 function packagedLitres(packages: readonly PaintPackage[]): number {
   return packages.reduce((sum, pack) => sum + pack.sizeL * pack.quantity, 0);
+}
+
+function normalizedHex(value: string | undefined): string | undefined {
+  if (!value || !/^#[0-9A-Fa-f]{6}$/.test(value)) return undefined;
+  return value.toUpperCase();
+}
+
+function rgbDistance(a: string, b: string): number {
+  const channels = (hex: string) => [
+    Number.parseInt(hex.slice(1, 3), 16),
+    Number.parseInt(hex.slice(3, 5), 16),
+    Number.parseInt(hex.slice(5, 7), 16)
+  ] as const;
+  const [ar, ag, ab] = channels(a);
+  const [br, bg, bb] = channels(b);
+  return Math.sqrt((ar - br) ** 2 + (ag - bg) ** 2 + (ab - bb) ** 2);
+}
+
+export function findCompatiblePaintCandidates(
+  recommendation: PaintRecommendation,
+  candidates: readonly PaintCatalogueCandidate[],
+  options: Readonly<{ maxColourDistance?: number }> = {}
+): readonly PaintCandidateMatch[] {
+  const wantedColour = normalizedHex(recommendation.selectedColour);
+  const maxColourDistance = options.maxColourDistance ?? 42;
+  const requiredTags = new Set(recommendation.catalogueTags.map((tag) => tag.toLocaleLowerCase("el")));
+
+  return candidates
+    .flatMap((candidate) => {
+      if (candidate.available === false) return [];
+      if (candidate.surfaceKeys?.length && !candidate.surfaceKeys.includes(recommendation.surface.key)) return [];
+      if (candidate.conditionKeys?.length && !candidate.conditionKeys.includes(recommendation.condition.key)) return [];
+
+      const candidateTags = candidate.catalogueTags.map((tag) => tag.toLocaleLowerCase("el"));
+      const matchedTags = candidateTags.filter((tag) => requiredTags.has(tag));
+      if (!matchedTags.length) return [];
+
+      const candidateColour = normalizedHex(candidate.colourHex);
+      const colourDistance = wantedColour && candidateColour ? rgbDistance(wantedColour, candidateColour) : null;
+      const exactShade = colourDistance === 0;
+      if (colourDistance !== null && colourDistance > maxColourDistance) return [];
+
+      const compatibilityScore =
+        matchedTags.length * 10 +
+        (exactShade ? 8 : colourDistance !== null ? Math.max(0, 6 - colourDistance / 10) : 0) +
+        (candidate.finishLabel === recommendation.finishLabel ? 2 : 0);
+
+      const matchReasons = [
+        `${matchedTags.length} τεχνικές απαιτήσεις ταιριάζουν`,
+        exactShade
+          ? "Ίδια ψηφιακή απόχρωση"
+          : colourDistance !== null
+            ? "Κοντινή ψηφιακή απόχρωση"
+            : "Η απόχρωση θα επιβεβαιωθεί από τη χρωματολόγηση του κατασκευαστή"
+      ];
+
+      return [{
+        candidate,
+        exactShade,
+        colourDistance,
+        compatibilityScore,
+        matchReasons
+      }];
+    })
+    .sort((a, b) =>
+      Number(b.exactShade) - Number(a.exactShade) ||
+      b.compatibilityScore - a.compatibilityScore ||
+      (a.colourDistance ?? Number.MAX_SAFE_INTEGER) - (b.colourDistance ?? Number.MAX_SAFE_INTEGER) ||
+      a.candidate.productName.localeCompare(b.candidate.productName, "el")
+    );
 }
 
 function systemFor(surface: PaintSurface, condition: PaintCondition) {
