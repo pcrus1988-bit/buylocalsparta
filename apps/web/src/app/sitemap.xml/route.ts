@@ -3,6 +3,9 @@ import { PRODUCT_SITEMAP_SHARD_COUNT } from "../../lib/product-sitemap-inventory
 
 export const dynamic = "force-dynamic";
 
+const SITEMAP_BROWSER_CACHE = "public, max-age=300";
+const SITEMAP_CDN_CACHE = "public, s-maxage=900, stale-while-revalidate=3600, stale-if-error=86400";
+
 function escapeXml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -37,7 +40,9 @@ export async function GET(): Promise<Response> {
     status: 200,
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, s-maxage=900, stale-while-revalidate=3600"
+      "Cache-Control": SITEMAP_BROWSER_CACHE,
+      "CDN-Cache-Control": SITEMAP_CDN_CACHE,
+      "Vercel-CDN-Cache-Control": SITEMAP_CDN_CACHE
     }
   });
 }
