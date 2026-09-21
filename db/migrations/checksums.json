@@ -251,5 +251,18 @@
   "0257_symphonya_testers_bazaar_only.sql": "ce1aeff32988a16026a1b0b78191bd750a63fb6ac3738e425196590d9b8ff415",
   "0258_symphonya_samples_bazaar_only.sql": "53e7de6d4fdc5272bcca4cd466caed94700c305706f39245e354d0468e6b7329",
   "0259_dropship_spv_tax_rules.sql": "10ec70ddfb4d0410afd2c5b5061fd096e4a00911599499391b76c76b9a17cb05",
-  "0260_spv_gift_card_fiscal_capture.sql": "0d6a72088672c2cce8d5d78e62082334a5242c824bd4fcf84f4e26f96801a6d2"
+  "0260_spv_gift_card_fiscal_capture.sql": "0d6a72088672c2cce8d5d78e62082334a5242c824bd4fcf84f4e26f96801a6d2",
+  "0261_symphonya_live_storefront_projection.sql": "fdc802316a0657e9eeacb86851266cf61af41193bc1065490d4be0d182ef3dde",
+  "0262_dropship_vat_pgcrypto_digest_fix.sql": "a5eb3f9d92930ce6b506d8502c40d7082a23842348fcd6ca7f7db9f95962576e",
+  "0263_vitex_manufacturer_guidance.sql": "ffb36c64c82a708cfad292c55e96d3e2234af815d0ef79aaab2716e5c377ff5c",
+  "0264_general_build_guidance_schema.sql": "6fe76e39228694b47dbe9315a6529a00668c25be7ded73ac8e074065e0764b8d",
+  "0265_general_build_guidance_first_batch.sql": "b500776d3bba5e1b5c78a5e3713d9484800af17df047deac495782d7c10f6ecb",
+  "0266_general_build_guidance_evidence_hardening.sql": "23a890f139cb96d70d6fb87427c708e231ec5857e154db52eed34b431c882ed0",
+  "0267_general_build_guidance_second_batch.sql": "c39d34303b208a6bd0cf8a07f8347fc2f31b42b356ead117f58ebca0ee3e60a4",
+  "0268_general_build_guidance_third_batch.sql": "aecfaa196d37acebfcbec7fb35fad3685a17cfb384cad03392fb652da761e50f",
+  "0269_vitex_verified_batch_one.sql": "0d728ee9703f3597f17b0a4683ccde9c8e54c05a2b664f91698d12dfb8277527",
+  "0270_paint_build_project_documents.sql": "7ec25e0869c12a3f9de0d560c6f840984aa79a8f1a22c25f7982bc976b288d34",
+  "0271_general_build_guidance_fourth_batch_gypsum_board.sql": "804bb2f2c7c453252e7bd7a1a182ad8ec8a830937b210cf641e64fe00a2d85ed",
+  "0272_vitex_source_version_history.sql": "8eeb5dcdf78238298cfece9dc80c69e47b4d0718b62805dc132488f7337e7e8f",
+  "0273_paint_build_completion_hardening.sql": "f7a3d6448bc70314c989eaeb26a0d050e84e8144d77863f310da995f316c459f"
 }
