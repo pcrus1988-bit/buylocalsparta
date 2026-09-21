@@ -32,7 +32,7 @@ test("rusty metal uses an anticorrosive system and blocks paint-over-rust guidan
   assert.ok(result.warnings.some((warning) => /σκουρι/i.test(warning)));
 });
 
-test("package plan always covers the calculated quantity", () => {
+test("paint quantity remains unresolved until a manufacturer product is selected", () => {
   const result = recommendPaintProject({
     surfaceKey: "interior-wall",
     conditionKey: "sound",
@@ -40,9 +40,9 @@ test("package plan always covers the calculated quantity", () => {
     selectedColour: "#F4F0E7"
   });
 
-  assert.ok(result.litresNeeded > 0);
-  assert.ok(result.totalPackagedLitres >= result.litresNeeded);
-  assert.ok(result.packages.length > 0);
+  assert.equal(result.quantityStatus, "requires_manufacturer_product");
+  assert.match(result.quantityNote, /κατασκευαστ/i);
+  assert.match(result.quantityNote, /στρώσεων|κατανάλωση/i);
 });
 
 test("roof projects resolve to waterproofing rather than decorative wall paint", () => {
