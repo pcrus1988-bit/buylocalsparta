@@ -2,6 +2,7 @@ export * from "./types.ts";
 export * from "./security.ts";
 export * from "./canonicalization.ts";
 export * from "./discovery.ts";
+export * from "./fournarakis-extraction.ts";
 export * from "./open-icecat/index.ts";
 
 import { extractJsonLdProductCandidates } from "./discovery.ts";

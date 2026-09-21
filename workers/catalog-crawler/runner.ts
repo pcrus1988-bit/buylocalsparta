@@ -2,6 +2,8 @@ import {
   analyzeHtmlProductPage,
   discoverHtmlUrls,
   extractJsonLdProductCandidates,
+  extractFournarakisProductCandidates,
+  normalizeFournarakisDiscoveredUrl,
   parseRobotsTxt,
   parseSitemapXml,
   robotsAllowsUrl,
@@ -155,8 +157,10 @@ export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly
     const analysis = html ? analyzeHtmlProductPage(html, response.finalUrl) : undefined;
     const retailVisible = html ? extractRetailVisibleProductCandidate(html, response.finalUrl) : undefined;
     const explicitPrices = html ? extractExplicitCommercialPrices(html, response.finalUrl) : [];
-    const rawCandidates = [...structured, ...(analysis?.candidates ?? []), ...(retailVisible ? [retailVisible] : [])]
-      .map((candidate) => sanitizeCandidate(candidate, explicitPrices));
+    const fournarakisCandidates = html ? extractFournarakisProductCandidates(html, response.finalUrl) : [];
+    const genericCandidates = [...structured, ...(analysis?.candidates ?? []), ...(retailVisible ? [retailVisible] : [])];
+    const rawCandidates = (fournarakisCandidates.length ? fournarakisCandidates : genericCandidates)
+      .map((candidate) => sanitizeCandidate(candidate, fournarakisCandidates.length ? [] : explicitPrices));
     const candidates = dedupeCandidates(rawCandidates);
     let reviewCount = 0;
     for (let ordinal = 0; ordinal < candidates.length; ordinal += 1) {
@@ -291,7 +295,9 @@ function enqueueUrl(
 ): void {
   const validation = validateCrawlUrl(rawUrl, fetchPolicy);
   if (validation.decision !== "allow" || !validation.normalizedUrl) return;
-  const url = validation.normalizedUrl;
+  const supplierScopedUrl = normalizeFournarakisDiscoveredUrl(validation.normalizedUrl, seedUrl);
+  if (!supplierScopedUrl) return;
+  const url = supplierScopedUrl;
   if (queued.has(url) || !isLikelyPageUrl(url) || !matchesConfiguredScope(url, policy)) return;
   if (policy.maxPages <= queue.length) return;
   if (depth > policy.maxDepth) return;
