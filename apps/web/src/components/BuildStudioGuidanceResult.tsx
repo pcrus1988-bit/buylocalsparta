@@ -128,7 +128,7 @@ export function BuildStudioGuidanceResult({
       });
 
     return () => controller.abort();
-  }, [scenarioKey, factsJson]);
+  }, [scenarioKey, factsJson, selectedManufacturerProductId]);
 
   const canChooseProduct =
     loadState === "ready" &&
@@ -218,7 +218,15 @@ export function BuildStudioGuidanceResult({
         </>
       ) : null}
 
-      {canChooseProduct ? <BuildStudioProductChooser terms={candidateTerms} /> : null}
+      {canChooseProduct ? (
+        <BuildStudioProductChooser
+          terms={candidateTerms}
+          scenarioKey={scenarioKey}
+          facts={scenarioRequest?.facts ?? {}}
+          selectedManufacturerProductId={selectedManufacturerProductId}
+          onManufacturerProductChange={setSelectedManufacturerProductId}
+        />
+      ) : null}
 
       <div className={styles.resultActions}>
         <a href="/ask-local" className={styles.secondaryAction}>ΡΩΤΗΣΕ ΕΝΑ ΚΑΤΑΣΤΗΜΑ</a>
