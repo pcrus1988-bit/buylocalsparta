@@ -57,7 +57,8 @@ export function BuildStudioProductChooser({
   facts = {},
   heading = "Επαληθευμένες επιλογές προϊόντος",
   selectedManufacturerProductId,
-  onManufacturerProductChange
+  onManufacturerProductChange,
+  onSelectionChange
 }: {
   terms: readonly string[];
   scenarioKey: string;
@@ -65,6 +66,7 @@ export function BuildStudioProductChooser({
   heading?: string;
   selectedManufacturerProductId?: string;
   onManufacturerProductChange?: (manufacturerProductId: string | undefined) => void;
+  onSelectionChange?: (candidate: BuildStudioCandidate | undefined) => void;
 }) {
   const [products, setProducts] = useState<readonly BuildStudioCandidate[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "empty" | "degraded">("loading");
@@ -77,6 +79,7 @@ export function BuildStudioProductChooser({
 
   useEffect(() => {
     onManufacturerProductChange?.(undefined);
+    onSelectionChange?.(undefined);
     if (!queryKey || !scenarioKey) {
       setProducts([]);
       setState("empty");
@@ -125,16 +128,18 @@ export function BuildStudioProductChooser({
       });
 
     return () => controller.abort();
-  }, [factsJson, onManufacturerProductChange, queryKey, scenarioKey]);
+  }, [factsJson, onManufacturerProductChange, onSelectionChange, queryKey, scenarioKey]);
 
   const selected = products.find((product) => product.manufacturerProductId === selectedManufacturerProductId);
 
   function select(product: BuildStudioCandidate) {
     onManufacturerProductChange?.(product.manufacturerProductId);
+    onSelectionChange?.(product);
   }
 
   function clearSelection() {
     onManufacturerProductChange?.(undefined);
+    onSelectionChange?.(undefined);
   }
 
   return (

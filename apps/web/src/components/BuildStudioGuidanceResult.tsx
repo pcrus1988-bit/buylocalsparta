@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { BuildGuidanceScenarioRequest } from "../lib/build-guidance-scenario-map";
-import { BuildStudioProductChooser } from "./BuildStudioProductChooser";
+import { BuildStudioProductChooser, type BuildStudioCandidate } from "./BuildStudioProductChooser";
 import styles from "./PaintBuildStudioExperience.module.css";
 
 type SourceLayer = "GENERAL_GUIDANCE" | "MANUFACTURER_VITEX" | "MANUFACTURER" | "KONTA_MOU_RULE";
@@ -26,23 +26,29 @@ type CustomerGuide = {
   timings: GuidanceItem[];
   avoid: GuidanceItem[];
   warnings: GuidanceItem[];
+  afterApplication: GuidanceItem[];
   quantity: {
     status: "manufacturer_not_selected" | "manufacturer_data_missing" | "manufacturer_data_available";
     explanationEl: string;
   };
 };
 
+type QuantityEstimate = {
+  status: "available" | "missing_manufacturer_values" | "manufacturer_not_selected";
+  areaM2: number;
+  unit?: "L";
+  min?: number;
+  max?: number;
+  coatsMin?: number;
+  coatsMax?: number;
+  basisEl: string;
+};
+
 function sourceLabel(layer: SourceLayer): string {
-  switch (layer) {
-    case "GENERAL_GUIDANCE":
-      return "Γενική τεχνική καθοδήγηση";
-    case "MANUFACTURER_VITEX":
-      return "Οδηγίες κατασκευαστή · VITEX";
-    case "MANUFACTURER":
-      return "Οδηγίες κατασκευαστή";
-    default:
-      return "Κανόνας ασφάλειας · ΚΟΝΤΑ ΜΟΥ";
-  }
+  if (layer === "GENERAL_GUIDANCE") return "Γενική τεχνική καθοδήγηση";
+  if (layer === "MANUFACTURER_VITEX") return "Οδηγίες κατασκευαστή · VITEX";
+  if (layer === "MANUFACTURER") return "Οδηγίες κατασκευαστή";
+  return "KONTA MOU · κανόνας ασφάλειας / ροής";
 }
 
 function GuideList({ title, items }: { title: string; items: GuidanceItem[] }) {
@@ -62,10 +68,143 @@ function GuideList({ title, items }: { title: string; items: GuidanceItem[] }) {
   );
 }
 
+function ProjectGuidanceScreen({
+  eyebrow,
+  title,
+  summary,
+  colour,
+  guide,
+  selectedProduct,
+  quantity,
+  snapshotId,
+  pdfState,
+  onDownloadPdf,
+  onChangeProduct,
+  onRestart
+}: {
+  eyebrow: string;
+  title: string;
+  summary: string;
+  colour?: string;
+  guide: CustomerGuide;
+  selectedProduct: BuildStudioCandidate;
+  quantity: QuantityEstimate;
+  snapshotId: string;
+  pdfState: "idle" | "loading" | "error";
+  onDownloadPdf: () => void;
+  onChangeProduct: () => void;
+  onRestart: () => void;
+}) {
+  const quantityText = quantity.status === "available" && quantity.min != null && quantity.max != null
+    ? quantity.min === quantity.max
+      ? `${quantity.min} ${quantity.unit ?? ""}`
+      : `${quantity.min}–${quantity.max} ${quantity.unit ?? ""}`
+    : "Δεν υπολογίστηκε χωρίς πλήρη manufacturer values.";
+
+  return (
+    <section className={styles.resultScreen} data-project-snapshot={snapshotId}>
+      <div className={styles.resultIntro}>
+        <span className={styles.kicker}>{eyebrow}</span>
+        <h1>{title}</h1>
+        <p>{summary}</p>
+        {colour ? (
+          <div className={styles.resultSwatch}>
+            <span style={{ background: colour }} />
+            <div><small>ΤΟ ΧΡΩΜΑ ΣΟΥ</small><strong>{colour}</strong></div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className={styles.resultGroup}>
+        <div className={styles.resultGroupHeader}>
+          <span>01</span>
+          <div><small>PROJECT</small><h2>ΤΟ ΕΡΓΟ ΣΟΥ</h2></div>
+        </div>
+        <div className={styles.resultCard}>
+          <GuideList title="Πριν ξεκινήσεις" items={guide.beforeYouStart} />
+          <GuideList title="Προετοιμασία" items={guide.preparation} />
+          <GuideList title="Τι χρειάζεσαι" items={guide.whatYouNeed} />
+        </div>
+        <div className={styles.resultCard}>
+          <GuideList title="Βήμα-βήμα" items={guide.stepByStep} />
+          <GuideList title="Τι να αποφύγεις" items={guide.avoid} />
+          <GuideList title="Προσοχή" items={guide.warnings} />
+        </div>
+        {guide.afterApplication.length ? (
+          <div className={styles.resultCard}>
+            <GuideList title="Μετά την εφαρμογή / Συντήρηση" items={guide.afterApplication} />
+          </div>
+        ) : null}
+      </div>
+
+      <div className={styles.resultGroup}>
+        <div className={styles.resultGroupHeader}>
+          <span>02</span>
+          <div><small>MATERIALS</small><h2>ΤΑ ΥΛΙΚΑ ΣΟΥ</h2></div>
+        </div>
+        <div className={styles.materialSummary}>
+          <div>
+            <small>{selectedProduct.brand || selectedProduct.categoryLabel || "VITEX"}</small>
+            <strong>{selectedProduct.title}</strong>
+            <span>{selectedProduct.price}</span>
+          </div>
+          <div>
+            <small>ΘΕΩΡΗΤΙΚΗ ΠΟΣΟΤΗΤΑ</small>
+            <strong>{quantityText}</strong>
+            <span>{quantity.basisEl}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.resultGroup}>
+        <div className={styles.resultGroupHeader}>
+          <span>03</span>
+          <div><small>PRODUCT INSTRUCTIONS</small><h2>ΟΔΗΓΙΕΣ ΓΙΑ ΤΑ ΠΡΟΪΟΝΤΑ ΠΟΥ ΕΠΕΛΕΞΕΣ</h2></div>
+        </div>
+        <div className={styles.resultCard}>
+          <GuideList title="Οδηγίες προϊόντος" items={guide.manufacturerInstructions} />
+          <GuideList title="Χρόνοι" items={guide.timings} />
+          <div className={styles.resultColumn}>
+            <h2>Ποσότητα</h2>
+            <p className={styles.quantityCopy}>{guide.quantity.explanationEl}</p>
+          </div>
+        </div>
+      </div>
+
+      {guide.guidanceConflict ? (
+        <div className={styles.warningPanel}>
+          <strong>Απαιτείται τεχνικός έλεγχος των οδηγιών.</strong>
+          <p>Υπάρχει σύγκρουση τεκμηριωμένης καθοδήγησης. Δεν γίνεται αυτόματη συγχώνευση.</p>
+        </div>
+      ) : null}
+
+      <div className={styles.pdfPanel}>
+        <div>
+          <span>PROJECT DOSSIER</span>
+          <strong>Κράτησε τον αναλυτικό οδηγό του έργου.</strong>
+          <p>Το PDF χρησιμοποιεί το ίδιο αμετάβλητο snapshot με αυτή την οθόνη. Αν είσαι συνδεδεμένος, αποθηκεύεται και στα «Τα Έγγραφά μου» όταν το δημιουργήσεις.</p>
+        </div>
+        <button type="button" className={styles.primaryAction} disabled={pdfState === "loading"} onClick={onDownloadPdf}>
+          {pdfState === "loading" ? "ΔΗΜΙΟΥΡΓΙΑ PDF…" : "ΛΗΨΗ ΑΝΑΛΥΤΙΚΟΥ ΟΔΗΓΟΥ PDF"}
+        </button>
+        {pdfState === "error" ? <small role="alert">Το PDF δεν δημιουργήθηκε. Δοκίμασε ξανά.</small> : null}
+      </div>
+
+      <div className={styles.resultActions}>
+        <button type="button" className={styles.secondaryAction} onClick={onChangeProduct}>ΑΛΛΑΓΗ ΠΡΟΪΟΝΤΟΣ</button>
+        <a href="/account/documents" className={styles.secondaryAction}>ΤΑ ΕΓΓΡΑΦΑ ΜΟΥ</a>
+        <button type="button" className={styles.secondaryAction} onClick={onRestart}>ΝΕΟ ΕΡΓΟ</button>
+      </div>
+    </section>
+  );
+}
+
 export function BuildStudioGuidanceResult({
   eyebrow,
   title,
   summary,
+  projectType,
+  areaM2,
   scenarioRequest,
   candidateTerms,
   colour,
@@ -74,6 +213,8 @@ export function BuildStudioGuidanceResult({
   eyebrow: string;
   title: string;
   summary: string;
+  projectType: "paint" | "waterproofing" | "insulation" | "repair";
+  areaM2: number;
   scenarioRequest: BuildGuidanceScenarioRequest | null;
   candidateTerms: readonly string[];
   colour?: string;
@@ -81,6 +222,13 @@ export function BuildStudioGuidanceResult({
 }) {
   const [guide, setGuide] = useState<CustomerGuide | null>(null);
   const [selectedManufacturerProductId, setSelectedManufacturerProductId] = useState<string>();
+  const [selectedProduct, setSelectedProduct] = useState<BuildStudioCandidate>();
+  const [selectionConfirmed, setSelectionConfirmed] = useState(false);
+  const [snapshotId, setSnapshotId] = useState("");
+  const [quantity, setQuantity] = useState<QuantityEstimate | null>(null);
+  const [finalMode, setFinalMode] = useState(false);
+  const [snapshotState, setSnapshotState] = useState<"idle" | "loading" | "error">("idle");
+  const [pdfState, setPdfState] = useState<"idle" | "loading" | "error">("idle");
   const [loadState, setLoadState] = useState<"loading" | "ready" | "unsupported" | "error">(
     scenarioRequest ? "loading" : "unsupported"
   );
@@ -90,6 +238,11 @@ export function BuildStudioGuidanceResult({
 
   useEffect(() => {
     setSelectedManufacturerProductId(undefined);
+    setSelectedProduct(undefined);
+    setSelectionConfirmed(false);
+    setSnapshotId("");
+    setQuantity(null);
+    setFinalMode(false);
   }, [scenarioKey, factsJson]);
 
   useEffect(() => {
@@ -107,10 +260,7 @@ export function BuildStudioGuidanceResult({
       method: "POST",
       signal: controller.signal,
       cache: "no-store",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json"
-      },
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify({
         scenarioKey,
         facts: JSON.parse(factsJson) as Record<string, unknown>,
@@ -136,11 +286,113 @@ export function BuildStudioGuidanceResult({
     return () => controller.abort();
   }, [scenarioKey, factsJson, selectedManufacturerProductId]);
 
-  const canChooseProduct =
-    loadState === "ready" &&
-    guide !== null &&
-    guide.blocked === false &&
-    guide.guidanceConflict === false;
+  const canChooseProduct = loadState === "ready" && guide && !guide.blocked && !guide.guidanceConflict;
+  const selectedProductVerified = Boolean(
+    selectedProduct
+    && selectedManufacturerProductId
+    && selectedProduct.manufacturerProductId === selectedManufacturerProductId
+    && selectedProduct.technicalVerificationStatus === "verified"
+    && guide
+    && guide.quantity.status !== "manufacturer_not_selected"
+  );
+
+  function handleProduct(product: BuildStudioCandidate | undefined) {
+    setSelectedProduct(product);
+    setSelectionConfirmed(false);
+    setSnapshotId("");
+    setQuantity(null);
+    setFinalMode(false);
+    setSnapshotState("idle");
+  }
+
+  async function openFinalGuide() {
+    if (!scenarioRequest || !selectedProduct || !selectedManufacturerProductId || !selectionConfirmed) return;
+    setSnapshotState("loading");
+    try {
+      const response = await fetch("/api/build-studio/snapshot", {
+        method: "POST",
+        cache: "no-store",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scenarioKey,
+          facts: scenarioRequest.facts,
+          manufacturerProductId: selectedManufacturerProductId,
+          project: {
+            title,
+            projectType,
+            areaM2,
+            colour,
+            summary,
+            selectedProduct: {
+              manufacturerProductId: selectedProduct.manufacturerProductId,
+              catalogueId: selectedProduct.id,
+              title: selectedProduct.title,
+              brand: selectedProduct.brand,
+              price: selectedProduct.price
+            }
+          }
+        })
+      });
+      if (!response.ok) throw new Error("snapshot failed");
+      const payload = await response.json() as {
+        snapshotId?: string;
+        customerGuide?: CustomerGuide;
+        quantityEstimate?: QuantityEstimate;
+      };
+      if (!payload.snapshotId || !payload.customerGuide || !payload.quantityEstimate) throw new Error("snapshot incomplete");
+      setSnapshotId(payload.snapshotId);
+      setGuide(payload.customerGuide);
+      setQuantity(payload.quantityEstimate);
+      setFinalMode(true);
+      setSnapshotState("idle");
+    } catch {
+      setSnapshotState("error");
+    }
+  }
+
+  async function downloadPdf() {
+    if (!snapshotId) return;
+    setPdfState("loading");
+    try {
+      const response = await fetch(`/api/build-studio/project-guide?snapshotId=${encodeURIComponent(snapshotId)}`, {
+        cache: "no-store"
+      });
+      if (!response.ok) throw new Error("pdf failed");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "konta-mou-paint-build-guide.pdf";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setPdfState("idle");
+    } catch {
+      setPdfState("error");
+    }
+  }
+
+  if (finalMode && guide && selectedProduct && quantity && snapshotId) {
+    return <ProjectGuidanceScreen
+      eyebrow={eyebrow}
+      title={title}
+      summary={summary}
+      colour={colour}
+      guide={guide}
+      selectedProduct={selectedProduct}
+      quantity={quantity}
+      snapshotId={snapshotId}
+      pdfState={pdfState}
+      onDownloadPdf={() => void downloadPdf()}
+      onChangeProduct={() => {
+        setSelectionConfirmed(false);
+        setFinalMode(false);
+        setSnapshotId("");
+      }}
+      onRestart={onRestart}
+    />;
+  }
 
   return (
     <section className={styles.resultScreen}>
@@ -166,61 +418,34 @@ export function BuildStudioGuidanceResult({
       {loadState === "unsupported" ? (
         <div className={styles.warningPanel}>
           <strong>Η τεχνική καθοδήγηση για αυτόν τον συνδυασμό δεν έχει ακόμη επαληθευτεί.</strong>
-          <p>Δεν εμφανίζουμε υποθετικές οδηγίες ή προϊόντα ως κατάλληλα μέχρι να υπάρχει επαρκής τεκμηρίωση.</p>
+          <p>Το Studio σταματά εδώ αντί να εμφανίσει υποθετικές οδηγίες ή προϊόντα.</p>
         </div>
       ) : null}
 
       {loadState === "error" ? (
         <div className={styles.warningPanel}>
           <strong>Η επαληθευμένη τεχνική καθοδήγηση δεν είναι διαθέσιμη αυτή τη στιγμή.</strong>
-          <p>Για ασφάλεια δεν εμφανίζουμε τις παλιές γενικές οδηγίες ως υποκατάστατο.</p>
+          <p>Για ασφάλεια δεν εμφανίζουμε μη τεκμηριωμένο fallback.</p>
         </div>
       ) : null}
 
-      {loadState === "ready" && guide ? (
+      {loadState === "ready" && guide?.guidanceConflict ? (
+        <div className={styles.warningPanel}>
+          <strong>Απαιτείται τεχνικός έλεγχος των οδηγιών.</strong>
+          <p>Υπάρχει σύγκρουση μεταξύ πηγών και το Studio δεν την επιλύει σιωπηρά.</p>
+        </div>
+      ) : null}
+
+      {loadState === "ready" && guide?.blocked ? (
         <>
+          <div className={styles.warningPanel}>
+            <strong>Μην προχωρήσεις ακόμη σε επιλογή προϊόντος.</strong>
+            <p>Έχει ενεργοποιηθεί κανόνας ΚΟΝΤΑ ΜΟΥ που απαιτεί πρώτα έλεγχο ή αποκατάσταση της αιτίας.</p>
+          </div>
           <div className={styles.resultCard}>
             <GuideList title="Πριν ξεκινήσεις" items={guide.beforeYouStart} />
-            <GuideList title="Προετοιμασία" items={guide.preparation} />
-            <GuideList title="Τι χρειάζεσαι" items={guide.whatYouNeed} />
-          </div>
-          <div className={styles.resultCard}>
-            <GuideList title="Βήμα-βήμα" items={guide.stepByStep} />
-            <GuideList title="Τι να αποφύγεις" items={guide.avoid} />
             <GuideList title="Προσοχή" items={guide.warnings} />
           </div>
-
-          {guide.manufacturerInstructions.length || guide.timings.length ? (
-            <div className={styles.resultCard}>
-              <GuideList title="Οδηγίες προϊόντος" items={guide.manufacturerInstructions} />
-              <GuideList title="Χρόνοι" items={guide.timings} />
-              <div className={styles.resultColumn}>
-                <h2>Ποσότητα</h2>
-                <p className={styles.quantityCopy}>{guide.quantity.explanationEl}</p>
-              </div>
-            </div>
-          ) : (
-            <div className={styles.resultCard}>
-              <div className={styles.resultColumn}>
-                <h2>Ποσότητα</h2>
-                <p className={styles.quantityCopy}>{guide.quantity.explanationEl}</p>
-              </div>
-            </div>
-          )}
-
-          {guide.guidanceConflict ? (
-            <div className={styles.warningPanel}>
-              <strong>Απαιτείται τεχνικός έλεγχος των οδηγιών.</strong>
-              <p>Υπάρχει σύγκρουση μεταξύ γενικής καθοδήγησης και ειδικής οδηγίας προϊόντος. Δεν γίνεται αυτόματη συγχώνευση.</p>
-            </div>
-          ) : null}
-
-          {guide.blocked ? (
-            <div className={styles.warningPanel}>
-              <strong>Μην προχωρήσεις ακόμη σε επιλογή προϊόντος.</strong>
-              <p>Έχει ενεργοποιηθεί κανόνας ΚΟΝΤΑ ΜΟΥ που απαιτεί πρώτα έλεγχο ή αποκατάσταση της αιτίας.</p>
-            </div>
-          ) : null}
         </>
       ) : null}
 
@@ -231,7 +456,41 @@ export function BuildStudioGuidanceResult({
           facts={scenarioRequest?.facts ?? {}}
           selectedManufacturerProductId={selectedManufacturerProductId}
           onManufacturerProductChange={setSelectedManufacturerProductId}
+          onSelectionChange={handleProduct}
         />
+      ) : null}
+
+      {selectedProductVerified && selectedProduct ? (
+        <div className={styles.confirmationPanel}>
+          <div>
+            <span>ΕΠΙΛΟΓΗ ΥΛΙΚΟΥ</span>
+            <strong>{selectedProduct.title}</strong>
+            <small>{selectedProduct.brand || "VITEX"} · {selectedProduct.price}</small>
+          </div>
+          {!selectionConfirmed ? (
+            <button type="button" className={styles.primaryAction} onClick={() => setSelectionConfirmed(true)}>
+              ΕΠΙΒΕΒΑΙΩΣΗ ΕΠΙΛΟΓΗΣ
+            </button>
+          ) : (
+            <span className={styles.confirmedBadge}>✓ ΕΠΙΒΕΒΑΙΩΘΗΚΕ</span>
+          )}
+        </div>
+      ) : null}
+
+      {selectionConfirmed && selectedProductVerified ? (
+        <div className={styles.finalContinuePanel}>
+          <button
+            type="button"
+            className={styles.primaryAction}
+            disabled={snapshotState === "loading"}
+            onClick={() => void openFinalGuide()}
+          >
+            {snapshotState === "loading"
+              ? "ΔΗΜΙΟΥΡΓΙΑ ΟΔΗΓΟΥ…"
+              : "ΣΥΝΕΧΙΣΕ ΓΙΑ ΝΑ ΔΕΙΣ ΣΗΜΑΝΤΙΚΕΣ ΠΛΗΡΟΦΟΡΙΕΣ ΚΑΙ ΟΔΗΓΙΕΣ"}
+          </button>
+          {snapshotState === "error" ? <small role="alert">Δεν ήταν δυνατή η δημιουργία του επαληθευμένου snapshot. Δοκίμασε ξανά.</small> : null}
+        </div>
       ) : null}
 
       <div className={styles.resultActions}>

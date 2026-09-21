@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildCustomerGuide, validateBuildGuidanceInput, type BuildProjectGuidance } from "./build-guidance-runtime";
+import { buildCustomerGuide, calculateBuildQuantity, validateBuildGuidanceInput, type BuildProjectGuidance } from "./build-guidance-runtime";
 
 test("accepts conservative Build Studio guidance input", () => {
   assert.deepEqual(
@@ -44,6 +44,13 @@ function syntheticGuidance(overrides: Partial<BuildProjectGuidance> = {}): Build
     guidance_conflict: false,
     blocked: false,
     general_guidance: {
+      profile: {
+        data: {
+          inspection_after_application: ["Έλεγξε την ομοιομορφία μετά την ολοκλήρωση."],
+          maintenance_guidance: ["Παρακολούθησε την επιφάνεια για νέα σημάδια αστοχίας."]
+        },
+        evidence: [{ source_key: "general-source" }]
+      },
       diagnostics: [{
         data: {
           diagnostic_key: "surface_stable",
@@ -166,3 +173,81 @@ test("partial evidence creates a KONTA MOU uncertainty warning", () => {
   assert.equal(warning?.sourceLayer, "KONTA_MOU_RULE");
   assert.equal(warning?.severity, "WARN");
 });
+
+
+test("maintenance and inspection remain general guidance with provenance", () => {
+  const guide = buildCustomerGuide(syntheticGuidance());
+  assert.equal(guide.afterApplication.length, 2);
+  assert.ok(guide.afterApplication.every((item) => item.sourceLayer === "GENERAL_GUIDANCE"));
+  assert.ok(guide.afterApplication.every((item) => item.evidence.length > 0));
+});
+
+test("quantity calculation fails closed unless all verified manufacturer inputs exist", () => {
+  const missing = calculateBuildQuantity(syntheticGuidance({
+    manufacturer_guidance: {
+      source_layer: "MANUFACTURER_VITEX",
+      status: "verified",
+      quantity_inputs_available: true,
+      application_profile: {
+        coverage_m2_per_litre_min: 10,
+        coverage_m2_per_litre_max: 12
+      }
+    }
+  }), 24);
+  assert.equal(missing.status, "missing_manufacturer_values");
+
+  const available = calculateBuildQuantity(syntheticGuidance({
+    manufacturer_guidance: {
+      source_layer: "MANUFACTURER_VITEX",
+      status: "verified",
+      quantity_inputs_available: true,
+      application_profile: {
+        coverage_m2_per_litre_min: 10,
+        coverage_m2_per_litre_max: 12,
+        number_of_coats_min: 2,
+        number_of_coats_max: 2
+      }
+    }
+  }), 24);
+  assert.equal(available.status, "available");
+  assert.equal(available.min, 4);
+  assert.equal(available.max, 4.8);
+  assert.match(available.basisEl, /Δεν προστέθηκε αυθαίρετος/);
+});
+
+const traceabilityScenarios = [
+  "paint_interior_repaint_sound",
+  "paint_interior_mould_damp",
+  "waterproof_balcony_leak",
+  "insulation_external_etics",
+  "repair_damaged_plaster"
+] as const;
+
+for (const scenarioKey of traceabilityScenarios) {
+  test(`three-layer traceability fixture: ${scenarioKey}`, () => {
+    const guide = buildCustomerGuide(syntheticGuidance({
+      scenario_key: scenarioKey,
+      manufacturer_guidance: {
+        source_layer: "MANUFACTURER_VITEX",
+        status: "verified",
+        quantity_inputs_available: true,
+        application_profile: {
+          application_methods: ["ρολό"],
+          number_of_coats_min: 2,
+          number_of_coats_max: 2
+        },
+        instruction_evidence: [{ field_name: "application_methods", source: { title: "VITEX PDF" } }]
+      }
+    }));
+    const layers = new Set([
+      ...guide.beforeYouStart,
+      ...guide.preparation,
+      ...guide.stepByStep,
+      ...guide.manufacturerInstructions,
+      ...guide.warnings
+    ].map((item) => item.sourceLayer));
+    assert.ok(layers.has("GENERAL_GUIDANCE"));
+    assert.ok(layers.has("MANUFACTURER_VITEX"));
+    assert.ok(layers.has("KONTA_MOU_RULE"));
+  });
+}

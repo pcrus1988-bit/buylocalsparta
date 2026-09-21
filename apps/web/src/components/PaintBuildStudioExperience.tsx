@@ -408,6 +408,8 @@ export function PaintBuildStudioExperience() {
             eyebrow="Η ΤΕΛΕΙΑ ΠΙΝΕΛΙΑ · Η ΛΥΣΗ ΣΟΥ"
             title={paintRecommendation.systemName}
             summary={`${paintSurfaceDefinition.label} · ${paintCondition.label} · ${paintArea} m²`}
+            projectType="paint"
+            areaM2={paintArea}
             scenarioRequest={mapBuildStudioScenario({
               module: "paint",
               surface: paintSurfaceKey,
@@ -697,6 +699,8 @@ function BuildResult({
       eyebrow={eyebrow}
       title={recommendation.title}
       summary={`${context} · ${recommendation.areaM2} m²`}
+      projectType={recommendation.title.includes("στεγανο") ? "waterproofing" : recommendation.title.includes("θερμο") ? "insulation" : "repair"}
+      areaM2={recommendation.areaM2}
       scenarioRequest={scenarioRequest}
       candidateTerms={recommendation.catalogueTags}
       onRestart={onRestart}
