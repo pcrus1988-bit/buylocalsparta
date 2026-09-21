@@ -70,7 +70,7 @@ export default async function Page({ searchParams }: { searchParams: CrawlerSear
   const crawlError = one(params.crawlError);
   const crawlUrl = one(params.crawlUrl) ?? "";
   const requestedMode = one(params.crawlMode);
-  const crawlMode = requestedMode === "single" || requestedMode === "discovery" ? requestedMode : "full";
+  const crawlMode = requestedMode === "single" || requestedMode === "category" || requestedMode === "discovery" ? requestedMode : "full";
   const crawlQueued = one(params.crawlQueued) === "1";
   const promotionError = one(params.promotionError);
   const promotionImported = one(params.promotionImported) === "1";
@@ -111,6 +111,7 @@ export default async function Page({ searchParams }: { searchParams: CrawlerSear
           <span>What do you want to crawl?</span>
           <select name="mode" defaultValue={crawlMode}>
             <option value="full">Entire catalogue · recommended</option>
+            <option value="category">Only this category / listing</option>
             <option value="single">Only this exact product/page</option>
             <option value="discovery">Discovery scan only</option>
           </select>

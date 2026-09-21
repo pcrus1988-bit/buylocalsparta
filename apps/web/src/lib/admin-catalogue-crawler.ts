@@ -42,8 +42,9 @@ export async function queueAdminUniversalCrawlerJob(principal: SessionPrincipal,
   assertAdminPermission(principal, "catalog.write");
   requireRuntime();
   const root = normalizeRootUrl(input.rootUrl);
-  const mode = (input.mode?.trim() || "full");
-  if (!(["discovery", "full", "single"] as const).includes(mode as any)) throw new Error("Unsupported simple crawl mode");
+  const requestedMode = (input.mode?.trim() || "full");
+  if (!(["discovery", "full", "category", "single"] as const).includes(requestedMode as any)) throw new Error("Unsupported simple crawl mode");
+  const mode = requestedMode === "single" && isFournarakisCategoryUrl(root) ? "category" : requestedMode;
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 8_000, lockTimeoutMs: 2_000 });
   return uow.withTransaction(platformScope(principal.userId), async (tx) => {
@@ -230,6 +231,9 @@ function normalizeRootUrl(value: string): URL {
   url.hash = "";
   url.search = "";
   return url;
+}
+function isFournarakisCategoryUrl(url: URL): boolean {
+  return normalizedCatalogHost(url.hostname) === "fournarakis.gr" && /^\/el\/catalog(?:\/|$)/i.test(url.pathname);
 }
 function normalizedWebsiteHost(value: unknown): string | undefined {
   const raw = String(value ?? "").trim();
