@@ -42,6 +42,17 @@ export function normalizeFournarakisDiscoveredUrl(rawUrl: string, seedUrl: strin
 
 export function extractFournarakisProductCandidates(html: string, sourceUrl: string): readonly ExtractedProductCandidate[] {
   if (!isFournarakisProductUrl(sourceUrl)) return [];
+
+  // Fournarakis' server response contains the full product payload in a plain
+  // inline const data assignment before the client-side product app renders.
+  // Prefer that payload because it is deterministic and faster than rendering.
+  const embedded = extractFournarakisInlineData(html);
+  if (embedded) {
+    const candidates = candidatesFromInlineData(embedded, sourceUrl);
+    if (candidates.length) return candidates;
+  }
+
+  // Fallback for already-rendered HTML snapshots.
   const url = new URL(sourceUrl);
   const familyCode = PRODUCT_PATH.exec(url.pathname)?.[1]?.trim();
   const title = cleanText(firstMatch(html, /<h1\b[^>]*>([\s\S]*?)<\/h1>/i));
@@ -57,18 +68,137 @@ export function extractFournarakisProductCandidates(html: string, sourceUrl: str
   const description = extractSummaryDescription(html);
   const images = extractProductImages(html, canonical, familyCode, title);
   const badges = extractBadges(html);
-  const now = new Date().toISOString();
 
+  return buildVariantCandidates({
+    sourceUrl: canonical,
+    title,
+    familyCode,
+    brand,
+    categoryPath,
+    description,
+    images,
+    badges,
+    headers,
+    rows,
+    strategy: "fournarakis_rendered_variant_table"
+  });
+}
+
+type FournarakisInlineProduct = Record<string, unknown>;
+
+function extractFournarakisInlineData(html: string): FournarakisInlineProduct | undefined {
+  const marker = /(?:^|[;\s])const\s+data\s*=\s*/g;
+  const match = marker.exec(html);
+  if (!match) return undefined;
+  const start = html.indexOf("{", match.index + match[0].length);
+  if (start < 0) return undefined;
+  const end = findBalancedJsonObjectEnd(html, start);
+  if (end < 0) return undefined;
+  try {
+    const parsed = JSON.parse(html.slice(start, end + 1));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as FournarakisInlineProduct
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function candidatesFromInlineData(data: FournarakisInlineProduct, sourceUrl: string): readonly ExtractedProductCandidate[] {
+  const url = new URL(sourceUrl);
+  const searchResult = recordValue(data.search_result_data);
+  const familyCode = stringValue(searchResult?.code_catalogue)
+    ?? stringValue(PRODUCT_PATH.exec(url.pathname)?.[1]);
+  const title = stringValue(searchResult?.title)
+    ?? stringValue(recordValue(data.page_info)?.title);
+  if (!familyCode || !title) return [];
+
+  const variations = arrayValue(data.variations);
+  const headers = variations.length ? stringArrayValue(variations[0]) : [];
+  const rows = variations.slice(1).map(stringArrayValue).filter((row) => row.length > 0);
+  if (headers.length < 2 || !rows.length) return [];
+
+  const brand = stringValue(recordValue(data.brandInfo)?.name)
+    ?? stringValue(recordValue(searchResult?.brand)?.name);
+
+  const categories = arrayValue(data.categories)
+    .map(recordValue)
+    .filter((value): value is Record<string, unknown> => Boolean(value))
+    .map((value) => stringValue(value.name))
+    .filter((value): value is string => Boolean(value));
+
+  const breadcrumbCategories = arrayValue(data.breadcrumbs)
+    .map(recordValue)
+    .filter((value): value is Record<string, unknown> => Boolean(value))
+    .filter((value) => /\/el\/catalog\/c\//i.test(stringValue(value.href) ?? ""))
+    .map((value) => stringValue(value.label))
+    .filter((value): value is string => Boolean(value));
+
+  const categoryPath = categories.length ? categories : breadcrumbCategories;
+
+  const elements = recordValue(data.elements);
+  const elementFeatures = arrayValue(elements?.features)
+    .map(recordValue)
+    .filter((value): value is Record<string, unknown> => Boolean(value))
+    .map((value) => stringValue(value.text))
+    .filter((value): value is string => Boolean(value));
+  const searchFeatures = arrayValue(searchResult?.features)
+    .map(recordValue)
+    .filter((value): value is Record<string, unknown> => Boolean(value))
+    .map((value) => stringValue(value.text))
+    .filter((value): value is string => Boolean(value));
+  const descriptionParts = elementFeatures.length ? elementFeatures : searchFeatures;
+  const description = descriptionParts.length ? descriptionParts.join(". ") : undefined;
+
+  const badges = [
+    ...arrayValue(data.tags).map((value) => typeof value === "string" ? value : stringValue(recordValue(value)?.id)),
+    ...arrayValue(recordValue(data.icons)?.marketing)
+      .map(recordValue)
+      .filter((value): value is Record<string, unknown> => Boolean(value))
+      .map((value) => stringValue(value.code))
+  ].filter((value): value is string => Boolean(value));
+  const uniqueBadges = [...new Set(badges)];
+
+  const images = extractInlineImages(data, sourceUrl, familyCode, title);
+
+  return buildVariantCandidates({
+    sourceUrl,
+    title,
+    familyCode,
+    brand,
+    categoryPath,
+    description,
+    images,
+    badges: uniqueBadges,
+    headers,
+    rows,
+    strategy: "fournarakis_inline_const_data"
+  });
+}
+
+function buildVariantCandidates(input: {
+  sourceUrl: string;
+  title: string;
+  familyCode: string;
+  brand?: string;
+  categoryPath: readonly string[];
+  description?: string;
+  images: readonly ExtractedImage[];
+  badges: readonly string[];
+  headers: readonly string[];
+  rows: readonly string[][];
+  strategy: string;
+}): readonly ExtractedProductCandidate[] {
   const evidence = (selector: string, confidence = 0.96, note?: string): ProductFieldEvidence => ({
     origin: "html",
-    sourceUrl: canonical,
+    sourceUrl: input.sourceUrl,
     confidence,
     selector,
     note
   });
 
   const candidates: ExtractedProductCandidate[] = [];
-  for (const values of rows.slice(0, MAX_VARIANTS)) {
+  for (const values of input.rows.slice(0, MAX_VARIANTS)) {
     const sku = cleanText(values[0]);
     if (!sku || !/^[0-9A-Za-z][0-9A-Za-z._/-]{1,80}$/.test(sku)) continue;
 
@@ -76,8 +206,8 @@ export function extractFournarakisProductCandidates(html: string, sourceUrl: str
     const variantAttributes: Record<string, string> = {};
     const rawVariant: Record<string, string> = {};
 
-    for (let index = 1; index < Math.min(headers.length, values.length); index += 1) {
-      const label = cleanText(headers[index]);
+    for (let index = 1; index < Math.min(input.headers.length, values.length); index += 1) {
+      const label = cleanText(input.headers[index]);
       const value = cleanText(values[index]);
       if (!label || !value) continue;
       rawVariant[label] = value;
@@ -85,48 +215,165 @@ export function extractFournarakisProductCandidates(html: string, sourceUrl: str
       if (!isPackagingOrCompatibilityLabel(label)) variantAttributes[label] = value;
     }
 
-    attributes["Fournarakis family code"] = familyCode;
-    if (badges.length) attributes["Fournarakis tags"] = badges.join(", ");
+    attributes["Fournarakis family code"] = input.familyCode;
+    if (input.badges.length) attributes["Fournarakis tags"] = input.badges.join(", ");
 
     const fieldEvidence: Record<string, ProductFieldEvidence | readonly ProductFieldEvidence[]> = {
-      title: evidence("h1", 0.99),
-      sku: evidence("#var_" + sku + " first column", 0.995, "Orderable Fournarakis variant code"),
-      "Fournarakis family code": evidence("product URL", 0.995)
+      title: evidence("Fournarakis product payload title", 0.995),
+      sku: evidence("Fournarakis variations first column", 0.999, "Orderable Fournarakis variant code"),
+      "Fournarakis family code": evidence("Fournarakis code_catalogue / product URL", 0.999)
     };
-    if (brand) fieldEvidence.brand = evidence("img[src*='Brand Logos']", 0.98);
-    if (description) fieldEvidence.description = evidence("product summary bullets", 0.95);
-    if (categoryPath.length) fieldEvidence.categoryPath = evidence("product breadcrumb", 0.98);
-    if (images.length) fieldEvidence.images = evidence("Fournarakis product asset gallery", 0.995);
-    for (const label of Object.keys(rawVariant)) fieldEvidence[label] = evidence("#var_" + sku + " variant grid", 0.985);
+    if (input.brand) fieldEvidence.brand = evidence("Fournarakis brandInfo/search_result_data.brand", 0.995);
+    if (input.description) fieldEvidence.description = evidence("Fournarakis elements.features", 0.98);
+    if (input.categoryPath.length) fieldEvidence.categoryPath = evidence("Fournarakis categories/breadcrumbs", 0.995);
+    if (input.images.length) fieldEvidence.images = evidence("Fournarakis highResImages/images", 0.999);
+    for (const label of Object.keys(rawVariant)) fieldEvidence[label] = evidence("Fournarakis variations", 0.995);
 
     candidates.push({
       sourceProductKey: sku,
-      sourceUrl: canonical,
-      title,
-      description,
-      brand,
+      sourceUrl: input.sourceUrl,
+      title: input.title,
+      description: input.description,
+      brand: input.brand,
       sku,
-      categoryPath: categoryPath.length ? categoryPath : undefined,
+      categoryPath: input.categoryPath.length ? input.categoryPath : undefined,
       attributes,
       variantAttributes: Object.keys(variantAttributes).length ? variantAttributes : undefined,
-      images: images.length ? images : undefined,
+      images: input.images.length ? input.images : undefined,
       fieldEvidence,
       rawPayload: {
-        extractionStrategy: "fournarakis_variant_table",
+        extractionStrategy: input.strategy,
         supplier: "Fournarakis",
-        familyCode,
-        familyUrl: canonical,
-        variantHeaders: headers,
+        familyCode: input.familyCode,
+        familyUrl: input.sourceUrl,
+        variantHeaders: input.headers,
         variant: rawVariant,
-        badges,
+        badges: input.badges,
         requiresPricingPdfJoin: true,
         webPriceAuthoritative: false,
-        icecatEnrichment: "disabled_for_source",
-        extractedAt: now
+        icecatEnrichment: "disabled_for_source"
       }
     });
   }
   return candidates;
+}
+
+function extractInlineImages(
+  data: FournarakisInlineProduct,
+  sourceUrl: string,
+  familyCode: string,
+  title: string
+): ExtractedImage[] {
+  const paths: string[] = [];
+  const collectImageGroup = (value: unknown) => {
+    for (const group of arrayValue(value)) {
+      const record = recordValue(group);
+      if (!record) continue;
+      for (const candidate of Object.values(record)) {
+        const image = recordValue(candidate);
+        const path = stringValue(image?.url);
+        if (path && !paths.includes(path)) paths.push(path);
+      }
+    }
+  };
+
+  collectImageGroup(data.highResImages);
+  collectImageGroup(data.images);
+  collectImageGroup(data.thumbs);
+
+  const searchResult = recordValue(data.search_result_data);
+  const cardImage = recordValue(searchResult?.image);
+  if (cardImage) {
+    for (const candidate of Object.values(cardImage)) {
+      const image = recordValue(candidate);
+      const path = stringValue(image?.url);
+      if (path && !paths.includes(path)) paths.push(path);
+    }
+  }
+
+  return paths
+    .map((path) => normalizeFournarakisAssetUrl(path))
+    .filter((value): value is string => Boolean(value))
+    .filter((assetUrl) => {
+      const filename = decodeURIComponent(assetUrl.split("/").pop() ?? "");
+      return filename.toLowerCase().startsWith(familyCode.toLowerCase());
+    })
+    .sort((left, right) => imageRank(right) - imageRank(left))
+    .filter((value, index, all) => all.indexOf(value) === index)
+    .slice(0, MAX_IMAGES)
+    .map((assetUrl, index) => ({
+      url: assetUrl,
+      alt: title,
+      evidence: {
+        origin: "html",
+        sourceUrl,
+        confidence: index === 0 ? 0.999 : 0.99,
+        selector: "inline const data highResImages/images"
+      }
+    }));
+}
+
+function normalizeFournarakisAssetUrl(path: string): string | undefined {
+  let value = path.trim();
+  if (!value) return undefined;
+  if (value.startsWith("/")) value = "https://assets.fournarakis.gr" + value;
+  if (!/^https:\/\/assets\.fournarakis\.gr\/mycontainer\/Photos\//i.test(value)) return undefined;
+  if (!/\.(?:webp|png|jpe?g)(?:\?|$)/i.test(value)) value += ".webp";
+  return value;
+}
+
+function findBalancedJsonObjectEnd(value: string, start: number): number {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < value.length; index += 1) {
+    const char = value[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return index;
+      if (depth < 0) return -1;
+    }
+  }
+  return -1;
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function stringValue(value: unknown): string | undefined {
+  if (typeof value !== "string" && typeof value !== "number") return undefined;
+  const text = String(value).trim();
+  return text || undefined;
+}
+
+function stringArrayValue(value: unknown): string[] {
+  return arrayValue(value)
+    .map(stringValue)
+    .filter((item): item is string => Boolean(item));
 }
 
 function extractVariantHeaders(html: string): string[] {

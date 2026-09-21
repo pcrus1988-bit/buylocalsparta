@@ -157,3 +157,49 @@ test("Fournarakis crawl scope keeps Greek catalogue/product pages and removes du
   assert.equal(normalizeFournarakisDiscoveredUrl("https://www.fournarakis.gr/el/etaireia/i-istoria-mas", seed), undefined);
   assert.equal(normalizeFournarakisDiscoveredUrl("https://assets.fournarakis.gr/mycontainer/Photos/1500x1500/0033.webp", seed), undefined);
 });
+
+
+test("Fournarakis adapter parses the server-side inline const data payload without browser rendering", () => {
+  const sourceUrl = "https://www.fournarakis.gr/el/product/0033/classic-rolo-dermatino-18mm";
+  const inline = {
+    search_result_data: {
+      code_catalogue: "0033",
+      title: "CLASSIC ΡΟΛΟ ΔΕΡΜΑΤΙΝΟ 18mm",
+      brand: { name: "BENMAN" },
+      features: [{ type: "bullet", text: "Δερμάτινο ρολό" }]
+    },
+    brandInfo: { name: "BENMAN" },
+    categories: [
+      { id: 6, name: "Εργαλεία", slug: "ergalia" },
+      { id: 61, name: "Χρωματοπωλείο", slug: "chromatopolio" },
+      { id: 85, name: "Ρολά", slug: "rola" },
+      { id: 88, name: "Ρολά Δερμάτινα", slug: "rola-dermatina" }
+    ],
+    elements: { features: [{ type: "bullet", text: "Μεγάλη αντοχή" }] },
+    highResImages: [{ highRes_x1: { width: 1500, height: 1500, url: "/mycontainer/Photos/1500x1500/0033" } }],
+    images: [{ slider_desktop_x2: { width: 960, height: 960, url: "/mycontainer/Photos/0960x0960/0033" } }],
+    tags: [{ id: "best_seller", name: "Ταχυκίνητο είδος" }, { id: "must_have", name: "Αναγκαίο είδος" }],
+    wh_codes: ["17202", "16323", "16324"],
+    variations: [
+      ["ΚΩΔΙΚΟΣ", "ΣΥΝΟΛΙΚΟ ΜΗΚΟΣ", "Ø ΚΥΛΙΝΔΡΟΥ", "Ø ΣΥΝΟΛΙΚΗ", "ΣΥΝΔΥΑΖΕΤΑΙ ΜΕ", "ΤΜΧ /KOYTI"],
+      ["17202", "10cm", "50mm", "86mm", "22874", "12"],
+      ["16323", "18cm", "50mm", "86mm", "22875", "12"],
+      ["16324", "24cm", "50mm", "86mm", "22876", "12"]
+    ],
+    item_code: [
+      { code: { name: "ΚΩΔΙΚΟΣ", value: "17202" }, price: { label: "€ /ΤΜΧ", value: "7,00" } }
+    ]
+  };
+  const html = '<html><body><main><script>\\nconst data = ' + JSON.stringify(inline) + ';\\nconst ajaxUrl = "";\\n</script><div id="product-app"></div></main></body></html>';
+
+  const candidates = extractFournarakisProductCandidates(html, sourceUrl);
+  assert.equal(candidates.length, 3);
+  assert.deepEqual(candidates.map((item) => item.sku), ["17202", "16323", "16324"]);
+  assert.equal(candidates[0].brand, "BENMAN");
+  assert.equal(candidates[0].attributes["ΣΥΝΟΛΙΚΟ ΜΗΚΟΣ"], "10cm");
+  assert.equal(candidates[0].prices, undefined);
+  assert.equal(candidates[0].images?.[0]?.url, "https://assets.fournarakis.gr/mycontainer/Photos/1500x1500/0033.webp");
+  assert.deepEqual(candidates[0].categoryPath, ["Εργαλεία", "Χρωματοπωλείο", "Ρολά", "Ρολά Δερμάτινα"]);
+  assert.equal((candidates[0].rawPayload as Record<string, unknown>).requiresPricingPdfJoin, true);
+  assert.equal((candidates[0].rawPayload as Record<string, unknown>).webPriceAuthoritative, false);
+});
