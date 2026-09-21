@@ -14,7 +14,8 @@ type IndexableStaticRoute = SiteLink & Readonly<{
 export const SITE_LINKS = {
   home: { label: "Αρχική", href: "/", description: "Η κεντρική είσοδος στην τοπική αγορά της Σπάρτης." },
   shop: { label: "Προϊόντα", href: "/shop", description: "Ο ενιαίος κατάλογος προϊόντων του marketplace." },
-  colorFinder: { label: "Color Finder", href: "/color-finder", description: "Διάλεξε χρώμα και βρες τις πιο κοντινές διαθέσιμες αποχρώσεις nail polish." },\n  paintStudio: { label: "Paint Studio", href: "/paint-and-build-studio", description: "Η Τέλεια Πινελιά: βρες σύστημα βαφής, απόχρωση και ποσότητα με έναν απλό Paint Consultant 3 βημάτων." },
+  colorFinder: { label: "Color Finder", href: "/color-finder", description: "Διάλεξε χρώμα και βρες τις πιο κοντινές διαθέσιμες αποχρώσεις nail polish." },
+  paintStudio: { label: "Paint Studio", href: "/paint-and-build-studio", description: "Η Τέλεια Πινελιά: βρες σύστημα βαφής, απόχρωση και ποσότητα με έναν απλό Paint Consultant 3 βημάτων." },
   fittingRoom: { label: "Style Builder", href: "/fitting-room", description: "Δημιούργησε ολοκληρωμένα looks στο Fitting Room του ΚΟΝΤΑ ΜΟΥ, άλλαξέ τα και μοιράσου τα." },
   bazaar: { label: "BAZAAR", href: "/bazaar", description: "Greece-wide outlet για Preloved, Preowned / Defect, open-box και επιλεγμένα επιστρεφόμενα προϊόντα, πλήρως χωρισμένο από τον κανονικό κατάλογο." },
   shops: { label: "Καταστήματα & άνθρωποι", href: "/shops", description: "Χαρτογραφημένες τοπικές επιχειρήσεις και ενεργοί συνεργάτες, με σαφή ένδειξη του σταδίου συνεργασίας." },
@@ -47,7 +48,8 @@ export const SITE_LINKS = {
 export const INDEXABLE_STATIC_ROUTES: ReadonlyArray<IndexableStaticRoute> = [
   { ...SITE_LINKS.home, changeFrequency: "daily", priority: 1 },
   { ...SITE_LINKS.shop, changeFrequency: "daily", priority: 0.9 },
-  { ...SITE_LINKS.colorFinder, changeFrequency: "daily", priority: 0.9 },\n  { ...SITE_LINKS.paintStudio, changeFrequency: "daily", priority: 0.9 },
+  { ...SITE_LINKS.colorFinder, changeFrequency: "daily", priority: 0.9 },
+  { ...SITE_LINKS.paintStudio, changeFrequency: "daily", priority: 0.9 },
   { ...SITE_LINKS.fittingRoom, changeFrequency: "daily", priority: 0.85 },
   { ...SITE_LINKS.bazaar, changeFrequency: "hourly", priority: 0.9 },
   { ...SITE_LINKS.shops, changeFrequency: "daily", priority: 0.85 },
