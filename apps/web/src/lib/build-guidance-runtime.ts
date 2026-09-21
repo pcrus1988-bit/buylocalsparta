@@ -116,6 +116,10 @@ function numberValue(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+function hasObjectValues(value: unknown): boolean {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value) && Object.keys(value as Record<string, unknown>).length);
+}
+
 function wrapperParts(value: unknown) {
   const wrapper = asRecord(value);
   return { data: asRecord(wrapper.data), evidence: asArray(wrapper.evidence) };
@@ -243,7 +247,7 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
       sourceLayer: layerValue(data.source_layer, "GENERAL_GUIDANCE"),
       textEl: textValue(data.customer_explanation_el) ?? textValue(data.technical_rule) ?? "Βήμα έργου",
       evidence,
-      requirement: data.required === true ? "required" : textValue(data.conditional_expression) ? "conditional" : undefined
+      requirement: data.required === true ? "required" : hasObjectValues(data.conditional_expression) ? "conditional" : undefined
     };
   });
 
