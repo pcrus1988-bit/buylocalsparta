@@ -169,7 +169,7 @@ export function BuildStudioProductChooser({
       {state === "ready" ? (
         <div className={styles.grid}>
           {products.map((product, index) => {
-            const active = selectedId === product.id;
+            const active = selectedManufacturerProductId === product.manufacturerProductId;
             return (
               <article className={active ? styles.cardSelected : styles.card} key={product.id}>
                 <button
