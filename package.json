@@ -103,7 +103,8 @@
     "check:fulfilment-progress": "node --experimental-strip-types scripts/verify-customer-fulfilment-progress.ts",
     "check:fairness-schema": "node --experimental-strip-types scripts/verify-fairness-live-schema.ts",
     "test:catalog-size": "node --experimental-strip-types --test apps/web/src/lib/catalog-size.test.ts",
-    "test:color-finder": "node --experimental-strip-types --test apps/web/src/lib/color-finder.test.ts",\n    "test:paint-consultant": "node --experimental-strip-types --test apps/web/src/lib/paint-consultant.test.ts",
+    "test:color-finder": "node --experimental-strip-types --test apps/web/src/lib/color-finder.test.ts",
+    "test:paint-consultant": "node --experimental-strip-types --test apps/web/src/lib/paint-consultant.test.ts",
     "test:symphonya-commerce-policy": "node --experimental-strip-types --test apps/web/src/lib/symphonya-commerce-policy.test.ts",
     "worker:symphonya": "node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs workers/symphonya-worker.ts"
   },
