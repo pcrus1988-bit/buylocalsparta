@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ColorStudioSelector, type ColorStudioShadeCandidate } from "./ColorStudioSelector";
 import {
   BUILD_MODULES,
@@ -556,7 +556,7 @@ function ChoiceScreen({
   kicker: string;
   title: string;
   body: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <section className={styles.decisionScreen}>
