@@ -1601,3 +1601,43 @@
     transform: none;
   }
 }
+
+
+.multiResultNote {
+  margin: 0 20px 20px;
+  padding: 22px 24px;
+  display: grid;
+  grid-template-columns: minmax(190px, .55fr) minmax(0, 1.45fr);
+  gap: 28px;
+  border: 1px solid rgba(151, 176, 136, .22);
+  border-radius: 18px;
+  background: rgba(116, 131, 107, .09);
+}
+
+.multiResultNote > span {
+  color: #9fb196;
+  font: 800 9px/1.35 system-ui, sans-serif;
+  letter-spacing: .16em;
+}
+
+.multiResultNote strong {
+  color: #eee8df;
+  font-size: 13px;
+}
+
+.multiResultNote p {
+  margin: 7px 0 0;
+  color: #aaa29a;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+@media (max-width: 760px) {
+  .multiResultNote {
+    margin-left: 14px;
+    margin-right: 14px;
+    padding: 20px;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
