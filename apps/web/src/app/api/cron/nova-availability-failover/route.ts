@@ -6,6 +6,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 55;
 
+const NOVA_FAILOVER_MIN_INTERVAL_SECONDS = 60;
+
 async function isAuthorized(request: Request): Promise<boolean> {
   const authorization = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET?.trim();
@@ -26,12 +28,42 @@ async function isAuthorized(request: Request): Promise<boolean> {
   return result.rowCount === 1;
 }
 
+async function claimFailoverInterval(): Promise<boolean> {
+  const result = await getProductionPostgresRuntime().sqlPool.query(`
+    UPDATE public.catalog_sources
+    SET metadata=jsonb_set(
+          COALESCE(metadata, '{}'::jsonb),
+          '{novaAvailabilityFailoverThrottle,lastStartedAt}',
+          to_jsonb(now()),
+          true
+        )
+    WHERE code='nova-brandsgateway'
+      AND COALESCE(
+        NULLIF(metadata #>> '{novaAvailabilityFailoverThrottle,lastStartedAt}', '')::timestamptz,
+        '-infinity'::timestamptz
+      ) <= now() - make_interval(secs => $1::double precision)
+    RETURNING id
+  `, [NOVA_FAILOVER_MIN_INTERVAL_SECONDS]);
+  return result.rowCount === 1;
+}
+
 export async function GET(request: Request) {
   if (!(await isAuthorized(request))) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
 
   try {
+    // A failover caller can be retried or accidentally invoked in a tight loop. The
+    // refresh runtime already has a lease for concurrent work; this separate interval
+    // gate also prevents serial back-to-back slices from continuously occupying the
+    // production DB after each lease is released.
+    if (!(await claimFailoverInterval())) {
+      return Response.json(
+        { ok: true, skipped: true, reason: "minimum_interval" },
+        { headers: { "cache-control": "no-store" } }
+      );
+    }
+
     // Keep the Vercel failover deliberately bounded. The full-catalogue worker is the
     // throughput path; this route shares the production DB with storefront traffic and
     // has a hard 55s runtime ceiling. A recent eight-page run hit that ceiling, so use
