@@ -1,4 +1,4 @@
-import { resolveBuildProjectGuidance } from "../../../../lib/build-guidance-runtime";
+import { buildCustomerGuide, resolveBuildProjectGuidance } from "../../../../lib/build-guidance-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
     const status = guidance.status === "scenario_not_found" ? 404 : 200;
     return Response.json(
-      { guidance },
+      { guidance, customerGuide: buildCustomerGuide(guidance) },
       {
         status,
         headers: {
