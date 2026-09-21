@@ -38,7 +38,7 @@ function request(scenarioKey: string, facts: Readonly<Record<string, unknown>> =
 }
 
 /**
- * Maps only combinations covered by the reviewed first research batch.
+ * Maps only combinations covered by reviewed, published research batches.
  *
  * Returning null is intentional: the caller must show "guidance not yet verified"
  * rather than silently reusing the nearest technical scenario.
@@ -71,7 +71,7 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
     if (input.surface === "metal" && input.condition === "rust") return request("paint_metal_rusty");
 
     if (input.surface === "bathroom" && (input.condition === "damp" || input.condition === "mould")) {
-      return request("paint_interior_mould_damp", {
+      return request("paint_bathroom_high_humidity", {
         significant_moisture: true,
         source_known: false
       });
@@ -95,6 +95,14 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
       return request("waterproof_balcony_leak", { active_water_ingress: true });
     }
 
+    if (input.location === "basement") {
+      return request("waterproof_basement_below_grade_moisture", {
+        significant_moisture: true,
+        source_known: false,
+        ...(input.problem === "leak" ? { active_water_ingress: true } : {})
+      });
+    }
+
     return null;
   }
 
@@ -107,6 +115,13 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
     }
     if (input.location === "interior-wall") {
       return request("insulation_internal_condensation_risk");
+    }
+    if (input.location === "roof") {
+      return request("insulation_roof_general", {
+        roof_build_up_known: false,
+        work_at_height: true,
+        safe_access_confirmed: false
+      });
     }
     return null;
   }
