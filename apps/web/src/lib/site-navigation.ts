@@ -76,6 +76,7 @@ export const INDEXABLE_STATIC_ROUTES: ReadonlyArray<IndexableStaticRoute> = [
 export const PRIMARY_NAVIGATION: ReadonlyArray<SiteLink> = [
   SITE_LINKS.shop,
   SITE_LINKS.colorFinder,
+  SITE_LINKS.paintStudio,
   SITE_LINKS.bazaar,
   SITE_LINKS.shops,
   SITE_LINKS.advice,
