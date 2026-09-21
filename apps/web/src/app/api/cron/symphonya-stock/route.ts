@@ -17,6 +17,7 @@ export const maxDuration = 55;
 const PRIORITY_BATCH_LIMIT = 200;
 const PUBLISHED_REFRESH_LIMIT = 120;
 const PRIORITY_REFRESH_WINDOW_MINUTES = 60;
+const PRIORITY_PUBLICATION_START_DEADLINE_MS = 25_000;
 const FULL_CURSOR_MAX_PAGES = 3;
 
 export async function GET(request: Request) {
@@ -44,12 +45,17 @@ export async function GET(request: Request) {
     let priorityIds: string[] = [];
     let priorityOffersUpdated = 0;
     let publication = null;
+    let publicationDeferred = false;
+    let selectionMs = 0;
+    let refreshMs = 0;
+    let publicationMs = 0;
 
     if (executionMode === "cursor" && stock?.claimed && stock.pages > 0) {
       publication = await runSymphonyaAutoPublicationSweep();
     }
 
     if (executionMode === "priority") {
+      const selectionStartedAt = Date.now();
       publishedIds = await oldestPublishedExternalIds(PUBLISHED_REFRESH_LIMIT);
       const candidateLimit = Math.max(0, PRIORITY_BATCH_LIMIT - publishedIds.length);
       if (candidateLimit > 0) {
@@ -58,16 +64,39 @@ export async function GET(request: Request) {
           new Set(publishedIds)
         );
       }
+      selectionMs = Date.now() - selectionStartedAt;
 
       priorityIds = [...new Set([...publishedIds, ...publicationCandidateIds])].slice(0, PRIORITY_BATCH_LIMIT);
       if (priorityIds.length) {
         // refresh helper chunks at 200, so this remains one supplier request.
+        const refreshStartedAt = Date.now();
         priorityOffersUpdated = await refreshSymphonyaOfferStockByExternalIds(priorityIds);
+        refreshMs = Date.now() - refreshStartedAt;
       }
 
-      // Publish immediately after the targeted freshness refresh instead of
-      // waiting for the next hourly pipeline pass.
-      publication = await runSymphonyaAutoPublicationSweep();
+      // Do not begin the separate categorization/publication sweep if supplier
+      // freshness work already consumed a substantial part of the 55s budget.
+      // A later priority invocation can safely retry publication.
+      if (Date.now() - startedAt < PRIORITY_PUBLICATION_START_DEADLINE_MS) {
+        const publicationStartedAt = Date.now();
+        publication = await runSymphonyaAutoPublicationSweep();
+        publicationMs = Date.now() - publicationStartedAt;
+      } else {
+        publicationDeferred = true;
+      }
+
+      console.info(JSON.stringify({
+        level: "info",
+        event: "symphonya.stock_priority_timing",
+        selectionMs,
+        refreshMs,
+        publicationMs,
+        publicationDeferred,
+        prioritySelected: priorityIds.length,
+        priorityOffersUpdated,
+        elapsedMs: Date.now() - startedAt,
+        at: new Date().toISOString()
+      }));
     }
 
     return Response.json({
@@ -80,6 +109,8 @@ export async function GET(request: Request) {
       prioritySelected: priorityIds.length,
       priorityOffersUpdated,
       publication,
+      publicationDeferred,
+      timings: executionMode === "priority" ? { selectionMs, refreshMs, publicationMs } : null,
       elapsedMs: Date.now() - startedAt
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
