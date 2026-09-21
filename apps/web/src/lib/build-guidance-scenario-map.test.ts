@@ -77,9 +77,16 @@ test("second-batch roof insulation stays blocked until build-up and access are k
   );
 });
 
-test("unresearched combinations stay unmapped instead of borrowing a nearby scenario", () => {
-  assert.equal(
+test("verified small-hole repair maps to its dedicated scenario", () => {
+  assert.deepEqual(
     mapBuildStudioScenario({ module: "repair", issue: "holes", severity: "local" }),
+    { scenarioKey: "repair_small_holes_dents", facts: { repair_extent: "local" } }
+  );
+});
+
+test("ambiguous new interior substrate remains fail-closed instead of guessing plaster vs gypsum board", () => {
+  assert.equal(
+    mapBuildStudioScenario({ module: "paint", surface: "interior-wall", condition: "new" }),
     null
   );
 });
