@@ -490,7 +490,8 @@ export function PaintBuildStudioExperience() {
                 <h3>Αυτό χρειάζεσαι.</h3>
                 <p>
                   Η πρόταση ξεκινά από την επιφάνεια και το πρόβλημα, όχι από τη μάρκα.
-                  Όταν συνδεθούν τα paint SKUs, θα εμφανίζονται εδώ μόνο πραγματικά συμβατά και διαθέσιμα προϊόντα.
+                  Όταν συνδεθούν τα paint SKUs, θα εμφανίζονται όλες οι πραγματικά συμβατές και διαθέσιμες επιλογές —
+                  ακόμη κι αν δύο διαφορετικά προϊόντα δίνουν την ίδια ή πολύ κοντινή απόχρωση.
                 </p>
               </div>
               <div className={styles.resultColour}>
@@ -548,6 +549,18 @@ export function PaintBuildStudioExperience() {
               </article>
             </div>
 
+            <div className={styles.multiResultNote}>
+              <span>ΠΟΛΛΑ ΑΠΟΤΕΛΕΣΜΑΤΑ, ΟΧΙ ΕΝΑΣ «ΝΙΚΗΤΗΣ»</span>
+              <div>
+                <strong>Η ίδια απόχρωση μπορεί να έχει περισσότερες από μία σωστές επιλογές.</strong>
+                <p>
+                  Δεν συγχωνεύουμε προϊόντα επειδή έχουν ίδιο χρώμα. Αν δύο ή περισσότερα χρώματα καλύπτουν το ίδιο
+                  τεχνικό σύστημα και την ίδια / κοντινή απόχρωση, θα εμφανίζονται ξεχωριστά ώστε να συγκρίνεις μάρκα,
+                  τιμή, διαθεσιμότητα, φινίρισμα και συσκευασία.
+                </p>
+              </div>
+            </div>
+
             {recommendation.warnings.length ? (
               <div className={styles.warningBox} role="note">
                 <span aria-hidden="true">!</span>
@@ -571,7 +584,7 @@ export function PaintBuildStudioExperience() {
 
             <div className={styles.resultActions}>
               <a className={styles.primaryAction} href={recommendation.searchHref}>
-                Βρες συμβατά προϊόντα <span aria-hidden="true">→</span>
+                Δες όλες τις συμβατές επιλογές <span aria-hidden="true">→</span>
               </a>
               <a className={styles.secondaryAction} href="/ask-local">Ρώτησε ένα κατάστημα</a>
               <button type="button" className={styles.secondaryAction} onClick={() => setStep(2)}>Άλλαξε χρώμα</button>
