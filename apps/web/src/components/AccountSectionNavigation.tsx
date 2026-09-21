@@ -21,6 +21,7 @@ const ACCOUNT_GROUPS: readonly AccountGroup[] = [
     items: [
       { href: "/account", label: "Επισκόπηση" },
       { href: "/account/orders", label: "Παραγγελίες" },
+      { href: "/account/documents", label: "Τα Έγγραφά μου" },
       { href: "/account/saved", label: "Wishlist" },
       { href: "/account/notifications", label: "Ειδοποιήσεις" }
     ]
