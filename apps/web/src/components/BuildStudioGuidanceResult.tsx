@@ -1,58 +1,54 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { BuildGuidanceScenarioRequest } from "../lib/build-guidance-scenario-map";
 import { BuildStudioProductChooser } from "./BuildStudioProductChooser";
 import styles from "./PaintBuildStudioExperience.module.css";
 
-type GuidanceItem = Readonly<{
+type SourceLayer = "GENERAL_GUIDANCE" | "MANUFACTURER_VITEX" | "MANUFACTURER" | "KONTA_MOU_RULE";
+
+type GuidanceItem = {
   key: string;
-  sourceLayer: "GENERAL_GUIDANCE" | "MANUFACTURER_VITEX" | "MANUFACTURER" | "KONTA_MOU_RULE";
+  sourceLayer: SourceLayer;
   textEl: string;
   severity?: string;
-  requirement?: string;
-  quantityBasis?: string;
-  customerCanReplace?: boolean;
-}>;
+};
 
-type CustomerGuide = Readonly<{
+type CustomerGuide = {
   status: "ready" | "blocked" | "review_required" | "guidance_partial" | "scenario_not_found";
   blocked: boolean;
   guidanceConflict: boolean;
-  beforeYouStart: readonly GuidanceItem[];
-  preparation: readonly GuidanceItem[];
-  whatYouNeed: readonly GuidanceItem[];
-  stepByStep: readonly GuidanceItem[];
-  manufacturerInstructions: readonly GuidanceItem[];
-  timings: readonly GuidanceItem[];
-  avoid: readonly GuidanceItem[];
-  warnings: readonly GuidanceItem[];
-  quantity: Readonly<{
+  beforeYouStart: GuidanceItem[];
+  preparation: GuidanceItem[];
+  whatYouNeed: GuidanceItem[];
+  stepByStep: GuidanceItem[];
+  manufacturerInstructions: GuidanceItem[];
+  timings: GuidanceItem[];
+  avoid: GuidanceItem[];
+  warnings: GuidanceItem[];
+  quantity: {
     status: "manufacturer_not_selected" | "manufacturer_data_missing" | "manufacturer_data_available";
     explanationEl: string;
-  }>;
-}>;
+  };
+};
 
-function sourceLabel(layer: GuidanceItem["sourceLayer"]): string {
-  if (layer === "GENERAL_GUIDANCE") return "Γενική τεχνική καθοδήγηση";
-  if (layer === "MANUFACTURER_VITEX") return "Οδηγίες κατασκευαστή · VITEX";
-  if (layer === "MANUFACTURER") return "Οδηγίες κατασκευαστή";
-  return "Κανόνας ασφάλειας · ΚΟΝΤΑ ΜΟΥ";
+function sourceLabel(layer: SourceLayer): string {
+  switch (layer) {
+    case "GENERAL_GUIDANCE":
+      return "Γενική τεχνική καθοδήγηση";
+    case "MANUFACTURER_VITEX":
+      return "Οδηγίες κατασκευαστή · VITEX";
+    case "MANUFACTURER":
+      return "Οδηγίες κατασκευαστή";
+    default:
+      return "Κανόνας ασφάλειας · ΚΟΝΤΑ ΜΟΥ";
+  }
 }
 
-function GuidanceColumn({
-  number,
-  title,
-  items
-}: {
-  number: string;
-  title: string;
-  items: readonly GuidanceItem[];
-}) {
+function GuideList({ title, items }: { title: string; items: GuidanceItem[] }) {
   if (!items.length) return null;
   return (
     <div className={styles.resultColumn}>
-      <span>{number}</span>
       <h2>{title}</h2>
       <ol>
         {items.map((item) => (
@@ -83,26 +79,24 @@ export function BuildStudioGuidanceResult({
   colour?: string;
   onRestart: () => void;
 }) {
-  const [guide, setGuide] = useState<CustomerGuide>();
-  const [state, setState] = useState<"loading" | "ready" | "unsupported" | "error">(
+  const [guide, setGuide] = useState<CustomerGuide | null>(null);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "unsupported" | "error">(
     scenarioRequest ? "loading" : "unsupported"
   );
 
-  const requestKey = useMemo(
-    () => scenarioRequest ? JSON.stringify(scenarioRequest) : "",
-    [scenarioRequest]
-  );
+  const scenarioKey = scenarioRequest?.scenarioKey ?? "";
+  const factsJson = JSON.stringify(scenarioRequest?.facts ?? {});
 
   useEffect(() => {
-    if (!scenarioRequest) {
-      setGuide(undefined);
-      setState("unsupported");
+    if (!scenarioKey) {
+      setGuide(null);
+      setLoadState("unsupported");
       return;
     }
 
     const controller = new AbortController();
-    setGuide(undefined);
-    setState("loading");
+    setGuide(null);
+    setLoadState("loading");
 
     void fetch("/api/build-studio/guidance", {
       method: "POST",
@@ -113,30 +107,34 @@ export function BuildStudioGuidanceResult({
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        scenarioKey: scenarioRequest.scenarioKey,
-        facts: scenarioRequest.facts
+        scenarioKey,
+        facts: JSON.parse(factsJson) as Record<string, unknown>
       })
     })
       .then(async (response) => {
-        if (!response.ok) throw new Error(`build-studio guidance: ${response.status}`);
+        if (!response.ok) throw new Error(`Guidance request failed: ${response.status}`);
         return response.json() as Promise<{ customerGuide?: CustomerGuide }>;
       })
       .then((payload) => {
         if (controller.signal.aborted) return;
-        if (!payload.customerGuide) throw new Error("missing customer guide");
+        if (!payload.customerGuide) throw new Error("Guidance response is incomplete");
         setGuide(payload.customerGuide);
-        setState("ready");
+        setLoadState("ready");
       })
       .catch(() => {
         if (controller.signal.aborted) return;
-        setGuide(undefined);
-        setState("error");
+        setGuide(null);
+        setLoadState("error");
       });
 
     return () => controller.abort();
-  }, [requestKey]);
+  }, [scenarioKey, factsJson]);
 
-  const selectionAllowed = state === "ready" && guide && !guide.blocked && !guide.guidanceConflict;
+  const canChooseProduct =
+    loadState === "ready" &&
+    guide !== null &&
+    guide.blocked === false &&
+    guide.guidanceConflict === false;
 
   return (
     <section className={styles.resultScreen}>
@@ -152,47 +150,45 @@ export function BuildStudioGuidanceResult({
         ) : null}
       </div>
 
-      {state === "loading" ? (
+      {loadState === "loading" ? (
         <div className={styles.warningPanel} role="status">
           <strong>Ελέγχω την επαληθευμένη τεχνική καθοδήγηση…</strong>
           <p>Οι οδηγίες φορτώνονται από τη βάση τεκμηρίωσης του Paint & Build Studio.</p>
         </div>
       ) : null}
 
-      {state === "unsupported" ? (
+      {loadState === "unsupported" ? (
         <div className={styles.warningPanel}>
           <strong>Η τεχνική καθοδήγηση για αυτόν τον συνδυασμό δεν έχει ακόμη επαληθευτεί.</strong>
-          <p>Δεν θα εμφανίσουμε υποθετικές οδηγίες ή προϊόντα ως κατάλληλα μέχρι να υπάρχει επαρκής τεκμηρίωση.</p>
+          <p>Δεν εμφανίζουμε υποθετικές οδηγίες ή προϊόντα ως κατάλληλα μέχρι να υπάρχει επαρκής τεκμηρίωση.</p>
         </div>
       ) : null}
 
-      {state === "error" ? (
+      {loadState === "error" ? (
         <div className={styles.warningPanel}>
           <strong>Η επαληθευμένη τεχνική καθοδήγηση δεν είναι διαθέσιμη αυτή τη στιγμή.</strong>
           <p>Για ασφάλεια δεν εμφανίζουμε τις παλιές γενικές οδηγίες ως υποκατάστατο.</p>
         </div>
       ) : null}
 
-      {state === "ready" && guide ? (
+      {loadState === "ready" && guide ? (
         <>
           <div className={styles.resultCard}>
-            <GuidanceColumn number="01" title="Πριν ξεκινήσεις" items={guide.beforeYouStart} />
-            <GuidanceColumn number="02" title="Προετοιμασία" items={guide.preparation} />
-            <GuidanceColumn number="03" title="Τι χρειάζεσαι" items={guide.whatYouNeed} />
+            <GuideList title="Πριν ξεκινήσεις" items={guide.beforeYouStart} />
+            <GuideList title="Προετοιμασία" items={guide.preparation} />
+            <GuideList title="Τι χρειάζεσαι" items={guide.whatYouNeed} />
           </div>
-
           <div className={styles.resultCard}>
-            <GuidanceColumn number="04" title="Βήμα-βήμα" items={guide.stepByStep} />
-            <GuidanceColumn number="05" title="Τι να αποφύγεις" items={guide.avoid} />
-            <GuidanceColumn number="06" title="Προσοχή" items={guide.warnings} />
+            <GuideList title="Βήμα-βήμα" items={guide.stepByStep} />
+            <GuideList title="Τι να αποφύγεις" items={guide.avoid} />
+            <GuideList title="Προσοχή" items={guide.warnings} />
           </div>
 
           {guide.manufacturerInstructions.length || guide.timings.length ? (
             <div className={styles.resultCard}>
-              <GuidanceColumn number="07" title="Οδηγίες προϊόντος" items={guide.manufacturerInstructions} />
-              <GuidanceColumn number="08" title="Χρόνοι" items={guide.timings} />
+              <GuideList title="Οδηγίες προϊόντος" items={guide.manufacturerInstructions} />
+              <GuideList title="Χρόνοι" items={guide.timings} />
               <div className={styles.resultColumn}>
-                <span>09</span>
                 <h2>Ποσότητα</h2>
                 <p className={styles.quantityCopy}>{guide.quantity.explanationEl}</p>
               </div>
@@ -200,7 +196,6 @@ export function BuildStudioGuidanceResult({
           ) : (
             <div className={styles.resultCard}>
               <div className={styles.resultColumn}>
-                <span>07</span>
                 <h2>Ποσότητα</h2>
                 <p className={styles.quantityCopy}>{guide.quantity.explanationEl}</p>
               </div>
@@ -223,7 +218,7 @@ export function BuildStudioGuidanceResult({
         </>
       ) : null}
 
-      {selectionAllowed ? <BuildStudioProductChooser terms={candidateTerms} /> : null}
+      {canChooseProduct ? <BuildStudioProductChooser terms={candidateTerms} /> : null}
 
       <div className={styles.resultActions}>
         <a href="/ask-local" className={styles.secondaryAction}>ΡΩΤΗΣΕ ΕΝΑ ΚΑΤΑΣΤΗΜΑ</a>
