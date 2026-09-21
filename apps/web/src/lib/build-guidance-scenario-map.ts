@@ -64,11 +64,34 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
       if (input.condition === "sound") return request("paint_exterior_repaint_sound");
       if (input.condition === "chalking") return request("paint_exterior_chalking");
       if (input.condition === "cracks") return request("paint_exterior_hairline_cracks");
+      if (input.condition === "damp") {
+        return request("waterproof_exterior_wall_rain_penetration", {
+          significant_moisture: true,
+          source_known: false
+        });
+      }
       return null;
     }
 
-    if (input.surface === "wood" && input.condition === "bare") return request("paint_wood_bare");
-    if (input.surface === "metal" && input.condition === "rust") return request("paint_metal_rusty");
+    if (input.surface === "wood") {
+      if (input.condition === "bare") return request("paint_wood_bare");
+      if (input.condition === "painted") {
+        return request("paint_wood_existing_sound", { existing_coating_known_compatible: false });
+      }
+      if (input.condition === "weathered") return request("paint_wood_weathered");
+    }
+
+    if (input.surface === "metal") {
+      const ferrousFacts = { metal_type_known: true, metal_type: "ferrous_steel" };
+      if (input.condition === "bare") return request("paint_metal_bare_ferrous", ferrousFacts);
+      if (input.condition === "painted") {
+        return request("paint_metal_existing_sound_ferrous", {
+          ...ferrousFacts,
+          existing_coating_known_compatible: false
+        });
+      }
+      if (input.condition === "rust") return request("paint_metal_rusty", ferrousFacts);
+    }
 
     if (input.surface === "bathroom" && (input.condition === "damp" || input.condition === "mould")) {
       return request("paint_bathroom_high_humidity", {
@@ -93,6 +116,17 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
 
     if (input.location === "balcony" && input.problem === "leak") {
       return request("waterproof_balcony_leak", { active_water_ingress: true });
+    }
+
+    if (input.location === "exterior-wall") {
+      if (input.problem === "standing-water") return null;
+      return request("waterproof_exterior_wall_rain_penetration", {
+        ...(input.problem === "leak"
+          ? { active_water_ingress: true, significant_moisture: true, source_known: false }
+          : {}),
+        ...(input.problem === "cracks" ? { cracks_or_joints_present: true } : {}),
+        ...(input.problem === "maintenance" ? { existing_coating_known_compatible: false } : {})
+      });
     }
 
     if (input.location === "basement") {
@@ -127,6 +161,12 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
   }
 
   if (input.issue === "hairline") return request("repair_hairline_wall_crack");
+  if (input.issue === "holes") {
+    return request("repair_small_holes_dents", {
+      repair_extent: input.severity === "extensive" ? "extensive" : "local"
+    });
+  }
+  if (input.issue === "peeling") return request("paint_existing_peeling");
   if (input.issue === "plaster") {
     return request(
       "repair_damaged_plaster",
