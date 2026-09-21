@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildCustomerGuide, calculateBuildQuantity, validateBuildGuidanceInput, type BuildProjectGuidance } from "./build-guidance-runtime";
+import { buildCustomerGuide, calculateBuildQuantity, validateBuildGuidanceInput, type BuildProjectGuidance } from "./build-guidance-runtime.ts";
 
 test("accepts conservative Build Studio guidance input", () => {
   assert.deepEqual(
