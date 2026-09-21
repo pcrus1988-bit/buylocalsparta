@@ -39,11 +39,6 @@ export type PaintMood = Readonly<{
   colours: readonly string[];
 }>;
 
-export type PaintPackage = Readonly<{
-  sizeL: number;
-  quantity: number;
-}>;
-
 export type PaintCatalogueCandidate = Readonly<{
   productId: string;
   productName: string;
@@ -78,13 +73,9 @@ export type PaintRecommendation = Readonly<{
   preparation: readonly string[];
   reasons: readonly string[];
   warnings: readonly string[];
-  coats: number;
-  coverageM2PerL: number;
   areaM2: number;
-  wastagePercent: number;
-  litresNeeded: number;
-  packages: readonly PaintPackage[];
-  totalPackagedLitres: number;
+  quantityStatus: "requires_manufacturer_product";
+  quantityNote: string;
   selectedColour: string;
   catalogueTags: readonly string[];
   searchHref: string;
@@ -226,60 +217,12 @@ export const PAINT_MOODS: readonly PaintMood[] = [
   }
 ] as const;
 
-const DEFAULT_WASTAGE_PERCENT = 10;
-
 function surfaceByKey(key: PaintSurfaceKey): PaintSurface {
   return PAINT_SURFACES.find((surface) => surface.key === key) ?? PAINT_SURFACES[0];
 }
 
 function conditionByKey(surface: PaintSurface, key: string): PaintCondition {
   return surface.conditions.find((condition) => condition.key === key) ?? surface.conditions[0];
-}
-
-function roundUp(value: number, digits = 1): number {
-  const factor = 10 ** digits;
-  return Math.ceil(value * factor) / factor;
-}
-
-function packagePlan(requiredLitres: number, packageSizes: readonly number[] = [10, 3, 0.75]): PaintPackage[] {
-  const target = Math.max(0.75, requiredLitres);
-  let best:
-    | Readonly<{ overage: number; count: number; packages: PaintPackage[]; total: number }>
-    | undefined;
-
-  const maxLarge = Math.ceil(target / 10) + 1;
-  for (let large = 0; large <= maxLarge; large += 1) {
-    const remainingAfterLarge = Math.max(0, target - large * 10);
-    const maxMedium = Math.ceil(remainingAfterLarge / 3) + 1;
-
-    for (let medium = 0; medium <= maxMedium; medium += 1) {
-      const remaining = Math.max(0, target - large * 10 - medium * 3);
-      const small = remaining > 0 ? Math.ceil(remaining / 0.75) : 0;
-      const quantities = [large, medium, small];
-      const total = quantities.reduce((sum, quantity, index) => sum + quantity * packageSizes[index], 0);
-      if (total < target) continue;
-
-      const packages = quantities.flatMap((quantity, index) =>
-        quantity > 0 ? [{ sizeL: packageSizes[index], quantity }] : []
-      );
-      const count = quantities.reduce((sum, quantity) => sum + quantity, 0);
-      const candidate = { overage: total - target, count, packages, total };
-
-      if (
-        !best ||
-        candidate.overage < best.overage - 0.001 ||
-        (Math.abs(candidate.overage - best.overage) < 0.001 && candidate.count < best.count)
-      ) {
-        best = candidate;
-      }
-    }
-  }
-
-  return best?.packages ?? [{ sizeL: 0.75, quantity: 1 }];
-}
-
-function packagedLitres(packages: readonly PaintPackage[]): number {
-  return packages.reduce((sum, pack) => sum + pack.sizeL * pack.quantity, 0);
 }
 
 function normalizedHex(value: string | undefined): string | undefined {
@@ -360,8 +303,6 @@ function systemFor(surface: PaintSurface, condition: PaintCondition) {
   let primerLabel: string | undefined;
   let topcoatLabel = "";
   let finishLabel = "Ματ";
-  let coats = 2;
-  let coverageM2PerL = 10;
   let systemName = "";
   let tags: string[] = [];
 
@@ -370,7 +311,6 @@ function systemFor(surface: PaintSurface, condition: PaintCondition) {
       systemName = "Σύστημα βαφής εσωτερικού τοίχου";
       topcoatLabel = "Πλενόμενο χρώμα εσωτερικού χώρου";
       finishLabel = "Ματ / χαμηλής γυαλάδας";
-      coverageM2PerL = 11;
       tags = ["χρώμα εσωτερικού", "πλενόμενο", "ματ"];
 
       if (condition.key === "new") {
@@ -410,7 +350,6 @@ function systemFor(surface: PaintSurface, condition: PaintCondition) {
         ? "Ελαστομερές / υψηλής ελαστικότητας χρώμα εξωτερικού"
         : "Ακρυλικό ή σιλικονούχο χρώμα εξωτερικού";
       finishLabel = "Ματ";
-      coverageM2PerL = condition.key === "cracks" ? 8 : 10;
       tags = ["χρώμα εξωτερικού", "ακρυλικό", "αντοχή UV"];
 
       if (condition.key === "new") {
@@ -446,7 +385,6 @@ function systemFor(surface: PaintSurface, condition: PaintCondition) {
       systemName = "Σύστημα βαφής / προστασίας ξύλου";
       topcoatLabel = "Βερνικόχρωμα ή προστατευτική βαφή ξύλου";
       finishLabel = "Σατινέ";
-      coverageM2PerL = 11;
       tags = ["ξύλο", "βερνικόχρωμα", "προστασία ξύλου"];
 
       if (condition.key === "bare") {
@@ -470,7 +408,6 @@ function systemFor(surface: PaintSurface, condition: PaintCondition) {
       systemName = "Αντισκωριακό σύστημα μετάλλου";
       topcoatLabel = "Ανθεκτικό βερνικόχρωμα μετάλλου";
       finishLabel = "Σατινέ / γυαλιστερό";
-      coverageM2PerL = 10;
       tags = ["μέταλλο", "αντισκωριακό", "βερνικόχρωμα"];
 
       if (condition.key === "bare") {
@@ -495,7 +432,6 @@ function systemFor(surface: PaintSurface, condition: PaintCondition) {
       systemName = "Σύστημα βαφής χώρου υψηλής υγρασίας";
       topcoatLabel = "Χρώμα εσωτερικού με αυξημένη αντοχή σε υγρασία και μούχλα";
       finishLabel = "Ματ / σατινέ";
-      coverageM2PerL = 10;
       tags = ["μπάνιο", "αντοχή υγρασία", "αντιμουχλικό", "πλενόμενο"];
 
       if (condition.key === "mould") {
@@ -521,8 +457,6 @@ function systemFor(surface: PaintSurface, condition: PaintCondition) {
       systemName = "Υγρό σύστημα στεγανοποίησης ταράτσας";
       topcoatLabel = "Ελαστική στεγανωτική μεμβράνη ταράτσας";
       finishLabel = "Λευκό / ανακλαστικό όπου υποστηρίζεται";
-      coverageM2PerL = 1.8;
-      coats = 2;
       tags = ["στεγανοποίηση ταράτσας", "ελαστομερές", "υγρή μεμβράνη"];
 
       if (condition.key === "new") {
@@ -555,8 +489,6 @@ function systemFor(surface: PaintSurface, condition: PaintCondition) {
     preparation,
     reasons,
     warnings,
-    coats,
-    coverageM2PerL,
     tags
   } as const;
 }
@@ -575,13 +507,9 @@ export function recommendPaintProject(input: {
     ? input.selectedColour.toUpperCase()
     : "#F4F0E7";
 
-  const litresNeeded = roundUp(
-    (areaM2 * system.coats * (1 + DEFAULT_WASTAGE_PERCENT / 100)) / system.coverageM2PerL,
-    1
-  );
-  const packages = packagePlan(litresNeeded);
-  const totalPackagedLitres = roundUp(packagedLitres(packages), 2);
   const query = system.tags.slice(0, 4).join(" ");
+  const quantityNote =
+    "Η ακριβής ποσότητα, ο αριθμός στρώσεων, η κατανάλωση και οι συσκευασίες θα υπολογιστούν αφού επιλεγεί συγκεκριμένο προϊόν, από τα επίσημα τεχνικά στοιχεία του κατασκευαστή.";
 
   return {
     surface,
@@ -594,13 +522,9 @@ export function recommendPaintProject(input: {
     preparation: system.preparation,
     reasons: system.reasons,
     warnings: system.warnings,
-    coats: system.coats,
-    coverageM2PerL: system.coverageM2PerL,
     areaM2,
-    wastagePercent: DEFAULT_WASTAGE_PERCENT,
-    litresNeeded,
-    packages,
-    totalPackagedLitres,
+    quantityStatus: "requires_manufacturer_product",
+    quantityNote,
     selectedColour,
     catalogueTags: system.tags,
     searchHref: `/shop?q=${encodeURIComponent(query)}`
