@@ -10,10 +10,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 55;
 
-// Scheduled production runs use a three-page concurrent cursor burst. This keeps
-// the full supplier catalogue inside the two-hour availability TTL while staying
-// below Vercel's 55-second execution cap. Manual mode=priority remains available
-// for targeted recovery of storefront products.
+// Leave enough headroom for a publication sweep to finish before Vercel's hard cap.
+// If stock/selection work consumes the budget, publication is safely deferred to a later run.
+const PUBLICATION_START_DEADLINE_MS = 30_000;
 const PRIORITY_BATCH_LIMIT = 200;
 const PUBLISHED_REFRESH_LIMIT = 120;
 const PRIORITY_REFRESH_WINDOW_MINUTES = 60;
@@ -34,41 +33,68 @@ export async function GET(request: Request) {
   try {
     const startedAt = Date.now();
     const executionMode = requestedMode === "priority" ? "priority" : "cursor";
-
-    const stock = executionMode === "cursor"
-      ? await runSymphonyaStockSyncBurst(FULL_CURSOR_MAX_PAGES)
-      : null;
+    const stock = executionMode === "cursor" ? await runSymphonyaStockSyncBurst(FULL_CURSOR_MAX_PAGES) : null;
 
     let publishedIds: string[] = [];
     let publicationCandidateIds: string[] = [];
     let priorityIds: string[] = [];
     let priorityOffersUpdated = 0;
     let publication = null;
+    let publicationDeferred = false;
+    let selectionMs = 0;
+    let refreshMs = 0;
+    let publicationMs = 0;
 
     if (executionMode === "cursor" && stock?.claimed && stock.pages > 0) {
-      publication = await runSymphonyaAutoPublicationSweep();
+      if (Date.now() - startedAt < PUBLICATION_START_DEADLINE_MS) {
+        const publicationStartedAt = Date.now();
+        publication = await runSymphonyaAutoPublicationSweep();
+        publicationMs = Date.now() - publicationStartedAt;
+      } else {
+        publicationDeferred = true;
+      }
     }
 
     if (executionMode === "priority") {
+      const selectionStartedAt = Date.now();
       publishedIds = await oldestPublishedExternalIds(PUBLISHED_REFRESH_LIMIT);
       const candidateLimit = Math.max(0, PRIORITY_BATCH_LIMIT - publishedIds.length);
       if (candidateLimit > 0) {
-        publicationCandidateIds = await oldestPublicationCandidateExternalIds(
-          candidateLimit,
-          new Set(publishedIds)
-        );
+        publicationCandidateIds = await oldestPublicationCandidateExternalIds(candidateLimit, new Set(publishedIds));
       }
+      selectionMs = Date.now() - selectionStartedAt;
 
       priorityIds = [...new Set([...publishedIds, ...publicationCandidateIds])].slice(0, PRIORITY_BATCH_LIMIT);
       if (priorityIds.length) {
-        // refresh helper chunks at 200, so this remains one supplier request.
+        const refreshStartedAt = Date.now();
         priorityOffersUpdated = await refreshSymphonyaOfferStockByExternalIds(priorityIds);
+        refreshMs = Date.now() - refreshStartedAt;
       }
 
-      // Publish immediately after the targeted freshness refresh instead of
-      // waiting for the next hourly pipeline pass.
-      publication = await runSymphonyaAutoPublicationSweep();
+      if (Date.now() - startedAt < PUBLICATION_START_DEADLINE_MS) {
+        const publicationStartedAt = Date.now();
+        publication = await runSymphonyaAutoPublicationSweep();
+        publicationMs = Date.now() - publicationStartedAt;
+      } else {
+        publicationDeferred = true;
+      }
     }
+
+    const elapsedMs = Date.now() - startedAt;
+    console.info(JSON.stringify({
+      level: "info",
+      event: "symphonya.stock_cron_timing",
+      executionMode,
+      stockPages: stock?.pages ?? 0,
+      selectionMs,
+      refreshMs,
+      publicationMs,
+      publicationDeferred,
+      prioritySelected: priorityIds.length,
+      priorityOffersUpdated,
+      elapsedMs,
+      at: new Date().toISOString()
+    }));
 
     return Response.json({
       ok: true,
@@ -80,7 +106,9 @@ export async function GET(request: Request) {
       prioritySelected: priorityIds.length,
       priorityOffersUpdated,
       publication,
-      elapsedMs: Date.now() - startedAt
+      publicationDeferred,
+      timings: { selectionMs, refreshMs, publicationMs },
+      elapsedMs
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "symphonya_stock_sync_failed";
