@@ -1,613 +1,754 @@
 "use client";
 
-import { useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ColorStudioSelector, type ColorStudioShadeCandidate } from "./ColorStudioSelector";
+import {
+  BUILD_MODULES,
+  INSULATION_GOALS,
+  INSULATION_LOCATIONS,
+  REPAIR_ISSUES,
+  REPAIR_SEVERITIES,
+  WATERPROOF_LOCATIONS,
+  WATERPROOF_PROBLEMS,
+  recommendInsulation,
+  recommendRepair,
+  recommendWaterproofing,
+  type BuildChoice,
+  type BuildModuleKey,
+  type BuildProjectRecommendation
+} from "../lib/build-consultant";
 import {
   PAINT_MOODS,
   PAINT_SURFACES,
-  paintMood,
   paintSurface,
   recommendPaintProject,
-  type PaintMoodKey,
   type PaintSurfaceKey
 } from "../lib/paint-consultant";
 import styles from "./PaintBuildStudioExperience.module.css";
 
-type Step = 1 | 2 | 3;
-type ColourMode = "mood" | "exact" | "photo";
+type StudioScreen =
+  | "hub"
+  | "paint-surface"
+  | "paint-condition"
+  | "paint-area"
+  | "paint-color"
+  | "paint-result"
+  | "waterproof-location"
+  | "waterproof-problem"
+  | "waterproof-area"
+  | "waterproof-result"
+  | "insulation-location"
+  | "insulation-goal"
+  | "insulation-area"
+  | "insulation-result"
+  | "repair-issue"
+  | "repair-severity"
+  | "repair-area"
+  | "repair-result";
 
 const AREA_PRESETS = [
-  { value: 12, label: "Μικρό", hint: "≈ 12 m²" },
-  { value: 25, label: "Μεσαίο", hint: "≈ 25 m²" },
+  { value: 8, label: "Μικρό", hint: "≈ 8 m²" },
+  { value: 20, label: "Μεσαίο", hint: "≈ 20 m²" },
   { value: 40, label: "Μεγάλο", hint: "≈ 40 m²" },
-  { value: 70, label: "Πολύ μεγάλο", hint: "≈ 70 m²" }
+  { value: 80, label: "Πολύ μεγάλο", hint: "≈ 80 m²" }
 ] as const;
 
-function packageLabel(sizeL: number): string {
-  if (sizeL < 1) return `${Math.round(sizeL * 1000)} ml`;
-  return Number.isInteger(sizeL) ? `${sizeL} L` : `${sizeL.toLocaleString("el-GR")} L`;
+const PAINT_SHADE_CANDIDATES: readonly ColorStudioShadeCandidate[] = PAINT_MOODS.flatMap((mood) =>
+  mood.colours.map((hex, index) => ({
+    id: `${mood.key}-${index + 1}`,
+    label: `${mood.paletteName} ${index + 1}`,
+    hex
+  }))
+);
+
+const PAINT_SURFACE_CHOICES = PAINT_SURFACES.filter((surface) => surface.key !== "roof");
+
+const PREVIOUS_SCREEN: Partial<Record<StudioScreen, StudioScreen>> = {
+  "paint-surface": "hub",
+  "paint-condition": "paint-surface",
+  "paint-area": "paint-condition",
+  "paint-color": "paint-area",
+  "paint-result": "paint-color",
+  "waterproof-location": "hub",
+  "waterproof-problem": "waterproof-location",
+  "waterproof-area": "waterproof-problem",
+  "waterproof-result": "waterproof-area",
+  "insulation-location": "hub",
+  "insulation-goal": "insulation-location",
+  "insulation-area": "insulation-goal",
+  "insulation-result": "insulation-area",
+  "repair-issue": "hub",
+  "repair-severity": "repair-issue",
+  "repair-area": "repair-severity",
+  "repair-result": "repair-area"
+};
+
+const MODULE_SCREEN_COUNT: Record<BuildModuleKey, number> = {
+  paint: 5,
+  waterproofing: 4,
+  insulation: 4,
+  repair: 4
+};
+
+const SCREEN_STEP: Partial<Record<StudioScreen, number>> = {
+  "paint-surface": 1,
+  "paint-condition": 2,
+  "paint-area": 3,
+  "paint-color": 4,
+  "paint-result": 5,
+  "waterproof-location": 1,
+  "waterproof-problem": 2,
+  "waterproof-area": 3,
+  "waterproof-result": 4,
+  "insulation-location": 1,
+  "insulation-goal": 2,
+  "insulation-area": 3,
+  "insulation-result": 4,
+  "repair-issue": 1,
+  "repair-severity": 2,
+  "repair-area": 3,
+  "repair-result": 4
+};
+
+function firstScreen(module: BuildModuleKey): StudioScreen {
+  if (module === "paint") return "paint-surface";
+  if (module === "waterproofing") return "waterproof-location";
+  if (module === "insulation") return "insulation-location";
+  return "repair-issue";
 }
 
-function safeHex(value: string): string {
-  return /^#[0-9A-Fa-f]{6}$/.test(value) ? value.toUpperCase() : "#F4F0E7";
+function moduleFromScreen(screen: StudioScreen): BuildModuleKey | undefined {
+  if (screen.startsWith("paint-")) return "paint";
+  if (screen.startsWith("waterproof-")) return "waterproofing";
+  if (screen.startsWith("insulation-")) return "insulation";
+  if (screen.startsWith("repair-")) return "repair";
+  return undefined;
+}
+
+function selectedChoiceLabel(choices: readonly BuildChoice[], key: string): string {
+  return choices.find((choice) => choice.key === key)?.label ?? key;
 }
 
 export function PaintBuildStudioExperience() {
-  const [step, setStep] = useState<Step>(1);
-  const [surfaceKey, setSurfaceKey] = useState<PaintSurfaceKey>("interior-wall");
-  const [conditionKey, setConditionKey] = useState("sound");
-  const [areaM2, setAreaM2] = useState(28);
-  const [moodKey, setMoodKey] = useState<PaintMoodKey>("bright");
-  const [selectedColour, setSelectedColour] = useState("#F4F0E7");
-  const [colourMode, setColourMode] = useState<ColourMode>("mood");
-  const [photoUrl, setPhotoUrl] = useState<string>();
-  const [photoName, setPhotoName] = useState<string>();
-  const [photoError, setPhotoError] = useState<string>();
+  const [screen, setScreen] = useState<StudioScreen>("hub");
 
-  const photoCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [paintSurfaceKey, setPaintSurfaceKey] = useState<PaintSurfaceKey>("interior-wall");
+  const [paintConditionKey, setPaintConditionKey] = useState("sound");
+  const [paintArea, setPaintArea] = useState(28);
+  const [paintColour, setPaintColour] = useState("#C4A68C");
 
-  const surface = paintSurface(surfaceKey);
-  const mood = paintMood(moodKey);
-  const condition = surface.conditions.find((item) => item.key === conditionKey) ?? surface.conditions[0];
+  const [waterproofLocation, setWaterproofLocation] = useState("roof");
+  const [waterproofProblem, setWaterproofProblem] = useState("maintenance");
+  const [waterproofArea, setWaterproofArea] = useState(40);
 
-  const recommendation = useMemo(
-    () => recommendPaintProject({
-      surfaceKey,
-      conditionKey,
-      areaM2,
-      selectedColour
-    }),
-    [areaM2, conditionKey, selectedColour, surfaceKey]
-  );
+  const [insulationLocation, setInsulationLocation] = useState("facade");
+  const [insulationGoal, setInsulationGoal] = useState("both");
+  const [insulationArea, setInsulationArea] = useState(60);
 
-  function chooseSurface(nextKey: PaintSurfaceKey) {
-    const next = paintSurface(nextKey);
-    setSurfaceKey(nextKey);
-    setConditionKey(next.conditions[0].key);
-    setAreaM2(next.defaultAreaM2);
-    if (!next.colourRelevant) {
-      setSelectedColour("#F6F6F1");
-      setColourMode("mood");
-    }
-  }
+  const [repairIssue, setRepairIssue] = useState("hairline");
+  const [repairSeverity, setRepairSeverity] = useState("local");
+  const [repairArea, setRepairArea] = useState(10);
 
-  function chooseMood(nextMood: PaintMoodKey) {
-    const next = paintMood(nextMood);
-    setMoodKey(nextMood);
-    setSelectedColour(next.colours[0]);
-  }
+  const activeModuleKey = moduleFromScreen(screen);
+  const activeModule = BUILD_MODULES.find((module) => module.key === activeModuleKey);
+  const step = SCREEN_STEP[screen];
+  const totalSteps = activeModuleKey ? MODULE_SCREEN_COUNT[activeModuleKey] : undefined;
 
-  function openPhotoShortcut() {
-    chooseSurface("interior-wall");
-    setConditionKey("sound");
-    setColourMode("photo");
-    setStep(2);
-    requestAnimationFrame(() => document.getElementById("paint-studio-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }
+  const paintSurfaceDefinition = paintSurface(paintSurfaceKey);
+  const paintCondition = paintSurfaceDefinition.conditions.find((condition) => condition.key === paintConditionKey)
+    ?? paintSurfaceDefinition.conditions[0];
 
-  function startGuided() {
-    setStep(1);
-    requestAnimationFrame(() => document.getElementById("paint-studio-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }
+  const paintRecommendation = useMemo(() => recommendPaintProject({
+    surfaceKey: paintSurfaceKey,
+    conditionKey: paintConditionKey,
+    areaM2: paintArea,
+    selectedColour: paintColour
+  }), [paintArea, paintColour, paintConditionKey, paintSurfaceKey]);
 
-  function onPhotoFile(file: File | undefined) {
-    setPhotoError(undefined);
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setPhotoError("Διάλεξε αρχείο εικόνας.");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setPhotoError("Η εικόνα πρέπει να είναι έως 10 MB.");
-      return;
-    }
+  const waterproofRecommendation = useMemo(() => recommendWaterproofing({
+    location: waterproofLocation,
+    problem: waterproofProblem,
+    areaM2: waterproofArea
+  }), [waterproofArea, waterproofLocation, waterproofProblem]);
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string") return;
-      setPhotoUrl(reader.result);
-      setPhotoName(file.name);
+  const insulationRecommendation = useMemo(() => recommendInsulation({
+    location: insulationLocation,
+    goal: insulationGoal,
+    areaM2: insulationArea
+  }), [insulationArea, insulationGoal, insulationLocation]);
+
+  const repairRecommendation = useMemo(() => recommendRepair({
+    issue: repairIssue,
+    severity: repairSeverity,
+    areaM2: repairArea
+  }), [repairArea, repairIssue, repairSeverity]);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previousOverscroll = document.body.style.overscrollBehavior;
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscroll;
     };
-    reader.onerror = () => setPhotoError("Δεν μπορέσαμε να διαβάσουμε αυτή την εικόνα.");
-    reader.readAsDataURL(file);
+  }, []);
+
+  function requestNativeFullscreen() {
+    if (typeof document === "undefined" || document.fullscreenElement) return;
+    void document.documentElement.requestFullscreen?.().catch(() => undefined);
   }
 
-  function preparePhotoCanvas(image: HTMLImageElement) {
-    const canvas = photoCanvasRef.current;
-    if (!canvas || !image.naturalWidth || !image.naturalHeight) return;
-    canvas.width = image.naturalWidth;
-    canvas.height = image.naturalHeight;
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    context?.drawImage(image, 0, 0, canvas.width, canvas.height);
+  function chooseModule(module: BuildModuleKey) {
+    requestNativeFullscreen();
+    setScreen(firstScreen(module));
   }
 
-  function samplePhotoColour(event: ReactMouseEvent<HTMLImageElement>) {
-    const image = event.currentTarget;
-    const canvas = photoCanvasRef.current;
-    if (!canvas || !image.naturalWidth || !image.naturalHeight) return;
-
-    const rect = image.getBoundingClientRect();
-    const scale = Math.max(rect.width / image.naturalWidth, rect.height / image.naturalHeight);
-    const renderedWidth = image.naturalWidth * scale;
-    const renderedHeight = image.naturalHeight * scale;
-    const cropX = Math.max(0, (renderedWidth - rect.width) / 2);
-    const cropY = Math.max(0, (renderedHeight - rect.height) / 2);
-    const visibleX = event.clientX - rect.left;
-    const visibleY = event.clientY - rect.top;
-    const x = Math.min(
-      canvas.width - 1,
-      Math.max(0, Math.floor((visibleX + cropX) / scale))
-    );
-    const y = Math.min(
-      canvas.height - 1,
-      Math.max(0, Math.floor((visibleY + cropY) / scale))
-    );
-    const data = canvas.getContext("2d", { willReadFrequently: true })?.getImageData(x, y, 1, 1).data;
-    if (!data) return;
-    const hex = `#${[data[0], data[1], data[2]].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`.toUpperCase();
-    setSelectedColour(hex);
+  function goBack() {
+    const previous = PREVIOUS_SCREEN[screen];
+    if (previous) setScreen(previous);
   }
 
-  const colourLabel = surface.colourRelevant
-    ? selectedColour
-    : "Τεχνική λευκή / ανακλαστική λύση";
+  function goHub() {
+    setScreen("hub");
+  }
+
+  function exitStudio() {
+    if (document.fullscreenElement) void document.exitFullscreen?.().catch(() => undefined);
+    if (window.history.length > 1) window.history.back();
+    else window.location.assign("/");
+  }
+
+  function choosePaintSurface(key: PaintSurfaceKey) {
+    const surface = paintSurface(key);
+    setPaintSurfaceKey(key);
+    setPaintConditionKey(surface.conditions[0].key);
+    setPaintArea(surface.defaultAreaM2);
+    setScreen("paint-condition");
+  }
 
   return (
-    <div className={styles.studio}>
-      <section className={styles.hero}>
-        <div className={styles.heroWash} aria-hidden="true">
-          <i /><i /><i />
-        </div>
-        <div className={styles.heroCopy}>
-          <span className={styles.eyebrow}>KONTA MOY · PAINT & BUILD STUDIO</span>
-          <h1>
-            Η ΤΕΛΕΙΑ
-            <em>ΠΙΝΕΛΙΑ</em>
-          </h1>
-          <p>
-            Πες μας τι βάφεις. Βρες την απόχρωσή σου. Εμείς μετατρέπουμε τις επιλογές σου
-            σε ένα απλό σχέδιο έργου με σωστό τύπο προϊόντος και ποσότητα.
-          </p>
-          <div className={styles.heroActions}>
-            <button type="button" className={styles.primaryAction} onClick={startGuided}>
-              Ξεκίνα σε 3 βήματα <span aria-hidden="true">→</span>
+    <div className={styles.fullscreenStudio} role="application" aria-label="KONTA MOY Paint & Build Studio">
+      <header className={styles.studioHeader}>
+        <button type="button" className={styles.brandButton} onClick={goHub} aria-label="Paint & Build Studio αρχική">
+          <span>KONTA MOY</span>
+          <strong>PAINT & BUILD STUDIO</strong>
+        </button>
+
+        {screen !== "hub" && activeModule ? (
+          <div className={styles.headerProject}>
+            <span>{activeModule.eyebrow}</span>
+            <strong>{activeModule.subtitle}</strong>
+          </div>
+        ) : (
+          <div className={styles.headerProject}>
+            <span>PROJECT FIRST</span>
+            <strong>Πες μας τι θέλεις να κάνεις</strong>
+          </div>
+        )}
+
+        <div className={styles.headerActions}>
+          {screen !== "hub" ? (
+            <button type="button" className={styles.headerBack} onClick={goBack} aria-label="Πίσω">
+              ←
             </button>
-            <button type="button" className={styles.photoAction} onClick={openPhotoShortcut}>
-              <span aria-hidden="true">◎</span> Δείξε μας τον χώρο σου
-            </button>
+          ) : null}
+          <button type="button" className={styles.exitButton} onClick={exitStudio} aria-label="Έξοδος από το Studio">
+            ×
+          </button>
+        </div>
+      </header>
+
+      {screen !== "hub" && step && totalSteps ? (
+        <div className={styles.progressShell}>
+          <div className={styles.progressMeta}>
+            <span>{String(step).padStart(2, "0")} / {String(totalSteps).padStart(2, "0")}</span>
+            <strong>{activeModule?.title}</strong>
           </div>
-          <div className={styles.heroTrust}>
-            <span>Χωρίς τεχνικές γνώσεις</span>
-            <span>Χωρίς ατελείωτα φίλτρα</span>
-            <span>Τεχνικοί κανόνες κάτω από το UI</span>
+          <div className={styles.progressTrack}>
+            <span style={{ width: `${(step / totalSteps) * 100}%` }} />
           </div>
         </div>
+      ) : null}
 
-        <aside className={styles.heroBoard} aria-label="Παράδειγμα Paint Consultant">
-          <div className={styles.boardTop}>
-            <span>PROJECT 01</span>
-            <b>LIVE CONSULTANT</b>
-          </div>
-          <div className={styles.boardRoom}>
-            <div className={styles.boardWall} style={{ background: selectedColour }} />
-            <div className={styles.boardFloor} />
-            <span className={styles.boardSofa} />
-            <span className={styles.boardTable} />
-            <div className={styles.paintStroke} aria-hidden="true" />
-          </div>
-          <div className={styles.boardMeta}>
-            <div>
-              <small>ΤΩΡΑ ΕΠΙΛΕΓΜΕΝΟ</small>
-              <strong>{surface.shortLabel}</strong>
-            </div>
-            <div className={styles.boardSwatch} style={{ background: selectedColour }} aria-hidden="true" />
-          </div>
-        </aside>
-      </section>
-
-      <section className={styles.workspace} id="paint-studio-workspace" aria-labelledby="paint-studio-title">
-        <div className={styles.workspaceHeading}>
-          <div>
-            <span className={styles.eyebrow}>PAINT CONSULTANT</span>
-            <h2 id="paint-studio-title">Το έργο σου, χωρίς την τεχνική σύγχυση.</h2>
-          </div>
-          <p>
-            Οι ερωτήσεις αλλάζουν ανάλογα με την επιφάνεια. Η τελική πρόταση παραμένει
-            συμβατή με τους κανόνες του έργου — όχι με ελεύθερη «μαντεψιά» AI.
-          </p>
-        </div>
-
-        <nav className={styles.steps} aria-label="Βήματα Paint Consultant">
-          {([
-            [1, "Το έργο σου"],
-            [2, "Το στυλ σου"],
-            [3, "Η λύση σου"]
-          ] as const).map(([number, label]) => (
-            <button
-              key={number}
-              type="button"
-              className={step === number ? styles.stepActive : step > number ? styles.stepDone : ""}
-              onClick={() => setStep(number)}
-              aria-current={step === number ? "step" : undefined}
-            >
-              <span>{step > number ? "✓" : number}</span>
-              <strong>{label}</strong>
-            </button>
-          ))}
-        </nav>
-
-        {step === 1 ? (
-          <div className={styles.panel}>
-            <div className={styles.panelIntro}>
-              <span>ΒΗΜΑ 01</span>
-              <h3>Τι θέλεις να βάψεις;</h3>
-              <p>Διάλεξε την επιφάνεια. Θα εμφανίσουμε μόνο τις πληροφορίες που έχουν σημασία γι’ αυτή.</p>
+      <main className={styles.screenViewport}>
+        {screen === "hub" ? (
+          <section className={styles.hubScreen}>
+            <div className={styles.hubIntro}>
+              <span className={styles.kicker}>BUILD STUDIO · BETA</span>
+              <h1>Τι θέλεις<br /><em>να φτιάξεις;</em></h1>
+              <p>
+                Μην ψάχνεις προϊόντα ένα-ένα. Ξεκίνα από το έργο σου και το ΚΟΝΤΑ ΜΟΥ θα σε οδηγήσει
+                στη σωστή κατηγορία υλικών, βήμα-βήμα.
+              </p>
             </div>
 
-            <div className={styles.surfaceGrid}>
-              {PAINT_SURFACES.map((item) => (
+            <div className={styles.moduleGrid}>
+              {BUILD_MODULES.map((module) => (
                 <button
                   type="button"
-                  key={item.key}
-                  className={surfaceKey === item.key ? styles.surfaceSelected : styles.surfaceCard}
-                  onClick={() => chooseSurface(item.key)}
-                  aria-pressed={surfaceKey === item.key}
+                  key={module.key}
+                  className={styles.moduleCard}
+                  onClick={() => chooseModule(module.key)}
                 >
-                  <span className={styles.surfaceIcon} aria-hidden="true">{item.icon}</span>
-                  <strong>{item.label}</strong>
-                  <small>{item.intro}</small>
+                  <span className={styles.moduleIcon} aria-hidden="true">{module.icon}</span>
+                  <small>{module.eyebrow}</small>
+                  <h2>{module.title}</h2>
+                  <strong>{module.subtitle}</strong>
+                  <p>{module.description}</p>
                   <i aria-hidden="true">→</i>
                 </button>
               ))}
             </div>
-
-            <div className={styles.contextGrid}>
-              <div className={styles.contextBlock}>
-                <div className={styles.contextHead}>
-                  <span>ΚΑΤΑΣΤΑΣΗ</span>
-                  <strong>Πώς είναι τώρα η επιφάνεια;</strong>
-                </div>
-                <div className={styles.conditionList}>
-                  {surface.conditions.map((item) => (
-                    <button
-                      key={item.key}
-                      type="button"
-                      className={conditionKey === item.key ? styles.conditionSelected : ""}
-                      onClick={() => setConditionKey(item.key)}
-                    >
-                      <span>{conditionKey === item.key ? "●" : "○"}</span>
-                      <div><strong>{item.label}</strong><small>{item.hint}</small></div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className={styles.contextBlock}>
-                <div className={styles.contextHead}>
-                  <span>ΜΕΓΕΘΟΣ</span>
-                  <strong>Πόση επιφάνεια περίπου;</strong>
-                </div>
-                <div className={styles.areaPresets}>
-                  {AREA_PRESETS.map((item) => (
-                    <button
-                      key={item.value}
-                      type="button"
-                      className={areaM2 === item.value ? styles.areaSelected : ""}
-                      onClick={() => setAreaM2(item.value)}
-                    >
-                      <strong>{item.label}</strong>
-                      <small>{item.hint}</small>
-                    </button>
-                  ))}
-                </div>
-                <label className={styles.areaInput}>
-                  <span>Ξέρω τα ακριβή m²</span>
-                  <div>
-                    <input
-                      type="number"
-                      min={1}
-                      max={1000}
-                      step={1}
-                      inputMode="decimal"
-                      value={areaM2}
-                      onChange={(event) => setAreaM2(Math.min(1000, Math.max(1, Number(event.target.value) || 1)))}
-                    />
-                    <b>m²</b>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            <div className={styles.panelFooter}>
-              <div>
-                <small>ΕΠΙΛΟΓΗ</small>
-                <strong>{surface.label} · {condition.label} · {areaM2} m²</strong>
-              </div>
-              <button type="button" className={styles.nextAction} onClick={() => setStep(2)}>
-                Συνέχεια στο χρώμα <span aria-hidden="true">→</span>
-              </button>
-            </div>
-          </div>
+          </section>
         ) : null}
 
-        {step === 2 ? (
-          <div className={styles.panel}>
-            <div className={styles.panelIntro}>
-              <span>ΒΗΜΑ 02</span>
-              <h3>{surface.colourRelevant ? "Πώς θέλεις να δείχνει;" : "Τι θέλεις να πετύχεις;"}</h3>
+        {screen === "paint-surface" ? (
+          <ChoiceScreen
+            kicker="Η ΤΕΛΕΙΑ ΠΙΝΕΛΙΑ · 01"
+            title="Τι θέλεις να βάψεις;"
+            body="Μία επιλογή μόνο. Μετά θα ρωτήσουμε μόνο ό,τι έχει σημασία για αυτή την επιφάνεια."
+          >
+            <div className={styles.choiceGrid}>
+              {PAINT_SURFACE_CHOICES.map((surface) => (
+                <button key={surface.key} type="button" className={styles.choiceCard} onClick={() => choosePaintSurface(surface.key)}>
+                  <span aria-hidden="true">{surface.icon}</span>
+                  <strong>{surface.label}</strong>
+                  <small>{surface.intro}</small>
+                  <i>→</i>
+                </button>
+              ))}
+            </div>
+          </ChoiceScreen>
+        ) : null}
+
+        {screen === "paint-condition" ? (
+          <ChoiceScreen
+            kicker={paintSurfaceDefinition.label}
+            title="Πώς είναι τώρα η επιφάνεια;"
+            body="Αυτό καθορίζει την προεργασία, το αστάρι και το τελικό σύστημα."
+          >
+            <div className={styles.choiceStack}>
+              {paintSurfaceDefinition.conditions.map((condition) => (
+                <button
+                  key={condition.key}
+                  type="button"
+                  className={styles.choiceRow}
+                  onClick={() => {
+                    setPaintConditionKey(condition.key);
+                    setScreen("paint-area");
+                  }}
+                >
+                  <span className={styles.radioDot} aria-hidden="true">○</span>
+                  <div><strong>{condition.label}</strong><small>{condition.hint}</small></div>
+                  <i>→</i>
+                </button>
+              ))}
+            </div>
+          </ChoiceScreen>
+        ) : null}
+
+        {screen === "paint-area" ? (
+          <AreaScreen
+            title="Πόση επιφάνεια περίπου;"
+            body="Δεν χρειάζεται να είναι τέλειο. Μπορείς να γράψεις τα ακριβή m² αν τα γνωρίζεις."
+            area={paintArea}
+            onArea={setPaintArea}
+            onContinue={() => setScreen(paintSurfaceDefinition.colourRelevant ? "paint-color" : "paint-result")}
+          />
+        ) : null}
+
+        {screen === "paint-color" ? (
+          <section className={styles.colorScreen}>
+            <div className={styles.colorIntro}>
+              <span className={styles.kicker}>COLOR STUDIO · SHARED ENGINE</span>
+              <h1>Βρες την απόχρωσή σου.</h1>
               <p>
-                {surface.colourRelevant
-                  ? "Ξεκίνα από αίσθηση, ακριβή απόχρωση ή φωτογραφία. Δεν χρειάζεται να ξέρεις κωδικούς χρωμάτων."
-                  : "Στην ταράτσα προτεραιότητα έχει το σωστό τεχνικό σύστημα. Η απόχρωση είναι δευτερεύουσα."}
+                Είναι το ίδιο Color Studio interface: picker, φωτογραφία, ακριβές σημείο ή περιοχή,
+                παραλλαγές και κοντινές αποχρώσεις.
               </p>
             </div>
-
-            {surface.colourRelevant ? (
-              <>
-                <div className={styles.modeTabs} role="tablist" aria-label="Τρόπος επιλογής χρώματος">
-                  <button type="button" role="tab" aria-selected={colourMode === "mood"} onClick={() => setColourMode("mood")}>✨ Πρότεινέ μου</button>
-                  <button type="button" role="tab" aria-selected={colourMode === "exact"} onClick={() => setColourMode("exact")}>🎨 Ξέρω το χρώμα</button>
-                  <button type="button" role="tab" aria-selected={colourMode === "photo"} onClick={() => setColourMode("photo")}>◎ Από φωτογραφία</button>
-                </div>
-
-                {colourMode === "mood" ? (
-                  <div className={styles.moodLayout}>
-                    <div className={styles.moodGrid}>
-                      {PAINT_MOODS.map((item) => (
-                        <button
-                          type="button"
-                          key={item.key}
-                          className={moodKey === item.key ? styles.moodSelected : styles.moodCard}
-                          onClick={() => chooseMood(item.key)}
-                        >
-                          <div className={styles.moodPalette} aria-hidden="true">
-                            {item.colours.map((colour) => <i key={colour} style={{ background: colour }} />)}
-                          </div>
-                          <strong>{item.label}</strong>
-                          <small>{item.hint}</small>
-                          <span>{item.paletteName}</span>
-                        </button>
-                      ))}
-                    </div>
-
-                    <aside className={styles.paletteDetail}>
-                      <span>ΠΑΛΕΤΑ · {mood.paletteName}</span>
-                      <h4>Ποια απόχρωση σε τραβάει;</h4>
-                      <div className={styles.paletteChoices}>
-                        {mood.colours.map((colour, index) => (
-                          <button
-                            type="button"
-                            key={colour}
-                            aria-label={`Επιλογή απόχρωσης ${index + 1}: ${colour}`}
-                            aria-pressed={safeHex(selectedColour) === safeHex(colour)}
-                            style={{ background: colour }}
-                            onClick={() => setSelectedColour(colour)}
-                          >
-                            {safeHex(selectedColour) === safeHex(colour) ? <span>✓</span> : null}
-                          </button>
-                        ))}
-                      </div>
-                      <div className={styles.selectedColour}>
-                        <i style={{ background: selectedColour }} />
-                        <div><small>ΕΠΙΛΕΓΜΕΝΗ ΑΠΟΧΡΩΣΗ</small><strong>{safeHex(selectedColour)}</strong></div>
-                      </div>
-                    </aside>
-                  </div>
-                ) : null}
-
-                {colourMode === "exact" ? (
-                  <div className={styles.exactPicker}>
-                    <div className={styles.exactColour} style={{ background: selectedColour }}>
-                      <span>{safeHex(selectedColour)}</span>
-                    </div>
-                    <div className={styles.exactCopy}>
-                      <span>ΑΚΡΙΒΗΣ ΑΠΟΧΡΩΣΗ</span>
-                      <h4>Διάλεξε το χρώμα που έχεις στο μυαλό σου.</h4>
-                      <p>Στο επόμενο στάδιο θα μπορούμε να το αντιστοιχίσουμε σε πραγματικές συλλογές και κωδικούς κατασκευαστών.</p>
-                      <label>
-                        <span>Άνοιξε τον επιλογέα χρώματος</span>
-                        <input
-                          type="color"
-                          value={safeHex(selectedColour)}
-                          onChange={(event) => setSelectedColour(event.target.value.toUpperCase())}
-                        />
-                      </label>
-                    </div>
-                  </div>
-                ) : null}
-
-                {colourMode === "photo" ? (
-                  <div className={styles.photoPicker}>
-                    <div className={styles.photoStage}>
-                      {photoUrl ? (
-                        <>
-                          <img
-                            src={photoUrl}
-                            alt="Φωτογραφία αναφοράς για επιλογή χρώματος"
-                            onLoad={(event) => preparePhotoCanvas(event.currentTarget)}
-                            onClick={samplePhotoColour}
-                          />
-                          <canvas ref={photoCanvasRef} aria-hidden="true" />
-                          <span className={styles.photoHint}>Πάτησε πάνω στο χρώμα που θέλεις.</span>
-                        </>
-                      ) : (
-                        <label className={styles.photoDrop}>
-                          <span aria-hidden="true">◎</span>
-                          <strong>Ανέβασε φωτογραφία</strong>
-                          <small>χώρος · αντικείμενο · ύφασμα · έμπνευση</small>
-                          <input type="file" accept="image/*" onChange={(event) => onPhotoFile(event.target.files?.[0])} />
-                        </label>
-                      )}
-                    </div>
-                    <div className={styles.photoCopy}>
-                      <span>PHOTO TO PAINT · LOCAL PREVIEW</span>
-                      <h4>Πάρε ένα χρώμα από αυτό που ήδη αγαπάς.</h4>
-                      <p>
-                        Η φωτογραφία χρησιμοποιείται εδώ στον browser για να διαλέξεις χρώμα.
-                        Η πρώτη έκδοση δεν χρειάζεται να ανεβάσει τη φωτογραφία στον server.
-                      </p>
-                      {photoUrl ? (
-                        <label className={styles.replacePhoto}>
-                          Αλλαγή φωτογραφίας
-                          <input type="file" accept="image/*" onChange={(event) => onPhotoFile(event.target.files?.[0])} />
-                        </label>
-                      ) : null}
-                      {photoName ? <small className={styles.photoName}>{photoName}</small> : null}
-                      {photoError ? <p className={styles.photoError} role="alert">{photoError}</p> : null}
-                      <div className={styles.selectedColour}>
-                        <i style={{ background: selectedColour }} />
-                        <div><small>ΧΡΩΜΑ ΑΠΟ ΦΩΤΟΓΡΑΦΙΑ</small><strong>{safeHex(selectedColour)}</strong></div>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <div className={styles.technicalGoal}>
-                <div>
-                  <span aria-hidden="true">≋</span>
-                  <strong>Στεγανότητα πρώτα</strong>
-                  <p>Η πρόταση θα βασιστεί στην κατάσταση της ταράτσας, στην κάλυψη και στη συμβατότητα του συστήματος.</p>
-                </div>
-                <div>
-                  <span aria-hidden="true">☀</span>
-                  <strong>Ανακλαστικό τελείωμα</strong>
-                  <p>Όπου το τεχνικό προϊόν το υποστηρίζει, προτιμάται ανοιχτό / λευκό τελικό φινίρισμα.</p>
-                </div>
-              </div>
-            )}
-
-            <div className={styles.panelFooter}>
-              <button type="button" className={styles.backAction} onClick={() => setStep(1)}>← Πίσω</button>
-              <div className={styles.footerColour}>
-                <i style={{ background: selectedColour }} />
-                <span>{colourLabel}</span>
-              </div>
-              <button type="button" className={styles.nextAction} onClick={() => setStep(3)}>
-                Δείξε μου τη λύση <span aria-hidden="true">→</span>
-              </button>
+            <div className={styles.colorSelectorWrap}>
+              <ColorStudioSelector
+                value={paintColour}
+                onChange={setPaintColour}
+                onConfirm={() => setScreen("paint-result")}
+                shadeCandidates={PAINT_SHADE_CANDIDATES}
+                photoKicker="PHOTO TO PAINT · PRIVATE"
+                photoTitle="Πάρε το χρώμα από τον χώρο σου."
+                photoBody="Διάλεξε χρώμα από τοίχο, ύφασμα, έπιπλο ή οποιαδήποτε έμπνευση."
+              />
             </div>
-          </div>
+          </section>
         ) : null}
 
-        {step === 3 ? (
-          <div className={styles.resultPanel}>
-            <div className={styles.resultHero}>
-              <div className={styles.resultHeadline}>
-                <span>ΒΗΜΑ 03 · Η ΠΡΟΤΑΣΗ ΣΟΥ</span>
-                <h3>Αυτό χρειάζεσαι.</h3>
-                <p>
-                  Η πρόταση ξεκινά από την επιφάνεια και το πρόβλημα, όχι από τη μάρκα.
-                  Όταν συνδεθούν τα paint SKUs, θα εμφανίζονται όλες οι πραγματικά συμβατές και διαθέσιμες επιλογές —
-                  ακόμη κι αν δύο διαφορετικά προϊόντα δίνουν την ίδια ή πολύ κοντινή απόχρωση.
-                </p>
-              </div>
-              <div className={styles.resultColour}>
-                <div style={{ background: recommendation.selectedColour }} />
-                <small>{surface.colourRelevant ? "ΕΠΙΛΕΓΜΕΝΟ ΧΡΩΜΑ" : "ΤΕΧΝΙΚΟ ΤΕΛΕΙΩΜΑ"}</small>
-                <strong>{surface.colourRelevant ? recommendation.selectedColour : "LIGHT / WHITE"}</strong>
-              </div>
-            </div>
+        {screen === "paint-result" ? (
+          <ResultScreen
+            eyebrow="Η ΤΕΛΕΙΑ ΠΙΝΕΛΙΑ · Η ΛΥΣΗ ΣΟΥ"
+            title={paintRecommendation.systemName}
+            summary={`${paintSurfaceDefinition.label} · ${paintCondition.label} · ${paintArea} m²`}
+            layers={[
+              ...(paintRecommendation.primerRequired && paintRecommendation.primerLabel
+                ? [paintRecommendation.primerLabel]
+                : []),
+              paintRecommendation.topcoatLabel
+            ]}
+            preparation={paintRecommendation.preparation}
+            warnings={paintRecommendation.warnings}
+            quantity={`${paintRecommendation.litresNeeded.toLocaleString("el-GR")} L περίπου · ${paintRecommendation.packages.map((pack) => `${pack.quantity} × ${pack.sizeL} L`).join(" + ")}`}
+            searchHref={paintRecommendation.searchHref}
+            colour={paintColour}
+            onRestart={goHub}
+          />
+        ) : null}
 
-            <div className={styles.resultGrid}>
-              <article className={styles.systemCard}>
-                <span>01 · ΣΥΣΤΗΜΑ</span>
-                <h4>{recommendation.systemName}</h4>
-                <div className={styles.systemLine}>
-                  <small>Τελικό προϊόν</small>
-                  <strong>{recommendation.topcoatLabel}</strong>
-                </div>
-                <div className={styles.systemLine}>
-                  <small>Φινίρισμα</small>
-                  <strong>{recommendation.finishLabel}</strong>
-                </div>
-                <div className={styles.systemLine}>
-                  <small>Αστάρι</small>
-                  <strong>{recommendation.primerRequired ? recommendation.primerLabel : "Δεν προκύπτει ως υποχρεωτικό από τις επιλογές σου"}</strong>
-                </div>
-              </article>
+        {screen === "waterproof-location" ? (
+          <ChoiceScreen kicker="ΣΤΕΓΑΝΟΠΟΙΗΣΗ · 01" title="Πού εμφανίζεται το πρόβλημα;" body="Ξεκινάμε από το σημείο, όχι από το προϊόν.">
+            <BuildChoices
+              choices={WATERPROOF_LOCATIONS}
+              onChoose={(key) => {
+                setWaterproofLocation(key);
+                setScreen("waterproof-problem");
+              }}
+            />
+          </ChoiceScreen>
+        ) : null}
 
-              <article className={styles.quantityCard}>
-                <span>02 · ΠΟΣΟΤΗΤΑ</span>
-                <div className={styles.litreNumber}>
-                  <strong>{recommendation.litresNeeded.toLocaleString("el-GR")}</strong>
-                  <small>L περίπου</small>
-                </div>
-                <p>
-                  Για {recommendation.areaM2.toLocaleString("el-GR")} m² · {recommendation.coats} χέρια ·
-                  {" "}θεωρητική κάλυψη {recommendation.coverageM2PerL.toLocaleString("el-GR")} m²/L ·
-                  {" "}{recommendation.wastagePercent}% περιθώριο.
-                </p>
-                <div className={styles.packagePlan}>
-                  {recommendation.packages.map((pack) => (
-                    <div key={pack.sizeL}>
-                      <strong>{pack.quantity} × {packageLabel(pack.sizeL)}</strong>
-                      <small>{(pack.quantity * pack.sizeL).toLocaleString("el-GR")} L</small>
-                    </div>
-                  ))}
-                </div>
-                <small className={styles.packageTotal}>Συσκευασμένα: {recommendation.totalPackagedLitres.toLocaleString("el-GR")} L</small>
-              </article>
+        {screen === "waterproof-problem" ? (
+          <ChoiceScreen
+            kicker={selectedChoiceLabel(WATERPROOF_LOCATIONS, waterproofLocation)}
+            title="Τι συμβαίνει;"
+            body="Το σύστημα αλλάζει ανάλογα με την αιτία και την κατάσταση της επιφάνειας."
+          >
+            <BuildChoices
+              choices={WATERPROOF_PROBLEMS}
+              onChoose={(key) => {
+                setWaterproofProblem(key);
+                setScreen("waterproof-area");
+              }}
+            />
+          </ChoiceScreen>
+        ) : null}
 
-              <article className={styles.prepCard}>
-                <span>03 · ΠΡΙΝ ΤΟ ΒΑΨΙΜΟ</span>
-                <ol>
-                  {recommendation.preparation.map((item) => <li key={item}>{item}</li>)}
-                </ol>
-              </article>
-            </div>
+        {screen === "waterproof-area" ? (
+          <AreaScreen
+            title="Πόση επιφάνεια αφορά;"
+            body="Θα χρησιμοποιηθεί για το project summary και αργότερα για ακριβή κατανάλωση ανά προϊόν."
+            area={waterproofArea}
+            onArea={setWaterproofArea}
+            onContinue={() => setScreen("waterproof-result")}
+          />
+        ) : null}
 
-            <div className={styles.multiResultNote}>
-              <span>ΠΟΛΛΑ ΑΠΟΤΕΛΕΣΜΑΤΑ, ΟΧΙ ΕΝΑΣ «ΝΙΚΗΤΗΣ»</span>
-              <div>
-                <strong>Η ίδια απόχρωση μπορεί να έχει περισσότερες από μία σωστές επιλογές.</strong>
-                <p>
-                  Δεν συγχωνεύουμε προϊόντα επειδή έχουν ίδιο χρώμα. Αν δύο ή περισσότερα χρώματα καλύπτουν το ίδιο
-                  τεχνικό σύστημα και την ίδια / κοντινή απόχρωση, θα εμφανίζονται ξεχωριστά ώστε να συγκρίνεις μάρκα,
-                  τιμή, διαθεσιμότητα, φινίρισμα και συσκευασία.
-                </p>
-              </div>
-            </div>
+        {screen === "waterproof-result" ? (
+          <BuildResult
+            eyebrow="ΣΤΕΓΑΝΟΠΟΙΗΣΗ · Η ΛΥΣΗ ΣΟΥ"
+            recommendation={waterproofRecommendation}
+            context={`${selectedChoiceLabel(WATERPROOF_LOCATIONS, waterproofLocation)} · ${selectedChoiceLabel(WATERPROOF_PROBLEMS, waterproofProblem)}`}
+            onRestart={goHub}
+          />
+        ) : null}
 
-            {recommendation.warnings.length ? (
-              <div className={styles.warningBox} role="note">
-                <span aria-hidden="true">!</span>
-                <div>
-                  <strong>Σημαντικό πριν ξεκινήσεις</strong>
-                  {recommendation.warnings.map((warning) => <p key={warning}>{warning}</p>)}
-                </div>
-              </div>
-            ) : null}
+        {screen === "insulation-location" ? (
+          <ChoiceScreen kicker="ΘΕΡΜΟΜΟΝΩΣΗ · 01" title="Πού θέλεις να μονώσεις;" body="Η θέση της μόνωσης αλλάζει ολόκληρη τη δομή του συστήματος.">
+            <BuildChoices
+              choices={INSULATION_LOCATIONS}
+              onChoose={(key) => {
+                setInsulationLocation(key);
+                setScreen("insulation-goal");
+              }}
+            />
+          </ChoiceScreen>
+        ) : null}
 
-            <div className={styles.whyBlock}>
-              <div>
-                <span>ΓΙΑΤΙ ΑΥΤΗ Η ΛΥΣΗ</span>
-                <h4>{surface.label} · {condition.label}</h4>
-              </div>
-              <ul>
-                {recommendation.reasons.map((reason) => <li key={reason}>{reason}</li>)}
-                <li>Η ποσότητα υπολογίζεται από την επιφάνεια, τα χέρια, τη θεωρητική κάλυψη και ένα μικρό περιθώριο.</li>
-              </ul>
-            </div>
+        {screen === "insulation-goal" ? (
+          <ChoiceScreen
+            kicker={selectedChoiceLabel(INSULATION_LOCATIONS, insulationLocation)}
+            title="Τι θέλεις να βελτιώσεις;"
+            body="Η απάντηση βοηθά το Studio να τονίσει τις σωστές τεχνικές απαιτήσεις."
+          >
+            <BuildChoices
+              choices={INSULATION_GOALS}
+              onChoose={(key) => {
+                setInsulationGoal(key);
+                setScreen("insulation-area");
+              }}
+            />
+          </ChoiceScreen>
+        ) : null}
 
-            <div className={styles.resultActions}>
-              <a className={styles.primaryAction} href={recommendation.searchHref}>
-                Δες όλες τις συμβατές επιλογές <span aria-hidden="true">→</span>
-              </a>
-              <a className={styles.secondaryAction} href="/ask-local">Ρώτησε ένα κατάστημα</a>
-              <button type="button" className={styles.secondaryAction} onClick={() => setStep(2)}>Άλλαξε χρώμα</button>
-              <button type="button" className={styles.textAction} onClick={() => setStep(1)}>Νέο έργο</button>
-            </div>
+        {screen === "insulation-area" ? (
+          <AreaScreen
+            title="Πόση επιφάνεια αφορά;"
+            body="Το πάχος της μόνωσης θα προστεθεί αργότερα όταν συνδεθούν πλήρη τεχνικά συστήματα."
+            area={insulationArea}
+            onArea={setInsulationArea}
+            onContinue={() => setScreen("insulation-result")}
+          />
+        ) : null}
 
-            <div className={styles.engineNote}>
-              <span>COMPATIBILITY ENGINE</span>
-              <p>
-                Το interface είναι απλό, αλλά η τελική αντιστοίχιση είναι κανόνας: επιφάνεια → κατάσταση →
-                προεργασία → αστάρι → τελικό σύστημα → ποσότητα. Η μάρκα έρχεται μετά.
-              </p>
-            </div>
+        {screen === "insulation-result" ? (
+          <BuildResult
+            eyebrow="ΘΕΡΜΟΜΟΝΩΣΗ · Η ΛΥΣΗ ΣΟΥ"
+            recommendation={insulationRecommendation}
+            context={`${selectedChoiceLabel(INSULATION_LOCATIONS, insulationLocation)} · ${selectedChoiceLabel(INSULATION_GOALS, insulationGoal)}`}
+            onRestart={goHub}
+          />
+        ) : null}
+
+        {screen === "repair-issue" ? (
+          <ChoiceScreen kicker="ΕΠΙΣΚΕΥΗ ΤΟΙΧΟΥ · 01" title="Τι βλέπεις στον τοίχο;" body="Διάλεξε το πρόβλημα που μοιάζει περισσότερο με αυτό που έχεις μπροστά σου.">
+            <BuildChoices
+              choices={REPAIR_ISSUES}
+              onChoose={(key) => {
+                setRepairIssue(key);
+                setScreen("repair-severity");
+              }}
+            />
+          </ChoiceScreen>
+        ) : null}
+
+        {screen === "repair-severity" ? (
+          <ChoiceScreen
+            kicker={selectedChoiceLabel(REPAIR_ISSUES, repairIssue)}
+            title="Πόσο εκτεταμένη είναι η φθορά;"
+            body="Αυτό μας βοηθά να ξεχωρίσουμε μια απλή τοπική επισκευή από έργο που θέλει τεχνικό έλεγχο."
+          >
+            <BuildChoices
+              choices={REPAIR_SEVERITIES}
+              onChoose={(key) => {
+                setRepairSeverity(key);
+                setScreen("repair-area");
+              }}
+            />
+          </ChoiceScreen>
+        ) : null}
+
+        {screen === "repair-area" ? (
+          <AreaScreen
+            title="Πόση επιφάνεια περίπου;"
+            body="Αν είναι μόνο μια μικρή τοπική ζημιά, κράτησε τη μικρότερη επιλογή."
+            area={repairArea}
+            onArea={setRepairArea}
+            onContinue={() => setScreen("repair-result")}
+          />
+        ) : null}
+
+        {screen === "repair-result" ? (
+          <BuildResult
+            eyebrow="ΕΠΙΣΚΕΥΗ ΤΟΙΧΟΥ · Η ΛΥΣΗ ΣΟΥ"
+            recommendation={repairRecommendation}
+            context={`${selectedChoiceLabel(REPAIR_ISSUES, repairIssue)} · ${selectedChoiceLabel(REPAIR_SEVERITIES, repairSeverity)}`}
+            onRestart={goHub}
+          />
+        ) : null}
+      </main>
+    </div>
+  );
+}
+
+function ChoiceScreen({
+  kicker,
+  title,
+  body,
+  children
+}: {
+  kicker: string;
+  title: string;
+  body: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className={styles.decisionScreen}>
+      <div className={styles.decisionIntro}>
+        <span className={styles.kicker}>{kicker}</span>
+        <h1>{title}</h1>
+        <p>{body}</p>
+      </div>
+      <div className={styles.decisionCard}>{children}</div>
+    </section>
+  );
+}
+
+function BuildChoices({
+  choices,
+  onChoose
+}: {
+  choices: readonly BuildChoice[];
+  onChoose: (key: string) => void;
+}) {
+  return (
+    <div className={styles.choiceGrid}>
+      {choices.map((choice) => (
+        <button key={choice.key} type="button" className={styles.choiceCard} onClick={() => onChoose(choice.key)}>
+          <span aria-hidden="true">{choice.icon ?? "•"}</span>
+          <strong>{choice.label}</strong>
+          <small>{choice.hint}</small>
+          <i>→</i>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AreaScreen({
+  title,
+  body,
+  area,
+  onArea,
+  onContinue
+}: {
+  title: string;
+  body: string;
+  area: number;
+  onArea: (area: number) => void;
+  onContinue: () => void;
+}) {
+  return (
+    <ChoiceScreen kicker="ΜΕΓΕΘΟΣ ΕΡΓΟΥ" title={title} body={body}>
+      <div className={styles.areaCard}>
+        <div className={styles.areaPresets}>
+          {AREA_PRESETS.map((preset) => (
+            <button
+              key={preset.value}
+              type="button"
+              className={area === preset.value ? styles.areaSelected : ""}
+              onClick={() => onArea(preset.value)}
+            >
+              <strong>{preset.label}</strong>
+              <small>{preset.hint}</small>
+            </button>
+          ))}
+        </div>
+
+        <label className={styles.areaExact}>
+          <span>ΑΚΡΙΒΗ m²</span>
+          <div>
+            <input
+              type="number"
+              min={1}
+              max={1000}
+              inputMode="decimal"
+              value={area}
+              onChange={(event) => onArea(Math.max(1, Math.min(1000, Number(event.target.value) || 1)))}
+            />
+            <strong>m²</strong>
+          </div>
+        </label>
+
+        <button type="button" className={styles.continueButton} onClick={onContinue}>
+          ΣΥΝΕΧΕΙΑ <span aria-hidden="true">→</span>
+        </button>
+      </div>
+    </ChoiceScreen>
+  );
+}
+
+function ResultScreen({
+  eyebrow,
+  title,
+  summary,
+  layers,
+  preparation,
+  warnings,
+  quantity,
+  searchHref,
+  colour,
+  onRestart
+}: {
+  eyebrow: string;
+  title: string;
+  summary: string;
+  layers: readonly string[];
+  preparation: readonly string[];
+  warnings: readonly string[];
+  quantity: string;
+  searchHref: string;
+  colour?: string;
+  onRestart: () => void;
+}) {
+  return (
+    <section className={styles.resultScreen}>
+      <div className={styles.resultIntro}>
+        <span className={styles.kicker}>{eyebrow}</span>
+        <h1>{title}</h1>
+        <p>{summary}</p>
+        {colour ? (
+          <div className={styles.resultSwatch}>
+            <span style={{ background: colour }} />
+            <div><small>ΤΟ ΧΡΩΜΑ ΣΟΥ</small><strong>{colour}</strong></div>
           </div>
         ) : null}
-      </section>
+      </div>
+
+      <div className={styles.resultCard}>
+        <ResultColumn number="01" title="Σύστημα" items={layers} />
+        <ResultColumn number="02" title="Προεργασία" items={preparation} />
+        <div className={styles.resultColumn}>
+          <span>03</span>
+          <h2>Ποσότητα</h2>
+          <p className={styles.quantityCopy}>{quantity}</p>
+        </div>
+      </div>
+
+      {warnings.length ? (
+        <div className={styles.warningPanel}>
+          <strong>Σημαντικό πριν ξεκινήσεις</strong>
+          {warnings.map((warning) => <p key={warning}>{warning}</p>)}
+        </div>
+      ) : null}
+
+      <div className={styles.resultActions}>
+        <a href={searchHref} className={styles.primaryAction}>ΔΕΣ ΟΛΕΣ ΤΙΣ ΣΥΜΒΑΤΕΣ ΕΠΙΛΟΓΕΣ →</a>
+        <a href="/ask-local" className={styles.secondaryAction}>ΡΩΤΗΣΕ ΕΝΑ ΚΑΤΑΣΤΗΜΑ</a>
+        <button type="button" className={styles.secondaryAction} onClick={onRestart}>ΝΕΟ ΕΡΓΟ</button>
+      </div>
+    </section>
+  );
+}
+
+function BuildResult({
+  eyebrow,
+  recommendation,
+  context,
+  onRestart
+}: {
+  eyebrow: string;
+  recommendation: BuildProjectRecommendation;
+  context: string;
+  onRestart: () => void;
+}) {
+  return (
+    <ResultScreen
+      eyebrow={eyebrow}
+      title={recommendation.title}
+      summary={`${context} · ${recommendation.areaM2} m² — ${recommendation.summary}`}
+      layers={recommendation.layers}
+      preparation={recommendation.preparation}
+      warnings={recommendation.warnings}
+      quantity={recommendation.quantityNote}
+      searchHref={recommendation.searchHref}
+      onRestart={onRestart}
+    />
+  );
+}
+
+function ResultColumn({
+  number,
+  title,
+  items
+}: {
+  number: string;
+  title: string;
+  items: readonly string[];
+}) {
+  return (
+    <div className={styles.resultColumn}>
+      <span>{number}</span>
+      <h2>{title}</h2>
+      <ol>
+        {items.length ? items.map((item) => <li key={item}>{item}</li>) : <li>Δεν απαιτείται επιπλέον βήμα.</li>}
+      </ol>
     </div>
   );
 }
