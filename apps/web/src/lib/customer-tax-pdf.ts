@@ -26,6 +26,7 @@ export function buildCustomerTaxPdfDefinition(doc: CustomerFiscalDocument): Reco
   const vendorSections = doc.vendorGroups.flatMap((group, index) => vendorSection(group, doc.currency, index));
   const billing = billingAddressLines(doc.billingAddress);
   const paymentMethod = paymentMethodLabel(doc.payment.method, doc.payment.mydataPaymentType);
+  const giftCards = giftCardRedemptions(doc);
   const content: unknown[] = [
     {
       columns: [
@@ -82,6 +83,8 @@ export function buildCustomerTaxPdfDefinition(doc: CustomerFiscalDocument): Reco
             detailTable([
               ["Πάροχος", providerLabel(doc.payment.provider)],
               ["Μέθοδος", paymentMethod],
+              ...giftCards.map((card, index) => [giftCardLabel(card, index, giftCards.length), money(card.amountMinor, doc.currency)] as const),
+              ...(giftCards.length ? [["Υπόλοιπο μέσω παρόχου", money(doc.grossMinor, doc.currency)] as const] : []),
               ...(doc.payment.transactionId ? [["UID / Transaction ID", doc.payment.transactionId] as const] : []),
               ...(doc.payment.providerOrderCode ? [["Κωδικός παρόχου", doc.payment.providerOrderCode] as const] : []),
               ...(doc.payment.tid ? [["TID", doc.payment.tid] as const] : [])
@@ -251,9 +254,11 @@ function identifierText(line: CustomerFiscalLine): string {
 
 function totalsTable(doc: CustomerFiscalDocument): Record<string, unknown> {
   const body: unknown[][] = [];
-  if (doc.subtotalMinor !== doc.grossMinor || doc.shippingMinor || doc.discountMinor) body.push(["Προϊόντα", money(doc.subtotalMinor, doc.currency)]);
+  const giftCards = giftCardRedemptions(doc);
+  if (doc.subtotalMinor !== doc.grossMinor || doc.shippingMinor || doc.discountMinor || giftCards.length) body.push(["Προϊόντα", money(doc.subtotalMinor, doc.currency)]);
   if (doc.shippingMinor) body.push(["Παράδοση", money(doc.shippingMinor, doc.currency)]);
   if (doc.discountMinor) body.push(["Έκπτωση", `-${money(doc.discountMinor, doc.currency)}`]);
+  giftCards.forEach((card, index) => body.push([giftCardLabel(card, index, giftCards.length), `-${money(card.amountMinor, doc.currency)}`]));
   body.push(["Καθαρή αξία", money(doc.netMinor, doc.currency)]);
   body.push(["ΦΠΑ", money(doc.taxMinor, doc.currency)]);
   body.push([{ text: "ΣΥΝΟΛΟ", bold: true, color: COLORS.white }, { text: money(doc.grossMinor, doc.currency), bold: true, color: COLORS.white, alignment: "right" }]);
@@ -270,6 +275,53 @@ function totalsTable(doc: CustomerFiscalDocument): Record<string, unknown> {
       fillColor: (rowIndex: number, node: any) => rowIndex === node.table.body.length - 1 ? COLORS.ink : COLORS.paper2
     }
   };
+}
+
+type GiftCardRedemption = Readonly<{ id?: string; codeSuffix?: string; amountMinor: number }>;
+
+function giftCardRedemptions(doc: CustomerFiscalDocument): readonly GiftCardRedemption[] {
+  const payload = recordValue(doc.payload);
+  const payment = recordValue(payload.payment);
+  const captured = Array.isArray(payment.giftCards) ? payment.giftCards : [];
+  const fromCapture = captured.flatMap((value): GiftCardRedemption[] => {
+    const card = recordValue(value);
+    const amountMinor = positiveMinor(card.amountMinor);
+    if (!amountMinor) return [];
+    const id = optionalString(card.id);
+    const codeSuffix = optionalString(card.codeSuffix);
+    return [{ ...(id ? { id } : {}), ...(codeSuffix ? { codeSuffix } : {}), amountMinor }];
+  });
+  if (fromCapture.length) return fromCapture;
+
+  const preparation = recordValue(payload.preparation);
+  const spv = recordValue(preparation.singlePurposeVoucher);
+  const prepared = Array.isArray(spv.cards) ? spv.cards : [];
+  return prepared.flatMap((value): GiftCardRedemption[] => {
+    const card = recordValue(value);
+    const amountMinor = positiveMinor(card.redeemedMinor);
+    if (!amountMinor) return [];
+    const id = optionalString(card.giftCardId);
+    return [{ ...(id ? { id } : {}), amountMinor }];
+  });
+}
+
+function giftCardLabel(card: GiftCardRedemption, index: number, count: number): string {
+  if (card.codeSuffix) return `Δωροκάρτα (εξόφληση) · κωδ. …${card.codeSuffix}`;
+  if (count > 1) return `Δωροκάρτα (εξόφληση) ${index + 1}`;
+  return "Δωροκάρτα (εξόφληση)";
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function positiveMinor(value: unknown): number | undefined {
+  const parsed = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function detailTable(rows: readonly (readonly [string, string])[]): Record<string, unknown> {
