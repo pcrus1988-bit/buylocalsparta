@@ -137,26 +137,14 @@ export async function getContextualVendorDropshipFacets(
 
   const result = await getProductionPostgresRuntime().nativePool.query<FacetProjectionRow>(`
     WITH suppliers AS MATERIALIZED (
-      SELECT ds.id,ds.id::text AS supplier_id,ds.code
+      SELECT ds.id,ds.id::text AS supplier_id
       FROM dropship_suppliers ds
       JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
       WHERE v.public_id=$1
         AND v.status='active'
         AND ds.active=true
         AND ds.api_authoritative_availability=true
-    ), stable AS MATERIALIZED (
-      SELECT fm.*
-      FROM public.storefront_dropship_family_filter_read_model_v2 fm
-      JOIN suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
-      WHERE fm.available_until>now()
-        AND NOT EXISTS (
-          SELECT 1
-          FROM bls_private.storefront_dropship_live_family live_shadow
-          WHERE live_shadow.supplier_id::text=fm.dropship_supplier_id
-            AND live_shadow.external_product_id=fm.dropship_external_product_id
-            AND live_shadow.available_until>now()
-        )
-    ), live_overlay AS MATERIALIZED (
+    ), base AS MATERIALIZED (
       SELECT
         lf.supplier_id::text AS dropship_supplier_id,
         lf.external_product_id AS dropship_external_product_id,
@@ -171,18 +159,10 @@ export async function getContextualVendorDropshipFacets(
       JOIN suppliers supplier ON supplier.id=lf.supplier_id
       WHERE lf.sellable=true
         AND lf.available_until>now()
-    ), base AS MATERIALIZED (
-      SELECT
-        fm.dropship_supplier_id,fm.dropship_external_product_id,
-        fm.category_codes,fm.brand_names_normalized,fm.colors,fm.sizes,fm.fits,fm.materials,fm.search_vector
-      FROM stable fm
-      WHERE $2::text='' OR ($9::text<>'' AND fm.search_vector @@ to_tsquery('simple',$9))
-      UNION ALL
-      SELECT
-        fm.dropship_supplier_id,fm.dropship_external_product_id,
-        fm.category_codes,fm.brand_names_normalized,fm.colors,fm.sizes,fm.fits,fm.materials,fm.search_vector
-      FROM live_overlay fm
-      WHERE $2::text='' OR ($9::text<>'' AND fm.search_vector @@ to_tsquery('simple',$9))
+        AND (
+          $2::text='' OR
+          ($9::text<>'' AND lf.search_vector @@ to_tsquery('simple',$9))
+        )
     ), label_map AS MATERIALIZED (
       SELECT DISTINCT facets.facet_type,facets.value,facets.label
       FROM public.storefront_dropship_vendor_facets facets
