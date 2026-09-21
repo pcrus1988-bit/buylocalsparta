@@ -1,4 +1,4 @@
-import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { getProductionPostgresRuntime } from "./postgres-runtime.ts";
 
 export type BuildGuidanceSourceLayer = "GENERAL_GUIDANCE" | "MANUFACTURER_VITEX" | "MANUFACTURER" | "KONTA_MOU_RULE";
 
