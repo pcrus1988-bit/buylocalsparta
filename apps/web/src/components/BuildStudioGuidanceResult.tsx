@@ -79,7 +79,7 @@ export function BuildStudioGuidanceResult({
   colour?: string;
   onRestart: () => void;
 }) {
-  const [guide, setGuide] = useState<CustomerGuide | null>(null);
+  const [guide, setGuide] = useState<CustomerGuide | null>(null);\n  const [selectedManufacturerProductId, setSelectedManufacturerProductId] = useState<string>();
   const [loadState, setLoadState] = useState<"loading" | "ready" | "unsupported" | "error">(
     scenarioRequest ? "loading" : "unsupported"
   );
