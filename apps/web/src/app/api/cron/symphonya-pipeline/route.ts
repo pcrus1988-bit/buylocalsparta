@@ -11,6 +11,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 55;
 
+const ALL_PHASE_PUBLICATION_START_DEADLINE_MS = 35_000;
+
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();
   const cronAuthorized = Boolean(cronSecret) && request.headers.get("authorization") === `Bearer ${cronSecret}`;
@@ -37,25 +39,54 @@ export async function GET(request: Request) {
   process.env.BLS_CATALOGUE_ENRICHMENT_PROMOTION_BATCH_SIZE = "50";
 
   try {
+    const startedAt = Date.now();
+    const timings: Record<string, number> = {};
+    const timed = async <T>(name: string, task: () => Promise<T>): Promise<T> => {
+      const phaseStartedAt = Date.now();
+      try {
+        return await task();
+      } finally {
+        timings[name] = Date.now() - phaseStartedAt;
+      }
+    };
     const runAll = phase === "all";
-    const materialization = runAll || phase === "materialization" ? await runSymphonyaCatalogueMaterializationSlice() : null;
-    const pricing = runAll || phase === "pricing" ? await runSymphonyaAutoPricingSlice() : null;
-    const enrichment = runAll || phase === "enrichment" ? await runSymphonyaEnrichmentPreparationSlice() : null;
+    const materialization = runAll || phase === "materialization" ? await timed("materialization", () => runSymphonyaCatalogueMaterializationSlice()) : null;
+    const pricing = runAll || phase === "pricing" ? await timed("pricing", () => runSymphonyaAutoPricingSlice()) : null;
+    const enrichment = runAll || phase === "enrichment" ? await timed("enrichment", () => runSymphonyaEnrichmentPreparationSlice()) : null;
     const deterministicTranslationPromotion = runAll || phase === "enrichment" || phase === "fallback"
-      ? await runSymphonyaDeterministicTranslationPromotionSlice()
+      ? await timed("deterministicTranslationPromotion", () => runSymphonyaDeterministicTranslationPromotionSlice())
       : null;
-    const translationPromotion = runAll || phase === "promotion" ? await runCatalogueEnrichmentPromotionSlice() : null;
+    const translationPromotion = runAll || phase === "promotion" ? await timed("translationPromotion", () => runCatalogueEnrichmentPromotionSlice()) : null;
     // Dedicated stock cron owns automatic supplier I/O. Keeping getStock out of
     // the normal all-phase run prevents the bounded pipeline from spending its
     // remaining 55s budget on a second network workload. Manual phase=stock is
     // retained for operator diagnostics.
-    const stockIds = phase === "stock" ? await publicationCandidateExternalIds(15) : [];
+    const stockIds = phase === "stock" ? await timed("stockSelection", () => publicationCandidateExternalIds(15)) : [];
     const stock = phase === "stock"
       ? (stockIds.length
-          ? { selected: stockIds.length, offersUpdated: await refreshSymphonyaOfferStockByExternalIds(stockIds) }
+          ? { selected: stockIds.length, offersUpdated: await timed("stockRefresh", () => refreshSymphonyaOfferStockByExternalIds(stockIds)) }
           : { selected: 0, offersUpdated: 0 })
       : null;
-    const publication = runAll || phase === "publication" ? await runSymphonyaAutoPublicationSweep() : null;
+
+    // Publication is a separate DB-heavy sweep. In all-phase mode, defer it when
+    // earlier bounded phases have already consumed most of the function budget.
+    // A dedicated publication invocation can retry it without losing progress.
+    const publicationRequested = runAll || phase === "publication";
+    const publicationDeferred = runAll && Date.now() - startedAt >= ALL_PHASE_PUBLICATION_START_DEADLINE_MS;
+    const publication = publicationRequested && !publicationDeferred
+      ? await timed("publication", () => runSymphonyaAutoPublicationSweep())
+      : null;
+    const elapsedMs = Date.now() - startedAt;
+
+    console.info(JSON.stringify({
+      level: "info",
+      event: "symphonya.pipeline_timing",
+      phase,
+      timings,
+      publicationDeferred,
+      elapsedMs,
+      at: new Date().toISOString()
+    }));
 
     return Response.json({
       ok: true,
@@ -67,7 +98,10 @@ export async function GET(request: Request) {
       deterministicTranslationPromotion,
       translationPromotion,
       stock,
-      publication
+      publication,
+      publicationDeferred,
+      timings,
+      elapsedMs
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "symphonya_pipeline_failed";
