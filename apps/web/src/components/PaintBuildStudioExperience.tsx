@@ -399,8 +399,7 @@ export function PaintBuildStudioExperience() {
             quantity={`${paintRecommendation.litresNeeded.toLocaleString("el-GR")} L περίπου · ${paintRecommendation.packages.map((pack) => `${pack.quantity} × ${pack.sizeL} L`).join(" + ")}`}
             candidateTerms={[
               paintRecommendation.topcoatLabel,
-              ...paintRecommendation.catalogueTags,
-              ...(paintRecommendation.primerLabel ? [paintRecommendation.primerLabel] : [])
+              ...paintRecommendation.catalogueTags
             ]}
             colour={paintColour}
             onRestart={goHub}
