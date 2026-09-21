@@ -1,0 +1,1 @@
+Diagnostic preview branch from main to isolate Vercel production-only build behavior.
