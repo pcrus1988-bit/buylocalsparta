@@ -56,16 +56,17 @@ export function BuildStudioProductChooser({
   scenarioKey,
   facts = {},
   heading = "Επαληθευμένες επιλογές προϊόντος",
+  selectedManufacturerProductId,
   onManufacturerProductChange
 }: {
   terms: readonly string[];
   scenarioKey: string;
   facts?: Readonly<Record<string, unknown>>;
   heading?: string;
+  selectedManufacturerProductId?: string;
   onManufacturerProductChange?: (manufacturerProductId: string | undefined) => void;
 }) {
   const [products, setProducts] = useState<readonly BuildStudioCandidate[]>([]);
-  const [selectedId, setSelectedId] = useState<string>();
   const [state, setState] = useState<"loading" | "ready" | "empty" | "degraded">("loading");
 
   const queryKey = useMemo(
@@ -78,14 +79,12 @@ export function BuildStudioProductChooser({
     onManufacturerProductChange?.(undefined);
     if (!queryKey || !scenarioKey) {
       setProducts([]);
-      setSelectedId(undefined);
       setState("empty");
       return;
     }
 
     const controller = new AbortController();
     setState("loading");
-    setSelectedId(undefined);
 
     const params = new URLSearchParams();
     params.set("term", queryKey);
@@ -128,15 +127,13 @@ export function BuildStudioProductChooser({
     return () => controller.abort();
   }, [factsJson, onManufacturerProductChange, queryKey, scenarioKey]);
 
-  const selected = products.find((product) => product.id === selectedId);
+  const selected = products.find((product) => product.manufacturerProductId === selectedManufacturerProductId);
 
   function select(product: BuildStudioCandidate) {
-    setSelectedId(product.id);
     onManufacturerProductChange?.(product.manufacturerProductId);
   }
 
   function clearSelection() {
-    setSelectedId(undefined);
     onManufacturerProductChange?.(undefined);
   }
 
