@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0",
+  "knowledge_layer": "A_GENERAL_SOLUTION_GUIDANCE",
+  "scope": "Brand-independent Paint & Build guidance; manufacturer-specific values are explicitly excluded.",
+  "status": "reviewed_source_backed",
+  "reviewed_at": "2026-09-21",
+  "rules": [
+    {
+      "id": "A-MOISTURE-001",
+      "topic": "mold_and_moisture",
+      "claim": "If mold is present, correct the water/moisture problem, clean the mold, and dry the surface before painting or caulking. Painting over a moldy surface is likely to peel.",
+      "customer_guidance_el": "Αν υπάρχει μούχλα, μην προχωρήσεις απλώς σε βάψιμο. Εντόπισε και διόρθωσε πρώτα την αιτία της υγρασίας, καθάρισε τη μούχλα και άφησε την επιφάνεια να στεγνώσει πλήρως πριν από βαφή ή σφράγιση.",
+      "stop_escalation": "Stop the coating workflow while active water intrusion, unresolved leakage, or mold remains.",
+      "source": {
+        "authority": "US Environmental Protection Agency (EPA)",
+        "title": "Mold Information Slideshow",
+        "url": "https://www.epa.gov/mold/mold-information-slideshow",
+        "accessed": "2026-09-21"
+      },
+      "confidence": "high",
+      "review_state": "source_verified"
+    },
+    {
+      "id": "A-LEAD-001",
+      "topic": "legacy_coatings_hazard",
+      "claim": "Disturbing lead-containing paint during renovation or removal can create hazardous lead dust and exposure. Do not treat unknown legacy coatings as an ordinary sanding/removal job where lead is a plausible hazard.",
+      "customer_guidance_el": "Σε παλιές βαμμένες επιφάνειες όπου υπάρχει πιθανότητα μολύβδου, μην ξεκινάς τρίψιμο ή αφαίρεση σαν να πρόκειται για συνηθισμένη βαφή. Η διατάραξη μολυβδούχων στρώσεων μπορεί να δημιουργήσει επικίνδυνη σκόνη και απαιτεί κατάλληλη αξιολόγηση και μέτρα προστασίας.",
+      "stop_escalation": "If lead-containing paint is known or reasonably suspected, route the user away from ordinary DIY sanding/removal guidance and to applicable local requirements and qualified professional assessment.",
+      "sources": [
+        {
+          "authority": "US Occupational Safety and Health Administration (OSHA)",
+          "title": "Lead - Overview",
+          "url": "https://www.osha.gov/lead/",
+          "accessed": "2026-09-21"
+        },
+        {
+          "authority": "US Occupational Safety and Health Administration (OSHA)",
+          "title": "OSHA Technical Manual, Section V Chapter 3",
+          "url": "https://www.osha.gov/otm/section-5-construction-operations/chapter-3",
+          "accessed": "2026-09-21"
+        }
+      ],
+      "confidence": "high",
+      "review_state": "source_verified",
+      "jurisdiction_note": "OSHA evidence establishes the hazard mechanism; legal duties and permitted methods must be resolved for the user's jurisdiction before presenting regulatory instructions."
+    },
+    {
+      "id": "A-WALL-WATER-001",
+      "topic": "exterior_wall_water_management",
+      "claim": "Exterior wall systems should manage rainwater with a continuous drainage/water-resistive layer behind cladding so water that penetrates the outer finish can drain safely away. Seams, openings and penetrations are part of that water-management continuity.",
+      "customer_guidance_el": "Η εξωτερική προστασία από νερό δεν πρέπει να βασίζεται μόνο στην τελική όψη ή βαφή. Το σύστημα του τοίχου χρειάζεται συνεχή διαχείριση και αποστράγγιση του νερού πίσω από την εξωτερική επένδυση, με σωστή συνέχεια σε ενώσεις, ανοίγματα και διελεύσεις.",
+      "stop_escalation": "If the observed problem suggests water entering from failed flashing, openings, penetrations, roof/wall junctions or the wall assembly, do not present a surface coating alone as a verified repair.",
+      "source": {
+        "authority": "US Department of Energy, Building Science Education",
+        "title": "Water Managed Walls: WRB",
+        "url": "https://bsesc.energy.gov/energy-basics/water-managed-walls-wrb",
+        "accessed": "2026-09-21"
+      },
+      "confidence": "high",
+      "review_state": "source_verified"
+    },
+    {
+      "id": "A-AIR-BARRIER-001",
+      "topic": "thermal_envelope_air_control",
+      "claim": "An effective air barrier should be continuous around the thermal envelope, with seams, gaps and holes sealed. Air-control continuity also contributes to moisture control.",
+      "customer_guidance_el": "Σε εργασίες θερμικού κελύφους, η αεροστεγανότητα πρέπει να αντιμετωπίζεται ως συνεχές σύστημα: ενώσεις, κενά και οπές χρειάζονται σωστή σφράγιση. Η μόνωση από μόνη της δεν υποκαθιστά τη συνέχεια του στρώματος ελέγχου αέρα.",
+      "source": {
+        "authority": "US Department of Energy, Building Science Education",
+        "title": "Continuous Air Barrier in Exterior Walls",
+        "url": "https://bsesc.energy.gov/energy-basics/continuous-air-barrier-exterior-walls",
+        "accessed": "2026-09-21"
+      },
+      "confidence": "high",
+      "review_state": "source_verified"
+    }
+  ],
+  "layer_boundary": {
+    "manufacturer_specific_values": "Layer B only",
+    "kontamou_workflow_and_product_selection_guardrails": "Layer C only",
+    "note": "No dilution, coverage, coat count, drying/recoat time, application temperature, product compatibility, primer choice or product-specific preparation value is asserted here."
+  }
+}
