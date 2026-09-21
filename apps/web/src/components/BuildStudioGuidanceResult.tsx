@@ -88,6 +88,10 @@ export function BuildStudioGuidanceResult({
   const factsJson = JSON.stringify(scenarioRequest?.facts ?? {});
 
   useEffect(() => {
+    setSelectedManufacturerProductId(undefined);
+  }, [scenarioKey, factsJson]);
+
+  useEffect(() => {
     if (!scenarioKey) {
       setGuide(null);
       setLoadState("unsupported");
@@ -108,7 +112,8 @@ export function BuildStudioGuidanceResult({
       },
       body: JSON.stringify({
         scenarioKey,
-        facts: JSON.parse(factsJson) as Record<string, unknown>
+        facts: JSON.parse(factsJson) as Record<string, unknown>,
+        manufacturerProductId: selectedManufacturerProductId ?? null
       })
     })
       .then(async (response) => {
