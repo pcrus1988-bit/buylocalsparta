@@ -415,7 +415,7 @@ export function PaintBuildStudioExperience() {
             ]}
             preparation={paintRecommendation.preparation}
             warnings={paintRecommendation.warnings}
-            quantity={`${paintRecommendation.litresNeeded.toLocaleString("el-GR")} L περίπου · ${paintRecommendation.packages.map((pack) => `${pack.quantity} × ${pack.sizeL} L`).join(" + ")}`}
+            quantity={paintRecommendation.quantityNote}
             candidateTerms={[
               paintRecommendation.topcoatLabel,
               ...paintRecommendation.catalogueTags
