@@ -231,3 +231,29 @@ test("Fournarakis category discovery reads only product URLs from the embedded c
     "https://www.fournarakis.gr/el/product/1470/raoulo-me-rouleman-gia-syromenh-porta-me-bash"
   ]);
 });
+
+
+test("Fournarakis full-crawl discovery can harvest product links outside the listing items array", () => {
+  const sourceUrl = "https://www.fournarakis.gr/el/catalog/c/6/ergalia";
+  const payload = {
+    isLanding: true,
+    children: [{ name: "Χρωματοπωλείο", url: "/el/catalog/c/61/chromatopolio" }],
+    items: [],
+    carousels: [
+      {
+        label: "Νέα",
+        items: [
+          { code_catalogue: "8299", href: "/el/product/8299/akrofysio-anameikshs" },
+          { code_catalogue: "8226", href: "/el/product/8226/prioni-kladou" }
+        ]
+      }
+    ]
+  };
+  const html = '<html><body><script>let data = ' + JSON.stringify(payload) + ';</script><div id="search-app"></div></body></html>';
+
+  assert.deepEqual(extractFournarakisCategoryProductUrls(html, sourceUrl), []);
+  assert.deepEqual(extractFournarakisCategoryProductUrls(html, sourceUrl, "all"), [
+    "https://www.fournarakis.gr/el/product/8299/akrofysio-anameikshs",
+    "https://www.fournarakis.gr/el/product/8226/prioni-kladou"
+  ]);
+});

@@ -108,7 +108,11 @@ export class CatalogCrawlerStore {
       SELECT url,normalized_url,depth,discovered_from_page_id
       FROM public.catalog_web_crawl_pages
       WHERE job_id=$1 AND status IN ('queued','fetching','failed')
-      ORDER BY product_likelihood DESC NULLS LAST, depth ASC, created_at ASC
+      ORDER BY
+        CASE WHEN normalized_url ~* '/el/product/' OR normalized_url ~* '/(?:product|products|p|item|sku)/' THEN 1 ELSE 0 END DESC,
+        product_likelihood DESC NULLS LAST,
+        depth ASC,
+        created_at ASC
       LIMIT $2
     `, [jobId, safeLimit]);
     return result.rows.map((row) => ({

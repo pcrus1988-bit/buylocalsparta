@@ -24,7 +24,11 @@ export function isFournarakisProductUrl(rawUrl: string): boolean {
 }
 
 
-export function extractFournarakisCategoryProductUrls(html: string, sourceUrl: string): readonly string[] {
+export function extractFournarakisCategoryProductUrls(
+  html: string,
+  sourceUrl: string,
+  scope: "listing" | "all" = "listing"
+): readonly string[] {
   if (!isFournarakisSourceUrl(sourceUrl)) return [];
   let pageUrl: URL;
   try {
@@ -38,12 +42,11 @@ export function extractFournarakisCategoryProductUrls(html: string, sourceUrl: s
   if (!embedded) return [];
 
   const result: string[] = [];
-  for (const item of arrayValue(embedded.items)) {
-    const href = stringValue(recordValue(item)?.href);
-    if (!href) continue;
+  const collectHref = (href: string | undefined) => {
+    if (!href) return;
     try {
       const resolved = new URL(href, sourceUrl);
-      if (!isFournarakisProductUrl(resolved.toString())) continue;
+      if (!isFournarakisProductUrl(resolved.toString())) return;
       resolved.protocol = "https:";
       resolved.hostname = "www.fournarakis.gr";
       resolved.search = "";
@@ -53,7 +56,25 @@ export function extractFournarakisCategoryProductUrls(html: string, sourceUrl: s
     } catch {
       // Ignore malformed supplier links and keep the category crawl bounded.
     }
+  };
+
+  for (const item of arrayValue(embedded.items)) collectHref(stringValue(recordValue(item)?.href));
+
+  if (scope === "all") {
+    const visit = (value: unknown, depth = 0): void => {
+      if (depth > 8 || value == null) return;
+      if (Array.isArray(value)) {
+        for (const item of value) visit(item, depth + 1);
+        return;
+      }
+      const record = recordValue(value);
+      if (!record) return;
+      collectHref(stringValue(record.href));
+      for (const nested of Object.values(record)) visit(nested, depth + 1);
+    };
+    visit(embedded);
   }
+
   return result;
 }
 

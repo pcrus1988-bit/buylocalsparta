@@ -183,13 +183,21 @@ export async function runCrawlJob(options: CrawlRunnerOptions): Promise<Readonly
     processed += 1;
 
     if (html && options.job.crawlMode !== "single" && item.depth < maxDepth) {
-      const fournarakisCategoryLinks =
-        options.job.crawlMode === "category" && isFournarakisSourceUrl(normalizedSeed)
-          ? extractFournarakisCategoryProductUrls(html, response.finalUrl)
-          : undefined;
-      const links = fournarakisCategoryLinks
-        ? [...fournarakisCategoryLinks]
-        : [...discoverHtmlUrls(html, response.finalUrl, Math.min(policy.maxPages * 4, 50_000))];
+      const genericLinks = [...discoverHtmlUrls(html, response.finalUrl, Math.min(policy.maxPages * 4, 50_000))];
+      const isFournarakis = isFournarakisSourceUrl(normalizedSeed);
+      const fournarakisProductLinks = isFournarakis
+        ? extractFournarakisCategoryProductUrls(
+            html,
+            response.finalUrl,
+            options.job.crawlMode === "full" ? "all" : "listing"
+          )
+        : [];
+      const links =
+        options.job.crawlMode === "category" && isFournarakis
+          ? [...fournarakisProductLinks]
+          : options.job.crawlMode === "full" && isFournarakis
+            ? [...new Set([...fournarakisProductLinks, ...genericLinks])]
+            : genericLinks;
       links.sort((left, right) => productLikelihood(right) - productLikelihood(left));
       const before = discovered.length;
       for (const url of links) {
@@ -249,13 +257,32 @@ async function loadRobots(
   userAgent: string
 ): Promise<RobotsPolicy> {
   const robotsUrl = new URL("/robots.txt", startUrl).toString();
-  let result: SecureCrawlFetchResult;
-  try { result = await fetcher(robotsUrl, "text/plain,*/*;q=0.1"); }
-  catch (error) { throw new CrawlJobError(`robots.txt fetch failed: ${errorMessage(error)}`); }
-  if (result.status >= 400 && result.status < 500 && result.status !== 429) return { rules: [], sitemaps: [] };
-  if (result.status === 429 || result.status >= 500) throw new CrawlJobError(`robots.txt temporarily unavailable (HTTP ${result.status})`);
-  if (result.status < 200 || result.status >= 300) return { rules: [], sitemaps: [] };
-  return parseRobotsTxt(result.body.toString("utf8"), userAgent);
+  let lastFailure = "unknown robots.txt failure";
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    let result: SecureCrawlFetchResult;
+    try {
+      result = await fetcher(robotsUrl, "text/plain,*/*;q=0.1");
+    } catch (error) {
+      lastFailure = `fetch failed: ${errorMessage(error)}`;
+      if (attempt < 3) {
+        await delay(500 * attempt);
+        continue;
+      }
+      throw new CrawlJobError(`robots.txt ${lastFailure} after ${attempt} attempts`);
+    }
+    if (result.status >= 400 && result.status < 500 && result.status !== 429) return { rules: [], sitemaps: [] };
+    if (result.status === 429 || result.status >= 500) {
+      lastFailure = `temporarily unavailable (HTTP ${result.status})`;
+      if (attempt < 3) {
+        await delay(500 * attempt);
+        continue;
+      }
+      throw new CrawlJobError(`robots.txt ${lastFailure} after ${attempt} attempts`);
+    }
+    if (result.status < 200 || result.status >= 300) return { rules: [], sitemaps: [] };
+    return parseRobotsTxt(result.body.toString("utf8"), userAgent);
+  }
+  throw new CrawlJobError(`robots.txt ${lastFailure}`);
 }
 
 async function discoverFromSitemaps(input: {

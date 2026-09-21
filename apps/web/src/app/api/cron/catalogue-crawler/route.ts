@@ -11,7 +11,7 @@ export const maxDuration = 700;
 const CRON_SCHEDULE = "*/10 * * * *";
 const SLICE_MS = 9 * 60 * 1000;
 const LEASE_SECONDS = 720;
-const REQUEST_TIMEOUT_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_SITEMAPS = 32;
 const USER_AGENT = "KONTAMOU-CatalogBot/1.0 (+https://kontamou.site/)";
 
