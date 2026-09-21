@@ -29,6 +29,7 @@ const vercelCrons = Array.isArray(vercel.crons) ? vercel.crons : [];
 const allowedVercelCrons = new Map([
   ["/api/cron/delivery-dispatch", "*/5 * * * *"],
   ["/api/cron/catalogue-crawler", "*/10 * * * *"],
+  ["/api/cron/vitex-source-monitor", "17 * * * *"],
   ["/api/cron/nova-canonical-media", "*/10 * * * *"],
   ["/api/cron/nova-availability-failover", "* * * * *"],
   ["/api/cron/symphonya-catalogue", "2 * * * *"],

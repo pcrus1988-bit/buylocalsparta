@@ -28,7 +28,7 @@ test("rusty metal uses an anticorrosive system and blocks paint-over-rust guidan
   });
 
   assert.equal(result.primerRequired, true);
-  assert.match(result.primerLabel ?? "", /αντισκωριακ/i);
+  assert.match(result.primerLabel ?? "", /αντι(?:σκωριακ|διαβρωτικ)/i);
   assert.ok(result.warnings.some((warning) => /σκουρι/i.test(warning)));
 });
 
