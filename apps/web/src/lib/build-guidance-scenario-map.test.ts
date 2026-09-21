@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mapBuildStudioScenario } from "./build-guidance-scenario-map";
+import { mapBuildStudioScenario } from "./build-guidance-scenario-map.ts";
 
 test("maps reviewed interior paint scenarios without merging distinct substrates or failures", () => {
   assert.deepEqual(
