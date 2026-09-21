@@ -46,7 +46,17 @@ function visitorHash(visitorKey: string): string {
  */
 type ProductRedirectRow = Readonly<{ to_path: string }>;
 
+const UUID_ROUTE_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function loadDirectPublicCanonical(routeKey: string) {
+  // Slugs and legacy cv_* public IDs have dedicated btree indexes. UUID route keys
+  // can represent either public_id or the internal UUID, so retain that compatibility
+  // without casting cv.id to text (which prevented the primary-key index from helping).
+  const routePredicate = UUID_ROUTE_KEY.test(routeKey)
+    ? "(cv.public_id=$1 OR cv.id=$1::uuid)"
+    : routeKey.startsWith("cv_")
+      ? "cv.public_id=$1"
+      : "cv.slug=$1";
   const result = await getProductionPostgresRuntime().nativePool.query<DirectCanonicalRow>(`
     SELECT cv.public_id AS id,
            cv.slug,
@@ -60,7 +70,7 @@ async function loadDirectPublicCanonical(routeKey: string) {
     LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
     LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
     LEFT JOIN public.storefront_catalog_read_model rm ON rm.canonical_variant_id=cv.id
-    WHERE (cv.public_id=$1 OR cv.id::text=$1 OR cv.slug=$1)
+    WHERE ${routePredicate}
       AND m.code='sparta'
       AND COALESCE(cv.commerce_channel,'normal')='normal'
       AND cv.active=true
@@ -201,9 +211,6 @@ export const getPublicProductSeoSummary = cache(async (routeKey: string): Promis
   const product = await directPublicCanonical(routeKey);
   if (!product) return undefined;
 
-  // Cap request-level DB fan-out at three concurrent reads. This matters on the
-  // deliberately small serverless pool and prevents metadata generation from
-  // starving the page render for a connection.
   const [metadata, detail, signals] = await Promise.all([
     loadSingleCatalogMetadata(product.id),
     getPublicProductDetail(product.id),
@@ -258,11 +265,6 @@ export async function getCatalogCard(id: string, visitorKey: string, postcode = 
   const canonical = await directPublicCanonical(id);
   if (!canonical) return undefined;
 
-  // Supplier-only products do not participate in local pickup fairness. Going
-  // through publicAssignedCanonical first forces a serializable local-inventory
-  // lookup that can time out as the supplier catalogue grows. Resolve the
-  // supplier projection directly, while preserving the existing local-first
-  // behaviour for canonicals that genuinely have both local and dropship offers.
   const offerKinds = await loadCanonicalOfferKinds(canonical.id);
   if (offerKinds.has_dropship_offer && !offerKinds.has_local_offer) {
     const dropshipProduct = (await getPublishedDropshipCatalogCards("", "", {}, {}, undefined, canonical.id))[0];
