@@ -257,7 +257,7 @@
   "0263_vitex_manufacturer_guidance.sql": "ffb36c64c82a708cfad292c55e96d3e2234af815d0ef79aaab2716e5c377ff5c",
   "0264_general_build_guidance_schema.sql": "6fe76e39228694b47dbe9315a6529a00668c25be7ded73ac8e074065e0764b8d",
   "0265_general_build_guidance_first_batch.sql": "b500776d3bba5e1b5c78a5e3713d9484800af17df047deac495782d7c10f6ecb",
-  "0266_general_build_guidance_evidence_hardening.sql": "23a890f139cb96d70d6fb87427c708e231ec5857e154db52eed34b431c882ed0",
+  "0266_general_build_guidance_evidence_hardening.sql": "b3e14832d42da91daa94a48bdd741703bab3b1da684da6cd6b4ae66352cd7603",
   "0267_general_build_guidance_second_batch.sql": "c39d34303b208a6bd0cf8a07f8347fc2f31b42b356ead117f58ebca0ee3e60a4",
   "0268_general_build_guidance_third_batch.sql": "aecfaa196d37acebfcbec7fb35fad3685a17cfb384cad03392fb652da761e50f",
   "0269_vitex_verified_batch_one.sql": "0d728ee9703f3597f17b0a4683ccde9c8e54c05a2b664f91698d12dfb8277527",
