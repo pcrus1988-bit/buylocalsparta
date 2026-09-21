@@ -183,3 +183,80 @@ test("single Fournarakis product crawl emits sellable variant SKUs instead of th
   assert.equal(extractions.some((item) => item.sku === "0033"), false);
   assert.equal(extractions.every((item) => item.prices === undefined), true);
 });
+
+
+test("crawler dedupe preserves distinct supplier SKUs that share one product-family URL and title", async () => {
+  const extractions: any[] = [];
+  const store = {
+    async listPendingPages() { return []; },
+    async ensurePage() { return { id: "page-family", status: "queued", depth: 0 }; },
+    async markFetching() {},
+    async markSkipped() {},
+    async markFailed() {},
+    async saveExtraction(input: any) { extractions.push(input.candidate); return "accepted" as const; },
+    async markFetched() {},
+    async syncCounters() {},
+    async renew() {},
+    async finish() {}
+  };
+  const url = "https://www.fournarakis.gr/el/product/0033/classic-rolo-dermatino-18mm";
+  const payload = {
+    search_result_data: { code_catalogue: "0033", title: "CLASSIC ΡΟΛΟ ΔΕΡΜΑΤΙΝΟ 18mm", brand: { name: "BENMAN" } },
+    brandInfo: { name: "BENMAN" },
+    variations: [
+      ["ΚΩΔΙΚΟΣ", "ΣΥΝΟΛΙΚΟ ΜΗΚΟΣ"],
+      ["17202", "10cm"],
+      ["16323", "18cm"],
+      ["16324", "24cm"]
+    ]
+  };
+  const html = '<html><body><script>const data = ' + JSON.stringify(payload) + ';</script><div id="product-app"></div></body></html>';
+  const response: SecureCrawlFetchResult = {
+    finalUrl: url,
+    status: 200,
+    headers: { "content-type": "text/html; charset=utf-8" },
+    body: Buffer.from(html),
+    responseBytes: Buffer.byteLength(html),
+    responseSha256: "c".repeat(64),
+    resolvedAddresses: ["93.184.216.34"],
+    redirectChain: []
+  };
+
+  const result = await runCrawlJob({
+    store: store as any,
+    job: {
+      jobId: "job-family",
+      profileId: "profile-family",
+      sourceId: "source-family",
+      crawlMode: "single",
+      seedUrl: url,
+      policySnapshot: {
+        rootUrl: "https://www.fournarakis.gr/",
+        allowedHosts: ["www.fournarakis.gr"],
+        allowSubdomains: false,
+        allowHttp: false,
+        obeyRobots: false,
+        fetchMode: "http",
+        maxPages: 10,
+        maxDepth: 2,
+        maxConcurrency: 1,
+        requestsPerSecond: 20,
+        maxResponseBytes: 1_000_000,
+        maxRedirects: 3,
+        includeRules: [],
+        excludeRules: []
+      },
+      extractorVersion: "web-crawler-v1",
+      attemptCount: 1
+    },
+    workerId: "test-worker",
+    leaseSeconds: 300,
+    userAgent: "KONTAMOU-TestBot/1.0",
+    requestTimeoutMs: 1000,
+    fetcher: async () => response
+  });
+
+  assert.deepEqual(result, { pages: 1, extractions: 3 });
+  assert.deepEqual(extractions.map((item) => item.sku), ["17202", "16323", "16324"]);
+  assert.deepEqual(extractions.map((item) => item.attributes["ΣΥΝΟΛΙΚΟ ΜΗΚΟΣ"]), ["10cm", "18cm", "24cm"]);
+});

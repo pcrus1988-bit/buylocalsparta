@@ -455,9 +455,13 @@ function dedupeCandidates(values: readonly ExtractedProductCandidate[]): Extract
   return merged;
 }
 function sameProductCandidate(left: ExtractedProductCandidate, right: ExtractedProductCandidate): boolean {
-  if (left.gtin && right.gtin && left.gtin === right.gtin) return true;
-  if (left.sku && right.sku && normalizeIdentity(left.sku) === normalizeIdentity(right.sku)) return true;
-  if (left.mpn && right.mpn && normalizeIdentity(left.mpn) === normalizeIdentity(right.mpn)) return true;
+  // Explicit identities outrank page/title similarity. Supplier product-family
+  // pages may expose several orderable variants under one URL and title; two
+  // different SKUs/GTINs/MPNs must not collapse into one extraction merely
+  // because they share that family page.
+  if (left.gtin && right.gtin) return left.gtin === right.gtin;
+  if (left.sku && right.sku) return normalizeIdentity(left.sku) === normalizeIdentity(right.sku);
+  if (left.mpn && right.mpn) return normalizeIdentity(left.mpn) === normalizeIdentity(right.mpn);
   const leftUrl = normalizeComparableUrl(left.sourceUrl);
   const rightUrl = normalizeComparableUrl(right.sourceUrl);
   return leftUrl === rightUrl && titlesOverlap(left.title, right.title);
