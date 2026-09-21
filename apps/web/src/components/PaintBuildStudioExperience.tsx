@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ColorStudioSelector, type ColorStudioShadeCandidate } from "./ColorStudioSelector";
+import { BuildStudioProductChooser } from "./BuildStudioProductChooser";
 import {
   BUILD_MODULES,
   INSULATION_GOALS,
@@ -396,7 +397,10 @@ export function PaintBuildStudioExperience() {
             preparation={paintRecommendation.preparation}
             warnings={paintRecommendation.warnings}
             quantity={`${paintRecommendation.litresNeeded.toLocaleString("el-GR")} L περίπου · ${paintRecommendation.packages.map((pack) => `${pack.quantity} × ${pack.sizeL} L`).join(" + ")}`}
-            searchHref={paintRecommendation.searchHref}
+            candidateTerms={[
+              paintRecommendation.topcoatLabel,
+              ...paintRecommendation.catalogueTags
+            ]}
             colour={paintColour}
             onRestart={goHub}
           />
@@ -652,7 +656,7 @@ function ResultScreen({
   preparation,
   warnings,
   quantity,
-  searchHref,
+  candidateTerms,
   colour,
   onRestart
 }: {
@@ -663,7 +667,7 @@ function ResultScreen({
   preparation: readonly string[];
   warnings: readonly string[];
   quantity: string;
-  searchHref: string;
+  candidateTerms: readonly string[];
   colour?: string;
   onRestart: () => void;
 }) {
@@ -698,8 +702,9 @@ function ResultScreen({
         </div>
       ) : null}
 
+      <BuildStudioProductChooser terms={candidateTerms} />
+
       <div className={styles.resultActions}>
-        <a href={searchHref} className={styles.primaryAction}>ΔΕΣ ΟΛΕΣ ΤΙΣ ΣΥΜΒΑΤΕΣ ΕΠΙΛΟΓΕΣ →</a>
         <a href="/ask-local" className={styles.secondaryAction}>ΡΩΤΗΣΕ ΕΝΑ ΚΑΤΑΣΤΗΜΑ</a>
         <button type="button" className={styles.secondaryAction} onClick={onRestart}>ΝΕΟ ΕΡΓΟ</button>
       </div>
@@ -727,7 +732,7 @@ function BuildResult({
       preparation={recommendation.preparation}
       warnings={recommendation.warnings}
       quantity={recommendation.quantityNote}
-      searchHref={recommendation.searchHref}
+      candidateTerms={recommendation.catalogueTags}
       onRestart={onRestart}
     />
   );
