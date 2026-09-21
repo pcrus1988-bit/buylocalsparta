@@ -22,15 +22,17 @@ assert(root.engines?.node === ">=24 <25", "root must require Node 24");
 assert(web.type === "module", "web workspace must be ESM for direct Node type-stripping verification");
 await stat(new URL("../package-lock.json", import.meta.url));
 assert(vercel.framework === "nextjs", "Vercel framework must be Next.js");
-assert(vercel.installCommand === "npm ci --ignore-scripts", "source-controlled Vercel install must consume the committed root lockfile");
-assert(vercel.buildCommand === "npm ci --ignore-scripts && npm --workspace @buy-local-sparta/web run build", "Vercel build must reassert the locked graph before building the web workspace");
+assert(vercel.installCommand === "npm ci --ignore-scripts --include=dev", "source-controlled Vercel install must consume the committed root lockfile and include build-time dev dependencies");
+assert(vercel.buildCommand === "npm ci --ignore-scripts --include=dev && npm --workspace @buy-local-sparta/web run build", "Vercel build must reassert the locked graph, including build-time dev dependencies, before building the web workspace");
 assert(vercel.outputDirectory === "apps/web/.next", "Vercel output must point at the workspace .next directory");
 const vercelCrons = Array.isArray(vercel.crons) ? vercel.crons : [];
 const allowedVercelCrons = new Map([
   ["/api/cron/delivery-dispatch", "*/5 * * * *"],
+  ["/api/cron/catalogue-crawler", "*/10 * * * *"],
   ["/api/cron/nova-canonical-media", "*/10 * * * *"],
+  ["/api/cron/nova-availability-failover", "* * * * *"],
   ["/api/cron/symphonya-catalogue", "2 * * * *"],
-  ["/api/cron/symphonya-stock", "7,17,27,37,47,57 * * * *"],
+  ["/api/cron/symphonya-stock", "*/5 * * * *"],
   ["/api/cron/symphonya-pipeline", "9 * * * *"],
   ["/api/cron/dropship-order-reconciliation", "*/5 * * * *"],
   ["/api/cron/flash-sale-availability", "*/5 * * * *"],
@@ -41,7 +43,7 @@ assert(
     && typeof cron.schedule === "string"
     && allowedVercelCrons.get(cron.path) === cron.schedule
   ),
-  "Vercel cron jobs are limited to bounded delivery, catalogue/media/Symphonya pipeline refresh, flash-sale availability, and dropship reconciliation routes; long-running BLS workers must remain isolated",
+  "Vercel cron jobs must match the bounded source-controlled production schedules, including the time-sliced catalogue crawler and availability failover",
 );
 for (const [path, schedule] of allowedVercelCrons) {
   assert(
