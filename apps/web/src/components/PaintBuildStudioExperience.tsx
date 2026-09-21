@@ -126,13 +126,20 @@ export function PaintBuildStudioExperience() {
     if (!canvas || !image.naturalWidth || !image.naturalHeight) return;
 
     const rect = image.getBoundingClientRect();
+    const scale = Math.max(rect.width / image.naturalWidth, rect.height / image.naturalHeight);
+    const renderedWidth = image.naturalWidth * scale;
+    const renderedHeight = image.naturalHeight * scale;
+    const cropX = Math.max(0, (renderedWidth - rect.width) / 2);
+    const cropY = Math.max(0, (renderedHeight - rect.height) / 2);
+    const visibleX = event.clientX - rect.left;
+    const visibleY = event.clientY - rect.top;
     const x = Math.min(
       canvas.width - 1,
-      Math.max(0, Math.floor(((event.clientX - rect.left) / rect.width) * canvas.width))
+      Math.max(0, Math.floor((visibleX + cropX) / scale))
     );
     const y = Math.min(
       canvas.height - 1,
-      Math.max(0, Math.floor(((event.clientY - rect.top) / rect.height) * canvas.height))
+      Math.max(0, Math.floor((visibleY + cropY) / scale))
     );
     const data = canvas.getContext("2d", { willReadFrequently: true })?.getImageData(x, y, 1, 1).data;
     if (!data) return;
