@@ -53,13 +53,13 @@ try {
       // Create a non-login compatibility role only on loopback databases so the
       // immutable production migrations execute under the same role topology.
       await client.query(`
-        DO $
+        DO $tag$
         BEGIN
           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'postgres') THEN
             CREATE ROLE postgres NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
           END IF;
         END
-        $;
+        $tag$;
       `);
     }
 
