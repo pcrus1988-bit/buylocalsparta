@@ -86,11 +86,22 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
   }
 
   if (input.module === "insulation") {
-    if (input.location === "facade") return request("insulation_external_etics", { work_at_height: true, safe_access_confirmed: false });
-    if (input.location === "interior-wall") {
-      if (input.goal === "condensation") return request("insulation_thermal_bridge_condensation", { condensation_present: true, cause_confirmed: false });
-      return request("insulation_internal_condensation_risk");
+    // Visible condensation/mould is a moisture symptom, not proof that a specific
+    // insulation system is the remedy. Route it through the reviewed diagnosis-first
+    // thermal-bridge/moisture scenario regardless of the initially selected location.
+    // These facts intentionally satisfy the existing KONTA MOU stop condition so
+    // product selection stays blocked until the cause has been assessed.
+    if (input.goal === "condensation") {
+      return request("insulation_thermal_bridge_condensation", {
+        condensation_present: true,
+        thermal_bridge_suspected: true,
+        significant_moisture: true,
+        source_known: false,
+        cause_confirmed: false
+      });
     }
+    if (input.location === "facade") return request("insulation_external_etics", { work_at_height: true, safe_access_confirmed: false });
+    if (input.location === "interior-wall") return request("insulation_internal_condensation_risk");
     if (input.location === "roof") return request("insulation_roof_general", { roof_build_up_known: false, work_at_height: true, safe_access_confirmed: false });
     return null;
   }
