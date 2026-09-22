@@ -146,6 +146,20 @@ function formatRange(min: number | undefined, max: number | undefined, suffix: s
   return `${min ?? max}${suffix}`;
 }
 
+function manufacturerTwoCoatCoverage(manufacturer: Readonly<Record<string, unknown>>): Readonly<{ min: number; max: number }> | undefined {
+  for (const item of asArray(manufacturer.instruction_evidence)) {
+    const row = asRecord(item);
+    if (textValue(row.field_name) !== "coverage_m2_per_litre") continue;
+    const normalized = asRecord(row.normalized_value);
+    const values = asArray(normalized.two_coats)
+      .map(numberValue)
+      .filter((value): value is number => value !== undefined && value > 0);
+    if (values.length < 2) continue;
+    return { min: Math.min(...values), max: Math.max(...values) };
+  }
+  return undefined;
+}
+
 export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustomerGuide {
   const general = asRecord(guidance.general_guidance);
   const rules = asArray(general.rules);
@@ -393,10 +407,12 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
     });
   }
 
-  const quantity = manufacturerStatus === "verified" && manufacturer.quantity_inputs_available === true
+  const quantityEvidenceAvailable = manufacturerStatus === "verified"
+    && (manufacturer.quantity_inputs_available === true || Boolean(manufacturerTwoCoatCoverage(manufacturer)));
+  const quantity = quantityEvidenceAvailable
     ? {
         status: "manufacturer_data_available" as const,
-        explanationEl: "Η ποσότητα μπορεί να υπολογιστεί μόνο από τις επαληθευμένες τιμές κατανάλωσης/κάλυψης και στρώσεων του επιλεγμένου προϊόντος."
+        explanationEl: "Η ποσότητα υπολογίζεται μόνο από επαληθευμένα manufacturer values. Όπου το profile δεν έχει ξεχωριστό coat count, χρησιμοποιείται μόνο ρητή επαληθευμένη απόδοση δύο στρώσεων από το επίσημο τεχνικό τεκμήριο."
       }
     : manufacturerStatus === "not_selected"
       ? {
@@ -455,24 +471,40 @@ export function calculateBuildQuantity(guidance: BuildProjectGuidance, areaInput
   const coverageMax = numberValue(profile.coverage_m2_per_litre_max);
   const coatsMin = numberValue(profile.number_of_coats_min);
   const coatsMax = numberValue(profile.number_of_coats_max);
-  if (!areaM2 || !coverageMin || !coverageMax || !coatsMin || !coatsMax || coverageMin <= 0 || coverageMax <= 0 || coatsMin <= 0 || coatsMax <= 0) {
+
+  if (areaM2 && coverageMin && coverageMax && coatsMin && coatsMax
+      && coverageMin > 0 && coverageMax > 0 && coatsMin > 0 && coatsMax > 0) {
+    const min = areaM2 * Math.min(coatsMin, coatsMax) / Math.max(coverageMin, coverageMax);
+    const max = areaM2 * Math.max(coatsMin, coatsMax) / Math.min(coverageMin, coverageMax);
     return {
-      status: "missing_manufacturer_values",
+      status: "available",
       areaM2,
-      basisEl: "Δεν υπάρχουν πλήρη επαληθευμένα coverage + αριθμός στρώσεων για θεωρητικό υπολογισμό. Δεν γίνεται υπόθεση."
+      unit: "L",
+      min: Math.round(min * 100) / 100,
+      max: Math.round(max * 100) / 100,
+      coatsMin: Math.min(coatsMin, coatsMax),
+      coatsMax: Math.max(coatsMin, coatsMax),
+      basisEl: "Θεωρητική ποσότητα από τα επαληθευμένα m²/L και τις στρώσεις του επιλεγμένου προϊόντος. Δεν προστέθηκε αυθαίρετος συντελεστής απωλειών· απορροφητικότητα, τραχύτητα και μέθοδος εφαρμογής μπορούν να αλλάξουν την πραγματική κατανάλωση."
     };
   }
 
-  const min = areaM2 * Math.min(coatsMin, coatsMax) / Math.max(coverageMin, coverageMax);
-  const max = areaM2 * Math.max(coatsMin, coatsMax) / Math.min(coverageMin, coverageMax);
+  const twoCoatCoverage = manufacturerTwoCoatCoverage(manufacturer);
+  if (areaM2 && twoCoatCoverage) {
+    return {
+      status: "available",
+      areaM2,
+      unit: "L",
+      min: Math.round((areaM2 / twoCoatCoverage.max) * 100) / 100,
+      max: Math.round((areaM2 / twoCoatCoverage.min) * 100) / 100,
+      coatsMin: 2,
+      coatsMax: 2,
+      basisEl: `Θεωρητική ποσότητα από τη ρητή επαληθευμένη απόδοση δύο στρώσεων του κατασκευαστή (${twoCoatCoverage.min}–${twoCoatCoverage.max} m²/L). Δεν προστέθηκε αυθαίρετος συντελεστής απωλειών· απορροφητικότητα, τραχύτητα και μέθοδος εφαρμογής μπορούν να αλλάξουν την πραγματική κατανάλωση.`
+    };
+  }
+
   return {
-    status: "available",
+    status: "missing_manufacturer_values",
     areaM2,
-    unit: "L",
-    min: Math.round(min * 100) / 100,
-    max: Math.round(max * 100) / 100,
-    coatsMin: Math.min(coatsMin, coatsMax),
-    coatsMax: Math.max(coatsMin, coatsMax),
-    basisEl: "Θεωρητική ποσότητα από τα επαληθευμένα m²/L και τις στρώσεις του επιλεγμένου προϊόντος. Δεν προστέθηκε αυθαίρετος συντελεστής απωλειών· απορροφητικότητα, τραχύτητα και μέθοδος εφαρμογής μπορούν να αλλάξουν την πραγματική κατανάλωση."
+    basisEl: "Δεν υπάρχουν πλήρη επαληθευμένα coverage + αριθμός στρώσεων ή ρητή απόδοση πολλαπλών στρώσεων για θεωρητικό υπολογισμό. Δεν γίνεται υπόθεση."
   };
 }
