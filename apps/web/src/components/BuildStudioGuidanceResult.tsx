@@ -198,17 +198,6 @@ function ProjectGuidanceScreen({
         {pdfState === "error" ? <small role="alert">Το PDF δεν δημιουργήθηκε. Δοκίμασε ξανά.</small> : null}
       </div>
 
-      {detailProduct && scenarioRequest ? (
-        <BuildStudioProductDetailsOverlay
-          product={detailProduct}
-          scenarioKey={scenarioKey}
-          facts={scenarioRequest.facts}
-          areaM2={areaM2}
-          onClose={() => setDetailProduct(undefined)}
-          onChoose={chooseProductForProject}
-        />
-      ) : null}
-
       <div className={styles.resultActions}>
         <button type="button" className={styles.secondaryAction} onClick={onChangeProduct}>ΑΛΛΑΓΗ ΠΡΟΪΟΝΤΟΣ</button>
         <a href="/account/documents" className={styles.secondaryAction}>ΤΑ ΕΓΓΡΑΦΑ ΜΟΥ</a>
@@ -532,6 +521,17 @@ export function BuildStudioGuidanceResult({
             {selectedProductVerified ? "ΣΥΝΕΧΕΙΑ ΣΤΟ ΠΛΗΡΕΣ PROJECT KIT" : "ΕΠΙΛΕΞΕ ΠΡΟΪΟΝ"}
           </button>
         </div>
+      ) : null}
+
+      {detailProduct && scenarioRequest ? (
+        <BuildStudioProductDetailsOverlay
+          product={detailProduct}
+          scenarioKey={scenarioKey}
+          facts={scenarioRequest.facts}
+          areaM2={areaM2}
+          onClose={() => setDetailProduct(undefined)}
+          onChoose={chooseProductForProject}
+        />
       ) : null}
 
       <div className={styles.resultActions}>
