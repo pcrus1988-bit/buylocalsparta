@@ -97,29 +97,59 @@ export async function getPublicCatalogSourceGallery(
     const result = await uow.withTransaction(
       { actorUserId: "public-storefront", marketId: "sparta", platformAccess: true },
       (tx) => tx.query<SourceGalleryRow>(`
-        SELECT csp.normalized_payload,
-               csp.source_image_url,
-               cs.code AS source_code,
-               cs.website AS source_website,
-               csp.title AS source_title
-        FROM canonical_variants cv
-        JOIN markets m ON m.id=cv.market_id
-        JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
-        JOIN vendor_businesses vb ON vb.id=vo.vendor_id
-        JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
-        JOIN catalog_source_products csp ON csp.id=dso.source_product_id
-        JOIN catalog_sources cs ON cs.id=csp.source_id
-        WHERE cv.public_id=$1
-          AND m.code='sparta'
-          AND cv.active=true
-          AND cv.suppressed=false
-          AND cv.recalled=false
-          AND vo.status='approved'
-          AND cs.active=true
-          AND cs.code IN ('nova-brandsgateway','symphonya')
-        ORDER BY CASE WHEN $2::text IS NOT NULL AND vb.public_id=$2 THEN 0 ELSE 1 END,
-                 csp.created_at DESC,
-                 vo.updated_at DESC
+        WITH candidates AS (
+          SELECT csp.normalized_payload,
+                 csp.source_image_url,
+                 cs.code AS source_code,
+                 cs.website AS source_website,
+                 csp.title AS source_title,
+                 CASE WHEN $2::text IS NOT NULL AND vb.public_id=$2 THEN 0 ELSE 1 END AS vendor_rank,
+                 csp.created_at AS source_created_at,
+                 vo.updated_at AS commerce_updated_at,
+                 0 AS source_rank
+          FROM canonical_variants cv
+          JOIN markets m ON m.id=cv.market_id
+          JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
+          JOIN vendor_businesses vb ON vb.id=vo.vendor_id
+          JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+          JOIN catalog_source_products csp ON csp.id=dso.source_product_id
+          JOIN catalog_sources cs ON cs.id=csp.source_id
+          WHERE cv.public_id=$1
+            AND m.code='sparta'
+            AND cv.active=true
+            AND cv.suppressed=false
+            AND cv.recalled=false
+            AND vo.status='approved'
+            AND cs.active=true
+            AND cs.code IN ('nova-brandsgateway','symphonya')
+
+          UNION ALL
+
+          SELECT csp.normalized_payload,
+                 csp.source_image_url,
+                 cs.code AS source_code,
+                 cs.website AS source_website,
+                 csp.title AS source_title,
+                 0 AS vendor_rank,
+                 csp.created_at AS source_created_at,
+                 vcp.updated_at AS commerce_updated_at,
+                 1 AS source_rank
+          FROM canonical_variants cv
+          JOIN markets m ON m.id=cv.market_id
+          JOIN vitex_commerce_products vcp ON vcp.canonical_variant_id=cv.id AND vcp.active=true
+          JOIN catalog_sources cs ON cs.market_id=cv.market_id AND cs.code='vitex-commerce-media' AND cs.active=true
+          JOIN catalog_source_products csp
+            ON csp.source_id=cs.id
+           AND csp.source_product_key=vcp.import_fingerprint
+          WHERE cv.public_id=$1
+            AND m.code='sparta'
+            AND cv.active=true
+            AND cv.suppressed=false
+            AND cv.recalled=false
+        )
+        SELECT normalized_payload,source_image_url,source_code,source_website,source_title
+        FROM candidates
+        ORDER BY source_rank,vendor_rank,source_created_at DESC,commerce_updated_at DESC
         LIMIT 1
       `, [canonicalId, preferredVendorId?.trim() || null]),
       { readOnly: true }
