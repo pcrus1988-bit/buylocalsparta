@@ -13,7 +13,7 @@ export type MerchantCenterFeedProduct = Readonly<{
   mpn?: string;
   productType?: string;
   color?: string;
-  sizes?: readonly string[];
+  size?: string;
 }>;
 
 export type MerchantCenterFeedInput = Readonly<{
@@ -93,7 +93,7 @@ function productXml(product: MerchantCenterFeedProduct): string {
     optionalTag("g:mpn", product.mpn).trimEnd(),
     optionalTag("g:product_type", product.productType).trimEnd(),
     optionalTag("g:color", product.color).trimEnd(),
-    ...(product.sizes ?? []).map((size) => optionalTag("g:size", size).trimEnd()).filter(Boolean),
+    optionalTag("g:size", product.size).trimEnd(),
     "    </item>"
   ].filter(Boolean).join("\n");
 }
