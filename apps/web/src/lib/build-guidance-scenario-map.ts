@@ -51,9 +51,9 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
       if (input.condition === "damp" || input.condition === "mould") return request("paint_bathroom_high_humidity", { significant_moisture: true, source_known: false });
     }
     if (input.surface === "roof") {
-      if (input.condition === "maintenance") return request("waterproof_existing_system_maintenance", { existing_coating_known_compatible: false });
+      if (input.condition === "maintenance") return request("waterproof_existing_system_maintenance", { existing_waterproofing_compatible: false });
       if (input.condition === "new") return request("waterproof_flat_roof");
-      if (input.condition === "cracks") return request("waterproof_details_parapets_joints_penetrations", { cracks_or_joints_present: true });
+      if (input.condition === "cracks") return request("waterproof_details_parapets_joints_penetrations", { cracks_or_joints_present: true, detail_movement: "unknown_or_significant" });
     }
     return null;
   }
@@ -61,14 +61,14 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
   if (input.module === "waterproofing") {
     if (input.location === "roof") {
       if (input.problem === "standing-water") return request("waterproof_roof_standing_water", { standing_water: true, drainage_or_falls_assessed: false });
-      if (input.problem === "maintenance") return request("waterproof_existing_system_maintenance", { existing_coating_known_compatible: false });
-      if (input.problem === "cracks") return request("waterproof_details_parapets_joints_penetrations", { cracks_or_joints_present: true });
+      if (input.problem === "maintenance") return request("waterproof_existing_system_maintenance", { existing_waterproofing_compatible: false });
+      if (input.problem === "cracks") return request("waterproof_details_parapets_joints_penetrations", { cracks_or_joints_present: true, detail_movement: "unknown_or_significant" });
       return request("waterproof_flat_roof", input.problem === "leak" ? { active_water_ingress: true } : {});
     }
     if (input.location === "balcony") {
       if (input.problem === "leak") return request("waterproof_balcony_leak", { active_water_ingress: true });
-      if (input.problem === "maintenance") return request("waterproof_existing_system_maintenance", { existing_coating_known_compatible: false });
-      if (input.problem === "cracks") return request("waterproof_details_parapets_joints_penetrations", { cracks_or_joints_present: true });
+      if (input.problem === "maintenance") return request("waterproof_existing_system_maintenance", { existing_waterproofing_compatible: false });
+      if (input.problem === "cracks") return request("waterproof_details_parapets_joints_penetrations", { cracks_or_joints_present: true, detail_movement: "unknown_or_significant" });
       return null;
     }
     if (input.location === "exterior-wall") {
