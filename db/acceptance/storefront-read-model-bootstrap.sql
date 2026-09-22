@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
 -- CI/acceptance-only bootstrap for legacy storefront projections.
 -- Production scheduling remains owned by the immutable date-prefixed migrations.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE SCHEMA IF NOT EXISTS cron;
 CREATE TABLE IF NOT EXISTS cron.job (jobid bigserial PRIMARY KEY, jobname text UNIQUE);
 CREATE OR REPLACE FUNCTION cron.schedule(job_name text, schedule text, command text)
