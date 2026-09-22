@@ -7,6 +7,7 @@ import {
 } from "../../../../lib/build-guidance-runtime";
 import {
   createPaintBuildSnapshot,
+  type PaintBuildProjectKitLineSnapshot,
   type PaintBuildProjectSnapshot
 } from "../../../../lib/paint-build-project-documents";
 
@@ -40,6 +41,55 @@ function requiredText(value: unknown, field: string, max = 220): string {
   return result;
 }
 
+function bool(value: unknown, field: string): boolean {
+  if (typeof value !== "boolean") throw new Error(`${field} must be boolean`);
+  return value;
+}
+
+function optionalPositiveNumber(value: unknown, field: string, max = 1_000_000): number | undefined {
+  if (value == null) return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > max) throw new Error(`${field} is invalid`);
+  return parsed;
+}
+
+function projectKitData(value: unknown): readonly PaintBuildProjectKitLineSnapshot[] | undefined {
+  if (value == null) return undefined;
+  if (!Array.isArray(value) || value.length > 40) throw new Error("projectKit is invalid");
+  return value.map((entry, index) => {
+    const raw = object(entry);
+    const role = requiredText(raw.role, `projectKit[${index}].role`, 20);
+    if (!["main", "system", "accessory"].includes(role)) throw new Error(`projectKit[${index}].role is invalid`);
+    const sourceLayer = requiredText(raw.sourceLayer, `projectKit[${index}].sourceLayer`, 32);
+    if (!["MANUFACTURER", "KONTA_MOU_RULE"].includes(sourceLayer)) throw new Error(`projectKit[${index}].sourceLayer is invalid`);
+    const quantity = Number(raw.quantity);
+    if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 99) throw new Error(`projectKit[${index}].quantity is invalid`);
+    const priceMinor = raw.priceMinor == null ? undefined : Number(raw.priceMinor);
+    if (priceMinor !== undefined && (!Number.isSafeInteger(priceMinor) || priceMinor < 0 || priceMinor > 10_000_000_000)) {
+      throw new Error(`projectKit[${index}].priceMinor is invalid`);
+    }
+    return {
+      key: requiredText(raw.key, `projectKit[${index}].key`, 96),
+      role: role as PaintBuildProjectKitLineSnapshot["role"],
+      label: requiredText(raw.label, `projectKit[${index}].label`, 160),
+      title: optionalText(raw.title, 300),
+      reasonEl: requiredText(raw.reasonEl, `projectKit[${index}].reasonEl`, 800),
+      required: bool(raw.required, `projectKit[${index}].required`),
+      selected: bool(raw.selected, `projectKit[${index}].selected`),
+      quantity,
+      sourceLayer: sourceLayer as PaintBuildProjectKitLineSnapshot["sourceLayer"],
+      cartable: bool(raw.cartable, `projectKit[${index}].cartable`),
+      canonicalVariantId: optionalText(raw.canonicalVariantId, 128),
+      priceMinor,
+      price: optionalText(raw.price, 64),
+      packAmount: optionalPositiveNumber(raw.packAmount, `projectKit[${index}].packAmount`),
+      packUnit: optionalText(raw.packUnit, 16),
+      purchaseVolume: optionalPositiveNumber(raw.purchaseVolume, `projectKit[${index}].purchaseVolume`),
+      availabilityNote: optionalText(raw.availabilityNote, 600)
+    };
+  });
+}
+
 function projectData(value: unknown) {
   const raw = object(value);
   const area = raw.areaM2 == null ? undefined : Number(raw.areaM2);
@@ -47,6 +97,7 @@ function projectData(value: unknown) {
   const colour = optionalText(raw.colour, 16);
   if (colour && !/^#[0-9A-Fa-f]{6}$/.test(colour)) throw new Error("colour is invalid");
   const product = raw.selectedProduct == null ? undefined : object(raw.selectedProduct);
+  const projectKit = projectKitData(raw.projectKit);
   return {
     title: requiredText(raw.title, "project.title"),
     projectType: requiredText(raw.projectType, "project.projectType", 96),
@@ -59,7 +110,8 @@ function projectData(value: unknown) {
       title: optionalText(product.title, 260),
       brand: optionalText(product.brand, 140),
       price: optionalText(product.price, 64)
-    } : undefined
+    } : undefined,
+    projectKit
   };
 }
 
