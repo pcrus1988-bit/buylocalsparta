@@ -43,6 +43,16 @@ test("second-batch below-grade moisture stays diagnosis-first", () => {
   assert.deepEqual(mapBuildStudioScenario({ module: "waterproofing", location: "basement", problem: "leak" }), { scenarioKey: "waterproof_basement_below_grade_moisture", facts: { significant_moisture: true, source_known: false, active_water_ingress: true } });
 });
 
+test("unsupported basement waterproofing intents remain fail-closed", () => {
+  assert.equal(mapBuildStudioScenario({ module: "waterproofing", location: "basement", problem: "maintenance" }), null);
+  assert.equal(mapBuildStudioScenario({ module: "waterproofing", location: "basement", problem: "cracks" }), null);
+  assert.equal(mapBuildStudioScenario({ module: "waterproofing", location: "basement", problem: "standing-water" }), null);
+});
+
+test("standing water is not reinterpreted as exterior-wall rain penetration", () => {
+  assert.equal(mapBuildStudioScenario({ module: "waterproofing", location: "exterior-wall", problem: "standing-water" }), null);
+});
+
 test("second-batch roof insulation stays blocked until build-up and access are known", () => {
   assert.deepEqual(mapBuildStudioScenario({ module: "insulation", location: "roof", goal: "both" }), { scenarioKey: "insulation_roof_general", facts: { roof_build_up_known: false, work_at_height: true, safe_access_confirmed: false } });
 });
