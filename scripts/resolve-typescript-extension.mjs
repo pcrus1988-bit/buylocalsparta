@@ -5,6 +5,13 @@ export async function resolve(specifier, context, nextResolve) {
   try {
     return await nextResolve(specifier, context);
   } catch (error) {
+    if (error?.code === "ERR_MODULE_NOT_FOUND" && specifier.startsWith("next/") && !specifier.endsWith(".js")) {
+      try {
+        return await nextResolve(`${specifier}.js`, context);
+      } catch {
+        // Fall through to the normal TypeScript-relative resolution rules below.
+      }
+    }
     if (error?.code !== "ERR_MODULE_NOT_FOUND" || !context.parentURL || !(specifier.startsWith("./") || specifier.startsWith("../"))) {
       throw error;
     }
