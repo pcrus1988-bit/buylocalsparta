@@ -113,7 +113,7 @@ export const PAINT_SURFACES: readonly PaintSurface[] = [
       { key: "new", label: "Νέος σοβάς", hint: "Άβαφη ή πρόσφατα επιχρισμένη επιφάνεια." },
       { key: "chalking", label: "Σκόνη / κιμωλία", hint: "Η παλιά βαφή αφήνει σκόνη στο χέρι." },
       { key: "damp", label: "Υγρασία", hint: "Τοίχος με επιβάρυνση από νερό ή υγρασία." },
-      { key: "cracks", label: "Τριχοειδείς ρωγμές", hint: "Χρειάζεται ελαστικότητα και προεργασία." }
+      { key: "cracks", label: "Τριχοειδείς ρωγμές", hint: "Λεπτές ρωγμές που χρειάζονται αξιολόγηση πριν από νέα βαφή." }
     ]
   },
   {
@@ -168,7 +168,7 @@ export const PAINT_SURFACES: readonly PaintSurface[] = [
     colourRelevant: false,
     conditions: [
       { key: "maintenance", label: "Συντήρηση", hint: "Υπάρχει παλιό σύστημα που χρειάζεται ανανέωση." },
-      { key: "new", label: "Νέα στεγανοποίηση", hint: "Θέλεις νέο υγρό σύστημα στεγανοποίησης." },
+      { key: "new", label: "Νέα στεγανοποίηση", hint: "Χρειάζεται νέα λύση στεγανοποίησης μετά από έλεγχο υποστρώματος και λεπτομερειών." },
       { key: "cracks", label: "Ρωγμές / αρμοί", hint: "Υπάρχουν σημεία που χρειάζονται επισκευή πριν τη στεγάνωση." }
     ]
   }
@@ -297,208 +297,45 @@ export function findCompatiblePaintCandidates(
     );
 }
 
-function systemFor(surface: PaintSurface, condition: PaintCondition) {
-  const warnings: string[] = [];
-  const preparation: string[] = [];
-  const reasons: string[] = [];
-  let primerRequired = false;
-  let primerLabel: string | undefined;
-  let topcoatLabel = "";
-  let finishLabel = "Ματ";
-  let systemName = "";
-  let tags: string[] = [];
-
-  switch (surface.key) {
-    case "interior-wall": {
-      systemName = "Σύστημα βαφής εσωτερικού τοίχου";
-      topcoatLabel = "Πλενόμενο χρώμα εσωτερικού χώρου";
-      finishLabel = "Ματ / χαμηλής γυαλάδας";
-      tags = ["χρώμα εσωτερικού", "πλενόμενο", "ματ"];
-
-      if (condition.key === "new" || condition.key === "new-plaster" || condition.key === "new-gypsum") {
-        primerRequired = true;
-        primerLabel = "Ακρυλικό αστάρι νερού για νέα / πορώδη επιφάνεια";
-        preparation.push("Καθάρισμα σκόνης και σαθρών υλικών", "Αστάρωμα πριν την τελική βαφή");
-        reasons.push("Η νέα επιφάνεια χρειάζεται ομοιόμορφη απορροφητικότητα.");
-      } else if (condition.key === "stains") {
-        primerRequired = true;
-        primerLabel = "Μονωτικό αστάρι λεκέδων";
-        preparation.push("Καθαρισμός λεκέδων", "Τοπική ή πλήρης εφαρμογή μονωτικού ασταριού");
-        reasons.push("Οι επίμονοι λεκέδες μπορεί να επανεμφανιστούν μέσα από το νέο χρώμα.");
-        tags.push("μονωτικό λεκέδων");
-      } else if (condition.key === "damp") {
-        primerRequired = true;
-        primerLabel = "Κατάλληλο αστάρι μετά την αποκατάσταση της αιτίας υγρασίας";
-        preparation.push("Εντοπισμός και αποκατάσταση της πηγής υγρασίας", "Πλήρες στέγνωμα", "Καθαρισμός / εξυγίανση της επιφάνειας");
-        reasons.push("Η βαφή πρέπει να γίνει μόνο αφού σταματήσει η ενεργή υγρασία.");
-        warnings.push("Μην εγκλωβίσεις ενεργή υγρασία κάτω από νέα βαφή. Αν η αιτία δεν είναι σαφής, χρειάζεται τεχνικός έλεγχος.");
-        tags.push("αντοχή υγρασία");
-      } else if (condition.key === "hairline-cracks") {
-        primerRequired = true;
-        primerLabel = "Αστάρι μόνο όπου απαιτείται από την επισκευή και το επιλεγμένο σύστημα";
-        preparation.push("Έλεγχος της ρωγμής", "Επισκευή πριν από το τελικό φινίρισμα", "Τρίψιμο / καθαρισμός όπου απαιτείται");
-        reasons.push("Η ρωγμή αντιμετωπίζεται ως επισκευή πριν από την τελική βαφή.");
-        tags.push("στόκος", "ρωγμές");
-      } else if (condition.key === "peeling") {
-        primerRequired = true;
-        primerLabel = "Αστάρι μόνο όπου απαιτείται από την κατάσταση της βάσης και το επιλεγμένο σύστημα";
-        preparation.push("Αφαίρεση της αποκολλημένης βαφής", "Καθαρισμός και έλεγχος σταθερότητας", "Επισκευή / αστάρωμα όπου απαιτείται");
-        reasons.push("Η αποκολλημένη βαφή πρέπει να αφαιρεθεί πριν από νέο φινίρισμα.");
-        tags.push("αστάρι", "ξεφλούδισμα");
-      } else {
-        preparation.push("Καθαρισμός της επιφάνειας και ελαφρύ τρίψιμο όπου χρειάζεται");
-        reasons.push("Η σταθερή υπάρχουσα βαφή μπορεί συνήθως να δεχτεί νέο σύστημα μετά από σωστή προετοιμασία.");
-      }
-      break;
-    }
-
-    case "exterior-wall": {
-      systemName = "Σύστημα προστασίας εξωτερικού τοίχου";
-      topcoatLabel = condition.key === "cracks"
-        ? "Ελαστομερές / υψηλής ελαστικότητας χρώμα εξωτερικού"
-        : "Ακρυλικό ή σιλικονούχο χρώμα εξωτερικού";
-      finishLabel = "Ματ";
-      tags = ["χρώμα εξωτερικού", "ακρυλικό", "αντοχή UV"];
-
-      if (condition.key === "new") {
-        primerRequired = true;
-        primerLabel = "Ακρυλικό αστάρι εξωτερικού για νέο σοβά";
-        preparation.push("Έλεγχος ωρίμανσης νέου σοβά", "Καθαρισμός", "Αστάρωμα");
-        reasons.push("Ο νέος σοβάς χρειάζεται σταθεροποίηση και έλεγχο απορροφητικότητας.");
-      } else if (condition.key === "chalking") {
-        primerRequired = true;
-        primerLabel = "Διεισδυτικό / σταθεροποιητικό αστάρι εξωτερικού";
-        preparation.push("Πλύσιμο και απομάκρυνση κιμωλίασης", "Αστάρωμα σταθεροποίησης");
-        reasons.push("Η κιμωλίαση μειώνει σημαντικά την πρόσφυση της νέας βαφής.");
-      } else if (condition.key === "damp") {
-        primerRequired = true;
-        primerLabel = "Αστάρι εξωτερικού μετά την επίλυση της υγρασίας";
-        preparation.push("Έλεγχος εισροής νερού", "Επισκευή αιτίας", "Στέγνωμα", "Αστάρωμα");
-        warnings.push("Η εξωτερική υγρασία μπορεί να προέρχεται από ρωγμές, αρμούς ή ανερχόμενη υγρασία. Η βαφή δεν υποκαθιστά την επισκευή.");
-        reasons.push("Η στεγνή και σταθερή βάση είναι προϋπόθεση για ανθεκτικό τελικό αποτέλεσμα.");
-      } else if (condition.key === "cracks") {
-        primerRequired = true;
-        primerLabel = "Αστάρι εξωτερικού συμβατό με ελαστομερές σύστημα";
-        preparation.push("Άνοιγμα / καθαρισμός προβληματικών ρωγμών", "Ελαστικό υλικό επισκευής", "Αστάρωμα");
-        reasons.push("Οι τριχοειδείς ρωγμές χρειάζονται σύστημα με μεγαλύτερη ελαστικότητα.");
-        tags.push("ελαστομερές");
-      } else {
-        preparation.push("Πλύσιμο, αφαίρεση σαθρών σημείων και πλήρες στέγνωμα");
-        reasons.push("Η καθαρή και σταθερή επιφάνεια βοηθά τη νέα εξωτερική βαφή να αντέξει περισσότερο.");
-      }
-      break;
-    }
-
-    case "wood": {
-      systemName = "Σύστημα βαφής / προστασίας ξύλου";
-      topcoatLabel = "Βερνικόχρωμα ή προστατευτική βαφή ξύλου";
-      finishLabel = "Σατινέ";
-      tags = ["ξύλο", "βερνικόχρωμα", "προστασία ξύλου"];
-
-      if (condition.key === "bare") {
-        primerRequired = true;
-        primerLabel = "Αστάρι / υπόστρωμα ξύλου";
-        preparation.push("Λείανση κατά τη φορά των ινών", "Απομάκρυνση σκόνης", "Αστάρωμα ξύλου");
-        reasons.push("Το άβαφο ξύλο χρειάζεται σφράγιση και ομοιόμορφη βάση πριν το τελικό φινίρισμα.");
-      } else if (condition.key === "weathered") {
-        primerRequired = true;
-        primerLabel = "Κατάλληλο υπόστρωμα ξύλου μετά από βαθιά προετοιμασία";
-        preparation.push("Αφαίρεση σαθρού παλιού φινιρίσματος", "Τρίψιμο", "Καθαρισμός", "Αστάρωμα");
-        reasons.push("Η ταλαιπωρημένη επιφάνεια χρειάζεται αποκατάσταση πριν δεχτεί νέο φινίρισμα.");
-      } else {
-        preparation.push("Έλεγχος πρόσφυσης παλιάς βαφής", "Ελαφρύ τρίψιμο και καθαρισμός");
-        reasons.push("Η ματ, καθαρή παλιά βαφή προσφέρει καλύτερη πρόσφυση στο νέο φινίρισμα.");
-      }
-      break;
-    }
-
-    case "metal": {
-      systemName = "Σύστημα προστασίας σιδήρου / χάλυβα";
-      topcoatLabel = "Ανθεκτικό βερνικόχρωμα μετάλλου";
-      finishLabel = "Σατινέ / γυαλιστερό";
-      tags = ["μέταλλο", "αντισκωριακό", "βερνικόχρωμα"];
-
-      if (condition.key === "bare") {
-        primerRequired = true;
-        primerLabel = "Αστάρι / πρώτη στρώση όπως ορίζει το επιλεγμένο σύστημα προστασίας";
-        preparation.push("Απολίπανση / καθαρισμός", "Προετοιμασία στον βαθμό που απαιτεί το επιλεγμένο σύστημα", "Πρώτη στρώση σύμφωνα με τον κατασκευαστή");
-        reasons.push("Το γυμνό μέταλλο χρειάζεται αντιδιαβρωτική προστασία πριν το τελικό χρώμα.");
-      } else if (condition.key === "rust") {
-        primerRequired = true;
-        primerLabel = "Πρώτη αντιδιαβρωτική στρώση σύμφωνα με το επιλεγμένο σύστημα μετά την προετοιμασία";
-        preparation.push("Μηχανική απομάκρυνση σαθρής σκουριάς", "Απολίπανση", "Αντισκωριακό αστάρι");
-        reasons.push("Η ενεργή σκουριά πρέπει να αντιμετωπιστεί πριν καλυφθεί.");
-        warnings.push("Μην εφαρμόσεις τελικό χρώμα πάνω σε σαθρή ή ενεργή σκουριά.");
-      } else {
-        preparation.push("Έλεγχος πρόσφυσης παλιάς βαφής", "Τρίψιμο και απολίπανση");
-        reasons.push("Η σωστή προετοιμασία της παλιάς βαφής μειώνει τον κίνδυνο αποκόλλησης.");
-      }
-      break;
-    }
-
-    case "bathroom": {
-      systemName = "Σύστημα βαφής χώρου υψηλής υγρασίας";
-      topcoatLabel = "Χρώμα εσωτερικού με αυξημένη αντοχή σε υγρασία και μούχλα";
-      finishLabel = "Ματ / σατινέ";
-      tags = ["μπάνιο", "αντοχή υγρασία", "αντιμουχλικό", "πλενόμενο"];
-
-      if (condition.key === "mould") {
-        primerRequired = true;
-        primerLabel = "Κατάλληλο αστάρι μετά από καθαρισμό και εξυγίανση";
-        preparation.push("Ασφαλής καθαρισμός μούχλας", "Πλήρες στέγνωμα", "Έλεγχος αερισμού / πηγής υγρασίας", "Αστάρωμα");
-        reasons.push("Η μούχλα πρέπει να αφαιρεθεί και να ελεγχθεί η αιτία πριν τη νέα βαφή.");
-        warnings.push("Επίμονη ή εκτεταμένη μούχλα μπορεί να υποδηλώνει πρόβλημα υγρασίας που απαιτεί τεχνικό έλεγχο.");
-      } else if (condition.key === "damp") {
-        primerRequired = true;
-        primerLabel = "Αστάρι κατάλληλο για την αποκατεστημένη επιφάνεια";
-        preparation.push("Έλεγχος αιτίας υγρασίας", "Στέγνωμα", "Καθαρισμός", "Αστάρωμα");
-        reasons.push("Η ανθεκτική τελική βαφή λειτουργεί σωστά μόνο πάνω σε στεγνή βάση.");
-        warnings.push("Αν υπάρχει διαρροή ή ενεργή εισροή νερού, λύσε πρώτα την αιτία.");
-      } else {
-        preparation.push("Καθαρισμός σαπουνιών / λιπαρών ρύπων και πλήρες στέγνωμα");
-        reasons.push("Σε χώρους υγρασίας προτιμάται τελικό χρώμα με αυξημένη αντοχή σε πλύσιμο και συμπύκνωση.");
-      }
-      break;
-    }
-
-    case "roof": {
-      systemName = "Υγρό σύστημα στεγανοποίησης ταράτσας";
-      topcoatLabel = "Ελαστική στεγανωτική μεμβράνη ταράτσας";
-      finishLabel = "Λευκό / ανακλαστικό όπου υποστηρίζεται";
-      tags = ["στεγανοποίηση ταράτσας", "ελαστομερές", "υγρή μεμβράνη"];
-
-      if (condition.key === "new") {
-        primerRequired = true;
-        primerLabel = "Αστάρι στεγανοποίησης συμβατό με το υπόστρωμα";
-        preparation.push("Έλεγχος κλίσεων και απορροών", "Καθαρισμός", "Επισκευή ατελειών", "Αστάρωμα");
-        reasons.push("Η νέα στεγανοποίηση χρειάζεται συμβατό πλήρες σύστημα και σωστά προετοιμασμένη βάση.");
-      } else if (condition.key === "cracks") {
-        primerRequired = true;
-        primerLabel = "Αστάρι συστήματος στεγανοποίησης";
-        preparation.push("Καθαρισμός", "Επισκευή ρωγμών και αρμών", "Ενίσχυση κρίσιμων σημείων όπου απαιτείται", "Αστάρωμα");
-        reasons.push("Οι ρωγμές και οι αρμοί είναι κρίσιμα σημεία και πρέπει να αποκατασταθούν πριν τη μεμβράνη.");
-        warnings.push("Μεγάλες ρωγμές, λιμνάζοντα νερά ή αστοχίες κλίσεων χρειάζονται τεχνική αξιολόγηση πριν την εφαρμογή.");
-      } else {
-        primerRequired = true;
-        primerLabel = "Αστάρι ανανέωσης συμβατό με το υπάρχον σύστημα";
-        preparation.push("Έλεγχος παλιάς στεγάνωσης", "Πλύσιμο και πλήρες στέγνωμα", "Τοπικές επισκευές", "Αστάρωμα όπου απαιτείται");
-        reasons.push("Η συμβατότητα με το υπάρχον σύστημα είναι απαραίτητη πριν την ανανέωση.");
-      }
-      break;
-    }
-  }
-
+/**
+ * Legacy Paint Consultant presentation envelope only.
+ *
+ * Technical preparation, primer/topcoat/system selection, warnings and suitability
+ * must come from the reviewed Layer A + verified Layer B + Layer C runtime. This
+ * helper intentionally carries no technical prescription.
+ */
+function systemFor(surface: PaintSurface, _condition: PaintCondition) {
   return {
-    systemName,
-    topcoatLabel,
-    finishLabel,
-    primerRequired,
-    primerLabel,
-    preparation,
-    reasons,
-    warnings,
-    tags
+    systemName: surface.key === "roof" ? "Έλεγχος στεγανοποίησης" : "Έλεγχος βαφής",
+    topcoatLabel: "",
+    finishLabel: "",
+    primerRequired: false,
+    primerLabel: undefined as string | undefined,
+    preparation: [] as readonly string[],
+    reasons: [] as readonly string[],
+    warnings: [] as readonly string[],
+    tags: [] as readonly string[]
   } as const;
+}
+
+/**
+ * Retrieval-only vocabulary for broad catalogue discovery.
+ *
+ * These terms are NOT technical eligibility rules. A product may appear in the
+ * customer chooser only after the candidates endpoint independently verifies a
+ * current manufacturer product/profile/rule/evidence match for the reviewed
+ * scenario and facts. Do not add primer chemistry, coating technology or other
+ * prescriptive system assumptions here.
+ */
+export function paintDiscoveryTerms(surfaceKey: PaintSurfaceKey): readonly string[] {
+  switch (surfaceKey) {
+    case "interior-wall": return ["χρώμα εσωτερικού", "εσωτερικού χώρου"];
+    case "exterior-wall": return ["χρώμα εξωτερικού", "εξωτερικού χώρου"];
+    case "wood": return ["χρώμα ξύλου", "ξύλο"];
+    case "metal": return ["χρώμα μετάλλου", "μέταλλο"];
+    case "bathroom": return ["χρώμα μπάνιου", "μπάνιο"];
+    case "roof": return ["στεγανοποίηση ταράτσας", "ταράτσα"];
+  }
 }
 
 export function recommendPaintProject(input: {
@@ -515,9 +352,9 @@ export function recommendPaintProject(input: {
     ? input.selectedColour.toUpperCase()
     : "#F4F0E7";
 
-  const query = system.tags.slice(0, 4).join(" ");
   const quantityNote =
-    "Η ακριβής ποσότητα, ο αριθμός στρώσεων, η κατανάλωση και οι συσκευασίες θα υπολογιστούν αφού επιλεγεί συγκεκριμένο προϊόν, από τα επίσημα τεχνικά στοιχεία του κατασκευαστή.";
+    "Η τεχνική καθοδήγηση, η επιλεξιμότητα προϊόντων και η ποσότητα προκύπτουν μόνο από την ελεγμένη διαδρομή Layer A + Layer B + Layer C και τα επίσημα στοιχεία του επιλεγμένου κατασκευαστή.";
+
 
   return {
     surface,
@@ -535,7 +372,7 @@ export function recommendPaintProject(input: {
     quantityNote,
     selectedColour,
     catalogueTags: system.tags,
-    searchHref: `/shop?q=${encodeURIComponent(query)}`
+    searchHref: "/shop"
   };
 }
 
