@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0",
+  "knowledge_layer": "A_GENERAL_SOLUTION_GUIDANCE",
+  "scope": "Brand-independent environmental-condition assessment and weather-related application guardrails for paint/build solution guidance. Product-specific temperature, humidity, rain-free, curing, recoating, dew-point and wind limits remain Layer B unless an applicable project specification establishes them.",
+  "status": "reviewed_source_backed",
+  "reviewed_at": "2026-09-22",
+  "rules": [
+    {
+      "id": "A-ENV-WEATHER-001",
+      "topic": "current_and_expected_weather_before_application",
+      "claim": "Environmental suitability must be assessed using both current and expected conditions over the application's curing/protection period. FHWA coating inspection guidance states that painting immediately before poor weather is not advisable and that current/expected weather should be considered together with the curing time of the coating.",
+      "customer_guidance_el": "Μην αξιολογείς μόνο τον καιρό τη στιγμή που ξεκινά η εφαρμογή. Πρέπει να εξετάζεται και η αναμενόμενη μεταβολή του καιρού για όσο χρόνο το εφαρμοζόμενο σύστημα χρειάζεται προστασία ή ωρίμανση. Αν αναμένεται βροχή ή άλλη δυσμενής μεταβολή πριν το υλικό αποκτήσει την απαιτούμενη αντοχή, η εργασία πρέπει να επανεκτιμηθεί.",
+      "stop_escalation": "If weather is expected to become unsuitable before the selected product/system reaches the manufacturer-defined protected/cured state, do not tell the customer that application is safe merely because conditions are acceptable at the start. Resolve the product-specific protection/cure window from Layer B.",
+      "source": {"authority":"U.S. Federal Highway Administration","title":"Field Manual for Bridge Painting Inspection — Introduction","url":"https://www.fhwa.dot.gov/publications/research/infrastructure/structures/98084/intro.cfm","accessed":"2026-09-22"},
+      "confidence":"high",
+      "review_state":"source_verified",
+      "applicability_note":"The general need to assess current and forecast conditions is retained. Archived FHWA numerical coating limits are not generalized to KONTA MOY products or substrates."
+    },
+    {
+      "id": "A-ENV-CONDENSATION-001",
+      "topic": "condensation_and_dew_point_risk_on_coating_substrates",
+      "claim": "A surface can carry condensation even when moisture is not obvious, and coating over that moisture can cause premature coating-system failure. FHWA training identifies dew point and surface temperature as relevant to avoiding condensation on metal substrates and notes that acceptable surface-temperature ranges come from the manufacturer's product data sheet.",
+      "customer_guidance_el": "Η επιφάνεια δεν πρέπει να θεωρείται κατάλληλη μόνο επειδή φαίνεται στεγνή. Όταν υπάρχει κίνδυνος συμπύκνωσης — ιδιαίτερα σε κρύες μεταλλικές επιφάνειες ή όταν η θερμοκρασία πλησιάζει το σημείο δρόσου — απαιτείται έλεγχος των συνθηκών και των ορίων του επιλεγμένου προϊόντος πριν από την εφαρμογή.",
+      "stop_escalation": "If condensation is present or reasonably suspected, pause coating application until the surface is dry and the selected product/system's environmental requirements are verified. Do not infer a universal dew-point margin for every paint, membrane, masonry coating or insulation material from a steel-coating specification.",
+      "source": {"authority":"U.S. Federal Highway Administration","title":"HMEC Module C Participant Workbook — Coating Application, Surface Temperature","url":"https://www.fhwa.dot.gov/pavement/materials/hmec/pubs/module_c/participant_workbook.pdf","accessed":"2026-09-22"},
+      "confidence":"high",
+      "review_state":"source_verified",
+      "applicability_note":"FHWA discusses steel coatings and a 3°C dew-point spread used in that context. Layer A retains only the condensation-risk principle; numeric acceptance limits must come from Layer B or an applicable specification."
+    },
+    {
+      "id": "A-ENV-SURFACE-TEMP-001",
+      "topic": "surface_temperature_not_equal_to_air_temperature",
+      "claim": "Ambient air temperature alone is not sufficient to establish coating suitability because substrate temperature can differ materially, especially in direct sunlight. FHWA training notes that sunlit steel can exceed air temperature and that manufacturer product data may specify acceptable surface-temperature ranges.",
+      "customer_guidance_el": "Η θερμοκρασία αέρα από μόνη της δεν αρκεί για να αποφασιστεί αν μπορεί να γίνει εφαρμογή. Μια επιφάνεια που βρίσκεται στον ήλιο μπορεί να είναι σημαντικά θερμότερη από τον αέρα, ενώ μια ψυχρή επιφάνεια μπορεί να εμφανίσει συμπύκνωση. Τα πραγματικά όρια εφαρμογής πρέπει να ελέγχονται στις οδηγίες του επιλεγμένου προϊόντος.",
+      "stop_escalation": "Where the substrate is strongly sun-heated, unusually cold, or otherwise likely to differ materially from ambient temperature, do not approve application from weather-app air temperature alone; verify substrate conditions and Layer B limits.",
+      "source": {"authority":"U.S. Federal Highway Administration","title":"HMEC Module C Participant Workbook — Coating Application, Surface Temperature","url":"https://www.fhwa.dot.gov/pavement/materials/hmec/pubs/module_c/participant_workbook.pdf","accessed":"2026-09-22"},
+      "confidence":"high",
+      "review_state":"source_verified",
+      "applicability_note":"No universal minimum or maximum substrate temperature is asserted. Product-specific limits remain Layer B."
+    },
+    {
+      "id": "A-ENV-WIND-001",
+      "topic": "wind_and_spray_application_risk",
+      "claim": "Wind can affect coating application and surrounding property. FHWA coating guidance notes that heavy winds can carry airborne overspray onto adjacent property and can contribute to premature drying, and advises delaying or restricting spray application where heavy winds are present.",
+      "customer_guidance_el": "Σε εφαρμογή με ψεκασμό, ο άνεμος δεν είναι μόνο θέμα άνεσης. Μπορεί να μεταφέρει νέφος υλικού σε γειτονικές επιφάνειες, οχήματα ή κτίρια και να επηρεάσει την εφαρμογή. Σε έντονο άνεμο η εφαρμογή με ψεκασμό πρέπει να επανεκτιμάται ή να αναβάλλεται.",
+      "stop_escalation": "If spray drift cannot be reliably contained or wind is materially affecting application, do not recommend continuing spray work. Switch method only if the selected product permits it in Layer B; otherwise delay the work.",
+      "source": {"authority":"U.S. Federal Highway Administration","title":"Field Manual for Bridge Painting Inspection — Introduction","url":"https://www.fhwa.dot.gov/publications/research/infrastructure/structures/98084/intro.cfm","accessed":"2026-09-22"},
+      "confidence":"high",
+      "review_state":"source_verified",
+      "applicability_note":"No universal wind-speed cutoff is asserted. The rule concerns drift/application risk; exact limits and permitted application methods remain product/project specific."
+    },
+    {
+      "id": "A-ENV-WORKER-HEAT-001",
+      "topic": "worker_heat_exposure_during_outdoor_build_work",
+      "claim": "Worker heat risk cannot be assessed from air temperature alone. OSHA identifies air temperature, humidity, radiant heat/sunlight and air movement as environmental contributors to occupational heat stress and also requires consideration of workload and protective clothing.",
+      "customer_guidance_el": "Σε εξωτερικές εργασίες βαφής, επισκευής, στεγανοποίησης ή θερμομόνωσης, η ασφάλεια του ανθρώπου που εργάζεται πρέπει να αξιολογείται ξεχωριστά από το αν το υλικό μπορεί τεχνικά να εφαρμοστεί. Ζέστη, υγρασία, άμεσος ήλιος, κίνηση αέρα, σωματική καταπόνηση και μέσα προστασίας μπορούν μαζί να αυξήσουν σημαντικά τον θερμικό κίνδυνο.",
+      "stop_escalation": "If conditions create credible occupational heat-stress risk, do not use product application limits as proof that working conditions are safe. Route worker-safety decisions to applicable occupational-safety guidance and competent site supervision.",
+      "source": {"authority":"U.S. Occupational Safety and Health Administration","title":"Heat — Heat Hazard Recognition","url":"https://www.osha.gov/heat-exposure/hazards","accessed":"2026-09-22"},
+      "confidence":"high",
+      "review_state":"source_verified",
+      "applicability_note":"This rule establishes hazard factors, not Greek legal thresholds. Applicable Greek/EU occupational-safety requirements must govern local work."
+    }
+  ],
+  "unresolved": [
+    {"id":"A-ENV-TEMP-LIMIT-PENDING","question":"What universal minimum and maximum air or substrate temperature should KONTA MOY allow for application?","status":"unresolved_do_not_generalize","reason":"Acceptable ranges depend on product chemistry, substrate, system and manufacturer instructions. Resolve from Layer B or an applicable project specification."},
+    {"id":"A-ENV-RH-LIMIT-PENDING","question":"What universal maximum relative humidity should apply?","status":"unresolved_do_not_generalize","reason":"Humidity limits are coating/system specific. FHWA examples from bridge coatings are not generalized to all Paint & Build solutions."},
+    {"id":"A-ENV-DEWPOINT-MARGIN-PENDING","question":"Should KONTA MOY impose a universal 3°C substrate-to-dew-point margin?","status":"unresolved_do_not_generalize","reason":"FHWA/ASTM steel-coating practice supports this margin in that domain, but Layer A does not extend the numeric requirement to every coating, membrane, masonry product or insulation system. Use Layer B/applicable specification."},
+    {"id":"A-ENV-RAINFREE-PENDING","question":"What universal rain-free period should be required before and after application?","status":"unresolved_do_not_generalize","reason":"Rain resistance, curing and protection windows are product/system specific and must be obtained from Layer B."},
+    {"id":"A-ENV-WIND-LIMIT-PENDING","question":"What universal wind-speed cutoff should be used for spray or other exterior application?","status":"unresolved_do_not_generalize","reason":"No universal cutoff is established here; application method, drift containment, product behavior and site conditions differ."},
+    {"id":"A-ENV-SUN-PENDING","question":"Should direct sunlight always prohibit application?","status":"unresolved_do_not_generalize","reason":"Direct sun can materially raise substrate temperature, but whether application is prohibited depends on measured substrate conditions and the selected product/system instructions."},
+    {"id":"A-ENV-GREEK-WORKER-HEAT-PENDING","question":"What legally applicable heat-work thresholds and mandatory controls should customer guidance use in Greece?","status":"unresolved_requires_local_regulatory_source","reason":"OSHA is used only for the general hazard-factor model. Greek/EU occupational-safety requirements must be researched separately before presenting local legal thresholds or mandatory controls."}
+  ],
+  "layer_boundary": {
+    "manufacturer_specific_values":"Layer B only",
+    "kontamou_workflow_and_product_selection_guardrails":"Layer C only",
+    "note":"Layer A establishes that weather, substrate temperature, condensation risk, wind and worker heat exposure must be assessed. It does not invent universal numeric application windows or replace manufacturer instructions, project specifications or applicable occupational-safety law."
+  }
+}
