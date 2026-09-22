@@ -17,7 +17,9 @@ const requireText = (source: string, contract: string, message: string) => {
   if (!source.includes(contract)) failures.push(message);
 };
 
-const sitemap = read("apps/web/src/app/sitemap.ts");
+const sitemapIndex = read("apps/web/src/app/sitemap.xml/route.ts");
+const coreSitemap = read("apps/web/src/app/sitemaps/core/sitemap.ts");
+const productSitemap = read("apps/web/src/app/sitemaps/products/[shard]/route.ts");
 const humanSitemap = read("apps/web/src/app/sitemap/page.tsx");
 const robots = read("apps/web/src/app/robots.ts");
 const rootLayout = read("apps/web/src/app/layout.tsx");
@@ -56,34 +58,40 @@ const envExample = read(".env.example");
 
 // XML sitemap governance and honest freshness.
 for (const contract of [
-  "getPublicProductSeoInventory()",
-  "getPublicVendorDirectory()",
-  "getAvailableStorefrontCategories",
-  "Promise.allSettled",
-  "INDEXABLE_STATIC_ROUTES",
-  "getSeoGlobalSettingsSnapshot()",
-  "getSeoEntityOverridesSnapshot()",
-  "resolveSeoEntityControl",
-  "absoluteSeoCanonical",
-  "productPublicPath(product)",
-  "productIndexEligibility(product)",
-  "researchVendorIndexEligibility"
-]) requireText(sitemap, contract, `Sitemap is missing ${contract}`);
-requireText(sitemap, "if (!settings.indexingEnabled) return []", "Sitemap must fail closed when the global indexing master switch is off");
-requireText(sitemap, 'vendor.directoryStatus === "partner"', "Sitemap must independently control partner and Research vendor admission");
-requireText(sitemap, "override?.lastReviewedAt ?? vendor.research?.checkedAt", "Vendor sitemap entries must preserve governed review/research freshness");
-requireText(sitemap, "do not manufacture freshness", "Product sitemap freshness policy must explicitly forbid manufactured timestamps");
+  "getSeoGlobalSettingsSnapshot",
+  "PRODUCT_SITEMAP_SHARD_COUNT",
+  "settings.indexingEnabled",
+  'new URL("/sitemaps/core/sitemap.xml"',
+  'new URL(`/sitemaps/products/${shard}.xml`',
+  "settings.sitemap.products"
+]) requireText(sitemapIndex, contract, `Sitemap index is missing ${contract}`);
 
-const productSitemapStart = sitemap.indexOf('...(products.status === "fulfilled"');
-const productSitemapEnd = sitemap.indexOf('...(vendors.status === "fulfilled"');
-if (productSitemapStart < 0 || productSitemapEnd <= productSitemapStart) {
-  failures.push("Unable to isolate product sitemap block for freshness checks");
-} else {
-  const productSitemap = sitemap.slice(productSitemapStart, productSitemapEnd);
-  requireText(productSitemap, "lastModified: safeLastModified(override?.lastReviewedAt)", "Products may expose lastmod only from an explicit governed review date until a trustworthy public-content clock exists");
-  if (/lastModified:[^\n]*(?:Date\.now\(|new Date\(\)|product\.(?:updatedAt|createdAt|priceUpdatedAt))/i.test(productSitemap)) {
-    failures.push("Product sitemap must not manufacture or infer lastmod from incomplete/transient timestamps");
-  }
+for (const contract of [
+  "INDEXABLE_STATIC_ROUTES",
+  "STOREFRONT_CATEGORIES",
+  "getPublicVendorSitemapInventory",
+  "researchVendorIndexEligibility",
+  "getSeoEntityOverridesSnapshot",
+  "resolveSeoEntityControl",
+  "absoluteSeoCanonical"
+]) requireText(coreSitemap, contract, `Core sitemap is missing ${contract}`);
+requireText(coreSitemap, "if (!settings.indexingEnabled) return []", "Core sitemap must fail closed when the global indexing master switch is off");
+requireText(coreSitemap, 'vendor.directoryStatus === "partner"', "Core sitemap must independently control partner and Research vendor admission");
+requireText(coreSitemap, "override?.lastReviewedAt ?? vendor.research?.checkedAt", "Vendor sitemap entries must preserve governed review/research freshness");
+
+for (const contract of [
+  "PRODUCT_SITEMAP_SHARD_COUNT",
+  "storefront_catalog_read_model",
+  "eligible_offer_count>0",
+  "resolveSeoEntityControl",
+  "productPublicPath(product)",
+  "defaultIndexAllowed: product.defaultIndexAllowed",
+  "lastModified: safeLastModified(override?.lastReviewedAt)",
+  'status: 503'
+]) requireText(productSitemap, contract, `Product sitemap shard is missing ${contract}`);
+requireText(productSitemap, "if (!settings.indexingEnabled || !settings.sitemap.products)", "Product sitemap shards must fail closed when indexing or product sitemap publication is disabled");
+if (/lastModified:[^\n]*(?:Date\.now\(|new Date\(\)|rm\.(?:updated_at|created_at|price_updated_at)|product\.(?:updatedAt|createdAt|priceUpdatedAt))/i.test(productSitemap)) {
+  failures.push("Product sitemap must expose lastmod only from governed review evidence, not transient catalogue timestamps");
 }
 
 // robots.txt is crawl policy, not access control.
