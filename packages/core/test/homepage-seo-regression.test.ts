@@ -32,7 +32,7 @@ test("homepage preserves clean semantic and structured SEO signals", () => {
   assert.match(homepage, /href=\{`\/category\/\$\{category\.slug\}`\}/);
   assert.match(homepage, /<a href="\/shop">Όλες οι κατηγορίες/);
   assert.match(homepage, /href="\/shops">Γνώρισε τα καταστήματα της Σπάρτης/);
-  assert.match(homepage, /<a href="\/ask-local">Ask Local/);
+  assert.match(homepage, /href="\/ask-local">Ρώτησε τοπικά/);
   assert.match(layout, /apple: \[\{ url: "\/brand\/kontamou-sparta-logo\.webp" \}\]/);
 });
 
