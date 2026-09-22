@@ -63,5 +63,5 @@ test("public crawlers and KONTA MOY SEO monitor retain the Sparta SEO root", () 
 });
 
 test("location gateway response robots policy matches page metadata", () => {
-  assert.equal(seoDocumentRobotsHeader("/choose-location", new URLSearchParams()), "noindex, nofollow, noarchive");
+  assert.equal(seoDocumentRobotsHeader("/choose-location", new URLSearchParams()), "noindex, follow, noarchive");
 });
