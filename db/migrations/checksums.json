@@ -267,5 +267,6 @@
   "0273_paint_build_completion_hardening.sql": "f7a3d6448bc70314c989eaeb26a0d050e84e8144d77863f310da995f316c459f",
   "0274_general_build_guidance_exterior_new_plaster.sql": "189b02d7a1f9d693c95f258297d47e61a3b87f3aa5383357829e145b37e3cdd9",
   "0275_general_build_guidance_exterior_new_plaster_step_evidence.sql": "32d0aee7344dd4ef115690dbbdf0dd0541a0f7dee4edbd7eb46eecdf96709171",
-  "0276_general_build_guidance_stop_condition_external_evidence.sql": "0d687472f02928def47ef917a4d9fdf32b554d0591503855f4b64e92966d526e"
+  "0276_general_build_guidance_stop_condition_external_evidence.sql": "0d687472f02928def47ef917a4d9fdf32b554d0591503855f4b64e92966d526e",
+  "0277_general_build_guidance_final_stop_provenance.sql": "ef37e06d1400af846efbdde1902d8dd29a3e7e7550f61fb3b6cae279fae43027"
 }
