@@ -84,10 +84,11 @@ export async function adminAssignAllVitexProducts(
     JOIN vendor_locations l ON l.vendor_id=v.id
     WHERE (v.public_id=$1 OR v.id::text=$1)
       AND (l.public_id=$2 OR l.id::text=$2)
+      AND l.active=true
     LIMIT 1
   `, [vendorId, locationId]);
   const row = context.rows[0];
-  if (!row) throw new Error("Vendor/location combination is invalid");
+  if (!row) throw new Error("Vendor/active-location combination is invalid");
 
   const result = await db.query<SqlRow>(`
     WITH target AS (
@@ -105,11 +106,18 @@ export async function adminAssignAllVitexProducts(
         AND cv.recalled=false
         AND cv.market_id=$1::uuid
     ),
+    existing AS (
+      SELECT vo.id,vo.status AS old_status
+      FROM vendor_offers vo
+      JOIN target t ON t.canonical_variant_id=vo.canonical_variant_id
+      WHERE vo.vendor_id=$2::uuid
+        AND vo.location_id=$3::uuid
+    ),
     touched AS (
       UPDATE vendor_offers vo
       SET status=CASE
-            WHEN vo.status IN ('archived','rejected','suppressed') THEN 'draft'::offer_status
-            ELSE vo.status
+            WHEN existing.old_status IN ('archived','rejected','suppressed') THEN 'draft'::offer_status
+            ELSE existing.old_status
           END,
           source_payload=COALESCE(vo.source_payload,'{}'::jsonb)
             || jsonb_build_object(
@@ -119,12 +127,9 @@ export async function adminAssignAllVitexProducts(
               'bulkAssignment',true
             ),
           updated_at=now()
-      FROM target t
-      WHERE vo.vendor_id=$2::uuid
-        AND vo.location_id=$3::uuid
-        AND vo.canonical_variant_id=t.canonical_variant_id
-      RETURNING vo.id,
-                CASE WHEN vo.status='draft' THEN 1 ELSE 0 END AS now_draft
+      FROM existing
+      WHERE vo.id=existing.id
+      RETURNING vo.id,existing.old_status::text
     ),
     inserted AS (
       INSERT INTO vendor_offers(
@@ -157,17 +162,17 @@ export async function adminAssignAllVitexProducts(
       FROM target t
       WHERE NOT EXISTS (
         SELECT 1
-        FROM vendor_offers existing
-        WHERE existing.vendor_id=$2::uuid
-          AND existing.location_id=$3::uuid
-          AND existing.canonical_variant_id=t.canonical_variant_id
+        FROM vendor_offers existing_offer
+        WHERE existing_offer.vendor_id=$2::uuid
+          AND existing_offer.location_id=$3::uuid
+          AND existing_offer.canonical_variant_id=t.canonical_variant_id
       )
       RETURNING id
     )
     SELECT
       (SELECT count(*) FROM target)::int AS total_products,
       (SELECT count(*) FROM inserted)::int AS inserted,
-      (SELECT count(*) FROM touched WHERE now_draft=1)::int AS reactivated
+      (SELECT count(*) FROM touched WHERE old_status IN ('archived','rejected','suppressed'))::int AS reactivated
   `, [asText(row.market_uuid), asText(row.vendor_uuid), asText(row.location_uuid)]);
   const stats = result.rows[0] ?? {};
 
@@ -270,54 +275,55 @@ export async function adminUpdateVitexPublicContent(
   const reason = auditReason(input.reason);
 
   const db = database();
-  const target = await db.query<SqlRow>(`
-    SELECT cv.id::text AS canonical_uuid,cv.public_id,cv.slug,vcp.import_fingerprint
-    FROM vitex_commerce_products vcp
-    JOIN canonical_variants cv ON cv.id=vcp.canonical_variant_id
-    WHERE cv.public_id=$1 OR cv.id::text=$1
-    LIMIT 1
-  `, [canonicalId]);
-  const row = target.rows[0];
-  if (!row) throw new Error("VITEX canonical product not found");
-
-  await db.query("BEGIN");
-  try {
-    await db.query(`
+  const mutation = await db.query<SqlRow>(`
+    WITH target AS (
+      SELECT cv.id AS canonical_uuid,cv.public_id,cv.slug,vcp.import_fingerprint
+      FROM vitex_commerce_products vcp
+      JOIN canonical_variants cv ON cv.id=vcp.canonical_variant_id
+      WHERE cv.public_id=$1 OR cv.id::text=$1
+      LIMIT 1
+    ),
+    translation AS (
       INSERT INTO product_translations(
         canonical_variant_id,locale,title,description,specifications,seo_title,seo_description
       )
-      VALUES($1::uuid,'el',$2,$3,'{}'::jsonb,$4,$5)
+      SELECT target.canonical_uuid,'el',$2,$3,'{}'::jsonb,$4,$5
+      FROM target
       ON CONFLICT (canonical_variant_id,locale) DO UPDATE
       SET title=EXCLUDED.title,
           description=EXCLUDED.description,
           seo_title=EXCLUDED.seo_title,
           seo_description=EXCLUDED.seo_description
-    `, [asText(row.canonical_uuid), title, description, seoTitle, seoDescription]);
+      RETURNING canonical_variant_id
+    ),
+    canonical_touch AS (
+      UPDATE canonical_variants cv
+      SET updated_at=now()
+      FROM target
+      WHERE cv.id=target.canonical_uuid
+      RETURNING cv.id
+    ),
+    media_touch AS (
+      UPDATE catalog_source_products csp
+      SET source_image_url=$6
+      FROM target,catalog_sources cs
+      WHERE $6::text IS NOT NULL
+        AND csp.source_id=cs.id
+        AND cs.code='vitex-commerce-media'
+        AND csp.source_product_key=target.import_fingerprint
+      RETURNING csp.id
+    )
+    SELECT target.public_id,target.slug,
+           EXISTS(SELECT 1 FROM translation) AS translation_updated,
+           EXISTS(SELECT 1 FROM canonical_touch) AS canonical_updated,
+           CASE WHEN $6::text IS NULL THEN true ELSE EXISTS(SELECT 1 FROM media_touch) END AS media_updated
+    FROM target
+  `, [canonicalId, title, description, seoTitle, seoDescription, imageUrl]);
 
-    await db.query(
-      "UPDATE canonical_variants SET updated_at=now() WHERE id=$1::uuid",
-      [asText(row.canonical_uuid)]
-    );
-
-    if (imageUrl) {
-      const media = await db.query<SqlRow>(`
-        UPDATE catalog_source_products csp
-        SET source_image_url=$2
-        FROM catalog_sources cs,catalog_source_snapshots css
-        WHERE csp.source_id=cs.id
-          AND csp.snapshot_id=css.id
-          AND css.source_id=cs.id
-          AND cs.code='vitex-commerce-media'
-          AND csp.source_product_key=$1
-        RETURNING csp.id
-      `, [asText(row.import_fingerprint), imageUrl]);
-      if (!media.rowCount) throw new Error("VITEX media source record not found");
-    }
-
-    await db.query("COMMIT");
-  } catch (error) {
-    await db.query("ROLLBACK");
-    throw error;
+  const row = mutation.rows[0];
+  if (!row) throw new Error("VITEX canonical product not found");
+  if (!Boolean(row.translation_updated) || !Boolean(row.canonical_updated) || !Boolean(row.media_updated)) {
+    throw new Error("VITEX public content update did not complete");
   }
 
   const response = {
