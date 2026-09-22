@@ -50,8 +50,6 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
       if (input.condition === "sound") return request("paint_bathroom_high_humidity", { significant_moisture: false });
       if (input.condition === "damp" || input.condition === "mould") return request("paint_bathroom_high_humidity", { significant_moisture: true, source_known: false });
     }
-    // Paint Consultant exposes roof waterproofing choices too. Route those exact UI keys
-    // into the already reviewed Layer A waterproofing scenarios rather than duplicating guidance.
     if (input.surface === "roof") {
       if (input.condition === "maintenance") return request("waterproof_existing_system_maintenance", { existing_coating_known_compatible: false });
       if (input.condition === "new") return request("waterproof_flat_roof");
@@ -81,16 +79,23 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
         ...(input.problem === "maintenance" ? { existing_coating_known_compatible: false } : {})
       });
     }
-    if (input.location === "basement") return request("waterproof_basement_below_grade_moisture", { significant_moisture: true, source_known: false, ...(input.problem === "leak" ? { active_water_ingress: true } : {}) });
+    if (input.location === "basement") {
+      // The reviewed below-grade scenario is a moisture-ingress diagnostic path.
+      // Do not reinterpret maintenance, cracks or generic standing water as the same
+      // failure mechanism: those combinations need dedicated evidence/scenarios.
+      if (input.problem === "leak") {
+        return request("waterproof_basement_below_grade_moisture", {
+          significant_moisture: true,
+          source_known: false,
+          active_water_ingress: true
+        });
+      }
+      return null;
+    }
     return null;
   }
 
   if (input.module === "insulation") {
-    // Visible condensation/mould is a moisture symptom, not proof that a specific
-    // insulation system is the remedy. Route it through the reviewed diagnosis-first
-    // thermal-bridge/moisture scenario regardless of the initially selected location.
-    // These facts intentionally satisfy the existing KONTA MOU stop condition so
-    // product selection stays blocked until the cause has been assessed.
     if (input.goal === "condensation") {
       return request("insulation_thermal_bridge_condensation", {
         condensation_present: true,
