@@ -109,7 +109,7 @@ async function readPublicProductSitemapRouteShard(shard: number): Promise<readon
         OR EXISTS (
           SELECT 1
           FROM bls_private.storefront_dropship_live_family live
-          WHERE live.supplier_id::text=rm.dropship_supplier_id
+          WHERE live.supplier_id=rm.dropship_supplier_id::uuid
             AND live.external_product_id=rm.dropship_external_product_id
             AND live.sellable=true
             AND live.available_until>now()
