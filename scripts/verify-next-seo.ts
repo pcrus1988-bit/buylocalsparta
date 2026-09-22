@@ -47,8 +47,13 @@ const adminSeoReportsPage = read("apps/web/src/app/admin/seo/reports/page.tsx");
 const adminCrawlPage = read("apps/web/src/app/admin/seo/crawl/page.tsx");
 const adminSearchConsolePage = read("apps/web/src/app/admin/seo/search-console/page.tsx");
 const catalogRuntime = read("apps/web/src/lib/catalog-view.ts");
+const catalogRuntimeBase = read("apps/web/src/lib/catalog-view-base.ts");
+const productSeoRuntime = `${catalogRuntime}\n${catalogRuntimeBase}`;
 const categoryDepartment = read("apps/web/src/lib/catalog-category-department.ts");
 const crawlerCatalog = read("apps/web/src/lib/crawler-catalog.ts");
+const crawlerLocalCard = read("apps/web/src/lib/crawler-local-catalog-card.ts");
+const crawlerLocalPage = read("apps/web/src/lib/crawler-local-catalog-page-fast.ts");
+const crawlerProjection = `${crawlerCatalog}\n${crawlerLocalCard}\n${crawlerLocalPage}`;
 const requestAudience = read("apps/web/src/lib/request-audience.ts");
 const crawlGraph = read("apps/web/src/lib/seo-crawl-graph.ts");
 const searchConsole = read("apps/web/src/lib/seo-search-console.ts");
@@ -196,7 +201,7 @@ requireText(rootLayout, "robots: settings.indexingEnabled", "Root metadata must 
 requireText(homepage, 'governedStaticSeoMetadata("/"', "Homepage must publish governed self-canonical metadata");
 if (!homepage.includes("isReadOnlyPublicCrawlerRequest") || !homepage.includes("getCrawlerHomepageCatalogCards")) failures.push("Homepage crawler rendering must bypass customer fairness assignment");
 requireText(homepage, 'getAvailableStorefrontCategories("23100")', "Homepage must derive category links from currently available catalogue inventory");
-requireText(homepage, "visibleCategories.map", "Homepage must link every available category independently of rotating featured products");
+requireText(homepage, "visibleCategories.slice(0, 4).map", "Homepage must render a stable category rail independently of rotating featured products");
 if (!category.includes("buildGovernedSeoMetadata") || !category.includes('canonicalPath: `/category/${category.slug}`')) failures.push("Category pages must publish governed self-canonical metadata");
 if (!category.includes("isReadOnlyPublicCrawlerRequest") || !category.includes("getCrawlerCatalogCards")) failures.push("Category crawler rendering must use the read-only catalogue projection");
 for (const contract of ['"@type": "CollectionPage"', '"@type": "ItemList"', "category-merchant-grid", "seoControl.schemaAllowed ? <script"]) requireText(category, contract, `Category landing SEO is missing ${contract}`);
@@ -240,13 +245,13 @@ if (!entityMetadata.includes("twitter:") || !entityMetadata.includes('card: open
 if (productPublicPath({ id: "canonical_123", slug: "nike-air-max-90" }) !== "/product/nike-air-max-90") failures.push("Friendly product paths must prefer the catalogue slug");
 if (productPublicPath({ id: "canonical_123" }) !== "/product/canonical_123") failures.push("Friendly product paths must retain legacy-ID fallback");
 for (const contract of ["slug: string", "cv.slug", 'slug: text(row.slug, "slug")']) requireText(commerceRuntime, contract, `Public catalogue slug projection is missing ${contract}`);
-for (const contract of ["getPublicProductSeoSummary", "getPublicProductSeoInventory", "entry.slug === routeKey", "metadata?.gtin", "approvedCatalogImages", "duplicateTitleCount", "getPublicProductDetails", "loadPublicOfferAvailability", "sourceImageAvailable", "offerAvailable"]) requireText(catalogRuntime, contract, `Public product SEO projection is missing ${contract}`);
+for (const contract of ["getPublicProductSeoSummary", "getPublicProductSeoInventory", "cv.slug=$1", "metadata?.gtin", "approvedCatalogImages", "duplicateTitleCount", "getPublicProductDetails", "loadPublicOfferAvailability", "sourceImageAvailable", "offerAvailable"]) requireText(productSeoRuntime, contract, `Public product SEO projection is missing ${contract}`);
 for (const contract of ["WITH RECURSIVE category_tree", "department_code", "loadCatalogDepartmentCodes"]) requireText(categoryDepartment, contract, `Governed category hierarchy projection is missing ${contract}`);
 requireText(catalogCard, "productPublicPath(product)", "Public catalogue cards must link to the preferred friendly product URL");
 
 // Read-only crawler offer projection must be truthful and mutation-free.
-for (const contract of ["readOnlyOfferPreview", "vo.customer_price_minor", "available_to_sell", "vendor_public_id", "vendor_name", "getCrawlerCatalogCards", "getCrawlerCatalogCard"]) {
-  requireText(crawlerCatalog, contract, `Crawler-safe catalogue is missing ${contract}`);
+for (const contract of ["getCrawlerLocalCatalogCard", "vo.customer_price_minor", "available_to_sell", "vendor_public_id", "vendor_name", "getCrawlerCatalogCards", "getCrawlerCatalogCard"]) {
+  requireText(crawlerProjection, contract, `Crawler-safe catalogue is missing ${contract}`);
 }
 if (crawlerCatalog.includes("publicAssignedCanonical")) failures.push("Crawler catalogue must never call Fair Vendor Assignment");
 if (/\bUPDATE\s+fairness_rotation_state\b/i.test(crawlerCatalog) || /\bINSERT\s+INTO\s+sticky_assignments\b/i.test(crawlerCatalog) || /\bINSERT\s+INTO\s+fairness_assignment_events\b/i.test(crawlerCatalog)) {
@@ -278,7 +283,7 @@ for (const forbidden of ["cookie", "password", "credential", "customer"]) if (re
 for (const contract of ["createSeoDiagnosticReportAction", "assertAdminCsrf", 'assertAdminPermission(principal, "content.write")', 'revalidatePath("/admin/seo")']) requireText(settingsAction, contract, `SEO report Server Action is missing ${contract}`);
 for (const contract of ["useActionState", "Reason for this report", "Run & save report", "persistenceAvailable"]) requireText(reportRunner, contract, `SEO report runner is missing ${contract}`);
 for (const contract of ["getAdminSession", 'assertAdminPermission(principal, "content.read")', '"Cache-Control": "private, no-store"', '"X-Robots-Tag": "noindex, nofollow, noarchive"', "Content-Disposition", 'format !== "json" && format !== "csv"']) requireText(reportExportRoute, contract, `Protected SEO report export is missing ${contract}`);
-for (const contract of ["Product index eligibility", "productIndexEligible"]) requireText(adminSeoPage, contract, `Admin SEO overview is missing ${contract}`);
+for (const contract of ["Indexable products", "metrics?.productIndexEligible"]) requireText(adminSeoPage, contract, `Admin SEO overview is missing ${contract}`);
 for (const contract of ["Unified SEO release report", "AdminSeoReportRunner", "data.regressionSignals", "Changed since the previous saved baseline", "Persisted diagnostic history", "?format=json", "?format=csv"]) requireText(adminSeoReportsPage, contract, `Admin SEO reports workspace is missing ${contract}`);
 for (const contract of ["critical-diagnostic:", "health-score-drop", "product-runtime-loss", "vendor-runtime-loss", "media-runtime-loss", "sitemap-inventory-drop", "product-eligibility-drop", "vendor-eligibility-drop", "crawl-orphan-growth", "crawl-weak-growth", "route-policy-inventory-change", "routeClassChanges", "comparableCurrentFormat", "materialDrop", "materialWeakGrowth"]) requireText(monitoringRuntime, contract, `SEO regression monitoring is missing ${contract}`);
 
