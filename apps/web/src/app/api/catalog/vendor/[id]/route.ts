@@ -1,7 +1,9 @@
+import type { CatalogCard } from "../../../../../lib/catalog-view";
 import { decodeCatalogSizeGroup } from "../../../../../lib/catalog-size";
-import { getVendorDropshipCatalogPage, getVendorDropshipFacets, type VendorDropshipSort } from "../../../../../lib/vendor-dropship-catalog-page";
+import { getVendorDropshipCatalogPage, getVendorDropshipFacets, type VendorDropshipFacets, type VendorDropshipSort } from "../../../../../lib/vendor-dropship-catalog-page";
 import { getContextualVendorDropshipFacets, type VendorDropshipFacetContext } from "../../../../../lib/vendor-dropship-contextual-facets";
 import { getFastVendorDropshipCatalogPage } from "../../../../../lib/vendor-dropship-fast-page";
+import { getVendorLocalCatalogCards } from "../../../../../lib/vendor-local-catalog";
 
 type RouteContext = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -41,18 +43,106 @@ function emptyFacetContext(context: VendorDropshipFacetContext): boolean {
     || context.material?.trim());
 }
 
+function normalized(value: string | undefined): string {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLocaleLowerCase("el");
+}
+
+function localMatches(product: CatalogCard, context: VendorDropshipFacetContext, availableOnly: boolean): boolean {
+  if (availableOnly && !product.available) return false;
+  if (context.categories?.length && !context.categories.includes(product.categoryCode)) return false;
+  if (context.brand?.trim() && normalized(product.brand) !== normalized(context.brand)) return false;
+  if (context.color?.trim() && normalized(product.color) !== normalized(context.color)) return false;
+  if (context.sizes?.length) {
+    const sizes = new Set((product.sizes ?? []).map((value) => normalized(value)));
+    if (!context.sizes.some((value) => sizes.has(normalized(value)))) return false;
+  }
+  if (context.fit?.trim() && normalized(product.fit) !== normalized(context.fit)) return false;
+  if (context.material?.trim() && !normalized(product.composition).includes(normalized(context.material))) return false;
+  if (context.query?.trim()) {
+    const haystack = normalized([
+      product.title,
+      product.brand,
+      product.description,
+      product.gtin,
+      product.mpn,
+      product.categoryLabel,
+      product.categoryCode
+    ].filter(Boolean).join(" "));
+    if (!haystack.includes(normalized(context.query))) return false;
+  }
+  return true;
+}
+
+function sortLocal(products: readonly CatalogCard[], sort: VendorDropshipSort): CatalogCard[] {
+  const sorted = [...products];
+  if (sort === "price_asc") return sorted.sort((a, b) => a.priceMinor - b.priceMinor || a.title.localeCompare(b.title, "el"));
+  if (sort === "price_desc") return sorted.sort((a, b) => b.priceMinor - a.priceMinor || a.title.localeCompare(b.title, "el"));
+  if (sort === "name_asc") return sorted.sort((a, b) => a.title.localeCompare(b.title, "el"));
+  return sorted.sort((a, b) => Number(b.available) - Number(a.available) || a.title.localeCompare(b.title, "el"));
+}
+
+function facet(values: readonly { value?: string; label?: string }[]) {
+  const counts = new Map<string, { label: string; count: number }>();
+  for (const entry of values) {
+    const value = entry.value?.trim();
+    if (!value) continue;
+    const current = counts.get(value);
+    counts.set(value, { label: entry.label?.trim() || value, count: (current?.count ?? 0) + 1 });
+  }
+  return [...counts.entries()]
+    .map(([value, entry]) => ({ value, label: entry.label, count: entry.count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "el"));
+}
+
+function localFacets(products: readonly CatalogCard[]): VendorDropshipFacets {
+  return {
+    total: products.length,
+    categories: facet(products.map((product) => ({ value: product.categoryCode, label: product.categoryLabel ?? product.categoryCode }))),
+    brands: facet(products.map((product) => ({ value: product.brand, label: product.brand }))),
+    colors: facet(products.map((product) => ({ value: product.color, label: product.color }))),
+    sizes: facet(products.flatMap((product) => (product.sizes ?? []).map((size) => ({ value: size, label: size })))),
+    fits: facet(products.map((product) => ({ value: product.fit, label: product.fit }))),
+    materials: []
+  };
+}
+
+function mergeFacetOptions(
+  left: VendorDropshipFacets["categories"],
+  right: VendorDropshipFacets["categories"]
+): VendorDropshipFacets["categories"] {
+  const merged = new Map<string, { value: string; label: string; count: number }>();
+  for (const entry of [...left, ...right]) {
+    const current = merged.get(entry.value);
+    merged.set(entry.value, {
+      value: entry.value,
+      label: current?.label || entry.label,
+      count: (current?.count ?? 0) + entry.count
+    });
+  }
+  return [...merged.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "el"));
+}
+
+function mergeFacets(local: VendorDropshipFacets, dropship?: VendorDropshipFacets): VendorDropshipFacets {
+  if (!dropship) return local;
+  return {
+    total: local.total + dropship.total,
+    categories: mergeFacetOptions(local.categories, dropship.categories),
+    brands: mergeFacetOptions(local.brands, dropship.brands),
+    colors: mergeFacetOptions(local.colors, dropship.colors),
+    sizes: mergeFacetOptions(local.sizes, dropship.sizes),
+    fits: mergeFacetOptions(local.fits, dropship.fits),
+    materials: mergeFacetOptions(local.materials, dropship.materials)
+  };
+}
+
 async function optionalFacets(vendorId: string, context: VendorDropshipFacetContext) {
-  // The Fashion Guide opens before the customer has selected any filters. Its
-  // first facet request must use the small pre-aggregated projection instead of
-  // scanning the contextual family filter model for the whole supplier catalogue.
-  // Contextual facets are still used once the customer narrows the catalogue.
   if (emptyFacetContext(context)) {
     try {
       const preaggregated = await getVendorDropshipFacets(vendorId);
-      // A successful query is not necessarily a healthy projection. During a
-      // delayed/failed materialized-view refresh the table can be legitimately
-      // empty while live supplier offers are available. Fall through to the live
-      // contextual path instead of presenting an empty category/filter UI.
       if (preaggregated.total > 0 || preaggregated.categories.length > 0) {
         return preaggregated;
       }
@@ -113,17 +203,25 @@ export async function GET(request: Request, { params }: RouteContext) {
   const sort = sortParam(url);
   const offset = intParam(url, "offset", 0, 100_000);
   const limit = Math.max(1, intParam(url, "limit", 20, 60));
-  // Customer-facing dropship catalogues must never expose unavailable supplier stock.
-  // Keep the query parameter out of this policy: availability is a storefront invariant.
-  const availableOnly = true;
+  const localAvailableOnly = url.searchParams.get("available") === "1";
   const includeFacets = url.searchParams.get("facets") === "1";
   const facetsOnly = includeFacets && url.searchParams.get("facetsOnly") === "1";
   const facetContext = { query, categories, brand, color, sizes, fit, material } satisfies VendorDropshipFacetContext;
 
   try {
+    const allLocal = await getVendorLocalCatalogCards(id);
+    const matchingLocal = sortLocal(
+      allLocal.filter((product) => localMatches(product, facetContext, localAvailableOnly)),
+      sort
+    );
+    const localFacetProjection = localFacets(
+      allLocal.filter((product) => localMatches(product, facetContext, false))
+    );
+
     if (facetsOnly) {
-      const facets = await optionalFacets(id, facetContext);
-      if (!facets) {
+      const dropshipFacets = await optionalFacets(id, facetContext);
+      const facets = mergeFacets(localFacetProjection, dropshipFacets);
+      if (!dropshipFacets && facets.total === 0) {
         return Response.json(
           { error: "catalogue_facets_unavailable" },
           {
@@ -146,6 +244,14 @@ export async function GET(request: Request, { params }: RouteContext) {
       }, { headers: publicCacheHeaders(true) });
     }
 
+    const localCount = matchingLocal.length;
+    const localProducts = offset < localCount
+      ? matchingLocal.slice(offset, Math.min(localCount, offset + limit))
+      : [];
+    const remaining = Math.max(0, limit - localProducts.length);
+    const dropshipOffset = Math.max(0, offset - localCount);
+    const dropshipLimit = Math.max(1, remaining || 1);
+
     const useFastInitialPath = !includeFacets
       && !query
       && categories.length === 0
@@ -156,8 +262,8 @@ export async function GET(request: Request, { params }: RouteContext) {
       && !material
       && sort === "recommended";
 
-    const page = useFastInitialPath
-      ? await getFastVendorDropshipCatalogPage(id, { offset, limit })
+    const dropshipPage = useFastInitialPath
+      ? await getFastVendorDropshipCatalogPage(id, { offset: dropshipOffset, limit: dropshipLimit })
       : await getVendorDropshipCatalogPage(id, {
           query,
           categories,
@@ -167,20 +273,26 @@ export async function GET(request: Request, { params }: RouteContext) {
           fit,
           material,
           sort,
-          availableOnly,
-          offset,
-          limit
+          availableOnly: true,
+          offset: dropshipOffset,
+          limit: dropshipLimit
         });
-    const facets = includeFacets ? await optionalFacets(id, facetContext) : undefined;
-    const total = "total" in page ? page.total : undefined;
+
+    const products = remaining > 0
+      ? [...localProducts, ...dropshipPage.products.slice(0, remaining)]
+      : localProducts;
+    const dropshipTotal = "total" in dropshipPage ? Number(dropshipPage.total ?? 0) : 0;
+    const total = localCount + (Number.isFinite(dropshipTotal) ? dropshipTotal : 0);
+    const dropshipFacets = includeFacets ? await optionalFacets(id, facetContext) : undefined;
+    const facets = includeFacets ? mergeFacets(localFacetProjection, dropshipFacets) : undefined;
 
     return Response.json({
       vendorId: id,
-      products: page.products,
+      products,
       total,
-      offset: page.offset,
-      limit: page.limit,
-      nextOffset: page.nextOffset ?? null,
+      offset,
+      limit,
+      nextOffset: offset + limit < total ? offset + limit : null,
       facets: facets ?? null
     }, { headers: publicCacheHeaders(false) });
   } catch (error) {
