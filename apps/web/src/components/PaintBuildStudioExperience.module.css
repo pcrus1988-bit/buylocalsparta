@@ -1188,3 +1188,477 @@
   .progressTrack span { transition: none; }
   .moduleCard:hover { transform: none; }
 }
+
+
+/* BUILD_SECTOR_VISUAL_SYSTEM_V2
+   Industrial workshop / paint-site visual language.
+   Keeps the existing interaction architecture intact while moving the studio
+   away from luxury-editorial styling toward tools, materials and jobsite UI. */
+.fullscreenStudio {
+  --studio-bg: #101417;
+  --studio-panel: #171d21;
+  --studio-panel-2: #20272c;
+  --studio-ivory: #f4f1e8;
+  --studio-muted: #aab0b3;
+  --studio-gold: #f4a51c;
+  --studio-line: rgba(222,229,232,.18);
+  --studio-steel: #66747c;
+  --studio-concrete: #252c31;
+  --studio-safety: #f4a51c;
+  --studio-blueprint: #57a8d8;
+  background:
+    linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
+    radial-gradient(circle at 12% -10%, rgba(244,165,28,.13), transparent 28rem),
+    linear-gradient(160deg, #111619 0%, #0d1114 56%, #151b1f 100%);
+  background-size: 28px 28px, 28px 28px, auto, auto;
+}
+
+.fullscreenStudio::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .24;
+  background:
+    repeating-linear-gradient(115deg, transparent 0 22px, rgba(255,255,255,.018) 22px 23px),
+    linear-gradient(90deg, transparent 0 72%, rgba(244,165,28,.035) 72% 72.2%, transparent 72.2%);
+}
+
+.studioHeader {
+  min-height: 68px;
+  border-bottom: 1px solid rgba(244,165,28,.28);
+  box-shadow: inset 0 -3px 0 rgba(255,255,255,.02);
+  background: rgba(14,18,21,.94);
+  backdrop-filter: blur(10px);
+}
+
+.brandButton {
+  position: relative;
+  padding-left: 12px;
+}
+.brandButton::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--studio-safety);
+}
+.brandButton span {
+  color: var(--studio-safety);
+  font: 900 9px/1 system-ui, sans-serif;
+  letter-spacing: .18em;
+}
+.brandButton strong {
+  color: #f7f4ec;
+  font: 900 12px/1.05 system-ui, sans-serif;
+  letter-spacing: .08em;
+}
+
+.headerProject span {
+  color: #8b969c;
+  font-weight: 900;
+}
+.headerProject strong {
+  color: #dfe3e5;
+  font-weight: 800;
+}
+
+.headerBack,
+.exitButton {
+  border-radius: 9px;
+  border-color: rgba(222,229,232,.2);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.015)),
+    #171d21;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+.headerBack:hover,
+.exitButton:hover {
+  border-color: rgba(244,165,28,.55);
+}
+
+.progressShell {
+  background: rgba(14,18,21,.92);
+}
+.progressMeta {
+  color: #8d989e;
+  font-weight: 900;
+}
+.progressMeta strong {
+  color: #cdd3d6;
+}
+.progressTrack {
+  height: 5px;
+  border-radius: 0;
+  background: #293138;
+}
+.progressTrack span {
+  border-radius: 0;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      #f4a51c 0 9px,
+      #ffc44d 9px 18px
+    );
+}
+
+.kicker {
+  gap: 9px;
+  padding: 7px 9px 6px;
+  color: #17130b;
+  background: var(--studio-safety);
+  border: 1px solid #ffc65a;
+  border-radius: 4px;
+  font-weight: 950;
+  letter-spacing: .16em;
+  box-shadow: 3px 3px 0 rgba(0,0,0,.24);
+}
+.kicker::before {
+  width: 18px;
+  height: 3px;
+  background: currentColor;
+}
+
+.hubIntro h1,
+.decisionIntro h1,
+.colorIntro h1,
+.resultIntro h1 {
+  margin-top: 18px;
+  color: #f7f4ec;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 950;
+  letter-spacing: -.055em;
+  text-transform: none;
+}
+.hubIntro h1 em {
+  position: relative;
+  display: inline-block;
+  color: #f7f4ec;
+  font-style: normal;
+  font-weight: 950;
+  z-index: 0;
+}
+.hubIntro h1 em::after {
+  content: "";
+  position: absolute;
+  left: -.02em;
+  right: -.06em;
+  bottom: .02em;
+  height: .17em;
+  z-index: -1;
+  transform: rotate(-1.1deg);
+  background: #df553f;
+  opacity: .9;
+}
+
+.hubIntro p,
+.decisionIntro p,
+.colorIntro p,
+.resultIntro p {
+  color: #b8c0c4;
+  font-weight: 520;
+}
+
+.moduleGrid {
+  gap: 10px;
+}
+.moduleCard {
+  --module-accent: var(--studio-safety);
+  min-height: 238px;
+  padding: clamp(20px, 2.7vw, 30px);
+  border: 1px solid rgba(222,229,232,.2);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.04),
+    0 12px 30px rgba(0,0,0,.16);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.055), rgba(255,255,255,.012) 55%),
+    #171d21;
+  isolation: isolate;
+}
+.moduleCard[data-module="paint"] { --module-accent: #df553f; }
+.moduleCard[data-module="waterproofing"] { --module-accent: #3c9bd1; }
+.moduleCard[data-module="insulation"] { --module-accent: #e5ab2e; }
+.moduleCard[data-module="repair"] { --module-accent: #7da06f; }
+
+.moduleCard::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 6px;
+  background: var(--module-accent);
+  z-index: -1;
+}
+.moduleCard::after {
+  content: "";
+  position: absolute;
+  width: 126px;
+  height: 126px;
+  right: -26px;
+  top: -28px;
+  z-index: -1;
+  opacity: .12;
+  border: 1px solid var(--module-accent);
+  background:
+    repeating-linear-gradient(
+      135deg,
+      transparent 0 9px,
+      var(--module-accent) 9px 11px,
+      transparent 11px 18px
+    );
+  transform: rotate(7deg);
+}
+.moduleCard:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--module-accent) 58%, white 8%);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.075), rgba(255,255,255,.018) 55%),
+    #1b2227;
+}
+.moduleIcon {
+  width: 46px;
+  height: 46px;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--module-accent) 60%, transparent);
+  color: var(--module-accent);
+  background:
+    repeating-linear-gradient(-45deg, rgba(255,255,255,.02) 0 5px, transparent 5px 10px),
+    rgba(0,0,0,.18);
+  box-shadow: inset 0 0 0 4px rgba(0,0,0,.12);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 900;
+}
+.moduleCard > small {
+  color: #8f9aa0;
+  font-weight: 950;
+  letter-spacing: .14em;
+}
+.moduleCard h2 {
+  color: #f7f4ec;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 950;
+  letter-spacing: -.045em;
+}
+.moduleCard > strong {
+  color: var(--module-accent);
+  font-weight: 900;
+}
+.moduleCard p {
+  color: #aeb7bc;
+}
+.moduleCard i {
+  min-width: 34px;
+  height: 30px;
+  padding: 0 8px;
+  display: grid;
+  place-items: center;
+  color: #101417;
+  background: var(--module-accent);
+  border-radius: 5px;
+  font-weight: 950;
+}
+
+.choiceCard,
+.choiceRow,
+.areaCard,
+.resultColumn,
+.materialSummary,
+.confirmationPanel,
+.pdfPanel {
+  border-radius: 10px;
+  border-color: rgba(222,229,232,.2);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.045), rgba(255,255,255,.012)),
+    #171d21;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+}
+
+.choiceCard {
+  border-left: 4px solid #58666e;
+}
+.choiceCard:hover,
+.choiceRow:hover {
+  border-color: rgba(244,165,28,.55);
+  background:
+    linear-gradient(135deg, rgba(244,165,28,.07), rgba(255,255,255,.012)),
+    #1a2024;
+}
+.choiceCard > span {
+  border-radius: 7px;
+  color: var(--studio-safety);
+  border-color: rgba(244,165,28,.3);
+  background: rgba(0,0,0,.16);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 900;
+}
+.choiceCard strong,
+.choiceRow strong {
+  color: #f2f0e9;
+  font-weight: 850;
+}
+.choiceCard small,
+.choiceRow small {
+  color: #aab3b8;
+}
+.choiceCard i,
+.choiceRow i,
+.radioDot {
+  color: var(--studio-safety);
+}
+
+.areaPresets button {
+  border-radius: 8px;
+  border-color: rgba(222,229,232,.18);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.025), rgba(255,255,255,.005)),
+    #11171a;
+}
+.areaPresets .areaSelected {
+  border-color: rgba(244,165,28,.75);
+  background:
+    repeating-linear-gradient(-45deg, rgba(244,165,28,.08) 0 8px, transparent 8px 16px),
+    #1a1d1e;
+}
+.areaExact > div {
+  border-radius: 8px;
+  background: #0d1215;
+  border-color: rgba(222,229,232,.2);
+}
+
+.continueButton,
+.primaryAction,
+.secondaryAction {
+  border-radius: 7px;
+  font-weight: 950;
+  letter-spacing: .065em;
+  text-transform: uppercase;
+}
+.continueButton,
+.primaryAction {
+  border-color: #ffc54d;
+  color: #14110c;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255,255,255,.14) 0 8px,
+      transparent 8px 16px
+    ),
+    var(--studio-safety);
+  box-shadow: 0 4px 0 #9b6507;
+}
+.secondaryAction {
+  border-color: rgba(222,229,232,.22);
+  color: #eef0ef;
+  background: #1b2227;
+}
+
+.colorSelectorWrap {
+  --cf-bg: #101417;
+  --cf-panel: #171d21;
+  --cf-panel-2: #20272c;
+  --cf-ivory: #f4f1e8;
+  --cf-muted: #aab3b8;
+  --cf-gold: #f4a51c;
+  --cf-line: rgba(222,229,232,.19);
+}
+
+.resultColumn > span,
+.resultGroupHeader small,
+.confirmationPanel > div > span,
+.pdfPanel > div > span {
+  color: var(--studio-safety);
+  font-weight: 950;
+}
+.resultColumn h2,
+.resultGroupHeader h2,
+.pdfPanel > div > strong {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 900;
+}
+.resultSwatch > span {
+  border-radius: 7px;
+  border-color: #d8dddf;
+}
+.resultGroupHeader > span {
+  border-radius: 7px;
+  color: #15120c;
+  border-color: #ffc34a;
+  background: var(--studio-safety);
+  font-weight: 950;
+}
+.pdfPanel {
+  background:
+    repeating-linear-gradient(-45deg, rgba(244,165,28,.035) 0 9px, transparent 9px 18px),
+    #171d21;
+}
+.warningPanel {
+  border-radius: 9px;
+  border-color: rgba(218,107,67,.42);
+  background:
+    repeating-linear-gradient(-45deg, rgba(218,107,67,.06) 0 8px, transparent 8px 16px),
+    rgba(126,57,34,.18);
+}
+
+@media (max-width: 680px) {
+  .studioHeader {
+    border-bottom-width: 2px;
+  }
+
+  .kicker {
+    padding: 6px 7px 5px;
+    border-radius: 3px;
+    box-shadow: 2px 2px 0 rgba(0,0,0,.25);
+  }
+
+  .hubIntro h1 {
+    letter-spacing: -.045em;
+  }
+
+  .moduleCard {
+    min-height: 158px;
+    border-radius: 9px;
+    padding-left: 16px;
+  }
+
+  .moduleCard::before {
+    width: 4px;
+  }
+
+  .moduleCard::after {
+    width: 78px;
+    height: 78px;
+    right: -21px;
+    top: -23px;
+  }
+
+  .moduleIcon {
+    width: 36px;
+    height: 36px;
+    border-radius: 5px;
+  }
+
+  .moduleCard i {
+    min-width: 29px;
+    height: 25px;
+    padding: 0 6px;
+    border-radius: 4px;
+  }
+
+  .choiceCard,
+  .choiceRow,
+  .areaCard,
+  .resultColumn,
+  .materialSummary,
+  .confirmationPanel,
+  .pdfPanel {
+    border-radius: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moduleCard:hover {
+    transform: none;
+  }
+}
