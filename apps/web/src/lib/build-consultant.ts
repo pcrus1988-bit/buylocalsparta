@@ -92,7 +92,8 @@ export const INSULATION_GOALS: readonly BuildChoice[] = [
   { key: "winter", label: "Κρύο τον χειμώνα", hint: "Μεγάλες απώλειες θερμότητας." },
   { key: "summer", label: "Ζέστη το καλοκαίρι", hint: "Υπερθέρμανση επιφανειών και χώρου." },
   { key: "both", label: "Και τα δύο", hint: "Θέλω συνολική βελτίωση θερμικής συμπεριφοράς." },
-  { key: "condensation", label: "Συμπύκνωση / ψυχρός τοίχος", hint: "Εμφανίζονται κρύες επιφάνειες ή υγροποίηση." }
+  { key: "cold-surface", label: "Ψυχρή επιφάνεια", hint: "Υπάρχει κρύο σημείο χωρίς εμφανή υγροποίηση ή μούχλα." },
+  { key: "condensation", label: "Συμπύκνωση / μούχλα", hint: "Υπάρχει υγροποίηση ή μούχλα σε ψυχρή επιφάνεια." }
 ] as const;
 
 export const REPAIR_ISSUES: readonly BuildChoice[] = [
