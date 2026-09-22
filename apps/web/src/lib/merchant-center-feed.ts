@@ -67,6 +67,12 @@ function optionalTag(name: string, value: string | undefined): string {
   return normalized ? `      <${name}>${escapeMerchantCenterXml(normalized)}</${name}>\n` : "";
 }
 
+function boundedOptionalTag(name: string, value: string | undefined, max: number): string {
+  if (!value) return "";
+  const normalized = truncateCodePoints(value, max);
+  return normalized ? `      <${name}>${escapeMerchantCenterXml(normalized)}</${name}>\n` : "";
+}
+
 function productXml(product: MerchantCenterFeedProduct): string {
   const gtin = validMerchantCenterGtin(product.gtin);
   const title = truncateCodePoints(product.title, 150);
@@ -92,8 +98,8 @@ function productXml(product: MerchantCenterFeedProduct): string {
     gtin ? `      <g:gtin>${gtin}</g:gtin>` : "",
     optionalTag("g:mpn", product.mpn).trimEnd(),
     optionalTag("g:product_type", product.productType).trimEnd(),
-    optionalTag("g:color", product.color).trimEnd(),
-    optionalTag("g:size", product.size).trimEnd(),
+    boundedOptionalTag("g:color", product.color, 100).trimEnd(),
+    boundedOptionalTag("g:size", product.size, 100).trimEnd(),
     "    </item>"
   ].filter(Boolean).join("\n");
 }
