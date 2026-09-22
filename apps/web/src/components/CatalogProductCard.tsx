@@ -120,7 +120,8 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
 
   const supplierFulfilled = product.supplierFulfilled === true;
   const publicPurchasable = product.available && product.priceMinor > 0 && Boolean(product.vendorId || vendorContext);
-  if (!demoMode && !publicPurchasable) return null;
+  const vendorCatalogueVisible = Boolean(vendorContext) && !supplierFulfilled && product.priceMinor > 0;
+  if (!demoMode && !publicPurchasable && !vendorCatalogueVisible) return null;
 
   const projectedMsrpMinor = typeof product.msrpMinor === "number" ? product.msrpMinor : undefined;
   const savingLabel = projectedMsrpMinor === undefined ? undefined : publicSavingsLabel(projectedMsrpMinor, product.priceMinor);
@@ -213,6 +214,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
           />
         </div>
         {!supplierFulfilled && vendorName ? <p className="catalog-card-vendor">{vendorName}</p> : null}
+        {!demoMode && vendorCatalogueVisible && !product.available ? <p className="catalog-card-vendor">Μη διαθέσιμο άμεσα · ρώτησε το κατάστημα για διαθεσιμότητα</p> : null}
         {!demoMode && !supplierFulfilled ? <LocalCommerceProof proof={product.localProof} compact /> : null}
       </div>
     </article>
