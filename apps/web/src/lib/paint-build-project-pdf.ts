@@ -76,6 +76,17 @@ function factValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function moneyEl(minor: number | undefined): string {
+  if (minor == null || !Number.isSafeInteger(minor) || minor < 0) return "—";
+  return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
+}
+
+function kitRoleLabel(role: "main" | "system" | "accessory"): string {
+  if (role === "main") return "Κύριο προϊόν";
+  if (role === "system") return "Σύστημα";
+  return "Εργαλείο / προστασία";
+}
+
 export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapshot, referenceId?: string): Record<string, unknown> {
   const project = snapshot.project;
   const guide = snapshot.customerGuide;
@@ -146,6 +157,62 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
     });
   } else {
     content.push({ text: "Δεν έχει αποθηκευτεί επιβεβαιωμένο προϊόν στο συγκεκριμένο snapshot.", style: "body" });
+  }
+
+  const projectKit = project.projectKit ?? [];
+  const selectedKit = projectKit.filter((line) => line.selected);
+  if (selectedKit.length) {
+    content.push({ text: "Το επιλεγμένο project kit", style: "sectionTitle", margin: [0, 13, 0, 6] });
+    content.push({
+      table: {
+        headerRows: 1,
+        widths: ["*", 70, 36, 62, 72],
+        body: [
+          [
+            { text: "Είδος", bold: true },
+            { text: "Ρόλος", bold: true },
+            { text: "Ποσ.", bold: true },
+            { text: "Τιμή", bold: true },
+            { text: "Σύνολο / κατάσταση", bold: true }
+          ],
+          ...selectedKit.map((line) => [
+            {
+              text: [
+                { text: line.title || line.label, bold: true },
+                line.required ? { text: "\nΑπαραίτητο", fontSize: 7, color: "#7b3d29" } : { text: "\nΠροτεινόμενο", fontSize: 7, color: "#666666" },
+                line.availabilityNote ? { text: `\n${line.availabilityNote}`, fontSize: 7, color: "#7b3d29" } : ""
+              ]
+            },
+            kitRoleLabel(line.role),
+            String(line.quantity),
+            line.price || moneyEl(line.priceMinor),
+            line.cartable && line.priceMinor != null
+              ? moneyEl(line.priceMinor * line.quantity)
+              : "Μη διαθέσιμο για checkout"
+          ])
+        ]
+      },
+      layout: "lightHorizontalLines",
+      margin: [0, 0, 0, 7]
+    });
+    const cartableTotal = selectedKit
+      .filter((line) => line.cartable && line.priceMinor != null)
+      .reduce((sum, line) => sum + (line.priceMinor ?? 0) * line.quantity, 0);
+    content.push({
+      text: cartableTotal > 0
+        ? `Ενδεικτικό σύνολο διαθέσιμων ειδών κατά τη δημιουργία του PDF: ${moneyEl(cartableTotal)}.`
+        : "Δεν υπήρχαν checkout-ready είδη με τιμή στο συγκεκριμένο snapshot.",
+      style: "bodyStrong",
+      margin: [0, 3, 0, 6]
+    });
+    const excluded = projectKit.filter((line) => !line.selected);
+    if (excluded.length) {
+      content.push({
+        text: `Δεν επιλέχθηκαν από τον πελάτη: ${excluded.map((line) => line.title || line.label).join(", ")}.`,
+        style: "body",
+        margin: [0, 0, 0, 6]
+      });
+    }
   }
 
   content.push(...section("Τι χρειάζεσαι", guide.whatYouNeed));
