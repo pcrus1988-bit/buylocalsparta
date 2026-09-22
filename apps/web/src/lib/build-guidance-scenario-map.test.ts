@@ -13,14 +13,14 @@ test("maps reviewed interior paint scenarios without merging distinct substrates
 });
 
 test("maps the live reviewed exterior new-plaster choice without borrowing interior guidance", () => {
-  assert.deepEqual(
-    mapBuildStudioScenario({ module: "paint", surface: "exterior-wall", condition: "new" }),
-    { scenarioKey: "paint_exterior_new_plaster", facts: {} }
-  );
-  assert.deepEqual(
-    mapBuildStudioScenario({ module: "paint", surface: "exterior-wall", condition: "new-plaster" }),
-    { scenarioKey: "paint_exterior_new_plaster", facts: {} }
-  );
+  assert.deepEqual(mapBuildStudioScenario({ module: "paint", surface: "exterior-wall", condition: "new" }), { scenarioKey: "paint_exterior_new_plaster", facts: {} });
+  assert.deepEqual(mapBuildStudioScenario({ module: "paint", surface: "exterior-wall", condition: "new-plaster" }), { scenarioKey: "paint_exterior_new_plaster", facts: {} });
+});
+
+test("Paint Consultant roof choices reuse reviewed waterproofing guidance", () => {
+  assert.deepEqual(mapBuildStudioScenario({ module: "paint", surface: "roof", condition: "maintenance" }), { scenarioKey: "waterproof_existing_system_maintenance", facts: { existing_coating_known_compatible: false } });
+  assert.deepEqual(mapBuildStudioScenario({ module: "paint", surface: "roof", condition: "new" }), { scenarioKey: "waterproof_flat_roof", facts: {} });
+  assert.deepEqual(mapBuildStudioScenario({ module: "paint", surface: "roof", condition: "cracks" }), { scenarioKey: "waterproof_details_parapets_joints_penetrations", facts: { cracks_or_joints_present: true } });
 });
 
 test("unresolved moisture maps to diagnosis-first blocking facts", () => {
