@@ -12,7 +12,11 @@ test("maps reviewed interior paint scenarios without merging distinct substrates
   assert.equal(mapBuildStudioScenario({ module: "paint", surface: "interior-wall", condition: "cracks" }), null);
 });
 
-test("maps reviewed exterior new plaster without borrowing interior guidance", () => {
+test("maps the live reviewed exterior new-plaster choice without borrowing interior guidance", () => {
+  assert.deepEqual(
+    mapBuildStudioScenario({ module: "paint", surface: "exterior-wall", condition: "new" }),
+    { scenarioKey: "paint_exterior_new_plaster", facts: {} }
+  );
   assert.deepEqual(
     mapBuildStudioScenario({ module: "paint", surface: "exterior-wall", condition: "new-plaster" }),
     { scenarioKey: "paint_exterior_new_plaster", facts: {} }
