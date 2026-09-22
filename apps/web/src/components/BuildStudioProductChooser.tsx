@@ -67,7 +67,8 @@ export function BuildStudioProductChooser({
   heading = "Επαληθευμένες επιλογές προϊόντος",
   selectedCatalogueId,
   onManufacturerProductChange,
-  onSelectionChange
+  onSelectionChange,
+  onDetails
 }: {
   terms: readonly string[];
   scenarioKey: string;
@@ -76,6 +77,7 @@ export function BuildStudioProductChooser({
   selectedCatalogueId?: string;
   onManufacturerProductChange?: (manufacturerProductId: string | undefined) => void;
   onSelectionChange?: (candidate: BuildStudioCandidate | undefined) => void;
+  onDetails?: (candidate: BuildStudioCandidate) => void;
 }) {
   const [products, setProducts] = useState<readonly BuildStudioCandidate[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "empty" | "degraded">("loading");
@@ -203,7 +205,13 @@ export function BuildStudioProductChooser({
                     </div>
                   </div>
                 </button>
-                <a className={styles.detailLink} href={product.url}>Δες λεπτομέρειες ↗</a>
+                <button
+                  type="button"
+                  className={styles.detailLink}
+                  onClick={() => onDetails?.(product)}
+                >
+                  Δες λεπτομέρειες ↗
+                </button>
               </article>
             );
           })}
