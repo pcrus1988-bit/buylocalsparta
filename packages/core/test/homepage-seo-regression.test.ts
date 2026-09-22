@@ -28,7 +28,7 @@ test("homepage preserves clean semantic and structured SEO signals", () => {
   assert.match(homepage, /inLanguage: "el-GR"/);
   assert.match(homepage, /isPartOf: \{ "@id": "https:\/\/kontamou\.site\/#website" \}/);
   assert.match(homepage, /unstable_cache/);
-  assert.match(homepage, /visibleCategories\.map\(\(category\) =>/);
+  assert.match(homepage, /visibleCategories\.slice\(0, 4\)\.map\(\(category\) =>/);
   assert.match(homepage, /href=\{`\/category\/\$\{category\.slug\}`\}/);
   assert.match(homepage, /<a href="\/shop">Όλα τα προϊόντα/);
   assert.match(homepage, /<a href="\/shops">Τα καταστήματα/);
