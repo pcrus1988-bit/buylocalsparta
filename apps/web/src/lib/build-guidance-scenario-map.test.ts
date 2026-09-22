@@ -126,3 +126,19 @@ test("bathroom sound condition and condensation goal use reviewed dedicated guid
     }
   );
 });
+
+
+test("advanced repair choices map to their reviewed dedicated guidance", () => {
+  assert.deepEqual(
+    mapBuildStudioScenario({ module: "repair", issue: "recurrent-crack", severity: "medium" }),
+    { scenarioKey: "repair_recurrent_or_large_wall_crack", facts: { crack_progressive_or_displaced: true } }
+  );
+  assert.deepEqual(
+    mapBuildStudioScenario({ module: "repair", issue: "friable", severity: "local" }),
+    { scenarioKey: "repair_weak_friable_wall_surface", facts: { friable_area: "local" } }
+  );
+  assert.deepEqual(
+    mapBuildStudioScenario({ module: "repair", issue: "friable", severity: "extensive" }),
+    { scenarioKey: "repair_weak_friable_wall_surface", facts: { friable_area: "widespread" } }
+  );
+});

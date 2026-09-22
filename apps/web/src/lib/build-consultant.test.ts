@@ -61,3 +61,26 @@ test("extensive wall damage escalates to technical inspection", () => {
 
   assert.ok(result.warnings.some((warning) => /τεχνικό/i.test(warning)));
 });
+
+
+test("recurrent crack recommendation stays assessment-first", () => {
+  const result = recommendRepair({
+    issue: "recurrent-crack",
+    severity: "medium",
+    areaM2: 8
+  });
+
+  assert.ok(result.preparation.some((step) => /μεγαλώνει|επανέρχεται|μετατόπιση/i.test(step)));
+  assert.ok(result.warnings.some((warning) => /αξιολόγηση|σταθερότητα/i.test(warning)));
+});
+
+test("friable wall recommendation requires a stable base before repair", () => {
+  const result = recommendRepair({
+    issue: "friable",
+    severity: "local",
+    areaM2: 12
+  });
+
+  assert.ok(result.preparation.some((step) => /σταθερή βάση|ασταθούς υλικού/i.test(step)));
+  assert.ok(result.layers.some((layer) => /σταθερή βάση/i.test(layer)));
+});
