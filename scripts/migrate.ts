@@ -46,6 +46,21 @@ try {
           allowed_mime_types text[]
         )
       `);
+
+      // Hosted Supabase always provides the postgres role. Some migrations grant
+      // narrowly scoped runtime privileges to that role, while the plain PostGIS
+      // CI image initializes under the configured application user instead.
+      // Create a non-login compatibility role only on loopback databases so the
+      // immutable production migrations execute under the same role topology.
+      await client.query(`
+        DO $
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'postgres') THEN
+            CREATE ROLE postgres NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+          END IF;
+        END
+        $;
+      `);
     }
 
     await client.query(`
