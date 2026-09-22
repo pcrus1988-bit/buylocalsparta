@@ -1,6 +1,6 @@
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission, recordAdminAudit } from "./admin-runtime";
-import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";\nimport { reconcileVitexStorefrontTaxonomy } from "./vitex-storefront-taxonomy";
 
 export type VitexBulkAssignmentResult = Readonly<{
   vendorId: string;
