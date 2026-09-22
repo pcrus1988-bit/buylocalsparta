@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mapBuildStudioScenario } from "./build-guidance-scenario-map.ts";
+import { PAINT_SURFACES } from "./paint-consultant.ts";
+import { INSULATION_GOALS, INSULATION_LOCATIONS, REPAIR_ISSUES, REPAIR_SEVERITIES } from "./build-consultant.ts";
 
 test("maps reviewed interior paint scenarios without merging distinct substrates or failures", () => {
   assert.deepEqual(mapBuildStudioScenario({ module: "paint", surface: "interior-wall", condition: "sound" }), { scenarioKey: "paint_interior_repaint_sound", facts: {} });
@@ -109,4 +111,41 @@ test("advanced repair choices map to their reviewed dedicated guidance", () => {
   assert.deepEqual(mapBuildStudioScenario({ module: "repair", issue: "recurrent-crack", severity: "medium" }), { scenarioKey: "repair_recurrent_or_large_wall_crack", facts: { crack_progressive_or_displaced: true } });
   assert.deepEqual(mapBuildStudioScenario({ module: "repair", issue: "friable", severity: "local" }), { scenarioKey: "repair_weak_friable_wall_surface", facts: { friable_area: "local" } });
   assert.deepEqual(mapBuildStudioScenario({ module: "repair", issue: "friable", severity: "extensive" }), { scenarioKey: "repair_weak_friable_wall_surface", facts: { friable_area: "widespread" } });
+});
+
+
+test("every currently selectable Paint Consultant surface-condition pair has reviewed guidance", () => {
+  for (const surface of PAINT_SURFACES.filter((entry) => entry.key !== "roof")) {
+    for (const condition of surface.conditions) {
+      assert.notEqual(
+        mapBuildStudioScenario({ module: "paint", surface: surface.key, condition: condition.key }),
+        null,
+        `missing reviewed paint route: ${surface.key} / ${condition.key}`
+      );
+    }
+  }
+});
+
+test("every currently selectable insulation location-goal pair has a reviewed or diagnosis-first route", () => {
+  for (const location of INSULATION_LOCATIONS) {
+    for (const goal of INSULATION_GOALS) {
+      assert.notEqual(
+        mapBuildStudioScenario({ module: "insulation", location: location.key, goal: goal.key }),
+        null,
+        `missing reviewed insulation route: ${location.key} / ${goal.key}`
+      );
+    }
+  }
+});
+
+test("every currently selectable repair issue-severity pair remains mapped", () => {
+  for (const issue of REPAIR_ISSUES) {
+    for (const severity of REPAIR_SEVERITIES) {
+      assert.notEqual(
+        mapBuildStudioScenario({ module: "repair", issue: issue.key, severity: severity.key }),
+        null,
+        `missing reviewed repair route: ${issue.key} / ${severity.key}`
+      );
+    }
+  }
 });
