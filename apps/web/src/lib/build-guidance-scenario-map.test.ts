@@ -35,6 +35,10 @@ test("active balcony leak is mapped as active water ingress", () => {
   assert.deepEqual(mapBuildStudioScenario({ module: "waterproofing", location: "balcony", problem: "leak" }), { scenarioKey: "waterproof_balcony_leak", facts: { active_water_ingress: true } });
 });
 
+test("balcony standing water remains unresolved until balcony-specific ponding evidence is reviewed", () => {
+  assert.equal(mapBuildStudioScenario({ module: "waterproofing", location: "balcony", problem: "standing-water" }), null);
+});
+
 test("ETICS remains blocked until safe access is confirmed", () => {
   assert.deepEqual(mapBuildStudioScenario({ module: "insulation", location: "facade", goal: "both" }), { scenarioKey: "insulation_external_etics", facts: { work_at_height: true, safe_access_confirmed: false } });
 });
