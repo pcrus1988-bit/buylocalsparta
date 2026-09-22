@@ -183,6 +183,7 @@ export default async function Page() {
         note="Τα υπάρχοντα εργαλεία παραμένουν διαθέσιμα, αλλά δεν επιβαρύνουν πλέον την αρχική φόρτωση του catalogue dashboard."
       />
       <div className="workspace-action-buttons">
+        <Link className="button button-secondary" href="/admin/catalogue/vitex">VITEX catalogue</Link>
         <Link className="button button-secondary" href="/admin/quickadd">Quick Add</Link>
         <Link className="button button-secondary" href="/admin/catalogue-intake/import">Files &amp; Providers</Link>
         <Link className="button button-secondary" href="/admin/categories">Categories</Link>
