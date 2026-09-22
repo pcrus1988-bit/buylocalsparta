@@ -106,6 +106,14 @@ async function readPublicProductSitemapRouteShard(shard: number): Promise<readon
         (rm.local_sellable=true AND rm.local_available_until>now())
         OR
         (rm.dropship_sellable=true AND rm.dropship_available_until>now())
+        OR EXISTS (
+          SELECT 1
+          FROM bls_private.storefront_dropship_live_family live
+          WHERE live.supplier_id::text=rm.dropship_supplier_id
+            AND live.external_product_id=rm.dropship_external_product_id
+            AND live.sellable=true
+            AND live.available_until>now()
+        )
       )
     ORDER BY rm.canonical_public_id
   `, [lowerBound, upperBound]);
@@ -120,7 +128,7 @@ async function readPublicProductSitemapRouteShard(shard: number): Promise<readon
 
 const cachedPublicProductSitemapRouteShard = unstable_cache(
   (shard: number) => readPublicProductSitemapRouteShard(shard),
-  ["public-product-sitemap-route-shard-v4"],
+  ["public-product-sitemap-route-shard-v5"],
   { revalidate: 900 }
 );
 
