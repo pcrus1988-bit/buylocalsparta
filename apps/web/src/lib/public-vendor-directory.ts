@@ -398,23 +398,25 @@ export async function getPublicVendorDirectory(): Promise<readonly PublicVendorD
   return directory.map((vendor) => directoryPresentation(vendor, profileMedia, fallbackByVendor.get(vendor.id)));
 }
 
+export async function getUncachedPublicVendorDirectoryEntry(vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> {
+  if (!vendorId.trim() || !productionDatabaseConfigured()) return undefined;
+  const vendor = (await withTransientDatabaseRetry(() => databaseDirectory(vendorId)))[0];
+  if (!vendor) return undefined;
+  if (vendor.directoryStatus !== "partner") return vendor;
+
+  // Most storefronts either have approved profile media or a fallback product image.
+  // Resolve them sequentially so one request never consumes multiple DB pool slots here.
+  const profileMedia = await withTransientDatabaseRetry(() => approvedVendorProfileMedia([vendor.id]));
+  const profileImage = preferredProfileMedia(profileMedia, vendor.id);
+  if (profileImage) return { ...vendor, mediaId: profileImage.mediaId, mediaAlt: profileImage.altText };
+
+  const fallbackImages = await withTransientDatabaseRetry(() => approvedVendorImages([vendor.id]));
+  const fallback = fallbackImages[0];
+  return fallback ? { ...vendor, mediaId: fallback.mediaId, mediaAlt: fallback.altText } : vendor;
+}
+
 const loadPersistedPublicVendorDirectoryEntry = unstable_cache(
-  async (vendorId: string): Promise<PublicVendorDirectoryEntry | undefined> => {
-    if (!vendorId.trim() || !productionDatabaseConfigured()) return undefined;
-    const vendor = (await withTransientDatabaseRetry(() => databaseDirectory(vendorId)))[0];
-    if (!vendor) return undefined;
-    if (vendor.directoryStatus !== "partner") return vendor;
-
-    // Most storefronts either have approved profile media or a fallback product image.
-    // Resolve them sequentially so one request never consumes multiple DB pool slots here.
-    const profileMedia = await withTransientDatabaseRetry(() => approvedVendorProfileMedia([vendor.id]));
-    const profileImage = preferredProfileMedia(profileMedia, vendor.id);
-    if (profileImage) return { ...vendor, mediaId: profileImage.mediaId, mediaAlt: profileImage.altText };
-
-    const fallbackImages = await withTransientDatabaseRetry(() => approvedVendorImages([vendor.id]));
-    const fallback = fallbackImages[0];
-    return fallback ? { ...vendor, mediaId: fallback.mediaId, mediaAlt: fallback.altText } : vendor;
-  },
+  getUncachedPublicVendorDirectoryEntry,
   ["public-vendor-directory-entry-v2"],
   { revalidate: 60 }
 );
