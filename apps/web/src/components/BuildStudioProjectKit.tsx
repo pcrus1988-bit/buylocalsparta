@@ -294,7 +294,9 @@ export function BuildStudioProjectKit({
     const quantity = quantities[line.key] ?? line.quantity;
     return sum + price * quantity;
   }, 0);
-  const missingRequired = activeLines.filter((line) => line.required && !line.cartable);
+  const incompleteRequired = data.lines.filter((line) =>
+    line.required && (selected[line.key] !== true || !line.cartable)
+  );
   const missingSelected = activeLines.filter((line) => !line.cartable);
   const cartableLines = activeLines.filter((line) =>
     line.cartable
@@ -425,10 +427,13 @@ export function BuildStudioProjectKit({
         })}
       </div>
 
-      {missingRequired.length ? (
+      {incompleteRequired.length ? (
         <div className={styles.notice}>
-          <strong>Το project kit δεν είναι ακόμη πλήρως checkout-ready.</strong>
-          <p>{missingRequired.length} απαραίτητο είδος/είδη χρειάζονται εμπορική προσφορά ή επιβεβαίωση αποθέματος από το κατάστημα. Το PDF μπορεί να δημιουργηθεί κανονικά.</p>
+          <strong>Το project kit δεν είναι ακόμη πλήρες.</strong>
+          <p>
+            {incompleteRequired.length} απαραίτητο είδος/είδη είτε έχουν αφαιρεθεί από την επιλογή είτε δεν είναι ακόμη checkout-ready.
+            Το PDF θα καταγράψει ακριβώς αυτή την κατάσταση αντί να παρουσιάσει το έργο ως πλήρες.
+          </p>
         </div>
       ) : null}
 
