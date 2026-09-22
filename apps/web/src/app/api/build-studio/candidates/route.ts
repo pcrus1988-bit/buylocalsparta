@@ -3,6 +3,7 @@ import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
 import { getShopCatalogPage } from "../../../../lib/shop-catalog-page";
 import { getVisitorKey } from "../../../../lib/visitor";
 import { productPublicPath } from "../../../../lib/product-url";
+import { buildStudioSelectionGroupKey, normalizePackLitres } from "../../../../lib/build-studio-pack-optimizer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +18,15 @@ type Candidate = Readonly<{
   categoryCode: string;
   categoryLabel?: string;
   brand?: string;
+  manufacturerProductName: string;
+  manufacturerFamilyName?: string;
+  packValue?: number;
+  packUnit?: string;
+  packLitres?: number;
+  colourHint?: string;
+  tintBaseHint?: string;
+  finishHint?: string;
+  selectionGroupKey: string;
   mediaId?: string;
   mediaAlt?: string;
   imageUrl?: string;
@@ -36,6 +46,9 @@ type Candidate = Readonly<{
 type VerifiedManufacturerRow = Readonly<{
   canonical_public_id: string;
   manufacturer_product_id: string;
+  manufacturer_product_name: string;
+  manufacturer_product_family: string | null;
+  variant_attributes: Readonly<Record<string, unknown>>;
   result_status: Candidate["manufacturerEligibilityStatus"];
   rule_key: string;
 }>;
@@ -147,6 +160,17 @@ function candidateScore(
 function safeMinor(value: unknown): number {
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function attributeText(attributes: Readonly<Record<string, unknown>>, key: string): string | undefined {
+  const value = attributes[key];
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function attributeNumber(attributes: Readonly<Record<string, unknown>>, key: string): number | undefined {
+  const value = attributes[key];
+  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 /**
@@ -281,6 +305,9 @@ async function verifiedManufacturerMatches(
       SELECT
         cv.public_id AS canonical_public_id,
         mp.id AS manufacturer_product_id,
+        mp.product_name AS manufacturer_product_name,
+        mp.product_family AS manufacturer_product_family,
+        cv.variant_attributes,
         ar.result_status,
         ar.rule_key,
         ar.priority
@@ -345,6 +372,9 @@ async function verifiedManufacturerMatches(
     SELECT DISTINCT ON (canonical_public_id)
       canonical_public_id,
       manufacturer_product_id::text,
+      manufacturer_product_name,
+      manufacturer_product_family,
+      variant_attributes,
       result_status,
       rule_key
     FROM allowed
@@ -413,6 +443,14 @@ export async function GET(request: Request) {
       const match = candidateScore(product, terms);
       if (match.score <= 0) continue;
 
+      const attributes = technical.variant_attributes ?? {};
+      const packValue = attributeNumber(attributes, "pack_value");
+      const packUnit = attributeText(attributes, "pack_unit");
+      const packLitres = normalizePackLitres(packValue, packUnit);
+      const colourHint = attributeText(attributes, "color") ?? attributeText(attributes, "colour");
+      const tintBaseHint = attributeText(attributes, "tint_base") ?? attributeText(attributes, "base");
+      const finishHint = attributeText(attributes, "finish");
+
       const candidate: Candidate = {
         id: product.id,
         slug: product.slug,
@@ -423,6 +461,19 @@ export async function GET(request: Request) {
         categoryCode: product.categoryCode,
         categoryLabel: product.categoryLabel,
         brand: product.brand,
+        manufacturerProductName: technical.manufacturer_product_name,
+        manufacturerFamilyName: technical.manufacturer_product_family ?? undefined,
+        packValue,
+        packUnit,
+        packLitres,
+        colourHint,
+        tintBaseHint,
+        finishHint,
+        selectionGroupKey: buildStudioSelectionGroupKey({
+          title: product.title,
+          colourHint,
+          tintBaseHint
+        }),
         mediaId: product.mediaId,
         mediaAlt: product.mediaAlt,
         imageUrl: product.imageUrl,
@@ -445,7 +496,7 @@ export async function GET(request: Request) {
         || left.priceMinor - right.priceMinor
         || left.title.localeCompare(right.title, "el")
       )
-      .slice(0, 18);
+      .slice(0, 60);
 
     return Response.json(
       {
