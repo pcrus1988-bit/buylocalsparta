@@ -294,9 +294,9 @@ export function BuildStudioProjectKit({
     const quantity = quantities[line.key] ?? line.quantity;
     return sum + price * quantity;
   }, 0);
-  const incompleteRequired = data.lines.filter((line) =>
-    line.required && (selected[line.key] !== true || !line.cartable)
-  );
+  const incompleteRequired = data
+    ? data.lines.filter((line) => line.required && (selected[line.key] !== true || !line.cartable))
+    : [];
   const missingSelected = activeLines.filter((line) => !line.cartable);
   const cartableLines = activeLines.filter((line) =>
     line.cartable
