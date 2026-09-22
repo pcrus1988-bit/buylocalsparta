@@ -19,6 +19,7 @@ type Candidate = Readonly<{
   brand?: string;
   mediaId?: string;
   mediaAlt?: string;
+  imageUrl?: string;
   vendorName?: string;
   score: number;
   matchedTerms: readonly string[];
@@ -50,6 +51,7 @@ type DiscoveryProduct = Readonly<{
   brand?: string;
   mediaId?: string;
   mediaAlt?: string;
+  imageUrl?: string;
   vendorName?: string;
   description?: string;
 }>;
@@ -63,6 +65,7 @@ type AssignedVitexRow = Readonly<{
   brand_name: string | null;
   vendor_name: string;
   description: string | null;
+  image_url: string | null;
 }>;
 
 const scenarioKeyPattern = /^[a-z0-9_]{1,96}$/;
@@ -165,7 +168,8 @@ async function getAssignedVitexDiscoveryProducts(): Promise<readonly DiscoveryPr
       COALESCE(c.code,'other') AS category_code,
       COALESCE(NULLIF(b.name,''),NULLIF(pfb.name,'')) AS brand_name,
       COALESCE(NULLIF(v.trading_name,''),v.legal_name) AS vendor_name,
-      COALESCE(NULLIF(el.description,''),NULLIF(en.description,'')) AS description
+      COALESCE(NULLIF(el.description,''),NULLIF(en.description,'')) AS description,
+      NULLIF(csp.source_image_url,'') AS image_url
     FROM public.vendor_catalog_assortments vca
     JOIN public.vendor_businesses v
       ON v.id=vca.vendor_id
@@ -216,6 +220,7 @@ async function getAssignedVitexDiscoveryProducts(): Promise<readonly DiscoveryPr
       price: formatMoney(money(priceMinor)),
       categoryCode: row.category_code || "other",
       brand: row.brand_name?.trim() || "VITEX",
+      imageUrl: row.image_url?.trim() || undefined,
       vendorName: row.vendor_name,
       description: row.description?.trim() || undefined
     } satisfies DiscoveryProduct];
@@ -420,6 +425,7 @@ export async function GET(request: Request) {
         brand: product.brand,
         mediaId: product.mediaId,
         mediaAlt: product.mediaAlt,
+        imageUrl: product.imageUrl,
         vendorName: product.vendorName,
         score: match.score,
         matchedTerms: match.matchedTerms,
