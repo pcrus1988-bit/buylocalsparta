@@ -145,7 +145,7 @@ function extractFournarakisInlineData(html: string): FournarakisInlineProduct | 
   const marker = /(?:^|[;\s])(?:const|let)\s+data\s*=\s*/g;
   const match = marker.exec(html);
   if (!match) return undefined;
-  const start = html.indexOf("{", match.index + match[0].length);
+  const start = html.indexOf("{", match.index + match[0].length - 1);
   if (start < 0) return undefined;
   const end = findBalancedJsonObjectEnd(html, start);
   if (end < 0) return undefined;
