@@ -198,6 +198,9 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
   }
 
   if (input.issue === "hairline") return request("repair_hairline_wall_crack");
+  if (input.issue === "recurrent-crack") {
+    return request("repair_recurrent_or_large_wall_crack", { crack_progressive_or_displaced: true });
+  }
   if (input.issue === "holes") {
     return request("repair_small_holes_dents", {
       repair_extent: input.severity === "extensive" ? "extensive" : "local"
@@ -209,6 +212,11 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
       "repair_damaged_plaster",
       input.severity === "extensive" ? { detached_plaster: "widespread" } : {}
     );
+  }
+  if (input.issue === "friable") {
+    return request("repair_weak_friable_wall_surface", {
+      friable_area: input.severity === "extensive" ? "widespread" : "local"
+    });
   }
   if (input.issue === "damp") {
     return request("paint_interior_mould_damp", {
