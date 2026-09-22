@@ -78,6 +78,14 @@ export default function AboutPage() {
       </div>
     </section>
 
+    <section className="shell content-section" id="what-is-kontamou">
+      <div className="content-heading">
+        <div><div className="eyebrow">Τι είναι το ΚΟΝΤΑ ΜΟΥ</div><h2>Τι είναι το ΚΟΝΤΑ ΜΟΥ Σπάρτη</h2></div>
+        <p>Το ΚΟΝΤΑ ΜΟΥ είναι πλατφόρμα τοπικού εμπορίου από τη Σπάρτη. Συνδέει πελάτες και τοπικά καταστήματα με ένα καλάθι και μία διαδικασία ολοκλήρωσης αγοράς.</p>
+      </div>
+      <p><strong>Υποδομή για μικρές επιχειρήσεις:</strong> κάθε συνεργαζόμενο κατάστημα μπορεί να αξιοποιεί κοινά εργαλεία ανακάλυψης, παραγγελιών και λειτουργίας, χωρίς να χρειάζεται να συντηρεί μόνο του ένα πλήρες ηλεκτρονικό κατάστημα.</p>
+    </section>
+
     <section className={`shell content-section ${styles.opening}`}>
       <div className={styles.openingStatement}>
         <span>Η βασική ιδέα</span>
