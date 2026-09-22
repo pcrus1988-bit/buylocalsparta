@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "knowledge_layer": "A_GENERAL_SOLUTION_GUIDANCE",
+  "scope": "Brand-independent stop/escalation guidance for suspect hazardous existing building materials encountered before sanding, scraping, drilling, cutting, demolition or other disturbance. This dataset does not establish Greek/EU legal duties and does not prescribe asbestos abatement methods.",
+  "status": "reviewed_source_backed",
+  "reviewed_at": "2026-09-22",
+  "rules": [
+    {
+      "id": "A-HAZMAT-ASBESTOS-VISUAL-ID-001",
+      "topic": "suspect_asbestos_cannot_be_identified_visually",
+      "claim": "A building material cannot be reliably determined to contain or not contain asbestos simply by visual inspection; laboratory testing is needed for certainty.",
+      "customer_guidance_el": "Δεν είναι ασφαλές να αποφασίσεις μόνο από την εμφάνιση ότι ένα παλιό δομικό υλικό δεν περιέχει αμίαντο. Αν πρόκειται να τριφτεί, κοπεί, τρυπηθεί, ξηλωθεί ή αλλιώς να διαταραχθεί και υπάρχει εύλογη υποψία, χρειάζεται κατάλληλη επαγγελματική αξιολόγηση πριν συνεχίσεις.",
+      "stop_escalation": "Stop automatic preparation/removal guidance when a suspect material would be disturbed and its asbestos status is unknown.",
+      "source": {
+        "authority": "US Environmental Protection Agency",
+        "title": "How do I know if I have asbestos in my home?",
+        "url": "https://www.epa.gov/asbestos/how-do-i-know-if-i-have-asbestos-my-home-floor-tile-ceiling-tile-shingles-siding-etc",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "The physical identification limitation is generalized. US-specific legal/accreditation requirements are not generalized to Greece."
+    },
+    {
+      "id": "A-HAZMAT-ASBESTOS-DISTURBANCE-001",
+      "topic": "avoid_disturbing_suspect_asbestos_material",
+      "claim": "Suspect asbestos-containing materials can release fibres when disturbed, damaged, cut, sanded, drilled, scraped or removed improperly; unnecessary disturbance should therefore be avoided pending competent assessment.",
+      "customer_guidance_el": "Αν ένα υλικό μπορεί να περιέχει αμίαντο, μην προχωράς σε τρίψιμο, ξύσιμο, τρύπημα, κοπή ή αποξήλωση ως συνηθισμένη προετοιμασία επιφάνειας. Η διατάραξη μπορεί να απελευθερώσει ίνες. Σταμάτησε και ζήτησε κατάλληλη αξιολόγηση πριν από εργασίες που θα το διαταράξουν.",
+      "stop_escalation": "Do not recommend ordinary DIY abrasive or demolition preparation for suspect asbestos-containing material.",
+      "source": {
+        "authority": "US Environmental Protection Agency",
+        "title": "Protect Your Family from Exposures to Asbestos",
+        "url": "https://www.epa.gov/asbestos/protect-your-family-exposures-asbestos",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "Only the general exposure-prevention principle is used. Abatement technique and jurisdiction-specific compliance belong outside this Layer A rule."
+    },
+    {
+      "id": "A-HAZMAT-ASBESTOS-TESTING-001",
+      "topic": "suspect_asbestos_testing_before_disturbance",
+      "claim": "Where suspect material is damaged or planned renovation will disturb it, EPA recommends sampling by a properly trained asbestos professional and analysis by a qualified laboratory rather than homeowner sampling.",
+      "customer_guidance_el": "Όταν ύποπτο υλικό είναι φθαρμένο ή πρόκειται να διαταραχθεί από την εργασία, η ασφαλής κατεύθυνση δεν είναι αυτοσχέδια δειγματοληψία. Χρειάζεται κατάλληλος επαγγελματίας για αξιολόγηση/δειγματοληψία και κατάλληλη εργαστηριακή ανάλυση, σύμφωνα με τις απαιτήσεις που ισχύουν στην Ελλάδα.",
+      "stop_escalation": "Escalate to an appropriately qualified local professional before disturbing suspect material. KONTA MOY must not instruct the customer how to take an asbestos sample.",
+      "source": {
+        "authority": "US Environmental Protection Agency",
+        "title": "I'm remodeling my home. Do I need to be concerned about asbestos in the building materials?",
+        "url": "https://www.epa.gov/asbestos/im-remodeling-my-home-do-i-need-be-concerned-about-asbestos-building-materials",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "The recommendation for trained sampling/laboratory analysis is retained as a conservative general safety principle. Exact professional qualifications and legal process must be verified for Greece/EU before jurisdiction-specific claims are displayed."
+    },
+    {
+      "id": "A-HAZMAT-ASBESTOS-NONDESTRUCTIVE-001",
+      "topic": "intact_suspect_material_no_automatic_removal",
+      "claim": "Suspect asbestos-containing material that is in good condition and will not be disturbed does not automatically require removal; disturbance itself can increase exposure risk.",
+      "customer_guidance_el": "Η πιθανή παρουσία αμιάντου δεν σημαίνει ότι πρέπει αυτομάτως να αφαιρεθεί το υλικό. Αν είναι σε καλή κατάσταση και δεν πρόκειται να διαταραχθεί, μην δημιουργείς νέα εργασία αποξήλωσης χωρίς κατάλληλη αξιολόγηση.",
+      "stop_escalation": "Do not turn suspicion alone into an automatic removal instruction. Escalate decisions about repair, encapsulation, enclosure or removal to competent local assessment where asbestos is confirmed or reasonably suspected.",
+      "source": {
+        "authority": "US Environmental Protection Agency",
+        "title": "Protect Your Family from Exposures to Asbestos",
+        "url": "https://www.epa.gov/asbestos/protect-your-family-exposures-asbestos",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "No abatement method is selected by this rule. It prevents KONTA MOY from recommending unnecessary destructive preparation."
+    }
+  ],
+  "unresolved": [
+    {
+      "id": "A-HAZMAT-GREECE-ASBESTOS-LEGAL-PENDING",
+      "question": "What exact Greek/EU licensing, notification, sampling, worker-protection, transport and disposal requirements apply to asbestos work for each supported project type?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "The reviewed evidence establishes hazard/assessment principles but US regulatory requirements must not be presented as Greek law. A separate Greece/EU regulatory verification pass is required."
+    },
+    {
+      "id": "A-HAZMAT-ASBESTOS-AGE-CUTOFF-PENDING",
+      "question": "Can KONTA MOY use a building-age cutoff in Greece to determine that asbestos is absent or presumed present?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "US OSHA pre-1981 presumptions are jurisdiction-specific and do not establish a safe Greek building-age rule. No universal cutoff is asserted."
+    },
+    {
+      "id": "A-HAZMAT-ASBESTOS-MATERIAL-LIST-PENDING",
+      "question": "Which Greek building products/assemblies and eras should trigger an asbestos screening question in the customer workflow?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "A Greece-specific authoritative evidence set is required before converting examples into a customer-facing screening matrix."
+    }
+  ],
+  "layer_boundary": {
+    "manufacturer_specific_values": "Layer B only",
+    "kontamou_workflow_and_product_selection_guardrails": "Layer C only",
+    "note": "Layer A establishes only general hazard-recognition and stop/escalation principles. It does not prescribe abatement, PPE, sampling technique, disposal, legal compliance, or product selection."
+  }
+}
