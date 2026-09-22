@@ -131,6 +131,52 @@ function selectedChoiceLabel(choices: readonly BuildChoice[], key: string): stri
   return choices.find((choice) => choice.key === key)?.label ?? key;
 }
 
+function ModulePictogram({ module }: { module: BuildModuleKey }) {
+  if (module === "paint") {
+    return (
+      <svg className={styles.modulePictogram} viewBox="0 0 96 72" aria-hidden="true">
+        <rect x="13" y="13" width="42" height="16" rx="5" />
+        <path d="M55 21h12c8 0 12 4 12 12v4" />
+        <path d="M79 37v9" />
+        <path d="M79 46L61 64" />
+        <path d="M58 64h9" />
+        <path d="M18 35h33" />
+      </svg>
+    );
+  }
+  if (module === "waterproofing") {
+    return (
+      <svg className={styles.modulePictogram} viewBox="0 0 96 72" aria-hidden="true">
+        <path d="M12 56h72" />
+        <path d="M21 46l27-19 27 19" />
+        <path d="M28 44v12h40V44" />
+        <path d="M48 8c0 0-10 12-10 20a10 10 0 0 0 20 0C58 20 48 8 48 8Z" />
+      </svg>
+    );
+  }
+  if (module === "insulation") {
+    return (
+      <svg className={styles.modulePictogram} viewBox="0 0 96 72" aria-hidden="true">
+        <path d="M18 38L48 15l30 23v26H18Z" />
+        <path d="M32 64V43h32v21" />
+        <path d="M11 22c7 3 7 8 0 11" />
+        <path d="M85 22c-7 3-7 8 0 11" />
+        <path d="M11 42c7 3 7 8 0 11" />
+        <path d="M85 42c-7 3-7 8 0 11" />
+      </svg>
+    );
+  }
+  return (
+    <svg className={styles.modulePictogram} viewBox="0 0 96 72" aria-hidden="true">
+      <path d="M15 58h66" />
+      <path d="M21 18h54v40H21Z" />
+      <path d="M49 18l-6 12 9 8-10 12 7 8" />
+      <path d="M14 14l19 8" />
+      <path d="M12 10l7 14" />
+    </svg>
+  );
+}
+
 export function PaintBuildStudioExperience() {
   const [screen, setScreen] = useState<StudioScreen>("hub");
 
@@ -263,8 +309,8 @@ export function PaintBuildStudioExperience() {
           </div>
         ) : (
           <div className={styles.headerProject}>
-            <span>PROJECT FIRST</span>
-            <strong>Πες μας τι θέλεις να κάνεις</strong>
+            <span>PROJECT PLANNER</span>
+            <strong>Από το έργο στη σωστή εφαρμογή</strong>
           </div>
         )}
 
@@ -296,16 +342,25 @@ export function PaintBuildStudioExperience() {
         {screen === "hub" ? (
           <section className={styles.hubScreen}>
             <div className={styles.hubIntro}>
-              <span className={styles.kicker}>BUILD STUDIO · BETA</span>
+              <span className={styles.kicker}>ΟΔΗΓΟΣ ΕΡΓΟΥ · PAINT & BUILD</span>
               <h1>Τι θέλεις<br /><em>να φτιάξεις;</em></h1>
               <p>
-                Μην ψάχνεις προϊόντα ένα-ένα. Ξεκίνα από το έργο σου και το ΚΟΝΤΑ ΜΟΥ θα σε οδηγήσει
-                στη σωστή κατηγορία υλικών, βήμα-βήμα.
+                Διάλεξε τη δουλειά που έχεις μπροστά σου. Θα οργανώσουμε τη λύση σε σωστή σειρά:
+                προεργασία, σύστημα, υλικά, ποσότητες και οδηγίες εφαρμογής.
               </p>
+              <div className={styles.projectFlow} aria-label="Ροή έργου">
+                <span>ΕΡΓΟ</span><i>→</i><span>ΣΥΣΤΗΜΑ</span><i>→</i><span>ΥΛΙΚΑ</span><i>→</i><span>ΟΔΗΓΙΕΣ</span>
+              </div>
+              <div className={styles.materialSamples} aria-hidden="true">
+                <span data-sample="paint" />
+                <span data-sample="water" />
+                <span data-sample="insulation" />
+                <span data-sample="repair" />
+              </div>
             </div>
 
             <div className={styles.moduleGrid}>
-              {BUILD_MODULES.map((module) => (
+              {BUILD_MODULES.map((module, index) => (
                 <button
                   type="button"
                   key={module.key}
@@ -313,12 +368,17 @@ export function PaintBuildStudioExperience() {
                   data-module={module.key}
                   onClick={() => chooseModule(module.key)}
                 >
-                  <span className={styles.moduleIcon} aria-hidden="true">{module.icon}</span>
-                  <small>{module.eyebrow}</small>
-                  <h2>{module.title}</h2>
-                  <strong>{module.subtitle}</strong>
-                  <p>{module.description}</p>
-                  <i aria-hidden="true">→</i>
+                  <div className={styles.moduleVisual}>
+                    <span className={styles.moduleNumber}>{String(index + 1).padStart(2, "0")}</span>
+                    <ModulePictogram module={module.key} />
+                  </div>
+                  <div className={styles.moduleCopy}>
+                    <small>{module.eyebrow}</small>
+                    <h2>{module.title}</h2>
+                    <strong>{module.subtitle}</strong>
+                    <p>{module.description}</p>
+                  </div>
+                  <i className={styles.moduleAction} aria-hidden="true">ΕΠΙΛΟΓΗ <span>→</span></i>
                 </button>
               ))}
             </div>
