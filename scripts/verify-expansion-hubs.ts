@@ -129,7 +129,7 @@ for (const boundary of [
   "publicRuntimeHubs",
   "runtimeHubs={publicRuntimeHubs}",
   "index: false",
-  "follow: false"
+  "follow: true"
 ]) {
   assert.ok(gatewayPage.includes(boundary), `Choose-location page is missing runtime/SEO boundary: ${boundary}`);
 }
