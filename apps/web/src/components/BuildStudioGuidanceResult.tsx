@@ -467,7 +467,6 @@ export function BuildStudioGuidanceResult({
           terms={candidateTerms}
           scenarioKey={scenarioKey}
           facts={scenarioRequest?.facts ?? {}}
-          selectedManufacturerProductId={selectedManufacturerProductId}
           selectedCatalogueId={selectedProduct?.id}
           onManufacturerProductChange={setSelectedManufacturerProductId}
           onSelectionChange={handleProduct}
