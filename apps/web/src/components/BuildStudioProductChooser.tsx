@@ -15,6 +15,7 @@ export type BuildStudioCandidate = Readonly<{
   brand?: string;
   mediaId?: string;
   mediaAlt?: string;
+  imageUrl?: string;
   vendorName?: string;
   score: number;
   matchedTerms: readonly string[];
@@ -29,17 +30,25 @@ export type BuildStudioCandidate = Readonly<{
 }>;
 
 function ProductArtwork({ product }: { product: BuildStudioCandidate }) {
-  const [failed, setFailed] = useState(false);
-  if (!product.mediaId || failed) {
+  const sources = [
+    product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : undefined,
+    product.imageUrl
+  ].filter((value): value is string => Boolean(value));
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const source = sources[sourceIndex];
+
+  if (!source) {
     return <span className={styles.fallbackArtwork} aria-hidden="true">{product.title.slice(0, 1).toUpperCase()}</span>;
   }
+
   return (
     <img
-      src={`/api/media/${encodeURIComponent(product.mediaId)}`}
+      src={source}
       alt={product.mediaAlt || product.title}
       loading="lazy"
       decoding="async"
-      onError={() => setFailed(true)}
+      referrerPolicy="no-referrer"
+      onError={() => setSourceIndex((index) => index + 1)}
     />
   );
 }
