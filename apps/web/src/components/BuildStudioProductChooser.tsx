@@ -65,7 +65,6 @@ export function BuildStudioProductChooser({
   scenarioKey,
   facts = {},
   heading = "Επαληθευμένες επιλογές προϊόντος",
-  selectedManufacturerProductId,
   selectedCatalogueId,
   onManufacturerProductChange,
   onSelectionChange
@@ -74,7 +73,6 @@ export function BuildStudioProductChooser({
   scenarioKey: string;
   facts?: Readonly<Record<string, unknown>>;
   heading?: string;
-  selectedManufacturerProductId?: string;
   selectedCatalogueId?: string;
   onManufacturerProductChange?: (manufacturerProductId: string | undefined) => void;
   onSelectionChange?: (candidate: BuildStudioCandidate | undefined) => void;
