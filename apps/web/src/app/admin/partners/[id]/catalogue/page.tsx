@@ -259,13 +259,18 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const vitexStats = await db.query<SqlRow>(`
     SELECT
       (SELECT count(*)::int
-       FROM vitex_commerce_products
-       WHERE active=true AND canonical_variant_id IS NOT NULL) AS total_products,
+       FROM canonical_variants cv
+       JOIN brands b ON b.id=cv.brand_id
+       WHERE b.normalized_name='vitex'
+         AND cv.active=true
+         AND cv.suppressed=false
+         AND cv.recalled=false) AS total_products,
       (SELECT count(DISTINCT vo.canonical_variant_id)::int
        FROM vendor_offers vo
-       JOIN vitex_commerce_products vcp ON vcp.canonical_variant_id=vo.canonical_variant_id
+       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+       JOIN brands b ON b.id=cv.brand_id
        WHERE vo.vendor_id=$1::uuid
-         AND vcp.active=true
+         AND b.normalized_name='vitex'
          AND vo.status <> 'archived') AS assigned_products
   `, [vendorUuid]);
   const vitexTotal = asInt(vitexStats.rows[0]?.total_products);
@@ -320,7 +325,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
         <div><div className="eyebrow">VITEX catalogue</div><h2>Assign the full VITEX range</h2></div>
         <Link className="button button-secondary" href="/admin/catalogue/vitex">Edit public VITEX content</Link>
       </div>
-      <p>Assign or de-assign the entire canonical VITEX catalogue for this vendor. New products are prepared as <strong>draft offers</strong>; this does not activate the vendor or automatically publish new offers.</p>
+      <p>Assign or de-assign the entire canonical VITEX catalogue for this vendor. Because this is an explicit Admin publishing action, assigned VITEX products become <strong>approved and storefront-visible</strong>. Stock availability is still tracked separately.</p>
       <div className="workspace-metric-strip">
         <div><span>VITEX products</span><strong>{vitexTotal}</strong></div>
         <div><span>Assigned to vendor</span><strong>{vitexAssigned}</strong></div>
@@ -331,7 +336,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
         <input type="hidden" name="vendorId" value={vendorPublicId} />
         <label><span>Assign to location</span><select name="locationId" required>{activeLocations.map((location) => <option key={asText(location.public_id)} value={asText(location.public_id)}>{asText(location.name)} · {asText(location.locality)}</option>)}</select></label>
         <label><span>Audit reason</span><input name="reason" defaultValue="Assign full VITEX catalogue to vendor" minLength={3} maxLength={500} required /></label>
-        <button className="button" type="submit">Assign all VITEX products</button>
+        <button className="button" type="submit">Assign & publish all VITEX products</button>
       </form>}
       {vitexAssigned > 0 ? <form action={unassignAllVitexProducts} className="admin-directory-filters">
         <input type="hidden" name="csrfToken" value={principal.csrfToken} />
