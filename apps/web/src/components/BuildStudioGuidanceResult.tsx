@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { BuildGuidanceScenarioRequest } from "../lib/build-guidance-scenario-map";
 import { BuildStudioProductChooser, type BuildStudioCandidate } from "./BuildStudioProductChooser";
+import {
+  BuildStudioProductDetailsOverlay,
+  BuildStudioProjectKit,
+  type BuildStudioProjectKitLine
+} from "./BuildStudioProjectKit";
 import styles from "./PaintBuildStudioExperience.module.css";
 
 type SourceLayer = "GENERAL_GUIDANCE" | "MANUFACTURER_VITEX" | "MANUFACTURER" | "KONTA_MOU_RULE";
@@ -193,6 +198,17 @@ function ProjectGuidanceScreen({
         {pdfState === "error" ? <small role="alert">Το PDF δεν δημιουργήθηκε. Δοκίμασε ξανά.</small> : null}
       </div>
 
+      {detailProduct && scenarioRequest ? (
+        <BuildStudioProductDetailsOverlay
+          product={detailProduct}
+          scenarioKey={scenarioKey}
+          facts={scenarioRequest.facts}
+          areaM2={areaM2}
+          onClose={() => setDetailProduct(undefined)}
+          onChoose={chooseProductForProject}
+        />
+      ) : null}
+
       <div className={styles.resultActions}>
         <button type="button" className={styles.secondaryAction} onClick={onChangeProduct}>ΑΛΛΑΓΗ ΠΡΟΪΟΝΤΟΣ</button>
         <a href="/account/documents" className={styles.secondaryAction}>ΤΑ ΕΓΓΡΑΦΑ ΜΟΥ</a>
@@ -226,8 +242,9 @@ export function BuildStudioGuidanceResult({
   const [guide, setGuide] = useState<CustomerGuide | null>(null);
   const [selectedManufacturerProductId, setSelectedManufacturerProductId] = useState<string>();
   const [selectedProduct, setSelectedProduct] = useState<BuildStudioCandidate>();
+  const [detailProduct, setDetailProduct] = useState<BuildStudioCandidate>();
+  const [kitMode, setKitMode] = useState(false);
   const [snapshotId, setSnapshotId] = useState("");
-  const pdfActionRef = useRef<HTMLDivElement>(null);
   const [quantity, setQuantity] = useState<QuantityEstimate | null>(null);
   const [finalMode, setFinalMode] = useState(false);
   const [snapshotState, setSnapshotState] = useState<"idle" | "loading" | "error">("idle");
@@ -242,6 +259,8 @@ export function BuildStudioGuidanceResult({
   useEffect(() => {
     setSelectedManufacturerProductId(undefined);
     setSelectedProduct(undefined);
+    setDetailProduct(undefined);
+    setKitMode(false);
     setSnapshotId("");
     setQuantity(null);
     setFinalMode(false);
@@ -306,7 +325,17 @@ export function BuildStudioGuidanceResult({
     setSnapshotState("idle");
   }
 
-  async function openFinalGuide(downloadImmediately = false) {
+  function chooseProductForProject(product: BuildStudioCandidate) {
+    setSelectedManufacturerProductId(product.manufacturerProductId);
+    handleProduct(product);
+    setDetailProduct(undefined);
+    setKitMode(true);
+  }
+
+  async function openFinalGuide(
+    downloadImmediately = false,
+    projectKit: readonly (BuildStudioProjectKitLine & { selected: boolean })[] = []
+  ) {
     if (!scenarioRequest || !selectedProduct || !selectedManufacturerProductId) return;
     setSnapshotState("loading");
     try {
@@ -330,7 +359,8 @@ export function BuildStudioGuidanceResult({
               title: selectedProduct.title,
               brand: selectedProduct.brand,
               price: selectedProduct.price
-            }
+            },
+            projectKit
           }
         })
       });
@@ -379,14 +409,6 @@ export function BuildStudioGuidanceResult({
     await downloadPdfForSnapshot(snapshotId);
   }
 
-  useEffect(() => {
-    if (!selectedProductVerified) return;
-    const timer = window.setTimeout(() => {
-      pdfActionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 180);
-    return () => window.clearTimeout(timer);
-  }, [selectedProduct?.id, selectedProductVerified]);
-
   if (finalMode && guide && selectedProduct && quantity && snapshotId) {
     return <ProjectGuidanceScreen
       eyebrow={eyebrow}
@@ -401,9 +423,21 @@ export function BuildStudioGuidanceResult({
       onDownloadPdf={() => void downloadPdf()}
       onChangeProduct={() => {
         setFinalMode(false);
+        setKitMode(true);
         setSnapshotId("");
       }}
       onRestart={onRestart}
+    />;
+  }
+
+  if (kitMode && selectedProduct && scenarioRequest) {
+    return <BuildStudioProjectKit
+      product={selectedProduct}
+      scenarioKey={scenarioKey}
+      facts={scenarioRequest.facts}
+      areaM2={areaM2}
+      onBack={() => setKitMode(false)}
+      onCreatePdf={(projectKit) => openFinalGuide(true, projectKit)}
     />;
   }
 
@@ -470,38 +504,33 @@ export function BuildStudioGuidanceResult({
           selectedCatalogueId={selectedProduct?.id}
           onManufacturerProductChange={setSelectedManufacturerProductId}
           onSelectionChange={handleProduct}
+          onDetails={setDetailProduct}
         />
       ) : null}
 
       {canChooseProduct ? (
-        <div className={styles.pdfPanel} ref={pdfActionRef}>
+        <div className={styles.pdfPanel}>
           <div>
-            <span>PROJECT DOSSIER · PDF</span>
+            <span>PROJECT KIT · ΕΠΟΜΕΝΟ ΒΗΜΑ</span>
             <strong>
               {selectedProductVerified && selectedProduct
-                ? selectedProduct.title
-                : "Διάλεξε ένα προϊόν για να δημιουργήσεις το PDF του έργου."}
+                ? "Χτίσε το πλήρες καλάθι του έργου."
+                : "Διάλεξε προϊόν ή άνοιξε τις λεπτομέρειές του."}
             </strong>
             <p>
               {selectedProductVerified && selectedProduct
-                ? `${selectedProduct.brand || "VITEX"} · ${selectedProduct.price}. Με την επιβεβαίωση θα δημιουργηθεί το επαληθευμένο snapshot και θα ξεκινήσει αμέσως η λήψη του PDF.`
-                : "Το PDF περιλαμβάνει τις οδηγίες του συγκεκριμένου έργου και, όταν υπάρχει επαληθευμένο προϊόν, τις αντίστοιχες οδηγίες κατασκευαστή."}
+                ? `${selectedProduct.brand || "VITEX"} · ${selectedProduct.price}. Στο επόμενο βήμα υπολογίζουμε ποσότητα, προτείνουμε εργαλεία/προστασία και ετοιμάζουμε PDF + καλάθι.`
+                : "Με το «Δες λεπτομέρειες» βλέπεις τον τεχνικό λόγο επιλογής και την ποσότητα πριν αποφασίσεις."}
             </p>
           </div>
           <button
             type="button"
             className={styles.primaryAction}
-            disabled={!selectedProductVerified || snapshotState === "loading" || pdfState === "loading"}
-            onClick={() => void openFinalGuide(true)}
+            disabled={!selectedProductVerified || !selectedProduct}
+            onClick={() => setKitMode(true)}
           >
-            {snapshotState === "loading" || pdfState === "loading"
-              ? "ΔΗΜΙΟΥΡΓΙΑ PDF…"
-              : selectedProductVerified
-                ? "ΕΠΙΒΕΒΑΙΩΣΗ & ΛΗΨΗ PDF"
-                : "ΕΠΙΛΕΞΕ ΠΡΟΪΟΝ ΓΙΑ PDF"}
+            {selectedProductVerified ? "ΣΥΝΕΧΕΙΑ ΣΤΟ ΠΛΗΡΕΣ PROJECT KIT" : "ΕΠΙΛΕΞΕ ΠΡΟΪΟΝ"}
           </button>
-          {snapshotState === "error" ? <small role="alert">Δεν ήταν δυνατή η δημιουργία του επαληθευμένου snapshot. Δοκίμασε ξανά.</small> : null}
-          {pdfState === "error" ? <small role="alert">Το PDF δεν δημιουργήθηκε. Δοκίμασε ξανά.</small> : null}
         </div>
       ) : null}
 
