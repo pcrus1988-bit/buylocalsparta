@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0",
+  "knowledge_layer": "A_GENERAL_SOLUTION_GUIDANCE",
+  "scope": "Brand-independent water-management and waterproofing sequencing principles. Product-specific membrane selection, coat count, coverage, curing, thickness, primer, reinforcement and application limits are excluded and remain Layer B.",
+  "status": "reviewed_source_backed",
+  "reviewed_at": "2026-09-22",
+  "rules": [
+    {
+      "id": "A-WATER-SEQUENCE-001",
+      "topic": "water_source_and_path_before_surface_treatment",
+      "claim": "Waterproofing decisions should address the water source, route and driving force rather than treating only the visible wet surface. WBDG moisture-management guidance describes moisture problems in terms of a moisture source, a route for movement, a driving force, susceptible materials and sufficient exposure.",
+      "customer_guidance_el": "Πριν επιλεγεί λύση στεγανοποίησης, πρέπει να εντοπιστούν όσο γίνεται η πηγή του νερού, η διαδρομή του και ο μηχανισμός που το οδηγεί στην κατασκευή. Η υγρή κηλίδα στο εσωτερικό δεν αποδεικνύει από μόνη της πού βρίσκεται η είσοδος του νερού.",
+      "stop_escalation": "If the source/path of recurring water entry is unknown, do not present a surface coating as a confirmed cure; route to diagnosis before product-specific selection.",
+      "source": {"authority":"Whole Building Design Guide (WBDG)","title":"Moisture Management Concepts","url":"https://legacy.wbdg.org/resources/moisture-management-concepts","accessed":"2026-09-22"},
+      "confidence":"high",
+      "review_state":"source_verified",
+      "applicability_note":"Only the general diagnostic framework is generalized; no project-specific assembly prescription is imported."
+    },
+    {
+      "id": "A-WATER-DRAINAGE-001",
+      "topic": "drainage_and_bulk_water_management",
+      "claim": "Waterproofing is part of a broader water-management system. DOE/Building Science Education guidance identifies grading, gutters/downspouts, drainage layers and foundation drainage as measures that reduce water saturation around foundations.",
+      "customer_guidance_el": "Η στεγανοποίηση δεν πρέπει να αντιμετωπίζεται απομονωμένα από την απορροή του νερού. Σε προβλήματα θεμελίων ή τοίχων σε επαφή με το έδαφος πρέπει να εξετάζονται και η απομάκρυνση των ομβρίων, οι κλίσεις του εδάφους και η λειτουργία της αποστράγγισης, όπου αυτά σχετίζονται με το έργο.",
+      "stop_escalation": "If bulk water is being concentrated against the structure or drainage is visibly deficient, flag drainage correction/technical assessment rather than relying solely on a coating recommendation.",
+      "source": {"authority":"U.S. Department of Energy Building Science Education","title":"Foundation Drain Gutters Downspouts","url":"https://bsesc.energy.gov/energy-basics/foundation-drain-gutters-downspouts","accessed":"2026-09-22"},
+      "confidence":"high",
+      "review_state":"source_verified",
+      "applicability_note":"Numeric U.S. code distances and prescriptive dimensions are not generalized to Greek projects."
+    },
+    {
+      "id": "A-WATER-CONTINUITY-001",
+      "topic": "water_control_layer_continuity_at_transitions",
+      "claim": "A drainage/water-resistive layer needs continuity and integration at flashings, openings, penetrations and transitions so water can drain outward. DOE Building America guidance explicitly requires drainage-plane integration with flashings and sealing around penetrations.",
+      "customer_guidance_el": "Η συνέχεια της στρώσης διαχείρισης νερού είναι κρίσιμη. Ανοίγματα, διελεύσεις σωλήνων/καλωδίων, ενώσεις και μεταβάσεις μεταξύ διαφορετικών στοιχείων δεν πρέπει να θεωρούνται λεπτομέρειες που λύνονται απλώς με περισσότερο υλικό στην επίπεδη επιφάνεια.",
+      "stop_escalation": "If leakage is associated with a penetration, opening, roof-wall junction or other transition, require detail-level assessment; do not assume field-applied coating over the adjacent flat area will correct the discontinuity.",
+      "source": {"authority":"U.S. Department of Energy Building America Solution Center","title":"Drainage Plane Behind Exterior Wall Cladding","url":"https://basc.pnnl.gov/resource-guides/drainage-plane-behind-exterior-wall-cladding","accessed":"2026-09-22"},
+      "confidence":"high",
+      "review_state":"source_verified",
+      "applicability_note":"The continuity principle is generalized. Specific flashing dimensions/materials remain assembly- and system-specific."
+    },
+    {
+      "id": "A-WATER-HYDROSTATIC-001",
+      "topic": "below_grade_hydrostatic_pressure_and_drainage",
+      "claim": "Below-grade water control should account for hydrostatic pressure and drainage rather than assuming a surface treatment alone can manage standing groundwater. GSA/WBDG below-grade guidance requires drainage systems to relieve hydrostatic pressure and drain water toward the drainage system.",
+      "customer_guidance_el": "Όταν υπάρχει νερό ή πίεση νερού σε κατασκευή κάτω από το έδαφος, η επιλογή μιας επάλειψης δεν πρέπει να γίνεται σαν να πρόκειται απλώς για βροχή πάνω σε εξωτερικό τοίχο. Η αποστράγγιση και η πίεση του νερού αποτελούν μέρος της τεχνικής διάγνωσης.",
+      "stop_escalation": "Standing groundwater, recurrent below-grade ingress, or suspected hydrostatic pressure requires system-level assessment; do not promise resolution from an unspecified interior or exterior coating.",
+      "source": {"authority":"U.S. General Services Administration / Whole Building Design Guide","title":"Facilities Standards for the Public Buildings Service (P100) — Below Grade Systems","url":"https://stg.wbdg.org/FFC/GSA/ARCHIVES/p100_2017.pdf","accessed":"2026-09-22"},
+      "confidence":"high",
+      "review_state":"source_verified",
+      "applicability_note":"Federal project specifications and numeric drainage slopes are not generalized; only the need to manage hydrostatic pressure and drainage is retained."
+    }
+  ],
+  "unresolved": [
+    {"id":"A-WATER-POSITIVE-NEGATIVE-PENDING","question":"Can KONTA MOY universally require positive-side waterproofing and reject negative-side systems?","status":"unresolved_do_not_generalize","reason":"Preferred side and feasibility depend on assembly, access, water pressure and the selected system. Manufacturer/system instructions belong in Layer B."},
+    {"id":"A-WATER-CRACK-DETAIL-PENDING","question":"What crack widths or movement classes require reinforcement, flexible detailing or structural review before waterproofing?","status":"unresolved_do_not_generalize","reason":"No universal threshold is established here; crack diagnosis and product/system capability vary."},
+    {"id":"A-WATER-MEMBRANE-THICKNESS-PENDING","question":"What universal membrane thickness, number of coats or coverage should be prescribed?","status":"unresolved_do_not_generalize","reason":"These are manufacturer/system-specific application values and therefore Layer B."},
+    {"id":"A-WATER-DRYNESS-PENDING","question":"What universal substrate moisture value is acceptable before applying waterproofing?","status":"unresolved_do_not_generalize","reason":"Acceptance depends on substrate and selected waterproofing technology; use the selected manufacturer's requirements."}
+  ],
+  "layer_boundary": {
+    "manufacturer_specific_values":"Layer B only",
+    "kontamou_workflow_and_product_selection_guardrails":"Layer C only",
+    "note":"Layer A establishes diagnostic and sequencing principles: diagnose water source/path, manage bulk water and drainage, maintain continuity at transitions, and recognize below-grade pressure. It does not select a waterproofing product or invent application values."
+  }
+}
