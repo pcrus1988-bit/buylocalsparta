@@ -2,37 +2,35 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   findCompatiblePaintCandidates,
+  paintDiscoveryTerms,
   paintSurface,
   recommendPaintProject
 } from "./paint-consultant.ts";
 
-test("interior damp projects require preparation and carry a moisture warning", () => {
-  const result = recommendPaintProject({
-    surfaceKey: "interior-wall",
-    conditionKey: "damp",
-    areaM2: 30,
-    selectedColour: "#D8C1A7"
-  });
+function assertPresentationOnly(result: ReturnType<typeof recommendPaintProject>) {
+  assert.equal(result.primerRequired, false);
+  assert.equal(result.primerLabel, undefined);
+  assert.equal(result.topcoatLabel, "");
+  assert.equal(result.finishLabel, "");
+  assert.deepEqual(result.preparation, []);
+  assert.deepEqual(result.reasons, []);
+  assert.deepEqual(result.warnings, []);
+  assert.deepEqual(result.catalogueTags, []);
+  assert.equal(result.searchHref, "/shop");
+}
 
-  assert.equal(result.primerRequired, true);
-  assert.ok(result.warnings.some((warning) => /υγρασ/i.test(warning)));
-  assert.ok(result.preparation.some((step) => /πηγ/i.test(step)));
+test("legacy paint recommendation envelope carries no technical prescription", () => {
+  for (const input of [
+    { surfaceKey: "interior-wall" as const, conditionKey: "damp", areaM2: 30, selectedColour: "#D8C1A7" },
+    { surfaceKey: "metal" as const, conditionKey: "rust", areaM2: 12, selectedColour: "#315C67" },
+    { surfaceKey: "exterior-wall" as const, conditionKey: "cracks", areaM2: 45, selectedColour: "#F4F0E7" },
+    { surfaceKey: "roof" as const, conditionKey: "cracks", areaM2: 65, selectedColour: "#FFFFFF" }
+  ]) {
+    assertPresentationOnly(recommendPaintProject(input));
+  }
 });
 
-test("rusty metal uses an anticorrosive system and blocks paint-over-rust guidance", () => {
-  const result = recommendPaintProject({
-    surfaceKey: "metal",
-    conditionKey: "rust",
-    areaM2: 12,
-    selectedColour: "#315C67"
-  });
-
-  assert.equal(result.primerRequired, true);
-  assert.match(result.primerLabel ?? "", /αντι(?:σκωριακ|διαβρωτικ)/i);
-  assert.ok(result.warnings.some((warning) => /σκουρι/i.test(warning)));
-});
-
-test("paint quantity remains unresolved until a manufacturer product is selected", () => {
+test("paint quantity remains unresolved until verified Layer B product data is selected", () => {
   const result = recommendPaintProject({
     surfaceKey: "interior-wall",
     conditionKey: "sound",
@@ -41,38 +39,21 @@ test("paint quantity remains unresolved until a manufacturer product is selected
   });
 
   assert.equal(result.quantityStatus, "requires_manufacturer_product");
+  assert.match(result.quantityNote, /Layer A \+ Layer B \+ Layer C/i);
   assert.match(result.quantityNote, /κατασκευαστ/i);
-  assert.match(result.quantityNote, /στρώσεων|κατανάλωση/i);
 });
 
-test("roof projects resolve to waterproofing rather than decorative wall paint", () => {
-  const result = recommendPaintProject({
-    surfaceKey: "roof",
-    conditionKey: "cracks",
-    areaM2: 65,
-    selectedColour: "#FFFFFF"
-  });
+test("paint discovery vocabulary stays broad and non-prescriptive", () => {
+  const forbidden = /αστάρι|ελαστομερ|ακρυλικ|σιλικο|αντισκωριακ|μεμβράν|primer|topcoat/i;
 
-  assert.match(result.systemName, /στεγανο/i);
-  assert.ok(result.catalogueTags.some((tag) => /στεγανο/i.test(tag)));
-  assert.ok(result.warnings.length > 0);
+  for (const surface of ["interior-wall", "exterior-wall", "wood", "metal", "bathroom", "roof"] as const) {
+    const terms = paintDiscoveryTerms(surface);
+    assert.ok(terms.length > 0);
+    assert.ok(terms.every((term) => !forbidden.test(term)), `unexpected technical retrieval term for ${surface}`);
+  }
 });
 
-test("unknown condition safely falls back to the surface default", () => {
-  const surface = paintSurface("wood");
-  const result = recommendPaintProject({
-    surfaceKey: "wood",
-    conditionKey: "not-a-real-condition",
-    areaM2: 10,
-    selectedColour: "invalid"
-  });
-
-  assert.equal(result.condition.key, surface.conditions[0].key);
-  assert.equal(result.selectedColour, "#F4F0E7");
-});
-
-
-test("multiple products with the same compatible shade are preserved as separate results", () => {
+test("legacy in-memory tag matcher fails closed once recommendation tags are contained", () => {
   const recommendation = recommendPaintProject({
     surfaceKey: "interior-wall",
     conditionKey: "sound",
@@ -84,62 +65,28 @@ test("multiple products with the same compatible shade are preserved as separate
     {
       productId: "paint-a",
       productName: "Paint A",
-      manufacturer: "Brand A",
       href: "/product/paint-a",
       colourHex: "#D8C1A7",
       catalogueTags: ["χρώμα εσωτερικού", "πλενόμενο", "ματ"],
       surfaceKeys: ["interior-wall"],
       conditionKeys: ["sound"],
       available: true
-    },
-    {
-      productId: "paint-b",
-      productName: "Paint B",
-      manufacturer: "Brand B",
-      href: "/product/paint-b",
-      colourHex: "#D8C1A7",
-      catalogueTags: ["χρώμα εσωτερικού", "πλενόμενο", "ματ"],
-      surfaceKeys: ["interior-wall"],
-      conditionKeys: ["sound"],
-      available: true
     }
   ]);
 
-  assert.equal(matches.length, 2);
-  assert.deepEqual(matches.map((match) => match.candidate.productId), ["paint-a", "paint-b"]);
-  assert.ok(matches.every((match) => match.exactShade));
+  assert.deepEqual(matches, []);
 });
 
-test("nearby shades can coexist with exact shade matches without collapsing the result set", () => {
-  const recommendation = recommendPaintProject({
-    surfaceKey: "interior-wall",
-    conditionKey: "sound",
-    areaM2: 25,
-    selectedColour: "#D8C1A7"
+test("unknown condition safely falls back to the surface default without adding technical assumptions", () => {
+  const surface = paintSurface("wood");
+  const result = recommendPaintProject({
+    surfaceKey: "wood",
+    conditionKey: "not-a-real-condition",
+    areaM2: 10,
+    selectedColour: "invalid"
   });
 
-  const matches = findCompatiblePaintCandidates(recommendation, [
-    {
-      productId: "exact",
-      productName: "Exact",
-      href: "/product/exact",
-      colourHex: "#D8C1A7",
-      catalogueTags: ["χρώμα εσωτερικού", "πλενόμενο"],
-      available: true
-    },
-    {
-      productId: "near",
-      productName: "Near",
-      href: "/product/near",
-      colourHex: "#D6BFA5",
-      catalogueTags: ["χρώμα εσωτερικού", "πλενόμενο"],
-      available: true
-    }
-  ]);
-
-  assert.equal(matches.length, 2);
-  assert.equal(matches[0].candidate.productId, "exact");
-  assert.equal(matches[1].candidate.productId, "near");
-  assert.equal(matches[0].exactShade, true);
-  assert.equal(matches[1].exactShade, false);
+  assert.equal(result.condition.key, surface.conditions[0].key);
+  assert.equal(result.selectedColour, "#F4F0E7");
+  assertPresentationOnly(result);
 });
