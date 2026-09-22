@@ -1,4 +1,4 @@
-import { buildCustomerGuide, resolveBuildProjectGuidance } from "../../../../lib/build-guidance-runtime";
+import { buildCustomerGuide, calculateBuildQuantity, resolveBuildProjectGuidance } from "../../../../lib/build-guidance-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,6 +7,7 @@ type GuidanceRequest = Readonly<{
   scenarioKey?: unknown;
   facts?: unknown;
   manufacturerProductId?: unknown;
+  areaM2?: unknown;
   guidanceConflict?: unknown;
 }>;
 
@@ -22,6 +23,7 @@ function requestInput(body: GuidanceRequest) {
     scenarioKey: body.scenarioKey,
     facts: body.facts as Readonly<Record<string, unknown>> | undefined,
     manufacturerProductId: body.manufacturerProductId as string | null | undefined,
+    areaM2: body.areaM2 == null ? undefined : Number(body.areaM2),
     guidanceConflict: body.guidanceConflict === true
   };
 }
@@ -29,11 +31,18 @@ function requestInput(body: GuidanceRequest) {
 export async function POST(request: Request) {
   try {
     const body = await request.json() as GuidanceRequest;
-    const guidance = await resolveBuildProjectGuidance(requestInput(body));
+    const input = requestInput(body);
+    if (input.areaM2 !== undefined && (!Number.isFinite(input.areaM2) || input.areaM2 <= 0 || input.areaM2 > 100000)) {
+      throw new Error("areaM2 is invalid");
+    }
+    const guidance = await resolveBuildProjectGuidance(input);
+    const quantityEstimate = input.areaM2 !== undefined
+      ? calculateBuildQuantity(guidance, input.areaM2)
+      : undefined;
 
     const status = guidance.status === "scenario_not_found" ? 404 : 200;
     return Response.json(
-      { guidance, customerGuide: buildCustomerGuide(guidance) },
+      { guidance, customerGuide: buildCustomerGuide(guidance), quantityEstimate },
       {
         status,
         headers: {
