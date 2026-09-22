@@ -7,6 +7,7 @@ import type { SqlRow } from "@buy-local-sparta/core";
 import { AdminWorkspaceHeader } from "../../../../../components/AdminWorkspaceHeader";
 import { getAdminSession } from "../../../../../lib/admin-session";
 import { assertAdminCsrf, assertAdminPermission, recordAdminAudit } from "../../../../../lib/admin-runtime";
+import { adminAssignAllVitexProducts, adminUnassignAllVitexProducts } from "../../../../../lib/admin-vitex-catalogue";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../../lib/postgres-runtime";
 
 export const metadata: Metadata = {
@@ -194,6 +195,35 @@ async function unassignProduct(formData: FormData) {
   revalidatePath(`/demo/vendor/${encodeURIComponent(asText(result.rows[0].vendor_public_id))}`);
 }
 
+async function assignAllVitexProducts(formData: FormData) {
+  "use server";
+  const principal = await requireAdmin();
+  assertAdminCsrf(principal, asText(formData.get("csrfToken")));
+  const result = await adminAssignAllVitexProducts(principal, {
+    vendorId: asText(formData.get("vendorId")),
+    locationId: asText(formData.get("locationId")),
+    reason: asText(formData.get("reason"))
+  });
+  revalidatePath(`/admin/partners/${encodeURIComponent(result.vendorId)}/catalogue`);
+  revalidatePath(`/demo/vendor/${encodeURIComponent(result.vendorId)}`);
+  revalidatePath("/admin/catalogue/vitex");
+  revalidatePath("/shop");
+}
+
+async function unassignAllVitexProducts(formData: FormData) {
+  "use server";
+  const principal = await requireAdmin();
+  assertAdminCsrf(principal, asText(formData.get("csrfToken")));
+  const result = await adminUnassignAllVitexProducts(principal, {
+    vendorId: asText(formData.get("vendorId")),
+    reason: asText(formData.get("reason"))
+  });
+  revalidatePath(`/admin/partners/${encodeURIComponent(result.vendorId)}/catalogue`);
+  revalidatePath(`/demo/vendor/${encodeURIComponent(result.vendorId)}`);
+  revalidatePath("/admin/catalogue/vitex");
+  revalidatePath("/shop");
+}
+
 export default async function Page({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ q?: string }> }) {
   const principal = await requireAdmin();
   const { id } = await params;
@@ -226,6 +256,21 @@ export default async function Page({ params, searchParams }: { params: Promise<{
     ORDER BY vo.updated_at DESC,vo.public_id
     LIMIT 500
   `, [vendorUuid]);
+  const vitexStats = await db.query<SqlRow>(`
+    SELECT
+      (SELECT count(*)::int
+       FROM vitex_commerce_products
+       WHERE active=true AND canonical_variant_id IS NOT NULL) AS total_products,
+      (SELECT count(DISTINCT vo.canonical_variant_id)::int
+       FROM vendor_offers vo
+       JOIN vitex_commerce_products vcp ON vcp.canonical_variant_id=vo.canonical_variant_id
+       WHERE vo.vendor_id=$1::uuid
+         AND vcp.active=true
+         AND vo.status <> 'archived') AS assigned_products
+  `, [vendorUuid]);
+  const vitexTotal = asInt(vitexStats.rows[0]?.total_products);
+  const vitexAssigned = asInt(vitexStats.rows[0]?.assigned_products);
+  const activeLocations = locations.rows.filter((location) => Boolean(location.active));
   const search = q?.trim() ?? "";
   const candidates = await db.query<CandidateRow>(`
     SELECT cv.public_id AS canonical_id,COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
@@ -268,6 +313,32 @@ export default async function Page({ params, searchParams }: { params: Promise<{
         <label><span>Audit reason</span><input name="reason" defaultValue={Boolean(vendor.demo_mode) ? "End vendor demonstration" : "Prepare vendor demonstration"} minLength={3} maxLength={500} required /></label>
         <button className="button" type="submit">{Boolean(vendor.demo_mode) ? "Disable DEMO mode" : "Enable DEMO mode"}</button>
       </form>
+    </section>
+
+    <section className="shell vendor-section">
+      <div className="workspace-section-heading">
+        <div><div className="eyebrow">VITEX catalogue</div><h2>Assign the full VITEX range</h2></div>
+        <Link className="button button-secondary" href="/admin/catalogue/vitex">Edit public VITEX content</Link>
+      </div>
+      <p>Assign or de-assign the entire canonical VITEX catalogue for this vendor. New products are prepared as <strong>draft offers</strong>; this does not activate the vendor or automatically publish new offers.</p>
+      <div className="workspace-metric-strip">
+        <div><span>VITEX products</span><strong>{vitexTotal}</strong></div>
+        <div><span>Assigned to vendor</span><strong>{vitexAssigned}</strong></div>
+        <div><span>Remaining</span><strong>{Math.max(0, vitexTotal - vitexAssigned)}</strong></div>
+      </div>
+      {activeLocations.length === 0 ? <p>An active vendor location is required before bulk assignment.</p> : <form action={assignAllVitexProducts} className="admin-directory-filters">
+        <input type="hidden" name="csrfToken" value={principal.csrfToken} />
+        <input type="hidden" name="vendorId" value={vendorPublicId} />
+        <label><span>Assign to location</span><select name="locationId" required>{activeLocations.map((location) => <option key={asText(location.public_id)} value={asText(location.public_id)}>{asText(location.name)} · {asText(location.locality)}</option>)}</select></label>
+        <label><span>Audit reason</span><input name="reason" defaultValue="Assign full VITEX catalogue to vendor" minLength={3} maxLength={500} required /></label>
+        <button className="button" type="submit">Assign all VITEX products</button>
+      </form>}
+      {vitexAssigned > 0 ? <form action={unassignAllVitexProducts} className="admin-directory-filters">
+        <input type="hidden" name="csrfToken" value={principal.csrfToken} />
+        <input type="hidden" name="vendorId" value={vendorPublicId} />
+        <label><span>Audit reason</span><input name="reason" defaultValue="De-assign full VITEX catalogue from vendor" minLength={3} maxLength={500} required /></label>
+        <button className="button button-secondary" type="submit">De-assign all VITEX products</button>
+      </form> : null}
     </section>
 
     <section className="shell vendor-section">
