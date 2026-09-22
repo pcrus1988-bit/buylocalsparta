@@ -1,0 +1,103 @@
+{
+  "schema_version": "1.0",
+  "knowledge_layer": "A_GENERAL_SOLUTION_GUIDANCE",
+  "scope": "Brand-independent guidance for assessing newly applied exterior mineral plaster/render/stucco before a subsequent paint or coating system. Manufacturer-specific waiting times, moisture/pH limits, primers and coating build-ups remain Layer B. KONTA MOY workflow enforcement remains Layer C.",
+  "status": "reviewed_source_backed",
+  "reviewed_at": "2026-09-22",
+  "rules": [
+    {
+      "id": "A-NEW-EXT-RENDER-CURE-BEFORE-COAT-001",
+      "topic": "new_render_must_cure_before_coating",
+      "claim": "New exterior stucco/render repair should not be painted before the new material has cured sufficiently for the subsequent finish; the required duration is material/system dependent and must not be replaced by a universal waiting time.",
+      "customer_guidance_el": "Ο νέος εξωτερικός σοβάς/επίχρισμα δεν βάφεται απλώς επειδή φαίνεται στεγνός στην επιφάνεια. Πρέπει πρώτα να έχει ολοκληρώσει την απαιτούμενη ωρίμανση για το σύστημα που θα εφαρμοστεί.",
+      "stop_escalation": "If the render/plaster type or its curing requirement is unknown, do not invent a waiting period and do not advance to product-specific coating instructions until Layer B or the render-system documentation resolves it.",
+      "source": {
+        "authority": "U.S. National Park Service — Technical Preservation Services",
+        "title": "Preservation Brief 22: The Preservation and Repair of Historic Stucco",
+        "url": "https://www.nps.gov/orgs/1739/upload/preservation-brief-22-stucco.pdf",
+        "accessed": "2026-09-22",
+        "relevant_section": "Repair/painting guidance; new stucco curing before painting"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "The general cure-before-finish principle is retained. Historic-material prescriptions and coating-specific waiting periods are not generalized to modern Greek construction."
+    },
+    {
+      "id": "A-NEW-EXT-RENDER-AVOID-RAPID-DRYING-001",
+      "topic": "protect_fresh_render_from_excessively_rapid_drying",
+      "claim": "Fresh stucco/render should be protected from excessively rapid drying during curing because rapid moisture loss can contribute to cracking and poor performance.",
+      "customer_guidance_el": "Κατά την ωρίμανση, ο φρέσκος εξωτερικός σοβάς δεν πρέπει να αφήνεται να στεγνώνει υπερβολικά γρήγορα. Η προστασία της φρέσκιας στρώσης είναι μέρος της σωστής προετοιμασίας πριν από οποιαδήποτε τελική βαφή.",
+      "stop_escalation": "Do not prescribe a universal misting duration, humidity target or curing method; use the render/system instructions and project conditions.",
+      "source": {
+        "authority": "U.S. National Park Service — Technical Preservation Services",
+        "title": "Preservation Brief 22: The Preservation and Repair of Historic Stucco",
+        "url": "https://www.nps.gov/orgs/1739/upload/preservation-brief-22-stucco.pdf",
+        "accessed": "2026-09-22",
+        "relevant_section": "General Guidance for Historic Stucco Repair"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "Only the rapid-drying risk principle is generalized. The NPS document's historic-stucco curing figures are not made universal."
+    },
+    {
+      "id": "A-NEW-EXT-RENDER-WEATHER-DURING-CURE-001",
+      "topic": "weather_conditions_affect_render_curing",
+      "claim": "Weather conditions during placement and curing can materially affect exterior stucco/render; work should not be treated as independent of temperature, frost risk, sun/heat and moisture exposure.",
+      "customer_guidance_el": "Ο καιρός επηρεάζει όχι μόνο τη βαφή αλλά και την ίδια την ωρίμανση του νέου εξωτερικού επιχρίσματος. Πριν συνεχίσουμε σε τελικό σύστημα, ελέγχουμε ότι η βάση έχει ωριμάσει σωστά στις πραγματικές συνθήκες του έργου.",
+      "stop_escalation": "Do not convert the source's historic-stucco temperature values into universal Greek thresholds. Exact application/cure limits require the applicable render and coating system documentation.",
+      "source": {
+        "authority": "U.S. National Park Service — Technical Preservation Services",
+        "title": "Preservation Brief 22: The Preservation and Repair of Historic Stucco",
+        "url": "https://www.nps.gov/orgs/1739/upload/preservation-brief-22-stucco.pdf",
+        "accessed": "2026-09-22",
+        "relevant_section": "General Guidance for Historic Stucco Repair"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "General weather/curing dependency only; numeric limits remain system-specific or jurisdiction/project-specific."
+    },
+    {
+      "id": "A-NEW-EXT-RENDER-SOUND-BEFORE-FINISH-001",
+      "topic": "repair_or_stabilize_unsound_render_before_finish",
+      "claim": "Detached, delaminated or otherwise unsound stucco/render is a substrate defect that should be repaired or otherwise technically resolved before it is concealed by a finish coating.",
+      "customer_guidance_el": "Αν ο νέος ή επισκευασμένος σοβάς είναι κούφιος, αποκολλημένος ή σαθρός, δεν προχωράμε σε βαφή για να κρύψουμε το πρόβλημα. Πρώτα αποκαθίσταται η σταθερότητα της βάσης.",
+      "stop_escalation": "Widespread detachment, uncertain bond, recurrent cracking or unexplained movement requires assessment rather than a coating-only recommendation.",
+      "source": {
+        "authority": "U.S. National Park Service — Technical Preservation Services",
+        "title": "Preservation Brief 22: The Preservation and Repair of Historic Stucco",
+        "url": "https://www.nps.gov/orgs/1739/upload/preservation-brief-22-stucco.pdf",
+        "accessed": "2026-09-22",
+        "relevant_section": "Repair guidance for deteriorated/detached stucco"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "The substrate-stability principle is general. Historic conservation repair methods are not prescribed for ordinary modern render."
+    }
+  ],
+  "unresolved": [
+    {
+      "id": "U-NEW-EXT-RENDER-CURE-TIME-001",
+      "question": "What universal waiting time should be used before painting new exterior plaster/render?",
+      "status": "unresolved_no_universal_value",
+      "reason": "Cure/dry requirements depend on render composition, thickness, weather and selected coating system; product/system documentation must control."
+    },
+    {
+      "id": "U-NEW-EXT-RENDER-MOISTURE-001",
+      "question": "What universal substrate moisture percentage is acceptable before coating?",
+      "status": "unresolved_no_universal_value",
+      "reason": "No single defensible threshold applies across all mineral renders and coating systems; resolve from Layer B or applicable project specification."
+    },
+    {
+      "id": "U-NEW-EXT-RENDER-PH-001",
+      "question": "What universal pH/alkalinity threshold should KONTA MOY use before coating new render?",
+      "status": "unresolved_no_universal_value",
+      "reason": "Compatibility with alkaline mineral substrates is coating-system specific; do not invent a platform-wide pH cutoff."
+    },
+    {
+      "id": "U-NEW-EXT-RENDER-PRIMER-001",
+      "question": "Which primer is universally required on new exterior render?",
+      "status": "belongs_to_layer_b",
+      "reason": "Primer need/type is manufacturer/system-specific and must come from the selected product documentation."
+    }
+  ]
+}
