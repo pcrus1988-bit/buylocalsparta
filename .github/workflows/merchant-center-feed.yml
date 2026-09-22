@@ -14,6 +14,7 @@ on:
       - "apps/web/src/lib/seo-entity-overrides.ts"
       - "apps/web/src/lib/seo-settings.ts"
       - "apps/web/src/lib/seo-visibility-policy.ts"
+      - "apps/web/test/merchant-center-feed.test.ts"
       - "scripts/verify-merchant-center-feed.ts"
       - ".github/workflows/merchant-center-feed.yml"
 
@@ -32,5 +33,7 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Verify Merchant Center feed contracts
         run: node --experimental-strip-types scripts/verify-merchant-center-feed.ts
+      - name: Run Merchant Center attribute regression
+        run: node --experimental-strip-types --test apps/web/test/merchant-center-feed.test.ts
       - name: Build public web app
         run: npm --workspace @buy-local-sparta/web run build
