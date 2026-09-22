@@ -1,0 +1,472 @@
+.chooser {
+  display: grid;
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.heading > div:first-child {
+  max-width: 760px;
+}
+
+.heading span,
+.familyCopy small,
+.detailEyebrow,
+.detailSection > span,
+.quantityCard small,
+.variantSection > span {
+  color: #176ca8;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.heading h2 {
+  margin: 5px 0 7px;
+  color: #162027;
+  font-size: clamp(24px, 3vw, 38px);
+  line-height: 1;
+  letter-spacing: -.04em;
+}
+
+.heading p {
+  margin: 0;
+  color: #657279;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.familyGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.familyCard {
+  display: grid;
+  grid-template-rows: 178px 1fr auto;
+  overflow: hidden;
+  border: 1px solid #d8dfdc;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(32, 47, 55, .07);
+}
+
+.familyImage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: linear-gradient(145deg, #f7f9f7, #eef4f7);
+}
+
+.familyImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.fallbackArtwork {
+  display: grid;
+  width: 70px;
+  height: 70px;
+  place-items: center;
+  border-radius: 18px;
+  color: #176ca8;
+  background: #eaf4fb;
+  font-size: 32px;
+  font-weight: 950;
+}
+
+.verifiedBadge {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  padding: 6px 8px;
+  border: 1px solid #b8d9b0;
+  border-radius: 999px;
+  color: #3d6b37;
+  background: rgba(240, 248, 237, .96);
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.familyCopy {
+  padding: 15px 16px 13px;
+}
+
+.familyCopy strong {
+  display: block;
+  margin-top: 5px;
+  color: #172229;
+  font-size: 19px;
+  line-height: 1.08;
+}
+
+.familyMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 11px;
+  color: #6d7a80;
+  font-size: 11px;
+}
+
+.familyMeta span {
+  padding: 5px 7px;
+  border-radius: 999px;
+  background: #f1f4f3;
+}
+
+.familyAction {
+  min-height: 44px;
+  border: 0;
+  border-top: 1px solid #e4e9e7;
+  color: #174f72;
+  background: #f9fbfa;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+
+.familyAction:hover {
+  background: #eaf5fc;
+}
+
+.loadingState,
+.emptyState {
+  padding: 18px;
+  border: 1px solid #d8dfdc;
+  border-radius: 14px;
+  color: #5f6d74;
+  background: #fff;
+}
+
+.loadingState strong,
+.emptyState strong {
+  display: block;
+  color: #233139;
+  margin-bottom: 5px;
+}
+
+.selectedBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 15px;
+  border: 1px solid #b7d6e9;
+  border-radius: 13px;
+  background: #edf7fd;
+}
+
+.selectedBar span {
+  color: #176ca8;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .11em;
+}
+
+.selectedBar strong {
+  display: block;
+  margin-top: 3px;
+  color: #18313f;
+}
+
+.selectedBar button {
+  border: 1px solid #bfd7e5;
+  border-radius: 999px;
+  padding: 9px 12px;
+  color: #204c67;
+  background: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: rgba(15, 24, 29, .58);
+  backdrop-filter: blur(8px);
+}
+
+.overlayShell {
+  min-height: 100%;
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.detailPanel {
+  min-height: calc(100vh - 40px);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  border: 1px solid #d8dfdc;
+  border-radius: 22px;
+  overflow: hidden;
+  background: #f5f6f2;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .24);
+}
+
+.detailHeader {
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 0 20px;
+  border-bottom: 1px solid #dbe1de;
+  background: #fff;
+}
+
+.detailHeader strong {
+  color: #1a252b;
+  font-size: 14px;
+}
+
+.closeButton {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #d7dfdc;
+  border-radius: 12px;
+  color: #24323a;
+  background: #fff;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.detailBody {
+  display: grid;
+  grid-template-columns: minmax(260px, .82fr) minmax(0, 1.5fr);
+  gap: 18px;
+  padding: 18px;
+}
+
+.productRail,
+.detailContent {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.productHero,
+.detailSection,
+.quantityCard,
+.variantSection {
+  border: 1px solid #d9dfdc;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 6px 20px rgba(31, 49, 57, .05);
+}
+
+.productHero {
+  overflow: hidden;
+}
+
+.productHeroImage {
+  height: 260px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, #fafbfa, #edf3f5);
+}
+
+.productHeroImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 22px;
+  box-sizing: border-box;
+}
+
+.productHeroCopy {
+  padding: 17px;
+}
+
+.productHeroCopy h3 {
+  margin: 5px 0 8px;
+  color: #142027;
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: -.04em;
+}
+
+.productHeroCopy p {
+  margin: 0;
+  color: #657279;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.quantityCard,
+.variantSection,
+.detailSection {
+  padding: 16px;
+}
+
+.quantityCard strong {
+  display: block;
+  margin: 5px 0 4px;
+  color: #172229;
+  font-size: 25px;
+}
+
+.quantityCard p,
+.detailSection p,
+.variantSection p {
+  margin: 5px 0 0;
+  color: #68757c;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.packPlan {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.packLine {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: #f2f6f6;
+  color: #26363e;
+  font-size: 12px;
+}
+
+.variantGroups,
+.packChoices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 11px;
+}
+
+.variantGroups button,
+.packChoices button {
+  border: 1px solid #d5ddda;
+  border-radius: 999px;
+  padding: 9px 11px;
+  color: #35434a;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.variantGroups button[data-active="true"],
+.packChoices button[data-active="true"] {
+  border-color: #75afd1;
+  color: #134c6f;
+  background: #eaf5fc;
+}
+
+.detailSection h4 {
+  margin: 5px 0 9px;
+  color: #172229;
+  font-size: 17px;
+}
+
+.detailSection ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #4e5d65;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.detailFooter {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px 20px;
+  border-top: 1px solid #d7dedb;
+  background: rgba(255, 255, 255, .96);
+  backdrop-filter: blur(12px);
+}
+
+.detailFooterSummary small {
+  display: block;
+  color: #758289;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .09em;
+}
+
+.detailFooterSummary strong {
+  display: block;
+  margin-top: 3px;
+  color: #1a272e;
+  font-size: 17px;
+}
+
+.chooseProjectButton {
+  min-height: 48px;
+  padding: 0 20px;
+  border: 1px solid #125b89;
+  border-radius: 12px;
+  color: #fff;
+  background: #176ca8;
+  font-weight: 950;
+  letter-spacing: .04em;
+  cursor: pointer;
+}
+
+.chooseProjectButton:disabled {
+  cursor: not-allowed;
+  opacity: .48;
+}
+
+.errorBox {
+  padding: 12px;
+  border: 1px solid #edc2ae;
+  border-radius: 12px;
+  color: #824832;
+  background: #fff3ed;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .familyGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .detailBody { grid-template-columns: 1fr; }
+  .productRail { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .productHeroImage { height: 220px; }
+}
+
+@media (max-width: 620px) {
+  .heading { align-items: start; flex-direction: column; }
+  .familyGrid { grid-template-columns: 1fr; }
+  .familyCard { grid-template-rows: 138px 1fr auto; }
+  .overlayShell { padding: 0; }
+  .detailPanel { min-height: 100dvh; border: 0; border-radius: 0; }
+  .detailHeader { min-height: 58px; padding: 0 13px; }
+  .detailBody { padding: 10px; gap: 10px; }
+  .productRail { grid-template-columns: 1fr; }
+  .productHeroImage { height: 190px; }
+  .productHeroCopy h3 { font-size: 24px; }
+  .detailFooter {
+    display: grid;
+    padding: 11px;
+  }
+  .chooseProjectButton { width: 100%; }
+}
