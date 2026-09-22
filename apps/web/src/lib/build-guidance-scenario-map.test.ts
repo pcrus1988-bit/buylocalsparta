@@ -60,9 +60,35 @@ test("maps reviewed waterproofing maintenance and detail scenarios", () => {
   assert.deepEqual(mapBuildStudioScenario({ module: "waterproofing", location: "balcony", problem: "cracks" }), { scenarioKey: "waterproof_details_parapets_joints_penetrations", facts: { cracks_or_joints_present: true } });
 });
 
-test("bathroom sound condition and condensation goal use reviewed dedicated guidance", () => {
+test("bathroom sound condition uses reviewed dedicated guidance", () => {
   assert.deepEqual(mapBuildStudioScenario({ module: "paint", surface: "bathroom", condition: "sound" }), { scenarioKey: "paint_bathroom_high_humidity", facts: { significant_moisture: false } });
-  assert.deepEqual(mapBuildStudioScenario({ module: "insulation", location: "interior-wall", goal: "condensation" }), { scenarioKey: "insulation_thermal_bridge_condensation", facts: { condensation_present: true, cause_confirmed: false } });
+});
+
+test("visible condensation is diagnosis-first and blocked before insulation product selection", () => {
+  const expected = {
+    scenarioKey: "insulation_thermal_bridge_condensation",
+    facts: {
+      condensation_present: true,
+      thermal_bridge_suspected: true,
+      significant_moisture: true,
+      source_known: false,
+      cause_confirmed: false
+    }
+  };
+  assert.deepEqual(mapBuildStudioScenario({ module: "insulation", location: "interior-wall", goal: "condensation" }), expected);
+  assert.deepEqual(mapBuildStudioScenario({ module: "insulation", location: "facade", goal: "condensation" }), expected);
+  assert.deepEqual(mapBuildStudioScenario({ module: "insulation", location: "roof", goal: "condensation" }), expected);
+});
+
+test("cold surface without visible moisture remains distinct from condensation", () => {
+  assert.deepEqual(
+    mapBuildStudioScenario({ module: "insulation", location: "facade", goal: "cold-surface" }),
+    { scenarioKey: "insulation_external_etics", facts: { work_at_height: true, safe_access_confirmed: false } }
+  );
+  assert.deepEqual(
+    mapBuildStudioScenario({ module: "insulation", location: "roof", goal: "cold-surface" }),
+    { scenarioKey: "insulation_roof_general", facts: { roof_build_up_known: false, work_at_height: true, safe_access_confirmed: false } }
+  );
 });
 
 test("advanced repair choices map to their reviewed dedicated guidance", () => {
