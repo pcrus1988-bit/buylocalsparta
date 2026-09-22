@@ -3,7 +3,6 @@ import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-loc
 import { getCatalogCard } from "./catalog-view";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { publicOrigin } from "./public-origin";
-import { getUncachedPublicVendorDirectoryEntry } from "./public-vendor-directory";
 
 export type AskLocalCaptureSource = "text" | "voice" | "barcode" | "photo" | "mixed";
 export type AskLocalRequestView = Readonly<{
@@ -130,14 +129,14 @@ export async function customerAskLocalRequests(principal: SessionPrincipal): Pro
   }, { readOnly: true });
 }
 
-async function submitMemory(principal: SessionPrincipal, input: ReturnType<typeof validate>): Promise<AskLocalRequestView> {
+async function lookupMemoryVendor(vendorId: string) {\n  const { getUncachedPublicVendorDirectoryEntry } = await import("./public-vendor-directory");\n  return getUncachedPublicVendorDirectoryEntry(vendorId);\n}\n\nasync function submitMemory(principal: SessionPrincipal, input: ReturnType<typeof validate>): Promise<AskLocalRequestView> {
   let assignedVendorId = input.preferredVendorId;
   let assignmentReason = input.preferredVendorId ? "customer_preferred_vendor" : "admin_triage";
   if (input.canonicalVariantId && !input.preferredVendorId) {
     assignedVendorId = (await getCatalogCard(input.canonicalVariantId, `ask-local:${principal.userId}`, input.postcode))?.vendorId;
     assignmentReason = assignedVendorId ? "fair_assignment" : "no_eligible_local_vendor";
   }
-  const vendor = assignedVendorId ? await getUncachedPublicVendorDirectoryEntry(assignedVendorId) : undefined;
+  const vendor = assignedVendorId ? await lookupMemoryVendor(assignedVendorId) : undefined;
   if (assignedVendorId && (!vendor || vendor.directoryStatus !== "partner")) assignmentReason = input.preferredVendorId ? "preferred_vendor_ineligible" : "fair_assignment_ineligible";
   const eligibleVendor = vendor?.directoryStatus === "partner" ? vendor : undefined;
   const referenceNumber = `ASK-${String((Math.floor(input.now / 1000) % 900000) + 100000)}`;
