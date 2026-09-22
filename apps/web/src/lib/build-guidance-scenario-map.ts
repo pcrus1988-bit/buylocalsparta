@@ -63,7 +63,8 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
 
     if (input.surface === "exterior-wall") {
       if (input.condition === "sound") return request("paint_exterior_repaint_sound");
-      if (input.condition === "new-plaster") return request("paint_exterior_new_plaster");
+      // The live UI uses `new`; retain `new-plaster` as a backwards-compatible alias.
+      if (input.condition === "new" || input.condition === "new-plaster") return request("paint_exterior_new_plaster");
       if (input.condition === "chalking") return request("paint_exterior_chalking");
       if (input.condition === "cracks") return request("paint_exterior_hairline_cracks");
       if (input.condition === "damp") {
