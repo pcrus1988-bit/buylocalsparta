@@ -142,10 +142,9 @@ export function extractFournarakisProductCandidates(html: string, sourceUrl: str
 type FournarakisInlineProduct = Record<string, unknown>;
 
 function extractFournarakisInlineData(html: string): FournarakisInlineProduct | undefined {
-  const marker = /(?:^|[;\s])(?:const|let)\s+data\s*=\s*/g;
-  const match = marker.exec(html);
-  if (!match) return undefined;
-  const start = html.indexOf("{", match.index + match[0].length - 1);
+  const assignment = html.search(/\b(?:const|let)\s+data\s*=/);
+  if (assignment < 0) return undefined;
+  const start = html.indexOf("{", assignment);
   if (start < 0) return undefined;
   const end = findBalancedJsonObjectEnd(html, start);
   if (end < 0) return undefined;
