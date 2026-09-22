@@ -3,7 +3,7 @@ import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-loc
 import { getCatalogCard } from "./catalog-view";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { publicOrigin } from "./public-origin";
-import { getPublicVendorDirectoryEntry } from "./public-vendor-directory";
+import { getUncachedPublicVendorDirectoryEntry } from "./public-vendor-directory";
 
 export type AskLocalCaptureSource = "text" | "voice" | "barcode" | "photo" | "mixed";
 export type AskLocalRequestView = Readonly<{
@@ -137,7 +137,7 @@ async function submitMemory(principal: SessionPrincipal, input: ReturnType<typeo
     assignedVendorId = (await getCatalogCard(input.canonicalVariantId, `ask-local:${principal.userId}`, input.postcode))?.vendorId;
     assignmentReason = assignedVendorId ? "fair_assignment" : "no_eligible_local_vendor";
   }
-  const vendor = assignedVendorId ? await getPublicVendorDirectoryEntry(assignedVendorId) : undefined;
+  const vendor = assignedVendorId ? await getUncachedPublicVendorDirectoryEntry(assignedVendorId) : undefined;
   if (assignedVendorId && (!vendor || vendor.directoryStatus !== "partner")) assignmentReason = input.preferredVendorId ? "preferred_vendor_ineligible" : "fair_assignment_ineligible";
   const eligibleVendor = vendor?.directoryStatus === "partner" ? vendor : undefined;
   const referenceNumber = `ASK-${String((Math.floor(input.now / 1000) % 900000) + 100000)}`;
