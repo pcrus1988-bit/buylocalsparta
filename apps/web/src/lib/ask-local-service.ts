@@ -129,7 +129,12 @@ export async function customerAskLocalRequests(principal: SessionPrincipal): Pro
   }, { readOnly: true });
 }
 
-async function lookupMemoryVendor(vendorId: string) {\n  const { getUncachedPublicVendorDirectoryEntry } = await import("./public-vendor-directory");\n  return getUncachedPublicVendorDirectoryEntry(vendorId);\n}\n\nasync function submitMemory(principal: SessionPrincipal, input: ReturnType<typeof validate>): Promise<AskLocalRequestView> {
+async function lookupMemoryVendor(vendorId: string) {
+  const { getUncachedPublicVendorDirectoryEntry } = await import("./public-vendor-directory");
+  return getUncachedPublicVendorDirectoryEntry(vendorId);
+}
+
+async function submitMemory(principal: SessionPrincipal, input: ReturnType<typeof validate>): Promise<AskLocalRequestView> {
   let assignedVendorId = input.preferredVendorId;
   let assignmentReason = input.preferredVendorId ? "customer_preferred_vendor" : "admin_triage";
   if (input.canonicalVariantId && !input.preferredVendorId) {
