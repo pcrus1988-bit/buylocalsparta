@@ -142,7 +142,7 @@ export function extractFournarakisProductCandidates(html: string, sourceUrl: str
 type FournarakisInlineProduct = Record<string, unknown>;
 
 function extractFournarakisInlineData(html: string): FournarakisInlineProduct | undefined {
-  const marker = /\b(?:const|let)\s+data\s*=\s*/g;
+  const marker = /(?:^|[;>\s]|\\\\n)(?:const|let)\s+data\s*=\s*/g;
   const match = marker.exec(html);
   if (!match) return undefined;
   const start = html.indexOf("{", match.index + match[0].length);
