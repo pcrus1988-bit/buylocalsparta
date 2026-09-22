@@ -92,19 +92,18 @@ export async function adminAssignAllVitexProducts(
 
   const result = await db.query<SqlRow>(`
     WITH target AS (
-      SELECT vcp.id AS vitex_commerce_id,
-             vcp.import_fingerprint,
-             vcp.canonical_variant_id,
-             vcp.price_minor,
+      SELECT cv.id AS canonical_variant_id,
+             cv.public_id AS canonical_public_id,
+             cv.platform_price_minor AS price_minor,
              cv.tax_rate_bps
-      FROM vitex_commerce_products vcp
-      JOIN canonical_variants cv ON cv.id=vcp.canonical_variant_id
-      WHERE vcp.active=true
-        AND vcp.canonical_variant_id IS NOT NULL
+      FROM canonical_variants cv
+      JOIN brands b ON b.id=cv.brand_id
+      WHERE b.normalized_name='vitex'
         AND cv.active=true
         AND cv.suppressed=false
         AND cv.recalled=false
         AND cv.market_id=$1::uuid
+        AND cv.platform_price_minor>0
     ),
     existing AS (
       SELECT vo.id,vo.status AS old_status
@@ -115,10 +114,10 @@ export async function adminAssignAllVitexProducts(
     ),
     touched AS (
       UPDATE vendor_offers vo
-      SET status=CASE
-            WHEN existing.old_status IN ('archived','rejected','suppressed') THEN 'draft'::offer_status
-            ELSE existing.old_status
-          END,
+      SET status='approved'::offer_status,
+          approved_at=COALESCE(vo.approved_at,now()),
+          merchant_visible=true,
+          merchant_pause_active=false,
           source_payload=COALESCE(vo.source_payload,'{}'::jsonb)
             || jsonb_build_object(
               'adminAssigned',true,
@@ -144,8 +143,8 @@ export async function adminAssignAllVitexProducts(
         $2::uuid,
         $3::uuid,
         t.canonical_variant_id,
-        'VITEX-'||upper(substr(t.import_fingerprint,1,16)),
-        'draft',
+        'VITEX-'||upper(substr(replace(t.canonical_public_id,'cv_vitex_',''),1,16)),
+        'approved',
         t.price_minor,
         t.price_minor,
         'EUR',
@@ -155,7 +154,7 @@ export async function adminAssignAllVitexProducts(
           'adminAssignedAt',now(),
           'catalogue','vitex',
           'bulkAssignment',true,
-          'vitexCommerceProductId',t.vitex_commerce_id
+          'canonicalVariantId',t.canonical_public_id
         ),
         now(),
         now()
@@ -172,9 +171,12 @@ export async function adminAssignAllVitexProducts(
     SELECT
       (SELECT count(*) FROM target)::int AS total_products,
       (SELECT count(*) FROM inserted)::int AS inserted,
-      (SELECT count(*) FROM touched WHERE old_status IN ('archived','rejected','suppressed'))::int AS reactivated
+      (SELECT count(*) FROM touched WHERE old_status <> 'approved')::int AS reactivated
   `, [asText(row.market_uuid), asText(row.vendor_uuid), asText(row.location_uuid)]);
   const stats = result.rows[0] ?? {};
+  if (asInt(stats.total_products) === 0) {
+    throw new Error("No active canonical VITEX products are available for assignment");
+  }
 
   const response: VitexBulkAssignmentResult = {
     vendorId: asText(row.vendor_public_id),
@@ -226,18 +228,23 @@ export async function adminUnassignAllVitexProducts(
             'bulkAssignment',true
           ),
         updated_at=now()
-    FROM vitex_commerce_products vcp
+    FROM canonical_variants cv
+    JOIN brands b ON b.id=cv.brand_id
     WHERE vo.vendor_id=$1::uuid
-      AND vo.canonical_variant_id=vcp.canonical_variant_id
-      AND vcp.canonical_variant_id IS NOT NULL
+      AND vo.canonical_variant_id=cv.id
+      AND b.normalized_name='vitex'
       AND vo.status <> 'archived'
     RETURNING vo.id
   `, [asText(row.vendor_uuid)]);
 
   const total = await db.query<SqlRow>(`
     SELECT count(*)::int AS total
-    FROM vitex_commerce_products
-    WHERE active=true AND canonical_variant_id IS NOT NULL
+    FROM canonical_variants cv
+    JOIN brands b ON b.id=cv.brand_id
+    WHERE b.normalized_name='vitex'
+      AND cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
   `);
 
   const response: VitexBulkAssignmentResult = {
