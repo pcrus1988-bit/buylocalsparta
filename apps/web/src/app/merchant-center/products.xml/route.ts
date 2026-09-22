@@ -100,7 +100,7 @@ export async function GET(): Promise<Response> {
         mpn: record.mpn,
         productType: record.categoryLabel ?? record.categoryCode,
         color: record.color,
-        sizes: record.sizes
+        size: record.sizes.length === 1 ? record.sizes[0] : undefined
       });
     }
 
