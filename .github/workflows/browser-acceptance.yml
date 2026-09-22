@@ -46,6 +46,8 @@ jobs:
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/acceptance/supabase-vault-bootstrap.sql
       - name: Apply production schema
         run: npm run db:migrate
+      - name: Bootstrap storefront read models for fresh CI database
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/acceptance/storefront-read-model-bootstrap.sql
       - name: Bind acceptance platform runtime credential
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO postgres"
       - name: Verify database readiness

@@ -17,8 +17,8 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const base = await governedStaticSeoMetadata("/shops", {
-    title: "Καταστήματα & άνθρωποι",
-    description: "Οι ενεργοί συνεργάτες του ΚΟΝΤΑ ΜΟΥ Σπάρτη εμφανίζονται πρώτοι, ενώ οι υπόλοιπες χαρτογραφημένες τοπικές επιχειρήσεις οργανώνονται ανά κατηγορία."
+    title: "Καταστήματα στη Σπάρτη",
+    description: "Βρες καταστήματα και τοπικές επιχειρήσεις στη Σπάρτη ανά κατηγορία. Οι ενεργοί συνεργάτες του ΚΟΝΤΑ ΜΟΥ εμφανίζονται πρώτοι."
   });
   const params = await searchParams;
   const hasQueryState = [params.q, params.category, params.subcategory, params.status].some((value) => typeof value === "string" && value.trim().length > 0);
