@@ -58,13 +58,12 @@ export function mapBuildStudioScenario(input: BuildStudioScenarioInput): BuildGu
           source_known: false
         });
       }
-      // Legacy ambiguous choices deliberately remain fail-closed.
-      // New UI choices split plaster vs gypsum board and hairline cracks vs peeling.
       return null;
     }
 
     if (input.surface === "exterior-wall") {
       if (input.condition === "sound") return request("paint_exterior_repaint_sound");
+      if (input.condition === "new-plaster") return request("paint_exterior_new_plaster");
       if (input.condition === "chalking") return request("paint_exterior_chalking");
       if (input.condition === "cracks") return request("paint_exterior_hairline_cracks");
       if (input.condition === "damp") {
