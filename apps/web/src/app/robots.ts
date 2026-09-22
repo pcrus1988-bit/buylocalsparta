@@ -23,7 +23,9 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     // When the emergency indexing switch is off, crawlers must still be able to
     // fetch public HTML and process its global noindex signal. We therefore remove
     // sitemap promotion but do not hide those pages behind a site-wide Disallow.
-    sitemap: settings.indexingEnabled ? `${origin}/sitemap.xml` : undefined,
+    sitemap: settings.indexingEnabled
+      ? [`${origin}/sitemap.xml`, `${origin}/sitemaps/legal/sitemap.xml`]
+      : undefined,
     host: origin
   };
 }
