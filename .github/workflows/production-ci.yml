@@ -114,6 +114,8 @@ jobs:
           SQL
       - name: Apply PostgreSQL/PostGIS migrations
         run: npm run db:migrate
+      - name: Bootstrap storefront read models for fresh CI database
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/acceptance/storefront-read-model-bootstrap.sql
       - name: Bind CI platform runtime credential
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"
       - name: Verify database readiness
