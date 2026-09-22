@@ -43,13 +43,6 @@ function arrayValue(value: unknown): readonly unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function textOptions(value: unknown): readonly CatalogFacetOption[] {
-  return arrayValue(value)
-    .map(stringValue)
-    .filter((entry): entry is string => Boolean(entry))
-    .map((entry) => ({ value: entry, label: entry }));
-}
-
 function facetRows(value: unknown): readonly FacetRow[] {
   return arrayValue(value).flatMap((entry) => {
     const record = recordValue(entry);
