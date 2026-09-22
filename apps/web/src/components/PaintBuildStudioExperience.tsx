@@ -310,6 +310,7 @@ export function PaintBuildStudioExperience() {
                   type="button"
                   key={module.key}
                   className={styles.moduleCard}
+                  data-module={module.key}
                   onClick={() => chooseModule(module.key)}
                 >
                   <span className={styles.moduleIcon} aria-hidden="true">{module.icon}</span>
