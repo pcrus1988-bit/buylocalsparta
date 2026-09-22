@@ -1,3 +1,4 @@
+import { formatMoney, money } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
 import { getShopCatalogPage } from "../../../../lib/shop-catalog-page";
 import { getVisitorKey } from "../../../../lib/visitor";
@@ -36,6 +37,32 @@ type VerifiedManufacturerRow = Readonly<{
   manufacturer_product_id: string;
   result_status: Candidate["manufacturerEligibilityStatus"];
   rule_key: string;
+}>;
+
+type DiscoveryProduct = Readonly<{
+  id: string;
+  slug: string;
+  title: string;
+  price: string;
+  priceMinor: number;
+  categoryCode: string;
+  categoryLabel?: string;
+  brand?: string;
+  mediaId?: string;
+  mediaAlt?: string;
+  vendorName?: string;
+  description?: string;
+}>;
+
+type AssignedVitexRow = Readonly<{
+  canonical_public_id: string;
+  slug: string;
+  title: string;
+  price_minor: number | string;
+  category_code: string;
+  brand_name: string | null;
+  vendor_name: string;
+  description: string | null;
 }>;
 
 const scenarioKeyPattern = /^[a-z0-9_]{1,96}$/;
@@ -114,6 +141,87 @@ function candidateScore(
   };
 }
 
+function safeMinor(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 0;
+}
+
+/**
+ * Paint & Build may recommend an Admin-assigned VITEX item before the merchant
+ * has confirmed stock. Those items are intentionally visible in the vendor
+ * storefront but intentionally absent from the globally sellable /shop pool.
+ *
+ * This projection is recommendation-only: it never changes checkout/fairness
+ * availability and only includes VITEX commerce records with an already verified
+ * manufacturer identity match.
+ */
+async function getAssignedVitexDiscoveryProducts(): Promise<readonly DiscoveryProduct[]> {
+  const result = await getProductionPostgresRuntime().nativePool.query<AssignedVitexRow>(`
+    SELECT DISTINCT ON (cv.public_id)
+      cv.public_id AS canonical_public_id,
+      cv.slug,
+      COALESCE(NULLIF(el.title,''),NULLIF(en.title,''),NULLIF(vcp.product_title,''),cv.slug) AS title,
+      vcp.price_minor,
+      COALESCE(c.code,'other') AS category_code,
+      COALESCE(NULLIF(b.name,''),NULLIF(pfb.name,'')) AS brand_name,
+      COALESCE(NULLIF(v.trading_name,''),v.legal_name) AS vendor_name,
+      COALESCE(NULLIF(el.description,''),NULLIF(en.description,'')) AS description
+    FROM public.vendor_catalog_assortments vca
+    JOIN public.vendor_businesses v
+      ON v.id=vca.vendor_id
+     AND v.status='active'
+    JOIN public.vendor_locations l
+      ON l.id=vca.location_id
+     AND l.active=true
+    JOIN public.catalog_source_products csp
+      ON csp.id=vca.source_product_id
+    JOIN public.catalog_sources cs
+      ON cs.id=csp.source_id
+     AND cs.code='vitex-commerce-media'
+     AND cs.active=true
+    JOIN public.vitex_commerce_products vcp
+      ON vcp.import_fingerprint=csp.source_product_key
+     AND vcp.active=true
+     AND vcp.match_status='verified'
+     AND vcp.manufacturer_product_id IS NOT NULL
+    JOIN public.canonical_variants cv
+      ON cv.id=vcp.canonical_variant_id
+     AND cv.active=true
+     AND cv.suppressed=false
+     AND cv.recalled=false
+    LEFT JOIN public.categories c ON c.id=cv.category_id
+    LEFT JOIN public.product_families pf ON pf.id=cv.family_id
+    LEFT JOIN public.brands b ON b.id=cv.brand_id
+    LEFT JOIN public.brands pfb ON pfb.id=pf.brand_id
+    LEFT JOIN public.product_translations el
+      ON el.canonical_variant_id=cv.id
+     AND el.locale='el'
+    LEFT JOIN public.product_translations en
+      ON en.canonical_variant_id=cv.id
+     AND en.locale='en'
+    WHERE vca.assortment_status NOT IN ('rejected','discontinued')
+      AND COALESCE(cv.commerce_channel,'normal')='normal'
+      AND vcp.price_minor>0
+    ORDER BY cv.public_id,vca.updated_at DESC
+  `);
+
+  return result.rows.flatMap((row) => {
+    const priceMinor = safeMinor(row.price_minor);
+    if (!row.canonical_public_id || !row.slug || !row.title || priceMinor <= 0) return [];
+    return [{
+      id: row.canonical_public_id,
+      slug: row.slug,
+      title: row.title,
+      priceMinor,
+      price: formatMoney(money(priceMinor)),
+      categoryCode: row.category_code || "other",
+      brand: row.brand_name?.trim() || "VITEX",
+      vendorName: row.vendor_name,
+      description: row.description?.trim() || undefined
+    } satisfies DiscoveryProduct];
+  });
+}
+
 /**
  * Product discovery remains keyword-based, but technical eligibility never is.
  *
@@ -143,6 +251,27 @@ async function verifiedManufacturerMatches(
         AND p.evidence_status='verified'
       LIMIT 1
     ),
+    manufacturer_links AS (
+      SELECT mp.canonical_variant_id,mp.id AS manufacturer_product_id
+      FROM public.manufacturer_products mp
+      WHERE mp.canonical_variant_id IS NOT NULL
+
+      UNION
+
+      SELECT mpv.canonical_variant_id,mpv.product_id
+      FROM public.manufacturer_product_variants mpv
+      WHERE mpv.active=true
+        AND mpv.canonical_variant_id IS NOT NULL
+
+      UNION
+
+      SELECT vcp.canonical_variant_id,vcp.manufacturer_product_id
+      FROM public.vitex_commerce_products vcp
+      WHERE vcp.active=true
+        AND vcp.match_status='verified'
+        AND vcp.canonical_variant_id IS NOT NULL
+        AND vcp.manufacturer_product_id IS NOT NULL
+    ),
     applicable AS (
       SELECT
         cv.public_id AS canonical_public_id,
@@ -156,8 +285,10 @@ async function verifiedManufacturerMatches(
        AND cv.active=true
        AND cv.suppressed=false
        AND cv.recalled=false
+      JOIN manufacturer_links ml
+        ON ml.canonical_variant_id=cv.id
       JOIN public.manufacturer_products mp
-        ON mp.canonical_variant_id=cv.id
+        ON mp.id=ml.manufacturer_product_id
        AND mp.product_system_status='current'
        AND mp.verification_status='verified'
        AND (mp.valid_from IS NULL OR mp.valid_from<=CURRENT_DATE)
@@ -251,10 +382,16 @@ export async function GET(request: Request) {
       }).catch(() => ({ products: [], total: 0, hasMore: false }))
     ));
 
-    const discovered = new Map<string, (typeof pages)[number]["products"][number]>();
+    const discovered = new Map<string, DiscoveryProduct>();
     for (const product of pages.flatMap((page) => page.products)) {
       if (!product.available || product.availableToSell <= 0 || product.priceMinor <= 0) continue;
       discovered.set(product.id, product);
+    }
+
+    const assignedVitex = await getAssignedVitexDiscoveryProducts();
+    for (const product of assignedVitex) {
+      if (candidateScore(product, terms).score <= 0) continue;
+      if (!discovered.has(product.id)) discovered.set(product.id, product);
     }
 
     const verified = await verifiedManufacturerMatches(
