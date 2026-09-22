@@ -30,9 +30,9 @@ test("homepage preserves clean semantic and structured SEO signals", () => {
   assert.match(homepage, /unstable_cache/);
   assert.match(homepage, /visibleCategories\.slice\(0, 4\)\.map\(\(category\) =>/);
   assert.match(homepage, /href=\{`\/category\/\$\{category\.slug\}`\}/);
-  assert.match(homepage, /<a href="\/shop">Όλα τα προϊόντα/);
-  assert.match(homepage, /<a href="\/shops">Τα καταστήματα/);
-  assert.match(homepage, /<a href="\/ask-local">Ask Local/);
+  assert.match(homepage, /<a href="\/shop">Πλήρης κατάλογος/);
+  assert.match(homepage, /href="\/shops">Γνώρισε τα καταστήματα της Σπάρτης/);
+  assert.match(homepage, /href="\/ask-local">Ρώτησε τοπικά/);
   assert.match(layout, /apple: \[\{ url: "\/brand\/kontamou-sparta-logo\.webp" \}\]/);
 });
 
