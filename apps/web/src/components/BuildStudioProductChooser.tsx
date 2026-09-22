@@ -66,6 +66,7 @@ export function BuildStudioProductChooser({
   facts = {},
   heading = "Επαληθευμένες επιλογές προϊόντος",
   selectedManufacturerProductId,
+  selectedCatalogueId,
   onManufacturerProductChange,
   onSelectionChange
 }: {
@@ -74,6 +75,7 @@ export function BuildStudioProductChooser({
   facts?: Readonly<Record<string, unknown>>;
   heading?: string;
   selectedManufacturerProductId?: string;
+  selectedCatalogueId?: string;
   onManufacturerProductChange?: (manufacturerProductId: string | undefined) => void;
   onSelectionChange?: (candidate: BuildStudioCandidate | undefined) => void;
 }) {
@@ -139,7 +141,7 @@ export function BuildStudioProductChooser({
     return () => controller.abort();
   }, [factsJson, onManufacturerProductChange, onSelectionChange, queryKey, scenarioKey]);
 
-  const selected = products.find((product) => product.manufacturerProductId === selectedManufacturerProductId);
+  const selected = products.find((product) => product.id === selectedCatalogueId);
 
   function select(product: BuildStudioCandidate) {
     onManufacturerProductChange?.(product.manufacturerProductId);
@@ -180,7 +182,7 @@ export function BuildStudioProductChooser({
       {state === "ready" ? (
         <div className={styles.grid}>
           {products.map((product, index) => {
-            const active = selectedManufacturerProductId === product.manufacturerProductId;
+            const active = selectedCatalogueId === product.id;
             return (
               <article className={active ? styles.cardSelected : styles.card} key={product.id}>
                 <button
