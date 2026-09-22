@@ -104,22 +104,28 @@ export async function getPublicCatalogSourceGallery(
                csp.title AS source_title
         FROM canonical_variants cv
         JOIN markets m ON m.id=cv.market_id
-        JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
-        JOIN vendor_businesses vb ON vb.id=vo.vendor_id
-        JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
-        JOIN catalog_source_products csp ON csp.id=dso.source_product_id
+        JOIN catalog_source_product_links csl
+          ON csl.canonical_variant_id=cv.id
+         AND csl.link_status='approved'
+        JOIN catalog_source_products csp ON csp.id=csl.source_product_id
         JOIN catalog_sources cs ON cs.id=csp.source_id
+        LEFT JOIN vendor_offers vo
+          ON vo.canonical_variant_id=cv.id
+         AND vo.status='approved'
+         AND vo.merchant_visible=true
+         AND vo.merchant_pause_active=false
+        LEFT JOIN vendor_businesses vb ON vb.id=vo.vendor_id
         WHERE cv.public_id=$1
           AND m.code='sparta'
           AND cv.active=true
           AND cv.suppressed=false
           AND cv.recalled=false
-          AND vo.status='approved'
           AND cs.active=true
-          AND cs.code IN ('nova-brandsgateway','symphonya')
+          AND cs.code IN ('nova-brandsgateway','symphonya','vitex-commerce-media')
         ORDER BY CASE WHEN $2::text IS NOT NULL AND vb.public_id=$2 THEN 0 ELSE 1 END,
-                 csp.created_at DESC,
-                 vo.updated_at DESC
+                 csl.confidence DESC,
+                 csl.updated_at DESC,
+                 csp.created_at DESC
         LIMIT 1
       `, [canonicalId, preferredVendorId?.trim() || null]),
       { readOnly: true }
@@ -185,24 +191,31 @@ export async function getPublicCatalogSourcePrimaryImages(
               ORDER BY
                 CASE WHEN requested.preferred_vendor_public_id IS NOT NULL
                            AND vb.public_id=requested.preferred_vendor_public_id THEN 0 ELSE 1 END,
+                csl.confidence DESC,
+                csl.updated_at DESC,
                 csp.created_at DESC,
-                vo.updated_at DESC
+                vo.updated_at DESC NULLS LAST
             ) AS source_rank
           FROM requested
           JOIN canonical_variants cv ON cv.public_id=requested.canonical_public_id
           JOIN markets m ON m.id=cv.market_id
-          JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
-          JOIN vendor_businesses vb ON vb.id=vo.vendor_id
-          JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
-          JOIN catalog_source_products csp ON csp.id=dso.source_product_id
+          JOIN catalog_source_product_links csl
+            ON csl.canonical_variant_id=cv.id
+           AND csl.link_status='approved'
+          JOIN catalog_source_products csp ON csp.id=csl.source_product_id
           JOIN catalog_sources cs ON cs.id=csp.source_id
+          LEFT JOIN vendor_offers vo
+            ON vo.canonical_variant_id=cv.id
+           AND vo.status='approved'
+           AND vo.merchant_visible=true
+           AND vo.merchant_pause_active=false
+          LEFT JOIN vendor_businesses vb ON vb.id=vo.vendor_id
           WHERE m.code='sparta'
             AND cv.active=true
             AND cv.suppressed=false
             AND cv.recalled=false
-            AND vo.status='approved'
             AND cs.active=true
-            AND cs.code IN ('nova-brandsgateway','symphonya')
+            AND cs.code IN ('nova-brandsgateway','symphonya','vitex-commerce-media')
         ), primary_source AS (
           SELECT canonical_public_id,normalized_payload,source_image_fallback_url,source_code,source_website,source_title
           FROM ranked
