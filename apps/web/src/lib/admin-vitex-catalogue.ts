@@ -96,15 +96,62 @@ export async function adminAssignAllVitexProducts(
              vcp.import_fingerprint,
              vcp.canonical_variant_id,
              vcp.price_minor,
-             cv.tax_rate_bps
+             cv.tax_rate_bps,
+             csp.id AS source_product_id,
+             NULLIF(csp.supplier_code,'') AS source_sku
       FROM vitex_commerce_products vcp
       JOIN canonical_variants cv ON cv.id=vcp.canonical_variant_id
+      JOIN catalog_sources cs
+        ON cs.market_id=cv.market_id
+       AND cs.code='vitex-commerce-media'
+       AND cs.active=true
+      JOIN catalog_source_products csp
+        ON csp.source_id=cs.id
+       AND csp.source_product_key=vcp.import_fingerprint
       WHERE vcp.active=true
         AND vcp.canonical_variant_id IS NOT NULL
         AND cv.active=true
         AND cv.suppressed=false
         AND cv.recalled=false
         AND cv.market_id=$1::uuid
+    ),
+    assortment AS (
+      INSERT INTO vendor_catalog_assortments(
+        market_id,vendor_id,location_id,source_product_id,canonical_variant_id,
+        vendor_sku,assortment_status,availability_mode,confirmation_source,
+        metadata,created_at,updated_at
+      )
+      SELECT
+        $1::uuid,$2::uuid,$3::uuid,t.source_product_id,t.canonical_variant_id,
+        COALESCE(t.source_sku,'VITEX-'||upper(substr(t.import_fingerprint,1,16))),
+        'candidate','ask_vendor','admin',
+        jsonb_build_object(
+          'commercialConfirmationRequired',true,
+          'catalogue','vitex',
+          'bulkAssignment',true,
+          'vitexCommerceProductId',t.vitex_commerce_id,
+          'assignedAt',now(),
+          'assignedBy',$4::text
+        ),
+        now(),now()
+      FROM target t
+      ON CONFLICT (vendor_id,location_id,source_product_id)
+        WHERE source_product_id IS NOT NULL
+      DO UPDATE
+      SET canonical_variant_id=EXCLUDED.canonical_variant_id,
+          vendor_sku=COALESCE(EXCLUDED.vendor_sku,vendor_catalog_assortments.vendor_sku),
+          assortment_status=CASE
+            WHEN vendor_catalog_assortments.assortment_status IN ('rejected','discontinued') THEN 'candidate'
+            ELSE vendor_catalog_assortments.assortment_status
+          END,
+          availability_mode=CASE
+            WHEN vendor_catalog_assortments.availability_mode IN ('unknown','unavailable') THEN 'ask_vendor'
+            ELSE vendor_catalog_assortments.availability_mode
+          END,
+          confirmation_source='admin',
+          metadata=COALESCE(vendor_catalog_assortments.metadata,'{}'::jsonb)||EXCLUDED.metadata,
+          updated_at=now()
+      RETURNING id
     ),
     existing AS (
       SELECT vo.id,vo.status AS old_status
@@ -124,7 +171,8 @@ export async function adminAssignAllVitexProducts(
               'adminAssigned',true,
               'adminAssignedAt',now(),
               'catalogue','vitex',
-              'bulkAssignment',true
+              'bulkAssignment',true,
+              'commercialConfirmationRequired',true
             ),
           updated_at=now()
       FROM existing
@@ -144,7 +192,7 @@ export async function adminAssignAllVitexProducts(
         $2::uuid,
         $3::uuid,
         t.canonical_variant_id,
-        'VITEX-'||upper(substr(t.import_fingerprint,1,16)),
+        COALESCE(t.source_sku,'VITEX-'||upper(substr(t.import_fingerprint,1,16))),
         'draft',
         t.price_minor,
         t.price_minor,
@@ -155,6 +203,8 @@ export async function adminAssignAllVitexProducts(
           'adminAssignedAt',now(),
           'catalogue','vitex',
           'bulkAssignment',true,
+          'commercialConfirmationRequired',true,
+          'referencePrice',true,
           'vitexCommerceProductId',t.vitex_commerce_id
         ),
         now(),
@@ -171,9 +221,10 @@ export async function adminAssignAllVitexProducts(
     )
     SELECT
       (SELECT count(*) FROM target)::int AS total_products,
+      (SELECT count(*) FROM assortment)::int AS assortment_rows,
       (SELECT count(*) FROM inserted)::int AS inserted,
       (SELECT count(*) FROM touched WHERE old_status IN ('archived','rejected','suppressed'))::int AS reactivated
-  `, [asText(row.market_uuid), asText(row.vendor_uuid), asText(row.location_uuid)]);
+  `, [asText(row.market_uuid), asText(row.vendor_uuid), asText(row.location_uuid), principal.userId]);
   const stats = result.rows[0] ?? {};
 
   const response: VitexBulkAssignmentResult = {
@@ -190,7 +241,7 @@ export async function adminAssignAllVitexProducts(
     "vendor",
     response.vendorId,
     reason,
-    response
+    { ...response, assortmentRows: asInt(stats.assortment_rows) }
   );
   return response;
 }
@@ -215,24 +266,58 @@ export async function adminUnassignAllVitexProducts(
   const row = vendor.rows[0];
   if (!row) throw new Error("Vendor not found");
 
-  const archived = await db.query<SqlRow>(`
-    UPDATE vendor_offers vo
-    SET status='archived',
-        source_payload=COALESCE(vo.source_payload,'{}'::jsonb)
-          || jsonb_build_object(
-            'adminUnassigned',true,
-            'adminUnassignedAt',now(),
-            'catalogue','vitex',
-            'bulkAssignment',true
-          ),
-        updated_at=now()
-    FROM vitex_commerce_products vcp
-    WHERE vo.vendor_id=$1::uuid
-      AND vo.canonical_variant_id=vcp.canonical_variant_id
-      AND vcp.canonical_variant_id IS NOT NULL
-      AND vo.status <> 'archived'
-    RETURNING vo.id
+  const unassigned = await db.query<SqlRow>(`
+    WITH vitex_source AS (
+      SELECT vcp.canonical_variant_id,csp.id AS source_product_id
+      FROM vitex_commerce_products vcp
+      JOIN canonical_variants cv ON cv.id=vcp.canonical_variant_id
+      JOIN catalog_sources cs
+        ON cs.market_id=cv.market_id
+       AND cs.code='vitex-commerce-media'
+      JOIN catalog_source_products csp
+        ON csp.source_id=cs.id
+       AND csp.source_product_key=vcp.import_fingerprint
+      WHERE vcp.canonical_variant_id IS NOT NULL
+    ),
+    archived_offers AS (
+      UPDATE vendor_offers vo
+      SET status='archived',
+          source_payload=COALESCE(vo.source_payload,'{}'::jsonb)
+            || jsonb_build_object(
+              'adminUnassigned',true,
+              'adminUnassignedAt',now(),
+              'catalogue','vitex',
+              'bulkAssignment',true
+            ),
+          updated_at=now()
+      FROM vitex_source source
+      WHERE vo.vendor_id=$1::uuid
+        AND vo.canonical_variant_id=source.canonical_variant_id
+        AND vo.status <> 'archived'
+      RETURNING vo.canonical_variant_id
+    ),
+    discontinued_assortment AS (
+      UPDATE vendor_catalog_assortments vca
+      SET assortment_status='discontinued',
+          metadata=COALESCE(vca.metadata,'{}'::jsonb)
+            || jsonb_build_object(
+              'adminUnassigned',true,
+              'adminUnassignedAt',now(),
+              'catalogue','vitex',
+              'bulkAssignment',true
+            ),
+          updated_at=now()
+      FROM vitex_source source
+      WHERE vca.vendor_id=$1::uuid
+        AND vca.source_product_id=source.source_product_id
+        AND vca.assortment_status NOT IN ('rejected','discontinued')
+      RETURNING vca.source_product_id
+    )
+    SELECT
+      (SELECT count(*) FROM archived_offers)::int AS archived_offers,
+      (SELECT count(*) FROM discontinued_assortment)::int AS discontinued_assortment
   `, [asText(row.vendor_uuid)]);
+  const stats = unassigned.rows[0] ?? {};
 
   const total = await db.query<SqlRow>(`
     SELECT count(*)::int AS total
@@ -245,7 +330,7 @@ export async function adminUnassignAllVitexProducts(
     totalProducts: asInt(total.rows[0]?.total),
     inserted: 0,
     reactivated: 0,
-    archived: archived.rowCount ?? 0
+    archived: Math.max(asInt(stats.archived_offers), asInt(stats.discontinued_assortment))
   };
   await recordAdminAudit(
     principal,
@@ -253,7 +338,11 @@ export async function adminUnassignAllVitexProducts(
     "vendor",
     response.vendorId,
     reason,
-    response
+    {
+      ...response,
+      archivedOffers: asInt(stats.archived_offers),
+      discontinuedAssortment: asInt(stats.discontinued_assortment)
+    }
   );
   return response;
 }
