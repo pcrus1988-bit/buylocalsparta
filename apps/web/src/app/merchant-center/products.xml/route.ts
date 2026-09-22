@@ -98,7 +98,9 @@ export async function GET(): Promise<Response> {
         brand: record.brand,
         gtin: record.gtin,
         mpn: record.mpn,
-        productType: record.categoryLabel ?? record.categoryCode
+        productType: record.categoryLabel ?? record.categoryCode,
+        color: record.color,
+        sizes: record.sizes
       });
     }
 
