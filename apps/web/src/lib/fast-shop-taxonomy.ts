@@ -1,4 +1,4 @@
-import type { CatalogFacetOption, CatalogFilters } from "./catalog-view";
+import type { CatalogFilters } from "./catalog-view";
 import type { CatalogAttributeFilters } from "./catalog-attribute-filter";
 import type { AvailableCatalogTaxonomy } from "./available-catalog-taxonomy";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
