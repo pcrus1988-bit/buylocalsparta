@@ -157,7 +157,7 @@ export function PrivacyConsentProvider({ children }: { children: ReactNode }) {
         </div>
 
         <label className="privacy-consent-option">
-          <div><strong>Analytics</strong><p>First-party product analytics, Vercel Analytics, Vercel Speed Insights και Google Analytics 4. Ενεργοποιούνται μόνο αφού η επιλογή επιβεβαιωθεί από τον server.</p></div>
+          <div><strong>Analytics</strong><p>First-party product analytics, Vercel Analytics, Vercel Speed Insights για μέτρηση Core Web Vitals και Google Analytics 4. Ενεργοποιούνται μόνο αφού η επιλογή επιβεβαιωθεί από τον server.</p></div>
           <input type="checkbox" checked={draft.analytics} onChange={(event) => setDraft({ personalisation: false, analytics: event.target.checked, marketing: false })} />
         </label>
 
