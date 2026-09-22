@@ -264,5 +264,6 @@
   "0270_paint_build_project_documents.sql": "7ec25e0869c12a3f9de0d560c6f840984aa79a8f1a22c25f7982bc976b288d34",
   "0271_general_build_guidance_fourth_batch_gypsum_board.sql": "804bb2f2c7c453252e7bd7a1a182ad8ec8a830937b210cf641e64fe00a2d85ed",
   "0272_vitex_source_version_history.sql": "8eeb5dcdf78238298cfece9dc80c69e47b4d0718b62805dc132488f7337e7e8f",
-  "0273_paint_build_completion_hardening.sql": "f7a3d6448bc70314c989eaeb26a0d050e84e8144d77863f310da995f316c459f"
+  "0273_paint_build_completion_hardening.sql": "f7a3d6448bc70314c989eaeb26a0d050e84e8144d77863f310da995f316c459f",
+  "0274_general_build_guidance_exterior_new_plaster.sql": "189b02d7a1f9d693c95f258297d47e61a3b87f3aa5383357829e145b37e3cdd9"
 }
