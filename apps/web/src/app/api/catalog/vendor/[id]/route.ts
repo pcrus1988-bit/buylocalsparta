@@ -1,7 +1,14 @@
 import { decodeCatalogSizeGroup } from "../../../../../lib/catalog-size";
-import { getVendorDropshipCatalogPage, getVendorDropshipFacets, type VendorDropshipSort } from "../../../../../lib/vendor-dropship-catalog-page";
+import {
+  getVendorDropshipCatalogPage,
+  getVendorDropshipFacets,
+  type VendorDropshipFacetOption,
+  type VendorDropshipFacets,
+  type VendorDropshipSort
+} from "../../../../../lib/vendor-dropship-catalog-page";
 import { getContextualVendorDropshipFacets, type VendorDropshipFacetContext } from "../../../../../lib/vendor-dropship-contextual-facets";
 import { getFastVendorDropshipCatalogPage } from "../../../../../lib/vendor-dropship-fast-page";
+import { getVendorLocalCatalogFacets, getVendorLocalCatalogPage } from "../../../../../lib/vendor-local-catalog-page";
 
 type RouteContext = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -41,21 +48,42 @@ function emptyFacetContext(context: VendorDropshipFacetContext): boolean {
     || context.material?.trim());
 }
 
-async function optionalFacets(vendorId: string, context: VendorDropshipFacetContext) {
-  // The Fashion Guide opens before the customer has selected any filters. Its
-  // first facet request must use the small pre-aggregated projection instead of
-  // scanning the contextual family filter model for the whole supplier catalogue.
-  // Contextual facets are still used once the customer narrows the catalogue.
+function mergeFacetOptions(
+  left: readonly VendorDropshipFacetOption[],
+  right: readonly VendorDropshipFacetOption[]
+): readonly VendorDropshipFacetOption[] {
+  const merged = new Map<string, VendorDropshipFacetOption>();
+  for (const entry of [...left, ...right]) {
+    const key = entry.value.trim().toLocaleLowerCase("el");
+    if (!key) continue;
+    const current = merged.get(key);
+    merged.set(key, {
+      value: current?.value ?? entry.value,
+      label: current?.label ?? entry.label,
+      count: (current?.count ?? 0) + entry.count
+    });
+  }
+  return [...merged.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "el"));
+}
+
+function mergeFacets(local: VendorDropshipFacets, dropship?: VendorDropshipFacets): VendorDropshipFacets {
+  if (!dropship) return local;
+  return {
+    total: local.total + dropship.total,
+    categories: mergeFacetOptions(local.categories, dropship.categories),
+    brands: mergeFacetOptions(local.brands, dropship.brands),
+    colors: mergeFacetOptions(local.colors, dropship.colors),
+    sizes: mergeFacetOptions(local.sizes, dropship.sizes),
+    fits: mergeFacetOptions(local.fits, dropship.fits),
+    materials: mergeFacetOptions(local.materials, dropship.materials)
+  };
+}
+
+async function optionalDropshipFacets(vendorId: string, context: VendorDropshipFacetContext) {
   if (emptyFacetContext(context)) {
     try {
       const preaggregated = await getVendorDropshipFacets(vendorId);
-      // A successful query is not necessarily a healthy projection. During a
-      // delayed/failed materialized-view refresh the table can be legitimately
-      // empty while live supplier offers are available. Fall through to the live
-      // contextual path instead of presenting an empty category/filter UI.
-      if (preaggregated.total > 0 || preaggregated.categories.length > 0) {
-        return preaggregated;
-      }
+      if (preaggregated.total > 0 || preaggregated.categories.length > 0) return preaggregated;
       console.warn(JSON.stringify({
         level: "warn",
         event: "storefront.vendor_catalog_facets_preaggregated_empty",
@@ -82,6 +110,21 @@ async function optionalFacets(vendorId: string, context: VendorDropshipFacetCont
     }));
     return undefined;
   }
+}
+
+async function optionalFacets(vendorId: string, context: VendorDropshipFacetContext) {
+  const local = await getVendorLocalCatalogFacets(vendorId).catch((error) => {
+    console.error(JSON.stringify({
+      level: "warn",
+      event: "storefront.vendor_local_catalog_facets_failed",
+      vendorId,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return { total: 0, categories: [], brands: [], colors: [], sizes: [], fits: [], materials: [] } satisfies VendorDropshipFacets;
+  });
+  const dropship = await optionalDropshipFacets(vendorId, context);
+  if (!dropship && local.total === 0) return undefined;
+  return mergeFacets(local, dropship);
 }
 
 function publicCacheHeaders(facetsOnly = false): HeadersInit {
@@ -113,9 +156,7 @@ export async function GET(request: Request, { params }: RouteContext) {
   const sort = sortParam(url);
   const offset = intParam(url, "offset", 0, 100_000);
   const limit = Math.max(1, intParam(url, "limit", 20, 60));
-  // Customer-facing dropship catalogues must never expose unavailable supplier stock.
-  // Keep the query parameter out of this policy: availability is a storefront invariant.
-  const availableOnly = true;
+  const localAvailableOnly = url.searchParams.get("available") === "1";
   const includeFacets = url.searchParams.get("facets") === "1";
   const facetsOnly = includeFacets && url.searchParams.get("facetsOnly") === "1";
   const facetContext = { query, categories, brand, color, sizes, fit, material } satisfies VendorDropshipFacetContext;
@@ -126,13 +167,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       if (!facets) {
         return Response.json(
           { error: "catalogue_facets_unavailable" },
-          {
-            status: 503,
-            headers: {
-              "Cache-Control": "no-store",
-              "Retry-After": "1"
-            }
-          }
+          { status: 503, headers: { "Cache-Control": "no-store", "Retry-After": "1" } }
         );
       }
       return Response.json({
@@ -156,31 +191,102 @@ export async function GET(request: Request, { params }: RouteContext) {
       && !material
       && sort === "recommended";
 
-    const page = useFastInitialPath
-      ? await getFastVendorDropshipCatalogPage(id, { offset, limit })
-      : await getVendorDropshipCatalogPage(id, {
-          query,
-          categories,
-          brand,
-          color,
-          sizes,
-          fit,
-          material,
-          sort,
-          availableOnly,
-          offset,
-          limit
-        });
-    const facets = includeFacets ? await optionalFacets(id, facetContext) : undefined;
-    const total = "total" in page ? page.total : undefined;
+    const local = await getVendorLocalCatalogPage(id, {
+      query,
+      categories,
+      brand,
+      color,
+      sizes,
+      fit,
+      material,
+      sort,
+      availableOnly: localAvailableOnly,
+      offset,
+      limit
+    });
 
+    let products = [...local.products];
+    let responseOffset = offset;
+    let responseLimit = limit;
+    let nextOffset: number | null = local.nextOffset ?? null;
+    let total: number | undefined = local.hasDropship ? undefined : local.total;
+
+    if (local.hasDropship) {
+      // Keep local catalogue products first so a merchant's own assortment is
+      // never displaced by a large supplier feed. Supplier pages continue from
+      // the global offset after the local window is exhausted.
+      if (offset >= local.total) {
+        const dropshipOffset = offset - local.total;
+        const dropship = useFastInitialPath
+          ? await getFastVendorDropshipCatalogPage(id, { offset: dropshipOffset, limit })
+          : await getVendorDropshipCatalogPage(id, {
+              query,
+              categories,
+              brand,
+              color,
+              sizes,
+              fit,
+              material,
+              sort,
+              availableOnly: true,
+              offset: dropshipOffset,
+              limit
+            });
+        products = [...dropship.products];
+        nextOffset = dropship.nextOffset === undefined ? null : local.total + dropship.nextOffset;
+        total = "total" in dropship ? local.total + dropship.total : undefined;
+      } else if (products.length < limit && local.nextOffset === undefined) {
+        const remaining = limit - products.length;
+        const dropship = useFastInitialPath
+          ? await getFastVendorDropshipCatalogPage(id, { offset: 0, limit: remaining })
+          : await getVendorDropshipCatalogPage(id, {
+              query,
+              categories,
+              brand,
+              color,
+              sizes,
+              fit,
+              material,
+              sort,
+              availableOnly: true,
+              offset: 0,
+              limit: remaining
+            });
+        products = [...products, ...dropship.products];
+        nextOffset = dropship.nextOffset === undefined ? null : offset + products.length;
+        total = "total" in dropship ? local.total + dropship.total : undefined;
+      }
+    } else if (local.total === 0) {
+      const dropship = useFastInitialPath
+        ? await getFastVendorDropshipCatalogPage(id, { offset, limit })
+        : await getVendorDropshipCatalogPage(id, {
+            query,
+            categories,
+            brand,
+            color,
+            sizes,
+            fit,
+            material,
+            sort,
+            availableOnly: true,
+            offset,
+            limit
+          });
+      products = [...dropship.products];
+      responseOffset = dropship.offset;
+      responseLimit = dropship.limit;
+      nextOffset = dropship.nextOffset ?? null;
+      total = "total" in dropship ? dropship.total : undefined;
+    }
+
+    const facets = includeFacets ? await optionalFacets(id, facetContext) : undefined;
     return Response.json({
       vendorId: id,
-      products: page.products,
+      products,
       total,
-      offset: page.offset,
-      limit: page.limit,
-      nextOffset: page.nextOffset ?? null,
+      offset: responseOffset,
+      limit: responseLimit,
+      nextOffset,
       facets: facets ?? null
     }, { headers: publicCacheHeaders(false) });
   } catch (error) {
