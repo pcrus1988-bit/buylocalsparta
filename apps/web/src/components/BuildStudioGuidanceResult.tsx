@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BuildGuidanceScenarioRequest } from "../lib/build-guidance-scenario-map";
 import { BuildStudioProductChooser, type BuildStudioCandidate } from "./BuildStudioProductChooser";
 import styles from "./PaintBuildStudioExperience.module.css";
@@ -226,8 +226,8 @@ export function BuildStudioGuidanceResult({
   const [guide, setGuide] = useState<CustomerGuide | null>(null);
   const [selectedManufacturerProductId, setSelectedManufacturerProductId] = useState<string>();
   const [selectedProduct, setSelectedProduct] = useState<BuildStudioCandidate>();
-  const [selectionConfirmed, setSelectionConfirmed] = useState(false);
   const [snapshotId, setSnapshotId] = useState("");
+  const pdfActionRef = useRef<HTMLDivElement>(null);
   const [quantity, setQuantity] = useState<QuantityEstimate | null>(null);
   const [finalMode, setFinalMode] = useState(false);
   const [snapshotState, setSnapshotState] = useState<"idle" | "loading" | "error">("idle");
@@ -242,7 +242,6 @@ export function BuildStudioGuidanceResult({
   useEffect(() => {
     setSelectedManufacturerProductId(undefined);
     setSelectedProduct(undefined);
-    setSelectionConfirmed(false);
     setSnapshotId("");
     setQuantity(null);
     setFinalMode(false);
@@ -301,15 +300,14 @@ export function BuildStudioGuidanceResult({
 
   function handleProduct(product: BuildStudioCandidate | undefined) {
     setSelectedProduct(product);
-    setSelectionConfirmed(false);
     setSnapshotId("");
     setQuantity(null);
     setFinalMode(false);
     setSnapshotState("idle");
   }
 
-  async function openFinalGuide() {
-    if (!scenarioRequest || !selectedProduct || !selectedManufacturerProductId || !selectionConfirmed) return;
+  async function openFinalGuide(downloadImmediately = false) {
+    if (!scenarioRequest || !selectedProduct || !selectedManufacturerProductId) return;
     setSnapshotState("loading");
     try {
       const response = await fetch("/api/build-studio/snapshot", {
@@ -348,16 +346,16 @@ export function BuildStudioGuidanceResult({
       setQuantity(payload.quantityEstimate);
       setFinalMode(true);
       setSnapshotState("idle");
+      if (downloadImmediately) await downloadPdfForSnapshot(payload.snapshotId);
     } catch {
       setSnapshotState("error");
     }
   }
 
-  async function downloadPdf() {
-    if (!snapshotId) return;
+  async function downloadPdfForSnapshot(targetSnapshotId: string) {
     setPdfState("loading");
     try {
-      const response = await fetch(`/api/build-studio/project-guide?snapshotId=${encodeURIComponent(snapshotId)}`, {
+      const response = await fetch(`/api/build-studio/project-guide?snapshotId=${encodeURIComponent(targetSnapshotId)}`, {
         cache: "no-store"
       });
       if (!response.ok) throw new Error("pdf failed");
@@ -376,6 +374,19 @@ export function BuildStudioGuidanceResult({
     }
   }
 
+  async function downloadPdf() {
+    if (!snapshotId) return;
+    await downloadPdfForSnapshot(snapshotId);
+  }
+
+  useEffect(() => {
+    if (!selectedProductVerified) return;
+    const timer = window.setTimeout(() => {
+      pdfActionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [selectedProduct?.id, selectedProductVerified]);
+
   if (finalMode && guide && selectedProduct && quantity && snapshotId) {
     return <ProjectGuidanceScreen
       eyebrow={eyebrow}
@@ -389,7 +400,6 @@ export function BuildStudioGuidanceResult({
       pdfState={pdfState}
       onDownloadPdf={() => void downloadPdf()}
       onChangeProduct={() => {
-        setSelectionConfirmed(false);
         setFinalMode(false);
         setSnapshotId("");
       }}
@@ -457,42 +467,41 @@ export function BuildStudioGuidanceResult({
           terms={candidateTerms}
           scenarioKey={scenarioKey}
           facts={scenarioRequest?.facts ?? {}}
-          selectedManufacturerProductId={selectedManufacturerProductId}
+          selectedCatalogueId={selectedProduct?.id}
           onManufacturerProductChange={setSelectedManufacturerProductId}
           onSelectionChange={handleProduct}
         />
       ) : null}
 
-      {selectedProductVerified && selectedProduct ? (
-        <div className={styles.confirmationPanel}>
+      {canChooseProduct ? (
+        <div className={styles.pdfPanel} ref={pdfActionRef}>
           <div>
-            <span>ΕΠΙΛΟΓΗ ΥΛΙΚΟΥ</span>
-            <strong>{selectedProduct.title}</strong>
-            <small>{selectedProduct.brand || "VITEX"} · {selectedProduct.price}</small>
+            <span>PROJECT DOSSIER · PDF</span>
+            <strong>
+              {selectedProductVerified && selectedProduct
+                ? selectedProduct.title
+                : "Διάλεξε ένα προϊόν για να δημιουργήσεις το PDF του έργου."}
+            </strong>
+            <p>
+              {selectedProductVerified && selectedProduct
+                ? `${selectedProduct.brand || "VITEX"} · ${selectedProduct.price}. Με την επιβεβαίωση θα δημιουργηθεί το επαληθευμένο snapshot και θα ξεκινήσει αμέσως η λήψη του PDF.`
+                : "Το PDF περιλαμβάνει τις οδηγίες του συγκεκριμένου έργου και, όταν υπάρχει επαληθευμένο προϊόν, τις αντίστοιχες οδηγίες κατασκευαστή."}
+            </p>
           </div>
-          {!selectionConfirmed ? (
-            <button type="button" className={styles.primaryAction} onClick={() => setSelectionConfirmed(true)}>
-              ΕΠΙΒΕΒΑΙΩΣΗ ΕΠΙΛΟΓΗΣ
-            </button>
-          ) : (
-            <span className={styles.confirmedBadge}>✓ ΕΠΙΒΕΒΑΙΩΘΗΚΕ</span>
-          )}
-        </div>
-      ) : null}
-
-      {selectionConfirmed && selectedProductVerified ? (
-        <div className={styles.finalContinuePanel}>
           <button
             type="button"
             className={styles.primaryAction}
-            disabled={snapshotState === "loading"}
-            onClick={() => void openFinalGuide()}
+            disabled={!selectedProductVerified || snapshotState === "loading" || pdfState === "loading"}
+            onClick={() => void openFinalGuide(true)}
           >
-            {snapshotState === "loading"
-              ? "ΔΗΜΙΟΥΡΓΙΑ ΟΔΗΓΟΥ…"
-              : "ΣΥΝΕΧΙΣΕ ΓΙΑ ΝΑ ΔΕΙΣ ΣΗΜΑΝΤΙΚΕΣ ΠΛΗΡΟΦΟΡΙΕΣ ΚΑΙ ΟΔΗΓΙΕΣ"}
+            {snapshotState === "loading" || pdfState === "loading"
+              ? "ΔΗΜΙΟΥΡΓΙΑ PDF…"
+              : selectedProductVerified
+                ? "ΕΠΙΒΕΒΑΙΩΣΗ & ΛΗΨΗ PDF"
+                : "ΕΠΙΛΕΞΕ ΠΡΟΪΟΝ ΓΙΑ PDF"}
           </button>
           {snapshotState === "error" ? <small role="alert">Δεν ήταν δυνατή η δημιουργία του επαληθευμένου snapshot. Δοκίμασε ξανά.</small> : null}
+          {pdfState === "error" ? <small role="alert">Το PDF δεν δημιουργήθηκε. Δοκίμασε ξανά.</small> : null}
         </div>
       ) : null}
 
