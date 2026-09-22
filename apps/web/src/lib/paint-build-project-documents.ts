@@ -3,6 +3,26 @@ import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import type { BuildCustomerGuide, BuildProjectGuidance, BuildQuantityEstimate } from "./build-guidance-runtime";
 
+export type PaintBuildProjectKitLineSnapshot = Readonly<{
+  key: string;
+  role: "main" | "system" | "accessory";
+  label: string;
+  title?: string;
+  reasonEl: string;
+  required: boolean;
+  selected: boolean;
+  quantity: number;
+  sourceLayer: "MANUFACTURER" | "KONTA_MOU_RULE";
+  cartable: boolean;
+  canonicalVariantId?: string;
+  priceMinor?: number;
+  price?: string;
+  packAmount?: number;
+  packUnit?: string;
+  purchaseVolume?: number;
+  availabilityNote?: string;
+}>;
+
 export type PaintBuildProjectSnapshot = Readonly<{
   createdAt: string;
   project: Readonly<{
@@ -19,6 +39,7 @@ export type PaintBuildProjectSnapshot = Readonly<{
       brand?: string;
       price?: string;
     }>;
+    projectKit?: readonly PaintBuildProjectKitLineSnapshot[];
   }>;
   guidance: BuildProjectGuidance;
   customerGuide: BuildCustomerGuide;
