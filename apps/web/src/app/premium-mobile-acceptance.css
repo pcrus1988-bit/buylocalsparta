@@ -916,13 +916,15 @@
     display: none !important;
   }
   .catalog-filter-actions {
-    position: sticky !important;
+    position: absolute !important;
     z-index: 5;
-    bottom: -132px;
+    right: 0;
+    bottom: 0;
+    left: 0;
     display: grid !important;
     grid-template-columns: minmax(0, 1fr);
     gap: 9px;
-    margin: 8px -18px -132px !important;
+    margin: 0 !important;
     padding: 12px 18px calc(16px + env(safe-area-inset-bottom)) !important;
     border-top: 1px solid #d8d3ca !important;
     background: rgba(255,253,248,.98) !important;
@@ -1005,8 +1007,8 @@
     padding: 16px 14px 126px !important;
   }
   .catalog-filter-actions {
-    bottom: -126px;
-    margin: 8px -14px -126px !important;
+    bottom: 0;
+    margin: 0 !important;
     padding-left: 14px !important;
     padding-right: 14px !important;
   }
