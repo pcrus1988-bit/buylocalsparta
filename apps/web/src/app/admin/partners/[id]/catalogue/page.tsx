@@ -261,12 +261,30 @@ export default async function Page({ params, searchParams }: { params: Promise<{
       (SELECT count(*)::int
        FROM vitex_commerce_products
        WHERE active=true AND canonical_variant_id IS NOT NULL) AS total_products,
-      (SELECT count(DISTINCT vo.canonical_variant_id)::int
-       FROM vendor_offers vo
-       JOIN vitex_commerce_products vcp ON vcp.canonical_variant_id=vo.canonical_variant_id
-       WHERE vo.vendor_id=$1::uuid
-         AND vcp.active=true
-         AND vo.status <> 'archived') AS assigned_products
+      (
+        SELECT count(DISTINCT assigned.canonical_variant_id)::int
+        FROM (
+          SELECT vo.canonical_variant_id
+          FROM vendor_offers vo
+          JOIN vitex_commerce_products vcp ON vcp.canonical_variant_id=vo.canonical_variant_id
+          WHERE vo.vendor_id=$1::uuid
+            AND vcp.active=true
+            AND vo.status <> 'archived'
+
+          UNION
+
+          SELECT vcp.canonical_variant_id
+          FROM vendor_catalog_assortments vca
+          JOIN catalog_source_products csp ON csp.id=vca.source_product_id
+          JOIN catalog_sources cs ON cs.id=csp.source_id
+          JOIN vitex_commerce_products vcp
+            ON vcp.import_fingerprint=csp.source_product_key
+           AND vcp.active=true
+          WHERE vca.vendor_id=$1::uuid
+            AND cs.code='vitex-commerce-media'
+            AND vca.assortment_status NOT IN ('rejected','discontinued')
+        ) assigned
+      ) AS assigned_products
   `, [vendorUuid]);
   const vitexTotal = asInt(vitexStats.rows[0]?.total_products);
   const vitexAssigned = asInt(vitexStats.rows[0]?.assigned_products);
@@ -320,7 +338,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
         <div><div className="eyebrow">VITEX catalogue</div><h2>Assign the full VITEX range</h2></div>
         <Link className="button button-secondary" href="/admin/catalogue/vitex">Edit public VITEX content</Link>
       </div>
-      <p>Assign or de-assign the entire canonical VITEX catalogue for this vendor. New products are prepared as <strong>draft offers</strong>; this does not activate the vendor or automatically publish new offers.</p>
+      <p>Assign or de-assign the entire canonical VITEX catalogue for this vendor. Assigned products appear in this vendor’s public storefront catalogue, while checkout remains protected until an approved offer and authoritative stock are available. Vendor activation is never changed.</p>
       <div className="workspace-metric-strip">
         <div><span>VITEX products</span><strong>{vitexTotal}</strong></div>
         <div><span>Assigned to vendor</span><strong>{vitexAssigned}</strong></div>
