@@ -7,7 +7,7 @@ import styles from "./page.module.css";
 
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/about", {
-    title: "Η ιστορία του ΚΟΝΤΑ ΜΟΥ · Από τη Σπάρτη για την Ελλάδα",
+    title: "Τι είναι το ΚΟΝΤΑ ΜΟΥ Σπάρτη",
     description: "Γιατί δημιουργήθηκε το ΚΟΝΤΑ ΜΟΥ στη Σπάρτη, πώς συνδέει πελάτες, τοπικά καταστήματα και παράδοση και ποιο είναι το όραμά του για μια πιο ανθρώπινη ψηφιακή αγορά στην Ελλάδα."
   });
 }
