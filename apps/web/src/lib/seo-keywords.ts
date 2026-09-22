@@ -155,6 +155,30 @@ const STATIC_SEARCH_INTENTS: Readonly<Record<string, readonly string[]>> = {
     "marketplace για επιχειρήσεις εκτός Σπάρτης",
     "merchant onboarding Greece"
   ],
+  "/color-finder": [
+    "εύρεση προϊόντων με βάση το χρώμα",
+    "Color Finder Σπάρτη",
+    "χρώματα μακιγιάζ και μόδας",
+    "προϊόντα ανά χρώμα Σπάρτη"
+  ],
+  "/paint-and-build-studio": [
+    "Paint and Build Studio Σπάρτη",
+    "καθοδήγηση βαφής και επισκευής",
+    "υλικά στεγανοποίησης Σπάρτη",
+    "υλικά θερμομόνωσης Σπάρτη"
+  ],
+  "/fitting-room": [
+    "Fitting Room Σπάρτη",
+    "δημιουργία outfit online",
+    "συνδυασμοί ρούχων Σπάρτη",
+    "fashion looks ΚΟΝΤΑ ΜΟΥ"
+  ],
+  "/join/sparta": [
+    "συνεργασία καταστημάτων Σπάρτη",
+    "marketplace επιχειρήσεων Σπάρτη",
+    "ένταξη καταστήματος ΚΟΝΤΑ ΜΟΥ",
+    "vendor onboarding Sparta Greece"
+  ],
   "/sitemap": [
     "χάρτης ιστοτόπου ΚΟΝΤΑ ΜΟΥ",
     "σελίδες ΚΟΝΤΑ ΜΟΥ",
