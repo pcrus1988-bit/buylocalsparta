@@ -1,0 +1,54 @@
+name: Google Merchant Production Sync
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: google-merchant-production-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      MERCHANT_SYNC_URL: https://kontamou.site/api/cron/merchant-sync
+      MERCHANT_STATUS_URL: https://kontamou.site/api/cron/merchant-status
+    steps:
+      - name: Verify scheduler secret
+        shell: bash
+        run: test -n "$CRON_SECRET"
+
+      - name: Sync Google Merchant catalogue
+        shell: bash
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --retry 2 \
+            --max-time 320 \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --output /tmp/google-merchant-sync.json \
+            "$MERCHANT_SYNC_URL"
+          cat /tmp/google-merchant-sync.json
+
+      - name: Reconcile Google Merchant product status
+        if: ${{ success() && (github.event_name == 'workflow_dispatch' || github.event.schedule == '*/10 * * * *') }}
+        shell: bash
+        run: |
+          minute="$(date -u +%M)"
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ] && [ "$minute" != "00" ] && [ "$minute" != "30" ]; then
+            echo "Skipping Merchant status reconciliation outside the twice-hourly slots."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error \
+            --retry 2 \
+            --max-time 80 \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --output /tmp/google-merchant-status.json \
+            "$MERCHANT_STATUS_URL"
+          cat /tmp/google-merchant-status.json
