@@ -250,24 +250,25 @@ async function loadCandidates(shard: number): Promise<readonly EnglishCandidateR
       GROUP BY vo.canonical_variant_id
     )
     SELECT
-      rm.canonical_variant_id,
-      rm.canonical_public_id,
-      rm.slug,
+      cv.id AS canonical_variant_id,
+      cv.public_id AS canonical_public_id,
+      cv.slug,
       en.title,
       en.description,
-      rm.gtin,
-      rm.mpn,
-      rm.brand_name,
-      rm.color,
+      cv.gtin,
+      cv.mpn,
+      COALESCE(NULLIF(btrim(rm.brand_name),''),b.name) AS brand_name,
+      NULLIF(btrim(rm.color),'') AS color,
       cv.condition,
       lo.live_price_minor AS min_price_minor
-    FROM public.storefront_catalog_read_model rm
-    JOIN public.canonical_variants cv ON cv.id=rm.canonical_variant_id
-    JOIN live_offer lo ON lo.canonical_variant_id=rm.canonical_variant_id
+    FROM public.canonical_variants cv
+    JOIN live_offer lo ON lo.canonical_variant_id=cv.id
     JOIN public.product_translations en
-      ON en.canonical_variant_id=rm.canonical_variant_id AND en.locale='en'
+      ON en.canonical_variant_id=cv.id AND en.locale='en'
     LEFT JOIN public.product_translations el
-      ON el.canonical_variant_id=rm.canonical_variant_id AND el.locale='el'
+      ON el.canonical_variant_id=cv.id AND el.locale='el'
+    LEFT JOIN public.brands b ON b.id=cv.brand_id
+    LEFT JOIN public.storefront_catalog_read_model rm ON rm.canonical_variant_id=cv.id
     WHERE cv.active=true
       AND cv.suppressed=false
       AND cv.recalled=false
@@ -277,12 +278,11 @@ async function loadCandidates(shard: number): Promise<readonly EnglishCandidateR
         nullif(btrim(el.title),'') IS NOT NULL
         AND nullif(btrim(coalesce(el.description,'')),'') IS NOT NULL
       )
-      AND mod(abs(hashtext(rm.canonical_public_id)::bigint),$1::bigint)=$2::bigint
-    ORDER BY rm.canonical_public_id
+      AND mod(abs(hashtext(cv.public_id)::bigint),$1::bigint)=$2::bigint
+    ORDER BY cv.public_id
   `, [SHARD_COUNT, shard]);
   return result.rows;
 }
-
 function toCandidate(row: EnglishCandidateRow): GoogleMerchantCandidate {
   return {
     canonicalPublicId: row.canonical_public_id,
@@ -455,14 +455,13 @@ async function persistFailure(
 async function loadStaleOfferIds(shard: number): Promise<readonly string[]> {
   const result = await getProductionPostgresRuntime().nativePool.query<{ offer_id: string }>(`
     WITH live_english AS (
-      SELECT DISTINCT rm.canonical_public_id AS offer_id
-      FROM public.storefront_catalog_read_model rm
-      JOIN public.canonical_variants cv ON cv.id=rm.canonical_variant_id
+      SELECT DISTINCT cv.public_id AS offer_id
+      FROM public.canonical_variants cv
       JOIN public.product_translations en
-        ON en.canonical_variant_id=rm.canonical_variant_id AND en.locale='en'
+        ON en.canonical_variant_id=cv.id AND en.locale='en'
       LEFT JOIN public.product_translations el
-        ON el.canonical_variant_id=rm.canonical_variant_id AND el.locale='el'
-      JOIN public.vendor_offers vo ON vo.canonical_variant_id=rm.canonical_variant_id
+        ON el.canonical_variant_id=cv.id AND el.locale='el'
+      JOIN public.vendor_offers vo ON vo.canonical_variant_id=cv.id
       JOIN public.vendor_businesses v ON v.id=vo.vendor_id
       JOIN public.vendor_locations l ON l.id=vo.location_id
       LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
@@ -519,7 +518,6 @@ async function loadStaleOfferIds(shard: number): Promise<readonly string[]> {
   `, [ACCOUNT_ID, LANGUAGE, FEED_LABEL, SHARD_COUNT, shard]);
   return result.rows.map((row) => row.offer_id);
 }
-
 async function deleteProduct(accessToken: string, dataSource: string, offerId: string): Promise<void> {
   const segment = googleMerchantProductInputSegment(LANGUAGE, FEED_LABEL, offerId);
   const url = new URL(`${PRODUCTS_API_BASE}/accounts/${ACCOUNT_ID}/productInputs/${segment}`);
