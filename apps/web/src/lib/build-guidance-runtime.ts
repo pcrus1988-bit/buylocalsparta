@@ -1,5 +1,5 @@
 import { getProductionPostgresRuntime } from "./postgres-runtime.ts";
-import { paintBuildGreekText } from "./paint-build-greek-presentation";
+import { paintBuildGreekText } from "./paint-build-greek-presentation.ts";
 
 export type BuildGuidanceSourceLayer = "GENERAL_GUIDANCE" | "MANUFACTURER_VITEX" | "MANUFACTURER" | "KONTA_MOU_RULE";
 
