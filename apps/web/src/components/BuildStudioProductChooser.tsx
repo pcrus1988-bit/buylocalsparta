@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import styles from "./BuildStudioProductChooser.module.css";
-import { paintBuildFinishLabel, paintBuildTintBaseLabel } from "../lib/paint-build-greek-presentation";
+import { paintBuildFinishLabel, paintBuildPackageLabel, paintBuildTintBaseLabel } from "../lib/paint-build-greek-presentation";
 
 export type BuildStudioCandidate = Readonly<{
   id: string;
@@ -357,7 +357,7 @@ function FamilyOverlay({
                   </button>;
                 })}
               </div>
-              {selected ? <div className={styles.packSizes}><span>Διαθέσιμες συσκευασίες:</span>{routeVariants.map((variant) => <b key={variant.id}>{variant.packValue}{variant.packUnit}</b>)}</div> : null}
+              {selected ? <div className={styles.packSizes}><span>Διαθέσιμες συσκευασίες:</span>{routeVariants.map((variant) => <b key={variant.id}>{paintBuildPackageLabel(`${variant.packValue}${variant.packUnit}`)}</b>)}</div> : null}
             </div>
 
             <div className={styles.techGrid}>
@@ -387,7 +387,7 @@ function FamilyOverlay({
                 {quantity?.status === "available" ? (
                   <>
                     <strong>Απαίτηση: {quantity.min === quantity.max ? quantity.min : `${quantity.min}–${quantity.max}`} L</strong>
-                    {plan ? <p>Προτεινόμενη αγορά: {plan.lines.map((line) => `${line.quantity} × ${line.variant.packValue}${line.variant.packUnit}`).join(" + ")} · {money(plan.totalPriceMinor)}</p> : <p>Δεν υπάρχει ασφαλής συνδυασμός διαθέσιμων συσκευασιών.</p>}
+                    {plan ? <p>Προτεινόμενη αγορά: {plan.lines.map((line) => `${line.quantity} × ${paintBuildPackageLabel(`${line.variant.packValue}${line.variant.packUnit}`)}`).join(" + ")} · {money(plan.totalPriceMinor)}</p> : <p>Δεν υπάρχει ασφαλής συνδυασμός διαθέσιμων συσκευασιών.</p>}
                     <p>{quantity.basisEl}</p>
                   </>
                 ) : (
