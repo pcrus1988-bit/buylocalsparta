@@ -397,7 +397,7 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
   const quantity = manufacturerStatus === "verified" && manufacturer.quantity_inputs_available === true
     ? {
         status: "manufacturer_data_available" as const,
-        explanationEl: "Η ποσότητα μπορεί να υπολογιστεί μόνο από τις επαληθευμένες τιμές κατανάλωσης/κάλυψης και στρώσεων του επιλεγμένου προϊόντος."
+        explanationEl: "Η ποσότητα μπορεί να υπολογιστεί μόνο από τις επαληθευμένες τιμές κατανάλωσης, κάλυψης και στρώσεων του επιλεγμένου προϊόντος."
       }
     : manufacturerStatus === "not_selected"
       ? {
