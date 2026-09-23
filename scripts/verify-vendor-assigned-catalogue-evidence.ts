@@ -41,19 +41,24 @@ for (const contract of [
   "'evidenceOnly',true",
   "assortment_status NOT IN ('rejected','discontinued')"
 ]) expect(service.includes(contract), `Vendor assigned catalogue service is missing contract: ${contract}`);
-for (const forbidden of [
-  "INSERT INTO public.vendor_offers", "INSERT INTO vendor_offers",
-  "UPDATE public.vendor_offers", "UPDATE vendor_offers",
-  "INSERT INTO public.inventory_balances", "INSERT INTO inventory_balances",
-  "UPDATE public.inventory_balances", "UPDATE inventory_balances",
-  "SET assortment_status=", "SET availability_mode="
-]) expect(!service.includes(forbidden), `Assigned catalogue evidence must not mutate commerce state via: ${forbidden}`);
+for (const contract of [
+  "INSERT INTO public.vendor_offers",
+  "'draft'",
+  "INSERT INTO public.inventory_balances",
+  "'merchant_confirmed'",
+  "'activationPrepared',true",
+  "activationReady",
+  "commercialConfirmationRequired',false"
+]) expect(service.includes(contract), `Assigned catalogue service is missing governed draft-commerce bridge: ${contract}`);
+expect(!service.includes("SET status='approved'"), "Vendor evidence confirmation must never auto-approve a vendor offer");
 
 for (const contract of [
   "ASSIGNED_PAGE_SIZE = 40",
   "vendorAssignedCatalogueWorkspace(principal, { offset: assignedOffset, limit: ASSIGNED_PAGE_SIZE })",
   "Ανάθεση ≠ δημοσίευση",
-  "δεν δημιουργεί offer, inventory balance ή δημόσια διαθεσιμότητα",
+  "ιδιωτικό draft offer/inventory",
+  "Αίτημα ενεργοποίησης",
+  "παραμένει εκτός online πώλησης μέχρι την έγκριση Admin",
   "Δεν θεωρείται αυτόματα δική σου τιμή προμηθευτή",
   "confirmVendorAssignedCatalogueEvidence",
   "Προηγούμενα",
@@ -80,4 +85,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
-console.log("Vendor assigned catalogue evidence acceptance passed: assigned Supplier PIM rows are paginated and vendor-reviewable while supplier price/physical stock confirmations remain non-sellable evidence only.");
+console.log("Vendor assigned catalogue acceptance passed: unmatched evidence remains non-sellable, while fully confirmed matched rows can prepare private draft commerce and require explicit vendor request plus Admin approval.");
