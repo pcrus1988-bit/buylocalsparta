@@ -52,5 +52,5 @@ test("VITEX Care description is generated from verified manufacturer fields in G
     description,
     "Υψηλής ποιότητας ματ πλαστικό χρώμα για εσωτερική χρήση. Σύμφωνα με τα επαληθευμένα στοιχεία της VITEX, προορίζεται για εφαρμογή σε σκυρόδεμα, σοβά, τούβλο, γυψοσανίδα και σταθερές παλιές βαμμένες επιφάνειες."
   );
-  assert.doesNotMatch(description, /\\b(?:interior|sound old paint|emulsion paint|gypsum board)\\b/i);
+  assert.doesNotMatch(description, /\b(?:interior|sound old paint|emulsion paint|gypsum board)\b/i);
 });
