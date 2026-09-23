@@ -89,7 +89,39 @@ type ProductRow = SqlRow & {
   source_url: string | null;
   source_normalized_payload: unknown;
   source_raw_payload: unknown;
+  total_count?: number | string;
 };
+
+export type DemoCatalogSort = "recommended" | "price_asc" | "price_desc" | "name_asc";
+
+export type DemoCatalogQuery = Readonly<{
+  query?: string;
+  categories?: readonly string[];
+  brand?: string;
+  sort?: DemoCatalogSort;
+  offset?: number;
+  limit?: number;
+}>;
+
+export type DemoCatalogFacetOption = Readonly<{ value: string; label: string; count: number }>;
+
+export type DemoCatalogFacets = Readonly<{
+  total: number;
+  categories: readonly DemoCatalogFacetOption[];
+  brands: readonly DemoCatalogFacetOption[];
+  colors: readonly DemoCatalogFacetOption[];
+  sizes: readonly DemoCatalogFacetOption[];
+  fits: readonly DemoCatalogFacetOption[];
+  materials: readonly DemoCatalogFacetOption[];
+}>;
+
+export type DemoCatalogPage = Readonly<{
+  products: readonly DemoCatalogProduct[];
+  total: number;
+  offset: number;
+  limit: number;
+  nextOffset: number | null;
+}>;
 
 const ATTRIBUTE_LABELS: Readonly<Record<string, string>> = {
   power_w: "Ισχύς",
@@ -375,10 +407,17 @@ export async function getDemoStorefrontVendor(vendorKey: string): Promise<DemoSt
   };
 }
 
-async function productRows(vendorUuid: string, routeKey?: string, variantFamilyId?: string): Promise<readonly ProductRow[]> {
+async function productRows(
+  vendorUuid: string,
+  routeKey?: string,
+  variantFamilyId?: string,
+  options: DemoCatalogQuery = {}
+): Promise<readonly ProductRow[]> {
   const values: unknown[] = [vendorUuid];
   let routePredicate = "";
   let familyPredicate = "";
+  const filters: string[] = [];
+
   if (routeKey) {
     values.push(routeKey);
     routePredicate = `AND (assigned.id=$${values.length} OR assigned.slug=$${values.length})`;
@@ -387,6 +426,52 @@ async function productRows(vendorUuid: string, routeKey?: string, variantFamilyI
     values.push(variantFamilyId);
     familyPredicate = `AND assigned.source_normalized_payload->>'variantFamilyId'=$${values.length}`;
   }
+
+  const query = options.query?.trim() ?? "";
+  if (query) {
+    values.push(query);
+    filters.push(`(
+      assigned.title ILIKE '%'||$${values.length}||'%'
+      OR COALESCE(assigned.brand,'') ILIKE '%'||$${values.length}||'%'
+      OR COALESCE(assigned.model,'') ILIKE '%'||$${values.length}||'%'
+      OR COALESCE(assigned.gtin,'') ILIKE '%'||$${values.length}||'%'
+      OR COALESCE(assigned.mpn,'') ILIKE '%'||$${values.length}||'%'
+      OR COALESCE(assigned.source_supplier_code,'') ILIKE '%'||$${values.length}||'%'
+    )`);
+  }
+
+  const categories = [...new Set((options.categories ?? []).map((value) => value.trim()).filter(Boolean))].slice(0, 64);
+  if (categories.length) {
+    values.push(categories);
+    filters.push(`assigned.category_code = ANY($${values.length}::text[])`);
+  }
+
+  const brand = options.brand?.trim() ?? "";
+  if (brand) {
+    values.push(brand);
+    filters.push(`lower(COALESCE(assigned.brand,'')) = lower($${values.length})`);
+  }
+
+  const sort = options.sort ?? "recommended";
+  const sortSql = sort === "price_asc"
+    ? "CASE WHEN filtered.customer_price_minor>0 THEN 0 ELSE 1 END,filtered.customer_price_minor ASC,filtered.title,filtered.id"
+    : sort === "price_desc"
+      ? "CASE WHEN filtered.customer_price_minor>0 THEN 0 ELSE 1 END,filtered.customer_price_minor DESC,filtered.title,filtered.id"
+      : sort === "name_asc"
+        ? "filtered.title,filtered.id"
+        : "filtered.assignment_priority,filtered.assignment_updated_at DESC,filtered.title,filtered.id";
+
+  let pageSql = "";
+  if (options.limit !== undefined) {
+    const limit = Math.max(1, Math.min(60, Math.trunc(options.limit)));
+    const offset = Math.max(0, Math.trunc(options.offset ?? 0));
+    values.push(limit);
+    const limitParam = values.length;
+    values.push(offset);
+    const offsetParam = values.length;
+    pageSql = `LIMIT $${limitParam} OFFSET $${offsetParam}`;
+  }
+
   const result = await getProductionPostgresRuntime().sqlPool.query<ProductRow>(`
     WITH assigned AS (
       SELECT
@@ -457,21 +542,34 @@ async function productRows(vendorUuid: string, routeKey?: string, variantFamilyI
         AND vca.assortment_status NOT IN ('rejected','discontinued')
         AND cv.suppressed=false
         AND cv.recalled=false
+    ),
+    deduplicated AS (
+      SELECT DISTINCT ON (assigned.id) assigned.*
+      FROM assigned
+      WHERE true
+        ${routePredicate}
+        ${familyPredicate}
+      ORDER BY assigned.id,assigned.assignment_priority,assigned.assignment_updated_at DESC,assigned.source_product_id NULLS LAST
+    ),
+    filtered AS (
+      SELECT *
+      FROM deduplicated assigned
+      WHERE true
+        ${filters.length ? `AND ${filters.join("\n        AND ")}` : ""}
     )
-    SELECT DISTINCT ON (assigned.id)
-           assigned.id,assigned.slug,assigned.model,assigned.title,
-           assigned.category_code,assigned.category_label,
-           assigned.gtin,assigned.mpn,assigned.description,assigned.brand,
-           assigned.variant_attributes,assigned.specifications,
-           assigned.customer_price_minor,assigned.offer_status,assigned.vendor_sku,
-           assigned.available_to_sell,assigned.source_product_id,assigned.source_supplier_code,
-           assigned.source_image_url,assigned.source_url,
-           assigned.source_normalized_payload,assigned.source_raw_payload
-    FROM assigned
-    WHERE true
-      ${routePredicate}
-      ${familyPredicate}
-    ORDER BY assigned.id,assigned.assignment_priority,assigned.assignment_updated_at DESC,assigned.source_product_id NULLS LAST
+    SELECT
+      filtered.id,filtered.slug,filtered.model,filtered.title,
+      filtered.category_code,filtered.category_label,
+      filtered.gtin,filtered.mpn,filtered.description,filtered.brand,
+      filtered.variant_attributes,filtered.specifications,
+      filtered.customer_price_minor,filtered.offer_status,filtered.vendor_sku,
+      filtered.available_to_sell,filtered.source_product_id,filtered.source_supplier_code,
+      filtered.source_image_url,filtered.source_url,
+      filtered.source_normalized_payload,filtered.source_raw_payload,
+      count(*) OVER() AS total_count
+    FROM filtered
+    ORDER BY ${sortSql}
+    ${pageSql}
   `, values);
   return result.rows;
 }
@@ -488,8 +586,83 @@ async function attachApprovedImages(rows: readonly ProductRow[], vendor: DemoSto
   return rows.map((row) => productFromRow(row, vendor, imageById.get(text(row.id))));
 }
 
+function facetOptions(values: readonly Readonly<{ value?: string | null; label?: string | null }>[]): readonly DemoCatalogFacetOption[] {
+  const counts = new Map<string, { label: string; count: number }>();
+  for (const entry of values) {
+    const value = entry.value?.trim();
+    if (!value) continue;
+    const current = counts.get(value);
+    counts.set(value, { label: entry.label?.trim() || value, count: (current?.count ?? 0) + 1 });
+  }
+  return [...counts.entries()]
+    .map(([value, entry]) => ({ value, label: entry.label, count: entry.count }))
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "el"));
+}
+
+export async function getDemoVendorCatalogPage(
+  vendor: DemoStorefrontVendor,
+  options: DemoCatalogQuery = {}
+): Promise<DemoCatalogPage> {
+  const offset = Math.max(0, Math.trunc(options.offset ?? 0));
+  const limit = Math.max(1, Math.min(60, Math.trunc(options.limit ?? 20)));
+  const rows = await productRows(vendor.uuid, undefined, undefined, { ...options, offset, limit });
+  const products = await attachApprovedImages(rows, vendor);
+  const total = Math.max(0, Math.trunc(numeric(rows[0]?.total_count) ?? 0));
+  return {
+    products,
+    total,
+    offset,
+    limit,
+    nextOffset: offset + limit < total ? offset + limit : null
+  };
+}
+
+export async function getDemoVendorCatalogFacets(vendor: DemoStorefrontVendor): Promise<DemoCatalogFacets> {
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow & {
+    category_code: string;
+    category_label: string | null;
+    brand: string | null;
+  }>(`
+    WITH assigned_variants AS (
+      SELECT vo.canonical_variant_id
+      FROM vendor_offers vo
+      WHERE vo.vendor_id=$1::uuid
+        AND vo.status IN ('draft','pending_review','approved')
+
+      UNION
+
+      SELECT vca.canonical_variant_id
+      FROM vendor_catalog_assortments vca
+      WHERE vca.vendor_id=$1::uuid
+        AND vca.canonical_variant_id IS NOT NULL
+        AND vca.assortment_status NOT IN ('rejected','discontinued')
+    )
+    SELECT c.code AS category_code,
+           COALESCE(ctel.name,cten.name,c.code) AS category_label,
+           b.name AS brand
+    FROM assigned_variants av
+    JOIN canonical_variants cv ON cv.id=av.canonical_variant_id
+    JOIN categories c ON c.id=cv.category_id
+    LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
+    LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
+    LEFT JOIN brands b ON b.id=cv.brand_id
+    WHERE cv.suppressed=false
+      AND cv.recalled=false
+  `, [vendor.uuid]);
+
+  return {
+    total: result.rows.length,
+    categories: facetOptions(result.rows.map((row) => ({ value: text(row.category_code), label: optionalText(row.category_label) }))),
+    brands: facetOptions(result.rows.map((row) => ({ value: optionalText(row.brand), label: optionalText(row.brand) }))),
+    colors: [],
+    sizes: [],
+    fits: [],
+    materials: []
+  };
+}
+
 export async function getDemoVendorCatalogCards(vendor: DemoStorefrontVendor): Promise<readonly DemoCatalogProduct[]> {
-  return attachApprovedImages(await productRows(vendor.uuid), vendor);
+  return (await getDemoVendorCatalogPage(vendor)).products;
 }
 
 export async function getDemoVendorCatalogProduct(vendor: DemoStorefrontVendor, routeKey: string): Promise<DemoCatalogProduct | undefined> {
