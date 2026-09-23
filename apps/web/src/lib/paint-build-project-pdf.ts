@@ -21,6 +21,7 @@ function record(value: unknown): Record<string, unknown> {
 type PaintBuildPdfAssets = Readonly<{
   brandLogoDataUrl?: string;
   productImageDataUrl?: string;
+  kitItemImageDataUrls?: Readonly<Record<string, string>>;
 }>;
 
 function values(value: unknown): readonly string[] {
@@ -30,6 +31,7 @@ function values(value: unknown): readonly string[] {
 }
 
 function numeric(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
@@ -45,6 +47,50 @@ function rangeText(min: unknown, max: unknown, suffix = ""): string | undefined 
 function joinValues(value: unknown): string | undefined {
   const rows = values(value);
   return rows.length ? rows.join(" · ") : undefined;
+}
+
+
+const PDF_EXACT_TRANSLATIONS: Readonly<Record<string, string>> = {
+  "Prepare sound substrate before coating.": "Προετοίμασε σταθερή, καθαρή και κατάλληλη επιφάνεια πριν από τη βαφή.",
+  "Fill holes and cracks with Acrylic Putty.": "Γέμισε οπές και ρωγμές με ακρυλικό στόκο Acrylic Putty.",
+  "New plaster/cement surfaces: allow at least 30 days to dry before painting.": "Σε νέες επιφάνειες σοβά ή τσιμέντου, άφησε τουλάχιστον 30 ημέρες να στεγνώσουν πριν από τη βαφή.",
+  "Tint only through Vitex Coloring System in the recommended base.": "Ο χρωματισμός γίνεται μόνο μέσω του συστήματος χρωματισμού Vitex και στην προτεινόμενη βάση.",
+  "Do not apply if rain or frost is expected within 48 hours.": "Μην εφαρμόζεις το προϊόν αν αναμένεται βροχή ή παγετός μέσα στις επόμενες 48 ώρες.",
+  "after drying/curing inspect adhesion, uniformity and signs of blistering, cracking or moisture-related distress": "Μετά το στέγνωμα και την ωρίμανση, έλεγξε την πρόσφυση, την ομοιομορφία και τυχόν ενδείξεις φουσκώματος, ρωγμών ή προβλημάτων που σχετίζονται με υγρασία.",
+  "investigate recurring moisture or cracking rather than repeatedly overcoating symptoms": "Διερεύνησε την αιτία επαναλαμβανόμενης υγρασίας ή ρωγμών αντί να καλύπτεις επανειλημμένα μόνο τα συμπτώματα.",
+  "One-coat theoretical coverage; TDS also states 8-9 m²/L for two coats.": "Θεωρητική κάλυψη μίας στρώσης· το τεχνικό δελτίο αναφέρει επίσης 8–9 m²/L για δύο στρώσεις."
+};
+
+function pdfGreekText(value: string): string {
+  const normalized = value.trim();
+  const exact = PDF_EXACT_TRANSLATIONS[normalized];
+  if (exact) return exact;
+  return normalized
+    .replace(/manufacturer dataset/gi, "στοιχεία κατασκευαστή")
+    .replace(/coverage/gi, "κάλυψη")
+    .replace(/\bwater\b/gi, "νερό")
+    .replace(/\broller\b/gi, "ρολό")
+    .replace(/\bbrush\b/gi, "πινέλο")
+    .replace(/airless spray/gi, "ψεκασμός χωρίς αέρα")
+    .replace(/\bcoating\b/gi, "βαφή");
+}
+
+function projectTypeLabel(value: string): string {
+  if (value === "paint") return "Βαφή";
+  if (value === "waterproofing") return "Στεγανοποίηση";
+  if (value === "insulation") return "Θερμομόνωση";
+  if (value === "repair") return "Επισκευή";
+  return pdfGreekText(value);
+}
+
+function kitProductUrl(canonicalVariantId: string): string {
+  return `https://kontamou.site/product/${encodeURIComponent(canonicalVariantId)}`;
+}
+
+function kitRoleLabel(role: string, required: boolean): string {
+  if (required) return "ΑΠΑΡΑΙΤΗΤΟ";
+  if (role === "recommended_working") return "ΠΡΟΤΕΙΝΟΜΕΝΟ";
+  return "ΠΡΟΑΙΡΕΤΙΚΟ";
 }
 
 function absoluteProductUrl(value: unknown): string | undefined {
@@ -74,7 +120,7 @@ function quickGuideItems(snapshot: PaintBuildProjectSnapshot): readonly BuildGui
     if (!display || unique.has(display)) continue;
     unique.set(display, item.shortEl ? { ...item, textEl: item.shortEl } : item);
   }
-  return [...unique.values()].slice(0, 8);
+  return [...unique.values()].slice(0, 6);
 }
 
 function productOverview(snapshot: PaintBuildProjectSnapshot, assets: PaintBuildPdfAssets) {
@@ -141,7 +187,7 @@ function quickGuideSection(snapshot: PaintBuildProjectSnapshot) {
         body: items.map((item, index) => [
           { text: String(index + 1).padStart(2, "0"), style: "quickNumber" },
           { stack: [
-            { text: item.textEl, style: "quickText" },
+            { text: pdfGreekText(item.textEl), style: "quickText" },
             { text: sourceLabel(item.sourceLayer), style: item.sourceLayer === "KONTA_MOU_RULE" ? "sourceSafety" : item.sourceLayer.startsWith("MANUFACTURER") ? "sourceManufacturer" : "sourceGeneral", margin: [0, 3, 0, 0] }
           ] }
         ])
@@ -165,7 +211,7 @@ function manufacturerDataSheet(snapshot: PaintBuildProjectSnapshot) {
   const profile = record(manufacturer.application_profile);
   if (text(manufacturer.status) !== "verified" || !Object.keys(profile).length) return [];
   const scalarRows: Array<[string, string]> = [];
-  const push = (label: string, value: string | undefined) => { if (value) scalarRows.push([label, value]); };
+  const push = (label: string, value: string | undefined) => { if (value) scalarRows.push([label, pdfGreekText(value)]); };
   push("Κάλυψη", rangeText(profile.coverage_m2_per_litre_min, profile.coverage_m2_per_litre_max, " m²/L"));
   push("Αριθμός στρώσεων", rangeText(profile.number_of_coats_min, profile.number_of_coats_max, ""));
   const dilution = rangeText(profile.dilution_percent_min, profile.dilution_percent_max, "%");
@@ -185,19 +231,19 @@ function manufacturerDataSheet(snapshot: PaintBuildProjectSnapshot) {
   push("Απαιτήσεις υγρασίας", text(profile.moisture_requirements));
 
   const detailGroups = [
-    ["Προετοιμασία επιφάνειας", values(profile.surface_preparation)],
-    ["Καθαρισμός πριν την εφαρμογή", values(profile.cleaning_before_application)],
-    ["Απαιτήσεις επισκευής", values(profile.repair_requirements)],
-    ["Περιορισμοί καιρού / περιβάλλοντος", values(profile.weather_restrictions)],
-    ["Μην κάνεις", values(profile.manufacturer_do_not_do)],
-    ["Δεν είναι κατάλληλο για", values(profile.not_suitable_for)],
-    ["Προειδοποιήσεις ασφαλείας", values(profile.safety_warnings)],
-    ["Ειδικές σημειώσεις εφαρμογής", values(profile.special_application_notes)]
+    ["Προετοιμασία επιφάνειας", values(profile.surface_preparation).map(pdfGreekText)],
+    ["Καθαρισμός πριν την εφαρμογή", values(profile.cleaning_before_application).map(pdfGreekText)],
+    ["Απαιτήσεις επισκευής", values(profile.repair_requirements).map(pdfGreekText)],
+    ["Περιορισμοί καιρού / περιβάλλοντος", values(profile.weather_restrictions).map(pdfGreekText)],
+    ["Τι να αποφεύγεις", values(profile.manufacturer_do_not_do).map(pdfGreekText)],
+    ["Δεν είναι κατάλληλο για", values(profile.not_suitable_for).map(pdfGreekText)],
+    ["Προειδοποιήσεις ασφαλείας", values(profile.safety_warnings).map(pdfGreekText)],
+    ["Ειδικές σημειώσεις εφαρμογής", values(profile.special_application_notes).map(pdfGreekText)]
   ] as const;
 
   const content: unknown[] = [
     { text: "ΤΕΧΝΙΚΗ ΚΑΡΤΑ ΕΠΙΛΕΓΜΕΝΟΥ ΠΡΟΪΟΝΤΟΣ", style: "groupTitle", margin: [0, 18, 0, 6], pageBreak: "before" },
-    { text: "Εμφανίζονται μόνο τα πεδία που υπάρχουν στο επαληθευμένο manufacturer dataset του επιλεγμένου προϊόντος.", style: "body", margin: [0, 0, 0, 8] }
+    { text: "Εμφανίζονται μόνο τα πεδία που υπάρχουν στα επαληθευμένα στοιχεία του κατασκευαστή για το επιλεγμένο προϊόν.", style: "body", margin: [0, 0, 0, 8] }
   ];
   if (scalarRows.length) {
     content.push({
@@ -298,11 +344,22 @@ async function brandLogoDataUrl(): Promise<string | undefined> {
 async function loadPaintBuildPdfAssets(snapshot: PaintBuildProjectSnapshot): Promise<PaintBuildPdfAssets> {
   const product = snapshot.project.selectedProduct;
   const imageSource = product?.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : product?.imageUrl;
-  const [brandLogo, productImage] = await Promise.all([
+  const selectedKitItems = snapshot.project.kit?.items.filter((item) => item.selected).slice(0, 16) ?? [];
+  const [brandLogo, productImage, kitImages] = await Promise.all([
     brandLogoDataUrl(),
-    fetchPdfImage(imageSource)
+    fetchPdfImage(imageSource),
+    Promise.all(selectedKitItems.map(async (item) => [
+      item.canonicalVariantId,
+      await fetchPdfImage(item.imageUrl)
+    ] as const))
   ]);
-  return { brandLogoDataUrl: brandLogo, productImageDataUrl: productImage };
+  return {
+    brandLogoDataUrl: brandLogo,
+    productImageDataUrl: productImage,
+    kitItemImageDataUrls: Object.fromEntries(
+      kitImages.filter((entry): entry is readonly [string, string] => Boolean(entry[1]))
+    )
+  };
 }
 
 function evidenceReferences(snapshot: PaintBuildProjectSnapshot) {
@@ -345,7 +402,7 @@ function itemStack(items: readonly BuildGuidanceUiItem[]) {
       style: item.sourceLayer === "KONTA_MOU_RULE" ? "sourceSafety" : item.sourceLayer.startsWith("MANUFACTURER") ? "sourceManufacturer" : "sourceGeneral",
       margin: [0, 4, 0, 2]
     },
-    { text: item.textEl, style: "body", margin: [0, 0, 0, 5] }
+    { text: pdfGreekText(item.textEl), style: "body", margin: [0, 0, 0, 5] }
   ]);
 }
 
