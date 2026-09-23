@@ -30,7 +30,7 @@
     },
     {
       "path": "/api/cron/merchant-sync",
-      "schedule": "* * * * *"
+      "schedule": "*/10 * * * *"
     },
     {
       "path": "/api/cron/merchant-status",
