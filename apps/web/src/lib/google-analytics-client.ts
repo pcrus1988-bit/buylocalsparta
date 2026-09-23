@@ -148,9 +148,11 @@ export function ensureGoogleAnalytics(): GoogleAnalyticsWindow | undefined {
   return target;
 }
 
-export function trackGoogleAnalyticsEvent(eventName: string, parameters: Record<string, unknown> = {}): void {
+export function trackGoogleAnalyticsEvent(eventName: string, parameters: Record<string, unknown> = {}): boolean {
   const target = ensureGoogleAnalytics();
-  target?.gtag?.("event", eventName, parameters);
+  if (!target?.gtag) return false;
+  target.gtag("event", eventName, parameters);
+  return true;
 }
 
 export function googleAnalyticsItem(input: Readonly<{
