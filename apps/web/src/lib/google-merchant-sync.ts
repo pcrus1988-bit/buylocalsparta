@@ -480,7 +480,7 @@ export async function syncGoogleMerchantCatalogue(now = Date.now()): Promise<Goo
     return { status, shard, shardCount: config.shardCount, candidates: rows.length, submitted, unchanged, skippedNoImage, failed, cleanupExamined: cleanup.examined, cleanupDeleted: cleanup.deleted, cleanupFailed: cleanup.failed, errors };
   } catch (error) {
     failureMessage = errorText(error);
-    if (runId) await pool.query(`UPDATE public.merchant_sync_runs SET status='failed',failed_count=failed_count+1,metadata=jsonb_build_object('error',$2),finished_at=now() WHERE id=$1`, [runId,failureMessage]).catch(() => undefined);
+    if (runId) await pool.query(`UPDATE public.merchant_sync_runs SET status='failed',failed_count=failed_count+1,metadata=jsonb_build_object('error',$2::text),finished_at=now() WHERE id=$1`, [runId,failureMessage]).catch(() => undefined);
     throw error;
   } finally {
     const finishedAt = new Date();
