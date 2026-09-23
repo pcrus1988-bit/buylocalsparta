@@ -1,30 +1,13 @@
-import { unstable_cache } from "next/cache";
 import { getSeoGlobalSettingsSnapshot } from "../../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../../lib/seo-entity-overrides";
 import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../../lib/seo-entity-policy";
 import { productPublicPath } from "../../../../lib/product-url";
-import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../lib/postgres-runtime";
-import { PRODUCT_SITEMAP_SHARD_COUNT } from "../../../../lib/product-sitemap-inventory";
+import { getPublicProductSitemapInventoryShard, PRODUCT_SITEMAP_SHARD_COUNT } from "../../../../lib/product-sitemap-inventory";
+import { productIndexEligibility } from "../../../../lib/seo-visibility-policy";
 
 export const dynamic = "force-dynamic";
 
 type RouteContext = Readonly<{ params: Promise<{ shard: string }> }>;
-
-type SitemapRouteCandidate = Readonly<{
-  id: string;
-  slug: string;
-  entityEligible: boolean;
-  defaultIndexAllowed: boolean;
-}>;
-
-type SitemapRouteRow = Readonly<{
-  id: string;
-  slug: string;
-  entity_eligible: boolean;
-  default_index_allowed: boolean;
-}>;
-
-const HEX_SHARDS = "0123456789abcdef";
 
 function escapeXml(value: string): string {
   return value
@@ -41,89 +24,20 @@ function safeLastModified(value: string | undefined): string | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
 }
 
-function assertShard(shard: number): void {
-  if (!Number.isSafeInteger(shard) || shard < 0 || shard >= PRODUCT_SITEMAP_SHARD_COUNT) {
-    throw new RangeError(`Invalid product sitemap shard: ${shard}`);
-  }
-}
-
-function shardBounds(shard: number): readonly [string, string] {
-  assertShard(shard);
-  const lower = HEX_SHARDS[shard];
-  const upper = shard === PRODUCT_SITEMAP_SHARD_COUNT - 1 ? "g" : HEX_SHARDS[shard + 1];
-  return [lower, upper];
+function emptySitemap(): string {
+  return '<?xml version="1.0" encoding="UTF-8"?>\n'
+    + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" '
+    + 'xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"></urlset>';
 }
 
 /**
- * Production sitemap projection.
+ * Product + image sitemap.
  *
- * This deliberately starts from one UUID-prefix shard before touching offers,
- * inventory, translations or source media. The old sitemap path rebuilt the whole
- * catalogue, global duplicate-title analytics and media projections for every
- * crawler request. That work belongs in enrichment/admin verification, not in the
- * public XML request path.
- *
- * The storefront read model already applies the expensive active/safe canonical,
- * vendor/location, category-visibility, price/cost-ceiling and sellability rules
- * during its controlled background refresh. Sitemap requests therefore read only
- * that compact projection and re-check freshness timestamps at request time.
- * This prevents crawler bursts from rebuilding the catalogue eligibility graph.
+ * Admission uses the authoritative live-offer projection from
+ * product-sitemap-inventory rather than storefront read-model freshness. This keeps
+ * organic indexability aligned with the same stock evidence used by commerce and
+ * Merchant Center while exposing stable same-origin image URLs to Googlebot-Image.
  */
-async function readPublicProductSitemapRouteShard(shard: number): Promise<readonly SitemapRouteCandidate[]> {
-  if (!productionDatabaseConfigured()) return [];
-  const [lowerBound, upperBound] = shardBounds(shard);
-
-  const result = await getProductionPostgresRuntime().nativePool.query<SitemapRouteRow>(`
-    SELECT
-      rm.canonical_public_id AS id,
-      rm.slug,
-      (
-        length(BTRIM(rm.title))>=3
-        AND BTRIM(rm.title) !~* '^(test|demo|dummy|sample|placeholder|δοκιμ(ή|η)|δοκιμαστικ(ό|ο))(\\s|[-_:/#]|$)'
-        AND length(BTRIM(rm.category_code))>=2
-      ) AS entity_eligible,
-      (
-        length(BTRIM(rm.title))>=3
-        AND BTRIM(rm.title) !~* '^(test|demo|dummy|sample|placeholder|δοκιμ(ή|η)|δοκιμαστικ(ό|ο))(\\s|[-_:/#]|$)'
-        AND length(BTRIM(rm.category_code))>=2
-        AND (
-          length(BTRIM(rm.description))>=60
-          OR length(BTRIM(COALESCE(rm.brand_name,'')))>=2
-          OR length(BTRIM(COALESCE(rm.gtin,'')))>=8
-          OR length(BTRIM(COALESCE(rm.mpn,'')))>=2
-          OR length(BTRIM(COALESCE(rm.color,'')))>=2
-          OR (
-            jsonb_typeof(rm.sizes)='array'
-            AND jsonb_array_length(rm.sizes)>0
-          )
-        )
-      ) AS default_index_allowed
-    FROM public.storefront_catalog_read_model rm
-    WHERE rm.canonical_public_id >= $1
-      AND rm.canonical_public_id < $2
-      AND rm.eligible_offer_count>0
-      AND (
-        (rm.local_sellable=true AND rm.local_available_until>now())
-        OR
-        (rm.dropship_sellable=true AND rm.dropship_available_until>now())
-      )
-    ORDER BY rm.canonical_public_id
-  `, [lowerBound, upperBound]);
-
-  return result.rows.map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    entityEligible: row.entity_eligible,
-    defaultIndexAllowed: row.default_index_allowed
-  }));
-}
-
-const cachedPublicProductSitemapRouteShard = unstable_cache(
-  (shard: number) => readPublicProductSitemapRouteShard(shard),
-  ["public-product-sitemap-route-shard-v4"],
-  { revalidate: 900 }
-);
-
 export async function GET(_request: Request, { params }: RouteContext): Promise<Response> {
   const { shard: shardSegment } = await params;
   const rawShard = shardSegment.endsWith(".xml") ? shardSegment.slice(0, -4) : shardSegment;
@@ -138,15 +52,15 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
   ]);
 
   if (!settings.indexingEnabled || !settings.sitemap.products) {
-    return new Response('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>', {
+    return new Response(emptySitemap(), {
       status: 200,
       headers: { "Content-Type": "application/xml; charset=utf-8" }
     });
   }
 
-  let products: readonly SitemapRouteCandidate[];
+  let products: Awaited<ReturnType<typeof getPublicProductSitemapInventoryShard>>;
   try {
-    products = await cachedPublicProductSitemapRouteShard(shard);
+    products = await getPublicProductSitemapInventoryShard(shard);
   } catch (error) {
     console.error(JSON.stringify({ level: "error", event: "seo.product_sitemap_shard_failed", shard, message: String(error) }));
     return new Response("Sitemap temporarily unavailable", {
@@ -159,27 +73,43 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
   const urls = products.flatMap((product) => {
     const reference: SeoEntityReference = { kind: "product", id: product.id };
     const override = findSeoEntityOverride(overrideSnapshot.entries, reference);
+    const quality = productIndexEligibility(product);
     const control = resolveSeoEntityControl({
       settings,
       kind: reference.kind,
-      entityEligible: product.entityEligible,
-      defaultIndexAllowed: product.defaultIndexAllowed,
+      entityEligible: quality.blockingReasons.length === 0,
+      defaultIndexAllowed: quality.eligible,
       override
     });
     if (!control.sitemapAllowed) return [];
 
     const url = new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString();
-    return [{ url, lastModified: safeLastModified(override?.lastReviewedAt) }];
+    const imageUrl = product.mediaId
+      ? new URL(`/api/media/${encodeURIComponent(product.mediaId)}`, `${origin}/`).toString()
+      : product.sourceImageAvailable
+        ? new URL(`/api/catalog-source-image/${encodeURIComponent(product.id)}`, `${origin}/`).toString()
+        : undefined;
+
+    return [{
+      url,
+      imageUrl,
+      lastModified: safeLastModified(override?.lastReviewedAt)
+    }];
   });
 
   const deduped = [...new Map(urls.map((entry) => [entry.url, entry])).values()];
   const body = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
     ...deduped.map((entry) => [
       "  <url>",
       `    <loc>${escapeXml(entry.url)}</loc>`,
       ...(entry.lastModified ? [`    <lastmod>${entry.lastModified}</lastmod>`] : []),
+      ...(entry.imageUrl ? [
+        "    <image:image>",
+        `      <image:loc>${escapeXml(entry.imageUrl)}</image:loc>`,
+        "    </image:image>"
+      ] : []),
       "    <changefreq>daily</changefreq>",
       "    <priority>0.75</priority>",
       "  </url>"
