@@ -456,7 +456,7 @@ function ProjectKitScreen({
         <div><small>ΠΡΟΤΕΙΝΟΜΕΝΗ ΑΓΟΡΑ</small><strong>{projectKit.packPlan ? projectKit.packPlan.lines.map((line) => `${line.quantity}×${line.variant.packValue}${line.variant.packUnit}`).join(" + ") : "Απαιτείται συμπλήρωση δεδομένων"}</strong></div>
       </div>
 
-      {requiredItems.length ? <div className={styles.kitGroup}><div className={styles.kitGroupHead}><span>01</span><div><small>VITEX SYSTEM</small><h2>Απαιτούμενα υλικά συστήματος</h2></div></div>{requiredItems.map(renderItem)}</div> : null}
+      {requiredItems.length ? <div className={styles.kitGroup}><div className={styles.kitGroupHead}><span>01</span><div><small>ΣΥΣΤΗΜΑ VITEX</small><h2>Απαιτούμενα υλικά συστήματος</h2></div></div>{requiredItems.map(renderItem)}</div> : null}
 
       {unresolvedRequired.length ? (
         <div className={styles.warningPanel}>
@@ -466,12 +466,12 @@ function ProjectKitScreen({
       ) : null}
 
       <div className={styles.kitGroup}>
-        <div className={styles.kitGroupHead}><span>02</span><div><small>KONTA MOY RULES</small><h2>Προτεινόμενα υλικά εργασίας</h2></div></div>
+        <div className={styles.kitGroupHead}><span>02</span><div><small>ΚΑΝΟΝΕΣ ΚΟΝΤΑ ΜΟΥ</small><h2>Προτεινόμενα υλικά εργασίας</h2></div></div>
         {recommendedItems.length ? recommendedItems.map(renderItem) : <p className={styles.kitEmpty}>Δεν υπάρχουν ακόμη πραγματικά διαθέσιμα προϊόντα στις αντίστοιχες κατηγορίες του καταλόγου.</p>}
       </div>
 
       <div className={styles.kitGroup}>
-        <div className={styles.kitGroupHead}><span>03</span><div><small>OPTIONAL</small><h2>Προαιρετικά extras</h2></div></div>
+        <div className={styles.kitGroupHead}><span>03</span><div><small>ΠΡΟΑΙΡΕΤΙΚΑ</small><h2>Προαιρετικά extras</h2></div></div>
         {optionalItems.length ? optionalItems.map(renderItem) : <p className={styles.kitEmpty}>Δεν υπάρχουν ακόμη διαθέσιμα προαιρετικά αξεσουάρ για αυτό το έργο.</p>}
       </div>
 
