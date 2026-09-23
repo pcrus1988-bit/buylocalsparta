@@ -123,7 +123,6 @@ export async function vendorAssignedCatalogueWorkspace(
              vca.stock_check_status,
              current_offer.public_id AS offer_id,
              current_offer.status::text AS offer_status,
-             activation_request.status AS activation_request_status,
              vb.demo_mode,
              vb.status::text AS vendor_status,
              vca.updated_at
@@ -149,13 +148,6 @@ export async function vendorAssignedCatalogueWorkspace(
         ORDER BY vo.updated_at DESC,vo.created_at DESC
         LIMIT 1
       ) current_offer ON true
-      LEFT JOIN LATERAL (
-        SELECT r.status
-        FROM public.vendor_product_activation_requests r
-        WHERE r.offer_id=current_offer.id
-        ORDER BY (r.status='pending') DESC,r.requested_at DESC
-        LIMIT 1
-      ) activation_request ON true
       LEFT JOIN LATERAL (
         SELECT po.amount_minor,po.price_kind
         FROM public.catalog_price_observations po
@@ -204,14 +196,13 @@ export async function vendorAssignedCatalogueWorkspace(
         stockCheckStatus: stockCheckStatus as VendorAssignedCatalogueProduct["stockCheckStatus"],
         offerId: optionalText(row.offer_id),
         offerStatus: optionalText(row.offer_status),
-        activationRequestStatus: optionalText(row.activation_request_status),
+        activationRequestStatus: optionalText(row.offer_status) === "pending_review" ? "pending" : undefined,
         activationReady:
           priceCheckStatus === "confirmed"
           && stockCheckStatus === "confirmed"
           && (optionalInteger(row.verified_stock_on_hand) ?? 0) > 0
           && Boolean(optionalText(row.canonical_variant_id))
-          && optionalText(row.offer_status) === "draft"
-          && optionalText(row.activation_request_status) !== "pending",
+          && optionalText(row.offer_status) === "draft",
         demoMode: row.demo_mode === true,
         vendorStatus: text(row.vendor_status, "vendor status"),
         updatedAt: epoch(row.updated_at)
