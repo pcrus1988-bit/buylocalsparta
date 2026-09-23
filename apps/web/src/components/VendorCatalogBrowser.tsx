@@ -403,11 +403,12 @@ function SortSelect({ value, onChange, compact = false }: { value: CatalogSort; 
   </label>;
 }
 
-export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId }: {
+export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId, initialTotal }: {
   products: readonly CatalogCard[];
   vendor: Readonly<{ name: string; adviser?: string }>;
   demoVendorId?: string;
   vendorId?: string;
+  initialTotal?: number;
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -428,7 +429,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   const [guideFamily, setGuideFamily] = useState<GuideFamily | null>(null);
   const [beautyFamily, setBeautyFamily] = useState<BeautyFamily | null>(null);
   const [remoteProducts, setRemoteProducts] = useState<readonly CatalogCard[] | null>(demoVendorId ? products : null);
-  const [remoteTotal, setRemoteTotal] = useState<number | undefined>(demoVendorId ? products.length : undefined);
+  const [remoteTotal, setRemoteTotal] = useState<number | undefined>(initialTotal ?? (demoVendorId ? products.length : undefined));
   const [remoteOffset, setRemoteOffset] = useState(0);
   const [remoteNextOffset, setRemoteNextOffset] = useState<number | null>(null);
   const [remoteFacets, setRemoteFacets] = useState<RemoteFacets>();
@@ -444,6 +445,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   const catalogResultsRef = useRef<HTMLDivElement | null>(null);
 
   const demoMode = Boolean(demoVendorId);
+  const requestVendorId = demoVendorId ?? publicVendorId;
   const isGuidedVendor = Boolean(publicVendorId ?? vendorId ?? demoVendorId);
   const filters = useMemo<FilterState>(() => ({ query, category, categoryGroup, brand, color, size, fit, material, sort, availability }), [availability, brand, category, categoryGroup, color, fit, material, query, size, sort]);
 
@@ -461,13 +463,14 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   }, [demoMode, publicVendorId]);
 
   const fetchPage = useCallback(async (id: string, input: FilterState, offset: number, signal?: AbortSignal) => {
-    const response = await fetch(`/api/catalog/vendor/${encodeURIComponent(id)}?${pageParams(input, offset).toString()}`, { signal, cache: "default" });
+    const endpoint = demoMode ? "/api/demo/catalog/vendor" : "/api/catalog/vendor";
+    const response = await fetch(`${endpoint}/${encodeURIComponent(id)}?${pageParams(input, offset).toString()}`, { signal, cache: demoMode ? "no-store" : "default" });
     if (!response.ok) throw new Error(`Catalogue request failed with ${response.status}`);
     return response.json() as Promise<VendorCatalogApiResponse>;
-  }, []);
+  }, [demoMode]);
 
   useEffect(() => {
-    if (!publicVendorId || demoMode) return;
+    if (!requestVendorId) return;
     const serial = ++requestSerial.current;
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
@@ -481,7 +484,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
       setRemoteOffset(0);
       setRemoteNextOffset(null);
       try {
-        const payload = await fetchPage(publicVendorId, filters, 0, controller.signal);
+        const payload = await fetchPage(requestVendorId, filters, 0, controller.signal);
         if (serial !== requestSerial.current) return;
         setRemoteProducts(payload.products);
         if (typeof payload.total === "number") setRemoteTotal(payload.total);
@@ -502,13 +505,13 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
       window.clearTimeout(watchdog);
       controller.abort();
     };
-  }, [demoMode, fetchPage, filters, publicVendorId, query]);
+  }, [fetchPage, filters, query, requestVendorId]);
 
   useEffect(() => {
     // Page results are the latency-critical request. Do not compete for a
     // production DB connection with the heavier contextual-facet request.
     // Once the page settles, this effect reruns and refreshes the facets.
-    if (!publicVendorId || demoMode || remoteLoading) return;
+    if (!requestVendorId || remoteLoading) return;
     const serial = ++facetRequestSerial.current;
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
@@ -521,7 +524,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
         params.delete("sort");
         params.set("facets", "1");
         params.set("facetsOnly", "1");
-        const requestUrl = `/api/catalog/vendor/${encodeURIComponent(publicVendorId)}?${params.toString()}`;
+        const requestUrl = `/api/catalog/vendor/${encodeURIComponent(requestVendorId)}?${params.toString()}`;
         let payload: VendorCatalogApiResponse | undefined;
         let lastStatus = 0;
         for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -555,7 +558,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [demoMode, filters, publicVendorId, query, remoteLoading]);
+  }, [filters, query, remoteLoading, requestVendorId]);
 
   const facetFallbackProducts = remoteProducts ?? products;
   const categories = useMemo(
@@ -567,20 +570,20 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     [facetFallbackProducts, remoteFacets]
   );
   const colors = useMemo(
-    () => remoteFacets?.colors.length ? remoteFacets.colors : fallbackFacetOptions(facetFallbackProducts.map((product) => product.color)),
-    [facetFallbackProducts, remoteFacets]
+    () => demoMode ? [] : remoteFacets?.colors.length ? remoteFacets.colors : fallbackFacetOptions(facetFallbackProducts.map((product) => product.color)),
+    [demoMode, facetFallbackProducts, remoteFacets]
   );
   const sizes = useMemo(
-    () => remoteFacets?.sizes.length ? remoteFacets.sizes : fallbackFacetOptions(facetFallbackProducts.flatMap((product) => product.sizes)),
-    [facetFallbackProducts, remoteFacets]
+    () => demoMode ? [] : remoteFacets?.sizes.length ? remoteFacets.sizes : fallbackFacetOptions(facetFallbackProducts.flatMap((product) => product.sizes)),
+    [demoMode, facetFallbackProducts, remoteFacets]
   );
   const fits = useMemo(
-    () => remoteFacets?.fits.length ? remoteFacets.fits : fallbackFacetOptions(facetFallbackProducts.map((product) => product.fit)),
-    [facetFallbackProducts, remoteFacets]
+    () => demoMode ? [] : remoteFacets?.fits.length ? remoteFacets.fits : fallbackFacetOptions(facetFallbackProducts.map((product) => product.fit)),
+    [demoMode, facetFallbackProducts, remoteFacets]
   );
   const materials = useMemo(
-    () => remoteFacets?.materials.length ? remoteFacets.materials : fallbackMaterialOptions(facetFallbackProducts),
-    [facetFallbackProducts, remoteFacets]
+    () => demoMode ? [] : remoteFacets?.materials.length ? remoteFacets.materials : fallbackMaterialOptions(facetFallbackProducts),
+    [demoMode, facetFallbackProducts, remoteFacets]
   );
   const guideCategories = isGuidedVendor
     ? (guideFacets?.categories?.length ? guideFacets.categories : remoteFacets?.categories?.length ? remoteFacets.categories : categories)
@@ -609,7 +612,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
 
   useEffect(() => {
     if (!isGuidedVendor || initialGuideHandled.current || facetsLoading || !guideCategories.length) return;
-    if (!demoMode && !guideFacets && !remoteFacets && !facetsError) return;
+    if (!guideFacets && !remoteFacets && !facetsError) return;
     if (!availableGuideDomains.length) return;
     initialGuideHandled.current = true;
     const url = new URL(window.location.href);
@@ -728,11 +731,11 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   };
 
   const loadPage = async (offset: number) => {
-    if (!publicVendorId || remoteLoading || demoMode) return;
+    if (!requestVendorId || remoteLoading) return;
     setRemoteLoading(true);
     setRemoteError(false);
     try {
-      const payload = await fetchPage(publicVendorId, filters, Math.max(0, offset));
+      const payload = await fetchPage(requestVendorId, filters, Math.max(0, offset));
       setRemoteProducts(payload.products);
       if (typeof payload.total === "number") setRemoteTotal(payload.total);
       setRemoteOffset(payload.offset);
@@ -751,7 +754,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   const total = remoteTotal ?? visibleProducts.length;
   const currentPage = Math.floor(remoteOffset / PAGE_SIZE) + 1;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const hasPagination = !demoMode && (remoteOffset > 0 || remoteNextOffset !== null || (totalKnown && total > PAGE_SIZE));
+  const hasPagination = remoteOffset > 0 || remoteNextOffset !== null || (totalKnown && total > PAGE_SIZE);
   const activeFilterCount = [category !== "all" || categoryGroup.length > 0, brand !== "all", color !== "all", size !== "all", fit !== "all", material !== "all"].filter(Boolean).length;
   const audienceEntries = guideAudience ? fashionCategories.filter((entry) => audienceFor(entry) === guideAudience) : [];
   const guideGroups = buildGroups(audienceEntries);
