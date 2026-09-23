@@ -121,9 +121,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
 
     <WorkspaceMetricStrip items={[
       { label: "Snapshot products", value: snapshot?.productCount ?? 0 },
+      { label: "Canonical linked", value: snapshot?.approvedLinks ?? 0, tone: snapshot && snapshot.approvedLinks === snapshot.productCount ? "positive" : "attention" },
+      { label: "Price evidence", value: snapshot?.priceObservedProducts ?? 0, hint: "Products with a positive governed price observation" },
       { label: "Price conflicts", value: snapshot?.priceConflict ?? 0, tone: snapshot?.priceConflict ? "attention" : "default" },
       { label: "Price review", value: snapshot?.priceReviewRequired ?? 0, tone: snapshot?.priceReviewRequired ? "attention" : "default" },
-      { label: "Unmapped attributes", value: snapshot?.unmappedAttributes ?? 0, tone: snapshot?.unmappedAttributes ? "attention" : "default" },
       { label: "Compatibility candidates", value: snapshot?.candidateCompatibility ?? 0, tone: snapshot?.candidateCompatibility ? "attention" : "default" }
     ]} />
 
@@ -166,7 +167,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
           <div className="workspace-compact-list">
             <div className="workspace-compact-row"><strong>SHA-256</strong><span title={item.sourceHash}>{item.sourceHash.slice(0, 16)}…</span></div>
             <div className="workspace-compact-row"><strong>Observed</strong><span>{when(item.observedAt ?? item.createdAt)}</span></div>
-            <div className="workspace-compact-row"><strong>Price states</strong><span>{item.priceMatched} matched · {item.priceUnpriced} unpriced · {item.priceConflict} conflicts · {item.priceReviewRequired} review</span></div>
+            <div className="workspace-compact-row"><strong>Canonical readiness</strong><span>{item.approvedLinks.toLocaleString("el-GR")} / {item.productCount.toLocaleString("el-GR")} approved links</span></div>
+            <div className="workspace-compact-row"><strong>Price evidence</strong><span>{item.priceObservedProducts.toLocaleString("el-GR")} products with governed observations · source state {item.priceMatched} matched / {item.priceUnpriced} unpriced</span></div>
             <div className="workspace-compact-row"><strong>Taxonomy</strong><span>{item.approvedCategoryMappings} approved · {item.candidateCategoryMappings} candidate mappings</span></div>
           </div>
           {!active && <div className="workspace-action-bar"><span>Inspect this immutable intake snapshot</span><Link className="button button-secondary" href={`/admin/catalogue-intake?${search.toString()}`}>Open snapshot</Link></div>}
