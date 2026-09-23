@@ -118,6 +118,68 @@ export function variantRouteKey(variant: Pick<PaintBuildPackVariant, "title" | "
   ].join("|");
 }
 
+export type VerifiedPaintQuantity = Readonly<{
+  min: number;
+  max: number;
+  coatsMin: number;
+  coatsMax: number;
+  basis: "coverage_and_coats" | "manufacturer_two_coat_coverage";
+}>;
+
+function positiveNumber(value: number | undefined): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+/**
+ * Calculates litres only from explicit verified manufacturer values.
+ *
+ * Preferred basis is ordinary m²/L + explicit coat count. If the manufacturer
+ * publishes an explicit aggregate "two coats" coverage, that can safely power a
+ * two-coat calculation even when a separate generic coat-count field is absent.
+ * No generic paint assumption or waste factor is introduced.
+ */
+export function calculateVerifiedPaintQuantity(input: Readonly<{
+  areaM2: number;
+  coverageMin?: number;
+  coverageMax?: number;
+  coatsMin?: number;
+  coatsMax?: number;
+  twoCoatCoverageMin?: number;
+  twoCoatCoverageMax?: number;
+}>): VerifiedPaintQuantity | undefined {
+  const areaM2 = positiveNumber(input.areaM2);
+  if (!areaM2) return undefined;
+
+  const coverageMin = positiveNumber(input.coverageMin);
+  const coverageMax = positiveNumber(input.coverageMax);
+  const coatsMin = positiveNumber(input.coatsMin);
+  const coatsMax = positiveNumber(input.coatsMax);
+  if (coverageMin && coverageMax && coatsMin && coatsMax) {
+    const minCoats = Math.min(coatsMin, coatsMax);
+    const maxCoats = Math.max(coatsMin, coatsMax);
+    return {
+      min: Math.round((areaM2 * minCoats / Math.max(coverageMin, coverageMax)) * 100) / 100,
+      max: Math.round((areaM2 * maxCoats / Math.min(coverageMin, coverageMax)) * 100) / 100,
+      coatsMin: minCoats,
+      coatsMax: maxCoats,
+      basis: "coverage_and_coats"
+    };
+  }
+
+  const twoCoatMin = positiveNumber(input.twoCoatCoverageMin);
+  const twoCoatMax = positiveNumber(input.twoCoatCoverageMax);
+  if (twoCoatMin && twoCoatMax) {
+    return {
+      min: Math.round((areaM2 / Math.max(twoCoatMin, twoCoatMax)) * 100) / 100,
+      max: Math.round((areaM2 / Math.min(twoCoatMin, twoCoatMax)) * 100) / 100,
+      coatsMin: 2,
+      coatsMax: 2,
+      basis: "manufacturer_two_coat_coverage"
+    };
+  }
+  return undefined;
+}
+
 type PlanCandidate = {
   lines: PaintBuildPackLine[];
   totalLitres: number;
