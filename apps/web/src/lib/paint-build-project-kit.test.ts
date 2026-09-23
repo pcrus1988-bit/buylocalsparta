@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { choosePaintPackPlan, packLitres, PROJECT_ACCESSORY_RULES } from "./paint-build-project-kit.ts";
+import { calculateVerifiedPaintQuantity, choosePaintPackPlan, packLitres, PROJECT_ACCESSORY_RULES } from "./paint-build-project-kit.ts";
 
 test("paint-build pack units normalize litres and millilitres", () => {
   assert.equal(packLitres(750, "ml"), 0.75);
@@ -31,4 +31,37 @@ test("accessory quantities are independent from coating litres", () => {
   const tape = PROJECT_ACCESSORY_RULES.find((rule) => rule.key === "masking-tape");
   assert.equal(roller?.quantityForArea(80), 1);
   assert.equal(tape?.quantityForArea(80), 4);
+});
+
+
+test("verified quantity can use explicit VITEX two-coat coverage without inventing a coat count", () => {
+  const quantity = calculateVerifiedPaintQuantity({
+    areaM2: 28,
+    coverageMin: 15,
+    coverageMax: 17,
+    twoCoatCoverageMin: 8,
+    twoCoatCoverageMax: 9
+  });
+  assert.deepEqual(quantity, {
+    min: 3.11,
+    max: 3.5,
+    coatsMin: 2,
+    coatsMax: 2,
+    basis: "manufacturer_two_coat_coverage"
+  });
+});
+
+test("verified quantity still prefers explicit coverage plus explicit coat count", () => {
+  const quantity = calculateVerifiedPaintQuantity({
+    areaM2: 28,
+    coverageMin: 15,
+    coverageMax: 17,
+    coatsMin: 2,
+    coatsMax: 2,
+    twoCoatCoverageMin: 8,
+    twoCoatCoverageMax: 9
+  });
+  assert.equal(quantity?.basis, "coverage_and_coats");
+  assert.equal(quantity?.min, 3.29);
+  assert.equal(quantity?.max, 3.73);
 });
