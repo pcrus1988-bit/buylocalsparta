@@ -235,13 +235,13 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
 
 const cachedPublicProductSitemapInventory = unstable_cache(
   () => readPublicProductSitemapInventory(null),
-  ["public-product-sitemap-inventory-v2"],
+  ["public-product-sitemap-inventory-v3"],
   { revalidate: 900 }
 );
 
 const cachedPublicProductSitemapShard = unstable_cache(
   (shard: number) => readPublicProductSitemapInventory(shard),
-  ["public-product-sitemap-inventory-shard-v1"],
+  ["public-product-sitemap-inventory-shard-v2"],
   { revalidate: 900 }
 );
 
