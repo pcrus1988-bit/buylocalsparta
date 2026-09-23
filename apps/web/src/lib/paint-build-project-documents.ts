@@ -19,6 +19,24 @@ export type PaintBuildProjectSnapshot = Readonly<{
       brand?: string;
       price?: string;
     }>;
+    kit?: Readonly<{
+      complete: boolean;
+      totalMinor: number;
+      items: readonly Readonly<{
+        canonicalVariantId: string;
+        title: string;
+        priceMinor: number;
+        price: string;
+        quantity: number;
+        selected: boolean;
+        required: boolean;
+        role: "required_system" | "recommended_working" | "optional_extra";
+        sourceLayer: "MANUFACTURER_VITEX" | "KONTA_MOU_RULE";
+        reasonEl?: string;
+      }>[];
+      unresolvedRequired: readonly string[];
+      unavailableAccessorySlots: readonly string[];
+    }>;
   }>;
   guidance: BuildProjectGuidance;
   customerGuide: BuildCustomerGuide;
