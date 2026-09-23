@@ -40,6 +40,51 @@ function requiredText(value: unknown, field: string, max = 220): string {
   return result;
 }
 
+function kitData(value: unknown) {
+  if (value == null) return undefined;
+  const raw = object(value);
+  if (!Array.isArray(raw.items) || raw.items.length > 64) throw new Error("project.kit.items is invalid");
+  const roles = new Set(["required_system", "recommended_working", "optional_extra"]);
+  const layers = new Set(["MANUFACTURER_VITEX", "KONTA_MOU_RULE"]);
+  const items = raw.items.map((entry, index) => {
+    const item = object(entry);
+    const priceMinor = Number(item.priceMinor);
+    const quantity = Number(item.quantity);
+    const role = optionalText(item.role, 40);
+    const sourceLayer = optionalText(item.sourceLayer, 40);
+    if (!Number.isSafeInteger(priceMinor) || priceMinor < 0) throw new Error(`project.kit.items[${index}].priceMinor is invalid`);
+    if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 99) throw new Error(`project.kit.items[${index}].quantity is invalid`);
+    if (!role || !roles.has(role)) throw new Error(`project.kit.items[${index}].role is invalid`);
+    if (!sourceLayer || !layers.has(sourceLayer)) throw new Error(`project.kit.items[${index}].sourceLayer is invalid`);
+    return {
+      canonicalVariantId: requiredText(item.canonicalVariantId, `project.kit.items[${index}].canonicalVariantId`, 128),
+      title: requiredText(item.title, `project.kit.items[${index}].title`, 500),
+      priceMinor,
+      price: requiredText(item.price, `project.kit.items[${index}].price`, 64),
+      quantity,
+      selected: item.selected === true,
+      required: item.required === true,
+      role: role as "required_system" | "recommended_working" | "optional_extra",
+      sourceLayer: sourceLayer as "MANUFACTURER_VITEX" | "KONTA_MOU_RULE",
+      reasonEl: optionalText(item.reasonEl, 500)
+    };
+  });
+  const unresolvedRequired = Array.isArray(raw.unresolvedRequired)
+    ? raw.unresolvedRequired.slice(0, 32).map((item, index) => requiredText(item, `project.kit.unresolvedRequired[${index}]`, 260))
+    : [];
+  const unavailableAccessorySlots = Array.isArray(raw.unavailableAccessorySlots)
+    ? raw.unavailableAccessorySlots.slice(0, 32).map((item, index) => requiredText(item, `project.kit.unavailableAccessorySlots[${index}]`, 260))
+    : [];
+  const complete = raw.complete === true
+    && unresolvedRequired.length === 0
+    && items.filter((item) => item.required).every((item) => item.selected);
+  const totalMinor = items
+    .filter((item) => item.selected)
+    .reduce((sum, item) => sum + item.priceMinor * item.quantity, 0);
+  if (!Number.isSafeInteger(totalMinor) || totalMinor < 0) throw new Error("project.kit.total is invalid");
+  return { complete, totalMinor, items, unresolvedRequired, unavailableAccessorySlots };
+}
+
 function projectData(value: unknown) {
   const raw = object(value);
   const area = raw.areaM2 == null ? undefined : Number(raw.areaM2);
@@ -59,7 +104,8 @@ function projectData(value: unknown) {
       title: optionalText(product.title, 260),
       brand: optionalText(product.brand, 140),
       price: optionalText(product.price, 64)
-    } : undefined
+    } : undefined,
+    kit: kitData(raw.kit)
   };
 }
 

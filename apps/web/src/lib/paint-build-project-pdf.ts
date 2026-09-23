@@ -80,6 +80,7 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
   const project = snapshot.project;
   const guide = snapshot.customerGuide;
   const selected = project.selectedProduct;
+  const kit = project.kit;
   const refs = evidenceReferences(snapshot);
   const createdAt = new Date(snapshot.createdAt);
   const createdLabel = Number.isFinite(createdAt.getTime())
@@ -146,6 +147,61 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
     });
   } else {
     content.push({ text: "Δεν έχει αποθηκευτεί επιβεβαιωμένο προϊόν στο συγκεκριμένο snapshot.", style: "body" });
+  }
+
+  if (kit) {
+    content.push({ text: "ΑΚΡΙΒΕΣ PROJECT KIT", style: "sectionTitle", margin: [0, 13, 0, 5] });
+    content.push({
+      text: kit.complete
+        ? "Κατάσταση: πλήρες επαληθευμένο σύστημα."
+        : "Κατάσταση: ελλιπές σύστημα — ένα ή περισσότερα απαιτούμενα στοιχεία λείπουν, αφαιρέθηκαν ή δεν έχουν επαληθευμένη αυτόματη ποσότητα.",
+      style: kit.complete ? "bodyStrong" : "warning",
+      margin: [0, 0, 0, 7]
+    });
+    const selectedKitItems = kit.items.filter((item) => item.selected);
+    if (selectedKitItems.length) {
+      content.push({
+        table: {
+          headerRows: 1,
+          widths: ["*", 42, 72, 76],
+          body: [
+            ["Είδος", "Ποσ.", "Τιμή/τεμ.", "Σύνολο"],
+            ...selectedKitItems.map((item) => [
+              [
+                { text: item.title, bold: true },
+                { text: item.required ? "\nΑΠΑΡΑΙΤΗΤΟ" : item.role === "recommended_working" ? "\nΠΡΟΤΕΙΝΟΜΕΝΟ" : "\nΠΡΟΑΙΡΕΤΙΚΟ", fontSize: 6, color: item.required ? "#7b3d29" : "#666666" }
+              ],
+              String(item.quantity),
+              item.price,
+              new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format((item.priceMinor * item.quantity) / 100)
+            ])
+          ]
+        },
+        layout: "lightHorizontalLines",
+        margin: [0, 0, 0, 8]
+      });
+    }
+    content.push({
+      text: `Σύνολο επιλεγμένου kit κατά τη δημιουργία: ${new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(kit.totalMinor / 100)}`,
+      style: "bodyStrong",
+      margin: [0, 0, 0, 8]
+    });
+    const excluded = kit.items.filter((item) => !item.selected);
+    if (excluded.length) {
+      content.push({ text: `Μη επιλεγμένα / αφαιρεμένα: ${excluded.map((item) => item.title).join(", ")}`, style: "body", margin: [0, 0, 0, 6] });
+    }
+    if (kit.unresolvedRequired.length) {
+      content.push({ text: "Μη επιλυμένα απαιτούμενα στοιχεία", style: "sectionTitle", margin: [0, 8, 0, 4] });
+      content.push({ ul: [...kit.unresolvedRequired], style: "body" });
+    }
+    if (kit.unavailableAccessorySlots.length) {
+      content.push({ text: `Μη διαθέσιμες κατηγορίες αξεσουάρ: ${kit.unavailableAccessorySlots.join(", ")}`, style: "body", margin: [0, 7, 0, 4] });
+    }
+    content.push({
+      text: "Τα αξεσουάρ με ένδειξη KONTA MOU προέρχονται από Project Accessory Rules και δεν παρουσιάζονται ως οδηγίες του κατασκευαστή.",
+      style: "sourceSafety",
+      margin: [0, 7, 0, 8]
+    });
   }
 
   content.push(...section("Τι χρειάζεσαι", guide.whatYouNeed));
