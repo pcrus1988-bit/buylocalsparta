@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mapBuildStudioScenario } from "./build-guidance-scenario-map.ts";
 import { PAINT_SURFACES } from "./paint-consultant.ts";
-import { INSULATION_GOALS, INSULATION_LOCATIONS, REPAIR_ISSUES, REPAIR_SEVERITIES } from "./build-consultant.ts";
+import { INSULATION_GOALS, INSULATION_LOCATIONS, REPAIR_ISSUES, REPAIR_SEVERITIES, WATERPROOF_LOCATIONS, WATERPROOF_PROBLEMS } from "./build-consultant.ts";
 
 test("maps reviewed interior paint scenarios without merging distinct substrates or failures", () => {
   assert.deepEqual(mapBuildStudioScenario({ module: "paint", surface: "interior-wall", condition: "sound" }), { scenarioKey: "paint_interior_repaint_sound", facts: {} });
@@ -147,5 +147,31 @@ test("every currently selectable repair issue-severity pair remains mapped", () 
         `missing reviewed repair route: ${issue.key} / ${severity.key}`
       );
     }
+  }
+});
+
+
+test("every selectable waterproofing problem is exactly the reviewed subset for its location", () => {
+  const expectedByLocation: Readonly<Record<string, readonly string[]>> = {
+    roof: ["maintenance", "leak", "cracks", "standing-water"],
+    balcony: ["maintenance", "leak", "cracks"],
+    "exterior-wall": ["maintenance", "leak", "cracks"],
+    basement: ["leak"]
+  };
+
+  for (const location of WATERPROOF_LOCATIONS) {
+    const mapped = WATERPROOF_PROBLEMS
+      .filter((problem) => mapBuildStudioScenario({
+        module: "waterproofing",
+        location: location.key,
+        problem: problem.key
+      }) !== null)
+      .map((problem) => problem.key);
+
+    assert.deepEqual(
+      mapped,
+      expectedByLocation[location.key],
+      `waterproof route visibility changed without reviewed guidance: ${location.key}`
+    );
   }
 });
