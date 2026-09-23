@@ -26,7 +26,7 @@ const RUN_BATCH_TARGET = 2000;
 const CLEANUP_PAGE_SIZE = 1000;
 const CLEANUP_SETTINGS_KEY = "merchant.google.cleanup.v1";
 const GOOGLE_MERCHANT_SYNC_JOB = "google-merchant-catalogue-sync";
-const GOOGLE_MERCHANT_SYNC_LEASE_MS = 2 * 60_000;
+const GOOGLE_MERCHANT_SYNC_LEASE_MS = 6 * 60_000;
 const REFRESH_AFTER_MS = 26 * 24 * 60 * 60 * 1000;
 
 type CandidateRow = Readonly<{
