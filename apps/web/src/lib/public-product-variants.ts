@@ -313,21 +313,76 @@ export const getPublicProductVariantOptions = cache(async (
           )
         ORDER BY sibling.id
         LIMIT 100
+      ),
+      live_availability AS MATERIALIZED (
+        SELECT
+          vo.canonical_variant_id,
+          MIN(vo.customer_price_minor) FILTER (
+            WHERE
+              (
+                ib.offer_id IS NOT NULL
+                AND dso.id IS NULL
+                AND 'pickup'::fulfilment_mode=ANY(vo.fulfilment_modes)
+                AND GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)>=1
+                AND ib.stock_confirmed_at IS NOT NULL
+                AND ib.stock_confirmed_at + make_interval(secs=>ib.freshness_ttl_seconds::double precision)>now()
+              )
+              OR
+              (
+                dso.id IS NOT NULL
+                AND dso.active=true
+                AND ds.active=true
+                AND ds.api_authoritative_availability=true
+                AND dso.cached_available=true
+                AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
+                AND dso.availability_expires_at IS NOT NULL
+                AND dso.availability_expires_at>now()
+              )
+          ) AS from_price_minor,
+          BOOL_OR(
+            (
+              ib.offer_id IS NOT NULL
+              AND dso.id IS NULL
+              AND 'pickup'::fulfilment_mode=ANY(vo.fulfilment_modes)
+              AND GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)>=1
+              AND ib.stock_confirmed_at IS NOT NULL
+              AND ib.stock_confirmed_at + make_interval(secs=>ib.freshness_ttl_seconds::double precision)>now()
+            )
+            OR
+            (
+              dso.id IS NOT NULL
+              AND dso.active=true
+              AND ds.active=true
+              AND ds.api_authoritative_availability=true
+              AND dso.cached_available=true
+              AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
+              AND dso.availability_expires_at IS NOT NULL
+              AND dso.availability_expires_at>now()
+            )
+          ) AS available
+        FROM vendor_offers vo
+        JOIN sibling_candidates candidate ON candidate.id=vo.canonical_variant_id
+        JOIN canonical_variants eligible_variant ON eligible_variant.id=vo.canonical_variant_id
+        JOIN vendor_businesses v ON v.id=vo.vendor_id
+        JOIN vendor_locations l ON l.id=vo.location_id
+        LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
+        LEFT JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+        LEFT JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+        WHERE vo.status='approved'
+          AND vo.merchant_visible=true
+          AND vo.merchant_pause_active=false
+          AND vo.customer_price_minor>0
+          AND v.status='active'
+          AND l.active=true
+          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+          AND bls_private.vendor_category_effectively_visible(vo.vendor_id,eligible_variant.category_id)
+        GROUP BY vo.canonical_variant_id
       )
       SELECT sibling.public_id AS canonical_public_id,
              sibling.slug,
              sibling.variant_attributes,
-             CASE
-               WHEN (
-                 (rm.local_sellable=true AND rm.local_available_until>now())
-                 OR (rm.dropship_sellable=true AND rm.dropship_available_until>now())
-               ) THEN rm.min_price_minor
-               ELSE NULL
-             END AS from_price_minor,
-             (
-               (rm.local_sellable=true AND rm.local_available_until>now())
-               OR (rm.dropship_sellable=true AND rm.dropship_available_until>now())
-             ) AS available,
+             availability.from_price_minor,
+             COALESCE(availability.available,false) AS available,
              governed_media.media_public_id,
              governed_media.media_alt_text,
              NULL::text AS source_image_candidate,
@@ -335,8 +390,8 @@ export const getPublicProductVariantOptions = cache(async (
       FROM canonical_variants sibling
       JOIN sibling_candidates candidate ON candidate.id=sibling.id
       JOIN markets m ON m.id=sibling.market_id
-      LEFT JOIN public.storefront_catalog_read_model rm
-        ON rm.canonical_variant_id=sibling.id
+      LEFT JOIN live_availability availability
+        ON availability.canonical_variant_id=sibling.id
       LEFT JOIN LATERAL (
         SELECT pm.public_id AS media_public_id,
                pm.alt_text AS media_alt_text
