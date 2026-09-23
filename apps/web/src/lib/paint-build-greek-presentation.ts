@@ -284,29 +284,38 @@ function cleanVariantWords(value: string): string {
 
 export function paintBuildProductTitle(value: string, manufacturerProductName?: string): string {
   let title = cleanVariantWords(value);
-  const model = manufacturerProductName?.trim();
+  const inferred = Object.keys(PRODUCT_DESCRIPTORS)
+    .sort((a, b) => b.length - a.length)
+    .find((name) => title.toLocaleLowerCase("en").includes(name));
+  const model = manufacturerProductName?.trim() || inferred;
   if (!model) return title;
 
   const key = model.toLocaleLowerCase("en");
   const descriptor = PRODUCT_DESCRIPTORS[key];
   if (!descriptor) return title;
 
+  const displayModel = key === "aquavit eco" ? "Aquavit Eco"
+    : key === "acrylan max" ? "Acrylan MAX"
+      : key === "vitex with vairo" ? "Vitex with VAIRO"
+        : model;
   const modelLower = model.toLocaleLowerCase("en");
   const titleLower = title.toLocaleLowerCase("en");
   const hasModel = titleLower.includes(modelLower);
+  const start = hasModel ? titleLower.indexOf(modelLower) : -1;
+  let suffix = start >= 0 ? title.slice(start + model.length).replace(/^\s*[-–—:]?\s*/, "").trim() : "";
+  suffix = suffix
+    .replace(/^\s*(?:ματ|σατινέ|γυαλιστερό)?\s*βάση\s*/i, "")
+    .replace(/^\s*(?:βάση\s*)+/i, "")
+    .trim();
 
   if (key === "aquavit eco") {
-    const start = titleLower.indexOf(modelLower);
-    const suffix = start >= 0 ? title.slice(start + model.length).replace(/^\s*[-–—:]?\s*/, "").trim() : "";
-    return "VITEX Aquavit Eco - " + descriptor + (suffix ? " · " + suffix : "");
+    return "VITEX " + displayModel + " - " + descriptor + (suffix ? " · " + suffix : "");
   }
 
-  if (!hasModel) return "VITEX " + model + " - " + descriptor + " · " + title;
+  if (!hasModel) return "VITEX " + displayModel + " - " + descriptor + " · " + title;
 
   if (/χρώμα\s+(?:μηχανής|βάσης χρωματισμού)/i.test(value)) {
-    const start = titleLower.indexOf(modelLower);
-    const suffix = start >= 0 ? title.slice(start + model.length).replace(/^\s*[-–—:]?\s*/, "").trim() : "";
-    return "VITEX " + model + " - " + descriptor + (suffix ? " · " + suffix : "");
+    return "VITEX " + displayModel + " - " + descriptor + (suffix ? " · " + suffix : "");
   }
 
   return title;
