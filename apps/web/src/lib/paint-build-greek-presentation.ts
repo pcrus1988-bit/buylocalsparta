@@ -236,7 +236,7 @@ const EXACT: Readonly<Record<string, string>> = {
   "Smooth, clean and dry; free from grease, dust, loose or flaking paint.": "Η επιφάνεια πρέπει να είναι λεία, καθαρή και στεγνή, χωρίς γράσα, σκόνη και σαθρές ή ξεφλουδισμένες βαφές.",
   "smooth, clean and dry; free from grease, dust, loose or flaking paint": "Η επιφάνεια πρέπει να είναι λεία, καθαρή και στεγνή, χωρίς γράσα, σκόνη και σαθρές ή ξεφλουδισμένες βαφές.",
   "Brush Solvent T300 for brush; Spray Gun Solvent T350 for spray": "Για πινέλο: Brush Solvent T300· για ψεκασμό: Spray Gun Solvent T350.",
-  "Air, surface and material temperature: 5°C to 45°C at the documented reference condition of 50% RH.": "Θερμοκρασία αέρα, επιφάνειας και υλικού: 5°C έως 45°C, στη τεκμηριωμένη συνθήκη αναφοράς σχετικής υγρασίας 50%.",
+  "Air, surface and material temperature: 5°C to 45°C at the documented reference condition of 50% RH.": "Θερμοκρασία αέρα, επιφάνειας και υλικού: 5°C έως 45°C, στην τεκμηριωμένη συνθήκη αναφοράς σχετικής υγρασίας 50%.",
   "Fill cracks or holes with Visto or Acrylic Putty.": "Γέμισε ρωγμές ή οπές με Visto ή Acrylic Putty."
 };
 
