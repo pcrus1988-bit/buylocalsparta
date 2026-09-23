@@ -202,7 +202,7 @@ where id in (
 '2d551a70-e6b2-48c5-8d75-f6b477287f73','107f2332-d507-44fe-bfd5-0c439085ff8d','3935b185-e222-4a13-931e-93bb5722b80d',
 'abc359fe-5371-4a26-a4e9-1842e962ee3b','874128f3-0075-473b-b591-acf179772737','3ac70c67-834b-4913-85f6-8bc07287de2c',
 '3c4d856d-530e-4ed3-bca2-786162056686','7d1e3436-ea4c-46b2-8a11-f250de32da27'
-)::uuid[];
+);
 
 update build_project_kit_requirements set reason_el=case id
   when 'bad1462f-ff67-4599-98b8-038083e803cd'::uuid then 'Τελική εξωτερική επίστρωση.'
@@ -239,7 +239,7 @@ where id in (
 'c1ff6496-da2f-433a-9d2a-5b30158d4896','32114608-2403-4fed-80f9-b4f54d5ca7b9','97c1c3af-5046-42a6-9c89-ed5c5325fded',
 '8cf32eac-dc5a-4d9e-a110-691ebd3a0401','a5344894-b4bd-46f2-a0c0-bd19b2e43ab4','3a6334a2-1a15-4b9c-97a6-75f4f26efa1c',
 '3a7debdd-35b7-4025-9286-619d843df591','319f3045-2634-4087-a3ea-96c0a8e0f9b7','745b7008-70f4-4ec3-9108-30a3f27984bf'
-)::uuid[];
+);
 
 update build_solution_rules set customer_explanation_el=case id
   when '625c538c-e315-41da-b7e1-033f97a5bc36'::uuid then 'Στο ήδη βαμμένο μέταλλο αφαιρούμε χαλαρή βαφή, σκουριά και ρύπους και κρατάμε μόνο σταθερή επίστρωση.'
@@ -250,7 +250,7 @@ update build_solution_rules set customer_explanation_el=case id
 where id in (
 '625c538c-e315-41da-b7e1-033f97a5bc36','4a68989f-b6e6-4e00-aee1-8134116ec283',
 '7a7daf4e-9e0a-4a51-ba42-5d2ab8834a4a','a96e0c87-3bb3-4ccd-aab5-b4389484cd9f'
-)::uuid[];
+);
 
 update build_solution_steps set customer_explanation_el=case id
   when '7d46ec1b-9b6b-4d28-bc02-2325f21411c7'::uuid then 'Μετά την ωρίμανση έλεγξε τη συνέχεια της επίστρωσης και σημεία πρώιμης σκουριάς.'
@@ -265,7 +265,7 @@ where id in (
 '7d46ec1b-9b6b-4d28-bc02-2325f21411c7','46cb014b-c458-4f9c-bc3c-26c8a3dbe5f9','dfbbf35e-6ea5-4a7f-9016-0d394a04542b',
 '347f8de1-0217-4414-a357-182eca5357e9','0b6ec8ba-8cae-4908-b555-6f11b5b764a1','8de28753-da76-4ea4-937f-140e52cb3f49',
 '74ae6200-2fe5-43bc-87d3-0578f719a14e'
-)::uuid[];
+);
 
 update build_failure_modes set title_el=case id
   when '218ccee6-28e1-47eb-9f05-bab2a7f82441'::uuid then 'Αποκόλληση νέας επίστρωσης ή διάβρωση από κάτω'
@@ -276,4 +276,4 @@ update build_failure_modes set title_el=case id
 where id in (
 '218ccee6-28e1-47eb-9f05-bab2a7f82441','8295f4b2-785d-4c64-9fad-a33385d8425e',
 '65c965be-fd75-4991-9dcf-22d33b1db036','ce19a21d-be23-4751-a3fb-cb7ed2311489'
-)::uuid[];
+);
