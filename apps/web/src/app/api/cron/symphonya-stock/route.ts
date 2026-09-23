@@ -10,14 +10,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 55;
 
-// Scheduled production runs use a three-page concurrent cursor burst. This keeps
-// the full supplier catalogue inside the two-hour availability TTL while staying
-// below Vercel's 55-second execution cap. Manual mode=priority remains available
-// for targeted recovery of storefront products.
+// Scheduled production runs use an eight-page concurrent cursor burst. The
+// upstream supplier feed is much larger than the currently materialised sellable
+// subset, so this cadence keeps the authoritative cycle inside the two-hour TTL
+// while staying below Vercel's 55-second execution cap. Manual mode=priority
+// remains available for targeted recovery of storefront products.
 const PRIORITY_BATCH_LIMIT = 200;
 const PUBLISHED_REFRESH_LIMIT = 120;
 const PRIORITY_REFRESH_WINDOW_MINUTES = 60;
-const FULL_CURSOR_MAX_PAGES = 3;
+const FULL_CURSOR_MAX_PAGES = 8;
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();
