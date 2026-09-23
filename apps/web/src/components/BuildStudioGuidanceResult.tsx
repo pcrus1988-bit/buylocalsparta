@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { BuildGuidanceScenarioRequest } from "../lib/build-guidance-scenario-map";
-import { BuildStudioProductChooser, type BuildStudioCandidate } from "./BuildStudioProductChooser";
+import {
+  BuildStudioProductChooser,
+  type BuildStudioCandidate,
+  type BuildStudioProjectKit,
+  type ProjectKitItem
+} from "./BuildStudioProductChooser";
+import { useCart } from "./CartProvider";
 import styles from "./PaintBuildStudioExperience.module.css";
 
 type SourceLayer = "GENERAL_GUIDANCE" | "MANUFACTURER_VITEX" | "MANUFACTURER" | "KONTA_MOU_RULE";
@@ -44,6 +50,8 @@ type QuantityEstimate = {
   basisEl: string;
 };
 
+type MutableKitItem = ProjectKitItem & { selected: boolean; quantity: number };
+
 function sourceLabel(layer: SourceLayer): string {
   if (layer === "GENERAL_GUIDANCE") return "Γενική τεχνική καθοδήγηση";
   if (layer === "MANUFACTURER_VITEX") return "Οδηγίες κατασκευαστή · VITEX";
@@ -68,17 +76,29 @@ function GuideList({ title, items }: { title: string; items: GuidanceItem[] }) {
   );
 }
 
-function ProjectGuidanceScreen({
+function displayMoney(minor: number): string {
+  return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
+}
+
+function unresolvedText(value: Readonly<Record<string, unknown>>): string {
+  const title = typeof value.title === "string" ? value.title : "Απαιτούμενο υλικό";
+  const reason = typeof value.reason === "string" ? value.reason : "unresolved";
+  if (reason === "required_component_quantity_unverified") return `${title}: δεν υπάρχει ακόμη επαληθευμένος αυτόματος υπολογισμός ποσότητας.`;
+  if (reason === "required_component_not_available") return `${title}: δεν υπάρχει διαθέσιμη εμπορική παραλλαγή.`;
+  if (reason === "required_component_pack_plan_unavailable") return `${title}: δεν βρέθηκε ασφαλής συνδυασμός συσκευασιών.`;
+  return `${title}: απαιτείται τεχνική ολοκλήρωση.`;
+}
+
+function ProjectKitScreen({
   eyebrow,
   title,
   summary,
   colour,
-  guide,
+  projectType,
+  areaM2,
+  scenarioRequest,
   selectedProduct,
-  quantity,
-  snapshotId,
-  pdfState,
-  onDownloadPdf,
+  projectKit,
   onChangeProduct,
   onRestart
 }: {
@@ -86,116 +106,261 @@ function ProjectGuidanceScreen({
   title: string;
   summary: string;
   colour?: string;
-  guide: CustomerGuide;
+  projectType: "paint" | "waterproofing" | "insulation" | "repair";
+  areaM2: number;
+  scenarioRequest: BuildGuidanceScenarioRequest;
   selectedProduct: BuildStudioCandidate;
-  quantity: QuantityEstimate;
-  snapshotId: string;
-  pdfState: "idle" | "loading" | "error";
-  onDownloadPdf: () => void;
+  projectKit: BuildStudioProjectKit;
   onChangeProduct: () => void;
   onRestart: () => void;
 }) {
-  const quantityText = quantity.status === "available" && quantity.min != null && quantity.max != null
-    ? quantity.min === quantity.max
-      ? `${quantity.min} ${quantity.unit ?? ""}`
-      : `${quantity.min}–${quantity.max} ${quantity.unit ?? ""}`
-    : "Δεν υπολογίστηκε χωρίς πλήρη manufacturer values.";
+  const { addItem } = useCart();
+  const sourceItems = projectKit.kit?.items ?? [];
+  const [items, setItems] = useState<MutableKitItem[]>(() => sourceItems.map((item) => ({ ...item })));
+  const [cartState, setCartState] = useState<"idle" | "loading" | "added" | "error">("idle");
+  const [pdfState, setPdfState] = useState<"idle" | "loading" | "error">("idle");
+  const [snapshotId, setSnapshotId] = useState("");
+  const recommendedQuantity = useMemo(
+    () => new Map(sourceItems.filter((item) => item.required).map((item) => [item.canonicalVariantId, item.quantity])),
+    [sourceItems]
+  );
+
+  useEffect(() => {
+    setItems(sourceItems.map((item) => ({ ...item })));
+    setCartState("idle");
+    setPdfState("idle");
+    setSnapshotId("");
+  }, [projectKit, sourceItems]);
+
+  const unresolvedRequired = projectKit.kit?.unresolvedRequired ?? [];
+  const requiredComplete = items
+    .filter((item) => item.required)
+    .every((item) => item.selected && item.quantity >= (recommendedQuantity.get(item.canonicalVariantId) ?? 1));
+  const complete = Boolean(projectKit.kit?.complete) && requiredComplete && unresolvedRequired.length === 0;
+  const selectedItems = items.filter((item) => item.selected);
+  const totalMinor = selectedItems.reduce((sum, item) => sum + item.priceMinor * item.quantity, 0);
+  const requiredItems = items.filter((item) => item.role === "required_system");
+  const recommendedItems = items.filter((item) => item.role === "recommended_working");
+  const optionalItems = items.filter((item) => item.role === "optional_extra");
+  const missingAccessories = projectKit.kit?.unavailableAccessorySlots ?? [];
+
+  function toggleItem(id: string) {
+    setCartState("idle");
+    setItems((current) => current.map((item) => item.canonicalVariantId === id ? { ...item, selected: !item.selected } : item));
+  }
+
+  function setItemQuantity(id: string, quantity: number) {
+    setCartState("idle");
+    const safe = Math.max(1, Math.min(99, Number.isFinite(quantity) ? Math.trunc(quantity) : 1));
+    setItems((current) => current.map((item) => item.canonicalVariantId === id ? { ...item, quantity: safe } : item));
+  }
+
+  async function addProjectToCart() {
+    if (!selectedItems.length) return;
+    setCartState("loading");
+    try {
+      const resolved = await Promise.all(selectedItems.map(async (item) => {
+        const response = await fetch("/api/cart/candidate", {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ id: item.canonicalVariantId })
+        });
+        if (!response.ok) throw new Error("cart candidate unavailable");
+        const payload = await response.json() as {
+          item?: {
+            canonicalVariantId: string;
+            title: string;
+            priceMinor: number;
+            price: string;
+            imageUrl?: string;
+            imageAlt?: string;
+            sku?: string;
+            gtin?: string;
+            color?: string;
+            size?: string;
+          };
+        };
+        if (!payload.item) throw new Error("cart candidate missing");
+        return { cartItem: payload.item, quantity: item.quantity };
+      }));
+      for (const entry of resolved) addItem(entry.cartItem, entry.quantity);
+      setCartState("added");
+    } catch {
+      setCartState("error");
+    }
+  }
+
+  function snapshotKit() {
+    return {
+      complete,
+      items: items.map((item) => ({
+        canonicalVariantId: item.canonicalVariantId,
+        title: item.title,
+        priceMinor: item.priceMinor,
+        price: item.price,
+        quantity: item.quantity,
+        selected: item.selected,
+        required: item.required,
+        role: item.role,
+        sourceLayer: item.sourceLayer,
+        reasonEl: item.reasonEl
+      })),
+      unresolvedRequired: unresolvedRequired.map(unresolvedText),
+      unavailableAccessorySlots: missingAccessories.map((slot) => slot.label)
+    };
+  }
+
+  async function ensureSnapshot(): Promise<string> {
+    if (snapshotId) return snapshotId;
+    const response = await fetch("/api/build-studio/snapshot", {
+      method: "POST",
+      cache: "no-store",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        scenarioKey: scenarioRequest.scenarioKey,
+        facts: scenarioRequest.facts,
+        manufacturerProductId: selectedProduct.manufacturerProductId,
+        project: {
+          title,
+          projectType,
+          areaM2,
+          colour,
+          summary,
+          selectedProduct: {
+            manufacturerProductId: selectedProduct.manufacturerProductId,
+            catalogueId: selectedProduct.id,
+            title: selectedProduct.title,
+            brand: selectedProduct.brand,
+            price: selectedProduct.price
+          },
+          kit: snapshotKit()
+        }
+      })
+    });
+    if (!response.ok) throw new Error("snapshot failed");
+    const payload = await response.json() as { snapshotId?: string };
+    if (!payload.snapshotId) throw new Error("snapshot missing");
+    setSnapshotId(payload.snapshotId);
+    return payload.snapshotId;
+  }
+
+  async function downloadPdf() {
+    setPdfState("loading");
+    try {
+      const id = await ensureSnapshot();
+      const response = await fetch(`/api/build-studio/project-guide?snapshotId=${encodeURIComponent(id)}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("pdf failed");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "konta-mou-paint-build-project-kit.pdf";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setPdfState("idle");
+    } catch {
+      setPdfState("error");
+    }
+  }
+
+  function renderItem(item: MutableKitItem) {
+    const minimum = recommendedQuantity.get(item.canonicalVariantId);
+    const shortfall = item.required && item.selected && minimum != null && item.quantity < minimum;
+    return (
+      <div className={styles.kitItem} key={item.canonicalVariantId}>
+        <label className={styles.kitCheck}>
+          <input type="checkbox" checked={item.selected} onChange={() => toggleItem(item.canonicalVariantId)} />
+          <span />
+        </label>
+        <div className={styles.kitItemCopy}>
+          <div className={styles.kitItemTitle}>
+            <strong>{item.title}</strong>
+            {item.required ? <b>ΑΠΑΡΑΙΤΗΤΟ ΓΙΑ ΤΟ ΕΠΑΛΗΘΕΥΜΕΝΟ ΣΥΣΤΗΜΑ</b> : null}
+          </div>
+          <small>{item.sourceLayer === "MANUFACTURER_VITEX" ? "VITEX · επαληθευμένο σύστημα" : "KONTA MOY · Project Accessory Rules"}</small>
+          <p>{item.reasonEl}</p>
+          {shortfall ? <em>Η ποσότητα είναι μικρότερη από την υπολογισμένη απαίτηση· το έργο θεωρείται ελλιπές.</em> : null}
+        </div>
+        <div className={styles.kitQuantity}>
+          <button type="button" onClick={() => setItemQuantity(item.canonicalVariantId, item.quantity - 1)} aria-label="Μείωση ποσότητας">−</button>
+          <input type="number" min={1} max={99} value={item.quantity} onChange={(event) => setItemQuantity(item.canonicalVariantId, Number(event.target.value))} />
+          <button type="button" onClick={() => setItemQuantity(item.canonicalVariantId, item.quantity + 1)} aria-label="Αύξηση ποσότητας">+</button>
+        </div>
+        <div className={styles.kitPrice}><strong>{displayMoney(item.priceMinor * item.quantity)}</strong><small>{item.quantity} × {item.price}</small></div>
+      </div>
+    );
+  }
 
   return (
-    <section className={styles.resultScreen} data-project-snapshot={snapshotId}>
+    <section className={styles.resultScreen}>
       <div className={styles.resultIntro}>
         <span className={styles.kicker}>{eyebrow}</span>
-        <h1>{title}</h1>
-        <p>{summary}</p>
-        <div className={styles.confirmedBadge}>ΑΝΑΦΟΡΑ ΕΡΓΟΥ · {snapshotId}</div>
-        {colour ? (
-          <div className={styles.resultSwatch}>
-            <span style={{ background: colour }} />
-            <div><small>ΤΟ ΧΡΩΜΑ ΣΟΥ</small><strong>{colour}</strong></div>
-          </div>
-        ) : null}
+        <h1>Το έργο σου</h1>
+        <p>{title} · {summary}</p>
+        <div className={complete ? styles.kitComplete : styles.kitIncomplete}>
+          <strong>{complete ? "ΕΠΑΛΗΘΕΥΜΕΝΟ ΣΥΣΤΗΜΑ · ΠΛΗΡΕΣ" : "ΤΟ ΕΡΓΟ ΕΙΝΑΙ ΕΛΛΙΠΕΣ"}</strong>
+          <span>{complete ? "Όλα τα απαιτούμενα υλικά και οι υπολογισμένες ποσότητες παραμένουν επιλεγμένα." : "Ένα απαιτούμενο υλικό λείπει, έχει αφαιρεθεί ή δεν έχει ακόμη επαληθευμένη αυτόματη ποσότητα."}</span>
+        </div>
+        {colour ? <div className={styles.resultSwatch}><span style={{ background: colour }} /><div><small>ΤΟ ΧΡΩΜΑ ΣΟΥ</small><strong>{colour}</strong></div></div> : null}
       </div>
 
-      <div className={styles.resultGroup}>
-        <div className={styles.resultGroupHeader}>
-          <span>01</span>
-          <div><small>PROJECT</small><h2>ΤΟ ΕΡΓΟ ΣΟΥ</h2></div>
-        </div>
-        <div className={styles.resultCard}>
-          <GuideList title="Πριν ξεκινήσεις" items={guide.beforeYouStart} />
-          <GuideList title="Προετοιμασία" items={guide.preparation} />
-        </div>
-        <div className={styles.resultCard}>
-          <GuideList title="Βήμα-βήμα" items={guide.stepByStep} />
-          <GuideList title="Τι να αποφύγεις" items={guide.avoid} />
-          <GuideList title="Προσοχή" items={guide.warnings} />
-        </div>
-        {guide.afterApplication.length ? (
-          <div className={styles.resultCard}>
-            <GuideList title="Μετά την εφαρμογή / Συντήρηση" items={guide.afterApplication} />
-          </div>
-        ) : null}
+      <div className={styles.kitSummaryGrid}>
+        <div><small>ΕΠΙΦΑΝΕΙΑ</small><strong>{areaM2} m²</strong></div>
+        <div><small>ΘΕΩΡΗΤΙΚΗ ΑΠΑΙΤΗΣΗ</small><strong>{projectKit.quantityEstimate.status === "available" ? `${projectKit.quantityEstimate.min}–${projectKit.quantityEstimate.max} L` : "Μη διαθέσιμη"}</strong></div>
+        <div><small>ΠΡΟΤΕΙΝΟΜΕΝΗ ΑΓΟΡΑ</small><strong>{projectKit.packPlan ? projectKit.packPlan.lines.map((line) => `${line.quantity}×${line.variant.packValue}${line.variant.packUnit}`).join(" + ") : "Απαιτείται συμπλήρωση δεδομένων"}</strong></div>
       </div>
 
-      <div className={styles.resultGroup}>
-        <div className={styles.resultGroupHeader}>
-          <span>02</span>
-          <div><small>MATERIALS</small><h2>ΤΑ ΥΛΙΚΑ ΣΟΥ</h2></div>
-        </div>
-        <div className={styles.materialSummary}>
-          <div>
-            <small>{selectedProduct.brand || selectedProduct.categoryLabel || "VITEX"}</small>
-            <strong>{selectedProduct.title}</strong>
-            <span>{selectedProduct.price}</span>
-          </div>
-          <div>
-            <small>ΘΕΩΡΗΤΙΚΗ ΠΟΣΟΤΗΤΑ</small>
-            <strong>{quantityText}</strong>
-            <span>{quantity.basisEl}</span>
-          </div>
-        </div>
-        <div className={styles.resultCard}>
-          <GuideList title="Τι χρειάζεσαι" items={guide.whatYouNeed} />
-        </div>
-      </div>
+      {requiredItems.length ? <div className={styles.kitGroup}><div className={styles.kitGroupHead}><span>01</span><div><small>VITEX SYSTEM</small><h2>Απαιτούμενα υλικά συστήματος</h2></div></div>{requiredItems.map(renderItem)}</div> : null}
 
-      <div className={styles.resultGroup}>
-        <div className={styles.resultGroupHeader}>
-          <span>03</span>
-          <div><small>PRODUCT INSTRUCTIONS</small><h2>ΟΔΗΓΙΕΣ ΓΙΑ ΤΑ ΠΡΟΪΟΝΤΑ ΠΟΥ ΕΠΕΛΕΞΕΣ</h2></div>
-        </div>
-        <div className={styles.resultCard}>
-          <GuideList title="Οδηγίες προϊόντος" items={guide.manufacturerInstructions} />
-          <GuideList title="Χρόνοι" items={guide.timings} />
-          <div className={styles.resultColumn}>
-            <h2>Ποσότητα</h2>
-            <p className={styles.quantityCopy}>{guide.quantity.explanationEl}</p>
-          </div>
-        </div>
-      </div>
-
-      {guide.guidanceConflict ? (
+      {unresolvedRequired.length ? (
         <div className={styles.warningPanel}>
-          <strong>Απαιτείται τεχνικός έλεγχος των οδηγιών.</strong>
-          <p>Υπάρχει σύγκρουση τεκμηριωμένης καθοδήγησης. Δεν γίνεται αυτόματη συγχώνευση.</p>
+          <strong>Υπάρχουν απαιτούμενα υλικά που δεν μπορούν ακόμη να μπουν αυτόματα στο kit.</strong>
+          {unresolvedRequired.map((item, index) => <p key={index}>{unresolvedText(item)}</p>)}
         </div>
       ) : null}
 
-      <div className={styles.pdfPanel}>
+      <div className={styles.kitGroup}>
+        <div className={styles.kitGroupHead}><span>02</span><div><small>KONTA MOY RULES</small><h2>Προτεινόμενα υλικά εργασίας</h2></div></div>
+        {recommendedItems.length ? recommendedItems.map(renderItem) : <p className={styles.kitEmpty}>Δεν υπάρχουν ακόμη πραγματικά διαθέσιμα προϊόντα στις αντίστοιχες κατηγορίες του καταλόγου.</p>}
+      </div>
+
+      <div className={styles.kitGroup}>
+        <div className={styles.kitGroupHead}><span>03</span><div><small>OPTIONAL</small><h2>Προαιρετικά extras</h2></div></div>
+        {optionalItems.length ? optionalItems.map(renderItem) : <p className={styles.kitEmpty}>Δεν υπάρχουν ακόμη διαθέσιμα προαιρετικά αξεσουάρ για αυτό το έργο.</p>}
+      </div>
+
+      {missingAccessories.length ? (
+        <details className={styles.catalogueGap}>
+          <summary>Κενά καταλόγου για αξεσουάρ ({missingAccessories.length})</summary>
+          <p>Οι παρακάτω ανάγκες έχουν κανόνα έργου, αλλά δεν υπάρχει ακόμη πωλήσιμο canonical προϊόν στη σωστή κατηγορία. Δεν εμφανίζουμε ψεύτικα προϊόντα.</p>
+          <ul>{missingAccessories.map((slot) => <li key={slot.ruleKey}>{slot.label}</li>)}</ul>
+        </details>
+      ) : null}
+
+      <div className={styles.kitFooter}>
         <div>
-          <span>PROJECT DOSSIER</span>
-          <strong>Κράτησε τον αναλυτικό οδηγό του έργου.</strong>
-          <p>Το PDF χρησιμοποιεί το ίδιο αμετάβλητο snapshot με αυτή την οθόνη. Αν είσαι συνδεδεμένος, αποθηκεύεται και στα «Τα Έγγραφά μου» όταν το δημιουργήσεις.</p>
+          <small>ΕΚΤΙΜΩΜΕΝΟ ΣΥΝΟΛΟ ΕΡΓΟΥ</small>
+          <strong>{displayMoney(totalMinor)}</strong>
+          <span>{selectedItems.length} επιλεγμένα είδη · τιμές κατά τη δημιουργία του kit</span>
         </div>
-        <button type="button" className={styles.primaryAction} disabled={pdfState === "loading"} onClick={onDownloadPdf}>
-          {pdfState === "loading" ? "ΔΗΜΙΟΥΡΓΙΑ PDF…" : "ΛΗΨΗ ΑΝΑΛΥΤΙΚΟΥ ΟΔΗΓΟΥ PDF"}
-        </button>
+        <div className={styles.kitActions}>
+          <button type="button" className={styles.primaryAction} disabled={!selectedItems.length || cartState === "loading"} onClick={() => void addProjectToCart()}>
+            {cartState === "loading" ? "ΕΛΕΓΧΟΣ ΔΙΑΘΕΣΙΜΟΤΗΤΑΣ…" : cartState === "added" ? "ΠΡΟΣΤΕΘΗΚΕ ΣΤΟ ΚΑΛΑΘΙ ✓" : "ΠΡΟΣΘΗΚΗ ΟΛΟΥ ΤΟΥ ΕΡΓΟΥ ΣΤΟ ΚΑΛΑΘΙ"}
+          </button>
+          <button type="button" className={styles.secondaryAction} disabled={pdfState === "loading"} onClick={() => void downloadPdf()}>
+            {pdfState === "loading" ? "ΔΗΜΙΟΥΡΓΙΑ PDF…" : "ΔΗΜΙΟΥΡΓΙΑ PDF ΕΡΓΟΥ"}
+          </button>
+        </div>
+        {cartState === "error" ? <small role="alert">Κάποιο επιλεγμένο προϊόν δεν είναι πλέον διαθέσιμο ή άλλαξε. Το καλάθι δεν ενημερώθηκε μερικώς.</small> : null}
         {pdfState === "error" ? <small role="alert">Το PDF δεν δημιουργήθηκε. Δοκίμασε ξανά.</small> : null}
+        {!complete ? <p>Μπορείς να προσθέσεις τα επιλεγμένα προϊόντα ή να δημιουργήσεις PDF, αλλά το Studio θα διατηρήσει εμφανή την ένδειξη ότι το επαληθευμένο σύστημα είναι ελλιπές.</p> : null}
       </div>
 
       <div className={styles.resultActions}>
         <button type="button" className={styles.secondaryAction} onClick={onChangeProduct}>ΑΛΛΑΓΗ ΠΡΟΪΟΝΤΟΣ</button>
-        <a href="/account/documents" className={styles.secondaryAction}>ΤΑ ΕΓΓΡΑΦΑ ΜΟΥ</a>
         <button type="button" className={styles.secondaryAction} onClick={onRestart}>ΝΕΟ ΕΡΓΟ</button>
       </div>
     </section>
@@ -224,14 +389,8 @@ export function BuildStudioGuidanceResult({
   onRestart: () => void;
 }) {
   const [guide, setGuide] = useState<CustomerGuide | null>(null);
-  const [selectedManufacturerProductId, setSelectedManufacturerProductId] = useState<string>();
   const [selectedProduct, setSelectedProduct] = useState<BuildStudioCandidate>();
-  const [snapshotId, setSnapshotId] = useState("");
-  const pdfActionRef = useRef<HTMLDivElement>(null);
-  const [quantity, setQuantity] = useState<QuantityEstimate | null>(null);
-  const [finalMode, setFinalMode] = useState(false);
-  const [snapshotState, setSnapshotState] = useState<"idle" | "loading" | "error">("idle");
-  const [pdfState, setPdfState] = useState<"idle" | "loading" | "error">("idle");
+  const [projectKit, setProjectKit] = useState<BuildStudioProjectKit>();
   const [loadState, setLoadState] = useState<"loading" | "ready" | "unsupported" | "error">(
     scenarioRequest ? "loading" : "unsupported"
   );
@@ -240,11 +399,8 @@ export function BuildStudioGuidanceResult({
   const factsJson = JSON.stringify(scenarioRequest?.facts ?? {});
 
   useEffect(() => {
-    setSelectedManufacturerProductId(undefined);
     setSelectedProduct(undefined);
-    setSnapshotId("");
-    setQuantity(null);
-    setFinalMode(false);
+    setProjectKit(undefined);
   }, [scenarioKey, factsJson]);
 
   useEffect(() => {
@@ -253,11 +409,9 @@ export function BuildStudioGuidanceResult({
       setLoadState("unsupported");
       return;
     }
-
     const controller = new AbortController();
     setGuide(null);
     setLoadState("loading");
-
     void fetch("/api/build-studio/guidance", {
       method: "POST",
       signal: controller.signal,
@@ -266,7 +420,7 @@ export function BuildStudioGuidanceResult({
       body: JSON.stringify({
         scenarioKey,
         facts: JSON.parse(factsJson) as Record<string, unknown>,
-        manufacturerProductId: selectedManufacturerProductId ?? null
+        manufacturerProductId: null
       })
     })
       .then(async (response) => {
@@ -284,128 +438,31 @@ export function BuildStudioGuidanceResult({
         setGuide(null);
         setLoadState("error");
       });
-
     return () => controller.abort();
-  }, [scenarioKey, factsJson, selectedManufacturerProductId]);
+  }, [scenarioKey, factsJson]);
+
+  if (projectKit && selectedProduct && scenarioRequest) {
+    return (
+      <ProjectKitScreen
+        eyebrow={eyebrow}
+        title={title}
+        summary={summary}
+        colour={colour}
+        projectType={projectType}
+        areaM2={areaM2}
+        scenarioRequest={scenarioRequest}
+        selectedProduct={selectedProduct}
+        projectKit={projectKit}
+        onChangeProduct={() => {
+          setProjectKit(undefined);
+          setSelectedProduct(undefined);
+        }}
+        onRestart={onRestart}
+      />
+    );
+  }
 
   const canChooseProduct = loadState === "ready" && guide && !guide.blocked && !guide.guidanceConflict;
-  const selectedProductVerified = Boolean(
-    selectedProduct
-    && selectedManufacturerProductId
-    && selectedProduct.manufacturerProductId === selectedManufacturerProductId
-    && selectedProduct.technicalVerificationStatus === "verified"
-    && guide
-    && guide.quantity.status !== "manufacturer_not_selected"
-  );
-
-  function handleProduct(product: BuildStudioCandidate | undefined) {
-    setSelectedProduct(product);
-    setSnapshotId("");
-    setQuantity(null);
-    setFinalMode(false);
-    setSnapshotState("idle");
-  }
-
-  async function openFinalGuide(downloadImmediately = false) {
-    if (!scenarioRequest || !selectedProduct || !selectedManufacturerProductId) return;
-    setSnapshotState("loading");
-    try {
-      const response = await fetch("/api/build-studio/snapshot", {
-        method: "POST",
-        cache: "no-store",
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scenarioKey,
-          facts: scenarioRequest.facts,
-          manufacturerProductId: selectedManufacturerProductId,
-          project: {
-            title,
-            projectType,
-            areaM2,
-            colour,
-            summary,
-            selectedProduct: {
-              manufacturerProductId: selectedProduct.manufacturerProductId,
-              catalogueId: selectedProduct.id,
-              title: selectedProduct.title,
-              brand: selectedProduct.brand,
-              price: selectedProduct.price
-            }
-          }
-        })
-      });
-      if (!response.ok) throw new Error("snapshot failed");
-      const payload = await response.json() as {
-        snapshotId?: string;
-        customerGuide?: CustomerGuide;
-        quantityEstimate?: QuantityEstimate;
-      };
-      if (!payload.snapshotId || !payload.customerGuide || !payload.quantityEstimate) throw new Error("snapshot incomplete");
-      setSnapshotId(payload.snapshotId);
-      setGuide(payload.customerGuide);
-      setQuantity(payload.quantityEstimate);
-      setFinalMode(true);
-      setSnapshotState("idle");
-      if (downloadImmediately) await downloadPdfForSnapshot(payload.snapshotId);
-    } catch {
-      setSnapshotState("error");
-    }
-  }
-
-  async function downloadPdfForSnapshot(targetSnapshotId: string) {
-    setPdfState("loading");
-    try {
-      const response = await fetch(`/api/build-studio/project-guide?snapshotId=${encodeURIComponent(targetSnapshotId)}`, {
-        cache: "no-store"
-      });
-      if (!response.ok) throw new Error("pdf failed");
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = "konta-mou-paint-build-guide.pdf";
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setPdfState("idle");
-    } catch {
-      setPdfState("error");
-    }
-  }
-
-  async function downloadPdf() {
-    if (!snapshotId) return;
-    await downloadPdfForSnapshot(snapshotId);
-  }
-
-  useEffect(() => {
-    if (!selectedProductVerified) return;
-    const timer = window.setTimeout(() => {
-      pdfActionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 180);
-    return () => window.clearTimeout(timer);
-  }, [selectedProduct?.id, selectedProductVerified]);
-
-  if (finalMode && guide && selectedProduct && quantity && snapshotId) {
-    return <ProjectGuidanceScreen
-      eyebrow={eyebrow}
-      title={title}
-      summary={summary}
-      colour={colour}
-      guide={guide}
-      selectedProduct={selectedProduct}
-      quantity={quantity}
-      snapshotId={snapshotId}
-      pdfState={pdfState}
-      onDownloadPdf={() => void downloadPdf()}
-      onChangeProduct={() => {
-        setFinalMode(false);
-        setSnapshotId("");
-      }}
-      onRestart={onRestart}
-    />;
-  }
 
   return (
     <section className={styles.resultScreen}>
@@ -413,52 +470,18 @@ export function BuildStudioGuidanceResult({
         <span className={styles.kicker}>{eyebrow}</span>
         <h1>{title}</h1>
         <p>{summary}</p>
-        {colour ? (
-          <div className={styles.resultSwatch}>
-            <span style={{ background: colour }} />
-            <div><small>ΤΟ ΧΡΩΜΑ ΣΟΥ</small><strong>{colour}</strong></div>
-          </div>
-        ) : null}
+        {colour ? <div className={styles.resultSwatch}><span style={{ background: colour }} /><div><small>ΤΟ ΧΡΩΜΑ ΣΟΥ</small><strong>{colour}</strong></div></div> : null}
       </div>
 
-      {loadState === "loading" ? (
-        <div className={styles.warningPanel} role="status">
-          <strong>Ελέγχω την επαληθευμένη τεχνική καθοδήγηση…</strong>
-          <p>Οι οδηγίες φορτώνονται από τη βάση τεκμηρίωσης του Paint & Build Studio.</p>
-        </div>
-      ) : null}
-
-      {loadState === "unsupported" ? (
-        <div className={styles.warningPanel}>
-          <strong>Η τεχνική καθοδήγηση για αυτόν τον συνδυασμό δεν έχει ακόμη επαληθευτεί.</strong>
-          <p>Το Studio σταματά εδώ αντί να εμφανίσει υποθετικές οδηγίες ή προϊόντα.</p>
-        </div>
-      ) : null}
-
-      {loadState === "error" ? (
-        <div className={styles.warningPanel}>
-          <strong>Η επαληθευμένη τεχνική καθοδήγηση δεν είναι διαθέσιμη αυτή τη στιγμή.</strong>
-          <p>Για ασφάλεια δεν εμφανίζουμε μη τεκμηριωμένο fallback.</p>
-        </div>
-      ) : null}
-
-      {loadState === "ready" && guide?.guidanceConflict ? (
-        <div className={styles.warningPanel}>
-          <strong>Απαιτείται τεχνικός έλεγχος των οδηγιών.</strong>
-          <p>Υπάρχει σύγκρουση μεταξύ πηγών και το Studio δεν την επιλύει σιωπηρά.</p>
-        </div>
-      ) : null}
+      {loadState === "loading" ? <div className={styles.warningPanel} role="status"><strong>Ελέγχω την επαληθευμένη τεχνική καθοδήγηση…</strong><p>Οι οδηγίες φορτώνονται από τη βάση τεκμηρίωσης του Paint & Build Studio.</p></div> : null}
+      {loadState === "unsupported" ? <div className={styles.warningPanel}><strong>Η τεχνική καθοδήγηση για αυτόν τον συνδυασμό δεν έχει ακόμη επαληθευτεί.</strong><p>Το Studio σταματά εδώ αντί να εμφανίσει υποθετικές οδηγίες ή προϊόντα.</p></div> : null}
+      {loadState === "error" ? <div className={styles.warningPanel}><strong>Η επαληθευμένη τεχνική καθοδήγηση δεν είναι διαθέσιμη αυτή τη στιγμή.</strong><p>Για ασφάλεια δεν εμφανίζουμε μη τεκμηριωμένο fallback.</p></div> : null}
+      {loadState === "ready" && guide?.guidanceConflict ? <div className={styles.warningPanel}><strong>Απαιτείται τεχνικός έλεγχος των οδηγιών.</strong><p>Υπάρχει σύγκρουση μεταξύ πηγών και το Studio δεν την επιλύει σιωπηρά.</p></div> : null}
 
       {loadState === "ready" && guide?.blocked ? (
         <>
-          <div className={styles.warningPanel}>
-            <strong>Μην προχωρήσεις ακόμη σε επιλογή προϊόντος.</strong>
-            <p>Έχει ενεργοποιηθεί κανόνας ΚΟΝΤΑ ΜΟΥ που απαιτεί πρώτα έλεγχο ή αποκατάσταση της αιτίας.</p>
-          </div>
-          <div className={styles.resultCard}>
-            <GuideList title="Πριν ξεκινήσεις" items={guide.beforeYouStart} />
-            <GuideList title="Προσοχή" items={guide.warnings} />
-          </div>
+          <div className={styles.warningPanel}><strong>Μην προχωρήσεις ακόμη σε επιλογή προϊόντος.</strong><p>Έχει ενεργοποιηθεί κανόνας ΚΟΝΤΑ ΜΟΥ που απαιτεί πρώτα έλεγχο ή αποκατάσταση της αιτίας.</p></div>
+          <div className={styles.resultCard}><GuideList title="Πριν ξεκινήσεις" items={guide.beforeYouStart} /><GuideList title="Προσοχή" items={guide.warnings} /></div>
         </>
       ) : null}
 
@@ -467,42 +490,13 @@ export function BuildStudioGuidanceResult({
           terms={candidateTerms}
           scenarioKey={scenarioKey}
           facts={scenarioRequest?.facts ?? {}}
-          selectedCatalogueId={selectedProduct?.id}
-          onManufacturerProductChange={setSelectedManufacturerProductId}
-          onSelectionChange={handleProduct}
+          areaM2={areaM2}
+          onProjectKitReady={(kit, product) => {
+            setSelectedProduct(product);
+            setProjectKit(kit);
+            window.setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 40);
+          }}
         />
-      ) : null}
-
-      {canChooseProduct ? (
-        <div className={styles.pdfPanel} ref={pdfActionRef}>
-          <div>
-            <span>PROJECT DOSSIER · PDF</span>
-            <strong>
-              {selectedProductVerified && selectedProduct
-                ? selectedProduct.title
-                : "Διάλεξε ένα προϊόν για να δημιουργήσεις το PDF του έργου."}
-            </strong>
-            <p>
-              {selectedProductVerified && selectedProduct
-                ? `${selectedProduct.brand || "VITEX"} · ${selectedProduct.price}. Με την επιβεβαίωση θα δημιουργηθεί το επαληθευμένο snapshot και θα ξεκινήσει αμέσως η λήψη του PDF.`
-                : "Το PDF περιλαμβάνει τις οδηγίες του συγκεκριμένου έργου και, όταν υπάρχει επαληθευμένο προϊόν, τις αντίστοιχες οδηγίες κατασκευαστή."}
-            </p>
-          </div>
-          <button
-            type="button"
-            className={styles.primaryAction}
-            disabled={!selectedProductVerified || snapshotState === "loading" || pdfState === "loading"}
-            onClick={() => void openFinalGuide(true)}
-          >
-            {snapshotState === "loading" || pdfState === "loading"
-              ? "ΔΗΜΙΟΥΡΓΙΑ PDF…"
-              : selectedProductVerified
-                ? "ΕΠΙΒΕΒΑΙΩΣΗ & ΛΗΨΗ PDF"
-                : "ΕΠΙΛΕΞΕ ΠΡΟΪΟΝ ΓΙΑ PDF"}
-          </button>
-          {snapshotState === "error" ? <small role="alert">Δεν ήταν δυνατή η δημιουργία του επαληθευμένου snapshot. Δοκίμασε ξανά.</small> : null}
-          {pdfState === "error" ? <small role="alert">Το PDF δεν δημιουργήθηκε. Δοκίμασε ξανά.</small> : null}
-        </div>
       ) : null}
 
       <div className={styles.resultActions}>
