@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { BuildGuidanceSourceLayer, BuildGuidanceUiItem } from "./build-guidance-runtime";
 import type { PaintBuildProjectSnapshot } from "./paint-build-project-documents";
-import { paintBuildFinishLabel, paintBuildGreekText, paintBuildProductTitle, paintBuildTintBaseLabel } from "./paint-build-greek-presentation";
+import { paintBuildFinishLabel, paintBuildGreekText, paintBuildPackageLabel, paintBuildProductTitle, paintBuildTintBaseLabel } from "./paint-build-greek-presentation";
 
 function sourceLabel(layer: BuildGuidanceSourceLayer): string {
   if (layer === "GENERAL_GUIDANCE") return "Γενική τεχνική καθοδήγηση";
@@ -107,7 +107,7 @@ function productOverview(snapshot: PaintBuildProjectSnapshot, assets: PaintBuild
   const product = snapshot.project.selectedProduct;
   if (!product?.title) return [];
   const url = absoluteProductUrl(product.url);
-  const size = product.size || (product.packValue != null && product.packUnit ? `${product.packValue}${product.packUnit}` : undefined);
+  const size = paintBuildPackageLabel(product.size || (product.packValue != null && product.packUnit ? `${product.packValue}${product.packUnit}` : undefined));
   const productColour = paintBuildTintBaseLabel(product.colour || product.tintBase);
   const swatch = snapshot.project.colour && /^#[0-9A-Fa-f]{6}$/.test(snapshot.project.colour)
     ? { canvas: [{ type: "rect", x: 0, y: 0, w: 16, h: 16, color: snapshot.project.colour, lineColor: "#D2CAC0" }], width: 22 }
