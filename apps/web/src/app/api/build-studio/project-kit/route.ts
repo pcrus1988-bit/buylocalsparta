@@ -8,6 +8,7 @@ import {
 import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
 import {
   PROJECT_ACCESSORY_RULES,
+  calculateVerifiedPaintQuantity,
   choosePaintPackPlan,
   variantRouteKey,
   type PaintBuildPackVariant
@@ -68,6 +69,24 @@ type RequiredRelationshipRow = Readonly<{
   target_product_id: string;
   target_product_name: string;
   relationship_type: string;
+}>;
+
+type ScenarioEligibilityRow = Readonly<{
+  rule_key: string;
+  result_status: string;
+  actions: Record<string, unknown>;
+  evidence_field_name: string | null;
+  evidence_value: unknown;
+}>;
+
+type CoverageEvidenceRow = Readonly<{
+  normalized_value: unknown;
+}>;
+
+type ManufacturerProductLookupRow = Readonly<{
+  id: string;
+  product_name: string;
+  verification_status: string;
 }>;
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -200,10 +219,15 @@ async function readProfile(manufacturerProductId: string): Promise<ProfileRow | 
   return result.rows[0];
 }
 
-async function readScenarioEligibility(manufacturerProductId: string, scenarioKey: string) {
+async function readScenarioEligibility(manufacturerProductId: string, scenarioKey: string): Promise<ScenarioEligibilityRow | undefined> {
   const db = getProductionPostgresRuntime().nativePool;
-  const result = await db.query<{ rule_key: string; result_status: string; actions: Record<string, unknown> }>(
-    `select ar.rule_key,ar.result_status,ar.actions
+  const result = await db.query<ScenarioEligibilityRow>(
+    `select
+       ar.rule_key,
+       ar.result_status,
+       ar.actions,
+       ie.field_name as evidence_field_name,
+       ie.normalized_value as evidence_value
      from public.manufacturer_application_rules ar
      join public.manufacturer_instruction_evidence ie on ie.id=ar.source_evidence_id and ie.is_current=true
      join public.manufacturer_technical_sources ts on ts.id=ie.source_id and ts.is_current=true
@@ -221,19 +245,76 @@ async function readScenarioEligibility(manufacturerProductId: string, scenarioKe
   return result.rows[0];
 }
 
-function manufacturerQuantityFromProfile(profile: ProfileRow | undefined, areaM2: number) {
+async function readCoverageEvidence(manufacturerProductId: string): Promise<CoverageEvidenceRow | undefined> {
+  const db = getProductionPostgresRuntime().nativePool;
+  const result = await db.query<CoverageEvidenceRow>(
+    `select ie.normalized_value
+     from public.manufacturer_instruction_evidence ie
+     join public.manufacturer_technical_sources ts on ts.id=ie.source_id and ts.is_current=true
+     where ie.product_id=$1::uuid
+       and ie.source_layer='manufacturer'
+       and ie.field_name='coverage_m2_per_litre'
+       and ie.is_current=true
+       and (ie.valid_from is null or ie.valid_from<=current_date)
+       and (ie.valid_to is null or ie.valid_to>=current_date)
+     order by ie.confidence desc nulls last,ie.created_at desc
+     limit 1`,
+    [manufacturerProductId]
+  );
+  return result.rows[0];
+}
+
+function twoCoatCoverage(value: unknown): Readonly<{ min: number; max: number }> | undefined {
+  if (!value || Array.isArray(value) || typeof value !== "object") return undefined;
+  const raw = (value as Record<string, unknown>).two_coats;
+  if (!Array.isArray(raw) || raw.length < 2) return undefined;
+  const first = numberValue(raw[0]);
+  const second = numberValue(raw[1]);
+  if (!first || !second || first <= 0 || second <= 0) return undefined;
+  return { min: Math.min(first, second), max: Math.max(first, second) };
+}
+
+function manufacturerQuantityFromProfile(
+  profile: ProfileRow | undefined,
+  areaM2: number,
+  coverageEvidence?: CoverageEvidenceRow
+) {
   if (!profile) return undefined;
-  const coverageMin = numberValue(profile.coverage_m2_per_litre_min);
-  const coverageMax = numberValue(profile.coverage_m2_per_litre_max);
-  const coatsMin = numberValue(profile.number_of_coats_min);
-  const coatsMax = numberValue(profile.number_of_coats_max);
-  if (!coverageMin || !coverageMax || !coatsMin || !coatsMax || coverageMin <= 0 || coverageMax <= 0 || coatsMin <= 0 || coatsMax <= 0) return undefined;
-  const min = areaM2 * Math.min(coatsMin, coatsMax) / Math.max(coverageMin, coverageMax);
-  const max = areaM2 * Math.max(coatsMin, coatsMax) / Math.min(coverageMin, coverageMax);
-  return {
-    min: Math.round(min * 100) / 100,
-    max: Math.round(max * 100) / 100
-  };
+  const aggregate = twoCoatCoverage(coverageEvidence?.normalized_value);
+  return calculateVerifiedPaintQuantity({
+    areaM2,
+    coverageMin: numberValue(profile.coverage_m2_per_litre_min),
+    coverageMax: numberValue(profile.coverage_m2_per_litre_max),
+    coatsMin: numberValue(profile.number_of_coats_min),
+    coatsMax: numberValue(profile.number_of_coats_max),
+    twoCoatCoverageMin: aggregate?.min,
+    twoCoatCoverageMax: aggregate?.max
+  });
+}
+
+function evidenceNames(value: unknown): readonly string[] {
+  if (typeof value === "string") {
+    const result = value.trim();
+    return result ? [result] : [];
+  }
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => typeof entry === "string" && entry.trim() ? [entry.trim()] : []);
+}
+
+async function lookupManufacturerProductByName(name: string): Promise<ManufacturerProductLookupRow | undefined> {
+  const db = getProductionPostgresRuntime().nativePool;
+  const result = await db.query<ManufacturerProductLookupRow>(
+    `select id::text,product_name,verification_status
+     from public.manufacturer_products
+     where lower(product_name)=lower($1)
+       and product_system_status='current'
+       and (valid_from is null or valid_from<=current_date)
+       and (valid_to is null or valid_to>=current_date)
+     order by (verification_status='verified') desc,updated_at desc
+     limit 1`,
+    [name]
+  );
+  return result.rows[0];
 }
 
 async function requiredRelationships(manufacturerProductId: string): Promise<readonly RequiredRelationshipRow[]> {
@@ -328,9 +409,10 @@ async function requiredSystemItems(manufacturerProductId: string, areaM2: number
   const unresolved: Array<Record<string, unknown>> = [];
 
   for (const relationship of relationships) {
-    const [family, profile] = await Promise.all([
+    const [family, profile, coverageEvidence] = await Promise.all([
       readFamily(relationship.target_product_id).catch(() => undefined),
-      readProfile(relationship.target_product_id)
+      readProfile(relationship.target_product_id),
+      readCoverageEvidence(relationship.target_product_id)
     ]);
     if (!family?.variants.length) {
       unresolved.push({
@@ -341,7 +423,7 @@ async function requiredSystemItems(manufacturerProductId: string, areaM2: number
       });
       continue;
     }
-    const quantity = manufacturerQuantityFromProfile(profile, areaM2);
+    const quantity = manufacturerQuantityFromProfile(profile, areaM2, coverageEvidence);
     if (!quantity) {
       unresolved.push({
         manufacturerProductId: relationship.target_product_id,
@@ -393,6 +475,112 @@ async function requiredSystemItems(manufacturerProductId: string, areaM2: number
   return { ready, unresolved };
 }
 
+async function scenarioRequiredSystemItems(eligibility: ScenarioEligibilityRow | undefined, areaM2: number) {
+  const ready: Array<Record<string, unknown>> = [];
+  const unresolved: Array<Record<string, unknown>> = [];
+  if (!eligibility || !["requires_specific_primer", "requires_system_component"].includes(eligibility.result_status)) {
+    return { ready, unresolved };
+  }
+
+  const names = evidenceNames(eligibility.evidence_value);
+  if (names.length !== 1) {
+    unresolved.push({
+      relationshipType: eligibility.result_status,
+      title: names.join(" / ") || "Απαιτούμενο συστατικό συστήματος",
+      reason: names.length > 1 ? "required_component_choice_needed" : "required_component_evidence_unresolved",
+      choices: names
+    });
+    return { ready, unresolved };
+  }
+
+  const target = await lookupManufacturerProductByName(names[0]);
+  if (!target) {
+    unresolved.push({
+      title: names[0],
+      relationshipType: eligibility.result_status,
+      reason: "required_component_not_in_manufacturer_catalogue"
+    });
+    return { ready, unresolved };
+  }
+  if (target.verification_status !== "verified") {
+    unresolved.push({
+      manufacturerProductId: target.id,
+      title: target.product_name,
+      relationshipType: eligibility.result_status,
+      reason: "required_component_not_yet_verified"
+    });
+    return { ready, unresolved };
+  }
+
+  const [family, profile, coverageEvidence] = await Promise.all([
+    readFamily(target.id).catch(() => undefined),
+    readProfile(target.id),
+    readCoverageEvidence(target.id)
+  ]);
+  if (!family?.variants.length) {
+    unresolved.push({
+      manufacturerProductId: target.id,
+      title: target.product_name,
+      relationshipType: eligibility.result_status,
+      reason: "required_component_not_available"
+    });
+    return { ready, unresolved };
+  }
+
+  const quantity = manufacturerQuantityFromProfile(profile, areaM2, coverageEvidence);
+  if (!quantity) {
+    unresolved.push({
+      manufacturerProductId: target.id,
+      title: target.product_name,
+      relationshipType: eligibility.result_status,
+      reason: "required_component_quantity_unverified"
+    });
+    return { ready, unresolved };
+  }
+
+  const routeGroups = new Map<string, FamilyVariant[]>();
+  for (const variant of family.variants) {
+    const key = variantRouteKey(variant);
+    routeGroups.set(key, [...(routeGroups.get(key) ?? []), variant]);
+  }
+  const plans = [...routeGroups.values()]
+    .map((variants) => choosePaintPackPlan(variants, quantity.max))
+    .filter((plan): plan is NonNullable<typeof plan> => Boolean(plan))
+    .sort((a, b) => a.totalPriceMinor - b.totalPriceMinor || a.surplusLitres - b.surplusLitres);
+  const plan = plans[0];
+  if (!plan) {
+    unresolved.push({
+      manufacturerProductId: target.id,
+      title: target.product_name,
+      relationshipType: eligibility.result_status,
+      reason: "required_component_pack_plan_unavailable"
+    });
+    return { ready, unresolved };
+  }
+
+  for (const line of plan.lines) {
+    const variant = family.variants.find((item) => item.id === line.variant.id);
+    if (!variant) continue;
+    ready.push({
+      canonicalVariantId: variant.id,
+      title: variant.title,
+      priceMinor: variant.priceMinor,
+      price: variant.price,
+      quantity: line.quantity,
+      imageUrl: variant.imageUrl,
+      selected: true,
+      required: true,
+      role: "required_system",
+      sourceLayer: "MANUFACTURER_VITEX",
+      reasonEl: eligibility.result_status === "requires_specific_primer"
+        ? "ΑΠΑΡΑΙΤΗΤΟ ΑΣΤΑΡΙ ΓΙΑ ΤΟ ΕΠΑΛΗΘΕΥΜΕΝΟ ΣΕΝΑΡΙΟ VITEX"
+        : "ΑΠΑΡΑΙΤΗΤΟ ΣΥΣΤΑΤΙΚΟ ΓΙΑ ΤΟ ΕΠΑΛΗΘΕΥΜΕΝΟ ΣΥΣΤΗΜΑ VITEX",
+      manufacturerProductId: target.id
+    });
+  }
+  return { ready, unresolved };
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json() as RequestBody;
@@ -420,16 +608,33 @@ export async function POST(request: Request) {
       }, { status: 409, headers: { "Cache-Control": "private, no-store, max-age=0" } });
     }
 
-    const [family, profile, eligibility] = await Promise.all([
+    const [family, profile, eligibility, coverageEvidence] = await Promise.all([
       readFamily(manufacturerProductId),
       readProfile(manufacturerProductId),
-      readScenarioEligibility(manufacturerProductId, scenarioKey)
+      readScenarioEligibility(manufacturerProductId, scenarioKey),
+      readCoverageEvidence(manufacturerProductId)
     ]);
     if (!family.variants.length) {
       return Response.json({ error: "family_not_available" }, { status: 404, headers: { "Cache-Control": "private, no-store, max-age=0" } });
     }
 
-    const quantityEstimate = calculateBuildQuantity(guidance, areaM2);
+    const runtimeQuantity = calculateBuildQuantity(guidance, areaM2);
+    const aggregateCoverage = twoCoatCoverage(coverageEvidence?.normalized_value);
+    const verifiedQuantity = manufacturerQuantityFromProfile(profile, areaM2, coverageEvidence);
+    const quantityEstimate = runtimeQuantity.status === "available" || !verifiedQuantity
+      ? runtimeQuantity
+      : {
+          status: "available" as const,
+          areaM2,
+          unit: "L" as const,
+          min: verifiedQuantity.min,
+          max: verifiedQuantity.max,
+          coatsMin: verifiedQuantity.coatsMin,
+          coatsMax: verifiedQuantity.coatsMax,
+          basisEl: verifiedQuantity.basis === "manufacturer_two_coat_coverage"
+            ? "Θεωρητική ποσότητα απευθείας από την επαληθευμένη κάλυψη δύο στρώσεων που δημοσιεύει η VITEX. Δεν προστέθηκε γενικός συντελεστής απωλειών."
+            : "Θεωρητική ποσότητα από επαληθευμένα m²/L και αριθμό στρώσεων VITEX."
+        };
     const customerGuide = buildCustomerGuide(guidance);
     const technical = {
       eligibility: eligibility?.result_status,
@@ -441,9 +646,10 @@ export async function POST(request: Request) {
         conditions: profile.coverage_conditions
       } : undefined,
       coats: profile ? {
-        min: numberValue(profile.number_of_coats_min),
-        max: numberValue(profile.number_of_coats_max)
+        min: numberValue(profile.number_of_coats_min) ?? verifiedQuantity?.coatsMin,
+        max: numberValue(profile.number_of_coats_max) ?? verifiedQuantity?.coatsMax
       } : undefined,
+      twoCoatCoverageM2PerLitre: aggregateCoverage,
       dryToTouchMinutes: profile ? {
         min: profile.dry_to_touch_minutes_min,
         max: profile.dry_to_touch_minutes_max
@@ -452,7 +658,7 @@ export async function POST(request: Request) {
         min: profile.recoat_minutes_min,
         max: profile.recoat_minutes_max
       } : undefined,
-      primerRequired: profile?.primer_required,
+      primerRequired: profile?.primer_required ?? (eligibility?.result_status === "requires_specific_primer" ? true : undefined),
       recommendedPrimers: profile?.recommended_primers ?? [],
       requiredSystemComponents: profile?.required_system_components ?? [],
       applicationMethods: profile?.application_methods ?? [],
@@ -483,8 +689,9 @@ export async function POST(request: Request) {
       ? choosePaintPackPlan(routeVariants, quantityEstimate.max)
       : undefined;
 
-    const [required, accessories] = await Promise.all([
+    const [required, scenarioRequired, accessories] = await Promise.all([
       requiredSystemItems(manufacturerProductId, areaM2),
+      scenarioRequiredSystemItems(eligibility, areaM2),
       accessoryItems(areaM2)
     ]);
 
@@ -516,7 +723,8 @@ export async function POST(request: Request) {
     }] : []);
 
     const requiredQuantityResolved = quantityEstimate.status === "available" && Boolean(packPlan);
-    const complete = requiredQuantityResolved && required.unresolved.length === 0;
+    const allUnresolvedRequired = [...required.unresolved, ...scenarioRequired.unresolved];
+    const complete = requiredQuantityResolved && allUnresolvedRequired.length === 0;
 
     return Response.json({
       family,
@@ -529,10 +737,10 @@ export async function POST(request: Request) {
         complete,
         completenessReasons: [
           ...(!requiredQuantityResolved ? ["main_product_quantity_unverified"] : []),
-          ...required.unresolved.map((item) => String(item.reason))
+          ...allUnresolvedRequired.map((item) => String(item.reason))
         ],
-        items: [...coatingItems, ...required.ready, ...accessoryReady],
-        unresolvedRequired: required.unresolved,
+        items: [...coatingItems, ...required.ready, ...scenarioRequired.ready, ...accessoryReady],
+        unresolvedRequired: allUnresolvedRequired,
         unavailableAccessorySlots: accessoryMissing
       }
     }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
