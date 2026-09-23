@@ -157,7 +157,7 @@ BEGIN
       ||'-'
       ||COALESCE(NULLIF(regexp_replace(lower(sp.source_product_key),'[^a-z0-9]+','-','g'),''),'product')
       ||'-'
-      ||substr(md5(sp.id::text),1,12),
+      ||substr(md5(lower(btrim(p_source_code))||':'||sp.source_product_key),1,12),
       140
     ) AS canonical_slug
   FROM public.catalog_source_products sp
