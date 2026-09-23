@@ -677,19 +677,23 @@ export async function getDemoVendorCatalogFacets(vendor: DemoStorefrontVendor): 
     category_label: string | null;
     brand: string | null;
   }>(`
-    WITH assigned_variants AS (
+    WITH raw_assignment AS (
       SELECT vo.canonical_variant_id
       FROM vendor_offers vo
       WHERE vo.vendor_id=$1::uuid
         AND vo.status IN ('draft','pending_review','approved')
 
-      UNION
+      UNION ALL
 
       SELECT vca.canonical_variant_id
       FROM vendor_catalog_assortments vca
       WHERE vca.vendor_id=$1::uuid
         AND vca.canonical_variant_id IS NOT NULL
         AND vca.assortment_status NOT IN ('rejected','discontinued')
+    ),
+    assigned_variants AS (
+      SELECT DISTINCT canonical_variant_id
+      FROM raw_assignment
     )
     SELECT c.code AS category_code,
            COALESCE(ctel.name,cten.name,c.code) AS category_label,
