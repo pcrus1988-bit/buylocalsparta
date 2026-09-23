@@ -51,6 +51,7 @@ test("variant chooser accepts fresh authoritative dropship availability without 
   assert.match(source, /dso\.availability_expires_at>now\(\)/);
   assert.match(source, /vo\.merchant_visible=true/);
   assert.match(source, /vo\.merchant_pause_active=false/);
+  assert.doesNotMatch(source, /storefront_catalog_read_model/);
 
   // Local inventory remains a separate eligibility source; supplier stock must not
   // be copied into inventory_balances just to make the selector appear available.
