@@ -118,6 +118,29 @@ export function variantRouteKey(variant: Pick<PaintBuildPackVariant, "title" | "
   ].join("|");
 }
 
+export function extractManufacturerComponentNames(...values: readonly unknown[]): readonly string[] {
+  function names(value: unknown): string[] {
+    if (typeof value === "string") {
+      const result = value.trim();
+      return result ? [result] : [];
+    }
+    if (Array.isArray(value)) return value.flatMap(names);
+    if (!value || typeof value !== "object") return [];
+    const record = value as Record<string, unknown>;
+    return [
+      ...names(record.required_primer),
+      ...names(record.required_component),
+      ...names(record.required_components),
+      ...names(record.primer),
+      ...names(record.product),
+      ...names(record.primer_options),
+      ...names(record.allowed_primers),
+      ...names(record.options)
+    ];
+  }
+  return [...new Set(values.flatMap(names))];
+}
+
 export type VerifiedPaintQuantity = Readonly<{
   min: number;
   max: number;
