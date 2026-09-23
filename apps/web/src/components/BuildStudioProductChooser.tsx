@@ -39,6 +39,7 @@ export type ProjectKitItem = Readonly<{
   imageUrl?: string;
   selected: boolean;
   required: boolean;
+  role: "required_system" | "recommended_working" | "optional_extra";
   sourceLayer: "MANUFACTURER_VITEX" | "KONTA_MOU_RULE";
   reasonEl: string;
   manufacturerProductId?: string;
