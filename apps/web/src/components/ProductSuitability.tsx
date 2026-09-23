@@ -20,7 +20,8 @@ export function ProductSuitability({
   mode = "live"
 }: ProductSuitabilityProps) {
   const relationshipGroups = relationshipGroupsFromSuitability(suitability);
-  if (!suitability?.items.length && !relationshipGroups.length) return null;
+  const hasFitment = Boolean(suitability?.items.length || suitability?.products.length);
+  if (!hasFitment && !relationshipGroups.length) return null;
 
   const groups = (["model", "brand", "platform"] as const)
     .map((kind) => ({ kind, values: suitability?.items.filter((item) => item.kind === kind).map((item) => item.value) ?? [] }))
@@ -45,8 +46,8 @@ export function ProductSuitability({
 
   return (
     <section className={styles.section} aria-labelledby="product-suitability-title">
-      <div className={styles.eyebrow}>Συμβατότητα</div>
-      <h2 id="product-suitability-title" className={styles.title}>Κατάλληλο για</h2>
+      <div className={styles.eyebrow}>{hasFitment ? "Συμβατότητα" : "Συνδυασμοί"}</div>
+      <h2 id="product-suitability-title" className={styles.title}>{hasFitment ? "Κατάλληλο για" : "Συνδυάζεται με"}</h2>
 
       {groups.length ? (
         <div className={styles.groups}>
