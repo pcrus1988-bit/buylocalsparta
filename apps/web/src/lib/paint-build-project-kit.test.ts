@@ -1,3 +1,4 @@
+import { isPaintBuildMainManufacturerProductRole } from "./paint-build-greek-presentation.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { calculateVerifiedPaintQuantity, choosePaintPackPlan, extractManufacturerComponentNames, packLitres, PROJECT_ACCESSORY_RULES } from "./paint-build-project-kit.ts";
@@ -85,4 +86,13 @@ test("manufacturer primer alternatives remain choices instead of being guessed",
     ),
     ["Durovit", "Acrylan Unco Eco"]
   );
+});
+
+
+test("Paint & Build main candidates reject system-component manufacturer roles", () => {
+  assert.equal(isPaintBuildMainManufacturerProductRole("surface preparation primer", "water-based acrylic primer"), false);
+  assert.equal(isPaintBuildMainManufacturerProductRole("wood preservative", "exterior preservative"), false);
+  assert.equal(isPaintBuildMainManufacturerProductRole("roof waterproofing accessory", "reinforced polyester mesh"), false);
+  assert.equal(isPaintBuildMainManufacturerProductRole("interior wall paint", "mat emulsion paint"), true);
+  assert.equal(isPaintBuildMainManufacturerProductRole("repair putty", "lightweight acrylic putty"), true);
 });
