@@ -33,6 +33,10 @@
       "schedule": "*/10 * * * *"
     },
     {
+      "path": "/api/cron/merchant-sync-en",
+      "schedule": "5,15,25,35,45,55 * * * *"
+    },
+    {
       "path": "/api/cron/merchant-status",
       "schedule": "*/10 * * * *"
     },
