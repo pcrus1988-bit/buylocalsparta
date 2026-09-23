@@ -235,6 +235,7 @@ const GENERAL_EXACT: Readonly<Record<string, string>> = {
   "Η μόνωση επιλέγεται ως μέρος συγκεκριμένου roof build-up.": "Η μόνωση επιλέγεται ως μέρος συγκεκριμένης διαστρωμάτωσης δώματος.",
   "Κόλλα/βασική στρώση όπως ορίζει το ETICS.": "Κόλλα και βασική στρώση όπως ορίζει το σύστημα ETICS.",
   "Κύριο εξωτερικό coating.": "Κύρια εξωτερική βαφή.",
+  "Κύριο υλικό του επαληθευμένου συστήματος · ποσότητα από VITEX coverage + στρώσεις.": "Κύριο υλικό του επαληθευμένου συστήματος · ποσότητα από επαληθευμένη κάλυψη VITEX και αριθμό στρώσεων.",
   "Μέθοδος εφαρμογής βάσει TDS.": "Μέθοδος εφαρμογής βάσει του τεχνικού δελτίου (TDS).",
   "Μέρος του rendering/reinforcement system.": "Μέρος του συστήματος επιχρίσματος και οπλισμού.",
   "Μετά από τεχνικό σχεδιασμό junction και moisture risk.": "Μετά από τεχνικό σχεδιασμό του κόμβου και αξιολόγηση του κινδύνου υγρασίας.",
@@ -403,7 +404,7 @@ const PRODUCT_DESCRIPTORS: Readonly<Record<string, string>> = {
   "blanco eco": "οικολογικό ακρυλικό αστάρι νερού απομόνωσης λεκέδων",
   "durovit": "αδιάβροχο ακρυλικό αστάρι διαλύτου",
   "primer 100% acrylic": "100% ακρυλικό αδιάβροχο αστάρι νερού",
-  "aquavit eco": "οικολογικό πολυουρεθανικό βερνικόχρωμα νερού",
+  "aquavit eco": "οικολογικό πολυουρεθανικό ακρυλικό βερνικόχρωμα νερού",
   "cement paint": "ακρυλικό χρώμα νερού για τσιμεντοειδείς επιφάνειες",
   "floorguard hybrid pu": "ακρυλικό-πολυουρεθανικό χρώμα νερού για δάπεδα",
   "granikot refresh": "νανοακρυλικό χρώμα ανανέωσης συστήματος ETICS",
@@ -437,6 +438,15 @@ export function paintBuildGreekText(value: string): string {
     .replace(/\s+([,.;:])/g, "$1")
     .replace(/\s{2,}/g, " ")
     .trim();
+}
+
+export function paintBuildPackageLabel(value: string | undefined): string | undefined {
+  if (!value?.trim()) return undefined;
+  return value.trim()
+    .replace(/(\d)\s*ml\b/gi, "$1 mL")
+    .replace(/(\d)\s*l\b/gi, "$1 L")
+    .replace(/(\d)\s*kg\b/gi, "$1 kg")
+    .replace(/(\d)\s*g\b/gi, "$1 g");
 }
 
 export function paintBuildFinishLabel(value: string | undefined): string | undefined {
