@@ -11,6 +11,7 @@ import { recordStorefrontSearchAnalytics } from "../../lib/storefront-search-ana
 import { SaveSearchButton } from "../../components/SaveSearchButton";
 import { CatalogProductCard } from "../../components/CatalogProductCard";
 import { CatalogSearchInput } from "../../components/CatalogSearchInput";
+import { ShopFilterFacets } from "../../components/ShopFilterFacets";
 import {
   inferStorefrontTaxonomyIntent,
   resolveStorefrontSubcategoryIntent,
@@ -344,10 +345,8 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     searchIntent.availability === "pickup_today" ? "Παραλαβή σήμερα · μόνο με σημερινή επιβεβαίωση αποθέματος" : undefined
   ].filter((label): label is string => Boolean(label));
   const showSubcategory = facets.subcategories.length > 0 && storefrontFacetEnabled(activeLeaf, "subcategory");
-  const showBrand = facets.brands.length > 0 && storefrontFacetEnabled(activeLeaf, "brand");
-  const showColor = facets.colors.length > 0 && storefrontFacetEnabled(activeLeaf, "color");
-  const showSize = facets.sizes.length > 0 && storefrontFacetEnabled(activeLeaf, "size");
-  const showFit = fitOptions.length > 0 && storefrontFacetEnabled(activeLeaf, "fit");
+  const materialFacet = attributeFacets.find((facet) => facet.key === "material");
+  const remainingAttributeFacets = attributeFacets.filter((facet) => facet.key !== "material");
 
   return (
     <main>
@@ -368,8 +367,8 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         <aside className="catalog-sidebar">
           <div className="catalog-filter-heading">
             <div>
-              <strong>Φίλτρα</strong>
-              <small>Διάλεξε ό,τι σε ενδιαφέρει</small>
+              <span className="catalog-filter-kicker">ΚΑΤΑΛΟΓΟΣ</span>
+              <strong>Κατηγορίες & φίλτρα</strong>
             </div>
             {(query || availability || category || hasDetailedFilters) ? <a className="text-link" href="/shop">Καθαρισμός</a> : null}
           </div>
@@ -380,56 +379,43 @@ export default async function ShopPage({ searchParams }: ShopProps) {
             <label htmlFor="q">Αναζήτηση</label>
             <CatalogSearchInput key={query} defaultValue={query} placeholder={categoryView?.searchHint ?? "Π.χ. Bosch δραπανο μέχρι 100€"} />
 
-            {availableCategories.length > 0 ? <>
-              <label htmlFor="category">Τμήμα</label>
-              <select id="category" name="category" defaultValue={categoryView ? category : ""}>
-                <option value="">Όλα τα τμήματα</option>
-                {availableCategories.map((item) => <option value={item.slug} key={item.slug}>{item.label}</option>)}
-              </select>
-            </> : null}
+            {(availableCategories.length > 0 || showSubcategory) ? <section className="vc-filter-card shop-primary-filter-card">
+              <div className="vc-filter-card-head"><span>Κατηγορίες</span><small>{showSubcategory ? facets.subcategories.length : availableCategories.length}</small></div>
+              {availableCategories.length > 0 ? <>
+                <label htmlFor="category">Τμήμα</label>
+                <select id="category" name="category" defaultValue={categoryView ? category : ""}>
+                  <option value="">Όλα τα τμήματα</option>
+                  {availableCategories.map((item) => <option value={item.slug} key={item.slug}>{item.label}</option>)}
+                </select>
+              </> : null}
 
-            {showSubcategory ? <>
-              <label htmlFor="subcategory">Υποκατηγορία προϊόντος</label>
-              <select id="subcategory" name="subcategory" defaultValue={subcategory}>
-                <option value="">Όλες οι υποκατηγορίες</option>
-                {facets.subcategories.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
-              </select>
-              {groupedSubcategories.length ? <small style={{ display: "block", marginTop: -6, color: "var(--ink-soft)" }}>Τρέχουσα ομαδοποιημένη επιλογή: {activeSubcategoryLabel}</small> : null}
-            </> : null}
+              {showSubcategory ? <>
+                <label htmlFor="subcategory">Υποκατηγορία προϊόντος</label>
+                <select id="subcategory" name="subcategory" defaultValue={subcategory}>
+                  <option value="">Όλες οι υποκατηγορίες</option>
+                  {facets.subcategories.map((item) => <option value={item.value} key={item.value}>{item.label}{item.count ? ` (${item.count})` : ""}</option>)}
+                </select>
+                {groupedSubcategories.length ? <small className="shop-filter-context-note">Τρέχουσα ομαδοποιημένη επιλογή: {activeSubcategoryLabel}</small> : null}
+              </> : null}
+            </section> : null}
 
-            {showBrand ? <>
-              <label htmlFor="brand">Μάρκα</label>
-              <select id="brand" name="brand" defaultValue={brand}>
-                <option value="">Όλες οι μάρκες</option>
-                {facets.brands.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
-              </select>
-            </> : null}
+            <ShopFilterFacets
+              category={category}
+              query={catalogQuery}
+              subcategory={subcategory}
+              initialBrands={facets.brands}
+              initialColors={facets.colors}
+              initialSizes={facets.sizes}
+              initialFits={fitOptions.map((value) => ({ value, label: value }))}
+              initialMaterials={materialFacet?.options ?? []}
+              initialBrand={brand}
+              initialColor={color}
+              initialSize={size}
+              initialFit={fit}
+              initialMaterial={attributeFilters.material ?? ""}
+            />
 
-            {showColor ? <>
-              <label htmlFor="color">Χρώμα</label>
-              <select id="color" name="color" defaultValue={color}>
-                <option value="">Όλα τα χρώματα</option>
-                {facets.colors.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
-              </select>
-            </> : null}
-
-            {showSize ? <>
-              <label htmlFor="size">Μέγεθος</label>
-              <select id="size" name="size" defaultValue={size}>
-                <option value="">Όλα τα μεγέθη</option>
-                {facets.sizes.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
-              </select>
-            </> : null}
-
-            {showFit ? <>
-              <label htmlFor="fit">Εφαρμογή</label>
-              <select id="fit" name="fit" defaultValue={fit}>
-                <option value="">Όλες οι εφαρμογές</option>
-                {fitOptions.map((item) => <option value={item} key={item}>{item}</option>)}
-              </select>
-            </> : null}
-
-            {attributeFacets.map((facet) => <div key={facet.key} className="catalog-attribute-filter">
+            {remainingAttributeFacets.map((facet) => <div key={facet.key} className="catalog-attribute-filter vc-filter-card">
               <label htmlFor={`attr_${facet.key}`}>{facet.label}</label>
               <select id={`attr_${facet.key}`} name={`attr_${facet.key}`} defaultValue={attributeFilters[facet.key] ?? ""}>
                 <option value="">Όλα</option>
@@ -437,7 +423,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               </select>
             </div>)}
 
-            <fieldset className="catalog-price-range">
+            <fieldset className="catalog-price-range vc-filter-card shop-price-filter-card">
               <legend>Εύρος τιμής</legend>
               <div className="catalog-price-range-fields">
                 <label className="catalog-price-field" htmlFor="minPrice">
@@ -458,12 +444,14 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               </div>
             </fieldset>
 
-            <label htmlFor="sort">Ταξινόμηση</label>
-            <select id="sort" name="sort" defaultValue={sort}>
-              <option value="">Προτεινόμενα</option>
-              <option value="price-asc">Τιμή: χαμηλά → υψηλά</option>
-              <option value="price-desc">Τιμή: υψηλά → χαμηλά</option>
-            </select>
+            <section className="vc-filter-card shop-sort-filter-card">
+              <label htmlFor="sort">Ταξινόμηση</label>
+              <select id="sort" name="sort" defaultValue={sort}>
+                <option value="">Προτεινόμενα</option>
+                <option value="price-asc">Τιμή: χαμηλά → υψηλά</option>
+                <option value="price-desc">Τιμή: υψηλά → χαμηλά</option>
+              </select>
+            </section>
             <div className="catalog-filter-actions">
               <button className="button" type="submit">Προβολή αποτελεσμάτων</button>
               {(query || availability || category || hasDetailedFilters) ? <a className="text-link" href="/shop">Καθαρισμός φίλτρων</a> : null}

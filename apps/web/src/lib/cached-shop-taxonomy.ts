@@ -22,6 +22,25 @@ const readCachedFastShopTaxonomy = unstable_cache(
   { revalidate: 300 }
 );
 
+const readCachedFilterSheetTaxonomy = unstable_cache(
+  async (
+    category: string,
+    query: string,
+    filtersJson: string,
+    postcode: string,
+    attributeFiltersJson: string
+  ) => getFastShopTaxonomy(
+    category,
+    query,
+    JSON.parse(filtersJson) as CatalogFilters,
+    postcode,
+    JSON.parse(attributeFiltersJson) as CatalogAttributeFilters,
+    true
+  ),
+  ["shop-catalog-filter-sheet-fast-v1"],
+  { revalidate: 300 }
+);
+
 const readCachedRichShopTaxonomy = unstable_cache(
   async (
     category: string,
@@ -83,4 +102,26 @@ export function getCachedShopTaxonomy(
         postcode,
         attributeFiltersJson
       );
+}
+
+
+/**
+ * Filter-sheet facets are loaded lazily by the client. This keeps the default
+ * /shop request fast while still exposing the full marketplace facet vocabulary
+ * when a shopper actually opens the filters.
+ */
+export function getCachedShopFilterSheetTaxonomy(
+  category = "",
+  query = "",
+  filters: CatalogFilters = {},
+  postcode = "23100",
+  attributeFilters: CatalogAttributeFilters = {}
+) {
+  return readCachedFilterSheetTaxonomy(
+    category,
+    query,
+    stableJson(filters),
+    postcode,
+    stableJson(attributeFilters)
+  );
 }
