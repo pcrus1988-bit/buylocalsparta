@@ -23,6 +23,8 @@ export type CatalogueIntakeSnapshot = Readonly<{
   unmappedAttributes: number;
   candidateCompatibility: number;
   candidateLinks: number;
+  approvedLinks: number;
+  priceObservedProducts: number;
   candidateCategoryMappings: number;
   approvedCategoryMappings: number;
 }>;
@@ -176,10 +178,20 @@ async function readSnapshots(tx: SqlExecutor): Promise<readonly CatalogueIntakeS
       GROUP BY sp.snapshot_id
     ), link_counts AS (
       SELECT sp.snapshot_id,
-             count(l.id) FILTER (WHERE l.link_status='candidate')::integer AS candidate_links
+             count(l.id) FILTER (WHERE l.link_status='candidate')::integer AS candidate_links,
+             count(l.id) FILTER (WHERE l.link_status='approved')::integer AS approved_links
       FROM catalog_source_products sp
       JOIN recent_snapshots rs ON rs.id=sp.snapshot_id
       LEFT JOIN catalog_source_product_links l ON l.source_product_id=sp.id
+      GROUP BY sp.snapshot_id
+    ), price_observation_counts AS (
+      SELECT sp.snapshot_id,
+             count(DISTINCT sp.id) FILTER (
+               WHERE p.amount_minor > 0 AND p.observation_status IN ('observed','matched','approved')
+             )::integer AS price_observed_products
+      FROM catalog_source_products sp
+      JOIN recent_snapshots rs ON rs.id=sp.snapshot_id
+      LEFT JOIN catalog_price_observations p ON p.source_product_id=sp.id
       GROUP BY sp.snapshot_id
     ), category_counts AS (
       SELECT sp.snapshot_id,
@@ -201,6 +213,8 @@ async function readSnapshots(tx: SqlExecutor): Promise<readonly CatalogueIntakeS
            COALESCE(ac.unmapped_attributes,0) AS unmapped_attributes,
            COALESCE(cc.candidate_compatibility,0) AS candidate_compatibility,
            COALESCE(lc.candidate_links,0) AS candidate_links,
+           COALESCE(lc.approved_links,0) AS approved_links,
+           COALESCE(poc.price_observed_products,0) AS price_observed_products,
            COALESCE(tc.candidate_category_mappings,0) AS candidate_category_mappings,
            COALESCE(tc.approved_category_mappings,0) AS approved_category_mappings
     FROM recent_snapshots rs
@@ -209,6 +223,7 @@ async function readSnapshots(tx: SqlExecutor): Promise<readonly CatalogueIntakeS
     LEFT JOIN attribute_counts ac ON ac.snapshot_id=rs.id
     LEFT JOIN compatibility_counts cc ON cc.snapshot_id=rs.id
     LEFT JOIN link_counts lc ON lc.snapshot_id=rs.id
+    LEFT JOIN price_observation_counts poc ON poc.snapshot_id=rs.id
     LEFT JOIN category_counts tc ON tc.snapshot_id=rs.id
     ORDER BY rs.created_at DESC, rs.id DESC
   `);
@@ -232,6 +247,8 @@ async function readSnapshots(tx: SqlExecutor): Promise<readonly CatalogueIntakeS
     unmappedAttributes: numberField(row.unmapped_attributes),
     candidateCompatibility: numberField(row.candidate_compatibility),
     candidateLinks: numberField(row.candidate_links),
+    approvedLinks: numberField(row.approved_links),
+    priceObservedProducts: numberField(row.price_observed_products),
     candidateCategoryMappings: numberField(row.candidate_category_mappings),
     approvedCategoryMappings: numberField(row.approved_category_mappings)
   }));
