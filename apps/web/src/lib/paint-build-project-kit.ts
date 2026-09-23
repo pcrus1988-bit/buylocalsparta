@@ -7,6 +7,8 @@ export type PaintBuildPackVariant = Readonly<{
   colourHint?: string;
   tintBaseHint?: string;
   finishHint?: string;
+  /** Maximum currently sellable units for this pack. Omit only when stock is intentionally unknown. */
+  maxUnits?: number;
 }>;
 
 export type PaintBuildPackLine = Readonly<{
@@ -252,7 +254,10 @@ export function choosePaintPackPlan(
     const size = litres[index];
     const remainingPacks = maxPacks - currentPacks;
     const enough = Math.ceil(Math.max(0, requiredLitres - currentLitres) / size);
-    const cap = Math.min(remainingPacks, Math.max(1, enough + 2));
+    const stockCap = Number.isSafeInteger(variants[index]?.maxUnits)
+      ? Math.max(0, Number(variants[index]?.maxUnits))
+      : remainingPacks;
+    const cap = Math.min(remainingPacks, stockCap, Math.max(1, enough + 2));
     for (let quantity = 0; quantity <= cap; quantity += 1) {
       counts[index] = quantity;
       enumerate(index + 1, currentLitres + size * quantity, currentPacks + quantity);
