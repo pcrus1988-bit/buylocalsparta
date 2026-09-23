@@ -9,6 +9,7 @@ import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
 import {
   PROJECT_ACCESSORY_RULES,
   calculateVerifiedPaintQuantity,
+  extractManufacturerComponentNames,
   choosePaintPackPlan,
   variantRouteKey,
   type PaintBuildPackVariant
@@ -292,15 +293,6 @@ function manufacturerQuantityFromProfile(
   });
 }
 
-function evidenceNames(value: unknown): readonly string[] {
-  if (typeof value === "string") {
-    const result = value.trim();
-    return result ? [result] : [];
-  }
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((entry) => typeof entry === "string" && entry.trim() ? [entry.trim()] : []);
-}
-
 async function lookupManufacturerProductByName(name: string): Promise<ManufacturerProductLookupRow | undefined> {
   const db = getProductionPostgresRuntime().nativePool;
   const result = await db.query<ManufacturerProductLookupRow>(
@@ -482,7 +474,7 @@ async function scenarioRequiredSystemItems(eligibility: ScenarioEligibilityRow |
     return { ready, unresolved };
   }
 
-  const names = evidenceNames(eligibility.evidence_value);
+  const names = extractManufacturerComponentNames(eligibility.actions, eligibility.evidence_value);
   if (names.length !== 1) {
     unresolved.push({
       relationshipType: eligibility.result_status,
