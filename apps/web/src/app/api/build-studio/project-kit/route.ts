@@ -118,7 +118,7 @@ function safeMinor(value: unknown): number {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 0;
 }
 
-function familyVariant(row: FamilyVariantRow): FamilyVariant | undefined {
+function familyVariant(row: FamilyVariantRow): Omit<FamilyVariant, "available" | "availableToSell"> | undefined {
   const priceMinor = safeMinor(row.price_minor);
   const packValue = numberValue(row.pack_value);
   const packUnit = row.pack_unit?.trim();
