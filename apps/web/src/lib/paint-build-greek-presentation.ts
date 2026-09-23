@@ -199,7 +199,22 @@ const EXACT: Readonly<Record<string, string>> = {
   "Recommended exterior top coats include Acrylan MAX, Acrylan, Acrylan Elastic, Cement Paint and Vitacryl.": "Στα προτεινόμενα τελικά χρώματα εξωτερικής χρήσης περιλαμβάνονται τα Acrylan MAX, Acrylan, Acrylan Elastic, Cement Paint και Vitacryl.",
   "Recommended interior top coats include Vitex Classic and Vitex Eco.": "Στα προτεινόμενα τελικά χρώματα εσωτερικής χρήσης περιλαμβάνονται τα Vitex Classic και Vitex Eco.",
   "TDS contains an unresolved timing conflict: front table states topcoat after 2-3 h, application section states 4-6 h. No executable topcoat timing rule is published until review.": "Το τεχνικό δελτίο (TDS) περιέχει μη επιλυμένη διαφορά χρόνου: ο αρχικός πίνακας αναφέρει τελική βαφή μετά από 2-3 ώρες, ενώ η ενότητα εφαρμογής αναφέρει 4-6 ώρες. Δεν χρησιμοποιείται αυτόματος κανόνας χρόνου μέχρι να ολοκληρωθεί ο έλεγχος.",
-  "Water-based top coats may be applied after 4-6 hours.": "Τελικές βαφές νερού μπορούν να εφαρμοστούν μετά από 4-6 ώρες."
+  "Water-based top coats may be applied after 4-6 hours.": "Τελικές βαφές νερού μπορούν να εφαρμοστούν μετά από 4-6 ώρες.",
+  "Clean mould/fungi/stains first with Kitchen & Bath Cleaner.": "Καθάρισε πρώτα μούχλα, μύκητες και λεκέδες με Kitchen & Bath Cleaner.",
+  "Fill cracks/holes before priming.": "Γέμισε ρωγμές και οπές πριν από το αστάρωμα.",
+  "Fill cracks/holes with Acrylic Putty, Visto or Light Acrylic Putty (recommended).": "Γέμισε ρωγμές ή οπές με Acrylic Putty, Visto ή Light Acrylic Putty (συνιστώμενο).",
+  "Use Visto or Acrylic Putty for cracks or holes.": "Χρησιμοποίησε Visto ή Acrylic Putty για ρωγμές ή οπές.",
+  "Clean with Brush Solvent T300 before application.": "Καθάρισε με Brush Solvent T300 πριν από την εφαρμογή.",
+  "Fill holes and cracks with Acrylic Putty when present": "Όπου υπάρχουν οπές ή ρωγμές, γέμισέ τες με Acrylic Putty.",
+  "If an ETICS surface has been repaired and mold or dirt remains after washing, apply Granikot Primer diluted 10-15% v/v.": "Αν έχει επισκευαστεί επιφάνεια ETICS και μετά το πλύσιμο παραμένουν μούχλα ή ρύποι, εφάρμοσε Granikot Primer αραιωμένο 10-15% κατ’ όγκο.",
+  "Wet sanding is recommended for surface preparation.": "Για την προετοιμασία της επιφάνειας συνιστάται υγρή λείανση.",
+  "Do not apply a water-based top coat before 4 hours.": "Μην εφαρμόζεις τελική βαφή νερού πριν περάσουν 4 ώρες.",
+  "For exterior use, do not apply when rain or frost is expected within 48 hours.": "Για εξωτερική εφαρμογή, μην εφαρμόζεις το προϊόν αν αναμένεται βροχή ή παγετός μέσα στις επόμενες 48 ώρες.",
+  "For exterior use, do not apply when rain/frost is expected within 48 hours.": "Για εξωτερική εφαρμογή, μην εφαρμόζεις το προϊόν αν αναμένεται βροχή ή παγετός μέσα στις επόμενες 48 ώρες.",
+  "For exterior use, do not apply if rain or frost is expected within 48 hours.": "Για εξωτερική εφαρμογή, μην εφαρμόζεις το προϊόν αν αναμένεται βροχή ή παγετός μέσα στις επόμενες 48 ώρες.",
+  "For exterior use, do not apply if rain or frost is expected within the next 48 hours.": "Για εξωτερική εφαρμογή, μην εφαρμόζεις το προϊόν αν αναμένεται βροχή ή παγετός μέσα στις επόμενες 48 ώρες.",
+  "Roof coating application: dilute 30% with Brush Solvent T300.": "Για εφαρμογή σε δώμα, αραίωσε 30% με Brush Solvent T300.",
+  "Wall paint application: dilute 50-100% with Brush Solvent T300.": "Για εφαρμογή σε τοίχο, αραίωσε 50-100% με Brush Solvent T300."
 };
 
 const GENERAL_EXACT: Readonly<Record<string, string>> = {
