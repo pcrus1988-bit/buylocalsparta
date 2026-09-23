@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { groupCatalogSizeFacets, inferCatalogSizeDomain } from "./catalog-size";
 import type { VendorDropshipFacets, VendorDropshipFacetOption } from "./vendor-dropship-catalog-page";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -113,6 +114,188 @@ function localizedFacetLabel(type: FacetType, value: string, fallback: string): 
   return fallback || value;
 }
 
+function facetRowsToProjection(
+  rows: readonly FacetProjectionRow[],
+  categoriesForSizeDomain: readonly string[]
+): VendorDropshipFacets {
+  let total = 0;
+  const categories: VendorDropshipFacetOption[] = [];
+  const brands: VendorDropshipFacetOption[] = [];
+  const colors: VendorDropshipFacetOption[] = [];
+  const rawSizes: Array<{ value: string; count: number }> = [];
+  const fits: VendorDropshipFacetOption[] = [];
+  const materials: VendorDropshipFacetOption[] = [];
+
+  for (const row of rows) {
+    const count = safeCount(row.count);
+    if (row.facet_type === "total") {
+      total = count;
+      continue;
+    }
+    if (!row.value.trim() || count <= 0) continue;
+    const entry = {
+      value: row.value,
+      label: localizedFacetLabel(row.facet_type, row.value, row.label || row.value),
+      count
+    };
+    if (row.facet_type === "category") categories.push(entry);
+    else if (row.facet_type === "brand") brands.push(entry);
+    else if (row.facet_type === "color") colors.push(entry);
+    else if (row.facet_type === "fit") fits.push(entry);
+    else if (row.facet_type === "material") materials.push(entry);
+    else rawSizes.push({ value: row.value, count });
+  }
+
+  const sizeDomain = inferCatalogSizeDomain(categoriesForSizeDomain);
+  const canonicalSizes = groupCatalogSizeFacets(rawSizes, sizeDomain);
+  const byPopularity = (left: VendorDropshipFacetOption, right: VendorDropshipFacetOption) =>
+    right.count - left.count || left.label.localeCompare(right.label, "el");
+
+  return {
+    total,
+    categories: categories.sort(byPopularity),
+    brands: brands.sort(byPopularity),
+    colors: colors.sort(byPopularity),
+    sizes: canonicalSizes,
+    fits: fits.sort(byPopularity),
+    materials: materials.sort(byPopularity)
+  };
+}
+
+/**
+ * Initial vendor guide/filter facets do not need disjunctive filtering. Reading
+ * them straight from the incrementally maintained live-family overlay avoids the
+ * expensive six-way COUNT(DISTINCT ...) projection over a large supplier catalogue.
+ *
+ * The live-family table has one row per supplier/product family (primary key:
+ * supplier_id + external_product_id) and each facet array is de-duplicated when the
+ * supplier page is refreshed, so COUNT(*) is exact here.
+ */
+async function readUnfilteredLiveVendorDropshipFacets(vendorId: string): Promise<VendorDropshipFacets> {
+  if (!productionDatabaseConfigured()) {
+    return { total: 0, categories: [], brands: [], colors: [], sizes: [], fits: [], materials: [] };
+  }
+
+  const result = await getProductionPostgresRuntime().nativePool.query<FacetProjectionRow>(`
+    WITH suppliers AS MATERIALIZED (
+      SELECT ds.id
+      FROM dropship_suppliers ds
+      JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
+      WHERE v.public_id=$1
+        AND v.status='active'
+        AND ds.active=true
+        AND ds.api_authoritative_availability=true
+    ), base AS MATERIALIZED (
+      SELECT
+        lf.category_codes,
+        lf.brand_names_normalized,
+        lf.colors,
+        lf.sizes,
+        lf.fits,
+        lf.materials
+      FROM bls_private.storefront_dropship_live_family lf
+      JOIN suppliers supplier ON supplier.id=lf.supplier_id
+      WHERE lf.sellable=true
+        AND lf.available_until>now()
+    ), category_labels AS MATERIALIZED (
+      SELECT
+        c.code AS value,
+        COALESCE(ctel.name,cten.name,c.code) AS label
+      FROM public.categories c
+      JOIN public.markets m ON m.id=c.market_id AND m.code='sparta'
+      LEFT JOIN public.category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
+      LEFT JOIN public.category_translations cten ON cten.category_id=c.id AND cten.locale='en'
+      WHERE c.active=true
+    ), projected AS (
+      SELECT
+        'total'::text AS facet_type,
+        ''::text AS value,
+        ''::text AS label,
+        COUNT(*)::int AS count
+      FROM base
+
+      UNION ALL
+
+      SELECT
+        'category'::text,
+        candidate.value,
+        COALESCE(MAX(labels.label),candidate.value),
+        COUNT(*)::int
+      FROM base b
+      CROSS JOIN LATERAL unnest(b.category_codes) candidate(value)
+      LEFT JOIN category_labels labels ON labels.value=candidate.value
+      GROUP BY candidate.value
+
+      UNION ALL
+
+      SELECT
+        'brand'::text,
+        candidate.value,
+        candidate.value,
+        COUNT(*)::int
+      FROM base b
+      CROSS JOIN LATERAL unnest(b.brand_names_normalized) candidate(value)
+      GROUP BY candidate.value
+
+      UNION ALL
+
+      SELECT
+        'color'::text,
+        candidate.value,
+        candidate.value,
+        COUNT(*)::int
+      FROM base b
+      CROSS JOIN LATERAL unnest(b.colors) candidate(value)
+      GROUP BY candidate.value
+
+      UNION ALL
+
+      SELECT
+        'size'::text,
+        candidate.value,
+        candidate.value,
+        COUNT(*)::int
+      FROM base b
+      CROSS JOIN LATERAL unnest(b.sizes) candidate(value)
+      GROUP BY candidate.value
+
+      UNION ALL
+
+      SELECT
+        'fit'::text,
+        candidate.value,
+        candidate.value,
+        COUNT(*)::int
+      FROM base b
+      CROSS JOIN LATERAL unnest(b.fits) candidate(value)
+      GROUP BY candidate.value
+
+      UNION ALL
+
+      SELECT
+        'material'::text,
+        candidate.value,
+        candidate.value,
+        COUNT(*)::int
+      FROM base b
+      CROSS JOIN LATERAL unnest(b.materials) candidate(value)
+      GROUP BY candidate.value
+    )
+    SELECT facet_type,value,label,count
+    FROM projected
+    WHERE facet_type='total' OR count>0
+    ORDER BY facet_type,label,value
+  `, [vendorId]);
+
+  return facetRowsToProjection(result.rows, []);
+}
+
+const cachedUnfilteredLiveVendorDropshipFacets = unstable_cache(
+  readUnfilteredLiveVendorDropshipFacets,
+  ["vendor-dropship-unfiltered-live-facets-v1"],
+  { revalidate: 15 }
+);
+
 /**
  * Calculates disjunctive, context-aware facets from the same family read model as
  * the vendor catalogue itself. Each facet ignores only its own active value, so
@@ -133,6 +316,11 @@ export async function getContextualVendorDropshipFacets(
   const sizes = cleanMany(input.sizes);
   const fit = input.fit?.trim().slice(0, 120).toLocaleLowerCase("en") ?? "";
   const material = input.material?.trim().slice(0, 120).toLocaleLowerCase("en") ?? "";
+
+  if (!query && categories.length === 0 && !brand && !color && sizes.length === 0 && !fit && !material) {
+    return cachedUnfilteredLiveVendorDropshipFacets(vendorId);
+  }
+
   const searchPrefix = prefixTsQuery(query);
 
   const result = await getProductionPostgresRuntime().nativePool.query<FacetProjectionRow>(`
@@ -213,7 +401,7 @@ export async function getContextualVendorDropshipFacets(
         'total'::text AS facet_type,
         ''::text AS value,
         ''::text AS label,
-        COUNT(DISTINCT (m.dropship_supplier_id,m.dropship_external_product_id))::int AS count
+        COUNT(*)::int AS count
       FROM matches m
       WHERE m.category_match AND m.brand_match AND m.color_match AND m.size_match AND m.fit_match AND m.material_match
 
@@ -223,7 +411,7 @@ export async function getContextualVendorDropshipFacets(
         'category'::text,
         candidate.value,
         COALESCE(MAX(labels.label),candidate.value),
-        COUNT(DISTINCT (m.dropship_supplier_id,m.dropship_external_product_id))::int
+        COUNT(*)::int
       FROM matches m
       CROSS JOIN LATERAL unnest(m.category_codes) candidate(value)
       LEFT JOIN label_map labels ON labels.facet_type='category' AND labels.value=candidate.value
@@ -236,7 +424,7 @@ export async function getContextualVendorDropshipFacets(
         'brand'::text,
         candidate.value,
         COALESCE(MAX(labels.label),candidate.value),
-        COUNT(DISTINCT (m.dropship_supplier_id,m.dropship_external_product_id))::int
+        COUNT(*)::int
       FROM matches m
       CROSS JOIN LATERAL unnest(m.brand_names_normalized) candidate(value)
       LEFT JOIN label_map labels ON labels.facet_type='brand' AND lower(labels.value)=candidate.value
@@ -249,7 +437,7 @@ export async function getContextualVendorDropshipFacets(
         'color'::text,
         candidate.value,
         COALESCE(MAX(labels.label),candidate.value),
-        COUNT(DISTINCT (m.dropship_supplier_id,m.dropship_external_product_id))::int
+        COUNT(*)::int
       FROM matches m
       CROSS JOIN LATERAL unnest(m.colors) candidate(value)
       LEFT JOIN label_map labels ON labels.facet_type='color' AND lower(labels.value)=lower(candidate.value)
@@ -262,7 +450,7 @@ export async function getContextualVendorDropshipFacets(
         'size'::text,
         candidate.value,
         candidate.value,
-        COUNT(DISTINCT (m.dropship_supplier_id,m.dropship_external_product_id))::int
+        COUNT(*)::int
       FROM matches m
       CROSS JOIN LATERAL unnest(m.sizes) candidate(value)
       WHERE m.category_match AND m.brand_match AND m.color_match AND m.fit_match AND m.material_match
@@ -274,7 +462,7 @@ export async function getContextualVendorDropshipFacets(
         'fit'::text,
         candidate.value,
         candidate.value,
-        COUNT(DISTINCT (m.dropship_supplier_id,m.dropship_external_product_id))::int
+        COUNT(*)::int
       FROM matches m
       CROSS JOIN LATERAL unnest(m.fits) candidate(value)
       WHERE m.category_match AND m.brand_match AND m.color_match AND m.size_match AND m.material_match
@@ -286,7 +474,7 @@ export async function getContextualVendorDropshipFacets(
         'material'::text,
         candidate.value,
         candidate.value,
-        COUNT(DISTINCT (m.dropship_supplier_id,m.dropship_external_product_id))::int
+        COUNT(*)::int
       FROM matches m
       CROSS JOIN LATERAL unnest(m.materials) candidate(value)
       WHERE m.category_match AND m.brand_match AND m.color_match AND m.size_match AND m.fit_match
@@ -298,46 +486,5 @@ export async function getContextualVendorDropshipFacets(
     ORDER BY facet_type,label,value
   `, [vendorId, query, categories, brand, color, sizes, fit, material, searchPrefix]);
 
-  let total = 0;
-  const categoriesOut: VendorDropshipFacetOption[] = [];
-  const brands: VendorDropshipFacetOption[] = [];
-  const colors: VendorDropshipFacetOption[] = [];
-  const rawSizes: Array<{ value: string; count: number }> = [];
-  const fits: VendorDropshipFacetOption[] = [];
-  const materials: VendorDropshipFacetOption[] = [];
-
-  for (const row of result.rows) {
-    const count = safeCount(row.count);
-    if (row.facet_type === "total") {
-      total = count;
-      continue;
-    }
-    if (!row.value.trim() || count <= 0) continue;
-    const entry = {
-      value: row.value,
-      label: localizedFacetLabel(row.facet_type, row.value, row.label || row.value),
-      count
-    };
-    if (row.facet_type === "category") categoriesOut.push(entry);
-    else if (row.facet_type === "brand") brands.push(entry);
-    else if (row.facet_type === "color") colors.push(entry);
-    else if (row.facet_type === "fit") fits.push(entry);
-    else if (row.facet_type === "material") materials.push(entry);
-    else rawSizes.push({ value: row.value, count });
-  }
-
-  const sizeDomain = inferCatalogSizeDomain(categories);
-  const canonicalSizes = groupCatalogSizeFacets(rawSizes, sizeDomain);
-  const byPopularity = (left: VendorDropshipFacetOption, right: VendorDropshipFacetOption) =>
-    right.count - left.count || left.label.localeCompare(right.label, "el");
-
-  return {
-    total,
-    categories: categoriesOut.sort(byPopularity),
-    brands: brands.sort(byPopularity),
-    colors: colors.sort(byPopularity),
-    sizes: canonicalSizes,
-    fits: fits.sort(byPopularity),
-    materials: materials.sort(byPopularity)
-  };
+  return facetRowsToProjection(result.rows, categories);
 }
