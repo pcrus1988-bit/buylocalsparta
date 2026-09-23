@@ -357,20 +357,49 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const fournarakisPriced = asInt(fournarakisStats.rows[0]?.priced_products);
   const activeLocations = locations.rows.filter((location) => Boolean(location.active));
   const search = q?.trim() ?? "";
-  const candidates = await db.query<CandidateRow>(`
-    SELECT cv.public_id AS canonical_id,COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
-           cv.model,cv.gtin,cv.mpn,cv.platform_price_minor
-    FROM canonical_variants cv
-    LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
-    LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-    WHERE cv.market_id=(SELECT market_id FROM vendor_businesses WHERE id=$1::uuid)
-      AND cv.recalled=false
-      AND ($2='' OR COALESCE(el.title,en.title,cv.model,cv.slug,'') ILIKE '%'||$2||'%'
-        OR COALESCE(cv.gtin,'') ILIKE '%'||$2||'%' OR COALESCE(cv.mpn,'') ILIKE '%'||$2||'%'
-        OR cv.public_id ILIKE '%'||$2||'%')
-    ORDER BY cv.updated_at DESC,cv.public_id
-    LIMIT 60
-  `, [vendorUuid, search]);
+  const candidateRows = search
+    ? (await db.query<CandidateRow>(`
+      WITH vendor_market AS (
+        SELECT market_id
+        FROM vendor_businesses
+        WHERE id=$1::uuid
+      ),
+      matched AS (
+        SELECT cv.id
+        FROM canonical_variants cv, vendor_market vm
+        WHERE cv.market_id=vm.market_id
+          AND cv.recalled=false
+          AND (
+            cv.public_id=$2
+            OR cv.gtin=$2
+            OR cv.mpn=$2
+            OR to_tsvector(
+              'simple',
+              (((((COALESCE(cv.model,'') || ' ') || COALESCE(cv.slug,'')) || ' ') || COALESCE(cv.gtin,'')) || ' ') || COALESCE(cv.mpn,'')
+            ) @@ websearch_to_tsquery('simple',$2)
+          )
+
+        UNION
+
+        SELECT pt.canonical_variant_id
+        FROM product_translations pt
+        JOIN canonical_variants cv ON cv.id=pt.canonical_variant_id
+        CROSS JOIN vendor_market vm
+        WHERE cv.market_id=vm.market_id
+          AND cv.recalled=false
+          AND pt.locale IN ('el','en')
+          AND to_tsvector('simple',COALESCE(pt.title,'')) @@ websearch_to_tsquery('simple',$2)
+      )
+      SELECT cv.public_id AS canonical_id,COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+             cv.model,cv.gtin,cv.mpn,cv.platform_price_minor
+      FROM matched
+      JOIN canonical_variants cv ON cv.id=matched.id
+      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      ORDER BY cv.updated_at DESC,cv.public_id
+      LIMIT 60
+    `, [vendorUuid, search])).rows
+    : [];
   const commerceEligible = asText(vendor.status) === "active" && !Boolean(vendor.demo_mode);
 
   return <main className="vendor-app admin-app">
@@ -460,7 +489,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
       {locations.rowCount === 0 ? <p>No vendor location exists yet. Create a location before assigning an offer.</p> : <form action={assignProduct} className="admin-directory-filters">
         <input type="hidden" name="csrfToken" value={principal.csrfToken} />
         <input type="hidden" name="vendorId" value={vendorPublicId} />
-        <label><span>Product</span><select name="canonicalId" required defaultValue=""><option value="" disabled>Select product…</option>{candidates.rows.map((item) => <option key={asText(item.canonical_id)} value={asText(item.canonical_id)}>{asText(item.title)} · {asText(item.gtin || item.mpn || item.canonical_id)}</option>)}</select></label>
+        <label><span>Product</span><select name="canonicalId" required defaultValue=""><option value="" disabled>Select product…</option>{candidateRows.map((item) => <option key={asText(item.canonical_id)} value={asText(item.canonical_id)}>{asText(item.title)} · {asText(item.gtin || item.mpn || item.canonical_id)}</option>)}</select></label>
         <label><span>Location</span><select name="locationId" required>{locations.rows.map((location) => <option key={asText(location.public_id)} value={asText(location.public_id)}>{asText(location.name)} · {asText(location.locality)}{Boolean(location.active) ? "" : " · inactive"}</option>)}</select></label>
         <label><span>Customer price (cents, optional)</span><input name="priceMinor" inputMode="numeric" pattern="[0-9]*" placeholder="Uses canonical reference price when blank" /></label>
         <label><span>Vendor SKU (optional)</span><input name="vendorSku" maxLength={160} /></label>
