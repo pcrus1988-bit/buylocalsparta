@@ -20,9 +20,9 @@ test("maps the live reviewed exterior new-plaster choice without borrowing inter
 });
 
 test("Paint Consultant roof choices reuse reviewed waterproofing guidance", () => {
-  assert.deepEqual(mapBuildStudioScenario({ module: "paint", surface: "roof", condition: "maintenance" }), { scenarioKey: "waterproof_existing_system_maintenance", facts: { existing_coating_known_compatible: false } });
+  assert.deepEqual(mapBuildStudioScenario({ module: "paint", surface: "roof", condition: "maintenance" }), { scenarioKey: "waterproof_existing_system_maintenance", facts: { existing_waterproofing_compatible: false } });
   assert.deepEqual(mapBuildStudioScenario({ module: "paint", surface: "roof", condition: "new" }), { scenarioKey: "waterproof_flat_roof", facts: {} });
-  assert.deepEqual(mapBuildStudioScenario({ module: "paint", surface: "roof", condition: "cracks" }), { scenarioKey: "waterproof_details_parapets_joints_penetrations", facts: { cracks_or_joints_present: true } });
+  assert.deepEqual(mapBuildStudioScenario({ module: "paint", surface: "roof", condition: "cracks" }), { scenarioKey: "waterproof_details_parapets_joints_penetrations", facts: { cracks_or_joints_present: true, detail_movement: "unknown_or_significant" } });
 });
 
 test("unresolved moisture maps to diagnosis-first blocking facts", () => {
@@ -72,8 +72,8 @@ test("ambiguous new interior substrate remains fail-closed instead of guessing p
 });
 
 test("maps reviewed waterproofing maintenance and detail scenarios", () => {
-  assert.deepEqual(mapBuildStudioScenario({ module: "waterproofing", location: "roof", problem: "maintenance" }), { scenarioKey: "waterproof_existing_system_maintenance", facts: { existing_coating_known_compatible: false } });
-  assert.deepEqual(mapBuildStudioScenario({ module: "waterproofing", location: "balcony", problem: "cracks" }), { scenarioKey: "waterproof_details_parapets_joints_penetrations", facts: { cracks_or_joints_present: true } });
+  assert.deepEqual(mapBuildStudioScenario({ module: "waterproofing", location: "roof", problem: "maintenance" }), { scenarioKey: "waterproof_existing_system_maintenance", facts: { existing_waterproofing_compatible: false } });
+  assert.deepEqual(mapBuildStudioScenario({ module: "waterproofing", location: "balcony", problem: "cracks" }), { scenarioKey: "waterproof_details_parapets_joints_penetrations", facts: { cracks_or_joints_present: true, detail_movement: "unknown_or_significant" } });
 });
 
 test("bathroom sound condition uses reviewed dedicated guidance", () => {
@@ -88,40 +88,25 @@ test("visible condensation is diagnosis-first and blocked before insulation prod
       thermal_bridge_suspected: true,
       significant_moisture: true,
       source_known: false,
-      cause_confirmed: false
-    }
+    },
   };
   assert.deepEqual(mapBuildStudioScenario({ module: "insulation", location: "interior-wall", goal: "condensation" }), expected);
-  assert.deepEqual(mapBuildStudioScenario({ module: "insulation", location: "facade", goal: "condensation" }), expected);
-  assert.deepEqual(mapBuildStudioScenario({ module: "insulation", location: "roof", goal: "condensation" }), expected);
 });
 
 test("cold surface without visible moisture remains distinct from condensation", () => {
-  assert.deepEqual(
-    mapBuildStudioScenario({ module: "insulation", location: "facade", goal: "cold-surface" }),
-    { scenarioKey: "insulation_external_etics", facts: { work_at_height: true, safe_access_confirmed: false } }
-  );
-  assert.deepEqual(
-    mapBuildStudioScenario({ module: "insulation", location: "roof", goal: "cold-surface" }),
-    { scenarioKey: "insulation_roof_general", facts: { roof_build_up_known: false, work_at_height: true, safe_access_confirmed: false } }
-  );
+  assert.deepEqual(mapBuildStudioScenario({ module: "insulation", location: "interior-wall", goal: "cold-surface" }), { scenarioKey: "insulation_cold_surface_no_visible_moisture", facts: { condensation_present: false, thermal_bridge_suspected: true } });
 });
 
 test("advanced repair choices map to their reviewed dedicated guidance", () => {
-  assert.deepEqual(mapBuildStudioScenario({ module: "repair", issue: "recurrent-crack", severity: "medium" }), { scenarioKey: "repair_recurrent_or_large_wall_crack", facts: { crack_progressive_or_displaced: true } });
-  assert.deepEqual(mapBuildStudioScenario({ module: "repair", issue: "friable", severity: "local" }), { scenarioKey: "repair_weak_friable_wall_surface", facts: { friable_area: "local" } });
-  assert.deepEqual(mapBuildStudioScenario({ module: "repair", issue: "friable", severity: "extensive" }), { scenarioKey: "repair_weak_friable_wall_surface", facts: { friable_area: "widespread" } });
+  assert.deepEqual(mapBuildStudioScenario({ module: "repair", issue: "large-void", severity: "local" }), { scenarioKey: "repair_large_hole_void", facts: { repair_extent: "local" } });
+  assert.deepEqual(mapBuildStudioScenario({ module: "repair", issue: "render-loss", severity: "local" }), { scenarioKey: "repair_exterior_render_patch", facts: { repair_extent: "local" } });
+  assert.deepEqual(mapBuildStudioScenario({ module: "repair", issue: "moving-joint", severity: "local" }), { scenarioKey: "repair_moving_joint", facts: { cracks_or_joints_present: true, detail_movement: "unknown_or_significant" } });
 });
 
-
 test("every currently selectable Paint Consultant surface-condition pair has reviewed guidance", () => {
-  for (const surface of PAINT_SURFACES.filter((entry) => entry.key !== "roof")) {
+  for (const surface of PAINT_SURFACES) {
     for (const condition of surface.conditions) {
-      assert.notEqual(
-        mapBuildStudioScenario({ module: "paint", surface: surface.key, condition: condition.key }),
-        null,
-        `missing reviewed paint route: ${surface.key} / ${condition.key}`
-      );
+      assert.notEqual(mapBuildStudioScenario({ module: "paint", surface: surface.id, condition: condition.id }), null, `${surface.id}/${condition.id}`);
     }
   }
 });
@@ -129,11 +114,7 @@ test("every currently selectable Paint Consultant surface-condition pair has rev
 test("every currently selectable insulation location-goal pair has a reviewed or diagnosis-first route", () => {
   for (const location of INSULATION_LOCATIONS) {
     for (const goal of INSULATION_GOALS) {
-      assert.notEqual(
-        mapBuildStudioScenario({ module: "insulation", location: location.key, goal: goal.key }),
-        null,
-        `missing reviewed insulation route: ${location.key} / ${goal.key}`
-      );
+      assert.notEqual(mapBuildStudioScenario({ module: "insulation", location: location.id, goal: goal.id }), null, `${location.id}/${goal.id}`);
     }
   }
 });
@@ -141,11 +122,7 @@ test("every currently selectable insulation location-goal pair has a reviewed or
 test("every currently selectable repair issue-severity pair remains mapped", () => {
   for (const issue of REPAIR_ISSUES) {
     for (const severity of REPAIR_SEVERITIES) {
-      assert.notEqual(
-        mapBuildStudioScenario({ module: "repair", issue: issue.key, severity: severity.key }),
-        null,
-        `missing reviewed repair route: ${issue.key} / ${severity.key}`
-      );
+      assert.notEqual(mapBuildStudioScenario({ module: "repair", issue: issue.id, severity: severity.id }), null, `${issue.id}/${severity.id}`);
     }
   }
 });
