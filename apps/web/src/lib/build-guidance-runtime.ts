@@ -1,4 +1,5 @@
 import { getProductionPostgresRuntime } from "./postgres-runtime.ts";
+import { paintBuildGreekText } from "./paint-build-greek-presentation";
 
 export type BuildGuidanceSourceLayer = "GENERAL_GUIDANCE" | "MANUFACTURER_VITEX" | "MANUFACTURER" | "KONTA_MOU_RULE";
 
@@ -169,7 +170,7 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
     return {
       key: textValue(data.diagnostic_key) ?? `diagnostic-${index + 1}`,
       sourceLayer: layerValue(data.source_layer, "GENERAL_GUIDANCE"),
-      textEl: textValue(data.question_el) ?? "Απαιτείται έλεγχος της κατάστασης της επιφάνειας.",
+      textEl: paintBuildGreekText(textValue(data.question_el) ?? "Απαιτείται έλεγχος της κατάστασης της επιφάνειας."),
       evidence
     };
   });
@@ -183,8 +184,8 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
     beforeYouStart.push({
       key: textValue(data.rule_key) ?? `precheck-${beforeYouStart.length + 1}`,
       sourceLayer: layerValue(data.source_layer, "GENERAL_GUIDANCE"),
-      textEl,
-      shortEl: textValue(data.short_explanation_el),
+      textEl: paintBuildGreekText(textEl),
+      shortEl: textValue(data.short_explanation_el) ? paintBuildGreekText(textValue(data.short_explanation_el)!) : undefined,
       evidence
     });
   }
@@ -198,8 +199,8 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
     preparation.push({
       key: textValue(data.rule_key) ?? `preparation-${preparation.length + 1}`,
       sourceLayer: layerValue(data.source_layer, "GENERAL_GUIDANCE"),
-      textEl,
-      shortEl: textValue(data.short_explanation_el),
+      textEl: paintBuildGreekText(textEl),
+      shortEl: textValue(data.short_explanation_el) ? paintBuildGreekText(textValue(data.short_explanation_el)!) : undefined,
       evidence
     });
   }
@@ -209,7 +210,7 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
       preparation.push({
         key: `manufacturer-surface-preparation-${index + 1}`,
         sourceLayer: manufacturerLayer,
-        textEl: text,
+        textEl: paintBuildGreekText(text),
         evidence: manufacturerEvidenceFor(instructionEvidence, ["surface_preparation"])
       });
     }
@@ -217,7 +218,7 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
       preparation.push({
         key: `manufacturer-cleaning-${index + 1}`,
         sourceLayer: manufacturerLayer,
-        textEl: text,
+        textEl: paintBuildGreekText(text),
         evidence: manufacturerEvidenceFor(instructionEvidence, ["cleaning_before_application"])
       });
     }
@@ -225,7 +226,7 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
       preparation.push({
         key: `manufacturer-repair-${index + 1}`,
         sourceLayer: manufacturerLayer,
-        textEl: text,
+        textEl: paintBuildGreekText(text),
         evidence: manufacturerEvidenceFor(instructionEvidence, ["repair_requirements"])
       });
     }
@@ -236,7 +237,7 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
     return {
       key: textValue(data.requirement_type) ?? `kit-${index + 1}`,
       sourceLayer: layerValue(data.source_layer, "GENERAL_GUIDANCE"),
-      textEl: textValue(data.reason_el) ?? textValue(data.requirement_type) ?? "Απαίτηση έργου",
+      textEl: paintBuildGreekText(textValue(data.reason_el) ?? textValue(data.requirement_type) ?? "Απαίτηση έργου"),
       evidence,
       requirement: textValue(data.requirement_level),
       quantityBasis: textValue(data.quantity_basis),
@@ -249,7 +250,7 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
     return {
       key: `step-${String(data.step_number ?? index + 1)}`,
       sourceLayer: layerValue(data.source_layer, "GENERAL_GUIDANCE"),
-      textEl: textValue(data.customer_explanation_el) ?? textValue(data.technical_rule) ?? "Βήμα έργου",
+      textEl: paintBuildGreekText(textValue(data.customer_explanation_el) ?? textValue(data.technical_rule) ?? "Βήμα έργου"),
       evidence,
       requirement: data.required === true ? "required" : hasObjectValues(data.conditional_expression) ? "conditional" : undefined
     };
@@ -261,7 +262,7 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
     manufacturerInstructions.push({
       key,
       sourceLayer: manufacturerLayer,
-      textEl,
+      textEl: paintBuildGreekText(textEl),
       evidence: manufacturerEvidenceFor(instructionEvidence, fields)
     });
   };
@@ -331,7 +332,7 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
       avoid.push({
         key: `${textValue(data.failure_key) ?? "failure"}-prevention-${index + 1}`,
         sourceLayer: layerValue(data.source_layer, "GENERAL_GUIDANCE"),
-        textEl: action,
+        textEl: paintBuildGreekText(action),
         evidence,
         severity: textValue(data.severity)
       });
@@ -346,7 +347,7 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
       avoid.push({
         key: `manufacturer-avoid-${index + 1}`,
         sourceLayer: manufacturerLayer,
-        textEl: text,
+        textEl: paintBuildGreekText(text),
         evidence: manufacturerEvidenceFor(instructionEvidence, ["manufacturer_do_not_do", "weather_restrictions", "not_suitable_for"])
       });
     }
@@ -359,7 +360,7 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
     return {
       key: textValue(stop.stop_key) ?? `stop-${index + 1}`,
       sourceLayer: "KONTA_MOU_RULE",
-      textEl: next ? `${reason} Επόμενο βήμα: ${next}` : reason,
+      textEl: paintBuildGreekText(next ? `${reason} Επόμενο βήμα: ${next}` : reason),
       evidence: asArray(stop.evidence),
       severity: textValue(stop.severity)
     };
@@ -380,7 +381,7 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
     afterApplication.push({
       key: `inspection-${index + 1}`,
       sourceLayer: "GENERAL_GUIDANCE",
-      textEl: text,
+      textEl: paintBuildGreekText(text),
       evidence: profileEvidence
     });
   }
@@ -388,7 +389,7 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
     afterApplication.push({
       key: `maintenance-${index + 1}`,
       sourceLayer: "GENERAL_GUIDANCE",
-      textEl: text,
+      textEl: paintBuildGreekText(text),
       evidence: profileEvidence
     });
   }
@@ -459,7 +460,7 @@ export function calculateBuildQuantity(guidance: BuildProjectGuidance, areaInput
     return {
       status: "missing_manufacturer_values",
       areaM2,
-      basisEl: "Δεν υπάρχουν πλήρη επαληθευμένα coverage + αριθμός στρώσεων για θεωρητικό υπολογισμό. Δεν γίνεται υπόθεση."
+      basisEl: "Δεν υπάρχουν πλήρη επαληθευμένα στοιχεία κάλυψης και αριθμού στρώσεων για θεωρητικό υπολογισμό. Δεν γίνεται υπόθεση."
     };
   }
 
