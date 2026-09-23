@@ -128,11 +128,16 @@ function normalizedSort(value: VendorDropshipSort | undefined): VendorDropshipSo
   return value === "price_asc" || value === "price_desc" || value === "name_asc" ? value : "recommended";
 }
 
-function familyOrder(sort: VendorDropshipSort): string {
-  if (sort === "price_asc") return "fm.min_price_minor ASC NULLS LAST,fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
-  if (sort === "price_desc") return "fm.min_price_minor DESC NULLS LAST,fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
-  if (sort === "name_asc") return "lower(fm.sort_title) ASC NULLS LAST,fm.dropship_supplier_id,fm.dropship_external_product_id";
-  return "fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
+function familyOrder(
+  sort: VendorDropshipSort,
+  identityColumns: "projected" | "live" = "projected"
+): string {
+  const supplierColumn = identityColumns === "live" ? "fm.supplier_id" : "fm.dropship_supplier_id";
+  const externalProductColumn = identityColumns === "live" ? "fm.external_product_id" : "fm.dropship_external_product_id";
+  if (sort === "price_asc") return `fm.min_price_minor ASC NULLS LAST,fm.newest_at DESC,${supplierColumn},${externalProductColumn}`;
+  if (sort === "price_desc") return `fm.min_price_minor DESC NULLS LAST,fm.newest_at DESC,${supplierColumn},${externalProductColumn}`;
+  if (sort === "name_asc") return `lower(fm.sort_title) ASC NULLS LAST,${supplierColumn},${externalProductColumn}`;
+  return `fm.newest_at DESC,${supplierColumn},${externalProductColumn}`;
 }
 
 
@@ -151,7 +156,7 @@ async function getLiveVendorFamilyWindow(input: Readonly<{
   limit: number;
 }>) {
   const pool = getProductionPostgresRuntime().nativePool;
-  const orderBy = familyOrder(input.sort);
+  const orderBy = familyOrder(input.sort, "live");
   return pool.query<FamilySelectionRow>(`
     WITH vendor_suppliers AS MATERIALIZED (
       SELECT ds.id
