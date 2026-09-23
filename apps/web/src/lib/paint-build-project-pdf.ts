@@ -7,7 +7,7 @@ function sourceLabel(layer: BuildGuidanceSourceLayer): string {
   if (layer === "GENERAL_GUIDANCE") return "Γενική τεχνική καθοδήγηση";
   if (layer === "MANUFACTURER_VITEX") return "Οδηγίες κατασκευαστή · VITEX";
   if (layer === "MANUFACTURER") return "Οδηγίες κατασκευαστή";
-  return "KONTA MOU · κανόνας ασφάλειας / ροής";
+  return "ΚΟΝΤΑ ΜΟΥ · κανόνας ασφάλειας / ροής";
 }
 
 function text(value: unknown): string | undefined {
@@ -362,6 +362,62 @@ async function loadPaintBuildPdfAssets(snapshot: PaintBuildProjectSnapshot): Pro
   };
 }
 
+
+type SnapshotKitItem = NonNullable<PaintBuildProjectSnapshot["project"]["kit"]>["items"][number];
+
+function euro(minor: number): string {
+  return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
+}
+
+function kitItemCard(item: SnapshotKitItem, index: number, assets: PaintBuildPdfAssets) {
+  const image = assets.kitItemImageDataUrls?.[item.canonicalVariantId];
+  const url = kitProductUrl(item.canonicalVariantId);
+  const role = kitRoleLabel(item.role, item.required);
+  return {
+    table: {
+      widths: [58, "*", 70, 58],
+      body: [[
+        image
+          ? { image, fit: [48, 48], alignment: "center", margin: [0, 3, 0, 3] }
+          : { text: String(index + 1).padStart(2, "0"), style: "kitIndex", alignment: "center", margin: [0, 15, 0, 0] },
+        {
+          stack: [
+            { text: role, style: item.required ? "kitRoleRequired" : "kitRole", margin: [0, 0, 0, 4] },
+            { text: item.title, style: "kitItemTitle" },
+            item.reasonEl ? { text: pdfGreekText(item.reasonEl), style: "kitReason", margin: [0, 4, 0, 0] } : { text: "" }
+          ]
+        },
+        {
+          stack: [
+            { text: `${item.quantity} × ${item.price}`, style: "kitPriceSmall", alignment: "right" },
+            { text: euro(item.priceMinor * item.quantity), style: "kitPrice", alignment: "right", margin: [0, 5, 0, 0] }
+          ],
+          margin: [0, 7, 0, 0]
+        },
+        {
+          stack: [
+            { qr: url, fit: 46, alignment: "center" },
+            { text: "Σάρωσε", style: "qrCaption", alignment: "center", margin: [0, 2, 0, 0] }
+          ]
+        }
+      ]]
+    },
+    layout: {
+      hLineWidth: () => 0.6,
+      vLineWidth: () => 0.6,
+      hLineColor: () => "#DED7CF",
+      vLineColor: () => "#DED7CF",
+      paddingLeft: () => 7,
+      paddingRight: () => 7,
+      paddingTop: () => 7,
+      paddingBottom: () => 7
+    },
+    fillColor: "#FCFAF6",
+    margin: [0, 0, 0, 8],
+    unbreakable: true
+  };
+}
+
 function evidenceReferences(snapshot: PaintBuildProjectSnapshot) {
   const guide = snapshot.customerGuide;
   const items = [
@@ -439,24 +495,33 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
         assets.brandLogoDataUrl
           ? { image: assets.brandLogoDataUrl, width: 122, margin: [0, 0, 0, 0] }
           : { text: "KONTA MOY", style: "brand" },
-        { text: "PAINT & BUILD · ΑΝΑΛΥΤΙΚΟΣ ΟΔΗΓΟΣ ΕΡΓΟΥ", style: "eyebrow", alignment: "right", margin: [0, 5, 0, 0] }
+        { text: "ΟΔΗΓΟΣ ΒΑΦΗΣ & ΚΑΤΑΣΚΕΥΗΣ · ΑΝΑΛΥΤΙΚΟ ΕΡΓΟ", style: "eyebrow", alignment: "right", margin: [0, 5, 0, 0] }
       ],
       margin: [0, 0, 0, 14]
     },
     { text: project.title, style: "title" },
-    { text: project.summary || project.projectType, style: "lead", margin: [0, 5, 0, 12] },
+    { text: pdfGreekText(project.summary || projectTypeLabel(project.projectType)), style: "lead", margin: [0, 5, 0, 12] },
     {
       table: {
         widths: [118, "*"],
         body: [
           ["Αναφορά έργου", referenceId || "—"],
           ["Δημιουργήθηκε", createdLabel],
-          ["Τύπος έργου", project.projectType],
+          ["Τύπος έργου", projectTypeLabel(project.projectType)],
           ["Επιφάνεια", project.areaM2 ? `${project.areaM2} m²` : "—"],
           ["Απόχρωση", project.colour || "—"]
         ]
       },
-      layout: "lightHorizontalLines",
+      layout: {
+        hLineWidth: (i: number) => i === 0 ? 0 : 0.5,
+        vLineWidth: () => 0,
+        hLineColor: () => "#DDD6CE",
+        paddingTop: () => 4,
+        paddingBottom: () => 4,
+        paddingLeft: () => 5,
+        paddingRight: () => 5
+      },
+      fillColor: (rowIndex: number) => rowIndex % 2 === 0 ? "#FBF9F5" : "#FFFFFF",
       margin: [0, 0, 0, 12]
     }
   ];
@@ -488,7 +553,7 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
   content.push(...section("Προετοιμασία", guide.preparation));
   content.push(...section("Βήμα-βήμα", guide.stepByStep));
 
-  content.push({ text: "ΤΑ ΥΛΙΚΑ ΣΟΥ", style: "groupTitle", margin: [0, 18, 0, 6], pageBreak: "before" });
+  content.push({ text: "ΤΑ ΥΛΙΚΑ ΣΟΥ", style: "groupTitle", margin: [0, 18, 0, 6] });
   if (selected?.title) {
     content.push({
       table: {
@@ -506,41 +571,38 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
   }
 
   if (kit) {
-    content.push({ text: "ΑΚΡΙΒΕΣ PROJECT KIT", style: "sectionTitle", margin: [0, 13, 0, 5] });
+    content.push({ text: "ΠΛΗΡΕΣ ΣΕΤ ΥΛΙΚΩΝ ΕΡΓΟΥ", style: "sectionTitle", margin: [0, 13, 0, 5] });
     content.push({
-      text: kit.complete
-        ? "Κατάσταση: πλήρες επαληθευμένο σύστημα."
-        : "Κατάσταση: ελλιπές σύστημα — ένα ή περισσότερα απαιτούμενα στοιχεία λείπουν, αφαιρέθηκαν ή δεν έχουν επαληθευμένη αυτόματη ποσότητα.",
-      style: kit.complete ? "bodyStrong" : "warning",
-      margin: [0, 0, 0, 7]
+      table: {
+        widths: ["*"],
+        body: [[{
+          stack: [
+            { text: kit.complete ? "ΠΛΗΡΕΣ ΕΠΑΛΗΘΕΥΜΕΝΟ ΣΥΣΤΗΜΑ" : "ΤΟ ΣΥΣΤΗΜΑ ΧΡΕΙΑΖΕΤΑΙ ΣΥΜΠΛΗΡΩΣΗ", style: kit.complete ? "kitStatusGood" : "kitStatusWarn" },
+            { text: kit.complete
+              ? "Τα απαιτούμενα υλικά του τεκμηριωμένου συστήματος περιλαμβάνονται στο έργο."
+              : "Ένα ή περισσότερα απαιτούμενα στοιχεία λείπουν, αφαιρέθηκαν ή δεν έχουν επαληθευμένη αυτόματη ποσότητα.", style: "kitStatusCopy", margin: [0, 3, 0, 0] }
+          ]
+        }]]
+      },
+      layout: "noBorders",
+      fillColor: kit.complete ? "#EEF5EF" : "#FFF4EA",
+      margin: [0, 0, 0, 9]
     });
     const selectedKitItems = kit.items.filter((item) => item.selected);
     if (selectedKitItems.length) {
-      content.push({
-        table: {
-          headerRows: 1,
-          widths: ["*", 42, 72, 76],
-          body: [
-            ["Είδος", "Ποσ.", "Τιμή/τεμ.", "Σύνολο"],
-            ...selectedKitItems.map((item) => [
-              [
-                { text: item.title, bold: true },
-                { text: item.required ? "\nΑΠΑΡΑΙΤΗΤΟ" : item.role === "recommended_working" ? "\nΠΡΟΤΕΙΝΟΜΕΝΟ" : "\nΠΡΟΑΙΡΕΤΙΚΟ", fontSize: 6, color: item.required ? "#7b3d29" : "#666666" }
-              ],
-              String(item.quantity),
-              item.price,
-              new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format((item.priceMinor * item.quantity) / 100)
-            ])
-          ]
-        },
-        layout: "lightHorizontalLines",
-        margin: [0, 0, 0, 8]
-      });
+      selectedKitItems.forEach((item, index) => content.push(kitItemCard(item, index, assets)));
     }
     content.push({
-      text: `Σύνολο επιλεγμένου kit κατά τη δημιουργία: ${new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(kit.totalMinor / 100)}`,
-      style: "bodyStrong",
-      margin: [0, 0, 0, 8]
+      table: {
+        widths: ["*", "auto"],
+        body: [[
+          { text: "ΣΥΝΟΛΟ ΕΠΙΛΕΓΜΕΝΩΝ ΥΛΙΚΩΝ", style: "kitTotalLabel" },
+          { text: euro(kit.totalMinor), style: "kitTotalValue", alignment: "right" }
+        ]]
+      },
+      layout: "noBorders",
+      fillColor: "#2B211C",
+      margin: [0, 2, 0, 10]
     });
     const excluded = kit.items.filter((item) => !item.selected);
     if (excluded.length) {
@@ -554,7 +616,7 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
       content.push({ text: `Μη διαθέσιμες κατηγορίες αξεσουάρ: ${kit.unavailableAccessorySlots.join(", ")}`, style: "body", margin: [0, 7, 0, 4] });
     }
     content.push({
-      text: "Τα αξεσουάρ με ένδειξη KONTA MOU προέρχονται από Project Accessory Rules και δεν παρουσιάζονται ως οδηγίες του κατασκευαστή.",
+      text: "Τα αξεσουάρ με ένδειξη ΚΟΝΤΑ ΜΟΥ προτείνονται από τους κανόνες υλικών του έργου και δεν παρουσιάζονται ως οδηγίες του κατασκευαστή.",
       style: "sourceSafety",
       margin: [0, 7, 0, 8]
     });
@@ -572,9 +634,9 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
       style: "bodyStrong"
     });
   } else {
-    content.push({ text: "Δεν υπολογίστηκε ποσότητα χωρίς πλήρες επαληθευμένο manufacturer dataset.", style: "bodyStrong" });
+    content.push({ text: "Δεν υπολογίστηκε ποσότητα επειδή λείπουν πλήρη επαληθευμένα στοιχεία του κατασκευαστή.", style: "bodyStrong" });
   }
-  content.push({ text: quantity.basisEl, style: "body", margin: [0, 3, 0, 8] });
+  content.push({ text: pdfGreekText(quantity.basisEl), style: "body", margin: [0, 3, 0, 8] });
 
   content.push(...manufacturerDataSheet(snapshot));
   content.push({ text: "ΑΝΑΛΥΤΙΚΕΣ ΟΔΗΓΙΕΣ ΧΡΗΣΗΣ ΠΡΟΪΟΝΤΟΣ", style: "groupTitle", margin: [0, 18, 0, 5] });
@@ -586,7 +648,7 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
 
   content.push({ text: "ΠΗΓΕΣ & ΙΧΝΗΛΑΣΙΜΟΤΗΤΑ", style: "groupTitle", margin: [0, 18, 0, 6], pageBreak: "before" });
   content.push({
-    text: "Οι τεχνικές οδηγίες παραπάνω διατηρούν την προέλευσή τους ως GENERAL_GUIDANCE, MANUFACTURER_VITEX ή KONTA_MOU_RULE. Δεν συγχωνεύονται σιωπηρά όταν υπάρχει σύγκρουση.",
+    text: "Κάθε τεχνική οδηγία διατηρεί σαφή προέλευση: γενική τεχνική καθοδήγηση, επίσημες οδηγίες κατασκευαστή VITEX ή κανόνες ασφάλειας και ροής του ΚΟΝΤΑ ΜΟΥ. Σε περίπτωση σύγκρουσης οι πηγές δεν συγχωνεύονται αυτόματα.",
     style: "body",
     margin: [0, 0, 0, 8]
   });
@@ -599,7 +661,7 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
       style: "sourceReference"
     });
   } else {
-    content.push({ text: "Δεν υπάρχουν πηγές διαθέσιμες στο snapshot. Μην χρησιμοποιήσεις μη τεκμηριωμένη οδηγία ως τεχνικό κανόνα.", style: "warning" });
+    content.push({ text: "Δεν υπάρχουν διαθέσιμες πηγές στο αποθηκευμένο έργο. Μην χρησιμοποιήσεις μη τεκμηριωμένη οδηγία ως τεχνικό κανόνα.", style: "warning" });
   }
 
   content.push({
@@ -610,12 +672,12 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
 
   return {
     pageSize: "A4",
-    pageMargins: [42, 50, 42, 48],
+    pageMargins: [36, 42, 36, 46],
     defaultStyle: { font: "Roboto", fontSize: 9, lineHeight: 1.3, color: "#222222" },
     footer: (currentPage: number, pageCount: number) => ({
       columns: [
-        { text: "KONTA MOY · Paint & Build Studio", margin: [42, 10, 0, 0], fontSize: 7, color: "#777777" },
-        { text: `Σελίδα ${currentPage} / ${pageCount}`, alignment: "right", margin: [0, 10, 42, 0], fontSize: 7, color: "#777777" }
+        { text: "ΚΟΝΤΑ ΜΟΥ · Οδηγός Βαφής & Κατασκευής", margin: [36, 10, 0, 0], fontSize: 7, color: "#777777" },
+        { text: `Σελίδα ${currentPage} / ${pageCount}`, alignment: "right", margin: [0, 10, 36, 0], fontSize: 7, color: "#777777" }
       ]
     }),
     styles: {
@@ -632,6 +694,19 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
       quickText: { fontSize: 9.2, lineHeight: 1.3, color: "#2E2925" },
       dataLabel: { fontSize: 8.5, bold: true, color: "#5E554E" },
       dataValue: { fontSize: 8.5, color: "#24201D", lineHeight: 1.3 },
+      kitIndex: { fontSize: 18, bold: true, color: "#B69454" },
+      kitRoleRequired: { fontSize: 6.5, bold: true, color: "#8A4B34", letterSpacing: 0.5 },
+      kitRole: { fontSize: 6.5, bold: true, color: "#6F6258", letterSpacing: 0.5 },
+      kitItemTitle: { fontSize: 9.5, bold: true, color: "#28221E", lineHeight: 1.2 },
+      kitReason: { fontSize: 7.2, color: "#6F665F", lineHeight: 1.25 },
+      kitPriceSmall: { fontSize: 7.5, color: "#746A62" },
+      kitPrice: { fontSize: 10, bold: true, color: "#8A6A32" },
+      qrCaption: { fontSize: 6, color: "#7B7169" },
+      kitStatusGood: { fontSize: 8, bold: true, color: "#477154" },
+      kitStatusWarn: { fontSize: 8, bold: true, color: "#8A4B34" },
+      kitStatusCopy: { fontSize: 7.5, color: "#5E554E", lineHeight: 1.3 },
+      kitTotalLabel: { fontSize: 8, bold: true, color: "#EAD9B5", margin: [8, 7, 0, 7] },
+      kitTotalValue: { fontSize: 13, bold: true, color: "#FFFFFF", margin: [0, 5, 8, 5] },
       body: { fontSize: 9, lineHeight: 1.3 },
       bodyStrong: { fontSize: 9, bold: true },
       sourceGeneral: { fontSize: 7, bold: true, color: "#526251" },
