@@ -338,7 +338,7 @@ function FamilyOverlay({
             <div className={styles.overlayHero}>
               <div className={styles.overlayImage}><ProductArtwork product={selected ?? detail.family.variants[0] ?? family.representative} /></div>
               <div>
-                <span>VITEX · VERIFIED PRODUCT FAMILY</span>
+                <span>VITEX · ΕΠΑΛΗΘΕΥΜΕΝΗ ΟΙΚΟΓΕΝΕΙΑ ΠΡΟΪΟΝΤΟΣ</span>
                 <h2>VITEX {detail.family.title}</h2>
                 <p>{detail.technical.whySuitable || "Η οικογένεια προϊόντος έχει επαληθευμένη καταλληλότητα για το συγκεκριμένο σενάριο του έργου."}</p>
                 <div className={styles.projectFact}><small>ΤΟ ΕΡΓΟ ΣΟΥ</small><strong>{areaM2} m²</strong></div>
@@ -503,7 +503,7 @@ export function BuildStudioProductChooser({
     <section className={styles.chooser} aria-labelledby="build-studio-products">
       <div className={styles.heading}>
         <div>
-          <span>VERIFIED PRODUCT FAMILIES</span>
+          <span>ΕΠΑΛΗΘΕΥΜΕΝΕΣ ΟΙΚΟΓΕΝΕΙΕΣ ΠΡΟΪΟΝΤΩΝ</span>
           <h2 id="build-studio-products">{heading}</h2>
           <p>Κάθε τεχνική οικογένεια εμφανίζεται μία φορά. Άνοιξέ την για να διαλέξεις έκδοση και να δεις τις διαθέσιμες συσκευασίες, τις επαληθευμένες οδηγίες VITEX και τον υπολογισμό του έργου.</p>
         </div>
