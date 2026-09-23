@@ -17,11 +17,12 @@ import { getVendorSession } from "../../../lib/vendor-session";
 import { vendorCatalogWorkspace } from "../../../lib/vendor-backoffice-service";
 import { getVendorAdminArchivedOfferIds } from "../../../lib/vendor-offer-reactivation-state";
 import { getVendorStockFreshness } from "../../../lib/vendor-stock-freshness";
+import { requestVendorProductActivation } from "../../../lib/product-lifecycle";
 
 export const metadata: Metadata = { title: "Προϊόντα, τιμές & απόθεμα", robots: { index: false, follow: false } };
 
 const ASSIGNED_PAGE_SIZE = 40;
-type Params = { assignedOffset?: string; assignedSaved?: string; assignedError?: string };
+type Params = { assignedOffset?: string; assignedSaved?: string; assignedError?: string; activationSaved?: string; activationError?: string };
 
 async function confirmAssignedCatalogueAction(formData: FormData) {
   "use server";
@@ -48,6 +49,27 @@ async function confirmAssignedCatalogueAction(formData: FormData) {
   revalidatePath("/vendor/catalog");
   const search = new URLSearchParams({ assignedOffset: String(assignedOffset), assignedSaved: saved });
   if (errorMessage) search.set("assignedError", errorMessage);
+  redirect(`/vendor/catalog?${search.toString()}#assigned-catalogue`);
+}
+
+async function requestAssignedActivationAction(formData: FormData) {
+  "use server";
+  const principal = await getVendorSession();
+  if (!principal) redirect("/vendor/login");
+  const offerId = String(formData.get("offerId") ?? "").trim();
+  const assignedOffset = parseAssignedOffset(String(formData.get("assignedOffset") ?? ""));
+  let saved = "1";
+  let errorMessage: string | undefined;
+  try {
+    if (!offerId) throw new Error("Δεν βρέθηκε draft offer για ενεργοποίηση.");
+    await requestVendorProductActivation(principal, offerId);
+  } catch (error) {
+    saved = "0";
+    errorMessage = error instanceof Error ? error.message.slice(0, 300) : "Το αίτημα ενεργοποίησης δεν αποθηκεύτηκε.";
+  }
+  revalidatePath("/vendor/catalog");
+  const search = new URLSearchParams({ assignedOffset: String(assignedOffset), activationSaved: saved });
+  if (errorMessage) search.set("activationError", errorMessage);
   redirect(`/vendor/catalog?${search.toString()}#assigned-catalogue`);
 }
 
@@ -92,8 +114,8 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
     {assignedCatalogue.totalAssigned > 0 && <section className="shell vendor-section" id="assigned-catalogue">
       <WorkspaceSectionHeading
         eyebrow="Ανατεθειμένος Supplier PIM κατάλογος"
-        title="Επιβεβαίωσε τι γνωρίζεις χωρίς να δημιουργηθεί online offer"
-        note="Ο Admin έχει συνδέσει αυτά τα source προϊόντα με το κατάστημά σου. Εδώ επιβεβαιώνεις μόνο πραγματική τιμή προμηθευτή και φυσικό stock. Η επιβεβαίωση παραμένει evidence και δεν δημιουργεί offer, inventory balance ή δημόσια διαθεσιμότητα."
+        title="Επιβεβαίωσε τιμή & stock και στείλε το προϊόν για ενεργοποίηση"
+        note="Η ανάθεση από Admin δεν δημοσιεύει προϊόν. Όταν επιβεβαιώσεις πραγματική τιμή προμηθευτή και φυσικό stock, το ΚΟΝΤΑ ΜΟΥ προετοιμάζει ιδιωτικό draft offer και inventory. Εσύ ζητάς ενεργοποίηση και μόνο μετά από Admin approval γίνεται δημόσια αγοράσιμο."
       />
       <WorkspaceMetricStrip items={[
         { label: "Ανατεθειμένα source προϊόντα", value: assignedCatalogue.totalAssigned, tone: "positive" },
@@ -104,12 +126,15 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
       <WorkspaceHowItWorks>
         <p><strong>Ανάθεση ≠ δημοσίευση:</strong> η παρουσία ενός προϊόντος εδώ δεν το κάνει αγοράσιμο και δεν δημιουργεί τιμή πώλησης.</p>
         <p><strong>Τιμή προμηθευτή:</strong> γράψε το πραγματικό δικό σου κόστος ανά τεμάχιο. Τυχόν τιμή του source catalogue εμφανίζεται μόνο ως πληροφορία και δεν αντιγράφεται αυτόματα.</p>
-        <p><strong>Φυσικό stock:</strong> είναι η πραγματική ποσότητα που βλέπεις στο κατάστημα αυτή τη στιγμή. Παραμένει evidence μέχρι να δημιουργηθεί ξεχωριστά κανονικό offer/inventory μέσω του governed catalogue workflow.</p>
+        <p><strong>Φυσικό stock:</strong> είναι η πραγματική ποσότητα που βλέπεις στο κατάστημα αυτή τη στιγμή. Όταν τιμή και stock έχουν επιβεβαιωθεί, δημιουργείται μόνο ιδιωτικό draft offer/inventory — όχι δημόσια πώληση.</p>
+        <p><strong>Ενεργοποίηση:</strong> μετά την εμπορική επιβεβαίωση ζητάς έγκριση. Το offer μένει εκτός storefront/cart μέχρι να εγκριθεί από Admin.</p>
         <p><strong>Canonical match:</strong> μπορεί να ολοκληρωθεί από το ΚΟΝΤΑ ΜΟΥ αργότερα. Δεν χρειάζεται να περιμένεις το matching για να μας δώσεις σωστή εμπορική πληροφορία για το source προϊόν.</p>
       </WorkspaceHowItWorks>
 
       {params.assignedSaved === "1" && <div className="workspace-inline-note" role="status"><strong>Η επιβεβαίωση αποθηκεύτηκε.</strong> Παραμένει εσωτερικό evidence και δεν έκανε το προϊόν διαθέσιμο προς πώληση.</div>}
       {params.assignedSaved === "0" && <div className="workspace-inline-note" role="alert"><strong>Η επιβεβαίωση δεν αποθηκεύτηκε.</strong> {params.assignedError ?? "Έλεγξε τα στοιχεία και δοκίμασε ξανά."}</div>}
+      {params.activationSaved === "1" && <div className="workspace-inline-note" role="status"><strong>Το αίτημα ενεργοποίησης στάλθηκε.</strong> Το προϊόν παραμένει εκτός online πώλησης μέχρι την έγκριση Admin.</div>}
+      {params.activationSaved === "0" && <div className="workspace-inline-note" role="alert"><strong>Το αίτημα ενεργοποίησης δεν στάλθηκε.</strong> {params.activationError ?? "Έλεγξε τα εμπορικά στοιχεία και δοκίμασε ξανά."}</div>}
 
       <div className="workspace-queue-list">{assignedCatalogue.products.map((item) => <article className="workspace-queue-card" key={item.id}>
         <div className="workspace-queue-head">
@@ -147,11 +172,27 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
             </>}
           </div>
         </div>}
+        {item.activationReady && item.offerId ? <div className="workspace-action-bar">
+          <span>Τιμή και stock επιβεβαιώθηκαν. Το draft offer είναι έτοιμο για έλεγχο ΚΟΝΤΑ ΜΟΥ.</span>
+          <form action={requestAssignedActivationAction}>
+            <input type="hidden" name="offerId" value={item.offerId} />
+            <input type="hidden" name="assignedOffset" value={assignedOffset} />
+            <button className="button" type="submit">Αίτημα ενεργοποίησης</button>
+          </form>
+        </div> : null}
+        {item.activationRequestStatus === "pending" || item.offerStatus === "pending_review" ? <div className="workspace-inline-note">
+          <strong>Σε έλεγχο ενεργοποίησης.</strong> Δεν εμφανίζεται ακόμη ως διαθέσιμο για αγορά.
+        </div> : null}
+        {item.offerStatus === "approved" ? <div className="workspace-inline-note">
+          <strong>Ενεργό offer.</strong> Η δημόσια διαθεσιμότητα εξακολουθεί να εξαρτάται από πρόσφατο πραγματικό stock και τους κανόνες storefront.
+        </div> : null}
         <WorkspaceRecordDetails label="Evidence & source context"><div className="workspace-compact-list">
           <div className="workspace-compact-row"><strong>Supplier PIM</strong><span>{item.sourceName} · {item.sourceCode}</span></div>
           <div className="workspace-compact-row"><strong>Assortment state</strong><span>{item.assortmentStatus} · {item.availabilityMode}</span></div>
           <div className="workspace-compact-row"><strong>Price evidence</strong><span>{item.priceCheckStatus}</span></div>
           <div className="workspace-compact-row"><strong>Stock evidence</strong><span>{item.stockCheckStatus}</span></div>
+          <div className="workspace-compact-row"><strong>Offer state</strong><span>{item.offerStatus ?? "not prepared"}</span></div>
+          <div className="workspace-compact-row"><strong>Activation</strong><span>{item.activationRequestStatus ?? (item.activationReady ? "ready to request" : "not ready")}</span></div>
           {item.canonicalVariantId && <div className="workspace-compact-row"><strong>Canonical variant</strong><span className="vendor-technical-id">{item.canonicalVariantId}</span></div>}
         </div></WorkspaceRecordDetails>
       </article>)}</div>

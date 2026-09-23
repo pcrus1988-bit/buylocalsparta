@@ -8,6 +8,7 @@ import { AdminWorkspaceHeader } from "../../../../../components/AdminWorkspaceHe
 import { getAdminSession } from "../../../../../lib/admin-session";
 import { assertAdminCsrf, assertAdminPermission, recordAdminAudit } from "../../../../../lib/admin-runtime";
 import { adminAssignAllVitexProducts, adminUnassignAllVitexProducts } from "../../../../../lib/admin-vitex-catalogue";
+import { resolveAssignedCatalogueActivationRequest } from "../../../../../lib/product-lifecycle";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../../lib/postgres-runtime";
 
 export const metadata: Metadata = {
@@ -49,6 +50,17 @@ type CandidateRow = SqlRow & {
   gtin: string | null;
   mpn: string | null;
   platform_price_minor: number | string | null;
+};
+
+type PendingActivationRow = SqlRow & {
+  request_id: string;
+  offer_id: string;
+  title: string;
+  location_name: string;
+  customer_price_minor: number | string;
+  supplier_unit_price_minor: number | string;
+  on_hand: number | string;
+  requested_at: Date | string;
 };
 
 const asText = (value: unknown) => typeof value === "string" ? value : String(value ?? "");
@@ -195,6 +207,21 @@ async function unassignProduct(formData: FormData) {
   revalidatePath(`/demo/vendor/${encodeURIComponent(asText(result.rows[0].vendor_public_id))}`);
 }
 
+async function resolveAssignedActivation(formData: FormData) {
+  "use server";
+  const principal = await requireAdmin();
+  assertAdminCsrf(principal, asText(formData.get("csrfToken")));
+  const vendorId = asText(formData.get("vendorId")).trim();
+  const requestId = asText(formData.get("requestId")).trim();
+  const decision = asText(formData.get("decision")) === "approve" ? "approve" : "reject";
+  const reason = asText(formData.get("reason")).trim();
+  if (!vendorId || !requestId || reason.length < 3 || reason.length > 500) throw new Error("Vendor, request and a 3–500 character review reason are required");
+  await resolveAssignedCatalogueActivationRequest(principal, requestId, decision, reason);
+  revalidatePath(`/admin/partners/${encodeURIComponent(vendorId)}/catalogue`);
+  revalidatePath("/shop");
+  revalidatePath("/paint-and-build-studio");
+}
+
 async function assignAllVitexProducts(formData: FormData) {
   "use server";
   const principal = await requireAdmin();
@@ -288,6 +315,28 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   `, [vendorUuid]);
   const vitexTotal = asInt(vitexStats.rows[0]?.total_products);
   const vitexAssigned = asInt(vitexStats.rows[0]?.assigned_products);
+  const pendingActivations = await db.query<PendingActivationRow>(`
+    SELECT
+      r.public_id AS request_id,
+      vo.public_id AS offer_id,
+      COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+      l.name AS location_name,
+      vo.customer_price_minor,
+      vo.supplier_unit_price_minor,
+      GREATEST(0,COALESCE(ib.on_hand,0)-COALESCE(ib.active_reservations,0)-COALESCE(ib.safety_stock,0)-COALESCE(ib.blocked,0)) AS on_hand,
+      r.requested_at
+    FROM vendor_product_activation_requests r
+    JOIN vendor_offers vo ON vo.id=r.offer_id
+    JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+    JOIN vendor_locations l ON l.id=vo.location_id
+    LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
+    LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+    LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+    WHERE r.vendor_id=$1::uuid
+      AND r.status='pending'
+      AND r.submission_id IS NULL
+    ORDER BY r.requested_at ASC,r.public_id
+  `, [vendorUuid]);
   const activeLocations = locations.rows.filter((location) => Boolean(location.active));
   const search = q?.trim() ?? "";
   const candidates = await db.query<CandidateRow>(`
@@ -358,6 +407,34 @@ export default async function Page({ params, searchParams }: { params: Promise<{
         <button className="button button-secondary" type="submit">De-assign all VITEX products</button>
       </form> : null}
     </section>
+
+    {pendingActivations.rowCount > 0 ? <section className="shell vendor-section">
+      <div className="workspace-section-heading">
+        <div><div className="eyebrow">Commercial approval</div><h2>Pending assigned-product activations</h2></div>
+        <span className="status-pill">{pendingActivations.rowCount} pending</span>
+      </div>
+      <p>These products have vendor-confirmed supplier price and physical stock. Approval makes the prepared offer eligible for storefront/cart; rejection returns it to draft. No stock or price is invented here.</p>
+      <div className="admin-directory-table" role="table" aria-label="Pending assigned product activations">
+        <div className="admin-directory-head" role="row"><span>Product</span><span>Location</span><span>Customer price</span><span>Supplier price</span><span>Sellable stock</span><span>Review</span></div>
+        {pendingActivations.rows.map((item) => <div className="admin-directory-row" role="row" key={asText(item.request_id)}>
+          <span><strong>{asText(item.title)}</strong><small>{asText(item.offer_id)}</small></span>
+          <span>{asText(item.location_name)}</span>
+          <span>{euro(item.customer_price_minor)}</span>
+          <span>{euro(item.supplier_unit_price_minor)}</span>
+          <span>{asInt(item.on_hand)}</span>
+          <div>
+            <form action={resolveAssignedActivation} className="workspace-inline-form">
+              <input type="hidden" name="csrfToken" value={principal.csrfToken} />
+              <input type="hidden" name="vendorId" value={vendorPublicId} />
+              <input type="hidden" name="requestId" value={asText(item.request_id)} />
+              <input name="reason" defaultValue="Vendor-confirmed price and stock reviewed" minLength={3} maxLength={500} required />
+              <button className="button" name="decision" value="approve" type="submit">Approve</button>
+              <button className="button button-secondary" name="decision" value="reject" type="submit">Reject</button>
+            </form>
+          </div>
+        </div>)}
+      </div>
+    </section> : null}
 
     <section className="shell vendor-section">
       <h2>Assign product</h2>

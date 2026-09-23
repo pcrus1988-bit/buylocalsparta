@@ -56,6 +56,9 @@ type FamilyVariant = Readonly<{
   tintBaseHint?: string;
   finishHint?: string;
   imageUrl?: string;
+  available: boolean;
+  availableToSell: number;
+  maxUnits?: number;
 }>;
 
 type QuantityEstimate = Readonly<{
@@ -247,7 +250,7 @@ function FamilyOverlay({
         for (const variant of payload.family.variants) {
           const key = routeKey(variant);
           const current = routes.get(key);
-          if (!current || variant.priceMinor < current.priceMinor) routes.set(key, variant);
+          if (!current || (variant.available && !current.available) || (variant.available === current.available && variant.priceMinor < current.priceMinor)) routes.set(key, variant);
         }
         const preferred = [...routes.values()].sort((a, b) => {
           const aWhite = routeLabel(a) === "Λευκό" ? 0 : 1;
@@ -300,7 +303,7 @@ function FamilyOverlay({
     for (const variant of detail?.family.variants ?? []) {
       const key = routeKey(variant);
       const current = map.get(key);
-      if (!current || variant.priceMinor < current.priceMinor) map.set(key, variant);
+      if (!current || (variant.available && !current.available) || (variant.available === current.available && variant.priceMinor < current.priceMinor)) map.set(key, variant);
     }
     return [...map.values()];
   }, [detail]);
@@ -352,11 +355,11 @@ function FamilyOverlay({
                   const active = selectedRoute === routeKey(variant);
                   return <button type="button" key={routeKey(variant)} className={active ? styles.routeActive : styles.routeButton} onClick={() => setSelectedVariantId(variant.id)}>
                     <strong>{routeLabel(variant)}</strong>
-                    <small>από {variant.price}</small>
+                    <small>{variant.available ? `από ${variant.price} · διαθέσιμο τώρα` : "προσωρινά μη διαθέσιμο online"}</small>
                   </button>;
                 })}
               </div>
-              {selected ? <div className={styles.packSizes}><span>Διαθέσιμες συσκευασίες:</span>{routeVariants.map((variant) => <b key={variant.id}>{variant.packValue}{variant.packUnit}</b>)}</div> : null}
+              {selected ? <div className={styles.packSizes}><span>Συσκευασίες:</span>{routeVariants.map((variant) => <b key={variant.id}>{variant.packValue}{variant.packUnit} · {variant.available ? `${variant.availableToSell} διαθέσιμα` : "μη διαθέσιμο τώρα"}</b>)}</div> : null}
             </div>
 
             <div className={styles.techGrid}>
@@ -396,7 +399,7 @@ function FamilyOverlay({
                   </>
                 )}
               </div>
-              <button type="button" disabled={!preview?.kit || previewState === "loading"} onClick={choose}>
+              <button type="button" disabled={!preview?.kit || !plan || previewState === "loading"} onClick={choose}>
                 {previewState === "loading" ? "ΥΠΟΛΟΓΙΣΜΟΣ ΕΡΓΟΥ…" : "ΕΠΙΛΟΓΗ ΓΙΑ ΤΟ ΕΡΓΟ ΜΟΥ"}
               </button>
             </div>

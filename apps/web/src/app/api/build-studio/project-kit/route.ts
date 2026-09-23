@@ -42,6 +42,8 @@ type FamilyVariantRow = Readonly<{
 type FamilyVariant = PaintBuildPackVariant & Readonly<{
   price: string;
   imageUrl?: string;
+  available: boolean;
+  availableToSell: number;
 }>;
 
 type ProfileRow = Readonly<{
@@ -116,7 +118,7 @@ function safeMinor(value: unknown): number {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 0;
 }
 
-function familyVariant(row: FamilyVariantRow): FamilyVariant | undefined {
+function familyVariant(row: FamilyVariantRow): Omit<FamilyVariant, "available" | "availableToSell"> | undefined {
   const priceMinor = safeMinor(row.price_minor);
   const packValue = numberValue(row.pack_value);
   const packUnit = row.pack_unit?.trim();
@@ -135,7 +137,7 @@ function familyVariant(row: FamilyVariantRow): FamilyVariant | undefined {
   };
 }
 
-async function readFamily(manufacturerProductId: string) {
+async function readFamily(manufacturerProductId: string, postcode: string) {
   const db = getProductionPostgresRuntime().nativePool;
   const [product, variants] = await Promise.all([
     db.query<{ product_name: string; brand_name: string }>(
@@ -184,13 +186,29 @@ async function readFamily(manufacturerProductId: string) {
     )
   ]);
   if (!product.rowCount) throw new Error("MANUFACTURER_PRODUCT_NOT_FOUND");
-  const mapped = variants.rows.map(familyVariant).filter((value): value is FamilyVariant => Boolean(value));
+  const mapped = variants.rows.map(familyVariant).filter((value): value is Omit<FamilyVariant, "available" | "availableToSell"> => Boolean(value));
+  const commerce = getProductionPostgresRuntime().customerCommerce;
+  const hydrated = await Promise.all(mapped.map(async (variant) => {
+    const availability = await commerce.publicCanonicalAvailability(variant.id, { postcode, quantity: 1 }).catch(() => undefined);
+    const availableToSell = availability?.available ? Math.max(0, availability.availableToSell) : 0;
+    const livePriceMinor = availability?.product?.priceMinor && availability.product.priceMinor > 0
+      ? availability.product.priceMinor
+      : variant.priceMinor;
+    return {
+      ...variant,
+      priceMinor: livePriceMinor,
+      price: formatMoney(money(livePriceMinor)),
+      available: availableToSell > 0,
+      availableToSell,
+      maxUnits: availableToSell
+    } satisfies FamilyVariant;
+  }));
   return {
     manufacturerProductId,
     title: product.rows[0].product_name,
     brand: product.rows[0].brand_name || "VITEX",
-    imageUrl: mapped.find((variant) => variant.imageUrl)?.imageUrl,
-    variants: mapped
+    imageUrl: hydrated.find((variant) => variant.imageUrl)?.imageUrl,
+    variants: hydrated
   };
 }
 
@@ -361,11 +379,11 @@ async function categoryCandidateIds(categoryCode: string): Promise<readonly stri
   return result.rows.map((row) => row.public_id);
 }
 
-async function accessoryItems(areaM2: number) {
+async function accessoryItems(areaM2: number, postcode: string) {
   const visitorKey = await getVisitorKey();
   const rows = await Promise.all(PROJECT_ACCESSORY_RULES.map(async (rule) => {
     const ids = await categoryCandidateIds(rule.categoryCode);
-    const cards = await Promise.all(ids.map((id) => getCatalogCard(id, visitorKey).catch(() => undefined)));
+    const cards = await Promise.all(ids.map((id) => getCatalogCard(id, visitorKey, postcode).catch(() => undefined)));
     const candidate = cards.find((card) => card && card.available && card.availableToSell > 0 && card.priceMinor > 0);
     if (!candidate) {
       return {
@@ -403,14 +421,14 @@ async function accessoryItems(areaM2: number) {
   return rows;
 }
 
-async function requiredSystemItems(manufacturerProductId: string, areaM2: number) {
+async function requiredSystemItems(manufacturerProductId: string, areaM2: number, postcode: string) {
   const relationships = await requiredRelationships(manufacturerProductId);
   const ready: Array<Record<string, unknown>> = [];
   const unresolved: Array<Record<string, unknown>> = [];
 
   for (const relationship of relationships) {
     const [family, profile, coverageEvidence] = await Promise.all([
-      readFamily(relationship.target_product_id).catch(() => undefined),
+      readFamily(relationship.target_product_id, postcode).catch(() => undefined),
       readProfile(relationship.target_product_id),
       readCoverageEvidence(relationship.target_product_id)
     ]);
@@ -475,7 +493,7 @@ async function requiredSystemItems(manufacturerProductId: string, areaM2: number
   return { ready, unresolved };
 }
 
-async function scenarioRequiredSystemItems(eligibility: ScenarioEligibilityRow | undefined, areaM2: number) {
+async function scenarioRequiredSystemItems(eligibility: ScenarioEligibilityRow | undefined, areaM2: number, postcode: string) {
   const ready: Array<Record<string, unknown>> = [];
   const unresolved: Array<Record<string, unknown>> = [];
   if (!eligibility || !["requires_specific_primer", "requires_system_component"].includes(eligibility.result_status)) {
@@ -513,7 +531,7 @@ async function scenarioRequiredSystemItems(eligibility: ScenarioEligibilityRow |
   }
 
   const [family, profile, coverageEvidence] = await Promise.all([
-    readFamily(target.id).catch(() => undefined),
+    readFamily(target.id, postcode).catch(() => undefined),
     readProfile(target.id),
     readCoverageEvidence(target.id)
   ]);
@@ -609,7 +627,7 @@ export async function POST(request: Request) {
     }
 
     const [family, profile, eligibility, coverageEvidence] = await Promise.all([
-      readFamily(manufacturerProductId),
+      readFamily(manufacturerProductId, postcode),
       readProfile(manufacturerProductId),
       readScenarioEligibility(manufacturerProductId, scenarioKey),
       readCoverageEvidence(manufacturerProductId)
@@ -690,9 +708,9 @@ export async function POST(request: Request) {
       : undefined;
 
     const [required, scenarioRequired, accessories] = await Promise.all([
-      requiredSystemItems(manufacturerProductId, areaM2),
-      scenarioRequiredSystemItems(eligibility, areaM2),
-      accessoryItems(areaM2)
+      requiredSystemItems(manufacturerProductId, areaM2, postcode),
+      scenarioRequiredSystemItems(eligibility, areaM2, postcode),
+      accessoryItems(areaM2, postcode)
     ]);
 
     const coatingItems = packPlan?.lines.flatMap((line) => {
