@@ -91,6 +91,19 @@ export async function getFastVendorDropshipCatalogPage(
         AND v.status='active'
         AND ds.active=true
         AND ds.api_authoritative_availability=true
+    ), shadow_state AS MATERIALIZED (
+      SELECT
+        lf.supplier_id::text AS supplier_id,
+        lf.external_product_id,
+        lf.sellable,
+        lf.newest_at
+      FROM bls_private.storefront_dropship_live_family lf
+      JOIN vendor_suppliers supplier ON supplier.id=lf.supplier_id
+      WHERE lf.available_until>now()
+    ), live_shadow AS MATERIALIZED (
+      SELECT supplier_id,external_product_id,newest_at
+      FROM shadow_state
+      WHERE sellable=true
     ), stable AS MATERIALIZED (
       SELECT
         fm.dropship_supplier_id AS supplier_id,
@@ -99,9 +112,21 @@ export async function getFastVendorDropshipCatalogPage(
       FROM public.storefront_dropship_family_read_model fm
       JOIN vendor_suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
       WHERE fm.available_until>now()
+        AND NOT EXISTS (
+          SELECT 1
+          FROM shadow_state current_state
+          WHERE current_state.supplier_id=fm.dropship_supplier_id
+            AND current_state.external_product_id=fm.dropship_external_product_id
+        )
+    ), projected AS MATERIALIZED (
+      SELECT supplier_id,external_product_id,newest_at
+      FROM live_shadow
+      UNION ALL
+      SELECT supplier_id,external_product_id,newest_at
+      FROM stable
     ), stable_counts AS MATERIALIZED (
       SELECT supplier_id,COUNT(*)::int AS stable_count
-      FROM stable
+      FROM projected
       GROUP BY supplier_id
     ), fallback_suppliers AS MATERIALIZED (
       SELECT supplier.id,supplier.supplier_id
@@ -148,7 +173,7 @@ export async function getFastVendorDropshipCatalogPage(
         AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
       GROUP BY seed.supplier_id,seed.external_product_id
     ), combined AS (
-      SELECT supplier_id,external_product_id,newest_at,0::int AS source_priority FROM stable
+      SELECT supplier_id,external_product_id,newest_at,0::int AS source_priority FROM projected
       UNION ALL
       SELECT supplier_id,external_product_id,newest_at,1::int AS source_priority FROM live_fallback
     ), deduplicated AS (
