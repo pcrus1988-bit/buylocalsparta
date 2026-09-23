@@ -37,7 +37,7 @@ type FilterState = Readonly<{
   sort: CatalogSort;
   availability: AvailabilityFilter;
 }>;
-type GuideDomain = "fashion" | "beauty";
+type GuideDomain = "fashion" | "beauty" | "catalog";
 type GuideAudience = "women" | "men" | "accessories";
 type GuideFamily = "shoes" | "clothing" | "underwear" | "bags" | "jewellery" | "eyewear" | "accessories" | "other";
 type BeautyFamily = "skincare" | "makeup" | "fragrance" | "haircare" | "body" | "grooming" | "tools" | "other";
@@ -58,7 +58,6 @@ type BeautyGuideGroup = Readonly<{
 
 const PAGE_SIZE = 20;
 const FIRST_PAGE_TIMEOUT_MS = 20000;
-const SPECIAL_GUIDED_VENDOR_ID = "vendor_e8cb57b3c67b469d9a9d";
 const BEAUTY_CATEGORY_CODES = new Set([
   "facial-cleansers",
   "face-moisturisers",
@@ -253,10 +252,34 @@ function isFashionCategory(entry: RemoteFacetOption): boolean {
   return ["γυναικ", "ανδρ", "παιδικ", "ρουχ", "παπουτ", "sneaker", "μποτ", "σανδαλ", "τσαντ", "σακιδ", "πορτοφολ", "αποσκευ", "ζων", "κασκολ", "καπελ", "γαντ", "δαχτυλ", "κολιε", "σκουλαρ", "βραχιολ", "κοσμη", "ρολογ", "γυαλ", "εσωρουχ", "μαγιο"].some((word) => label.includes(word));
 }
 
-function guideDomainFor(entry: RemoteFacetOption): GuideDomain | null {
+function isHomeProjectCategory(entry: RemoteFacetOption): boolean {
+  const value = normalized(entry.value);
+  const label = normalized(entry.label);
+  const haystack = `${value} ${label}`;
+  return [
+    "paint", "coating", "primer", "undercoat", "varnish", "enamel", "waterproof", "insulation",
+    "plaster", "mortar", "putty", "sealant", "construction", "building", "renovation",
+    "χρωμ", "βαφ", "ασταρ", "βερνικ", "ριπολιν", "στεγαν", "μονω", "σοβα", "κονια",
+    "στοκ", "επισκευ", "τσιμεν", "τοιχ", "οικοδομ", "θερμομον"
+  ].some((word) => haystack.includes(word));
+}
+
+function guideDomainFor(entry: RemoteFacetOption): GuideDomain {
   if (isBeautyCategory(entry)) return "beauty";
   if (isFashionCategory(entry)) return "fashion";
-  return null;
+  return "catalog";
+}
+
+function isGuideFilterStateEmpty(filters: FilterState): boolean {
+  return !filters.query.trim()
+    && filters.category === "all"
+    && filters.categoryGroup.length === 0
+    && filters.brand === "all"
+    && filters.color === "all"
+    && filters.size === "all"
+    && filters.fit === "all"
+    && filters.material === "all"
+    && filters.availability === "all";
 }
 
 function beautyFamilyFor(entry: RemoteFacetOption): BeautyFamily {
@@ -408,6 +431,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   const [remoteOffset, setRemoteOffset] = useState(0);
   const [remoteNextOffset, setRemoteNextOffset] = useState<number | null>(null);
   const [remoteFacets, setRemoteFacets] = useState<RemoteFacets>();
+  const [guideFacets, setGuideFacets] = useState<RemoteFacets>();
   const [remoteLoading, setRemoteLoading] = useState(!demoVendorId);
   const [facetsLoading, setFacetsLoading] = useState(false);
   const [facetsError, setFacetsError] = useState(false);
@@ -419,7 +443,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   const catalogResultsRef = useRef<HTMLDivElement | null>(null);
 
   const demoMode = Boolean(demoVendorId);
-  const isGuidedVendor = (publicVendorId ?? vendorId) === SPECIAL_GUIDED_VENDOR_ID;
+  const isGuidedVendor = Boolean(publicVendorId ?? vendorId ?? demoVendorId);
   const filters = useMemo<FilterState>(() => ({ query, category, categoryGroup, brand, color, size, fit, material, sort, availability }), [availability, brand, category, categoryGroup, color, fit, material, query, size, sort]);
 
   useEffect(() => {
@@ -515,6 +539,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
         if (serial === facetRequestSerial.current) {
           setRemoteFacets(payload.facets);
           setRemoteTotal(payload.facets.total);
+          if (isGuideFilterStateEmpty(filters)) setGuideFacets(payload.facets);
         }
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -556,12 +581,16 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     () => remoteFacets?.materials.length ? remoteFacets.materials : fallbackMaterialOptions(facetFallbackProducts),
     [facetFallbackProducts, remoteFacets]
   );
-  const guideCategories = isGuidedVendor ? (remoteFacets?.categories ?? []) : categories;
+  const guideCategories = isGuidedVendor
+    ? (guideFacets?.categories?.length ? guideFacets.categories : remoteFacets?.categories?.length ? remoteFacets.categories : categories)
+    : [];
   const fashionCategories = guideCategories.filter(isFashionCategory);
   const beautyCategories = guideCategories.filter(isBeautyCategory);
+  const catalogCategories = guideCategories.filter((entry) => !isFashionCategory(entry) && !isBeautyCategory(entry));
   const availableGuideDomains = ([
     ...(fashionCategories.length ? ["fashion" as const] : []),
-    ...(beautyCategories.length ? ["beauty" as const] : [])
+    ...(beautyCategories.length ? ["beauty" as const] : []),
+    ...(catalogCategories.length ? ["catalog" as const] : [])
   ] satisfies readonly GuideDomain[]);
   const relatedCategories = useMemo(() => relatedCategoryOptions(categories, category, categoryGroup), [categories, category, categoryGroup]);
   const visibleBrands = useMemo(() => {
@@ -578,7 +607,8 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   }, [brand, brandSearch, brands]);
 
   useEffect(() => {
-    if (!isGuidedVendor || initialGuideHandled.current || facetsLoading || facetsError || !remoteFacets || !guideCategories.length) return;
+    if (!isGuidedVendor || initialGuideHandled.current || facetsLoading || !guideCategories.length) return;
+    if (!demoMode && !guideFacets && !remoteFacets && !facetsError) return;
     if (!availableGuideDomains.length) return;
     initialGuideHandled.current = true;
     const url = new URL(window.location.href);
@@ -604,7 +634,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     }
     setGuideDomain(availableGuideDomains.length === 1 ? availableGuideDomains[0] : null);
     setGuideOpen(true);
-  }, [availableGuideDomains, facetsError, facetsLoading, guideCategories, isGuidedVendor, remoteFacets]);
+  }, [availableGuideDomains, demoMode, facetsError, facetsLoading, guideCategories, guideFacets, isGuidedVendor, remoteFacets]);
 
   useEffect(() => {
     if (!guideOpen && !filtersOpen) return;
@@ -727,6 +757,14 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   const selectedGroup = guideFamily ? guideGroups.find((group) => group.key === guideFamily) : undefined;
   const beautyGroups = buildBeautyGroups(beautyCategories);
   const selectedBeautyGroup = beautyFamily ? beautyGroups.find((group) => group.key === beautyFamily) : undefined;
+  const catalogAllCount = catalogCategories.reduce((sum, entry) => sum + entry.count, 0);
+  const catalogHomeCount = catalogCategories.filter(isHomeProjectCategory).reduce((sum, entry) => sum + entry.count, 0);
+  const catalogLooksLikeHome = catalogHomeCount > 0 && catalogHomeCount >= catalogAllCount * 0.6;
+  const catalogDomainLabel = catalogLooksLikeHome ? "Σπίτι & Εργασίες" : "Κατηγορίες καταστήματος";
+  const catalogDomainHelper = catalogLooksLikeHome
+    ? "Χρώματα, αστάρια, στεγάνωση, μόνωση και υλικά για το έργο σου"
+    : "Οι υπόλοιπες κατηγορίες που είναι πραγματικά διαθέσιμες εδώ";
+  const guideTotal = guideFacets?.total ?? remoteFacets?.total ?? total;
   const audienceCounts = {
     women: fashionCategories.filter((entry) => audienceFor(entry) === "women").reduce((sum, entry) => sum + entry.count, 0),
     men: fashionCategories.filter((entry) => audienceFor(entry) === "men").reduce((sum, entry) => sum + entry.count, 0),
@@ -736,10 +774,14 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   const fashionAllCount = fashionCategories.reduce((sum, entry) => sum + entry.count, 0);
   const beautyAllCount = beautyCategories.reduce((sum, entry) => sum + entry.count, 0);
   const guideTriggerLabel = availableGuideDomains.length > 1
-    ? "Μόδα & Ομορφιά"
+    ? (availableGuideDomains.length === 2 && availableGuideDomains.includes("fashion") && availableGuideDomains.includes("beauty")
+      ? "Μόδα & Ομορφιά"
+      : "Οδηγός προϊόντων")
     : availableGuideDomains[0] === "beauty"
       ? "Οδηγός ομορφιάς"
-      : "Οδηγός μόδας";
+      : availableGuideDomains[0] === "fashion"
+        ? "Οδηγός μόδας"
+        : catalogDomainLabel;
 
   const goGuideBack = () => {
     if (guideDomain === "fashion") {
@@ -752,6 +794,11 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     if (guideDomain === "beauty") {
       if (beautyFamily) setBeautyFamily(null);
       else if (availableGuideDomains.length > 1) setGuideDomain(null);
+      else setGuideOpen(false);
+      return;
+    }
+    if (guideDomain === "catalog") {
+      if (availableGuideDomains.length > 1) setGuideDomain(null);
       else setGuideOpen(false);
       return;
     }
@@ -769,18 +816,24 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
     ? selectedGroup ? selectedGroup.label : guideAudience ? audienceLabel(guideAudience) : "Τι ψάχνετε στη μόδα;"
     : guideDomain === "beauty"
       ? selectedBeautyGroup ? selectedBeautyGroup.label : "Τι ψάχνετε στην ομορφιά;"
-      : "Τι ψάχνετε σήμερα;";
+      : guideDomain === "catalog"
+        ? catalogLooksLikeHome ? "Τι χρειάζεστε για το έργο σας;" : "Τι ψάχνετε στο κατάστημα;"
+        : "Τι ψάχνετε σήμερα;";
   const guideSubtitle = guideDomain === null
-    ? "Διάλεξε τον κόσμο που θέλεις να εξερευνήσεις. Θα εμφανίσουμε μόνο επιλογές που υπάρχουν πραγματικά σε αυτό το κατάστημα."
+    ? "Διάλεξε τον κόσμο που θέλεις να εξερευνήσεις. Ο οδηγός δημιουργείται από τον πραγματικό κατάλογο του συγκεκριμένου καταστήματος."
     : guideDomain === "fashion"
       ? selectedGroup
         ? "Διάλεξε μία ακριβή κατηγορία ή επίλεξε «Όλα» για ολόκληρο αυτό το επίπεδο."
         : guideAudience
           ? "Διάλεξε ομάδα ή επίλεξε «Όλα» για να δεις ολόκληρη αυτή την επιλογή."
           : "Πες μας πρώτα για ποιον ή τι ψάχνεις. Μπορείς να δεις όλη τη μόδα χωρίς άλλο βήμα."
-      : selectedBeautyGroup
-        ? "Διάλεξε μία ακριβή κατηγορία ή επίλεξε «Όλα» για ολόκληρη αυτή την ομάδα."
-        : "Διάλεξε τι σε ενδιαφέρει. Ο Οδηγός Ομορφιάς χρησιμοποιεί μόνο κατηγορίες που είναι διαθέσιμες στο κατάστημα.";
+      : guideDomain === "beauty"
+        ? selectedBeautyGroup
+          ? "Διάλεξε μία ακριβή κατηγορία ή επίλεξε «Όλα» για ολόκληρη αυτή την ομάδα."
+          : "Διάλεξε τι σε ενδιαφέρει. Ο Οδηγός Ομορφιάς χρησιμοποιεί μόνο κατηγορίες που είναι διαθέσιμες στο κατάστημα."
+        : catalogLooksLikeHome
+          ? "Επίλεξε την κατηγορία που ταιριάζει στο έργο σου. Εμφανίζονται μόνο προϊόντα που διαθέτει πραγματικά αυτό το κατάστημα."
+          : "Επίλεξε μία διαθέσιμη κατηγορία ή δες όλες τις υπόλοιπες επιλογές του καταστήματος.";
 
   const activeCategoryLabel = categoryGroup.length
     ? categoryGroupLabel || "Ομαδοποιημένη επιλογή"
@@ -918,16 +971,17 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
 
     {filtersOpen ? <div className="vc-sheet-layer"><button className="vc-backdrop" type="button" onClick={() => setFiltersOpen(false)} aria-label="Κλείσιμο φίλτρων" /><aside className="vc-sheet" role="dialog" aria-modal="true" aria-label="Φίλτρα προϊόντων"><header><div><span>Κατάλογος</span><strong>Κατηγορίες & φίλτρα</strong></div><button type="button" onClick={() => setFiltersOpen(false)} aria-label="Κλείσιμο">×</button></header><div className="vc-sheet-body">{filterPanel(true)}</div><footer style={activeFilterCount ? undefined : { gridTemplateColumns: "1fr" }}>{activeFilterCount ? <button className="vc-footer-reset" type="button" onClick={resetAllFilters}>Καθαρισμός</button> : null}<button className="vc-footer-show" type="button" onClick={() => setFiltersOpen(false)}>{totalKnown ? `Προβολή ${total} προϊόντων` : "Προβολή προϊόντων"}</button></footer></aside></div> : null}
 
-    {isGuidedVendor && availableGuideDomains.length && guideOpen ? <div className={`fashion-guide${guideDomain === "beauty" ? " beauty-guide" : ""}`} role="dialog" aria-modal="true" aria-labelledby="fashion-guide-title">
+    {isGuidedVendor && availableGuideDomains.length && guideOpen ? <div className={`fashion-guide${guideDomain === "beauty" ? " beauty-guide" : guideDomain === "catalog" ? " catalog-guide" : ""}`} role="dialog" aria-modal="true" aria-labelledby="fashion-guide-title">
       <div className="fashion-guide-shell">
-        <header className="fashion-guide-header"><div className="fashion-guide-brand"><span>ΚΟΝΤΑ ΜΟΥ</span><small>{guideDomain === "fashion" ? "ΠΡΟΣΩΠΙΚΟΣ ΟΔΗΓΟΣ ΜΟΔΑΣ" : guideDomain === "beauty" ? "ΠΡΟΣΩΠΙΚΟΣ ΟΔΗΓΟΣ ΟΜΟΡΦΙΑΣ" : "ΠΡΟΣΩΠΙΚΟΣ ΟΔΗΓΟΣ"}</small></div><button className="fashion-guide-close" type="button" onClick={() => setGuideOpen(false)} aria-label="Κλείσιμο">×</button></header>
+        <header className="fashion-guide-header"><div className="fashion-guide-brand"><span>ΚΟΝΤΑ ΜΟΥ</span><small>{guideDomain === "fashion" ? "ΠΡΟΣΩΠΙΚΟΣ ΟΔΗΓΟΣ ΜΟΔΑΣ" : guideDomain === "beauty" ? "ΠΡΟΣΩΠΙΚΟΣ ΟΔΗΓΟΣ ΟΜΟΡΦΙΑΣ" : guideDomain === "catalog" ? `ΠΡΟΣΩΠΙΚΟΣ ΟΔΗΓΟΣ · ${catalogDomainLabel.toLocaleUpperCase("el")}` : "ΠΡΟΣΩΠΙΚΟΣ ΟΔΗΓΟΣ"} · {vendor.name}</small></div><button className="fashion-guide-close" type="button" onClick={() => setGuideOpen(false)} aria-label="Κλείσιμο">×</button></header>
         <main className="fashion-guide-main">
-          <div className="fashion-guide-breadcrumb">{guideDomain === "fashion" ? `Μόδα${guideAudience ? ` / ${audienceLabel(guideAudience)}` : ""}${selectedGroup ? ` / ${selectedGroup.label}` : ""}` : guideDomain === "beauty" ? `Ομορφιά${selectedBeautyGroup ? ` / ${selectedBeautyGroup.label}` : ""}` : "Μόδα ή Ομορφιά"}</div>
+          <div className="fashion-guide-breadcrumb">{guideDomain === "fashion" ? `Μόδα${guideAudience ? ` / ${audienceLabel(guideAudience)}` : ""}${selectedGroup ? ` / ${selectedGroup.label}` : ""}` : guideDomain === "beauty" ? `Ομορφιά${selectedBeautyGroup ? ` / ${selectedBeautyGroup.label}` : ""}` : guideDomain === "catalog" ? catalogDomainLabel : "Προσωπικός οδηγός προϊόντων"}</div>
           <div className="fashion-guide-heading"><p>ΛΙΓΟ ΠΙΟ ΕΥΚΟΛΑ</p><h2 id="fashion-guide-title">{guideTitle}</h2><span>{guideSubtitle}</span></div>
           {facetsLoading && !categories.length ? <div className="fashion-guide-wait"><span className="vc-spinner" /><strong>Οργανώνουμε τον κατάλογο…</strong></div> : guideDomain === null ? <div className="fashion-guide-options audience-options gateway-options">
-            {fashionCategories.length ? <button type="button" onClick={() => { setGuideDomain("fashion"); setGuideAudience(null); setGuideFamily(null); }}><span className="guide-icon">Μ</span><span><strong>Μόδα</strong><small>Ρούχα, παπούτσια, τσάντες, κοσμήματα & αξεσουάρ</small></span><em>{fashionAllCount}</em><b>→</b></button> : null}
-            {beautyCategories.length ? <button type="button" onClick={() => { setGuideDomain("beauty"); setBeautyFamily(null); }}><span className="guide-icon">Ο</span><span><strong>Ομορφιά</strong><small>Περιποίηση, μακιγιάζ, αρώματα, μαλλιά & σώμα</small></span><em>{beautyAllCount}</em><b>→</b></button> : null}
-            <button className="all-products gateway-all-products" type="button" onClick={() => selectCategory("all")}><span className="guide-icon">∞</span><span><strong>Όλα τα προϊόντα</strong><small>Παράλειψη του οδηγού και προβολή ολόκληρου του καταλόγου</small></span><em>{remoteFacets?.total ?? total}</em><b>→</b></button>
+            {fashionCategories.length ? <button className="guide-domain-card guide-domain-fashion" type="button" onClick={() => { setGuideDomain("fashion"); setGuideAudience(null); setGuideFamily(null); }}><span className="guide-icon">Μ</span><span><strong>Μόδα</strong><small>Ρούχα, παπούτσια, τσάντες, κοσμήματα & αξεσουάρ</small></span><em>{fashionAllCount}</em><b>→</b></button> : null}
+            {beautyCategories.length ? <button className="guide-domain-card guide-domain-beauty" type="button" onClick={() => { setGuideDomain("beauty"); setBeautyFamily(null); }}><span className="guide-icon">Ο</span><span><strong>Ομορφιά</strong><small>Περιποίηση, μακιγιάζ, αρώματα, μαλλιά & σώμα</small></span><em>{beautyAllCount}</em><b>→</b></button> : null}
+            {catalogCategories.length ? <button className="guide-domain-card guide-domain-catalog" type="button" onClick={() => setGuideDomain("catalog")}><span className="guide-icon">{catalogLooksLikeHome ? "Ε" : "Κ"}</span><span><strong>{catalogDomainLabel}</strong><small>{catalogDomainHelper}</small></span><em>{catalogAllCount}</em><b>→</b></button> : null}
+            <button className="all-products gateway-all-products" type="button" onClick={() => selectCategory("all")}><span className="guide-icon">∞</span><span><strong>Όλα τα προϊόντα</strong><small>Παράλειψη του οδηγού και προβολή ολόκληρου του καταλόγου</small></span><em>{guideTotal}</em><b>→</b></button>
           </div> : guideDomain === "fashion" ? selectedGroup && guideAudience ? <div className="fashion-guide-options leaf-options">
             <button className="all-current" type="button" onClick={() => selectCategoryGroup(selectedGroup.entries, `${audienceLabel(guideAudience)} · ${selectedGroup.label}`)}><span><strong>Όλα τα {selectedGroup.label.toLocaleLowerCase("el")}</strong><small>Όλα σε {audienceLabel(guideAudience).toLocaleLowerCase("el")} · {selectedGroup.label.toLocaleLowerCase("el")}</small></span><em>{selectedGroup.count}</em><b>→</b></button>
             {selectedGroup.entries.map((entry) => <button type="button" onClick={() => selectCategory(entry.value)} key={entry.value}><span><strong>{entry.label}</strong><small>Δες μόνο αυτή την κατηγορία</small></span><em>{entry.count}</em><b>→</b></button>)}
@@ -935,16 +989,19 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
             <button className="all-current" type="button" onClick={() => selectCategoryGroup(audienceEntries, `Όλα τα ${audienceLabel(guideAudience).toLocaleLowerCase("el")}`)}><span><strong>Όλα τα {audienceLabel(guideAudience).toLocaleLowerCase("el")}</strong><small>Μην περιορίσεις άλλο αυτή την επιλογή</small></span><em>{audienceAllCount}</em><b>→</b></button>
             {guideGroups.map((group) => <button type="button" onClick={() => setGuideFamily(group.key)} key={group.key}><span><strong>{group.label}</strong><small>{group.helper}</small></span><em>{group.count}</em><b>→</b></button>)}
           </div> : <div className="fashion-guide-options audience-options">
-            <button type="button" onClick={() => setGuideAudience("women")}><span className="guide-icon">♀</span><span><strong>Γυναικεία</strong><small>Ρούχα, παπούτσια, τσάντες & άλλα</small></span><em>{audienceCounts.women}</em><b>→</b></button>
-            <button type="button" onClick={() => setGuideAudience("men")}><span className="guide-icon">♂</span><span><strong>Ανδρικά</strong><small>Ρούχα, παπούτσια & άλλα</small></span><em>{audienceCounts.men}</em><b>→</b></button>
-            <button type="button" onClick={() => setGuideAudience("accessories")}><span className="guide-icon">◇</span><span><strong>Αξεσουάρ & τσάντες</strong><small>Κοσμήματα, γυαλιά, αποσκευές & αξεσουάρ</small></span><em>{audienceCounts.accessories}</em><b>→</b></button>
+            {audienceCounts.women > 0 ? <button type="button" onClick={() => setGuideAudience("women")}><span className="guide-icon">♀</span><span><strong>Γυναικεία</strong><small>Ρούχα, παπούτσια, τσάντες & άλλα</small></span><em>{audienceCounts.women}</em><b>→</b></button> : null}
+            {audienceCounts.men > 0 ? <button type="button" onClick={() => setGuideAudience("men")}><span className="guide-icon">♂</span><span><strong>Ανδρικά</strong><small>Ρούχα, παπούτσια & άλλα</small></span><em>{audienceCounts.men}</em><b>→</b></button> : null}
+            {audienceCounts.accessories > 0 ? <button type="button" onClick={() => setGuideAudience("accessories")}><span className="guide-icon">◇</span><span><strong>Αξεσουάρ & τσάντες</strong><small>Κοσμήματα, γυαλιά, αποσκευές & αξεσουάρ</small></span><em>{audienceCounts.accessories}</em><b>→</b></button> : null}
             <button className="all-products" type="button" onClick={() => selectCategoryGroup(fashionCategories, "Όλη η μόδα")}><span className="guide-icon">∞</span><span><strong>Όλη η μόδα</strong><small>Δες όλα τα προϊόντα μόδας χωρίς άλλο βήμα</small></span><em>{fashionAllCount}</em><b>→</b></button>
-          </div> : selectedBeautyGroup ? <div className="fashion-guide-options leaf-options">
+          </div> : guideDomain === "beauty" ? selectedBeautyGroup ? <div className="fashion-guide-options leaf-options">
             <button className="all-current" type="button" onClick={() => selectCategoryGroup(selectedBeautyGroup.entries, selectedBeautyGroup.label)}><span><strong>Όλα: {selectedBeautyGroup.label}</strong><small>Δες ολόκληρη αυτή την ομάδα ομορφιάς</small></span><em>{selectedBeautyGroup.count}</em><b>→</b></button>
             {selectedBeautyGroup.entries.map((entry) => <button type="button" onClick={() => selectCategory(entry.value)} key={entry.value}><span><strong>{entry.label}</strong><small>Δες μόνο αυτή την κατηγορία</small></span><em>{entry.count}</em><b>→</b></button>)}
           </div> : <div className="fashion-guide-options beauty-options">
             <button className="all-current" type="button" onClick={() => selectCategoryGroup(beautyCategories, "Όλη η ομορφιά")}><span><strong>Όλη η ομορφιά</strong><small>Δες όλα τα προϊόντα ομορφιάς χωρίς άλλο βήμα</small></span><em>{beautyAllCount}</em><b>→</b></button>
             {beautyGroups.map((group) => <button type="button" onClick={() => setBeautyFamily(group.key)} key={group.key}><span><strong>{group.label}</strong><small>{group.helper}</small></span><em>{group.count}</em><b>→</b></button>)}
+          </div> : <div className="fashion-guide-options catalog-options leaf-options">
+            <button className="all-current" type="button" onClick={() => selectCategoryGroup(catalogCategories, catalogDomainLabel)}><span><strong>Όλα: {catalogDomainLabel}</strong><small>Δες όλες τις διαθέσιμες κατηγορίες αυτού του τομέα</small></span><em>{catalogAllCount}</em><b>→</b></button>
+            {catalogCategories.map((entry) => <button type="button" onClick={() => selectCategory(entry.value)} key={entry.value}><span><strong>{entry.label}</strong><small>Δες μόνο αυτή την κατηγορία</small></span><em>{entry.count}</em><b>→</b></button>)}
           </div>}
         </main>
         <footer className="fashion-guide-footer"><button type="button" onClick={goGuideBack}>{guideDomain ? "← Πίσω" : "Κλείσιμο"}</button>{(guideDomain || guideAudience || guideFamily || beautyFamily) ? <button type="button" onClick={resetGuideToStart}>Από την αρχή</button> : null}<span>Οι επιλογές προσαρμόζονται στον πραγματικό κατάλογο του καταστήματος.</span></footer>
