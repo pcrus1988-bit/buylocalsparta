@@ -278,5 +278,5 @@
   "0284_general_build_guidance_final_context_rule_corroboration.sql": "2a662ec782214c349a3eceb3d893294dd1100cddca2ca9a6e4f2de20fe6a2339",
   "0285_general_build_guidance_workflow_step_corroboration.sql": "9b3caad9d535d86e951beb1467b8696ca4eead89e65618b162746f282b9c2f35",
   "0286_general_build_guidance_final_workflow_corroboration.sql": "0cd4d44dc086a68d9f84501fb39f4b45e95353b762b424d1a43f861767a2785b",
-  "0287_fournarakis_catalogue_assignment_readiness.sql": "0a359ed07d3281f35a8d69aa4480231fce8ee3148377739ee0a127fd84d7256a"
+  "0287_fournarakis_catalogue_assignment_readiness.sql": "cbb90a25471be1c117a6bf0fa0663aa91f3faab1164f32126d8d93417646af50"
 }
