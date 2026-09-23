@@ -149,7 +149,7 @@ async function readFamily(manufacturerProductId: string) {
        join public.vitex_commerce_products vcp
          on vcp.import_fingerprint=csp.source_product_key
         and vcp.active=true
-        and vcp.match_status='verified'
+        and vcp.match_status in ('verified','product_matched')
         and vcp.manufacturer_product_id=$1::uuid
         and vcp.canonical_variant_id is not null
        join public.canonical_variants cv
