@@ -716,7 +716,7 @@ export async function syncGoogleMerchantEnglishFallback(now = Date.now()): Promi
         UPDATE public.merchant_sync_runs
         SET status='failed',
             failed_count=failed_count+1,
-            metadata=jsonb_build_object('error',$2),
+            metadata=jsonb_build_object('error',$2::text),
             finished_at=now()
         WHERE id=$1
       `, [runId, failureMessage]).catch(() => undefined);
