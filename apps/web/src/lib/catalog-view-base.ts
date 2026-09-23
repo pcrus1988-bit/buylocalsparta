@@ -79,7 +79,7 @@ export type CatalogFilters = Readonly<{
   size?: string;
 }>;
 
-export type CatalogFacetOption = Readonly<{ value: string; label: string }>;
+export type CatalogFacetOption = Readonly<{ value: string; label: string; count?: number }>;
 export type CatalogFacets = Readonly<{
   subcategories: readonly CatalogFacetOption[];
   brands: readonly CatalogFacetOption[];
