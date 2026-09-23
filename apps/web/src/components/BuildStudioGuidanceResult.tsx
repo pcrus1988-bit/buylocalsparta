@@ -146,11 +146,13 @@ function ProjectKitScreen({
 
   function toggleItem(id: string) {
     setCartState("idle");
+    setSnapshotId("");
     setItems((current) => current.map((item) => item.canonicalVariantId === id ? { ...item, selected: !item.selected } : item));
   }
 
   function setItemQuantity(id: string, quantity: number) {
     setCartState("idle");
+    setSnapshotId("");
     const safe = Math.max(1, Math.min(99, Number.isFinite(quantity) ? Math.trunc(quantity) : 1));
     setItems((current) => current.map((item) => item.canonicalVariantId === id ? { ...item, quantity: safe } : item));
   }
