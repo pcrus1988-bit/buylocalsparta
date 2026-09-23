@@ -72,16 +72,17 @@ export async function runSymphonyaStockSyncSlice(options: SymphonyaStockSyncSlic
 /**
  * Vercel production burst path.
  *
- * Fetch a few contiguous stock pages concurrently, then persist them in-order.
+ * Fetch contiguous stock pages concurrently, then persist them in-order.
  * The shared DB lease keeps this mutually exclusive with any legacy cursor call.
- * With three 500-row pages every five minutes, the current ~18.5k catalogue
- * completes a full authoritative cycle comfortably inside the 120-minute TTL.
+ * Symphonya's upstream stock feed is materially larger than the currently
+ * materialised sellable subset, so eight 500-row pages every five minutes are
+ * required to keep a complete authoritative sweep inside the 120-minute TTL.
  */
 export async function runSymphonyaStockSyncBurst(
-  requestedMaxPages = 3
+  requestedMaxPages = 8
 ): Promise<SymphonyaStockSyncResult> {
   const pool = getProductionPostgresRuntime().sqlPool;
-  const maxPages = Math.max(1, Math.min(4, positiveIntegerValue(requestedMaxPages, 3)));
+  const maxPages = Math.max(1, Math.min(8, positiveIntegerValue(requestedMaxPages, 8)));
   const claimed = await pool.query<SqlRow>(`
     UPDATE public.catalog_sources cs
        SET metadata=jsonb_set(
