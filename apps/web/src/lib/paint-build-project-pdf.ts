@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { BuildGuidanceSourceLayer, BuildGuidanceUiItem } from "./build-guidance-runtime";
 import type { PaintBuildProjectSnapshot } from "./paint-build-project-documents";
+import { paintBuildFinishLabel, paintBuildGreekText, paintBuildProductTitle, paintBuildTintBaseLabel } from "./paint-build-greek-presentation";
 
 function sourceLabel(layer: BuildGuidanceSourceLayer): string {
   if (layer === "GENERAL_GUIDANCE") return "Γενική τεχνική καθοδήγηση";
@@ -50,29 +51,8 @@ function joinValues(value: unknown): string | undefined {
 }
 
 
-const PDF_EXACT_TRANSLATIONS: Readonly<Record<string, string>> = {
-  "Prepare sound substrate before coating.": "Προετοίμασε σταθερή, καθαρή και κατάλληλη επιφάνεια πριν από τη βαφή.",
-  "Fill holes and cracks with Acrylic Putty.": "Γέμισε οπές και ρωγμές με ακρυλικό στόκο Acrylic Putty.",
-  "New plaster/cement surfaces: allow at least 30 days to dry before painting.": "Σε νέες επιφάνειες σοβά ή τσιμέντου, άφησε τουλάχιστον 30 ημέρες να στεγνώσουν πριν από τη βαφή.",
-  "Tint only through Vitex Coloring System in the recommended base.": "Ο χρωματισμός γίνεται μόνο μέσω του συστήματος χρωματισμού Vitex και στην προτεινόμενη βάση.",
-  "Do not apply if rain or frost is expected within 48 hours.": "Μην εφαρμόζεις το προϊόν αν αναμένεται βροχή ή παγετός μέσα στις επόμενες 48 ώρες.",
-  "after drying/curing inspect adhesion, uniformity and signs of blistering, cracking or moisture-related distress": "Μετά το στέγνωμα και την ωρίμανση, έλεγξε την πρόσφυση, την ομοιομορφία και τυχόν ενδείξεις φουσκώματος, ρωγμών ή προβλημάτων που σχετίζονται με υγρασία.",
-  "investigate recurring moisture or cracking rather than repeatedly overcoating symptoms": "Διερεύνησε την αιτία επαναλαμβανόμενης υγρασίας ή ρωγμών αντί να καλύπτεις επανειλημμένα μόνο τα συμπτώματα.",
-  "One-coat theoretical coverage; TDS also states 8-9 m²/L for two coats.": "Θεωρητική κάλυψη μίας στρώσης· το τεχνικό δελτίο αναφέρει επίσης 8–9 m²/L για δύο στρώσεις."
-};
-
 function pdfGreekText(value: string): string {
-  const normalized = value.trim();
-  const exact = PDF_EXACT_TRANSLATIONS[normalized];
-  if (exact) return exact;
-  return normalized
-    .replace(/manufacturer dataset/gi, "στοιχεία κατασκευαστή")
-    .replace(/coverage/gi, "κάλυψη")
-    .replace(/\bwater\b/gi, "νερό")
-    .replace(/\broller\b/gi, "ρολό")
-    .replace(/\bbrush\b/gi, "πινέλο")
-    .replace(/airless spray/gi, "ψεκασμός χωρίς αέρα")
-    .replace(/\bcoating\b/gi, "βαφή");
+  return paintBuildGreekText(value);
 }
 
 function projectTypeLabel(value: string): string {
@@ -80,7 +60,7 @@ function projectTypeLabel(value: string): string {
   if (value === "waterproofing") return "Στεγανοποίηση";
   if (value === "insulation") return "Θερμομόνωση";
   if (value === "repair") return "Επισκευή";
-  return pdfGreekText(value);
+  return paintBuildGreekText(value);
 }
 
 function kitProductUrl(canonicalVariantId: string): string {
@@ -128,7 +108,7 @@ function productOverview(snapshot: PaintBuildProjectSnapshot, assets: PaintBuild
   if (!product?.title) return [];
   const url = absoluteProductUrl(product.url);
   const size = product.size || (product.packValue != null && product.packUnit ? `${product.packValue}${product.packUnit}` : undefined);
-  const productColour = product.colour || product.tintBase;
+  const productColour = paintBuildTintBaseLabel(product.colour || product.tintBase);
   const swatch = snapshot.project.colour && /^#[0-9A-Fa-f]{6}$/.test(snapshot.project.colour)
     ? { canvas: [{ type: "rect", x: 0, y: 0, w: 16, h: 16, color: snapshot.project.colour, lineColor: "#D2CAC0" }], width: 22 }
     : undefined;
@@ -146,13 +126,13 @@ function productOverview(snapshot: PaintBuildProjectSnapshot, assets: PaintBuild
         body: [[productImage, {
           stack: [
             { text: product.brand || "VITEX", style: "eyebrow", margin: [0, 0, 0, 3] },
-            { text: product.title, style: "productTitle", margin: [0, 0, 0, 7] },
+            { text: paintBuildProductTitle(product.title), style: "productTitle", margin: [0, 0, 0, 7] },
             { columns: [
               swatch ?? { width: 0, text: "" },
               { width: "*", stack: [
                 { text: `Χρώμα / βάση: ${productColour || snapshot.project.colour || "—"}`, style: "productMeta" },
                 { text: `Συσκευασία: ${size || "—"}`, style: "productMeta" },
-                product.finish ? { text: `Φινίρισμα: ${product.finish}`, style: "productMeta" } : { text: "" },
+                product.finish ? { text: `Φινίρισμα: ${paintBuildFinishLabel(product.finish)}`, style: "productMeta" } : { text: "" },
                 product.price ? { text: `Τιμή κατά την επιλογή: ${product.price}`, style: "productMetaStrong", margin: [0, 4, 0, 0] } : { text: "" }
               ] }
             ] }
@@ -229,11 +209,22 @@ function manufacturerDataSheet(snapshot: PaintBuildProjectSnapshot) {
   push("Προτεινόμενη βούρτσα", text(profile.recommended_brush));
   push("Συνθήκες κάλυψης", text(profile.coverage_conditions));
   push("Απαιτήσεις υγρασίας", text(profile.moisture_requirements));
+  push("Απαίτηση κατάστασης επιφάνειας", text(profile.surface_condition_required));
+  push("Θερμοκρασία αέρα / επιφάνειας / υλικού", text(profile.substrate_temperature_requirements));
+  push("Περιορισμός άμεσου ήλιου", text(profile.direct_sun_restrictions));
+  push("Περιορισμός βροχής", text(profile.rain_restrictions));
+  push("Περιορισμός δρόσου / συμπύκνωσης", text(profile.dew_or_condensation_restrictions));
+  push("Συνθήκες αποθήκευσης", text(profile.storage_conditions));
+  push("Διάρκεια αποθήκευσης", text(profile.shelf_life));
+  push("Πληροφορίες ΠΟΕ", text(profile.voc_information));
 
   const detailGroups = [
     ["Προετοιμασία επιφάνειας", values(profile.surface_preparation).map(pdfGreekText)],
     ["Καθαρισμός πριν την εφαρμογή", values(profile.cleaning_before_application).map(pdfGreekText)],
     ["Απαιτήσεις επισκευής", values(profile.repair_requirements).map(pdfGreekText)],
+    ["Ανάδευση / προετοιμασία υλικού", values(profile.mixing_instructions).map(pdfGreekText)],
+    ["Καθαρισμός εργαλείων", values(profile.tool_cleaning).map(pdfGreekText)],
+    ["Μέσα ατομικής προστασίας", values(profile.ppe_requirements).map(pdfGreekText)],
     ["Περιορισμοί καιρού / περιβάλλοντος", values(profile.weather_restrictions).map(pdfGreekText)],
     ["Τι να αποφεύγεις", values(profile.manufacturer_do_not_do).map(pdfGreekText)],
     ["Δεν είναι κατάλληλο για", values(profile.not_suitable_for).map(pdfGreekText)],
@@ -383,7 +374,7 @@ function kitItemCard(item: SnapshotKitItem, index: number, assets: PaintBuildPdf
         {
           stack: [
             { text: role, style: item.required ? "kitRoleRequired" : "kitRole", margin: [0, 0, 0, 4] },
-            { text: item.title, style: "kitItemTitle" },
+            { text: paintBuildProductTitle(item.title), style: "kitItemTitle" },
             item.reasonEl ? { text: pdfGreekText(item.reasonEl), style: "kitReason", margin: [0, 4, 0, 0] } : { text: "" }
           ]
         },
@@ -559,7 +550,7 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
       table: {
         widths: [118, "*"],
         body: [
-          ["Προϊόν", selected.title],
+          ["Προϊόν", paintBuildProductTitle(selected.title)],
           ["Μάρκα", selected.brand || "—"],
           ["Τιμή κατά την επιλογή", selected.price || "—"]
         ]
