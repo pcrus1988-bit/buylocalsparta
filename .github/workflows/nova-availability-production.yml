@@ -1,6 +1,16 @@
 name: NOVA availability production
 
 on:
+  # Full authoritative availability sweep. The repository is public, so this uses
+  # GitHub-hosted Actions without relying on the expired Railway worker.
+  schedule:
+    - cron: "17 * * * *"
+  # Editing this workflow on main also performs an immediate recovery sweep.
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/nova-availability-production.yml"
   workflow_dispatch:
     inputs:
       refresh_full_read_models:
