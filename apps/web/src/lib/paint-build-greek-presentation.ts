@@ -214,7 +214,25 @@ const EXACT: Readonly<Record<string, string>> = {
   "For exterior use, do not apply if rain or frost is expected within 48 hours.": "Για εξωτερική εφαρμογή, μην εφαρμόζεις το προϊόν αν αναμένεται βροχή ή παγετός μέσα στις επόμενες 48 ώρες.",
   "For exterior use, do not apply if rain or frost is expected within the next 48 hours.": "Για εξωτερική εφαρμογή, μην εφαρμόζεις το προϊόν αν αναμένεται βροχή ή παγετός μέσα στις επόμενες 48 ώρες.",
   "Roof coating application: dilute 30% with Brush Solvent T300.": "Για εφαρμογή σε δώμα, αραίωσε 30% με Brush Solvent T300.",
-  "Wall paint application: dilute 50-100% with Brush Solvent T300.": "Για εφαρμογή σε τοίχο, αραίωσε 50-100% με Brush Solvent T300."
+  "Wall paint application: dilute 50-100% with Brush Solvent T300.": "Για εφαρμογή σε τοίχο, αραίωσε 50-100% με Brush Solvent T300.",
+  "Manufacturer-published one-coat spreading rate.": "Θεωρητική απόδοση μίας στρώσης όπως δημοσιεύεται από τον κατασκευαστή.",
+  "One coat; dilution differs by application method.": "Μία στρώση· η αραίωση διαφέρει ανάλογα με τη μέθοδο εφαρμογής.",
+  "One-coat theoretical coverage; 6-7 m²/L for two coats.": "Θεωρητική απόδοση μίας στρώσης· 6-7 m²/L για δύο στρώσεις.",
+  "One-coat theoretical coverage.": "Θεωρητική απόδοση μίας στρώσης.",
+  "Application may be completed 30-60 minutes before rain or dew depending on shade under the documented conditions.": "Υπό τις τεκμηριωμένες συνθήκες, η εφαρμογή μπορεί να ολοκληρωθεί 30-60 λεπτά πριν από βροχή ή δρόσο, ανάλογα με την απόχρωση.",
+  "Application may be completed 30-60 minutes before rain or dew depending on shade, from 5°C and relative humidity 50-70%; cooler temperatures or higher humidity increase rain-readiness time.": "Ανάλογα με την απόχρωση, η εφαρμογή μπορεί να ολοκληρωθεί 30-60 λεπτά πριν από βροχή ή δρόσο από 5°C και με σχετική υγρασία 50-70%· χαμηλότερη θερμοκρασία ή υψηλότερη υγρασία αυξάνει τον απαιτούμενο χρόνο πριν από έκθεση σε βροχή.",
+  "smooth and dry; free from dust, grease and rust; sanded": "Η επιφάνεια πρέπει να είναι λεία και στεγνή, χωρίς σκόνη, γράσα και σκουριά, και κατάλληλα τριμμένη.",
+  "Binding primers category limit 750 g/L; maximum product VOC 730 g/L ready for use.": "Για συνδετικά αστάρια, το όριο ΠΟΕ είναι 750 g/L· το προϊόν περιέχει έως 730 g/L ΠΟΕ έτοιμο προς χρήση.",
+  "Maximum VOC content 449 g/L ready for use.": "Μέγιστη περιεκτικότητα σε ΠΟΕ: 449 g/L, έτοιμο προς χρήση.",
+  "Store at 5°C-38°C in closed containers in a cool, dry area away from direct sunlight; manufacturer states maximum storage time 5 years from production date for sufficient antiviral action.": "Αποθήκευσε στους 5-38°C, σε κλειστά δοχεία, σε δροσερό και ξηρό χώρο μακριά από άμεση ηλιακή ακτινοβολία· ο κατασκευαστής αναφέρει μέγιστο χρόνο αποθήκευσης 5 έτη από την ημερομηνία παραγωγής για επαρκή αντιιική δράση.",
+  "Brush Solvent T300 then soapy water/detergent": "Καθάρισε πρώτα με Brush Solvent T300 και στη συνέχεια με σαπουνόνερο ή απορρυπαντικό.",
+  "Brush/roller: Brush Solvent T300 then soapy water or detergent.": "Για πινέλο ή ρολό: καθάρισε πρώτα με Brush Solvent T300 και στη συνέχεια με σαπουνόνερο ή απορρυπαντικό.",
+  "Spray Gun Solvent T350 for spray guns": "Για πιστόλια βαφής χρησιμοποίησε Spray Gun Solvent T350.",
+  "Spray gun: Spray Gun Solvent T350.": "Για πιστόλι βαφής: Spray Gun Solvent T350.",
+  "H226 Flammable liquid and vapour.": "H226: Εύφλεκτο υγρό και ατμοί.",
+  "H336 May cause drowsiness or dizziness.": "H336: Μπορεί να προκαλέσει υπνηλία ή ζάλη.",
+  "H373 May cause damage to organs through prolonged or repeated exposure.": "H373: Μπορεί να προκαλέσει βλάβες στα όργανα ύστερα από παρατεταμένη ή επανειλημμένη έκθεση.",
+  "H412 Harmful to aquatic life with long lasting effects.": "H412: Επιβλαβές για τους υδρόβιους οργανισμούς, με μακροχρόνιες επιπτώσεις."
 };
 
 const GENERAL_EXACT: Readonly<Record<string, string>> = {
@@ -414,7 +432,7 @@ const PRODUCT_DESCRIPTORS: Readonly<Record<string, string>> = {
   "acrylan elastic": "ελαστομερές στεγανωτικό ακρυλικό χρώμα",
   "acrylan max": "νανοακρυλικό χρώμα εξωτερικής τοιχοποιίας",
   "acrylan silicon": "σιλικονούχο ακρυλικό χρώμα εξωτερικής τοιχοποιίας",
-  "acrylan unco eco": "οικολογικό μικρονιζέ αστάρι νερού",
+  "acrylan unco eco": "οικολογικό σιλικονούχο μικρονιζέ ακρυλικό αστάρι νερού",
   "anti-rust primer": "αντισκωριακό αστάρι",
   "blanco eco": "οικολογικό ακρυλικό αστάρι νερού απομόνωσης λεκέδων",
   "durovit": "αδιάβροχο ακρυλικό αστάρι διαλύτου",
