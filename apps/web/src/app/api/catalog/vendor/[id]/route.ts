@@ -3,7 +3,7 @@ import { decodeCatalogSizeGroup } from "../../../../../lib/catalog-size";
 import { getVendorDropshipCatalogPage, getVendorDropshipFacets, type VendorDropshipFacets, type VendorDropshipSort } from "../../../../../lib/vendor-dropship-catalog-page";
 import { getContextualVendorDropshipFacets, type VendorDropshipFacetContext } from "../../../../../lib/vendor-dropship-contextual-facets";
 import { getFastVendorDropshipCatalogPage } from "../../../../../lib/vendor-dropship-fast-page";
-import { getVendorLocalCatalogCards } from "../../../../../lib/vendor-local-catalog";
+import { getVendorLocalCatalogCards, getVendorLocalCatalogPage } from "../../../../../lib/vendor-local-catalog";
 
 type RouteContext = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -207,8 +207,70 @@ export async function GET(request: Request, { params }: RouteContext) {
   const includeFacets = url.searchParams.get("facets") === "1";
   const facetsOnly = includeFacets && url.searchParams.get("facetsOnly") === "1";
   const facetContext = { query, categories, brand, color, sizes, fit, material } satisfies VendorDropshipFacetContext;
+  const useFastInitialPath = !includeFacets
+    && !query
+    && categories.length === 0
+    && !brand
+    && !color
+    && sizes.length === 0
+    && !fit
+    && !material
+    && sort === "recommended";
 
   try {
+    if (useFastInitialPath) {
+      const localPage = await getVendorLocalCatalogPage(id, {
+        offset,
+        limit,
+        availableOnly: localAvailableOnly
+      });
+      const localCount = localPage.total;
+      const localProducts = localPage.products;
+      const remaining = Math.max(0, limit - localProducts.length);
+      const dropshipOffset = Math.max(0, offset - localCount);
+
+      // If this page is wholly inside the local assortment, do not touch the
+      // supplier catalogue at all. Previously the route still ran a one-product
+      // dropship query and discarded it, making the first local/VITEX pages pay
+      // the cost of sorting the entire live supplier projection.
+      if (remaining === 0 && offset + limit < localCount) {
+        return Response.json({
+          vendorId: id,
+          products: localProducts,
+          offset,
+          limit,
+          nextOffset: offset + limit,
+          facets: null
+        }, { headers: publicCacheHeaders(false) });
+      }
+
+      // At an exact local/dropship boundary we probe one supplier row only so we
+      // do not advertise a next page that cannot exist. Boundary pages that need
+      // supplier rows request only the number of cards still missing.
+      const requestedDropshipLimit = remaining > 0 ? remaining : 1;
+      const dropshipPage = await getFastVendorDropshipCatalogPage(id, {
+        offset: dropshipOffset,
+        limit: requestedDropshipLimit
+      });
+      const products = remaining > 0
+        ? [...localProducts, ...dropshipPage.products.slice(0, remaining)]
+        : localProducts;
+      const hasDropshipAtBoundary = dropshipPage.products.length > 0 || dropshipPage.nextOffset !== undefined;
+      const nextOffset = remaining === 0
+        ? (hasDropshipAtBoundary ? localCount : null)
+        : dropshipPage.nextOffset !== undefined
+          ? localCount + dropshipPage.nextOffset
+          : null;
+
+      return Response.json({
+        vendorId: id,
+        products,
+        offset,
+        limit,
+        nextOffset,
+        facets: null
+      }, { headers: publicCacheHeaders(false) });
+    }
     const allLocal = await getVendorLocalCatalogCards(id);
     const matchingLocal = sortLocal(
       allLocal.filter((product) => localMatches(product, facetContext, localAvailableOnly)),
@@ -252,19 +314,7 @@ export async function GET(request: Request, { params }: RouteContext) {
     const dropshipOffset = Math.max(0, offset - localCount);
     const dropshipLimit = Math.max(1, remaining || 1);
 
-    const useFastInitialPath = !includeFacets
-      && !query
-      && categories.length === 0
-      && !brand
-      && !color
-      && sizes.length === 0
-      && !fit
-      && !material
-      && sort === "recommended";
-
-    const dropshipPage = useFastInitialPath
-      ? await getFastVendorDropshipCatalogPage(id, { offset: dropshipOffset, limit: dropshipLimit })
-      : await getVendorDropshipCatalogPage(id, {
+    const dropshipPage = await getVendorDropshipCatalogPage(id, {
           query,
           categories,
           brand,
@@ -285,18 +335,9 @@ export async function GET(request: Request, { params }: RouteContext) {
     const total = dropshipTotal !== undefined && Number.isFinite(dropshipTotal)
       ? localCount + dropshipTotal
       : undefined;
-    const fastNextOffset = useFastInitialPath && "nextOffset" in dropshipPage
-      ? dropshipPage.nextOffset
-      : undefined;
     const nextOffset = total !== undefined
       ? (offset + limit < total ? offset + limit : null)
-      : offset + limit < localCount
-        ? offset + limit
-        : remaining === 0
-          ? (dropshipPage.products.length > 0 || fastNextOffset !== undefined ? localCount : null)
-          : fastNextOffset !== undefined
-            ? localCount + fastNextOffset
-            : null;
+      : null;
     const dropshipFacets = includeFacets ? await optionalFacets(id, facetContext) : undefined;
     const facets = includeFacets ? mergeFacets(localFacetProjection, dropshipFacets) : undefined;
 

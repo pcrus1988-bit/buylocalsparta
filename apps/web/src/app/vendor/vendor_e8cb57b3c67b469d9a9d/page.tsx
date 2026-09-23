@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { VendorAskLocalPanel } from "../../../components/VendorAskLocalPanel";
 import { VendorCatalogBrowser } from "../../../components/VendorCatalogBrowser";
 import storefrontStyles from "../../../components/VendorStorefront.module.css";
 import { getAccountSession } from "../../../lib/account-session";
-import { getFastVendorDropshipCatalogPage } from "../../../lib/vendor-dropship-fast-page";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
@@ -22,11 +22,15 @@ const SPECIAL_DESCRIPTION =
 
 export const dynamic = "force-dynamic";
 
+const getCachedPublicVendorDirectoryEntry = cache((id: string) => getPublicVendorDirectoryEntry(id));
+const getCachedSeoGlobalSettingsSnapshot = cache(() => getSeoGlobalSettingsSnapshot());
+const getCachedSeoEntityOverridesSnapshot = cache(() => getSeoEntityOverridesSnapshot());
+
 export async function generateMetadata(): Promise<Metadata> {
   const [vendor, { settings }, overrides] = await Promise.all([
-    getPublicVendorDirectoryEntry(VENDOR_ID),
-    getSeoGlobalSettingsSnapshot(),
-    getSeoEntityOverridesSnapshot()
+    getCachedPublicVendorDirectoryEntry(VENDOR_ID),
+    getCachedSeoGlobalSettingsSnapshot(),
+    getCachedSeoEntityOverridesSnapshot()
   ]);
 
   if (!vendor) {
@@ -71,25 +75,16 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function SpBusinessLabStorefront() {
-  const vendor = await getPublicVendorDirectoryEntry(VENDOR_ID);
+  const vendor = await getCachedPublicVendorDirectoryEntry(VENDOR_ID);
   if (!vendor) notFound();
 
   const isResearch = vendor.directoryStatus === "research";
-  const [principal, initialCatalog] = isResearch
-    ? [undefined, undefined] as const
-    : await Promise.all([
-        getAccountSession(),
-        getFastVendorDropshipCatalogPage(VENDOR_ID, { offset: 0, limit: 20 }).catch((error) => {
-          console.error(JSON.stringify({
-            level: "warn",
-            event: "storefront.sp_business_lab_initial_catalog_failed",
-            vendorId: VENDOR_ID,
-            message: error instanceof Error ? error.message : String(error)
-          }));
-          return undefined;
-        })
-      ]);
-  const products = initialCatalog?.products ?? [];
+  // The catalogue browser fetches a bounded 20-item page after hydration. Do not
+  // run the same supplier-catalogue query during SSR: this storefront can contain
+  // tens of thousands of supplier families, and the duplicate cold-start query
+  // was competing for production DB connections before the client request.
+  const principal = isResearch ? undefined : await getAccountSession();
+  const products = [] as const;
 
   const structuredData = {
     "@context": "https://schema.org",

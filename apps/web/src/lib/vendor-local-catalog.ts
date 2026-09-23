@@ -17,6 +17,13 @@ type LocalVendorCatalogRow = Readonly<{
   vendor_name: string;
 }>;
 
+export type VendorLocalCatalogPage = Readonly<{
+  products: readonly CatalogCard[];
+  total: number;
+  offset: number;
+  limit: number;
+}>;
+
 function safeMinor(value: unknown): number {
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
@@ -35,7 +42,7 @@ function safeMinor(value: unknown): number {
  * authoritative stock exist. This keeps "assigned to this shop" distinct from
  * "purchasable now" without making the assigned catalogue disappear.
  */
-export async function getVendorLocalCatalogCards(vendorId: string): Promise<readonly CatalogCard[]> {
+async function loadVendorLocalCatalogRows(vendorId: string): Promise<readonly LocalVendorCatalogRow[]> {
   if (!productionDatabaseConfigured()) return [];
 
   const pool = getProductionPostgresRuntime().nativePool;
@@ -129,7 +136,13 @@ export async function getVendorLocalCatalogCards(vendorId: string): Promise<read
     ORDER BY id,source_rank,updated_at DESC
   `, [vendorId]);
 
-  const rows = result.rows.filter((row) => row.id && row.slug && isPublicCatalogueTitle(row.title));
+  return result.rows.filter((row) => row.id && row.slug && isPublicCatalogueTitle(row.title));
+}
+
+async function hydrateVendorLocalCatalogRows(
+  vendorId: string,
+  rows: readonly LocalVendorCatalogRow[]
+): Promise<readonly CatalogCard[]> {
   if (rows.length === 0) return [];
 
   const ids = rows.map((row) => row.id);
@@ -187,4 +200,42 @@ export async function getVendorLocalCatalogCards(vendorId: string): Promise<read
       available: availableToSell > 0
     } satisfies CatalogCard;
   });
+}
+
+
+function boundedInt(value: unknown, fallback: number, maximum: number): number {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? Math.min(parsed, maximum) : fallback;
+}
+
+/**
+ * Latency-critical local slice for the unfiltered vendor storefront.
+ *
+ * We still inspect the small vendor-local identity set so local/dropship offsets
+ * remain deterministic, but only the rows that will actually be rendered are
+ * hydrated with catalogue metadata and media. The previous path hydrated every
+ * assigned local item on every supplier page just to learn the local row count.
+ */
+export async function getVendorLocalCatalogPage(
+  vendorId: string,
+  input: Readonly<{ offset?: number; limit?: number; availableOnly?: boolean }> = {}
+): Promise<VendorLocalCatalogPage> {
+  const offset = boundedInt(input.offset, 0, 100_000);
+  const limit = Math.max(1, boundedInt(input.limit, 20, 60));
+  const rows = await loadVendorLocalCatalogRows(vendorId);
+  const filtered = input.availableOnly
+    ? rows.filter((row) => safeMinor(row.available_to_sell) > 0)
+    : rows;
+  const sorted = [...filtered].sort((left, right) =>
+    Number(safeMinor(right.available_to_sell) > 0) - Number(safeMinor(left.available_to_sell) > 0)
+      || left.title.localeCompare(right.title, "el")
+  );
+  const pageRows = sorted.slice(offset, Math.min(sorted.length, offset + limit));
+  const products = await hydrateVendorLocalCatalogRows(vendorId, pageRows);
+  return { products, total: sorted.length, offset, limit };
+}
+
+export async function getVendorLocalCatalogCards(vendorId: string): Promise<readonly CatalogCard[]> {
+  const rows = await loadVendorLocalCatalogRows(vendorId);
+  return hydrateVendorLocalCatalogRows(vendorId, rows);
 }
