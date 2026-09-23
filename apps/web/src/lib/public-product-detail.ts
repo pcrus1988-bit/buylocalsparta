@@ -89,7 +89,33 @@ const ATTRIBUTE_LABELS: Readonly<Record<string, string>> = {
   μεγιστο_υψος_ανυψωσης_m: "Ύψος ανύψωσης",
   τεμαχια_κιβωτιο: "Τεμάχια / κιβώτιο",
   package_dimensions_cm: "Διαστάσεις συσκευασίας",
-  package_weight_kg: "Βάρος συσκευασίας"
+  package_weight_kg: "Βάρος συσκευασίας",
+  "ΜΕΓΕΘΟΣ": "Μέγεθος",
+  "ΧΡΩΜΑ": "Χρώμα",
+  "ΜΗΚΟΣ": "Μήκος",
+  "ΠΛΑΤΟΣ": "Πλάτος",
+  "ΥΨΟΣ": "Ύψος",
+  "ΔΙΑΜΕΤΡΟΣ": "Διάμετρος",
+  "ΠΑΧΟΣ": "Πάχος",
+  "ΒΑΡΟΣ": "Βάρος",
+  "ΧΩΡΗΤΙΚΟΤΗΤΑ": "Χωρητικότητα",
+  "ΚΟΚΚΩΣΗ": "Κόκκωση",
+  "ΠΡΟΦΙΛ": "Προφίλ",
+  "ΤΥΠΟΣ": "Τύπος",
+  "ΣΠΕΙΡΩΜΑ": "Σπείρωμα",
+  "ΦΙΝΙΡΙΣΜΑ": "Φινίρισμα",
+  "ΜΟΝΤΕΛΟ": "Μοντέλο",
+  "ΚΩΔΙΚΟΣ ΚΑΤΑΣΚΕΥΑΣΤΗ": "Κωδικός κατασκευαστή",
+  "ΤΜΧ /KOYTI": "Τεμάχια / κιβώτιο",
+  "ΠΑΚ. /KOYTI": "Πακέτα / κιβώτιο",
+  "ΤΜΧ /ΠΑΚ.": "Τεμάχια / πακέτο",
+  "ΣΕΤ /KOYTI": "Σετ / κιβώτιο",
+  "ΖΕΥΓΗ /KOYTI": "Ζεύγη / κιβώτιο",
+  "ΜΕΓΙΣΤΟ ΒΑΡΟΣ ΦΟΡΤΙΟΥ": "Μέγιστο βάρος φορτίου",
+  "ΣΥΝΟΛΙΚΟ ΜΗΚΟΣ": "Συνολικό μήκος",
+  "ΜΗΚΟΣ ΛΑΜΑΣ": "Μήκος λάμας",
+  "Ø ΛΑΣΤΙΧΟΥ": "Διάμετρος λάστιχου",
+  "Ø ΟΠΗΣ": "Διάμετρος οπής"
 };
 
 const ATTRIBUTE_UNIT_OVERRIDES: Readonly<Record<string, string>> = {
@@ -140,7 +166,9 @@ const HIDDEN_ATTRIBUTE_KEYS = new Set([
   "externalVariantId",
   "external_variant_id",
   "supplierContent",
-  "supplier_content"
+  "supplier_content",
+  "Fournarakis family code",
+  "Fournarakis tags"
 ]);
 
 const EXTRA_SPECIFICATION_KEYS = [
@@ -201,10 +229,11 @@ function attributeValue(key: string, value: unknown): string | undefined {
   if (typeof value === "object") return undefined;
   const raw = text(value).trim();
   if (!raw) return undefined;
+  const spacedUnit = raw.replace(/(\d)\s*(mm|cm|kg|ml|g|l|m|w|v)$/i, "$1 $2");
   if (key === "features") return FEATURE_VALUE_LABELS[raw.toLowerCase()] ?? raw;
   const overrideUnit = ATTRIBUTE_UNIT_OVERRIDES[key];
   if (overrideUnit && !/[\p{L}%°/×]/iu.test(raw)) return `${raw} ${overrideUnit}`;
-  if (/\p{L}|%|°|\/|×|x/iu.test(raw)) return raw;
+  if (/\p{L}|%|°|\/|×|x/iu.test(raw)) return spacedUnit;
   if (key === "power_w") return `${raw} W`;
   if (key === "capacity_l") return `${raw} L`;
   if (key === "voltage_v") return `${raw} V`;

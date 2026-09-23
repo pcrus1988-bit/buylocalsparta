@@ -142,7 +142,7 @@ export function extractFournarakisProductCandidates(html: string, sourceUrl: str
 type FournarakisInlineProduct = Record<string, unknown>;
 
 function extractFournarakisInlineData(html: string): FournarakisInlineProduct | undefined {
-  const marker = /(?:^|[;\s])(?:const|let)\s+data\s*=\s*/g;
+  const marker = /(?:^|[;>\\s]|\\\\n)(?:const|let)\\s+data\\s*=\\s*/g;
   const match = marker.exec(html);
   if (!match) return undefined;
   const start = html.indexOf("{", match.index + match[0].length);
@@ -592,7 +592,7 @@ function imageRank(url: string): number {
 
 function isPackagingOrCompatibilityLabel(label: string): boolean {
   const normalized = label.normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase();
-  return /(?:κωδικ|code|sku|tmx|κουτι|box|pack|συνδυαζεται|compatible)/i.test(normalized);
+  return /(?:κωδικ|code|sku|τμχ|tmx|κουτι|koyti|box|πακ|pack|συνδυαζεται|καταλληλο|ταιριαζει|compatible|suitable|fits)/i.test(normalized);
 }
 
 function dedupeRows(rows: readonly string[][]): string[][] {

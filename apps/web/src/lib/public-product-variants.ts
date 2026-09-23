@@ -36,6 +36,7 @@ type VariantOptionRow = SqlRow & {
   media_alt_text: string | null;
   source_image_candidate: string | null;
   source_website: string | null;
+  display_title: string | null;
 };
 
 type VariantDimension = Readonly<{
@@ -86,7 +87,17 @@ const VARIANT_DIMENSIONS: readonly VariantDimension[] = [
   { key: "style", label: "Στυλ", kind: "style" },
   { key: "pattern", label: "Σχέδιο", kind: "style" },
   { key: "finish", label: "Φινίρισμα", kind: "style" },
-  { key: "σχεδιο", label: "Σχέδιο", kind: "style" }
+  { key: "σχεδιο", label: "Σχέδιο", kind: "style" },
+  { key: "βαρος", label: "Βάρος", kind: "other" },
+  { key: "παχος", label: "Πάχος", kind: "other" },
+  { key: "προφιλ", label: "Προφίλ", kind: "other" },
+  { key: "κοκκωση", label: "Κόκκωση", kind: "other" },
+  { key: "τυπος", label: "Τύπος", kind: "other" },
+  { key: "σπειρωμα", label: "Σπείρωμα", kind: "other" },
+  { key: "θεσεις", label: "Θέσεις", kind: "other" },
+  { key: "συνολικο μηκος", label: "Συνολικό μήκος", kind: "length" },
+  { key: "μηκος λαμας", label: "Μήκος λάμας", kind: "length" },
+  { key: "κωδικος κατασκευαστη", label: "Κωδικός κατασκευαστή", kind: "other" }
 ] as const;
 
 const NOVA_VARIANT_DIMENSIONS: Readonly<Record<string, Readonly<{ label: string; kind: PublicProductVariantKind }>>> = {
@@ -176,6 +187,22 @@ function dimensionForKey(key: string): VariantDimension | undefined {
   return undefined;
 }
 
+function safeGenericVariantDimension(key: string): VariantDimension | undefined {
+  const normalized = normalizeKey(key);
+  if (!normalized) return undefined;
+  if (/(?:supplier|source|external|fournarakis|sku|κωδικ|code)/u.test(normalized)) return undefined;
+  if (/(?:τμχ|κουτι|πακ|pack|box|set koyti|ζευγη)/u.test(normalized)) return undefined;
+  if (/(?:συνδυαζεται|καταλληλο|ταιριαζει|compatible|suitable|works with)/u.test(normalized)) return undefined;
+  const label = key.trim().replace(/\s+/g, " ");
+  return label ? { key: normalized, label, kind: "other" } : undefined;
+}
+
+function fallbackTitleAttributes(title: string | null): readonly PublicProductVariantAttribute[] {
+  const value = title?.split(" — ").slice(1).join(" — ").trim();
+  if (!value) return [];
+  return [{ key: "choice", label: "Επιλογή", value, kind: "other" }];
+}
+
 function colorAttribute(key: string, label: string, rawValue: string): PublicProductVariantAttribute {
   const resolved = resolveCatalogColor(rawValue);
   if (!resolved) return { key, label, value: rawValue, kind: "color" };
@@ -195,7 +222,7 @@ function variantAttributes(value: unknown): readonly PublicProductVariantAttribu
     .map(([rawKey, rawValue]) => {
       const value = displayValue(rawValue);
       if (!value) return undefined;
-      const dimension = dimensionForKey(rawKey);
+      const dimension = dimensionForKey(rawKey) ?? safeGenericVariantDimension(rawKey);
       if (!dimension) return undefined;
       const key = normalizeKey(rawKey).replaceAll(" ", "_");
       return dimension.kind === "color"
@@ -381,6 +408,7 @@ export const getPublicProductVariantOptions = cache(async (
       SELECT sibling.public_id AS canonical_public_id,
              sibling.slug,
              sibling.variant_attributes,
+             COALESCE(sibling_el.title,sibling_en.title,sibling.model,sibling.slug) AS display_title,
              availability.from_price_minor,
              COALESCE(availability.available,false) AS available,
              governed_media.media_public_id,
@@ -392,6 +420,10 @@ export const getPublicProductVariantOptions = cache(async (
       JOIN markets m ON m.id=sibling.market_id
       LEFT JOIN live_availability availability
         ON availability.canonical_variant_id=sibling.id
+      LEFT JOIN product_translations sibling_el
+        ON sibling_el.canonical_variant_id=sibling.id AND sibling_el.locale='el'
+      LEFT JOIN product_translations sibling_en
+        ON sibling_en.canonical_variant_id=sibling.id AND sibling_en.locale='en'
       LEFT JOIN LATERAL (
         SELECT pm.public_id AS media_public_id,
                pm.alt_text AS media_alt_text
@@ -417,14 +449,17 @@ export const getPublicProductVariantOptions = cache(async (
       LIMIT 100
     `, [canonicalId]);
 
-    return result.rows.map((row) => ({
+    return result.rows.map((row) => {
+      const parsedAttributes = variantAttributes(row.variant_attributes);
+      return {
       canonicalVariantId: String(row.canonical_public_id),
       slug: String(row.slug),
-      attributes: variantAttributes(row.variant_attributes),
+      attributes: parsedAttributes.length ? parsedAttributes : fallbackTitleAttributes(row.display_title),
       available: Boolean(row.available),
       fromPriceMinor: safePriceMinor(row.from_price_minor),
       ...variantImage(row)
-    }));
+    };
+    });
   } catch (error) {
     console.error(JSON.stringify({
       level: "error",

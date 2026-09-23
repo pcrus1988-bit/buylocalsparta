@@ -4,6 +4,7 @@ import { getPublicProductDetail } from "./public-product-detail";
 import { approvedCatalogImageGallery } from "./public-product-media-gallery";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { isCompatibilityPresentationKey } from "./product-presentation-guards";
+import { withRelationshipGroups } from "./product-relationship-groups";
 
 export type PublicSuitabilityKind = "model" | "brand" | "platform";
 
@@ -51,6 +52,7 @@ type CompatibilityClaimRow = SqlRow & {
 type ClaimProjection = Readonly<{
   items: readonly PublicSuitabilityItem[];
   directProducts: readonly { row: SuitableProductRow; matchedFor: string }[];
+  worksWithProducts: readonly { row: SuitableProductRow; matchedFor: string }[];
 }>;
 
 const MODEL_KEYS = new Set([
@@ -211,7 +213,7 @@ function matchReference(row: SuitableProductRow, references: readonly string[], 
 }
 
 async function governedClaimProjection(canonicalVariantId: string): Promise<ClaimProjection> {
-  if (!productionDatabaseConfigured()) return { items: [], directProducts: [] };
+  if (!productionDatabaseConfigured()) return { items: [], directProducts: [], worksWithProducts: [] };
 
   try {
     const result = await getProductionPostgresRuntime().sqlPool.query<CompatibilityClaimRow>(`
@@ -251,7 +253,7 @@ async function governedClaimProjection(canonicalVariantId: string): Promise<Clai
         AND subject.suppressed=false
         AND subject.recalled=false
         AND pcc.review_status IN ('candidate','verified')
-        AND pcc.relationship_type IN ('compatible_with','fits','uses_platform')
+        AND pcc.relationship_type IN ('compatible_with','fits','uses_platform','works_with')
         AND (
           pcc.review_status='verified'
           OR (
@@ -273,7 +275,24 @@ async function governedClaimProjection(canonicalVariantId: string): Promise<Clai
 
     const items: PublicSuitabilityItem[] = [];
     const directProducts: { row: SuitableProductRow; matchedFor: string }[] = [];
+    const worksWithProducts: { row: SuitableProductRow; matchedFor: string }[] = [];
     for (const claim of result.rows) {
+      if (claim.relationship_type === "works_with") {
+        if ((claim.target_kind === "canonical_variant" || claim.target_kind === "product_family") && claim.linked_public_id && claim.linked_slug && claim.linked_title) {
+          worksWithProducts.push({
+            row: {
+              canonical_public_id: claim.linked_public_id,
+              slug: claim.linked_slug,
+              model: claim.linked_model,
+              mpn: claim.linked_mpn,
+              gtin: claim.linked_gtin,
+              title: claim.linked_title
+            },
+            matchedFor: claim.linked_model?.trim() || claim.linked_title.trim()
+          });
+        }
+        continue;
+      }
       if (claim.target_kind === "platform") {
         const value = claim.platform_name?.trim() || claim.target_reference?.trim();
         if (value) items.push({ kind: "platform", value });
@@ -303,7 +322,7 @@ async function governedClaimProjection(canonicalVariantId: string): Promise<Clai
       }
     }
 
-    return { items: mergeItems(items), directProducts };
+    return { items: mergeItems(items), directProducts, worksWithProducts };
   } catch (error) {
     console.error(JSON.stringify({
       level: "error",
@@ -311,7 +330,7 @@ async function governedClaimProjection(canonicalVariantId: string): Promise<Clai
       canonicalVariantId,
       message: error instanceof Error ? error.message : String(error)
     }));
-    return { items: [], directProducts: [] };
+    return { items: [], directProducts: [], worksWithProducts: [] };
   }
 }
 
@@ -403,10 +422,24 @@ export async function getPublicProductSuitability(
   const attributeItems = collectItems(attributes);
   const claims = await governedClaimProjection(canonicalVariantId);
   const items = mergeItems(claims.items, attributeItems);
-  if (!items.length) return undefined;
-
   const modelReferences = items.filter((item) => item.kind === "model").map((item) => item.value);
-  const referenceProducts = await matchedProductsForReferences(canonicalVariantId, modelReferences);
+  const [referenceProducts, worksWithProducts] = await Promise.all([
+    matchedProductsForReferences(canonicalVariantId, modelReferences),
+    hydrateProducts(claims.worksWithProducts)
+  ]);
+  if (!items.length && !worksWithProducts.length) return undefined;
+
   const products = await hydrateProducts([...claims.directProducts, ...referenceProducts]);
-  return { items, products };
+  const base: PublicProductSuitability = { items, products };
+  if (!worksWithProducts.length) return base;
+
+  return withRelationshipGroups(base, [{
+    key: "works-with",
+    title: "Συνδυάζεται με",
+    description: "Συμπληρωματικά προϊόντα που δηλώνονται ρητά από την πηγή του καταλόγου για χρήση μαζί με αυτό το προϊόν.",
+    products: worksWithProducts.map((product) => ({
+      ...product,
+      relationshipLabel: "Συνδυάζεται με"
+    }))
+  }]);
 }
