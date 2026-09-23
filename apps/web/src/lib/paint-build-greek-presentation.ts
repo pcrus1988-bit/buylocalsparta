@@ -315,10 +315,12 @@ function cleanVariantWords(value: string): string {
     .replace(/\bΡιπολίνη\b/gi, "βερνικόχρωμα")
     .replace(/\bΧρώμα\s+μηχανής\b/gi, "χρώμα βάσης χρωματισμού")
     .replace(/\bβαση\b/gi, "βάση")
-    .replace(/\bMAT\b/g, "ματ")
-    .replace(/\bSATIN\b/g, "σατινέ")
-    .replace(/\bGLOSS\b/g, "γυαλιστερό")
-    .replace(/\bWHITE\b/g, "λευκό")
+    .replace(/\bMAT\b/gi, "ματ")
+    .replace(/\bSATIN\b/gi, "σατινέ")
+    .replace(/\bGLOSS\b/gi, "γυαλιστερό")
+    .replace(/\bEGGSHELL\b/gi, "βελούτε ματ")
+    .replace(/\bWHITE\b/gi, "λευκό")
+    .replace(/\bTRANSPARENT\b/gi, "διάφανο")
     .replace(/(\d)\s*ml\b/gi, "$1 mL")
     .replace(/(\d)\s*l\b/gi, "$1 L")
     .replace(/\bβάση\s+(ματ|σατινέ|γυαλιστερό)\s+βάση\b/gi, "$1 βάση")
@@ -326,8 +328,22 @@ function cleanVariantWords(value: string): string {
     .trim();
 }
 
+function variantFacts(value: string): string[] {
+  const normalized = cleanVariantWords(value);
+  const facts: string[] = [];
+  const size = normalized.match(/\b\d+(?:[.,]\d+)?\s*(?:mL|L|kg|g)\b/i)?.[0];
+  if (size) facts.push(size.replace(/ml$/i, "mL").replace(/l$/i, "L"));
+  const base = normalized.match(/\b(?:TR|W|M)\b/i)?.[0]?.toUpperCase();
+  if (base) facts.push("βάση " + base);
+  const finish = normalized.match(/\b(?:ματ|σατινέ|γυαλιστερό|βελούτε ματ)\b/i)?.[0];
+  if (finish) facts.push(finish.toLocaleLowerCase("el"));
+  const shade = normalized.match(/(?:λευκ(?:ό|ή|ές|η)?|ανοιχτ(?:ή|ές|ων)?\s+αποχρώσ(?:εις|εων)|μεσαί(?:α|ες)\s+αποχρώσ(?:εις|εων)|σκούρ(?:α|ες)\s+αποχρώσ(?:εις|εων))/i)?.[0];
+  if (shade) facts.push(shade);
+  return [...new Set(facts.map((fact) => fact.trim()).filter(Boolean))];
+}
+
 export function paintBuildProductTitle(value: string, manufacturerProductName?: string): string {
-  let title = cleanVariantWords(value);
+  const title = cleanVariantWords(value);
   const inferred = Object.keys(PRODUCT_DESCRIPTORS)
     .sort((a, b) => b.length - a.length)
     .find((name) => title.toLocaleLowerCase("en").includes(name));
@@ -340,29 +356,14 @@ export function paintBuildProductTitle(value: string, manufacturerProductName?: 
 
   const displayModel = key === "aquavit eco" ? "Aquavit Eco"
     : key === "acrylan max" ? "Acrylan MAX"
-      : key === "vitex with vairo" ? "Vitex with VAIRO"
-        : model;
-  const modelLower = model.toLocaleLowerCase("en");
-  const titleLower = title.toLocaleLowerCase("en");
-  const hasModel = titleLower.includes(modelLower);
-  const start = hasModel ? titleLower.indexOf(modelLower) : -1;
-  let suffix = start >= 0 ? title.slice(start + model.length).replace(/^\s*[-–—:]?\s*/, "").trim() : "";
-  suffix = suffix
-    .replace(/^\s*(?:ματ|σατινέ|γυαλιστερό)?\s*βάση\s*/i, "")
-    .replace(/^\s*(?:βάση\s*)+/i, "")
-    .trim();
+      : key === "acrylan silicon" ? "Acrylan Silicon"
+        : key === "acrylan elastic" ? "Acrylan Elastic"
+          : key === "acrylan unco eco" ? "Acrylan Unco Eco"
+            : key === "vitex with vairo" ? "Vitex with VAIRO"
+              : model;
 
-  if (key === "aquavit eco") {
-    return "VITEX " + displayModel + " - " + descriptor + (suffix ? " · " + suffix : "");
-  }
-
-  if (!hasModel) return "VITEX " + displayModel + " - " + descriptor + " · " + title;
-
-  if (/χρώμα\s+(?:μηχανής|βάσης χρωματισμού)/i.test(value)) {
-    return "VITEX " + displayModel + " - " + descriptor + (suffix ? " · " + suffix : "");
-  }
-
-  return title;
+  const facts = variantFacts(title);
+  return "VITEX " + displayModel + " - " + descriptor + (facts.length ? " · " + facts.join(" · ") : "");
 }
 
 export function paintBuildCategoryLabel(value: string | undefined): string | undefined {
