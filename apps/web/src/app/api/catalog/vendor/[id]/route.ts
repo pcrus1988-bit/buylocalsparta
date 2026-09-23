@@ -281,18 +281,32 @@ export async function GET(request: Request, { params }: RouteContext) {
     const products = remaining > 0
       ? [...localProducts, ...dropshipPage.products.slice(0, remaining)]
       : localProducts;
-    const dropshipTotal = "total" in dropshipPage ? Number(dropshipPage.total ?? 0) : 0;
-    const total = localCount + (Number.isFinite(dropshipTotal) ? dropshipTotal : 0);
+    const dropshipTotal = "total" in dropshipPage ? Number(dropshipPage.total) : undefined;
+    const total = dropshipTotal !== undefined && Number.isFinite(dropshipTotal)
+      ? localCount + dropshipTotal
+      : undefined;
+    const fastNextOffset = useFastInitialPath && "nextOffset" in dropshipPage
+      ? dropshipPage.nextOffset
+      : undefined;
+    const nextOffset = total !== undefined
+      ? (offset + limit < total ? offset + limit : null)
+      : offset + limit < localCount
+        ? offset + limit
+        : remaining === 0
+          ? (dropshipPage.products.length > 0 || fastNextOffset !== undefined ? localCount : null)
+          : fastNextOffset !== undefined
+            ? localCount + fastNextOffset
+            : null;
     const dropshipFacets = includeFacets ? await optionalFacets(id, facetContext) : undefined;
     const facets = includeFacets ? mergeFacets(localFacetProjection, dropshipFacets) : undefined;
 
     return Response.json({
       vendorId: id,
       products,
-      total,
+      ...(total !== undefined ? { total } : {}),
       offset,
       limit,
-      nextOffset: offset + limit < total ? offset + limit : null,
+      nextOffset,
       facets: facets ?? null
     }, { headers: publicCacheHeaders(false) });
   } catch (error) {
