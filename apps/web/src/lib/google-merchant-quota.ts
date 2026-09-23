@@ -6,6 +6,7 @@ const DEFAULT_TARGET = 2000;
 const DAILY_SAFETY_FRACTION = 0.02;
 const MIN_DAILY_RESERVE = 250;
 const MINUTE_SAFETY_FRACTION = 0.8;
+const MAX_WINDOWS_PER_RUN = 5;
 
 type QuotaMethod = Readonly<{
   method?: string;
@@ -121,7 +122,7 @@ export function merchantWritePlan(
   requested = DEFAULT_TARGET
 ): MerchantWritePlan {
   const normalizedRequested = Math.max(0, Math.floor(requested));
-  const allowed = Math.min(normalizedRequested, quota.safeDailyBudget);
+  const allowed = Math.min(normalizedRequested, quota.safeDailyBudget, quota.safeMinuteBudget * MAX_WINDOWS_PER_RUN);
   return {
     requested: normalizedRequested,
     allowed,
