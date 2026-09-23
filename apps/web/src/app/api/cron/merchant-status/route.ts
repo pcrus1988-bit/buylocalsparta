@@ -1,12 +1,13 @@
 import { reconcileGoogleMerchantStatus } from "../../../../lib/google-merchant-status";
+import { authorizeGoogleSchedulerRequest } from "../../../../lib/google-scheduler-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET?.trim();
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  const auth = await authorizeGoogleSchedulerRequest(request);
+  if (!auth) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
   if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production") {

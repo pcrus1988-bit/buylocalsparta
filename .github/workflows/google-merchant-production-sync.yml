@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/google-merchant-production-sync.yml"
+      - "apps/web/src/lib/google-scheduler-auth.ts"
+      - "apps/web/src/app/api/cron/merchant-sync/route.ts"
+      - "apps/web/src/app/api/cron/merchant-status/route.ts"
   schedule:
     - cron: "*/10 * * * *"
     - cron: "5,35 * * * *"
@@ -12,6 +15,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: google-merchant-production-sync
@@ -23,19 +27,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     env:
-      CRON_SECRET: ${{ secrets.CRON_SECRET }}
       MERCHANT_SYNC_URL: https://kontamou.site/api/cron/merchant-sync
     steps:
-      - name: Verify scheduler secret
-        shell: bash
-        run: test -n "$CRON_SECRET"
       - name: Sync Google Merchant catalogue
         shell: bash
         run: |
+          oidc_token="$(
+            curl --fail-with-body --silent --show-error \
+              --header "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https%3A%2F%2Fkontamou.site" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])'
+          )"
+          test -n "$oidc_token"
+          echo "::add-mask::$oidc_token"
           curl --fail-with-body --silent --show-error \
             --retry 2 \
             --max-time 320 \
-            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --header "Authorization: Bearer ${oidc_token}" \
             --output /tmp/google-merchant-sync.json \
             "$MERCHANT_SYNC_URL"
           cat /tmp/google-merchant-sync.json
@@ -45,19 +53,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     env:
-      CRON_SECRET: ${{ secrets.CRON_SECRET }}
       MERCHANT_STATUS_URL: https://kontamou.site/api/cron/merchant-status
     steps:
-      - name: Verify scheduler secret
-        shell: bash
-        run: test -n "$CRON_SECRET"
       - name: Reconcile Google Merchant product status
         shell: bash
         run: |
+          oidc_token="$(
+            curl --fail-with-body --silent --show-error \
+              --header "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https%3A%2F%2Fkontamou.site" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])'
+          )"
+          test -n "$oidc_token"
+          echo "::add-mask::$oidc_token"
           curl --fail-with-body --silent --show-error \
             --retry 2 \
             --max-time 80 \
-            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --header "Authorization: Bearer ${oidc_token}" \
             --output /tmp/google-merchant-status.json \
             "$MERCHANT_STATUS_URL"
           cat /tmp/google-merchant-status.json
