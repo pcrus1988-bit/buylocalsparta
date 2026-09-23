@@ -501,7 +501,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const structuredOfferData = publicCatalogHasOfferPrice(product) ? offerData : undefined;
   const structuredImages = mediaGallery.length
     ? mediaGallery.map((image) => `${origin}/api/media/${encodeURIComponent(image.mediaId)}`)
-    : supplierImageSrc ? [supplierImageSrc] : undefined;
+    : supplierImageSrc ? [new URL(supplierImageSrc, `${origin}/`).toString()] : undefined;
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
