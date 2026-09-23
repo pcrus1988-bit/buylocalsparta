@@ -61,6 +61,7 @@ function kitData(value: unknown) {
       title: requiredText(item.title, `project.kit.items[${index}].title`, 500),
       priceMinor,
       price: requiredText(item.price, `project.kit.items[${index}].price`, 64),
+      imageUrl: optionalText(item.imageUrl, 1200),
       quantity,
       selected: item.selected === true,
       required: item.required === true,
@@ -101,9 +102,20 @@ function projectData(value: unknown) {
     selectedProduct: product ? {
       manufacturerProductId: optionalText(product.manufacturerProductId, 64),
       catalogueId: optionalText(product.catalogueId, 128),
+      slug: optionalText(product.slug, 260),
+      url: optionalText(product.url, 1200),
       title: optionalText(product.title, 260),
       brand: optionalText(product.brand, 140),
-      price: optionalText(product.price, 64)
+      price: optionalText(product.price, 64),
+      mediaId: optionalText(product.mediaId, 128),
+      imageUrl: optionalText(product.imageUrl, 1200),
+      imageAlt: optionalText(product.imageAlt, 260),
+      colour: optionalText(product.colour, 160),
+      size: optionalText(product.size, 80),
+      packValue: product.packValue == null ? undefined : Number(product.packValue),
+      packUnit: optionalText(product.packUnit, 40),
+      tintBase: optionalText(product.tintBase, 160),
+      finish: optionalText(product.finish, 160)
     } : undefined,
     kit: kitData(raw.kit)
   };
