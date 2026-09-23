@@ -562,7 +562,7 @@ export function paintBuildGreekText(value: string): string {
   if (exact) return exact;
 
   const documentedRepaint = normalized.match(
-    /^(.+?) is documented for sound old paint and the reviewed (interior|exterior) repaint pathway; current manufacturer preparation requirements still apply\\.?$/i
+    /^(.+?) is documented for sound old paint and the reviewed (interior|exterior) repaint pathway; current manufacturer preparation requirements still apply\.?$/i
   );
   if (documentedRepaint) {
     const use = documentedRepaint[2].toLocaleLowerCase("en") === "interior"
