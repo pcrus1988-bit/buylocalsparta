@@ -246,5 +246,5 @@ test("Symphonya stock cron uses concurrent cursor bursts while retaining manual 
   assert.match(route, /publication = await runSymphonyaAutoPublicationSweep\(\)/);
   assert.match(runtime, /runSymphonyaStockSyncBurst/);
   assert.match(runtime, /Promise\.all\(/);
-  assert.match(runtime, /Math\\.min\\(8, positiveIntegerValue\\(requestedMaxPages, 8\\)\\)/);
+  assert.match(runtime, /Math\.min\(8, positiveIntegerValue\(requestedMaxPages, 8\)\)/);
 });
