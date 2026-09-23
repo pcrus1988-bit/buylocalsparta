@@ -1,0 +1,63 @@
+name: Google Merchant Production Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/google-merchant-production-sync.yml"
+  schedule:
+    - cron: "*/10 * * * *"
+    - cron: "5,35 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: google-merchant-production-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.schedule == '*/10 * * * *' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      MERCHANT_SYNC_URL: https://kontamou.site/api/cron/merchant-sync
+    steps:
+      - name: Verify scheduler secret
+        shell: bash
+        run: test -n "$CRON_SECRET"
+      - name: Sync Google Merchant catalogue
+        shell: bash
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --retry 2 \
+            --max-time 320 \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --output /tmp/google-merchant-sync.json \
+            "$MERCHANT_SYNC_URL"
+          cat /tmp/google-merchant-sync.json
+
+  status:
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.schedule == '5,35 * * * *' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      MERCHANT_STATUS_URL: https://kontamou.site/api/cron/merchant-status
+    steps:
+      - name: Verify scheduler secret
+        shell: bash
+        run: test -n "$CRON_SECRET"
+      - name: Reconcile Google Merchant product status
+        shell: bash
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --retry 2 \
+            --max-time 80 \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --output /tmp/google-merchant-status.json \
+            "$MERCHANT_STATUS_URL"
+          cat /tmp/google-merchant-status.json
