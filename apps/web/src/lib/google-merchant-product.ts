@@ -9,11 +9,12 @@ export type GoogleMerchantCandidate = Readonly<{
   color?: string | null;
   condition?: string | null;
   priceMinor: number | string;
+  contentLanguage?: "el" | "en";
 }>;
 
 export type GoogleMerchantProductInput = Readonly<{
   offerId: string;
-  contentLanguage: "el";
+  contentLanguage: "el" | "en";
   feedLabel: "GR";
   productAttributes: Readonly<{
     title: string;
@@ -96,7 +97,7 @@ export function buildGoogleMerchantProductInput(
 
   return {
     offerId,
-    contentLanguage: "el",
+    contentLanguage: candidate.contentLanguage ?? "el",
     feedLabel: "GR",
     productAttributes: {
       title,
