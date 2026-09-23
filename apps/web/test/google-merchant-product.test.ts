@@ -85,3 +85,10 @@ test("supports an English fallback feed for Greece without changing the target f
   assert.equal(input.feedLabel, "GR");
   assert.equal(input.productAttributes.title, "Black Cotton T-Shirt");
 });
+
+
+test("rejects Google-restricted GTIN ranges even when the check digit is valid", () => {
+  assert.equal(validGtin("2000050835353"), undefined);
+  assert.equal(validGtin("0201234567892"), undefined);
+  assert.equal(validGtin("0401234567890"), undefined);
+});
