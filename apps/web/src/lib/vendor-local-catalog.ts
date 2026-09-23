@@ -235,6 +235,50 @@ export async function getVendorLocalCatalogPage(
   return { products, total: sorted.length, offset, limit };
 }
 
+export async function getVendorLocalCatalogFacetCards(vendorId: string): Promise<readonly CatalogCard[]> {
+  const rows = await loadVendorLocalCatalogRows(vendorId);
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((row) => row.id);
+  const [metadata, departmentCodes] = await Promise.all([
+    loadCatalogMetadata(ids),
+    loadCatalogDepartmentCodes(ids)
+  ]);
+
+  // Facet-only requests never render product cards, so do not resolve media for
+  // the entire local/VITEX assortment. On mixed local + large dropship vendors
+  // that unnecessary image projection was dominating the guide request latency.
+  return rows.map((row) => {
+    const details = metadata.get(row.id);
+    const priceMinor = safeMinor(row.price_minor);
+    const availableToSell = safeMinor(row.available_to_sell);
+    return {
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      priceMinor,
+      price: formatMoney(money(priceMinor)),
+      categoryCode: row.category_code,
+      departmentCode: departmentCodes.get(row.id),
+      categoryLabel: details?.categoryLabel,
+      gtin: details?.gtin,
+      mpn: details?.mpn,
+      description: details?.description,
+      brand: details?.brand,
+      brandLogoObjectKey: details?.brandLogoObjectKey,
+      color: details?.color,
+      sizes: details?.sizes ?? [],
+      fit: details?.fit,
+      composition: details?.composition,
+      madeIn: details?.madeIn,
+      vendorId: row.vendor_id,
+      vendorName: row.vendor_name,
+      availableToSell,
+      available: availableToSell > 0
+    } satisfies CatalogCard;
+  });
+}
+
 export async function getVendorLocalCatalogCards(vendorId: string): Promise<readonly CatalogCard[]> {
   const rows = await loadVendorLocalCatalogRows(vendorId);
   return hydrateVendorLocalCatalogRows(vendorId, rows);
