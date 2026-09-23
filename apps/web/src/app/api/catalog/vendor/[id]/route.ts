@@ -3,7 +3,7 @@ import { decodeCatalogSizeGroup } from "../../../../../lib/catalog-size";
 import { getVendorDropshipCatalogPage, getVendorDropshipFacets, type VendorDropshipFacets, type VendorDropshipSort } from "../../../../../lib/vendor-dropship-catalog-page";
 import { getContextualVendorDropshipFacets, type VendorDropshipFacetContext } from "../../../../../lib/vendor-dropship-contextual-facets";
 import { getFastVendorDropshipCatalogPage } from "../../../../../lib/vendor-dropship-fast-page";
-import { getVendorLocalCatalogCards, getVendorLocalCatalogPage } from "../../../../../lib/vendor-local-catalog";
+import { getVendorLocalCatalogCards, getVendorLocalCatalogFacetCards, getVendorLocalCatalogPage } from "../../../../../lib/vendor-local-catalog";
 
 type RouteContext = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -270,7 +270,9 @@ export async function GET(request: Request, { params }: RouteContext) {
         facets: null
       }, { headers: publicCacheHeaders(false) });
     }
-    const allLocal = await getVendorLocalCatalogCards(id);
+    const allLocal = facetsOnly
+      ? await getVendorLocalCatalogFacetCards(id)
+      : await getVendorLocalCatalogCards(id);
     const matchingLocal = sortLocal(
       allLocal.filter((product) => localMatches(product, facetContext, localAvailableOnly)),
       sort
