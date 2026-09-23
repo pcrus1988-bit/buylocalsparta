@@ -543,7 +543,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
         if (!payload?.facets) throw new Error(`Facet request unavailable (${lastStatus || "no response"})`);
         if (serial === facetRequestSerial.current) {
           setRemoteFacets(payload.facets);
-          setRemoteTotal(payload.facets.total);
+          if (!demoMode) setRemoteTotal(payload.facets.total);
           if (isGuideFilterStateEmpty(filters)) setGuideFacets(payload.facets);
         }
       } catch (error) {
