@@ -90,6 +90,7 @@ const FASHION_CATEGORY_CODES = new Set([
   "sunglasses",
   "optical-frames",
   "optical-accessories",
+  "ties-formal-accessories",
   "womens-underwear",
   "mens-underwear",
   "socks-hosiery",
