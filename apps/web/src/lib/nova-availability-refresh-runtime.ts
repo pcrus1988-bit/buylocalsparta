@@ -11,7 +11,7 @@ import {
 } from "../../../../integrations/dropship-suppliers/src/nova-v1.ts";
 
 const NOVA_SUPPLIER_CODE = "nova_brandsgateway";
-const AVAILABILITY_TTL_HOURS = 2;
+const AVAILABILITY_TTL_HOURS = 12;
 const DEFAULT_AVAILABILITY_REQUESTS_PER_MINUTE = 60;
 const DEFAULT_FULL_SWEEP_PAGE_SIZE = 100;
 const FALLBACK_FULL_SWEEP_PAGE_SIZE = 50;
@@ -284,7 +284,7 @@ async function refreshNovaAvailabilityPage(
           'productId', x.external_product_id,
           'variantId', x.external_variant_id,
           'refreshedAt', $3::timestamptz,
-          'refreshPolicy', 'actions_batched_full_sweep_2h_ttl_rate_limited'
+          'refreshPolicy', 'actions_batched_full_sweep_12h_ttl_rate_limited'
         ),
         updated_at=$3::timestamptz
     FROM jsonb_to_recordset($1::jsonb) AS x(
@@ -326,7 +326,7 @@ async function refreshNovaAvailabilityPage(
  * taxonomy, or relaxes any activation/suppression gate.
  *
  * A full page carries stock for many products, avoiding the previous N+1 product
- * refresh that could not keep a large dropshipping catalogue inside the two-hour TTL.
+ * refresh that could not keep a large dropshipping catalogue inside the 12-hour TTL.
  * Failed provider requests never extend stale evidence. Existing offers are updated
  * only when they belong to the supplier's configured owner vendor.
  */
@@ -644,7 +644,7 @@ export async function runNovaAvailabilityRefreshForProduct(
     storeId,
     normalizedProductId,
     normalizedOwnerVendorId,
-    "vendor_targeted_refresh_2h_ttl_rate_limited"
+    "vendor_targeted_refresh_12h_ttl_rate_limited"
   );
 }
 
