@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 
 export const PRODUCT_SITEMAP_SHARD_COUNT = 16;
 
@@ -32,6 +33,7 @@ type SitemapCandidateRow = Readonly<{
   media_id: string | null;
   source_image_url: string | null;
   source_website: string | null;
+  source_code: string | null;
   color: string | null;
   sizes: unknown;
   duplicate_title_count: number | string;
@@ -51,19 +53,12 @@ function stringArray(value: unknown): readonly string[] {
   return value.flatMap((entry) => typeof entry === "string" && entry.trim() ? [entry.trim()] : []);
 }
 
-function trustedSameSourceImage(sourceWebsite: string | null, sourceImageUrl: string | null): boolean {
-  const website = text(sourceWebsite);
-  const image = text(sourceImageUrl);
-  if (!website || !image) return false;
-  try {
-    const source = new URL(website);
-    const asset = new URL(image, source);
-    if (asset.protocol !== "https:") return false;
-    const normalizeHost = (host: string) => host.toLowerCase().replace(/^www\./, "");
-    return normalizeHost(source.hostname) === normalizeHost(asset.hostname);
-  } catch {
-    return false;
-  }
+function trustedSourceImageAvailable(
+  sourceCode: string | null,
+  sourceWebsite: string | null,
+  sourceImageUrl: string | null
+): boolean {
+  return Boolean(trustedCatalogSourceHttpsUrl(sourceCode, sourceWebsite, sourceImageUrl));
 }
 
 function assertShard(shard: number): void {
@@ -186,7 +181,7 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
       ORDER BY pm.canonical_variant_id,pm.reviewed_at DESC NULLS LAST,pm.created_at DESC,pm.public_id
     ), source_media AS MATERIALIZED (
       SELECT DISTINCT ON (csl.canonical_variant_id)
-             csl.canonical_variant_id,sp.source_image_url,cs.website AS source_website
+             csl.canonical_variant_id,sp.source_image_url,cs.website AS source_website,cs.code AS source_code
       FROM selected_base base
       JOIN catalog_source_product_links csl
         ON csl.canonical_variant_id=base.id
@@ -209,6 +204,7 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
       media.media_id,
       source.source_image_url,
       source.source_website,
+      source.source_code,
       base.color,
       base.sizes,
       counts.duplicate_title_count
@@ -229,7 +225,7 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
     gtin: text(row.gtin),
     mpn: text(row.mpn),
     mediaId: text(row.media_id),
-    sourceImageAvailable: trustedSameSourceImage(row.source_website, row.source_image_url),
+    sourceImageAvailable: trustedSourceImageAvailable(row.source_code, row.source_website, row.source_image_url),
     offerAvailable: true as const,
     color: text(row.color),
     sizes: stringArray(row.sizes),
@@ -239,13 +235,13 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
 
 const cachedPublicProductSitemapInventory = unstable_cache(
   () => readPublicProductSitemapInventory(null),
-  ["public-product-sitemap-inventory-v2"],
+  ["public-product-sitemap-inventory-v3"],
   { revalidate: 900 }
 );
 
 const cachedPublicProductSitemapShard = unstable_cache(
   (shard: number) => readPublicProductSitemapInventory(shard),
-  ["public-product-sitemap-inventory-shard-v1"],
+  ["public-product-sitemap-inventory-shard-v2"],
   { revalidate: 900 }
 );
 
