@@ -84,7 +84,7 @@ function productOverview(snapshot: PaintBuildProjectSnapshot, assets: PaintBuild
   const size = product.size || (product.packValue != null && product.packUnit ? `${product.packValue}${product.packUnit}` : undefined);
   const productColour = product.colour || product.tintBase;
   const swatch = snapshot.project.colour && /^#[0-9A-Fa-f]{6}$/.test(snapshot.project.colour)
-    ? { canvas: [{ type: "rect", x: 0, y: 0, w: 16, h: 16, color: snapshot.project.colour, lineColor: "#D2CAC0" }], width: 20 }
+    ? { canvas: [{ type: "rect", x: 0, y: 0, w: 16, h: 16, color: snapshot.project.colour, lineColor: "#D2CAC0" }], width: 22 }
     : undefined;
   const productImage = assets.productImageDataUrl
     ? { image: assets.productImageDataUrl, fit: [86, 86], alignment: "center", margin: [0, 2, 0, 2] }
@@ -102,7 +102,7 @@ function productOverview(snapshot: PaintBuildProjectSnapshot, assets: PaintBuild
             { text: product.brand || "VITEX", style: "eyebrow", margin: [0, 0, 0, 3] },
             { text: product.title, style: "productTitle", margin: [0, 0, 0, 7] },
             { columns: [
-              swatch ? { width: 22, ...swatch } : { width: 0, text: "" },
+              swatch ?? { width: 0, text: "" },
               { width: "*", stack: [
                 { text: `Χρώμα / βάση: ${productColour || snapshot.project.colour || "—"}`, style: "productMeta" },
                 { text: `Συσκευασία: ${size || "—"}`, style: "productMeta" },
