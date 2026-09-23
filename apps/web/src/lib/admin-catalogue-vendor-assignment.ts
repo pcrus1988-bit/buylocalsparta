@@ -124,7 +124,7 @@ export async function assignCatalogueSnapshotToVendor(
         metadata,created_at,updated_at
       )
       SELECT
-        $4::uuid,$2::uuid,$3::uuid,sp.id,NULL,
+        $4::uuid,$2::uuid,$3::uuid,sp.id,approved_link.canonical_variant_id,
         NULLIF(sp.supplier_code,''),'candidate','ask_vendor','import',
         jsonb_build_object(
           'commercialConfirmationRequired',true,
@@ -135,11 +135,18 @@ export async function assignCatalogueSnapshotToVendor(
         ),
         now(),now()
       FROM public.catalog_source_products sp
+      LEFT JOIN public.catalog_source_product_links approved_link
+        ON approved_link.source_product_id=sp.id
+       AND approved_link.link_status='approved'
       WHERE sp.snapshot_id=$1::uuid
       ON CONFLICT (vendor_id,location_id,source_product_id)
         WHERE source_product_id IS NOT NULL
       DO UPDATE
-      SET vendor_sku=COALESCE(EXCLUDED.vendor_sku,public.vendor_catalog_assortments.vendor_sku),
+      SET canonical_variant_id=COALESCE(
+            EXCLUDED.canonical_variant_id,
+            public.vendor_catalog_assortments.canonical_variant_id
+          ),
+          vendor_sku=COALESCE(EXCLUDED.vendor_sku,public.vendor_catalog_assortments.vendor_sku),
           metadata=public.vendor_catalog_assortments.metadata||EXCLUDED.metadata,
           updated_at=now()
     `, [snapshotId, vendorId, locationId, marketId, required(context.source_code, "source.code"), principal.userId]);
