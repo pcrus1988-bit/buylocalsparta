@@ -689,3 +689,28 @@ export function paintBuildCategoryLabel(value: string | undefined): string | und
   };
   return labels[key] ?? paintBuildGreekText(value);
 }
+
+
+export function isPaintBuildMainManufacturerProductRole(
+  productCategory: string | null | undefined,
+  subcategory: string | null | undefined
+): boolean {
+  const role = [productCategory, subcategory]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join(" ")
+    .toLocaleLowerCase("en");
+
+  if (!role) return true;
+  return ![
+    "primer",
+    "preservative",
+    "thinner",
+    "solvent",
+    "paint additive",
+    "accessory",
+    "fixing",
+    "reinforcing tape",
+    "reinforced polyester",
+    "fiberglass mesh"
+  ].some((componentRole) => role.includes(componentRole));
+}
