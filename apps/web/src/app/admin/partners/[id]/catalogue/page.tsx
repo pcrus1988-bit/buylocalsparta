@@ -8,6 +8,7 @@ import { AdminWorkspaceHeader } from "../../../../../components/AdminWorkspaceHe
 import { getAdminSession } from "../../../../../lib/admin-session";
 import { assertAdminCsrf, assertAdminPermission, recordAdminAudit } from "../../../../../lib/admin-runtime";
 import { adminAssignAllVitexProducts, adminUnassignAllVitexProducts } from "../../../../../lib/admin-vitex-catalogue";
+import { adminAssignAllFournarakisProducts, adminUnassignAllFournarakisProducts } from "../../../../../lib/admin-fournarakis-catalogue";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../../lib/postgres-runtime";
 
 export const metadata: Metadata = {
@@ -224,6 +225,29 @@ async function unassignAllVitexProducts(formData: FormData) {
   revalidatePath("/shop");
 }
 
+async function assignAllFournarakisProducts(formData: FormData) {
+  "use server";
+  const principal = await requireAdmin();
+  assertAdminCsrf(principal, asText(formData.get("csrfToken")));
+  const result = await adminAssignAllFournarakisProducts(principal, {
+    vendorId: asText(formData.get("vendorId")),
+    locationId: asText(formData.get("locationId")),
+    reason: asText(formData.get("reason"))
+  });
+  revalidatePath(`/admin/partners/${encodeURIComponent(result.vendorId)}/catalogue`);
+}
+
+async function unassignAllFournarakisProducts(formData: FormData) {
+  "use server";
+  const principal = await requireAdmin();
+  assertAdminCsrf(principal, asText(formData.get("csrfToken")));
+  const result = await adminUnassignAllFournarakisProducts(principal, {
+    vendorId: asText(formData.get("vendorId")),
+    reason: asText(formData.get("reason"))
+  });
+  revalidatePath(`/admin/partners/${encodeURIComponent(result.vendorId)}/catalogue`);
+}
+
 export default async function Page({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ q?: string }> }) {
   const principal = await requireAdmin();
   const { id } = await params;
@@ -288,6 +312,49 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   `, [vendorUuid]);
   const vitexTotal = asInt(vitexStats.rows[0]?.total_products);
   const vitexAssigned = asInt(vitexStats.rows[0]?.assigned_products);
+  const fournarakisStats = await db.query<SqlRow>(`
+    WITH source_context AS (
+      SELECT cs.id AS source_id,j.snapshot_id
+      FROM catalog_sources cs
+      JOIN catalog_web_crawl_jobs j ON j.source_id=cs.id
+      WHERE cs.code='fournarakis-gr'
+        AND cs.active=true
+        AND j.status='succeeded'
+        AND j.snapshot_id IS NOT NULL
+        AND COALESCE(j.promoted_product_count,0)>0
+      ORDER BY j.completed_at DESC NULLS LAST,j.updated_at DESC,j.id DESC
+      LIMIT 1
+    ),
+    target AS (
+      SELECT csp.id AS source_product_id,lnk.canonical_variant_id
+      FROM source_context ctx
+      JOIN catalog_source_products csp
+        ON csp.source_id=ctx.source_id
+       AND csp.snapshot_id=ctx.snapshot_id
+      JOIN catalog_source_product_links lnk
+        ON lnk.source_product_id=csp.id
+       AND lnk.link_status='approved'
+       AND lnk.canonical_variant_id IS NOT NULL
+    )
+    SELECT
+      (SELECT count(*) FROM target)::int AS total_products,
+      (
+        SELECT count(DISTINCT vca.source_product_id)
+        FROM vendor_catalog_assortments vca
+        JOIN target t ON t.source_product_id=vca.source_product_id
+        WHERE vca.vendor_id=$1::uuid
+          AND vca.assortment_status NOT IN ('rejected','discontinued')
+      )::int AS assigned_products,
+      (
+        SELECT count(DISTINCT po.source_product_id)
+        FROM catalog_price_observations po
+        JOIN target t ON t.source_product_id=po.source_product_id
+        WHERE po.observation_status='observed'
+      )::int AS priced_products
+  `, [vendorUuid]);
+  const fournarakisTotal = asInt(fournarakisStats.rows[0]?.total_products);
+  const fournarakisAssigned = asInt(fournarakisStats.rows[0]?.assigned_products);
+  const fournarakisPriced = asInt(fournarakisStats.rows[0]?.priced_products);
   const activeLocations = locations.rows.filter((location) => Boolean(location.active));
   const search = q?.trim() ?? "";
   const candidates = await db.query<CandidateRow>(`
@@ -356,6 +423,33 @@ export default async function Page({ params, searchParams }: { params: Promise<{
         <input type="hidden" name="vendorId" value={vendorPublicId} />
         <label><span>Audit reason</span><input name="reason" defaultValue="De-assign full VITEX catalogue from vendor" minLength={3} maxLength={500} required /></label>
         <button className="button button-secondary" type="submit">De-assign all VITEX products</button>
+      </form> : null}
+    </section>
+
+    <section className="shell vendor-section">
+      <div className="workspace-section-heading">
+        <div><div className="eyebrow">Fournarakis catalogue</div><h2>Assign the Fournarakis Supplier PIM range</h2></div>
+        <Link className="button button-secondary" href="/admin/catalogue-crawler">Open Website Import</Link>
+      </div>
+      <p>Assign the canonical Fournarakis range to this vendor as a commercial-review assortment. This does not create sellable offers, publish prices, activate products, or change vendor activation. Price and stock confirmation remain required before commerce activation.</p>
+      <div className="workspace-metric-strip">
+        <div><span>Canonical products</span><strong>{fournarakisTotal}</strong></div>
+        <div><span>Assigned to vendor</span><strong>{fournarakisAssigned}</strong></div>
+        <div><span>PDF price evidence</span><strong>{fournarakisPriced}</strong></div>
+        <div><span>Remaining</span><strong>{Math.max(0, fournarakisTotal - fournarakisAssigned)}</strong></div>
+      </div>
+      {activeLocations.length === 0 ? <p>An active vendor location is required before bulk assignment.</p> : <form action={assignAllFournarakisProducts} className="admin-directory-filters">
+        <input type="hidden" name="csrfToken" value={principal.csrfToken} />
+        <input type="hidden" name="vendorId" value={vendorPublicId} />
+        <label><span>Assign to location</span><select name="locationId" required>{activeLocations.map((location) => <option key={asText(location.public_id)} value={asText(location.public_id)}>{asText(location.name)} · {asText(location.locality)}</option>)}</select></label>
+        <label><span>Audit reason</span><input name="reason" defaultValue="Assign full Fournarakis catalogue to vendor for commercial review" minLength={3} maxLength={500} required /></label>
+        <button className="button" type="submit">Assign all Fournarakis products</button>
+      </form>}
+      {fournarakisAssigned > 0 ? <form action={unassignAllFournarakisProducts} className="admin-directory-filters">
+        <input type="hidden" name="csrfToken" value={principal.csrfToken} />
+        <input type="hidden" name="vendorId" value={vendorPublicId} />
+        <label><span>Audit reason</span><input name="reason" defaultValue="De-assign full Fournarakis catalogue from vendor" minLength={3} maxLength={500} required /></label>
+        <button className="button button-secondary" type="submit">De-assign Fournarakis catalogue</button>
       </form> : null}
     </section>
 
