@@ -592,7 +592,7 @@ function imageRank(url: string): number {
 
 function isPackagingOrCompatibilityLabel(label: string): boolean {
   const normalized = label.normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase();
-  return /(?:κωδικ|code|sku|tmx|κουτι|box|pack|συνδυαζεται|compatible)/i.test(normalized);
+  return /(?:κωδικ|code|sku|τμχ|tmx|κουτι|koyti|box|πακ|pack|συνδυαζεται|καταλληλο|ταιριαζει|compatible|suitable|fits)/i.test(normalized);
 }
 
 function dedupeRows(rows: readonly string[][]): string[][] {
