@@ -65,3 +65,22 @@ test("verified quantity still prefers explicit coverage plus explicit coat count
   assert.equal(quantity?.min, 3.29);
   assert.equal(quantity?.max, 3.73);
 });
+
+
+test("pack planner respects sellable stock caps", () => {
+  const plan = choosePaintPackPlan([
+    { id: "one", title: "1 L", priceMinor: 1000, packValue: 1, packUnit: "L", maxUnits: 1 },
+    { id: "three", title: "3 L", priceMinor: 2400, packValue: 3, packUnit: "L", maxUnits: 2 }
+  ], 4);
+  assert.ok(plan);
+  assert.deepEqual(plan.lines.map((line) => [line.variant.id, line.quantity]), [["three", 2]]);
+  assert.equal(plan.totalLitres, 6);
+});
+
+test("pack planner fails closed when current stock cannot cover the verified requirement", () => {
+  const plan = choosePaintPackPlan([
+    { id: "one", title: "1 L", priceMinor: 1000, packValue: 1, packUnit: "L", maxUnits: 1 },
+    { id: "three", title: "3 L", priceMinor: 2400, packValue: 3, packUnit: "L", maxUnits: 0 }
+  ], 2);
+  assert.equal(plan, undefined);
+});
