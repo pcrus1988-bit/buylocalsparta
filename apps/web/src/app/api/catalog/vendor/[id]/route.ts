@@ -140,17 +140,26 @@ function mergeFacets(local: VendorDropshipFacets, dropship?: VendorDropshipFacet
 }
 
 async function optionalFacets(vendorId: string, context: VendorDropshipFacetContext) {
+  // The live family projection is the source of truth for what can be shown now.
+  // The preaggregated facet table may lag supplier stock refreshes by hours or days,
+  // so use it only as a resilience fallback when the live projection is unavailable.
+  try {
+    return await getContextualVendorDropshipFacets(vendorId, context);
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: "warn",
+      event: "storefront.vendor_catalog_facets_live_failed",
+      vendorId,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+  }
+
   if (emptyFacetContext(context)) {
     try {
       const preaggregated = await getVendorDropshipFacets(vendorId);
       if (preaggregated.total > 0 || preaggregated.categories.length > 0) {
         return preaggregated;
       }
-      console.warn(JSON.stringify({
-        level: "warn",
-        event: "storefront.vendor_catalog_facets_preaggregated_empty",
-        vendorId
-      }));
     } catch (error) {
       console.error(JSON.stringify({
         level: "warn",
@@ -161,17 +170,7 @@ async function optionalFacets(vendorId: string, context: VendorDropshipFacetCont
     }
   }
 
-  try {
-    return await getContextualVendorDropshipFacets(vendorId, context);
-  } catch (error) {
-    console.error(JSON.stringify({
-      level: "warn",
-      event: "storefront.vendor_catalog_facets_degraded",
-      vendorId,
-      message: error instanceof Error ? error.message : String(error)
-    }));
-    return undefined;
-  }
+  return undefined;
 }
 
 function publicCacheHeaders(facetsOnly = false): HeadersInit {

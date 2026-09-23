@@ -525,7 +525,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
         let payload: VendorCatalogApiResponse | undefined;
         let lastStatus = 0;
         for (let attempt = 0; attempt < 2; attempt += 1) {
-          const response = await fetch(requestUrl, { signal: controller.signal, cache: "no-store" });
+          const response = await fetch(requestUrl, { signal: controller.signal, cache: "default" });
           lastStatus = response.status;
           if (response.ok) {
             const candidate = await response.json() as VendorCatalogApiResponse;

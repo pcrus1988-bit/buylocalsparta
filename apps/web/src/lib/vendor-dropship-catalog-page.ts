@@ -128,11 +128,16 @@ function normalizedSort(value: VendorDropshipSort | undefined): VendorDropshipSo
   return value === "price_asc" || value === "price_desc" || value === "name_asc" ? value : "recommended";
 }
 
-function familyOrder(sort: VendorDropshipSort): string {
-  if (sort === "price_asc") return "fm.min_price_minor ASC NULLS LAST,fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
-  if (sort === "price_desc") return "fm.min_price_minor DESC NULLS LAST,fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
-  if (sort === "name_asc") return "lower(fm.sort_title) ASC NULLS LAST,fm.dropship_supplier_id,fm.dropship_external_product_id";
-  return "fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
+function familyOrder(
+  sort: VendorDropshipSort,
+  identityColumns: "projected" | "live" = "projected"
+): string {
+  const supplierColumn = identityColumns === "live" ? "fm.supplier_id" : "fm.dropship_supplier_id";
+  const externalProductColumn = identityColumns === "live" ? "fm.external_product_id" : "fm.dropship_external_product_id";
+  if (sort === "price_asc") return `fm.min_price_minor ASC NULLS LAST,fm.newest_at DESC,${supplierColumn},${externalProductColumn}`;
+  if (sort === "price_desc") return `fm.min_price_minor DESC NULLS LAST,fm.newest_at DESC,${supplierColumn},${externalProductColumn}`;
+  if (sort === "name_asc") return `lower(fm.sort_title) ASC NULLS LAST,${supplierColumn},${externalProductColumn}`;
+  return `fm.newest_at DESC,${supplierColumn},${externalProductColumn}`;
 }
 
 
@@ -151,7 +156,7 @@ async function getLiveVendorFamilyWindow(input: Readonly<{
   limit: number;
 }>) {
   const pool = getProductionPostgresRuntime().nativePool;
-  const orderBy = familyOrder(input.sort);
+  const orderBy = familyOrder(input.sort, "live");
   return pool.query<FamilySelectionRow>(`
     WITH vendor_suppliers AS MATERIALIZED (
       SELECT ds.id
@@ -227,220 +232,20 @@ export async function getVendorDropshipCatalogPage(
   const searchPrefix = prefixTsQuery(query);
   const runtime = getProductionPostgresRuntime();
 
-  let familyWindow = await runtime.nativePool.query<FamilySelectionRow>(`
-    WITH vendor_suppliers AS MATERIALIZED (
-      SELECT ds.id,ds.id::text AS supplier_id,ds.code
-      FROM dropship_suppliers ds
-      JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
-      WHERE v.public_id=$1
-        AND v.status='active'
-        AND ds.active=true
-        AND ds.api_authoritative_availability=true
-    ), stable AS MATERIALIZED (
-      SELECT fm.*
-      FROM public.storefront_dropship_family_filter_read_model_v2 fm
-      JOIN vendor_suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
-      WHERE fm.available_until>now()
-        -- Push the active storefront filters into the indexed family projection
-        -- before the supplier live-check. Previously Symphonya availability was
-        -- revalidated for the entire catalogue and only filtered afterwards,
-        -- which made narrow selections such as "mens-sneakers" contend for DB
-        -- connections and time out.
-        AND (cardinality($3::text[])=0 OR fm.category_codes && $3::text[])
-        AND ($4::text='' OR fm.brand_names_normalized @> ARRAY[lower($4)]::text[])
-        AND ($5::text='' OR EXISTS (
-          SELECT 1 FROM unnest(fm.colors) candidate(value)
-          WHERE lower(candidate.value)=lower($5)
-        ))
-        AND (cardinality($6::text[])=0 OR fm.sizes && $6::text[])
-        AND ($7::text='' OR EXISTS (
-          SELECT 1 FROM unnest(fm.fits) candidate(value)
-          WHERE lower(candidate.value)=lower($7)
-        ))
-        AND ($8::text='' OR fm.materials @> ARRAY[lower($8)]::text[])
-        AND (
-          $2::text='' OR
-          ($9::text<>'' AND fm.search_vector @@ to_tsquery('simple',$9))
-        )
-        AND (
-          supplier.code<>'symphonya'
-          OR EXISTS (
-            SELECT 1
-            FROM dropship_supplier_offers live_dso
-            JOIN vendor_offers live_vo ON live_vo.id=live_dso.vendor_offer_id
-            JOIN canonical_variants live_cv ON live_cv.id=live_vo.canonical_variant_id
-            JOIN vendor_locations live_location ON live_location.id=live_vo.location_id
-            WHERE live_dso.supplier_id=supplier.id
-              AND live_dso.external_product_id=fm.dropship_external_product_id
-              AND live_dso.active=true
-              AND live_dso.cached_available=true
-              AND COALESCE(live_dso.cached_quantity,0)>=1
-              AND live_dso.availability_expires_at IS NOT NULL
-              AND live_dso.availability_expires_at>now()
-              AND live_vo.status='approved'
-              AND live_vo.merchant_visible=true
-              AND live_vo.merchant_pause_active=false
-              AND live_vo.customer_price_minor>0
-              AND (live_vo.cost_ceiling_minor IS NULL OR live_vo.supplier_unit_price_minor<=live_vo.cost_ceiling_minor)
-              AND live_location.active=true
-              AND COALESCE(live_cv.commerce_channel,'normal')='normal'
-              AND live_cv.active=true
-              AND live_cv.suppressed=false
-              AND live_cv.recalled=false
-              AND bls_private.vendor_category_effectively_visible(live_vo.vendor_id,live_cv.category_id)
-          )
-        )
-    ), live_fallback AS MATERIALIZED (
-      SELECT
-        dso.supplier_id::text AS dropship_supplier_id,
-        dso.external_product_id AS dropship_external_product_id,
-        MAX(dso.availability_expires_at) AS available_until,
-        MAX(vo.updated_at) AS newest_at,
-        MIN(vo.customer_price_minor) AS min_price_minor,
-        COALESCE(array_agg(DISTINCT c.code) FILTER (WHERE c.code IS NOT NULL),'{}'::text[]) AS category_codes,
-        COALESCE(array_agg(DISTINCT lower(COALESCE(b.name,pfb.name,'')))
-          FILTER (WHERE COALESCE(b.name,pfb.name,'')<>''),'{}'::text[]) AS brand_names_normalized,
-        COALESCE(array_agg(DISTINCT NULLIF(BTRIM(COALESCE(
-          el.specifications->>'color',
-          en.specifications->>'color',
-          cv.variant_attributes->>'color',
-          ''
-        )),'')) FILTER (WHERE NULLIF(BTRIM(COALESCE(
-          el.specifications->>'color',
-          en.specifications->>'color',
-          cv.variant_attributes->>'color',
-          ''
-        )), '') IS NOT NULL),'{}'::text[]) AS colors,
-        COALESCE(array_agg(DISTINCT NULLIF(BTRIM(size_entry.value),''))
-          FILTER (WHERE NULLIF(BTRIM(size_entry.value),'') IS NOT NULL),'{}'::text[]) AS sizes,
-        COALESCE(array_agg(DISTINCT lower(NULLIF(BTRIM(COALESCE(
-          el.specifications->>'fit',
-          en.specifications->>'fit',
-          ''
-        )),''))) FILTER (WHERE NULLIF(BTRIM(COALESCE(
-          el.specifications->>'fit',
-          en.specifications->>'fit',
-          ''
-        )), '') IS NOT NULL),'{}'::text[]) AS fits,
-        '{}'::text[] AS materials,
-        MIN(COALESCE(el.title,en.title,cv.model,cv.slug)) AS sort_title,
-        to_tsvector('simple',COALESCE(string_agg(DISTINCT concat_ws(' ',
-          COALESCE(el.title,en.title,cv.model,cv.slug),
-          COALESCE(b.name,pfb.name,''),
-          COALESCE(cv.gtin,''),
-          COALESCE(cv.mpn,''),
-          c.code
-        ),' '),'')) AS search_vector
-      FROM dropship_supplier_offers dso
-      JOIN vendor_suppliers supplier
-        ON supplier.id=dso.supplier_id
-      JOIN vendor_offers vo ON vo.id=dso.vendor_offer_id
-      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN categories c ON c.id=cv.category_id
-      JOIN vendor_locations l ON l.id=vo.location_id
-      LEFT JOIN product_families pf ON pf.id=cv.family_id
-      LEFT JOIN brands b ON b.id=cv.brand_id
-      LEFT JOIN brands pfb ON pfb.id=pf.brand_id
-      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
-      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-      LEFT JOIN LATERAL unnest(ARRAY[
-        cv.variant_attributes->>'italian_size_men',
-        cv.variant_attributes->>'italian_size_women',
-        cv.variant_attributes->>'shoe_size_women',
-        cv.variant_attributes->>'shoe_size_men',
-        cv.variant_attributes->>'waist_size',
-        cv.variant_attributes->>'belt_size',
-        cv.variant_attributes->>'waist_length_size',
-        cv.variant_attributes->>'hat_size',
-        cv.variant_attributes->>'swimwear_sleepwear_size',
-        cv.variant_attributes->>'shoe_size',
-        cv.variant_attributes->>'earrings_size',
-        cv.variant_attributes->>'bracelets_size',
-        cv.variant_attributes->>'gloves_size_women',
-        cv.variant_attributes->>'ring_size',
-        cv.variant_attributes->>'gloves_size_men',
-        cv.variant_attributes->>'size'
-      ]) AS size_entry(value) ON true
-      WHERE dso.active=true
-        AND dso.cached_available=true
-        AND COALESCE(dso.cached_quantity,0)>=1
-        AND dso.availability_expires_at IS NOT NULL
-        AND dso.availability_expires_at>now()
-        AND vo.status='approved'
-        AND vo.merchant_visible=true
-        AND vo.merchant_pause_active=false
-        AND vo.customer_price_minor>0
-        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-        AND l.active=true
-        AND COALESCE(cv.commerce_channel,'normal')='normal'
-        AND cv.active=true
-        AND cv.suppressed=false
-        AND cv.recalled=false
-        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
-        AND (cardinality($3::text[])=0 OR c.code=ANY($3::text[]))
-        AND NOT EXISTS (
-          SELECT 1
-          FROM public.storefront_dropship_family_filter_read_model_v2 projected
-          WHERE projected.dropship_supplier_id=dso.supplier_id::text
-            AND projected.dropship_external_product_id=dso.external_product_id
-            AND projected.available_until>now()
-        )
-      GROUP BY dso.supplier_id,dso.external_product_id
-      ORDER BY MAX(vo.updated_at) DESC,dso.supplier_id,dso.external_product_id
-      LIMIT $12
-    ), family_candidates AS (
-      SELECT
-        dropship_supplier_id,dropship_external_product_id,available_until,newest_at,min_price_minor,
-        category_codes,brand_names_normalized,colors,sizes,fits,materials,sort_title,search_vector
-      FROM stable
-      UNION ALL
-      SELECT
-        dropship_supplier_id,dropship_external_product_id,available_until,newest_at,min_price_minor,
-        category_codes,brand_names_normalized,colors,sizes,fits,materials,sort_title,search_vector
-      FROM live_fallback
-    )
-    SELECT
-      fm.dropship_supplier_id AS supplier_id,
-      fm.dropship_external_product_id AS external_product_id,
-      COUNT(*) OVER()::int AS total_families
-    FROM family_candidates fm
-    WHERE fm.available_until>now()
-      AND (cardinality($3::text[])=0 OR fm.category_codes && $3::text[])
-      AND ($4::text='' OR fm.brand_names_normalized @> ARRAY[lower($4)]::text[])
-      AND ($5::text='' OR EXISTS (
-        SELECT 1 FROM unnest(fm.colors) candidate(value)
-        WHERE lower(candidate.value)=lower($5)
-      ))
-      AND (cardinality($6::text[])=0 OR fm.sizes && $6::text[])
-      AND ($7::text='' OR EXISTS (
-        SELECT 1 FROM unnest(fm.fits) candidate(value)
-        WHERE lower(candidate.value)=lower($7)
-      ))
-      AND ($8::text='' OR fm.materials @> ARRAY[lower($8)]::text[])
-      AND (
-        $2::text='' OR
-        ($9::text<>'' AND fm.search_vector @@ to_tsquery('simple',$9))
-      )
-    ORDER BY ${familyOrder(sort)}
-    LIMIT $10 OFFSET $11
-  `, [vendorId, query, categories, brand, color, sizes, fit, material, searchPrefix, limit, offset, LIVE_FALLBACK_FAMILY_CAP]);
-
-  if (!familyWindow.rows.length) {
-    familyWindow = await getLiveVendorFamilyWindow({
-      vendorId,
-      query,
-      categories,
-      brand,
-      color,
-      sizes,
-      fit,
-      material,
-      searchPrefix,
-      sort,
-      offset,
-      limit
-    });
-  }
+  const familyWindow = await getLiveVendorFamilyWindow({
+    vendorId,
+    query,
+    categories,
+    brand,
+    color,
+    sizes,
+    fit,
+    material,
+    searchPrefix,
+    sort,
+    offset,
+    limit
+  });
 
   if (!familyWindow.rows.length) return { products: [], total: 0, offset, limit };
   const total = safePositiveInt(familyWindow.rows[0]?.total_families, 0);
