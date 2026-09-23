@@ -16,8 +16,9 @@ import { publicOrigin } from "./public-origin";
 const MERCHANT_API_BASE = "https://merchantapi.googleapis.com/products/v1";
 const DEFAULT_ACCOUNT_ID = "5849642952";
 const DEFAULT_DATA_SOURCE_ID = "10734504819";
-const DEFAULT_SHARD_COUNT = 1440;
-const MAX_SHARD_COUNT = 1440;
+const DEFAULT_SHARD_COUNT = 144;
+const MAX_SHARD_COUNT = 144;
+const SYNC_SLOT_MS = 10 * 60_000;
 const IMAGE_BATCH_SIZE = 40;
 const WRITE_CONCURRENCY = 12;
 const CLEANUP_PAGE_SIZE = 1000;
@@ -78,7 +79,7 @@ function merchantConfig(env: NodeJS.ProcessEnv = process.env): MerchantConfig {
 }
 
 function currentShard(shardCount: number, now = Date.now()): number {
-  return Math.floor(now / 60_000) % shardCount;
+  return Math.floor(now / SYNC_SLOT_MS) % shardCount;
 }
 
 function errorText(error: unknown): string {
@@ -135,14 +136,54 @@ async function mapConcurrent<T, R>(items: readonly T[], concurrency: number, wor
 
 async function loadCandidates(shard: number, shardCount: number): Promise<readonly CandidateRow[]> {
   const result = await getProductionPostgresRuntime().nativePool.query<CandidateRow>(`
+    WITH live_offer AS (
+      SELECT vo.canonical_variant_id, min(vo.customer_price_minor) AS live_price_minor
+      FROM public.vendor_offers vo
+      JOIN public.vendor_businesses v ON v.id=vo.vendor_id
+      JOIN public.vendor_locations l ON l.id=vo.location_id
+      LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+      LEFT JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
+      LEFT JOIN public.inventory_balances ib ON ib.offer_id=vo.id
+      WHERE vo.status='approved'
+        AND vo.merchant_visible=true
+        AND vo.merchant_pause_active=false
+        AND vo.customer_price_minor>0
+        AND v.status='active'
+        AND l.active=true
+        AND (
+          (
+            dso.id IS NOT NULL
+            AND dso.active=true
+            AND ds.active=true
+            AND ds.api_authoritative_availability=true
+            AND dso.cached_available=true
+            AND dso.cached_quantity>=1
+            AND dso.availability_expires_at>now()
+            AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+          )
+          OR (
+            dso.id IS NULL
+            AND GREATEST(
+              0,
+              COALESCE(ib.on_hand,0)
+                - COALESCE(ib.active_reservations,0)
+                - COALESCE(ib.safety_stock,0)
+                - COALESCE(ib.blocked,0)
+            )>0
+          )
+        )
+      GROUP BY vo.canonical_variant_id
+    )
     SELECT rm.canonical_variant_id, rm.canonical_public_id, rm.slug,
            pt.title, pt.description, rm.gtin, rm.mpn, rm.brand_name, rm.color,
-           cv.condition, rm.min_price_minor
+           cv.condition, lo.live_price_minor AS min_price_minor
     FROM public.storefront_catalog_read_model rm
     JOIN public.canonical_variants cv ON cv.id=rm.canonical_variant_id
+    JOIN live_offer lo ON lo.canonical_variant_id=rm.canonical_variant_id
     JOIN public.product_translations pt ON pt.canonical_variant_id=rm.canonical_variant_id AND pt.locale='el'
-    WHERE ((rm.local_sellable=true AND rm.local_available_until>now()) OR (rm.dropship_sellable=true AND rm.dropship_available_until>now()))
-      AND rm.min_price_minor>0
+    WHERE cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
       AND nullif(btrim(pt.title),'') IS NOT NULL
       AND nullif(btrim(coalesce(pt.description,'')),'') IS NOT NULL
       AND mod(abs(hashtext(rm.canonical_public_id)::bigint),$1::bigint)=$2::bigint
@@ -245,11 +286,50 @@ async function listManagedProducts(accessToken: string, config: MerchantConfig, 
 async function liveOfferIds(offerIds: readonly string[]): Promise<ReadonlySet<string>> {
   if (!offerIds.length) return new Set();
   const result = await getProductionPostgresRuntime().nativePool.query<{ canonical_public_id: string }>(`
-    SELECT rm.canonical_public_id FROM public.storefront_catalog_read_model rm
+    SELECT DISTINCT rm.canonical_public_id
+    FROM public.storefront_catalog_read_model rm
+    JOIN public.canonical_variants cv ON cv.id=rm.canonical_variant_id
     JOIN public.product_translations pt ON pt.canonical_variant_id=rm.canonical_variant_id AND pt.locale='el'
+    JOIN public.vendor_offers vo ON vo.canonical_variant_id=rm.canonical_variant_id
+    JOIN public.vendor_businesses v ON v.id=vo.vendor_id
+    JOIN public.vendor_locations l ON l.id=vo.location_id
+    LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+    LEFT JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
+    LEFT JOIN public.inventory_balances ib ON ib.offer_id=vo.id
     WHERE rm.canonical_public_id=ANY($1::text[])
-      AND ((rm.local_sellable=true AND rm.local_available_until>now()) OR (rm.dropship_sellable=true AND rm.dropship_available_until>now()))
-      AND nullif(btrim(pt.title),'') IS NOT NULL AND nullif(btrim(coalesce(pt.description,'')),'') IS NOT NULL
+      AND cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
+      AND vo.status='approved'
+      AND vo.merchant_visible=true
+      AND vo.merchant_pause_active=false
+      AND vo.customer_price_minor>0
+      AND v.status='active'
+      AND l.active=true
+      AND nullif(btrim(pt.title),'') IS NOT NULL
+      AND nullif(btrim(coalesce(pt.description,'')),'') IS NOT NULL
+      AND (
+        (
+          dso.id IS NOT NULL
+          AND dso.active=true
+          AND ds.active=true
+          AND ds.api_authoritative_availability=true
+          AND dso.cached_available=true
+          AND dso.cached_quantity>=1
+          AND dso.availability_expires_at>now()
+          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+        )
+        OR (
+          dso.id IS NULL
+          AND GREATEST(
+            0,
+            COALESCE(ib.on_hand,0)
+              - COALESCE(ib.active_reservations,0)
+              - COALESCE(ib.safety_stock,0)
+              - COALESCE(ib.blocked,0)
+          )>0
+        )
+      )
   `, [offerIds]);
   return new Set(result.rows.map((row) => row.canonical_public_id));
 }
