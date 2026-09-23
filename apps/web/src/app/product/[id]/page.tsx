@@ -221,7 +221,11 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
         description,
         canonicalPath: productPublicPath(product),
         keywords: [displayTitle, product.brand, product.categoryLabel],
-        openGraphImage: product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : undefined
+        openGraphImage: product.mediaId
+          ? `/api/media/${encodeURIComponent(product.mediaId)}`
+          : product.sourceImageAvailable
+            ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
+            : undefined
       },
       entityEligible: quality.blockingReasons.length === 0,
       defaultIndexAllowed: quality.eligible
@@ -269,6 +273,8 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
       openGraphImage: product.mediaId
         ? `/api/media/${encodeURIComponent(product.mediaId)}`
         : detail?.sourceImageUrl
+          ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
+          : undefined
     },
     entityEligible: quality.blockingReasons.length === 0,
     defaultIndexAllowed: quality.eligible
@@ -306,6 +312,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
     const origin = settings.canonicalOrigin;
     const productUrl = new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString();
     const displayPrice = publicCatalogPriceLabel(product);
+    const crawlerImageUrl = product.mediaId
+      ? `${origin}/api/media/${encodeURIComponent(product.mediaId)}`
+      : summary.sourceImageAvailable
+        ? `${origin}/api/catalog-source-image/${encodeURIComponent(product.id)}`
+        : undefined;
     const crawlerStructuredData = {
       "@context": "https://schema.org",
       "@type": "Product",
@@ -314,7 +325,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       name: displayTitle,
       description: productSeoDescription({ title: displayTitle, description: product.description }),
       brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
-      image: product.mediaId ? [`${origin}/api/media/${encodeURIComponent(product.mediaId)}`] : undefined,
+      image: crawlerImageUrl ? [crawlerImageUrl] : undefined,
       category: product.categoryLabel ?? category.label,
       itemCondition: "https://schema.org/NewCondition",
       offers: publicCatalogHasOfferPrice(product) ? {
@@ -333,7 +344,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <SiteHeader compact />
         <section className="shell product-detail">
           <div className={`product-detail-art ${category.artClass}`}>
-            {product.mediaId ? <Image src={`/api/media/${encodeURIComponent(product.mediaId)}`} alt={product.mediaAlt ?? displayTitle} fill sizes="50vw" style={productImageStyle} /> : <>
+            {crawlerImageUrl ? <img src={crawlerImageUrl} alt={product.mediaAlt ?? displayTitle} loading="eager" fetchPriority="high" style={productImageStyle} /> : <>
               <span className="detail-category">{category.name}</span>
               <span className="detail-symbol" aria-hidden="true">{category.symbol}</span>
             </>}
@@ -374,10 +385,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
       ? [{ canonicalVariantId: product.id, mediaId: product.mediaId, altText: product.mediaAlt }]
       : [];
   const primaryImage = mediaGallery[0];
-  // getPublicProductDetail already validates supplier URLs through
-  // trustedCatalogSourceHttpsUrl. Reuse that governed URL directly instead of
-  // making the browser open a second DB-backed image-redirect request.
-  const supplierImageSrc = primaryImage ? undefined : detail?.sourceImageUrl;
+  // Keep source imagery on a stable KONTA MOY URL for crawlers, structured data
+  // and the storefront. The endpoint resolves only governed public source images
+  // and is explicitly allowed in robots.txt.
+  const supplierImageSrc = primaryImage
+    ? undefined
+    : detail?.sourceImageUrl
+      ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
+      : undefined;
   const hasProductImage = Boolean(primaryImage || supplierImageSrc);
   const cartImageUrl = primaryImage ? `/api/media/${encodeURIComponent(primaryImage.mediaId)}` : supplierImageSrc;
   const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
