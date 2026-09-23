@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
 import { getGoogleMerchantAccessToken } from "./google-merchant-auth";
+import { getMerchantProductInsertQuota, merchantWritePlan, runMerchantWritesQuotaAware } from "./google-merchant-quota";
 import {
   buildGoogleMerchantProductInput,
   googleMerchantProductInputSegment,
@@ -22,7 +23,8 @@ const DATASOURCES_API_BASE = "https://merchantapi.googleapis.com/datasources/v1"
 const PRODUCTS_API_BASE = "https://merchantapi.googleapis.com/products/v1";
 const SHARD_COUNT = 144;
 const SYNC_SLOT_MS = 10 * 60_000;
-const WRITE_CONCURRENCY = 12;
+const WRITE_CONCURRENCY = 40;
+const RUN_BATCH_TARGET = 2000;
 const IMAGE_BATCH_SIZE = 40;
 const REFRESH_AFTER_MS = 26 * 24 * 60 * 60 * 1000;
 const JOB_NAME = "google-merchant-catalogue-sync-en";
@@ -209,7 +211,10 @@ async function ensureEnglishDataSource(accessToken: string): Promise<string> {
   return persistDataSource(created);
 }
 
-async function loadCandidates(shard: number): Promise<readonly EnglishCandidateRow[]> {
+async function loadCandidates(
+  shard: number,
+  batchTarget = RUN_BATCH_TARGET
+): Promise<readonly EnglishCandidateRow[]> {
   const result = await getProductionPostgresRuntime().nativePool.query<EnglishCandidateRow>(`
     WITH live_offer AS (
       SELECT vo.canonical_variant_id, min(vo.customer_price_minor) AS live_price_minor
@@ -269,6 +274,11 @@ async function loadCandidates(shard: number): Promise<readonly EnglishCandidateR
       ON el.canonical_variant_id=cv.id AND el.locale='el'
     LEFT JOIN public.brands b ON b.id=cv.brand_id
     LEFT JOIN public.storefront_catalog_read_model rm ON rm.canonical_variant_id=cv.id
+    LEFT JOIN public.merchant_product_sync mps
+      ON mps.merchant_account_id=$1
+     AND mps.content_language=$2
+     AND mps.feed_label=$3
+     AND mps.offer_id=cv.public_id
     WHERE cv.active=true
       AND cv.suppressed=false
       AND cv.recalled=false
@@ -278,12 +288,19 @@ async function loadCandidates(shard: number): Promise<readonly EnglishCandidateR
         nullif(btrim(el.title),'') IS NOT NULL
         AND nullif(btrim(coalesce(el.description,'')),'') IS NOT NULL
       )
-      AND mod(abs(hashtext(cv.public_id)::bigint),$1::bigint)=$2::bigint
-    ORDER BY cv.public_id
-  `, [SHARD_COUNT, shard]);
+      AND (
+        mps.id IS NULL
+        OR mps.sync_status<>'synced'
+        OR mod(abs(hashtext(cv.public_id)::bigint),$4::bigint)=$5::bigint
+      )
+    ORDER BY
+      CASE WHEN mps.id IS NULL OR mps.sync_status<>'synced' THEN 0 ELSE 1 END,
+      mps.last_success_at NULLS FIRST,
+      cv.public_id
+    LIMIT $6
+  `, [ACCOUNT_ID, LANGUAGE, FEED_LABEL, SHARD_COUNT, shard, batchTarget]);
   return result.rows;
-}
-function toCandidate(row: EnglishCandidateRow): GoogleMerchantCandidate {
+}function toCandidate(row: EnglishCandidateRow): GoogleMerchantCandidate {
   return {
     canonicalPublicId: row.canonical_public_id,
     slug: row.slug,
@@ -588,7 +605,7 @@ export async function syncGoogleMerchantEnglishFallback(now = Date.now()): Promi
   try {
     const accessToken = await getGoogleMerchantAccessToken();
     const dataSource = await ensureEnglishDataSource(accessToken);
-    const rows = await loadCandidates(shard);
+    const rows = await loadCandidates(shard, RUN_BATCH_TARGET);
     const images = await productImages(rows);
     const errors: string[] = [];
     let submitted = 0;
@@ -620,7 +637,15 @@ export async function syncGoogleMerchantEnglishFallback(now = Date.now()): Promi
       return needed;
     });
 
-    await mapConcurrent(changed, WRITE_CONCURRENCY, async ({ row, input, hash }) => {
+    const quota = await getMerchantProductInsertQuota(accessToken, ACCOUNT_ID);
+    const plan = merchantWritePlan(quota, Math.min(RUN_BATCH_TARGET, changed.length));
+    const writable = changed.slice(0, plan.allowed);
+    const quotaDeferred = Math.max(0, changed.length - writable.length);
+    if (quotaDeferred > 0 && errors.length < 10) {
+      errors.push(`Merchant quota deferred ${quotaDeferred} writes; dailyRemaining=${quota.dailyRemaining}, minuteLimit=${quota.minuteLimit}.`);
+    }
+
+    await runMerchantWritesQuotaAware(writable, quota, WRITE_CONCURRENCY, async ({ row, input, hash }) => {
       try {
         const response = await insertProduct(accessToken, dataSource, input);
         await persistSuccess(dataSource, row, input, hash, response);
