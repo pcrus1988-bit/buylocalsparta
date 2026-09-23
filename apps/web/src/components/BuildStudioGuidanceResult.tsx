@@ -201,6 +201,7 @@ function ProjectKitScreen({
         title: item.title,
         priceMinor: item.priceMinor,
         price: item.price,
+        imageUrl: item.imageUrl,
         quantity: item.quantity,
         selected: item.selected,
         required: item.required,
@@ -215,6 +216,10 @@ function ProjectKitScreen({
 
   async function ensureSnapshot(): Promise<string> {
     if (snapshotId) return snapshotId;
+    const selectedVariant = projectKit.family.variants.find((variant) => variant.id === selectedProduct.id);
+    const selectedImageUrl = selectedProduct.mediaId
+      ? `/api/media/${encodeURIComponent(selectedProduct.mediaId)}`
+      : selectedProduct.imageUrl ?? selectedVariant?.imageUrl;
     const response = await fetch("/api/build-studio/snapshot", {
       method: "POST",
       cache: "no-store",
@@ -232,9 +237,20 @@ function ProjectKitScreen({
           selectedProduct: {
             manufacturerProductId: selectedProduct.manufacturerProductId,
             catalogueId: selectedProduct.id,
+            slug: selectedProduct.slug,
+            url: selectedProduct.url,
             title: selectedProduct.title,
             brand: selectedProduct.brand,
-            price: selectedProduct.price
+            price: selectedProduct.price,
+            mediaId: selectedProduct.mediaId,
+            imageUrl: selectedImageUrl,
+            imageAlt: selectedProduct.mediaAlt,
+            colour: selectedVariant?.colourHint ?? selectedVariant?.tintBaseHint,
+            size: selectedVariant ? `${selectedVariant.packValue}${selectedVariant.packUnit}` : undefined,
+            packValue: selectedVariant?.packValue,
+            packUnit: selectedVariant?.packUnit,
+            tintBase: selectedVariant?.tintBaseHint,
+            finish: selectedVariant?.finishHint
           },
           kit: snapshotKit()
         }
