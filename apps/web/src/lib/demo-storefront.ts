@@ -174,7 +174,7 @@ function approvedDemoSourceImage(value: unknown): string | undefined {
     const url = new URL(raw);
     if (url.protocol !== "https:") return undefined;
     const hostname = url.hostname.toLowerCase();
-    if (hostname !== "nikolaoutools.gr" && hostname !== "www.nikolaoutools.gr") return undefined;
+    if (!["nikolaoutools.gr", "www.nikolaoutools.gr", "assets.fournarakis.gr"].includes(hostname)) return undefined;
     return url.toString();
   } catch {
     return undefined;
@@ -381,51 +381,97 @@ async function productRows(vendorUuid: string, routeKey?: string, variantFamilyI
   let familyPredicate = "";
   if (routeKey) {
     values.push(routeKey);
-    routePredicate = `AND (cv.public_id=$${values.length} OR cv.slug=$${values.length})`;
+    routePredicate = `AND (assigned.id=$${values.length} OR assigned.slug=$${values.length})`;
   }
   if (variantFamilyId) {
     values.push(variantFamilyId);
-    familyPredicate = `AND src.source_normalized_payload->>'variantFamilyId'=$${values.length}`;
+    familyPredicate = `AND assigned.source_normalized_payload->>'variantFamilyId'=$${values.length}`;
   }
   const result = await getProductionPostgresRuntime().sqlPool.query<ProductRow>(`
-    SELECT DISTINCT ON (cv.id)
-           cv.public_id AS id,cv.slug,cv.model,
-           COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
-           c.code AS category_code,COALESCE(ctel.name,cten.name,c.code) AS category_label,
-           cv.gtin,cv.mpn,COALESCE(el.description,en.description) AS description,b.name AS brand,
-           cv.variant_attributes,COALESCE(el.specifications,en.specifications,'{}'::jsonb) AS specifications,
-           vo.customer_price_minor,vo.status::text AS offer_status,vo.vendor_sku,
-           GREATEST(COALESCE(ib.on_hand,0)-COALESCE(ib.active_reservations,0)-COALESCE(ib.safety_stock,0)-COALESCE(ib.blocked,0),0)::int AS available_to_sell,
-           src.source_product_id,src.source_supplier_code,src.source_image_url,src.source_url,
-           src.source_normalized_payload,src.source_raw_payload
-    FROM vendor_offers vo
-    JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-    JOIN categories c ON c.id=cv.category_id
-    LEFT JOIN brands b ON b.id=cv.brand_id
-    LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
-    LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-    LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
-    LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
-    LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
-    LEFT JOIN LATERAL (
-      SELECT csp.id::text AS source_product_id,csp.supplier_code AS source_supplier_code,
-             csp.source_image_url,csp.source_url,csp.normalized_payload AS source_normalized_payload,
-             csp.raw_payload AS source_raw_payload
-      FROM catalog_source_product_links csl
-      JOIN catalog_source_products csp ON csp.id=csl.source_product_id
-      WHERE csl.canonical_variant_id=cv.id
-        AND csl.link_status='approved'
-      ORDER BY csl.confidence DESC,csl.updated_at DESC,csl.id DESC
-      LIMIT 1
-    ) src ON true
-    WHERE vo.vendor_id=$1::uuid
-      AND vo.status IN ('draft','pending_review','approved')
-      AND cv.suppressed=false AND cv.recalled=false
+    WITH assigned AS (
+      SELECT
+        cv.public_id AS id,cv.slug,cv.model,
+        COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+        c.code AS category_code,COALESCE(ctel.name,cten.name,c.code) AS category_label,
+        cv.gtin,cv.mpn,COALESCE(el.description,en.description) AS description,b.name AS brand,
+        cv.variant_attributes,COALESCE(el.specifications,en.specifications,'{}'::jsonb) AS specifications,
+        vo.customer_price_minor,vo.status::text AS offer_status,vo.vendor_sku,
+        GREATEST(COALESCE(ib.on_hand,0)-COALESCE(ib.active_reservations,0)-COALESCE(ib.safety_stock,0)-COALESCE(ib.blocked,0),0)::int AS available_to_sell,
+        src.source_product_id,src.source_supplier_code,src.source_image_url,src.source_url,
+        src.source_normalized_payload,src.source_raw_payload,
+        CASE vo.status WHEN 'approved' THEN 1 WHEN 'pending_review' THEN 2 ELSE 3 END AS assignment_priority,
+        vo.updated_at AS assignment_updated_at
+      FROM vendor_offers vo
+      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+      JOIN categories c ON c.id=cv.category_id
+      LEFT JOIN brands b ON b.id=cv.brand_id
+      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
+      LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
+      LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
+      LEFT JOIN LATERAL (
+        SELECT csp.id::text AS source_product_id,csp.supplier_code AS source_supplier_code,
+               csp.source_image_url,csp.source_url,csp.normalized_payload AS source_normalized_payload,
+               csp.raw_payload AS source_raw_payload
+        FROM catalog_source_product_links csl
+        JOIN catalog_source_products csp ON csp.id=csl.source_product_id
+        WHERE csl.canonical_variant_id=cv.id
+          AND csl.link_status='approved'
+        ORDER BY csl.confidence DESC,csl.updated_at DESC,csl.id DESC
+        LIMIT 1
+      ) src ON true
+      WHERE vo.vendor_id=$1::uuid
+        AND vo.status IN ('draft','pending_review','approved')
+        AND cv.suppressed=false
+        AND cv.recalled=false
+
+      UNION ALL
+
+      SELECT
+        cv.public_id AS id,cv.slug,cv.model,
+        COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+        c.code AS category_code,COALESCE(ctel.name,cten.name,c.code) AS category_label,
+        cv.gtin,cv.mpn,COALESCE(el.description,en.description) AS description,b.name AS brand,
+        cv.variant_attributes,COALESCE(el.specifications,en.specifications,'{}'::jsonb) AS specifications,
+        0::bigint AS customer_price_minor,
+        ('assortment_' || vca.assortment_status) AS offer_status,
+        vca.vendor_sku,
+        0::int AS available_to_sell,
+        csp.id::text AS source_product_id,csp.supplier_code AS source_supplier_code,
+        csp.source_image_url,csp.source_url,csp.normalized_payload AS source_normalized_payload,
+        csp.raw_payload AS source_raw_payload,
+        4 AS assignment_priority,
+        vca.updated_at AS assignment_updated_at
+      FROM vendor_catalog_assortments vca
+      JOIN canonical_variants cv ON cv.id=vca.canonical_variant_id
+      JOIN categories c ON c.id=cv.category_id
+      LEFT JOIN brands b ON b.id=cv.brand_id
+      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
+      LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
+      LEFT JOIN catalog_source_products csp ON csp.id=vca.source_product_id
+      WHERE vca.vendor_id=$1::uuid
+        AND vca.canonical_variant_id IS NOT NULL
+        AND vca.assortment_status NOT IN ('rejected','discontinued')
+        AND cv.suppressed=false
+        AND cv.recalled=false
+    )
+    SELECT DISTINCT ON (assigned.id)
+           assigned.id,assigned.slug,assigned.model,assigned.title,
+           assigned.category_code,assigned.category_label,
+           assigned.gtin,assigned.mpn,assigned.description,assigned.brand,
+           assigned.variant_attributes,assigned.specifications,
+           assigned.customer_price_minor,assigned.offer_status,assigned.vendor_sku,
+           assigned.available_to_sell,assigned.source_product_id,assigned.source_supplier_code,
+           assigned.source_image_url,assigned.source_url,
+           assigned.source_normalized_payload,assigned.source_raw_payload
+    FROM assigned
+    WHERE true
       ${routePredicate}
       ${familyPredicate}
-    ORDER BY cv.id,
-      CASE vo.status WHEN 'approved' THEN 1 WHEN 'pending_review' THEN 2 ELSE 3 END,
-      vo.updated_at DESC,vo.public_id
+    ORDER BY assigned.id,assigned.assignment_priority,assigned.assignment_updated_at DESC,assigned.source_product_id NULLS LAST
   `, values);
   return result.rows;
 }
