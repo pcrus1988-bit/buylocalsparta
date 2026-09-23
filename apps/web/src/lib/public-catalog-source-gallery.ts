@@ -300,11 +300,61 @@ export async function getPublicCatalogSourcePrimaryImages(
   }
 }
 
+async function getPublicCatalogPrimarySourceImage(
+  canonicalVariantId: string
+): Promise<PublicCatalogSourceImage | undefined> {
+  const canonicalId = canonicalVariantId.trim();
+  if (!canonicalId) return undefined;
+
+  const result = await getProductionPostgresRuntime().nativePool.query<SourceGalleryRow>(`
+    SELECT
+      latest.normalized_payload,
+      latest.source_image_url,
+      source.code AS source_code,
+      source.website AS source_website,
+      latest.title AS source_title
+    FROM canonical_variants cv
+    JOIN markets m ON m.id=cv.market_id
+    JOIN catalog_source_product_links csl
+      ON csl.canonical_variant_id=cv.id
+     AND csl.link_status='approved'
+    JOIN catalog_source_products linked ON linked.id=csl.source_product_id
+    JOIN catalog_sources source
+      ON source.id=linked.source_id
+     AND source.active=true
+    JOIN LATERAL (
+      SELECT candidate.*
+      FROM catalog_source_products candidate
+      JOIN catalog_source_snapshots snapshot ON snapshot.id=candidate.snapshot_id
+      WHERE candidate.source_id=linked.source_id
+        AND candidate.source_product_key=linked.source_product_key
+      ORDER BY snapshot.observed_at DESC NULLS LAST,candidate.created_at DESC,candidate.id DESC
+      LIMIT 1
+    ) latest ON true
+    WHERE cv.public_id=$1
+      AND m.code='sparta'
+      AND cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
+    ORDER BY csl.confidence DESC,csl.updated_at DESC,csl.id DESC
+    LIMIT 1
+  `, [canonicalId]);
+
+  const row = result.rows[0];
+  return row ? sourceImagesFromRow(row)[0] : undefined;
+}
+
 export async function getPublicCatalogSourceImageAtIndex(
   canonicalVariantId: string,
   index: number
 ): Promise<PublicCatalogSourceImage | undefined> {
   if (!Number.isSafeInteger(index) || index < 0 || index >= MAX_GALLERY_IMAGES) return undefined;
+
+  // The primary image is used by product HTML, structured data and image sitemaps.
+  // Resolve it through the lightweight approved canonical-source link projection
+  // instead of opening a transaction for the full gallery on every crawler hit.
+  if (index === 0) return getPublicCatalogPrimarySourceImage(canonicalVariantId);
+
   const gallery = await getPublicCatalogSourceGallery(canonicalVariantId);
   return gallery[index];
 }
