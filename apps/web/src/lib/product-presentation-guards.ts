@@ -39,7 +39,8 @@ const COMPATIBILITY_PRESENTATION_KEYS = new Set([
   "καταλληλο_για",
   "συμβατα_μοντελα",
   "συμβατες_μαρκες",
-  "συμβατες_πλατφορμες"
+  "συμβατες_πλατφορμες",
+  "συνδυαζεται_με"
 ]);
 
 const NON_MANUAL_DOCUMENT_MARKERS = [
