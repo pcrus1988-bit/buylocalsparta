@@ -174,24 +174,33 @@ async function loadCandidates(shard: number, shardCount: number): Promise<readon
         )
       GROUP BY vo.canonical_variant_id
     )
-    SELECT rm.canonical_variant_id, rm.canonical_public_id, rm.slug,
-           pt.title, pt.description, rm.gtin, rm.mpn, rm.brand_name, rm.color,
-           cv.condition, lo.live_price_minor AS min_price_minor
-    FROM public.storefront_catalog_read_model rm
-    JOIN public.canonical_variants cv ON cv.id=rm.canonical_variant_id
-    JOIN live_offer lo ON lo.canonical_variant_id=rm.canonical_variant_id
-    JOIN public.product_translations pt ON pt.canonical_variant_id=rm.canonical_variant_id AND pt.locale='el'
+    SELECT
+      cv.id AS canonical_variant_id,
+      cv.public_id AS canonical_public_id,
+      cv.slug,
+      pt.title,
+      pt.description,
+      cv.gtin,
+      cv.mpn,
+      COALESCE(NULLIF(btrim(rm.brand_name),''),b.name) AS brand_name,
+      NULLIF(btrim(rm.color),'') AS color,
+      cv.condition,
+      lo.live_price_minor AS min_price_minor
+    FROM public.canonical_variants cv
+    JOIN live_offer lo ON lo.canonical_variant_id=cv.id
+    JOIN public.product_translations pt ON pt.canonical_variant_id=cv.id AND pt.locale='el'
+    LEFT JOIN public.brands b ON b.id=cv.brand_id
+    LEFT JOIN public.storefront_catalog_read_model rm ON rm.canonical_variant_id=cv.id
     WHERE cv.active=true
       AND cv.suppressed=false
       AND cv.recalled=false
       AND nullif(btrim(pt.title),'') IS NOT NULL
       AND nullif(btrim(coalesce(pt.description,'')),'') IS NOT NULL
-      AND mod(abs(hashtext(rm.canonical_public_id)::bigint),$1::bigint)=$2::bigint
-    ORDER BY rm.canonical_public_id
+      AND mod(abs(hashtext(cv.public_id)::bigint),$1::bigint)=$2::bigint
+    ORDER BY cv.public_id
   `, [shardCount, shard]);
   return result.rows;
 }
-
 function toCandidate(row: CandidateRow): GoogleMerchantCandidate {
   return { canonicalPublicId: row.canonical_public_id, slug: row.slug, title: row.title, description: row.description, gtin: row.gtin, mpn: row.mpn, brand: row.brand_name, color: row.color, condition: row.condition, priceMinor: row.min_price_minor };
 }
@@ -286,17 +295,16 @@ async function listManagedProducts(accessToken: string, config: MerchantConfig, 
 async function liveOfferIds(offerIds: readonly string[]): Promise<ReadonlySet<string>> {
   if (!offerIds.length) return new Set();
   const result = await getProductionPostgresRuntime().nativePool.query<{ canonical_public_id: string }>(`
-    SELECT DISTINCT rm.canonical_public_id
-    FROM public.storefront_catalog_read_model rm
-    JOIN public.canonical_variants cv ON cv.id=rm.canonical_variant_id
-    JOIN public.product_translations pt ON pt.canonical_variant_id=rm.canonical_variant_id AND pt.locale='el'
-    JOIN public.vendor_offers vo ON vo.canonical_variant_id=rm.canonical_variant_id
+    SELECT DISTINCT cv.public_id AS canonical_public_id
+    FROM public.canonical_variants cv
+    JOIN public.product_translations pt ON pt.canonical_variant_id=cv.id AND pt.locale='el'
+    JOIN public.vendor_offers vo ON vo.canonical_variant_id=cv.id
     JOIN public.vendor_businesses v ON v.id=vo.vendor_id
     JOIN public.vendor_locations l ON l.id=vo.location_id
     LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
     LEFT JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
     LEFT JOIN public.inventory_balances ib ON ib.offer_id=vo.id
-    WHERE rm.canonical_public_id=ANY($1::text[])
+    WHERE cv.public_id=ANY($1::text[])
       AND cv.active=true
       AND cv.suppressed=false
       AND cv.recalled=false
@@ -333,7 +341,6 @@ async function liveOfferIds(offerIds: readonly string[]): Promise<ReadonlySet<st
   `, [offerIds]);
   return new Set(result.rows.map((row) => row.canonical_public_id));
 }
-
 async function deleteProduct(accessToken: string, config: MerchantConfig, offerId: string): Promise<void> {
   const productId = googleMerchantProductInputSegment("el", "GR", offerId);
   const url = new URL(`${MERCHANT_API_BASE}/accounts/${config.accountId}/productInputs/${productId}`);
