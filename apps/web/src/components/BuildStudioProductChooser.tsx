@@ -97,6 +97,7 @@ type ProjectKitResponse = Readonly<{
     ruleKey?: string;
     whySuitable?: string;
     coverageM2PerLitre?: Readonly<{ min?: number; max?: number; conditions?: string | null }>;
+    twoCoatCoverageM2PerLitre?: Readonly<{ min: number; max: number }>;
     coats?: Readonly<{ min?: number; max?: number }>;
     dryToTouchMinutes?: Readonly<{ min?: number | null; max?: number | null }>;
     recoatMinutes?: Readonly<{ min?: number | null; max?: number | null }>;
@@ -359,8 +360,9 @@ function FamilyOverlay({
             </div>
 
             <div className={styles.techGrid}>
-              <div><small>Κάλυψη VITEX</small><strong>{rangeText(detail.technical.coverageM2PerLitre?.min, detail.technical.coverageM2PerLitre?.max, " m²/L")}</strong></div>
-              <div><small>Στρώσεις</small><strong>{rangeText(detail.technical.coats?.min, detail.technical.coats?.max)}</strong></div>
+              <div><small>Κάλυψη VITEX · 1 στρώση</small><strong>{rangeText(detail.technical.coverageM2PerLitre?.min, detail.technical.coverageM2PerLitre?.max, " m²/L")}</strong></div>
+              {detail.technical.twoCoatCoverageM2PerLitre ? <div><small>Κάλυψη VITEX · 2 στρώσεις</small><strong>{rangeText(detail.technical.twoCoatCoverageM2PerLitre.min, detail.technical.twoCoatCoverageM2PerLitre.max, " m²/L")}</strong></div> : null}
+              <div><small>Στρώσεις υπολογισμού</small><strong>{rangeText(detail.technical.coats?.min, detail.technical.coats?.max)}</strong></div>
               <div><small>Στέγνωμα αφής</small><strong>{rangeText(detail.technical.dryToTouchMinutes?.min, detail.technical.dryToTouchMinutes?.max, "′")}</strong></div>
               <div><small>Επαναβαφή</small><strong>{rangeText(detail.technical.recoatMinutes?.min, detail.technical.recoatMinutes?.max, "′")}</strong></div>
             </div>
@@ -385,6 +387,7 @@ function FamilyOverlay({
                   <>
                     <strong>Απαίτηση: {quantity.min === quantity.max ? quantity.min : `${quantity.min}–${quantity.max}`} L</strong>
                     {plan ? <p>Προτεινόμενη αγορά: {plan.lines.map((line) => `${line.quantity} × ${line.variant.packValue}${line.variant.packUnit}`).join(" + ")} · {money(plan.totalPriceMinor)}</p> : <p>Δεν υπάρχει ασφαλής συνδυασμός διαθέσιμων συσκευασιών.</p>}
+                    <p>{quantity.basisEl}</p>
                   </>
                 ) : (
                   <>
