@@ -10,6 +10,7 @@ import {
 } from "./BuildStudioProductChooser";
 import { useCart } from "./CartProvider";
 import styles from "./PaintBuildStudioExperience.module.css";
+import { paintBuildCategoryLabel, paintBuildGreekText, paintBuildProductTitle } from "../lib/paint-build-greek-presentation";
 
 type SourceLayer = "GENERAL_GUIDANCE" | "MANUFACTURER_VITEX" | "MANUFACTURER" | "KONTA_MOU_RULE";
 
@@ -174,10 +175,10 @@ function KitItemDetailsOverlay({ item, onClose }: { item: MutableKitItem; onClos
               </div>
               <div className={styles.kitDetailCopy}>
                 <small>{kitRoleLabel(item)}</small>
-                <h2>{detail.title || item.title}</h2>
+                <h2>{paintBuildProductTitle(item.title || detail.title)}</h2>
                 <div className={styles.kitDetailMeta}>
                   {detail.brand ? <span><b>Μάρκα</b>{detail.brand}</span> : null}
-                  {detail.categoryLabel ? <span><b>Κατηγορία</b>{detail.categoryLabel}</span> : null}
+                  {detail.categoryLabel ? <span><b>Κατηγορία</b>{paintBuildCategoryLabel(detail.categoryLabel)}</span> : null}
                   {detail.color ? <span><b>Χρώμα</b>{detail.color}</span> : null}
                   {detail.size ? <span><b>Μέγεθος / συσκευασία</b>{detail.size}</span> : null}
                   <span><b>Τιμή</b>{detail.price}</span>
@@ -191,7 +192,7 @@ function KitItemDetailsOverlay({ item, onClose }: { item: MutableKitItem; onClos
                 <p>{item.reasonEl}</p>
                 <small>{item.sourceLayer === "MANUFACTURER_VITEX" ? "Επαληθευμένο σύστημα VITEX" : "Πρόταση ΚΟΝΤΑ ΜΟΥ βάσει των αναγκών του έργου"}</small>
               </div>
-              {detail.description ? <div><h3>Περιγραφή προϊόντος</h3><p>{detail.description}</p></div> : null}
+              {detail.description ? <div><h3>Περιγραφή προϊόντος</h3><p>{paintBuildGreekText(detail.description)}</p></div> : null}
               {(detail.sku || detail.gtin || detail.availableToSell != null) ? (
                 <div className={styles.kitDetailFacts}>
                   {detail.sku ? <span><b>Κωδικός</b>{detail.sku}</span> : null}
