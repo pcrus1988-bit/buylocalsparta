@@ -10,7 +10,7 @@ import {
 } from "./BuildStudioProductChooser";
 import { useCart } from "./CartProvider";
 import styles from "./PaintBuildStudioExperience.module.css";
-import { paintBuildCategoryLabel, paintBuildGreekText, paintBuildProductTitle } from "../lib/paint-build-greek-presentation";
+import { paintBuildCategoryLabel, paintBuildGreekText, paintBuildPackageLabel, paintBuildProductTitle } from "../lib/paint-build-greek-presentation";
 
 type SourceLayer = "GENERAL_GUIDANCE" | "MANUFACTURER_VITEX" | "MANUFACTURER" | "KONTA_MOU_RULE";
 
@@ -454,7 +454,7 @@ function ProjectKitScreen({
       <div className={styles.kitSummaryGrid}>
         <div><small>ΕΠΙΦΑΝΕΙΑ</small><strong>{areaM2} m²</strong></div>
         <div><small>ΘΕΩΡΗΤΙΚΗ ΑΠΑΙΤΗΣΗ</small><strong>{projectKit.quantityEstimate.status === "available" ? `${projectKit.quantityEstimate.min}–${projectKit.quantityEstimate.max} L` : "Μη διαθέσιμη"}</strong></div>
-        <div><small>ΠΡΟΤΕΙΝΟΜΕΝΗ ΑΓΟΡΑ</small><strong>{projectKit.packPlan ? projectKit.packPlan.lines.map((line) => `${line.quantity}×${line.variant.packValue}${line.variant.packUnit}`).join(" + ") : "Απαιτείται συμπλήρωση δεδομένων"}</strong></div>
+        <div><small>ΠΡΟΤΕΙΝΟΜΕΝΗ ΑΓΟΡΑ</small><strong>{projectKit.packPlan ? projectKit.packPlan.lines.map((line) => `${line.quantity}×${paintBuildPackageLabel(`${line.variant.packValue}${line.variant.packUnit}`)}`).join(" + ") : "Απαιτείται συμπλήρωση δεδομένων"}</strong></div>
       </div>
 
       {requiredItems.length ? <div className={styles.kitGroup}><div className={styles.kitGroupHead}><span>01</span><div><small>ΣΥΣΤΗΜΑ VITEX</small><h2>Απαιτούμενα υλικά συστήματος</h2></div></div>{requiredItems.map(renderItem)}</div> : null}
