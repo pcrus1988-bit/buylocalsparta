@@ -357,9 +357,8 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const fournarakisPriced = asInt(fournarakisStats.rows[0]?.priced_products);
   const activeLocations = locations.rows.filter((location) => Boolean(location.active));
   const search = q?.trim() ?? "";
-  let candidateRows: CandidateRow[] = [];
-  if (search) {
-    const candidates = await db.query<CandidateRow>(`
+  const candidateRows = search
+    ? (await db.query<CandidateRow>(`
       WITH vendor_market AS (
         SELECT market_id
         FROM vendor_businesses
@@ -399,9 +398,8 @@ export default async function Page({ params, searchParams }: { params: Promise<{
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
       ORDER BY cv.updated_at DESC,cv.public_id
       LIMIT 60
-    `, [vendorUuid, search]);
-    candidateRows = candidates.rows;
-  }
+    `, [vendorUuid, search])).rows
+    : [];
   const commerceEligible = asText(vendor.status) === "active" && !Boolean(vendor.demo_mode);
 
   return <main className="vendor-app admin-app">
