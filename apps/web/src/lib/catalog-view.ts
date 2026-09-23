@@ -157,6 +157,14 @@ const loadProductSeoSignals = cache(async (canonicalVariantId: string, title: st
           AND (
             (rm.local_sellable=true AND rm.local_available_until>now())
             OR (rm.dropship_sellable=true AND rm.dropship_available_until>now())
+            OR EXISTS (
+              SELECT 1
+              FROM bls_private.storefront_dropship_live_family live
+              WHERE live.supplier_id=rm.dropship_supplier_id::uuid
+                AND live.external_product_id=rm.dropship_external_product_id
+                AND live.sellable=true
+                AND live.available_until>now()
+            )
           )
       ) AS offer_available,
       GREATEST(1,(
