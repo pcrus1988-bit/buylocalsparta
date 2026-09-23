@@ -101,9 +101,21 @@ export function packLitres(packValue: number, packUnit: string): number | undefi
   return undefined;
 }
 
-export function variantRouteKey(variant: Pick<PaintBuildPackVariant, "colourHint" | "tintBaseHint" | "finishHint">): string {
-  const normalize = (value?: string) => value?.trim().toLocaleLowerCase("el-GR") || "";
-  return [normalize(variant.colourHint), normalize(variant.tintBaseHint), normalize(variant.finishHint)].join("|");
+export function variantRouteKey(variant: Pick<PaintBuildPackVariant, "title" | "colourHint" | "tintBaseHint" | "finishHint">): string {
+  const normalize = (value?: string) => value?.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toLocaleLowerCase("el-GR") || "";
+  const title = normalize(variant.title);
+  const inferredTint = /(?:λευκ|white)/.test(title) ? "white"
+    : /(?:ανοιχτ|light)/.test(title) ? "light"
+      : /(?:μεσαι|medium)/.test(title) ? "medium"
+        : /(?:σκουρ|dark)/.test(title) ? "dark"
+          : "";
+  const inferredSystem = /καθετων επιφανειων|vertical/.test(title) ? "vertical" : "";
+  return [
+    normalize(variant.colourHint) || inferredTint,
+    normalize(variant.tintBaseHint) || inferredTint,
+    normalize(variant.finishHint),
+    inferredSystem
+  ].join("|");
 }
 
 type PlanCandidate = {
