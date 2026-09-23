@@ -11,6 +11,7 @@ import { recordStorefrontSearchAnalytics } from "../../lib/storefront-search-ana
 import { SaveSearchButton } from "../../components/SaveSearchButton";
 import { CatalogProductCard } from "../../components/CatalogProductCard";
 import { CatalogSearchInput } from "../../components/CatalogSearchInput";
+import { ShopFilterFacets } from "../../components/ShopFilterFacets";
 import {
   inferStorefrontTaxonomyIntent,
   resolveStorefrontSubcategoryIntent,
@@ -368,8 +369,9 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         <aside className="catalog-sidebar">
           <div className="catalog-filter-heading">
             <div>
-              <strong>Φίλτρα</strong>
-              <small>Διάλεξε ό,τι σε ενδιαφέρει</small>
+              <span className="catalog-filter-kicker">Κατάλογος</span>
+              <strong>Κατηγορίες & φίλτρα</strong>
+              <small>Διάλεξε μόνο ό,τι σε ενδιαφέρει</small>
             </div>
             {(query || availability || category || hasDetailedFilters) ? <a className="text-link" href="/shop">Καθαρισμός</a> : null}
           </div>
@@ -392,50 +394,23 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               <label htmlFor="subcategory">Υποκατηγορία προϊόντος</label>
               <select id="subcategory" name="subcategory" defaultValue={subcategory}>
                 <option value="">Όλες οι υποκατηγορίες</option>
-                {facets.subcategories.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
+                {facets.subcategories.map((item) => <option value={item.value} key={item.value}>{item.label}{typeof item.count === "number" ? ` (${item.count})` : ""}</option>)}
               </select>
               {groupedSubcategories.length ? <small style={{ display: "block", marginTop: -6, color: "var(--ink-soft)" }}>Τρέχουσα ομαδοποιημένη επιλογή: {activeSubcategoryLabel}</small> : null}
             </> : null}
 
-            {showBrand ? <>
-              <label htmlFor="brand">Μάρκα</label>
-              <select id="brand" name="brand" defaultValue={brand}>
-                <option value="">Όλες οι μάρκες</option>
-                {facets.brands.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
-              </select>
-            </> : null}
-
-            {showColor ? <>
-              <label htmlFor="color">Χρώμα</label>
-              <select id="color" name="color" defaultValue={color}>
-                <option value="">Όλα τα χρώματα</option>
-                {facets.colors.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
-              </select>
-            </> : null}
-
-            {showSize ? <>
-              <label htmlFor="size">Μέγεθος</label>
-              <select id="size" name="size" defaultValue={size}>
-                <option value="">Όλα τα μεγέθη</option>
-                {facets.sizes.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
-              </select>
-            </> : null}
-
-            {showFit ? <>
-              <label htmlFor="fit">Εφαρμογή</label>
-              <select id="fit" name="fit" defaultValue={fit}>
-                <option value="">Όλες οι εφαρμογές</option>
-                {fitOptions.map((item) => <option value={item} key={item}>{item}</option>)}
-              </select>
-            </> : null}
-
-            {attributeFacets.map((facet) => <div key={facet.key} className="catalog-attribute-filter">
-              <label htmlFor={`attr_${facet.key}`}>{facet.label}</label>
-              <select id={`attr_${facet.key}`} name={`attr_${facet.key}`} defaultValue={attributeFilters[facet.key] ?? ""}>
-                <option value="">Όλα</option>
-                {facet.options.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
-              </select>
-            </div>)}
+            <ShopFilterFacets
+              brands={showBrand ? facets.brands : []}
+              colors={showColor ? facets.colors : []}
+              sizes={showSize ? facets.sizes : []}
+              fits={showFit ? fitOptions.map((item) => ({ value: item, label: item })) : []}
+              attributeFacets={attributeFacets}
+              selectedBrand={brand}
+              selectedColor={color}
+              selectedSize={size}
+              selectedFit={fit}
+              selectedAttributes={attributeFilters}
+            />
 
             <fieldset className="catalog-price-range">
               <legend>Εύρος τιμής</legend>
