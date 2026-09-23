@@ -89,3 +89,13 @@ test("completed availability sweeps refresh storefront read models and facets on
   assert.match(source, /storefront_vendor_assortment_read_model/);
   assert.match(source, /REFRESH MATERIALIZED VIEW CONCURRENTLY/);
 });
+
+
+test("Nova availability evidence uses a 12-hour safety TTL and refresh writes renew it immediately", async () => {
+  const source = await readFile(sourceUrl, "utf8");
+
+  assert.match(source, /AVAILABILITY_TTL_HOURS = 12/);
+  assert.match(source, /availability_expires_at=\$6::timestamptz \+ interval '\$\{AVAILABILITY_TTL_HOURS\} hours'/);
+  assert.match(source, /availability_expires_at=\$3::timestamptz \+ interval '\$\{AVAILABILITY_TTL_HOURS\} hours'/);
+  assert.match(source, /12h_ttl_rate_limited/);
+});
