@@ -101,7 +101,7 @@ export async function adminAssignAllFournarakisProducts(
       ) price ON true
       ORDER BY lnk.canonical_variant_id,
                (price.amount_minor IS NOT NULL) DESC,
-               csp.updated_at DESC,
+               csp.created_at DESC,
                csp.id DESC
     ),
     before_state AS (
