@@ -247,4 +247,9 @@ test("Symphonya stock cron uses concurrent cursor bursts while retaining manual 
   assert.match(runtime, /runSymphonyaStockSyncBurst/);
   assert.match(runtime, /Promise\.all\(/);
   assert.match(runtime, /Math\.min\(8, positiveIntegerValue\(requestedMaxPages, 8\)\)/);
+  assert.match(runtime, /reconcileMissingSymphonyaStockAfterCompletedCycle\(state\.cycleStartedAt\)/);
+  assert.match(runtime, /availability_checked_at < \$2::timestamptz/);
+  assert.match(runtime, /cached_available=false/);
+  assert.match(runtime, /not_returned_in_completed_stock_cycle/);
+  assert.match(runtime, /offersReconciled/);
 });
