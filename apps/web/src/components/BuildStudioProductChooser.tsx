@@ -131,6 +131,13 @@ type ProjectKitResponse = Readonly<{
 
 export type BuildStudioProjectKit = ProjectKitResponse;
 
+type CompatibilityProfile = Readonly<{
+  index: number;
+  label: string;
+  reason: string;
+  condition: string;
+}>;
+
 type ProductFamily = Readonly<{
   manufacturerProductId: string;
   manufacturerProductName: string;
@@ -138,6 +145,7 @@ type ProductFamily = Readonly<{
   representative: BuildStudioCandidate;
   minPriceMinor: number;
   minPrice: string;
+  compatibility: CompatibilityProfile;
 }>;
 
 function ProductArtwork({ product }: { product: BuildStudioCandidate | FamilyVariant }) {
@@ -172,6 +180,44 @@ function eligibilityLabel(status: BuildStudioCandidate["manufacturerEligibilityS
   if (status === "requires_specific_primer") return "Επαληθευμένο · απαιτεί αστάρι";
   if (status === "requires_system_component") return "Επαληθευμένο · μέρος συστήματος";
   return "Τεχνικά επαληθευμένο";
+}
+
+function compatibilityProfile(product: BuildStudioCandidate): CompatibilityProfile {
+  const termBonus = Math.min(3, product.matchedTerms.length);
+  if (product.manufacturerEligibilityStatus === "eligible_with_preparation") {
+    const index = Math.min(99, 93 + termBonus);
+    return {
+      index,
+      label: index >= 96 ? "Πολύ υψηλή" : "Υψηλή",
+      reason: "Κατάλληλο για το έργο όταν προηγηθεί η επαληθευμένη προεργασία.",
+      condition: "Με προεργασία"
+    };
+  }
+  if (product.manufacturerEligibilityStatus === "requires_specific_primer") {
+    const index = Math.min(99, 91 + termBonus);
+    return {
+      index,
+      label: "Υψηλή",
+      reason: "Κατάλληλο για το έργο με το αστάρι που απαιτεί η τεχνική οδηγία.",
+      condition: "Με απαιτούμενο αστάρι"
+    };
+  }
+  if (product.manufacturerEligibilityStatus === "requires_system_component") {
+    const index = Math.min(99, 89 + termBonus);
+    return {
+      index,
+      label: index >= 92 ? "Υψηλή" : "Ισχυρή",
+      reason: "Κατάλληλο όταν χρησιμοποιηθεί ως μέρος του επαληθευμένου συστήματος.",
+      condition: "Ως μέρος συστήματος"
+    };
+  }
+  const index = Math.min(99, 96 + termBonus);
+  return {
+    index,
+    label: "Πολύ υψηλή",
+    reason: "Άμεση τεχνική αντιστοίχιση με τα στοιχεία που έχεις δηλώσει για το έργο.",
+    condition: "Άμεση τεχνική αντιστοίχιση"
+  };
 }
 
 function money(minor: number): string {
@@ -489,15 +535,18 @@ export function BuildStudioProductChooser({
         products: familyProducts,
         representative,
         minPriceMinor,
-        minPrice: money(minPriceMinor)
+        minPrice: money(minPriceMinor),
+        compatibility: compatibilityProfile(representative)
       };
     }).sort((a, b) =>
-      b.representative.score - a.representative.score
+      b.compatibility.index - a.compatibility.index
+      || b.representative.score - a.representative.score
       || a.minPriceMinor - b.minPriceMinor
       || a.manufacturerProductName.localeCompare(b.manufacturerProductName, "el")
     );
   }, [products]);
 
+  const topCompatibility = families[0]?.compatibility.index;
   const openFamily = families.find((family) => family.manufacturerProductId === openFamilyId);
 
   return (
@@ -506,7 +555,7 @@ export function BuildStudioProductChooser({
         <div>
           <span>ΕΠΑΛΗΘΕΥΜΕΝΕΣ ΟΙΚΟΓΕΝΕΙΕΣ ΠΡΟΪΟΝΤΩΝ</span>
           <h2 id="build-studio-products">{heading}</h2>
-          <p>Κάθε τεχνική οικογένεια εμφανίζεται μία φορά. Άνοιξέ την για να διαλέξεις έκδοση και να δεις τις διαθέσιμες συσκευασίες, τις επαληθευμένες οδηγίες VITEX και τον υπολογισμό του έργου.</p>
+          <p>Κάθε τεχνική οικογένεια εμφανίζεται μία φορά. Ο δείκτης δείχνει πόσο άμεσα αντιστοιχεί στο συγκεκριμένο έργο, με βάση την επαληθευμένη τεχνική επιλεξιμότητα και τα στοιχεία που επέλεξες — δεν είναι γενική βαθμολογία ποιότητας.</p>
         </div>
       </div>
 
@@ -514,26 +563,49 @@ export function BuildStudioProductChooser({
 
       {state === "ready" ? (
         <div className={styles.grid}>
-          {families.map((family, index) => (
-            <article className={styles.card} key={family.manufacturerProductId}>
-              <div className={styles.selectCard}>
-                <div className={styles.imageStage}>
-                  <ProductArtwork product={family.representative} />
-                  <span className={styles.rank}>#{String(index + 1).padStart(2, "0")}</span>
-                  <b>{family.products.length} ΕΚΔΟΣΕΙΣ</b>
-                </div>
-                <div className={styles.copy}>
-                  <small>{family.representative.brand || "VITEX"}</small>
-                  <strong>VITEX {family.manufacturerProductName}</strong>
-                  <div className={styles.meta}>
-                    <span>{eligibilityLabel(family.representative.manufacturerEligibilityStatus)}</span>
-                    <em>από {family.minPrice}</em>
+          {families.map((family, index) => {
+            const highestMatch = family.compatibility.index === topCompatibility;
+            return (
+              <article className={highestMatch ? `${styles.card} ${styles.bestMatchCard}` : styles.card} key={family.manufacturerProductId}>
+                <div className={styles.selectCard}>
+                  <div className={styles.previewColumn}>
+                    <div className={styles.imageStage}>
+                      <ProductArtwork product={family.representative} />
+                      <span className={styles.rank}>#{String(index + 1).padStart(2, "0")}</span>
+                      <b>{family.products.length} ΕΚΔΟΣΕΙΣ</b>
+                    </div>
+                    <div className={styles.copy}>
+                      <small>{family.representative.brand || "VITEX"}</small>
+                      <strong>VITEX {family.manufacturerProductName}</strong>
+                      <div className={styles.meta}>
+                        <span>{eligibilityLabel(family.representative.manufacturerEligibilityStatus)}</span>
+                        <em>από {family.minPrice}</em>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.compatibilityPanel}>
+                    {highestMatch ? <span className={styles.bestMatchBadge}>ΥΨΗΛΟΤΕΡΗ ΑΝΤΙΣΤΟΙΧΙΣΗ</span> : null}
+                    <div className={styles.compatibilityHeader}>
+                      <span>ΚΑΤΑΛΛΗΛΟΤΗΤΑ ΓΙΑ ΤΟ ΕΡΓΟ</span>
+                      <strong>{family.compatibility.index}<small>/100</small></strong>
+                    </div>
+                    <div className={styles.compatibilityScale} aria-label={`Δείκτης καταλληλότητας ${family.compatibility.index} από 100`}>
+                      <i style={{ width: `${family.compatibility.index}%` }} />
+                    </div>
+                    <b className={styles.compatibilityLabel}>{family.compatibility.label} αντιστοίχιση</b>
+                    <p className={styles.compatibilityReason}>{family.compatibility.reason}</p>
+                    <div className={styles.highlights} aria-label="Κύρια σημεία">
+                      <span>Τεχνικά επαληθευμένο</span>
+                      <span>{family.compatibility.condition}</span>
+                      <span>{family.products.length} εκδόσεις</span>
+                    </div>
+                    <button className={styles.detailLink} type="button" onClick={() => setOpenFamilyId(family.manufacturerProductId)}>Δες λεπτομέρειες →</button>
                   </div>
                 </div>
-              </div>
-              <button className={styles.detailLink} type="button" onClick={() => setOpenFamilyId(family.manufacturerProductId)}>Δες λεπτομέρειες →</button>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       ) : null}
 
