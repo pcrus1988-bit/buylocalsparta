@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateVerifiedPaintQuantity, choosePaintPackPlan, packLitres, PROJECT_ACCESSORY_RULES } from "./paint-build-project-kit.ts";
+import { calculateVerifiedPaintQuantity, choosePaintPackPlan, extractManufacturerComponentNames, packLitres, PROJECT_ACCESSORY_RULES } from "./paint-build-project-kit.ts";
 
 test("paint-build pack units normalize litres and millilitres", () => {
   assert.equal(packLitres(750, "ml"), 0.75);
@@ -64,4 +64,25 @@ test("verified quantity still prefers explicit coverage plus explicit coat count
   assert.equal(quantity?.basis, "coverage_and_coats");
   assert.equal(quantity?.min, 3.29);
   assert.equal(quantity?.max, 3.73);
+});
+
+
+test("structured manufacturer component evidence resolves one exact primer without losing object values", () => {
+  assert.deepEqual(
+    extractManufacturerComponentNames(
+      { required_primer: "Acrylan Unco Eco" },
+      { primer: "Acrylan Unco Eco", surface_state: "new mineral" }
+    ),
+    ["Acrylan Unco Eco"]
+  );
+});
+
+test("manufacturer primer alternatives remain choices instead of being guessed", () => {
+  assert.deepEqual(
+    extractManufacturerComponentNames(
+      { primer_options: ["Durovit", "Acrylan Unco Eco"] },
+      { options: ["Durovit", "Acrylan Unco Eco"] }
+    ),
+    ["Durovit", "Acrylan Unco Eco"]
+  );
 });
