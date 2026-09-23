@@ -69,7 +69,8 @@ export async function adminAssignAllFournarakisProducts(
       LIMIT 1
     ),
     target AS (
-      SELECT csp.id AS source_product_id,
+      SELECT DISTINCT ON (lnk.canonical_variant_id)
+             csp.id AS source_product_id,
              lnk.canonical_variant_id,
              NULLIF(csp.supplier_code,'') AS source_sku,
              csp.source_product_key,
@@ -98,6 +99,10 @@ export async function adminAssignAllFournarakisProducts(
         ORDER BY po.observed_at DESC NULLS LAST,po.created_at DESC,po.id DESC
         LIMIT 1
       ) price ON true
+      ORDER BY lnk.canonical_variant_id,
+               (price.amount_minor IS NOT NULL) DESC,
+               csp.updated_at DESC,
+               csp.id DESC
     ),
     before_state AS (
       SELECT vca.id,
@@ -108,6 +113,27 @@ export async function adminAssignAllFournarakisProducts(
       WHERE vca.vendor_id=$2::uuid
         AND vca.location_id=$3::uuid
     ),
+    stale_variant_assortments AS (
+      UPDATE vendor_catalog_assortments vca
+      SET assortment_status='discontinued',
+          metadata=COALESCE(vca.metadata,'{}'::jsonb)
+            || jsonb_build_object(
+              'supersededByFournarakisSnapshot',true,
+              'supersededAt',now(),
+              'catalogue','fournarakis'
+            ),
+          updated_at=now()
+      WHERE vca.vendor_id=$2::uuid
+        AND vca.location_id=$3::uuid
+        AND vca.assortment_status <> 'discontinued'
+        AND EXISTS (
+          SELECT 1
+          FROM target t
+          WHERE t.canonical_variant_id=vca.canonical_variant_id
+            AND vca.source_product_id IS DISTINCT FROM t.source_product_id
+        )
+      RETURNING vca.id
+    ),
     assortment AS (
       INSERT INTO vendor_catalog_assortments(
         market_id,vendor_id,location_id,source_product_id,canonical_variant_id,
@@ -117,7 +143,7 @@ export async function adminAssignAllFournarakisProducts(
       SELECT
         $1::uuid,$2::uuid,$3::uuid,t.source_product_id,t.canonical_variant_id,
         COALESCE(t.source_sku,'FOURNARAKIS-'||upper(substr(md5(t.source_product_key),1,12))),
-        'candidate','ask_vendor','admin',
+        'candidate','ask_vendor','import',
         jsonb_strip_nulls(jsonb_build_object(
           'commercialConfirmationRequired',true,
           'priceConfirmationRequired',true,
@@ -149,7 +175,7 @@ export async function adminAssignAllFournarakisProducts(
             WHEN vendor_catalog_assortments.availability_mode IN ('unknown','unavailable') THEN 'ask_vendor'
             ELSE vendor_catalog_assortments.availability_mode
           END,
-          confirmation_source='admin',
+          confirmation_source='import',
           metadata=COALESCE(vendor_catalog_assortments.metadata,'{}'::jsonb)||EXCLUDED.metadata,
           updated_at=now()
       RETURNING id,source_product_id
@@ -212,23 +238,11 @@ export async function adminUnassignAllFournarakisProducts(
   if (!row) throw new Error("Vendor not found");
 
   const result = await db.query<SqlRow>(`
-    WITH source_context AS (
-      SELECT cs.id AS source_id,j.snapshot_id
-      FROM catalog_sources cs
-      JOIN catalog_web_crawl_jobs j ON j.source_id=cs.id
-      WHERE cs.code='fournarakis-gr'
-        AND j.status='succeeded'
-        AND j.snapshot_id IS NOT NULL
-        AND COALESCE(j.promoted_product_count,0)>0
-      ORDER BY j.completed_at DESC NULLS LAST,j.updated_at DESC,j.id DESC
-      LIMIT 1
-    ),
-    source_products AS (
+    WITH source_products AS (
       SELECT csp.id
-      FROM source_context ctx
-      JOIN catalog_source_products csp
-        ON csp.source_id=ctx.source_id
-       AND csp.snapshot_id=ctx.snapshot_id
+      FROM catalog_sources cs
+      JOIN catalog_source_products csp ON csp.source_id=cs.id
+      WHERE cs.code='fournarakis-gr'
     ),
     discontinued AS (
       UPDATE vendor_catalog_assortments vca
