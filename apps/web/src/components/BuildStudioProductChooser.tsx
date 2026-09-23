@@ -90,6 +90,7 @@ type ProjectKitResponse = Readonly<{
     manufacturerProductId: string;
     title: string;
     brand: string;
+    descriptionEl?: string;
     imageUrl?: string;
     variants: readonly FamilyVariant[];
   }>;
@@ -244,6 +245,20 @@ function rangeText(min?: number | null, max?: number | null, suffix = ""): strin
   return `${min ?? max}${suffix}`;
 }
 
+function manufacturerFamilyTitle(brand: string, title: string): string {
+  const cleanBrand = brand.trim() || "VITEX";
+  const cleanTitle = title.trim();
+  if (!cleanTitle) return cleanBrand.toLocaleUpperCase("el-GR");
+
+  const lowerBrand = cleanBrand.toLocaleLowerCase("en");
+  const lowerTitle = cleanTitle.toLocaleLowerCase("en");
+  const remainder = cleanTitle.slice(cleanBrand.length);
+  if (lowerTitle === lowerBrand || (lowerTitle.startsWith(lowerBrand) && /^[\s-]/.test(remainder))) {
+    return cleanBrand.toLocaleUpperCase("el-GR") + remainder;
+  }
+  return `${cleanBrand.toLocaleUpperCase("el-GR")} ${cleanTitle}`;
+}
+
 function FamilyOverlay({
   family,
   scenarioKey,
@@ -386,8 +401,9 @@ function FamilyOverlay({
               <div className={styles.overlayImage}><ProductArtwork product={selected ?? detail.family.variants[0] ?? family.representative} /></div>
               <div>
                 <span>VITEX · ΕΠΑΛΗΘΕΥΜΕΝΗ ΟΙΚΟΓΕΝΕΙΑ ΠΡΟΪΟΝΤΟΣ</span>
-                <h2>VITEX {detail.family.title}</h2>
-                <p>{detail.technical.whySuitable || "Η οικογένεια προϊόντος έχει επαληθευμένη καταλληλότητα για το συγκεκριμένο σενάριο του έργου."}</p>
+                <h2>{manufacturerFamilyTitle(detail.family.brand, detail.family.title)}</h2>
+                <p>{detail.family.descriptionEl || "Επαληθευμένο προϊόν VITEX για το συγκεκριμένο έργο."}</p>
+                {detail.technical.whySuitable ? <p><strong>Γιατί είναι κατάλληλο εδώ:</strong> {detail.technical.whySuitable}</p> : null}
                 <div className={styles.projectFact}><small>ΤΟ ΕΡΓΟ ΣΟΥ</small><strong>{areaM2} m²</strong></div>
               </div>
             </div>
