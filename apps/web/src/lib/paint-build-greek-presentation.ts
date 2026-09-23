@@ -525,7 +525,7 @@ export function paintBuildManufacturerDescription(input: Readonly<{
   const subcategoryKey = input.subcategory?.trim().toLocaleLowerCase("en") ?? "";
   const descriptor = VITEX_SUBCATEGORY_DESCRIPTORS[subcategoryKey]
     ?? PRODUCT_DESCRIPTORS[productKey]
-    ?? paintBuildCategoryLabel(input.productCategory)
+    ?? paintBuildCategoryLabel(input.productCategory ?? undefined)
     ?? "προϊόν VITEX";
 
   const useKey = input.interiorExterior?.trim().toLocaleLowerCase("en");
