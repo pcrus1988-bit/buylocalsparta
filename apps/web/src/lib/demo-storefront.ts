@@ -415,6 +415,14 @@ async function productRows(
 ): Promise<readonly ProductRow[]> {
   const values: unknown[] = [vendorUuid];
   const predicates: string[] = [];
+  const sort = options.sort ?? "recommended";
+  const query = options.query?.trim() ?? "";
+  const brand = options.brand?.trim() ?? "";
+  const needsPreTranslations = Boolean(query) || sort === "name_asc";
+  const needsPreBrand = Boolean(query) || Boolean(brand);
+  const preTitle = needsPreTranslations
+    ? "COALESCE(el_pre.title,en_pre.title,cv.model,cv.slug)"
+    : "COALESCE(cv.model,cv.slug)";
 
   if (routeKey) {
     values.push(routeKey);
@@ -442,13 +450,12 @@ async function productRows(
     )`);
   }
 
-  const query = options.query?.trim() ?? "";
   if (query) {
     values.push(query);
     const queryParam = values.length;
     predicates.push(`(
-      COALESCE(el.title,en.title,cv.model,cv.slug,'') ILIKE '%'||$${queryParam}||'%'
-      OR COALESCE(b.name,'') ILIKE '%'||$${queryParam}||'%'
+      ${preTitle} ILIKE '%'||$${queryParam}||'%'
+      OR COALESCE(b_pre.name,'') ILIKE '%'||$${queryParam}||'%'
       OR COALESCE(cv.model,'') ILIKE '%'||$${queryParam}||'%'
       OR COALESCE(cv.gtin,'') ILIKE '%'||$${queryParam}||'%'
       OR COALESCE(cv.mpn,'') ILIKE '%'||$${queryParam}||'%'
@@ -461,20 +468,18 @@ async function productRows(
     predicates.push(`c.code = ANY($${values.length}::text[])`);
   }
 
-  const brand = options.brand?.trim() ?? "";
   if (brand) {
     values.push(brand);
-    predicates.push(`lower(COALESCE(b.name,'')) = lower($${values.length})`);
+    predicates.push(`lower(COALESCE(b_pre.name,'')) = lower($${values.length})`);
   }
 
-  const sort = options.sort ?? "recommended";
   const sortSql = sort === "price_asc"
-    ? "CASE WHEN searchable.customer_price_minor>0 THEN 0 ELSE 1 END,searchable.customer_price_minor ASC,searchable.title,searchable.id"
+    ? "CASE WHEN searchable.customer_price_minor>0 THEN 0 ELSE 1 END,searchable.customer_price_minor ASC,searchable.id"
     : sort === "price_desc"
-      ? "CASE WHEN searchable.customer_price_minor>0 THEN 0 ELSE 1 END,searchable.customer_price_minor DESC,searchable.title,searchable.id"
+      ? "CASE WHEN searchable.customer_price_minor>0 THEN 0 ELSE 1 END,searchable.customer_price_minor DESC,searchable.id"
       : sort === "name_asc"
-        ? "searchable.title,searchable.id"
-        : "searchable.assignment_priority,searchable.assignment_updated_at DESC,searchable.title,searchable.id";
+        ? "searchable.sort_title,searchable.id"
+        : "searchable.assignment_priority,searchable.assignment_updated_at DESC,searchable.id";
 
   let pageSql = "";
   if (options.limit !== undefined) {
@@ -553,18 +558,14 @@ async function productRows(
         cv.model,
         cv.gtin,
         cv.mpn,
+        cv.category_id,
         c.code AS category_code,
-        COALESCE(ctel.name,cten.name,c.code) AS category_label,
-        COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
-        b.name AS brand
+        ${preTitle} AS sort_title
       FROM best_assignment best
       JOIN canonical_variants cv ON cv.id=best.canonical_variant_id
       JOIN categories c ON c.id=cv.category_id
-      LEFT JOIN brands b ON b.id=cv.brand_id
-      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
-      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-      LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
-      LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
+      ${needsPreBrand ? "LEFT JOIN brands b_pre ON b_pre.id=cv.brand_id" : ""}
+      ${needsPreTranslations ? "LEFT JOIN product_translations el_pre ON el_pre.canonical_variant_id=cv.id AND el_pre.locale='el'\n      LEFT JOIN product_translations en_pre ON en_pre.canonical_variant_id=cv.id AND en_pre.locale='en'" : ""}
       WHERE cv.suppressed=false
         AND cv.recalled=false
         ${predicates.length ? `AND ${predicates.join("\n        AND ")}` : ""}
@@ -576,17 +577,21 @@ async function productRows(
       ${pageSql}
     )
     SELECT
-      page.id,page.slug,page.model,page.title,
-      page.category_code,page.category_label,
-      page.gtin,page.mpn,COALESCE(el.description,en.description) AS description,page.brand,
+      page.id,page.slug,page.model,COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+      page.category_code,COALESCE(ctel.name,cten.name,c.code) AS category_label,
+      page.gtin,page.mpn,COALESCE(el.description,en.description) AS description,b.name AS brand,
       cv.variant_attributes,COALESCE(el.specifications,en.specifications,'{}'::jsonb) AS specifications,
       page.customer_price_minor,page.offer_status,page.vendor_sku,page.available_to_sell,
       src.source_product_id,src.source_supplier_code,src.source_image_url,src.source_url,
       src.source_normalized_payload,src.source_raw_payload,page.total_count
     FROM page
     JOIN canonical_variants cv ON cv.id=page.canonical_variant_id
+    JOIN categories c ON c.id=page.category_id
+    LEFT JOIN brands b ON b.id=cv.brand_id
     LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
     LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+    LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
+    LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
     LEFT JOIN LATERAL (
       SELECT source_row.*
       FROM (
