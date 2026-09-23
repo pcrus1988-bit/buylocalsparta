@@ -28,7 +28,7 @@ const RUN_BATCH_TARGET = 2000;
 const IMAGE_BATCH_SIZE = 40;
 const REFRESH_AFTER_MS = 26 * 24 * 60 * 60 * 1000;
 const JOB_NAME = "google-merchant-catalogue-sync-en";
-const LEASE_MS = 2 * 60_000;
+const LEASE_MS = 6 * 60_000;
 
 type EnglishCandidateRow = Readonly<{
   canonical_variant_id: string;
