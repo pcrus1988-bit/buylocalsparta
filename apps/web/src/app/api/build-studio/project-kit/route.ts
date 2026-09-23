@@ -9,6 +9,7 @@ import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
 import {
   PROJECT_ACCESSORY_RULES,
   calculateVerifiedPaintQuantity,
+  extractManufacturerComponentNames,
   choosePaintPackPlan,
   variantRouteKey,
   type PaintBuildPackVariant
@@ -292,34 +293,6 @@ function manufacturerQuantityFromProfile(
   });
 }
 
-function evidenceNames(value: unknown): readonly string[] {
-  if (typeof value === "string") {
-    const result = value.trim();
-    return result ? [result] : [];
-  }
-  if (Array.isArray(value)) {
-    return value.flatMap((entry) => typeof entry === "string" && entry.trim() ? [entry.trim()] : []);
-  }
-  if (!value || typeof value !== "object") return [];
-  const record = value as Record<string, unknown>;
-  return [
-    ...evidenceNames(record.required_primer),
-    ...evidenceNames(record.required_component),
-    ...evidenceNames(record.required_components),
-    ...evidenceNames(record.primer),
-    ...evidenceNames(record.product),
-    ...evidenceNames(record.primer_options),
-    ...evidenceNames(record.allowed_primers),
-    ...evidenceNames(record.options)
-  ];
-}
-
-function requiredComponentNames(eligibility: ScenarioEligibilityRow): readonly string[] {
-  const fromActions = evidenceNames(eligibility.actions);
-  const fromEvidence = evidenceNames(eligibility.evidence_value);
-  return [...new Set([...fromActions, ...fromEvidence])];
-}
-
 async function lookupManufacturerProductByName(name: string): Promise<ManufacturerProductLookupRow | undefined> {
   const db = getProductionPostgresRuntime().nativePool;
   const result = await db.query<ManufacturerProductLookupRow>(
@@ -501,7 +474,7 @@ async function scenarioRequiredSystemItems(eligibility: ScenarioEligibilityRow |
     return { ready, unresolved };
   }
 
-  const names = requiredComponentNames(eligibility);
+  const names = extractManufacturerComponentNames(eligibility.actions, eligibility.evidence_value);
   if (names.length !== 1) {
     unresolved.push({
       relationshipType: eligibility.result_status,
