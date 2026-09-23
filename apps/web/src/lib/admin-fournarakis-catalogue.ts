@@ -95,7 +95,7 @@ export async function adminAssignAllFournarakisProducts(
         SELECT po.amount_minor,po.price_kind,po.source_reference
         FROM catalog_price_observations po
         WHERE po.source_product_id=csp.id
-          AND po.observation_status='observed'
+          AND po.observation_status IN ('observed','matched','approved')
         ORDER BY po.observed_at DESC NULLS LAST,po.created_at DESC,po.id DESC
         LIMIT 1
       ) price ON true
