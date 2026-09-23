@@ -15,6 +15,7 @@ import {
   type PaintBuildPackVariant
 } from "../../../../lib/paint-build-project-kit";
 import { getVisitorKey } from "../../../../lib/visitor";
+import { paintBuildGreekText, paintBuildProductTitle } from "../../../../lib/paint-build-greek-presentation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -185,10 +186,14 @@ async function readFamily(manufacturerProductId: string) {
     )
   ]);
   if (!product.rowCount) throw new Error("MANUFACTURER_PRODUCT_NOT_FOUND");
-  const mapped = variants.rows.map(familyVariant).filter((value): value is FamilyVariant => Boolean(value));
+  const manufacturerName = product.rows[0].product_name;
+  const mapped = variants.rows
+    .map(familyVariant)
+    .filter((value): value is FamilyVariant => Boolean(value))
+    .map((variant) => ({ ...variant, title: paintBuildProductTitle(variant.title, manufacturerName) }));
   return {
     manufacturerProductId,
-    title: product.rows[0].product_name,
+    title: manufacturerName,
     brand: product.rows[0].brand_name || "VITEX",
     imageUrl: mapped.find((variant) => variant.imageUrl)?.imageUrl,
     variants: mapped
@@ -387,8 +392,8 @@ async function accessoryItems(areaM2: number) {
         role: rule.role,
         sourceLayer: "KONTA_MOU_RULE" as const,
         reasonEl: rule.role === "recommended_working"
-          ? "Πρόταση KONTA MOY βάσει τύπου και μεγέθους έργου — όχι οδηγία VITEX."
-          : "Προαιρετική ευκολία έργου από τον κανόνα Project Accessory Rules."
+          ? "Πρόταση ΚΟΝΤΑ ΜΟΥ βάσει τύπου και μεγέθους έργου — όχι οδηγία VITEX."
+          : "Προαιρετικό υλικό ευκολίας από τους κανόνες υλικών του έργου."
       }
     };
   }));
@@ -459,7 +464,7 @@ async function requiredSystemItems(manufacturerProductId: string, areaM2: number
         required: true,
         role: "required_system",
         sourceLayer: "MANUFACTURER_VITEX",
-        reasonEl: `ΑΠΑΡΑΙΤΗΤΟ ΓΙΑ ΤΟ ΕΠΑΛΗΘΕΥΜΕΝΟ ΣΥΣΤΗΜΑ · ${relationship.relationship_type}`,
+        reasonEl: "ΑΠΑΡΑΙΤΗΤΟ ΓΙΑ ΤΟ ΕΠΑΛΗΘΕΥΜΕΝΟ ΣΥΣΤΗΜΑ",
         manufacturerProductId: relationship.target_product_id
       });
     }
@@ -631,11 +636,11 @@ export async function POST(request: Request) {
     const technical = {
       eligibility: eligibility?.result_status,
       ruleKey: eligibility?.rule_key,
-      whySuitable: typeof eligibility?.actions?.message === "string" ? eligibility.actions.message : undefined,
+      whySuitable: typeof eligibility?.actions?.message === "string" ? paintBuildGreekText(eligibility.actions.message) : undefined,
       coverageM2PerLitre: profile ? {
         min: numberValue(profile.coverage_m2_per_litre_min),
         max: numberValue(profile.coverage_m2_per_litre_max),
-        conditions: profile.coverage_conditions
+        conditions: profile.coverage_conditions ? paintBuildGreekText(profile.coverage_conditions) : undefined
       } : undefined,
       coats: profile ? {
         min: numberValue(profile.number_of_coats_min) ?? verifiedQuantity?.coatsMin,
@@ -653,11 +658,11 @@ export async function POST(request: Request) {
       primerRequired: profile?.primer_required ?? (eligibility?.result_status === "requires_specific_primer" ? true : undefined),
       recommendedPrimers: profile?.recommended_primers ?? [],
       requiredSystemComponents: profile?.required_system_components ?? [],
-      applicationMethods: profile?.application_methods ?? [],
-      recommendedRoller: profile?.recommended_roller,
-      recommendedBrush: profile?.recommended_brush,
-      preparation: profile?.surface_preparation ?? [],
-      warnings: [...(profile?.safety_warnings ?? []), ...(profile?.manufacturer_do_not_do ?? [])]
+      applicationMethods: (profile?.application_methods ?? []).map(paintBuildGreekText),
+      recommendedRoller: profile?.recommended_roller ? paintBuildGreekText(profile.recommended_roller) : undefined,
+      recommendedBrush: profile?.recommended_brush ? paintBuildGreekText(profile.recommended_brush) : undefined,
+      preparation: (profile?.surface_preparation ?? []).map(paintBuildGreekText),
+      warnings: [...(profile?.safety_warnings ?? []), ...(profile?.manufacturer_do_not_do ?? [])].map(paintBuildGreekText)
     };
 
     if (!selectedVariantId) {
@@ -701,7 +706,7 @@ export async function POST(request: Request) {
         required: true,
         role: "required_system" as const,
         sourceLayer: "MANUFACTURER_VITEX" as const,
-        reasonEl: "Κύριο υλικό του επαληθευμένου συστήματος · ποσότητα από VITEX coverage + στρώσεις.",
+        reasonEl: "Κύριο υλικό του επαληθευμένου συστήματος · ποσότητα από επαληθευμένη κάλυψη VITEX και αριθμό στρώσεων.",
         manufacturerProductId
       }];
     }) ?? [];
