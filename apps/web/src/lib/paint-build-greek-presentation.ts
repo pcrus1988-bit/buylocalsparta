@@ -705,7 +705,6 @@ export function isPaintBuildMainManufacturerProductRole(
     "primer",
     "preservative",
     "thinner",
-    "solvent",
     "paint additive",
     "accessory",
     "fixing",
