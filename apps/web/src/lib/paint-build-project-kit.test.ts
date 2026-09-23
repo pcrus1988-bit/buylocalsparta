@@ -95,4 +95,5 @@ test("Paint & Build main candidates reject system-component manufacturer roles",
   assert.equal(isPaintBuildMainManufacturerProductRole("roof waterproofing accessory", "reinforced polyester mesh"), false);
   assert.equal(isPaintBuildMainManufacturerProductRole("interior wall paint", "mat emulsion paint"), true);
   assert.equal(isPaintBuildMainManufacturerProductRole("repair putty", "lightweight acrylic putty"), true);
+  assert.equal(isPaintBuildMainManufacturerProductRole("metal paint", "anticorrosive solvent-based paint for chassis and frames"), true);
 });
