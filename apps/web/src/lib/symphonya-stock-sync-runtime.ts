@@ -11,7 +11,7 @@ const LEASE_MS = 55_000;
 // Budget the entire invocation, including lease acquisition and DB setup, rather
 // than only the supplier-page loop. This keeps us safely below Vercel's 55s cap.
 const SLICE_MS = 28_000;
-const AVAILABILITY_TTL_MINUTES = 120;
+const AVAILABILITY_TTL_MINUTES = 12 * 60;
 
 type StockSyncState = { version: 1; nextPage: number; limit: number; cycleStartedAt: string; pagesCompleted: number; rowsObserved: number; lastSuccessfulAt?: string; lastSuccessfulPage?: number; lastCycleCompletedAt?: string; lastError?: string | null; leaseUntil?: string | null; };
 export type SymphonyaStockSyncResult = Readonly<{ claimed: boolean; pages: number; rows: number; offersUpdated: number; offersReconciled: number; cycleComplete: boolean; message?: string; }>;
@@ -83,7 +83,7 @@ export async function runSymphonyaStockSyncSlice(options: SymphonyaStockSyncSlic
  * The shared DB lease keeps this mutually exclusive with any legacy cursor call.
  * Symphonya's upstream stock feed is materially larger than the currently
  * materialised sellable subset, so eight 500-row pages every five minutes are
- * required to keep a complete authoritative sweep inside the 120-minute TTL.
+ * required to keep a complete authoritative sweep inside the 12-hour TTL.
  */
 export async function runSymphonyaStockSyncBurst(
   requestedMaxPages = 8
