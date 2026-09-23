@@ -89,7 +89,7 @@ export function BuildStudioProductChooser({
   useEffect(() => {
     onManufacturerProductChange?.(undefined);
     onSelectionChange?.(undefined);
-    if (!queryKey || !scenarioKey) {
+    if (!scenarioKey) {
       setProducts([]);
       setState("empty");
       return;
@@ -99,7 +99,7 @@ export function BuildStudioProductChooser({
     setState("loading");
 
     const params = new URLSearchParams();
-    params.set("term", queryKey);
+    if (queryKey) params.set("term", queryKey);
     params.set("scenario", scenarioKey);
     if (factsJson !== "{}") params.set("facts", factsJson);
 
