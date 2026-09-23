@@ -524,11 +524,12 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
         params.delete("sort");
         params.set("facets", "1");
         params.set("facetsOnly", "1");
-        const requestUrl = `/api/catalog/vendor/${encodeURIComponent(requestVendorId)}?${params.toString()}`;
+        const facetEndpoint = demoMode ? "/api/demo/catalog/vendor" : "/api/catalog/vendor";
+        const requestUrl = `${facetEndpoint}/${encodeURIComponent(requestVendorId)}?${params.toString()}`;
         let payload: VendorCatalogApiResponse | undefined;
         let lastStatus = 0;
         for (let attempt = 0; attempt < 2; attempt += 1) {
-          const response = await fetch(requestUrl, { signal: controller.signal, cache: "default" });
+          const response = await fetch(requestUrl, { signal: controller.signal, cache: demoMode ? "no-store" : "default" });
           lastStatus = response.status;
           if (response.ok) {
             const candidate = await response.json() as VendorCatalogApiResponse;
@@ -558,7 +559,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [filters, query, remoteLoading, requestVendorId]);
+  }, [demoMode, filters, query, remoteLoading, requestVendorId]);
 
   const facetFallbackProducts = remoteProducts ?? products;
   const categories = useMemo(
