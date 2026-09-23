@@ -148,7 +148,8 @@ function verifyTokenSignature(
   jwk: JsonWebKey
 ): boolean {
   try {
-    const key = createPublicKey({ key: jwk as JsonWebKey & JsonWebKeyInput, format: "jwk" });
+    const keyInput = { key: jwk, format: "jwk" as const } as Parameters<typeof createPublicKey>[0];
+    const key = createPublicKey(keyInput);
     return verify(
       "RSA-SHA256",
       Buffer.from(`${encodedHeader}.${encodedClaims}`, "utf8"),
@@ -160,12 +161,6 @@ function verifyTokenSignature(
   }
 }
 
-type JsonWebKeyInput = {
-  kty: string;
-  n?: string;
-  e?: string;
-  [key: string]: unknown;
-};
 
 export async function authorizeGoogleSchedulerRequest(
   request: Request,
