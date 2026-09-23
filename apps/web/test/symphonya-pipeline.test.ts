@@ -253,3 +253,12 @@ test("Symphonya stock cron uses concurrent cursor bursts while retaining manual 
   assert.match(runtime, /not_returned_in_completed_stock_cycle/);
   assert.match(runtime, /offersReconciled/);
 });
+
+
+test("Symphonya availability evidence uses a 12-hour safety TTL and every getStock write renews it", () => {
+  const runtime = readFileSync(new URL("../src/lib/symphonya-stock-sync-runtime.ts", import.meta.url), "utf8");
+  assert.match(runtime, /AVAILABILITY_TTL_MINUTES = 12 \* 60/);
+  assert.match(runtime, /availability_expires_at=now\(\)\+make_interval\(mins=>\$3::int\)/);
+  assert.match(runtime, /reconcileMissingSymphonyaStockAfterCompletedCycle/);
+  assert.match(runtime, /persistStockRows\(rows\)/);
+});
