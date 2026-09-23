@@ -414,52 +414,67 @@ async function productRows(
   options: DemoCatalogQuery = {}
 ): Promise<readonly ProductRow[]> {
   const values: unknown[] = [vendorUuid];
-  let routePredicate = "";
-  let familyPredicate = "";
-  const filters: string[] = [];
+  const predicates: string[] = [];
 
   if (routeKey) {
     values.push(routeKey);
-    routePredicate = `AND (assigned.id=$${values.length} OR assigned.slug=$${values.length})`;
+    predicates.push(`(cv.public_id=$${values.length} OR cv.slug=$${values.length})`);
   }
+
   if (variantFamilyId) {
     values.push(variantFamilyId);
-    familyPredicate = `AND assigned.source_normalized_payload->>'variantFamilyId'=$${values.length}`;
+    const familyParam = values.length;
+    predicates.push(`EXISTS (
+      SELECT 1
+      FROM catalog_source_products direct_source
+      WHERE best.source_product_id IS NOT NULL
+        AND direct_source.id=best.source_product_id
+        AND direct_source.normalized_payload->>'variantFamilyId'=$${familyParam}
+      UNION ALL
+      SELECT 1
+      FROM catalog_source_product_links family_link
+      JOIN catalog_source_products linked_source ON linked_source.id=family_link.source_product_id
+      WHERE best.source_product_id IS NULL
+        AND family_link.canonical_variant_id=cv.id
+        AND family_link.link_status='approved'
+        AND linked_source.normalized_payload->>'variantFamilyId'=$${familyParam}
+      LIMIT 1
+    )`);
   }
 
   const query = options.query?.trim() ?? "";
   if (query) {
     values.push(query);
-    filters.push(`(
-      assigned.title ILIKE '%'||$${values.length}||'%'
-      OR COALESCE(assigned.brand,'') ILIKE '%'||$${values.length}||'%'
-      OR COALESCE(assigned.model,'') ILIKE '%'||$${values.length}||'%'
-      OR COALESCE(assigned.gtin,'') ILIKE '%'||$${values.length}||'%'
-      OR COALESCE(assigned.mpn,'') ILIKE '%'||$${values.length}||'%'
-      OR COALESCE(assigned.source_supplier_code,'') ILIKE '%'||$${values.length}||'%'
+    const queryParam = values.length;
+    predicates.push(`(
+      COALESCE(el.title,en.title,cv.model,cv.slug,'') ILIKE '%'||$${queryParam}||'%'
+      OR COALESCE(b.name,'') ILIKE '%'||$${queryParam}||'%'
+      OR COALESCE(cv.model,'') ILIKE '%'||$${queryParam}||'%'
+      OR COALESCE(cv.gtin,'') ILIKE '%'||$${queryParam}||'%'
+      OR COALESCE(cv.mpn,'') ILIKE '%'||$${queryParam}||'%'
     )`);
   }
 
   const categories = [...new Set((options.categories ?? []).map((value) => value.trim()).filter(Boolean))].slice(0, 64);
   if (categories.length) {
     values.push(categories);
-    filters.push(`assigned.category_code = ANY($${values.length}::text[])`);
+    predicates.push(`c.code = ANY($${values.length}::text[])`);
   }
 
   const brand = options.brand?.trim() ?? "";
   if (brand) {
     values.push(brand);
-    filters.push(`lower(COALESCE(assigned.brand,'')) = lower($${values.length})`);
+    predicates.push(`lower(COALESCE(b.name,'')) = lower($${values.length})`);
   }
 
   const sort = options.sort ?? "recommended";
   const sortSql = sort === "price_asc"
-    ? "CASE WHEN filtered.customer_price_minor>0 THEN 0 ELSE 1 END,filtered.customer_price_minor ASC,filtered.title,filtered.id"
+    ? "CASE WHEN searchable.customer_price_minor>0 THEN 0 ELSE 1 END,searchable.customer_price_minor ASC,searchable.title,searchable.id"
     : sort === "price_desc"
-      ? "CASE WHEN filtered.customer_price_minor>0 THEN 0 ELSE 1 END,filtered.customer_price_minor DESC,filtered.title,filtered.id"
+      ? "CASE WHEN searchable.customer_price_minor>0 THEN 0 ELSE 1 END,searchable.customer_price_minor DESC,searchable.title,searchable.id"
       : sort === "name_asc"
-        ? "filtered.title,filtered.id"
-        : "filtered.assignment_priority,filtered.assignment_updated_at DESC,filtered.title,filtered.id";
+        ? "searchable.title,searchable.id"
+        : "searchable.assignment_priority,searchable.assignment_updated_at DESC,searchable.title,searchable.id";
 
   let pageSql = "";
   if (options.limit !== undefined) {
@@ -473,103 +488,142 @@ async function productRows(
   }
 
   const result = await getProductionPostgresRuntime().sqlPool.query<ProductRow>(`
-    WITH assigned AS (
+    WITH raw_assignment AS (
       SELECT
-        cv.public_id AS id,cv.slug,cv.model,
-        COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
-        c.code AS category_code,COALESCE(ctel.name,cten.name,c.code) AS category_label,
-        cv.gtin,cv.mpn,COALESCE(el.description,en.description) AS description,b.name AS brand,
-        cv.variant_attributes,COALESCE(el.specifications,en.specifications,'{}'::jsonb) AS specifications,
-        vo.customer_price_minor,vo.status::text AS offer_status,vo.vendor_sku,
-        GREATEST(COALESCE(ib.on_hand,0)-COALESCE(ib.active_reservations,0)-COALESCE(ib.safety_stock,0)-COALESCE(ib.blocked,0),0)::int AS available_to_sell,
-        src.source_product_id,src.source_supplier_code,src.source_image_url,src.source_url,
-        src.source_normalized_payload,src.source_raw_payload,
+        vo.canonical_variant_id,
+        NULL::uuid AS source_product_id,
+        vo.customer_price_minor,
+        vo.status::text AS offer_status,
+        vo.vendor_sku,
+        GREATEST(
+          COALESCE(ib.on_hand,0)
+          - COALESCE(ib.active_reservations,0)
+          - COALESCE(ib.safety_stock,0)
+          - COALESCE(ib.blocked,0),
+          0
+        )::int AS available_to_sell,
         CASE vo.status WHEN 'approved' THEN 1 WHEN 'pending_review' THEN 2 ELSE 3 END AS assignment_priority,
         vo.updated_at AS assignment_updated_at
       FROM vendor_offers vo
-      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN categories c ON c.id=cv.category_id
-      LEFT JOIN brands b ON b.id=cv.brand_id
-      LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
-      LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-      LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
-      LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
       LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
-      LEFT JOIN LATERAL (
-        SELECT csp.id::text AS source_product_id,csp.supplier_code AS source_supplier_code,
-               csp.source_image_url,csp.source_url,csp.normalized_payload AS source_normalized_payload,
-               csp.raw_payload AS source_raw_payload
-        FROM catalog_source_product_links csl
-        JOIN catalog_source_products csp ON csp.id=csl.source_product_id
-        WHERE csl.canonical_variant_id=cv.id
-          AND csl.link_status='approved'
-        ORDER BY csl.confidence DESC,csl.updated_at DESC,csl.id DESC
-        LIMIT 1
-      ) src ON true
       WHERE vo.vendor_id=$1::uuid
         AND vo.status IN ('draft','pending_review','approved')
-        AND cv.suppressed=false
-        AND cv.recalled=false
 
       UNION ALL
 
       SELECT
-        cv.public_id AS id,cv.slug,cv.model,
-        COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
-        c.code AS category_code,COALESCE(ctel.name,cten.name,c.code) AS category_label,
-        cv.gtin,cv.mpn,COALESCE(el.description,en.description) AS description,b.name AS brand,
-        cv.variant_attributes,COALESCE(el.specifications,en.specifications,'{}'::jsonb) AS specifications,
+        vca.canonical_variant_id,
+        vca.source_product_id,
         0::bigint AS customer_price_minor,
         ('assortment_' || vca.assortment_status) AS offer_status,
         vca.vendor_sku,
         0::int AS available_to_sell,
-        csp.id::text AS source_product_id,csp.supplier_code AS source_supplier_code,
-        csp.source_image_url,csp.source_url,csp.normalized_payload AS source_normalized_payload,
-        csp.raw_payload AS source_raw_payload,
         4 AS assignment_priority,
         vca.updated_at AS assignment_updated_at
       FROM vendor_catalog_assortments vca
-      JOIN canonical_variants cv ON cv.id=vca.canonical_variant_id
+      WHERE vca.vendor_id=$1::uuid
+        AND vca.canonical_variant_id IS NOT NULL
+        AND vca.assortment_status NOT IN ('rejected','discontinued')
+    ),
+    best_assignment AS (
+      SELECT DISTINCT ON (raw.canonical_variant_id)
+        raw.canonical_variant_id,
+        raw.source_product_id,
+        raw.customer_price_minor,
+        raw.offer_status,
+        raw.vendor_sku,
+        raw.available_to_sell,
+        raw.assignment_priority,
+        raw.assignment_updated_at
+      FROM raw_assignment raw
+      ORDER BY raw.canonical_variant_id,raw.assignment_priority,raw.assignment_updated_at DESC,raw.source_product_id NULLS LAST
+    ),
+    searchable AS (
+      SELECT
+        best.canonical_variant_id,
+        best.source_product_id,
+        best.customer_price_minor,
+        best.offer_status,
+        best.vendor_sku,
+        best.available_to_sell,
+        best.assignment_priority,
+        best.assignment_updated_at,
+        cv.public_id AS id,
+        cv.slug,
+        cv.model,
+        cv.gtin,
+        cv.mpn,
+        c.code AS category_code,
+        COALESCE(ctel.name,cten.name,c.code) AS category_label,
+        COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+        b.name AS brand
+      FROM best_assignment best
+      JOIN canonical_variants cv ON cv.id=best.canonical_variant_id
       JOIN categories c ON c.id=cv.category_id
       LEFT JOIN brands b ON b.id=cv.brand_id
       LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
       LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
       LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
-      LEFT JOIN catalog_source_products csp ON csp.id=vca.source_product_id
-      WHERE vca.vendor_id=$1::uuid
-        AND vca.canonical_variant_id IS NOT NULL
-        AND vca.assortment_status NOT IN ('rejected','discontinued')
-        AND cv.suppressed=false
+      WHERE cv.suppressed=false
         AND cv.recalled=false
+        ${predicates.length ? `AND ${predicates.join("\n        AND ")}` : ""}
     ),
-    deduplicated AS (
-      SELECT DISTINCT ON (assigned.id) assigned.*
-      FROM assigned
-      WHERE true
-        ${routePredicate}
-        ${familyPredicate}
-      ORDER BY assigned.id,assigned.assignment_priority,assigned.assignment_updated_at DESC,assigned.source_product_id NULLS LAST
-    ),
-    filtered AS (
-      SELECT *
-      FROM deduplicated assigned
-      WHERE true
-        ${filters.length ? `AND ${filters.join("\n        AND ")}` : ""}
+    page AS (
+      SELECT searchable.*,count(*) OVER() AS total_count
+      FROM searchable
+      ORDER BY ${sortSql}
+      ${pageSql}
     )
     SELECT
-      filtered.id,filtered.slug,filtered.model,filtered.title,
-      filtered.category_code,filtered.category_label,
-      filtered.gtin,filtered.mpn,filtered.description,filtered.brand,
-      filtered.variant_attributes,filtered.specifications,
-      filtered.customer_price_minor,filtered.offer_status,filtered.vendor_sku,
-      filtered.available_to_sell,filtered.source_product_id,filtered.source_supplier_code,
-      filtered.source_image_url,filtered.source_url,
-      filtered.source_normalized_payload,filtered.source_raw_payload,
-      count(*) OVER() AS total_count
-    FROM filtered
-    ORDER BY ${sortSql}
-    ${pageSql}
+      page.id,page.slug,page.model,page.title,
+      page.category_code,page.category_label,
+      page.gtin,page.mpn,COALESCE(el.description,en.description) AS description,page.brand,
+      cv.variant_attributes,COALESCE(el.specifications,en.specifications,'{}'::jsonb) AS specifications,
+      page.customer_price_minor,page.offer_status,page.vendor_sku,page.available_to_sell,
+      src.source_product_id,src.source_supplier_code,src.source_image_url,src.source_url,
+      src.source_normalized_payload,src.source_raw_payload,page.total_count
+    FROM page
+    JOIN canonical_variants cv ON cv.id=page.canonical_variant_id
+    LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+    LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+    LEFT JOIN LATERAL (
+      SELECT source_row.*
+      FROM (
+        SELECT
+          csp.id::text AS source_product_id,
+          csp.supplier_code AS source_supplier_code,
+          csp.source_image_url,
+          csp.source_url,
+          csp.normalized_payload AS source_normalized_payload,
+          csp.raw_payload AS source_raw_payload,
+          0 AS source_priority,
+          csp.created_at AS source_updated_at
+        FROM catalog_source_products csp
+        WHERE page.source_product_id IS NOT NULL
+          AND csp.id=page.source_product_id
+
+        UNION ALL
+
+        SELECT
+          csp.id::text AS source_product_id,
+          csp.supplier_code AS source_supplier_code,
+          csp.source_image_url,
+          csp.source_url,
+          csp.normalized_payload AS source_normalized_payload,
+          csp.raw_payload AS source_raw_payload,
+          1 AS source_priority,
+          csl.updated_at AS source_updated_at
+        FROM catalog_source_product_links csl
+        JOIN catalog_source_products csp ON csp.id=csl.source_product_id
+        WHERE page.source_product_id IS NULL
+          AND csl.canonical_variant_id=page.canonical_variant_id
+          AND csl.link_status='approved'
+      ) source_row
+      ORDER BY source_row.source_priority,source_row.source_updated_at DESC,source_row.source_product_id
+      LIMIT 1
+    ) src ON true
+    ORDER BY ${sortSql.replaceAll("searchable.", "page.")}
   `, values);
   return result.rows;
 }
