@@ -8,6 +8,7 @@ import { adminCrawlerDashboard, cancelAdminCrawlerJob, createAdminCrawlerProfile
 import { getAdminSession } from "../../../lib/admin-session";
 
 export const metadata: Metadata = { title: "Admin · Catalogue Crawler", robots: { index: false, follow: false, nocache: true } };
+export const maxDuration = 300;
 
 type CrawlerSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -134,7 +135,7 @@ export default async function Page({ searchParams }: { searchParams: CrawlerSear
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Progress" title="Recent catalogue crawls" note="A completed full crawl can be imported into Supplier PIM only when the same server-side readiness gate used by the import action is green. Canonical matching, taxonomy and duplicate review continue in Supplier PIM instead of publishing raw crawl data directly." />
+      <WorkspaceSectionHeading eyebrow="Progress" title="Recent catalogue crawls" note="A completed full crawl can be imported into Supplier PIM only when the same server-side readiness gate used by the import action is green. Large imports can take several minutes; keep the page open until the import finishes. Canonical matching, taxonomy and duplicate review continue in Supplier PIM instead of publishing raw crawl data directly." />
       {promotionError&&<div className="workspace-queue-card" role="alert" style={{marginBottom:"1rem"}}>
         <strong>Could not import this crawl into Supplier PIM</strong>
         <p>{promotionError}</p>

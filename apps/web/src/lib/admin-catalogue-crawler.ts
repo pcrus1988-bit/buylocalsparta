@@ -3,6 +3,8 @@ import { PostgresUnitOfWork, type SessionPrincipal, type SqlExecutor, type SqlRo
 import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { assertAdminPermission, postgresAdminRuntimeEnabled } from "./admin-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+
+const CRAWLER_PIM_PROMOTION_TIMEOUT_MS = 240_000;
 import {
   catalogWebCrawlPromotionBlockedMessage,
   evaluateCatalogWebCrawlPromotionReadiness,
@@ -117,7 +119,7 @@ export async function promoteAdminCrawlerJob(principal: SessionPrincipal, jobId:
   assertAdminPermission(principal, "catalog.write");
   requireRuntime();
   const runtime = getProductionPostgresRuntime();
-  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 15_000, lockTimeoutMs: 2_000 });
+  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: CRAWLER_PIM_PROMOTION_TIMEOUT_MS, lockTimeoutMs: 2_000 });
   return uow.withTransaction(platformScope(principal.userId), async (tx) => {
     const readinessByJobId = await evaluateCatalogWebCrawlPromotionReadiness(tx, [jobId]);
     const readiness = readinessByJobId.get(jobId);
@@ -130,7 +132,7 @@ export async function promoteAdminCrawlerJob(principal: SessionPrincipal, jobId:
     const value = result.rows[0]?.result;
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Crawler promotion returned an invalid result");
     return value as Readonly<Record<string, unknown>>;
-  }, { statementTimeoutMs: 15_000 });
+  }, { statementTimeoutMs: CRAWLER_PIM_PROMOTION_TIMEOUT_MS });
 }
 
 async function ensureAutomaticCatalogSource(tx: SqlExecutor, root: URL): Promise<string> {
