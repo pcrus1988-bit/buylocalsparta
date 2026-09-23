@@ -232,7 +232,9 @@ const EXACT: Readonly<Record<string, string>> = {
   "H226 Flammable liquid and vapour.": "H226: Εύφλεκτο υγρό και ατμοί.",
   "H336 May cause drowsiness or dizziness.": "H336: Μπορεί να προκαλέσει υπνηλία ή ζάλη.",
   "H373 May cause damage to organs through prolonged or repeated exposure.": "H373: Μπορεί να προκαλέσει βλάβες στα όργανα ύστερα από παρατεταμένη ή επανειλημμένη έκθεση.",
-  "H412 Harmful to aquatic life with long lasting effects.": "H412: Επιβλαβές για τους υδρόβιους οργανισμούς, με μακροχρόνιες επιπτώσεις."
+  "H412 Harmful to aquatic life with long lasting effects.": "H412: Επιβλαβές για τους υδρόβιους οργανισμούς, με μακροχρόνιες επιπτώσεις.",
+  "Smooth, clean and dry; free from grease, dust, loose or flaking paint.": "Η επιφάνεια πρέπει να είναι λεία, καθαρή και στεγνή, χωρίς γράσα, σκόνη και σαθρές ή ξεφλουδισμένες βαφές.",
+  "smooth, clean and dry; free from grease, dust, loose or flaking paint": "Η επιφάνεια πρέπει να είναι λεία, καθαρή και στεγνή, χωρίς γράσα, σκόνη και σαθρές ή ξεφλουδισμένες βαφές."
 };
 
 const GENERAL_EXACT: Readonly<Record<string, string>> = {
