@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import styles from "./BuildStudioProductChooser.module.css";
+import { paintBuildFinishLabel, paintBuildTintBaseLabel } from "../lib/paint-build-greek-presentation";
 
 export type BuildStudioCandidate = Readonly<{
   id: string;
@@ -184,7 +185,7 @@ function routeLabel(variant: FamilyVariant): string {
   if (/μεσαι|medium/.test(title)) return "Μεσαίες αποχρώσεις";
   if (/σκουρ|dark/.test(title)) return "Σκούρες αποχρώσεις";
   if (/καθετων επιφανειων|vertical/.test(title)) return "Κάθετες επιφάνειες";
-  return variant.tintBaseHint || variant.colourHint || variant.finishHint || "Βασική έκδοση";
+  return paintBuildTintBaseLabel(variant.tintBaseHint || variant.colourHint) || paintBuildFinishLabel(variant.finishHint) || "Βασική έκδοση";
 }
 
 function routeKey(variant: FamilyVariant): string {
