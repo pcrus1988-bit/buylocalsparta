@@ -15,9 +15,20 @@ export type PaintBuildProjectSnapshot = Readonly<{
     selectedProduct?: Readonly<{
       manufacturerProductId?: string;
       catalogueId?: string;
+      slug?: string;
+      url?: string;
       title?: string;
       brand?: string;
       price?: string;
+      mediaId?: string;
+      imageUrl?: string;
+      imageAlt?: string;
+      colour?: string;
+      size?: string;
+      packValue?: number;
+      packUnit?: string;
+      tintBase?: string;
+      finish?: string;
     }>;
     kit?: Readonly<{
       complete: boolean;
@@ -27,6 +38,7 @@ export type PaintBuildProjectSnapshot = Readonly<{
         title: string;
         priceMinor: number;
         price: string;
+        imageUrl?: string;
         quantity: number;
         selected: boolean;
         required: boolean;
