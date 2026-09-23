@@ -9,7 +9,7 @@ import {
 
 test("Aquavit is presented as a water-based polyurethane enamel, not legacy ripolini copy", () => {
   const title = paintBuildProductTitle("Ριπολίνη νερού VITEX AQUAVIT ECO MAT TR 675 ml", "Aquavit Eco");
-  assert.match(title, /πολυουρεθανικό βερνικόχρωμα νερού/i);
+  assert.match(title, /πολυουρεθανικό ακρυλικό βερνικόχρωμα νερού/i);
   assert.doesNotMatch(title, /ριπολίνη/i);
 });
 
