@@ -311,6 +311,7 @@ async function accessoryItems(areaM2: number) {
         imageUrl: candidate.mediaId ? `/api/media/${encodeURIComponent(candidate.mediaId)}` : undefined,
         selected: rule.role === "recommended_working",
         required: false,
+        role: rule.role,
         sourceLayer: "KONTA_MOU_RULE" as const,
         reasonEl: rule.role === "recommended_working"
           ? "Πρόταση KONTA MOY βάσει τύπου και μεγέθους έργου — όχι οδηγία VITEX."
@@ -382,6 +383,7 @@ async function requiredSystemItems(manufacturerProductId: string, areaM2: number
         imageUrl: variant.imageUrl,
         selected: true,
         required: true,
+        role: "required_system",
         sourceLayer: "MANUFACTURER_VITEX",
         reasonEl: `ΑΠΑΡΑΙΤΗΤΟ ΓΙΑ ΤΟ ΕΠΑΛΗΘΕΥΜΕΝΟ ΣΥΣΤΗΜΑ · ${relationship.relationship_type}`,
         manufacturerProductId: relationship.target_product_id
@@ -498,6 +500,7 @@ export async function POST(request: Request) {
         imageUrl: variant.imageUrl,
         selected: true,
         required: true,
+        role: "required_system" as const,
         sourceLayer: "MANUFACTURER_VITEX" as const,
         reasonEl: "Κύριο υλικό του επαληθευμένου συστήματος · ποσότητα από VITEX coverage + στρώσεις.",
         manufacturerProductId
