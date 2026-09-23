@@ -15,7 +15,11 @@ import {
   type PaintBuildPackVariant
 } from "../../../../lib/paint-build-project-kit";
 import { getVisitorKey } from "../../../../lib/visitor";
-import { paintBuildGreekText, paintBuildProductTitle } from "../../../../lib/paint-build-greek-presentation";
+import {
+  paintBuildGreekText,
+  paintBuildManufacturerDescription,
+  paintBuildProductTitle
+} from "../../../../lib/paint-build-greek-presentation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -140,8 +144,15 @@ function familyVariant(row: FamilyVariantRow): FamilyVariant | undefined {
 async function readFamily(manufacturerProductId: string) {
   const db = getProductionPostgresRuntime().nativePool;
   const [product, variants] = await Promise.all([
-    db.query<{ product_name: string; brand_name: string }>(
-      `select product_name,brand_name
+    db.query<{
+      product_name: string;
+      brand_name: string;
+      product_category: string | null;
+      subcategory: string | null;
+      interior_exterior: string | null;
+      substrate_types: string[] | null;
+    }>(
+      `select product_name,brand_name,product_category,subcategory,interior_exterior,substrate_types
        from public.manufacturer_products
        where id=$1::uuid
          and product_system_status='current'
@@ -191,10 +202,18 @@ async function readFamily(manufacturerProductId: string) {
     .map(familyVariant)
     .filter((value): value is FamilyVariant => Boolean(value))
     .map((variant) => ({ ...variant, title: paintBuildProductTitle(variant.title, manufacturerName) }));
+  const manufacturer = product.rows[0];
   return {
     manufacturerProductId,
     title: manufacturerName,
-    brand: product.rows[0].brand_name || "VITEX",
+    brand: manufacturer.brand_name || "VITEX",
+    descriptionEl: paintBuildManufacturerDescription({
+      productName: manufacturerName,
+      productCategory: manufacturer.product_category,
+      subcategory: manufacturer.subcategory,
+      interiorExterior: manufacturer.interior_exterior,
+      substrateTypes: manufacturer.substrate_types
+    }),
     imageUrl: mapped.find((variant) => variant.imageUrl)?.imageUrl,
     variants: mapped
   };
