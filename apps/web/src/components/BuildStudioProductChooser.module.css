@@ -219,6 +219,52 @@
   font-size:11px;
   line-height:1.2;
 }
+.fitBlock,.differenceBlock{
+  padding-top:7px;
+  display:grid;
+  gap:5px;
+  border-top:1px solid rgba(255,255,255,.07);
+}
+.fitBlock>small,.differenceBlock>small{
+  color:#cbb27a;
+  font:850 7px/1 system-ui,sans-serif;
+  letter-spacing:.12em;
+}
+.fitList{
+  margin:0;
+  padding:0;
+  display:grid;
+  gap:4px;
+  list-style:none;
+}
+.fitList li{
+  position:relative;
+  padding-left:13px;
+  color:#c5bdb5;
+  font-size:8px;
+  line-height:1.35;
+}
+.fitList li::before{
+  position:absolute;
+  left:0;
+  top:0;
+  content:"✓";
+  color:#d7bb7b;
+  font-weight:900;
+}
+.differenceHighlights{
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px;
+}
+.differenceHighlights span{
+  padding:5px 7px;
+  border:1px solid rgba(203,178,122,.24);
+  border-radius:8px;
+  color:#ead49d;
+  background:rgba(203,178,122,.08);
+  font:800 7px/1.2 system-ui,sans-serif;
+}
 .compatibilityReason{
   min-height:31px;
   margin:0;
@@ -335,8 +381,8 @@
   .grid{grid-template-columns:1fr;gap:10px}
   .selectCard{
     display:grid;
-    grid-template-columns:minmax(0,44%) minmax(0,56%);
-    min-height:224px;
+    grid-template-columns:minmax(0,43%) minmax(0,57%);
+    min-height:252px;
   }
   .previewColumn{
     min-width:0;
@@ -370,12 +416,21 @@
   .compatibilityReason{min-height:0;font-size:8px;line-height:1.42}
   .highlights{gap:4px}
   .highlights span{padding:4px 5px;font-size:6px}
+  .fitBlock,.differenceBlock{padding-top:6px;gap:4px}
+  .fitBlock>small,.differenceBlock>small{font-size:5.8px;letter-spacing:.1em}
+  .fitList{gap:3px}
+  .fitList li{padding-left:11px;font-size:6.8px;line-height:1.28}
+  .fitList li:nth-child(n+3){display:none}
+  .differenceHighlights{gap:4px}
+  .differenceHighlights span{padding:4px 5px;font-size:5.8px;line-height:1.15}
+  .differenceHighlights span:nth-child(n+3){display:none}
   .detailLink{min-height:34px;margin-top:auto;font-size:7px}
   .selectionBar{margin:12px 0 0;border-radius:13px}
 }
 @media(max-width:360px){
-  .selectCard{grid-template-columns:minmax(0,41%) minmax(0,59%)}
+  .selectCard{grid-template-columns:minmax(0,40%) minmax(0,60%);min-height:260px}
   .compatibilityHeader strong{font-size:18px}
+  .bestMatchBadge{font-size:5.4px}
 }
 @media(prefers-reduced-motion:reduce){.loadingState i{animation:none}}
 

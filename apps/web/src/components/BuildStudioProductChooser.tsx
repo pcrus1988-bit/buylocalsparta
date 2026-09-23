@@ -29,6 +29,8 @@ export type BuildStudioCandidate = Readonly<{
     | "requires_system_component";
   manufacturerRuleKey: string;
   technicalVerificationStatus: "verified";
+  fitHighlights: readonly string[];
+  manufacturerHighlights: readonly string[];
 }>;
 
 export type ProjectKitItem = Readonly<{
@@ -257,6 +259,37 @@ function manufacturerFamilyTitle(brand: string, title: string): string {
     return cleanBrand.toLocaleUpperCase("el-GR") + remainder;
   }
   return `${cleanBrand.toLocaleUpperCase("el-GR")} ${cleanTitle}`;
+}
+
+function familyComparisonHighlights(family: ProductFamily, families: readonly ProductFamily[]): readonly string[] {
+  const featureOwners = new Map<string, number>();
+  for (const candidateFamily of families) {
+    for (const feature of new Set(candidateFamily.representative.manufacturerHighlights)) {
+      featureOwners.set(feature, (featureOwners.get(feature) ?? 0) + 1);
+    }
+  }
+
+  const uniqueManufacturerFeatures = family.representative.manufacturerHighlights.filter(
+    (feature) => featureOwners.get(feature) === 1
+  );
+  const lowestPrice = Math.min(...families.map((candidateFamily) => candidateFamily.minPriceMinor));
+  const maxVariants = Math.max(...families.map((candidateFamily) => candidateFamily.products.length));
+  const minVariants = Math.min(...families.map((candidateFamily) => candidateFamily.products.length));
+
+  const commercialDifferences: string[] = [];
+  if (family.minPriceMinor === lowestPrice) commercialDifferences.push("Χαμηλότερη τιμή εκκίνησης");
+  if (family.products.length === maxVariants && maxVariants > minVariants) {
+    commercialDifferences.push("Περισσότερες διαθέσιμες εκδόσεις");
+  }
+
+  const fallbackFeatures = family.representative.manufacturerHighlights.filter(
+    (feature) => !uniqueManufacturerFeatures.includes(feature)
+  );
+  const highlights = [...uniqueManufacturerFeatures, ...commercialDifferences, ...fallbackFeatures];
+
+  return [...new Set(highlights)].slice(0, 3).length
+    ? [...new Set(highlights)].slice(0, 3)
+    : ["Δεν προκύπτει ιδιαίτερη τεχνική διαφοροποίηση"];
 }
 
 function FamilyOverlay({
@@ -563,6 +596,9 @@ export function BuildStudioProductChooser({
   }, [products]);
 
   const topCompatibility = families[0]?.compatibility.index;
+  const topCompatibilityCount = topCompatibility == null
+    ? 0
+    : families.filter((family) => family.compatibility.index === topCompatibility).length;
   const openFamily = families.find((family) => family.manufacturerProductId === openFamilyId);
 
   return (
@@ -581,6 +617,10 @@ export function BuildStudioProductChooser({
         <div className={styles.grid}>
           {families.map((family, index) => {
             const highestMatch = family.compatibility.index === topCompatibility;
+            const comparisonHighlights = familyComparisonHighlights(family, families);
+            const fitHighlights = family.representative.fitHighlights.length
+              ? family.representative.fitHighlights
+              : [family.compatibility.condition];
             return (
               <article className={highestMatch ? `${styles.card} ${styles.bestMatchCard}` : styles.card} key={family.manufacturerProductId}>
                 <div className={styles.selectCard}>
@@ -592,7 +632,7 @@ export function BuildStudioProductChooser({
                     </div>
                     <div className={styles.copy}>
                       <small>{family.representative.brand || "VITEX"}</small>
-                      <strong>VITEX {family.manufacturerProductName}</strong>
+                      <strong>{manufacturerFamilyTitle(family.representative.brand || "VITEX", family.manufacturerProductName)}</strong>
                       <div className={styles.meta}>
                         <span>{eligibilityLabel(family.representative.manufacturerEligibilityStatus)}</span>
                         <em>από {family.minPrice}</em>
@@ -601,7 +641,7 @@ export function BuildStudioProductChooser({
                   </div>
 
                   <div className={styles.compatibilityPanel}>
-                    {highestMatch ? <span className={styles.bestMatchBadge}>ΥΨΗΛΟΤΕΡΗ ΑΝΤΙΣΤΟΙΧΙΣΗ</span> : null}
+                    {highestMatch ? <span className={styles.bestMatchBadge}>{topCompatibilityCount > 1 ? "ΙΣΟΒΑΘΜΗ ΚΑΤΑΛΛΗΛΟΤΗΤΑ" : "ΥΨΗΛΟΤΕΡΗ ΑΝΤΙΣΤΟΙΧΙΣΗ"}</span> : null}
                     <div className={styles.compatibilityHeader}>
                       <span>ΚΑΤΑΛΛΗΛΟΤΗΤΑ ΓΙΑ ΤΟ ΕΡΓΟ</span>
                       <strong>{family.compatibility.index}<small>/100</small></strong>
@@ -610,11 +650,17 @@ export function BuildStudioProductChooser({
                       <i style={{ width: `${family.compatibility.index}%` }} />
                     </div>
                     <b className={styles.compatibilityLabel}>{family.compatibility.label} αντιστοίχιση</b>
-                    <p className={styles.compatibilityReason}>{family.compatibility.reason}</p>
-                    <div className={styles.highlights} aria-label="Κύρια σημεία">
-                      <span>Τεχνικά επαληθευμένο</span>
-                      <span>{family.compatibility.condition}</span>
-                      <span>{family.products.length} εκδόσεις</span>
+                    <div className={styles.fitBlock} aria-label="Γιατί ταιριάζει στο έργο">
+                      <small>ΓΙΑΤΙ ΤΑΙΡΙΑΖΕΙ</small>
+                      <ul className={styles.fitList}>
+                        {fitHighlights.slice(0, 3).map((highlight) => <li key={highlight}>{highlight}</li>)}
+                      </ul>
+                    </div>
+                    <div className={styles.differenceBlock} aria-label="Τι το ξεχωρίζει από τις άλλες επιλογές">
+                      <small>ΤΙ ΤΟ ΞΕΧΩΡΙΖΕΙ</small>
+                      <div className={styles.differenceHighlights}>
+                        {comparisonHighlights.map((highlight) => <span key={highlight}>{highlight}</span>)}
+                      </div>
                     </div>
                     <button className={styles.detailLink} type="button" onClick={() => setOpenFamilyId(family.manufacturerProductId)}>Δες λεπτομέρειες →</button>
                   </div>
