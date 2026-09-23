@@ -9,6 +9,8 @@ import {
   createPaintBuildSnapshot,
   type PaintBuildProjectSnapshot
 } from "../../../../lib/paint-build-project-documents";
+import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
+import { calculateVerifiedPaintQuantity } from "../../../../lib/paint-build-project-kit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,6 +40,73 @@ function requiredText(value: unknown, field: string, max = 220): string {
   const result = optionalText(value, max);
   if (!result) throw new Error(`${field} is required`);
   return result;
+}
+
+
+function recordValue(value: unknown): Readonly<Record<string, unknown>> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Readonly<Record<string, unknown>> : {};
+}
+
+function numberValue(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function twoCoatCoverage(value: unknown): Readonly<{ min: number; max: number }> | undefined {
+  const raw = recordValue(value).two_coats;
+  if (!Array.isArray(raw) || raw.length < 2) return undefined;
+  const first = numberValue(raw[0]);
+  const second = numberValue(raw[1]);
+  if (!first || !second || first <= 0 || second <= 0) return undefined;
+  return { min: Math.min(first, second), max: Math.max(first, second) };
+}
+
+async function verifiedQuantityFallback(
+  manufacturerProductId: string,
+  guidance: Awaited<ReturnType<typeof resolveBuildProjectGuidance>>,
+  areaM2: number
+) {
+  const manufacturer = recordValue(guidance.manufacturer_guidance);
+  if (manufacturer.status !== "verified") return undefined;
+  const profile = recordValue(manufacturer.application_profile);
+  const evidence = await getProductionPostgresRuntime().nativePool.query<{ normalized_value: unknown }>(
+    `select ie.normalized_value
+     from public.manufacturer_instruction_evidence ie
+     join public.manufacturer_technical_sources ts on ts.id=ie.source_id and ts.is_current=true
+     where ie.product_id=$1::uuid
+       and ie.source_layer='manufacturer'
+       and ie.field_name='coverage_m2_per_litre'
+       and ie.is_current=true
+       and (ie.valid_from is null or ie.valid_from<=current_date)
+       and (ie.valid_to is null or ie.valid_to>=current_date)
+     order by ie.confidence desc nulls last,ie.created_at desc
+     limit 1`,
+    [manufacturerProductId]
+  );
+  const aggregate = twoCoatCoverage(evidence.rows[0]?.normalized_value);
+  const quantity = calculateVerifiedPaintQuantity({
+    areaM2,
+    coverageMin: numberValue(profile.coverage_m2_per_litre_min),
+    coverageMax: numberValue(profile.coverage_m2_per_litre_max),
+    coatsMin: numberValue(profile.number_of_coats_min),
+    coatsMax: numberValue(profile.number_of_coats_max),
+    twoCoatCoverageMin: aggregate?.min,
+    twoCoatCoverageMax: aggregate?.max
+  });
+  if (!quantity) return undefined;
+  return {
+    status: "available" as const,
+    areaM2,
+    unit: "L" as const,
+    min: quantity.min,
+    max: quantity.max,
+    coatsMin: quantity.coatsMin,
+    coatsMax: quantity.coatsMax,
+    basisEl: quantity.basis === "manufacturer_two_coat_coverage"
+      ? "Θεωρητική ποσότητα από την επαληθευμένη κάλυψη δύο στρώσεων που δημοσιεύει η VITEX. Δεν προστέθηκε γενικός συντελεστής απωλειών."
+      : "Θεωρητική ποσότητα από επαληθευμένα m²/L και αριθμό στρώσεων VITEX."
+  };
 }
 
 function kitData(value: unknown) {
@@ -146,7 +215,10 @@ export async function POST(request: Request) {
       return Response.json({ error: "scenario_not_found" }, { status: 404, headers: { "Cache-Control": "no-store" } });
     }
     const customerGuide = buildCustomerGuide(guidance);
-    const quantityEstimate = calculateBuildQuantity(guidance, project.areaM2 ?? 0);
+    const runtimeQuantity = calculateBuildQuantity(guidance, project.areaM2 ?? 0);
+    const quantityEstimate = runtimeQuantity.status === "available" || !input.manufacturerProductId
+      ? runtimeQuantity
+      : await verifiedQuantityFallback(input.manufacturerProductId, guidance, project.areaM2 ?? 0).catch(() => undefined) ?? runtimeQuantity;
     const principal = await getAccountSession();
     const customerPrincipal = principal?.roles.includes("customer") ? principal : undefined;
     const snapshot: PaintBuildProjectSnapshot = {
