@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import type { CatalogCard } from "../../../../../lib/catalog-view";
 import { decodeCatalogSizeGroup } from "../../../../../lib/catalog-size";
 import { getVendorDropshipCatalogPage, getVendorDropshipFacets, type VendorDropshipFacets, type VendorDropshipSort } from "../../../../../lib/vendor-dropship-catalog-page";
@@ -8,11 +9,11 @@ import { getVendorLocalCatalogCards, getVendorLocalCatalogPage } from "../../../
 type RouteContext = Readonly<{ params: Promise<{ id: string }> }>;
 
 const PAGE_BROWSER_CACHE = "public, max-age=5";
-const PAGE_SHARED_CACHE = "public, max-age=15";
-const PAGE_VERCEL_CACHE = "public, max-age=30";
+const PAGE_SHARED_CACHE = "public, max-age=15, stale-while-revalidate=60";
+const PAGE_VERCEL_CACHE = "public, max-age=30, stale-while-revalidate=120";
 const FACET_BROWSER_CACHE = "public, max-age=15";
-const FACET_SHARED_CACHE = "public, max-age=60";
-const FACET_VERCEL_CACHE = "public, max-age=120";
+const FACET_SHARED_CACHE = "public, max-age=60, stale-while-revalidate=180";
+const FACET_VERCEL_CACHE = "public, max-age=120, stale-while-revalidate=300";
 
 function optionalParam(url: URL, key: string, max: number): string {
   return url.searchParams.get(key)?.trim().slice(0, max) ?? "";
@@ -173,6 +174,46 @@ async function optionalFacets(vendorId: string, context: VendorDropshipFacetCont
   return undefined;
 }
 
+const getCachedVendorLocalCatalogPage = unstable_cache(
+  async (vendorId: string, offset: number, limit: number, availableOnly: boolean) =>
+    getVendorLocalCatalogPage(vendorId, { offset, limit, availableOnly }),
+  ["vendor-catalog-local-page-v1"],
+  { revalidate: 15 }
+);
+
+const getCachedVendorLocalCatalogCards = unstable_cache(
+  async (vendorId: string) => getVendorLocalCatalogCards(vendorId),
+  ["vendor-catalog-local-cards-v1"],
+  { revalidate: 15 }
+);
+
+const getCachedFastVendorDropshipCatalogPage = unstable_cache(
+  async (vendorId: string, offset: number, limit: number) =>
+    getFastVendorDropshipCatalogPage(vendorId, { offset, limit }),
+  ["vendor-catalog-fast-dropship-page-v1"],
+  { revalidate: 10 }
+);
+
+const getCachedVendorDropshipCatalogPage = unstable_cache(
+  async (vendorId: string, serializedInput: string) =>
+    getVendorDropshipCatalogPage(
+      vendorId,
+      JSON.parse(serializedInput) as Parameters<typeof getVendorDropshipCatalogPage>[1]
+    ),
+  ["vendor-catalog-filtered-dropship-page-v1"],
+  { revalidate: 10 }
+);
+
+const getCachedOptionalFacets = unstable_cache(
+  async (vendorId: string, serializedContext: string) =>
+    optionalFacets(
+      vendorId,
+      JSON.parse(serializedContext) as VendorDropshipFacetContext
+    ),
+  ["vendor-catalog-contextual-facets-v1"],
+  { revalidate: 30 }
+);
+
 function publicCacheHeaders(facetsOnly = false): HeadersInit {
   return facetsOnly ? {
     "Cache-Control": FACET_BROWSER_CACHE,
@@ -218,11 +259,12 @@ export async function GET(request: Request, { params }: RouteContext) {
 
   try {
     if (useFastInitialPath) {
-      const localPage = await getVendorLocalCatalogPage(id, {
+      const localPage = await getCachedVendorLocalCatalogPage(
+        id,
         offset,
         limit,
-        availableOnly: localAvailableOnly
-      });
+        localAvailableOnly
+      );
       const localCount = localPage.total;
       const localProducts = localPage.products;
       const remaining = Math.max(0, limit - localProducts.length);
@@ -247,10 +289,11 @@ export async function GET(request: Request, { params }: RouteContext) {
       // do not advertise a next page that cannot exist. Boundary pages that need
       // supplier rows request only the number of cards still missing.
       const requestedDropshipLimit = remaining > 0 ? remaining : 1;
-      const dropshipPage = await getFastVendorDropshipCatalogPage(id, {
-        offset: dropshipOffset,
-        limit: requestedDropshipLimit
-      });
+      const dropshipPage = await getCachedFastVendorDropshipCatalogPage(
+        id,
+        dropshipOffset,
+        requestedDropshipLimit
+      );
       const products = remaining > 0
         ? [...localProducts, ...dropshipPage.products.slice(0, remaining)]
         : localProducts;
@@ -270,7 +313,7 @@ export async function GET(request: Request, { params }: RouteContext) {
         facets: null
       }, { headers: publicCacheHeaders(false) });
     }
-    const allLocal = await getVendorLocalCatalogCards(id);
+    const allLocal = await getCachedVendorLocalCatalogCards(id);
     const matchingLocal = sortLocal(
       allLocal.filter((product) => localMatches(product, facetContext, localAvailableOnly)),
       sort
@@ -280,7 +323,7 @@ export async function GET(request: Request, { params }: RouteContext) {
     );
 
     if (facetsOnly) {
-      const dropshipFacets = await optionalFacets(id, facetContext);
+      const dropshipFacets = await getCachedOptionalFacets(id, JSON.stringify(facetContext));
       const facets = mergeFacets(localFacetProjection, dropshipFacets);
       if (!dropshipFacets && facets.total === 0) {
         return Response.json(
@@ -313,19 +356,19 @@ export async function GET(request: Request, { params }: RouteContext) {
     const dropshipOffset = Math.max(0, offset - localCount);
     const dropshipLimit = Math.max(1, remaining || 1);
 
-    const dropshipPage = await getVendorDropshipCatalogPage(id, {
-          query,
-          categories,
-          brand,
-          color,
-          sizes,
-          fit,
-          material,
-          sort,
-          availableOnly: true,
-          offset: dropshipOffset,
-          limit: dropshipLimit
-        });
+    const dropshipPage = await getCachedVendorDropshipCatalogPage(id, JSON.stringify({
+      query,
+      categories,
+      brand,
+      color,
+      sizes,
+      fit,
+      material,
+      sort,
+      availableOnly: true,
+      offset: dropshipOffset,
+      limit: dropshipLimit
+    }));
 
     const products = remaining > 0
       ? [...localProducts, ...dropshipPage.products.slice(0, remaining)]
@@ -337,7 +380,7 @@ export async function GET(request: Request, { params }: RouteContext) {
     const nextOffset = total !== undefined
       ? (offset + limit < total ? offset + limit : null)
       : null;
-    const dropshipFacets = includeFacets ? await optionalFacets(id, facetContext) : undefined;
+    const dropshipFacets = includeFacets ? await getCachedOptionalFacets(id, JSON.stringify(facetContext)) : undefined;
     const facets = includeFacets ? mergeFacets(localFacetProjection, dropshipFacets) : undefined;
 
     return Response.json({

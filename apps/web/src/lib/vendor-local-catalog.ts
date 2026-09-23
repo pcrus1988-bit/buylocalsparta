@@ -146,10 +146,11 @@ async function hydrateVendorLocalCatalogRows(
   if (rows.length === 0) return [];
 
   const ids = rows.map((row) => row.id);
-  const [metadata, departmentCodes] = await Promise.all([
-    loadCatalogMetadata(ids),
-    loadCatalogDepartmentCodes(ids)
-  ]);
+  // The Vercel web runtime intentionally keeps a single PostgreSQL connection
+  // per instance. Run DB-backed projections sequentially so one catalogue request
+  // never queues multiple acquisitions behind its own pool slot during traffic bursts.
+  const metadata = await loadCatalogMetadata(ids);
+  const departmentCodes = await loadCatalogDepartmentCodes(ids);
 
   let imagesByCanonical = new Map<string, Awaited<ReturnType<typeof approvedCatalogImages>>[number]>();
   try {

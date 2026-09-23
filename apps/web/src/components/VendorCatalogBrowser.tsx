@@ -57,7 +57,7 @@ type BeautyGuideGroup = Readonly<{
 }>;
 
 const PAGE_SIZE = 20;
-const FIRST_PAGE_TIMEOUT_MS = 20000;
+const FIRST_PAGE_TIMEOUT_MS = 26000;
 const BEAUTY_CATEGORY_CODES = new Set([
   "facial-cleansers",
   "face-moisturisers",
@@ -461,9 +461,16 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId 
   }, [demoMode, publicVendorId]);
 
   const fetchPage = useCallback(async (id: string, input: FilterState, offset: number, signal?: AbortSignal) => {
-    const response = await fetch(`/api/catalog/vendor/${encodeURIComponent(id)}?${pageParams(input, offset).toString()}`, { signal, cache: "default" });
-    if (!response.ok) throw new Error(`Catalogue request failed with ${response.status}`);
-    return response.json() as Promise<VendorCatalogApiResponse>;
+    const requestUrl = `/api/catalog/vendor/${encodeURIComponent(id)}?${pageParams(input, offset).toString()}`;
+    let lastStatus = 0;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await fetch(requestUrl, { signal, cache: "default" });
+      lastStatus = response.status;
+      if (response.ok) return response.json() as Promise<VendorCatalogApiResponse>;
+      if (response.status !== 503 || attempt > 0) break;
+      await new Promise((resolve) => window.setTimeout(resolve, 180));
+    }
+    throw new Error(`Catalogue request failed with ${lastStatus || "no response"}`);
   }, []);
 
   useEffect(() => {
