@@ -26,6 +26,22 @@ type QuotaListResponse = Readonly<{
   nextPageToken?: string;
 }>;
 
+function normalizedQuotaMethod(value: string | undefined): string {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function isProductInputInsertQuotaMethod(detail: QuotaMethod): boolean {
+  const method = normalizedQuotaMethod(detail.method);
+  const path = normalizedQuotaMethod(detail.path);
+  const expectedPath = PRODUCT_INSERT_PATH.toLowerCase();
+
+  return path === expectedPath
+    || path.endsWith("/productinputs.insert")
+    || path.endsWith("productinputs.insert")
+    || method.endsWith("productinputs.insert")
+    || method.endsWith("insertproductinput");
+}
+
 export type MerchantWriteQuota = Readonly<{
   groupName: string | null;
   dailyLimit: number;
@@ -76,22 +92,29 @@ export async function getMerchantProductInsertQuota(
 ): Promise<MerchantWriteQuota> {
   let pageToken: string | undefined;
   let matched: QuotaGroup | undefined;
+  const observedMethods = new Set<string>();
 
   do {
     const page = await quotaPage(accessToken, accountId, pageToken);
-    matched = (page.quotaGroups ?? []).find((group) =>
-      (group.methodDetails ?? []).some((detail) =>
-        detail.path === PRODUCT_INSERT_PATH
-        || detail.method === "productInputs.insert"
-        || detail.method === "products.productInputs.insert"
-      )
-    );
+    for (const group of page.quotaGroups ?? []) {
+      for (const detail of group.methodDetails ?? []) {
+        const method = detail.method?.trim() || "<none>";
+        const path = detail.path?.trim() || "<none>";
+        observedMethods.add(`${method}|${path}`);
+      }
+      if (!matched && (group.methodDetails ?? []).some(isProductInputInsertQuotaMethod)) {
+        matched = group;
+      }
+    }
     if (matched) break;
     pageToken = page.nextPageToken;
   } while (pageToken);
 
   if (!matched) {
-    throw new Error("Merchant productInputs.insert quota group was not returned for this account.");
+    const observed = [...observedMethods].filter((value) => /product|insert/i.test(value)).slice(0, 20);
+    throw new Error(
+      `Merchant productInputs.insert quota group was not returned for this account. Observed: ${observed.join(", ") || "none"}`
+    );
   }
 
   const dailyLimit = safeInteger(matched.quotaLimit);
