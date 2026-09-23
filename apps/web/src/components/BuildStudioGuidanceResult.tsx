@@ -52,6 +52,24 @@ type QuantityEstimate = {
 
 type MutableKitItem = ProjectKitItem & { selected: boolean; quantity: number };
 
+type KitItemDetail = Readonly<{
+  canonicalVariantId: string;
+  title: string;
+  priceMinor: number;
+  price: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  sku?: string;
+  gtin?: string;
+  color?: string;
+  size?: string;
+  brand?: string;
+  categoryLabel?: string;
+  description?: string;
+  availableToSell?: number;
+  url?: string;
+}>;
+
 function sourceLabel(layer: SourceLayer): string {
   if (layer === "GENERAL_GUIDANCE") return "Γενική τεχνική καθοδήγηση";
   if (layer === "MANUFACTURER_VITEX") return "Οδηγίες κατασκευαστή · VITEX";
@@ -89,6 +107,110 @@ function unresolvedText(value: Readonly<Record<string, unknown>>): string {
   return `${title}: απαιτείται τεχνική ολοκλήρωση.`;
 }
 
+
+function kitRoleLabel(item: ProjectKitItem): string {
+  if (item.required) return "ΑΠΑΡΑΙΤΗΤΟ ΥΛΙΚΟ";
+  if (item.role === "recommended_working") return "ΠΡΟΤΕΙΝΟΜΕΝΟ ΥΛΙΚΟ ΕΡΓΑΣΙΑΣ";
+  return "ΠΡΟΑΙΡΕΤΙΚΟ ΠΡΟΣΘΕΤΟ";
+}
+
+function KitItemDetailsOverlay({ item, onClose }: { item: MutableKitItem; onClose: () => void }) {
+  const [detail, setDetail] = useState<KitItemDetail>();
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setState("loading");
+    setDetail(undefined);
+    void fetch("/api/cart/candidate", {
+      method: "POST",
+      signal: controller.signal,
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ id: item.canonicalVariantId })
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`project-kit item detail: ${response.status}`);
+        return response.json() as Promise<{ item?: KitItemDetail }>;
+      })
+      .then((payload) => {
+        if (controller.signal.aborted || !payload.item) return;
+        setDetail(payload.item);
+        setState("ready");
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setState("error");
+      });
+    return () => controller.abort();
+  }, [item.canonicalVariantId]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const imageUrl = detail?.imageUrl ?? item.imageUrl;
+  const productUrl = detail?.url ?? `/product/${encodeURIComponent(item.canonicalVariantId)}`;
+
+  return (
+    <div className={styles.kitDetailOverlay} role="dialog" aria-modal="true" aria-label={`Λεπτομέρειες ${item.title}`}>
+      <div className={styles.kitDetailShell}>
+        <button type="button" className={styles.kitDetailClose} onClick={onClose} aria-label="Κλείσιμο">×</button>
+        {state === "loading" ? <div className={styles.kitDetailLoading}>Φορτώνω τις λεπτομέρειες του προϊόντος…</div> : null}
+        {state === "error" ? (
+          <div className={styles.kitDetailLoading}>
+            <strong>{item.title}</strong>
+            <p>Οι πρόσθετες πληροφορίες δεν είναι διαθέσιμες αυτή τη στιγμή. Το προϊόν παραμένει στο έργο με τα στοιχεία που έχουν ήδη επιβεβαιωθεί.</p>
+          </div>
+        ) : null}
+        {state === "ready" && detail ? (
+          <>
+            <div className={styles.kitDetailHero}>
+              <div className={styles.kitDetailImage}>
+                {imageUrl ? <img src={imageUrl} alt={detail.imageAlt ?? item.title} /> : <span aria-hidden="true">{item.title.slice(0, 1).toUpperCase()}</span>}
+              </div>
+              <div className={styles.kitDetailCopy}>
+                <small>{kitRoleLabel(item)}</small>
+                <h2>{detail.title || item.title}</h2>
+                <div className={styles.kitDetailMeta}>
+                  {detail.brand ? <span><b>Μάρκα</b>{detail.brand}</span> : null}
+                  {detail.categoryLabel ? <span><b>Κατηγορία</b>{detail.categoryLabel}</span> : null}
+                  {detail.color ? <span><b>Χρώμα</b>{detail.color}</span> : null}
+                  {detail.size ? <span><b>Μέγεθος / συσκευασία</b>{detail.size}</span> : null}
+                  <span><b>Τιμή</b>{detail.price}</span>
+                  <span><b>Ποσότητα έργου</b>{item.quantity}</span>
+                </div>
+              </div>
+            </div>
+            <div className={styles.kitDetailBody}>
+              <div>
+                <h3>Γιατί βρίσκεται στο έργο σου</h3>
+                <p>{item.reasonEl}</p>
+                <small>{item.sourceLayer === "MANUFACTURER_VITEX" ? "Επαληθευμένο σύστημα VITEX" : "Πρόταση ΚΟΝΤΑ ΜΟΥ βάσει των αναγκών του έργου"}</small>
+              </div>
+              {detail.description ? <div><h3>Περιγραφή προϊόντος</h3><p>{detail.description}</p></div> : null}
+              {(detail.sku || detail.gtin || detail.availableToSell != null) ? (
+                <div className={styles.kitDetailFacts}>
+                  {detail.sku ? <span><b>Κωδικός</b>{detail.sku}</span> : null}
+                  {detail.gtin ? <span><b>GTIN</b>{detail.gtin}</span> : null}
+                  {detail.availableToSell != null ? <span><b>Διαθέσιμο απόθεμα</b>{detail.availableToSell} τεμ.</span> : null}
+                </div>
+              ) : null}
+            </div>
+            <div className={styles.kitDetailActions}>
+              <a href={productUrl}>ΑΝΟΙΞΕ ΤΗ ΣΕΛΙΔΑ ΤΟΥ ΠΡΟΪΟΝΤΟΣ</a>
+              <button type="button" onClick={onClose}>ΕΠΙΣΤΡΟΦΗ ΣΤΟ ΕΡΓΟ</button>
+            </div>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function ProjectKitScreen({
   eyebrow,
   title,
@@ -120,6 +242,7 @@ function ProjectKitScreen({
   const [cartState, setCartState] = useState<"idle" | "loading" | "added" | "error">("idle");
   const [pdfState, setPdfState] = useState<"idle" | "loading" | "error">("idle");
   const [snapshotId, setSnapshotId] = useState("");
+  const [detailItem, setDetailItem] = useState<MutableKitItem>();
   const recommendedQuantity = useMemo(
     () => new Map(sourceItems.filter((item) => item.required).map((item) => [item.canonicalVariantId, item.quantity])),
     [sourceItems]
@@ -130,6 +253,7 @@ function ProjectKitScreen({
     setCartState("idle");
     setPdfState("idle");
     setSnapshotId("");
+    setDetailItem(undefined);
   }, [projectKit, sourceItems]);
 
   const unresolvedRequired = projectKit.kit?.unresolvedRequired ?? [];
@@ -298,8 +422,9 @@ function ProjectKitScreen({
             <strong>{item.title}</strong>
             {item.required ? <b>ΑΠΑΡΑΙΤΗΤΟ ΓΙΑ ΤΟ ΕΠΑΛΗΘΕΥΜΕΝΟ ΣΥΣΤΗΜΑ</b> : null}
           </div>
-          <small>{item.sourceLayer === "MANUFACTURER_VITEX" ? "VITEX · επαληθευμένο σύστημα" : "KONTA MOY · Project Accessory Rules"}</small>
+          <small>{item.sourceLayer === "MANUFACTURER_VITEX" ? "VITEX · επαληθευμένο σύστημα" : "ΚΟΝΤΑ ΜΟΥ · κανόνες υλικών έργου"}</small>
           <p>{item.reasonEl}</p>
+          <button type="button" className={styles.kitDetailButton} onClick={() => setDetailItem(item)}>ΔΕΣ ΛΕΠΤΟΜΕΡΕΙΕΣ</button>
           {shortfall ? <em>Η ποσότητα είναι μικρότερη από την υπολογισμένη απαίτηση· το έργο θεωρείται ελλιπές.</em> : null}
         </div>
         <div className={styles.kitQuantity}>
@@ -381,6 +506,7 @@ function ProjectKitScreen({
         <button type="button" className={styles.secondaryAction} onClick={onChangeProduct}>ΑΛΛΑΓΗ ΠΡΟΪΟΝΤΟΣ</button>
         <button type="button" className={styles.secondaryAction} onClick={onRestart}>ΝΕΟ ΕΡΓΟ</button>
       </div>
+      {detailItem ? <KitItemDetailsOverlay item={detailItem} onClose={() => setDetailItem(undefined)} /> : null}
     </section>
   );
 }
