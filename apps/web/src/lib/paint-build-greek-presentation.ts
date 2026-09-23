@@ -183,7 +183,23 @@ const EXACT: Readonly<Record<string, string>> = {
   "Use biocidal products safely; read label and product information before use.": "Χρησιμοποίησε τα βιοκτόνα με ασφάλεια· διάβασε την ετικέτα και τις πληροφορίες του προϊόντος πριν από τη χρήση.",
   "finish κατάλληλο για το use case": "Φινίρισμα κατάλληλο για τη συγκεκριμένη περίπτωση εφαρμογής.",
   "Σύμφωνα με σκόνη/φινίρισμα/SDS.": "Σύμφωνα με τον κίνδυνο σκόνης, το φινίρισμα και το Δελτίο Δεδομένων Ασφαλείας (SDS).",
-  "Περιοδική συντήρηση ανάλογα με έκθεση και manufacturer system": "Περιοδική συντήρηση ανάλογα με την έκθεση και το σύστημα του κατασκευαστή."
+  "Περιοδική συντήρηση ανάλογα με έκθεση και manufacturer system": "Περιοδική συντήρηση ανάλογα με την έκθεση και το σύστημα του κατασκευαστή.",
+  "After 20-24 h sand, remove loose dust, then apply a compatible metal enamel.": "Μετά από 20-24 ώρες, τρίψε την επιφάνεια, αφαίρεσε τη σκόνη και εφάρμοσε συμβατό βερνικόχρωμα μετάλλου.",
+  "Do not collapse the manufacturer dilution statements into one universal dilution percentage.": "Μην ενοποιείς τις διαφορετικές οδηγίες αραίωσης του κατασκευαστή σε ένα γενικό ποσοστό αραίωσης.",
+  "Exterior: apply below 70% RH.": "Για εξωτερική εφαρμογή, η σχετική υγρασία πρέπει να είναι κάτω από 70%.",
+  "Interior: apply below 80% RH.": "Για εσωτερική εφαρμογή, η σχετική υγρασία πρέπει να είναι κάτω από 80%.",
+  "For dark/intense final shades, one coat of suitably tinted PreColor Primer is recommended for maximum opacity.": "Για σκούρες ή έντονες τελικές αποχρώσεις συνιστάται μία στρώση κατάλληλα χρωματισμένου PreColor Primer για μέγιστη καλυπτικότητα.",
+  "For dark/intense final shades, one tinted PreColor Primer coat is recommended for maximum opacity.": "Για σκούρες ή έντονες τελικές αποχρώσεις συνιστάται μία χρωματισμένη στρώση PreColor Primer για μέγιστη καλυπτικότητα.",
+  "For darker final coats, Blanco Eco may be used white or slightly tinted through Vitex Coloring System toward the final shade.": "Για πιο σκούρες τελικές αποχρώσεις, το Blanco Eco μπορεί να χρησιμοποιηθεί λευκό ή ελαφρά χρωματισμένο μέσω του Συστήματος Δημιουργίας Αποχρώσεων Vitex προς την τελική απόχρωση.",
+  "For tough stains, the TDS advises topcoating after 24 h.": "Για επίμονους λεκέδες, το τεχνικό δελτίο (TDS) συνιστά εφαρμογή τελικής βαφής μετά από 24 ώρες.",
+  "New plaster or concrete must cure at least 30 days.": "Νέος σοβάς ή σκυρόδεμα πρέπει να ωριμάσει για τουλάχιστον 30 ημέρες.",
+  "New plaster/concrete must cure at least 30 days before painting.": "Νέος σοβάς ή σκυρόδεμα πρέπει να ωριμάσει για τουλάχιστον 30 ημέρες πριν από τη βαφή.",
+  "Prime old limewash/distemper and new plaster/concrete/cement/plasterboard or puttied surfaces with Acrylan Unco Eco.": "Αστάρωσε παλιές επιφάνειες με ασβέστη ή κόλλα, καθώς και νέο σοβά, σκυρόδεμα, τσιμεντοειδείς επιφάνειες, γυψοσανίδα ή στοκαρισμένες επιφάνειες με Acrylan Unco Eco.",
+  "Prime smoke/graffiti/coffee/other stained surfaces with Blanco Eco.": "Αστάρωσε επιφάνειες με λεκέδες από καπνό, γκράφιτι, καφέ ή άλλους ρύπους με Blanco Eco.",
+  "Recommended exterior top coats include Acrylan MAX, Acrylan, Acrylan Elastic, Cement Paint and Vitacryl.": "Στα προτεινόμενα τελικά χρώματα εξωτερικής χρήσης περιλαμβάνονται τα Acrylan MAX, Acrylan, Acrylan Elastic, Cement Paint και Vitacryl.",
+  "Recommended interior top coats include Vitex Classic and Vitex Eco.": "Στα προτεινόμενα τελικά χρώματα εσωτερικής χρήσης περιλαμβάνονται τα Vitex Classic και Vitex Eco.",
+  "TDS contains an unresolved timing conflict: front table states topcoat after 2-3 h, application section states 4-6 h. No executable topcoat timing rule is published until review.": "Το τεχνικό δελτίο (TDS) περιέχει μη επιλυμένη διαφορά χρόνου: ο αρχικός πίνακας αναφέρει τελική βαφή μετά από 2-3 ώρες, ενώ η ενότητα εφαρμογής αναφέρει 4-6 ώρες. Δεν χρησιμοποιείται αυτόματος κανόνας χρόνου μέχρι να ολοκληρωθεί ο έλεγχος.",
+  "Water-based top coats may be applied after 4-6 hours.": "Τελικές βαφές νερού μπορούν να εφαρμοστούν μετά από 4-6 ώρες."
 };
 
 const GENERIC: readonly [RegExp, string][] = [
