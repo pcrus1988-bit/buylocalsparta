@@ -1,12 +1,13 @@
 import { syncGoogleMerchantCatalogue } from "../../../../lib/google-merchant-sync";
+import { authorizeGoogleSchedulerRequest } from "../../../../lib/google-scheduler-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET?.trim();
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  const auth = await authorizeGoogleSchedulerRequest(request);
+  if (!auth) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
 
