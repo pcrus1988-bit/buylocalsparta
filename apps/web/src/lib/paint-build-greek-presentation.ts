@@ -456,11 +456,123 @@ const PRODUCT_DESCRIPTORS: Readonly<Record<string, string>> = {
   "vitex with vairo": "βελούτε ματ αντιιικό και αντιβακτηριδιακό πλαστικό χρώμα"
 };
 
+
+const VITEX_SUBCATEGORY_DESCRIPTORS: Readonly<Record<string, string>> = {
+  "premium mat emulsion paint": "υψηλής ποιότητας ματ πλαστικό χρώμα",
+  "premium eggshell emulsion paint": "υψηλής ποιότητας βελούτε ματ πλαστικό χρώμα",
+  "ecological emulsion paint": "οικολογικό πλαστικό χρώμα",
+  "antiviral antibacterial eggshell emulsion paint": "βελούτε ματ αντιιικό και αντιβακτηριδιακό πλαστικό χρώμα",
+  "humidity/fungi-protection coating": "ματ χρώμα προστασίας από υγρασία και ανάπτυξη μυκήτων",
+  "100% acrylic paint": "100% ακρυλικό χρώμα",
+  "acrylic paint for general use": "ακρυλικό χρώμα γενικής χρήσης",
+  "elastomeric acrylic paint": "ελαστομερές ακρυλικό χρώμα",
+  "etics renewal nano-acrylic paint": "νανοακρυλικό χρώμα ανανέωσης συστήματος ETICS",
+  "nano-acrylic masonry paint": "νανοακρυλικό χρώμα τοιχοποιίας",
+  "silicone acrylic paint": "σιλικονούχο ακρυλικό χρώμα",
+  "acrylic water-based paint for cement surfaces": "ακρυλικό χρώμα νερού για τσιμεντοειδείς επιφάνειες",
+  "water-based polyurethane enamel": "πολυουρεθανικό ακρυλικό βερνικόχρωμα νερού",
+  "water-based acrylic polyurethane floor paint": "ακρυλικό-πολυουρεθανικό χρώμα νερού για δάπεδα",
+  "anticorrosive primer": "αντισκωριακό αστάρι",
+  "solvent-based waterproof acrylic primer": "αδιάβροχο ακρυλικό αστάρι διαλύτου",
+  "water-based 100% acrylic waterproofing primer": "100% ακρυλικό αδιάβροχο αστάρι νερού",
+  "lightweight ready-to-use acrylic putty": "ελαφρύς έτοιμος ακρυλικός στόκος",
+  "ecological silicone acrylic micronized water-based primer": "οικολογικό μικρονιζέ σιλικονούχο ακρυλικό αστάρι νερού",
+  "ecological stain-blocking acrylic water-based primer": "οικολογικό ακρυλικό αστάρι νερού απομόνωσης λεκέδων"
+};
+
+const VITEX_SUBSTRATE_LABELS: Readonly<Record<string, string>> = {
+  "concrete": "σκυρόδεμα",
+  "plaster": "σοβά",
+  "cement": "τσιμεντοειδείς επιφάνειες",
+  "cement surface": "τσιμεντοειδείς επιφάνειες",
+  "brick": "τούβλο",
+  "gypsum board": "γυψοσανίδα",
+  "plasterboard": "γυψοσανίδα",
+  "sound old paint": "σταθερές παλιές βαμμένες επιφάνειες",
+  "old painted surfaces": "παλιές βαμμένες επιφάνειες σε καλή κατάσταση",
+  "wood": "ξύλο",
+  "metal": "μέταλλο",
+  "steel": "χάλυβα",
+  "iron": "σίδηρο",
+  "masonry": "τοιχοποιία",
+  "organic plaster": "οργανικό επίχρισμα",
+  "etics": "σύστημα εξωτερικής θερμομόνωσης ETICS"
+};
+
+function greekList(values: readonly string[]): string {
+  if (values.length <= 1) return values[0] ?? "";
+  if (values.length === 2) return `${values[0]} και ${values[1]}`;
+  return `${values.slice(0, -1).join(", ")} και ${values[values.length - 1]}`;
+}
+
+function sentenceCaseGreek(value: string): string {
+  if (!value) return value;
+  return value.charAt(0).toLocaleUpperCase("el-GR") + value.slice(1);
+}
+
+/**
+ * Builds customer-facing product copy only from verified manufacturer fields.
+ * It does not invent performance claims, coverage, substrates or system roles.
+ */
+export function paintBuildManufacturerDescription(input: Readonly<{
+  productName: string;
+  productCategory?: string | null;
+  subcategory?: string | null;
+  interiorExterior?: string | null;
+  substrateTypes?: readonly string[] | null;
+}>): string {
+  const productKey = input.productName.trim().toLocaleLowerCase("en");
+  const subcategoryKey = input.subcategory?.trim().toLocaleLowerCase("en") ?? "";
+  const descriptor = VITEX_SUBCATEGORY_DESCRIPTORS[subcategoryKey]
+    ?? PRODUCT_DESCRIPTORS[productKey]
+    ?? paintBuildCategoryLabel(input.productCategory)
+    ?? "προϊόν VITEX";
+
+  const useKey = input.interiorExterior?.trim().toLocaleLowerCase("en");
+  const useLabel = useKey === "interior"
+    ? "εσωτερική χρήση"
+    : useKey === "exterior"
+      ? "εξωτερική χρήση"
+      : useKey === "both"
+        ? "εσωτερική και εξωτερική χρήση"
+        : undefined;
+  const descriptorLower = descriptor.toLocaleLowerCase("el-GR");
+  const alreadyStatesUse = useLabel
+    ? descriptorLower.includes(useLabel.toLocaleLowerCase("el-GR"))
+    : false;
+
+  const first = sentenceCaseGreek(descriptor)
+    + (useLabel && !alreadyStatesUse ? ` για ${useLabel}` : "")
+    + ".";
+
+  const substrates = [...new Set((input.substrateTypes ?? [])
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => VITEX_SUBSTRATE_LABELS[value.toLocaleLowerCase("en")] ?? paintBuildGreekText(value))
+  )];
+
+  if (!substrates.length) {
+    return `${first} Η περιγραφή προέρχεται από τα επαληθευμένα στοιχεία προϊόντος της VITEX.`;
+  }
+
+  return `${first} Σύμφωνα με τα επαληθευμένα στοιχεία της VITEX, προορίζεται για εφαρμογή σε ${greekList(substrates)}.`;
+}
+
 export function paintBuildGreekText(value: string): string {
   const normalized = value.trim();
   if (!normalized) return normalized;
   const exact = EXACT[normalized] ?? GENERAL_EXACT[normalized];
   if (exact) return exact;
+
+  const documentedRepaint = normalized.match(
+    /^(.+?) is documented for sound old paint and the reviewed (interior|exterior) repaint pathway; current manufacturer preparation requirements still apply\.?$/i
+  );
+  if (documentedRepaint) {
+    const use = documentedRepaint[2].toLocaleLowerCase("en") === "interior"
+      ? "εσωτερικού χώρου"
+      : "εξωτερικού χώρου";
+    return `${documentedRepaint[1]} έχει τεκμηριωμένη εφαρμογή από τη VITEX πάνω σε σταθερή παλιά βαφή για το συγκεκριμένο ελεγμένο σενάριο επαναβαφής ${use}. Εξακολουθούν να ισχύουν οι απαιτήσεις προετοιμασίας του κατασκευαστή.`;
+  }
 
   let result = normalized;
   for (const [pattern, replacement] of GENERIC) result = result.replace(pattern, replacement);
