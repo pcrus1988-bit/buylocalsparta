@@ -706,13 +706,21 @@ export async function getDemoVendorCatalogPage(
 }
 
 export async function getDemoVendorCatalogFacets(vendor: DemoStorefrontVendor): Promise<DemoCatalogFacets> {
-  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow & {
-    category_code: string;
-    category_label: string | null;
-    category_group_code: string;
-    category_group_label: string | null;
-    brand: string | null;
-  }>(`
+  type FacetRow = SqlRow & {
+    facet_kind: "total" | "category" | "brand";
+    value: string | null;
+    label: string | null;
+    group_value: string | null;
+    group_label: string | null;
+    facet_count: number | string;
+  };
+
+  // Aggregate in PostgreSQL instead of returning one row per assigned variant.
+  // Large DEMO catalogues (Fournarakis alone contributes 6k+ products) previously
+  // sent thousands of rows through the serverless connection merely to count them
+  // again in JavaScript. The compact projection keeps the connection short-lived
+  // and materially reduces pool pressure on Vercel.
+  const result = await getProductionPostgresRuntime().sqlPool.query<FacetRow>(`
     WITH raw_assignment AS (
       SELECT vo.canonical_variant_id
       FROM vendor_offers vo
@@ -730,41 +738,89 @@ export async function getDemoVendorCatalogFacets(vendor: DemoStorefrontVendor): 
     assigned_variants AS (
       SELECT DISTINCT canonical_variant_id
       FROM raw_assignment
+    ),
+    classified AS (
+      SELECT c.code AS category_code,
+             COALESCE(ctel.name,cten.name,c.code) AS category_label,
+             CASE
+               WHEN p.assignable=true AND p.taxonomy_role='product_class' THEN p.code
+               ELSE c.code
+             END AS category_group_code,
+             CASE
+               WHEN p.assignable=true AND p.taxonomy_role='product_class'
+                 THEN COALESCE(ptel.name,pten.name,p.code)
+               ELSE COALESCE(ctel.name,cten.name,c.code)
+             END AS category_group_label,
+             b.name AS brand
+      FROM assigned_variants av
+      JOIN canonical_variants cv ON cv.id=av.canonical_variant_id
+      JOIN categories c ON c.id=cv.category_id
+      LEFT JOIN categories p ON p.id=c.parent_id
+      LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
+      LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
+      LEFT JOIN category_translations ptel ON ptel.category_id=p.id AND ptel.locale='el'
+      LEFT JOIN category_translations pten ON pten.category_id=p.id AND pten.locale='en'
+      LEFT JOIN brands b ON b.id=cv.brand_id
+      WHERE cv.suppressed=false
+        AND cv.recalled=false
     )
-    SELECT c.code AS category_code,
-           COALESCE(ctel.name,cten.name,c.code) AS category_label,
-           CASE
-             WHEN p.assignable=true AND p.taxonomy_role='product_class' THEN p.code
-             ELSE c.code
-           END AS category_group_code,
-           CASE
-             WHEN p.assignable=true AND p.taxonomy_role='product_class'
-               THEN COALESCE(ptel.name,pten.name,p.code)
-             ELSE COALESCE(ctel.name,cten.name,c.code)
-           END AS category_group_label,
-           b.name AS brand
-    FROM assigned_variants av
-    JOIN canonical_variants cv ON cv.id=av.canonical_variant_id
-    JOIN categories c ON c.id=cv.category_id
-    LEFT JOIN categories p ON p.id=c.parent_id
-    LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
-    LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
-    LEFT JOIN category_translations ptel ON ptel.category_id=p.id AND ptel.locale='el'
-    LEFT JOIN category_translations pten ON pten.category_id=p.id AND pten.locale='en'
-    LEFT JOIN brands b ON b.id=cv.brand_id
-    WHERE cv.suppressed=false
-      AND cv.recalled=false
+    SELECT 'total'::text AS facet_kind,
+           NULL::text AS value,
+           NULL::text AS label,
+           NULL::text AS group_value,
+           NULL::text AS group_label,
+           count(*)::integer AS facet_count
+    FROM classified
+
+    UNION ALL
+
+    SELECT 'category'::text AS facet_kind,
+           category_code AS value,
+           category_label AS label,
+           category_group_code AS group_value,
+           category_group_label AS group_label,
+           count(*)::integer AS facet_count
+    FROM classified
+    GROUP BY category_code,category_label,category_group_code,category_group_label
+
+    UNION ALL
+
+    SELECT 'brand'::text AS facet_kind,
+           brand AS value,
+           brand AS label,
+           NULL::text AS group_value,
+           NULL::text AS group_label,
+           count(*)::integer AS facet_count
+    FROM classified
+    WHERE brand IS NOT NULL AND btrim(brand)<>''
+    GROUP BY brand
   `, [vendor.uuid]);
 
+  const total = Math.max(0, Math.trunc(numeric(result.rows.find((row) => row.facet_kind === "total")?.facet_count) ?? 0));
+  const categories = result.rows
+    .filter((row) => row.facet_kind === "category" && optionalText(row.value))
+    .map((row) => ({
+      value: text(row.value),
+      label: optionalText(row.label) ?? text(row.value),
+      count: Math.max(0, Math.trunc(numeric(row.facet_count) ?? 0)),
+      ...(optionalText(row.group_value) ? { groupValue: optionalText(row.group_value)! } : {}),
+      ...(optionalText(row.group_label) ? { groupLabel: optionalText(row.group_label)! } : {})
+    }))
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "el"));
+
+  const brands = result.rows
+    .filter((row) => row.facet_kind === "brand" && optionalText(row.value))
+    .map((row) => ({
+      value: text(row.value),
+      label: optionalText(row.label) ?? text(row.value),
+      count: Math.max(0, Math.trunc(numeric(row.facet_count) ?? 0))
+    }))
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "el"));
+
   return {
-    total: result.rows.length,
-    categories: facetOptions(result.rows.map((row) => ({
-      value: text(row.category_code),
-      label: optionalText(row.category_label),
-      groupValue: text(row.category_group_code),
-      groupLabel: optionalText(row.category_group_label)
-    }))),
-    brands: facetOptions(result.rows.map((row) => ({ value: optionalText(row.brand), label: optionalText(row.brand) }))),
+    total,
+    categories,
+    brands,
     colors: [],
     sizes: [],
     fits: [],
