@@ -198,6 +198,8 @@ if (!homepage.includes("isReadOnlyPublicCrawlerRequest") || !homepage.includes("
 requireText(homepage, 'getAvailableStorefrontCategories("23100")', "Homepage must derive category links from currently available catalogue inventory");
 requireText(homepage, "visibleCategories.map", "Homepage must link every available category independently of rotating featured products");
 if (!category.includes("buildGovernedSeoMetadata") || !category.includes('canonicalPath: `/category/${category.slug}`')) failures.push("Category pages must publish governed self-canonical metadata");
+requireText(category, "const entityEligible = true;", "Durable storefront category indexability must not depend on transient stock/taxonomy availability");
+if (category.includes("const entityEligible = taxonomy.categories.some")) failures.push("Category metadata must not flap noindex with transient taxonomy availability");
 if (!category.includes("isReadOnlyPublicCrawlerRequest") || !category.includes("getCrawlerCatalogCards")) failures.push("Category crawler rendering must use the read-only catalogue projection");
 for (const contract of ['"@type": "CollectionPage"', '"@type": "ItemList"', "category-merchant-grid", "seoControl.schemaAllowed ? <script"]) requireText(category, contract, `Category landing SEO is missing ${contract}`);
 for (const source of [shop, shops]) {
