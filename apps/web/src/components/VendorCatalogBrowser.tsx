@@ -635,6 +635,10 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
     ...(catalogCategories.length ? ["catalog" as const] : [])
   ] satisfies readonly GuideDomain[]);
   const relatedCategories = useMemo(() => relatedCategoryOptions(categories, category, categoryGroup), [categories, category, categoryGroup]);
+  const popularCategoryGroups = useMemo(
+    () => buildCatalogGroups(categories).slice(0, RELATED_CATEGORY_LIMIT),
+    [categories]
+  );
   const visibleBrands = useMemo(() => {
     const needle = normalized(brandSearch);
     let matches = needle
@@ -936,11 +940,13 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
 
       {categoryGroup.length ? <div className="vc-group-note"><small>ΟΜΑΔΟΠΟΙΗΜΕΝΗ ΕΠΙΛΟΓΗ</small><strong>{activeCategoryLabel}</strong><span>{categoryGroup.length} κατηγορίες μαζί</span></div> : null}
 
-      {relatedCategories.length ? <section className="vc-filter-card">
-        <div className="vc-filter-card-head"><span>{category !== "all" || categoryGroup.length ? "Σχετικές κατηγορίες" : "Δημοφιλείς κατηγορίες"}</span><small>{relatedCategories.length}</small></div>
+      {(category !== "all" || categoryGroup.length ? relatedCategories.length : popularCategoryGroups.length) ? <section className="vc-filter-card">
+        <div className="vc-filter-card-head"><span>{category !== "all" || categoryGroup.length ? "Σχετικές κατηγορίες" : "Κύριες κατηγορίες"}</span><small>{category !== "all" || categoryGroup.length ? relatedCategories.length : popularCategoryGroups.length}</small></div>
         <div className="vc-category-list">
           {category !== "all" || categoryGroup.length ? <button type="button" onClick={() => selectCategory("all")}><span>Όλα τα προϊόντα</span><em>↺</em></button> : null}
-          {relatedCategories.map((entry) => <button className={category === entry.value && !categoryGroup.length ? "active" : ""} type="button" onClick={() => selectCategory(entry.value)} key={entry.value}><span>{entry.label}</span><em>{entry.count}</em></button>)}
+          {category !== "all" || categoryGroup.length
+            ? relatedCategories.map((entry) => <button className={category === entry.value && !categoryGroup.length ? "active" : ""} type="button" onClick={() => selectCategory(entry.value)} key={entry.value}><span>{entry.label}</span><em>{entry.count}</em></button>)
+            : popularCategoryGroups.map((group) => <button type="button" onClick={() => group.entries.length === 1 ? selectCategory(group.entries[0]?.value ?? group.key) : selectCategoryGroup(group.entries, group.label)} key={group.key}><span>{group.label}</span><em>{group.count}</em></button>)}
         </div>
       </section> : null}
 
