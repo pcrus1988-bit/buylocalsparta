@@ -103,7 +103,13 @@ export type DemoCatalogQuery = Readonly<{
   limit?: number;
 }>;
 
-export type DemoCatalogFacetOption = Readonly<{ value: string; label: string; count: number }>;
+export type DemoCatalogFacetOption = Readonly<{
+  value: string;
+  label: string;
+  count: number;
+  groupValue?: string;
+  groupLabel?: string;
+}>;
 
 export type DemoCatalogFacets = Readonly<{
   total: number;
@@ -645,16 +651,39 @@ async function attachApprovedImages(rows: readonly ProductRow[], vendor: DemoSto
   return rows.map((row) => productFromRow(row, vendor, imageById.get(text(row.id))));
 }
 
-function facetOptions(values: readonly Readonly<{ value?: string | null; label?: string | null }>[]): readonly DemoCatalogFacetOption[] {
-  const counts = new Map<string, { label: string; count: number }>();
+function facetOptions(values: readonly Readonly<{
+  value?: string | null;
+  label?: string | null;
+  groupValue?: string | null;
+  groupLabel?: string | null;
+}>[]): readonly DemoCatalogFacetOption[] {
+  const counts = new Map<string, {
+    label: string;
+    count: number;
+    groupValue?: string;
+    groupLabel?: string;
+  }>();
   for (const entry of values) {
     const value = entry.value?.trim();
     if (!value) continue;
     const current = counts.get(value);
-    counts.set(value, { label: entry.label?.trim() || value, count: (current?.count ?? 0) + 1 });
+    const groupValue = entry.groupValue?.trim() || undefined;
+    const groupLabel = entry.groupLabel?.trim() || undefined;
+    counts.set(value, {
+      label: current?.label ?? entry.label?.trim() ?? value,
+      count: (current?.count ?? 0) + 1,
+      groupValue: current?.groupValue ?? groupValue,
+      groupLabel: current?.groupLabel ?? groupLabel
+    });
   }
   return [...counts.entries()]
-    .map(([value, entry]) => ({ value, label: entry.label, count: entry.count }))
+    .map(([value, entry]) => ({
+      value,
+      label: entry.label,
+      count: entry.count,
+      ...(entry.groupValue ? { groupValue: entry.groupValue } : {}),
+      ...(entry.groupLabel ? { groupLabel: entry.groupLabel } : {})
+    }))
     .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "el"));
 }
 
@@ -680,6 +709,8 @@ export async function getDemoVendorCatalogFacets(vendor: DemoStorefrontVendor): 
   const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow & {
     category_code: string;
     category_label: string | null;
+    category_group_code: string;
+    category_group_label: string | null;
     brand: string | null;
   }>(`
     WITH raw_assignment AS (
@@ -702,12 +733,24 @@ export async function getDemoVendorCatalogFacets(vendor: DemoStorefrontVendor): 
     )
     SELECT c.code AS category_code,
            COALESCE(ctel.name,cten.name,c.code) AS category_label,
+           CASE
+             WHEN p.assignable=true AND p.taxonomy_role='product_class' THEN p.code
+             ELSE c.code
+           END AS category_group_code,
+           CASE
+             WHEN p.assignable=true AND p.taxonomy_role='product_class'
+               THEN COALESCE(ptel.name,pten.name,p.code)
+             ELSE COALESCE(ctel.name,cten.name,c.code)
+           END AS category_group_label,
            b.name AS brand
     FROM assigned_variants av
     JOIN canonical_variants cv ON cv.id=av.canonical_variant_id
     JOIN categories c ON c.id=cv.category_id
+    LEFT JOIN categories p ON p.id=c.parent_id
     LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
     LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
+    LEFT JOIN category_translations ptel ON ptel.category_id=p.id AND ptel.locale='el'
+    LEFT JOIN category_translations pten ON pten.category_id=p.id AND pten.locale='en'
     LEFT JOIN brands b ON b.id=cv.brand_id
     WHERE cv.suppressed=false
       AND cv.recalled=false
@@ -715,7 +758,12 @@ export async function getDemoVendorCatalogFacets(vendor: DemoStorefrontVendor): 
 
   return {
     total: result.rows.length,
-    categories: facetOptions(result.rows.map((row) => ({ value: text(row.category_code), label: optionalText(row.category_label) }))),
+    categories: facetOptions(result.rows.map((row) => ({
+      value: text(row.category_code),
+      label: optionalText(row.category_label),
+      groupValue: text(row.category_group_code),
+      groupLabel: optionalText(row.category_group_label)
+    }))),
     brands: facetOptions(result.rows.map((row) => ({ value: optionalText(row.brand), label: optionalText(row.brand) }))),
     colors: [],
     sizes: [],
