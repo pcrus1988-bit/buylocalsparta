@@ -31,8 +31,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const category = storefrontCategoryBySlug(slug);
   if (!category) return { title: "Κατηγορία", robots: { index: false, follow: false } };
 
-  const taxonomy = await getCachedShopTaxonomy(category.slug, "", {}, "23100");
-  const entityEligible = taxonomy.categories.some((item) => item.slug === category.slug);
+  // Storefront category landing pages are durable editorial/search destinations.
+  // Their indexability must not flap with transient catalogue, stock, taxonomy, or
+  // supplier-projection availability. Commerce/schema output remains availability-
+  // gated in the page body, but a known storefront category stays indexable unless
+  // the global SEO switch or an explicit entity override suppresses it.
+  const entityEligible = true;
   const reference: SeoEntityReference = { kind: "category", id: category.slug };
   const [{ settings }, overrides] = await Promise.all([getSeoGlobalSettingsSnapshot(), getSeoEntityOverridesSnapshot()]);
   return buildGovernedSeoMetadata({
