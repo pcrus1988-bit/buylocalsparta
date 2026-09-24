@@ -76,6 +76,7 @@ for (const contract of [
   "absoluteSeoCanonical"
 ]) requireText(coreSitemap, contract, `Core sitemap is missing ${contract}`);
 requireText(coreSitemap, "if (!settings.indexingEnabled) return []", "Core sitemap must fail closed when the global indexing master switch is off");
+if (coreSitemap.includes('route.href === "/terms"')) failures.push("Core sitemap must not force the explicitly noindex /terms utility page into XML discovery");
 requireText(coreSitemap, 'vendor.directoryStatus === "partner"', "Core sitemap must independently control partner and Research vendor admission");
 requireText(coreSitemap, "override?.lastReviewedAt ?? vendor.research?.checkedAt", "Vendor sitemap entries must preserve governed review/research freshness");
 
