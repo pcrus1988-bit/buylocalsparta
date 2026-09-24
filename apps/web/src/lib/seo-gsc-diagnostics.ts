@@ -3,6 +3,11 @@ import "server-only";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { getSeoGlobalSettingsSnapshot } from "./seo-settings";
 import {
+  deleteSearchConsoleSitemap,
+  getSearchConsoleSitemapStatus,
+  submitSearchConsoleSitemap
+} from "./seo-search-console";
+import {
   inspectAndPersistSearchConsoleUrlSystem,
   syncSearchConsoleHistorySystem
 } from "./seo-gsc-history";
@@ -21,6 +26,14 @@ export type SeoGscDiagnosticsResult = Readonly<{
   unknown: number;
   blockedByMetaTag: number;
   canonicalMismatch: number;
+  sitemap: Readonly<{
+    canonicalUrl: string;
+    submitted: boolean;
+    warnings: number;
+    errors: number;
+    removed: readonly string[];
+    cleanupErrors: readonly string[];
+  }>;
   errors: readonly string[];
 }>;
 
@@ -100,6 +113,41 @@ async function inspectionCandidates(canonicalOrigin: string): Promise<readonly s
   )].slice(0, INSPECTION_BATCH_SIZE);
 }
 
+async function reconcileSitemaps(canonicalOrigin: string) {
+  const canonicalUrl = new URL("/sitemap.xml", `${canonicalOrigin.replace(/\/$/, "")}/`).toString();
+  const canonical = await getSearchConsoleSitemapStatus(canonicalUrl);
+  if (!canonical.submitted) await submitSearchConsoleSitemap(canonicalUrl);
+
+  const cleanupCandidates = [
+    new URL("/sitemap", `${canonicalOrigin.replace(/\/$/, "")}/`).toString()
+  ];
+  const origin = new URL(canonicalOrigin);
+  if (origin.protocol === "https:") {
+    cleanupCandidates.push(`http://${origin.host}/sitemap.xml`);
+  }
+
+  const removed: string[] = [];
+  const cleanupErrors: string[] = [];
+  for (const candidate of cleanupCandidates) {
+    try {
+      await deleteSearchConsoleSitemap(candidate);
+      removed.push(candidate);
+    } catch (error) {
+      cleanupErrors.push(`${candidate}: ${errorText(error)}`);
+    }
+  }
+
+  const refreshed = await getSearchConsoleSitemapStatus(canonicalUrl);
+  return {
+    canonicalUrl,
+    submitted: refreshed.submitted,
+    warnings: refreshed.warnings,
+    errors: refreshed.errors,
+    removed,
+    cleanupErrors
+  } as const;
+}
+
 async function mapConcurrent<T, R>(items: readonly T[], concurrency: number, worker: (item: T) => Promise<R>): Promise<R[]> {
   const results = new Array<R>(items.length);
   let cursor = 0;
@@ -119,6 +167,7 @@ export async function syncSeoGscDiagnostics(): Promise<SeoGscDiagnosticsResult> 
     getSeoGlobalSettingsSnapshot(),
     syncSearchConsoleHistorySystem()
   ]);
+  const sitemap = await reconcileSitemaps(settings.canonicalOrigin);
   const candidates = await inspectionCandidates(settings.canonicalOrigin);
   const errors: string[] = [];
   let pass = 0;
@@ -152,6 +201,7 @@ export async function syncSeoGscDiagnostics(): Promise<SeoGscDiagnosticsResult> 
     unknown,
     blockedByMetaTag,
     canonicalMismatch,
-    errors
+    sitemap,
+    errors: [...errors, ...sitemap.cleanupErrors]
   };
 }
