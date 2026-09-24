@@ -115,3 +115,4 @@ A generic **Standard** plan exists only as a draft configuration. The earlier bu
 ## Important production gate
 
 Do not connect real customer money, issue real tax documents, or sign merchants to the reseller flow until the seller/supplier contract, VAT/myDATA treatment, PSP underwriting, supplier invoicing and payout model are approved consistently. See `docs/DECISIONS.md` and `docs/LEGAL_TECH_GATE.md`.
+<!-- diagnostic: current-main production build verification 2026-09-20 -->
