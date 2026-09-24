@@ -721,7 +721,7 @@ export async function getDemoVendorCatalogFacets(vendor: DemoStorefrontVendor): 
   // again in JavaScript. The compact projection keeps the connection short-lived
   // and materially reduces pool pressure on Vercel.
   const result = await getProductionPostgresRuntime().sqlPool.query<FacetRow>(`
-    WITH raw_assignment AS (
+    WITH RECURSIVE raw_assignment AS (
       SELECT vo.canonical_variant_id
       FROM vendor_offers vo
       WHERE vo.vendor_id=$1::uuid
