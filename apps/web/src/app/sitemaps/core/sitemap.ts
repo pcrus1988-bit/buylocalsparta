@@ -21,7 +21,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const categories = settings.sitemap.categories ? STOREFRONT_CATEGORIES : [];
   const origin = settings.canonicalOrigin;
   const governed = (reference: SeoEntityReference, entityEligible: boolean, defaultIndexAllowed: boolean) => { const override = findSeoEntityOverride(overrideSnapshot.entries, reference); const control = resolveSeoEntityControl({ settings, kind: reference.kind, entityEligible, defaultIndexAllowed, override }); return { override, control }; };
-  const staticRoutes = INDEXABLE_STATIC_ROUTES.some((route) => route.href === "/terms") ? INDEXABLE_STATIC_ROUTES : [...INDEXABLE_STATIC_ROUTES, { label: "Όροι Χρήσης", href: "/terms", changeFrequency: "monthly" as const, priority: 0.5 }];
+  // Only explicitly indexable static routes belong in the XML sitemap. Legal/
+  // utility pages may stay publicly linked without being advertised to Google as
+  // indexable; adding /terms here while request policy says noindex produced a
+  // direct sitemap-versus-X-Robots contradiction.
+  const staticRoutes = INDEXABLE_STATIC_ROUTES;
   const fixed: MetadataRoute.Sitemap = [
     ...(settings.sitemap.staticPages ? staticRoutes.flatMap((route) => { const reference: SeoEntityReference = { kind: "static", id: route.href }; const { override, control } = governed(reference, true, true); return control.sitemapAllowed ? [{ url: absoluteSeoCanonical(origin, reference, override), changeFrequency: route.changeFrequency, priority: route.priority, lastModified: safeLastModified(override?.lastReviewedAt) }] : []; }) : []),
     ...(settings.sitemap.staticPages ? EDITORIAL_COLLECTIONS.map((collection) => ({ url: new URL(`/collections/${collection.slug}`, `${origin}/`).toString(), changeFrequency: "weekly" as const, priority: 0.78 })) : []),
