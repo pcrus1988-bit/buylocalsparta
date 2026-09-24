@@ -7,6 +7,12 @@ import {
 
 type RouteContext = Readonly<{ params: Promise<{ id: string }> }>;
 
+const DEMO_FACET_CACHE_HEADERS: HeadersInit = {
+  "Cache-Control": "public, max-age=15",
+  "CDN-Cache-Control": "public, max-age=120",
+  "Vercel-CDN-Cache-Control": "public, max-age=120, stale-while-revalidate=600"
+};
+
 function optionalParam(url: URL, key: string, max: number): string {
   return url.searchParams.get(key)?.trim().slice(0, max) ?? "";
 }
@@ -52,7 +58,7 @@ export async function GET(request: Request, { params }: RouteContext) {
         limit: 0,
         nextOffset: null,
         facets
-      }, { headers: { "Cache-Control": "no-store" } });
+      }, { headers: DEMO_FACET_CACHE_HEADERS });
     }
 
     const offset = intParam(url, "offset", 0, 100_000);
