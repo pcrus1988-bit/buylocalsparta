@@ -142,7 +142,7 @@ export function extractFournarakisProductCandidates(html: string, sourceUrl: str
 type FournarakisInlineProduct = Record<string, unknown>;
 
 function extractFournarakisInlineData(html: string): FournarakisInlineProduct | undefined {
-  const marker = /(?:^|[;\s])(?:const|let)\s+data\s*=\s*/g;
+  const marker = /(?:^|[;>\s]|\\n)(?:const|let|var)\s+data\s*=\s*/g;
   const match = marker.exec(html);
   if (!match) return undefined;
   const start = html.indexOf("{", match.index + match[0].length);
@@ -171,7 +171,6 @@ function candidatesFromInlineData(data: FournarakisInlineProduct, sourceUrl: str
   const variations = arrayValue(data.variations);
   const headers = variations.length ? stringArrayValue(variations[0]) : [];
   const rows = variations.slice(1).map(stringArrayValue).filter((row) => row.length > 0);
-  if (headers.length < 2 || !rows.length) return [];
 
   const brand = stringValue(recordValue(data.brandInfo)?.name)
     ?? stringValue(recordValue(searchResult?.brand)?.name);
@@ -216,6 +215,21 @@ function candidatesFromInlineData(data: FournarakisInlineProduct, sourceUrl: str
 
   const images = extractInlineImages(data, sourceUrl, familyCode, title);
 
+  if (headers.length < 2 || !rows.length) {
+    return [buildSingleProductCandidate({
+      sourceUrl,
+      title,
+      familyCode,
+      sku: singleOrderableCode(data),
+      brand,
+      categoryPath,
+      description,
+      images,
+      badges: uniqueBadges,
+      strategy: "fournarakis_inline_single_product"
+    })];
+  }
+
   return buildVariantCandidates({
     sourceUrl,
     title,
@@ -229,6 +243,85 @@ function candidatesFromInlineData(data: FournarakisInlineProduct, sourceUrl: str
     rows,
     strategy: "fournarakis_inline_const_data"
   });
+}
+
+function buildSingleProductCandidate(input: {
+  sourceUrl: string;
+  title: string;
+  familyCode: string;
+  sku?: string;
+  brand?: string;
+  categoryPath: readonly string[];
+  description?: string;
+  images: readonly ExtractedImage[];
+  badges: readonly string[];
+  strategy: string;
+}): ExtractedProductCandidate {
+  const evidence = (selector: string, confidence = 0.96, note?: string): ProductFieldEvidence => ({
+    origin: "html",
+    sourceUrl: input.sourceUrl,
+    confidence,
+    selector,
+    note
+  });
+
+  const attributes: Record<string, string> = {
+    "Fournarakis family code": input.familyCode
+  };
+  if (input.badges.length) attributes["Fournarakis tags"] = input.badges.join(", ");
+
+  const fieldEvidence: Record<string, ProductFieldEvidence | readonly ProductFieldEvidence[]> = {
+    title: evidence("Fournarakis product payload title", 0.995),
+    "Fournarakis family code": evidence("Fournarakis code_catalogue / product URL", 0.999)
+  };
+  if (input.sku) fieldEvidence.sku = evidence("Fournarakis single-product item_code/wh_codes", 0.995, "Single orderable Fournarakis product code");
+  if (input.brand) fieldEvidence.brand = evidence("Fournarakis brandInfo/search_result_data.brand", 0.995);
+  if (input.description) fieldEvidence.description = evidence("Fournarakis elements.features", 0.98);
+  if (input.categoryPath.length) fieldEvidence.categoryPath = evidence("Fournarakis categories/breadcrumbs", 0.995);
+  if (input.images.length) fieldEvidence.images = evidence("Fournarakis highResImages/images", 0.999);
+
+  return {
+    sourceProductKey: input.sku ?? input.familyCode,
+    sourceUrl: input.sourceUrl,
+    title: input.title,
+    description: input.description,
+    brand: input.brand,
+    sku: input.sku,
+    categoryPath: input.categoryPath.length ? input.categoryPath : undefined,
+    attributes,
+    images: input.images.length ? input.images : undefined,
+    fieldEvidence,
+    rawPayload: {
+      extractionStrategy: input.strategy,
+      supplier: "Fournarakis",
+      familyCode: input.familyCode,
+      badges: input.badges,
+      singleOrderableProduct: true,
+      requiresPricingPdfJoin: true,
+      webPriceAuthoritative: false,
+      icecatEnrichment: "disabled_for_source"
+    }
+  };
+}
+
+function singleOrderableCode(data: FournarakisInlineProduct): string | undefined {
+  const values: string[] = [];
+  for (const item of arrayValue(data.item_code)) {
+    const row = recordValue(item);
+    const code = recordValue(row?.code);
+    const value = stringValue(code?.value);
+    if (value && looksLikeOrderableCode(value)) values.push(value);
+  }
+  for (const value of stringArrayValue(data.wh_codes)) {
+    if (looksLikeOrderableCode(value)) values.push(value);
+  }
+  const unique = [...new Set(values)];
+  return unique.length === 1 ? unique[0] : undefined;
+}
+
+function looksLikeOrderableCode(value: string): boolean {
+  const text = value.trim();
+  return Boolean(text && text.length <= 80 && /^[0-9A-Za-z][0-9A-Za-z._/-]*$/.test(text));
 }
 
 function buildVariantCandidates(input: {

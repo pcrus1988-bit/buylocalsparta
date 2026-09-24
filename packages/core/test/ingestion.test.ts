@@ -206,6 +206,52 @@ test("Fournarakis adapter parses the server-side inline const data payload witho
 });
 
 
+test("Fournarakis adapter keeps single-orderable machine products without a variant grid", () => {
+  const sourceUrl = "https://www.fournarakis.gr/el/product/0257/skil-pack-alysopriono-mpatarias";
+  const inline = {
+    search_result_data: {
+      code_catalogue: "0257",
+      title: "SKIL PACK ΑΛΥΣΟΠΡΙΟΝΟ ΜΠΑΤΑΡΙΑΣ",
+      brand: { name: "SKIL" }
+    },
+    brandInfo: { name: "SKIL" },
+    categories: [
+      { id: 1, name: "Μηχανήματα", slug: "michanimata" },
+      { id: 500, name: "Μηχανήματα Κήπου - Αγρού - Δάσους", slug: "michanimata-kipou" },
+      { id: 501, name: "Μηχανήματα Μπαταρίας", slug: "michanimata-mpatarias" },
+      { id: 502, name: "Αλυσοπρίονα Ευρείας Χρήσης", slug: "alysopriona" }
+    ],
+    elements: {
+      features: [
+        { type: "bullet", text: "Κινητήρας χωρίς ψήκτρες" },
+        { type: "bullet", text: "Αυτόματη λίπανση αλυσίδας" }
+      ]
+    },
+    highResImages: [
+      { highRes_x1: { width: 1500, height: 1500, url: "/mycontainer/Photos/1500x1500/0257" } }
+    ],
+    wh_codes: ["0257"],
+    variations: []
+  };
+  const html = '<html><body><main><script>const data = ' + JSON.stringify(inline) + ';</script><div id="product-app"></div></main></body></html>';
+
+  const candidates = extractFournarakisProductCandidates(html, sourceUrl);
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].sourceProductKey, "0257");
+  assert.equal(candidates[0].sku, "0257");
+  assert.equal(candidates[0].brand, "SKIL");
+  assert.deepEqual(candidates[0].categoryPath, [
+    "Μηχανήματα",
+    "Μηχανήματα Κήπου - Αγρού - Δάσους",
+    "Μηχανήματα Μπαταρίας",
+    "Αλυσοπρίονα Ευρείας Χρήσης"
+  ]);
+  assert.equal(candidates[0].attributes["Fournarakis family code"], "0257");
+  assert.equal((candidates[0].rawPayload as Record<string, unknown>).singleOrderableProduct, true);
+  assert.equal((candidates[0].rawPayload as Record<string, unknown>).requiresPricingPdfJoin, true);
+});
+
+
 test("Fournarakis category discovery reads only product URLs from the embedded category payload", () => {
   const sourceUrl = "https://www.fournarakis.gr/el/catalog/c/170/raoula-odigi-siromenis-portas";
   const payload = {
