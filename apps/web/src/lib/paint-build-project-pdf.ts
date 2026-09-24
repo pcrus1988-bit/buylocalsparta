@@ -467,8 +467,18 @@ async function loadPaintBuildPdfVendors(snapshot: PaintBuildProjectSnapshot): Pr
            vca.verified_supplier_price_minor as price_minor,
            vca.updated_at
          from wanted w
+         join public.vitex_commerce_products vcp
+           on vcp.canonical_variant_id=w.id
+          and vcp.active=true
+          and vcp.match_status in ('verified','product_matched')
+         join public.catalog_source_products csp
+           on csp.source_product_key=vcp.import_fingerprint
+         join public.catalog_sources cs
+           on cs.id=csp.source_id
+          and cs.code='vitex-commerce-media'
+          and cs.active=true
          join public.vendor_catalog_assortments vca
-           on vca.canonical_variant_id=w.id
+           on vca.source_product_id=csp.id
           and vca.assortment_status not in ('rejected','discontinued')
          join public.vendor_businesses v on v.id=vca.vendor_id and v.status='active'
          left join public.vendor_locations l on l.id=vca.location_id and l.active=true
