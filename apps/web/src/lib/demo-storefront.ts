@@ -499,7 +499,7 @@ async function productRows(
   }
 
   const result = await getProductionPostgresRuntime().sqlPool.query<ProductRow>(`
-    WITH raw_assignment AS (
+    WITH RECURSIVE raw_assignment AS (
       SELECT
         vo.canonical_variant_id,
         NULL::uuid AS source_product_id,
@@ -739,27 +739,52 @@ export async function getDemoVendorCatalogFacets(vendor: DemoStorefrontVendor): 
       SELECT DISTINCT canonical_variant_id
       FROM raw_assignment
     ),
+    category_lineage AS (
+      SELECT c.id AS leaf_id,
+             c.id AS ancestor_id,
+             c.parent_id,
+             c.taxonomy_role,
+             c.assignable,
+             0 AS depth
+      FROM categories c
+
+      UNION ALL
+
+      SELECT lineage.leaf_id,
+             parent.id AS ancestor_id,
+             parent.parent_id,
+             parent.taxonomy_role,
+             parent.assignable,
+             lineage.depth + 1
+      FROM category_lineage lineage
+      JOIN categories parent ON parent.id=lineage.parent_id
+    ),
+    main_category AS (
+      SELECT DISTINCT ON (lineage.leaf_id)
+             lineage.leaf_id,
+             lineage.ancestor_id AS main_category_id
+      FROM category_lineage lineage
+      LEFT JOIN categories parent ON parent.id=lineage.parent_id
+      WHERE lineage.assignable=true
+        AND lineage.taxonomy_role='product_class'
+        AND (parent.taxonomy_role='navigation_group' OR parent.id IS NULL)
+      ORDER BY lineage.leaf_id,lineage.depth DESC
+    ),
     classified AS (
       SELECT c.code AS category_code,
              COALESCE(ctel.name,cten.name,c.code) AS category_label,
-             CASE
-               WHEN p.assignable=true AND p.taxonomy_role='product_class' THEN p.code
-               ELSE c.code
-             END AS category_group_code,
-             CASE
-               WHEN p.assignable=true AND p.taxonomy_role='product_class'
-                 THEN COALESCE(ptel.name,pten.name,p.code)
-               ELSE COALESCE(ctel.name,cten.name,c.code)
-             END AS category_group_label,
+             COALESCE(main.code,c.code) AS category_group_code,
+             COALESCE(main_el.name,main_en.name,main.code,ctel.name,cten.name,c.code) AS category_group_label,
              b.name AS brand
       FROM assigned_variants av
       JOIN canonical_variants cv ON cv.id=av.canonical_variant_id
       JOIN categories c ON c.id=cv.category_id
-      LEFT JOIN categories p ON p.id=c.parent_id
+      LEFT JOIN main_category mc ON mc.leaf_id=c.id
+      LEFT JOIN categories main ON main.id=mc.main_category_id
       LEFT JOIN category_translations ctel ON ctel.category_id=c.id AND ctel.locale='el'
       LEFT JOIN category_translations cten ON cten.category_id=c.id AND cten.locale='en'
-      LEFT JOIN category_translations ptel ON ptel.category_id=p.id AND ptel.locale='el'
-      LEFT JOIN category_translations pten ON pten.category_id=p.id AND pten.locale='en'
+      LEFT JOIN category_translations main_el ON main_el.category_id=main.id AND main_el.locale='el'
+      LEFT JOIN category_translations main_en ON main_en.category_id=main.id AND main_en.locale='en'
       LEFT JOIN brands b ON b.id=cv.brand_id
       WHERE cv.suppressed=false
         AND cv.recalled=false
