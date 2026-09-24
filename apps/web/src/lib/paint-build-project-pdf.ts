@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { BuildGuidanceSourceLayer, BuildGuidanceUiItem } from "./build-guidance-runtime";
 import type { PaintBuildProjectSnapshot } from "./paint-build-project-documents";
 import { paintBuildFinishLabel, paintBuildGreekText, paintBuildPackageLabel, paintBuildProductTitle, paintBuildTintBaseLabel } from "./paint-build-greek-presentation";
+import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 function sourceLabel(layer: BuildGuidanceSourceLayer): string {
   if (layer === "GENERAL_GUIDANCE") return "Γενική τεχνική καθοδήγηση";
@@ -23,6 +24,46 @@ type PaintBuildPdfAssets = Readonly<{
   brandLogoDataUrl?: string;
   productImageDataUrl?: string;
   kitItemImageDataUrls?: Readonly<Record<string, string>>;
+}>;
+
+type PaintBuildPdfVendor = Readonly<{
+  vendorId: string;
+  vendorPublicId?: string;
+  locationId?: string;
+  legalName: string;
+  tradingName?: string;
+  legalForm?: string;
+  taxNumber?: string;
+  gemiNumber?: string;
+  locationName?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  locality?: string;
+  postcode?: string;
+  countryCode?: string;
+  phone?: string;
+  email?: string;
+  productVariantIds: readonly string[];
+}>;
+
+type PaintBuildPdfVendorRow = Readonly<{
+  canonical_public_id: string;
+  vendor_id: string;
+  vendor_public_id: string | null;
+  location_id: string | null;
+  legal_name: string;
+  trading_name: string | null;
+  legal_form: string | null;
+  tax_number: string | null;
+  gemi_number: string | null;
+  location_name: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  locality: string | null;
+  postcode: string | null;
+  country_code: string | null;
+  phone: string | null;
+  public_email: string | null;
 }>;
 
 function values(value: unknown): readonly string[] {
@@ -354,6 +395,228 @@ async function loadPaintBuildPdfAssets(snapshot: PaintBuildProjectSnapshot): Pro
 }
 
 
+function selectedProjectVariantIds(snapshot: PaintBuildProjectSnapshot): readonly string[] {
+  const ids = [
+    snapshot.project.selectedProduct?.catalogueId,
+    ...(snapshot.project.kit?.items.filter((item) => item.selected).map((item) => item.canonicalVariantId) ?? [])
+  ].flatMap((value) => typeof value === "string" && value.trim() ? [value.trim()] : []);
+  return [...new Set(ids)].slice(0, 64);
+}
+
+async function loadPaintBuildPdfVendors(snapshot: PaintBuildProjectSnapshot): Promise<readonly PaintBuildPdfVendor[]> {
+  const variantIds = selectedProjectVariantIds(snapshot);
+  if (!variantIds.length) return [];
+  try {
+    const db = getProductionPostgresRuntime().nativePool;
+    const result = await db.query<PaintBuildPdfVendorRow>(
+      `with wanted as (
+         select cv.id,cv.public_id
+         from public.canonical_variants cv
+         where cv.public_id=any($1::text[])
+       ),
+       seller_candidates as (
+         select
+           w.public_id as canonical_public_id,
+           v.id::text as vendor_id,
+           v.public_id as vendor_public_id,
+           l.id::text as location_id,
+           v.legal_name,
+           v.trading_name,
+           v.legal_form,
+           v.tax_number,
+           v.gemi_number,
+           l.name as location_name,
+           l.address_line1,
+           l.address_line2,
+           l.locality,
+           l.postcode,
+           l.country_code::text as country_code,
+           l.phone,
+           l.public_email::text as public_email,
+           0 as source_priority,
+           vo.customer_price_minor as price_minor,
+           vo.updated_at
+         from wanted w
+         join public.vendor_offers vo
+           on vo.canonical_variant_id=w.id
+          and vo.status='approved'
+          and coalesce(vo.merchant_visible,true)=true
+          and coalesce(vo.merchant_pause_active,false)=false
+         join public.vendor_businesses v on v.id=vo.vendor_id and v.status='active'
+         left join public.vendor_locations l on l.id=vo.location_id and l.active=true
+         union all
+         select
+           w.public_id as canonical_public_id,
+           v.id::text as vendor_id,
+           v.public_id as vendor_public_id,
+           l.id::text as location_id,
+           v.legal_name,
+           v.trading_name,
+           v.legal_form,
+           v.tax_number,
+           v.gemi_number,
+           l.name as location_name,
+           l.address_line1,
+           l.address_line2,
+           l.locality,
+           l.postcode,
+           l.country_code::text as country_code,
+           l.phone,
+           l.public_email::text as public_email,
+           1 as source_priority,
+           vca.verified_supplier_price_minor as price_minor,
+           vca.updated_at
+         from wanted w
+         join public.vendor_catalog_assortments vca
+           on vca.canonical_variant_id=w.id
+          and vca.assortment_status not in ('rejected','discontinued')
+         join public.vendor_businesses v on v.id=vca.vendor_id and v.status='active'
+         left join public.vendor_locations l on l.id=vca.location_id and l.active=true
+       ),
+       ranked as (
+         select seller_candidates.*,
+                row_number() over (
+                  partition by canonical_public_id
+                  order by source_priority,price_minor asc nulls last,updated_at desc nulls last
+                ) as rn
+         from seller_candidates
+       )
+       select canonical_public_id,vendor_id,vendor_public_id,location_id,legal_name,trading_name,legal_form,tax_number,gemi_number,
+              location_name,address_line1,address_line2,locality,postcode,country_code,phone,public_email
+       from ranked
+       where rn=1
+       order by canonical_public_id`,
+      [variantIds]
+    );
+
+    const grouped = new Map<string, PaintBuildPdfVendor>();
+    for (const row of result.rows) {
+      const key = `${row.vendor_id}:${row.location_id ?? ""}`;
+      const existing = grouped.get(key);
+      if (existing) {
+        grouped.set(key, {
+          ...existing,
+          productVariantIds: [...new Set([...existing.productVariantIds, row.canonical_public_id])]
+        });
+        continue;
+      }
+      grouped.set(key, {
+        vendorId: row.vendor_id,
+        vendorPublicId: text(row.vendor_public_id),
+        locationId: text(row.location_id),
+        legalName: row.legal_name,
+        tradingName: text(row.trading_name),
+        legalForm: text(row.legal_form),
+        taxNumber: text(row.tax_number),
+        gemiNumber: text(row.gemi_number),
+        locationName: text(row.location_name),
+        addressLine1: text(row.address_line1),
+        addressLine2: text(row.address_line2),
+        locality: text(row.locality),
+        postcode: text(row.postcode),
+        countryCode: text(row.country_code),
+        phone: text(row.phone),
+        email: text(row.public_email),
+        productVariantIds: [row.canonical_public_id]
+      });
+    }
+    return [...grouped.values()].sort((a, b) =>
+      b.productVariantIds.length - a.productVariantIds.length
+      || (a.tradingName || a.legalName).localeCompare(b.tradingName || b.legalName, "el")
+    );
+  } catch (error) {
+    console.warn(JSON.stringify({
+      level: "warn",
+      event: "paint_build.pdf_vendor_details_unavailable",
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return [];
+  }
+}
+
+function vendorAddress(vendor: PaintBuildPdfVendor): string | undefined {
+  const locality = [vendor.postcode, vendor.locality].filter(Boolean).join(" ");
+  const country = vendor.countryCode?.toLocaleUpperCase("en") === "GR"
+    ? "Ελλάδα"
+    : vendor.countryCode?.toLocaleUpperCase("en");
+  const parts = [vendor.addressLine1, vendor.addressLine2, locality || undefined, country].filter(Boolean);
+  return parts.length ? parts.join(", ") : undefined;
+}
+
+function vendorHeader(vendors: readonly PaintBuildPdfVendor[]) {
+  const blocks = vendors.length
+    ? vendors.map((vendor) => {
+        const displayName = vendor.tradingName || vendor.legalName;
+        const legalName = vendor.tradingName && vendor.legalName !== vendor.tradingName
+          ? vendor.legalName
+          : undefined;
+        const taxLine = [
+          vendor.taxNumber ? `ΑΦΜ ${vendor.taxNumber}` : undefined,
+          vendor.gemiNumber ? `ΓΕΜΗ ${vendor.gemiNumber}` : undefined,
+          vendor.legalForm
+        ].filter(Boolean).join(" · ");
+        const contactLine = [
+          vendor.phone ? `Τηλ. ${vendor.phone}` : undefined,
+          vendor.email
+        ].filter(Boolean).join(" · ");
+        return {
+          table: {
+            widths: ["*"],
+            body: [[{
+              stack: [
+                { text: displayName, style: "vendorName", alignment: "right" },
+                legalName ? { text: legalName, style: "vendorDetail", alignment: "right", margin: [0, 1, 0, 0] } : { text: "" },
+                taxLine ? { text: taxLine, style: "vendorDetail", alignment: "right", margin: [0, 1, 0, 0] } : { text: "" },
+                vendorAddress(vendor) ? { text: vendorAddress(vendor), style: "vendorDetail", alignment: "right", margin: [0, 1, 0, 0] } : { text: "" },
+                contactLine ? { text: contactLine, style: "vendorDetail", alignment: "right", margin: [0, 1, 0, 0] } : { text: "" }
+              ]
+            }]]
+          },
+          layout: {
+            hLineWidth: () => 0.5,
+            vLineWidth: () => 0.5,
+            hLineColor: () => "#DDD6CE",
+            vLineColor: () => "#DDD6CE",
+            paddingLeft: () => 6,
+            paddingRight: () => 6,
+            paddingTop: () => 5,
+            paddingBottom: () => 5
+          },
+          fillColor: "#FBF9F5",
+          margin: [0, 3, 0, 0]
+        };
+      })
+    : [{
+        table: {
+          widths: ["*"],
+          body: [[{ text: "Δεν βρέθηκαν συνδεδεμένα στοιχεία πωλητή για τα επιλεγμένα προϊόντα.", style: "vendorDetail", alignment: "right" }]]
+        },
+        layout: {
+          hLineWidth: () => 0.5,
+          vLineWidth: () => 0.5,
+          hLineColor: () => "#DDD6CE",
+          vLineColor: () => "#DDD6CE",
+          paddingLeft: () => 6,
+          paddingRight: () => 6,
+          paddingTop: () => 5,
+          paddingBottom: () => 5
+        },
+        fillColor: "#FBF9F5",
+        margin: [0, 3, 0, 0]
+      }];
+
+  return [
+    {
+      text: vendors.length === 1 ? "ΠΛΗΡΗ ΣΤΟΙΧΕΙΑ ΠΩΛΗΤΗ" : "ΠΛΗΡΗ ΣΤΟΙΧΕΙΑ ΠΩΛΗΤΩΝ",
+      style: "vendorKicker",
+      alignment: "right",
+      margin: [0, 8, 0, 1]
+    },
+    ...blocks
+  ];
+}
+
+
 type SnapshotKitItem = NonNullable<PaintBuildProjectSnapshot["project"]["kit"]>["items"][number];
 
 function euro(minor: number): string {
@@ -469,7 +732,7 @@ function factValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
-export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapshot, referenceId?: string, assets: PaintBuildPdfAssets = {}): Record<string, unknown> {
+export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapshot, referenceId?: string, assets: PaintBuildPdfAssets = {}, vendors: readonly PaintBuildPdfVendor[] = []): Record<string, unknown> {
   const project = snapshot.project;
   const guide = snapshot.customerGuide;
   const selected = project.selectedProduct;
@@ -484,10 +747,17 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
     {
       columns: [
         assets.brandLogoDataUrl
-          ? { image: assets.brandLogoDataUrl, width: 122, margin: [0, 0, 0, 0] }
-          : { text: "KONTA MOY", style: "brand" },
-        { text: "ΟΔΗΓΟΣ ΒΑΦΗΣ & ΚΑΤΑΣΚΕΥΗΣ · ΑΝΑΛΥΤΙΚΟ ΕΡΓΟ", style: "eyebrow", alignment: "right", margin: [0, 5, 0, 0] }
+          ? { width: 142, image: assets.brandLogoDataUrl, fit: [122, 86], margin: [0, 0, 0, 0] }
+          : { width: 142, text: "KONTA MOY", style: "brand" },
+        {
+          width: "*",
+          stack: [
+            { text: "ΟΔΗΓΟΣ ΒΑΦΗΣ & ΚΑΤΑΣΚΕΥΗΣ · ΑΝΑΛΥΤΙΚΟ ΕΡΓΟ", style: "eyebrow", alignment: "right", margin: [0, 5, 0, 0] },
+            ...vendorHeader(vendors)
+          ]
+        }
       ],
+      columnGap: 14,
       margin: [0, 0, 0, 14]
     },
     { text: project.title, style: "title" },
@@ -674,6 +944,9 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
     styles: {
       brand: { fontSize: 13, bold: true, letterSpacing: 1.4, color: "#241813" },
       eyebrow: { fontSize: 8, bold: true, color: "#8A6A32" },
+      vendorKicker: { fontSize: 6.5, bold: true, color: "#8A6A32", letterSpacing: 0.5 },
+      vendorName: { fontSize: 7.6, bold: true, color: "#241813", lineHeight: 1.15 },
+      vendorDetail: { fontSize: 6.4, color: "#5E554E", lineHeight: 1.18 },
       title: { fontSize: 22, bold: true, lineHeight: 1.1, color: "#241813" },
       lead: { fontSize: 10, color: "#5E554E" },
       groupTitle: { fontSize: 14, bold: true, color: "#241813" },
@@ -725,10 +998,13 @@ export async function renderPaintBuildProjectPdf(snapshot: PaintBuildProjectSnap
       bolditalics: "Roboto-MediumItalic.ttf"
     }
   };
-  const assets = await loadPaintBuildPdfAssets(snapshot);
+  const [assets, vendors] = await Promise.all([
+    loadPaintBuildPdfAssets(snapshot),
+    loadPaintBuildPdfVendors(snapshot)
+  ]);
   return await new Promise<Buffer>((resolve, reject) => {
     try {
-      pdfMake.createPdf(buildPaintBuildProjectDocument(snapshot, referenceId, assets)).getBuffer((buffer: Uint8Array) => resolve(Buffer.from(buffer)));
+      pdfMake.createPdf(buildPaintBuildProjectDocument(snapshot, referenceId, assets, vendors)).getBuffer((buffer: Uint8Array) => resolve(Buffer.from(buffer)));
     } catch (error) {
       reject(error);
     }
