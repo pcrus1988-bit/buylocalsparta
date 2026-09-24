@@ -249,8 +249,9 @@ function familyFor(entry: RemoteFacetOption): GuideFamily {
 }
 
 function isBeautyCategory(entry: RemoteFacetOption): boolean {
-  const value = normalized(entry.value);
-  const label = normalized(entry.label);
+  const grouped = Boolean(entry.groupValue && entry.groupValue !== entry.value);
+  const value = normalized(grouped ? entry.groupValue : entry.value);
+  const label = normalized(grouped ? entry.groupLabel ?? entry.groupValue : entry.label);
   if (BEAUTY_CATEGORY_CODES.has(value)) return true;
   if (["beauty", "skincare", "makeup", "fragrance", "haircare", "cosmetic", "perfume", "bath-body", "grooming"].some((word) => value.includes(word))) return true;
   return ["περιποι", "μακιγιαζ", "αρωμ", "σαμπουαν", "conditioner", "μαλλι", "νυχι", "serum", "αντηλια", "καλλυν", "ομορφ"].some((word) => label.includes(word));
@@ -258,16 +259,18 @@ function isBeautyCategory(entry: RemoteFacetOption): boolean {
 
 function isFashionCategory(entry: RemoteFacetOption): boolean {
   if (isBeautyCategory(entry)) return false;
-  const value = normalized(entry.value);
-  const label = normalized(entry.label);
+  const grouped = Boolean(entry.groupValue && entry.groupValue !== entry.value);
+  const value = normalized(grouped ? entry.groupValue : entry.value);
+  const label = normalized(grouped ? entry.groupLabel ?? entry.groupValue : entry.label);
   if (FASHION_CATEGORY_CODES.has(value)) return true;
   if (["fashion-", "womens-", "mens-", "kids-"].some((prefix) => value.startsWith(prefix))) return true;
   return ["γυναικ", "ανδρ", "παιδικ", "ρουχ", "παπουτ", "sneaker", "μποτ", "σανδαλ", "τσαντ", "σακιδ", "πορτοφολ", "αποσκευ", "ζων", "κασκολ", "καπελ", "γαντ", "δαχτυλ", "κολιε", "σκουλαρ", "βραχιολ", "κοσμη", "ρολογ", "γυαλ", "εσωρουχ", "μαγιο"].some((word) => label.includes(word));
 }
 
 function isHomeProjectCategory(entry: RemoteFacetOption): boolean {
-  const value = normalized(entry.value);
-  const label = normalized(entry.label);
+  const grouped = Boolean(entry.groupValue && entry.groupValue !== entry.value);
+  const value = normalized(grouped ? entry.groupValue : entry.value);
+  const label = normalized(grouped ? entry.groupLabel ?? entry.groupValue : entry.label);
   const haystack = `${value} ${label}`;
   return [
     "paint", "coating", "primer", "undercoat", "varnish", "enamel", "waterproof", "insulation",
@@ -1054,7 +1057,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
             {selectedCatalogLeaves.map((entry) => <button type="button" onClick={() => selectCategory(entry.value)} key={entry.value}><span><strong>{entry.label}</strong><small>Δες μόνο αυτή την υποκατηγορία</small></span><em>{entry.count}</em><b>→</b></button>)}
           </div> : hasCatalogHierarchy ? <div className="fashion-guide-options catalog-options">
             <button className="all-current" type="button" onClick={() => selectCategoryGroup(catalogCategories, catalogDomainLabel)}><span><strong>Όλα: {catalogDomainLabel}</strong><small>Δες όλο τον κατάλογο αυτού του τομέα χωρίς άλλο βήμα</small></span><em>{catalogAllCount}</em><b>→</b></button>
-            {catalogGuideGroups.map((group) => <button type="button" onClick={() => group.entries.length === 1 ? selectCategory(group.entries[0].value) : setCatalogGroup(group.key)} key={group.key}><span><strong>{group.label}</strong><small>{group.entries.length === 1 ? "Δες αυτή την κύρια κατηγορία" : "Δες τις διαθέσιμες υποκατηγορίες"}</small></span><em>{group.count}</em><b>→</b></button>)}
+            {catalogGuideGroups.map((group) => <button type="button" onClick={() => group.entries.length === 1 ? selectCategory(group.entries[0]?.value ?? group.key) : setCatalogGroup(group.key)} key={group.key}><span><strong>{group.label}</strong><small>{group.entries.length === 1 ? "Δες αυτή την κύρια κατηγορία" : "Δες τις διαθέσιμες υποκατηγορίες"}</small></span><em>{group.count}</em><b>→</b></button>)}
           </div> : <div className="fashion-guide-options catalog-options leaf-options">
             <button className="all-current" type="button" onClick={() => selectCategoryGroup(catalogCategories, catalogDomainLabel)}><span><strong>Όλα: {catalogDomainLabel}</strong><small>Δες όλες τις διαθέσιμες κατηγορίες αυτού του τομέα</small></span><em>{catalogAllCount}</em><b>→</b></button>
             {catalogCategories.map((entry) => <button type="button" onClick={() => selectCategory(entry.value)} key={entry.value}><span><strong>{entry.label}</strong><small>Δες μόνο αυτή την κατηγορία</small></span><em>{entry.count}</em><b>→</b></button>)}
