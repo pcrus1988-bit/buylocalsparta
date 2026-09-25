@@ -219,3 +219,10 @@ export class ZendropClient {
     }
   }
 }
+
+
+export function zendropAccessTokenFromEnvironment(env: NodeJS.ProcessEnv = process.env): string {
+  const value = env.ZENDROP_ACCESS_TOKEN?.trim();
+  if (!value) throw new Error("ZENDROP_ACCESS_TOKEN is not configured");
+  return value;
+}
