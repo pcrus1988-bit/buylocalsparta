@@ -222,3 +222,142 @@ export async function verifyShopifyBridgeConnection(
     currencyCode: data.shop.currencyCode ?? null
   };
 }
+
+
+export type ShopifyBridgeOrder = Readonly<{
+  id: string;
+  name: string;
+  financialStatus: string;
+  fulfillmentStatus: string;
+  tags: readonly string[];
+}>;
+
+const CONTROLLED_ZENDROP_TEST_TAG = "KONTA_MOU_ZENDROP_BRIDGE_TEST_1905418";
+const CONTROLLED_ZENDROP_TEST_VARIANT_ID = "gid://shopify/ProductVariant/54139878605128";
+
+export async function createControlledZendropBridgeTestOrder(input: Readonly<{
+  address1: string;
+  city: string;
+  zip: string;
+}>, env: NodeJS.ProcessEnv = process.env): Promise<Readonly<{
+  created: boolean;
+  order: ShopifyBridgeOrder;
+}>> {
+  const address1 = input.address1.trim();
+  const city = input.city.trim();
+  const zip = input.zip.trim();
+  if (!address1 || !city || !zip) throw new Error("Complete shipping address is required");
+
+  const recent = await shopifyAdminGraphql<{
+    orders: {
+      nodes: Array<{
+        id: string;
+        name: string;
+        displayFinancialStatus: string;
+        displayFulfillmentStatus: string;
+        tags: string[];
+      }>;
+    };
+  }>(`query BridgeRecentOrders {
+    orders(first: 50, reverse: true, sortKey: CREATED_AT) {
+      nodes {
+        id
+        name
+        displayFinancialStatus
+        displayFulfillmentStatus
+        tags
+      }
+    }
+  }`, {}, env);
+
+  const existing = recent.orders.nodes.find((order) =>
+    Array.isArray(order.tags) && order.tags.includes(CONTROLLED_ZENDROP_TEST_TAG)
+  );
+  if (existing) {
+    return {
+      created: false,
+      order: {
+        id: existing.id,
+        name: existing.name,
+        financialStatus: existing.displayFinancialStatus,
+        fulfillmentStatus: existing.displayFulfillmentStatus,
+        tags: existing.tags
+      }
+    };
+  }
+
+  const result = await shopifyAdminGraphql<{
+    orderCreate: {
+      userErrors: Array<{ field?: string[] | null; message: string }>;
+      order: {
+        id: string;
+        name: string;
+        displayFinancialStatus: string;
+        displayFulfillmentStatus: string;
+        tags: string[];
+      } | null;
+    };
+  }>(
+    `mutation CreateControlledZendropBridgeOrder($order: OrderCreateOrderInput!) {
+      orderCreate(order: $order) {
+        userErrors { field message }
+        order {
+          id
+          name
+          displayFinancialStatus
+          displayFulfillmentStatus
+          tags
+        }
+      }
+    }`,
+    {
+      order: {
+        lineItems: [{ variantId: CONTROLLED_ZENDROP_TEST_VARIANT_ID, quantity: 1 }],
+        financialStatus: "PAID",
+        shippingAddress: {
+          firstName: "KONTA",
+          lastName: "MOY TEST",
+          address1,
+          city,
+          countryCode: "GR",
+          zip
+        },
+        billingAddress: {
+          firstName: "KONTA",
+          lastName: "MOY TEST",
+          address1,
+          city,
+          countryCode: "GR",
+          zip
+        },
+        tags: [
+          CONTROLLED_ZENDROP_TEST_TAG,
+          "KONTA_MOU_TEST_ONLY",
+          "DO_NOT_AUTO_FULFILL"
+        ],
+        note: "Controlled KONTA MOY -> Shopify -> Zendrop bridge verification. Do not auto-fulfill."
+      }
+    },
+    env
+  );
+
+  if (result.orderCreate.userErrors.length) {
+    throw new Error(
+      "Shopify orderCreate rejected: " +
+      result.orderCreate.userErrors.map((item) => item.message).join("; ")
+    );
+  }
+  const order = result.orderCreate.order;
+  if (!order) throw new Error("Shopify orderCreate returned no order");
+
+  return {
+    created: true,
+    order: {
+      id: order.id,
+      name: order.name,
+      financialStatus: order.displayFinancialStatus,
+      fulfillmentStatus: order.displayFulfillmentStatus,
+      tags: order.tags
+    }
+  };
+}
