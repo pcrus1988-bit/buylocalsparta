@@ -97,7 +97,19 @@ async function requestAccessToken(config: ShopifyBridgeConfig): Promise<CachedTo
   }
 
   if (!response.ok) {
-    throw new Error(`Shopify token exchange failed with HTTP ${response.status}`);
+    let safeReason = "";
+    if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+      const errorPayload = payload as Record<string, unknown>;
+      const code = typeof errorPayload.error === "string" ? errorPayload.error.trim() : "";
+      const description =
+        typeof errorPayload.error_description === "string"
+          ? errorPayload.error_description.trim()
+          : "";
+      safeReason = [code, description].filter(Boolean).join(": ");
+    }
+    throw new Error(
+      `Shopify token exchange failed with HTTP ${response.status}${safeReason ? ` (${safeReason})` : ""}`
+    );
   }
 
   const accessToken =
