@@ -218,7 +218,7 @@ async function accessToken(scope: OAuthScope): Promise<string> {
 }
 
 type GoogleRequestOptions = Readonly<{
-  method: "GET" | "POST" | "PUT";
+  method: "GET" | "POST" | "PUT" | "DELETE";
   scope?: OAuthScope;
   body?: unknown;
   allowNotFound?: boolean;
@@ -356,6 +356,20 @@ function validatedPropertyUrl(value: string, siteUrl: string, label: string): UR
   return url;
 }
 
+function validatedSitemapCleanupUrl(value: string, siteUrl: string): URL {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("Sitemap cleanup URL is invalid.");
+  }
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
+    throw new Error("Sitemap cleanup URL must be a public HTTP(S) URL without credentials, query or fragment.");
+  }
+  if (!urlBelongsToProperty(url, siteUrl)) throw new Error("Sitemap cleanup URL does not belong to the configured Search Console property.");
+  return url;
+}
+
 export async function inspectSearchConsoleUrl(inspectionUrl: string): Promise<SearchConsoleUrlInspection> {
   const readiness = searchConsoleReadiness();
   if (!readiness.ready || !readiness.siteUrl) throw new Error("Search Console integration is not ready.");
@@ -422,4 +436,16 @@ export async function submitSearchConsoleSitemap(sitemapUrl: string): Promise<Re
     scope: WRITE_SCOPE
   });
   return { sitemapUrl: url.toString(), submittedAt: new Date().toISOString() };
+}
+
+export async function deleteSearchConsoleSitemap(sitemapUrl: string): Promise<Readonly<{ sitemapUrl: string; deletedAt: string }>> {
+  const readiness = searchConsoleReadiness();
+  if (!readiness.ready || !readiness.siteUrl) throw new Error("Search Console integration is not ready.");
+  const url = validatedSitemapCleanupUrl(sitemapUrl, readiness.siteUrl);
+  await googleRequest<void>(sitemapApiUrl(readiness.siteUrl, url.toString()), {
+    method: "DELETE",
+    scope: WRITE_SCOPE,
+    allowNotFound: true
+  });
+  return { sitemapUrl: url.toString(), deletedAt: new Date().toISOString() };
 }
