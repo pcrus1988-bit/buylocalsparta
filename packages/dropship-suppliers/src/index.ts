@@ -6,3 +6,4 @@ export * from "./nova/adapter.ts";
 export * from "./zendrop/types.ts";
 export * from "./zendrop/client.ts";
 export * from "./zendrop/adapter.ts";
+export * from "./zendrop/pricing.ts";
