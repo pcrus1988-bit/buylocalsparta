@@ -361,3 +361,259 @@ export async function createControlledZendropBridgeTestOrder(input: Readonly<{
     }
   };
 }
+
+
+export type ShopifyBridgeLineItem = Readonly<{
+  shopifyVariantId: string;
+  quantity: number;
+}>;
+
+export type ShopifyBridgeAddress = Readonly<{
+  firstName: string;
+  lastName: string;
+  address1: string;
+  address2?: string;
+  city: string;
+  province?: string;
+  countryCode: string;
+  zip: string;
+  phone?: string;
+}>;
+
+export type ShopifyBridgeOrderDetails = ShopifyBridgeOrder & Readonly<{
+  cancelledAt: string | null;
+  tracking: readonly Readonly<{
+    company: string | null;
+    number: string | null;
+    url: string | null;
+  }>[];
+}>;
+
+export class ShopifyBridgeOrderRejectedError extends Error {
+  readonly userErrors: readonly Readonly<{ field?: readonly string[] | null; message: string }>[];
+
+  constructor(userErrors: readonly Readonly<{ field?: readonly string[] | null; message: string }>[]) {
+    super(`Shopify orderCreate rejected: ${userErrors.map((item) => item.message).join("; ")}`);
+    this.name = "ShopifyBridgeOrderRejectedError";
+    this.userErrors = userErrors;
+  }
+}
+
+export function shopifyVariantGid(value: string | number): string {
+  const normalized = String(value).trim();
+  if (!normalized) throw new Error("Shopify bridge variant id is required");
+  if (normalized.startsWith("gid://shopify/ProductVariant/")) return normalized;
+  if (!/^\d+$/.test(normalized)) throw new Error("Shopify bridge variant id must be numeric or a ProductVariant gid");
+  return `gid://shopify/ProductVariant/${normalized}`;
+}
+
+export function shopifyBridgeOrderTag(customerOrderId: string): string {
+  const normalized = customerOrderId.trim().replace(/[^A-Za-z0-9_-]+/g, "_").slice(0, 120);
+  if (!normalized) throw new Error("Customer order id is required for Shopify bridge idempotency");
+  return `KONTA_MOU_ORDER_${normalized}`;
+}
+
+export function shopifyBridgeAddressFromSnapshot(
+  snapshot: Readonly<Record<string, unknown>>,
+  label = "shipping"
+): ShopifyBridgeAddress {
+  const displayName = optionalText(snapshot.recipientName) ?? optionalText(snapshot.fullName);
+  if (!displayName) throw new Error(`${label} recipient name is required`);
+  const parts = displayName.split(/\s+/).filter(Boolean);
+  const firstName = parts.shift() || "KONTA";
+  const lastName = parts.join(" ") || "-";
+  const address1 = optionalText(snapshot.line1);
+  const city = optionalText(snapshot.locality);
+  const zip = optionalText(snapshot.postcode);
+  if (!address1) throw new Error(`${label} address line 1 is required`);
+  if (!city) throw new Error(`${label} city is required`);
+  if (!zip) throw new Error(`${label} postcode is required`);
+  const countryCode = (optionalText(snapshot.countryCode) ?? "GR").toUpperCase();
+  if (!/^[A-Z]{2}$/.test(countryCode)) throw new Error(`${label} country code is invalid`);
+
+  const address2 = optionalText(snapshot.line2);
+  const province = optionalText(snapshot.region);
+  const phone = optionalText(snapshot.phone);
+  return {
+    firstName,
+    lastName,
+    address1,
+    ...(address2 ? { address2 } : {}),
+    city,
+    ...(province ? { province } : {}),
+    countryCode,
+    zip,
+    ...(phone ? { phone } : {})
+  };
+}
+
+export async function findShopifyBridgeOrderByTag(
+  tag: string,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<ShopifyBridgeOrderDetails | null> {
+  const normalizedTag = tag.trim();
+  if (!normalizedTag) throw new Error("Shopify bridge order tag is required");
+  const data = await shopifyAdminGraphql<{
+    orders: { nodes: Array<ShopifyOrderGraphqlShape> };
+  }>(
+    `query FindBridgeOrder($query: String!) {
+      orders(first: 5, reverse: true, sortKey: CREATED_AT, query: $query) {
+        nodes {
+          id
+          name
+          displayFinancialStatus
+          displayFulfillmentStatus
+          tags
+          cancelledAt
+          fulfillments {
+            trackingInfo { company number url }
+          }
+        }
+      }
+    }`,
+    { query: `tag:${normalizedTag}` },
+    env
+  );
+  const exact = data.orders.nodes.find((order) => order.tags.includes(normalizedTag));
+  return exact ? normalizeOrder(exact) : null;
+}
+
+export async function getShopifyBridgeOrder(
+  orderId: string,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<ShopifyBridgeOrderDetails> {
+  const id = orderId.trim();
+  if (!id) throw new Error("Shopify bridge order id is required");
+  const gid = id.startsWith("gid://shopify/Order/")
+    ? id
+    : /^\d+$/.test(id)
+      ? `gid://shopify/Order/${id}`
+      : id;
+  const data = await shopifyAdminGraphql<{
+    order: ShopifyOrderGraphqlShape | null;
+  }>(
+    `query ReadBridgeOrder($id: ID!) {
+      order(id: $id) {
+        id
+        name
+        displayFinancialStatus
+        displayFulfillmentStatus
+        tags
+        cancelledAt
+        fulfillments {
+          trackingInfo { company number url }
+        }
+      }
+    }`,
+    { id: gid },
+    env
+  );
+  if (!data.order) throw new Error(`Shopify bridge order ${id} was not found`);
+  return normalizeOrder(data.order);
+}
+
+export async function createShopifyBridgeOrder(input: Readonly<{
+  customerOrderId: string;
+  customerOrderNumber: string;
+  shippingAddress: ShopifyBridgeAddress;
+  billingAddress: ShopifyBridgeAddress;
+  lines: readonly ShopifyBridgeLineItem[];
+}>, env: NodeJS.ProcessEnv = process.env): Promise<Readonly<{
+  created: boolean;
+  order: ShopifyBridgeOrderDetails;
+}>> {
+  if (!input.lines.length) throw new Error("Shopify bridge order requires at least one line");
+  const lines = input.lines.map((line) => {
+    if (!Number.isSafeInteger(line.quantity) || line.quantity <= 0) {
+      throw new Error("Shopify bridge quantity must be a positive integer");
+    }
+    return {
+      variantId: shopifyVariantGid(line.shopifyVariantId),
+      quantity: line.quantity
+    };
+  });
+
+  const tag = shopifyBridgeOrderTag(input.customerOrderId);
+  const existing = await findShopifyBridgeOrderByTag(tag, env);
+  if (existing) return { created: false, order: existing };
+
+  const result = await shopifyAdminGraphql<{
+    orderCreate: {
+      userErrors: Array<{ field?: string[] | null; message: string }>;
+      order: ShopifyOrderGraphqlShape | null;
+    };
+  }>(
+    `mutation CreateZendropBridgeOrder($order: OrderCreateOrderInput!) {
+      orderCreate(order: $order) {
+        userErrors { field message }
+        order {
+          id
+          name
+          displayFinancialStatus
+          displayFulfillmentStatus
+          tags
+          cancelledAt
+          fulfillments {
+            trackingInfo { company number url }
+          }
+        }
+      }
+    }`,
+    {
+      order: {
+        lineItems: lines,
+        financialStatus: "PAID",
+        shippingAddress: input.shippingAddress,
+        billingAddress: input.billingAddress,
+        tags: [tag, "KONTA_MOU_ZENDROP_BRIDGE", "DO_NOT_EMAIL_CUSTOMER"],
+        note: `KONTA MOY order ${input.customerOrderNumber}. Hidden Zendrop fulfillment bridge.`
+      }
+    },
+    env
+  );
+
+  if (result.orderCreate.userErrors.length) {
+    throw new ShopifyBridgeOrderRejectedError(result.orderCreate.userErrors);
+  }
+  if (!result.orderCreate.order) throw new Error("Shopify orderCreate returned no order");
+  return { created: true, order: normalizeOrder(result.orderCreate.order) };
+}
+
+type ShopifyOrderGraphqlShape = Readonly<{
+  id: string;
+  name: string;
+  displayFinancialStatus: string;
+  displayFulfillmentStatus: string;
+  tags: string[];
+  cancelledAt?: string | null;
+  fulfillments?: Array<Readonly<{
+    trackingInfo?: Array<Readonly<{
+      company?: string | null;
+      number?: string | null;
+      url?: string | null;
+    }>>;
+  }>>;
+}>;
+
+function normalizeOrder(order: ShopifyOrderGraphqlShape): ShopifyBridgeOrderDetails {
+  const tracking = (order.fulfillments ?? [])
+    .flatMap((fulfillment) => fulfillment.trackingInfo ?? [])
+    .map((item) => ({
+      company: item.company ?? null,
+      number: item.number ?? null,
+      url: item.url ?? null
+    }));
+  return {
+    id: order.id,
+    name: order.name,
+    financialStatus: order.displayFinancialStatus,
+    fulfillmentStatus: order.displayFulfillmentStatus,
+    tags: order.tags,
+    cancelledAt: order.cancelledAt ?? null,
+    tracking
+  };
+}
+
+function optionalText(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
