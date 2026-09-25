@@ -1,9 +1,11 @@
 import { SupplierRateLimiter } from "../rate-limiter.ts";
 import type {
+  ZendropCatalogProductsQuery,
   ZendropProduct,
   ZendropProductsEnvelope,
   ZendropScalarId,
-  ZendropTrendingFilters,
+  ZendropShippingEstimate,
+  ZendropTrendingQuery,
 } from "./types.ts";
 
 export const DEFAULT_ZENDROP_MCP_URL = "https://app.zendrop.com/mcp/v1";
@@ -85,6 +87,17 @@ function productFromPayload(payload: unknown): ZendropProduct {
   return root as ZendropProduct;
 }
 
+function shippingFromPayload(payload: unknown): ZendropShippingEstimate {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("Unexpected Zendrop shipping response: expected object");
+  }
+  return payload as ZendropShippingEstimate;
+}
+
+function cleanObject(input: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
+  return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined && value !== null && value !== ""));
+}
+
 export class ZendropClient {
   readonly endpoint: string;
   readonly rateLimiter: SupplierRateLimiter;
@@ -110,13 +123,28 @@ export class ZendropClient {
     this.#sleep = options.sleepImpl ?? defaultSleep;
   }
 
-  async getTrendingProducts(filters: ZendropTrendingFilters = {}): Promise<readonly ZendropProduct[]> {
-    const payload = await this.#readAction("get_catalog_trending_products", {
-      filters: Object.fromEntries(
-        Object.entries(filters).filter(([, value]) => value !== undefined),
-      ),
-    });
-    return productsFromEnvelope(payload);
+  async getProducts(query: ZendropCatalogProductsQuery = {}): Promise<Readonly<{ total: number | null; products: readonly ZendropProduct[]; raw: unknown }>> {
+    const payload = await this.#readAction("get_catalog_products", cleanObject(query as Readonly<Record<string, unknown>>));
+    const envelope = payload && typeof payload === "object" && !Array.isArray(payload)
+      ? payload as ZendropProductsEnvelope
+      : {};
+    return {
+      total: Number.isSafeInteger(envelope.total) ? envelope.total! : null,
+      products: productsFromEnvelope(payload),
+      raw: payload,
+    };
+  }
+
+  async getTrendingProducts(query: ZendropTrendingQuery = {}): Promise<Readonly<{ total: number | null; products: readonly ZendropProduct[]; raw: unknown }>> {
+    const payload = await this.#readAction("get_catalog_trending_products", cleanObject(query as Readonly<Record<string, unknown>>));
+    const envelope = payload && typeof payload === "object" && !Array.isArray(payload)
+      ? payload as ZendropProductsEnvelope
+      : {};
+    return {
+      total: Number.isSafeInteger(envelope.total) ? envelope.total! : null,
+      products: productsFromEnvelope(payload),
+      raw: payload,
+    };
   }
 
   async getCatalogProduct(productId: ZendropScalarId): Promise<ZendropProduct> {
@@ -124,6 +152,17 @@ export class ZendropClient {
     if (value === "") throw new Error("Zendrop product id is required");
     return productFromPayload(await this.#readAction("get_catalog_product", {
       product_id: typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value,
+    }));
+  }
+
+  async getShippingEstimate(productId: ZendropScalarId, countryCode: string): Promise<ZendropShippingEstimate> {
+    const value = typeof productId === "string" ? productId.trim() : productId;
+    if (value === "") throw new Error("Zendrop product id is required");
+    const country = countryCode.trim().toLowerCase();
+    if (!/^[a-z]{2}$/.test(country)) throw new Error("Zendrop shipping country code must be ISO alpha-2");
+    return shippingFromPayload(await this.#readAction("get_catalog_shipping_estimate", {
+      product_id: typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value,
+      country_code: country,
     }));
   }
 
