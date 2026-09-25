@@ -1020,7 +1020,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
           <div className="vc-grid">{visibleProducts.map((product, index) => <CatalogProductCard product={product} index={index} vendorContext={vendor} demoVendorId={demoVendorId} key={product.id} />)}</div>
           {hasPagination ? <nav className="vc-pagination" aria-label="Σελιδοποίηση προϊόντων">
             {remoteOffset > 0
-              ? <a href={initialPage > 2 ? `?catalogPage=${initialPage - 1}#products` : "#products"} onClick={(event) => { event.preventDefault(); void loadPage(remoteOffset - PAGE_SIZE); }}>← Προηγούμενη</a>
+              ? <a href={`?catalogPage=${Math.max(1, currentPage - 1)}#products`} onClick={(event) => { event.preventDefault(); void loadPage(remoteOffset - PAGE_SIZE); }}>← Προηγούμενη</a>
               : <span aria-disabled="true">← Προηγούμενη</span>}
             <span><strong>Σελίδα {currentPage}</strong><small>{totalKnown ? `από ${totalPages}` : "περισσότερα διαθέσιμα"}</small></span>
             {remoteNextOffset !== null
