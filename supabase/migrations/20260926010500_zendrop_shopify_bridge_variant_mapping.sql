@@ -45,7 +45,6 @@ CREATE INDEX IF NOT EXISTS dropship_shopify_bridge_variant_product_idx
 
 ALTER TABLE public.dropship_shopify_bridge_variants ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS bls_platform_runtime_all ON public.dropship_shopify_bridge_variants;
 CREATE POLICY bls_platform_runtime_all ON public.dropship_shopify_bridge_variants
   FOR ALL
   USING ((SELECT bls_private.is_platform_runtime()))
