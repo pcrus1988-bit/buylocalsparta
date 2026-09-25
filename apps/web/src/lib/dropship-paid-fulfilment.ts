@@ -11,6 +11,7 @@ import {
   type NovaOrder
 } from "../../../../integrations/dropship-suppliers/src/nova-v1.ts";
 import { fulfilPaidSymphonyaOrder } from "./symphonya-paid-fulfilment";
+import { fulfilPaidZendropShopifyOrder } from "./zendrop-shopify-paid-fulfilment";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 export type PaidDropshipFinalization = Readonly<{
@@ -84,7 +85,10 @@ export async function finalizePaidDropshipFulfilment(orderId: string, now = Date
   }
 
   const unsupported = forwardingGroups.filter(
-    (group) => group.providerKind !== "brandsgateway_shopwoo" && group.providerKind !== "symphonya"
+    (group) =>
+      group.providerKind !== "brandsgateway_shopwoo"
+      && group.providerKind !== "symphonya"
+      && group.providerKind !== "zendrop_mcp"
   );
   for (const group of unsupported) {
     await runtime.nativePool.query(`
@@ -98,6 +102,10 @@ export async function finalizePaidDropshipFulfilment(orderId: string, now = Date
   // fulfilments through the supplier-specific at-most-once bridge before the
   // legacy Nova provider-payload gate below.
   const symphonya = await fulfilPaidSymphonyaOrder(orderId, now);
+  // Zendrop is relayed through the hidden Shopify bridge. The relay is dormant
+  // unless the supplier row is active, order_forwarding_enabled=true and the
+  // supplier configuration explicitly selects orderBridge=shopify.
+  const zendrop = await fulfilPaidZendropShopifyOrder(orderId, now);
 
   // A validated provider payload is intentionally a separate rollout gate. NovaV1Client does
   // not invent the provider's POST /orders body. Until a validated mapper writes
@@ -120,9 +128,9 @@ export async function finalizePaidDropshipFulfilment(orderId: string, now = Date
       orderId,
       prepared: groups.length,
       forwardingEnabled: forwardingGroups.length,
-      submitted: symphonya.submitted,
-      blocked: unsupported.length + symphonya.blocked,
-      uncertain: symphonya.uncertain
+      submitted: symphonya.submitted + zendrop.submitted,
+      blocked: unsupported.length + symphonya.blocked + zendrop.blocked,
+      uncertain: symphonya.uncertain + zendrop.uncertain
     };
   }
 
@@ -133,9 +141,9 @@ export async function finalizePaidDropshipFulfilment(orderId: string, now = Date
     orderId,
     prepared: groups.length,
     forwardingEnabled: forwardingGroups.length,
-    submitted: symphonya.submitted + outcomes.filter((outcome) => outcome.status === "submitted").length,
-    blocked: unsupported.length + symphonya.blocked + outcomes.filter((outcome) => ["out_of_stock", "supplier_action_required", "supplier_rejected"].includes(outcome.status)).length,
-    uncertain: symphonya.uncertain + outcomes.filter((outcome) => outcome.status === "submission_uncertain").length
+    submitted: symphonya.submitted + zendrop.submitted + outcomes.filter((outcome) => outcome.status === "submitted").length,
+    blocked: unsupported.length + symphonya.blocked + zendrop.blocked + outcomes.filter((outcome) => ["out_of_stock", "supplier_action_required", "supplier_rejected"].includes(outcome.status)).length,
+    uncertain: symphonya.uncertain + zendrop.uncertain + outcomes.filter((outcome) => outcome.status === "submission_uncertain").length
   };
 }
 
