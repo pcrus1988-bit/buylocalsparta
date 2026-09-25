@@ -82,8 +82,8 @@ requireText(coreSitemap, "override?.lastReviewedAt ?? vendor.research?.checkedAt
 
 for (const contract of [
   "PRODUCT_SITEMAP_SHARD_COUNT",
-  "storefront_catalog_read_model",
-  "eligible_offer_count>0",
+  "merchant_product_sync",
+  "mps.sync_status='synced'",
   "resolveSeoEntityControl",
   "productPublicPath(product)",
   "defaultIndexAllowed: product.defaultIndexAllowed",
