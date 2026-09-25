@@ -26,7 +26,7 @@ export async function GET() {
   if (!environment.shop || !environment.clientId || !environment.clientSecret) {
     return NextResponse.json(
       { ok: false, error: "shopify_bridge_environment_incomplete", environment },
-      { status: 503, headers: HEADERS }
+      { status: 200, headers: HEADERS }
     );
   }
 
@@ -44,7 +44,7 @@ export async function GET() {
         environment,
         message: error instanceof Error ? error.message : "unknown_error"
       },
-      { status: 502, headers: HEADERS }
+      { status: 200, headers: HEADERS }
     );
   }
 }
