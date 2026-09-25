@@ -8,15 +8,21 @@ import {
   type SupplierVariantSnapshot,
 } from "../types.ts";
 import { ZendropClient } from "./client.ts";
-import type { ZendropProduct, ZendropScalarId, ZendropTrendingFilters, ZendropVariant } from "./types.ts";
+import type {
+  ZendropCatalogProductsQuery,
+  ZendropProduct,
+  ZendropScalarId,
+  ZendropShippingEstimate,
+  ZendropTrendingQuery,
+  ZendropVariant,
+} from "./types.ts";
 
 export const ZENDROP_SUPPLIER_CODE = "zendrop" as const;
 
 /**
- * Zendrop documents catalogue discovery and individual product reads publicly,
- * but its catalogue inventory count is not authoritative real-time stock.
- * Fulfilment/write capabilities remain disabled until the authenticated account
- * contract has been verified end-to-end.
+ * The public catalogue can say "In stock", but catalogue rows do not expose a
+ * trustworthy numeric quantity. KONTA MOY therefore stages catalogue products
+ * and refuses to infer checkout-safe stock from the catalogue alone.
  */
 export const ZENDROP_CATALOGUE_INVENTORY_AUTHORITATIVE = false as const;
 
@@ -52,21 +58,6 @@ function record(value: unknown): Readonly<Record<string, unknown>> | null {
     : null;
 }
 
-function categoryIds(product: ZendropProduct): readonly string[] {
-  const values: unknown[] = [product.category_id, product.categoryId, product.category];
-  if (Array.isArray(product.categories)) values.push(...product.categories);
-
-  const ids = values.flatMap((value) => {
-    const direct = scalar(value);
-    if (direct) return [direct];
-    const row = record(value);
-    if (!row) return [];
-    const id = scalar(row.id ?? row.category_id ?? row.name);
-    return id ? [id] : [];
-  });
-  return [...new Set(ids)];
-}
-
 function normalizedVariant(
   productId: string,
   variant: ZendropVariant,
@@ -74,26 +65,29 @@ function normalizedVariant(
   index: number,
 ): SupplierVariantSnapshot {
   const externalVariationId =
-    scalar(variant.id ?? variant.variant_id ?? variant.variantId ?? variant.sku) ??
+    scalar(variant.variant_id ?? variant.id ?? variant.sku) ??
     `${productId}-variant-${index + 1}`;
 
   return {
     externalProductId: productId,
     externalVariationId,
     sku: scalar(variant.sku),
-    barcode: scalar(variant.barcode),
-    mpn: scalar(variant.mpn),
+    barcode: null,
+    mpn: null,
     stockQuantity: null,
-    stockStatus: "unknown",
+    stockStatus: scalar(variant.inventory_level ?? fallback.availability?.inventory_level) ?? "unknown",
     inStock: false,
     manageStock: true,
     backordersAllowed: false,
-    regularPriceRaw: rawPrice(variant.cost ?? variant.product_cost ?? variant.productCost ?? variant.price ?? fallback.price),
+    regularPriceRaw: rawPrice(variant.price ?? fallback.price),
     salePriceRaw: null,
     weightRaw: rawPrice(variant.weight),
     dimensions: record(variant.dimensions),
     hsCode: null,
-    attributes: Array.isArray(variant.attributes) ? variant.attributes : [],
+    attributes: [
+      ...(scalar(variant.size) ? [{ name: "size", value: scalar(variant.size) }] : []),
+      ...(scalar(variant.color) ? [{ name: "color", value: scalar(variant.color) }] : []),
+    ],
     raw: variant,
   };
 }
@@ -104,19 +98,20 @@ export function normalizeZendropProduct(product: ZendropProduct): SupplierProduc
 
   const variants = Array.isArray(product.variants) && product.variants.length > 0
     ? product.variants
-    : [{ id: externalProductId, price: product.price }];
+    : [{ variant_id: externalProductId, price: product.price }];
 
-  const suggestedRetailPrice = rawPrice(
-    product.suggested_retail_price ?? product.suggestedRetailPrice ?? product.retail_price,
-  );
+  const categories = Array.isArray(product.categories) ? product.categories : [];
+  const categoryIds = categories
+    .map((category) => scalar(category.id))
+    .filter((id): id is string => Boolean(id));
 
   return {
     supplierCode: ZENDROP_SUPPLIER_CODE,
     commercialVendorId: KONTA_MOU_DROPSHIP_VENDOR_ID,
     externalProductId,
-    sourceVendorId: null,
-    sourceVendorName: scalar(product.supplier_name ?? product.supplierName),
-    sourceLanguage: "en",
+    sourceVendorId: scalar(product.supplier?.id),
+    sourceVendorName: scalar(product.supplier?.name),
+    sourceLanguage: null,
     name: scalar(product.name ?? product.title),
     description: scalar(product.description),
     sku: null,
@@ -124,8 +119,8 @@ export function normalizeZendropProduct(product: ZendropProduct): SupplierProduc
     mpn: null,
     brandId: null,
     brandName: null,
-    categoryIds: categoryIds(product),
-    regularPriceRaw: suggestedRetailPrice,
+    categoryIds: [...new Set(categoryIds)],
+    regularPriceRaw: rawPrice(product.price),
     salePriceRaw: null,
     publicationState: "STAGED",
     variants: variants.map((variant, index) => normalizedVariant(externalProductId, variant, product, index)),
@@ -147,7 +142,7 @@ export class ZendropSupplierAdapter implements SupplierAdapter {
 
   async testConnection(): Promise<SupplierConnectionResult> {
     try {
-      await this.client.getTrendingProducts();
+      await this.client.getProducts({ limit: 1, page: 1 });
       return { ok: true, supplierCode: this.code };
     } catch (error) {
       return {
@@ -158,16 +153,29 @@ export class ZendropSupplierAdapter implements SupplierAdapter {
     }
   }
 
-  /**
-   * Zendrop's documented trending action is a discovery feed, not a complete
-   * cursor/delta catalogue. Results are therefore staged only.
-   */
-  async fetchTrendingProducts(filters: ZendropTrendingFilters = {}): Promise<SupplierProductPage> {
-    const raw = await this.client.getTrendingProducts(filters);
-    return { items: raw.map(normalizeZendropProduct), raw };
+  async fetchProducts(query: ZendropCatalogProductsQuery = {}): Promise<SupplierProductPage & Readonly<{ total: number | null }>> {
+    const result = await this.client.getProducts(query);
+    return {
+      items: result.products.map(normalizeZendropProduct),
+      raw: result.raw,
+      total: result.total,
+    };
+  }
+
+  async fetchTrendingProducts(query: ZendropTrendingQuery = {}): Promise<SupplierProductPage & Readonly<{ total: number | null }>> {
+    const result = await this.client.getTrendingProducts(query);
+    return {
+      items: result.products.map(normalizeZendropProduct),
+      raw: result.raw,
+      total: result.total,
+    };
   }
 
   async fetchProduct(productId: ZendropScalarId): Promise<SupplierProductSnapshot> {
     return normalizeZendropProduct(await this.client.getCatalogProduct(productId));
+  }
+
+  async getShippingEstimate(productId: ZendropScalarId, countryCode = "GR"): Promise<ZendropShippingEstimate> {
+    return this.client.getShippingEstimate(productId, countryCode);
   }
 }
