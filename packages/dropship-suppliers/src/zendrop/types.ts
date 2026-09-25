@@ -1,32 +1,44 @@
 export type ZendropScalarId = string | number;
 
-export interface ZendropShippingEstimate {
-  type?: unknown;
-  cost?: unknown;
-  estimated_days?: unknown;
-  estimatedDays?: unknown;
+export interface ZendropAvailability {
+  in_stock?: boolean;
+  inventory_level?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ZendropSupplier {
+  id?: ZendropScalarId;
+  name?: string | null;
+  country?: string | null;
+  type?: string | null;
   [key: string]: unknown;
 }
 
 export interface ZendropVariant {
-  id?: ZendropScalarId;
   variant_id?: ZendropScalarId;
-  variantId?: ZendropScalarId;
-  sku?: unknown;
-  barcode?: unknown;
-  mpn?: unknown;
-  name?: unknown;
-  title?: unknown;
-  price?: unknown;
-  cost?: unknown;
-  product_cost?: unknown;
-  productCost?: unknown;
-  weight?: unknown;
-  dimensions?: unknown;
-  inventory?: unknown;
-  stock?: unknown;
-  images?: unknown;
-  attributes?: unknown;
+  id?: ZendropScalarId;
+  sku?: string | null;
+  size?: string | null;
+  color?: string | null;
+  price?: string | number | null;
+  weight?: string | number | null;
+  weight_unit?: string | null;
+  dimensions?: Readonly<Record<string, unknown>> | null;
+  available?: number | null;
+  inventory_level?: string | null;
+  tracked?: boolean | null;
+  [key: string]: unknown;
+}
+
+export interface ZendropCategory {
+  id?: ZendropScalarId;
+  name?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ZendropImage {
+  id?: ZendropScalarId;
+  url?: string | null;
   [key: string]: unknown;
 }
 
@@ -34,39 +46,55 @@ export interface ZendropProduct {
   id?: ZendropScalarId;
   product_id?: ZendropScalarId;
   productId?: ZendropScalarId;
-  name?: unknown;
-  title?: unknown;
-  description?: unknown;
-  price?: unknown;
-  suggested_retail_price?: unknown;
-  suggestedRetailPrice?: unknown;
-  retail_price?: unknown;
-  supplier_name?: unknown;
-  supplierName?: unknown;
-  ships_from?: unknown;
-  shipsFrom?: unknown;
-  origin?: unknown;
-  category?: unknown;
-  category_id?: unknown;
-  categoryId?: unknown;
-  categories?: unknown;
-  images?: unknown;
+  product_url?: string | null;
+  name?: string | null;
+  title?: string | null;
+  description?: string | null;
+  price?: string | number | null;
+  image?: string | null;
+  images?: ZendropImage[] | string[];
+  availability?: ZendropAvailability | null;
   variants?: ZendropVariant[];
-  shipping_estimates?: ZendropShippingEstimate[];
-  shippingEstimates?: ZendropShippingEstimate[];
+  variants_total?: number;
+  variants_has_more?: boolean;
+  categories?: ZendropCategory[];
+  supplier?: ZendropSupplier | null;
   [key: string]: unknown;
 }
 
-export interface ZendropTrendingFilters {
-  category?: string;
-  price_min?: number;
-  price_max?: number;
+export interface ZendropCatalogProductsQuery {
+  limit?: number;
+  page?: number;
+  category_id?: number;
+  keyword?: string;
+  min_price?: number;
+  max_price?: number;
+}
+
+export interface ZendropTrendingQuery {
+  limit?: number;
+  page?: number;
 }
 
 export interface ZendropProductsEnvelope {
+  total?: number;
   products?: ZendropProduct[];
   data?: ZendropProduct[];
   items?: ZendropProduct[];
   results?: ZendropProduct[];
+  [key: string]: unknown;
+}
+
+export interface ZendropShippingOption {
+  type?: string | null;
+  price?: number | null;
+  estimated_delivery?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ZendropShippingEstimate {
+  product_id?: ZendropScalarId;
+  country_code?: string | null;
+  shipping_options?: ZendropShippingOption[];
   [key: string]: unknown;
 }
