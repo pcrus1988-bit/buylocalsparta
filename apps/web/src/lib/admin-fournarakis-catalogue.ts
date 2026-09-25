@@ -77,7 +77,8 @@ export async function adminAssignAllFournarakisProducts(
              csp.source_url,
              price.amount_minor AS reference_price_minor,
              price.price_kind AS reference_price_kind,
-             price.source_reference AS reference_price_source
+             price.source_reference AS reference_price_source,
+             price.observation_status AS reference_price_status
       FROM source_context ctx
       JOIN catalog_source_products csp
         ON csp.source_id=ctx.source_id
@@ -92,11 +93,25 @@ export async function adminAssignAllFournarakisProducts(
        AND cv.suppressed=false
        AND cv.recalled=false
       LEFT JOIN LATERAL (
-        SELECT po.amount_minor,po.price_kind,po.source_reference
+        SELECT po.amount_minor,po.price_kind,po.source_reference,po.observation_status
         FROM catalog_price_observations po
-        WHERE po.source_product_id=csp.id
-          AND po.observation_status='observed'
-        ORDER BY po.observed_at DESC NULLS LAST,po.created_at DESC,po.id DESC
+        WHERE po.observation_status IN ('observed','matched','approved')
+          AND (
+            po.source_product_id=csp.id
+            OR po.canonical_variant_id=lnk.canonical_variant_id
+            OR EXISTS (
+              SELECT 1
+              FROM catalog_source_product_links price_link
+              WHERE price_link.source_product_id=po.source_product_id
+                AND price_link.link_status='approved'
+                AND price_link.canonical_variant_id=lnk.canonical_variant_id
+            )
+          )
+        ORDER BY
+          (po.source_product_id=csp.id) DESC,
+          po.observed_at DESC NULLS LAST,
+          po.created_at DESC,
+          po.id DESC
         LIMIT 1
       ) price ON true
       ORDER BY lnk.canonical_variant_id,
@@ -156,6 +171,7 @@ export async function adminAssignAllFournarakisProducts(
           'referencePriceMinor',t.reference_price_minor,
           'referencePriceKind',t.reference_price_kind,
           'referencePriceSource',t.reference_price_source,
+          'referencePriceStatus',t.reference_price_status,
           'referencePriceIsVendorCost',false,
           'assignedAt',now(),
           'assignedBy',$4::text
