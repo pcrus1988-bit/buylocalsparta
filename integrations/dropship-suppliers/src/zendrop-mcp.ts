@@ -75,7 +75,7 @@ export interface ZendropCatalogueTransport {
  */
 export class ZendropCatalogueAdapter implements DropshipSupplierAdapter {
   readonly providerKind = ZENDROP_PROVIDER_KIND;
-  readonly capabilities = new Set<"catalogue">(["catalogue"]) as ReadonlySet<"catalogue">;
+  readonly capabilities: ReadonlySet<DropshipCapability> = new Set<DropshipCapability>(["catalogue"]);
   readonly #transport: ZendropCatalogueTransport;
 
   constructor(transport: ZendropCatalogueTransport) {
@@ -125,7 +125,7 @@ export class ZendropMcpTransport implements ZendropCatalogueTransport {
   async readiness(): Promise<void> {
     // The public Zendrop developer documentation exposes get_catalog_trending_products
     // as a documented read action, so it is used as the non-mutating connectivity probe.
-    await this.#action("get_catalog_trending_products", { filters: { price_max: 0 } });
+    await this.#action("get_catalog_trending_products", { filters: {} });
   }
 
   async getTrendingProducts(filters: ZendropTrendingFilters = {}): Promise<readonly ZendropSourceProduct[]> {
