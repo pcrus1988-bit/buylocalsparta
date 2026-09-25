@@ -9,6 +9,8 @@ import {
   ZENDROP_CATALOGUE_INVENTORY_AUTHORITATIVE,
   ZendropClient,
   ZendropSupplierAdapter,
+  ZENDROP_GREECE_PRICING,
+  calculateZendropCustomerPrice,
   normalizeZendropProduct,
 } from "../src/index.ts";
 
@@ -70,7 +72,7 @@ test("Zendrop capability flags expose reads but no unverified order writes", () 
   assert.equal(ZENDROP_CAPABILITIES.createOrder, false);
   assert.equal(ZENDROP_CAPABILITIES.readOrders, false);
   assert.equal(ZENDROP_CAPABILITIES.tracking, false);
-  assert.equal(ZENDROP_CAPABILITIES.shippingQuote, false);
+  assert.equal(ZENDROP_CAPABILITIES.shippingQuote, true);
   assert.equal(ZENDROP_CAPABILITIES.cancelOrder, false);
   assert.equal(ZENDROP_CAPABILITIES.returns, false);
   assert.equal(ZENDROP_CAPABILITIES.webhooks, false);
@@ -191,4 +193,37 @@ test("Zendrop adapter supports paginated catalogue ingestion while keeping offer
 
   const shipping = await adapter.getShippingEstimate(7);
   assert.equal(shipping.shipping_options?.[0]?.price, 4.5);
+});
+
+
+test("Zendrop Greece price embeds shipping, VAT and protected profit without rejecting high freight", () => {
+  const recommendation = calculateZendropCustomerPrice({
+    productCostUsdMinor: 1145,
+    shippingUsdMinor: 2542,
+    usdToEurRate: 1 / 1.1490,
+  });
+
+  assert.equal(ZENDROP_GREECE_PRICING.markupRate, 0.65);
+  assert.equal(ZENDROP_GREECE_PRICING.vatRate, 0.24);
+  assert.equal(recommendation.productCostEurMinor, 997);
+  assert.equal(recommendation.shippingEurMinor, 2213);
+  assert.equal(recommendation.landedCostEurMinor, 3210);
+  assert.equal(recommendation.targetProfitMinor, 649);
+  assert.equal(recommendation.customerPriceMinor, 4910);
+  assert.equal(recommendation.shippingIncluded, true);
+  assert.equal(recommendation.shippingCostBlocksPublication, false);
+  assert.ok((recommendation.actualProfitMinor ?? 0) >= 649);
+  assert.ok((recommendation.vatIncludedMinor ?? 0) > 0);
+});
+
+test("Zendrop pricing does not impose a maximum Greece shipping cost", () => {
+  const recommendation = calculateZendropCustomerPrice({
+    productCostUsdMinor: 100,
+    shippingUsdMinor: 50_000,
+    usdToEurRate: 0.87,
+  });
+
+  assert.ok((recommendation.customerPriceMinor ?? 0) > 0);
+  assert.equal(recommendation.shippingIncluded, true);
+  assert.equal(recommendation.shippingCostBlocksPublication, false);
 });
