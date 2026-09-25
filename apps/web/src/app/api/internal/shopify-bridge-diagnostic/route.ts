@@ -14,6 +14,7 @@ const HEADERS = {
 
 export async function GET() {
   // Preview environment variables are intentionally required so credentials can be validated before production activation.
+  // Secret scope refresh checkpoint.
   // This endpoint exists only on Vercel preview deployments while the bridge is
   // being commissioned. It never returns credentials or access tokens.
   if (process.env.VERCEL_ENV !== "preview") {
