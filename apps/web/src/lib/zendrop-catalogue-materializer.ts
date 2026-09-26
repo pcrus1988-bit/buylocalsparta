@@ -154,7 +154,22 @@ async function materializeProduct(
   usdToEurRate:number
 ){
   const pool=getProductionPostgresRuntime().sqlPool;
-  const payload=source.normalizedPayload;
+  let payload=source.normalizedPayload;
+  if(normalizedVariants(payload).length===0) {
+    try {
+      const detail=await client.getCatalogProduct(source.sourceProductKey);
+      payload=hydratedPayload(detail,source);
+    } catch(error) {
+      console.warn(JSON.stringify({
+        level:"warn",
+        event:"zendrop.materialization_product_detail_failed",
+        externalProductId:source.sourceProductKey,
+        message:safeError(error)
+      }));
+      return {variants:0,familiesCreated:0,canonicalsCreated:0,offersCreated:0,priced:0,blocked:1};
+    }
+  }
+  const effectiveSource:SourceProduct={...source,normalizedPayload:payload};
   const categoryCode=resolveZendropCategoryCode(source.title,payload.categories);
   const category=await pool.query<SqlRow>(`
     SELECT id::text
@@ -242,7 +257,6 @@ async function materializeProduct(
       SELECT id::text
         FROM public.canonical_variants
        WHERE family_id=$1::uuid
-         AND variant_attributes->>'source'='zendrop_mcp_v1'
          AND variant_attributes->>'externalVariantId'=$2
        ORDER BY created_at
        LIMIT 1
@@ -287,8 +301,8 @@ async function materializeProduct(
       `,[canonicalId,familyId,categoryId,recommendation.customerPriceMinor,TAX_RATE_BPS]);
     }
 
-    await upsertEnglishSourceCopy(canonicalId,source);
-    await upsertMedia(context,canonicalId,source);
+    await upsertEnglishSourceCopy(canonicalId,effectiveSource);
+    await upsertMedia(context,canonicalId,effectiveSource);
     await pool.query(`
       INSERT INTO public.catalog_source_product_links(
         source_product_id,canonical_variant_id,link_status,match_method,confidence,reasons,reviewed_at
@@ -468,6 +482,86 @@ async function saveCursor(sourceId:string,cursor:string|null):Promise<void>{
            updated_at=now()
      WHERE id=$1::uuid
   `,[sourceId,CURSOR_KEY,cursor]);
+}
+
+function hydratedPayload(product:unknown,source:SourceProduct):Readonly<Record<string,unknown>>{
+  const row=record(product);
+  const rawVariants=Array.isArray(row.variants)?row.variants:[];
+  const variants=rawVariants.flatMap((value,index)=>{
+    const variant=record(value);
+    const externalVariantId=optional(variant.variant_id ?? variant.id ?? variant.sku)
+      ?? `${source.sourceProductKey}-variant-${index+1}`;
+    const price=optional(variant.price ?? row.price);
+    const size=optional(variant.size);
+    const color=optional(variant.color);
+    return [{
+      externalVariantId,
+      sku:optional(variant.sku),
+      price,
+      buyingCostUsd:price,
+      size,
+      color,
+      weight:variant.weight ?? null,
+      dimensions:record(variant.dimensions),
+      catalogueInStock:variant.inventory_level==="In stock" || variant.available===1 || variant.available===true,
+      stockStatus:optional(variant.inventory_level),
+      attributes:{
+        ...(size?{size}:{}),
+        ...(color?{color}:{})
+      }
+    }];
+  });
+  const productPrice=optional(row.price);
+  const completeVariants=variants.length
+    ? variants
+    : productPrice
+      ? [{
+          externalVariantId:source.sourceProductKey,
+          sku:null,
+          price:productPrice,
+          buyingCostUsd:productPrice,
+          size:null,
+          color:null,
+          weight:null,
+          dimensions:{},
+          catalogueInStock:record(row.availability).in_stock===true,
+          stockStatus:optional(record(row.availability).inventory_level),
+          attributes:{}
+        }]
+      : [];
+
+  const rawImages=Array.isArray(row.images)?row.images:[];
+  const images=rawImages.flatMap(value=>{
+    if(typeof value==="string"&&value.trim()) return [{id:null,url:value.trim()}];
+    const image=record(value);
+    const url=optional(image.url);
+    return url?[{id:optional(image.id),url}]:[];
+  });
+  const fallbackImage=optional(row.image);
+  if(fallbackImage&&!images.some(image=>image.url===fallbackImage)) images.unshift({id:null,url:fallbackImage});
+
+  const categories=Array.isArray(row.categories)
+    ? row.categories.flatMap(value=>{
+        const category=record(value);
+        const id=optional(category.id);
+        const name=optional(category.name);
+        return id||name?[{id,name}]:[];
+      })
+    : [];
+
+  return {
+    ...source.normalizedPayload,
+    description:optional(row.description) ?? source.normalizedPayload.description ?? null,
+    images:images.length?images:source.normalizedPayload.images ?? [],
+    categories:categories.length?categories:source.normalizedPayload.categories ?? [],
+    variants:completeVariants,
+    supplierCostUsd:productPrice ?? source.normalizedPayload.supplierCostUsd ?? null,
+    catalogueInStock:record(row.availability).in_stock===true || source.normalizedPayload.catalogueInStock===true,
+    availabilityLabel:optional(record(row.availability).inventory_level) ?? source.normalizedPayload.availabilityLabel ?? null,
+    currency:"USD",
+    variantDataComplete:true,
+    detailHydratedAt:new Date().toISOString()
+  };
 }
 
 function normalizedVariants(payload:Readonly<Record<string,unknown>>):Variant[]{
