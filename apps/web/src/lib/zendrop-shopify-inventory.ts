@@ -99,7 +99,7 @@ export async function runZendropShopifyInventorySweep(
                cached_quantity=$3,
                availability_checked_at=$4,
                availability_expires_at=$5,
-               availability_payload=$6::jsonb,
+               availability_payload=COALESCE(availability_payload,'{}'::jsonb) || $6::jsonb,
                updated_at=$4
          WHERE id=$1::uuid
          RETURNING id
