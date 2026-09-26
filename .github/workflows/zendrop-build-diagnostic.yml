@@ -1,0 +1,20 @@
+name: Zendrop Build Diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  zendrop-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --include=dev
+      - name: Typecheck web
+        run: npx tsc -p apps/web/tsconfig.json --noEmit --pretty false
+      - name: Build web
+        run: npm --workspace @buy-local-sparta/web run build
