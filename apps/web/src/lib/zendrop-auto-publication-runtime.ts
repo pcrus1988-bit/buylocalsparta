@@ -51,6 +51,7 @@ export async function runZendropAutoPublicationSlice(
            OR COALESCE(dso.cached_quantity,0)<=0
            OR dso.availability_expires_at IS NULL
            OR dso.availability_expires_at<=now()
+           OR COALESCE((dso.availability_payload->>'greeceShippingAvailable')::boolean,false)=false
            OR NOT EXISTS (
              SELECT 1
                FROM public.dropship_shopify_bridge_variants bridge
@@ -132,6 +133,7 @@ export async function runZendropAutoPublicationSlice(
         AND COALESCE(dso.cached_quantity,0)>0
         AND dso.availability_expires_at IS NOT NULL
         AND dso.availability_expires_at>now()
+        AND COALESCE((dso.availability_payload->>'greeceShippingAvailable')::boolean,false)=true
         AND COALESCE((
           SELECT s.status::text
             FROM public.vendor_product_submissions s
