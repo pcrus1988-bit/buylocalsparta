@@ -439,12 +439,16 @@ function SortSelect({ value, onChange, compact = false }: { value: CatalogSort; 
   </label>;
 }
 
-export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId, initialTotal }: {
+export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId, initialTotal, initialServerLoaded = false, initialOffset = 0, initialNextOffset = null, initialPage = 1 }: {
   products: readonly CatalogCard[];
   vendor: Readonly<{ name: string; adviser?: string }>;
   demoVendorId?: string;
   vendorId?: string;
   initialTotal?: number;
+  initialServerLoaded?: boolean;
+  initialOffset?: number;
+  initialNextOffset?: number | null;
+  initialPage?: number;
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -465,13 +469,13 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
   const [guideFamily, setGuideFamily] = useState<GuideFamily | null>(null);
   const [beautyFamily, setBeautyFamily] = useState<BeautyFamily | null>(null);
   const [catalogGroup, setCatalogGroup] = useState<string | null>(null);
-  const [remoteProducts, setRemoteProducts] = useState<readonly CatalogCard[] | null>(demoVendorId ? products : null);
+  const [remoteProducts, setRemoteProducts] = useState<readonly CatalogCard[] | null>((demoVendorId || initialServerLoaded) ? products : null);
   const [remoteTotal, setRemoteTotal] = useState<number | undefined>(initialTotal ?? (demoVendorId ? products.length : undefined));
-  const [remoteOffset, setRemoteOffset] = useState(0);
-  const [remoteNextOffset, setRemoteNextOffset] = useState<number | null>(null);
+  const [remoteOffset, setRemoteOffset] = useState(initialOffset);
+  const [remoteNextOffset, setRemoteNextOffset] = useState<number | null>(initialNextOffset);
   const [remoteFacets, setRemoteFacets] = useState<RemoteFacets>();
   const [guideFacets, setGuideFacets] = useState<RemoteFacets>();
-  const [remoteLoading, setRemoteLoading] = useState(!demoVendorId);
+  const [remoteLoading, setRemoteLoading] = useState(!demoVendorId && !initialServerLoaded);
   const [facetsLoading, setFacetsLoading] = useState(false);
   const [facetsError, setFacetsError] = useState(false);
   const [remoteError, setRemoteError] = useState(false);
@@ -480,6 +484,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
   const requestSerial = useRef(0);
   const facetRequestSerial = useRef(0);
   const catalogResultsRef = useRef<HTMLDivElement | null>(null);
+  const skipInitialServerFetch = useRef(initialServerLoaded);
 
   const demoMode = Boolean(demoVendorId);
   const requestVendorId = demoVendorId ?? publicVendorId;
@@ -508,6 +513,10 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
 
   useEffect(() => {
     if (!requestVendorId) return;
+    if (skipInitialServerFetch.current) {
+      skipInitialServerFetch.current = false;
+      return;
+    }
     const serial = ++requestSerial.current;
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
@@ -1010,9 +1019,13 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
         {remoteLoading && !visibleProducts.length ? <div className="vc-loading"><span className="vc-spinner" /><strong>Ετοιμάζουμε τη βιτρίνα…</strong><p>Φορτώνουμε μόνο ό,τι χρειάζεται για την επιλογή σου.</p></div> : visibleProducts.length ? <>
           <div className="vc-grid">{visibleProducts.map((product, index) => <CatalogProductCard product={product} index={index} vendorContext={vendor} demoVendorId={demoVendorId} key={product.id} />)}</div>
           {hasPagination ? <nav className="vc-pagination" aria-label="Σελιδοποίηση προϊόντων">
-            <button type="button" onClick={() => void loadPage(remoteOffset - PAGE_SIZE)} disabled={remoteLoading || remoteOffset === 0}>← Προηγούμενη</button>
+            {remoteOffset > 0
+              ? <a href={`?catalogPage=${Math.max(1, currentPage - 1)}#products`} onClick={(event) => { event.preventDefault(); void loadPage(remoteOffset - PAGE_SIZE); }}>← Προηγούμενη</a>
+              : <span aria-disabled="true">← Προηγούμενη</span>}
             <span><strong>Σελίδα {currentPage}</strong><small>{totalKnown ? `από ${totalPages}` : "περισσότερα διαθέσιμα"}</small></span>
-            <button type="button" onClick={() => remoteNextOffset !== null && void loadPage(remoteNextOffset)} disabled={remoteLoading || remoteNextOffset === null}>{remoteLoading ? "Φόρτωση…" : "Επόμενη →"}</button>
+            {remoteNextOffset !== null
+              ? <a href={`?catalogPage=${currentPage + 1}#products`} onClick={(event) => { event.preventDefault(); void loadPage(remoteNextOffset); }}>{remoteLoading ? "Φόρτωση…" : "Επόμενη →"}</a>
+              : <span aria-disabled="true">Επόμενη →</span>}
           </nav> : null}
         </> : <div className="vc-empty"><h3>Δεν βρέθηκε προϊόν.</h3><p>Δοκίμασε διαφορετική επιλογή ή επέστρεψε στον οδηγό.</p><button className="button" type="button" onClick={isGuidedVendor ? reopenGuide : resetAllFilters}>{isGuidedVendor ? "Από την αρχή" : "Καθαρισμός φίλτρων"}</button></div>}
       </div>
