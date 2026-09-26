@@ -272,7 +272,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
       ],
       openGraphImage: product.mediaId
         ? `/api/media/${encodeURIComponent(product.mediaId)}`
-        : detail?.sourceImageUrl
+        : product.sourceImageAvailable
           ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
           : undefined
     },
@@ -390,7 +390,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // and is explicitly allowed in robots.txt.
   const supplierImageSrc = primaryImage
     ? undefined
-    : detail?.sourceImageUrl
+    : summary.sourceImageAvailable
       ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
       : undefined;
   const hasProductImage = Boolean(primaryImage || supplierImageSrc);
