@@ -232,7 +232,7 @@ export async function getPublicCatalogSourcePrimaryImages(
             AND cv.recalled=false
             AND vo.status='approved'
             AND cs.active=true
-            AND cs.code IN ('nova-brandsgateway','symphonya')
+            AND cs.code IN ('nova-brandsgateway','symphonya','zendrop')
         ), primary_source AS (
           SELECT canonical_public_id,normalized_payload,source_image_fallback_url,source_code,source_website,source_title
           FROM ranked
