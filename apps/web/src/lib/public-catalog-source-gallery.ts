@@ -399,13 +399,18 @@ const getCachedPublicDropshipMediaSourceImage = unstable_cache(
   { revalidate: 86_400 }
 );
 
+type ResilientPrimaryLookupResult = Readonly<{
+  image?: PublicCatalogSourceImage;
+  failed: boolean;
+}>;
+
 async function resilientPrimaryLookup(
   label: string,
   canonicalVariantId: string,
   lookup: () => Promise<PublicCatalogSourceImage | undefined>
-): Promise<PublicCatalogSourceImage | undefined> {
+): Promise<ResilientPrimaryLookupResult> {
   try {
-    return await lookup();
+    return { image: await lookup(), failed: false };
   } catch (firstError) {
     console.warn(JSON.stringify({
       level: "warn",
@@ -416,7 +421,7 @@ async function resilientPrimaryLookup(
     }));
     await new Promise((resolve) => setTimeout(resolve, 120));
     try {
-      return await lookup();
+      return { image: await lookup(), failed: false };
     } catch (secondError) {
       console.error(JSON.stringify({
         level: "error",
@@ -425,7 +430,7 @@ async function resilientPrimaryLookup(
         canonicalVariantId,
         message: secondError instanceof Error ? secondError.message : String(secondError)
       }));
-      return undefined;
+      return { failed: true };
     }
   }
 }
@@ -445,18 +450,27 @@ export async function getPublicCatalogSourceImageAtIndex(
       canonicalVariantId,
       () => getCachedPublicDropshipMediaSourceImage(canonicalVariantId)
     );
-    if (dropshipMedia) return dropshipMedia;
+    if (dropshipMedia.image) return dropshipMedia.image;
 
     const linkedPrimary = await resilientPrimaryLookup(
       "canonical_source_link",
       canonicalVariantId,
       () => getCachedPublicCatalogPrimarySourceImage(canonicalVariantId)
     );
-    if (linkedPrimary) return linkedPrimary;
+    if (linkedPrimary.image) return linkedPrimary.image;
 
     // Final governed fallback for newly materialized rows whose canonical link
     // is still being backfilled.
-    return (await getPublicCatalogSourceGallery(canonicalVariantId))[0];
+    const galleryPrimary = (await getPublicCatalogSourceGallery(canonicalVariantId))[0];
+    if (galleryPrimary) return galleryPrimary;
+
+    // A database outage is not the same thing as a missing image. Bubble the
+    // transient failure so the proxy returns 503/no-store instead of poisoning
+    // the CDN with a cached 404 for a product that really has media.
+    if (dropshipMedia.failed || linkedPrimary.failed) {
+      throw new Error("catalog source image lookup temporarily unavailable");
+    }
+    return undefined;
   }
 
   const gallery = await getPublicCatalogSourceGallery(canonicalVariantId);
