@@ -16,8 +16,36 @@ import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides
 import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
 import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 import { researchVendorIndexEligibility } from "../../../lib/seo-visibility-policy";
+import { getVendorLocalCatalogPage } from "../../../lib/vendor-local-catalog";
+import { getFastVendorDropshipCatalogPage } from "../../../lib/vendor-dropship-fast-page";
+import type { CatalogCard } from "../../../lib/catalog-view";
 
-type Props = Readonly<{ params: Promise<{ id: string }> }>;
+type Props = Readonly<{ params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }>;
+
+const VENDOR_SSR_PAGE_SIZE = 20;
+
+function vendorCatalogPage(value: string | string[] | undefined): number {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? Math.min(parsed, 5000) : 1;
+}
+
+async function getInitialVendorCatalogPage(vendorId: string, page: number): Promise<{ products: readonly CatalogCard[]; offset: number; nextOffset: number | null }> {
+  const offset = (page - 1) * VENDOR_SSR_PAGE_SIZE;
+  const localPage = await getVendorLocalCatalogPage(vendorId, { offset, limit: VENDOR_SSR_PAGE_SIZE, availableOnly: false });
+  const localCount = localPage.total;
+  const localProducts = localPage.products;
+  const remaining = Math.max(0, VENDOR_SSR_PAGE_SIZE - localProducts.length);
+  if (remaining === 0 && offset + VENDOR_SSR_PAGE_SIZE < localCount) return { products: localProducts, offset, nextOffset: offset + VENDOR_SSR_PAGE_SIZE };
+  const dropshipOffset = Math.max(0, offset - localCount);
+  const dropshipPage = await getFastVendorDropshipCatalogPage(vendorId, { offset: dropshipOffset, limit: remaining > 0 ? remaining : 1 });
+  const products = remaining > 0 ? [...localProducts, ...dropshipPage.products.slice(0, remaining)] : localProducts;
+  const hasDropshipAtBoundary = dropshipPage.products.length > 0 || dropshipPage.nextOffset !== undefined;
+  const nextOffset = remaining === 0
+    ? (hasDropshipAtBoundary ? localCount : null)
+    : dropshipPage.nextOffset !== undefined ? localCount + dropshipPage.nextOffset : null;
+  return { products, offset, nextOffset };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -111,8 +139,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   });
 }
 
-export default async function VendorPage({ params }: Props) {
-  const { id } = await params;
+export default async function VendorPage({ params, searchParams }: Props) {
+  const [{ id }, query] = await Promise.all([params, searchParams]);
+  const catalogPage = vendorCatalogPage(query.catalogPage);
   const [vendor, { settings }, overrides] = await Promise.all([
     getCachedPublicVendorDirectoryEntry(id),
     getCachedSeoGlobalSettingsSnapshot(),
@@ -133,10 +162,12 @@ export default async function VendorPage({ params }: Props) {
     override
   });
 
-  // Do not scan the vendor catalogue during SSR. The storefront browser already
-  // uses the bounded /api/catalog/vendor/:id endpoint in 20-item pages, which is
-  // the correct fast path for large supplier catalogues.
-  const products = [] as const;
+  // One bounded authoritative server page keeps the storefront crawlable without
+  // scanning the full catalogue or computing catalogue-wide facets during SSR.
+  const initialCatalog = isResearch
+    ? { products: [] as readonly CatalogCard[], offset: 0, nextOffset: null as number | null }
+    : await getInitialVendorCatalogPage(id, catalogPage);
+  const products = initialCatalog.products;
   const [principal, profileMedia] = isResearch
     ? [undefined, []] as const
     : await Promise.all([getAccountSession(), getCachedApprovedVendorProfileMedia(id)]);
@@ -343,7 +374,15 @@ export default async function VendorPage({ params }: Props) {
               <strong>Δεν υπάρχει ενεργός κατάλογος προϊόντων.</strong> Η επιχείρηση είναι ακόμη δημόσια χαρτογραφημένη / προσκεκλημένη και δεν παρουσιάζεται ως ενεργός συνεργάτης της πλατφόρμας.
             </div>
           ) : (
-            <VendorCatalogBrowser products={products} vendor={{ name: vendor.name, adviser: vendor.adviser }} vendorId={vendor.id} />
+            <VendorCatalogBrowser
+              products={products}
+              vendor={{ name: vendor.name, adviser: vendor.adviser }}
+              vendorId={vendor.id}
+              initialServerLoaded
+              initialOffset={initialCatalog.offset}
+              initialNextOffset={initialCatalog.nextOffset}
+              initialPage={catalogPage}
+            />
           )}
         </div>
       </section>
