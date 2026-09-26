@@ -26,6 +26,14 @@ export const ZENDROP_SUPPLIER_CODE = "zendrop" as const;
  */
 export const ZENDROP_CATALOGUE_INVENTORY_AUTHORITATIVE = false as const;
 
+/**
+ * KONTA MOY treats the hidden Shopify bridge inventory as the authoritative
+ * availability source for Zendrop once a supplier variant has a synced bridge
+ * mapping. This intentionally does not elevate Zendrop's catalogue-only
+ * "In stock" label; authority begins only at the mapped Shopify variant.
+ */
+export const ZENDROP_SHOPIFY_BRIDGE_INVENTORY_AUTHORITATIVE = true as const;
+
 export const ZENDROP_CAPABILITIES: SupplierCapabilities = Object.freeze({
   csvBootstrap: false,
   catalogueDelta: false,

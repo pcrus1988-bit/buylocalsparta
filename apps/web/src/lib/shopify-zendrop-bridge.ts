@@ -617,3 +617,76 @@ function normalizeOrder(order: ShopifyOrderGraphqlShape): ShopifyBridgeOrderDeta
 function optionalText(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
+
+
+export type ShopifyBridgeVariantInventory = Readonly<{
+  id: string;
+  sku: string | null;
+  inventoryQuantity: number;
+  tracked: boolean;
+}>;
+
+/**
+ * Reads the hidden Shopify bridge inventory that KONTA MOY treats as the
+ * authoritative Zendrop stock source for mapped variants.
+ *
+ * This deliberately reads ProductVariant.inventoryQuantity from Shopify,
+ * rather than trusting Zendrop catalogue-level availability labels.
+ */
+export async function getShopifyBridgeVariantInventories(
+  variantIds: readonly (string | number)[],
+  env: NodeJS.ProcessEnv = process.env
+): Promise<readonly ShopifyBridgeVariantInventory[]> {
+  if (!variantIds.length) return [];
+  if (variantIds.length > 100) {
+    throw new Error("Shopify bridge inventory batch is limited to 100 variants");
+  }
+
+  const ids = [...new Set(variantIds.map(shopifyVariantGid))];
+  const data = await shopifyAdminGraphql<{
+    nodes: Array<{
+      id: string;
+      sku?: string | null;
+      inventoryQuantity?: number | null;
+      inventoryItem?: { tracked?: boolean | null } | null;
+    } | null>;
+  }>(
+    `query ReadZendropBridgeInventory($ids: [ID!]!) {
+      nodes(ids: $ids) {
+        ... on ProductVariant {
+          id
+          sku
+          inventoryQuantity
+          inventoryItem { tracked }
+        }
+      }
+    }`,
+    { ids },
+    env
+  );
+
+  return data.nodes.flatMap((node) => {
+    if (!node) return [];
+    const quantity = Number(node.inventoryQuantity);
+    if (!Number.isSafeInteger(quantity)) {
+      throw new Error(`Shopify bridge variant ${node.id} returned invalid inventoryQuantity`);
+    }
+    return [{
+      id: node.id,
+      sku: optionalText(node.sku) ?? null,
+      inventoryQuantity: Math.max(0, quantity),
+      tracked: node.inventoryItem?.tracked === true
+    }];
+  });
+}
+
+export async function getShopifyBridgeVariantInventory(
+  variantId: string | number,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<ShopifyBridgeVariantInventory> {
+  const id = shopifyVariantGid(variantId);
+  const rows = await getShopifyBridgeVariantInventories([id], env);
+  const inventory = rows.find((row) => row.id === id);
+  if (!inventory) throw new Error(`Shopify bridge variant ${id} was not found`);
+  return inventory;
+}

@@ -22,7 +22,7 @@ export type ZendropPriceRecommendation = Readonly<{
 
 /**
  * KONTA MOY Zendrop Greece pricing:
- * - product-cost markup: +65% (same commercial uplift used for managed dropshipping);
+ * - product-cost markup: +25%;
  * - exact Zendrop Greece shipping is embedded as a pass-through cost;
  * - 24% Greek VAT is included in the customer-facing price;
  * - the 2.5% transaction-cost assumption is recovered before profit is measured;
@@ -32,14 +32,14 @@ export type ZendropPriceRecommendation = Readonly<{
  * (for example from the ECB reference-rate feed) without changing supplier evidence.
  */
 export const ZENDROP_GREECE_PRICING: ZendropPricingConfig = Object.freeze({
-  markupRate: 0.65,
+  markupRate: 0.25,
   vatRate: 0.24,
   transactionRate: 0.025,
   minimumProfitMinor: 490,
 });
 
 export const ZENDROP_PRICING_RULE =
-  "zendrop_gr_v1_product_65_markup_shipping_embedded_vat_inclusive";
+  "zendrop_gr_v2_product_25_markup_shipping_embedded_vat_inclusive";
 
 function validMinor(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
