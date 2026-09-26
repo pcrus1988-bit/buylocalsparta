@@ -4,6 +4,7 @@ import { getProductionPostgresRuntime } from "./postgres-runtime";
 const SUPPLIER_CODE="zendrop";
 const DEFAULT_BATCH_SIZE=250;
 const MAX_BATCH_SIZE=1000;
+const MIN_PROFIT_MINOR=490;
 
 export type ZendropAutoPublicationResult=Readonly<{
   enabled:boolean;
@@ -51,6 +52,10 @@ export async function runZendropAutoPublicationSlice(
            OR COALESCE(dso.cached_quantity,0)<=0
            OR dso.availability_expires_at IS NULL
            OR dso.availability_expires_at<=now()
+           OR COALESCE((dso.availability_payload->>'greeceShippingAvailable')::boolean,false)=false
+           OR dso.supplier_cost_minor IS NULL
+           OR vo.customer_price_minor IS NULL
+           OR vo.customer_price_minor-dso.supplier_cost_minor<$3
            OR NOT EXISTS (
              SELECT 1
                FROM public.dropship_shopify_bridge_variants bridge
@@ -92,7 +97,7 @@ export async function runZendropAutoPublicationSlice(
        RETURNING vo.id
     )
     SELECT count(*)::int hidden FROM offer_hidden
-  `,[SUPPLIER_CODE,cap]);
+  `,[SUPPLIER_CODE,cap,MIN_PROFIT_MINOR]);
   const hiddenOutOfStock=Number(hidden.rows[0]?.hidden??0);
 
   const result=await pool.query<SqlRow>(`
@@ -127,11 +132,12 @@ export async function runZendropAutoPublicationSlice(
         AND COALESCE(vo.source_payload->>'pricingPending','true')='false'
         AND dso.supplier_cost_minor>0
         AND vo.customer_price_minor>0
-        AND vo.customer_price_minor>=dso.supplier_cost_minor
+        AND vo.customer_price_minor-dso.supplier_cost_minor>=$3
         AND dso.cached_available=true
         AND COALESCE(dso.cached_quantity,0)>0
         AND dso.availability_expires_at IS NOT NULL
         AND dso.availability_expires_at>now()
+        AND COALESCE((dso.availability_payload->>'greeceShippingAvailable')::boolean,false)=true
         AND COALESCE((
           SELECT s.status::text
             FROM public.vendor_product_submissions s
@@ -222,7 +228,7 @@ export async function runZendropAutoPublicationSlice(
     SELECT
       (SELECT count(*)::int FROM eligible) eligible,
       (SELECT count(*)::int FROM offer_changed) published
-  `,[SUPPLIER_CODE,cap]);
+  `,[SUPPLIER_CODE,cap,MIN_PROFIT_MINOR]);
 
   return {
     enabled:true,
