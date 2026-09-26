@@ -277,7 +277,15 @@ function normalizedVariants(
   productId:string,
   fallbackPrice:unknown
 ): readonly Record<string,unknown>[] {
-  const raw=Array.isArray(values)&&values.length ? values : [{ variant_id:productId,price:fallbackPrice }];
+  const fallback: ZendropVariant = {
+    variant_id: productId,
+    price:
+      typeof fallbackPrice === "string" || typeof fallbackPrice === "number"
+        ? fallbackPrice
+        : null
+  };
+  const raw: readonly ZendropVariant[] =
+    Array.isArray(values) && values.length ? values : [fallback];
   return raw.flatMap((variant,index)=>{
     const externalVariantId=scalar(variant.variant_id ?? variant.id ?? variant.sku) ?? `${productId}-variant-${index+1}`;
     const price=scalar(variant.price ?? fallbackPrice);
