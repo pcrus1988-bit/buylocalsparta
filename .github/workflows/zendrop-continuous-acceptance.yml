@@ -37,5 +37,9 @@ jobs:
         run: npm run typecheck:dropship-suppliers
       - name: Typecheck Next.js web application
         run: ./node_modules/.bin/tsc -p apps/web/tsconfig.json --pretty false
+      - name: Build Next.js web application
+        env:
+          VERCEL_ENV: preview
+        run: npm --workspace @buy-local-sparta/web run build
       - name: Verify Zendrop deployment topology
         run: npm run check:deployment
