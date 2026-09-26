@@ -6,6 +6,9 @@ import type {
   ZendropScalarId,
   ZendropShippingEstimate,
   ZendropTrendingQuery,
+  ZendropImportOperation,
+  ZendropMyProduct,
+  ZendropMyProductsEnvelope,
 } from "./types.ts";
 
 export const DEFAULT_ZENDROP_MCP_URL = "https://app.zendrop.com/mcp/v1";
@@ -98,6 +101,19 @@ function cleanObject(input: Readonly<Record<string, unknown>>): Readonly<Record<
   return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined && value !== null && value !== ""));
 }
 
+function positiveIntegerId(value: ZendropScalarId, label: string): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) throw new Error(`${label} must be a positive integer`);
+  return parsed;
+}
+
+function recordPayload(payload: unknown): Record<string, unknown> {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("Unexpected Zendrop response: expected object");
+  }
+  return payload as Record<string, unknown>;
+}
+
 export class ZendropClient {
   readonly endpoint: string;
   readonly rateLimiter: SupplierRateLimiter;
@@ -164,6 +180,49 @@ export class ZendropClient {
       product_id: typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value,
       country_code: country,
     }));
+  }
+
+
+  async addMyProduct(productId: ZendropScalarId, storeId: number): Promise<Readonly<Record<string, unknown>>> {
+    const product = positiveIntegerId(productId, "Zendrop product id");
+    const store = positiveIntegerId(storeId, "Zendrop store id");
+    return recordPayload(await this.#readAction("add_my_product", {
+      product_id: product,
+      store_id: store,
+    }));
+  }
+
+  async getMyProducts(input: Readonly<{
+    storeId: number;
+    status?: "imported" | "in_store" | "unlinked";
+    page?: number;
+    limit?: number;
+  }>): Promise<ZendropMyProductsEnvelope> {
+    const payload = await this.#readAction("get_my_products", cleanObject({
+      store_id: positiveIntegerId(input.storeId, "Zendrop store id"),
+      status: input.status,
+      page: input.page ?? 1,
+      limit: Math.min(60, Math.max(1, Math.floor(input.limit ?? 60))),
+    }));
+    return recordPayload(payload) as ZendropMyProductsEnvelope;
+  }
+
+  async getMyProduct(importListId: number): Promise<ZendropMyProduct> {
+    return recordPayload(await this.#readAction("get_my_product", {
+      import_list_id: positiveIntegerId(importListId, "Zendrop import list id"),
+    })) as ZendropMyProduct;
+  }
+
+  async importMyProduct(importListId: number): Promise<ZendropImportOperation> {
+    return recordPayload(await this.#readAction("import_my_product", {
+      import_list_id: positiveIntegerId(importListId, "Zendrop import list id"),
+    })) as ZendropImportOperation;
+  }
+
+  async getMyProductImportOperation(operationId: number): Promise<ZendropImportOperation> {
+    return recordPayload(await this.#readAction("get_my_product_import_operation", {
+      operation_id: positiveIntegerId(operationId, "Zendrop import operation id"),
+    })) as ZendropImportOperation;
   }
 
   async #readAction(action: string, payload: Readonly<Record<string, unknown>>): Promise<unknown> {

@@ -146,12 +146,8 @@ export async function runSymphonyaAutoPublicationSweep(): Promise<SymphonyaAutoP
            AND dso.availability_expires_at IS NOT NULL
            AND dso.availability_expires_at>now()
            AND COALESCE(dso.availability_payload->>'priceHeld','false')<>'true'
-           AND EXISTS (
-             SELECT 1 FROM public.product_translations pt
-              WHERE pt.canonical_variant_id=cv.id
-                AND pt.locale IN ('el','en')
-                AND NULLIF(btrim(pt.title),'') IS NOT NULL
-           )
+           -- Source-language copy is sufficient for publication. Localized
+           -- translations are optional enrichment and never a commerce gate.
            AND COALESCE((
              SELECT s.status::text
                FROM public.vendor_product_submissions s

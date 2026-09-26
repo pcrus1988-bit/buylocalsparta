@@ -45,6 +45,14 @@
     {
       "path": "/api/cron/flash-sale-availability",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/zendrop-catalogue",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/zendrop-pipeline",
+      "schedule": "* * * * *"
     }
   ]
 }
