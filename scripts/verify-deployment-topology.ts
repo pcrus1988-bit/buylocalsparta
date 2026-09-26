@@ -35,6 +35,8 @@ const allowedVercelCrons = new Map([
   ["/api/cron/symphonya-catalogue", "2 * * * *"],
   ["/api/cron/symphonya-stock", "*/5 * * * *"],
   ["/api/cron/symphonya-pipeline", "9 * * * *"],
+  ["/api/cron/zendrop-catalogue", "* * * * *"],
+  ["/api/cron/zendrop-pipeline", "* * * * *"],
   ["/api/cron/dropship-order-reconciliation", "*/5 * * * *"],
   ["/api/cron/flash-sale-availability", "*/5 * * * *"],
 ]);
