@@ -690,3 +690,60 @@ export async function getShopifyBridgeVariantInventory(
   if (!inventory) throw new Error(`Shopify bridge variant ${id} was not found`);
   return inventory;
 }
+
+
+export type ShopifyBridgeProductVariant = Readonly<{
+  id: string;
+  numericId: string;
+  sku: string | null;
+  inventoryQuantity: number;
+}>;
+
+export function shopifyProductGid(value: string | number): string {
+  const normalized=String(value).trim();
+  if(!normalized) throw new Error("Shopify bridge product id is required");
+  if(normalized.startsWith("gid://shopify/Product/")) return normalized;
+  if(!/^\d+$/.test(normalized)) throw new Error("Shopify bridge product id must be numeric or a Product gid");
+  return `gid://shopify/Product/${normalized}`;
+}
+
+export async function getShopifyBridgeProductVariants(
+  productId: string | number,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<readonly ShopifyBridgeProductVariant[]> {
+  const id=shopifyProductGid(productId);
+  const data=await shopifyAdminGraphql<{
+    product: {
+      variants: {
+        nodes: Array<{
+          id:string;
+          sku?:string|null;
+          inventoryQuantity?:number|null;
+        }>;
+      };
+    } | null;
+  }>(
+    `query ReadZendropBridgeProductVariants($id: ID!) {
+      product(id: $id) {
+        variants(first: 250) {
+          nodes { id sku inventoryQuantity }
+        }
+      }
+    }`,
+    { id },
+    env
+  );
+  if(!data.product) throw new Error(`Shopify bridge product ${id} was not found`);
+  return data.product.variants.nodes.map((variant)=>{
+    const quantity=Number(variant.inventoryQuantity);
+    if(!Number.isSafeInteger(quantity)) {
+      throw new Error(`Shopify variant ${variant.id} returned invalid inventoryQuantity`);
+    }
+    return {
+      id:variant.id,
+      numericId:variant.id.replace("gid://shopify/ProductVariant/",""),
+      sku:optionalText(variant.sku) ?? null,
+      inventoryQuantity:Math.max(0,quantity)
+    };
+  });
+}
