@@ -344,6 +344,48 @@ async function getPublicCatalogPrimarySourceImage(
   return row ? sourceImagesFromRow(row)[0] : undefined;
 }
 
+async function getPublicDropshipMediaSourceImage(
+  canonicalVariantId: string
+): Promise<PublicCatalogSourceImage | undefined> {
+  const canonicalId = canonicalVariantId.trim();
+  if (!canonicalId) return undefined;
+
+  const result = await getProductionPostgresRuntime().nativePool.query<SourceGalleryRow>(`
+    SELECT
+      '{}'::jsonb AS normalized_payload,
+      pm.source_url AS source_image_url,
+      cs.code AS source_code,
+      cs.website AS source_website,
+      COALESCE(el.title,en.title,cv.model,cv.slug) AS source_title
+    FROM canonical_variants cv
+    JOIN markets m ON m.id=cv.market_id
+    JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
+    JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+    JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+    JOIN catalog_sources cs ON cs.id=ds.catalog_source_id AND cs.active=true
+    JOIN product_media pm
+      ON pm.canonical_variant_id=cv.id
+     AND pm.kind='image'
+     AND pm.source_url IS NOT NULL
+    LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+    LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+    WHERE cv.public_id=$1
+      AND m.code='sparta'
+      AND cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
+      AND vo.status='approved'
+      AND vo.merchant_visible=true
+      AND ds.active=true
+      AND cs.code IN ('nova-brandsgateway','symphonya','zendrop')
+    ORDER BY pm.sort_order ASC,pm.created_at DESC,pm.id
+    LIMIT 1
+  `, [canonicalId]);
+
+  const row = result.rows[0];
+  return row ? sourceImagesFromRow(row)[0] : undefined;
+}
+
 export async function getPublicCatalogSourceImageAtIndex(
   canonicalVariantId: string,
   index: number
@@ -357,10 +399,12 @@ export async function getPublicCatalogSourceImageAtIndex(
     const linkedPrimary = await getPublicCatalogPrimarySourceImage(canonicalVariantId);
     if (linkedPrimary) return linkedPrimary;
 
+    const legacyDropshipMedia = await getPublicDropshipMediaSourceImage(canonicalVariantId);
+    if (legacyDropshipMedia) return legacyDropshipMedia;
+
     // Newly materialized dropship products can already have an authoritative
     // supplier-offer -> source-product link before the canonical source identity
-    // link is backfilled. Use that governed path as the primary-image fallback so
-    // Zendrop cards/details do not render broken images during ingestion.
+    // link is backfilled. Use that governed path as the final source fallback.
     return (await getPublicCatalogSourceGallery(canonicalVariantId))[0];
   }
 
