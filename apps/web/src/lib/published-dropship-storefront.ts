@@ -11,6 +11,7 @@ import { isPublicCatalogueTitle } from "./public-data-integrity";
 import { categoryCodeMatches } from "./storefront-taxonomy";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { decodeCatalogSizeGroup } from "./catalog-size";
+import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 
 const VENDOR_STOREFRONT_VARIANT_CAP = 480;
 
@@ -30,6 +31,9 @@ type PublishedDropshipRow = Readonly<{
   vendor_public_id: string;
   vendor_name: string;
   vendor_presentation: unknown;
+  source_code: string | null;
+  source_website: string | null;
+  source_image_url: string | null;
 }>;
 
 function safeMinor(value: unknown): number | undefined {
@@ -106,6 +110,7 @@ export async function getPublishedDropshipCatalogCards(
           vo.updated_at,
           dso.supplier_id,
           dso.external_product_id,
+          dso.source_product_id,
           dso.cached_quantity,
           dso.cached_available,
           dso.availability_expires_at,
@@ -142,7 +147,10 @@ export async function getPublishedDropshipCatalogCards(
         ) AS currently_available,
         v.public_id AS vendor_public_id,
         v.trading_name AS vendor_name,
-        ds.configuration->'vendorPresentation' AS vendor_presentation
+        ds.configuration->'vendorPresentation' AS vendor_presentation,
+        cs.code AS source_code,
+        cs.website AS source_website,
+        csp.source_image_url
       FROM vendor_scope scope
       JOIN canonical_variants cv ON cv.id=scope.canonical_variant_id
       JOIN markets m ON m.id=cv.market_id
@@ -150,6 +158,8 @@ export async function getPublishedDropshipCatalogCards(
       JOIN vendor_businesses v ON v.id=scope.vendor_id
       JOIN vendor_locations l ON l.id=scope.location_id
       JOIN dropship_suppliers ds ON ds.id=scope.supplier_id
+      LEFT JOIN catalog_source_products csp ON csp.id=scope.source_product_id
+      LEFT JOIN catalog_sources cs ON cs.id=csp.source_id
       LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
       WHERE m.code='sparta'
@@ -186,7 +196,10 @@ export async function getPublishedDropshipCatalogCards(
         ) AS currently_available,
         v.public_id AS vendor_public_id,
         v.trading_name AS vendor_name,
-        ds.configuration->'vendorPresentation' AS vendor_presentation
+        ds.configuration->'vendorPresentation' AS vendor_presentation,
+        cs.code AS source_code,
+        cs.website AS source_website,
+        csp.source_image_url
       FROM vendor_offers vo
       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
       JOIN markets m ON m.id=cv.market_id
@@ -195,6 +208,8 @@ export async function getPublishedDropshipCatalogCards(
       JOIN vendor_locations l ON l.id=vo.location_id
       JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
       JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+      LEFT JOIN catalog_source_products csp ON csp.id=dso.source_product_id
+      LEFT JOIN catalog_sources cs ON cs.id=csp.source_id
       LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
       WHERE m.code='sparta'
@@ -250,6 +265,7 @@ export async function getPublishedDropshipCatalogCards(
       availableToSell: available ? safeQuantity(row.cached_quantity) : 0,
       vendorId: row.vendor_public_id,
       vendorName: row.vendor_name,
+      previewImageSrc: trustedCatalogSourceHttpsUrl(row.source_code, row.source_website, row.source_image_url),
       publicFields: presentation.fields
     }];
   });
@@ -352,6 +368,7 @@ export async function getPublishedDropshipCatalogCards(
       madeIn: technicalAttributesVisible ? details?.madeIn : undefined,
       mediaId: image?.mediaId,
       mediaAlt: image?.altText,
+      previewImageSrc: image ? undefined : record.previewImageSrc,
       supplierFulfilled: true
     } satisfies CatalogCard & Readonly<{ supplierFulfilled: true }>;
   });
