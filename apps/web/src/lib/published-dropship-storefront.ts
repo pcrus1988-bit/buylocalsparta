@@ -150,7 +150,7 @@ export async function getPublishedDropshipCatalogCards(
         ds.configuration->'vendorPresentation' AS vendor_presentation,
         cs.code AS source_code,
         cs.website AS source_website,
-        csp.source_image_url
+        COALESCE(csp.source_image_url, source_media.source_url) AS source_image_url
       FROM vendor_scope scope
       JOIN canonical_variants cv ON cv.id=scope.canonical_variant_id
       JOIN markets m ON m.id=cv.market_id
@@ -159,7 +159,16 @@ export async function getPublishedDropshipCatalogCards(
       JOIN vendor_locations l ON l.id=scope.location_id
       JOIN dropship_suppliers ds ON ds.id=scope.supplier_id
       LEFT JOIN catalog_source_products csp ON csp.id=scope.source_product_id
-      LEFT JOIN catalog_sources cs ON cs.id=csp.source_id
+      LEFT JOIN catalog_sources cs ON cs.id=COALESCE(csp.source_id,ds.catalog_source_id)
+      LEFT JOIN LATERAL (
+        SELECT pm.source_url
+        FROM product_media pm
+        WHERE pm.canonical_variant_id=cv.id
+          AND pm.kind='image'
+          AND pm.source_url IS NOT NULL
+        ORDER BY pm.sort_order ASC,pm.created_at DESC,pm.id
+        LIMIT 1
+      ) source_media ON true
       LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
       WHERE m.code='sparta'
@@ -199,7 +208,7 @@ export async function getPublishedDropshipCatalogCards(
         ds.configuration->'vendorPresentation' AS vendor_presentation,
         cs.code AS source_code,
         cs.website AS source_website,
-        csp.source_image_url
+        COALESCE(csp.source_image_url, source_media.source_url) AS source_image_url
       FROM vendor_offers vo
       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
       JOIN markets m ON m.id=cv.market_id
@@ -209,7 +218,16 @@ export async function getPublishedDropshipCatalogCards(
       JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
       JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
       LEFT JOIN catalog_source_products csp ON csp.id=dso.source_product_id
-      LEFT JOIN catalog_sources cs ON cs.id=csp.source_id
+      LEFT JOIN catalog_sources cs ON cs.id=COALESCE(csp.source_id,ds.catalog_source_id)
+      LEFT JOIN LATERAL (
+        SELECT pm.source_url
+        FROM product_media pm
+        WHERE pm.canonical_variant_id=cv.id
+          AND pm.kind='image'
+          AND pm.source_url IS NOT NULL
+        ORDER BY pm.sort_order ASC,pm.created_at DESC,pm.id
+        LIMIT 1
+      ) source_media ON true
       LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
       WHERE m.code='sparta'
