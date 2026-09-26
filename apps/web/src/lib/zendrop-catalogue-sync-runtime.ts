@@ -233,6 +233,7 @@ async function insertEvidence(
         images,
         categories,
         variants,
+        variantDataComplete:Array.isArray(product.variants)&&product.variants.length>0,
         supplierCostUsd:scalar(product.price),
         catalogueInStock:availability.in_stock===true,
         availabilityLabel:scalar(availability.inventory_level),
@@ -277,15 +278,11 @@ function normalizedVariants(
   productId:string,
   fallbackPrice:unknown
 ): readonly Record<string,unknown>[] {
-  const fallback: ZendropVariant = {
-    variant_id: productId,
-    price:
-      typeof fallbackPrice === "string" || typeof fallbackPrice === "number"
-        ? fallbackPrice
-        : null
-  };
+  // Browse/search catalogue responses can omit the true variant matrix.
+  // Never synthesize a product-id variant from that incomplete response:
+  // the materializer hydrates get_catalog_product before creating commerce rows.
   const raw: readonly ZendropVariant[] =
-    Array.isArray(values) && values.length ? values : [fallback];
+    Array.isArray(values) && values.length ? values : [];
   return raw.flatMap((variant,index)=>{
     const externalVariantId=scalar(variant.variant_id ?? variant.id ?? variant.sku) ?? `${productId}-variant-${index+1}`;
     const price=scalar(variant.price ?? fallbackPrice);
