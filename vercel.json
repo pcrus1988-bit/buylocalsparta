@@ -49,6 +49,14 @@
     {
       "path": "/api/cron/zendrop-shopify-inventory",
       "schedule": "23 * * * *"
+    },
+    {
+      "path": "/api/cron/zendrop-catalogue",
+      "schedule": "7 * * * *"
+    },
+    {
+      "path": "/api/cron/zendrop-pipeline",
+      "schedule": "17 * * * *"
     }
   ]
 }
