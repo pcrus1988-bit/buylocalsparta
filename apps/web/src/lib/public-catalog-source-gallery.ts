@@ -121,7 +121,7 @@ export async function getPublicCatalogSourceGallery(
             AND cv.recalled=false
             AND vo.status='approved'
             AND cs.active=true
-            AND cs.code IN ('nova-brandsgateway','symphonya')
+            AND cs.code IN ('nova-brandsgateway','symphonya','zendrop')
 
           UNION ALL
 
@@ -353,7 +353,16 @@ export async function getPublicCatalogSourceImageAtIndex(
   // The primary image is used by product HTML, structured data and image sitemaps.
   // Resolve it through the lightweight approved canonical-source link projection
   // instead of opening a transaction for the full gallery on every crawler hit.
-  if (index === 0) return getPublicCatalogPrimarySourceImage(canonicalVariantId);
+  if (index === 0) {
+    const linkedPrimary = await getPublicCatalogPrimarySourceImage(canonicalVariantId);
+    if (linkedPrimary) return linkedPrimary;
+
+    // Newly materialized dropship products can already have an authoritative
+    // supplier-offer -> source-product link before the canonical source identity
+    // link is backfilled. Use that governed path as the primary-image fallback so
+    // Zendrop cards/details do not render broken images during ingestion.
+    return (await getPublicCatalogSourceGallery(canonicalVariantId))[0];
+  }
 
   const gallery = await getPublicCatalogSourceGallery(canonicalVariantId);
   return gallery[index];
