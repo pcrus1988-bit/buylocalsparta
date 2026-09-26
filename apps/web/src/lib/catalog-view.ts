@@ -5,7 +5,6 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 import { approvedCatalogImages } from "./public-media-service";
 import { loadCatalogMetadata } from "./catalog-metadata";
 import { getPublicProductDetail } from "./public-product-detail";
-import { getPublicCatalogSourceImageAtIndex } from "./public-catalog-source-gallery";
 import { getPublishedDropshipCatalogCards } from "./published-dropship-storefront";
 import { isPublicCatalogueTitle } from "./public-data-integrity";
 import type { CatalogCard, PublicProductSeoRecord } from "./catalog-view-base";
@@ -260,8 +259,6 @@ export const getPublicProductSeoSummary = cache(async (routeKey: string): Promis
   ]);
   const images = await approvedCatalogImages([{ canonicalVariantId: product.id }]).catch(() => []);
   const image = images[0];
-  const sourceImageAvailable = Boolean(detail?.sourceImageUrl)
-    || (!image && Boolean(await getPublicCatalogSourceImageAtIndex(product.id, 0).catch(() => undefined)));
   const displayTitle = metadata?.title ?? product.title;
   return {
     ...product,
@@ -275,7 +272,7 @@ export const getPublicProductSeoSummary = cache(async (routeKey: string): Promis
     sizes: metadata?.sizes ?? [],
     mediaId: image?.mediaId,
     mediaAlt: image?.altText,
-    sourceImageAvailable,
+    sourceImageAvailable: Boolean(detail?.sourceImageUrl),
     offerAvailable: Boolean(signals.offer_available),
     duplicateTitleCount: Math.max(1, Number(signals.duplicate_title_count) || 1)
   };
