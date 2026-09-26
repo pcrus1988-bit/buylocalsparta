@@ -320,6 +320,9 @@ async function materializeProduct(
       greeceShippingUsdMinor:shippingUsdMinor,
       landedCostEurMinor:recommendation.landedCostEurMinor,
       customerPriceMinor:recommendation.customerPriceMinor,
+      targetProfitMinor:recommendation.targetProfitMinor,
+      actualProfitMinor:recommendation.actualProfitMinor,
+      vatIncludedMinor:recommendation.vatIncludedMinor,
       sourceLanguage:"en",
       localizationRequiredForPublication:false,
       sourceLanguageFallbackAllowed:true
