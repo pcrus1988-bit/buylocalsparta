@@ -435,4 +435,3 @@ function validIso(value:unknown):string|null{
 function safeError(error:unknown):string{
   return (error instanceof Error?`${error.name}:${error.message}`:String(error)).slice(0,500);
 }
-// Build diagnostic branch: keep Zendrop continuous catalogue integration under CI.
