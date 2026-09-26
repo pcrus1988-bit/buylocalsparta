@@ -40,6 +40,7 @@ export type ZendropCatalogueSyncSliceResult = Readonly<{
   nextPage?: number;
   total?: number | null;
   cycleComplete?: boolean;
+  priorityProducts?: number;
   message?: string;
 }>;
 
@@ -89,6 +90,14 @@ export async function runZendropCatalogueSyncSlice(
     requestTimeoutMs:20_000
   });
   const deadline=Date.now()+SLICE_MS;
+  const priorityProducts=await syncConnectedStoreProducts(sourceId,state,client,deadline).catch(error=>{
+    console.warn(JSON.stringify({
+      level:"warn",
+      event:"zendrop.connected_store_priority_sync_failed",
+      message:safeError(error)
+    }));
+    return 0;
+  });
   const maxPages=Math.max(1,Math.min(20,options.maxPages ?? maxPagesPerSlice()));
   let pages=0;
   let products=0;
@@ -141,7 +150,8 @@ export async function runZendropCatalogueSyncSlice(
       products,
       nextPage:state.nextPage,
       total:state.totalObserved,
-      cycleComplete
+      cycleComplete,
+      priorityProducts
     };
   } catch(error) {
     const message=safeError(error);
@@ -149,6 +159,62 @@ export async function runZendropCatalogueSyncSlice(
     await recordHealth(false,message).catch(()=>undefined);
     throw error;
   }
+}
+
+async function syncConnectedStoreProducts(
+  sourceId:string,
+  state:ZendropSyncState,
+  client:ZendropClient,
+  deadline:number
+):Promise<number>{
+  const pool=getProductionPostgresRuntime().sqlPool;
+  const supplier=await pool.query<SqlRow>(`
+    SELECT NULLIF(configuration->>'zendropStoreId','') AS store_id
+      FROM public.dropship_suppliers
+     WHERE code=$1
+       AND active=true
+     LIMIT 1
+  `,[SUPPLIER_CODE]);
+  const storeId=Number(supplier.rows[0]?.store_id);
+  if(!Number.isSafeInteger(storeId)||storeId<=0) return 0;
+
+  const mine=await client.getMyProducts({
+    storeId,
+    status:"in_store",
+    page:1,
+    limit:60
+  });
+  const items=Array.isArray(mine.items)?mine.items:[];
+  const productIds=[...new Set(items
+    .map(item=>Number(item.product_id))
+    .filter(id=>Number.isSafeInteger(id)&&id>0)
+  )].slice(0,12);
+  if(!productIds.length) return 0;
+
+  const hydrated:ZendropProduct[]=[];
+  for(const productId of productIds) {
+    if(Date.now()>deadline-6_000) break;
+    try {
+      hydrated.push(await client.getCatalogProduct(productId));
+    } catch(error) {
+      console.warn(JSON.stringify({
+        level:"warn",
+        event:"zendrop.connected_store_product_detail_failed",
+        externalProductId:String(productId),
+        message:safeError(error)
+      }));
+    }
+  }
+  if(!hydrated.length) return 0;
+
+  await persistPage({
+    sourceId,
+    state,
+    pageNumber:0,
+    products:hydrated,
+    total:Number.isSafeInteger(mine.total)?mine.total??hydrated.length:hydrated.length
+  });
+  return hydrated.length;
 }
 
 async function persistPage(input: Readonly<{
