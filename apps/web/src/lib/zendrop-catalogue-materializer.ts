@@ -202,7 +202,12 @@ async function materializeProduct(
     const quote=await client.getShippingEstimate(source.sourceProductKey,"GR");
     shippingUsdMinor=shippingMinor(quote.shipping_options);
   } catch(error) {
-    await markSourceBlocked(source.id,"shipping_quote_failed",safeError(error));
+    console.warn(JSON.stringify({
+      level:"warn",
+      event:"zendrop.materialization_shipping_quote_failed",
+      externalProductId:source.sourceProductKey,
+      message:safeError(error)
+    }));
     return {variants:normalizedVariants(payload).length,familiesCreated:familyCreated,canonicalsCreated:0,offersCreated:0,priced:0,blocked:1};
   }
 
@@ -392,26 +397,6 @@ async function materializeProduct(
     priced+=1;
   }
 
-  if(priced>0) {
-    await pool.query(`
-      UPDATE public.catalog_source_products
-         SET price_state='matched',
-             classification_status='mapped',
-             quality_payload=COALESCE(quality_payload,'{}'::jsonb)
-               || jsonb_build_object(
-                    'requiresGreekLocalization',false,
-                    'localizationRequiredForPublication',false,
-                    'sourceLanguageFallbackAllowed',true,
-                    'requiresTaxonomyMapping',false,
-                    'requiresStructuredPricing',false,
-                    'requiresOrderForwardingSetup',false,
-                    'publicationEligible',true
-                  ),
-             updated_at=now()
-       WHERE id=$1::uuid
-    `,[source.id]);
-  }
-
   return {variants:variants.length,familiesCreated:familyCreated,canonicalsCreated,offersCreated,priced,blocked};
 }
 
@@ -466,16 +451,6 @@ async function upsertMedia(context:Context,canonicalId:string,source:SourceProdu
     ]);
     order+=1;
   }
-}
-
-async function markSourceBlocked(sourceId:string,reason:string,message:string):Promise<void>{
-  await getProductionPostgresRuntime().sqlPool.query(`
-    UPDATE public.catalog_source_products
-       SET quality_payload=COALESCE(quality_payload,'{}'::jsonb)
-         || jsonb_build_object('publicationEligible',false,'lastMaterializationBlock',$2,'lastMaterializationError',$3),
-           updated_at=now()
-     WHERE id=$1::uuid
-  `,[sourceId,reason,message]);
 }
 
 async function saveCursor(sourceId:string,cursor:string|null):Promise<void>{
