@@ -37,6 +37,7 @@ export type CatalogCard = Readonly<{
   adviser?: string;
   mediaId?: string;
   mediaAlt?: string;
+  previewImageSrc?: string;
   sourceImageAvailable?: boolean;
   availableToSell: number;
   available: boolean;
