@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
@@ -386,25 +387,75 @@ async function getPublicDropshipMediaSourceImage(
   return row ? sourceImagesFromRow(row)[0] : undefined;
 }
 
+const getCachedPublicCatalogPrimarySourceImage = unstable_cache(
+  async (canonicalVariantId: string) => getPublicCatalogPrimarySourceImage(canonicalVariantId),
+  ["public-catalog-primary-source-image-v1"],
+  { revalidate: 86_400 }
+);
+
+const getCachedPublicDropshipMediaSourceImage = unstable_cache(
+  async (canonicalVariantId: string) => getPublicDropshipMediaSourceImage(canonicalVariantId),
+  ["public-dropship-media-source-image-v1"],
+  { revalidate: 86_400 }
+);
+
+async function resilientPrimaryLookup(
+  label: string,
+  canonicalVariantId: string,
+  lookup: () => Promise<PublicCatalogSourceImage | undefined>
+): Promise<PublicCatalogSourceImage | undefined> {
+  try {
+    return await lookup();
+  } catch (firstError) {
+    console.warn(JSON.stringify({
+      level: "warn",
+      event: "storefront.catalog_source_primary_retry",
+      lookup: label,
+      canonicalVariantId,
+      message: firstError instanceof Error ? firstError.message : String(firstError)
+    }));
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    try {
+      return await lookup();
+    } catch (secondError) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "storefront.catalog_source_primary_unavailable",
+        lookup: label,
+        canonicalVariantId,
+        message: secondError instanceof Error ? secondError.message : String(secondError)
+      }));
+      return undefined;
+    }
+  }
+}
+
 export async function getPublicCatalogSourceImageAtIndex(
   canonicalVariantId: string,
   index: number
 ): Promise<PublicCatalogSourceImage | undefined> {
   if (!Number.isSafeInteger(index) || index < 0 || index >= MAX_GALLERY_IMAGES) return undefined;
 
-  // The primary image is used by product HTML, structured data and image sitemaps.
-  // Resolve it through the lightweight approved canonical-source link projection
-  // instead of opening a transaction for the full gallery on every crawler hit.
   if (index === 0) {
-    const linkedPrimary = await getPublicCatalogPrimarySourceImage(canonicalVariantId);
+    // Dropship media is the cheapest governed projection and covers legacy as
+    // well as newly materialized supplier products. Resolve/cache it first so
+    // image proxy requests do not depend on the heavier source-link query.
+    const dropshipMedia = await resilientPrimaryLookup(
+      "dropship_media",
+      canonicalVariantId,
+      () => getCachedPublicDropshipMediaSourceImage(canonicalVariantId)
+    );
+    if (dropshipMedia) return dropshipMedia;
+
+    const linkedPrimary = await resilientPrimaryLookup(
+      "canonical_source_link",
+      canonicalVariantId,
+      () => getCachedPublicCatalogPrimarySourceImage(canonicalVariantId)
+    );
     if (linkedPrimary) return linkedPrimary;
 
-    const legacyDropshipMedia = await getPublicDropshipMediaSourceImage(canonicalVariantId);
-    if (legacyDropshipMedia) return legacyDropshipMedia;
-
-    // Newly materialized dropship products can already have an authoritative
-    // supplier-offer -> source-product link before the canonical source identity
-    // link is backfilled. Use that governed path as the final source fallback.
+    // Final governed fallback for newly materialized rows whose canonical link
+    // is still being backfilled.
     return (await getPublicCatalogSourceGallery(canonicalVariantId))[0];
   }
 
