@@ -619,6 +619,56 @@ function optionalText(value: unknown): string | undefined {
 }
 
 
+export type ShopifyBridgeProductVariant = Readonly<{
+  id: string;
+  numericId: string;
+  sku: string | null;
+}>;
+
+export async function getShopifyBridgeProductVariants(
+  productId: string | number,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<readonly ShopifyBridgeProductVariant[]> {
+  const normalized = String(productId).trim();
+  if (!normalized) throw new Error("Shopify bridge product id is required");
+  const id = normalized.startsWith("gid://shopify/Product/")
+    ? normalized
+    : /^\d+$/.test(normalized)
+      ? `gid://shopify/Product/${normalized}`
+      : normalized;
+
+  const data = await shopifyAdminGraphql<{
+    product: {
+      variants: {
+        nodes: Array<{ id: string; sku?: string | null }>;
+      };
+    } | null;
+  }>(
+    `query ReadZendropBridgeProductVariants($id: ID!) {
+      product(id: $id) {
+        variants(first: 250) {
+          nodes { id sku }
+        }
+      }
+    }`,
+    { id },
+    env
+  );
+
+  if (!data.product) throw new Error(`Shopify bridge product ${id} was not found`);
+  return data.product.variants.nodes.map((variant) => {
+    const numericId = variant.id.replace("gid://shopify/ProductVariant/", "").trim();
+    if (!/^\d+$/.test(numericId)) {
+      throw new Error(`Shopify bridge variant returned invalid id ${variant.id}`);
+    }
+    return {
+      id: variant.id,
+      numericId,
+      sku: optionalText(variant.sku) ?? null
+    };
+  });
+}
+
 export type ShopifyBridgeVariantInventory = Readonly<{
   id: string;
   sku: string | null;
