@@ -37,6 +37,7 @@ const allowedVercelCrons = new Map([
   ["/api/cron/symphonya-pipeline", "9 * * * *"],
   ["/api/cron/dropship-order-reconciliation", "*/5 * * * *"],
   ["/api/cron/flash-sale-availability", "*/5 * * * *"],
+  ["/api/cron/zendrop-shopify-inventory", "23 * * * *"],
 ]);
 assert(
   vercelCrons.every((cron: Record<string, unknown>) =>
