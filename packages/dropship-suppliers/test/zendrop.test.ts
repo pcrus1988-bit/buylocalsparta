@@ -7,6 +7,7 @@ import {
   SupplierRateLimiter,
   ZENDROP_CAPABILITIES,
   ZENDROP_CATALOGUE_INVENTORY_AUTHORITATIVE,
+  ZENDROP_SHOPIFY_BRIDGE_INVENTORY_AUTHORITATIVE,
   ZendropClient,
   ZendropSupplierAdapter,
   ZENDROP_GREECE_PRICING,
@@ -44,6 +45,7 @@ test("Zendrop products are staged and catalogue stock labels never become checko
   });
 
   assert.equal(ZENDROP_CATALOGUE_INVENTORY_AUTHORITATIVE, false);
+  assert.equal(ZENDROP_SHOPIFY_BRIDGE_INVENTORY_AUTHORITATIVE, true);
   assert.equal(product.commercialVendorId, KONTA_MOU_DROPSHIP_VENDOR_ID);
   assert.equal(product.supplierCode, "zendrop");
   assert.equal(product.sourceVendorId, "13");
@@ -203,16 +205,16 @@ test("Zendrop Greece price embeds shipping, VAT and protected profit without rej
     usdToEurRate: 1 / 1.1490,
   });
 
-  assert.equal(ZENDROP_GREECE_PRICING.markupRate, 0.65);
+  assert.equal(ZENDROP_GREECE_PRICING.markupRate, 0.25);
   assert.equal(ZENDROP_GREECE_PRICING.vatRate, 0.24);
   assert.equal(recommendation.productCostEurMinor, 997);
   assert.equal(recommendation.shippingEurMinor, 2213);
   assert.equal(recommendation.landedCostEurMinor, 3210);
-  assert.equal(recommendation.targetProfitMinor, 649);
-  assert.equal(recommendation.customerPriceMinor, 4910);
+  assert.equal(recommendation.targetProfitMinor, 490);
+  assert.equal(recommendation.customerPriceMinor, 4710);
   assert.equal(recommendation.shippingIncluded, true);
   assert.equal(recommendation.shippingCostBlocksPublication, false);
-  assert.ok((recommendation.actualProfitMinor ?? 0) >= 649);
+  assert.ok((recommendation.actualProfitMinor ?? 0) >= 490);
   assert.ok((recommendation.vatIncludedMinor ?? 0) > 0);
 });
 
