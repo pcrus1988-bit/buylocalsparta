@@ -269,6 +269,7 @@ export async function getPublishedDropshipCatalogCards(
       row.offer_public_id
     );
     const available = row.currently_available === true;
+    const trustedSourceImage = trustedCatalogSourceHttpsUrl(row.source_code, row.source_website, row.source_image_url);
     return [{
       id: row.canonical_public_id,
       familyId: row.family_id,
@@ -283,7 +284,7 @@ export async function getPublishedDropshipCatalogCards(
       availableToSell: available ? safeQuantity(row.cached_quantity) : 0,
       vendorId: row.vendor_public_id,
       vendorName: row.vendor_name,
-      previewImageSrc: trustedCatalogSourceHttpsUrl(row.source_code, row.source_website, row.source_image_url),
+      previewImageSrc: trustedSourceImage ? `/api/catalog-source-image/${encodeURIComponent(row.canonical_public_id)}` : undefined,
       publicFields: presentation.fields
     }];
   });
