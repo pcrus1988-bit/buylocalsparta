@@ -55,7 +55,8 @@ export async function runZendropShopifyInventorySweep(
         ON dso.supplier_id=bridge.supplier_id
        AND dso.external_variant_id=bridge.external_variant_id
      WHERE bridge.sync_status='synced'
-       AND dso.active=true
+       -- Refresh staged mappings too. A Zendrop offer becomes active only after
+       -- Shopify stock + pricing + Greece shipping pass publication safety.
        AND (dso.availability_checked_at IS NULL OR dso.availability_checked_at <= $1)
      ORDER BY dso.availability_checked_at NULLS FIRST,bridge.updated_at,bridge.id
      LIMIT $2
