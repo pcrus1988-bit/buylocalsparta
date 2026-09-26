@@ -45,6 +45,10 @@
     {
       "path": "/api/cron/flash-sale-availability",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/zendrop-shopify-inventory",
+      "schedule": "23 * * * *"
     }
   ]
 }
