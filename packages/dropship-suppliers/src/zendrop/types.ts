@@ -98,3 +98,53 @@ export interface ZendropShippingEstimate {
   shipping_options?: ZendropShippingOption[];
   [key: string]: unknown;
 }
+
+
+export interface ZendropMyProductListItem {
+  import_list_id?: number | null;
+  product_id?: number | null;
+  product_name?: string | null;
+  product_image_url?: string | null;
+  import_status?: string | null;
+  store_product_id?: string | null;
+  status?: string | null;
+  store_product_name?: string | null;
+  store_product_image_url?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ZendropMyProductsEnvelope {
+  total?: number;
+  items?: ZendropMyProductListItem[];
+  [key: string]: unknown;
+}
+
+export interface ZendropMyProductVariant {
+  variant_title?: string | null;
+  variant_sku?: string | null;
+  store_variant_id?: string | null;
+  variant_image_url?: string | null;
+  variant_price?: number | null;
+  [key: string]: unknown;
+}
+
+export interface ZendropMyProduct {
+  import_list_id?: number;
+  product_id?: number | null;
+  product_name?: string | null;
+  product_image_url?: string | null;
+  import_status?: string | null;
+  store_product_id?: string | null;
+  store_sync_status?: string | null;
+  zendrop_linked?: boolean;
+  variants?: ZendropMyProductVariant[];
+  [key: string]: unknown;
+}
+
+export interface ZendropImportOperation {
+  operation_id?: number;
+  status?: string | null;
+  failed_reason?: string | null;
+  store_product_id?: string | null;
+  [key: string]: unknown;
+}
