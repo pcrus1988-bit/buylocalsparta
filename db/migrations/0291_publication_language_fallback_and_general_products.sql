@@ -45,19 +45,8 @@ ON CONFLICT (category_id,locale) DO UPDATE
 SET name=EXCLUDED.name,
     description=EXCLUDED.description;
 
--- Legacy source-quality metadata may still say that Greek localization is required.
--- That field is now informationally retired as a publication gate.
-UPDATE public.catalog_source_products csp
-SET quality_payload =
-      (COALESCE(csp.quality_payload,'{}'::jsonb)
-        || jsonb_build_object(
-          'requiresGreekLocalization',false,
-          'localizationRequiredForPublication',false,
-          'sourceLanguageFallbackAllowed',true
-        )),
-    updated_at=now()
-FROM public.catalog_sources cs
-WHERE cs.id=csp.source_id
-  AND COALESCE(csp.quality_payload->>'requiresGreekLocalization','false')='true';
+-- catalog_source_products is append-only evidence. Legacy quality metadata is
+-- intentionally left untouched; runtime publication policy ignores localization flags.
+
 
 COMMIT;
