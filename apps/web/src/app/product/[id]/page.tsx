@@ -390,9 +390,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // and is explicitly allowed in robots.txt.
   const supplierImageSrc = primaryImage
     ? undefined
-    : summary.sourceImageAvailable
-      ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
-      : undefined;
+    : product.previewImageSrc
+      ?? (summary.sourceImageAvailable
+        ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
+        : undefined);
   const hasProductImage = Boolean(primaryImage || supplierImageSrc);
   const cartImageUrl = primaryImage ? `/api/media/${encodeURIComponent(primaryImage.mediaId)}` : supplierImageSrc;
   const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
