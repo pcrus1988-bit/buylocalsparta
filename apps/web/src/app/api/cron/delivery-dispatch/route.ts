@@ -1,6 +1,5 @@
 import { runAdaptiveDeliveryDispatcher } from "../../../../lib/delivery-dispatch-runtime";
 import { synchronizeDeliveryJobs } from "../../../../lib/delivery-driver-runtime";
-import { ensureAnalyticsPurchaseKeyEvent } from "../../../../lib/seo-google-metrics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,14 +10,6 @@ export async function GET(request: Request) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
   try {
-    const purchaseKeyEvent = await ensureAnalyticsPurchaseKeyEvent();
-    console.info(JSON.stringify({
-      level: purchaseKeyEvent.status === "error" ? "error" : "info",
-      event: "analytics.purchase_key_event_setup",
-      status: purchaseKeyEvent.status,
-      keyEventName: purchaseKeyEvent.keyEventName,
-      error: purchaseKeyEvent.error
-    }));
     await synchronizeDeliveryJobs();
     const dispatch = await runAdaptiveDeliveryDispatcher(Date.now(), 16);
     return Response.json({ ok: true, dispatch }, { headers: { "cache-control": "no-store" } });
