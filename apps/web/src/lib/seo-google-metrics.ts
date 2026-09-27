@@ -6,9 +6,12 @@ const TOKEN_AUDIENCE = "https://oauth2.googleapis.com/token";
 const SEARCH_CONSOLE_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
 const ANALYTICS_SCOPE = "https://www.googleapis.com/auth/analytics.readonly";
 const ANALYTICS_EDIT_SCOPE = "https://www.googleapis.com/auth/analytics.edit";
+const CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
 const SEARCH_ANALYTICS_BASE = "https://www.googleapis.com/webmasters/v3";
 const ANALYTICS_DATA_BASE = "https://analyticsdata.googleapis.com/v1beta";
 const ANALYTICS_ADMIN_BASE = "https://analyticsadmin.googleapis.com/v1beta";
+const GOOGLE_CLOUD_PROJECT_NUMBER = "710282690152";
+const SERVICE_USAGE_BASE = "https://serviceusage.googleapis.com/v1";
 const REQUEST_TIMEOUT_MS = 15_000;
 const SEARCH_CONSOLE_PAGE_SIZE = 25_000;
 const ANALYTICS_PAGE_SIZE = 100_000;
@@ -16,7 +19,7 @@ const MAX_REPORT_ROWS = 100_000;
 
 type GoogleCredentials = Readonly<{ clientEmail: string; privateKey: string }>;
 type TokenCache = Readonly<{ accessToken: string; expiresAt: number }>;
-type GoogleScope = typeof SEARCH_CONSOLE_SCOPE | typeof ANALYTICS_SCOPE | typeof ANALYTICS_EDIT_SCOPE;
+type GoogleScope = typeof SEARCH_CONSOLE_SCOPE | typeof ANALYTICS_SCOPE | typeof ANALYTICS_EDIT_SCOPE | typeof CLOUD_PLATFORM_SCOPE;
 const tokenCacheKey = "__buyLocalSpartaSeoGoogleMetricTokens" as const;
 type Globals = typeof globalThis & { [tokenCacheKey]?: Record<string, TokenCache> };
 const globals = globalThis as Globals;
@@ -248,6 +251,15 @@ function validDateRange(startDate: string, endDate: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(startDate) && /^\d{4}-\d{2}-\d{2}$/.test(endDate) && startDate <= endDate;
 }
 
+async function enableAnalyticsAdminApi(credentials: GoogleCredentials): Promise<void> {
+  await googlePost(
+    `${SERVICE_USAGE_BASE}/projects/${GOOGLE_CLOUD_PROJECT_NUMBER}/services/analyticsadmin.googleapis.com:enable`,
+    CLOUD_PLATFORM_SCOPE,
+    credentials,
+    {}
+  );
+}
+
 export type AnalyticsPurchaseKeyEventSetup = Readonly<{
   status: "created" | "present" | "skipped" | "error";
   keyEventName?: string;
@@ -264,11 +276,24 @@ export async function ensureAnalyticsPurchaseKeyEvent(): Promise<AnalyticsPurcha
 
   try {
     const parent = `properties/${propertyId}`;
-    const list = await googleGet<AnalyticsKeyEventsResponse>(
-      `${ANALYTICS_ADMIN_BASE}/${parent}/keyEvents?pageSize=200`,
-      ANALYTICS_EDIT_SCOPE,
-      credentials
-    );
+    let list: AnalyticsKeyEventsResponse;
+    try {
+      list = await googleGet<AnalyticsKeyEventsResponse>(
+        `${ANALYTICS_ADMIN_BASE}/${parent}/keyEvents?pageSize=200`,
+        ANALYTICS_EDIT_SCOPE,
+        credentials
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("Analytics Admin API has not been used") && !message.includes("analyticsadmin.googleapis.com")) throw error;
+      await enableAnalyticsAdminApi(credentials);
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      list = await googleGet<AnalyticsKeyEventsResponse>(
+        `${ANALYTICS_ADMIN_BASE}/${parent}/keyEvents?pageSize=200`,
+        ANALYTICS_EDIT_SCOPE,
+        credentials
+      );
+    }
     const existing = (list.keyEvents ?? []).find((item) => item.eventName === "purchase");
     if (existing) return { status: "present", keyEventName: existing.name };
 
