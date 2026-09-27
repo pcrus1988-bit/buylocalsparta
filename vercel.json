@@ -57,6 +57,10 @@
     {
       "path": "/api/cron/zendrop-pipeline",
       "schedule": "17 * * * *"
+    },
+    {
+      "path": "/api/cron/google-ads-conversion-setup",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
