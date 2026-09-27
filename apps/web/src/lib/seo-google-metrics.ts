@@ -5,8 +5,10 @@ import { createSign } from "node:crypto";
 const TOKEN_AUDIENCE = "https://oauth2.googleapis.com/token";
 const SEARCH_CONSOLE_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
 const ANALYTICS_SCOPE = "https://www.googleapis.com/auth/analytics.readonly";
+const ANALYTICS_EDIT_SCOPE = "https://www.googleapis.com/auth/analytics.edit";
 const SEARCH_ANALYTICS_BASE = "https://www.googleapis.com/webmasters/v3";
 const ANALYTICS_DATA_BASE = "https://analyticsdata.googleapis.com/v1beta";
+const ANALYTICS_ADMIN_BASE = "https://analyticsadmin.googleapis.com/v1beta";
 const REQUEST_TIMEOUT_MS = 15_000;
 const SEARCH_CONSOLE_PAGE_SIZE = 25_000;
 const ANALYTICS_PAGE_SIZE = 100_000;
@@ -14,7 +16,7 @@ const MAX_REPORT_ROWS = 100_000;
 
 type GoogleCredentials = Readonly<{ clientEmail: string; privateKey: string }>;
 type TokenCache = Readonly<{ accessToken: string; expiresAt: number }>;
-type GoogleScope = typeof SEARCH_CONSOLE_SCOPE | typeof ANALYTICS_SCOPE;
+type GoogleScope = typeof SEARCH_CONSOLE_SCOPE | typeof ANALYTICS_SCOPE | typeof ANALYTICS_EDIT_SCOPE;
 const tokenCacheKey = "__buyLocalSpartaSeoGoogleMetricTokens" as const;
 type Globals = typeof globalThis & { [tokenCacheKey]?: Record<string, TokenCache> };
 const globals = globalThis as Globals;
@@ -59,6 +61,8 @@ type SearchConsoleResponse = Readonly<{
     position?: number;
   }>[];
 }>;
+
+type AnalyticsKeyEventsResponse = Readonly<{ keyEvents?: readonly Readonly<{ name?: string; eventName?: string }>[] }>;
 
 type AnalyticsResponse = Readonly<{
   rows?: readonly Readonly<{
@@ -179,6 +183,27 @@ async function accessToken(scope: GoogleScope, credentials: GoogleCredentials): 
   }
 }
 
+async function googleGet<T>(url: string, scope: GoogleScope, credentials: GoogleCredentials): Promise<T> {
+  const token = await accessToken(scope, credentials);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { authorization: `Bearer ${token}`, accept: "application/json" },
+      cache: "no-store",
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      const detail = (await response.text()).replace(/\s+/g, " ").trim().slice(0, 300);
+      throw new Error(`Google API request failed (${response.status})${detail ? `: ${detail}` : "."}`);
+    }
+    return await response.json() as T;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function googlePost<T>(url: string, scope: GoogleScope, credentials: GoogleCredentials, body: unknown): Promise<T> {
   const token = await accessToken(scope, credentials);
   const controller = new AbortController();
@@ -221,6 +246,45 @@ function isoDateFromGa4(value: string): string | undefined {
 
 function validDateRange(startDate: string, endDate: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(startDate) && /^\d{4}-\d{2}-\d{2}$/.test(endDate) && startDate <= endDate;
+}
+
+export type AnalyticsPurchaseKeyEventSetup = Readonly<{
+  status: "created" | "present" | "skipped" | "error";
+  keyEventName?: string;
+  error?: string;
+}>;
+
+export async function ensureAnalyticsPurchaseKeyEvent(): Promise<AnalyticsPurchaseKeyEventSetup> {
+  const readiness = analyticsMetricsReadiness();
+  if (!readiness.ready) return { status: "skipped", error: readiness.issues.join(" ") };
+
+  const propertyId = analyticsPropertyId();
+  const credentials = analyticsCredentials();
+  if (!propertyId || !credentials) return { status: "skipped", error: "GA4 property or credentials unavailable." };
+
+  try {
+    const parent = `properties/${propertyId}`;
+    const list = await googleGet<AnalyticsKeyEventsResponse>(
+      `${ANALYTICS_ADMIN_BASE}/${parent}/keyEvents?pageSize=200`,
+      ANALYTICS_EDIT_SCOPE,
+      credentials
+    );
+    const existing = (list.keyEvents ?? []).find((item) => item.eventName === "purchase");
+    if (existing) return { status: "present", keyEventName: existing.name };
+
+    const created = await googlePost<{ name?: string; eventName?: string }>(
+      `${ANALYTICS_ADMIN_BASE}/${parent}/keyEvents`,
+      ANALYTICS_EDIT_SCOPE,
+      credentials,
+      { eventName: "purchase", countingMethod: "ONCE_PER_EVENT" }
+    );
+    return { status: "created", keyEventName: created.name };
+  } catch (error) {
+    return {
+      status: "error",
+      error: error instanceof Error ? error.message : "GA4 purchase key-event setup failed."
+    };
+  }
 }
 
 export async function fetchSearchConsoleDailyPageMetrics(startDate: string, endDate: string): Promise<GoogleMetricReport<SearchConsoleDailyPageMetric>> {
