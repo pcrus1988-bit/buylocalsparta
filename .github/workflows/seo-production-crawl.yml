@@ -57,8 +57,11 @@ jobs:
   crawl-production:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     needs: verify
+    concurrency:
+      group: seo-production-crawl-production
+      cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       SEO_ORIGIN: https://kontamou.site
       SEO_CRAWL_CONCURRENCY: "8"
@@ -71,6 +74,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+
+      - name: Wait for the production deployment
+        if: github.event_name == 'push'
+        run: sleep 120
 
       - name: Crawl live sitemap and canonical documents
         id: crawl
