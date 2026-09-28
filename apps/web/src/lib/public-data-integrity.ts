@@ -33,7 +33,7 @@ export function isPublicCatalogueTitle(title: string): boolean {
  * do not translate wording, rewrite brands/model codes, or touch decimal commas.
  */
 export function publicCatalogueTitleLabel(title: string): string {
-  return title
+  const normalized = title
     .trim()
     .replace(/\s+/g, " ")
     .replace(/(\d+(?:[.,]\d+)?)\s*Ton\b/giu, "$1 t")
@@ -43,6 +43,18 @@ export function publicCatalogueTitleLabel(title: string): string {
     .replace(/([^\d\s]),(?=\d)/gu, "$1, ")
     .replace(/\s+/g, " ")
     .trim();
+
+  // Imports sometimes repeat an identical brand/model segment around commas
+  // (for example "Brand, Brand, Model"). Collapse only adjacent exact segments:
+  // this is deterministic presentation cleanup and does not infer or delete facts.
+  const segments = normalized.split(",").map((segment) => segment.trim()).filter(Boolean);
+  const deduplicated: string[] = [];
+  for (const segment of segments) {
+    const previous = deduplicated.at(-1);
+    if (previous && previous.localeCompare(segment, undefined, { sensitivity: "accent" }) === 0) continue;
+    deduplicated.push(segment);
+  }
+  return deduplicated.join(", ");
 }
 
 /**
