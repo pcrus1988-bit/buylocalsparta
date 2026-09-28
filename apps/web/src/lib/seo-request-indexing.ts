@@ -19,8 +19,25 @@ const PRIVATE_DOCUMENT_PREFIXES = [
   "/delivery/manage"
 ] as const;
 
-const PUBLIC_QUERY_NOINDEX_RULES = new Map<string, readonly string[] | "*">([
-  ["/shop", "*"],
+const SHOP_QUERY_NOINDEX_KEYS = [
+  "q",
+  "page",
+  "category",
+  "subcategory",
+  "subcategory_any",
+  "guideLabel",
+  "availability",
+  "sort",
+  "minPrice",
+  "maxPrice",
+  "brand",
+  "color",
+  "size",
+  "fit"
+] as const;
+
+const PUBLIC_QUERY_NOINDEX_RULES = new Map<string, readonly string[]>([
+  ["/shop", SHOP_QUERY_NOINDEX_KEYS],
   ["/shops", ["q", "category", "subcategory", "status"]]
 ]);
 
@@ -49,11 +66,13 @@ function isPrivateDocument(pathname: string): boolean {
 
 function hasQueryState(pathname: string, searchParams?: SearchParamsLike): boolean {
   if (!searchParams) return false;
-  const rule = PUBLIC_QUERY_NOINDEX_RULES.get(normalizePathname(pathname));
+  const normalized = normalizePathname(pathname);
+  const rule = PUBLIC_QUERY_NOINDEX_RULES.get(normalized);
   if (!rule) return false;
   for (const [key, value] of searchParams.entries()) {
     if (!value.trim()) continue;
-    if (rule === "*" || rule.includes(key)) return true;
+    if (rule.includes(key)) return true;
+    if (normalized === "/shop" && key.startsWith("attr_")) return true;
   }
   return false;
 }
