@@ -112,7 +112,14 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
   const hasAnyFilters = hasCatalogFilters || hasExperienceFilters;
 
   const [products, facets] = await Promise.all([
-    getBazaarCatalog({ query, condition, source, brand, category, limit: 120 }),
+    getBazaarCatalog({ query, condition, source, brand, category, limit: 120 }).catch((error) => {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "bazaar.catalog_unavailable",
+        message: error instanceof Error ? error.message : String(error)
+      }));
+      return [];
+    }),
     getCachedBazaarFacets().catch((error) => {
       console.error(JSON.stringify({
         level: "error",
