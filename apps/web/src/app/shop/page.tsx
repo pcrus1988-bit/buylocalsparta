@@ -31,6 +31,22 @@ import { isReadOnlyPublicCrawlerRequest } from "../../lib/request-audience";
 import { getCachedPublishedDropshipShopPage, hasLiveLocalShopProducts } from "../../lib/cached-public-shop-page";
 
 const SHOP_PAGE_SIZE = 30;
+const SHOP_INDEXABLE_QUERY_KEYS = new Set([
+  "q",
+  "page",
+  "category",
+  "subcategory",
+  "subcategory_any",
+  "guideLabel",
+  "availability",
+  "sort",
+  "minPrice",
+  "maxPrice",
+  "brand",
+  "color",
+  "size",
+  "fit"
+]);
 
 type ShopProps = Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>;
 type ShopCard = CatalogCard & Readonly<{
@@ -83,7 +99,10 @@ export async function generateMetadata({ searchParams }: ShopProps): Promise<Met
     description: "Ανακάλυψε προϊόντα διαθέσιμα από τοπικά καταστήματα της Σπάρτης."
   });
   const params = await searchParams;
-  const hasQueryState = Object.values(params).some((value) => valueOf(value).trim().length > 0);
+  const hasQueryState = Object.entries(params).some(([key, value]) => {
+    if (!valueOf(value).trim()) return false;
+    return SHOP_INDEXABLE_QUERY_KEYS.has(key) || key.startsWith("attr_");
+  });
   if (!hasQueryState) return base;
   const category = storefrontCategoryBySlug(valueOf(params.category));
   return {
