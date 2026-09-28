@@ -46,26 +46,39 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
     return new Response("Not found", { status: 404 });
   }
 
-  const [{ settings }, overrideSnapshot] = await Promise.all([
-    getSeoGlobalSettingsSnapshot(),
-    getSeoEntityOverridesSnapshot()
-  ]);
+  let settings: Awaited<ReturnType<typeof getSeoGlobalSettingsSnapshot>>["settings"];
+  let overrideSnapshot: Awaited<ReturnType<typeof getSeoEntityOverridesSnapshot>>;
+  let products: Awaited<ReturnType<typeof getPublicProductSitemapInventoryShard>>;
+
+  try {
+    const [settingsSnapshot, overrides, productShard] = await Promise.all([
+      getSeoGlobalSettingsSnapshot(),
+      getSeoEntityOverridesSnapshot(),
+      getPublicProductSitemapInventoryShard(shard)
+    ]);
+    settings = settingsSnapshot.settings;
+    overrideSnapshot = overrides;
+    products = productShard;
+  } catch (error) {
+    // A public sitemap endpoint must remain fetchable even during temporary database
+    // connection pressure. Return an empty, explicitly degraded sitemap rather than
+    // a 5xx so crawlers can retry later without recording a server-error URL.
+    console.error(JSON.stringify({ level: "error", event: "seo.product_sitemap_shard_degraded", shard, message: String(error) }));
+    return new Response(emptySitemap(), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/xml; charset=utf-8",
+        "Cache-Control": "no-store",
+        "Retry-After": "60",
+        "X-Konta-Sitemap-Degraded": "1"
+      }
+    });
+  }
 
   if (!settings.indexingEnabled || !settings.sitemap.products) {
     return new Response(emptySitemap(), {
       status: 200,
       headers: { "Content-Type": "application/xml; charset=utf-8" }
-    });
-  }
-
-  let products: Awaited<ReturnType<typeof getPublicProductSitemapInventoryShard>>;
-  try {
-    products = await getPublicProductSitemapInventoryShard(shard);
-  } catch (error) {
-    console.error(JSON.stringify({ level: "error", event: "seo.product_sitemap_shard_failed", shard, message: String(error) }));
-    return new Response("Sitemap temporarily unavailable", {
-      status: 503,
-      headers: { "Retry-After": "60" }
     });
   }
 
