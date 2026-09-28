@@ -296,8 +296,39 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
   const [{ settings }, overrides] = await Promise.all([getSeoGlobalSettingsSnapshot(), getSeoEntityOverridesSnapshot()]);
+  const crawlerProduct = readOnlyCrawler
+    ? await getCrawlerCatalogCard(summary.id).catch((error) => {
+        console.error(JSON.stringify({
+          level: "error",
+          event: "seo.product_crawler_projection_degraded",
+          productId: summary.id,
+          message: error instanceof Error ? error.message : String(error)
+        }));
+        return undefined;
+      })
+    : undefined;
   const product = readOnlyCrawler
-    ? await getCrawlerCatalogCard(summary.id)
+    ? crawlerProduct ?? {
+        id: summary.id,
+        slug: summary.slug,
+        title: summary.title,
+        price: summary.price,
+        priceMinor: summary.priceMinor,
+        categoryCode: summary.categoryCode,
+        departmentCode: summary.departmentCode,
+        categoryLabel: summary.categoryLabel,
+        gtin: summary.gtin,
+        mpn: summary.mpn,
+        description: summary.description,
+        brand: summary.brand,
+        color: summary.color,
+        sizes: summary.sizes,
+        mediaId: summary.mediaId,
+        mediaAlt: summary.mediaAlt,
+        sourceImageAvailable: summary.sourceImageAvailable,
+        availableToSell: 0,
+        available: false
+      }
     : await getCatalogCard(summary.id, await getVisitorKey());
   if (!product) notFound();
 
