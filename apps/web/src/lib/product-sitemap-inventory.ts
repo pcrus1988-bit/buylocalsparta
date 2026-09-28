@@ -2,7 +2,9 @@ import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 
-export const PRODUCT_SITEMAP_SHARD_COUNT = 16;
+// Keep each cached projection comfortably below Next.js' 2 MB unstable_cache value ceiling.
+// At ~97k active variants, 16 shards produced ~3.2 MB cache entries and therefore never cached.
+export const PRODUCT_SITEMAP_SHARD_COUNT = 64;
 
 export type PublicProductSitemapCandidate = Readonly<{
   id: string;
@@ -251,7 +253,7 @@ const cachedPublicProductSitemapInventory = unstable_cache(
 
 const cachedPublicProductSitemapShard = unstable_cache(
   (shard: number) => readPublicProductSitemapInventory(shard),
-  ["public-product-sitemap-inventory-shard-v3"],
+  ["public-product-sitemap-inventory-shard-v4-cacheable-64"],
   { revalidate: 900 }
 );
 
