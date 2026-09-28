@@ -253,8 +253,8 @@ const cachedPublicProductSitemapInventory = unstable_cache(
 
 const cachedPublicProductSitemapShard = unstable_cache(
   (shard: number) => readPublicProductSitemapInventory(shard),
-  ["public-product-sitemap-inventory-shard-v4-cacheable-64"],
-  { revalidate: 900 }
+  ["public-product-sitemap-inventory-shard-v5-channel-fresh-64"],
+  { revalidate: 300 }
 );
 
 /** Legacy full projection retained for existing verifier/admin contracts. */
