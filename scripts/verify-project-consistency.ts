@@ -207,6 +207,11 @@ if (!postgresAdminMedia.includes("Automated malware scanner owns media scan stat
 for (const forbiddenApproval of ["approveMatch(", "approveOffer(", "reviewComplianceDocument(", "settlements.approve(", "settlements.markPaid("]) {
   if (vendorApiSource.includes(forbiddenApproval)) errors.push(`Vendor API must not expose platform approval control ${forbiddenApproval}`);
 }
+function hasVendorCsrfGuard(source: string): boolean {
+  return /requireVendorSession\(request\s*,\s*true\)/.test(source)
+    || /requireVendorCapability\([^)]*request\s*,\s*true\)/.test(source);
+}
+
 for (const route of [
   "apps/web/src/app/api/vendor/catalog/products/route.ts",
   "apps/web/src/app/api/vendor/catalog/import/route.ts",
@@ -218,7 +223,7 @@ for (const route of [
   "apps/web/src/app/api/vendor/finance/invoices/route.ts",
   "apps/web/src/app/api/vendor/returns/action/route.ts"
 ]) {
-  if (!read(route).includes("requireVendorSession(request,true)")) errors.push(`Vendor mutation route ${route} must require authenticated CSRF protection`);
+  if (!hasVendorCsrfGuard(read(route))) errors.push(`Vendor mutation route ${route} must require authenticated CSRF protection`);
 }
 const orderCancelRoute = read("apps/web/src/app/api/account/orders/[id]/cancel/route.ts");
 if (!orderCancelRoute.includes("requireAccountSession(request, true)")) errors.push("Customer order cancellation must remain authenticated and CSRF protected");
