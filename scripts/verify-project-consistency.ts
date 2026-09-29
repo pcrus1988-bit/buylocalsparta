@@ -218,7 +218,12 @@ for (const route of [
   "apps/web/src/app/api/vendor/finance/invoices/route.ts",
   "apps/web/src/app/api/vendor/returns/action/route.ts"
 ]) {
-  if (!read(route).includes("requireVendorSession(request,true)")) errors.push(`Vendor mutation route ${route} must require authenticated CSRF protection`);
+  const routeSource = read(route);
+  const hasSessionCsrf =
+    routeSource.includes("requireVendorSession(request,true)")
+    || routeSource.includes("requireVendorSession(request, true)");
+  const hasCapabilityCsrf = /requireVendorCapability\(\s*["'][^"']+["']\s*,\s*request\s*,\s*true\s*\)/.test(routeSource);
+  if (!hasSessionCsrf && !hasCapabilityCsrf) errors.push(`Vendor mutation route ${route} must require authenticated CSRF protection`);
 }
 const orderCancelRoute = read("apps/web/src/app/api/account/orders/[id]/cancel/route.ts");
 if (!orderCancelRoute.includes("requireAccountSession(request, true)")) errors.push("Customer order cancellation must remain authenticated and CSRF protected");
