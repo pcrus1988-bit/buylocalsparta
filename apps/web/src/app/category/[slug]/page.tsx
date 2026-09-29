@@ -13,14 +13,17 @@ import { getCachedCrawlerCatalogCards } from "../../../lib/cached-public-shop-pa
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
 
 export const revalidate = 60;
-export const dynamicParams = false;
+export const dynamicParams = true;
 
 const CATEGORY_PAGE_SIZE = 30;
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
 export function generateStaticParams() {
-  return STOREFRONT_CATEGORIES.map((category) => ({ slug: category.slug }));
+  // Generate category pages on first request instead of running catalogue
+  // hydration for every category during the production build. Once generated,
+  // Next/Vercel serves the result through ISR and revalidates it every 60s.
+  return [];
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
