@@ -108,24 +108,39 @@ export default async function EditorialCollectionPage({ params }: Props) {
       ? styles.accentHome
       : styles.accentGift;
 
+  const collectionUrl = `https://kontamou.site/collections/${collection.slug}`;
   const structuredData = {
     "@context": "https://schema.org",
-    "@type": "CollectionPage",
-    name: collection.title,
-    description: collection.story,
-    url: `https://kontamou.site/collections/${collection.slug}`,
-    inLanguage: "el-GR",
-    about: { "@type": "Place", name: "Σπάρτη" },
-    mainEntity: {
-      "@type": "ItemList",
-      numberOfItems: products.length,
-      itemListElement: products.map((product, index) => ({
-        "@type": "ListItem",
-        position: index + 1,
-        url: `https://kontamou.site/product/${encodeURIComponent(product.slug)}`,
-        name: product.title
-      }))
-    }
+    "@graph": [
+      {
+        "@type": "CollectionPage",
+        "@id": `${collectionUrl}#collection`,
+        name: collection.title,
+        description: collection.story,
+        url: collectionUrl,
+        inLanguage: "el-GR",
+        about: { "@type": "Place", name: "Σπάρτη" },
+        mainEntity: { "@id": `${collectionUrl}#products` }
+      },
+      {
+        "@type": "ItemList",
+        "@id": `${collectionUrl}#products`,
+        numberOfItems: products.length,
+        itemListElement: products.map((product, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          url: `https://kontamou.site/product/${encodeURIComponent(product.slug)}`,
+          name: product.title
+        }))
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Αρχική", item: "https://kontamou.site" },
+          { "@type": "ListItem", position: 2, name: collection.title, item: collectionUrl }
+        ]
+      }
+    ]
   };
 
   return <main className={`${styles.page} ${accentClass}`}>
