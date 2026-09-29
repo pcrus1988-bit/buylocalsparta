@@ -153,7 +153,11 @@ const searchSuggestionsFast = readFileSync(`${root}/apps/web/src/lib/storefront-
 
 if (!categoryPage.includes('getCachedCrawlerCatalogCards("23100", "", categorySlug, {}, CATEGORY_PAGE_SIZE)')) failures.push("Category landing pages must use the cached bounded public catalogue projection");
 if (!categoryPage.includes("storefrontCategoryBySlug(slug)")) failures.push("Canonical category routes must resolve from the governed static storefront taxonomy, not transient inventory availability");
-if (!categoryPage.includes("export const dynamicParams = true;") || !categoryPage.includes("export function generateStaticParams()") || !categoryPage.includes("return [];")) failures.push("Every governed storefront category must remain reachable through on-demand ISR regardless of current stock");
+if (
+  !categoryPage.includes("export const dynamicParams = true;")
+  || !categoryPage.includes("export function generateStaticParams()")
+  || !categoryPage.includes("STOREFRONT_CATEGORIES.map((category) => ({ slug: category.slug }))")
+) failures.push("Every governed storefront category must be pre-rendered for crawl speed while retaining dynamic ISR fallback for future governed slugs");
 if (categoryPage.includes("const category = availableCategories.find((item) => item.slug === slug)")) failures.push("Category route existence must never be gated by current available inventory");
 if (!homePage.includes('href={`/category/${category.slug}`}')) failures.push("Homepage category cards must point to the canonical category route");
 if (!shopPage.includes("getShopCatalogPage({") || !shopPage.includes("query: catalogQuery") || !shopPage.includes("category,") || !shopPage.includes("getCachedPublishedDropshipShopPage({")) failures.push("Shop category and residual text filters must feed bounded local and cached dropship catalogue projections");
