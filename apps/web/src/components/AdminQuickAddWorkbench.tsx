@@ -85,7 +85,19 @@ function draftFromMatch(match: Match): Draft {
 }
 
 
-export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { vendors: readonly Vendor[]; categories: readonly Category[]; csrfToken: string }) {
+export function AdminQuickAddWorkbench({
+  vendors,
+  categories,
+  csrfToken,
+  mediaUploadMode,
+  mediaReadinessMessage
+}: {
+  vendors: readonly Vendor[];
+  categories: readonly Category[];
+  csrfToken: string;
+  mediaUploadMode: "direct" | "development_memory" | "gated";
+  mediaReadinessMessage: string;
+}) {
   const [vendorId, setVendorId] = useState("");
   const [query, setQuery] = useState("");
   const [searchedQuery, setSearchedQuery] = useState<string | null>(null);
@@ -102,6 +114,7 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
   const streamRef = useRef<MediaStream | null>(null);
   const scannerFrameRef = useRef<number | null>(null);
   const photosRef = useRef<readonly PendingPhoto[]>([]);
+  const mediaUploadAvailable = mediaUploadMode === "direct";
 
   function patchDraft(patch: Partial<Draft>) { setDraft((current) => ({ ...current, ...patch })); }
 
@@ -114,6 +127,10 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
 
   function queuePhotos(files: FileList | null) {
     if (!files) return;
+    if (!mediaUploadAvailable) {
+      setNotice({ tone: "info", text: `Η μεταφόρτωση φωτογραφιών δεν είναι διαθέσιμη: ${mediaReadinessMessage}. Το προϊόν και το vendor offer μπορούν να αποθηκευτούν χωρίς νέες φωτογραφίες.` });
+      return;
+    }
     const incoming = Array.from(files)
       .filter((file) => IMAGE_TYPES.has(file.type))
       .map((file) => ({ file, previewUrl: URL.createObjectURL(file) }));
@@ -273,6 +290,7 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
   }
 
   async function uploadAdminPhotos(canonicalVariantId: string, title: string) {
+    if (!mediaUploadAvailable) throw new Error(`Η μεταφόρτωση φωτογραφιών δεν είναι διαθέσιμη: ${mediaReadinessMessage}`);
     const vendor = vendors.find((item) => item.id === vendorId);
     if (!vendor) throw new Error("Δεν βρέθηκε το επιλεγμένο κατάστημα για τις φωτογραφίες.");
     let uploaded = 0;
@@ -327,6 +345,10 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
     }
     if (draft.visible && euros <= 0) {
       setNotice({ tone: "error", text: "Για δημόσια εμφάνιση χρειάζεται τιμή μεγαλύτερη από €0. Κλείσε τη δημοσίευση αν θέλεις να το προετοιμάσεις ως κρυφό." });
+      return;
+    }
+    if (photos.length && !mediaUploadAvailable) {
+      setNotice({ tone: "error", text: `Δεν θα γίνει αποθήκευση με εκκρεμείς φωτογραφίες: ${mediaReadinessMessage}. Αφαίρεσε τις φωτογραφίες ή ενεργοποίησε πρώτα το media pipeline.` });
       return;
     }
     if (photos.length && !photoRightsConfirmed) {
@@ -443,7 +465,8 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
         <div className={styles.heroImage}>{selected?.imageUrl ? <img src={selected.imageUrl} alt={selected.title} /> : <div><strong>Χωρίς κύρια εικόνα</strong><span>Πρόσθεσε φωτογραφία από κάμερα ή αρχείο.</span></div>}</div>
         <div className={styles.mediaControls}>
           <div><h3>Φωτογραφίες προϊόντος</h3><p>Η υπάρχουσα εικόνα εμφανίζεται αριστερά. Μπορείς να τραβήξεις ή να ανεβάσεις έως 8 επιπλέον φωτογραφίες.</p></div>
-          <label className={styles.photoPicker}><span>📷 Λήψη ή προσθήκη φωτογραφιών</span><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple onChange={(event) => { queuePhotos(event.target.files); event.currentTarget.value = ""; }} /></label>
+          {!mediaUploadAvailable && <div className={styles.notice} role="status">Media upload unavailable: {mediaReadinessMessage}. Η επεξεργασία προϊόντος, τιμής και stock παραμένει διαθέσιμη.</div>}
+          <label className={styles.photoPicker}><span>📷 Λήψη ή προσθήκη φωτογραφιών</span><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple disabled={!mediaUploadAvailable || busy !== null} onChange={(event) => { queuePhotos(event.target.files); event.currentTarget.value = ""; }} /></label>
           {photos.length > 0 && <>
             <div className={styles.photoQueue}>{photos.map((photo, index) => <div key={`${photo.file.name}-${photo.file.lastModified}-${index}`}><img src={photo.previewUrl} alt="Προεπισκόπηση νέας φωτογραφίας" /><button type="button" onClick={() => removePhoto(index)} aria-label="Αφαίρεση φωτογραφίας">×</button></div>)}</div>
             <label className={styles.rightsCheck}><input type="checkbox" checked={photoRightsConfirmed} onChange={(event) => setPhotoRightsConfirmed(event.target.checked)} /><span>Επιβεβαιώνω ότι το επιλεγμένο κατάστημα έχει δικαίωμα χρήσης αυτών των φωτογραφιών.</span></label>
