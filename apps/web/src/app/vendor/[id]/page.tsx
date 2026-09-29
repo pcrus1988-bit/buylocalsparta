@@ -160,9 +160,12 @@ export default async function VendorPage({ params }: Props) {
     : (vendor.profileShortDescription ?? vendor.profileStory ?? vendor.story?.excerpt ?? `Γνώρισε το ${vendor.name}, τους ανθρώπους του και ό,τι μπορείς να βρεις ή να ζητήσεις απευθείας από το κατάστημα.`);
   const structuredImages = [storefrontUrl, merchantStoryMedia, logoUrl].filter((value): value is string => Boolean(value)).map((url) => absolutePublicMedia(url, settings.canonicalOrigin));
 
+  const shopsUrl = new URL("/shops", `${settings.canonicalOrigin}/`).toString();
   const structuredData = {
     "@context": "https://schema.org",
-    "@type": "LocalBusiness",
+    "@graph": [
+      {
+        "@type": "LocalBusiness",
     "@id": `${vendorUrl}#business`,
     name: vendor.name,
     url: vendorUrl,
@@ -184,6 +187,16 @@ export default async function VendorPage({ params }: Props) {
       latitude: location.coordinates.latitude,
       longitude: location.coordinates.longitude
     } : undefined
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Αρχική", item: settings.canonicalOrigin },
+          { "@type": "ListItem", position: 2, name: "Καταστήματα", item: shopsUrl },
+          { "@type": "ListItem", position: 3, name: vendor.name, item: vendorUrl }
+        ]
+      }
+    ]
   };
 
   return (

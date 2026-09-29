@@ -18,6 +18,11 @@ const adminPage = read("apps/web/src/app/admin/seo/schema/page.tsx");
 const issueGuidance = read("apps/web/src/lib/seo-issue-guidance.ts");
 const navigation = read("apps/web/src/lib/site-navigation.ts");
 const productPage = read("apps/web/src/app/product/[id]/page.tsx");
+const bazaarProductPage = read("apps/web/src/app/bazaar/product/[slug]/page.tsx");
+const categoryPage = read("apps/web/src/app/category/[slug]/page.tsx");
+const shopPage = read("apps/web/src/app/shop/page.tsx");
+const bazaarPage = read("apps/web/src/app/bazaar/page.tsx");
+const shopsPage = read("apps/web/src/app/shops/page.tsx");
 const vendorPage = read("apps/web/src/app/vendor/[id]/page.tsx");
 const vendorLayout = read("apps/web/src/app/vendor/[id]/layout.tsx");
 const rootLayout = read("apps/web/src/app/layout.tsx");
@@ -47,7 +52,7 @@ expect(!/CREATE POLICY[\s\S]{0,180}\b(?:anon|authenticated|service_role)\b/i.tes
 
 for (const contract of [
   'PRODUCT_SCHEMA_TYPES = ["Product", "Offer", "BreadcrumbList"]',
-  'VENDOR_SCHEMA_TYPES = ["LocalBusiness"]',
+  'VENDOR_SCHEMA_TYPES = ["LocalBusiness", "BreadcrumbList"]',
   'override?.schemaDecision !== "deny"',
   'node.kind === "product"',
   'node.kind === "partner_vendor" || node.kind === "research_vendor"'
@@ -114,7 +119,24 @@ for (const code of [
 for (const contract of ['"@type": "Product"', '"@type": "Offer"', '"@type": "BreadcrumbList"']) {
   expect(productPage.includes(contract), `Product renderer is missing ${contract}`);
 }
-expect(vendorPage.includes('"@type": "LocalBusiness"'), "Vendor renderer is missing LocalBusiness structured data");
+const crawlerSchemaStart = productPage.indexOf("const crawlerStructuredData =");
+const crawlerSchemaEnd = productPage.indexOf("const [detail, approvedGallery", crawlerSchemaStart);
+const crawlerSchema = crawlerSchemaStart >= 0 && crawlerSchemaEnd > crawlerSchemaStart
+  ? productPage.slice(crawlerSchemaStart, crawlerSchemaEnd)
+  : "";
+for (const contract of ['"@type": "Product"', '"@type": "Offer"', '"@type": "BreadcrumbList"']) {
+  expect(crawlerSchema.includes(contract), `Crawler product renderer is missing ${contract}`);
+}
+for (const contract of ['"@type": "Product"', '"@type": "Offer"', '"@type": "BreadcrumbList"']) {
+  expect(bazaarProductPage.includes(contract), `BAZAAR product renderer is missing ${contract}`);
+}
+expect(categoryPage.includes('"@type": "BreadcrumbList"'), "Category renderer is missing BreadcrumbList structured data");
+expect(shopPage.includes('"@type": "BreadcrumbList"'), "Shop renderer is missing BreadcrumbList structured data");
+expect(bazaarPage.includes('"@type": "BreadcrumbList"'), "BAZAAR renderer is missing BreadcrumbList structured data");
+expect(shopsPage.includes('"@type": "BreadcrumbList"'), "Shops renderer is missing BreadcrumbList structured data");
+for (const contract of ['"@type": "LocalBusiness"', '"@type": "BreadcrumbList"']) {
+  expect(vendorPage.includes(contract), `Vendor renderer is missing ${contract}`);
+}
 for (const contract of [
   '"@type": "ProfilePage"',
   '"@type": "DefinedTerm"',

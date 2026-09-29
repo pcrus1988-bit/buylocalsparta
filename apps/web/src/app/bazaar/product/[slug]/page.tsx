@@ -10,11 +10,19 @@ import { bazaarDisplayConditionLabel, bazaarProductDisclosure, bazaarProductNoti
 import { getBazaarMediaGallery } from "../../../../lib/bazaar-media-gallery";
 import { publicBrandLogoUrl } from "../../../../lib/brand-logo";
 import { publicDescriptionText } from "../../../../lib/public-description-text";
+import { getSeoGlobalSettingsSnapshot } from "../../../../lib/seo-settings";
 
 type BazaarProductPageProps = Readonly<{ params: Promise<{ slug: string }> }>;
 
 function euro(minor: number): string {
   return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
+}
+
+function bazaarSchemaCondition(condition: string): string {
+  if (condition === "new") return "https://schema.org/NewCondition";
+  if (condition === "refurbished") return "https://schema.org/RefurbishedCondition";
+  if (condition === "preowned_defect") return "https://schema.org/DamagedCondition";
+  return "https://schema.org/UsedCondition";
 }
 
 export async function generateMetadata({ params }: BazaarProductPageProps): Promise<Metadata> {
@@ -31,7 +39,10 @@ export async function generateMetadata({ params }: BazaarProductPageProps): Prom
 
 export default async function BazaarProductPage({ params }: BazaarProductPageProps) {
   const { slug } = await params;
-  const product = await getBazaarProductBySlug(decodeURIComponent(slug));
+  const [product, { settings }] = await Promise.all([
+    getBazaarProductBySlug(decodeURIComponent(slug)),
+    getSeoGlobalSettingsSnapshot()
+  ]);
   if (!product) notFound();
 
   const imageSrc = product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
@@ -74,7 +85,44 @@ export default async function BazaarProductPage({ params }: BazaarProductPagePro
       }))
     : [{ src: imageSrc, alt: product.mediaAlt ?? product.title }];
 
+  const origin = settings.canonicalOrigin;
+  const bazaarUrl = new URL("/bazaar", `${origin}/`).toString();
+  const productUrl = new URL(`/bazaar/product/${product.slug}`, `${origin}/`).toString();
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Product",
+        "@id": `${productUrl}#product`,
+        url: productUrl,
+        mainEntityOfPage: productUrl,
+        name: product.title,
+        description: description ?? `${bazaarDisplayConditionLabel(product.condition, product.bazaarSource)} στο BAZAAR του ΚΟΝΤΑ ΜΟΥ.`,
+        brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
+        image: galleryImages.map((image) => new URL(image.src, `${origin}/`).toString()),
+        itemCondition: bazaarSchemaCondition(product.condition),
+        offers: {
+          "@type": "Offer",
+          url: productUrl,
+          priceCurrency: "EUR",
+          price: (product.priceMinor / 100).toFixed(2),
+          availability: available ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+          seller: { "@id": `${origin}/#organization` }
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Αρχική", item: origin },
+          { "@type": "ListItem", position: 2, name: "BAZAAR", item: bazaarUrl },
+          { "@type": "ListItem", position: 3, name: product.title, item: productUrl }
+        ]
+      }
+    ]
+  };
+
   return <main style={{ background: "#f5f0e8", minHeight: "100vh" }}>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replaceAll("<", "\\u003c") }} />
     <div className="announcement">BAZAAR · Greece-wide, condition-first.</div>
     <SiteHeader />
 

@@ -29,6 +29,7 @@ import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { getCrawlerCatalogCards } from "../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../lib/request-audience";
 import { getCachedPublishedDropshipShopPage, hasLiveLocalShopProducts } from "../../lib/cached-public-shop-page";
+import { getSeoGlobalSettingsSnapshot } from "../../lib/seo-settings";
 
 const SHOP_PAGE_SIZE = 30;
 const SHOP_INDEXABLE_QUERY_KEYS = new Set([
@@ -113,6 +114,7 @@ export async function generateMetadata({ searchParams }: ShopProps): Promise<Met
 }
 
 export default async function ShopPage({ searchParams }: ShopProps) {
+  const seoSettingsPromise = getSeoGlobalSettingsSnapshot();
   const params = await searchParams;
   const page = positivePage(valueOf(params.page));
   const pageOffset = (page - 1) * SHOP_PAGE_SIZE;
@@ -368,9 +370,20 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const showColor = facets.colors.length > 0 && storefrontFacetEnabled(activeLeaf, "color");
   const showSize = facets.sizes.length > 0 && storefrontFacetEnabled(activeLeaf, "size");
   const showFit = fitOptions.length > 0 && storefrontFacetEnabled(activeLeaf, "fit");
+  const { settings: seoSettings } = await seoSettingsPromise;
+  const shopUrl = new URL("/shop", `${seoSettings.canonicalOrigin}/`).toString();
+  const breadcrumbStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Αρχική", item: seoSettings.canonicalOrigin },
+      { "@type": "ListItem", position: 2, name: "Προϊόντα", item: shopUrl }
+    ]
+  };
 
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbStructuredData).replaceAll("<", "\\u003c") }} />
       <div className="announcement">Η τοπική αγορά της Σπάρτης — online, αλλά ανθρώπινα.</div>
       <SiteHeader />
 
