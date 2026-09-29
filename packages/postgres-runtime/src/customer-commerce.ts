@@ -261,16 +261,20 @@ export class PostgresCustomerCommerceService {
     const now = input.now ?? Date.now();
     const hashedVisitor = visitorHash(input.visitorKey);
     return this.#withSerializableRetry({ marketId: "sparta", platformAccess: true }, async (tx) => {
-      const records: PublicAssignedCatalogRecord[] = [];
+      // Always acquire canonical/fairness locks in a deterministic order so two
+      // overlapping catalogue requests cannot create an A→B / B→A lock cycle.
+      // Results are restored to the caller's original order below.
+      const transactionOrder = [...canonicalVariantIds].sort((left, right) => left.localeCompare(right));
+      const recordByCanonical = new Map<string, PublicAssignedCatalogRecord>();
       const adviserByVendor = new Map<string, string | null>();
 
-      for (const canonicalVariantId of canonicalVariantIds) {
+      for (const canonicalVariantId of transactionOrder) {
         const canonical = await this.#canonical(tx, canonicalVariantId, "sparta");
         if (!canonical) continue;
         const base = this.#canonicalRecord(canonical);
         const offers = await this.#eligibleOffers(tx, canonical, input.postcode, input.fulfilmentMode ?? "pickup", 1, now);
         if (offers.length === 0) {
-          records.push({ ...base, available: false, availableToSell: 0 });
+          recordByCanonical.set(canonicalVariantId, { ...base, available: false, availableToSell: 0 });
           continue;
         }
 
@@ -287,7 +291,7 @@ export class PostgresCustomerCommerceService {
           adviserByVendor.set(vendorUuid, (await this.#adviserName(tx, vendorUuid)) ?? null);
         }
 
-        records.push({
+        recordByCanonical.set(canonicalVariantId, {
           ...base,
           available: true,
           availableToSell: asInt(selected.available_to_sell, "available_to_sell"),
@@ -297,7 +301,10 @@ export class PostgresCustomerCommerceService {
         });
       }
 
-      return records;
+      return canonicalVariantIds.flatMap((canonicalVariantId) => {
+        const record = recordByCanonical.get(canonicalVariantId);
+        return record ? [record] : [];
+      });
     });
   }
 
