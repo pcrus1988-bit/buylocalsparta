@@ -43,6 +43,12 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   { label: "Κατάστημα", href: "/vendor/storefront", icon: "◫", links: [{ label: "Δημόσιο προφίλ", href: "/vendor/storefront", icon: "◫", vendorCapability: "shop.manage" }] },
   { label: "Οικονομικά", href: "/vendor/finance", icon: "€", links: [{ label: "Πληρωμές & παραστατικά", href: "/vendor/finance", icon: "€", vendorCapability: "finance.read" }] },
   {
+    label: "HUB εργαλεία", href: "/vendor/hub", icon: "◎",
+    links: [
+      { label: "HUB Control Centre", href: "/vendor/hub", icon: "◎", vendorCapability: "local_delivery.manage" }
+    ]
+  },
+  {
     label: "Στατιστικά", href: "/vendor/analytics", icon: "∿",
     links: [
       { label: "Απόδοση", href: "/vendor/analytics", icon: "∿", vendorCapability: "analytics.read" },
