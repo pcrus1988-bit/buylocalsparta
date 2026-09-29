@@ -14,6 +14,7 @@ import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 import { getCrawlerCatalogCards } from "../../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
 import { productPublicPath } from "../../../lib/product-url";
+import { publicCatalogueTitleLabel } from "../../../lib/public-data-integrity";
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
 
 export const dynamic = "force-dynamic";
@@ -132,7 +133,7 @@ export default async function CategoryPage({ params }: Props) {
     position: index + 1,
     item: {
       "@type": "Product",
-      name: product.title,
+      name: publicCatalogueTitleLabel(product.title),
       url: new URL(productPublicPath(product), `${settings.canonicalOrigin}/`).toString(),
       image: product.mediaId
         ? `${settings.canonicalOrigin}/api/media/${encodeURIComponent(product.mediaId)}`
