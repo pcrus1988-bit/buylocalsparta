@@ -215,7 +215,7 @@ function searchParams(filters: GemiAdminFilters, offset: number, size: number): 
     activities: filters.activityId,
     prefectures: filters.prefectureId,
     ...(filters.municipalityId ? { municipalities: filters.municipalityId } : {}),
-    isActive: filters.activeOnly,
+    ...(filters.activeOnly ? { isActive: true } : {}),
     resultsSortBy: "+arGemi",
     resultsOffset: Math.max(0, offset),
     resultsSize: Math.min(PAGE_SIZE, Math.max(1, size))
