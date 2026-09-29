@@ -3,7 +3,6 @@ import { after } from "next/server";
 import { interpretSearchQuery } from "@buy-local-sparta/core";
 import type { CatalogCard } from "../../lib/catalog-view";
 import { getShopCatalogPage } from "../../lib/shop-catalog-page";
-import { getPublishedDropshipCatalogPage } from "../../lib/published-dropship-catalog-page";
 import { getCachedShopTaxonomy } from "../../lib/cached-shop-taxonomy";
 import { SiteHeader } from "../../components/SiteHeader";
 import { getVisitorKey } from "../../lib/visitor";
@@ -26,9 +25,8 @@ import { filterCatalogCardsByAttributes, type CatalogAttributeFilters } from "..
 import { extractStorefrontAttributeQuery, resolveStorefrontAttributeIntents } from "../../lib/storefront-attribute-query";
 import { formatStorefrontAttributeAdvisory } from "../../lib/storefront-attribute-label";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
-import { getCrawlerCatalogCards } from "../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../lib/request-audience";
-import { getCachedPublishedDropshipShopPage, hasLiveLocalShopProducts } from "../../lib/cached-public-shop-page";
+import { getCachedCrawlerCatalogCards, getCachedPublishedDropshipShopPage, hasLiveLocalShopProducts } from "../../lib/cached-public-shop-page";
 import { getSeoGlobalSettingsSnapshot } from "../../lib/seo-settings";
 
 const SHOP_PAGE_SIZE = 30;
@@ -196,7 +194,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
 
   if (readOnlyCrawler) {
-    let crawlerProducts = [...await getCrawlerCatalogCards(
+    let crawlerProducts = [...await getCachedCrawlerCatalogCards(
       "23100",
       catalogQuery,
       category,
@@ -212,7 +210,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
 
     if (allowDropship && page === 1 && products.length < SHOP_PAGE_SIZE) {
       const remaining = SHOP_PAGE_SIZE - products.length;
-      const dropshipPage = await getPublishedDropshipCatalogPage({
+      const dropshipPage = await getCachedPublishedDropshipShopPage({
         query: catalogQuery,
         category,
         filters: productFilters,
@@ -271,7 +269,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       if (allowDropship && atFinalLocalWindow) {
         const dropshipOffset = Math.max(0, pageOffset - localPage.total);
         const dropshipSlots = Math.max(0, SHOP_PAGE_SIZE - expectedLocalCount);
-        const dropshipPage = await getPublishedDropshipCatalogPage({
+        const dropshipPage = await getCachedPublishedDropshipShopPage({
           query: catalogQuery,
           category,
           filters: productFilters,
