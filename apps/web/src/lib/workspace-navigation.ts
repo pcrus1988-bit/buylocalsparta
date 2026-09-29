@@ -228,7 +228,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   }
 ];
 
-export const WORKSPACE_PAGE_ROUTES = [...new Set([
+export const WORKSPACE_PAGE_ROUTES = [
   ...VENDOR_WORKSPACE_NAVIGATION.flatMap((group) => group.links.map((link) => link.href)),
   ...ADMIN_WORKSPACE_NAVIGATION.flatMap((group) => group.links.map((link) => link.href))
-])] as const;
+] as const;
