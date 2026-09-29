@@ -1,11 +1,11 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { vendorDashboard } from "../../../../../lib/vendor-runtime";
 import { recordVendorManualShipment } from "../../../../../lib/vendor-fulfilment-service";
 import { syncVendorFulfilmentLifecycle } from "../../../../../lib/order-lifecycle";
 
 export async function POST(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const { principal } = await requireVendorCapability("shipping.manage", request, true);
     const body = await request.json() as { fulfilmentId?: unknown; carrier?: unknown; trackingNumber?: unknown; deliveryNote?: unknown };
     const fulfilmentId = typeof body.fulfilmentId === "string" ? body.fulfilmentId.trim() : "";
     const carrier = typeof body.carrier === "string" ? body.carrier.trim() : "";

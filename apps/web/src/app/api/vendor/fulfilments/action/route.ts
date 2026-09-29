@@ -1,4 +1,4 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { vendorDashboard } from "../../../../../lib/vendor-runtime";
 import { actOnVendorFulfilment } from "../../../../../lib/vendor-fulfilment-service";
 import { syncVendorFulfilmentLifecycle } from "../../../../../lib/order-lifecycle";
@@ -6,7 +6,7 @@ import { sendVendorRejectionOutcomeEmails } from "../../../../../lib/vendor-reje
 
 export async function POST(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const { principal } = await requireVendorCapability("fulfilment.manage", request, true);
     const body = await request.json() as { fulfilmentId?: unknown; action?: unknown };
     const fulfilmentId = typeof body.fulfilmentId === "string" ? body.fulfilmentId.trim() : "";
     const action = typeof body.action === "string" ? body.action.trim() : "";
