@@ -1,3 +1,5 @@
+import { publicCatalogueTitleLabel } from "./public-data-integrity";
+
 export type GoogleMerchantCandidate = Readonly<{
   canonicalPublicId: string;
   slug: string;
@@ -92,7 +94,7 @@ export function buildGoogleMerchantProductInput(
   const offerId = cleanText(candidate.canonicalPublicId, 50);
   if (!offerId) throw new Error("Google Merchant offerId is empty.");
 
-  const title = cleanText(candidate.title, 150);
+  const title = cleanText(publicCatalogueTitleLabel(candidate.title), 150);
   if (!title) throw new Error(`Google Merchant product ${offerId} has no title.`);
   const description = cleanText(candidate.description, 5000) || title;
   const image = new URL(imageLink);
