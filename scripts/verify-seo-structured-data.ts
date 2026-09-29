@@ -20,6 +20,7 @@ const navigation = read("apps/web/src/lib/site-navigation.ts");
 const productPage = read("apps/web/src/app/product/[id]/page.tsx");
 const bazaarProductPage = read("apps/web/src/app/bazaar/product/[slug]/page.tsx");
 const categoryPage = read("apps/web/src/app/category/[slug]/page.tsx");
+const collectionPage = read("apps/web/src/app/collections/[slug]/page.tsx");
 const shopPage = read("apps/web/src/app/shop/page.tsx");
 const bazaarPage = read("apps/web/src/app/bazaar/page.tsx");
 const shopsPage = read("apps/web/src/app/shops/page.tsx");
@@ -131,6 +132,7 @@ for (const contract of ['"@type": "Product"', '"@type": "Offer"', '"@type": "Bre
   expect(bazaarProductPage.includes(contract), `BAZAAR product renderer is missing ${contract}`);
 }
 expect(categoryPage.includes('"@type": "BreadcrumbList"'), "Category renderer is missing BreadcrumbList structured data");
+expect(collectionPage.includes('"@type": "BreadcrumbList"'), "Editorial collection renderer is missing BreadcrumbList structured data");
 expect(shopPage.includes('"@type": "BreadcrumbList"'), "Shop renderer is missing BreadcrumbList structured data");
 expect(bazaarPage.includes('"@type": "BreadcrumbList"'), "BAZAAR renderer is missing BreadcrumbList structured data");
 expect(shopsPage.includes('"@type": "BreadcrumbList"'), "Shops renderer is missing BreadcrumbList structured data");
