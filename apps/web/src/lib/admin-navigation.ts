@@ -75,7 +75,7 @@ const ANALYTICS_OPERATOR_LINKS = new Map<string, { order: number; label?: string
 ]);
 
 const CONTENT_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>([
-  ["/admin/content", { order: 0, label: "Content" }],
+  ["/admin/content", { order: 0, label: "CMS & Routing" }],
   ["/admin/hero", { order: 1, label: "Homepage" }],
   ["/admin/email-lab", { order: 2, label: "Email" }],
   ["/admin/seo", { order: 3, label: "SEO Overview" }],
