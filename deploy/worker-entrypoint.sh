@@ -21,12 +21,6 @@ case "$role" in
   crawler)
     exec node --experimental-strip-types workers/catalog-crawler-worker.ts
     ;;
-  icecat)
-    exec node --experimental-strip-types workers/open-icecat-worker.ts
-    ;;
-  icecat-detail)
-    exec node --experimental-strip-types workers/open-icecat-detail-worker.ts
-    ;;
   nova-catalogue)
     if [ "${BLS_SYMPHONYA_SIDECAR_ENABLED:-false}" = "true" ]; then
       exec node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs workers/catalogue-supplier-supervisor.ts
@@ -40,7 +34,7 @@ case "$role" in
     exec node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs workers/symphonya-worker.ts
     ;;
   "")
-    echo "BLS_WORKER_ROLE is required (postgres|search|notifications|media|reports|crawler|icecat|icecat-detail|nova-catalogue|nova-order-reconciliation|symphonya)" >&2
+    echo "BLS_WORKER_ROLE is required (postgres|search|notifications|media|reports|crawler|nova-catalogue|nova-order-reconciliation|symphonya)" >&2
     exit 64
     ;;
   *)
