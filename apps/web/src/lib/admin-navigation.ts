@@ -23,12 +23,6 @@ const PARTNER_NETWORK_NAV_LINK: WorkspaceNavLink = {
   permission: "vendor.manage"
 };
 
-const ICECAT_NAV_LINK: WorkspaceNavLink = {
-  label: "Icecat",
-  href: "/admin/icecat",
-  icon: "◈",
-  permission: "catalog.read"
-};
 
 const STRUCTURE_NAV_LINK: WorkspaceNavLink = {
   label: "STRUCTURE",
@@ -49,14 +43,13 @@ const CATALOGUE_OPERATOR_LINKS = new Map<string, { order: number; label?: string
   ["/admin/catalogue", { order: 0, label: "Overview" }],
   ["/admin/quickadd", { order: 1, label: "Quick Add" }],
   ["/admin/catalogue-crawler", { order: 2, label: "Website Import" }],
-  ["/admin/icecat", { order: 3, label: "Icecat" }],
-  ["/admin/catalogue-intake/import", { order: 4, label: "Files & Icecat", contextHidden: false }],
-  ["/admin/catalogue-intake", { order: 5, label: "Supplier PIM" }],
-  ["/admin/catalogue-intake/attributes", { order: 6, label: "Attributes" }],
-  ["/admin/matching", { order: 7, label: "Matching" }],
-  ["/admin/catalogue/structure", { order: 8, label: "STRUCTURE" }],
-  ["/admin/categories", { order: 9, label: "Categories & Policies" }],
-  ["/admin/catalogue/exceptions", { order: 10, label: "Identity Exceptions", contextHidden: true }]
+  ["/admin/catalogue-intake/import", { order: 3, label: "Files", contextHidden: false }],
+  ["/admin/catalogue-intake", { order: 4, label: "Supplier PIM" }],
+  ["/admin/catalogue-intake/attributes", { order: 5, label: "Attributes" }],
+  ["/admin/matching", { order: 6, label: "Matching" }],
+  ["/admin/catalogue/structure", { order: 7, label: "STRUCTURE" }],
+  ["/admin/categories", { order: 8, label: "Categories & Policies" }],
+  ["/admin/catalogue/exceptions", { order: 9, label: "Identity Exceptions", contextHidden: true }]
 ]);
 
 const TRUST_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>([
@@ -106,9 +99,7 @@ function operatorLinksForGroup(group: WorkspaceNavGroup, links: ReadonlyArray<Wo
   }
 
   if (group.href === "/admin/catalogue") {
-    let catalogueLinks = links.some((link) => link.href === ICECAT_NAV_LINK.href)
-      ? [...links]
-      : [...links, ICECAT_NAV_LINK];
+    let catalogueLinks = [...links];
     if (!catalogueLinks.some((link) => link.href === STRUCTURE_NAV_LINK.href)) catalogueLinks = [...catalogueLinks, STRUCTURE_NAV_LINK];
     if (!catalogueLinks.some((link) => link.href === CATALOGUE_EXCEPTIONS_NAV_LINK.href)) catalogueLinks = [...catalogueLinks, CATALOGUE_EXCEPTIONS_NAV_LINK];
     return catalogueLinks
@@ -178,7 +169,6 @@ export function adminNavigationForPrincipal(principal: SessionPrincipal, attenti
 
 export function canAccessAdminRoute(principal: SessionPrincipal, href: string): boolean {
   if (href === PARTNER_NETWORK_NAV_LINK.href) return canAccessAdminNavLink(principal, PARTNER_NETWORK_NAV_LINK);
-  if (href === ICECAT_NAV_LINK.href) return canAccessAdminNavLink(principal, ICECAT_NAV_LINK);
   if (href === STRUCTURE_NAV_LINK.href) return canAccessAdminNavLink(principal, STRUCTURE_NAV_LINK);
   if (href === CATALOGUE_EXCEPTIONS_NAV_LINK.href) return canAccessAdminNavLink(principal, CATALOGUE_EXCEPTIONS_NAV_LINK);
   const link = ADMIN_WORKSPACE_NAVIGATION.flatMap((group) => group.links).find((item) => item.href === href);
