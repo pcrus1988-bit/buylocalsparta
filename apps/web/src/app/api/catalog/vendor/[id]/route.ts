@@ -8,11 +8,11 @@ import { getVendorLocalCatalogCards, getVendorLocalCatalogFacetCards, getVendorL
 type RouteContext = Readonly<{ params: Promise<{ id: string }> }>;
 
 const PAGE_BROWSER_CACHE = "public, max-age=5";
-const PAGE_SHARED_CACHE = "public, max-age=15";
-const PAGE_VERCEL_CACHE = "public, max-age=30";
+const PAGE_SHARED_CACHE = "public, s-maxage=15, stale-while-revalidate=45";
+const PAGE_VERCEL_CACHE = "public, s-maxage=30, stale-while-revalidate=60";
 const FACET_BROWSER_CACHE = "public, max-age=15";
-const FACET_SHARED_CACHE = "public, max-age=60";
-const FACET_VERCEL_CACHE = "public, max-age=120";
+const FACET_SHARED_CACHE = "public, s-maxage=60, stale-while-revalidate=120";
+const FACET_VERCEL_CACHE = "public, s-maxage=120, stale-while-revalidate=240";
 
 function optionalParam(url: URL, key: string, max: number): string {
   return url.searchParams.get(key)?.trim().slice(0, max) ?? "";
