@@ -161,11 +161,9 @@ export default async function VendorPage({ params }: Props) {
   const structuredImages = [storefrontUrl, merchantStoryMedia, logoUrl].filter((value): value is string => Boolean(value)).map((url) => absolutePublicMedia(url, settings.canonicalOrigin));
 
   const shopsUrl = new URL("/shops", `${settings.canonicalOrigin}/`).toString();
-  const structuredData = {
+  const businessStructuredData = {
     "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "LocalBusiness",
+    "@type": "LocalBusiness",
     "@id": `${vendorUrl}#business`,
     name: vendor.name,
     url: vendorUrl,
@@ -187,21 +185,21 @@ export default async function VendorPage({ params }: Props) {
       latitude: location.coordinates.latitude,
       longitude: location.coordinates.longitude
     } : undefined
-      },
-      {
-        "@type": "BreadcrumbList",
-        itemListElement: [
-          { "@type": "ListItem", position: 1, name: "Αρχική", item: settings.canonicalOrigin },
-          { "@type": "ListItem", position: 2, name: "Καταστήματα", item: shopsUrl },
-          { "@type": "ListItem", position: 3, name: vendor.name, item: vendorUrl }
-        ]
-      }
+  };
+  const breadcrumbStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Αρχική", item: settings.canonicalOrigin },
+      { "@type": "ListItem", position: 2, name: "Καταστήματα", item: shopsUrl },
+      { "@type": "ListItem", position: 3, name: vendor.name, item: vendorUrl }
     ]
   };
 
   return (
     <main className={styles.page}>
-      {seoControl.schemaAllowed ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replaceAll("<", "\\u003c") }} /> : null}
+      {seoControl.schemaAllowed ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(businessStructuredData).replaceAll("<", "\\u003c") }} /> : null}
+      {seoControl.indexAllowed ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbStructuredData).replaceAll("<", "\\u003c") }} /> : null}
       <div className="announcement">
         {isResearch
           ? "Τοπικός επιχειρηματικός κατάλογος · δημόσια στοιχεία και σαφές στάδιο συνεργασίας."
