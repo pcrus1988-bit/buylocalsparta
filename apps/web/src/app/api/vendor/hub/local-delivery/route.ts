@@ -1,5 +1,5 @@
-import { requireVendorCapability } from "../../../../../../lib/vendor-session";
-import { updateVendorHubLocalDelivery } from "../../../../../../lib/vendor-hub-controls-service";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
+import { updateVendorHubLocalDelivery } from "../../../../../lib/vendor-hub-controls-service";
 
 export async function PUT(request: Request) {
   try {
