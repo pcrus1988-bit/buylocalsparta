@@ -16,9 +16,11 @@ export const dynamicParams = true;
 const PRODUCT_LIMIT = 12;
 
 export function generateStaticParams() {
-  // Avoid a build-time catalogue fan-out. Editorial collections are generated
-  // on demand, cached by ISR, and refreshed at the route revalidation interval.
-  return [];
+  // Vercel builds have the live storefront projections needed to ship the small
+  // editorial crawl surface warm. Portable CI/local builds keep on-demand ISR so
+  // they do not require production-only read models during next build.
+  if (process.env.VERCEL !== "1") return [];
+  return EDITORIAL_COLLECTIONS.map((collection) => ({ slug: collection.slug }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

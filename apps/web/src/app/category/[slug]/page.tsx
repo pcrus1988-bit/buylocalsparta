@@ -19,10 +19,11 @@ const CATEGORY_PAGE_SIZE = 30;
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
 export function generateStaticParams() {
-  // Generate category pages on first request instead of running catalogue
-  // hydration for every category during the production build. Once generated,
-  // Next/Vercel serves the result through ISR and revalidates it every 60s.
-  return [];
+  // Production/preview Vercel builds have the live storefront read projections and
+  // should ship these crawl-critical routes warm. Portable CI/local builds may use
+  // a reduced acceptance schema, so they retain on-demand ISR via dynamicParams.
+  if (process.env.VERCEL !== "1") return [];
+  return STOREFRONT_CATEGORIES.map((category) => ({ slug: category.slug }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
