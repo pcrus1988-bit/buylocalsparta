@@ -11,12 +11,14 @@ import styles from "./editorial-collection.module.css";
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
 export const revalidate = 60;
-export const dynamicParams = false;
+export const dynamicParams = true;
 
 const PRODUCT_LIMIT = 12;
 
 export function generateStaticParams() {
-  return EDITORIAL_COLLECTIONS.map((collection) => ({ slug: collection.slug }));
+  // Avoid a build-time catalogue fan-out. Editorial collections are generated
+  // on demand, cached by ISR, and refreshed at the route revalidation interval.
+  return [];
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
