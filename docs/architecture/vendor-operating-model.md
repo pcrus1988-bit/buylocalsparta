@@ -36,7 +36,9 @@ Scope enforcement belongs in services/database access. UI hiding is not an autho
 
 ## Vendor capability boundary
 
-`SELF_GOVERNED` may expose own-shop operations such as profile management, product submissions/import, vendor offers, pricing, inventory, orders, fulfilment, shipping, vendor delivery, AADE self-service, customer communication, promotions, compliance submissions, staff management, analytics and SEO source-data improvement.
+`MANAGED` must remain backwards-compatible with the live Sparta workspace: shop/profile maintenance, governed product submission, offer visibility, pricing, inventory, orders, fulfilment, pickup/shipping operations, customer/advice messaging, finance, analytics, compliance and owner/staff access remain available where they already exist.
+
+`SELF_GOVERNED` inherits that managed baseline and adds expansion-only autonomy such as bulk catalogue import, local-delivery configuration, AADE self-service, promotions, SEO source-data management and subscription controls. Those extra powers are capability-gated in both UI and server routes; a hidden control is never treated as authorization.
 
 The following remain platform governance and are intentionally not `VendorCapability` values:
 

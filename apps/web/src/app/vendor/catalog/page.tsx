@@ -13,7 +13,7 @@ import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader
 import { WorkspaceHowItWorks, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { vendorProductIcecatVisibility } from "../../../lib/product-icecat-visibility";
 import { confirmVendorAssignedCatalogueEvidence, vendorAssignedCatalogueWorkspace } from "../../../lib/vendor-assigned-catalogue-service";
-import { getVendorSession } from "../../../lib/vendor-session";
+import { getVendorSession, vendorOperatingContextForPrincipal } from "../../../lib/vendor-session";
 import { vendorCatalogWorkspace } from "../../../lib/vendor-backoffice-service";
 import { getVendorAdminArchivedOfferIds } from "../../../lib/vendor-offer-reactivation-state";
 import { getVendorStockFreshness } from "../../../lib/vendor-stock-freshness";
@@ -56,6 +56,7 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
   if (!principal) redirect("/vendor/login");
   const params = await searchParams;
   const assignedOffset = parseAssignedOffset(params.assignedOffset);
+  const operatingContext = await vendorOperatingContextForPrincipal(principal);
   const [workspace, assignedCatalogue, stockFreshness, adminArchivedOfferIds] = await Promise.all([
     vendorCatalogWorkspace(principal),
     vendorAssignedCatalogueWorkspace(principal, { offset: assignedOffset, limit: ASSIGNED_PAGE_SIZE }),
@@ -191,7 +192,7 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
     </section>
 
     <VendorStockFreshnessPanel snapshot={stockFreshness} />
-    <VendorCatalogClient initial={catalogWorkspace} />
+    <VendorCatalogClient initial={catalogWorkspace} canImportCatalogue={operatingContext.capabilities.includes("catalogue.import")} />
     <VendorArchivedProductsPanel products={archivedProducts} csrfToken={workspace.csrfToken} />
   </main>;
 }

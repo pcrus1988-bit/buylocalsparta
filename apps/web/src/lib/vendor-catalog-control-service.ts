@@ -1,5 +1,6 @@
 import { PostgresUnitOfWork, formatMoney, money, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import { resolveVendorOperatingAssignment } from "./vendor-operating-assignment";
 import { postgresVendorRuntimeEnabled, vendorDashboard } from "./vendor-runtime";
 
 const text = (value: unknown, field: string) => {
@@ -39,8 +40,10 @@ function vendorId(principal: SessionPrincipal) {
 function unitOfWork() {
   return new PostgresUnitOfWork(getProductionPostgresRuntime().sqlPool, { statementTimeoutMs: 15_000, lockTimeoutMs: 5_000 });
 }
-function vendorScope(principal: SessionPrincipal) {
-  return { actorUserId: principal.userId, vendorId: vendorId(principal), marketId: "sparta" } as const;
+async function vendorScope(principal: SessionPrincipal) {
+  const assignment = await resolveVendorOperatingAssignment(principal);
+  if (!assignment.marketId) throw new Error("Vendor market assignment is required");
+  return { actorUserId: principal.userId, vendorId: vendorId(principal), marketId: assignment.marketId } as const;
 }
 
 export type VendorManagedCatalogProduct = Readonly<{
@@ -93,7 +96,7 @@ export async function vendorCatalogControlWorkspace(principal: SessionPrincipal)
     return { catalogProducts: products, categories: [] as VendorCatalogCategoryControl[], categoryOptions: [] as VendorCatalogCategoryOption[], catalogMetrics: summarize(products) };
   }
 
-  return unitOfWork().withTransaction(vendorScope(principal), async (tx) => {
+  return unitOfWork().withTransaction(await vendorScope(principal), async (tx) => {
     const id = vendorId(principal);
     const productRows = await tx.query<SqlRow>(`
       WITH RECURSIVE tree AS (
@@ -197,7 +200,7 @@ export async function vendorCatalogControlWorkspace(principal: SessionPrincipal)
 export async function setVendorCatalogVisibility(principal: SessionPrincipal,input:Readonly<{scope:"product"|"category";visible:boolean;offerId?:string;categoryId?:string}>) {
   if (!postgresVendorRuntimeEnabled()) throw new Error("Visibility controls require the PostgreSQL vendor runtime");
   if (typeof input.visible !== "boolean") throw new Error("Visibility must be true or false");
-  return unitOfWork().withTransaction(vendorScope(principal),async(tx)=>{
+  return unitOfWork().withTransaction(await vendorScope(principal),async(tx)=>{
     const id=vendorId(principal);
     if(input.scope==="product"){
       if(!input.offerId?.trim()) throw new Error("Product offer is required");
@@ -228,7 +231,7 @@ export async function updateVendorCatalogInventory(principal:SessionPrincipal,in
   if(!input.offerId?.trim()) throw new Error("Product offer is required");
   if(!Number.isSafeInteger(input.onHand)||input.onHand<0||input.onHand>1_000_000) throw new Error("On-hand stock must be a non-negative integer");
   if(!Number.isSafeInteger(input.safetyStock)||input.safetyStock<0||input.safetyStock>1_000_000) throw new Error("Safety stock must be a non-negative integer");
-  return unitOfWork().withTransaction(vendorScope(principal),async(tx)=>{
+  return unitOfWork().withTransaction(await vendorScope(principal),async(tx)=>{
     const id=vendorId(principal);
     const found=await tx.query<SqlRow>(`SELECT vo.id::text offer_uuid,ib.on_hand,ib.active_reservations FROM vendor_offers vo JOIN inventory_balances ib ON ib.offer_id=vo.id
       WHERE vo.public_id=$1 AND vo.vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$2 OR id::text=$2 LIMIT 1) FOR UPDATE OF ib`,[input.offerId.trim(),id]);

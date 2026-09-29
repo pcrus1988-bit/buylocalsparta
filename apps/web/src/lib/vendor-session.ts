@@ -1,7 +1,9 @@
 import { cookies } from "next/headers";
 import {
+  assertVendorCapability,
   buildVendorOperatingContextFromSession,
   type SessionPrincipal,
+  type VendorCapability,
   type VendorOperatingAssignment,
   type VendorOperatingContext
 } from "@buy-local-sparta/core";
@@ -16,13 +18,19 @@ export async function getVendorSession(): Promise<SessionPrincipal | undefined> 
   return principal;
 }
 
+export async function vendorOperatingContextForPrincipal(
+  principal: SessionPrincipal,
+  assignment?: VendorOperatingAssignment
+): Promise<VendorOperatingContext> {
+  return vendorOperatingContextForPrincipal(principal, assignment);
+}
+
 export async function getVendorOperatingContext(
   assignment?: VendorOperatingAssignment
 ): Promise<VendorOperatingContext | undefined> {
   const principal = await getVendorSession();
   if (!principal) return undefined;
-  const resolvedAssignment = assignment ?? await resolveVendorOperatingAssignment(principal);
-  return buildVendorOperatingContextFromSession(principal, resolvedAssignment);
+  return vendorOperatingContextForPrincipal(principal, assignment);
 }
 
 export async function requireVendorSession(request?: Request, csrf = false): Promise<SessionPrincipal> {
@@ -40,4 +48,16 @@ export async function requireVendorOperatingContext(
   const principal = await requireVendorSession(request, csrf);
   const resolvedAssignment = assignment ?? await resolveVendorOperatingAssignment(principal);
   return buildVendorOperatingContextFromSession(principal, resolvedAssignment);
+}
+
+
+export async function requireVendorCapability(
+  capability: VendorCapability,
+  request?: Request,
+  csrf = false
+): Promise<Readonly<{ principal: SessionPrincipal; context: VendorOperatingContext }>> {
+  const principal = await requireVendorSession(request, csrf);
+  const context = await vendorOperatingContextForPrincipal(principal);
+  assertVendorCapability(context, capability);
+  return { principal, context };
 }
