@@ -161,7 +161,7 @@ if (!shopPage.includes("extractStorefrontAttributeQuery(taxonomySeedQuery, activ
 if (!shopPage.includes("resolveStorefrontAttributeIntents(")) failures.push("Natural structured attributes must resolve against live facet options before becoming hard filters");
 if (!shopPage.includes("resolveStorefrontSubcategoryIntent(activeLeaf, taxonomy.facets.subcategories)")) failures.push("Leaf intent must resolve only against currently available catalogue subcategories");
 if (!shopPage.includes("storefrontFacetEnabled(activeLeaf")) failures.push("Shop fixed facets must be conditioned by leaf-specific relevance");
-if (!shopPage.includes("attributeFacets.map")) failures.push("Shop must render live governed structured attribute facets");
+if (!shopPage.includes("<ShopFilterFacets") || !shopPage.includes("attributeFacets={attributeFacets}")) failures.push("Shop must render live governed structured attribute facets through the shared filter component");
 if (!shopPage.includes("attributeFilters,") || !shopPage.includes("filterCatalogCardsByAttributes(crawlerProducts, attributeFilters)")) failures.push("Selected and resolved structured attributes must feed bounded catalogue projections and crawler filtering");
 if (!shopPage.includes("unresolvedAttributeLabels")) failures.push("Understood but unavailable structured attributes must remain advisory instead of silently hard-filtering");
 if (!shopPage.includes("activeLeaf?.attributeHints")) failures.push("Shop must retain attribute guidance for sparse catalogues");
