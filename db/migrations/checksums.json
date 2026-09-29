@@ -280,5 +280,6 @@
   "0286_general_build_guidance_final_workflow_corroboration.sql": "0cd4d44dc086a68d9f84501fb39f4b45e95353b762b424d1a43f861767a2785b",
   "0287_fournarakis_catalogue_assignment_readiness.sql": "cbb90a25471be1c117a6bf0fa0663aa91f3faab1164f32126d8d93417646af50",
   "0291_self_governed_hub_vendor_controls.sql": "94b58ac6f2a44a5f5cd9dc588aca8983fad4fa32fe25530eb418cd4da4257153",
-  "0292_self_governed_hub_vendor_controls_advisor_hardening.sql": "46ad30e824d0ca578f49da91d94a9f34005705c130cea5aaa0525bd2d1920f38"
+  "0292_self_governed_hub_vendor_controls_advisor_hardening.sql": "46ad30e824d0ca578f49da91d94a9f34005705c130cea5aaa0525bd2d1920f38",
+  "0293_self_governed_hub_scope_helpers.sql": "f2e3c72a20bfda697ab9dd564580ebda1d2da90944d28c44ee47971912507ec9"
 }
