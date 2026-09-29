@@ -13,8 +13,10 @@ on:
       - "packages/postgres-runtime/src/index.ts"
       - "db/migrations/0291_self_governed_hub_vendor_controls.sql"
       - "db/migrations/0292_self_governed_hub_vendor_controls_advisor_hardening.sql"
+      - "db/migrations/0293_self_governed_hub_scope_helpers.sql"
       - "db/migrations/checksums.0291.json"
       - "db/migrations/checksums.0292.json"
+      - "db/migrations/checksums.0293.json"
       - "scripts/verify-self-governed-hub-controls.ts"
       - ".github/workflows/self-governed-hub-controls-acceptance.yml"
   push:
@@ -30,8 +32,10 @@ on:
       - "packages/postgres-runtime/src/index.ts"
       - "db/migrations/0291_self_governed_hub_vendor_controls.sql"
       - "db/migrations/0292_self_governed_hub_vendor_controls_advisor_hardening.sql"
+      - "db/migrations/0293_self_governed_hub_scope_helpers.sql"
       - "db/migrations/checksums.0291.json"
       - "db/migrations/checksums.0292.json"
+      - "db/migrations/checksums.0293.json"
       - "scripts/verify-self-governed-hub-controls.ts"
       - ".github/workflows/self-governed-hub-controls-acceptance.yml"
 
