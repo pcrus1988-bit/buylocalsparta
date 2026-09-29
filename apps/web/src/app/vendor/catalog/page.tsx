@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { VendorProductIcecatVisibilityPanel } from "../../../components/ProductIcecatVisibilityPanel";
 import { VendorArchivedProductsPanel } from "../../../components/VendorArchivedProductsPanel";
 import { VendorCatalogClient } from "../../../components/VendorCatalogClient";
 import { VendorDeliveryEligibilityPanel } from "../../../components/VendorDeliveryEligibilityPanel";
@@ -11,7 +10,6 @@ import { VendorPriceManager } from "../../../components/VendorPriceManager";
 import { VendorStockFreshnessPanel } from "../../../components/VendorStockFreshnessPanel";
 import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
 import { WorkspaceHowItWorks, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
-import { vendorProductIcecatVisibility } from "../../../lib/product-icecat-visibility";
 import { confirmVendorAssignedCatalogueEvidence, vendorAssignedCatalogueWorkspace } from "../../../lib/vendor-assigned-catalogue-service";
 import { getVendorSession, vendorOperatingContextForPrincipal } from "../../../lib/vendor-session";
 import { vendorCatalogWorkspace } from "../../../lib/vendor-backoffice-service";
@@ -67,11 +65,6 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
     ...item,
     canToggleVisibility: item.canToggleVisibility && !adminArchivedOfferIds.has(item.offerId)
   }));
-  const icecatVisibility = await vendorProductIcecatVisibility(principal, {
-    offerIds: catalogProducts.map((item) => item.offerId),
-    submissionIds: workspace.submissions.map((item) => item.id),
-    assortmentIds: assignedCatalogue.products.map((item) => item.id)
-  });
   const catalogWorkspace = { ...workspace, catalogProducts };
   const reviewPending = workspace.submissions.some((item) => ["submitted", "needs_review"].includes(item.status));
   const hasProducts = workspace.catalogMetrics.totalProducts > 0 || assignedCatalogue.totalAssigned > 0;
@@ -165,8 +158,6 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
         </div>
       </div>}
     </section>}
-
-    <VendorProductIcecatVisibilityPanel records={icecatVisibility} />
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Νέο προϊόν" title="Από την καταχώρηση μέχρι να εμφανιστεί στο κατάστημά σου" note="Τα εσωτερικά matching και approval βήματα παραμένουν στο παρασκήνιο. Εσύ χρειάζεται να δώσεις σωστά στοιχεία προϊόντος, τιμή και απόθεμα." />
