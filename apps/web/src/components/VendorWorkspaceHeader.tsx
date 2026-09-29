@@ -63,10 +63,22 @@ export function VendorWorkspaceHeader() {
       .filter((group) => group.links.length > 0)
       .map((group) => group.href === "/vendor/daily-access" ? { ...group, href: group.links[0]?.href } : group);
 
-    const capabilityFiltered = !operatingContext ? roleFiltered : roleFiltered
+    const selfGovernedOnly = new Set([
+      "catalogue.import",
+      "local_delivery.manage",
+      "aade.manage",
+      "promotions.manage",
+      "seo.source_data.manage",
+      "subscription.manage"
+    ]);
+    const capabilityFiltered = roleFiltered
       .map((group) => ({
         ...group,
-        links: group.links.filter((link) => !link.vendorCapability || operatingContext.capabilities.includes(link.vendorCapability))
+        links: group.links.filter((link) => {
+          if (!link.vendorCapability) return true;
+          if (!operatingContext) return !selfGovernedOnly.has(link.vendorCapability);
+          return operatingContext.capabilities.includes(link.vendorCapability);
+        })
       }))
       .filter((group) => group.links.length > 0)
       .map((group) => group.links.some((link) => link.href === group.href) ? group : { ...group, href: group.links[0]?.href });
