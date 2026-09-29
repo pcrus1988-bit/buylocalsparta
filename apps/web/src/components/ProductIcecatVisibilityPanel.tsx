@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ProductIcecatVisibility, ProductIcecatVisibilityStatus } from "../lib/product-icecat-visibility";
 import {
   WorkspaceEmptyState,
@@ -55,7 +54,7 @@ export function VendorProductIcecatVisibilityPanel({ records }: Readonly<{ recor
 export function AdminProductIcecatVisibilityPanel({ records }: Readonly<{ records: readonly ProductIcecatVisibility[] }>) {
   return <WorkspaceRecordDetails label={`Open Icecat provenance · ${records.length}`} open={records.some((record) => record.status === "failed" || record.status === "retry")}>
     {records.length === 0 ? <div className="workspace-inline-note">
-      No approved Open Icecat evidence is linked to this source product yet. If canonical matching is still pending, Icecat evidence can appear after an approved canonical link exists. <Link className="text-link" href="/admin/icecat">Open Icecat Control Center</Link>
+      No approved Open Icecat evidence is linked to this source product yet. If canonical matching is still pending, Icecat evidence can appear after an approved canonical link exists.
     </div> : <div className="workspace-queue-list">{records.map((record) => {
       const presentation = statusPresentation(record.status);
       return <article className="workspace-queue-card" key={`${record.sourceProductId ?? record.contextId}:${record.canonicalVariantId ?? "direct"}`}>
@@ -78,7 +77,7 @@ export function AdminProductIcecatVisibilityPanel({ records }: Readonly<{ record
           {record.sourceProductId && <div className="workspace-compact-row"><strong>Icecat source product</strong><span className="vendor-technical-id">{record.sourceProductId}</span></div>}
         </div>
       </article>;
-    })}<div className="workspace-action-bar"><span>Icecat remains source evidence only; canonical publication and commerce state stay separately governed.</span><Link className="button button-secondary" href="/admin/icecat">Open Icecat Control Center</Link></div></div>}
+    })}<div className="workspace-action-bar"><span>Icecat remains source evidence only; canonical publication and commerce state stay separately governed.</span></div></div>}
   </WorkspaceRecordDetails>;
 }
 
