@@ -10,7 +10,7 @@ import styles from "./editorial-collection.module.css";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
-export const revalidate = 60;
+export const revalidate = 300;
 export const dynamicParams = true;
 
 const PRODUCT_LIMIT = 12;
@@ -61,14 +61,18 @@ async function liveCollectionProducts(slug: string): Promise<readonly CatalogCar
 
   let products: CatalogCard[] = [];
   try {
-    const batches = await Promise.all(collection.searches.map((search) =>
-      boundedCollectionSlice(
+    // The web runtime deliberately uses a one-client PostgreSQL pool on Vercel.
+    // Refresh collection slices sequentially so an ISR miss cannot fan several
+    // simultaneous connection acquisitions into the shared Supabase pool.
+    for (const search of collection.searches) {
+      const batch = await boundedCollectionSlice(
         search.query ?? "",
         search.category,
         Math.min(search.limit, PRODUCT_LIMIT)
-      )
-    ));
-    products = uniqueProducts(batches.flat()).slice(0, PRODUCT_LIMIT);
+      );
+      products = uniqueProducts([...products, ...batch]).slice(0, PRODUCT_LIMIT);
+      if (products.length >= PRODUCT_LIMIT) break;
+    }
 
     // A collection should stay on-theme even when one leaf temporarily thins out.
     // If needed, top up only from its first curated leaf rather than from the whole catalogue.
