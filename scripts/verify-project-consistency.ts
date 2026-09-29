@@ -222,7 +222,10 @@ for (const route of [
   const hasSessionCsrf =
     routeSource.includes("requireVendorSession(request,true)")
     || routeSource.includes("requireVendorSession(request, true)");
-  const hasCapabilityCsrf = /requireVendorCapability\\(\\s*["'][^"']+["']\\s*,\\s*request\\s*,\\s*true\\s*\\)/.test(routeSource);
+  const compactRouteSource = routeSource.replace(/\s+/g, "");
+  const hasCapabilityCsrf =
+    compactRouteSource.includes("requireVendorCapability(")
+    && compactRouteSource.includes(",request,true)");
   if (!hasSessionCsrf && !hasCapabilityCsrf) errors.push(`Vendor mutation route ${route} must require authenticated CSRF protection`);
 }
 const orderCancelRoute = read("apps/web/src/app/api/account/orders/[id]/cancel/route.ts");
