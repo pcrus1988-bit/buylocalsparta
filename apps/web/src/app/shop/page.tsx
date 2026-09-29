@@ -262,7 +262,9 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         offset: pageOffset
       });
 
-      products = [...await enrichCatalogCardsWithLocalProof(localPage.products, visitorKey, "23100")];
+      products = searchIntent.availability === "pickup_today"
+        ? [...await enrichCatalogCardsWithLocalProof(localPage.products, visitorKey, "23100")]
+        : [...localPage.products];
       const expectedLocalCount = Math.max(0, Math.min(SHOP_PAGE_SIZE, localPage.total - pageOffset));
       const atFinalLocalWindow = pageOffset + SHOP_PAGE_SIZE >= localPage.total;
 
