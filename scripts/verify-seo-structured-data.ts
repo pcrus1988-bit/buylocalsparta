@@ -132,7 +132,7 @@ for (const contract of ['"@type": "Product"', '"@type": "Offer"', '"@type": "Bre
   expect(bazaarProductPage.includes(contract), `BAZAAR product renderer is missing ${contract}`);
 }
 expect(categoryPage.includes('"@type": "BreadcrumbList"'), "Category renderer is missing BreadcrumbList structured data");
-expect(collectionPage.includes(\'"@type": "BreadcrumbList"\'), "Editorial collection renderer is missing BreadcrumbList structured data");
+expect(collectionPage.includes('"@type": "BreadcrumbList"'), "Editorial collection renderer is missing BreadcrumbList structured data");
 expect(shopPage.includes('"@type": "BreadcrumbList"'), "Shop renderer is missing BreadcrumbList structured data");
 expect(bazaarPage.includes('"@type": "BreadcrumbList"'), "BAZAAR renderer is missing BreadcrumbList structured data");
 expect(shopsPage.includes('"@type": "BreadcrumbList"'), "Shops renderer is missing BreadcrumbList structured data");
