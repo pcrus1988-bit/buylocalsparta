@@ -14,8 +14,10 @@ const navigation = read("apps/web/src/lib/workspace-navigation.ts");
 const nextConfig = read("apps/web/next.config.ts");
 const migration = read("db/migrations/0291_self_governed_hub_vendor_controls.sql");
 const hardeningMigration = read("db/migrations/0292_self_governed_hub_vendor_controls_advisor_hardening.sql");
+const scopeMigration = read("db/migrations/0293_self_governed_hub_scope_helpers.sql");
 const checksum = JSON.parse(read("db/migrations/checksums.0291.json")) as Record<string, string>;
 const hardeningChecksum = JSON.parse(read("db/migrations/checksums.0292.json")) as Record<string, string>;
+const scopeChecksum = JSON.parse(read("db/migrations/checksums.0293.json")) as Record<string, string>;
 const postgresRuntime = read("packages/postgres-runtime/src/index.ts");
 
 const routes = {
@@ -75,7 +77,7 @@ requireText(migration, "validate_vendor_aade_request_scope", "AADE request must 
 requireText(migration, "validate_vendor_subscription_request_scope", "Subscription request must validate plan/subscription ownership");
 
 const runtimeSchemaVersion = Number(postgresRuntime.match(/export const EXPECTED_SCHEMA_VERSION = (\d+);/)?.[1] ?? 0);
-if (runtimeSchemaVersion !== 292) errors.push(`PostgreSQL runtime schema head must be 292; found ${runtimeSchemaVersion || "none"}`);
+if (runtimeSchemaVersion !== 293) errors.push(`PostgreSQL runtime schema head must be 293; found ${runtimeSchemaVersion || "none"}`);
 
 const migrationHash = createHash("sha256").update(migration).digest("hex");
 if (checksum["0291_self_governed_hub_vendor_controls.sql"] !== migrationHash) {
@@ -91,6 +93,17 @@ requireText(hardeningMigration, "vendor_subscription_change_requests_requested_p
 const hardeningHash = createHash("sha256").update(hardeningMigration).digest("hex");
 if (hardeningChecksum["0292_self_governed_hub_vendor_controls_advisor_hardening.sql"] !== hardeningHash) {
   errors.push(`Migration 0292 checksum mismatch: expected ${hardeningHash}, manifest has ${hardeningChecksum["0292_self_governed_hub_vendor_controls_advisor_hardening.sql"] ?? "missing"}`);
+}
+
+requireText(scopeMigration, "bls_private.current_vendor_scope_id()", "Migration 0293 must expose a stable private vendor scope helper");
+requireText(scopeMigration, "bls_private.current_market_scope_id()", "Migration 0293 must expose a stable private market scope helper");
+requireText(scopeMigration, "SET search_path = pg_catalog", "Migration 0293 scope helpers must pin search_path");
+requireText(scopeMigration, "REVOKE ALL ON FUNCTION bls_private.current_vendor_scope_id() FROM PUBLIC", "Migration 0293 vendor scope helper must not be public");
+requireText(scopeMigration, "vendor_id=(SELECT bls_private.current_vendor_scope_id())", "Migration 0293 vendor policies must use the stable scope helper");
+
+const scopeHash = createHash("sha256").update(scopeMigration).digest("hex");
+if (scopeChecksum["0293_self_governed_hub_scope_helpers.sql"] !== scopeHash) {
+  errors.push(`Migration 0293 checksum mismatch: expected ${scopeHash}, manifest has ${scopeChecksum["0293_self_governed_hub_scope_helpers.sql"] ?? "missing"}`);
 }
 
 if (errors.length) {
