@@ -46,8 +46,6 @@ The following are deliberately **not Vercel Functions**:
 - `media` — S3 staging/verification plus ClamAV streaming scan
 - `reports` — queued high-complexity reporting, multi-domain aggregation and PDF generation
 - `crawler` — governed external catalogue crawling with bounded leases and request controls
-- `icecat` — Open Icecat EL bulk-index bootstrap and daily index synchronization
-- `icecat-detail` — governed Open Icecat product-detail enrichment from completed index evidence
 - `nova-catalogue` — long-running NOVA catalogue/materialization/pricing pipeline
 - `nova-order-reconciliation` — NOVA supplier-order status reconciliation
 - `symphonya` — long-running Symphonya catalogue → materialization → pricing → Greek enrichment → stock → publication pipeline
@@ -69,14 +67,12 @@ docker run --env-file worker.env -e BLS_WORKER_ROLE=notifications buy-local-spar
 docker run --env-file worker.env -e BLS_WORKER_ROLE=media buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=reports buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=crawler buy-local-sparta-worker
-docker run --env-file worker.env -e BLS_WORKER_ROLE=icecat buy-local-sparta-worker
-docker run --env-file worker.env -e BLS_WORKER_ROLE=icecat-detail buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=nova-catalogue buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=nova-order-reconciliation buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=symphonya buy-local-sparta-worker
 ```
 
-Do not combine these roles into one process. Separate roles reduce blast radius, allow different network/provider access, and allow independent restart/scaling. In particular, `icecat` and `icecat-detail` must remain separate: bulk index ingestion is a slow source-sync workload, while detail enrichment owns a separately leased/rate-limited queue. Neither role is allowed to create canonical products, vendor offers, prices or stock directly.
+Do not combine these roles into one process. Separate roles reduce blast radius, allow different network/provider access, and allow independent restart/scaling.
 
 ### Symphonya execution boundary
 
@@ -86,15 +82,6 @@ The worker advances the pipeline in order: catalogue sync → materialization �
 
 Catalogue publication and supplier-order mutation are intentionally separate. A Symphonya offer may become visible once the publication gates pass, but checkout must fail closed until **both** the database supplier flag `dropship_suppliers.order_forwarding_enabled=true` and the runtime kill switch `SYMPHONYA_ENABLED=true` are active. Keep both order gates off until one controlled `createOrder` test succeeds. The catalogue worker itself never creates supplier orders.
 
-### Open Icecat execution boundary
-
-`icecat` and `icecat-detail` are ordinary long-running worker-container roles, not web routes or Vercel cron functions. Their provider credentials belong only on the matching worker services. The Admin catalogue view reads redacted operational state from PostgreSQL; it never needs Icecat credentials or raw provider payloads.
-
-- `icecat` performs the governed EL bulk-index bootstrap/daily synchronization and writes durable index evidence/checkpoints.
-- `icecat-detail` consumes eligible completed index evidence, performs bounded detail requests, and writes governed source-product/localization/attribute evidence.
-- Keep `ICECAT_API_TOKEN`, `ICECAT_USERNAME`/compatibility credentials and `ICECAT_CONTENT_TOKEN` off the Vercel web process unless a separately reviewed server-side feature explicitly requires them.
-- Health ports `8082` and `8083` are intended for the container platform's private health probes, not public customer traffic.
-- Use `BLS_OPEN_ICECAT_RUN_ONCE=true` or `BLS_OPEN_ICECAT_DETAIL_RUN_ONCE=true` only for controlled operator runs; normal production workers remain continuously running.
 
 ### Reporting execution modes
 
@@ -119,7 +106,6 @@ Do not enable async mode unless at least one healthy `reports` worker is running
 
 For schema changes used by reporting, deploy the migration before enabling `BLS_REPORT_ASYNC_ENABLED`; both web and report worker refuse an unexpected application schema version.
 
-For Open Icecat, do not start either worker against a database that has not passed the exact release schema gate. Start/verify `icecat` first so durable index evidence exists, then start `icecat-detail`; the detail worker's queue sync is intentionally safe to repeat and does not publish canonical commerce data.
 
 ## Vercel preview boundary
 
