@@ -112,12 +112,16 @@ async function gemiApiKey(now = Date.now()): Promise<string | undefined> {
   return cache.pending;
 }
 
+export async function gemiAdminCredential(): Promise<string | undefined> {
+  return gemiApiKey();
+}
+
 function gemiBaseUrl(): string {
   return (process.env.GEMI_OPENDATA_BASE_URL?.trim() || DEFAULT_GEMI_BASE_URL).replace(/\/+$/, "");
 }
 
-async function gemiGet(path: string, params: Record<string, string | number | boolean> = {}, attempts = 4): Promise<unknown> {
-  const key = await gemiApiKey();
+async function gemiGet(path: string, params: Record<string, string | number | boolean> = {}, attempts = 4, apiKey?: string): Promise<unknown> {
+  const key = apiKey?.trim() || await gemiApiKey();
   if (!key) throw new Error("ΓΕΜΗ API credential is not configured.");
 
   const url = new URL(`${gemiBaseUrl()}${path}`);
@@ -178,14 +182,14 @@ function normalizeMetadataArray<T>(value: unknown, mapper: (item: Record<string,
   });
 }
 
-export async function gemiAdminMetadata(now = Date.now()): Promise<GemiAdminMetadata> {
+export async function gemiAdminMetadata(now = Date.now(), apiKey?: string): Promise<GemiAdminMetadata> {
   const cache = globals[metadataCacheKey] ?? (globals[metadataCacheKey] = { expiresAt: 0 });
   if (cache.value && cache.expiresAt > now) return cache.value;
 
   const [activitiesRaw, prefecturesRaw, municipalitiesRaw] = await Promise.all([
-    gemiGet("/metadata/activities"),
-    gemiGet("/metadata/prefectures"),
-    gemiGet("/metadata/municipalities")
+    gemiGet("/metadata/activities", {}, 4, apiKey),
+    gemiGet("/metadata/prefectures", {}, 4, apiKey),
+    gemiGet("/metadata/municipalities", {}, 4, apiKey)
   ]);
 
   const activities = normalizeMetadataArray(activitiesRaw, (item) => {
@@ -249,8 +253,8 @@ function searchParams(filters: GemiAdminFilters, offset: number, size: number): 
   };
 }
 
-async function searchCompanies(filters: GemiAdminFilters, offset: number, size: number): Promise<{ totalCount: number; companies: GemiCompany[] }> {
-  const raw = await gemiGet("/companies", searchParams(filters, offset, size)) as SearchResponse;
+async function searchCompanies(filters: GemiAdminFilters, offset: number, size: number, apiKey?: string): Promise<{ totalCount: number; companies: GemiCompany[] }> {
+  const raw = await gemiGet("/companies", searchParams(filters, offset, size), 4, apiKey) as SearchResponse;
   const companies = Array.isArray(raw.searchResults) ? raw.searchResults.filter((item): item is GemiCompany => Boolean(objectField(item))) : [];
   const totalCount = Number(raw.searchMetadata?.totalCount ?? companies.length);
   return { totalCount: Number.isFinite(totalCount) && totalCount >= 0 ? totalCount : companies.length, companies };
@@ -272,8 +276,8 @@ function companyPreview(company: GemiCompany): GemiAdminPreviewRow {
   };
 }
 
-export async function gemiAdminPreview(filters: GemiAdminFilters): Promise<GemiAdminPreview> {
-  const page = await searchCompanies(filters, 0, 25);
+export async function gemiAdminPreview(filters: GemiAdminFilters, apiKey?: string): Promise<GemiAdminPreview> {
+  const page = await searchCompanies(filters, 0, 25, apiKey);
   const rows = page.companies.map(companyPreview);
   return {
     totalCount: page.totalCount,
@@ -380,7 +384,7 @@ function companyCsvRow(company: GemiCompany, filters: GemiAdminFilters): string 
   return values.map(csvCell).join(",") + "\r\n";
 }
 
-export function gemiAdminCsvStream(filters: GemiAdminFilters): ReadableStream<Uint8Array> {
+export function gemiAdminCsvStream(filters: GemiAdminFilters, apiKey?: string): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   let offset = 0;
   let totalCount: number | undefined;
@@ -397,7 +401,7 @@ export function gemiAdminCsvStream(filters: GemiAdminFilters): ReadableStream<Ui
           headerSent = true;
         }
 
-        const page = await searchCompanies(filters, offset, PAGE_SIZE);
+        const page = await searchCompanies(filters, offset, PAGE_SIZE, apiKey);
         if (totalCount === undefined) totalCount = page.totalCount;
 
         if (!page.companies.length) {
