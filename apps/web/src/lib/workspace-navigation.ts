@@ -76,11 +76,11 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     href: "/admin/work",
     icon: "operations",
     section: "Καθημερινή λειτουργία",
-    description: "Παραγγελίες, διανομή και SLA",
+    description: "Παραγγελίες, delivery, SLA και εκκρεμότητες",
     links: [
       { label: "Κέντρο λειτουργιών", href: "/admin/work", icon: "◈", permission: "fulfilment.read" },
       { label: "Παραγγελίες", href: "/admin/orders", icon: "□", permission: "fulfilment.read" },
-      { label: "Delivery Control", href: "/admin/delivery", icon: "⌁", permission: "fulfilment.write" },
+      { label: "Delivery", href: "/admin/delivery", icon: "⌁", permission: "fulfilment.write" },
       { label: "SLA & Escalations", href: "/admin/notifications", icon: "!", permission: "fulfilment.read" }
     ]
   },
@@ -89,11 +89,11 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     href: "/admin/customers",
     icon: "customers",
     section: "Καθημερινή λειτουργία",
-    description: "Πελάτες, Ask Local και υποστήριξη",
+    description: "Customer 360, support και Ask Local",
     links: [
-      { label: "Κατάλογος πελατών", href: "/admin/customers", icon: "◉", permission: "customer.read" },
-      { label: "Ask Local", href: "/admin/ask-local", icon: "◎", permission: "customer.read" },
-      { label: "Υποστήριξη", href: "/admin/customers/support", icon: "?", permission: "customer.read" }
+      { label: "Πελάτες", href: "/admin/customers", icon: "◉", permission: "customer.read" },
+      { label: "Support", href: "/admin/customers/support", icon: "?", permission: "customer.read" },
+      { label: "Ask Local", href: "/admin/ask-local", icon: "◎", permission: "customer.read" }
     ]
   },
   {
@@ -101,16 +101,18 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     href: "/admin/partners",
     icon: "partners",
     section: "Εμπορική διαχείριση",
-    description: "Vendors, pipeline, onboarding και συμφωνίες",
+    description: "Acquisition, onboarding, storefront και partner readiness",
     links: [
-      { label: "Επισκόπηση συνεργατών", href: "/admin/partners", icon: "◎", permission: "vendor.manage" },
-      { label: "Συνεργάτες", href: "/admin/vendors", icon: "◎", permission: "vendor.manage" },
+      { label: "Επισκόπηση", href: "/admin/partners", icon: "◎", permission: "vendor.manage" },
+      { label: "Directory", href: "/admin/vendors", icon: "◉", permission: "vendor.manage" },
       { label: "Pipeline", href: "/admin/partners/pipeline", icon: "◌", permission: "vendor.manage" },
       { label: "Applications", href: "/admin/applications", icon: "▤", permission: "vendor.manage" },
-      { label: "Εμπορικές συμφωνίες", href: "/admin/finance/agreements", icon: "%", permission: "finance.read" },
-      { label: "SLA συμφωνιών", href: "/admin/finance/agreements/sla", icon: "⌛", permission: "finance.read" },
-      { label: "Research leads", href: "/admin/research-vendors", icon: "⌕", permission: "vendor.manage", contextHidden: true },
-      { label: "Onboarding prospects", href: "/admin/prospects", icon: "◌", permission: "vendor.manage", contextHidden: true }
+      { label: "Prospects", href: "/admin/prospects", icon: "◌", permission: "vendor.manage" },
+      { label: "Research", href: "/admin/research-vendors", icon: "⌕", permission: "vendor.manage" },
+      { label: "Partner Network", href: "/admin/partner-network", icon: "◎", permission: "vendor.manage" },
+      { label: "Storefront Design", href: "/admin/partners/design", icon: "◫", permission: "vendor.manage" },
+      { label: "Agreements", href: "/admin/finance/agreements", icon: "%", permission: "finance.read", contextHidden: true },
+      { label: "Agreement SLA", href: "/admin/finance/agreements/sla", icon: "⌛", permission: "finance.read", contextHidden: true }
     ]
   },
   {
@@ -118,76 +120,77 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     href: "/admin/catalogue",
     icon: "catalog",
     section: "Εμπορική διαχείριση",
-    description: "Προϊόντα, intake, matching και taxonomy",
+    description: "Acquire → PIM → Structure → Match → Quality → Assign",
     links: [
-      { label: "Επισκόπηση Καταλόγου", href: "/admin/catalogue", icon: "▦", permission: "catalog.read" },
+      { label: "Overview", href: "/admin/catalogue", icon: "▦", permission: "catalog.read" },
       { label: "Quick Add", href: "/admin/quickadd", icon: "+", permission: "catalog.write" },
-      { label: "Catalogue Intake", href: "/admin/catalogue-intake", icon: "⇩", permission: "catalog.read" },
-      { label: "Attribute Mapping", href: "/admin/catalogue-intake/attributes", icon: "≡", permission: "catalog.read" },
+      { label: "Website Import", href: "/admin/catalogue-crawler", icon: "↗", permission: "catalog.read" },
+      { label: "File Import", href: "/admin/catalogue-intake/import", icon: "↑", permission: "catalog.write" },
+      { label: "Supplier PIM", href: "/admin/catalogue-intake", icon: "⇩", permission: "catalog.read" },
+      { label: "Vendor Matching", href: "/admin/matching", icon: "◇", permission: "catalog.read" },
+      { label: "Structure", href: "/admin/catalogue/structure", icon: "≡", permission: "catalog.read" },
+      { label: "Enrichment QA", href: "/admin/catalogue/enrichment", icon: "✓", permission: "catalog.read" },
+      { label: "Brands", href: "/admin/catalogue/brands", icon: "◉", permission: "catalog.read" },
+      { label: "Manufacturer DB", href: "/admin/catalogue/vitex", icon: "▤", permission: "catalog.read" },
+      { label: "Catalogue Intelligence", href: "/admin/catalogue-intake/intelligence", icon: "◎", permission: "catalog.read", contextHidden: true },
+      { label: "Attribute Matching", href: "/admin/catalogue/attribute-matching", icon: "≡", permission: "catalog.read", contextHidden: true },
+      { label: "Attribute Review", href: "/admin/catalogue/attribute-review", icon: "!", permission: "catalog.read", contextHidden: true },
       { label: "Controlled Values", href: "/admin/catalogue-intake/values", icon: "≡", permission: "catalog.read", contextHidden: true },
-      { label: "Source Import", href: "/admin/catalogue-intake/import", icon: "↑", permission: "catalog.write", contextHidden: true },
-      { label: "Catalogue Crawler", href: "/admin/catalogue-crawler", icon: "↗", permission: "catalog.read" },
-      { label: "Product Matching", href: "/admin/matching", icon: "◇", permission: "catalog.read" },
-      { label: "Κατηγορίες & policies", href: "/admin/categories", icon: "▦", permission: "catalog.read" }
+      { label: "Categories & Policies", href: "/admin/categories", icon: "▦", permission: "catalog.read", contextHidden: true },
+      { label: "Identity Exceptions", href: "/admin/catalogue/exceptions", icon: "!", permission: "catalog.read", contextHidden: true }
     ]
   },
   {
-    label: "Οικονομικά",
+    label: "Οικονομικά & Tax",
     href: "/admin/finance",
     icon: "finance",
     section: "Εμπορική διαχείριση",
-    description: "Settlements, vendor billing, gift cards και myDATA",
+    description: "Payables, invoicing, agreements, VAT και AADE/myDATA",
     links: [
-      { label: "Οικονομική επισκόπηση", href: "/admin/finance", icon: "€", permission: "finance.read" },
+      { label: "Finance", href: "/admin/finance", icon: "€", permission: "finance.read" },
       { label: "Vendor Billing", href: "/admin/finance/vendor-billing", icon: "▤", permission: "finance.read" },
-      { label: "Gift Cards", href: "/admin/gift-cards", icon: "◇", permission: "finance.read", roles: ["super_admin"] },
-      { label: "Tax & myDATA", href: "/admin/tax", icon: "#", permission: "finance.read" }
+      { label: "Agreements", href: "/admin/finance/agreements", icon: "%", permission: "finance.read" },
+      { label: "Agreement SLA", href: "/admin/finance/agreements/sla", icon: "⌛", permission: "finance.read" },
+      { label: "Tax & myDATA", href: "/admin/tax", icon: "#", permission: "finance.read" },
+      { label: "Product VAT Profiles", href: "/admin/finance/mydata/products", icon: "≡", permission: "finance.read" },
+      { label: "Gift Cards", href: "/admin/gift-cards", icon: "◇", permission: "finance.read", roles: ["super_admin"] }
     ]
   },
   {
-    label: "Εμπιστοσύνη",
+    label: "Trust & Governance",
     href: "/admin/trust",
     icon: "trust",
     section: "Διακυβέρνηση & ανάπτυξη",
-    description: "Trust, safety, privacy και fairness",
+    description: "Compliance, safety, reviews, privacy, accessibility και fairness",
     links: [
-      { label: "Trust review", href: "/admin/trust", icon: "✓", permission: "catalog.read" },
-      { label: "Αξιολογήσεις", href: "/admin/reviews", icon: "☆", permission: "reviews.read" },
+      { label: "Trust & Compliance", href: "/admin/trust", icon: "✓", permission: "catalog.read" },
       { label: "Product Safety", href: "/admin/recalls", icon: "!", permission: "returns.read" },
+      { label: "Reviews", href: "/admin/reviews", icon: "☆", permission: "reviews.read" },
       { label: "Privacy", href: "/admin/privacy", icon: "◐", permission: "privacy.read" },
       { label: "Accessibility", href: "/admin/accessibility", icon: "◎", permission: "accessibility.read" },
       { label: "Fairness", href: "/admin/fairness", icon: "⚖", permission: "fairness.read" }
     ]
   },
   {
-    label: "Περιεχόμενο",
+    label: "Content & Visibility",
     href: "/admin/content",
     icon: "content",
     section: "Διακυβέρνηση & ανάπτυξη",
-    description: "CMS, homepage και email operations",
+    description: "CMS, homepage, email και search visibility",
     links: [
-      { label: "Content Operations", href: "/admin/content", icon: "✎", permission: "content.read" },
+      { label: "Content", href: "/admin/content", icon: "✎", permission: "content.read" },
       { label: "Homepage", href: "/admin/hero", icon: "▣", permission: "content.write" },
-      { label: "Email Templates", href: "/admin/email-lab", icon: "✉", permission: "notifications.manage" }
-    ]
-  },
-  {
-    label: "SEO & Visibility",
-    href: "/admin/seo",
-    icon: "search",
-    section: "Διακυβέρνηση & ανάπτυξη",
-    description: "Indexability, Google, crawl, schema και production visibility",
-    links: [
-      { label: "Overview", href: "/admin/seo", icon: "⌕", permission: "content.read" },
-      { label: "Pages", href: "/admin/seo/pages", icon: "▤", permission: "content.read" },
-      { label: "Issues", href: "/admin/seo/issues", icon: "!", permission: "content.read" },
-      { label: "Crawl", href: "/admin/seo/crawl", icon: "↗", permission: "content.read" },
-      { label: "Sitemaps", href: "/admin/seo/sitemaps", icon: "≡", permission: "content.read" },
+      { label: "Email", href: "/admin/email-lab", icon: "✉", permission: "notifications.manage" },
+      { label: "SEO Overview", href: "/admin/seo", icon: "⌕", permission: "content.read" },
+      { label: "SEO Issues", href: "/admin/seo/issues", icon: "!", permission: "content.read" },
+      { label: "SEO Pages", href: "/admin/seo/pages", icon: "▤", permission: "content.read" },
       { label: "Search Console", href: "/admin/seo/search-console", icon: "G", permission: "content.read" },
-      { label: "Google Coverage", href: "/admin/seo/search-console/index-coverage", icon: "◎", permission: "content.read" },
-      { label: "Schema", href: "/admin/seo/schema", icon: "◇", permission: "content.read" },
-      { label: "Reports", href: "/admin/seo/reports", icon: "▤", permission: "content.read" },
-      { label: "Production", href: "/admin/seo/production", icon: "◉", permission: "content.read" }
+      { label: "Production Visibility", href: "/admin/seo/production", icon: "◉", permission: "content.read" },
+      { label: "Crawl", href: "/admin/seo/crawl", icon: "↗", permission: "content.read", contextHidden: true },
+      { label: "Sitemaps", href: "/admin/seo/sitemaps", icon: "≡", permission: "content.read", contextHidden: true },
+      { label: "Google Coverage", href: "/admin/seo/search-console/index-coverage", icon: "◎", permission: "content.read", contextHidden: true },
+      { label: "Schema", href: "/admin/seo/schema", icon: "◇", permission: "content.read", contextHidden: true },
+      { label: "SEO Reports", href: "/admin/seo/reports", icon: "▤", permission: "content.read", contextHidden: true }
     ]
   },
   {
@@ -195,10 +198,10 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     href: "/admin/analytics",
     icon: "analytics",
     section: "Διακυβέρνηση & ανάπτυξη",
-    description: "Marketplace intelligence, demand και reports",
+    description: "Performance, demand intelligence και reports",
     links: [
-      { label: "Analytics", href: "/admin/analytics", icon: "∿", permission: "analytics.market.read" },
-      { label: "Demand Intelligence", href: "/admin/demand", icon: "◎", permission: "analytics.market.read" },
+      { label: "Performance", href: "/admin/analytics", icon: "∿", permission: "analytics.market.read" },
+      { label: "Demand", href: "/admin/demand", icon: "◎", permission: "analytics.market.read" },
       { label: "Reports", href: "/admin/reports", icon: "▤", permission: "analytics.market.read" }
     ]
   },
@@ -207,13 +210,13 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     href: "/admin/platform",
     icon: "platform",
     section: "Σύστημα",
-    description: "Health, integrations, jobs και launch readiness",
+    description: "Health, audit, jobs, integrations και production readiness",
     links: [
-      { label: "Platform overview", href: "/admin/platform", icon: "⚙", permission: "admin.audit.read" },
-      { label: "System Health & Audit", href: "/admin/operations", icon: "◉", permission: "admin.audit.read" },
-      { label: "BOX NOW Integration", href: "/admin/shipping", icon: "↗", permission: "fulfilment.write" },
+      { label: "Overview", href: "/admin/platform", icon: "⚙", permission: "admin.audit.read" },
+      { label: "Health & Audit", href: "/admin/operations", icon: "◉", permission: "admin.audit.read" },
       { label: "Jobs", href: "/admin/maintenance", icon: "⋯", permission: "admin.audit.read" },
-      { label: "Launch Readiness", href: "/admin/activation", icon: "◈", permission: "admin.audit.read" }
+      { label: "Production Readiness", href: "/admin/activation", icon: "◈", permission: "admin.audit.read" },
+      { label: "BOX NOW", href: "/admin/shipping", icon: "↗", permission: "fulfilment.write", contextHidden: true }
     ]
   }
 ];
