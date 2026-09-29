@@ -11,6 +11,7 @@ type Props = Readonly<{
   csrfToken: string;
   vendorId: string;
   mediaUploadMode: "direct" | "development_memory" | "gated";
+  mediaReadinessMessage: string;
   assignments: readonly VendorProfileMediaAssignment[];
   canApprove: boolean;
 }>;
@@ -38,7 +39,7 @@ function adminPreviewPath(mediaId: string): string {
   return `/api/admin/vendor-design/media-preview/${encodeURIComponent(mediaId)}`;
 }
 
-export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadMode, assignments, canApprove }: Props) {
+export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadMode, mediaReadinessMessage, assignments, canApprove }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -53,7 +54,7 @@ export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadM
     setBusy(true);
     setError("");
     try {
-      if (mediaUploadMode !== "direct") throw new Error("The production media pipeline is not ready for direct uploads.");
+      if (mediaUploadMode !== "direct") throw new Error(`Media upload unavailable: ${mediaReadinessMessage}`);
       const form = new FormData(formElement);
       const file = form.get("file");
       const profileRole = String(form.get("profileRole") ?? "") as Role;
@@ -135,7 +136,7 @@ export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadM
 
     <section className="vendor-section section-tint"><div>
       <WorkspaceSectionHeading eyebrow="Upload" title="Add or replace storefront media" note="Admin uploads use the same private storage, automated malware scan, rights review and moderation workflow as vendor uploads." />
-      {mediaUploadMode !== "direct" && <div className="workspace-inline-note">Direct media upload is currently gated by production storage / scanner configuration. Existing published media remains available.</div>}
+      {mediaUploadMode !== "direct" && <div className="workspace-inline-note" role="status"><strong>Media upload unavailable.</strong> {mediaReadinessMessage}. Storefront text/location editing and existing published media remain available.</div>}
       <details className="workspace-tool-panel" open>
         <summary><span><strong>New storefront image</strong><small>JPEG, PNG or WebP</small></span></summary>
         <div className="workspace-tool-body">
