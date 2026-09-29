@@ -16,9 +16,10 @@ export const dynamicParams = true;
 const PRODUCT_LIMIT = 12;
 
 export function generateStaticParams() {
-  // Editorial collections are a tiny, fixed crawl surface. Generate all current
-  // slugs at deploy time so releases start warm instead of making the first visitor
-  // wait for the sequential bounded catalogue slices. ISR still refreshes every 5m.
+  // Vercel builds have the live storefront projections needed to ship the small
+  // editorial crawl surface warm. Portable CI/local builds keep on-demand ISR so
+  // they do not require production-only read models during next build.
+  if (process.env.VERCEL !== "1") return [];
   return EDITORIAL_COLLECTIONS.map((collection) => ({ slug: collection.slug }));
 }
 
