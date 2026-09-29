@@ -8,8 +8,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      VERCEL_ENV: preview
-      VERCEL_TARGET_ENV: preview
+      VERCEL_ENV: production
+      VERCEL_TARGET_ENV: production
+      MOLLIE_PAYMENTS_ENABLED: "true"
+      MOLLIE_API_KEY: live_diagnostic_only
+      MOLLIE_PUBLIC_BASE_URL: https://kontamou.site
+      BLS_PRODUCTION_SCHEMA_STATUS_ORIGIN: https://kontamou.site
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
