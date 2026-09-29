@@ -1,6 +1,5 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import {
-  DEFAULT_MANAGED_MARKET_ID,
   verifyPassword,
   type AuthSession,
   type DatabaseScope,
@@ -103,11 +102,11 @@ export class PostgresVendorAuthService {
 }
 
 /**
- * Backwards-compatible scope for the existing managed Sparta marketplace.
- * Expansion runtimes must use vendorScopeForMarket with their resolved market/hub context.
+ * Default vendor scope follows vendor_businesses.market_id via PostgresUnitOfWork.
+ * Callers that intentionally need to pin a market can use vendorScopeForMarket.
  */
 export function vendorScope(userId: string, vendorId: string, requestId?: string): DatabaseScope {
-  return vendorScopeForMarket(userId, vendorId, DEFAULT_MANAGED_MARKET_ID, requestId);
+  return { actorUserId: userId, vendorId, requestId };
 }
 
 export function vendorScopeForMarket(userId: string, vendorId: string, marketId: string, requestId?: string): DatabaseScope {
