@@ -224,14 +224,14 @@ function boundedInt(value: unknown, fallback: number, maximum: number): number {
  * hydrated with catalogue metadata and media. The previous path hydrated every
  * assigned local item on every supplier page just to learn the local row count.
  */
-export async function getVendorLocalCatalogPage(
+async function readVendorLocalCatalogPage(
   vendorId: string,
-  input: Readonly<{ offset?: number; limit?: number; availableOnly?: boolean }> = {}
+  offset: number,
+  limit: number,
+  availableOnly: boolean
 ): Promise<VendorLocalCatalogPage> {
-  const offset = boundedInt(input.offset, 0, 100_000);
-  const limit = Math.max(1, boundedInt(input.limit, 20, 60));
   const rows = await loadVendorLocalCatalogRows(vendorId);
-  const filtered = input.availableOnly
+  const filtered = availableOnly
     ? rows.filter((row) => safeMinor(row.available_to_sell) > 0)
     : rows;
   const sorted = [...filtered].sort((left, right) =>
@@ -241,6 +241,21 @@ export async function getVendorLocalCatalogPage(
   const pageRows = sorted.slice(offset, Math.min(sorted.length, offset + limit));
   const products = await hydrateVendorLocalCatalogRows(vendorId, pageRows);
   return { products, total: sorted.length, offset, limit };
+}
+
+const cachedVendorLocalCatalogPage = unstable_cache(
+  readVendorLocalCatalogPage,
+  ["vendor-local-catalog-page-v1"],
+  { revalidate: 15 }
+);
+
+export async function getVendorLocalCatalogPage(
+  vendorId: string,
+  input: Readonly<{ offset?: number; limit?: number; availableOnly?: boolean }> = {}
+): Promise<VendorLocalCatalogPage> {
+  const offset = boundedInt(input.offset, 0, 100_000);
+  const limit = Math.max(1, boundedInt(input.limit, 20, 60));
+  return cachedVendorLocalCatalogPage(vendorId, offset, limit, input.availableOnly === true);
 }
 
 export async function getVendorLocalCatalogFacetCards(vendorId: string): Promise<readonly CatalogCard[]> {
