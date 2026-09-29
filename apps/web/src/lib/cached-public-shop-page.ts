@@ -28,14 +28,14 @@ const cachedLocalShopPresence = unstable_cache(
     return result.rows[0]?.available === true;
   },
   ["public-shop-local-presence-v1"],
-  { revalidate: 15 }
+  { revalidate: 120 }
 );
 
 const cachedPublishedDropshipPage = unstable_cache(
   async (input: PublishedDropshipCatalogPageInput): Promise<PublishedDropshipCatalogPage> =>
     getPublishedDropshipCatalogPage(input),
   ["public-shop-dropship-page-v1"],
-  { revalidate: 30 }
+  { revalidate: 300 }
 );
 
 const cachedCrawlerCatalogPage = unstable_cache(
@@ -54,7 +54,7 @@ const cachedCrawlerCatalogPage = unstable_cache(
       limit
     ),
   ["public-shop-crawler-cards-v1"],
-  { revalidate: 60 }
+  { revalidate: 300 }
 );
 
 function stableFiltersJson(filters: CrawlerCatalogFilters): string {
