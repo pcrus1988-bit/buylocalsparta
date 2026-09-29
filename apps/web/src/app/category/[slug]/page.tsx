@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { CategoryCatalogBrowser } from "../../../components/CategoryCatalogBrowser";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
-import { getCachedShopTaxonomy } from "../../../lib/cached-shop-taxonomy";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
 import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
@@ -12,7 +11,7 @@ import { productPublicPath } from "../../../lib/product-url";
 import { getCachedCrawlerCatalogCards } from "../../../lib/cached-public-shop-page";
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
 
-export const revalidate = 60;
+export const revalidate = 300;
 export const dynamicParams = true;
 
 const CATEGORY_PAGE_SIZE = 30;
@@ -69,16 +68,13 @@ export default async function CategoryPage({ params }: Props) {
 
   const settingsPromise = getSeoGlobalSettingsSnapshot();
   const overridesPromise = getSeoEntityOverridesSnapshot();
-  const taxonomyPromise = getCachedShopTaxonomy(category.slug, "", {}, "23100");
-  const [products, taxonomy, { settings }, overrideSnapshot] = await Promise.all([
+  const [products, { settings }, overrideSnapshot] = await Promise.all([
     getBoundedCategoryProducts(category.slug),
-    taxonomyPromise,
     settingsPromise,
     overridesPromise
   ]);
   const purchasableProducts = products.filter((product) => product.available && product.priceMinor > 0 && Boolean(product.vendorId));
-  const availableCategories = taxonomy.categories;
-  const siblings = availableCategories.filter((item) => item.slug !== category.slug);
+  const siblings = STOREFRONT_CATEGORIES.filter((item) => item.slug !== category.slug);
   const availableProducts = purchasableProducts;
   const entityEligible = availableProducts.length > 0;
   const reference: SeoEntityReference = { kind: "category", id: category.slug };
