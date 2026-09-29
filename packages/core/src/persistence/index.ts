@@ -29,5 +29,3 @@ export * from "./postgres-promotions.ts";
 export * from "./postgres-privacy.ts";
 
 export * from "./postgres-engagement.ts";
-export * from "./postgres-open-icecat-bulk.ts";
-export * from "./postgres-open-icecat-detail.ts";
