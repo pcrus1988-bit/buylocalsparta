@@ -180,7 +180,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
         </section>
 
         <section className="shell vendor-section">
-          <AdminVendorDesignMediaClient csrfToken={workspace.csrfToken} vendorId={selectedShop.id} mediaUploadMode={mediaUploadMode()} mediaReadinessMessage={mediaReadiness.message} assignments={assignments} canApprove={canApproveMedia} />
+          <AdminVendorDesignMediaClient csrfToken={workspace.csrfToken} vendorId={selectedShop.id} mediaUploadMode={mediaUploadMode()} mediaReadiness={mediaReadiness} mediaReadinessMessage={mediaReadiness.message} assignments={assignments} canApprove={canApproveMedia} />
         </section>
       </> : <section className="shell vendor-section"><WorkspaceSectionHeading eyebrow="Partner design" title="No vendor records are available yet" note="Once a research prospect or application exists it will appear in the selector above." /></section>}
   </main>;
