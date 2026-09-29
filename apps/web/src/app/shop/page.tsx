@@ -158,11 +158,11 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   let subcategory = requestedSubcategory;
   let filters = { subcategory, brand, color, size };
 
-  // Audience detection and the non-personal catalogue vocabulary are independent.
-  // Start both immediately; taxonomy is cached for three minutes by its wrapper.
-  const audiencePromise = isReadOnlyPublicCrawlerRequest();
+  // Local-stock presence and taxonomy are independent cached reads. Start both
+  // immediately. If no live local stock exists, the entire product path is public
+  // dropship data and does not need crawler classification or visitor identity.
+  const localProductsAvailablePromise = hasLiveLocalShopProducts();
   let taxonomy = await getCachedShopTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
-  const readOnlyCrawler = await audiencePromise;
 
   const inferredSubcategory = requestedSubcategory || requestedGuideSubcategories.length
     ? undefined
@@ -191,7 +191,9 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const allowDropship = searchIntent.availability !== "pickup_today";
   let products: ShopCard[] = [];
   let hasNextPage = false;
-  const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
+  const localProductsAvailable = await localProductsAvailablePromise;
+  const readOnlyCrawler = localProductsAvailable ? await isReadOnlyPublicCrawlerRequest() : false;
+  let visitorKey = localProductsAvailable && !readOnlyCrawler ? await getVisitorKey() : "";
 
   if (readOnlyCrawler) {
     let crawlerProducts = [...await getCachedCrawlerCatalogCards(
@@ -225,8 +227,6 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       products.push(...dropshipPage.products.filter((product) => !seen.has(product.id)).slice(0, remaining));
     }
   } else {
-    const localProductsAvailable = await hasLiveLocalShopProducts();
-
     if (!localProductsAvailable) {
       // When there is no live local-stock catalogue, avoid performing visitor-specific
       // fairness/assignment work only to discover an empty local window. Dropship
@@ -304,7 +304,11 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   if (sort === "price-asc") products.sort((a, b) => a.priceMinor - b.priceMinor);
   if (sort === "price-desc") products.sort((a, b) => b.priceMinor - a.priceMinor);
 
-  if (!readOnlyCrawler) {
+  if (!readOnlyCrawler && query) {
+    // Search analytics needs a stable visitor digest, but an empty/default browse
+    // is never recorded by recordStorefrontSearchAnalytics. Avoid touching request
+    // identity on the common dropship-only landing page solely for a guaranteed no-op.
+    if (!visitorKey) visitorKey = await getVisitorKey();
     const analyticsPayload = {
       visitorKey,
       query,
