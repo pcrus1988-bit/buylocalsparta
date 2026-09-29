@@ -32,8 +32,21 @@ export function isPublicCatalogueTitle(title: string): boolean {
  * should use readable unit and punctuation spacing. Keep this deliberately narrow:
  * do not translate wording, rewrite brands/model codes, or touch decimal commas.
  */
+function collapseAdjacentTitleSegments(title: string): string {
+  const segments = title.split(/,\s+/u);
+  if (segments.length < 2) return title;
+  const result: string[] = [];
+  for (const segment of segments) {
+    const normalized = segment.trim().toLocaleLowerCase("el-GR");
+    const previous = result.at(-1)?.trim().toLocaleLowerCase("el-GR");
+    if (normalized && normalized === previous) continue;
+    result.push(segment);
+  }
+  return result.join(", ");
+}
+
 export function publicCatalogueTitleLabel(title: string): string {
-  return title
+  const normalized = title
     .trim()
     .replace(/\s+/g, " ")
     .replace(/(\d+(?:[.,]\d+)?)\s*Ton\b/giu, "$1 t")
@@ -43,6 +56,7 @@ export function publicCatalogueTitleLabel(title: string): string {
     .replace(/([^\d\s]),(?=\d)/gu, "$1, ")
     .replace(/\s+/g, " ")
     .trim();
+  return collapseAdjacentTitleSegments(normalized);
 }
 
 /**
