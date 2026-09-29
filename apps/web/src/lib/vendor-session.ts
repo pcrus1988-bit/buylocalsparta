@@ -22,7 +22,8 @@ export async function vendorOperatingContextForPrincipal(
   principal: SessionPrincipal,
   assignment?: VendorOperatingAssignment
 ): Promise<VendorOperatingContext> {
-  return vendorOperatingContextForPrincipal(principal, assignment);
+  const resolvedAssignment = assignment ?? await resolveVendorOperatingAssignment(principal);
+  return buildVendorOperatingContextFromSession(principal, resolvedAssignment);
 }
 
 export async function getVendorOperatingContext(
