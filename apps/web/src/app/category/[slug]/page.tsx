@@ -19,9 +19,10 @@ const CATEGORY_PAGE_SIZE = 30;
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
 export function generateStaticParams() {
-  // These are a small, governed set of crawl-critical discovery routes. Pre-render
-  // them during deployment so the first shopper or crawler after a release never
-  // pays the catalogue/database warm-up cost. ISR keeps them fresh every 5 minutes.
+  // Production/preview Vercel builds have the live storefront read projections and
+  // should ship these crawl-critical routes warm. Portable CI/local builds may use
+  // a reduced acceptance schema, so they retain on-demand ISR via dynamicParams.
+  if (process.env.VERCEL !== "1") return [];
   return STOREFRONT_CATEGORIES.map((category) => ({ slug: category.slug }));
 }
 
