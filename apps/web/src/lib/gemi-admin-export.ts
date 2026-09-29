@@ -3,6 +3,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 const DEFAULT_GEMI_BASE_URL = "https://opendata-api.businessportal.gr/api/opendata/v1";
 const DEFAULT_TIMEOUT_MS = 15_000;
 const METADATA_TTL_MS = 6 * 60 * 60 * 1000;
+const CREDENTIAL_TTL_MS = 12 * 60 * 60 * 1000;
 const PAGE_SIZE = 200;
 
 export type GemiAdminActivity = Readonly<{
@@ -67,22 +68,48 @@ type SearchResponse = Readonly<{
 }>;
 
 type MetadataCache = { value?: GemiAdminMetadata; expiresAt: number };
+type CredentialCache = { value?: string; expiresAt: number; pending?: Promise<string | undefined> };
 const metadataCacheKey = "__kontaMouGemiAdminMetadata" as const;
-type Globals = typeof globalThis & { [metadataCacheKey]?: MetadataCache };
+const credentialCacheKey = "__kontaMouGemiAdminCredential" as const;
+type Globals = typeof globalThis & {
+  [metadataCacheKey]?: MetadataCache;
+  [credentialCacheKey]?: CredentialCache;
+};
 const globals = globalThis as Globals;
 
-async function gemiApiKey(): Promise<string | undefined> {
+async function gemiApiKey(now = Date.now()): Promise<string | undefined> {
   const direct = process.env.GEMI_OPENDATA_API_KEY?.trim();
   if (direct) return direct;
+
+  const cache = globals[credentialCacheKey] ?? (globals[credentialCacheKey] = { expiresAt: 0 });
+  if (cache.value && cache.expiresAt > now) return cache.value;
+  if (cache.pending) return cache.pending;
   if (!productionDatabaseConfigured()) return undefined;
-  try {
-    const result = await getProductionPostgresRuntime().nativePool.query<{ decrypted_secret: string | null }>(
-      "SELECT bls_private.get_gemi_opendata_api_key() AS decrypted_secret"
-    );
-    return result.rows[0]?.decrypted_secret?.trim() || undefined;
-  } catch {
-    return undefined;
-  }
+
+  cache.pending = (async () => {
+    try {
+      const result = await getProductionPostgresRuntime().nativePool.query<{ decrypted_secret: string | null }>(
+        "SELECT bls_private.get_gemi_opendata_api_key() AS decrypted_secret"
+      );
+      const value = result.rows[0]?.decrypted_secret?.trim() || undefined;
+      if (value) {
+        cache.value = value;
+        cache.expiresAt = Date.now() + CREDENTIAL_TTL_MS;
+      }
+      return value;
+    } catch (error) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "gemi.admin_credential_lookup_failed",
+        message: error instanceof Error ? error.message : String(error)
+      }));
+      return undefined;
+    } finally {
+      cache.pending = undefined;
+    }
+  })();
+
+  return cache.pending;
 }
 
 function gemiBaseUrl(): string {
