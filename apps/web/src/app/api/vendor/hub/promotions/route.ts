@@ -1,5 +1,5 @@
-import { requireVendorCapability } from "../../../../../../lib/vendor-session";
-import { requestVendorHubPromotion } from "../../../../../../lib/vendor-hub-controls-service";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
+import { requestVendorHubPromotion } from "../../../../../lib/vendor-hub-controls-service";
 
 export async function POST(request: Request) {
   try {
