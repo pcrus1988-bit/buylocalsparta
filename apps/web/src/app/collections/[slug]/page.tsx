@@ -16,9 +16,10 @@ export const dynamicParams = true;
 const PRODUCT_LIMIT = 12;
 
 export function generateStaticParams() {
-  // Avoid a build-time catalogue fan-out. Editorial collections are generated
-  // on demand, cached by ISR, and refreshed at the route revalidation interval.
-  return [];
+  // Editorial collections are a tiny, fixed crawl surface. Generate all current
+  // slugs at deploy time so releases start warm instead of making the first visitor
+  // wait for the sequential bounded catalogue slices. ISR still refreshes every 5m.
+  return EDITORIAL_COLLECTIONS.map((collection) => ({ slug: collection.slug }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
