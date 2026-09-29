@@ -19,6 +19,14 @@ const checksum = JSON.parse(read("db/migrations/checksums.0291.json")) as Record
 const hardeningChecksum = JSON.parse(read("db/migrations/checksums.0292.json")) as Record<string, string>;
 const scopeChecksum = JSON.parse(read("db/migrations/checksums.0293.json")) as Record<string, string>;
 const postgresRuntime = read("packages/postgres-runtime/src/index.ts");
+const sqlScope = read("packages/core/src/persistence/sql.ts");
+const vendorAuth = read("packages/postgres-runtime/src/vendor-auth.ts");
+const vendorRuntime = read("apps/web/src/lib/vendor-runtime.ts");
+const boxNowShipping = read("packages/postgres-runtime/src/boxnow-shipping.ts");
+const localDeliveryContact = vendorRuntime.slice(
+  vendorRuntime.indexOf("export async function vendorLocalDeliveryContact"),
+  vendorRuntime.indexOf("export async function updateVendorStock")
+);
 
 const routes = {
   localDelivery: read("apps/web/src/app/api/vendor/hub/local-delivery/route.ts"),
@@ -45,6 +53,17 @@ requireText(page, 'context.operatingModel !== "SELF_GOVERNED"', "HUB Control Cen
 requireText(page, 'redirect("/vendor")', "MANAGED vendors must be redirected away from HUB Control Centre");
 requireText(navigation, 'vendorCapability: "local_delivery.manage"', "HUB navigation must be capability-gated");
 requireText(nextConfig, '"/vendor/hub/:path*"', "HUB private routes must be centrally noindex/no-store");
+
+requireText(sqlScope, "Vendor-facing transactions inherit the authoritative market assigned to the vendor", "PostgresUnitOfWork must derive vendor market scope when callers omit marketId");
+requireText(sqlScope, "SELECT market_id::text", "Vendor market derivation must read vendor_businesses.market_id");
+requireText(sqlScope, "current_setting('app.vendor_id', true)", "Vendor market derivation must bind to the already-resolved vendor scope");
+forbidText(vendorAuth, "DEFAULT_MANAGED_MARKET_ID", "Generic vendor scope must not silently default to Sparta");
+requireText(vendorAuth, "return { actorUserId: userId, vendorId, requestId };", "Generic vendor scope must defer market resolution to the persisted vendor assignment");
+forbidText(localDeliveryContact, 'marketId: "sparta"', "Local-delivery contact access must not force the Sparta market");
+forbidText(boxNowShipping, 'marketId:"sparta"', "BOX NOW shipping must not force compact Sparta transaction scopes");
+forbidText(boxNowShipping, 'marketId: "sparta"', "BOX NOW shipping must not force Sparta transaction scopes");
+requireText(boxNowShipping, "async #confirm(vendorPublicId:string", "BOX NOW confirmation must retain the initiating vendor scope");
+requireText(boxNowShipping, "{vendorId:vendorPublicId,platformAccess:true}", "BOX NOW provider confirmation/recovery must derive market from the initiating vendor");
 
 requireText(routes.localDelivery, 'requireVendorCapability("local_delivery.manage"', "Local delivery API must require local_delivery.manage");
 requireText(routes.seo, 'requireVendorCapability("seo.source_data.manage"', "SEO API must require seo.source_data.manage");
@@ -110,4 +129,4 @@ if (errors.length) {
   console.error("SELF_GOVERNED HUB controls acceptance failed:\n- " + errors.join("\n- "));
   process.exit(1);
 }
-console.log("SELF_GOVERNED HUB controls acceptance OK: vendor-owned controls are scoped, capability-gated and platform-governed writes remain approval-based.");
+console.log("SELF_GOVERNED HUB controls acceptance OK: vendor-owned controls are capability-gated, market-scoped and platform-governed writes remain approval-based.");
