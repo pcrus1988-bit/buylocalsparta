@@ -1,0 +1,51 @@
+name: SELF_GOVERNED HUB Controls Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/app/vendor/hub/**"
+      - "apps/web/src/app/api/vendor/hub/**"
+      - "apps/web/src/components/VendorHubControlsClient.tsx"
+      - "apps/web/src/lib/vendor-hub-controls-service.ts"
+      - "apps/web/src/lib/workspace-navigation.ts"
+      - "apps/web/next.config.ts"
+      - "packages/core/src/vendor/operating-context.ts"
+      - "packages/postgres-runtime/src/index.ts"
+      - "db/migrations/0291_self_governed_hub_vendor_controls.sql"
+      - "db/migrations/0292_self_governed_hub_vendor_controls_advisor_hardening.sql"
+      - "db/migrations/0293_self_governed_hub_scope_helpers.sql"
+      - "db/migrations/checksums.0291.json"
+      - "db/migrations/checksums.0292.json"
+      - "db/migrations/checksums.0293.json"
+      - "scripts/verify-self-governed-hub-controls.ts"
+      - ".github/workflows/self-governed-hub-controls-acceptance.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/src/app/vendor/hub/**"
+      - "apps/web/src/app/api/vendor/hub/**"
+      - "apps/web/src/components/VendorHubControlsClient.tsx"
+      - "apps/web/src/lib/vendor-hub-controls-service.ts"
+      - "apps/web/src/lib/workspace-navigation.ts"
+      - "apps/web/next.config.ts"
+      - "packages/core/src/vendor/operating-context.ts"
+      - "packages/postgres-runtime/src/index.ts"
+      - "db/migrations/0291_self_governed_hub_vendor_controls.sql"
+      - "db/migrations/0292_self_governed_hub_vendor_controls_advisor_hardening.sql"
+      - "db/migrations/0293_self_governed_hub_scope_helpers.sql"
+      - "db/migrations/checksums.0291.json"
+      - "db/migrations/checksums.0292.json"
+      - "db/migrations/checksums.0293.json"
+      - "scripts/verify-self-governed-hub-controls.ts"
+      - ".github/workflows/self-governed-hub-controls-acceptance.yml"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify SELF_GOVERNED HUB control boundaries
+        run: node --experimental-strip-types scripts/verify-self-governed-hub-controls.ts
