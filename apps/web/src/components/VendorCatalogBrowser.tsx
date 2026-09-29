@@ -598,7 +598,9 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
       } finally {
         if (serial === facetRequestSerial.current) setFacetsLoading(false);
       }
-    }, query.trim() ? 220 : 60);
+    // Facets/counts are enrichment, not first-paint data. Give the first cards a
+    // quiet network/DB window before starting catalogue-wide aggregation.
+    }, query.trim() ? 1200 : 1200);
     return () => {
       window.clearTimeout(timer);
       controller.abort();
