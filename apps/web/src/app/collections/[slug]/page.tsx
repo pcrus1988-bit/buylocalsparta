@@ -4,15 +4,14 @@ import { CatalogProductCard } from "../../../components/CatalogProductCard";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import type { CatalogCard } from "../../../lib/catalog-view";
-import { getCrawlerCatalogCards } from "../../../lib/crawler-catalog";
+import { getCachedCrawlerCatalogCards } from "../../../lib/cached-public-shop-page";
 import { EDITORIAL_COLLECTIONS, editorialCollectionBySlug, legacyEditorialCollectionRedirect } from "../../../lib/editorial-collections";
-import { getPublishedDropshipCatalogPage } from "../../../lib/published-dropship-catalog-page";
-import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
-import { getShopCatalogPage } from "../../../lib/shop-catalog-page";
-import { getVisitorKey } from "../../../lib/visitor";
 import styles from "./editorial-collection.module.css";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
+
+export const revalidate = 60;
+export const dynamicParams = false;
 
 const PRODUCT_LIMIT = 12;
 
@@ -46,56 +45,28 @@ function uniqueProducts(products: readonly CatalogCard[]): CatalogCard[] {
 }
 
 async function boundedCollectionSlice(
-  visitorKey: string,
-  readOnlyCrawler: boolean,
   query: string,
   category: string,
   limit: number
 ): Promise<readonly CatalogCard[]> {
   if (limit <= 0) return [];
-  if (readOnlyCrawler) {
-    return getCrawlerCatalogCards("23100", query, category, {}, limit);
-  }
-
-  const localPage = await getShopCatalogPage({
-    visitorKey,
-    postcode: "23100",
-    query,
-    category,
-    limit,
-    offset: 0
-  });
-  const local = uniqueProducts(localPage.products);
-  if (local.length >= limit) return local.slice(0, limit);
-
-  const remaining = limit - local.length;
-  const dropshipPage = await getPublishedDropshipCatalogPage({
-    query,
-    category,
-    limit: remaining,
-    offset: 0
-  });
-  return uniqueProducts([...local, ...dropshipPage.products]).slice(0, limit);
+  return getCachedCrawlerCatalogCards("23100", query, category, {}, limit);
 }
 
-async function liveCollectionProducts(slug: string, visitorKey: string, readOnlyCrawler: boolean): Promise<readonly CatalogCard[]> {
+async function liveCollectionProducts(slug: string): Promise<readonly CatalogCard[]> {
   const collection = editorialCollectionBySlug(slug);
   if (!collection) return [];
 
   let products: CatalogCard[] = [];
   try {
-    for (const search of collection.searches) {
-      const remaining = PRODUCT_LIMIT - products.length;
-      if (remaining <= 0) break;
-      const next = await boundedCollectionSlice(
-        visitorKey,
-        readOnlyCrawler,
+    const batches = await Promise.all(collection.searches.map((search) =>
+      boundedCollectionSlice(
         search.query ?? "",
         search.category,
-        Math.min(search.limit, remaining)
-      );
-      products = uniqueProducts([...products, ...next]);
-    }
+        Math.min(search.limit, PRODUCT_LIMIT)
+      )
+    ));
+    products = uniqueProducts(batches.flat()).slice(0, PRODUCT_LIMIT);
 
     // A collection should stay on-theme even when one leaf temporarily thins out.
     // If needed, top up only from its first curated leaf rather than from the whole catalogue.
@@ -103,8 +74,6 @@ async function liveCollectionProducts(slug: string, visitorKey: string, readOnly
     if (products.length < 6 && fallbackSearch) {
       const remaining = PRODUCT_LIMIT - products.length;
       const fallback = await boundedCollectionSlice(
-        visitorKey,
-        readOnlyCrawler,
         fallbackSearch.query ?? "",
         fallbackSearch.category,
         remaining
@@ -130,9 +99,7 @@ export default async function EditorialCollectionPage({ params }: Props) {
     if (legacyTarget) redirect(legacyTarget);
     notFound();
   }
-  const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
-  const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
-  const products = await liveCollectionProducts(collection.slug, visitorKey, readOnlyCrawler);
+  const products = await liveCollectionProducts(collection.slug);
   const accentClass = collection.accent === "mountain"
     ? styles.accentMountain
     : collection.accent === "home"
