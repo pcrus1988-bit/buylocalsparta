@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { formatMoney, money } from "@buy-local-sparta/core";
 import type { CatalogCard } from "./catalog-view";
 import { loadCatalogDepartmentCodes } from "./catalog-category-department";
@@ -42,7 +43,7 @@ function safeMinor(value: unknown): number {
  * authoritative stock exist. This keeps "assigned to this shop" distinct from
  * "purchasable now" without making the assigned catalogue disappear.
  */
-async function loadVendorLocalCatalogRows(vendorId: string): Promise<readonly LocalVendorCatalogRow[]> {
+async function readVendorLocalCatalogRows(vendorId: string): Promise<readonly LocalVendorCatalogRow[]> {
   if (!productionDatabaseConfigured()) return [];
 
   const pool = getProductionPostgresRuntime().nativePool;
@@ -77,6 +78,7 @@ async function loadVendorLocalCatalogRows(vendorId: string): Promise<readonly Lo
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
       WHERE v.public_id=$1
         AND v.status='active'
+        AND COALESCE(vo.source_payload->>'dropship','false') <> 'true'
         AND dso.id IS NULL
         AND cv.active=true
         AND cv.suppressed=false
@@ -138,6 +140,12 @@ async function loadVendorLocalCatalogRows(vendorId: string): Promise<readonly Lo
 
   return result.rows.filter((row) => row.id && row.slug && isPublicCatalogueTitle(row.title));
 }
+
+const loadVendorLocalCatalogRows = unstable_cache(
+  readVendorLocalCatalogRows,
+  ["vendor-local-catalog-rows-v2"],
+  { revalidate: 15 }
+);
 
 async function hydrateVendorLocalCatalogRows(
   vendorId: string,
