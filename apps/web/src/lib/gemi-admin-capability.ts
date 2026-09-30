@@ -3,7 +3,10 @@ import { ADMIN_SESSION_COOKIE } from "./admin-runtime";
 import { gemiAdminCredential } from "./gemi-admin-export";
 
 const GEMI_ADMIN_CAPABILITY_COOKIE = "km_gemi_admin_cap";
-const CAPABILITY_TTL_MS = 30 * 60 * 1000;
+// Keep read-only ΓΕΜΗ preview/export independent of the PostgreSQL pool for the normal
+// six-hour admin-session window. The capability is encrypted, HttpOnly and bound to the
+// exact admin-session cookie hash, so removing/rotating that cookie invalidates it.
+const CAPABILITY_TTL_MS = 6 * 60 * 60 * 1000;
 
 type CapabilityPayload = Readonly<{
   version: 1;
