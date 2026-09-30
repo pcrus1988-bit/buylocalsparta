@@ -156,10 +156,10 @@ export async function getLocalStorefrontReadModelWindow(
   return result.rows;
 }
 
-function dropshipSort(sort?: string): string {
-  if (sort === "price-asc") return "fm.min_price_minor ASC,fm.dropship_supplier_id,fm.dropship_external_product_id";
-  if (sort === "price-desc") return "fm.min_price_minor DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
-  return "fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
+function dropshipSort(sort?: string, alias = "fm"): string {
+  if (sort === "price-asc") return `${alias}.min_price_minor ASC,${alias}.dropship_supplier_id,${alias}.dropship_external_product_id`;
+  if (sort === "price-desc") return `${alias}.min_price_minor DESC,${alias}.dropship_supplier_id,${alias}.dropship_external_product_id`;
+  return `${alias}.newest_at DESC,${alias}.dropship_supplier_id,${alias}.dropship_external_product_id`;
 }
 
 function dropshipPageWithSentinel(
@@ -188,8 +188,9 @@ function dropshipFilteredSort(sort?: string): string {
 
 /**
  * Dropship discovery reads one narrow row per supplier product family. The normal
- * no-filter browse path can use the precomputed total and a top-N btree lookup;
- * filtered paths scan only the compact family projection, never the 65k offers.
+ * no-filter browse path bounds each source before merging so first-page rendering
+ * never materializes the whole live family set. Filtered paths scan only the compact
+ * family projection, never the full supplier-offer tables.
  */
 export async function getDropshipStorefrontReadModelWindow(
   input: StorefrontReadModelWindowInput
@@ -207,6 +208,8 @@ export async function getDropshipStorefrontReadModelWindow(
   const filteredOrderBy = dropshipFilteredSort(input.sort);
 
   if (!hasFilters) {
+    const stableOrderBy = dropshipSort(input.sort, "fm");
+    const liveOrderBy = dropshipSort(input.sort, "lf");
     const result = await pool.query<StorefrontDropshipFamilyCandidate>(`
       WITH stable AS MATERIALIZED (
         SELECT
@@ -224,6 +227,8 @@ export async function getDropshipStorefrontReadModelWindow(
               AND live_shadow.external_product_id=fm.dropship_external_product_id
               AND live_shadow.available_until>now()
           )
+        ORDER BY ${stableOrderBy}
+        LIMIT ($1::integer + $2::integer + 1)
       ), live AS MATERIALIZED (
         SELECT
           lf.supplier_id::text AS dropship_supplier_id,
@@ -234,6 +239,8 @@ export async function getDropshipStorefrontReadModelWindow(
         FROM bls_private.storefront_dropship_live_family lf
         WHERE lf.sellable=true
           AND lf.available_until>now()
+        ORDER BY ${liveOrderBy}
+        LIMIT ($1::integer + $2::integer + 1)
       ), combined AS (
         SELECT * FROM stable
         UNION ALL
