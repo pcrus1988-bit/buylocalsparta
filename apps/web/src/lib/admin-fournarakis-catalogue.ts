@@ -68,6 +68,48 @@ export async function adminAssignAllFournarakisProducts(
       ORDER BY j.completed_at DESC NULLS LAST,j.updated_at DESC,j.id DESC
       LIMIT 1
     ),
+    fournarakis_price_evidence AS MATERIALIZED (
+      SELECT
+        price_link.canonical_variant_id,
+        price_sp.id AS source_product_id,
+        po.amount_minor,
+        po.price_kind,
+        po.source_reference,
+        po.observation_status,
+        po.observed_at,
+        po.created_at,
+        po.id
+      FROM source_context ctx
+      JOIN catalog_source_products price_sp
+        ON price_sp.source_id=ctx.source_id
+      JOIN catalog_source_product_links price_link
+        ON price_link.source_product_id=price_sp.id
+       AND price_link.link_status='approved'
+       AND price_link.canonical_variant_id IS NOT NULL
+      JOIN catalog_price_observations po
+        ON po.source_product_id=price_sp.id
+       AND po.observation_status='observed'
+    ),
+    latest_source_price AS MATERIALIZED (
+      SELECT DISTINCT ON (source_product_id)
+        source_product_id,
+        amount_minor,
+        price_kind,
+        source_reference,
+        observation_status
+      FROM fournarakis_price_evidence
+      ORDER BY source_product_id,observed_at DESC NULLS LAST,created_at DESC,id DESC
+    ),
+    latest_canonical_price AS MATERIALIZED (
+      SELECT DISTINCT ON (canonical_variant_id)
+        canonical_variant_id,
+        amount_minor,
+        price_kind,
+        source_reference,
+        observation_status
+      FROM fournarakis_price_evidence
+      ORDER BY canonical_variant_id,observed_at DESC NULLS LAST,created_at DESC,id DESC
+    ),
     target AS (
       SELECT DISTINCT ON (lnk.canonical_variant_id)
              csp.id AS source_product_id,
@@ -75,9 +117,10 @@ export async function adminAssignAllFournarakisProducts(
              NULLIF(csp.supplier_code,'') AS source_sku,
              csp.source_product_key,
              csp.source_url,
-             price.amount_minor AS reference_price_minor,
-             price.price_kind AS reference_price_kind,
-             price.source_reference AS reference_price_source
+             COALESCE(direct_price.amount_minor,canonical_price.amount_minor) AS reference_price_minor,
+             COALESCE(direct_price.price_kind,canonical_price.price_kind) AS reference_price_kind,
+             COALESCE(direct_price.source_reference,canonical_price.source_reference) AS reference_price_source,
+             COALESCE(direct_price.observation_status,canonical_price.observation_status) AS reference_price_status
       FROM source_context ctx
       JOIN catalog_source_products csp
         ON csp.source_id=ctx.source_id
@@ -91,16 +134,13 @@ export async function adminAssignAllFournarakisProducts(
        AND cv.market_id=$1::uuid
        AND cv.suppressed=false
        AND cv.recalled=false
-      LEFT JOIN LATERAL (
-        SELECT po.amount_minor,po.price_kind,po.source_reference
-        FROM catalog_price_observations po
-        WHERE po.source_product_id=csp.id
-          AND po.observation_status='observed'
-        ORDER BY po.observed_at DESC NULLS LAST,po.created_at DESC,po.id DESC
-        LIMIT 1
-      ) price ON true
+      LEFT JOIN latest_source_price direct_price
+        ON direct_price.source_product_id=csp.id
+      LEFT JOIN latest_canonical_price canonical_price
+        ON canonical_price.canonical_variant_id=lnk.canonical_variant_id
       ORDER BY lnk.canonical_variant_id,
-               (price.amount_minor IS NOT NULL) DESC,
+               (direct_price.amount_minor IS NOT NULL) DESC,
+               (canonical_price.amount_minor IS NOT NULL) DESC,
                csp.created_at DESC,
                csp.id DESC
     ),
@@ -156,6 +196,7 @@ export async function adminAssignAllFournarakisProducts(
           'referencePriceMinor',t.reference_price_minor,
           'referencePriceKind',t.reference_price_kind,
           'referencePriceSource',t.reference_price_source,
+          'referencePriceStatus',t.reference_price_status,
           'referencePriceIsVendorCost',false,
           'assignedAt',now(),
           'assignedBy',$4::text
