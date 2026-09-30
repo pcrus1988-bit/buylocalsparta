@@ -23,7 +23,9 @@ export async function GET() {
         expiresAt: new Date(trial.trialExpiresAt).toISOString(),
         vendorName: trial.vendorName,
         productCount: trial.productCount,
-        mediaCount: trial.mediaCount
+        mediaCount: trial.mediaCount,
+        brandConfigured: trial.brandConfigured,
+        storefrontConfigured: trial.storefrontConfigured
       } : undefined,
       account: { email: principal.email, roles: principal.roles }
     });
