@@ -10,7 +10,7 @@ import styles from "./editorial-collection.module.css";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
-export const revalidate = 300;
+export const revalidate = 900;
 export const dynamicParams = true;
 
 const PRODUCT_LIMIT = 12;

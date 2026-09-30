@@ -13,6 +13,9 @@ import {
 } from "./published-dropship-catalog-page";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
+const LOCAL_PRESENCE_CACHE_SECONDS = 300;
+const PUBLIC_DISCOVERY_CACHE_SECONDS = 900;
+
 const cachedLocalShopPresence = unstable_cache(
   async (): Promise<boolean> => {
     if (!productionDatabaseConfigured()) return false;
@@ -28,14 +31,14 @@ const cachedLocalShopPresence = unstable_cache(
     return result.rows[0]?.available === true;
   },
   ["public-shop-local-presence-v1"],
-  { revalidate: 120 }
+  { revalidate: LOCAL_PRESENCE_CACHE_SECONDS }
 );
 
 const cachedPublishedDropshipPage = unstable_cache(
   async (input: PublishedDropshipCatalogPageInput): Promise<PublishedDropshipCatalogPage> =>
     getPublishedDropshipCatalogPage(input),
   ["public-shop-dropship-page-v1"],
-  { revalidate: 300 }
+  { revalidate: PUBLIC_DISCOVERY_CACHE_SECONDS }
 );
 
 const cachedCrawlerCatalogPage = unstable_cache(
@@ -54,7 +57,7 @@ const cachedCrawlerCatalogPage = unstable_cache(
       limit
     ),
   ["public-shop-crawler-cards-v1"],
-  { revalidate: 300 }
+  { revalidate: PUBLIC_DISCOVERY_CACHE_SECONDS }
 );
 
 function stableFiltersJson(filters: CrawlerCatalogFilters): string {

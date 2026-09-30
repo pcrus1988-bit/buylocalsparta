@@ -112,7 +112,6 @@ export async function generateMetadata({ searchParams }: ShopProps): Promise<Met
 }
 
 export default async function ShopPage({ searchParams }: ShopProps) {
-  const seoSettingsPromise = getSeoGlobalSettingsSnapshot();
   const params = await searchParams;
   const page = positivePage(valueOf(params.page));
   const pageOffset = (page - 1) * SHOP_PAGE_SIZE;
@@ -158,10 +157,10 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   let subcategory = requestedSubcategory;
   let filters = { subcategory, brand, color, size };
 
-  // Local-stock presence and taxonomy are independent cached reads. Start both
-  // immediately. If no live local stock exists, the entire product path is public
-  // dropship data and does not need crawler classification or visitor identity.
-  const localProductsAvailablePromise = hasLiveLocalShopProducts();
+  // The Vercel web runtime intentionally uses one PostgreSQL client per instance.
+  // Keep DB-backed cache misses sequential: starting presence/SEO reads alongside
+  // taxonomy can make one request wait for the only pool slot until the connection
+  // acquisition timeout. Cache hits remain fast, while cold refreshes stay bounded.
   let taxonomy = await getCachedShopTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
 
   const inferredSubcategory = requestedSubcategory || requestedGuideSubcategories.length
@@ -191,7 +190,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const allowDropship = searchIntent.availability !== "pickup_today";
   let products: ShopCard[] = [];
   let hasNextPage = false;
-  const localProductsAvailable = await localProductsAvailablePromise;
+  const localProductsAvailable = await hasLiveLocalShopProducts();
   const readOnlyCrawler = localProductsAvailable ? await isReadOnlyPublicCrawlerRequest() : false;
   let visitorKey = localProductsAvailable && !readOnlyCrawler ? await getVisitorKey() : "";
 
@@ -374,7 +373,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const showColor = facets.colors.length > 0 && storefrontFacetEnabled(activeLeaf, "color");
   const showSize = facets.sizes.length > 0 && storefrontFacetEnabled(activeLeaf, "size");
   const showFit = fitOptions.length > 0 && storefrontFacetEnabled(activeLeaf, "fit");
-  const { settings: seoSettings } = await seoSettingsPromise;
+  const { settings: seoSettings } = await getSeoGlobalSettingsSnapshot();
   const shopUrl = new URL("/shop", `${seoSettings.canonicalOrigin}/`).toString();
   const breadcrumbStructuredData = {
     "@context": "https://schema.org",

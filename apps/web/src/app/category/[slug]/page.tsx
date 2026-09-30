@@ -11,7 +11,7 @@ import { productPublicPath } from "../../../lib/product-url";
 import { getCachedCrawlerCatalogCards } from "../../../lib/cached-public-shop-page";
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
 
-export const revalidate = 300;
+export const revalidate = 900;
 export const dynamicParams = true;
 
 const CATEGORY_PAGE_SIZE = 30;
@@ -38,7 +38,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // the global SEO switch or an explicit entity override suppresses it.
   const entityEligible = true;
   const reference: SeoEntityReference = { kind: "category", id: category.slug };
-  const [{ settings }, overrides] = await Promise.all([getSeoGlobalSettingsSnapshot(), getSeoEntityOverridesSnapshot()]);
+  const { settings } = await getSeoGlobalSettingsSnapshot();
+  const overrides = await getSeoEntityOverridesSnapshot();
   return buildGovernedSeoMetadata({
     reference,
     settings,
@@ -67,13 +68,12 @@ export default async function CategoryPage({ params }: Props) {
   const category = storefrontCategoryBySlug(slug);
   if (!category) notFound();
 
-  const settingsPromise = getSeoGlobalSettingsSnapshot();
-  const overridesPromise = getSeoEntityOverridesSnapshot();
-  const [products, { settings }, overrideSnapshot] = await Promise.all([
-    getBoundedCategoryProducts(category.slug),
-    settingsPromise,
-    overridesPromise
-  ]);
+  // Production Vercel uses a one-client PostgreSQL pool. Category ISR refreshes
+  // are infrequent and should serialize DB-backed cache misses rather than queue
+  // several reads for the same single pool slot.
+  const products = await getBoundedCategoryProducts(category.slug);
+  const { settings } = await getSeoGlobalSettingsSnapshot();
+  const overrideSnapshot = await getSeoEntityOverridesSnapshot();
   const purchasableProducts = products.filter((product) => product.available && product.priceMinor > 0 && Boolean(product.vendorId));
   const siblings = STOREFRONT_CATEGORIES.filter((item) => item.slug !== category.slug);
   const availableProducts = purchasableProducts;
