@@ -221,6 +221,7 @@ export function VendorDailyHomeClient({
     if (!toolsOpen) return [];
     return DAILY_ACTIONS.filter((item) => SECONDARY_DAILY_ACTIONS.has(item.id));
   }, [dailyQuery, toolsOpen]);
+  const todayPriorities = today.priorities.filter((priority) => !(priority.id === "new-orders" && unacknowledged.length > 0));
 
   async function acknowledge(notification: SlaNotification) {
     setAckBusy(notification.id);
@@ -318,32 +319,7 @@ export function VendorDailyHomeClient({
         </div>}
       </section>
 
-      {support !== "checking" && permission !== "granted" && !bridgeActive && <section className={styles.permissionCard}>
-        <div><span className={styles.eyebrow}>Browser permission</span><h1>Ενεργοποίησε ειδοποιήσεις</h1><p>{permission === "denied" ? "Το kontamou.site έχει μπλοκαριστεί αυτόματα από τον browser. Άνοιξε τις ρυθμίσεις ειδοποιήσεων του Daily για την εναλλακτική ενεργοποίηση Background Push." : "Νέες παραγγελίες, αλλαγές και SLA μπορούν να εμφανίζονται στο κινητό ακόμη και όταν το Daily δεν είναι ανοιχτό."}</p></div>
-        <button type="button" onClick={() => void enableNotifications()} disabled={pushBusy || support !== "supported"}>
-          {pushBusy ? "Ενεργοποίηση…" : support === "supported" ? permission === "denied" ? "Εναλλακτική ενεργοποίηση" : "Να επιτρέπονται" : "Δεν υποστηρίζεται"}
-        </button>
-      </section>}
 
-      <section className={styles.todaySection} aria-labelledby="daily-today-title">
-        <div className={styles.todayHero}>
-          <div><span className={styles.eyebrow}>Today · Sparta</span><h1 id="daily-today-title">Τι χρειάζεται σήμερα</h1><p>Μία γρήγορη εικόνα από παραγγελίες, Ask Local και πραγματική κατάσταση stock.</p></div>
-          <span className={styles.todayStamp}>{new Intl.DateTimeFormat("el-GR", { weekday: "short", day: "2-digit", month: "short", timeZone: "Europe/Athens" }).format(new Date(generatedAt))}</span>
-        </div>
-        <div className={styles.todayMetrics}>
-          <Link href="/daily/orders" className={styles.todayMetric}><span>Σήμερα</span><strong>{today.metrics.ordersToday}</strong><small>{today.metrics.unitsToday} τεμ. σε νέες παραγγελίες</small></Link>
-          <Link href="/daily/orders" className={styles.todayMetric}><span>24ωρο</span><strong>{today.metrics.orders24h}</strong><small>ενεργές παραγγελίες</small></Link>
-          <Link href="/daily/ask-local" className={styles.todayMetric}><span>Ask Local</span><strong>{today.metrics.askLocalOpen}</strong><small>ανοιχτά αιτήματα</small></Link>
-          <Link href="/daily/quickadd" className={styles.todayMetric}><span>Stock freshness</span><strong>{today.metrics.stockFreshnessPercent}%</strong><small>{today.metrics.staleStock} παλιά · {today.metrics.outOfStock} μηδενικά</small></Link>
-        </div>
-        <div className={styles.priorityList}>
-          {today.priorities.slice(0, 4).map((priority, index) => <Link key={priority.id} href={priority.href} className={`${styles.priorityCard} ${styles[`priority_${priority.tone}`]}`}>
-            <span className={styles.priorityRank}>{index + 1}</span>
-            <div><strong>{priority.title}</strong><small>{priority.detail}</small></div>
-            <b>{priority.count > 0 ? priority.count : "✓"}</b>
-          </Link>)}
-        </div>
-      </section>
 
       {unacknowledged.length > 0 && <section className={styles.inbox}>
         <div className={styles.sectionHead}><div><span className={styles.eyebrow}>Χρειάζεται επιβεβαίωση</span><h2>Νέες παραγγελίες</h2></div><b>{unacknowledged.length}</b></div>
@@ -357,21 +333,49 @@ export function VendorDailyHomeClient({
         </div>
       </section>}
 
-      <section className={styles.ordersSection}>
-        <div className={styles.sectionHead}><div><span className={styles.eyebrow}>Orders</span><h2>Παραγγελίες</h2></div><Link href="/daily/orders">Όλες</Link></div>
-        <div className={styles.trafficGrid}>
-          <Link href="/daily/orders?category=new" className={`${styles.trafficCard} ${styles.red}`}><span>Νέες</span><strong>{newCount}</strong><small>προς αποδοχή</small></Link>
-          <Link href="/daily/orders?category=processing" className={`${styles.trafficCard} ${styles.amber}`}><span>Σε επεξεργασία</span><strong>{processingCount}</strong><small>ετοιμάζονται</small></Link>
-          <Link href="/daily/orders?category=ready" className={`${styles.trafficCard} ${styles.green}`}><span>Έτοιμες</span><strong>{readyCount}</strong><small>για παραλαβή</small></Link>
+      <section className={styles.todaySection} aria-labelledby="daily-today-title">
+        <div className={styles.todayHero}>
+          <div><span className={styles.eyebrow}>Σήμερα · Σπάρτη</span><h1 id="daily-today-title">Τι χρειάζεται σήμερα</h1><p>Μία γρήγορη εικόνα από παραγγελίες, Ask Local και πραγματική κατάσταση stock.</p></div>
+          <span className={styles.todayStamp}>{new Intl.DateTimeFormat("el-GR", { weekday: "short", day: "2-digit", month: "short", timeZone: "Europe/Athens" }).format(new Date(generatedAt))}</span>
+        </div>
+        <div className={styles.todayMetrics}>
+          <Link href="/daily/orders" className={styles.todayMetric}><span>Σήμερα</span><strong>{today.metrics.ordersToday}</strong><small>{today.metrics.unitsToday} τεμ. σε νέες παραγγελίες</small></Link>
+          <Link href="/daily/orders" className={styles.todayMetric}><span>24ωρο</span><strong>{today.metrics.orders24h}</strong><small>ενεργές παραγγελίες</small></Link>
+          <Link href="/daily/ask-local" className={styles.todayMetric}><span>Ask Local</span><strong>{today.metrics.askLocalOpen}</strong><small>ανοιχτά αιτήματα</small></Link>
+          <Link href="/daily/quickadd" className={styles.todayMetric}><span>Φρεσκάδα stock</span><strong>{today.metrics.stockFreshnessPercent}%</strong><small>{today.metrics.staleStock} παλιά · {today.metrics.outOfStock} μηδενικά</small></Link>
+        </div>
+        {todayPriorities.length > 0 && <div className={styles.priorityList}>
+          {todayPriorities.slice(0, 4).map((priority, index) => <Link key={priority.id} href={priority.href} className={`${styles.priorityCard} ${styles[`priority_${priority.tone}`]}`}>
+            <span className={styles.priorityRank}>{index + 1}</span>
+            <div><strong>{priority.title}</strong><small>{priority.detail}</small></div>
+            <b>{priority.count > 0 ? priority.count : "✓"}</b>
+          </Link>)}
+        </div>}
+        <div className={styles.orderFlow}>
+          <div className={styles.flowHead}><div><span className={styles.eyebrow}>Ροή παραγγελιών</span><strong>Τρέχουσα κατάσταση</strong></div><Link href="/daily/orders">Όλες</Link></div>
+          <div className={styles.trafficGrid}>
+            <Link href="/daily/orders?category=new" className={`${styles.trafficCard} ${styles.red}`}><span>Προς αποδοχή</span><strong>{newCount}</strong><small>επιβεβαιωμένες, περιμένουν αποδοχή</small></Link>
+            <Link href="/daily/orders?category=processing" className={`${styles.trafficCard} ${styles.amber}`}><span>Ετοιμάζονται</span><strong>{processingCount}</strong><small>σε ενεργή επεξεργασία</small></Link>
+            <Link href="/daily/orders?category=ready" className={`${styles.trafficCard} ${styles.green}`}><span>Για παραλαβή</span><strong>{readyCount}</strong><small>έτοιμες για handover</small></Link>
+          </div>
         </div>
       </section>
 
+
+
       <section className={styles.events}>
-        <div className={styles.sectionHead}><div><span className={styles.eyebrow}>Activity</span><h2>Πρόσφατη δραστηριότητα</h2></div><Link href="/daily/notifications">Όλες</Link></div>
+        <div className={styles.sectionHead}><div><span className={styles.eyebrow}>Δραστηριότητα</span><h2>Πρόσφατη δραστηριότητα</h2></div><Link href="/daily/notifications">Όλες</Link></div>
         {feed.length === 0 ? <div className={styles.empty}>Δεν υπάρχουν πρόσφατα συμβάντα που χρειάζονται ενέργεια.</div> : <div className={styles.eventList}>
           {feed.map((event) => <Link key={event.id} href={event.href} className={styles.event}><div><strong>{event.title}</strong><p>{event.body}</p><small>{event.at ? formatWhen(event.at) : ""}</small></div><span aria-hidden="true">›</span></Link>)}
         </div>}
       </section>
+
+      {support !== "checking" && permission !== "granted" && !bridgeActive && <section className={styles.permissionCard}>
+        <div><span className={styles.eyebrow}>Ειδοποιήσεις συσκευής</span><h2>Ενεργοποίησε ειδοποιήσεις</h2><p>{permission === "denied" ? "Το kontamou.site έχει μπλοκαριστεί αυτόματα από τον browser. Άνοιξε τις ρυθμίσεις ειδοποιήσεων του Daily για την εναλλακτική ενεργοποίηση Background Push." : "Νέες παραγγελίες, αλλαγές και SLA μπορούν να εμφανίζονται στο κινητό ακόμη και όταν το Daily δεν είναι ανοιχτό."}</p></div>
+        <button type="button" onClick={() => void enableNotifications()} disabled={pushBusy || support !== "supported"}>
+          {pushBusy ? "Ενεργοποίηση…" : support === "supported" ? permission === "denied" ? "Εναλλακτική ενεργοποίηση" : "Να επιτρέπονται" : "Δεν υποστηρίζεται"}
+        </button>
+      </section>}
 
       {message && <div className={styles.message} role="status">{message}</div>}
     </div>
