@@ -22,10 +22,8 @@ export default async function VendorTrialPage() {
   const brandDone = Boolean(storefront.shortDescription || storefront.story);
   const storefrontDone = trial.mediaCount > 0 || Boolean(storefront.settings.heroTitle);
   const productsDone = trial.productCount > 0;
-  const deliveryDone = false;
-  const previewDone = true;
-  const completed = [brandDone, storefrontDone, productsDone, deliveryDone, previewDone].filter(Boolean).length;
-  const progress = Math.round((completed / 5) * 100);
+  const completed = [brandDone, storefrontDone, productsDone].filter(Boolean).length;
+  const progress = Math.round((completed / 3) * 100);
   const remainingMs = Math.max(0, trial.trialExpiresAt - Date.now());
   const remainingHours = Math.max(1, Math.ceil(remainingMs / 3_600_000));
   const remainingLabel = remainingHours >= 24
@@ -33,11 +31,11 @@ export default async function VendorTrialPage() {
     : `${remainingHours} ώρες`;
 
   const steps = [
-    { number: 1, title: "Brand", text: "Ιστορία, περιγραφή και η ταυτότητα του καταστήματός σου.", href: "#storefront-builder", done: brandDone },
-    { number: 2, title: "Storefront", text: "Χρώμα, hero, ενότητες, logo και εικόνες.", href: "/vendor/storefront", done: storefrontDone },
-    { number: 3, title: "Products", text: trial.productCount ? `${trial.productCount} προϊόντα ήδη στο workspace.` : "Πρόσθεσε τα πρώτα πραγματικά προϊόντα σου.", href: "/vendor/catalog", done: productsDone },
-    { number: 4, title: "Delivery", text: "Δες shipping, pickup και καθημερινή λειτουργία πριν ενεργοποιηθείς.", href: "/vendor/shipping", done: deliveryDone },
-    { number: 5, title: "Preview", text: "Δες το κατάστημά σου όπως θα το δει ο πελάτης.", href: "/vendor/preview", done: previewDone }
+    { number: 1, title: "Brand", text: "Ιστορία, περιγραφή και η ταυτότητα του καταστήματός σου.", href: "#storefront-builder", status: brandDone ? "done" : "todo" },
+    { number: 2, title: "Storefront", text: "Χρώμα, hero, ενότητες, logo και εικόνες.", href: "/vendor/storefront", status: storefrontDone ? "done" : "todo" },
+    { number: 3, title: "Products", text: trial.productCount ? `${trial.productCount} προϊόντα ήδη στο workspace.` : "Πρόσθεσε τα πρώτα πραγματικά προϊόντα σου.", href: "/vendor/catalog", status: productsDone ? "done" : "todo" },
+    { number: 4, title: "Operations", text: "Εξερεύνησε παραγγελίες, stock, pickup, delivery και τα καθημερινά εργαλεία.", href: "/daily", status: "explore" },
+    { number: 5, title: "Private Preview", text: "Δες το κατάστημά σου όπως θα το δει ο πελάτης, χωρίς δημόσια δημοσίευση.", href: "/vendor/preview", status: "explore" }
   ] as const;
 
   return <>
@@ -66,8 +64,8 @@ export default async function VendorTrialPage() {
       </section>
 
       <nav className={styles.steps} aria-label="Trial setup wizard">
-        {steps.map((step) => <Link key={step.number} href={step.href} className={`${styles.stepCard} ${step.done ? styles.stepDone : ""}`}>
-          <span className={styles.stepNumber}>{step.done ? "✓" : step.number}</span>
+        {steps.map((step) => <Link key={step.number} href={step.href} className={`${styles.stepCard} ${step.status === "done" ? styles.stepDone : ""}`}>
+          <span className={styles.stepNumber}>{step.status === "done" ? "✓" : step.status === "explore" ? "↗" : step.number}</span>
           <strong>{step.title}</strong>
           <span>{step.text}</span>
         </Link>)}
