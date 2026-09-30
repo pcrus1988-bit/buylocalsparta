@@ -120,7 +120,7 @@ Required:
 - `BLS_CLAMAV_HOST=127.0.0.1`
 - `BLS_CLAMAV_PORT=3310`
 
-Deploy the worker with `deploy/media-worker.Dockerfile`. The image starts its own loopback-only `clamd` before launching the queue worker, so no separate ClamAV service or public scanner endpoint is required.
+Production media scanning is scheduled by `.github/workflows/media-worker-production.yml` every five minutes. The workflow pulls the image built from `deploy/media-worker.Dockerfile`, starts its loopback-only `clamd`, runs the queue worker in bounded `drain` mode, and exits. No Railway service, separate ClamAV service, or public scanner endpoint is required. Configure the GitHub repository secrets `MEDIA_DATABASE_URL`, `MEDIA_OBJECT_STORAGE_ACCESS_KEY_ID`, and `MEDIA_OBJECT_STORAGE_SECRET_ACCESS_KEY` before activation.
 
 ## `reports` worker
 
