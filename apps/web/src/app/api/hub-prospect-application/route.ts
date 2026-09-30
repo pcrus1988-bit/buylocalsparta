@@ -131,6 +131,12 @@ export async function POST(request: Request) {
 
     return Response.json({
       ...receipt,
+      trial: receipt.trial ? {
+        vendorId: receipt.trial.vendorId,
+        startsAt: new Date(receipt.trial.startedAt).toISOString(),
+        expiresAt: new Date(receipt.trial.expiresAt).toISOString(),
+        durationDays: 3
+      } : undefined,
       redirectTo: receipt.trial ? "/vendor/trial" : undefined,
       trialAccessExpiresAt: trialAccessExpiresAt ? new Date(trialAccessExpiresAt).toISOString() : undefined,
       message: receipt.planCode === "claim"
