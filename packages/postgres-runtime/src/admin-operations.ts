@@ -138,7 +138,7 @@ export class PostgresAdminOperationsService {
   ) {
     const query=options.q?.trim().slice(0,120) || undefined;
     const status=options.status?.trim().slice(0,60) || undefined;
-    const limit=Math.max(20,Math.min(100,Math.floor(options.limit??60)));
+    const limit=options.limit===undefined?undefined:Math.max(20,Math.min(100,Math.floor(options.limit)));
     const offset=Math.max(0,Math.floor(options.offset??0));
 
     return this.#uow.withTransaction(platformScope(principal.userId), async (tx) => {
@@ -160,19 +160,7 @@ export class PostgresAdminOperationsService {
       `);
       const metricRow=metricsResult.rows[0]??{};
 
-      const submissions=await tx.query<SqlRow>(`
-        SELECT
-          s.id::text AS submission_uuid,
-          s.public_id,
-          v.public_id AS vendor_public_id,
-          c.code AS category_code,
-          s.source_identity,
-          s.status,
-          s.supplier_unit_price_minor,
-          s.currency,
-          s.updated_at,
-          cv.public_id AS canonical_public_id,
-          COUNT(*) OVER()::int AS filtered_total
+      const filterSql=`
         FROM vendor_product_submissions s
         JOIN vendor_businesses v ON v.id=s.vendor_id
         JOIN categories c ON c.id=s.category_id
@@ -194,14 +182,55 @@ export class PostgresAdminOperationsService {
                 AND COALESCE(cv_q.public_id,'') ILIKE '%'||$2||'%'
             )
           )
+      `;
+      const filteredCountResult=await tx.query<SqlRow>(`SELECT COUNT(*)::int AS filtered_total ${filterSql}`,[status??null,query??null]);
+      const filteredTotal=int(filteredCountResult.rows[0]?.filtered_total??0,"filtered_total");
+
+      const submissions=await tx.query<SqlRow>(`
+        SELECT
+          s.id::text AS submission_uuid,
+          s.public_id,
+          v.public_id AS vendor_public_id,
+          c.code AS category_code,
+          s.source_identity,
+          s.status,
+          s.supplier_unit_price_minor,
+          s.currency,
+          s.updated_at,
+          cv.public_id AS canonical_public_id
+        ${filterSql}
         ORDER BY
           CASE s.status WHEN 'submitted' THEN 0 WHEN 'needs_review' THEN 1 WHEN 'linked' THEN 2 WHEN 'approved' THEN 3 ELSE 4 END,
           s.updated_at DESC,
           s.public_id
         LIMIT $3 OFFSET $4
-      `,[status??null,query??null,limit,offset]);
+      `,[status??null,query??null,limit??null,offset]);
 
-      const submissionUuids=submissions.rows.map((row)=>text(row.submission_uuid,"submission_uuid"));
+      const requested=options.submissionId && !submissions.rows.some((row)=>text(row.public_id,"submission.public_id")===options.submissionId)
+        ? await tx.query<SqlRow>(`
+            SELECT
+              s.id::text AS submission_uuid,
+              s.public_id,
+              v.public_id AS vendor_public_id,
+              c.code AS category_code,
+              s.source_identity,
+              s.status,
+              s.supplier_unit_price_minor,
+              s.currency,
+              s.updated_at,
+              cv.public_id AS canonical_public_id
+            FROM vendor_product_submissions s
+            JOIN vendor_businesses v ON v.id=s.vendor_id
+            JOIN categories c ON c.id=s.category_id
+            LEFT JOIN canonical_variants cv ON cv.id=s.canonical_variant_id
+            WHERE s.market_id=(SELECT id FROM markets WHERE code='sparta')
+              AND (s.public_id=$1 OR s.id::text=$1)
+            LIMIT 1
+          `,[options.submissionId])
+        : { rows: [] as SqlRow[], rowCount: 0 };
+
+      const hydrationRows=[...submissions.rows,...requested.rows];
+      const submissionUuids=[...new Set(hydrationRows.map((row)=>text(row.submission_uuid,"submission_uuid")))];
       const candidates=submissionUuids.length
         ? await tx.query<SqlRow>(`
             SELECT
@@ -234,8 +263,28 @@ export class PostgresAdminOperationsService {
         bySubmission.set(key,list);
       }
 
-      const filteredTotal=submissions.rows.length ? int(submissions.rows[0].filtered_total,"filtered_total") : 0;
+      const mapSubmission=(r:SqlRow)=>{
+        const identity=jsonObject(r.source_identity);
+        return {
+          id:text(r.public_id,"submission.public_id"),
+          vendorId:text(r.vendor_public_id,"vendor_public_id"),
+          title:typeof identity.title==="string"?identity.title:"Untitled",
+          categoryCode:text(r.category_code,"category_code"),
+          status:text(r.status,"status"),
+          canonicalVariantId:optionalText(r.canonical_public_id),
+          supplierPrice:formatMoney(money(int(r.supplier_unit_price_minor,"supplier_unit_price_minor"), text(r.currency,"currency") as "EUR")),
+          updatedAt:epoch(r.updated_at,"updated_at"),
+          candidates:bySubmission.get(text(r.submission_uuid,"submission_uuid"))??[]
+        };
+      };
       const statusValues=Array.isArray(metricRow.statuses) ? metricRow.statuses.map(String) : [];
+      const mappedSubmissions=submissions.rows.map(mapSubmission);
+      const requestedSubmission=requested.rows[0]
+        ? mapSubmission(requested.rows[0])
+        : options.submissionId
+          ? mappedSubmissions.find((item)=>item.id===options.submissionId)
+          : undefined;
+
       return {
         csrfToken: principal.csrfToken,
         metrics:{
@@ -248,22 +297,10 @@ export class PostgresAdminOperationsService {
         statuses:statusValues,
         filteredTotal,
         offset,
-        limit,
-        hasMore:offset+submissions.rows.length<filteredTotal,
-        submissions: submissions.rows.map((r) => {
-          const identity=jsonObject(r.source_identity);
-          return {
-            id:text(r.public_id,"submission.public_id"),
-            vendorId:text(r.vendor_public_id,"vendor_public_id"),
-            title:typeof identity.title==="string"?identity.title:"Untitled",
-            categoryCode:text(r.category_code,"category_code"),
-            status:text(r.status,"status"),
-            canonicalVariantId:optionalText(r.canonical_public_id),
-            supplierPrice:formatMoney(money(int(r.supplier_unit_price_minor,"supplier_unit_price_minor"), text(r.currency,"currency") as "EUR")),
-            updatedAt:epoch(r.updated_at,"updated_at"),
-            candidates:bySubmission.get(text(r.submission_uuid,"submission_uuid"))??[]
-          };
-        })
+        limit:limit??filteredTotal,
+        hasMore:limit!==undefined&&offset+submissions.rows.length<filteredTotal,
+        requestedSubmission,
+        submissions:mappedSubmissions
       };
     }, { readOnly: true });
   }
