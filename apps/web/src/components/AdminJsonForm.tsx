@@ -1,4 +1,79 @@
 "use client";
+
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-export function AdminJsonForm({endpoint,csrfToken,fields,label,defaults={}}:{endpoint:string;csrfToken:string;fields:readonly {name:string;label:string;type?:"text"|"number"|"select";options?:readonly string[]}[];label:string;defaults?:Record<string,string|number>}){const router=useRouter();const [busy,setBusy]=useState(false);const [error,setError]=useState("");async function submit(e:React.FormEvent<HTMLFormElement>){e.preventDefault();setBusy(true);setError("");const fd=new FormData(e.currentTarget);const body:Record<string,unknown>={...defaults};for(const f of fields){const v=fd.get(f.name);body[f.name]=f.type==="number"?Number(v):String(v??"");}try{const r=await fetch(endpoint,{method:"POST",headers:{"content-type":"application/json","x-csrf-token":csrfToken},body:JSON.stringify(body)});const d=await r.json() as {error?:string};if(!r.ok)throw new Error(d.error??"Admin action failed");e.currentTarget.reset();router.refresh();}catch(c){setError(c instanceof Error?c.message:"Admin action failed")}finally{setBusy(false)}}return <form className="admin-json-form" onSubmit={submit}>{fields.map(f=><label key={f.name}><span>{f.label}</span>{f.type==="select"?<select name={f.name} defaultValue={String(defaults[f.name]??f.options?.[0]??"")}>{f.options?.map(o=><option key={o} value={o}>{o}</option>)}</select>:<input name={f.name} type={f.type==="number"?"number":"text"} defaultValue={defaults[f.name]??""} required/>}</label>)}<button className="button" disabled={busy}>{busy?"…":label}</button>{error&&<small className="form-error" role="alert">{error}</small>}</form>}
+
+type AdminJsonFormOption = string | Readonly<{ value: string; label: string }>;
+type AdminJsonFormField = Readonly<{
+  name: string;
+  label: string;
+  type?: "text" | "number" | "select";
+  options?: readonly AdminJsonFormOption[];
+}>;
+
+function optionValue(option: AdminJsonFormOption): string {
+  return typeof option === "string" ? option : option.value;
+}
+
+function optionLabel(option: AdminJsonFormOption): string {
+  return typeof option === "string" ? option : option.label;
+}
+
+export function AdminJsonForm({
+  endpoint,
+  csrfToken,
+  fields,
+  label,
+  defaults = {}
+}: {
+  endpoint: string;
+  csrfToken: string;
+  fields: readonly AdminJsonFormField[];
+  label: string;
+  defaults?: Record<string, string | number>;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    const form = event.currentTarget;
+    const fd = new FormData(form);
+    const body: Record<string, unknown> = { ...defaults };
+    for (const field of fields) {
+      const value = fd.get(field.name);
+      body[field.name] = field.type === "number" ? Number(value) : String(value ?? "");
+    }
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+        body: JSON.stringify(body)
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Admin action failed");
+      form.reset();
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Admin action failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <form className="admin-json-form" onSubmit={submit}>
+    {fields.map((field) => <label key={field.name}>
+      <span>{field.label}</span>
+      {field.type === "select"
+        ? <select name={field.name} defaultValue={String(defaults[field.name] ?? (field.options?.[0] ? optionValue(field.options[0]) : ""))}>
+            {field.options?.map((option) => <option key={optionValue(option)} value={optionValue(option)}>{optionLabel(option)}</option>)}
+          </select>
+        : <input name={field.name} type={field.type === "number" ? "number" : "text"} defaultValue={defaults[field.name] ?? ""} required />}
+    </label>)}
+    <button className="button" disabled={busy}>{busy ? "…" : label}</button>
+    {error && <small className="form-error" role="alert">{error}</small>}
+  </form>;
+}

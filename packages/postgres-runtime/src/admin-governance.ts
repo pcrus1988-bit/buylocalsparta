@@ -271,7 +271,72 @@ export class PostgresAdminGovernanceService {
     const now=input.now??Date.now();const result=await this.#uow.withTransaction(platformScope(principal.userId),async(tx)=>{const actor=await this.#userUuid(tx,principal.userId);const found=await tx.query<SqlRow>(`SELECT id::text AS page_uuid,public_id,slug,status,version FROM cms_pages WHERE public_id=$1 OR id::text=$1 FOR UPDATE`,[input.pageId]);if(!found.rowCount)throw new Error("CMS page not found");const row=found.rows[0];const next=input.action==="publish"?"published":input.action==="archive"?"archived":"draft";const version=integer(row.version,"page.version")+1;await tx.query(`UPDATE cms_pages SET status=$2,version=$3,published_at=CASE WHEN $2='published' THEN $4 ELSE published_at END,scheduled_at=NULL,updated_by=$5,updated_at=$4 WHERE id=$1`,[text(row.page_uuid,"page_uuid"),next,version,new Date(now),actor]);const translation=await tx.query<SqlRow>(`SELECT title,seo_title,seo_description,translated_blocks FROM cms_page_translations WHERE page_id=$1 AND locale='el'`,[text(row.page_uuid,"page_uuid")]);await tx.query(`INSERT INTO cms_page_revisions(id,public_id,page_id,version,actor_user_id,actor_public_id,reason,snapshot,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`,[randomUUID(),id("page-revision"),text(row.page_uuid,"page_uuid"),version,actor,principal.userId,input.reason?.trim()||`Page ${input.action}`,JSON.stringify({id:text(row.public_id,"page.public_id"),slug:text(row.slug,"page.slug"),status:next,version,translation:translation.rows[0]??{}}),new Date(now)]);return{id:text(row.public_id,"page.public_id"),status:next,version};},{isolation:"serializable"});await this.#audit(principal,`content.${input.action}`,"cms_page",result.id,input.reason,result,now);return result;
   }
 
-  async recallWorkspace(principal:SessionPrincipal){return this.#uow.withTransaction(platformScope(principal.userId),async(tx)=>{const products=await tx.query<SqlRow>(`SELECT cv.public_id,COALESCE(el.title,en.title,cv.slug) AS title,cv.suppressed,cv.recalled FROM canonical_variants cv JOIN markets m ON m.id=cv.market_id LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el' LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en' WHERE m.code='sparta' ORDER BY title`);const notices=await tx.query<SqlRow>(`SELECT pn.public_id,cv.public_id AS canonical_public_id,pn.type,pn.severity,pn.status,pn.details,pn.resolution,pn.opened_at,pn.closed_at FROM product_notices pn JOIN canonical_variants cv ON cv.id=pn.canonical_variant_id ORDER BY pn.opened_at DESC`);const affected=await tx.query<SqlRow>(`SELECT ra.public_id,pn.public_id AS notice_public_id,o.public_id AS order_public_id,ol.public_id AS line_public_id,u.public_id AS customer_public_id,v.public_id AS vendor_public_id,ra.affected_quantity,ra.status,ra.selected_remedy,ra.identified_at FROM recall_affected_orders ra JOIN product_notices pn ON pn.id=ra.notice_id JOIN customer_orders o ON o.id=ra.order_id JOIN order_lines ol ON ol.id=ra.order_line_id LEFT JOIN users u ON u.id=ra.customer_user_id JOIN vendor_businesses v ON v.id=ra.vendor_id ORDER BY ra.identified_at DESC`);return{csrfToken:principal.csrfToken,products:products.rows.map(r=>({id:text(r.public_id,"product.public_id"),title:text(r.title,"product.title"),suppressed:Boolean(r.suppressed),recalled:Boolean(r.recalled)})),notices:notices.rows.map(r=>({id:text(r.public_id,"notice.public_id"),canonicalVariantId:text(r.canonical_public_id,"notice.canonical_public_id"),type:text(r.type,"notice.type"),severity:text(r.severity,"notice.severity"),status:text(r.status,"notice.status"),details:typeof r.details==="string"?r.details:JSON.stringify(r.details),resolution:optionalText(r.resolution),openedAt:epoch(r.opened_at,"notice.opened_at"),closedAt:r.closed_at?epoch(r.closed_at,"notice.closed_at"):undefined})),affected:affected.rows.map(r=>({id:text(r.public_id,"affected.public_id"),noticeId:text(r.notice_public_id,"affected.notice_public_id"),orderId:text(r.order_public_id,"affected.order_public_id"),orderLineId:text(r.line_public_id,"affected.line_public_id"),customerId:optionalText(r.customer_public_id),vendorId:text(r.vendor_public_id,"affected.vendor_public_id"),quantity:integer(r.affected_quantity,"affected.quantity"),status:text(r.status,"affected.status"),selectedRemedy:optionalText(r.selected_remedy),identifiedAt:epoch(r.identified_at,"affected.identified_at")}))};},{readOnly:true});}
+  async recallWorkspace(
+    principal: SessionPrincipal,
+    options: Readonly<{ productQuery?: string; productLimit?: number }> = {}
+  ) {
+    const productQuery = options.productQuery?.trim().slice(0, 120) || undefined;
+    const productLimit = Math.max(20, Math.min(100, Math.trunc(options.productLimit ?? 60)));
+    return this.#uow.withTransaction(platformScope(principal.userId), async (tx) => {
+      const products = await tx.query<SqlRow>(`
+        SELECT
+          cv.public_id,
+          COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+          cv.suppressed,
+          cv.recalled,
+          count(*) OVER()::int AS filtered_total
+        FROM canonical_variants cv
+        JOIN markets m ON m.id=cv.market_id
+        LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+        LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+        WHERE m.code='sparta'
+          AND (
+            $1::text IS NULL
+            OR cv.public_id ILIKE '%'||$1||'%'
+            OR COALESCE(el.title,en.title,cv.model,cv.slug) ILIKE '%'||$1||'%'
+            OR COALESCE(cv.model,'') ILIKE '%'||$1||'%'
+            OR cv.slug ILIKE '%'||$1||'%'
+          )
+        ORDER BY cv.recalled DESC,cv.suppressed DESC,title,cv.public_id
+        LIMIT $2
+      `, [productQuery ?? null, productLimit]);
+      const notices = await tx.query<SqlRow>(`SELECT pn.public_id,cv.public_id AS canonical_public_id,pn.type,pn.severity,pn.status,pn.details,pn.resolution,pn.opened_at,pn.closed_at FROM product_notices pn JOIN canonical_variants cv ON cv.id=pn.canonical_variant_id ORDER BY pn.opened_at DESC`);
+      const affected = await tx.query<SqlRow>(`SELECT ra.public_id,pn.public_id AS notice_public_id,o.public_id AS order_public_id,ol.public_id AS line_public_id,u.public_id AS customer_public_id,v.public_id AS vendor_public_id,ra.affected_quantity,ra.status,ra.selected_remedy,ra.identified_at FROM recall_affected_orders ra JOIN product_notices pn ON pn.id=ra.notice_id JOIN customer_orders o ON o.id=ra.order_id JOIN order_lines ol ON ol.id=ra.order_line_id LEFT JOIN users u ON u.id=ra.customer_user_id JOIN vendor_businesses v ON v.id=ra.vendor_id ORDER BY ra.identified_at DESC`);
+      return {
+        csrfToken: principal.csrfToken,
+        productFilteredTotal: integer(products.rows[0]?.filtered_total ?? 0, "products.filtered_total"),
+        products: products.rows.map(r => ({
+          id: text(r.public_id,"product.public_id"),
+          title: text(r.title,"product.title"),
+          suppressed: Boolean(r.suppressed),
+          recalled: Boolean(r.recalled)
+        })),
+        notices: notices.rows.map(r => ({
+          id:text(r.public_id,"notice.public_id"),
+          canonicalVariantId:text(r.canonical_public_id,"notice.canonical_public_id"),
+          type:text(r.type,"notice.type"),
+          severity:text(r.severity,"notice.severity"),
+          status:text(r.status,"notice.status"),
+          details:typeof r.details==="string"?r.details:JSON.stringify(r.details),
+          resolution:optionalText(r.resolution),
+          openedAt:epoch(r.opened_at,"notice.opened_at"),
+          closedAt:r.closed_at?epoch(r.closed_at,"notice.closed_at"):undefined
+        })),
+        affected: affected.rows.map(r => ({
+          id:text(r.public_id,"affected.public_id"),
+          noticeId:text(r.notice_public_id,"affected.notice_public_id"),
+          orderId:text(r.order_public_id,"affected.order_public_id"),
+          orderLineId:text(r.line_public_id,"affected.line_public_id"),
+          customerId:optionalText(r.customer_public_id),
+          vendorId:text(r.vendor_public_id,"affected.vendor_public_id"),
+          quantity:integer(r.affected_quantity,"affected.quantity"),
+          status:text(r.status,"affected.status"),
+          selectedRemedy:optionalText(r.selected_remedy),
+          identifiedAt:epoch(r.identified_at,"affected.identified_at")
+        }))
+      };
+    }, { readOnly: true });
+  }
 
   async openRecall(principal:SessionPrincipal,input:{canonicalVariantId:string;details:string;severity:"low"|"medium"|"high"|"critical";now?:number}){
     const details=input.details.trim();if(details.length<5)throw new Error("Recall details are required");const now=input.now??Date.now();
