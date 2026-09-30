@@ -148,7 +148,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
       </div>
       <div className="workspace-action-bar" style={{marginTop:"1rem"}}>
         <span>Start with source evidence; return here only for the vendor-context decision and exception handling.</span>
-        <Link className="button button-primary" href="/admin/catalogue-intake/import">Import catalogue</Link>
+        <Link className="button button-primary" href="/admin/catalogue">Catalogue Operations</Link>
+        <Link className="button button-secondary" href="/admin/catalogue-intake/import">Import catalogue</Link>
         <Link className="button button-secondary" href="/admin/catalogue-intake/intelligence">Review intelligence exceptions</Link>
       </div>
     </section>
