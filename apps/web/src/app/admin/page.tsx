@@ -69,7 +69,12 @@ export default async function AdminPage() {
     source: group.label,
     detail: group.description ?? "Άνοιγμα του χώρου εργασίας και των σχετικών εργαλείων.",
     defaultSize: "medium",
-    defaultVisible: true
+    defaultVisible: true,
+    stats: [{ label: "Εργαλεία", value: group.links.filter((link) => !link.contextHidden).length }],
+    items: group.links
+      .filter((link) => !link.contextHidden && link.href !== group.href)
+      .slice(0, 3)
+      .map((link) => ({ label: link.label, href: link.href }))
   }));
   const routeWidgets: AdminDashboardWidget[] = navigationGroups.flatMap((group) => group.links
     .filter((link) => link.href !== "/admin" && link.href !== group.href)

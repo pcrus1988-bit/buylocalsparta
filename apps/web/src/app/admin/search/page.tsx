@@ -6,6 +6,7 @@ import { WorkspaceEmptyState, WorkspaceSectionHeading } from "../../../component
 import { adminCustomerSupportQueue } from "../../../lib/admin-customer-support-queue";
 import { adminCustomersWorkspace } from "../../../lib/admin-customer-management";
 import { adminOrdersReturnsWorkspace } from "../../../lib/admin-governance-runtime";
+import { adminNavigationForPrincipal } from "../../../lib/admin-navigation";
 import { adminVendorsWorkspace, hasAdminPermission } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 import { marketplaceReferenceMap } from "../../../lib/public-reference-service";
@@ -13,17 +14,158 @@ import { researchVendorsWorkspace } from "../../../lib/research-vendors-runtime"
 import { adminVendorShopsWorkspace } from "../../../lib/vendor-admin-controls";
 
 export const metadata: Metadata = { title: "Admin · Search", robots: { index: false, follow: false } };
+
 const norm = (value: unknown) => String(value ?? "").trim().toLocaleLowerCase("el-GR");
 const contains = (query: string, ...values: unknown[]) => values.some((value) => norm(value).includes(query));
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const principal = await getAdminSession(); if (!principal) redirect("/admin/login");
-  const params = await searchParams; const rawQuery = params.q?.trim() ?? ""; const query = norm(rawQuery);
-  const canCustomer = hasAdminPermission(principal, "customer.read"), canFulfil = hasAdminPermission(principal, "fulfilment.read"), canVendor = hasAdminPermission(principal, "vendor.manage");
-  const [customers, support, orderData, applications, shops, research] = query ? await Promise.all([canCustomer ? adminCustomersWorkspace(principal, { query: rawQuery }).catch(() => undefined) : undefined, canCustomer ? adminCustomerSupportQueue(principal, { query: rawQuery }).catch(() => undefined) : undefined, canFulfil ? adminOrdersReturnsWorkspace(principal).catch(() => undefined) : undefined, canVendor ? adminVendorsWorkspace(principal).catch(() => undefined) : undefined, canVendor ? adminVendorShopsWorkspace(principal).catch(() => undefined) : undefined, canVendor ? researchVendorsWorkspace(principal).catch(() => undefined) : undefined]) : [undefined, undefined, undefined, undefined, undefined, undefined];
-  const orderReferences = orderData ? await marketplaceReferenceMap("order", orderData.orders.map((order) => order.id)) : new Map<string, string>();
-  const orders = orderData?.orders.filter((order) => contains(query, order.id, orderReferences.get(order.id), order.customerId, order.status, ...order.lines.flatMap((line) => [line.title, line.vendorId]))).slice(0, 20) ?? [];
-  const partnerRows = [...(shops?.shops.filter((shop) => contains(query, shop.id, shop.tradingName, shop.legalName)).map((shop) => ({ key: `shop-${shop.id}`, title: shop.tradingName, detail: `${shop.legalName} · ${shop.status}`, href: `/admin/partners/${encodeURIComponent(shop.id)}` })) ?? []), ...(applications?.applications.filter((application) => contains(query, application.id, application.tradingName, application.legalName, application.contactEmail, application.taxNumber, application.gemiNumber)).map((application) => ({ key: `application-${application.id}`, title: application.tradingName, detail: `${application.legalName} · ${application.state}`, href: "/admin/partners/pipeline" })) ?? []), ...(research?.vendors.filter((vendor) => contains(query, vendor.id, vendor.tradingName, vendor.legalName, vendor.email, vendor.phone)).map((vendor) => ({ key: `research-${vendor.id}`, title: vendor.tradingName, detail: `${vendor.legalName} · research lead`, href: `/admin/research-vendors/${encodeURIComponent(vendor.id)}` })) ?? [])].slice(0, 20);
-  const total = (customers?.customers.length ?? 0) + (support?.cases.length ?? 0) + orders.length + partnerRows.length; const csrfToken = customers?.csrfToken ?? applications?.csrfToken ?? orderData?.csrfToken ?? principal.csrfToken;
-  return <main className="vendor-app admin-app"><AdminWorkspaceHeader csrfToken={csrfToken} /><section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Admin · global search</div><h1>Αναζήτηση</h1><p className="lead">Public order reference, πελάτης, συνεργάτης, application, support ticket ή τεχνικό identifier από ένα σημείο.</p></div></section><section className="shell vendor-section"><form method="get" className="admin-search-page-form"><span aria-hidden="true">⌕</span><input name="q" defaultValue={rawQuery} autoFocus placeholder="π.χ. ORD-10032, email, επωνυμία, TKT-10001" /><button className="button" type="submit">Αναζήτηση</button></form></section>{!query ? <section className="shell vendor-section"><WorkspaceEmptyState title="Γράψε κάτι για αναζήτηση." body="Το Ctrl/Cmd + K εστιάζει την αναζήτηση από οποιαδήποτε Admin σελίδα." /></section> : <><section className="shell vendor-section"><WorkspaceSectionHeading eyebrow={`${total} αποτελέσματα`} title={`Αποτελέσματα για “${rawQuery}”`} note="Τα human-readable public references προηγούνται. Τα internal IDs παραμένουν διαθέσιμα για τεχνική διερεύνηση." /></section>{canFulfil && <section className="shell admin-search-group"><h2>Παραγγελίες</h2>{orders.length ? <div className="admin-search-results">{orders.map((order) => <Link href={`/admin/orders?order=${encodeURIComponent(orderReferences.get(order.id) ?? order.id)}`} key={order.id}><span><strong>{orderReferences.get(order.id) ?? order.id}</strong><small>{order.customerId ?? "guest"} · {order.lines.length} items</small></span><b>{order.status}</b><i>→</i></Link>)}</div> : <small>Κανένα αποτέλεσμα.</small>}</section>}{canCustomer && <section className="shell admin-search-group"><h2>Πελάτες</h2>{customers?.customers.length ? <div className="admin-search-results">{customers.customers.slice(0, 20).map((customer) => <Link href={`/admin/customers/${encodeURIComponent(customer.id)}`} key={customer.id}><span><strong>{[customer.firstName, customer.lastName].filter(Boolean).join(" ") || customer.email || customer.id}</strong><small>{customer.email ?? customer.id}</small></span><b>{customer.status}</b><i>→</i></Link>)}</div> : <small>Κανένα αποτέλεσμα.</small>}</section>}{canCustomer && <section className="shell admin-search-group"><h2>Support</h2>{support?.cases.length ? <div className="admin-search-results">{support.cases.slice(0, 20).map((item) => <Link href={`/admin/customers/${encodeURIComponent(item.customerId)}`} key={item.id}><span><strong>{item.subject}</strong><small>{item.referenceNumber} · {item.customerName}</small></span><b>{item.status}</b><i>→</i></Link>)}</div> : <small>Κανένα αποτέλεσμα.</small>}</section>}{canVendor && <section className="shell admin-search-group"><h2>Συνεργάτες & pipeline</h2>{partnerRows.length ? <div className="admin-search-results">{partnerRows.map((item) => <Link href={item.href} key={item.key}><span><strong>{item.title}</strong><small>{item.detail}</small></span><i>→</i></Link>)}</div> : <small>Κανένα αποτέλεσμα.</small>}</section>}</>}</main>;
+  const principal = await getAdminSession();
+  if (!principal) redirect("/admin/login");
+
+  const params = await searchParams;
+  const rawQuery = params.q?.trim() ?? "";
+  const query = norm(rawQuery);
+  const canCustomer = hasAdminPermission(principal, "customer.read");
+  const canFulfil = hasAdminPermission(principal, "fulfilment.read");
+  const canVendor = hasAdminPermission(principal, "vendor.manage");
+
+  const functionRows = query
+    ? adminNavigationForPrincipal(principal)
+      .flatMap((group) => group.links
+        .filter((link) => contains(query, link.label, link.href, group.label, group.description))
+        .map((link) => ({
+          key: link.href,
+          title: link.label,
+          detail: `${group.label}${group.description ? ` · ${group.description}` : ""}`,
+          href: link.href
+        })))
+      .filter((row, index, rows) => rows.findIndex((candidate) => candidate.href === row.href) === index)
+      .slice(0, 24)
+    : [];
+
+  const [customers, support, orderData, applications, shops, research] = query
+    ? await Promise.all([
+      canCustomer ? adminCustomersWorkspace(principal, { query: rawQuery }).catch(() => undefined) : undefined,
+      canCustomer ? adminCustomerSupportQueue(principal, { query: rawQuery }).catch(() => undefined) : undefined,
+      canFulfil ? adminOrdersReturnsWorkspace(principal).catch(() => undefined) : undefined,
+      canVendor ? adminVendorsWorkspace(principal).catch(() => undefined) : undefined,
+      canVendor ? adminVendorShopsWorkspace(principal).catch(() => undefined) : undefined,
+      canVendor ? researchVendorsWorkspace(principal).catch(() => undefined) : undefined
+    ])
+    : [undefined, undefined, undefined, undefined, undefined, undefined];
+
+  const orderReferences = orderData
+    ? await marketplaceReferenceMap("order", orderData.orders.map((order) => order.id))
+    : new Map<string, string>();
+
+  const orders = orderData?.orders
+    .filter((order) => contains(
+      query,
+      order.id,
+      orderReferences.get(order.id),
+      order.customerId,
+      order.status,
+      ...order.lines.flatMap((line) => [line.title, line.vendorId])
+    ))
+    .slice(0, 20) ?? [];
+
+  const partnerRows = [
+    ...(shops?.shops
+      .filter((shop) => contains(query, shop.id, shop.tradingName, shop.legalName))
+      .map((shop) => ({
+        key: `shop-${shop.id}`,
+        title: shop.tradingName,
+        detail: `${shop.legalName} · ${shop.status}`,
+        href: `/admin/partners/${encodeURIComponent(shop.id)}`
+      })) ?? []),
+    ...(applications?.applications
+      .filter((application) => contains(query, application.id, application.tradingName, application.legalName, application.contactEmail, application.taxNumber, application.gemiNumber))
+      .map((application) => ({
+        key: `application-${application.id}`,
+        title: application.tradingName,
+        detail: `${application.legalName} · ${application.state}`,
+        href: "/admin/partners/pipeline"
+      })) ?? []),
+    ...(research?.vendors
+      .filter((vendor) => contains(query, vendor.id, vendor.tradingName, vendor.legalName, vendor.email, vendor.phone))
+      .map((vendor) => ({
+        key: `research-${vendor.id}`,
+        title: vendor.tradingName,
+        detail: `${vendor.legalName} · research lead`,
+        href: `/admin/research-vendors/${encodeURIComponent(vendor.id)}`
+      })) ?? [])
+  ].slice(0, 20);
+
+  const total = functionRows.length
+    + (customers?.customers.length ?? 0)
+    + (support?.cases.length ?? 0)
+    + orders.length
+    + partnerRows.length;
+  const csrfToken = customers?.csrfToken ?? applications?.csrfToken ?? orderData?.csrfToken ?? principal.csrfToken;
+
+  return <main className="vendor-app admin-app">
+    <AdminWorkspaceHeader csrfToken={csrfToken} />
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
+      <div>
+        <div className="eyebrow">Admin · global search</div>
+        <h1>Αναζήτηση</h1>
+        <p className="lead">Λειτουργία Admin, public order reference, πελάτης, συνεργάτης, application, support ticket ή τεχνικό identifier από ένα σημείο.</p>
+      </div>
+    </section>
+    <section className="shell vendor-section">
+      <form method="get" className="admin-search-page-form">
+        <span aria-hidden="true">⌕</span>
+        <input name="q" defaultValue={rawQuery} autoFocus placeholder="π.χ. Brands, Quick Add, ORD-10032, email, TKT-10001" />
+        <button className="button" type="submit">Αναζήτηση</button>
+      </form>
+    </section>
+    {!query ? <section className="shell vendor-section">
+      <WorkspaceEmptyState title="Γράψε κάτι για αναζήτηση." body="Το Ctrl/Cmd + K ανοίγει άμεσα την αναζήτηση λειτουργιών και δεδομένων από οποιαδήποτε Admin σελίδα." />
+    </section> : <>
+      <section className="shell vendor-section">
+        <WorkspaceSectionHeading eyebrow={`${total} αποτελέσματα`} title={`Αποτελέσματα για “${rawQuery}”`} note="Οι διαθέσιμες λειτουργίες σέβονται τα δικαιώματα του Admin χρήστη. Τα human-readable public references προηγούνται των internal IDs." />
+      </section>
+      <section className="shell admin-search-group">
+        <h2>Λειτουργίες Admin</h2>
+        {functionRows.length ? <div className="admin-search-results admin-function-search-results">
+          {functionRows.map((item) => <Link href={item.href} key={item.key}>
+            <span><strong>{item.title}</strong><small>{item.detail}</small></span>
+            <b>Λειτουργία</b>
+            <i>↗</i>
+          </Link>)}
+        </div> : <small>Κανένα αποτέλεσμα λειτουργίας.</small>}
+      </section>
+      {canFulfil && <section className="shell admin-search-group">
+        <h2>Παραγγελίες</h2>
+        {orders.length ? <div className="admin-search-results">{orders.map((order) => <Link href={`/admin/orders?order=${encodeURIComponent(orderReferences.get(order.id) ?? order.id)}`} key={order.id}>
+          <span><strong>{orderReferences.get(order.id) ?? order.id}</strong><small>{order.customerId ?? "guest"} · {order.lines.length} items</small></span>
+          <b>{order.status}</b>
+          <i>→</i>
+        </Link>)}</div> : <small>Κανένα αποτέλεσμα.</small>}
+      </section>}
+      {canCustomer && <section className="shell admin-search-group">
+        <h2>Πελάτες</h2>
+        {customers?.customers.length ? <div className="admin-search-results">{customers.customers.slice(0, 20).map((customer) => <Link href={`/admin/customers/${encodeURIComponent(customer.id)}`} key={customer.id}>
+          <span><strong>{[customer.firstName, customer.lastName].filter(Boolean).join(" ") || customer.email || customer.id}</strong><small>{customer.email ?? customer.id}</small></span>
+          <b>{customer.status}</b>
+          <i>→</i>
+        </Link>)}</div> : <small>Κανένα αποτέλεσμα.</small>}
+      </section>}
+      {canCustomer && <section className="shell admin-search-group">
+        <h2>Support</h2>
+        {support?.cases.length ? <div className="admin-search-results">{support.cases.slice(0, 20).map((item) => <Link href={`/admin/customers/${encodeURIComponent(item.customerId)}`} key={item.id}>
+          <span><strong>{item.subject}</strong><small>{item.referenceNumber} · {item.customerName}</small></span>
+          <b>{item.status}</b>
+          <i>→</i>
+        </Link>)}</div> : <small>Κανένα αποτέλεσμα.</small>}
+      </section>}
+      {canVendor && <section className="shell admin-search-group">
+        <h2>Συνεργάτες & pipeline</h2>
+        {partnerRows.length ? <div className="admin-search-results">{partnerRows.map((item) => <Link href={item.href} key={item.key}>
+          <span><strong>{item.title}</strong><small>{item.detail}</small></span>
+          <i>→</i>
+        </Link>)}</div> : <small>Κανένα αποτέλεσμα.</small>}
+      </section>}
+    </>}
+  </main>;
 }
