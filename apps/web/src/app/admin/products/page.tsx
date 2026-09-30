@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AdminProductsControl } from "../../../components/AdminProductsControl";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { getAdminSession } from "../../../lib/admin-session";
+import { hasAdminPermission } from "../../../lib/admin-runtime";
 
 export const dynamic="force-dynamic";
 export const metadata:Metadata={title:"Admin · Products & Categories",robots:{index:false,follow:false}};
@@ -10,6 +11,7 @@ export const metadata:Metadata={title:"Admin · Products & Categories",robots:{i
 export default async function Page({searchParams}:{searchParams:Promise<{view?:string}>}){
   const principal=await getAdminSession();
   if(!principal)redirect("/admin/login");
+  const canWrite=hasAdminPermission(principal,"catalog.write");
   const params=await searchParams;
   const initialView=params.view==="categories"?"categories":"products";
   return <main className="vendor-app admin-app admin-products-control-centre">
@@ -21,6 +23,6 @@ export default async function Page({searchParams}:{searchParams:Promise<{view?:s
         <p className="lead">Fast product triage, category governance and catalogue quality from one place. The shell renders first; catalogue data loads in bounded, indexed slices so a large supplier import cannot freeze the Admin UI.</p>
       </div>
     </section>
-    <AdminProductsControl csrfToken={principal.csrfToken} initialView={initialView} />
+    <AdminProductsControl csrfToken={principal.csrfToken} initialView={initialView} canWrite={canWrite} />
   </main>;
 }
