@@ -6,7 +6,6 @@ import { resolveExpansionHubForGemiCompany } from "./hub-location-resolution";
 import type { ExpansionHub } from "./expansion-hubs";
 import { getHubExpansionPlan, type HubBillingCycle, type HubExpansionPlanCode } from "./hub-expansion-plans";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { provisionalVendorApplicantPasswordHash } from "./provisional-account";
 import { VENDOR_TRIAL_DURATION_MS } from "./vendor-trial-runtime";
 
 const globals = globalThis as typeof globalThis & {
@@ -124,7 +123,7 @@ export async function submitHubProspectApplication(input: {
       const owner = shouldTrial
         ? input.principal
           ? await authenticatedOwner(tx, input.principal)
-          : await provisionalOwner(tx, application.email, input.now)
+          : (() => { throw new HubProspectApplicationError(409, "login_required", "Συνδέσου πρώτα ώστε το 3ήμερο Trial να συνδεθεί με ασφαλή, επαληθευμένη ταυτότητα."); })()
         : undefined;
       const marketUuid = shouldTrial ? await ensureHubTrialMarket(tx, hub, input.now) : undefined;
 
@@ -387,26 +386,6 @@ async function authenticatedOwner(tx: SqlExecutor, principal: SessionPrincipal):
     publicId: requiredText(result.rows[0]?.public_id, "user.public_id"),
     provisional: false
   };
-}
-
-async function provisionalOwner(tx: SqlExecutor, email: string, now: number): Promise<{ uuid: string; publicId: string; provisional: true }> {
-  const existing = await tx.query<SqlRow>("SELECT id::text AS id FROM users WHERE lower(email::text)=lower($1) LIMIT 1 FOR UPDATE", [email]);
-  if (existing.rowCount) {
-    throw new HubProspectApplicationError(
-      409,
-      "login_required",
-      "Υπάρχει ήδη λογαριασμός με αυτό το email. Συνδέσου πρώτα ώστε το Trial να συνδεθεί με τη σωστή ταυτότητα."
-    );
-  }
-  const uuid = randomUUID();
-  const publicId = id("usr");
-  const at = new Date(now);
-  await tx.query(`
-    INSERT INTO users(id,public_id,email,password_hash,status,email_verified_at,preferred_locale,created_at,updated_at)
-    VALUES($1,$2,$3,$4,'pending_verification',NULL,'el',$5,$5)
-  `, [uuid, publicId, email, provisionalVendorApplicantPasswordHash(), at]);
-  await tx.query("INSERT INTO customer_profiles(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING", [uuid]);
-  return { uuid, publicId, provisional: true };
 }
 
 function normalizeApplication(input: HubProspectApplicationInput): HubProspectApplicationInput {
