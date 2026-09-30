@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AdminBrandRecord } from "../lib/admin-brand-runtime";
 import { publicBrandLogoUrl } from "../lib/brand-logo";
@@ -16,26 +16,10 @@ function websiteHost(value?: string): string | undefined {
   try { return new URL(value).hostname; } catch { return value; }
 }
 
-export function AdminBrandManagement({ brands, csrfToken }: { brands: readonly AdminBrandRecord[]; csrfToken: string }) {
+export function AdminBrandManagement({ brands, csrfToken, query, coverage, filteredTotal }: { brands: readonly AdminBrandRecord[]; csrfToken: string; query: string; coverage: "all" | "with_logo" | "missing_logo"; filteredTotal: number }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [coverage, setCoverage] = useState<"all" | "with_logo" | "missing_logo">("all");
   const [busyId, setBusyId] = useState<string>();
   const [message, setMessage] = useState<string>();
-
-  const visible = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("el");
-    return brands.filter((brand) => {
-      if (coverage === "with_logo" && !brand.logoObjectKey) return false;
-      if (coverage === "missing_logo" && brand.logoObjectKey) return false;
-      if (!needle) return true;
-      return [brand.name, brand.normalizedName, brand.website, brand.sourceDomain]
-        .filter(Boolean)
-        .join(" ")
-        .toLocaleLowerCase("el")
-        .includes(needle);
-    });
-  }, [brands, coverage, query]);
 
   async function jsonAction(brandId: string, action: string, extra: Record<string, unknown> = {}) {
     setBusyId(brandId);
@@ -84,28 +68,30 @@ export function AdminBrandManagement({ brands, csrfToken }: { brands: readonly A
   }
 
   return <div className="admin-brand-manager">
-    <div className="admin-brand-toolbar">
+    <form className="admin-brand-toolbar" method="get" action="/admin/catalogue/brands">
       <label>
         <span>Αναζήτηση brand</span>
-        <input type="search" value={query} onChange={(event) => setQuery(event.target.value.slice(0, 120))} placeholder="Givenchy, POLO, domain…" />
+        <input name="q" type="search" defaultValue={query} maxLength={120} placeholder="Givenchy, POLO, domain…" />
       </label>
       <label>
         <span>Logo coverage</span>
-        <select value={coverage} onChange={(event) => setCoverage(event.target.value as typeof coverage)}>
+        <select name="coverage" defaultValue={coverage}>
           <option value="all">Όλα</option>
           <option value="with_logo">Με λογότυπο</option>
           <option value="missing_logo">Χωρίς λογότυπο</option>
         </select>
       </label>
-      <strong>{visible.length} brands</strong>
-    </div>
+      <button className="button button-secondary" type="submit">Filter</button>
+      {(query || coverage !== "all") ? <a className="button button-secondary" href="/admin/catalogue/brands">Clear</a> : null}
+      <strong>{filteredTotal.toLocaleString("el-GR")} brands</strong>
+    </form>
 
     {message ? <p className="admin-brand-message" role="status">{message}</p> : null}
 
     <div className="admin-brand-table-wrap">
       <table className="admin-brand-table">
         <thead><tr><th>Brand</th><th>Products</th><th>Logo</th><th>Status</th><th>Website</th><th>Actions</th></tr></thead>
-        <tbody>{visible.map((brand) => {
+        <tbody>{brands.map((brand) => {
           const logoUrl = publicBrandLogoUrl(brand.logoObjectKey);
           const busy = busyId === brand.id;
           const host = websiteHost(brand.website);

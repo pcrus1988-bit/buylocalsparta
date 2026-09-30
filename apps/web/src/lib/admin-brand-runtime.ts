@@ -24,6 +24,13 @@ export type AdminBrandRecord = Readonly<{
 export type AdminBrandWorkspace = Readonly<{
   csrfToken: string;
   databaseBacked: boolean;
+  totalBrands: number;
+  withLogo: number;
+  missingLogo: number;
+  filteredTotal: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
   brands: readonly AdminBrandRecord[];
 }>;
 
@@ -36,6 +43,9 @@ type BrandRow = SqlRow & Readonly<{
   status?: unknown;
   products?: unknown;
   metadata?: unknown;
+  total_brands?: unknown;
+  with_logo?: unknown;
+  filtered_total?: unknown;
 }>;
 
 type BrandIdentityRow = SqlRow & Readonly<{
@@ -93,9 +103,29 @@ function requirePostgres(): ReturnType<typeof getProductionPostgresRuntime> {
   return getProductionPostgresRuntime();
 }
 
-export async function adminBrandWorkspace(principal: SessionPrincipal): Promise<AdminBrandWorkspace> {
+export async function adminBrandWorkspace(
+  principal: SessionPrincipal,
+  options: Readonly<{ q?: string; coverage?: "all" | "with_logo" | "missing_logo"; limit?: number; offset?: number }> = {}
+): Promise<AdminBrandWorkspace> {
   assertAdminPermission(principal, "catalog.read");
-  if (!postgresAdminRuntimeEnabled()) return { csrfToken: principal.csrfToken, databaseBacked: false, brands: [] };
+  const limit = Math.max(12, Math.min(60, Math.trunc(options.limit ?? 30)));
+  const offset = Math.max(0, Math.trunc(options.offset ?? 0));
+  const query = options.q?.trim().slice(0, 120) || undefined;
+  const coverage = options.coverage === "with_logo" || options.coverage === "missing_logo" ? options.coverage : undefined;
+  if (!postgresAdminRuntimeEnabled()) {
+    return {
+      csrfToken: principal.csrfToken,
+      databaseBacked: false,
+      totalBrands: 0,
+      withLogo: 0,
+      missingLogo: 0,
+      filteredTotal: 0,
+      offset,
+      limit,
+      hasMore: false,
+      brands: []
+    };
+  }
 
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
@@ -113,24 +143,76 @@ export async function adminBrandWorkspace(principal: SessionPrincipal): Promise<
            AND COALESCE(cv.suppressed, FALSE) = FALSE
            AND COALESCE(cv.recalled, FALSE) = FALSE
            AND cv.brand_id IS NOT NULL
+      ),
+      brand_usage AS (
+        SELECT brand_id, COUNT(*)::int AS products
+          FROM used_brand_families
+         GROUP BY brand_id
+      ),
+      base AS MATERIALIZED (
+        SELECT b.id,
+               b.name,
+               b.normalized_name,
+               b.website,
+               b.logo_object_key,
+               b.status,
+               b.metadata,
+               u.products
+          FROM brands b
+          JOIN brand_usage u ON u.brand_id = b.id
+      ),
+      stats AS (
+        SELECT COUNT(*)::int AS total_brands,
+               COUNT(*) FILTER (WHERE NULLIF(logo_object_key,'') IS NOT NULL)::int AS with_logo
+          FROM base
+      ),
+      filtered AS (
+        SELECT *
+          FROM base
+         WHERE (
+           $1::text IS NULL
+           OR name ILIKE '%' || $1 || '%'
+           OR normalized_name ILIKE '%' || $1 || '%'
+           OR COALESCE(website,'') ILIKE '%' || $1 || '%'
+           OR COALESCE(metadata->>'logo_source_domain','') ILIKE '%' || $1 || '%'
+         )
+           AND (
+             $2::text IS NULL
+             OR ($2 = 'with_logo' AND NULLIF(logo_object_key,'') IS NOT NULL)
+             OR ($2 = 'missing_logo' AND NULLIF(logo_object_key,'') IS NULL)
+           )
+      ),
+      page AS (
+        SELECT *
+          FROM filtered
+         ORDER BY products DESC, LOWER(name), id
+         LIMIT $3::integer OFFSET $4::integer
       )
-      SELECT b.id,
-             b.name,
-             b.normalized_name,
-             b.website,
-             b.logo_object_key,
-             b.status,
-             b.metadata,
-             COUNT(ubf.family_id)::int AS products
-        FROM brands b
-        JOIN used_brand_families ubf ON ubf.brand_id = b.id
-       GROUP BY b.id, b.name, b.normalized_name, b.website, b.logo_object_key, b.status, b.metadata
-       ORDER BY COUNT(ubf.family_id) DESC, LOWER(b.name), b.id
-    `);
+      SELECT p.*,
+             s.total_brands,
+             s.with_logo,
+             (SELECT COUNT(*)::int FROM filtered) AS filtered_total
+        FROM stats s
+        LEFT JOIN page p ON TRUE
+       ORDER BY p.products DESC NULLS LAST, LOWER(p.name) NULLS LAST, p.id
+    `, [query ?? null, coverage ?? null, limit, offset]);
+
+    const meta = result.rows[0] ?? {};
+    const totalBrands = productCount(meta.total_brands);
+    const withLogo = productCount(meta.with_logo);
+    const filteredTotal = productCount(meta.filtered_total);
+    const brands = result.rows.filter((row) => Boolean(row.id)).map(mapBrand);
     return {
       csrfToken: principal.csrfToken,
       databaseBacked: true,
-      brands: result.rows.map(mapBrand)
+      totalBrands,
+      withLogo,
+      missingLogo: Math.max(0, totalBrands - withLogo),
+      filteredTotal,
+      offset,
+      limit,
+      hasMore: offset + brands.length < filteredTotal,
+      brands
     };
   }, { readOnly: true });
 }
