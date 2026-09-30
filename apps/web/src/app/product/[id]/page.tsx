@@ -349,6 +349,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     });
     const origin = settings.canonicalOrigin;
     const productUrl = new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString();
+    const categoryUrl = `${origin}/category/${category.slug}`;
     const displayPrice = publicCatalogPriceLabel(product);
     const crawlerImageUrl = product.mediaId
       ? `${origin}/api/media/${encodeURIComponent(product.mediaId)}`
@@ -357,23 +358,35 @@ export default async function ProductPage({ params }: ProductPageProps) {
         : undefined;
     const crawlerStructuredData = {
       "@context": "https://schema.org",
-      "@type": "Product",
-      "@id": `${productUrl}#product`,
-      url: productUrl,
-      name: displayTitle,
-      description: productSeoDescription({ title: displayTitle, description: product.description }),
-      brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
-      image: crawlerImageUrl ? [crawlerImageUrl] : undefined,
-      category: product.categoryLabel ?? category.label,
-      itemCondition: "https://schema.org/NewCondition",
-      offers: publicCatalogHasOfferPrice(product) ? {
-        "@type": "Offer",
-        url: productUrl,
-        priceCurrency: "EUR",
-        price: (product.priceMinor / 100).toFixed(2),
-        availability: product.available ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-        seller: { "@type": "Organization", name: "ΚΟΝΤΑ ΜΟΥ", url: origin }
-      } : undefined
+      "@graph": [
+        {
+          "@type": "Product",
+          "@id": `${productUrl}#product`,
+          url: productUrl,
+          name: displayTitle,
+          description: productSeoDescription({ title: displayTitle, description: product.description }),
+          brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
+          image: crawlerImageUrl ? [crawlerImageUrl] : undefined,
+          category: product.categoryLabel ?? category.label,
+          itemCondition: "https://schema.org/NewCondition",
+          offers: publicCatalogHasOfferPrice(product) ? {
+            "@type": "Offer",
+            url: productUrl,
+            priceCurrency: "EUR",
+            price: (product.priceMinor / 100).toFixed(2),
+            availability: product.available ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+            seller: { "@type": "Organization", "@id": `${origin}/#organization`, name: "ΚΟΝΤΑ ΜΟΥ", url: origin }
+          } : undefined
+        },
+        {
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            { "@type": "ListItem", position: 1, name: "Αρχική", item: origin },
+            { "@type": "ListItem", position: 2, name: category.label, item: categoryUrl },
+            { "@type": "ListItem", position: 3, name: displayTitle, item: productUrl }
+          ]
+        }
+      ]
     };
     return (
       <main>

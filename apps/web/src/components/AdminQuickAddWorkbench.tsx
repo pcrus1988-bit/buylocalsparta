@@ -20,23 +20,6 @@ type Match = Readonly<{
   active: boolean;
   listed?: Listed;
 }>;
-type IcecatPreview = Readonly<{
-  gtin: string;
-  found: boolean;
-  status: string;
-  productId?: string;
-  sourceProductId?: string;
-  title?: string;
-  description?: string;
-  brand?: string;
-  model?: string;
-  mpn?: string;
-  imageUrl?: string;
-  categoryLabel?: string;
-  qualityStatus?: string;
-  greekCompleteness?: number;
-  specifications: readonly Readonly<{ name: string; value: string }>[];
-}>;
 type Draft = {
   title: string;
   description: string;
@@ -72,7 +55,6 @@ const EMPTY_DRAFT: Draft = {
   visible: true
 };
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const ICECAT_LOOKUP_TIMEOUT_MS = 10_000;
 
 function barcodeValue(value: string): string | undefined {
   const compact = value.replace(/[\s-]/g, "");
@@ -102,31 +84,20 @@ function draftFromMatch(match: Match): Draft {
   };
 }
 
-function draftWithIcecat(current: Draft, preview: IcecatPreview, existingCanonical: boolean): Draft {
-  return {
-    title: preview.title ?? current.title,
-    description: preview.description ?? current.description,
-    gtin: existingCanonical && current.gtin ? current.gtin : preview.gtin || current.gtin,
-    brand: existingCanonical ? current.brand : preview.brand ?? current.brand,
-    model: preview.model ?? current.model,
-    mpn: preview.mpn ?? current.mpn,
-    categoryCode: current.categoryCode,
-    // Icecat is catalogue evidence only. These vendor/commercial fields are deliberately preserved.
-    vendorSku: current.vendorSku,
-    price: current.price,
-    onHand: current.onHand,
-    safetyStock: current.safetyStock,
-    visible: current.visible
-  };
-}
 
-function icecatQuality(preview: IcecatPreview): string | undefined {
-  if (preview.greekCompleteness === undefined) return preview.qualityStatus;
-  const percentage = preview.greekCompleteness <= 1 ? preview.greekCompleteness * 100 : preview.greekCompleteness;
-  return `${preview.qualityStatus ?? "quality"} · ${Math.round(percentage)}% EL`;
-}
-
-export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { vendors: readonly Vendor[]; categories: readonly Category[]; csrfToken: string }) {
+export function AdminQuickAddWorkbench({
+  vendors,
+  categories,
+  csrfToken,
+  mediaUploadMode,
+  mediaReadinessMessage
+}: {
+  vendors: readonly Vendor[];
+  categories: readonly Category[];
+  csrfToken: string;
+  mediaUploadMode: "direct" | "development_memory" | "gated";
+  mediaReadinessMessage: string;
+}) {
   const [vendorId, setVendorId] = useState("");
   const [query, setQuery] = useState("");
   const [searchedQuery, setSearchedQuery] = useState<string | null>(null);
@@ -134,8 +105,6 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
   const [selected, setSelected] = useState<Match | null>(null);
   const [mode, setMode] = useState<"idle" | "existing" | "create">("idle");
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
-  const [icecat, setIcecat] = useState<IcecatPreview | null>(null);
-  const [icecatBusy, setIcecatBusy] = useState(false);
   const [busy, setBusy] = useState<"lookup" | "save" | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [scanTarget, setScanTarget] = useState<ScanTarget | null>(null);
@@ -145,6 +114,7 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
   const streamRef = useRef<MediaStream | null>(null);
   const scannerFrameRef = useRef<number | null>(null);
   const photosRef = useRef<readonly PendingPhoto[]>([]);
+  const mediaUploadAvailable = mediaUploadMode === "direct";
 
   function patchDraft(patch: Partial<Draft>) { setDraft((current) => ({ ...current, ...patch })); }
 
@@ -157,6 +127,10 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
 
   function queuePhotos(files: FileList | null) {
     if (!files) return;
+    if (!mediaUploadAvailable) {
+      setNotice({ tone: "info", text: `Η μεταφόρτωση φωτογραφιών δεν είναι διαθέσιμη: ${mediaReadinessMessage}. Το προϊόν και το vendor offer μπορούν να αποθηκευτούν χωρίς νέες φωτογραφίες.` });
+      return;
+    }
     const incoming = Array.from(files)
       .filter((file) => IMAGE_TYPES.has(file.type))
       .map((file) => ({ file, previewUrl: URL.createObjectURL(file) }));
@@ -213,42 +187,6 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
     setSelected(null);
     setMode("idle");
     setDraft(EMPTY_DRAFT);
-    setIcecat(null);
-  }
-
-  async function loadIcecat(raw: string, silent = false) {
-    const ean = eanValue(raw);
-    if (!ean) {
-      setIcecat(null);
-      if (!silent) setNotice({ tone: "info", text: "Το Icecat είναι προαιρετικό και χρειάζεται GTIN / EAN 8, 12, 13 ή 14 ψηφίων. Μπορείς να συνεχίσεις τη δημιουργία canonical χωρίς Icecat." });
-      return;
-    }
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), ICECAT_LOOKUP_TIMEOUT_MS);
-    setIcecatBusy(true);
-    try {
-      const params = new URLSearchParams({ icecatGtin: ean });
-      const response = await fetch(`/api/admin/quickadd?${params.toString()}`, { cache: "no-store", signal: controller.signal });
-      const payload = await response.json() as { icecat?: IcecatPreview; error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "Το Icecat lookup απέτυχε.");
-      setIcecat(payload.icecat ?? null);
-      if (!silent) {
-        if (payload.icecat?.found) {
-          setNotice({ tone: "info", text: payload.icecat.title ? "Βρέθηκαν Icecat στοιχεία. Έλεγξέ τα και πάτησε Apply Icecat data για να τα εφαρμόσεις." : `Το EAN υπάρχει στο Icecat index (${payload.icecat.status}). Τα διαθέσιμα identity fields μπορούν να εφαρμοστούν ακόμη και χωρίς ελληνικό περιεχόμενο.` });
-        } else {
-          setNotice({ tone: "info", text: payload.icecat?.status === "invalid_gtin" ? "Το GTIN δεν περνά τον έλεγχο checksum." : "Δεν βρέθηκαν διαθέσιμα Icecat στοιχεία για αυτό το EAN / GTIN. Η δημιουργία canonical παραμένει διαθέσιμη." });
-        }
-      }
-    } catch (error) {
-      setIcecat(null);
-      if (!silent) {
-        const timedOut = error instanceof Error && error.name === "AbortError";
-        setNotice({ tone: timedOut ? "info" : "error", text: timedOut ? "Το Icecat lookup καθυστέρησε και σταμάτησε. Μπορείς να συνεχίσεις κανονικά χωρίς Icecat." : error instanceof Error ? error.message : "Το Icecat lookup απέτυχε." });
-      }
-    } finally {
-      window.clearTimeout(timeoutId);
-      setIcecatBusy(false);
-    }
   }
 
   async function lookup(raw = query, preferredId?: string) {
@@ -267,7 +205,6 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
     setMatches([]);
     setSelected(null);
     setMode("idle");
-    setIcecat(null);
     try {
       const barcode = barcodeValue(value);
       const params = new URLSearchParams({ vendorId, ...(barcode ? { gtin: barcode } : { q: value }) });
@@ -281,14 +218,10 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
       if (preferred) choose(preferred);
       else if (found.length === 1) choose(found[0]);
       else if (found.length === 0) setNotice({ tone: "info", text: "Δεν βρέθηκε canonical προϊόν. Έλεγξε τον κωδικό και δημιούργησε νέο μόνο αν είναι πράγματι διαφορετικό προϊόν." });
-      // Icecat enrichment runs independently. It may be pending, incomplete or unavailable
-      // without delaying canonical duplicate detection or creation.
-      if (barcode) void loadIcecat(barcode, true);
     } catch (error) {
       setSearchedQuery(null);
       setMatches([]);
-      setIcecat(null);
-      setNotice({ tone: "error", text: error instanceof Error ? error.message : "Η αναζήτηση απέτυχε." });
+        setNotice({ tone: "error", text: error instanceof Error ? error.message : "Η αναζήτηση απέτυχε." });
     } finally {
       setBusy(null);
     }
@@ -297,32 +230,11 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
   function beginCreate() {
     clearPhotos();
     const barcode = barcodeValue(query.trim());
-    const normalizedBarcode = eanValue(barcode ?? "");
-    const relevantIcecat = icecat?.found && normalizedBarcode && icecat.gtin === normalizedBarcode ? icecat : null;
-    const suggestedTitle = barcode ? relevantIcecat?.title ?? relevantIcecat?.model ?? relevantIcecat?.mpn ?? "" : query.trim();
-    const base = { ...EMPTY_DRAFT, gtin: barcode ?? "", title: suggestedTitle };
+    const base = { ...EMPTY_DRAFT, gtin: barcode ?? "", title: barcode ? "" : query.trim() };
     setSelected(null);
-    setDraft(relevantIcecat ? draftWithIcecat(base, relevantIcecat, false) : base);
+    setDraft(base);
     setMode("create");
     setNotice(null);
-  }
-
-  function applyIcecatData() {
-    if (!icecat?.found) return;
-    if (mode === "idle" && matches.length > 0) {
-      setNotice({ tone: "info", text: "Επίλεξε πρώτα το σωστό canonical αποτέλεσμα. Το Icecat δεν δημιουργεί νέο canonical όταν υπάρχουν πιθανά matches." });
-      return;
-    }
-    if (mode === "idle") {
-      clearPhotos();
-      const base = { ...EMPTY_DRAFT, gtin: icecat.gtin, title: icecat.title ?? icecat.model ?? icecat.mpn ?? "" };
-      setSelected(null);
-      setDraft(draftWithIcecat(base, icecat, false));
-      setMode("create");
-    } else {
-      setDraft((current) => draftWithIcecat(current, icecat, mode === "existing"));
-    }
-    setNotice({ tone: "success", text: "Τα διαθέσιμα Icecat catalogue fields εφαρμόστηκαν. Το EL completeness/status είναι μόνο ένδειξη enrichment και δεν εμποδίζει canonical creation. Vendor SKU, τιμή, stock, safety stock και visibility έμειναν αμετάβλητα." });
   }
 
   async function startScanner(target: ScanTarget) {
@@ -358,7 +270,6 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
               if (ean) {
                 patchDraft({ gtin: ean });
                 stopScanner();
-                await loadIcecat(ean);
                 return;
               }
             } else {
@@ -379,6 +290,7 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
   }
 
   async function uploadAdminPhotos(canonicalVariantId: string, title: string) {
+    if (!mediaUploadAvailable) throw new Error(`Η μεταφόρτωση φωτογραφιών δεν είναι διαθέσιμη: ${mediaReadinessMessage}`);
     const vendor = vendors.find((item) => item.id === vendorId);
     if (!vendor) throw new Error("Δεν βρέθηκε το επιλεγμένο κατάστημα για τις φωτογραφίες.");
     let uploaded = 0;
@@ -433,6 +345,10 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
     }
     if (draft.visible && euros <= 0) {
       setNotice({ tone: "error", text: "Για δημόσια εμφάνιση χρειάζεται τιμή μεγαλύτερη από €0. Κλείσε τη δημοσίευση αν θέλεις να το προετοιμάσεις ως κρυφό." });
+      return;
+    }
+    if (photos.length && !mediaUploadAvailable) {
+      setNotice({ tone: "error", text: `Δεν θα γίνει αποθήκευση με εκκρεμείς φωτογραφίες: ${mediaReadinessMessage}. Αφαίρεσε τις φωτογραφίες ή ενεργοποίησε πρώτα το media pipeline.` });
       return;
     }
     if (photos.length && !photoRightsConfirmed) {
@@ -490,8 +406,6 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
 
   const selectedVendor = vendors.find((vendor) => vendor.id === vendorId);
   const editorOpen = mode === "existing" || mode === "create";
-  const canApplyIcecat = Boolean(icecat?.found && (editorOpen || matches.length === 0));
-  const quality = icecat ? icecatQuality(icecat) : undefined;
 
   const scanner = (target: ScanTarget) => scanTarget === target && <div className={styles.scanner}>
     <video ref={videoRef} playsInline muted />
@@ -514,7 +428,7 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
     <section className={styles.searchCard}>
       <div className={styles.cardHeading}><div><span>2 · Product identity</span><h2>Σκάναρε ή αναζήτησε πρώτα</h2></div><b>Duplicate-safe</b></div>
       <div className={styles.searchRow}>
-        <input value={query} onChange={(event) => { setQuery(event.target.value); setSearchedQuery(null); setMatches([]); setIcecat(null); }} onKeyDown={(event) => { if (event.key === "Enter") void lookup(); }} placeholder="GTIN / EAN / τίτλος / model / MPN" aria-label="Αναζήτηση canonical προϊόντος" inputMode="search" autoComplete="off" />
+        <input value={query} onChange={(event) => { setQuery(event.target.value); setSearchedQuery(null); setMatches([]); }} onKeyDown={(event) => { if (event.key === "Enter") void lookup(); }} placeholder="GTIN / EAN / τίτλος / model / MPN" aria-label="Αναζήτηση canonical προϊόντος" inputMode="search" autoComplete="off" />
         <button className={styles.primaryButton} type="button" onClick={() => void lookup()} disabled={busy !== null}>{busy === "lookup" ? "Αναζήτηση…" : "Αναζήτηση"}</button>
         <button className={styles.secondaryButton} type="button" onClick={() => scanTarget === "lookup" ? stopScanner() : void startScanner("lookup")} disabled={busy === "save"}>{scanTarget === "lookup" ? "Κλείσιμο" : "▣ Scan"}</button>
       </div>
@@ -523,33 +437,6 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
 
     {notice && <div className={`${styles.notice} ${styles[notice.tone]}`} role={notice.tone === "error" ? "alert" : "status"}>{notice.text}</div>}
 
-    {icecat && <section className={styles.icecatCard} aria-label="Icecat product evidence">
-      <div className={styles.icecatHeader}>
-        <div><span>Open Icecat · governed source evidence</span><h2>{icecat.title ?? `GTIN ${icecat.gtin}`}</h2></div>
-        <div className={styles.icecatBadges}><b>{icecat.status}</b>{quality && <small>{quality}</small>}</div>
-      </div>
-      <div className={styles.icecatBody}>
-        <div className={styles.icecatImage}>{icecat.imageUrl ? <img src={icecat.imageUrl} alt="" /> : <span>Icecat image not available</span>}</div>
-        <div className={styles.icecatDetails}>
-          {!icecat.found && <p>Δεν υπάρχει ενεργό Open Icecat index match για αυτό το GTIN ή ο κωδικός δεν είναι έγκυρος.</p>}
-          {icecat.found && <>
-            <dl>
-              <div><dt>GTIN</dt><dd>{icecat.gtin}</dd></div>
-              {icecat.brand && <div><dt>Brand</dt><dd>{icecat.brand}</dd></div>}
-              {icecat.model && <div><dt>Model</dt><dd>{icecat.model}</dd></div>}
-              {icecat.mpn && <div><dt>MPN</dt><dd>{icecat.mpn}</dd></div>}
-              {icecat.categoryLabel && <div><dt>Icecat category</dt><dd>{icecat.categoryLabel}</dd></div>}
-            </dl>
-            {icecat.description && <p>{icecat.description}</p>}
-            {icecat.specifications.length > 0 && <div className={styles.icecatSpecs}>{icecat.specifications.map((specification) => <span key={`${specification.name}-${specification.value}`}><b>{specification.name}</b>{specification.value}</span>)}</div>}
-          </>}
-        </div>
-      </div>
-      <div className={styles.icecatActions}>
-        <p>Apply ενημερώνει μόνο catalogue fields. Vendor SKU, τιμή, stock, safety stock και visibility δεν αλλάζουν. Η Icecat category εμφανίζεται ως evidence και δεν αντικαθιστά αυτόματα την governed KONTA ΜΟΥ category. Το EL completeness (ακόμη και 0%) και το pending status είναι μόνο πληροφοριακά και δεν εμποδίζουν τη δημιουργία canonical.</p>
-        <button type="button" className={styles.primaryButton} onClick={applyIcecatData} disabled={!canApplyIcecat || icecatBusy}>{icecatBusy ? "Icecat lookup…" : "Apply Icecat data"}</button>
-      </div>
-    </section>}
 
     {mode === "idle" && matches.length > 0 && <section className={styles.resultsCard}>
       <div className={styles.cardHeading}><div><span>Canonical catalogue</span><h2>{matches.length} αποτελέσματα</h2></div></div>
@@ -572,13 +459,14 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
         <b className={selected?.listed ? styles.listed : styles.unlisted}>{selected?.listed ? "Update offer" : "Add to shop"}</b>
       </div>
 
-      {mode === "existing" && <div className={styles.identityNote}>Το canonical identity προστατεύεται: υπάρχον GTIN, brand και category δεν αντικαθίστανται από Quick Add ή Icecat. Αν το GTIN / EAN λείπει, μπορείς να το προσθέσεις μία φορά με scan και έλεγχο checksum.</div>}
+      {mode === "existing" && <div className={styles.identityNote}>Το canonical identity προστατεύεται: υπάρχον GTIN, brand και category δεν αντικαθίστανται από Quick Add. Αν το GTIN / EAN λείπει, μπορείς να το προσθέσεις μία φορά με scan και έλεγχο checksum.</div>}
 
       <div className={styles.mediaSection}>
-        <div className={styles.heroImage}>{selected?.imageUrl ? <img src={selected.imageUrl} alt={selected.title} /> : icecat?.imageUrl ? <img src={icecat.imageUrl} alt="Icecat preview" /> : <div><strong>Χωρίς κύρια εικόνα</strong><span>Πρόσθεσε φωτογραφία από κάμερα ή αρχείο.</span></div>}</div>
+        <div className={styles.heroImage}>{selected?.imageUrl ? <img src={selected.imageUrl} alt={selected.title} /> : <div><strong>Χωρίς κύρια εικόνα</strong><span>Πρόσθεσε φωτογραφία από κάμερα ή αρχείο.</span></div>}</div>
         <div className={styles.mediaControls}>
           <div><h3>Φωτογραφίες προϊόντος</h3><p>Η υπάρχουσα εικόνα εμφανίζεται αριστερά. Μπορείς να τραβήξεις ή να ανεβάσεις έως 8 επιπλέον φωτογραφίες.</p></div>
-          <label className={styles.photoPicker}><span>📷 Λήψη ή προσθήκη φωτογραφιών</span><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple onChange={(event) => { queuePhotos(event.target.files); event.currentTarget.value = ""; }} /></label>
+          {!mediaUploadAvailable && <div className={styles.notice} role="status">Media upload unavailable: {mediaReadinessMessage}. Η επεξεργασία προϊόντος, τιμής και stock παραμένει διαθέσιμη.</div>}
+          <label className={styles.photoPicker}><span>📷 Λήψη ή προσθήκη φωτογραφιών</span><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple disabled={!mediaUploadAvailable || busy !== null} onChange={(event) => { queuePhotos(event.target.files); event.currentTarget.value = ""; }} /></label>
           {photos.length > 0 && <>
             <div className={styles.photoQueue}>{photos.map((photo, index) => <div key={`${photo.file.name}-${photo.file.lastModified}-${index}`}><img src={photo.previewUrl} alt="Προεπισκόπηση νέας φωτογραφίας" /><button type="button" onClick={() => removePhoto(index)} aria-label="Αφαίρεση φωτογραφίας">×</button></div>)}</div>
             <label className={styles.rightsCheck}><input type="checkbox" checked={photoRightsConfirmed} onChange={(event) => setPhotoRightsConfirmed(event.target.checked)} /><span>Επιβεβαιώνω ότι το επιλεγμένο κατάστημα έχει δικαίωμα χρήσης αυτών των φωτογραφιών.</span></label>
@@ -588,11 +476,11 @@ export function AdminQuickAddWorkbench({ vendors, categories, csrfToken }: { ven
       </div>
 
       <div className={styles.formSection}>
-        <div className={styles.formSectionHeading}><h3>Canonical στοιχεία</h3><button type="button" className={styles.secondaryButton} onClick={() => void loadIcecat(draft.gtin)} disabled={busy === "save" || icecatBusy}>{icecatBusy ? "Icecat lookup…" : "Lookup in Icecat"}</button></div>
+        <div className={styles.formSectionHeading}><h3>Canonical στοιχεία</h3></div>
         <div className={styles.formGrid}>
           <label className={styles.wide}><span>Τίτλος *</span><input value={draft.title} onChange={(event) => patchDraft({ title: event.target.value })} /></label>
           <label className={styles.wide}><span>Περιγραφή</span><textarea value={draft.description} onChange={(event) => patchDraft({ description: event.target.value })} rows={4} /></label>
-          <label><span>GTIN / EAN</span><div className={styles.inlineField}><input value={draft.gtin} onChange={(event) => { patchDraft({ gtin: event.target.value }); if (icecat?.gtin !== eanValue(event.target.value)) setIcecat(null); }} inputMode="numeric" disabled={mode === "existing" && Boolean(selected?.gtin)} />{(mode === "create" || !selected?.gtin) && <button type="button" className={styles.miniButton} onClick={() => scanTarget === "ean" ? stopScanner() : void startScanner("ean")} disabled={busy !== null || icecatBusy}>{scanTarget === "ean" ? "Κλείσιμο" : "▣ Scan EAN"}</button>}</div></label>
+          <label><span>GTIN / EAN</span><div className={styles.inlineField}><input value={draft.gtin} onChange={(event) => patchDraft({ gtin: event.target.value })} inputMode="numeric" disabled={mode === "existing" && Boolean(selected?.gtin)} />{(mode === "create" || !selected?.gtin) && <button type="button" className={styles.miniButton} onClick={() => scanTarget === "ean" ? stopScanner() : void startScanner("ean")} disabled={busy !== null}>{scanTarget === "ean" ? "Κλείσιμο" : "▣ Scan EAN"}</button>}</div></label>
           <label><span>Brand</span><input value={draft.brand} onChange={(event) => patchDraft({ brand: event.target.value })} disabled={mode === "existing"} /></label>
           <label><span>Model</span><input value={draft.model} onChange={(event) => patchDraft({ model: event.target.value })} /></label>
           <label><span>MPN</span><input value={draft.mpn} onChange={(event) => patchDraft({ mpn: event.target.value })} /></label>

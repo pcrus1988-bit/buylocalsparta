@@ -4,7 +4,7 @@ import { setVendorCatalogVisibility, vendorCatalogControlWorkspace } from "../..
 import { setDropshippingProductVisibility } from "../../../../../lib/vendor-dropshipping-actions";
 import { isDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
 import { setVendorProductVisibility } from "../../../../../lib/vendor-product-visibility-service";
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 
 async function resolveActorPrincipal(principal: SessionPrincipal): Promise<SessionPrincipal> {
   const result = await getProductionPostgresRuntime().sqlPool.query(
@@ -18,7 +18,7 @@ async function resolveActorPrincipal(principal: SessionPrincipal): Promise<Sessi
 
 export async function PUT(request: Request) {
   try {
-    const sessionPrincipal = await requireVendorSession(request, true);
+    const { principal: sessionPrincipal } = await requireVendorCapability("offer.manage", request, true);
     const principal = await resolveActorPrincipal(sessionPrincipal);
     const body = await request.json() as Record<string, unknown>;
     const scope = body.scope === "category" ? "category" : body.scope === "product" ? "product" : undefined;

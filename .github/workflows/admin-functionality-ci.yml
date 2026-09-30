@@ -1,0 +1,36 @@
+name: Admin Functionality CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/src/app/admin/**"
+      - "apps/web/src/app/api/admin/**"
+      - "apps/web/src/components/Admin*.tsx"
+      - "apps/web/src/components/VendorToggleControl.tsx"
+      - "apps/web/src/components/ProductTaxProfileManager.tsx"
+      - "apps/web/src/lib/admin-*.ts"
+      - "apps/web/src/lib/media-upload-service.ts"
+      - "apps/web/src/lib/vendor-profile-media-service.ts"
+      - "scripts/verify-admin-quickadd.ts"
+      - ".github/workflows/admin-functionality-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Admin Quick Add contract
+        run: npm run check:admin-quickadd
+      - name: Production web build
+        run: npm run build

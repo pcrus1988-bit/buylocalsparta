@@ -19,7 +19,7 @@ const readCachedFastShopTaxonomy = unstable_cache(
     JSON.parse(attributeFiltersJson) as CatalogAttributeFilters
   ),
   ["shop-catalog-taxonomy-fast-v2"],
-  { revalidate: 300 }
+  { revalidate: 900 }
 );
 
 const readCachedRichShopTaxonomy = unstable_cache(
@@ -39,7 +39,7 @@ const readCachedRichShopTaxonomy = unstable_cache(
     JSON.parse(attributeFiltersJson) as CatalogAttributeFilters
   ),
   ["shop-catalog-taxonomy-rich-v3"],
-  { revalidate: 300 }
+  { revalidate: 900 }
 );
 
 function stableJson(value: Readonly<Record<string, string | undefined>>): string {

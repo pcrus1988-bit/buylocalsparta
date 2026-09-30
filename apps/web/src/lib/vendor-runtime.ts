@@ -127,7 +127,7 @@ export async function vendorLocalDeliveryContact(principal: SessionPrincipal, fu
   if (!postgresVendorRuntimeEnabled()) throw new Error("Local-delivery contact reveal requires the PostgreSQL runtime");
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
-  const contact = await uow.withTransaction({ actorUserId: principal.userId, vendorId, marketId: "sparta" }, async (tx) => {
+  const contact = await uow.withTransaction({ actorUserId: principal.userId, vendorId }, async (tx) => {
     const result = await tx.query<SqlRow>(`
       SELECT fo.status::text AS fulfilment_status,co.status::text AS order_status,co.shipping_address_snapshot
       FROM fulfilment_orders fo
