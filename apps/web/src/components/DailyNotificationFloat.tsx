@@ -42,6 +42,8 @@ export function DailyNotificationFloat({
 
   useEffect(() => setOpen(false), [pathname]);
 
+  if (pathname === "/daily" || pathname === "/daily/") return null;
+
   return <div className={styles.floating}>
     <button
       type="button"
