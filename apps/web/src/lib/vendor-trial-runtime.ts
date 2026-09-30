@@ -156,6 +156,58 @@ export async function vendorTrialSnapshotFromToken(token: string | undefined, no
   };
 }
 
+export async function createVendorTrialAccessForUser(
+  userId: string,
+  now = Date.now()
+): Promise<Readonly<{ token: string; accessExpiresAt: number }> | undefined> {
+  if (!productionDatabaseConfigured()) return undefined;
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool);
+  const result = await uow.withTransaction(
+    { platformAccess: true, marketId: "sparta", requestId: `vendor-trial-login:${userId}` },
+    (tx) => tx.query<SqlRow>(`
+      WITH trial_record AS (
+        SELECT public_id,status::text AS status,trial_started_at,trial_expires_at,owner_user_id,vendor_id
+        FROM vendor_applications
+        WHERE trial_started_at IS NOT NULL
+        UNION ALL
+        SELECT public_id,status::text AS status,trial_started_at,trial_expires_at,owner_user_id,vendor_id
+        FROM hub_expansion_prospects
+        WHERE trial_started_at IS NOT NULL
+      )
+      SELECT
+        application.public_id AS application_public_id,
+        application.status AS application_status,
+        application.trial_started_at,
+        application.trial_expires_at,
+        owner.public_id AS owner_public_id,
+        vendor.public_id AS vendor_public_id,
+        vendor.status::text AS vendor_status,
+        vendor.demo_mode
+      FROM trial_record application
+      JOIN users owner ON owner.id=application.owner_user_id
+      JOIN vendor_businesses vendor ON vendor.id=application.vendor_id
+      WHERE owner.public_id=$1
+        AND application.trial_expires_at>$2
+        AND vendor.demo_mode=true
+      ORDER BY application.trial_started_at DESC
+      LIMIT 1
+    `, [userId, new Date(now)]),
+    { readOnly: true }
+  );
+  const row = result.rows[0];
+  if (!row) return undefined;
+  const applicationStatus = requiredText(row.application_status);
+  const vendorStatus = requiredText(row.vendor_status);
+  if (!PRELIVE_STATUSES.has(applicationStatus) || ["active", "restricted", "suspended", "closed"].includes(vendorStatus)) return undefined;
+  return createVendorTrialAccessToken({
+    applicationId: requiredText(row.application_public_id),
+    ownerUserId: requiredText(row.owner_public_id),
+    vendorId: requiredText(row.vendor_public_id),
+    trialStartedAt: epoch(row.trial_started_at)
+  });
+}
+
 export async function getVendorTrialSnapshotForPrincipal(
   principal: SessionPrincipal,
   now = Date.now()
