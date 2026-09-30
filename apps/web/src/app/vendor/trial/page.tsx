@@ -41,7 +41,7 @@ export default async function VendorTrialPage() {
     { number: 5, title: "Private Preview", text: "Δες το κατάστημά σου όπως θα το δει ο πελάτης, χωρίς δημόσια δημοσίευση.", href: "/vendor/preview", status: "explore" }
   ] as const;
   const recommendedStepNumber = !brandDone ? 1 : !storefrontDone ? 2 : !productsDone ? 3 : 4;
-  const recommendedStep = steps[recommendedStepNumber - 1];
+  const recommendedStep = steps.find((step) => step.number === recommendedStepNumber) ?? steps[0];
 
   return <>
     <VendorWorkspaceHeader />
