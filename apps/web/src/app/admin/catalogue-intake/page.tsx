@@ -125,6 +125,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
       { label: "Compatibility candidates", value: snapshot?.candidateCompatibility ?? 0, tone: snapshot?.candidateCompatibility ? "attention" : "default" }
     ]} />
 
+    <WorkspaceMetricStrip items={[
+      { label: "Intelligence queue", value: data.automation.intelligenceSnapshotsPending, tone: data.automation.intelligenceSnapshotsPending ? "attention" : "positive", hint: "Selected snapshot waiting for deterministic intelligence processing" },
+      { label: "Assigned vendors", value: data.automation.assignedVendors, hint: "Vendors currently receiving this snapshot as candidate assortment" },
+      { label: "Canonicalization pending", value: data.automation.canonicalizationRowsPending, tone: data.automation.canonicalizationRowsPending ? "attention" : "positive", hint: "Assigned source rows the scheduled worker still needs to resolve" },
+      { label: "Identity exceptions", value: data.automation.identityExceptionsOpen, tone: data.automation.identityExceptionsOpen ? "attention" : "positive", hint: "Only strong identity conflicts requiring Admin review" }
+    ]} />
+
     <section className="shell vendor-section">
       <WorkspaceSectionHeading
         eyebrow="Operational workflow"
