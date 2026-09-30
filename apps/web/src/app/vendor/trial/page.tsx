@@ -6,17 +6,19 @@ import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader
 import styles from "../../../components/VendorTrial.module.css";
 import { vendorStorefrontWorkspace } from "../../../lib/vendor-storefront-settings";
 import { getVendorSession } from "../../../lib/vendor-session";
-import { getVendorTrialSnapshot, isVendorTrialPrincipal } from "../../../lib/vendor-trial-runtime";
+import { getVendorTrialSnapshot, getVendorTrialSnapshotForPrincipal, isVendorTrialPrincipal } from "../../../lib/vendor-trial-runtime";
 
 export const metadata: Metadata = { title: "3ήμερο Vendor Trial", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
 export default async function VendorTrialPage() {
   const principal = await getVendorSession();
-  const trial = await getVendorTrialSnapshot();
-  if (!trial) redirect("/vendor/login");
+  if (!principal) redirect("/vendor/login?next=/vendor/trial");
+  const trial = isVendorTrialPrincipal(principal)
+    ? await getVendorTrialSnapshot()
+    : await getVendorTrialSnapshotForPrincipal(principal);
+  if (!trial) redirect("/vendor");
   if (!trial.active) redirect("/vendor/trial-expired");
-  if (!principal || !isVendorTrialPrincipal(principal)) redirect("/vendor");
   const storefront = await vendorStorefrontWorkspace(principal);
 
   const brandDone = Boolean(storefront.shortDescription || storefront.story);
