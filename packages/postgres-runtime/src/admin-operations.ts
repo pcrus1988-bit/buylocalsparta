@@ -419,13 +419,92 @@ export class PostgresAdminOperationsService {
     },{isolation:"serializable"});await this.#audit(principal,`finance.settlement_${input.kind}`,"settlement_batch",result.id,undefined,undefined,result,now);return result;
   }
 
-  async fairnessWorkspace(principal: SessionPrincipal) {
-    return this.#uow.withTransaction(platformScope(principal.userId),async(tx)=>{
-      const variants=await tx.query<SqlRow>(`SELECT cv.id::text AS canonical_uuid,cv.public_id,COALESCE(el.title,en.title,cv.model,cv.slug) AS title FROM canonical_variants cv JOIN markets m ON m.id=cv.market_id LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el' LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en' WHERE m.code='sparta' ORDER BY cv.created_at DESC`);const states=await tx.query<SqlRow>(`SELECT s.canonical_variant_id::text AS canonical_uuid,v.public_id AS vendor_public_id,s.deficit,s.qualified_exposures,s.capacity_weight,s.updated_at FROM fairness_rotation_state s JOIN vendor_businesses v ON v.id=s.vendor_id WHERE s.market_id=(SELECT id FROM markets WHERE code='sparta')`);const byVariant=new Map<string,any[]>();for(const r of states.rows){const key=text(r.canonical_uuid,"canonical_uuid");const list=byVariant.get(key)??[];list.push({vendorId:text(r.vendor_public_id,"vendor_public_id"),deficit:num(r.deficit),qualifiedExposures:int(r.qualified_exposures,"qualified_exposures"),capacityWeight:num(r.capacity_weight),updatedAt:epoch(r.updated_at,"updated_at")});byVariant.set(key,list)}
-      const appeals=await tx.query<SqlRow>(`SELECT a.public_id,v.public_id AS vendor_public_id,cv.public_id AS canonical_public_id,u.public_id AS submitted_by,a.reason,a.status,a.resolution,ru.public_id AS resolved_by,a.created_at,a.updated_at,a.resolved_at FROM fairness_appeals a JOIN vendor_businesses v ON v.id=a.vendor_id LEFT JOIN canonical_variants cv ON cv.id=a.canonical_variant_id LEFT JOIN users u ON u.id=a.submitted_by LEFT JOIN users ru ON ru.id=a.resolved_by WHERE a.market_id=(SELECT id FROM markets WHERE code='sparta') ORDER BY a.created_at DESC`);
-      const anomalies=await tx.query<SqlRow>(`SELECT a.public_id,cv.public_id AS canonical_public_id,v.public_id AS vendor_public_id,a.metric,a.target_share,a.actual_share,a.deviation,a.sample_size,a.threshold,a.status,a.details,a.detected_at,a.acknowledged_at,a.resolved_at FROM fairness_anomalies a JOIN canonical_variants cv ON cv.id=a.canonical_variant_id JOIN vendor_businesses v ON v.id=a.vendor_id WHERE a.market_id=(SELECT id FROM markets WHERE code='sparta') ORDER BY a.detected_at DESC`);
+  async fairnessWorkspace(
+    principal: SessionPrincipal,
+    options: Readonly<{ q?: string; limit?: number; offset?: number }> = {}
+  ) {
+    const query = options.q?.trim().slice(0, 120) || undefined;
+    const limit = Math.max(10, Math.min(80, Math.trunc(options.limit ?? 40)));
+    const offset = Math.max(0, Math.trunc(options.offset ?? 0));
+    return this.#uow.withTransaction(platformScope(principal.userId), async (tx) => {
+      const metricsResult = await tx.query<SqlRow>(`
+        SELECT
+          (SELECT count(*)::int FROM canonical_variants cv JOIN markets m ON m.id=cv.market_id WHERE m.code='sparta') AS variant_total,
+          count(*) FILTER (WHERE status='open')::int AS appeals_open,
+          count(*) FILTER (WHERE status='under_review')::int AS appeals_under_review,
+          count(*) FILTER (WHERE status='resolved')::int AS appeals_resolved,
+          count(*) FILTER (WHERE status='rejected')::int AS appeals_rejected
+        FROM fairness_appeals
+        WHERE market_id=(SELECT id FROM markets WHERE code='sparta')
+      `);
+      const filteredCountResult = await tx.query<SqlRow>(`
+        SELECT count(*)::int AS filtered_total
+        FROM canonical_variants cv
+        JOIN markets m ON m.id=cv.market_id
+        LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+        LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+        WHERE m.code='sparta'
+          AND (
+            $1::text IS NULL
+            OR cv.public_id ILIKE '%'||$1||'%'
+            OR COALESCE(el.title,en.title,cv.model,cv.slug) ILIKE '%'||$1||'%'
+            OR COALESCE(cv.model,'') ILIKE '%'||$1||'%'
+            OR cv.slug ILIKE '%'||$1||'%'
+          )
+      `, [query ?? null]);
+      const filteredTotal = int(filteredCountResult.rows[0]?.filtered_total ?? 0, "filtered_total");
+
+      const variants = await tx.query<SqlRow>(`
+        SELECT cv.id::text AS canonical_uuid,cv.public_id,COALESCE(el.title,en.title,cv.model,cv.slug) AS title
+        FROM canonical_variants cv
+        JOIN markets m ON m.id=cv.market_id
+        LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+        LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+        WHERE m.code='sparta'
+          AND (
+            $1::text IS NULL
+            OR cv.public_id ILIKE '%'||$1||'%'
+            OR COALESCE(el.title,en.title,cv.model,cv.slug) ILIKE '%'||$1||'%'
+            OR COALESCE(cv.model,'') ILIKE '%'||$1||'%'
+            OR cv.slug ILIKE '%'||$1||'%'
+          )
+        ORDER BY cv.created_at DESC,cv.public_id
+        LIMIT $2 OFFSET $3
+      `, [query ?? null, limit, offset]);
+      const variantIds = variants.rows.map((row) => text(row.canonical_uuid, "canonical_uuid"));
+      const states = variantIds.length
+        ? await tx.query<SqlRow>(`SELECT s.canonical_variant_id::text AS canonical_uuid,v.public_id AS vendor_public_id,s.deficit,s.qualified_exposures,s.capacity_weight,s.updated_at FROM fairness_rotation_state s JOIN vendor_businesses v ON v.id=s.vendor_id WHERE s.market_id=(SELECT id FROM markets WHERE code='sparta') AND s.canonical_variant_id=ANY($1::uuid[])`, [variantIds])
+        : { rows: [] as SqlRow[] };
+      const byVariant=new Map<string,any[]>();
+      for(const r of states.rows){
+        const key=text(r.canonical_uuid,"canonical_uuid");
+        const list=byVariant.get(key)??[];
+        list.push({vendorId:text(r.vendor_public_id,"vendor_public_id"),deficit:num(r.deficit),qualifiedExposures:int(r.qualified_exposures,"qualified_exposures"),capacityWeight:num(r.capacity_weight),updatedAt:epoch(r.updated_at,"updated_at")});
+        byVariant.set(key,list);
+      }
+
+      const appeals=await tx.query<SqlRow>(`SELECT a.public_id,v.public_id AS vendor_public_id,cv.public_id AS canonical_public_id,u.public_id AS submitted_by,a.reason,a.status,a.resolution,ru.public_id AS resolved_by,a.created_at,a.updated_at,a.resolved_at FROM fairness_appeals a JOIN vendor_businesses v ON v.id=a.vendor_id LEFT JOIN canonical_variants cv ON cv.id=a.canonical_variant_id LEFT JOIN users u ON u.id=a.submitted_by LEFT JOIN users ru ON ru.id=a.resolved_by WHERE a.market_id=(SELECT id FROM markets WHERE code='sparta') ORDER BY CASE a.status WHEN 'open' THEN 0 WHEN 'under_review' THEN 1 ELSE 2 END,a.created_at DESC LIMIT 250`);
+      const anomalies=await tx.query<SqlRow>(`SELECT a.public_id,cv.public_id AS canonical_public_id,v.public_id AS vendor_public_id,a.metric,a.target_share,a.actual_share,a.deviation,a.sample_size,a.threshold,a.status,a.details,a.detected_at,a.acknowledged_at,a.resolved_at FROM fairness_anomalies a JOIN canonical_variants cv ON cv.id=a.canonical_variant_id JOIN vendor_businesses v ON v.id=a.vendor_id WHERE a.market_id=(SELECT id FROM markets WHERE code='sparta') ORDER BY a.detected_at DESC LIMIT 250`);
       const assignments=await tx.query<SqlRow>(`SELECT e.public_id,cv.public_id AS canonical_public_id,v.public_id AS vendor_public_id,vo.public_id AS offer_public_id,e.reason,e.sticky,e.created_at,e.deficits_snapshot FROM fairness_assignment_events e JOIN canonical_variants cv ON cv.id=e.canonical_variant_id JOIN vendor_businesses v ON v.id=e.selected_vendor_id JOIN vendor_offers vo ON vo.id=e.selected_offer_id WHERE e.market_id=(SELECT id FROM markets WHERE code='sparta') ORDER BY e.created_at DESC LIMIT 100`);
-      return{csrfToken:principal.csrfToken,snapshots:variants.rows.map(r=>({id:text(r.public_id,"variant.public_id"),title:text(r.title,"title"),snapshot:byVariant.get(text(r.canonical_uuid,"canonical_uuid"))??[]})),appeals:appeals.rows.map(r=>({id:text(r.public_id,"appeal.public_id"),vendorId:text(r.vendor_public_id,"vendor_public_id"),canonicalVariantId:optionalText(r.canonical_public_id),submittedBy:optionalText(r.submitted_by),reason:text(r.reason,"reason"),status:text(r.status,"status"),resolution:optionalText(r.resolution),resolvedBy:optionalText(r.resolved_by),createdAt:epoch(r.created_at,"created_at"),updatedAt:epoch(r.updated_at,"updated_at"),resolvedAt:r.resolved_at?epoch(r.resolved_at,"resolved_at"):undefined})),anomalies:anomalies.rows.map(r=>({id:text(r.public_id,"anomaly.public_id"),canonicalVariantId:text(r.canonical_public_id,"canonical_public_id"),vendorId:text(r.vendor_public_id,"vendor_public_id"),metric:text(r.metric,"metric"),targetShare:num(r.target_share),actualShare:num(r.actual_share),deviation:num(r.deviation),sampleSize:int(r.sample_size,"sample_size"),threshold:num(r.threshold),status:text(r.status,"status"),details:jsonObject(r.details),detectedAt:epoch(r.detected_at,"detected_at")})),recentAssignments:assignments.rows.map(r=>({id:text(r.public_id,"assignment.public_id"),canonicalVariantId:text(r.canonical_public_id,"canonical_public_id"),selectedVendorId:text(r.vendor_public_id,"vendor_public_id"),selectedOfferId:text(r.offer_public_id,"offer_public_id"),reason:text(r.reason,"reason"),sticky:Boolean(r.sticky),createdAt:epoch(r.created_at,"created_at"),deficitsSnapshot:jsonObject(r.deficits_snapshot)}))};
+      const metricRow=metricsResult.rows[0]??{};
+      return {
+        csrfToken:principal.csrfToken,
+        snapshots:variants.rows.map(r=>({id:text(r.public_id,"variant.public_id"),title:text(r.title,"title"),snapshot:byVariant.get(text(r.canonical_uuid,"canonical_uuid"))??[]})),
+        filteredTotal,
+        offset,
+        limit,
+        hasMore:offset+variants.rows.length<filteredTotal,
+        metrics:{
+          variantTotal:int(metricRow.variant_total??0,"variant_total"),
+          open:int(metricRow.appeals_open??0,"appeals_open"),
+          underReview:int(metricRow.appeals_under_review??0,"appeals_under_review"),
+          resolved:int(metricRow.appeals_resolved??0,"appeals_resolved"),
+          rejected:int(metricRow.appeals_rejected??0,"appeals_rejected")
+        },
+        appeals:appeals.rows.map(r=>({id:text(r.public_id,"appeal.public_id"),vendorId:text(r.vendor_public_id,"vendor_public_id"),canonicalVariantId:optionalText(r.canonical_public_id),submittedBy:optionalText(r.submitted_by),reason:text(r.reason,"reason"),status:text(r.status,"status"),resolution:optionalText(r.resolution),resolvedBy:optionalText(r.resolved_by),createdAt:epoch(r.created_at,"created_at"),updatedAt:epoch(r.updated_at,"updated_at"),resolvedAt:r.resolved_at?epoch(r.resolved_at,"resolved_at"):undefined})),
+        anomalies:anomalies.rows.map(r=>({id:text(r.public_id,"anomaly.public_id"),canonicalVariantId:text(r.canonical_public_id,"canonical_public_id"),vendorId:text(r.vendor_public_id,"vendor_public_id"),metric:text(r.metric,"metric"),targetShare:num(r.target_share),actualShare:num(r.actual_share),deviation:num(r.deviation),sampleSize:int(r.sample_size,"sample_size"),threshold:num(r.threshold),status:text(r.status,"status"),details:jsonObject(r.details),detectedAt:epoch(r.detected_at,"detected_at")})),
+        recentAssignments:assignments.rows.map(r=>({id:text(r.public_id,"assignment.public_id"),canonicalVariantId:text(r.canonical_public_id,"canonical_public_id"),selectedVendorId:text(r.vendor_public_id,"vendor_public_id"),selectedOfferId:text(r.offer_public_id,"offer_public_id"),reason:text(r.reason,"reason"),sticky:Boolean(r.sticky),createdAt:epoch(r.created_at,"created_at"),deficitsSnapshot:jsonObject(r.deficits_snapshot)}))
+      };
     },{readOnly:true});
   }
 
