@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import styles from "../../../components/VendorTrial.module.css";
@@ -25,7 +26,7 @@ export default async function VendorPreviewPage() {
       </div>
     </div>
     <div className={styles.previewPanel}>
-      <div className={styles.previewFrame} style={{ "--accent": settings.accentColor } as React.CSSProperties}>
+      <div className={styles.previewFrame} style={{ "--accent": settings.accentColor } as CSSProperties}>
         <section className={`${styles.storeHero} ${settings.heroStyle === "centered" ? styles.storeHeroCentered : settings.heroStyle === "editorial" ? styles.storeHeroEditorial : ""}`}>
           <div className={styles.storeEyebrow}>ΚΟΝΤΑ ΜΟΥ · {storefront.location?.locality ?? "Τοπικό κατάστημα"}</div>
           <h3>{settings.heroTitle || storefront.vendorName}</h3>
