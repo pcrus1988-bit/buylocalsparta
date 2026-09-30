@@ -8,7 +8,10 @@ export type AdminProductsFilters = Readonly<{ q?: string; category?: string; sta
 export type AdminProductRow = Readonly<{ publicId:string; slug:string; title:string; brandName?:string; categoryCode?:string; categoryName?:string; gtin?:string; mpn?:string; model?:string; channel:string; active:boolean; suppressed:boolean; recalled:boolean; hasMedia:boolean; offerCount:number; minPriceMinor?:number; currency:string; missingAttributes:boolean }>;
 export type AdminProductCategoryOption = Readonly<{ categoryCode:string; labelEl:string }>;
 export type AdminProductCategoryCard = Readonly<{ categoryCode:string; labelEl:string; parentCategoryCode?:string; taxonomyRole:string; commerceMode:string; active:boolean; assignable:boolean; discoverable:boolean; sortOrder:number; liveProductCount:number }>;
-export type AdminProductsWorkspace = Readonly<{ csrfToken:string; metrics:Readonly<{ canonicalProductsApprox:number; productFamiliesApprox:number; vendorOffersApprox:number; storefrontProductsApprox:number; categories:number; uncategorizedLive:number; uncategorizedLiveCapped:boolean }>; categories:readonly AdminProductCategoryOption[]; products:readonly AdminProductRow[]; hasMore:boolean; nextCursor?:string }>;
+export type AdminProductsMetrics = Readonly<{ canonicalProductsApprox:number; productFamiliesApprox:number; vendorOffersApprox:number; storefrontProductsApprox:number; categories:number; uncategorizedLive:number; uncategorizedLiveCapped:boolean }>;
+export type AdminProductListWorkspace = Readonly<{ csrfToken:string; products:readonly AdminProductRow[]; hasMore:boolean; nextCursor?:string }>;
+export type AdminProductsSummaryWorkspace = Readonly<{ csrfToken:string; metrics:AdminProductsMetrics; categories:readonly AdminProductCategoryOption[] }>;
+export type AdminProductsWorkspace = AdminProductListWorkspace & AdminProductsSummaryWorkspace;
 export type AdminProductCategoriesWorkspace = Readonly<{ csrfToken:string; categories:readonly AdminProductCategoryCard[]; hasMore:boolean; nextOffset?:number }>;
 
 function text(row:SqlRow, field:string){const value=row[field];return typeof value==="string"?value:String(value??"");}
@@ -17,7 +20,7 @@ function integer(row:SqlRow, field:string){const value=Number(row[field]??0);ret
 function booleanValue(row:SqlRow, field:string){return row[field]===true;}
 function safeLimit(value:number|undefined,fallback=48,max=72){const parsed=Math.floor(Number(value??fallback));return Number.isFinite(parsed)?Math.max(12,Math.min(max,parsed)):fallback;}
 
-async function postgresProductsWorkspace(principal:SessionPrincipal,filters:AdminProductsFilters):Promise<AdminProductsWorkspace>{
+async function postgresProductListWorkspace(principal:SessionPrincipal,filters:AdminProductsFilters):Promise<AdminProductListWorkspace>{
   const runtime=getProductionPostgresRuntime();
   const uow=new PostgresUnitOfWork(runtime.sqlPool);
   const limit=safeLimit(filters.limit);
@@ -76,40 +79,12 @@ async function postgresProductsWorkspace(principal:SessionPrincipal,filters:Admi
       "LEFT JOIN LATERAL (SELECT COUNT(*)::int AS offer_count,MIN(vo.customer_price_minor) AS min_price_minor FROM vendor_offers vo WHERE vo.canonical_variant_id=cv.id AND vo.status='approved' AND COALESCE(vo.merchant_visible,TRUE)=TRUE AND COALESCE(vo.merchant_pause_active,FALSE)=FALSE AND vo.customer_price_minor>0) offer ON TRUE "+
       "WHERE "+where.join(" AND ")+" ORDER BY cv.public_id DESC LIMIT $"+params.length;
 
-    const [metricsResult,categoryResult,productResult]=await Promise.all([
-      tx.query<SqlRow>(
-        "SELECT "+
-        "COALESCE((SELECT n_live_tup FROM pg_stat_user_tables WHERE schemaname='public' AND relname='canonical_variants'),0)::bigint AS canonical_products_approx,"+
-        "COALESCE((SELECT n_live_tup FROM pg_stat_user_tables WHERE schemaname='public' AND relname='product_families'),0)::bigint AS product_families_approx,"+
-        "COALESCE((SELECT n_live_tup FROM pg_stat_user_tables WHERE schemaname='public' AND relname='vendor_offers'),0)::bigint AS vendor_offers_approx,"+
-        "COALESCE((SELECT n_live_tup FROM pg_stat_user_tables WHERE schemaname='public' AND relname='storefront_catalog_read_model'),0)::bigint AS storefront_products_approx,"+
-        "(SELECT COUNT(*)::int FROM categories WHERE market_id=$1::uuid) AS categories,"+
-        "(SELECT COUNT(*)::int FROM (SELECT 1 FROM canonical_variants WHERE market_id=$1::uuid AND category_id IS NULL AND suppressed=FALSE AND recalled=FALSE LIMIT 2001) bounded_uncategorized) AS uncategorized_live",
-        [market]
-      ),
-      tx.query<SqlRow>(
-        "SELECT c.code,COALESCE((SELECT ct.name FROM category_translations ct WHERE ct.category_id=c.id AND ct.locale='el' LIMIT 1),c.code) AS label "+
-        "FROM categories c WHERE c.market_id=$1::uuid AND c.active=TRUE ORDER BY c.sort_order ASC,label ASC,c.code ASC",
-        [market]
-      ),
-      tx.query<SqlRow>(productSql,params)
-    ]);
-
+    const productResult=await tx.query<SqlRow>(productSql,params);
     const rows=productResult.rows.slice(0,limit);
     const hasMore=productResult.rows.length>limit;
     const last=rows[rows.length-1];
     return {
       csrfToken:principal.csrfToken,
-      metrics:{
-        canonicalProductsApprox:integer(metricsResult.rows[0]??{},"canonical_products_approx"),
-        productFamiliesApprox:integer(metricsResult.rows[0]??{},"product_families_approx"),
-        vendorOffersApprox:integer(metricsResult.rows[0]??{},"vendor_offers_approx"),
-        storefrontProductsApprox:integer(metricsResult.rows[0]??{},"storefront_products_approx"),
-        categories:integer(metricsResult.rows[0]??{},"categories"),
-        uncategorizedLive:Math.min(integer(metricsResult.rows[0]??{},"uncategorized_live"),2000),
-        uncategorizedLiveCapped:integer(metricsResult.rows[0]??{},"uncategorized_live")>2000
-      },
-      categories:categoryResult.rows.map(row=>({categoryCode:text(row,"code"),labelEl:text(row,"label")})),
       products:rows.map(row=>({
         publicId:text(row,"public_id"),slug:text(row,"slug"),title:text(row,"title"),
         brandName:optionalText(row,"brand_name"),categoryCode:optionalText(row,"category_code"),categoryName:optionalText(row,"category_name"),
@@ -120,6 +95,46 @@ async function postgresProductsWorkspace(principal:SessionPrincipal,filters:Admi
         missingAttributes:booleanValue(row,"missing_attributes")
       })),
       hasMore,nextCursor:hasMore&&last?text(last,"public_id"):undefined
+    };
+  },{readOnly:true});
+}
+
+async function postgresProductsSummaryWorkspace(principal:SessionPrincipal):Promise<AdminProductsSummaryWorkspace>{
+  const runtime=getProductionPostgresRuntime();
+  const uow=new PostgresUnitOfWork(runtime.sqlPool);
+  return uow.withTransaction(platformScope(principal.userId),async(tx)=>{
+    const marketResult=await tx.query<SqlRow>("SELECT id::text AS id FROM markets WHERE code='sparta' LIMIT 1");
+    const market=optionalText(marketResult.rows[0]??{},"id");
+    if(!market)throw new Error("Sparta market not found");
+
+    const metricsResult=await tx.query<SqlRow>(
+      "SELECT "+
+      "COALESCE((SELECT n_live_tup FROM pg_stat_user_tables WHERE schemaname='public' AND relname='canonical_variants'),0)::bigint AS canonical_products_approx,"+
+      "COALESCE((SELECT n_live_tup FROM pg_stat_user_tables WHERE schemaname='public' AND relname='product_families'),0)::bigint AS product_families_approx,"+
+      "COALESCE((SELECT n_live_tup FROM pg_stat_user_tables WHERE schemaname='public' AND relname='vendor_offers'),0)::bigint AS vendor_offers_approx,"+
+      "COALESCE((SELECT n_live_tup FROM pg_stat_user_tables WHERE schemaname='public' AND relname='storefront_catalog_read_model'),0)::bigint AS storefront_products_approx,"+
+      "(SELECT COUNT(*)::int FROM categories WHERE market_id=$1::uuid) AS categories,"+
+      "(SELECT COUNT(*)::int FROM (SELECT 1 FROM canonical_variants WHERE market_id=$1::uuid AND category_id IS NULL AND suppressed=FALSE AND recalled=FALSE LIMIT 2001) bounded_uncategorized) AS uncategorized_live",
+      [market]
+    );
+    const categoryResult=await tx.query<SqlRow>(
+      "SELECT c.code,COALESCE((SELECT ct.name FROM category_translations ct WHERE ct.category_id=c.id AND ct.locale='el' LIMIT 1),c.code) AS label "+
+      "FROM categories c WHERE c.market_id=$1::uuid AND c.active=TRUE ORDER BY c.sort_order ASC,label ASC,c.code ASC",
+      [market]
+    );
+    const uncategorized=integer(metricsResult.rows[0]??{},"uncategorized_live");
+    return {
+      csrfToken:principal.csrfToken,
+      metrics:{
+        canonicalProductsApprox:integer(metricsResult.rows[0]??{},"canonical_products_approx"),
+        productFamiliesApprox:integer(metricsResult.rows[0]??{},"product_families_approx"),
+        vendorOffersApprox:integer(metricsResult.rows[0]??{},"vendor_offers_approx"),
+        storefrontProductsApprox:integer(metricsResult.rows[0]??{},"storefront_products_approx"),
+        categories:integer(metricsResult.rows[0]??{},"categories"),
+        uncategorizedLive:Math.min(uncategorized,2000),
+        uncategorizedLiveCapped:uncategorized>2000
+      },
+      categories:categoryResult.rows.map(row=>({categoryCode:text(row,"code"),labelEl:text(row,"label")}))
     };
   },{readOnly:true});
 }
@@ -154,10 +169,20 @@ async function postgresCategoriesWorkspace(principal:SessionPrincipal,q:string,o
   },{readOnly:true});
 }
 
-export async function adminProductsWorkspace(principal:SessionPrincipal,filters:AdminProductsFilters={}):Promise<AdminProductsWorkspace>{
+export async function adminProductListWorkspace(principal:SessionPrincipal,filters:AdminProductsFilters={}):Promise<AdminProductListWorkspace>{
   assertAdminPermission(principal,"catalog.read");
-  if(!postgresAdminRuntimeEnabled())return {csrfToken:principal.csrfToken,metrics:{canonicalProductsApprox:0,productFamiliesApprox:0,vendorOffersApprox:0,storefrontProductsApprox:0,categories:0,uncategorizedLive:0,uncategorizedLiveCapped:false},categories:[],products:[],hasMore:false};
-  return postgresProductsWorkspace(principal,filters);
+  if(!postgresAdminRuntimeEnabled())return {csrfToken:principal.csrfToken,products:[],hasMore:false};
+  return postgresProductListWorkspace(principal,filters);
+}
+export async function adminProductsSummaryWorkspace(principal:SessionPrincipal):Promise<AdminProductsSummaryWorkspace>{
+  assertAdminPermission(principal,"catalog.read");
+  if(!postgresAdminRuntimeEnabled())return {csrfToken:principal.csrfToken,metrics:{canonicalProductsApprox:0,productFamiliesApprox:0,vendorOffersApprox:0,storefrontProductsApprox:0,categories:0,uncategorizedLive:0,uncategorizedLiveCapped:false},categories:[]};
+  return postgresProductsSummaryWorkspace(principal);
+}
+export async function adminProductsWorkspace(principal:SessionPrincipal,filters:AdminProductsFilters={}):Promise<AdminProductsWorkspace>{
+  const list=await adminProductListWorkspace(principal,filters);
+  const summary=await adminProductsSummaryWorkspace(principal);
+  return {...summary,...list};
 }
 export async function adminProductCategoriesWorkspace(principal:SessionPrincipal,options:Readonly<{q?:string;offset?:number;limit?:number}>={}):Promise<AdminProductCategoriesWorkspace>{
   assertAdminPermission(principal,"catalog.read");
