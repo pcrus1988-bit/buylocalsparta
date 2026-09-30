@@ -111,8 +111,7 @@ export async function POST(request: Request) {
         planCode: receipt.planCode,
         billingCycle: receipt.billingCycle,
         recurringFeeCents: receipt.recurringFeeCents,
-        trialExpiresAt: receipt.trial?.expiresAt,
-        trialAccessToken
+        trialExpiresAt: receipt.trial?.expiresAt
       })
     ]);
     if (!operationsEmail.sent) {
