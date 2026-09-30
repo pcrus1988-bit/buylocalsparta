@@ -155,10 +155,10 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     section: "Εμπορική διαχείριση",
     description: "Payables, invoicing, agreements, VAT και AADE/myDATA",
     links: [
-      { label: "Finance", href: "/admin/finance", icon: "€", permission: "finance.read" },
+      { label: "Οικονομική επισκόπηση", href: "/admin/finance", icon: "€", permission: "finance.read" },
       { label: "Vendor Billing", href: "/admin/finance/vendor-billing", icon: "▤", permission: "finance.read" },
-      { label: "Agreements", href: "/admin/finance/agreements", icon: "%", permission: "finance.read" },
-      { label: "Agreement SLA", href: "/admin/finance/agreements/sla", icon: "⌛", permission: "finance.read" },
+      { label: "Εμπορικές συμφωνίες", href: "/admin/finance/agreements", icon: "%", permission: "finance.read" },
+      { label: "SLA συμφωνιών", href: "/admin/finance/agreements/sla", icon: "⌛", permission: "finance.read" },
       { label: "Tax & myDATA", href: "/admin/tax", icon: "#", permission: "finance.read" },
       { label: "Product VAT Profiles", href: "/admin/finance/mydata/products", icon: "≡", permission: "finance.read" },
       { label: "Gift Cards", href: "/admin/gift-cards", icon: "◇", permission: "finance.read", roles: ["super_admin"] }
