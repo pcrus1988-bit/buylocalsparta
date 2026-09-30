@@ -7,7 +7,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 export const VENDOR_TRIAL_COOKIE = "bls_vendor_trial";
 export const VENDOR_TRIAL_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
 const VENDOR_TRIAL_PREVIEW_ACCESS_MS = 30 * 24 * 60 * 60 * 1000;
-const PRELIVE_STATUSES = new Set(["application_started", "verification_pending", "catalog_onboarding", "test_ready"]);
+const PRELIVE_STATUSES = new Set(["application_started", "verification_pending", "catalog_onboarding", "test_ready", "pending", "contacted", "qualified", "verified", "approved"]);
 
 type TrialTokenPayload = Readonly<{
   a: string;
@@ -77,9 +77,18 @@ export async function vendorTrialSnapshotFromToken(token: string | undefined, no
   const result = await uow.withTransaction(
     { platformAccess: true, marketId: "sparta", requestId: `vendor-trial-session:${payload.a}` },
     (tx) => tx.query<SqlRow>(`
+      WITH trial_record AS (
+        SELECT public_id,status::text AS status,trial_started_at,trial_expires_at,owner_user_id,vendor_id
+        FROM vendor_applications
+        WHERE public_id=$1
+        UNION ALL
+        SELECT public_id,status::text AS status,trial_started_at,trial_expires_at,owner_user_id,vendor_id
+        FROM hub_expansion_prospects
+        WHERE public_id=$1
+      )
       SELECT
         application.public_id AS application_public_id,
-        application.status::text AS application_status,
+        application.status AS application_status,
         application.trial_started_at,
         application.trial_expires_at,
         owner.public_id AS owner_public_id,
@@ -90,7 +99,7 @@ export async function vendorTrialSnapshotFromToken(token: string | undefined, no
         vendor.demo_mode,
         COALESCE(products.product_count,0)::integer AS product_count,
         COALESCE(media.media_count,0)::integer AS media_count
-      FROM vendor_applications application
+      FROM trial_record application
       JOIN users owner ON owner.id=application.owner_user_id
       JOIN vendor_businesses vendor ON vendor.id=application.vendor_id
       LEFT JOIN LATERAL (
