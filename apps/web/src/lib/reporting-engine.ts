@@ -111,21 +111,34 @@ const DOMAIN_SET = new Set<ReportDomain>(["sales","commissions","inventory","per
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export async function reportBuilderOptions(actor: ReportActorKind, principal: SessionPrincipal): Promise<ReportBuilderOptions> {
+export async function reportBuilderOptions(
+  actor: ReportActorKind,
+  principal: SessionPrincipal,
+  options: Readonly<{ q?: string }> = {}
+): Promise<ReportBuilderOptions> {
   if (!productionDatabaseConfigured()) return { vendors: [], categories: [], products: [], locations: [], brands: [] };
   const pool = getProductionPostgresRuntime().nativePool;
   const vendorId = actor === "vendor" ? principal.vendorId : undefined;
   const market = await resolveMarket(pool, vendorId);
-  const params = [market.id, vendorId ?? null];
+  const query = actor === "admin" ? options.q?.trim().slice(0, 120) || undefined : undefined;
+  const params = [market.id, vendorId ?? null, query ?? null];
+  const limits = actor === "admin"
+    ? { vendors: 150, categories: 250, products: 300, locations: 150, brands: 250 }
+    : { vendors: 1000, categories: 2000, products: 5000, locations: 1000, brands: 2000 };
   const [vendors, categories, products, locations, brands] = await Promise.all([
     pool.query(`SELECT id::text, COALESCE(NULLIF(trading_name,''), legal_name, public_id) AS label
-      FROM vendor_businesses WHERE market_id=$1 AND ($2::uuid IS NULL OR id=$2::uuid)
-      ORDER BY label LIMIT 1000`, params),
+      FROM vendor_businesses
+      WHERE market_id=$1
+        AND ($2::uuid IS NULL OR id=$2::uuid)
+        AND ($3::text IS NULL OR public_id ILIKE '%'||$3||'%' OR trading_name ILIKE '%'||$3||'%' OR legal_name ILIKE '%'||$3||'%')
+      ORDER BY label LIMIT ${limits.vendors}`, params),
     pool.query(`SELECT c.id::text, COALESCE(ct_el.name, ct_en.name, c.code, c.slug) AS label
       FROM categories c
       LEFT JOIN category_translations ct_el ON ct_el.category_id=c.id AND ct_el.locale='el'
       LEFT JOIN category_translations ct_en ON ct_en.category_id=c.id AND ct_en.locale='en'
-      WHERE c.market_id=$1 AND c.active=true ORDER BY c.sort_order, label LIMIT 2000`, [market.id]),
+      WHERE c.market_id=$1 AND c.active=true
+        AND ($2::text IS NULL OR c.code ILIKE '%'||$2||'%' OR c.slug ILIKE '%'||$2||'%' OR COALESCE(ct_el.name,ct_en.name,'') ILIKE '%'||$2||'%')
+      ORDER BY c.sort_order, label LIMIT ${limits.categories}`, [market.id, query ?? null]),
     pool.query(`SELECT DISTINCT cv.id::text,
         COALESCE(pt_el.title, pt_en.title, cv.model, cv.public_id) AS label,
         vo.vendor_id::text AS vendor_id
@@ -133,17 +146,24 @@ export async function reportBuilderOptions(actor: ReportActorKind, principal: Se
       JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
       LEFT JOIN product_translations pt_el ON pt_el.canonical_variant_id=cv.id AND pt_el.locale='el'
       LEFT JOIN product_translations pt_en ON pt_en.canonical_variant_id=cv.id AND pt_en.locale='en'
-      WHERE vo.market_id=$1 AND ($2::uuid IS NULL OR vo.vendor_id=$2::uuid)
-      ORDER BY label LIMIT 5000`, params),
+      WHERE vo.market_id=$1
+        AND ($2::uuid IS NULL OR vo.vendor_id=$2::uuid)
+        AND ($3::text IS NULL OR cv.public_id ILIKE '%'||$3||'%' OR cv.slug ILIKE '%'||$3||'%' OR COALESCE(cv.model,'') ILIKE '%'||$3||'%' OR COALESCE(pt_el.title,pt_en.title,'') ILIKE '%'||$3||'%')
+      ORDER BY label LIMIT ${limits.products}`, params),
     pool.query(`SELECT vl.id::text, vl.vendor_id::text AS vendor_id,
         COALESCE(NULLIF(vl.name,''), NULLIF(vl.locality,''), vl.public_id) AS label
-      FROM vendor_locations vl WHERE vl.market_id=$1 AND ($2::uuid IS NULL OR vl.vendor_id=$2::uuid)
-      ORDER BY label LIMIT 1000`, params),
+      FROM vendor_locations vl
+      WHERE vl.market_id=$1
+        AND ($2::uuid IS NULL OR vl.vendor_id=$2::uuid)
+        AND ($3::text IS NULL OR vl.public_id ILIKE '%'||$3||'%' OR COALESCE(vl.name,'') ILIKE '%'||$3||'%' OR COALESCE(vl.locality,'') ILIKE '%'||$3||'%' OR COALESCE(vl.address_line1,'') ILIKE '%'||$3||'%')
+      ORDER BY label LIMIT ${limits.locations}`, params),
     pool.query(`SELECT DISTINCT b.id::text, b.name AS label FROM brands b
       JOIN canonical_variants cv ON cv.brand_id=b.id
       JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
-      WHERE vo.market_id=$1 AND ($2::uuid IS NULL OR vo.vendor_id=$2::uuid)
-      ORDER BY b.name LIMIT 2000`, params)
+      WHERE vo.market_id=$1
+        AND ($2::uuid IS NULL OR vo.vendor_id=$2::uuid)
+        AND ($3::text IS NULL OR b.name ILIKE '%'||$3||'%')
+      ORDER BY b.name LIMIT ${limits.brands}`, params)
   ]);
   return {
     vendors: vendors.rows.map((r: any) => ({ id: String(r.id), label: String(r.label) })),
