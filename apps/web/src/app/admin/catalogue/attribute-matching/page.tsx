@@ -169,7 +169,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
         <h1>Attribute Matching</h1>
         <p className="lead">Teach KONTA MOY how to understand supplier product data. One decision applies to the whole governed source context and becomes reusable knowledge for future imports.</p>
         <div className="workspace-action-bar" style={{ marginTop: "1rem" }}>
-          <Link className="button button-secondary" href="/admin/catalogue">← Catalogue</Link>
+          <Link className="button button-primary" href="/admin/catalogue">← Catalogue Operations</Link>
           <Link className="button button-secondary" href="/admin/catalogue-intake/intelligence">Taxonomy blockers</Link>
           <Link className="button button-secondary" href="/admin/catalogue/structure">Catalogue Structure</Link>
         </div>
