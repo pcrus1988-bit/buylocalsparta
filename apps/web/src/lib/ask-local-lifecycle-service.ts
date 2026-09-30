@@ -266,7 +266,7 @@ export async function vendorCreatePurchasableAskLocalOffer(
     `, [requestId, vendorId]);
     if (!found.rowCount) throw new Error("Το Ask Local αίτημα δεν είναι ανατεθειμένο σε αυτό το κατάστημα.");
     const row = found.rows[0];
-    if (String(row.status) !== "awaiting_vendor") throw new Error("Το αίτημα δεν δέχεται νέα προσφορά στην τρέχουσα κατάσταση.");
+    if (!["assigned", "awaiting_vendor", "needs_info"].includes(String(row.status))) throw new Error("Το αίτημα δεν δέχεται νέα προσφορά στην τρέχουσα κατάσταση.");
     if (row.expires_at && new Date(String(row.expires_at)).getTime() <= now) throw new Error("Η προθεσμία απάντησης του αιτήματος έχει λήξει.");
 
     const existing = await tx.query<SqlRow>("SELECT 1 FROM private_offers WHERE counteroffer_request_id=$1::uuid AND status='active' LIMIT 1", [String(row.request_uuid)]);
