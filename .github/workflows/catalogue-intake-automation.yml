@@ -4,6 +4,14 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "*/5 * * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/catalogue-intake-automation.yml"
+      - "workers/catalogue-intake-automation-worker.ts"
+      - "apps/web/src/lib/admin-catalogue-intake.ts"
+      - "apps/web/src/lib/admin-catalogue-operations.ts"
 
 permissions:
   contents: read
