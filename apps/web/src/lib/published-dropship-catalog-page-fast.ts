@@ -125,6 +125,7 @@ export async function getPublishedDropshipCatalogPage(
 
   if (!familyWindow.length) return { products: [], total: 0, hasMore: false };
   const total = safeCount(familyWindow[0].total_families);
+  const familyWindowHasMore = familyWindow[0].has_more === true;
   const supplierIds = familyWindow.map((row) => row.supplier_id);
   const externalProductIds = familyWindow.map((row) => row.external_product_id);
 
@@ -326,7 +327,7 @@ export async function getPublishedDropshipCatalogPage(
       matchedBySql: row.is_match
     }];
   });
-  if (!base.length) return { products: [], total, hasMore: offset + limit < total };
+  if (!base.length) return { products: [], total, hasMore: familyWindowHasMore };
 
   const ids = base.map((record) => record.id);
   const metadata = await loadCatalogMetadata(ids);
@@ -336,7 +337,7 @@ export async function getPublishedDropshipCatalogPage(
     if (record.publicFields.technicalAttributes === false) return [];
     return matchesCatalogAttributeFilters(metadata.get(record.id)?.attributes, attributeFilters) ? [record.id] : [];
   }));
-  if (!matchingIds.size) return { products: [], total, hasMore: offset + limit < total };
+  if (!matchingIds.size) return { products: [], total, hasMore: familyWindowHasMore };
 
   const enriched = base.map((record) => {
     const details = metadata.get(record.id);
@@ -353,17 +354,18 @@ export async function getPublishedDropshipCatalogPage(
     preferredVendorId: record.vendorId
   }));
 
-  const [images, sourcePrimaryImages] = await Promise.all([
-    approvedCatalogImages(imageRequests).catch((error) => {
-      console.error(JSON.stringify({
-        level: "error",
-        event: "storefront.dropship_public_media_projection_failed",
-        message: error instanceof Error ? error.message : String(error)
-      }));
-      return [];
-    }),
-    getPublicCatalogSourcePrimaryImages(imageRequests)
-  ]);
+  // Both projections can require PostgreSQL. The Vercel web runtime intentionally
+  // uses one database client, so serialize cold reads instead of making one wait for
+  // the only pool slot while the other is executing.
+  const images = await approvedCatalogImages(imageRequests).catch((error) => {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "storefront.dropship_public_media_projection_failed",
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return [];
+  });
+  const sourcePrimaryImages = await getPublicCatalogSourcePrimaryImages(imageRequests);
   const imageByCanonical = new Map(images.map((image) => [image.canonicalVariantId, image] as const));
 
   const products: ShopDropshipCard[] = projections.map((projection) => {
@@ -403,5 +405,5 @@ export async function getPublishedDropshipCatalogPage(
     };
   });
 
-  return { products, total, hasMore: offset + limit < total };
+  return { products, total, hasMore: familyWindowHasMore };
 }

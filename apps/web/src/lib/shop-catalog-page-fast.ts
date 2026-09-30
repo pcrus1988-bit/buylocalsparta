@@ -74,29 +74,48 @@ async function assignCanonicalsInBatches(
   postcode: string
 ) {
   const commerce = getProductionPostgresRuntime().customerCommerce;
-  const assigned: Awaited<ReturnType<typeof commerce.publicAssignedCanonical>>[] = [];
+  const assigned: Array<NonNullable<Awaited<ReturnType<typeof commerce.publicAssignedCanonical>>>> = [];
 
   for (let index = 0; index < canonicalIds.length; index += ASSIGNMENT_BATCH_SIZE) {
     const batch = canonicalIds.slice(index, index + ASSIGNMENT_BATCH_SIZE);
-    assigned.push(...await Promise.all(batch.map((canonicalVariantId) =>
-      commerce.publicAssignedCanonical({
-        canonicalVariantId,
+    try {
+      assigned.push(...await commerce.publicAssignedCanonicals({
+        canonicalVariantIds: batch,
         visitorKey,
         postcode,
         reason: "search_card"
-      }).catch((error) => {
-        console.error(JSON.stringify({
-          level: "error",
-          event: "storefront.catalog_assignment_degraded",
+      }));
+    } catch (error) {
+      // Preserve the old partial-degradation contract: if one batched serializable
+      // transaction fails, retry only that small chunk card-by-card so one malformed
+      // canonical cannot blank the rest of the page.
+      console.error(JSON.stringify({
+        level: "error",
+        event: "storefront.catalog_assignment_batch_degraded",
+        canonicalCount: batch.length,
+        message: error instanceof Error ? error.message : String(error)
+      }));
+      const fallback = await Promise.all(batch.map((canonicalVariantId) =>
+        commerce.publicAssignedCanonical({
           canonicalVariantId,
-          message: error instanceof Error ? error.message : String(error)
-        }));
-        return undefined;
-      })
-    )));
+          visitorKey,
+          postcode,
+          reason: "search_card"
+        }).catch((fallbackError) => {
+          console.error(JSON.stringify({
+            level: "error",
+            event: "storefront.catalog_assignment_degraded",
+            canonicalVariantId,
+            message: fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+          }));
+          return undefined;
+        })
+      ));
+      assigned.push(...fallback.flatMap((record) => record ? [record] : []));
+    }
   }
 
-  return assigned.flatMap((record) => record?.available && record.vendorId ? [record] : []);
+  return assigned.filter((record) => record.available && record.vendorId);
 }
 
 async function loadStickyPrices(

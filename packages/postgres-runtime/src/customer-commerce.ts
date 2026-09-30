@@ -226,29 +226,85 @@ export class PostgresCustomerCommerceService {
     reason?: "search_card" | "product_view" | "recommendation_card";
     now?: number;
   }): Promise<PublicAssignedCatalogRecord | undefined> {
+    const [record] = await this.publicAssignedCanonicals({
+      canonicalVariantIds: [input.canonicalVariantId],
+      visitorKey: input.visitorKey,
+      postcode: input.postcode,
+      fulfilmentMode: input.fulfilmentMode,
+      reason: input.reason,
+      now: input.now
+    });
+    return record;
+  }
+
+  /**
+   * Resolve several catalogue-card assignments inside one serializable transaction.
+   *
+   * The web runtime intentionally uses a one-client pool on Vercel. Opening one
+   * transaction per card made a 30-card page repeatedly acquire/release that same
+   * client and multiplied transaction setup cost. Fairness is still evaluated and
+   * persisted independently for every canonical in input order; only the transaction
+   * boundary and repeated adviser lookups are shared.
+   */
+  async publicAssignedCanonicals(input: {
+    canonicalVariantIds: readonly string[];
+    visitorKey: string;
+    postcode: string;
+    fulfilmentMode?: FulfilmentMode;
+    reason?: "search_card" | "product_view" | "recommendation_card";
+    now?: number;
+  }): Promise<readonly PublicAssignedCatalogRecord[]> {
+    const canonicalVariantIds = [...new Set(input.canonicalVariantIds.map((value) => value.trim()).filter(Boolean))];
+    if (canonicalVariantIds.length === 0) return [];
+    if (canonicalVariantIds.length > 100) throw new Error("Public assignment batch is limited to 100 canonicals");
+
     const now = input.now ?? Date.now();
+    const hashedVisitor = visitorHash(input.visitorKey);
     return this.#withSerializableRetry({ marketId: "sparta", platformAccess: true }, async (tx) => {
-      const canonical = await this.#canonical(tx, input.canonicalVariantId, "sparta");
-      if (!canonical) return undefined;
-      const base = this.#canonicalRecord(canonical);
-      const offers = await this.#eligibleOffers(tx, canonical, input.postcode, input.fulfilmentMode ?? "pickup", 1, now);
-      if (offers.length === 0) return { ...base, available: false, availableToSell: 0 };
-      const selected = await this.#selectFairOffer(tx, {
-        canonical,
-        offers,
-        visitorHash: visitorHash(input.visitorKey),
-        postcode: input.postcode,
-        reason: input.reason ?? "search_card",
-        now
+      // Always acquire canonical/fairness locks in a deterministic order so two
+      // overlapping catalogue requests cannot create an A→B / B→A lock cycle.
+      // Results are restored to the caller's original order below.
+      const transactionOrder = [...canonicalVariantIds].sort((left, right) => left.localeCompare(right));
+      const recordByCanonical = new Map<string, PublicAssignedCatalogRecord>();
+      const adviserByVendor = new Map<string, string | null>();
+
+      for (const canonicalVariantId of transactionOrder) {
+        const canonical = await this.#canonical(tx, canonicalVariantId, "sparta");
+        if (!canonical) continue;
+        const base = this.#canonicalRecord(canonical);
+        const offers = await this.#eligibleOffers(tx, canonical, input.postcode, input.fulfilmentMode ?? "pickup", 1, now);
+        if (offers.length === 0) {
+          recordByCanonical.set(canonicalVariantId, { ...base, available: false, availableToSell: 0 });
+          continue;
+        }
+
+        const selected = await this.#selectFairOffer(tx, {
+          canonical,
+          offers,
+          visitorHash: hashedVisitor,
+          postcode: input.postcode,
+          reason: input.reason ?? "search_card",
+          now
+        });
+        const vendorUuid = text(selected.vendor_uuid, "vendor_uuid");
+        if (!adviserByVendor.has(vendorUuid)) {
+          adviserByVendor.set(vendorUuid, (await this.#adviserName(tx, vendorUuid)) ?? null);
+        }
+
+        recordByCanonical.set(canonicalVariantId, {
+          ...base,
+          available: true,
+          availableToSell: asInt(selected.available_to_sell, "available_to_sell"),
+          vendorId: text(selected.vendor_public_id, "vendor_public_id"),
+          vendorName: text(selected.vendor_name, "vendor_name"),
+          adviser: adviserByVendor.get(vendorUuid) ?? undefined
+        });
+      }
+
+      return canonicalVariantIds.flatMap((canonicalVariantId) => {
+        const record = recordByCanonical.get(canonicalVariantId);
+        return record ? [record] : [];
       });
-      return {
-        ...base,
-        available: true,
-        availableToSell: asInt(selected.available_to_sell, "available_to_sell"),
-        vendorId: text(selected.vendor_public_id, "vendor_public_id"),
-        vendorName: text(selected.vendor_name, "vendor_name"),
-        adviser: await this.#adviserName(tx, text(selected.vendor_uuid, "vendor_uuid"))
-      };
     });
   }
 

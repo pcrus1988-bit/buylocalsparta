@@ -115,10 +115,11 @@ export async function getCrawlerLocalCatalogPageFast(
   if (!rows.length) return [];
 
   const hydratedIds = rows.map(({ row }) => row.canonical_public_id);
-  const [metadata, sourceDetails] = await Promise.all([
-    loadCatalogMetadata(hydratedIds),
-    getPublicProductDetails(hydratedIds)
-  ]);
+  // The web runtime intentionally has one PostgreSQL client per instance. Keep
+  // bounded crawler hydration sequential so two cold reads cannot compete for the
+  // same pool slot and turn a slow query into a connection-acquisition timeout.
+  const metadata = await loadCatalogMetadata(hydratedIds);
+  const sourceDetails = await getPublicProductDetails(hydratedIds);
 
   let imageByCanonical = new Map<string, Awaited<ReturnType<typeof approvedCatalogImages>>[number]>();
   try {

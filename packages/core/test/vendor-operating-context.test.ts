@@ -17,8 +17,11 @@ test("Sparta-compatible vendor context defaults to MANAGED without changing curr
   assert.equal(context.operatingModel, "MANAGED");
   assert.equal(hasVendorCapability(context, "inventory.manage"), true);
   assert.equal(hasVendorCapability(context, "orders.manage"), true);
-  assert.equal(hasVendorCapability(context, "shop.manage"), false);
+  assert.equal(hasVendorCapability(context, "shop.manage"), true);
+  assert.equal(hasVendorCapability(context, "pricing.manage"), true);
+  assert.equal(hasVendorCapability(context, "shipping.manage"), true);
   assert.equal(hasVendorCapability(context, "catalogue.import"), false);
+  assert.equal(hasVendorCapability(context, "promotions.manage"), false);
 });
 
 test("SELF_GOVERNED expansion vendor gains own-shop operations but never platform governance", () => {
@@ -44,7 +47,8 @@ test("SELF_GOVERNED expansion vendor gains own-shop operations but never platfor
     "customer_messages.manage",
     "promotions.manage",
     "seo.source_data.manage",
-    "staff.manage"
+    "staff.manage",
+    "subscription.manage"
   ] as const) assert.equal(hasVendorCapability(context, capability), true, capability);
 
   assert.equal(PLATFORM_GOVERNANCE_BOUNDARIES.includes("canonical.merge"), true);

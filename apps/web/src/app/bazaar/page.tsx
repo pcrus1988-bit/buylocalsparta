@@ -17,6 +17,7 @@ import {
 import { getCachedBazaarFacets } from "../../lib/bazaar-facets";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import styles from "./Bazaar.module.css";
+import { getSeoGlobalSettingsSnapshot } from "../../lib/seo-settings";
 
 type BazaarPageProps = Readonly<{ searchParams: Promise<Record<string,string | string[] | undefined>> }>;
 
@@ -97,6 +98,7 @@ function DealCard({ product, eager = false }: Readonly<{ product: BazaarCard; ea
 }
 
 export default async function BazaarPage({ searchParams }: BazaarPageProps) {
+  const seoSettingsPromise = getSeoGlobalSettingsSnapshot();
   const params = await searchParams;
   const query = valueOf(params.q).trim();
   const condition = valueOf(params.condition).trim();
@@ -171,9 +173,20 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
     .slice(0, 8);
 
   const marketProducts = filteredProducts.slice(0, 48);
+  const { settings: seoSettings } = await seoSettingsPromise;
+  const bazaarUrl = new URL("/bazaar", `${seoSettings.canonicalOrigin}/`).toString();
+  const breadcrumbStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Αρχική", item: seoSettings.canonicalOrigin },
+      { "@type": "ListItem", position: 2, name: "BAZAAR", item: bazaarUrl }
+    ]
+  };
 
   return (
     <main className={styles.page}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbStructuredData).replaceAll("<", "\\u003c") }} />
       <div className="announcement">BAZAAR · Η χαρά είναι να πετύχεις το λαβράκι.</div>
       <SiteHeader />
 

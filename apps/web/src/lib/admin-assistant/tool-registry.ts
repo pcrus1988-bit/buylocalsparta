@@ -3,7 +3,6 @@ import { adminCatalogueAttributeReviewWorkspace } from "../admin-catalogue-attri
 import { adminCatalogueOverviewWorkspace } from "../admin-catalogue-overview-runtime";
 import { adminCrawlerDashboard } from "../admin-catalogue-crawler";
 import { adminMaintenanceWorkspace, adminOrdersReturnsWorkspace } from "../admin-governance-runtime";
-import { adminOpenIcecatIngestionStatus } from "../admin-open-icecat-ingestion";
 import { adminMatchingWorkspace, adminOperationsWorkspace, adminTaxWorkspace, hasAdminPermission } from "../admin-runtime";
 import { adminSeoWorkspace } from "../admin-seo-runtime";
 import { adminGiftCards, giftCardsLiveEnabled } from "../gift-card-service";
@@ -87,46 +86,6 @@ const TOOLS: readonly ToolDefinition[] = [
           samples: group.samples.slice(0, 3),
           suggestions: group.suggestions.slice(0, 3)
         }))
-      };
-    }
-  },
-  {
-    name: "getOpenIcecatIngestionStatus",
-    family: "catalogue",
-    description: "Return bounded Open Icecat bulk checkpoints, rejection/filtered counts and Greek detail queue health.",
-    capability: "catalog.read",
-    pageTypes: ["catalogue_import"],
-    execute: async (principal) => {
-      const data = await adminOpenIcecatIngestionStatus(principal);
-      return {
-        runs: data.runs.slice(0, 6).map((run) => ({
-          runId: run.runId,
-          sourceName: run.sourceName,
-          importKind: run.importKind,
-          status: run.status,
-          checkpoint: run.checkpoint,
-          persisted: run.persisted,
-          removed: run.removed,
-          rejected: run.rejected,
-          filtered: run.filtered,
-          activeIndexProducts: run.activeIndexProducts,
-          removedIndexProducts: run.removedIndexProducts,
-          updatedAt: run.updatedAt,
-          completedAt: run.completedAt,
-          failedAt: run.failedAt,
-          lastError: run.lastError
-        })),
-        detail: data.detail ? {
-          activeIndexProducts: data.detail.activeIndexProducts,
-          unqueueableWithoutGtin: data.detail.unqueueableWithoutGtin,
-          pending: data.detail.pending,
-          processing: data.detail.processing,
-          retry: data.detail.retry,
-          ready: data.detail.ready,
-          needsEnrichment: data.detail.needsEnrichment,
-          failed: data.detail.failed,
-          skipped: data.detail.skipped
-        } : undefined
       };
     }
   },

@@ -39,7 +39,7 @@ export class PostgresBoxNowShippingService {
   async readiness(): Promise<{ok:boolean;message:string}> { try { await this.#client.readiness(); return {ok:true,message:"BOX NOW Partner API is reachable"}; } catch(error){ return {ok:false,message:error instanceof Error?error.message:String(error)}; } }
 
   async configureOrigin(input:{actorUserId:string;vendorLocationId:string;providerLocationId:string}):Promise<void>{
-    await this.#uow.withTransaction({actorUserId:input.actorUserId,platformAccess:true,marketId:"sparta"},async(tx)=>{
+    await this.#uow.withTransaction({actorUserId:input.actorUserId,platformAccess:true},async(tx)=>{
       const actor=await tx.query<SqlRow>("SELECT id::text AS id FROM users WHERE public_id=$1",[input.actorUserId]); if(!actor.rowCount) throw new Error("Admin user not found");
       const location=await tx.query<SqlRow>("SELECT id::text AS id FROM vendor_locations WHERE public_id=$1 OR id::text=$1",[input.vendorLocationId]); if(!location.rowCount) throw new Error("Vendor location not found");
       await tx.query(`INSERT INTO shipping_provider_locations(id,vendor_location_id,provider,provider_location_id,active,configured_by,created_at,updated_at)
@@ -48,7 +48,7 @@ export class PostgresBoxNowShippingService {
   }
 
   async adminOrigins(actorUserId:string):Promise<readonly Readonly<{vendorId:string;vendorName:string;locationId:string;locationName:string;postcode:string;providerLocationId?:string}>[]>{
-    return this.#uow.withTransaction({actorUserId,platformAccess:true,marketId:"sparta"},async(tx)=>{
+    return this.#uow.withTransaction({actorUserId,platformAccess:true},async(tx)=>{
       const rows=await tx.query<SqlRow>(`SELECT vb.public_id AS vendor_id,vb.trading_name AS vendor_name,vl.public_id AS location_id,vl.name AS location_name,vl.postcode,spl.provider_location_id
         FROM vendor_locations vl JOIN vendor_businesses vb ON vb.id=vl.vendor_id LEFT JOIN shipping_provider_locations spl ON spl.vendor_location_id=vl.id AND spl.provider='boxnow' AND spl.active
         WHERE vl.active ORDER BY vb.trading_name,vl.name`);
@@ -58,7 +58,7 @@ export class PostgresBoxNowShippingService {
 
   async workspace(principal:SessionPrincipal):Promise<BoxNowShipmentWorkspace>{
     const vid=vendorId(principal);
-    return this.#uow.withTransaction({actorUserId:principal.userId,vendorId:vid,marketId:"sparta"},async(tx)=>{
+    return this.#uow.withTransaction({actorUserId:principal.userId,vendorId:vid},async(tx)=>{
       const rows=await tx.query<SqlRow>(`SELECT s.public_id AS shipment_id,fo.public_id AS fulfilment_id,co.public_id AS order_id,co.order_number,fo.status AS fulfilment_status,s.status,s.provider_creation_state,s.tracking_number,s.provider_reference_number,s.provider_parcel_ids,s.provider_last_error,
         co.shipping_address_snapshot->>'providerDestinationId' AS destination_locker_id,co.shipping_address_snapshot->>'providerDestinationLabel' AS destination_label
         FROM fulfilment_orders fo JOIN customer_orders co ON co.id=fo.order_id
@@ -75,24 +75,24 @@ export class PostgresBoxNowShippingService {
 
   async createOrReconcile(principal:SessionPrincipal,input:{fulfilmentId:string;now?:number}):Promise<BoxNowShipmentWorkspace>{
     const vid=vendorId(principal), now=input.now??Date.now();
-    const prepared=await this.#uow.withTransaction({actorUserId:principal.userId,vendorId:vid,marketId:"sparta",platformAccess:true},async(tx)=>this.#prepare(tx,principal,input.fulfilmentId,now));
+    const prepared=await this.#uow.withTransaction({actorUserId:principal.userId,vendorId:vid,platformAccess:true},async(tx)=>this.#prepare(tx,principal,input.fulfilmentId,now));
     let result:BoxNowDeliveryResult|undefined; let error:unknown;
     if(["creating","manual_review"].includes(prepared.previousCreationState)){
       try { result=await this.#client.reconcileDelivery(prepared.request.orderNumber); } catch(e){ error=e; }
-      if(result){ await this.#confirm(prepared.shipmentId,result,now); return this.workspace(principal); }
-      await this.#markManualReview(prepared.shipmentId, undefined, error instanceof Error?error.message:"BOX NOW delivery creation outcome is still unknown", now);
+      if(result){ await this.#confirm(vid,prepared.shipmentId,result,now); return this.workspace(principal); }
+      await this.#markManualReview(vid,prepared.shipmentId, undefined, error instanceof Error?error.message:"BOX NOW delivery creation outcome is still unknown", now);
       throw new Error("BOX NOW delivery outcome is still unknown; automatic re-creation is blocked to prevent duplicate parcels");
     }
     try { result=await this.#client.createDelivery(prepared.request); }
     catch(e){ error=e; try { result=await this.#client.reconcileDelivery(prepared.request.orderNumber); } catch(reconcileError){ error=reconcileError; } }
-    if(result){ await this.#confirm(prepared.shipmentId,result,now); return this.workspace(principal); }
+    if(result){ await this.#confirm(vid,prepared.shipmentId,result,now); return this.workspace(principal); }
     const code=error instanceof BoxNowApiError?error.code:undefined;
-    await this.#markManualReview(prepared.shipmentId, code, error instanceof Error?error.message:String(error), now);
+    await this.#markManualReview(vid,prepared.shipmentId, code, error instanceof Error?error.message:String(error), now);
     throw new Error(`BOX NOW delivery outcome requires reconciliation${code?` (${code})`:""}`);
   }
 
   async processWebhook(event:BoxNowWebhookParcelEvent,receivedAt=Date.now()):Promise<{duplicate:boolean;stale:boolean;shipmentId?:string;status?:string}>{
-    return this.#uow.withTransaction({platformAccess:true,marketId:"sparta"},async(tx)=>{
+    return this.#uow.withTransaction({platformAccess:true},async(tx)=>{
       const row=await tx.query<SqlRow>(`SELECT s.id::text AS shipment_uuid,s.public_id AS shipment_id,s.status,s.provider_state,fo.id::text AS fulfilment_uuid,fo.public_id AS fulfilment_id,fo.status::text AS fulfilment_status,co.id::text AS order_uuid,co.status::text AS order_status,s.vendor_id::text AS vendor_uuid
         FROM shipments s JOIN fulfilment_orders fo ON fo.id=s.fulfilment_order_id JOIN customer_orders co ON co.id=s.order_id
         WHERE s.carrier='boxnow' AND (s.provider_shipment_id=$1 OR s.provider_parcel_ids ? $1 OR ($2::text IS NOT NULL AND fo.public_id=$2))
@@ -136,7 +136,7 @@ export class PostgresBoxNowShippingService {
 
   async labelPdf(principal:SessionPrincipal,shipmentId:string):Promise<Uint8Array>{
     const vid=vendorId(principal);
-    const orderNumber=await this.#uow.withTransaction({actorUserId:principal.userId,vendorId:vid,marketId:"sparta"},async(tx)=>{
+    const orderNumber=await this.#uow.withTransaction({actorUserId:principal.userId,vendorId:vid},async(tx)=>{
       const row=await tx.query<SqlRow>(`SELECT fo.public_id AS fulfilment_id FROM shipments s JOIN fulfilment_orders fo ON fo.id=s.fulfilment_order_id WHERE s.public_id=$1 AND s.vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$2) AND s.provider_creation_state='confirmed'`,[shipmentId,vid]);
       if(!row.rowCount) throw new Error("Shipment label access denied"); return text(row.rows[0].fulfilment_id,"fulfilment_id");
     },{readOnly:true});
@@ -145,7 +145,7 @@ export class PostgresBoxNowShippingService {
 
   async handover(principal:SessionPrincipal,shipmentId:string,now=Date.now()):Promise<BoxNowShipmentWorkspace>{
     const vid=vendorId(principal);
-    await this.#uow.withTransaction({actorUserId:principal.userId,vendorId:vid,marketId:"sparta",platformAccess:true},async(tx)=>{
+    await this.#uow.withTransaction({actorUserId:principal.userId,vendorId:vid,platformAccess:true},async(tx)=>{
       const row=await tx.query<SqlRow>(`SELECT s.id::text AS shipment_uuid,s.status,fo.id::text AS fulfilment_uuid FROM shipments s JOIN fulfilment_orders fo ON fo.id=s.fulfilment_order_id WHERE s.public_id=$1 AND s.vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$2) FOR UPDATE OF s,fo`,[shipmentId,vid]);
       if(!row.rowCount) throw new Error("Shipment access denied"); if(text(row.rows[0].status,"status")!=="label_ready") throw new Error("Shipment must have a confirmed label before handover");
       await tx.query("UPDATE shipments SET status='handed_to_carrier',handed_over_at=$2,shipped_at=$2,updated_at=$2 WHERE id=$1",[text(row.rows[0].shipment_uuid,"shipment_uuid"),new Date(now)]);
@@ -187,18 +187,18 @@ export class PostgresBoxNowShippingService {
     return {shipmentId:shipmentPublic,request,previousCreationState};
   }
 
-  async #confirm(shipmentId:string,result:BoxNowDeliveryResult,now:number):Promise<void>{
-    await this.#uow.withTransaction({platformAccess:true,marketId:"sparta"},async(tx)=>{
-      const row=await tx.query<SqlRow>("SELECT id::text AS id,fulfilment_order_id::text AS fulfilment_uuid FROM shipments WHERE public_id=$1 FOR UPDATE",[shipmentId]); if(!row.rowCount) throw new Error("Shipment disappeared during BOX NOW confirmation");
+  async #confirm(vendorPublicId:string,shipmentId:string,result:BoxNowDeliveryResult,now:number):Promise<void>{
+    await this.#uow.withTransaction({vendorId:vendorPublicId,platformAccess:true},async(tx)=>{
+      const row=await tx.query<SqlRow>("SELECT id::text AS id,fulfilment_order_id::text AS fulfilment_uuid FROM shipments WHERE public_id=$1 AND vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$2) FOR UPDATE",[shipmentId,vendorPublicId]); if(!row.rowCount) throw new Error("Shipment disappeared during BOX NOW confirmation");
       const uuid=text(row.rows[0].id,"shipment.id"), fulfilUuid=text(row.rows[0].fulfilment_uuid,"fulfilment_uuid");
       await tx.query(`UPDATE shipments SET provider_reference_number=$2,provider_parcel_ids=$3::jsonb,provider_shipment_id=$4,tracking_number=$4,provider_creation_state='confirmed',provider_confirmed_at=$5,status='label_ready',provider_last_error=NULL,updated_at=$5 WHERE id=$1`,[uuid,result.referenceNumber,JSON.stringify(result.parcelIds),result.parcelIds[0],new Date(now)]);
       await tx.query(`UPDATE shipment_provider_attempts SET status='confirmed',provider_reference_number=$2,provider_parcel_ids=$3::jsonb,error_code=NULL,error_message=NULL,updated_at=$4 WHERE shipment_id=$1 AND provider='boxnow'`,[uuid,result.referenceNumber,JSON.stringify(result.parcelIds),new Date(now)]);
       await tx.query("UPDATE fulfilment_orders SET status=CASE WHEN status='accepted' THEN 'packed' ELSE status END,updated_at=$2 WHERE id=$1",[fulfilUuid,new Date(now)]);
     });
   }
-  async #markManualReview(shipmentId:string,code:string|undefined,message:string,now:number):Promise<void>{
-    await this.#uow.withTransaction({platformAccess:true,marketId:"sparta"},async(tx)=>{
-      const row=await tx.query<SqlRow>("SELECT id::text AS id FROM shipments WHERE public_id=$1 FOR UPDATE",[shipmentId]); if(!row.rowCount)return; const uuid=text(row.rows[0].id,"shipment.id");
+  async #markManualReview(vendorPublicId:string,shipmentId:string,code:string|undefined,message:string,now:number):Promise<void>{
+    await this.#uow.withTransaction({vendorId:vendorPublicId,platformAccess:true},async(tx)=>{
+      const row=await tx.query<SqlRow>("SELECT id::text AS id FROM shipments WHERE public_id=$1 AND vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$2) FOR UPDATE",[shipmentId,vendorPublicId]); if(!row.rowCount)return; const uuid=text(row.rows[0].id,"shipment.id");
       await tx.query("UPDATE shipments SET provider_creation_state='manual_review',provider_last_error=$2,updated_at=$3 WHERE id=$1",[uuid,message.slice(0,1000),new Date(now)]);
       await tx.query("UPDATE shipment_provider_attempts SET status='manual_review',error_code=$2,error_message=$3,updated_at=$4 WHERE shipment_id=$1 AND provider='boxnow'",[uuid,code??null,message.slice(0,1000),new Date(now)]);
     });

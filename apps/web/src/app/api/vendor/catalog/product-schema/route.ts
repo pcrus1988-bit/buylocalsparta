@@ -1,9 +1,9 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { vendorProductIdentitySchema } from "../../../../../lib/vendor-structured-product-identity-service";
 
 export async function GET(request: Request) {
   try {
-    const principal = await requireVendorSession(request);
+    const { principal } = await requireVendorCapability("catalogue.read", request);
     const url = new URL(request.url);
     const categoryCode = url.searchParams.get("categoryCode")?.trim() ?? "";
     const canonicalVariantId = url.searchParams.get("canonicalVariantId")?.trim() || undefined;

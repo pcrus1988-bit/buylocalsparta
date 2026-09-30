@@ -9,7 +9,7 @@ export type SeoSchemaExpectation = Readonly<{
 }>;
 
 const PRODUCT_SCHEMA_TYPES = ["Product", "Offer", "BreadcrumbList"] as const;
-const VENDOR_SCHEMA_TYPES = ["LocalBusiness"] as const;
+const VENDOR_SCHEMA_TYPES = ["LocalBusiness", "BreadcrumbList"] as const;
 
 function referenceForNode(node: SeoCrawlGraphNode): SeoEntityReference | undefined {
   if (node.kind === "product") {
