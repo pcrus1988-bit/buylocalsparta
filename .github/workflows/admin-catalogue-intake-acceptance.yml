@@ -112,7 +112,7 @@ jobs:
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"
           npm run db:ready
       - name: Exercise unified catalogue operations queries
-        run: node --experimental-strip-types scripts/catalogue-operations-smoke.ts
+        run: node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs scripts/catalogue-operations-smoke.ts
       - name: Typecheck source mapping services and database smokes
         run: |
           npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck \
