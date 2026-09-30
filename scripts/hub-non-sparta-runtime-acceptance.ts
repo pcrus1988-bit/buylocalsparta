@@ -53,7 +53,7 @@ try {
 
   await runtime.sqlPool.query(
     `UPDATE expansion_hubs
-     SET lifecycle_state='active',updated_at=now()
+     SET lifecycle_state='active',research_status='ACTIVE_REFERENCE',updated_at=now()
      WHERE hub_id='KM-HUB-019'`
   );
 
