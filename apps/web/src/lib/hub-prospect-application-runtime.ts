@@ -397,6 +397,13 @@ async function provisionHubProspectTrial(tx: SqlExecutor, source: HubTrialSource
 
   const vendorUuid = randomUUID();
   const vendorPublicId = `vendor_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
+  const nameCollision = await tx.query(
+    "SELECT 1 FROM vendor_businesses WHERE market_id=$1::uuid AND lower(trading_name)=lower($2) LIMIT 1",
+    [marketUuid, source.businessName]
+  );
+  const trialTradingName = nameCollision.rowCount
+    ? `${source.businessName} · Trial ${reference.slice(-8)}`
+    : source.businessName;
   const startedAt = now;
   const expiresAt = now + HUB_TRIAL_DURATION_MS;
   const at = new Date(now);
@@ -432,7 +439,7 @@ async function provisionHubProspectTrial(tx: SqlExecutor, source: HubTrialSource
     vendorPublicId,
     marketUuid,
     source.legalName,
-    source.businessName,
+    trialTradingName,
     source.taxNumber,
     source.gemiNumber ?? null,
     at,
