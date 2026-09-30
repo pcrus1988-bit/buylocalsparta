@@ -36,19 +36,22 @@ async function postgresProductsWorkspace(principal:SessionPrincipal,filters:Admi
     const where:string[]=["cv.market_id = $1::uuid"];
     const add=(value:unknown)=>{params.push(value);return "$"+params.length;};
 
+    let searchPrefix="";
+    let searchJoin="";
+    if(q){
+      const p=add(q);
+      searchPrefix=
+        "WITH search_candidates AS MATERIALIZED ("+
+        "SELECT cv_search.id FROM canonical_variants cv_search WHERE cv_search.market_id=$1::uuid AND cv_search.public_id="+p+
+        " UNION SELECT cv_search.id FROM canonical_variants cv_search WHERE cv_search.market_id=$1::uuid AND cv_search.commerce_channel='normal' AND cv_search.gtin="+p+
+        " UNION SELECT cv_search.id FROM canonical_variants cv_search WHERE cv_search.market_id=$1::uuid AND to_tsvector('simple', (((((COALESCE(cv_search.model,'') || ' ') || COALESCE(cv_search.slug,'')) || ' ') || COALESCE(cv_search.gtin,'')) || ' ') || COALESCE(cv_search.mpn,'')) @@ plainto_tsquery('simple',"+p+")"+
+        " UNION SELECT search_pt.canonical_variant_id FROM product_translations search_pt WHERE to_tsvector('simple',COALESCE(search_pt.title,'')) @@ plainto_tsquery('simple',"+p+")"+
+        ") ";
+      searchJoin="JOIN search_candidates search_match ON search_match.id=cv.id ";
+    }
     if(category){const p=add(category);where.push("c.code = "+p);}
     if(channel!=="all"){const p=add(channel);where.push("COALESCE(cv.commerce_channel,'normal') = "+p);}
     if(cursor){const p=add(cursor);where.push("cv.public_id < "+p);}
-    if(q){
-      const p=add(q);
-      where.push("("+
-        "cv.public_id = "+p+
-        " OR cv.gtin = "+p+
-        " OR LOWER(COALESCE(cv.mpn,'')) = LOWER("+p+")"+
-        " OR to_tsvector('simple', (((((COALESCE(cv.model,'') || ' ') || COALESCE(cv.slug,'')) || ' ') || COALESCE(cv.gtin,'')) || ' ') || COALESCE(cv.mpn,'')) @@ plainto_tsquery('simple',"+p+")"+
-        " OR EXISTS (SELECT 1 FROM product_translations search_pt WHERE search_pt.canonical_variant_id=cv.id AND to_tsvector('simple',COALESCE(search_pt.title,'')) @@ plainto_tsquery('simple',"+p+"))"+
-      ")");
-    }
     if(state==="live")where.push("cv.active=TRUE AND cv.suppressed=FALSE AND cv.recalled=FALSE");
     if(state==="draft")where.push("cv.active=FALSE AND cv.suppressed=FALSE AND cv.recalled=FALSE");
     if(state==="suppressed")where.push("cv.suppressed=TRUE");
@@ -59,10 +62,11 @@ async function postgresProductsWorkspace(principal:SessionPrincipal,filters:Admi
 
     params.push(limit+1);
     const productSql=
+      searchPrefix+
       "SELECT cv.public_id,cv.slug,COALESCE(el.title,en.title,cv.model,cv.slug,cv.public_id) AS title,b.name AS brand_name,c.code AS category_code,COALESCE(ct.name,c.code) AS category_name,cv.gtin,cv.mpn,cv.model,COALESCE(cv.commerce_channel,'normal') AS commerce_channel,cv.active,cv.suppressed,cv.recalled,(cv.variant_attributes IS NULL OR cv.variant_attributes='{}'::jsonb) AS missing_attributes,"+
       "COALESCE(media.has_media,FALSE) AS has_media,"+
       "COALESCE(offer.offer_count,0)::int AS offer_count,offer.min_price_minor,COALESCE(cv.currency,'EUR')::text AS currency "+
-      "FROM canonical_variants cv "+
+      "FROM canonical_variants cv "+searchJoin+
       "LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el' "+
       "LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en' "+
       "LEFT JOIN categories c ON c.id=cv.category_id "+
