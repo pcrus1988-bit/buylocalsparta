@@ -54,7 +54,7 @@ for (const contract of ["requireDailySession(request, true)", "vendorRequestAskL
 for (const contract of ["/api/account/ask-local/clarifications", "x-csrf-token", "requestId, reply", "νέα 24ωρη προθεσμία"]) if (!clarificationClient.includes(contract)) failures.push(`Customer clarification UI is missing ${contract}`);
 if (!client.includes("AskLocalClarificationClient") || !client.includes('request.status === "needs_info"')) failures.push("Customer Ask Local cards must expose clarification reply only when customer action is required");
 for (const contract of ["vendorSendAskLocalMessage", "vendorAskLocalRequestMessages", "VENDOR_MESSAGE_STATUSES", "imageDataUrl", "counteroffer.vendor_message"]) if (!clarificationService.includes(contract)) failures.push(`Vendor request messaging is missing ${contract}`);
-for (const contract of ["/api/account/ask-local/clarifications", "Συζήτηση με το κατάστημα", "imageDataUrl", "replyToThread"]) if (!customerActions.includes(contract)) failures.push(`Customer Ask Local request thread is missing ${contract}`);
+for (const contract of ["Συζήτηση με το κατάστημα", "imageDataUrl", "next/image"]) if (!clarificationClient.includes(contract)) failures.push(`Customer Ask Local request thread is missing ${contract}`);
 
 const dynamicHomepageAskLocal = home.includes("<HomeQuickSearch />")
   && homeSearch.includes("useSearchDiscovery(query, 12)")
