@@ -16,6 +16,7 @@ const SEMANTIC_PAGES: Readonly<Record<string, Omit<AdminAssistantPageDefinition,
   "/admin/search": { pageType: "global_search", domain: "generic", contextLabel: "Admin > Search", purpose: "Resolve KONTA MOY orders, customers, support cases, partners and onboarding records from human-readable or technical identifiers before deeper investigation.", attention: ["correct entity identity", "permission scope", "public references before internal IDs", "next safe drilldown"] },
   "/admin/orders": { pageType: "orders", domain: "orders", contextLabel: "Operations > Orders", entityType: "order", purpose: "Order lifecycle, payment, fulfilment, tax and exception management.", attention: ["payment inconsistencies", "fulfilment anomalies", "missing tax documents", "returns and refunds"] },
   "/admin/catalogue": { pageType: "catalogue_overview", domain: "catalogue", contextLabel: "Catalogue > Overview", purpose: "Canonical catalogue, taxonomy and data-quality overview.", attention: ["catalog coverage", "taxonomy gaps", "canonical integrity", "publication readiness"] },
+  "/admin/products": { pageType: "products_control_centre", domain: "catalogue", contextLabel: "Catalogue > Products & Categories", entityType: "canonical_product", purpose: "Operate the canonical product catalogue and category governance from bounded, responsive queues.", attention: ["catalogue quality", "uncategorized products", "missing media", "missing offers", "category visibility"] },
   "/admin/catalogue-intake": { pageType: "supplier_pim", domain: "catalogue", contextLabel: "Catalogue > Supplier PIM", purpose: "Normalize supplier source data before canonical promotion.", attention: ["review queue", "blocked promotions", "source normalization", "category policy conflicts"] },
   "/admin/catalogue-intake/attributes": { pageType: "attribute_mapping", domain: "catalogue", contextLabel: "Catalogue > Attribute Mapping", entityType: "source_attribute", purpose: "Map source attributes into KONTA MOY canonical attributes safely and consistently.", attention: ["highest-impact unmapped attributes", "unit conflicts", "duplicate semantics", "affected products"] },
   "/admin/catalogue-intake/values": { pageType: "controlled_values", domain: "catalogue", contextLabel: "Catalogue > Controlled Values", entityType: "attribute_value", purpose: "Normalize source values into controlled canonical values.", attention: ["unmapped values", "aliases", "unit/value inconsistency", "high-volume source values"] },
@@ -44,7 +45,7 @@ function domainForGroupHref(href?: string): AdminAssistantDomain {
   if (href === "/admin") return "dashboard";
   if (href === "/admin/work") return "orders";
   if (href === "/admin/partners") return "partners";
-  if (href === "/admin/catalogue") return "catalogue";
+  if (href === "/admin/catalogue" || href === "/admin/products") return "catalogue";
   if (href === "/admin/finance") return "tax";
   if (href === "/admin/seo") return "seo";
   if (href === "/admin/platform") return "platform";

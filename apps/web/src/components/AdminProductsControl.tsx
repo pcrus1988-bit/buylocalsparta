@@ -15,8 +15,9 @@ function formatCount(value:number){return new Intl.NumberFormat("el-GR",{notatio
 function formatMoney(minor:number|undefined,currency:string){if(minor==null)return "—";return new Intl.NumberFormat("el-GR",{style:"currency",currency,maximumFractionDigits:2}).format(minor/100);}
 function productState(product:AdminProductRow){if(product.recalled)return{label:"Recall",tone:"danger"};if(product.suppressed)return{label:"Suppressed",tone:"muted"};if(product.active)return{label:"Live",tone:"positive"};return{label:"Draft",tone:"attention"};}
 function qualityScore(product:AdminProductRow){let score=20;if(product.categoryCode)score+=20;if(product.brandName)score+=15;if(!product.missingAttributes)score+=15;if(product.hasMedia)score+=15;if(product.offerCount>0)score+=15;return score;}
+function productStorefrontHref(product:AdminProductRow){if(!product.active||product.suppressed||product.recalled)return undefined;const routeKey=encodeURIComponent(product.slug||product.publicId);return product.channel==="bazaar"?`/bazaar/product/${routeKey}`:`/product/${routeKey}`;}
 
-export function AdminProductsControl({csrfToken,initialView="products"}:{csrfToken:string;initialView?:View}){
+export function AdminProductsControl({csrfToken,initialView="products",canWrite=false}:{csrfToken:string;initialView?:View;canWrite?:boolean}){
   const [view,setView]=useState<View>(initialView);
   const [layout,setLayout]=useState<Layout>("cards");
   const [query,setQuery]=useState("");
@@ -33,11 +34,15 @@ export function AdminProductsControl({csrfToken,initialView="products"}:{csrfTok
   const [categoryBusy,setCategoryBusy]=useState("");
   const [reloadKey,setReloadKey]=useState(0);
   const requestRef=useRef(0);
+  const paginationAbortRef=useRef<AbortController|null>(null);
 
   useEffect(()=>{const timer=window.setTimeout(()=>setDebouncedQuery(query.trim()),220);return()=>window.clearTimeout(timer);},[query]);
 
   useEffect(()=>{
     if(view!=="products")return;
+    paginationAbortRef.current?.abort();
+    paginationAbortRef.current=null;
+    setLoadingMore(false);
     const requestId=++requestRef.current;
     const controller=new AbortController();
     setLoading(true);setError("");setSelected(new Set());
@@ -53,6 +58,9 @@ export function AdminProductsControl({csrfToken,initialView="products"}:{csrfTok
 
   useEffect(()=>{
     if(view!=="categories")return;
+    paginationAbortRef.current?.abort();
+    paginationAbortRef.current=null;
+    setLoadingMore(false);
     const requestId=++requestRef.current;
     const controller=new AbortController();
     setLoading(true);setError("");
@@ -69,37 +77,58 @@ export function AdminProductsControl({csrfToken,initialView="products"}:{csrfTok
 
   async function loadMoreProducts(){
     if(!workspace?.hasMore||!workspace.nextCursor||loadingMore)return;
+    const requestId=requestRef.current;
+    const controller=new AbortController();
+    paginationAbortRef.current?.abort();
+    paginationAbortRef.current=controller;
     setLoadingMore(true);setError("");
     const search=new URLSearchParams({limit:"48",state,channel,cursor:workspace.nextCursor});
     if(debouncedQuery)search.set("q",debouncedQuery);
     if(category)search.set("category",category);
     try{
-      const response=await fetch("/api/admin/products?"+search.toString(),{cache:"no-store"});
+      const response=await fetch("/api/admin/products?"+search.toString(),{cache:"no-store",signal:controller.signal});
       const payload=await response.json() as AdminProductsWorkspace&{error?:string};
       if(!response.ok)throw new Error(payload.error??"Could not load more products");
+      if(controller.signal.aborted||requestId!==requestRef.current)return;
       setWorkspace(current=>current?{...payload,products:[...current.products,...payload.products]}:payload);
-    }catch(cause){setError(cause instanceof Error?cause.message:"Could not load more products");}
-    finally{setLoadingMore(false);}
+    }catch(cause){
+      if(cause instanceof DOMException&&cause.name==="AbortError")return;
+      if(requestId===requestRef.current)setError(cause instanceof Error?cause.message:"Could not load more products");
+    }finally{
+      if(paginationAbortRef.current===controller)paginationAbortRef.current=null;
+      if(requestId===requestRef.current)setLoadingMore(false);
+    }
   }
 
   async function loadMoreCategories(){
     if(!categoryWorkspace?.hasMore||categoryWorkspace.nextOffset==null||loadingMore)return;
+    const requestId=requestRef.current;
+    const controller=new AbortController();
+    paginationAbortRef.current?.abort();
+    paginationAbortRef.current=controller;
     setLoadingMore(true);setError("");
     const search=new URLSearchParams({view:"categories",limit:"60",offset:String(categoryWorkspace.nextOffset)});
     if(debouncedQuery)search.set("q",debouncedQuery);
     try{
-      const response=await fetch("/api/admin/products?"+search.toString(),{cache:"no-store"});
+      const response=await fetch("/api/admin/products?"+search.toString(),{cache:"no-store",signal:controller.signal});
       const payload=await response.json() as AdminProductCategoriesWorkspace&{error?:string};
       if(!response.ok)throw new Error(payload.error??"Could not load more categories");
+      if(controller.signal.aborted||requestId!==requestRef.current)return;
       setCategoryWorkspace(current=>current?{...payload,categories:[...current.categories,...payload.categories]}:payload);
-    }catch(cause){setError(cause instanceof Error?cause.message:"Could not load more categories");}
-    finally{setLoadingMore(false);}
+    }catch(cause){
+      if(cause instanceof DOMException&&cause.name==="AbortError")return;
+      if(requestId===requestRef.current)setError(cause instanceof Error?cause.message:"Could not load more categories");
+    }finally{
+      if(paginationAbortRef.current===controller)paginationAbortRef.current=null;
+      if(requestId===requestRef.current)setLoadingMore(false);
+    }
   }
 
   function toggleSelected(id:string){setSelected(current=>{const next=new Set(current);if(next.has(id))next.delete(id);else next.add(id);return next;});}
   async function copySelected(){if(!selected.size)return;await navigator.clipboard?.writeText([...selected].join("\n")).catch(()=>undefined);}
 
   async function updateCommerceMode(card:AdminProductCategoryCard,commerceMode:string){
+    if(!canWrite)return;
     setCategoryBusy(card.categoryCode+":commerce");setError("");
     try{
       const response=await fetch("/api/admin/categories",{method:"POST",headers:{"content-type":"application/json","x-csrf-token":csrfToken},body:JSON.stringify({categoryCode:card.categoryCode,labelEl:card.labelEl,commerceMode})});
@@ -111,6 +140,7 @@ export function AdminProductsControl({csrfToken,initialView="products"}:{csrfTok
   }
 
   async function toggleCategory(card:AdminProductCategoryCard,field:"active"|"assignable"|"discoverable"){
+    if(!canWrite)return;
     setCategoryBusy(card.categoryCode+":"+field);setError("");
     const updated={...card,[field]:!card[field]};
     try{
@@ -132,7 +162,7 @@ export function AdminProductsControl({csrfToken,initialView="products"}:{csrfTok
         <button type="button" className={view==="categories"?styles.activeTab:undefined} onClick={()=>setView("categories")}><AdminNavIcon name="overview"/> Categories</button>
       </div>
       <div className={styles.topActions}>
-        <Link href="/admin/quickadd">+ Quick Add</Link>
+        {canWrite?<Link href="/admin/quickadd">+ Quick Add</Link>:null}
         <Link href="/admin/catalogue/structure">Advanced Structure</Link>
         <Link href="/admin/catalogue/enrichment">Quality QA</Link>
       </div>
@@ -143,7 +173,7 @@ export function AdminProductsControl({csrfToken,initialView="products"}:{csrfTok
       <article><span>Storefront projection</span><strong>{formatCount(metrics.storefrontProductsApprox)}</strong><small>currently projected</small></article>
       <article><span>Vendor offers</span><strong>{formatCount(metrics.vendorOffersApprox)}</strong><small>fast DB estimate</small></article>
       <article><span>Families</span><strong>{formatCount(metrics.productFamiliesApprox)}</strong><small>canonical grouping</small></article>
-      <article className={metrics.uncategorizedLive?styles.attentionMetric:undefined}><span>Uncategorized</span><strong>{formatCount(metrics.uncategorizedLive)}</strong><small>needs taxonomy</small></article>
+      <article className={metrics.uncategorizedLive?styles.attentionMetric:undefined}><span>Uncategorized</span><strong>{formatCount(metrics.uncategorizedLive)}{metrics.uncategorizedLiveCapped?"+":""}</strong><small>{metrics.uncategorizedLiveCapped?"at least 2K need taxonomy":"needs taxonomy"}</small></article>
       <article><span>Categories</span><strong>{formatCount(metrics.categories)}</strong><small>taxonomy nodes</small></article>
     </div>:null}
 
@@ -173,13 +203,13 @@ export function AdminProductsControl({csrfToken,initialView="products"}:{csrfTok
 
     {!loading&&view==="products"?<>
       <div className={layout==="cards"?styles.productGrid:styles.productRows}>
-        {visibleProducts.map(product=>{const currentState=productState(product);const quality=qualityScore(product);const visualStyle={"--score":quality+"%"} as CSSProperties & Record<"--score",string>;return <article className={styles.productCard} key={product.publicId}>
+        {visibleProducts.map(product=>{const currentState=productState(product);const quality=qualityScore(product);const storefrontHref=productStorefrontHref(product);const visualStyle={"--score":quality+"%"} as CSSProperties & Record<"--score",string>;return <article className={styles.productCard} key={product.publicId}>
           <div className={styles.productTop}><label className={styles.checkbox}><input type="checkbox" checked={selected.has(product.publicId)} onChange={()=>toggleSelected(product.publicId)}/><span/></label><span className={styles.status+" "+styles["status_"+currentState.tone]}>{currentState.label}</span><span className={styles.channel}>{product.channel}</span></div>
           <div className={styles.productVisual} aria-hidden="true"><span>{(product.brandName??product.categoryName??"KM").slice(0,2).toUpperCase()}</span><i style={visualStyle}/></div>
           <div className={styles.productBody}><small>{product.brandName??"No brand"}</small><h3>{product.title}</h3><p>{product.categoryName??"Χωρίς κατηγορία"}</p><div className={styles.productSignals}><span className={product.hasMedia?styles.goodSignal:styles.badSignal}>{product.hasMedia?"✓ Media":"! No media"}</span><span className={product.offerCount?styles.goodSignal:styles.badSignal}>{product.offerCount?String(product.offerCount)+" offer"+(product.offerCount===1?"":"s"):"! No offer"}</span><span className={!product.missingAttributes?styles.goodSignal:styles.warnSignal}>{product.missingAttributes?"! Attributes":"✓ Attributes"}</span></div></div>
           <div className={styles.productMeta}><div><span>From</span><strong>{formatMoney(product.minPriceMinor,product.currency)}</strong></div><div><span>Quality</span><strong>{quality}%</strong></div></div>
           <div className={styles.productIds}><code>{product.publicId}</code>{product.gtin?<code>GTIN {product.gtin}</code>:null}</div>
-          <div className={styles.productActions}><Link href={"/product/"+encodeURIComponent(product.slug)}>Storefront ↗</Link>{product.categoryCode?<Link href={"/admin/catalogue/structure?category="+encodeURIComponent(product.categoryCode)}>Category</Link>:<Link href="/admin/catalogue/structure">Assign category</Link>}</div>
+          <div className={styles.productActions}>{storefrontHref?<Link href={storefrontHref}>Storefront ↗</Link>:<span aria-disabled="true">Not public</span>}{product.categoryCode?<Link href={"/admin/catalogue/structure?category="+encodeURIComponent(product.categoryCode)}>Category</Link>:<Link href="/admin/catalogue/structure">Assign category</Link>}</div>
         </article>;})}
       </div>
       {!visibleProducts.length?<div className={styles.empty}><AdminNavIcon name="search"/><strong>No products match these filters.</strong><span>Try removing one filter or searching by an exact GTIN / product ID.</span></div>:null}
@@ -187,13 +217,13 @@ export function AdminProductsControl({csrfToken,initialView="products"}:{csrfTok
     </>:null}
 
     {!loading&&view==="categories"?<>
-      <div className={styles.categoryHeader}><div><strong>Category control</strong><span>Toggle visibility and assignment rules without leaving the dashboard.</span></div><Link href="/admin/catalogue/structure">Open full taxonomy tree →</Link></div>
+      <div className={styles.categoryHeader}><div><strong>Category control</strong><span>{canWrite?"Toggle visibility and assignment rules without leaving the dashboard.":"Read-only access: category policies and states are visible but cannot be changed."}</span></div><Link href="/admin/catalogue/structure">Open full taxonomy tree →</Link></div>
       <div className={styles.categoryGrid}>{(categoryWorkspace?.categories??[]).map(item=><article className={styles.categoryCard} key={item.categoryCode}>
         <div className={styles.categoryCardHead}><span className={styles.categoryGraphic}><AdminNavIcon name="catalog"/></span><div><small>{item.parentCategoryCode??"ROOT"} · {item.taxonomyRole}</small><h3>{item.labelEl}</h3><code>{item.categoryCode}</code></div><strong>{formatCount(item.liveProductCount)}<small> live</small></strong></div>
         <div className={styles.categoryPolicy}>
-          <label><span>Commerce policy</span><select value={item.commerceMode} disabled={categoryBusy===item.categoryCode+":commerce"} onChange={event=>void updateCommerceMode(item,event.target.value)}><option value="standard">Standard</option><option value="logistics_sensitive">Logistics sensitive</option><option value="compatibility_sensitive">Compatibility sensitive</option><option value="regulated_mixed">Regulated mixed</option><option value="vehicles">Vehicles</option><option value="directory_only">Directory only</option></select></label>
+          <label><span>Commerce policy</span><select value={item.commerceMode} disabled={!canWrite||categoryBusy===item.categoryCode+":commerce"} onChange={event=>void updateCommerceMode(item,event.target.value)}><option value="standard">Standard</option><option value="logistics_sensitive">Logistics sensitive</option><option value="compatibility_sensitive">Compatibility sensitive</option><option value="regulated_mixed">Regulated mixed</option><option value="vehicles">Vehicles</option><option value="directory_only">Directory only</option></select></label>
         </div>
-        <div className={styles.categoryToggles}>{(["active","discoverable","assignable"] as const).map(field=>{const checked=item[field];const busy=categoryBusy===item.categoryCode+":"+field;return <button type="button" key={field} className={checked?styles.toggleOn:styles.toggleOff} disabled={busy} onClick={()=>void toggleCategory(item,field)} aria-pressed={checked}><i/><span>{field==="active"?"Active":field==="discoverable"?"Discoverable":"Assignable"}</span></button>;})}</div>
+        <div className={styles.categoryToggles}>{(["active","discoverable","assignable"] as const).map(field=>{const checked=item[field];const busy=categoryBusy===item.categoryCode+":"+field;return <button type="button" key={field} className={checked?styles.toggleOn:styles.toggleOff} disabled={!canWrite||busy} onClick={()=>void toggleCategory(item,field)} aria-pressed={checked}><i/><span>{field==="active"?"Active":field==="discoverable"?"Discoverable":"Assignable"}</span></button>;})}</div>
         <div className={styles.categoryActions}><Link href={"/admin/catalogue/structure?category="+encodeURIComponent(item.categoryCode)}>Advanced settings →</Link></div>
       </article>)}</div>
       {!categoryWorkspace?.categories.length?<div className={styles.empty}><AdminNavIcon name="search"/><strong>No categories match this search.</strong></div>:null}
