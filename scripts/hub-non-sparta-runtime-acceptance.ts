@@ -74,7 +74,7 @@ try {
        public_id,market_id,legal_name,trading_name,status,verification_completed_at,contract_started_at,
        public_directory_visible,demo_mode
      )
-     SELECT $2,market.id,$3,$3,'active',$4,$4,false,true
+     SELECT $2,market.id,$3,$3,'active',$4,$4,false,false
      FROM market`,
     [nonSpartaMarketCode, nonSpartaVendorId, `CI Non-Sparta Vendor ${suffix}`, now]
   );
@@ -134,7 +134,7 @@ try {
        public_id,market_id,legal_name,trading_name,status,verification_completed_at,contract_started_at,
        public_directory_visible,demo_mode
      )
-     SELECT $1,market.id,$2,$2,'active',$3,$3,false,true
+     SELECT $1,market.id,$2,$2,'active',$3,$3,false,false
      FROM market`,
     [spartaVendorId, `CI Sparta Vendor ${suffix}`, now]
   );
