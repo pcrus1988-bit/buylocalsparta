@@ -38,7 +38,11 @@ const client = readFileSync("apps/web/src/components/VendorDailyHomeClient.tsx",
 const page = readFileSync("apps/web/src/app/daily/page.tsx", "utf8");
 if (!source.includes('timeZone: "Europe/Athens"')) throw new Error("Today intelligence must use the Sparta/Athens calendar day");
 if (!source.includes("72 * HOUR_MS")) throw new Error("Stock freshness must have an explicit 72-hour boundary");
-if (!client.includes("Today · Sparta") || !client.includes("stockFreshnessPercent")) throw new Error("Daily home must expose the Today operating brief and stock freshness");
+if (!client.includes("Σήμερα · Σπάρτη") || !client.includes("stockFreshnessPercent")) throw new Error("Daily home must expose the localized Today operating brief and stock freshness");
+const inboxIndex = client.indexOf("Χρειάζεται επιβεβαίωση");
+const todayIndex = client.indexOf('id="daily-today-title"');
+if (inboxIndex < 0 || todayIndex < 0 || inboxIndex > todayIndex) throw new Error("Unacknowledged orders must appear before the Today summary");
+if (!client.includes('priority.id === "new-orders" && unacknowledged.length > 0')) throw new Error("Daily home must not duplicate unacknowledged orders in the Today priority queue");
 if (!client.includes("/daily/quickadd") || !client.includes("/daily/ask-local")) throw new Error("Today priorities must lead to existing operational workflows");
 if (!page.includes("generatedAt={generatedAt}")) throw new Error("Daily page must provide a stable server-generated intelligence timestamp");
 for (const forbidden of ["customerId", "customerEmail", "recipientName", "shipping_address", "phone"]) {
