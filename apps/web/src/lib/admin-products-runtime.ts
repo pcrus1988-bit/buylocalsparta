@@ -60,7 +60,7 @@ async function postgresProductsWorkspace(principal:SessionPrincipal,filters:Admi
     params.push(limit+1);
     const productSql=
       "SELECT cv.public_id,cv.slug,COALESCE(el.title,en.title,cv.model,cv.slug,cv.public_id) AS title,b.name AS brand_name,c.code AS category_code,COALESCE(ct.name,c.code) AS category_name,cv.gtin,cv.mpn,cv.model,COALESCE(cv.commerce_channel,'normal') AS commerce_channel,cv.active,cv.suppressed,cv.recalled,(cv.variant_attributes IS NULL OR cv.variant_attributes='{}'::jsonb) AS missing_attributes,"+
-      "EXISTS(SELECT 1 FROM product_media pm WHERE pm.canonical_variant_id=cv.id AND pm.scan_status='clean' AND pm.rights_status='approved' AND pm.moderation_status='approved') AS has_media,"+
+      "COALESCE(media.has_media,FALSE) AS has_media,"+
       "COALESCE(offer.offer_count,0)::int AS offer_count,offer.min_price_minor,COALESCE(cv.currency,'EUR')::text AS currency "+
       "FROM canonical_variants cv "+
       "LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el' "+
@@ -68,6 +68,7 @@ async function postgresProductsWorkspace(principal:SessionPrincipal,filters:Admi
       "LEFT JOIN categories c ON c.id=cv.category_id "+
       "LEFT JOIN category_translations ct ON ct.category_id=c.id AND ct.locale='el' "+
       "LEFT JOIN brands b ON b.id=cv.brand_id "+
+      "LEFT JOIN LATERAL (SELECT TRUE AS has_media FROM product_media pm WHERE pm.canonical_variant_id=cv.id AND pm.scan_status='clean' AND pm.rights_status='approved' AND pm.moderation_status='approved' ORDER BY pm.sort_order LIMIT 1) media ON TRUE "+
       "LEFT JOIN LATERAL (SELECT COUNT(*)::int AS offer_count,MIN(vo.customer_price_minor) AS min_price_minor FROM vendor_offers vo WHERE vo.canonical_variant_id=cv.id AND vo.status='approved' AND COALESCE(vo.merchant_visible,TRUE)=TRUE AND COALESCE(vo.merchant_pause_active,FALSE)=FALSE AND vo.customer_price_minor>0) offer ON TRUE "+
       "WHERE "+where.join(" AND ")+" ORDER BY cv.public_id DESC LIMIT $"+params.length;
 
