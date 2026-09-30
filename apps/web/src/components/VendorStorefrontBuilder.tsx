@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
 import type { VendorStorefrontSettings, VendorStorefrontWorkspace } from "../lib/vendor-storefront-settings";
 import styles from "./VendorTrial.module.css";
 
@@ -9,6 +10,7 @@ export function VendorStorefrontBuilder(props: {
   csrfToken: string;
   productCount?: number;
 }) {
+  const router = useRouter();
   const [shortDescription, setShortDescription] = useState(props.initial.shortDescription);
   const [story, setStory] = useState(props.initial.story);
   const [settings, setSettings] = useState<VendorStorefrontSettings>(props.initial.settings);
@@ -41,6 +43,7 @@ export function VendorStorefrontBuilder(props: {
       const payload = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(payload.error || "Δεν αποθηκεύτηκαν οι αλλαγές.");
       setMessage("Αποθηκεύτηκε. Η ιδιωτική προεπισκόπηση ενημερώθηκε.");
+      router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Δεν αποθηκεύτηκαν οι αλλαγές.");
     } finally {
