@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import type { AdminProductCategoriesWorkspace, AdminProductCategoryCard, AdminProductRow, AdminProductsWorkspace } from "../lib/admin-products-runtime";
+import type { AdminProductCategoriesWorkspace, AdminProductCategoryCard, AdminProductListWorkspace, AdminProductRow, AdminProductsSummaryWorkspace } from "../lib/admin-products-runtime";
 import { AdminNavIcon } from "./AdminNavIcon";
 import styles from "./AdminProductsControl.module.css";
 
@@ -25,15 +25,19 @@ export function AdminProductsControl({csrfToken,initialView="products",canWrite=
   const [state,setState]=useState("all");
   const [category,setCategory]=useState("");
   const [channel,setChannel]=useState("all");
-  const [workspace,setWorkspace]=useState<AdminProductsWorkspace>();
+  const [workspace,setWorkspace]=useState<AdminProductListWorkspace>();
+  const [summary,setSummary]=useState<AdminProductsSummaryWorkspace>();
   const [categoryWorkspace,setCategoryWorkspace]=useState<AdminProductCategoriesWorkspace>();
   const [loading,setLoading]=useState(true);
+  const [summaryLoading,setSummaryLoading]=useState(true);
+  const [summaryError,setSummaryError]=useState("");
   const [loadingMore,setLoadingMore]=useState(false);
   const [error,setError]=useState("");
   const [selected,setSelected]=useState<Set<string>>(new Set());
   const [categoryBusy,setCategoryBusy]=useState("");
   const [reloadKey,setReloadKey]=useState(0);
   const requestRef=useRef(0);
+  const summaryRequestRef=useRef(0);
   const paginationAbortRef=useRef<AbortController|null>(null);
 
   useEffect(()=>{const timer=window.setTimeout(()=>setDebouncedQuery(query.trim()),220);return()=>window.clearTimeout(timer);},[query]);
@@ -45,16 +49,47 @@ export function AdminProductsControl({csrfToken,initialView="products",canWrite=
     setLoadingMore(false);
     const requestId=++requestRef.current;
     const controller=new AbortController();
+    let timedOut=false;
+    const timeout=window.setTimeout(()=>{timedOut=true;controller.abort();},8000);
     setLoading(true);setError("");setSelected(new Set());
     const search=new URLSearchParams({limit:"48",state,channel});
     if(debouncedQuery)search.set("q",debouncedQuery);
     if(category)search.set("category",category);
     fetch("/api/admin/products?"+search.toString(),{cache:"no-store",signal:controller.signal})
-      .then(async response=>{const payload=await response.json() as AdminProductsWorkspace&{error?:string};if(!response.ok)throw new Error(payload.error??"Could not load products");if(requestId===requestRef.current)setWorkspace(payload);})
-      .catch(cause=>{if(cause instanceof DOMException&&cause.name==="AbortError")return;if(requestId===requestRef.current)setError(cause instanceof Error?cause.message:"Could not load products");})
-      .finally(()=>{if(requestId===requestRef.current)setLoading(false);});
-    return()=>controller.abort();
+      .then(async response=>{const payload=await response.json() as AdminProductListWorkspace&{error?:string};if(!response.ok)throw new Error(payload.error??"Could not load products");if(requestId===requestRef.current)setWorkspace(payload);})
+      .catch(cause=>{
+        if(cause instanceof DOMException&&cause.name==="AbortError"){
+          if(timedOut&&requestId===requestRef.current)setError("The product query took too long. Retry now or narrow the filters.");
+          return;
+        }
+        if(requestId===requestRef.current)setError(cause instanceof Error?cause.message:"Could not load products");
+      })
+      .finally(()=>{window.clearTimeout(timeout);if(requestId===requestRef.current)setLoading(false);});
+    return()=>{window.clearTimeout(timeout);controller.abort();};
   },[view,debouncedQuery,state,category,channel,reloadKey]);
+
+  useEffect(()=>{
+    if(view!=="products")return;
+    const requestId=++summaryRequestRef.current;
+    const controller=new AbortController();
+    let timedOut=false;
+    let timeout=0;
+    setSummaryLoading(true);setSummaryError("");
+    const start=window.setTimeout(()=>{
+      timeout=window.setTimeout(()=>{timedOut=true;controller.abort();},5000);
+      fetch("/api/admin/products?view=summary",{cache:"no-store",signal:controller.signal})
+        .then(async response=>{const payload=await response.json() as AdminProductsSummaryWorkspace&{error?:string};if(!response.ok)throw new Error(payload.error??"Could not load catalogue summary");if(requestId===summaryRequestRef.current)setSummary(payload);})
+        .catch(cause=>{
+          if(cause instanceof DOMException&&cause.name==="AbortError"){
+            if(timedOut&&requestId===summaryRequestRef.current)setSummaryError("Summary data is taking longer than expected. Product management remains available.");
+            return;
+          }
+          if(requestId===summaryRequestRef.current)setSummaryError(cause instanceof Error?cause.message:"Could not load catalogue summary");
+        })
+        .finally(()=>{if(timeout)window.clearTimeout(timeout);if(requestId===summaryRequestRef.current)setSummaryLoading(false);});
+    },180);
+    return()=>{window.clearTimeout(start);if(timeout)window.clearTimeout(timeout);controller.abort();};
+  },[view,reloadKey]);
 
   useEffect(()=>{
     if(view!=="categories")return;
@@ -87,7 +122,7 @@ export function AdminProductsControl({csrfToken,initialView="products",canWrite=
     if(category)search.set("category",category);
     try{
       const response=await fetch("/api/admin/products?"+search.toString(),{cache:"no-store",signal:controller.signal});
-      const payload=await response.json() as AdminProductsWorkspace&{error?:string};
+      const payload=await response.json() as AdminProductListWorkspace&{error?:string};
       if(!response.ok)throw new Error(payload.error??"Could not load more products");
       if(controller.signal.aborted||requestId!==requestRef.current)return;
       setWorkspace(current=>current?{...payload,products:[...current.products,...payload.products]}:payload);
@@ -153,7 +188,7 @@ export function AdminProductsControl({csrfToken,initialView="products",canWrite=
   }
 
   const filtersActive=Boolean(query||state!=="all"||category||channel!=="all");
-  const metrics=workspace?.metrics;
+  const metrics=summary?.metrics;
 
   return <section className={styles.shell}>
     <div className={styles.modeBar}>
@@ -175,12 +210,14 @@ export function AdminProductsControl({csrfToken,initialView="products",canWrite=
       <article><span>Families</span><strong>{formatCount(metrics.productFamiliesApprox)}</strong><small>canonical grouping</small></article>
       <article className={metrics.uncategorizedLive?styles.attentionMetric:undefined}><span>Uncategorized</span><strong>{formatCount(metrics.uncategorizedLive)}{metrics.uncategorizedLiveCapped?"+":""}</strong><small>{metrics.uncategorizedLiveCapped?"at least 2K need taxonomy":"needs taxonomy"}</small></article>
       <article><span>Categories</span><strong>{formatCount(metrics.categories)}</strong><small>taxonomy nodes</small></article>
-    </div>:null}
+    </div>:view==="products"&&summaryLoading?<div className={styles.metricGrid} aria-label="Loading catalogue summary">{Array.from({length:6}).map((_,index)=><article className={styles.metricSkeleton} key={index}><span/><strong/><small/></article>)}</div>:null}
+
+    {summaryError?<div className={styles.summaryWarning} role="status"><span>{summaryError}</span><button type="button" onClick={()=>setReloadKey(value=>value+1)}>Retry summary</button></div>:null}
 
     <div className={styles.controlBar}>
       <label className={styles.search}><span aria-hidden="true">⌕</span><input value={query} onChange={event=>setQuery(event.target.value)} placeholder={view==="products"?"Search title, GTIN, MPN or product ID…":"Search category or code…"}/>{query?<button type="button" onClick={()=>setQuery("")} aria-label="Clear search">×</button>:null}</label>
       {view==="products"?<>
-        <select value={category} onChange={event=>setCategory(event.target.value)} aria-label="Category filter"><option value="">All categories</option>{(workspace?.categories??[]).map(item=><option key={item.categoryCode} value={item.categoryCode}>{item.labelEl}</option>)}</select>
+        <select value={category} onChange={event=>setCategory(event.target.value)} aria-label="Category filter" disabled={summaryLoading&&!summary}><option value="">{summaryLoading&&!summary?"Loading categories…":"All categories"}</option>{(summary?.categories??[]).map(item=><option key={item.categoryCode} value={item.categoryCode}>{item.labelEl}</option>)}</select>
         <select value={channel} onChange={event=>setChannel(event.target.value)} aria-label="Commerce channel"><option value="all">All channels</option><option value="normal">Normal</option><option value="bazaar">Bazaar</option></select>
         <div className={styles.layoutToggle} aria-label="Layout"><button type="button" className={layout==="cards"?styles.activeLayout:undefined} onClick={()=>setLayout("cards")} aria-label="Card view">▦</button><button type="button" className={layout==="rows"?styles.activeLayout:undefined} onClick={()=>setLayout("rows")} aria-label="Row view">☷</button></div>
       </>:null}
