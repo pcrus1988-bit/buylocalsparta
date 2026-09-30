@@ -106,7 +106,7 @@ assert(mediaProduction.includes("BLS_MEDIA_WORKER_MODE=drain"), "GitHub Actions 
 assert(mediaProduction.includes("BLS_MEDIA_WORKER_MAX_RUNTIME_MS=210000"), "GitHub Actions media scanner must remain bounded below the workflow timeout");
 assert(mediaProduction.includes("MEDIA_DATABASE_URL") && mediaProduction.includes("MEDIA_OBJECT_STORAGE_SECRET_ACCESS_KEY"), "production media scanner must consume GitHub Actions secrets instead of Railway configuration");
 assert(envMatrix.includes(".github/workflows/media-worker-production.yml"), "environment matrix must document GitHub Actions media scanning");
-assert(!envMatrix.includes("Railway"), "environment matrix must not retain Railway as the production media scanner");
+assert(envMatrix.includes("No Railway service"), "environment matrix must explicitly retire Railway from the production media scanner topology");
 assert(envMatrix.includes("MEILISEARCH_ADMIN_KEY") && envMatrix.includes("search worker"), "environment matrix must isolate Meilisearch index-management credentials");
 assert(envMatrix.includes("BLS_REPORT_ASYNC_ENABLED") && envMatrix.includes("reports` worker"), "environment matrix must document report worker split");
 for (const path of [
