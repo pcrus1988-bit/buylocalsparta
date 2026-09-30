@@ -174,41 +174,6 @@ export async function sendHubProspectApplicationReceiptEmail(input: {
   });
 }
 
-export async function sendVendorTrialAccessEmail(input: {
-  to: string;
-  vendorName: string;
-  applicationId: string;
-  trialExpiresAt: number;
-  accessToken: string;
-}) {
-  const accessUrl = `${publicBaseUrl()}/vendor/trial/access?token=${encodeURIComponent(input.accessToken)}`;
-  const expiry = new Intl.DateTimeFormat("el-GR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Europe/Athens"
-  }).format(new Date(input.trialExpiresAt));
-  return sendTransactionalEmailBestEffort({
-    to: input.to,
-    subject: "Πρόσβαση στο Vendor Trial σου · ΚΟΝΤΑ ΜΟΥ",
-    text: [
-      "Καλησπέρα από το ΚΟΝΤΑ ΜΟΥ,",
-      "",
-      `Η ιδιωτική Trial πρόσβαση για το «${input.vendorName}» είναι έτοιμη.`,
-      `Αριθμός αναφοράς: ${input.applicationId}`,
-      `Λήξη 3ήμερου Trial: ${expiry}`,
-      "",
-      `Άνοιξε το Vendor Trial: ${accessUrl}`,
-      "",
-      "Ο σύνδεσμος δημιουργεί ασφαλή ιδιωτική συνεδρία για το συγκεκριμένο Trial. Δημόσια πώληση, πραγματικές παραγγελίες και πληρωμές παραμένουν κλειδωμένες μέχρι την τελική ενεργοποίηση.",
-      "",
-      "ΚΟΝΤΑ ΜΟΥ"
-    ].join("\n"),
-    eventType: "vendor.trial_access",
-    idempotencyKey: `vendor-trial-access:${input.applicationId}:${input.trialExpiresAt}`,
-    payload: { applicationId: input.applicationId, vendorName: input.vendorName }
-  });
-}
-
 export async function notifyOperationsOfHubProspectApplication(input: {
   reference: string;
   businessName: string;
