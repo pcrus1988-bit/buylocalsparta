@@ -254,7 +254,7 @@ export function VendorDailyAskLocalV2({ initial }: { initial: Advice }) {
             {context?.captureSource ? <span>Πηγή · {context.captureSource}</span> : null}
           </div>
 
-          {(context?.referenceImageDataUrl || context?.voiceTranscript || context?.barcode) ? <div className={styles.evidence}>
+          {context && (context.referenceImageDataUrl || context.voiceTranscript || context.barcode) ? <div className={styles.evidence}>
             {context.referenceImageDataUrl ? <Image className={styles.evidenceImage} src={context.referenceImageDataUrl} alt="Ιδιωτική φωτογραφία του αιτήματος Ask Local" width={360} height={270} unoptimized /> : null}
             <div className={styles.evidenceText}>
               {context.voiceTranscript ? <div><strong>Φωνητική περιγραφή</strong><div>{context.voiceTranscript}</div></div> : null}
