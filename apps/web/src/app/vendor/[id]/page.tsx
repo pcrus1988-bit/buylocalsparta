@@ -9,6 +9,9 @@ import { VendorCatalogBrowser } from "../../../components/VendorCatalogBrowser";
 import { VendorLocationMap } from "../../../components/VendorLocationMap";
 import styles from "../../../components/VendorStorefront.module.css";
 import { getAccountSession } from "../../../lib/account-session";
+import type { CatalogCard } from "../../../lib/catalog-view";
+import { getFastVendorDropshipCatalogPage } from "../../../lib/vendor-dropship-fast-page";
+import { getVendorLocalCatalogPage } from "../../../lib/vendor-local-catalog";
 import { approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "../../../lib/public-media-service";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
@@ -28,6 +31,51 @@ const getCachedPublicVendorDirectoryEntry = cache((id: string) => getPublicVendo
 const getCachedSeoGlobalSettingsSnapshot = cache(() => getSeoGlobalSettingsSnapshot());
 const getCachedSeoEntityOverridesSnapshot = cache(() => getSeoEntityOverridesSnapshot());
 const getCachedApprovedVendorProfileMedia = cache((id: string) => approvedVendorProfileMedia([id]));
+
+const INITIAL_VENDOR_PAGE_SIZE = 20;
+type InitialVendorCatalogPage = Readonly<{
+  products: readonly CatalogCard[];
+  nextOffset: number | null;
+}>;
+const EMPTY_INITIAL_VENDOR_CATALOG_PAGE: InitialVendorCatalogPage = { products: [], nextOffset: null };
+
+async function getInitialVendorCatalogPage(vendorId: string): Promise<InitialVendorCatalogPage> {
+  try {
+    const localPage = await getVendorLocalCatalogPage(vendorId, {
+      offset: 0,
+      limit: INITIAL_VENDOR_PAGE_SIZE
+    });
+    const remaining = Math.max(0, INITIAL_VENDOR_PAGE_SIZE - localPage.products.length);
+
+    if (remaining === 0 && INITIAL_VENDOR_PAGE_SIZE < localPage.total) {
+      return { products: localPage.products, nextOffset: INITIAL_VENDOR_PAGE_SIZE };
+    }
+
+    const dropshipPage = await getFastVendorDropshipCatalogPage(vendorId, {
+      offset: 0,
+      limit: remaining > 0 ? remaining : 1
+    });
+    const products = remaining > 0
+      ? [...localPage.products, ...dropshipPage.products.slice(0, remaining)]
+      : localPage.products;
+    const hasDropshipAtBoundary = dropshipPage.products.length > 0 || dropshipPage.nextOffset !== undefined;
+    const nextOffset = remaining === 0
+      ? (hasDropshipAtBoundary ? localPage.total : null)
+      : dropshipPage.nextOffset !== undefined
+        ? localPage.total + dropshipPage.nextOffset
+        : null;
+
+    return { products, nextOffset };
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: "warn",
+      event: "storefront.vendor_initial_ssr_catalog_failed",
+      vendorId,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return EMPTY_INITIAL_VENDOR_CATALOG_PAGE;
+  }
+}
 
 function safeHttpUrl(value?: string): string | undefined {
   if (!value) return undefined;
@@ -133,13 +181,17 @@ export default async function VendorPage({ params }: Props) {
     override
   });
 
-  // Do not scan the vendor catalogue during SSR. The storefront browser already
-  // uses the bounded /api/catalog/vendor/:id endpoint in 20-item pages, which is
-  // the correct fast path for large supplier catalogues.
-  const products = [] as const;
-  const [principal, profileMedia] = isResearch
-    ? [undefined, []] as const
-    : await Promise.all([getAccountSession(), getCachedApprovedVendorProfileMedia(id)]);
+  // Seed the first bounded catalogue page into SSR so customers and crawlers see
+  // real products immediately. The browser reuses this page and only fetches when
+  // filters change or the customer navigates deeper.
+  const [initialCatalogPage, principal, profileMedia] = isResearch
+    ? [EMPTY_INITIAL_VENDOR_CATALOG_PAGE, undefined, []] as const
+    : await Promise.all([
+        getInitialVendorCatalogPage(id),
+        getAccountSession(),
+        getCachedApprovedVendorProfileMedia(id)
+      ]);
+  const products = initialCatalogPage.products;
   const location = vendor.location;
   const merchantStoryMedia = vendor.story?.mediaUrl;
   const logoMedia = firstRole(profileMedia, "logo");
@@ -354,7 +406,7 @@ export default async function VendorPage({ params }: Props) {
               <strong>Δεν υπάρχει ενεργός κατάλογος προϊόντων.</strong> Η επιχείρηση είναι ακόμη δημόσια χαρτογραφημένη / προσκεκλημένη και δεν παρουσιάζεται ως ενεργός συνεργάτης της πλατφόρμας.
             </div>
           ) : (
-            <VendorCatalogBrowser products={products} vendor={{ name: vendor.name, adviser: vendor.adviser }} vendorId={vendor.id} />
+            <VendorCatalogBrowser products={products} vendor={{ name: vendor.name, adviser: vendor.adviser }} vendorId={vendor.id} initialNextOffset={initialCatalogPage.nextOffset} />
           )}
         </div>
       </section>
