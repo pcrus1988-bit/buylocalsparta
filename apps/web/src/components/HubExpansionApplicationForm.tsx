@@ -39,8 +39,13 @@ type Receipt = Readonly<{
   hubName: string;
   planCode: HubExpansionPlanCode;
   billingCycle: HubBillingCycle;
+  setupFeeCents: number;
   recurringFeeCents: number;
+  commissionBps: number;
   paymentRequired: false;
+  confirmationEmailSent: boolean;
+  redirectTo: string;
+  trial: Readonly<{ vendorId: string; startsAt: string; expiresAt: string; durationDays: number }>;
   message: string;
 }>;
 
@@ -147,7 +152,11 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
         !result.hubName ||
         !result.planCode ||
         (result.billingCycle !== "annual" && result.billingCycle !== "monthly") ||
-        typeof result.recurringFeeCents !== "number"
+        typeof result.setupFeeCents !== "number" ||
+        typeof result.recurringFeeCents !== "number" ||
+        typeof result.commissionBps !== "number" ||
+        !result.redirectTo ||
+        !result.trial
       ) {
         throw new Error("Η αίτηση καταχωρίστηκε αλλά δεν επιστράφηκε έγκυρη απόδειξη.");
       }
@@ -157,8 +166,13 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
         hubName: result.hubName,
         planCode: result.planCode,
         billingCycle: result.billingCycle,
+        setupFeeCents: result.setupFeeCents,
         recurringFeeCents: result.recurringFeeCents,
+        commissionBps: result.commissionBps,
         paymentRequired: false,
+        confirmationEmailSent: result.confirmationEmailSent === true,
+        redirectTo: result.redirectTo,
+        trial: result.trial,
         message: result.message ?? "Η αίτηση καταχωρίστηκε."
       });
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -180,9 +194,14 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
         <h2>{receipt.hubName} · {receipt.planCode.toUpperCase()}</h2>
         <p>{receipt.message}</p>
         <div className={styles.reference}>Επιλογή <strong>{billingText}</strong></div>
-        <div className={styles.reference}>Αριθμός αναφοράς <strong>{receipt.reference}</strong></div>
-        <p className={styles.receiptNote}>Το HUB επιβεβαιώθηκε ξανά server-side από τα στοιχεία Γ.Ε.ΜΗ. Η επιλογή χρέωσης αποθηκεύτηκε με την αίτηση. Δεν έγινε χρέωση και δεν δημιουργήθηκε ενεργός vendor λογαριασμός.</p>
-        <a className="button button-secondary" href="/hubs/join">Επιστροφή στα προγράμματα</a>
+        <div className={styles.reference}>Αριθμός αίτησης <strong>{receipt.reference}</strong></div>
+        <div className={styles.reference}>3ήμερο Trial <strong>Έτοιμο · έως {new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(receipt.trial.expiresAt))}</strong></div>
+        <p className={styles.receiptNote}>Το HUB επιβεβαιώθηκε ξανά server-side από τα στοιχεία Γ.Ε.ΜΗ. Δεν έγινε χρέωση. Το Trial είναι ιδιωτικό και δεν ενεργοποιεί δημόσιες πωλήσεις πριν από την τελική έγκριση.</p>
+        <p className={styles.receiptNote}>{receipt.confirmationEmailSent ? "Στείλαμε επίσης email επιβεβαίωσης με την επιλογή συνδρομής, τα επόμενα βήματα και ασφαλή σύνδεσμο πρόσβασης στο Trial." : "Το Trial είναι έτοιμο εδώ. Το email επιβεβαίωσης δεν παραδόθηκε ακόμη· η ομάδα μπορεί να το ξαναστείλει από το Admin."}</p>
+        <div className="hero-actions">
+          <a className="button" href={receipt.redirectTo}>Άνοιγμα 3ήμερου Vendor Trial</a>
+          <a className="button button-secondary" href="/hubs/join">Επιστροφή στα προγράμματα</a>
+        </div>
       </div>
     </div>;
   }
