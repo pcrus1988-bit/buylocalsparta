@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "apps/web/src/app/admin/catalogue-intake/**"
+      - "apps/web/src/components/AdminAiProductImportForm.tsx"
+      - "workers/catalogue-intake-automation-worker.ts"
+      - ".github/workflows/catalogue-intake-automation.yml"
       - "apps/web/src/lib/admin-catalogue-intake.ts"
       - "apps/web/src/lib/admin-catalogue-attribute-mapping.ts"
       - "apps/web/src/lib/admin-catalogue-attribute-review.ts"
@@ -109,7 +112,8 @@ jobs:
             apps/web/src/lib/admin-catalogue-controlled-value-queue.ts \
             apps/web/src/lib/admin-catalogue-intelligence-review.ts \
             scripts/catalog-source-attribute-mapping-smoke.ts \
-            scripts/catalog-source-attribute-value-mapping-smoke.ts
+            scripts/catalog-source-attribute-value-mapping-smoke.ts \
+            workers/catalogue-intake-automation-worker.ts
       - name: Exercise exact-context Product Type attribute mapping governance
         run: node --experimental-strip-types scripts/catalog-source-attribute-mapping-smoke.ts
       - name: Exercise exact controlled enum value governance
