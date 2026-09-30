@@ -8,7 +8,7 @@ import {
   type VendorApplicationInput
 } from "../../../lib/vendor-application-runtime";
 import { notifyOperationsOfVendorApplication, sendVendorApplicationReceiptEmail } from "../../../lib/vendor-email-workflows";
-import { createVendorTrialAccessToken, VENDOR_TRIAL_COOKIE } from "../../../lib/vendor-trial-runtime";
+import { buildVendorTrialAccessUrl, createVendorTrialAccessToken, VENDOR_TRIAL_COOKIE } from "../../../lib/vendor-trial-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,30 +67,8 @@ export async function POST(request: Request) {
     };
     const receipt = await submitVendorApplication({ application, principal, now });
 
-    const [, operationsEmail] = await Promise.all([
-      sendVendorApplicationReceiptEmail({
-        to: application.contactEmail,
-        tradingName: application.tradingName,
-        applicationId: receipt.applicationId
-      }),
-      notifyOperationsOfVendorApplication({
-        applicationId: receipt.applicationId,
-        tradingName: application.tradingName,
-        legalName: application.legalName,
-        contactEmail: application.contactEmail,
-        requestedPlanCode: application.requestedPlanCode
-      })
-    ]);
-    if (!operationsEmail.sent) {
-      console.error(JSON.stringify({
-        level: "error",
-        event: "vendor_application.admin_notification_failed",
-        applicationId: receipt.applicationId,
-        destination: "info@kontamou.site"
-      }));
-    }
-
     let redirectTo: string | undefined;
+    let trialAccessUrl: string | undefined;
     if (receipt.trial) {
       const access = createVendorTrialAccessToken({
         applicationId: receipt.applicationId,
@@ -98,6 +76,7 @@ export async function POST(request: Request) {
         vendorId: receipt.trial.vendorId,
         trialStartedAt: receipt.trial.startedAt
       });
+      trialAccessUrl = buildVendorTrialAccessUrl(access.token);
       (await cookies()).set({
         name: VENDOR_TRIAL_COOKIE,
         value: access.token,
@@ -108,6 +87,38 @@ export async function POST(request: Request) {
         expires: new Date(access.accessExpiresAt)
       });
       redirectTo = "/vendor/trial";
+    }
+
+    const [applicantEmail, operationsEmail] = await Promise.all([
+      sendVendorApplicationReceiptEmail({
+        to: application.contactEmail,
+        tradingName: application.tradingName,
+        applicationId: receipt.applicationId,
+        requestedPlanCode: application.requestedPlanCode,
+        trialAccessUrl,
+        trialExpiresAt: receipt.trial?.expiresAt
+      }),
+      notifyOperationsOfVendorApplication({
+        applicationId: receipt.applicationId,
+        tradingName: application.tradingName,
+        legalName: application.legalName,
+        contactEmail: application.contactEmail,
+        requestedPlanCode: application.requestedPlanCode
+      })
+    ]);
+    if (!applicantEmail.sent) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "vendor_application.applicant_confirmation_failed",
+        applicationId: receipt.applicationId
+      }));
+    }
+    if (!operationsEmail.sent) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "vendor_application.admin_notification_failed",
+        applicationId: receipt.applicationId
+      }));
     }
 
     return Response.json(
