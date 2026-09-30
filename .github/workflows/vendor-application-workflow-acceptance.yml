@@ -1,0 +1,44 @@
+name: Vendor Application Workflow Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/app/api/vendor-application/route.ts"
+      - "apps/web/src/app/api/vendor/trial/access/route.ts"
+      - "apps/web/src/app/api/admin/vendor-applications/**"
+      - "apps/web/src/app/admin/applications/**"
+      - "apps/web/src/lib/vendor-application-runtime.ts"
+      - "apps/web/src/lib/vendor-application-confirmation-email.ts"
+      - "apps/web/src/lib/vendor-application-plan.ts"
+      - "apps/web/src/lib/vendor-trial-access-link.ts"
+      - "scripts/verify-vendor-application-workflow.ts"
+      - ".github/workflows/vendor-application-workflow-acceptance.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/src/app/api/vendor-application/route.ts"
+      - "apps/web/src/app/api/vendor/trial/access/route.ts"
+      - "apps/web/src/app/api/admin/vendor-applications/**"
+      - "apps/web/src/app/admin/applications/**"
+      - "apps/web/src/lib/vendor-application-runtime.ts"
+      - "apps/web/src/lib/vendor-application-confirmation-email.ts"
+      - "apps/web/src/lib/vendor-application-plan.ts"
+      - "apps/web/src/lib/vendor-trial-access-link.ts"
+      - "scripts/verify-vendor-application-workflow.ts"
+      - ".github/workflows/vendor-application-workflow-acceptance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx tsx scripts/verify-vendor-application-workflow.ts

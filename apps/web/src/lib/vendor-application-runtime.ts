@@ -11,6 +11,7 @@ import { normalizeGreekAfm, resolveGemiCompanyByAfm, type GemiLookupResult } fro
 import { resolveExpansionHubForGemiCompany } from "./hub-location-resolution";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { provisionalVendorApplicantPasswordHash } from "./provisional-account";
+import { vendorApplicationPlanSnapshotFromRow, type VendorApplicationPlanSnapshot } from "./vendor-application-plan";
 
 const ALLOWED_CATEGORIES = new Set(["home-living", "fashion", "beauty", "kids", "technology", "gifts"]);
 const APPROVED_PAID_PLANS = new Set(["founding_2026", "annual", "monthly"] as const);
@@ -39,6 +40,7 @@ export type VendorApplicationReceipt = Readonly<{
   ownerIdentity: "authenticated" | "provisional";
   accountClaimRequired: boolean;
   registryLookupStatus: "matched" | "not_found" | "unavailable";
+  plan: VendorApplicationPlanSnapshot;
   trial?: Readonly<{
     vendorId: string;
     ownerUserId: string;
@@ -107,8 +109,14 @@ export async function submitVendorApplication(input: {
       if (!market.rowCount) throw new Error("MARKET_UNAVAILABLE");
       const marketUuid = requiredText(market.rows[0].id, "market.id");
 
-      const plan = await tx.query<SqlRow>("SELECT 1 AS present FROM vendor_plans WHERE market_id=$1 AND code=$2 AND status='active' LIMIT 1", [marketUuid, application.requestedPlanCode]);
+      const plan = await tx.query<SqlRow>(`
+        SELECT code,name,listing_fee_minor,monthly_price_minor,annual_price_minor,term_price_minor,term_months,sales_fee_bps
+        FROM vendor_plans
+        WHERE market_id=$1 AND code=$2 AND status='active'
+        LIMIT 1
+      `, [marketUuid, application.requestedPlanCode]);
       if (!plan.rowCount) throw new Error("PLAN_UNAVAILABLE");
+      const planSnapshot = vendorApplicationPlanSnapshotFromRow(plan.rows[0]);
 
       const claimedVendor = application.claimedResearchVendorId
         ? await claimableResearchVendor(tx, application.claimedResearchVendorId, marketUuid)
@@ -139,7 +147,7 @@ export async function submitVendorApplication(input: {
       if (existingApplication.rowCount) throw new Error("APPLICATION_EXISTS");
 
       const applicationUuid = randomUUID();
-      const applicationId = id("vapp");
+      const applicationId = await nextVendorApplicationReference(tx, input.now);
       const createdAt = new Date(input.now);
       await tx.query(`
         INSERT INTO vendor_applications (
@@ -212,11 +220,27 @@ export async function submitVendorApplication(input: {
         ownerIdentity: owner.provisional ? "provisional" as const : "authenticated" as const,
         accountClaimRequired: owner.provisional,
         registryLookupStatus: application.registryLookupStatus,
+        plan: planSnapshot,
         ...(trial ? { trial } : {})
       };
     },
     { isolation: "serializable" }
   );
+}
+
+async function nextVendorApplicationReference(tx: SqlExecutor, now: number): Promise<string> {
+  const year = new Intl.DateTimeFormat("en", { year: "numeric", timeZone: "Europe/Athens" }).format(new Date(now));
+  const prefix = `KM-APP-${year}-`;
+  const pattern = `^KM-APP-${year}-[0-9]{6}$`;
+  await tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`vendor-application-reference:${year}`]);
+  const result = await tx.query<SqlRow>(`
+    SELECT COALESCE(MAX(right(public_id,6)::integer),0)+1 AS next_sequence
+    FROM vendor_applications
+    WHERE public_id LIKE $1 AND public_id ~ $2
+  `, [`${prefix}%`, pattern]);
+  const next = Number(result.rows[0]?.next_sequence ?? 1);
+  if (!Number.isSafeInteger(next) || next < 1 || next > 999999) throw new Error("APPLICATION_REFERENCE_EXHAUSTED");
+  return `${prefix}${String(next).padStart(6, "0")}`;
 }
 
 async function provisionApplicantTrial(tx: SqlExecutor, input: {

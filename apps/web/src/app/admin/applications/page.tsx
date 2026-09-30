@@ -2,17 +2,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { SqlRow } from "@buy-local-sparta/core";
+import { AdminActionButton } from "../../../components/AdminActionButton";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, WorkspaceStatusBadge } from "../../../components/WorkspacePagePrimitives";
 import { adminVendorsWorkspace, hasAdminPermission } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../lib/postgres-runtime";
 import { researchVendorsWorkspace } from "../../../lib/research-vendors-runtime";
-import { advanceApplicationToVerification, setApplicationDemoMode } from "./actions";
+import { vendorApplicationPlanCompactLabel, vendorApplicationPlanSnapshotFromRow, type VendorApplicationPlanSnapshot } from "../../../lib/vendor-application-plan";
+import { setApplicationDemoMode } from "./actions";
 
 export const metadata: Metadata = { title: "Admin · Applications", robots: { index: false, follow: false } };
 
 const PRE_LIVE = new Set(["application_started", "verification_pending", "catalog_onboarding", "test_ready"]);
+const APPLICATION_INBOX = new Set(["application_started", "verification_pending"]);
 const fmtDate = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(value));
 
 type VendorProjectionRow = SqlRow & {
@@ -30,6 +33,19 @@ type RegistryProjectionRow = SqlRow & {
   contact_email_source: string;
   phone_source: string;
   registry_checked_at: Date | string | null;
+  trial_started_at: Date | string | null;
+  trial_expires_at: Date | string | null;
+};
+
+type PlanProjectionRow = SqlRow & {
+  code: string;
+  name: string;
+  listing_fee_minor: number | string | null;
+  monthly_price_minor: number | string | null;
+  annual_price_minor: number | string | null;
+  term_price_minor: number | string | null;
+  term_months: number | string | null;
+  sales_fee_bps: number | string | null;
 };
 
 type HubProspectRow = SqlRow & {
@@ -67,6 +83,8 @@ type RegistryProjection = {
   emailSource: string;
   phoneSource: string;
   checkedAt?: number;
+  trialStartedAt?: number;
+  trialExpiresAt?: number;
 };
 type HubProspectProjection = {
   reference: string;
@@ -120,16 +138,18 @@ export default async function ApplicationsPage() {
     researchVendorsWorkspace(principal)
   ]);
 
-  const formalApplications = applicationWorkspace.applications.filter((application) => PRE_LIVE.has(application.state));
-  const linkedVendorIds = new Set(formalApplications.map((application) => application.vendorId).filter((value): value is string => Boolean(value)));
+  const preLiveApplications = applicationWorkspace.applications.filter((application) => PRE_LIVE.has(application.state));
+  const formalApplications = preLiveApplications.filter((application) => APPLICATION_INBOX.has(application.state));
+  const linkedVendorIds = new Set(preLiveApplications.map((application) => application.vendorId).filter((value): value is string => Boolean(value)));
   const promotedResearch = researchWorkspace.vendors.filter((vendor) => PRE_LIVE.has(vendor.status) && !linkedVendorIds.has(vendor.id));
 
   const demoByVendor = new Map<string, DemoProjection>();
   const registryByApplication = new Map<string, RegistryProjection>();
+  const planByCode = new Map<string, VendorApplicationPlanSnapshot>();
   const hubProspects: HubProspectProjection[] = [];
   if (productionDatabaseConfigured()) {
     const runtime = getProductionPostgresRuntime();
-    const [demoResult, registryResult, hubProspectResult] = await Promise.all([
+    const [demoResult, registryResult, planResult, hubProspectResult] = await Promise.all([
       runtime.sqlPool.query<VendorProjectionRow>(`
         SELECT vb.public_id,vb.status::text AS status,vb.demo_mode
         FROM vendor_businesses vb
@@ -140,12 +160,20 @@ export default async function ApplicationsPage() {
       `),
       runtime.sqlPool.query<RegistryProjectionRow>(`
         SELECT va.public_id,va.tax_number,va.gemi_number,va.registry_lookup_status,va.registry_company_status,
-               va.contact_email_source,va.phone_source,va.registry_checked_at
+               va.contact_email_source,va.phone_source,va.registry_checked_at,va.trial_started_at,va.trial_expires_at
         FROM vendor_applications va
         JOIN markets m ON m.id=va.market_id
         WHERE m.code='sparta'
           AND va.status IN ('application_started','verification_pending','catalog_onboarding','test_ready')
         ORDER BY va.updated_at DESC
+      `),
+      runtime.sqlPool.query<PlanProjectionRow>(`
+        SELECT vp.code,vp.name,vp.listing_fee_minor,vp.monthly_price_minor,vp.annual_price_minor,
+               vp.term_price_minor,vp.term_months,vp.sales_fee_bps
+        FROM vendor_plans vp
+        JOIN markets m ON m.id=vp.market_id
+        WHERE m.code='sparta' AND vp.status='active'
+        ORDER BY vp.code
       `),
       runtime.sqlPool.query<HubProspectRow>(`
         SELECT public_id,hub_slug,hub_city,hub_region,plan_code,billing_cycle,tax_number,gemi_number,
@@ -159,6 +187,8 @@ export default async function ApplicationsPage() {
     for (const row of demoResult.rows) demoByVendor.set(row.public_id, { status: row.status, demoMode: Boolean(row.demo_mode) });
     for (const row of registryResult.rows) {
       const checkedAt = row.registry_checked_at ? Date.parse(String(row.registry_checked_at)) : Number.NaN;
+      const trialStartedAt = row.trial_started_at ? Date.parse(String(row.trial_started_at)) : Number.NaN;
+      const trialExpiresAt = row.trial_expires_at ? Date.parse(String(row.trial_expires_at)) : Number.NaN;
       registryByApplication.set(row.public_id, {
         taxNumber: row.tax_number,
         gemiNumber: row.gemi_number || undefined,
@@ -166,9 +196,12 @@ export default async function ApplicationsPage() {
         companyStatus: row.registry_company_status || undefined,
         emailSource: row.contact_email_source,
         phoneSource: row.phone_source,
-        checkedAt: Number.isFinite(checkedAt) ? checkedAt : undefined
+        checkedAt: Number.isFinite(checkedAt) ? checkedAt : undefined,
+        trialStartedAt: Number.isFinite(trialStartedAt) ? trialStartedAt : undefined,
+        trialExpiresAt: Number.isFinite(trialExpiresAt) ? trialExpiresAt : undefined
       });
     }
+    for (const row of planResult.rows) planByCode.set(row.code, vendorApplicationPlanSnapshotFromRow(row));
     for (const row of hubProspectResult.rows) {
       hubProspects.push({
         reference: row.public_id,
@@ -215,6 +248,7 @@ export default async function ApplicationsPage() {
         <div className="hero-actions">
           <Link className="button button-secondary" href="/admin/partners/pipeline">← Partner pipeline</Link>
           <Link className="button button-secondary" href="/admin/research-vendors">Research vendors</Link>
+          <Link className="button button-secondary" href="/admin/prospects">Verified prospects</Link>
           <Link className="text-link" href="/admin/vendors">Partner directory →</Link>
         </div>
       </div>
@@ -231,18 +265,25 @@ export default async function ApplicationsPage() {
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Inbound applications" title="Merchant-submitted applications" note="A just-submitted merchant application appears here immediately. ΓΕΜΗ match state and contact provenance guide verification; enabling DEMO provisions the linked pre-live vendor without activating commerce." />
-      {formalApplications.length === 0 ? <WorkspaceEmptyState title="No inbound applications require action." body="New merchant applications will appear here at application_started and remain visible through the pre-live onboarding stages." /> : <div className="workspace-queue-list">
+      {formalApplications.length === 0 ? <WorkspaceEmptyState title="No inbound applications require action." body="New merchant applications remain here only until verification passes; after that they move to Verified Prospects for catalogue, contract, test and activation work." action={<Link className="button button-secondary" href="/admin/prospects">Open Verified Prospects</Link>} /> : <div className="workspace-queue-list">
         {formalApplications.map((application) => {
           const demo = application.vendorId ? demoByVendor.get(application.vendorId) : undefined;
           const registry = registryByApplication.get(application.id);
+          const plan = planByCode.get(application.requestedPlanCode);
+          const trialActive = Boolean(registry?.trialExpiresAt && registry.trialExpiresAt > Date.now() && demo?.demoMode);
+          const nextState = application.state === "application_started" ? "verification_pending" : "catalog_onboarding";
+          const nextLabel = application.state === "application_started" ? "Send to verification" : "Pass verification → onboarding";
           return <article className="workspace-queue-card" id={`application-${application.id}`} key={application.id}>
             <div className="workspace-queue-head">
-              <div><strong>{application.tradingName}</strong><small>{application.legalName} · {application.contactEmail}</small></div>
+              <div>
+                <strong>{application.tradingName}</strong>
+                <small><strong>{application.id}</strong> · {application.legalName} · {application.contactEmail}</small>
+              </div>
               <WorkspaceStatusBadge status={application.state} />
             </div>
             <div className="workspace-queue-primary">
               <span>{application.primaryCategory}</span>
-              <span>Plan {application.requestedPlanCode}</span>
+              <span>{plan ? vendorApplicationPlanCompactLabel(plan) : `Plan ${application.requestedPlanCode}`}</span>
               <span>{application.phone ?? "No phone"}</span>
               <span>{application.address} · {application.postcode}</span>
             </div>
@@ -252,17 +293,41 @@ export default async function ApplicationsPage() {
               {` · email ${registry.emailSource} · phone ${registry.phoneSource}`}{registry.checkedAt ? ` · checked ${fmtDate(registry.checkedAt)}` : ""}
             </div>}
             <p className="workspace-queue-summary">{application.shopStory ?? "No shop story supplied yet."}</p>
-            <div className="workspace-inline-note">{application.vendorId ? <>Pre-live vendor <strong>{application.vendorId}</strong> · DEMO {demo?.demoMode ? "ON" : "OFF"}.</> : <>No vendor business has been provisioned yet. <strong>Create & enable DEMO</strong> will safely create the pre-live operational shell and link it to this application.</>}</div>
+            <div className="workspace-inline-note">
+              {application.vendorId ? <>Pre-live vendor <strong>{application.vendorId}</strong> · DEMO {demo?.demoMode ? "ON" : "OFF"}.</> : <>No vendor business has been provisioned yet. <strong>Create & enable DEMO</strong> will safely create the pre-live operational shell and link it to this application.</>}
+              {registry?.trialStartedAt && <> · Trial <strong>{trialActive ? "ACTIVE" : registry.trialExpiresAt && registry.trialExpiresAt <= Date.now() ? "EXPIRED" : "INACTIVE"}</strong>{registry.trialExpiresAt ? ` · write access until ${fmtDate(registry.trialExpiresAt)}` : ""}</>}
+            </div>
             <div className="workspace-action-bar">
               <span>Received {fmtDate(application.createdAt)} · updated {fmtDate(application.updatedAt)}</span>
               <DemoControls csrfToken={applicationWorkspace.csrfToken} applicationId={application.id} vendorId={application.vendorId} demo={demo} />
             </div>
-            {application.state === "application_started" && <form action={advanceApplicationToVerification} className="admin-directory-filters" style={{ marginTop: 12 }}>
-              <input type="hidden" name="csrfToken" value={applicationWorkspace.csrfToken} />
-              <input type="hidden" name="applicationId" value={application.id} />
-              <label><span>Verification hand-off reason</span><input name="reason" defaultValue="Application complete; send to verification" minLength={3} maxLength={500} required /></label>
-              <button className="button button-secondary" type="submit">Move to Verification</button>
-            </form>}
+            <div className="workspace-action-bar">
+              <span>Next: <strong>{application.state === "application_started" ? "verification review" : "pass verification and hand off to Verified Prospects"}</strong></span>
+              <div className="workspace-action-buttons">
+                <AdminActionButton
+                  label={nextLabel}
+                  endpoint={`/api/admin/vendors/${encodeURIComponent(application.id)}/transition`}
+                  csrfToken={applicationWorkspace.csrfToken}
+                  body={{ to: nextState }}
+                  reasonPrompt={application.state === "application_started" ? "Reason for sending the application to verification" : "Verification evidence / approval reason"}
+                />
+                <AdminActionButton
+                  label="Resend confirmation + Trial access"
+                  endpoint={`/api/admin/vendor-applications/${encodeURIComponent(application.id)}/resend-confirmation`}
+                  csrfToken={applicationWorkspace.csrfToken}
+                  reasonPrompt="Reason for resending the application confirmation / Trial access"
+                />
+                <AdminActionButton
+                  label="Close application"
+                  endpoint={`/api/admin/vendors/${encodeURIComponent(application.id)}/transition`}
+                  csrfToken={applicationWorkspace.csrfToken}
+                  body={{ to: "closed" }}
+                  reasonPrompt="Permanent closure reason"
+                  danger
+                />
+                {application.vendorId && <Link className="button button-secondary" href={`/admin/partners/${encodeURIComponent(application.vendorId)}`}>Partner record</Link>}
+              </div>
+            </div>
           </article>;
         })}
       </div>}
