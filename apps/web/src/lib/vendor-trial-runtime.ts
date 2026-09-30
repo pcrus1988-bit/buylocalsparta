@@ -156,6 +156,79 @@ export async function vendorTrialSnapshotFromToken(token: string | undefined, no
   };
 }
 
+export async function createVendorTrialAccessForApplicant(input: {
+  applicationId: string;
+  email: string;
+  now?: number;
+}): Promise<Readonly<{
+  token: string;
+  vendorName: string;
+  trialExpiresAt: number;
+  accessExpiresAt: number;
+  active: boolean;
+}> | undefined> {
+  if (!productionDatabaseConfigured()) return undefined;
+  const now = input.now ?? Date.now();
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool);
+  const result = await uow.withTransaction(
+    { platformAccess: true, marketId: "sparta", requestId: `vendor-trial-access-request:${input.applicationId}` },
+    (tx) => tx.query<SqlRow>(`
+      WITH trial_record AS (
+        SELECT public_id,status::text AS status,trial_started_at,trial_expires_at,owner_user_id,vendor_id
+        FROM vendor_applications
+        WHERE public_id=$1
+        UNION ALL
+        SELECT public_id,status::text AS status,trial_started_at,trial_expires_at,owner_user_id,vendor_id
+        FROM hub_expansion_prospects
+        WHERE public_id=$1
+      )
+      SELECT
+        application.public_id AS application_public_id,
+        application.status AS application_status,
+        application.trial_started_at,
+        application.trial_expires_at,
+        owner.public_id AS owner_public_id,
+        owner.email::text AS email,
+        vendor.public_id AS vendor_public_id,
+        vendor.trading_name,
+        vendor.status::text AS vendor_status,
+        vendor.demo_mode
+      FROM trial_record application
+      JOIN users owner ON owner.id=application.owner_user_id
+      JOIN vendor_businesses vendor ON vendor.id=application.vendor_id
+      WHERE application.public_id=$1
+        AND lower(owner.email::text)=lower($2)
+      LIMIT 1
+    `, [input.applicationId, input.email.trim()]),
+    { readOnly: true }
+  );
+  const row = result.rows[0];
+  if (!row || !row.trial_started_at || !row.trial_expires_at || row.demo_mode !== true) return undefined;
+
+  const applicationStatus = requiredText(row.application_status);
+  const vendorStatus = requiredText(row.vendor_status);
+  if (!PRELIVE_STATUSES.has(applicationStatus) || ["active", "restricted", "suspended", "closed"].includes(vendorStatus)) return undefined;
+
+  const trialStartedAt = epoch(row.trial_started_at);
+  const trialExpiresAt = epoch(row.trial_expires_at);
+  const access = createVendorTrialAccessToken({
+    applicationId: requiredText(row.application_public_id),
+    ownerUserId: requiredText(row.owner_public_id),
+    vendorId: requiredText(row.vendor_public_id),
+    trialStartedAt
+  });
+  if (access.accessExpiresAt <= now) return undefined;
+
+  return {
+    token: access.token,
+    vendorName: requiredText(row.trading_name),
+    trialExpiresAt,
+    accessExpiresAt: access.accessExpiresAt,
+    active: trialExpiresAt > now
+  };
+}
+
 export function isVendorTrialPrincipal(principal: SessionPrincipal): boolean {
   return principal.sessionId.startsWith("vtrial_");
 }
