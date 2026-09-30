@@ -68,7 +68,7 @@ const DAILY_ACTIONS = [
   { id: "ask-local", label: "Ask Local", note: "Μηνύματα και αιτήματα πελατών", href: "/daily/ask-local", icon: "◌", modes: ["today", "customers"] as const, keywords: "ask local messages μηνύματα πελάτες" },
   { id: "gift-cards", label: "Gift Cards", note: "Έκδοση και εξαργύρωση", href: "/daily/gift-cards", icon: "◇", modes: ["customers"] as const, keywords: "gift cards δωροκάρτες" },
   { id: "opportunities", label: "Ευκαιρίες", note: "Stock και εμπορικές ευκαιρίες", href: "/daily/opportunities", icon: "↗", modes: ["stock"] as const, keywords: "opportunities ευκαιρίες stock" },
-  { id: "alerts", label: "Ειδοποιήσεις", note: "Ιστορικό και ενεργά alerts", href: "/daily/notifications", icon: "!", modes: ["today", "orders", "customers"] as const, keywords: "notifications ειδοποιήσεις alerts sla" }
+  { id: "alerts", label: "Ειδοποιήσεις", note: "Ιστορικό και ενεργά alerts", href: "/daily/notifications", icon: "!", modes: ["today", "orders"] as const, keywords: "notifications ειδοποιήσεις alerts sla" }
 ] as const;
 
 const DAILY_ACTIVE_FULFILMENT_STATUSES = new Set([
@@ -209,11 +209,12 @@ export function VendorDailyHomeClient({
   }, [dailyMode, dailyQuery]);
   const visiblePriorities = useMemo(() => {
     if (dailyMode === "today") return today.priorities;
-    return today.priorities.filter((priority) => {
-      if (dailyMode === "orders") return /\/daily\/(orders|pickup|delivery)/.test(priority.href);
-      if (dailyMode === "stock") return /\/daily\/(quickadd|scan|opportunities)/.test(priority.href);
-      return /\/daily\/(ask-local|gift-cards|notifications)/.test(priority.href);
-    });
+    const idsByMode: Record<Exclude<DailyMode, "today">, ReadonlySet<string>> = {
+      orders: new Set(["new-orders", "sla", "pickups"]),
+      stock: new Set(["out-of-stock", "stale-stock"]),
+      customers: new Set(["ask-local"])
+    };
+    return today.priorities.filter((priority) => idsByMode[dailyMode].has(priority.id));
   }, [dailyMode, today.priorities]);
 
   async function acknowledge(notification: SlaNotification) {
