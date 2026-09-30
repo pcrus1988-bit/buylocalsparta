@@ -8,7 +8,7 @@ import { adminMaintenanceWorkspace } from "../../../lib/admin-governance-runtime
 import { getAdminSession } from "../../../lib/admin-session";
 import { boxNowShippingEnabled } from "../../../lib/boxnow-shipping-runtime";
 import { WEB_BUILD_VERSION } from "../../../lib/build";
-import { mediaPipelineReadiness } from "../../../lib/media-upload-service";
+import { mediaUploadMode } from "../../../lib/media-upload-service";
 
 export const metadata: Metadata = { title: "Admin · Platform Overview", robots: { index: false, follow: false } };
 
@@ -17,12 +17,19 @@ export default async function Page() {
   if (!principal) redirect("/admin/login");
   if (!hasAdminPermission(principal, "admin.audit.read")) redirect("/admin");
 
-  const [operations, maintenance, activation, media] = await Promise.all([
+  const [operations, maintenance, activation] = await Promise.all([
     adminOperationsWorkspace(principal),
     adminMaintenanceWorkspace(principal),
-    adminActivationWorkspace(principal),
-    mediaPipelineReadiness()
+    adminActivationWorkspace(principal)
   ]);
+  const mediaMode = mediaUploadMode();
+  const mediaIssue = mediaMode === "gated" ? 1 : 0;
+  const mediaLabel = mediaMode === "direct" ? "CONFIGURED" : mediaMode === "development_memory" ? "DEV" : "GATED";
+  const mediaMessage = mediaMode === "direct"
+    ? "Private storage is configured; live readiness is checked on upload rather than blocking this overview."
+    : mediaMode === "development_memory"
+      ? "Development-memory mode is active."
+      : "Private object storage or the media pipeline is not configured for direct uploads.";
 
   const now = Date.now();
   const criticalIssues = operations.health.checks.filter((check) => check.critical && !["ready", "healthy", "ok"].includes(String(check.state).toLowerCase())).length;
@@ -33,7 +40,6 @@ export default async function Page() {
   const currentEvidenceIssues = currentBuild.filter((row) => row.status !== "passed" || Boolean(row.expiresAt && row.expiresAt <= now)).length;
   const boxNow = boxNowShippingEnabled();
   const canManageShipping = hasAdminPermission(principal, "fulfilment.write");
-  const mediaIssue = media.enabled && !media.ready ? 1 : 0;
   const platformState = criticalIssues > 0 ? "RED" : nonReadyChecks > 0 || failingJobs > 0 || currentEvidenceIssues > 0 || mediaIssue > 0 ? "AMBER" : "GREEN";
   const attentionTotal = criticalIssues + failingJobs + currentEvidenceIssues + mediaIssue;
 
@@ -55,7 +61,7 @@ export default async function Page() {
       { label: "Health issues", value: nonReadyChecks, tone: nonReadyChecks ? "attention" : "positive", hint: `${criticalIssues} critical` },
       { label: "Failing jobs", value: failingJobs, tone: failingJobs ? "attention" : "positive", hint: `${dueJobs} due` },
       { label: "Production evidence issues", value: currentEvidenceIssues, tone: currentEvidenceIssues ? "attention" : "positive", hint: `build ${WEB_BUILD_VERSION}` },
-      { label: "Media pipeline", value: media.ready ? "READY" : media.enabled ? "BLOCKED" : "OFF", tone: mediaIssue ? "attention" : "default", hint: media.message },
+      { label: "Media pipeline", value: mediaLabel, tone: mediaIssue ? "attention" : "default", hint: mediaMessage },
       { label: "BOX NOW", value: boxNow ? "ON" : "OFF", hint: boxNow ? "Provider configured" : "Provider disabled" }
     ]} />
 
@@ -65,7 +71,7 @@ export default async function Page() {
         {criticalIssues > 0 && <Link className="admin-domain-card needs-attention" href="/admin/operations"><span>Incident</span><strong>System Health & Audit</strong><p>Critical dependency checks need investigation.</p><b>{criticalIssues}</b><i>Investigate →</i></Link>}
         {failingJobs > 0 && <Link className="admin-domain-card needs-attention" href="/admin/maintenance"><span>Runtime</span><strong>Jobs & projections</strong><p>Scheduled maintenance has consecutive failures.</p><b>{failingJobs}</b><i>Inspect jobs →</i></Link>}
         {currentEvidenceIssues > 0 && <Link className="admin-domain-card needs-attention" href="/admin/activation"><span>Production</span><strong>Production Readiness</strong><p>Current-build evidence is missing, stale, failed or blocked.</p><b>{currentEvidenceIssues}</b><i>Review evidence →</i></Link>}
-        {mediaIssue > 0 && <Link className="admin-domain-card needs-attention" href="/admin/partners/design"><span>Media infrastructure</span><strong>Storefront media pipeline</strong><p>{media.message}</p><b>BLOCKED</b><i>Open Partner Design →</i></Link>}
+        {mediaIssue > 0 && <Link className="admin-domain-card needs-attention" href="/admin/partners/design"><span>Media infrastructure</span><strong>Storefront media pipeline</strong><p>{mediaMessage}</p><b>GATED</b><i>Open Partner Design →</i></Link>}
       </div>}
     </section>
 

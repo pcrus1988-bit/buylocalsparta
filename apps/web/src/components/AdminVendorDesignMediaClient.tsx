@@ -11,7 +11,6 @@ type Props = Readonly<{
   csrfToken: string;
   vendorId: string;
   mediaUploadMode: "direct" | "development_memory" | "gated";
-  mediaReadiness: Readonly<{ enabled: boolean; ready: boolean; message: string }>;
   mediaReadinessMessage: string;
   assignments: readonly VendorProfileMediaAssignment[];
   canApprove: boolean;
