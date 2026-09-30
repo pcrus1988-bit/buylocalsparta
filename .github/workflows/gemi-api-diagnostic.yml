@@ -1,6 +1,9 @@
 name: GEMI API diagnostic
 
 on:
+  push:
+    branches:
+      - "diag/gemi-zero-results-20260930"
   pull_request:
     paths:
       - ".github/workflows/gemi-api-diagnostic.yml"
