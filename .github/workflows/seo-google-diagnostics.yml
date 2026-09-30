@@ -1,0 +1,35 @@
+name: SEO Google Diagnostics
+
+on:
+  schedule:
+    - cron: "7 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seo-google-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      SEO_GSC_DIAGNOSTICS_URL: https://kontamou.site/api/cron/seo-gsc-diagnostics
+    steps:
+      - name: Verify scheduler secret
+        shell: bash
+        run: test -n "$CRON_SECRET"
+      - name: Refresh Search Console SEO diagnostics
+        shell: bash
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --retry 2 \
+            --max-time 130 \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --output /tmp/seo-gsc-diagnostics.json \
+            "$SEO_GSC_DIAGNOSTICS_URL"
+          cat /tmp/seo-gsc-diagnostics.json

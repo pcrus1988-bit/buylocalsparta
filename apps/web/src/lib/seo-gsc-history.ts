@@ -309,6 +309,99 @@ export async function syncSearchConsoleHistory(principal: SessionPrincipal) {
   return { id: runPublicId, startDate: performance.startDate, endDate: performance.endDate, pageRows: pages.length, queryRows: queries.length } as const;
 }
 
+
+/**
+ * Scheduler-safe Search Console snapshot.
+ *
+ * This mirrors the operator sync without requiring an interactive admin principal.
+ * actor_user_id remains NULL so automated evidence is distinguishable from human
+ * actions in the SEO workspace.
+ */
+export async function syncSearchConsoleHistorySystem() {
+  if (!productionDatabaseConfigured()) throw new Error("Search Console history requires PostgreSQL runtime.");
+
+  const [overview, breakdown, seo] = await Promise.all([
+    getSearchConsoleOverview(),
+    getSearchConsoleBreakdown(METRIC_ROW_LIMIT),
+    getSeoGlobalSettingsSnapshot()
+  ]);
+  if (!overview.readiness.ready || !overview.readiness.siteUrl) throw new Error("Search Console integration is not ready.");
+  if (overview.error) throw new Error(overview.error);
+  if (breakdown.error) throw new Error(breakdown.error);
+  if (!overview.performance) throw new Error("Search Console did not return an aggregate performance row.");
+
+  const performance = overview.performance;
+  const pages = pageRows(breakdown.pages, seo.settings.canonicalOrigin);
+  const queries = privacySafeQueryRows(breakdown.queries);
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 20_000, lockTimeoutMs: 3_000 });
+  const runPublicId = publicId("gsc_sync");
+
+  await uow.withTransaction({ marketId: marketCode(), platformAccess: true, requestId: runPublicId }, async (tx) => {
+    const run = await tx.query<{ id: string }>(`
+      INSERT INTO seo_gsc_sync_runs(
+        public_id,market_id,actor_user_id,site_url,start_date,end_date,clicks,impressions,ctr,position,
+        page_row_count,query_row_count,captured_at
+      ) VALUES(
+        $1,nullif(current_setting('app.market_id',true),'')::uuid,NULL,
+        $2,$3::date,$4::date,$5,$6,$7,$8,$9,$10,$11
+      ) RETURNING id::text AS id
+    `, [
+      runPublicId, overview.readiness.siteUrl, performance.startDate, performance.endDate,
+      asCount(performance.clicks), asCount(performance.impressions), Math.max(0, Math.min(1, asNumber(performance.ctr))),
+      Math.max(0, asNumber(performance.position)), pages.length, queries.length, new Date()
+    ]);
+    const runId = String(run.rows[0]?.id ?? "");
+    if (!runId) throw new Error("Unable to persist Search Console sync.");
+
+    for (const row of pages) {
+      const url = new URL(row.key, `${seo.settings.canonicalOrigin}/`).toString();
+      await tx.query(`
+        INSERT INTO seo_gsc_page_metrics(public_id,sync_run_id,route,url,clicks,impressions,ctr,position)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+      `, [publicId("gsc_page"), runId, row.key, url, row.clicks, row.impressions, row.ctr, row.position]);
+    }
+    for (const row of queries) {
+      await tx.query(`
+        INSERT INTO seo_gsc_query_metrics(public_id,sync_run_id,query_text,clicks,impressions,ctr,position)
+        VALUES($1,$2,$3,$4,$5,$6,$7)
+      `, [publicId("gsc_query"), runId, row.key, row.clicks, row.impressions, row.ctr, row.position]);
+    }
+  });
+
+  return { id: runPublicId, startDate: performance.startDate, endDate: performance.endDate, pageRows: pages.length, queryRows: queries.length } as const;
+}
+
+export async function inspectAndPersistSearchConsoleUrlSystem(inspectionUrl: string) {
+  const [inspection, seo] = await Promise.all([inspectSearchConsoleUrl(inspectionUrl), getSeoGlobalSettingsSnapshot()]);
+  if (!productionDatabaseConfigured()) return { inspection, persistenceAvailable: false, saved: false } as const;
+
+  const route = routeForCanonicalUrl(inspection.inspectionUrl, seo.settings.canonicalOrigin);
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 10_000, lockTimeoutMs: 2_000 });
+  const evidenceId = publicId("gsc_inspection");
+  const sitemaps = inspection.sitemaps.filter((item) => typeof item === "string" && item.length <= 1_000).slice(0, 25);
+
+  await uow.withTransaction({ marketId: marketCode(), platformAccess: true, requestId: evidenceId }, async (tx) => {
+    await tx.query(`
+      INSERT INTO seo_gsc_url_inspections(
+        public_id,market_id,actor_user_id,inspection_url,route,verdict,coverage_state,robots_txt_state,
+        indexing_state,last_crawl_time,page_fetch_state,crawled_as,google_canonical,user_canonical,sitemaps,captured_at
+      ) VALUES(
+        $1,nullif(current_setting('app.market_id',true),'')::uuid,NULL,
+        $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14
+      )
+    `, [
+      evidenceId, inspection.inspectionUrl, route ?? null, inspection.verdict ?? null, inspection.coverageState ?? null,
+      inspection.robotsTxtState ?? null, inspection.indexingState ?? null, inspection.lastCrawlTime ? new Date(inspection.lastCrawlTime) : null,
+      inspection.pageFetchState ?? null, inspection.crawledAs ?? null, inspection.googleCanonical ?? null,
+      inspection.userCanonical ?? null, JSON.stringify(sitemaps), new Date()
+    ]);
+  });
+
+  return { inspection, persistenceAvailable: true, saved: true, evidenceId } as const;
+}
+
 export async function inspectAndPersistSearchConsoleUrl(principal: SessionPrincipal, inspectionUrl: string) {
   assertAdminPermission(principal, "content.write");
   const [inspection, seo] = await Promise.all([inspectSearchConsoleUrl(inspectionUrl), getSeoGlobalSettingsSnapshot()]);
