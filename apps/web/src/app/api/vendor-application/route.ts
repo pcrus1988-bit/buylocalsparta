@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { getAccountSession } from "../../../lib/account-session";
 import { assertCustomerCsrf } from "../../../lib/customer-state-runtime";
 import {
@@ -7,6 +8,7 @@ import {
   type VendorApplicationInput
 } from "../../../lib/vendor-application-runtime";
 import { notifyOperationsOfVendorApplication, sendVendorApplicationReceiptEmail } from "../../../lib/vendor-email-workflows";
+import { createVendorTrialAccessToken, VENDOR_TRIAL_COOKIE } from "../../../lib/vendor-trial-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,17 +90,44 @@ export async function POST(request: Request) {
       }));
     }
 
+    let redirectTo: string | undefined;
+    if (receipt.trial) {
+      const access = createVendorTrialAccessToken({
+        applicationId: receipt.applicationId,
+        ownerUserId: receipt.trial.ownerUserId,
+        vendorId: receipt.trial.vendorId,
+        trialStartedAt: receipt.trial.startedAt
+      });
+      (await cookies()).set({
+        name: VENDOR_TRIAL_COOKIE,
+        value: access.token,
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production" || request.url.startsWith("https://"),
+        path: "/",
+        expires: new Date(access.accessExpiresAt)
+      });
+      redirectTo = "/vendor/trial";
+    }
+
     return Response.json(
       {
         status: "verification_pending",
         reference: receipt.applicationId,
         accountClaimRequired: receipt.accountClaimRequired,
         registryLookupStatus: receipt.registryLookupStatus,
-        message: application.claimedResearchVendorId
-          ? "Η αίτηση καταχωρίστηκε και συνδέθηκε με την υπάρχουσα δημόσια σελίδα για έλεγχο ιδιοκτησίας. Η σελίδα παραμένει στην ίδια διεύθυνση όσο διαρκεί η επαλήθευση."
-          : receipt.registryLookupStatus === "matched"
-            ? "Η αίτηση καταχωρίστηκε με διασταυρωμένη νομική ταυτότητα Γ.Ε.ΜΗ. και περιμένει έλεγχο εκπροσώπησης/επικοινωνίας. Δεν έχει δημιουργηθεί πρόσβαση εμπόρου."
-            : "Η αίτηση καταχωρίστηκε και περιμένει χειροκίνητο έλεγχο επιχείρησης και εκπροσώπησης. Δεν έχει δημιουργηθεί πρόσβαση εμπόρου."
+        redirectTo,
+        trial: receipt.trial ? {
+          vendorId: receipt.trial.vendorId,
+          startsAt: new Date(receipt.trial.startedAt).toISOString(),
+          expiresAt: new Date(receipt.trial.expiresAt).toISOString(),
+          durationDays: 3
+        } : undefined,
+        message: receipt.trial
+          ? "Η αίτηση καταχωρίστηκε. Το ιδιωτικό 3ήμερο trial του καταστήματός σου είναι έτοιμο — μπορείς να μπεις τώρα στο πραγματικό Vendor Dashboard, να στήσεις το storefront και να δοκιμάσεις τα εργαλεία χωρίς να ενεργοποιηθεί ζωντανή πώληση."
+          : application.claimedResearchVendorId
+            ? "Η αίτηση καταχωρίστηκε και συνδέθηκε με την υπάρχουσα δημόσια σελίδα για έλεγχο ιδιοκτησίας. Για λόγους ασφάλειας, η πλήρης trial πρόσβαση ξεκινά αφού ολοκληρωθεί η ταυτοποίηση της υπάρχουσας σελίδας."
+            : "Η αίτηση καταχωρίστηκε και περιμένει έλεγχο."
       },
       { status: 201, headers: { "Cache-Control": "no-store" } }
     );
