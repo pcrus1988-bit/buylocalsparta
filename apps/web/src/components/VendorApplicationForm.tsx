@@ -302,12 +302,12 @@ export function VendorApplicationForm({
       <textarea id="vendor-story" name="shopStory" rows={6} maxLength={1500} placeholder="Τι πουλάτε, τι σας ξεχωρίζει, σε τι είδους συμβουλή μπορείτε να βοηθήσετε τον πελάτη, πώς διαχειρίζεστε σήμερα προϊόντα και stock;" />
 
       <div className="fairness-note">
-        <strong>Σημαντικό: η αίτηση δεν είναι vendor registration access</strong>
-        <p>Η υποβολή δημιουργεί μόνο ένα ελεγχόμενο application record με κατάσταση <code>verification_pending</code>. Το ΓΕΜΗ μειώνει τη χειροκίνητη καταχώριση και ενισχύει το evidence, αλλά δεν παρακάμπτει ownership/contact verification ή Admin activation.</p>
+        <strong>Σημαντικό: το 3ήμερο trial δεν είναι ενεργοποίηση πωλήσεων</strong>
+        <p>Η υποβολή δημιουργεί ένα ελεγχόμενο application record με κατάσταση <code>verification_pending</code> και, για νέα αίτηση, ανοίγει αμέσως ιδιωτικό 3ήμερο Vendor Trial για setup και preview. Το trial δεν παρακάμπτει ownership/contact verification ή Admin activation: δημόσια εμφάνιση, πραγματικές παραγγελίες και πληρωμές παραμένουν κλειδωμένες μέχρι την τελική ενεργοποίηση.</p>
       </div>
 
       <label className="checkbox-row" htmlFor="vendor-accuracy"><input id="vendor-accuracy" name="acceptedAccuracy" type="checkbox" required /><span>Επιβεβαιώνω ότι έχω ελέγξει τα στοιχεία της επιχείρησης και ότι τα πρόσθετα ή τροποποιημένα στοιχεία που καταχώρισα είναι ακριβή.</span></label>
-      <label className="checkbox-row" htmlFor="vendor-governance"><input id="vendor-governance" name="acceptedGovernedOnboarding" type="checkbox" required /><span>Κατανοώ ότι η συνεργασία απαιτεί επαλήθευση εκπροσώπησης/επικοινωνίας, catalog onboarding, test readiness και τελική ενεργοποίηση από Admin.</span></label>
+      <label className="checkbox-row" htmlFor="vendor-governance"><input id="vendor-governance" name="acceptedGovernedOnboarding" type="checkbox" required /><span>Κατανοώ ότι αποκτώ άμεσα ιδιωτική trial πρόσβαση για setup και preview, αλλά η πραγματική συνεργασία εξακολουθεί να απαιτεί επαλήθευση εκπροσώπησης/επικοινωνίας, catalog onboarding, test readiness και τελική ενεργοποίηση από Admin.</span></label>
       <label className="checkbox-row" htmlFor="vendor-privacy"><input id="vendor-privacy" name="acceptedPrivacy" type="checkbox" required /><span>Έχω ενημερωθεί ότι το ΚΟΝΤΑ ΜΟΥ ανακτά δημόσια εταιρικά στοιχεία από το ΓΕΜΗ για την προσυμπλήρωση και επαλήθευση της αίτησης και έχω διαβάσει την <a href="/privacy#gemi">Πολιτική Απορρήτου</a>. Η επιβεβαίωση αυτή καταγράφει ότι έλαβα την ενημέρωση· δεν αποτελεί συγκατάθεση για προαιρετικό marketing ή analytics.</span></label>
 
       <div className={styles.honeypot} aria-hidden="true"><label htmlFor="vendor-website">Website</label><input id="vendor-website" name="website" tabIndex={-1} autoComplete="off" /></div>

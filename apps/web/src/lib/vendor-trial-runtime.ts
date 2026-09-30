@@ -94,9 +94,13 @@ export async function vendorTrialSnapshotFromToken(token: string | undefined, no
       JOIN users owner ON owner.id=application.owner_user_id
       JOIN vendor_businesses vendor ON vendor.id=application.vendor_id
       LEFT JOIN LATERAL (
-        SELECT count(*)::integer AS product_count
-        FROM vendor_offers offer
-        WHERE offer.vendor_id=vendor.id
+        SELECT (
+          (SELECT count(*) FROM vendor_offers offer WHERE offer.vendor_id=vendor.id)
+          +
+          (SELECT count(*) FROM vendor_product_submissions submission
+            WHERE submission.vendor_id=vendor.id
+              AND submission.status IN ('draft','submitted','needs_review'))
+        )::integer AS product_count
       ) products ON true
       LEFT JOIN LATERAL (
         SELECT count(*)::integer AS media_count
