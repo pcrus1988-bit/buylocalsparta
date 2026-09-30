@@ -504,9 +504,17 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
 
   const fetchPage = useCallback(async (id: string, input: FilterState, offset: number, signal?: AbortSignal) => {
     const endpoint = demoMode ? "/api/demo/catalog/vendor" : "/api/catalog/vendor";
-    const response = await fetch(`${endpoint}/${encodeURIComponent(id)}?${pageParams(input, offset).toString()}`, { signal, cache: demoMode ? "no-store" : "default" });
-    if (!response.ok) throw new Error(`Catalogue request failed with ${response.status}`);
-    return response.json() as Promise<VendorCatalogApiResponse>;
+    const requestUrl = `${endpoint}/${encodeURIComponent(id)}?${pageParams(input, offset).toString()}`;
+    let lastStatus = 0;
+    const attempts = demoMode ? 1 : 2;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const response = await fetch(requestUrl, { signal, cache: demoMode ? "no-store" : "default" });
+      lastStatus = response.status;
+      if (response.ok) return response.json() as Promise<VendorCatalogApiResponse>;
+      if (response.status !== 503 || attempt + 1 >= attempts) break;
+      await new Promise((resolve) => window.setTimeout(resolve, 180));
+    }
+    throw new Error(`Catalogue request failed with ${lastStatus || "no response"}`);
   }, [demoMode]);
 
   useEffect(() => {
