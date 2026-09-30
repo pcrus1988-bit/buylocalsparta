@@ -68,34 +68,21 @@ type PromotionResult = Readonly<{
   compatibilityClaims: number;
 }>;
 
-type CanonicalizationResult = Readonly<{
-  status: string;
-  runId: string;
-  sourceCode: string;
-  snapshotId: string;
-  vendorId: string;
-  locationId: string;
-  result: Readonly<Record<string, unknown>>;
-}>;
-
 export function AdminAiProductImportForm({ csrfToken }: { csrfToken: string }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [sourceCode, setSourceCode] = useState("");
   const [sourceName, setSourceName] = useState("");
-  const [vendorId, setVendorId] = useState("");
-  const [locationId, setLocationId] = useState("");
-  const [busy, setBusy] = useState<"analyze" | "stage" | "promote" | "canonicalize" | "">("");
+  const [busy, setBusy] = useState<"analyze" | "ingest" | "">("");
   const [error, setError] = useState("");
   const [analysis, setAnalysis] = useState<Analysis>();
   const [staged, setStaged] = useState<StageResult>();
   const [promoted, setPromoted] = useState<PromotionResult>();
-  const [canonicalized, setCanonicalized] = useState<CanonicalizationResult>();
 
   async function analyze(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const file = fileRef.current?.files?.[0];
     if (!file) { setError("Choose a CSV, TSV or gzip product file."); return; }
-    setBusy("analyze"); setError(""); setAnalysis(undefined); setStaged(undefined); setPromoted(undefined); setCanonicalized(undefined);
+    setBusy("analyze"); setError(""); setAnalysis(undefined); setStaged(undefined); setPromoted(undefined);
     try {
       const body = new FormData();
       body.set("file", file);
@@ -111,45 +98,34 @@ export function AdminAiProductImportForm({ csrfToken }: { csrfToken: string }) {
     finally { setBusy(""); }
   }
 
-  async function stage() {
+  async function ingest() {
     const file = fileRef.current?.files?.[0];
     if (!file) { setError("The analyzed file is no longer selected."); return; }
-    if (!sourceCode.trim() || !sourceName.trim()) { setError("Source code and source name are required before normalization is persisted."); return; }
-    setBusy("stage"); setError(""); setPromoted(undefined); setCanonicalized(undefined);
+    if (!sourceCode.trim() || !sourceName.trim()) { setError("Source code and source name are required before the import is persisted."); return; }
+    setBusy("ingest"); setError(""); setPromoted(undefined);
     try {
       const body = new FormData();
-      body.set("file", file); body.set("sourceCode", sourceCode); body.set("sourceName", sourceName);
-      const response = await fetch("/api/admin/catalogue-intake/stage", {
+      body.set("file", file);
+      body.set("sourceCode", sourceCode);
+      body.set("sourceName", sourceName);
+      const stageResponse = await fetch("/api/admin/catalogue-intake/stage", {
         method: "POST", headers: { "x-csrf-token": csrfToken }, body, cache: "no-store"
       });
-      const payload = await response.json() as StageResult & { error?: string };
-      if (!response.ok) throw new Error(payload.error || "Normalization staging failed.");
-      setStaged(payload);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(""); }
-  }
+      const stagePayload = await stageResponse.json() as StageResult & { error?: string };
+      if (!stageResponse.ok) throw new Error(stagePayload.error || "Normalization staging failed.");
+      setStaged(stagePayload);
 
-  async function promote() {
-    if (!staged?.runId) return;
-    setBusy("promote"); setError(""); setCanonicalized(undefined);
-    try {
-      const response = await jsonPost("/api/admin/catalogue-intake/promote", { runId: staged.runId }, csrfToken);
-      setPromoted(response as PromotionResult);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(""); }
-  }
-
-  async function canonicalize() {
-    if (!staged?.runId || !promoted?.snapshotId) return;
-    if (!vendorId.trim() || !locationId.trim()) { setError("Choose a vendor and active vendor location before canonicalization."); return; }
-    setBusy("canonicalize"); setError("");
-    try {
-      const response = await jsonPost("/api/admin/catalogue-intake/canonicalize", {
-        runId: staged.runId, vendorId: vendorId.trim(), locationId: locationId.trim()
-      }, csrfToken);
-      setCanonicalized(response as CanonicalizationResult);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(""); }
+      const promotionPayload = await jsonPost(
+        "/api/admin/catalogue-intake/promote",
+        { runId: stagePayload.runId },
+        csrfToken
+      ) as PromotionResult;
+      setPromoted(promotionPayload);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy("");
+    }
   }
 
   return <div className="workspace-form-stack">
@@ -159,7 +135,7 @@ export function AdminAiProductImportForm({ csrfToken }: { csrfToken: string }) {
         <input ref={fileRef} type="file" name="file" accept=".csv,.tsv,.txt,.gz,text/csv,text/tab-separated-values,application/gzip,application/x-gzip" required disabled={Boolean(busy)} />
         <small>CSV, semicolon CSV, TSV and gzip are supported. Product Intelligence detects the schema before any database write.</small>
       </label>
-      <div className="workspace-inline-note"><strong>Controlled lifecycle.</strong> Analyze → persist normalized evidence → promote safe rows to PIM → governed canonicalization. No offer, live stock or public listing is created here.</div>
+      <div className="workspace-inline-note"><strong>Controlled lifecycle.</strong> Analyze → one governed PIM import → automatic intelligence → one vendor assignment → automatic canonicalization. No offer, live stock or public listing is created here.</div>
       <div className="workspace-action-bar">
         <span>Admin permission <code>catalog.write</code> and CSRF protection are required.</span>
         <button className="button button-primary" type="submit" disabled={Boolean(busy)}>{busy === "analyze" ? "Analyzing…" : "1 · Analyze file"}</button>
@@ -196,23 +172,14 @@ export function AdminAiProductImportForm({ csrfToken }: { csrfToken: string }) {
       <div className="admin-directory-filters">
         <label><span>Source code</span><input value={sourceCode} onChange={(event) => setSourceCode(event.target.value)} placeholder="supplier-name" disabled={Boolean(busy)} /></label>
         <label><span>Source name</span><input value={sourceName} onChange={(event) => setSourceName(event.target.value)} placeholder="Supplier / catalogue name" disabled={Boolean(busy)} /></label>
-        <div><button className="button button-primary" type="button" onClick={stage} disabled={Boolean(busy)}>{busy === "stage" ? "Normalizing…" : "2 · Persist normalization"}</button></div>
+        <div><button className="button button-primary" type="button" onClick={ingest} disabled={Boolean(busy)}>{busy === "ingest" ? "Importing…" : "2 · Import safe rows to PIM"}</button></div>
       </div>
-      <div className="workspace-inline-note">The source/profile identity is immutable for this file hash. Re-uploading the same source reuses the existing run instead of duplicating data.</div>
+      <div className="workspace-inline-note">One confirmation now persists normalization and promotes all admissible rows to immutable Supplier PIM evidence. The source/profile identity is immutable for this file hash, so re-uploading the same source reuses the existing run instead of duplicating data.</div>
     </section>}
 
-    {staged && <section className="workspace-form-stack" aria-live="polite">
-      <div className="workspace-inline-note"><strong>{staged.status.replaceAll("_", " ")}</strong> · run {staged.runId} · profile {staged.profileStatus} · {staged.duplicateSourceKeys} duplicate source identities</div>
-      <div className="workspace-metric-strip">
-        <div className="workspace-metric"><span>Normalized</span><strong>{staged.rowCount.toLocaleString("en-US")}</strong></div>
-        <div className="workspace-metric"><span>Ready</span><strong>{staged.readyRows.toLocaleString("en-US")}</strong></div>
-        <div className="workspace-metric"><span>Review</span><strong>{staged.reviewRows.toLocaleString("en-US")}</strong></div>
-        <div className="workspace-metric"><span>Quarantine</span><strong>{staged.quarantineRows.toLocaleString("en-US")}</strong></div>
-      </div>
-      <div className="workspace-action-bar">
-        <span>Promotion writes supplier evidence only. Quarantined and duplicate identities are excluded.</span>
-        <button className="button button-primary" type="button" onClick={promote} disabled={Boolean(busy)}>{busy === "promote" ? "Promoting…" : "3 · Promote safe rows to PIM"}</button>
-      </div>
+    {staged && !promoted && <section className="workspace-form-stack" aria-live="polite">
+      <div className="workspace-inline-note"><strong>{staged.status.replaceAll("_", " ")}</strong> · run {staged.runId} · profile {staged.profileStatus}</div>
+      <div className="workspace-inline-note">Normalization is persisted. PIM promotion is continuing in the same governed import action.</div>
     </section>}
 
     {promoted && <section className="workspace-form-stack" aria-live="polite">
@@ -224,18 +191,12 @@ export function AdminAiProductImportForm({ csrfToken }: { csrfToken: string }) {
         <div className="workspace-metric"><span>Unmapped leaves</span><strong>{promoted.unmappedTaxonomyLeaves}</strong></div>
         <div className="workspace-metric"><span>Attributes</span><strong>{promoted.attributeObservations}</strong></div>
       </div>
-      <div className="admin-directory-filters">
-        <label><span>Vendor public ID / UUID</span><input value={vendorId} onChange={(event) => setVendorId(event.target.value)} placeholder="vendor_…" disabled={Boolean(busy)} /></label>
-        <label><span>Active location public ID / UUID</span><input value={locationId} onChange={(event) => setLocationId(event.target.value)} placeholder="location_…" disabled={Boolean(busy)} /></label>
-        <div><button className="button button-primary" type="button" onClick={canonicalize} disabled={Boolean(busy)}>{busy === "canonicalize" ? "Canonicalizing…" : "4 · Safe canonicalization"}</button></div>
+      <div className="workspace-action-bar">
+        <span><strong>Next:</strong> deterministic intelligence is automatic. Assign this snapshot to a vendor once in Supplier PIM Intake; canonical identity resolution then runs automatically in the scheduled intake worker.</span>
+        <a className="button button-primary" href={`/admin/catalogue-intake?snapshot=${encodeURIComponent(promoted.snapshotId)}`}>Open snapshot & assign vendor</a>
+        <a className="button button-secondary" href="/admin/catalogue-intake/intelligence">Review exceptions</a>
       </div>
-      <div className="workspace-inline-note">The canonicalizer auto-links/creates only identity-unique, high-confidence rows and creates a <strong>candidate assortment</strong> for the selected vendor—even before vendor activation. Ambiguous rows go to the canonicalization review queue.</div>
-    </section>}
-
-    {canonicalized && <section className="workspace-form-stack" aria-live="polite">
-      <div className="workspace-inline-note"><strong>{canonicalized.status.replaceAll("_", " ")}</strong> · vendor {canonicalized.vendorId} · location {canonicalized.locationId}</div>
-      <details className="workspace-record-details" open><summary>Canonicalization outcome</summary><pre>{JSON.stringify(canonicalized.result, null, 2)}</pre></details>
-      <div className="workspace-inline-note"><strong>Commerce remains off.</strong> This lifecycle does not approve vendor offers, invent stock, or make products public. Those remain separate governed decisions.</div>
+      <div className="workspace-inline-note"><strong>Commerce remains off.</strong> Automated intake can normalize, classify and canonicalize evidence, but it does not confirm stock, create a sellable vendor offer or publish a product.</div>
     </section>}
 
     {error && <div className="workspace-inline-note" role="alert"><strong>AI Product Import:</strong> {error}</div>}

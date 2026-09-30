@@ -9,6 +9,7 @@ const stageRoute = read("apps/web/src/app/api/admin/catalogue-intake/stage/route
 const promoteRoute = read("apps/web/src/app/api/admin/catalogue-intake/promote/route.ts");
 const canonicalizeRoute = read("apps/web/src/app/api/admin/catalogue-intake/canonicalize/route.ts");
 const form = read("apps/web/src/components/AdminAiProductImportForm.tsx");
+const automationWorker = read("workers/catalogue-intake-automation-worker.ts");
 const runtime = read("packages/postgres-runtime/src/index.ts");
 
 const failures: string[] = [];
@@ -59,8 +60,12 @@ for (const route of [stageRoute, promoteRoute, canonicalizeRoute]) {
   expect(route.includes('"Cache-Control": "no-store"'), "AI import write endpoints must be no-store");
 }
 expect(form.includes('fetch("/api/admin/catalogue-intake/stage"'), "Admin UI must expose normalization persistence");
-expect(form.includes('jsonPost("/api/admin/catalogue-intake/promote"'), "Admin UI must expose PIM promotion");
-expect(form.includes('jsonPost("/api/admin/catalogue-intake/canonicalize"'), "Admin UI must expose governed canonicalization");
+expect(form.includes('"/api/admin/catalogue-intake/promote"'), "Admin UI must promote PIM evidence as part of the single governed import action");
+expect(!form.includes("/api/admin/catalogue-intake/canonicalize"), "Admin UI must not require a second manual canonicalization action");
+expect(form.includes("Open snapshot & assign vendor"), "Admin UI must hand off to the single vendor-assignment decision");
+expect(automationWorker.includes("apply_catalog_source_canonicalization"), "Scheduled automation must perform governed canonicalization after vendor assignment");
+expect(automationWorker.includes("vendor_catalog_assortments"), "Scheduled canonicalization must be scoped to already-assigned vendor catalogue rows");
+expect(!automationWorker.includes("vendor_offers"), "Scheduled intake automation must not create or mutate sellable offers");
 expect(form.includes("No offer, live stock or public listing is created here"), "Admin UI must keep the no-commerce warning visible");
 
 if (failures.length) {
@@ -68,4 +73,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
-console.log("AI product import lifecycle acceptance passed: normalization persistence, PIM staging, canonicalization handoff and private/RLS boundaries verified.");
+console.log("AI product import lifecycle acceptance passed: one-step PIM ingestion, vendor-assignment handoff, scheduled canonicalization and private/RLS boundaries verified.");

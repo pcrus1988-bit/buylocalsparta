@@ -6,7 +6,10 @@ const files = {
   mapping: "apps/web/src/lib/admin-catalogue-attribute-mapping.ts",
   identity: "apps/web/src/lib/admin-database-identity.ts",
   migration: "db/migrations/0164_catalog_source_attribute_mapping_rules.sql",
-  navigation: "apps/web/src/lib/workspace-navigation.ts"
+  navigation: "apps/web/src/lib/workspace-navigation.ts",
+  importForm: "apps/web/src/components/AdminAiProductImportForm.tsx",
+  automationWorker: "workers/catalogue-intake-automation-worker.ts",
+  automationWorkflow: ".github/workflows/catalogue-intake-automation.yml"
 } as const;
 const entries = Object.fromEntries(await Promise.all(Object.entries(files).map(async ([key, path]) => [key, await readFile(path, "utf8")]))) as Record<keyof typeof files, string>;
 const failures: string[] = [];
@@ -76,6 +79,22 @@ forbidText("page", "AdminActionButton", "Supplier PIM page must not bypass its d
 forbidText("page", "catalog.write", "Permission enforcement must stay inside the mapping service instead of client/page markup");
 requireText("navigation", 'href: "/admin/catalogue-intake"', "Supplier PIM intake must be registered in Admin navigation");
 requireText("navigation", '{ label: "Attribute Mapping", href: "/admin/catalogue-intake/attributes", icon: "≡", permission: "catalog.read" }', "Grouped Supplier PIM Attribute Mapping must be a visible catalog.read Admin navigation entry");
+
+requireText("importForm", "2 · Import safe rows to PIM", "Generic supplier import should collapse normalization + promotion into one explicit governed action");
+requireText("importForm", "Open snapshot & assign vendor", "Import completion must hand off to the single vendor-assignment decision");
+forbidText("importForm", "Vendor public ID / UUID", "Normal intake must not require operators to type raw vendor IDs");
+forbidText("importForm", "/api/admin/catalogue-intake/canonicalize", "Canonicalization must not remain a separate manual import-form step");
+
+requireText("automationWorker", "process_catalog_intelligence_refresh_queue", "Scheduled intake worker must drain deterministic intelligence as a fallback");
+requireText("automationWorker", "vendor_catalog_assortments", "Scheduled intake worker must discover only already-assigned vendor catalogue rows");
+requireText("automationWorker", "metadata->>'assignment'='bulk_snapshot_v1'", "Scheduled intake worker must require the explicit whole-snapshot vendor assignment marker");
+requireText("automationWorker", "apply_catalog_source_canonicalization", "Scheduled intake worker must invoke governed canonical identity resolution");
+requireText("automationWorker", "assortment_status NOT IN ('rejected','discontinued')", "Scheduled canonicalization must ignore rejected/discontinued vendor assignments");
+requireText("automationWorker", "catalog_canonicalization_reviews", "Scheduled canonicalization must detect governed identity exceptions");
+requireText("automationWorker", "material_variant_conflict", "Scheduled canonicalization must stop retrying strong identity conflicts until reviewed");
+forbidText("automationWorker", "vendor_offers", "Catalogue intake automation must not create or mutate sellable vendor offers");
+requireText("automationWorkflow", 'cron: "*/5 * * * *"', "Catalogue intake automation must run on a bounded recurring schedule");
+requireText("automationWorkflow", 'DATABASE_URL: ${{ secrets.DATABASE_URL }}', "Catalogue intake automation must use the protected production database secret");
 
 if (failures.length) throw new Error(`Admin Supplier PIM intake verification failed:\n- ${failures.join("\n- ")}`);
 console.log("Admin Supplier PIM intake verification passed: read-only source evidence plus exact-context, category-bound Product-Type-governed attribute mapping and review navigation are registered and evidence-preserving.");

@@ -125,12 +125,40 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
       { label: "Compatibility candidates", value: snapshot?.candidateCompatibility ?? 0, tone: snapshot?.candidateCompatibility ? "attention" : "default" }
     ]} />
 
+    <WorkspaceMetricStrip items={[
+      { label: "Intelligence queue", value: data.automation.intelligenceSnapshotsPending, tone: data.automation.intelligenceSnapshotsPending ? "attention" : "positive", hint: "Selected snapshot waiting for deterministic intelligence processing" },
+      { label: "Assigned vendors", value: data.automation.assignedVendors, hint: "Vendors currently receiving this snapshot as candidate assortment" },
+      { label: "Canonicalization pending", value: data.automation.canonicalizationRowsPending, tone: data.automation.canonicalizationRowsPending ? "attention" : "positive", hint: "Assigned source rows the scheduled worker still needs to resolve" },
+      { label: "Identity exceptions", value: data.automation.identityExceptionsOpen, tone: data.automation.identityExceptionsOpen ? "attention" : "positive", hint: "Only strong identity conflicts requiring Admin review" }
+    ]} />
+
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Vendor catalogue" title="Assign the entire catalogue to a vendor" note="Choose a Supplier PIM snapshot and vendor. Every source product is attached to the vendor's primary active location in one idempotent operation. Existing assignments are preserved; later canonical matching upgrades the same assortment rows." />
+      <WorkspaceSectionHeading
+        eyebrow="Operational workflow"
+        title="One business decision, then deterministic automation"
+        note="The intake lifecycle now separates decisions from mechanics. Admin confirms the source and the target vendor; repeatable classification and canonical identity work runs automatically, while only genuine ambiguity comes back for review."
+      />
+      <div className="workspace-compact-list">
+        <div className="workspace-compact-row"><strong>1 · Source import</strong><span>Admin reviews detected schema once, then one action persists normalization and promotes admissible rows to immutable Supplier PIM evidence.</span></div>
+        <div className="workspace-compact-row"><strong>2 · Catalogue intelligence</strong><span>Automatic · deterministic category and attribute rules are reused in the background. Novel or ambiguous structure is routed to Intelligence review.</span></div>
+        <div className="workspace-compact-row"><strong>3 · Vendor assignment</strong><span>Admin decision · choose which vendor receives the snapshot. The primary active location is resolved automatically; raw vendor/location IDs are no longer part of the normal import flow.</span></div>
+        <div className="workspace-compact-row"><strong>4 · Canonical identity</strong><span>Automatic after assignment · the scheduled intake worker links or creates safe canonical identities and retries unresolved assigned rows idempotently.</span></div>
+        <div className="workspace-compact-row"><strong>5 · Exceptions only</strong><span>Human review is reserved for real identity conflicts or novel governed structure. Missing routine enrichment does not block the entire catalogue.</span></div>
+        <div className="workspace-compact-row"><strong>Commerce boundary</strong><span>Stock confirmation, sellable offers, pricing approval and publication remain separate. Intake automation cannot make a product public by itself.</span></div>
+      </div>
+      <div className="workspace-action-bar" style={{marginTop:"1rem"}}>
+        <span>Start with source evidence; return here only for the vendor-context decision and exception handling.</span>
+        <Link className="button button-primary" href="/admin/catalogue-intake/import">Import catalogue</Link>
+        <Link className="button button-secondary" href="/admin/catalogue-intake/intelligence">Review intelligence exceptions</Link>
+      </div>
+    </section>
+
+    <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Vendor catalogue" title="Assign the snapshot once" note="Choose the Supplier PIM snapshot and vendor. This is the deliberate business-context handoff. Products are attached to the vendor's primary active location idempotently; the scheduled intake worker then performs canonical identity resolution automatically." />
       {assignmentSuccess && <div className="workspace-queue-card" role="status" style={{marginBottom:"1rem"}}>
         <strong>Catalogue assigned to {params.vendorName ?? "vendor"}</strong>
         <p>{Number(params.assignedRows ?? 0).toLocaleString("el-GR")} products newly assigned · {Number(params.alreadyAssigned ?? 0).toLocaleString("el-GR")} were already assigned.</p>
-        <small>No offers, inventory or public publication were activated by this operation.</small>
+        <small>The scheduled intake worker will now pick up unresolved assigned rows automatically. No offers, inventory or public publication were activated by this operation.</small>
       </div>}
       {params.assignmentError && <div className="workspace-queue-card" role="alert" style={{marginBottom:"1rem"}}><strong>Could not assign catalogue</strong><p>{params.assignmentError}</p></div>}
       <form action={assignCatalogueAction} className="admin-directory-filters">
@@ -150,7 +178,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
         </label>
         <div><button className="button button-primary" type="submit" disabled={!snapshot || vendors.every((vendor)=>!vendor.locationId)}>Assign entire catalogue</button></div>
       </form>
-      <div className="workspace-inline-note">Assignment is deliberately separate from publication. Unmatched products become candidate assortments; already matched products keep their canonical links. Vendor confirmation, pricing, stock and offer activation remain governed separately.</div>
+      <div className="workspace-inline-note">Assignment is deliberately separate from publication. Unmatched products become candidate assortments and are canonicalized automatically in the scheduled intake cycle; already matched products keep their canonical links. Vendor confirmation, pricing, stock and offer activation remain governed separately.</div>
     </section>
 
     <section className="shell vendor-section">

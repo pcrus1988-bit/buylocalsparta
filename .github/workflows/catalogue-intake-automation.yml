@@ -1,0 +1,55 @@
+name: Catalogue intake automation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalogue-intake-automation
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: Intelligence and canonicalization cycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PGSSLMODE: require
+      BLS_DB_APPLICATION_NAME: github-actions:catalogue-intake
+      BLS_DB_CONNECT_TIMEOUT_MS: "15000"
+      BLS_DB_POOL_MAX: "2"
+      BLS_CATALOGUE_INTAKE_WORKER_ID: github-actions:${{ github.run_id }}:${{ github.run_attempt }}
+      BLS_CATALOGUE_INTAKE_MAX_GROUPS: "3"
+      BLS_CATALOGUE_INTELLIGENCE_LIMIT: "25"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify production database credential
+        shell: bash
+        run: |
+          if [[ -z "${DATABASE_URL}" ]]; then
+            echo "::error::GitHub Actions secret DATABASE_URL is missing."
+            exit 78
+          fi
+
+      - name: Run one catalogue intake automation cycle
+        run: node --experimental-strip-types workers/catalogue-intake-automation-worker.ts

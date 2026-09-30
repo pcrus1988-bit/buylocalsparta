@@ -112,17 +112,30 @@ export type CatalogueIntakeFilters = Readonly<{
   productId?: string;
 }>;
 
+export type CatalogueIntakeAutomationHealth = Readonly<{
+  intelligenceSnapshotsPending: number;
+  assignedVendors: number;
+  canonicalizationRowsPending: number;
+  identityExceptionsOpen: number;
+}>;
+
 export type AdminCatalogueIntakeWorkspace = Readonly<{
   csrfToken: string;
   snapshots: readonly CatalogueIntakeSnapshot[];
   effectiveSnapshotId?: string;
+  automation: CatalogueIntakeAutomationHealth;
   queue: readonly CatalogueIntakeQueueItem[];
   selected?: CatalogueIntakeDetail;
 }>;
 
 export async function adminCatalogueIntakeWorkspace(principal: SessionPrincipal, input: CatalogueIntakeFilters = {}): Promise<AdminCatalogueIntakeWorkspace> {
   assertAdminPermission(principal, "catalog.read");
-  if (!postgresAdminRuntimeEnabled()) return { csrfToken: principal.csrfToken, snapshots: [], queue: [] };
+  if (!postgresAdminRuntimeEnabled()) return {
+    csrfToken: principal.csrfToken,
+    snapshots: [],
+    automation: emptyAutomationHealth(),
+    queue: []
+  };
 
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 8_000, lockTimeoutMs: 2_000 });
@@ -132,6 +145,9 @@ export async function adminCatalogueIntakeWorkspace(principal: SessionPrincipal,
     const effectiveSnapshotId = requestedSnapshot && snapshots.some((snapshot) => snapshot.id === requestedSnapshot)
       ? requestedSnapshot
       : snapshots[0]?.id;
+    const automation = effectiveSnapshotId
+      ? await readAutomationHealth(tx, effectiveSnapshotId)
+      : emptyAutomationHealth();
     const queue = effectiveSnapshotId
       ? await readQueue(tx, { ...input, snapshotId: effectiveSnapshotId })
       : [];
@@ -139,8 +155,65 @@ export async function adminCatalogueIntakeWorkspace(principal: SessionPrincipal,
     const selected = selectedId && effectiveSnapshotId
       ? await readDetail(tx, selectedId, effectiveSnapshotId)
       : undefined;
-    return { csrfToken: principal.csrfToken, snapshots, effectiveSnapshotId, queue, selected };
+    return { csrfToken: principal.csrfToken, snapshots, effectiveSnapshotId, automation, queue, selected };
   }, { readOnly: true, statementTimeoutMs: 8_000 });
+}
+
+function emptyAutomationHealth(): CatalogueIntakeAutomationHealth {
+  return {
+    intelligenceSnapshotsPending: 0,
+    assignedVendors: 0,
+    canonicalizationRowsPending: 0,
+    identityExceptionsOpen: 0
+  };
+}
+
+async function readAutomationHealth(tx: SqlExecutor, snapshotId: string): Promise<CatalogueIntakeAutomationHealth> {
+  const result = await tx.query<SqlRow>(`
+    SELECT
+      (SELECT count(*)::integer
+       FROM public.catalog_intelligence_refresh_queue q
+       WHERE q.snapshot_id=$1::uuid) AS intelligence_pending,
+      (SELECT count(DISTINCT vca.vendor_id)::integer
+       FROM public.vendor_catalog_assortments vca
+       JOIN public.catalog_source_products sp ON sp.id=vca.source_product_id
+       WHERE sp.snapshot_id=$1::uuid
+         AND vca.assortment_status NOT IN ('rejected','discontinued')) AS assigned_vendors,
+      (SELECT count(*)::integer
+       FROM public.vendor_catalog_assortments vca
+       JOIN public.catalog_source_products sp ON sp.id=vca.source_product_id
+       WHERE sp.snapshot_id=$1::uuid
+         AND vca.assortment_status NOT IN ('rejected','discontinued')
+         AND vca.metadata->>'assignment'='bulk_snapshot_v1'
+         AND (
+           vca.canonical_variant_id IS NULL
+           OR NOT EXISTS (
+             SELECT 1
+             FROM public.catalog_source_product_links l
+             WHERE l.source_product_id=sp.id
+               AND l.link_status='approved'
+           )
+         )
+         AND NOT EXISTS (
+           SELECT 1
+           FROM public.catalog_canonicalization_reviews review
+           WHERE review.source_product_id=sp.id
+             AND review.status='open'
+             AND review.reason_code IN ('canonical_identity_ambiguous','material_variant_conflict')
+         )) AS canonicalization_pending,
+      (SELECT count(*)::integer
+       FROM public.catalog_canonicalization_reviews r
+       WHERE r.snapshot_id=$1::uuid
+         AND r.status='open'
+         AND r.reason_code IN ('canonical_identity_ambiguous','material_variant_conflict')) AS identity_exceptions
+  `, [snapshotId]);
+  const row = result.rows[0] ?? {};
+  return {
+    intelligenceSnapshotsPending: numberField(row.intelligence_pending),
+    assignedVendors: numberField(row.assigned_vendors),
+    canonicalizationRowsPending: numberField(row.canonicalization_pending),
+    identityExceptionsOpen: numberField(row.identity_exceptions)
+  };
 }
 
 async function readSnapshots(tx: SqlExecutor): Promise<readonly CatalogueIntakeSnapshot[]> {
