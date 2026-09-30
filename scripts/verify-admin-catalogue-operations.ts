@@ -34,7 +34,7 @@ expect(runtime.includes("metadata->>'assignment'='bulk_snapshot_v1'"), "Automati
 expect(runtime.includes("canonical_identity_ambiguous"), "Strong identity ambiguity must appear in the unified inbox");
 expect(runtime.includes("material_variant_conflict"), "Material variant conflicts must appear in the unified inbox");
 expect(runtime.includes("priority: 100"), "Strong identity exceptions must outrank lower-impact mapping queues");
-expect(runtime.includes("priority: 90"), "Ambiguous catalogue structure must remain high-priority");
+expect(runtime.includes("? 90 : 82"), "Ambiguous catalogue structure must remain high-priority");
 expect(runtime.includes("priority: 76"), "Commercial matching must be represented in the unified priority model");
 
 for (const forbidden of ["INSERT INTO", "UPDATE public.", "DELETE FROM", "TRUNCATE "]) {
