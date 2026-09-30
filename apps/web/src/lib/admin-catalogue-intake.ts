@@ -192,6 +192,13 @@ async function readAutomationHealth(tx: SqlExecutor, snapshotId: string): Promis
              WHERE l.source_product_id=sp.id
                AND l.link_status='approved'
            )
+         )
+         AND NOT EXISTS (
+           SELECT 1
+           FROM public.catalog_canonicalization_reviews review
+           WHERE review.source_product_id=sp.id
+             AND review.status='open'
+             AND review.reason_code IN ('canonical_identity_ambiguous','material_variant_conflict')
          )) AS canonicalization_pending,
       (SELECT count(*)::integer
        FROM public.catalog_canonicalization_reviews r
