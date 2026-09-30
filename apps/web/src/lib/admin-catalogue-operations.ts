@@ -103,6 +103,7 @@ export async function adminCatalogueOperationsWorkspace(
         FROM public.catalog_intelligence_proposals p
         JOIN public.catalog_sources s ON s.id=p.source_id
         WHERE p.status='open'
+          AND p.proposal_kind LIKE 'category_%'
         ORDER BY
           CASE
             WHEN p.proposal_kind IN ('category_ambiguous','attribute_ambiguous') THEN 0
@@ -333,12 +334,12 @@ export async function adminCatalogueOperationsWorkspace(
       },
       {
         key: "intelligence",
-        label: "Structure intelligence",
+        label: "Taxonomy intelligence",
         count: intelligenceData.total,
         affected: intelligenceData.affected,
-        href: "/admin/catalogue-intake/intelligence",
-        stage: "Taxonomy & contracts",
-        why: "Novel or ambiguous source structure needs one governed reusable decision."
+        href: "/admin/catalogue-intake/intelligence?kind=category_new",
+        stage: "Supplier taxonomy",
+        why: "New or unresolved supplier categories need one governed mapping into the KONTAMOU taxonomy. Attribute contracts are owned by Attribute Matching instead of being counted twice."
       },
       {
         key: "attribute",
@@ -452,7 +453,7 @@ function counted(rows: readonly SqlRow[], totalField: string, affectedField: str
 function emptyQueues(): CatalogueOperationsQueue[] {
   return [
     { key: "identity", label: "Identity exceptions", count: 0, affected: 0, href: "/admin/catalogue/exceptions", stage: "Canonical identity", why: "Strong identifiers conflict or remain ambiguous." },
-    { key: "intelligence", label: "Structure intelligence", count: 0, affected: 0, href: "/admin/catalogue-intake/intelligence", stage: "Taxonomy & contracts", why: "Novel or ambiguous source structure." },
+    { key: "intelligence", label: "Taxonomy intelligence", count: 0, affected: 0, href: "/admin/catalogue-intake/intelligence?kind=category_new", stage: "Supplier taxonomy", why: "New or unresolved supplier categories." },
     { key: "attribute", label: "Attribute meaning", count: 0, affected: 0, href: "/admin/catalogue/attribute-matching", stage: "Attribute mapping", why: "Supplier field meaning is unresolved." },
     { key: "controlled_value", label: "Controlled values", count: 0, affected: 0, href: "/admin/catalogue-intake/values", stage: "Enum normalization", why: "External enum values need governed normalization." },
     { key: "matching", label: "Vendor matching", count: 0, affected: 0, href: "/admin/matching", stage: "Commercial matching", why: "Vendor submissions need a canonical decision." }
