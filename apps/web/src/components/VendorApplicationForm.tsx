@@ -170,6 +170,10 @@ export function VendorApplicationForm({
         throw new Error(data.error ?? "Η αίτηση δεν καταχωρίστηκε.");
       }
       if (!data.reference || typeof data.accountClaimRequired !== "boolean") throw new Error("Η αίτηση καταχωρίστηκε αλλά δεν επιστράφηκε αριθμός αναφοράς.");
+      if (data.redirectTo?.startsWith("/vendor/")) {
+        window.location.assign(data.redirectTo);
+        return;
+      }
       setReceipt({
         reference: data.reference,
         accountClaimRequired: data.accountClaimRequired,
