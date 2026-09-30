@@ -34,6 +34,8 @@ for (const token of [
 ]) {
   if (!page.includes(token)) failures.push(`Admin Quick Add page is missing ${token}`);
 }
+if (page.includes("mediaPipelineReadiness(")) failures.push("Admin Quick Add must not probe media storage readiness during initial render");
+
 for (const token of [
   "/api/admin/quickadd",
   "x-csrf-token",
