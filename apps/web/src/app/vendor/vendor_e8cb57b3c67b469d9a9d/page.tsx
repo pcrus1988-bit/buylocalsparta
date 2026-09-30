@@ -10,6 +10,8 @@ import { getAccountSession } from "../../../lib/account-session";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
+import { getVendorLocalCatalogPage } from "../../../lib/vendor-local-catalog";
+import { getFastVendorDropshipCatalogPage } from "../../../lib/vendor-dropship-fast-page";
 import { findSeoEntityOverride, type SeoEntityReference } from "../../../lib/seo-entity-policy";
 import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 import { researchVendorIndexEligibility } from "../../../lib/seo-visibility-policy";
@@ -79,12 +81,28 @@ export default async function SpBusinessLabStorefront() {
   if (!vendor) notFound();
 
   const isResearch = vendor.directoryStatus === "research";
-  // The catalogue browser fetches a bounded 20-item page after hydration. Do not
-  // run the same supplier-catalogue query during SSR: this storefront can contain
-  // tens of thousands of supplier families, and the duplicate cold-start query
-  // was competing for production DB connections before the client request.
   const principal = isResearch ? undefined : await getAccountSession();
-  const products = [] as const;
+  let products = [] as Awaited<ReturnType<typeof getVendorLocalCatalogPage>>["products"];
+  let initialNextOffset: number | null = null;
+
+  // Render the first bounded catalogue page in the initial HTML so customers and
+  // crawlers do not wait for hydration plus a second network round trip before
+  // seeing products. The underlying identity projection is short-lived cached and
+  // indexed; only the visible cards are hydrated with metadata/media.
+  if (!isResearch) {
+    const localPage = await getVendorLocalCatalogPage(VENDOR_ID, { offset: 0, limit: 20 });
+    products = localPage.products;
+    if (products.length >= 20 && localPage.total > 20) {
+      initialNextOffset = 20;
+    } else if (products.length < 20) {
+      const remaining = 20 - products.length;
+      const dropshipPage = await getFastVendorDropshipCatalogPage(VENDOR_ID, { offset: 0, limit: remaining });
+      products = [...products, ...dropshipPage.products.slice(0, remaining)];
+      initialNextOffset = dropshipPage.nextOffset === undefined
+        ? null
+        : localPage.total + dropshipPage.nextOffset;
+    }
+  }
 
   const structuredData = {
     "@context": "https://schema.org",
@@ -177,6 +195,7 @@ export default async function SpBusinessLabStorefront() {
               products={products}
               vendor={{ name: DISPLAY_NAME, adviser: vendor.adviser }}
               vendorId={vendor.id}
+              initialNextOffset={initialNextOffset}
             />
           )}
         </div>
