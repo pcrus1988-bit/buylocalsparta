@@ -76,6 +76,7 @@ for (const contract of [
   "absoluteSeoCanonical"
 ]) requireText(coreSitemap, contract, `Core sitemap is missing ${contract}`);
 requireText(coreSitemap, "if (!settings.indexingEnabled) return []", "Core sitemap must fail closed when the global indexing master switch is off");
+if (coreSitemap.includes('route.href === "/terms"')) failures.push("Core sitemap must not force the explicitly noindex /terms utility page into XML discovery");
 requireText(coreSitemap, 'vendor.directoryStatus === "partner"', "Core sitemap must independently control partner and Research vendor admission");
 requireText(coreSitemap, "override?.lastReviewedAt ?? vendor.research?.checkedAt", "Vendor sitemap entries must preserve governed review/research freshness");
 
@@ -198,6 +199,8 @@ if (!homepage.includes("isReadOnlyPublicCrawlerRequest") || !homepage.includes("
 requireText(homepage, 'getAvailableStorefrontCategories("23100")', "Homepage must derive category links from currently available catalogue inventory");
 requireText(homepage, "visibleCategories.map", "Homepage must link every available category independently of rotating featured products");
 if (!category.includes("buildGovernedSeoMetadata") || !category.includes('canonicalPath: `/category/${category.slug}`')) failures.push("Category pages must publish governed self-canonical metadata");
+requireText(category, "const entityEligible = true;", "Durable storefront category indexability must not depend on transient stock/taxonomy availability");
+if (category.includes("const entityEligible = taxonomy.categories.some")) failures.push("Category metadata must not flap noindex with transient taxonomy availability");
 if (!category.includes("isReadOnlyPublicCrawlerRequest") || !category.includes("getCrawlerCatalogCards")) failures.push("Category crawler rendering must use the read-only catalogue projection");
 for (const contract of ['"@type": "CollectionPage"', '"@type": "ItemList"', "category-merchant-grid", "seoControl.schemaAllowed ? <script"]) requireText(category, contract, `Category landing SEO is missing ${contract}`);
 for (const source of [shop, shops]) {

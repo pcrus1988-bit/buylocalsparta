@@ -1,9 +1,9 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { findVendorCanonicalPrefillMatches } from "../../../../../lib/vendor-canonical-prefill-service";
 
 export async function GET(request: Request) {
   try {
-    const principal = await requireVendorSession(request);
+    const { principal } = await requireVendorCapability("catalogue.read", request);
     const url = new URL(request.url);
     const title = url.searchParams.get("title")?.trim() ?? "";
     const gtin = url.searchParams.get("gtin")?.trim() ?? "";

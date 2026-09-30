@@ -1,11 +1,11 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { vendorBoxNowLabel } from "../../../../../lib/boxnow-shipping-runtime";
 
 const PRIVATE_NO_STORE = { "cache-control": "private, no-store", pragma: "no-cache" } as const;
 
 export async function GET(request: Request) {
   try {
-    const principal = await requireVendorSession();
+    const { principal } = await requireVendorCapability("shipping.manage", request);
     const shipmentId = new URL(request.url).searchParams.get("shipmentId")?.trim() ?? "";
     if (!shipmentId || shipmentId.length > 128) throw new Error("shipmentId is required");
 

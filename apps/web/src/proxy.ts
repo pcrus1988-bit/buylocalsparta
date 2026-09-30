@@ -45,6 +45,11 @@ function isConsentOrAnalytics(pathname: string): boolean {
   return pathname === "/api/privacy/consent" || pathname.startsWith("/api/analytics/");
 }
 
+function isCacheNeutralVendorCatalogueRead(request: NextRequest): boolean {
+  if (request.method !== "GET" && request.method !== "HEAD") return false;
+  return request.nextUrl.pathname.startsWith("/api/catalog/vendor/");
+}
+
 function needsOperationalPersistence(pathname: string): boolean {
   const routeRoots = [
     "/cart", "/checkout", "/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/account",
@@ -193,6 +198,13 @@ export async function proxy(request: NextRequest) {
   if (recovery) return recovery;
   const redirected = await contentRedirectResponse(request);
   if (redirected) return redirected;
+
+  // Vendor catalogue GET/HEAD responses are public and do not depend on visitor
+  // identity. Keep middleware from attaching a session cookie/header so Vercel
+  // can share the short-lived CDN response across anonymous catalogue requests.
+  if (isCacheNeutralVendorCatalogueRead(request)) {
+    return applySeoDocumentHeaders(request, NextResponse.next());
+  }
 
   const current = validVisitor(request.cookies.get(MARKETPLACE_COOKIE)?.value);
   const legacy = validVisitor(request.cookies.get(LEGACY_VISITOR_COOKIE)?.value);

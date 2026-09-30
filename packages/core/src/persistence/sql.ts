@@ -103,6 +103,17 @@ export class PostgresUnitOfWork {
       ["app.platform_access", scope.platformAccess ? "true" : "false"]
     ];
     for (const [key, value] of settings) {
+      if (key === "app.market_id" && !value && scope.vendorId) {
+        // Vendor-facing transactions inherit the authoritative market assigned to the vendor.
+        // Explicit marketId remains authoritative for platform/cross-market workflows.
+        await client.query(`SELECT set_config($1, COALESCE((
+          SELECT market_id::text
+          FROM vendor_businesses
+          WHERE id = nullif(current_setting('app.vendor_id', true), '')::uuid
+          LIMIT 1
+        ), ''), true)`, [key]);
+        continue;
+      }
       if (!value) {
         await client.query("SELECT set_config($1, $2, true)", [key, ""]);
         continue;

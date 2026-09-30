@@ -68,6 +68,7 @@ const SEARCH_EXCLUDED_SOURCES = [
   "/vendor/catalog/:path*",
   "/vendor/daily-access/:path*",
   "/vendor/finance/:path*",
+  "/vendor/hub/:path*",
   "/vendor/notifications/:path*",
   "/vendor/orders/:path*",
   "/vendor/pickup/:path*",

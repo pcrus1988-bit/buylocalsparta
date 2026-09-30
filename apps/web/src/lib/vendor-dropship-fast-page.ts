@@ -10,6 +10,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 60;
 const MAX_LIVE_FALLBACK_WINDOW = 100_100;
+const FAST_LIVE_SAMPLE_PER_SUPPLIER = 1_000;
 
 type FastPageRow = Readonly<{
   canonical_public_id: string;
@@ -82,113 +83,155 @@ export async function getFastVendorDropshipCatalogPage(
   // materially under-populated. A partially refreshed materialized view can
   // contain only a handful of rows; treating that as healthy makes an entire
   // supplier effectively disappear from deterministic first-page mixing.
-  const markerResult = await runtime.nativePool.query<FastPageMarkerRow>(`
+  // The initial storefront page must never sort/materialize the vendor's full
+  // supplier catalogue. Pull a fixed, indexed sample from each authoritative live
+  // supplier first, then preserve the existing hash-based mixing over only that
+  // bounded sample. The sample size is constant across pages, so pagination remains
+  // deterministic while the first thousands of cards stay on the millisecond path.
+  const fastLiveMarkerResult = await runtime.nativePool.query<FastPageMarkerRow>(`
     WITH vendor_suppliers AS MATERIALIZED (
-      SELECT ds.id,ds.id::text AS supplier_id
+      SELECT ds.id
       FROM dropship_suppliers ds
       JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
       WHERE v.public_id=$1
         AND v.status='active'
         AND ds.active=true
         AND ds.api_authoritative_availability=true
-    ), shadow_state AS MATERIALIZED (
+    ), sampled AS MATERIALIZED (
       SELECT
-        lf.supplier_id::text AS supplier_id,
-        lf.external_product_id,
-        lf.sellable,
-        lf.newest_at
-      FROM bls_private.storefront_dropship_live_family lf
-      JOIN vendor_suppliers supplier ON supplier.id=lf.supplier_id
-      WHERE lf.available_until>now()
-    ), live_shadow AS MATERIALIZED (
-      SELECT supplier_id,external_product_id,newest_at
-      FROM shadow_state
-      WHERE sellable=true
-    ), stable AS MATERIALIZED (
-      SELECT
-        fm.dropship_supplier_id AS supplier_id,
-        fm.dropship_external_product_id AS external_product_id,
-        fm.newest_at
-      FROM public.storefront_dropship_family_read_model fm
-      JOIN vendor_suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
-      WHERE fm.available_until>now()
-        AND NOT EXISTS (
-          SELECT 1
-          FROM shadow_state current_state
-          WHERE current_state.supplier_id=fm.dropship_supplier_id
-            AND current_state.external_product_id=fm.dropship_external_product_id
-        )
-    ), projected AS MATERIALIZED (
-      SELECT supplier_id,external_product_id,newest_at
-      FROM live_shadow
-      UNION ALL
-      SELECT supplier_id,external_product_id,newest_at
-      FROM stable
-    ), stable_counts AS MATERIALIZED (
-      SELECT supplier_id,COUNT(*)::int AS stable_count
-      FROM projected
-      GROUP BY supplier_id
-    ), fallback_suppliers AS MATERIALIZED (
-      SELECT supplier.id,supplier.supplier_id
-      FROM vendor_suppliers supplier
-      LEFT JOIN stable_counts counts ON counts.supplier_id=supplier.supplier_id
-      WHERE COALESCE(counts.stable_count,0)<$4
-    ), live_seed AS MATERIALIZED (
-      SELECT
-        supplier.supplier_id,
+        candidate.supplier_id::text AS supplier_id,
         candidate.external_product_id,
-        candidate.vendor_offer_id
-      FROM fallback_suppliers supplier
-      JOIN LATERAL (
-        SELECT dso.external_product_id,dso.vendor_offer_id
-        FROM dropship_supplier_offers dso
-        WHERE dso.supplier_id=supplier.id
-          AND dso.active=true
-          AND dso.cached_available=true
-          AND COALESCE(dso.cached_quantity,0)>=1
-          AND dso.availability_expires_at IS NOT NULL
-          AND dso.availability_expires_at>now()
-        ORDER BY dso.updated_at DESC,dso.id DESC
-        LIMIT 1000
-      ) candidate ON true
-    ), live_fallback AS MATERIALIZED (
-      SELECT
-        seed.supplier_id,
-        seed.external_product_id,
-        MAX(vo.updated_at) AS newest_at
-      FROM live_seed seed
-      JOIN vendor_offers vo ON vo.id=seed.vendor_offer_id
-      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN vendor_locations l ON l.id=vo.location_id
-      WHERE vo.status='approved'
-        AND vo.merchant_visible=true
-        AND vo.merchant_pause_active=false
-        AND vo.customer_price_minor>0
-        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-        AND l.active=true
-        AND COALESCE(cv.commerce_channel,'normal')='normal'
-        AND cv.active=true
-        AND cv.suppressed=false
-        AND cv.recalled=false
-        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
-      GROUP BY seed.supplier_id,seed.external_product_id
-    ), combined AS (
-      SELECT supplier_id,external_product_id,newest_at,0::int AS source_priority FROM projected
-      UNION ALL
-      SELECT supplier_id,external_product_id,newest_at,1::int AS source_priority FROM live_fallback
-    ), deduplicated AS (
-      SELECT DISTINCT ON (supplier_id,external_product_id)
-        supplier_id,external_product_id,newest_at,source_priority
-      FROM combined
-      ORDER BY supplier_id,external_product_id,source_priority,newest_at DESC
+        candidate.newest_at
+      FROM vendor_suppliers supplier
+      CROSS JOIN LATERAL (
+        SELECT lf.supplier_id,lf.external_product_id,lf.newest_at
+        FROM bls_private.storefront_dropship_live_family lf
+        WHERE lf.supplier_id=supplier.id
+          AND lf.sellable=true
+          AND lf.available_until>now()
+        ORDER BY lf.available_until DESC,lf.newest_at DESC,lf.external_product_id
+        LIMIT $4
+      ) candidate
     )
     SELECT supplier_id,external_product_id
-    FROM deduplicated
-    ORDER BY md5(supplier_id || ':' || external_product_id),source_priority,newest_at DESC
+    FROM sampled
+    ORDER BY md5(supplier_id || ':' || external_product_id),newest_at DESC
     LIMIT $2 OFFSET $3
-  `, [vendorId, limit + 1, offset, requiredStableRows]);
+  `, [vendorId, limit + 1, offset, FAST_LIVE_SAMPLE_PER_SUPPLIER]);
 
-  const markerRows = markerResult.rows;
+  let markerRows = fastLiveMarkerResult.rows;
+
+  // If a deep page exhausts the bounded live sample, fall back to the complete
+  // live/stable recovery path so no valid catalogue inventory becomes unreachable.
+  if (markerRows.length <= limit) {
+    const fallbackMarkerResult = await runtime.nativePool.query<FastPageMarkerRow>(`
+      WITH vendor_suppliers AS MATERIALIZED (
+        SELECT ds.id,ds.id::text AS supplier_id
+        FROM dropship_suppliers ds
+        JOIN vendor_businesses v ON v.id=ds.owner_vendor_id
+        WHERE v.public_id=$1
+          AND v.status='active'
+          AND ds.active=true
+          AND ds.api_authoritative_availability=true
+      ), shadow_state AS MATERIALIZED (
+        SELECT
+          lf.supplier_id::text AS supplier_id,
+          lf.external_product_id,
+          lf.sellable,
+          lf.newest_at
+        FROM bls_private.storefront_dropship_live_family lf
+        JOIN vendor_suppliers supplier ON supplier.id=lf.supplier_id
+        WHERE lf.available_until>now()
+      ), live_shadow AS MATERIALIZED (
+        SELECT supplier_id,external_product_id,newest_at
+        FROM shadow_state
+        WHERE sellable=true
+      ), stable AS MATERIALIZED (
+        SELECT
+          fm.dropship_supplier_id AS supplier_id,
+          fm.dropship_external_product_id AS external_product_id,
+          fm.newest_at
+        FROM public.storefront_dropship_family_read_model fm
+        JOIN vendor_suppliers supplier ON supplier.supplier_id=fm.dropship_supplier_id
+        WHERE fm.available_until>now()
+          AND NOT EXISTS (
+            SELECT 1
+            FROM shadow_state current_state
+            WHERE current_state.supplier_id=fm.dropship_supplier_id
+              AND current_state.external_product_id=fm.dropship_external_product_id
+          )
+      ), projected AS MATERIALIZED (
+        SELECT supplier_id,external_product_id,newest_at
+        FROM live_shadow
+        UNION ALL
+        SELECT supplier_id,external_product_id,newest_at
+        FROM stable
+      ), stable_counts AS MATERIALIZED (
+        SELECT supplier_id,COUNT(*)::int AS stable_count
+        FROM projected
+        GROUP BY supplier_id
+      ), fallback_suppliers AS MATERIALIZED (
+        SELECT supplier.id,supplier.supplier_id
+        FROM vendor_suppliers supplier
+        LEFT JOIN stable_counts counts ON counts.supplier_id=supplier.supplier_id
+        WHERE COALESCE(counts.stable_count,0)<$4
+      ), live_seed AS MATERIALIZED (
+        SELECT
+          supplier.supplier_id,
+          candidate.external_product_id,
+          candidate.vendor_offer_id
+        FROM fallback_suppliers supplier
+        JOIN LATERAL (
+          SELECT dso.external_product_id,dso.vendor_offer_id
+          FROM dropship_supplier_offers dso
+          WHERE dso.supplier_id=supplier.id
+            AND dso.active=true
+            AND dso.cached_available=true
+            AND COALESCE(dso.cached_quantity,0)>=1
+            AND dso.availability_expires_at IS NOT NULL
+            AND dso.availability_expires_at>now()
+          ORDER BY dso.updated_at DESC,dso.id DESC
+          LIMIT 1000
+        ) candidate ON true
+      ), live_fallback AS MATERIALIZED (
+        SELECT
+          seed.supplier_id,
+          seed.external_product_id,
+          MAX(vo.updated_at) AS newest_at
+        FROM live_seed seed
+        JOIN vendor_offers vo ON vo.id=seed.vendor_offer_id
+        JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+        JOIN vendor_locations l ON l.id=vo.location_id
+        WHERE vo.status='approved'
+          AND vo.merchant_visible=true
+          AND vo.merchant_pause_active=false
+          AND vo.customer_price_minor>0
+          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+          AND l.active=true
+          AND COALESCE(cv.commerce_channel,'normal')='normal'
+          AND cv.active=true
+          AND cv.suppressed=false
+          AND cv.recalled=false
+          AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+        GROUP BY seed.supplier_id,seed.external_product_id
+      ), combined AS (
+        SELECT supplier_id,external_product_id,newest_at,0::int AS source_priority FROM projected
+        UNION ALL
+        SELECT supplier_id,external_product_id,newest_at,1::int AS source_priority FROM live_fallback
+      ), deduplicated AS (
+        SELECT DISTINCT ON (supplier_id,external_product_id)
+          supplier_id,external_product_id,newest_at,source_priority
+        FROM combined
+        ORDER BY supplier_id,external_product_id,source_priority,newest_at DESC
+      )
+      SELECT supplier_id,external_product_id
+      FROM deduplicated
+      ORDER BY md5(supplier_id || ':' || external_product_id),source_priority,newest_at DESC
+      LIMIT $2 OFFSET $3
+    `, [vendorId, limit + 1, offset, requiredStableRows]);
+  
+    markerRows = fallbackMarkerResult.rows;
+  }
   const hasMore = markerRows.length > limit;
 
   const selected = markerRows.slice(0, limit);

@@ -1,4 +1,4 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { isDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
 import {
   setVendorProductFulfilmentBulk,
@@ -24,7 +24,7 @@ async function assertDropshippingFulfilment(principalVendorId: string | null | u
 
 export async function GET(request: Request) {
   try {
-    const principal = await requireVendorSession(request, false);
+    const { principal } = await requireVendorCapability("catalogue.read", request, false);
     const url = new URL(request.url);
     const result = await vendorProductDeliverySettings(principal, {
       query: url.searchParams.get("q") ?? "",
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const { principal } = await requireVendorCapability("offer.manage", request, true);
     const body = await request.json() as Record<string, unknown>;
     const offerId = typeof body.offerId === "string" ? body.offerId : "";
     if (typeof body.deliveryEligible !== "boolean") throw new Error("Η επιλογή παράδοσης δεν είναι έγκυρη.");
@@ -60,7 +60,7 @@ export async function PUT(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const { principal } = await requireVendorCapability("offer.manage", request, true);
     const body = await request.json() as Record<string, unknown>;
     if (typeof body.deliveryEligible !== "boolean" || typeof body.pickupEligible !== "boolean") {
       throw new Error("Οι επιλογές παράδοσης και παραλαβής δεν είναι έγκυρες.");

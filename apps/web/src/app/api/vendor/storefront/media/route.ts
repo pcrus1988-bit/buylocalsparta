@@ -1,9 +1,9 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { archiveVendorProfileMedia, vendorProfileMediaWorkspace } from "../../../../../lib/vendor-profile-media-service";
 
 export async function POST(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const { principal } = await requireVendorCapability("shop.manage", request, true);
     const body = await request.json() as Record<string, unknown>;
     const assignmentId = typeof body.assignmentId === "string" ? body.assignmentId.trim() : "";
     const action = String(body.action ?? "");

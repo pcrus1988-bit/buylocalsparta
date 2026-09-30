@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { unstable_cache } from "next/cache";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { SiteFooter } from "../../../components/SiteFooter";
@@ -9,6 +10,9 @@ import { VendorCatalogBrowser } from "../../../components/VendorCatalogBrowser";
 import { VendorLocationMap } from "../../../components/VendorLocationMap";
 import styles from "../../../components/VendorStorefront.module.css";
 import { getAccountSession } from "../../../lib/account-session";
+import type { CatalogCard } from "../../../lib/catalog-view";
+import { getFastVendorDropshipCatalogPage } from "../../../lib/vendor-dropship-fast-page";
+import { getVendorLocalCatalogPage } from "../../../lib/vendor-local-catalog";
 import { approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "../../../lib/public-media-service";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
@@ -28,6 +32,87 @@ const getCachedPublicVendorDirectoryEntry = cache((id: string) => getPublicVendo
 const getCachedSeoGlobalSettingsSnapshot = cache(() => getSeoGlobalSettingsSnapshot());
 const getCachedSeoEntityOverridesSnapshot = cache(() => getSeoEntityOverridesSnapshot());
 const getCachedApprovedVendorProfileMedia = cache((id: string) => approvedVendorProfileMedia([id]));
+
+const INITIAL_VENDOR_PAGE_SIZE = 20;
+type InitialVendorCatalogPage = Readonly<{
+  products: readonly CatalogCard[];
+  nextOffset: number | null;
+}>;
+const EMPTY_INITIAL_VENDOR_CATALOG_PAGE: InitialVendorCatalogPage = { products: [], nextOffset: null };
+
+async function loadInitialVendorCatalogPage(vendorId: string): Promise<InitialVendorCatalogPage> {
+  const localPage = await getVendorLocalCatalogPage(vendorId, {
+    offset: 0,
+    limit: INITIAL_VENDOR_PAGE_SIZE
+  });
+  const remaining = Math.max(0, INITIAL_VENDOR_PAGE_SIZE - localPage.products.length);
+
+  if (remaining === 0 && INITIAL_VENDOR_PAGE_SIZE < localPage.total) {
+    return { products: localPage.products, nextOffset: INITIAL_VENDOR_PAGE_SIZE };
+  }
+
+  const dropshipPage = await getFastVendorDropshipCatalogPage(vendorId, {
+    offset: 0,
+    limit: remaining > 0 ? remaining : 1
+  });
+  const products = remaining > 0
+    ? [...localPage.products, ...dropshipPage.products.slice(0, remaining)]
+    : localPage.products;
+  const hasDropshipAtBoundary = dropshipPage.products.length > 0 || dropshipPage.nextOffset !== undefined;
+  const nextOffset = remaining === 0
+    ? (hasDropshipAtBoundary ? localPage.total : null)
+    : dropshipPage.nextOffset !== undefined
+      ? localPage.total + dropshipPage.nextOffset
+      : null;
+
+  return { products, nextOffset };
+}
+
+const getCachedInitialVendorCatalogPage = unstable_cache(
+  async (vendorId: string) => loadInitialVendorCatalogPage(vendorId),
+  ["vendor-storefront-initial-catalog-page-v1"],
+  { revalidate: 15 }
+);
+
+function isTransientVendorDatabaseError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as Readonly<{ code?: unknown; message?: unknown }>;
+  if (candidate.code === "57014" || candidate.code === "53300" || candidate.code === "08000" || candidate.code === "08006") return true;
+  const message = typeof candidate.message === "string" ? candidate.message.toLocaleLowerCase("en") : "";
+  return message.includes("timeout exceeded when trying to connect")
+    || message.includes("statement timeout")
+    || message.includes("connection terminated")
+    || message.includes("too many clients")
+    || message.includes("remaining connection slots");
+}
+
+async function getInitialVendorCatalogPage(vendorId: string): Promise<InitialVendorCatalogPage> {
+  try {
+    return await getCachedInitialVendorCatalogPage(vendorId);
+  } catch (firstError) {
+    if (isTransientVendorDatabaseError(firstError)) {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      try {
+        return await getCachedInitialVendorCatalogPage(vendorId);
+      } catch (retryError) {
+        console.error(JSON.stringify({
+          level: "warn",
+          event: "storefront.vendor_initial_ssr_catalog_failed",
+          vendorId,
+          message: retryError instanceof Error ? retryError.message : String(retryError)
+        }));
+        return EMPTY_INITIAL_VENDOR_CATALOG_PAGE;
+      }
+    }
+    console.error(JSON.stringify({
+      level: "warn",
+      event: "storefront.vendor_initial_ssr_catalog_failed",
+      vendorId,
+      message: firstError instanceof Error ? firstError.message : String(firstError)
+    }));
+    return EMPTY_INITIAL_VENDOR_CATALOG_PAGE;
+  }
+}
 
 function safeHttpUrl(value?: string): string | undefined {
   if (!value) return undefined;
@@ -71,12 +156,13 @@ function absolutePublicMedia(url: string, origin: string): string {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const [vendor, profileMedia, { settings }, overrides] = await Promise.all([
-    getCachedPublicVendorDirectoryEntry(id),
-    getCachedApprovedVendorProfileMedia(id),
-    getCachedSeoGlobalSettingsSnapshot(),
-    getCachedSeoEntityOverridesSnapshot()
-  ]);
+  // The web runtime intentionally has a one-client PostgreSQL pool. Keep
+  // DB-backed metadata reads sequential so metadata generation cannot queue
+  // multiple acquisitions against its own pool slot.
+  const vendor = await getCachedPublicVendorDirectoryEntry(id);
+  const profileMedia = await getCachedApprovedVendorProfileMedia(id);
+  const { settings } = await getCachedSeoGlobalSettingsSnapshot();
+  const overrides = await getCachedSeoEntityOverridesSnapshot();
   if (!vendor) return { title: "Κατάστημα" };
   const isResearch = vendor.directoryStatus === "research";
   const reference: SeoEntityReference = { kind: isResearch ? "research_vendor" : "partner_vendor", id: vendor.id };
@@ -113,11 +199,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function VendorPage({ params }: Props) {
   const { id } = await params;
-  const [vendor, { settings }, overrides] = await Promise.all([
-    getCachedPublicVendorDirectoryEntry(id),
-    getCachedSeoGlobalSettingsSnapshot(),
-    getCachedSeoEntityOverridesSnapshot()
-  ]);
+  const vendor = await getCachedPublicVendorDirectoryEntry(id);
+  const { settings } = await getCachedSeoGlobalSettingsSnapshot();
+  const overrides = await getCachedSeoEntityOverridesSnapshot();
   if (!vendor) notFound();
 
   const isResearch = vendor.directoryStatus === "research";
@@ -133,13 +217,17 @@ export default async function VendorPage({ params }: Props) {
     override
   });
 
-  // Do not scan the vendor catalogue during SSR. The storefront browser already
-  // uses the bounded /api/catalog/vendor/:id endpoint in 20-item pages, which is
-  // the correct fast path for large supplier catalogues.
-  const products = [] as const;
-  const [principal, profileMedia] = isResearch
-    ? [undefined, []] as const
-    : await Promise.all([getAccountSession(), getCachedApprovedVendorProfileMedia(id)]);
+  // Seed the cached first bounded catalogue page into SSR so customers and crawlers see
+  // real products immediately. The browser reuses this page and only fetches when
+  // filters change or the customer navigates deeper.
+  const initialCatalogPage = isResearch
+    ? EMPTY_INITIAL_VENDOR_CATALOG_PAGE
+    : await getInitialVendorCatalogPage(id);
+  const principal = isResearch ? undefined : await getAccountSession();
+  const profileMedia: readonly ApprovedVendorProfileMedia[] = isResearch
+    ? []
+    : await getCachedApprovedVendorProfileMedia(id);
+  const products = initialCatalogPage.products;
   const location = vendor.location;
   const merchantStoryMedia = vendor.story?.mediaUrl;
   const logoMedia = firstRole(profileMedia, "logo");
@@ -160,7 +248,8 @@ export default async function VendorPage({ params }: Props) {
     : (vendor.profileShortDescription ?? vendor.profileStory ?? vendor.story?.excerpt ?? `Γνώρισε το ${vendor.name}, τους ανθρώπους του και ό,τι μπορείς να βρεις ή να ζητήσεις απευθείας από το κατάστημα.`);
   const structuredImages = [storefrontUrl, merchantStoryMedia, logoUrl].filter((value): value is string => Boolean(value)).map((url) => absolutePublicMedia(url, settings.canonicalOrigin));
 
-  const structuredData = {
+  const shopsUrl = new URL("/shops", `${settings.canonicalOrigin}/`).toString();
+  const businessStructuredData = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
     "@id": `${vendorUrl}#business`,
@@ -185,10 +274,20 @@ export default async function VendorPage({ params }: Props) {
       longitude: location.coordinates.longitude
     } : undefined
   };
+  const breadcrumbStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Αρχική", item: settings.canonicalOrigin },
+      { "@type": "ListItem", position: 2, name: "Καταστήματα", item: shopsUrl },
+      { "@type": "ListItem", position: 3, name: vendor.name, item: vendorUrl }
+    ]
+  };
 
   return (
     <main className={styles.page}>
-      {seoControl.schemaAllowed ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replaceAll("<", "\\u003c") }} /> : null}
+      {seoControl.schemaAllowed ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(businessStructuredData).replaceAll("<", "\\u003c") }} /> : null}
+      {seoControl.indexAllowed ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbStructuredData).replaceAll("<", "\\u003c") }} /> : null}
       <div className="announcement">
         {isResearch
           ? "Τοπικός επιχειρηματικός κατάλογος · δημόσια στοιχεία και σαφές στάδιο συνεργασίας."
@@ -343,7 +442,7 @@ export default async function VendorPage({ params }: Props) {
               <strong>Δεν υπάρχει ενεργός κατάλογος προϊόντων.</strong> Η επιχείρηση είναι ακόμη δημόσια χαρτογραφημένη / προσκεκλημένη και δεν παρουσιάζεται ως ενεργός συνεργάτης της πλατφόρμας.
             </div>
           ) : (
-            <VendorCatalogBrowser products={products} vendor={{ name: vendor.name, adviser: vendor.adviser }} vendorId={vendor.id} />
+            <VendorCatalogBrowser products={products} vendor={{ name: vendor.name, adviser: vendor.adviser }} vendorId={vendor.id} initialNextOffset={initialCatalogPage.nextOffset} />
           )}
         </div>
       </section>
