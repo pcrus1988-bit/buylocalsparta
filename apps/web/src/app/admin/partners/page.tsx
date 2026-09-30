@@ -10,6 +10,7 @@ import { adminSlaPolicyWorkspace } from "../../../lib/order-sla";
 import { verifiedProspectsWorkspace } from "../../../lib/prospect-vendors-runtime";
 import { researchVendorsWorkspace } from "../../../lib/research-vendors-runtime";
 import { adminVendorShopsWorkspace } from "../../../lib/vendor-admin-controls";
+import { hubProspectAdminSummary } from "../../../lib/hub-prospect-application-runtime";
 
 export const metadata: Metadata = { title: "Admin · Partners", robots: { index: false, follow: false } };
 
@@ -21,16 +22,18 @@ export default async function Page() {
   if (!hasAdminPermission(principal, "vendor.manage")) redirect("/admin");
 
   const canReadFinance = hasAdminPermission(principal, "finance.read");
-  const [research, applications, prospects, managed, commercial, sla] = await Promise.all([
+  const [research, applications, prospects, managed, commercial, sla, hubApplications] = await Promise.all([
     researchVendorsWorkspace(principal),
     adminVendorsWorkspace(principal),
     verifiedProspectsWorkspace(principal),
     adminVendorShopsWorkspace(principal),
     canReadFinance ? commercialAgreementWorkspace().catch(() => undefined) : Promise.resolve(undefined),
-    canReadFinance ? adminSlaPolicyWorkspace().catch(() => undefined) : Promise.resolve(undefined)
+    canReadFinance ? adminSlaPolicyWorkspace().catch(() => undefined) : Promise.resolve(undefined),
+    hubProspectAdminSummary()
   ]);
 
-  const applicationQueue = applications.applications.filter((item) => PRE_LIVE.has(item.state)).length;
+  const standardApplicationQueue = applications.applications.filter((item) => PRE_LIVE.has(item.state)).length;
+  const applicationQueue = standardApplicationQueue + hubApplications.open;
   const active = managed.shops.filter((shop) => shop.operationalActive).length;
   const visible = managed.shops.filter((shop) => shop.operationalActive && shop.publicDirectoryVisible).length;
   const partnerAttention = managed.shops.filter((shop) => ["restricted", "suspended"].includes(shop.status) || (shop.operationalActive && !shop.cooperationDocumented)).length;
@@ -57,7 +60,7 @@ export default async function Page() {
     </section>
 
     <WorkspaceMetricStrip items={[
-      { label: "Application queue", value: applicationQueue, tone: applicationQueue ? "attention" : "default", hint: "pre-live applications" },
+      { label: "Application queue", value: applicationQueue, tone: applicationQueue ? "attention" : "default", hint: `${standardApplicationQueue} Sparta · ${hubApplications.open} HUB` },
       { label: "Onboarding", value: prospects.summary.total, tone: prospects.summary.total ? "attention" : "default", hint: `${prospects.summary.testReady} test ready` },
       { label: "Active partners", value: active, tone: active ? "positive" : "default", hint: `${visible} publicly visible` },
       { label: "Needs attention", value: partnerAttention, tone: partnerAttention ? "attention" : "positive", hint: "operational / agreement blockers" }
@@ -67,7 +70,7 @@ export default async function Page() {
       <WorkspaceSectionHeading eyebrow="Work queues" title="Choose the next partner job" note="The visible workflow now follows the partner lifecycle. Commercial agreements and SLA remain available as governed drill-downs when a readiness gate requires them." />
       <div className="partner-workflow-grid">
         <Link className={`partner-workflow-card${applicationQueue ? " needs-attention" : ""}`} href="/admin/applications">
-          <span>01 · Intake</span><strong>Applications</strong><p>Inbound merchants and promoted research prospects awaiting verification or pre-live preparation.</p><b>{applicationQueue}</b><i>Open application inbox →</i>
+          <span>01 · Intake</span><strong>Applications</strong><p>Inbound merchants, HUB applicants and promoted research prospects awaiting verification, Trial follow-up or pre-live preparation.</p><b>{applicationQueue}</b><i>Open application inbox →</i>
         </Link>
         <Link className={`partner-workflow-card${prospects.summary.total ? " needs-attention" : ""}`} href="/admin/prospects">
           <span>02 · Onboarding</span><strong>Verified prospects</strong><p>Contract, catalogue, test readiness and the final activation decision after verification.</p><b>{prospects.summary.total}</b><i>Continue onboarding →</i>
