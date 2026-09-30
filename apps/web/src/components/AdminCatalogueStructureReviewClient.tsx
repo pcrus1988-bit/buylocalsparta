@@ -66,6 +66,7 @@ function scopeCount(summary: CatalogueStructureReviewSummary, scope: CatalogueSt
 export function AdminCatalogueStructureReviewClient({ summary }: Readonly<{ summary?: CatalogueStructureReviewSummary }>) {
   const [reviewSummary,setReviewSummary]=useState<CatalogueStructureReviewSummary|undefined>(summary);
   const [summaryStatus,setSummaryStatus]=useState<"loading"|"ready"|"error">(summary?"ready":"loading");
+  const [summaryReloadKey,setSummaryReloadKey]=useState(0);
   const [productsOpen, setProductsOpen] = useState(false);
   const [attributesOpen, setAttributesOpen] = useState(false);
   const [productScope, setProductScope] = useState<CatalogueStructureReviewProductScope>("unlinked");
@@ -77,6 +78,7 @@ export function AdminCatalogueStructureReviewClient({ summary }: Readonly<{ summ
 
   useEffect(()=>{
     if(summary)return;
+    setSummaryStatus("loading");
     const controller=new AbortController();
     const timeout=window.setTimeout(()=>controller.abort(),8000);
     fetch("/api/admin/catalogue/structure?review=summary",{cache:"no-store",signal:controller.signal})
@@ -88,7 +90,7 @@ export function AdminCatalogueStructureReviewClient({ summary }: Readonly<{ summ
       })
       .finally(()=>window.clearTimeout(timeout));
     return()=>{window.clearTimeout(timeout);controller.abort();};
-  },[summary]);
+  },[summary,summaryReloadKey]);
 
   const activeSummary=reviewSummary??EMPTY_SUMMARY;
   const summaryCount=(value:number)=>summaryStatus==="ready"?value.toLocaleString("el-GR"):"…";
@@ -168,7 +170,7 @@ export function AdminCatalogueStructureReviewClient({ summary }: Readonly<{ summ
         <p>These records are intentionally visible before they are correctly mapped. Counts use the latest snapshot from each supplier/source, so older imports do not inflate the review queue.</p>
       </div>
       <div className="structure-inline-actions">
-        {summaryStatus==="error"?<button className="button button-secondary" type="button" onClick={()=>window.location.reload()}>Retry counters</button>:null}
+        {summaryStatus==="error"?<button className="button button-secondary" type="button" onClick={()=>setSummaryReloadKey((value)=>value+1)}>Retry counters</button>:null}
         <Link className="button button-secondary" href="/admin/catalogue-intake/attributes">Open full Attribute Review Centre</Link>
       </div>
     </div>
