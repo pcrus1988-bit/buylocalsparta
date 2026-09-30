@@ -1,0 +1,77 @@
+name: Production Media Scanner
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: production-media-scanner
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check production scanner secrets
+        id: preflight
+        env:
+          MEDIA_DATABASE_URL: ${{ secrets.MEDIA_DATABASE_URL }}
+          MEDIA_OBJECT_STORAGE_ACCESS_KEY_ID: ${{ secrets.MEDIA_OBJECT_STORAGE_ACCESS_KEY_ID }}
+          MEDIA_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${{ secrets.MEDIA_OBJECT_STORAGE_SECRET_ACCESS_KEY }}
+        run: |
+          if [ -z "$MEDIA_DATABASE_URL" ] || [ -z "$MEDIA_OBJECT_STORAGE_ACCESS_KEY_ID" ] || [ -z "$MEDIA_OBJECT_STORAGE_SECRET_ACCESS_KEY" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Production media scanner is not activated until the three MEDIA_* repository secrets are configured."
+            exit 0
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        if: steps.preflight.outputs.configured == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull media scanner image
+        if: steps.preflight.outputs.configured == 'true'
+        run: docker pull ghcr.io/${{ github.repository_owner }}/buylocalsparta-media-worker:latest
+
+      - name: Drain governed media scan queue
+        if: steps.preflight.outputs.configured == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.MEDIA_DATABASE_URL }}
+          BLS_OBJECT_STORAGE_ACCESS_KEY_ID: ${{ secrets.MEDIA_OBJECT_STORAGE_ACCESS_KEY_ID }}
+          BLS_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${{ secrets.MEDIA_OBJECT_STORAGE_SECRET_ACCESS_KEY }}
+        run: |
+          docker run --rm \
+            --env NODE_ENV=production \
+            --env BLS_WORKER_ROLE=media \
+            --env DATABASE_URL \
+            --env BLS_OBJECT_STORAGE_ACCESS_KEY_ID \
+            --env BLS_OBJECT_STORAGE_SECRET_ACCESS_KEY \
+            --env BLS_MEDIA_PIPELINE_ENABLED=true \
+            --env BLS_OBJECT_STORAGE_BUCKET=buy-local-sparta-private \
+            --env BLS_OBJECT_STORAGE_REGION=us-east-1 \
+            --env BLS_OBJECT_STORAGE_ENDPOINT=https://eemihhfreggbigxejjhj.storage.supabase.co/storage/v1/s3 \
+            --env BLS_OBJECT_STORAGE_FORCE_PATH_STYLE=true \
+            --env BLS_MEDIA_MAX_BYTES=26214400 \
+            --env BLS_MEDIA_UPLOAD_MAX_BYTES=26214400 \
+            --env BLS_MEDIA_UPLOAD_TTL_SECONDS=600 \
+            --env BLS_CLAMAV_HOST=127.0.0.1 \
+            --env BLS_CLAMAV_PORT=3310 \
+            --env BLS_CLAMAV_TIMEOUT_MS=30000 \
+            --env BLS_MEDIA_WORKER_MODE=drain \
+            --env BLS_MEDIA_WORKER_MAX_ITEMS=50 \
+            --env BLS_MEDIA_WORKER_MAX_RUNTIME_MS=210000 \
+            --env BLS_MEDIA_WORKER_POLL_MS=1000 \
+            --env BLS_DB_POOL_MAX=2 \
+            --env BLS_MEDIA_WORKER_ID=media-gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
+            ghcr.io/${{ github.repository_owner }}/buylocalsparta-media-worker:latest
