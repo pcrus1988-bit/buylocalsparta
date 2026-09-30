@@ -145,12 +145,12 @@ export async function adminCatalogueIntakeWorkspace(principal: SessionPrincipal,
     const effectiveSnapshotId = requestedSnapshot && snapshots.some((snapshot) => snapshot.id === requestedSnapshot)
       ? requestedSnapshot
       : snapshots[0]?.id;
-    const [automation, queue] = effectiveSnapshotId
-      ? await Promise.all([
-          readAutomationHealth(tx, effectiveSnapshotId),
-          readQueue(tx, { ...input, snapshotId: effectiveSnapshotId })
-        ])
-      : [emptyAutomationHealth(), [] as readonly CatalogueIntakeQueueItem[]];
+    const automation = effectiveSnapshotId
+      ? await readAutomationHealth(tx, effectiveSnapshotId)
+      : emptyAutomationHealth();
+    const queue = effectiveSnapshotId
+      ? await readQueue(tx, { ...input, snapshotId: effectiveSnapshotId })
+      : [];
     const selectedId = input.productId?.trim() || queue[0]?.id;
     const selected = selectedId && effectiveSnapshotId
       ? await readDetail(tx, selectedId, effectiveSnapshotId)
