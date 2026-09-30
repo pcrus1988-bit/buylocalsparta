@@ -7,23 +7,9 @@ import { AdminCatalogueStructureReviewClient } from "../../../../components/Admi
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
 import { adminCatalogueStructureWorkspace } from "../../../../lib/admin-catalogue-structure-runtime";
-import {
-  adminCatalogueStructureReviewSummary,
-  type CatalogueStructureReviewSummary
-} from "../../../../lib/admin-catalogue-structure-review-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 
 export const dynamic = "force-dynamic";
-
-const EMPTY_REVIEW_SUMMARY: CatalogueStructureReviewSummary = {
-  currentSourceProducts: 0,
-  unlinkedProducts: 0,
-  unclassifiedProducts: 0,
-  productsWithUnmappedAttributes: 0,
-  unmappedAttributeObservations: 0,
-  unmappedAttributeKeys: 0,
-  reviewRequiredAttributeObservations: 0
-};
 
 export default async function Page() {
   const principal = await getAdminSession();
@@ -34,13 +20,6 @@ export default async function Page() {
     workspace = await adminCatalogueStructureWorkspace(principal);
   } catch {
     redirect("/admin/catalogue");
-  }
-
-  let reviewSummary = EMPTY_REVIEW_SUMMARY;
-  try {
-    reviewSummary = await adminCatalogueStructureReviewSummary(principal);
-  } catch {
-    // STRUCTURE must remain usable even if an intake source is temporarily unavailable.
   }
 
   return <main className="vendor-app admin-app admin-catalogue-structure">
@@ -63,8 +42,8 @@ export default async function Page() {
       items={[
         { label: "Categories", value: workspace.metrics.totalCategories, hint: `${workspace.metrics.activeCategories} active` },
         { label: "Levels", value: workspace.metrics.taxonomyLevels, hint: `${workspace.metrics.rootCategories} root categories` },
-        { label: "Canonical products", value: workspace.metrics.totalProducts, hint: `${workspace.metrics.liveProducts} live · ${reviewSummary.currentSourceProducts.toLocaleString("el-GR")} current intake records` },
-        { label: "Governed attributes", value: workspace.metrics.configuredAttributes, hint: `${reviewSummary.unmappedAttributeObservations.toLocaleString("el-GR")} unmapped source observations` }
+        { label: "Canonical products", value: workspace.metrics.totalProducts, hint: `${workspace.metrics.liveProducts} live` },
+        { label: "Governed attributes", value: workspace.metrics.configuredAttributes, hint: "mapped definitions · review counters load separately" }
       ]}
     />
 
@@ -83,7 +62,7 @@ export default async function Page() {
     </section>
 
     <section className="shell vendor-section structure-review-section">
-      <AdminCatalogueStructureReviewClient summary={reviewSummary} />
+      <AdminCatalogueStructureReviewClient />
     </section>
 
     <section className="shell vendor-section structure-workspace">
