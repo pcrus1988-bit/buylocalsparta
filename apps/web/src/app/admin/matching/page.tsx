@@ -18,10 +18,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
   const status = params.status?.trim();
   const pageNumber = Math.max(1, Math.floor(Number(params.page ?? "1")) || 1);
   const pageSize = 60;
-  const data = await adminMatchingWorkspace(principal,{ q:query, status, limit:pageSize, offset:(pageNumber-1)*pageSize });
+  const requestedSubmissionId = params.submission?.trim() || undefined;
+  const data = await adminMatchingWorkspace(principal,{ q:query, status, submissionId:requestedSubmissionId, limit:pageSize, offset:(pageNumber-1)*pageSize });
   const filteredSubmissions = data.submissions;
   const statuses = data.statuses;
-  const selected = filteredSubmissions.find((item) => item.id === params.submission)
+  const selected = data.requestedSubmission
+    ?? filteredSubmissions.find((item) => item.id === requestedSubmissionId)
     ?? filteredSubmissions.find((item) => ["submitted", "needs_review"].includes(item.status) || item.candidates.some((candidate) => ["pending", "auto_linked"].includes(candidate.status)))
     ?? filteredSubmissions[0];
   const review = data.metrics.review;
