@@ -3,8 +3,11 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import type { CatalogCard } from "../../../lib/catalog-view";
 import styles from "../../../components/VendorTrial.module.css";
 import { storefrontPreviewProducts, storefrontPreviewWorkspace, type VendorStorefrontPreviewProduct } from "../../../lib/vendor-storefront-settings";
+import { getFastVendorDropshipCatalogPage } from "../../../lib/vendor-dropship-fast-page";
+import { getVendorLocalCatalogPage } from "../../../lib/vendor-local-catalog";
 import { getVendorSession } from "../../../lib/vendor-session";
 import { getVendorTrialSnapshot } from "../../../lib/vendor-trial-runtime";
 
@@ -17,10 +20,15 @@ export default async function VendorPreviewPage() {
   const vendorId = trial?.vendorId ?? principal?.vendorId;
   if (!vendorId) redirect("/vendor/login");
 
-  const [storefront, products] = await Promise.all([
-    storefrontPreviewWorkspace(vendorId),
-    storefrontPreviewProducts(vendorId, 12)
-  ]);
+  // Keep the preview reads sequential. Production Vercel instances intentionally
+  // use a very small PostgreSQL pool, and parallel cold reads can queue behind one
+  // another. Active vendors reuse the same bounded catalogue paths as the public
+  // storefront; trial vendors use the private preview projection so drafts and
+  // review submissions remain visible without becoming public.
+  const storefront = await storefrontPreviewWorkspace(vendorId);
+  const products = trial
+    ? await storefrontPreviewProducts(vendorId, 12)
+    : await activeVendorPreviewProducts(vendorId);
   const settings = storefront.settings;
   const knownProductCount = trial?.productCount ?? products.length;
 
@@ -78,6 +86,42 @@ export default async function VendorPreviewPage() {
       </div>
     </div>
   </main>;
+}
+
+async function activeVendorPreviewProducts(vendorId: string): Promise<readonly VendorStorefrontPreviewProduct[]> {
+  const local = await getVendorLocalCatalogPage(vendorId, { offset: 0, limit: 6 });
+  const remaining = Math.max(0, 12 - local.products.length);
+  const dropship = remaining > 0
+    ? await getFastVendorDropshipCatalogPage(vendorId, { offset: 0, limit: remaining })
+    : { products: [] as readonly CatalogCard[] };
+
+  const projected = [...local.products, ...dropship.products]
+    .slice(0, 12)
+    .map(publicCardToPreviewProduct);
+
+  // A vendor can intentionally have only hidden/private catalogue rows. In that
+  // case the public projections are empty, but Preview still needs to show what
+  // the vendor is working on. The private fallback is only reached for that small
+  // edge case, never on the normal large-catalogue path.
+  return projected.length > 0 ? projected : storefrontPreviewProducts(vendorId, 12);
+}
+
+function publicCardToPreviewProduct(product: CatalogCard): VendorStorefrontPreviewProduct {
+  return {
+    id: product.id,
+    canonicalVariantId: product.id,
+    title: product.title,
+    brand: product.brand,
+    category: product.categoryLabel ?? product.categoryCode,
+    priceMinor: product.priceMinor,
+    price: product.price,
+    availableToSell: product.availableToSell,
+    status: "approved",
+    visible: true,
+    mediaId: product.mediaId,
+    mediaAlt: product.mediaAlt,
+    source: "offer"
+  };
 }
 
 function PreviewProductCard({ product, index }: { product: VendorStorefrontPreviewProduct; index: number }) {
