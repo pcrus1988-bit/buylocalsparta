@@ -8,7 +8,7 @@ import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../../compo
 import { createAdminVendorShop, adminVendorDesignWorkspace, setAdminVendorDesignDemoMode, updateAdminVendorDesign } from "../../../../lib/admin-vendor-design";
 import { assertAdminCsrf, hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
-import { mediaUploadMode } from "../../../../lib/media-upload-service";
+import { mediaPipelineReadiness, mediaUploadMode } from "../../../../lib/media-upload-service";
 import { adminVendorProfileMediaAssignments } from "../../../../lib/vendor-profile-media-service";
 
 export const metadata: Metadata = { title: "Admin · Partner design", robots: { index: false, follow: false } };
@@ -78,7 +78,7 @@ async function toggleDemo(formData: FormData) {
 
 export default async function Page({ searchParams }: { searchParams: Promise<Search> }) {
   const principal = await requireAdmin();
-  const [workspace, params] = await Promise.all([adminVendorDesignWorkspace(principal), searchParams]);
+  const [workspace, params, mediaReadiness] = await Promise.all([adminVendorDesignWorkspace(principal), searchParams, mediaPipelineReadiness()]);
   const firstShop = workspace.shops[0];
   const firstApplication = workspace.unlinkedApplications[0];
   const fallbackTarget = firstShop ? `shop:${firstShop.id}` : firstApplication ? `application:${firstApplication.id}` : "";
@@ -180,7 +180,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
         </section>
 
         <section className="shell vendor-section">
-          <AdminVendorDesignMediaClient csrfToken={workspace.csrfToken} vendorId={selectedShop.id} mediaUploadMode={mediaUploadMode()} assignments={assignments} canApprove={canApproveMedia} />
+          <AdminVendorDesignMediaClient csrfToken={workspace.csrfToken} vendorId={selectedShop.id} mediaUploadMode={mediaUploadMode()} mediaReadiness={mediaReadiness} mediaReadinessMessage={mediaReadiness.message} assignments={assignments} canApprove={canApproveMedia} />
         </section>
       </> : <section className="shell vendor-section"><WorkspaceSectionHeading eyebrow="Partner design" title="No vendor records are available yet" note="Once a research prospect or application exists it will appear in the selector above." /></section>}
   </main>;

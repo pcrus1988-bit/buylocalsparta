@@ -1,0 +1,136 @@
+{
+  "schema_version": "1.0",
+  "knowledge_layer": "A_GENERAL_SOLUTION_GUIDANCE",
+  "scope": "Brand-independent repair sequencing for plaster/render and related surface repair. Manufacturer-specific products, mixes, layer thicknesses, cure times and application values are excluded.",
+  "status": "reviewed_source_backed",
+  "reviewed_at": "2026-09-22",
+  "rules": [
+    {
+      "id": "A-REPAIR-MOISTURE-FIRST-001",
+      "topic": "moisture_before_plaster_render_repair",
+      "claim": "Where plaster damage is caused by a persistently wet masonry substrate, the moisture source should be corrected before replastering; repair applied to a wet base can fail again.",
+      "customer_guidance_el": "Αν ο σοβάς ή το επίχρισμα έχει καταστραφεί επειδή η τοιχοποιία παραμένει υγρή, δεν αρκεί να καλυφθεί η ζημιά. Πρώτα πρέπει να εντοπιστεί και να αντιμετωπιστεί η αιτία της υγρασίας και μετά να γίνει η επισκευή πάνω σε κατάλληλη βάση.",
+      "stop_escalation": "Stop automatic patch/coating recommendation when active leakage, rising damp, persistent wetness, salt-related deterioration or an unidentified moisture source remains present.",
+      "source": {
+        "authority": "US National Park Service",
+        "title": "Preservation Brief 21: Repairing Historic Flat Plaster—Walls and Ceilings",
+        "url": "https://www.nps.gov/orgs/1739/upload/preservation-brief-21-flat-plaster.pdf",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "The source addresses historic plaster, but the narrow sequencing principle—correct persistent moisture before repairing moisture-damaged plaster—is used here without transferring historic material recipes or numerical application values."
+    },
+    {
+      "id": "A-REPAIR-STRUCTURE-FIRST-001",
+      "topic": "structural_movement_before_surface_repair",
+      "claim": "When plaster cracking or failure is caused by structural movement, the underlying structural problem should be addressed before cosmetic plaster repair. Expanding cracks warrant competent structural assessment rather than repeated filling.",
+      "customer_guidance_el": "Αν οι ρωγμές ή η αποκόλληση του σοβά σχετίζονται με κίνηση του κτιρίου, η σωστή σειρά δεν είναι επαναλαμβανόμενο γέμισμα και βάψιμο. Πρέπει πρώτα να αξιολογηθεί και, όπου απαιτείται, να διορθωθεί το υποκείμενο πρόβλημα. Ρωγμή που φαίνεται να μεγαλώνει χρειάζεται ειδική αξιολόγηση.",
+      "stop_escalation": "Escalate when a crack is expanding, repeatedly reopens, or is accompanied by displacement, deflection, widespread detachment or other signs of building movement.",
+      "source": {
+        "authority": "US National Park Service",
+        "title": "Preservation Brief 21: Repairing Historic Flat Plaster—Walls and Ceilings",
+        "url": "https://www.nps.gov/orgs/1739/upload/preservation-brief-21-flat-plaster.pdf",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "This complements, rather than replaces, the existing Layer A crack-diagnosis rules. It defines repair sequencing for plaster/render surfaces and does not diagnose structural adequacy remotely."
+    },
+    {
+      "id": "A-REPAIR-DETACHED-PLASTER-001",
+      "topic": "detached_loose_plaster",
+      "claim": "Detached plaster is a substrate-stability problem, not merely a finish defect. Repair methods for detached plaster may require stabilization or reattachment of the plaster/substrate before decorative finishing.",
+      "customer_guidance_el": "Σοβάς που έχει αποκολληθεί από τη βάση του δεν πρέπει να αντιμετωπίζεται σαν απλό πρόβλημα βαφής. Πριν από στοκάρισμα ή τελικό χρώμα πρέπει να αξιολογηθεί αν το επίχρισμα είναι σταθερά συνδεδεμένο με τη βάση και αν απαιτείται στερέωση ή αποκατάσταση.",
+      "stop_escalation": "Stop simple filler/paint guidance where plaster is hollow-sounding, visibly detached, sagging, unstable overhead, or presents a falling-material hazard; require competent assessment/stabilization.",
+      "sources": [
+        {
+          "authority": "US National Park Service",
+          "title": "Ceiling Plaster Stabilization — Harry S Truman National Historic Site",
+          "url": "https://www.nps.gov/hstr/learn/historyculture/ceiling-plaster-stabilization.htm",
+          "accessed": "2026-09-22"
+        },
+        {
+          "authority": "US National Park Service",
+          "title": "Should I Replace My Plaster Ceiling?",
+          "url": "https://www.nps.gov/articles/should-i-replace-my-plaster-ceiling.htm",
+          "accessed": "2026-09-22"
+        }
+      ],
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "The sources concern historic plaster ceilings. The generalized rule is limited to recognizing loss of substrate attachment as a stability issue. Specific injection, lath or conservation techniques are not prescribed."
+    },
+    {
+      "id": "A-REPAIR-SOUND-BASE-001",
+      "topic": "sound_clean_repair_substrate",
+      "claim": "A repair should be founded on sound material rather than loose or deteriorated substrate; repair specifications commonly require inspection, removal of loose material and cleaning of the prepared repair area before placement.",
+      "customer_guidance_el": "Το επισκευαστικό υλικό χρειάζεται σταθερή βάση. Σαθρά, αποκολλημένα ή χαλαρά τμήματα δεν πρέπει απλώς να καλύπτονται. Η περιοχή επισκευής πρέπει πρώτα να αξιολογείται, να απομακρύνεται το μη σταθερό υλικό με κατάλληλη μέθοδο και να καθαρίζεται πριν από την εφαρμογή του επιλεγμένου συστήματος.",
+      "stop_escalation": "Escalate where removal of loose material could expose structural components, reinforcement, extensive hidden deterioration, unstable overhead material or historic/sensitive fabric requiring specialist treatment.",
+      "source": {
+        "authority": "US General Services Administration",
+        "title": "Sandstone patching",
+        "url": "https://www.gsa.gov/real-estate/technical-procedures/sandstone-patching",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "medium_high",
+      "review_state": "source_verified",
+      "applicability_note": "The GSA procedure is sandstone-specific. Only the general repair principle of inspection, sound substrate and removal/cleaning of loose material is generalized. Its numeric cut depths, mix ratios, lift thicknesses and curing durations are explicitly not generalized."
+    },
+    {
+      "id": "A-REPAIR-CURE-BEFORE-NEXT-001",
+      "topic": "repair_curing_before_subsequent_exposure_or_finish",
+      "claim": "Repair materials require an appropriate curing/set period and protection before subsequent exposure or finishing; the applicable duration and conditions depend on the repair material/system and environmental conditions rather than a single universal time.",
+      "customer_guidance_el": "Μετά την επισκευή δεν πρέπει να θεωρείται ότι η επιφάνεια είναι αυτομάτως έτοιμη για το επόμενο στάδιο. Το επισκευαστικό υλικό πρέπει να ωριμάσει/στεγνώσει και να προστατευτεί σύμφωνα με το συγκεκριμένο σύστημα και τις συνθήκες εφαρμογής πριν δεχθεί επόμενη στρώση, νερό ή άλλη καταπόνηση.",
+      "stop_escalation": "Do not provide a generic wait-time. If the selected repair material/system has not been identified or its official curing/recoat requirements are unavailable, leave the timing unresolved and require Layer B/project-specific instructions.",
+      "sources": [
+        {
+          "authority": "US General Services Administration",
+          "title": "Sandstone patching",
+          "url": "https://www.gsa.gov/real-estate/technical-procedures/sandstone-patching",
+          "accessed": "2026-09-22"
+        },
+        {
+          "authority": "US National Park Service",
+          "title": "San Antonio Missions National Historical Park receives funding to repair historic aqueduct",
+          "url": "https://www.nps.gov/saan/learn/news/espada-aqueduct-repair-hptc.htm",
+          "accessed": "2026-09-22"
+        }
+      ],
+      "confidence": "medium_high",
+      "review_state": "source_verified",
+      "applicability_note": "Sources demonstrate that curing/protection is a real sequencing requirement. Their specific curing durations and material procedures are not generalized. Exact values belong to the selected system/manufacturer documentation."
+    }
+  ],
+  "unresolved": [
+    {
+      "id": "A-REPAIR-HOLLOW-AREA-THRESHOLD-PENDING",
+      "question": "What universal area/percentage of hollow or detached render/plaster is acceptable for local repair rather than wider removal?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "No universal threshold was established by the reviewed sources; significance depends on substrate, location, attachment mechanism, overhead risk and repair system."
+    },
+    {
+      "id": "A-REPAIR-CURE-TIME-PENDING",
+      "question": "What universal curing/drying time should be used before priming or coating a plaster/render/mortar repair?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "Cure/recoat timing is material-, thickness-, substrate- and environment-dependent. Exact selected-product requirements belong to Layer B."
+    },
+    {
+      "id": "A-REPAIR-WETTING-PENDING",
+      "question": "Should every mineral repair substrate be pre-wetted before patching?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "Reviewed specifications require wetting for particular masonry/mortar systems, but this must not be generalized to all repair chemistries or substrates."
+    },
+    {
+      "id": "A-REPAIR-REINFORCEMENT-PENDING",
+      "question": "When must mesh, tape, lath or other reinforcement be incorporated into a crack or patch repair?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "Requirement depends on crack cause/movement, substrate, repair geometry and selected repair system; no universal rule is asserted."
+    }
+  ],
+  "layer_boundary": {
+    "manufacturer_specific_values": "Layer B only",
+    "kontamou_workflow_and_product_selection_guardrails": "Layer C only",
+    "note": "No universal repair mortar/plaster chemistry, mixing ratio, layer thickness, wetting method, reinforcement method, cure time, primer, coating system or crack-width criterion is asserted here."
+  }
+}

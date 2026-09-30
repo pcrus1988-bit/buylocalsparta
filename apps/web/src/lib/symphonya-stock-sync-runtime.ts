@@ -11,10 +11,10 @@ const LEASE_MS = 55_000;
 // Budget the entire invocation, including lease acquisition and DB setup, rather
 // than only the supplier-page loop. This keeps us safely below Vercel's 55s cap.
 const SLICE_MS = 28_000;
-const AVAILABILITY_TTL_MINUTES = 120;
+const AVAILABILITY_TTL_MINUTES = 12 * 60;
 
 type StockSyncState = { version: 1; nextPage: number; limit: number; cycleStartedAt: string; pagesCompleted: number; rowsObserved: number; lastSuccessfulAt?: string; lastSuccessfulPage?: number; lastCycleCompletedAt?: string; lastError?: string | null; leaseUntil?: string | null; };
-export type SymphonyaStockSyncResult = Readonly<{ claimed: boolean; pages: number; rows: number; offersUpdated: number; cycleComplete: boolean; message?: string; }>;
+export type SymphonyaStockSyncResult = Readonly<{ claimed: boolean; pages: number; rows: number; offersUpdated: number; offersReconciled: number; cycleComplete: boolean; message?: string; }>;
 export type SymphonyaStockSyncSliceOptions = Readonly<{ maxDurationMs?: number; maxPages?: number; }>;
 
 export async function runSymphonyaStockSyncSlice(options: SymphonyaStockSyncSliceOptions = {}): Promise<SymphonyaStockSyncResult> {
@@ -31,7 +31,7 @@ export async function runSymphonyaStockSyncSlice(options: SymphonyaStockSyncSlic
     RETURNING cs.id,cs.metadata
   `, [SOURCE_CODE, SUPPLIER_CODE]);
   const claimedRow = claimed.rows[0];
-  if (!claimedRow) return { claimed:false,pages:0,rows:0,offersUpdated:0,cycleComplete:false,message:"disabled_or_busy" };
+  if (!claimedRow) return { claimed:false,pages:0,rows:0,offersUpdated:0,offersReconciled:0,cycleComplete:false,message:"disabled_or_busy" };
   const sourceId = String(claimedRow.id);
   let state = parseState((claimedRow.metadata as Record<string,unknown>|undefined)?.symphonyaStockSync);
   state.leaseUntil = new Date(Date.now()+LEASE_MS).toISOString();
@@ -42,7 +42,7 @@ export async function runSymphonyaStockSyncSlice(options: SymphonyaStockSyncSlic
   // A page may consume the full provider timeout. Reserve enough wall-clock time
   // after it for stock persistence plus cursor/lease checkpointing.
   const pageStartSafetyMs = timeoutMs()+6_000;
-  let pages=0,rows=0,offersUpdated=0;
+  let pages=0,rows=0,offersUpdated=0,offersReconciled=0;
   let cycleComplete=false;
   try {
     while(Date.now()<deadline && pages<pageLimit){
@@ -58,13 +58,20 @@ export async function runSymphonyaStockSyncSlice(options: SymphonyaStockSyncSlic
       state.pagesCompleted+=1; state.rowsObserved+=page.length;
       state.lastSuccessfulAt=new Date().toISOString(); state.lastSuccessfulPage=pageNumber; state.nextPage=pageNumber+1;
       cycleComplete=page.length<state.limit;
-      if(cycleComplete){ state.lastCycleCompletedAt=state.lastSuccessfulAt; state.nextPage=1; state.cycleStartedAt=new Date().toISOString(); state.pagesCompleted=0; state.rowsObserved=0; }
+      if(cycleComplete){
+        offersReconciled+=await reconcileMissingSymphonyaStockAfterCompletedCycle(state.cycleStartedAt);
+        state.lastCycleCompletedAt=state.lastSuccessfulAt;
+        state.nextPage=1;
+        state.cycleStartedAt=new Date().toISOString();
+        state.pagesCompleted=0;
+        state.rowsObserved=0;
+      }
       await saveState(sourceId,state);
       if(cycleComplete) break;
     }
     state.leaseUntil=null;
     await saveState(sourceId,state);
-    return {claimed:true,pages,rows,offersUpdated,cycleComplete};
+    return {claimed:true,pages,rows,offersUpdated,offersReconciled,cycleComplete};
   } catch(error){ state.lastError=safeError(error); state.leaseUntil=null; await saveState(sourceId,state).catch(()=>undefined); throw error; }
 }
 
@@ -72,16 +79,17 @@ export async function runSymphonyaStockSyncSlice(options: SymphonyaStockSyncSlic
 /**
  * Vercel production burst path.
  *
- * Fetch a few contiguous stock pages concurrently, then persist them in-order.
+ * Fetch contiguous stock pages concurrently, then persist them in-order.
  * The shared DB lease keeps this mutually exclusive with any legacy cursor call.
- * With three 500-row pages every five minutes, the current ~18.5k catalogue
- * completes a full authoritative cycle comfortably inside the 120-minute TTL.
+ * Symphonya's upstream stock feed is materially larger than the currently
+ * materialised sellable subset, so eight 500-row pages every five minutes are
+ * required to keep a complete authoritative sweep inside the 12-hour TTL.
  */
 export async function runSymphonyaStockSyncBurst(
-  requestedMaxPages = 3
+  requestedMaxPages = 8
 ): Promise<SymphonyaStockSyncResult> {
   const pool = getProductionPostgresRuntime().sqlPool;
-  const maxPages = Math.max(1, Math.min(4, positiveIntegerValue(requestedMaxPages, 3)));
+  const maxPages = Math.max(1, Math.min(8, positiveIntegerValue(requestedMaxPages, 8)));
   const claimed = await pool.query<SqlRow>(`
     UPDATE public.catalog_sources cs
        SET metadata=jsonb_set(
@@ -111,7 +119,7 @@ export async function runSymphonyaStockSyncBurst(
 
   const claimedRow = claimed.rows[0];
   if (!claimedRow) {
-    return { claimed:false,pages:0,rows:0,offersUpdated:0,cycleComplete:false,message:"disabled_or_busy" };
+    return { claimed:false,pages:0,rows:0,offersUpdated:0,offersReconciled:0,cycleComplete:false,message:"disabled_or_busy" };
   }
 
   const sourceId = String(claimedRow.id);
@@ -135,6 +143,7 @@ export async function runSymphonyaStockSyncBurst(
 
     let rows = 0;
     let offersUpdated = 0;
+    let offersReconciled = 0;
     let cycleComplete = false;
 
     for (let index = 0; index < accepted.length; index += 1) {
@@ -150,6 +159,7 @@ export async function runSymphonyaStockSyncBurst(
 
       if (page.length < state.limit) {
         cycleComplete = true;
+        offersReconciled += await reconcileMissingSymphonyaStockAfterCompletedCycle(state.cycleStartedAt);
         state.lastCycleCompletedAt = state.lastSuccessfulAt;
         state.nextPage = 1;
         state.cycleStartedAt = new Date().toISOString();
@@ -166,6 +176,7 @@ export async function runSymphonyaStockSyncBurst(
       pages:accepted.length,
       rows,
       offersUpdated,
+      offersReconciled,
       cycleComplete
     };
   } catch (error) {
@@ -174,6 +185,63 @@ export async function runSymphonyaStockSyncBurst(
     await saveState(sourceId,state).catch(()=>undefined);
     throw error;
   }
+}
+
+async function reconcileMissingSymphonyaStockAfterCompletedCycle(cycleStartedAt: string): Promise<number> {
+  const runtime = getProductionPostgresRuntime();
+  const reconciled = await runtime.sqlPool.query<SqlRow>(`
+    WITH supplier AS (
+      SELECT id
+      FROM public.dropship_suppliers
+      WHERE code=$1
+        AND active=true
+        AND api_authoritative_availability=true
+      LIMIT 1
+    ),
+    missing AS (
+      UPDATE public.dropship_supplier_offers dso
+         SET cached_available=false,
+             cached_quantity=0,
+             availability_checked_at=now(),
+             availability_expires_at=now()+make_interval(mins=>$3::int),
+             availability_payload=COALESCE(dso.availability_payload,'{}'::jsonb)
+               || jsonb_build_object(
+                    'source','symphonya_getStock_cycle_reconciliation',
+                    'supplierPermitted',false,
+                    'stockQuantity',0,
+                    'stockPayload',jsonb_build_object(
+                      'reason','not_returned_in_completed_stock_cycle',
+                      'cycleStartedAt',$2::timestamptz
+                    ),
+                    'stockCheckedAt',now()
+                  ),
+             updated_at=now()
+        FROM supplier
+       WHERE dso.supplier_id=supplier.id
+         AND dso.active=true
+         AND (
+           dso.availability_checked_at IS NULL
+           OR dso.availability_checked_at < $2::timestamptz
+         )
+      RETURNING dso.external_product_id
+    )
+    SELECT external_product_id FROM missing
+  `, [SUPPLIER_CODE, cycleStartedAt, AVAILABILITY_TTL_MINUTES]);
+
+  const touchedProductIds=[...new Set(
+    reconciled.rows
+      .map((row)=>String(row.external_product_id??"").trim())
+      .filter(Boolean)
+  )];
+
+  for(let index=0;index<touchedProductIds.length;index+=500){
+    await runtime.sqlPool.query(
+      `SELECT bls_private.refresh_symphonya_storefront_live_families($1::text[])`,
+      [touchedProductIds.slice(index,index+500)]
+    );
+  }
+
+  return touchedProductIds.length;
 }
 
 /** Checkout/pre-fulfilment targeted validation path. */

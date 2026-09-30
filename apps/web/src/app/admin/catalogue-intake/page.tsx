@@ -3,12 +3,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
-import { AdminProductIcecatVisibilityPanel } from "../../../components/ProductIcecatVisibilityPanel";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { adminCatalogueIntakeWorkspace } from "../../../lib/admin-catalogue-intake";
 import { adminCatalogueAttributeDefinitions, mapCatalogueSourceAttribute } from "../../../lib/admin-catalogue-attribute-mapping";
 import { adminCatalogueVendorOptions, assignCatalogueSnapshotToVendor } from "../../../lib/admin-catalogue-vendor-assignment";
-import { adminProductIcecatVisibility } from "../../../lib/product-icecat-visibility";
 import { getAdminSession } from "../../../lib/admin-session";
 
 export const metadata: Metadata = { title: "Admin · Supplier PIM Intake", robots: { index: false, follow: false, nocache: true } };
@@ -98,7 +96,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
   ]);
   const snapshot = data.snapshots.find((item) => item.id === data.effectiveSnapshotId) ?? data.snapshots[0];
   const selected = data.selected;
-  const icecatVisibility = selected ? await adminProductIcecatVisibility(principal, selected.product.id) : [];
   const hasFilters = Boolean(params.q?.trim() || params.price?.trim() || params.classification?.trim());
   const assignmentSuccess = params.assigned === "1";
   const attributeMappingSuccess = params.attributeMapped === "1";
@@ -121,9 +118,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
 
     <WorkspaceMetricStrip items={[
       { label: "Snapshot products", value: snapshot?.productCount ?? 0 },
+      { label: "Canonical linked", value: snapshot?.approvedLinks ?? 0, tone: snapshot && snapshot.approvedLinks === snapshot.productCount ? "positive" : "attention" },
+      { label: "Price evidence", value: snapshot?.priceObservedProducts ?? 0, hint: "Products with a positive governed price observation" },
       { label: "Price conflicts", value: snapshot?.priceConflict ?? 0, tone: snapshot?.priceConflict ? "attention" : "default" },
       { label: "Price review", value: snapshot?.priceReviewRequired ?? 0, tone: snapshot?.priceReviewRequired ? "attention" : "default" },
-      { label: "Unmapped attributes", value: snapshot?.unmappedAttributes ?? 0, tone: snapshot?.unmappedAttributes ? "attention" : "default" },
       { label: "Compatibility candidates", value: snapshot?.candidateCompatibility ?? 0, tone: snapshot?.candidateCompatibility ? "attention" : "default" }
     ]} />
 
@@ -166,7 +164,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
           <div className="workspace-compact-list">
             <div className="workspace-compact-row"><strong>SHA-256</strong><span title={item.sourceHash}>{item.sourceHash.slice(0, 16)}…</span></div>
             <div className="workspace-compact-row"><strong>Observed</strong><span>{when(item.observedAt ?? item.createdAt)}</span></div>
-            <div className="workspace-compact-row"><strong>Price states</strong><span>{item.priceMatched} matched · {item.priceUnpriced} unpriced · {item.priceConflict} conflicts · {item.priceReviewRequired} review</span></div>
+            <div className="workspace-compact-row"><strong>Canonical readiness</strong><span>{item.approvedLinks.toLocaleString("el-GR")} / {item.productCount.toLocaleString("el-GR")} approved links</span></div>
+            <div className="workspace-compact-row"><strong>Price evidence</strong><span>{item.priceObservedProducts.toLocaleString("el-GR")} products with governed observations · source state {item.priceMatched} matched / {item.priceUnpriced} unpriced</span></div>
             <div className="workspace-compact-row"><strong>Taxonomy</strong><span>{item.approvedCategoryMappings} approved · {item.candidateCategoryMappings} candidate mappings</span></div>
           </div>
           {!active && <div className="workspace-action-bar"><span>Inspect this immutable intake snapshot</span><Link className="button button-secondary" href={`/admin/catalogue-intake?${search.toString()}`}>Open snapshot</Link></div>}
@@ -205,8 +204,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
             <div className="workspace-compact-row"><strong>Snapshot</strong><span title={selected.product.sourceHash}>{selected.product.sourceFilename ?? "source file"} · {selected.product.sourceHash.slice(0, 16)}…</span></div>
             {selected.product.sourceUrl && <div className="workspace-compact-row"><strong>Source page</strong><a className="text-link" href={selected.product.sourceUrl} target="_blank" rel="noreferrer">Open supplier evidence ↗</a></div>}
           </div></WorkspaceRecordDetails>
-
-          <AdminProductIcecatVisibilityPanel records={icecatVisibility} />
 
           <WorkspaceRecordDetails label={`Price evidence · ${selected.prices.length}`} open>{selected.prices.length === 0 ? <div className="workspace-inline-note">No price observation is attached to this source row.</div> : <div className="workspace-compact-list">{selected.prices.map((price, index) => <div className="workspace-compact-row" key={`${price.kind}-${price.amountMinor}-${index}`}><strong>{money(price.amountMinor, price.currency)}</strong><span>{price.kind} · {price.status}{price.confidence !== undefined ? ` · ${Math.round(price.confidence * 100)}%` : ""}{price.sourceReference ? ` · ${price.sourceReference}` : ""}</span></div>)}</div>}</WorkspaceRecordDetails>
 

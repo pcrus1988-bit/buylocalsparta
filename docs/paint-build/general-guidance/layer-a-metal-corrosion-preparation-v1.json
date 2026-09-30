@@ -1,0 +1,103 @@
+{
+  "schema_version": "1.0",
+  "knowledge_layer": "A_GENERAL_SOLUTION_GUIDANCE",
+  "scope": "Brand-independent ferrous-metal corrosion and coating surface-preparation guidance. Manufacturer-specific coating systems, primers, environmental limits, surface profiles and application values are excluded.",
+  "status": "reviewed_source_backed",
+  "reviewed_at": "2026-09-22",
+  "rules": [
+    {
+      "id": "A-METAL-CLEAN-001",
+      "topic": "steel_surface_contamination_before_coating",
+      "claim": "Steel intended for protective coating should be prepared so that contaminants detrimental to coating application are removed. AMPP surface-preparation guidance distinguishes removal of visible oil, grease, dirt and soluble contaminants from removal of loose rust, mill scale and old coating; the required preparation level depends on the specified coating system rather than one universal cleaning method.",
+      "customer_guidance_el": "Πριν από προστατευτική βαφή μεταλλικής επιφάνειας πρέπει να απομακρύνονται ρύποι που μπορούν να επηρεάσουν την πρόσφυση ή την προστασία της επίστρωσης, όπως λάδια, γράσα, βρωμιά και σαθρή σκουριά ή σαθρή παλιά βαφή. Η ακριβής μέθοδος και ο απαιτούμενος βαθμός καθαρισμού εξαρτώνται από το σύστημα βαφής που θα χρησιμοποιηθεί και δεν πρέπει να ορίζονται γενικά για όλα τα προϊόντα.",
+      "stop_escalation": "Do not prescribe one generic preparation grade or abrasive method when the coating system, metal type, existing coating and exposure are unknown.",
+      "source": {
+        "authority": "Association for Materials Protection and Performance (AMPP)",
+        "title": "Surface Prep Standards - A Quick Summary",
+        "url": "https://protect-perform.ampp.org/surface-prep-standards-a-quick-summary/",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified"
+    },
+    {
+      "id": "A-METAL-RUSTBACK-001",
+      "topic": "prepared_steel_rust_back",
+      "claim": "A prepared steel surface should not be allowed to deteriorate before coating. FHWA guidance states that surface cleanliness must still meet the specified condition immediately before coating and that additional preparation may be required if surface rusting develops.",
+      "customer_guidance_el": "Μετά την προετοιμασία του χάλυβα, η επιφάνεια δεν πρέπει να αφεθεί να ξανασκουριάσει ή να υποβαθμιστεί πριν από τη βαφή. Αν εμφανιστεί νέα σκουριά ή χαθεί η απαιτούμενη καθαρότητα, μπορεί να απαιτείται νέα προετοιμασία πριν εφαρμοστεί το σύστημα επίστρωσης.",
+      "stop_escalation": "If rust has returned after preparation, do not instruct the user to simply coat over it; re-check the preparation requirement for the selected system.",
+      "source": {
+        "authority": "US Federal Highway Administration",
+        "title": "HMEC Module C Participant Workbook — Steel, Welding, and Coatings, Lesson 8",
+        "url": "https://www.fhwa.dot.gov/pavement/materials/hmec/pubs/module_c/participant_workbook.pdf",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "The FHWA material is infrastructure-focused. Only the general principle that prepared steel must not deteriorate before coating is generalized; its project-specific timing and preparation grades are not generalized."
+    },
+    {
+      "id": "A-METAL-SALTS-001",
+      "topic": "steel_soluble_salt_contamination",
+      "claim": "Excessive adverse soluble-salt contamination on steel can reduce expected coating service life. Where salt contamination is plausible, especially in severe or marine exposure, coating over the surface without considering contamination can be a durability risk.",
+      "customer_guidance_el": "Σε μεταλλικές επιφάνειες όπου είναι πιθανή επιβάρυνση από άλατα — ιδιαίτερα σε έντονα διαβρωτικό ή θαλάσσιο περιβάλλον — τα άλατα μπορεί να επηρεάσουν αρνητικά τη διάρκεια ζωής μιας προστατευτικής επίστρωσης. Δεν πρέπει να θεωρείται ότι η απλή αφαίρεση της ορατής σκουριάς λύνει πάντα το πρόβλημα.",
+      "stop_escalation": "Escalate the preparation decision when significant salt exposure is suspected and the selected coating system does not provide a verified contamination/preparation requirement.",
+      "source": {
+        "authority": "US Federal Highway Administration",
+        "title": "Methodology for Analysis of Soluble Salts From Steel Substrates, FHWA-HRT-14-026",
+        "url": "https://www.fhwa.dot.gov/publications/research/infrastructure/structures/bridge/14026/index.cfm",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "No universal salt concentration limit is generalized from this source."
+    },
+    {
+      "id": "A-METAL-HAZARDOUS-COATING-001",
+      "topic": "unknown_or_hazardous_existing_metal_coating",
+      "claim": "Removal or disturbance of hazardous existing coatings requires additional safety, health, environmental and containment controls beyond ordinary surface preparation. AMPP maintains a dedicated contractor qualification for field removal of hazardous coatings, reflecting that such work should not be treated as routine generic paint removal.",
+      "customer_guidance_el": "Αν υπάρχει υποψία ότι μια παλιά μεταλλική βαφή περιέχει επικίνδυνες ουσίες ή αν η σύστασή της είναι άγνωστη σε έργο όπου θα γίνει έντονη αφαίρεση/τριβή/αμμοβολή, η εργασία δεν πρέπει να αντιμετωπίζεται σαν απλή προετοιμασία βαφής. Χρειάζεται κατάλληλη αξιολόγηση και μέτρα για σκόνη, απόβλητα, έκθεση και περιορισμό της διασποράς.",
+      "stop_escalation": "Stop generic DIY removal guidance when hazardous coating is known or reasonably suspected; route to the applicable safety/regulatory assessment and competent contractor workflow.",
+      "source": {
+        "authority": "Association for Materials Protection and Performance (AMPP)",
+        "title": "QP 2 – Field Coating Removal",
+        "url": "https://ampp.org/qp-program/qp-programs/qp-2-accreditation",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "AMPP QP 2 is an industrial/marine accreditation framework, not a Greek legal rule. It supports the general safety distinction only; jurisdiction-specific legal requirements remain unresolved here."
+    }
+  ],
+  "unresolved": [
+    {
+      "id": "A-METAL-PREP-GRADE-PENDING",
+      "question": "What universal SSPC/AMPP surface-preparation grade should KONTA MOY prescribe for repainting ferrous metal?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "Preparation grade depends on the selected coating system, service environment, existing condition and specification. No single grade is valid for all systems."
+    },
+    {
+      "id": "A-METAL-RUSTBACK-TIME-PENDING",
+      "question": "What universal maximum time may pass between steel preparation and primer/coating application?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "The governing requirement is that the surface still meets the specified condition at application. Timing varies with environment and system; infrastructure examples must not become a universal customer value."
+    },
+    {
+      "id": "A-METAL-SALT-LIMIT-PENDING",
+      "question": "What universal soluble-salt concentration is acceptable before coating steel?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "Acceptance limits are specification/coating/environment dependent and are not generalized from the reviewed source."
+    },
+    {
+      "id": "A-METAL-NONFERROUS-PENDING",
+      "question": "What generic preparation should be prescribed for galvanized steel, zinc, aluminium, stainless steel, copper or bronze?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "These substrates require material- and coating-specific preparation/compatibility decisions. Ferrous-steel guidance must not be copied onto non-ferrous metals."
+    }
+  ],
+  "layer_boundary": {
+    "manufacturer_specific_values": "Layer B only",
+    "kontamou_workflow_and_product_selection_guardrails": "Layer C only",
+    "note": "No universal abrasive method, blast grade, surface profile, salt threshold, primer chemistry, recoating interval, environmental limit or coating compatibility is asserted here."
+  }
+}

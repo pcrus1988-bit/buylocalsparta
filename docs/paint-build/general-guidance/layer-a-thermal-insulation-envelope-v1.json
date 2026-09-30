@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0",
+  "knowledge_layer": "A_GENERAL_SOLUTION_GUIDANCE",
+  "scope": "Brand-independent thermal-envelope and exterior-insulation prerequisites and failure-prevention principles. Product/system-specific insulation type, thickness, R/U values, adhesives, anchors, reinforcement, render, curing, application temperatures and installation details are excluded and remain Layer B or project design.",
+  "status": "reviewed_source_backed",
+  "reviewed_at": "2026-09-22",
+  "rules": [
+    {
+      "id": "A-INSULATION-CONTINUITY-001",
+      "topic": "continuous_thermal_layer_and_thermal_bridging",
+      "claim": "Thermal-envelope performance depends on continuity, and continuous exterior insulation can reduce heat flow through thermal bridges. DOE Building Science Education identifies framing as a thermal bridge and describes continuous rigid exterior insulation as a way to reduce thermal losses through those bridges.",
+      "customer_guidance_el": "Η θερμομόνωση πρέπει να εξετάζεται ως συνεχής θερμική στρώση και όχι μόνο ως κάλυψη των μεγάλων επίπεδων επιφανειών. Διακοπές της μόνωσης σε ενώσεις, ακμές ή δομικά στοιχεία μπορούν να δημιουργήσουν θερμογέφυρες και χρειάζονται σωστή τεχνική λεπτομέρεια.",
+      "stop_escalation": "If the proposed work leaves major structural junctions or other obvious discontinuities untreated, do not promise uniform thermal performance from nominal insulation coverage alone; route the detail for project/system assessment.",
+      "source": {"authority":"U.S. Department of Energy Building Science Education","title":"Continuous Rigid Insulation on Exterior Walls","url":"https://bsesc.energy.gov/energy-basics/continuous-rigid-insulation-exterior-walls","accessed":"2026-09-22"},
+      "confidence":"high",
+      "review_state":"source_verified",
+      "applicability_note":"The continuity/thermal-bridge principle is generalized. DOE climate-zone R-value prescriptions and material-specific thicknesses are not imported into Greek projects."
+    },
+    {
+      "id": "A-INSULATION-AIR-001",
+      "topic": "air_barrier_continuity_with_thermal_envelope",
+      "claim": "A thermal-envelope solution should account for air-control continuity as well as insulation. DOE Building Science Education states that a continuous air barrier should surround the thermal envelope and that seams, gaps and holes in the air barrier need sealing.",
+      "customer_guidance_el": "Η προσθήκη θερμομόνωσης δεν σημαίνει από μόνη της ότι λύνονται οι ανεπιθύμητες διαρροές αέρα. Η συνέχεια της αεροστεγανότητας στα κενά, στις ενώσεις και στις διελεύσεις πρέπει να αξιολογείται ως ξεχωριστή λειτουργία του κελύφους.",
+      "stop_escalation": "Where significant air leakage is suspected at junctions or penetrations, do not represent insulation boards alone as a confirmed air-sealing solution unless the selected assembly is specifically designed and detailed to provide that function.",
+      "source": {"authority":"U.S. Department of Energy Building Science Education","title":"Continuous Air Barrier in Exterior Walls","url":"https://bsesc.energy.gov/energy-basics/continuous-air-barrier-exterior-walls","accessed":"2026-09-22"},
+      "confidence":"high",
+      "review_state":"source_verified",
+      "applicability_note":"No particular air-barrier material is mandated by Layer A; material and system details remain assembly-specific."
+    },
+    {
+      "id": "A-INSULATION-WATER-001",
+      "topic": "water_management_behind_exterior_insulation_and_cladding",
+      "claim": "Exterior insulation does not remove the need for bulk-water management. DOE Building Science Education describes a continuous drainage plane behind exterior cladding that directs water safely out of wall cavities and integrates with flashing at openings and penetrations.",
+      "customer_guidance_el": "Πριν ή μαζί με την εξωτερική θερμομόνωση πρέπει να εξετάζεται πώς απομακρύνεται το νερό που μπορεί να περάσει πίσω από την εξωτερική στρώση. Παράθυρα, πόρτες, διελεύσεις και ενώσεις πρέπει να εντάσσονται στη συνέχεια της διαχείρισης νερού και δεν πρέπει να καλύπτονται απλώς από τη νέα θερμομόνωση.",
+      "stop_escalation": "Active leakage, defective flashing, or an unresolved drainage-plane discontinuity must be diagnosed before the insulation build-up is treated as the remedy; do not conceal an unresolved water-entry path behind a new exterior system.",
+      "source": {"authority":"U.S. Department of Energy Building Science Education","title":"Building Enclosure Science Intro — Drainage Plane Behind Exterior Wall Cladding","url":"https://bsesc.energy.gov/energy-basics/building-enclosure-science-intro-drainage-plane-behind-exterior-wall-cladding","accessed":"2026-09-22"},
+      "confidence":"high",
+      "review_state":"source_verified",
+      "applicability_note":"The drainage/continuity principle is generalized; U.S.-specific material approvals and construction prescriptions are not imported."
+    },
+    {
+      "id": "A-INSULATION-MOISTURE-001",
+      "topic": "moisture_behavior_of_high_insulation_wall_assemblies",
+      "claim": "Increasing insulation and changing wall-layer permeance can change moisture behavior, so moisture control cannot be reduced to adding insulation thickness alone. DOE research on high-R wall systems evaluates bulk water, built-in moisture, vapor and capillary transport and links moisture performance to air sealing, drainage and vapor-control strategy.",
+      "customer_guidance_el": "Σε υφιστάμενο τοίχο με ιστορικό υγρασίας, η θερμομόνωση δεν πρέπει να επιλέγεται μόνο με βάση το πάχος ή τη θερμική αντίσταση. Πρέπει πρώτα να αξιολογηθεί η αιτία της υγρασίας και ο τρόπος με τον οποίο η νέα διαστρωμάτωση θα διαχειρίζεται νερό, αέρα και υδρατμούς.",
+      "stop_escalation": "If the wall has recurring dampness, trapped-water symptoms, unknown vapor-control layers, or an assembly whose drying path is unclear, require building-envelope/system assessment before giving a definitive insulation build-up recommendation.",
+      "source": {"authority":"U.S. Department of Energy","title":"Moisture Performance of High-R Wall Systems","url":"https://www.energy.gov/cmei/buildings/moisture-performance-high-r-wall-systems","accessed":"2026-09-22"},
+      "confidence":"high",
+      "review_state":"source_verified",
+      "applicability_note":"Climate-zone-specific vapor-retarder prescriptions are not generalized to Greece. The retained rule is the need to assess moisture transport and drying when the wall build-up changes."
+    }
+  ],
+  "unresolved": [
+    {"id":"A-INSULATION-THICKNESS-PENDING","question":"What insulation thickness or R/U value should KONTA MOY prescribe generically?","status":"unresolved_do_not_generalize","reason":"Required thermal performance is project-, regulation-, climate- and system-dependent. Do not import U.S. climate-zone prescriptions; selected system/product data remain Layer B and regulatory design remains project-specific."},
+    {"id":"A-INSULATION-VAPOR-POSITION-PENDING","question":"Where should a vapor-control layer universally be placed in Greek wall assemblies?","status":"unresolved_do_not_generalize","reason":"Vapor-control strategy depends on climate, existing assembly, interior conditions, material permeance and drying direction; no universal position is established here."},
+    {"id":"A-INSULATION-ETICS-FASTENING-PENDING","question":"What universal adhesive coverage, anchor type/count or fixing pattern should be used for ETICS?","status":"unresolved_do_not_generalize","reason":"These are system/substrate/design requirements and must come from the selected tested system/manufacturer and applicable project requirements, not Layer A."},
+    {"id":"A-INSULATION-SUBSTRATE-ACCEPTANCE-PENDING","question":"What universal flatness, pull-off strength or substrate-moisture threshold makes an existing facade acceptable for ETICS?","status":"unresolved_do_not_generalize","reason":"Acceptance criteria depend on the selected system, substrate and applicable specification. No universal numeric threshold is asserted."},
+    {"id":"A-INSULATION-FIRE-PENDING","question":"What generic fire barriers, insulation combustibility class, facade height limits or opening details should be prescribed?","status":"unresolved_do_not_generalize","reason":"These are safety-critical system and regulatory requirements that must be resolved against applicable Greek/EU requirements and the selected certified system before customer-facing prescriptions are made."}
+  ],
+  "layer_boundary": {
+    "manufacturer_specific_values":"Layer B only",
+    "kontamou_workflow_and_product_selection_guardrails":"Layer C only",
+    "note":"Layer A establishes envelope principles: thermal continuity, air-control continuity, bulk-water/drainage integration and moisture-aware assembly assessment. It does not design an ETICS build-up or select insulation thickness, fixing, vapor-control or fire details."
+  }
+}

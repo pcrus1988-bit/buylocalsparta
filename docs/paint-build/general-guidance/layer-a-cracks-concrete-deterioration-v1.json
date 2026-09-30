@@ -1,0 +1,105 @@
+{
+  "schema_version": "1.0",
+  "knowledge_layer": "A_GENERAL_SOLUTION_GUIDANCE",
+  "scope": "Brand-independent crack assessment and concrete deterioration/spalling guidance. Manufacturer-specific repair products, dimensions and application values are excluded.",
+  "status": "reviewed_source_backed",
+  "reviewed_at": "2026-09-22",
+  "rules": [
+    {
+      "id": "A-CRACK-DIAGNOSIS-001",
+      "topic": "masonry_crack_diagnosis",
+      "claim": "Cracking in masonry can have multiple causes, including foundation settlement, shrinkage, thermal or moisture movement, inadequate support, freeze-thaw effects, corrosion of embedded metal, differential movement between materials and salt expansion. Therefore a visible crack should not automatically be treated as a cosmetic filling problem without considering its cause and surrounding movement or deformation.",
+      "customer_guidance_el": "Μια ρωγμή στην τοιχοποιία δεν είναι πάντα απλώς αισθητικό πρόβλημα. Μπορεί να σχετίζεται με καθίζηση, συστολή, θερμικές ή υγρασιακές μετακινήσεις, ανεπαρκή στήριξη, διάβρωση μεταλλικών στοιχείων ή διαφορετική κίνηση μεταξύ υλικών. Πριν επιλεγεί υλικό γεμίσματος ή βαφή, πρέπει να αξιολογείται η αιτία και αν υπάρχουν ενδείξεις συνεχιζόμενης μετακίνησης ή παραμόρφωσης.",
+      "stop_escalation": "Escalate instead of prescribing cosmetic filling/coating when cracking is accompanied by bowing, leaning, displacement, recurring opening, widespread deterioration or other evidence suggesting movement or structural involvement.",
+      "source": {
+        "authority": "US National Park Service",
+        "title": "Common Problems with Brick Masonry",
+        "url": "https://www.nps.gov/articles/common-problems-with-brick-masonry.htm",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "The source concerns brick masonry. The rule is used to prevent automatic cosmetic treatment of unexplained masonry cracking, not to diagnose a specific structural cause remotely."
+    },
+    {
+      "id": "A-CONCRETE-SPALL-CAUSE-001",
+      "topic": "concrete_spalling_delamination_diagnosis",
+      "claim": "Concrete spalling and delamination can result from distinct underlying mechanisms, including reinforcement corrosion, freeze-thaw action, reactive processes and overstress. A repair decision should therefore consider the cause and depth/extent of deterioration rather than simply covering the visible surface loss.",
+      "customer_guidance_el": "Αποφλοίωση, αποκόλληση ή αποσάθρωση σκυροδέματος μπορεί να έχει διαφορετικές αιτίες, όπως διάβρωση οπλισμού, κύκλους ψύξης-απόψυξης, αντιδράσεις μέσα στο σκυρόδεμα ή υπερκαταπόνηση. Η ορατή απώλεια υλικού δεν πρέπει απλώς να καλύπτεται: χρειάζεται αξιολόγηση της αιτίας και της έκτασης της βλάβης πριν επιλεγεί επισκευή ή τελική επίστρωση.",
+      "stop_escalation": "Escalate where concrete is delaminated, materially spalled, deterioration depth is uncertain, or reinforcement/prestressing steel is exposed or suspected to be involved.",
+      "sources": [
+        {
+          "authority": "US Federal Highway Administration",
+          "title": "Concrete Superstructure and Substructure—Spalls and Delaminations, LTBP Protocol FLD-DC-VIC-004",
+          "url": "https://www.fhwa.dot.gov/publications/research/infrastructure/structures/ltbp/16007/048.cfm",
+          "accessed": "2026-09-22"
+        },
+        {
+          "authority": "US Federal Highway Administration",
+          "title": "Partial-Depth Repairs — Selection of Candidate Projects",
+          "url": "https://www.fhwa.dot.gov/Pavement/concrete/repair02.cfm",
+          "accessed": "2026-09-22"
+        }
+      ],
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "FHWA material is infrastructure-focused; only the general diagnostic principle that spalling/delamination can have different underlying mechanisms is generalized here. Pavement-specific repair dimensions and thresholds are not generalized to buildings."
+    },
+    {
+      "id": "A-CONCRETE-UNSOUND-001",
+      "topic": "unsound_concrete_before_repair",
+      "claim": "Successful concrete repair requires identifying the extent of deteriorated or unsound concrete; the full extent may not be visible at the surface. Repairing only the visible surface without establishing sound substrate can leave deterioration behind and compromise the repair.",
+      "customer_guidance_el": "Σε επισκευή σκυροδέματος, η πραγματική έκταση της φθοράς μπορεί να είναι μεγαλύτερη από αυτή που φαίνεται στην επιφάνεια. Πριν από επισκευαστικό υλικό ή επίστρωση πρέπει να επιβεβαιώνεται ότι η βάση που παραμένει είναι σταθερή και υγιής και ότι δεν έχει μείνει κρυφή αποκόλληση ή σαθρό σκυρόδεμα.",
+      "stop_escalation": "If the extent/depth of unsound concrete cannot be established safely, or deterioration continues beyond a superficial repair zone, stop the DIY coating/patch recommendation and refer for competent assessment.",
+      "source": {
+        "authority": "US Federal Highway Administration",
+        "title": "Partial-Depth Repairs — Construction: Finding Unsound Concrete",
+        "url": "https://www.fhwa.dot.gov/pavement/concrete/repair04.cfm",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "The source is concrete pavement repair guidance. Numeric pavement repair boundaries, tool pressures and depth criteria are intentionally not generalized to building repairs."
+    },
+    {
+      "id": "A-REBAR-CORROSION-001",
+      "topic": "reinforcement_corrosion_spalling",
+      "claim": "Corrosion of reinforcing steel can generate expansive forces that crack, spall and debond surrounding concrete. Exposed reinforcement or spalling associated with suspected reinforcement corrosion is therefore not merely a surface-paint defect.",
+      "customer_guidance_el": "Η διάβρωση του οπλισμού μπορεί να δημιουργήσει δυνάμεις που ρηγματώνουν, αποκολλούν και αποσαθρώνουν το σκυρόδεμα γύρω του. Αν φαίνεται οπλισμός ή η αποκόλληση φαίνεται να σχετίζεται με σκουριά/διάβρωση, το πρόβλημα δεν πρέπει να αντιμετωπίζεται σαν απλή βαφή ή επιφανειακό στοκάρισμα.",
+      "stop_escalation": "Visible reinforcement, rust-related cracking/spalling, or suspected loss of concrete cover triggers specialist assessment before cosmetic coating selection.",
+      "source": {
+        "authority": "US Federal Highway Administration",
+        "title": "Partial-Depth Repairs — Selection of Candidate Projects",
+        "url": "https://www.fhwa.dot.gov/Pavement/concrete/repair02.cfm",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified"
+    }
+  ],
+  "unresolved": [
+    {
+      "id": "A-CRACK-WIDTH-PENDING",
+      "question": "What universal crack-width threshold separates cosmetic repair from specialist/structural assessment?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "No universal building threshold is established by the reviewed sources. Significance depends on substrate, movement, location, cause and structural context."
+    },
+    {
+      "id": "A-CRACK-MONITOR-DURATION-PENDING",
+      "question": "How long should a crack be monitored before it can be considered inactive?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "No universal monitoring duration is asserted; movement may be seasonal or condition-dependent."
+    },
+    {
+      "id": "A-CONCRETE-REPAIR-DEPTH-PENDING",
+      "question": "What depth/area of concrete spalling is safe for a customer-directed superficial repair?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "Reviewed FHWA numerical thresholds are pavement-specific and must not be transferred to building concrete."
+    }
+  ],
+  "layer_boundary": {
+    "manufacturer_specific_values": "Layer B only",
+    "kontamou_workflow_and_product_selection_guardrails": "Layer C only",
+    "note": "No universal crack width, crack monitoring duration, repair depth, reinforcement treatment, patch material, primer, cure time, mixing ratio, layer thickness or coating compatibility is asserted here."
+  }
+}

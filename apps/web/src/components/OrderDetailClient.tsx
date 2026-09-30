@@ -8,6 +8,8 @@ import { CustomerDeliveryLiveMap } from "./CustomerDeliveryLiveMap";
 import { CustomerFulfilmentProgress } from "./CustomerFulfilmentProgress";
 import { CustomerReturnsPanel, type CustomerReturnCaseView } from "./CustomerReturnsPanel";
 import { productPublicPath } from "../lib/product-url";
+import { trackGoogleAnalyticsEvent } from "../lib/google-analytics-client";
+import { PRIVACY_CONSENT_CHANGED_EVENT } from "../lib/privacy-consent";
 
 type Detail = {
   id: string;
@@ -28,6 +30,14 @@ type Detail = {
   canCancel: boolean;
   csrfToken: string;
   invoice?: { documentNumber: string; type: string; mark: string; uid?: string; qrUrl?: string; issuedAt: number; downloadUrl: string };
+  analytics: {
+    currency: string;
+    value: number;
+    tax: number;
+    shipping: number;
+    discount: number;
+    items: ReadonlyArray<{ item_id: string; item_name: string; price: number; quantity: number; vendor_id: string }>;
+  };
   lines: ReadonlyArray<{ id: string; canonicalVariantId: string; productSlug?: string; title: string; quantity: number; fulfilledQuantity: number; refundedQuantity: number; returnableQuantity: number; status: string; retailUnitPrice: string; vendorId: string; vendorName: string }>;
   fulfilments: ReadonlyArray<{ id: string; sourceId: string; status: string; vendorId: string; vendorName: string; deliveryCharge: string; lineIds: readonly string[]; manualSupplier: boolean; carrier?: string; trackingNumber?: string; shipmentStatus?: string; deliveryNote?: string }>;
   pickups: ReadonlyArray<{ id: string; fulfilmentId: string; vendorName: string; status: "ready" | "collected" | "expired"; readyAt: number; expiresAt: number; collectedAt?: number; shortCode: string; qrUrl: string }>;
@@ -65,6 +75,41 @@ export function OrderDetailClient({ initial }: { initial: Detail }) {
   const [paymentError, setPaymentError] = useState("");
   const [error, setError] = useState("");
   const manualSupplierDelivery = data.fulfilments.some((item) => item.manualSupplier);
+
+  useEffect(() => {
+    if (data.sourceStatus === "pending_payment" || data.sourceStatus === "cancelled") return undefined;
+    const storageKey = `kontamou-ga4-purchase:${data.referenceNumber}`;
+
+    const emitPurchase = () => {
+      try {
+        if (window.localStorage.getItem(storageKey) === "1") return;
+      } catch {
+        // Analytics can still emit when browser storage is unavailable.
+      }
+
+      const emitted = trackGoogleAnalyticsEvent("purchase", {
+        transaction_id: data.referenceNumber,
+        currency: data.analytics.currency,
+        value: data.analytics.value,
+        tax: data.analytics.tax,
+        shipping: data.analytics.shipping,
+        discount: data.analytics.discount,
+        items: data.analytics.items
+      });
+      if (!emitted) return;
+
+      try {
+        window.localStorage.setItem(storageKey, "1");
+      } catch {
+        // A missing idempotency cache must not block the completed purchase event.
+      }
+    };
+
+    const onConsentChange = () => emitPurchase();
+    emitPurchase();
+    window.addEventListener(PRIVACY_CONSENT_CHANGED_EVENT, onConsentChange);
+    return () => window.removeEventListener(PRIVACY_CONSENT_CHANGED_EVENT, onConsentChange);
+  }, [data.analytics, data.referenceNumber, data.sourceStatus]);
 
   useEffect(() => {
     if (data.fulfilmentMode !== "local_delivery" || manualSupplierDelivery) {

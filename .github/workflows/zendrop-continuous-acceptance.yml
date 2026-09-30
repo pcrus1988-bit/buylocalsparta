@@ -1,0 +1,45 @@
+name: Zendrop Continuous Pipeline Acceptance
+
+on:
+  pull_request:
+    paths:
+      - 'apps/web/src/lib/zendrop-*.ts'
+      - 'apps/web/src/lib/shopify-zendrop-bridge.ts'
+      - 'apps/web/src/app/api/cron/zendrop-*/**'
+      - 'packages/dropship-suppliers/src/zendrop/**'
+      - 'vercel.json'
+      - '.github/workflows/zendrop-continuous-acceptance.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/src/lib/zendrop-*.ts'
+      - 'apps/web/src/lib/shopify-zendrop-bridge.ts'
+      - 'apps/web/src/app/api/cron/zendrop-*/**'
+      - 'packages/dropship-suppliers/src/zendrop/**'
+      - 'vercel.json'
+      - '.github/workflows/zendrop-continuous-acceptance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  zendrop-continuous:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked workspace dependencies
+        run: npm ci --ignore-scripts
+      - name: Typecheck Zendrop supplier package
+        run: npm run typecheck:dropship-suppliers
+      - name: Typecheck Next.js web application
+        run: ./node_modules/.bin/tsc -p apps/web/tsconfig.json --pretty false
+      - name: Build Next.js web application
+        env:
+          VERCEL_ENV: preview
+        run: npm --workspace @buy-local-sparta/web run build
+      - name: Verify Zendrop deployment topology
+        run: npm run check:deployment

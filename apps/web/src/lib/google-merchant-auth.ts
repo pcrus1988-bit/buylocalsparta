@@ -18,10 +18,28 @@ type ServiceAccountTokenResponse = Readonly<{
   expireTime?: string;
 }>;
 
+type VercelRequestContext = Readonly<{
+  headers?: Readonly<Record<string, string | undefined>>;
+}>;
+
+const VERCEL_REQUEST_CONTEXT = Symbol.for("@vercel/request-context");
+
 let cachedMerchantToken: { accessToken: string; expiresAt: number } | undefined;
 
 function configValue(value: string | undefined, fallback: string): string {
   return value?.trim() || fallback;
+}
+
+function runtimeVercelOidcToken(env: NodeJS.ProcessEnv): string | undefined {
+  const runtime = globalThis as unknown as Record<
+    symbol,
+    { get?: () => VercelRequestContext } | undefined
+  >;
+  const requestToken = runtime[VERCEL_REQUEST_CONTEXT]
+    ?.get?.()
+    ?.headers?.["x-vercel-oidc-token"]
+    ?.trim();
+  return requestToken || env.VERCEL_OIDC_TOKEN?.trim() || undefined;
 }
 
 function googleErrorBody(text: string): string {
@@ -49,8 +67,10 @@ export async function getGoogleMerchantAccessToken(env: NodeJS.ProcessEnv = proc
   const now = Date.now();
   if (cachedMerchantToken && cachedMerchantToken.expiresAt - now > TOKEN_SAFETY_WINDOW_MS) return cachedMerchantToken.accessToken;
 
-  const subjectToken = env.VERCEL_OIDC_TOKEN?.trim();
-  if (!subjectToken) throw new Error("VERCEL_OIDC_TOKEN is required for Google Merchant Workload Identity Federation.");
+  const subjectToken = runtimeVercelOidcToken(env);
+  if (!subjectToken) {
+    throw new Error("Vercel OIDC token is unavailable in the request context for Google Merchant Workload Identity Federation.");
+  }
 
   const audience = googleWorkloadIdentityAudience(env);
   const stsBody = new URLSearchParams({

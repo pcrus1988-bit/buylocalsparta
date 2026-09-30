@@ -1,7 +1,10 @@
 import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 
-export const PRODUCT_SITEMAP_SHARD_COUNT = 16;
+// Keep each cached projection comfortably below Next.js' 2 MB unstable_cache value ceiling.
+// At ~97k active variants, 16 shards produced ~3.2 MB cache entries and therefore never cached.
+export const PRODUCT_SITEMAP_SHARD_COUNT = 64;
 
 export type PublicProductSitemapCandidate = Readonly<{
   id: string;
@@ -32,6 +35,7 @@ type SitemapCandidateRow = Readonly<{
   media_id: string | null;
   source_image_url: string | null;
   source_website: string | null;
+  source_code: string | null;
   color: string | null;
   sizes: unknown;
   duplicate_title_count: number | string;
@@ -51,19 +55,12 @@ function stringArray(value: unknown): readonly string[] {
   return value.flatMap((entry) => typeof entry === "string" && entry.trim() ? [entry.trim()] : []);
 }
 
-function trustedSameSourceImage(sourceWebsite: string | null, sourceImageUrl: string | null): boolean {
-  const website = text(sourceWebsite);
-  const image = text(sourceImageUrl);
-  if (!website || !image) return false;
-  try {
-    const source = new URL(website);
-    const asset = new URL(image, source);
-    if (asset.protocol !== "https:") return false;
-    const normalizeHost = (host: string) => host.toLowerCase().replace(/^www\./, "");
-    return normalizeHost(source.hostname) === normalizeHost(asset.hostname);
-  } catch {
-    return false;
-  }
+function trustedSourceImageAvailable(
+  sourceCode: string | null,
+  sourceWebsite: string | null,
+  sourceImageUrl: string | null
+): boolean {
+  return Boolean(trustedCatalogSourceHttpsUrl(sourceCode, sourceWebsite, sourceImageUrl));
 }
 
 function assertShard(shard: number): void {
@@ -77,9 +74,10 @@ function assertShard(shard: number): void {
  *
  * The catalogue is intentionally split into deterministic shards. Every canonical
  * public product is assigned by a stable MD5 byte derived from its public ID, so
- * adding or removing products does not renumber the rest of the sitemap. The global
- * duplicate-title count is still calculated before sharding because it is part of
- * the authoritative product SEO quality gate.
+ * adding or removing products does not renumber the rest of the sitemap. The shard
+ * predicate is applied inside the live-offer branches so each request only performs
+ * expensive availability/media work for its own slice. Duplicate-title counts are
+ * then looked up globally only for the titles present in that slice.
  *
  * Work is ordered from the selective sellable-offer gate outward. Safety,
  * publication, merchant visibility, category visibility, stock freshness, cost
@@ -101,6 +99,10 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
         AND vo.merchant_visible=true
         AND vo.merchant_pause_active=false
         AND vo.customer_price_minor>0
+        AND (
+          $1::integer IS NULL
+          OR mod(get_byte(decode(md5(cv.public_id), 'hex'), 0), $2::integer)=$1::integer
+        )
         AND 'pickup'::fulfilment_mode=ANY(vo.fulfilment_modes)
         AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
         AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
@@ -122,6 +124,10 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
         AND vo.merchant_visible=true
         AND vo.merchant_pause_active=false
         AND vo.customer_price_minor>0
+        AND (
+          $1::integer IS NULL
+          OR mod(get_byte(decode(md5(cv.public_id), 'hex'), 0), $2::integer)=$1::integer
+        )
         AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
         AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
         AND dso.active=true
@@ -163,19 +169,20 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
         AND cv.active=true
         AND cv.suppressed=false
         AND cv.recalled=false
-    ), title_counts AS MATERIALIZED (
-      SELECT lower(BTRIM(title)) AS title_key,COUNT(*)::int AS duplicate_title_count
+    ), selected_titles AS MATERIALIZED (
+      SELECT DISTINCT lower(BTRIM(title)) AS title_key
       FROM public_base
-      GROUP BY lower(BTRIM(title))
-    ), selected_base AS MATERIALIZED (
-      SELECT base.*
-      FROM public_base base
-      WHERE $1::integer IS NULL
-         OR mod(get_byte(decode(md5(base.id_public), 'hex'), 0), $2::integer)=$1::integer
+    ), title_counts AS MATERIALIZED (
+      SELECT selected.title_key,
+             GREATEST(1,COUNT(rm.canonical_public_id))::int AS duplicate_title_count
+      FROM selected_titles selected
+      LEFT JOIN public.storefront_catalog_read_model rm
+        ON lower(BTRIM(rm.title))=selected.title_key
+      GROUP BY selected.title_key
     ), approved_media AS MATERIALIZED (
       SELECT DISTINCT ON (pm.canonical_variant_id)
              pm.canonical_variant_id,pm.public_id AS media_id
-      FROM selected_base base
+      FROM public_base base
       JOIN product_media pm ON pm.canonical_variant_id=base.id
       WHERE pm.kind='image'
         AND pm.scan_status='clean'
@@ -186,8 +193,8 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
       ORDER BY pm.canonical_variant_id,pm.reviewed_at DESC NULLS LAST,pm.created_at DESC,pm.public_id
     ), source_media AS MATERIALIZED (
       SELECT DISTINCT ON (csl.canonical_variant_id)
-             csl.canonical_variant_id,sp.source_image_url,cs.website AS source_website
-      FROM selected_base base
+             csl.canonical_variant_id,sp.source_image_url,cs.website AS source_website,cs.code AS source_code
+      FROM public_base base
       JOIN catalog_source_product_links csl
         ON csl.canonical_variant_id=base.id
        AND csl.link_status='approved'
@@ -209,10 +216,11 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
       media.media_id,
       source.source_image_url,
       source.source_website,
+      source.source_code,
       base.color,
       base.sizes,
       counts.duplicate_title_count
-    FROM selected_base base
+    FROM public_base base
     JOIN title_counts counts ON counts.title_key=lower(BTRIM(base.title))
     LEFT JOIN approved_media media ON media.canonical_variant_id=base.id
     LEFT JOIN source_media source ON source.canonical_variant_id=base.id
@@ -229,7 +237,7 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
     gtin: text(row.gtin),
     mpn: text(row.mpn),
     mediaId: text(row.media_id),
-    sourceImageAvailable: trustedSameSourceImage(row.source_website, row.source_image_url),
+    sourceImageAvailable: trustedSourceImageAvailable(row.source_code, row.source_website, row.source_image_url),
     offerAvailable: true as const,
     color: text(row.color),
     sizes: stringArray(row.sizes),
@@ -239,14 +247,14 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
 
 const cachedPublicProductSitemapInventory = unstable_cache(
   () => readPublicProductSitemapInventory(null),
-  ["public-product-sitemap-inventory-v2"],
+  ["public-product-sitemap-inventory-v4"],
   { revalidate: 900 }
 );
 
 const cachedPublicProductSitemapShard = unstable_cache(
   (shard: number) => readPublicProductSitemapInventory(shard),
-  ["public-product-sitemap-inventory-shard-v1"],
-  { revalidate: 900 }
+  ["public-product-sitemap-inventory-shard-v5-channel-fresh-64"],
+  { revalidate: 300 }
 );
 
 /** Legacy full projection retained for existing verifier/admin contracts. */

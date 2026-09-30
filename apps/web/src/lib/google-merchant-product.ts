@@ -9,11 +9,12 @@ export type GoogleMerchantCandidate = Readonly<{
   color?: string | null;
   condition?: string | null;
   priceMinor: number | string;
+  contentLanguage?: "el" | "en";
 }>;
 
 export type GoogleMerchantProductInput = Readonly<{
   offerId: string;
-  contentLanguage: "el";
+  contentLanguage: "el" | "en";
   feedLabel: "GR";
   productAttributes: Readonly<{
     title: string;
@@ -54,6 +55,15 @@ function positiveMinor(value: number | string): bigint {
 export function validGtin(value: unknown): string | undefined {
   const gtin = String(value ?? "").replace(/\s+/g, "");
   if (![8, 12, 13, 14].includes(gtin.length) || !/^\d+$/.test(gtin)) return undefined;
+
+  // Google rejects restricted/internal circulation and coupon ranges even when
+  // their GS1 check digit is mathematically valid.
+  if (gtin.startsWith("2") || gtin.startsWith("02") || gtin.startsWith("04")) return undefined;
+  if (gtin.startsWith("99") || /^(981|982|983|984)/.test(gtin)) return undefined;
+  // GTIN-14 indicator 9 is reserved for variable-measure/bulk trade items and
+  // is not valid for the individual retail products KONTA MOY publishes.
+  if (gtin.length === 14 && gtin.startsWith("9")) return undefined;
+
   const body = gtin.slice(0, -1).split("").reverse();
   const sum = body.reduce((total, digit, index) => total + Number(digit) * (index % 2 === 0 ? 3 : 1), 0);
   const expected = (10 - (sum % 10)) % 10;
@@ -96,7 +106,7 @@ export function buildGoogleMerchantProductInput(
 
   return {
     offerId,
-    contentLanguage: "el",
+    contentLanguage: candidate.contentLanguage ?? "el",
     feedLabel: "GR",
     productAttributes: {
       title,

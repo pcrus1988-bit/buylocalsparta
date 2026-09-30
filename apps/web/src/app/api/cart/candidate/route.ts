@@ -2,6 +2,7 @@ import { resolveCatalogColor } from "@buy-local-sparta/core";
 import { getCatalogCard } from "../../../../lib/catalog-view";
 import { getPublicProductDetail } from "../../../../lib/public-product-detail";
 import { getVisitorKey } from "../../../../lib/visitor";
+import { productPublicPath } from "../../../../lib/product-url";
 
 function requestedId(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -47,7 +48,12 @@ export async function POST(request: Request) {
         sku: product.mpn,
         gtin: product.gtin ?? detail?.sourceGtin,
         color,
-        size: meaningfulSizes.length === 1 ? meaningfulSizes[0] : undefined
+        size: meaningfulSizes.length === 1 ? meaningfulSizes[0] : undefined,
+        brand: product.brand ?? detail?.brand,
+        categoryLabel: product.categoryLabel,
+        description: product.description ?? detail?.description,
+        availableToSell: product.availableToSell,
+        url: productPublicPath(product)
       }
     }, {
       headers: { "cache-control": "no-store" }

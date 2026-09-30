@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const principal = await getAccountSession();
     const customerPrincipal = principal?.roles.includes("customer") ? principal : undefined;
     const record = await readPaintBuildSnapshot(snapshotId, customerPrincipal);
-    const pdf = await renderPaintBuildProjectPdf(record.snapshot);
+    const pdf = await renderPaintBuildProjectPdf(record.snapshot, record.publicId);
     let documentId = "";
     if (record.userId && customerPrincipal) {
       const saved = await savePaintBuildProjectDocument(record, customerPrincipal, pdf);

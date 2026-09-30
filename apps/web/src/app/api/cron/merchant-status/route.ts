@@ -1,24 +1,17 @@
 import { reconcileGoogleMerchantStatus } from "../../../../lib/google-merchant-status";
+import { authorizeGoogleSchedulerRequest } from "../../../../lib/google-scheduler-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET?.trim();
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  const auth = await authorizeGoogleSchedulerRequest(request);
+  if (!auth) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
   if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production") {
     return Response.json({ ok: true, status: "skipped", reason: "production_only" }, { headers: { "cache-control": "no-store" } });
-  }
-
-  if (!process.env.VERCEL_OIDC_TOKEN?.trim()) {
-    console.warn(JSON.stringify({ level: "warn", event: "merchant.status_reconciliation_skipped", reason: "oidc_token_unavailable" }));
-    return Response.json(
-      { ok: true, status: "skipped", reason: "oidc_token_unavailable" },
-      { headers: { "cache-control": "no-store" } }
-    );
   }
 
   try {

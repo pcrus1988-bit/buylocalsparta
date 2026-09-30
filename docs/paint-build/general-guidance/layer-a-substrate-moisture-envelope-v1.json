@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.0",
+  "knowledge_layer": "A_GENERAL_SOLUTION_GUIDANCE",
+  "scope": "Brand-independent substrate, moisture and envelope decision guidance. Product-specific values and system prescriptions are excluded.",
+  "status": "reviewed_source_backed",
+  "reviewed_at": "2026-09-22",
+  "rules": [
+    {
+      "id": "A-PAINT-FAILURE-001",
+      "topic": "existing_coating_failure",
+      "claim": "Where an existing exterior coating is peeling because moisture is collecting behind the paint film, repainting before locating and correcting the moisture source is not a durable repair; after the moisture source is corrected, the substrate should be allowed to dry and failed paint removed before repainting.",
+      "customer_guidance_el": "Αν η υπάρχουσα βαφή ξεφλουδίζει και υπάρχουν ενδείξεις υγρασίας πίσω από τη στρώση, μην θεωρείς το νέο βάψιμο λύση από μόνο του. Πρώτα πρέπει να εντοπιστεί και να διορθωθεί η πηγή της υγρασίας, να στεγνώσει η επιφάνεια και να αφαιρεθούν οι αποκολλημένες ή ασθενείς στρώσεις πριν από νέα βαφή.",
+      "stop_escalation": "Stop the ordinary repaint workflow when peeling is associated with unresolved leakage, flashing/gutter/roof defects, failed joints or another active moisture source.",
+      "source": {
+        "authority": "US National Park Service",
+        "title": "Preservation Brief 10: Exterior Paint Problems on Historic Woodwork",
+        "url": "https://www.nps.gov/orgs/1739/upload/preservation-brief-10-paint-problems-exterior-woodwork.pdf",
+        "accessed": "2026-09-22"
+      },
+      "applicability_note": "The cited treatment is specifically documented for exterior painted woodwork. Do not automatically transfer wood-specific preparation methods to masonry, concrete, metal or other substrates.",
+      "confidence": "high",
+      "review_state": "source_verified"
+    },
+    {
+      "id": "A-MOLD-POROUS-001",
+      "topic": "mold_on_porous_materials",
+      "claim": "Mold in absorbent or porous materials can penetrate spaces and crevices and may be difficult or impossible to remove completely; some affected porous materials may need replacement rather than cosmetic coating.",
+      "customer_guidance_el": "Σε πορώδη ή απορροφητικά υλικά η μούχλα μπορεί να έχει εισχωρήσει στο εσωτερικό και να μην αφαιρείται πλήρως. Μην καλύπτεις απλώς το πρόβλημα με βαφή· μπορεί να απαιτείται αφαίρεση ή αντικατάσταση του προσβεβλημένου υλικού μετά την αντιμετώπιση της αιτίας της υγρασίας.",
+      "stop_escalation": "Escalate when mold is extensive, hidden, recurrent, involves porous assemblies, or the user is uncertain how to clean the affected material safely.",
+      "source": {
+        "authority": "US Environmental Protection Agency (EPA)",
+        "title": "A Brief Guide to Mold, Moisture and Your Home",
+        "url": "https://www.epa.gov/mold/brief-guide-mold-moisture-and-your-home",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified"
+    },
+    {
+      "id": "A-ENVELOPE-VAPOR-001",
+      "topic": "vapor_control_design",
+      "claim": "Vapor-control strategy is climate- and assembly-dependent. A low-permeance vapor layer can impede drying when placed in an unsuitable location, so vapor-retarder selection and placement should not be prescribed from a generic insulation workflow alone.",
+      "customer_guidance_el": "Η διαχείριση υδρατμών δεν έχει μία ίδια λύση για κάθε τοίχο. Η σωστή επιλογή και θέση στρώσης ελέγχου υδρατμών εξαρτάται από το κλίμα και τη σύνθεση της κατασκευής, ενώ μια πολύ κλειστή στρώση σε λάθος θέση μπορεί να εμποδίσει το στέγνωμα της τοιχοποιίας.",
+      "stop_escalation": "Do not auto-prescribe a vapor barrier/retarder solely from the presence of insulation. Require assembly- and climate-specific design evidence where vapor control is material to the proposed solution.",
+      "source": {
+        "authority": "US Department of Energy, Building Science Education",
+        "title": "Vapor Barriers",
+        "url": "https://bsesc.energy.gov/energy-basics/vapor-barriers",
+        "accessed": "2026-09-22"
+      },
+      "jurisdiction_note": "The source includes US climate-zone/code examples. Those code prescriptions are not imported into KONTA MOY Layer A for Greece; only the general assembly-dependent moisture-control principle is retained.",
+      "confidence": "high",
+      "review_state": "source_verified"
+    },
+    {
+      "id": "A-ENVELOPE-PENETRATIONS-001",
+      "topic": "water_control_continuity",
+      "claim": "A wall drainage/water-resistive layer must remain continuous at seams, openings, flashings and penetrations so water reaching the drainage plane can be directed safely out of the wall assembly.",
+      "customer_guidance_el": "Σε εξωτερικό τοίχο, η προστασία από νερό πρέπει να παραμένει συνεχής στις ενώσεις, στα ανοίγματα, στα τελειώματα και στις διελεύσεις σωλήνων ή καλωδίων. Αν το νερό εισέρχεται από τέτοιο σημείο, μια επιφανειακή βαφή δεν πρέπει να παρουσιάζεται ως επιβεβαιωμένη επισκευή της αιτίας.",
+      "stop_escalation": "Escalate from coating selection to building-envelope diagnosis when leakage appears associated with windows, doors, penetrations, flashing, roof-wall junctions or discontinuities behind the finish.",
+      "source": {
+        "authority": "US Department of Energy, Building Science Education",
+        "title": "Water Managed Walls: WRB",
+        "url": "https://bsesc.energy.gov/energy-basics/water-managed-walls-wrb",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified"
+    }
+  ],
+  "unresolved_not_promoted_to_guidance": [
+    {
+      "topic": "generic_surface_moisture_thresholds",
+      "reason": "No universal moisture-content threshold has been established across all substrates and coating systems. Product/substrate-specific limits belong to applicable authoritative system guidance or Layer B manufacturer documentation."
+    },
+    {
+      "topic": "generic_adhesion_test_method",
+      "reason": "A single test method/pass criterion has not yet been sourced as universally appropriate for all Paint & Build substrates and systems."
+    },
+    {
+      "topic": "generic_vapor_barrier_position_for_greece",
+      "reason": "Requires climate/assembly-specific European or Greek evidence; US climate-zone prescriptions were deliberately not generalized."
+    }
+  ],
+  "layer_boundary": {
+    "manufacturer_specific_values": "Layer B only",
+    "kontamou_workflow_and_product_selection_guardrails": "Layer C only",
+    "note": "No dilution, coverage, coat count, drying/recoat time, application temperature, product compatibility, primer choice, moisture percentage limit or product-specific preparation value is asserted here."
+  }
+}

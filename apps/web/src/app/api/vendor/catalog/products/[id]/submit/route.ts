@@ -1,10 +1,10 @@
-import { requireVendorSession } from "../../../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../../../lib/vendor-session";
 import { isDropshippingOnlyVendor } from "../../../../../../../lib/vendor-dropshipping-access";
 import { submitVendorProduct, vendorCatalogWorkspace } from "../../../../../../../lib/vendor-backoffice-service";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const { principal } = await requireVendorCapability("catalogue.submit", request, true);
     if (await isDropshippingOnlyVendor(principal.vendorId)) {
       throw new Error("Manual product submission is disabled for the dropshipping-only vendor");
     }

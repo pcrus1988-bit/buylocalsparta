@@ -235,7 +235,7 @@ test("Symphonya stock cron uses concurrent cursor bursts while retaining manual 
   const route = readFileSync(new URL("../src/app/api/cron/symphonya-stock/route.ts", import.meta.url), "utf8");
   const runtime = readFileSync(new URL("../src/lib/symphonya-stock-sync-runtime.ts", import.meta.url), "utf8");
   assert.match(route, /PRIORITY_REFRESH_WINDOW_MINUTES/);
-  assert.match(route, /FULL_CURSOR_MAX_PAGES = 3/);
+  assert.match(route, /FULL_CURSOR_MAX_PAGES = 8/);
   assert.match(route, /PRIORITY_BATCH_LIMIT = 200/);
   assert.match(route, /runSymphonyaStockSyncBurst\(FULL_CURSOR_MAX_PAGES\)/);
   assert.match(route, /executionMode === "cursor"/);
@@ -246,5 +246,10 @@ test("Symphonya stock cron uses concurrent cursor bursts while retaining manual 
   assert.match(route, /publication = await runSymphonyaAutoPublicationSweep\(\)/);
   assert.match(runtime, /runSymphonyaStockSyncBurst/);
   assert.match(runtime, /Promise\.all\(/);
-  assert.match(runtime, /Math\.min\(4, positiveIntegerValue\(requestedMaxPages, 3\)\)/);
+  assert.match(runtime, /Math\.min\(8, positiveIntegerValue\(requestedMaxPages, 8\)\)/);
+  assert.match(runtime, /reconcileMissingSymphonyaStockAfterCompletedCycle\(state\.cycleStartedAt\)/);
+  assert.match(runtime, /availability_checked_at < \$2::timestamptz/);
+  assert.match(runtime, /cached_available=false/);
+  assert.match(runtime, /not_returned_in_completed_stock_cycle/);
+  assert.match(runtime, /offersReconciled/);
 });

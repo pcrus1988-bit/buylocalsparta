@@ -46,6 +46,38 @@ try {
           allowed_mime_types text[]
         )
       `);
+
+      // Migration 0294 indexes the live dropship family projection, which is
+      // provisioned by the hosted Supabase schema rather than the plain
+      // PostgreSQL migration chain. Give loopback CI the minimal relation
+      // shape required to validate immutable migrations without altering the
+      // production migration or its registered checksum.
+      await client.query(`
+        CREATE SCHEMA IF NOT EXISTS bls_private;
+        CREATE TABLE IF NOT EXISTS bls_private.storefront_dropship_live_family (
+          supplier_id uuid NOT NULL,
+          external_product_id text NOT NULL,
+          newest_at timestamptz,
+          available_until timestamptz,
+          min_price_minor bigint,
+          sellable boolean NOT NULL DEFAULT false
+        )
+      `);
+
+      // Hosted Supabase always provides the postgres role. Some migrations grant
+      // narrowly scoped runtime privileges to that role, while the plain PostGIS
+      // CI image initializes under the configured application user instead.
+      // Create a non-login compatibility role only on loopback databases so the
+      // immutable production migrations execute under the same role topology.
+      await client.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'postgres') THEN
+            CREATE ROLE postgres NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+          END IF;
+        END
+        $$;
+      `);
     }
 
     await client.query(`

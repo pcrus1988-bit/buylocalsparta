@@ -145,18 +145,59 @@ const loadSingleCatalogMetadata = cache(async (canonicalVariantId: string) =>
   (await loadCatalogMetadata([canonicalVariantId])).get(canonicalVariantId)
 );
 
-/** SEO-only signals use the storefront projection; checkout/fairness stay authoritative. */
+/** SEO-only signals use authoritative live offer evidence.
+ *
+ * The storefront read model is intentionally allowed to lag during supplier refreshes,
+ * so it must not decide whether a canonical page is indexable. A stale projection can
+ * otherwise emit noindex and empty product sitemaps for products that are genuinely
+ * available and already accepted by Merchant Center.
+ */
 const loadProductSeoSignals = cache(async (canonicalVariantId: string, title: string): Promise<SeoSignalRow> => {
   if (!productionDatabaseConfigured()) return { offer_available: false, duplicate_title_count: 1 };
   const result = await getProductionPostgresRuntime().nativePool.query<SeoSignalRow>(`
     SELECT
       EXISTS (
         SELECT 1
-        FROM public.storefront_catalog_read_model rm
-        WHERE rm.canonical_public_id=$1
+        FROM public.canonical_variants cv
+        JOIN public.vendor_offers vo ON vo.canonical_variant_id=cv.id
+        JOIN public.vendor_businesses v ON v.id=vo.vendor_id AND v.status='active'
+        JOIN public.vendor_locations l ON l.id=vo.location_id AND l.active=true
+        LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+        LEFT JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
+        LEFT JOIN public.inventory_balances ib ON ib.offer_id=vo.id
+        WHERE cv.public_id=$1
+          AND cv.active=true
+          AND cv.suppressed=false
+          AND cv.recalled=false
+          AND vo.status='approved'
+          AND vo.merchant_visible=true
+          AND vo.merchant_pause_active=false
+          AND vo.customer_price_minor>0
+          AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
           AND (
-            (rm.local_sellable=true AND rm.local_available_until>now())
-            OR (rm.dropship_sellable=true AND rm.dropship_available_until>now())
+            (
+              dso.id IS NOT NULL
+              AND dso.active=true
+              AND ds.active=true
+              AND ds.api_authoritative_availability=true
+              AND dso.cached_available=true
+              AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
+              AND dso.availability_expires_at IS NOT NULL
+              AND dso.availability_expires_at>now()
+            )
+            OR (
+              dso.id IS NULL
+              AND GREATEST(
+                0,
+                COALESCE(ib.on_hand,0)
+                  - COALESCE(ib.active_reservations,0)
+                  - COALESCE(ib.safety_stock,0)
+                  - COALESCE(ib.blocked,0)
+              )>=1
+              AND ib.stock_confirmed_at IS NOT NULL
+              AND ib.stock_confirmed_at + make_interval(secs=>COALESCE(ib.freshness_ttl_seconds,0))>now()
+            )
           )
       ) AS offer_available,
       GREATEST(1,(

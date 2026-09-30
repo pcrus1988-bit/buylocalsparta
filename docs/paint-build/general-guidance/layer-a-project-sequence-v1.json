@@ -1,0 +1,130 @@
+{
+  "schema_version": "1.0",
+  "knowledge_layer": "A_GENERAL_SOLUTION_GUIDANCE",
+  "scope": "Brand-independent project sequencing principles for Paint & Build assessment and execution. This dataset describes technical ordering principles only; KONTA MOY workflow enforcement belongs to Layer C and manufacturer-specific limits/instructions belong to Layer B.",
+  "status": "reviewed_source_backed",
+  "reviewed_at": "2026-09-22",
+  "rules": [
+    {
+      "id": "A-SEQUENCE-ASSESS-BEFORE-PREP-001",
+      "topic": "assess_substrate_and_existing_condition_before_method_selection",
+      "claim": "Before selecting a preparation or coating method, identify the substrate and evaluate its existing condition, including defects, deterioration, contamination and existing treatments/coatings that can affect the work.",
+      "customer_guidance_el": "Πριν επιλεγεί τρόπος προετοιμασίας ή σύστημα βαφής/επισκευής, πρέπει πρώτα να αναγνωριστεί το υπόστρωμα και η πραγματική κατάστασή του. Ρωγμές, σαθρά σημεία, ρύποι, υγρασία και παλιές επιστρώσεις μπορούν να αλλάξουν τη σωστή λύση.",
+      "stop_escalation": "Do not proceed directly from desired finish to product/application guidance when substrate identity or materially relevant existing conditions are unknown.",
+      "source": {
+        "authority": "US Department of Defense / Whole Building Design Guide",
+        "title": "UFC 3-190-06 Protective Coatings and Paints",
+        "url": "https://www.wbdg.org/FFC/DOD/UFC/ufc_3_190_06_2021.pdf",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "General assessment principle retained; military specification details and substrate-specific preparation grades are not generalized."
+    },
+    {
+      "id": "A-SEQUENCE-REPAIR-BEFORE-COAT-001",
+      "topic": "repair_defects_before_coating_application",
+      "claim": "Surface irregularities and defects that can cause premature coating failure should be treated or repaired before coating application, and deteriorated substrate layers or contaminants that hinder adhesion should be removed to the degree required by the applicable system.",
+      "customer_guidance_el": "Η τελική βαφή δεν πρέπει να χρησιμοποιείται για να κρύψει πρόβλημα του υποστρώματος. Ελαττώματα που μπορούν να προκαλέσουν πρόωρη αστοχία και σαθρά ή ρυπασμένα στρώματα πρέπει να αντιμετωπίζονται πριν από την εφαρμογή της επίστρωσης.",
+      "stop_escalation": "If a defect has not been diagnosed sufficiently to determine whether ordinary surface repair is appropriate, stop before prescribing a finish coating as the remedy.",
+      "source": {
+        "authority": "US Department of Defense / Whole Building Design Guide",
+        "title": "UFC 3-190-06 Protective Coatings and Paints",
+        "url": "https://www.wbdg.org/FFC/DOD/UFC/ufc_3_190_06_2021.pdf",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "The ordering principle is general. Exact defect treatment and required cleanliness/profile remain substrate/system dependent."
+    },
+    {
+      "id": "A-SEQUENCE-PREP-DEPENDS-ON-SYSTEM-001",
+      "topic": "preparation_degree_depends_on_substrate_condition_exposure_and_system",
+      "claim": "The appropriate type and degree of surface preparation is not universal; it depends on factors including substrate type, existing condition, exposure/service conditions and the coating or repair system to be applied.",
+      "customer_guidance_el": "Δεν υπάρχει μία σωστή προετοιμασία για όλες τις επιφάνειες. Το υλικό του υποστρώματος, η κατάστασή του, η έκθεση και το σύστημα που θα εφαρμοστεί καθορίζουν πόση και ποια προετοιμασία χρειάζεται.",
+      "stop_escalation": "Do not assign a universal sanding, blasting, washing, profiling or removal procedure solely from the project category.",
+      "source": {
+        "authority": "US Department of Defense / Whole Building Design Guide",
+        "title": "UFC 3-190-06 Protective Coatings and Paints",
+        "url": "https://www.wbdg.org/FFC/DOD/UFC/ufc_3_190_06_2021.pdf",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "No industrial surface-preparation grade is converted into a universal consumer requirement."
+    },
+    {
+      "id": "A-SEQUENCE-CONDITIONS-BEFORE-APPLICATION-001",
+      "topic": "verify_application_and_curing_conditions_before_starting",
+      "claim": "Application should not begin without considering current and expected environmental conditions over the coating's required drying or curing period; unsuitable temperature or surface moisture can adversely affect coating performance.",
+      "customer_guidance_el": "Πριν ξεκινήσει η εφαρμογή, δεν αρκεί να είναι καλός ο καιρός εκείνη τη στιγμή. Πρέπει να ελεγχθούν οι συνθήκες που θα επικρατούν και όσο το υλικό στεγνώνει ή ωριμάζει, σύμφωνα με τις απαιτήσεις του επιλεγμένου συστήματος.",
+      "stop_escalation": "If the product/system environmental limits or required curing weather window are unknown, do not invent numeric limits; resolve them from Layer B or the applicable project specification.",
+      "source": {
+        "authority": "Federal Highway Administration",
+        "title": "Field Manual for Bridge Painting Inspection, FHWA-RD-98-084",
+        "url": "https://www.fhwa.dot.gov/publications/research/infrastructure/structures/98084/98084.pdf",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "Only the sequencing principle is generalized. FHWA's steel-specific numeric temperature, humidity and dew-point limits are not generalized."
+    },
+    {
+      "id": "A-SEQUENCE-CURE-BEFORE-NEXT-LAYER-001",
+      "topic": "respect_intercoat_and_curing_sequence",
+      "claim": "Subsequent coating layers should not be applied before the preceding layer has reached the condition required for recoating, and some systems also impose a maximum recoating interval; incorrect recoating timing can impair cure or intercoat adhesion.",
+      "customer_guidance_el": "Το επόμενο χέρι δεν εφαρμόζεται απλώς όταν η επιφάνεια «φαίνεται στεγνή». Πρέπει να τηρείται το επιτρεπόμενο παράθυρο επαναβαφής/ωρίμανσης του συγκεκριμένου συστήματος, γιατί πολύ νωρίς ή πολύ αργά μπορεί να επηρεαστεί η συνοχή ή η πρόσφυση.",
+      "stop_escalation": "Exact minimum/maximum recoating intervals must be obtained from Layer B/product documentation or the applicable specification; Layer A must not invent them.",
+      "source": {
+        "authority": "Federal Highway Administration",
+        "title": "Field Manual for Bridge Painting Inspection, FHWA-RD-98-084",
+        "url": "https://www.fhwa.dot.gov/publications/research/infrastructure/structures/98084/intro.cfm",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "General intercoat sequencing principle retained; coating-specific intervals remain Layer B."
+    },
+    {
+      "id": "A-SEQUENCE-INSPECTION-HOLDPOINTS-001",
+      "topic": "verify_critical_stages_before_covering_them",
+      "claim": "Coating quality control commonly uses inspection hold points at stages such as pre-cleaning, surface preparation, environmental-condition verification, coating application and curing so that conditions which will later be concealed are checked before work proceeds.",
+      "customer_guidance_el": "Σε κρίσιμα στάδια χρειάζεται έλεγχος πριν καλυφθεί η προηγούμενη εργασία: μετά την προετοιμασία, πριν την εφαρμογή και πριν προχωρήσει το επόμενο στρώμα. Έτσι δεν εγκλωβίζεται ένα πρόβλημα κάτω από την τελική επιφάνεια.",
+      "stop_escalation": "Layer A establishes the value of stage verification but does not define which KONTA MOY screens are mandatory gates; enforcement belongs to Layer C.",
+      "source": {
+        "authority": "Whole Building Design Guide",
+        "title": "Paints and Coatings Knowledge Area",
+        "url": "https://stg.wbdg.org/dod/cpc-source/paint-coatings-knowledge-area",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "Professional QA/QC practice is translated only into a general sequencing principle, not a consumer testing mandate."
+    }
+  ],
+  "unresolved": [
+    {
+      "id": "A-SEQUENCE-UNIVERSAL-HOLDPOINTS-PENDING",
+      "question": "Which inspection/confirmation stages should be mandatory for every Paint & Build solution type?",
+      "status": "unresolved_layer_c_design",
+      "reason": "The evidence supports staged verification, but the mandatory KONTA MOY workflow gates are platform policy and therefore Layer C."
+    },
+    {
+      "id": "A-SEQUENCE-UNIVERSAL-CURE-TIME-PENDING",
+      "question": "Is there a universal minimum curing or drying period before the next operation?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "No universal duration is supported. Timing depends on material/system, substrate and environmental conditions and must be resolved from Layer B or an applicable specification."
+    },
+    {
+      "id": "A-SEQUENCE-UNIVERSAL-PREP-METHOD-PENDING",
+      "question": "Can one default preparation method be assigned to each broad substrate category?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "Authoritative guidance makes preparation dependent on substrate condition, selected system, exposure and other project factors; a universal method would overgeneralize."
+    }
+  ],
+  "layer_boundary": {
+    "manufacturer_specific_values_and_sequences": "Layer B only",
+    "kontamou_mandatory_questions_gates_and_recommendation_logic": "Layer C only",
+    "note": "Layer A establishes evidence-backed technical sequencing principles. It does not turn those principles into platform policy or override official selected-product instructions."
+  }
+}

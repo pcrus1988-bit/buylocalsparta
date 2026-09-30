@@ -331,6 +331,20 @@ function orderDetailProjection(
     canCancel,
     csrfToken,
     invoice,
+    analytics: {
+      currency: order.total.currency,
+      value: order.total.minor / 100,
+      tax: commercial.taxMinor / 100,
+      shipping: order.deliveryCharge.minor / 100,
+      discount: order.discount.minor / 100,
+      items: order.lines.map((line) => ({
+        item_id: line.canonicalVariantId,
+        item_name: line.titleSnapshot,
+        price: line.retailUnitPrice.minor / 100,
+        quantity: line.quantity,
+        vendor_id: line.vendorId
+      }))
+    },
     lines: order.lines.map((line) => ({
       id: lineTokens.get(line.id)!,
       canonicalVariantId: line.canonicalVariantId,

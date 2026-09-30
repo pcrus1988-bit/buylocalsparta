@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PaintBuildStudioExperience } from "../../components/PaintBuildStudioExperience";
+import { SiteFooter } from "../../components/SiteFooter";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import styles from "./page.module.css";
 
@@ -15,6 +16,7 @@ export default function PaintAndBuildStudioPage() {
   return (
     <main className={styles.page}>
       <PaintBuildStudioExperience />
+      <SiteFooter />
     </main>
   );
 }

@@ -3,26 +3,26 @@ import { notFound } from "next/navigation";
 import { CategoryCatalogBrowser } from "../../../components/CategoryCatalogBrowser";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
-import { getShopCatalogPage } from "../../../lib/shop-catalog-page";
-import { getPublishedDropshipCatalogPage } from "../../../lib/published-dropship-catalog-page";
-import { getCachedShopTaxonomy } from "../../../lib/cached-shop-taxonomy";
-import { getVisitorKey } from "../../../lib/visitor";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
 import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
 import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
-import { getCrawlerCatalogCards } from "../../../lib/crawler-catalog";
-import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
 import { productPublicPath } from "../../../lib/product-url";
+import { getCachedCrawlerCatalogCards } from "../../../lib/cached-public-shop-page";
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 900;
+export const dynamicParams = true;
 
 const CATEGORY_PAGE_SIZE = 30;
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
 export function generateStaticParams() {
+  // Production/preview Vercel builds have the live storefront read projections and
+  // should ship these crawl-critical routes warm. Portable CI/local builds may use
+  // a reduced acceptance schema, so they retain on-demand ISR via dynamicParams.
+  if (process.env.VERCEL !== "1") return [];
   return STOREFRONT_CATEGORIES.map((category) => ({ slug: category.slug }));
 }
 
@@ -31,10 +31,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const category = storefrontCategoryBySlug(slug);
   if (!category) return { title: "Κατηγορία", robots: { index: false, follow: false } };
 
-  const taxonomy = await getCachedShopTaxonomy(category.slug, "", {}, "23100");
-  const entityEligible = taxonomy.categories.some((item) => item.slug === category.slug);
+  // Storefront category landing pages are durable editorial/search destinations.
+  // Their indexability must not flap with transient catalogue, stock, taxonomy, or
+  // supplier-projection availability. Commerce/schema output remains availability-
+  // gated in the page body, but a known storefront category stays indexable unless
+  // the global SEO switch or an explicit entity override suppresses it.
+  const entityEligible = true;
   const reference: SeoEntityReference = { kind: "category", id: category.slug };
-  const [{ settings }, overrides] = await Promise.all([getSeoGlobalSettingsSnapshot(), getSeoEntityOverridesSnapshot()]);
+  const { settings } = await getSeoGlobalSettingsSnapshot();
+  const overrides = await getSeoEntityOverridesSnapshot();
   return buildGovernedSeoMetadata({
     reference,
     settings,
@@ -54,38 +59,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   });
 }
 
-async function getBoundedCategoryProducts(categorySlug: string, visitorKey: string, readOnlyCrawler: boolean) {
-  if (readOnlyCrawler) {
-    return getCrawlerCatalogCards("23100", "", categorySlug, {}, CATEGORY_PAGE_SIZE);
-  }
-
-  const localPage = await getShopCatalogPage({
-    visitorKey,
-    postcode: "23100",
-    query: "",
-    category: categorySlug,
-    filters: {},
-    attributeFilters: {},
-    limit: CATEGORY_PAGE_SIZE,
-    offset: 0
-  });
-  const products = [...localPage.products];
-
-  if (products.length < CATEGORY_PAGE_SIZE) {
-    const remaining = CATEGORY_PAGE_SIZE - products.length;
-    const dropshipPage = await getPublishedDropshipCatalogPage({
-      query: "",
-      category: categorySlug,
-      filters: {},
-      attributeFilters: {},
-      limit: remaining,
-      offset: 0
-    });
-    const seen = new Set(products.map((product) => product.id));
-    products.push(...dropshipPage.products.filter((product) => !seen.has(product.id)).slice(0, remaining));
-  }
-
-  return products;
+async function getBoundedCategoryProducts(categorySlug: string) {
+  return getCachedCrawlerCatalogCards("23100", "", categorySlug, {}, CATEGORY_PAGE_SIZE);
 }
 
 export default async function CategoryPage({ params }: Props) {
@@ -93,20 +68,14 @@ export default async function CategoryPage({ params }: Props) {
   const category = storefrontCategoryBySlug(slug);
   if (!category) notFound();
 
-  const settingsPromise = getSeoGlobalSettingsSnapshot();
-  const overridesPromise = getSeoEntityOverridesSnapshot();
-  const taxonomyPromise = getCachedShopTaxonomy(category.slug, "", {}, "23100");
-  const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
-  const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
-  const [products, taxonomy, { settings }, overrideSnapshot] = await Promise.all([
-    getBoundedCategoryProducts(category.slug, visitorKey, readOnlyCrawler),
-    taxonomyPromise,
-    settingsPromise,
-    overridesPromise
-  ]);
+  // Production Vercel uses a one-client PostgreSQL pool. Category ISR refreshes
+  // are infrequent and should serialize DB-backed cache misses rather than queue
+  // several reads for the same single pool slot.
+  const products = await getBoundedCategoryProducts(category.slug);
+  const { settings } = await getSeoGlobalSettingsSnapshot();
+  const overrideSnapshot = await getSeoEntityOverridesSnapshot();
   const purchasableProducts = products.filter((product) => product.available && product.priceMinor > 0 && Boolean(product.vendorId));
-  const availableCategories = taxonomy.categories;
-  const siblings = availableCategories.filter((item) => item.slug !== category.slug);
+  const siblings = STOREFRONT_CATEGORIES.filter((item) => item.slug !== category.slug);
   const availableProducts = purchasableProducts;
   const entityEligible = availableProducts.length > 0;
   const reference: SeoEntityReference = { kind: "category", id: category.slug };

@@ -1,0 +1,25 @@
+-- Paint & Build extended semantic sweep.
+-- Production migration version: 20260923073922.
+update public.build_solution_steps set technical_rule=case id
+when '77bd11a3-4b23-4a10-8528-b43160e8dca4' then 'Identify loose, peeling or otherwise unsound existing coating and visible contamination before repainting; route suspected moisture through the separate moisture diagnostic.'
+when 'a9527d29-38ef-4b80-b59e-5179234e6b46' then 'Clean the substrate and complete only the repair/smoothing required to leave a sound, suitably prepared surface; product-specific readiness remains manufacturer-controlled.'
+when '3207ac67-5141-4635-9a45-eec6c42a0651' then 'Use verified manufacturer guidance for the selected primer/coating system, including coat build and recoat/readiness requirements.'
+when '79e3ce5c-c4d7-4c85-86b0-aeb16f1f31d3' then 'After the selected coating reaches its manufacturer-defined inspection stage, visually inspect the finish for visible non-uniformity or coating failure; investigate moisture separately if signs are present.'
+when 'dc949f60-fc2c-438b-9c6a-85df576df03d' then 'Prepare the completed repair for finishing by smoothing/levelling only as required by the selected repair and finish systems.'
+when '95dd08f3-f192-4d8b-affa-8b243b5ba607' then 'Confirm the damage is local/non-structural before using this minor-repair pathway; identify the background and repair extent needed for product selection.'
+when '0402fa1f-025d-4d5c-8aa9-ee6cdb3bc75c' then 'Leave the local repair area suitably prepared for the selected repair product; follow that product documentation for any specific cleaning or dust-removal requirement.'
+when 'fa931f8a-a841-4e96-8fe6-48f60e8359e0' then 'Where retained-coating compatibility is uncertain, follow the selected protective-system documentation for any compatibility assessment or test area before full recoating.'
+when '60e2f72e-226c-4eb7-bef3-4919acb20e41' then 'Where retained wood-finish compatibility is uncertain, follow the selected finishing-system documentation for any compatibility assessment or test area before full recoating.'
+end where id in ('77bd11a3-4b23-4a10-8528-b43160e8dca4','a9527d29-38ef-4b80-b59e-5179234e6b46','3207ac67-5141-4635-9a45-eec6c42a0651','79e3ce5c-c4d7-4c85-86b0-aeb16f1f31d3','dc949f60-fc2c-438b-9c6a-85df576df03d','95dd08f3-f192-4d8b-affa-8b243b5ba607','0402fa1f-025d-4d5c-8aa9-ee6cdb3bc75c','fa931f8a-a841-4e96-8fe6-48f60e8359e0','60e2f72e-226c-4eb7-bef3-4919acb20e41');
+
+update public.general_build_rule_evidence set applicability=case entity_id
+when '77bd11a3-4b23-4a10-8528-b43160e8dca4' then 'Supports identifying unsound coating/contamination and preparation to a clean, sound surface. Moisture diagnosis is intentionally delegated to the separately evidenced moisture pathway.'
+when 'a9527d29-38ef-4b80-b59e-5179234e6b46' then 'Supports cleaning and restoration to a sound, suitably prepared surface. Exact repair method, smoothing need and readiness are selected-product/substrate dependent.'
+when '3207ac67-5141-4635-9a45-eec6c42a0651' then 'Supports the general repainting workflow only; exact primer, coat build and recoat/readiness requirements are explicitly delegated to verified manufacturer documentation.'
+when '79e3ce5c-c4d7-4c85-86b0-aeb16f1f31d3' then 'Supports post-application inspection as professional practice without defining a product-specific acceptance threshold. Exact inspection readiness remains manufacturer-controlled; moisture diagnosis is separate.'
+when 'dc949f60-fc2c-438b-9c6a-85df576df03d' then 'Supports preparing a completed non-structural repair before finishing. Exact sanding/levelling/dust-removal operations depend on the selected repair and finish systems.'
+when '95dd08f3-f192-4d8b-affa-8b243b5ba607' then 'Supports use of this workflow for minor/local repair. Structural classification and exact product depth limits are not inferred from the generic repair source.'
+when '0402fa1f-025d-4d5c-8aa9-ee6cdb3bc75c' then 'Supports preparation of the local repair area. A universal dust/contamination-removal method is not inferred; exact preparation follows selected-product documentation.'
+when 'fa931f8a-a841-4e96-8fe6-48f60e8359e0' then 'Supports compatibility/test-area handling when retained coating compatibility is uncertain, but the exact method and acceptance criteria remain selected-system specific.'
+when '60e2f72e-226c-4eb7-bef3-4919acb20e41' then 'Supports compatibility assessment of retained finish before refinishing; exact method and acceptance criteria remain selected finishing-system specific.'
+else applicability end where active and entity_type='solution_step' and entity_id in ('77bd11a3-4b23-4a10-8528-b43160e8dca4','a9527d29-38ef-4b80-b59e-5179234e6b46','3207ac67-5141-4635-9a45-eec6c42a0651','79e3ce5c-c4d7-4c85-86b0-aeb16f1f31d3','dc949f60-fc2c-438b-9c6a-85df576df03d','95dd08f3-f192-4d8b-affa-8b243b5ba607','0402fa1f-025d-4d5c-8aa9-ee6cdb3bc75c','fa931f8a-a841-4e96-8fe6-48f60e8359e0','60e2f72e-226c-4eb7-bef3-4919acb20e41');

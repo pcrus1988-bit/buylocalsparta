@@ -37,6 +37,7 @@ export type CatalogCard = Readonly<{
   adviser?: string;
   mediaId?: string;
   mediaAlt?: string;
+  previewImageSrc?: string;
   sourceImageAvailable?: boolean;
   availableToSell: number;
   available: boolean;
@@ -79,7 +80,7 @@ export type CatalogFilters = Readonly<{
   size?: string;
 }>;
 
-export type CatalogFacetOption = Readonly<{ value: string; label: string }>;
+export type CatalogFacetOption = Readonly<{ value: string; label: string; count?: number }>;
 export type CatalogFacets = Readonly<{
   subcategories: readonly CatalogFacetOption[];
   brands: readonly CatalogFacetOption[];
@@ -279,7 +280,22 @@ function mergePublishedDropshipCards(
   const byCanonical = new Map(localProducts.map((product) => [product.id, product] as const));
   for (const dropshipProduct of dropshipProducts) {
     const existing = byCanonical.get(dropshipProduct.id);
-    if (!existing || !purchasablePublicCard(existing)) byCanonical.set(dropshipProduct.id, dropshipProduct);
+    if (!existing || !purchasablePublicCard(existing)) {
+      byCanonical.set(dropshipProduct.id, dropshipProduct);
+      continue;
+    }
+
+    // The fairness assignment path can already represent a dropship canonical as
+    // purchasable, but it does not carry supplier-source media. Keep its exact
+    // assigned price/vendor while borrowing only the trusted image fallback from
+    // the authoritative dropship projection. This prevents card images from
+    // falling back to one DB-backed proxy request per product.
+    if (!existing.mediaId && !existing.previewImageSrc && dropshipProduct.previewImageSrc) {
+      byCanonical.set(dropshipProduct.id, {
+        ...existing,
+        previewImageSrc: dropshipProduct.previewImageSrc
+      });
+    }
   }
   return [...byCanonical.values()];
 }

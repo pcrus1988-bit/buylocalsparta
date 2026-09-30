@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.0",
+  "knowledge_layer": "A_GENERAL_SOLUTION_GUIDANCE",
+  "scope": "Brand-independent assessment of existing coatings before repainting/overcoating. Manufacturer-specific primer selection, chemistry compatibility, adhesion acceptance values, environmental limits and application instructions are excluded.",
+  "status": "reviewed_source_backed",
+  "reviewed_at": "2026-09-22",
+  "rules": [
+    {
+      "id": "A-RECOAT-CONDITION-001",
+      "topic": "existing_coating_condition_before_overcoating",
+      "claim": "Before deciding to overcoat an existing painted surface, the condition of the existing substrate and coating system should be assessed. FHWA maintenance-coating guidance identifies rusting, paint breakdown, metal loss and adhesion as relevant condition factors, and notes that widespread coating failure presents a different situation from localized failure.",
+      "customer_guidance_el": "Πριν προστεθεί νέα βαφή πάνω σε παλιά, πρέπει πρώτα να αξιολογηθεί η κατάσταση της υπάρχουσας επίστρωσης και του υποστρώματος. Τοπική φθορά δεν είναι το ίδιο με γενικευμένη αποκόλληση, εκτεταμένη σκουριά ή συνολική αστοχία του παλιού συστήματος. Αν η παλιά βαφή αποκολλάται σε μεγάλη έκταση, η λύση δεν πρέπει να θεωρείται απλώς «ένα ακόμη χέρι».",
+      "stop_escalation": "If failure is widespread, the substrate is deteriorating, or the existing coating is generally unsound, stop the generic overcoating path and require a fuller preparation/system assessment.",
+      "source": {
+        "authority": "US Federal Highway Administration",
+        "title": "Bridge Coatings Technical Note: Overcoating (Maintenance Painting)",
+        "url": "https://www.fhwa.dot.gov/publications/research/infrastructure/structures/bridge/overct.cfm",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "The source addresses bridge steel. Only the general decision principle—assess existing coating condition and distinguish localized from generalized failure—is generalized. Bridge-specific coating systems and acceptance criteria are not generalized."
+    },
+    {
+      "id": "A-RECOAT-ADHESION-001",
+      "topic": "existing_coating_adhesion_before_overcoating",
+      "claim": "Existing-coating adhesion is a relevant prerequisite for an overcoating decision. FHWA guidance recommends assessing adhesion and treats an existing coating that lifts easily or crumbles during assessment as high risk for overcoating.",
+      "customer_guidance_el": "Η πρόσφυση της παλιάς βαφής είναι κρίσιμη πριν εφαρμοστεί νέα επίστρωση από πάνω. Αν η υπάρχουσα βαφή σηκώνεται εύκολα, ξεφλουδίζει ή θρυμματίζεται κατά τον έλεγχο, η απλή επαναβαφή από πάνω πρέπει να θεωρείται επιλογή υψηλού κινδύνου και να προηγείται σωστή αξιολόγηση/προετοιμασία.",
+      "stop_escalation": "Do not recommend overcoating an evidently loose, lifting or crumbling coating merely because the visible surface can be covered.",
+      "source": {
+        "authority": "US Federal Highway Administration",
+        "title": "Bridge Coatings Technical Note: Overcoating (Maintenance Painting)",
+        "url": "https://www.fhwa.dot.gov/publications/research/infrastructure/structures/bridge/overct.cfm",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "No universal adhesion pass/fail number is imported into customer guidance. Formal ASTM test methods cited by FHWA are not converted into a DIY acceptance threshold."
+    },
+    {
+      "id": "A-RECOAT-COMPATIBILITY-001",
+      "topic": "new_coating_compatibility_with_existing_coating",
+      "claim": "A new coating should not be assumed compatible with an unknown existing coating solely because both are described as paint. FHWA overcoating guidance recommends representative patch testing to identify gross incompatibility and notes compatibility as a material consideration in maintenance coating selection.",
+      "customer_guidance_el": "Δεν πρέπει να θεωρείται αυτόματα ότι μια νέα βαφή είναι συμβατή με μια άγνωστη παλιά βαφή μόνο και μόνο επειδή και οι δύο είναι «χρώματα». Όταν το παλιό σύστημα είναι άγνωστο ή υπάρχει αμφιβολία, χρειάζεται έλεγχος συμβατότητας σύμφωνα με το επιλεγμένο νέο σύστημα· μια δοκιμή σε αντιπροσωπευτικό σημείο μπορεί να βοηθήσει να εντοπιστεί προφανής ασυμβατότητα.",
+      "stop_escalation": "If the existing coating chemistry/history is unknown and the selected manufacturer system does not explicitly support the substrate/previous coating, do not invent compatibility; route the exact compatibility decision to Layer B or competent technical review.",
+      "source": {
+        "authority": "US Federal Highway Administration",
+        "title": "Bridge Coatings Technical Note: Overcoating (Maintenance Painting)",
+        "url": "https://www.fhwa.dot.gov/publications/research/infrastructure/structures/bridge/overct.cfm",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "FHWA discusses long-duration field patch evaluation for bridge maintenance. KONTA MOY does not generalize a universal test duration. Product-specific test/application instructions remain Layer B."
+    },
+    {
+      "id": "A-RECOAT-BONDTEST-001",
+      "topic": "bond_testing_as_diagnostic_tool",
+      "claim": "Where a project requires quantitative assessment, pull-off testing is an established diagnostic method for evaluating surface strength and adhesive/bond strength of applied materials and coatings. FHWA describes tensile bond testing as useful for determining adequacy of surface preparation and adhesive strength of coatings on concrete and metal.",
+      "customer_guidance_el": "Σε έργα όπου η κατάσταση της επιφάνειας ή η πρόσφυση είναι αμφίβολη και απαιτείται ποσοτική αξιολόγηση, υπάρχουν τυποποιημένες δοκιμές πρόσφυσης/pull-off που μπορούν να χρησιμοποιηθούν από κατάλληλο τεχνικό. Το KONTA MOY δεν πρέπει να μετατρέπει μια τέτοια επαγγελματική δοκιμή σε αυθαίρετο DIY όριο επιτυχίας.",
+      "stop_escalation": "Escalate to an appropriate test/specification when bond strength is consequential and cannot be established reliably by ordinary visual assessment. Do not assign a universal pass value without the governing system/specification.",
+      "source": {
+        "authority": "US Federal Highway Administration",
+        "title": "Tensile Bond Tester — MCTC Concrete Pavement & Materials",
+        "url": "https://www.fhwa.dot.gov/pavement/concrete/tensile.cfm",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "The source references ACI 503.1R and ASTM C1583. No numerical acceptance criterion is generalized because required bond strength depends on the repair/coating system and specification."
+    },
+    {
+      "id": "A-RECOAT-CLEAN-001",
+      "topic": "surface_cleanliness_before_repainting",
+      "claim": "Substances detrimental to coating performance should be removed before repainting. NAVFAC architectural coating guidance requires removal of dirt, loose particles, grease, oil and other foreign matter detrimental to coating performance before paint or surface treatment is applied.",
+      "customer_guidance_el": "Πριν από επαναβαφή, η επιφάνεια πρέπει να είναι κατάλληλα προετοιμασμένη και να μην παραμένουν ρύποι ή σαθρά υλικά που μπορούν να επηρεάσουν την πρόσφυση και την απόδοση της νέας επίστρωσης, όπως βρωμιά, λάδια, γράσα και χαλαρά σωματίδια. Η ακριβής προετοιμασία εξαρτάται από το υπόστρωμα και το επιλεγμένο σύστημα.",
+      "stop_escalation": "Do not prescribe one cleaning chemical, abrasive method or surface profile for all substrates and coatings; those details depend on the substrate and selected system.",
+      "source": {
+        "authority": "Naval Facilities Engineering Command (NAVFAC)",
+        "title": "Marianas Design and Architectural Criteria (MDACS), September 2017",
+        "url": "https://pacific.navfac.navy.mil/Portals/72/Marianas/Documents/MDACS-Final.pdf",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "Only the general surface-cleanliness principle is generalized. NAVFAC/MPI project-specific coating specifications are not adopted as universal KONTA MOY requirements."
+    }
+  ],
+  "unresolved": [
+    {
+      "id": "A-RECOAT-ADHESION-PASS-PENDING",
+      "question": "What universal adhesion-test value or classification should count as a pass before repainting?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "Acceptance depends on substrate, coating system, test method and governing specification. FHWA identifies adhesion testing as useful but does not establish one universal consumer threshold."
+    },
+    {
+      "id": "A-RECOAT-PATCH-DURATION-PENDING",
+      "question": "How long must a compatibility patch test be observed before a repainting system can be declared compatible?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "FHWA bridge guidance discusses extended field exposure, but that duration is not transferable as a universal building-paint rule. Product/system-specific guidance belongs in Layer B."
+    },
+    {
+      "id": "A-RECOAT-CHEMISTRY-MATRIX-PENDING",
+      "question": "Which generic coating chemistries may always be applied over which existing coating chemistries?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "Compatibility depends on actual existing coating condition/composition, preparation, substrate and the selected manufacturer's system. A universal chemistry matrix would risk unsupported recommendations."
+    },
+    {
+      "id": "A-RECOAT-UNKNOWN-COATING-ID-PENDING",
+      "question": "Can KONTA MOY identify an unknown old coating reliably from appearance, age or a simple household solvent test?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "No sufficiently authoritative source has been accepted here for a universal customer identification protocol. Unknown coatings remain unknown unless reliably identified."
+    }
+  ],
+  "layer_boundary": {
+    "manufacturer_specific_values": "Layer B only",
+    "kontamou_workflow_and_product_selection_guardrails": "Layer C only",
+    "note": "Layer A establishes the need to assess soundness, cleanliness, adhesion and compatibility before overcoating. It does not select a primer, declare two specific products compatible, assign a universal adhesion threshold, prescribe a universal patch-test duration, or override manufacturer instructions."
+  }
+}

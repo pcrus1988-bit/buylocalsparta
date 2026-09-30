@@ -1,11 +1,15 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { BuildGuidanceSourceLayer, BuildGuidanceUiItem } from "./build-guidance-runtime";
 import type { PaintBuildProjectSnapshot } from "./paint-build-project-documents";
+import { paintBuildFinishLabel, paintBuildGreekText, paintBuildPackageLabel, paintBuildProductTitle, paintBuildTintBaseLabel } from "./paint-build-greek-presentation";
+import { getProductionPostgresRuntime } from "./postgres-runtime";
 
 function sourceLabel(layer: BuildGuidanceSourceLayer): string {
   if (layer === "GENERAL_GUIDANCE") return "Γενική τεχνική καθοδήγηση";
   if (layer === "MANUFACTURER_VITEX") return "Οδηγίες κατασκευαστή · VITEX";
   if (layer === "MANUFACTURER") return "Οδηγίες κατασκευαστή";
-  return "KONTA MOU · κανόνας ασφάλειας / ροής";
+  return "ΚΟΝΤΑ ΜΟΥ · κανόνας ασφάλειας / ροής";
 }
 
 function text(value: unknown): string | undefined {
@@ -14,6 +18,668 @@ function text(value: unknown): string | undefined {
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+type PaintBuildPdfAssets = Readonly<{
+  brandLogoDataUrl?: string;
+  productImageDataUrl?: string;
+  kitItemImageDataUrls?: Readonly<Record<string, string>>;
+}>;
+
+type PaintBuildPdfVendor = Readonly<{
+  vendorId: string;
+  vendorPublicId?: string;
+  locationId?: string;
+  legalName: string;
+  tradingName?: string;
+  legalForm?: string;
+  taxNumber?: string;
+  gemiNumber?: string;
+  locationName?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  locality?: string;
+  postcode?: string;
+  countryCode?: string;
+  phone?: string;
+  email?: string;
+  productVariantIds: readonly string[];
+}>;
+
+type PaintBuildPdfVendorRow = Readonly<{
+  canonical_public_id: string;
+  vendor_id: string;
+  vendor_public_id: string | null;
+  location_id: string | null;
+  legal_name: string;
+  trading_name: string | null;
+  legal_form: string | null;
+  tax_number: string | null;
+  gemi_number: string | null;
+  location_name: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  locality: string | null;
+  postcode: string | null;
+  country_code: string | null;
+  phone: string | null;
+  public_email: string | null;
+}>;
+
+function values(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.flatMap((entry) => typeof entry === "string" && entry.trim() ? [entry.trim()] : [])
+    : [];
+}
+
+function numeric(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function rangeText(min: unknown, max: unknown, suffix = ""): string | undefined {
+  const low = numeric(min);
+  const high = numeric(max);
+  if (low == null && high == null) return undefined;
+  if (low != null && high != null && low !== high) return `${Math.min(low, high)}–${Math.max(low, high)}${suffix}`;
+  return `${low ?? high}${suffix}`;
+}
+
+function joinValues(value: unknown): string | undefined {
+  const rows = values(value);
+  return rows.length ? rows.join(" · ") : undefined;
+}
+
+
+function pdfGreekText(value: string): string {
+  return paintBuildGreekText(value);
+}
+
+function projectTypeLabel(value: string): string {
+  if (value === "paint") return "Βαφή";
+  if (value === "waterproofing") return "Στεγανοποίηση";
+  if (value === "insulation") return "Θερμομόνωση";
+  if (value === "repair") return "Επισκευή";
+  return paintBuildGreekText(value);
+}
+
+function kitProductUrl(canonicalVariantId: string): string {
+  return `https://kontamou.site/product/${encodeURIComponent(canonicalVariantId)}`;
+}
+
+function kitRoleLabel(role: string, required: boolean): string {
+  if (required) return "ΑΠΑΡΑΙΤΗΤΟ";
+  if (role === "recommended_working") return "ΠΡΟΤΕΙΝΟΜΕΝΟ";
+  return "ΠΡΟΑΙΡΕΤΙΚΟ";
+}
+
+function absoluteProductUrl(value: unknown): string | undefined {
+  const raw = text(value);
+  if (!raw) return undefined;
+  if (raw.startsWith("/")) return `https://kontamou.site${raw}`;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" || !["kontamou.site", "www.kontamou.site"].includes(url.hostname)) return undefined;
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function quickGuideItems(snapshot: PaintBuildProjectSnapshot): readonly BuildGuidanceUiItem[] {
+  const guide = snapshot.customerGuide;
+  const selected = [
+    ...guide.beforeYouStart.slice(0, 2),
+    ...guide.preparation.slice(0, 2),
+    ...guide.stepByStep.slice(0, 3),
+    ...guide.warnings.slice(0, 1)
+  ];
+  const unique = new Map<string, BuildGuidanceUiItem>();
+  for (const item of selected) {
+    const display = item.shortEl?.trim() || item.textEl.trim();
+    if (!display || unique.has(display)) continue;
+    unique.set(display, item.shortEl ? { ...item, textEl: item.shortEl } : item);
+  }
+  return [...unique.values()].slice(0, 6);
+}
+
+function productOverview(snapshot: PaintBuildProjectSnapshot, assets: PaintBuildPdfAssets) {
+  const product = snapshot.project.selectedProduct;
+  if (!product?.title) return [];
+  const url = absoluteProductUrl(product.url);
+  const size = paintBuildPackageLabel(product.size || (product.packValue != null && product.packUnit ? `${product.packValue}${product.packUnit}` : undefined));
+  const productColour = paintBuildTintBaseLabel(product.colour || product.tintBase);
+  const swatch = snapshot.project.colour && /^#[0-9A-Fa-f]{6}$/.test(snapshot.project.colour)
+    ? { canvas: [{ type: "rect", x: 0, y: 0, w: 16, h: 16, color: snapshot.project.colour, lineColor: "#D2CAC0" }], width: 22 }
+    : undefined;
+  const productImage = assets.productImageDataUrl
+    ? { image: assets.productImageDataUrl, fit: [86, 86], alignment: "center", margin: [0, 2, 0, 2] }
+    : { text: "ΦΩΤΟΓΡΑΦΙΑ\nΠΡΟΪΟΝΤΟΣ", alignment: "center", color: "#8C8177", fontSize: 8, margin: [0, 28, 0, 0] };
+  const qr = url
+    ? { stack: [{ qr: url, fit: 66, alignment: "center" }, { text: "Άνοιξε το προϊόν", alignment: "center", fontSize: 7, color: "#6C625A", margin: [0, 4, 0, 0] }] }
+    : { text: "QR μη διαθέσιμο", alignment: "center", color: "#8C8177", fontSize: 7, margin: [0, 32, 0, 0] };
+  return [
+    { text: "ΤΟ ΠΡΟΪΟΝ ΠΟΥ ΕΠΕΛΕΞΕΣ", style: "groupTitle", margin: [0, 16, 0, 6] },
+    {
+      table: {
+        widths: [96, "*", 82],
+        body: [[productImage, {
+          stack: [
+            { text: product.brand || "VITEX", style: "eyebrow", margin: [0, 0, 0, 3] },
+            { text: paintBuildProductTitle(product.title), style: "productTitle", margin: [0, 0, 0, 7] },
+            { columns: [
+              swatch ?? { width: 0, text: "" },
+              { width: "*", stack: [
+                { text: `Χρώμα / βάση: ${productColour || snapshot.project.colour || "—"}`, style: "productMeta" },
+                { text: `Συσκευασία: ${size || "—"}`, style: "productMeta" },
+                product.finish ? { text: `Φινίρισμα: ${paintBuildFinishLabel(product.finish)}`, style: "productMeta" } : { text: "" },
+                product.price ? { text: `Τιμή κατά την επιλογή: ${product.price}`, style: "productMetaStrong", margin: [0, 4, 0, 0] } : { text: "" }
+              ] }
+            ] }
+          ]
+        }, qr]]
+      },
+      layout: {
+        hLineWidth: () => 0.6,
+        vLineWidth: () => 0.6,
+        hLineColor: () => "#D8D0C6",
+        vLineColor: () => "#D8D0C6",
+        paddingLeft: () => 10,
+        paddingRight: () => 10,
+        paddingTop: () => 10,
+        paddingBottom: () => 10
+      },
+      fillColor: "#FBF9F5",
+      margin: [0, 0, 0, 10]
+    },
+    url ? { text: url, fontSize: 6.5, color: "#736A62", margin: [0, 0, 0, 8] } : { text: "" }
+  ];
+}
+
+function quickGuideSection(snapshot: PaintBuildProjectSnapshot) {
+  const items = quickGuideItems(snapshot);
+  if (!items.length) return [];
+  return [
+    { text: "ΣΥΝΤΟΜΗ ΚΑΘΟΔΗΓΗΣΗ", style: "groupTitle", margin: [0, 12, 0, 6] },
+    {
+      table: {
+        widths: [24, "*"],
+        body: items.map((item, index) => [
+          { text: String(index + 1).padStart(2, "0"), style: "quickNumber" },
+          { stack: [
+            { text: pdfGreekText(item.textEl), style: "quickText" },
+            { text: sourceLabel(item.sourceLayer), style: item.sourceLayer === "KONTA_MOU_RULE" ? "sourceSafety" : item.sourceLayer.startsWith("MANUFACTURER") ? "sourceManufacturer" : "sourceGeneral", margin: [0, 3, 0, 0] }
+          ] }
+        ])
+      },
+      layout: {
+        hLineWidth: (i: number) => i === 0 ? 0 : 0.5,
+        vLineWidth: () => 0,
+        hLineColor: () => "#E5DED5",
+        paddingTop: () => 6,
+        paddingBottom: () => 6,
+        paddingLeft: () => 4,
+        paddingRight: () => 6
+      },
+      margin: [0, 0, 0, 10]
+    }
+  ];
+}
+
+function manufacturerDataSheet(snapshot: PaintBuildProjectSnapshot) {
+  const manufacturer = record(snapshot.guidance.manufacturer_guidance);
+  const profile = record(manufacturer.application_profile);
+  if (text(manufacturer.status) !== "verified" || !Object.keys(profile).length) return [];
+  const scalarRows: Array<[string, string]> = [];
+  const push = (label: string, value: string | undefined) => { if (value) scalarRows.push([label, pdfGreekText(value)]); };
+  push("Κάλυψη", rangeText(profile.coverage_m2_per_litre_min, profile.coverage_m2_per_litre_max, " m²/L"));
+  push("Αριθμός στρώσεων", rangeText(profile.number_of_coats_min, profile.number_of_coats_max, ""));
+  const dilution = rangeText(profile.dilution_percent_min, profile.dilution_percent_max, "%");
+  const dilutionMaterial = text(profile.dilution_material);
+  if (profile.dilution_required === true) push("Αραίωση", dilution ? `${dilution}${dilutionMaterial ? ` με ${dilutionMaterial}` : ""}` : "Απαιτείται σύμφωνα με την τεχνική καρτέλα");
+  if (profile.dilution_required === false) push("Αραίωση", "Δεν απαιτείται");
+  push("Τρόποι εφαρμογής", joinValues(profile.application_methods));
+  push("Στέγνωμα στην αφή", rangeText(profile.dry_to_touch_minutes_min, profile.dry_to_touch_minutes_max, " λεπτά"));
+  push("Επαναβαφή", rangeText(profile.recoat_minutes_min, profile.recoat_minutes_max, " λεπτά"));
+  push("Πλήρης ωρίμανση", rangeText(profile.full_cure_minutes_min, profile.full_cure_minutes_max, " λεπτά"));
+  if (typeof profile.primer_required === "boolean") push("Αστάρι", profile.primer_required ? "Απαιτείται" : "Δεν απαιτείται ως γενικός κανόνας προϊόντος");
+  push("Προτεινόμενα αστάρια", joinValues(profile.recommended_primers));
+  push("Απαιτούμενα στοιχεία συστήματος", joinValues(profile.required_system_components));
+  push("Προτεινόμενο ρολό", text(profile.recommended_roller));
+  push("Προτεινόμενη βούρτσα", text(profile.recommended_brush));
+  push("Συνθήκες κάλυψης", text(profile.coverage_conditions));
+  push("Απαιτήσεις υγρασίας", text(profile.moisture_requirements));
+  push("Απαίτηση κατάστασης επιφάνειας", text(profile.surface_condition_required));
+  push("Θερμοκρασία αέρα / επιφάνειας / υλικού", text(profile.substrate_temperature_requirements));
+  push("Περιορισμός άμεσου ήλιου", text(profile.direct_sun_restrictions));
+  push("Περιορισμός βροχής", text(profile.rain_restrictions));
+  push("Περιορισμός δρόσου / συμπύκνωσης", text(profile.dew_or_condensation_restrictions));
+  push("Συνθήκες αποθήκευσης", text(profile.storage_conditions));
+  push("Διάρκεια αποθήκευσης", text(profile.shelf_life));
+  push("Πληροφορίες ΠΟΕ", text(profile.voc_information));
+
+  const detailGroups = [
+    ["Προετοιμασία επιφάνειας", values(profile.surface_preparation).map(pdfGreekText)],
+    ["Καθαρισμός πριν την εφαρμογή", values(profile.cleaning_before_application).map(pdfGreekText)],
+    ["Απαιτήσεις επισκευής", values(profile.repair_requirements).map(pdfGreekText)],
+    ["Ανάδευση / προετοιμασία υλικού", values(profile.mixing_instructions).map(pdfGreekText)],
+    ["Καθαρισμός εργαλείων", values(profile.tool_cleaning).map(pdfGreekText)],
+    ["Μέσα ατομικής προστασίας", values(profile.ppe_requirements).map(pdfGreekText)],
+    ["Περιορισμοί καιρού / περιβάλλοντος", values(profile.weather_restrictions).map(pdfGreekText)],
+    ["Τι να αποφεύγεις", values(profile.manufacturer_do_not_do).map(pdfGreekText)],
+    ["Δεν είναι κατάλληλο για", values(profile.not_suitable_for).map(pdfGreekText)],
+    ["Προειδοποιήσεις ασφαλείας", values(profile.safety_warnings).map(pdfGreekText)],
+    ["Ειδικές σημειώσεις εφαρμογής", values(profile.special_application_notes).map(pdfGreekText)]
+  ] as const;
+
+  const content: unknown[] = [
+    { text: "ΤΕΧΝΙΚΗ ΚΑΡΤΑ ΕΠΙΛΕΓΜΕΝΟΥ ΠΡΟΪΟΝΤΟΣ", style: "groupTitle", margin: [0, 18, 0, 6], pageBreak: "before" },
+    { text: "Εμφανίζονται μόνο τα πεδία που υπάρχουν στα επαληθευμένα στοιχεία του κατασκευαστή για το επιλεγμένο προϊόν.", style: "body", margin: [0, 0, 0, 8] }
+  ];
+  if (scalarRows.length) {
+    content.push({
+      table: {
+        widths: [150, "*"],
+        body: scalarRows.map(([label, value]) => [{ text: label, style: "dataLabel" }, { text: value, style: "dataValue" }])
+      },
+      layout: {
+        hLineWidth: () => 0.5,
+        vLineWidth: () => 0,
+        hLineColor: () => "#E1DAD2",
+        paddingTop: () => 5,
+        paddingBottom: () => 5,
+        paddingLeft: () => 4,
+        paddingRight: () => 4
+      },
+      margin: [0, 0, 0, 10]
+    });
+  }
+  for (const [label, rows] of detailGroups) {
+    if (!rows.length) continue;
+    content.push({ text: label, style: "sectionTitle", margin: [0, 10, 0, 4] });
+    content.push({ ul: rows.map((row) => ({ text: row, margin: [0, 0, 0, 4] })), style: "body" });
+  }
+  return content;
+}
+
+function safeImageUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  if (value.startsWith("/")) return `https://kontamou.site${value}`;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLocaleLowerCase("en");
+    const allowed = url.protocol === "https:" && (
+      host === "kontamou.site" || host === "www.kontamou.site" ||
+      host === "eemihhfreggbigxejjhj.supabase.co" || host === "media.adeo.com" ||
+      host.endsWith(".leroymerlin.gr")
+    );
+    return allowed ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function rasterDataUrl(buffer: Buffer, mime?: string): Promise<string | undefined> {
+  if (mime === "image/png" || mime === "image/jpeg" || mime === "image/jpg") {
+    const normalized = mime === "image/jpg" ? "image/jpeg" : mime;
+    return `data:${normalized};base64,${buffer.toString("base64")}`;
+  }
+  try {
+    const sharpModule: any = await import("sharp");
+    const sharp = sharpModule.default ?? sharpModule;
+    const png = await sharp(buffer).rotate().resize({ width: 900, height: 900, fit: "inside", withoutEnlargement: true }).png().toBuffer();
+    return `data:image/png;base64,${Buffer.from(png).toString("base64")}`;
+  } catch {
+    return undefined;
+  }
+}
+
+async function fetchPdfImage(url: string | undefined): Promise<string | undefined> {
+  const safe = safeImageUrl(url);
+  if (!safe) return undefined;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(safe, { cache: "no-store", signal: controller.signal, headers: { Accept: "image/png,image/jpeg,image/webp,image/*;q=0.8" } });
+    if (!response.ok) return undefined;
+    const contentLength = Number(response.headers.get("content-length") ?? 0);
+    if (contentLength > 8 * 1024 * 1024) return undefined;
+    const data = Buffer.from(await response.arrayBuffer());
+    if (!data.length || data.length > 8 * 1024 * 1024) return undefined;
+    const mime = response.headers.get("content-type")?.split(";")[0]?.trim().toLocaleLowerCase("en");
+    return rasterDataUrl(data, mime);
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function brandLogoDataUrl(): Promise<string | undefined> {
+  const candidates = [
+    join(process.cwd(), "public", "brand", "kontamou-sparta-logo.webp"),
+    join(process.cwd(), "apps", "web", "public", "brand", "kontamou-sparta-logo.webp")
+  ];
+  for (const candidate of candidates) {
+    try {
+      const data = await readFile(candidate);
+      const converted = await rasterDataUrl(data, "image/webp");
+      if (converted) return converted;
+    } catch {
+      // Try the next deployment-root candidate.
+    }
+  }
+  return undefined;
+}
+
+async function loadPaintBuildPdfAssets(snapshot: PaintBuildProjectSnapshot): Promise<PaintBuildPdfAssets> {
+  const product = snapshot.project.selectedProduct;
+  const imageSource = product?.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : product?.imageUrl;
+  const selectedKitItems = snapshot.project.kit?.items.filter((item) => item.selected).slice(0, 16) ?? [];
+  const [brandLogo, productImage, kitImages] = await Promise.all([
+    brandLogoDataUrl(),
+    fetchPdfImage(imageSource),
+    Promise.all(selectedKitItems.map(async (item) => [
+      item.canonicalVariantId,
+      await fetchPdfImage(item.imageUrl)
+    ] as const))
+  ]);
+  return {
+    brandLogoDataUrl: brandLogo,
+    productImageDataUrl: productImage,
+    kitItemImageDataUrls: Object.fromEntries(
+      kitImages.filter((entry): entry is readonly [string, string] => Boolean(entry[1]))
+    )
+  };
+}
+
+
+function selectedProjectVariantIds(snapshot: PaintBuildProjectSnapshot): readonly string[] {
+  const ids = [
+    snapshot.project.selectedProduct?.catalogueId,
+    ...(snapshot.project.kit?.items.filter((item) => item.selected).map((item) => item.canonicalVariantId) ?? [])
+  ].flatMap((value) => typeof value === "string" && value.trim() ? [value.trim()] : []);
+  return [...new Set(ids)].slice(0, 64);
+}
+
+async function loadPaintBuildPdfVendors(snapshot: PaintBuildProjectSnapshot): Promise<readonly PaintBuildPdfVendor[]> {
+  const variantIds = selectedProjectVariantIds(snapshot);
+  if (!variantIds.length) return [];
+  try {
+    const db = getProductionPostgresRuntime().nativePool;
+    const result = await db.query<PaintBuildPdfVendorRow>(
+      `with wanted as (
+         select cv.id,cv.public_id
+         from public.canonical_variants cv
+         where cv.public_id=any($1::text[])
+       ),
+       seller_candidates as (
+         select
+           w.public_id as canonical_public_id,
+           v.id::text as vendor_id,
+           v.public_id as vendor_public_id,
+           l.id::text as location_id,
+           v.legal_name,
+           v.trading_name,
+           v.legal_form,
+           v.tax_number,
+           v.gemi_number,
+           l.name as location_name,
+           l.address_line1,
+           l.address_line2,
+           l.locality,
+           l.postcode,
+           l.country_code::text as country_code,
+           l.phone,
+           l.public_email::text as public_email,
+           0 as source_priority,
+           vo.customer_price_minor as price_minor,
+           vo.updated_at
+         from wanted w
+         join public.vendor_offers vo
+           on vo.canonical_variant_id=w.id
+          and vo.status='approved'
+          and coalesce(vo.merchant_visible,true)=true
+          and coalesce(vo.merchant_pause_active,false)=false
+         join public.vendor_businesses v on v.id=vo.vendor_id and v.status='active'
+         left join public.vendor_locations l on l.id=vo.location_id and l.active=true
+         union all
+         select
+           w.public_id as canonical_public_id,
+           v.id::text as vendor_id,
+           v.public_id as vendor_public_id,
+           l.id::text as location_id,
+           v.legal_name,
+           v.trading_name,
+           v.legal_form,
+           v.tax_number,
+           v.gemi_number,
+           l.name as location_name,
+           l.address_line1,
+           l.address_line2,
+           l.locality,
+           l.postcode,
+           l.country_code::text as country_code,
+           l.phone,
+           l.public_email::text as public_email,
+           1 as source_priority,
+           vca.verified_supplier_price_minor as price_minor,
+           vca.updated_at
+         from wanted w
+         join public.vitex_commerce_products vcp
+           on vcp.canonical_variant_id=w.id
+          and vcp.active=true
+          and vcp.match_status in ('verified','product_matched')
+         join public.catalog_source_products csp
+           on csp.source_product_key=vcp.import_fingerprint
+         join public.catalog_sources cs
+           on cs.id=csp.source_id
+          and cs.code='vitex-commerce-media'
+          and cs.active=true
+         join public.vendor_catalog_assortments vca
+           on vca.source_product_id=csp.id
+          and vca.assortment_status not in ('rejected','discontinued')
+         join public.vendor_businesses v on v.id=vca.vendor_id and v.status='active'
+         left join public.vendor_locations l on l.id=vca.location_id and l.active=true
+       ),
+       ranked as (
+         select seller_candidates.*,
+                row_number() over (
+                  partition by canonical_public_id
+                  order by source_priority,price_minor asc nulls last,updated_at desc nulls last
+                ) as rn
+         from seller_candidates
+       )
+       select canonical_public_id,vendor_id,vendor_public_id,location_id,legal_name,trading_name,legal_form,tax_number,gemi_number,
+              location_name,address_line1,address_line2,locality,postcode,country_code,phone,public_email
+       from ranked
+       where rn=1
+       order by canonical_public_id`,
+      [variantIds]
+    );
+
+    const grouped = new Map<string, PaintBuildPdfVendor>();
+    for (const row of result.rows) {
+      const key = `${row.vendor_id}:${row.location_id ?? ""}`;
+      const existing = grouped.get(key);
+      if (existing) {
+        grouped.set(key, {
+          ...existing,
+          productVariantIds: [...new Set([...existing.productVariantIds, row.canonical_public_id])]
+        });
+        continue;
+      }
+      grouped.set(key, {
+        vendorId: row.vendor_id,
+        vendorPublicId: text(row.vendor_public_id),
+        locationId: text(row.location_id),
+        legalName: row.legal_name,
+        tradingName: text(row.trading_name),
+        legalForm: text(row.legal_form),
+        taxNumber: text(row.tax_number),
+        gemiNumber: text(row.gemi_number),
+        locationName: text(row.location_name),
+        addressLine1: text(row.address_line1),
+        addressLine2: text(row.address_line2),
+        locality: text(row.locality),
+        postcode: text(row.postcode),
+        countryCode: text(row.country_code),
+        phone: text(row.phone),
+        email: text(row.public_email),
+        productVariantIds: [row.canonical_public_id]
+      });
+    }
+    return [...grouped.values()].sort((a, b) =>
+      b.productVariantIds.length - a.productVariantIds.length
+      || (a.tradingName || a.legalName).localeCompare(b.tradingName || b.legalName, "el")
+    );
+  } catch (error) {
+    console.warn(JSON.stringify({
+      level: "warn",
+      event: "paint_build.pdf_vendor_details_unavailable",
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return [];
+  }
+}
+
+function vendorAddress(vendor: PaintBuildPdfVendor): string | undefined {
+  const locality = [vendor.postcode, vendor.locality].filter(Boolean).join(" ");
+  const country = vendor.countryCode?.toLocaleUpperCase("en") === "GR"
+    ? "Ελλάδα"
+    : vendor.countryCode?.toLocaleUpperCase("en");
+  const parts = [vendor.addressLine1, vendor.addressLine2, locality || undefined, country].filter(Boolean);
+  return parts.length ? parts.join(", ") : undefined;
+}
+
+function vendorHeader(vendors: readonly PaintBuildPdfVendor[]) {
+  const blocks = vendors.length
+    ? vendors.map((vendor) => {
+        const displayName = vendor.tradingName || vendor.legalName;
+        const legalName = vendor.tradingName && vendor.legalName !== vendor.tradingName
+          ? vendor.legalName
+          : undefined;
+        const taxLine = [
+          vendor.taxNumber ? `ΑΦΜ ${vendor.taxNumber}` : undefined,
+          vendor.gemiNumber ? `ΓΕΜΗ ${vendor.gemiNumber}` : undefined,
+          vendor.legalForm
+        ].filter(Boolean).join(" · ");
+        const contactLine = [
+          vendor.phone ? `Τηλ. ${vendor.phone}` : undefined,
+          vendor.email
+        ].filter(Boolean).join(" · ");
+        return {
+          table: {
+            widths: ["*"],
+            body: [[{
+              stack: [
+                { text: displayName, style: "vendorName", alignment: "right" },
+                legalName ? { text: legalName, style: "vendorDetail", alignment: "right", margin: [0, 1, 0, 0] } : { text: "" },
+                taxLine ? { text: taxLine, style: "vendorDetail", alignment: "right", margin: [0, 1, 0, 0] } : { text: "" },
+                vendorAddress(vendor) ? { text: vendorAddress(vendor), style: "vendorDetail", alignment: "right", margin: [0, 1, 0, 0] } : { text: "" },
+                contactLine ? { text: contactLine, style: "vendorDetail", alignment: "right", margin: [0, 1, 0, 0] } : { text: "" }
+              ]
+            }]]
+          },
+          layout: {
+            hLineWidth: () => 0.5,
+            vLineWidth: () => 0.5,
+            hLineColor: () => "#DDD6CE",
+            vLineColor: () => "#DDD6CE",
+            paddingLeft: () => 6,
+            paddingRight: () => 6,
+            paddingTop: () => 5,
+            paddingBottom: () => 5
+          },
+          fillColor: "#FBF9F5",
+          margin: [0, 3, 0, 0]
+        };
+      })
+    : [{
+        table: {
+          widths: ["*"],
+          body: [[{ text: "Δεν βρέθηκαν συνδεδεμένα στοιχεία πωλητή για τα επιλεγμένα προϊόντα.", style: "vendorDetail", alignment: "right" }]]
+        },
+        layout: {
+          hLineWidth: () => 0.5,
+          vLineWidth: () => 0.5,
+          hLineColor: () => "#DDD6CE",
+          vLineColor: () => "#DDD6CE",
+          paddingLeft: () => 6,
+          paddingRight: () => 6,
+          paddingTop: () => 5,
+          paddingBottom: () => 5
+        },
+        fillColor: "#FBF9F5",
+        margin: [0, 3, 0, 0]
+      }];
+
+  return [
+    {
+      text: vendors.length === 1 ? "ΠΛΗΡΗ ΣΤΟΙΧΕΙΑ ΠΩΛΗΤΗ" : "ΠΛΗΡΗ ΣΤΟΙΧΕΙΑ ΠΩΛΗΤΩΝ",
+      style: "vendorKicker",
+      alignment: "right",
+      margin: [0, 8, 0, 1]
+    },
+    ...blocks
+  ];
+}
+
+
+type SnapshotKitItem = NonNullable<PaintBuildProjectSnapshot["project"]["kit"]>["items"][number];
+
+function euro(minor: number): string {
+  return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
+}
+
+function kitItemCard(item: SnapshotKitItem, index: number, assets: PaintBuildPdfAssets) {
+  const image = assets.kitItemImageDataUrls?.[item.canonicalVariantId];
+  const url = kitProductUrl(item.canonicalVariantId);
+  const role = kitRoleLabel(item.role, item.required);
+  return {
+    table: {
+      widths: [58, "*", 70, 58],
+      body: [[
+        image
+          ? { image, fit: [48, 48], alignment: "center", margin: [0, 3, 0, 3] }
+          : { text: String(index + 1).padStart(2, "0"), style: "kitIndex", alignment: "center", margin: [0, 15, 0, 0] },
+        {
+          stack: [
+            { text: role, style: item.required ? "kitRoleRequired" : "kitRole", margin: [0, 0, 0, 4] },
+            { text: paintBuildProductTitle(item.title), style: "kitItemTitle" },
+            item.reasonEl ? { text: pdfGreekText(item.reasonEl), style: "kitReason", margin: [0, 4, 0, 0] } : { text: "" }
+          ]
+        },
+        {
+          stack: [
+            { text: `${item.quantity} × ${item.price}`, style: "kitPriceSmall", alignment: "right" },
+            { text: euro(item.priceMinor * item.quantity), style: "kitPrice", alignment: "right", margin: [0, 5, 0, 0] }
+          ],
+          margin: [0, 7, 0, 0]
+        },
+        {
+          stack: [
+            { qr: url, fit: 46, alignment: "center" },
+            { text: "Σάρωσε", style: "qrCaption", alignment: "center", margin: [0, 2, 0, 0] }
+          ]
+        }
+      ]]
+    },
+    layout: {
+      hLineWidth: () => 0.6,
+      vLineWidth: () => 0.6,
+      hLineColor: () => "#DED7CF",
+      vLineColor: () => "#DED7CF",
+      paddingLeft: () => 7,
+      paddingRight: () => 7,
+      paddingTop: () => 7,
+      paddingBottom: () => 7
+    },
+    fillColor: "#FCFAF6",
+    margin: [0, 0, 0, 8],
+    unbreakable: true
+  };
 }
 
 function evidenceReferences(snapshot: PaintBuildProjectSnapshot) {
@@ -56,7 +722,7 @@ function itemStack(items: readonly BuildGuidanceUiItem[]) {
       style: item.sourceLayer === "KONTA_MOU_RULE" ? "sourceSafety" : item.sourceLayer.startsWith("MANUFACTURER") ? "sourceManufacturer" : "sourceGeneral",
       margin: [0, 4, 0, 2]
     },
-    { text: item.textEl, style: "body", margin: [0, 0, 0, 5] }
+    { text: pdfGreekText(item.textEl), style: "body", margin: [0, 0, 0, 5] }
   ]);
 }
 
@@ -68,10 +734,19 @@ function section(title: string, items: readonly BuildGuidanceUiItem[]) {
   ];
 }
 
-export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapshot): Record<string, unknown> {
+function factValue(value: unknown): string {
+  if (typeof value === "boolean") return value ? "Ναι" : "Όχι";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") return value;
+  if (value == null) return "—";
+  return JSON.stringify(value);
+}
+
+export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapshot, referenceId?: string, assets: PaintBuildPdfAssets = {}, vendors: readonly PaintBuildPdfVendor[] = []): Record<string, unknown> {
   const project = snapshot.project;
   const guide = snapshot.customerGuide;
   const selected = project.selectedProduct;
+  const kit = project.kit;
   const refs = evidenceReferences(snapshot);
   const createdAt = new Date(snapshot.createdAt);
   const createdLabel = Number.isFinite(createdAt.getTime())
@@ -79,24 +754,51 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
     : snapshot.createdAt;
 
   const content: unknown[] = [
-    { text: "KONTA MOY", style: "brand" },
-    { text: "PAINT & BUILD · ΑΝΑΛΥΤΙΚΟΣ ΟΔΗΓΟΣ ΕΡΓΟΥ", style: "eyebrow", margin: [0, 2, 0, 14] },
+    {
+      columns: [
+        assets.brandLogoDataUrl
+          ? { width: 142, image: assets.brandLogoDataUrl, fit: [122, 86], margin: [0, 0, 0, 0] }
+          : { width: 142, text: "KONTA MOY", style: "brand" },
+        {
+          width: "*",
+          stack: [
+            { text: "ΟΔΗΓΟΣ ΒΑΦΗΣ & ΚΑΤΑΣΚΕΥΗΣ · ΑΝΑΛΥΤΙΚΟ ΕΡΓΟ", style: "eyebrow", alignment: "right", margin: [0, 5, 0, 0] },
+            ...vendorHeader(vendors)
+          ]
+        }
+      ],
+      columnGap: 14,
+      margin: [0, 0, 0, 14]
+    },
     { text: project.title, style: "title" },
-    { text: project.summary || project.projectType, style: "lead", margin: [0, 5, 0, 12] },
+    { text: pdfGreekText(project.summary || projectTypeLabel(project.projectType)), style: "lead", margin: [0, 5, 0, 12] },
     {
       table: {
         widths: [118, "*"],
         body: [
+          ["Αναφορά έργου", referenceId || "—"],
           ["Δημιουργήθηκε", createdLabel],
-          ["Τύπος έργου", project.projectType],
+          ["Τύπος έργου", projectTypeLabel(project.projectType)],
           ["Επιφάνεια", project.areaM2 ? `${project.areaM2} m²` : "—"],
           ["Απόχρωση", project.colour || "—"]
         ]
       },
-      layout: "lightHorizontalLines",
+      layout: {
+        hLineWidth: (i: number) => i === 0 ? 0 : 0.5,
+        vLineWidth: () => 0,
+        hLineColor: () => "#DDD6CE",
+        paddingTop: () => 4,
+        paddingBottom: () => 4,
+        paddingLeft: () => 5,
+        paddingRight: () => 5
+      },
+      fillColor: (rowIndex: number) => rowIndex % 2 === 0 ? "#FBF9F5" : "#FFFFFF",
       margin: [0, 0, 0, 12]
     }
   ];
+
+  content.push(...productOverview(snapshot, assets));
+  content.push(...quickGuideSection(snapshot));
 
   if (snapshot.guidance.guidance_conflict || snapshot.guidance.blocked) {
     content.push({
@@ -109,18 +811,26 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
   }
 
   content.push({ text: "ΤΟ ΕΡΓΟ ΣΟΥ", style: "groupTitle", margin: [0, 12, 0, 5] });
+  const projectFacts = Object.entries(snapshot.guidance.effective_facts ?? {})
+    .filter(([key]) => !["exact_product_selected", "manufacturer_verified_application_profile", "guidance_conflict"].includes(key));
+  if (projectFacts.length) {
+    content.push({ text: "Απαντήσεις / δεδομένα έργου", style: "sectionTitle", margin: [0, 10, 0, 5] });
+    content.push({
+      ul: projectFacts.map(([key, value]) => ({ text: `${key}: ${factValue(value)}`, margin: [0, 0, 0, 3] })),
+      style: "body"
+    });
+  }
   content.push(...section("Πριν ξεκινήσεις", guide.beforeYouStart));
   content.push(...section("Προετοιμασία", guide.preparation));
-  content.push(...section("Τι χρειάζεσαι", guide.whatYouNeed));
   content.push(...section("Βήμα-βήμα", guide.stepByStep));
 
-  content.push({ text: "ΤΑ ΥΛΙΚΑ ΣΟΥ", style: "groupTitle", margin: [0, 18, 0, 6], pageBreak: "before" });
+  content.push({ text: "ΤΑ ΥΛΙΚΑ ΣΟΥ", style: "groupTitle", margin: [0, 18, 0, 6] });
   if (selected?.title) {
     content.push({
       table: {
         widths: [118, "*"],
         body: [
-          ["Προϊόν", selected.title],
+          ["Προϊόν", paintBuildProductTitle(selected.title)],
           ["Μάρκα", selected.brand || "—"],
           ["Τιμή κατά την επιλογή", selected.price || "—"]
         ]
@@ -130,6 +840,60 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
   } else {
     content.push({ text: "Δεν έχει αποθηκευτεί επιβεβαιωμένο προϊόν στο συγκεκριμένο snapshot.", style: "body" });
   }
+
+  if (kit) {
+    content.push({ text: "ΠΛΗΡΕΣ ΣΕΤ ΥΛΙΚΩΝ ΕΡΓΟΥ", style: "sectionTitle", margin: [0, 13, 0, 5] });
+    content.push({
+      table: {
+        widths: ["*"],
+        body: [[{
+          stack: [
+            { text: kit.complete ? "ΠΛΗΡΕΣ ΕΠΑΛΗΘΕΥΜΕΝΟ ΣΥΣΤΗΜΑ" : "ΤΟ ΣΥΣΤΗΜΑ ΧΡΕΙΑΖΕΤΑΙ ΣΥΜΠΛΗΡΩΣΗ", style: kit.complete ? "kitStatusGood" : "kitStatusWarn" },
+            { text: kit.complete
+              ? "Τα απαιτούμενα υλικά του τεκμηριωμένου συστήματος περιλαμβάνονται στο έργο."
+              : "Ένα ή περισσότερα απαιτούμενα στοιχεία λείπουν, αφαιρέθηκαν ή δεν έχουν επαληθευμένη αυτόματη ποσότητα.", style: "kitStatusCopy", margin: [0, 3, 0, 0] }
+          ]
+        }]]
+      },
+      layout: "noBorders",
+      fillColor: kit.complete ? "#EEF5EF" : "#FFF4EA",
+      margin: [0, 0, 0, 9]
+    });
+    const selectedKitItems = kit.items.filter((item) => item.selected);
+    if (selectedKitItems.length) {
+      selectedKitItems.forEach((item, index) => content.push(kitItemCard(item, index, assets)));
+    }
+    content.push({
+      table: {
+        widths: ["*", "auto"],
+        body: [[
+          { text: "ΣΥΝΟΛΟ ΕΠΙΛΕΓΜΕΝΩΝ ΥΛΙΚΩΝ", style: "kitTotalLabel" },
+          { text: euro(kit.totalMinor), style: "kitTotalValue", alignment: "right" }
+        ]]
+      },
+      layout: "noBorders",
+      fillColor: "#2B211C",
+      margin: [0, 2, 0, 10]
+    });
+    const excluded = kit.items.filter((item) => !item.selected);
+    if (excluded.length) {
+      content.push({ text: `Μη επιλεγμένα / αφαιρεμένα: ${excluded.map((item) => item.title).join(", ")}`, style: "body", margin: [0, 0, 0, 6] });
+    }
+    if (kit.unresolvedRequired.length) {
+      content.push({ text: "Μη επιλυμένα απαιτούμενα στοιχεία", style: "sectionTitle", margin: [0, 8, 0, 4] });
+      content.push({ ul: [...kit.unresolvedRequired], style: "body" });
+    }
+    if (kit.unavailableAccessorySlots.length) {
+      content.push({ text: `Μη διαθέσιμες κατηγορίες αξεσουάρ: ${kit.unavailableAccessorySlots.join(", ")}`, style: "body", margin: [0, 7, 0, 4] });
+    }
+    content.push({
+      text: "Τα αξεσουάρ με ένδειξη ΚΟΝΤΑ ΜΟΥ προτείνονται από τους κανόνες υλικών του έργου και δεν παρουσιάζονται ως οδηγίες του κατασκευαστή.",
+      style: "sourceSafety",
+      margin: [0, 7, 0, 8]
+    });
+  }
+
+  content.push(...section("Τι χρειάζεσαι", guide.whatYouNeed));
 
   const quantity = snapshot.quantityEstimate;
   content.push({ text: "Ποσότητα", style: "sectionTitle", margin: [0, 13, 0, 5] });
@@ -141,11 +905,12 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
       style: "bodyStrong"
     });
   } else {
-    content.push({ text: "Δεν υπολογίστηκε ποσότητα χωρίς πλήρες επαληθευμένο manufacturer dataset.", style: "bodyStrong" });
+    content.push({ text: "Δεν υπολογίστηκε ποσότητα επειδή λείπουν πλήρη επαληθευμένα στοιχεία του κατασκευαστή.", style: "bodyStrong" });
   }
-  content.push({ text: quantity.basisEl, style: "body", margin: [0, 3, 0, 8] });
+  content.push({ text: pdfGreekText(quantity.basisEl), style: "body", margin: [0, 3, 0, 8] });
 
-  content.push({ text: "ΟΔΗΓΙΕΣ ΓΙΑ ΤΑ ΠΡΟΪΟΝΤΑ ΠΟΥ ΕΠΕΛΕΞΕΣ", style: "groupTitle", margin: [0, 18, 0, 5] });
+  content.push(...manufacturerDataSheet(snapshot));
+  content.push({ text: "ΑΝΑΛΥΤΙΚΕΣ ΟΔΗΓΙΕΣ ΧΡΗΣΗΣ ΠΡΟΪΟΝΤΟΣ", style: "groupTitle", margin: [0, 18, 0, 5] });
   content.push(...section("Οδηγίες προϊόντος", guide.manufacturerInstructions));
   content.push(...section("Χρόνοι", guide.timings));
   content.push(...section("Τι να αποφύγεις", guide.avoid));
@@ -154,7 +919,7 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
 
   content.push({ text: "ΠΗΓΕΣ & ΙΧΝΗΛΑΣΙΜΟΤΗΤΑ", style: "groupTitle", margin: [0, 18, 0, 6], pageBreak: "before" });
   content.push({
-    text: "Οι τεχνικές οδηγίες παραπάνω διατηρούν την προέλευσή τους ως GENERAL_GUIDANCE, MANUFACTURER_VITEX ή KONTA_MOU_RULE. Δεν συγχωνεύονται σιωπηρά όταν υπάρχει σύγκρουση.",
+    text: "Κάθε τεχνική οδηγία διατηρεί σαφή προέλευση: γενική τεχνική καθοδήγηση, επίσημες οδηγίες κατασκευαστή VITEX ή κανόνες ασφάλειας και ροής του ΚΟΝΤΑ ΜΟΥ. Σε περίπτωση σύγκρουσης οι πηγές δεν συγχωνεύονται αυτόματα.",
     style: "body",
     margin: [0, 0, 0, 8]
   });
@@ -167,7 +932,7 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
       style: "sourceReference"
     });
   } else {
-    content.push({ text: "Δεν υπάρχουν πηγές διαθέσιμες στο snapshot. Μην χρησιμοποιήσεις μη τεκμηριωμένη οδηγία ως τεχνικό κανόνα.", style: "warning" });
+    content.push({ text: "Δεν υπάρχουν διαθέσιμες πηγές στο αποθηκευμένο έργο. Μην χρησιμοποιήσεις μη τεκμηριωμένη οδηγία ως τεχνικό κανόνα.", style: "warning" });
   }
 
   content.push({
@@ -178,21 +943,44 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
 
   return {
     pageSize: "A4",
-    pageMargins: [42, 50, 42, 48],
+    pageMargins: [36, 42, 36, 46],
     defaultStyle: { font: "Roboto", fontSize: 9, lineHeight: 1.3, color: "#222222" },
     footer: (currentPage: number, pageCount: number) => ({
       columns: [
-        { text: "KONTA MOY · Paint & Build Studio", margin: [42, 10, 0, 0], fontSize: 7, color: "#777777" },
-        { text: `Σελίδα ${currentPage} / ${pageCount}`, alignment: "right", margin: [0, 10, 42, 0], fontSize: 7, color: "#777777" }
+        { text: "ΚΟΝΤΑ ΜΟΥ · Οδηγός Βαφής & Κατασκευής", margin: [36, 10, 0, 0], fontSize: 7, color: "#777777" },
+        { text: `Σελίδα ${currentPage} / ${pageCount}`, alignment: "right", margin: [0, 10, 36, 0], fontSize: 7, color: "#777777" }
       ]
     }),
     styles: {
-      brand: { fontSize: 10, bold: true, letterSpacing: 1.2 },
-      eyebrow: { fontSize: 8, bold: true, color: "#6d5a31" },
-      title: { fontSize: 22, bold: true, lineHeight: 1.1 },
-      lead: { fontSize: 10, color: "#555555" },
-      groupTitle: { fontSize: 14, bold: true, color: "#2d2a25" },
-      sectionTitle: { fontSize: 11, bold: true },
+      brand: { fontSize: 13, bold: true, letterSpacing: 1.4, color: "#241813" },
+      eyebrow: { fontSize: 8, bold: true, color: "#8A6A32" },
+      vendorKicker: { fontSize: 6.5, bold: true, color: "#8A6A32", letterSpacing: 0.5 },
+      vendorName: { fontSize: 7.6, bold: true, color: "#241813", lineHeight: 1.15 },
+      vendorDetail: { fontSize: 6.4, color: "#5E554E", lineHeight: 1.18 },
+      title: { fontSize: 22, bold: true, lineHeight: 1.1, color: "#241813" },
+      lead: { fontSize: 10, color: "#5E554E" },
+      groupTitle: { fontSize: 14, bold: true, color: "#241813" },
+      sectionTitle: { fontSize: 11, bold: true, color: "#332B26" },
+      productTitle: { fontSize: 14, bold: true, color: "#241813", lineHeight: 1.15 },
+      productMeta: { fontSize: 8.5, color: "#514943", lineHeight: 1.3 },
+      productMetaStrong: { fontSize: 9, bold: true, color: "#241813" },
+      quickNumber: { fontSize: 9, bold: true, color: "#9A7B43", alignment: "center" },
+      quickText: { fontSize: 9.2, lineHeight: 1.3, color: "#2E2925" },
+      dataLabel: { fontSize: 8.5, bold: true, color: "#5E554E" },
+      dataValue: { fontSize: 8.5, color: "#24201D", lineHeight: 1.3 },
+      kitIndex: { fontSize: 18, bold: true, color: "#B69454" },
+      kitRoleRequired: { fontSize: 6.5, bold: true, color: "#8A4B34", letterSpacing: 0.5 },
+      kitRole: { fontSize: 6.5, bold: true, color: "#6F6258", letterSpacing: 0.5 },
+      kitItemTitle: { fontSize: 9.5, bold: true, color: "#28221E", lineHeight: 1.2 },
+      kitReason: { fontSize: 7.2, color: "#6F665F", lineHeight: 1.25 },
+      kitPriceSmall: { fontSize: 7.5, color: "#746A62" },
+      kitPrice: { fontSize: 10, bold: true, color: "#8A6A32" },
+      qrCaption: { fontSize: 6, color: "#7B7169" },
+      kitStatusGood: { fontSize: 8, bold: true, color: "#477154" },
+      kitStatusWarn: { fontSize: 8, bold: true, color: "#8A4B34" },
+      kitStatusCopy: { fontSize: 7.5, color: "#5E554E", lineHeight: 1.3 },
+      kitTotalLabel: { fontSize: 8, bold: true, color: "#EAD9B5", margin: [8, 7, 0, 7] },
+      kitTotalValue: { fontSize: 13, bold: true, color: "#FFFFFF", margin: [0, 5, 8, 5] },
       body: { fontSize: 9, lineHeight: 1.3 },
       bodyStrong: { fontSize: 9, bold: true },
       sourceGeneral: { fontSize: 7, bold: true, color: "#526251" },
@@ -206,7 +994,7 @@ export function buildPaintBuildProjectDocument(snapshot: PaintBuildProjectSnapsh
   };
 }
 
-export async function renderPaintBuildProjectPdf(snapshot: PaintBuildProjectSnapshot): Promise<Buffer> {
+export async function renderPaintBuildProjectPdf(snapshot: PaintBuildProjectSnapshot, referenceId?: string): Promise<Buffer> {
   const pdfMakeModule = await import("pdfmake/build/pdfmake.js");
   const fontsModule = await import("pdfmake/build/vfs_fonts.js");
   const pdfMake = (pdfMakeModule.default ?? pdfMakeModule) as any;
@@ -220,9 +1008,13 @@ export async function renderPaintBuildProjectPdf(snapshot: PaintBuildProjectSnap
       bolditalics: "Roboto-MediumItalic.ttf"
     }
   };
+  const [assets, vendors] = await Promise.all([
+    loadPaintBuildPdfAssets(snapshot),
+    loadPaintBuildPdfVendors(snapshot)
+  ]);
   return await new Promise<Buffer>((resolve, reject) => {
     try {
-      pdfMake.createPdf(buildPaintBuildProjectDocument(snapshot)).getBuffer((buffer: Uint8Array) => resolve(Buffer.from(buffer)));
+      pdfMake.createPdf(buildPaintBuildProjectDocument(snapshot, referenceId, assets, vendors)).getBuffer((buffer: Uint8Array) => resolve(Buffer.from(buffer)));
     } catch (error) {
       reject(error);
     }

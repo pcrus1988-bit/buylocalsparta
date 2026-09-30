@@ -32,15 +32,71 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Keep the Vercel failover deliberately bounded. The full-catalogue worker is the
-    // throughput path; this route shares the production DB with storefront traffic and
-    // has a hard 55s runtime ceiling. A recent eight-page run hit that ceiling, so use
-    // small checkpointed slices until the external worker is available again.
-    const configured = Number(process.env.BLS_NOVA_AVAILABILITY_FAILOVER_PAGES_PER_RUN || 2);
-    const maxPages = Number.isSafeInteger(configured) && configured > 0
-      ? Math.min(configured, 2)
-      : 2;
-    const result = await runNovaAvailabilityRefreshSlice(maxPages);
+    // Railway is no longer the throughput path. Keep the proven two-page supplier/DB
+    // unit that completes quickly in production, but execute several checkpointed
+    // slices inside one Vercel invocation. This avoids the nonlinear timeout seen when
+    // eight pages were persisted as one large batch while still completing a full
+    // supplier cycle comfortably inside the two-hour availability TTL.
+    const SLICE_PAGES = 2;
+    const DEFAULT_TOTAL_PAGE_BUDGET = 12;
+    const MAX_TOTAL_PAGE_BUDGET = 12;
+    const RUN_BUDGET_MS = 40_000;
+    const configured = Number(
+      process.env.BLS_NOVA_AVAILABILITY_FAILOVER_PAGES_PER_RUN || DEFAULT_TOTAL_PAGE_BUDGET
+    );
+    const totalPageBudget = Number.isSafeInteger(configured) && configured > 0
+      ? Math.min(configured, MAX_TOTAL_PAGE_BUDGET)
+      : DEFAULT_TOTAL_PAGE_BUDGET;
+
+    const startedAt = Date.now();
+    let claimed = false;
+    let startPage = 1;
+    let nextPage = 1;
+    let pageSize = 100;
+    let pagesProcessed = 0;
+    let attemptedProducts = 0;
+    let refreshedProducts = 0;
+    let updatedOffers = 0;
+    let cycleCompleted = false;
+    let slices = 0;
+
+    while (
+      pagesProcessed < totalPageBudget
+      && Date.now() - startedAt < RUN_BUDGET_MS
+    ) {
+      const remainingPages = totalPageBudget - pagesProcessed;
+      const slice = await runNovaAvailabilityRefreshSlice(
+        Math.min(SLICE_PAGES, remainingPages)
+      );
+      slices += 1;
+
+      if (!slice.claimed) break;
+      if (!claimed) startPage = slice.startPage;
+      claimed = true;
+      nextPage = slice.nextPage;
+      pageSize = slice.pageSize;
+      pagesProcessed += slice.pagesProcessed;
+      attemptedProducts += slice.attemptedProducts;
+      refreshedProducts += slice.refreshedProducts;
+      updatedOffers += slice.updatedOffers;
+      cycleCompleted = slice.cycleCompleted;
+
+      if (slice.cycleCompleted || slice.pagesProcessed === 0) break;
+    }
+
+    const result = {
+      claimed,
+      startPage,
+      nextPage,
+      pageSize,
+      pagesProcessed,
+      attemptedProducts,
+      refreshedProducts,
+      updatedOffers,
+      cycleCompleted,
+      slices,
+      elapsedMs: Date.now() - startedAt
+    };
     console.info(JSON.stringify({
       level: "info",
       event: "nova.availability_vercel_failover",

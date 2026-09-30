@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.0",
+  "knowledge_layer": "A_GENERAL_SOLUTION_GUIDANCE",
+  "scope": "Brand-independent masonry/concrete substrate assessment and preparation guidance. Manufacturer-specific application values are excluded.",
+  "status": "reviewed_source_backed",
+  "reviewed_at": "2026-09-22",
+  "rules": [
+    {
+      "id": "A-MASONRY-PREP-001",
+      "topic": "masonry_concrete_surface_preparation",
+      "claim": "Before painting masonry, concrete, cement plaster/stucco or similar cementitious substrates, contaminants and conditions that interfere with adhesion such as dust, dirt, oil, grease, efflorescence, form-release agents and laitance should be removed; loose mortar and defects should be repaired rather than hidden beneath the coating.",
+      "customer_guidance_el": "Πριν από βαφή σε τοιχοποιία, σκυρόδεμα, σοβά ή άλλη τσιμεντοειδή επιφάνεια, η βάση πρέπει να ελεγχθεί και να καθαριστεί από σκόνη, βρωμιά, λάδια/λίπη, εξανθήματα αλάτων και άλλα υλικά που εμποδίζουν την πρόσφυση. Σαθρά κονιάματα, ανοικτές ενώσεις, οπές, ρωγμές και αποκολλήσεις δεν πρέπει απλώς να καλύπτονται με χρώμα αλλά να αξιολογούνται και να επισκευάζονται κατάλληλα πριν από τη βαφή.",
+      "stop_escalation": "Do not proceed directly to coating selection where the substrate is visibly unsound, spalled, has loose mortar, open joints or unresolved defects that can affect coating performance.",
+      "source": {
+        "authority": "US Department of Veterans Affairs via Whole Building Design Guide (WBDG)",
+        "title": "VA 09 91 00 Painting",
+        "url": "https://www.wbdg.org/FFC/VA/VAASC/VA%2009%2091%2000.pdf",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified"
+    },
+    {
+      "id": "A-EFFLORESCENCE-001",
+      "topic": "efflorescence_moisture_diagnosis",
+      "claim": "Efflorescence on masonry is associated with soluble salts transported by moisture. If efflorescence returns after surface removal, investigate and eliminate leaks or other sources of excess moisture instead of treating repeated salt deposits as only a cosmetic surface problem.",
+      "customer_guidance_el": "Τα λευκά άλατα (εξανθήματα/efflorescence) στην τοιχοποιία μπορεί να δείχνουν μεταφορά διαλυτών αλάτων με την υγρασία. Αν επανεμφανίζονται μετά τον καθαρισμό, μην τα αντιμετωπίζεις μόνο ως αισθητικό πρόβλημα: χρειάζεται έλεγχος για διαρροές ή άλλη πηγή υπερβολικής υγρασίας και διόρθωση της αιτίας.",
+      "stop_escalation": "Recurring efflorescence triggers moisture-source diagnosis before recommending a finish coating as the remedy.",
+      "sources": [
+        {
+          "authority": "US National Park Service, Technical Preservation Services",
+          "title": "Preservation Brief 1: Assessing Cleaning and Water-Repellent Treatments for Historic Masonry Buildings",
+          "url": "https://www.nps.gov/orgs/1739/upload/preservation-brief-01-cleaning-masonry.pdf",
+          "accessed": "2026-09-22"
+        },
+        {
+          "authority": "US General Services Administration",
+          "title": "Removal of soiling from sandstone prior to repointing",
+          "url": "https://origin-www.gsa.gov/real-estate/historic-preservation/historic-preservation-policy-tools/preservation-tools-resources/technical-procedures/removal-of-soiling-from-sandstone-prior-to-repointing",
+          "accessed": "2026-09-22"
+        }
+      ],
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "The moisture/salt mechanism is general masonry guidance; cleaning method must still be selected for the specific masonry type and condition."
+    },
+    {
+      "id": "A-DAMP-MASONRY-COATING-001",
+      "topic": "damp_masonry_coating_risk",
+      "claim": "A water-repellent coating should not be treated as a repair for unresolved damp masonry. Applying such a treatment to a damp wall can impair adhesion and may retain moisture within the masonry; the moisture source should be diagnosed first.",
+      "customer_guidance_el": "Μην θεωρείς μια υδροαπωθητική επίστρωση αυτόματη λύση για τοίχο που παραμένει υγρός. Η υγρασία μπορεί να επηρεάσει την πρόσφυση και, ανάλογα με το σύστημα, να παραμείνει εγκλωβισμένη στην τοιχοποιία. Πρώτα πρέπει να εντοπιστεί η αιτία της υγρασίας.",
+      "stop_escalation": "If the wall is damp or has suspected rising damp, condensation or active water ingress, pause the surface-treatment workflow and diagnose the moisture mechanism before selecting a water-repellent treatment.",
+      "source": {
+        "authority": "US National Park Service, Technical Preservation Services",
+        "title": "Preservation Brief 1: Assessing Cleaning and Water-Repellent Treatments for Historic Masonry Buildings",
+        "url": "https://www.nps.gov/orgs/1739/upload/preservation-brief-01-cleaning-masonry.pdf",
+        "accessed": "2026-09-22"
+      },
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "The source addresses historic masonry; the database uses it here as a conservative stop/escalation rule, not as a universal prescription for every modern masonry assembly."
+    },
+    {
+      "id": "A-MASONRY-CLEANING-001",
+      "topic": "masonry_cleaning_risk",
+      "claim": "Masonry cleaning methods are substrate-dependent. Abrasive or chemically aggressive cleaning can damage masonry, and cleaning should use methods appropriate to the masonry type and condition rather than a universal aggressive-cleaning instruction.",
+      "customer_guidance_el": "Ο καθαρισμός τοιχοποιίας δεν είναι ίδιος για κάθε υπόστρωμα. Επιθετικές λειαντικές ή χημικές μέθοδοι μπορούν να προκαλέσουν ζημιά. Η μέθοδος καθαρισμού πρέπει να επιλέγεται ανάλογα με το υλικό, την κατάσταση και το είδος της ρύπανσης, με δοκιμή/εξειδικευμένη αξιολόγηση όπου απαιτείται.",
+      "stop_escalation": "Do not provide a generic instruction to acid-wash, aggressively pressure-wash, sandblast or mechanically abrade unknown masonry. Escalate when substrate type, condition or contaminant is uncertain.",
+      "sources": [
+        {
+          "authority": "US National Park Service, Technical Preservation Services",
+          "title": "Preservation Brief 1: Assessing Cleaning and Water-Repellent Treatments for Historic Masonry Buildings",
+          "url": "https://www.nps.gov/orgs/1739/upload/preservation-brief-01-cleaning-masonry.pdf",
+          "accessed": "2026-09-22"
+        },
+        {
+          "authority": "US National Park Service, Technical Preservation Services",
+          "title": "Preservation Brief 6: Dangers of Abrasive Cleaning to Historic Buildings",
+          "url": "https://www.nps.gov/orgs/1739/upload/preservation-brief-06-abrasive-cleaning.pdf",
+          "accessed": "2026-09-22"
+        }
+      ],
+      "confidence": "high",
+      "review_state": "source_verified",
+      "applicability_note": "Historic masonry guidance is intentionally used as a conservative guardrail against destructive generic cleaning advice; specific cleaning procedures require substrate-specific evidence."
+    }
+  ],
+  "unresolved": [
+    {
+      "id": "A-MASONRY-MOISTURE-THRESHOLD-PENDING",
+      "question": "What numerical substrate-moisture threshold should be shown before coating masonry/concrete?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "A universal percentage has not been established. Acceptable moisture condition depends on substrate, test method, coating system and manufacturer requirements; product-specific limits belong in Layer B."
+    },
+    {
+      "id": "A-NEW-MASONRY-CURE-PENDING",
+      "question": "Should KONTA MOY state a universal minimum cure age for new concrete/masonry before coating?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "Available specifications contain project/system-specific durations. No universal duration is asserted in Layer A; selected product/system requirements belong in Layer B."
+    },
+    {
+      "id": "A-CRACK-WIDTH-PENDING",
+      "question": "What crack width can be filled/coated versus requiring structural or specialist assessment?",
+      "status": "unresolved_do_not_generalize",
+      "reason": "No universal width threshold is asserted. Crack significance depends on movement, location, substrate, cause and repair system."
+    }
+  ],
+  "layer_boundary": {
+    "manufacturer_specific_values": "Layer B only",
+    "kontamou_workflow_and_product_selection_guardrails": "Layer C only",
+    "note": "No universal moisture percentage, cure duration, crack-width limit, cleaner chemistry, primer choice, dilution, coverage, coat count, drying/recoat time, application temperature or product compatibility is asserted here."
+  }
+}
