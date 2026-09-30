@@ -12,12 +12,15 @@ import { assertVendorCsrf, vendorSessionFromToken, VENDOR_SESSION_COOKIE } from 
 import { getActiveVendorTrialPrincipal } from "./vendor-trial-runtime";
 
 export async function getVendorSession(): Promise<SessionPrincipal | undefined> {
+  const trialPrincipal = await getActiveVendorTrialPrincipal();
+  if (trialPrincipal) return trialPrincipal;
+
   const token = (await cookies()).get(VENDOR_SESSION_COOKIE)?.value;
   if (token) {
     const principal = await vendorSessionFromToken(token, Date.now());
     if (principal?.vendorId && principal.roles.some((role) => role.startsWith("vendor_"))) return principal;
   }
-  return getActiveVendorTrialPrincipal();
+  return undefined;
 }
 
 export async function vendorOperatingContextForPrincipal(
