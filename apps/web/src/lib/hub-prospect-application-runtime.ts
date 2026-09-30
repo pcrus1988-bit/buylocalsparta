@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { PostgresUnitOfWork, id } from "@buy-local-sparta/core";
+import { PostgresUnitOfWork, id, type SessionPrincipal, type SqlExecutor, type SqlRow } from "@buy-local-sparta/core";
 import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
 import { normalizeGreekAfm, resolveGemiCompanyByAfm } from "./gemi-runtime";
 import { resolveExpansionHubForGemiCompany } from "./hub-location-resolution";
+import type { ExpansionHub } from "./expansion-hubs";
 import { getHubExpansionPlan, type HubBillingCycle, type HubExpansionPlanCode } from "./hub-expansion-plans";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { provisionalVendorApplicantPasswordHash } from "./provisional-account";
+import { VENDOR_TRIAL_DURATION_MS } from "./vendor-trial-runtime";
 
 const globals = globalThis as typeof globalThis & {
   __blsHubProspectRateLimiter?: PostgresFixedWindowRateLimiter;
@@ -24,6 +27,8 @@ export type HubProspectApplicationInput = Readonly<{
   notes?: string;
 }>;
 
+type HubProspectTrial = Readonly<{ vendorId: string; ownerUserId: string; startedAt: number; expiresAt: number }>;
+
 export type HubProspectApplicationReceipt = Readonly<{
   reference: string;
   status: "pending";
@@ -33,6 +38,8 @@ export type HubProspectApplicationReceipt = Readonly<{
   billingCycle: HubBillingCycle;
   recurringFeeCents: number;
   paymentRequired: false;
+  accountClaimRequired?: boolean;
+  trial?: HubProspectTrial;
 }>;
 
 export class HubProspectApplicationError extends Error {
@@ -61,6 +68,7 @@ export async function consumeHubProspectRateLimit(input: { visitorKey: string; n
 
 export async function submitHubProspectApplication(input: {
   application: HubProspectApplicationInput;
+  principal?: SessionPrincipal;
   now: number;
 }): Promise<HubProspectApplicationReceipt> {
   const application = normalizeApplication(input.application);
