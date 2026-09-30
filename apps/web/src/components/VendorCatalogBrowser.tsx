@@ -591,7 +591,9 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
       } finally {
         if (serial === facetRequestSerial.current) setFacetsLoading(false);
       }
-    }, query.trim() ? 220 : 60);
+    // Facet/count enrichment is not required for first product paint. Give the
+    // latency-critical first batch a quiet window before catalogue-wide work.
+    }, 1200);
     return () => {
       window.clearTimeout(timer);
       controller.abort();
