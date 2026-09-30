@@ -204,7 +204,7 @@ export function VendorDailyHomeClient({
     const needle = dailyQuery.trim().toLocaleLowerCase("el");
     return DAILY_ACTIONS.filter((item) => {
       if (needle) return `${item.label} ${item.note} ${item.keywords}`.toLocaleLowerCase("el").includes(needle);
-      return item.modes.includes(dailyMode as never);
+      return (item.modes as readonly DailyMode[]).includes(dailyMode);
     });
   }, [dailyMode, dailyQuery]);
   const visiblePriorities = useMemo(() => {
