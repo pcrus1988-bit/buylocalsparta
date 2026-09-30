@@ -91,6 +91,7 @@ type RegistryProjection = {
   checkedAt?: number;
 };
 type HubProspectProjection = {
+  internalId: string;
   reference: string;
   hubSlug: string;
   hubCity: string;
@@ -216,6 +217,7 @@ export default async function ApplicationsPage() {
       const trialStartedAt = row.trial_started_at ? Number(row.trial_started_at) : Number.NaN;
       const trialExpiresAt = row.trial_expires_at ? Number(row.trial_expires_at) : Number.NaN;
       hubProspects.push({
+        internalId: row.public_id,
         reference: hubProspectDisplayReference(row.public_id, row.hub_slug, createdAt),
         hubSlug: row.hub_slug,
         hubCity: row.hub_city,
@@ -373,14 +375,14 @@ export default async function ApplicationsPage() {
 
             <form action={provisionHubProspectTrialAction} className="admin-directory-filters" style={{ marginTop: 12 }}>
               <input type="hidden" name="csrfToken" value={applicationWorkspace.csrfToken} />
-              <input type="hidden" name="applicationId" value={prospect.reference.startsWith("hubprospect_") ? prospect.reference : ""} />
+              <input type="hidden" name="applicationId" value={prospect.internalId} />
               <input type="hidden" name="reason" value="Create or resend private 3-day Trial access from Admin Applications" />
               <button className="button" type="submit">{prospect.trialVendorId ? "Resend Trial access email" : "Create Trial & send email"}</button>
             </form>
 
             {next && <form action={setHubProspectStatus} className="admin-directory-filters" style={{ marginTop: 12 }}>
               <input type="hidden" name="csrfToken" value={applicationWorkspace.csrfToken} />
-              <input type="hidden" name="applicationId" value={prospect.reference} />
+              <input type="hidden" name="applicationId" value={prospect.internalId} />
               <input type="hidden" name="status" value={next.status} />
               <label><span>Workflow note</span><input name="reason" defaultValue={`Admin review: ${prospect.status} → ${next.status}`} minLength={3} maxLength={500} required /></label>
               <button className="button button-secondary" type="submit">{next.label}</button>
@@ -388,7 +390,7 @@ export default async function ApplicationsPage() {
 
             {!["declined", "converted"].includes(prospect.status) && <form action={setHubProspectStatus} className="admin-directory-filters" style={{ marginTop: 8 }}>
               <input type="hidden" name="csrfToken" value={applicationWorkspace.csrfToken} />
-              <input type="hidden" name="applicationId" value={prospect.reference} />
+              <input type="hidden" name="applicationId" value={prospect.internalId} />
               <input type="hidden" name="status" value="declined" />
               <label><span>Decline reason</span><input name="reason" placeholder="Reason sent to applicant…" minLength={3} maxLength={500} required /></label>
               <button className="button button-secondary" type="submit">Decline</button>
