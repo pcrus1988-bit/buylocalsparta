@@ -18,7 +18,7 @@ export function VendorLoginForm({ demoEnabled, redirectTo = "/vendor" }: { demoE
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/vendor/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const response = await fetch("/api/vendor/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password, trialRequested: safeRedirect === "/vendor/trial" }) });
       await response.json().catch(() => ({}));
       if (!response.ok) throw new Error("Δεν μπορέσαμε να σε συνδέσουμε. Έλεγξε το email και τον κωδικό ή επιβεβαίωσε ότι ο λογαριασμός του καταστήματος είναι ενεργός.");
       router.replace(safeRedirect);
