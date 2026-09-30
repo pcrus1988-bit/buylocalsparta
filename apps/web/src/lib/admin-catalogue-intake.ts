@@ -184,6 +184,7 @@ async function readAutomationHealth(tx: SqlExecutor, snapshotId: string): Promis
        JOIN public.catalog_source_products sp ON sp.id=vca.source_product_id
        WHERE sp.snapshot_id=$1::uuid
          AND vca.assortment_status NOT IN ('rejected','discontinued')
+         AND vca.metadata->>'assignment'='bulk_snapshot_v1'
          AND (
            vca.canonical_variant_id IS NULL
            OR NOT EXISTS (
