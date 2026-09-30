@@ -4,6 +4,12 @@ on:
   pull_request:
     paths:
       - "apps/web/src/app/admin/catalogue-intake/**"
+      - "apps/web/src/app/admin/catalogue/page.tsx"
+      - "apps/web/src/app/admin/catalogue/exceptions/page.tsx"
+      - "apps/web/src/app/admin/catalogue/attribute-matching/page.tsx"
+      - "apps/web/src/app/admin/matching/page.tsx"
+      - "apps/web/src/lib/admin-catalogue-operations.ts"
+      - "apps/web/src/lib/workspace-navigation.ts"
       - "apps/web/src/components/AdminAiProductImportForm.tsx"
       - "workers/catalogue-intake-automation-worker.ts"
       - ".github/workflows/catalogue-intake-automation.yml"
@@ -27,6 +33,7 @@ on:
       - "scripts/verify-admin-catalogue-attribute-review.ts"
       - "scripts/verify-admin-catalogue-controlled-values.ts"
       - "scripts/verify-admin-catalogue-intelligence-review.ts"
+      - "scripts/verify-admin-catalogue-operations.ts"
       - "scripts/catalog-source-attribute-mapping-smoke.ts"
       - "scripts/catalog-source-attribute-value-mapping-smoke.ts"
       - ".github/workflows/admin-catalogue-intake-acceptance.yml"
@@ -69,6 +76,7 @@ jobs:
           node --experimental-strip-types scripts/verify-admin-catalogue-attribute-review.ts
           node --experimental-strip-types scripts/verify-admin-catalogue-controlled-values.ts
           node --experimental-strip-types scripts/verify-admin-catalogue-intelligence-review.ts
+          node --experimental-strip-types scripts/verify-admin-catalogue-operations.ts
           npm run db:verify
       - name: Bootstrap Supabase-compatible roles and Vault contract
         run: |
@@ -111,6 +119,7 @@ jobs:
             apps/web/src/lib/admin-catalogue-attribute-value-mapping.ts \
             apps/web/src/lib/admin-catalogue-controlled-value-queue.ts \
             apps/web/src/lib/admin-catalogue-intelligence-review.ts \
+            apps/web/src/lib/admin-catalogue-operations.ts \
             scripts/catalog-source-attribute-mapping-smoke.ts \
             scripts/catalog-source-attribute-value-mapping-smoke.ts \
             workers/catalogue-intake-automation-worker.ts
