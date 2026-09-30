@@ -7,12 +7,16 @@ export type AskLocalClarificationMessage = Readonly<{
   id: string;
   senderType: "customer" | "vendor" | "platform" | "system";
   body: string;
+  imageDataUrl?: string;
   createdAt: number;
 }>;
 
 const globalKey = "__blsAskLocalClarifications" as const;
 const requestMemoryKey = "__blsAskLocalMemory" as const;
 const maxMessages = 40;
+const MAX_MESSAGE_IMAGE_DATA_URL = 260_000;
+const MAX_MESSAGE_IMAGE_BYTES = 190_000;
+const VENDOR_MESSAGE_STATUSES = new Set(["assigned", "awaiting_vendor", "needs_info", "offered"]);
 type MemoryThread = Readonly<{ requestId: string; vendorId?: string; customerId?: string; messages: AskLocalClarificationMessage[] }>;
 type AskLocalMemoryStore = Map<string, AskLocalRequestView[]>;
 const globals = globalThis as typeof globalThis & {
@@ -29,15 +33,33 @@ function validateBody(value: string): string {
   return body;
 }
 
+function validateGeneralBody(value: string): string {
+  const body = value.trim().replace(/\s+/g, " ");
+  if (body.length > 2000) throw new Error("Το μήνυμα δεν μπορεί να ξεπερνά τους 2.000 χαρακτήρες.");
+  return body;
+}
+
+function validateMessageImage(value?: string): string | undefined {
+  const raw = value?.trim();
+  if (!raw) return undefined;
+  if (raw.length > MAX_MESSAGE_IMAGE_DATA_URL) throw new Error("Η φωτογραφία είναι πολύ μεγάλη.");
+  const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(raw);
+  if (!match) throw new Error("Η φωτογραφία πρέπει να είναι JPG, PNG ή WebP.");
+  const bytes = Buffer.from(match[2], "base64");
+  if (!bytes.length || bytes.length > MAX_MESSAGE_IMAGE_BYTES) throw new Error("Η φωτογραφία είναι πολύ μεγάλη.");
+  return raw;
+}
+
 function messageFromValue(value: unknown): AskLocalClarificationMessage | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const record = value as Record<string, unknown>;
   const senderType = typeof record.senderType === "string" ? record.senderType : "";
   const id = typeof record.id === "string" ? record.id : "";
   const body = typeof record.body === "string" ? record.body : "";
+  const imageDataUrl = typeof record.imageDataUrl === "string" ? record.imageDataUrl : undefined;
   const createdAt = Number(record.createdAt);
   if (!id || !body || !["customer", "vendor", "platform", "system"].includes(senderType) || !Number.isFinite(createdAt)) return undefined;
-  return { id, senderType: senderType as AskLocalClarificationMessage["senderType"], body, createdAt };
+  return { id, senderType: senderType as AskLocalClarificationMessage["senderType"], body, imageDataUrl, createdAt };
 }
 
 function clarificationMessagesFromMetadata(value: unknown): AskLocalClarificationMessage[] {
@@ -132,6 +154,116 @@ export async function vendorRequestAskLocalClarification(
       JSON.stringify({ requestReference: String(row.reference_number), vendorId: principal.vendorId }), `ask-local-needs-info:${requestId}:${now}`, new Date(now)
     ]);
   }, { isolation: "serializable" });
+}
+
+export async function vendorSendAskLocalMessage(
+  principal: SessionPrincipal,
+  input: { requestId: string; body?: string; imageDataUrl?: string; now?: number }
+): Promise<void> {
+  const requestId = input.requestId.trim();
+  const body = validateGeneralBody(input.body ?? "");
+  const imageDataUrl = validateMessageImage(input.imageDataUrl);
+  const now = input.now ?? Date.now();
+  if (!requestId) throw new Error("Ask Local request is required");
+  if (!principal.vendorId) throw new Error("VENDOR_REQUIRED");
+  if (!body && !imageDataUrl) throw new Error("Γράψε μήνυμα ή πρόσθεσε φωτογραφία.");
+
+  const storedBody = body || "Φωτογραφία από το κατάστημα";
+
+  if (!postgresEnabled()) {
+    for (const [customerId, requests] of requestMemoryStore()) {
+      const index = requests.findIndex((request) => request.id === requestId && request.assignedVendorId === principal.vendorId);
+      if (index < 0) continue;
+      const request = requests[index];
+      if (!VENDOR_MESSAGE_STATUSES.has(request.status)) throw new Error("Το αίτημα δεν δέχεται νέο μήνυμα στην τρέχουσα κατάσταση.");
+      const current = memoryThreads().get(requestId);
+      const messages = [...(current?.messages ?? []), {
+        id: `message_${randomUUID()}`,
+        senderType: "vendor" as const,
+        body: storedBody,
+        imageDataUrl,
+        createdAt: now
+      }].slice(-maxMessages);
+      requests[index] = {
+        ...request,
+        status: ["assigned", "awaiting_vendor"].includes(request.status) ? "needs_info" : request.status,
+        responseDueAt: ["assigned", "awaiting_vendor"].includes(request.status) ? undefined : request.responseDueAt,
+        clarificationCount: messages.length
+      };
+      requestMemoryStore().set(customerId, requests);
+      memoryThreads().set(requestId, { requestId, vendorId: principal.vendorId, customerId, messages });
+      return;
+    }
+    throw new Error("Το Ask Local αίτημα δεν είναι ανατεθειμένο σε αυτό το κατάστημα.");
+  }
+
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 15_000, lockTimeoutMs: 5_000 });
+  await uow.withTransaction({ actorUserId: principal.userId, vendorId: principal.vendorId, marketId: "sparta", platformAccess: true }, async (tx) => {
+    const found = await tx.query<SqlRow>(`
+      SELECT cr.id::text AS request_uuid,cr.public_id,cr.reference_number,cr.status::text,
+             cr.customer_user_id::text AS customer_uuid,cr.source_metadata,v.id::text AS vendor_uuid
+      FROM counteroffer_requests cr
+      JOIN vendor_businesses v ON v.id=cr.assigned_vendor_id
+      WHERE cr.public_id=$1 AND v.public_id=$2 AND cr.workflow_owner_kind='vendor'
+      FOR UPDATE OF cr
+    `, [requestId, principal.vendorId]);
+    if (!found.rowCount) throw new Error("Το Ask Local αίτημα δεν είναι ανατεθειμένο σε αυτό το κατάστημα.");
+    const row = found.rows[0];
+    const status = String(row.status);
+    if (!VENDOR_MESSAGE_STATUSES.has(status)) throw new Error("Το αίτημα δεν δέχεται νέο μήνυμα στην τρέχουσα κατάσταση.");
+
+    const messages = [...clarificationMessagesFromMetadata(row.source_metadata), {
+      id: `message_${randomUUID()}`,
+      senderType: "vendor" as const,
+      body: storedBody,
+      imageDataUrl,
+      createdAt: now
+    }].slice(-maxMessages);
+    const metadata = metadataWithMessages(row.source_metadata, messages);
+    await tx.query(`UPDATE counteroffer_requests
+      SET source_metadata=$2::jsonb,
+          status=CASE WHEN status IN ('assigned','awaiting_vendor') THEN 'needs_info' ELSE status END,
+          expires_at=CASE WHEN status IN ('assigned','awaiting_vendor') THEN NULL ELSE expires_at END,
+          updated_at=$3,workflow_updated_at=$3
+      WHERE id=$1::uuid`, [row.request_uuid, metadata, new Date(now)]);
+
+    await tx.query(`INSERT INTO notifications(id,public_id,user_id,channel,purpose,event_type,template_version,locale,title,body,payload,status,dedupe_key,created_at)
+      VALUES($1,$2,$3::uuid,'in_app','transactional','counteroffer.vendor_message','ask-local-message-v1','el','Νέο μήνυμα από το κατάστημα',$4,$5::jsonb,'sent',$6,$7)
+      ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`, [
+      randomUUID(), `notification_${randomUUID()}`, row.customer_uuid,
+      (body || (imageDataUrl ? "Το κατάστημα έστειλε φωτογραφία." : storedBody)).slice(0, 240),
+      JSON.stringify({ requestId: String(row.public_id), requestReference: String(row.reference_number), vendorId: principal.vendorId, hasImage: Boolean(imageDataUrl) }),
+      `ask-local-vendor-message:${requestId}:${now}`, new Date(now)
+    ]);
+  }, { isolation: "serializable" });
+}
+
+export async function vendorAskLocalRequestMessages(
+  principal: SessionPrincipal,
+  requestIdValue: string
+): Promise<readonly AskLocalClarificationMessage[]> {
+  const requestId = requestIdValue.trim();
+  if (!requestId || !principal.vendorId) return [];
+  if (!postgresEnabled()) {
+    const thread = memoryThreads().get(requestId);
+    if (!thread) return [];
+    if (thread.vendorId !== principal.vendorId) throw new Error("Η συζήτηση Ask Local δεν βρέθηκε.");
+    return thread.messages;
+  }
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 10_000, lockTimeoutMs: 3_000 });
+  return uow.withTransaction({ actorUserId: principal.userId, vendorId: principal.vendorId, marketId: "sparta", platformAccess: true }, async (tx) => {
+    const result = await tx.query<SqlRow>(`
+      SELECT cr.source_metadata
+      FROM counteroffer_requests cr
+      JOIN vendor_businesses v ON v.id=cr.assigned_vendor_id
+      WHERE cr.public_id=$1 AND v.public_id=$2
+      LIMIT 1
+    `, [requestId, principal.vendorId]);
+    if (!result.rowCount) throw new Error("Η συζήτηση Ask Local δεν βρέθηκε.");
+    return clarificationMessagesFromMetadata(result.rows[0].source_metadata);
+  }, { readOnly: true });
 }
 
 export async function customerReplyAskLocalClarification(

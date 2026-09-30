@@ -1,8 +1,33 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import styles from "./VendorDailyAskLocalV2.module.css";
+
+type RequestMessage = Readonly<{
+  id: string;
+  senderType: string;
+  body: string;
+  imageDataUrl?: string;
+  createdAt: number;
+}>;
+
+type RichRequest = Readonly<{
+  id: string;
+  referenceNumber: string;
+  status: string;
+  need: string;
+  quantity: number;
+  postcode?: string;
+  messages: ReadonlyArray<RequestMessage>;
+  voiceTranscript?: string;
+  barcode?: string;
+  referenceImageDataUrl?: string;
+  captureSource?: string;
+  createdAt: number;
+}>;
 
 type Advice = {
   csrfToken: string;
@@ -10,9 +35,16 @@ type Advice = {
   counteroffers: ReadonlyArray<{ id: string; status: string; canonicalVariantId?: string; need?: unknown }>;
   offerProducts: ReadonlyArray<{ canonicalVariantId: string; vendorOfferId: string; title: string; availableToSell: number }>;
   offerStates: ReadonlyArray<{ requestId: string; status: string; expiresAt: number; productTitle?: string }>;
+  richRequests: ReadonlyArray<RichRequest>;
 };
 
-const when = (value?: number) => value ? new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "";
+type Panel = "message" | "offer";
+type Attachment = Readonly<{ dataUrl: string; name: string }>;
+
+const TERMINAL_REQUESTS = new Set(["closed", "expired", "accepted", "rejected", "declined", "converted", "cancelled"]);
+const OFFERABLE = new Set(["awaiting_vendor"]);
+
+const when = (value?: number) => value ? new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(value)) : "";
 
 function needSummary(value: unknown): string {
   if (typeof value === "string" && value.trim()) return value.trim();
@@ -31,13 +63,78 @@ function eurosToMinor(value: FormDataEntryValue | null): number {
   return Number.isFinite(amount) ? Math.round(amount * 100) : NaN;
 }
 
+function statusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    assigned: "Νέο",
+    awaiting_vendor: "Χρειάζεται απάντηση",
+    needs_info: "Περιμένει πελάτη",
+    offered: "Προσφορά στάλθηκε",
+    accepted: "Αποδεκτή",
+    declined: "Απορρίφθηκε",
+    rejected: "Απορρίφθηκε",
+    expired: "Έληξε",
+    converted: "Ολοκληρώθηκε",
+    closed: "Κλειστό"
+  };
+  return labels[status] ?? status;
+}
+
+function statusClass(status: string): string {
+  if (status === "offered") return `${styles.status} ${styles.statusOffer}`;
+  if (["assigned", "awaiting_vendor", "needs_info"].includes(status)) return `${styles.status} ${styles.statusAttention}`;
+  return styles.status;
+}
+
+function readFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Η φωτογραφία δεν διαβάστηκε."));
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function compressedAskLocalImage(file: File): Promise<string> {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("Χρησιμοποίησε JPG, PNG ή WebP.");
+  const source = await readFile(file);
+  const image = new window.Image();
+  image.decoding = "async";
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error("Η φωτογραφία δεν μπορεί να ανοιχτεί."));
+    image.src = source;
+  });
+
+  const largest = Math.max(image.naturalWidth, image.naturalHeight);
+  const scale = Math.min(1, 1280 / Math.max(1, largest));
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Η επεξεργασία της φωτογραφίας απέτυχε.");
+  context.drawImage(image, 0, 0, width, height);
+
+  for (const quality of [0.82, 0.68, 0.54, 0.42]) {
+    const output = canvas.toDataURL("image/jpeg", quality);
+    if (output.length <= 245_000) return output;
+  }
+  throw new Error("Η φωτογραφία παραμένει πολύ μεγάλη. Δοκίμασε μικρότερη εικόνα.");
+}
+
 export function VendorDailyAskLocalV2({ initial }: { initial: Advice }) {
   const router = useRouter();
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const openRequests = initial.counteroffers.filter((item) => !["closed", "expired", "accepted", "rejected", "declined"].includes(item.status));
+  const [panelByRequest, setPanelByRequest] = useState<Record<string, Panel | undefined>>({});
+  const [attachments, setAttachments] = useState<Record<string, Attachment | undefined>>({});
+  const [attachmentBusy, setAttachmentBusy] = useState("");
 
-  async function post(path: string, body: Record<string, unknown>, busyKey: string) {
+  const openRequests = initial.counteroffers.filter((item) => !TERMINAL_REQUESTS.has(item.status));
+  const contextById = useMemo(() => new Map(initial.richRequests.map((item) => [item.id, item])), [initial.richRequests]);
+
+  async function post(path: string, body: Record<string, unknown>, busyKey: string): Promise<boolean> {
     setBusy(busyKey);
     setError("");
     try {
@@ -49,17 +146,13 @@ export function VendorDailyAskLocalV2({ initial }: { initial: Advice }) {
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Η ενέργεια δεν ολοκληρώθηκε");
       router.refresh();
+      return true;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Η ενέργεια δεν ολοκληρώθηκε");
+      return false;
     } finally {
       setBusy("");
     }
-  }
-
-  async function askClarification(requestId: string, form: HTMLFormElement) {
-    const data = new FormData(form);
-    const question = String(data.get("question") ?? "").trim();
-    await post("/api/daily/advice/clarifications", { requestId, question }, `clarification:${requestId}`);
   }
 
   async function sendOffer(requestId: string, hasCanonical: boolean, form: HTMLFormElement) {
@@ -68,64 +161,164 @@ export function VendorDailyAskLocalV2({ initial }: { initial: Advice }) {
     const fulfilmentPromise = String(data.get("fulfilmentPromise") ?? "").trim();
     const validityHours = Number(data.get("validityHours"));
     const canonicalVariantId = hasCanonical ? undefined : String(data.get("canonicalVariantId") ?? "").trim();
-    await post("/api/daily/advice/offers", {
+    const ok = await post("/api/daily/advice/offers", {
       requestId,
       priceMinor,
       fulfilmentPromise,
       canonicalVariantId,
       expiresAt: Date.now() + validityHours * 60 * 60 * 1000
     }, `offer:${requestId}`);
+    if (ok) {
+      form.reset();
+      setPanelByRequest((current) => ({ ...current, [requestId]: undefined }));
+    }
+  }
+
+  async function sendRequestMessage(requestId: string, form: HTMLFormElement) {
+    const data = new FormData(form);
+    const body = String(data.get("body") ?? "").trim();
+    const attachment = attachments[requestId];
+    const ok = await post("/api/daily/advice/requests/messages", {
+      requestId,
+      body,
+      imageDataUrl: attachment?.dataUrl
+    }, `message:${requestId}`);
+    if (ok) {
+      form.reset();
+      setAttachments((current) => ({ ...current, [requestId]: undefined }));
+    }
+  }
+
+  async function pickAttachment(requestId: string, file?: File) {
+    if (!file) return;
+    setAttachmentBusy(requestId);
+    setError("");
+    try {
+      const dataUrl = await compressedAskLocalImage(file);
+      setAttachments((current) => ({ ...current, [requestId]: { dataUrl, name: file.name } }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Η φωτογραφία δεν προστέθηκε.");
+    } finally {
+      setAttachmentBusy("");
+    }
   }
 
   async function reply(conversationId: string, form: HTMLFormElement) {
     const data = new FormData(form);
     const body = String(data.get("body") ?? "").trim();
-    await post("/api/daily/advice/messages", { conversationId, body }, `reply:${conversationId}`);
+    const ok = await post("/api/daily/advice/messages", { conversationId, body }, `reply:${conversationId}`);
+    if (ok) form.reset();
   }
 
-  return <main style={{ minHeight: "100dvh", background: "#f6f4ee", paddingBottom: 34 }}>
-    <header style={{ position: "sticky", top: 0, zIndex: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "14px 18px", background: "rgba(246,244,238,.94)", backdropFilter: "blur(16px)", borderBottom: "1px solid rgba(23,25,20,.09)" }}>
-      <div><span style={{ display: "block", fontSize: 11, fontWeight: 800, letterSpacing: ".15em" }}>KONTA MOY</span><strong style={{ fontSize: 20 }}>Daily · Ask Local</strong></div>
-      <Link href="/daily" style={{ color: "inherit", textDecoration: "none", border: "1px solid rgba(23,25,20,.16)", borderRadius: 12, padding: "9px 12px", fontWeight: 800 }}>Πίσω</Link>
+  function togglePanel(requestId: string, panel: Panel) {
+    setPanelByRequest((current) => ({ ...current, [requestId]: current[requestId] === panel ? undefined : panel }));
+  }
+
+  return <main className={styles.page}>
+    <header className={styles.header}>
+      <div className={styles.brand}><span>KONTA MOY</span><strong>Daily · Ask Local</strong></div>
+      <Link href="/daily" className={styles.back}>Πίσω</Link>
     </header>
 
-    <div style={{ width: "min(100% - 32px, 820px)", margin: "0 auto", paddingTop: 24, display: "grid", gap: 24 }}>
-      <section>
-        <div style={{ marginBottom: 12 }}><span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".13em", textTransform: "uppercase", opacity: .55 }}>Assigned requests</span><h1 style={{ margin: "4px 0", fontSize: 30, letterSpacing: "-.04em" }}>Ask Local</h1><p style={{ margin: 0, opacity: .62 }}>Σύνδεσε κάθε γενική προσφορά με το πραγματικό προϊόν του καταστήματος. Έτσι, όταν ο πελάτης πατήσει αποδοχή, συνεχίζει αμέσως σε ασφαλές checkout με τη συμφωνημένη τιμή.</p></div>
-        {error && <p role="alert" style={{ padding: 12, borderRadius: 12, background: "#fff0ee", color: "#8d2119", fontWeight: 700 }}>{error}</p>}
-        {openRequests.length ? <div style={{ display: "grid", gap: 10 }}>{openRequests.map((request) => {
-          const state = initial.offerStates.find((item) => item.requestId === request.id);
-          const hasCanonical = Boolean(request.canonicalVariantId);
-          return <article key={request.id} style={{ background: "white", border: "1px solid rgba(23,25,20,.09)", borderRadius: 18, padding: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}><strong>{hasCanonical ? "Αίτημα για συγκεκριμένο προϊόν" : "Γενικό αίτημα"}</strong><span style={{ fontSize: 12, fontWeight: 800, background: "#f0eee6", borderRadius: 999, padding: "5px 9px" }}>{request.status}</span></div>
-            <p style={{ margin: "10px 0 0", opacity: .72 }}>{needSummary(request.need)}</p>
-            {request.status === "needs_info" && <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#fff7e9", fontWeight: 700 }}>Περιμένουμε απάντηση από τον πελάτη.</div>}
-            {request.status === "awaiting_vendor" && <details style={{ marginTop: 14, borderTop: "1px solid rgba(23,25,20,.09)", paddingTop: 12 }}>
-              <summary style={{ cursor: "pointer", fontWeight: 800 }}>Ζήτησε διευκρίνιση</summary>
-              <form style={{ display: "grid", gap: 10, marginTop: 12 }} onSubmit={(event) => { event.preventDefault(); void askClarification(request.id, event.currentTarget); }}>
-                <textarea name="question" minLength={3} maxLength={2000} required rows={3} placeholder="π.χ. Ποια διάσταση χρειάζεστε;" style={{ border: "1px solid rgba(23,25,20,.16)", borderRadius: 12, padding: 12, font: "inherit" }} />
-                <button type="submit" disabled={Boolean(busy)} style={{ minHeight: 46, border: "1px solid rgba(23,25,20,.16)", borderRadius: 13, background: "white", padding: "0 16px", font: "inherit", fontWeight: 800 }}>{busy === `clarification:${request.id}` ? "Αποστολή…" : "Αποστολή ερώτησης"}</button>
-              </form>
-            </details>}
-            {request.status === "awaiting_vendor" && <details open={!hasCanonical} style={{ marginTop: 14, borderTop: "1px solid rgba(23,25,20,.09)", paddingTop: 12 }}>
-              <summary style={{ cursor: "pointer", fontWeight: 800 }}>Στείλε ιδιωτική προσφορά</summary>
-              <form style={{ display: "grid", gap: 10, marginTop: 12 }} onSubmit={(event) => { event.preventDefault(); void sendOffer(request.id, hasCanonical, event.currentTarget); }}>
-                {!hasCanonical ? <label style={{ display: "grid", gap: 5 }}><span style={{ fontSize: 12, fontWeight: 800 }}>Προϊόν που προσφέρεις</span><select name="canonicalVariantId" required defaultValue="" style={{ minHeight: 46, border: "1px solid rgba(23,25,20,.16)", borderRadius: 12, padding: "0 12px", font: "inherit" }}><option value="" disabled>Επίλεξε προϊόν με επιβεβαιωμένο απόθεμα</option>{initial.offerProducts.map((product) => <option key={product.vendorOfferId} value={product.canonicalVariantId}>{product.title} · διαθέσιμα {product.availableToSell}</option>)}</select><small style={{ opacity: .62 }}>Η σύνδεση αυτή είναι υποχρεωτική για να μπορεί η αποδοχή να γίνει online αγορά.</small></label> : null}
-                <label style={{ display: "grid", gap: 5 }}><span style={{ fontSize: 12, fontWeight: 800 }}>Τιμή ανά τεμάχιο (€)</span><input name="price" inputMode="decimal" required placeholder="24,90" style={{ minHeight: 46, border: "1px solid rgba(23,25,20,.16)", borderRadius: 12, padding: "0 12px", font: "inherit" }} /></label>
-                <label style={{ display: "grid", gap: 5 }}><span style={{ fontSize: 12, fontWeight: 800 }}>Τι περιλαμβάνει / πώς θα εκπληρωθεί</span><textarea name="fulfilmentPromise" minLength={3} maxLength={500} required rows={3} placeholder="π.χ. Διαθέσιμο σήμερα για παραλαβή από το κατάστημα." style={{ border: "1px solid rgba(23,25,20,.16)", borderRadius: 12, padding: 12, font: "inherit" }} /></label>
-                <label style={{ display: "grid", gap: 5 }}><span style={{ fontSize: 12, fontWeight: 800 }}>Ισχύς προσφοράς</span><select name="validityHours" defaultValue="24" style={{ minHeight: 46, border: "1px solid rgba(23,25,20,.16)", borderRadius: 12, padding: "0 12px", font: "inherit" }}><option value="1">1 ώρα</option><option value="6">6 ώρες</option><option value="24">24 ώρες</option><option value="48">48 ώρες</option><option value="168">7 ημέρες</option></select></label>
-                <button type="submit" disabled={Boolean(busy) || (!hasCanonical && initial.offerProducts.length === 0)} style={{ minHeight: 46, border: 0, borderRadius: 13, background: "#171914", color: "white", padding: "0 16px", font: "inherit", fontWeight: 800 }}>{busy === `offer:${request.id}` ? "Αποστολή…" : "Αποστολή προσφοράς"}</button>
-              </form>
-            </details>}
-            {request.status === "offered" && <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: "#f4f7f1" }}><strong>Η προσφορά στάλθηκε.</strong><div style={{ marginTop: 5, opacity: .72 }}>{state?.productTitle ? `Προϊόν: ${state.productTitle}. ` : ""}{state?.expiresAt ? `Λήγει ${when(state.expiresAt)}.` : "Περιμένουμε την απόφαση του πελάτη."}</div><button type="button" disabled={Boolean(busy)} onClick={() => void post("/api/daily/advice/offers/reopen", { requestId: request.id }, `reopen:${request.id}`)} style={{ marginTop: 9, border: 0, background: "transparent", padding: 0, textDecoration: "underline", font: "inherit", fontWeight: 700, cursor: "pointer" }}>{busy === `reopen:${request.id}` ? "Ανάκληση…" : "Ανάκληση και νέα προσφορά"}</button></div>}
-          </article>;
-        })}</div> : <div style={{ padding: 18, borderRadius: 18, background: "white", border: "1px solid rgba(23,25,20,.09)", opacity: .65 }}>Δεν υπάρχουν ανοιχτά Ask Local αιτήματα.</div>}
+    <div className={styles.shell}>
+      <section className={styles.hero}>
+        <div><span className={styles.eyebrow}>Ιδιωτικά αιτήματα πελατών</span><h1>Ask Local</h1><p>Κάθε αίτημα είναι πλέον χώρος εργασίας: απάντηση, φωτογραφία, ιστορικό και ιδιωτική προσφορά στο ίδιο σημείο.</p></div>
+        <span className={styles.count}>{openRequests.length}</span>
       </section>
 
-      <section>
-        <div style={{ marginBottom: 12 }}><span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".13em", textTransform: "uppercase", opacity: .55 }}>Messages</span><h2 style={{ margin: "4px 0", fontSize: 24 }}>Συνομιλίες</h2></div>
-        {initial.conversations.length ? <div style={{ display: "grid", gap: 12 }}>{initial.conversations.map((conversation) => <article key={conversation.id} style={{ background: "white", border: "1px solid rgba(23,25,20,.09)", borderRadius: 18, padding: 16 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><strong>Συνομιλία</strong><span style={{ fontSize: 12, fontWeight: 800 }}>{conversation.state}</span></div><div style={{ display: "grid", gap: 8, marginTop: 12 }}>{conversation.messages.map((message) => <div key={message.id} style={{ padding: 10, borderRadius: 12, background: message.senderType === "vendor" ? "#edf4ee" : "#f4f2ec" }}><strong style={{ fontSize: 12 }}>{message.senderType === "vendor" ? "Κατάστημα" : "Πελάτης"}</strong><div>{message.body}</div>{message.createdAt ? <small style={{ opacity: .55 }}>{when(message.createdAt)}</small> : null}</div>)}</div><form style={{ display: "flex", gap: 8, marginTop: 12 }} onSubmit={(event) => { event.preventDefault(); void reply(conversation.id, event.currentTarget); }}><input name="body" required minLength={1} maxLength={2000} placeholder="Γράψε απάντηση…" style={{ flex: 1, minWidth: 0, minHeight: 44, border: "1px solid rgba(23,25,20,.16)", borderRadius: 12, padding: "0 12px", font: "inherit" }} /><button type="submit" disabled={Boolean(busy)} style={{ border: 0, borderRadius: 12, background: "#171914", color: "white", padding: "0 14px", fontWeight: 800 }}>Αποστολή</button></form></article>)}</div> : <div style={{ padding: 18, borderRadius: 18, background: "white", border: "1px solid rgba(23,25,20,.09)", opacity: .65 }}>Δεν υπάρχουν ενεργές συνομιλίες.</div>}
-      </section>
+      {error && <div className={styles.error} role="alert">{error}</div>}
+
+      {openRequests.length ? <div className={styles.requestList}>{openRequests.map((request) => {
+        const context = contextById.get(request.id);
+        const messages = context?.messages ?? [];
+        const state = initial.offerStates.find((item) => item.requestId === request.id);
+        const hasCanonical = Boolean(request.canonicalVariantId);
+        const panel = panelByRequest[request.id];
+        const attachment = attachments[request.id];
+        const canOffer = OFFERABLE.has(request.status);
+
+        return <article className={styles.requestCard} key={request.id}>
+          <div className={styles.requestHead}>
+            <div className={styles.requestTitle}>
+              <span className={styles.requestRef}>{context?.referenceNumber ?? request.id}</span>
+              <strong>{hasCanonical ? "Αίτημα για συγκεκριμένο προϊόν" : "Γενικό αίτημα"}</strong>
+            </div>
+            <span className={statusClass(request.status)}>{statusLabel(request.status)}</span>
+          </div>
+
+          <p className={styles.need}>{context?.need ?? needSummary(request.need)}</p>
+
+          <div className={styles.meta}>
+            {context?.quantity ? <span>Ποσότητα · {context.quantity}</span> : null}
+            {context?.postcode ? <span>ΤΚ · {context.postcode}</span> : null}
+            {context?.captureSource ? <span>Πηγή · {context.captureSource}</span> : null}
+          </div>
+
+          {context && (context.referenceImageDataUrl || context.voiceTranscript || context.barcode) ? <div className={styles.evidence}>
+            {context.referenceImageDataUrl ? <Image className={styles.evidenceImage} src={context.referenceImageDataUrl} alt="Ιδιωτική φωτογραφία του αιτήματος Ask Local" width={360} height={270} unoptimized /> : null}
+            <div className={styles.evidenceText}>
+              {context.voiceTranscript ? <div><strong>Φωνητική περιγραφή</strong><div>{context.voiceTranscript}</div></div> : null}
+              {context.barcode ? <div><strong>Barcode / κωδικός</strong><div>{context.barcode}</div></div> : null}
+            </div>
+          </div> : null}
+
+          <div className={styles.thread}>
+            <div className={styles.threadHead}><strong>Ιδιωτική συζήτηση</strong><small>{messages.length ? `${messages.length} μηνύματα` : "Δεν έχει ξεκινήσει ακόμα"}</small></div>
+            {messages.length ? <div className={styles.messages}>{messages.map((message) => <div key={message.id} className={`${styles.message} ${message.senderType === "vendor" ? styles.messageVendor : styles.messageCustomer}`}>
+              <strong>{message.senderType === "vendor" ? "Κατάστημα" : message.senderType === "customer" ? "Πελάτης" : "KONTA MOY"}</strong>
+              <span>{message.body}</span>
+              {message.imageDataUrl ? <Image className={styles.messageImage} src={message.imageDataUrl} alt="Φωτογραφία στη συζήτηση Ask Local" width={420} height={315} unoptimized /> : null}
+              <small>{when(message.createdAt)}</small>
+            </div>)}</div> : <div className={styles.emptyThread}>Απάντησε απευθείας εδώ — δεν χρειάζεται ξεχωριστή «Συνομιλία» για να δημιουργηθεί thread.</div>}
+          </div>
+
+          {request.status === "needs_info" ? <div className={styles.waiting}>Περιμένουμε απάντηση από τον πελάτη. Μπορείς να στείλεις συμπληρωματικό μήνυμα ή φωτογραφία· η προσφορά ενεργοποιείται ξανά μόλις επιστρέψει η διευκρίνιση.</div> : null}
+
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.actionButton} ${panel === "message" ? styles.actionButtonPrimary : ""}`} onClick={() => togglePanel(request.id, "message")}>Μήνυμα / φωτογραφία</button>
+            {canOffer ? <button type="button" className={`${styles.actionButton} ${panel === "offer" ? styles.actionButtonPrimary : ""}`} onClick={() => togglePanel(request.id, "offer")}>Στείλε προσφορά</button> : null}
+          </div>
+
+          {panel === "message" ? <div className={styles.panel}>
+            <div className={styles.panelTitle}><strong>Απάντηση στον πελάτη</strong><button type="button" onClick={() => togglePanel(request.id, "message")}>Κλείσιμο</button></div>
+            <form className={styles.form} onSubmit={(event) => { event.preventDefault(); void sendRequestMessage(request.id, event.currentTarget); }}>
+              <label className={styles.field}><span>Μήνυμα</span><textarea className={styles.textarea} name="body" maxLength={2000} rows={3} placeholder="Γράψε απάντηση, πρόταση ή διευκρίνιση…" /></label>
+              <div className={styles.attach}>
+                <label>{attachmentBusy === request.id ? "Επεξεργασία…" : "＋ Προσθήκη φωτογραφίας"}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={attachmentBusy === request.id} onChange={(event) => void pickAttachment(request.id, event.target.files?.[0])} /></label>
+              </div>
+              {attachment ? <div className={styles.preview}><Image className={styles.previewImage} src={attachment.dataUrl} alt="Προεπισκόπηση φωτογραφίας" width={96} height={96} unoptimized /><div><strong>{attachment.name}</strong><br /><button type="button" onClick={() => setAttachments((current) => ({ ...current, [request.id]: undefined }))}>Αφαίρεση</button></div></div> : null}
+              <small>Η φωτογραφία συμπιέζεται πριν σταλεί και παραμένει μέσα στο ιδιωτικό Ask Local αίτημα.</small>
+              <div className={styles.formFooter}><button className={styles.submit} type="submit" disabled={Boolean(busy) || attachmentBusy === request.id}>{busy === `message:${request.id}` ? "Αποστολή…" : "Αποστολή στον πελάτη"}</button></div>
+            </form>
+          </div> : null}
+
+          {panel === "offer" && canOffer ? <div className={styles.panel}>
+            <div className={styles.panelTitle}><strong>Ιδιωτική προσφορά</strong><button type="button" onClick={() => togglePanel(request.id, "offer")}>Κλείσιμο</button></div>
+            <form className={styles.form} onSubmit={(event) => { event.preventDefault(); void sendOffer(request.id, hasCanonical, event.currentTarget); }}>
+              {!hasCanonical ? <label className={styles.field}><span>Προϊόν που προσφέρεις</span><select className={styles.select} name="canonicalVariantId" required defaultValue=""><option value="" disabled>Επίλεξε προϊόν με επιβεβαιωμένο απόθεμα</option>{initial.offerProducts.map((product) => <option key={product.vendorOfferId} value={product.canonicalVariantId}>{product.title} · διαθέσιμα {product.availableToSell}</option>)}</select><small>Η σύνδεση με πραγματικό προϊόν είναι υποχρεωτική για ασφαλές checkout μετά την αποδοχή.</small></label> : null}
+              <label className={styles.field}><span>Τιμή ανά τεμάχιο (€)</span><input className={styles.input} name="price" inputMode="decimal" required placeholder="24,90" /></label>
+              <label className={styles.field}><span>Τι περιλαμβάνει / πώς θα εκπληρωθεί</span><textarea className={styles.textarea} name="fulfilmentPromise" minLength={3} maxLength={500} required rows={3} placeholder="π.χ. Διαθέσιμο σήμερα για παραλαβή από το κατάστημα." /></label>
+              <label className={styles.field}><span>Ισχύς προσφοράς</span><select className={styles.select} name="validityHours" defaultValue="24"><option value="1">1 ώρα</option><option value="6">6 ώρες</option><option value="24">24 ώρες</option><option value="48">48 ώρες</option><option value="168">7 ημέρες</option></select></label>
+              <div className={styles.formFooter}><button className={styles.submit} type="submit" disabled={Boolean(busy) || (!hasCanonical && initial.offerProducts.length === 0)}>{busy === `offer:${request.id}` ? "Αποστολή…" : "Αποστολή προσφοράς"}</button></div>
+            </form>
+          </div> : null}
+
+          {request.status === "offered" ? <div className={styles.offerSummary}>
+            <strong>Η προσφορά στάλθηκε στον πελάτη.</strong>
+            <p>{state?.productTitle ? `Προϊόν: ${state.productTitle}. ` : ""}{state?.expiresAt ? `Λήγει ${when(state.expiresAt)}.` : "Περιμένουμε την απόφαση του πελάτη."}</p>
+            <button type="button" disabled={Boolean(busy)} onClick={() => void post("/api/daily/advice/offers/reopen", { requestId: request.id }, `reopen:${request.id}`)}>{busy === `reopen:${request.id}` ? "Ανάκληση…" : "Ανάκληση και νέα προσφορά"}</button>
+          </div> : null}
+        </article>;
+      })}</div> : <div className={styles.empty}>Δεν υπάρχουν ανοιχτά Ask Local αιτήματα.</div>}
+
+      {initial.conversations.length ? <section className={styles.legacyConversations}>
+        <span className={styles.eyebrow}>Άλλες συνομιλίες συμβουλών</span><h2>Μηνύματα εκτός Ask Local</h2>
+        <div className={styles.legacyList}>{initial.conversations.map((conversation) => <article className={styles.legacyCard} key={conversation.id}>
+          <strong>{conversation.canonicalVariantId ? "Συμβουλή για προϊόν" : "Γενική συμβουλή"} · {conversation.state}</strong>
+          {conversation.messages.length ? <div className={styles.messages} style={{ marginTop: 10 }}>{conversation.messages.map((message) => <div key={message.id} className={`${styles.message} ${message.senderType === "vendor" ? styles.messageVendor : styles.messageCustomer}`}><strong>{message.senderType === "vendor" ? "Κατάστημα" : "Πελάτης"}</strong><span>{message.body}</span>{message.createdAt ? <small>{when(message.createdAt)}</small> : null}</div>)}</div> : null}
+          <form className={styles.form} style={{ marginTop: 10 }} onSubmit={(event) => { event.preventDefault(); void reply(conversation.id, event.currentTarget); }}><label className={styles.field}><span>Απάντηση</span><input className={styles.input} name="body" required maxLength={2000} placeholder="Γράψε απάντηση…" /></label><div className={styles.formFooter}><button className={styles.submit} disabled={Boolean(busy)} type="submit">{busy === `reply:${conversation.id}` ? "Αποστολή…" : "Αποστολή"}</button></div></form>
+        </article>)}</div>
+      </section> : null}
     </div>
   </main>;
 }
