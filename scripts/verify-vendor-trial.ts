@@ -62,6 +62,10 @@ requireText(trialPage, 'aria-current={step.number === recommendedStep.number ? "
 requireText(storefrontBuilder, "router.refresh()", "Saving Brand/Storefront changes must refresh wizard progress immediately");
 requireText(previewPage, "robots: { index: false, follow: false }", "Private trial preview must stay noindex");
 requireText(previewPage, "storefrontPreviewProducts(vendorId, 12)", "Private preview must load the real vendor catalogue instead of placeholder products");
+requireText(previewPage, "getVendorLocalCatalogPage", "Active vendor preview must reuse the bounded local storefront loader");
+requireText(previewPage, "getFastVendorDropshipCatalogPage", "Active vendor preview must reuse the bounded dropship storefront loader");
+requireText(previewPage, "const storefront = await storefrontPreviewWorkspace(vendorId)", "Vendor preview database reads must remain sequential on the constrained production pool");
+forbidText(previewPage, "const [storefront, products] = await Promise.all", "Vendor preview must not parallelize cold PostgreSQL reads on the constrained production pool");
 requireText(previewPage, "products.map((product, index)", "Private preview must render the loaded vendor products");
 requireText(storefrontSettings, "vendor_product_submissions", "Private preview must include trial drafts and review submissions");
 requireText(storefrontSettings, "product_media", "Private preview must project approved product media");
