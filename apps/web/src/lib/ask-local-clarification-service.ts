@@ -16,7 +16,7 @@ const requestMemoryKey = "__blsAskLocalMemory" as const;
 const maxMessages = 40;
 const MAX_MESSAGE_IMAGE_DATA_URL = 260_000;
 const MAX_MESSAGE_IMAGE_BYTES = 190_000;
-const VENDOR_MESSAGE_STATUSES = new Set(["awaiting_vendor", "needs_info", "offered"]);
+const VENDOR_MESSAGE_STATUSES = new Set(["assigned", "awaiting_vendor", "needs_info", "offered"]);
 type MemoryThread = Readonly<{ requestId: string; vendorId?: string; customerId?: string; messages: AskLocalClarificationMessage[] }>;
 type AskLocalMemoryStore = Map<string, AskLocalRequestView[]>;
 const globals = globalThis as typeof globalThis & {
@@ -186,8 +186,8 @@ export async function vendorSendAskLocalMessage(
       }].slice(-maxMessages);
       requests[index] = {
         ...request,
-        status: request.status === "awaiting_vendor" ? "needs_info" : request.status,
-        responseDueAt: request.status === "awaiting_vendor" ? undefined : request.responseDueAt,
+        status: ["assigned", "awaiting_vendor"].includes(request.status) ? "needs_info" : request.status,
+        responseDueAt: ["assigned", "awaiting_vendor"].includes(request.status) ? undefined : request.responseDueAt,
         clarificationCount: messages.length
       };
       requestMemoryStore().set(customerId, requests);
@@ -223,8 +223,8 @@ export async function vendorSendAskLocalMessage(
     const metadata = metadataWithMessages(row.source_metadata, messages);
     await tx.query(`UPDATE counteroffer_requests
       SET source_metadata=$2::jsonb,
-          status=CASE WHEN status='awaiting_vendor' THEN 'needs_info' ELSE status END,
-          expires_at=CASE WHEN status='awaiting_vendor' THEN NULL ELSE expires_at END,
+          status=CASE WHEN status IN ('assigned','awaiting_vendor') THEN 'needs_info' ELSE status END,
+          expires_at=CASE WHEN status IN ('assigned','awaiting_vendor') THEN NULL ELSE expires_at END,
           updated_at=$3,workflow_updated_at=$3
       WHERE id=$1::uuid`, [row.request_uuid, metadata, new Date(now)]);
 
