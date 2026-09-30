@@ -1,10 +1,12 @@
 import { isDropshippingOnlyVendor } from "../../../../lib/vendor-dropshipping-access";
 import { requireVendorSession, vendorOperatingContextForPrincipal } from "../../../../lib/vendor-session";
+import { getVendorTrialSnapshot, isVendorTrialPrincipal } from "../../../../lib/vendor-trial-runtime";
 
 export async function GET() {
   try {
     const principal = await requireVendorSession();
     const context = await vendorOperatingContextForPrincipal(principal);
+    const trial = isVendorTrialPrincipal(principal) ? await getVendorTrialSnapshot() : undefined;
     return Response.json({
       csrfToken: principal.csrfToken,
       vendorId: principal.vendorId,
@@ -16,6 +18,13 @@ export async function GET() {
         operatingModel: context.operatingModel,
         capabilities: context.capabilities
       },
+      trial: trial ? {
+        active: trial.active,
+        expiresAt: new Date(trial.trialExpiresAt).toISOString(),
+        vendorName: trial.vendorName,
+        productCount: trial.productCount,
+        mediaCount: trial.mediaCount
+      } : undefined,
       account: { email: principal.email, roles: principal.roles }
     });
   } catch (error) {
