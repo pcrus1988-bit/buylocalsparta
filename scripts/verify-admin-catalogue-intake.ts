@@ -87,6 +87,7 @@ forbidText("importForm", "/api/admin/catalogue-intake/canonicalize", "Canonicali
 
 requireText("automationWorker", "process_catalog_intelligence_refresh_queue", "Scheduled intake worker must drain deterministic intelligence as a fallback");
 requireText("automationWorker", "vendor_catalog_assortments", "Scheduled intake worker must discover only already-assigned vendor catalogue rows");
+requireText("automationWorker", "metadata->>'assignment'='bulk_snapshot_v1'", "Scheduled intake worker must require the explicit whole-snapshot vendor assignment marker");
 requireText("automationWorker", "apply_catalog_source_canonicalization", "Scheduled intake worker must invoke governed canonical identity resolution");
 requireText("automationWorker", "assortment_status NOT IN ('rejected','discontinued')", "Scheduled canonicalization must ignore rejected/discontinued vendor assignments");
 requireText("automationWorker", "catalog_canonicalization_reviews", "Scheduled canonicalization must detect governed identity exceptions");
