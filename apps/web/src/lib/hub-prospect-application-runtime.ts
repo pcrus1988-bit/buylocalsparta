@@ -258,6 +258,119 @@ async function ensureHubTrialMarket(tx: SqlExecutor, hub: ExpansionHub, now: num
   return marketUuid;
 }
 
+async function provisionHubProspectTrial(tx: SqlExecutor, input: {
+  prospectUuid: string;
+  marketUuid: string;
+  ownerUuid: string;
+  ownerPublicId: string;
+  application: HubProspectApplicationInput;
+  hub: ExpansionHub;
+  legalName: string;
+  gemiNumber: string;
+  registryAddress: string;
+  postcode: string;
+  now: number;
+}): Promise<HubProspectTrial> {
+  const vendorUuid = randomUUID();
+  const vendorPublicId = `vendor_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
+  const startedAt = input.now;
+  const expiresAt = input.now + VENDOR_TRIAL_DURATION_MS;
+  const at = new Date(input.now);
+  const initialSettings = {
+    accentColor: "#0f766e",
+    heroStyle: "split",
+    heroTitle: input.application.businessName,
+    showFeatured: true,
+    showFlashSale: true,
+    showBazaar: true,
+    showAbout: true,
+    showLocation: true,
+    showContact: true
+  };
+
+  await tx.query(`
+    INSERT INTO vendor_businesses(
+      id,public_id,market_id,legal_name,trading_name,tax_number,gemi_number,status,
+      public_directory_visible,demo_mode,demo_mode_updated_at,storefront_settings,created_at,updated_at
+    ) VALUES(
+      $1,$2,$3::uuid,$4,$5,$6,$7,'verification_pending',
+      false,true,$8,$9::jsonb,$8,$8
+    )
+  `, [
+    vendorUuid,
+    vendorPublicId,
+    input.marketUuid,
+    input.legalName,
+    input.application.businessName,
+    input.application.taxNumber,
+    input.gemiNumber,
+    at,
+    JSON.stringify(initialSettings)
+  ]);
+
+  const location = await tx.query<SqlRow>(`
+    INSERT INTO vendor_locations(
+      id,public_id,vendor_id,market_id,name,address_line1,locality,postcode,country_code,
+      phone,public_email,active,is_primary,timezone,created_at,updated_at
+    ) VALUES($1,$2,$3::uuid,$4::uuid,$5,$6,$7,$8,'GR',$9,$10,true,true,'Europe/Athens',$11,$11)
+    RETURNING id::text AS id
+  `, [
+    randomUUID(),
+    `location_${randomUUID().replaceAll("-", "").slice(0, 20)}`,
+    vendorUuid,
+    input.marketUuid,
+    input.application.businessName,
+    input.registryAddress,
+    input.hub.nameEl,
+    input.postcode,
+    input.application.phone,
+    input.application.email,
+    at
+  ]);
+  const locationUuid = requiredText(location.rows[0]?.id, "vendor_location.id");
+
+  const membership = await tx.query<SqlRow>(`
+    INSERT INTO vendor_users(id,public_id,vendor_id,user_id,location_id,active,created_at)
+    VALUES($1,$2,$3::uuid,$4::uuid,$5::uuid,true,$6)
+    RETURNING id::text AS id
+  `, [
+    randomUUID(),
+    `vuser_${randomUUID().replaceAll("-", "").slice(0, 20)}`,
+    vendorUuid,
+    input.ownerUuid,
+    locationUuid,
+    at
+  ]);
+  const membershipUuid = requiredText(membership.rows[0]?.id, "vendor_user.id");
+  await tx.query(
+    "INSERT INTO vendor_user_roles(vendor_user_id,role) VALUES($1::uuid,'vendor_owner') ON CONFLICT DO NOTHING",
+    [membershipUuid]
+  );
+
+  await tx.query(`
+    INSERT INTO vendor_profile_translations(vendor_id,locale,short_description,story)
+    VALUES($1::uuid,'el',NULL,NULL)
+    ON CONFLICT(vendor_id,locale) DO NOTHING
+  `, [vendorUuid]);
+
+  await tx.query(`
+    UPDATE hub_expansion_prospects
+    SET owner_user_id=$2::uuid,
+        vendor_id=$3::uuid,
+        trial_started_at=$4,
+        trial_expires_at=$5,
+        updated_at=$4
+    WHERE id=$1::uuid
+  `, [input.prospectUuid, input.ownerUuid, vendorUuid, at, new Date(expiresAt)]);
+
+  return {
+    vendorId: vendorPublicId,
+    ownerUserId: input.ownerPublicId,
+    startedAt,
+    expiresAt
+  };
+}
+
 async function authenticatedOwner(tx: SqlExecutor, principal: SessionPrincipal): Promise<{ uuid: string; publicId: string; provisional: false }> {
   if (!principal.roles.includes("customer")) {
     throw new HubProspectApplicationError(403, "account_required", "Χρειάζεται ενεργός λογαριασμός για να συνδεθεί η αίτηση με υπάρχουσα ταυτότητα.");
@@ -362,4 +475,9 @@ function optionalLimited(value: string | undefined, max: number): string | undef
   if (!normalized) return undefined;
   if (normalized.length > max) throw new HubProspectApplicationError(400, "field_too_long", `Το κείμενο μπορεί να έχει έως ${max} χαρακτήρες.`);
   return normalized;
+}
+
+function requiredText(value: unknown, label: string): string {
+  if (typeof value !== "string" || !value.trim()) throw new Error(`Missing ${label}`);
+  return value.trim();
 }
