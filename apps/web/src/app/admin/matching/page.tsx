@@ -10,46 +10,54 @@ import { getAdminSession } from "../../../lib/admin-session";
 
 export const metadata: Metadata = { title: "Admin · Vendor Matching", robots: { index: false, follow: false } };
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; submission?: string }> }) {
+export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; submission?: string; page?: string }> }) {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
-  const data = await adminMatchingWorkspace(principal);
   const params = await searchParams;
-  const query = params.q?.trim().toLocaleLowerCase("el-GR");
+  const query = params.q?.trim();
   const status = params.status?.trim();
-  const filteredSubmissions = data.submissions.filter((item) => {
-    const matchesStatus = !status || item.status === status;
-    const matchesQuery = !query || [item.id, item.title, item.categoryCode, item.vendorId, item.canonicalVariantId, ...item.candidates.map((candidate) => candidate.canonicalVariantId)].some((value) => String(value ?? "").toLocaleLowerCase("el-GR").includes(query));
-    return matchesStatus && matchesQuery;
-  });
-  const statuses = [...new Set(data.submissions.map((item) => item.status))].sort();
-  const selected = filteredSubmissions.find((item) => item.id === params.submission)
+  const pageNumber = Math.max(1, Math.floor(Number(params.page ?? "1")) || 1);
+  const pageSize = 60;
+  const requestedSubmissionId = params.submission?.trim() || undefined;
+  const data = await adminMatchingWorkspace(principal,{ q:query, status, submissionId:requestedSubmissionId, limit:pageSize, offset:(pageNumber-1)*pageSize });
+  const filteredSubmissions = data.submissions;
+  const statuses = data.statuses;
+  const selected = data.requestedSubmission
+    ?? filteredSubmissions.find((item) => item.id === requestedSubmissionId)
     ?? filteredSubmissions.find((item) => ["submitted", "needs_review"].includes(item.status) || item.candidates.some((candidate) => ["pending", "auto_linked"].includes(candidate.status)))
     ?? filteredSubmissions[0];
-  const review = data.submissions.filter((item) => ["submitted", "needs_review"].includes(item.status)).length;
-  const candidateActions = data.submissions.reduce((total, item) => total + item.candidates.filter((candidate) => ["pending", "auto_linked"].includes(candidate.status)).length, 0);
-  const linked = data.submissions.filter((item) => Boolean(item.canonicalVariantId)).length;
-  const offerReady = data.submissions.filter((item) => item.canonicalVariantId && ["linked", "approved"].includes(item.status)).length;
+  const review = data.metrics.review;
+  const candidateActions = data.metrics.candidateActions;
+  const linked = data.metrics.linked;
+  const offerReady = data.metrics.offerReady;
   const hrefFor = (submissionId: string) => {
     const search = new URLSearchParams();
-    if (params.q) search.set("q", params.q);
+    if (query) search.set("q", query);
     if (status) search.set("status", status);
+    if (pageNumber > 1) search.set("page", String(pageNumber));
     search.set("submission", submissionId);
     return `/admin/matching?${search.toString()}`;
+  };
+  const pageHref = (page: number) => {
+    const search = new URLSearchParams();
+    if (query) search.set("q", query);
+    if (status) search.set("status", status);
+    if (page > 1) search.set("page", String(page));
+    return `/admin/matching${search.size?`?${search.toString()}`:""}`;
   };
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Catalogue · commercial matching</div><h1>Vendor Matching</h1><p className="lead">Queue αριστερά, evidence και απόφαση δεξιά. Ταυτότητα canonical και εμπορική έγκριση offer παραμένουν δύο ξεχωριστές αποφάσεις.</p></div></section>
     <WorkspaceMetricStrip items={[
-      { label: "Submissions", value: data.submissions.length },
+      { label: "Submissions", value: data.metrics.submissions, hint: `${data.filteredTotal.toLocaleString("el-GR")} in current filter` },
       { label: "Needs review", value: review, tone: review ? "attention" : "default" },
       { label: "Candidate decisions", value: candidateActions, tone: candidateActions ? "attention" : "default" },
       { label: "Linked", value: linked, tone: linked ? "positive" : "default", hint: `${offerReady} ready for offer review` }
     ]} />
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Triage workspace" title="Matching queue & decision panel" note="Search σε source title, vendor, category, canonical ID ή submission ID. Δημιουργία canonical εδώ αφορά μόνο product identity· δεν δημιουργεί ή τιμολογεί vendor offer." />
-      <form method="get" className="admin-directory-filters"><label><span>Search</span><input name="q" defaultValue={params.q ?? ""} placeholder="Product, vendor, canonical ID…" /></label><label><span>Status</span><select name="status" defaultValue={status ?? ""}><option value="">All statuses</option>{statuses.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</select></label><div><button className="button button-secondary" type="submit">Filter</button>{(query || status) && <Link className="text-link" href="/admin/matching">Clear</Link>}</div></form>
+      <form method="get" className="admin-directory-filters"><label><span>Search</span><input name="q" defaultValue={query ?? ""} placeholder="Product, vendor, canonical ID…" /></label><label><span>Status</span><select name="status" defaultValue={status ?? ""}><option value="">All statuses</option>{statuses.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</select></label><div><button className="button button-secondary" type="submit">Filter</button>{(query || status) && <Link className="text-link" href="/admin/matching">Clear</Link>}</div></form>
       {filteredSubmissions.length === 0 ? <WorkspaceEmptyState title="Δεν βρέθηκαν matching submissions με αυτά τα φίλτρα." /> : <div className="admin-split-workspace">
         <div className="admin-triage-list" aria-label="Matching submissions">{filteredSubmissions.map((submission) => {
           const decisions = submission.candidates.filter((candidate) => ["pending", "auto_linked"].includes(candidate.status)).length;
@@ -68,6 +76,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
           <div className="workspace-action-bar"><span>{selected.status === "archived" ? "Archived products remain visible to Admin and vendor but are not available for sale." : selected.canonicalVariantId ? `Linked to ${selected.canonicalVariantId}` : "No canonical identity selected yet. Creating one does not set a platform retail price."}</span><div className="workspace-action-buttons">{selected.canonicalVariantId && ["linked", "approved"].includes(selected.status) && <AdminActionButton label="Approve offer" endpoint="/api/admin/catalog/action" csrfToken={data.csrfToken} body={{ kind: "approve_offer", id: selected.id }} reasonPrompt="Offer approval reason" />}{!selected.canonicalVariantId && ["submitted", "needs_review", "linked"].includes(selected.status) && <AdminActionButton label="Create canonical identity" endpoint="/api/admin/catalog/canonical" csrfToken={data.csrfToken} body={{ submissionId: selected.id }} reasonPrompt="Why is this a genuinely new canonical product?" />}<AdminProductLifecycleActions submissionId={selected.id} submissionStatus={selected.status} csrfToken={data.csrfToken} /></div></div>
         </article>}
       </div>}
+      {data.filteredTotal>pageSize?<div className="workspace-action-bar" style={{marginTop:"1rem"}}>
+        <span>Showing {data.offset+1}–{Math.min(data.offset+filteredSubmissions.length,data.filteredTotal)} of {data.filteredTotal.toLocaleString("el-GR")} matching submissions.</span>
+        <div className="workspace-action-buttons">
+          {pageNumber>1?<Link className="button button-secondary" href={pageHref(pageNumber-1)}>Previous</Link>:null}
+          {data.hasMore?<Link className="button button-secondary" href={pageHref(pageNumber+1)}>Next</Link>:null}
+        </div>
+      </div>:null}
     </section>
   </main>;
 }

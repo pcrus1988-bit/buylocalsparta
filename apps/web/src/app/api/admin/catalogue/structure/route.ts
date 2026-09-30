@@ -7,6 +7,7 @@ import {
 import {
   adminCatalogueStructureReviewAttributes,
   adminCatalogueStructureReviewProducts,
+  adminCatalogueStructureReviewSummary,
   type CatalogueStructureReviewProductScope
 } from "../../../../../lib/admin-catalogue-structure-review-runtime";
 
@@ -21,6 +22,10 @@ export async function GET(request: Request) {
     const offset = Number(url.searchParams.get("offset") ?? 0);
     const limit = Number(url.searchParams.get("limit") ?? 50);
     const review = url.searchParams.get("review")?.trim();
+
+    if (review === "summary") {
+      return Response.json(await adminCatalogueStructureReviewSummary(principal), { headers: { "cache-control": "private, no-store" } });
+    }
 
     if (review === "products") {
       const rawScope = url.searchParams.get("scope")?.trim();

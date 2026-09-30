@@ -132,15 +132,176 @@ export class PostgresAdminOperationsService {
     return result;
   }
 
-  async matchingWorkspace(principal: SessionPrincipal) {
+  async matchingWorkspace(
+    principal: SessionPrincipal,
+    options: Readonly<{ q?: string; status?: string; submissionId?: string; limit?: number; offset?: number }> = {}
+  ) {
+    const query=options.q?.trim().slice(0,120) || undefined;
+    const status=options.status?.trim().slice(0,60) || undefined;
+    const limit=options.limit===undefined?undefined:Math.max(20,Math.min(100,Math.floor(options.limit)));
+    const offset=Math.max(0,Math.floor(options.offset??0));
+
     return this.#uow.withTransaction(platformScope(principal.userId), async (tx) => {
-      const submissions = await tx.query<SqlRow>(`SELECT s.id::text AS submission_uuid,s.public_id,v.public_id AS vendor_public_id,c.code AS category_code,s.source_identity,s.status,s.supplier_unit_price_minor,s.currency,s.updated_at,cv.public_id AS canonical_public_id
-        FROM vendor_product_submissions s JOIN vendor_businesses v ON v.id=s.vendor_id JOIN categories c ON c.id=s.category_id LEFT JOIN canonical_variants cv ON cv.id=s.canonical_variant_id
-        WHERE s.market_id=(SELECT id FROM markets WHERE code='sparta') ORDER BY s.updated_at DESC,s.public_id`);
-      const candidates = await tx.query<SqlRow>(`SELECT pmc.public_id,pmc.submission_id::text AS submission_uuid,cv.public_id AS canonical_public_id,pmc.status,pmc.confidence,pmc.match_level,pmc.reasons FROM product_merge_candidates pmc LEFT JOIN canonical_variants cv ON cv.id=pmc.candidate_variant_id WHERE pmc.market_id=(SELECT id FROM markets WHERE code='sparta') ORDER BY pmc.created_at DESC`);
+      const metricsResult=await tx.query<SqlRow>(`
+        SELECT
+          COUNT(*)::int AS submissions,
+          COUNT(*) FILTER (WHERE s.status IN ('submitted','needs_review'))::int AS review,
+          COUNT(*) FILTER (WHERE s.canonical_variant_id IS NOT NULL)::int AS linked,
+          COUNT(*) FILTER (WHERE s.canonical_variant_id IS NOT NULL AND s.status IN ('linked','approved'))::int AS offer_ready,
+          COALESCE(ARRAY_AGG(DISTINCT s.status::text ORDER BY s.status::text),'{}'::text[]) AS statuses,
+          (
+            SELECT COUNT(*)::int
+            FROM product_merge_candidates pmc
+            WHERE pmc.market_id=(SELECT id FROM markets WHERE code='sparta')
+              AND pmc.status IN ('pending','auto_linked')
+          ) AS candidate_actions
+        FROM vendor_product_submissions s
+        WHERE s.market_id=(SELECT id FROM markets WHERE code='sparta')
+      `);
+      const metricRow=metricsResult.rows[0]??{};
+
+      const filterSql=`
+        FROM vendor_product_submissions s
+        JOIN vendor_businesses v ON v.id=s.vendor_id
+        JOIN categories c ON c.id=s.category_id
+        LEFT JOIN canonical_variants cv ON cv.id=s.canonical_variant_id
+        WHERE s.market_id=(SELECT id FROM markets WHERE code='sparta')
+          AND ($1::text IS NULL OR s.status::text=$1)
+          AND (
+            $2::text IS NULL
+            OR s.public_id ILIKE '%'||$2||'%'
+            OR v.public_id ILIKE '%'||$2||'%'
+            OR c.code ILIKE '%'||$2||'%'
+            OR COALESCE(s.source_identity->>'title','') ILIKE '%'||$2||'%'
+            OR COALESCE(cv.public_id,'') ILIKE '%'||$2||'%'
+            OR EXISTS (
+              SELECT 1
+              FROM product_merge_candidates pmc_q
+              LEFT JOIN canonical_variants cv_q ON cv_q.id=pmc_q.candidate_variant_id
+              WHERE pmc_q.submission_id=s.id
+                AND COALESCE(cv_q.public_id,'') ILIKE '%'||$2||'%'
+            )
+          )
+      `;
+      const filteredCountResult=await tx.query<SqlRow>(`SELECT COUNT(*)::int AS filtered_total ${filterSql}`,[status??null,query??null]);
+      const filteredTotal=int(filteredCountResult.rows[0]?.filtered_total??0,"filtered_total");
+
+      const submissions=await tx.query<SqlRow>(`
+        SELECT
+          s.id::text AS submission_uuid,
+          s.public_id,
+          v.public_id AS vendor_public_id,
+          c.code AS category_code,
+          s.source_identity,
+          s.status,
+          s.supplier_unit_price_minor,
+          s.currency,
+          s.updated_at,
+          cv.public_id AS canonical_public_id
+        ${filterSql}
+        ORDER BY
+          CASE s.status WHEN 'submitted' THEN 0 WHEN 'needs_review' THEN 1 WHEN 'linked' THEN 2 WHEN 'approved' THEN 3 ELSE 4 END,
+          s.updated_at DESC,
+          s.public_id
+        LIMIT $3 OFFSET $4
+      `,[status??null,query??null,limit??null,offset]);
+
+      const requested=options.submissionId && !submissions.rows.some((row)=>text(row.public_id,"submission.public_id")===options.submissionId)
+        ? await tx.query<SqlRow>(`
+            SELECT
+              s.id::text AS submission_uuid,
+              s.public_id,
+              v.public_id AS vendor_public_id,
+              c.code AS category_code,
+              s.source_identity,
+              s.status,
+              s.supplier_unit_price_minor,
+              s.currency,
+              s.updated_at,
+              cv.public_id AS canonical_public_id
+            FROM vendor_product_submissions s
+            JOIN vendor_businesses v ON v.id=s.vendor_id
+            JOIN categories c ON c.id=s.category_id
+            LEFT JOIN canonical_variants cv ON cv.id=s.canonical_variant_id
+            WHERE s.market_id=(SELECT id FROM markets WHERE code='sparta')
+              AND (s.public_id=$1 OR s.id::text=$1)
+            LIMIT 1
+          `,[options.submissionId])
+        : { rows: [] as SqlRow[], rowCount: 0 };
+
+      const hydrationRows=[...submissions.rows,...requested.rows];
+      const submissionUuids=[...new Set(hydrationRows.map((row)=>text(row.submission_uuid,"submission_uuid")))];
+      const candidates=submissionUuids.length
+        ? await tx.query<SqlRow>(`
+            SELECT
+              pmc.public_id,
+              pmc.submission_id::text AS submission_uuid,
+              cv.public_id AS canonical_public_id,
+              pmc.status,
+              pmc.confidence,
+              pmc.match_level,
+              pmc.reasons
+            FROM product_merge_candidates pmc
+            LEFT JOIN canonical_variants cv ON cv.id=pmc.candidate_variant_id
+            WHERE pmc.submission_id=ANY($1::uuid[])
+            ORDER BY pmc.created_at DESC
+          `,[submissionUuids])
+        : { rows: [] as SqlRow[], rowCount: 0 };
+
       const bySubmission = new Map<string, any[]>();
-      for (const c of candidates.rows) { const key=text(c.submission_uuid,"submission_uuid"); const list=bySubmission.get(key)??[]; list.push({id:text(c.public_id,"candidate.public_id"),canonicalVariantId:optionalText(c.canonical_public_id),status:text(c.status,"candidate.status"),confidence:num(c.confidence),level:text(c.match_level,"match_level"),reasons:jsonArray(c.reasons).map(String)}); bySubmission.set(key,list); }
-      return { csrfToken: principal.csrfToken, submissions: submissions.rows.map((r) => { const identity=jsonObject(r.source_identity); return { id:text(r.public_id,"submission.public_id"),vendorId:text(r.vendor_public_id,"vendor_public_id"),title:typeof identity.title==="string"?identity.title:"Untitled",categoryCode:text(r.category_code,"category_code"),status:text(r.status,"status"),canonicalVariantId:optionalText(r.canonical_public_id),supplierPrice:formatMoney(money(int(r.supplier_unit_price_minor,"supplier_unit_price_minor"), text(r.currency,"currency") as "EUR")),updatedAt:epoch(r.updated_at,"updated_at"),candidates:bySubmission.get(text(r.submission_uuid,"submission_uuid"))??[] }; }) };
+      for (const candidate of candidates.rows) {
+        const key=text(candidate.submission_uuid,"submission_uuid");
+        const list=bySubmission.get(key)??[];
+        list.push({
+          id:text(candidate.public_id,"candidate.public_id"),
+          canonicalVariantId:optionalText(candidate.canonical_public_id),
+          status:text(candidate.status,"candidate.status"),
+          confidence:num(candidate.confidence),
+          level:text(candidate.match_level,"match_level"),
+          reasons:jsonArray(candidate.reasons).map(String)
+        });
+        bySubmission.set(key,list);
+      }
+
+      const mapSubmission=(r:SqlRow)=>{
+        const identity=jsonObject(r.source_identity);
+        return {
+          id:text(r.public_id,"submission.public_id"),
+          vendorId:text(r.vendor_public_id,"vendor_public_id"),
+          title:typeof identity.title==="string"?identity.title:"Untitled",
+          categoryCode:text(r.category_code,"category_code"),
+          status:text(r.status,"status"),
+          canonicalVariantId:optionalText(r.canonical_public_id),
+          supplierPrice:formatMoney(money(int(r.supplier_unit_price_minor,"supplier_unit_price_minor"), text(r.currency,"currency") as "EUR")),
+          updatedAt:epoch(r.updated_at,"updated_at"),
+          candidates:bySubmission.get(text(r.submission_uuid,"submission_uuid"))??[]
+        };
+      };
+      const statusValues=Array.isArray(metricRow.statuses) ? metricRow.statuses.map(String) : [];
+      const mappedSubmissions=submissions.rows.map(mapSubmission);
+      const requestedSubmission=requested.rows[0]
+        ? mapSubmission(requested.rows[0])
+        : options.submissionId
+          ? mappedSubmissions.find((item)=>item.id===options.submissionId)
+          : undefined;
+
+      return {
+        csrfToken: principal.csrfToken,
+        metrics:{
+          submissions:int(metricRow.submissions,"submissions"),
+          review:int(metricRow.review,"review"),
+          candidateActions:int(metricRow.candidate_actions,"candidate_actions"),
+          linked:int(metricRow.linked,"linked"),
+          offerReady:int(metricRow.offer_ready,"offer_ready")
+        },
+        statuses:statusValues,
+        filteredTotal,
+        offset,
+        limit:limit??filteredTotal,
+        hasMore:limit!==undefined&&offset+submissions.rows.length<filteredTotal,
+        requestedSubmission,
+        submissions:mappedSubmissions
+      };
     }, { readOnly: true });
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type {
   CatalogueStructureReviewAttributesPage,
   CatalogueStructureReviewProductsPage,
@@ -10,6 +10,16 @@ import type {
 } from "../lib/admin-catalogue-structure-review-runtime";
 
 const PAGE_SIZE = 50;
+
+const EMPTY_SUMMARY: CatalogueStructureReviewSummary = {
+  currentSourceProducts: 0,
+  unlinkedProducts: 0,
+  unclassifiedProducts: 0,
+  productsWithUnmappedAttributes: 0,
+  unmappedAttributeObservations: 0,
+  unmappedAttributeKeys: 0,
+  reviewRequiredAttributeObservations: 0
+};
 
 type ProductsState = Readonly<{
   status: "idle" | "loading" | "ready" | "error";
@@ -53,7 +63,10 @@ function scopeCount(summary: CatalogueStructureReviewSummary, scope: CatalogueSt
   return summary.unlinkedProducts;
 }
 
-export function AdminCatalogueStructureReviewClient({ summary }: Readonly<{ summary: CatalogueStructureReviewSummary }>) {
+export function AdminCatalogueStructureReviewClient({ summary }: Readonly<{ summary?: CatalogueStructureReviewSummary }>) {
+  const [reviewSummary,setReviewSummary]=useState<CatalogueStructureReviewSummary|undefined>(summary);
+  const [summaryStatus,setSummaryStatus]=useState<"loading"|"ready"|"error">(summary?"ready":"loading");
+  const [summaryReloadKey,setSummaryReloadKey]=useState(0);
   const [productsOpen, setProductsOpen] = useState(false);
   const [attributesOpen, setAttributesOpen] = useState(false);
   const [productScope, setProductScope] = useState<CatalogueStructureReviewProductScope>("unlinked");
@@ -61,6 +74,26 @@ export function AdminCatalogueStructureReviewClient({ summary }: Readonly<{ summ
   const [attributeQuery, setAttributeQuery] = useState("");
   const [productsState, setProductsState] = useState<ProductsState>({ status: "idle" });
   const [attributesState, setAttributesState] = useState<AttributesState>({ status: "idle" });
+
+
+  useEffect(()=>{
+    if(summary)return;
+    setSummaryStatus("loading");
+    const controller=new AbortController();
+    const timeout=window.setTimeout(()=>controller.abort(),8000);
+    fetch("/api/admin/catalogue/structure?review=summary",{cache:"no-store",signal:controller.signal})
+      .then((response)=>responseJson<CatalogueStructureReviewSummary>(response))
+      .then((payload)=>{setReviewSummary(payload);setSummaryStatus("ready");})
+      .catch((error)=>{
+        if(error instanceof DOMException&&error.name==="AbortError")setSummaryStatus("error");
+        else setSummaryStatus("error");
+      })
+      .finally(()=>window.clearTimeout(timeout));
+    return()=>{window.clearTimeout(timeout);controller.abort();};
+  },[summary,summaryReloadKey]);
+
+  const activeSummary=reviewSummary??EMPTY_SUMMARY;
+  const summaryCount=(value:number)=>summaryStatus==="ready"?value.toLocaleString("el-GR"):"…";
 
   async function loadProducts(scope: CatalogueStructureReviewProductScope, offset = 0, q = productQuery) {
     if (offset === 0) setProductsState({ status: "loading" });
@@ -136,33 +169,36 @@ export function AdminCatalogueStructureReviewClient({ summary }: Readonly<{ summ
         <h2 id="structure-review-title">UNMAPPED / NEEDS REVIEW</h2>
         <p>These records are intentionally visible before they are correctly mapped. Counts use the latest snapshot from each supplier/source, so older imports do not inflate the review queue.</p>
       </div>
-      <Link className="button button-secondary" href="/admin/catalogue-intake/attributes">Open full Attribute Review Centre</Link>
+      <div className="structure-inline-actions">
+        {summaryStatus==="error"?<button className="button button-secondary" type="button" onClick={()=>setSummaryReloadKey((value)=>value+1)}>Retry counters</button>:null}
+        <Link className="button button-secondary" href="/admin/catalogue-intake/attributes">Open full Attribute Review Centre</Link>
+      </div>
     </div>
 
     <div className="structure-review-cards">
       <div className="structure-review-card is-neutral">
         <span>Current source intake</span>
-        <strong>{summary.currentSourceProducts.toLocaleString("el-GR")}</strong>
+        <strong>{summaryCount(activeSummary.currentSourceProducts)}</strong>
         <small>products in latest source snapshots</small>
       </div>
       <button className="structure-review-card is-attention" type="button" aria-expanded={productsOpen && productScope === "unlinked"} onClick={() => chooseProductScope("unlinked")}>
         <span>Unmapped products</span>
-        <strong>{summary.unlinkedProducts.toLocaleString("el-GR")}</strong>
+        <strong>{summaryCount(activeSummary.unlinkedProducts)}</strong>
         <small>not represented by an approved canonical link</small>
       </button>
       <button className="structure-review-card is-attention" type="button" aria-expanded={productsOpen && productScope === "unclassified"} onClick={() => chooseProductScope("unclassified")}>
         <span>Unclassified products</span>
-        <strong>{summary.unclassifiedProducts.toLocaleString("el-GR")}</strong>
+        <strong>{summaryCount(activeSummary.unclassifiedProducts)}</strong>
         <small>without an approved category mapping</small>
       </button>
       <button className="structure-review-card is-attention" type="button" aria-expanded={attributesOpen} onClick={toggleAttributes}>
         <span>Unmapped attributes</span>
-        <strong>{summary.unmappedAttributeObservations.toLocaleString("el-GR")}</strong>
-        <small>{summary.unmappedAttributeKeys.toLocaleString("el-GR")} source keys · {summary.productsWithUnmappedAttributes.toLocaleString("el-GR")} products</small>
+        <strong>{summaryCount(activeSummary.unmappedAttributeObservations)}</strong>
+        <small>{summaryCount(activeSummary.unmappedAttributeKeys)} source keys · {summaryCount(activeSummary.productsWithUnmappedAttributes)} products</small>
       </button>
       <Link className="structure-review-card is-review" href="/admin/catalogue-intake/attributes?stage=review">
         <span>Already under review</span>
-        <strong>{summary.reviewRequiredAttributeObservations.toLocaleString("el-GR")}</strong>
+        <strong>{summaryCount(activeSummary.reviewRequiredAttributeObservations)}</strong>
         <small>mapped meanings still needing value/unit decisions</small>
       </Link>
     </div>
@@ -184,7 +220,7 @@ export function AdminCatalogueStructureReviewClient({ summary }: Readonly<{ summ
           aria-selected={productScope === scope}
           className={productScope === scope ? "is-selected" : ""}
           onClick={() => chooseProductScope(scope)}
-        >{scopeLabel(scope)} <b>{scopeCount(summary, scope).toLocaleString("el-GR")}</b></button>)}
+        >{scopeLabel(scope)} <b>{summaryCount(scopeCount(activeSummary, scope))}</b></button>)}
       </div>
 
       <form className="structure-review-search" onSubmit={(event) => { event.preventDefault(); void loadProducts(productScope, 0, productQuery); }}>

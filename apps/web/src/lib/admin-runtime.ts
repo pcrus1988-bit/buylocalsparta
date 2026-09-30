@@ -96,7 +96,46 @@ export async function recordAdminAudit(principal:SessionPrincipal,action:string,
 export async function adminDashboard(p:SessionPrincipal){if(postgresAdminRuntimeEnabled())return getProductionPostgresRuntime().adminOperations.dashboard(p);return memory.adminDashboard(p);}
 export async function adminVendorsWorkspace(p:SessionPrincipal){assertAdminPermission(p,"vendor.manage");if(postgresAdminRuntimeEnabled())return getProductionPostgresRuntime().adminOperations.vendorsWorkspace(p);return memory.adminVendorsWorkspace(p);}
 export async function transitionVendorApplication(p:SessionPrincipal,input:{applicationId:string;to:VendorOnboardingState;reason:string}){assertAdminPermission(p,"vendor.manage");if(postgresAdminRuntimeEnabled())return getProductionPostgresRuntime().adminOperations.transitionVendorApplication(p,input);return memory.transitionVendorApplication(p,input);}
-export async function adminMatchingWorkspace(p:SessionPrincipal){assertAdminPermission(p,"catalog.read");if(postgresAdminRuntimeEnabled())return getProductionPostgresRuntime().adminOperations.matchingWorkspace(p);return memory.adminMatchingWorkspace(p);}
+export async function adminMatchingWorkspace(
+  p:SessionPrincipal,
+  options:Readonly<{q?:string;status?:string;submissionId?:string;limit?:number;offset?:number}>={}
+){
+  assertAdminPermission(p,"catalog.read");
+  if(postgresAdminRuntimeEnabled())return getProductionPostgresRuntime().adminOperations.matchingWorkspace(p,options);
+  const raw=memory.adminMatchingWorkspace(p);
+  const query=options.q?.trim().toLocaleLowerCase("el-GR")||"";
+  const status=options.status?.trim()||"";
+  const limit=options.limit===undefined?undefined:Math.max(20,Math.min(100,Math.floor(options.limit)));
+  const offset=Math.max(0,Math.floor(options.offset??0));
+  const ordered=[...raw.submissions].sort((a,b)=>b.updatedAt-a.updatedAt);
+  const filtered=ordered.filter((item)=>{
+    if(status&&item.status!==status)return false;
+    if(!query)return true;
+    return [item.id,item.title,item.categoryCode,item.vendorId,item.canonicalVariantId,...item.candidates.map((candidate)=>candidate.canonicalVariantId)]
+      .some((value)=>String(value??"").toLocaleLowerCase("el-GR").includes(query));
+  });
+  const submissions=limit===undefined?filtered.slice(offset):filtered.slice(offset,offset+limit);
+  const requestedSubmission=options.submissionId
+    ? filtered.find((item)=>item.id===options.submissionId)
+    : undefined;
+  return {
+    csrfToken:raw.csrfToken,
+    metrics:{
+      submissions:raw.submissions.length,
+      review:raw.submissions.filter((item)=>["submitted","needs_review"].includes(item.status)).length,
+      candidateActions:raw.submissions.reduce((total,item)=>total+item.candidates.filter((candidate)=>["pending","auto_linked"].includes(candidate.status)).length,0),
+      linked:raw.submissions.filter((item)=>Boolean(item.canonicalVariantId)).length,
+      offerReady:raw.submissions.filter((item)=>item.canonicalVariantId&&["linked","approved"].includes(item.status)).length
+    },
+    statuses:[...new Set(raw.submissions.map((item)=>item.status))].sort(),
+    filteredTotal:filtered.length,
+    offset,
+    limit:limit??filtered.length,
+    hasMore:limit!==undefined&&offset+submissions.length<filtered.length,
+    requestedSubmission,
+    submissions
+  };
+}
 export async function adminCatalogAction(p:SessionPrincipal,input:{kind:"approve_match"|"reject_match"|"approve_offer"|"reject_offer";id:string;reason:string}){assertAdminPermission(p,"catalog.write");if(postgresAdminRuntimeEnabled())return getProductionPostgresRuntime().adminOperations.catalogAction(p,input);return memory.adminCatalogAction(p,input);}
 export async function adminCreateCanonical(p:SessionPrincipal,input:{submissionId:string;platformPriceMinor:number;titleEl?:string;reason:string}){assertAdminPermission(p,"catalog.write");if(postgresAdminRuntimeEnabled())return getProductionPostgresRuntime().adminOperations.createCanonical(p,input);return memory.adminCreateCanonical(p,input);}
 export async function adminTrustWorkspace(p:SessionPrincipal){assertAdminPermission(p,"catalog.read");if(postgresAdminRuntimeEnabled())return { ...(await getProductionPostgresRuntime().adminOperations.trustWorkspace(p)), automatedMalwareScan:true };return { ...memory.adminTrustWorkspace(p), automatedMalwareScan:false };}

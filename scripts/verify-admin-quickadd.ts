@@ -4,9 +4,11 @@ const read = (path: string) => readFileSync(path, "utf8");
 const failures: string[] = [];
 const pagePath = "apps/web/src/app/admin/quickadd/page.tsx";
 const componentPath = "apps/web/src/components/AdminQuickAddWorkbench.tsx";
+const readinessApiPath = "apps/web/src/app/api/admin/quickadd/media/readiness/route.ts";
 
 if (!existsSync(pagePath)) failures.push("Admin Quick Add page is missing");
 if (!existsSync(componentPath)) failures.push("Admin Quick Add workbench is missing");
+if (!existsSync(readinessApiPath)) failures.push("Admin Quick Add media readiness API is missing");
 
 const navigation = read("apps/web/src/lib/workspace-navigation.ts");
 const api = read("apps/web/src/app/api/admin/quickadd/route.ts");
@@ -14,6 +16,7 @@ const service = read("apps/web/src/lib/admin-quickadd-service.ts");
 const adminHome = read("apps/web/src/app/admin/page.tsx");
 const page = existsSync(pagePath) ? read(pagePath) : "";
 const component = existsSync(componentPath) ? read(componentPath) : "";
+const readinessApi = existsSync(readinessApiPath) ? read(readinessApiPath) : "";
 
 for (const token of ["/admin/quickadd", "Quick Add", "catalog.write"]) {
   if (!navigation.includes(token)) failures.push(`Admin navigation is missing ${token}`);
@@ -26,12 +29,13 @@ for (const token of [
   "adminQuickAddWorkspace",
   "hasAdminPermission",
   "force-dynamic",
-  "mediaPipelineReadiness",
   "mediaUploadMode",
   "mediaReadinessMessage"
 ]) {
   if (!page.includes(token)) failures.push(`Admin Quick Add page is missing ${token}`);
 }
+if (page.includes("mediaPipelineReadiness(")) failures.push("Admin Quick Add must not probe media storage readiness during initial render");
+
 for (const token of [
   "/api/admin/quickadd",
   "x-csrf-token",
@@ -45,6 +49,9 @@ for (const token of [
   "const mediaUploadAvailable = mediaUploadMode === \"direct\"",
   "if (!mediaUploadAvailable)",
   "mediaReadinessMessage",
+  "/api/admin/quickadd/media/readiness",
+  "verifyMediaReadinessBeforeSave",
+  "await verifyMediaReadinessBeforeSave()",
   "disabled={!mediaUploadAvailable || busy !== null}",
   'disabled={busy !== null}>{busy === "save"'
 ]) {
@@ -52,6 +59,9 @@ for (const token of [
 }
 for (const token of ['permission: "catalog.write"', "csrf: true", "const result = await adminQuickAddLookup"]) {
   if (!api.includes(token)) failures.push(`Admin Quick Add API is missing ${token}`);
+}
+for (const token of ['permission: "catalog.write"', "mediaPipelineReadiness", "mediaUploadMode", 'cache-control']) {
+  if (!readinessApi.includes(token)) failures.push(`Admin Quick Add media readiness API is missing ${token}`);
 }
 for (const token of ['assertAdminPermission(principal,"catalog.write")', "reusedExactGtin", "admin_quickadd"]) {
   if (!service.includes(token)) failures.push(`Admin Quick Add service is missing ${token}`);

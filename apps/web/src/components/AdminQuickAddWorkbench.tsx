@@ -325,6 +325,29 @@ export function AdminQuickAddWorkbench({
     return uploaded;
   }
 
+  async function verifyMediaReadinessBeforeSave() {
+    if (!photos.length) return true;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 4000);
+    try {
+      const response = await fetch("/api/admin/quickadd/media/readiness", { cache: "no-store", signal: controller.signal });
+      const payload = await response.json() as { ready?: boolean; message?: string; error?: string };
+      if (!response.ok || payload.ready !== true) {
+        setNotice({ tone: "error", text: `Δεν θα γίνει αποθήκευση με εκκρεμείς φωτογραφίες: ${payload.message ?? payload.error ?? "Το media pipeline δεν είναι έτοιμο."}` });
+        return false;
+      }
+      return true;
+    } catch (cause) {
+      const detail = cause instanceof DOMException && cause.name === "AbortError"
+        ? "Ο έλεγχος ετοιμότητας φωτογραφιών έληξε πριν ολοκληρωθεί."
+        : cause instanceof Error ? cause.message : "Δεν ήταν δυνατός ο έλεγχος του media pipeline.";
+      setNotice({ tone: "error", text: `Δεν θα γίνει αποθήκευση με εκκρεμείς φωτογραφίες: ${detail}` });
+      return false;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
   async function save() {
     if (!vendorId) {
       setNotice({ tone: "error", text: "Επίλεξε κατάστημα." });
@@ -355,6 +378,7 @@ export function AdminQuickAddWorkbench({
       setNotice({ tone: "error", text: "Επιβεβαίωσε το δικαίωμα χρήσης πριν ανεβάσεις τις νέες φωτογραφίες." });
       return;
     }
+    if (photos.length && !(await verifyMediaReadinessBeforeSave())) return;
     setBusy("save");
     setNotice(null);
     let productSaved = false;

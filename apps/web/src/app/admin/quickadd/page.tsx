@@ -6,7 +6,7 @@ import { WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../../componen
 import { adminQuickAddWorkspace } from "../../../lib/admin-quickadd-service";
 import { hasAdminPermission } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
-import { mediaPipelineReadiness, mediaUploadMode } from "../../../lib/media-upload-service";
+import { mediaUploadMode } from "../../../lib/media-upload-service";
 
 export const metadata: Metadata = { title: "Admin · Quick Add", robots: { index: false, follow: false, nocache: true } };
 export const dynamic = "force-dynamic";
@@ -15,8 +15,13 @@ export default async function Page() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
   if (!hasAdminPermission(principal, "catalog.write")) redirect("/admin");
-  const [data, mediaReadiness] = await Promise.all([adminQuickAddWorkspace(principal), mediaPipelineReadiness()]);
+  const data = await adminQuickAddWorkspace(principal);
   const uploadMode = mediaUploadMode();
+  const mediaReadinessMessage = uploadMode === "direct"
+    ? "Private media upload is configured. Storage readiness is verified when an upload starts."
+    : uploadMode === "gated"
+      ? "Media upload is currently gated by production storage/scanner configuration."
+      : "Development media mode is active.";
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} entityLabel="Quick Add" />
@@ -42,7 +47,7 @@ export default async function Page() {
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="One workbench" title="Έρευνα, δημιουργία, ανάθεση και stock" note="Επίλεξε πρώτα κατάστημα. Τα inactive ή demo καταστήματα μπορούν να προετοιμαστούν χωρίς να εμφανιστούν δημόσια μέχρι να ενεργοποιηθούν." />
-      <AdminQuickAddWorkbench vendors={data.vendors} categories={data.categories} csrfToken={data.csrfToken} mediaUploadMode={uploadMode} mediaReadinessMessage={mediaReadiness.message} />
+      <AdminQuickAddWorkbench vendors={data.vendors} categories={data.categories} csrfToken={data.csrfToken} mediaUploadMode={uploadMode} mediaReadinessMessage={mediaReadinessMessage} />
     </section>
   </main>;
 }
