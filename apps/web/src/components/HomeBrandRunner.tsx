@@ -7,6 +7,7 @@ import { publicBrandLogoUrl } from "../lib/brand-logo";
 type HomepageBrand = Readonly<{
   name: string;
   logoObjectKey: string;
+  logoExternalUrl: string;
   productCount: number;
 }>;
 
@@ -19,11 +20,13 @@ function safeBrands(payload: HomepageBrandPayload): readonly HomepageBrand[] {
     const record = value as Record<string, unknown>;
     const name = typeof record.name === "string" ? record.name.trim() : "";
     const logoObjectKey = typeof record.logoObjectKey === "string" ? record.logoObjectKey.trim() : "";
+    const logoExternalUrl = typeof record.logoExternalUrl === "string" ? record.logoExternalUrl.trim() : "";
     const rawCount = Number(record.productCount);
-    if (!name || !logoObjectKey) return [];
+    if (!name || (!logoObjectKey && !logoExternalUrl)) return [];
     return [{
       name,
       logoObjectKey,
+      logoExternalUrl,
       productCount: Number.isFinite(rawCount) && rawCount > 0 ? Math.floor(rawCount) : 0
     }];
   });
@@ -31,7 +34,7 @@ function safeBrands(payload: HomepageBrandPayload): readonly HomepageBrand[] {
 
 function BrandRunnerItem({ brand, duplicate = false }: { brand: HomepageBrand; duplicate?: boolean }) {
   const [logoFailed, setLogoFailed] = useState(false);
-  const logoUrl = publicBrandLogoUrl(brand.logoObjectKey);
+  const logoUrl = publicBrandLogoUrl(brand.logoObjectKey, brand.logoExternalUrl);
   const showLogo = Boolean(logoUrl) && !logoFailed;
   const title = brand.productCount > 0
     ? `${brand.name} · ${brand.productCount} προϊόντα`
