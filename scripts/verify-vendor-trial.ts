@@ -38,6 +38,7 @@ requireText(trialRuntime, "PRELIVE_STATUSES", "Trial activity must remain bound 
 requireText(trialRuntime, "demoMode", "Trial activity must require the vendor DEMO safety invariant");
 requireText(trialRuntime, "submission.status IN ('draft','submitted','needs_review')", "Trial product progress must include private drafts and review submissions");
 requireText(trialPage, "Math.round((completed / 3) * 100)", "Trial setup progress must reflect the three real setup tasks");
+requireText(trialPage, "storefront.settings.heroTitle.trim() !== trial.vendorName.trim()", "Storefront progress must require a real customization instead of the seeded vendor name");
 requireText(trialPage, 'title: "Operations"', "Trial wizard must expose the operational workspace");
 requireText(trialPage, 'href: "/daily"', "Trial Operations step must open KONTA MOY Daily");
 requireText(previewPage, "robots: { index: false, follow: false }", "Private trial preview must stay noindex");
