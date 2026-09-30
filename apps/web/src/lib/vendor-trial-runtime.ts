@@ -33,6 +33,8 @@ export type VendorTrialSnapshot = Readonly<{
   demoMode: boolean;
   productCount: number;
   mediaCount: number;
+  brandConfigured: boolean;
+  storefrontConfigured: boolean;
 }>;
 
 export function createVendorTrialAccessToken(input: {
@@ -89,10 +91,27 @@ export async function vendorTrialSnapshotFromToken(token: string | undefined, no
         vendor.status::text AS vendor_status,
         vendor.demo_mode,
         COALESCE(products.product_count,0)::integer AS product_count,
-        COALESCE(media.media_count,0)::integer AS media_count
+        COALESCE(media.media_count,0)::integer AS media_count,
+        CASE
+          WHEN NULLIF(btrim(COALESCE(profile.short_description::text,'')),'') IS NOT NULL
+            OR NULLIF(btrim(COALESCE(profile.story::text,'')),'') IS NOT NULL
+          THEN true ELSE false
+        END AS brand_configured,
+        CASE
+          WHEN COALESCE(media.media_count,0) > 0
+            OR lower(COALESCE(vendor.storefront_settings->>'accentColor','#0f766e')) <> '#0f766e'
+            OR COALESCE(vendor.storefront_settings->>'heroStyle','split') <> 'split'
+            OR (
+              NULLIF(btrim(COALESCE(vendor.storefront_settings->>'heroTitle','')),'') IS NOT NULL
+              AND btrim(COALESCE(vendor.storefront_settings->>'heroTitle','')) <> btrim(vendor.trading_name)
+            )
+          THEN true ELSE false
+        END AS storefront_configured
       FROM vendor_applications application
       JOIN users owner ON owner.id=application.owner_user_id
       JOIN vendor_businesses vendor ON vendor.id=application.vendor_id
+      LEFT JOIN vendor_profile_translations profile
+        ON profile.vendor_id=vendor.id AND profile.locale='el'
       LEFT JOIN LATERAL (
         SELECT (
           (SELECT count(*) FROM vendor_offers offer WHERE offer.vendor_id=vendor.id)
@@ -143,7 +162,9 @@ export async function vendorTrialSnapshotFromToken(token: string | undefined, no
     expired: trialExpiresAt <= now,
     demoMode,
     productCount: nonNegativeInteger(row.product_count),
-    mediaCount: nonNegativeInteger(row.media_count)
+    mediaCount: nonNegativeInteger(row.media_count),
+    brandConfigured: row.brand_configured === true,
+    storefrontConfigured: row.storefront_configured === true
   };
 }
 

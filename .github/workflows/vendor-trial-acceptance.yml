@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "apps/web/src/app/api/vendor-application/route.ts"
+      - "apps/web/src/app/api/vendor/auth-context/route.ts"
       - "apps/web/src/app/vendor/trial/**"
       - "apps/web/src/app/vendor/preview/**"
       - "apps/web/src/components/VendorApplicationForm.tsx"
@@ -23,6 +24,7 @@ on:
     branches: [main]
     paths:
       - "apps/web/src/app/api/vendor-application/route.ts"
+      - "apps/web/src/app/api/vendor/auth-context/route.ts"
       - "apps/web/src/app/vendor/trial/**"
       - "apps/web/src/app/vendor/preview/**"
       - "apps/web/src/components/VendorApplicationForm.tsx"
