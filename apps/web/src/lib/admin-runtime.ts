@@ -105,22 +105,19 @@ export async function adminMatchingWorkspace(
   const raw=memory.adminMatchingWorkspace(p);
   const query=options.q?.trim().toLocaleLowerCase("el-GR")||"";
   const status=options.status?.trim()||"";
-  const limit=Math.max(20,Math.min(100,Math.floor(options.limit??60)));
+  const limit=options.limit===undefined?undefined:Math.max(20,Math.min(100,Math.floor(options.limit)));
   const offset=Math.max(0,Math.floor(options.offset??0));
-  const ordered=[...raw.submissions].sort((a,b)=>{
-    if(options.submissionId){
-      if(a.id===options.submissionId&&b.id!==options.submissionId)return -1;
-      if(b.id===options.submissionId&&a.id!==options.submissionId)return 1;
-    }
-    return b.updatedAt-a.updatedAt;
-  });
+  const ordered=[...raw.submissions].sort((a,b)=>b.updatedAt-a.updatedAt);
   const filtered=ordered.filter((item)=>{
     if(status&&item.status!==status)return false;
     if(!query)return true;
     return [item.id,item.title,item.categoryCode,item.vendorId,item.canonicalVariantId,...item.candidates.map((candidate)=>candidate.canonicalVariantId)]
       .some((value)=>String(value??"").toLocaleLowerCase("el-GR").includes(query));
   });
-  const submissions=filtered.slice(offset,offset+limit);
+  const submissions=limit===undefined?filtered.slice(offset):filtered.slice(offset,offset+limit);
+  const requestedSubmission=options.submissionId
+    ? filtered.find((item)=>item.id===options.submissionId)
+    : undefined;
   return {
     csrfToken:raw.csrfToken,
     metrics:{
@@ -133,8 +130,9 @@ export async function adminMatchingWorkspace(
     statuses:[...new Set(raw.submissions.map((item)=>item.status))].sort(),
     filteredTotal:filtered.length,
     offset,
-    limit,
-    hasMore:offset+submissions.length<filtered.length,
+    limit:limit??filtered.length,
+    hasMore:limit!==undefined&&offset+submissions.length<filtered.length,
+    requestedSubmission,
     submissions
   };
 }
