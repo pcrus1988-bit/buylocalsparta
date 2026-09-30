@@ -122,13 +122,14 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     ]
   },
   {
-    label: "Κατάλογος",
-    href: "/admin/catalogue",
+    label: "Προϊόντα",
+    href: "/admin/products",
     icon: "catalog",
     section: "Εμπορική διαχείριση",
-    description: "Acquire → PIM → Structure → Match → Quality → Assign",
+    description: "Products, categories, quality, matching και catalogue operations",
     links: [
-      { label: "Overview", href: "/admin/catalogue", icon: "▦", permission: "catalog.read" },
+      { label: "Products & Categories", href: "/admin/products", icon: "▦", permission: "catalog.read" },
+      { label: "Catalogue Health", href: "/admin/catalogue", icon: "◎", permission: "catalog.read", contextHidden: true },
       { label: "Quick Add", href: "/admin/quickadd", icon: "+", permission: "catalog.write" },
       { label: "Website Import", href: "/admin/catalogue-crawler", icon: "↗", permission: "catalog.read" },
       { label: "Source Import", href: "/admin/catalogue-intake/import", icon: "↑", permission: "catalog.write" },
@@ -154,10 +155,10 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     section: "Εμπορική διαχείριση",
     description: "Payables, invoicing, agreements, VAT και AADE/myDATA",
     links: [
-      { label: "Finance", href: "/admin/finance", icon: "€", permission: "finance.read" },
+      { label: "Οικονομική επισκόπηση", href: "/admin/finance", icon: "€", permission: "finance.read" },
       { label: "Vendor Billing", href: "/admin/finance/vendor-billing", icon: "▤", permission: "finance.read" },
-      { label: "Agreements", href: "/admin/finance/agreements", icon: "%", permission: "finance.read" },
-      { label: "Agreement SLA", href: "/admin/finance/agreements/sla", icon: "⌛", permission: "finance.read" },
+      { label: "Εμπορικές συμφωνίες", href: "/admin/finance/agreements", icon: "%", permission: "finance.read" },
+      { label: "SLA συμφωνιών", href: "/admin/finance/agreements/sla", icon: "⌛", permission: "finance.read" },
       { label: "Tax & myDATA", href: "/admin/tax", icon: "#", permission: "finance.read" },
       { label: "Product VAT Profiles", href: "/admin/finance/mydata/products", icon: "≡", permission: "finance.read" },
       { label: "Gift Cards", href: "/admin/gift-cards", icon: "◇", permission: "finance.read", roles: ["super_admin"] }
@@ -192,12 +193,12 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
       { label: "SEO Issues", href: "/admin/seo/issues", icon: "!", permission: "content.read" },
       { label: "SEO Pages", href: "/admin/seo/pages", icon: "▤", permission: "content.read" },
       { label: "Search Console", href: "/admin/seo/search-console", icon: "G", permission: "content.read" },
-      { label: "Production Visibility", href: "/admin/seo/production", icon: "◉", permission: "content.read" },
+      { label: "Production", href: "/admin/seo/production", icon: "◉", permission: "content.read" },
       { label: "Crawl", href: "/admin/seo/crawl", icon: "↗", permission: "content.read", contextHidden: true },
       { label: "Sitemaps", href: "/admin/seo/sitemaps", icon: "≡", permission: "content.read", contextHidden: true },
       { label: "Google Coverage", href: "/admin/seo/search-console/index-coverage", icon: "◎", permission: "content.read", contextHidden: true },
-      { label: "Schema", href: "/admin/seo/schema", icon: "◇", permission: "content.read", contextHidden: true },
-      { label: "SEO Reports", href: "/admin/seo/reports", icon: "▤", permission: "content.read", contextHidden: true }
+      { label: "Schema", href: "/admin/seo/schema", icon: "◇", permission: "content.read" },
+      { label: "Reports", href: "/admin/seo/reports", icon: "▤", permission: "content.read" }
     ]
   },
   {

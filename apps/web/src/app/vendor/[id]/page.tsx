@@ -218,6 +218,7 @@ export default async function VendorPage({ params }: Props) {
   });
 
   // Seed the cached first bounded catalogue page into SSR so customers and crawlers see
+  // The client continues through the bounded /api/catalog/vendor/:id endpoint in 20-item pages.
   // real products immediately. The browser reuses this page and only fetches when
   // filters change or the customer navigates deeper.
   const initialCatalogPage = isResearch

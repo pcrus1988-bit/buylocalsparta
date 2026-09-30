@@ -17,6 +17,7 @@ type PublishedDropshipFamilyRow = Readonly<{
   supplier_id: string;
   external_product_id: string;
   total_families: number | string;
+  has_more?: boolean;
 }>;
 
 type PublishedDropshipPageRow = Readonly<{
