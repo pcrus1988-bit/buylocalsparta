@@ -44,12 +44,13 @@ export function ScopedPwaInstallClient({
 
     const isIos = iosDevice();
     setPlatform(isIos ? "ios" : "other");
-    setMode("ready");
+    const explicitlyRequested = placement !== "daily" || new URLSearchParams(window.location.search).get("install") === "1";
+    if (explicitlyRequested) setMode("ready");
 
     const beforeInstall = (event: Event) => {
       event.preventDefault();
       setPromptEvent(event as InstallPromptEvent);
-      setMode("prompt");
+      if (explicitlyRequested) setMode("prompt");
     };
     const installed = () => {
       setPromptEvent(undefined);
@@ -62,7 +63,7 @@ export function ScopedPwaInstallClient({
       window.removeEventListener("beforeinstallprompt", beforeInstall);
       window.removeEventListener("appinstalled", installed);
     };
-  }, [scope, serviceWorkerPath]);
+  }, [placement, scope, serviceWorkerPath]);
 
   async function install() {
     if (!promptEvent) {
@@ -77,7 +78,8 @@ export function ScopedPwaInstallClient({
   }
 
   if (mode === "hidden") return null;
-  const bottom = placement === "daily" ? 88 : 18;
+  const bottom = placement === "daily" ? undefined : 18;
+  const top = placement === "daily" ? 78 : undefined;
 
   return (
     <aside
@@ -86,6 +88,7 @@ export function ScopedPwaInstallClient({
         position: "fixed",
         zIndex: 90,
         right: 14,
+        top,
         bottom,
         width: mode === "instructions" ? "min(360px,calc(100vw - 28px))" : "auto",
         padding: mode === "instructions" ? 16 : 0,
@@ -109,8 +112,8 @@ export function ScopedPwaInstallClient({
           <button type="button" onClick={() => setMode(promptEvent ? "prompt" : "ready")} style={secondaryButton}>Κλείσιμο</button>
         </div>
       ) : (
-        <button type="button" onClick={() => void install()} style={installButton}>
-          <span aria-hidden="true">↓</span> Download App · {appName}
+        <button type="button" onClick={() => void install()} style={placement === "daily" ? dailyInstallButton : installButton}>
+          <span aria-hidden="true">↓</span> {placement === "daily" ? `Install ${appName}` : `Download App · ${appName}`}
         </button>
       )}
     </aside>
@@ -130,6 +133,14 @@ const installButton = {
   letterSpacing: ".01em",
   boxShadow: "0 12px 34px rgba(23,25,20,.24)",
   cursor: "pointer"
+} as const;
+
+const dailyInstallButton = {
+  ...installButton,
+  minHeight: 40,
+  padding: "8px 12px",
+  fontSize: 12,
+  boxShadow: "0 8px 22px rgba(23,25,20,.16)"
 } as const;
 
 const secondaryButton = {
