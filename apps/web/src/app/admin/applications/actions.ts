@@ -7,6 +7,9 @@ import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 import { assertAdminCsrf, assertAdminPermission, recordAdminAudit, transitionVendorApplication } from "../../../lib/admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../lib/postgres-runtime";
+import { ensureExistingHubProspectTrial, hubProspectDisplayReference } from "../../../lib/hub-prospect-application-runtime";
+import { sendHubProspectApplicationReceiptEmail, sendHubProspectStateEmail } from "../../../lib/vendor-email-workflows";
+import { buildVendorTrialAccessUrl, createVendorTrialAccessToken } from "../../../lib/vendor-trial-runtime";
 
 const text = (value: unknown) => typeof value === "string" ? value : String(value ?? "");
 const optionalText = (value: unknown) => {
@@ -231,4 +234,129 @@ export async function advanceApplicationToVerification(formData: FormData) {
   if (reason.length < 3 || reason.length > 500) throw new Error("A 3–500 character reason is required");
   await transitionVendorApplication(principal, { applicationId, to: "verification_pending", reason });
   revalidateVendorLifecycle();
+}
+
+
+type HubProspectStatus = "pending" | "contacted" | "qualified" | "verified" | "approved" | "declined" | "converted";
+
+const HUB_PROSPECT_TRANSITIONS: Readonly<Record<HubProspectStatus, readonly HubProspectStatus[]>> = {
+  pending: ["contacted", "declined"],
+  contacted: ["qualified", "declined"],
+  qualified: ["verified", "declined"],
+  verified: ["approved", "declined"],
+  approved: ["converted", "declined"],
+  declined: ["contacted"],
+  converted: []
+};
+
+function hubProspectStatus(value: unknown): HubProspectStatus {
+  const status = text(value).trim() as HubProspectStatus;
+  if (!Object.prototype.hasOwnProperty.call(HUB_PROSPECT_TRANSITIONS, status)) {
+    throw new Error("Invalid HUB application status");
+  }
+  return status;
+}
+
+export async function setHubProspectStatus(formData: FormData) {
+  const principal = await requireVendorAdmin(text(formData.get("csrfToken")));
+  const applicationId = text(formData.get("applicationId")).trim();
+  const target = hubProspectStatus(formData.get("status"));
+  const reason = text(formData.get("reason")).trim();
+  if (!applicationId) throw new Error("HUB application is required");
+  if (reason.length < 3 || reason.length > 500) throw new Error("A 3–500 character reason is required");
+
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool);
+  const result = await uow.withTransaction(platformScope(principal.userId), async (tx) => {
+    const current = await tx.query<SqlRow>(`
+      SELECT public_id,hub_slug,business_name,email,status::text AS status,created_at
+      FROM hub_expansion_prospects
+      WHERE public_id=$1 OR id::text=$1
+      LIMIT 1
+      FOR UPDATE
+    `, [applicationId]);
+    if (!current.rowCount) throw new Error("HUB application not found");
+    const row = current.rows[0];
+    const from = hubProspectStatus(row.status);
+    if (from === target) {
+      return {
+        publicId: text(row.public_id),
+        from,
+        to: target,
+        email: text(row.email),
+        businessName: text(row.business_name),
+        reference: hubProspectDisplayReference(text(row.public_id), text(row.hub_slug), new Date(String(row.created_at)).getTime()),
+        changed: false
+      };
+    }
+    if (!HUB_PROSPECT_TRANSITIONS[from].includes(target)) {
+      throw new Error(`HUB application cannot move from ${from} to ${target}`);
+    }
+    await tx.query("UPDATE hub_expansion_prospects SET status=$2,updated_at=now() WHERE public_id=$1", [text(row.public_id), target]);
+    return {
+      publicId: text(row.public_id),
+      from,
+      to: target,
+      email: text(row.email),
+      businessName: text(row.business_name),
+      reference: hubProspectDisplayReference(text(row.public_id), text(row.hub_slug), new Date(String(row.created_at)).getTime()),
+      changed: true
+    };
+  }, { isolation: "serializable" });
+
+  if (result.changed) {
+    await recordAdminAudit(principal, "hub_prospect.status_changed", "hub_prospect", result.publicId, reason, {
+      fromStatus: result.from,
+      toStatus: result.to,
+      source: "admin_applications"
+    });
+    await sendHubProspectStateEmail({
+      to: result.email,
+      businessName: result.businessName,
+      reference: result.reference,
+      state: result.to as Exclude<HubProspectStatus, "pending">,
+      reason
+    });
+  }
+  revalidateVendorLifecycle();
+}
+
+export async function provisionHubProspectTrialAction(formData: FormData) {
+  const principal = await requireVendorAdmin(text(formData.get("csrfToken")));
+  const applicationId = text(formData.get("applicationId")).trim();
+  const reason = text(formData.get("reason")).trim();
+  if (!applicationId) throw new Error("HUB application is required");
+  if (reason.length < 3 || reason.length > 500) throw new Error("A 3–500 character reason is required");
+
+  const result = await ensureExistingHubProspectTrial({ applicationId, now: Date.now() });
+  const access = createVendorTrialAccessToken({
+    applicationId: result.trial.applicationId,
+    ownerUserId: result.trial.ownerUserId,
+    vendorId: result.trial.vendorId,
+    trialStartedAt: result.trial.startedAt
+  });
+  const trialAccessUrl = buildVendorTrialAccessUrl(access.token);
+  const delivery = await sendHubProspectApplicationReceiptEmail({
+    to: result.email,
+    businessName: result.businessName,
+    reference: result.reference,
+    hubName: result.hubName,
+    hubSlug: result.hubSlug,
+    planCode: result.planCode,
+    billingCycle: result.billingCycle,
+    setupFeeCents: result.setupFeeCents,
+    recurringFeeCents: result.recurringFeeCents,
+    commissionBps: result.commissionBps,
+    trialAccessUrl,
+    trialExpiresAt: result.trial.expiresAt,
+    idempotencySuffix: `admin-${Date.now()}`
+  });
+
+  await recordAdminAudit(principal, "hub_prospect.trial_access_sent", "hub_prospect", result.trial.applicationId, reason, {
+    reference: result.reference,
+    vendorId: result.trial.vendorId,
+    emailSent: delivery.sent,
+    source: "admin_applications"
+  });
+  revalidateVendorLifecycle(result.trial.vendorId);
 }
