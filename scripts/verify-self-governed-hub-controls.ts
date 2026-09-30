@@ -96,7 +96,7 @@ requireText(migration, "validate_vendor_aade_request_scope", "AADE request must 
 requireText(migration, "validate_vendor_subscription_request_scope", "Subscription request must validate plan/subscription ownership");
 
 const runtimeSchemaVersion = Number(postgresRuntime.match(/export const EXPECTED_SCHEMA_VERSION = (\d+);/)?.[1] ?? 0);
-if (runtimeSchemaVersion !== 293) errors.push(`PostgreSQL runtime schema head must be 293; found ${runtimeSchemaVersion || "none"}`);
+if (runtimeSchemaVersion < 293) errors.push(`PostgreSQL runtime schema head must include migration 0293; found ${runtimeSchemaVersion || "none"}`);
 
 const migrationHash = createHash("sha256").update(migration).digest("hex");
 if (checksum["0291_self_governed_hub_vendor_controls.sql"] !== migrationHash) {

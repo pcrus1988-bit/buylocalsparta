@@ -15,6 +15,7 @@ export function VendorWorkspaceHeader() {
   const [roles, setRoles] = useState<readonly string[]>([]);
   const [csrfToken, setCsrfToken] = useState("");
   const [dropshippingOnly, setDropshippingOnly] = useState(false);
+  const [trial, setTrial] = useState<{ active: boolean; expiresAt: string; vendorName: string }>();
   const [operatingContext, setOperatingContext] = useState<{
     marketId: string;
     hubId?: string;
@@ -37,12 +38,18 @@ export function VendorWorkspaceHeader() {
           operatingModel?: "MANAGED" | "SELF_GOVERNED";
           capabilities?: readonly string[];
         };
+        trial?: { active?: boolean; expiresAt?: string; vendorName?: string };
         account?: { roles?: readonly string[] };
       } | undefined) => {
         if (!active) return;
         if (Array.isArray(payload?.account?.roles)) setRoles(payload.account.roles);
         if (typeof payload?.csrfToken === "string") setCsrfToken(payload.csrfToken);
         setDropshippingOnly(payload?.dropshippingOnly === true);
+        if (payload?.trial?.active === true && payload.trial.expiresAt && payload.trial.vendorName) {
+          setTrial({ active: true, expiresAt: payload.trial.expiresAt, vendorName: payload.trial.vendorName });
+        } else {
+          setTrial(undefined);
+        }
         if (payload?.operatingContext?.marketId && payload.operatingContext.operatingModel) {
           setOperatingContext({
             marketId: payload.operatingContext.marketId,
@@ -157,6 +164,12 @@ export function VendorWorkspaceHeader() {
         </div>
       </div>
     </header>
+    {trial?.active && <div style={{ background: "linear-gradient(90deg,#0b493b,#0f766e)", color: "#fff", padding: "9px 18px", display: "flex", justifyContent: "center", gap: 12, alignItems: "center", flexWrap: "wrap", fontSize: ".88rem" }}>
+      <strong>✦ 3ήμερο Vendor Trial · {trial.vendorName}</strong>
+      <span style={{ opacity: .82 }}>Η πώληση παραμένει κλειδωμένη μέχρι την ενεργοποίηση.</span>
+      <Link href="/vendor/trial" style={{ color: "#fff", fontWeight: 850 }}>Άνοιξε Wizard →</Link>
+      <Link href="/vendor/preview" style={{ color: "#fff", fontWeight: 850 }}>Preview →</Link>
+    </div>}
     <div className="vendor-topbar">
       <div className="vendor-topbar-main">
         <div className="vendor-breadcrumbs"><VendorBreadcrumbs groups={navigation} /></div>

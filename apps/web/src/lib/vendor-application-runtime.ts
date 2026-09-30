@@ -39,6 +39,12 @@ export type VendorApplicationReceipt = Readonly<{
   ownerIdentity: "authenticated" | "provisional";
   accountClaimRequired: boolean;
   registryLookupStatus: "matched" | "not_found" | "unavailable";
+  trial?: Readonly<{
+    vendorId: string;
+    ownerUserId: string;
+    startedAt: number;
+    expiresAt: number;
+  }>;
 }>;
 
 type NormalizedVendorApplication = VendorApplicationInput & Readonly<{
@@ -157,6 +163,17 @@ export async function submitVendorApplication(input: {
         application.registryEmail ?? null, application.contactEmailSource, application.phoneSource, createdAt
       ]);
 
+      const trial = claimedVendor
+        ? undefined
+        : await provisionApplicantTrial(tx, {
+            applicationUuid,
+            marketUuid,
+            ownerUuid: owner.uuid,
+            ownerPublicId: owner.publicId,
+            application,
+            now: input.now
+          });
+
       if (claimedVendor) {
         await tx.query(`
           INSERT INTO vendor_application_profile_claims(
@@ -194,11 +211,127 @@ export async function submitVendorApplication(input: {
         state: "verification_pending" as const,
         ownerIdentity: owner.provisional ? "provisional" as const : "authenticated" as const,
         accountClaimRequired: owner.provisional,
-        registryLookupStatus: application.registryLookupStatus
+        registryLookupStatus: application.registryLookupStatus,
+        ...(trial ? { trial } : {})
       };
     },
     { isolation: "serializable" }
   );
+}
+
+async function provisionApplicantTrial(tx: SqlExecutor, input: {
+  applicationUuid: string;
+  marketUuid: string;
+  ownerUuid: string;
+  ownerPublicId: string;
+  application: NormalizedVendorApplication;
+  now: number;
+}): Promise<{ vendorId: string; ownerUserId: string; startedAt: number; expiresAt: number }> {
+  const vendorUuid = randomUUID();
+  const vendorPublicId = `vendor_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
+  const startedAt = input.now;
+  const expiresAt = input.now + 3 * 24 * 60 * 60 * 1000;
+  const at = new Date(input.now);
+  const initialSettings = {
+    accentColor: "#0f766e",
+    heroStyle: "split",
+    heroTitle: input.application.tradingName,
+    showFeatured: true,
+    showFlashSale: true,
+    showBazaar: true,
+    showAbout: true,
+    showLocation: true,
+    showContact: true
+  };
+
+  await tx.query(`
+    INSERT INTO vendor_businesses(
+      id,public_id,market_id,legal_name,trading_name,tax_number,gemi_number,status,
+      public_directory_visible,demo_mode,demo_mode_updated_at,storefront_settings,created_at,updated_at
+    ) VALUES(
+      $1,$2,$3::uuid,$4,$5,$6,$7,'verification_pending',
+      false,true,$8,$9::jsonb,$8,$8
+    )
+  `, [
+    vendorUuid,
+    vendorPublicId,
+    input.marketUuid,
+    input.application.legalName,
+    input.application.tradingName,
+    input.application.taxNumber,
+    input.application.gemiNumber ?? null,
+    at,
+    JSON.stringify(initialSettings)
+  ]);
+
+  const market = await tx.query<SqlRow>("SELECT name FROM markets WHERE id=$1::uuid LIMIT 1", [input.marketUuid]);
+  const locality = typeof market.rows[0]?.name === "string" && market.rows[0].name.trim()
+    ? market.rows[0].name.trim()
+    : "Sparta";
+
+  await tx.query(`
+    INSERT INTO vendor_locations(
+      id,public_id,vendor_id,market_id,name,address_line1,locality,postcode,country_code,
+      phone,public_email,active,is_primary,created_at,updated_at
+    ) VALUES($1,$2,$3::uuid,$4::uuid,$5,$6,$7,$8,'GR',$9,$10,true,true,$11,$11)
+  `, [
+    randomUUID(),
+    `location_${randomUUID().replaceAll("-", "").slice(0, 20)}`,
+    vendorUuid,
+    input.marketUuid,
+    input.application.tradingName,
+    input.application.address,
+    locality,
+    input.application.postcode,
+    input.application.phone,
+    input.application.contactEmail,
+    at
+  ]);
+
+  const membership = await tx.query<SqlRow>(`
+    INSERT INTO vendor_users(id,public_id,vendor_id,user_id,location_id,active,created_at)
+    VALUES($1,$2,$3::uuid,$4::uuid,NULL,true,$5)
+    RETURNING id::text AS id
+  `, [
+    randomUUID(),
+    `vuser_${randomUUID().replaceAll("-", "").slice(0, 20)}`,
+    vendorUuid,
+    input.ownerUuid,
+    at
+  ]);
+  const membershipUuid = requiredText(membership.rows[0]?.id, "vendor_user.id");
+  await tx.query(
+    "INSERT INTO vendor_user_roles(vendor_user_id,role) VALUES($1::uuid,'vendor_owner') ON CONFLICT DO NOTHING",
+    [membershipUuid]
+  );
+
+  await tx.query(`
+    INSERT INTO vendor_profile_translations(vendor_id,locale,short_description,story)
+    VALUES($1::uuid,'el',$2,$3)
+    ON CONFLICT(vendor_id,locale) DO UPDATE
+    SET short_description=EXCLUDED.short_description,
+        story=EXCLUDED.story
+  `, [
+    vendorUuid,
+    input.application.shopStory?.slice(0, 320) ?? null,
+    input.application.shopStory ?? null
+  ]);
+
+  await tx.query(`
+    UPDATE vendor_applications
+    SET vendor_id=$2::uuid,
+        trial_started_at=$3,
+        trial_expires_at=$4,
+        updated_at=$3
+    WHERE id=$1::uuid
+  `, [input.applicationUuid, vendorUuid, at, new Date(expiresAt)]);
+
+  return {
+    vendorId: vendorPublicId,
+    ownerUserId: input.ownerPublicId,
+    startedAt,
+    expiresAt
+  };
 }
 
 async function claimableResearchVendor(tx: SqlExecutor, publicVendorId: string, marketUuid: string): Promise<ClaimableResearchVendor> {

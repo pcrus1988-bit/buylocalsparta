@@ -9,13 +9,15 @@ import {
 } from "@buy-local-sparta/core";
 import { resolveVendorOperatingAssignment } from "./vendor-operating-assignment";
 import { assertVendorCsrf, vendorSessionFromToken, VENDOR_SESSION_COOKIE } from "./vendor-runtime";
+import { getActiveVendorTrialPrincipal } from "./vendor-trial-runtime";
 
 export async function getVendorSession(): Promise<SessionPrincipal | undefined> {
   const token = (await cookies()).get(VENDOR_SESSION_COOKIE)?.value;
-  if (!token) return undefined;
-  const principal = await vendorSessionFromToken(token, Date.now());
-  if (!principal?.vendorId || !principal.roles.some((role) => role.startsWith("vendor_"))) return undefined;
-  return principal;
+  if (token) {
+    const principal = await vendorSessionFromToken(token, Date.now());
+    if (principal?.vendorId && principal.roles.some((role) => role.startsWith("vendor_"))) return principal;
+  }
+  return getActiveVendorTrialPrincipal();
 }
 
 export async function vendorOperatingContextForPrincipal(

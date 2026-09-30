@@ -12,6 +12,7 @@ import { offers, runtime as commerceRuntime, variants, vendors } from "./demo-ru
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { assertDatabaseLessPreviewCsrf, createDatabaseLessPreviewSession, databaseLessPreviewSessionEnabled, databaseLessPreviewSessionFromToken, previewCredentialMatches } from "./preview-auth";
 import { marketplaceReferenceMap } from "./public-reference-service";
+import { assertVendorTrialCsrf, isVendorTrialPrincipal } from "./vendor-trial-runtime";
 
 export const VENDOR_SESSION_COOKIE = "bls_vendor_session";
 
@@ -82,6 +83,10 @@ export async function vendorSessionFromToken(token: string | undefined, now: num
 }
 
 export function assertVendorCsrf(principal: SessionPrincipal, suppliedToken: string | undefined): void {
+  if (isVendorTrialPrincipal(principal)) {
+    assertVendorTrialCsrf(principal, suppliedToken);
+    return;
+  }
   if (postgresVendorRuntimeEnabled()) postgresAuth().assertCsrf(principal, suppliedToken);
   else if (databaseLessPreviewSessionEnabled("vendor")) assertDatabaseLessPreviewCsrf(principal, suppliedToken);
   else memoryRuntime().auth.assertCsrf(principal, suppliedToken);
