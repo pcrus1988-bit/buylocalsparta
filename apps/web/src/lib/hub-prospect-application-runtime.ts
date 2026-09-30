@@ -1,14 +1,18 @@
 import { randomUUID } from "node:crypto";
-import { PostgresUnitOfWork, id } from "@buy-local-sparta/core";
+import { PostgresUnitOfWork, id, type SqlExecutor, type SqlRow } from "@buy-local-sparta/core";
 import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
 import { normalizeGreekAfm, resolveGemiCompanyByAfm } from "./gemi-runtime";
 import { resolveExpansionHubForGemiCompany } from "./hub-location-resolution";
 import { getHubExpansionPlan, type HubBillingCycle, type HubExpansionPlanCode } from "./hub-expansion-plans";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { provisionalVendorApplicantPasswordHash } from "./provisional-account";
 
 const globals = globalThis as typeof globalThis & {
   __blsHubProspectRateLimiter?: PostgresFixedWindowRateLimiter;
 };
+
+const HUB_TRIAL_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
+const OPEN_HUB_PROSPECT_STATUSES = ["pending", "contacted", "qualified", "verified", "approved"] as const;
 
 export type HubProspectApplicationInput = Readonly<{
   taxNumber: string;
@@ -24,6 +28,14 @@ export type HubProspectApplicationInput = Readonly<{
   notes?: string;
 }>;
 
+export type HubProspectTrial = Readonly<{
+  applicationId: string;
+  vendorId: string;
+  ownerUserId: string;
+  startedAt: number;
+  expiresAt: number;
+}>;
+
 export type HubProspectApplicationReceipt = Readonly<{
   reference: string;
   status: "pending";
@@ -31,8 +43,29 @@ export type HubProspectApplicationReceipt = Readonly<{
   hubName: string;
   planCode: HubExpansionPlanCode;
   billingCycle: HubBillingCycle;
+  setupFeeCents: number;
   recurringFeeCents: number;
+  commissionBps: number;
   paymentRequired: false;
+  trial: HubProspectTrial;
+}>;
+
+type HubTrialSource = Readonly<{
+  applicationId: string;
+  businessName: string;
+  legalName: string;
+  taxNumber: string;
+  gemiNumber?: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  addressLine: string;
+  postalCode: string;
+  hubSlug: string;
+  hubName: string;
+  primaryCategory: string;
+  currentSalesChannels?: string;
+  notes?: string;
 }>;
 
 export class HubProspectApplicationError extends Error {
@@ -57,6 +90,38 @@ export async function consumeHubProspectRateLimit(input: { visitorKey: string; n
   const runtime = getProductionPostgresRuntime();
   const limiter = globals.__blsHubProspectRateLimiter ??= new PostgresFixedWindowRateLimiter(runtime.sqlPool);
   return limiter.consume({ route: "hub-prospect-application", key: input.visitorKey, limit: 4, windowMs: 24 * 60 * 60 * 1000, now: input.now });
+}
+
+export function hubProspectDisplayReference(publicId: string, hubSlug: string, createdAt: number): string {
+  const slugCode = hubSlug
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .slice(0, 4)
+    .toUpperCase() || "HUB";
+  const date = new Date(createdAt);
+  const yy = String(date.getUTCFullYear()).slice(-2);
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  const suffix = publicId.replace(/[^A-Za-z0-9]/g, "").slice(-8).toUpperCase();
+  return `KM-${slugCode}-${yy}${mm}${dd}-${suffix}`;
+}
+
+export async function hubProspectAdminSummary(): Promise<{ total: number; open: number; pending: number }> {
+  if (!productionDatabaseConfigured()) return { total: 0, open: 0, pending: 0 };
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT
+      count(*)::integer AS total,
+      count(*) FILTER (WHERE status = ANY($1::text[]))::integer AS open,
+      count(*) FILTER (WHERE status='pending')::integer AS pending
+    FROM hub_expansion_prospects
+  `, [OPEN_HUB_PROSPECT_STATUSES]);
+  const row = result.rows[0] ?? {};
+  return {
+    total: Number(row.total ?? 0),
+    open: Number(row.open ?? 0),
+    pending: Number(row.pending ?? 0)
+  };
 }
 
 export async function submitHubProspectApplication(input: {
@@ -96,10 +161,11 @@ export async function submitHubProspectApplication(input: {
   const createdAt = new Date(input.now);
   const registryCheckedAt = new Date(registry.checkedAt);
   const applicationUuid = randomUUID();
-  const reference = id("hubprospect");
+  const applicationId = id("hubprospect");
+  const reference = hubProspectDisplayReference(applicationId, hub.slug, input.now);
 
   return uow.withTransaction(
-    { platformAccess: true, marketId: "sparta", requestId: `public-hub-prospect:${reference}` },
+    { platformAccess: true, marketId: "sparta", requestId: `public-hub-prospect:${applicationId}` },
     async (tx) => {
       const duplicate = await tx.query(`
         SELECT 1 AS present
@@ -125,7 +191,7 @@ export async function submitHubProspectApplication(input: {
         )
       `, [
         applicationUuid,
-        reference,
+        applicationId,
         hub.id,
         hub.slug,
         hub.nameEl,
@@ -160,6 +226,24 @@ export async function submitHubProspectApplication(input: {
         createdAt
       ]);
 
+      const trial = await provisionHubProspectTrial(tx, {
+        applicationId,
+        businessName: application.businessName,
+        legalName: registry.legalName,
+        taxNumber: application.taxNumber,
+        gemiNumber: registry.gemiNumber,
+        contactName: application.contactName,
+        email: application.email,
+        phone: application.phone,
+        addressLine: registryAddress,
+        postalCode: registryPostcode,
+        hubSlug: hub.slug,
+        hubName: hub.nameEl,
+        primaryCategory: application.primaryCategory,
+        currentSalesChannels: application.currentSalesChannels,
+        notes: application.notes
+      }, input.now, reference);
+
       return {
         reference,
         status: "pending" as const,
@@ -167,12 +251,250 @@ export async function submitHubProspectApplication(input: {
         hubName: hub.nameEl,
         planCode: plan.code,
         billingCycle: application.billingCycle,
+        setupFeeCents: plan.setupFeeCents,
         recurringFeeCents,
-        paymentRequired: false as const
+        commissionBps: plan.commissionBps,
+        paymentRequired: false as const,
+        trial
       };
     },
     { isolation: "serializable" }
   );
+}
+
+export async function ensureExistingHubProspectTrial(input: {
+  applicationId: string;
+  now: number;
+}): Promise<Readonly<{
+  reference: string;
+  businessName: string;
+  email: string;
+  hubName: string;
+  hubSlug: string;
+  planCode: HubExpansionPlanCode;
+  billingCycle: HubBillingCycle;
+  setupFeeCents: number;
+  recurringFeeCents: number;
+  commissionBps: number;
+  trial: HubProspectTrial;
+}>> {
+  if (!productionDatabaseConfigured()) throw new Error("Production database is required");
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool);
+
+  return uow.withTransaction(
+    { platformAccess: true, marketId: "sparta", requestId: `admin-hub-trial:${input.applicationId}` },
+    async (tx) => {
+      const result = await tx.query<SqlRow>(`
+        SELECT public_id,hub_slug,hub_city,plan_code,billing_cycle,tax_number,gemi_number,business_name,legal_name,
+               contact_name,email,phone,address_line,postal_code,primary_category,current_sales_channels,notes,
+               setup_fee_cents,recurring_fee_cents,commission_bps,status,created_at
+        FROM hub_expansion_prospects
+        WHERE public_id=$1 OR id::text=$1
+        LIMIT 1
+        FOR UPDATE
+      `, [input.applicationId]);
+      if (!result.rowCount) throw new Error("HUB application not found");
+      const row = result.rows[0];
+      const status = requiredText(row.status, "hub_prospect.status");
+      if (status === "declined" || status === "converted") throw new Error(`Trial is not available while HUB application status is ${status}`);
+
+      const applicationId = requiredText(row.public_id, "hub_prospect.public_id");
+      const hubSlug = requiredText(row.hub_slug, "hub_prospect.hub_slug");
+      const createdAt = epoch(row.created_at);
+      const reference = hubProspectDisplayReference(applicationId, hubSlug, createdAt);
+
+      const existing = await findExistingHubTrial(tx, applicationId);
+      const trial = existing ?? await provisionHubProspectTrial(tx, {
+        applicationId,
+        businessName: requiredText(row.business_name, "hub_prospect.business_name"),
+        legalName: requiredText(row.legal_name, "hub_prospect.legal_name"),
+        taxNumber: requiredText(row.tax_number, "hub_prospect.tax_number"),
+        gemiNumber: optionalText(row.gemi_number),
+        contactName: requiredText(row.contact_name, "hub_prospect.contact_name"),
+        email: requiredText(row.email, "hub_prospect.email"),
+        phone: requiredText(row.phone, "hub_prospect.phone"),
+        addressLine: requiredText(row.address_line, "hub_prospect.address_line"),
+        postalCode: requiredText(row.postal_code, "hub_prospect.postal_code"),
+        hubSlug,
+        hubName: requiredText(row.hub_city, "hub_prospect.hub_city"),
+        primaryCategory: requiredText(row.primary_category, "hub_prospect.primary_category"),
+        currentSalesChannels: optionalText(row.current_sales_channels),
+        notes: optionalText(row.notes)
+      }, input.now, reference);
+
+      return {
+        reference,
+        businessName: requiredText(row.business_name, "hub_prospect.business_name"),
+        email: requiredText(row.email, "hub_prospect.email"),
+        hubName: requiredText(row.hub_city, "hub_prospect.hub_city"),
+        hubSlug,
+        planCode: requiredText(row.plan_code, "hub_prospect.plan_code") as HubExpansionPlanCode,
+        billingCycle: requiredText(row.billing_cycle, "hub_prospect.billing_cycle") as HubBillingCycle,
+        setupFeeCents: Number(row.setup_fee_cents ?? 0),
+        recurringFeeCents: Number(row.recurring_fee_cents ?? 0),
+        commissionBps: Number(row.commission_bps ?? 0),
+        trial
+      };
+    },
+    { isolation: "serializable" }
+  );
+}
+
+async function findExistingHubTrial(tx: SqlExecutor, applicationId: string): Promise<HubProspectTrial | undefined> {
+  const result = await tx.query<SqlRow>(`
+    SELECT
+      vendor.public_id AS vendor_public_id,
+      owner.public_id AS owner_public_id,
+      (vendor.storefront_settings->>'trialStartedAt')::bigint AS trial_started_at,
+      (vendor.storefront_settings->>'trialExpiresAt')::bigint AS trial_expires_at
+    FROM vendor_businesses vendor
+    JOIN vendor_users membership ON membership.vendor_id=vendor.id AND membership.active
+    JOIN users owner ON owner.id=membership.user_id
+    WHERE vendor.storefront_settings->>'trialSource'='hub_prospect'
+      AND vendor.storefront_settings->>'trialApplicationId'=$1
+    ORDER BY membership.created_at
+    LIMIT 1
+  `, [applicationId]);
+  if (!result.rowCount) return undefined;
+  const row = result.rows[0];
+  const startedAt = Number(row.trial_started_at);
+  const expiresAt = Number(row.trial_expires_at);
+  if (!Number.isSafeInteger(startedAt) || !Number.isSafeInteger(expiresAt) || expiresAt <= startedAt) return undefined;
+  return {
+    applicationId,
+    vendorId: requiredText(row.vendor_public_id, "vendor.public_id"),
+    ownerUserId: requiredText(row.owner_public_id, "owner.public_id"),
+    startedAt,
+    expiresAt
+  };
+}
+
+async function provisionHubProspectTrial(tx: SqlExecutor, source: HubTrialSource, now: number, reference: string): Promise<HubProspectTrial> {
+  const existing = await findExistingHubTrial(tx, source.applicationId);
+  if (existing) return existing;
+
+  const market = await tx.query<SqlRow>("SELECT id::text AS id,name FROM markets WHERE code='sparta' LIMIT 1");
+  if (!market.rowCount) throw new Error("TRIAL_SANDBOX_MARKET_UNAVAILABLE");
+  const marketUuid = requiredText(market.rows[0].id, "market.id");
+
+  const ownerResult = await tx.query<SqlRow>("SELECT id::text AS id,public_id FROM users WHERE lower(email::text)=lower($1) ORDER BY created_at LIMIT 1 FOR UPDATE", [source.email]);
+  let ownerUuid: string;
+  let ownerPublicId: string;
+  if (ownerResult.rowCount) {
+    ownerUuid = requiredText(ownerResult.rows[0].id, "user.id");
+    ownerPublicId = requiredText(ownerResult.rows[0].public_id, "user.public_id");
+  } else {
+    ownerUuid = randomUUID();
+    ownerPublicId = id("usr");
+    const at = new Date(now);
+    await tx.query(`
+      INSERT INTO users(id,public_id,email,password_hash,status,email_verified_at,preferred_locale,created_at,updated_at)
+      VALUES($1,$2,$3,$4,'pending_verification',NULL,'el',$5,$5)
+    `, [ownerUuid, ownerPublicId, source.email, provisionalVendorApplicantPasswordHash(), at]);
+    await tx.query("INSERT INTO customer_profiles(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING", [ownerUuid]);
+  }
+
+  const vendorUuid = randomUUID();
+  const vendorPublicId = `vendor_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
+  const startedAt = now;
+  const expiresAt = now + HUB_TRIAL_DURATION_MS;
+  const at = new Date(now);
+  const initialSettings = {
+    accentColor: "#0f766e",
+    heroStyle: "split",
+    heroTitle: source.businessName,
+    showFeatured: true,
+    showFlashSale: true,
+    showBazaar: true,
+    showAbout: true,
+    showLocation: true,
+    showContact: true,
+    trialSource: "hub_prospect",
+    trialApplicationId: source.applicationId,
+    trialReference: reference,
+    trialStartedAt: startedAt,
+    trialExpiresAt: expiresAt,
+    expansionHubSlug: source.hubSlug,
+    expansionHubName: source.hubName
+  };
+
+  await tx.query(`
+    INSERT INTO vendor_businesses(
+      id,public_id,market_id,legal_name,trading_name,tax_number,gemi_number,status,
+      public_directory_visible,demo_mode,demo_mode_updated_at,storefront_settings,created_at,updated_at
+    ) VALUES(
+      $1,$2,$3::uuid,$4,$5,$6,$7,'verification_pending',
+      false,true,$8,$9::jsonb,$8,$8
+    )
+  `, [
+    vendorUuid,
+    vendorPublicId,
+    marketUuid,
+    source.legalName,
+    source.businessName,
+    source.taxNumber,
+    source.gemiNumber ?? null,
+    at,
+    JSON.stringify(initialSettings)
+  ]);
+
+  await tx.query(`
+    INSERT INTO vendor_locations(
+      id,public_id,vendor_id,market_id,name,address_line1,locality,postcode,country_code,
+      phone,public_email,active,is_primary,created_at,updated_at
+    ) VALUES($1,$2,$3::uuid,$4::uuid,$5,$6,$7,$8,'GR',$9,$10,true,true,$11,$11)
+  `, [
+    randomUUID(),
+    `location_${randomUUID().replaceAll("-", "").slice(0, 20)}`,
+    vendorUuid,
+    marketUuid,
+    source.businessName,
+    source.addressLine,
+    source.hubName,
+    source.postalCode,
+    source.phone,
+    source.email,
+    at
+  ]);
+
+  const membership = await tx.query<SqlRow>(`
+    INSERT INTO vendor_users(id,public_id,vendor_id,user_id,location_id,active,created_at)
+    VALUES($1,$2,$3::uuid,$4::uuid,NULL,true,$5)
+    RETURNING id::text AS id
+  `, [
+    randomUUID(),
+    `vuser_${randomUUID().replaceAll("-", "").slice(0, 20)}`,
+    vendorUuid,
+    ownerUuid,
+    at
+  ]);
+  const membershipUuid = requiredText(membership.rows[0]?.id, "vendor_user.id");
+  await tx.query(
+    "INSERT INTO vendor_user_roles(vendor_user_id,role) VALUES($1::uuid,'vendor_owner') ON CONFLICT DO NOTHING",
+    [membershipUuid]
+  );
+
+  const story = source.notes ?? source.currentSalesChannels;
+  await tx.query(`
+    INSERT INTO vendor_profile_translations(vendor_id,locale,short_description,story)
+    VALUES($1::uuid,'el',$2,$3)
+    ON CONFLICT(vendor_id,locale) DO UPDATE
+    SET short_description=EXCLUDED.short_description,
+        story=EXCLUDED.story
+  `, [
+    vendorUuid,
+    story?.slice(0, 320) ?? null,
+    story ?? null
+  ]);
+
+  return {
+    applicationId: source.applicationId,
+    vendorId: vendorPublicId,
+    ownerUserId: ownerPublicId,
+    startedAt,
+    expiresAt
+  };
 }
 
 function normalizeApplication(input: HubProspectApplicationInput): HubProspectApplicationInput {
@@ -241,4 +563,21 @@ function optionalLimited(value: string | undefined, max: number): string | undef
   if (!normalized) return undefined;
   if (normalized.length > max) throw new HubProspectApplicationError(400, "field_too_long", `Το κείμενο μπορεί να έχει έως ${max} χαρακτήρες.`);
   return normalized;
+}
+
+function requiredText(value: unknown, field: string): string {
+  if (typeof value !== "string" || !value.trim()) throw new Error(`Invalid database field ${field}`);
+  return value.trim();
+}
+
+function optionalText(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized || undefined;
+}
+
+function epoch(value: unknown): number {
+  const result = value instanceof Date ? value.getTime() : new Date(String(value)).getTime();
+  if (!Number.isFinite(result)) throw new Error("Invalid hub prospect timestamp");
+  return result;
 }
