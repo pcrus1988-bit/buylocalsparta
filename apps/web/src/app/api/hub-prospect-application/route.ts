@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { getHubExpansionPlan, type HubBillingCycle, type HubExpansionPlanCode } from "../../../lib/hub-expansion-plans";
 import {
   consumeHubProspectRateLimit,
@@ -6,7 +7,15 @@ import {
   submitHubProspectApplication,
   type HubProspectApplicationInput
 } from "../../../lib/hub-prospect-application-runtime";
-import { notifyOperationsOfHubProspectApplication } from "../../../lib/vendor-email-workflows";
+import {
+  notifyOperationsOfHubProspectApplication,
+  sendHubProspectApplicationReceiptEmail
+} from "../../../lib/vendor-email-workflows";
+import {
+  buildVendorTrialAccessUrl,
+  createVendorTrialAccessToken,
+  VENDOR_TRIAL_COOKIE
+} from "../../../lib/vendor-trial-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,31 +64,89 @@ export async function POST(request: Request) {
     };
 
     const receipt = await submitHubProspectApplication({ application, now });
-    const operationsEmail = await notifyOperationsOfHubProspectApplication({
-      reference: receipt.reference,
-      businessName: application.businessName,
-      contactName: application.contactName,
-      contactEmail: application.email,
-      phone: application.phone,
-      hubName: receipt.hubName,
-      hubSlug: receipt.hubSlug,
-      planCode: receipt.planCode,
-      billingCycle: receipt.billingCycle
+    const access = createVendorTrialAccessToken({
+      applicationId: receipt.trial.applicationId,
+      ownerUserId: receipt.trial.ownerUserId,
+      vendorId: receipt.trial.vendorId,
+      trialStartedAt: receipt.trial.startedAt
     });
+    const trialAccessUrl = buildVendorTrialAccessUrl(access.token);
+
+    (await cookies()).set({
+      name: VENDOR_TRIAL_COOKIE,
+      value: access.token,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production" || request.url.startsWith("https://"),
+      path: "/",
+      expires: new Date(access.accessExpiresAt)
+    });
+
+    const [applicantEmail, operationsEmail] = await Promise.all([
+      sendHubProspectApplicationReceiptEmail({
+        to: application.email,
+        businessName: application.businessName,
+        reference: receipt.reference,
+        hubName: receipt.hubName,
+        hubSlug: receipt.hubSlug,
+        planCode: receipt.planCode,
+        billingCycle: receipt.billingCycle,
+        setupFeeCents: receipt.setupFeeCents,
+        recurringFeeCents: receipt.recurringFeeCents,
+        commissionBps: receipt.commissionBps,
+        trialAccessUrl,
+        trialExpiresAt: receipt.trial.expiresAt
+      }),
+      notifyOperationsOfHubProspectApplication({
+        reference: receipt.reference,
+        businessName: application.businessName,
+        contactName: application.contactName,
+        contactEmail: application.email,
+        phone: application.phone,
+        hubName: receipt.hubName,
+        hubSlug: receipt.hubSlug,
+        planCode: receipt.planCode,
+        billingCycle: receipt.billingCycle
+      })
+    ]);
+
+    if (!applicantEmail.sent) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "hub_prospect_application.applicant_confirmation_failed",
+        reference: receipt.reference
+      }));
+    }
     if (!operationsEmail.sent) {
       console.error(JSON.stringify({
         level: "error",
         event: "hub_prospect_application.admin_notification_failed",
-        reference: receipt.reference,
-        destination: "info@kontamou.site"
+        reference: receipt.reference
       }));
     }
 
     return Response.json({
-      ...receipt,
+      reference: receipt.reference,
+      status: receipt.status,
+      hubSlug: receipt.hubSlug,
+      hubName: receipt.hubName,
+      planCode: receipt.planCode,
+      billingCycle: receipt.billingCycle,
+      setupFeeCents: receipt.setupFeeCents,
+      recurringFeeCents: receipt.recurringFeeCents,
+      commissionBps: receipt.commissionBps,
+      paymentRequired: false,
+      confirmationEmailSent: applicantEmail.sent,
+      redirectTo: "/vendor/trial",
+      trial: {
+        vendorId: receipt.trial.vendorId,
+        startsAt: new Date(receipt.trial.startedAt).toISOString(),
+        expiresAt: new Date(receipt.trial.expiresAt).toISOString(),
+        durationDays: 3
+      },
       message: receipt.planCode === "claim"
-        ? "Η δωρεάν καταχώριση CLAIM μπήκε σε έλεγχο για το HUB που αντιστοιχεί στην επαληθευμένη τοποθεσία Γ.Ε.ΜΗ."
-        : `Το ενδιαφέρον συνεργασίας καταχωρίστηκε με ${receipt.billingCycle === "annual" ? "ετήσια" : "μηνιαία"} χρέωση για το HUB που αντιστοιχεί στην επαληθευμένη τοποθεσία Γ.Ε.ΜΗ. Δεν έγινε χρέωση.`
+        ? "Η δωρεάν καταχώριση CLAIM μπήκε σε έλεγχο και το ιδιωτικό 3ήμερο Vendor Trial είναι ήδη έτοιμο."
+        : `Η αίτηση συνεργασίας καταχωρίστηκε με ${receipt.billingCycle === "annual" ? "ετήσια" : "μηνιαία"} επιλογή για το σωστό HUB. Δεν έγινε χρέωση και το ιδιωτικό 3ήμερο Vendor Trial είναι ήδη έτοιμο.`
     }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof HubProspectApplicationError) {
