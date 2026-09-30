@@ -7,7 +7,8 @@ const BRAND_LIMIT = 24;
 
 type HomepageBrandRow = Readonly<{
   name: string;
-  logo_object_key: string;
+  logo_object_key: string | null;
+  logo_external_url: string | null;
   product_count: number | string;
 }>;
 
@@ -23,6 +24,7 @@ export async function GET() {
     const result = await getProductionPostgresRuntime().nativePool.query<HomepageBrandRow>(`
       SELECT b.name,
              b.logo_object_key,
+             b.metadata->>'logo_external_url' AS logo_external_url,
              COUNT(DISTINCT cv.id)::integer AS product_count
       FROM canonical_variants cv
       LEFT JOIN product_families pf ON pf.id = cv.family_id
@@ -31,7 +33,7 @@ export async function GET() {
         AND COALESCE(cv.commerce_channel, 'normal') = 'normal'
         AND cv.suppressed = false
         AND cv.recalled = false
-        AND b.logo_object_key IS NOT NULL
+        AND (NULLIF(b.logo_object_key, '') IS NOT NULL OR NULLIF(b.metadata->>'logo_external_url', '') IS NOT NULL)
         AND EXISTS (
           SELECT 1
           FROM vendor_offers vo
@@ -45,7 +47,7 @@ export async function GET() {
             AND v.status = 'active'
             AND l.active = true
         )
-      GROUP BY b.id, b.name, b.logo_object_key
+      GROUP BY b.id, b.name, b.logo_object_key, b.metadata
       ORDER BY product_count DESC, b.name
       LIMIT $1
     `, [BRAND_LIMIT]);
@@ -53,11 +55,13 @@ export async function GET() {
     const brands = result.rows.flatMap((row) => {
       const name = String(row.name ?? "").trim();
       const logoObjectKey = String(row.logo_object_key ?? "").trim();
+      const logoExternalUrl = String(row.logo_external_url ?? "").trim();
       const productCount = Number(row.product_count);
-      if (!name || !logoObjectKey) return [];
+      if (!name || (!logoObjectKey && !logoExternalUrl)) return [];
       return [{
         name,
         logoObjectKey,
+        logoExternalUrl,
         productCount: Number.isFinite(productCount) && productCount > 0 ? Math.floor(productCount) : 0
       }];
     });

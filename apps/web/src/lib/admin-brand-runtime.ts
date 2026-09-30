@@ -9,6 +9,7 @@ export type AdminBrandRecord = Readonly<{
   normalizedName: string;
   website?: string;
   logoObjectKey?: string;
+  logoExternalUrl?: string;
   status: string;
   products: number;
   sourceUrl?: string;
@@ -85,6 +86,7 @@ function mapBrand(row: BrandRow): AdminBrandRecord {
     normalizedName: String(row.normalized_name ?? ""),
     website: optionalString(row.website),
     logoObjectKey: optionalString(row.logo_object_key),
+    logoExternalUrl: optionalString(metadata.logo_external_url),
     status: String(row.status ?? "unknown"),
     products: productCount(row.products),
     sourceUrl: optionalString(metadata.logo_source_url),
@@ -163,7 +165,7 @@ export async function adminBrandWorkspace(
       ),
       stats AS (
         SELECT COUNT(*)::int AS total_brands,
-               COUNT(*) FILTER (WHERE NULLIF(logo_object_key,'') IS NOT NULL)::int AS with_logo
+               COUNT(*) FILTER (WHERE NULLIF(logo_object_key,'') IS NOT NULL OR NULLIF(metadata->>'logo_external_url','') IS NOT NULL)::int AS with_logo
           FROM base
       ),
       filtered AS (
@@ -178,8 +180,8 @@ export async function adminBrandWorkspace(
          )
            AND (
              $2::text IS NULL
-             OR ($2 = 'with_logo' AND NULLIF(logo_object_key,'') IS NOT NULL)
-             OR ($2 = 'missing_logo' AND NULLIF(logo_object_key,'') IS NULL)
+             OR ($2 = 'with_logo' AND (NULLIF(logo_object_key,'') IS NOT NULL OR NULLIF(metadata->>'logo_external_url','') IS NOT NULL))
+             OR ($2 = 'missing_logo' AND NULLIF(logo_object_key,'') IS NULL AND NULLIF(metadata->>'logo_external_url','') IS NULL)
            )
       ),
       page AS (
@@ -280,6 +282,7 @@ export async function adminQueueBrandEnrichment(principal: SessionPrincipal, bra
 
 export async function adminRemoveBrandLogo(principal: SessionPrincipal, brandId: string): Promise<void> {
   await updateMetadata(principal, brandId, {
+    logo_external_url: null,
     logo_enrichment_status: "pending",
     logo_enrichment_reason: "removed_by_admin",
     logo_removed_at: new Date().toISOString()
@@ -295,6 +298,7 @@ export async function adminSetBrandLogo(principal: SessionPrincipal, input: {
 }): Promise<void> {
   const source = input.sourceUrl ? new URL(input.sourceUrl) : undefined;
   await updateMetadata(principal, input.brandId, {
+    logo_external_url: null,
     logo_source_url: source?.toString() ?? null,
     logo_source_domain: source?.hostname ?? null,
     logo_source_type: input.sourceType,
