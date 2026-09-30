@@ -337,7 +337,7 @@ export async function adminCatalogueOperationsWorkspace(
         label: "Taxonomy intelligence",
         count: intelligenceData.total,
         affected: intelligenceData.affected,
-        href: "/admin/catalogue-intake/intelligence?kind=category_new",
+        href: "/admin/catalogue-intake/intelligence",
         stage: "Supplier taxonomy",
         why: "New or unresolved supplier categories need one governed mapping into the KONTAMOU taxonomy. Attribute contracts are owned by Attribute Matching instead of being counted twice."
       },
@@ -453,7 +453,7 @@ function counted(rows: readonly SqlRow[], totalField: string, affectedField: str
 function emptyQueues(): CatalogueOperationsQueue[] {
   return [
     { key: "identity", label: "Identity exceptions", count: 0, affected: 0, href: "/admin/catalogue/exceptions", stage: "Canonical identity", why: "Strong identifiers conflict or remain ambiguous." },
-    { key: "intelligence", label: "Taxonomy intelligence", count: 0, affected: 0, href: "/admin/catalogue-intake/intelligence?kind=category_new", stage: "Supplier taxonomy", why: "New or unresolved supplier categories." },
+    { key: "intelligence", label: "Taxonomy intelligence", count: 0, affected: 0, href: "/admin/catalogue-intake/intelligence", stage: "Supplier taxonomy", why: "New or unresolved supplier categories." },
     { key: "attribute", label: "Attribute meaning", count: 0, affected: 0, href: "/admin/catalogue/attribute-matching", stage: "Attribute mapping", why: "Supplier field meaning is unresolved." },
     { key: "controlled_value", label: "Controlled values", count: 0, affected: 0, href: "/admin/catalogue-intake/values", stage: "Enum normalization", why: "External enum values need governed normalization." },
     { key: "matching", label: "Vendor matching", count: 0, affected: 0, href: "/admin/matching", stage: "Commercial matching", why: "Vendor submissions need a canonical decision." }
