@@ -173,7 +173,7 @@ export function AdminProductsControl({csrfToken,initialView="products",canWrite=
       <article><span>Storefront projection</span><strong>{formatCount(metrics.storefrontProductsApprox)}</strong><small>currently projected</small></article>
       <article><span>Vendor offers</span><strong>{formatCount(metrics.vendorOffersApprox)}</strong><small>fast DB estimate</small></article>
       <article><span>Families</span><strong>{formatCount(metrics.productFamiliesApprox)}</strong><small>canonical grouping</small></article>
-      <article className={metrics.uncategorizedLive?styles.attentionMetric:undefined}><span>Uncategorized</span><strong>{formatCount(metrics.uncategorizedLive)}</strong><small>needs taxonomy</small></article>
+      <article className={metrics.uncategorizedLive?styles.attentionMetric:undefined}><span>Uncategorized</span><strong>{formatCount(metrics.uncategorizedLive)}{metrics.uncategorizedLiveCapped?"+":""}</strong><small>{metrics.uncategorizedLiveCapped?"at least 2K need taxonomy":"needs taxonomy"}</small></article>
       <article><span>Categories</span><strong>{formatCount(metrics.categories)}</strong><small>taxonomy nodes</small></article>
     </div>:null}
 
