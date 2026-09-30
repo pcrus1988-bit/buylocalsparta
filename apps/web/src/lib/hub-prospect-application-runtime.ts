@@ -105,6 +105,7 @@ export async function submitHubProspectApplication(input: {
   const registryCheckedAt = new Date(registry.checkedAt);
   const applicationUuid = randomUUID();
   const reference = id("hubprospect");
+  const shouldTrial = plan.code !== "claim";
 
   return uow.withTransaction(
     { platformAccess: true, marketId: "sparta", requestId: `public-hub-prospect:${reference}` },
@@ -119,6 +120,13 @@ export async function submitHubProspectApplication(input: {
       if (duplicate.rowCount) {
         throw new HubProspectApplicationError(409, "application_exists", "Υπάρχει ήδη ενεργή αίτηση για αυτή την επιχείρηση.");
       }
+
+      const owner = shouldTrial
+        ? input.principal
+          ? await authenticatedOwner(tx, input.principal)
+          : await provisionalOwner(tx, application.email, input.now)
+        : undefined;
+      const marketUuid = shouldTrial ? await ensureHubTrialMarket(tx, hub, input.now) : undefined;
 
       await tx.query(`
         INSERT INTO hub_expansion_prospects (
@@ -168,6 +176,22 @@ export async function submitHubProspectApplication(input: {
         createdAt
       ]);
 
+      const trial = owner && marketUuid
+        ? await provisionHubProspectTrial(tx, {
+            prospectUuid: applicationUuid,
+            marketUuid,
+            ownerUuid: owner.uuid,
+            ownerPublicId: owner.publicId,
+            application,
+            hub,
+            legalName: registry.legalName,
+            gemiNumber: registry.gemiNumber,
+            registryAddress,
+            postcode: registryPostcode,
+            now: input.now
+          })
+        : undefined;
+
       return {
         reference,
         status: "pending" as const,
@@ -176,7 +200,9 @@ export async function submitHubProspectApplication(input: {
         planCode: plan.code,
         billingCycle: application.billingCycle,
         recurringFeeCents,
-        paymentRequired: false as const
+        paymentRequired: false as const,
+        ...(owner ? { accountClaimRequired: owner.provisional } : {}),
+        ...(trial ? { trial } : {})
       };
     },
     { isolation: "serializable" }
