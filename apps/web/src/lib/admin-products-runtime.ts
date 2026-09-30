@@ -8,7 +8,7 @@ export type AdminProductsFilters = Readonly<{ q?: string; category?: string; sta
 export type AdminProductRow = Readonly<{ publicId:string; slug:string; title:string; brandName?:string; categoryCode?:string; categoryName?:string; gtin?:string; mpn?:string; model?:string; channel:string; active:boolean; suppressed:boolean; recalled:boolean; hasMedia:boolean; offerCount:number; minPriceMinor?:number; currency:string; missingAttributes:boolean }>;
 export type AdminProductCategoryOption = Readonly<{ categoryCode:string; labelEl:string }>;
 export type AdminProductCategoryCard = Readonly<{ categoryCode:string; labelEl:string; parentCategoryCode?:string; taxonomyRole:string; commerceMode:string; active:boolean; assignable:boolean; discoverable:boolean; sortOrder:number; liveProductCount:number }>;
-export type AdminProductsWorkspace = Readonly<{ csrfToken:string; metrics:Readonly<{ canonicalProductsApprox:number; productFamiliesApprox:number; vendorOffersApprox:number; storefrontProductsApprox:number; categories:number; uncategorizedLive:number }>; categories:readonly AdminProductCategoryOption[]; products:readonly AdminProductRow[]; hasMore:boolean; nextCursor?:string }>;
+export type AdminProductsWorkspace = Readonly<{ csrfToken:string; metrics:Readonly<{ canonicalProductsApprox:number; productFamiliesApprox:number; vendorOffersApprox:number; storefrontProductsApprox:number; categories:number; uncategorizedLive:number; uncategorizedLiveCapped:boolean }>; categories:readonly AdminProductCategoryOption[]; products:readonly AdminProductRow[]; hasMore:boolean; nextCursor?:string }>;
 export type AdminProductCategoriesWorkspace = Readonly<{ csrfToken:string; categories:readonly AdminProductCategoryCard[]; hasMore:boolean; nextOffset?:number }>;
 
 function text(row:SqlRow, field:string){const value=row[field];return typeof value==="string"?value:String(value??"");}
@@ -84,7 +84,7 @@ async function postgresProductsWorkspace(principal:SessionPrincipal,filters:Admi
         "COALESCE((SELECT n_live_tup FROM pg_stat_user_tables WHERE schemaname='public' AND relname='vendor_offers'),0)::bigint AS vendor_offers_approx,"+
         "COALESCE((SELECT n_live_tup FROM pg_stat_user_tables WHERE schemaname='public' AND relname='storefront_catalog_read_model'),0)::bigint AS storefront_products_approx,"+
         "(SELECT COUNT(*)::int FROM categories WHERE market_id=$1::uuid) AS categories,"+
-        "(SELECT COUNT(*)::int FROM canonical_variants WHERE market_id=$1::uuid AND category_id IS NULL AND suppressed=FALSE AND recalled=FALSE) AS uncategorized_live",
+        "(SELECT COUNT(*)::int FROM (SELECT 1 FROM canonical_variants WHERE market_id=$1::uuid AND category_id IS NULL AND suppressed=FALSE AND recalled=FALSE LIMIT 2001) bounded_uncategorized) AS uncategorized_live",
         [market]
       ),
       tx.query<SqlRow>(
@@ -106,7 +106,8 @@ async function postgresProductsWorkspace(principal:SessionPrincipal,filters:Admi
         vendorOffersApprox:integer(metricsResult.rows[0]??{},"vendor_offers_approx"),
         storefrontProductsApprox:integer(metricsResult.rows[0]??{},"storefront_products_approx"),
         categories:integer(metricsResult.rows[0]??{},"categories"),
-        uncategorizedLive:integer(metricsResult.rows[0]??{},"uncategorized_live")
+        uncategorizedLive:Math.min(integer(metricsResult.rows[0]??{},"uncategorized_live"),2000),
+        uncategorizedLiveCapped:integer(metricsResult.rows[0]??{},"uncategorized_live")>2000
       },
       categories:categoryResult.rows.map(row=>({categoryCode:text(row,"code"),labelEl:text(row,"label")})),
       products:rows.map(row=>({
@@ -155,7 +156,7 @@ async function postgresCategoriesWorkspace(principal:SessionPrincipal,q:string,o
 
 export async function adminProductsWorkspace(principal:SessionPrincipal,filters:AdminProductsFilters={}):Promise<AdminProductsWorkspace>{
   assertAdminPermission(principal,"catalog.read");
-  if(!postgresAdminRuntimeEnabled())return {csrfToken:principal.csrfToken,metrics:{canonicalProductsApprox:0,productFamiliesApprox:0,vendorOffersApprox:0,storefrontProductsApprox:0,categories:0,uncategorizedLive:0},categories:[],products:[],hasMore:false};
+  if(!postgresAdminRuntimeEnabled())return {csrfToken:principal.csrfToken,metrics:{canonicalProductsApprox:0,productFamiliesApprox:0,vendorOffersApprox:0,storefrontProductsApprox:0,categories:0,uncategorizedLive:0,uncategorizedLiveCapped:false},categories:[],products:[],hasMore:false};
   return postgresProductsWorkspace(principal,filters);
 }
 export async function adminProductCategoriesWorkspace(principal:SessionPrincipal,options:Readonly<{q?:string;offset?:number;limit?:number}>={}):Promise<AdminProductCategoriesWorkspace>{
