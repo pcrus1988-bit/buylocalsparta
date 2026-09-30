@@ -208,6 +208,27 @@ export async function adminCatalogueOperationsWorkspace(
           JOIN public.product_types pt ON pt.id=r.product_type_id AND pt.status='active'
           WHERE a.mapping_status='review_required'
             AND a.attribute_value_id IS NULL
+            AND EXISTS (
+              SELECT 1
+              FROM public.attribute_values av
+              WHERE av.attribute_id=a.attribute_id
+                AND av.active=true
+                AND (
+                  NOT EXISTS (
+                    SELECT 1
+                    FROM public.product_type_attribute_allowed_values allowed
+                    WHERE allowed.product_type_id=r.product_type_id
+                      AND allowed.attribute_id=a.attribute_id
+                  )
+                  OR EXISTS (
+                    SELECT 1
+                    FROM public.product_type_attribute_allowed_values allowed
+                    WHERE allowed.product_type_id=r.product_type_id
+                      AND allowed.attribute_id=a.attribute_id
+                      AND allowed.attribute_value_id=av.id
+                  )
+                )
+            )
         ), grouped AS (
           SELECT
             mapping_rule_id::text AS mapping_rule_id,
