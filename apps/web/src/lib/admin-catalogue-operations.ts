@@ -93,8 +93,8 @@ export async function adminCatalogueOperationsWorkspace(
           p.source_id::text AS source_id,
           s.name AS source_name,
           p.proposal_kind,
-          p.source_key,
-          p.source_label,
+          n.source_key,
+          n.source_label,
           p.source_attribute_key,
           p.occurrence_count,
           p.last_seen_at,
@@ -102,6 +102,7 @@ export async function adminCatalogueOperationsWorkspace(
           sum(p.occurrence_count) OVER()::integer AS affected_total
         FROM public.catalog_intelligence_proposals p
         JOIN public.catalog_sources s ON s.id=p.source_id
+        LEFT JOIN public.catalog_source_taxonomy_nodes n ON n.id=p.source_taxonomy_node_id
         WHERE p.status='open'
           AND p.proposal_kind LIKE 'category_%'
         ORDER BY
