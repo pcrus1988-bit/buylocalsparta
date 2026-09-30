@@ -6,7 +6,7 @@ const root = process.cwd();
 const read = (path: string) => readFileSync(join(root, path), "utf8");
 const errors: string[] = [];
 
-const applicationRoute = read("apps/web/src/app/api/vendor-application/route.ts");
+const applicationRoute = read("apps/web/src/app/api/vendor-application/route.ts");\nconst applicationForm = read("apps/web/src/components/VendorApplicationForm.tsx");
 const applicationRuntime = read("apps/web/src/lib/vendor-application-runtime.ts");
 const vendorSession = read("apps/web/src/lib/vendor-session.ts");
 const dailySession = read("apps/web/src/lib/daily-session.ts");
@@ -25,7 +25,7 @@ function forbidText(source: string, needle: string, message: string) {
 }
 
 requireText(applicationRoute, 'redirectTo = "/vendor/trial"', "New vendor applications must hand off directly to the private trial");
-requireText(applicationRoute, "VENDOR_TRIAL_COOKIE", "Application handoff must persist the signed trial cookie");
+requireText(applicationRoute, "VENDOR_TRIAL_COOKIE", "Application handoff must persist the signed trial cookie");\nrequireText(applicationForm, '"Υποβολή & έναρξη 3ήμερου Trial"', "New-vendor application CTA must make immediate trial start explicit");
 requireText(applicationRuntime, "const trial = claimedVendor", "Existing-profile claims must remain separated from automatic new-vendor trials");
 requireText(applicationRuntime, "await provisionApplicantTrial", "New vendor applications must provision a private trial vendor shell");
 requireText(applicationRuntime, "public_directory_visible,demo_mode", "Trial vendor provisioning must explicitly persist public visibility and DEMO state");
