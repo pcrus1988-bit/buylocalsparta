@@ -1,0 +1,49 @@
+name: GEMI API diagnostic
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/gemi-api-diagnostic.yml"
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe official GEMI OpenData filters
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://opendata-api.businessportal.gr/api/opendata/v1"
+          HDR="api_key: api-docs-key"
+
+          prefs="$(curl -fsS --retry 3 -H "$HDR" "$BASE/metadata/prefectures")"
+          acts="$(curl -fsS --retry 3 -H "$HDR" "$BASE/metadata/activities")"
+
+          echo "ATTICA metadata:"
+          echo "$prefs" | jq -c '.[] | select((.descr // "") | test("ΑΤΤΙΚ"; "i"))'
+          echo "KAD metadata 47717000 / 47710000:"
+          echo "$acts" | jq -c '.[] | select(.id == "47717000" or .id == "47710000")'
+
+          attica_id="$(echo "$prefs" | jq -r '[.[] | select((.descr // "") | test("^ΑΤΤΙΚΗΣ$"; "i"))][0].id // empty')"
+          if [ -z "$attica_id" ]; then
+            attica_id="$(echo "$prefs" | jq -r '[.[] | select((.descr // "") | test("ΑΤΤΙΚ"; "i"))][0].id // empty')"
+          fi
+          echo "Resolved ATTICA id=$attica_id"
+
+          probe () {
+            label="$1"
+            query="$2"
+            payload="$(curl -fsS --retry 3 -H "$HDR" "$BASE/companies?$query&resultsOffset=0&resultsSize=5&resultsSortBy=%2BarGemi")"
+            echo "=== $label ==="
+            echo "$payload" | jq -c '{totalCount:(.searchMetadata.totalCount // null),returned:(.searchResults|length),samples:[.searchResults[]? | {arGemi,afm,coNameEl,prefecture,municipality,status,activities:[.activities[]?.activity.id]}]}'
+          }
+
+          probe "47717000 only" "activities=47717000"
+          probe "47717000 active" "activities=47717000&isActive=true"
+          probe "47717000 attica" "activities=47717000&prefectures=$attica_id"
+          probe "47717000 attica active" "activities=47717000&prefectures=$attica_id&isActive=true"
+
+          probe "47710000 only" "activities=47710000"
+          probe "47710000 active" "activities=47710000&isActive=true"
+          probe "47710000 attica" "activities=47710000&prefectures=$attica_id"
+          probe "47710000 attica active" "activities=47710000&prefectures=$attica_id&isActive=true"
