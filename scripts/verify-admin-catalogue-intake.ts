@@ -89,6 +89,8 @@ requireText("automationWorker", "process_catalog_intelligence_refresh_queue", "S
 requireText("automationWorker", "vendor_catalog_assortments", "Scheduled intake worker must discover only already-assigned vendor catalogue rows");
 requireText("automationWorker", "apply_catalog_source_canonicalization", "Scheduled intake worker must invoke governed canonical identity resolution");
 requireText("automationWorker", "assortment_status NOT IN ('rejected','discontinued')", "Scheduled canonicalization must ignore rejected/discontinued vendor assignments");
+requireText("automationWorker", "catalog_canonicalization_reviews", "Scheduled canonicalization must detect governed identity exceptions");
+requireText("automationWorker", "material_variant_conflict", "Scheduled canonicalization must stop retrying strong identity conflicts until reviewed");
 forbidText("automationWorker", "vendor_offers", "Catalogue intake automation must not create or mutate sellable vendor offers");
 requireText("automationWorkflow", 'cron: "*/5 * * * *"', "Catalogue intake automation must run on a bounded recurring schedule");
 requireText("automationWorkflow", 'DATABASE_URL: ${{ secrets.DATABASE_URL }}', "Catalogue intake automation must use the protected production database secret");
