@@ -14,9 +14,14 @@ const dailySession = read("apps/web/src/lib/daily-session.ts");
 const trialRuntime = read("apps/web/src/lib/vendor-trial-runtime.ts");
 const trialPage = read("apps/web/src/app/vendor/trial/page.tsx");
 const storefrontBuilder = read("apps/web/src/components/VendorStorefrontBuilder.tsx");
+const hubApplicationRoute = read("apps/web/src/app/api/hub-prospect-application/route.ts");
+const hubApplicationForm = read("apps/web/src/components/HubExpansionApplicationForm.tsx");
+const hubApplicationRuntime = read("apps/web/src/lib/hub-prospect-application-runtime.ts");
 const previewPage = read("apps/web/src/app/vendor/preview/page.tsx");
 const migration = read("db/migrations/0296_vendor_application_trial.sql");
 const checksum = JSON.parse(read("db/migrations/checksums.0296.json")) as Record<string, string>;
+const hubMigration = read("db/migrations/0297_hub_prospect_vendor_trial.sql");
+const hubChecksum = JSON.parse(read("db/migrations/checksums.0297.json")) as Record<string, string>;
 const postgresRuntime = read("packages/postgres-runtime/src/index.ts");
 
 function requireText(source: string, needle: string, message: string) {
@@ -49,20 +54,38 @@ requireText(trialPage, "recommendedStepNumber", "Trial wizard must resume at the
 requireText(trialPage, 'aria-current={step.number === recommendedStep.number ? "step" : undefined}', "Trial wizard must expose the current onboarding step accessibly");
 requireText(storefrontBuilder, "router.refresh()", "Saving Brand/Storefront changes must refresh wizard progress immediately");
 requireText(previewPage, "robots: { index: false, follow: false }", "Private trial preview must stay noindex");
+requireText(hubApplicationRuntime, 'const shouldTrial = plan.code !== "claim"', "Paid HUB applications must opt into the private Trial while CLAIM stays listing-only");
+requireText(hubApplicationRuntime, "await ensureHubTrialMarket", "HUB Trial must provision or reuse the verified HUB market scope");
+requireText(hubApplicationRuntime, "false,true,$8,$9::jsonb", "HUB Trial vendor must stay private and in DEMO mode");
+requireText(hubApplicationRuntime, "shopping_enabled,search_indexable", "Pre-launch HUB Trial market must explicitly govern shopping/indexing");
+requireText(hubApplicationRuntime, "false,true,false,false,false,false", "Pre-launch HUB Trial market must remain non-operational, non-public and non-shopping");
+requireText(hubApplicationRuntime, '"login_required"', "Paid HUB Trial must require a verified signed-in applicant identity");
+requireText(hubApplicationRoute, 'redirectTo: receipt.trial ? "/vendor/trial" : undefined', "Paid HUB application must hand off directly to the Trial wizard");
+requireText(hubApplicationRoute, "VENDOR_TRIAL_COOKIE", "HUB Trial handoff must persist the signed Trial cookie");
+requireText(hubApplicationForm, "Άνοιξε το 3ήμερο Vendor Trial", "HUB application receipt must expose the Trial CTA");
+requireText(hubApplicationForm, '"x-csrf-token": csrfToken', "Signed-in HUB Trial application must send CSRF protection");
+requireText(trialRuntime, "FROM hub_expansion_prospects", "Trial runtime must resolve HUB prospect trial records");
+requireText(trialRuntime, "getVendorTrialSnapshotForPrincipal", "Verified vendor login must be able to resume an active Trial");
+requireText(hubMigration, "hub_expansion_prospects_trial_window_check", "HUB prospect schema must cap and validate the Trial window");
+requireText(hubMigration, "vendor_id uuid REFERENCES public.vendor_businesses(id)", "HUB prospect Trial must persist its private vendor workspace linkage");
 requireText(migration, "trial_expires_at <= trial_started_at + interval '3 days 1 minute'", "Database must cap the trial window at three days");
 requireText(migration, "storefront_settings jsonb", "Persistent storefront settings must be part of the trial schema");
 forbidText(applicationRuntime, "public_directory_visible,true,true", "Trial vendors must never be provisioned publicly visible");
 
 const schemaVersion = Number(postgresRuntime.match(/export const EXPECTED_SCHEMA_VERSION = (\d+);/)?.[1] ?? 0);
-if (schemaVersion < 296) errors.push(`PostgreSQL runtime schema head must include vendor trial migration 0296; found ${schemaVersion || "none"}`);
+if (schemaVersion < 297) errors.push(`PostgreSQL runtime schema head must include HUB prospect Trial migration 0297; found ${schemaVersion || "none"}`);
 
 const migrationHash = createHash("sha256").update(migration).digest("hex");
 if (checksum["0296_vendor_application_trial.sql"] !== migrationHash) {
   errors.push(`Migration 0296 checksum mismatch: expected ${migrationHash}, manifest has ${checksum["0296_vendor_application_trial.sql"] ?? "missing"}`);
+}
+const hubMigrationHash = createHash("sha256").update(hubMigration).digest("hex");
+if (hubChecksum["0297_hub_prospect_vendor_trial.sql"] !== hubMigrationHash) {
+  errors.push(`Migration 0297 checksum mismatch: expected ${hubMigrationHash}, manifest has ${hubChecksum["0297_hub_prospect_vendor_trial.sql"] ?? "missing"}`);
 }
 
 if (errors.length) {
   console.error("Vendor trial acceptance failed:\n- " + errors.join("\n- "));
   process.exit(1);
 }
-console.log("Vendor trial acceptance OK: immediate private access, DEMO isolation, 3-day expiry, Catalog progress, Daily access and private preview are preserved.");
+console.log("Vendor trial acceptance OK: Sparta and paid HUB applicants receive private DEMO Trial access, three-day expiry, resumable onboarding and no pre-activation commerce.");
