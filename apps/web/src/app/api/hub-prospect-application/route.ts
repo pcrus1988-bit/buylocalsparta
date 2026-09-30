@@ -1,4 +1,7 @@
+import { cookies } from "next/headers";
 import { getHubExpansionPlan, type HubBillingCycle, type HubExpansionPlanCode } from "../../../lib/hub-expansion-plans";
+import { getAccountSession } from "../../../lib/account-session";
+import { assertCustomerCsrf } from "../../../lib/customer-state-runtime";
 import {
   consumeHubProspectRateLimit,
   HubProspectApplicationError,
@@ -6,7 +9,8 @@ import {
   submitHubProspectApplication,
   type HubProspectApplicationInput
 } from "../../../lib/hub-prospect-application-runtime";
-import { notifyOperationsOfHubProspectApplication } from "../../../lib/vendor-email-workflows";
+import { notifyOperationsOfHubProspectApplication, sendHubProspectApplicationReceiptEmail } from "../../../lib/vendor-email-workflows";
+import { createVendorTrialAccessToken, VENDOR_TRIAL_COOKIE } from "../../../lib/vendor-trial-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +33,15 @@ export async function POST(request: Request) {
       { code: "rate_limited", error: "Έχουν γίνει πολλές αιτήσεις από αυτή τη συσκευή. Δοκίμασε ξανά αργότερα ή επικοινώνησε με την ομάδα ΚΟΝΤΑ ΜΟΥ.", retryAfterMs: limit.retryAfterMs },
       { status: 429, headers: { "retry-after": String(Math.ceil(limit.retryAfterMs / 1000)), "Cache-Control": "no-store" } }
     );
+  }
+
+  const principal = await getAccountSession();
+  if (principal) {
+    try {
+      assertCustomerCsrf(principal, request.headers.get("x-csrf-token") ?? undefined);
+    } catch {
+      return Response.json({ code: "csrf_failed", error: "Η συνεδρία άλλαξε. Ανανέωσε τη σελίδα και ξαναδοκίμασε." }, { status: 403, headers: { "Cache-Control": "no-store" } });
+    }
   }
 
   try {
@@ -54,8 +67,32 @@ export async function POST(request: Request) {
       notes: optionalStringField(body.notes)
     };
 
-    const receipt = await submitHubProspectApplication({ application, now });
-    const operationsEmail = await notifyOperationsOfHubProspectApplication({
+    const receipt = await submitHubProspectApplication({ application, principal, now });
+
+    let trialAccessToken: string | undefined;
+    let trialAccessExpiresAt: number | undefined;
+    if (receipt.trial) {
+      const access = createVendorTrialAccessToken({
+        applicationId: receipt.reference,
+        ownerUserId: receipt.trial.ownerUserId,
+        vendorId: receipt.trial.vendorId,
+        trialStartedAt: receipt.trial.startedAt
+      });
+      trialAccessToken = access.token;
+      trialAccessExpiresAt = access.accessExpiresAt;
+      (await cookies()).set({
+        name: VENDOR_TRIAL_COOKIE,
+        value: access.token,
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production" || request.url.startsWith("https://"),
+        path: "/",
+        expires: new Date(access.accessExpiresAt)
+      });
+    }
+
+    const [operationsEmail, applicantEmail] = await Promise.all([
+      notifyOperationsOfHubProspectApplication({
       reference: receipt.reference,
       businessName: application.businessName,
       contactName: application.contactName,
@@ -65,7 +102,19 @@ export async function POST(request: Request) {
       hubSlug: receipt.hubSlug,
       planCode: receipt.planCode,
       billingCycle: receipt.billingCycle
-    });
+      }),
+      sendHubProspectApplicationReceiptEmail({
+        to: application.email,
+        businessName: application.businessName,
+        reference: receipt.reference,
+        hubName: receipt.hubName,
+        planCode: receipt.planCode,
+        billingCycle: receipt.billingCycle,
+        recurringFeeCents: receipt.recurringFeeCents,
+        trialExpiresAt: receipt.trial?.expiresAt,
+        trialAccessToken
+      })
+    ]);
     if (!operationsEmail.sent) {
       console.error(JSON.stringify({
         level: "error",
@@ -74,12 +123,24 @@ export async function POST(request: Request) {
         destination: "info@kontamou.site"
       }));
     }
+    if (!applicantEmail.sent) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "hub_prospect_application.applicant_confirmation_failed",
+        reference: receipt.reference,
+        destination: application.email
+      }));
+    }
 
     return Response.json({
       ...receipt,
+      redirectTo: receipt.trial ? "/vendor/trial" : undefined,
+      trialAccessExpiresAt: trialAccessExpiresAt ? new Date(trialAccessExpiresAt).toISOString() : undefined,
       message: receipt.planCode === "claim"
         ? "Η δωρεάν καταχώριση CLAIM μπήκε σε έλεγχο για το HUB που αντιστοιχεί στην επαληθευμένη τοποθεσία Γ.Ε.ΜΗ."
-        : `Το ενδιαφέρον συνεργασίας καταχωρίστηκε με ${receipt.billingCycle === "annual" ? "ετήσια" : "μηνιαία"} χρέωση για το HUB που αντιστοιχεί στην επαληθευμένη τοποθεσία Γ.Ε.ΜΗ. Δεν έγινε χρέωση.`
+        : receipt.trial
+          ? `Η αίτηση καταχωρίστηκε για το HUB ${receipt.hubName}. Το ιδιωτικό 3ήμερο Vendor Trial είναι έτοιμο τώρα· η αίτηση παραμένει σε έλεγχο και δεν ενεργοποιούνται δημόσιες πωλήσεις ή χρεώσεις.`
+          : `Το ενδιαφέρον συνεργασίας καταχωρίστηκε με ${receipt.billingCycle === "annual" ? "ετήσια" : "μηνιαία"} χρέωση για το HUB που αντιστοιχεί στην επαληθευμένη τοποθεσία Γ.Ε.ΜΗ. Δεν έγινε χρέωση.`
     }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof HubProspectApplicationError) {
@@ -87,7 +148,7 @@ export async function POST(request: Request) {
         {
           code: error.code,
           error: error.message,
-          redirectTo: error.code === "sparta_uses_existing_join" ? "/join/sparta" : undefined
+          redirectTo: error.code === "sparta_uses_existing_join" ? "/join/sparta" : error.code === "login_required" ? "/login?next=%2Fhubs%2Fjoin%2Fapply" : undefined
         },
         { status: error.status, headers: { "Cache-Control": "no-store" } }
       );
