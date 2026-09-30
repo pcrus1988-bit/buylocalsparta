@@ -22,7 +22,7 @@ Provider values required **only when the matching web feature is enabled**:
 - reporting: no new third-party credential is required. Keep `BLS_REPORT_ASYNC_ENABLED=false` unless a healthy `reports` worker is deployed.
 
 
-**Do not put `BLS_CLAMAV_HOST` on Vercel merely to satisfy web readiness.** ClamAV is a private media-worker dependency. The web readiness endpoint checks that private object storage is usable; the staging preflight checks ClamAV independently from a runner that can reach the scanner.
+**Do not put `BLS_CLAMAV_HOST` on Vercel merely to satisfy web readiness.** Production ClamAV is bundled into `deploy/media-worker.Dockerfile` and binds to loopback inside that worker container. The web readiness endpoint checks private object storage only; ClamAV readiness belongs to the worker startup gate.
 
 The web process needs only the Meilisearch **search key** for customer queries. `MEILISEARCH_ADMIN_KEY` belongs on the search worker/configuration job, not on Vercel unless an explicit Admin indexing operation truly requires it.
 
@@ -117,10 +117,10 @@ Required:
 - `BLS_WORKER_ROLE=media`
 - `BLS_MEDIA_PIPELINE_ENABLED=true`
 - object-storage credentials/configuration
-- `BLS_CLAMAV_HOST`
-- `BLS_CLAMAV_PORT`
+- `BLS_CLAMAV_HOST=127.0.0.1`
+- `BLS_CLAMAV_PORT=3310`
 
-This worker should run on a network that can reach private `clamd`. Do not make the scanner publicly reachable for Vercel.
+Deploy the worker with `deploy/media-worker.Dockerfile`. The image starts its own loopback-only `clamd` before launching the queue worker, so no separate ClamAV service or public scanner endpoint is required.
 
 ## `reports` worker
 
