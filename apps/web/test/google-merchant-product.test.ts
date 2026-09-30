@@ -67,3 +67,28 @@ test("rejects invalid price and non-HTTPS image data before Merchant submission"
     priceMinor: 100
   }, "http://supplier.example/image.jpg"), /image must use HTTPS/i);
 });
+
+
+test("supports an English fallback feed for Greece without changing the target feed label", () => {
+  const input = buildGoogleMerchantProductInput({
+    canonicalPublicId: "product_en_123456",
+    slug: "english-product",
+    title: "Black Cotton T-Shirt",
+    description: "Black cotton T-shirt.",
+    brand: "Example Brand",
+    condition: "new",
+    priceMinor: 4999,
+    contentLanguage: "en"
+  }, "https://supplier.example/images/shirt.jpg", "https://kontamou.site");
+
+  assert.equal(input.contentLanguage, "en");
+  assert.equal(input.feedLabel, "GR");
+  assert.equal(input.productAttributes.title, "Black Cotton T-Shirt");
+});
+
+
+test("rejects Google-restricted GTIN ranges even when the check digit is valid", () => {
+  assert.equal(validGtin("2000050835353"), undefined);
+  assert.equal(validGtin("0201234567892"), undefined);
+  assert.equal(validGtin("0401234567890"), undefined);
+});

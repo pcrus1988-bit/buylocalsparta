@@ -1,6 +1,6 @@
 import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
 import { isDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { readVendorStructuredPricing, updateVendorRetailPrice, updateVendorStructuredPricing } from "../../../../../lib/vendor-price-service";
 import { calculateRetailPriceMinor, type VendorPricingAdjustmentType, type VendorPricingMode } from "../../../../../lib/vendor-pricing-calculation";
 
@@ -70,7 +70,7 @@ async function markDropshippingManualOverride(vendorId: string | null | undefine
 
 export async function GET(request: Request) {
   try {
-    const principal = await requireVendorSession(request);
+    const { principal } = await requireVendorCapability("pricing.manage", request);
     const pricing = await readVendorStructuredPricing(principal);
     return Response.json({ pricing });
   } catch (error) {
@@ -80,7 +80,7 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const { principal } = await requireVendorCapability("pricing.manage", request, true);
     const body = await request.json() as Record<string, unknown>;
     const offerId = typeof body.offerId === "string" ? body.offerId : "";
     const dropshippingOnly = await isDropshippingOnlyVendor(principal.vendorId);

@@ -5,6 +5,7 @@ import {
   paintBuildGreekText,
   paintBuildManufacturerDescription,
   paintBuildProductTitle,
+  isPaintBuildMainManufacturerProductRole,
   paintBuildTintBaseLabel
 } from "./paint-build-greek-presentation.ts";
 
@@ -53,4 +54,13 @@ test("VITEX Care description is generated from verified manufacturer fields in G
     "Υψηλής ποιότητας ματ πλαστικό χρώμα για εσωτερική χρήση. Σύμφωνα με τα επαληθευμένα στοιχεία της VITEX, προορίζεται για εφαρμογή σε σκυρόδεμα, σοβά, τούβλο, γυψοσανίδα και σταθερές παλιές βαμμένες επιφάνειες."
   );
   assert.doesNotMatch(description, /\b(?:interior|sound old paint|emulsion paint|gypsum board)\b/i);
+});
+
+
+test("Paint & Build main comparison excludes manufacturer system-component roles", () => {
+  assert.equal(isPaintBuildMainManufacturerProductRole("surface preparation primer", "water-based acrylic primer"), false);
+  assert.equal(isPaintBuildMainManufacturerProductRole("wood preservative", "water-based exterior wood preservative"), false);
+  assert.equal(isPaintBuildMainManufacturerProductRole("roof waterproofing accessory", "reinforced polyester mesh"), false);
+  assert.equal(isPaintBuildMainManufacturerProductRole("interior wall paint", "mat emulsion paint"), true);
+  assert.equal(isPaintBuildMainManufacturerProductRole("repair putty", "lightweight acrylic putty"), true);
 });

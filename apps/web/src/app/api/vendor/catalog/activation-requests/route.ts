@@ -1,9 +1,9 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
 
 export async function GET(request: Request) {
   try {
-    const principal = await requireVendorSession(request, false);
+    const { principal } = await requireVendorCapability("catalogue.read", request, false);
     if (!principal.vendorId) throw new Error("VENDOR_AUTH_REQUIRED");
     const result = await getProductionPostgresRuntime().sqlPool.query(`
       SELECT o.public_id AS offer_id,r.status,r.requested_at

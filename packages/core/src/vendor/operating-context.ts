@@ -59,32 +59,37 @@ export type PlatformGovernanceBoundary = typeof PLATFORM_GOVERNANCE_BOUNDARIES[n
 
 const MANAGED_CAPABILITIES = [
   "shop.read",
+  "shop.manage",
   "catalogue.read",
   "catalogue.submit",
+  "offer.manage",
+  "pricing.manage",
   "inventory.manage",
   "orders.read",
   "orders.manage",
   "fulfilment.manage",
   "pickup.manage",
-  "finance.read",
-  "seo.guidance.read",
-  "analytics.read",
-  "compliance.submit"
-] as const satisfies readonly VendorCapability[];
-
-const SELF_GOVERNED_EXTRA_CAPABILITIES = [
-  "shop.manage",
-  "catalogue.import",
-  "offer.manage",
-  "pricing.manage",
   "shipping.manage",
-  "local_delivery.manage",
-  "aade.manage",
+  "finance.read",
   "ask_local.manage",
   "customer_messages.manage",
+  "seo.guidance.read",
+  "analytics.read",
+  "compliance.submit",
+  "staff.manage"
+] as const satisfies readonly VendorCapability[];
+
+/**
+ * Expansion-only powers. Existing Sparta operations stay backwards-compatible in
+ * MANAGED; SELF_GOVERNED adds controls that change how the merchant independently
+ * operates its HUB storefront rather than merely fulfilling KONTA MOY-managed work.
+ */
+const SELF_GOVERNED_EXTRA_CAPABILITIES = [
+  "catalogue.import",
+  "local_delivery.manage",
+  "aade.manage",
   "promotions.manage",
   "seo.source_data.manage",
-  "staff.manage",
   "subscription.manage"
 ] as const satisfies readonly VendorCapability[];
 

@@ -4,19 +4,22 @@ import { CatalogProductCard } from "../../../components/CatalogProductCard";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import type { CatalogCard } from "../../../lib/catalog-view";
-import { getCrawlerCatalogCards } from "../../../lib/crawler-catalog";
+import { getCachedCrawlerCatalogCards } from "../../../lib/cached-public-shop-page";
 import { EDITORIAL_COLLECTIONS, editorialCollectionBySlug, legacyEditorialCollectionRedirect } from "../../../lib/editorial-collections";
-import { getPublishedDropshipCatalogPage } from "../../../lib/published-dropship-catalog-page";
-import { isReadOnlyPublicCrawlerRequest } from "../../../lib/request-audience";
-import { getShopCatalogPage } from "../../../lib/shop-catalog-page";
-import { getVisitorKey } from "../../../lib/visitor";
 import styles from "./editorial-collection.module.css";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
+export const revalidate = 900;
+export const dynamicParams = true;
+
 const PRODUCT_LIMIT = 12;
 
 export function generateStaticParams() {
+  // Vercel builds have the live storefront projections needed to ship the small
+  // editorial crawl surface warm. Portable CI/local builds keep on-demand ISR so
+  // they do not require production-only read models during next build.
+  if (process.env.VERCEL !== "1") return [];
   return EDITORIAL_COLLECTIONS.map((collection) => ({ slug: collection.slug }));
 }
 
@@ -46,55 +49,31 @@ function uniqueProducts(products: readonly CatalogCard[]): CatalogCard[] {
 }
 
 async function boundedCollectionSlice(
-  visitorKey: string,
-  readOnlyCrawler: boolean,
   query: string,
   category: string,
   limit: number
 ): Promise<readonly CatalogCard[]> {
   if (limit <= 0) return [];
-  if (readOnlyCrawler) {
-    return getCrawlerCatalogCards("23100", query, category, {}, limit);
-  }
-
-  const localPage = await getShopCatalogPage({
-    visitorKey,
-    postcode: "23100",
-    query,
-    category,
-    limit,
-    offset: 0
-  });
-  const local = uniqueProducts(localPage.products);
-  if (local.length >= limit) return local.slice(0, limit);
-
-  const remaining = limit - local.length;
-  const dropshipPage = await getPublishedDropshipCatalogPage({
-    query,
-    category,
-    limit: remaining,
-    offset: 0
-  });
-  return uniqueProducts([...local, ...dropshipPage.products]).slice(0, limit);
+  return getCachedCrawlerCatalogCards("23100", query, category, {}, limit);
 }
 
-async function liveCollectionProducts(slug: string, visitorKey: string, readOnlyCrawler: boolean): Promise<readonly CatalogCard[]> {
+async function liveCollectionProducts(slug: string): Promise<readonly CatalogCard[]> {
   const collection = editorialCollectionBySlug(slug);
   if (!collection) return [];
 
   let products: CatalogCard[] = [];
   try {
+    // The web runtime deliberately uses a one-client PostgreSQL pool on Vercel.
+    // Refresh collection slices sequentially so an ISR miss cannot fan several
+    // simultaneous connection acquisitions into the shared Supabase pool.
     for (const search of collection.searches) {
-      const remaining = PRODUCT_LIMIT - products.length;
-      if (remaining <= 0) break;
-      const next = await boundedCollectionSlice(
-        visitorKey,
-        readOnlyCrawler,
+      const batch = await boundedCollectionSlice(
         search.query ?? "",
         search.category,
-        Math.min(search.limit, remaining)
+        Math.min(search.limit, PRODUCT_LIMIT)
       );
-      products = uniqueProducts([...products, ...next]);
+      products = uniqueProducts([...products, ...batch]).slice(0, PRODUCT_LIMIT);
+      if (products.length >= PRODUCT_LIMIT) break;
     }
 
     // A collection should stay on-theme even when one leaf temporarily thins out.
@@ -103,8 +82,6 @@ async function liveCollectionProducts(slug: string, visitorKey: string, readOnly
     if (products.length < 6 && fallbackSearch) {
       const remaining = PRODUCT_LIMIT - products.length;
       const fallback = await boundedCollectionSlice(
-        visitorKey,
-        readOnlyCrawler,
         fallbackSearch.query ?? "",
         fallbackSearch.category,
         remaining
@@ -130,33 +107,46 @@ export default async function EditorialCollectionPage({ params }: Props) {
     if (legacyTarget) redirect(legacyTarget);
     notFound();
   }
-  const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
-  const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
-  const products = await liveCollectionProducts(collection.slug, visitorKey, readOnlyCrawler);
+  const products = await liveCollectionProducts(collection.slug);
   const accentClass = collection.accent === "mountain"
     ? styles.accentMountain
     : collection.accent === "home"
       ? styles.accentHome
       : styles.accentGift;
 
+  const collectionUrl = `https://kontamou.site/collections/${collection.slug}`;
   const structuredData = {
     "@context": "https://schema.org",
-    "@type": "CollectionPage",
-    name: collection.title,
-    description: collection.story,
-    url: `https://kontamou.site/collections/${collection.slug}`,
-    inLanguage: "el-GR",
-    about: { "@type": "Place", name: "Σπάρτη" },
-    mainEntity: {
-      "@type": "ItemList",
-      numberOfItems: products.length,
-      itemListElement: products.map((product, index) => ({
-        "@type": "ListItem",
-        position: index + 1,
-        url: `https://kontamou.site/product/${encodeURIComponent(product.slug)}`,
-        name: product.title
-      }))
-    }
+    "@graph": [
+      {
+        "@type": "CollectionPage",
+        "@id": `${collectionUrl}#collection`,
+        name: collection.title,
+        description: collection.story,
+        url: collectionUrl,
+        inLanguage: "el-GR",
+        about: { "@type": "Place", name: "Σπάρτη" },
+        mainEntity: { "@id": `${collectionUrl}#products` }
+      },
+      {
+        "@type": "ItemList",
+        "@id": `${collectionUrl}#products`,
+        numberOfItems: products.length,
+        itemListElement: products.map((product, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          url: `https://kontamou.site/product/${encodeURIComponent(product.slug)}`,
+          name: product.title
+        }))
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Αρχική", item: "https://kontamou.site" },
+          { "@type": "ListItem", position: 2, name: collection.title, item: collectionUrl }
+        ]
+      }
+    ]
   };
 
   return <main className={`${styles.page} ${accentClass}`}>

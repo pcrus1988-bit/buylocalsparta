@@ -4,6 +4,7 @@ import { getPublicVendorDirectory, type PublicVendorDirectoryEntry } from "../..
 import { PUBLIC_VENDOR_CATEGORIES } from "../../lib/public-vendor-taxonomy";
 import { SiteFooter } from "../../components/SiteFooter";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
+import { getSeoGlobalSettingsSnapshot } from "../../lib/seo-settings";
 
 type Props = Readonly<{ searchParams: Promise<{ q?: string; category?: string; subcategory?: string; status?: string }> }>;
 
@@ -17,8 +18,8 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const base = await governedStaticSeoMetadata("/shops", {
-    title: "Καταστήματα & άνθρωποι",
-    description: "Οι ενεργοί συνεργάτες του ΚΟΝΤΑ ΜΟΥ Σπάρτη εμφανίζονται πρώτοι, ενώ οι υπόλοιπες χαρτογραφημένες τοπικές επιχειρήσεις οργανώνονται ανά κατηγορία."
+    title: "Καταστήματα στη Σπάρτη",
+    description: "Βρες καταστήματα στη Σπάρτη ανά κατηγορία, δες ενεργούς συνεργάτες του ΚΟΝΤΑ ΜΟΥ και ανακάλυψε την τοπική αγορά σε έναν οργανωμένο κατάλογο."
   });
   const params = await searchParams;
   const hasQueryState = [params.q, params.category, params.subcategory, params.status].some((value) => typeof value === "string" && value.trim().length > 0);
@@ -69,6 +70,7 @@ function groupResearchVendors(vendors: readonly PublicVendorDirectoryEntry[], re
 }
 
 export default async function ShopsPage({ searchParams }: Props) {
+  const seoSettingsPromise = getSeoGlobalSettingsSnapshot();
   const allVendors = await getPublicVendorDirectory();
   const params = await searchParams;
   const query = typeof params.q === "string" ? params.q.trim().slice(0, 80) : "";
@@ -106,9 +108,20 @@ export default async function ShopsPage({ searchParams }: Props) {
   const subcategoryOptions = [...knownSubcategories.entries()]
     .filter(([slug]) => !requestedCategory || allVendors.some((vendor) => vendor.taxonomies.some((taxonomy) => taxonomy.categorySlug === requestedCategory && taxonomy.subcategorySlug === slug)))
     .sort((a, b) => a[1].localeCompare(b[1], "el"));
+  const { settings: seoSettings } = await seoSettingsPromise;
+  const shopsUrl = new URL("/shops", `${seoSettings.canonicalOrigin}/`).toString();
+  const breadcrumbStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Αρχική", item: seoSettings.canonicalOrigin },
+      { "@type": "ListItem", position: 2, name: "Καταστήματα", item: shopsUrl }
+    ]
+  };
 
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbStructuredData).replaceAll("<", "\\u003c") }} />
       <div className="announcement">Η τοπική αγορά δεν είναι μόνο προϊόντα — είναι άνθρωποι, ειδικότητες και πραγματικά καταστήματα.</div>
       <SiteHeader />
 
@@ -116,7 +129,7 @@ export default async function ShopsPage({ searchParams }: Props) {
         <div className="shell shops-hero-grid">
           <div>
             <div className="eyebrow">Γνώρισε την τοπική αγορά</div>
-            <h1>Γνώρισε τα καταστήματα της Σπάρτης.</h1>
+            <h1>Καταστήματα στη Σπάρτη, οργανωμένα για να βρίσκεις πιο εύκολα.</h1>
             <p>Οι ενεργοί συνεργάτες εμφανίζονται πρώτοι για να βρίσκεις άμεσα καταστήματα από τα οποία μπορείς να αγοράσεις ή να ζητήσεις συμβουλή. Η ευρύτερη τοπική αγορά παραμένει διαθέσιμη πιο κάτω, οργανωμένη ανά κατηγορία χωρίς να γεμίζει τη σελίδα.</p>
             <div className="hero-actions">
               <a className="button" href="/shops/map">Δες τα στον χάρτη</a>

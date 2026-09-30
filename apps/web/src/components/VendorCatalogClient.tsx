@@ -55,7 +55,7 @@ function submissionStatusLabel(value: string) {
   return labels[value] ?? offerStatusLabel(value);
 }
 
-export function VendorCatalogClient({ initial }: { initial: Workspace }) {
+export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: Workspace; canImportCatalogue: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -177,7 +177,7 @@ export function VendorCatalogClient({ initial }: { initial: Workspace }) {
       </div>
       <div className={styles.filterSummary}><strong>{filteredProducts.length} από {initial.catalogMetrics.totalProducts} προϊόντα</strong><div className={styles.sectionTools}><div className={styles.field}><label htmlFor="vendor-sort">Ταξινόμηση</label><select id="vendor-sort" value={sort} onChange={(event) => setSort(event.target.value)}><option value="updated">Πρόσφατη ενημέρωση</option><option value="title">Όνομα A–Ω</option><option value="category">Κατηγορία</option><option value="stock">Χαμηλότερο απόθεμα</option></select></div>{filtersActive && <button className={styles.reset} type="button" onClick={resetFilters}>Καθαρισμός φίλτρων</button>}</div></div>
 
-      {initial.catalogProducts.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν ακόμη προϊόντα." body="Δημιούργησε νέο προϊόν ή εισήγαγε CSV. Μόλις εγκριθεί, θα εμφανιστεί εδώ." /> : filteredProducts.length === 0 ? <div className={styles.emptyFiltered}>Δεν βρέθηκαν προϊόντα με αυτά τα φίλτρα. <button className={styles.reset} type="button" onClick={resetFilters}>Εμφάνιση όλων</button></div> : <div className={styles.productGrid}>{filteredProducts.map((product) => {
+      {initial.catalogProducts.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν ακόμη προϊόντα." body={canImportCatalogue ? "Δημιούργησε νέο προϊόν ή εισήγαγε CSV. Μόλις εγκριθεί, θα εμφανιστεί εδώ." : "Δημιούργησε νέο προϊόν. Μόλις εγκριθεί, θα εμφανιστεί εδώ."} /> : filteredProducts.length === 0 ? <div className={styles.emptyFiltered}>Δεν βρέθηκαν προϊόντα με αυτά τα φίλτρα. <button className={styles.reset} type="button" onClick={resetFilters}>Εμφάνιση όλων</button></div> : <div className={styles.productGrid}>{filteredProducts.map((product) => {
         const draft = stockDrafts[product.offerId] ?? { onHand: String(product.onHand), safetyStock: String(product.safetyStock) };
         const hiddenReason = !product.productVisible ? "Κρυφό από το κατάστημά σου." : !product.categoryVisible ? "Κρυφό επειδή μία κατηγορία του είναι απενεργοποιημένη." : product.offerStatus !== "approved" ? `Δεν εμφανίζεται επειδή ${offerStatusLabel(product.offerStatus).toLocaleLowerCase("el")}.` : "";
         return <article className={`${styles.productCard} ${!product.effectiveVisible ? styles.productCardHidden : ""}`} key={product.offerId}>
@@ -223,12 +223,12 @@ export function VendorCatalogClient({ initial }: { initial: Workspace }) {
           <VendorSmartProductForm csrfToken={initial.csrfToken} categoryOptions={initial.categoryOptions} />
         </div>
       </details>
-      <details className="workspace-tool-panel"><summary><span><strong>Μαζική εισαγωγή CSV</strong><small>Για πολλά προϊόντα μαζί · γίνεται έλεγχος πριν την εισαγωγή.</small></span></summary><div className="workspace-tool-body">
+      {canImportCatalogue && <details className="workspace-tool-panel"><summary><span><strong>Μαζική εισαγωγή CSV</strong><small>Για πολλά προϊόντα μαζί · γίνεται έλεγχος πριν την εισαγωγή.</small></span></summary><div className="workspace-tool-body">
         <WorkspaceHowItWorks title="Πώς γίνεται η εισαγωγή CSV"><p>1. Επικόλλησε ή επεξεργάσου τα δεδομένα. 2. Πάτησε «Έλεγχος αρχείου». 3. Διόρθωσε τυχόν γραμμές με σφάλματα. 4. Όταν ο έλεγχος είναι καθαρός, πάτησε «Εισαγωγή προϊόντων».</p></WorkspaceHowItWorks>
         <div className="workspace-form-field"><label htmlFor="catalog-csv">Δεδομένα CSV</label><textarea id="catalog-csv" className="vendor-csv" value={csv} onChange={(event) => { setCsv(event.target.value); setPreview(null); }} /></div>
         <div className="workspace-form-actions"><button type="button" className="button button-secondary" onClick={() => void call("preview", "/api/vendor/catalog/import", { csv, confirm: false })} disabled={Boolean(busy)}>Έλεγχος αρχείου</button><button type="button" className="button" onClick={() => void call("commit", "/api/vendor/catalog/import", { csv, confirm: true })} disabled={Boolean(busy) || !canConfirmImport}>Εισαγωγή προϊόντων</button></div>
         {preview && <div className="vendor-preview"><strong>{preview.totalRows} γραμμές · {preview.errors.length} σφάλματα</strong>{preview.errors.map((item, index) => <span key={`${item.rowNumber}:${item.field ?? index}`}>Γραμμή {item.rowNumber}{item.field ? ` · ${item.field}` : ""}: {item.message}</span>)}{preview.errors.length === 0 && preview.totalRows > 0 && <span>Ο έλεγχος ολοκληρώθηκε χωρίς σφάλματα. Μπορείς να εισαγάγεις τα προϊόντα.</span>}</div>}
-      </div></details>
+      </div></details>}
     </div></section>
 
     <section className="shell vendor-section">

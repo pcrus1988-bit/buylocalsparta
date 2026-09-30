@@ -3,7 +3,6 @@ import { after } from "next/server";
 import { interpretSearchQuery } from "@buy-local-sparta/core";
 import type { CatalogCard } from "../../lib/catalog-view";
 import { getShopCatalogPage } from "../../lib/shop-catalog-page";
-import { getPublishedDropshipCatalogPage } from "../../lib/published-dropship-catalog-page";
 import { getCachedShopTaxonomy } from "../../lib/cached-shop-taxonomy";
 import { SiteHeader } from "../../components/SiteHeader";
 import { getVisitorKey } from "../../lib/visitor";
@@ -11,6 +10,7 @@ import { recordStorefrontSearchAnalytics } from "../../lib/storefront-search-ana
 import { SaveSearchButton } from "../../components/SaveSearchButton";
 import { CatalogProductCard } from "../../components/CatalogProductCard";
 import { CatalogSearchInput } from "../../components/CatalogSearchInput";
+import { ShopFilterFacets } from "../../components/ShopFilterFacets";
 import {
   inferStorefrontTaxonomyIntent,
   resolveStorefrontSubcategoryIntent,
@@ -25,11 +25,27 @@ import { filterCatalogCardsByAttributes, type CatalogAttributeFilters } from "..
 import { extractStorefrontAttributeQuery, resolveStorefrontAttributeIntents } from "../../lib/storefront-attribute-query";
 import { formatStorefrontAttributeAdvisory } from "../../lib/storefront-attribute-label";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
-import { getCrawlerCatalogCards } from "../../lib/crawler-catalog";
 import { isReadOnlyPublicCrawlerRequest } from "../../lib/request-audience";
-import { getCachedPublishedDropshipShopPage, hasLiveLocalShopProducts } from "../../lib/cached-public-shop-page";
+import { getCachedCrawlerCatalogCards, getCachedPublishedDropshipShopPage, hasLiveLocalShopProducts } from "../../lib/cached-public-shop-page";
+import { getSeoGlobalSettingsSnapshot } from "../../lib/seo-settings";
 
 const SHOP_PAGE_SIZE = 30;
+const SHOP_INDEXABLE_QUERY_KEYS = new Set([
+  "q",
+  "page",
+  "category",
+  "subcategory",
+  "subcategory_any",
+  "guideLabel",
+  "availability",
+  "sort",
+  "minPrice",
+  "maxPrice",
+  "brand",
+  "color",
+  "size",
+  "fit"
+]);
 
 type ShopProps = Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>;
 type ShopCard = CatalogCard & Readonly<{
@@ -82,7 +98,10 @@ export async function generateMetadata({ searchParams }: ShopProps): Promise<Met
     description: "Ανακάλυψε προϊόντα διαθέσιμα από τοπικά καταστήματα της Σπάρτης."
   });
   const params = await searchParams;
-  const hasQueryState = Object.values(params).some((value) => valueOf(value).trim().length > 0);
+  const hasQueryState = Object.entries(params).some(([key, value]) => {
+    if (!valueOf(value).trim()) return false;
+    return SHOP_INDEXABLE_QUERY_KEYS.has(key) || key.startsWith("attr_");
+  });
   if (!hasQueryState) return base;
   const category = storefrontCategoryBySlug(valueOf(params.category));
   return {
@@ -138,11 +157,11 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   let subcategory = requestedSubcategory;
   let filters = { subcategory, brand, color, size };
 
-  // Audience detection and the non-personal catalogue vocabulary are independent.
-  // Start both immediately; taxonomy is cached for three minutes by its wrapper.
-  const audiencePromise = isReadOnlyPublicCrawlerRequest();
+  // The Vercel web runtime intentionally uses one PostgreSQL client per instance.
+  // Keep DB-backed cache misses sequential: starting presence/SEO reads alongside
+  // taxonomy can make one request wait for the only pool slot until the connection
+  // acquisition timeout. Cache hits remain fast, while cold refreshes stay bounded.
   let taxonomy = await getCachedShopTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
-  const readOnlyCrawler = await audiencePromise;
 
   const inferredSubcategory = requestedSubcategory || requestedGuideSubcategories.length
     ? undefined
@@ -171,10 +190,12 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const allowDropship = searchIntent.availability !== "pickup_today";
   let products: ShopCard[] = [];
   let hasNextPage = false;
-  const visitorKey = readOnlyCrawler ? "" : await getVisitorKey();
+  const localProductsAvailable = await hasLiveLocalShopProducts();
+  const readOnlyCrawler = localProductsAvailable ? await isReadOnlyPublicCrawlerRequest() : false;
+  let visitorKey = localProductsAvailable && !readOnlyCrawler ? await getVisitorKey() : "";
 
   if (readOnlyCrawler) {
-    let crawlerProducts = [...await getCrawlerCatalogCards(
+    let crawlerProducts = [...await getCachedCrawlerCatalogCards(
       "23100",
       catalogQuery,
       category,
@@ -190,7 +211,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
 
     if (allowDropship && page === 1 && products.length < SHOP_PAGE_SIZE) {
       const remaining = SHOP_PAGE_SIZE - products.length;
-      const dropshipPage = await getPublishedDropshipCatalogPage({
+      const dropshipPage = await getCachedPublishedDropshipShopPage({
         query: catalogQuery,
         category,
         filters: productFilters,
@@ -205,8 +226,6 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       products.push(...dropshipPage.products.filter((product) => !seen.has(product.id)).slice(0, remaining));
     }
   } else {
-    const localProductsAvailable = await hasLiveLocalShopProducts();
-
     if (!localProductsAvailable) {
       // When there is no live local-stock catalogue, avoid performing visitor-specific
       // fairness/assignment work only to discover an empty local window. Dropship
@@ -225,7 +244,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
           offset: pageOffset
         });
         products = [...dropshipPage.products];
-        hasNextPage = dropshipPage.total > pageOffset + SHOP_PAGE_SIZE;
+        hasNextPage = dropshipPage.hasMore;
       }
     } else {
       const localPage = await getShopCatalogPage({
@@ -242,14 +261,16 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         offset: pageOffset
       });
 
-      products = [...await enrichCatalogCardsWithLocalProof(localPage.products, visitorKey, "23100")];
+      products = searchIntent.availability === "pickup_today"
+        ? [...await enrichCatalogCardsWithLocalProof(localPage.products, visitorKey, "23100")]
+        : [...localPage.products];
       const expectedLocalCount = Math.max(0, Math.min(SHOP_PAGE_SIZE, localPage.total - pageOffset));
       const atFinalLocalWindow = pageOffset + SHOP_PAGE_SIZE >= localPage.total;
 
       if (allowDropship && atFinalLocalWindow) {
         const dropshipOffset = Math.max(0, pageOffset - localPage.total);
         const dropshipSlots = Math.max(0, SHOP_PAGE_SIZE - expectedLocalCount);
-        const dropshipPage = await getPublishedDropshipCatalogPage({
+        const dropshipPage = await getCachedPublishedDropshipShopPage({
           query: catalogQuery,
           category,
           filters: productFilters,
@@ -265,7 +286,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
           const seen = new Set(products.map((product) => product.id));
           products.push(...dropshipPage.products.filter((product) => !seen.has(product.id)).slice(0, dropshipSlots));
         }
-        hasNextPage = dropshipPage.total > dropshipOffset + dropshipSlots;
+        hasNextPage = dropshipPage.hasMore;
       } else {
         hasNextPage = localPage.hasMore || pageOffset + SHOP_PAGE_SIZE < localPage.total;
       }
@@ -282,7 +303,11 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   if (sort === "price-asc") products.sort((a, b) => a.priceMinor - b.priceMinor);
   if (sort === "price-desc") products.sort((a, b) => b.priceMinor - a.priceMinor);
 
-  if (!readOnlyCrawler) {
+  if (!readOnlyCrawler && query) {
+    // Search analytics needs a stable visitor digest, but an empty/default browse
+    // is never recorded by recordStorefrontSearchAnalytics. Avoid touching request
+    // identity on the common dropship-only landing page solely for a guaranteed no-op.
+    if (!visitorKey) visitorKey = await getVisitorKey();
     const analyticsPayload = {
       visitorKey,
       query,
@@ -348,9 +373,20 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   const showColor = facets.colors.length > 0 && storefrontFacetEnabled(activeLeaf, "color");
   const showSize = facets.sizes.length > 0 && storefrontFacetEnabled(activeLeaf, "size");
   const showFit = fitOptions.length > 0 && storefrontFacetEnabled(activeLeaf, "fit");
+  const { settings: seoSettings } = await getSeoGlobalSettingsSnapshot();
+  const shopUrl = new URL("/shop", `${seoSettings.canonicalOrigin}/`).toString();
+  const breadcrumbStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Αρχική", item: seoSettings.canonicalOrigin },
+      { "@type": "ListItem", position: 2, name: "Προϊόντα", item: shopUrl }
+    ]
+  };
 
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbStructuredData).replaceAll("<", "\\u003c") }} />
       <div className="announcement">Η τοπική αγορά της Σπάρτης — online, αλλά ανθρώπινα.</div>
       <SiteHeader />
 
@@ -368,8 +404,9 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         <aside className="catalog-sidebar">
           <div className="catalog-filter-heading">
             <div>
-              <strong>Φίλτρα</strong>
-              <small>Διάλεξε ό,τι σε ενδιαφέρει</small>
+              <span className="catalog-filter-kicker">Κατάλογος</span>
+              <strong>Κατηγορίες & φίλτρα</strong>
+              <small>Διάλεξε μόνο ό,τι σε ενδιαφέρει</small>
             </div>
             {(query || availability || category || hasDetailedFilters) ? <a className="text-link" href="/shop">Καθαρισμός</a> : null}
           </div>
@@ -392,50 +429,23 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               <label htmlFor="subcategory">Υποκατηγορία προϊόντος</label>
               <select id="subcategory" name="subcategory" defaultValue={subcategory}>
                 <option value="">Όλες οι υποκατηγορίες</option>
-                {facets.subcategories.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
+                {facets.subcategories.map((item) => <option value={item.value} key={item.value}>{item.label}{typeof item.count === "number" ? ` (${item.count})` : ""}</option>)}
               </select>
               {groupedSubcategories.length ? <small style={{ display: "block", marginTop: -6, color: "var(--ink-soft)" }}>Τρέχουσα ομαδοποιημένη επιλογή: {activeSubcategoryLabel}</small> : null}
             </> : null}
 
-            {showBrand ? <>
-              <label htmlFor="brand">Μάρκα</label>
-              <select id="brand" name="brand" defaultValue={brand}>
-                <option value="">Όλες οι μάρκες</option>
-                {facets.brands.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
-              </select>
-            </> : null}
-
-            {showColor ? <>
-              <label htmlFor="color">Χρώμα</label>
-              <select id="color" name="color" defaultValue={color}>
-                <option value="">Όλα τα χρώματα</option>
-                {facets.colors.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
-              </select>
-            </> : null}
-
-            {showSize ? <>
-              <label htmlFor="size">Μέγεθος</label>
-              <select id="size" name="size" defaultValue={size}>
-                <option value="">Όλα τα μεγέθη</option>
-                {facets.sizes.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
-              </select>
-            </> : null}
-
-            {showFit ? <>
-              <label htmlFor="fit">Εφαρμογή</label>
-              <select id="fit" name="fit" defaultValue={fit}>
-                <option value="">Όλες οι εφαρμογές</option>
-                {fitOptions.map((item) => <option value={item} key={item}>{item}</option>)}
-              </select>
-            </> : null}
-
-            {attributeFacets.map((facet) => <div key={facet.key} className="catalog-attribute-filter">
-              <label htmlFor={`attr_${facet.key}`}>{facet.label}</label>
-              <select id={`attr_${facet.key}`} name={`attr_${facet.key}`} defaultValue={attributeFilters[facet.key] ?? ""}>
-                <option value="">Όλα</option>
-                {facet.options.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
-              </select>
-            </div>)}
+            <ShopFilterFacets
+              brands={showBrand ? facets.brands : []}
+              colors={showColor ? facets.colors : []}
+              sizes={showSize ? facets.sizes : []}
+              fits={showFit ? fitOptions.map((item) => ({ value: item, label: item })) : []}
+              attributeFacets={attributeFacets}
+              selectedBrand={brand}
+              selectedColor={color}
+              selectedSize={size}
+              selectedFit={fit}
+              selectedAttributes={attributeFilters}
+            />
 
             <fieldset className="catalog-price-range">
               <legend>Εύρος τιμής</legend>

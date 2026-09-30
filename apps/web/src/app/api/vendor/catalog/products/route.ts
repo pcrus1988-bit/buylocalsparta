@@ -1,4 +1,4 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { isDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
 import { createVendorProductDraft, vendorCatalogWorkspace } from "../../../../../lib/vendor-backoffice-service";
 import { createVendorProductFromCanonicalPrefill } from "../../../../../lib/vendor-canonical-prefill-service";
@@ -11,7 +11,7 @@ import { postgresVendorRuntimeEnabled } from "../../../../../lib/vendor-runtime"
 
 export async function POST(request: Request) {
   try {
-    const principal = await requireVendorSession(request,true);
+    const { principal } = await requireVendorCapability("catalogue.submit", request, true);
     if (await isDropshippingOnlyVendor(principal.vendorId)) throw new Error("This vendor can only sell products supplied by approved dropshipping integrations");
     const body = await request.json() as Record<string, unknown>;
     const text = (key: string) => typeof body[key] === "string" ? String(body[key]).trim() : "";

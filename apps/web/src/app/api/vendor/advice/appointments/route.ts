@@ -1,10 +1,10 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { vendorAdviceWorkspace } from "../../../../../lib/vendor-backoffice-service";
 import { vendorAppointmentLifecycleAction, type VendorAppointmentAction } from "../../../../../lib/vendor-appointments-runtime";
 
 export async function POST(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const { principal } = await requireVendorCapability("ask_local.manage", request, true);
     const body = await request.json() as { appointmentId?: unknown; action?: unknown };
     const action = typeof body.action === "string" && ["complete", "cancel", "no_show"].includes(body.action)
       ? body.action as VendorAppointmentAction

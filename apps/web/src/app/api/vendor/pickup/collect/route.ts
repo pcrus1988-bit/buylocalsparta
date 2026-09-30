@@ -1,11 +1,11 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { collectVendorPickup } from "../../../../../lib/vendor-pickup-service";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const { principal } = await requireVendorCapability("pickup.manage", request, true);
     const body = await request.json() as { token?: unknown };
     const token = typeof body.token === "string" ? body.token.trim() : "";
     if (!token) throw new Error("Pickup token is required");

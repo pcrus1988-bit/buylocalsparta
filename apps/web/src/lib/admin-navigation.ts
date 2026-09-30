@@ -23,12 +23,6 @@ const PARTNER_NETWORK_NAV_LINK: WorkspaceNavLink = {
   permission: "vendor.manage"
 };
 
-const ICECAT_NAV_LINK: WorkspaceNavLink = {
-  label: "Icecat",
-  href: "/admin/icecat",
-  icon: "◈",
-  permission: "catalog.read"
-};
 
 const STRUCTURE_NAV_LINK: WorkspaceNavLink = {
   label: "STRUCTURE",
@@ -49,14 +43,20 @@ const CATALOGUE_OPERATOR_LINKS = new Map<string, { order: number; label?: string
   ["/admin/catalogue", { order: 0, label: "Overview" }],
   ["/admin/quickadd", { order: 1, label: "Quick Add" }],
   ["/admin/catalogue-crawler", { order: 2, label: "Website Import" }],
-  ["/admin/icecat", { order: 3, label: "Icecat" }],
-  ["/admin/catalogue-intake/import", { order: 4, label: "Files & Icecat", contextHidden: false }],
-  ["/admin/catalogue-intake", { order: 5, label: "Supplier PIM" }],
-  ["/admin/catalogue-intake/attributes", { order: 6, label: "Attributes" }],
-  ["/admin/matching", { order: 7, label: "Matching" }],
-  ["/admin/catalogue/structure", { order: 8, label: "STRUCTURE" }],
-  ["/admin/categories", { order: 9, label: "Categories & Policies" }],
-  ["/admin/catalogue/exceptions", { order: 10, label: "Identity Exceptions", contextHidden: true }]
+  ["/admin/catalogue-intake/import", { order: 3, label: "Source Import" }],
+  ["/admin/catalogue-intake", { order: 4, label: "Supplier PIM" }],
+  ["/admin/catalogue-intake/attributes", { order: 5, label: "Attribute Mapping" }],
+  ["/admin/matching", { order: 6, label: "Vendor Matching" }],
+  ["/admin/catalogue/structure", { order: 7, label: "Structure" }],
+  ["/admin/catalogue/enrichment", { order: 8, label: "Enrichment QA" }],
+  ["/admin/catalogue/brands", { order: 9, label: "Brands" }],
+  ["/admin/catalogue/vitex", { order: 10, label: "Manufacturer DB" }],
+  ["/admin/catalogue-intake/intelligence", { order: 20, label: "Catalogue Intelligence", contextHidden: true }],
+  ["/admin/catalogue/attribute-matching", { order: 21, label: "Attribute Matching", contextHidden: true }],
+  ["/admin/catalogue/attribute-review", { order: 22, label: "Attribute Review", contextHidden: true }],
+  ["/admin/catalogue-intake/values", { order: 23, label: "Controlled Values", contextHidden: true }],
+  ["/admin/categories", { order: 24, label: "Categories & Policies", contextHidden: true }],
+  ["/admin/catalogue/exceptions", { order: 25, label: "Identity Exceptions", contextHidden: true }]
 ]);
 
 const TRUST_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>([
@@ -77,7 +77,12 @@ const ANALYTICS_OPERATOR_LINKS = new Map<string, { order: number; label?: string
 const CONTENT_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>([
   ["/admin/content", { order: 0, label: "CMS & Routing" }],
   ["/admin/hero", { order: 1, label: "Homepage" }],
-  ["/admin/email-lab", { order: 2, label: "Email" }]
+  ["/admin/email-lab", { order: 2, label: "Email" }],
+  ["/admin/seo", { order: 3, label: "SEO Overview" }],
+  ["/admin/seo/issues", { order: 4, label: "SEO Issues" }],
+  ["/admin/seo/pages", { order: 5, label: "SEO Pages" }],
+  ["/admin/seo/search-console", { order: 6, label: "Search Console" }],
+  ["/admin/seo/production", { order: 7, label: "Production Visibility" }]
 ]);
 
 const PLATFORM_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>([
@@ -106,9 +111,7 @@ function operatorLinksForGroup(group: WorkspaceNavGroup, links: ReadonlyArray<Wo
   }
 
   if (group.href === "/admin/catalogue") {
-    let catalogueLinks = links.some((link) => link.href === ICECAT_NAV_LINK.href)
-      ? [...links]
-      : [...links, ICECAT_NAV_LINK];
+    let catalogueLinks = [...links];
     if (!catalogueLinks.some((link) => link.href === STRUCTURE_NAV_LINK.href)) catalogueLinks = [...catalogueLinks, STRUCTURE_NAV_LINK];
     if (!catalogueLinks.some((link) => link.href === CATALOGUE_EXCEPTIONS_NAV_LINK.href)) catalogueLinks = [...catalogueLinks, CATALOGUE_EXCEPTIONS_NAV_LINK];
     return catalogueLinks
@@ -178,7 +181,6 @@ export function adminNavigationForPrincipal(principal: SessionPrincipal, attenti
 
 export function canAccessAdminRoute(principal: SessionPrincipal, href: string): boolean {
   if (href === PARTNER_NETWORK_NAV_LINK.href) return canAccessAdminNavLink(principal, PARTNER_NETWORK_NAV_LINK);
-  if (href === ICECAT_NAV_LINK.href) return canAccessAdminNavLink(principal, ICECAT_NAV_LINK);
   if (href === STRUCTURE_NAV_LINK.href) return canAccessAdminNavLink(principal, STRUCTURE_NAV_LINK);
   if (href === CATALOGUE_EXCEPTIONS_NAV_LINK.href) return canAccessAdminNavLink(principal, CATALOGUE_EXCEPTIONS_NAV_LINK);
   const link = ADMIN_WORKSPACE_NAVIGATION.flatMap((group) => group.links).find((item) => item.href === href);

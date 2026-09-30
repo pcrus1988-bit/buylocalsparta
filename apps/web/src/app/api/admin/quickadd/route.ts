@@ -1,5 +1,4 @@
 import { requireAdminSession } from "../../../../lib/admin-session";
-import { adminQuickAddIcecatLookup } from "../../../../lib/admin-quickadd-icecat-service";
 import { adminQuickAddLookup, adminQuickAddSave, adminQuickAddWorkspace } from "../../../../lib/admin-quickadd-service";
 import { recordQuickAddDemandSignal } from "../../../../lib/quickadd-demand-signal";
 
@@ -8,17 +7,11 @@ export async function GET(request: Request) {
     const principal = await requireAdminSession(request, { permission: "catalog.write" });
     const url = new URL(request.url);
     const gtin = url.searchParams.get("gtin") ?? "";
-    const icecatGtin = url.searchParams.get("icecatGtin") ?? "";
     const q = url.searchParams.get("q") ?? "";
     const vendorId = url.searchParams.get("vendorId") ?? "";
 
-    if (icecatGtin) {
-      return Response.json({ icecat: await adminQuickAddIcecatLookup(principal, icecatGtin) });
-    }
 
     if (gtin || q) {
-      // Canonical identity lookup is deliberately independent from Icecat enrichment.
-      // A slow/pending Icecat source must never freeze duplicate detection or product creation.
       const result = await adminQuickAddLookup(principal, { vendorId, gtin, q });
       const best = result.matches[0];
       await recordQuickAddDemandSignal(principal, {

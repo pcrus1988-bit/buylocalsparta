@@ -6,7 +6,7 @@ import { SiteHeader } from "../../../../components/SiteHeader";
 import { VendorCatalogBrowser } from "../../../../components/VendorCatalogBrowser";
 import { VendorLocationMap } from "../../../../components/VendorLocationMap";
 import styles from "../../../../components/VendorStorefront.module.css";
-import { getDemoStorefrontVendor, getDemoVendorCatalogCards, type DemoStorefrontVendor } from "../../../../lib/demo-storefront";
+import { getDemoStorefrontVendor, getDemoVendorCatalogPage, type DemoStorefrontVendor } from "../../../../lib/demo-storefront";
 import { approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "../../../../lib/public-media-service";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +37,8 @@ export default async function DemoVendorPage({ params }: { params: Promise<{ id:
   const { id } = await params;
   const vendor = await getDemoStorefrontVendor(id);
   if (!vendor) notFound();
-  const [products, profileMedia] = await Promise.all([getDemoVendorCatalogCards(vendor), approvedVendorProfileMedia([vendor.id])]);
+  const [cataloguePage, profileMedia] = await Promise.all([getDemoVendorCatalogPage(vendor, { offset: 0, limit: 20 }), approvedVendorProfileMedia([vendor.id])]);
+  const products = cataloguePage.products;
   const location = vendor.location;
   const intro = vendor.shortDescription ?? `Προεπισκόπηση του μελλοντικού καταστήματος ${vendor.name} μέσα στο ΚΟΝΤΑ ΜΟΥ Sparta. Η εμπειρία μιμείται το ενεργό storefront, αλλά δεν δημιουργεί παραγγελίες ή δεσμεύσεις.`;
   const fullAddress = addressText(location);
@@ -73,7 +74,7 @@ export default async function DemoVendorPage({ params }: { params: Promise<{ id:
               <h1>{vendor.name}</h1>
               <p className={styles.intro}>{intro}</p>
               <div className={styles.quickFacts}>
-                <span className={styles.quickFact}>{products.length} προϊόντα σε προεπισκόπηση</span>
+                <span className={styles.quickFact}>{cataloguePage.total} προϊόντα σε προεπισκόπηση</span>
                 <span className={styles.quickFact}>Κατάσταση · {vendor.status.replaceAll("_", " ")}</span>
                 <span className={styles.quickFact}>Checkout απενεργοποιημένο</span>
               </div>
@@ -148,7 +149,7 @@ export default async function DemoVendorPage({ params }: { params: Promise<{ id:
             <p className={styles.sectionLead}>Αναζήτησε μέσα στο κατάστημα και φιλτράρισε ανά κατηγορία, μάρκα, χρώμα και κατάσταση τιμής. Κάθε προϊόν ανοίγει πλήρη DEMO product page.</p>
           </div>
           {products.length > 0 ? (
-            <VendorCatalogBrowser products={products} vendor={{ name: vendor.name }} demoVendorId={vendor.id} />
+            <VendorCatalogBrowser products={products} vendor={{ name: vendor.name }} demoVendorId={vendor.id} initialTotal={cataloguePage.total} />
           ) : (
             <div className={styles.noResults}><h3>Δεν έχουν προετοιμαστεί ακόμη προϊόντα.</h3><p>Μόλις συνδεθούν canonical προϊόντα με τον prospect, θα εμφανιστούν εδώ με το ίδιο UI του κανονικού καταστήματος.</p></div>
           )}

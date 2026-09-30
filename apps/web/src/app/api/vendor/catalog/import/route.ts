@@ -1,10 +1,10 @@
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { isDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
 import { previewOrCommitVendorCsv } from "../../../../../lib/vendor-backoffice-service";
 
 export async function POST(request: Request) {
   try {
-    const principal = await requireVendorSession(request,true);
+    const { principal } = await requireVendorCapability("catalogue.import", request, true);
     if (await isDropshippingOnlyVendor(principal.vendorId)) throw new Error("CSV catalogue import is disabled for the dropshipping-only vendor");
     const body = await request.json() as { csv?: unknown; confirm?: unknown };
     if (typeof body.csv !== "string") throw new Error("CSV content is required");

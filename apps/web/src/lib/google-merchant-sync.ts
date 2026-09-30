@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
 import { getGoogleMerchantAccessToken } from "./google-merchant-auth";
+import { getMerchantProductInsertQuota, merchantWritePlan, runMerchantWritesQuotaAware } from "./google-merchant-quota";
 import {
   buildGoogleMerchantProductInput,
   googleMerchantProductInputSegment,
@@ -16,14 +17,16 @@ import { publicOrigin } from "./public-origin";
 const MERCHANT_API_BASE = "https://merchantapi.googleapis.com/products/v1";
 const DEFAULT_ACCOUNT_ID = "5849642952";
 const DEFAULT_DATA_SOURCE_ID = "10734504819";
-const DEFAULT_SHARD_COUNT = 1440;
-const MAX_SHARD_COUNT = 1440;
+const DEFAULT_SHARD_COUNT = 144;
+const MAX_SHARD_COUNT = 144;
+const SYNC_SLOT_MS = 10 * 60_000;
 const IMAGE_BATCH_SIZE = 40;
-const WRITE_CONCURRENCY = 12;
+const WRITE_CONCURRENCY = 40;
+const RUN_BATCH_TARGET = 2000;
 const CLEANUP_PAGE_SIZE = 1000;
 const CLEANUP_SETTINGS_KEY = "merchant.google.cleanup.v1";
 const GOOGLE_MERCHANT_SYNC_JOB = "google-merchant-catalogue-sync";
-const GOOGLE_MERCHANT_SYNC_LEASE_MS = 2 * 60_000;
+const GOOGLE_MERCHANT_SYNC_LEASE_MS = 6 * 60_000;
 const REFRESH_AFTER_MS = 26 * 24 * 60 * 60 * 1000;
 
 type CandidateRow = Readonly<{
@@ -78,7 +81,7 @@ function merchantConfig(env: NodeJS.ProcessEnv = process.env): MerchantConfig {
 }
 
 function currentShard(shardCount: number, now = Date.now()): number {
-  return Math.floor(now / 60_000) % shardCount;
+  return Math.floor(now / SYNC_SLOT_MS) % shardCount;
 }
 
 function errorText(error: unknown): string {
@@ -133,25 +136,91 @@ async function mapConcurrent<T, R>(items: readonly T[], concurrency: number, wor
   return results;
 }
 
-async function loadCandidates(shard: number, shardCount: number): Promise<readonly CandidateRow[]> {
+async function loadCandidates(
+  accountId: string,
+  shard: number,
+  shardCount: number,
+  batchTarget = RUN_BATCH_TARGET
+): Promise<readonly CandidateRow[]> {
   const result = await getProductionPostgresRuntime().nativePool.query<CandidateRow>(`
-    SELECT rm.canonical_variant_id, rm.canonical_public_id, rm.slug,
-           pt.title, pt.description, rm.gtin, rm.mpn, rm.brand_name, rm.color,
-           cv.condition, rm.min_price_minor
-    FROM public.storefront_catalog_read_model rm
-    JOIN public.canonical_variants cv ON cv.id=rm.canonical_variant_id
-    JOIN public.product_translations pt ON pt.canonical_variant_id=rm.canonical_variant_id AND pt.locale='el'
-    WHERE ((rm.local_sellable=true AND rm.local_available_until>now()) OR (rm.dropship_sellable=true AND rm.dropship_available_until>now()))
-      AND rm.min_price_minor>0
+    WITH live_offer AS (
+      SELECT vo.canonical_variant_id, min(vo.customer_price_minor) AS live_price_minor
+      FROM public.vendor_offers vo
+      JOIN public.vendor_businesses v ON v.id=vo.vendor_id
+      JOIN public.vendor_locations l ON l.id=vo.location_id
+      LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+      LEFT JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
+      LEFT JOIN public.inventory_balances ib ON ib.offer_id=vo.id
+      WHERE vo.status='approved'
+        AND vo.merchant_visible=true
+        AND vo.merchant_pause_active=false
+        AND vo.customer_price_minor>0
+        AND v.status='active'
+        AND l.active=true
+        AND (
+          (
+            dso.id IS NOT NULL
+            AND dso.active=true
+            AND ds.active=true
+            AND ds.api_authoritative_availability=true
+            AND dso.cached_available=true
+            AND dso.cached_quantity>=1
+            AND dso.availability_expires_at>now()
+            AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+          )
+          OR (
+            dso.id IS NULL
+            AND GREATEST(
+              0,
+              COALESCE(ib.on_hand,0)
+                - COALESCE(ib.active_reservations,0)
+                - COALESCE(ib.safety_stock,0)
+                - COALESCE(ib.blocked,0)
+            )>0
+          )
+        )
+      GROUP BY vo.canonical_variant_id
+    )
+    SELECT
+      cv.id AS canonical_variant_id,
+      cv.public_id AS canonical_public_id,
+      cv.slug,
+      pt.title,
+      pt.description,
+      cv.gtin,
+      cv.mpn,
+      COALESCE(NULLIF(btrim(rm.brand_name),''),b.name) AS brand_name,
+      NULLIF(btrim(rm.color),'') AS color,
+      cv.condition,
+      lo.live_price_minor AS min_price_minor
+    FROM public.canonical_variants cv
+    JOIN live_offer lo ON lo.canonical_variant_id=cv.id
+    JOIN public.product_translations pt ON pt.canonical_variant_id=cv.id AND pt.locale='el'
+    LEFT JOIN public.brands b ON b.id=cv.brand_id
+    LEFT JOIN public.storefront_catalog_read_model rm ON rm.canonical_variant_id=cv.id
+    LEFT JOIN public.merchant_product_sync mps
+      ON mps.merchant_account_id=$1
+     AND mps.content_language='el'
+     AND mps.feed_label='GR'
+     AND mps.offer_id=cv.public_id
+    WHERE cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
       AND nullif(btrim(pt.title),'') IS NOT NULL
       AND nullif(btrim(coalesce(pt.description,'')),'') IS NOT NULL
-      AND mod(abs(hashtext(rm.canonical_public_id)::bigint),$1::bigint)=$2::bigint
-    ORDER BY rm.canonical_public_id
-  `, [shardCount, shard]);
+      AND (
+        mps.id IS NULL
+        OR mps.sync_status<>'synced'
+        OR mod(abs(hashtext(cv.public_id)::bigint),$2::bigint)=$3::bigint
+      )
+    ORDER BY
+      CASE WHEN mps.id IS NULL OR mps.sync_status<>'synced' THEN 0 ELSE 1 END,
+      mps.last_success_at NULLS FIRST,
+      cv.public_id
+    LIMIT $4
+  `, [accountId, shardCount, shard, batchTarget]);
   return result.rows;
-}
-
-function toCandidate(row: CandidateRow): GoogleMerchantCandidate {
+}function toCandidate(row: CandidateRow): GoogleMerchantCandidate {
   return { canonicalPublicId: row.canonical_public_id, slug: row.slug, title: row.title, description: row.description, gtin: row.gtin, mpn: row.mpn, brand: row.brand_name, color: row.color, condition: row.condition, priceMinor: row.min_price_minor };
 }
 
@@ -245,15 +314,52 @@ async function listManagedProducts(accessToken: string, config: MerchantConfig, 
 async function liveOfferIds(offerIds: readonly string[]): Promise<ReadonlySet<string>> {
   if (!offerIds.length) return new Set();
   const result = await getProductionPostgresRuntime().nativePool.query<{ canonical_public_id: string }>(`
-    SELECT rm.canonical_public_id FROM public.storefront_catalog_read_model rm
-    JOIN public.product_translations pt ON pt.canonical_variant_id=rm.canonical_variant_id AND pt.locale='el'
-    WHERE rm.canonical_public_id=ANY($1::text[])
-      AND ((rm.local_sellable=true AND rm.local_available_until>now()) OR (rm.dropship_sellable=true AND rm.dropship_available_until>now()))
-      AND nullif(btrim(pt.title),'') IS NOT NULL AND nullif(btrim(coalesce(pt.description,'')),'') IS NOT NULL
+    SELECT DISTINCT cv.public_id AS canonical_public_id
+    FROM public.canonical_variants cv
+    JOIN public.product_translations pt ON pt.canonical_variant_id=cv.id AND pt.locale='el'
+    JOIN public.vendor_offers vo ON vo.canonical_variant_id=cv.id
+    JOIN public.vendor_businesses v ON v.id=vo.vendor_id
+    JOIN public.vendor_locations l ON l.id=vo.location_id
+    LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+    LEFT JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
+    LEFT JOIN public.inventory_balances ib ON ib.offer_id=vo.id
+    WHERE cv.public_id=ANY($1::text[])
+      AND cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
+      AND vo.status='approved'
+      AND vo.merchant_visible=true
+      AND vo.merchant_pause_active=false
+      AND vo.customer_price_minor>0
+      AND v.status='active'
+      AND l.active=true
+      AND nullif(btrim(pt.title),'') IS NOT NULL
+      AND nullif(btrim(coalesce(pt.description,'')),'') IS NOT NULL
+      AND (
+        (
+          dso.id IS NOT NULL
+          AND dso.active=true
+          AND ds.active=true
+          AND ds.api_authoritative_availability=true
+          AND dso.cached_available=true
+          AND dso.cached_quantity>=1
+          AND dso.availability_expires_at>now()
+          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+        )
+        OR (
+          dso.id IS NULL
+          AND GREATEST(
+            0,
+            COALESCE(ib.on_hand,0)
+              - COALESCE(ib.active_reservations,0)
+              - COALESCE(ib.safety_stock,0)
+              - COALESCE(ib.blocked,0)
+          )>0
+        )
+      )
   `, [offerIds]);
   return new Set(result.rows.map((row) => row.canonical_public_id));
 }
-
 async function deleteProduct(accessToken: string, config: MerchantConfig, offerId: string): Promise<void> {
   const productId = googleMerchantProductInputSegment("el", "GR", offerId);
   const url = new URL(`${MERCHANT_API_BASE}/accounts/${config.accountId}/productInputs/${productId}`);
@@ -320,7 +426,7 @@ export async function syncGoogleMerchantCatalogue(now = Date.now()): Promise<Goo
   const runId = run.rows[0]?.id;
   try {
     const accessToken = await getGoogleMerchantAccessToken();
-    const rows = await loadCandidates(shard, config.shardCount);
+    const rows = await loadCandidates(config.accountId, shard, config.shardCount, RUN_BATCH_TARGET);
     const imageById = await productImages(rows);
     const errors: string[] = [];
     let submitted = 0;
@@ -343,7 +449,15 @@ export async function syncGoogleMerchantCatalogue(now = Date.now()): Promise<Goo
       return needed;
     });
 
-    await mapConcurrent(changed, WRITE_CONCURRENCY, async ({ row, input, hash }) => {
+    const quota = await getMerchantProductInsertQuota(accessToken, config.accountId);
+    const plan = merchantWritePlan(quota, Math.min(RUN_BATCH_TARGET, changed.length));
+    const writable = changed.slice(0, plan.allowed);
+    const quotaDeferred = Math.max(0, changed.length - writable.length);
+    if (quotaDeferred > 0 && errors.length < 10) {
+      errors.push(`Merchant quota deferred ${quotaDeferred} writes; dailyRemaining=${quota.dailyRemaining}, minuteLimit=${quota.minuteLimit}.`);
+    }
+
+    await runMerchantWritesQuotaAware(writable, quota, WRITE_CONCURRENCY, async ({ row, input, hash }) => {
       try {
         const response = await insertProduct(accessToken, config, input);
         await persistSuccess(config, row, input, hash, response);
@@ -366,7 +480,7 @@ export async function syncGoogleMerchantCatalogue(now = Date.now()): Promise<Goo
     return { status, shard, shardCount: config.shardCount, candidates: rows.length, submitted, unchanged, skippedNoImage, failed, cleanupExamined: cleanup.examined, cleanupDeleted: cleanup.deleted, cleanupFailed: cleanup.failed, errors };
   } catch (error) {
     failureMessage = errorText(error);
-    if (runId) await pool.query(`UPDATE public.merchant_sync_runs SET status='failed',failed_count=failed_count+1,metadata=jsonb_build_object('error',$2),finished_at=now() WHERE id=$1`, [runId,failureMessage]).catch(() => undefined);
+    if (runId) await pool.query(`UPDATE public.merchant_sync_runs SET status='failed',failed_count=failed_count+1,metadata=jsonb_build_object('error',$2::text),finished_at=now() WHERE id=$1`, [runId,failureMessage]).catch(() => undefined);
     throw error;
   } finally {
     const finishedAt = new Date();

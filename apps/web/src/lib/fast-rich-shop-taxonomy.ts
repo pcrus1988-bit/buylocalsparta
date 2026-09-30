@@ -280,9 +280,11 @@ export async function getFastRichShopTaxonomy(
   leafKey = "",
   attributeFilters: CatalogAttributeFilters = {}
 ): Promise<AvailableCatalogTaxonomy> {
-  const [base, attributeFacets] = await Promise.all([
-    getFastShopTaxonomy(category, query, filters, postcode, attributeFilters),
-    loadFastAttributeFacets(category, query, filters, leafKey, attributeFilters)
-  ]);
+  // Vercel caps this app to one PostgreSQL client per warm instance. Running the
+  // base and attribute projections concurrently only queues one behind the other
+  // and can turn a slow query into a pool-acquisition timeout. Serialize cold
+  // cache work; cached calls still resolve without extra database round trips.
+  const base = await getFastShopTaxonomy(category, query, filters, postcode, attributeFilters);
+  const attributeFacets = await loadFastAttributeFacets(category, query, filters, leafKey, attributeFilters);
   return { ...base, attributeFacets };
 }

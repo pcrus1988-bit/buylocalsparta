@@ -125,7 +125,7 @@ export async function adminAssignAllVitexProducts(
       SELECT
         $1::uuid,$2::uuid,$3::uuid,t.source_product_id,t.canonical_variant_id,
         COALESCE(t.source_sku,'VITEX-'||upper(substr(t.import_fingerprint,1,16))),
-        'candidate','ask_vendor','admin',
+        'candidate','ask_vendor','platform',
         jsonb_build_object(
           'commercialConfirmationRequired',true,
           'catalogue','vitex',
@@ -149,7 +149,7 @@ export async function adminAssignAllVitexProducts(
             WHEN vendor_catalog_assortments.availability_mode IN ('unknown','unavailable') THEN 'ask_vendor'
             ELSE vendor_catalog_assortments.availability_mode
           END,
-          confirmation_source='admin',
+          confirmation_source='platform',
           metadata=COALESCE(vendor_catalog_assortments.metadata,'{}'::jsonb)||EXCLUDED.metadata,
           updated_at=now()
       RETURNING id

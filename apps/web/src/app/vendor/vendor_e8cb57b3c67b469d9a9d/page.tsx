@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { VendorAskLocalPanel } from "../../../components/VendorAskLocalPanel";
 import { VendorCatalogBrowser } from "../../../components/VendorCatalogBrowser";
 import storefrontStyles from "../../../components/VendorStorefront.module.css";
 import { getAccountSession } from "../../../lib/account-session";
-import { getFastVendorDropshipCatalogPage } from "../../../lib/vendor-dropship-fast-page";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
+import { getVendorLocalCatalogPage } from "../../../lib/vendor-local-catalog";
+import { getFastVendorDropshipCatalogPage } from "../../../lib/vendor-dropship-fast-page";
 import { findSeoEntityOverride, type SeoEntityReference } from "../../../lib/seo-entity-policy";
 import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 import { researchVendorIndexEligibility } from "../../../lib/seo-visibility-policy";
@@ -22,11 +24,15 @@ const SPECIAL_DESCRIPTION =
 
 export const dynamic = "force-dynamic";
 
+const getCachedPublicVendorDirectoryEntry = cache((id: string) => getPublicVendorDirectoryEntry(id));
+const getCachedSeoGlobalSettingsSnapshot = cache(() => getSeoGlobalSettingsSnapshot());
+const getCachedSeoEntityOverridesSnapshot = cache(() => getSeoEntityOverridesSnapshot());
+
 export async function generateMetadata(): Promise<Metadata> {
   const [vendor, { settings }, overrides] = await Promise.all([
-    getPublicVendorDirectoryEntry(VENDOR_ID),
-    getSeoGlobalSettingsSnapshot(),
-    getSeoEntityOverridesSnapshot()
+    getCachedPublicVendorDirectoryEntry(VENDOR_ID),
+    getCachedSeoGlobalSettingsSnapshot(),
+    getCachedSeoEntityOverridesSnapshot()
   ]);
 
   if (!vendor) {
@@ -71,25 +77,32 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function SpBusinessLabStorefront() {
-  const vendor = await getPublicVendorDirectoryEntry(VENDOR_ID);
+  const vendor = await getCachedPublicVendorDirectoryEntry(VENDOR_ID);
   if (!vendor) notFound();
 
   const isResearch = vendor.directoryStatus === "research";
-  const [principal, initialCatalog] = isResearch
-    ? [undefined, undefined] as const
-    : await Promise.all([
-        getAccountSession(),
-        getFastVendorDropshipCatalogPage(VENDOR_ID, { offset: 0, limit: 20 }).catch((error) => {
-          console.error(JSON.stringify({
-            level: "warn",
-            event: "storefront.sp_business_lab_initial_catalog_failed",
-            vendorId: VENDOR_ID,
-            message: error instanceof Error ? error.message : String(error)
-          }));
-          return undefined;
-        })
-      ]);
-  const products = initialCatalog?.products ?? [];
+  const principal = isResearch ? undefined : await getAccountSession();
+  let products = [] as Awaited<ReturnType<typeof getVendorLocalCatalogPage>>["products"];
+  let initialNextOffset: number | null = null;
+
+  // Render the first bounded catalogue page in the initial HTML so customers and
+  // crawlers do not wait for hydration plus a second network round trip before
+  // seeing products. The underlying identity projection is short-lived cached and
+  // indexed; only the visible cards are hydrated with metadata/media.
+  if (!isResearch) {
+    const localPage = await getVendorLocalCatalogPage(VENDOR_ID, { offset: 0, limit: 20 });
+    products = localPage.products;
+    if (products.length >= 20 && localPage.total > 20) {
+      initialNextOffset = 20;
+    } else if (products.length < 20) {
+      const remaining = 20 - products.length;
+      const dropshipPage = await getFastVendorDropshipCatalogPage(VENDOR_ID, { offset: 0, limit: remaining });
+      products = [...products, ...dropshipPage.products.slice(0, remaining)];
+      initialNextOffset = dropshipPage.nextOffset === undefined
+        ? null
+        : localPage.total + dropshipPage.nextOffset;
+    }
+  }
 
   const structuredData = {
     "@context": "https://schema.org",
@@ -182,6 +195,7 @@ export default async function SpBusinessLabStorefront() {
               products={products}
               vendor={{ name: DISPLAY_NAME, adviser: vendor.adviser }}
               vendorId={vendor.id}
+              initialNextOffset={initialNextOffset}
             />
           )}
         </div>

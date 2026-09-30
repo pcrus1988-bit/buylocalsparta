@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
@@ -121,7 +122,7 @@ export async function getPublicCatalogSourceGallery(
             AND cv.recalled=false
             AND vo.status='approved'
             AND cs.active=true
-            AND cs.code IN ('nova-brandsgateway','symphonya')
+            AND cs.code IN ('nova-brandsgateway','symphonya','zendrop')
 
           UNION ALL
 
@@ -232,7 +233,7 @@ export async function getPublicCatalogSourcePrimaryImages(
             AND cv.recalled=false
             AND vo.status='approved'
             AND cs.active=true
-            AND cs.code IN ('nova-brandsgateway','symphonya')
+            AND cs.code IN ('nova-brandsgateway','symphonya','zendrop')
         ), primary_source AS (
           SELECT canonical_public_id,normalized_payload,source_image_fallback_url,source_code,source_website,source_title
           FROM ranked
@@ -300,11 +301,178 @@ export async function getPublicCatalogSourcePrimaryImages(
   }
 }
 
+async function getPublicCatalogPrimarySourceImage(
+  canonicalVariantId: string
+): Promise<PublicCatalogSourceImage | undefined> {
+  const canonicalId = canonicalVariantId.trim();
+  if (!canonicalId) return undefined;
+
+  const result = await getProductionPostgresRuntime().nativePool.query<SourceGalleryRow>(`
+    SELECT
+      latest.normalized_payload,
+      latest.source_image_url,
+      source.code AS source_code,
+      source.website AS source_website,
+      latest.title AS source_title
+    FROM canonical_variants cv
+    JOIN markets m ON m.id=cv.market_id
+    JOIN catalog_source_product_links csl
+      ON csl.canonical_variant_id=cv.id
+     AND csl.link_status='approved'
+    JOIN catalog_source_products linked ON linked.id=csl.source_product_id
+    JOIN catalog_sources source
+      ON source.id=linked.source_id
+     AND source.active=true
+    JOIN LATERAL (
+      SELECT candidate.*
+      FROM catalog_source_products candidate
+      JOIN catalog_source_snapshots snapshot ON snapshot.id=candidate.snapshot_id
+      WHERE candidate.source_id=linked.source_id
+        AND candidate.source_product_key=linked.source_product_key
+      ORDER BY snapshot.observed_at DESC NULLS LAST,candidate.created_at DESC,candidate.id DESC
+      LIMIT 1
+    ) latest ON true
+    WHERE cv.public_id=$1
+      AND m.code='sparta'
+      AND cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
+    ORDER BY csl.confidence DESC,csl.updated_at DESC,csl.id DESC
+    LIMIT 1
+  `, [canonicalId]);
+
+  const row = result.rows[0];
+  return row ? sourceImagesFromRow(row)[0] : undefined;
+}
+
+async function getPublicDropshipMediaSourceImage(
+  canonicalVariantId: string
+): Promise<PublicCatalogSourceImage | undefined> {
+  const canonicalId = canonicalVariantId.trim();
+  if (!canonicalId) return undefined;
+
+  const result = await getProductionPostgresRuntime().nativePool.query<SourceGalleryRow>(`
+    SELECT
+      '{}'::jsonb AS normalized_payload,
+      pm.source_url AS source_image_url,
+      cs.code AS source_code,
+      cs.website AS source_website,
+      COALESCE(el.title,en.title,cv.model,cv.slug) AS source_title
+    FROM canonical_variants cv
+    JOIN markets m ON m.id=cv.market_id
+    JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
+    JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+    JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+    JOIN catalog_sources cs ON cs.id=ds.catalog_source_id AND cs.active=true
+    JOIN product_media pm
+      ON pm.canonical_variant_id=cv.id
+     AND pm.kind='image'
+     AND pm.source_url IS NOT NULL
+    LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+    LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+    WHERE cv.public_id=$1
+      AND m.code='sparta'
+      AND cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
+      AND vo.status='approved'
+      AND vo.merchant_visible=true
+      AND ds.active=true
+      AND cs.code IN ('nova-brandsgateway','symphonya','zendrop')
+    ORDER BY pm.sort_order ASC,pm.created_at DESC,pm.id
+    LIMIT 1
+  `, [canonicalId]);
+
+  const row = result.rows[0];
+  return row ? sourceImagesFromRow(row)[0] : undefined;
+}
+
+const getCachedPublicCatalogPrimarySourceImage = unstable_cache(
+  async (canonicalVariantId: string) => getPublicCatalogPrimarySourceImage(canonicalVariantId),
+  ["public-catalog-primary-source-image-v1"],
+  { revalidate: 86_400 }
+);
+
+const getCachedPublicDropshipMediaSourceImage = unstable_cache(
+  async (canonicalVariantId: string) => getPublicDropshipMediaSourceImage(canonicalVariantId),
+  ["public-dropship-media-source-image-v1"],
+  { revalidate: 86_400 }
+);
+
+type ResilientPrimaryLookupResult = Readonly<{
+  image?: PublicCatalogSourceImage;
+  failed: boolean;
+}>;
+
+async function resilientPrimaryLookup(
+  label: string,
+  canonicalVariantId: string,
+  lookup: () => Promise<PublicCatalogSourceImage | undefined>
+): Promise<ResilientPrimaryLookupResult> {
+  try {
+    return { image: await lookup(), failed: false };
+  } catch (firstError) {
+    console.warn(JSON.stringify({
+      level: "warn",
+      event: "storefront.catalog_source_primary_retry",
+      lookup: label,
+      canonicalVariantId,
+      message: firstError instanceof Error ? firstError.message : String(firstError)
+    }));
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    try {
+      return { image: await lookup(), failed: false };
+    } catch (secondError) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "storefront.catalog_source_primary_unavailable",
+        lookup: label,
+        canonicalVariantId,
+        message: secondError instanceof Error ? secondError.message : String(secondError)
+      }));
+      return { failed: true };
+    }
+  }
+}
+
 export async function getPublicCatalogSourceImageAtIndex(
   canonicalVariantId: string,
   index: number
 ): Promise<PublicCatalogSourceImage | undefined> {
   if (!Number.isSafeInteger(index) || index < 0 || index >= MAX_GALLERY_IMAGES) return undefined;
+
+  if (index === 0) {
+    // Dropship media is the cheapest governed projection and covers legacy as
+    // well as newly materialized supplier products. Resolve/cache it first so
+    // image proxy requests do not depend on the heavier source-link query.
+    const dropshipMedia = await resilientPrimaryLookup(
+      "dropship_media",
+      canonicalVariantId,
+      () => getCachedPublicDropshipMediaSourceImage(canonicalVariantId)
+    );
+    if (dropshipMedia.image) return dropshipMedia.image;
+
+    const linkedPrimary = await resilientPrimaryLookup(
+      "canonical_source_link",
+      canonicalVariantId,
+      () => getCachedPublicCatalogPrimarySourceImage(canonicalVariantId)
+    );
+    if (linkedPrimary.image) return linkedPrimary.image;
+
+    // Final governed fallback for newly materialized rows whose canonical link
+    // is still being backfilled.
+    const galleryPrimary = (await getPublicCatalogSourceGallery(canonicalVariantId))[0];
+    if (galleryPrimary) return galleryPrimary;
+
+    // A database outage is not the same thing as a missing image. Bubble the
+    // transient failure so the proxy returns 503/no-store instead of poisoning
+    // the CDN with a cached 404 for a product that really has media.
+    if (dropshipMedia.failed || linkedPrimary.failed) {
+      throw new Error("catalog source image lookup temporarily unavailable");
+    }
+    return undefined;
+  }
+
   const gallery = await getPublicCatalogSourceGallery(canonicalVariantId);
   return gallery[index];
 }

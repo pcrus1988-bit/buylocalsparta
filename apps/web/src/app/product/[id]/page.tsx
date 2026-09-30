@@ -77,6 +77,13 @@ const PRIVATE_TECHNICAL_ATTRIBUTE_KEYS = new Set([
   "externalproductid",
   "external_variant_id",
   "externalvariantid",
+  "external_sku",
+  "externalsku",
+  "image_url",
+  "imageurl",
+  "image_count",
+  "imagecount",
+  "categories",
   "feature_keys",
   "dimensions_source_text",
   "technical_details_text",
@@ -221,7 +228,11 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
         description,
         canonicalPath: productPublicPath(product),
         keywords: [displayTitle, product.brand, product.categoryLabel],
-        openGraphImage: product.mediaId ? `/api/media/${encodeURIComponent(product.mediaId)}` : undefined
+        openGraphImage: product.mediaId
+          ? `/api/media/${encodeURIComponent(product.mediaId)}`
+          : product.sourceImageAvailable
+            ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
+            : undefined
       },
       entityEligible: quality.blockingReasons.length === 0,
       defaultIndexAllowed: quality.eligible
@@ -268,7 +279,9 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
       ],
       openGraphImage: product.mediaId
         ? `/api/media/${encodeURIComponent(product.mediaId)}`
-        : detail?.sourceImageUrl
+        : product.sourceImageAvailable
+          ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
+          : undefined
     },
     entityEligible: quality.blockingReasons.length === 0,
     defaultIndexAllowed: quality.eligible
@@ -283,8 +296,39 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
   const [{ settings }, overrides] = await Promise.all([getSeoGlobalSettingsSnapshot(), getSeoEntityOverridesSnapshot()]);
+  const crawlerProduct = readOnlyCrawler
+    ? await getCrawlerCatalogCard(summary.id).catch((error) => {
+        console.error(JSON.stringify({
+          level: "error",
+          event: "seo.product_crawler_projection_degraded",
+          productId: summary.id,
+          message: error instanceof Error ? error.message : String(error)
+        }));
+        return undefined;
+      })
+    : undefined;
   const product = readOnlyCrawler
-    ? await getCrawlerCatalogCard(summary.id)
+    ? crawlerProduct ?? {
+        id: summary.id,
+        slug: summary.slug,
+        title: summary.title,
+        price: summary.price,
+        priceMinor: summary.priceMinor,
+        categoryCode: summary.categoryCode,
+        departmentCode: summary.departmentCode,
+        categoryLabel: summary.categoryLabel,
+        gtin: summary.gtin,
+        mpn: summary.mpn,
+        description: summary.description,
+        brand: summary.brand,
+        color: summary.color,
+        sizes: summary.sizes,
+        mediaId: summary.mediaId,
+        mediaAlt: summary.mediaAlt,
+        sourceImageAvailable: summary.sourceImageAvailable,
+        availableToSell: 0,
+        available: false
+      }
     : await getCatalogCard(summary.id, await getVisitorKey());
   if (!product) notFound();
 
@@ -305,26 +349,44 @@ export default async function ProductPage({ params }: ProductPageProps) {
     });
     const origin = settings.canonicalOrigin;
     const productUrl = new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString();
+    const categoryUrl = `${origin}/category/${category.slug}`;
     const displayPrice = publicCatalogPriceLabel(product);
+    const crawlerImageUrl = product.mediaId
+      ? `${origin}/api/media/${encodeURIComponent(product.mediaId)}`
+      : summary.sourceImageAvailable
+        ? `${origin}/api/catalog-source-image/${encodeURIComponent(product.id)}`
+        : undefined;
     const crawlerStructuredData = {
       "@context": "https://schema.org",
-      "@type": "Product",
-      "@id": `${productUrl}#product`,
-      url: productUrl,
-      name: displayTitle,
-      description: productSeoDescription({ title: displayTitle, description: product.description }),
-      brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
-      image: product.mediaId ? [`${origin}/api/media/${encodeURIComponent(product.mediaId)}`] : undefined,
-      category: product.categoryLabel ?? category.label,
-      itemCondition: "https://schema.org/NewCondition",
-      offers: publicCatalogHasOfferPrice(product) ? {
-        "@type": "Offer",
-        url: productUrl,
-        priceCurrency: "EUR",
-        price: (product.priceMinor / 100).toFixed(2),
-        availability: product.available ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-        seller: { "@type": "Organization", name: "ΚΟΝΤΑ ΜΟΥ", url: origin }
-      } : undefined
+      "@graph": [
+        {
+          "@type": "Product",
+          "@id": `${productUrl}#product`,
+          url: productUrl,
+          name: displayTitle,
+          description: productSeoDescription({ title: displayTitle, description: product.description }),
+          brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
+          image: crawlerImageUrl ? [crawlerImageUrl] : undefined,
+          category: product.categoryLabel ?? category.label,
+          itemCondition: "https://schema.org/NewCondition",
+          offers: publicCatalogHasOfferPrice(product) ? {
+            "@type": "Offer",
+            url: productUrl,
+            priceCurrency: "EUR",
+            price: (product.priceMinor / 100).toFixed(2),
+            availability: product.available ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+            seller: { "@type": "Organization", "@id": `${origin}/#organization`, name: "ΚΟΝΤΑ ΜΟΥ", url: origin }
+          } : undefined
+        },
+        {
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            { "@type": "ListItem", position: 1, name: "Αρχική", item: origin },
+            { "@type": "ListItem", position: 2, name: category.label, item: categoryUrl },
+            { "@type": "ListItem", position: 3, name: displayTitle, item: productUrl }
+          ]
+        }
+      ]
     };
     return (
       <main>
@@ -333,7 +395,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <SiteHeader compact />
         <section className="shell product-detail">
           <div className={`product-detail-art ${category.artClass}`}>
-            {product.mediaId ? <Image src={`/api/media/${encodeURIComponent(product.mediaId)}`} alt={product.mediaAlt ?? displayTitle} fill sizes="50vw" style={productImageStyle} /> : <>
+            {crawlerImageUrl ? <img src={crawlerImageUrl} alt={product.mediaAlt ?? displayTitle} loading="eager" fetchPriority="high" style={productImageStyle} /> : <>
               <span className="detail-category">{category.name}</span>
               <span className="detail-symbol" aria-hidden="true">{category.symbol}</span>
             </>}
@@ -374,10 +436,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
       ? [{ canonicalVariantId: product.id, mediaId: product.mediaId, altText: product.mediaAlt }]
       : [];
   const primaryImage = mediaGallery[0];
-  // getPublicProductDetail already validates supplier URLs through
-  // trustedCatalogSourceHttpsUrl. Reuse that governed URL directly instead of
-  // making the browser open a second DB-backed image-redirect request.
-  const supplierImageSrc = primaryImage ? undefined : detail?.sourceImageUrl;
+  // Keep source imagery on a stable KONTA MOY URL for crawlers, structured data
+  // and the storefront. The endpoint resolves only governed public source images
+  // and is explicitly allowed in robots.txt.
+  const supplierImageSrc = primaryImage
+    ? undefined
+    : product.previewImageSrc
+      ?? (summary.sourceImageAvailable
+        ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
+        : undefined);
   const hasProductImage = Boolean(primaryImage || supplierImageSrc);
   const cartImageUrl = primaryImage ? `/api/media/${encodeURIComponent(primaryImage.mediaId)}` : supplierImageSrc;
   const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
@@ -486,7 +553,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const structuredOfferData = publicCatalogHasOfferPrice(product) ? offerData : undefined;
   const structuredImages = mediaGallery.length
     ? mediaGallery.map((image) => `${origin}/api/media/${encodeURIComponent(image.mediaId)}`)
-    : supplierImageSrc ? [supplierImageSrc] : undefined;
+    : supplierImageSrc ? [new URL(supplierImageSrc, `${origin}/`).toString()] : undefined;
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
