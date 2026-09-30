@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { VendorLoginForm } from "../../../components/VendorLoginForm";
 import { productionDatabaseConfigured } from "../../../lib/postgres-runtime";
+import { getVendorTrialSnapshot } from "../../../lib/vendor-trial-runtime";
 
 export const metadata: Metadata = { title: "Σύνδεση συνεργάτη", robots: { index: false, follow: false } };
 
 export default async function VendorLoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+  const trial = await getVendorTrialSnapshot();
+  if (trial?.active) redirect("/vendor/trial");
+  if (trial?.expired) redirect("/vendor/trial-expired");
   const params = await searchParams;
   const requestedNext = typeof params.next === "string" ? params.next.trim() : "";
   const validNext = (requestedNext.startsWith("/vendor") || requestedNext.startsWith("/daily")) && !requestedNext.startsWith("//");
