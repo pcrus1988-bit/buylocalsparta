@@ -353,17 +353,18 @@ export async function getPublishedDropshipCatalogPage(
     preferredVendorId: record.vendorId
   }));
 
-  const [images, sourcePrimaryImages] = await Promise.all([
-    approvedCatalogImages(imageRequests).catch((error) => {
-      console.error(JSON.stringify({
-        level: "error",
-        event: "storefront.dropship_public_media_projection_failed",
-        message: error instanceof Error ? error.message : String(error)
-      }));
-      return [];
-    }),
-    getPublicCatalogSourcePrimaryImages(imageRequests)
-  ]);
+  // Both projections can require PostgreSQL. The Vercel web runtime intentionally
+  // uses one database client, so serialize cold reads instead of making one wait for
+  // the only pool slot while the other is executing.
+  const images = await approvedCatalogImages(imageRequests).catch((error) => {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "storefront.dropship_public_media_projection_failed",
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return [];
+  });
+  const sourcePrimaryImages = await getPublicCatalogSourcePrimaryImages(imageRequests);
   const imageByCanonical = new Map(images.map((image) => [image.canonicalVariantId, image] as const));
 
   const products: ShopDropshipCard[] = projections.map((projection) => {
