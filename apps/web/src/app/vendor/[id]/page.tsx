@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { unstable_cache } from "next/cache";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { SiteFooter } from "../../../components/SiteFooter";
@@ -39,39 +40,75 @@ type InitialVendorCatalogPage = Readonly<{
 }>;
 const EMPTY_INITIAL_VENDOR_CATALOG_PAGE: InitialVendorCatalogPage = { products: [], nextOffset: null };
 
+async function loadInitialVendorCatalogPage(vendorId: string): Promise<InitialVendorCatalogPage> {
+  const localPage = await getVendorLocalCatalogPage(vendorId, {
+    offset: 0,
+    limit: INITIAL_VENDOR_PAGE_SIZE
+  });
+  const remaining = Math.max(0, INITIAL_VENDOR_PAGE_SIZE - localPage.products.length);
+
+  if (remaining === 0 && INITIAL_VENDOR_PAGE_SIZE < localPage.total) {
+    return { products: localPage.products, nextOffset: INITIAL_VENDOR_PAGE_SIZE };
+  }
+
+  const dropshipPage = await getFastVendorDropshipCatalogPage(vendorId, {
+    offset: 0,
+    limit: remaining > 0 ? remaining : 1
+  });
+  const products = remaining > 0
+    ? [...localPage.products, ...dropshipPage.products.slice(0, remaining)]
+    : localPage.products;
+  const hasDropshipAtBoundary = dropshipPage.products.length > 0 || dropshipPage.nextOffset !== undefined;
+  const nextOffset = remaining === 0
+    ? (hasDropshipAtBoundary ? localPage.total : null)
+    : dropshipPage.nextOffset !== undefined
+      ? localPage.total + dropshipPage.nextOffset
+      : null;
+
+  return { products, nextOffset };
+}
+
+const getCachedInitialVendorCatalogPage = unstable_cache(
+  async (vendorId: string) => loadInitialVendorCatalogPage(vendorId),
+  ["vendor-storefront-initial-catalog-page-v1"],
+  { revalidate: 15 }
+);
+
+function isTransientVendorDatabaseError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as Readonly<{ code?: unknown; message?: unknown }>;
+  if (candidate.code === "57014" || candidate.code === "53300" || candidate.code === "08000" || candidate.code === "08006") return true;
+  const message = typeof candidate.message === "string" ? candidate.message.toLocaleLowerCase("en") : "";
+  return message.includes("timeout exceeded when trying to connect")
+    || message.includes("statement timeout")
+    || message.includes("connection terminated")
+    || message.includes("too many clients")
+    || message.includes("remaining connection slots");
+}
+
 async function getInitialVendorCatalogPage(vendorId: string): Promise<InitialVendorCatalogPage> {
   try {
-    const localPage = await getVendorLocalCatalogPage(vendorId, {
-      offset: 0,
-      limit: INITIAL_VENDOR_PAGE_SIZE
-    });
-    const remaining = Math.max(0, INITIAL_VENDOR_PAGE_SIZE - localPage.products.length);
-
-    if (remaining === 0 && INITIAL_VENDOR_PAGE_SIZE < localPage.total) {
-      return { products: localPage.products, nextOffset: INITIAL_VENDOR_PAGE_SIZE };
+    return await getCachedInitialVendorCatalogPage(vendorId);
+  } catch (firstError) {
+    if (isTransientVendorDatabaseError(firstError)) {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      try {
+        return await getCachedInitialVendorCatalogPage(vendorId);
+      } catch (retryError) {
+        console.error(JSON.stringify({
+          level: "warn",
+          event: "storefront.vendor_initial_ssr_catalog_failed",
+          vendorId,
+          message: retryError instanceof Error ? retryError.message : String(retryError)
+        }));
+        return EMPTY_INITIAL_VENDOR_CATALOG_PAGE;
+      }
     }
-
-    const dropshipPage = await getFastVendorDropshipCatalogPage(vendorId, {
-      offset: 0,
-      limit: remaining > 0 ? remaining : 1
-    });
-    const products = remaining > 0
-      ? [...localPage.products, ...dropshipPage.products.slice(0, remaining)]
-      : localPage.products;
-    const hasDropshipAtBoundary = dropshipPage.products.length > 0 || dropshipPage.nextOffset !== undefined;
-    const nextOffset = remaining === 0
-      ? (hasDropshipAtBoundary ? localPage.total : null)
-      : dropshipPage.nextOffset !== undefined
-        ? localPage.total + dropshipPage.nextOffset
-        : null;
-
-    return { products, nextOffset };
-  } catch (error) {
     console.error(JSON.stringify({
       level: "warn",
       event: "storefront.vendor_initial_ssr_catalog_failed",
       vendorId,
-      message: error instanceof Error ? error.message : String(error)
+      message: firstError instanceof Error ? firstError.message : String(firstError)
     }));
     return EMPTY_INITIAL_VENDOR_CATALOG_PAGE;
   }
@@ -119,12 +156,13 @@ function absolutePublicMedia(url: string, origin: string): string {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const [vendor, profileMedia, { settings }, overrides] = await Promise.all([
-    getCachedPublicVendorDirectoryEntry(id),
-    getCachedApprovedVendorProfileMedia(id),
-    getCachedSeoGlobalSettingsSnapshot(),
-    getCachedSeoEntityOverridesSnapshot()
-  ]);
+  // The web runtime intentionally has a one-client PostgreSQL pool. Keep
+  // DB-backed metadata reads sequential so metadata generation cannot queue
+  // multiple acquisitions against its own pool slot.
+  const vendor = await getCachedPublicVendorDirectoryEntry(id);
+  const profileMedia = await getCachedApprovedVendorProfileMedia(id);
+  const { settings } = await getCachedSeoGlobalSettingsSnapshot();
+  const overrides = await getCachedSeoEntityOverridesSnapshot();
   if (!vendor) return { title: "Κατάστημα" };
   const isResearch = vendor.directoryStatus === "research";
   const reference: SeoEntityReference = { kind: isResearch ? "research_vendor" : "partner_vendor", id: vendor.id };
@@ -161,11 +199,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function VendorPage({ params }: Props) {
   const { id } = await params;
-  const [vendor, { settings }, overrides] = await Promise.all([
-    getCachedPublicVendorDirectoryEntry(id),
-    getCachedSeoGlobalSettingsSnapshot(),
-    getCachedSeoEntityOverridesSnapshot()
-  ]);
+  const vendor = await getCachedPublicVendorDirectoryEntry(id);
+  const { settings } = await getCachedSeoGlobalSettingsSnapshot();
+  const overrides = await getCachedSeoEntityOverridesSnapshot();
   if (!vendor) notFound();
 
   const isResearch = vendor.directoryStatus === "research";
@@ -184,13 +220,13 @@ export default async function VendorPage({ params }: Props) {
   // Seed the first bounded catalogue page into SSR so customers and crawlers see
   // real products immediately. The browser reuses this page and only fetches when
   // filters change or the customer navigates deeper.
-  const [initialCatalogPage, principal, profileMedia] = isResearch
-    ? [EMPTY_INITIAL_VENDOR_CATALOG_PAGE, undefined, []] as const
-    : await Promise.all([
-        getInitialVendorCatalogPage(id),
-        getAccountSession(),
-        getCachedApprovedVendorProfileMedia(id)
-      ]);
+  const initialCatalogPage = isResearch
+    ? EMPTY_INITIAL_VENDOR_CATALOG_PAGE
+    : await getInitialVendorCatalogPage(id);
+  const principal = isResearch ? undefined : await getAccountSession();
+  const profileMedia: readonly ApprovedVendorProfileMedia[] = isResearch
+    ? []
+    : await getCachedApprovedVendorProfileMedia(id);
   const products = initialCatalogPage.products;
   const location = vendor.location;
   const merchantStoryMedia = vendor.story?.mediaUrl;
