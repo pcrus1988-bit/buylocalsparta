@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "../../../../../lib/admin-session";
 import { adminMediaAction, assertAdminPermission, recordAdminAudit } from "../../../../../lib/admin-runtime";
 import { adminVendorProfileMediaAssignments, adminVendorProfileMediaPublicationAction } from "../../../../../lib/vendor-profile-media-service";
@@ -34,6 +35,16 @@ export async function POST(request: Request) {
       mediaId: assignment.mediaId,
       role: assignment.role
     });
+
+    // Storefront media is customer-facing. Invalidate both LIVE and DEMO routes,
+    // plus directory surfaces that may show the vendor's logo/hero.
+    revalidatePath(`/vendor/${encodeURIComponent(assignment.vendorId)}`);
+    revalidatePath(`/demo/vendor/${encodeURIComponent(assignment.vendorId)}`);
+    revalidatePath("/shops");
+    revalidatePath("/shops/map");
+    revalidatePath("/admin/partners/design");
+    revalidatePath("/admin/trust");
+
     return Response.json({ ok: true });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "admin_vendor_media_action_failed" }, { status: 400 });

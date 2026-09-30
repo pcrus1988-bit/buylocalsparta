@@ -1,5 +1,9 @@
 const TRUSTED_CDN_PARENT_DOMAINS: Readonly<Record<string, readonly string[]>> = {
-  symphonya: ["symphonya.eu"]
+  symphonya: ["symphonya.eu"],
+  // Zendrop catalogue assets are served from provider-owned CDN hosts such as
+  // file.zendrop.com while the catalogue source website is zendrop.com.
+  // Keep this provider-scoped so arbitrary external image hosts remain rejected.
+  zendrop: ["zendrop.com"]
 };
 
 function optionalText(value: unknown): string | undefined {

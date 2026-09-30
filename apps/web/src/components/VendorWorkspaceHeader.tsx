@@ -15,16 +15,43 @@ export function VendorWorkspaceHeader() {
   const [roles, setRoles] = useState<readonly string[]>([]);
   const [csrfToken, setCsrfToken] = useState("");
   const [dropshippingOnly, setDropshippingOnly] = useState(false);
+  const [operatingContext, setOperatingContext] = useState<{
+    marketId: string;
+    hubId?: string;
+    locationId?: string;
+    operatingModel: "MANAGED" | "SELF_GOVERNED";
+    capabilities: readonly string[];
+  }>();
 
   useEffect(() => {
     let active = true;
     void fetch("/api/vendor/auth-context", { cache: "no-store" })
       .then(async (response) => response.ok ? response.json() : undefined)
-      .then((payload: { csrfToken?: string; dropshippingOnly?: boolean; account?: { roles?: readonly string[] } } | undefined) => {
+      .then((payload: {
+        csrfToken?: string;
+        dropshippingOnly?: boolean;
+        operatingContext?: {
+          marketId?: string;
+          hubId?: string;
+          locationId?: string;
+          operatingModel?: "MANAGED" | "SELF_GOVERNED";
+          capabilities?: readonly string[];
+        };
+        account?: { roles?: readonly string[] };
+      } | undefined) => {
         if (!active) return;
         if (Array.isArray(payload?.account?.roles)) setRoles(payload.account.roles);
         if (typeof payload?.csrfToken === "string") setCsrfToken(payload.csrfToken);
         setDropshippingOnly(payload?.dropshippingOnly === true);
+        if (payload?.operatingContext?.marketId && payload.operatingContext.operatingModel) {
+          setOperatingContext({
+            marketId: payload.operatingContext.marketId,
+            hubId: payload.operatingContext.hubId,
+            locationId: payload.operatingContext.locationId,
+            operatingModel: payload.operatingContext.operatingModel,
+            capabilities: Array.isArray(payload.operatingContext.capabilities) ? payload.operatingContext.capabilities : []
+          });
+        }
       })
       .catch(() => undefined);
     return () => { active = false; };
@@ -36,8 +63,28 @@ export function VendorWorkspaceHeader() {
       .filter((group) => group.links.length > 0)
       .map((group) => group.href === "/vendor/daily-access" ? { ...group, href: group.links[0]?.href } : group);
 
-    if (!dropshippingOnly) return roleFiltered;
-    return roleFiltered.map((group) => group.href === "/vendor/catalog" ? {
+    const selfGovernedOnly = new Set([
+      "catalogue.import",
+      "local_delivery.manage",
+      "aade.manage",
+      "promotions.manage",
+      "seo.source_data.manage",
+      "subscription.manage"
+    ]);
+    const capabilityFiltered = roleFiltered
+      .map((group) => ({
+        ...group,
+        links: group.links.filter((link) => {
+          if (!link.vendorCapability) return true;
+          if (!operatingContext) return !selfGovernedOnly.has(link.vendorCapability);
+          return operatingContext.capabilities.includes(link.vendorCapability);
+        })
+      }))
+      .filter((group) => group.links.length > 0)
+      .map((group) => group.links.some((link) => link.href === group.href) ? group : { ...group, href: group.links[0]?.href });
+
+    if (!dropshippingOnly) return capabilityFiltered;
+    return capabilityFiltered.map((group) => group.href === "/vendor/catalog" ? {
       ...group,
       label: "Dropshipping",
       href: "/vendor/dropshipping",
@@ -51,7 +98,16 @@ export function VendorWorkspaceHeader() {
         ...group.links.filter((link) => link.href !== "/vendor/catalog")
       ]
     } : group);
-  }, [roles, dropshippingOnly]);
+  }, [roles, dropshippingOnly, operatingContext]);
+
+  const marketLabel = operatingContext?.marketId === "sparta"
+    ? "Σπάρτη"
+    : (operatingContext?.marketId ?? "sparta")
+        .split(/[-_]/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toLocaleUpperCase("el") + part.slice(1))
+        .join(" ");
+  const selfGoverned = operatingContext?.operatingModel === "SELF_GOVERNED";
 
   async function logout() {
     setBusy(true);
@@ -80,8 +136,13 @@ export function VendorWorkspaceHeader() {
     <header className={`workspace-header vendor-header${menuOpen ? " is-menu-open" : ""}`}>
       <div className="workspace-brand-row">
         <Link className="brand workspace-identity" href="/vendor" onClick={() => setMenuOpen(false)}>
-          <img src="/brand/kontamou-sparta-logo.webp" alt="ΚΟΝΤΑ ΜΟΥ Sparta" width={78} height={52} style={{ display: "block", width: "78px", height: "52px", objectFit: "contain" }} />
-          <span><strong>Χώρος συνεργάτη</strong><small>ΚΟΝΤΑ ΜΟΥ Sparta</small></span>
+          {selfGoverned
+            ? <span aria-hidden="true" style={{ fontWeight: 900, letterSpacing: ".08em", fontSize: "0.78rem" }}>ΚΟΝΤΑ ΜΟΥ</span>
+            : <img src="/brand/kontamou-sparta-logo.webp" alt="ΚΟΝΤΑ ΜΟΥ Σπάρτη" width={78} height={52} style={{ display: "block", width: "78px", height: "52px", objectFit: "contain" }} />}
+          <span>
+            <strong>Χώρος συνεργάτη</strong>
+            <small>{selfGoverned ? `Αυτοδιαχειριζόμενο HUB · ${marketLabel}${operatingContext?.hubId ? ` · ${operatingContext.hubId}` : ""}` : "ΚΟΝΤΑ ΜΟΥ Σπάρτη"}</small>
+          </span>
         </Link>
         <button className="workspace-menu-toggle" type="button" aria-expanded={menuOpen} aria-controls="vendor-workspace-navigation" onClick={() => setMenuOpen((current) => !current)}>
           <span>{menuOpen ? "Κλείσιμο" : "Μενού"}</span><i aria-hidden="true" />

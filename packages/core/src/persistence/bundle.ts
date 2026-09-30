@@ -26,8 +26,6 @@ import { PostgresCategoryGovernanceRepository } from "./postgres-category-govern
 import { PostgresPromotionsRepository } from "./postgres-promotions.ts";
 import { PostgresCustomerPrivacyRepository } from "./postgres-privacy.ts";
 import { PostgresEngagementRepository } from "./postgres-engagement.ts";
-import { PostgresOpenIcecatBulkRepository } from "./postgres-open-icecat-bulk.ts";
-import { PostgresOpenIcecatDetailRepository } from "./postgres-open-icecat-detail.ts";
 
 /**
  * One construction point for the production persistence adapters.
@@ -62,8 +60,6 @@ export class PostgresPersistenceBundle {
   readonly promotions: PostgresPromotionsRepository;
   readonly customerPrivacy: PostgresCustomerPrivacyRepository;
   readonly engagement: PostgresEngagementRepository;
-  readonly openIcecatBulk: PostgresOpenIcecatBulkRepository;
-  readonly openIcecatDetail: PostgresOpenIcecatDetailRepository;
 
   constructor(pool: SqlPool) {
     this.catalog = new PostgresCatalogRepository(pool);
@@ -93,7 +89,5 @@ export class PostgresPersistenceBundle {
     this.promotions = new PostgresPromotionsRepository(pool);
     this.customerPrivacy = new PostgresCustomerPrivacyRepository(pool);
     this.engagement = new PostgresEngagementRepository(pool);
-    this.openIcecatBulk = new PostgresOpenIcecatBulkRepository(pool);
-    this.openIcecatDetail = new PostgresOpenIcecatDetailRepository(pool);
   }
 }

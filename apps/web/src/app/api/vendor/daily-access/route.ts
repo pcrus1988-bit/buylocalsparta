@@ -1,9 +1,9 @@
-import { requireVendorSession } from "../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../lib/vendor-session";
 import { createDailyAccess, listDailyAccess, resetDailyPassword, revokeDailyAccess } from "../../../../lib/daily-runtime";
 
 export async function GET() {
   try {
-    const principal = await requireVendorSession();
+    const { principal } = await requireVendorCapability("staff.manage");
     return Response.json({ accesses: await listDailyAccess(principal), csrfToken: principal.csrfToken });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "daily_access_failed" }, { status: 403 });
@@ -12,7 +12,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const { principal } = await requireVendorCapability("staff.manage", request, true);
     const body = await request.json() as { action?: unknown; accessId?: unknown; email?: unknown; displayName?: unknown; password?: unknown };
     const action = typeof body.action === "string" ? body.action : "create";
     const now = Date.now();

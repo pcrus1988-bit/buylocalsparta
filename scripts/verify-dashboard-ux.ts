@@ -16,7 +16,11 @@ for (const route of WORKSPACE_PAGE_ROUTES) {
   const page = route === "/vendor" ? "apps/web/src/app/vendor/page.tsx" : route === "/admin" ? "apps/web/src/app/admin/page.tsx" : `apps/web/src/app${route}/page.tsx`;
   if (!existsSync(`${root}/${page}`)) failures.push(`Workspace navigation points to missing page ${route}`);
 }
-if (new Set(WORKSPACE_PAGE_ROUTES).size !== WORKSPACE_PAGE_ROUTES.length) failures.push("Workspace navigation contains duplicate destinations");
+const primaryWorkspaceRoutes = [
+  ...VENDOR_WORKSPACE_NAVIGATION.flatMap((group) => group.links.filter((link) => !link.contextHidden).map((link) => link.href)),
+  ...ADMIN_WORKSPACE_NAVIGATION.flatMap((group) => group.links.filter((link) => !link.contextHidden).map((link) => link.href))
+];
+if (new Set(primaryWorkspaceRoutes).size !== primaryWorkspaceRoutes.length) failures.push("Workspace navigation contains duplicate primary destinations");
 
 requireText("apps/web/src/components/WorkspaceNavigation.tsx", ["usePathname", "<details", "<summary", "workspace-link-icon", 'from "next/link"']);
 for (const group of VENDOR_WORKSPACE_NAVIGATION) {

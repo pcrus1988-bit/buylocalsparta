@@ -1,58 +1,110 @@
-# Buy Local Sparta — Private Media Storage & Malware Scanning Runbook
+# KONTA MOY — Private Media Storage & Malware Scanning Runbook
+
+This document describes the governed media security model. For the exact production project, endpoint, activation order and deployment values, use `docs/operations/media-production.md`.
 
 ## Production model
 
-Vendor media is uploaded directly from the browser to a **private S3-compatible bucket** with a short-lived presigned `PUT`. Buy Local Sparta never makes the object public at upload time. The browser then calls the completion API; the server HEAD-checks object size and content type against the signed upload intent before creating the `product_media` record in `pending` scan state.
+Vendor and Admin media is uploaded directly from the browser to a **private S3-compatible bucket** with a short-lived presigned `PUT`. KONTA MOY never makes the staging object public. The browser then calls the completion API; the server HEAD-checks object size and content type against the signed upload intent before creating the governed media record in `pending` scan state.
 
-A separate media worker streams the private object through `clamd` using the ClamAV `INSTREAM` protocol while computing the authoritative SHA-256. Only a clean automated scan may move `scan_status` to `clean`. Rights and moderation remain separate Admin decisions. Public media requires all three states: `scan_status=clean`, `rights_status=approved`, `moderation_status=approved`.
+A separate long-lived media-worker process owns malware scanning. The production container defined by `deploy/media-worker.Dockerfile` includes its own loopback-only `clamd` process, so production does **not** need a second ClamAV network service. The worker streams the exact private object through the ClamAV `INSTREAM` protocol while computing the authoritative SHA-256.
 
-## Required environment
+Only a clean automated scan may move `scan_status` to `clean`. Rights and moderation remain separate Admin decisions. Public governed media requires all three states: `scan_status=clean`, `rights_status=approved`, and `moderation_status=approved`.
+
+## Current production storage contract
+
+The production target is Supabase Storage S3 compatibility:
+
+- bucket: `buy-local-sparta-private`
+- public access: disabled
+- region: `us-east-1`
+- endpoint: `https://eemihhfreggbigxejjhj.storage.supabase.co/storage/v1/s3`
+- browser upload origin: `https://eemihhfreggbigxejjhj.storage.supabase.co`
+- path-style S3 requests: enabled
+- maximum object size: 25 MiB (`26214400` bytes)
+- currently allowed production MIME types: JPEG, PNG, WebP and PDF
+
+Do not document video as production-supported until the bucket MIME policy and the upload/product UI are deliberately expanded and verified end to end.
+
+## Required web environment
+
+The Vercel web runtime needs object-storage configuration only when governed uploads are enabled:
 
 - `BLS_MEDIA_PIPELINE_ENABLED=true`
 - `BLS_OBJECT_STORAGE_BUCKET`
 - `BLS_OBJECT_STORAGE_REGION`
-- `BLS_MEDIA_UPLOAD_ORIGIN` — exact origin of the generated browser upload URLs. This origin is added to CSP `connect-src`.
-- `BLS_CLAMAV_HOST` and `BLS_CLAMAV_PORT`
-- optional S3-compatible endpoint/path-style configuration
-- preferably workload/IAM credentials. Static `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are supported but should be secret-managed.
+- `BLS_OBJECT_STORAGE_ENDPOINT`
+- `BLS_OBJECT_STORAGE_FORCE_PATH_STYLE=true`
+- `BLS_OBJECT_STORAGE_ACCESS_KEY_ID`
+- `BLS_OBJECT_STORAGE_SECRET_ACCESS_KEY`
+- `BLS_MEDIA_UPLOAD_ORIGIN`
+- `BLS_MEDIA_UPLOAD_MAX_BYTES`
+- `BLS_MEDIA_UPLOAD_TTL_SECONDS`
 
-`BLS_MEDIA_MAX_BYTES` defaults to 25 MiB. Supported first-release media types are JPEG/PNG/WebP images, MP4/WebM video and PDF documents.
+Generate the Supabase S3 server credentials under **Storage → Configuration → S3**. Keep them server-side and secret-managed. Never expose them through `NEXT_PUBLIC_*`.
 
-## Bucket controls
+Do not enable `BLS_MEDIA_PIPELINE_ENABLED` on Vercel until a healthy media worker is running against the same production database and bucket.
 
-The bucket must remain private. Do not enable public-read ACLs or anonymous bucket policy. The web role needs only the object actions required to sign/verify private uploads; the media-worker role additionally needs read/delete. Use a dedicated prefix such as `private/vendor-media/` and lifecycle rules for abandoned objects as defense in depth.
+## Browser/CSP controls
 
-Browser uploads require bucket CORS for the **Buy Local Sparta application origin**, `PUT`, and the `Content-Type` request header. Keep the CORS origin exact rather than `*`.
+Browser uploads require bucket CORS for the exact KONTA MOY application origin, method `PUT`, and the `Content-Type` request header. Keep the CORS origin exact rather than `*`.
 
-## ClamAV controls
+`BLS_MEDIA_UPLOAD_ORIGIN` is also added to the web CSP `connect-src`. The upload service rejects a signed URL whose origin does not exactly match this configured value.
 
-`clamd` must be reachable only on a private/trusted network. Its TCP protocol has no authentication or encryption. Do not publish port 3310 to the internet. Configure `StreamMaxLength` at or above `BLS_MEDIA_MAX_BYTES`, keep signature databases updated, and alert when the scanner becomes unavailable or signatures are stale.
+## Media-worker and ClamAV controls
 
-## Worker
+Deploy `deploy/media-worker.Dockerfile` as one always-on worker instance initially. The image:
 
-Run:
+1. refreshes ClamAV signatures when possible;
+2. starts `clamd` on `127.0.0.1:3310`;
+3. waits for a successful ClamAV `PING`;
+4. drops the marketplace worker process to the unprivileged `node` user;
+5. starts `workers/media-worker.ts`.
 
-```bash
-npm run worker:media
-```
+The worker container needs:
 
-The worker:
+- `DATABASE_URL`
+- `BLS_WORKER_ROLE=media`
+- `BLS_MEDIA_PIPELINE_ENABLED=true`
+- the same Supabase S3 bucket/endpoint/credentials as the web runtime
+- `BLS_CLAMAV_HOST=127.0.0.1`
+- `BLS_CLAMAV_PORT=3310`
+- `BLS_CLAMAV_TIMEOUT_MS`
+- `BLS_MEDIA_WORKER_POLL_MS`
+- `BLS_MEDIA_WORKER_ID`
 
-1. expires unfinished upload intents and deletes their private objects;
+Port 3310 must remain internal to the container. The ClamAV TCP protocol has no authentication or encryption and must never be published.
+
+## Worker lifecycle
+
+For each cycle the worker:
+
+1. expires unfinished upload intents and deletes their private staging objects;
 2. claims scan work with PostgreSQL `FOR UPDATE SKIP LOCKED` leases;
 3. reads one staging-object ETag and streams that exact object through ClamAV and SHA-256;
 4. rejects changed-size objects;
-5. conditionally copies a clean object to an immutable verified key only if the staging ETag still matches, closing presigned-URL overwrite races;
+5. conditionally copies a clean object to an immutable verified key only if the staging ETag still matches;
 6. stores the verified key and clean hash, then deletes staging;
 7. deletes malware-detected objects;
 8. retries transient failures with bounded exponential backoff.
 
-After five failed scan attempts the asset remains private in `failed` state for operational review; it is never auto-published.
+After five failed scan attempts an asset remains private in `failed` state for operational review; it is never auto-published.
 
 ## Admin governance
 
-Production Admin cannot manually record `scan_clean` or `scan_infected`. Automated malware processing owns scan state. Admin may approve/reject **rights and moderation only after a clean scan**. Compliance documents linked to media remain unverifiable until scan, rights and moderation all pass.
+Production Admin cannot manually record `scan_clean` or `scan_infected`. Automated malware processing owns scan state. Admin may approve or reject **rights and moderation only after a clean scan**. Compliance documents linked to media remain unverifiable until scan, rights and moderation all pass.
 
-## Deployment proof
+## End-to-end activation proof
 
-Production CI proves the PostgreSQL upload-intent/finalization/scan-state lifecycle across independent application runtimes. A real S3/ClamAV environment must additionally prove: presigned browser PUT, CORS, HEAD verification, clean EICAR-safe test handling in an isolated non-production bucket, infected-object deletion/quarantine behavior, worker restart/lease recovery, and alerting.
+Before broad activation, prove in this order:
+
+1. the private bucket and server-side S3 credentials are reachable from the worker;
+2. the integrated media-worker container reaches PostgreSQL and logs `media_worker.started`;
+3. Vercel receives the production storage variables and `BLS_MEDIA_PIPELINE_ENABLED=true`;
+4. `/api/health/ready` reports the media dependency ready;
+5. a controlled JPEG receives a presigned PUT and completes successfully;
+6. its governed record advances `pending → clean`;
+7. Admin rights and moderation approval succeeds;
+8. publication makes the asset visible on the intended storefront surface;
+9. the staging object is no longer left behind.
+
+Keep uploads fail-closed if any one of these stages is unavailable.

@@ -3,7 +3,6 @@ export * from "./security.ts";
 export * from "./canonicalization.ts";
 export * from "./discovery.ts";
 export * from "./fournarakis-extraction.ts";
-export * from "./open-icecat/index.ts";
 
 import { extractJsonLdProductCandidates } from "./discovery.ts";
 import { analyzeHtmlProductPage as analyzeHtmlProductPageBase, type HtmlProductAnalysis } from "./html-product-extraction.ts";

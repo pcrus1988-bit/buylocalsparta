@@ -1,12 +1,12 @@
 import type { VendorProfileMediaRole } from "@buy-local-sparta/postgres-runtime";
-import { requireVendorSession } from "../../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../../lib/vendor-session";
 import { createVendorMediaUploadIntent } from "../../../../../lib/media-upload-service";
 
 const PROFILE_ROLES = new Set<VendorProfileMediaRole>(["logo","storefront","team","gallery"]);
 
 export async function POST(request:Request){
   try{
-    const principal=await requireVendorSession(request,true);
+    const { principal }=await requireVendorCapability("catalogue.submit",request,true);
     const body=await request.json();
     const kind=String(body.kind??"") as "image"|"video"|"document";
     if(!["image","video","document"].includes(kind))throw new Error("Invalid media kind");

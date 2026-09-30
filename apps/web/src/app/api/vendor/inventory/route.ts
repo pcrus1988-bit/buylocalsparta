@@ -1,10 +1,10 @@
-import { requireVendorSession } from "../../../../lib/vendor-session";
+import { requireVendorCapability } from "../../../../lib/vendor-session";
 import { vendorDashboard } from "../../../../lib/vendor-runtime";
 import { updateVendorStock } from "../../../../lib/vendor-inventory-service";
 
 export async function PUT(request: Request) {
   try {
-    const principal = await requireVendorSession(request, true);
+    const { principal } = await requireVendorCapability("inventory.manage", request, true);
     const body = await request.json() as { offerId?: unknown; onHand?: unknown };
     const offerId = typeof body.offerId === "string" ? body.offerId.trim() : "";
     const onHand = typeof body.onHand === "number" ? body.onHand : Number.NaN;

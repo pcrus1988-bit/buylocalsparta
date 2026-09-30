@@ -5,7 +5,6 @@ import { suggestedQuestionsForContext } from "./context";
 import { crawlerOperationalIntelligence } from "./crawler-intelligence";
 import { customerOperationalIntelligence } from "./customer-intelligence";
 import { dashboardOperationalIntelligence } from "./dashboard-intelligence";
-import { openIcecatIngestionIntelligence } from "./ingestion-intelligence";
 import { productMatchingIntelligence } from "./matching-intelligence";
 import { buildAdminAssistantOperationalSnapshot } from "./operational-snapshot";
 import { applyRecommendationLifecycle } from "./recommendation-lifecycle";
@@ -22,10 +21,6 @@ export async function buildAdminAssistantPhase1Snapshot(
 
   if (snapshot.context.pageType === "dashboard") {
     snapshot = await dashboardOperationalIntelligence(principal, snapshot);
-  }
-
-  if (snapshot.context.pageType === "catalogue_import") {
-    snapshot = await openIcecatIngestionIntelligence(principal, snapshot);
   }
 
   if (snapshot.context.pageType === "catalogue_crawler") {

@@ -4,6 +4,7 @@ import { getPublicVendorDirectory, type PublicVendorDirectoryEntry } from "../..
 import { PUBLIC_VENDOR_CATEGORIES } from "../../lib/public-vendor-taxonomy";
 import { SiteFooter } from "../../components/SiteFooter";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
+import { getSeoGlobalSettingsSnapshot } from "../../lib/seo-settings";
 
 type Props = Readonly<{ searchParams: Promise<{ q?: string; category?: string; subcategory?: string; status?: string }> }>;
 
@@ -69,6 +70,7 @@ function groupResearchVendors(vendors: readonly PublicVendorDirectoryEntry[], re
 }
 
 export default async function ShopsPage({ searchParams }: Props) {
+  const seoSettingsPromise = getSeoGlobalSettingsSnapshot();
   const allVendors = await getPublicVendorDirectory();
   const params = await searchParams;
   const query = typeof params.q === "string" ? params.q.trim().slice(0, 80) : "";
@@ -106,9 +108,20 @@ export default async function ShopsPage({ searchParams }: Props) {
   const subcategoryOptions = [...knownSubcategories.entries()]
     .filter(([slug]) => !requestedCategory || allVendors.some((vendor) => vendor.taxonomies.some((taxonomy) => taxonomy.categorySlug === requestedCategory && taxonomy.subcategorySlug === slug)))
     .sort((a, b) => a[1].localeCompare(b[1], "el"));
+  const { settings: seoSettings } = await seoSettingsPromise;
+  const shopsUrl = new URL("/shops", `${seoSettings.canonicalOrigin}/`).toString();
+  const breadcrumbStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Αρχική", item: seoSettings.canonicalOrigin },
+      { "@type": "ListItem", position: 2, name: "Καταστήματα", item: shopsUrl }
+    ]
+  };
 
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbStructuredData).replaceAll("<", "\\u003c") }} />
       <div className="announcement">Η τοπική αγορά δεν είναι μόνο προϊόντα — είναι άνθρωποι, ειδικότητες και πραγματικά καταστήματα.</div>
       <SiteHeader />
 
