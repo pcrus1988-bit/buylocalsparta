@@ -192,11 +192,19 @@ export async function gemiAdminMetadata(now = Date.now(), apiKey?: string): Prom
     gemiGet("/metadata/municipalities", {}, 4, apiKey)
   ]);
 
+  // The ΓΕΜΗ metadata feed contains both historical KAD 2008 and current KAD 2026
+  // rows. GET /companies searches current company activities, so exposing legacy
+  // codes in the prospecting picker creates false "0 results" responses. Keep
+  // unversioned rows as a compatibility fallback, but prefer only the current
+  // 2026 vocabulary for operational partner prospecting.
   const activities = normalizeMetadataArray(activitiesRaw, (item) => {
     const id = asString(item.id);
     const descr = asString(item.descr);
     if (!id || !descr) return undefined;
     return { id, descr, descrEn: asString(item.descrEn) || undefined, kadVersion: asString(item.kadVersion) || undefined };
+  }).filter((activity) => {
+    const version = activity.kadVersion?.trim().toLocaleLowerCase("en") ?? "";
+    return !version || version.includes("2026");
   }).sort((a, b) => a.id.localeCompare(b.id, "el", { numeric: true }));
 
   const prefectures = normalizeMetadataArray(prefecturesRaw, (item) => {
