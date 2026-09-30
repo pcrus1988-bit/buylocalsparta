@@ -40,6 +40,8 @@ export default async function VendorTrialPage() {
     { number: 4, title: "Operations", text: "Εξερεύνησε παραγγελίες, stock, pickup, delivery και τα καθημερινά εργαλεία.", href: "/daily", status: "explore" },
     { number: 5, title: "Private Preview", text: "Δες το κατάστημά σου όπως θα το δει ο πελάτης, χωρίς δημόσια δημοσίευση.", href: "/vendor/preview", status: "explore" }
   ] as const;
+  const recommendedStepNumber = !brandDone ? 1 : !storefrontDone ? 2 : !productsDone ? 3 : 4;
+  const recommendedStep = steps[recommendedStepNumber - 1];
 
   return <>
     <VendorWorkspaceHeader />
@@ -66,8 +68,24 @@ export default async function VendorTrialPage() {
         </div>
       </section>
 
+      <section className={styles.nextStep} aria-labelledby="trial-next-step-title">
+        <div>
+          <span className={styles.nextStepEyebrow}>Συνέχισε από εδώ · Βήμα {recommendedStep.number} από 5</span>
+          <h2 id="trial-next-step-title">{recommendedStep.title}</h2>
+          <p>{recommendedStep.text}</p>
+        </div>
+        <Link className={styles.nextStepAction} href={recommendedStep.href}>
+          {recommendedStep.number <= 3 ? "Συνέχισε το setup" : "Εξερεύνησε το Daily"} →
+        </Link>
+      </section>
+
       <nav className={styles.steps} aria-label="Trial setup wizard">
-        {steps.map((step) => <Link key={step.number} href={step.href} className={`${styles.stepCard} ${step.status === "done" ? styles.stepDone : ""}`}>
+        {steps.map((step) => <Link
+          key={step.number}
+          href={step.href}
+          aria-current={step.number === recommendedStep.number ? "step" : undefined}
+          className={`${styles.stepCard} ${step.status === "done" ? styles.stepDone : ""} ${step.number === recommendedStep.number ? styles.stepCurrent : ""}`}
+        >
           <span className={styles.stepNumber}>{step.status === "done" ? "✓" : step.status === "explore" ? "↗" : step.number}</span>
           <strong>{step.title}</strong>
           <span>{step.text}</span>
