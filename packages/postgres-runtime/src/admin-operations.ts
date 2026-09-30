@@ -138,7 +138,6 @@ export class PostgresAdminOperationsService {
   ) {
     const query=options.q?.trim().slice(0,120) || undefined;
     const status=options.status?.trim().slice(0,60) || undefined;
-    const submissionId=options.submissionId?.trim().slice(0,120) || undefined;
     const limit=Math.max(20,Math.min(100,Math.floor(options.limit??60)));
     const offset=Math.max(0,Math.floor(options.offset??0));
 
@@ -196,12 +195,11 @@ export class PostgresAdminOperationsService {
             )
           )
         ORDER BY
-          CASE WHEN $3::text IS NOT NULL AND (s.public_id=$3 OR s.id::text=$3) THEN -1 ELSE 0 END,
           CASE s.status WHEN 'submitted' THEN 0 WHEN 'needs_review' THEN 1 WHEN 'linked' THEN 2 WHEN 'approved' THEN 3 ELSE 4 END,
           s.updated_at DESC,
           s.public_id
-        LIMIT $4 OFFSET $5
-      `,[status??null,query??null,submissionId??null,limit,offset]);
+        LIMIT $3 OFFSET $4
+      `,[status??null,query??null,limit,offset]);
 
       const submissionUuids=submissions.rows.map((row)=>text(row.submission_uuid,"submission_uuid"));
       const candidates=submissionUuids.length
