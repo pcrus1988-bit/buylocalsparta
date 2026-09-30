@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import type { VendorStorefrontSettings, VendorStorefrontWorkspace } from "../lib/vendor-storefront-settings";
 import styles from "./VendorTrial.module.css";
 
@@ -115,7 +115,7 @@ export function VendorStorefrontBuilder(props: {
         </div>
       </div>
 
-      <div className={`${styles.previewFrame} ${device === "mobile" ? styles.mobileFrame : ""}`} style={{ "--accent": settings.accentColor } as React.CSSProperties}>
+      <div className={`${styles.previewFrame} ${device === "mobile" ? styles.mobileFrame : ""}`} style={{ "--accent": settings.accentColor } as CSSProperties}>
         <div className={heroClass}>
           <div className={styles.storeEyebrow}>ΚΟΝΤΑ ΜΟΥ · {props.initial.location?.locality ?? "Τοπικό κατάστημα"}</div>
           <h3>{settings.heroTitle || props.initial.vendorName}</h3>
