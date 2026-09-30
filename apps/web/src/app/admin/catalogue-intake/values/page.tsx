@@ -92,6 +92,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Par
     <section className="shell vendor-section">
       <div className="workspace-action-bar catalogue-stage-handoff">
         <span>Step 1 is attribute meaning. Come here only after the source key is mapped to an approved Product Type attribute.</span>
+        <Link className="button button-primary" href="/admin/catalogue">Catalogue Operations</Link>
         <Link className="button button-secondary" href="/admin/catalogue-intake/attributes">Back to Attributes</Link>
       </div>
 
