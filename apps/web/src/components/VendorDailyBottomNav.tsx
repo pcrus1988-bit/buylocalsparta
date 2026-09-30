@@ -3,8 +3,11 @@
 import Link from "next/link";
 import styles from "./VendorDailyBottomNav.module.css";
 
-type Active = "quickadd" | "orders" | "scan" | "giftcards" | "notifications";
+type Active = "home" | "quickadd" | "orders" | "scan" | "giftcards" | "notifications";
 
+function HomeIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 10.25 12 4l7.5 6.25v8.5a1.5 1.5 0 0 1-1.5 1.5h-4.25v-6h-3.5v6H6a1.5 1.5 0 0 1-1.5-1.5v-8.5Z"/></svg>;
+}
 function QuickAddIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.25" y="4.25" width="15.5" height="15.5" rx="3"/><path d="M12 8v8M8 12h8"/></svg>;
 }
@@ -18,8 +21,11 @@ function GiftIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.75" y="9" width="16.5" height="11" rx="2"/><path d="M12 9v11M3.75 13h16.5M12 9H8.7A2.7 2.7 0 1 1 12 5.25V9Zm0 0h3.3A2.7 2.7 0 1 0 12 5.25V9Z"/></svg>;
 }
 
-export function VendorDailyBottomNav({ active }: { active?: Active; unread?: number }) {
+export function VendorDailyBottomNav({ active, unread = 0 }: { active?: Active; unread?: number }) {
   return <nav className={styles.nav} aria-label="KONTA MOY Daily">
+    <Link href="/daily" className={active === "home" ? styles.active : ""} aria-current={active === "home" ? "page" : undefined}>
+      <span className={styles.iconWrap}><HomeIcon/>{unread > 0 && <b>{unread > 99 ? "99+" : unread}</b>}</span><span>Home</span>
+    </Link>
     <Link href="/daily/quickadd" className={active === "quickadd" ? styles.active : ""} aria-current={active === "quickadd" ? "page" : undefined}>
       <QuickAddIcon/><span>Quick Add</span>
     </Link>
