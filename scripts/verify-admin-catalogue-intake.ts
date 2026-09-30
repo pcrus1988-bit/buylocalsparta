@@ -78,7 +78,7 @@ forbidText("page", "canonical-attribute-codes", "Global free-text canonical-attr
 forbidText("page", "AdminActionButton", "Supplier PIM page must not bypass its dedicated governed server actions");
 forbidText("page", "catalog.write", "Permission enforcement must stay inside the mapping service instead of client/page markup");
 requireText("navigation", 'href: "/admin/catalogue-intake"', "Supplier PIM intake must be registered in Admin navigation");
-requireText("navigation", '{ label: "Attribute Mapping", href: "/admin/catalogue-intake/attributes", icon: "≡", permission: "catalog.read" }', "Grouped Supplier PIM Attribute Mapping must be a visible catalog.read Admin navigation entry");
+requireText("navigation", '{ label: "Attribute Mapping", href: "/admin/catalogue-intake/attributes", icon: "≡", permission: "catalog.read", contextHidden: true }', "Grouped Supplier PIM Attribute Mapping must remain registered as a catalog.read drill-down route");
 
 requireText("importForm", "2 · Import safe rows to PIM", "Generic supplier import should collapse normalization + promotion into one explicit governed action");
 requireText("importForm", "Open snapshot & assign vendor", "Import completion must hand off to the single vendor-assignment decision");

@@ -48,7 +48,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={data.csrfToken} />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Catalogue · commercial matching</div><h1>Vendor Matching</h1><p className="lead">Queue αριστερά, evidence και απόφαση δεξιά. Ταυτότητα canonical και εμπορική έγκριση offer παραμένουν δύο ξεχωριστές αποφάσεις.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Catalogue · commercial matching</div><h1>Vendor Matching</h1><p className="lead">Queue αριστερά, evidence και απόφαση δεξιά. Ταυτότητα canonical και εμπορική έγκριση offer παραμένουν δύο ξεχωριστές αποφάσεις.</p><div className="workspace-action-bar" style={{marginTop:"1rem"}}><Link className="button button-primary" href="/admin/catalogue">← Catalogue Operations</Link></div></div></section>
     <WorkspaceMetricStrip items={[
       { label: "Submissions", value: data.metrics.submissions, hint: `${data.filteredTotal.toLocaleString("el-GR")} in current filter` },
       { label: "Needs review", value: review, tone: review ? "attention" : "default" },

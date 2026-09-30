@@ -90,6 +90,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Params>}
       <WorkspaceSectionHeading eyebrow="Decision queue" title="Unresolved catalogue intelligence" note="Exact deterministic reuse is handled automatically by the schema-190 engine. This queue contains only decisions that crossed the governance boundary and therefore require explicit review." />
       <div className="workspace-action-bar">
         <span>Use the existing canonical structure whenever possible. If the right canonical structure does not exist yet, leave the proposal open and create/review that structure separately.</span>
+        <Link className="button button-primary" href="/admin/catalogue">Catalogue Operations</Link>
         <Link className="button button-secondary" href="/admin/catalogue-intake/attributes">Attribute Review Centre</Link>
         <Link className="button button-secondary" href="/admin/catalogue-intake">Supplier PIM Intake</Link>
       </div>

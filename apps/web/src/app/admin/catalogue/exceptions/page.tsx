@@ -186,7 +186,7 @@ export default async function Page({
                 reasonPrompt="Why should this strong-identity exception be ignored?"
                 danger
               />
-              <Link className="button button-secondary" href="/admin/catalogue">Back to Catalogue</Link>
+              <Link className="button button-primary" href="/admin/catalogue">Back to Catalogue Operations</Link>
             </div>
           </div>
         </article>}
