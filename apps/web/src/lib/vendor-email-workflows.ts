@@ -136,12 +136,9 @@ export async function sendHubProspectApplicationReceiptEmail(input: {
   billingCycle: string;
   recurringFeeCents: number;
   trialExpiresAt?: number;
-  trialAccessToken?: string;
 }) {
-  const hasTrial = Boolean(input.trialExpiresAt && input.trialAccessToken);
-  const trialUrl = hasTrial
-    ? `${publicBaseUrl()}/vendor/trial/access?token=${encodeURIComponent(input.trialAccessToken!)}`
-    : undefined;
+  const hasTrial = Boolean(input.trialExpiresAt);
+  const trialUrl = hasTrial ? `${publicBaseUrl()}/vendor/login?next=%2Fvendor%2Ftrial` : undefined;
   const billing = input.planCode === "claim"
     ? "Δωρεάν"
     : `${input.billingCycle === "annual" ? "Ετήσια" : "Μηνιαία"} · ${new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(input.recurringFeeCents / 100)}`;
@@ -167,7 +164,7 @@ export async function sendHubProspectApplicationReceiptEmail(input: {
       "",
       trialUrl ? `Άνοιξε το 3ήμερο Trial: ${trialUrl}` : undefined,
       "",
-      "Αν ανοίξεις τον σύνδεσμο από άλλη συσκευή, θα δημιουργηθεί ασφαλής ιδιωτική συνεδρία μόνο για αυτό το Trial.",
+      "Αν δεν υπάρχει ήδη ενεργή συνεδρία στη συσκευή, ο σύνδεσμος θα ζητήσει ασφαλή σύνδεση και μετά θα σε μεταφέρει στο Trial.",
       "",
       "ΚΟΝΤΑ ΜΟΥ"
     ].filter((line): line is string => typeof line === "string").join("\n"),
