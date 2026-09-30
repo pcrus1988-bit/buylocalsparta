@@ -68,7 +68,7 @@ type PromotionResult = Readonly<{
   compatibilityClaims: number;
 }>;
 
-export function AdminAiProductImportFormexport function AdminAiProductImportForm({ csrfToken }: { csrfToken: string }) {
+export function AdminAiProductImportForm({ csrfToken }: { csrfToken: string }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [sourceCode, setSourceCode] = useState("");
   const [sourceName, setSourceName] = useState("");
@@ -128,14 +128,14 @@ export function AdminAiProductImportFormexport function AdminAiProductImportForm
     }
   }
 
-  return <div className="workspace-form-stack">  return <div className="workspace-form-stack">
+  return <div className="workspace-form-stack">
     <form className="workspace-form-stack" onSubmit={analyze}>
       <label className="workspace-field">
         <span>Supplier product file</span>
         <input ref={fileRef} type="file" name="file" accept=".csv,.tsv,.txt,.gz,text/csv,text/tab-separated-values,application/gzip,application/x-gzip" required disabled={Boolean(busy)} />
         <small>CSV, semicolon CSV, TSV and gzip are supported. Product Intelligence detects the schema before any database write.</small>
       </label>
-      <div className="workspace-inline-note"><strong>Controlled lifecycle.</strong> Analyze → persist normalized evidence → promote safe rows to PIM → governed canonicalization. No offer, live stock or public listing is created here.</div>
+      <div className="workspace-inline-note"><strong>Controlled lifecycle.</strong> Analyze → one governed PIM import → automatic intelligence → one vendor assignment → automatic canonicalization. No offer, live stock or public listing is created here.</div>
       <div className="workspace-action-bar">
         <span>Admin permission <code>catalog.write</code> and CSRF protection are required.</span>
         <button className="button button-primary" type="submit" disabled={Boolean(busy)}>{busy === "analyze" ? "Analyzing…" : "1 · Analyze file"}</button>
@@ -199,7 +199,7 @@ export function AdminAiProductImportFormexport function AdminAiProductImportForm
       <div className="workspace-inline-note"><strong>Commerce remains off.</strong> Automated intake can normalize, classify and canonicalize evidence, but it does not confirm stock, create a sellable vendor offer or publish a product.</div>
     </section>}
 
-    {error && <div className="workspace-inline-note" role="alert">    {error && <div className="workspace-inline-note" role="alert"><strong>AI Product Import:</strong> {error}</div>}
+    {error && <div className="workspace-inline-note" role="alert"><strong>AI Product Import:</strong> {error}</div>}
   </div>;
 }
 
