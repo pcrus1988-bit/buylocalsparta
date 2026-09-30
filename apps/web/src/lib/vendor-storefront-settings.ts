@@ -218,7 +218,6 @@ export async function storefrontPreviewProducts(vendorId: string, requestedLimit
           FROM vendor_offers vo
           JOIN vendor ON vendor.id=vo.vendor_id
           WHERE vo.status::text <> 'archived'
-          ORDER BY vo.updated_at DESC,vo.id DESC
           LIMIT $2
         ),
         offer_items AS (
