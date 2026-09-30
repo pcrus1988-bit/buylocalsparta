@@ -35,7 +35,7 @@ export type GemiAdminMetadata = Readonly<{
 
 export type GemiAdminFilters = Readonly<{
   activityId: string;
-  prefectureId: string;
+  prefectureId?: string;
   municipalityId?: string;
   activeOnly: boolean;
 }>;
@@ -242,9 +242,11 @@ export function normalizeGemiAdminFilters(input: {
   activeOnly?: unknown;
 }): GemiAdminFilters {
   const activityId = oneId(input.activityId, "ΚΑΔ");
-  const prefectureId = oneId(input.prefectureId, "Νομός");
+  const prefectureRaw = String(input.prefectureId ?? "").trim();
+  const prefectureId = prefectureRaw ? oneId(prefectureRaw, "Νομός") : undefined;
   const municipalityRaw = String(input.municipalityId ?? "").trim();
   const municipalityId = municipalityRaw ? oneId(municipalityRaw, "Δήμος") : undefined;
+  if (municipalityId && !prefectureId) throw new Error("Νομός is required when Δήμος is selected.");
   const activeOnly = input.activeOnly !== false && input.activeOnly !== "false" && input.activeOnly !== "0";
   return { activityId, prefectureId, municipalityId, activeOnly };
 }
@@ -252,7 +254,7 @@ export function normalizeGemiAdminFilters(input: {
 function searchParams(filters: GemiAdminFilters, offset: number, size: number): Record<string, string | number | boolean> {
   return {
     activities: filters.activityId,
-    prefectures: filters.prefectureId,
+    ...(filters.prefectureId ? { prefectures: filters.prefectureId } : {}),
     ...(filters.municipalityId ? { municipalities: filters.municipalityId } : {}),
     ...(filters.activeOnly ? { isActive: true } : {}),
     resultsSortBy: "+arGemi",
@@ -386,7 +388,7 @@ function companyCsvRow(company: GemiCompany, filters: GemiAdminFilters): string 
     activityTypes(company),
     activityValues(company, "kadVersion"),
     filters.activityId,
-    filters.prefectureId,
+    filters.prefectureId ?? "",
     filters.municipalityId ?? ""
   ];
   return values.map(csvCell).join(",") + "\r\n";
@@ -447,7 +449,11 @@ export function gemiAdminCsvFilename(filters: GemiAdminFilters): string {
   const parts = [
     "kontamou-gemi",
     filters.activityId,
-    filters.municipalityId ? `municipality-${filters.municipalityId}` : `prefecture-${filters.prefectureId}`,
+    filters.municipalityId
+      ? `municipality-${filters.municipalityId}`
+      : filters.prefectureId
+        ? `prefecture-${filters.prefectureId}`
+        : "all-prefectures",
     filters.activeOnly ? "active" : "all"
   ];
   return parts.join("_").replace(/[^A-Za-z0-9._-]+/g, "-").slice(0, 180) + ".csv";
