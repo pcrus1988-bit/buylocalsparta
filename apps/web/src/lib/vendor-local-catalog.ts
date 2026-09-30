@@ -146,10 +146,10 @@ async function hydrateVendorLocalCatalogRows(
   if (rows.length === 0) return [];
 
   const ids = rows.map((row) => row.id);
-  const [metadata, departmentCodes] = await Promise.all([
-    loadCatalogMetadata(ids),
-    loadCatalogDepartmentCodes(ids)
-  ]);
+  // Vercel web instances intentionally use one PostgreSQL client. Keep
+  // DB-backed hydration sequential so this request never queues behind itself.
+  const metadata = await loadCatalogMetadata(ids);
+  const departmentCodes = await loadCatalogDepartmentCodes(ids);
 
   let imagesByCanonical = new Map<string, Awaited<ReturnType<typeof approvedCatalogImages>>[number]>();
   try {
@@ -240,10 +240,10 @@ export async function getVendorLocalCatalogFacetCards(vendorId: string): Promise
   if (rows.length === 0) return [];
 
   const ids = rows.map((row) => row.id);
-  const [metadata, departmentCodes] = await Promise.all([
-    loadCatalogMetadata(ids),
-    loadCatalogDepartmentCodes(ids)
-  ]);
+  // Vercel web instances intentionally use one PostgreSQL client. Keep
+  // DB-backed hydration sequential so this request never queues behind itself.
+  const metadata = await loadCatalogMetadata(ids);
+  const departmentCodes = await loadCatalogDepartmentCodes(ids);
 
   // Facet-only requests never render product cards, so do not resolve media for
   // the entire local/VITEX assortment. On mixed local + large dropship vendors
