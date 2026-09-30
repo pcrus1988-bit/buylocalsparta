@@ -193,12 +193,12 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
       { label: "SEO Issues", href: "/admin/seo/issues", icon: "!", permission: "content.read" },
       { label: "SEO Pages", href: "/admin/seo/pages", icon: "▤", permission: "content.read" },
       { label: "Search Console", href: "/admin/seo/search-console", icon: "G", permission: "content.read" },
-      { label: "Production Visibility", href: "/admin/seo/production", icon: "◉", permission: "content.read" },
+      { label: "Production", href: "/admin/seo/production", icon: "◉", permission: "content.read" },
       { label: "Crawl", href: "/admin/seo/crawl", icon: "↗", permission: "content.read", contextHidden: true },
       { label: "Sitemaps", href: "/admin/seo/sitemaps", icon: "≡", permission: "content.read", contextHidden: true },
       { label: "Google Coverage", href: "/admin/seo/search-console/index-coverage", icon: "◎", permission: "content.read", contextHidden: true },
-      { label: "Schema", href: "/admin/seo/schema", icon: "◇", permission: "content.read", contextHidden: true },
-      { label: "SEO Reports", href: "/admin/seo/reports", icon: "▤", permission: "content.read", contextHidden: true }
+      { label: "Schema", href: "/admin/seo/schema", icon: "◇", permission: "content.read" },
+      { label: "Reports", href: "/admin/seo/reports", icon: "▤", permission: "content.read" }
     ]
   },
   {
