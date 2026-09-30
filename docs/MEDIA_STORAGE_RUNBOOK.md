@@ -6,7 +6,7 @@ This document describes the governed media security model. For the exact product
 
 Vendor and Admin media is uploaded directly from the browser to a **private S3-compatible bucket** with a short-lived presigned `PUT`. KONTA MOY never makes the staging object public. The browser then calls the completion API; the server HEAD-checks object size and content type against the signed upload intent before creating the governed media record in `pending` scan state.
 
-A separate long-lived media-worker process owns malware scanning. The production container defined by `deploy/media-worker.Dockerfile` includes its own loopback-only `clamd` process, so production does **not** need a second ClamAV network service. The worker streams the exact private object through the ClamAV `INSTREAM` protocol while computing the authoritative SHA-256.
+A scheduled GitHub Actions media scanner owns malware scanning. Each bounded run starts the production container defined by `deploy/media-worker.Dockerfile`; that container includes its own loopback-only `clamd` process, so production does **not** need Railway or a second ClamAV network service. The worker streams the exact private object through the ClamAV `INSTREAM` protocol while computing the authoritative SHA-256, drains a bounded queue slice, and exits.
 
 Only a clean automated scan may move `scan_status` to `clean`. Rights and moderation remain separate Admin decisions. Public governed media requires all three states: `scan_status=clean`, `rights_status=approved`, and `moderation_status=approved`.
 
@@ -50,29 +50,37 @@ Browser uploads require bucket CORS for the exact KONTA MOY application origin, 
 
 `BLS_MEDIA_UPLOAD_ORIGIN` is also added to the web CSP `connect-src`. The upload service rejects a signed URL whose origin does not exactly match this configured value.
 
-## Media-worker and ClamAV controls
+## GitHub Actions media scanner and ClamAV controls
 
-Deploy `deploy/media-worker.Dockerfile` as one always-on worker instance initially. The image:
+Production scanning runs from `.github/workflows/media-worker-production.yml` every five minutes, with manual dispatch available for activation tests. The workflow pulls the image published by `.github/workflows/media-worker-image.yml` and runs it in bounded drain mode.
+
+The container image:
 
 1. refreshes ClamAV signatures when possible;
 2. starts `clamd` on `127.0.0.1:3310`;
 3. waits for a successful ClamAV `PING`;
 4. drops the marketplace worker process to the unprivileged `node` user;
-5. starts `workers/media-worker.ts`.
+5. starts `workers/media-worker.ts`;
+6. drains at most the configured queue slice and exits.
 
-The worker container needs:
+GitHub Actions repository secrets:
 
-- `DATABASE_URL`
+- `MEDIA_DATABASE_URL`
+- `MEDIA_OBJECT_STORAGE_ACCESS_KEY_ID`
+- `MEDIA_OBJECT_STORAGE_SECRET_ACCESS_KEY`
+
+Runtime controls supplied by the workflow:
+
 - `BLS_WORKER_ROLE=media`
 - `BLS_MEDIA_PIPELINE_ENABLED=true`
-- the same Supabase S3 bucket/endpoint/credentials as the web runtime
+- `BLS_MEDIA_WORKER_MODE=drain`
+- `BLS_MEDIA_WORKER_MAX_ITEMS=50`
+- `BLS_MEDIA_WORKER_MAX_RUNTIME_MS=210000`
+- the production Supabase S3 bucket/endpoint configuration
 - `BLS_CLAMAV_HOST=127.0.0.1`
 - `BLS_CLAMAV_PORT=3310`
-- `BLS_CLAMAV_TIMEOUT_MS`
-- `BLS_MEDIA_WORKER_POLL_MS`
-- `BLS_MEDIA_WORKER_ID`
 
-Port 3310 must remain internal to the container. The ClamAV TCP protocol has no authentication or encryption and must never be published.
+Port 3310 remains internal to the container. The ClamAV TCP protocol has no authentication or encryption and must never be published.
 
 ## Worker lifecycle
 
@@ -97,8 +105,8 @@ Production Admin cannot manually record `scan_clean` or `scan_infected`. Automat
 
 Before broad activation, prove in this order:
 
-1. the private bucket and server-side S3 credentials are reachable from the worker;
-2. the integrated media-worker container reaches PostgreSQL and logs `media_worker.started`;
+1. the private bucket and server-side S3 credentials are reachable from the GitHub Actions scanner;
+2. a manual `Production Media Scanner` run reaches PostgreSQL and logs both `media_worker.started` and `media_worker.stopped` without readiness errors;
 3. Vercel receives the production storage variables and `BLS_MEDIA_PIPELINE_ENABLED=true`;
 4. `/api/health/ready` reports the media dependency ready;
 5. a controlled JPEG receives a presigned PUT and completes successfully;

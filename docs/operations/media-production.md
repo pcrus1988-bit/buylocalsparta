@@ -54,58 +54,56 @@ BLS_MEDIA_UPLOAD_TTL_SECONDS=600
 
 Do not enable the web flag until the worker below has successfully started against the same database and storage bucket.
 
-## Media worker
+## GitHub Actions media scanner
 
-The production image is built from `deploy/media-worker.Dockerfile`. It contains a loopback-only ClamAV daemon and the KONTA MOU queue worker. The ClamAV TCP port is never meant to be exposed publicly.
+Production malware scanning now runs in GitHub Actions instead of Railway or another always-on container platform.
 
-After merge to `main`, GitHub Actions publishes:
+The image remains built from `deploy/media-worker.Dockerfile` and published by `.github/workflows/media-worker-image.yml` as:
 
-```text
-ghcr.io/pcrus1988-bit/buylocalsparta-media-worker:latest
-```
+`ghcr.io/pcrus1988-bit/buylocalsparta-media-worker:latest`
 
-Deploy exactly one instance initially on an always-on container platform. Use at least 2 GiB RAM; 4 GiB is preferred because ClamAV signature loading can be memory intensive.
+The production scanner workflow is `.github/workflows/media-worker-production.yml`. It runs every five minutes and can also be started manually. Each invocation starts the image, starts loopback-only ClamAV, drains a bounded amount of scan work, and exits cleanly. Database leases make repeated and overlapping queue attempts safe; workflow-level concurrency prevents two production scanner jobs from running at the same time.
 
-Worker environment:
+The scanner uses these bounded controls:
 
 ```text
-NODE_ENV=production
-BLS_WORKER_ROLE=media
-DATABASE_URL=<production PostgreSQL runtime URL>
-BLS_DB_APPLICATION_NAME=buy-local-sparta-media-worker
-BLS_MEDIA_PIPELINE_ENABLED=true
-BLS_OBJECT_STORAGE_BUCKET=buy-local-sparta-private
-BLS_OBJECT_STORAGE_REGION=us-east-1
-BLS_OBJECT_STORAGE_ENDPOINT=https://eemihhfreggbigxejjhj.storage.supabase.co/storage/v1/s3
-BLS_OBJECT_STORAGE_FORCE_PATH_STYLE=true
-BLS_OBJECT_STORAGE_ACCESS_KEY_ID=<same server-side S3 key>
-BLS_OBJECT_STORAGE_SECRET_ACCESS_KEY=<same server-side S3 secret>
-BLS_MEDIA_UPLOAD_MAX_BYTES=26214400
-BLS_CLAMAV_HOST=127.0.0.1
-BLS_CLAMAV_PORT=3310
-BLS_CLAMAV_TIMEOUT_MS=30000
-BLS_MEDIA_WORKER_POLL_MS=5000
-BLS_MEDIA_WORKER_ID=media-prod-1
+BLS_MEDIA_WORKER_MODE=drain
+BLS_MEDIA_WORKER_MAX_ITEMS=50
+BLS_MEDIA_WORKER_MAX_RUNTIME_MS=210000
+BLS_MEDIA_WORKER_POLL_MS=1000
 ```
 
-The container fails startup if database schema readiness, object-storage readiness, or the ClamAV PING check fails. This is deliberate.
-
-Expected startup log:
+Create these GitHub Actions repository secrets before activation:
 
 ```text
-{"level":"info","event":"media_worker.started",...}
+MEDIA_DATABASE_URL=<production PostgreSQL runtime URL>
+MEDIA_OBJECT_STORAGE_ACCESS_KEY_ID=<Supabase S3 server access key>
+MEDIA_OBJECT_STORAGE_SECRET_ACCESS_KEY=<Supabase S3 server secret>
 ```
+
+Until all three secrets exist, the scheduled workflow exits successfully without scanning and prints an activation notice. This avoids a noisy five-minute failure loop during secret setup.
+
+The workflow supplies the non-secret production storage topology itself:
+
+- bucket `buy-local-sparta-private`
+- region `us-east-1`
+- endpoint `https://eemihhfreggbigxejjhj.storage.supabase.co/storage/v1/s3`
+- path-style S3 enabled
+- 25 MiB media ceiling
+- loopback ClamAV on `127.0.0.1:3310`
+
+Expected logs include `media_worker.started` followed by `media_worker.stopped`. A run with no pending media is healthy and exits with `processed: 0`.
 
 ## Activation order
 
 1. Keep `BLS_MEDIA_PIPELINE_ENABLED=false` in Vercel while provisioning.
 2. Generate the Supabase S3 server credentials.
-3. Deploy the media-worker container with ClamAV and confirm `media_worker.started`.
-4. Confirm the worker can reach the production database and `buy-local-sparta-private` bucket.
-5. Add the Vercel production storage variables.
+3. Add `MEDIA_DATABASE_URL`, `MEDIA_OBJECT_STORAGE_ACCESS_KEY_ID`, and `MEDIA_OBJECT_STORAGE_SECRET_ACCESS_KEY` as GitHub Actions repository secrets.
+4. Manually run `Production Media Scanner` once and confirm `media_worker.started` and `media_worker.stopped` with no readiness error.
+5. Add the Vercel production storage variables using the same Supabase S3 credentials.
 6. Set `BLS_MEDIA_PIPELINE_ENABLED=true` in Vercel and redeploy.
 7. Verify `/api/health/ready` reports the media dependency ready.
-8. Upload a controlled JPEG through Admin Quick Add and confirm the asset progresses from `pending` to `clean` before using customer/vendor uploads broadly.
+8. Upload a controlled JPEG through Admin Quick Add and confirm a scheduled or manual scanner run advances the asset from `pending` to `clean` before using customer/vendor uploads broadly.
 
 ## Security invariants
 

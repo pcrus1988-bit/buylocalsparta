@@ -9,6 +9,7 @@ const docs = await readFile(new URL("../docs/DEPLOYMENT_TOPOLOGY.md", import.met
 const crawlerDocs = await readFile(new URL("../docs/CATALOG_CRAWLER_WORKER.md", import.meta.url), "utf8");
 const nextConfig = await readFile(new URL("../apps/web/next.config.ts", import.meta.url), "utf8");
 const productionCi = await readFile(new URL("../.github/workflows/production-ci.yml", import.meta.url), "utf8");
+const mediaProduction = await readFile(new URL("../.github/workflows/media-worker-production.yml", import.meta.url), "utf8");
 const stagingActivation = await readFile(new URL("../.github/workflows/staging-activation.yml", import.meta.url), "utf8");
 const stagingEvidence = await readFile(new URL("../.github/workflows/staging-scenario-evidence.yml", import.meta.url), "utf8");
 const productionSchemaGate = await readFile(new URL("./verify-production-schema-head.ts", import.meta.url), "utf8");
@@ -99,6 +100,13 @@ const envMatrix = await readFile(new URL("../docs/DEPLOYMENT_ENVIRONMENT_MATRIX.
 assert(!mediaWeb.includes("ClamAvScanner") && !mediaWeb.includes("clamAvConfigFromEnv"), "Vercel web media readiness must not depend on private ClamAV connectivity");
 assert(!mediaWeb.includes("BLS_CLAMAV_HOST"), "Vercel media upload admission must not require the worker-only ClamAV host");
 assert(envMatrix.includes("Do not put `BLS_CLAMAV_HOST` on Vercel"), "environment matrix must keep ClamAV credentials worker-only");
+assert(mediaProduction.includes("cron: '*/5 * * * *'"), "production media scanner must run every five minutes");
+assert(mediaProduction.includes("production-media-scanner"), "production media scanner must serialize runs with workflow concurrency");
+assert(mediaProduction.includes("BLS_MEDIA_WORKER_MODE=drain"), "GitHub Actions media scanner must use bounded drain mode");
+assert(mediaProduction.includes("BLS_MEDIA_WORKER_MAX_RUNTIME_MS=210000"), "GitHub Actions media scanner must remain bounded below the workflow timeout");
+assert(mediaProduction.includes("MEDIA_DATABASE_URL") && mediaProduction.includes("MEDIA_OBJECT_STORAGE_SECRET_ACCESS_KEY"), "production media scanner must consume GitHub Actions secrets instead of Railway configuration");
+assert(envMatrix.includes(".github/workflows/media-worker-production.yml"), "environment matrix must document GitHub Actions media scanning");
+assert(envMatrix.includes("No Railway service"), "environment matrix must explicitly retire Railway from the production media scanner topology");
 assert(envMatrix.includes("MEILISEARCH_ADMIN_KEY") && envMatrix.includes("search worker"), "environment matrix must isolate Meilisearch index-management credentials");
 assert(envMatrix.includes("BLS_REPORT_ASYNC_ENABLED") && envMatrix.includes("reports` worker"), "environment matrix must document report worker split");
 for (const path of [
