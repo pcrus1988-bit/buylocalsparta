@@ -2,7 +2,7 @@ name: Vendor Trial Acceptance
 
 on:
   pull_request:
-    paths: &trial_paths
+    paths:
       - "apps/web/src/app/api/vendor-application/route.ts"
       - "apps/web/src/app/api/hub-prospect-application/route.ts"
       - "apps/web/src/app/api/vendor/login/route.ts"
@@ -31,7 +31,33 @@ on:
       - ".github/workflows/vendor-trial-acceptance.yml"
   push:
     branches: [main]
-    paths: *trial_paths
+    paths:
+      - "apps/web/src/app/api/vendor-application/route.ts"
+      - "apps/web/src/app/api/hub-prospect-application/route.ts"
+      - "apps/web/src/app/api/vendor/login/route.ts"
+      - "apps/web/src/app/hubs/join/apply/**"
+      - "apps/web/src/app/vendor/trial/**"
+      - "apps/web/src/app/vendor/trial-expired/**"
+      - "apps/web/src/app/vendor/preview/**"
+      - "apps/web/src/components/VendorApplicationForm.tsx"
+      - "apps/web/src/components/HubExpansionApplicationForm.tsx"
+      - "apps/web/src/components/VendorLoginForm.tsx"
+      - "apps/web/src/components/VendorStorefrontBuilder.tsx"
+      - "apps/web/src/components/VendorWorkspaceHeader.tsx"
+      - "apps/web/src/lib/vendor-application-runtime.ts"
+      - "apps/web/src/lib/hub-prospect-application-runtime.ts"
+      - "apps/web/src/lib/vendor-email-workflows.ts"
+      - "apps/web/src/lib/vendor-session.ts"
+      - "apps/web/src/lib/daily-session.ts"
+      - "apps/web/src/lib/vendor-trial-runtime.ts"
+      - "apps/web/src/lib/vendor-storefront-settings.ts"
+      - "packages/postgres-runtime/src/index.ts"
+      - "db/migrations/0296_vendor_application_trial.sql"
+      - "db/migrations/checksums.0296.json"
+      - "db/migrations/0297_hub_prospect_vendor_trial.sql"
+      - "db/migrations/checksums.0297.json"
+      - "scripts/verify-vendor-trial.ts"
+      - ".github/workflows/vendor-trial-acceptance.yml"
   workflow_dispatch:
 
 permissions:
