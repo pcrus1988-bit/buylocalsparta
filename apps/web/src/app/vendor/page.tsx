@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { VendorLifecycle } from "../../components/VendorLifecycle";
 import { VendorWorkspaceHeader } from "../../components/VendorWorkspaceHeader";
+import { VendorDashboardTools } from "../../components/VendorDashboardTools";
 import { WorkspaceHowItWorks, WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../components/WorkspacePagePrimitives";
 import { WorkspaceQuickLinks } from "../../components/WorkspaceQuickLinks";
 import { vendorHomeOverview } from "../../lib/vendor-home-overview";
@@ -24,14 +25,10 @@ export default async function VendorBackofficePage() {
   const attention = [
     orderNotifications.requiringAction > 0 ? {
       title: `${orderNotifications.requiringAction} παραγγελίες χρειάζονται ενέργεια`,
-      note: "Άνοιξε τις παραγγελίες και συνέχισε από το επισημασμένο επόμενο βήμα.",
+      note: orderNotifications.breached > 0
+        ? `${orderNotifications.breached} είναι ήδη εκπρόθεσμες. Άνοιξε τις παραγγελίες και συνέχισε από το επισημασμένο επόμενο βήμα.`
+        : "Άνοιξε τις παραγγελίες και συνέχισε από το επισημασμένο επόμενο βήμα.",
       href: "/vendor/orders",
-      urgent: true
-    } : null,
-    orderNotifications.breached > 0 ? {
-      title: `${orderNotifications.breached} προθεσμίες έχουν λήξει`,
-      note: "Δες πρώτα τις εκπρόθεσμες παραγγελίες και ενημέρωσε την πραγματική τους κατάσταση.",
-      href: "/vendor/notifications",
       urgent: true
     } : null,
     overview.metrics.lowStockProducts > 0 ? {
@@ -50,7 +47,7 @@ export default async function VendorBackofficePage() {
       <div>
         <div className="eyebrow">Αρχική · σήμερα</div>
         <h1>{overview.vendor.name}</h1>
-        <p className="lead">Ό,τι χρειάζεται το κατάστημά σου τώρα — με τις επείγουσες εργασίες πρώτες και τις υπόλοιπες λειτουργίες οργανωμένες ανά σκοπό.</p>
+        <p className="lead">Το κέντρο ελέγχου του καταστήματός σου: επείγουσες εργασίες πρώτες, άμεση αναζήτηση λειτουργιών και καθαρή μετάβαση από εικόνα σε ενέργεια.</p>
       </div>
       <aside className="dashboard-health-card">
         <span>Τοπικός σύμβουλος</span>
@@ -82,6 +79,14 @@ export default async function VendorBackofficePage() {
       { label: "Πωλήσεις · 30 ημέρες", value: euro(performance.revenueMinor) }
     ]} />
 
+    <VendorDashboardTools metrics={{
+      orders: orderNotifications.requiringAction,
+      overdue: orderNotifications.breached,
+      lowStock: overview.metrics.lowStockProducts,
+      activeProducts: overview.metrics.activeProducts,
+      purchases30d: performance.purchases
+    }} />
+
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Σήμερα" title="Τι χρειάζεται την προσοχή σου" note="Οι πραγματικές εκκρεμότητες εμφανίζονται πρώτες. Αν δεν υπάρχει κάρτα, δεν χρειάζεται να ψάχνεις για κρυφή εργασία." />
       {attention.length ? <div className="vendor-command-list">
@@ -102,7 +107,8 @@ export default async function VendorBackofficePage() {
         { kicker: "Εξυπηρέτηση", label: "Πελάτες", description: "Μηνύματα, ραντεβού, Ask Local και ιδιωτικές προσφορές.", href: "/vendor/advice" },
         { kicker: "Προφίλ", label: "Κατάστημα", description: "Η δημόσια εικόνα και οι φωτογραφίες του καταστήματός σου.", href: "/vendor/storefront" },
         { kicker: "Πληρωμές", label: "Οικονομικά", description: "Παραστατικά, πληρωμές και εμπορική συμφωνία.", href: "/vendor/finance" },
-        { kicker: "Απόδοση", label: "Στατιστικά", description: "Πωλήσεις, μετατροπή, απόδοση προϊόντων και αναφορές.", href: "/vendor/analytics" }
+        { kicker: "Απόδοση", label: "Στατιστικά", description: "Πωλήσεις, μετατροπή, απόδοση προϊόντων και αναφορές.", href: "/vendor/analytics" },
+        { kicker: "Έλεγχος", label: "Προθεσμίες & ειδοποιήσεις", description: "Ενεργές προθεσμίες και ιστορικό operational ειδοποιήσεων.", href: "/vendor/notifications", value: orderNotifications.requiringAction }
       ]}
     />
 
