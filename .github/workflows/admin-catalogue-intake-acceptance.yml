@@ -34,6 +34,7 @@ on:
       - "scripts/verify-admin-catalogue-controlled-values.ts"
       - "scripts/verify-admin-catalogue-intelligence-review.ts"
       - "scripts/verify-admin-catalogue-operations.ts"
+      - "scripts/catalogue-operations-smoke.ts"
       - "scripts/catalog-source-attribute-mapping-smoke.ts"
       - "scripts/catalog-source-attribute-value-mapping-smoke.ts"
       - ".github/workflows/admin-catalogue-intake-acceptance.yml"
@@ -110,6 +111,8 @@ jobs:
           npm run db:migrate
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "GRANT bls_platform_runtime TO buy_local_sparta"
           npm run db:ready
+      - name: Exercise unified catalogue operations queries
+        run: node --experimental-strip-types scripts/catalogue-operations-smoke.ts
       - name: Typecheck source mapping services and database smokes
         run: |
           npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --allowImportingTsExtensions --skipLibCheck \
@@ -120,6 +123,7 @@ jobs:
             apps/web/src/lib/admin-catalogue-controlled-value-queue.ts \
             apps/web/src/lib/admin-catalogue-intelligence-review.ts \
             apps/web/src/lib/admin-catalogue-operations.ts \
+            scripts/catalogue-operations-smoke.ts \
             scripts/catalog-source-attribute-mapping-smoke.ts \
             scripts/catalog-source-attribute-value-mapping-smoke.ts \
             workers/catalogue-intake-automation-worker.ts
