@@ -1,7 +1,9 @@
 import type { VendorOnboardingState } from "@buy-local-sparta/core";
 import { sendTransactionalEmailBestEffort } from "./transactional-email";
 
-const APPLICATION_OPERATIONS_EMAIL = "info@kontamou.site";
+function operationsEmail(env: NodeJS.ProcessEnv = process.env): string {
+  return env.BLS_OPERATIONS_EMAIL?.trim() || "info@kontamou.site";
+}
 
 function publicBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   const explicit = env.BLS_PUBLIC_BASE_URL?.trim() || env.NEXT_PUBLIC_SITE_URL?.trim();
@@ -14,28 +16,116 @@ export async function sendVendorApplicationReceiptEmail(input: {
   to: string;
   tradingName: string;
   applicationId: string;
+  requestedPlanCode?: string;
+  trialAccessUrl?: string;
+  trialExpiresAt?: number;
 }) {
-  const subject = "Λάβαμε την αίτηση συνεργασίας σας · ΚΟΝΤΑ ΜΟΥ Sparta";
+  const subject = "Λάβαμε την αίτηση συνεργασίας σας · ΚΟΝΤΑ ΜΟΥ";
   const text = [
-    `Καλησπέρα από το ΚΟΝΤΑ ΜΟΥ Sparta,`,
+    "Καλησπέρα από το ΚΟΝΤΑ ΜΟΥ,",
     "",
     `Λάβαμε την αίτηση συνεργασίας για το κατάστημα «${input.tradingName}».`,
-    `Κωδικός αίτησης: ${input.applicationId}`,
+    `Αριθμός αίτησης: ${input.applicationId}`,
+    input.requestedPlanCode ? `Επιλεγμένο πρόγραμμα: ${input.requestedPlanCode}` : undefined,
     "",
-    "Η αίτηση βρίσκεται τώρα στο στάδιο επαλήθευσης. Δεν δημιουργείται αυτόματα δημόσια παρουσία ή πρόσβαση vendor πριν ολοκληρωθούν οι απαιτούμενοι έλεγχοι.",
-    "Θα σας ενημερώνουμε με email όταν αλλάζει ουσιαστικά το στάδιο της αίτησης ή όταν χρειαζόμαστε επιπλέον στοιχεία.",
+    input.trialAccessUrl ? "Το ιδιωτικό 3ήμερο Vendor Trial είναι ήδη έτοιμο." : "Η αίτηση βρίσκεται τώρα στο στάδιο επαλήθευσης.",
+    input.trialAccessUrl ? `Email πρόσβασης: ${input.to}` : undefined,
+    input.trialAccessUrl ? "Δεν χρειάζεται προσωρινός κωδικός: ο παρακάτω προσωπικός ασφαλής σύνδεσμος λειτουργεί ως διαπιστευτήριο για το Trial." : undefined,
+    input.trialAccessUrl ? `Άνοιγμα 3ήμερου Trial: ${input.trialAccessUrl}` : undefined,
+    input.trialExpiresAt ? `Λήξη write-enabled Trial: ${formatAthensDate(input.trialExpiresAt)}` : undefined,
+    "",
+    "Επόμενα βήματα:",
+    "1. Εξερεύνησε το πραγματικό Vendor Dashboard και το onboarding wizard.",
+    "2. Ρύθμισε storefront, στοιχεία καταστήματος και προϊόντα στο ιδιωτικό Trial.",
+    "3. Η ομάδα ΚΟΝΤΑ ΜΟΥ ελέγχει εκπροσώπηση/επικοινωνία και τα στοιχεία της επιχείρησης.",
+    "4. Δημόσια εμφάνιση, πραγματικές παραγγελίες και πληρωμές παραμένουν κλειδωμένες μέχρι την τελική ενεργοποίηση.",
     "",
     `Πληροφορίες συνεργασίας: ${publicBaseUrl()}/join`,
     "",
-    "ΚΟΝΤΑ ΜΟΥ Sparta"
-  ].join("\n");
+    "ΚΟΝΤΑ ΜΟΥ"
+  ].filter((line): line is string => typeof line === "string").join("\n");
   return sendTransactionalEmailBestEffort({
     to: input.to,
     subject,
     text,
     eventType: "vendor.application_received",
-    idempotencyKey: `vendor-application-received:${input.applicationId}`,
-    payload: { applicationId: input.applicationId, tradingName: input.tradingName }
+    idempotencyKey: `vendor-application-received:v2:${input.applicationId}`,
+    payload: { applicationId: input.applicationId, tradingName: input.tradingName, trial: Boolean(input.trialAccessUrl) }
+  });
+}
+
+export async function sendHubProspectApplicationReceiptEmail(input: {
+  to: string;
+  businessName: string;
+  reference: string;
+  hubName: string;
+  hubSlug: string;
+  planCode: string;
+  billingCycle: string;
+  setupFeeCents: number;
+  recurringFeeCents: number;
+  commissionBps: number;
+  trialAccessUrl: string;
+  trialExpiresAt: number;
+  idempotencySuffix?: string;
+}) {
+  const billingLabel = input.planCode === "claim"
+    ? "Δωρεάν"
+    : input.billingCycle === "annual"
+      ? `Ετήσια · ${formatEuro(input.recurringFeeCents)} / έτος`
+      : `Μηνιαία · ${formatEuro(input.recurringFeeCents)} / μήνα`;
+  const setupLabel = input.setupFeeCents > 0 ? formatEuro(input.setupFeeCents) : "€0";
+  const commissionLabel = `${(input.commissionBps / 100).toLocaleString("el-GR", { maximumFractionDigits: 2 })}%`;
+  const subject = `Η αίτησή σας καταχωρίστηκε · ${input.reference} · ΚΟΝΤΑ ΜΟΥ`;
+  const text = [
+    "Καλησπέρα από το ΚΟΝΤΑ ΜΟΥ,",
+    "",
+    `Λάβαμε την αίτηση συνεργασίας για το κατάστημα «${input.businessName}».`,
+    `Αριθμός αίτησης: ${input.reference}`,
+    `HUB: ${input.hubName}`,
+    "",
+    "Η επιλογή σας",
+    `Πρόγραμμα: ${input.planCode.toUpperCase()}`,
+    `Χρέωση: ${billingLabel}`,
+    `Κόστος ένταξης: ${setupLabel}`,
+    `Προμήθεια marketplace: ${commissionLabel}`,
+    "Πληρωμή κατά την αίτηση: Όχι — δεν έγινε χρέωση.",
+    "",
+    "Το 3ήμερο Vendor Trial σας είναι έτοιμο",
+    `Email πρόσβασης: ${input.to}`,
+    "Δεν χρειάζεται προσωρινός κωδικός. Ο προσωπικός ασφαλής σύνδεσμος παρακάτω λειτουργεί ως διαπιστευτήριο για το Trial:",
+    input.trialAccessUrl,
+    `Λήξη write-enabled Trial: ${formatAthensDate(input.trialExpiresAt)}`,
+    "",
+    "Τι μπορείτε να κάνετε τώρα:",
+    "1. Μπείτε στο πραγματικό Vendor Dashboard.",
+    "2. Ολοκληρώστε το onboarding wizard και προσαρμόστε το storefront σας.",
+    "3. Προσθέστε προϊόντα και εξερευνήστε τα καθημερινά εργαλεία σε ιδιωτικό περιβάλλον.",
+    "4. Δείτε το private storefront preview πριν από οποιαδήποτε δημόσια ενεργοποίηση.",
+    "",
+    "Τι γίνεται στη συνέχεια:",
+    "• Η ομάδα ΚΟΝΤΑ ΜΟΥ ελέγχει τα στοιχεία Γ.Ε.ΜΗ. και την εκπροσώπηση/επικοινωνία.",
+    "• Θα λάβετε email όταν αλλάξει ουσιαστικά το στάδιο της αίτησης ή αν χρειαστούμε επιπλέον στοιχεία.",
+    "• Το Trial δεν ενεργοποιεί δημόσια πώληση, πραγματικές παραγγελίες ή πληρωμές.",
+    "",
+    `Προγράμματα HUB: ${publicBaseUrl()}/hubs/join`,
+    "",
+    "ΚΟΝΤΑ ΜΟΥ"
+  ].join("\n");
+  const suffix = input.idempotencySuffix?.trim() || "initial";
+  return sendTransactionalEmailBestEffort({
+    to: input.to,
+    subject,
+    text,
+    eventType: "hub.application_received",
+    idempotencyKey: `hub-application-received:v2:${input.reference}:${suffix}`,
+    payload: {
+      reference: input.reference,
+      hubSlug: input.hubSlug,
+      planCode: input.planCode,
+      billingCycle: input.billingCycle,
+      trial: true
+    }
   });
 }
 
@@ -47,9 +137,9 @@ export async function sendVendorApplicationStateEmail(input: {
   reason?: string;
 }) {
   const message = stateMessage(input.state);
-  const subject = `${message.subject} · ΚΟΝΤΑ ΜΟΥ Sparta`;
+  const subject = `${message.subject} · ΚΟΝΤΑ ΜΟΥ`;
   const text = [
-    `Καλησπέρα από το ΚΟΝΤΑ ΜΟΥ Sparta,`,
+    "Καλησπέρα από το ΚΟΝΤΑ ΜΟΥ,",
     "",
     `Υπάρχει ενημέρωση για την αίτηση του καταστήματος «${input.tradingName}».`,
     `Κωδικός αίτησης: ${input.applicationId}`,
@@ -60,7 +150,7 @@ export async function sendVendorApplicationStateEmail(input: {
     "",
     message.link ? `${message.linkLabel}: ${publicBaseUrl()}${message.link}` : undefined,
     "",
-    "ΚΟΝΤΑ ΜΟΥ Sparta"
+    "ΚΟΝΤΑ ΜΟΥ"
   ].filter((line): line is string => typeof line === "string").join("\n");
   return sendTransactionalEmailBestEffort({
     to: input.to,
@@ -69,6 +159,38 @@ export async function sendVendorApplicationStateEmail(input: {
     eventType: `vendor.application_${input.state}`,
     idempotencyKey: `vendor-application-state:${input.applicationId}:${input.state}`,
     payload: { applicationId: input.applicationId, tradingName: input.tradingName, state: input.state }
+  });
+}
+
+export async function sendHubProspectStateEmail(input: {
+  to: string;
+  businessName: string;
+  reference: string;
+  state: "contacted" | "qualified" | "verified" | "approved" | "declined" | "converted";
+  reason?: string;
+}) {
+  const message = hubStateMessage(input.state);
+  const text = [
+    "Καλησπέρα από το ΚΟΝΤΑ ΜΟΥ,",
+    "",
+    `Υπάρχει ενημέρωση για την αίτηση του καταστήματος «${input.businessName}».`,
+    `Αριθμός αίτησης: ${input.reference}`,
+    `Νέο στάδιο: ${message.label}`,
+    "",
+    message.body,
+    input.reason?.trim() ? `\nΣημείωση από την ομάδα: ${input.reason.trim()}` : undefined,
+    "",
+    `Προγράμματα HUB: ${publicBaseUrl()}/hubs/join`,
+    "",
+    "ΚΟΝΤΑ ΜΟΥ"
+  ].filter((line): line is string => typeof line === "string").join("\n");
+  return sendTransactionalEmailBestEffort({
+    to: input.to,
+    subject: `${message.subject} · ${input.reference} · ΚΟΝΤΑ ΜΟΥ`,
+    text,
+    eventType: `hub.application_${input.state}`,
+    idempotencyKey: `hub-application-state:${input.reference}:${input.state}`,
+    payload: { reference: input.reference, state: input.state }
   });
 }
 
@@ -108,7 +230,7 @@ export async function notifyOperationsOfVendorApplication(input: {
   requestedPlanCode: string;
 }) {
   return sendTransactionalEmailBestEffort({
-    to: APPLICATION_OPERATIONS_EMAIL,
+    to: operationsEmail(),
     subject: `Νέα αίτηση vendor · ${input.tradingName}`,
     text: [
       "Νέα αίτηση συνεργασίας καταχωρίστηκε στο ΚΟΝΤΑ ΜΟΥ Sparta.",
@@ -139,7 +261,7 @@ export async function notifyOperationsOfHubProspectApplication(input: {
   billingCycle: string;
 }) {
   return sendTransactionalEmailBestEffort({
-    to: APPLICATION_OPERATIONS_EMAIL,
+    to: operationsEmail(),
     subject: `Νέα αίτηση HUB · ${input.businessName}`,
     text: [
       "Νέα αίτηση επέκτασης HUB καταχωρίστηκε στο ΚΟΝΤΑ ΜΟΥ.",
@@ -151,7 +273,7 @@ export async function notifyOperationsOfHubProspectApplication(input: {
       `HUB: ${input.hubName} (${input.hubSlug})`,
       `Πλάνο: ${input.planCode}`,
       `Χρέωση: ${input.billingCycle}`,
-      `Application ID: ${input.reference}`,
+      `Αριθμός αίτησης: ${input.reference}`,
       "",
       `Admin queue: ${publicBaseUrl()}/admin/applications`
     ].join("\n"),
@@ -172,4 +294,27 @@ function stateMessage(state: VendorOnboardingState) {
     case "closed": return { label: "Κλειστό", subject: "Η διαδικασία συνεργασίας ολοκληρώθηκε", body: "Η συγκεκριμένη αίτηση ή συνεργασία έχει κλείσει. Αν θεωρείτε ότι χρειάζεται επανεξέταση, μπορείτε να απαντήσετε σε αυτό το email.", link: "/join", linkLabel: "Πληροφορίες συνεργασίας" };
     default: return { label: state, subject: "Ενημέρωση αίτησης συνεργασίας", body: "Η κατάσταση της αίτησης ενημερώθηκε.", link: "/join", linkLabel: "Πληροφορίες συνεργασίας" };
   }
+}
+
+function hubStateMessage(state: "contacted" | "qualified" | "verified" | "approved" | "declined" | "converted") {
+  switch (state) {
+    case "contacted": return { label: "Επικοινωνία σε εξέλιξη", subject: "Ξεκινήσαμε την επεξεργασία της αίτησής σας", body: "Η ομάδα συνεργατών άνοιξε την αίτησή σας και προχωρά στον έλεγχο των επόμενων στοιχείων." };
+    case "qualified": return { label: "Qualified", subject: "Η αίτησή σας προχώρησε", body: "Τα βασικά στοιχεία της αίτησης έχουν ελεγχθεί και συνεχίζουμε στο στάδιο επαλήθευσης της συνεργασίας." };
+    case "verified": return { label: "Verified", subject: "Η επαλήθευση ολοκληρώθηκε", body: "Η αίτηση έχει περάσει τον βασικό έλεγχο. Ακολουθεί η τελική εμπορική/λειτουργική προετοιμασία πριν από απόφαση ενεργοποίησης." };
+    case "approved": return { label: "Approved", subject: "Η αίτησή σας εγκρίθηκε", body: "Η αίτηση εγκρίθηκε για να συνεχίσει στα επόμενα βήματα onboarding και ενεργοποίησης του αντίστοιχου HUB." };
+    case "declined": return { label: "Δεν προχωρά", subject: "Ενημέρωση για την αίτησή σας", body: "Η συγκεκριμένη αίτηση δεν προχωρά στο επόμενο στάδιο αυτή τη στιγμή. Αν χρειάζεστε διευκρίνιση, μπορείτε να απαντήσετε σε αυτό το email." };
+    case "converted": return { label: "Μεταφέρθηκε σε onboarding", subject: "Η αίτησή σας πέρασε στο onboarding", body: "Η αίτηση μεταφέρθηκε από το prospect στάδιο στην οργανωμένη διαδικασία onboarding συνεργάτη." };
+  }
+}
+
+function formatEuro(cents: number): string {
+  return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(cents / 100);
+}
+
+function formatAthensDate(value: number): string {
+  return new Intl.DateTimeFormat("el-GR", {
+    dateStyle: "full",
+    timeStyle: "short",
+    timeZone: "Europe/Athens"
+  }).format(new Date(value));
 }
