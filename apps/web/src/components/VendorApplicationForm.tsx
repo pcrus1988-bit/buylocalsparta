@@ -313,7 +313,7 @@ export function VendorApplicationForm({
       <div className={styles.honeypot} aria-hidden="true"><label htmlFor="vendor-website">Website</label><input id="vendor-website" name="website" tabIndex={-1} autoComplete="off" /></div>
       {error && <p className="form-error" role="alert">{error}</p>}
       {errorCode === "login_required" && <a className="button button-secondary" href={loginHref}>Σύνδεση και επιστροφή στην αίτηση</a>}
-      <button className="button" type="submit" disabled={busy}>{busy ? "Καταχώριση…" : "Υποβολή για έλεγχο"}</button>
+      <button className="button" type="submit" disabled={busy}>{busy ? "Καταχώριση…" : claimedResearchVendorId ? "Υποβολή για έλεγχο" : "Υποβολή & έναρξη 3ήμερου Trial"}</button>
       {!signedInEmail && <p className="login-demo-note">Έχεις ήδη λογαριασμό; <a className="text-link" href={loginHref}>Συνδέσου πριν την αίτηση →</a></p>}
     </>}
   </form>;
