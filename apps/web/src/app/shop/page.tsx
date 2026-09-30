@@ -244,7 +244,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
           offset: pageOffset
         });
         products = [...dropshipPage.products];
-        hasNextPage = dropshipPage.total > pageOffset + SHOP_PAGE_SIZE;
+        hasNextPage = dropshipPage.hasMore;
       }
     } else {
       const localPage = await getShopCatalogPage({
@@ -286,7 +286,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
           const seen = new Set(products.map((product) => product.id));
           products.push(...dropshipPage.products.filter((product) => !seen.has(product.id)).slice(0, dropshipSlots));
         }
-        hasNextPage = dropshipPage.total > dropshipOffset + dropshipSlots;
+        hasNextPage = dropshipPage.hasMore;
       } else {
         hasNextPage = localPage.hasMore || pageOffset + SHOP_PAGE_SIZE < localPage.total;
       }

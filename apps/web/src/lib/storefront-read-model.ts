@@ -32,7 +32,13 @@ export type StorefrontReadModelCandidate = Readonly<{
 export type StorefrontDropshipFamilyCandidate = Readonly<{
   supplier_id: string;
   external_product_id: string;
+  /**
+   * Lower bound retained for backwards-compatible callers. Public browse only
+   * needs to know whether a following page exists, so request-time catalogue
+   * discovery must not compute COUNT(*) OVER() across the whole family set.
+   */
   total_families: number | string;
+  has_more?: boolean;
 }>;
 
 export type StorefrontSearchCandidate = Readonly<{
@@ -150,10 +156,24 @@ export async function getLocalStorefrontReadModelWindow(
   return result.rows;
 }
 
-function dropshipSort(sort?: string): string {
-  if (sort === "price-asc") return "fm.min_price_minor ASC,fm.dropship_supplier_id,fm.dropship_external_product_id";
-  if (sort === "price-desc") return "fm.min_price_minor DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
-  return "fm.newest_at DESC,fm.dropship_supplier_id,fm.dropship_external_product_id";
+function dropshipSort(sort?: string, alias = "fm"): string {
+  if (sort === "price-asc") return `${alias}.min_price_minor ASC,${alias}.dropship_supplier_id,${alias}.dropship_external_product_id`;
+  if (sort === "price-desc") return `${alias}.min_price_minor DESC,${alias}.dropship_supplier_id,${alias}.dropship_external_product_id`;
+  return `${alias}.newest_at DESC,${alias}.dropship_supplier_id,${alias}.dropship_external_product_id`;
+}
+
+function dropshipPageWithSentinel(
+  rows: readonly StorefrontDropshipFamilyCandidate[],
+  input: StorefrontReadModelWindowInput
+): readonly StorefrontDropshipFamilyCandidate[] {
+  const hasMore = rows.length > input.limit;
+  const page = rows.slice(0, input.limit);
+  const totalLowerBound = input.offset + page.length + (hasMore ? 1 : 0);
+  return page.map((row) => ({
+    ...row,
+    total_families: totalLowerBound,
+    has_more: hasMore
+  }));
 }
 
 function dropshipFilteredSort(sort?: string): string {
@@ -168,8 +188,9 @@ function dropshipFilteredSort(sort?: string): string {
 
 /**
  * Dropship discovery reads one narrow row per supplier product family. The normal
- * no-filter browse path can use the precomputed total and a top-N btree lookup;
- * filtered paths scan only the compact family projection, never the 65k offers.
+ * no-filter browse path bounds each source before merging so first-page rendering
+ * never materializes the whole live family set. Filtered paths scan only the compact
+ * family projection, never the full supplier-offer tables.
  */
 export async function getDropshipStorefrontReadModelWindow(
   input: StorefrontReadModelWindowInput
@@ -187,6 +208,8 @@ export async function getDropshipStorefrontReadModelWindow(
   const filteredOrderBy = dropshipFilteredSort(input.sort);
 
   if (!hasFilters) {
+    const stableOrderBy = dropshipSort(input.sort, "fm");
+    const liveOrderBy = dropshipSort(input.sort, "lf");
     const result = await pool.query<StorefrontDropshipFamilyCandidate>(`
       WITH stable AS MATERIALIZED (
         SELECT
@@ -204,6 +227,8 @@ export async function getDropshipStorefrontReadModelWindow(
               AND live_shadow.external_product_id=fm.dropship_external_product_id
               AND live_shadow.available_until>now()
           )
+        ORDER BY ${stableOrderBy}
+        LIMIT ($1::integer + $2::integer + 1)
       ), live AS MATERIALIZED (
         SELECT
           lf.supplier_id::text AS dropship_supplier_id,
@@ -214,6 +239,8 @@ export async function getDropshipStorefrontReadModelWindow(
         FROM bls_private.storefront_dropship_live_family lf
         WHERE lf.sellable=true
           AND lf.available_until>now()
+        ORDER BY ${liveOrderBy}
+        LIMIT ($1::integer + $2::integer + 1)
       ), combined AS (
         SELECT * FROM stable
         UNION ALL
@@ -221,13 +248,12 @@ export async function getDropshipStorefrontReadModelWindow(
       )
       SELECT
         fm.dropship_supplier_id AS supplier_id,
-        fm.dropship_external_product_id AS external_product_id,
-        COUNT(*) OVER() AS total_families
+        fm.dropship_external_product_id AS external_product_id
       FROM combined fm
       ORDER BY ${orderBy}
-      LIMIT $1 OFFSET $2
+      LIMIT ($1::integer + 1) OFFSET $2
     `, [input.limit, input.offset]);
-    return result.rows;
+    return dropshipPageWithSentinel(result.rows, input);
   }
 
   const familyFilterParameters = [
@@ -480,13 +506,12 @@ export async function getDropshipStorefrontReadModelWindow(
     )
     SELECT
       fm.dropship_supplier_id AS supplier_id,
-      fm.dropship_external_product_id AS external_product_id,
-      COUNT(*) OVER() AS total_families
+      fm.dropship_external_product_id AS external_product_id
     FROM filtered_ranked fm
     ORDER BY ${filteredOrderBy}
-    LIMIT $10 OFFSET $11
+    LIMIT ($10::integer + 1) OFFSET $11
   `, familyFilterParameters);
-  return result.rows;
+  return dropshipPageWithSentinel(result.rows, input);
 }
 
 /** Fast autocomplete fallback when the dedicated search service is disabled. */
