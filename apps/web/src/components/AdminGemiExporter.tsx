@@ -106,12 +106,12 @@ export function AdminGemiExporter() {
   const selectedMunicipality = municipalities.find((item) => item.id === municipalityId);
 
   function queryString() {
-    if (!selectedActivity || !prefectureId) return "";
+    if (!selectedActivity) return "";
     const query = new URLSearchParams({
       activity: selectedActivity.id,
-      prefecture: prefectureId,
       activeOnly: String(activeOnly)
     });
+    if (prefectureId) query.set("prefecture", prefectureId);
     if (municipalityId) query.set("municipality", municipalityId);
     return query.toString();
   }
@@ -206,9 +206,8 @@ export function AdminGemiExporter() {
               setPreview(undefined);
             }}
             disabled={!metadata}
-            required
           >
-            <option value="">— Επίλεξε νομό —</option>
+            <option value="">Όλοι οι νομοί · Όλη η Ελλάδα</option>
             {metadata?.prefectures.map((item) => <option key={item.id} value={item.id}>{item.descr}</option>)}
           </select>
         </label>
@@ -223,7 +222,7 @@ export function AdminGemiExporter() {
             }}
             disabled={!prefectureId}
           >
-            <option value="">Όλοι οι δήμοι του νομού</option>
+            <option value="">{prefectureId ? "Όλοι οι δήμοι του νομού" : "Επίλεξε συγκεκριμένο νομό για Δήμο"}</option>
             {municipalities.map((item) => <option key={item.id} value={item.id}>{item.descr}</option>)}
           </select>
         </label>
@@ -235,10 +234,10 @@ export function AdminGemiExporter() {
       </div>
 
       <div className="gemi-export-actions">
-        <button className="button" type="submit" disabled={!selectedActivity || !prefectureId || busy}>
+        <button className="button" type="submit" disabled={!selectedActivity || busy}>
           {busy ? "Αναζήτηση…" : "Προεπισκόπηση αποτελεσμάτων"}
         </button>
-        <span>{selectedPrefecture ? selectedMunicipality ? `${selectedMunicipality.descr}, ${selectedPrefecture.descr}` : selectedPrefecture.descr : "Επίλεξε περιοχή"}</span>
+        <span>{selectedPrefecture ? selectedMunicipality ? `${selectedMunicipality.descr}, ${selectedPrefecture.descr}` : selectedPrefecture.descr : "Όλη η Ελλάδα"}</span>
       </div>
       {previewError && <div className="workspace-inline-note form-error" role="alert">{previewError}</div>}
     </form>
@@ -265,7 +264,7 @@ export function AdminGemiExporter() {
         <div className="gemi-download-bar">
           <div>
             <strong>{selectedActivity?.id}</strong>
-            <span>{selectedMunicipality?.descr ?? selectedPrefecture?.descr ?? ""}</span>
+            <span>{selectedMunicipality?.descr ?? selectedPrefecture?.descr ?? "Όλη η Ελλάδα"}</span>
           </div>
           {preview.totalCount > 0
             ? <a className="button" href={`/api/admin/gemi/export?${downloadQuery}`}>Λήψη όλων ως CSV</a>
