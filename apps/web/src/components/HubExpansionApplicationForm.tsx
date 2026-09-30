@@ -42,11 +42,15 @@ type Receipt = Readonly<{
   recurringFeeCents: number;
   paymentRequired: false;
   message: string;
+  redirectTo?: string;
+  trial?: Readonly<{ expiresAt: string }>;
 }>;
 
 type Props = Readonly<{
   planCode: HubExpansionPlanCode;
   billingCycle: HubBillingCycle;
+  csrfToken?: string;
+  signedInEmail?: string;
 }>;
 
 const categories = [
@@ -63,7 +67,7 @@ const categories = [
   "Άλλη μη διατροφική λιανική"
 ] as const;
 
-export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
+export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken, signedInEmail }: Props) {
   const [busy, setBusy] = useState(false);
   const [lookupStage, setLookupStage] = useState<LookupStage>("afm");
   const [lookupError, setLookupError] = useState("");
@@ -80,7 +84,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
     try {
       const response = await fetch("/api/hubs/resolve-company-by-afm", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...(csrfToken ? { "x-csrf-token": csrfToken } : {}) },
         body: JSON.stringify({ afm: taxNumber })
       });
       const data = await response.json() as {
@@ -133,10 +137,15 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload)
       });
-      const result = await response.json() as Partial<Receipt> & { error?: string; code?: string; redirectTo?: string };
+      const result = await response.json() as Partial<Receipt> & { error?: string; code?: string; redirectTo?: string; trial?: { expiresAt?: string } };
       if (!response.ok) {
         if (result.code === "sparta_uses_existing_join") {
           window.location.assign(result.redirectTo ?? "/join/sparta");
+          return;
+        }
+        if (result.code === "login_required") {
+          const returnTo = `/hubs/join/apply?plan=${encodeURIComponent(planCode)}&billing=${encodeURIComponent(billingCycle)}`;
+          window.location.assign(`/login?next=${encodeURIComponent(returnTo)}`);
           return;
         }
         throw new Error(result.error ?? "Η αίτηση δεν καταχωρίστηκε.");
@@ -159,7 +168,9 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
         billingCycle: result.billingCycle,
         recurringFeeCents: result.recurringFeeCents,
         paymentRequired: false,
-        message: result.message ?? "Η αίτηση καταχωρίστηκε."
+        message: result.message ?? "Η αίτηση καταχωρίστηκε.",
+        redirectTo: result.redirectTo,
+        trial: result.trial?.expiresAt ? { expiresAt: result.trial.expiresAt } : undefined
       });
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (cause) {
@@ -181,7 +192,10 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
         <p>{receipt.message}</p>
         <div className={styles.reference}>Επιλογή <strong>{billingText}</strong></div>
         <div className={styles.reference}>Αριθμός αναφοράς <strong>{receipt.reference}</strong></div>
-        <p className={styles.receiptNote}>Το HUB επιβεβαιώθηκε ξανά server-side από τα στοιχεία Γ.Ε.ΜΗ. Η επιλογή χρέωσης αποθηκεύτηκε με την αίτηση. Δεν έγινε χρέωση και δεν δημιουργήθηκε ενεργός vendor λογαριασμός.</p>
+        <p className={styles.receiptNote}>{receipt.redirectTo
+          ? "Το HUB επιβεβαιώθηκε ξανά server-side από τα στοιχεία Γ.Ε.ΜΗ. Η αίτηση παραμένει σε έλεγχο, αλλά δημιουργήθηκε ιδιωτικό DEMO workspace για το 3ήμερο Trial. Δεν έγινε χρέωση και οι δημόσιες πωλήσεις παραμένουν κλειδωμένες."
+          : "Το HUB επιβεβαιώθηκε ξανά server-side από τα στοιχεία Γ.Ε.ΜΗ. Η επιλογή χρέωσης αποθηκεύτηκε με την αίτηση. Δεν έγινε χρέωση και δεν δημιουργήθηκε ενεργός vendor λογαριασμός."}</p>
+        {receipt.redirectTo && <a className="button" href={receipt.redirectTo}>Άνοιξε το 3ήμερο Vendor Trial →</a>}
         <a className="button button-secondary" href="/hubs/join">Επιστροφή στα προγράμματα</a>
       </div>
     </div>;
@@ -239,7 +253,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
         <div className={styles.grid}>
           <label>Εμπορική ονομασία <span>*</span><input name="businessName" required maxLength={120} autoComplete="organization" defaultValue={company.tradingName ?? company.legalName} /></label>
           <label>Ονοματεπώνυμο υπευθύνου <span>*</span><input name="contactName" required maxLength={120} autoComplete="name" /></label>
-          <label>Email επικοινωνίας <span>*</span><input name="email" type="email" required maxLength={160} autoComplete="email" defaultValue={company.email ?? ""} /></label>
+          <label>Email επικοινωνίας <span>*</span><input name="email" type="email" required maxLength={160} autoComplete="email" defaultValue={company.email ?? signedInEmail ?? ""} /></label>
           <label>Τηλέφωνο <span>*</span><input name="phone" type="tel" required maxLength={32} autoComplete="tel" defaultValue={company.phone ?? ""} /></label>
           <label>Κύρια κατηγορία <span>*</span><select name="primaryCategory" required defaultValue=""><option value="" disabled>Επίλεξε κατηγορία…</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
           <label>Υφιστάμενο website / e-shop<input name="websiteUrl" type="url" maxLength={240} placeholder="https://…" defaultValue={company.url ?? ""} /></label>
@@ -256,7 +270,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
 
       <div className={styles.consentBox}>
         <label><input type="checkbox" name="acceptedAccuracy" required /> <span>Επιβεβαιώνω ότι έχω ελέγξει τα στοιχεία και μπορώ να εκπροσωπώ ή να υποβάλω ενδιαφέρον για αυτή την επιχείρηση.</span></label>
-        <label><input type="checkbox" name="acceptedProspectStatus" required /> <span>Κατανοώ ότι αυτή είναι αίτηση prospect για HUB επέκτασης και δεν ενεργοποιεί αυτόματα vendor account, πωλήσεις, συνδρομή ή χρέωση.</span></label>
+        <label><input type="checkbox" name="acceptedProspectStatus" required /> <span>Κατανοώ ότι αυτή είναι αίτηση prospect για HUB επέκτασης. Σε εμπορικό πλάνο μπορεί να ανοίξει ιδιωτικό 3ήμερο DEMO Trial, αλλά δεν ενεργοποιεί δημόσιες πωλήσεις, συνδρομή ή χρέωση.</span></label>
         <label><input type="checkbox" name="acceptedPrivacy" required /> <span>Συμφωνώ με την επεξεργασία των στοιχείων για επαλήθευση, επικοινωνία και προετοιμασία της συνεργασίας σύμφωνα με την πολιτική απορρήτου.</span></label>
       </div>
 
