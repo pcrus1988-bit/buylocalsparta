@@ -134,7 +134,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
     try {
       const response = await fetch("/api/hub-prospect-application", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...(csrfToken ? { "x-csrf-token": csrfToken } : {}) },
         body: JSON.stringify(payload)
       });
       const result = await response.json() as Partial<Receipt> & { error?: string; code?: string; redirectTo?: string; trial?: { expiresAt?: string } };
