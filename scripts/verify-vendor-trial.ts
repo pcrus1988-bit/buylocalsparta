@@ -13,6 +13,7 @@ const vendorSession = read("apps/web/src/lib/vendor-session.ts");
 const dailySession = read("apps/web/src/lib/daily-session.ts");
 const trialRuntime = read("apps/web/src/lib/vendor-trial-runtime.ts");
 const trialPage = read("apps/web/src/app/vendor/trial/page.tsx");
+const storefrontBuilder = read("apps/web/src/components/VendorStorefrontBuilder.tsx");
 const previewPage = read("apps/web/src/app/vendor/preview/page.tsx");
 const migration = read("db/migrations/0296_vendor_application_trial.sql");
 const checksum = JSON.parse(read("db/migrations/checksums.0296.json")) as Record<string, string>;
@@ -33,7 +34,8 @@ requireText(applicationRuntime, "await provisionApplicantTrial", "New vendor app
 requireText(applicationRuntime, "public_directory_visible,demo_mode", "Trial vendor provisioning must explicitly persist public visibility and DEMO state");
 requireText(applicationRuntime, "false,true", "Trial vendor provisioning must stay private and in DEMO mode");
 requireText(applicationRuntime, "trial_started_at=$3", "Application must persist the trial window");
-requireText(vendorSession, "return getActiveVendorTrialPrincipal()", "Vendor workspace must accept an active signed trial session");
+requireText(vendorSession, "const trialPrincipal = await getActiveVendorTrialPrincipal()", "Vendor workspace must resolve an active signed trial session before an older vendor cookie");
+requireText(vendorSession, "if (trialPrincipal) return trialPrincipal", "Active trial session must take precedence during onboarding");
 requireText(dailySession, "return getVendorSession()", "Daily must inherit the vendor trial session when no Daily-only token exists");
 requireText(trialRuntime, "export const VENDOR_TRIAL_DURATION_MS = 3 * 24 * 60 * 60 * 1000", "Write-enabled vendor trial must remain three days");
 requireText(trialRuntime, "PRELIVE_STATUSES", "Trial activity must remain bound to pre-live application states");
@@ -43,6 +45,9 @@ requireText(trialPage, "Math.round((completed / 3) * 100)", "Trial setup progres
 requireText(trialPage, "storefront.settings.heroTitle.trim() !== trial.vendorName.trim()", "Storefront progress must require a real customization instead of the seeded vendor name");
 requireText(trialPage, 'title: "Operations"', "Trial wizard must expose the operational workspace");
 requireText(trialPage, 'href: "/daily"', "Trial Operations step must open KONTA MOY Daily");
+requireText(trialPage, "recommendedStepNumber", "Trial wizard must resume at the next incomplete onboarding step");
+requireText(trialPage, 'aria-current={step.number === recommendedStep.number ? "step" : undefined}', "Trial wizard must expose the current onboarding step accessibly");
+requireText(storefrontBuilder, "router.refresh()", "Saving Brand/Storefront changes must refresh wizard progress immediately");
 requireText(previewPage, "robots: { index: false, follow: false }", "Private trial preview must stay noindex");
 requireText(migration, "trial_expires_at <= trial_started_at + interval '3 days 1 minute'", "Database must cap the trial window at three days");
 requireText(migration, "storefront_settings jsonb", "Persistent storefront settings must be part of the trial schema");
