@@ -12,7 +12,7 @@ const SECTIONS: ReadonlyArray<Readonly<{
   href: string;
   title: string;
 }>> = [
-  { id: "overview", step: "1", label: "Overview", href: "/admin/catalogue", title: "Catalogue dashboard and health" },
+  { id: "overview", step: "1", label: "Products", href: "/admin/products", title: "Products, categories, filters and catalogue control" },
   { id: "acquire", step: "2", label: "Acquire", href: "/admin/catalogue-crawler", title: "Website and file acquisition into governed source data" },
   { id: "pim", step: "3", label: "Supplier PIM", href: "/admin/catalogue-intake", title: "Supplier evidence, provenance, controlled values and assortment preparation" },
   { id: "structure", step: "4", label: "Structure", href: "/admin/catalogue/structure", title: "Taxonomy, Product Types, attributes and canonical reference data" },
@@ -22,7 +22,7 @@ const SECTIONS: ReadonlyArray<Readonly<{
 ] as const;
 
 function activeSection(pathname: string): CatalogueSuiteSection | undefined {
-  if (pathname === "/admin/catalogue" || pathname.startsWith("/admin/quickadd")) return "overview";
+  if (pathname === "/admin/products" || pathname === "/admin/catalogue" || pathname.startsWith("/admin/quickadd")) return "overview";
   if (pathname.startsWith("/admin/catalogue/exceptions")) return "exceptions";
 
   if (

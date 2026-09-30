@@ -40,17 +40,18 @@ const CATALOGUE_EXCEPTIONS_NAV_LINK: WorkspaceNavLink = {
 };
 
 const CATALOGUE_OPERATOR_LINKS = new Map<string, { order: number; label?: string; contextHidden?: boolean }>([
-  ["/admin/catalogue", { order: 0, label: "Overview" }],
-  ["/admin/quickadd", { order: 1, label: "Quick Add" }],
-  ["/admin/catalogue-crawler", { order: 2, label: "Website Import" }],
-  ["/admin/catalogue-intake/import", { order: 3, label: "Source Import" }],
-  ["/admin/catalogue-intake", { order: 4, label: "Supplier PIM" }],
-  ["/admin/catalogue-intake/attributes", { order: 5, label: "Attribute Mapping" }],
-  ["/admin/matching", { order: 6, label: "Vendor Matching" }],
-  ["/admin/catalogue/structure", { order: 7, label: "Structure" }],
-  ["/admin/catalogue/enrichment", { order: 8, label: "Enrichment QA" }],
-  ["/admin/catalogue/brands", { order: 9, label: "Brands" }],
-  ["/admin/catalogue/vitex", { order: 10, label: "Manufacturer DB" }],
+  ["/admin/products", { order: 0, label: "Products & Categories" }],
+  ["/admin/catalogue", { order: 1, label: "Catalogue Health", contextHidden: true }],
+  ["/admin/quickadd", { order: 2, label: "Quick Add" }],
+  ["/admin/catalogue-crawler", { order: 3, label: "Website Import" }],
+  ["/admin/catalogue-intake/import", { order: 4, label: "Source Import" }],
+  ["/admin/catalogue-intake", { order: 5, label: "Supplier PIM" }],
+  ["/admin/catalogue-intake/attributes", { order: 6, label: "Attribute Mapping" }],
+  ["/admin/matching", { order: 7, label: "Vendor Matching" }],
+  ["/admin/catalogue/structure", { order: 8, label: "Structure" }],
+  ["/admin/catalogue/enrichment", { order: 9, label: "Enrichment QA" }],
+  ["/admin/catalogue/brands", { order: 10, label: "Brands" }],
+  ["/admin/catalogue/vitex", { order: 11, label: "Manufacturer DB" }],
   ["/admin/catalogue-intake/intelligence", { order: 20, label: "Catalogue Intelligence", contextHidden: true }],
   ["/admin/catalogue/attribute-matching", { order: 21, label: "Attribute Matching", contextHidden: true }],
   ["/admin/catalogue/attribute-review", { order: 22, label: "Attribute Review", contextHidden: true }],
@@ -110,7 +111,7 @@ function operatorLinksForGroup(group: WorkspaceNavGroup, links: ReadonlyArray<Wo
     });
   }
 
-  if (group.href === "/admin/catalogue") {
+  if (group.href === "/admin/products") {
     let catalogueLinks = [...links];
     if (!catalogueLinks.some((link) => link.href === STRUCTURE_NAV_LINK.href)) catalogueLinks = [...catalogueLinks, STRUCTURE_NAV_LINK];
     if (!catalogueLinks.some((link) => link.href === CATALOGUE_EXCEPTIONS_NAV_LINK.href)) catalogueLinks = [...catalogueLinks, CATALOGUE_EXCEPTIONS_NAV_LINK];

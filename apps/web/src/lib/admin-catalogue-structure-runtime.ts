@@ -291,19 +291,38 @@ async function postgresWorkspace(principal: SessionPrincipal): Promise<Catalogue
   return uow.withTransaction(platformScope(principal.userId), async (tx) => {
     const [categories, attributeCount] = await Promise.all([
       tx.query<SqlRow>(`
+        WITH market AS (
+          SELECT id FROM markets WHERE code = 'sparta'
+        ),
+        counts AS MATERIALIZED (
+          SELECT
+            cv.category_id,
+            COUNT(*)::int AS direct_products,
+            COUNT(*) FILTER (
+              WHERE cv.active = TRUE
+                AND cv.suppressed = FALSE
+                AND cv.recalled = FALSE
+            )::int AS direct_live_products
+          FROM canonical_variants cv
+          WHERE cv.market_id = (SELECT id FROM market)
+          GROUP BY cv.category_id
+        )
         SELECT
           c.code,
-          COALESCE(ct.name, c.code) AS label,
+          COALESCE((
+            SELECT ct.name
+            FROM category_translations ct
+            WHERE ct.category_id = c.id AND ct.locale = 'el'
+            LIMIT 1
+          ), c.code) AS label,
           p.code AS parent_code,
           c.taxonomy_role,
           c.assignable,
           c.discoverable,
           c.active,
           COALESCE(c.sort_order, 0)::int AS sort_order,
-          COUNT(DISTINCT cv.id)::int AS direct_products,
-          COUNT(DISTINCT cv.id) FILTER (
-            WHERE cv.active = TRUE AND cv.suppressed = FALSE AND cv.recalled = FALSE
-          )::int AS direct_live_products,
+          COALESCE(cnt.direct_products, 0)::int AS direct_products,
+          COALESCE(cnt.direct_live_products, 0)::int AS direct_live_products,
           (
             SELECT COUNT(*)::int FROM (
               SELECT ca.attribute_id
@@ -318,12 +337,9 @@ async function postgresWorkspace(principal: SessionPrincipal): Promise<Catalogue
           ) AS configured_attribute_count,
           (SELECT COUNT(*)::int FROM category_product_types cpt WHERE cpt.category_id = c.id) AS product_type_count
         FROM categories c
-        JOIN markets m ON m.id = c.market_id
         LEFT JOIN categories p ON p.id = c.parent_id
-        LEFT JOIN category_translations ct ON ct.category_id = c.id AND ct.locale = 'el'
-        LEFT JOIN canonical_variants cv ON cv.category_id = c.id AND cv.market_id = m.id
-        WHERE m.code = 'sparta'
-        GROUP BY c.id, c.code, ct.name, p.code, c.taxonomy_role, c.assignable, c.discoverable, c.active, c.sort_order
+        LEFT JOIN counts cnt ON cnt.category_id = c.id
+        WHERE c.market_id = (SELECT id FROM market)
         ORDER BY c.sort_order ASC, label ASC, c.code ASC
       `),
       tx.query<SqlRow>(`SELECT COUNT(*)::int AS total FROM attribute_definitions WHERE active = TRUE`)

@@ -122,13 +122,14 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     ]
   },
   {
-    label: "Κατάλογος",
-    href: "/admin/catalogue",
+    label: "Προϊόντα",
+    href: "/admin/products",
     icon: "catalog",
     section: "Εμπορική διαχείριση",
-    description: "Acquire → PIM → Structure → Match → Quality → Assign",
+    description: "Products, categories, quality, matching και catalogue operations",
     links: [
-      { label: "Overview", href: "/admin/catalogue", icon: "▦", permission: "catalog.read" },
+      { label: "Products & Categories", href: "/admin/products", icon: "▦", permission: "catalog.read" },
+      { label: "Catalogue Health", href: "/admin/catalogue", icon: "◎", permission: "catalog.read", contextHidden: true },
       { label: "Quick Add", href: "/admin/quickadd", icon: "+", permission: "catalog.write" },
       { label: "Website Import", href: "/admin/catalogue-crawler", icon: "↗", permission: "catalog.read" },
       { label: "Source Import", href: "/admin/catalogue-intake/import", icon: "↑", permission: "catalog.write" },
