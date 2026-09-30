@@ -209,6 +209,93 @@ export async function submitHubProspectApplication(input: {
   );
 }
 
+async function ensureHubTrialMarket(tx: SqlExecutor, hub: ExpansionHub, now: number): Promise<string> {
+  await tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [hub.id]);
+
+  const configured = await tx.query<SqlRow>(`
+    SELECT market.id::text AS market_id
+    FROM market_hub_config config
+    JOIN markets market ON market.id=config.market_id
+    WHERE config.hub_code=$1
+    LIMIT 1
+  `, [hub.id]);
+  if (configured.rowCount) return requiredText(configured.rows[0]?.market_id, "market.id");
+
+  const marketCode = `hub-${hub.slug}`;
+  const existingMarket = await tx.query<SqlRow>("SELECT id::text AS market_id FROM markets WHERE code=$1 LIMIT 1", [marketCode]);
+  const marketUuid = existingMarket.rowCount
+    ? requiredText(existingMarket.rows[0]?.market_id, "market.id")
+    : randomUUID();
+  const at = new Date(now);
+
+  if (!existingMarket.rowCount) {
+    await tx.query(`
+      INSERT INTO markets(id,code,name,country_code,currency,timezone,default_locale,settings,created_at,updated_at)
+      VALUES($1,$2,$3,'GR','EUR','Europe/Athens','el',$4::jsonb,$5,$5)
+    `, [
+      marketUuid,
+      marketCode,
+      hub.nameEl,
+      JSON.stringify({ prelaunch: true, trialOnly: true, hubCode: hub.id, hubSlug: hub.slug }),
+      at
+    ]);
+  }
+
+  await tx.query(`
+    INSERT INTO market_hub_config(
+      market_id,hub_code,gateway_slug,expansion_radius_meters,is_operational,prospecting_enabled,
+      gateway_visible,shopping_enabled,search_indexable,is_default_fallback,metadata,created_at,updated_at
+    ) VALUES($1,$2,$3,$4,false,true,false,false,false,false,$5::jsonb,$6,$6)
+  `, [
+    marketUuid,
+    hub.id,
+    hub.slug,
+    hub.radiusKm * 1000,
+    JSON.stringify({ source: "hub_trial", prelaunch: true, trialOnly: true }),
+    at
+  ]);
+
+  return marketUuid;
+}
+
+async function authenticatedOwner(tx: SqlExecutor, principal: SessionPrincipal): Promise<{ uuid: string; publicId: string; provisional: false }> {
+  if (!principal.roles.includes("customer")) {
+    throw new HubProspectApplicationError(403, "account_required", "Χρειάζεται ενεργός λογαριασμός για να συνδεθεί η αίτηση με υπάρχουσα ταυτότητα.");
+  }
+  const result = await tx.query<SqlRow>(
+    "SELECT id::text AS id,public_id FROM users WHERE public_id=$1 AND status='active' AND email_verified_at IS NOT NULL LIMIT 1",
+    [principal.userId]
+  );
+  if (!result.rowCount) {
+    throw new HubProspectApplicationError(403, "account_required", "Χρειάζεται ενεργός και επαληθευμένος λογαριασμός.");
+  }
+  return {
+    uuid: requiredText(result.rows[0]?.id, "user.id"),
+    publicId: requiredText(result.rows[0]?.public_id, "user.public_id"),
+    provisional: false
+  };
+}
+
+async function provisionalOwner(tx: SqlExecutor, email: string, now: number): Promise<{ uuid: string; publicId: string; provisional: true }> {
+  const existing = await tx.query<SqlRow>("SELECT id::text AS id FROM users WHERE lower(email::text)=lower($1) LIMIT 1 FOR UPDATE", [email]);
+  if (existing.rowCount) {
+    throw new HubProspectApplicationError(
+      409,
+      "login_required",
+      "Υπάρχει ήδη λογαριασμός με αυτό το email. Συνδέσου πρώτα ώστε το Trial να συνδεθεί με τη σωστή ταυτότητα."
+    );
+  }
+  const uuid = randomUUID();
+  const publicId = id("usr");
+  const at = new Date(now);
+  await tx.query(`
+    INSERT INTO users(id,public_id,email,password_hash,status,email_verified_at,preferred_locale,created_at,updated_at)
+    VALUES($1,$2,$3,$4,'pending_verification',NULL,'el',$5,$5)
+  `, [uuid, publicId, email, provisionalVendorApplicantPasswordHash(), at]);
+  await tx.query("INSERT INTO customer_profiles(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING", [uuid]);
+  return { uuid, publicId, provisional: true };
+}
+
 function normalizeApplication(input: HubProspectApplicationInput): HubProspectApplicationInput {
   let taxNumber: string;
   try {
