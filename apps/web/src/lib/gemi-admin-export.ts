@@ -5,6 +5,7 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 const METADATA_TTL_MS = 6 * 60 * 60 * 1000;
 const CREDENTIAL_TTL_MS = 12 * 60 * 60 * 1000;
 const PAGE_SIZE = 200;
+const ALL_PREFECTURES = "__all_prefectures__";
 
 export type GemiAdminActivity = Readonly<{
   id: string;
@@ -35,7 +36,7 @@ export type GemiAdminMetadata = Readonly<{
 
 export type GemiAdminFilters = Readonly<{
   activityId: string;
-  prefectureId?: string;
+  prefectureId: string;
   municipalityId?: string;
   activeOnly: boolean;
 }>;
@@ -243,10 +244,10 @@ export function normalizeGemiAdminFilters(input: {
 }): GemiAdminFilters {
   const activityId = oneId(input.activityId, "ΚΑΔ");
   const prefectureRaw = String(input.prefectureId ?? "").trim();
-  const prefectureId = prefectureRaw ? oneId(prefectureRaw, "Νομός") : undefined;
+  const prefectureId = prefectureRaw ? oneId(prefectureRaw, "Νομός") : ALL_PREFECTURES;
   const municipalityRaw = String(input.municipalityId ?? "").trim();
   const municipalityId = municipalityRaw ? oneId(municipalityRaw, "Δήμος") : undefined;
-  if (municipalityId && !prefectureId) throw new Error("Νομός is required when Δήμος is selected.");
+  if (municipalityId && prefectureId === ALL_PREFECTURES) throw new Error("Νομός is required when Δήμος is selected.");
   const activeOnly = input.activeOnly !== false && input.activeOnly !== "false" && input.activeOnly !== "0";
   return { activityId, prefectureId, municipalityId, activeOnly };
 }
@@ -254,7 +255,7 @@ export function normalizeGemiAdminFilters(input: {
 function searchParams(filters: GemiAdminFilters, offset: number, size: number): Record<string, string | number | boolean> {
   return {
     activities: filters.activityId,
-    ...(filters.prefectureId ? { prefectures: filters.prefectureId } : {}),
+    ...(filters.prefectureId !== ALL_PREFECTURES ? { prefectures: filters.prefectureId } : {}),
     ...(filters.municipalityId ? { municipalities: filters.municipalityId } : {}),
     ...(filters.activeOnly ? { isActive: true } : {}),
     resultsSortBy: "+arGemi",
@@ -388,7 +389,7 @@ function companyCsvRow(company: GemiCompany, filters: GemiAdminFilters): string 
     activityTypes(company),
     activityValues(company, "kadVersion"),
     filters.activityId,
-    filters.prefectureId ?? "",
+    filters.prefectureId === ALL_PREFECTURES ? "" : filters.prefectureId,
     filters.municipalityId ?? ""
   ];
   return values.map(csvCell).join(",") + "\r\n";
@@ -451,7 +452,7 @@ export function gemiAdminCsvFilename(filters: GemiAdminFilters): string {
     filters.activityId,
     filters.municipalityId
       ? `municipality-${filters.municipalityId}`
-      : filters.prefectureId
+      : filters.prefectureId !== ALL_PREFECTURES
         ? `prefecture-${filters.prefectureId}`
         : "all-prefectures",
     filters.activeOnly ? "active" : "all"
