@@ -20,7 +20,10 @@ export default async function VendorTrialPage() {
   const storefront = await vendorStorefrontWorkspace(principal);
 
   const brandDone = Boolean(storefront.shortDescription || storefront.story);
-  const storefrontDone = trial.mediaCount > 0 || Boolean(storefront.settings.heroTitle);
+  const storefrontDone = trial.mediaCount > 0
+    || storefront.settings.heroTitle.trim() !== trial.vendorName.trim()
+    || storefront.settings.accentColor.toLowerCase() !== "#0f766e"
+    || storefront.settings.heroStyle !== "split";
   const productsDone = trial.productCount > 0;
   const completed = [brandDone, storefrontDone, productsDone].filter(Boolean).length;
   const progress = Math.round((completed / 3) * 100);
