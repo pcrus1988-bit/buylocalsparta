@@ -371,7 +371,7 @@ export function VendorDailyHomeClient({
       </section>
 
       {support !== "checking" && permission !== "granted" && !bridgeActive && <section className={styles.permissionCard}>
-        <div><span className={styles.eyebrow}>Ειδοποιήσεις συσκευής</span><h1>Ενεργοποίησε ειδοποιήσεις</h1><p>{permission === "denied" ? "Το kontamou.site έχει μπλοκαριστεί αυτόματα από τον browser. Άνοιξε τις ρυθμίσεις ειδοποιήσεων του Daily για την εναλλακτική ενεργοποίηση Background Push." : "Νέες παραγγελίες, αλλαγές και SLA μπορούν να εμφανίζονται στο κινητό ακόμη και όταν το Daily δεν είναι ανοιχτό."}</p></div>
+        <div><span className={styles.eyebrow}>Ειδοποιήσεις συσκευής</span><h2>Ενεργοποίησε ειδοποιήσεις</h2><p>{permission === "denied" ? "Το kontamou.site έχει μπλοκαριστεί αυτόματα από τον browser. Άνοιξε τις ρυθμίσεις ειδοποιήσεων του Daily για την εναλλακτική ενεργοποίηση Background Push." : "Νέες παραγγελίες, αλλαγές και SLA μπορούν να εμφανίζονται στο κινητό ακόμη και όταν το Daily δεν είναι ανοιχτό."}</p></div>
         <button type="button" onClick={() => void enableNotifications()} disabled={pushBusy || support !== "supported"}>
           {pushBusy ? "Ενεργοποίηση…" : support === "supported" ? permission === "denied" ? "Εναλλακτική ενεργοποίηση" : "Να επιτρέπονται" : "Δεν υποστηρίζεται"}
         </button>
