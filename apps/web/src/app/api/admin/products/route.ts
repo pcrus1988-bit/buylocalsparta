@@ -1,5 +1,5 @@
 import { requireAdminSession } from "../../../../lib/admin-session";
-import { adminProductCategoriesWorkspace, adminProductsWorkspace, type AdminProductStateFilter } from "../../../../lib/admin-products-runtime";
+import { adminProductCategoriesWorkspace, adminProductListWorkspace, adminProductsSummaryWorkspace, type AdminProductStateFilter } from "../../../../lib/admin-products-runtime";
 
 const STATES=new Set<AdminProductStateFilter>(["all","live","draft","suppressed","recalled","uncategorized","missing_media","no_offer"]);
 
@@ -7,7 +7,11 @@ export async function GET(request:Request){
   try{
     const principal=await requireAdminSession(request,{permission:"catalog.read"});
     const url=new URL(request.url);
-    if(url.searchParams.get("view")==="categories"){
+    const view=url.searchParams.get("view");
+    if(view==="summary"){
+      return Response.json(await adminProductsSummaryWorkspace(principal),{headers:{"cache-control":"private, no-store"}});
+    }
+    if(view==="categories"){
       return Response.json(await adminProductCategoriesWorkspace(principal,{
         q:url.searchParams.get("q")?.trim()||undefined,
         offset:Number(url.searchParams.get("offset")??0),
@@ -16,7 +20,7 @@ export async function GET(request:Request){
     }
     const rawState=url.searchParams.get("state")?.trim() as AdminProductStateFilter|undefined;
     const rawChannel=url.searchParams.get("channel")?.trim();
-    return Response.json(await adminProductsWorkspace(principal,{
+    return Response.json(await adminProductListWorkspace(principal,{
       q:url.searchParams.get("q")?.trim()||undefined,
       category:url.searchParams.get("category")?.trim()||undefined,
       state:rawState&&STATES.has(rawState)?rawState:"all",
