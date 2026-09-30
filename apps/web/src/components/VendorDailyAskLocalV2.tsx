@@ -42,7 +42,7 @@ type Panel = "message" | "offer";
 type Attachment = Readonly<{ dataUrl: string; name: string }>;
 
 const TERMINAL_REQUESTS = new Set(["closed", "expired", "accepted", "rejected", "declined", "converted", "cancelled"]);
-const OFFERABLE = new Set(["assigned", "awaiting_vendor", "needs_info"]);
+const OFFERABLE = new Set(["awaiting_vendor"]);
 
 const when = (value?: number) => value ? new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(value)) : "";
 
@@ -272,7 +272,7 @@ export function VendorDailyAskLocalV2({ initial }: { initial: Advice }) {
             </div>)}</div> : <div className={styles.emptyThread}>Απάντησε απευθείας εδώ — δεν χρειάζεται ξεχωριστή «Συνομιλία» για να δημιουργηθεί thread.</div>}
           </div>
 
-          {request.status === "needs_info" ? <div className={styles.waiting}>Περιμένουμε απάντηση από τον πελάτη. Μπορείς όμως να στείλεις συμπληρωματικό μήνυμα/φωτογραφία ή να προχωρήσεις σε προσφορά αν έχεις ήδη αρκετές πληροφορίες.</div> : null}
+          {request.status === "needs_info" ? <div className={styles.waiting}>Περιμένουμε απάντηση από τον πελάτη. Μπορείς να στείλεις συμπληρωματικό μήνυμα ή φωτογραφία· η προσφορά ενεργοποιείται ξανά μόλις επιστρέψει η διευκρίνιση.</div> : null}
 
           <div className={styles.actions}>
             <button type="button" className={`${styles.actionButton} ${panel === "message" ? styles.actionButtonPrimary : ""}`} onClick={() => togglePanel(request.id, "message")}>Μήνυμα / φωτογραφία</button>
