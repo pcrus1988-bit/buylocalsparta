@@ -68,15 +68,63 @@ export type AdminManagedVendorShop = Readonly<{
   agreement?: AdminVendorAgreementSummary;
 }>;
 
-export async function adminVendorShopsWorkspace(principal: SessionPrincipal) {
+export async function adminVendorShopsWorkspace(
+  principal: SessionPrincipal,
+  options: Readonly<{
+    q?: string;
+    status?: string;
+    view?: "all" | "active" | "attention" | "public" | "hidden";
+    limit?: number;
+    offset?: number;
+  }> = {}
+) {
   assertAdminPermission(principal, "vendor.manage");
+  const query = options.q?.trim().slice(0, 120) || undefined;
+  const status = options.status?.trim().slice(0, 40) || undefined;
+  const view = options.view ?? "all";
+  const limit = options.limit === undefined ? undefined : Math.max(10, Math.min(100, Math.trunc(options.limit)));
+  const offset = Math.max(0, Math.trunc(options.offset ?? 0));
   if (!productionDatabaseConfigured()) {
-    return { csrfToken: principal.csrfToken, databaseConfigured: false, shops: [] as AdminManagedVendorShop[] };
+    return {
+      csrfToken: principal.csrfToken,
+      databaseConfigured: false,
+      shops: [] as AdminManagedVendorShop[],
+      filteredTotal: 0,
+      offset,
+      limit: limit ?? 0,
+      hasMore: false,
+      metrics: { total: 0, active: 0, visible: 0, agreementGaps: 0, statuses: [] as string[] }
+    };
   }
 
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
   return uow.withTransaction(platformScope(principal.userId), async (tx) => {
+    const stats = await tx.query<SqlRow>(`
+      SELECT
+        count(*)::int AS total,
+        count(*) FILTER (WHERE v.status::text='active')::int AS active,
+        count(*) FILTER (WHERE v.status::text='active' AND v.public_directory_visible)::int AS visible,
+        count(*) FILTER (WHERE NOT EXISTS (
+          SELECT 1
+          FROM vendor_commercial_agreements a
+          WHERE a.vendor_id=v.id
+            AND a.status='active'
+            AND a.signed_at IS NOT NULL
+            AND NULLIF(a.source_document_reference,'') IS NOT NULL
+        ))::int AS agreement_gaps,
+        COALESCE(array_agg(DISTINCT v.status::text ORDER BY v.status::text),'{}'::text[]) AS statuses
+      FROM vendor_businesses v
+      JOIN markets m ON m.id=v.market_id
+      WHERE m.code='sparta'
+        AND (
+          v.public_id NOT LIKE 'vendor_research_%'
+          OR EXISTS (SELECT 1 FROM vendor_applications a WHERE a.vendor_id=v.id)
+          OR v.status::text <> 'invited'
+        )
+    `);
+    const metricRow = stats.rows[0] ?? {};
+
     const rows = await tx.query<SqlRow>(`
       SELECT
         v.public_id,
@@ -104,7 +152,8 @@ export async function adminVendorShopsWorkspace(principal: SessionPrincipal) {
         agreement.listing_fee_minor,
         agreement.recurring_fee_minor,
         agreement.recurring_fee_period,
-        agreement.source_document_reference
+        agreement.source_document_reference,
+        count(*) OVER()::int AS filtered_total
       FROM vendor_businesses v
       JOIN markets m ON m.id=v.market_id
       LEFT JOIN LATERAL (
@@ -142,10 +191,34 @@ export async function adminVendorShopsWorkspace(principal: SessionPrincipal) {
           OR app.public_id IS NOT NULL
           OR v.status::text <> 'invited'
         )
+        AND ($1::text IS NULL OR v.status::text=$1)
+        AND (
+          $2::text IS NULL
+          OR v.public_id ILIKE '%'||$2||'%'
+          OR v.trading_name ILIKE '%'||$2||'%'
+          OR v.legal_name ILIKE '%'||$2||'%'
+          OR COALESCE(app.public_id,'') ILIKE '%'||$2||'%'
+          OR COALESCE(agreement.agreement_code,'') ILIKE '%'||$2||'%'
+        )
+        AND (
+          $3::text='all'
+          OR ($3='active' AND v.status::text='active')
+          OR ($3='attention' AND (
+            v.status::text IN ('restricted','suspended')
+            OR NOT (
+              agreement.status='active'
+              AND agreement.signed_at IS NOT NULL
+              AND NULLIF(agreement.source_document_reference,'') IS NOT NULL
+            )
+          ))
+          OR ($3='public' AND v.status::text='active' AND v.public_directory_visible)
+          OR ($3='hidden' AND NOT v.public_directory_visible)
+        )
       ORDER BY
         CASE v.status::text WHEN 'active' THEN 0 WHEN 'suspended' THEN 1 WHEN 'restricted' THEN 2 WHEN 'closed' THEN 3 ELSE 4 END,
         lower(v.trading_name),v.public_id
-    `);
+      LIMIT $4 OFFSET $5
+    `, [status ?? null, query ?? null, view, limit ?? null, offset]);
 
     const shops = rows.rows.map((row): AdminManagedVendorShop => {
       const agreementId = optionalText(row.agreement_public_id);
@@ -185,7 +258,23 @@ export async function adminVendorShopsWorkspace(principal: SessionPrincipal) {
         agreement
       };
     });
-    return { csrfToken: principal.csrfToken, databaseConfigured: true, shops };
+    const filteredTotal = numberValue(rows.rows[0]?.filtered_total);
+    return {
+      csrfToken: principal.csrfToken,
+      databaseConfigured: true,
+      shops,
+      filteredTotal,
+      offset,
+      limit: limit ?? filteredTotal,
+      hasMore: limit !== undefined && offset + shops.length < filteredTotal,
+      metrics: {
+        total: numberValue(metricRow.total),
+        active: numberValue(metricRow.active),
+        visible: numberValue(metricRow.visible),
+        agreementGaps: numberValue(metricRow.agreement_gaps),
+        statuses: Array.isArray(metricRow.statuses) ? metricRow.statuses.map(String) : []
+      }
+    };
   }, { readOnly: true });
 }
 
