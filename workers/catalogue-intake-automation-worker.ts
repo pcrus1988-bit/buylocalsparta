@@ -57,6 +57,13 @@ try {
           vca.canonical_variant_id IS NULL
           OR approved_link.canonical_variant_id IS NULL
         )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM public.catalog_canonicalization_reviews review
+          WHERE review.source_product_id=sp.id
+            AND review.status='open'
+            AND review.reason_code IN ('canonical_identity_ambiguous','material_variant_conflict')
+        )
       GROUP BY sp.snapshot_id,cs.code,vca.vendor_id,vca.location_id
       ORDER BY max(vca.updated_at) ASC,sp.snapshot_id,vca.vendor_id,vca.location_id
       LIMIT $1
