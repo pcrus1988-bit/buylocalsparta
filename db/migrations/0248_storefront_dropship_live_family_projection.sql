@@ -26,6 +26,28 @@ CREATE TABLE IF NOT EXISTS bls_private.storefront_dropship_live_family (
     PRIMARY KEY (supplier_id, external_product_id)
 );
 
+-- Some historical environments already contain the early live-family table
+-- shape before this ledger slot. CREATE TABLE IF NOT EXISTS does not reconcile
+-- that partial shape, so make every later projection column explicit and safe.
+ALTER TABLE bls_private.storefront_dropship_live_family
+  ADD COLUMN IF NOT EXISTS min_price_minor bigint,
+  ADD COLUMN IF NOT EXISTS max_msrp_minor bigint,
+  ADD COLUMN IF NOT EXISTS category_codes text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS department_codes text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS brand_names text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS brand_names_normalized text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS colors text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS sizes text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS sizes_text text NOT NULL DEFAULT '[]'::text,
+  ADD COLUMN IF NOT EXISTS fits text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS materials text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS sort_title text NOT NULL DEFAULT ''::text,
+  ADD COLUMN IF NOT EXISTS search_vector tsvector NOT NULL DEFAULT ''::tsvector,
+  ADD COLUMN IF NOT EXISTS projected_at timestamptz NOT NULL DEFAULT now();
+
+CREATE UNIQUE INDEX IF NOT EXISTS storefront_dropship_live_family_identity_uq
+  ON bls_private.storefront_dropship_live_family (supplier_id, external_product_id);
+
 CREATE INDEX IF NOT EXISTS storefront_dropship_live_family_available_idx
   ON bls_private.storefront_dropship_live_family
     (supplier_id, sellable, available_until DESC, newest_at DESC, external_product_id);
