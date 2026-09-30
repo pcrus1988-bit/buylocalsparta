@@ -20,7 +20,7 @@ export default async function Page({searchParams}:{searchParams:Promise<{view?:s
       <div>
         <div className="eyebrow">Catalogue · operator control centre</div>
         <h1>Products &amp; Categories</h1>
-        <p className="lead">Fast product triage, category governance and catalogue quality from one place. The shell renders first; catalogue data loads in bounded, indexed slices so a large supplier import cannot freeze the Admin UI.</p>
+        <p className="lead">Fast product triage, category governance and catalogue quality from one place. Products load first in bounded, indexed slices; summary metrics and category choices fill in progressively so supplier imports cannot freeze the Admin UI.</p>
       </div>
     </section>
     <AdminProductsControl csrfToken={principal.csrfToken} initialView={initialView} canWrite={canWrite} />
