@@ -92,7 +92,7 @@ export function AdminBrandManagement({ brands, csrfToken, query, coverage, filte
       <table className="admin-brand-table">
         <thead><tr><th>Brand</th><th>Products</th><th>Logo</th><th>Status</th><th>Website</th><th>Actions</th></tr></thead>
         <tbody>{brands.map((brand) => {
-          const logoUrl = publicBrandLogoUrl(brand.logoObjectKey);
+          const logoUrl = publicBrandLogoUrl(brand.logoObjectKey, brand.logoExternalUrl);
           const busy = busyId === brand.id;
           const host = websiteHost(brand.website);
           return <tr key={brand.id}>
@@ -105,8 +105,8 @@ export function AdminBrandManagement({ brands, csrfToken, query, coverage, filte
               {logoUrl ? <a href={logoUrl} target="_blank" rel="noreferrer">Preview ↗</a> : null}
             </td>
             <td data-label="Status">
-              <span className={`status-pill${brand.logoObjectKey ? " is-active" : ""}`}>{brand.status}</span>
-              <small>{brand.enrichmentStatus ?? (brand.logoObjectKey ? "complete" : "missing")}</small>
+              <span className={`status-pill${logoUrl ? " is-active" : ""}`}>{brand.status}</span>
+              <small>{brand.enrichmentStatus ?? (logoUrl ? "complete" : "missing")}</small>
             </td>
             <td data-label="Website">{brand.website ? <a href={brand.website} target="_blank" rel="noreferrer">{host ?? brand.website} ↗</a> : <span>—</span>}</td>
             <td data-label="Actions">
@@ -124,7 +124,7 @@ export function AdminBrandManagement({ brands, csrfToken, query, coverage, filte
                   </form>
                   <div className="admin-brand-action-row">
                     <button className="button button-secondary" type="button" disabled={busy} onClick={() => void jsonAction(brand.id, "retry_enrichment")}>Retry enrichment</button>
-                    {brand.logoObjectKey ? <button className="button button-secondary" type="button" disabled={busy} onClick={() => { if (window.confirm(`Remove the current ${brand.name} logo from storefront cards?`)) void jsonAction(brand.id, "remove_logo"); }}>Remove logo</button> : null}
+                    {logoUrl ? <button className="button button-secondary" type="button" disabled={busy} onClick={() => { if (window.confirm(`Remove the current ${brand.name} logo from storefront cards?`)) void jsonAction(brand.id, "remove_logo"); }}>Remove logo</button> : null}
                   </div>
                   <details className="admin-brand-provenance">
                     <summary>Source / provenance</summary>
