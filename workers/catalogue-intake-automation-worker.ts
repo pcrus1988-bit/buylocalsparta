@@ -53,6 +53,7 @@ try {
        AND approved_link.link_status='approved'
       WHERE vca.source_product_id IS NOT NULL
         AND vca.assortment_status NOT IN ('rejected','discontinued')
+        AND vca.metadata->>'assignment'='bulk_snapshot_v1'
         AND (
           vca.canonical_variant_id IS NULL
           OR approved_link.canonical_variant_id IS NULL
