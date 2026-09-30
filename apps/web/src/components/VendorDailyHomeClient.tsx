@@ -57,19 +57,20 @@ type SlaWorkspace = {
 type PushStatus = { configured: boolean; publicKey?: string; devices: number };
 
 type BrowserSupport = "checking" | "supported" | "unsupported";
-type DailyMode = "today" | "orders" | "stock" | "customers";
 
 const DAILY_ACTIONS = [
-  { id: "orders", label: "Παραγγελίες", note: "Αποδοχή & προετοιμασία", href: "/daily/orders", icon: "□", modes: ["today", "orders"] as const, keywords: "orders παραγγελίες αποδοχή picking" },
-  { id: "scan", label: "Scan", note: "QR, barcode και γρήγορη αναζήτηση", href: "/daily/scan", icon: "⌁", modes: ["today", "orders", "stock"] as const, keywords: "scan qr barcode σάρωση" },
-  { id: "quickadd", label: "Quick Add", note: "Stock και γρήγορη καταχώρηση", href: "/daily/quickadd", icon: "+", modes: ["today", "stock"] as const, keywords: "quick add stock απόθεμα προϊόν" },
-  { id: "pickup", label: "Παραλαβές", note: "Έτοιμες παραγγελίες pickup", href: "/daily/pickup", icon: "↗", modes: ["orders"] as const, keywords: "pickup παραλαβή πελάτης" },
-  { id: "delivery", label: "Delivery", note: "Τοπική παράδοση και handover", href: "/daily/delivery", icon: "→", modes: ["orders"] as const, keywords: "delivery παράδοση handover" },
-  { id: "ask-local", label: "Ask Local", note: "Μηνύματα και αιτήματα πελατών", href: "/daily/ask-local", icon: "◌", modes: ["today", "customers"] as const, keywords: "ask local messages μηνύματα πελάτες" },
-  { id: "gift-cards", label: "Gift Cards", note: "Έκδοση και εξαργύρωση", href: "/daily/gift-cards", icon: "◇", modes: ["customers"] as const, keywords: "gift cards δωροκάρτες" },
-  { id: "opportunities", label: "Ευκαιρίες", note: "Stock και εμπορικές ευκαιρίες", href: "/daily/opportunities", icon: "↗", modes: ["stock"] as const, keywords: "opportunities ευκαιρίες stock" },
-  { id: "alerts", label: "Ειδοποιήσεις", note: "Ιστορικό και ενεργά alerts", href: "/daily/notifications", icon: "!", modes: ["today", "orders"] as const, keywords: "notifications ειδοποιήσεις alerts sla" }
+  { id: "orders", label: "Παραγγελίες", note: "Αποδοχή & προετοιμασία", href: "/daily/orders", icon: "□", keywords: "orders παραγγελίες αποδοχή picking" },
+  { id: "scan", label: "Scan", note: "QR και barcode", href: "/daily/scan", icon: "⌁", keywords: "scan qr barcode σάρωση" },
+  { id: "quickadd", label: "Quick Add", note: "Stock και γρήγορη καταχώρηση", href: "/daily/quickadd", icon: "+", keywords: "quick add stock απόθεμα προϊόν" },
+  { id: "gift-cards", label: "Gift Cards", note: "Έκδοση και εξαργύρωση", href: "/daily/gift-cards", icon: "◇", keywords: "gift cards δωροκάρτες" },
+  { id: "pickup", label: "Παραλαβές", note: "Pickup και handover", href: "/daily/pickup", icon: "↗", keywords: "pickup παραλαβή πελάτης" },
+  { id: "delivery", label: "Delivery", note: "Τοπική παράδοση", href: "/daily/delivery", icon: "→", keywords: "delivery παράδοση handover" },
+  { id: "ask-local", label: "Ask Local", note: "Μηνύματα πελατών", href: "/daily/ask-local", icon: "◌", keywords: "ask local messages μηνύματα πελάτες" },
+  { id: "opportunities", label: "Ευκαιρίες", note: "Stock και εμπορικές ευκαιρίες", href: "/daily/opportunities", icon: "↗", keywords: "opportunities ευκαιρίες stock" },
+  { id: "alerts", label: "Ειδοποιήσεις", note: "Ιστορικό και ενεργά alerts", href: "/daily/notifications", icon: "!", keywords: "notifications ειδοποιήσεις alerts sla" }
 ] as const;
+
+const SECONDARY_DAILY_ACTIONS = new Set(["pickup", "delivery", "ask-local", "opportunities", "alerts"]);
 
 const DAILY_ACTIVE_FULFILMENT_STATUSES = new Set([
   "awaiting_acceptance",
@@ -104,6 +105,16 @@ function orderHref(notification: SlaNotification): string {
   return orderId ? `/daily/orders?order=${encodeURIComponent(orderId)}` : "/daily/orders";
 }
 
+function friendlyEventTitle(title: string): string {
+  const normalized = title.trim().toLocaleLowerCase("en");
+  if (normalized === "ask_local.assigned") return "Νέο αίτημα Ask Local";
+  if (normalized === "ask_local.offer_accepted") return "Προσφορά Ask Local έγινε αποδεκτή";
+  if (normalized === "ask_local.offer_rejected") return "Προσφορά Ask Local δεν έγινε αποδεκτή";
+  if (normalized === "ask_local.closed") return "Αίτημα Ask Local ολοκληρώθηκε";
+  if (normalized.startsWith("ask_local.")) return "Ενημέρωση Ask Local";
+  return title;
+}
+
 function notificationStillNeedsAction(notification: SlaNotification, statusByFulfilment: ReadonlyMap<string, string>): boolean {
   const fulfilmentId = payloadString(notification.payload, "fulfilmentId");
   if (!fulfilmentId) return !notification.readAt;
@@ -131,7 +142,7 @@ export function VendorDailyHomeClient({
   const [support, setSupport] = useState<BrowserSupport>("checking");
   const [permission, setPermission] = useState<NotificationPermission | "unavailable">("unavailable");
   const [bridgeActive, setBridgeActive] = useState(false);
-  const [dailyMode, setDailyMode] = useState<DailyMode>("today");
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [dailyQuery, setDailyQuery] = useState("");
 
   useEffect(() => {
@@ -197,25 +208,19 @@ export function VendorDailyHomeClient({
   }), [dashboard.fulfilments, dashboard.products, generatedAt, openAsk.length, sla.metrics.breached, sla.metrics.escalated, sla.metrics.requiringAction, unacknowledged.length]);
   const feed = [
     ...actionableSlaNotifications.map((item) => ({ id: `sla:${item.id}`, title: item.title, body: item.body, at: new Date(item.createdAt).getTime(), href: orderHref(item) })),
-    ...advice.notifications.map((item) => ({ id: `advice:${item.id}`, title: item.title, body: item.body, at: item.createdAt ?? 0, href: "/daily/ask-local" }))
-  ].sort((a, b) => b.at - a.at).slice(0, 3);
+    ...advice.notifications.map((item) => ({ id: `advice:${item.id}`, title: friendlyEventTitle(item.title), body: item.body, at: item.createdAt ?? 0, href: "/daily/ask-local" }))
+  ].sort((a, b) => b.at - a.at).slice(0, 2);
   const unread = actionableSlaNotifications.filter((item) => !item.readAt).length + advice.notifications.length;
   const quickActions = useMemo(() => {
     const needle = dailyQuery.trim().toLocaleLowerCase("el");
-    return DAILY_ACTIONS.filter((item) => {
-      if (needle) return `${item.label} ${item.note} ${item.keywords}`.toLocaleLowerCase("el").includes(needle);
-      return (item.modes as readonly DailyMode[]).includes(dailyMode);
-    });
-  }, [dailyMode, dailyQuery]);
-  const visiblePriorities = useMemo(() => {
-    if (dailyMode === "today") return today.priorities;
-    const idsByMode: Record<Exclude<DailyMode, "today">, ReadonlySet<string>> = {
-      orders: new Set(["new-orders", "sla", "pickups"]),
-      stock: new Set(["out-of-stock", "stale-stock"]),
-      customers: new Set(["ask-local"])
-    };
-    return today.priorities.filter((priority) => idsByMode[dailyMode].has(priority.id));
-  }, [dailyMode, today.priorities]);
+    if (needle) {
+      return DAILY_ACTIONS.filter((item) =>
+        `${item.label} ${item.note} ${item.keywords}`.toLocaleLowerCase("el").includes(needle)
+      );
+    }
+    if (!toolsOpen) return [];
+    return DAILY_ACTIONS.filter((item) => SECONDARY_DAILY_ACTIONS.has(item.id));
+  }, [dailyQuery, toolsOpen]);
 
   async function acknowledge(notification: SlaNotification) {
     setAckBusy(notification.id);
@@ -288,43 +293,29 @@ export function VendorDailyHomeClient({
     </header>
 
     <div className={styles.shell}>
-      <section className={styles.commandSurface} aria-label="Γρήγορος έλεγχος Daily">
-        <div className={styles.commandTitle}>
-          <div><span className={styles.eyebrow}>Quick control</span><strong>Πήγαινε κατευθείαν στην εργασία</strong></div>
-          <Link href="/daily/scan" className={styles.scanShortcut}>Scan</Link>
-        </div>
-        <div className={styles.commandSearch}>
+      <section className={styles.commandDock} aria-label="Αναζήτηση και εργαλεία Daily">
+        <div className={styles.commandBar}>
           <span aria-hidden="true">⌕</span>
           <input
             type="search"
             value={dailyQuery}
             onChange={(event) => setDailyQuery(event.target.value)}
-            placeholder="Παραγγελία, stock, πελάτης…"
+            placeholder="Αναζήτηση λειτουργίας…"
             aria-label="Αναζήτηση λειτουργιών Daily"
           />
-          {dailyQuery && <button type="button" onClick={() => setDailyQuery("")}>×</button>}
+          {dailyQuery
+            ? <button type="button" className={styles.clearSearch} onClick={() => setDailyQuery("")} aria-label="Καθαρισμός αναζήτησης">×</button>
+            : <button type="button" className={styles.toolsToggle} aria-expanded={toolsOpen} onClick={() => setToolsOpen((current) => !current)}>
+                {toolsOpen ? "Κλείσιμο" : "Εργαλεία"}
+              </button>}
         </div>
-        <div className={styles.modeTabs} role="group" aria-label="Προβολή εργασιών">
-          {([
-            ["today", "Τώρα"],
-            ["orders", "Παραγγελίες"],
-            ["stock", "Απόθεμα"],
-            ["customers", "Πελάτες"]
-          ] as const).map(([id, label]) => <button
-            type="button"
-            key={id}
-            className={dailyMode === id ? styles.modeActive : ""}
-            aria-pressed={dailyMode === id}
-            onClick={() => { setDailyMode(id); setDailyQuery(""); }}
-          >{label}</button>)}
-        </div>
-        <div className={styles.quickActionGrid}>
-          {quickActions.slice(0, 6).map((item) => <Link href={item.href} key={item.id} className={styles.quickAction}>
+        {(toolsOpen || dailyQuery.trim()) && <div className={styles.commandPanel}>
+          {quickActions.map((item) => <Link href={item.href} key={item.id} className={styles.quickAction}>
             <span aria-hidden="true">{item.icon}</span>
             <div><strong>{item.label}</strong><small>{item.note}</small></div>
           </Link>)}
           {quickActions.length === 0 && <div className={styles.quickEmpty}>Δεν βρέθηκε λειτουργία. Δοκίμασε άλλη λέξη.</div>}
-        </div>
+        </div>}
       </section>
 
       {support !== "checking" && permission !== "granted" && !bridgeActive && <section className={styles.permissionCard}>
@@ -346,17 +337,12 @@ export function VendorDailyHomeClient({
           <Link href="/daily/quickadd" className={styles.todayMetric}><span>Stock freshness</span><strong>{today.metrics.stockFreshnessPercent}%</strong><small>{today.metrics.staleStock} παλιά · {today.metrics.outOfStock} μηδενικά</small></Link>
         </div>
         <div className={styles.priorityList}>
-          {visiblePriorities.slice(0, 5).map((priority, index) => <Link key={priority.id} href={priority.href} className={`${styles.priorityCard} ${styles[`priority_${priority.tone}`]}`}>
+          {today.priorities.slice(0, 4).map((priority, index) => <Link key={priority.id} href={priority.href} className={`${styles.priorityCard} ${styles[`priority_${priority.tone}`]}`}>
             <span className={styles.priorityRank}>{index + 1}</span>
             <div><strong>{priority.title}</strong><small>{priority.detail}</small></div>
             <b>{priority.count > 0 ? priority.count : "✓"}</b>
           </Link>)}
         </div>
-        {visiblePriorities.length === 0 && dailyMode !== "today" && <div className={styles.priorityEmpty}>Καμία ενεργή προτεραιότητα σε αυτή την προβολή.</div>}
-        {(today.lowStockItems.length > 0 || today.staleStockItems.length > 0) && <div className={styles.stockWatch}>
-          <div><span className={styles.eyebrow}>Stock watch</span><strong>{today.metrics.lowStock} χαμηλά · {today.metrics.staleStock} χρειάζονται φρεσκάρισμα</strong></div>
-          <Link href="/daily/quickadd">Έλεγχος stock</Link>
-        </div>}
       </section>
 
       {unacknowledged.length > 0 && <section className={styles.inbox}>
@@ -380,12 +366,8 @@ export function VendorDailyHomeClient({
         </div>
       </section>
 
-      {openAsk.length > 0 && <Link href="/daily/ask-local" className={styles.askCard}>
-        <div><span className={styles.eyebrow}>Ask Local</span><strong>{openAsk.length} ανοιχτά αιτήματα</strong><small>Άνοιγμα μηνυμάτων και αιτημάτων πελατών</small></div><span aria-hidden="true">›</span>
-      </Link>}
-
       <section className={styles.events}>
-        <div className={styles.sectionHead}><div><span className={styles.eyebrow}>Alerts</span><h2>Τελευταία συμβάντα</h2></div><Link href="/daily/notifications">Ιστορικό</Link></div>
+        <div className={styles.sectionHead}><div><span className={styles.eyebrow}>Activity</span><h2>Πρόσφατη δραστηριότητα</h2></div><Link href="/daily/notifications">Όλες</Link></div>
         {feed.length === 0 ? <div className={styles.empty}>Δεν υπάρχουν πρόσφατα συμβάντα που χρειάζονται ενέργεια.</div> : <div className={styles.eventList}>
           {feed.map((event) => <Link key={event.id} href={event.href} className={styles.event}><div><strong>{event.title}</strong><p>{event.body}</p><small>{event.at ? formatWhen(event.at) : ""}</small></div><span aria-hidden="true">›</span></Link>)}
         </div>}
