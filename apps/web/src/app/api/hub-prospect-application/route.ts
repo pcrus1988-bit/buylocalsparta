@@ -69,7 +69,6 @@ export async function POST(request: Request) {
 
     const receipt = await submitHubProspectApplication({ application, principal, now });
 
-    let trialAccessToken: string | undefined;
     let trialAccessExpiresAt: number | undefined;
     if (receipt.trial) {
       const access = createVendorTrialAccessToken({
@@ -78,7 +77,6 @@ export async function POST(request: Request) {
         vendorId: receipt.trial.vendorId,
         trialStartedAt: receipt.trial.startedAt
       });
-      trialAccessToken = access.token;
       trialAccessExpiresAt = access.accessExpiresAt;
       (await cookies()).set({
         name: VENDOR_TRIAL_COOKIE,
