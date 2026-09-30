@@ -213,6 +213,14 @@ export async function storefrontPreviewProducts(vendorId: string, requestedLimit
           WHERE public_id=$1 OR id::text=$1
           LIMIT 1
         ),
+        offer_seed AS MATERIALIZED (
+          SELECT vo.id
+          FROM vendor_offers vo
+          JOIN vendor ON vendor.id=vo.vendor_id
+          WHERE vo.status::text <> 'archived'
+          ORDER BY vo.updated_at DESC,vo.id DESC
+          LIMIT $2
+        ),
         offer_items AS (
           SELECT
             vo.public_id AS id,
@@ -239,8 +247,8 @@ export async function storefrontPreviewProducts(vendorId: string, requestedLimit
             media.alt_text AS media_alt,
             'offer'::text AS source_kind,
             vo.updated_at
-          FROM vendor_offers vo
-          JOIN vendor ON vendor.id=vo.vendor_id
+          FROM offer_seed seed
+          JOIN vendor_offers vo ON vo.id=seed.id
           JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
           JOIN categories category ON category.id=cv.category_id
           LEFT JOIN product_families family ON family.id=cv.family_id
@@ -256,13 +264,12 @@ export async function storefrontPreviewProducts(vendorId: string, requestedLimit
             WHERE item.canonical_variant_id=cv.id
               AND item.kind='image'
               AND item.scan_status='clean'
+              AND item.rights_status='approved'
               AND item.moderation_status='approved'
             ORDER BY CASE WHEN item.vendor_id=vo.vendor_id THEN 0 ELSE 1 END,item.sort_order,item.created_at
             LIMIT 1
           ) media ON true
-          WHERE vo.status::text <> 'archived'
           ORDER BY vo.updated_at DESC,vo.public_id
-          LIMIT $2
         ),
         submission_items AS (
           SELECT
@@ -295,6 +302,7 @@ export async function storefrontPreviewProducts(vendorId: string, requestedLimit
             WHERE item.canonical_variant_id=submission.canonical_variant_id
               AND item.kind='image'
               AND item.scan_status='clean'
+              AND item.rights_status='approved'
               AND item.moderation_status='approved'
             ORDER BY CASE WHEN item.vendor_id=submission.vendor_id THEN 0 ELSE 1 END,item.sort_order,item.created_at
             LIMIT 1
