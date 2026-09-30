@@ -98,14 +98,22 @@ export function AdminProductsControl({csrfToken,initialView="products",canWrite=
     setLoadingMore(false);
     const requestId=++requestRef.current;
     const controller=new AbortController();
+    let timedOut=false;
+    const timeout=window.setTimeout(()=>{timedOut=true;controller.abort();},8000);
     setLoading(true);setError("");
     const search=new URLSearchParams({view:"categories",limit:"60"});
     if(debouncedQuery)search.set("q",debouncedQuery);
     fetch("/api/admin/products?"+search.toString(),{cache:"no-store",signal:controller.signal})
       .then(async response=>{const payload=await response.json() as AdminProductCategoriesWorkspace&{error?:string};if(!response.ok)throw new Error(payload.error??"Could not load categories");if(requestId===requestRef.current)setCategoryWorkspace(payload);})
-      .catch(cause=>{if(cause instanceof DOMException&&cause.name==="AbortError")return;if(requestId===requestRef.current)setError(cause instanceof Error?cause.message:"Could not load categories");})
-      .finally(()=>{if(requestId===requestRef.current)setLoading(false);});
-    return()=>controller.abort();
+      .catch(cause=>{
+        if(cause instanceof DOMException&&cause.name==="AbortError"){
+          if(timedOut&&requestId===requestRef.current)setError("The category query took too long. Retry now or search for a narrower category.");
+          return;
+        }
+        if(requestId===requestRef.current)setError(cause instanceof Error?cause.message:"Could not load categories");
+      })
+      .finally(()=>{window.clearTimeout(timeout);if(requestId===requestRef.current)setLoading(false);});
+    return()=>{window.clearTimeout(timeout);controller.abort();};
   },[view,debouncedQuery,reloadKey]);
 
   const visibleProducts=workspace?.products??[];
@@ -212,7 +220,7 @@ export function AdminProductsControl({csrfToken,initialView="products",canWrite=
       <article><span>Categories</span><strong>{formatCount(metrics.categories)}</strong><small>taxonomy nodes</small></article>
     </div>:view==="products"&&summaryLoading?<div className={styles.metricGrid} aria-label="Loading catalogue summary">{Array.from({length:6}).map((_,index)=><article className={styles.metricSkeleton} key={index}><span/><strong/><small/></article>)}</div>:null}
 
-    {summaryError?<div className={styles.summaryWarning} role="status"><span>{summaryError}</span><button type="button" onClick={()=>setReloadKey(value=>value+1)}>Retry summary</button></div>:null}
+    {view==="products"&&summaryError?<div className={styles.summaryWarning} role="status"><span>{summaryError}</span><button type="button" onClick={()=>setReloadKey(value=>value+1)}>Retry summary</button></div>:null}
 
     <div className={styles.controlBar}>
       <label className={styles.search}><span aria-hidden="true">⌕</span><input value={query} onChange={event=>setQuery(event.target.value)} placeholder={view==="products"?"Search title, GTIN, MPN or product ID…":"Search category or code…"}/>{query?<button type="button" onClick={()=>setQuery("")} aria-label="Clear search">×</button>:null}</label>
