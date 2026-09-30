@@ -217,7 +217,7 @@ export default async function VendorPage({ params }: Props) {
     override
   });
 
-  // Seed the first bounded catalogue page into SSR so customers and crawlers see
+  // Seed the cached first bounded catalogue page into SSR so customers and crawlers see
   // real products immediately. The browser reuses this page and only fetches when
   // filters change or the customer navigates deeper.
   const initialCatalogPage = isResearch
