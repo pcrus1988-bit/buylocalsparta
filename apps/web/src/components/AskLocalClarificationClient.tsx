@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import type { CustomerAskLocalRequestView } from "../lib/customer-ask-local-view";
 import type { AskLocalClarificationMessage } from "../lib/ask-local-clarification-service";
@@ -81,11 +82,13 @@ export function AskLocalClarificationClient({
   }
 
   return <section className="ask-local-clarification" aria-label="Διευκρινίσεις Ask Local">
-    <div className="ask-local-clarification-head"><div><strong>Διευκρινίσεις με το κατάστημα</strong><small>Η συζήτηση ανήκει μόνο σε αυτό το Ask Local αίτημα.</small></div>{status !== "needs_info" && <button className="ask-local-clarification-close" type="button" onClick={() => setExpanded(false)} aria-label="Απόκρυψη διευκρινίσεων">Απόκρυψη</button>}</div>
+    <div className="ask-local-clarification-head"><div><strong>Συζήτηση με το κατάστημα</strong><small>Μηνύματα και φωτογραφίες παραμένουν ιδιωτικά μέσα σε αυτό το Ask Local αίτημα.</small></div>{status !== "needs_info" && <button className="ask-local-clarification-close" type="button" onClick={() => setExpanded(false)} aria-label="Απόκρυψη διευκρινίσεων">Απόκρυψη</button>}</div>
     {!loaded && <p className="account-muted" role="status">Φόρτωση διευκρινίσεων…</p>}
     {loaded && messages.length > 0 && <div className="ask-local-clarification-messages">{messages.map((message) => <div className={`ask-local-clarification-message is-${message.senderType}`} key={message.id}>
       <strong>{message.senderType === "vendor" ? "Κατάστημα" : message.senderType === "customer" ? "Εσύ" : "KONTA MOY"}</strong>
-      <span>{message.body}</span><small>{when(message.createdAt)}</small>
+      <span>{message.body}</span>
+      {message.imageDataUrl ? <Image src={message.imageDataUrl} alt="Φωτογραφία από το κατάστημα στο Ask Local" width={420} height={315} unoptimized style={{ width: "min(100%, 320px)", height: "auto", borderRadius: 12, marginTop: 6 }} /> : null}
+      <small>{when(message.createdAt)}</small>
     </div>)}</div>}
     {loaded && messages.length === 0 && !error && <p className="account-muted">Δεν υπάρχουν ακόμη μηνύματα διευκρίνισης.</p>}
     {status === "needs_info" && <form className="ask-local-clarification-reply" onSubmit={submit}>
