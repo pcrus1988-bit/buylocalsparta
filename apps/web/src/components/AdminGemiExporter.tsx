@@ -34,6 +34,28 @@ function activityLabel(activity: Activity): string {
   return `${activity.id} · ${activity.descr}${activity.kadVersion ? ` · ΚΑΔ ${activity.kadVersion}` : ""}`;
 }
 
+const TRANSIENT_DB_CONNECT_ERROR = /timeout exceeded when trying to connect|too many clients|remaining connection slots|connection terminated/i;
+
+async function gemiJson<T>(url: string): Promise<{ response: Response; payload: T & { error?: string } }> {
+  let response!: Response;
+  let payload!: T & { error?: string };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    response = await fetch(url, {
+      method: "GET",
+      cache: "no-store",
+      credentials: "same-origin"
+    });
+    payload = await response.json() as T & { error?: string };
+    if (
+      response.ok ||
+      attempt === 1 ||
+      !TRANSIENT_DB_CONNECT_ERROR.test(payload.error ?? "")
+    ) return { response, payload };
+    await new Promise((resolve) => window.setTimeout(resolve, 450));
+  }
+  return { response, payload };
+}
+
 export function AdminGemiExporter() {
   const [metadata, setMetadata] = useState<Metadata>();
   const [metadataError, setMetadataError] = useState("");
@@ -48,9 +70,8 @@ export function AdminGemiExporter() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/admin/gemi/metadata", { method: "GET", cache: "no-store" })
-      .then(async (response) => {
-        const payload = await response.json() as Metadata & { error?: string };
+    gemiJson<Metadata>("/api/admin/gemi/metadata")
+      .then(({ response, payload }) => {
         if (!response.ok) throw new Error(payload.error ?? "Δεν ήταν δυνατή η φόρτωση των φίλτρων ΓΕΜΗ.");
         if (!cancelled) setMetadata(payload);
       })
@@ -96,8 +117,7 @@ export function AdminGemiExporter() {
     setPreview(undefined);
     setPreviewError("");
     try {
-      const response = await fetch(`/api/admin/gemi/preview?${query}`, { method: "GET", cache: "no-store" });
-      const payload = await response.json() as { preview?: Preview; error?: string };
+      const { response, payload } = await gemiJson<{ preview?: Preview }>(`/api/admin/gemi/preview?${query}`);
       if (!response.ok || !payload.preview) throw new Error(payload.error ?? "Η αναζήτηση ΓΕΜΗ απέτυχε.");
       setPreview(payload.preview);
     } catch (error) {
