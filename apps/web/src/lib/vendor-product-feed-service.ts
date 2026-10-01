@@ -288,7 +288,7 @@ export async function adminVendorProductFeedWorkspace() {
     SELECT f.public_id,f.name,f.source_kind,f.source_url,f.status,f.detected_format,f.sync_interval_minutes,
            f.last_product_count,f.last_ready_count,f.last_warning_count,f.last_error_count,f.last_excluded_count,
            f.last_sync_completed_at,f.next_sync_at,f.last_error,f.consecutive_failures,
-           vb.public_id AS vendor_public_id,vb.business_name AS vendor_name
+           vb.public_id AS vendor_public_id,vb.trading_name AS vendor_name
     FROM public.vendor_product_feeds f
     JOIN public.vendor_businesses vb ON vb.id=f.vendor_id
     ORDER BY CASE f.status WHEN 'error' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END,f.updated_at DESC
@@ -359,7 +359,7 @@ async function persistFeedAnalysis(
         new_count=$7,updated_count=$8,missing_count=$9,linked_offer_count=$10,submission_count=$11,completed_at=now()
       WHERE id=$1::uuid
     `,[text(run.rows[0]?.id),analysis.productCount,analysis.readyCount,analysis.warningCount,analysis.errorCount,analysis.excludedCount,
-      upsert.inserted,upsert.updated,missing.rowCount,commerce.linkedOffers,submissions+reconciled.submissions,commerce.stockUpdates]);
+      upsert.inserted,upsert.updated,missing.rowCount,commerce.linkedOffers,submissions+reconciled.submissions]);
 
     await client.query("COMMIT");
     return {
