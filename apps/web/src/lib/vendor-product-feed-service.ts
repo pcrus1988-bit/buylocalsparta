@@ -12,7 +12,8 @@ import {
   normalizeVendorFeedUrl,
   prepareVendorProductFeed,
   type VendorProductFeedMappingInput,
-  type VendorProductFeedPreview
+  type VendorProductFeedPreview,
+  type VendorProductFeedPreviewError
 } from "./vendor-product-feed-preview";
 
 type FeedSourceType = "url" | "upload";
@@ -49,6 +50,7 @@ export type VendorProductFeedRun = Readonly<{
   totalRows: number;
   validRows: number;
   errorRows: number;
+  validationErrors: readonly VendorProductFeedPreviewError[];
   createdSubmissions: number;
   updatedSubmissions: number;
   updatedOffers: number;
@@ -115,6 +117,19 @@ function jsonObject(value: unknown): Record<string, unknown> {
   return {};
 }
 
+function jsonArray<T>(value: unknown): readonly T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed as T[] : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 export async function vendorProductFeedWorkspace(principal: SessionPrincipal): Promise<VendorProductFeedWorkspace> {
   const vendorId = requiredVendorId(principal);
   return uow().withTransaction({ actorUserId: principal.userId, vendorId }, async (tx) => {
@@ -128,7 +143,7 @@ export async function vendorProductFeedWorkspace(principal: SessionPrincipal): P
       "ORDER BY f.updated_at DESC,f.created_at DESC"
     ), [vendorId]);
     const runs = await tx.query<SqlRow>(sql(
-      "SELECT r.public_id,f.public_id AS feed_public_id,r.trigger_type,r.status,r.total_rows,r.valid_rows,r.error_rows,",
+      "SELECT r.public_id,f.public_id AS feed_public_id,r.trigger_type,r.status,r.total_rows,r.valid_rows,r.error_rows,r.validation_errors,",
       "r.created_submissions,r.updated_submissions,r.updated_offers,r.protected_inventory_rows,r.missing_rows,",
       "r.error_message,r.started_at,r.finished_at",
       "FROM vendor_product_feed_runs r JOIN vendor_product_feeds f ON f.id=r.feed_id",
@@ -205,12 +220,14 @@ export async function saveVendorProductFeed(
       const feedPublicId = String(feed.rows[0]?.public_id ?? "");
       if (!feedUuid || !feedPublicId) throw new Error("Το XML feed δεν αποθηκεύτηκε.");
 
+      const validationErrors = prepared.preview.errors.slice(0, 200);
       const run = await tx.query<SqlRow>(sql(
-        "INSERT INTO vendor_product_feed_runs(feed_id,market_id,vendor_id,trigger_type,status,source_hash,total_rows,valid_rows,error_rows,created_by)",
-        "VALUES($1::uuid,$2::uuid,$3::uuid,$4,'running',$5,$6,$7,$8,$9::uuid) RETURNING id::text,public_id"
+        "INSERT INTO vendor_product_feed_runs(feed_id,market_id,vendor_id,trigger_type,status,source_hash,total_rows,valid_rows,error_rows,validation_errors,created_by)",
+        "VALUES($1::uuid,$2::uuid,$3::uuid,$4,'running',$5,$6,$7,$8,$9::jsonb,$10::uuid) RETURNING id::text,public_id"
       ), [
         feedUuid, marketUuid, vendorUuid, triggerType, sourceXmlHash,
-        prepared.preview.totalRows, prepared.preview.validRows, prepared.preview.errorRows, userUuid
+        prepared.preview.totalRows, prepared.preview.validRows, prepared.preview.errorRows,
+        JSON.stringify(validationErrors), userUuid
       ]);
       const runUuid = String(run.rows[0]?.id ?? "");
 
@@ -502,6 +519,7 @@ function mapRun(row: SqlRow): VendorProductFeedRun {
     totalRows: int(row.total_rows),
     validRows: int(row.valid_rows),
     errorRows: int(row.error_rows),
+    validationErrors: jsonArray<VendorProductFeedPreviewError>(row.validation_errors),
     createdSubmissions: int(row.created_submissions),
     updatedSubmissions: int(row.updated_submissions),
     updatedOffers: int(row.updated_offers),
