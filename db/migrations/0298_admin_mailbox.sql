@@ -72,6 +72,30 @@ CREATE INDEX IF NOT EXISTS admin_mail_state_user_idx
 ALTER TABLE public.admin_mail_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_mail_state ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS bls_admin_mail_messages_runtime_all ON public.admin_mail_messages;
+CREATE POLICY bls_admin_mail_messages_runtime_all ON public.admin_mail_messages
+  FOR ALL
+  TO bls_app_runtime, bls_platform_runtime
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS bls_admin_mail_state_runtime_all ON public.admin_mail_state;
+CREATE POLICY bls_admin_mail_state_runtime_all ON public.admin_mail_state
+  FOR ALL
+  TO bls_app_runtime, bls_platform_runtime
+  USING (true)
+  WITH CHECK (true);
+
+REVOKE ALL ON TABLE public.admin_mail_messages
+  FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime, bls_platform_runtime;
+REVOKE ALL ON TABLE public.admin_mail_state
+  FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime, bls_platform_runtime;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+  public.admin_mail_messages,
+  public.admin_mail_state
+TO bls_app_runtime, bls_platform_runtime;
+
 COMMENT ON TABLE public.admin_mail_messages IS
   'Admin mailbox projection for AWS SES. Inbound raw RFC822 data remains authoritative in the configured S3 bucket.';
 COMMENT ON COLUMN public.admin_mail_messages.transport_key IS
