@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS public.admin_mail_messages (
   attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(attachments) = 'array'),
   spam_verdict text,
   virus_verdict text,
-  status text NOT NULL CHECK (status IN ('received','sent','failed')),
+  status text NOT NULL CHECK (status IN ('received','queued','sent','failed')),
   delivery_error text,
   sent_at timestamptz,
   received_at timestamptz,
