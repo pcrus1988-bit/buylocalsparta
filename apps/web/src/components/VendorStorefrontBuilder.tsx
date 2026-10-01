@@ -155,7 +155,7 @@ export function VendorStorefrontBuilder(props: {
           {!instagramConnection ? <p className={styles.miniNote}>Έλεγχος σύνδεσης…</p> : instagramConnection.connected ? <>
             <p className={styles.status}>Συνδεδεμένο ως <strong>@{instagramConnection.username}</strong>{instagramConnection.accountType ? ` · ${instagramConnection.accountType}` : ""}</p>
             <button className={styles.deviceButton} type="button" disabled={instagramBusy} onClick={disconnectInstagram}>{instagramBusy ? "Αποσύνδεση…" : "Αποσύνδεση Instagram"}</button>
-          </> : instagramConnection.configured ? <a className={styles.saveButton} href="/api/vendor/instagram/connect">Σύνδεση Instagram</a> : <p className={styles.miniNote}>Η σύνδεση Instagram χρειάζεται πρώτα τα Meta App credentials στο production environment.</p>}
+          </> : instagramConnection.configured ? <button className={styles.saveButton} type="button" onClick={() => window.location.assign("/api/vendor/instagram/connect")}>Σύνδεση Instagram</button> : <p className={styles.miniNote}>Η σύνδεση Instagram χρειάζεται πρώτα τα Meta App credentials στο production environment.</p>}
         </div>
 
         <label className={styles.toggle}><span>Εμφάνιση Instagram στο storefront</span><input type="checkbox" checked={settings.instagram.enabled} disabled={!instagramConnection?.connected} onChange={(event) => patchInstagram({ enabled: event.target.checked })} /></label>
