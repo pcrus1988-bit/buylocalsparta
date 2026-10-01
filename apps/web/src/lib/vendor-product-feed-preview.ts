@@ -328,7 +328,7 @@ export function normalizeVendorFeedUrl(value: string | undefined): string {
 export async function fetchVendorXml(rawUrl: string): Promise<string> {
   let url = new URL(normalizeVendorFeedUrl(rawUrl));
   for (let redirect = 0; redirect <= 3; redirect += 1) {
-    await assertPublicUrl(url);
+    await assertPublicVendorUrl(url);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20_000);
     try {
@@ -379,7 +379,7 @@ export async function fetchVendorXml(rawUrl: string): Promise<string> {
   throw new Error("Δεν ήταν δυνατή η λήψη του XML.");
 }
 
-async function assertPublicUrl(url: URL) {
+export async function assertPublicVendorUrl(url: URL) {
   const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
   if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local") || !hostname.includes(".")) {
     throw new Error("Το XML URL πρέπει να είναι δημόσια προσβάσιμο.");
