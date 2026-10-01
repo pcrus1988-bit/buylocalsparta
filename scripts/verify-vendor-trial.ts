@@ -60,9 +60,10 @@ requireText(authContext, "brandConfigured: trial.brandConfigured", "Vendor auth 
 requireText(authContext, "storefrontConfigured: trial.storefrontConfigured", "Vendor auth context must expose real Storefront completion to the persistent walkthrough");
 requireText(workspaceHeader, 'aria-controls="vendor-trial-guide"', "Active trials must expose a persistent reopenable walkthrough control");
 requireText(workspaceHeader, 'role="dialog"', "Persistent trial walkthrough must use an accessible dialog surface");
-requireText(workspaceHeader, 'label: "4 · Τι ακολουθεί"', "Persistent trial walkthrough must explain the activation path without overloading onboarding");
-requireText(trialPage, "Math.round((completed / 3) * 100)", "Trial setup progress must reflect the three real setup tasks");
-requireText(trialPage, 'number: 4', "Trial wizard must stay focused on four simple onboarding stops");
+forbidText(workspaceHeader, 'label: "4 · Τι ακολουθεί"', "Persistent trial walkthrough must not reintroduce a fourth onboarding stop");
+requireText(workspaceHeader, 'href: "/vendor/storefront"', "Persistent trial walkthrough must send profile setup to the dedicated storefront workspace");
+requireText(trialPage, "Math.round((completed / 2) * 100)", "Trial setup progress must reflect the two required setup tasks before preview");
+forbidText(trialPage, 'number: 4', "Trial wizard must stay focused on three simple onboarding stops");
 requireText(trialPage, 'title: "Προφίλ καταστήματος"', "Trial wizard must start with the vendor storefront profile");
 requireText(trialPage, 'title: "Πρώτα προϊόντα"', "Trial wizard must guide the vendor to add real products");
 requireText(trialPage, 'title: "Προεπισκόπηση"', "Trial wizard must include the private storefront preview");

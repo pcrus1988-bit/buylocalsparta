@@ -148,14 +148,14 @@ export function VendorStorefrontBuilder(props: {
       <div className={styles.sectionBlock}>
         <div className="eyebrow">Instagram</div>
         <h3 style={{ marginBottom: 8 }}>Instagram στη βιτρίνα σου</h3>
-        <p style={{ marginTop: 0 }}>Σύνδεσε επαγγελματικό Instagram λογαριασμό. Τα Reels και αναρτήσεις φορτώνουν μόνο όταν ο πελάτης πλησιάζει στην ενότητα, ώστε να μη βαραίνουν την αρχική φόρτωση.</p>
+        <p style={{ marginTop: 0 }}>Σύνδεσε επαγγελματικό Instagram λογαριασμό. Τα βίντεο και αναρτήσεις φορτώνουν μόνο όταν ο πελάτης πλησιάζει στην ενότητα, ώστε να μη βαραίνουν την αρχική φόρτωση.</p>
 
         <div className={styles.field}>
           <span className={styles.fieldLegend}>Σύνδεση λογαριασμού</span>
           {!instagramConnection ? <p className={styles.miniNote}>Έλεγχος σύνδεσης…</p> : instagramConnection.connected ? <>
             <p className={styles.status}>Συνδεδεμένο ως <strong>@{instagramConnection.username}</strong>{instagramConnection.accountType ? ` · ${instagramConnection.accountType}` : ""}</p>
             <button className={styles.deviceButton} type="button" disabled={instagramBusy} onClick={disconnectInstagram}>{instagramBusy ? "Αποσύνδεση…" : "Αποσύνδεση Instagram"}</button>
-          </> : instagramConnection.configured ? <button className={styles.saveButton} type="button" onClick={() => window.location.assign("/api/vendor/instagram/connect")}>Σύνδεση Instagram</button> : <p className={styles.miniNote}>Η σύνδεση Instagram χρειάζεται πρώτα τα ρυθμίσεις εφαρμογής Meta στο περιβάλλον παραγωγής.</p>}
+          </> : instagramConnection.configured ? <button className={styles.saveButton} type="button" onClick={() => window.location.assign("/api/vendor/instagram/connect")}>Σύνδεση Instagram</button> : <p className={styles.miniNote}>Η σύνδεση Instagram χρειάζεται πρώτα τις ρυθμίσεις εφαρμογής Meta στο περιβάλλον παραγωγής.</p>}
         </div>
 
         <label className={styles.toggle}><span>Εμφάνιση Instagram στο προφίλ</span><input type="checkbox" checked={settings.instagram.enabled} disabled={!instagramConnection?.connected} onChange={(event) => patchInstagram({ enabled: event.target.checked })} /></label>
@@ -165,44 +165,49 @@ export function VendorStorefrontBuilder(props: {
           <input id="instagram-section-title" type="text" maxLength={80} value={settings.instagram.sectionTitle} onChange={(event) => patchInstagram({ sectionTitle: event.target.value })} />
         </div>
 
-        <div className={styles.field}>
-          <span className={styles.fieldLegend}>Περιεχόμενο</span>
-          <div className={styles.segmented}>
-            {([["reels","Reels"],["all","Αναρτήσεις + Reels"],["posts","Αναρτήσεις"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.contentMode === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ contentMode: value })}>{label}</button>)}
+        <details className={styles.socialAdvanced}>
+          <summary>Προηγμένες ρυθμίσεις Instagram</summary>
+          <div className={styles.socialAdvancedBody}>
+          <div className={styles.field}>
+            <span className={styles.fieldLegend}>Περιεχόμενο</span>
+            <div className={styles.segmented}>
+              {([["reels","Reels"],["all","Αναρτήσεις + Reels"],["posts","Αναρτήσεις"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.contentMode === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ contentMode: value })}>{label}</button>)}
+            </div>
           </div>
-        </div>
-
-        <div className={styles.field}>
-          <label htmlFor="instagram-item-count">Πλήθος στοιχείων</label>
-          <select id="instagram-item-count" value={settings.instagram.itemCount} onChange={(event) => patchInstagram({ itemCount: Number(event.target.value) as 4 | 8 | 12 | 20 })}>
-            <option value={4}>4</option><option value={8}>8</option><option value={12}>12</option><option value={20}>20</option>
-          </select>
-        </div>
-
-        <div className={styles.toggles}>
-          <label className={styles.toggle}><span>Αυτόματη αναπαραγωγή ενεργού Reel</span><input type="checkbox" checked={settings.instagram.autoplay} onChange={(event) => patchInstagram({ autoplay: event.target.checked })} /></label>
-          <label className={styles.toggle}><span>Έναρξη χωρίς ήχο</span><input type="checkbox" checked={settings.instagram.muted} onChange={(event) => patchInstagram({ muted: event.target.checked })} /></label>
-        </div>
-
-        <div className={styles.field}>
-          <span className={styles.fieldLegend}>Κινητό</span>
-          <div className={styles.segmented}>
-            {([["reels","Reels 9:16"],["carousel","Κυλιόμενη προβολή"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.mobileLayout === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ mobileLayout: value })}>{label}</button>)}
+  
+          <div className={styles.field}>
+            <label htmlFor="instagram-item-count">Πλήθος στοιχείων</label>
+            <select id="instagram-item-count" value={settings.instagram.itemCount} onChange={(event) => patchInstagram({ itemCount: Number(event.target.value) as 4 | 8 | 12 | 20 })}>
+              <option value={4}>4</option><option value={8}>8</option><option value={12}>12</option><option value={20}>20</option>
+            </select>
           </div>
-        </div>
-
-        <div className={styles.field}>
-          <span className={styles.fieldLegend}>Υπολογιστής</span>
-          <div className={styles.segmented}>
-            {([["spotlight","Μεγάλο Reel + βέλη"],["carousel","Κυλιόμενη προβολή + βέλη"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.desktopLayout === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ desktopLayout: value })}>{label}</button>)}
+  
+          <div className={styles.toggles}>
+            <label className={styles.toggle}><span>Αυτόματη αναπαραγωγή ενεργού βίντεο</span><input type="checkbox" checked={settings.instagram.autoplay} onChange={(event) => patchInstagram({ autoplay: event.target.checked })} /></label>
+            <label className={styles.toggle}><span>Έναρξη χωρίς ήχο</span><input type="checkbox" checked={settings.instagram.muted} onChange={(event) => patchInstagram({ muted: event.target.checked })} /></label>
           </div>
-        </div>
-
-        <div className={styles.field}>
-          <label htmlFor="instagram-curated-urls">Επιλεγμένα Reels / αναρτήσεις (προαιρετικό)</label>
-          <textarea id="instagram-curated-urls" value={settings.instagram.curatedUrls.join("\n")} placeholder={"https://www.instagram.com/reel/.../\nhttps://www.instagram.com/p/.../"} onChange={(event) => patchInstagram({ curatedUrls: event.target.value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean).slice(0,20) })} />
-          <p className={styles.miniNote}>Μία διεύθυνση ανά γραμμή. Αν μείνει κενό, εμφανίζονται αυτόματα τα πιο πρόσφατα στοιχεία του συνδεδεμένου λογαριασμού.</p>
-        </div>
+  
+          <div className={styles.field}>
+            <span className={styles.fieldLegend}>Κινητό</span>
+            <div className={styles.segmented}>
+              {([["reels","Reels 9:16"],["carousel","Κυλιόμενη προβολή"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.mobileLayout === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ mobileLayout: value })}>{label}</button>)}
+            </div>
+          </div>
+  
+          <div className={styles.field}>
+            <span className={styles.fieldLegend}>Υπολογιστής</span>
+            <div className={styles.segmented}>
+              {([["spotlight","Μεγάλο βίντεο + βέλη"],["carousel","Κυλιόμενη προβολή + βέλη"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.desktopLayout === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ desktopLayout: value })}>{label}</button>)}
+            </div>
+          </div>
+  
+          <div className={styles.field}>
+            <label htmlFor="instagram-curated-urls">Επιλεγμένα βίντεο / αναρτήσεις (προαιρετικό)</label>
+            <textarea id="instagram-curated-urls" value={settings.instagram.curatedUrls.join("\n")} placeholder={"https://www.instagram.com/reel/.../\nhttps://www.instagram.com/p/.../"} onChange={(event) => patchInstagram({ curatedUrls: event.target.value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean).slice(0,20) })} />
+            <p className={styles.miniNote}>Μία διεύθυνση ανά γραμμή. Αν μείνει κενό, εμφανίζονται αυτόματα τα πιο πρόσφατα στοιχεία του συνδεδεμένου λογαριασμού.</p>
+          </div>
+          </div>
+        </details>
       </div>
 
       {message && <p className={`${styles.status} ${styles.ok}`} role="status">{message}</p>}
@@ -212,7 +217,7 @@ export function VendorStorefrontBuilder(props: {
 
     <div className={styles.previewPanel}>
       <div className={styles.previewToolbar}>
-        <div><strong>Ζωντανή ιδιωτική προεπισκόπηση</strong><br/><small>Αυτό το βλέπεις μόνο εσύ στη δοκιμή.</small></div>
+        <div><strong>Ζωντανή προεπισκόπηση εμφάνισης</strong><br/><small>{props.initial.demoMode ? "Αυτή η προεπισκόπηση δεν είναι δημόσια." : "Για πραγματικά προϊόντα, άνοιξε την πλήρη προεπισκόπηση καταστήματος."}</small></div>
         <div className={styles.deviceToggle}>
           <button type="button" className={`${styles.deviceButton} ${device === "desktop" ? styles.deviceActive : ""}`} onClick={() => setDevice("desktop")}>Υπολογιστής</button>
           <button type="button" className={`${styles.deviceButton} ${device === "mobile" ? styles.deviceActive : ""}`} onClick={() => setDevice("mobile")}>Κινητό</button>
@@ -229,7 +234,11 @@ export function VendorStorefrontBuilder(props: {
           <div className={styles.chips}><span className={styles.chip}>Παραλαβή από κατάστημα</span><span className={styles.chip}>Τοπική υποστήριξη</span><span className={styles.demoPill}>{props.initial.demoMode ? "ΠΡΟΕΠΙΣΚΟΠΗΣΗ ΔΟΚΙΜΗΣ" : "ΠΡΟΕΠΙΣΚΟΠΗΣΗ ΠΡΟΦΙΛ"}</span></div>
           {settings.showFeatured && <>
             <h4>Προτεινόμενα προϊόντα</h4>
-            <div className={styles.productGrid}>{[1,2,3].map((item) => <div className={styles.productCard} key={item}><div className={styles.productImage}>◇</div><div className={styles.productMeta}><strong>{props.productCount ? `Προϊόν ${item}` : "Δοκιμαστικό προϊόν"}</strong><small>{props.productCount ? "Από τον κατάλογό σου" : "Δείγμα έως ότου προσθέσεις προϊόντα"}</small></div></div>)}</div>
+            <div className={styles.previewEmpty}>
+              <strong>Τα πραγματικά προϊόντα εμφανίζονται στην πλήρη προεπισκόπηση.</strong>
+              <p>Εδώ ελέγχεις τη διάταξη και την εμφάνιση του προφίλ, χωρίς ψεύτικες κάρτες προϊόντων.</p>
+              <a className={styles.heroAction} href="/vendor/preview">Άνοιγμα πλήρους προεπισκόπησης →</a>
+            </div>
           </>}
           {settings.showFlashSale && <div className={styles.sectionBlock}><h4>⚡ Γρήγορη προσφορά</h4><p>Μία γρήγορη, παιχνιδοποιημένη προσφορά μπορεί να εμφανίζεται εδώ όταν την ενεργοποιήσεις.</p></div>}
           {settings.showBazaar && <div className={styles.sectionBlock}><h4>♻ BAZAAR</h4><p>Επιστροφές και επιλεγμένα είδη μπορούν να αποκτούν δεύτερη ζωή αντί να γίνονται απόβλητα.</p></div>}

@@ -101,6 +101,27 @@ for (const path of [
   const source = read(path);
   if (source.includes("Dropshipping Control Centre")) failures.push(`Dropshipping page regressed to English control-centre heading: ${path}`);
 }
+const vendorTrialPage = read("apps/web/src/app/vendor/trial/page.tsx");
+for (const requirement of ["3 απλά βήματα", "/vendor/storefront", "/vendor/catalog", "/vendor/preview", "optionalTour"]) {
+  if (!vendorTrialPage.includes(requirement)) failures.push(`Vendor trial wizard is missing simplified onboarding contract: ${requirement}`);
+}
+if (vendorTrialPage.includes("VendorStorefrontBuilder")) failures.push("Vendor trial wizard must not embed the full storefront editor");
+if (vendorTrialPage.includes("Βήμα {recommendedStep.number} από 4")) failures.push("Vendor trial wizard regressed to four mandatory steps");
+
+const vendorFeedClient = read("apps/web/src/components/VendorProductFeedClient.tsx");
+for (const forbidden of ["Product Feed</div>", "<strong>Field mapping</strong>", "Connected feeds", ">Upload XML<"]) {
+  if (vendorFeedClient.includes(forbidden)) failures.push(`Vendor XML workflow regressed to technical English: ${forbidden}`);
+}
+for (const requirement of ["Αντιστοίχιση πεδίων", "Συνδεδεμένα XML", "vendor-xml-category-select", "feedStatusLabel"]) {
+  if (!vendorFeedClient.includes(requirement)) failures.push(`Vendor XML workflow is missing merchant UX contract: ${requirement}`);
+}
+const storefrontBuilder = read("apps/web/src/components/VendorStorefrontBuilder.tsx");
+requireText("apps/web/src/components/VendorStorefrontBuilder.tsx", ["socialAdvanced", "Άνοιγμα πλήρους προεπισκόπησης", "χωρίς ψεύτικες κάρτες προϊόντων"]);
+if (storefrontBuilder.includes("[1,2,3].map")) failures.push("Vendor storefront editor must not render fake product cards");
+
+requireText("apps/web/src/components/VendorDailyAccessClient.tsx", ["workspace-form-grid", "vendor-daily-access-card", "vendor-inline-reset-form"]);
+requireText("apps/web/src/components/VendorOrdersClient.tsx", ["vendor-manual-shipment-form", "vendor-manual-shipment-input"]);
+requireText("apps/web/src/components/VendorFinanceClient.tsx", ["commissionRateBps", "Βάση προμήθειας", "Πάγια χρέωση"]);
 const vendorDashboard = read("apps/web/src/components/VendorDashboardClient.tsx");
 for (const destination of ["/vendor/catalog", "/vendor/shipping", "/vendor/returns", "/vendor/trust", "/vendor/advice", "/vendor/finance"]) if (!vendorDashboard.includes(`href: "${destination}"`)) failures.push(`Vendor dashboard is missing task path ${destination}`);
 if (!vendorDashboard.includes('density="compact"')) failures.push("Vendor dashboard quick actions must use compact density");
