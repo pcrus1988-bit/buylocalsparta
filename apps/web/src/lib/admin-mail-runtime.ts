@@ -14,7 +14,22 @@ const MAX_SYNC_NEW = 40;
 const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
 const MAX_TOTAL_ATTACHMENT_BYTES = 3 * 1024 * 1024;
 
-type MailFolder = "inbox" | "sent" | "starred" | "archive" | "all";
+type MailFolder = "inbox" | "sent" | "starred" | "archive" | "trash" | "all";
+type MailReadFilter = "all" | "read" | "unread";
+type MailDirectionFilter = "all" | "incoming" | "outgoing";
+type MailStatusFilter = "all" | "received" | "sent" | "queued" | "failed";
+type MailAttachmentFilter = "all" | "with" | "without";
+type MailSort = "newest" | "oldest" | "sender" | "subject";
+
+export type AdminMailBulkAction =
+  | "read"
+  | "unread"
+  | "star"
+  | "unstar"
+  | "archive"
+  | "inbox"
+  | "trash"
+  | "restore";
 
 export type AdminMailSummary = Readonly<{
   id: string;
@@ -33,6 +48,7 @@ export type AdminMailSummary = Readonly<{
   isRead: boolean;
   isStarred: boolean;
   archived: boolean;
+  deleted: boolean;
   threadKey: string;
 }>;
 
@@ -51,10 +67,17 @@ export type AdminMailWorkspace = Readonly<{
   fromAddresses: readonly string[];
   folder: MailFolder;
   query: string;
+  filters: Readonly<{
+    read: MailReadFilter;
+    direction: MailDirectionFilter;
+    status: MailStatusFilter;
+    attachments: MailAttachmentFilter;
+    sort: MailSort;
+  }>;
   messages: readonly AdminMailSummary[];
   thread: readonly AdminMailThreadMessage[];
   selectedId?: string;
-  metrics: Readonly<{ inbox: number; unread: number; sent: number; starred: number; archived: number; all: number }>;
+  metrics: Readonly<{ inbox: number; unread: number; sent: number; starred: number; archived: number; trash: number; all: number }>;
   lastInboundAt?: number;
 }>;
 
@@ -87,6 +110,7 @@ type MailRow = SqlRow & {
   is_read: boolean | null;
   is_starred: boolean | null;
   archived_at: Date | string | null;
+  deleted_at: Date | string | null;
   thread_key: string;
   reply_to: string | null;
   rfc_message_id: string | null;
@@ -198,11 +222,27 @@ export async function syncAdminInboundMail(input: { maxNew?: number } = {}): Pro
 
 export async function adminMailWorkspace(
   principal: SessionPrincipal,
-  input: { folder?: string; q?: string; selectedId?: string } = {}
+  input: {
+    folder?: string;
+    q?: string;
+    selectedId?: string;
+    read?: string;
+    direction?: string;
+    status?: string;
+    attachments?: string;
+    sort?: string;
+  } = {}
 ): Promise<AdminMailWorkspace> {
   const configuration = adminMailConfiguration();
   const folder = normalizeFolder(input.folder);
   const query = (input.q || "").trim().slice(0, 200);
+  const filters = {
+    read: normalizeReadFilter(input.read),
+    direction: normalizeDirectionFilter(input.direction),
+    status: normalizeStatusFilter(input.status),
+    attachments: normalizeAttachmentFilter(input.attachments),
+    sort: normalizeSort(input.sort)
+  } as const;
   if (!configuration.configured) {
     return {
       configured: false,
@@ -210,10 +250,11 @@ export async function adminMailWorkspace(
       fromAddresses: configuration.fromAddresses,
       folder,
       query,
+      filters,
       messages: [],
       thread: [],
       selectedId: input.selectedId,
-      metrics: { inbox: 0, unread: 0, sent: 0, starred: 0, archived: 0, all: 0 }
+      metrics: { inbox: 0, unread: 0, sent: 0, starred: 0, archived: 0, trash: 0, all: 0 }
     };
   }
 
@@ -223,12 +264,13 @@ export async function adminMailWorkspace(
   }
   const metricsResult = await pool.query<SqlRow>(`
     SELECT
-      count(*) FILTER (WHERE m.direction='incoming' AND COALESCE(s.archived_at IS NOT NULL,false)=false)::int AS inbox,
-      count(*) FILTER (WHERE m.direction='incoming' AND COALESCE(s.archived_at IS NOT NULL,false)=false AND COALESCE(s.is_read,false)=false)::int AS unread,
-      count(*) FILTER (WHERE m.direction='outgoing')::int AS sent,
-      count(*) FILTER (WHERE COALESCE(s.is_starred,false)=true)::int AS starred,
-      count(*) FILTER (WHERE s.archived_at IS NOT NULL)::int AS archived,
-      count(*)::int AS all,
+      count(*) FILTER (WHERE m.direction='incoming' AND s.archived_at IS NULL AND s.deleted_at IS NULL)::int AS inbox,
+      count(*) FILTER (WHERE m.direction='incoming' AND s.archived_at IS NULL AND s.deleted_at IS NULL AND COALESCE(s.is_read,false)=false)::int AS unread,
+      count(*) FILTER (WHERE m.direction='outgoing' AND s.deleted_at IS NULL)::int AS sent,
+      count(*) FILTER (WHERE COALESCE(s.is_starred,false)=true AND s.deleted_at IS NULL)::int AS starred,
+      count(*) FILTER (WHERE s.archived_at IS NOT NULL AND s.deleted_at IS NULL)::int AS archived,
+      count(*) FILTER (WHERE s.deleted_at IS NOT NULL)::int AS trash,
+      count(*) FILTER (WHERE s.deleted_at IS NULL)::int AS all,
       max(m.received_at) FILTER (WHERE m.direction='incoming') AS last_inbound_at
     FROM admin_mail_messages m
     LEFT JOIN admin_mail_state s ON s.message_id=m.id AND s.user_public_id=$1
@@ -238,10 +280,23 @@ export async function adminMailWorkspace(
   const params: unknown[] = [principal.userId];
   const where: string[] = [];
   if (folder === "inbox") {
-    where.push("m.direction='incoming'", "s.archived_at IS NULL");
-  } else if (folder === "sent") where.push("m.direction='outgoing'");
-  else if (folder === "starred") where.push("COALESCE(s.is_starred,false)=true");
-  else if (folder === "archive") where.push("s.archived_at IS NOT NULL");
+    where.push("m.direction='incoming'", "s.archived_at IS NULL", "s.deleted_at IS NULL");
+  } else if (folder === "sent") where.push("m.direction='outgoing'", "s.deleted_at IS NULL");
+  else if (folder === "starred") where.push("COALESCE(s.is_starred,false)=true", "s.deleted_at IS NULL");
+  else if (folder === "archive") where.push("s.archived_at IS NOT NULL", "s.deleted_at IS NULL");
+  else if (folder === "trash") where.push("s.deleted_at IS NOT NULL");
+  else where.push("s.deleted_at IS NULL");
+
+  if (filters.read === "read") where.push("m.direction='incoming'", "COALESCE(s.is_read,false)=true");
+  else if (filters.read === "unread") where.push("m.direction='incoming'", "COALESCE(s.is_read,false)=false");
+  if (filters.direction !== "all") where.push(`m.direction='${filters.direction}'`);
+  if (filters.status !== "all") {
+    params.push(filters.status);
+    where.push(`m.status=${params.length}`);
+  }
+  if (filters.attachments === "with") where.push("m.has_attachments=true");
+  else if (filters.attachments === "without") where.push("m.has_attachments=false");
+
   if (query) {
     params.push(`%${query}%`);
     const index = params.length;
@@ -249,22 +304,29 @@ export async function adminMailWorkspace(
   }
   params.push(120);
   const limitParam = params.length;
+  const orderBy = filters.sort === "oldest"
+    ? "COALESCE(m.received_at,m.sent_at,m.created_at) ASC"
+    : filters.sort === "sender"
+      ? "lower(m.from_address) ASC, COALESCE(m.received_at,m.sent_at,m.created_at) DESC"
+      : filters.sort === "subject"
+        ? "lower(m.subject) ASC, COALESCE(m.received_at,m.sent_at,m.created_at) DESC"
+        : "COALESCE(m.received_at,m.sent_at,m.created_at) DESC";
   const list = await pool.query<MailRow>(`
     SELECT m.public_id,m.direction,m.status,m.from_address,m.to_addresses,m.cc_addresses,m.subject,m.preview,m.body_text,
            m.sent_at,m.received_at,m.attachment_count,m.attachments,m.spam_verdict,m.virus_verdict,m.thread_key,
            m.reply_to,m.rfc_message_id,m.in_reply_to,m.reference_ids,
-           COALESCE(s.is_read,false) AS is_read,COALESCE(s.is_starred,false) AS is_starred,s.archived_at
+           COALESCE(s.is_read,false) AS is_read,COALESCE(s.is_starred,false) AS is_starred,s.archived_at,s.deleted_at
     FROM admin_mail_messages m
     LEFT JOIN admin_mail_state s ON s.message_id=m.id AND s.user_public_id=$1
     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-    ORDER BY COALESCE(m.received_at,m.sent_at,m.created_at) DESC
-    LIMIT $${limitParam}
+    ORDER BY ${orderBy}
+    LIMIT ${limitParam}
   `, params);
 
   let messages = list.rows.map(projectSummary);
   const selectedId = input.selectedId && messages.some((message) => message.id === input.selectedId)
     ? input.selectedId
-    : input.selectedId || messages[0]?.id;
+    : messages[0]?.id;
   const autoSelected = !input.selectedId && selectedId
     ? messages.find((message) => message.id === selectedId)
     : undefined;
@@ -282,7 +344,7 @@ export async function adminMailWorkspace(
         SELECT m.public_id,m.direction,m.status,m.from_address,m.to_addresses,m.cc_addresses,m.subject,m.preview,m.body_text,
                m.sent_at,m.received_at,m.attachment_count,m.attachments,m.spam_verdict,m.virus_verdict,m.thread_key,
                m.reply_to,m.rfc_message_id,m.in_reply_to,m.reference_ids,
-               COALESCE(s.is_read,false) AS is_read,COALESCE(s.is_starred,false) AS is_starred,s.archived_at
+               COALESCE(s.is_read,false) AS is_read,COALESCE(s.is_starred,false) AS is_starred,s.archived_at,s.deleted_at
         FROM admin_mail_messages m
         LEFT JOIN admin_mail_state s ON s.message_id=m.id AND s.user_public_id=$1
         WHERE m.thread_key=$2
@@ -299,6 +361,7 @@ export async function adminMailWorkspace(
     fromAddresses: configuration.fromAddresses,
     folder,
     query,
+    filters,
     messages,
     thread,
     selectedId,
@@ -308,6 +371,7 @@ export async function adminMailWorkspace(
       sent: Number(metric.sent || 0),
       starred: Number(metric.starred || 0),
       archived: Number(metric.archived || 0),
+      trash: Number(metric.trash || 0),
       all: Number(metric.all || 0)
     },
     lastInboundAt: epochOptional(metric.last_inbound_at)
@@ -324,6 +388,29 @@ export async function starAdminMail(principal: SessionPrincipal, publicId: strin
 
 export async function archiveAdminMail(principal: SessionPrincipal, publicId: string, archived: boolean): Promise<void> {
   await upsertState(principal, publicId, { archived });
+}
+
+export async function deleteAdminMail(principal: SessionPrincipal, publicId: string, deleted: boolean): Promise<void> {
+  await upsertState(principal, publicId, { deleted });
+}
+
+export async function bulkAdminMail(
+  principal: SessionPrincipal,
+  publicIds: readonly string[],
+  action: AdminMailBulkAction
+): Promise<number> {
+  const ids = [...new Set(publicIds.filter((id) => /^mail_[a-f0-9]{32}$/i.test(id)))].slice(0, 120);
+  if (!ids.length) throw new Error("Select at least one email");
+  const patch = action === "read" ? { isRead: true }
+    : action === "unread" ? { isRead: false }
+      : action === "star" ? { isStarred: true }
+        : action === "unstar" ? { isStarred: false }
+          : action === "archive" ? { archived: true, deleted: false }
+            : action === "inbox" ? { archived: false, deleted: false }
+              : action === "trash" ? { deleted: true }
+                : { deleted: false };
+  await upsertStateMany(principal, ids, patch);
+  return ids.length;
 }
 
 export async function getAdminMailAttachment(
@@ -592,27 +679,46 @@ async function persistInbound(parsed: ParsedAdminMail, object: StoredObjectListI
 async function upsertState(
   principal: SessionPrincipal,
   publicId: string,
-  patch: { isRead?: boolean; isStarred?: boolean; archived?: boolean }
+  patch: { isRead?: boolean; isStarred?: boolean; archived?: boolean; deleted?: boolean }
 ): Promise<void> {
+  await upsertStateMany(principal, [publicId], patch);
+}
+
+async function upsertStateMany(
+  principal: SessionPrincipal,
+  publicIds: readonly string[],
+  patch: { isRead?: boolean; isStarred?: boolean; archived?: boolean; deleted?: boolean }
+): Promise<void> {
+  const ids = [...new Set(publicIds)].slice(0, 120);
+  if (!ids.length) return;
   const pool = getProductionPostgresRuntime().sqlPool;
-  const message = await pool.query<{ id: string }>("SELECT id::text AS id FROM admin_mail_messages WHERE public_id=$1 LIMIT 1", [publicId]);
-  if (!message.rows[0]) throw new Error("Mail message not found");
-  await pool.query(`
-    INSERT INTO admin_mail_state (message_id,user_public_id,is_read,is_starred,archived_at,updated_at)
-    VALUES ($1::uuid,$2,COALESCE($3::boolean,false),COALESCE($4::boolean,false),$5::timestamptz,now())
+  const result = await pool.query(`
+    INSERT INTO admin_mail_state (message_id,user_public_id,is_read,is_starred,archived_at,deleted_at,updated_at)
+    SELECT m.id,
+           $2,
+           COALESCE($3::boolean,false),
+           COALESCE($4::boolean,false),
+           CASE WHEN $5::boolean=true THEN now() ELSE NULL END,
+           CASE WHEN $6::boolean=true THEN now() ELSE NULL END,
+           now()
+    FROM admin_mail_messages m
+    WHERE m.public_id=ANY($1::text[])
     ON CONFLICT (message_id,user_public_id) DO UPDATE SET
       is_read=COALESCE($3::boolean,admin_mail_state.is_read),
       is_starred=COALESCE($4::boolean,admin_mail_state.is_starred),
-      archived_at=CASE WHEN $6::boolean IS NULL THEN admin_mail_state.archived_at WHEN $6 THEN now() ELSE NULL END,
+      archived_at=CASE WHEN $5::boolean IS NULL THEN admin_mail_state.archived_at WHEN $5 THEN now() ELSE NULL END,
+      deleted_at=CASE WHEN $6::boolean IS NULL THEN admin_mail_state.deleted_at WHEN $6 THEN now() ELSE NULL END,
       updated_at=now()
+    RETURNING message_id
   `, [
-    message.rows[0].id,
+    ids,
     principal.userId,
     patch.isRead ?? null,
     patch.isStarred ?? null,
-    patch.archived === true ? new Date() : null,
-    patch.archived ?? null
+    patch.archived ?? null,
+    patch.deleted ?? null
   ]);
+  if (result.rowCount === 0) throw new Error("Mail message not found");
 }
 
 function projectSummary(row: MailRow): AdminMailSummary {
@@ -633,6 +739,7 @@ function projectSummary(row: MailRow): AdminMailSummary {
     isRead: row.is_read === true,
     isStarred: row.is_starred === true,
     archived: Boolean(row.archived_at),
+    deleted: Boolean(row.deleted_at),
     threadKey: row.thread_key
   };
 }
@@ -708,7 +815,27 @@ function normalizeEmail(value: string): string {
 }
 
 function normalizeFolder(value?: string): MailFolder {
-  return value === "sent" || value === "starred" || value === "archive" || value === "all" ? value : "inbox";
+  return value === "sent" || value === "starred" || value === "archive" || value === "trash" || value === "all" ? value : "inbox";
+}
+
+function normalizeReadFilter(value?: string): MailReadFilter {
+  return value === "read" || value === "unread" ? value : "all";
+}
+
+function normalizeDirectionFilter(value?: string): MailDirectionFilter {
+  return value === "incoming" || value === "outgoing" ? value : "all";
+}
+
+function normalizeStatusFilter(value?: string): MailStatusFilter {
+  return value === "received" || value === "sent" || value === "queued" || value === "failed" ? value : "all";
+}
+
+function normalizeAttachmentFilter(value?: string): MailAttachmentFilter {
+  return value === "with" || value === "without" ? value : "all";
+}
+
+function normalizeSort(value?: string): MailSort {
+  return value === "oldest" || value === "sender" || value === "subject" ? value : "newest";
 }
 
 function normalizeSubject(value: string): string {
