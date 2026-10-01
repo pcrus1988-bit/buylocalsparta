@@ -127,7 +127,8 @@ export async function notifyOperationsOfVendorApplication(input: {
   });
 }
 
-// Keep initial HUB application receipts and Admin Trial resends equivalent: both carry the captured commercial terms and signed Trial access.\nexport async function sendHubProspectApplicationReceiptEmail(input: {
+// Keep initial HUB application receipts and Admin Trial resends equivalent: both carry the captured commercial terms and signed Trial access.
+export async function sendHubProspectApplicationReceiptEmail(input: {
   to: string;
   businessName: string;
   reference: string;
