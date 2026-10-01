@@ -1,11 +1,11 @@
-import { requireAdminSession } from "../../../../../../lib/admin-session";
+import { requireAdminSession } from "../../../../../lib/admin-session";
 import {
   adminCatalogAction,
   adminMatchingWorkspace,
   postgresAdminRuntimeEnabled
-} from "../../../../../../lib/admin-runtime";
-import { adminCreateCanonicalIdentity } from "../../../../../../lib/admin-canonical-identity-runtime";
-import { getProductionPostgresRuntime } from "../../../../../../lib/postgres-runtime";
+} from "../../../../../lib/admin-runtime";
+import { adminCreateCanonicalIdentity } from "../../../../../lib/admin-canonical-identity-runtime";
+import { getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
