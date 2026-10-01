@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../components/AdminWorkspaceHeader";
 import { ReportBuilderFields } from "../../../components/ReportBuilderFields";
@@ -20,7 +21,8 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
   assertAdminPermission(sessionPrincipal, "analytics.market.read");
   const principal = await resolveReportPrincipal(sessionPrincipal);
   const query = await searchParams;
-  const [options, reports, saved] = await Promise.all([reportBuilderOptions("admin", principal), listReports("admin", principal), listSavedReportDefinitions("admin", principal)]);
+  const scopeQuery = first(query.scopeQ).trim().slice(0, 120);
+  const [options, reports, saved] = await Promise.all([reportBuilderOptions("admin", principal, { q: scopeQuery || undefined }), listReports("admin", principal), listSavedReportDefinitions("admin", principal)]);
   const ready = reports.filter(r => r.status === "ready");
   const latest = reports[0];
   const metrics = (latest?.summary?.metrics ?? {}) as Record<string, unknown>;
@@ -30,6 +32,14 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} />
     <section id="reports-builder" className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Insights · reporting</div><h1>Reports</h1><p className="lead">Generate, save and revisit auditable marketplace analysis without mixing the builder, templates and report history into one undifferentiated page.</p></div></section>
     <section className="shell admin-local-tabs-shell"><nav className="admin-local-tabs" aria-label="Reports sections"><a href="#reports-builder">Builder</a><a href="#reports-saved">Saved</a><a href="#reports-history">History</a></nav></section>
+
+    <section className="shell vendor-section">
+      <form method="get" className="admin-directory-filters">
+        <label><span>Scope lookup</span><input name="scopeQ" defaultValue={scopeQuery} maxLength={120} placeholder="Vendor, product, brand, category or location…" /></label>
+        <div><button className="button button-secondary" type="submit">Find scope choices</button>{scopeQuery ? <Link className="text-link" href="/admin/reports">Clear</Link> : null}</div>
+      </form>
+      <div className="workspace-inline-note">The builder keeps its first render bounded. {scopeQuery ? "Dropdowns now contain matches for this lookup." : "Use Scope lookup when the vendor/product/brand you need is not in the compact default lists."}</div>
+    </section>
     <WorkspaceMetricStrip items={[{ label: "My reports", value: reports.length }, { label: "Ready PDFs", value: ready.length }, { label: "Latest net sales", value: euro(metrics.netSalesMinor) }, { label: "Latest commission", value: euro(metrics.commissionMinor) }]} />
 
     {error ? <section className="shell vendor-section"><article className="workspace-inline-note"><strong>Η αναφορά δεν ολοκληρώθηκε:</strong> {error}</article></section> : null}
