@@ -36,6 +36,12 @@ export type AdminAgreementVendor = Readonly<{
   registeredAddress?: string;
   shopAddress?: string;
   primaryCategory?: string;
+  hubId?: string;
+  hubName?: string;
+  hubSlug?: string;
+  marketCode?: string;
+  applicationPlanCode?: string;
+  billingCycle?: string;
 }>;
 
 export type CommercialAgreementWorkspace = Readonly<{
@@ -176,8 +182,14 @@ export async function commercialAgreementWorkspace(): Promise<CommercialAgreemen
              COALESCE(va.phone,vl.phone) AS phone,
              COALESCE(va.address_line1,vl.address_line1) AS registered_address,
              concat_ws(', ',NULLIF(vl.address_line1,''),NULLIF(vl.locality,''),NULLIF(vl.postcode,'')) AS shop_address,
-             va.primary_category
+             va.primary_category,
+             m.code AS market_code,m.name AS hub_name,
+             COALESCE(mhc.hub_code,CASE WHEN m.code='sparta' THEN 'KM-HUB-015' END) AS hub_id,
+             COALESCE(mhc.gateway_slug,CASE WHEN m.code='sparta' THEN 'sparti' END) AS hub_slug,
+             hp.plan_code AS application_plan_code,hp.billing_cycle
       FROM vendor_businesses v
+      JOIN markets m ON m.id=v.market_id
+      LEFT JOIN market_hub_config mhc ON mhc.market_id=v.market_id
       LEFT JOIN LATERAL (
         SELECT contact_email,phone,address_line1,postcode,primary_category
         FROM vendor_applications x
@@ -192,7 +204,13 @@ export async function commercialAgreementWorkspace(): Promise<CommercialAgreemen
         ORDER BY x.is_primary DESC,x.created_at ASC
         LIMIT 1
       ) vl ON true
-      WHERE v.market_id=(SELECT id FROM markets WHERE code='sparta')
+      LEFT JOIN LATERAL (
+        SELECT plan_code,billing_cycle
+        FROM hub_expansion_prospects x
+        WHERE x.vendor_id=v.id
+        ORDER BY x.updated_at DESC,x.created_at DESC
+        LIMIT 1
+      ) hp ON true
       ORDER BY lower(COALESCE(NULLIF(v.trading_name,''),v.legal_name)),v.public_id
     `),
     db.query(`
@@ -206,7 +224,6 @@ export async function commercialAgreementWorkspace(): Promise<CommercialAgreemen
       FROM vendor_commercial_agreements a
       JOIN vendor_businesses v ON v.id=a.vendor_id
       LEFT JOIN vendor_subscriptions vs ON vs.id=a.subscription_id
-      WHERE a.market_id=(SELECT id FROM markets WHERE code='sparta')
       ORDER BY a.created_at DESC,a.public_id
     `),
     db.query(`SELECT bls_private.peek_vendor_agreement_code() AS code`)
@@ -227,7 +244,13 @@ export async function commercialAgreementWorkspace(): Promise<CommercialAgreemen
       phone: row.phone ? String(row.phone) : undefined,
       registeredAddress: row.registered_address ? String(row.registered_address) : undefined,
       shopAddress: row.shop_address ? String(row.shop_address) : undefined,
-      primaryCategory: row.primary_category ? String(row.primary_category) : undefined
+      primaryCategory: row.primary_category ? String(row.primary_category) : undefined,
+      hubId: row.hub_id ? String(row.hub_id) : undefined,
+      hubName: row.hub_name ? String(row.hub_name) : undefined,
+      hubSlug: row.hub_slug ? String(row.hub_slug) : undefined,
+      marketCode: row.market_code ? String(row.market_code) : undefined,
+      applicationPlanCode: row.application_plan_code ? String(row.application_plan_code) : undefined,
+      billingCycle: row.billing_cycle ? String(row.billing_cycle) : undefined
     })),
     agreements: agreementRows.rows.map((row) => {
       const vendorSnapshot = record(row.vendor_snapshot);
@@ -292,8 +315,14 @@ export async function createCommercialAgreement(principal: SessionPrincipal, raw
              COALESCE(va.phone,vl.phone) AS phone,
              COALESCE(va.address_line1,vl.address_line1) AS registered_address,
              concat_ws(', ',NULLIF(vl.address_line1,''),NULLIF(vl.locality,''),NULLIF(vl.postcode,'')) AS shop_address,
-             va.primary_category
+             va.primary_category,
+             m.code AS market_code,m.name AS hub_name,
+             COALESCE(mhc.hub_code,CASE WHEN m.code='sparta' THEN 'KM-HUB-015' END) AS hub_id,
+             COALESCE(mhc.gateway_slug,CASE WHEN m.code='sparta' THEN 'sparti' END) AS hub_slug,
+             hp.plan_code AS application_plan_code,hp.billing_cycle
       FROM vendor_businesses v
+      JOIN markets m ON m.id=v.market_id
+      LEFT JOIN market_hub_config mhc ON mhc.market_id=v.market_id
       LEFT JOIN LATERAL (
         SELECT contact_email,phone,address_line1,primary_category
         FROM vendor_applications x WHERE x.vendor_id=v.id
@@ -304,6 +333,13 @@ export async function createCommercialAgreement(principal: SessionPrincipal, raw
         FROM vendor_locations x WHERE x.vendor_id=v.id
         ORDER BY x.is_primary DESC,x.created_at ASC LIMIT 1
       ) vl ON true
+      LEFT JOIN LATERAL (
+        SELECT plan_code,billing_cycle
+        FROM hub_expansion_prospects x
+        WHERE x.vendor_id=v.id
+        ORDER BY x.updated_at DESC,x.created_at DESC
+        LIMIT 1
+      ) hp ON true
       WHERE v.public_id=$1 OR v.id::text=$1
       FOR UPDATE OF v
     `, [vendorId]);
@@ -335,6 +371,10 @@ export async function createCommercialAgreement(principal: SessionPrincipal, raw
       iban: optionalText(raw.vendorIban, "vendorIban", 80),
       bankBeneficiary: optionalText(raw.vendorBankBeneficiary, "vendorBankBeneficiary", 240),
       categories: optionalText(raw.vendorCategories, "vendorCategories", 500) ?? (v.primary_category ? String(v.primary_category) : undefined),
+      hubId: v.hub_id ? String(v.hub_id) : undefined,
+      hubName: v.hub_name ? String(v.hub_name) : undefined,
+      hubSlug: v.hub_slug ? String(v.hub_slug) : undefined,
+      marketCode: v.market_code ? String(v.market_code) : undefined,
       capturedAt: new Date().toISOString()
     };
     if (!vendorSnapshot.contactEmail) throw new Error("Vendor contract email is required");
@@ -342,7 +382,7 @@ export async function createCommercialAgreement(principal: SessionPrincipal, raw
     if (!vendorSnapshot.legalRepresentative) throw new Error("Vendor legal representative is required");
 
     const commercialTermsSnapshot = {
-      planName: optionalText(raw.planName, "planName", 160),
+      planName: optionalText(raw.planName, "planName", 160) ?? (v.application_plan_code ? String(v.application_plan_code).toUpperCase() : undefined),
       commissionRateBps,
       commissionBase: optionalText(raw.commissionBase, "commissionBase", 240) ?? "merchandise_gross",
       commissionTaxMode,
