@@ -97,6 +97,31 @@ const when = (value?: number) => value
 
 const euro = (minor: number) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
 
+const feedStatusLabel = (status: string) => ({
+  active: "Ενεργό",
+  paused: "Σε παύση",
+  queued: "Σε ουρά",
+  processing: "Σε επεξεργασία",
+  ready: "Έτοιμο",
+  failed: "Απέτυχε"
+} as Record<string,string>)[status] ?? status.replaceAll("_", " ");
+
+const runStatusLabel = (status: string) => ({
+  queued: "Σε ουρά",
+  running: "Σε εξέλιξη",
+  completed: "Ολοκληρώθηκε",
+  succeeded: "Ολοκληρώθηκε",
+  failed: "Απέτυχε",
+  partial: "Ολοκληρώθηκε με προβλήματα"
+} as Record<string,string>)[status] ?? status.replaceAll("_", " ");
+
+const triggerLabel = (trigger: string) => ({
+  manual: "Χειροκίνητος",
+  scheduled: "Αυτόματος",
+  initial: "Πρώτη σύνδεση",
+  retry: "Επανάληψη"
+} as Record<string,string>)[trigger] ?? trigger.replaceAll("_", " ");
+
 const kontaMouXmlTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 <products>
   <product>
@@ -445,7 +470,7 @@ export function VendorProductFeedClient({
         {initial.feeds.map((feed) => <article className="workspace-queue-card" key={feed.id}>
           <div className="workspace-queue-head">
             <div><strong>{feed.name}</strong><small>{feed.sourceType === "url" ? feed.sourceUrl : feed.sourceFilename}</small></div>
-            <span className="status-pill">{feed.sourceType === "url" && !feed.lastSuccessAt ? "Σε ουρά" : feed.status}</span>
+            <span className="status-pill">{feed.sourceType === "url" && !feed.lastSuccessAt ? "Σε ουρά" : feedStatusLabel(feed.status)}</span>
           </div>
           <div className="workspace-queue-primary">
             {feed.sourceType === "url" && !feed.lastSuccessAt
@@ -479,9 +504,9 @@ export function VendorProductFeedClient({
           <div className="workspace-compact-list">
             {initial.recentRuns.map((run) => <div className="workspace-compact-row" key={run.id}>
               <div>
-                <strong>{when(run.startedAt)} · {run.triggerType} · {run.status}</strong>
+                <strong>{when(run.startedAt)} · {triggerLabel(run.triggerType)} · {runStatusLabel(run.status)}</strong>
                 {run.validationErrors.length > 0 && <details style={{ marginTop: 6 }}>
-                  <summary>Προβολή {run.validationErrors.length.toLocaleString("el-GR")} σφάλματα ελέγχου</summary>
+                  <summary>Προβολή {run.validationErrors.length.toLocaleString("el-GR")} προβλημάτων ελέγχου</summary>
                   <div className="workspace-compact-list" style={{ marginTop: 8 }}>
                     {run.validationErrors.slice(0, 40).map((item,index) => <div className="workspace-compact-row" key={run.id + ":" + index}>
                       <strong>Γραμμή {item.rowNumber}{item.externalId ? " · " + item.externalId : ""}</strong>
