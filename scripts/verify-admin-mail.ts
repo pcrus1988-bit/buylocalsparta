@@ -23,6 +23,7 @@ const checks: Array<[string, boolean]> = [
   ["Inbound source stays in S3", files.runtime.includes("s3_object_key") && files.runtime.includes("inboundStorage(config).read")],
   ["S3 abstraction supports bounded listing", files.objectStorage.includes("ListObjectsV2Command") && files.objectStorage.includes("async list(")],
   ["Mailbox metadata, per-admin state, S3 cursor and quarantine are durable", files.migration.includes("admin_mail_messages") && files.migration.includes("admin_mail_state") && files.migration.includes("admin_mail_sync_state") && files.migration.includes("admin_mail_ingest_failures")],
+  ["Per-admin state inserts never write NULL into NOT NULL booleans", files.runtime.includes("COALESCE($3::boolean,false)") && files.runtime.includes("COALESCE($4::boolean,false)")],
   ["Mailbox tables have RLS enabled", files.migration.includes("ALTER TABLE public.admin_mail_messages ENABLE ROW LEVEL SECURITY") && files.migration.includes("ALTER TABLE public.admin_mail_state ENABLE ROW LEVEL SECURITY") && files.migration.includes("ALTER TABLE public.admin_mail_sync_state ENABLE ROW LEVEL SECURITY")],
   ["Mailbox runtime roles have explicit RLS policies", files.migration.includes("bls_admin_mail_messages_runtime_all") && files.migration.includes("bls_admin_mail_state_runtime_all") && files.migration.includes("bls_admin_mail_sync_state_runtime_all")],
   ["Inbound sync persists continuation progress", files.runtime.includes("admin_mail_sync_state") && files.runtime.includes("MAX_SYNC_PAGES_PER_RUN")],
