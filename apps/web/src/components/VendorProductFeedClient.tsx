@@ -95,6 +95,29 @@ const when = (value?: number) => value
 
 const euro = (minor: number) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
 
+const kontaMouXmlTemplate = `<?xml version="1.0" encoding="UTF-8"?>
+<products>
+  <product>
+    <id>SKU-001</id>
+    <title>Nike Air Max</title>
+    <description>Περιγραφή προϊόντος</description>
+    <ean>1234567890123</ean>
+    <price>129.90</price>
+    <currency>EUR</currency>
+    <stock>8</stock>
+    <brand>Nike</brand>
+    <category>Shoes &gt; Sneakers</category>
+    <image_link>https://example.gr/images/SKU-001.jpg</image_link>
+    <additional_image_link>https://example.gr/images/SKU-001-2.jpg</additional_image_link>
+    <link>https://example.gr/products/SKU-001</link>
+    <item_group_id>STYLE-001</item_group_id>
+    <size>42</size>
+    <color>Black</color>
+    <mpn>MODEL-001</mpn>
+  </product>
+</products>
+`;
+
 export function VendorProductFeedClient({
   csrfToken,
   categories,
@@ -155,6 +178,18 @@ export function VendorProductFeedClient({
     } finally {
       setBusy("");
     }
+  }
+
+  function downloadKontaMouTemplate() {
+    const blob = new Blob([kontaMouXmlTemplate], { type: "application/xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "kontamou-product-feed-template.xml";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   }
 
   async function previewFeed() {
@@ -248,6 +283,11 @@ export function VendorProductFeedClient({
         <p><strong>Δεν δημιουργούμε διπλό κατάλογο:</strong> νέα προϊόντα περνούν από matching και approval, ενώ υπάρχοντα offers ενημερώνουν τιμή και stock.</p>
         <p><strong>Ασφαλές stock:</strong> ο συγχρονισμός δεν κατεβάζει φυσικό απόθεμα κάτω από ενεργές δεσμεύσεις παραγγελιών.</p>
         <p><strong>Σταθερή ταυτότητα:</strong> Product ID / SKU / GTIN κρατά το ίδιο προϊόν συνδεδεμένο σε κάθε επόμενο sync.</p>
+      </div>
+
+      <div className="workspace-action-bar" style={{ marginTop: 16 }}>
+        <span><strong>KONTA MOU XML specification:</strong> χρησιμοποίησέ το για zero-mapping σύνδεση. Δεν είναι υποχρεωτικό — δεχόμαστε και custom / Google Merchant / e-shop feeds.</span>
+        <button type="button" className="button button-secondary" onClick={downloadKontaMouTemplate}>Λήψη XML template</button>
       </div>
 
       <div className="workspace-tool-panel" style={{ marginTop: 18 }}>
