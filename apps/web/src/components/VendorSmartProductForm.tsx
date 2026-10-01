@@ -371,15 +371,15 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
     <form onSubmit={submit}>
       {error && <div className="form-error vendor-error" role="alert" style={{ marginBottom: 14 }}><strong>Προσοχή.</strong> {error}</div>}
       {selectedCanonical && <div style={{ marginBottom: 16, padding: 14, borderRadius: 14, border: variantAnchorMode ? "1px solid rgba(37,99,235,.35)" : "1px solid rgba(22,163,74,.3)", background: variantAnchorMode ? "rgba(37,99,235,.07)" : "rgba(22,163,74,.07)" }}>
-        <strong>{variantAnchorMode ? "↳ Νέα παραλλαγή του υπάρχοντος canonical προϊόντος" : "✓ Συνδέθηκε με υπάρχον canonical προϊόν"}</strong>
+        <strong>{variantAnchorMode ? "↳ Νέα παραλλαγή του υπάρχοντος προϊόντος" : "✓ Συνδέθηκε με υπάρχον προϊόν"}</strong>
         <div style={{ marginTop: 4 }}>{selectedCanonical.title}{!variantAnchorMode && selectedCanonical.gtin ? ` · GTIN ${selectedCanonical.gtin}` : ""}</div>
-        <small>{variantAnchorMode ? "Το υπάρχον προϊόν παραμένει ο οικογενειακός οδηγός. Ο κληρονομημένος GTIN αφαιρέθηκε επειδή άλλαξε στοιχείο ταυτότητας παραλλαγής· πρόσθεσε GTIN/EAN μόνο αν ανήκει στη νέα συγκεκριμένη παραλλαγή." : "Τα κοινά στοιχεία και η ταυτότητα παραλλαγής ελέγχονται από το canonical προϊόν. Τιμή, απόθεμα και SKU παραμένουν στοιχεία του καταστήματός σου."}</small>
+        <small>{variantAnchorMode ? "Το υπάρχον προϊόν παραμένει ο οικογενειακός οδηγός. Ο κληρονομημένος GTIN αφαιρέθηκε επειδή άλλαξε στοιχείο ταυτότητας παραλλαγής· πρόσθεσε GTIN/EAN μόνο αν ανήκει στη νέα συγκεκριμένη παραλλαγή." : "Τα κοινά στοιχεία του προϊόντος παραμένουν ενιαία. Η τιμή, το απόθεμα και το SKU παραμένουν στοιχεία του καταστήματός σου."}</small>
       </div>}
       <div className="workspace-form-grid">
         <div className="workspace-form-field span-2">
           <label htmlFor="catalog-title">Τίτλος προϊόντος</label>
           <input id="catalog-title" name="title" required value={title} autoComplete="off" onChange={(event) => { clearCanonicalLink(); setTitle(event.target.value); setError(""); }} />
-          <small>{lookupBusy ? "Έλεγχος υπάρχοντος καταλόγου…" : !selectedCanonical && enoughIdentity && matches.length === 0 ? "Ο τίτλος ελέγχεται αυτόματα για υπάρχον canonical προϊόν." : "Αρκούν συνήθως λίγοι χαρακτηριστικοί χαρακτήρες ή ένας κωδικός μοντέλου, π.χ. BHT7316."}</small>
+          <small>{lookupBusy ? "Έλεγχος υπάρχοντος καταλόγου…" : !selectedCanonical && enoughIdentity && matches.length === 0 ? "Ο τίτλος ελέγχεται αυτόματα για υπάρχον προϊόν." : "Αρκούν συνήθως λίγοι χαρακτηριστικοί χαρακτήρες ή ένας κωδικός μοντέλου, π.χ. BHT7316."}</small>
         </div>
         <div className="workspace-form-field span-2">
           <label htmlFor="catalog-category">Κατηγορία</label>
@@ -407,7 +407,7 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
         <div className="workspace-form-field">
           <label htmlFor="catalog-gtin">GTIN / EAN / ISBN</label>
           <input id="catalog-gtin" name="gtin" inputMode="numeric" autoComplete="off" placeholder="π.χ. 9781408855652" value={gtin} onChange={(event) => { if (!variantAnchorMode) clearCanonicalLink(); setGtin(event.target.value); setError(""); }} />
-          <small>{variantAnchorMode ? "Για νέα παραλλαγή χρησιμοποίησε μόνο τον δικό της GTIN/EAN. Άφησέ το κενό αν δεν είναι γνωστό." : selectedCanonical && !selectedCanonical.gtin ? "Δεν υπάρχει GTIN αποθηκευμένο στο canonical προϊόν." : "Ο πλήρης GTIN έχει προτεραιότητα στην αντιστοίχιση."}</small>
+          <small>{variantAnchorMode ? "Για νέα παραλλαγή χρησιμοποίησε μόνο τον δικό της GTIN/EAN. Άφησέ το κενό αν δεν είναι γνωστό." : selectedCanonical && !selectedCanonical.gtin ? "Δεν υπάρχει GTIN αποθηκευμένο στο υπάρχον προϊόν." : "Ο πλήρης GTIN έχει προτεραιότητα στην αντιστοίχιση."}</small>
         </div>
 
         {activeProductType?.variantAttributes.length ? <div className="workspace-form-field span-2" style={{ border: "1px solid rgba(59,130,246,.22)", borderRadius: 16, padding: 16 }}>
@@ -438,13 +438,13 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
         </div> : null}
 
         <div className="workspace-form-field span-2">
-          <label htmlFor="catalog-description">Περιγραφή canonical προϊόντος</label>
-          <textarea id="catalog-description" name="description" value={description} readOnly rows={4} placeholder={selectedCanonical ? "Δεν υπάρχει αποθηκευμένη περιγραφή." : "Η περιγραφή θα συμπληρωθεί όταν επιλεγεί υπάρχον canonical προϊόν."} />
+          <label htmlFor="catalog-description">Κοινή περιγραφή προϊόντος</label>
+          <textarea id="catalog-description" name="description" value={description} readOnly rows={4} placeholder={selectedCanonical ? "Δεν υπάρχει αποθηκευμένη περιγραφή." : "Η περιγραφή θα συμπληρωθεί όταν επιλεγεί υπάρχον προϊόν."} />
           <small>Η κοινή περιγραφή δεν αλλάζει από την προσφορά του vendor.</small>
         </div>
         {selectedCanonical?.warrantyBasis && <div className="workspace-form-field span-2"><label>Εγγύηση / βάση εγγύησης</label><input value={selectedCanonical.warrantyBasis} readOnly /></div>}
         {canonicalDetails.length > 0 && <div className="workspace-form-field span-2">
-          <label>Τεχνικά χαρακτηριστικά canonical προϊόντος</label>
+          <label>Τεχνικά χαρακτηριστικά προϊόντος</label>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 8 }}>
             {canonicalDetails.map(([key, value]) => <div key={key} style={{ border: "1px solid rgba(100,116,139,.22)", borderRadius: 12, padding: "9px 11px" }}><small style={{ display: "block", opacity: .72 }}>{key}</small><strong>{value}</strong></div>)}
           </div>
@@ -452,13 +452,13 @@ export function VendorSmartProductForm({ csrfToken, categoryOptions }: Props) {
         <div className="workspace-form-field span-2">
           <label htmlFor="catalog-variant-note">Πρόσθετη σημείωση προσφοράς <span style={{ fontWeight: 400 }}>(προαιρετικό)</span></label>
           <input id="catalog-variant-note" name="variantNote" value={variantNote} onChange={(event) => setVariantNote(event.target.value)} placeholder="π.χ. ειδική συσκευασία καταστήματος ή χρήσιμη πληροφορία παραλαβής" />
-          <small>Η σημείωση δεν χρησιμοποιείται για canonical matching. Μέγεθος, χρώμα, χωρητικότητα και άλλα στοιχεία ταυτότητας μπαίνουν στα δομημένα πεδία παραπάνω.</small>
+          <small>Η σημείωση δεν χρησιμοποιείται για την αναγνώριση του προϊόντος. Μέγεθος, χρώμα, χωρητικότητα και άλλα βασικά χαρακτηριστικά μπαίνουν στα δομημένα πεδία παραπάνω.</small>
         </div>
         <div className="workspace-form-field"><label htmlFor="catalog-price">Τελική τιμή €</label><input id="catalog-price" name="priceEuro" required type="number" min="0" step="0.01" placeholder="44.90" value={priceEuro} onChange={(event) => setPriceEuro(event.target.value)} /></div>
         <div className="workspace-form-field"><label htmlFor="catalog-stock">Φυσικό απόθεμα</label><input id="catalog-stock" name="stock" required type="number" min="0" step="1" value={stock} onChange={(event) => setStock(event.target.value)} /></div>
         <div className="workspace-form-field"><label htmlFor="catalog-safety">Απόθεμα ασφαλείας</label><input id="catalog-safety" name="safety" type="number" min="0" step="1" value={safety} onChange={(event) => setSafety(event.target.value)} /></div>
       </div>
-      <div className="workspace-form-actions"><button className="button" disabled={saving || schemaBusy}>{saving ? "Αποθήκευση…" : variantAnchorMode ? "Αποθήκευση νέας canonical παραλλαγής" : selectedCanonical ? "Αποθήκευση συνδεδεμένης προσφοράς" : "Αποθήκευση προϊόντος"}</button></div>
+      <div className="workspace-form-actions"><button className="button" disabled={saving || schemaBusy}>{saving ? "Αποθήκευση…" : variantAnchorMode ? "Αποθήκευση νέας παραλλαγής" : selectedCanonical ? "Αποθήκευση προϊόντος" : "Αποθήκευση προϊόντος"}</button></div>
     </form>
   </>;
 }
