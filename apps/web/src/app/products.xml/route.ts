@@ -1,11 +1,11 @@
-import { getCrawlerCatalogCards } from "../lib/crawler-catalog";
-import { getPublicProductSeoInventory } from "../lib/catalog-view";
-import { productPublicPath } from "../lib/product-url";
-import { publicCatalogueCardDescription, publicCatalogueTitleLabel } from "../lib/public-data-integrity";
-import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../lib/seo-entity-policy";
-import { getSeoEntityOverridesSnapshot } from "../lib/seo-entity-overrides";
-import { getSeoGlobalSettingsSnapshot } from "../lib/seo-settings";
-import { productIndexEligibility } from "../lib/seo-visibility-policy";
+import { getCrawlerCatalogCards } from "../../lib/crawler-catalog";
+import { getPublicProductSeoInventory } from "../../lib/catalog-view";
+import { productPublicPath } from "../../lib/product-url";
+import { publicCatalogueCardDescription, publicCatalogueTitleLabel } from "../../lib/public-data-integrity";
+import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../lib/seo-entity-policy";
+import { getSeoEntityOverridesSnapshot } from "../../lib/seo-entity-overrides";
+import { getSeoGlobalSettingsSnapshot } from "../../lib/seo-settings";
+import { productIndexEligibility } from "../../lib/seo-visibility-policy";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
