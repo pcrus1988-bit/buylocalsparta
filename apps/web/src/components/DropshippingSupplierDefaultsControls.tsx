@@ -14,7 +14,7 @@ async function csrfToken(): Promise<string> {
   const response = await fetch("/api/vendor/auth-context", { cache: "no-store" });
   if (!response.ok) throw new Error("Η συνεδρία συνεργάτη έληξε.");
   const payload = await response.json() as { csrfToken?: string };
-  if (!payload.csrfToken) throw new Error("Δεν βρέθηκε ασφαλές token συνεδρίας.");
+  if (!payload.csrfToken) throw new Error("Δεν βρέθηκε ασφαλές στοιχείο συνεδρίας.");
   return payload.csrfToken;
 }
 
@@ -83,7 +83,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
           nextCursor?: string | null;
           done?: boolean;
         };
-        if (!response.ok) throw new Error(payload.error ?? "Η εφαρμογή του price engine απέτυχε.");
+        if (!response.ok) throw new Error(payload.error ?? "Η εφαρμογή της αυτόματης τιμολόγησης απέτυχε.");
 
         pricedProducts += payload.pricedProducts ?? 0;
         visibleProducts += payload.visibleProducts ?? 0;
@@ -96,7 +96,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
 
         if (payload.done === true) {
           setMessage(
-            `Ολοκληρώθηκε: ${pricedProducts} προϊόντα επανατιμολογήθηκαν · public ${visibleProducts} · manual visibility overrides διατηρήθηκαν ${overriddenProducts}.`
+            `Ολοκληρώθηκε: ${pricedProducts} προϊόντα επανατιμολογήθηκαν · δημοσιευμένα ${visibleProducts} · διατηρήθηκαν ${overriddenProducts} χειροκίνητες εξαιρέσεις ορατότητας.`
           );
           router.refresh();
           return;
@@ -118,12 +118,12 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
     const operation = nextVisible ? "Μαζική δημοσίευση" : "Μαζική απόκρυψη";
     const confirmationCode = window.prompt(
       nextVisible
-        ? `Supplier-wide action: ${operation}. Αυτό μπορεί να αλλάξει μαζικά ολόκληρο τον supplier και καθαρίζει τα υπάρχοντα per-product visibility overrides. Marketplace/safety gates και live supplier availability εξακολουθούν να έχουν προτεραιότητα.\n\nΓια επιβεβαίωση γράψε ακριβώς: ${supplierCode}`
-        : `Supplier-wide action: ${operation}. Αυτό κρύβει τα προϊόντα του supplier και καθαρίζει τα υπάρχοντα per-product visibility overrides.\n\nΓια επιβεβαίωση γράψε ακριβώς: ${supplierCode}`
+        ? `Μαζική ενέργεια προμηθευτή: ${operation}. Αυτό μπορεί να αλλάξει μαζικά όλα τα προϊόντα του προμηθευτή και καθαρίζει τις υπάρχουσες χειροκίνητες εξαιρέσεις ορατότητας. Οι κανόνες ασφάλειας και η ζωντανή διαθεσιμότητα του προμηθευτή εξακολουθούν να έχουν προτεραιότητα.\n\nΓια επιβεβαίωση γράψε ακριβώς: ${supplierCode}`
+        : `Μαζική ενέργεια προμηθευτή: ${operation}. Αυτό κρύβει τα προϊόντα του προμηθευτή και καθαρίζει τις υπάρχουσες χειροκίνητες εξαιρέσεις ορατότητας.\n\nΓια επιβεβαίωση γράψε ακριβώς: ${supplierCode}`
     );
     if (confirmationCode == null) return;
     if (confirmationCode.trim() !== supplierCode) {
-      setMessage(`Η supplier-wide ενέργεια ακυρώθηκε: ο κωδικός επιβεβαίωσης πρέπει να είναι ακριβώς ${supplierCode}.`);
+      setMessage(`Η μαζική ενέργεια προμηθευτή ακυρώθηκε: ο κωδικός επιβεβαίωσης πρέπει να είναι ακριβώς ${supplierCode}.`);
       return;
     }
     setBusy(true); setMessage("");
@@ -137,8 +137,8 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       const payload = await response.json() as { error?: string; affectedProducts?: number; visibleProducts?: number };
       if (!response.ok) throw new Error(payload.error ?? "Η μαζική αλλαγή ορατότητας απέτυχε.");
       setMessage(nextVisible
-        ? `Ελέγχθηκαν ${payload.affectedProducts ?? 0} προϊόντα · public ${payload.visibleProducts ?? 0}. Τα προηγούμενα product visibility overrides καθαρίστηκαν.`
-        : `Κρύφτηκαν τα προϊόντα του supplier (${payload.affectedProducts ?? 0} ελεγμένα) και καθαρίστηκαν τα προηγούμενα product visibility overrides.`);
+        ? `Ελέγχθηκαν ${payload.affectedProducts ?? 0} προϊόντα · δημοσιευμένα ${payload.visibleProducts ?? 0}. Οι προηγούμενες χειροκίνητες εξαιρέσεις ορατότητας καθαρίστηκαν.`
+        : `Κρύφτηκαν τα προϊόντα του προμηθευτή (${payload.affectedProducts ?? 0} ελεγμένα) και καθαρίστηκαν οι προηγούμενες χειροκίνητες εξαιρέσεις ορατότητας.`);
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Η μαζική αλλαγή απέτυχε.");
@@ -150,7 +150,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       <div><strong>Αυτόματη τιμολόγηση · {supplierCode}</strong><small>{defaults.configured ? "Αποθηκευμένοι κανόνες τιμολόγησης" : "Δεν έχουν οριστεί ακόμη"}</small></div>
       <span className="vendor-merchant-status">{visible ? "Επιλέξιμα για δημοσίευση" : "Κρυφά"}</span>
     </div>
-    <p style={{ marginTop: 10 }}>Αυτή είναι η αυτόματη τιμολόγηση του προμηθευτή: τιμή αγοράς → περιθώριο → έκπτωση. Οι αποθηκευμένοι κανόνες είναι η authoritative αυτόματη τιμολόγηση για τα προϊόντα χωρίς per-product manual override. Κάθε supplier μπορεί να έχει διαφορετικό engine. Η ορατότητα είναι supplier default και τα manual Public/Hidden overrides διατηρούνται. Το live stock συνεχίζει να έρχεται από το supplier API και τα marketplace/safety gates έχουν πάντα προτεραιότητα.</p>
+    <p style={{ marginTop: 10 }}>Αυτή είναι η αυτόματη τιμολόγηση του προμηθευτή: τιμή αγοράς → περιθώριο → έκπτωση. Οι αποθηκευμένοι κανόνες εφαρμόζονται στα προϊόντα που δεν έχουν χειροκίνητη εξαίρεση. Κάθε προμηθευτής μπορεί να έχει διαφορετικούς κανόνες. Η γενική ορατότητα λειτουργεί ως προεπιλογή, ενώ οι χειροκίνητες επιλογές ανά προϊόν διατηρούνται. Η ζωντανή διαθεσιμότητα συνεχίζει να έρχεται από τον προμηθευτή και οι κανόνες ασφάλειας έχουν πάντα προτεραιότητα.</p>
     <div className="vendor-dropshipping-default-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
       <label><small>Γενικό περιθώριο %</small><input type="number" min="0" max="1000" step="0.1" value={markupPercent} disabled={busy} onChange={(event) => setMarkupPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
       <label><small>Γενική έκπτωση %</small><input type="number" min="0" max="100" step="0.1" value={discountPercent} disabled={busy} onChange={(event) => setDiscountPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
@@ -163,7 +163,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
       <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(true)}>Μαζική δημοσίευση</button>
       <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(false)}>Μαζική απόκρυψη</button>
     </div>
-    <small style={{ display: "block", marginTop: 8 }}>Η εφαρμογή της τιμολόγησης γίνεται σε μικρές, διαδοχικές παρτίδες ώστε μεγάλοι κατάλογοι να παραμένουν σταθεροί. Ενημερώνει supplier-wide pricing/MSRP και εφαρμόζει supplier visibility μόνο όπου επιτρέπεται. Reset ανά προϊόν αφαιρεί το pricing override αυτού του προϊόντος. Όλες οι supplier-wide ενέργειες απαιτούν τον ακριβή supplier code. Bulk publish ενεργοποιεί μόνο eligible προϊόντα· marketplace-blocked, suppressed ή recalled προϊόντα παραμένουν hidden. Το live stock δεν αλλάζει εδώ.</small>
+    <small style={{ display: "block", marginTop: 8 }}>Η εφαρμογή της τιμολόγησης γίνεται σε μικρές, διαδοχικές παρτίδες ώστε μεγάλοι κατάλογοι να παραμένουν σταθεροί. Ενημερώνει την τιμολόγηση και την προτεινόμενη λιανική για τον προμηθευτή και εφαρμόζει τη γενική ορατότητα μόνο όπου επιτρέπεται. Η επαναφορά ανά προϊόν αφαιρεί τη δική του εξαίρεση τιμολόγησης. Οι μαζικές ενέργειες απαιτούν τον ακριβή κωδικό προμηθευτή. Η μαζική δημοσίευση ενεργοποιεί μόνο επιλέξιμα προϊόντα· όσα μπλοκάρονται από κανόνες ασφάλειας παραμένουν κρυφά. Η ζωντανή διαθεσιμότητα δεν αλλάζει εδώ.</small>
     <DropshippingSupplierFieldControls supplierCode={supplierCode} />
     {message ? <small role="status" style={{ display: "block", marginTop: 8 }}>{message}</small> : null}
   </div>;
