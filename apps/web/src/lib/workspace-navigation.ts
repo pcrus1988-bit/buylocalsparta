@@ -21,11 +21,16 @@ export type WorkspaceNavGroup = Readonly<{
 }>;
 
 export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
-  { label: "Αρχική", href: "/vendor", icon: "⌂", links: [{ label: "Αρχική", href: "/vendor", icon: "⌂" }] },
+  {
+    label: "Αρχική", href: "/vendor", icon: "⌂",
+    description: "Σήμερα, εκκρεμότητες και γρήγορες ενέργειες",
+    links: [{ label: "Αρχική", href: "/vendor", icon: "⌂" }]
+  },
   {
     label: "Παραγγελίες", href: "/vendor/orders", icon: "□",
+    description: "Από αποδοχή μέχρι παράδοση και επιστροφή",
     links: [
-      { label: "Παραγγελίες", href: "/vendor/orders", icon: "□" },
+      { label: "Όλες", href: "/vendor/orders", icon: "□" },
       { label: "Προθεσμίες", href: "/vendor/notifications", icon: "!" },
       { label: "Αποστολές", href: "/vendor/shipping", icon: "↗", vendorCapability: "shipping.manage" },
       { label: "Παραλαβές", href: "/vendor/pickup/scan", icon: "⌁" },
@@ -34,23 +39,34 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   },
   {
     label: "Προϊόντα", href: "/vendor/catalog", icon: "▦",
+    description: "Κατάλογος, απόθεμα, εισαγωγές και υλικό προϊόντων",
     links: [
-      { label: "Κατάλογος & απόθεμα", href: "/vendor/catalog", icon: "▦", vendorCapability: "catalogue.read" },
-      { label: "Εισαγωγή προϊόντων (XML)", href: "/vendor/catalog/feed", icon: "⇩", vendorCapability: "catalogue.import" },
+      { label: "Κατάλογος", href: "/vendor/catalog", icon: "▦", vendorCapability: "catalogue.read" },
+      { label: "Εισαγωγή XML", href: "/vendor/catalog/feed", icon: "⇩", vendorCapability: "catalogue.import" },
       { label: "Φωτογραφίες & έγγραφα", href: "/vendor/trust", icon: "✓" }
     ]
   },
-  { label: "Πελάτες", href: "/vendor/advice", icon: "◌", links: [{ label: "Μηνύματα & αιτήματα", href: "/vendor/advice", icon: "◌", vendorCapability: "customer_messages.manage" }] },
+  {
+    label: "Πελάτες", href: "/vendor/advice", icon: "◌",
+    description: "Μηνύματα, ραντεβού και Ask Local",
+    links: [{ label: "Μηνύματα & αιτήματα", href: "/vendor/advice", icon: "◌", vendorCapability: "customer_messages.manage" }]
+  },
   {
     label: "Κατάστημα", href: "/vendor/storefront", icon: "◫",
+    description: "Δημόσια εικόνα και προεπισκόπηση",
     links: [
-      { label: "Δημόσιο προφίλ", href: "/vendor/storefront", icon: "◫", vendorCapability: "shop.manage" },
-      { label: "Προεπισκόπηση καταστήματος", href: "/vendor/preview", icon: "◉", vendorCapability: "shop.read" }
+      { label: "Προφίλ", href: "/vendor/storefront", icon: "◫", vendorCapability: "shop.manage" },
+      { label: "Προεπισκόπηση", href: "/vendor/preview", icon: "◉", vendorCapability: "shop.read" }
     ]
   },
-  { label: "Οικονομικά", href: "/vendor/finance", icon: "€", links: [{ label: "Πληρωμές & παραστατικά", href: "/vendor/finance", icon: "€", vendorCapability: "finance.read" }] },
+  {
+    label: "Οικονομικά", href: "/vendor/finance", icon: "€",
+    description: "Πληρωμές, παραστατικά και εκκαθαρίσεις",
+    links: [{ label: "Πληρωμές & παραστατικά", href: "/vendor/finance", icon: "€", vendorCapability: "finance.read" }]
+  },
   {
     label: "Στατιστικά", href: "/vendor/analytics", icon: "∿",
+    description: "Πωλήσεις, απόδοση και αναφορές",
     links: [
       { label: "Απόδοση", href: "/vendor/analytics", icon: "∿", vendorCapability: "analytics.read" },
       { label: "Αναφορές", href: "/vendor/reports", icon: "▤" }
@@ -58,14 +74,15 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
   },
   {
     label: "Ρυθμίσεις", href: "/vendor/settings", icon: "⚙",
+    description: "Στοιχεία καταστήματος, ομάδα και συνεργασία",
     links: [
-      { label: "Κέντρο ρυθμίσεων", href: "/vendor/settings", icon: "⚙" },
+      { label: "Όλες οι ρυθμίσεις", href: "/vendor/settings", icon: "⚙" },
       { label: "Πρόσβαση ομάδας", href: "/vendor/daily-access", icon: "◈", vendorCapability: "staff.manage" },
-      { label: "Τοπικές παραδόσεις", href: "/vendor/settings/delivery", icon: "⌁", vendorCapability: "local_delivery.manage" },
-      { label: "Φορολογικά & AADE", href: "/vendor/settings/aade", icon: "#", vendorCapability: "aade.manage" },
-      { label: "Προωθητικές ενέργειες", href: "/vendor/settings/promotions", icon: "%", vendorCapability: "promotions.manage" },
-      { label: "SEO καταστήματος", href: "/vendor/settings/seo", icon: "⌕", vendorCapability: "seo.source_data.manage" },
-      { label: "Πλάνο συνεργασίας", href: "/vendor/settings/subscription", icon: "◎", vendorCapability: "subscription.manage" }
+      { label: "Παραδόσεις", href: "/vendor/settings/delivery", icon: "⌁", vendorCapability: "local_delivery.manage" },
+      { label: "AADE & φορολογικά", href: "/vendor/settings/aade", icon: "#", vendorCapability: "aade.manage" },
+      { label: "Προσφορές", href: "/vendor/settings/promotions", icon: "%", vendorCapability: "promotions.manage" },
+      { label: "Εμφάνιση στη Google", href: "/vendor/settings/seo", icon: "⌕", vendorCapability: "seo.source_data.manage" },
+      { label: "Πλάνο", href: "/vendor/settings/subscription", icon: "◎", vendorCapability: "subscription.manage" }
     ]
   }
 ];
