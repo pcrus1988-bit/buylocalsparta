@@ -50,7 +50,7 @@ export default async function VendorAnalyticsPage({ searchParams }: { searchPara
 
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Στατιστικά</div><h1>Απόδοση καταστήματος</h1><p className="lead">Ξεκίνα από πωλήσεις, επισκέψεις και μετατροπή. Οι πιο τεχνικές μετρήσεις προβολής και attribution παραμένουν διαθέσιμες όταν τις χρειάζεσαι.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Στατιστικά</div><h1>Απόδοση καταστήματος</h1><p className="lead">Ξεκίνα από πωλήσεις, επισκέψεις και μετατροπή. Οι πιο τεχνικές μετρήσεις προβολής και απόδοσης παραμένουν διαθέσιμες όταν τις χρειάζεσαι.</p></div></section>
 
     <WorkspaceMetricStrip items={[
       { label: "Πωλήσεις", value: euro(t.revenueMinor), tone: t.revenueMinor ? "positive" : "default" },
@@ -112,13 +112,13 @@ export default async function VendorAnalyticsPage({ searchParams }: { searchPara
           <div className="workspace-queue-head"><div><strong>{row.productTitle}</strong><small>{row.categoryName}</small></div><a href={`/vendor/analytics?period=${encodeURIComponent(periodKey)}&product=${encodeURIComponent(row.canonicalVariantId)}${categoryId ? `&category=${encodeURIComponent(categoryId)}` : ""}`}>Ανάλυση προϊόντος</a></div>
           <div className="workspace-compact-list" style={{ marginTop: 12 }}>
             <div className="workspace-compact-row"><strong>Προβολές</strong><span>{row.pageViews}</span><small>{row.uniqueViewers} μοναδικοί</small></div>
-            <div className="workspace-compact-row"><strong>Καλάθι / Checkout</strong><span>{row.addToCarts} / {row.checkoutStarts}</span></div>
+            <div className="workspace-compact-row"><strong>Καλάθι / ολοκλήρωση αγοράς</strong><span>{row.addToCarts} / {row.checkoutStarts}</span></div>
             <div className="workspace-compact-row"><strong>Αγορές</strong><span>{row.purchases}</span><small>{row.unitsSold} τεμάχια · {pct(row.purchases, row.pageViews)} μετατροπή</small></div>
             <div className="workspace-compact-row"><strong>Πωλήσεις</strong><span>{euro(row.revenueMinor)}</span></div>
           </div>
           <WorkspaceRecordDetails label="Προχωρημένες μετρήσεις">
             <div className="workspace-compact-list">
-              <div className="workspace-compact-row"><strong>Fair impressions</strong><span>{row.impressions}</span></div>
+              <div className="workspace-compact-row"><strong>Δίκαιες εμφανίσεις</strong><span>{row.impressions}</span></div>
               <div className="workspace-compact-row"><strong>Μέσος ενεργός χρόνος</strong><span>{duration(row.pageViews ? row.engagedSeconds / row.pageViews : 0)}</span></div>
             </div>
           </WorkspaceRecordDetails>
@@ -130,10 +130,10 @@ export default async function VendorAnalyticsPage({ searchParams }: { searchPara
       <WorkspaceSectionHeading eyebrow="Προχωρημένα" title="Μετρήσεις εμφάνισης & απόδοσης" note="Χρήσιμες για βαθύτερη ανάλυση, όχι απαραίτητες για την καθημερινή λειτουργία του καταστήματος." />
       <WorkspaceRecordDetails label="Προβολή προχωρημένων μετρήσεων">
         <div className="workspace-compact-list">
-          <div className="workspace-compact-row"><strong>Fair / qualified impressions</strong><span>{t.impressions}</span></div>
+          <div className="workspace-compact-row"><strong>Δίκαιες / έγκυρες εμφανίσεις</strong><span>{t.impressions}</span></div>
           <div className="workspace-compact-row"><strong>Μοναδικοί επισκέπτες προϊόντων</strong><span>{t.uniqueViewers}</span></div>
           <div className="workspace-compact-row"><strong>Μέσος ενεργός χρόνος</strong><span>{duration(t.pageViews ? t.engagedSeconds / t.pageViews : 0)}</span></div>
-          <div className="workspace-compact-row"><strong>Attributed purchases</strong><span>{t.purchases}</span><small>{t.unitsSold} τεμάχια</small></div>
+          <div className="workspace-compact-row"><strong>Αγορές από εμφανίσεις</strong><span>{t.purchases}</span><small>{t.unitsSold} τεμάχια</small></div>
         </div>
       </WorkspaceRecordDetails>
     </section>

@@ -53,7 +53,7 @@ for (const contract of [
   "ASSIGNED_PAGE_SIZE = 40",
   "vendorAssignedCatalogueWorkspace(principal, { offset: assignedOffset, limit: ASSIGNED_PAGE_SIZE })",
   "Ανάθεση ≠ δημοσίευση",
-  "δεν δημιουργεί offer, inventory balance ή δημόσια διαθεσιμότητα",
+  "δεν δημιουργεί δημόσια προσφορά ή διαθεσιμότητα",
   "Δεν θεωρείται αυτόματα δική σου τιμή προμηθευτή",
   "confirmVendorAssignedCatalogueEvidence",
   "Προηγούμενα",

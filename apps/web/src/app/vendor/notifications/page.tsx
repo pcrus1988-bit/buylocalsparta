@@ -40,7 +40,7 @@ export default async function Page() {
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
-      <div><div className="eyebrow">Παραγγελίες · προθεσμίες</div><h1>Τι πρέπει να γίνει και μέχρι πότε</h1><p className="lead">Οι ενεργές προθεσμίες ταξινομούνται ως εργασία του καταστήματός σου. Δεν χρειάζεται να γνωρίζεις τι σημαίνει SLA για να τις χρησιμοποιήσεις.</p><div className="hero-actions"><Link className="button" href="/vendor/orders">Όλες οι παραγγελίες</Link></div></div>
+      <div><div className="eyebrow">Παραγγελίες · προθεσμίες</div><h1>Τι πρέπει να γίνει και μέχρι πότε</h1><p className="lead">Οι ενεργές προθεσμίες ταξινομούνται ως εργασία του καταστήματός σου. Δεν χρειάζεται να γνωρίζεις τεχνική ορολογία για να τις χρησιμοποιήσεις.</p><div className="hero-actions"><Link className="button" href="/vendor/orders">Όλες οι παραγγελίες</Link></div></div>
     </section>
 
     <WorkspaceMetricStrip items={[
@@ -76,13 +76,13 @@ export default async function Page() {
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Πώς ορίζονται οι χρόνοι" title="Η συμφωνία σου" note="Οι λεπτομέρειες της SLA πολιτικής παραμένουν διαθέσιμες για διαφάνεια, χωρίς να καταλαμβάνουν την κύρια οθόνη εργασίας." />
+      <WorkspaceSectionHeading eyebrow="Πώς ορίζονται οι χρόνοι" title="Η συμφωνία σου" note="Οι λεπτομέρειες της πολιτικής προθεσμιών παραμένουν διαθέσιμες για διαφάνεια, χωρίς να καταλαμβάνουν την κύρια οθόνη εργασίας." />
       <WorkspaceHowItWorks title="Προθεσμίες της εμπορικής συμφωνίας">
         {data.activeAgreement ? <>
           <p><strong>{data.activeAgreement.agreementCode} · έκδοση {data.activeAgreement.agreementVersion}</strong></p>
           <p>Αποδοχή παραγγελίας: {data.activeAgreement.acceptanceMinutes} λεπτά. Προετοιμασία: {data.activeAgreement.preparationMinutes} λεπτά.</p>
           <p>Πρώτη υπενθύμιση στο {data.activeAgreement.warningPercent}% του χρόνου, email στο {data.activeAgreement.emailReminderPercent}% και κλιμάκωση {data.activeAgreement.escalationGraceMinutes} λεπτά μετά τη λήξη.</p>
-          {!data.activeAgreement.configured && <p>Χρησιμοποιείται προσωρινή πολιτική μέχρι να καταχωριστεί η εκτελέσιμη SLA πολιτική της συμφωνίας.</p>}
+          {!data.activeAgreement.configured && <p>Χρησιμοποιείται προσωρινή πολιτική μέχρι να καταχωριστεί η εκτελέσιμη πολιτική προθεσμιών της συμφωνίας.</p>}
         </> : <p>Δεν βρέθηκε ενεργή συμφωνία, οπότε εφαρμόζεται προσωρινή πολιτική πλατφόρμας μέχρι να ενεργοποιηθεί η συμφωνία.</p>}
       </WorkspaceHowItWorks>
     </section>

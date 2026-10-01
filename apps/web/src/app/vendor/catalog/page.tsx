@@ -80,14 +80,14 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
-      <div><div className="eyebrow">Προϊόντα</div><h1>Κατάλογος, τιμές & απόθεμα</h1><p className="lead">Δες τι βλέπει ο πελάτης, ενημέρωσε την τελική τιμή πώλησης, κράτησε σωστό το πραγματικό απόθεμα και πρόσθεσε νέα προϊόντα με μία ξεκάθαρη πορεία μέχρι τη δημοσίευση.</p>{operatingContext.capabilities.includes("catalogue.import") && <div className="workspace-action-buttons"><Link className="button" href="/vendor/catalog/feed">Σύνδεση XML Product Feed</Link></div>}</div>
+      <div><div className="eyebrow">Προϊόντα</div><h1>Κατάλογος, τιμές & απόθεμα</h1><p className="lead">Δες τι βλέπει ο πελάτης, ενημέρωσε την τελική τιμή πώλησης, κράτησε σωστό το πραγματικό απόθεμα και πρόσθεσε νέα προϊόντα με μία ξεκάθαρη πορεία μέχρι τη δημοσίευση.</p>{operatingContext.capabilities.includes("catalogue.import") && <div className="workspace-action-buttons"><Link className="button" href="/vendor/catalog/feed">Σύνδεση XML προϊόντων</Link></div>}</div>
     </section>
 
     {assignedCatalogue.totalAssigned > 0 && <section className="shell vendor-section" id="assigned-catalogue">
       <WorkspaceSectionHeading
         eyebrow="Ανατεθειμένος κατάλογος προμηθευτή"
         title="Επιβεβαίωσε τι γνωρίζεις χωρίς να δημιουργηθεί δημόσια προσφορά"
-        note="Ο Admin έχει συνδέσει αυτά τα source προϊόντα με το κατάστημά σου. Εδώ επιβεβαιώνεις μόνο πραγματική τιμή προμηθευτή και φυσικό stock. Η επιβεβαίωση παραμένει evidence και δεν δημιουργεί offer, inventory balance ή δημόσια διαθεσιμότητα."
+        note="Το ΚΟΝΤΑ ΜΟΥ έχει συνδέσει αυτά τα προϊόντα πηγής με το κατάστημά σου. Εδώ επιβεβαιώνεις μόνο την πραγματική τιμή προμηθευτή και το φυσικό απόθεμα. Η επιβεβαίωση παραμένει εσωτερική πληροφορία και δεν δημιουργεί δημόσια προσφορά ή διαθεσιμότητα."
       />
       <WorkspaceMetricStrip items={[
         { label: "Ανατεθειμένα προϊόντα πηγής", value: assignedCatalogue.totalAssigned, tone: "positive" },
@@ -97,12 +97,12 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
       ]} />
       <WorkspaceHowItWorks>
         <p><strong>Ανάθεση ≠ δημοσίευση:</strong> η παρουσία ενός προϊόντος εδώ δεν το κάνει αγοράσιμο και δεν δημιουργεί τιμή πώλησης.</p>
-        <p><strong>Τιμή προμηθευτή:</strong> γράψε το πραγματικό δικό σου κόστος ανά τεμάχιο. Τυχόν τιμή του source catalogue εμφανίζεται μόνο ως πληροφορία και δεν αντιγράφεται αυτόματα.</p>
-        <p><strong>Φυσικό stock:</strong> είναι η πραγματική ποσότητα που βλέπεις στο κατάστημα αυτή τη στιγμή. Παραμένει evidence μέχρι να δημιουργηθεί ξεχωριστά κανονικό offer/inventory μέσω του governed catalogue workflow.</p>
-        <p><strong>Canonical match:</strong> μπορεί να ολοκληρωθεί από το ΚΟΝΤΑ ΜΟΥ αργότερα. Δεν χρειάζεται να περιμένεις το matching για να μας δώσεις σωστή εμπορική πληροφορία για το source προϊόν.</p>
+        <p><strong>Τιμή προμηθευτή:</strong> γράψε το πραγματικό δικό σου κόστος ανά τεμάχιο. Τυχόν τιμή του καταλόγου πηγής εμφανίζεται μόνο ως πληροφορία και δεν αντιγράφεται αυτόματα.</p>
+        <p><strong>Φυσικό απόθεμα:</strong> είναι η πραγματική ποσότητα που βλέπεις στο κατάστημα αυτή τη στιγμή. Παραμένει εσωτερική πληροφορία μέχρι να δημιουργηθεί κανονική προσφορά και απόθεμα μέσω της ελεγχόμενης διαδικασίας καταλόγου.</p>
+        <p><strong>Αντιστοίχιση προϊόντος:</strong> μπορεί να ολοκληρωθεί από το ΚΟΝΤΑ ΜΟΥ αργότερα. Δεν χρειάζεται να περιμένεις την αντιστοίχιση για να μας δώσεις σωστή εμπορική πληροφορία για το προϊόν πηγής.</p>
       </WorkspaceHowItWorks>
 
-      {params.assignedSaved === "1" && <div className="workspace-inline-note" role="status"><strong>Η επιβεβαίωση αποθηκεύτηκε.</strong> Παραμένει εσωτερικό evidence και δεν έκανε το προϊόν διαθέσιμο προς πώληση.</div>}
+      {params.assignedSaved === "1" && <div className="workspace-inline-note" role="status"><strong>Η επιβεβαίωση αποθηκεύτηκε.</strong> Παραμένει εσωτερική πληροφορία και δεν έκανε το προϊόν διαθέσιμο προς πώληση.</div>}
       {params.assignedSaved === "0" && <div className="workspace-inline-note" role="alert"><strong>Η επιβεβαίωση δεν αποθηκεύτηκε.</strong> {params.assignedError ?? "Έλεγξε τα στοιχεία και δοκίμασε ξανά."}</div>}
 
       <div className="workspace-queue-list">{assignedCatalogue.products.map((item) => <article className="workspace-queue-card" key={item.id}>
@@ -115,7 +115,7 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
           <span>Φυσικό stock: {item.stockCheckStatus === "confirmed" ? String(item.verifiedStockOnHand ?? 0) : item.stockCheckStatus === "unavailable" ? "δεν υπάρχει τώρα" : "σε αναμονή"}</span>
           <span>{item.canonicalVariantId ? "Διαθέσιμη αντιστοίχιση καταλόγου" : "Εκκρεμεί αντιστοίχιση καταλόγου"}</span>
         </div>
-        {item.sourcePrice && <div className="workspace-inline-note">Source catalogue reference: {item.sourcePrice}{item.sourcePriceKind ? ` · ${item.sourcePriceKind}` : ""}. Δεν θεωρείται αυτόματα δική σου τιμή προμηθευτή.</div>}
+        {item.sourcePrice && <div className="workspace-inline-note">Τιμή αναφοράς καταλόγου: {item.sourcePrice}{item.sourcePriceKind ? ` · ${item.sourcePriceKind}` : ""}. Δεν θεωρείται αυτόματα δική σου τιμή προμηθευτή.</div>}
         {(item.priceCheckStatus === "pending" || item.stockCheckStatus === "pending") && <div className="workspace-action-bar">
           <span>Επιβεβαίωσε μόνο ό,τι γνωρίζεις τώρα. Το υπόλοιπο μπορεί να μείνει σε αναμονή.</span>
           <div className="workspace-action-buttons">
@@ -142,10 +142,10 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
           </div>
         </div>}
         <WorkspaceRecordDetails label="Στοιχεία πηγής"><div className="workspace-compact-list">
-          <div className="workspace-compact-row"><strong>Supplier PIM</strong><span>{item.sourceName} · {item.sourceCode}</span></div>
+          <div className="workspace-compact-row"><strong>Κατάλογος προμηθευτή</strong><span>{item.sourceName} · {item.sourceCode}</span></div>
           <div className="workspace-compact-row"><strong>Assortment state</strong><span>{item.assortmentStatus} · {item.availabilityMode}</span></div>
-          <div className="workspace-compact-row"><strong>Price evidence</strong><span>{item.priceCheckStatus}</span></div>
-          <div className="workspace-compact-row"><strong>Stock evidence</strong><span>{item.stockCheckStatus}</span></div>
+          <div className="workspace-compact-row"><strong>Στοιχεία τιμής</strong><span>{item.priceCheckStatus}</span></div>
+          <div className="workspace-compact-row"><strong>Στοιχεία αποθέματος</strong><span>{item.stockCheckStatus}</span></div>
           {item.canonicalVariantId && <div className="workspace-compact-row"><strong>Canonical variant</strong><span className="vendor-technical-id">{item.canonicalVariantId}</span></div>}
         </div></WorkspaceRecordDetails>
       </article>)}</div>
@@ -160,7 +160,7 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
     </section>}
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Νέο προϊόν" title="Από την καταχώρηση μέχρι να εμφανιστεί στο κατάστημά σου" note="Τα εσωτερικά matching και approval βήματα παραμένουν στο παρασκήνιο. Εσύ χρειάζεται να δώσεις σωστά στοιχεία προϊόντος, τιμή και απόθεμα." />
+      <WorkspaceSectionHeading eyebrow="Νέο προϊόν" title="Από την καταχώρηση μέχρι να εμφανιστεί στο κατάστημά σου" note="Τα εσωτερικά βήματα αντιστοίχισης και έγκρισης παραμένουν στο παρασκήνιο. Εσύ χρειάζεται να δώσεις σωστά στοιχεία προϊόντος, τιμή και απόθεμα." />
       <VendorLifecycle steps={[
         { label: "Προϊόν & κατηγορία", tone: hasProducts ? "done" : "attention", detail: "Τι είναι και πού ανήκει" },
         { label: "Μάρκα & κωδικοί", tone: hasProducts ? "done" : "future", detail: "Μάρκα, μοντέλο, SKU και GTIN όπου υπάρχουν" },
@@ -169,7 +169,7 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
         { label: "Δημοσίευση", tone: hasVisibleProducts ? "done" : hasProducts ? "current" : "future", detail: hasVisibleProducts ? "Υπάρχουν ενεργά προϊόντα" : "Εμφάνιση στον πελάτη" }
       ]} ariaLabel="Πορεία νέου προϊόντος" />
       <WorkspaceHowItWorks>
-        <p><strong>Τιμή πώλησης:</strong> είναι η τελική τιμή του δικού σου offer. Κάθε πραγματική αλλαγή κρατιέται στο ιστορικό και ενημερώνει τον admin.</p>
+        <p><strong>Τιμή πώλησης:</strong> είναι η τελική τιμή της δικής σου προσφοράς. Κάθε πραγματική αλλαγή κρατιέται στο ιστορικό και ενημερώνει τον admin.</p>
         <p><strong>Φυσικό απόθεμα:</strong> πόσα τεμάχια υπάρχουν πραγματικά στο κατάστημα.</p>
         <p><strong>Επιβεβαίωση αποθέματος:</strong> κάθε αποθήκευση επιβεβαιώνει ξανά ότι το stock είναι πραγματικό και πρόσφατο, ακόμη κι αν η ποσότητα δεν άλλαξε. Η πρόσφατη επιβεβαίωση είναι απαραίτητη για δημόσια διαθεσιμότητα και Google Merchant Center.</p>
         <p><strong>Απόθεμα ασφαλείας:</strong> τεμάχια που θέλεις να μένουν εκτός online πώλησης για να μειώνεται ο κίνδυνος overselling.</p>

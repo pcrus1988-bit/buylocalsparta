@@ -1,4 +1,5 @@
 import type { VendorCapability } from "@buy-local-sparta/core";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { VendorHubControlsClient, type VendorHubControlSection } from "./VendorHubControlsClient";
 import { VendorWorkspaceHeader } from "./VendorWorkspaceHeader";
@@ -29,6 +30,7 @@ export async function VendorSettingsHubSectionPage({ section, capability, eyebro
         <div className="eyebrow">{eyebrow}</div>
         <h1>{title}</h1>
         <p className="lead">{description}</p>
+        <Link className="vendor-subpage-back" href="/vendor/settings">← Όλες οι ρυθμίσεις</Link>
       </div>
     </section>
     <VendorHubControlsClient initial={workspace} sections={[section]} />

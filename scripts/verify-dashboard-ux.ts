@@ -57,6 +57,50 @@ for (const requirement of ["Αγορές & παρακολούθηση", "Τοπ�
 const accountStyles = read("apps/web/src/components/CustomerAccountExperience.module.css");
 for (const requirement of [".priorityGrid", ".trackerCard", ".askLocalCard", ".secondaryDetails", "@media (max-width: 620px)"]) if (!accountStyles.includes(requirement)) failures.push(`Customer account experience styles are missing ${requirement}`);
 
+const vendorIaCss = read("apps/web/src/app/vendor-information-architecture.css");
+for (const requirement of [".vendor-settings-grid", ".vendor-subpage-back", ".vendor-app .workspace-page-metrics", ".vendor-app .workspace-form-actions", "@media(max-width:620px)"]) if (!vendorIaCss.includes(requirement)) failures.push(`Vendor subpage polish is missing ${requirement}`);
+
+for (const path of [
+  "apps/web/src/app/vendor/orders/page.tsx",
+  "apps/web/src/app/vendor/notifications/page.tsx",
+  "apps/web/src/app/vendor/shipping/page.tsx",
+  "apps/web/src/app/vendor/pickup/scan/page.tsx",
+  "apps/web/src/app/vendor/returns/page.tsx",
+  "apps/web/src/app/vendor/catalog/page.tsx",
+  "apps/web/src/app/vendor/catalog/feed/page.tsx",
+  "apps/web/src/app/vendor/trust/page.tsx",
+  "apps/web/src/app/vendor/advice/page.tsx",
+  "apps/web/src/app/vendor/storefront/page.tsx",
+  "apps/web/src/app/vendor/preview/page.tsx",
+  "apps/web/src/app/vendor/finance/page.tsx",
+  "apps/web/src/app/vendor/analytics/page.tsx",
+  "apps/web/src/app/vendor/reports/page.tsx",
+  "apps/web/src/app/vendor/daily-access/page.tsx",
+  "apps/web/src/app/vendor/trial/page.tsx",
+  "apps/web/src/app/vendor/trial-expired/page.tsx",
+  "apps/web/src/app/vendor/settings/page.tsx",
+  "apps/web/src/app/vendor/dropshipping/page.tsx",
+  "apps/web/src/app/vendor/dropshipping/analytics/page.tsx",
+  "apps/web/src/app/vendor/dropshipping/attention/page.tsx",
+  "apps/web/src/app/vendor/dropshipping/health/page.tsx",
+  "apps/web/src/app/vendor/dropshipping/activity/page.tsx"
+] as const) {
+  const source = read(path);
+  if (!source.includes("vendor-app")) failures.push(`Vendor subpage is outside the shared layout shell: ${path}`);
+  if (!source.includes("VendorWorkspaceHeader")) failures.push(`Vendor subpage is missing shared navigation: ${path}`);
+}
+requireText("apps/web/src/app/vendor/pickup/scan/page.tsx", ["vendor-hero vendor-hero-compact", "Παράδοση παραγγελίας με QR"]);
+requireText("apps/web/src/app/vendor/settings/page.tsx", ["vendor-settings-grid"]);
+for (const path of [
+  "apps/web/src/app/vendor/dropshipping/page.tsx",
+  "apps/web/src/app/vendor/dropshipping/analytics/page.tsx",
+  "apps/web/src/app/vendor/dropshipping/attention/page.tsx",
+  "apps/web/src/app/vendor/dropshipping/health/page.tsx",
+  "apps/web/src/app/vendor/dropshipping/activity/page.tsx"
+] as const) {
+  const source = read(path);
+  if (source.includes("Dropshipping Control Centre")) failures.push(`Dropshipping page regressed to English control-centre heading: ${path}`);
+}
 const vendorDashboard = read("apps/web/src/components/VendorDashboardClient.tsx");
 for (const destination of ["/vendor/catalog", "/vendor/shipping", "/vendor/returns", "/vendor/trust", "/vendor/advice", "/vendor/finance"]) if (!vendorDashboard.includes(`href: "${destination}"`)) failures.push(`Vendor dashboard is missing task path ${destination}`);
 if (!vendorDashboard.includes('density="compact"')) failures.push("Vendor dashboard quick actions must use compact density");

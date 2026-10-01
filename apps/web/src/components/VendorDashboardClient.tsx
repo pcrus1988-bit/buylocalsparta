@@ -46,18 +46,18 @@ export function VendorDashboardClient({ initial }: { initial: Dashboard }) {
       eyebrow="Γρήγορες ενέργειες"
       title="Τι χρειάζεται σήμερα;"
       links={[
-        { kicker: "Catalog", label: "Προϊόντα & stock", description: "Κατάλογος και απόθεμα.", href: "/vendor/catalog", value: data.metrics.activeProducts },
-        { kicker: "Customer", label: "Advice inbox", description: "Αιτήματα και συνεδρίες.", href: "/vendor/advice" },
-        { kicker: "Fulfilment", label: "Αποστολές", description: "Labels και handover.", href: "/vendor/shipping", value: data.metrics.openFulfilments },
+        { kicker: "Catalog", label: "Προϊόντα & απόθεμα", description: "Κατάλογος και απόθεμα.", href: "/vendor/catalog", value: data.metrics.activeProducts },
+        { kicker: "Customer", label: "Μηνύματα πελατών", description: "Αιτήματα και συνεδρίες.", href: "/vendor/advice" },
+        { kicker: "Fulfilment", label: "Αποστολές", description: "Ετικέτες και παράδοση στον μεταφορέα.", href: "/vendor/shipping", value: data.metrics.openFulfilments },
         { kicker: "After-sales", label: "Επιστροφές", description: "Ανατεθειμένα αιτήματα.", href: "/vendor/returns" },
-        { kicker: "Trust", label: "Αξιοπιστία", description: "Media και compliance.", href: "/vendor/trust" },
-        { kicker: "Business", label: "Οικονομικά", description: "Snapshots και settlements.", href: "/vendor/finance" }
+        { kicker: "Trust", label: "Αξιοπιστία", description: "Φωτογραφίες, έγγραφα και έλεγχοι.", href: "/vendor/trust" },
+        { kicker: "Business", label: "Οικονομικά", description: "Οικονομική εικόνα και εκκαθαρίσεις.", href: "/vendor/finance" }
       ]}
     />
 
     {error && <div className="shell form-error vendor-error" role="alert">{error}</div>}
 
-    <section className="shell vendor-kpis dashboard-kpis-refined" aria-label="Vendor metrics">
+    <section className="shell vendor-kpis dashboard-kpis-refined" aria-label="Μετρήσεις καταστήματος">
       <div className={data.metrics.ordersRequiringAction > 0 ? "has-work" : undefined}><span>Χρειάζονται ενέργεια</span><strong>{data.metrics.ordersRequiringAction}</strong></div>
       <div><span>Ενεργά προϊόντα</span><strong>{data.metrics.activeProducts}</strong></div>
       <div><span>Διαθέσιμες μονάδες</span><strong>{data.metrics.availableUnits}</strong></div>

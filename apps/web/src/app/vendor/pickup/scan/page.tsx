@@ -21,6 +21,13 @@ export default async function VendorPickupScanPage({ searchParams }: { searchPar
   if (!token) {
     return <main className="vendor-app">
       <VendorWorkspaceHeader />
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
+      <div>
+        <div className="eyebrow">Παραλαβές</div>
+        <h1>Παράδοση παραγγελίας με QR</h1>
+        <p className="lead">Σάρωσε τον κωδικό του πελάτη, έλεγξε την παραγγελία και επιβεβαίωσε την παράδοση μόνο όταν όλα είναι σωστά.</p>
+      </div>
+    </section>
       <section className="shell vendor-section" style={{ maxWidth: 760 }}>
         <div className="workspace-queue-card" style={{ display: "grid", gap: 16 }}>
           <div><div className="eyebrow">Παραλαβή από κατάστημα</div><h1>Σάρωση QR πελάτη</h1><p>Άνοιξε την κάμερα και στόχευσε το QR που εμφανίζεται στην παραγγελία του πελάτη. Μόλις αναγνωριστεί, θα εμφανιστεί η σωστή παραγγελία πριν κάνεις την τελική επιβεβαίωση.</p></div>

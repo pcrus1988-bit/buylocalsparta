@@ -41,8 +41,8 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
         body: JSON.stringify({ supplierCode, visible, markupPercent, discountPercent, showMsrp })
       });
       const payload = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "Η αποθήκευση των global ρυθμίσεων απέτυχε.");
-      setMessage("Το price engine αποθηκεύτηκε για αυτόν τον supplier. Πάτησε «Εφαρμογή price engine» για άμεση επανατιμολόγηση όλου του catalogue χωρίς timeout.");
+      if (!response.ok) throw new Error(payload.error ?? "Η αποθήκευση των γενικών ρυθμίσεων απέτυχε.");
+      setMessage("Η αυτόματη τιμολόγηση αποθηκεύτηκε για αυτόν τον προμηθευτή. Πάτησε «Εφαρμογή τιμολόγησης» για άμεση επανατιμολόγηση όλου του καταλόγου.");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Η αποθήκευση απέτυχε.");
@@ -51,7 +51,7 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
 
   async function applyDefaults() {
     const confirmationCode = window.prompt(
-      `Supplier-wide action: Εφαρμογή price engine. Η επανατιμολόγηση γίνεται σε μικρά batches ώστε να μην δημιουργείται database/serverless timeout. Τα manual Public/Hidden overrides διατηρούνται, ενώ marketplace/safety gates και live supplier availability παραμένουν authoritative.\n\nΓια επιβεβαίωση γράψε ακριβώς: ${supplierCode}`
+      `Μαζική ενέργεια προμηθευτή: εφαρμογή αυτόματης τιμολόγησης. Η επανατιμολόγηση γίνεται σε μικρές παρτίδες ώστε να αποφεύγονται χρονικά όρια. Οι χειροκίνητες εξαιρέσεις ορατότητας διατηρούνται και οι κανόνες ασφάλειας και διαθεσιμότητας παραμένουν σε ισχύ.\n\nΓια επιβεβαίωση γράψε ακριβώς: ${supplierCode}`
     );
     if (confirmationCode == null) return;
     if (confirmationCode.trim() !== supplierCode) {
@@ -91,31 +91,31 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
         processedProducts += payload.processedProducts ?? 0;
 
         setMessage(
-          `Price engine: επεξεργάστηκαν ${processedProducts} προϊόντα · επανατιμολογήθηκαν ${pricedProducts}. Συνεχίζεται σε ασφαλή batches…`
+          `Αυτόματη τιμολόγηση: επεξεργάστηκαν ${processedProducts} προϊόντα · επανατιμολογήθηκαν ${pricedProducts}. Συνεχίζεται σε ασφαλείς παρτίδες…`
         );
 
         if (payload.done === true) {
           setMessage(
-            `Ολοκληρώθηκε χωρίς μεγάλο transaction: ${pricedProducts} προϊόντα επανατιμολογήθηκαν · public ${visibleProducts} · manual visibility overrides διατηρήθηκαν ${overriddenProducts}.`
+            `Ολοκληρώθηκε: ${pricedProducts} προϊόντα επανατιμολογήθηκαν · public ${visibleProducts} · manual visibility overrides διατηρήθηκαν ${overriddenProducts}.`
           );
           router.refresh();
           return;
         }
 
         if (!payload.nextCursor || payload.nextCursor === cursor) {
-          throw new Error("Η batch επανατιμολόγηση δεν επέστρεψε έγκυρο continuation cursor.");
+          throw new Error("Η επανατιμολόγηση δεν επέστρεψε έγκυρο δείκτη συνέχισης.");
         }
         cursor = payload.nextCursor;
       }
 
-      throw new Error("Η επανατιμολόγηση ξεπέρασε το ασφαλές όριο batches. Εκτέλεσέ την ξανά για να συνεχίσει.");
+      throw new Error("Η επανατιμολόγηση ξεπέρασε το ασφαλές όριο παρτίδων. Εκτέλεσέ την ξανά για να συνεχίσει.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Η εφαρμογή απέτυχε.");
     } finally { setBusy(false); }
   }
 
   async function bulkVisibility(nextVisible: boolean) {
-    const operation = nextVisible ? "Bulk publish eligible" : "Bulk hide all";
+    const operation = nextVisible ? "Μαζική δημοσίευση" : "Μαζική απόκρυψη";
     const confirmationCode = window.prompt(
       nextVisible
         ? `Supplier-wide action: ${operation}. Αυτό μπορεί να αλλάξει μαζικά ολόκληρο τον supplier και καθαρίζει τα υπάρχοντα per-product visibility overrides. Marketplace/safety gates και live supplier availability εξακολουθούν να έχουν προτεραιότητα.\n\nΓια επιβεβαίωση γράψε ακριβώς: ${supplierCode}`
@@ -147,23 +147,23 @@ export function DropshippingSupplierDefaultsControls({ supplierCode, defaults }:
 
   return <div className="workspace-queue-card" style={{ marginBottom: 14 }}>
     <div className="workspace-queue-head">
-      <div><strong>Editable price engine · {supplierCode}</strong><small>{defaults.configured ? "Αποθηκευμένοι κανόνες τιμολόγησης" : "Δεν έχουν οριστεί ακόμη"}</small></div>
-      <span className="vendor-merchant-status">{visible ? "Public eligible" : "Hidden eligible"}</span>
+      <div><strong>Αυτόματη τιμολόγηση · {supplierCode}</strong><small>{defaults.configured ? "Αποθηκευμένοι κανόνες τιμολόγησης" : "Δεν έχουν οριστεί ακόμη"}</small></div>
+      <span className="vendor-merchant-status">{visible ? "Επιλέξιμα για δημοσίευση" : "Κρυφά"}</span>
     </div>
-    <p style={{ marginTop: 10 }}>Αυτό είναι το price engine αυτού του supplier: buying price → markup → έκπτωση. Οι αποθηκευμένοι κανόνες είναι η authoritative αυτόματη τιμολόγηση για τα προϊόντα χωρίς per-product manual override. Κάθε supplier μπορεί να έχει διαφορετικό engine. Η ορατότητα είναι supplier default και τα manual Public/Hidden overrides διατηρούνται. Το live stock συνεχίζει να έρχεται από το supplier API και τα marketplace/safety gates έχουν πάντα προτεραιότητα.</p>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
-      <label><small>Global markup %</small><input type="number" min="0" max="1000" step="0.1" value={markupPercent} disabled={busy} onChange={(event) => setMarkupPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
-      <label><small>Global discount %</small><input type="number" min="0" max="100" step="0.1" value={discountPercent} disabled={busy} onChange={(event) => setDiscountPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={visible} disabled={busy} onChange={(event) => setVisible(event.target.checked)} /> <span>Eligible supplier products public</span></label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={showMsrp} disabled={busy} onChange={(event) => setShowMsrp(event.target.checked)} /> <span>Show supplier MSRP</span></label>
+    <p style={{ marginTop: 10 }}>Αυτή είναι η αυτόματη τιμολόγηση του προμηθευτή: τιμή αγοράς → περιθώριο → έκπτωση. Οι αποθηκευμένοι κανόνες είναι η authoritative αυτόματη τιμολόγηση για τα προϊόντα χωρίς per-product manual override. Κάθε supplier μπορεί να έχει διαφορετικό engine. Η ορατότητα είναι supplier default και τα manual Public/Hidden overrides διατηρούνται. Το live stock συνεχίζει να έρχεται από το supplier API και τα marketplace/safety gates έχουν πάντα προτεραιότητα.</p>
+    <div className="vendor-dropshipping-default-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
+      <label><small>Γενικό περιθώριο %</small><input type="number" min="0" max="1000" step="0.1" value={markupPercent} disabled={busy} onChange={(event) => setMarkupPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
+      <label><small>Γενική έκπτωση %</small><input type="number" min="0" max="100" step="0.1" value={discountPercent} disabled={busy} onChange={(event) => setDiscountPercent(Number(event.target.value))} style={{ width: "100%" }} /></label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={visible} disabled={busy} onChange={(event) => setVisible(event.target.checked)} /> <span>Δημοσίευση επιλέξιμων προϊόντων</span></label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={showMsrp} disabled={busy} onChange={(event) => setShowMsrp(event.target.checked)} /> <span>Εμφάνιση προτεινόμενης λιανικής</span></label>
     </div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-      <button className="button button-secondary" type="button" disabled={busy || !dirty} onClick={saveDefaults}>Αποθήκευση defaults</button>
-      <button className="button" type="button" disabled={busy || !defaults.configured || dirty} onClick={applyDefaults}>Εφαρμογή price engine</button>
-      <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(true)}>Bulk publish eligible</button>
-      <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(false)}>Bulk hide all</button>
+      <button className="button button-secondary" type="button" disabled={busy || !dirty} onClick={saveDefaults}>Αποθήκευση ρυθμίσεων</button>
+      <button className="button" type="button" disabled={busy || !defaults.configured || dirty} onClick={applyDefaults}>Εφαρμογή τιμολόγησης</button>
+      <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(true)}>Μαζική δημοσίευση</button>
+      <button className="button button-secondary" type="button" disabled={busy} onClick={() => bulkVisibility(false)}>Μαζική απόκρυψη</button>
     </div>
-    <small style={{ display: "block", marginTop: 8 }}>Η εφαρμογή του price engine γίνεται σε μικρά, διαδοχικά batches αντί για ένα τεράστιο transaction, ώστε μεγάλοι κατάλογοι να μην κάνουν timeout. Ενημερώνει supplier-wide pricing/MSRP και εφαρμόζει supplier visibility μόνο όπου επιτρέπεται. Reset ανά προϊόν αφαιρεί το pricing override αυτού του προϊόντος. Όλες οι supplier-wide ενέργειες απαιτούν τον ακριβή supplier code. Bulk publish ενεργοποιεί μόνο eligible προϊόντα· marketplace-blocked, suppressed ή recalled προϊόντα παραμένουν hidden. Το live stock δεν αλλάζει εδώ.</small>
+    <small style={{ display: "block", marginTop: 8 }}>Η εφαρμογή της τιμολόγησης γίνεται σε μικρές, διαδοχικές παρτίδες ώστε μεγάλοι κατάλογοι να παραμένουν σταθεροί. Ενημερώνει supplier-wide pricing/MSRP και εφαρμόζει supplier visibility μόνο όπου επιτρέπεται. Reset ανά προϊόν αφαιρεί το pricing override αυτού του προϊόντος. Όλες οι supplier-wide ενέργειες απαιτούν τον ακριβή supplier code. Bulk publish ενεργοποιεί μόνο eligible προϊόντα· marketplace-blocked, suppressed ή recalled προϊόντα παραμένουν hidden. Το live stock δεν αλλάζει εδώ.</small>
     <DropshippingSupplierFieldControls supplierCode={supplierCode} />
     {message ? <small role="status" style={{ display: "block", marginTop: 8 }}>{message}</small> : null}
   </div>;
