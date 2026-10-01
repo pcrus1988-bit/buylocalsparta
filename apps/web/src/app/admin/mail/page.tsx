@@ -69,7 +69,7 @@ function emptyWorkspace(configurationMessage: string, fromAddresses: readonly st
     query: q,
     messages: [],
     thread: [],
-    metrics: { inbox: 0, unread: 0, sent: 0, starred: 0, archived: 0 }
+    metrics: { inbox: 0, unread: 0, sent: 0, starred: 0, archived: 0, all: 0 }
   };
 }
 
@@ -153,7 +153,7 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
     { id: "sent", label: "Sent", value: workspace.metrics.sent, secondary: "" },
     { id: "starred", label: "Starred", value: workspace.metrics.starred, secondary: "" },
     { id: "archive", label: "Archive", value: workspace.metrics.archived, secondary: "" },
-    { id: "all", label: "All mail", value: workspace.metrics.inbox + workspace.metrics.sent + workspace.metrics.archived, secondary: "" }
+    { id: "all", label: "All mail", value: workspace.metrics.all, secondary: "" }
   ];
 
   return <main className="vendor-app admin-app admin-mail-page">
@@ -317,11 +317,11 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
             <label><span>Bcc</span><input name="bcc" type="text" placeholder="Optional" /></label>
             <label className="admin-mail-compose-full"><span>Subject</span><input name="subject" type="text" defaultValue={composeSubject} maxLength={240} required /></label>
             <label className="admin-mail-compose-full"><span>Message</span><textarea name="body" rows={14} defaultValue={composeBody} required /></label>
-            <label className="admin-mail-compose-full admin-mail-file"><span>Attachments</span><input name="attachments" type="file" multiple /><small>Up to 8 files. Keep the total small enough for email delivery.</small></label>
+            <label className="admin-mail-compose-full admin-mail-file"><span>Attachments</span><input name="attachments" type="file" multiple /><small>Up to 8 files, maximum 3 MB total.</small></label>
           </div>
           <div className="admin-mail-compose-actions">
             <button className="button" type="submit" disabled={!workspace.configured}>Send with SES</button>
-            <Link className="button button-secondary" href={messageHref(workspace.folder, workspace.selectedId || "", workspace.query).replace(/message=$/, "")}>Close</Link>
+            <Link className="button button-secondary" href={workspace.selectedId ? messageHref(workspace.folder, workspace.selectedId, workspace.query) : folderHref(workspace.folder, workspace.query)}>Close</Link>
           </div>
         </form>
       </details>
