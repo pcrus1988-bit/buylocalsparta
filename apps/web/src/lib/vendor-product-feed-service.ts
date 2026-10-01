@@ -432,6 +432,80 @@ export async function saveVendorProductFeed(
   return { feedId: result.feedId, preview: prepared.preview, run: result.run };
 }
 
+export async function connectVendorProductFeed(
+  principal: SessionPrincipal,
+  input: VendorProductFeedMappingInput & Readonly<{
+    sourceUrl: string;
+    feedName: string;
+    syncIntervalMinutes?: number;
+  }>
+): Promise<Readonly<{ feedId: string; queued: true }>> {
+  const vendorId = requiredVendorId(principal);
+  const name = input.feedName.trim().slice(0, 120);
+  if (name.length < 2) throw new Error("Δώσε ένα όνομα για το XML feed.");
+  const interval = [60, 180, 360, 1440].includes(Number(input.syncIntervalMinutes))
+    ? Number(input.syncIntervalMinutes)
+    : 360;
+  const sourceUrl = normalizeVendorFeedUrl(input.sourceUrl);
+  const assignment = await resolveVendorOperatingAssignment(principal);
+  if (!assignment.marketId || !assignment.locationId) throw new Error("Ο vendor δεν έχει πλήρη market/location ρύθμιση.");
+
+  return uow().withTransaction(
+    { actorUserId: principal.userId, vendorId, marketId: assignment.marketId },
+    async (tx) => {
+      const refs = await tx.query<SqlRow>(sql(
+        "SELECT vb.id::text AS vendor_uuid,vb.market_id::text AS market_uuid,vl.id::text AS location_uuid,u.id::text AS user_uuid,",
+        "(SELECT id::text FROM categories c WHERE $4::text IS NOT NULL AND c.code=$4",
+        "AND (c.market_id IS NULL OR c.market_id=vb.market_id) ORDER BY c.market_id NULLS LAST LIMIT 1) AS default_category_uuid",
+        "FROM vendor_businesses vb",
+        "JOIN vendor_locations vl ON (vl.public_id=$2 OR vl.id::text=$2) AND vl.vendor_id=vb.id",
+        "JOIN users u ON (u.public_id=$3 OR u.id::text=$3)",
+        "WHERE vb.public_id=$1 OR vb.id::text=$1 LIMIT 1"
+      ), [vendorId, assignment.locationId, principal.userId, input.defaultCategoryCode?.trim() ?? null]);
+      if (refs.rowCount !== 1) throw new Error("Δεν βρέθηκε το ενεργό vendor/location scope.");
+      const ref = refs.rows[0];
+
+      const feed = await tx.query<SqlRow>(sql(
+        "INSERT INTO vendor_product_feeds(market_id,vendor_id,location_id,name,source_type,source_url,status,sync_interval_minutes,",
+        "field_mapping,category_mapping,default_category_id,created_by,next_sync_at,last_error,updated_at)",
+        "VALUES($1::uuid,$2::uuid,$3::uuid,$4,'url',$5,'active',$6,$7::jsonb,$8::jsonb,$9::uuid,$10::uuid,now(),NULL,now())",
+        "ON CONFLICT(vendor_id,lower(source_url)) WHERE source_type='url' AND source_url IS NOT NULL DO UPDATE SET",
+        "name=EXCLUDED.name,location_id=EXCLUDED.location_id,status='active',sync_interval_minutes=EXCLUDED.sync_interval_minutes,",
+        "field_mapping=EXCLUDED.field_mapping,category_mapping=EXCLUDED.category_mapping,default_category_id=EXCLUDED.default_category_id,",
+        "next_sync_at=now(),last_error=NULL,updated_at=now()",
+        "RETURNING public_id"
+      ), [
+        String(ref.market_uuid), String(ref.vendor_uuid), String(ref.location_uuid), name, sourceUrl, interval,
+        JSON.stringify(input.fieldMapping ?? {}), JSON.stringify(input.categoryMapping ?? {}),
+        text(ref.default_category_uuid) ?? null, String(ref.user_uuid)
+      ]);
+      const feedId = String(feed.rows[0]?.public_id ?? "");
+      if (!feedId) throw new Error("Το XML feed δεν αποθηκεύτηκε.");
+      return { feedId, queued: true as const };
+    },
+    { isolation: "read committed", statementTimeoutMs: 30_000 }
+  );
+}
+
+export async function queueVendorProductFeedSync(
+  principal: SessionPrincipal,
+  feedId: string
+): Promise<Readonly<{ feedId: string; queued: true }>> {
+  const vendorId = requiredVendorId(principal);
+  const normalizedFeedId = feedId.trim();
+  if (!normalizedFeedId) throw new Error("Λείπει το XML feed.");
+
+  return uow().withTransaction({ actorUserId: principal.userId, vendorId }, async (tx) => {
+    const changed = await tx.query<SqlRow>(sql(
+      "UPDATE vendor_product_feeds SET status='active',next_sync_at=now(),last_error=NULL,updated_at=now()",
+      "WHERE public_id=$1 AND vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$2 OR id::text=$2 LIMIT 1)",
+      "AND source_type='url' RETURNING public_id"
+    ), [normalizedFeedId, vendorId]);
+    if (changed.rowCount !== 1) throw new Error("Το XML feed δεν βρέθηκε.");
+    return { feedId: String(changed.rows[0]?.public_id ?? normalizedFeedId), queued: true as const };
+  }, { statementTimeoutMs: 15_000 });
+}
+
 export async function syncVendorProductFeed(
   principal: SessionPrincipal,
   feedId: string,
