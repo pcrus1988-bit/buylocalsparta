@@ -78,7 +78,7 @@ export function VendorDailyAccessClient({ initial, csrfToken }: { initial: Reado
         <p><strong>Ο κωδικός είναι ξεχωριστός</strong> από τον λογαριασμό ιδιοκτήτη του χώρου συνεργάτη. Αν αλλάξεις τον κωδικό, οι προηγούμενες Daily συνεδρίες κλείνουν.</p>
         <p><strong>Ανάκληση πρόσβασης:</strong> αποσυνδέει αμέσως το συγκεκριμένο άτομο από όλες τις ενεργές Daily συνεδρίες.</p>
       </WorkspaceHowItWorks>
-      <form onSubmit={create} style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
+      <form className="vendor-daily-access-form" onSubmit={create} style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
         <label style={{ display: "grid", gap: 6 }}>Όνομα<input name="displayName" required maxLength={120} placeholder="π.χ. Μαρία — Κατάστημα" /></label>
         <label style={{ display: "grid", gap: 6 }}>Email<input name="email" type="email" required autoComplete="off" /></label>
         <label style={{ display: "grid", gap: 6, gridColumn: "1 / -1" }}>Αρχικός κωδικός<input name="password" type="password" required minLength={10} autoComplete="new-password" /><small style={{ opacity: .65 }}>Τουλάχιστον 10 χαρακτήρες. Χρησιμοποίησε ξεχωριστό email που δεν είναι ήδη λογαριασμός KONTA MOY.</small></label>
