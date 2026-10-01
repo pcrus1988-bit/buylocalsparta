@@ -21,7 +21,7 @@ export default async function VendorFinancePage() {
   const needsInvoice = finance.procurements.some((item) => ["accrued", "matched", "disputed"].includes(item.status) && !item.invoiceNumber);
   const inReview = finance.procurements.some((item) => ["matched", "disputed"].includes(item.status));
   const payable = finance.procurements.some((item) => item.status === "payable");
-  const paid = finance.εκκαθάρισηs.some((item) => ["paid", "settled", "closed"].includes(item.status));
+  const paid = finance.settlements.some((item) => ["paid", "settled", "closed"].includes(item.status));
   const labels = ["Παραγγελία ολοκληρώθηκε", "Παραστατικό", "Έλεγχος", "Προγραμματισμός πληρωμής", "Πληρωμή"];
   const current = needsInvoice ? 1 : inReview ? 2 : payable ? 3 : paid ? labels.length : 0;
   const steps = labels.map((label, index) => ({ label, tone: index < current ? "done" as const : index === current ? (current === 0 ? "current" as const : "attention" as const) : "future" as const }));
