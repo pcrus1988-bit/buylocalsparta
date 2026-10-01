@@ -10,6 +10,6 @@ export {
   type CatalogWorkflowEvent
 } from "./management.ts";
 export { CatalogManagementService } from "./management-compat.ts";
-export * from "./import.ts";
+export * from "./import.ts";\nexport * from "./xml-feed.ts";
 export * from "./governance.ts";
 export * from "./colors.ts";
