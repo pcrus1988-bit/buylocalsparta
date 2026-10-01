@@ -599,10 +599,10 @@ async function upsertState(
   if (!message.rows[0]) throw new Error("Mail message not found");
   await pool.query(`
     INSERT INTO admin_mail_state (message_id,user_public_id,is_read,is_starred,archived_at,updated_at)
-    VALUES ($1::uuid,$2,$3,$4,$5,now())
+    VALUES ($1::uuid,$2,COALESCE($3::boolean,false),COALESCE($4::boolean,false),$5::timestamptz,now())
     ON CONFLICT (message_id,user_public_id) DO UPDATE SET
-      is_read=COALESCE($3,admin_mail_state.is_read),
-      is_starred=COALESCE($4,admin_mail_state.is_starred),
+      is_read=COALESCE($3::boolean,admin_mail_state.is_read),
+      is_starred=COALESCE($4::boolean,admin_mail_state.is_starred),
       archived_at=CASE WHEN $6::boolean IS NULL THEN admin_mail_state.archived_at WHEN $6 THEN now() ELSE NULL END,
       updated_at=now()
   `, [
