@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { PostgresUnitOfWork, id } from "@buy-local-sparta/core";
+import { PostgresUnitOfWork, id, type SessionPrincipal, type SqlExecutor, type SqlRow } from "@buy-local-sparta/core";
 import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
 import { normalizeGreekAfm, resolveGemiCompanyByAfm } from "./gemi-runtime";
 import { resolveExpansionHubForGemiCompany } from "./hub-location-resolution";
+import type { ExpansionHub } from "./expansion-hubs";
 import { getHubExpansionPlan, type HubBillingCycle, type HubExpansionPlanCode } from "./hub-expansion-plans";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+
+const HUB_PROSPECT_TRIAL_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
 
 const globals = globalThis as typeof globalThis & {
   __blsHubProspectRateLimiter?: PostgresFixedWindowRateLimiter;
@@ -24,6 +27,8 @@ export type HubProspectApplicationInput = Readonly<{
   notes?: string;
 }>;
 
+type HubProspectTrial = Readonly<{ vendorId: string; ownerUserId: string; startedAt: number; expiresAt: number }>;
+
 export type HubProspectApplicationReceipt = Readonly<{
   reference: string;
   status: "pending";
@@ -33,6 +38,8 @@ export type HubProspectApplicationReceipt = Readonly<{
   billingCycle: HubBillingCycle;
   recurringFeeCents: number;
   paymentRequired: false;
+  accountClaimRequired?: boolean;
+  trial?: HubProspectTrial;
 }>;
 
 export class HubProspectApplicationError extends Error {
@@ -61,6 +68,7 @@ export async function consumeHubProspectRateLimit(input: { visitorKey: string; n
 
 export async function submitHubProspectApplication(input: {
   application: HubProspectApplicationInput;
+  principal?: SessionPrincipal;
   now: number;
 }): Promise<HubProspectApplicationReceipt> {
   const application = normalizeApplication(input.application);
@@ -97,6 +105,7 @@ export async function submitHubProspectApplication(input: {
   const registryCheckedAt = new Date(registry.checkedAt);
   const applicationUuid = randomUUID();
   const reference = id("hubprospect");
+  const shouldTrial = plan.code !== "claim";
 
   return uow.withTransaction(
     { platformAccess: true, marketId: "sparta", requestId: `public-hub-prospect:${reference}` },
@@ -111,6 +120,13 @@ export async function submitHubProspectApplication(input: {
       if (duplicate.rowCount) {
         throw new HubProspectApplicationError(409, "application_exists", "Υπάρχει ήδη ενεργή αίτηση για αυτή την επιχείρηση.");
       }
+
+      const owner = shouldTrial
+        ? input.principal
+          ? await authenticatedOwner(tx, input.principal)
+          : (() => { throw new HubProspectApplicationError(409, "login_required", "Συνδέσου πρώτα ώστε το 3ήμερο Trial να συνδεθεί με ασφαλή, επαληθευμένη ταυτότητα."); })()
+        : undefined;
+      const marketUuid = shouldTrial ? await ensureHubTrialMarket(tx, hub, input.now) : undefined;
 
       await tx.query(`
         INSERT INTO hub_expansion_prospects (
@@ -160,6 +176,22 @@ export async function submitHubProspectApplication(input: {
         createdAt
       ]);
 
+      const trial = owner && marketUuid
+        ? await provisionHubProspectTrial(tx, {
+            prospectUuid: applicationUuid,
+            marketUuid,
+            ownerUuid: owner.uuid,
+            ownerPublicId: owner.publicId,
+            application,
+            hub,
+            legalName: registry.legalName,
+            gemiNumber: registry.gemiNumber,
+            registryAddress,
+            postcode: registryPostcode,
+            now: input.now
+          })
+        : undefined;
+
       return {
         reference,
         status: "pending" as const,
@@ -168,11 +200,193 @@ export async function submitHubProspectApplication(input: {
         planCode: plan.code,
         billingCycle: application.billingCycle,
         recurringFeeCents,
-        paymentRequired: false as const
+        paymentRequired: false as const,
+        ...(owner ? { accountClaimRequired: owner.provisional } : {}),
+        ...(trial ? { trial } : {})
       };
     },
     { isolation: "serializable" }
   );
+}
+
+async function ensureHubTrialMarket(tx: SqlExecutor, hub: ExpansionHub, now: number): Promise<string> {
+  await tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [hub.id]);
+
+  const configured = await tx.query<SqlRow>(`
+    SELECT market.id::text AS market_id
+    FROM market_hub_config config
+    JOIN markets market ON market.id=config.market_id
+    WHERE config.hub_code=$1
+    LIMIT 1
+  `, [hub.id]);
+  if (configured.rowCount) return requiredText(configured.rows[0]?.market_id, "market.id");
+
+  const marketCode = `hub-${hub.slug}`;
+  const existingMarket = await tx.query<SqlRow>("SELECT id::text AS market_id FROM markets WHERE code=$1 LIMIT 1", [marketCode]);
+  const marketUuid = existingMarket.rowCount
+    ? requiredText(existingMarket.rows[0]?.market_id, "market.id")
+    : randomUUID();
+  const at = new Date(now);
+
+  if (!existingMarket.rowCount) {
+    await tx.query(`
+      INSERT INTO markets(id,code,name,country_code,currency,timezone,default_locale,settings,created_at,updated_at)
+      VALUES($1,$2,$3,'GR','EUR','Europe/Athens','el',$4::jsonb,$5,$5)
+    `, [
+      marketUuid,
+      marketCode,
+      hub.nameEl,
+      JSON.stringify({ prelaunch: true, trialOnly: true, hubCode: hub.id, hubSlug: hub.slug }),
+      at
+    ]);
+  }
+
+  await tx.query(`
+    INSERT INTO market_hub_config(
+      market_id,hub_code,gateway_slug,expansion_radius_meters,is_operational,prospecting_enabled,
+      gateway_visible,shopping_enabled,search_indexable,is_default_fallback,metadata,created_at,updated_at
+    ) VALUES($1,$2,$3,$4,false,true,false,false,false,false,$5::jsonb,$6,$6)
+  `, [
+    marketUuid,
+    hub.id,
+    hub.slug,
+    hub.radiusKm * 1000,
+    JSON.stringify({ source: "hub_trial", prelaunch: true, trialOnly: true }),
+    at
+  ]);
+
+  return marketUuid;
+}
+
+async function provisionHubProspectTrial(tx: SqlExecutor, input: {
+  prospectUuid: string;
+  marketUuid: string;
+  ownerUuid: string;
+  ownerPublicId: string;
+  application: HubProspectApplicationInput;
+  hub: ExpansionHub;
+  legalName: string;
+  gemiNumber: string;
+  registryAddress: string;
+  postcode: string;
+  now: number;
+}): Promise<HubProspectTrial> {
+  const vendorUuid = randomUUID();
+  const vendorPublicId = `vendor_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
+  const startedAt = input.now;
+  const expiresAt = input.now + HUB_PROSPECT_TRIAL_DURATION_MS;
+  const at = new Date(input.now);
+  const initialSettings = {
+    accentColor: "#0f766e",
+    heroStyle: "split",
+    heroTitle: input.application.businessName,
+    showFeatured: true,
+    showFlashSale: true,
+    showBazaar: true,
+    showAbout: true,
+    showLocation: true,
+    showContact: true
+  };
+
+  await tx.query(`
+    INSERT INTO vendor_businesses(
+      id,public_id,market_id,legal_name,trading_name,tax_number,gemi_number,status,
+      public_directory_visible,demo_mode,demo_mode_updated_at,storefront_settings,created_at,updated_at
+    ) VALUES(
+      $1,$2,$3::uuid,$4,$5,$6,$7,'verification_pending',
+      false,true,$8,$9::jsonb,$8,$8
+    )
+  `, [
+    vendorUuid,
+    vendorPublicId,
+    input.marketUuid,
+    input.legalName,
+    input.application.businessName,
+    input.application.taxNumber,
+    input.gemiNumber,
+    at,
+    JSON.stringify(initialSettings)
+  ]);
+
+  const location = await tx.query<SqlRow>(`
+    INSERT INTO vendor_locations(
+      id,public_id,vendor_id,market_id,name,address_line1,locality,postcode,country_code,
+      phone,public_email,active,is_primary,timezone,created_at,updated_at
+    ) VALUES($1,$2,$3::uuid,$4::uuid,$5,$6,$7,$8,'GR',$9,$10,true,true,'Europe/Athens',$11,$11)
+    RETURNING id::text AS id
+  `, [
+    randomUUID(),
+    `location_${randomUUID().replaceAll("-", "").slice(0, 20)}`,
+    vendorUuid,
+    input.marketUuid,
+    input.application.businessName,
+    input.registryAddress,
+    input.hub.nameEl,
+    input.postcode,
+    input.application.phone,
+    input.application.email,
+    at
+  ]);
+  const locationUuid = requiredText(location.rows[0]?.id, "vendor_location.id");
+
+  const membership = await tx.query<SqlRow>(`
+    INSERT INTO vendor_users(id,public_id,vendor_id,user_id,location_id,active,created_at)
+    VALUES($1,$2,$3::uuid,$4::uuid,$5::uuid,true,$6)
+    RETURNING id::text AS id
+  `, [
+    randomUUID(),
+    `vuser_${randomUUID().replaceAll("-", "").slice(0, 20)}`,
+    vendorUuid,
+    input.ownerUuid,
+    locationUuid,
+    at
+  ]);
+  const membershipUuid = requiredText(membership.rows[0]?.id, "vendor_user.id");
+  await tx.query(
+    "INSERT INTO vendor_user_roles(vendor_user_id,role) VALUES($1::uuid,'vendor_owner') ON CONFLICT DO NOTHING",
+    [membershipUuid]
+  );
+
+  await tx.query(`
+    INSERT INTO vendor_profile_translations(vendor_id,locale,short_description,story)
+    VALUES($1::uuid,'el',NULL,NULL)
+    ON CONFLICT(vendor_id,locale) DO NOTHING
+  `, [vendorUuid]);
+
+  await tx.query(`
+    UPDATE hub_expansion_prospects
+    SET owner_user_id=$2::uuid,
+        vendor_id=$3::uuid,
+        trial_started_at=$4,
+        trial_expires_at=$5,
+        updated_at=$4
+    WHERE id=$1::uuid
+  `, [input.prospectUuid, input.ownerUuid, vendorUuid, at, new Date(expiresAt)]);
+
+  return {
+    vendorId: vendorPublicId,
+    ownerUserId: input.ownerPublicId,
+    startedAt,
+    expiresAt
+  };
+}
+
+async function authenticatedOwner(tx: SqlExecutor, principal: SessionPrincipal): Promise<{ uuid: string; publicId: string; provisional: false }> {
+  if (!principal.roles.includes("customer")) {
+    throw new HubProspectApplicationError(403, "account_required", "Χρειάζεται ενεργός λογαριασμός για να συνδεθεί η αίτηση με υπάρχουσα ταυτότητα.");
+  }
+  const result = await tx.query<SqlRow>(
+    "SELECT id::text AS id,public_id FROM users WHERE public_id=$1 AND status='active' AND email_verified_at IS NOT NULL LIMIT 1",
+    [principal.userId]
+  );
+  if (!result.rowCount) {
+    throw new HubProspectApplicationError(403, "account_required", "Χρειάζεται ενεργός και επαληθευμένος λογαριασμός.");
+  }
+  return {
+    uuid: requiredText(result.rows[0]?.id, "user.id"),
+    publicId: requiredText(result.rows[0]?.public_id, "user.public_id"),
+    provisional: false
+  };
 }
 
 function normalizeApplication(input: HubProspectApplicationInput): HubProspectApplicationInput {
@@ -241,4 +455,9 @@ function optionalLimited(value: string | undefined, max: number): string | undef
   if (!normalized) return undefined;
   if (normalized.length > max) throw new HubProspectApplicationError(400, "field_too_long", `Το κείμενο μπορεί να έχει έως ${max} χαρακτήρες.`);
   return normalized;
+}
+
+function requiredText(value: unknown, label: string): string {
+  if (typeof value !== "string" || !value.trim()) throw new Error(`Missing ${label}`);
+  return value.trim();
 }
