@@ -224,7 +224,9 @@ export function VendorProductFeedClient({
     const data = await request(payload("save"), "save");
     if (!data) return;
     const queued = data.preview?.validRows ?? preview.validRows;
-    setSuccess(`Το XML αποθηκεύτηκε. ${queued.toLocaleString("el-GR")} έγκυρα προϊόντα μπήκαν για επεξεργασία και η αντιστοίχιση με τον κατάλογο συνεχίζεται αυτόματα.`);
+    setSuccess(sourceType === "url"
+      ? `Η σύνδεση αποθηκεύτηκε. Ο πρώτος συγχρονισμός ξεκίνησε στο παρασκήνιο για ${queued.toLocaleString("el-GR")} έγκυρα προϊόντα και η κατάσταση θα ανανεωθεί αυτόματα.`
+      : `Το XML αποθηκεύτηκε. ${queued.toLocaleString("el-GR")} έγκυρα προϊόντα μπήκαν για επεξεργασία και η αντιστοίχιση με τον κατάλογο συνεχίζεται αυτόματα.`);
     setPreview(null);
     router.refresh();
   }
