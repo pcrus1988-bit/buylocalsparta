@@ -103,3 +103,15 @@ test("does not coerce foreign currency symbols to EUR", () => {
   assert.equal(parseXmlCurrency("USD", "12.00"), "USD");
   assert.equal(parseXmlCurrency(undefined, "12.00"), "EUR");
 });
+
+
+test("prefers stable regular price mapping when Google feed mixes sale and non-sale products", () => {
+  const xml = `<rss xmlns:g="http://base.google.com/ns/1.0"><channel>
+    <item><g:id>1</g:id><g:title>Regular</g:title><g:price>59,00 EUR</g:price><g:sale_price></g:sale_price></item>
+    <item><g:id>2</g:id><g:title>Sale</g:title><g:price>69,00 EUR</g:price><g:sale_price>49,00 EUR</g:sale_price></item>
+  </channel></rss>`;
+  const parsed = parseVendorProductXml(xml);
+  assert.equal(parsed.suggestedMapping.price, "g:price");
+  assert.equal(parseXmlMoneyMinor(xmlFieldValue(parsed.records[0], parsed.suggestedMapping.price)), 5900);
+  assert.equal(parseXmlMoneyMinor(xmlFieldValue(parsed.records[1], parsed.suggestedMapping.price)), 6900);
+});
