@@ -41,6 +41,24 @@ function statusLabel(asset: VendorProfileMediaAssignment): string {
   return "Σε έλεγχο";
 }
 
+function detailStatusLabel(value: string): string {
+  const labels: Record<string, string> = {
+    clean: "Εντάξει",
+    approved: "Εγκεκριμένο",
+    pending: "Σε αναμονή",
+    pending_review: "Σε αναμονή ελέγχου",
+    queued: "Σε αναμονή",
+    scanning: "Έλεγχος σε εξέλιξη",
+    rejected: "Χρειάζεται διόρθωση",
+    blocked: "Μπλοκαρισμένο",
+    failed: "Αποτυχία ελέγχου",
+    published: "Δημοσιευμένο",
+    archived: "Αρχειοθετημένο",
+    draft: "Πρόχειρο"
+  };
+  return labels[value] ?? value.replaceAll("_", " ");
+}
+
 function publicMediaUrl(asset: VendorProfileMediaAssignment): string | undefined {
   return asset.publicationStatus === "published" && approved(asset) ? `/api/media/${encodeURIComponent(asset.mediaId)}` : undefined;
 }
@@ -168,7 +186,7 @@ export function VendorStorefrontMediaClient({ initial }: { initial: Workspace })
       {active.length === 0 ? <WorkspaceEmptyState title="Δεν έχεις υποβάλει ακόμη εικόνες καταστήματος." body="Ξεκίνα με λογότυπο, μία καθαρή φωτογραφία της πρόσοψης και μία προαιρετική φωτογραφία της ομάδας." /> : <div className="workspace-queue-list">
         {active.map((asset) => <article className="workspace-queue-card" key={asset.id}>
           <div className="workspace-queue-head"><div><strong>{ROLE_LABELS[asset.role]}</strong><small>{asset.filename}</small></div><span className="status-pill">{statusLabel(asset)}</span></div>
-          <WorkspaceRecordDetails label="Λεπτομέρειες ελέγχου"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Ασφάλεια αρχείου</strong><span>{asset.scanStatus}</span></div><div className="workspace-compact-row"><strong>Δικαιώματα χρήσης</strong><span>{asset.rightsStatus}</span></div><div className="workspace-compact-row"><strong>Έλεγχος περιεχομένου</strong><span>{asset.moderationStatus}</span></div><div className="workspace-compact-row"><strong>Δημοσίευση</strong><span>{asset.publicationStatus}</span></div></div></WorkspaceRecordDetails>
+          <WorkspaceRecordDetails label="Λεπτομέρειες ελέγχου"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Ασφάλεια αρχείου</strong><span>{detailStatusLabel(asset.scanStatus)}</span></div><div className="workspace-compact-row"><strong>Δικαιώματα χρήσης</strong><span>{detailStatusLabel(asset.rightsStatus)}</span></div><div className="workspace-compact-row"><strong>Έλεγχος περιεχομένου</strong><span>{detailStatusLabel(asset.moderationStatus)}</span></div><div className="workspace-compact-row"><strong>Δημοσίευση</strong><span>{detailStatusLabel(asset.publicationStatus)}</span></div></div></WorkspaceRecordDetails>
           {asset.rejectionReason && <div className="workspace-inline-note"><strong>Παρατήρηση:</strong> {asset.rejectionReason}</div>}
           <div className="workspace-action-bar"><span>{asset.publicationStatus === "published" ? "Η απόσυρση αφαιρεί την εικόνα από το δημόσιο προφίλ." : "Μπορείς να αποσύρεις την εικόνα όσο περιμένει έλεγχο ή δημοσίευση."}</span><button className="button button-secondary" type="button" disabled={busy} onClick={() => void archive(asset.id)}>Απόσυρση</button></div>
         </article>)}
