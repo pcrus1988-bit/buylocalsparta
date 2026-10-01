@@ -27,7 +27,7 @@ export type HubProspectApplicationInput = Readonly<{
   notes?: string;
 }>;
 
-type HubProspectTrial = Readonly<{ vendorId: string; ownerUserId: string; startedAt: number; expiresAt: number }>;
+type HubProspectTrial = Readonly<{ applicationId: string; vendorId: string; ownerUserId: string; startedAt: number; expiresAt: number }>;
 
 export type HubProspectApplicationReceipt = Readonly<{
   reference: string;
@@ -36,7 +36,9 @@ export type HubProspectApplicationReceipt = Readonly<{
   hubName: string;
   planCode: HubExpansionPlanCode;
   billingCycle: HubBillingCycle;
+  setupFeeCents: number;
   recurringFeeCents: number;
+  commissionBps: number;
   paymentRequired: false;
   accountClaimRequired?: boolean;
   trial?: HubProspectTrial;
@@ -64,6 +66,43 @@ export async function consumeHubProspectRateLimit(input: { visitorKey: string; n
   const runtime = getProductionPostgresRuntime();
   const limiter = globals.__blsHubProspectRateLimiter ??= new PostgresFixedWindowRateLimiter(runtime.sqlPool);
   return limiter.consume({ route: "hub-prospect-application", key: input.visitorKey, limit: 4, windowMs: 24 * 60 * 60 * 1000, now: input.now });
+}
+
+const OPEN_HUB_PROSPECT_STATUSES = ["pending", "contacted", "qualified", "verified", "approved"] as const;
+
+export function hubProspectDisplayReference(publicId: string, hubSlug: string, createdAt: number): string {
+  const slugCode = hubSlug
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .slice(0, 4)
+    .toUpperCase() || "HUB";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Athens",
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date(createdAt));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "00";
+  const suffix = publicId.replace(/[^A-Za-z0-9]/g, "").slice(-8).toUpperCase();
+  return `KM-${slugCode}-${get("year")}${get("month")}${get("day")}-${suffix}`;
+}
+
+export async function hubProspectAdminSummary(): Promise<{ total: number; open: number; pending: number }> {
+  if (!productionDatabaseConfigured()) return { total: 0, open: 0, pending: 0 };
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT
+      count(*)::integer AS total,
+      count(*) FILTER (WHERE status::text = ANY($1::text[]))::integer AS open,
+      count(*) FILTER (WHERE status::text='pending')::integer AS pending
+    FROM hub_expansion_prospects
+  `, [OPEN_HUB_PROSPECT_STATUSES]);
+  const row = result.rows[0] ?? {};
+  return {
+    total: Number(row.total ?? 0),
+    open: Number(row.open ?? 0),
+    pending: Number(row.pending ?? 0)
+  };
 }
 
 export async function submitHubProspectApplication(input: {
@@ -104,11 +143,12 @@ export async function submitHubProspectApplication(input: {
   const createdAt = new Date(input.now);
   const registryCheckedAt = new Date(registry.checkedAt);
   const applicationUuid = randomUUID();
-  const reference = id("hubprospect");
+  const applicationId = id("hubprospect");
+  const reference = hubProspectDisplayReference(applicationId, hub.slug, input.now);
   const shouldTrial = plan.code !== "claim";
 
   return uow.withTransaction(
-    { platformAccess: true, marketId: "sparta", requestId: `public-hub-prospect:${reference}` },
+    { platformAccess: true, marketId: "sparta", requestId: `public-hub-prospect:${applicationId}` },
     async (tx) => {
       const duplicate = await tx.query(`
         SELECT 1 AS present
@@ -141,7 +181,7 @@ export async function submitHubProspectApplication(input: {
         )
       `, [
         applicationUuid,
-        reference,
+        applicationId,
         hub.id,
         hub.slug,
         hub.nameEl,
@@ -179,6 +219,7 @@ export async function submitHubProspectApplication(input: {
       const trial = owner && marketUuid
         ? await provisionHubProspectTrial(tx, {
             prospectUuid: applicationUuid,
+            applicationId,
             marketUuid,
             ownerUuid: owner.uuid,
             ownerPublicId: owner.publicId,
@@ -199,7 +240,9 @@ export async function submitHubProspectApplication(input: {
         hubName: hub.nameEl,
         planCode: plan.code,
         billingCycle: application.billingCycle,
+        setupFeeCents: plan.setupFeeCents,
         recurringFeeCents,
+        commissionBps: plan.commissionBps,
         paymentRequired: false as const,
         ...(owner ? { accountClaimRequired: owner.provisional } : {}),
         ...(trial ? { trial } : {})
@@ -260,6 +303,7 @@ async function ensureHubTrialMarket(tx: SqlExecutor, hub: ExpansionHub, now: num
 
 async function provisionHubProspectTrial(tx: SqlExecutor, input: {
   prospectUuid: string;
+  applicationId: string;
   marketUuid: string;
   ownerUuid: string;
   ownerPublicId: string;
@@ -364,11 +408,181 @@ async function provisionHubProspectTrial(tx: SqlExecutor, input: {
   `, [input.prospectUuid, input.ownerUuid, vendorUuid, at, new Date(expiresAt)]);
 
   return {
+    applicationId: input.applicationId,
     vendorId: vendorPublicId,
     ownerUserId: input.ownerPublicId,
     startedAt,
     expiresAt
   };
+}
+
+export async function ensureExistingHubProspectTrial(input: {
+  applicationId: string;
+  now: number;
+}): Promise<Readonly<{
+  reference: string;
+  businessName: string;
+  email: string;
+  hubName: string;
+  hubSlug: string;
+  planCode: HubExpansionPlanCode;
+  billingCycle: HubBillingCycle;
+  setupFeeCents: number;
+  recurringFeeCents: number;
+  commissionBps: number;
+  trial: HubProspectTrial;
+}>> {
+  if (!productionDatabaseConfigured()) throw new Error("Production database is required");
+  const runtime = getProductionPostgresRuntime();
+
+  const snapshotResult = await runtime.sqlPool.query<SqlRow>(`
+    SELECT h.id::text AS prospect_uuid,h.public_id,h.hub_id,h.hub_slug,h.hub_city,h.plan_code,h.billing_cycle,
+           h.tax_number,h.gemi_number,h.business_name,h.legal_name,h.contact_name,h.email,h.phone,h.address_line,
+           h.postal_code,h.primary_category,h.website_url,h.current_sales_channels,h.notes,h.status::text AS status,
+           h.setup_fee_cents,h.recurring_fee_cents,h.commission_bps,h.created_at,h.owner_user_id::text AS owner_uuid,
+           h.vendor_id::text AS vendor_uuid,h.trial_started_at,h.trial_expires_at,
+           owner.public_id AS owner_public_id,vendor.public_id AS vendor_public_id,vendor.demo_mode
+    FROM hub_expansion_prospects h
+    LEFT JOIN users owner ON owner.id=h.owner_user_id
+    LEFT JOIN vendor_businesses vendor ON vendor.id=h.vendor_id
+    WHERE h.public_id=$1 OR h.id::text=$1
+    LIMIT 1
+  `, [input.applicationId]);
+  if (!snapshotResult.rowCount) throw new Error("HUB application not found");
+  const snapshot = snapshotResult.rows[0];
+  const status = requiredText(snapshot.status, "hub_prospect.status");
+  if (status === "declined" || status === "converted") {
+    throw new Error(`Trial is not available while HUB application status is ${status}`);
+  }
+  const planCode = requiredText(snapshot.plan_code, "hub_prospect.plan_code") as HubExpansionPlanCode;
+  if (planCode === "claim") throw new Error("CLAIM applications do not include a Vendor Trial");
+
+  const applicationId = requiredText(snapshot.public_id, "hub_prospect.public_id");
+  const hubSlug = requiredText(snapshot.hub_slug, "hub_prospect.hub_slug");
+  const createdAt = new Date(String(snapshot.created_at)).getTime();
+  const reference = hubProspectDisplayReference(applicationId, hubSlug, createdAt);
+  const common = {
+    reference,
+    businessName: requiredText(snapshot.business_name, "hub_prospect.business_name"),
+    email: requiredText(snapshot.email, "hub_prospect.email"),
+    hubName: requiredText(snapshot.hub_city, "hub_prospect.hub_city"),
+    hubSlug,
+    planCode,
+    billingCycle: requiredText(snapshot.billing_cycle, "hub_prospect.billing_cycle") as HubBillingCycle,
+    setupFeeCents: Number(snapshot.setup_fee_cents ?? 0),
+    recurringFeeCents: Number(snapshot.recurring_fee_cents ?? 0),
+    commissionBps: Number(snapshot.commission_bps ?? 0)
+  };
+
+  const existingStartedAt = snapshot.trial_started_at ? new Date(String(snapshot.trial_started_at)).getTime() : Number.NaN;
+  const existingExpiresAt = snapshot.trial_expires_at ? new Date(String(snapshot.trial_expires_at)).getTime() : Number.NaN;
+  if (
+    snapshot.vendor_public_id &&
+    snapshot.owner_public_id &&
+    snapshot.demo_mode === true &&
+    Number.isFinite(existingStartedAt) &&
+    Number.isFinite(existingExpiresAt)
+  ) {
+    return {
+      ...common,
+      trial: {
+        applicationId,
+        vendorId: requiredText(snapshot.vendor_public_id, "vendor.public_id"),
+        ownerUserId: requiredText(snapshot.owner_public_id, "owner.public_id"),
+        startedAt: existingStartedAt,
+        expiresAt: existingExpiresAt
+      }
+    };
+  }
+
+  const ownerResult = await runtime.sqlPool.query<SqlRow>(`
+    SELECT id::text AS id,public_id
+    FROM users
+    WHERE lower(email::text)=lower($1)
+      AND status='active'
+      AND email_verified_at IS NOT NULL
+    ORDER BY created_at
+    LIMIT 1
+  `, [common.email]);
+  if (!ownerResult.rowCount) {
+    throw new Error("The applicant must first sign in with a verified KONTA MOU account before Admin can create Trial access");
+  }
+
+  const registry = await resolveGemiCompanyByAfm(requiredText(snapshot.tax_number, "hub_prospect.tax_number"), input.now);
+  if (registry.lookupStatus !== "matched") throw new Error("ΓΕΜΗ verification is required before Admin can create HUB Trial access");
+  const resolution = await resolveExpansionHubForGemiCompany(registry);
+  if (resolution.status !== "matched" || resolution.hub.slug !== hubSlug) {
+    throw new Error("The verified ΓΕΜΗ location no longer resolves to the stored HUB");
+  }
+
+  const uow = new PostgresUnitOfWork(runtime.sqlPool);
+  return uow.withTransaction(
+    { platformAccess: true, marketId: "sparta", requestId: `admin-hub-trial:${applicationId}` },
+    async (tx) => {
+      const locked = await tx.query<SqlRow>(`
+        SELECT id::text AS prospect_uuid,vendor_id::text AS vendor_uuid,owner_user_id::text AS owner_uuid,
+               trial_started_at,trial_expires_at
+        FROM hub_expansion_prospects
+        WHERE public_id=$1
+        FOR UPDATE
+      `, [applicationId]);
+      if (!locked.rowCount) throw new Error("HUB application not found");
+
+      const already = locked.rows[0];
+      if (already.vendor_uuid && already.owner_uuid && already.trial_started_at && already.trial_expires_at) {
+        const linked = await tx.query<SqlRow>(`
+          SELECT vendor.public_id AS vendor_public_id,owner.public_id AS owner_public_id,vendor.demo_mode
+          FROM vendor_businesses vendor
+          JOIN users owner ON owner.id=$2::uuid
+          WHERE vendor.id=$1::uuid
+          LIMIT 1
+        `, [already.vendor_uuid, already.owner_uuid]);
+        if (linked.rowCount && linked.rows[0].demo_mode === true) {
+          return {
+            ...common,
+            trial: {
+              applicationId,
+              vendorId: requiredText(linked.rows[0].vendor_public_id, "vendor.public_id"),
+              ownerUserId: requiredText(linked.rows[0].owner_public_id, "owner.public_id"),
+              startedAt: new Date(String(already.trial_started_at)).getTime(),
+              expiresAt: new Date(String(already.trial_expires_at)).getTime()
+            }
+          };
+        }
+      }
+
+      const marketUuid = await ensureHubTrialMarket(tx, resolution.hub, input.now);
+      const application: HubProspectApplicationInput = {
+        taxNumber: requiredText(snapshot.tax_number, "hub_prospect.tax_number"),
+        planCode,
+        billingCycle: common.billingCycle,
+        businessName: common.businessName,
+        contactName: requiredText(snapshot.contact_name, "hub_prospect.contact_name"),
+        email: common.email,
+        phone: requiredText(snapshot.phone, "hub_prospect.phone"),
+        primaryCategory: requiredText(snapshot.primary_category, "hub_prospect.primary_category"),
+        websiteUrl: optionalText(snapshot.website_url),
+        currentSalesChannels: optionalText(snapshot.current_sales_channels),
+        notes: optionalText(snapshot.notes)
+      };
+      const trial = await provisionHubProspectTrial(tx, {
+        prospectUuid: requiredText(locked.rows[0].prospect_uuid, "hub_prospect.id"),
+        applicationId,
+        marketUuid,
+        ownerUuid: requiredText(ownerResult.rows[0].id, "user.id"),
+        ownerPublicId: requiredText(ownerResult.rows[0].public_id, "user.public_id"),
+        application,
+        hub: resolution.hub,
+        legalName: requiredText(snapshot.legal_name, "hub_prospect.legal_name"),
+        gemiNumber: requiredText(snapshot.gemi_number, "hub_prospect.gemi_number"),
+        registryAddress: requiredText(snapshot.address_line, "hub_prospect.address_line"),
+        postcode: requiredText(snapshot.postal_code, "hub_prospect.postal_code"),
+        now: input.now
+      });
+      return { ...common, trial };
+    },
+    { isolation: "serializable" }
+  );
 }
 
 async function authenticatedOwner(tx: SqlExecutor, principal: SessionPrincipal): Promise<{ uuid: string; publicId: string; provisional: false }> {
