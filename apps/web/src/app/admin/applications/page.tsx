@@ -202,7 +202,7 @@ export default async function ApplicationsPage() {
                vp.term_price_minor,vp.term_months,vp.sales_fee_bps
         FROM vendor_plans vp
         JOIN markets m ON m.id=vp.market_id
-        WHERE m.code='sparta' AND vp.status='active'
+        WHERE m.code='sparta' AND vp.status='active'\n          AND vp.code IN ('founding_2026','annual','monthly')
         ORDER BY vp.code
       `),
       runtime.sqlPool.query<HubProspectRow>(`
