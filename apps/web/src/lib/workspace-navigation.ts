@@ -36,6 +36,7 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Προϊόντα", href: "/vendor/catalog", icon: "▦",
     links: [
       { label: "Κατάλογος & απόθεμα", href: "/vendor/catalog", icon: "▦", vendorCapability: "catalogue.read" },
+      { label: "XML Product Feed", href: "/vendor/catalog/feed", icon: "⇩", vendorCapability: "catalogue.import" },
       { label: "Media & έγγραφα", href: "/vendor/trust", icon: "✓" }
     ]
   },
