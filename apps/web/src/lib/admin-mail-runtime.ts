@@ -412,6 +412,7 @@ function inboundStorage(config: MailConfig): S3ObjectStorage {
     region: config.region,
     accessKeyId: config.accessKeyId,
     secretAccessKey: config.secretAccessKey,
+    sessionToken: config.sessionToken,
     uploadTtlSeconds: 900
   });
 }
