@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type { HubBillingCycle, HubExpansionPlanCode } from "../lib/hub-expansion-plans";
 import styles from "./HubExpansionApplicationForm.module.css";
 
 type LookupStage = "afm" | "loading" | "matched";
+
+const JOIN_AFM_STORAGE_KEY = "kontamou:vendor-join-afm";
 
 type GemiCompany = Readonly<{
   afm: string;
@@ -76,8 +78,16 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
   const [hub, setHub] = useState<ResolvedHub>();
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState<Receipt>();
+  const restoredAfmRef = useRef(false);
 
-  async function lookupCompany() {
+  const lookupCompany = useCallback(async (afmOverride?: string) => {
+    const candidateAfm = (afmOverride ?? taxNumber).replace(/\D/g, "").slice(0, 9);
+    if (candidateAfm.length !== 9) {
+      setLookupError("Το ΑΦΜ πρέπει να έχει 9 ψηφία.");
+      setLookupStage("afm");
+      return;
+    }
+    setTaxNumber(candidateAfm);
     setLookupError("");
     setError("");
     setLookupStage("loading");
@@ -85,7 +95,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
       const response = await fetch("/api/hubs/resolve-company-by-afm", {
         method: "POST",
         headers: { "content-type": "application/json", ...(csrfToken ? { "x-csrf-token": csrfToken } : {}) },
-        body: JSON.stringify({ afm: taxNumber })
+        body: JSON.stringify({ afm: candidateAfm })
       });
       const data = await response.json() as {
         company?: GemiCompany;
@@ -103,6 +113,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
       setCompany(data.company);
       setHub(data.hub);
       setTaxNumber(data.company.afm);
+      sessionStorage.setItem(JOIN_AFM_STORAGE_KEY, data.company.afm);
       setLookupStage("matched");
     } catch (cause) {
       setCompany(undefined);
@@ -110,13 +121,23 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
       setLookupError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η επαλήθευση της επιχείρησης και του HUB.");
       setLookupStage("afm");
     }
-  }
+  }, [taxNumber, csrfToken]);
+
+  useEffect(() => {
+    if (restoredAfmRef.current) return;
+    restoredAfmRef.current = true;
+    const storedAfm = (sessionStorage.getItem(JOIN_AFM_STORAGE_KEY) ?? "").replace(/\D/g, "").slice(0, 9);
+    if (storedAfm.length !== 9) return;
+    setTaxNumber(storedAfm);
+    void lookupCompany(storedAfm);
+  }, [lookupCompany]);
 
   function changeAfm() {
     setCompany(undefined);
     setHub(undefined);
     setLookupError("");
     setError("");
+    sessionStorage.removeItem(JOIN_AFM_STORAGE_KEY);
     setLookupStage("afm");
   }
 
@@ -160,6 +181,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
       ) {
         throw new Error("Η αίτηση καταχωρίστηκε αλλά δεν επιστράφηκε έγκυρη απόδειξη.");
       }
+      sessionStorage.removeItem(JOIN_AFM_STORAGE_KEY);
       setReceipt({
         reference: result.reference,
         status: "pending",
@@ -228,7 +250,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
         />
         {lookupStage === "matched"
           ? <button className="button button-secondary" type="button" onClick={changeAfm}>Αλλαγή ΑΦΜ</button>
-          : <button className="button button-secondary" type="button" disabled={lookupStage === "loading" || taxNumber.length !== 9} onClick={lookupCompany}>{lookupStage === "loading" ? "Έλεγχος…" : "Ανάκτηση από ΓΕΜΗ"}</button>}
+          : <button className="button button-secondary" type="button" disabled={lookupStage === "loading" || taxNumber.length !== 9} onClick={() => void lookupCompany()}>{lookupStage === "loading" ? "Έλεγχος…" : "Ανάκτηση από ΓΕΜΗ"}</button>}
       </div>
       {lookupError && <div className={styles.error} role="alert">{lookupError}</div>}
     </section>
