@@ -187,7 +187,7 @@ export function VendorWorkspaceHeader() {
     {
       label: "6 · Payments, AADE & invoices",
       detail: "Ρύθμισε τη σύνδεση AADE/myDATA και την εμφάνιση των παραστατικών σου. Στο trial δεν γίνεται πραγματική έκδοση.",
-      href: "/vendor/finance#fiscal-settings",
+      href: "/vendor/finance/fiscal-settings",
       state: "explore"
     },
     {
