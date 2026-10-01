@@ -52,6 +52,12 @@ CREATE TABLE IF NOT EXISTS public.admin_mail_state (
   PRIMARY KEY (message_id,user_public_id)
 );
 
+CREATE TABLE IF NOT EXISTS public.admin_mail_sync_state (
+  scope text PRIMARY KEY,
+  continuation_token text,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS admin_mail_messages_inbox_idx
   ON public.admin_mail_messages(direction,received_at DESC)
   WHERE direction='incoming';
@@ -71,6 +77,7 @@ CREATE INDEX IF NOT EXISTS admin_mail_state_user_idx
 
 ALTER TABLE public.admin_mail_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_mail_state ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_mail_sync_state ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS bls_admin_mail_messages_runtime_all ON public.admin_mail_messages;
 CREATE POLICY bls_admin_mail_messages_runtime_all ON public.admin_mail_messages
@@ -86,14 +93,24 @@ CREATE POLICY bls_admin_mail_state_runtime_all ON public.admin_mail_state
   USING (true)
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS bls_admin_mail_sync_state_runtime_all ON public.admin_mail_sync_state;
+CREATE POLICY bls_admin_mail_sync_state_runtime_all ON public.admin_mail_sync_state
+  FOR ALL
+  TO bls_app_runtime, bls_platform_runtime
+  USING (true)
+  WITH CHECK (true);
+
 REVOKE ALL ON TABLE public.admin_mail_messages
   FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime, bls_platform_runtime;
 REVOKE ALL ON TABLE public.admin_mail_state
   FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime, bls_platform_runtime;
+REVOKE ALL ON TABLE public.admin_mail_sync_state
+  FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime, bls_platform_runtime;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public.admin_mail_messages,
-  public.admin_mail_state
+  public.admin_mail_state,
+  public.admin_mail_sync_state
 TO bls_app_runtime, bls_platform_runtime;
 
 COMMENT ON TABLE public.admin_mail_messages IS
@@ -102,5 +119,7 @@ COMMENT ON COLUMN public.admin_mail_messages.transport_key IS
   'Idempotency key: s3:<object-key> for inbound or ses:<message-id> for successful outbound mail.';
 COMMENT ON TABLE public.admin_mail_state IS
   'Per-Admin read, starred and archive state for the operational mailbox.';
+COMMENT ON TABLE public.admin_mail_sync_state IS
+  'Durable S3 continuation cursor so mailbox ingestion advances across arbitrarily large inbound prefixes.';
 
 COMMIT;
