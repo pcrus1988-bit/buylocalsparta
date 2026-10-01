@@ -103,3 +103,19 @@
   .trialBanner{grid-template-columns:1fr}
   .trialBannerButton,.trialBannerLink{grid-column:1;width:100%;box-sizing:border-box;text-align:center}
 }
+
+
+/* Trial UX: keep the next task obvious and optional exploration quiet. */
+.tourDisclosureSummary{display:flex;align-items:center;justify-content:space-between;gap:20px;cursor:pointer;list-style:none}
+.tourDisclosureSummary::-webkit-details-marker{display:none}
+.tourDisclosureSummary>span{display:grid;gap:5px}
+.tourDisclosureSummary>span>strong{font-size:1.2rem;line-height:1.25}
+.tourDisclosureSummary>small{max-width:520px;color:var(--muted,#66736d);line-height:1.5}
+.tourDisclosureSummary:after{content:"+";width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;border:1px solid #dbe3df;border-radius:50%;font-size:1.2rem}
+.guideTour[open] .tourDisclosureSummary{margin-bottom:18px}
+.guideTour[open] .tourDisclosureSummary:after{content:"−"}
+@media(max-width:640px){
+  .tourDisclosureSummary{align-items:flex-start;gap:10px}
+  .tourDisclosureSummary>small{display:none}
+  .tourDisclosureSummary>span>strong{font-size:1.05rem}
+}
