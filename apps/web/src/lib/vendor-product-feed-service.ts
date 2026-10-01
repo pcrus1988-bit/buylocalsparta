@@ -414,6 +414,92 @@ export async function syncVendorProductFeed(
   }, triggerType);
 }
 
+export type ScheduledVendorProductFeedSyncResult = Readonly<{
+  claimed: boolean;
+  feedId?: string;
+  vendorId?: string;
+  ok?: boolean;
+  error?: string;
+}>;
+
+export async function syncNextDueVendorProductFeed(): Promise<ScheduledVendorProductFeedSyncResult> {
+  const db = getProductionPostgresRuntime().sqlPool;
+  const claimed = await db.query<SqlRow>(sql(
+    "WITH candidate AS (",
+    "SELECT f.id FROM vendor_product_feeds f",
+    "WHERE f.source_type='url' AND f.status='active' AND (f.next_sync_at IS NULL OR f.next_sync_at<=now())",
+    "ORDER BY f.next_sync_at NULLS FIRST,f.updated_at,f.id FOR UPDATE SKIP LOCKED LIMIT 1",
+    ")",
+    "UPDATE vendor_product_feeds f SET last_sync_at=now(),",
+    "next_sync_at=now()+make_interval(mins=>GREATEST(f.sync_interval_minutes,15)),updated_at=now()",
+    "FROM candidate c WHERE f.id=c.id",
+    "RETURNING f.id::text AS feed_uuid,f.public_id,f.vendor_id::text AS vendor_uuid,f.market_id::text AS market_uuid,",
+    "(SELECT vb.public_id FROM vendor_businesses vb WHERE vb.id=f.vendor_id) AS vendor_public_id"
+  ));
+  if (claimed.rowCount !== 1) return { claimed: false };
+
+  const row = claimed.rows[0] ?? {};
+  const feedId = String(row.public_id ?? "");
+  const vendorId = String(row.vendor_public_id ?? "");
+  const vendorUuid = String(row.vendor_uuid ?? "");
+  const feedUuid = String(row.feed_uuid ?? "");
+  const marketUuid = String(row.market_uuid ?? "");
+  if (!feedId || !vendorId || !vendorUuid || !feedUuid || !marketUuid) {
+    return { claimed: true, feedId: feedId || undefined, vendorId: vendorId || undefined, ok: false, error: "scheduled_feed_scope_missing" };
+  }
+
+  const actorResult = await db.query<SqlRow>(sql(
+    "SELECT u.id::text AS user_uuid,u.public_id,u.email",
+    "FROM vendor_users vu JOIN users u ON u.id=vu.user_id",
+    "WHERE vu.vendor_id=$1::uuid AND vu.active=true AND u.status='active'",
+    "ORDER BY CASE WHEN EXISTS (SELECT 1 FROM vendor_user_roles vur WHERE vur.vendor_user_id=vu.id AND vur.role='vendor_owner') THEN 0 ELSE 1 END,",
+    "vu.created_at,vu.id LIMIT 1"
+  ), [vendorUuid]);
+  const actor = actorResult.rows[0];
+  if (!actor?.public_id) {
+    const message = "No active vendor user is available for scheduled XML synchronization.";
+    await recordScheduledFeedFailure(feedUuid, marketUuid, vendorUuid, undefined, message);
+    return { claimed: true, feedId, vendorId, ok: false, error: message };
+  }
+
+  const principal: SessionPrincipal = {
+    userId: String(actor.public_id),
+    email: String(actor.email ?? "vendor-feed@kontamou.invalid"),
+    roles: ["vendor_catalog"],
+    vendorId,
+    csrfToken: "scheduled-vendor-feed",
+    sessionId: `scheduled:${feedId}`
+  };
+
+  try {
+    await syncVendorProductFeed(principal, feedId, "scheduled");
+    return { claimed: true, feedId, vendorId, ok: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "scheduled_vendor_feed_sync_failed";
+    await recordScheduledFeedFailure(feedUuid, marketUuid, vendorUuid, String(actor.user_uuid ?? "") || undefined, message);
+    return { claimed: true, feedId, vendorId, ok: false, error: message };
+  }
+}
+
+async function recordScheduledFeedFailure(
+  feedUuid: string,
+  marketUuid: string,
+  vendorUuid: string,
+  actorUserUuid: string | undefined,
+  message: string
+) {
+  const db = getProductionPostgresRuntime().sqlPool;
+  const safeMessage = message.slice(0, 2_000);
+  await db.query(sql(
+    "UPDATE vendor_product_feeds SET last_error=$2,next_sync_at=now()+interval '15 minutes',updated_at=now()",
+    "WHERE id=$1::uuid"
+  ), [feedUuid, safeMessage]);
+  await db.query(sql(
+    "INSERT INTO vendor_product_feed_runs(feed_id,market_id,vendor_id,trigger_type,status,error_message,created_by,finished_at)",
+    "VALUES($1::uuid,$2::uuid,$3::uuid,'scheduled','failed',$4,$5::uuid,now())"
+  ), [feedUuid, marketUuid, vendorUuid, safeMessage, actorUserUuid ?? null]);
+}
+
 export async function setVendorProductFeedStatus(
   principal: SessionPrincipal,
   feedId: string,
