@@ -37,6 +37,9 @@ type Feed = {
   sourceFilename?: string;
   status: string;
   syncIntervalMinutes: number;
+  fieldMapping: VendorXmlFieldMapping;
+  categoryMapping: Record<string, string>;
+  defaultCategoryCode?: string;
   productCount: number;
   readyCount: number;
   errorCount: number;
@@ -191,6 +194,21 @@ export function VendorProductFeedClient({
     if (!data) return;
     setSuccess(status === "active" ? "Ο αυτόματος συγχρονισμός ενεργοποιήθηκε." : "Ο αυτόματος συγχρονισμός τέθηκε σε παύση.");
     router.refresh();
+  }
+
+  function editFeed(feed: Feed) {
+    if (feed.sourceType !== "url" || !feed.sourceUrl) return;
+    setSourceType("url");
+    setSourceUrl(feed.sourceUrl);
+    setFeedName(feed.name);
+    setInterval(feed.syncIntervalMinutes);
+    setMapping(feed.fieldMapping ?? {});
+    setCategoryMapping(feed.categoryMapping ?? {});
+    setDefaultCategoryCode(feed.defaultCategoryCode ?? "");
+    setPreview(null);
+    setError("");
+    setSuccess("Οι αποθηκευμένες ρυθμίσεις φορτώθηκαν. Πάτησε «Ανάλυση & προεπισκόπηση» για ασφαλές remap.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function chooseFile(file?: File) {
@@ -398,6 +416,9 @@ export function VendorProductFeedClient({
             <div className="workspace-action-buttons">
               <button type="button" className="button button-secondary" disabled={Boolean(busy)} onClick={() => void syncFeed(feed.id)}>
                 {busy === "sync:" + feed.id ? "Sync…" : "Sync τώρα"}
+              </button>
+              <button type="button" className="button button-secondary" disabled={Boolean(busy)} onClick={() => editFeed(feed)}>
+                Mapping / Remap
               </button>
               <button type="button" className="button button-ghost" disabled={Boolean(busy)} onClick={() => void toggleFeed(feed)}>
                 {feed.status === "paused" ? "Ενεργοποίηση" : "Παύση"}
