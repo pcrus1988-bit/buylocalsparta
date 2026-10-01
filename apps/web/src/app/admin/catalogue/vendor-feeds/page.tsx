@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { AdminVendorProductFeedRemapClient } from "../../../../components/AdminVendorProductFeedRemapClient";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
 import {
@@ -147,6 +148,20 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
             </div>
           </WorkspaceRecordDetails>
 
+          {feed.sourceType === "url" && feed.sourceUrl && <WorkspaceRecordDetails label="Mapping / reprocess">
+            <AdminVendorProductFeedRemapClient
+              csrfToken={data.csrfToken}
+              feed={{
+                id: feed.id,
+                name: feed.name,
+                sourceUrl: feed.sourceUrl,
+                fieldMapping: feed.fieldMapping,
+                categoryMapping: feed.categoryMapping,
+                defaultCategoryCode: feed.defaultCategoryCode
+              }}
+            />
+          </WorkspaceRecordDetails>}
+
           <div className="workspace-action-bar">
             <span>Admin actions are audited.</span>
             <div className="workspace-action-buttons">
@@ -175,6 +190,14 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
             <div className="workspace-compact-row"><strong>Reconciliation</strong><span>{run.missingRows.toLocaleString("el-GR")} missing · {run.protectedInventoryRows.toLocaleString("el-GR")} reservation-protected</span></div>
           </div>
           {run.errorMessage && <div className="workspace-inline-note" role="alert">{run.errorMessage}</div>}
+          {run.validationErrors.length > 0 && <WorkspaceRecordDetails label={`Validation errors (${run.validationErrors.length.toLocaleString("el-GR")})`}>
+            <div className="workspace-compact-list">
+              {run.validationErrors.slice(0, 60).map((item,index) => <div className="workspace-compact-row" key={run.id + ":" + index}>
+                <strong>Row {item.rowNumber}{item.externalId ? " · " + item.externalId : ""}</strong>
+                <span>{item.field ? item.field + ": " : ""}{item.message}</span>
+              </div>)}
+            </div>
+          </WorkspaceRecordDetails>}
         </article>)}
       </div>
     </section>
