@@ -157,7 +157,6 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
 
     {!sections && <section className="shell vendor-section">
       <WorkspaceMetricStrip items={[
-        { label: "Κόμβος", value: workspace.hubId ?? workspace.marketId },
         { label: "Τοπική παράδοση", value: workspace.localDelivery.active ? "Ενεργή" : "Ανενεργή", tone: workspace.localDelivery.active ? "positive" : "default" },
         { label: "Αιτήματα προσφορών", value: pendingPromotion, tone: pendingPromotion ? "attention" : "default" },
         { label: "AADE σε αναμονή", value: pendingAade, tone: pendingAade ? "attention" : "default" },
@@ -166,7 +165,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
     </section>}
 
     {show("delivery") && <section className="shell vendor-section" id="local-delivery">
-      <WorkspaceSectionHeading eyebrow="Παραδόσεις" title="Περιοχή τοπικής παράδοσης" note="Η ρύθμιση είναι δική σου και υπερισχύει της γενικής κάλυψης HUB για το κατάστημά σου. Η τιμολόγηση μεταφοράς παραμένει στους κανόνες του HUB." />
+      <WorkspaceSectionHeading eyebrow="Παραδόσεις" title="Περιοχή τοπικής παράδοσης" note="Όρισε τους ταχυδρομικούς κώδικες που μπορεί να εξυπηρετεί το κατάστημά σου. Οι χρεώσεις μεταφοράς υπολογίζονται από τους κανόνες του κόμβου σου." />
       <WorkspaceHowItWorks>
         <p><strong>Ταχυδρομικοί κώδικες:</strong> βάλε ολόκληρο ΤΚ ή πρόθεμα, π.χ. 24100 ή 241.</p>
         <p><strong>Απενεργοποίηση:</strong> σταματά τη δική σου ζώνη τοπικής παράδοσης χωρίς να διαγράφει τη ρύθμιση.</p>
@@ -209,7 +208,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
     </div></section>}
 
     {show("promotions") && <section className="shell vendor-section" id="promotions">
-      <WorkspaceSectionHeading eyebrow="Προωθήσεις" title="Αιτήματα προωθητικών ενεργειών" note="Δηλώνεις τη δική σου εμπορική πρόταση. Η τελική δημόσια προωθητική τιμή ενεργοποιείται μόνο αφού περάσει τους ελέγχους της πλατφόρμας και τους νομικούς ελέγχους τιμής." />
+      <WorkspaceSectionHeading eyebrow="Προωθήσεις" title="Πρότεινε μία προωθητική τιμή" note="Διάλεξε προϊόν, τιμή και διάρκεια. Η προώθηση εμφανίζεται δημόσια μόνο όταν ολοκληρωθεί ο απαραίτητος έλεγχος." />
       <WorkspaceHowItWorks>
         <p><strong>Δεν αλλάζει άμεσα η δημόσια τιμή.</strong> Το αίτημα κρατά καταγραφή της τρέχουσας τιμής και περνά έλεγχο πριν εφαρμοστεί.</p>
         <p><strong>Ιστορικό τιμών:</strong> παραμένει κεντρικό ώστε οι ανακοινώσεις έκπτωσης να είναι ελέγξιμες.</p>
@@ -232,7 +231,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
     </section>}
 
     {show("aade") && <section className="vendor-section section-tint" id="aade"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="AADE" title="myDATA & φορολογικά αιτήματα" note="Βλέπεις μόνο τα φορολογικά έγγραφα της επιχείρησής σου. Επανάληψη ή συμφωνία δεν εκτελείται αυτόματα: το αίτημα μπαίνει στην ασφαλή φορολογική ροή." />
+      <WorkspaceSectionHeading eyebrow="AADE" title="Παραστατικά & myDATA" note="Δες τι έχει σταλεί στην AADE και ζήτησε έλεγχο, συμφωνία ή ασφαλή επανάληψη όταν χρειάζεται." />
       {workspace.aade.documents.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν φορολογικά έγγραφα του καταστήματος." body="Όταν δημιουργηθούν σχετικά παραστατικά, η κατάσταση AADE θα εμφανίζεται εδώ." /> : <>
         <div className="workspace-tool-panel" style={{ padding: "1rem" }}>
           <label className="workspace-form-field"><span>Παραστατικό</span><select value={aade.documentId} onChange={(event) => setAade((current) => ({ ...current, documentId: event.target.value }))}>{workspace.aade.documents.map((document) => <option value={document.id} key={document.id}>{document.documentNumber ?? document.id} · {vendorSettingStatus(document.transmissionStatus)} · {euro(document.grossMinor)}</option>)}</select></label>
@@ -250,12 +249,12 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
     </div></section>}
 
     {show("subscription") && <section className="shell vendor-section" id="subscription">
-      <WorkspaceSectionHeading eyebrow="Πλάνο" title="Πλάνο συνεργασίας" note="Η επιλογή πλάνου γίνεται από εσένα, αλλά αλλαγές που επηρεάζουν εμπορική συμφωνία ή χρέωση ενεργοποιούνται μόνο μετά τον συμβατικό έλεγχο." />
+      <WorkspaceSectionHeading eyebrow="Πλάνο" title="Πλάνο συνεργασίας" note="Δες το ενεργό πλάνο σου και, όταν υπάρχει διαθέσιμη επιλογή, ζήτησε αλλαγή. Η νέα χρέωση ενεργοποιείται μόνο αφού ολοκληρωθεί ο απαραίτητος έλεγχος." />
       {workspace.subscription.current ? <WorkspaceMetricStrip items={[
         { label: "Τρέχον πλάνο", value: workspace.subscription.current.planName },
         { label: "Κατάσταση", value: vendorSettingStatus(workspace.subscription.current.status) },
         { label: "Έναρξη", value: when(workspace.subscription.current.startsAt) }
-      ]} /> : <WorkspaceEmptyState title="Δεν υπάρχει ενεργή συνδρομή στο HUB." body="Μπορείς να ζητήσεις διαθέσιμο πλάνο μόλις έχει ρυθμιστεί για το συγκεκριμένο HUB." />}
+      ]} /> : <WorkspaceEmptyState title="Δεν υπάρχει ακόμη ενεργό πλάνο συνεργασίας." body="Όταν υπάρχουν διαθέσιμα πλάνα για το κατάστημά σου, θα μπορείς να ζητήσεις αλλαγή από εδώ." />}
       {workspace.subscription.plans.length > 0 && <div className="workspace-tool-panel" style={{ padding: "1rem" }}>
         <label className="workspace-form-field"><span>Νέο πλάνο</span><select value={subscription.planCode} onChange={(event) => setSubscription((current) => ({ ...current, planCode: event.target.value }))}>{workspace.subscription.plans.map((plan) => <option value={plan.code} key={plan.code}>{plan.name} · {planPrice(plan)} · {(plan.salesFeeBps / 100).toFixed(2)}% προμήθεια</option>)}</select></label>
         <label className="workspace-form-field"><span>Σημείωση</span><textarea value={subscription.note} onChange={(event) => setSubscription((current) => ({ ...current, note: event.target.value }))} /></label>
