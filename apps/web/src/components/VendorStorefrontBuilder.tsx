@@ -217,7 +217,7 @@ export function VendorStorefrontBuilder(props: {
 
     <div className={styles.previewPanel}>
       <div className={styles.previewToolbar}>
-        <div><strong>Ζωντανή ιδιωτική προεπισκόπηση</strong><br/><small>Αυτό το βλέπεις μόνο εσύ στη δοκιμή.</small></div>
+        <div><strong>Ζωντανή προεπισκόπηση εμφάνισης</strong><br/><small>{props.initial.demoMode ? "Αυτή η προεπισκόπηση δεν είναι δημόσια." : "Για πραγματικά προϊόντα, άνοιξε την πλήρη προεπισκόπηση καταστήματος."}</small></div>
         <div className={styles.deviceToggle}>
           <button type="button" className={`${styles.deviceButton} ${device === "desktop" ? styles.deviceActive : ""}`} onClick={() => setDevice("desktop")}>Υπολογιστής</button>
           <button type="button" className={`${styles.deviceButton} ${device === "mobile" ? styles.deviceActive : ""}`} onClick={() => setDevice("mobile")}>Κινητό</button>
@@ -234,7 +234,11 @@ export function VendorStorefrontBuilder(props: {
           <div className={styles.chips}><span className={styles.chip}>Παραλαβή από κατάστημα</span><span className={styles.chip}>Τοπική υποστήριξη</span><span className={styles.demoPill}>{props.initial.demoMode ? "ΠΡΟΕΠΙΣΚΟΠΗΣΗ ΔΟΚΙΜΗΣ" : "ΠΡΟΕΠΙΣΚΟΠΗΣΗ ΠΡΟΦΙΛ"}</span></div>
           {settings.showFeatured && <>
             <h4>Προτεινόμενα προϊόντα</h4>
-            <div className={styles.productGrid}>{[1,2,3].map((item) => <div className={styles.productCard} key={item}><div className={styles.productImage}>◇</div><div className={styles.productMeta}><strong>{props.productCount ? `Προϊόν ${item}` : "Δοκιμαστικό προϊόν"}</strong><small>{props.productCount ? "Από τον κατάλογό σου" : "Δείγμα έως ότου προσθέσεις προϊόντα"}</small></div></div>)}</div>
+            <div className={styles.previewEmpty}>
+              <strong>Τα πραγματικά προϊόντα εμφανίζονται στην πλήρη προεπισκόπηση.</strong>
+              <p>Εδώ ελέγχεις τη διάταξη και την εμφάνιση του προφίλ, χωρίς ψεύτικες κάρτες προϊόντων.</p>
+              <a className={styles.heroAction} href="/vendor/preview">Άνοιγμα πλήρους προεπισκόπησης →</a>
+            </div>
           </>}
           {settings.showFlashSale && <div className={styles.sectionBlock}><h4>⚡ Γρήγορη προσφορά</h4><p>Μία γρήγορη, παιχνιδοποιημένη προσφορά μπορεί να εμφανίζεται εδώ όταν την ενεργοποιήσεις.</p></div>}
           {settings.showBazaar && <div className={styles.sectionBlock}><h4>♻ BAZAAR</h4><p>Επιστροφές και επιλεγμένα είδη μπορούν να αποκτούν δεύτερη ζωή αντί να γίνονται απόβλητα.</p></div>}
