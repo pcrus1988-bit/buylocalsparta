@@ -24,6 +24,59 @@ function schedulerPrincipal(feed: ClaimedFeed): SessionPrincipal {
   };
 }
 
+export async function syncVendorProductFeedAsPlatform(feedId: string) {
+  const normalizedFeedId = feedId.trim();
+  if (!normalizedFeedId) throw new Error("XML feed id is required.");
+
+  const runtime = getProductionPostgresRuntime();
+  const client = await runtime.nativePool.connect();
+  let feed: ClaimedFeed | undefined;
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE bls_platform_runtime");
+    const result = await client.query<SqlRow>(`
+      SELECT
+        f.public_id AS feed_id,
+        COALESCE(v.public_id,v.id::text) AS vendor_id,
+        COALESCE(actor.public_id,actor.id::text) AS user_id,
+        actor.email
+      FROM public.vendor_product_feeds f
+      JOIN public.vendor_businesses v ON v.id=f.vendor_id
+      LEFT JOIN LATERAL (
+        SELECT u.id,u.public_id,u.email
+        FROM public.vendor_users vu
+        JOIN public.users u ON u.id=vu.user_id
+        WHERE vu.vendor_id=f.vendor_id AND vu.active=true AND u.status='active'
+        ORDER BY CASE WHEN EXISTS (
+          SELECT 1 FROM public.vendor_user_roles vur
+          WHERE vur.vendor_user_id=vu.id AND vur.role='vendor_owner'
+        ) THEN 0 ELSE 1 END,vu.created_at,vu.id
+        LIMIT 1
+      ) actor ON true
+      WHERE f.public_id=$1 AND f.source_type='url'
+      LIMIT 1
+    `, [normalizedFeedId]);
+    const row = result.rows[0];
+    if (row) {
+      feed = {
+        feedId: String(row.feed_id),
+        vendorId: String(row.vendor_id),
+        userId: row.user_id ? String(row.user_id) : undefined,
+        email: row.email ? String(row.email) : undefined
+      };
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    try { await client.query("ROLLBACK"); } catch {}
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  if (!feed) throw new Error("Το XML URL feed δεν βρέθηκε.");
+  return syncVendorProductFeed(schedulerPrincipal(feed), feed.feedId, "manual");
+}
+
 export async function syncDueVendorProductFeeds(limit = DEFAULT_LIMIT) {
   const safeLimit = Number.isSafeInteger(limit) ? Math.min(5, Math.max(1, limit)) : DEFAULT_LIMIT;
   const runtime = getProductionPostgresRuntime();
