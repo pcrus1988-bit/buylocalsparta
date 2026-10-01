@@ -216,11 +216,40 @@ export async function updateVendorProductFeed(principal:SessionPrincipal,feedPub
   const vendorPublicId=requiredVendorId(principal);
   const fields:string[]=[];
   const values:unknown[]=[feedPublicId,vendorPublicId];
-  if (input.status) { fields.push(`status=$${values.length+1}`); values.push(input.status); fields.push(`last_error=NULL`); }
-  if (input.syncIntervalMinutes!==undefined) { fields.push(`sync_interval_minutes=$${values.length+1}`); values.push(normalizeInterval(input.syncIntervalMinutes)); }
-  if (input.mapping) { fields.push(`mapping=$${values.length+1}::jsonb`); values.push(JSON.stringify(input.mapping)); }
+
+  if (input.status) {
+    fields.push(`status=$${values.length+1}`);
+    values.push(input.status);
+    if(input.status==="active") fields.push("last_error=NULL","next_sync_at=CASE WHEN source_kind='url' THEN now() ELSE next_sync_at END");
+  }
+  if (input.syncIntervalMinutes!==undefined) {
+    fields.push(`sync_interval_minutes=$${values.length+1}`);
+    values.push(normalizeInterval(input.syncIntervalMinutes));
+    fields.push("next_sync_at=CASE WHEN source_kind='url' AND status='active' THEN now() ELSE next_sync_at END");
+  }
+  if (input.mapping) {
+    const found=await pool().query(`
+      SELECT f.observed_fields
+      FROM public.vendor_product_feeds f
+      JOIN public.vendor_businesses vb ON vb.id=f.vendor_id
+      WHERE f.public_id=$1 AND (vb.public_id=$2 OR vb.id::text=$2)
+      LIMIT 1
+    `,[feedPublicId,vendorPublicId]);
+    const row=found.rows[0] as Record<string,unknown>|undefined;
+    if(!row) throw new Error("Feed not found");
+    const allowed=new Set(stringArray(row.observed_fields));
+    const cleaned:VendorFeedMapping={};
+    for(const field of Object.keys(input.mapping) as Array<keyof VendorFeedMapping>) {
+      const value=input.mapping[field]?.trim();
+      if(value&&allowed.has(value)) cleaned[field]=value;
+    }
+    assertRequiredMapping(cleaned);
+    fields.push(`mapping=$${values.length+1}::jsonb`);
+    values.push(JSON.stringify(cleaned));
+    fields.push("next_sync_at=CASE WHEN source_kind='url' AND status='active' THEN now() ELSE next_sync_at END");
+  }
   if (!fields.length) return vendorProductFeedWorkspace(principal);
-  fields.push("next_sync_at=CASE WHEN source_kind='url' AND status='active' THEN LEAST(COALESCE(next_sync_at,now()),now()) ELSE next_sync_at END","updated_at=now()");
+  fields.push("updated_at=now()");
   const result=await pool().query(`
     UPDATE public.vendor_product_feeds f SET ${fields.join(",")}
     WHERE f.public_id=$1 AND f.vendor_id=(SELECT id FROM public.vendor_businesses WHERE public_id=$2 OR id::text=$2 LIMIT 1)
