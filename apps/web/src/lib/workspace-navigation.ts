@@ -46,7 +46,7 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Οικονομικά", href: "/vendor/finance", icon: "€",
     links: [
       { label: "Πληρωμές & παραστατικά", href: "/vendor/finance", icon: "€", vendorCapability: "finance.read" },
-      { label: "AADE & ρυθμίσεις παραστατικών", href: "/vendor/finance#fiscal-settings", icon: "#", vendorCapability: "finance.read", hubOnly: true }
+      { label: "AADE & ρυθμίσεις παραστατικών", href: "/vendor/finance/fiscal-settings", icon: "#", vendorCapability: "finance.read", hubOnly: true }
     ]
   },
   {
