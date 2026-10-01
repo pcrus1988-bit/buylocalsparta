@@ -88,22 +88,22 @@ export default async function VendorSettingsPage() {
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Κατάστημα" title="Βασικές ρυθμίσεις" note="Οι καθημερινές εργασίες παραμένουν στις αντίστοιχες ενότητες. Εδώ συγκεντρώνονται οι επιλογές που αλλάζεις περιστασιακά." />
       <div className="vendor-settings-grid">
-        {core.map((item) => <article className="workspace-queue-card" key={item.href}>
+        {core.map((item) => <Link className="workspace-queue-card vendor-settings-card" href={item.href} key={item.href}>
           <strong>{item.title}</strong>
           <p className="workspace-queue-summary">{item.body}</p>
-          <div className="workspace-action-bar"><span> </span><Link className="button button-secondary" href={item.href}>{item.action} →</Link></div>
-        </article>)}
+          <span className="vendor-settings-card-action"><span>{item.action}</span><span aria-hidden="true">→</span></span>
+        </Link>)}
       </div>
     </section>
 
     {hub.length > 0 && <section className="vendor-section section-tint"><div className="shell">
       <WorkspaceSectionHeading eyebrow="HUB" title="Ρυθμίσεις που διαχειρίζεσαι εσύ" note="Εμφανίζονται μόνο οι δυνατότητες που ανήκουν στον δικό σου τύπο συνεργασίας και στο δικό σου HUB." />
       <div className="vendor-settings-grid">
-        {hub.map((item) => <article className="workspace-queue-card" key={item.href}>
+        {hub.map((item) => <Link className="workspace-queue-card vendor-settings-card" href={item.href} key={item.href}>
           <strong>{item.title}</strong>
           <p className="workspace-queue-summary">{item.body}</p>
-          <div className="workspace-action-bar"><span> </span><Link className="button button-secondary" href={item.href}>{item.action} →</Link></div>
-        </article>)}
+          <span className="vendor-settings-card-action"><span>{item.action}</span><span aria-hidden="true">→</span></span>
+        </Link>)}
       </div>
     </div></section>}
   </main>;
