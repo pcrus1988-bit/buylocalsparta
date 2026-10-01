@@ -10,6 +10,7 @@ const files = {
   objectStorage: await readFile("packages/object-storage/src/index.ts", "utf8"),
   nextConfig: await readFile("apps/web/next.config.ts", "utf8"),
   selection: await readFile("apps/web/src/app/admin/mail/AdminMailPageSelection.tsx", "utf8"),
+  pageSize: await readFile("apps/web/src/app/admin/mail/AdminMailPageSizeSelect.tsx", "utf8"),
   css: await readFile("apps/web/src/app/admin-mail.css", "utf8")
 };
 
@@ -20,9 +21,9 @@ const checks: Array<[string, boolean]> = [
   ["Admin route exposes filter and sort controls", ["name=\"read\"", "name=\"direction\"", "name=\"status\"", "name=\"attachments\"", "name=\"sort\""].every((value) => files.page.includes(value))],
   ["Dynamic Admin Mail SQL uses positional bind placeholders", files.runtime.includes("m.status=$${params.length}") && files.runtime.includes("LIMIT $${limitParam}")],
   ["Admin Mail pagination uses count plus bound LIMIT/OFFSET", files.runtime.includes("SELECT count(*)::int AS total") && files.runtime.includes("LIMIT $${limitParam}") && files.runtime.includes("OFFSET $${offsetParam}")],
-  ["Admin Mail exposes 10/20/50/100 page sizes", files.page.includes("([10, 20, 50, 100] as const)") && files.runtime.includes("10 | 20 | 50 | 100")],
+  ["Admin Mail exposes working 10/20/50/100 page sizes", ["value=\"10\"", "value=\"20\"", "value=\"50\"", "value=\"100\""].every((value) => files.pageSize.includes(value)) && files.pageSize.includes('params.set("pageSize", nextValue)') && files.pageSize.includes('params.delete("page")') && files.runtime.includes("10 | 20 | 50 | 100")],
   ["Admin Mail can select all messages on the current page", files.selection.includes("Select page") && files.selection.includes("data-admin-mail-select") && files.page.includes("AdminMailPageSelection")],
-  ["Admin Mail preview list scrolls independently", files.css.includes(".admin-mail-list{min-height:0;overflow-y:auto") && files.css.includes(".admin-mail-list-pane{min-height:0;overflow:hidden")],
+  ["Admin Mail preview and conversation panes scroll independently", files.css.includes("height:clamp(560px,72dvh,760px)") && files.css.includes("overflow-y:auto!important") && files.css.includes(".admin-mail-reader{") && files.css.includes(".admin-mail-thread{") && files.css.includes("flex:1 1 0")],
   ["Bulk mail actions are visible individual controls", ["value=\"read\">Read", "value=\"unread\">Unread", "value=\"archive\">Archive", "value=\"trash\">Delete"].every((value) => files.page.includes(value))],
   ["Mailbox filters live in a full-width command bar", files.page.includes("admin-mail-commandbar") && files.page.indexOf("admin-mail-commandbar") < files.page.indexOf("admin-mail-shell")],
   ["Admin route exposes checkbox bulk actions", files.page.includes("admin-mail-bulk-form") && files.page.includes('name="messageIds"') && files.actions.includes("bulkMailAction")],
