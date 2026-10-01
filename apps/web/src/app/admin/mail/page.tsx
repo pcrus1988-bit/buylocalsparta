@@ -20,6 +20,7 @@ import {
   toggleReadMailAction,
   toggleStarMailAction
 } from "./actions";
+import { AdminMailPageSelection } from "./AdminMailPageSelection";
 
 export const metadata: Metadata = { title: "Admin · Mail", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -50,6 +51,8 @@ type MailView = Readonly<{
   status: AdminMailWorkspace["filters"]["status"];
   attachments: AdminMailWorkspace["filters"]["attachments"];
   sort: AdminMailWorkspace["filters"]["sort"];
+  page: number;
+  pageSize: 10 | 20 | 50 | 100;
 }>;
 
 function appendViewParams(params: URLSearchParams, view: MailView): void {
@@ -59,12 +62,32 @@ function appendViewParams(params: URLSearchParams, view: MailView): void {
   if (view.status !== "all") params.set("status", view.status);
   if (view.attachments !== "all") params.set("attachments", view.attachments);
   if (view.sort !== "newest") params.set("sort", view.sort);
+  if (view.page > 1) params.set("page", String(view.page));
+  if (view.pageSize !== 20) params.set("pageSize", String(view.pageSize));
 }
 
 function folderHref(folder: string, view: MailView): string {
   const params = new URLSearchParams({ folder });
-  appendViewParams(params, view);
+  appendViewParams(params, { ...view, page: 1 });
   return `/admin/mail?${params.toString()}`;
+}
+
+function pageHref(folder: string, page: number, view: MailView): string {
+  const params = new URLSearchParams({ folder });
+  appendViewParams(params, { ...view, page });
+  return `/admin/mail?${params.toString()}`;
+}
+
+function pageSizeHref(folder: string, pageSize: 10 | 20 | 50 | 100, view: MailView): string {
+  const params = new URLSearchParams({ folder });
+  appendViewParams(params, { ...view, page: 1, pageSize });
+  return `/admin/mail?${params.toString()}`;
+}
+
+function paginationWindow(current: number, total: number): number[] {
+  if (total <= 5) return Array.from({ length: total }, (_, index) => index + 1);
+  const start = Math.max(1, Math.min(current - 2, total - 4));
+  return Array.from({ length: 5 }, (_, index) => start + index);
 }
 
 function messageHref(folder: string, messageId: string, view: MailView): string {
@@ -85,7 +108,8 @@ function emptyWorkspace(
   fromAddresses: readonly string[],
   folder: AdminMailWorkspace["folder"],
   q: string,
-  filters: AdminMailWorkspace["filters"]
+  filters: AdminMailWorkspace["filters"],
+  pageSize: 10 | 20 | 50 | 100
 ): AdminMailWorkspace {
   return {
     configured: false,
@@ -96,6 +120,7 @@ function emptyWorkspace(
     filters,
     messages: [],
     thread: [],
+    pagination: { page: 1, pageSize, total: 0, totalPages: 1, from: 0, to: 0 },
     metrics: { inbox: 0, unread: 0, sent: 0, starred: 0, archived: 0, trash: 0, all: 0 }
   };
 }
@@ -139,6 +164,9 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
   const folder = one(params.folder);
   const query = one(params.q).slice(0, 200);
   const selectedId = one(params.message) || undefined;
+  const requestedPage = Math.max(1, Number.parseInt(one(params.page) || "1", 10) || 1);
+  const pageSizeRaw = Number.parseInt(one(params.pageSize) || "20", 10);
+  const requestedPageSize: 10 | 20 | 50 | 100 = pageSizeRaw === 10 || pageSizeRaw === 50 || pageSizeRaw === 100 ? pageSizeRaw : 20;
   const requestedFilters: AdminMailWorkspace["filters"] = {
     read: one(params.read) === "read" || one(params.read) === "unread" ? one(params.read) as "read" | "unread" : "all",
     direction: one(params.direction) === "incoming" || one(params.direction) === "outgoing" ? one(params.direction) as "incoming" | "outgoing" : "all",
@@ -163,13 +191,14 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
   let workspace: AdminMailWorkspace;
   try {
     workspace = configuration.configured
-      ? await adminMailWorkspace(principal, { folder, q: query, selectedId, ...requestedFilters })
+      ? await adminMailWorkspace(principal, { folder, q: query, selectedId, page: requestedPage, pageSize: requestedPageSize, ...requestedFilters })
       : emptyWorkspace(
           configuration.message,
           configuration.fromAddresses,
           folder === "sent" || folder === "starred" || folder === "archive" || folder === "trash" || folder === "all" ? folder : "inbox",
           query,
-          requestedFilters
+          requestedFilters,
+          requestedPageSize
         );
   } catch (error) {
     workspace = emptyWorkspace(
@@ -177,7 +206,8 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
       configuration.fromAddresses,
       folder === "sent" || folder === "starred" || folder === "archive" || folder === "trash" || folder === "all" ? folder : "inbox",
       query,
-      requestedFilters
+      requestedFilters,
+      requestedPageSize
     );
   }
 
@@ -191,8 +221,23 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
   const composeBody = selected && mode === "forward" ? forwardBody(selected) : "";
   const error = one(params.error);
   const sent = one(params.sent) === "1";
-  const view: MailView = { q: workspace.query, ...workspace.filters };
-  const clearView: MailView = { q: "", read: "all", direction: "all", status: "all", attachments: "all", sort: "newest" };
+  const view: MailView = {
+    q: workspace.query,
+    ...workspace.filters,
+    page: workspace.pagination.page,
+    pageSize: workspace.pagination.pageSize
+  };
+  const clearView: MailView = {
+    q: "",
+    read: "all",
+    direction: "all",
+    status: "all",
+    attachments: "all",
+    sort: "newest",
+    page: 1,
+    pageSize: workspace.pagination.pageSize
+  };
+  const pageNumbers = paginationWindow(workspace.pagination.page, workspace.pagination.totalPages);
 
   const folders = [
     { id: "inbox", icon: "⌂", label: "Inbox", value: workspace.metrics.inbox, secondary: workspace.metrics.unread ? String(workspace.metrics.unread) + " unread" : "" },
@@ -236,6 +281,7 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
     <section className="shell admin-mail-commandbar" aria-label="Mail search and filters">
       <form className="admin-mail-filter-form" action="/admin/mail" method="get">
         <input type="hidden" name="folder" value={workspace.folder} />
+        <input type="hidden" name="pageSize" value={workspace.pagination.pageSize} />
         <div className="admin-mail-filter-search">
           <label>
             <span>Search mail</span>
@@ -282,15 +328,25 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
 
       <div className="admin-mail-list-pane">
         <div className="admin-mail-list-head">
-          <div>
-            <strong>{workspace.messages.length} message{workspace.messages.length === 1 ? "" : "s"}</strong>
+          <div className="admin-mail-list-summary">
+            <strong>{workspace.pagination.from}–{workspace.pagination.to} of {workspace.pagination.total}</strong>
             <span>{workspace.folder === "inbox" ? "Inbox" : workspace.folder === "sent" ? "Sent" : workspace.folder === "starred" ? "Starred" : workspace.folder === "archive" ? "Archive" : workspace.folder === "trash" ? "Trash" : "All mail"}</span>
           </div>
-          <small>Select emails below to use bulk actions.</small>
+          <div className="admin-mail-page-size" aria-label="Emails per page">
+            <span>Show</span>
+            {([10, 20, 50, 100] as const).map((size) => <Link
+              key={size}
+              className={workspace.pagination.pageSize === size ? "is-active" : ""}
+              href={pageSizeHref(workspace.folder, size, view)}
+            >{size}</Link>)}
+          </div>
         </div>
         <form id="admin-mail-bulk-form" className="admin-mail-bulk" action={bulkMailAction}>
           <input type="hidden" name="csrfToken" value={principal.csrfToken} />
-          <span className="admin-mail-bulk-label">Bulk actions</span>
+          <div className="admin-mail-bulk-head">
+            <AdminMailPageSelection formId="admin-mail-bulk-form" totalOnPage={workspace.messages.length} />
+            <span className="admin-mail-bulk-label">Bulk actions apply only to selected emails on this page</span>
+          </div>
           <div className="admin-mail-bulk-actions" role="group" aria-label="Bulk mail actions">
             <button type="submit" name="bulkAction" value="read">Read</button>
             <button type="submit" name="bulkAction" value="unread">Unread</button>
@@ -319,6 +375,7 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
                   name="messageIds"
                   value={message.id}
                   form="admin-mail-bulk-form"
+                  data-admin-mail-select="true"
                   aria-label={`Select ${message.subject}`}
                 />
                 <form action={toggleStarMailAction}>
@@ -348,6 +405,25 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
             </article>;
           })}
         </div>
+        <nav className="admin-mail-pagination" aria-label="Mailbox pagination">
+          <span>Page {workspace.pagination.page} of {workspace.pagination.totalPages}</span>
+          <div>
+            {workspace.pagination.page > 1
+              ? <Link href={pageHref(workspace.folder, workspace.pagination.page - 1, view)}>← Previous</Link>
+              : <span className="is-disabled">← Previous</span>}
+            <div className="admin-mail-page-numbers">
+              {pageNumbers.map((pageNumber) => <Link
+                key={pageNumber}
+                className={pageNumber === workspace.pagination.page ? "is-active" : ""}
+                href={pageHref(workspace.folder, pageNumber, view)}
+                aria-current={pageNumber === workspace.pagination.page ? "page" : undefined}
+              >{pageNumber}</Link>)}
+            </div>
+            {workspace.pagination.page < workspace.pagination.totalPages
+              ? <Link href={pageHref(workspace.folder, workspace.pagination.page + 1, view)}>Next →</Link>
+              : <span className="is-disabled">Next →</span>}
+          </div>
+        </nav>
       </div>
 
       <div className="admin-mail-reader">
