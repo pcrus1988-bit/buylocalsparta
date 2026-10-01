@@ -57,7 +57,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
 
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
-        <div className="eyebrow">Dropshipping Control Centre</div>
+        <div className="eyebrow">Κέντρο dropshipping</div>
         <h1>Dropshipping</h1>
         <p className="lead">
           Ο κατάλογος δεν φορτώνεται αυτόματα. Επίλεξε προμηθευτή και αναζήτησε μόνο τα προϊόντα που χρειάζεσαι.
@@ -68,8 +68,8 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
     <section className="shell vendor-section">
       <WorkspaceSectionHeading
         eyebrow="Προμηθευτές"
-        title="Επίλεξε supplier"
-        note="Φορτώνονται μόνο supplier metadata και ο συνολικός αριθμός προϊόντων. Τα προϊόντα ανακτώνται αποκλειστικά μέσω αναζήτησης."
+        title="Επίλεξε προμηθευτή"
+        note="Φορτώνονται μόνο τα βασικά στοιχεία και ο συνολικός αριθμός προϊόντων. Τα προϊόντα ανακτώνται αποκλειστικά μέσω αναζήτησης."
       />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))", gap: 14 }}>
         {suppliers.map((supplier) => <article className="workspace-queue-card" key={supplier.id}>
@@ -84,22 +84,22 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
             <div className="workspace-compact-row">
               <strong>Προϊόντα</strong>
               <span>{integer(supplier.productCount)}</span>
-              <small>μοναδικά source products</small>
+              <small>μοναδικά προϊόντα πηγής</small>
             </div>
           </div>
           <p style={{ marginTop: 0, marginBottom: 12 }}>
-            Διαθέσιμα μόνο μέσω server-side αναζήτησης — χωρίς preload καταλόγου.
+            Τα προϊόντα φορτώνονται μόνο όταν τα αναζητάς — όχι ολόκληρος ο κατάλογος εκ των προτέρων.
           </p>
           <Link
             className={selectedSupplier?.code === supplier.code ? "button" : "button button-secondary"}
             href={`/vendor/dropshipping?supplier=${encodeURIComponent(supplier.code)}`}
           >
-            {selectedSupplier?.code === supplier.code ? "Επιλεγμένος" : "Άνοιγμα supplier"}
+            {selectedSupplier?.code === supplier.code ? "Επιλεγμένος" : "Άνοιγμα προμηθευτή"}
           </Link>
         </article>)}
         {!suppliers.length ? <article className="workspace-queue-card">
-          <strong>Δεν υπάρχει Dropshipping supplier.</strong>
-          <p>Δεν βρέθηκε supplier mapping για αυτό το vendor account.</p>
+          <strong>Δεν υπάρχει προμηθευτής dropshipping.</strong>
+          <p>Δεν βρέθηκε σύνδεση προμηθευτή για αυτό το κατάστημα.</p>
         </article> : null}
       </div>
     </section>
@@ -108,7 +108,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
       <WorkspaceSectionHeading
         eyebrow={selectedSupplier.displayName}
         title="Αναζήτηση προϊόντων"
-        note={`Search-only mode · ${integer(selectedSupplier.productCount)} source products · έως 40 αποτελέσματα ανά αναζήτηση · ελάχιστο 3 χαρακτήρες`}
+        note={`Μόνο αναζήτηση · ${integer(selectedSupplier.productCount)} προϊόντα πηγής · έως 40 αποτελέσματα ανά αναζήτηση · ελάχιστο 3 χαρακτήρες`}
       />
 
       <DropshippingSupplierDefaultsControls
@@ -120,7 +120,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
         <input type="hidden" name="supplier" value={selectedSupplier.code} />
         <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) auto", gap: 10, alignItems: "end" }}>
           <label>
-            <small>Τίτλος, brand, SKU, EAN ή supplier product ID</small>
+            <small>Τίτλος, μάρκα, SKU, EAN ή κωδικός προμηθευτή</small>
             <input
               name="q"
               defaultValue={query}
@@ -140,13 +140,13 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
 
       {query && query.length < 3 ? <article className="workspace-queue-card">
         <strong>Χρειάζονται τουλάχιστον 3 χαρακτήρες.</strong>
-        <p>Αυτό αποτρέπει ακούσιες, πολύ μεγάλες αναζητήσεις στον supplier κατάλογο.</p>
+        <p>Αυτό αποτρέπει ακούσιες, πολύ μεγάλες αναζητήσεις στον κατάλογο του προμηθευτή.</p>
       </article> : null}
 
       {searchActive ? <>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
           <strong>{products.length} αποτελέσματα</strong>
-          <small>Εμφανίζονται έως 40 αποτελέσματα από το source catalogue. Κάνε πιο συγκεκριμένη αναζήτηση αν χρειάζεται.</small>
+          <small>Εμφανίζονται έως 40 αποτελέσματα από το κατάλογο πηγής. Κάνε πιο συγκεκριμένη αναζήτηση αν χρειάζεται.</small>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
@@ -154,28 +154,28 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
             <div className="workspace-queue-head">
               <div>
                 <strong>{product.title}</strong>
-                <small>{[product.brand, product.externalSku, product.ean].filter(Boolean).join(" · ") || `Supplier product ${product.sourceProductKey}`}</small>
+                <small>{[product.brand, product.externalSku, product.ean].filter(Boolean).join(" · ") || `Προϊόν προμηθευτή ${product.sourceProductKey}`}</small>
               </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                {product.pricingFlag === "OVERPRICED" ? <span className="vendor-merchant-status">OVERPRICED</span> : null}
+                {product.pricingFlag === "OVERPRICED" ? <span className="vendor-merchant-status">ΥΨΗΛΗ ΤΙΜΗ</span> : null}
                 {product.offerId
                   ? <span className="vendor-merchant-status">{product.published ? "Published" : "Unpublished"}</span>
-                  : <span className="vendor-merchant-status">Source catalogue</span>}
+                  : <span className="vendor-merchant-status">Κατάλογος πηγής</span>}
               </div>
             </div>
 
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
-              <div className="workspace-compact-row"><strong>Buying price</strong><span>{euro(product.supplierCostMinor)}</span><small>ιδιωτικό</small></div>
-              <div className="workspace-compact-row"><strong>Τελική τιμή</strong><span>{euro(product.customerPriceMinor)}</span><small>{product.offerId ? "KONTA MOY offer" : "Δεν έχει δημιουργηθεί offer"}</small></div>
+              <div className="workspace-compact-row"><strong>Τιμή αγοράς</strong><span>{euro(product.supplierCostMinor)}</span><small>ιδιωτικό</small></div>
+              <div className="workspace-compact-row"><strong>Τελική τιμή</strong><span>{euro(product.customerPriceMinor)}</span><small>{product.offerId ? "Προσφορά ΚΟΝΤΑ ΜΟΥ" : "Δεν έχει δημιουργηθεί προσφορά"}</small></div>
               <div className="workspace-compact-row">
-                <strong>Supplier stock</strong>
+                <strong>Απόθεμα προμηθευτή</strong>
                 <span>{product.cachedAvailable ? "Διαθέσιμο" : "Μη διαθέσιμο"}</span>
-                <small>{product.cachedQuantity == null ? "Ποσότητα άγνωστη" : `Qty ${product.cachedQuantity}`} · checked {date(product.availabilityCheckedAt)}</small>
+                <small>{product.cachedQuantity == null ? "Ποσότητα άγνωστη" : `Qty ${product.cachedQuantity}`} · έλεγχος {date(product.availabilityCheckedAt)}</small>
               </div>
               <div className="workspace-compact-row">
-                <strong>Supplier product ID</strong>
+                <strong>Προϊόν προμηθευτή ID</strong>
                 <span>{product.sourceProductKey}</span>
-                <small>{product.priceState ? `price state: ${product.priceState}` : "source catalogue"}</small>
+                <small>{product.priceState ? `price state: ${product.priceState}` : "κατάλογο πηγής"}</small>
               </div>
             </div>
 
@@ -188,8 +188,8 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
               msrpMinor={product.msrpMinor}
               showMsrp={product.showMsrp}
             /> : <div className="workspace-compact-row" style={{ marginTop: 12 }}>
-              <strong>Search result ready</strong>
-              <small>Το προϊόν υπάρχει στο supplier source catalogue αλλά δεν έχει materialized vendor offer ακόμη.</small>
+              <strong>Έτοιμο αποτέλεσμα αναζήτησης</strong>
+              <small>Το προϊόν υπάρχει στο supplier κατάλογο πηγής αλλά δεν έχει δημιουργημένη προσφορά καταστήματος ακόμη.</small>
             </div>}
           </article>)}
         </div>
@@ -201,8 +201,8 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
       </> : null}
     </section> : <section className="shell vendor-section">
       <article className="workspace-queue-card">
-        <strong>Επίλεξε supplier για αναζήτηση.</strong>
-        <p>Η επιλογή supplier από μόνη της δεν φορτώνει προϊόντα.</p>
+        <strong>Επίλεξε προμηθευτή για αναζήτηση.</strong>
+        <p>Η επιλογή προμηθευτή από μόνη της δεν φορτώνει προϊόντα.</p>
       </article>
     </section>}
   </main>;
