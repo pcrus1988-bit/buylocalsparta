@@ -161,18 +161,22 @@ export async function adminMailWorkspace(
       messages: [],
       thread: [],
       selectedId: input.selectedId,
-      metrics: { inbox: 0, unread: 0, sent: 0, starred: 0, archived: 0 }
+      metrics: { inbox: 0, unread: 0, sent: 0, starred: 0, archived: 0, all: 0 }
     };
   }
 
   const pool = getProductionPostgresRuntime().sqlPool;
-  if (input.selectedId && /^mail_[a-f0-9]{32}$/i.test(input.selectedId)) {\n    await markAdminMailRead(principal, input.selectedId, true);\n  }\n  const metricsResult = await pool.query<SqlRow>(`
+  if (input.selectedId && /^mail_[a-f0-9]{32}$/i.test(input.selectedId)) {
+    await markAdminMailRead(principal, input.selectedId, true);
+  }
+  const metricsResult = await pool.query<SqlRow>(`
     SELECT
       count(*) FILTER (WHERE m.direction='incoming' AND COALESCE(s.archived_at IS NOT NULL,false)=false)::int AS inbox,
       count(*) FILTER (WHERE m.direction='incoming' AND COALESCE(s.archived_at IS NOT NULL,false)=false AND COALESCE(s.is_read,false)=false)::int AS unread,
       count(*) FILTER (WHERE m.direction='outgoing')::int AS sent,
       count(*) FILTER (WHERE COALESCE(s.is_starred,false)=true)::int AS starred,
-      count(*) FILTER (WHERE s.archived_at IS NOT NULL)::int AS archived,\n      count(*)::int AS all,
+      count(*) FILTER (WHERE s.archived_at IS NOT NULL)::int AS archived,
+      count(*)::int AS all,
       max(m.received_at) FILTER (WHERE m.direction='incoming') AS last_inbound_at
     FROM admin_mail_messages m
     LEFT JOIN admin_mail_state s ON s.message_id=m.id AND s.user_public_id=$1
@@ -243,7 +247,9 @@ export async function adminMailWorkspace(
       unread: Number(metric.unread || 0),
       sent: Number(metric.sent || 0),
       starred: Number(metric.starred || 0),
-      archived: Number(metric.archived || 0),\n      all: Number(metric.all || 0)\n    },
+      archived: Number(metric.archived || 0),
+      all: Number(metric.all || 0)
+    },
     lastInboundAt: epochOptional(metric.last_inbound_at)
   };
 }
