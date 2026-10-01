@@ -1,0 +1,60 @@
+name: Admin Mail Acceptance
+
+on:
+  push:
+    branches:
+      - feature/admin-ses-s3-mailbox
+    paths:
+      - "apps/web/src/app/admin/mail/**"
+      - "apps/web/src/app/api/admin/mail/**"
+      - "apps/web/src/app/admin-mail.css"
+      - "apps/web/src/lib/admin-mail-*.ts"
+      - "apps/web/src/lib/workspace-navigation.ts"
+      - "apps/web/src/lib/admin-navigation.ts"
+      - "apps/web/next.config.ts"
+      - "packages/object-storage/src/index.ts"
+      - "packages/postgres-runtime/src/index.ts"
+      - "db/migrations/0298_admin_mailbox.sql"
+      - "db/migrations/checksums.json"
+      - "scripts/verify-admin-mail.ts"
+      - ".github/workflows/admin-mail-acceptance.yml"
+  pull_request:
+    paths:
+      - "apps/web/src/app/admin/mail/**"
+      - "apps/web/src/app/api/admin/mail/**"
+      - "apps/web/src/app/admin-mail.css"
+      - "apps/web/src/lib/admin-mail-*.ts"
+      - "apps/web/src/lib/workspace-navigation.ts"
+      - "apps/web/src/lib/admin-navigation.ts"
+      - "apps/web/next.config.ts"
+      - "packages/object-storage/src/index.ts"
+      - "packages/postgres-runtime/src/index.ts"
+      - "db/migrations/0298_admin_mailbox.sql"
+      - "db/migrations/checksums.json"
+      - "scripts/verify-admin-mail.ts"
+      - ".github/workflows/admin-mail-acceptance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Mailbox contract
+        run: node --experimental-strip-types scripts/verify-admin-mail.ts
+      - name: Migration integrity
+        run: npm run db:verify
+      - name: Object storage typecheck
+        run: npm run typecheck:object-storage
+      - name: Admin Mail MIME tests
+        run: node --experimental-strip-types --test apps/web/src/lib/admin-mail-mime.test.ts
+      - name: Web TypeScript
+        run: npx tsc --noEmit -p apps/web/tsconfig.json
