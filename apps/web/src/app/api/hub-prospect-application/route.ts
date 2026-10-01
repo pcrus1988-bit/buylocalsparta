@@ -10,6 +10,7 @@ import {
   type HubProspectApplicationInput
 } from "../../../lib/hub-prospect-application-runtime";
 import { notifyOperationsOfHubProspectApplication, sendHubProspectApplicationReceiptEmail } from "../../../lib/vendor-email-workflows";
+import { buildVendorTrialAccessUrl } from "../../../lib/vendor-trial-access-link";
 import { createVendorTrialAccessToken, VENDOR_TRIAL_COOKIE } from "../../../lib/vendor-trial-runtime";
 
 export const runtime = "nodejs";
@@ -70,14 +71,16 @@ export async function POST(request: Request) {
     const receipt = await submitHubProspectApplication({ application, principal, now });
 
     let trialAccessExpiresAt: number | undefined;
+    let trialAccessUrl: string | undefined;
     if (receipt.trial) {
       const access = createVendorTrialAccessToken({
-        applicationId: receipt.reference,
+        applicationId: receipt.trial.applicationId,
         ownerUserId: receipt.trial.ownerUserId,
         vendorId: receipt.trial.vendorId,
         trialStartedAt: receipt.trial.startedAt
       });
       trialAccessExpiresAt = access.accessExpiresAt;
+      trialAccessUrl = buildVendorTrialAccessUrl(access.token);
       (await cookies()).set({
         name: VENDOR_TRIAL_COOKIE,
         value: access.token,
@@ -108,7 +111,10 @@ export async function POST(request: Request) {
         hubName: receipt.hubName,
         planCode: receipt.planCode,
         billingCycle: receipt.billingCycle,
+        setupFeeCents: receipt.setupFeeCents,
         recurringFeeCents: receipt.recurringFeeCents,
+        commissionBps: receipt.commissionBps,
+        trialAccessUrl,
         trialExpiresAt: receipt.trial?.expiresAt
       })
     ]);
