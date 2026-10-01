@@ -118,7 +118,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
 
       <form method="get" className="workspace-queue-card" style={{ marginTop: 14, marginBottom: 14 }}>
         <input type="hidden" name="supplier" value={selectedSupplier.code} />
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) auto", gap: 10, alignItems: "end" }}>
+        <div className="vendor-dropshipping-search-row" style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) auto", gap: 10, alignItems: "end" }}>
           <label>
             <small>Τίτλος, μάρκα, SKU, EAN ή κωδικός προμηθευτή</small>
             <input
