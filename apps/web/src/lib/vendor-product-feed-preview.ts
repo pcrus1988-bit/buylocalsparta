@@ -186,6 +186,7 @@ export async function prepareVendorProductFeed(
   const valid: VendorProductFeedPreparedRow[] = [];
   const sourceCategories = new Set<string>();
   const seenIds = new Set<string>();
+  const seenVendorSkus = new Set<string>();
   const observedExternalIds = new Set<string>();
 
   for (const record of parsed.records) {
@@ -223,6 +224,10 @@ export async function prepareVendorProductFeed(
     const fail = (field: string, message: string) => rowErrors.push({ rowNumber: record.index, externalId, field, message });
     if (!externalId) fail("id", "Λείπει σταθερό product ID, SKU ή GTIN.");
     else if (seenIds.has(externalId)) fail("id", "Το ίδιο product ID εμφανίζεται περισσότερες από μία φορές στο XML.");
+    if (vendorSku) {
+      if (seenVendorSkus.has(vendorSku)) fail("sku", "Το ίδιο vendor SKU εμφανίζεται περισσότερες από μία φορές στο XML.");
+      else seenVendorSkus.add(vendorSku);
+    }
     if (!title) fail("title", "Λείπει τίτλος προϊόντος.");
     if (priceMinor === undefined) fail("price", "Η τιμή λείπει ή δεν είναι έγκυρη.");
     if (currency !== "EUR") fail("currency", "Το KONTA MOU δέχεται τιμές EUR. Βρέθηκε " + currency + ".");
@@ -494,9 +499,15 @@ function isPublicIp(address: string): boolean {
   if (kind === 6) {
     const value = address.toLowerCase();
     if (value === "::" || value === "::1") return false;
-    if (value.startsWith("fc") || value.startsWith("fd") || /^fe[89ab]/.test(value)) return false;
     if (value.startsWith("::ffff:")) return isPublicIp(value.slice(7));
-    return !value.startsWith("2001:db8:");
+    // Reject non-global IPv6 space before DNS pinning: ULA, link/site-local,
+    // multicast, discard-only, documentation and benchmarking ranges.
+    if (value.startsWith("fc") || value.startsWith("fd")) return false;
+    if (/^fe[89abcdef]/.test(value)) return false;
+    if (value.startsWith("ff")) return false;
+    if (value === "100::" || value.startsWith("100::")) return false;
+    if (value.startsWith("2001:db8:") || value.startsWith("2001:2:")) return false;
+    return true;
   }
   return false;
 }
