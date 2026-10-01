@@ -115,6 +115,10 @@ for (const forbidden of ["Product Feed</div>", "<strong>Field mapping</strong>",
 for (const requirement of ["Αντιστοίχιση πεδίων", "Συνδεδεμένα XML", "vendor-xml-category-select", "feedStatusLabel"]) {
   if (!vendorFeedClient.includes(requirement)) failures.push(`Vendor XML workflow is missing merchant UX contract: ${requirement}`);
 }
+const storefrontBuilder = read("apps/web/src/components/VendorStorefrontBuilder.tsx");
+requireText("apps/web/src/components/VendorStorefrontBuilder.tsx", ["socialAdvanced", "Άνοιγμα πλήρους προεπισκόπησης", "χωρίς ψεύτικες κάρτες προϊόντων"]);
+if (storefrontBuilder.includes("[1,2,3].map")) failures.push("Vendor storefront editor must not render fake product cards");
+
 requireText("apps/web/src/components/VendorDailyAccessClient.tsx", ["workspace-form-grid", "vendor-daily-access-card", "vendor-inline-reset-form"]);
 requireText("apps/web/src/components/VendorOrdersClient.tsx", ["vendor-manual-shipment-form", "vendor-manual-shipment-input"]);
 requireText("apps/web/src/components/VendorFinanceClient.tsx", ["commissionRateBps", "Βάση προμήθειας", "Πάγια χρέωση"]);
