@@ -299,7 +299,8 @@ export async function adminSetVendorProductFeedStatus(feedPublicId:string,status
 
 export async function adminVendorProductFeedWorkspace() {
   const result=await pool().query(`
-    SELECT f.public_id,f.name,f.source_kind,f.source_url,f.status,f.detected_format,f.sync_interval_minutes,
+    SELECT f.public_id,f.name,f.source_kind,f.source_url,f.source_filename,f.status,f.detected_format,f.mapping,f.observed_fields,
+           f.sync_interval_minutes,f.missing_grace_runs,
            f.last_product_count,f.last_ready_count,f.last_warning_count,f.last_error_count,f.last_excluded_count,
            f.last_sync_completed_at,f.next_sync_at,f.last_error,f.consecutive_failures,
            vb.public_id AS vendor_public_id,vb.trading_name AS vendor_name
@@ -313,6 +314,85 @@ export async function adminVendorProductFeedWorkspace() {
     vendorId:text(row.vendor_public_id),
     vendorName:text(row.vendor_name)
   }));
+}
+
+export async function adminVendorProductFeedDetail(feedPublicId:string) {
+  const [feed,runs,issues]=await Promise.all([
+    pool().query(`
+      SELECT f.public_id,f.name,f.source_kind,f.source_url,f.source_filename,f.status,f.detected_format,f.mapping,f.observed_fields,
+             f.sync_interval_minutes,f.missing_grace_runs,
+             f.last_product_count,f.last_ready_count,f.last_warning_count,f.last_error_count,f.last_excluded_count,
+             f.last_sync_started_at,f.last_sync_completed_at,f.next_sync_at,f.last_error,f.consecutive_failures,
+             vb.public_id AS vendor_public_id,vb.trading_name AS vendor_name
+      FROM public.vendor_product_feeds f
+      JOIN public.vendor_businesses vb ON vb.id=f.vendor_id
+      WHERE f.public_id=$1
+      LIMIT 1
+    `,[feedPublicId]),
+    pool().query(`
+      SELECT r.public_id,r.trigger_type,r.status,r.product_count,r.ready_count,r.warning_count,r.error_count,r.excluded_count,
+             r.new_count,r.updated_count,r.missing_count,r.linked_offer_count,r.submission_count,
+             r.error_message,r.started_at,r.completed_at
+      FROM public.vendor_product_feed_runs r
+      JOIN public.vendor_product_feeds f ON f.id=r.feed_id
+      WHERE f.public_id=$1
+      ORDER BY r.started_at DESC
+      LIMIT 40
+    `,[feedPublicId]),
+    pool().query(`
+      SELECT i.external_product_id,i.vendor_sku,i.title,i.state,i.validation_messages,i.gtin,i.mpn,i.brand,i.category_path,
+             i.price_minor,i.currency,i.stock_quantity,i.missing_successful_runs,i.canonical_variant_id::text,
+             i.vendor_offer_id::text,i.submission_id::text,i.updated_at
+      FROM public.vendor_product_feed_items i
+      JOIN public.vendor_product_feeds f ON f.id=i.feed_id
+      WHERE f.public_id=$1 AND i.state IN ('warning','error','missing')
+      ORDER BY CASE i.state WHEN 'error' THEN 0 WHEN 'missing' THEN 1 ELSE 2 END,i.updated_at DESC
+      LIMIT 150
+    `,[feedPublicId])
+  ]);
+  const row=feed.rows[0] as Record<string,unknown>|undefined;
+  if(!row) throw new Error("Feed not found");
+  return {
+    feed:{...feedSummary(row),vendorId:text(row.vendor_public_id),vendorName:text(row.vendor_name)},
+    runs:runs.rows.map((item)=>({
+      id:text(item.public_id),triggerType:text(item.trigger_type),status:text(item.status),
+      productCount:integer(item.product_count),readyCount:integer(item.ready_count),warningCount:integer(item.warning_count),
+      errorCount:integer(item.error_count),excludedCount:integer(item.excluded_count),newCount:integer(item.new_count),
+      updatedCount:integer(item.updated_count),missingCount:integer(item.missing_count),linkedOfferCount:integer(item.linked_offer_count),
+      submissionCount:integer(item.submission_count),error:optionalText(item.error_message),startedAt:epoch(item.started_at)??Date.now(),
+      completedAt:epoch(item.completed_at)
+    })),
+    issues:issues.rows.map((item)=>({
+      externalProductId:text(item.external_product_id),vendorSku:optionalText(item.vendor_sku),title:text(item.title),state:text(item.state),
+      messages:Array.isArray(item.validation_messages)?item.validation_messages:[],gtin:optionalText(item.gtin),mpn:optionalText(item.mpn),
+      brand:optionalText(item.brand),categoryPath:optionalText(item.category_path),priceMinor:item.price_minor==null?undefined:integer(item.price_minor),
+      currency:text(item.currency)||"EUR",stockQuantity:item.stock_quantity==null?undefined:integer(item.stock_quantity),
+      missingSuccessfulRuns:integer(item.missing_successful_runs),canonicalVariantId:optionalText(item.canonical_variant_id),
+      vendorOfferId:optionalText(item.vendor_offer_id),submissionId:optionalText(item.submission_id),updatedAt:epoch(item.updated_at)??Date.now()
+    }))
+  };
+}
+
+export async function adminUpdateVendorProductFeedMapping(feedPublicId:string,mapping:VendorFeedMapping) {
+  const found=await pool().query(`
+    SELECT observed_fields FROM public.vendor_product_feeds WHERE public_id=$1 LIMIT 1
+  `,[feedPublicId]);
+  const row=found.rows[0] as Record<string,unknown>|undefined;
+  if(!row) throw new Error("Feed not found");
+  const allowed=new Set(stringArray(row.observed_fields));
+  const cleaned:VendorFeedMapping={};
+  for(const field of Object.keys(mapping) as Array<keyof VendorFeedMapping>) {
+    const value=mapping[field]?.trim();
+    if(value&&allowed.has(value)) cleaned[field]=value;
+  }
+  assertRequiredMapping(cleaned);
+  await pool().query(`
+    UPDATE public.vendor_product_feeds SET mapping=$2::jsonb,
+      next_sync_at=CASE WHEN source_kind='url' AND status='active' THEN now() ELSE next_sync_at END,
+      updated_at=now()
+    WHERE public_id=$1
+  `,[feedPublicId,JSON.stringify(cleaned)]);
+  return {ok:true};
 }
 
 async function persistFeedAnalysis(
