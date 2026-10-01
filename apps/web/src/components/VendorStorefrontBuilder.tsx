@@ -133,27 +133,31 @@ export function VendorStorefrontBuilder(props: {
         <textarea id="trial-story" maxLength={5000} value={story} placeholder="Πες στους πελάτες ποιοι είστε, τι γνωρίζετε και πώς μπορείτε να τους βοηθήσετε." onChange={(event) => setStory(event.target.value)} />
       </div>
 
-      <span className={styles.fieldLegend}>Ενότητες προφίλ</span>
-      <div className={styles.toggles}>
-        {([
-          ["showFeatured", "Προτεινόμενα προϊόντα"],
-          ["showFlashSale", "Γρήγορη προσφορά"],
-          ["showBazaar", "BAZAAR · δεύτερη ζωή"],
-          ["showAbout", "Σχετικά με εμάς"],
-          ["showLocation", "Τοποθεσία"],
-          ["showContact", "Επικοινωνία"]
-        ] as const).map(([key, label]) => <label className={styles.toggle} key={key}><span>{label}</span><input type="checkbox" checked={settings[key]} onChange={(event) => patchSettings({ [key]: event.target.checked } as Partial<VendorStorefrontSettings>)} /></label>)}
-      </div>
+      <details className={styles.editorGroup}>
+        <summary><span><strong>Ενότητες προφίλ</strong><small>Διάλεξε τι θέλεις να εμφανίζεται στη βιτρίνα.</small></span></summary>
+        <div className={styles.editorGroupBody}>
+          <div className={styles.toggles}>
+            {([
+              ["showFeatured", "Προτεινόμενα προϊόντα"],
+              ["showFlashSale", "Γρήγορη προσφορά"],
+              ["showBazaar", "BAZAAR · δεύτερη ζωή"],
+              ["showAbout", "Σχετικά με εμάς"],
+              ["showLocation", "Τοποθεσία"],
+              ["showContact", "Επικοινωνία"]
+            ] as const).map(([key, label]) => <label className={styles.toggle} key={key}><span>{label}</span><input type="checkbox" checked={settings[key]} onChange={(event) => patchSettings({ [key]: event.target.checked } as Partial<VendorStorefrontSettings>)} /></label>)}
+          </div>
+        </div>
+      </details>
 
-      <div className={styles.sectionBlock}>
-        <div className="eyebrow">Instagram</div>
-        <h3 style={{ marginBottom: 8 }}>Instagram στη βιτρίνα σου</h3>
-        <p style={{ marginTop: 0 }}>Σύνδεσε επαγγελματικό Instagram λογαριασμό. Τα Reels και αναρτήσεις φορτώνουν μόνο όταν ο πελάτης πλησιάζει στην ενότητα, ώστε να μη βαραίνουν την αρχική φόρτωση.</p>
+      <details className={styles.editorGroup}>
+        <summary><span><strong>Instagram</strong><small>Προαιρετική σύνδεση αναρτήσεων και Reels.</small></span></summary>
+        <div className={styles.editorGroupBody}>
+        <p style={{ marginTop: 0 }}>Σύνδεσε τον επαγγελματικό λογαριασμό σου και διάλεξε τι θέλεις να εμφανίζεται στη βιτρίνα.</p>
 
         <div className={styles.field}>
           <span className={styles.fieldLegend}>Σύνδεση λογαριασμού</span>
           {!instagramConnection ? <p className={styles.miniNote}>Έλεγχος σύνδεσης…</p> : instagramConnection.connected ? <>
-            <p className={styles.status}>Συνδεδεμένο ως <strong>@{instagramConnection.username}</strong>{instagramConnection.accountType ? ` · ${instagramConnection.accountType}` : ""}</p>
+            <p className={styles.status}>Συνδεδεμένο ως <strong>@{instagramConnection.username}</strong></p>
             <button className={styles.deviceButton} type="button" disabled={instagramBusy} onClick={disconnectInstagram}>{instagramBusy ? "Αποσύνδεση…" : "Αποσύνδεση Instagram"}</button>
           </> : instagramConnection.configured ? <button className={styles.saveButton} type="button" onClick={() => window.location.assign("/api/vendor/instagram/connect")}>Σύνδεση Instagram</button> : <p className={styles.miniNote}>Η σύνδεση Instagram δεν είναι ακόμη διαθέσιμη. Χρειάζεται πρώτα να ολοκληρωθεί η ρύθμιση της σύνδεσης από το ΚΟΝΤΑ ΜΟΥ.</p>}
         </div>
@@ -203,7 +207,8 @@ export function VendorStorefrontBuilder(props: {
           <textarea id="instagram-curated-urls" value={settings.instagram.curatedUrls.join("\n")} placeholder={"https://www.instagram.com/reel/.../\nhttps://www.instagram.com/p/.../"} onChange={(event) => patchInstagram({ curatedUrls: event.target.value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean).slice(0,20) })} />
           <p className={styles.miniNote}>Μία διεύθυνση ανά γραμμή. Αν μείνει κενό, εμφανίζονται αυτόματα τα πιο πρόσφατα στοιχεία του συνδεδεμένου λογαριασμού.</p>
         </div>
-      </div>
+        </div>
+      </details>
 
       {message && <p className={`${styles.status} ${styles.ok}`} role="status">{message}</p>}
       {error && <p className={`${styles.status} ${styles.error}`} role="alert">{error}</p>}
@@ -212,7 +217,7 @@ export function VendorStorefrontBuilder(props: {
 
     <div className={styles.previewPanel}>
       <div className={styles.previewToolbar}>
-        <div><strong>Ζωντανή ιδιωτική προεπισκόπηση</strong><br/><small>Αυτό το βλέπεις μόνο εσύ στη δοκιμή.</small></div>
+        <div><strong>Ιδιωτική προεπισκόπηση</strong><br/><small>Έλεγξε πώς θα φαίνεται το προφίλ πριν αποθηκεύσεις.</small></div>
         <div className={styles.deviceToggle}>
           <button type="button" className={`${styles.deviceButton} ${device === "desktop" ? styles.deviceActive : ""}`} onClick={() => setDevice("desktop")}>Υπολογιστής</button>
           <button type="button" className={`${styles.deviceButton} ${device === "mobile" ? styles.deviceActive : ""}`} onClick={() => setDevice("mobile")}>Κινητό</button>
