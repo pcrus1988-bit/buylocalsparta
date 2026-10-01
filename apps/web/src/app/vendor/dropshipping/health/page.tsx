@@ -50,8 +50,8 @@ export default async function DropshippingFeedHealthPage() {
       <div>
         <div className="eyebrow">Κέντρο dropshipping</div>
         <h1>Κατάσταση ροής</h1>
-        <p className="lead">Πραγματική φρεσκάδα ελέγχων προμηθευτή και συγχρονισμών καταλόγου, μαζί με συγκεκριμένα προβλήματα που χρειάζονται ενέργεια.</p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+        <p className="lead">Δες αν οι συνδέσεις των προμηθευτών ενημερώνονται σωστά και ποιο πρόβλημα χρειάζεται πράγματι δική σου προσοχή.</p>
+        <div className="vendor-page-action-row">
           <Link className="button button-secondary" href="/vendor/dropshipping">← Επιστροφή στο Dropshipping</Link>
         </div>
       </div>
@@ -65,7 +65,7 @@ export default async function DropshippingFeedHealthPage() {
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Έλεγχος καταλόγου" title="Τι χρειάζεται ενέργεια" note="Οι μετρήσεις προέρχονται από τις υπάρχουσες προσφορές προμηθευτή και δεν δημιουργούν δεύτερο σύστημα συγχρονισμού ή καταλόγου." />
+      <WorkspaceSectionHeading eyebrow="Έλεγχος προϊόντων" title="Τι χρειάζεται ενέργεια" note="Οι αριθμοί αφορούν τα προϊόντα που ήδη είναι συνδεδεμένα με το κατάστημά σου. Άνοιξε μόνο τις κατηγορίες που έχουν πραγματική εκκρεμότητα." />
       <WorkspaceMetricStrip items={[
         { label: "Χωρίς στοιχεία διαθεσιμότητας", value: missingAvailabilityTelemetryProducts, tone: missingAvailabilityTelemetryProducts ? "attention" : "positive" },
         { label: "Δημοσιευμένα χωρίς διαθεσιμότητα", value: publishedUnavailableProducts, tone: publishedUnavailableProducts ? "attention" : "positive" },
@@ -75,8 +75,8 @@ export default async function DropshippingFeedHealthPage() {
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Συγχρονισμός" title="Φρεσκάδα δεδομένων προμηθευτή" note="Η πραγματική υγεία του feed βασίζεται στο supplier healthcheck και στη νεότερη catalogue δραστηριότητα. Σε delta feeds, ένα αμετάβλητο product row μπορεί νόμιμα να μη γίνει re-materialize για πολλές ώρες και αυτό από μόνο του δεν αποτελεί sync failure." />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 14 }}>
+      <WorkspaceSectionHeading eyebrow="Συνδέσεις προμηθευτών" title="Πότε ενημερώθηκαν τελευταία" note="Ένα προϊόν που δεν άλλαξε μπορεί να μην ξαναγραφτεί για αρκετές ώρες χωρίς αυτό να σημαίνει πρόβλημα. Εδώ ξεχωρίζουμε την πραγματική αστοχία σύνδεσης από την απλή απουσία αλλαγών." />
+      <div className="vendor-card-grid">
         {suppliers.map(({ supplier, health }) => {
           const unchangedMaterializationRows = supplier.staleCatalogueProducts ?? 0;
           const missingAvailability = supplier.missingAvailabilityTelemetryProducts ?? 0;
@@ -98,21 +98,21 @@ export default async function DropshippingFeedHealthPage() {
             </div> : null}
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
               <div className="workspace-compact-row"><strong>Προμηθευτής</strong><span>{supplier.active ? "Ενεργός" : "Ανενεργός"}</span></div>
-              <div className="workspace-compact-row"><strong>Συγχρονισμός καταλόγου</strong><span>{supplier.catalogueSyncEnabled ? "Enabled" : "Disabled"}</span></div>
-              <div className="workspace-compact-row"><strong>Προώθηση παραγγελιών</strong><span>{supplier.orderForwardingEnabled ? "Enabled" : "Disabled"}</span></div>
-              <div className="workspace-compact-row"><strong>Συγχρονισμός παρακολούθησης</strong><span>{supplier.trackingSyncEnabled ? "Enabled" : "Disabled"}</span></div>
+              <div className="workspace-compact-row"><strong>Συγχρονισμός καταλόγου</strong><span>{supplier.catalogueSyncEnabled ? "Ενεργός" : "Ανενεργός"}</span></div>
+              <div className="workspace-compact-row"><strong>Αποστολή παραγγελιών στον προμηθευτή</strong><span>{supplier.orderForwardingEnabled ? "Ενεργή" : "Ανενεργή"}</span></div>
+              <div className="workspace-compact-row"><strong>Ενημέρωση παρακολούθησης αποστολής</strong><span>{supplier.trackingSyncEnabled ? "Ενεργή" : "Ανενεργή"}</span></div>
               <div className="workspace-compact-row"><strong>Τελευταίος έλεγχος</strong><span>{date(supplier.lastHealthcheckAt)}</span><small>{age(health.healthcheckAgeMinutes)}</small></div>
-              <div className="workspace-compact-row"><strong>Αποτέλεσμα ελέγχου</strong><span>{supplier.lastHealthcheckOk === true ? "OK" : supplier.lastHealthcheckOk === false ? "FAILED" : "Άγνωστο"}</span></div>
+              <div className="workspace-compact-row"><strong>Αποτέλεσμα τελευταίου ελέγχου</strong><span>{supplier.lastHealthcheckOk === true ? "Επιτυχής" : supplier.lastHealthcheckOk === false ? "Αποτυχία" : "Άγνωστο"}</span></div>
               <div className="workspace-compact-row"><strong>Τελευταία ενημέρωση καταλόγου</strong><span>{date(supplier.lastCatalogueSyncAt)}</span><small>{age(health.catalogueSyncAgeMinutes)}</small></div>
-              <div className="workspace-compact-row"><strong>Προϊόντα</strong><span>{supplier.totalProducts}</span><small>{supplier.availableProducts} supplier-available · {supplier.publishedProducts} published</small></div>
+              <div className="workspace-compact-row"><strong>Προϊόντα</strong><span>{supplier.totalProducts}</span><small>{supplier.availableProducts} διαθέσιμα από προμηθευτή · {supplier.publishedProducts} δημοσιευμένα</small></div>
             </div>
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
-              <div className="workspace-compact-row"><strong>Αμετάβλητα χωρίς επανεπεξεργασία &gt;12ωρ.</strong><span>{unchangedMaterializationRows}</span><small>Πληροφοριακό για ροές μεταβολών — δεν θεωρείται από μόνο του πρόβλημα.</small></div>
+              <div className="workspace-compact-row"><strong>Χωρίς νέα αλλαγή για πάνω από 12 ώρες</strong><span>{unchangedMaterializationRows}</span><small>Ενημερωτικό μόνο. Δεν θεωρείται πρόβλημα όταν ο προμηθευτής δεν έχει στείλει αλλαγή.</small></div>
               <div className="workspace-compact-row"><strong>Χωρίς στοιχεία διαθεσιμότητας</strong><span>{missingAvailability}</span>{missingAvailability > 0 ? <Link href={missingAvailabilityHref}>Προβολή προϊόντων</Link> : null}</div>
               <div className="workspace-compact-row"><strong>Δημοσιευμένα χωρίς διαθεσιμότητα</strong><span>{publishedUnavailable}</span>{publishedUnavailable > 0 ? <Link href={publishedUnavailableHref}>Προβολή προϊόντων</Link> : null}</div>
               <div className="workspace-compact-row"><strong>Χωρίς τιμή αγοράς</strong><span>{missingCost}</span>{missingCost > 0 ? <Link href={missingCostHref}>Προβολή προϊόντων</Link> : null}</div>
             </div>
-            <p style={{ marginTop: 10 }}><small>{hasCatalogueIssues ? "Υπάρχουν catalogue εγγραφές που χρειάζονται έλεγχο ή επόμενο supplier sync." : "Δεν εντοπίστηκαν actionable catalogue-level προβλήματα σε αυτόν τον supplier."}</small></p>
+            <p className="vendor-muted-explainer">{hasCatalogueIssues ? "Υπάρχουν προϊόντα που χρειάζονται έλεγχο ή την επόμενη ενημέρωση από τον προμηθευτή." : "Δεν εντοπίστηκε πρόβλημα προϊόντων που χρειάζεται ενέργεια για αυτόν τον προμηθευτή."}</p>
             <Link className="button button-secondary" style={{ marginTop: 12 }} href={supplierHref}>Άνοιγμα προμηθευτή</Link>
           </article>;
         })}
