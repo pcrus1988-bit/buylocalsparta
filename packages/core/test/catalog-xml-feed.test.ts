@@ -72,3 +72,23 @@ test("rejects malformed mismatched XML", () => {
     /Mismatched XML closing tag/
   );
 });
+
+
+test("recognizes common variant and additional-image fields", () => {
+  const xml = `<products><product>
+    <id>shoe-42-blue-41</id>
+    <title>Runner</title>
+    <price>89.90 EUR</price>
+    <stock>3</stock>
+    <g:item_group_id xmlns:g="http://base.google.com/ns/1.0">shoe-42</g:item_group_id>
+    <g:size xmlns:g="http://base.google.com/ns/1.0">41</g:size>
+    <g:color xmlns:g="http://base.google.com/ns/1.0">Blue</g:color>
+    <g:additional_image_link xmlns:g="http://base.google.com/ns/1.0">https://merchant.example/2.jpg</g:additional_image_link>
+  </product></products>`;
+
+  const parsed = parseVendorProductXml(xml);
+  assert.equal(parsed.suggestedMapping.itemGroupId, "g:item_group_id");
+  assert.equal(parsed.suggestedMapping.size, "g:size");
+  assert.equal(parsed.suggestedMapping.color, "g:color");
+  assert.equal(parsed.suggestedMapping.additionalImageUrl, "g:additional_image_link");
+});
