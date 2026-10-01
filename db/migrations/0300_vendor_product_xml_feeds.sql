@@ -57,6 +57,7 @@ CREATE TABLE public.vendor_product_feed_runs (
   total_rows integer NOT NULL DEFAULT 0 CHECK (total_rows >= 0),
   valid_rows integer NOT NULL DEFAULT 0 CHECK (valid_rows >= 0),
   error_rows integer NOT NULL DEFAULT 0 CHECK (error_rows >= 0),
+  validation_errors jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(validation_errors)='array'),
   created_submissions integer NOT NULL DEFAULT 0 CHECK (created_submissions >= 0),
   updated_submissions integer NOT NULL DEFAULT 0 CHECK (updated_submissions >= 0),
   updated_offers integer NOT NULL DEFAULT 0 CHECK (updated_offers >= 0),
