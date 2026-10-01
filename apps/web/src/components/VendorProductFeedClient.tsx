@@ -44,6 +44,7 @@ type Feed = {
   readyCount: number;
   errorCount: number;
   lastSyncAt?: number;
+  lastSuccessAt?: number;
   nextSyncAt?: number;
   lastError?: string;
 };
@@ -444,10 +445,12 @@ export function VendorProductFeedClient({
         {initial.feeds.map((feed) => <article className="workspace-queue-card" key={feed.id}>
           <div className="workspace-queue-head">
             <div><strong>{feed.name}</strong><small>{feed.sourceType === "url" ? feed.sourceUrl : feed.sourceFilename}</small></div>
-            <span className="status-pill">{feed.status}</span>
+            <span className="status-pill">{feed.sourceType === "url" && !feed.lastSuccessAt ? "Σε ουρά" : feed.status}</span>
           </div>
           <div className="workspace-queue-primary">
-            <span>{feed.readyCount.toLocaleString("el-GR")} έτοιμα</span>
+            {feed.sourceType === "url" && !feed.lastSuccessAt
+              ? <span>Αναμονή πρώτου συγχρονισμού</span>
+              : <span>{feed.readyCount.toLocaleString("el-GR")} έτοιμα</span>}
             <span>{feed.errorCount.toLocaleString("el-GR")} errors</span>
             <span>Τελευταίο sync: {when(feed.lastSyncAt)}</span>
             {feed.sourceType === "url" && <span>Επόμενο: {feed.status === "paused" ? "σε παύση" : when(feed.nextSyncAt)}</span>}
