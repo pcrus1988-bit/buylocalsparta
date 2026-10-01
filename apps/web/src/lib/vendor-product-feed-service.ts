@@ -468,11 +468,11 @@ export async function connectVendorProductFeed(
       const feed = await tx.query<SqlRow>(sql(
         "INSERT INTO vendor_product_feeds(market_id,vendor_id,location_id,name,source_type,source_url,status,sync_interval_minutes,",
         "field_mapping,category_mapping,default_category_id,created_by,next_sync_at,last_error,updated_at)",
-        "VALUES($1::uuid,$2::uuid,$3::uuid,$4,'url',$5,'active',$6,$7::jsonb,$8::jsonb,$9::uuid,$10::uuid,now(),NULL,now())",
+        "VALUES($1::uuid,$2::uuid,$3::uuid,$4,'url',$5,'active',$6,$7::jsonb,$8::jsonb,$9::uuid,$10::uuid,now()+interval '15 minutes',NULL,now())",
         "ON CONFLICT(vendor_id,lower(source_url)) WHERE source_type='url' AND source_url IS NOT NULL DO UPDATE SET",
         "name=EXCLUDED.name,location_id=EXCLUDED.location_id,status='active',sync_interval_minutes=EXCLUDED.sync_interval_minutes,",
         "field_mapping=EXCLUDED.field_mapping,category_mapping=EXCLUDED.category_mapping,default_category_id=EXCLUDED.default_category_id,",
-        "next_sync_at=now(),last_error=NULL,updated_at=now()",
+        "next_sync_at=now()+interval '15 minutes',last_error=NULL,updated_at=now()",
         "RETURNING public_id"
       ), [
         String(ref.market_uuid), String(ref.vendor_uuid), String(ref.location_uuid), name, sourceUrl, interval,
@@ -497,7 +497,7 @@ export async function queueVendorProductFeedSync(
 
   return uow().withTransaction({ actorUserId: principal.userId, vendorId }, async (tx) => {
     const changed = await tx.query<SqlRow>(sql(
-      "UPDATE vendor_product_feeds SET status='active',next_sync_at=now(),last_error=NULL,updated_at=now()",
+      "UPDATE vendor_product_feeds SET status='active',next_sync_at=now()+interval '15 minutes',last_error=NULL,updated_at=now()",
       "WHERE public_id=$1 AND vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$2 OR id::text=$2 LIMIT 1)",
       "AND source_type='url' RETURNING public_id"
     ), [normalizedFeedId, vendorId]);
