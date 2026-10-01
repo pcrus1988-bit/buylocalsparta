@@ -92,10 +92,10 @@ export function VendorStorefrontBuilder(props: {
     }
   }
 
-  return <section className={styles.builder} aria-label="Storefront Builder">
+  return <section className={styles.builder} aria-label="Επεξεργασία δημόσιου προφίλ">
     <div className={styles.editor}>
       <div className={styles.editorHead}>
-        <div><div className="eyebrow">Storefront Builder</div><h2>Κάν’ το δικό σου</h2></div>
+        <div><div className="eyebrow">Επεξεργασία δημόσιου προφίλ</div><h2>Κάν’ το δικό σου</h2></div>
         <button className={styles.saveButton} type="button" onClick={save} disabled={busy}>{busy ? "Αποθήκευση…" : "Αποθήκευση"}</button>
       </div>
 
@@ -168,7 +168,7 @@ export function VendorStorefrontBuilder(props: {
         <div className={styles.field}>
           <span className={styles.fieldLegend}>Περιεχόμενο</span>
           <div className={styles.segmented}>
-            {([["reels","Reels"],["all","Posts + Reels"],["posts","Posts"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.contentMode === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ contentMode: value })}>{label}</button>)}
+            {([["reels","Reels"],["all","Αναρτήσεις + Reels"],["posts","Posts"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.contentMode === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ contentMode: value })}>{label}</button>)}
           </div>
         </div>
 
@@ -194,7 +194,7 @@ export function VendorStorefrontBuilder(props: {
         <div className={styles.field}>
           <span className={styles.fieldLegend}>Desktop</span>
           <div className={styles.segmented}>
-            {([["spotlight","Μεγάλο Reel + βέλη"],["carousel","Carousel + βέλη"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.desktopLayout === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ desktopLayout: value })}>{label}</button>)}
+            {([["spotlight","Μεγάλο Reel + βέλη"],["carousel","Κυλιόμενη προβολή + βέλη"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.desktopLayout === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ desktopLayout: value })}>{label}</button>)}
           </div>
         </div>
 
@@ -226,10 +226,10 @@ export function VendorStorefrontBuilder(props: {
           <p>{shortDescription || "Πρόσθεσε μία σύντομη περιγραφή για να καταλάβει αμέσως ο πελάτης τι προσφέρει το κατάστημά σου."}</p>
         </div>
         <div className={styles.storeBody}>
-          <div className={styles.chips}><span className={styles.chip}>Παραλαβή από κατάστημα</span><span className={styles.chip}>Τοπική υποστήριξη</span><span className={styles.demoPill}>{props.initial.demoMode ? "TRIAL PREVIEW" : "STOREFRONT PREVIEW"}</span></div>
+          <div className={styles.chips}><span className={styles.chip}>Παραλαβή από κατάστημα</span><span className={styles.chip}>Τοπική υποστήριξη</span><span className={styles.demoPill}>{props.initial.demoMode ? "ΠΡΟΕΠΙΣΚΟΠΗΣΗ ΔΟΚΙΜΗΣ" : "ΠΡΟΕΠΙΣΚΟΠΗΣΗ ΠΡΟΦΙΛ"}</span></div>
           {settings.showFeatured && <>
             <h4>Προτεινόμενα προϊόντα</h4>
-            <div className={styles.productGrid}>{[1,2,3].map((item) => <div className={styles.productCard} key={item}><div className={styles.productImage}>◇</div><div className={styles.productMeta}><strong>{props.productCount ? `Προϊόν ${item}` : "Demo προϊόν"}</strong><small>{props.productCount ? "Από τον κατάλογό σου" : "Δείγμα έως ότου προσθέσεις προϊόντα"}</small></div></div>)}</div>
+            <div className={styles.productGrid}>{[1,2,3].map((item) => <div className={styles.productCard} key={item}><div className={styles.productImage}>◇</div><div className={styles.productMeta}><strong>{props.productCount ? `Προϊόν ${item}` : "Δοκιμαστικό προϊόν"}</strong><small>{props.productCount ? "Από τον κατάλογό σου" : "Δείγμα έως ότου προσθέσεις προϊόντα"}</small></div></div>)}</div>
           </>}
           {settings.showFlashSale && <div className={styles.sectionBlock}><h4>⚡ Flash Sale</h4><p>Μία γρήγορη, παιχνιδοποιημένη προσφορά μπορεί να εμφανίζεται εδώ όταν την ενεργοποιήσεις.</p></div>}
           {settings.showBazaar && <div className={styles.sectionBlock}><h4>♻ BAZAAR</h4><p>Επιστροφές και επιλεγμένα είδη μπορούν να αποκτούν δεύτερη ζωή αντί να γίνονται απόβλητα.</p></div>}
