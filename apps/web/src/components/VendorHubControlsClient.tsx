@@ -120,7 +120,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
 
   async function saveSeo(locale: "el" | "en") {
     const value = seo[locale];
-    const payload = await call(`seo:${locale}`, "/api/vendor/hub/seo", "PUT", value, locale === "el" ? "Τα ελληνικά στοιχεία SEO αποθηκεύτηκαν." : "Τα αγγλικά στοιχεία SEO αποθηκεύτηκαν.");
+    const payload = await call(`seo:${locale}`, "/api/vendor/hub/seo", "PUT", value, locale === "el" ? "Τα ελληνικά στοιχεία εμφάνισης στη Google αποθηκεύτηκαν." : "Τα αγγλικά στοιχεία εμφάνισης στη Google αποθηκεύτηκαν.");
     if (payload) setSeo((current) => ({ ...current, [locale]: { ...payload.seo[locale] } }));
   }
 
@@ -157,7 +157,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
 
     {!sections && <section className="shell vendor-section">
       <WorkspaceMetricStrip items={[
-        { label: "HUB", value: workspace.hubId ?? workspace.marketId },
+        { label: "Κόμβος", value: workspace.hubId ?? workspace.marketId },
         { label: "Τοπική παράδοση", value: workspace.localDelivery.active ? "Ενεργή" : "Ανενεργή", tone: workspace.localDelivery.active ? "positive" : "default" },
         { label: "Αιτήματα προσφορών", value: pendingPromotion, tone: pendingPromotion ? "attention" : "default" },
         { label: "AADE σε αναμονή", value: pendingAade, tone: pendingAade ? "attention" : "default" },
@@ -235,7 +235,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
       <WorkspaceSectionHeading eyebrow="AADE" title="myDATA & φορολογικά αιτήματα" note="Βλέπεις μόνο τα φορολογικά έγγραφα της επιχείρησής σου. Επανάληψη ή συμφωνία δεν εκτελείται αυτόματα: το αίτημα μπαίνει στην ασφαλή φορολογική ροή." />
       {workspace.aade.documents.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν φορολογικά έγγραφα του καταστήματος." body="Όταν δημιουργηθούν σχετικά παραστατικά, η κατάσταση AADE θα εμφανίζεται εδώ." /> : <>
         <div className="workspace-tool-panel" style={{ padding: "1rem" }}>
-          <label className="workspace-form-field"><span>Παραστατικό</span><select value={aade.documentId} onChange={(event) => setAade((current) => ({ ...current, documentId: event.target.value }))}>{workspace.aade.documents.map((document) => <option value={document.id} key={document.id}>{document.documentNumber ?? document.id} · {document.transmissionStatus} · {euro(document.grossMinor)}</option>)}</select></label>
+          <label className="workspace-form-field"><span>Παραστατικό</span><select value={aade.documentId} onChange={(event) => setAade((current) => ({ ...current, documentId: event.target.value }))}>{workspace.aade.documents.map((document) => <option value={document.id} key={document.id}>{document.documentNumber ?? document.id} · {vendorSettingStatus(document.transmissionStatus)} · {euro(document.grossMinor)}</option>)}</select></label>
           <label className="workspace-form-field"><span>Ενέργεια</span><select value={aade.action} onChange={(event) => setAade((current) => ({ ...current, action: event.target.value }))}><option value="review">Έλεγχος</option><option value="reconcile">Συμφωνία με AADE</option><option value="retry">Ασφαλής επανάληψη μετά από έλεγχο</option></select></label>
           <label className="workspace-form-field"><span>Σημείωση</span><textarea value={aade.note} onChange={(event) => setAade((current) => ({ ...current, note: event.target.value }))} /></label>
           <div className="workspace-form-actions"><button className="button" type="button" disabled={Boolean(busy)} onClick={() => void submitAade()}>{busy === "aade" ? "Υποβολή…" : "Υποβολή αιτήματος"}</button></div>
