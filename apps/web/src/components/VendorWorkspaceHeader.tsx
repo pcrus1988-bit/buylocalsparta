@@ -250,9 +250,9 @@ export function VendorWorkspaceHeader() {
               <h2>Οδηγός</h2>
               <p>Ρύθμισε μόνο τα βασικά πρώτα. Τα υπόλοιπα εργαλεία μπορείς να τα εξερευνήσεις όταν τα χρειαστείς.</p>
             </div>
-            <button type="button" className={trialStyles.guideClose} onClick={() => setTrialGuideOpen(false)} aria-label="Κλείσιμο Trial Guide">×</button>
+            <button type="button" className={trialStyles.guideClose} onClick={() => setTrialGuideOpen(false)} aria-label="Κλείσιμο οδηγού">×</button>
           </div>
-          <div className={trialStyles.guideProgress} aria-label={`Πρόοδος setup ${trialProgress}%`}>
+          <div className={trialStyles.guideProgress} aria-label={`Πρόοδος προετοιμασίας ${trialProgress}%`}>
             <span style={{ width: `${trialProgress}%` }} />
           </div>
           <div className={trialStyles.guideSummary}>
