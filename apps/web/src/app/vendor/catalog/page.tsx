@@ -80,7 +80,7 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
-      <div><div className="eyebrow">Προϊόντα</div><h1>Κατάλογος, τιμές & απόθεμα</h1><p className="lead">Δες τι βλέπει ο πελάτης, ενημέρωσε την τελική τιμή πώλησης, κράτησε σωστό το πραγματικό απόθεμα και πρόσθεσε νέα προϊόντα με μία ξεκάθαρη πορεία μέχρι τη δημοσίευση.</p></div>
+      <div><div className="eyebrow">Προϊόντα</div><h1>Κατάλογος, τιμές & απόθεμα</h1><p className="lead">Δες τι βλέπει ο πελάτης, ενημέρωσε την τελική τιμή πώλησης, κράτησε σωστό το πραγματικό απόθεμα και πρόσθεσε νέα προϊόντα με μία ξεκάθαρη πορεία μέχρι τη δημοσίευση.</p>{operatingContext.capabilities.includes("catalogue.import") && <div className="workspace-action-buttons"><Link className="button" href="/vendor/catalog/feed">Σύνδεση XML Product Feed</Link></div>}</div>
     </section>
 
     {assignedCatalogue.totalAssigned > 0 && <section className="shell vendor-section" id="assigned-catalogue">
