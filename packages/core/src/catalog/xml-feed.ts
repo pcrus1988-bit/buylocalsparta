@@ -14,7 +14,11 @@ export type VendorXmlFieldMapping = Readonly<{
   categoryCode?: string;
   sourceCategory?: string;
   imageUrl?: string;
+  additionalImageUrl?: string;
   productUrl?: string;
+  itemGroupId?: string;
+  size?: string;
+  color?: string;
   condition?: string;
 }>;
 
@@ -43,7 +47,11 @@ const FIELD_ALIASES: Readonly<Record<keyof VendorXmlFieldMapping, readonly strin
   categoryCode: ["category_code", "kontamou_category_code"],
   sourceCategory: ["g:product_type", "product_type", "category", "category_name", "google_product_category", "g:google_product_category"],
   imageUrl: ["g:image_link", "image_link", "image_url", "image", "main_image"],
+  additionalImageUrl: ["g:additional_image_link", "additional_image_link", "additional_images", "gallery_image", "gallery_images"],
   productUrl: ["g:link", "link", "product_url", "url"],
+  itemGroupId: ["g:item_group_id", "item_group_id", "group_id", "parent_sku", "parent_id"],
+  size: ["g:size", "size", "product_size", "variant_size"],
+  color: ["g:color", "color", "colour", "product_color", "variant_color"],
   condition: ["g:condition", "condition"]
 };
 
