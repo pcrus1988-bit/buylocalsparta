@@ -159,18 +159,22 @@ export async function toggleDeleteMailAction(formData: FormData) {
 
 export async function bulkMailAction(formData: FormData) {
   const principal = await requireMailAdmin(text(formData.get("csrfToken")));
-  const action = safeBulkAction(text(formData.get("bulkAction")));
-  const ids = formData.getAll("messageIds")
-    .filter((value): value is string => typeof value === "string")
-    .map(safeMessageId);
-  const count = await bulkAdminMail(principal, ids, action);
-  await recordAdminAudit(
-    principal,
-    `admin_mail.bulk.${action}`,
-    "admin_mailbox",
-    "selection",
-    "Admin mailbox bulk action",
-    { action, count, messageIds: ids.slice(0, 120) }
-  );
-  revalidatePath("/admin/mail");
+  try {
+    const action = safeBulkAction(text(formData.get("bulkAction")));
+    const ids = formData.getAll("messageIds")
+      .filter((value): value is string => typeof value === "string")
+      .map(safeMessageId);
+    const count = await bulkAdminMail(principal, ids, action);
+    await recordAdminAudit(
+      principal,
+      `admin_mail.bulk.${action}`,
+      "admin_mailbox",
+      "selection",
+      "Admin mailbox bulk action",
+      { action, count, messageIds: ids.slice(0, 120) }
+    );
+    revalidatePath("/admin/mail");
+  } catch (error) {
+    redirectWithError(error);
+  }
 }
