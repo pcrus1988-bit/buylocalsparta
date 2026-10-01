@@ -15,7 +15,13 @@ export function sesMailConfigFromEnv(env: NodeJS.ProcessEnv = process.env): SesM
   const secretAccessKey = env.BLS_MAIL_AWS_SECRET_ACCESS_KEY?.trim() || env.AWS_SECRET_ACCESS_KEY?.trim();
   const sessionToken = env.BLS_MAIL_AWS_SESSION_TOKEN?.trim() || env.AWS_SESSION_TOKEN?.trim() || undefined;
   if (!region) throw new Error("BLS_MAIL_AWS_REGION or AWS_REGION is required for SES mail");
-  if (!accessKeyId || !secretAccessKey) throw new Error("AWS credentials are required for SES mail");
+  if (!accessKeyId || !secretAccessKey) {
+    const missing = [
+      !accessKeyId ? "BLS_MAIL_AWS_ACCESS_KEY_ID" : undefined,
+      !secretAccessKey ? "BLS_MAIL_AWS_SECRET_ACCESS_KEY" : undefined
+    ].filter((value): value is string => Boolean(value));
+    throw new Error(`AWS credentials are required for SES mail. Missing production variable${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}.`);
+  }
   const timeoutMs = positiveInteger(env.BLS_MAIL_SES_TIMEOUT_MS, 12_000, "BLS_MAIL_SES_TIMEOUT_MS");
   return {
     region,
