@@ -92,7 +92,102 @@ function trimOptional(value: string | undefined, max: number): string | undefine
 }
 
 function normalizeCategoryKey(value: string): string {
-  return value.trim().toLocaleLowerCase("el").replace(/\s+/g, " ");
+  return value
+    .replace(/&amp;/gi, "&")
+    .replace(/&gt;/gi, ">")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLocaleLowerCase("el")
+    .replace(/[^a-z0-9\p{L}]+/gu, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function effectivePriceRaw(record: Parameters<typeof xmlFieldValue>[0], mappedField: string | undefined): string | undefined {
+  const mapped = xmlFieldValue(record, mappedField);
+  const normalizedField = mappedField?.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  const regularFields = new Set(["g:price", "price", "retail_price", "selling_price"]);
+  const saleFields = new Set(["g:sale_price", "sale_price"]);
+
+  if (!mappedField || regularFields.has(normalizedField ?? "")) {
+    return xmlFieldValue(record, "g:sale_price")
+      ?? xmlFieldValue(record, "sale_price")
+      ?? mapped
+      ?? xmlFieldValue(record, "g:price")
+      ?? xmlFieldValue(record, "price");
+  }
+  if (saleFields.has(normalizedField ?? "")) {
+    return mapped
+      ?? xmlFieldValue(record, "g:price")
+      ?? xmlFieldValue(record, "price");
+  }
+  return mapped;
+}
+
+function inferCategoryCode(
+  sourceCategory: string | undefined,
+  title: string | undefined,
+  availableCodes: ReadonlySet<string>
+): string | undefined {
+  if (!sourceCategory) return undefined;
+  const segments = sourceCategory.split(">").map((part) => normalizeCategoryKey(part)).filter(Boolean);
+  const leaf = segments.at(-1) ?? "";
+  const path = segments.join(" ");
+  const titleKey = normalizeCategoryKey(title ?? "");
+  const signal = [leaf, titleKey, path].filter(Boolean).join(" ");
+  const has = (...needles: string[]) => needles.some((needle) => signal.includes(needle));
+  const hasIn = (value: string, ...needles: string[]) => needles.some((needle) => value.includes(needle));
+  const available = (code: string | undefined) => code && availableCodes.has(code) ? code : undefined;
+
+  const genderFrom = (value: string) => ({
+    male: hasIn(value, "ανδρ", "mens ", " men "),
+    female: hasIn(value, "γυναικ", "womens ", " women "),
+    kid: hasIn(value, "παιδ", "αγορ", "κοριτσ", "kids ", "child")
+  });
+  let gender = genderFrom(leaf);
+  if (!gender.male && !gender.female && !gender.kid) gender = genderFrom(titleKey);
+  if (!gender.male && !gender.female && !gender.kid) {
+    const pathGender = genderFrom(path);
+    if (!(pathGender.male && pathGender.female)) gender = pathGender;
+  }
+  const { male, female, kid } = gender;
+
+  if (has("καλτσ", "καλσον", "hosiery", "socks")) return available("socks-hosiery");
+  if (has("σακιδ", "backpack")) return available("backpacks");
+  if (has("ζων", "belt")) return available("belts");
+  if (has("πορτοφολ", "wallet")) return available("wallets-cardholders");
+  if (has("γυαλια ηλιου", "sunglass")) return available("sunglasses");
+  if (has("καπελ", "σκουφ", "γαντ", "κασκολ", "hat", "glove", "scarf")) return available("scarves-hats-gloves");
+  if (has("τσαντ", "handbag", " bag ")) return available(female ? "handbags" : male ? "mens-bags" : "unisex-bags");
+  if (has("εσωρουχ", "underwear")) return available(male ? "mens-underwear" : female ? "womens-underwear" : undefined);
+
+  if (has("μποτακ", "μποτες", " boots", " boot ")) return available(male ? "mens-boots" : female ? "womens-boots" : kid ? "kids-boots" : undefined);
+  if (has("επισημ", "formal") && has("παπου", "shoe")) return available(male ? "mens-formal-shoes" : female ? "womens-formal-shoes" : kid ? "kids-formal-shoes" : undefined);
+  if (has("σανδαλ", "σαγιον", "havaianas", "crocs", "sandal")) return available(male ? "mens-sandals" : female ? "womens-sandals" : kid ? "kids-sandals" : undefined);
+  if ((has("αθλητικ") && has("παπου")) || has("sneaker", "trainer")) {
+    if (has("τρεξ", "running")) return available(male ? "mens-running-shoes" : female ? "womens-running-shoes" : kid ? "kids-running-shoes" : undefined);
+    return available(male ? "mens-sneakers" : female ? "womens-sneakers" : kid ? "kids-sneakers" : undefined);
+  }
+
+  if (has("t shirt", "tshirt", "μπλουζ")) return available(male ? "fashion-mens-tshirts-tops" : female ? "fashion-womens-tops" : undefined);
+  if (has("πουκαμισ", "shirt")) return available(male ? "fashion-mens-shirts" : female ? "fashion-womens-shirts" : undefined);
+  if (has("μπουφαν", "παλτο", "σακακ", "jacket", "coat", "blazer")) return available(male ? "fashion-mens-jackets-coats" : female ? "fashion-womens-jackets-coats" : undefined);
+  if (has("τζιν", "παντελον", "παντελονα", "cargo", "τσινο", "chino", "trouser", "jeans")) return available(male ? "fashion-mens-trousers-jeans" : female ? "fashion-womens-trousers-jeans" : undefined);
+  if (has("σορτ", "βερμουδ", "shorts")) return available(male ? "fashion-mens-shorts" : female ? "fashion-womens-shorts" : undefined);
+  if (has("μαγιο", "swimwear")) return available(male ? "fashion-mens-swimwear" : female ? "fashion-womens-swimwear" : undefined);
+  if (has("πλεκτ", "πλεχτ", "knit")) return available(male ? "fashion-mens-knitwear" : female ? "fashion-womens-knitwear" : undefined);
+  if (has("φορεμα", "dress")) return available(female ? "fashion-womens-dresses" : male ? "fashion-mens-dresses" : undefined);
+  if (has("φουστ", "skirt")) return available(female ? "fashion-womens-skirts" : male ? "fashion-mens-skirts" : undefined);
+  if (has("ολοσωμ", "jumpsuit")) return available(female ? "fashion-womens-jumpsuits" : undefined);
+  if (has("σετ", "φορμ", "κολαν", "φουτερ", "ζακετ", "tracksuit", "legging", "hoodie", "sweatshirt")) {
+    return available(male ? "fashion-mens-activewear" : female ? "fashion-womens-activewear" : undefined);
+  }
+
+  if (kid && has("ρουχ", "clothing")) {
+    if (has("κοριτσ", "girls")) return available("girls-clothing");
+    if (has("αγορ", "boys")) return available("boys-clothing");
+  }
+  return undefined;
 }
 
 function normalizeCondition(value: string | undefined): string {
@@ -199,7 +294,7 @@ export async function prepareVendorProductFeed(
     const vendorSku = trimOptional(xmlFieldValue(record, mapping.vendorSku), 300);
     const gtin = trimOptional(xmlFieldValue(record, mapping.gtin), 64);
     const title = trimOptional(xmlFieldValue(record, mapping.title), 500);
-    const priceRaw = xmlFieldValue(record, mapping.price);
+    const priceRaw = effectivePriceRaw(record, mapping.price);
     const priceMinor = parseXmlMoneyMinor(priceRaw);
     const currency = parseXmlCurrency(xmlFieldValue(record, mapping.currency), priceRaw);
     const stockOnHand = parseXmlStock(xmlFieldValue(record, mapping.stock), xmlFieldValue(record, mapping.availability));
@@ -216,6 +311,10 @@ export async function prepareVendorProductFeed(
       if (!category && sourceCategory.includes(">")) {
         const leaf = sourceCategory.split(">").at(-1)?.trim();
         if (leaf) category = byName.get(normalizeCategoryKey(leaf));
+      }
+      if (!category) {
+        const inferredCode = inferCategoryCode(sourceCategory, title, new Set(byCode.keys()));
+        if (inferredCode) category = byCode.get(inferredCode);
       }
     }
     category ??= defaultCategory;
