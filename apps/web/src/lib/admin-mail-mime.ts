@@ -147,9 +147,12 @@ export function buildAdminMailRawMime(input: {
 }
 
 export function adminMailThreadKey(input: { subject: string; internetMessageId?: string; inReplyTo?: string; references?: readonly string[] }): string {
-  const parent = input.references?.at(-1) || input.inReplyTo;
-  const basis = parent
-    ? `message:${normalizeMessageId(parent).toLowerCase()}`
+  // The first References entry is the root RFC 5322 message in normal reply chains.
+  // For one-hop replies without References, In-Reply-To points at the root message.
+  // For a root message itself, use its own Message-ID so its future replies hash identically.
+  const lineageId = input.references?.[0] || input.inReplyTo || input.internetMessageId;
+  const basis = lineageId
+    ? `message:${normalizeMessageId(lineageId).toLowerCase()}`
     : `subject:${normalizeThreadSubject(input.subject).toLowerCase()}`;
   return createHash("sha256").update(basis).digest("hex");
 }
