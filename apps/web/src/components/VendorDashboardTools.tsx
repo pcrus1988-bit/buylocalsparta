@@ -180,7 +180,7 @@ export function VendorDashboardTools({ metrics }: { metrics: Metrics }) {
         <div>
           <div className="eyebrow">Command centre</div>
           <h2>Βρες την εργασία σου σε δευτερόλεπτα</h2>
-          <p>Αναζήτησε λειτουργία ή φιλτράρισε ανά σκοπό. Οι κάρτες δεν φορτώνουν νέο operational dataset — χρησιμοποιούν την ήδη διαθέσιμη εικόνα της αρχικής.</p>
+          <p>Αναζήτησε αυτό που θέλεις να κάνεις ή διάλεξε κατηγορία. Οι πιο σημαντικές εργασίες εμφανίζονται πρώτες.</p>
         </div>
         <label className="vendor-attention-toggle">
           <input type="checkbox" checked={attentionOnly} onChange={(event) => setAttentionOnly(event.target.checked)} />
@@ -200,7 +200,7 @@ export function VendorDashboardTools({ metrics }: { metrics: Metrics }) {
         {query && <button type="button" onClick={() => setQuery("")}>Καθαρισμός</button>}
       </div>
 
-      <div className="vendor-command-filters" role="tablist" aria-label="Φίλτρα εργαλείων">
+      <div className="vendor-command-filters" role="group" aria-label="Κατηγορίες εργασιών">
         {GROUPS.map((item) => <button
           key={item.id}
           type="button"
