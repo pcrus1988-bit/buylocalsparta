@@ -306,8 +306,8 @@ export function VendorFinanceClient({ initial }: { initial: Workspace }) {
         </div>
         <div className="workspace-queue-primary">
           <span>Προμήθεια {bps(initial.commercialTerms.commissionRateBps)}</span>
-          <span>Listing fee {euroMinor(initial.commercialTerms.listingFeeMinor)}</span>
-          <span>Recurring {euroMinor(initial.commercialTerms.recurringFeeMinor)} / {recurringPeriod(initial.commercialTerms.recurringFeePeriod)}</span>
+          <span>Τέλος καταχώρισης {euroMinor(initial.commercialTerms.listingFeeMinor)}</span>
+          <span>Πάγια χρέωση {euroMinor(initial.commercialTerms.recurringFeeMinor)} / {recurringPeriod(initial.commercialTerms.recurringFeePeriod)}</span>
         </div>
         <WorkspaceRecordDetails label="Αναλυτικοί εμπορικοί όροι">
           <div className="workspace-compact-list">
