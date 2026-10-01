@@ -13,7 +13,8 @@ export type ObjectStorageConfig = Readonly<{
 }>;
 
 export type StoredObjectMetadata = Readonly<{ objectKey:string; contentType?:string; byteSize:number; etag?:string }>;
-export type StoredObjectRead = Readonly<{ objectKey:string; stream:AsyncIterable<Uint8Array>; etag?:string; byteSize?:number; contentType?:string }>;\nexport type StoredObjectListItem = Readonly<{ objectKey:string; etag?:string; byteSize:number; lastModified?:number }>;
+export type StoredObjectRead = Readonly<{ objectKey:string; stream:AsyncIterable<Uint8Array>; etag?:string; byteSize?:number; contentType?:string }>;
+export type StoredObjectListItem = Readonly<{ objectKey:string; etag?:string; byteSize:number; lastModified?:number }>;
 
 export class S3ObjectStorage {
   readonly #client: S3Client;
