@@ -46,7 +46,7 @@ export async function syncVendorProductFeedAsPlatform(feedId: string) {
         SELECT u.id,u.public_id,u.email
         FROM public.vendor_users vu
         JOIN public.users u ON u.id=vu.user_id
-        WHERE vu.vendor_id=f.vendor_id AND vu.active=true AND u.status='active'
+        WHERE vu.vendor_id=f.vendor_id AND vu.active=true AND u.status IN ('active','pending_verification')
         ORDER BY CASE WHEN EXISTS (
           SELECT 1 FROM public.vendor_user_roles vur
           WHERE vur.vendor_user_id=vu.id AND vur.role='vendor_owner'
@@ -115,7 +115,7 @@ export async function syncDueVendorProductFeeds(limit = DEFAULT_LIMIT) {
         SELECT u.id,u.public_id,u.email
         FROM public.vendor_users vu
         JOIN public.users u ON u.id=vu.user_id
-        WHERE vu.vendor_id=l.vendor_id AND vu.active=true AND u.status='active'
+        WHERE vu.vendor_id=l.vendor_id AND vu.active=true AND u.status IN ('active','pending_verification')
         ORDER BY CASE WHEN EXISTS (
           SELECT 1 FROM public.vendor_user_roles vur
           WHERE vur.vendor_user_id=vu.id AND vur.role='vendor_owner'
