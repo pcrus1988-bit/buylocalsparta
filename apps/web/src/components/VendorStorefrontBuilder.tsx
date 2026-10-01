@@ -165,44 +165,49 @@ export function VendorStorefrontBuilder(props: {
           <input id="instagram-section-title" type="text" maxLength={80} value={settings.instagram.sectionTitle} onChange={(event) => patchInstagram({ sectionTitle: event.target.value })} />
         </div>
 
-        <div className={styles.field}>
-          <span className={styles.fieldLegend}>Περιεχόμενο</span>
-          <div className={styles.segmented}>
-            {([["reels","Reels"],["all","Αναρτήσεις + Reels"],["posts","Αναρτήσεις"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.contentMode === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ contentMode: value })}>{label}</button>)}
+        <details className={styles.socialAdvanced}>
+          <summary>Προηγμένες ρυθμίσεις Instagram</summary>
+          <div className={styles.socialAdvancedBody}>
+          <div className={styles.field}>
+            <span className={styles.fieldLegend}>Περιεχόμενο</span>
+            <div className={styles.segmented}>
+              {([["reels","Reels"],["all","Αναρτήσεις + Reels"],["posts","Αναρτήσεις"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.contentMode === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ contentMode: value })}>{label}</button>)}
+            </div>
           </div>
-        </div>
-
-        <div className={styles.field}>
-          <label htmlFor="instagram-item-count">Πλήθος στοιχείων</label>
-          <select id="instagram-item-count" value={settings.instagram.itemCount} onChange={(event) => patchInstagram({ itemCount: Number(event.target.value) as 4 | 8 | 12 | 20 })}>
-            <option value={4}>4</option><option value={8}>8</option><option value={12}>12</option><option value={20}>20</option>
-          </select>
-        </div>
-
-        <div className={styles.toggles}>
-          <label className={styles.toggle}><span>Αυτόματη αναπαραγωγή ενεργού βίντεο</span><input type="checkbox" checked={settings.instagram.autoplay} onChange={(event) => patchInstagram({ autoplay: event.target.checked })} /></label>
-          <label className={styles.toggle}><span>Έναρξη χωρίς ήχο</span><input type="checkbox" checked={settings.instagram.muted} onChange={(event) => patchInstagram({ muted: event.target.checked })} /></label>
-        </div>
-
-        <div className={styles.field}>
-          <span className={styles.fieldLegend}>Κινητό</span>
-          <div className={styles.segmented}>
-            {([["reels","Reels 9:16"],["carousel","Κυλιόμενη προβολή"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.mobileLayout === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ mobileLayout: value })}>{label}</button>)}
+  
+          <div className={styles.field}>
+            <label htmlFor="instagram-item-count">Πλήθος στοιχείων</label>
+            <select id="instagram-item-count" value={settings.instagram.itemCount} onChange={(event) => patchInstagram({ itemCount: Number(event.target.value) as 4 | 8 | 12 | 20 })}>
+              <option value={4}>4</option><option value={8}>8</option><option value={12}>12</option><option value={20}>20</option>
+            </select>
           </div>
-        </div>
-
-        <div className={styles.field}>
-          <span className={styles.fieldLegend}>Υπολογιστής</span>
-          <div className={styles.segmented}>
-            {([["spotlight","Μεγάλο βίντεο + βέλη"],["carousel","Κυλιόμενη προβολή + βέλη"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.desktopLayout === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ desktopLayout: value })}>{label}</button>)}
+  
+          <div className={styles.toggles}>
+            <label className={styles.toggle}><span>Αυτόματη αναπαραγωγή ενεργού βίντεο</span><input type="checkbox" checked={settings.instagram.autoplay} onChange={(event) => patchInstagram({ autoplay: event.target.checked })} /></label>
+            <label className={styles.toggle}><span>Έναρξη χωρίς ήχο</span><input type="checkbox" checked={settings.instagram.muted} onChange={(event) => patchInstagram({ muted: event.target.checked })} /></label>
           </div>
-        </div>
-
-        <div className={styles.field}>
-          <label htmlFor="instagram-curated-urls">Επιλεγμένα βίντεο / αναρτήσεις (προαιρετικό)</label>
-          <textarea id="instagram-curated-urls" value={settings.instagram.curatedUrls.join("\n")} placeholder={"https://www.instagram.com/reel/.../\nhttps://www.instagram.com/p/.../"} onChange={(event) => patchInstagram({ curatedUrls: event.target.value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean).slice(0,20) })} />
-          <p className={styles.miniNote}>Μία διεύθυνση ανά γραμμή. Αν μείνει κενό, εμφανίζονται αυτόματα τα πιο πρόσφατα στοιχεία του συνδεδεμένου λογαριασμού.</p>
-        </div>
+  
+          <div className={styles.field}>
+            <span className={styles.fieldLegend}>Κινητό</span>
+            <div className={styles.segmented}>
+              {([["reels","Reels 9:16"],["carousel","Κυλιόμενη προβολή"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.mobileLayout === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ mobileLayout: value })}>{label}</button>)}
+            </div>
+          </div>
+  
+          <div className={styles.field}>
+            <span className={styles.fieldLegend}>Υπολογιστής</span>
+            <div className={styles.segmented}>
+              {([["spotlight","Μεγάλο βίντεο + βέλη"],["carousel","Κυλιόμενη προβολή + βέλη"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.desktopLayout === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ desktopLayout: value })}>{label}</button>)}
+            </div>
+          </div>
+  
+          <div className={styles.field}>
+            <label htmlFor="instagram-curated-urls">Επιλεγμένα βίντεο / αναρτήσεις (προαιρετικό)</label>
+            <textarea id="instagram-curated-urls" value={settings.instagram.curatedUrls.join("\n")} placeholder={"https://www.instagram.com/reel/.../\nhttps://www.instagram.com/p/.../"} onChange={(event) => patchInstagram({ curatedUrls: event.target.value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean).slice(0,20) })} />
+            <p className={styles.miniNote}>Μία διεύθυνση ανά γραμμή. Αν μείνει κενό, εμφανίζονται αυτόματα τα πιο πρόσφατα στοιχεία του συνδεδεμένου λογαριασμού.</p>
+          </div>
+          </div>
+        </details>
       </div>
 
       {message && <p className={`${styles.status} ${styles.ok}`} role="status">{message}</p>}
