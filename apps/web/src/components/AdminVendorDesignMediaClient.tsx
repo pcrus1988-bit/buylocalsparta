@@ -148,7 +148,7 @@ export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadM
     </section>
 
     <section className="vendor-section section-tint"><div>
-      <WorkspaceSectionHeading eyebrow="Upload" title="Add or replace storefront media" note="Admin uploads use the same private storage, automated malware scan, rights review and moderation workflow as vendor uploads." />
+      <WorkspaceSectionHeading eyebrow="Upload" title="Add or replace storefront media" note={mediaUploadMode === "direct" ? "Admin uploads use the same private storage, automated malware scan, rights review and moderation workflow as vendor uploads." : "The Admin-only database fallback keeps images private, validates JPEG/PNG/WebP file signatures server-side, and preserves rights/moderation approval before publication."} />
       {mediaUploadMode !== "direct" && <div className="workspace-inline-note" role="status"><strong>Admin image upload fallback active.</strong> {mediaReadinessMessage}. New JPEG, PNG and WebP images up to 3.5 MB are stored privately in PostgreSQL, signature-validated, and still require rights/moderation approval before publication.</div>}
       <details className="workspace-tool-panel" open>
         <summary><span><strong>New storefront image</strong><small>JPEG, PNG or WebP</small></span></summary>
