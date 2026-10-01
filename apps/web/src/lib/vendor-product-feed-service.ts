@@ -233,13 +233,46 @@ export async function saveVendorProductFeed(
         "source_hash=EXCLUDED.source_hash,updated_at=now()"
       ), [JSON.stringify(itemRows), feedUuid, vendorUuid]);
 
+      await tx.query(sql(
+        "UPDATE vendor_offers vo SET merchant_visible=COALESCE(i.previous_offer_merchant_visible,false),updated_at=now()",
+        "FROM vendor_product_feed_items i",
+        "WHERE i.feed_id=$1::uuid AND i.state='present' AND i.hidden_by_feed=true AND i.offer_id=vo.id"
+      ), [feedUuid]);
+      await tx.query(sql(
+        "UPDATE vendor_product_feed_items SET hidden_by_feed=false,previous_offer_merchant_visible=NULL,updated_at=now()",
+        "WHERE feed_id=$1::uuid AND state='present' AND hidden_by_feed=true"
+      ), [feedUuid]);
+
       let missingRows = 0;
-      if (input.sourceType === "url") {
+      if (input.sourceType === "url" && prepared.reconciliationSafe) {
         const missing = await tx.query<SqlRow>(sql(
           "UPDATE vendor_product_feed_items SET state='missing',consecutive_missing=consecutive_missing+1,updated_at=now()",
-          "WHERE feed_id=$1::uuid AND state<>'retired' AND NOT (external_product_id=ANY($2::text[])) RETURNING id"
-        ), [feedUuid, prepared.rows.map((row) => row.externalId)]);
+          "WHERE feed_id=$1::uuid AND state IN ('present','missing') AND NOT (external_product_id=ANY($2::text[])) RETURNING id"
+        ), [feedUuid, prepared.observedExternalIds]);
         missingRows = missing.rowCount;
+
+        await tx.query(sql(
+          "UPDATE vendor_product_feed_items i SET state='retired',hidden_by_feed=true,",
+          "previous_offer_merchant_visible=vo.merchant_visible,updated_at=now()",
+          "FROM vendor_offers vo",
+          "WHERE i.feed_id=$1::uuid AND i.state='missing' AND i.consecutive_missing>=2",
+          "AND i.offer_id=vo.id AND i.hidden_by_feed=false"
+        ), [feedUuid]);
+        await tx.query(sql(
+          "UPDATE vendor_product_feed_items SET state='retired',updated_at=now()",
+          "WHERE feed_id=$1::uuid AND state='missing' AND consecutive_missing>=2"
+        ), [feedUuid]);
+        await tx.query(sql(
+          "UPDATE vendor_offers vo SET merchant_visible=false,updated_at=now()",
+          "FROM vendor_product_feed_items i",
+          "WHERE i.feed_id=$1::uuid AND i.state='retired' AND i.hidden_by_feed=true AND i.offer_id=vo.id"
+        ), [feedUuid]);
+        await tx.query(sql(
+          "UPDATE inventory_balances ib SET on_hand=ib.active_reservations,source='vendor_feed',",
+          "source_confidence='merchant_confirmed',stock_confirmed_at=now(),freshness_status='fresh',updated_at=now()",
+          "FROM vendor_product_feed_items i",
+          "WHERE i.feed_id=$1::uuid AND i.state='retired' AND i.offer_id=ib.offer_id"
+        ), [feedUuid]);
       }
 
       await tx.query(sql(
@@ -272,7 +305,7 @@ export async function saveVendorProductFeed(
 
       await tx.query(sql(
         "UPDATE inventory_balances ib SET",
-        "on_hand=CASE WHEN (i.source_payload->>'stockOnHand')::integer>=ib.active_reservations THEN (i.source_payload->>'stockOnHand')::integer ELSE ib.on_hand END,",
+        "on_hand=GREATEST((i.source_payload->>'stockOnHand')::integer,ib.active_reservations),",
         "source='vendor_feed',source_confidence='merchant_confirmed',stock_confirmed_at=now(),freshness_status='fresh',updated_at=now()",
         "FROM vendor_product_feed_items i WHERE i.feed_id=$1::uuid AND i.state='present' AND i.offer_id=ib.offer_id"
       ), [feedUuid]);
