@@ -266,7 +266,8 @@ export async function saveVendorProductFeed(
         await tx.query(sql(
           "UPDATE vendor_offers vo SET merchant_visible=false,updated_at=now()",
           "FROM vendor_product_feed_items i",
-          "WHERE i.feed_id=$1::uuid AND i.state='retired' AND i.hidden_by_feed=true AND i.offer_id=vo.id"
+          "WHERE i.feed_id=$1::uuid AND i.state='retired' AND i.hidden_by_feed=true AND i.offer_id=vo.id",
+          "AND i.hidden_by_feed_at IS NOT NULL AND vo.merchant_visibility_updated_at<=i.hidden_by_feed_at"
         ), [feedUuid]);
         await tx.query(sql(
           "UPDATE inventory_balances ib SET on_hand=ib.active_reservations,source='vendor_feed',",
@@ -318,7 +319,8 @@ export async function saveVendorProductFeed(
         "UPDATE vendor_product_feed_items i SET submission_id=s.id,updated_at=now()",
         "FROM vendor_product_submissions s",
         "WHERE i.feed_id=$1::uuid AND i.state='present' AND i.offer_id IS NULL AND i.submission_id IS NULL",
-        "AND i.vendor_sku IS NOT NULL AND s.vendor_id=$2::uuid AND s.location_id=$3::uuid AND s.vendor_sku=i.vendor_sku"
+        "AND i.vendor_sku IS NOT NULL AND s.vendor_id=$2::uuid AND s.location_id=$3::uuid AND s.vendor_sku=i.vendor_sku",
+        "AND s.status IN ('draft','submitted','needs_review','rejected','linked')"
       ), [feedUuid, vendorUuid, locationUuid]);
 
       const updatedSubmissions = await tx.query<SqlRow>(sql(
@@ -344,7 +346,7 @@ export async function saveVendorProductFeed(
         "AND (c.market_id IS NULL OR c.market_id=$2::uuid) ORDER BY c.market_id NULLS LAST LIMIT 1) c ON true",
         "WHERE i.feed_id=$1::uuid AND i.state='present' AND i.offer_id IS NULL AND i.submission_id IS NULL",
         "AND (i.vendor_sku IS NULL OR NOT EXISTS (SELECT 1 FROM vendor_product_submissions existing",
-        "WHERE existing.vendor_id=$3::uuid AND existing.location_id=$4::uuid AND existing.vendor_sku=i.vendor_sku))",
+        "WHERE existing.vendor_id=$3::uuid AND existing.location_id=$4::uuid AND existing.vendor_sku=i.vendor_sku AND existing.status<>'archived'))",
         "RETURNING id,source_payload->>'feedExternalId' AS external_id"
       ), [feedUuid, marketUuid, vendorUuid, locationUuid, feedPublicId, userUuid]);
 
@@ -361,7 +363,8 @@ export async function saveVendorProductFeed(
         "UPDATE vendor_product_feed_items i SET submission_id=s.id,updated_at=now()",
         "FROM vendor_product_submissions s",
         "WHERE i.feed_id=$1::uuid AND i.submission_id IS NULL AND i.offer_id IS NULL AND i.vendor_sku IS NOT NULL",
-        "AND s.vendor_id=$2::uuid AND s.location_id=$3::uuid AND s.vendor_sku=i.vendor_sku"
+        "AND s.vendor_id=$2::uuid AND s.location_id=$3::uuid AND s.vendor_sku=i.vendor_sku",
+        "AND s.status IN ('draft','submitted','needs_review','rejected','linked')"
       ), [feedUuid, vendorUuid, locationUuid]);
 
       await tx.query(sql(
