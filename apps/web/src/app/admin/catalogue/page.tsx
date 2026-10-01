@@ -36,6 +36,7 @@ export default async function Page() {
         <div className="workspace-action-bar" style={{ marginTop: "1rem" }}>
           <Link className="button button-primary" href="/admin/catalogue-intake/import">Import catalogue</Link>
           <Link className="button button-secondary" href="/admin/catalogue-intake">Supplier PIM</Link>
+          <Link className="button button-secondary" href="/admin/catalogue/vendor-feeds">Vendor XML Feeds</Link>
           <Link className="button button-secondary" href="/admin/products">Products & categories</Link>
         </div>
       </div>

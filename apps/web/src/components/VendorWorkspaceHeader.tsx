@@ -128,7 +128,7 @@ export function VendorWorkspaceHeader() {
         { label: "Needs attention", href: "/vendor/dropshipping/attention", icon: "!" },
         { label: "Feed health", href: "/vendor/dropshipping/health", icon: "↻" },
         { label: "Activity", href: "/vendor/dropshipping/activity", icon: "◷" },
-        ...group.links.filter((link) => link.href !== "/vendor/catalog")
+        ...group.links.filter((link) => link.href !== "/vendor/catalog" && link.href !== "/vendor/catalog/feed")
       ]
     } : group);
   }, [roles, dropshippingOnly, operatingContext]);

@@ -7,7 +7,8 @@ import { VendorDashboardTools } from "../../components/VendorDashboardTools";
 import { WorkspaceHowItWorks, WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../components/WorkspacePagePrimitives";
 import { WorkspaceQuickLinks } from "../../components/WorkspaceQuickLinks";
 import { vendorHomeOverview } from "../../lib/vendor-home-overview";
-import { getVendorSession } from "../../lib/vendor-session";
+import { isDropshippingOnlyVendor } from "../../lib/vendor-dropshipping-access";
+import { getVendorSession, vendorOperatingContextForPrincipal } from "../../lib/vendor-session";
 
 export const metadata: Metadata = { title: "Χώρος συνεργάτη", robots: { index: false, follow: false } };
 
@@ -19,7 +20,7 @@ export default async function VendorBackofficePage() {
   const principal = await getVendorSession();
   if (!principal) redirect("/vendor/login");
 
-  const overview = await vendorHomeOverview(principal);
+  const [overview, operatingContext, dropshippingOnly] = await Promise.all([vendorHomeOverview(principal), vendorOperatingContextForPrincipal(principal), isDropshippingOnlyVendor(principal.vendorId)]);
   const performance = overview.performance;
   const orderNotifications = overview.orderNotifications;
   const attention = [
@@ -48,6 +49,7 @@ export default async function VendorBackofficePage() {
         <div className="eyebrow">Αρχική · σήμερα</div>
         <h1>{overview.vendor.name}</h1>
         <p className="lead">Το κέντρο ελέγχου του καταστήματός σου: επείγουσες εργασίες πρώτες, άμεση αναζήτηση λειτουργιών και καθαρή μετάβαση από εικόνα σε ενέργεια.</p>
+        {operatingContext.capabilities.includes("catalogue.import") && !dropshippingOnly && <div className="workspace-action-buttons"><Link className="button button-secondary" href="/vendor/catalog/feed">XML Product Feed</Link></div>}
       </div>
       <aside className="dashboard-health-card">
         <span>Τοπικός σύμβουλος</span>

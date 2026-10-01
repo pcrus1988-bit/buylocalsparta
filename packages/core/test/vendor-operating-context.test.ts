@@ -20,8 +20,20 @@ test("Sparta-compatible vendor context defaults to MANAGED without changing curr
   assert.equal(hasVendorCapability(context, "shop.manage"), true);
   assert.equal(hasVendorCapability(context, "pricing.manage"), true);
   assert.equal(hasVendorCapability(context, "shipping.manage"), true);
-  assert.equal(hasVendorCapability(context, "catalogue.import"), false);
+  assert.equal(hasVendorCapability(context, "catalogue.import"), true);
   assert.equal(hasVendorCapability(context, "promotions.manage"), false);
+});
+
+test("XML catalogue import is limited to catalogue-authorized vendor roles", () => {
+  for (const role of ["vendor_owner", "vendor_catalog"] as const) {
+    const context = buildVendorOperatingContext({ vendorId: "vendor_sparta_1", roles: [role] });
+    assert.equal(hasVendorCapability(context, "catalogue.import"), true, role);
+  }
+
+  for (const role of ["vendor_finance", "vendor_fulfilment", "vendor_adviser"] as const) {
+    const context = buildVendorOperatingContext({ vendorId: "vendor_sparta_1", roles: [role] });
+    assert.equal(hasVendorCapability(context, "catalogue.import"), false, role);
+  }
 });
 
 test("SELF_GOVERNED expansion vendor gains own-shop operations but never platform governance", () => {
