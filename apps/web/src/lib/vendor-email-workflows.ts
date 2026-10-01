@@ -141,7 +141,8 @@ export async function sendHubProspectApplicationReceiptEmail(input: {
   trialExpiresAt?: number;
   idempotencySuffix?: string;
 }) {
-  const hasTrial = Boolean(input.trialAccessUrl && input.trialExpiresAt);
+  const hasTrialAccess = Boolean(input.trialAccessUrl && input.trialExpiresAt);
+  const trialActive = Boolean(hasTrialAccess && input.trialExpiresAt! > Date.now());
   const money = (value: number) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(value / 100);
   const billingLabel = input.planCode === "claim"
     ? "Δωρεάν"
@@ -168,14 +169,16 @@ export async function sendHubProspectApplicationReceiptEmail(input: {
       `Προμήθεια marketplace: ${(input.commissionBps / 100).toFixed(2)}%`,
       "Χρέωση κατά την αίτηση: Όχι — δεν έγινε χρέωση.",
       "",
-      hasTrial
+      trialActive
         ? "Το ιδιωτικό 3ήμερο Vendor Trial είναι ήδη έτοιμο."
-        : input.planCode === "claim"
+        : hasTrialAccess
+          ? "Το write-enabled 3ήμερο Vendor Trial έχει ολοκληρωθεί. Ο ασφαλής σύνδεσμος παραμένει διαθέσιμος μόνο για την επιτρεπόμενη περίοδο επισκόπησης."
+          : input.planCode === "claim"
           ? "Το πρόγραμμα CLAIM είναι listing-only και δεν περιλαμβάνει Vendor Trial."
           : "Η αίτηση έχει καταχωριστεί. Η Trial πρόσβαση θα σταλεί μόλις ολοκληρωθεί η ασφαλής σύνδεση με επαληθευμένο λογαριασμό.",
-      hasTrial ? `Email πρόσβασης: ${input.to}` : undefined,
-      hasTrial ? "Ο παρακάτω προσωπικός ασφαλής σύνδεσμος είναι το διαπιστευτήριο εισόδου για το Trial. Δεν είναι μόνιμος vendor κωδικός και δεν ενεργοποιεί δημόσια πώληση." : undefined,
-      hasTrial ? `Άνοιγμα Vendor Trial: ${input.trialAccessUrl}` : undefined,
+      hasTrialAccess ? `Email πρόσβασης: ${input.to}` : undefined,
+      hasTrialAccess ? "Ο παρακάτω προσωπικός ασφαλής σύνδεσμος είναι το διαπιστευτήριο εισόδου για το Trial. Δεν είναι μόνιμος vendor κωδικός και δεν ενεργοποιεί δημόσια πώληση." : undefined,
+      hasTrialAccess ? `Άνοιγμα Vendor Trial: ${input.trialAccessUrl}` : undefined,
       expiry ? `Λήξη write-enabled Trial: ${expiry}` : undefined,
       "",
       "Επόμενα βήματα",
@@ -191,7 +194,7 @@ export async function sendHubProspectApplicationReceiptEmail(input: {
     ].filter((line): line is string => typeof line === "string").join("\n"),
     eventType: "hub_prospect.application_received",
     idempotencyKey: `hub-prospect-application-received:v2:${input.reference}:${input.idempotencySuffix ?? "initial"}`,
-    payload: { applicationId: input.reference, hubName: input.hubName, planCode: input.planCode, trial: hasTrial }
+    payload: { applicationId: input.reference, hubName: input.hubName, planCode: input.planCode, trial: hasTrialAccess }
   });
 }
 
