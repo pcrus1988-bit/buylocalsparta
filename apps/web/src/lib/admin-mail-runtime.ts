@@ -1,8 +1,9 @@
-import { createHash, createHmac, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { S3ObjectStorage, type StoredObjectListItem } from "@buy-local-sparta/object-storage";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { buildRawEmail, parseRawEmail, type ParsedMailMessage } from "./admin-mail-mime";
+import { adminMailThreadKey, buildAdminMailRawMime, parseAdminMailMime, type AdminMailAddress, type ParsedAdminMail } from "./admin-mail-mime";
+import { sendRawSesEmail, sesMailConfigFromEnv, type SesMailConfig } from "./admin-mail-ses";
 
 const REQUIRED_REGION = "eu-north-1";
 const DEFAULT_BUCKET = "kontamou-inbound-emails";
@@ -61,11 +62,10 @@ type MailConfig = Readonly<{
   region: string;
   bucket: string;
   prefix: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-  sessionToken?: string;
   fromAddresses: readonly string[];
   displayName: string;
+  messageIdDomain: string;
+  ses: SesMailConfig;
 }>;
 
 type MailRow = SqlRow & {
@@ -137,7 +137,7 @@ export async function syncAdminInboundMail(input: { maxNew?: number } = {}): Pro
   for (const object of pending) {
     const stored = await storage.read(object.objectKey);
     const bytes = await readStreamBounded(stored.stream, MAX_RAW_BYTES);
-    const parsed = parseRawEmail(bytes);
+    const parsed = parseAdminMailMime(bytes);
     await persistInbound(parsed, object);
     indexed += 1;
   }
@@ -282,7 +282,7 @@ export async function getAdminMailAttachment(
   if (!row || row.direction !== "incoming" || !row.s3_object_key) throw new Error("Attachment source is not available");
   const config = resolveMailConfig();
   const stored = await inboundStorage(config).read(row.s3_object_key);
-  const parsed = parseRawEmail(await readStreamBounded(stored.stream, MAX_RAW_BYTES));
+  const parsed = parseAdminMailMime(await readStreamBounded(stored.stream, MAX_RAW_BYTES));
   const attachment = parsed.attachments[attachmentIndex];
   if (!attachment) throw new Error("Attachment not found");
   return { filename: attachment.filename, contentType: attachment.contentType, bytes: attachment.bytes };
@@ -331,23 +331,35 @@ export async function sendAdminMail(
     }
   }
 
-  const built = buildRawEmail({
-    from: `${encodeDisplayName(config.displayName)} <${fromAddress}>`,
-    to,
-    cc,
-    bcc,
+  const built = buildAdminMailRawMime({
+    from: { name: config.displayName, address: fromAddress },
+    to: to.map((address) => ({ address })),
+    cc: cc.map((address) => ({ address })),
+    bcc: bcc.map((address) => ({ address })),
+    replyTo: [{ address: fromAddress }],
     subject,
     text,
-    replyTo: fromAddress,
     inReplyTo,
     references,
-    messageIdDomain: "kontamou.site",
+    internetMessageIdDomain: config.messageIdDomain,
     attachments
   });
 
-  const sendResult = await sendSesRaw(config, { from: fromAddress, to, cc, bcc, raw: built.raw });
+  const sendResult = await sendRawSesEmail({
+    config: config.ses,
+    raw: built.raw,
+    from: fromAddress,
+    to,
+    cc,
+    bcc
+  });
   const publicId = `mail_${randomUUID().replace(/-/g, "")}`;
-  const finalThreadKey = threadKey || references[0] || inReplyTo || built.messageId;
+  const finalThreadKey = threadKey || adminMailThreadKey({
+    subject,
+    internetMessageId: built.internetMessageId,
+    inReplyTo,
+    references
+  });
   const attachmentMetadata = attachments.map((attachment, index) => ({
     index,
     filename: attachment.filename,
@@ -365,9 +377,9 @@ export async function sendAdminMail(
     )
   `, [
     publicId,
-    `ses:${sendResult.messageId}`,
-    sendResult.messageId,
-    built.messageId,
+    `ses:${sendResult.providerMessageId}`,
+    sendResult.providerMessageId,
+    built.internetMessageId,
     inReplyTo || null,
     references,
     finalThreadKey,
@@ -383,30 +395,27 @@ export async function sendAdminMail(
     JSON.stringify(attachmentMetadata),
     principal.userId
   ]);
-  return { publicId, providerMessageId: sendResult.messageId };
+  return { publicId, providerMessageId: sendResult.providerMessageId };
 }
 
 function resolveMailConfig(env: NodeJS.ProcessEnv = process.env): MailConfig {
-  const region = (env.KONTAMOU_MAIL_AWS_REGION || env.SES_REGION || env.AWS_REGION || REQUIRED_REGION).trim();
+  const ses = sesMailConfigFromEnv(env);
+  const region = ses.region.trim();
   if (region !== REQUIRED_REGION) throw new Error(`Admin Mail is locked to AWS ${REQUIRED_REGION}; configured region is ${region || "empty"}.`);
   const bucket = (env.KONTAMOU_MAIL_INBOUND_BUCKET || env.SES_INBOUND_BUCKET || DEFAULT_BUCKET).trim();
   if (!bucket) throw new Error("Admin Mail inbound S3 bucket is missing");
-  const accessKeyId = (env.KONTAMOU_MAIL_AWS_ACCESS_KEY_ID || env.BLS_OBJECT_STORAGE_ACCESS_KEY_ID || env.AWS_ACCESS_KEY_ID || env.OBJECT_STORAGE_ACCESS_KEY || "").trim();
-  const secretAccessKey = (env.KONTAMOU_MAIL_AWS_SECRET_ACCESS_KEY || env.BLS_OBJECT_STORAGE_SECRET_ACCESS_KEY || env.AWS_SECRET_ACCESS_KEY || env.OBJECT_STORAGE_SECRET_KEY || "").trim();
-  if (!accessKeyId || !secretAccessKey) throw new Error("Admin Mail AWS access key and secret are required");
-  const sourceList = (env.KONTAMOU_MAIL_FROM_ADDRESSES || DEFAULT_FROM.join(","))
+  const sourceList = (env.KONTAMOU_MAIL_FROM_ADDRESSES || env.BLS_MAIL_FROM || DEFAULT_FROM.join(","))
     .split(",").map((value) => normalizeEmail(value)).filter(Boolean);
   const fromAddresses = [...new Set(sourceList)];
   if (!fromAddresses.length) throw new Error("Admin Mail requires at least one From address");
   return {
     region,
     bucket,
-    prefix: (env.KONTAMOU_MAIL_INBOUND_PREFIX || "").trim().replace(/^\/+/, ""),
-    accessKeyId,
-    secretAccessKey,
-    sessionToken: env.KONTAMOU_MAIL_AWS_SESSION_TOKEN?.trim() || env.BLS_OBJECT_STORAGE_SESSION_TOKEN?.trim() || env.AWS_SESSION_TOKEN?.trim() || undefined,
+    prefix: (env.KONTAMOU_MAIL_INBOUND_PREFIX || "").trim().replace(/^\\/+/, ""),
     fromAddresses,
-    displayName: (env.KONTAMOU_MAIL_DISPLAY_NAME || "ΚΟΝΤΑ ΜΟΥ").trim() || "ΚΟΝΤΑ ΜΟΥ"
+    displayName: (env.KONTAMOU_MAIL_DISPLAY_NAME || env.BLS_MAIL_FROM_NAME || "ΚΟΝΤΑ ΜΟΥ").trim() || "ΚΟΝΤΑ ΜΟΥ",
+    messageIdDomain: (env.BLS_MAIL_MESSAGE_ID_DOMAIN || "kontamou.site").trim() || "kontamou.site",
+    ses
   };
 }
 
@@ -414,26 +423,32 @@ function inboundStorage(config: MailConfig): S3ObjectStorage {
   return new S3ObjectStorage({
     bucket: config.bucket,
     region: config.region,
-    accessKeyId: config.accessKeyId,
-    secretAccessKey: config.secretAccessKey,
-    sessionToken: config.sessionToken,
+    accessKeyId: config.ses.accessKeyId,
+    secretAccessKey: config.ses.secretAccessKey,
+    sessionToken: config.ses.sessionToken,
     uploadTtlSeconds: 900
   });
 }
 
-async function persistInbound(parsed: ParsedMailMessage, object: StoredObjectListItem): Promise<void> {
+async function persistInbound(parsed: ParsedAdminMail, object: StoredObjectListItem): Promise<void> {
   const publicId = `mail_${randomUUID().replace(/-/g, "")}`;
-  const threadKey = parsed.references[0] || parsed.inReplyTo || parsed.messageId || `subject:${normalizeSubject(parsed.subject)}`;
-  const attachmentMetadata = parsed.attachments.map((attachment) => ({
-    index: attachment.index,
+  const threadKey = adminMailThreadKey({
+    subject: parsed.subject,
+    internetMessageId: parsed.internetMessageId,
+    inReplyTo: parsed.inReplyTo,
+    references: parsed.references
+  });
+  const attachmentMetadata = parsed.attachments.map((attachment, index) => ({
+    index,
     filename: attachment.filename,
     contentType: attachment.contentType,
     byteSize: attachment.byteSize,
-    inline: attachment.inline
+    inline: attachment.disposition === "inline"
   }));
   const receivedAt = object.lastModified ? new Date(object.lastModified) : new Date();
   const spamVerdict = parsed.headers["x-ses-spam-verdict"]?.trim() || undefined;
   const virusVerdict = parsed.headers["x-ses-virus-verdict"]?.trim() || undefined;
+  const bodyText = parsed.text?.trim() || "(No readable text body.)";
   await getProductionPostgresRuntime().sqlPool.query(`
     INSERT INTO admin_mail_messages (
       public_id,direction,provider,transport_key,s3_object_key,rfc_message_id,in_reply_to,reference_ids,thread_key,
@@ -447,24 +462,24 @@ async function persistInbound(parsed: ParsedMailMessage, object: StoredObjectLis
     publicId,
     `s3:${object.objectKey}`,
     object.objectKey,
-    parsed.messageId || null,
+    parsed.internetMessageId || null,
     parsed.inReplyTo || null,
     parsed.references,
     threadKey,
-    parsed.from,
-    parsed.to,
-    parsed.cc,
-    parsed.bcc,
-    parsed.replyTo || null,
+    displayMailAddress(parsed.from),
+    parsed.to.map(displayMailAddress),
+    parsed.cc.map(displayMailAddress),
+    parsed.bcc.map(displayMailAddress),
+    parsed.replyTo[0]?.address || null,
     parsed.subject,
-    preview(parsed.text),
-    parsed.text.slice(0, 1_000_000),
+    preview(bodyText),
+    bodyText.slice(0, 1_000_000),
     attachmentMetadata.length > 0,
     attachmentMetadata.length,
     JSON.stringify(attachmentMetadata),
     spamVerdict || null,
     virusVerdict || null,
-    parsed.sentAt ? new Date(parsed.sentAt) : null,
+    parsed.date ? new Date(parsed.date) : null,
     receivedAt
   ]);
 }
@@ -561,71 +576,6 @@ async function normalizeOutgoingAttachments(files: readonly File[]): Promise<rea
   return result;
 }
 
-async function sendSesRaw(
-  config: MailConfig,
-  input: { from: string; to: readonly string[]; cc: readonly string[]; bcc: readonly string[]; raw: Uint8Array }
-): Promise<{ messageId: string }> {
-  const host = `email.${config.region}.amazonaws.com`;
-  const path = "/v2/email/outbound-emails";
-  const payload = JSON.stringify({
-    FromEmailAddress: input.from,
-    Destination: { ToAddresses: input.to, CcAddresses: input.cc, BccAddresses: input.bcc },
-    Content: { Raw: { Data: Buffer.from(input.raw).toString("base64") } }
-  });
-  const now = new Date();
-  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
-  const shortDate = amzDate.slice(0, 8);
-  const payloadHash = sha256(payload);
-  const signedHeaders = config.sessionToken
-    ? "content-type;host;x-amz-content-sha256;x-amz-date;x-amz-security-token"
-    : "content-type;host;x-amz-content-sha256;x-amz-date";
-  const canonicalHeaders = [
-    "content-type:application/json",
-    `host:${host}`,
-    `x-amz-content-sha256:${payloadHash}`,
-    `x-amz-date:${amzDate}`,
-    ...(config.sessionToken ? [`x-amz-security-token:${config.sessionToken}`] : [])
-  ].join("\n") + "\n";
-  const canonicalRequest = ["POST", path, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
-  const scope = `${shortDate}/${config.region}/ses/aws4_request`;
-  const stringToSign = ["AWS4-HMAC-SHA256", amzDate, scope, sha256(canonicalRequest)].join("\n");
-  const kDate = hmac(`AWS4${config.secretAccessKey}`, shortDate);
-  const kRegion = hmac(kDate, config.region);
-  const kService = hmac(kRegion, "ses");
-  const kSigning = hmac(kService, "aws4_request");
-  const signature = createHmac("sha256", kSigning).update(stringToSign).digest("hex");
-  const authorization = `AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-  const response = await fetch(`https://${host}${path}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      host,
-      "x-amz-content-sha256": payloadHash,
-      "x-amz-date": amzDate,
-      ...(config.sessionToken ? { "x-amz-security-token": config.sessionToken } : {}),
-      authorization
-    },
-    body: payload,
-    cache: "no-store"
-  });
-  const data = await response.json().catch(() => ({})) as Record<string, unknown>;
-  if (!response.ok) {
-    const message = typeof data.message === "string" ? data.message : typeof data.Message === "string" ? data.Message : `SES send failed (${response.status})`;
-    throw new Error(message);
-  }
-  const messageId = typeof data.MessageId === "string" ? data.MessageId : typeof data.messageId === "string" ? data.messageId : "";
-  if (!messageId) throw new Error("SES did not return a MessageId");
-  return { messageId };
-}
-
-function hmac(key: string | Uint8Array, value: string): Buffer {
-  return createHmac("sha256", key).update(value).digest();
-}
-
-function sha256(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
-}
-
 async function readStreamBounded(stream: AsyncIterable<Uint8Array>, maxBytes: number): Promise<Uint8Array> {
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -670,7 +620,6 @@ function epochOptional(value: unknown): number | undefined {
   return Number.isFinite(epoch) ? epoch : undefined;
 }
 
-function encodeDisplayName(value: string): string {
-  if (/^[\x20-\x7E]+$/.test(value)) return `"${value.replace(/["\\]/g, "")}"`;
-  return `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`;
+function displayMailAddress(value: AdminMailAddress): string {
+  return value.name?.trim() ? `${value.name.trim()} <${value.address}>` : value.address;
 }
