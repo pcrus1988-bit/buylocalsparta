@@ -498,7 +498,7 @@ function resolveMailConfig(env: NodeJS.ProcessEnv = process.env): MailConfig {
     throw new Error("BLS_MAIL_ENABLED must be true or false when configured.");
   }
   if (enabled === "false") {
-    throw new Error("Admin Mail is explicitly disabled by BLS_MAIL_ENABLED=false.");
+    throw new Error("Admin Mail is disabled because BLS_MAIL_ENABLED=false.");
   }
   // The mailbox is operational by default when the existing SES/S3 settings are
   // valid. BLS_MAIL_ENABLED=false remains an emergency kill switch.
