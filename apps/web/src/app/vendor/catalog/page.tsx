@@ -85,15 +85,15 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
 
     {assignedCatalogue.totalAssigned > 0 && <section className="shell vendor-section" id="assigned-catalogue">
       <WorkspaceSectionHeading
-        eyebrow="Ανατεθειμένος Supplier PIM κατάλογος"
-        title="Επιβεβαίωσε τι γνωρίζεις χωρίς να δημιουργηθεί online offer"
+        eyebrow="Ανατεθειμένος κατάλογος προμηθευτή"
+        title="Επιβεβαίωσε τι γνωρίζεις χωρίς να δημιουργηθεί δημόσια προσφορά"
         note="Ο Admin έχει συνδέσει αυτά τα source προϊόντα με το κατάστημά σου. Εδώ επιβεβαιώνεις μόνο πραγματική τιμή προμηθευτή και φυσικό stock. Η επιβεβαίωση παραμένει evidence και δεν δημιουργεί offer, inventory balance ή δημόσια διαθεσιμότητα."
       />
       <WorkspaceMetricStrip items={[
-        { label: "Ανατεθειμένα source προϊόντα", value: assignedCatalogue.totalAssigned, tone: "positive" },
+        { label: "Ανατεθειμένα προϊόντα πηγής", value: assignedCatalogue.totalAssigned, tone: "positive" },
         { label: "Τιμή προμηθευτή σε αναμονή", value: assignedCatalogue.pendingPrice, tone: assignedCatalogue.pendingPrice ? "attention" : "positive" },
-        { label: "Φυσικό stock σε αναμονή", value: assignedCatalogue.pendingStock, tone: assignedCatalogue.pendingStock ? "attention" : "positive" },
-        { label: "Με canonical match", value: assignedCatalogue.canonicalMatched, tone: assignedCatalogue.canonicalMatched ? "positive" : "default" }
+        { label: "Φυσικό απόθεμα σε αναμονή", value: assignedCatalogue.pendingStock, tone: assignedCatalogue.pendingStock ? "attention" : "positive" },
+        { label: "Με αντιστοίχιση καταλόγου", value: assignedCatalogue.canonicalMatched, tone: assignedCatalogue.canonicalMatched ? "positive" : "default" }
       ]} />
       <WorkspaceHowItWorks>
         <p><strong>Ανάθεση ≠ δημοσίευση:</strong> η παρουσία ενός προϊόντος εδώ δεν το κάνει αγοράσιμο και δεν δημιουργεί τιμή πώλησης.</p>
@@ -107,13 +107,13 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
 
       <div className="workspace-queue-list">{assignedCatalogue.products.map((item) => <article className="workspace-queue-card" key={item.id}>
         <div className="workspace-queue-head">
-          <div><strong>{item.title}</strong><small>{[item.brand, item.model, item.vendorSku].filter(Boolean).join(" · ") || "Χωρίς supplier code"} · {item.sourceName}</small></div>
-          <span className="status-pill">{item.demoMode ? "DEMO · assigned" : "assigned"}</span>
+          <div><strong>{item.title}</strong><small>{[item.brand, item.model, item.vendorSku].filter(Boolean).join(" · ") || "Χωρίς κωδικό προμηθευτή"} · {item.sourceName}</small></div>
+          <span className="status-pill">{item.demoMode ? "ΔΟΚΙΜΗ · ανατεθειμένο" : "assigned"}</span>
         </div>
         <div className="workspace-queue-primary">
           <span>Τιμή προμηθευτή: {item.priceCheckStatus === "confirmed" ? item.verifiedSupplierPrice ?? "επιβεβαιωμένη" : "σε αναμονή"}</span>
           <span>Φυσικό stock: {item.stockCheckStatus === "confirmed" ? String(item.verifiedStockOnHand ?? 0) : item.stockCheckStatus === "unavailable" ? "δεν υπάρχει τώρα" : "σε αναμονή"}</span>
-          <span>{item.canonicalVariantId ? "Canonical match διαθέσιμο" : "Canonical matching εκκρεμεί"}</span>
+          <span>{item.canonicalVariantId ? "Διαθέσιμη αντιστοίχιση καταλόγου" : "Εκκρεμεί αντιστοίχιση καταλόγου"}</span>
         </div>
         {item.sourcePrice && <div className="workspace-inline-note">Source catalogue reference: {item.sourcePrice}{item.sourcePriceKind ? ` · ${item.sourcePriceKind}` : ""}. Δεν θεωρείται αυτόματα δική σου τιμή προμηθευτή.</div>}
         {(item.priceCheckStatus === "pending" || item.stockCheckStatus === "pending") && <div className="workspace-action-bar">
@@ -141,7 +141,7 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
             </>}
           </div>
         </div>}
-        <WorkspaceRecordDetails label="Evidence & source context"><div className="workspace-compact-list">
+        <WorkspaceRecordDetails label="Στοιχεία πηγής"><div className="workspace-compact-list">
           <div className="workspace-compact-row"><strong>Supplier PIM</strong><span>{item.sourceName} · {item.sourceCode}</span></div>
           <div className="workspace-compact-row"><strong>Assortment state</strong><span>{item.assortmentStatus} · {item.availabilityMode}</span></div>
           <div className="workspace-compact-row"><strong>Price evidence</strong><span>{item.priceCheckStatus}</span></div>
@@ -163,8 +163,8 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
       <WorkspaceSectionHeading eyebrow="Νέο προϊόν" title="Από την καταχώρηση μέχρι να εμφανιστεί στο κατάστημά σου" note="Τα εσωτερικά matching και approval βήματα παραμένουν στο παρασκήνιο. Εσύ χρειάζεται να δώσεις σωστά στοιχεία προϊόντος, τιμή και απόθεμα." />
       <VendorLifecycle steps={[
         { label: "Προϊόν & κατηγορία", tone: hasProducts ? "done" : "attention", detail: "Τι είναι και πού ανήκει" },
-        { label: "Μάρκα & κωδικοί", tone: hasProducts ? "done" : "future", detail: "Brand, model, SKU, GTIN όπου υπάρχουν" },
-        { label: "Τιμή & απόθεμα", tone: hasProducts ? "done" : "future", detail: "Τελική τιμή και φυσικό stock" },
+        { label: "Μάρκα & κωδικοί", tone: hasProducts ? "done" : "future", detail: "Μάρκα, μοντέλο, SKU και GTIN όπου υπάρχουν" },
+        { label: "Τιμή & απόθεμα", tone: hasProducts ? "done" : "future", detail: "Τελική τιμή και φυσικό απόθεμα" },
         { label: "Έλεγχος ΚΟΝΤΑ ΜΟΥ", tone: reviewPending ? "waiting" : hasProducts ? "done" : "future", detail: reviewPending ? "Υπάρχουν προϊόντα σε έλεγχο" : "Αντιστοίχιση και έγκριση" },
         { label: "Δημοσίευση", tone: hasVisibleProducts ? "done" : hasProducts ? "current" : "future", detail: hasVisibleProducts ? "Υπάρχουν ενεργά προϊόντα" : "Εμφάνιση στον πελάτη" }
       ]} ariaLabel="Πορεία νέου προϊόντος" />

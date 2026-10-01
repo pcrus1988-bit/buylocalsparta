@@ -19,13 +19,13 @@ const ROLE_LABELS: Record<Role, string> = {
   logo: "Λογότυπο",
   storefront: "Φωτογραφία καταστήματος",
   team: "Άνθρωποι / ομάδα",
-  gallery: "Gallery"
+  gallery: "Συλλογή φωτογραφιών"
 };
 
 const ROLE_HELP: Record<Role, string> = {
-  logo: "Καθαρό λογότυπο ή brand mark. Προτίμησε τετράγωνη εικόνα με αρκετό κενό γύρω από το σήμα.",
+  logo: "Καθαρό λογότυπο ή σήμα. Προτίμησε τετράγωνη εικόνα με αρκετό κενό γύρω από το σήμα.",
   storefront: "Κύρια φωτογραφία της φυσικής βιτρίνας ή του εσωτερικού που αναγνωρίζει αμέσως το κατάστημα.",
-  team: "Εγκεκριμένη φωτογραφία ιδιοκτήτη, συμβούλου ή ομάδας που παρουσιάζεται δημόσια στο Meet the vendor.",
+  team: "Εγκεκριμένη φωτογραφία ιδιοκτήτη, συμβούλου ή ομάδας που παρουσιάζεται δημόσια στην ενότητα γνωριμίας με το κατάστημα.",
   gallery: "Πρόσθετες αυθεντικές φωτογραφίες καταστήματος, χώρου, υπηρεσίας ή εμπειρίας. Δεν χρησιμοποιούνται ως εικόνες προϊόντων."
 };
 
@@ -62,7 +62,7 @@ export function VendorStorefrontMediaClient({ initial }: { initial: Workspace })
     try {
       if (initial.mediaUploadMode !== "direct") throw new Error(initial.mediaUploadMode === "gated"
         ? "Η ασφαλής αποστολή εικόνων είναι προσωρινά απενεργοποιημένη από την πλατφόρμα."
-        : "Η διαχείριση storefront media απαιτεί το production media pipeline.");
+        : "Η διαχείριση εικόνων καταστήματος απαιτεί ενεργή υπηρεσία επεξεργασίας αρχείων.");
       const form = new FormData(event.currentTarget);
       const file = form.get("file");
       const role = String(form.get("profileRole") ?? "") as Role;
@@ -82,7 +82,7 @@ export function VendorStorefrontMediaClient({ initial }: { initial: Workspace })
         })
       });
       const intent = await intentResponse.json();
-      if (!intentResponse.ok) throw new Error(intent.error ?? "Δεν δημιουργήθηκε ασφαλές upload.");
+      if (!intentResponse.ok) throw new Error(intent.error ?? "Δεν δημιουργήθηκε ασφαλής αποστολή αρχείου.");
       if (file.size > Number(intent.maxBytes)) throw new Error("Η εικόνα υπερβαίνει το επιτρεπόμενο μέγεθος.");
       const put = await fetch(String(intent.uploadUrl), { method: "PUT", headers: intent.headers as Record<string, string>, body: file });
       if (!put.ok) throw new Error("Η μεταφόρτωση της εικόνας απέτυχε.");
@@ -128,27 +128,27 @@ export function VendorStorefrontMediaClient({ initial }: { initial: Workspace })
       { label: "Δημοσιευμένες εικόνες", value: published.length, tone: published.length ? "positive" : "default" },
       { label: "Σε έλεγχο / αναμονή", value: pending.length, tone: pending.length ? "attention" : "default" },
       { label: "Βασικές θέσεις έτοιμες", value: ["logo","storefront","team"].filter((role) => singletonPublished.has(role as Role)).length },
-      { label: "Gallery", value: published.filter((asset) => asset.role === "gallery").length }
+      { label: "Συλλογή φωτογραφιών", value: published.filter((asset) => asset.role === "gallery").length }
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Public storefront" title="Οι εικόνες που χτίζουν την ταυτότητα του καταστήματός σου" note="Κάθε εικόνα έχει συγκεκριμένο ρόλο. Μετά το upload περνά malware scan, έλεγχο δικαιωμάτων και moderation πριν μπορεί να δημοσιευθεί." />
+      <WorkspaceSectionHeading eyebrow="Δημόσιο προφίλ" title="Οι εικόνες που χτίζουν την ταυτότητα του καταστήματός σου" note="Κάθε εικόνα έχει συγκεκριμένο ρόλο. Μετά το ανέβασμα περνά τεχνικό έλεγχο ασφάλειας, δικαιωμάτων και περιεχομένου πριν δημοσιευθεί." />
       <div className="workspace-dual-grid">
         {(["logo","storefront","team"] as const).map((role) => {
           const current = singletonPublished.get(role);
           return <article className="workspace-queue-card" key={role}>
-            <div className="workspace-queue-head"><div><strong>{ROLE_LABELS[role]}</strong><small>{ROLE_HELP[role]}</small></div><span className="status-pill">{current ? "Live" : "Κενό"}</span></div>
-            {current ? <div className="workspace-media-preview"><Image src={publicMediaUrl(current)!} alt={current.altText ?? ROLE_LABELS[role]} width={720} height={420} style={{ width: "100%", height: 220, objectFit: "cover", borderRadius: 16 }} /></div> : <p className="workspace-queue-summary">Δεν υπάρχει ακόμη δημοσιευμένη εικόνα σε αυτή τη θέση. Το δημόσιο storefront χρησιμοποιεί ασφαλές fallback μέχρι να εγκριθεί μία.</p>}
+            <div className="workspace-queue-head"><div><strong>{ROLE_LABELS[role]}</strong><small>{ROLE_HELP[role]}</small></div><span className="status-pill">{current ? "Δημοσιευμένη" : "Κενό"}</span></div>
+            {current ? <div className="workspace-media-preview"><Image src={publicMediaUrl(current)!} alt={current.altText ?? ROLE_LABELS[role]} width={720} height={420} style={{ width: "100%", height: 220, objectFit: "cover", borderRadius: 16 }} /></div> : <p className="workspace-queue-summary">Δεν υπάρχει ακόμη δημοσιευμένη εικόνα σε αυτή τη θέση. Το δημόσιο προφίλ χρησιμοποιεί προσωρινή εικόνα μέχρι να εγκριθεί μία.</p>}
           </article>;
         })}
       </div>
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Upload" title="Πρόσθεσε ή αντικατάστησε storefront εικόνα" note="Η νέα εικόνα δεν αντικαθιστά την υπάρχουσα live εικόνα μέχρι να ολοκληρωθούν οι έλεγχοι και να δημοσιευθεί από το admin." />
+      <WorkspaceSectionHeading eyebrow="Νέα εικόνα" title="Πρόσθεσε ή αντικατάστησε εικόνα καταστήματος" note="Η νέα εικόνα δεν αντικαθιστά την υπάρχουσα δημοσιευμένη εικόνα μέχρι να ολοκληρωθούν οι έλεγχοι και να δημοσιευθεί από το admin." />
       {initial.mediaUploadMode !== "direct" && <div className="workspace-inline-note">Η ασφαλής μεταφόρτωση δεν είναι αυτή τη στιγμή διαθέσιμη. Οι ήδη δημοσιευμένες εικόνες παραμένουν κανονικά ενεργές.</div>}
       <details className="workspace-tool-panel" open>
-        <summary><span><strong>Νέα storefront εικόνα</strong><small>JPEG, PNG ή WebP</small></span></summary>
+        <summary><span><strong>Νέα εικόνα καταστήματος</strong><small>JPEG, PNG ή WebP</small></span></summary>
         <div className="workspace-tool-body">
           <form onSubmit={upload}>
             <div className="workspace-form-grid">
@@ -164,8 +164,8 @@ export function VendorStorefrontMediaClient({ initial }: { initial: Workspace })
     </div></section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Media history" title="Υποβολές storefront" note="Βλέπεις ξεχωριστά τον τεχνικό έλεγχο, την έγκριση και τη δημοσίευση. Μπορείς να αποσύρεις μία υποβολή ή live εικόνα οποιαδήποτε στιγμή." />
-      {active.length === 0 ? <WorkspaceEmptyState title="Δεν έχεις υποβάλει ακόμη storefront εικόνες." body="Ξεκίνα με λογότυπο, μία καθαρή φωτογραφία της πρόσοψης και μία προαιρετική φωτογραφία της ομάδας." /> : <div className="workspace-queue-list">
+      <WorkspaceSectionHeading eyebrow="Ιστορικό αρχείων" title="Υποβολές εικόνων καταστήματος" note="Βλέπεις ξεχωριστά τον τεχνικό έλεγχο, την έγκριση και τη δημοσίευση. Μπορείς να αποσύρεις μία υποβολή ή live εικόνα οποιαδήποτε στιγμή." />
+      {active.length === 0 ? <WorkspaceEmptyState title="Δεν έχεις υποβάλει ακόμη εικόνες καταστήματος." body="Ξεκίνα με λογότυπο, μία καθαρή φωτογραφία της πρόσοψης και μία προαιρετική φωτογραφία της ομάδας." /> : <div className="workspace-queue-list">
         {active.map((asset) => <article className="workspace-queue-card" key={asset.id}>
           <div className="workspace-queue-head"><div><strong>{ROLE_LABELS[asset.role]}</strong><small>{asset.filename}</small></div><span className="status-pill">{statusLabel(asset)}</span></div>
           <div className="workspace-queue-primary"><span>Scan {asset.scanStatus}</span><span>Rights {asset.rightsStatus}</span><span>Moderation {asset.moderationStatus}</span><span>Publication {asset.publicationStatus}</span></div>

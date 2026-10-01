@@ -76,7 +76,7 @@ export default async function VendorAnalyticsPage({ searchParams }: { searchPara
       <WorkspaceHowItWorks className="vendor-page-help">
         <p><strong>Προβολές:</strong> πόσες φορές άνοιξαν σελίδες προϊόντων.</p>
         <p><strong>Προσθήκες στο καλάθι:</strong> πόσες φορές προϊόν μπήκε στο καλάθι.</p>
-        <p><strong>Έναρξη checkout:</strong> πόσες φορές ο πελάτης προχώρησε προς πληρωμή.</p>
+        <p><strong>Έναρξη ολοκλήρωσης αγοράς:</strong> πόσες φορές ο πελάτης προχώρησε προς πληρωμή.</p>
         <p><strong>Αγορές:</strong> ολοκληρωμένες αγορές που αποδίδονται στο κατάστημά σου.</p>
       </WorkspaceHowItWorks>
       <article className="workspace-queue-card">
@@ -127,7 +127,7 @@ export default async function VendorAnalyticsPage({ searchParams }: { searchPara
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Προχωρημένα" title="Μετρήσεις έκθεσης & attribution" note="Χρήσιμες για βαθύτερη ανάλυση, όχι απαραίτητες για την καθημερινή λειτουργία του καταστήματος." />
+      <WorkspaceSectionHeading eyebrow="Προχωρημένα" title="Μετρήσεις εμφάνισης & απόδοσης" note="Χρήσιμες για βαθύτερη ανάλυση, όχι απαραίτητες για την καθημερινή λειτουργία του καταστήματος." />
       <WorkspaceRecordDetails label="Προβολή προχωρημένων μετρήσεων">
         <div className="workspace-compact-list">
           <div className="workspace-compact-row"><strong>Fair / qualified impressions</strong><span>{t.impressions}</span></div>

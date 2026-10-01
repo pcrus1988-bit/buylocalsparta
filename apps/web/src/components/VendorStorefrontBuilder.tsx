@@ -92,10 +92,10 @@ export function VendorStorefrontBuilder(props: {
     }
   }
 
-  return <section className={styles.builder} aria-label="Storefront Builder">
+  return <section className={styles.builder} aria-label="Επεξεργασία δημόσιου προφίλ">
     <div className={styles.editor}>
       <div className={styles.editorHead}>
-        <div><div className="eyebrow">Storefront Builder</div><h2>Κάν’ το δικό σου</h2></div>
+        <div><div className="eyebrow">Επεξεργασία δημόσιου προφίλ</div><h2>Κάν’ το δικό σου</h2></div>
         <button className={styles.saveButton} type="button" onClick={save} disabled={busy}>{busy ? "Αποθήκευση…" : "Αποθήκευση"}</button>
       </div>
 
@@ -108,12 +108,12 @@ export function VendorStorefrontBuilder(props: {
       </div>
 
       <div className={styles.field}>
-        <span className={styles.fieldLegend}>Στυλ Hero</span>
+        <span className={styles.fieldLegend}>Στυλ κεντρικής ενότητας</span>
         <div className={styles.segmented}>
           {([
             ["split", "Δυναμικό"],
             ["centered", "Κεντρικό"],
-            ["editorial", "Editorial"]
+            ["editorial", "Επιμελημένο"]
           ] as const).map(([value, label]) => <button key={value} type="button" className={`${styles.segment} ${settings.heroStyle === value ? styles.segmentActive : ""}`} onClick={() => patchSettings({ heroStyle: value })}>{label}</button>)}
         </div>
       </div>
@@ -133,11 +133,11 @@ export function VendorStorefrontBuilder(props: {
         <textarea id="trial-story" maxLength={5000} value={story} placeholder="Πες στους πελάτες ποιοι είστε, τι γνωρίζετε και πώς μπορείτε να τους βοηθήσετε." onChange={(event) => setStory(event.target.value)} />
       </div>
 
-      <span className={styles.fieldLegend}>Ενότητες storefront</span>
+      <span className={styles.fieldLegend}>Ενότητες προφίλ</span>
       <div className={styles.toggles}>
         {([
           ["showFeatured", "Προτεινόμενα προϊόντα"],
-          ["showFlashSale", "Flash Sale"],
+          ["showFlashSale", "Γρήγορη προσφορά"],
           ["showBazaar", "BAZAAR · δεύτερη ζωή"],
           ["showAbout", "Σχετικά με εμάς"],
           ["showLocation", "Τοποθεσία"],
@@ -146,19 +146,19 @@ export function VendorStorefrontBuilder(props: {
       </div>
 
       <div className={styles.sectionBlock}>
-        <div className="eyebrow">Instagram / Social Feed</div>
+        <div className="eyebrow">Instagram</div>
         <h3 style={{ marginBottom: 8 }}>Instagram στη βιτρίνα σου</h3>
-        <p style={{ marginTop: 0 }}>Σύνδεσε επαγγελματικό Instagram λογαριασμό. Τα Reels και posts φορτώνουν μόνο όταν ο πελάτης πλησιάζει στην ενότητα, ώστε να μη βαραίνουν την αρχική φόρτωση.</p>
+        <p style={{ marginTop: 0 }}>Σύνδεσε επαγγελματικό Instagram λογαριασμό. Τα Reels και αναρτήσεις φορτώνουν μόνο όταν ο πελάτης πλησιάζει στην ενότητα, ώστε να μη βαραίνουν την αρχική φόρτωση.</p>
 
         <div className={styles.field}>
           <span className={styles.fieldLegend}>Σύνδεση λογαριασμού</span>
           {!instagramConnection ? <p className={styles.miniNote}>Έλεγχος σύνδεσης…</p> : instagramConnection.connected ? <>
             <p className={styles.status}>Συνδεδεμένο ως <strong>@{instagramConnection.username}</strong>{instagramConnection.accountType ? ` · ${instagramConnection.accountType}` : ""}</p>
             <button className={styles.deviceButton} type="button" disabled={instagramBusy} onClick={disconnectInstagram}>{instagramBusy ? "Αποσύνδεση…" : "Αποσύνδεση Instagram"}</button>
-          </> : instagramConnection.configured ? <button className={styles.saveButton} type="button" onClick={() => window.location.assign("/api/vendor/instagram/connect")}>Σύνδεση Instagram</button> : <p className={styles.miniNote}>Η σύνδεση Instagram χρειάζεται πρώτα τα Meta App credentials στο production environment.</p>}
+          </> : instagramConnection.configured ? <button className={styles.saveButton} type="button" onClick={() => window.location.assign("/api/vendor/instagram/connect")}>Σύνδεση Instagram</button> : <p className={styles.miniNote}>Η σύνδεση Instagram χρειάζεται πρώτα τα ρυθμίσεις εφαρμογής Meta στο περιβάλλον παραγωγής.</p>}
         </div>
 
-        <label className={styles.toggle}><span>Εμφάνιση Instagram στο storefront</span><input type="checkbox" checked={settings.instagram.enabled} disabled={!instagramConnection?.connected} onChange={(event) => patchInstagram({ enabled: event.target.checked })} /></label>
+        <label className={styles.toggle}><span>Εμφάνιση Instagram στο προφίλ</span><input type="checkbox" checked={settings.instagram.enabled} disabled={!instagramConnection?.connected} onChange={(event) => patchInstagram({ enabled: event.target.checked })} /></label>
 
         <div className={styles.field}>
           <label htmlFor="instagram-section-title">Τίτλος ενότητας</label>
@@ -168,7 +168,7 @@ export function VendorStorefrontBuilder(props: {
         <div className={styles.field}>
           <span className={styles.fieldLegend}>Περιεχόμενο</span>
           <div className={styles.segmented}>
-            {([["reels","Reels"],["all","Posts + Reels"],["posts","Posts"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.contentMode === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ contentMode: value })}>{label}</button>)}
+            {([["reels","Reels"],["all","Αναρτήσεις + Reels"],["posts","Αναρτήσεις"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.contentMode === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ contentMode: value })}>{label}</button>)}
           </div>
         </div>
 
@@ -180,26 +180,26 @@ export function VendorStorefrontBuilder(props: {
         </div>
 
         <div className={styles.toggles}>
-          <label className={styles.toggle}><span>Autoplay ενεργού Reel</span><input type="checkbox" checked={settings.instagram.autoplay} onChange={(event) => patchInstagram({ autoplay: event.target.checked })} /></label>
+          <label className={styles.toggle}><span>Αυτόματη αναπαραγωγή ενεργού Reel</span><input type="checkbox" checked={settings.instagram.autoplay} onChange={(event) => patchInstagram({ autoplay: event.target.checked })} /></label>
           <label className={styles.toggle}><span>Έναρξη χωρίς ήχο</span><input type="checkbox" checked={settings.instagram.muted} onChange={(event) => patchInstagram({ muted: event.target.checked })} /></label>
         </div>
 
         <div className={styles.field}>
-          <span className={styles.fieldLegend}>Mobile</span>
+          <span className={styles.fieldLegend}>Κινητό</span>
           <div className={styles.segmented}>
-            {([["reels","Reels 9:16"],["carousel","Carousel"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.mobileLayout === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ mobileLayout: value })}>{label}</button>)}
+            {([["reels","Reels 9:16"],["carousel","Κυλιόμενη προβολή"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.mobileLayout === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ mobileLayout: value })}>{label}</button>)}
           </div>
         </div>
 
         <div className={styles.field}>
-          <span className={styles.fieldLegend}>Desktop</span>
+          <span className={styles.fieldLegend}>Υπολογιστής</span>
           <div className={styles.segmented}>
-            {([["spotlight","Μεγάλο Reel + βέλη"],["carousel","Carousel + βέλη"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.desktopLayout === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ desktopLayout: value })}>{label}</button>)}
+            {([["spotlight","Μεγάλο Reel + βέλη"],["carousel","Κυλιόμενη προβολή + βέλη"]] as const).map(([value,label]) => <button key={value} type="button" className={`${styles.segment} ${settings.instagram.desktopLayout === value ? styles.segmentActive : ""}`} onClick={() => patchInstagram({ desktopLayout: value })}>{label}</button>)}
           </div>
         </div>
 
         <div className={styles.field}>
-          <label htmlFor="instagram-curated-urls">Επιλεγμένα Reels / posts (προαιρετικό)</label>
+          <label htmlFor="instagram-curated-urls">Επιλεγμένα Reels / αναρτήσεις (προαιρετικό)</label>
           <textarea id="instagram-curated-urls" value={settings.instagram.curatedUrls.join("\n")} placeholder={"https://www.instagram.com/reel/.../\nhttps://www.instagram.com/p/.../"} onChange={(event) => patchInstagram({ curatedUrls: event.target.value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean).slice(0,20) })} />
           <p className={styles.miniNote}>Μία διεύθυνση ανά γραμμή. Αν μείνει κενό, εμφανίζονται αυτόματα τα πιο πρόσφατα στοιχεία του συνδεδεμένου λογαριασμού.</p>
         </div>
@@ -207,15 +207,15 @@ export function VendorStorefrontBuilder(props: {
 
       {message && <p className={`${styles.status} ${styles.ok}`} role="status">{message}</p>}
       {error && <p className={`${styles.status} ${styles.error}`} role="alert">{error}</p>}
-      <p className={styles.miniNote}>{props.initial.demoMode ? "Οι αλλαγές του trial αποθηκεύονται στο πραγματικό μελλοντικό storefront σου. Δεν δημοσιεύονται δημόσια πριν ολοκληρωθεί η ενεργοποίηση συνεργάτη." : "Οι αλλαγές αποθηκεύονται στη δημόσια βιτρίνα σου. Η ενότητα Instagram εμφανίζεται μόνο όταν έχεις συνδέσει λογαριασμό, την έχεις ενεργοποιήσει και πατήσεις Αποθήκευση."}</p>
+      <p className={styles.miniNote}>{props.initial.demoMode ? "Οι αλλαγές της δοκιμής αποθηκεύονται στο πραγματικό μελλοντικό προφίλ σου. Δεν δημοσιεύονται δημόσια πριν ολοκληρωθεί η ενεργοποίηση συνεργάτη." : "Οι αλλαγές αποθηκεύονται στη δημόσια βιτρίνα σου. Η ενότητα Instagram εμφανίζεται μόνο όταν έχεις συνδέσει λογαριασμό, την έχεις ενεργοποιήσει και πατήσεις Αποθήκευση."}</p>
     </div>
 
     <div className={styles.previewPanel}>
       <div className={styles.previewToolbar}>
-        <div><strong>Ζωντανή ιδιωτική προεπισκόπηση</strong><br/><small>Αυτό βλέπεις μόνο εσύ στο trial.</small></div>
+        <div><strong>Ζωντανή ιδιωτική προεπισκόπηση</strong><br/><small>Αυτό το βλέπεις μόνο εσύ στη δοκιμή.</small></div>
         <div className={styles.deviceToggle}>
-          <button type="button" className={`${styles.deviceButton} ${device === "desktop" ? styles.deviceActive : ""}`} onClick={() => setDevice("desktop")}>Desktop</button>
-          <button type="button" className={`${styles.deviceButton} ${device === "mobile" ? styles.deviceActive : ""}`} onClick={() => setDevice("mobile")}>Mobile</button>
+          <button type="button" className={`${styles.deviceButton} ${device === "desktop" ? styles.deviceActive : ""}`} onClick={() => setDevice("desktop")}>Υπολογιστής</button>
+          <button type="button" className={`${styles.deviceButton} ${device === "mobile" ? styles.deviceActive : ""}`} onClick={() => setDevice("mobile")}>Κινητό</button>
         </div>
       </div>
 
@@ -226,12 +226,12 @@ export function VendorStorefrontBuilder(props: {
           <p>{shortDescription || "Πρόσθεσε μία σύντομη περιγραφή για να καταλάβει αμέσως ο πελάτης τι προσφέρει το κατάστημά σου."}</p>
         </div>
         <div className={styles.storeBody}>
-          <div className={styles.chips}><span className={styles.chip}>Παραλαβή από κατάστημα</span><span className={styles.chip}>Τοπική υποστήριξη</span><span className={styles.demoPill}>{props.initial.demoMode ? "TRIAL PREVIEW" : "STOREFRONT PREVIEW"}</span></div>
+          <div className={styles.chips}><span className={styles.chip}>Παραλαβή από κατάστημα</span><span className={styles.chip}>Τοπική υποστήριξη</span><span className={styles.demoPill}>{props.initial.demoMode ? "ΠΡΟΕΠΙΣΚΟΠΗΣΗ ΔΟΚΙΜΗΣ" : "ΠΡΟΕΠΙΣΚΟΠΗΣΗ ΠΡΟΦΙΛ"}</span></div>
           {settings.showFeatured && <>
             <h4>Προτεινόμενα προϊόντα</h4>
-            <div className={styles.productGrid}>{[1,2,3].map((item) => <div className={styles.productCard} key={item}><div className={styles.productImage}>◇</div><div className={styles.productMeta}><strong>{props.productCount ? `Προϊόν ${item}` : "Demo προϊόν"}</strong><small>{props.productCount ? "Από τον κατάλογό σου" : "Δείγμα έως ότου προσθέσεις προϊόντα"}</small></div></div>)}</div>
+            <div className={styles.productGrid}>{[1,2,3].map((item) => <div className={styles.productCard} key={item}><div className={styles.productImage}>◇</div><div className={styles.productMeta}><strong>{props.productCount ? `Προϊόν ${item}` : "Δοκιμαστικό προϊόν"}</strong><small>{props.productCount ? "Από τον κατάλογό σου" : "Δείγμα έως ότου προσθέσεις προϊόντα"}</small></div></div>)}</div>
           </>}
-          {settings.showFlashSale && <div className={styles.sectionBlock}><h4>⚡ Flash Sale</h4><p>Μία γρήγορη, παιχνιδοποιημένη προσφορά μπορεί να εμφανίζεται εδώ όταν την ενεργοποιήσεις.</p></div>}
+          {settings.showFlashSale && <div className={styles.sectionBlock}><h4>⚡ Γρήγορη προσφορά</h4><p>Μία γρήγορη, παιχνιδοποιημένη προσφορά μπορεί να εμφανίζεται εδώ όταν την ενεργοποιήσεις.</p></div>}
           {settings.showBazaar && <div className={styles.sectionBlock}><h4>♻ BAZAAR</h4><p>Επιστροφές και επιλεγμένα είδη μπορούν να αποκτούν δεύτερη ζωή αντί να γίνονται απόβλητα.</p></div>}
           {settings.showAbout && <div className={styles.sectionBlock}><h4>Η ιστορία μας</h4><p>{story || "Η ιστορία, η εμπειρία και οι άνθρωποι πίσω από το κατάστημά σου θα εμφανίζονται εδώ."}</p></div>}
           {settings.showLocation && props.initial.location && <div className={styles.sectionBlock}><h4>Βρες μας</h4><p>{props.initial.location.addressLine1}, {props.initial.location.postcode} {props.initial.location.locality}</p></div>}

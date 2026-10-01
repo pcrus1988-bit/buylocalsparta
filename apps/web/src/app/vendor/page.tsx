@@ -49,7 +49,7 @@ export default async function VendorBackofficePage() {
         <div className="eyebrow">Αρχική · σήμερα</div>
         <h1>{overview.vendor.name}</h1>
         <p className="lead">Το κέντρο ελέγχου του καταστήματός σου: επείγουσες εργασίες πρώτες, άμεση αναζήτηση λειτουργιών και καθαρή μετάβαση από εικόνα σε ενέργεια.</p>
-        {operatingContext.capabilities.includes("catalogue.import") && !dropshippingOnly && <div className="workspace-action-buttons"><Link className="button button-secondary" href="/vendor/catalog/feed">XML Product Feed</Link></div>}
+        {operatingContext.capabilities.includes("catalogue.import") && !dropshippingOnly && <div className="workspace-action-buttons"><Link className="button button-secondary" href="/vendor/catalog/feed">Εισαγωγή XML</Link></div>}
       </div>
       <aside className="dashboard-health-card">
         <span>Τοπικός σύμβουλος</span>
@@ -110,7 +110,7 @@ export default async function VendorBackofficePage() {
         { kicker: "Προφίλ", label: "Κατάστημα", description: "Η δημόσια εικόνα και οι φωτογραφίες του καταστήματός σου.", href: "/vendor/storefront" },
         { kicker: "Πληρωμές", label: "Οικονομικά", description: "Παραστατικά, πληρωμές και εμπορική συμφωνία.", href: "/vendor/finance" },
         { kicker: "Απόδοση", label: "Στατιστικά", description: "Πωλήσεις, μετατροπή, απόδοση προϊόντων και αναφορές.", href: "/vendor/analytics" },
-        { kicker: "Έλεγχος", label: "Προθεσμίες & ειδοποιήσεις", description: "Ενεργές προθεσμίες και ιστορικό operational ειδοποιήσεων.", href: "/vendor/notifications", value: orderNotifications.requiringAction }
+        { kicker: "Έλεγχος", label: "Προθεσμίες & ειδοποιήσεις", description: "Ενεργές προθεσμίες και ιστορικό λειτουργικών ειδοποιήσεων.", href: "/vendor/notifications", value: orderNotifications.requiringAction }
       ]}
     />
 

@@ -10,7 +10,7 @@ import { getVendorSession } from "../../../lib/vendor-session";
 import { vendorProfileMediaWorkspace } from "../../../lib/vendor-profile-media-service";
 import { vendorStorefrontWorkspace } from "../../../lib/vendor-storefront-settings";
 
-export const metadata: Metadata = { title: "Vendor · Storefront", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Δημόσιο προφίλ καταστήματος", robots: { index: false, follow: false } };
 
 function isPublished(asset: { publicationStatus: string; scanStatus: string; rightsStatus: string; moderationStatus: string }) {
   return asset.publicationStatus === "published" && asset.scanStatus === "clean" && asset.rightsStatus === "approved" && asset.moderationStatus === "approved";
@@ -26,7 +26,7 @@ export default async function VendorStorefrontPage() {
     { label: "Λογότυπο", tone: liveRoles.has("logo") ? "done" as const : "attention" as const, detail: liveRoles.has("logo") ? "Δημοσιευμένο" : "Πρόσθεσε λογότυπο" },
     { label: "Κατάστημα", tone: liveRoles.has("storefront") ? "done" as const : "attention" as const, detail: liveRoles.has("storefront") ? "Δημοσιευμένο" : "Πρόσθεσε κύρια φωτογραφία" },
     { label: "Άνθρωποι", tone: liveRoles.has("team") ? "done" as const : "current" as const, detail: liveRoles.has("team") ? "Δημοσιευμένο" : "Προαιρετικό αλλά προτεινόμενο" },
-    { label: "Gallery", tone: liveRoles.has("gallery") ? "done" as const : "future" as const, detail: liveRoles.has("gallery") ? "Υπάρχουν δημοσιευμένες εικόνες" : "Πρόσθεσε αυθεντικές φωτογραφίες" }
+    { label: "Συλλογή φωτογραφιών", tone: liveRoles.has("gallery") ? "done" as const : "future" as const, detail: liveRoles.has("gallery") ? "Υπάρχουν δημοσιευμένες εικόνες" : "Πρόσθεσε αυθεντικές φωτογραφίες" }
   ];
 
   return <main className="vendor-app">

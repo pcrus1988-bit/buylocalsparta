@@ -8,7 +8,7 @@ import { getVendorSession } from "../../../lib/vendor-session";
 import { synchronizeOperationalEvents, vendorAdviceWorkspace } from "../../../lib/vendor-backoffice-service";
 import { vendorAskLocalRichContext } from "../../../lib/vendor-ask-local-rich-context";
 
-export const metadata: Metadata = { title: "Vendor Advice", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Συμβουλές & αιτήματα", robots: { index: false, follow: false } };
 
 export default async function VendorAdvicePage() {
   const principal = await getVendorSession();
@@ -29,7 +29,7 @@ export default async function VendorAdvicePage() {
 
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
-    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Customer care</div><h1>Συμβουλές & αιτήματα</h1><p className="lead">Μηνύματα, ραντεβού και Ask Local για το δικό σου κατάστημα — οργανωμένα γύρω από ό,τι χρειάζεται απάντηση.</p></div></section>
+    <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div><div className="eyebrow">Εξυπηρέτηση πελατών</div><h1>Συμβουλές & αιτήματα</h1><p className="lead">Μηνύματα, ραντεβού και Ask Local για το δικό σου κατάστημα — οργανωμένα γύρω από ό,τι χρειάζεται απάντηση.</p></div></section>
     {richEvidence.length ? <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Ask Local 2.0" title="Φωτογραφίες, barcode & φωνητικές σημειώσεις" note="Αυτό το υλικό είναι ιδιωτικό και εμφανίζεται μόνο επειδή το αίτημα έχει ανατεθεί στο κατάστημά σου. Χρησιμοποίησέ το αποκλειστικά για να αναγνωρίσεις και να εξυπηρετήσεις το αίτημα." />
       <div className="workspace-queue-list">{richEvidence.map((request) => <article className="workspace-queue-card" key={request.id}>

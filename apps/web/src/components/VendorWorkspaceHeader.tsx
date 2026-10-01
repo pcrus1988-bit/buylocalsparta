@@ -123,11 +123,11 @@ export function VendorWorkspaceHeader() {
       href: "/vendor/dropshipping",
       icon: "⇄",
       links: [
-        { label: "Dropshipping Control Centre", href: "/vendor/dropshipping", icon: "⇄" },
-        { label: "Analytics", href: "/vendor/dropshipping/analytics", icon: "↗" },
-        { label: "Needs attention", href: "/vendor/dropshipping/attention", icon: "!" },
-        { label: "Feed health", href: "/vendor/dropshipping/health", icon: "↻" },
-        { label: "Activity", href: "/vendor/dropshipping/activity", icon: "◷" },
+        { label: "Κέντρο dropshipping", href: "/vendor/dropshipping", icon: "⇄" },
+        { label: "Στατιστικά", href: "/vendor/dropshipping/analytics", icon: "↗" },
+        { label: "Χρειάζονται προσοχή", href: "/vendor/dropshipping/attention", icon: "!" },
+        { label: "Κατάσταση ροής", href: "/vendor/dropshipping/health", icon: "↻" },
+        { label: "Δραστηριότητα", href: "/vendor/dropshipping/activity", icon: "◷" },
         ...group.links.filter((link) => link.href !== "/vendor/catalog" && link.href !== "/vendor/catalog/feed")
       ]
     } : group);
@@ -147,62 +147,26 @@ export function VendorWorkspaceHeader() {
   const trialProgress = Math.round((trialCompletedSetup / 3) * 100);
   const trialSteps = trial ? [
     {
-      label: "1 · Welcome & trial safety",
-      detail: "Δες τι μπορείς να δοκιμάσεις και τι παραμένει κλειδωμένο μέχρι την ενεργοποίηση.",
-      href: "/vendor/trial#trial-safety",
-      state: "done"
-    },
-    {
-      label: "2 · Business profile & story",
-      detail: "Συμπλήρωσε την ιστορία και τη σύντομη περιγραφή του καταστήματος.",
+      label: "1 · Προφίλ καταστήματος",
+      detail: "Συμπλήρωσε περιγραφή, εμφάνιση, λογότυπο και βασικές εικόνες.",
       href: "/vendor/trial#storefront-builder",
-      state: trial.brandConfigured ? "done" : "todo"
+      state: trial.brandConfigured && trial.storefrontConfigured ? "done" : "todo"
     },
     {
-      label: "3 · Storefront design",
-      detail: "Ρύθμισε hero, χρώμα, ενότητες, logo και εικόνες.",
-      href: "/vendor/storefront",
-      state: trial.storefrontConfigured ? "done" : "todo"
-    },
-    {
-      label: "4 · Products",
-      detail: "Πρόσθεσε πραγματικά προϊόντα στο ιδιωτικό workspace.",
+      label: "2 · Πρώτα προϊόντα",
+      detail: "Πρόσθεσε τα προϊόντα που θέλεις να προετοιμάσεις για δημοσίευση.",
       href: "/vendor/catalog",
       state: trial.productCount > 0 ? "done" : "todo"
     },
     {
-      label: "5 · Orders, pickup & delivery",
-      detail: "Γνώρισε τη ροή παραγγελίας, αποστολής, παραλαβής και επιστροφής.",
-      href: "/vendor/orders",
-      state: "explore"
-    },
-    {
-      label: "6 · Payments & commercial flow",
-      detail: "Δες πώς λειτουργούν παραστατικά και settlements χωρίς να μετακινούνται χρήματα στο trial.",
-      href: "/vendor/finance",
-      state: "explore"
-    },
-    {
-      label: "7 · KONTA MOY Daily",
-      detail: "Δες το καθημερινό εργαλείο για γρήγορες λειτουργικές ενέργειες.",
-      href: "/daily",
-      state: "explore"
-    },
-    {
-      label: "8 · Customer tools",
-      detail: "Εξερεύνησε μηνύματα, συμβουλή και αιτήματα πελατών.",
-      href: "/vendor/advice",
-      state: "explore"
-    },
-    {
-      label: "9 · Private storefront preview",
-      detail: "Δες το κατάστημά σου όπως θα παρουσιαστεί στον πελάτη.",
+      label: "3 · Προεπισκόπηση",
+      detail: "Δες το κατάστημά σου όπως θα το βλέπει ο πελάτης.",
       href: "/vendor/preview",
       state: "explore"
     },
     {
-      label: "10 · Activation path",
-      detail: "Κατανόησε τι ακολουθεί μετά το trial και ποια gates ολοκληρώνει το Admin.",
+      label: "4 · Τι ακολουθεί",
+      detail: "Δες τα τελευταία βήματα πριν από την ενεργοποίηση.",
       href: "/vendor/trial#activation",
       state: "explore"
     }
@@ -249,16 +213,16 @@ export function VendorWorkspaceHeader() {
       </div>
       <VendorDomainNavigation id="vendor-workspace-navigation" groups={navigation} onNavigate={() => setMenuOpen(false)} />
       <div className="workspace-footer workspace-footer-stacked">
-        <span className="workspace-session"><i aria-hidden="true" /> Online · ιδιωτικό scope</span>
+        <span className="workspace-session"><i aria-hidden="true" /> Συνδεδεμένος · ιδιωτικός χώρος</span>
         <div className="workspace-footer-actions">
-          <Link className="workspace-footer-action workspace-public-link" href="/" onClick={() => setMenuOpen(false)}>Δημόσιο site <span aria-hidden="true">↗</span></Link>
+          <Link className="workspace-footer-action workspace-public-link" href="/" onClick={() => setMenuOpen(false)}>Δημόσια σελίδα <span aria-hidden="true">↗</span></Link>
           <button className="workspace-footer-action" type="button" onClick={logout} disabled={busy}>{busy ? "Έξοδος…" : "Αποσύνδεση"}<span aria-hidden="true">↗</span></button>
         </div>
       </div>
     </header>
     {trial?.active && <>
       <div className={trialStyles.trialBanner}>
-        <strong>✦ 3ήμερο Vendor Trial · {trial.vendorName}</strong>
+        <strong>✦ 3ήμερη δοκιμή · {trial.vendorName}</strong>
         <span>Η πώληση παραμένει κλειδωμένη μέχρι την ενεργοποίηση.</span>
         <button
           type="button"
@@ -267,9 +231,9 @@ export function VendorWorkspaceHeader() {
           aria-controls="vendor-trial-guide"
           onClick={() => setTrialGuideOpen((current) => !current)}
         >
-          Trial Guide · {trialProgress}%
+          Οδηγός · {trialProgress}%
         </button>
-        <Link href="/vendor/preview" className={trialStyles.trialBannerLink}>Preview →</Link>
+        <Link href="/vendor/preview" className={trialStyles.trialBannerLink}>Προεπισκόπηση →</Link>
       </div>
       {trialGuideOpen && <div className={trialStyles.guideBackdrop} onMouseDown={() => setTrialGuideOpen(false)}>
         <aside
@@ -277,23 +241,23 @@ export function VendorWorkspaceHeader() {
           className={trialStyles.guideDrawer}
           role="dialog"
           aria-modal="true"
-          aria-label="Vendor Trial Guide"
+          aria-label="Οδηγός δοκιμής συνεργάτη"
           onMouseDown={(event) => event.stopPropagation()}
         >
           <div className={trialStyles.guideHeader}>
             <div>
-              <span className={trialStyles.guideEyebrow}>Interactive onboarding</span>
-              <h2>Trial Guide</h2>
-              <p>Ρύθμισε πραγματικά το κατάστημά σου και χρησιμοποίησε τον οδηγό ως walkthrough του Vendor Workspace.</p>
+              <span className={trialStyles.guideEyebrow}>Γρήγορη προετοιμασία</span>
+              <h2>Οδηγός</h2>
+              <p>Ρύθμισε μόνο τα βασικά πρώτα. Τα υπόλοιπα εργαλεία μπορείς να τα εξερευνήσεις όταν τα χρειαστείς.</p>
             </div>
-            <button type="button" className={trialStyles.guideClose} onClick={() => setTrialGuideOpen(false)} aria-label="Κλείσιμο Trial Guide">×</button>
+            <button type="button" className={trialStyles.guideClose} onClick={() => setTrialGuideOpen(false)} aria-label="Κλείσιμο οδηγού">×</button>
           </div>
-          <div className={trialStyles.guideProgress} aria-label={`Πρόοδος setup ${trialProgress}%`}>
+          <div className={trialStyles.guideProgress} aria-label={`Πρόοδος προετοιμασίας ${trialProgress}%`}>
             <span style={{ width: `${trialProgress}%` }} />
           </div>
           <div className={trialStyles.guideSummary}>
-            <strong>{trialCompletedSetup}/3 πραγματικά setup goals</strong>
-            <span>{trial.productCount} προϊόντα · {trial.mediaCount} media</span>
+            <strong>{trialCompletedSetup}/3 βασικές ρυθμίσεις</strong>
+            <span>{trial.productCount} προϊόντα · {trial.mediaCount} αρχεία</span>
           </div>
           <div className={trialStyles.guideSteps}>
             {trialSteps.map((step) => <Link
@@ -307,8 +271,8 @@ export function VendorWorkspaceHeader() {
             </Link>)}
           </div>
           <div className={trialStyles.guideFooter}>
-            <Link href="/vendor/trial" onClick={() => setTrialGuideOpen(false)}>Άνοιξε το πλήρες Wizard →</Link>
-            <small>Ο οδηγός παραμένει διαθέσιμος σε όλο το Vendor Workspace όσο το trial είναι ενεργό.</small>
+            <Link href="/vendor/trial" onClick={() => setTrialGuideOpen(false)}>Άνοιξε την πλήρη προετοιμασία →</Link>
+            <small>Ο οδηγός παραμένει διαθέσιμος όσο η δοκιμή είναι ενεργή.</small>
           </div>
         </aside>
       </div>}
@@ -316,7 +280,7 @@ export function VendorWorkspaceHeader() {
     <div className="vendor-topbar">
       <div className="vendor-topbar-main">
         <div className="vendor-breadcrumbs"><VendorBreadcrumbs groups={navigation} /></div>
-        <Link className="vendor-daily-launch" href="/daily?install=1"><span aria-hidden="true">↓</span> Download App · KONTA MOY Daily</Link>
+        <Link className="vendor-daily-launch" href="/daily?install=1" aria-label="Εγκατάσταση εφαρμογής KONTA MOY Daily"><span aria-hidden="true">↓</span> Εγκατάσταση Daily</Link>
       </div>
       <VendorContextNavigation groups={navigation} />
     </div>

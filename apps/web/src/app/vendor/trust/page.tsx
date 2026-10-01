@@ -31,7 +31,7 @@ export default async function VendorTrustPage() {
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Πορεία υποβολής" title="Από το προϊόν μέχρι την έγκριση" note="Δεν χρειάζεται να γνωρίζεις malware scan, rights review ή moderation. Αυτοί οι έλεγχοι γίνονται από το σύστημα και το ΚΟΝΤΑ ΜΟΥ." />
+      <WorkspaceSectionHeading eyebrow="Πορεία υποβολής" title="Από το προϊόν μέχρι την έγκριση" note="Δεν χρειάζεται να γνωρίζεις τους τεχνικούς ελέγχους ασφάλειας, δικαιωμάτων ή περιεχομένου. Αυτοί γίνονται από το σύστημα και το ΚΟΝΤΑ ΜΟΥ." />
       <VendorLifecycle steps={[
         { label: "Επίλεξε προϊόν", tone: hasProducts ? "done" : "attention", detail: hasProducts ? "Ο κατάλογος είναι διαθέσιμος" : "Πρόσθεσε πρώτα προϊόν" },
         { label: "Επίλεξε υλικό", tone: hasAssets ? "done" : hasProducts ? "attention" : "future", detail: "Φωτογραφία, βίντεο ή PDF" },

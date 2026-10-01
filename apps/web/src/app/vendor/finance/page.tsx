@@ -38,7 +38,7 @@ export default async function VendorFinancePage() {
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Πορεία πληρωμής" title="Από την πώληση έως την κατάθεση" note="Η οθόνη ξεχωρίζει τα βήματα που απαιτούν δική σου ενέργεια από όσα διαχειρίζεται το ΚΟΝΤΑ ΜΟΥ." />
-      <VendorLifecycle steps={steps} ariaLabel="Πορεία πληρωμής vendor" />
+      <VendorLifecycle steps={steps} ariaLabel="Πορεία πληρωμής συνεργάτη" />
       <WorkspaceHowItWorks>
         <p><strong>1. Ολοκλήρωση παραγγελίας:</strong> δημιουργείται η οικονομική εγγραφή για το κατάστημά σου.</p>
         <p><strong>2. Παραστατικό:</strong> όταν ζητείται, καταχωρείς τον αριθμό και το μικτό ποσό του παραστατικού.</p>

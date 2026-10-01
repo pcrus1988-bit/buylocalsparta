@@ -36,17 +36,17 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     label: "Προϊόντα", href: "/vendor/catalog", icon: "▦",
     links: [
       { label: "Κατάλογος & απόθεμα", href: "/vendor/catalog", icon: "▦", vendorCapability: "catalogue.read" },
-      { label: "XML Product Feed", href: "/vendor/catalog/feed", icon: "⇩", vendorCapability: "catalogue.import" },
-      { label: "Media & έγγραφα", href: "/vendor/trust", icon: "✓" }
+      { label: "Εισαγωγή προϊόντων (XML)", href: "/vendor/catalog/feed", icon: "⇩", vendorCapability: "catalogue.import" },
+      { label: "Φωτογραφίες & έγγραφα", href: "/vendor/trust", icon: "✓" }
     ]
   },
   { label: "Πελάτες", href: "/vendor/advice", icon: "◌", links: [{ label: "Μηνύματα & αιτήματα", href: "/vendor/advice", icon: "◌", vendorCapability: "customer_messages.manage" }] },
   { label: "Κατάστημα", href: "/vendor/storefront", icon: "◫", links: [{ label: "Δημόσιο προφίλ", href: "/vendor/storefront", icon: "◫", vendorCapability: "shop.manage" }] },
   { label: "Οικονομικά", href: "/vendor/finance", icon: "€", links: [{ label: "Πληρωμές & παραστατικά", href: "/vendor/finance", icon: "€", vendorCapability: "finance.read" }] },
   {
-    label: "HUB εργαλεία", href: "/vendor/hub", icon: "◎",
+    label: "Εργαλεία HUB", href: "/vendor/hub", icon: "◎",
     links: [
-      { label: "HUB Control Centre", href: "/vendor/hub", icon: "◎", vendorCapability: "local_delivery.manage" }
+      { label: "Κέντρο ελέγχου HUB", href: "/vendor/hub", icon: "◎", vendorCapability: "local_delivery.manage" }
     ]
   },
   {

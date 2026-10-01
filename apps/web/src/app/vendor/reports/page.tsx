@@ -81,8 +81,8 @@ export default async function VendorReportsPage({ searchParams }: { searchParams
       </WorkspaceHowItWorks>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 14 }}>
         <QuickReport title="Πωλήσεις & προμήθειες — 30 ημέρες" body="Πωλήσεις, καθαρή αξία, προμήθειες και σχετικές επιστροφές." preset="sales_commissions" />
-        <QuickReport title="Απόθεμα — 30 ημέρες" body="Τρέχον stock, δεσμεύσεις, διαθέσιμα τεμάχια και κινήσεις αποθέματος." preset="inventory" />
-        <QuickReport title="Απόδοση προϊόντων — 30 ημέρες" body="Προβολές, καλάθι, checkout, αγορές και απόδοση προϊόντων." preset="performance" />
+        <QuickReport title="Απόθεμα — 30 ημέρες" body="Τρέχον απόθεμα, δεσμεύσεις, διαθέσιμα τεμάχια και κινήσεις αποθέματος." preset="inventory" />
+        <QuickReport title="Απόδοση προϊόντων — 30 ημέρες" body="Προβολές, καλάθι, ολοκλήρωση αγοράς, αγορές και απόδοση προϊόντων." preset="performance" />
         <QuickReport title="Επιστροφές — 30 ημέρες" body="Αναφορά επικεντρωμένη στις επιστροφές του καταστήματός σου." preset="custom" domains={["returns"]} />
         <QuickReport title="Πλήρης μηνιαία αναφορά" body="Συνδυασμένη εικόνα πωλήσεων, προμηθειών, αποθέματος, επιστροφών και απόδοσης." preset="full" />
       </div>

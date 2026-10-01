@@ -81,8 +81,8 @@ forbidText(service, "INSERT INTO product_promotions", "Vendor HUB controls must 
 forbidText(service, "UPDATE tax_documents", "Vendor HUB controls must not directly mutate tax documents");
 forbidText(service, "INSERT INTO vendor_subscriptions", "Vendor HUB controls must not directly activate subscriptions");
 
-requireText(client, "Η τελική δημόσια promotional price ενεργοποιείται μόνο", "Promotion UI must explain platform approval boundary");
-requireText(client, "Retry/reconcile δεν εκτελείται τυφλά", "AADE UI must explain safe request boundary");
+requireText(client, "Η τελική δημόσια προωθητική τιμή ενεργοποιείται μόνο", "Promotion UI must explain platform approval boundary");
+requireText(client, "Επανάληψη ή συμφωνία δεν εκτελείται αυτόματα", "AADE UI must explain safe request boundary");
 requireText(client, "αλλαγές που επηρεάζουν εμπορική συμφωνία", "Subscription UI must explain commercial approval boundary");
 
 for (const table of ["vendor_promotion_requests","vendor_aade_action_requests","vendor_subscription_change_requests"]) {

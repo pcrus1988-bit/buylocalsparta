@@ -71,7 +71,7 @@ function actionSet(metrics: Metrics): ReadonlyArray<Action> {
       id: "returns",
       group: "today",
       label: "Επιστροφές",
-      description: "Repair, replacement και after-sales εργασίες.",
+      description: "Επισκευές, αντικαταστάσεις και εργασίες μετά την πώληση.",
       href: "/vendor/returns",
       icon: "↩",
       keywords: "επιστροφές returns replacement repair refund"
@@ -80,7 +80,7 @@ function actionSet(metrics: Metrics): ReadonlyArray<Action> {
       id: "catalog",
       group: "products",
       label: "Κατάλογος & απόθεμα",
-      description: "Τιμές, stock, visibility και στοιχεία προϊόντων.",
+      description: "Τιμές, απόθεμα, εμφάνιση και στοιχεία προϊόντων.",
       href: "/vendor/catalog",
       icon: "▦",
       keywords: "προϊόντα κατάλογος stock inventory τιμή price visibility",
@@ -90,7 +90,7 @@ function actionSet(metrics: Metrics): ReadonlyArray<Action> {
       id: "low-stock",
       group: "products",
       label: "Χαμηλό απόθεμα",
-      description: "Προϊόντα που χρειάζονται έλεγχο stock.",
+      description: "Προϊόντα που χρειάζονται έλεγχο αποθέματος.",
       href: "/vendor/catalog",
       icon: "↘",
       keywords: "χαμηλό απόθεμα low stock inventory",
@@ -100,7 +100,7 @@ function actionSet(metrics: Metrics): ReadonlyArray<Action> {
     {
       id: "trust",
       group: "products",
-      label: "Media & έγγραφα",
+      label: "Φωτογραφίες & έγγραφα",
       description: "Φωτογραφίες, έγγραφα και στοιχεία εμπιστοσύνης.",
       href: "/vendor/trust",
       icon: "✓",
@@ -119,7 +119,7 @@ function actionSet(metrics: Metrics): ReadonlyArray<Action> {
       id: "daily",
       group: "today",
       label: "KONTA MOY Daily",
-      description: "Γρήγορη λειτουργία από κινητό, scan και stock.",
+      description: "Γρήγορη λειτουργία από κινητό, σάρωση και απόθεμα.",
       href: "/daily",
       icon: "◈",
       keywords: "daily κινητό mobile scan quick add"
@@ -146,7 +146,7 @@ function actionSet(metrics: Metrics): ReadonlyArray<Action> {
       id: "analytics",
       group: "money",
       label: "Απόδοση",
-      description: "Πωλήσεις, conversion και απόδοση προϊόντων.",
+      description: "Πωλήσεις, μετατροπή και απόδοση προϊόντων.",
       href: "/vendor/analytics",
       icon: "∿",
       keywords: "analytics στατιστικά performance πωλήσεις conversion",
@@ -194,7 +194,7 @@ export function VendorDashboardTools({ metrics }: { metrics: Metrics }) {
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Αναζήτηση: παραγγελία, stock, Ask Local, οικονομικά…"
+          placeholder="Αναζήτηση: παραγγελία, απόθεμα, Ask Local, οικονομικά…"
           aria-label="Αναζήτηση εργαλείων συνεργάτη"
         />
         {query && <button type="button" onClick={() => setQuery("")}>Καθαρισμός</button>}

@@ -9,7 +9,7 @@ type Shipment = { id: string; fulfilmentId: string; orderId: string; orderNumber
 type Workspace = { csrfToken: string; configured: boolean; shipments: readonly Shipment[] };
 
 function shippingLifecycle(shipment: Shipment): readonly VendorLifecycleStep[] {
-  const labels = ["Παραγγελία", "Ετικέτα", "Παράδοση στον courier", "Σε μεταφορά", "Παραδόθηκε"];
+  const labels = ["Παραγγελία", "Ετικέτα", "Παράδοση στον μεταφορέα", "Σε μεταφορά", "Παραδόθηκε"];
   const status = shipment.status.toLowerCase();
   if (["delivered", "completed"].includes(status)) return labels.map((label) => ({ label, tone: "done" as const }));
   let current = 1;
@@ -50,7 +50,7 @@ export function VendorShippingClient({ initial }: { initial: Workspace }) {
     <WorkspaceMetricStrip items={[
       { label: "Αποστολές", value: initial.shipments.length },
       { label: "Χρειάζονται ετικέτα", value: toCreate, tone: toCreate ? "attention" : "default" },
-      { label: "Έτοιμες για courier", value: toHandover, tone: toHandover ? "attention" : "default" },
+      { label: "Έτοιμες για μεταφορέα", value: toHandover, tone: toHandover ? "attention" : "default" },
       { label: "Σε μεταφορά", value: inTransit, tone: inTransit ? "positive" : manualReview ? "attention" : "default", hint: manualReview ? `${manualReview} χρειάζονται έλεγχο` : undefined }
     ]} />
 
@@ -75,10 +75,10 @@ export function VendorShippingClient({ initial }: { initial: Workspace }) {
                 : <VendorActionNotice tone="waiting" title="Περιμένουμε ενημέρωση από την BOX NOW">Δεν χρειάζεται να αλλάξεις κατάσταση χειροκίνητα.</VendorActionNotice>}
           <div className="workspace-queue-primary">{shipment.trackingNumber && <span>Tracking {shipment.trackingNumber}</span>}</div>
           {shipment.error && <p className="workspace-queue-summary">{shipment.error}</p>}
-          <div className="workspace-action-bar"><span>{shipment.canCreate ? "Ξεκίνα δημιουργώντας την ετικέτα της αποστολής." : shipment.canHandover ? "Επιβεβαίωσε μόνο όταν ο courier έχει παραλάβει το δέμα." : "Δεν υπάρχει ενέργεια από το κατάστημα αυτή τη στιγμή."}</span><div className="workspace-action-buttons">
+          <div className="workspace-action-bar"><span>{shipment.canCreate ? "Ξεκίνα δημιουργώντας την ετικέτα της αποστολής." : shipment.canHandover ? "Επιβεβαίωσε μόνο όταν ο μεταφορέας έχει παραλάβει το δέμα." : "Δεν υπάρχει ενέργεια από το κατάστημα αυτή τη στιγμή."}</span><div className="workspace-action-buttons">
             {shipment.canCreate && <button className="button" disabled={busy === shipment.fulfilmentId || !initial.configured} onClick={() => void act("/api/vendor/shipping/create", { fulfilmentId: shipment.fulfilmentId }, shipment.fulfilmentId)}>{busy === shipment.fulfilmentId ? "Έλεγχος…" : shipment.manualReview ? "Έλεγχος υπάρχουσας αποστολής" : "Δημιουργία ετικέτας"}</button>}
             {shipment.id && !shipment.id.startsWith("pending:") && shipment.providerCreationState === "confirmed" && <a className="button button-secondary" href={`/api/vendor/shipping/label?shipmentId=${encodeURIComponent(shipment.id)}`} target="_blank" rel="noreferrer">Άνοιγμα / εκτύπωση ετικέτας</a>}
-            {shipment.canHandover && <button className="button" disabled={busy === shipment.id} onClick={() => void act("/api/vendor/shipping/handover", { shipmentId: shipment.id }, shipment.id)}>{busy === shipment.id ? "Ενημέρωση…" : "Παραδόθηκε στον courier"}</button>}
+            {shipment.canHandover && <button className="button" disabled={busy === shipment.id} onClick={() => void act("/api/vendor/shipping/handover", { shipmentId: shipment.id }, shipment.id)}>{busy === shipment.id ? "Ενημέρωση…" : "Παραδόθηκε στον μεταφορέα"}</button>}
           </div></div>
           <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη">
             <div className="workspace-compact-list">
