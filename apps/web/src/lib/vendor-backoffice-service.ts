@@ -61,14 +61,15 @@ export async function submitVendorProduct(principal: SessionPrincipal, submissio
   return postgresVendorRuntimeEnabled() ? db().submitProduct(principal, submissionId) : memorySubmitProduct(principal, submissionId);
 }
 
-export async function submitVendorProducts(principal: SessionPrincipal, submissionIds?: readonly string[]) {
-  if (postgresVendorRuntimeEnabled()) return db().submitProducts(principal, submissionIds);
+export async function submitVendorProducts(principal: SessionPrincipal, submissionIds?: readonly string[], batchSize = 50) {
+  if (postgresVendorRuntimeEnabled()) return db().submitProducts(principal, submissionIds, batchSize);
   const targets = submissionIds?.length
     ? [...new Set(submissionIds)]
     : memoryCatalogWorkspace(principal).submissions.filter((item) => item.status === "draft").map((item) => item.id);
+  const batch = targets.slice(0, Math.max(1, Math.min(100, Math.floor(batchSize) || 50)));
   let submitted = 0;
   let skipped = 0;
-  for (const id of targets) {
+  for (const id of batch) {
     try {
       memorySubmitProduct(principal, id);
       submitted += 1;
@@ -76,7 +77,7 @@ export async function submitVendorProducts(principal: SessionPrincipal, submissi
       skipped += 1;
     }
   }
-  return { submitted, skipped };
+  return { submitted, skipped, remaining: Math.max(0, targets.length - batch.length) };
 }
 
 export async function previewOrCommitVendorCsv(principal: SessionPrincipal, csv: string, confirm: boolean) {
