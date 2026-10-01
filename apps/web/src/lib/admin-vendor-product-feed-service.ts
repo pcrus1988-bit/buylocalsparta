@@ -1,7 +1,9 @@
-import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
+import type { SessionPrincipal, SqlRow, VendorXmlFieldMapping } from "@buy-local-sparta/core";
 import { assertAdminPermission, recordAdminAudit } from "./admin-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { syncVendorProductFeedAsPlatform } from "./vendor-product-feed-scheduler";
+import { fetchVendorXml, previewVendorProductFeed, type VendorProductFeedMappingInput, type VendorProductFeedPreview } from "./vendor-product-feed-preview";
+import { saveVendorProductFeed } from "./vendor-product-feed-service";
 
 export type AdminVendorProductFeed = Readonly<{
   id: string;
@@ -13,6 +15,9 @@ export type AdminVendorProductFeed = Readonly<{
   sourceFilename?: string;
   status: string;
   syncIntervalMinutes: number;
+  fieldMapping: VendorXmlFieldMapping;
+  categoryMapping: Readonly<Record<string, string>>;
+  defaultCategoryCode?: string;
   productCount: number;
   readyCount: number;
   errorCount: number;
@@ -67,6 +72,19 @@ function text(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function jsonObject(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
 export async function adminVendorProductFeedWorkspace(
   principal: SessionPrincipal
 ): Promise<AdminVendorProductFeedWorkspace> {
@@ -87,6 +105,9 @@ export async function adminVendorProductFeedWorkspace(
         f.source_filename,
         f.status,
         f.sync_interval_minutes,
+        f.field_mapping,
+        f.category_mapping,
+        default_category.code AS default_category_code,
         f.product_count,
         f.ready_count,
         f.error_count,
@@ -100,6 +121,7 @@ export async function adminVendorProductFeedWorkspace(
         COALESCE(stats.linked_offers,0)::integer AS linked_offers
       FROM public.vendor_product_feeds f
       JOIN public.vendor_businesses v ON v.id=f.vendor_id
+      LEFT JOIN public.categories default_category ON default_category.id=f.default_category_id
       LEFT JOIN LATERAL (
         SELECT
           count(*) FILTER (WHERE i.state='present') AS present_items,
@@ -154,6 +176,9 @@ export async function adminVendorProductFeedWorkspace(
         sourceFilename: text(row.source_filename),
         status: String(row.status),
         syncIntervalMinutes: int(row.sync_interval_minutes),
+        fieldMapping: jsonObject(row.field_mapping) as VendorXmlFieldMapping,
+        categoryMapping: jsonObject(row.category_mapping) as Record<string, string>,
+        defaultCategoryCode: text(row.default_category_code),
         productCount: int(row.product_count),
         readyCount: int(row.ready_count),
         errorCount: int(row.error_count),
@@ -192,6 +217,116 @@ export async function adminVendorProductFeedWorkspace(
   } finally {
     client.release();
   }
+}
+
+type PlatformFeedContext = Readonly<{
+  feedId: string;
+  vendorId: string;
+  sourceUrl: string;
+  feedName: string;
+  syncIntervalMinutes: number;
+  userId: string;
+  email: string;
+}>;
+
+async function platformFeedContext(feedId: string): Promise<PlatformFeedContext> {
+  const id = feedId.trim();
+  if (!id) throw new Error("XML feed id is required.");
+  const runtime = getProductionPostgresRuntime();
+  const client = await runtime.nativePool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE bls_platform_runtime");
+    const result = await client.query<SqlRow>(`
+      SELECT
+        f.public_id AS feed_id,
+        f.name AS feed_name,
+        f.source_url,
+        f.sync_interval_minutes,
+        COALESCE(v.public_id,v.id::text) AS vendor_id,
+        COALESCE(actor.public_id,actor.id::text) AS user_id,
+        actor.email
+      FROM public.vendor_product_feeds f
+      JOIN public.vendor_businesses v ON v.id=f.vendor_id
+      LEFT JOIN LATERAL (
+        SELECT u.id,u.public_id,u.email
+        FROM public.vendor_users vu
+        JOIN public.users u ON u.id=vu.user_id
+        WHERE vu.vendor_id=f.vendor_id AND vu.active=true AND u.status='active'
+        ORDER BY CASE WHEN EXISTS (
+          SELECT 1 FROM public.vendor_user_roles vur
+          WHERE vur.vendor_user_id=vu.id AND vur.role='vendor_owner'
+        ) THEN 0 ELSE 1 END,vu.created_at,vu.id
+        LIMIT 1
+      ) actor ON true
+      WHERE f.public_id=$1 AND f.source_type='url'
+      LIMIT 1
+    `, [id]);
+    await client.query("COMMIT");
+    const row = result.rows[0];
+    if (!row?.source_url) throw new Error("Το XML URL feed δεν βρέθηκε.");
+    if (!row.user_id) throw new Error("Δεν υπάρχει ενεργός vendor user για ασφαλές remap.");
+    return {
+      feedId: String(row.feed_id),
+      vendorId: String(row.vendor_id),
+      sourceUrl: String(row.source_url),
+      feedName: String(row.feed_name),
+      syncIntervalMinutes: int(row.sync_interval_minutes),
+      userId: String(row.user_id),
+      email: String(row.email ?? "vendor-feed@kontamou.invalid")
+    };
+  } catch (error) {
+    try { await client.query("ROLLBACK"); } catch {}
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+function vendorFeedPrincipal(context: PlatformFeedContext): SessionPrincipal {
+  return {
+    userId: context.userId,
+    email: context.email,
+    roles: ["vendor_catalog"],
+    vendorId: context.vendorId,
+    csrfToken: "admin-vendor-feed-remap",
+    sessionId: `admin-vendor-feed-remap:${context.feedId}`
+  };
+}
+
+export async function adminPreviewVendorProductFeedMapping(
+  principal: SessionPrincipal,
+  feedId: string,
+  mapping: VendorProductFeedMappingInput
+): Promise<VendorProductFeedPreview> {
+  assertAdminPermission(principal, "catalog.read");
+  const context = await platformFeedContext(feedId);
+  const xml = await fetchVendorXml(context.sourceUrl);
+  return previewVendorProductFeed(vendorFeedPrincipal(context), xml, mapping);
+}
+
+export async function adminRemapVendorProductFeed(
+  principal: SessionPrincipal,
+  feedId: string,
+  mapping: VendorProductFeedMappingInput
+): Promise<{ preview: VendorProductFeedPreview }> {
+  assertAdminPermission(principal, "catalog.write");
+  const context = await platformFeedContext(feedId);
+  const xml = await fetchVendorXml(context.sourceUrl);
+  const result = await saveVendorProductFeed(vendorFeedPrincipal(context), {
+    sourceType: "url",
+    sourceUrl: context.sourceUrl,
+    feedName: context.feedName,
+    syncIntervalMinutes: context.syncIntervalMinutes,
+    xml,
+    ...mapping
+  }, "manual");
+  await recordAdminAudit(principal, "vendor_feed.remap", "vendor_product_feed", feedId, "Admin remapped XML fields/categories and reprocessed feed", {
+    totalRows: result.preview.totalRows,
+    validRows: result.preview.validRows,
+    errorRows: result.preview.errorRows
+  });
+  return { preview: result.preview };
 }
 
 export async function adminSetVendorProductFeedStatus(
