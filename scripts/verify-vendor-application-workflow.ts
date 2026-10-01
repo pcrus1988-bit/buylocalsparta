@@ -11,6 +11,7 @@ const email = read("apps/web/src/lib/vendor-application-confirmation-email.ts");
 const access = read("apps/web/src/app/api/vendor/trial/access/route.ts");
 const admin = read("apps/web/src/app/admin/applications/page.tsx");
 const resend = read("apps/web/src/app/api/admin/vendor-applications/[id]/resend-confirmation/route.ts");
+const transactional = read("apps/web/src/lib/transactional-email.ts");
 
 assert.match(runtime, /KM-APP-\$\{year\}-/);
 assert.match(runtime, /pg_advisory_xact_lock/);
@@ -28,6 +29,9 @@ assert.match(admin, /Pass verification → onboarding/);
 assert.match(admin, /Resend confirmation \+ Trial access/);
 assert.match(admin, /Open Verified Prospects/);
 assert.match(resend, /vendor\.application_confirmation_resent/);
-assert.match(resend, /Check the production Resend configuration/);
+assert.match(transactional, /sesMailConfigured/);
+assert.match(transactional, /sendRawSesEmail/);
+assert.match(transactional, /Resend remains a compatibility fallback/);
+assert.match(resend, /production SES \/ transactional mail configuration/);
 
 console.log("Vendor application workflow acceptance: OK");
