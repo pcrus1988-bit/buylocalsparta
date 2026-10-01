@@ -345,8 +345,8 @@ export async function adminMailWorkspace(
     LEFT JOIN admin_mail_state s ON s.message_id=m.id AND s.user_public_id=$1
     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
     ORDER BY ${orderBy}
-    LIMIT ${limitParam}
-    OFFSET ${offsetParam}
+    LIMIT $${limitParam}
+    OFFSET $${offsetParam}
   `, listParams);
 
   let messages = list.rows.map(projectSummary);
