@@ -77,6 +77,14 @@ export type AdminMailWorkspace = Readonly<{
   messages: readonly AdminMailSummary[];
   thread: readonly AdminMailThreadMessage[];
   selectedId?: string;
+  pagination: Readonly<{
+    page: number;
+    pageSize: 10 | 20 | 50 | 100;
+    total: number;
+    totalPages: number;
+    from: number;
+    to: number;
+  }>;
   metrics: Readonly<{ inbox: number; unread: number; sent: number; starred: number; archived: number; trash: number; all: number }>;
   lastInboundAt?: number;
 }>;
@@ -231,6 +239,8 @@ export async function adminMailWorkspace(
     status?: string;
     attachments?: string;
     sort?: string;
+    page?: string | number;
+    pageSize?: string | number;
   } = {}
 ): Promise<AdminMailWorkspace> {
   const configuration = adminMailConfiguration();
@@ -243,6 +253,8 @@ export async function adminMailWorkspace(
     attachments: normalizeAttachmentFilter(input.attachments),
     sort: normalizeSort(input.sort)
   } as const;
+  const requestedPage = normalizePage(input.page);
+  const pageSize = normalizePageSize(input.pageSize);
   if (!configuration.configured) {
     return {
       configured: false,
@@ -254,6 +266,7 @@ export async function adminMailWorkspace(
       messages: [],
       thread: [],
       selectedId: input.selectedId,
+      pagination: { page: 1, pageSize, total: 0, totalPages: 1, from: 0, to: 0 },
       metrics: { inbox: 0, unread: 0, sent: 0, starred: 0, archived: 0, trash: 0, all: 0 }
     };
   }
@@ -302,8 +315,20 @@ export async function adminMailWorkspace(
     const index = params.length;
     where.push(`(m.subject ILIKE $${index} OR m.from_address ILIKE $${index} OR array_to_string(m.to_addresses,' ') ILIKE $${index} OR m.preview ILIKE $${index} OR m.body_text ILIKE $${index})`);
   }
-  params.push(120);
-  const limitParam = params.length;
+  const filteredCount = await pool.query<{ total: number | string }>(`
+    SELECT count(*)::int AS total
+    FROM admin_mail_messages m
+    LEFT JOIN admin_mail_state s ON s.message_id=m.id AND s.user_public_id=$1
+    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+  `, params);
+  const total = Number(filteredCount.rows[0]?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+  const offset = (page - 1) * pageSize;
+
+  const listParams = [...params, pageSize, offset];
+  const limitParam = listParams.length - 1;
+  const offsetParam = listParams.length;
   const orderBy = filters.sort === "oldest"
     ? "COALESCE(m.received_at,m.sent_at,m.created_at) ASC"
     : filters.sort === "sender"
@@ -320,8 +345,9 @@ export async function adminMailWorkspace(
     LEFT JOIN admin_mail_state s ON s.message_id=m.id AND s.user_public_id=$1
     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
     ORDER BY ${orderBy}
-    LIMIT $${limitParam}
-  `, params);
+    LIMIT ${limitParam}
+    OFFSET ${offsetParam}
+  `, listParams);
 
   let messages = list.rows.map(projectSummary);
   const selectedId = input.selectedId && messages.some((message) => message.id === input.selectedId)
@@ -365,6 +391,14 @@ export async function adminMailWorkspace(
     messages,
     thread,
     selectedId,
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages,
+      from: total === 0 ? 0 : offset + 1,
+      to: total === 0 ? 0 : Math.min(offset + messages.length, total)
+    },
     metrics: {
       inbox: Number(metric.inbox || 0),
       unread: Math.max(0, Number(metric.unread || 0) - (autoSelectedUnread && autoSelected?.direction === "incoming" && !autoSelected.archived ? 1 : 0)),
@@ -836,6 +870,16 @@ function normalizeAttachmentFilter(value?: string): MailAttachmentFilter {
 
 function normalizeSort(value?: string): MailSort {
   return value === "oldest" || value === "sender" || value === "subject" ? value : "newest";
+}
+
+function normalizePage(value?: string | number): number {
+  const page = typeof value === "number" ? value : Number.parseInt(value || "1", 10);
+  return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+}
+
+function normalizePageSize(value?: string | number): 10 | 20 | 50 | 100 {
+  const parsed = typeof value === "number" ? value : Number.parseInt(value || "20", 10);
+  return parsed === 10 || parsed === 50 || parsed === 100 ? parsed : 20;
 }
 
 function normalizeSubject(value: string): string {
