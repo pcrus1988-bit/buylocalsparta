@@ -59,6 +59,10 @@
     {
       "path": "/api/cron/symphonya-pipeline",
       "schedule": "28 * * * *"
+    },
+    {
+      "path": "/api/cron/vendor-product-feeds",
+      "schedule": "*/10 * * * *"
     }
   ]
 }
