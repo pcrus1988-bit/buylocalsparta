@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { VendorXmlFieldMapping } from "@buy-local-sparta/core";
 
@@ -143,6 +143,7 @@ export function VendorProductFeedClient({
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const automaticallyStartedFeeds = useRef(new Set<string>());
 
   const categoryByCode = useMemo(() => new Map(categories.map((item) => [item.code, item])), [categories]);
   const hasPendingUrlFeed = useMemo(
@@ -155,6 +156,22 @@ export function VendorProductFeedClient({
     const timer = window.setInterval(() => router.refresh(), 10_000);
     return () => window.clearInterval(timer);
   }, [hasPendingUrlFeed, router]);
+
+  useEffect(() => {
+    const now = Date.now();
+    const dueFeed = initial.feeds.find((feed) =>
+      feed.sourceType === "url"
+      && feed.status === "active"
+      && !feed.lastSuccessAt
+      && (!feed.nextSyncAt || feed.nextSyncAt <= now)
+      && !automaticallyStartedFeeds.current.has(feed.id)
+    );
+    if (!dueFeed) return;
+    automaticallyStartedFeeds.current.add(dueFeed.id);
+    void request({ feedId: dueFeed.id }, "autosync:" + dueFeed.id, "POST", "/api/vendor/catalog/feed/sync").then((data) => {
+      if (data) setSuccess("Ο πρώτος συγχρονισμός ξεκίνησε αυτόματα στο παρασκήνιο. Η κατάσταση θα ανανεωθεί μόλις ολοκληρωθεί.");
+    });
+  }, [initial.feeds]);
 
   function payload(action: "preview" | "save") {
     return {
