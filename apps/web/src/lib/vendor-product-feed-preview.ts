@@ -37,7 +37,11 @@ export type VendorProductFeedNormalizedRow = Readonly<{
   currency: "EUR";
   stockOnHand: number;
   imageUrl?: string;
+  additionalImageUrls: readonly string[];
   productUrl?: string;
+  itemGroupId?: string;
+  size?: string;
+  color?: string;
   sourceHash: string;
 }>;
 export type VendorProductFeedPreview = Readonly<{
@@ -61,6 +65,8 @@ export type VendorProductFeedPreparedRow = VendorProductFeedNormalizedRow & Read
 export type VendorProductFeedPreparedPreview = Readonly<{
   preview: VendorProductFeedPreview;
   rows: readonly VendorProductFeedPreparedRow[];
+  observedExternalIds: readonly string[];
+  reconciliationSafe: boolean;
 }>;
 
 const sql = (...parts: string[]) => parts.join(" ");
@@ -104,6 +110,11 @@ function safeHttpUrl(value: string | undefined): string | undefined {
   }
 }
 
+function safeHttpUrls(value: string | undefined): readonly string[] {
+  if (!value?.trim()) return [];
+  return [...new Set(value.split(/\s*\|\s*|\s*,\s*(?=https?:\/\/)/i).map((item) => safeHttpUrl(item)).filter((item): item is string => Boolean(item)))].slice(0, 20);
+}
+
 function hash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
@@ -112,7 +123,7 @@ function cleanMapping(input: VendorXmlFieldMapping | undefined, suggested: Vendo
   const allowed: readonly (keyof VendorXmlFieldMapping)[] = [
     "externalId", "vendorSku", "title", "description", "brand", "model", "mpn", "gtin",
     "price", "currency", "stock", "availability", "categoryCode", "sourceCategory",
-    "imageUrl", "productUrl", "condition"
+    "imageUrl", "additionalImageUrl", "productUrl", "itemGroupId", "size", "color", "condition"
   ];
   const result: Partial<Record<keyof VendorXmlFieldMapping, string>> = { ...suggested };
   if (input) {
@@ -172,6 +183,7 @@ export async function prepareVendorProductFeed(
   const valid: VendorProductFeedPreparedRow[] = [];
   const sourceCategories = new Set<string>();
   const seenIds = new Set<string>();
+  const observedExternalIds = new Set<string>();
 
   for (const record of parsed.records) {
     const externalId = trimOptional(
@@ -189,6 +201,7 @@ export async function prepareVendorProductFeed(
     const stockOnHand = parseXmlStock(xmlFieldValue(record, mapping.stock), xmlFieldValue(record, mapping.availability));
     const sourceCategory = trimOptional(xmlFieldValue(record, mapping.sourceCategory), 500);
     if (sourceCategory) sourceCategories.add(sourceCategory);
+    if (externalId) observedExternalIds.add(externalId);
 
     const explicitCategory = trimOptional(xmlFieldValue(record, mapping.categoryCode), 160);
     let category = explicitCategory ? byCode.get(explicitCategory.toLowerCase()) : undefined;
@@ -234,7 +247,15 @@ export async function prepareVendorProductFeed(
       currency: "EUR",
       stockOnHand,
       imageUrl: safeHttpUrl(xmlFieldValue(record, mapping.imageUrl)),
-      productUrl: safeHttpUrl(xmlFieldValue(record, mapping.productUrl))
+      additionalImageUrls: safeHttpUrls(xmlFieldValue(record, mapping.additionalImageUrl)),
+      productUrl: safeHttpUrl(xmlFieldValue(record, mapping.productUrl)),
+      itemGroupId: trimOptional(xmlFieldValue(record, mapping.itemGroupId), 300),
+      size: trimOptional(xmlFieldValue(record, mapping.size), 160),
+      color: trimOptional(xmlFieldValue(record, mapping.color), 160),
+      variantAttributes: Object.fromEntries([
+        ["size", trimOptional(xmlFieldValue(record, mapping.size), 160)],
+        ["color", trimOptional(xmlFieldValue(record, mapping.color), 160)]
+      ].filter((entry): entry is [string, string] => Boolean(entry[1])))
     };
     valid.push({
       rowNumber: record.index,
@@ -253,7 +274,11 @@ export async function prepareVendorProductFeed(
       currency: "EUR",
       stockOnHand: stockOnHand!,
       imageUrl: payload.imageUrl,
+      additionalImageUrls: payload.additionalImageUrls,
       productUrl: payload.productUrl,
+      itemGroupId: payload.itemGroupId,
+      size: payload.size,
+      color: payload.color,
       sourceHash: hash(payload),
       payload
     });
@@ -272,7 +297,9 @@ export async function prepareVendorProductFeed(
       sample: valid.slice(0, 50).map(({ payload: _payload, ...row }) => row),
       errors: errors.slice(0, 150)
     },
-    rows: valid
+    rows: valid,
+    observedExternalIds: [...observedExternalIds],
+    reconciliationSafe: parsed.records.length > 0 && observedExternalIds.size / parsed.records.length >= 0.95
   };
 }
 
