@@ -45,11 +45,11 @@ type CommercialTerms = Readonly<{
   agreementCode: string;
   status: string;
   effectiveStatus?: string;
-  προμήθειαRateBps: number;
-  προμήθειαBasis: string;
-  προμήθειαTaxMode: string;
-  προμήθειαTaxRateBps: number;
-  προμήθειαAppliesToShipping: boolean;
+  commissionRateBps: number;
+  commissionBasis: string;
+  commissionTaxMode: string;
+  commissionTaxRateBps: number;
+  commissionAppliesToShipping: boolean;
   listingFeeMinor: number;
   recurringFeeMinor: number;
   recurringFeePeriod?: string;
@@ -276,7 +276,7 @@ export function VendorFinanceClient({ initial }: { initial: Workspace }) {
           </div>
         </article>
         <article className="workspace-queue-card">
-          <div className="workspace-queue-head"><div><strong>3. Τα μεταφορικά είναι ξεχωριστά</strong><small>Τα μεταφορικά που χρεώνονται στον πελάτη δεν αυξάνουν την αξία των προϊόντων του καταστήματος και δεν αποτελούν βάση προμήθεια. Το KONTA MOY τα διαχειρίζεται ξεχωριστά με τον πάροχο μεταφοράς.</small></div></div>
+          <div className="workspace-queue-head"><div><strong>3. Τα μεταφορικά είναι ξεχωριστά</strong><small>Τα μεταφορικά που χρεώνονται στον πελάτη δεν αυξάνουν την αξία των προϊόντων του καταστήματος και δεν αποτελούν βάση προμήθειας. Το KONTA MOY τα διαχειρίζεται ξεχωριστά με τον πάροχο μεταφοράς.</small></div></div>
           <div className="workspace-queue-primary"><span>Εξαίρεση: αν το ίδιο το κατάστημα εκτελεί συμφωνημένη τοπική παράδοση, η σχετική αμοιβή εμφανίζεται χωριστά.</span></div>
         </article>
       </div>
@@ -305,15 +305,15 @@ export function VendorFinanceClient({ initial }: { initial: Workspace }) {
           <span className="status-pill" title={initial.commercialTerms.status}>{statusLabel(initial.commercialTerms.effectiveStatus ?? initial.commercialTerms.status, AGREEMENT_STATUS)}</span>
         </div>
         <div className="workspace-queue-primary">
-          <span>Προμήθεια {bps(initial.commercialTerms.προμήθειαRateBps)}</span>
+          <span>Προμήθεια {bps(initial.commercialTerms.commissionRateBps)}</span>
           <span>Listing fee {euroMinor(initial.commercialTerms.listingFeeMinor)}</span>
           <span>Recurring {euroMinor(initial.commercialTerms.recurringFeeMinor)} / {recurringPeriod(initial.commercialTerms.recurringFeePeriod)}</span>
         </div>
         <WorkspaceRecordDetails label="Αναλυτικοί εμπορικοί όροι">
           <div className="workspace-compact-list">
-            <div className="workspace-compact-row"><strong>Βάση προμήθεια</strong><span>{initial.commercialTerms.προμήθειαBasis || "Δεν έχει οριστεί"}</span></div>
-            <div className="workspace-compact-row"><strong>Φορολογική μεταχείριση προμήθεια</strong><span>{initial.commercialTerms.προμήθειαTaxMode || "Δεν έχει οριστεί"}{initial.commercialTerms.προμήθειαTaxRateBps ? ` · ${bps(initial.commercialTerms.προμήθειαTaxRateBps)}` : ""}</span></div>
-            <div className="workspace-compact-row"><strong>Προμήθεια στα μεταφορικά</strong><span>{initial.commercialTerms.προμήθειαAppliesToShipping ? "Ναι — χρειάζεται έλεγχος συμφωνίας" : "Όχι"}</span></div>
+            <div className="workspace-compact-row"><strong>Βάση προμήθειας</strong><span>{initial.commercialTerms.commissionBasis || "Δεν έχει οριστεί"}</span></div>
+            <div className="workspace-compact-row"><strong>Φορολογική μεταχείριση προμήθειας</strong><span>{initial.commercialTerms.commissionTaxMode || "Δεν έχει οριστεί"}{initial.commercialTerms.commissionTaxRateBps ? ` · ${bps(initial.commercialTerms.commissionTaxRateBps)}` : ""}</span></div>
+            <div className="workspace-compact-row"><strong>Προμήθεια στα μεταφορικά</strong><span>{initial.commercialTerms.commissionAppliesToShipping ? "Ναι — χρειάζεται έλεγχος συμφωνίας" : "Όχι"}</span></div>
             {initial.commercialTerms.startsAt && <div className="workspace-compact-row"><strong>Έναρξη</strong><span>{date(initial.commercialTerms.startsAt)}</span></div>}
             {initial.commercialTerms.endsAt && <div className="workspace-compact-row"><strong>Λήξη</strong><span>{date(initial.commercialTerms.endsAt)}</span></div>}
           </div>
@@ -406,7 +406,7 @@ export function VendorFinanceClient({ initial }: { initial: Workspace }) {
       <WorkspaceSectionHeading eyebrow="Επόμενες ενέργειες" title="Τι χρειάζεται τώρα" note="Η σελίδα δείχνει μόνο ενέργειες που χρειάζονται πραγματικά από το κατάστημά σου ή από το KONTA MOY." />
       <div className="workspace-queue-list">
         <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>{invoiceNeeded ? `${invoiceNeeded} παραστατικά χρειάζονται υποβολή` : "Δεν εκκρεμεί παραστατικό από εσένα"}</strong><small>{review ? `${review} οικονομικές εγγραφές βρίσκονται σε έλεγχο.` : "Δεν υπάρχει εγγραφή σε έλεγχο."}</small></div></div></article>
-        <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>{paid ? `${paid} πληρωμές έχουν ολοκληρωθεί` : "Δεν υπάρχει ακόμη ολοκληρωμένη πληρωμή"}</strong><small>Για ιστορική ανάλυση πωλήσεων και απόδοσης χρησιμοποίησε τα Αναφορές.</small></div></div><div className="workspace-form-actions"><a className="button button-secondary" href="/vendor/reports">Άνοιγμα Αναφορές</a></div></article>
+        <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>{paid ? `${paid} πληρωμές έχουν ολοκληρωθεί` : "Δεν υπάρχει ακόμη ολοκληρωμένη πληρωμή"}</strong><small>Για ιστορική ανάλυση πωλήσεων και απόδοσης χρησιμοποίησε τις Αναφορές.</small></div></div><div className="workspace-form-actions"><a className="button button-secondary" href="/vendor/reports">Άνοιγμα Αναφορών</a></div></article>
       </div>
     </section>
   </>;
