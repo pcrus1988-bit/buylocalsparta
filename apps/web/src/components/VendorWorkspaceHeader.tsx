@@ -150,14 +150,15 @@ export function VendorWorkspaceHeader() {
     return capabilityFiltered.map((group) => group.href === "/vendor/catalog" ? {
       ...group,
       label: "Dropshipping",
+      description: "Προϊόντα προμηθευτών, τιμές και διαθεσιμότητα",
       href: "/vendor/dropshipping",
       icon: "⇄",
       links: [
-        { label: "Κέντρο dropshipping", href: "/vendor/dropshipping", icon: "⇄" },
+        { label: "Προϊόντα", href: "/vendor/dropshipping", icon: "⇄" },
         { label: "Στατιστικά", href: "/vendor/dropshipping/analytics", icon: "↗" },
-        { label: "Χρειάζονται προσοχή", href: "/vendor/dropshipping/attention", icon: "!" },
+        { label: "Προσοχή", href: "/vendor/dropshipping/attention", icon: "!" },
         { label: "Κατάσταση ροής", href: "/vendor/dropshipping/health", icon: "↻" },
-        { label: "Δραστηριότητα", href: "/vendor/dropshipping/activity", icon: "◷" },
+        { label: "Ιστορικό", href: "/vendor/dropshipping/activity", icon: "◷" },
         ...group.links.filter((link) => link.href !== "/vendor/catalog" && link.href !== "/vendor/catalog/feed")
       ]
     } : group);
