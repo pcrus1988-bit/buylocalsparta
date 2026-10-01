@@ -26,11 +26,15 @@ function planPrice(plan: VendorHubControlsWorkspace["subscription"]["plans"][num
   return "Χωρίς σταθερή συνδρομή";
 }
 
-export function VendorHubControlsClient({ initial }: { initial: VendorHubControlsWorkspace }) {
+export type VendorHubControlSection = "delivery" | "seo" | "promotions" | "aade" | "subscription";
+
+export function VendorHubControlsClient({ initial, sections }: { initial: VendorHubControlsWorkspace; sections?: readonly VendorHubControlSection[] }) {
   const [workspace, setWorkspace] = useState(initial);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const visibleSections = useMemo(() => new Set<VendorHubControlSection>(sections ?? ["delivery", "seo", "promotions", "aade", "subscription"]), [sections]);
+  const show = (section: VendorHubControlSection) => visibleSections.has(section);
 
   const [deliveryActive, setDeliveryActive] = useState(initial.localDelivery.active);
   const [deliveryPrefixes, setDeliveryPrefixes] = useState(initial.localDelivery.postcodePrefixes.join(", "));
@@ -143,7 +147,7 @@ export function VendorHubControlsClient({ initial }: { initial: VendorHubControl
       ]} />
     </section>
 
-    <section className="shell vendor-section" id="local-delivery">
+    {show("delivery") && <section className="shell vendor-section" id="local-delivery">
       <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · Παραδόσεις" title="Περιοχή τοπικής παράδοσης" note="Η ρύθμιση είναι δική σου και υπερισχύει της γενικής κάλυψης HUB για το κατάστημά σου. Η τιμολόγηση μεταφοράς παραμένει στους κανόνες του HUB." />
       <WorkspaceHowItWorks>
         <p><strong>Ταχυδρομικοί κώδικες:</strong> βάλε ολόκληρο ΤΚ ή πρόθεμα, π.χ. 24100 ή 241.</p>
@@ -169,9 +173,9 @@ export function VendorHubControlsClient({ initial }: { initial: VendorHubControl
           }, "Η κάλυψη τοπικής παράδοσης ενημερώθηκε.")}>{busy === "delivery" ? "Αποθήκευση…" : "Αποθήκευση κάλυψης"}</button>
         </div>
       </div>
-    </section>
+    </section>}
 
-    <section className="vendor-section section-tint" id="seo"><div className="shell">
+    {show("seo") && <section className="vendor-section section-tint" id="seo"><div className="shell">
       <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · SEO" title="Πηγαία στοιχεία καταστήματος" note="Ελέγχεις το περιεχόμενο που περιγράφει τη δική σου επιχείρηση. Οι τεχνικές διευθύνσεις, η ευρετηρίαση και τα δεδομένα αναζήτησης παραμένουν κεντρικά." />
       {(["el","en"] as const).map((locale) => <details className="workspace-tool-panel" open={locale === "el"} key={locale}>
         <summary><span><strong>{locale === "el" ? "Ελληνικά" : "English"}</strong><small>Περιεχόμενο προφίλ και SEO</small></span></summary>
@@ -184,9 +188,9 @@ export function VendorHubControlsClient({ initial }: { initial: VendorHubControl
           <div className="workspace-form-actions"><button className="button" type="button" disabled={Boolean(busy)} onClick={() => void saveSeo(locale)}>{busy === `seo:${locale}` ? "Αποθήκευση…" : "Αποθήκευση"}</button></div>
         </div>
       </details>)}
-    </div></section>
+    </div></section>}
 
-    <section className="shell vendor-section" id="promotions">
+    {show("promotions") && <section className="shell vendor-section" id="promotions">
       <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · Προωθήσεις" title="Αιτήματα προωθητικών ενεργειών" note="Δηλώνεις τη δική σου εμπορική πρόταση. Η τελική δημόσια προωθητική τιμή ενεργοποιείται μόνο αφού περάσει τους ελέγχους της πλατφόρμας και τους νομικούς ελέγχους τιμής." />
       <WorkspaceHowItWorks>
         <p><strong>Δεν αλλάζει άμεσα η δημόσια τιμή.</strong> Το αίτημα κρατά καταγραφή της τρέχουσας τιμής και περνά έλεγχο πριν εφαρμοστεί.</p>
@@ -207,9 +211,9 @@ export function VendorHubControlsClient({ initial }: { initial: VendorHubControl
         <div className="workspace-queue-primary"><span>{euro(item.currentPriceMinor)} → {euro(item.promotionalPriceMinor)}</span><span>{when(item.startsAt)} — {when(item.endsAt)}</span></div>
         {item.reviewNote && <p className="workspace-queue-summary">{item.reviewNote}</p>}
       </article>)}</div>}
-    </section>
+    </section>}
 
-    <section className="vendor-section section-tint" id="aade"><div className="shell">
+    {show("aade") && <section className="vendor-section section-tint" id="aade"><div className="shell">
       <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · AADE" title="myDATA & φορολογικά αιτήματα" note="Βλέπεις μόνο τα φορολογικά έγγραφα της επιχείρησής σου. Επανάληψη ή συμφωνία δεν εκτελείται αυτόματα: το αίτημα μπαίνει στην ασφαλή φορολογική ροή." />
       {workspace.aade.documents.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν φορολογικά έγγραφα του καταστήματος." body="Όταν δημιουργηθούν σχετικά παραστατικά, η κατάσταση AADE θα εμφανίζεται εδώ." /> : <>
         <div className="workspace-tool-panel" style={{ padding: "1rem" }}>
@@ -225,9 +229,9 @@ export function VendorHubControlsClient({ initial }: { initial: VendorHubControl
         </article>)}</div>
       </>}
       {workspace.aade.requests.length > 0 && <details className="workspace-tool-panel"><summary><span><strong>Ιστορικό αιτημάτων AADE</strong><small>{workspace.aade.requests.length} εγγραφές</small></span></summary><div className="workspace-tool-body workspace-compact-list">{workspace.aade.requests.map((item) => <div className="workspace-compact-row" key={item.id}><strong>{item.action} · {item.documentId}</strong><WorkspaceStatusBadge status={item.status} /><small>{when(item.createdAt)}{item.resolutionNote ? ` · ${item.resolutionNote}` : ""}</small></div>)}</div></details>}
-    </div></section>
+    </div></section>}
 
-    <section className="shell vendor-section" id="subscription">
+    {show("subscription") && <section className="shell vendor-section" id="subscription">
       <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · Πλάνο" title="Πλάνο συνεργασίας" note="Η επιλογή πλάνου γίνεται από εσένα, αλλά αλλαγές που επηρεάζουν εμπορική συμφωνία ή χρέωση ενεργοποιούνται μόνο μετά τον συμβατικό έλεγχο." />
       {workspace.subscription.current ? <WorkspaceMetricStrip items={[
         { label: "Τρέχον πλάνο", value: workspace.subscription.current.planName },
@@ -244,6 +248,6 @@ export function VendorHubControlsClient({ initial }: { initial: VendorHubControl
         {item.note && <p className="workspace-queue-summary">{item.note}</p>}
         {item.resolutionNote && <p className="workspace-queue-summary"><strong>Απάντηση:</strong> {item.resolutionNote}</p>}
       </article>)}</div>}
-    </section>
+    </section>}
   </>;
 }
