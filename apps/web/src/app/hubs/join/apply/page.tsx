@@ -10,6 +10,7 @@ import {
   type HubBillingCycle
 } from "../../../../lib/hub-expansion-plans";
 import { hubProspectApplicationReadiness } from "../../../../lib/hub-prospect-application-runtime";
+import { getAccountSession } from "../../../../lib/account-session";
 import styles from "./page.module.css";
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default async function HubExpansionApplyPage({ searchParams }: { searchPa
   const billingLabel = billingLabelForPlan(selectedPlan, billingCycle);
   const showPlanChoices = first(params.plans) === "1";
   const readiness = hubProspectApplicationReadiness();
+  const principal = await getAccountSession();
 
   return <main>
     <SiteHeader compact />
@@ -95,7 +97,7 @@ export default async function HubExpansionApplyPage({ searchParams }: { searchPa
       <div id="application-form" className={styles.formPanel}>
         {!readiness.ready
           ? <div className={styles.unavailable}><strong>Η αίτηση δεν είναι διαθέσιμη σε αυτό το περιβάλλον.</strong><p>{readiness.message}</p></div>
-          : <HubExpansionApplicationForm planCode={selectedPlan.code} billingCycle={billingCycle} />}
+          : <HubExpansionApplicationForm planCode={selectedPlan.code} billingCycle={billingCycle} csrfToken={principal?.csrfToken} signedInEmail={principal?.email} />}
       </div>
     </section>
     <SiteFooter />
