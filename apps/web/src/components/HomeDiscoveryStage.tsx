@@ -14,29 +14,29 @@ export type HomeDiscoveryStageProduct = Readonly<{
 }>;
 
 const STAGE_TABS = ["Style", "Color", "BAZAAR", "Ask Local", "Αγορά"] as const;
-const STAGE_IMAGE_SIZES =
-  "(max-width: 760px) calc(100vw - 48px), (max-width: 1100px) 44vw, 560px";
 
 function StagePhoto({
   src,
+  alt,
   preload = false,
   position = "center center"
 }: {
   src: string;
+  alt: string;
   preload?: boolean;
   position?: string;
 }) {
   return (
-    <div className={styles.stagePhoto} aria-hidden="true">
+    <div className={styles.stagePhoto}>
       <Image
         src={src}
-        alt=""
-        fill
-        sizes={STAGE_IMAGE_SIZES}
-        quality={90}
+        alt={alt}
+        width={560}
+        height={700}
+        quality={60}
         preload={preload}
         className={styles.stagePhotoImage}
-        style={{ objectPosition: position }}
+        style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: position }}
       />
     </div>
   );
@@ -64,6 +64,7 @@ export function HomeDiscoveryStage({
       <a className={`${styles.discoveryStageSlide} ${styles.stageStyle}`} href="/fitting-room">
         <StagePhoto
           src="/home-discovery/style-builder.jpg"
+          alt="KONTA MOU Style Builder για δημιουργία ολοκληρωμένου fashion look"
           preload
           position="center 46%"
         />
@@ -80,6 +81,7 @@ export function HomeDiscoveryStage({
       <a className={`${styles.discoveryStageSlide} ${styles.stageColor}`} href="/color-finder">
         <StagePhoto
           src="/home-discovery/color-finder.jpg"
+          alt="KONTA MOU Color Finder για αναζήτηση προϊόντων με βάση το χρώμα"
           position="center 48%"
         />
         <div className={styles.stageSlideCopy}>
@@ -95,6 +97,7 @@ export function HomeDiscoveryStage({
       <a className={`${styles.discoveryStageSlide} ${styles.stageBazaar}`} href="/bazaar">
         <StagePhoto
           src="/home-discovery/bazaar.jpg"
+          alt="KONTA MOU BAZAAR με επιλεγμένες προσφορές και προϊόντα"
           position="center 46%"
         />
         <div className={styles.stageSlideCopy}>
@@ -110,6 +113,7 @@ export function HomeDiscoveryStage({
       <a className={`${styles.discoveryStageSlide} ${styles.stageAsk}`} href="/ask-local">
         <StagePhoto
           src="/home-discovery/ask-local.jpg"
+          alt="KONTA MOU Ask Local για βοήθεια από κοντινά καταστήματα"
           position="center 43%"
         />
         <div className={styles.stageSlideCopy}>
@@ -125,6 +129,7 @@ export function HomeDiscoveryStage({
       <a className={`${styles.discoveryStageSlide} ${styles.stageMarket}`} href="/shop">
         <StagePhoto
           src="/home-discovery/marketplace-discovery.jpg"
+          alt="Ανακάλυψη διαθέσιμων προϊόντων στην αγορά του KONTA MOU"
           position="center 47%"
         />
         <div className={styles.stageSlideCopy}>
