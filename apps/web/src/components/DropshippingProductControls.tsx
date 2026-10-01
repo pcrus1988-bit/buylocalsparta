@@ -47,7 +47,7 @@ async function csrfToken(): Promise<string> {
   const response = await fetch("/api/vendor/auth-context", { cache: "no-store" });
   if (!response.ok) throw new Error("Η συνεδρία συνεργάτη έληξε.");
   const payload = await response.json() as { csrfToken?: string };
-  if (!payload.csrfToken) throw new Error("Δεν βρέθηκε ασφαλές token συνεδρίας.");
+  if (!payload.csrfToken) throw new Error("Δεν βρέθηκε ασφαλές στοιχείο συνεδρίας.");
   return payload.csrfToken;
 }
 
@@ -212,13 +212,13 @@ export function DropshippingProductControls(props: Props) {
     </summary>
     <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
       <div className="workspace-compact-list">
-        <div className="workspace-compact-row"><strong>MSRP / Προτεινόμενη λιανική</strong><span>{euro(props.msrpMinor)}</span><small>Τιμή αναφοράς προμηθευτή · δεν περιορίζει την αυτόματη τιμή</small></div>
+        <div className="workspace-compact-row"><strong>Προτεινόμενη λιανική</strong><span>{euro(props.msrpMinor)}</span><small>Τιμή αναφοράς προμηθευτή · δεν περιορίζει την αυτόματη τιμή</small></div>
         {props.recommendation ? <>
           <div className="workspace-compact-row"><strong>Προτεινόμενη τιμή πώλησης</strong><span>{euro(props.recommendation.recommendedSellingPriceMinor)}</span><small>Με υπολογισμό μεταφορικών · Economy Ελλάδας · κατάληξη 4,90 / 9,90</small></div>
-          {props.recommendation.overpriced ? <div className="workspace-compact-row"><strong>Εσωτερική ένδειξη</strong><span>OVERPRICED</span><small>{euro(props.recommendation.overpricedByMinor)} πάνω από MSRP · {percent(props.recommendation.overpricedByPercent)}</small></div> : null}
+          {props.recommendation.overpriced ? <div className="workspace-compact-row"><strong>Εσωτερική ένδειξη</strong><span>ΥΨΗΛΗ ΤΙΜΗ</span><small>{euro(props.recommendation.overpricedByMinor)} πάνω από την προτεινόμενη λιανική · {percent(props.recommendation.overpricedByPercent)}</small></div> : null}
           <div className="workspace-compact-row"><strong>Κέρδος €</strong><span>{euro(liveProfit.profitMinor)}</span><small>Στην τρέχουσα τιμή πώλησης</small></div>
           <div className="workspace-compact-row"><strong>Κέρδος %</strong><span>{percent(liveProfit.profitPercent)}</span><small>Μετά τον ΦΠΑ, το κόστος συναλλαγής και το αποθεματικό μεταφορικών</small></div>
-          <div className="workspace-compact-row"><strong>Αποθεματικό μεταφορικών</strong><span>{euro(props.recommendation.embeddedShippingMinor)}</span><small>{shippingStatusLabel(props.recommendation.shippingStatus)} · absorption {percent(props.recommendation.shippingAbsorptionScore == null ? null : props.recommendation.shippingAbsorptionScore * 100)}</small></div>
+          <div className="workspace-compact-row"><strong>Αποθεματικό μεταφορικών</strong><span>{euro(props.recommendation.embeddedShippingMinor)}</span><small>{shippingStatusLabel(props.recommendation.shippingStatus)} · κάλυψη μεταφορικών {percent(props.recommendation.shippingAbsorptionScore == null ? null : props.recommendation.shippingAbsorptionScore * 100)}</small></div>
         </> : null}
       </div>
       <div className="vendor-dropshipping-price-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(90px,1fr))", gap: 8 }}>
