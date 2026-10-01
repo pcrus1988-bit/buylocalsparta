@@ -1,7 +1,7 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { assertAdminPermission } from "./admin-runtime";
-import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
@@ -89,7 +89,7 @@ export async function verifiedProspectsWorkspace(principal: SessionPrincipal) {
     };
   }
 
-  const runtime = getProductionPostgresRuntime();
+  const runtime = getAdminPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
   return uow.withTransaction(platformScope(principal.userId), async (tx) => {
     const rows = await tx.query<SqlRow>(`
