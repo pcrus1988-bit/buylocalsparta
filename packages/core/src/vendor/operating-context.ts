@@ -131,14 +131,18 @@ export function buildVendorOperatingContext(input: {
     : requiredScopeValue(input.marketId ?? DEFAULT_MANAGED_MARKET_ID, "marketId");
   const hubId = optionalScopeValue(input.hubId);
   const locationId = optionalScopeValue(input.locationId);
+  const roles = [...(input.roles ?? [])];
+  const catalogueImportAllowed = roles.some((role) => role === "vendor_owner" || role === "vendor_catalog");
+  const capabilities = capabilitiesForVendorOperatingModel(operatingModel)
+    .filter((capability) => capability !== "catalogue.import" || catalogueImportAllowed);
   return {
     vendorId,
     marketId,
     ...(hubId ? { hubId } : {}),
     ...(locationId ? { locationId } : {}),
     operatingModel,
-    roles: [...(input.roles ?? [])],
-    capabilities: capabilitiesForVendorOperatingModel(operatingModel)
+    roles,
+    capabilities
   };
 }
 
