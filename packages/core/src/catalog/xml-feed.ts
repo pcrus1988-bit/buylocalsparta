@@ -95,7 +95,10 @@ export function xmlFieldValue(record: VendorXmlRecord, field: string | undefined
 
 export function parseXmlMoneyMinor(value: string | undefined): number | undefined {
   if (!value) return undefined;
-  const stripped = value.trim().replace(/\s*(EUR|USD|GBP|€|\$|£)\s*$/i, "").trim();
+  const stripped = value.trim()
+    .replace(/^\s*[€$£¥]\s*/, "")
+    .replace(/\s*(?:[A-Z]{3}|[€$£¥])\s*$/i, "")
+    .trim();
   const normalized = normalizeDecimal(stripped);
   if (!/^\d+(?:\.\d{1,4})?$/.test(normalized)) return undefined;
   const amount = Number(normalized);
@@ -118,8 +121,28 @@ export function parseXmlStock(value: string | undefined, availability?: string):
 }
 
 export function parseXmlCurrency(value: string | undefined, priceValue?: string): string {
-  const candidate = value?.trim().toUpperCase() || priceValue?.match(/\b(EUR|USD|GBP)\b/i)?.[1]?.toUpperCase();
-  return candidate && /^[A-Z]{3}$/.test(candidate) ? candidate : "EUR";
+  const explicit = value?.trim().toUpperCase();
+  const symbolCurrency = (input: string): string | undefined => {
+    if (input.includes("€")) return "EUR";
+    if (input.includes("$")) return "USD";
+    if (input.includes("£")) return "GBP";
+    if (input.includes("¥")) return "JPY";
+    return undefined;
+  };
+
+  if (explicit) {
+    return symbolCurrency(explicit) ?? (/^[A-Z]{3}$/.test(explicit) ? explicit : "UNKNOWN");
+  }
+
+  const price = priceValue?.trim() ?? "";
+  const code = price.match(/(?:^|\s)([A-Z]{3})(?:\s|$)/i)?.[1]?.toUpperCase();
+  if (code) return code;
+  const symbol = symbolCurrency(price);
+  if (symbol) return symbol;
+
+  // A bare amount is interpreted as EUR for Greek vendor feeds. If a currency
+  // marker is actually present, never silently coerce it to EUR.
+  return /[A-Za-z¥$£€]/.test(price) ? "UNKNOWN" : "EUR";
 }
 
 function detectItemTag(xml: string): string | undefined {
