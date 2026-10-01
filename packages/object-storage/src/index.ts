@@ -1,4 +1,4 @@
-import { CopyObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, PutObjectCommand, S3Client, type S3ClientConfig } from "@aws-sdk/client-s3";
+import { CopyObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client, type S3ClientConfig } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export type ObjectStorageConfig = Readonly<{
@@ -13,6 +13,9 @@ export type ObjectStorageConfig = Readonly<{
 
 export type StoredObjectMetadata = Readonly<{ objectKey:string; contentType?:string; byteSize:number; etag?:string }>;
 export type StoredObjectRead = Readonly<{ objectKey:string; stream:AsyncIterable<Uint8Array>; etag?:string; byteSize?:number; contentType?:string }>;
+export type StoredObjectListItem = Readonly<{ objectKey:string; etag?:string; byteSize:number; lastModifiedAt?:number }>;
+export type StoredObjectListPage = Readonly<{ items:readonly StoredObjectListItem[]; nextContinuationToken?:string }>;
+export type StoredObjectWrite = Readonly<{ objectKey:string; etag?:string }>;
 
 export class S3ObjectStorage {
   readonly #client: S3Client;
@@ -31,6 +34,38 @@ export class S3ObjectStorage {
     const command = new PutObjectCommand({ Bucket: this.#config.bucket, Key: input.objectKey, ContentType: input.contentType });
     const url = await getSignedUrl(this.#client, command, { expiresIn: expiresInSeconds, signableHeaders: new Set(["content-type"]) });
     return { url, headers: { "content-type": input.contentType }, expiresInSeconds };
+  }
+
+  async put(input: { objectKey: string; body: Uint8Array | string; contentType?: string }): Promise<StoredObjectWrite> {
+    const result = await this.#client.send(new PutObjectCommand({
+      Bucket: this.#config.bucket,
+      Key: input.objectKey,
+      Body: input.body,
+      ContentType: input.contentType
+    }));
+    return { objectKey: input.objectKey, etag: result.ETag };
+  }
+
+  async list(input: { prefix?: string; continuationToken?: string; maxKeys?: number } = {}): Promise<StoredObjectListPage> {
+    const maxKeys = input.maxKeys ?? 250;
+    if (!Number.isSafeInteger(maxKeys) || maxKeys < 1 || maxKeys > 1000) throw new Error("Object storage list maxKeys must be between 1 and 1000");
+    const result = await this.#client.send(new ListObjectsV2Command({
+      Bucket: this.#config.bucket,
+      Prefix: input.prefix,
+      ContinuationToken: input.continuationToken,
+      MaxKeys: maxKeys
+    }));
+    const items = (result.Contents ?? []).flatMap((item) => {
+      if (!item.Key) return [];
+      const byteSize = Number(item.Size ?? 0);
+      return [{
+        objectKey: item.Key,
+        etag: item.ETag,
+        byteSize: Number.isSafeInteger(byteSize) && byteSize >= 0 ? byteSize : 0,
+        lastModifiedAt: item.LastModified?.getTime()
+      }];
+    });
+    return { items, nextContinuationToken: result.NextContinuationToken };
   }
 
   async head(objectKey: string): Promise<StoredObjectMetadata | undefined> {
