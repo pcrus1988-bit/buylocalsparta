@@ -33,7 +33,7 @@ if (vendorNavigation.includes('label: "Εργαλεία HUB"')) failures.push("V
 requireText("apps/web/src/app/vendor/settings/page.tsx", ["Όλα τα βασικά του καταστήματός σου σε ένα σημείο", "/vendor/storefront", "/vendor/preview", "/vendor/finance"]);
 requireText("apps/web/src/app/vendor/preview/page.tsx", ["VendorWorkspaceHeader", "ΙΔΙΩΤΙΚΗ ΠΡΟΕΠΙΣΚΟΠΗΣΗ"]);
 const vendorHeader = read("apps/web/src/components/VendorWorkspaceHeader.tsx");
-for (const requirement of ["VENDOR_WORKSPACE_NAVIGATION", "WorkspaceNavigation", "aria-expanded={menuOpen}", "workspace-menu-toggle", 'fetch("/api/vendor/auth-context"', 'fetch("/api/vendor/logout"', "x-csrf-token"]) if (!vendorHeader.includes(requirement)) failures.push(`Vendor shell is missing ${requirement}`);
+for (const requirement of ["VENDOR_WORKSPACE_NAVIGATION", "WorkspaceNavigation", "aria-expanded={menuOpen}", "workspace-menu-toggle", 'fetch("/api/vendor/auth-context"', 'fetch("/api/vendor/logout"', "x-csrf-token", "usePathname", 'body.style.overflow = "hidden"', 'event.key !== "Escape"', "setMenuOpen(false)", "setTrialGuideOpen(false)"]) if (!vendorHeader.includes(requirement)) failures.push(`Vendor shell is missing ${requirement}`);
 if (vendorHeader.includes('fetch("/api/vendor/session"')) failures.push("Vendor shell must not load the full vendor dashboard just to resolve navigation auth context");
 
 requireText("apps/web/src/components/AdminDomainNavigation.tsx", ["usePathname", "AdminDomainNavigation", "AdminContextNavigation", "AdminBreadcrumbs", "entityLabel", 'from "next/link"', 'aria-current={active ? "page"', "admin-domain-badge", '"99+"']);
@@ -58,7 +58,16 @@ const accountStyles = read("apps/web/src/components/CustomerAccountExperience.mo
 for (const requirement of [".priorityGrid", ".trackerCard", ".askLocalCard", ".secondaryDetails", "@media (max-width: 620px)"]) if (!accountStyles.includes(requirement)) failures.push(`Customer account experience styles are missing ${requirement}`);
 
 const vendorIaCss = read("apps/web/src/app/vendor-information-architecture.css");
-for (const requirement of [".vendor-settings-grid", ".vendor-subpage-back", ".vendor-app .workspace-page-metrics", ".vendor-app .workspace-form-actions", "@media(max-width:620px)"]) if (!vendorIaCss.includes(requirement)) failures.push(`Vendor subpage polish is missing ${requirement}`);
+for (const requirement of [".vendor-settings-grid", ".vendor-subpage-back", ".vendor-app .workspace-page-metrics", ".vendor-app .workspace-form-actions", "@media(max-width:620px)", "Complete vendor mobile workspace pass", "height: 100dvh", "min-height: 52px", "overflow-x: clip", "grid-template-columns: 1fr"]) if (!vendorIaCss.includes(requirement)) failures.push(`Vendor subpage polish is missing ${requirement}`);
+
+const vendorDomainNav = read("apps/web/src/components/VendorDomainNavigation.tsx");
+for (const requirement of ["useRef", "scrollIntoView", '[aria-current="page"]', 'inline: "center"']) if (!vendorDomainNav.includes(requirement)) failures.push(`Vendor mobile context navigation is missing ${requirement}`);
+
+const vendorLifecycleCss = read("apps/web/src/app/vendor-lifecycle.css");
+for (const requirement of ["Phone ergonomics for vendor operational lifecycles", "@media(max-width:620px)", "width:32px", "font-size:13px"]) if (!vendorLifecycleCss.includes(requirement)) failures.push(`Vendor mobile lifecycle polish is missing ${requirement}`);
+
+const vendorCatalogMobileCss = read("apps/web/src/components/VendorCatalogClient.module.css");
+for (const requirement of ["Narrow-phone catalogue controls", "@media(max-width:420px)", ".stockEditor{grid-template-columns:1fr}", ".productHead{grid-template-columns:1fr}"]) if (!vendorCatalogMobileCss.includes(requirement)) failures.push(`Vendor mobile catalogue polish is missing ${requirement}`);
 
 for (const path of [
   "apps/web/src/app/vendor/orders/page.tsx",
