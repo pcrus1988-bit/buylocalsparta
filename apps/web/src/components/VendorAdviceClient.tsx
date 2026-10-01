@@ -72,7 +72,7 @@ export function VendorAdviceClient({ initial }: { initial: Workspace }) {
             <input name="body" required placeholder="Γράψε απάντηση…" aria-label="Απάντηση στη συνομιλία" />
             <button className="button" disabled={Boolean(busy)}>{busy === `msg:${conversation.id}` ? "Αποστολή…" : "Αποστολή"}</button>
           </form>
-          <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη"><div className="workspace-compact-row"><strong>Conversation</strong><span className="vendor-technical-id">{conversation.id}</span>{conversation.canonicalVariantId ? <small className="vendor-technical-id">Product {conversation.canonicalVariantId}</small> : null}</div></WorkspaceRecordDetails>
+          <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη"><div className="workspace-compact-row"><strong>Συνομιλία</strong><span className="vendor-technical-id">{conversation.id}</span>{conversation.canonicalVariantId ? <small className="vendor-technical-id">Προϊόν {conversation.canonicalVariantId}</small> : null}</div></WorkspaceRecordDetails>
         </div>
       </details>)}</div>}
     </section>
@@ -97,7 +97,7 @@ export function VendorAdviceClient({ initial }: { initial: Workspace }) {
             <div className="workspace-queue-head"><div><strong>{request.need ?? "Αίτημα πελάτη"}</strong><small>{vendorStatusLabel(request.status)}</small></div></div>
             <VendorLifecycle steps={requestSteps(request.status)} ariaLabel="Πορεία Ask Local" />
             {!closedRequestStates.has(request.status) && <Link className="button" href="/daily">Απάντηση στο Daily</Link>}
-            <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες"><div className="workspace-compact-row"><strong>Request</strong><span className="vendor-technical-id">{request.id}</span>{request.canonicalVariantId ? <small className="vendor-technical-id">Product {request.canonicalVariantId}</small> : null}</div></WorkspaceRecordDetails>
+            <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες"><div className="workspace-compact-row"><strong>Αίτημα</strong><span className="vendor-technical-id">{request.id}</span>{request.canonicalVariantId ? <small className="vendor-technical-id">Προϊόν {request.canonicalVariantId}</small> : null}</div></WorkspaceRecordDetails>
           </article>)}</div> : <p className="workspace-queue-summary">Δεν υπάρχουν ανατεθειμένα αιτήματα.</p>}
         </article>
         <article className="workspace-queue-card">
