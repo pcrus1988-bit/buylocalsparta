@@ -61,12 +61,12 @@ export default async function DropshippingActivityPage() {
       <WorkspaceSectionHeading eyebrow="Αυτόματες ενημερώσεις" title="Κατάλογοι & τιμές προμηθευτών" note="Οι αυτόματες ενημερώσεις συνοψίζονται ανά προμηθευτή ώστε να βλέπεις γρήγορα πότε κινήθηκαν τελευταία τα δεδομένα." />
       <div className="vendor-card-grid">
         {activity.suppliers.map((supplier) => <article className="workspace-queue-card" key={supplier.supplierCode}>
-          <div className="workspace-queue-head"><div><strong>{supplier.supplierName}</strong><small>{supplier.supplierCode}</small></div></div>
+          <div className="workspace-queue-head"><div><strong>{supplier.supplierName}</strong><small>Αυτόματες ενημερώσεις προμηθευτή</small></div></div>
           <div className="workspace-compact-list" style={{ marginTop: 12 }}>
-            <div className="workspace-compact-row"><strong>Τελευταίος συγχρονισμός καταλόγου</strong><span>{date(supplier.lastCatalogueSyncAt)}</span></div>
-            <div className="workspace-compact-row"><strong>Εγγραφές προμηθευτή / 1ωρ.</strong><span>{supplier.offerUpdates1h}</span><small>{supplier.offerUpdates24h} / 24ωρ.</small></div>
+            <div className="workspace-compact-row"><strong>Τελευταία ενημέρωση καταλόγου</strong><span>{date(supplier.lastCatalogueSyncAt)}</span></div>
+            <div className="workspace-compact-row"><strong>Αλλαγές προϊόντων την τελευταία ώρα</strong><span>{supplier.offerUpdates1h}</span><small>{supplier.offerUpdates24h} τις τελευταίες 24 ώρες</small></div>
             <div className="workspace-compact-row"><strong>Τελευταία ενημέρωση τιμών</strong><span>{date(supplier.lastPricingUpdateAt)}</span></div>
-            <div className="workspace-compact-row"><strong>Εγγραφές τιμών / 1ωρ.</strong><span>{supplier.pricingUpdates1h}</span><small>{supplier.pricingUpdates24h} / 24ωρ.</small></div>
+            <div className="workspace-compact-row"><strong>Αλλαγές τιμών την τελευταία ώρα</strong><span>{supplier.pricingUpdates1h}</span><small>{supplier.pricingUpdates24h} τις τελευταίες 24 ώρες</small></div>
           </div>
           <Link className="button button-secondary" style={{ marginTop: 12 }} href={`/vendor/dropshipping?supplier=${encodeURIComponent(supplier.supplierCode)}`}>Άνοιγμα προμηθευτή</Link>
         </article>)}
