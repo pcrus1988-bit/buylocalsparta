@@ -243,12 +243,13 @@ export async function syncAdminInboundMail(principal: SessionPrincipal, input: {
   const maxObjects = Math.max(1, Math.min(250, Math.trunc(input.maxObjects ?? 100)));
   const startedAt = Date.now();
   await saveSyncStart(principal, startedAt);
+  const initialContinuationToken = await readSyncCursor(principal);
 
   let scanned = 0;
   let imported = 0;
   const failures: string[] = [];
   try {
-    let continuationToken: string | undefined;
+    let continuationToken: string | undefined = initialContinuationToken;
     const objects: { objectKey: string; etag?: string; byteSize: number; lastModifiedAt?: number }[] = [];
     while (objects.length < maxObjects) {
       const page = await storage.list({
@@ -320,7 +321,7 @@ export async function syncAdminInboundMail(principal: SessionPrincipal, input: {
         failures.push(`${object.objectKey}: ${message(error)}`);
       }
     }
-    await saveSyncFinish(principal, { startedAt, scanned, imported, error: failures.length ? failures.slice(0, 3).join(" | ") : undefined, success: true });
+    await saveSyncFinish(principal, { startedAt, scanned, imported, error: failures.length ? failures.slice(0, 3).join(" | ") : undefined, success: true, continuationToken });
     await recordAdminAudit(principal, "admin_mail.inbound_sync", "admin_mailbox", "ses_s3_inbound", "Admin mailbox S3 synchronization", { scanned, imported, failures: failures.length }).catch(() => undefined);
     return { ok: true, scanned, imported, failed: failures.length, warnings: failures.slice(0, 5) };
   } catch (error) {
@@ -588,6 +589,13 @@ function mailStorage(config: MailConfig): S3ObjectStorage {
   return globals.__blsAdminMailStorage;
 }
 
+async function readSyncCursor(principal: SessionPrincipal): Promise<string | undefined> {
+  return uow().withTransaction(platformScope(principal.userId), async (tx) => {
+    const result = await tx.query<SqlRow>(`SELECT continuation_token FROM admin_mail_sync_state WHERE source='ses_s3_inbound'`);
+    return result.rowCount ? optionalText(result.rows[0].continuation_token) : undefined;
+  }, { readOnly: true });
+}
+
 async function saveSyncStart(principal: SessionPrincipal, startedAt: number) {
   await uow().withTransaction(platformScope(principal.userId), async (tx) => {
     await tx.query(`
@@ -598,7 +606,7 @@ async function saveSyncStart(principal: SessionPrincipal, startedAt: number) {
   }, { isolation: "serializable" });
 }
 
-async function saveSyncFinish(principal: SessionPrincipal, input: { startedAt: number; scanned: number; imported: number; error?: string; success: boolean }) {
+async function saveSyncFinish(principal: SessionPrincipal, input: { startedAt: number; scanned: number; imported: number; error?: string; success: boolean; continuationToken?: string }) {
   await uow().withTransaction(platformScope(principal.userId), async (tx) => {
     await tx.query(`
       INSERT INTO admin_mail_sync_state(source,last_sync_started_at,last_sync_completed_at,last_success_at,last_error,scanned_objects,imported_messages,updated_at)
@@ -606,8 +614,10 @@ async function saveSyncFinish(principal: SessionPrincipal, input: { startedAt: n
       ON CONFLICT(source) DO UPDATE SET
         last_sync_completed_at=now(),
         last_success_at=CASE WHEN $5 THEN now() ELSE admin_mail_sync_state.last_success_at END,
-        last_error=$2,scanned_objects=$3,imported_messages=$4,updated_at=now()
-    `, [input.startedAt, input.error ?? null, input.scanned, input.imported, input.success]);
+        last_error=$2,scanned_objects=$3,imported_messages=$4,
+        continuation_token=CASE WHEN $5 THEN $6 ELSE admin_mail_sync_state.continuation_token END,
+        updated_at=now()
+    `, [input.startedAt, input.error ?? null, input.scanned, input.imported, input.success, input.continuationToken ?? null]);
   }, { isolation: "serializable" });
 }
 
