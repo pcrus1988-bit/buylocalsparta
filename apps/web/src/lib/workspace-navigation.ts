@@ -135,6 +135,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
       { label: "Website Import", href: "/admin/catalogue-crawler", icon: "↗", permission: "catalog.read" },
       { label: "Source Import", href: "/admin/catalogue-intake/import", icon: "↑", permission: "catalog.write" },
       { label: "Supplier PIM", href: "/admin/catalogue-intake", icon: "⇩", permission: "catalog.read" },
+      { label: "Vendor XML Feeds", href: "/admin/catalogue/vendor-feeds", icon: "↻", permission: "catalog.read" },
       { label: "Attribute Mapping", href: "/admin/catalogue-intake/attributes", icon: "≡", permission: "catalog.read", contextHidden: true },
       { label: "Vendor Matching", href: "/admin/matching", icon: "◇", permission: "catalog.read", contextHidden: true },
       { label: "Structure", href: "/admin/catalogue/structure", icon: "≡", permission: "catalog.read" },
