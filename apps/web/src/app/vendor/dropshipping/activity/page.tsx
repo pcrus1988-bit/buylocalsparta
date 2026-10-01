@@ -27,10 +27,10 @@ export default async function DropshippingActivityPage() {
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
         <div className="eyebrow">Κέντρο dropshipping</div>
-        <h1>Δραστηριότητα</h1>
-        <p className="lead">Χειροκίνητες αλλαγές προϊόντων και συγκεντρωτική κίνηση συγχρονισμών προμηθευτή και τιμολόγησης, χωρίς να γεμίζει το ιστορικό με χιλιάδες τεχνικές ενημερώσεις.</p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-          <Link className="button button-secondary" href="/vendor/dropshipping">← Dropshipping</Link>
+        <h1>Ιστορικό ενημερώσεων</h1>
+        <p className="lead">Δες τις αλλαγές που έκανες εσύ και πότε ενημερώθηκαν τελευταία οι κατάλογοι και οι τιμές από τους προμηθευτές.</p>
+        <div className="vendor-page-action-row">
+          <Link className="button button-secondary" href="/vendor/dropshipping">← Προϊόντα</Link>
           <Link className="button button-secondary" href="/vendor/dropshipping/health">Κατάσταση ροής</Link>
         </div>
       </div>
@@ -44,7 +44,7 @@ export default async function DropshippingActivityPage() {
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Ενέργειες καταστήματος" title="Πρόσφατες χειροκίνητες αλλαγές" note="Εμφανίζονται μόνο καταγεγραμμένες αλλαγές ορατότητας προϊόντων από το πίνακα συνεργάτη. Αυτό δεν αναμειγνύεται με αυτόματους συγχρονισμούς." />
+      <WorkspaceSectionHeading eyebrow="Δικές σου ενέργειες" title="Πρόσφατες αλλαγές δημοσίευσης" note="Εδώ εμφανίζονται μόνο οι αλλαγές που έγιναν από το κατάστημά σου. Οι αυτόματες ενημερώσεις των προμηθευτών εμφανίζονται ξεχωριστά πιο κάτω." />
       <div style={{ display: "grid", gap: 10 }}>
         {activity.visibilityEvents.map((event) => <article className="workspace-queue-card" key={event.id}>
           <div className="workspace-queue-head">
@@ -58,8 +58,8 @@ export default async function DropshippingActivityPage() {
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Αυτόματες λειτουργίες" title="Συγχρονισμοί προμηθευτών & τιμών" note="Οι τεχνικές ενημερώσεις συνοψίζονται ανά προμηθευτή. Τα μετρήσεις είναι λειτουργικά στοιχεία, όχι ξεχωριστές χειροκίνητες ενέργειες." />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 14 }}>
+      <WorkspaceSectionHeading eyebrow="Αυτόματες ενημερώσεις" title="Κατάλογοι & τιμές προμηθευτών" note="Οι αυτόματες ενημερώσεις συνοψίζονται ανά προμηθευτή ώστε να βλέπεις γρήγορα πότε κινήθηκαν τελευταία τα δεδομένα." />
+      <div className="vendor-card-grid">
         {activity.suppliers.map((supplier) => <article className="workspace-queue-card" key={supplier.supplierCode}>
           <div className="workspace-queue-head"><div><strong>{supplier.supplierName}</strong><small>{supplier.supplierCode}</small></div></div>
           <div className="workspace-compact-list" style={{ marginTop: 12 }}>
