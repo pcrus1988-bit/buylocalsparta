@@ -189,7 +189,7 @@ export async function saveVendorProductFeed(
             "field_mapping,category_mapping,default_category_id,created_by,last_source_hash,last_sync_at,updated_at)",
             "VALUES($1::uuid,$2::uuid,$3::uuid,$4,'url',$5,'active',$6,$7::jsonb,$8::jsonb,$9::uuid,$10::uuid,$11,now(),now())",
             "ON CONFLICT(vendor_id,lower(source_url)) WHERE source_type='url' AND source_url IS NOT NULL DO UPDATE SET",
-            "name=EXCLUDED.name,location_id=EXCLUDED.location_id,status='active',sync_interval_minutes=EXCLUDED.sync_interval_minutes,",
+            "name=EXCLUDED.name,location_id=EXCLUDED.location_id,status=vendor_product_feeds.status,sync_interval_minutes=EXCLUDED.sync_interval_minutes,",
             "field_mapping=EXCLUDED.field_mapping,category_mapping=EXCLUDED.category_mapping,default_category_id=EXCLUDED.default_category_id,",
             "last_source_hash=EXCLUDED.last_source_hash,last_sync_at=now(),last_error=NULL,updated_at=now()",
             "RETURNING id::text,public_id"
@@ -362,8 +362,11 @@ export async function saveVendorProductFeed(
       ]);
 
       await tx.query(sql(
-        "UPDATE vendor_product_feeds SET status=$2,product_count=$3,ready_count=$4,error_count=$5,last_source_hash=$6,",
-        "last_sync_at=now(),last_success_at=now(),next_sync_at=CASE WHEN $2='active' THEN now()+make_interval(mins=>$7) ELSE NULL END,",
+        "UPDATE vendor_product_feeds SET",
+        "status=CASE WHEN source_type='url' AND status='paused' THEN 'paused' ELSE $2 END,",
+        "product_count=$3,ready_count=$4,error_count=$5,last_source_hash=$6,",
+        "last_sync_at=now(),last_success_at=now(),",
+        "next_sync_at=CASE WHEN source_type='url' AND status='paused' THEN NULL WHEN $2='active' THEN now()+make_interval(mins=>$7) ELSE NULL END,",
         "last_error=NULL,updated_at=now() WHERE id=$1::uuid"
       ), [
         feedUuid, input.sourceType === "url" ? "active" : "completed",
