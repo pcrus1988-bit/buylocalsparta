@@ -16,7 +16,7 @@ const checks: Array<[string, boolean]> = [
   ["Admin route exposes compose, reply and forward", ["Compose", "Reply", "Forward"].every((value) => files.page.includes(value))],
   ["Actions enforce notifications.manage", files.actions.includes('assertAdminPermission(principal, "notifications.manage")')],
   ["Actions enforce Admin CSRF", files.actions.includes("assertAdminCsrf(principal, csrfToken)")],
-  ["Outbound operator mail uses SES", files.runtime.includes('provider: "ses"') && files.runtime.includes("amazonaws.com")],
+  ["Outbound operator mail uses SES", files.runtime.includes("sendSesRaw") && files.runtime.includes("/v2/email/outbound-emails") && files.runtime.includes("aws4_request")],
   ["Mailbox is hard locked to eu-north-1", files.runtime.includes('const REQUIRED_REGION = "eu-north-1"')],
   ["Inbound defaults to the SES S3 bucket", files.runtime.includes('const DEFAULT_BUCKET = "kontamou-inbound-emails"')],
   ["Inbound source stays in S3", files.runtime.includes("s3_object_key") && files.runtime.includes("inboundStorage(config).read")],
