@@ -9,6 +9,7 @@ const errors: string[] = [];
 const landing = read("apps/web/src/app/hubs/join/page.tsx");
 const applyPage = read("apps/web/src/app/hubs/join/apply/page.tsx");
 const form = read("apps/web/src/components/HubExpansionApplicationForm.tsx");
+const gateway = read("apps/web/src/components/VendorJoinGateway.tsx");
 const resolverRoute = read("apps/web/src/app/api/hubs/resolve-company-by-afm/route.ts");
 const applicationRoute = read("apps/web/src/app/api/hub-prospect-application/route.ts");
 const applicationRuntime = read("apps/web/src/lib/hub-prospect-application-runtime.ts");
