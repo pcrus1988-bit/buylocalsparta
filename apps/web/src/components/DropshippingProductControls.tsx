@@ -37,10 +37,10 @@ const shippingStatusLabel = (status: NovaBrandsGatewayPricingRecommendation["shi
 
 function previewPriceMinor(costMinor: number | null, markup: number, discount: number): number | null {
   if (costMinor == null) return null;
-  const safeΠεριθώριο = Math.max(0, markup);
-  const safeΈκπτωση = Math.min(100, Math.max(0, discount));
-  const afterMarkupMinor = costMinor + Math.round(costMinor * safeΠεριθώριο / 100);
-  return Math.max(costMinor, afterMarkupMinor - Math.round(afterMarkupMinor * safeΈκπτωση / 100));
+  const safeMarkup = Math.max(0, markup);
+  const safeDiscount = Math.min(100, Math.max(0, discount));
+  const afterMarkupMinor = costMinor + Math.round(costMinor * safeMarkup / 100);
+  return Math.max(costMinor, afterMarkupMinor - Math.round(afterMarkupMinor * safeDiscount / 100));
 }
 
 async function csrfToken(): Promise<string> {
@@ -58,8 +58,8 @@ export function DropshippingProductControls(props: Props) {
     && props.recommendation?.recommendedMarkupPercent != null
     && props.recommendation.recommendedSellingPriceMinor != null
   );
-  const initialΠεριθώριο = recommendedDefault ? props.recommendation?.recommendedMarkupPercent ?? 0 : props.markupValue ?? 0;
-  const initialΈκπτωση = recommendedDefault ? 0 : props.discountValue ?? 0;
+  const initialMarkup = recommendedDefault ? props.recommendation?.recommendedMarkupPercent ?? 0 : props.markupValue ?? 0;
+  const initialDiscount = recommendedDefault ? 0 : props.discountValue ?? 0;
   const initialPreviewMinor = previewPriceMinor(props.supplierCostMinor, initialMarkup, initialDiscount);
 
   const [busy, setBusy] = useState(false);
@@ -109,12 +109,12 @@ export function DropshippingProductControls(props: Props) {
       return;
     }
     const targetMinor = Math.max(props.supplierCostMinor, Math.round(parsed * 100));
-    const safeΈκπτωση = Math.min(100, Math.max(0, discount));
-    const effectiveΈκπτωση = safeΈκπτωση >= 100 ? 0 : safeDiscount;
-    if (safeΈκπτωση >= 100) setDiscount(0);
-    const priceBeforeDiscountMinor = targetMinor / (1 - effectiveΈκπτωση / 100);
-    const nextΠεριθώριο = Math.max(0, ((priceBeforeDiscountMinor / props.supplierCostMinor) - 1) * 100);
-    setMarkup(Math.round((nextΠεριθώριο + Number.EPSILON) * 100) / 100);
+    const safeDiscount = Math.min(100, Math.max(0, discount));
+    const effectiveDiscount = safeDiscount >= 100 ? 0 : safeDiscount;
+    if (safeDiscount >= 100) setDiscount(0);
+    const priceBeforeDiscountMinor = targetMinor / (1 - effectiveDiscount / 100);
+    const nextMarkup = Math.max(0, ((priceBeforeDiscountMinor / props.supplierCostMinor) - 1) * 100);
+    setMarkup(Math.round((nextMarkup + Number.EPSILON) * 100) / 100);
   }
 
   async function savePricing() {
@@ -178,11 +178,11 @@ export function DropshippingProductControls(props: Props) {
         body: JSON.stringify({ action: "reset-product", offerId: props.offerId })
       });
       const payload = await response.json() as { error?: string; markupPercent?: number; discountPercent?: number; visible?: boolean };
-      if (!response.ok) throw new Error(payload.error ?? "Η επαναφορά στα ρυθμίσεις προμηθευτή απέτυχε.");
+      if (!response.ok) throw new Error(payload.error ?? "Η επαναφορά στις ρυθμίσεις προμηθευτή απέτυχε.");
       if (typeof payload.markupPercent === "number") setMarkup(payload.markupPercent);
       if (typeof payload.discountPercent === "number") setDiscount(payload.discountPercent);
       if (typeof payload.visible === "boolean") setVisible(payload.visible);
-      setMessage("Επαναφέρθηκε στα ρυθμίσεις προμηθευτή");
+      setMessage("Επαναφέρθηκε στις ρυθμίσεις προμηθευτή");
       router.refresh();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Η επαναφορά απέτυχε."); }
     finally { setBusy(false); }
@@ -198,10 +198,10 @@ export function DropshippingProductControls(props: Props) {
         body: JSON.stringify({ offerId: props.offerId })
       });
       const payload = await response.json() as { error?: string; updatedOffers?: number };
-      if (!response.ok) throw new Error(payload.error ?? "Η ανανέωση availability απέτυχε.");
+      if (!response.ok) throw new Error(payload.error ?? "Η ανανέωση διαθεσιμότητας απέτυχε.");
       setMessage(`Η διαθεσιμότητα ανανεώθηκε${typeof payload.updatedOffers === "number" ? ` · ${payload.updatedOffers} παραλλαγές` : ""}`);
       router.refresh();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Η ανανέωση availability απέτυχε."); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Η ανανέωση διαθεσιμότητας απέτυχε."); }
     finally { setBusy(false); }
   }
 
@@ -218,7 +218,7 @@ export function DropshippingProductControls(props: Props) {
           {props.recommendation.overpriced ? <div className="workspace-compact-row"><strong>Εσωτερική ένδειξη</strong><span>OVERPRICED</span><small>{euro(props.recommendation.overpricedByMinor)} πάνω από MSRP · {percent(props.recommendation.overpricedByPercent)}</small></div> : null}
           <div className="workspace-compact-row"><strong>Κέρδος €</strong><span>{euro(liveProfit.profitMinor)}</span><small>Στην τρέχουσα τιμή πώλησης</small></div>
           <div className="workspace-compact-row"><strong>Κέρδος %</strong><span>{percent(liveProfit.profitPercent)}</span><small>Μετά τον ΦΠΑ, το κόστος συναλλαγής και το αποθεματικό μεταφορικών</small></div>
-          <div className="workspace-compact-row"><strong>Αποθεματικό μεταφορικών</strong><span>{euro(props.recommendation.embeddedShippingMinor)}</span><small>{shippingStatusLabel(props.recommendation.shippingStatus)} · κάλυψη {percent(props.recommendation.shippingAbsorptionScore == null ? null : props.recommendation.shippingAbsorptionScore * 100)}</small></div>
+          <div className="workspace-compact-row"><strong>Αποθεματικό μεταφορικών</strong><span>{euro(props.recommendation.embeddedShippingMinor)}</span><small>{shippingStatusLabel(props.recommendation.shippingStatus)} · absorption {percent(props.recommendation.shippingAbsorptionScore == null ? null : props.recommendation.shippingAbsorptionScore * 100)}</small></div>
         </> : null}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(90px,1fr))", gap: 8 }}>
