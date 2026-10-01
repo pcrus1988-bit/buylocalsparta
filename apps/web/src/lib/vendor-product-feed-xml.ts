@@ -56,7 +56,7 @@ export type VendorFeedAnalysis = Readonly<{
 type XmlRecord = Record<string,string[]>;
 
 const ALIASES: Record<VendorFeedField,readonly string[]> = {
-  id:["id","product_id","productid","sku","code","item_group_id"],
+  id:["variant_sku","variant_id","id","product_id","productid","sku","code","item_group_id"],
   title:["title","name","product_name","productname"],
   description:["description","short_description","long_description","body_html","body"],
   price:["price","sale_price","selling_price","retail_price","final_price"],
@@ -111,7 +111,7 @@ export function analyzeVendorProductXml(xml: string, requestedMapping: VendorFee
 function detectFormat(xml:string):VendorFeedFormat {
   const head=xml.slice(0,80_000).toLocaleLowerCase("en");
   if (/<rss\b/.test(head) && /xmlns:g=/.test(head)) return "google_merchant";
-  if (/<products?\b/.test(head) && /<product\b/.test(head) && /<(?:\w+:)?currency_code\b/.test(head)) return "kontamou";
+  if (/<products?\b/.test(head) && /<product\b/.test(head) && /<(?:\w+:)?(?:currency_code|currency)\b/.test(head) && /<(?:\w+:)?(?:stock|quantity|availability)\b/.test(head)) return "kontamou";
   if (/woocommerce|wc_product|<regular_price\b|<sale_price\b/.test(head)) return "woocommerce";
   if (/shopify|<body_html\b|<inventory_quantity\b/.test(head)) return "shopify";
   if (/prestashop|<id_product\b|<reference\b/.test(head)) return "prestashop";
@@ -137,7 +137,31 @@ function extractRecords(xml:string,recordTag:string):XmlRecord[] {
   const escaped=escapeRegex(recordTag);
   const pattern=new RegExp(`<${escaped}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${escaped}\\s*>`,"gi");
   const result:XmlRecord[]=[];
-  for (const match of xml.matchAll(pattern)) result.push(parseRecord(match[1]??""));
+  for (const match of xml.matchAll(pattern)) {
+    const fragment=match[1]??"";
+    const variants=[...fragment.matchAll(/<(variant|variation)(?:\\s[^>]*)?>([\\s\\S]*?)<\\/\\1\\s*>/gi)];
+    if(!variants.length){
+      result.push(parseRecord(fragment));
+      continue;
+    }
+
+    const parentFragment=fragment
+      .replace(/<variants?(?:\\s[^>]*)?>[\\s\\S]*?<\\/variants?\\s*>/gi,"")
+      .replace(/<variations?(?:\\s[^>]*)?>[\\s\\S]*?<\\/variations?\\s*>/gi,"")
+      .replace(/<(?:variant|variation)(?:\\s[^>]*)?>[\\s\\S]*?<\\/(?:variant|variation)\\s*>/gi,"");
+    const parent=parseRecord(parentFragment);
+    const parentIdentity=parent.id?.[0]??parent.product_id?.[0]??parent.productid?.[0]??parent.sku?.[0];
+
+    for (const variant of variants) {
+      const child=parseRecord(variant[2]??"");
+      const childIdentity=child.sku?.[0]??child.id?.[0]??child.variant_id?.[0]??child.code?.[0];
+      const merged:XmlRecord={...parent,...child};
+      if(parentIdentity&&!merged.item_group_id) merged.item_group_id=[parentIdentity];
+      if(childIdentity) merged.variant_sku=[childIdentity];
+      else if(parent.id) merged.id=[];
+      result.push(merged);
+    }
+  }
   return result;
 }
 
