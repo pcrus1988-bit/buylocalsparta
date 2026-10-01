@@ -82,15 +82,14 @@ async function loadCandidates(limit: number): Promise<readonly Candidate[]> {
       v.trading_name AS vendor_name,
       cv.id::text AS canonical_variant_uuid,
       cv.public_id AS canonical_public_id,
-      COALESCE(NULLIF(i.source_payload->>'title',''),pf_el.name,pf_en.name,'Προϊόν') AS title,
+      COALESCE(NULLIF(i.source_payload->>'title',''),pt_el.title,pt_en.title,'Προϊόν') AS title,
       i.source_payload
     FROM public.vendor_product_feed_items i
     JOIN public.vendor_product_feeds f ON f.id=i.feed_id
     JOIN public.vendor_businesses v ON v.id=i.vendor_id
     JOIN public.canonical_variants cv ON cv.id=i.canonical_variant_id
-    JOIN public.product_families pf ON pf.id=cv.family_id
-    LEFT JOIN public.product_family_translations pf_el ON pf_el.family_id=pf.id AND pf_el.locale='el'
-    LEFT JOIN public.product_family_translations pf_en ON pf_en.family_id=pf.id AND pf_en.locale='en'
+    LEFT JOIN public.product_translations pt_el ON pt_el.canonical_variant_id=cv.id AND pt_el.locale='el'
+    LEFT JOIN public.product_translations pt_en ON pt_en.canonical_variant_id=cv.id AND pt_en.locale='en'
     WHERE i.state='present'
       AND i.canonical_variant_id IS NOT NULL
       AND (
