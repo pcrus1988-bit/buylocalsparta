@@ -36,7 +36,7 @@ export default async function VendorStorefrontPage() {
         <div className="eyebrow">Δημόσιο προφίλ</div>
         <h1>Η εικόνα του καταστήματός σου προς τον πελάτη</h1>
         <p className="lead">Οργάνωσε τις βασικές εικόνες του προφίλ σου βήμα-βήμα και έλεγξε το αποτέλεσμα όπως το βλέπει ο πελάτης.</p>
-        <div className="hero-actions"><Link className="button button-secondary" href={`/vendor/${encodeURIComponent(workspace.vendorId)}`} target="_blank">Προβολή δημόσιου προφίλ ↗</Link></div>
+        <div className="hero-actions"><Link className="button" href="/vendor/preview">Προεπισκόπηση καταστήματος</Link><Link className="button button-secondary" href={`/vendor/${encodeURIComponent(workspace.vendorId)}`} target="_blank">Προβολή δημόσιου προφίλ ↗</Link></div>
       </div>
       <aside className="dashboard-health-card">
         <span>Δημοσίευση εικόνας</span>
@@ -52,15 +52,15 @@ export default async function VendorStorefrontPage() {
         <p><strong>Λογότυπο:</strong> χρησιμοποιείται ως βασική ταυτότητα του καταστήματος.</p>
         <p><strong>Φωτογραφία καταστήματος:</strong> βοηθά τον πελάτη να αναγνωρίσει τη φυσική επιχείρηση.</p>
         <p><strong>Άνθρωποι / ομάδα:</strong> υποστηρίζει την ανθρώπινη, συμβουλευτική ταυτότητα του ΚΟΝΤΑ ΜΟΥ.</p>
-        <p><strong>Gallery:</strong> δείχνει χώρο, υπηρεσίες και εμπειρία. Οι φωτογραφίες προϊόντων διαχειρίζονται ξεχωριστά.</p>
+        <p><strong>Συλλογή φωτογραφιών:</strong> δείχνει χώρο, υπηρεσίες και εμπειρία. Οι φωτογραφίες προϊόντων διαχειρίζονται ξεχωριστά.</p>
       </WorkspaceHowItWorks>
     </section>
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading
-        eyebrow="Storefront Builder"
+        eyebrow="Εμφάνιση καταστήματος"
         title="Σχεδίαση, ενότητες & Instagram"
-        note="Ρύθμισε τη δημόσια βιτρίνα, σύνδεσε το επαγγελματικό Instagram και έλεγξε πώς θα εμφανίζεται το περιεχόμενο σε mobile και desktop."
+        note="Ρύθμισε τη δημόσια βιτρίνα, σύνδεσε το επαγγελματικό Instagram και έλεγξε πώς θα εμφανίζεται το περιεχόμενο σε κινητό και υπολογιστή."
       />
       <VendorStorefrontBuilder initial={storefront} csrfToken={principal.csrfToken} />
     </section>

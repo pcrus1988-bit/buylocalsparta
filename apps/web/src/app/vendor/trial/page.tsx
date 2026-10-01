@@ -100,7 +100,7 @@ export default async function VendorTrialPage() {
 
   return <>
     <VendorWorkspaceHeader />
-    <main className={styles.trialShell}>
+    <main className="vendor-app"><div className={styles.trialShell}>
       <section className={styles.hero}>
         <div className={styles.heroTop}>
           <div>
@@ -215,6 +215,6 @@ export default async function VendorTrialPage() {
       </section>
 
       <Link className={styles.floatingPreview} href="/vendor/preview">◫ Προεπισκόπηση</Link>
-    </main>
+    </div></main>
   </>;
 }

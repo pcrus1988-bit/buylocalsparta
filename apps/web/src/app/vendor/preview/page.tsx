@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import type { CatalogCard } from "../../../lib/catalog-view";
 import styles from "../../../components/VendorTrial.module.css";
+import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
 import { storefrontPreviewProducts, storefrontPreviewWorkspace, type VendorStorefrontPreviewProduct } from "../../../lib/vendor-storefront-settings";
 import { getFastVendorDropshipCatalogPage } from "../../../lib/vendor-dropship-fast-page";
 import { getVendorLocalCatalogPage } from "../../../lib/vendor-local-catalog";
@@ -32,10 +33,10 @@ export default async function VendorPreviewPage() {
   const settings = storefront.settings;
   const knownProductCount = trial?.productCount ?? products.length;
 
-  return <main className={styles.trialShell}>
+  return <><VendorWorkspaceHeader /><main className="vendor-app"><div className={styles.trialShell}>
     <div className={styles.previewToolbar}>
       <div>
-        <span className={styles.demoPill}>PRIVATE PREVIEW</span>
+        <span className={styles.demoPill}>ΙΔΙΩΤΙΚΗ ΠΡΟΕΠΙΣΚΟΠΗΣΗ</span>
         <h1 style={{margin:"8px 0 0"}}>{storefront.vendorName}</h1>
       </div>
       <div className={styles.heroActions}>
@@ -54,16 +55,16 @@ export default async function VendorPreviewPage() {
           <div className={styles.chips}>
             <span className={styles.chip}>Παραλαβή από κατάστημα</span>
             <span className={styles.chip}>Τοπική συμβουλή</span>
-            {knownProductCount > 0 && <span className={styles.chip}>{knownProductCount.toLocaleString("el-GR")} προϊόντα στο workspace</span>}
-            {trial && <span className={styles.demoPill}>TRIAL · ΔΕΝ ΕΙΝΑΙ ΔΗΜΟΣΙΟ</span>}
+            {knownProductCount > 0 && <span className={styles.chip}>{knownProductCount.toLocaleString("el-GR")} προϊόντα στο κατάστημα</span>}
+            {trial && <span className={styles.demoPill}>ΔΟΚΙΜΗ · ΔΕΝ ΕΙΝΑΙ ΔΗΜΟΣΙΟ</span>}
           </div>
 
           <section className={styles.previewCollection} aria-labelledby="vendor-preview-products">
             <div className={styles.previewCollectionHead}>
               <div>
-                <div className={styles.storeEyebrow}>THE COLLECTION</div>
+                <div className={styles.storeEyebrow}>ΣΥΛΛΟΓΗ</div>
                 <h4 id="vendor-preview-products">{settings.showFeatured ? "Προτεινόμενα προϊόντα" : "Η συλλογή του καταστήματος"}</h4>
-                <p>Η ιδιωτική προεπισκόπηση χρησιμοποιεί τα πραγματικά προϊόντα του vendor workspace. Πρόχειρα ή κρυφά προϊόντα παραμένουν ιδιωτικά και επισημαίνονται ανάλογα.</p>
+                <p>Η ιδιωτική προεπισκόπηση χρησιμοποιεί τα πραγματικά προϊόντα του καταστήματός σου. Πρόχειρα ή κρυφά προϊόντα παραμένουν ιδιωτικά και επισημαίνονται ανάλογα.</p>
               </div>
               {products.length > 0 && <span>{products.length} στην προεπισκόπηση</span>}
             </div>
@@ -71,13 +72,13 @@ export default async function VendorPreviewPage() {
             {products.length > 0 ? <div className={styles.productGrid}>
               {products.map((product, index) => <PreviewProductCard product={product} index={index} key={product.id} />)}
             </div> : <div className={styles.previewEmpty}>
-              <strong>Δεν υπάρχουν ακόμη προϊόντα στο vendor workspace.</strong>
-              <p>Πρόσθεσε προϊόντα από τον Κατάλογο και θα εμφανιστούν εδώ αυτόματα — χωρίς να γίνουν δημόσια όσο βρίσκεσαι σε Trial.</p>
+              <strong>Δεν υπάρχουν ακόμη προϊόντα στο κατάστημά σου.</strong>
+              <p>Πρόσθεσε προϊόντα από τον Κατάλογο και θα εμφανιστούν εδώ αυτόματα — χωρίς να γίνουν δημόσια όσο βρίσκεσαι σε δοκιμή.</p>
               <Link className={styles.heroAction} href="/vendor/catalog">Πρόσθεσε προϊόντα →</Link>
             </div>}
           </section>
 
-          {settings.showFlashSale && <div className={styles.sectionBlock}><h4>⚡ Flash Sale</h4><p>Χώρος για γρήγορες προσφορές και gamified discovery.</p></div>}
+          {settings.showFlashSale && <div className={styles.sectionBlock}><h4>⚡ Γρήγορη προσφορά</h4><p>Χώρος για γρήγορες προσφορές και πιο ζωντανή ανακάλυψη προϊόντων.</p></div>}
           {settings.showBazaar && <div className={styles.sectionBlock}><h4>♻ BAZAAR</h4><p>Δεύτερη ζωή σε επιστροφές και επιλεγμένα προϊόντα.</p></div>}
           {settings.showAbout && <div className={styles.sectionBlock}><h4>Σχετικά με το κατάστημα</h4><p>{storefront.story || "Η ιστορία του καταστήματος θα εμφανίζεται εδώ."}</p></div>}
           {settings.showLocation && storefront.location && <div className={styles.sectionBlock}><h4>Βρες μας</h4><p>{storefront.location.addressLine1}, {storefront.location.postcode} {storefront.location.locality}</p></div>}
@@ -85,7 +86,7 @@ export default async function VendorPreviewPage() {
         </div>
       </div>
     </div>
-  </main>;
+  </div></main></>;
 }
 
 async function activeVendorPreviewProducts(vendorId: string): Promise<readonly VendorStorefrontPreviewProduct[]> {
@@ -152,7 +153,7 @@ function previewState(product: VendorStorefrontPreviewProduct): string {
     if (product.status === "submitted" || product.status === "needs_review") return "Σε έλεγχο ΚΟΝΤΑ ΜΟΥ · ιδιωτικό";
     return "Υπό προετοιμασία · ιδιωτικό";
   }
-  if (!product.visible) return product.status === "approved" ? "Κρυφό από το δημόσιο storefront" : `Ιδιωτική προεπισκόπηση · ${product.status}`;
-  if (product.availableToSell <= 0) return "Δημόσιο προϊόν · χωρίς διαθέσιμο stock";
-  return "Διαθέσιμο στο storefront";
+  if (!product.visible) return product.status === "approved" ? "Κρυφό από το δημόσιο προφίλ" : `Ιδιωτική προεπισκόπηση · ${product.status}`;
+  if (product.availableToSell <= 0) return "Δημόσιο προϊόν · χωρίς διαθέσιμο απόθεμα";
+  return "Διαθέσιμο στο δημόσιο προφίλ";
 }

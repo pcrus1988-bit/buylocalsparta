@@ -12,6 +12,15 @@ const client = read("apps/web/src/components/VendorHubControlsClient.tsx");
 const service = read("apps/web/src/lib/vendor-hub-controls-service.ts");
 const navigation = read("apps/web/src/lib/workspace-navigation.ts");
 const nextConfig = read("apps/web/next.config.ts");
+const settingsPage = read("apps/web/src/app/vendor/settings/page.tsx");
+const settingsHelper = read("apps/web/src/components/VendorSettingsHubSectionPage.tsx");
+const settingsRoutes = [
+  read("apps/web/src/app/vendor/settings/delivery/page.tsx"),
+  read("apps/web/src/app/vendor/settings/aade/page.tsx"),
+  read("apps/web/src/app/vendor/settings/promotions/page.tsx"),
+  read("apps/web/src/app/vendor/settings/seo/page.tsx"),
+  read("apps/web/src/app/vendor/settings/subscription/page.tsx")
+].join("\n");
 const migration = read("db/migrations/0291_self_governed_hub_vendor_controls.sql");
 const hardeningMigration = read("db/migrations/0292_self_governed_hub_vendor_controls_advisor_hardening.sql");
 const scopeMigration = read("db/migrations/0293_self_governed_hub_scope_helpers.sql");
@@ -53,6 +62,11 @@ requireText(page, 'context.operatingModel !== "SELF_GOVERNED"', "HUB Control Cen
 requireText(page, 'redirect("/vendor")', "MANAGED vendors must be redirected away from HUB Control Centre");
 requireText(navigation, 'vendorCapability: "local_delivery.manage"', "HUB navigation must be capability-gated");
 requireText(nextConfig, '"/vendor/hub/:path*"', "HUB private routes must be centrally noindex/no-store");
+requireText(nextConfig, '"/vendor/settings/:path*"', "Vendor settings routes must be centrally noindex/no-store");
+requireText(settingsHelper, "context.capabilities.includes(capability)", "Focused HUB settings must remain capability-gated");
+requireText(settingsHelper, "vendorHubControlsWorkspace(principal)", "Focused HUB settings must reuse the governed HUB workspace");
+for (const capability of ["local_delivery.manage", "aade.manage", "promotions.manage", "seo.source_data.manage", "subscription.manage"]) requireText(settingsRoutes, `capability="${capability}"`, `Focused settings route missing ${capability}`);
+requireText(settingsPage, "Ρυθμίσεις που διαχειρίζεσαι εσύ", "Settings centre must explain vendor-owned HUB controls");
 
 requireText(sqlScope, "Vendor-facing transactions inherit the authoritative market assigned to the vendor", "PostgresUnitOfWork must derive vendor market scope when callers omit marketId");
 requireText(sqlScope, "SELECT market_id::text", "Vendor market derivation must read vendor_businesses.market_id");

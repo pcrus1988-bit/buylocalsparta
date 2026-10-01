@@ -27,6 +27,11 @@ for (const group of VENDOR_WORKSPACE_NAVIGATION) {
   if (!group.links.length) failures.push(`Vendor group ${group.label} cannot be empty`);
   for (const link of group.links) if (!link.icon) failures.push(`Vendor link ${link.href} is missing an icon`);
 }
+const vendorNavigation = read("apps/web/src/lib/workspace-navigation.ts");
+for (const requirement of ["/vendor/preview", "/vendor/settings", "/vendor/settings/aade", "/vendor/settings/delivery", "/vendor/settings/promotions", "/vendor/settings/seo", "/vendor/settings/subscription"]) if (!vendorNavigation.includes(requirement)) failures.push(`Vendor navigation is missing ${requirement}`);
+if (vendorNavigation.includes('label: "Εργαλεία HUB"')) failures.push("Vendor navigation must not expose the legacy technical HUB bucket");
+requireText("apps/web/src/app/vendor/settings/page.tsx", ["Όλα τα βασικά του καταστήματός σου σε ένα σημείο", "/vendor/storefront", "/vendor/preview", "/vendor/finance"]);
+requireText("apps/web/src/app/vendor/preview/page.tsx", ["VendorWorkspaceHeader", "ΙΔΙΩΤΙΚΗ ΠΡΟΕΠΙΣΚΟΠΗΣΗ"]);
 const vendorHeader = read("apps/web/src/components/VendorWorkspaceHeader.tsx");
 for (const requirement of ["VENDOR_WORKSPACE_NAVIGATION", "WorkspaceNavigation", "aria-expanded={menuOpen}", "workspace-menu-toggle", 'fetch("/api/vendor/auth-context"', 'fetch("/api/vendor/logout"', "x-csrf-token"]) if (!vendorHeader.includes(requirement)) failures.push(`Vendor shell is missing ${requirement}`);
 if (vendorHeader.includes('fetch("/api/vendor/session"')) failures.push("Vendor shell must not load the full vendor dashboard just to resolve navigation auth context");

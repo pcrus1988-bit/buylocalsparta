@@ -41,14 +41,14 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     ]
   },
   { label: "Πελάτες", href: "/vendor/advice", icon: "◌", links: [{ label: "Μηνύματα & αιτήματα", href: "/vendor/advice", icon: "◌", vendorCapability: "customer_messages.manage" }] },
-  { label: "Κατάστημα", href: "/vendor/storefront", icon: "◫", links: [{ label: "Δημόσιο προφίλ", href: "/vendor/storefront", icon: "◫", vendorCapability: "shop.manage" }] },
-  { label: "Οικονομικά", href: "/vendor/finance", icon: "€", links: [{ label: "Πληρωμές & παραστατικά", href: "/vendor/finance", icon: "€", vendorCapability: "finance.read" }] },
   {
-    label: "Εργαλεία HUB", href: "/vendor/hub", icon: "◎",
+    label: "Κατάστημα", href: "/vendor/storefront", icon: "◫",
     links: [
-      { label: "Κέντρο ελέγχου HUB", href: "/vendor/hub", icon: "◎", vendorCapability: "local_delivery.manage" }
+      { label: "Δημόσιο προφίλ", href: "/vendor/storefront", icon: "◫", vendorCapability: "shop.manage" },
+      { label: "Προεπισκόπηση καταστήματος", href: "/vendor/preview", icon: "◉", vendorCapability: "shop.read" }
     ]
   },
+  { label: "Οικονομικά", href: "/vendor/finance", icon: "€", links: [{ label: "Πληρωμές & παραστατικά", href: "/vendor/finance", icon: "€", vendorCapability: "finance.read" }] },
   {
     label: "Στατιστικά", href: "/vendor/analytics", icon: "∿",
     links: [
@@ -56,7 +56,18 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
       { label: "Αναφορές", href: "/vendor/reports", icon: "▤" }
     ]
   },
-  { label: "Ρυθμίσεις", href: "/vendor/daily-access", icon: "⚙", links: [{ label: "Πρόσβαση στο Daily", href: "/vendor/daily-access", icon: "◈", vendorCapability: "staff.manage" }] }
+  {
+    label: "Ρυθμίσεις", href: "/vendor/settings", icon: "⚙",
+    links: [
+      { label: "Κέντρο ρυθμίσεων", href: "/vendor/settings", icon: "⚙" },
+      { label: "Πρόσβαση ομάδας", href: "/vendor/daily-access", icon: "◈", vendorCapability: "staff.manage" },
+      { label: "Τοπικές παραδόσεις", href: "/vendor/settings/delivery", icon: "⌁", vendorCapability: "local_delivery.manage" },
+      { label: "Φορολογικά & AADE", href: "/vendor/settings/aade", icon: "#", vendorCapability: "aade.manage" },
+      { label: "Προωθητικές ενέργειες", href: "/vendor/settings/promotions", icon: "%", vendorCapability: "promotions.manage" },
+      { label: "SEO καταστήματος", href: "/vendor/settings/seo", icon: "⌕", vendorCapability: "seo.source_data.manage" },
+      { label: "Πλάνο συνεργασίας", href: "/vendor/settings/subscription", icon: "◎", vendorCapability: "subscription.manage" }
+    ]
+  }
 ];
 
 /**
