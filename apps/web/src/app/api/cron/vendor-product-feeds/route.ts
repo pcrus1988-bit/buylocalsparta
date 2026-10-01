@@ -1,4 +1,4 @@
-import { syncDueVendorProductFeeds } from "../../../../lib/vendor-product-feed-scheduler";
+import { processPendingVendorProductFeedSubmissions, syncDueVendorProductFeeds } from "../../../../lib/vendor-product-feed-scheduler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,9 +12,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await syncDueVendorProductFeeds(1);
-    return Response.json(result, {
-      status: result.failed ? 207 : 200,
+    const synchronization = await syncDueVendorProductFeeds(1);
+    const processing = await processPendingVendorProductFeedSubmissions(500);
+    return Response.json({ ...synchronization, processing }, {
+      status: synchronization.failed ? 207 : 200,
       headers: { "cache-control": "no-store" }
     });
   } catch (error) {
