@@ -55,6 +55,7 @@ type Run = {
   totalRows: number;
   validRows: number;
   errorRows: number;
+  validationErrors: readonly PreviewError[];
   createdSubmissions: number;
   updatedSubmissions: number;
   updatedOffers: number;
@@ -473,7 +474,18 @@ export function VendorProductFeedClient({
         <div className="workspace-tool-body">
           <div className="workspace-compact-list">
             {initial.recentRuns.map((run) => <div className="workspace-compact-row" key={run.id}>
-              <strong>{when(run.startedAt)} · {run.triggerType} · {run.status}</strong>
+              <div>
+                <strong>{when(run.startedAt)} · {run.triggerType} · {run.status}</strong>
+                {run.validationErrors.length > 0 && <details style={{ marginTop: 6 }}>
+                  <summary>Προβολή {run.validationErrors.length.toLocaleString("el-GR")} validation errors</summary>
+                  <div className="workspace-compact-list" style={{ marginTop: 8 }}>
+                    {run.validationErrors.slice(0, 40).map((item,index) => <div className="workspace-compact-row" key={run.id + ":" + index}>
+                      <strong>Row {item.rowNumber}{item.externalId ? " · " + item.externalId : ""}</strong>
+                      <span>{item.field ? item.field + ": " : ""}{item.message}</span>
+                    </div>)}
+                  </div>
+                </details>}
+              </div>
               <span>{run.validRows}/{run.totalRows} valid · {run.createdSubmissions} νέα · {run.updatedOffers} offers · {run.errorRows} errors</span>
             </div>)}
           </div>
