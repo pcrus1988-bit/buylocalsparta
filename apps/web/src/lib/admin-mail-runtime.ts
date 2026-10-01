@@ -193,7 +193,7 @@ export async function adminMailWorkspace(
   if (query) {
     params.push(`%${query}%`);
     const index = params.length;
-    where.push(`(m.subject ILIKE ${index} OR m.from_address ILIKE ${index} OR array_to_string(m.to_addresses,' ') ILIKE ${index} OR m.preview ILIKE ${index} OR m.body_text ILIKE ${index})`);
+    where.push(`(m.subject ILIKE $${index} OR m.from_address ILIKE $${index} OR array_to_string(m.to_addresses,' ') ILIKE $${index} OR m.preview ILIKE $${index} OR m.body_text ILIKE $${index})`);
   }
   params.push(120);
   const limitParam = params.length;
