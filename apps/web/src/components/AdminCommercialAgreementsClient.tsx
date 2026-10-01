@@ -206,7 +206,7 @@ export function AdminCommercialAgreementsClient({ initial, csrfToken }: { initia
         <div>
           <div className="eyebrow">Vendor contract lifecycle</div>
           <h2>Νέα συμφωνία συνεργασίας</h2>
-          <p>Τα στοιχεία αποθηκεύονται ως αμετάβλητο snapshot της συγκεκριμένης έκδοσης. Με την αποθήκευση δημιουργείται αυτόματα το συμβατικό PDF.</p>
+          <p>Τα στοιχεία αποθηκεύονται ως αμετάβλητο snapshot της συγκεκριμένης έκδοσης, μαζί με HUB/market και εμπορικούς όρους. Με την αποθήκευση δημιουργείται αυτόματα το συμβατικό PDF.</p>
         </div>
       </div>
 
@@ -238,6 +238,10 @@ export function AdminCommercialAgreementsClient({ initial, csrfToken }: { initia
             <label>Διακριτικός τίτλος<input value={vendor.tradingName} readOnly /></label>
             <label>ΑΦΜ<input value={vendor.taxNumber ?? ""} readOnly /></label>
             <label>ΓΕΜΗ<input value={vendor.gemiNumber ?? ""} readOnly /></label>
+            <label>HUB<input value={vendor.hubName ?? "—"} readOnly /></label>
+            <label>Κωδικός HUB<input value={vendor.hubId ?? "—"} readOnly /></label>
+            <label>HUB slug<input value={vendor.hubSlug ?? "—"} readOnly /></label>
+            <label>Market code<input value={vendor.marketCode ?? "—"} readOnly /></label>
             <label>Νομική μορφή<input name="vendorLegalForm" defaultValue={vendor.legalForm ?? ""} /></label>
             <label>Δ.Ο.Υ.<input name="vendorTaxOffice" placeholder="π.χ. Δ.Ο.Υ. Σπάρτης" /></label>
             <label>Νόμιμος εκπρόσωπος<input name="vendorLegalRepresentative" required placeholder="Ονοματεπώνυμο" /></label>
@@ -254,7 +258,7 @@ export function AdminCommercialAgreementsClient({ initial, csrfToken }: { initia
         <fieldset className="vendor-form-fieldset">
           <legend>Οικονομικοί όροι</legend>
           <div className="form-grid">
-            <label>Πρόγραμμα συνεργασίας<input name="planName" placeholder="π.χ. Annual / Monthly / Founding Partner" /></label>
+            <label>Πρόγραμμα συνεργασίας<input key={vendor?.id ?? "plan"} name="planName" defaultValue={vendor?.applicationPlanCode?.toUpperCase() ?? ""} placeholder="π.χ. CLAIM / PRESENCE / SHOP / GROWTH / PRO" /></label>
             <label>Προμήθεια επί πώλησης %<input name="commissionPercent" type="number" min="0" max="100" step="0.01" required placeholder="5.00" /></label>
             <label>ΦΠΑ προμήθειας
               <select name="commissionTaxMode" defaultValue="included">
