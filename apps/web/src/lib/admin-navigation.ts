@@ -79,7 +79,7 @@ const CONTENT_OPERATOR_LINKS = new Map<string, { order: number; label?: string }
   ["/admin/content", { order: 0, label: "CMS & Routing" }],
   ["/admin/hero", { order: 1, label: "Homepage" }],
   ["/admin/mail", { order: 2, label: "Mailbox" }],
-  ["/admin/email-lab", { order: 3, label: "Templates & Delivery" }],
+  ["/admin/email-lab", { order: 3, label: "Email" }],
   ["/admin/seo", { order: 4, label: "SEO Overview" }],
   ["/admin/seo/issues", { order: 5, label: "SEO Issues" }],
   ["/admin/seo/pages", { order: 6, label: "SEO Pages" }],
