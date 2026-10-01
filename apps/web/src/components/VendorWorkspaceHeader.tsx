@@ -142,14 +142,14 @@ export function VendorWorkspaceHeader() {
         .join(" ");
   const selfGoverned = operatingContext?.operatingModel === "SELF_GOVERNED";
   const trialCompletedSetup = trial
-    ? [trial.brandConfigured, trial.storefrontConfigured, trial.productCount > 0].filter(Boolean).length
+    ? [trial.brandConfigured && trial.storefrontConfigured, trial.productCount > 0].filter(Boolean).length
     : 0;
-  const trialProgress = Math.round((trialCompletedSetup / 3) * 100);
+  const trialProgress = Math.round((trialCompletedSetup / 2) * 100);
   const trialSteps = trial ? [
     {
       label: "1 · Προφίλ καταστήματος",
       detail: "Συμπλήρωσε περιγραφή, εμφάνιση, λογότυπο και βασικές εικόνες.",
-      href: "/vendor/trial#storefront-builder",
+      href: "/vendor/storefront",
       state: trial.brandConfigured && trial.storefrontConfigured ? "done" : "todo"
     },
     {
@@ -256,7 +256,7 @@ export function VendorWorkspaceHeader() {
             <span style={{ width: `${trialProgress}%` }} />
           </div>
           <div className={trialStyles.guideSummary}>
-            <strong>{trialCompletedSetup}/3 βασικές ρυθμίσεις</strong>
+            <strong>{trialCompletedSetup}/2 βασικά βήματα</strong>
             <span>{trial.productCount} προϊόντα · {trial.mediaCount} αρχεία</span>
           </div>
           <div className={trialStyles.guideSteps}>
@@ -271,7 +271,7 @@ export function VendorWorkspaceHeader() {
             </Link>)}
           </div>
           <div className={trialStyles.guideFooter}>
-            <Link href="/vendor/trial" onClick={() => setTrialGuideOpen(false)}>Άνοιξε την πλήρη προετοιμασία →</Link>
+            <Link href="/vendor/trial" onClick={() => setTrialGuideOpen(false)}>Άνοιξε τον οδηγό προετοιμασίας →</Link>
             <small>Ο οδηγός παραμένει διαθέσιμος όσο η δοκιμή είναι ενεργή.</small>
           </div>
         </aside>
