@@ -127,6 +127,53 @@ export async function notifyOperationsOfVendorApplication(input: {
   });
 }
 
+export async function sendHubProspectApplicationReceiptEmail(input: {
+  to: string;
+  businessName: string;
+  reference: string;
+  hubName: string;
+  planCode: string;
+  billingCycle: string;
+  recurringFeeCents: number;
+  trialExpiresAt?: number;
+}) {
+  const hasTrial = Boolean(input.trialExpiresAt);
+  const trialUrl = hasTrial ? `${publicBaseUrl()}/vendor/login?next=%2Fvendor%2Ftrial` : undefined;
+  const billing = input.planCode === "claim"
+    ? "Δωρεάν"
+    : `${input.billingCycle === "annual" ? "Ετήσια" : "Μηνιαία"} · ${new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(input.recurringFeeCents / 100)}`;
+  const expiry = input.trialExpiresAt
+    ? new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(input.trialExpiresAt))
+    : undefined;
+
+  return sendTransactionalEmailBestEffort({
+    to: input.to,
+    subject: hasTrial ? "Το 3ήμερο Vendor Trial σου είναι έτοιμο · ΚΟΝΤΑ ΜΟΥ" : "Λάβαμε την αίτησή σου · ΚΟΝΤΑ ΜΟΥ",
+    text: [
+      "Καλησπέρα από το ΚΟΝΤΑ ΜΟΥ,",
+      "",
+      `Λάβαμε την αίτηση συνεργασίας για το «${input.businessName}».`,
+      `Αριθμός αναφοράς: ${input.reference}`,
+      `HUB: ${input.hubName}`,
+      `Πρόγραμμα: ${input.planCode.toUpperCase()}`,
+      `Επιλογή χρέωσης: ${billing}`,
+      "",
+      hasTrial ? "Το ιδιωτικό 3ήμερο Vendor Trial είναι ήδη έτοιμο. Μπορείς να διαμορφώσεις το storefront, να προσθέσεις προϊόντα και να εξερευνήσεις το Vendor Dashboard πριν ολοκληρωθεί η ενεργοποίηση." : "Η αίτηση βρίσκεται σε έλεγχο. Δεν έγινε χρέωση.",
+      hasTrial ? `Λήξη trial: ${expiry}` : undefined,
+      hasTrial ? "Το Trial δεν ενεργοποιεί δημόσια πώληση, πραγματικές παραγγελίες ή πληρωμές. Αυτά παραμένουν κλειδωμένα μέχρι την τελική ενεργοποίηση." : undefined,
+      "",
+      trialUrl ? `Άνοιξε το 3ήμερο Trial: ${trialUrl}` : undefined,
+      "",
+      "Αν δεν υπάρχει ήδη ενεργή συνεδρία στη συσκευή, ο σύνδεσμος θα ζητήσει ασφαλή σύνδεση και μετά θα σε μεταφέρει στο Trial.",
+      "",
+      "ΚΟΝΤΑ ΜΟΥ"
+    ].filter((line): line is string => typeof line === "string").join("\n"),
+    eventType: "hub_prospect.application_received",
+    idempotencyKey: `hub-prospect-application-received:${input.reference}`,
+    payload: { applicationId: input.reference, hubName: input.hubName, planCode: input.planCode, trial: hasTrial }
+  });
+}
+
 export async function notifyOperationsOfHubProspectApplication(input: {
   reference: string;
   businessName: string;
