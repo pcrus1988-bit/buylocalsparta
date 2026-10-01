@@ -6,6 +6,7 @@ import { loadCatalogMetadata } from "./catalog-metadata";
 import { isPublicCatalogueTitle } from "./public-data-integrity";
 import { approvedCatalogImages } from "./public-media-service";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { isDropshippingOnlyVendorPublicId } from "./vendor-dropshipping-constants";
 
 type LocalVendorCatalogRow = Readonly<{
   id: string;
@@ -44,6 +45,10 @@ function safeMinor(value: unknown): number {
  * "purchasable now" without making the assigned catalogue disappear.
  */
 async function readVendorLocalCatalogRows(vendorId: string): Promise<readonly LocalVendorCatalogRow[]> {
+  // This vendor is intentionally dropshipping-only. Avoid running the large local/VITEX
+  // catalogue query just to prove that no local rows exist; on a one-client Vercel pool
+  // that unnecessary work can block the storefront request behind itself.
+  if (isDropshippingOnlyVendorPublicId(vendorId)) return [];
   if (!productionDatabaseConfigured()) return [];
 
   const pool = getProductionPostgresRuntime().nativePool;
