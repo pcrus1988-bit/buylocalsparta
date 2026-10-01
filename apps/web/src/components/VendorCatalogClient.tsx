@@ -252,32 +252,32 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
             <button className={`button ${styles.saveButton}`} type="button" disabled={busy === `inventory:${product.offerId}`} onClick={() => void call(`inventory:${product.offerId}`, "/api/vendor/catalog/inventory", { offerId: product.offerId, onHand: Number(draft.onHand), safetyStock: Number(draft.safetyStock) }, "PUT")}>{busy === `inventory:${product.offerId}` ? "Αποθήκευση…" : "Αποθήκευση αποθέματος"}</button>
           </div>
           <div className={styles.cardFoot}><span>Ενημέρωση {when(product.updatedAt)}</span></div>
-          <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Offer</strong><span className="vendor-technical-id">{product.offerId}</span></div><div className="workspace-compact-row"><strong>Product reference</strong><span className="vendor-technical-id">{product.canonicalVariantId}</span><small>{product.offerStatus}</small></div></div></WorkspaceRecordDetails>
+          <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Κωδικός προσφοράς</strong><span className="vendor-technical-id">{product.offerId}</span></div><div className="workspace-compact-row"><strong>Εσωτερικός κωδικός προϊόντος</strong><span className="vendor-technical-id">{product.canonicalVariantId}</span><small>{product.offerStatus}</small></div></div></WorkspaceRecordDetails>
         </article>;
       })}</div>}
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Νέο προϊόν" title="Προσθήκη προϊόντος" note="Ξεκίνα από τίτλο ή GTIN. Το ΚΟΝΤΑ ΜΟΥ ελέγχει ζωντανά αν το προϊόν υπάρχει ήδη και, όταν το αναγνωρίσεις, συνδέει απευθείας τη δική σου προσφορά με το canonical προϊόν." />
+      <WorkspaceSectionHeading eyebrow="Νέο προϊόν" title="Προσθήκη προϊόντος" note="Ξεκίνα από τίτλο ή GTIN. Το ΚΟΝΤΑ ΜΟΥ ελέγχει αν το προϊόν υπάρχει ήδη και, όταν το αναγνωρίσεις, συνδέει απευθείας τη δική σου προσφορά με το υπάρχον προϊόν." />
       <WorkspaceHowItWorks>
-        <p><strong>Αυτόματος έλεγχος:</strong> μόλις πληκτρολογήσεις αρκετά στοιχεία στον τίτλο ή στο GTIN, αναζητούμε υπάρχον canonical προϊόν.</p>
+        <p><strong>Αυτόματος έλεγχος:</strong> μόλις πληκτρολογήσεις αρκετά στοιχεία στον τίτλο ή στο GTIN, αναζητούμε αν το προϊόν υπάρχει ήδη.</p>
         <p><strong>Αν βρεθεί:</strong> επιβεβαίωσέ το και θα συμπληρωθούν τίτλος, κατηγορία, μάρκα, μοντέλο και GTIN. Η σύνδεση αποθηκεύεται μαζί με την προσφορά σου.</p>
-        <p><strong>Δικά σου στοιχεία:</strong> SKU, τιμή, απόθεμα και παραλλαγή/ποικιλία παραμένουν στοιχεία του καταστήματός σου και δεν αλλάζουν το κοινό canonical προϊόν.</p>
+        <p><strong>Δικά σου στοιχεία:</strong> SKU, τιμή, απόθεμα και παραλλαγή παραμένουν στοιχεία του καταστήματός σου και δεν αλλάζουν τα κοινά στοιχεία του προϊόντος.</p>
       </WorkspaceHowItWorks>
       <div className="workspace-action-bar" style={{ marginBottom: 18 }}>
         <div>
           <strong>Έχεις πολλά προϊόντα ή ήδη διαθέσιμο XML από το e-shop σου;</strong>
-          <span style={{ display: "block", marginTop: 4 }}>Σύνδεσε XML URL ή ανέβασε XML αρχείο και κράτησε τιμές, stock, εικόνες και νέα προϊόντα συγχρονισμένα.</span>
+          <span style={{ display: "block", marginTop: 4 }}>Σύνδεσε XML URL ή ανέβασε XML αρχείο και κράτησε τιμές, απόθεμα, εικόνες και νέα προϊόντα ενημερωμένα.</span>
           {!canImportCatalogue && <small style={{ display: "block", marginTop: 6 }}>Η σύνδεση XML απαιτεί ρόλο ιδιοκτήτη ή διαχείρισης καταλόγου.</small>}
         </div>
         <div className="workspace-action-buttons">
           {canImportCatalogue
-            ? <Link className="button" href="/vendor/catalog/feed">XML Feed / Product Import</Link>
-            : <span className="button button-secondary" aria-disabled="true">XML Feed / Product Import</span>}
+            ? <Link className="button" href="/vendor/catalog/feed">Εισαγωγή προϊόντων με XML</Link>
+            : <span className="button button-secondary" aria-disabled="true">Εισαγωγή προϊόντων με XML</span>}
         </div>
       </div>
       <details className="workspace-tool-panel" open>
-        <summary><span><strong>Έξυπνη χειροκίνητη καταχώρηση</strong><small>Για ένα ή λίγα προϊόντα · με live canonical matching.</small></span></summary>
+        <summary><span><strong>Χειροκίνητη καταχώρηση</strong><small>Για ένα ή λίγα προϊόντα · με αυτόματο έλεγχο αν υπάρχουν ήδη.</small></span></summary>
         <div className="workspace-tool-body">
           <VendorSmartProductForm csrfToken={initial.csrfToken} categoryOptions={initial.categoryOptions} />
         </div>
@@ -291,13 +291,13 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
     </div></section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Νέα προϊόντα" title="Κατάσταση υποβολών" note="Εδώ βλέπεις μόνο προϊόντα που δεν έχουν ολοκληρώσει ακόμη την αναγνώριση και έγκριση από το ΚΟΝΤΑ ΜΟΥ." />
+      <WorkspaceSectionHeading eyebrow="Νέα προϊόντα" title="Προϊόντα που περιμένουν ολοκλήρωση" note="Εδώ βλέπεις μόνο προϊόντα που χρειάζονται ακόμη αναγνώριση, έλεγχο ή διόρθωση πριν ολοκληρωθεί η καταχώρησή τους." />
       <WorkspaceHowItWorks>
-        <p><strong>Χρειάζεται υποβολή:</strong> το προϊόν δεν βρέθηκε στον canonical κατάλογο και αποθηκεύτηκε ως νέο για έλεγχο.</p>
-        <p><strong>Συνδέθηκε:</strong> επέλεξες υπάρχον canonical προϊόν κατά την καταχώρηση· δεν χρειάζεται δεύτερο matching βήμα.</p>
+        <p><strong>Χρειάζεται υποβολή:</strong> το προϊόν δεν βρέθηκε στον υπάρχοντα κατάλογο και αποθηκεύτηκε ως νέο για έλεγχο.</p>
+        <p><strong>Αναγνωρίστηκε:</strong> επέλεξες υπάρχον προϊόν κατά την καταχώρηση, επομένως δεν χρειάζεται δεύτερος έλεγχος ταυτότητας.</p>
         <p><strong>Χρειάζεται διόρθωση:</strong> διάβασε τον λόγο που εμφανίζεται στην κάρτα πριν το υποβάλεις ξανά.</p>
       </WorkspaceHowItWorks>
-      <WorkspaceMetricStrip items={[{ label: "Καταχωρήσεις", value: initial.submissions.length }, { label: "Σε έλεγχο", value: awaitingReview, tone: awaitingReview ? "attention" : "default" }, { label: "Αντιστοιχισμένα", value: linked, tone: linked ? "positive" : "default" }, { label: "Χρειάζονται διόρθωση", value: rejected, tone: rejected ? "attention" : "default" }]} />
+      <WorkspaceMetricStrip items={[{ label: "Καταχωρήσεις", value: initial.submissions.length }, { label: "Σε έλεγχο", value: awaitingReview, tone: awaitingReview ? "attention" : "default" }, { label: "Αναγνωρισμένα", value: linked, tone: linked ? "positive" : "default" }, { label: "Χρειάζονται διόρθωση", value: rejected, tone: rejected ? "attention" : "default" }]} />
       {draftSubmissions.length > 0 && <div className="workspace-action-bar" style={{ marginBottom: 14 }}>
         <span><strong>{draftSubmissions.length.toLocaleString("el-GR")} προϊόντα</strong> είναι έτοιμα για αποστολή στον έλεγχο ΚΟΝΤΑ ΜΟΥ.</span>
         <div className="workspace-action-buttons">
@@ -310,8 +310,8 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
         <div className="workspace-queue-head"><div><strong>{item.title}</strong><small>{item.vendorSku ?? "Χωρίς SKU"} · {item.categoryCode} · {when(item.updatedAt)}</small></div><span className="vendor-merchant-status">{submissionStatusLabel(item.status)}</span></div>
         <div className="workspace-queue-primary"><span>Τιμή {item.supplierPrice}</span><span>Φυσικό απόθεμα {item.stockOnHand}</span><span>{item.canonicalVariantId ? "Αναγνωρίστηκε" : `${item.candidates.length} πιθανές αντιστοιχίσεις`}</span></div>
         {item.rejectionReason && <p className="workspace-queue-summary"><strong>Χρειάζεται διόρθωση:</strong> {item.rejectionReason}</p>}
-        <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες αντιστοίχισης" open={item.status === "rejected"}><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Source product</strong><span className="vendor-technical-id">{item.id}</span></div>{item.canonicalVariantId && <div className="workspace-compact-row"><strong>Canonical variant</strong><span className="vendor-technical-id">{item.canonicalVariantId}</span></div>}{item.candidates.map((candidate) => <div className="workspace-compact-row" key={candidate.id}><strong>{candidate.canonicalTitle}</strong><span>{candidate.level} · {(candidate.confidence * 100).toFixed(0)}%</span><small>{candidate.status}</small></div>)}</div></WorkspaceRecordDetails>
-        <div className="workspace-action-bar"><span>{item.status === "draft" ? "Το προϊόν είναι έτοιμο να σταλεί για έλεγχο." : item.status === "linked" ? "Η αντιστοίχιση προϊόντος έχει ήδη ολοκληρωθεί. Απομένει μόνο ο έλεγχος της προσφοράς." : "Η αναγνώριση και η έγκριση γίνονται από το ΚΟΝΤΑ ΜΟΥ."}</span><div className="workspace-action-buttons">{item.status === "draft" && <button className="button" disabled={Boolean(busy)} onClick={() => void call(`submit:${item.id}`, `/api/vendor/catalog/products/${item.id}/submit`, {})}>{busy === `submit:${item.id}` ? "Υποβολή…" : "Αποστολή για έλεγχο"}</button>}</div></div>
+        <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη" open={item.status === "rejected"}><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Εσωτερική καταχώρηση</strong><span className="vendor-technical-id">{item.id}</span></div>{item.canonicalVariantId && <div className="workspace-compact-row"><strong>Εσωτερικός κωδικός προϊόντος</strong><span className="vendor-technical-id">{item.canonicalVariantId}</span></div>}{item.candidates.map((candidate) => <div className="workspace-compact-row" key={candidate.id}><strong>{candidate.canonicalTitle}</strong><span>{candidate.level} · {(candidate.confidence * 100).toFixed(0)}%</span><small>{candidate.status}</small></div>)}</div></WorkspaceRecordDetails>
+        <div className="workspace-action-bar"><span>{item.status === "draft" ? "Το προϊόν είναι έτοιμο να σταλεί για έλεγχο." : item.status === "linked" ? "Το προϊόν έχει ήδη αναγνωριστεί. Απομένει μόνο ο έλεγχος της δικής σου προσφοράς." : "Η αναγνώριση και η έγκριση γίνονται από το ΚΟΝΤΑ ΜΟΥ."}</span><div className="workspace-action-buttons">{item.status === "draft" && <button className="button" disabled={Boolean(busy)} onClick={() => void call(`submit:${item.id}`, `/api/vendor/catalog/products/${item.id}/submit`, {})}>{busy === `submit:${item.id}` ? "Υποβολή…" : "Αποστολή για έλεγχο"}</button>}</div></div>
       </article>)}</div>}
     </section>
   </>;
