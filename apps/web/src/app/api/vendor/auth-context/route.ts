@@ -1,6 +1,7 @@
 import { isDropshippingOnlyVendor } from "../../../../lib/vendor-dropshipping-access";
 import { requireVendorSession, vendorOperatingContextForPrincipal } from "../../../../lib/vendor-session";
 import { getVendorTrialSnapshot, isVendorTrialPrincipal } from "../../../../lib/vendor-trial-runtime";
+import { vendorHubDisplayName } from "../../../../lib/vendor-hub-display";
 
 export async function GET() {
   try {
@@ -16,7 +17,8 @@ export async function GET() {
         hubId: context.hubId,
         locationId: context.locationId,
         operatingModel: context.operatingModel,
-        capabilities: context.capabilities
+        capabilities: context.capabilities,
+        hubName: vendorHubDisplayName(context)
       },
       trial: trial ? {
         active: trial.active,

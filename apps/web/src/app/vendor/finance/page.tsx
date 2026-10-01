@@ -1,12 +1,15 @@
-import { assertVendorCapability, buildVendorOperatingContextFromSession } from "@buy-local-sparta/core";
+import { assertVendorCapability } from "@buy-local-sparta/core";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { VendorFinanceClient } from "../../../components/VendorFinanceClient";
+import { VendorFiscalSettingsClient } from "../../../components/VendorFiscalSettingsClient";
 import { VendorLifecycle } from "../../../components/VendorLifecycle";
 import { VendorPlatformInvoicesPanel } from "../../../components/VendorPlatformInvoicesPanel";
 import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
 import { WorkspaceHowItWorks, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
-import { getVendorSession } from "../../../lib/vendor-session";
+import { getVendorSession, vendorOperatingContextForPrincipal } from "../../../lib/vendor-session";
+import { isExpansionHubScope } from "../../../lib/vendor-hub-display";
+import { vendorFiscalSettings } from "../../../lib/vendor-fiscal-settings";
 import { vendorFinanceWorkspace } from "../../../lib/vendor-backoffice-service";
 import { vendorPlatformInvoices } from "../../../lib/vendor-platform-invoices";
 
@@ -15,9 +18,14 @@ export const metadata: Metadata = { title: "Οικονομικά & πληρωμ�
 export default async function VendorFinancePage() {
   const principal = await getVendorSession();
   if (!principal) redirect("/vendor/login");
-  const operatingContext = buildVendorOperatingContextFromSession(principal);
+  const operatingContext = await vendorOperatingContextForPrincipal(principal);
   assertVendorCapability(operatingContext, "finance.read");
-  const [finance, platformInvoices] = await Promise.all([vendorFinanceWorkspace(principal), vendorPlatformInvoices(principal)]);
+  const hubFiscalEnabled = isExpansionHubScope(operatingContext) && principal.roles.includes("vendor_owner");
+  const [finance, platformInvoices, fiscalSettings] = await Promise.all([
+    vendorFinanceWorkspace(principal),
+    vendorPlatformInvoices(principal),
+    hubFiscalEnabled ? vendorFiscalSettings(principal) : Promise.resolve(undefined)
+  ]);
   const needsInvoice = finance.procurements.some((item) => ["accrued", "matched", "disputed"].includes(item.status) && !item.invoiceNumber);
   const inReview = finance.procurements.some((item) => ["matched", "disputed"].includes(item.status));
   const payable = finance.procurements.some((item) => item.status === "payable");
@@ -47,6 +55,7 @@ export default async function VendorFinancePage() {
       </WorkspaceHowItWorks>
     </section>
 
+    {fiscalSettings && <VendorFiscalSettingsClient initial={fiscalSettings} />}
     <VendorFinanceClient initial={finance} />
     <VendorPlatformInvoicesPanel invoices={platformInvoices} />
   </main>;

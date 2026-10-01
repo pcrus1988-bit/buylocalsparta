@@ -32,6 +32,7 @@ export function VendorWorkspaceHeader() {
     locationId?: string;
     operatingModel: "MANAGED" | "SELF_GOVERNED";
     capabilities: readonly string[];
+    hubName?: string;
   }>();
 
   useEffect(() => {
@@ -47,6 +48,7 @@ export function VendorWorkspaceHeader() {
           locationId?: string;
           operatingModel?: "MANAGED" | "SELF_GOVERNED";
           capabilities?: readonly string[];
+          hubName?: string;
         };
         trial?: {
           active?: boolean;
@@ -82,13 +84,16 @@ export function VendorWorkspaceHeader() {
             hubId: payload.operatingContext.hubId,
             locationId: payload.operatingContext.locationId,
             operatingModel: payload.operatingContext.operatingModel,
-            capabilities: Array.isArray(payload.operatingContext.capabilities) ? payload.operatingContext.capabilities : []
+            capabilities: Array.isArray(payload.operatingContext.capabilities) ? payload.operatingContext.capabilities : [],
+            hubName: typeof payload.operatingContext.hubName === "string" ? payload.operatingContext.hubName : undefined
           });
         }
       })
       .catch(() => undefined);
     return () => { active = false; };
   }, []);
+
+  const hubScoped = Boolean(operatingContext?.hubId && operatingContext.marketId !== "sparta");
 
   const navigation = useMemo(() => {
     const roleFiltered = roles.includes("vendor_owner") ? VENDOR_WORKSPACE_NAVIGATION : VENDOR_WORKSPACE_NAVIGATION
@@ -108,6 +113,7 @@ export function VendorWorkspaceHeader() {
       .map((group) => ({
         ...group,
         links: group.links.filter((link) => {
+          if (link.hubOnly && !hubScoped) return false;
           if (!link.vendorCapability) return true;
           if (!operatingContext) return !selfGovernedOnly.has(link.vendorCapability);
           return operatingContext.capabilities.includes(link.vendorCapability);
@@ -131,15 +137,17 @@ export function VendorWorkspaceHeader() {
         ...group.links.filter((link) => link.href !== "/vendor/catalog")
       ]
     } : group);
-  }, [roles, dropshippingOnly, operatingContext]);
+  }, [roles, dropshippingOnly, operatingContext, hubScoped]);
 
-  const marketLabel = operatingContext?.marketId === "sparta"
-    ? "Σπάρτη"
-    : (operatingContext?.marketId ?? "sparta")
-        .split(/[-_]/)
-        .filter(Boolean)
-        .map((part) => part.charAt(0).toLocaleUpperCase("el") + part.slice(1))
-        .join(" ");
+  const marketLabel = operatingContext?.hubName?.trim()
+    || (operatingContext?.marketId === "sparta"
+      ? "Σπάρτη"
+      : (operatingContext?.marketId ?? "sparta")
+          .replace(/^hub-/, "")
+          .split(/[-_]/)
+          .filter(Boolean)
+          .map((part) => part.charAt(0).toLocaleUpperCase("el") + part.slice(1))
+          .join(" "));
   const selfGoverned = operatingContext?.operatingModel === "SELF_GOVERNED";
   const trialCompletedSetup = trial
     ? [trial.brandConfigured, trial.storefrontConfigured, trial.productCount > 0].filter(Boolean).length
@@ -177,9 +185,9 @@ export function VendorWorkspaceHeader() {
       state: "explore"
     },
     {
-      label: "6 · Payments & commercial flow",
-      detail: "Δες πώς λειτουργούν παραστατικά και settlements χωρίς να μετακινούνται χρήματα στο trial.",
-      href: "/vendor/finance",
+      label: "6 · Payments, AADE & invoices",
+      detail: "Ρύθμισε τη σύνδεση AADE/myDATA και την εμφάνιση των παραστατικών σου. Στο trial δεν γίνεται πραγματική έκδοση.",
+      href: "/vendor/finance/fiscal-settings",
       state: "explore"
     },
     {
@@ -235,12 +243,14 @@ export function VendorWorkspaceHeader() {
     <header className={`workspace-header vendor-header${menuOpen ? " is-menu-open" : ""}`}>
       <div className="workspace-brand-row">
         <Link className="brand workspace-identity" href="/vendor" onClick={() => setMenuOpen(false)}>
-          {selfGoverned
+          {hubScoped || selfGoverned
             ? <span aria-hidden="true" style={{ fontWeight: 900, letterSpacing: ".08em", fontSize: "0.78rem" }}>ΚΟΝΤΑ ΜΟΥ</span>
             : <img src="/brand/kontamou-sparta-logo.webp" alt="ΚΟΝΤΑ ΜΟΥ Σπάρτη" width={78} height={52} style={{ display: "block", width: "78px", height: "52px", objectFit: "contain" }} />}
           <span>
             <strong>Χώρος συνεργάτη</strong>
-            <small>{selfGoverned ? `Αυτοδιαχειριζόμενο HUB · ${marketLabel}${operatingContext?.hubId ? ` · ${operatingContext.hubId}` : ""}` : "ΚΟΝΤΑ ΜΟΥ Σπάρτη"}</small>
+            <small>{hubScoped
+              ? `${trial?.active ? "Vendor Trial · " : selfGoverned ? "Αυτοδιαχειριζόμενο · " : ""}HUB ${marketLabel}`
+              : "ΚΟΝΤΑ ΜΟΥ Σπάρτη"}</small>
           </span>
         </Link>
         <button className="workspace-menu-toggle" type="button" aria-expanded={menuOpen} aria-controls="vendor-workspace-navigation" onClick={() => setMenuOpen((current) => !current)}>

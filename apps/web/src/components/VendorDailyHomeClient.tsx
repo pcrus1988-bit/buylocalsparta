@@ -127,13 +127,14 @@ function notificationStillNeedsAction(notification: SlaNotification, statusByFul
 }
 
 export function VendorDailyHomeClient({
-  dashboard, advice, sla, push, generatedAt
+  dashboard, advice, sla, push, generatedAt, marketLabel
 }: {
   dashboard: Dashboard;
   advice: Advice;
   sla: SlaWorkspace;
   push: PushStatus;
   generatedAt: number;
+  marketLabel: string;
 }) {
   const router = useRouter();
   const [ackBusy, setAckBusy] = useState("");
@@ -290,7 +291,7 @@ export function VendorDailyHomeClient({
   return <main className={styles.page}>
     <header className={styles.header}>
       <Link href="/daily" className={styles.brand}><span>KONTA MOY</span><strong>Daily</strong></Link>
-      <div className={styles.vendor}><strong>{dashboard.vendor.name}</strong><span>{dashboard.account.email}</span></div>
+      <div className={styles.vendor}><strong>{dashboard.vendor.name}</strong><span>{marketLabel} · {dashboard.account.email}</span></div>
     </header>
 
     <div className={styles.shell}>
@@ -335,7 +336,7 @@ export function VendorDailyHomeClient({
 
       <section className={styles.todaySection} aria-labelledby="daily-today-title">
         <div className={styles.todayHero}>
-          <div><span className={styles.eyebrow}>Σήμερα · Σπάρτη</span><h1 id="daily-today-title">Τι χρειάζεται σήμερα</h1><p>Μία γρήγορη εικόνα από παραγγελίες, Ask Local και πραγματική κατάσταση stock.</p></div>
+          <div><span className={styles.eyebrow}>Σήμερα · {marketLabel}</span><h1 id="daily-today-title">Τι χρειάζεται σήμερα</h1><p>Μία γρήγορη εικόνα από παραγγελίες, Ask Local και πραγματική κατάσταση stock.</p></div>
           <span className={styles.todayStamp}>{new Intl.DateTimeFormat("el-GR", { weekday: "short", day: "2-digit", month: "short", timeZone: "Europe/Athens" }).format(new Date(generatedAt))}</span>
         </div>
         <div className={styles.todayMetrics}>
