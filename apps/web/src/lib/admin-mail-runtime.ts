@@ -292,7 +292,7 @@ export async function adminMailWorkspace(
   if (filters.direction !== "all") where.push(`m.direction='${filters.direction}'`);
   if (filters.status !== "all") {
     params.push(filters.status);
-    where.push(`m.status=${params.length}`);
+    where.push(`m.status=$${params.length}`);
   }
   if (filters.attachments === "with") where.push("m.has_attachments=true");
   else if (filters.attachments === "without") where.push("m.has_attachments=false");
@@ -320,7 +320,7 @@ export async function adminMailWorkspace(
     LEFT JOIN admin_mail_state s ON s.message_id=m.id AND s.user_public_id=$1
     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
     ORDER BY ${orderBy}
-    LIMIT ${limitParam}
+    LIMIT $${limitParam}
   `, params);
 
   let messages = list.rows.map(projectSummary);

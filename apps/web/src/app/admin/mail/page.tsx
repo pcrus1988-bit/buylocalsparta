@@ -195,12 +195,12 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
   const clearView: MailView = { q: "", read: "all", direction: "all", status: "all", attachments: "all", sort: "newest" };
 
   const folders = [
-    { id: "inbox", label: "Inbox", value: workspace.metrics.inbox, secondary: workspace.metrics.unread ? `${workspace.metrics.unread} unread` : "" },
-    { id: "sent", label: "Sent", value: workspace.metrics.sent, secondary: "" },
-    { id: "starred", label: "Starred", value: workspace.metrics.starred, secondary: "" },
-    { id: "archive", label: "Archive", value: workspace.metrics.archived, secondary: "" },
-    { id: "trash", label: "Trash", value: workspace.metrics.trash, secondary: "" },
-    { id: "all", label: "All mail", value: workspace.metrics.all, secondary: "" }
+    { id: "inbox", icon: "⌂", label: "Inbox", value: workspace.metrics.inbox, secondary: workspace.metrics.unread ? String(workspace.metrics.unread) + " unread" : "" },
+    { id: "sent", icon: "↗", label: "Sent", value: workspace.metrics.sent, secondary: "" },
+    { id: "starred", icon: "★", label: "Starred", value: workspace.metrics.starred, secondary: "" },
+    { id: "archive", icon: "□", label: "Archive", value: workspace.metrics.archived, secondary: "" },
+    { id: "trash", icon: "×", label: "Trash", value: workspace.metrics.trash, secondary: "" },
+    { id: "all", icon: "≡", label: "All mail", value: workspace.metrics.all, secondary: "" }
   ];
 
   return <main className="vendor-app admin-app admin-mail-page">
@@ -210,7 +210,7 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
       <div>
         <div className="eyebrow">Content · Communications</div>
         <h1>Mail</h1>
-        <p>Incoming and outgoing KONTA MOU email in one operational workspace. Inbound mail stays authoritative in AWS S3; operator messages are sent through AWS SES.</p>
+        <p>Manage KONTA MOU conversations, replies, attachments and mailbox actions from one workspace.</p>
       </div>
       <div className="admin-mail-hero-actions">
         <Link className="button" href={composeHref(workspace.folder, workspace.selectedId, "compose", view)}>Compose</Link>
@@ -233,29 +233,18 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
       {workspace.lastInboundAt ? <span>Last inbound: {fmtDate(workspace.lastInboundAt)}</span> : null}
     </section>
 
-    <section className="shell admin-mail-shell" aria-label="Admin mailbox">
-      <aside className="admin-mail-folders" aria-label="Mail folders">
-        <Link className="admin-mail-compose-button" href={composeHref(workspace.folder, workspace.selectedId, "compose", view)}>＋ Compose</Link>
-        <nav>
-          {folders.map((item) => <Link key={item.id} className={workspace.folder === item.id ? "is-active" : ""} href={folderHref(item.id, view)}>
-            <span>{item.label}{item.secondary ? <small>{item.secondary}</small> : null}</span>
-            <strong>{item.value}</strong>
-          </Link>)}
-        </nav>
-        <div className="admin-mail-folder-note">
-          <strong>Mailboxes</strong>
-          {workspace.fromAddresses.map((address) => <span key={address}>{address}</span>)}
-        </div>
-      </aside>
-
-      <div className="admin-mail-list-pane">
-        <form className="admin-mail-search admin-mail-filter-form" action="/admin/mail" method="get">
-          <input type="hidden" name="folder" value={workspace.folder} />
-          <label className="admin-mail-search-field">
-            <span className="sr-only">Search mail</span>
-            <input name="q" type="search" defaultValue={workspace.query} placeholder="Search sender, recipient, subject or preview…" />
+    <section className="shell admin-mail-commandbar" aria-label="Mail search and filters">
+      <form className="admin-mail-filter-form" action="/admin/mail" method="get">
+        <input type="hidden" name="folder" value={workspace.folder} />
+        <div className="admin-mail-filter-search">
+          <label>
+            <span>Search mail</span>
+            <input name="q" type="search" defaultValue={workspace.query} placeholder="Sender, recipient, subject or message…" />
           </label>
-          <label><span>Read</span><select name="read" defaultValue={workspace.filters.read}>
+          <button className="admin-mail-primary-control" type="submit">Search</button>
+        </div>
+        <div className="admin-mail-filter-options">
+          <label><span>Read state</span><select name="read" defaultValue={workspace.filters.read}>
             <option value="all">All</option><option value="unread">Unread</option><option value="read">Read</option>
           </select></label>
           <label><span>Direction</span><select name="direction" defaultValue={workspace.filters.direction}>
@@ -267,34 +256,57 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
           <label><span>Attachments</span><select name="attachments" defaultValue={workspace.filters.attachments}>
             <option value="all">All</option><option value="with">With files</option><option value="without">No files</option>
           </select></label>
-          <label><span>Sort</span><select name="sort" defaultValue={workspace.filters.sort}>
+          <label><span>Sort by</span><select name="sort" defaultValue={workspace.filters.sort}>
             <option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="sender">Sender A–Z</option><option value="subject">Subject A–Z</option>
           </select></label>
-          <button type="submit">Apply</button>
-          <Link href={folderHref(workspace.folder, clearView)}>Reset</Link>
-        </form>
+          <button className="admin-mail-filter-apply" type="submit">Apply filters</button>
+          <Link className="admin-mail-filter-reset" href={folderHref(workspace.folder, clearView)}>Reset</Link>
+        </div>
+      </form>
+    </section>
 
+    <section className="shell admin-mail-shell" aria-label="Admin mailbox">
+      <aside className="admin-mail-folders" aria-label="Mail folders">
+        <Link className="admin-mail-compose-button" href={composeHref(workspace.folder, workspace.selectedId, "compose", view)}>＋ Compose</Link>
+        <nav>
+          {folders.map((item) => <Link key={item.id} className={workspace.folder === item.id ? "is-active" : ""} href={folderHref(item.id, view)}>
+            <span className="admin-mail-folder-label"><i aria-hidden="true">{item.icon}</i><span>{item.label}{item.secondary ? <small>{item.secondary}</small> : null}</span></span>
+            <strong>{item.value}</strong>
+          </Link>)}
+        </nav>
+        <div className="admin-mail-folder-note">
+          <strong>Mailboxes</strong>
+          {workspace.fromAddresses.map((address) => <span key={address}>{address}</span>)}
+        </div>
+      </aside>
+
+      <div className="admin-mail-list-pane">
+        <div className="admin-mail-list-head">
+          <div>
+            <strong>{workspace.messages.length} message{workspace.messages.length === 1 ? "" : "s"}</strong>
+            <span>{workspace.folder === "inbox" ? "Inbox" : workspace.folder === "sent" ? "Sent" : workspace.folder === "starred" ? "Starred" : workspace.folder === "archive" ? "Archive" : workspace.folder === "trash" ? "Trash" : "All mail"}</span>
+          </div>
+          <small>Select emails below to use bulk actions.</small>
+        </div>
         <form id="admin-mail-bulk-form" className="admin-mail-bulk" action={bulkMailAction}>
           <input type="hidden" name="csrfToken" value={principal.csrfToken} />
-          <strong>Selected emails</strong>
-          <select name="bulkAction" defaultValue="read" aria-label="Bulk action">
-            <option value="read">Mark read</option>
-            <option value="unread">Mark unread</option>
-            <option value="star">Add star</option>
-            <option value="unstar">Remove star</option>
-            <option value="archive">Move → Archive</option>
-            <option value="inbox">Move → Inbox / restore</option>
-            <option value="trash">Delete → Trash</option>
-            <option value="restore">Restore from Trash</option>
-          </select>
-          <button type="submit">Apply action</button>
-          <small>Tick one or more messages below.</small>
+          <span className="admin-mail-bulk-label">Bulk actions</span>
+          <div className="admin-mail-bulk-actions" role="group" aria-label="Bulk mail actions">
+            <button type="submit" name="bulkAction" value="read">Read</button>
+            <button type="submit" name="bulkAction" value="unread">Unread</button>
+            <button type="submit" name="bulkAction" value="star">★ Star</button>
+            <button type="submit" name="bulkAction" value="unstar">☆ Unstar</button>
+            <button type="submit" name="bulkAction" value="archive">Archive</button>
+            <button type="submit" name="bulkAction" value="inbox">Move to Inbox</button>
+            <button type="submit" name="bulkAction" value="restore">Restore</button>
+            <button className="is-danger" type="submit" name="bulkAction" value="trash">Delete</button>
+          </div>
         </form>
 
         <div className="admin-mail-list" role="list">
           {workspace.messages.length === 0 ? <div className="admin-mail-empty">
-            <strong>No messages here.</strong>
-            <span>{workspace.query ? "Try a different search." : "New mail will appear after SES stores it in S3 and the inbox sync runs."}</span>
+            <strong>No messages match this view.</strong>
+            <span>{workspace.query ? "Try changing the search or filters." : "Choose another folder or sync the inbox."}</span>
           </div> : workspace.messages.map((message) => {
             const active = workspace.selectedId === message.id;
             const timestamp = message.receivedAt || message.sentAt;
@@ -317,7 +329,13 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
                 </form>
               </div>
               <Link className="admin-mail-row-main" href={messageHref(workspace.folder, message.id, view)}>
-                <div className="admin-mail-row-top"><strong>{identity}</strong><time>{compactDate(timestamp)}</time></div>
+                <div className="admin-mail-row-top">
+                  <strong>{identity}</strong>
+                  <span className="admin-mail-row-top-meta">
+                    {!message.isRead && message.direction === "incoming" ? <em>Unread</em> : null}
+                    <time>{compactDate(timestamp)}</time>
+                  </span>
+                </div>
                 <div className="admin-mail-row-subject"><span>{message.subject}</span>{message.attachmentCount ? <small>📎 {message.attachmentCount}</small> : null}</div>
                 <p>{message.preview || "No preview available."}</p>
                 <div className="admin-mail-row-meta">
