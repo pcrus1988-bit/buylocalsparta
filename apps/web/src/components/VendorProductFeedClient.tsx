@@ -67,7 +67,7 @@ type Run = {
 type Workspace = { feeds: readonly Feed[]; recentRuns: readonly Run[] };
 
 const fieldLabels: ReadonlyArray<[keyof VendorXmlFieldMapping, string]> = [
-  ["externalId", "Product ID"],
+  ["externalId", "Κωδικός προϊόντος"],
   ["vendorSku", "SKU"],
   ["title", "Τίτλος"],
   ["description", "Περιγραφή"],
@@ -79,12 +79,12 @@ const fieldLabels: ReadonlyArray<[keyof VendorXmlFieldMapping, string]> = [
   ["currency", "Νόμισμα"],
   ["stock", "Απόθεμα"],
   ["availability", "Availability"],
-  ["categoryCode", "KONTA MOU category code"],
+  ["categoryCode", "Κωδικός κατηγορίας ΚΟΝΤΑ ΜΟΥ"],
   ["sourceCategory", "Κατηγορία XML"],
   ["imageUrl", "Κύρια εικόνα"],
   ["additionalImageUrl", "Επιπλέον εικόνες"],
-  ["productUrl", "Product URL"],
-  ["itemGroupId", "Ομάδα / parent προϊόντος"],
+  ["productUrl", "Σύνδεσμος προϊόντος"],
+  ["itemGroupId", "Ομάδα / κύριο προϊόν"],
   ["size", "Μέγεθος"],
   ["color", "Χρώμα"],
   ["condition", "Κατάσταση"]
@@ -133,7 +133,7 @@ export function VendorProductFeedClient({
   const [sourceUrl, setSourceUrl] = useState("");
   const [xml, setXml] = useState("");
   const [filename, setFilename] = useState("");
-  const [feedName, setFeedName] = useState("Product XML");
+  const [feedName, setFeedName] = useState("XML προϊόντων");
   const [interval, setInterval] = useState(360);
   const [mapping, setMapping] = useState<VendorXmlFieldMapping>({});
   const [categoryMapping, setCategoryMapping] = useState<Record<string, string>>({});
@@ -202,7 +202,7 @@ export function VendorProductFeedClient({
     if (!data?.preview) return;
     setPreview(data.preview);
     setMapping(data.preview.mapping);
-    setSuccess("Το XML αναλύθηκε. Έλεγξε το mapping και την προεπισκόπηση πριν την εισαγωγή.");
+    setSuccess("Το XML αναλύθηκε. Έλεγξε την αντιστοίχιση πεδίων και την προεπισκόπηση πριν την εισαγωγή.");
   }
 
   async function saveFeed() {
@@ -212,7 +212,7 @@ export function VendorProductFeedClient({
     }
     const data = await request(payload("save"), "save");
     if (!data) return;
-    setSuccess(sourceType === "url" ? "Το XML URL συνδέθηκε και συγχρονίστηκε." : "Το XML εισήχθη στον κατάλογο.");
+    setSuccess(sourceType === "url" ? "Ο σύνδεσμος XML αποθηκεύτηκε και συγχρονίστηκε." : "Το XML εισήχθη στον κατάλογο.");
     setPreview(null);
     router.refresh();
   }
@@ -243,7 +243,7 @@ export function VendorProductFeedClient({
     setDefaultCategoryCode(feed.defaultCategoryCode ?? "");
     setPreview(null);
     setError("");
-    setSuccess("Οι αποθηκευμένες ρυθμίσεις φορτώθηκαν. Πάτησε «Ανάλυση & προεπισκόπηση» για ασφαλές remap.");
+    setSuccess("Οι αποθηκευμένες ρυθμίσεις φορτώθηκαν. Πάτησε «Ανάλυση & προεπισκόπηση» για ασφαλή νέα αντιστοίχιση.");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -254,13 +254,13 @@ export function VendorProductFeedClient({
       return;
     }
     if (file.size > 4 * 1024 * 1024) {
-      setError("Το upload υποστηρίζει έως 4 MB. Για μεγαλύτερο feed χρησιμοποίησε XML URL.");
+      setError("Το upload υποστηρίζει έως 4 MB. Για μεγαλύτερο αρχείο χρησιμοποίησε σύνδεσμο XML.");
       return;
     }
     const content = await file.text();
     setFilename(file.name);
     setXml(content);
-    setFeedName(file.name.replace(/\.xml$/i, "") || "Product XML");
+    setFeedName(file.name.replace(/\.xml$/i, "") || "XML προϊόντων");
     setPreview(null);
     setError("");
   }
@@ -283,7 +283,7 @@ export function VendorProductFeedClient({
       <div className="workspace-how-grid">
         <p><strong>Δεν δημιουργούμε διπλό κατάλογο:</strong> νέα προϊόντα περνούν από matching και approval, ενώ υπάρχοντα offers ενημερώνουν τιμή και stock.</p>
         <p><strong>Ασφαλές stock:</strong> ο συγχρονισμός δεν κατεβάζει φυσικό απόθεμα κάτω από ενεργές δεσμεύσεις παραγγελιών.</p>
-        <p><strong>Σταθερή ταυτότητα:</strong> Product ID / SKU / GTIN κρατά το ίδιο προϊόν συνδεδεμένο σε κάθε επόμενο sync.</p>
+        <p><strong>Σταθερή ταυτότητα:</strong> Κωδικός προϊόντος / SKU / GTIN κρατά το ίδιο προϊόν συνδεδεμένο σε κάθε επόμενο sync.</p>
       </div>
 
       <div className="workspace-action-bar" style={{ marginTop: 16 }}>
@@ -456,7 +456,7 @@ export function VendorProductFeedClient({
             <span>Κάθε {feed.syncIntervalMinutes === 60 ? "1 ώρα" : feed.syncIntervalMinutes === 180 ? "3 ώρες" : feed.syncIntervalMinutes === 360 ? "6 ώρες" : "ημέρα"}</span>
             <div className="workspace-action-buttons">
               <button type="button" className="button button-secondary" disabled={Boolean(busy)} onClick={() => void syncFeed(feed.id)}>
-                {busy === "sync:" + feed.id ? "Sync…" : "Sync τώρα"}
+                {busy === "sync:" + feed.id ? "Συγχρονισμός…" : "Συγχρονισμός τώρα"}
               </button>
               <button type="button" className="button button-secondary" disabled={Boolean(busy)} onClick={() => editFeed(feed)}>
                 Mapping / Remap
