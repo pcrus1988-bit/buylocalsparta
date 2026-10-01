@@ -84,7 +84,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     });
 
     const warning = !delivery.sent
-      ? "Resend delivery is disabled or failed. Check the production Resend configuration."
+      ? "Outbound email delivery is disabled or failed. Check the production SES / transactional mail configuration."
       : !trialAccessUrl && snapshot.trialStartedAt
         ? "Confirmation sent, but the secure Trial access window has expired."
         : !trialAccessUrl
