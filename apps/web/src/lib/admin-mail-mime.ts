@@ -1,383 +1,467 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
-export type ParsedMailAttachment = Readonly<{
-  index: number;
+export type AdminMailAddress = Readonly<{ name?: string; address: string }>;
+export type ParsedAdminMailAttachment = Readonly<{
+  partIndex: number;
   filename: string;
   contentType: string;
-  contentId?: string;
-  inline: boolean;
   byteSize: number;
+  contentId?: string;
+  disposition?: string;
   bytes: Uint8Array;
 }>;
-
-export type ParsedMailMessage = Readonly<{
-  messageId?: string;
+export type ParsedAdminMail = Readonly<{
+  headers: Readonly<Record<string, string>>;
+  internetMessageId?: string;
   inReplyTo?: string;
   references: readonly string[];
-  from: string;
-  to: readonly string[];
-  cc: readonly string[];
-  bcc: readonly string[];
-  replyTo?: string;
+  from: AdminMailAddress;
+  to: readonly AdminMailAddress[];
+  cc: readonly AdminMailAddress[];
+  bcc: readonly AdminMailAddress[];
+  replyTo: readonly AdminMailAddress[];
   subject: string;
-  sentAt?: number;
-  text: string;
-  htmlText?: string;
-  attachments: readonly ParsedMailAttachment[];
-  headers: Readonly<Record<string, string>>;
+  date?: number;
+  text?: string;
+  html?: string;
+  attachments: readonly ParsedAdminMailAttachment[];
 }>;
 
 type MimePart = Readonly<{
-  headers: Record<string, string>;
-  contentType: string;
-  charset?: string;
-  filename?: string;
-  disposition?: string;
-  contentId?: string;
-  transferEncoding?: string;
-  body: string;
+  headers: Readonly<Record<string, string>>;
+  body: Buffer;
 }>;
 
-export function parseRawEmail(raw: Uint8Array | string): ParsedMailMessage {
-  const source = typeof raw === "string" ? raw : Buffer.from(raw).toString("latin1");
-  const root = parsePart(source);
+export function parseAdminMailMime(raw: Uint8Array | string): ParsedAdminMail {
+  const buffer = typeof raw === "string" ? Buffer.from(raw, "utf8") : Buffer.from(raw);
+  const root = splitPart(buffer);
   const headers = root.headers;
-  const collected = collectParts(root);
-  const plain = collected.textParts.map((part) => decodeTextPart(part)).filter(Boolean).join("\n\n").trim();
-  const htmlText = collected.htmlParts.map((part) => stripHtml(decodeTextPart(part))).filter(Boolean).join("\n\n").trim();
-  const attachments = collected.attachments.map((part, index): ParsedMailAttachment => {
-    const bytes = decodeTransfer(part.body, part.transferEncoding);
-    return {
-      index,
-      filename: sanitizeFilename(part.filename || `attachment-${index + 1}`),
-      contentType: part.contentType || "application/octet-stream",
-      contentId: cleanContentId(part.contentId),
-      inline: (part.disposition || "").toLowerCase().startsWith("inline"),
-      byteSize: bytes.byteLength,
-      bytes
-    };
-  });
+  const bodies: { text: string[]; html: string[] } = { text: [], html: [] };
+  const attachments: ParsedAdminMailAttachment[] = [];
+  walkPart(root, bodies, attachments, { index: 0 });
 
-  const dateValue = headers.date ? Date.parse(headers.date) : Number.NaN;
-  return {
-    messageId: cleanMessageId(headers["message-id"]),
-    inReplyTo: cleanMessageId(headers["in-reply-to"]),
-    references: extractMessageIds(headers.references),
-    from: decodeHeader(headers.from || "unknown"),
-    to: splitAddressHeader(headers.to),
-    cc: splitAddressHeader(headers.cc),
-    bcc: splitAddressHeader(headers.bcc),
-    replyTo: headers["reply-to"] ? decodeHeader(headers["reply-to"]) : undefined,
-    subject: decodeHeader(headers.subject || "(no subject)").trim() || "(no subject)",
-    sentAt: Number.isFinite(dateValue) ? dateValue : undefined,
-    text: plain || htmlText || "(No readable text body.)",
-    htmlText: htmlText || undefined,
-    attachments,
-    headers
-  };
-}
+  const from = parseAddressList(headers.from)[0] ?? { address: "unknown" };
+  const references = [
+    ...messageIds(headers.references),
+    ...messageIds(headers["in-reply-to"])
+  ].filter((value, index, all) => all.indexOf(value) === index);
 
-export function buildRawEmail(input: {
-  from: string;
-  to: readonly string[];
-  cc?: readonly string[];
-  bcc?: readonly string[];
-  subject: string;
-  text: string;
-  replyTo?: string;
-  inReplyTo?: string;
-  references?: readonly string[];
-  messageIdDomain: string;
-  attachments?: readonly Readonly<{ filename: string; contentType: string; bytes: Uint8Array }>[];
-}): { raw: Uint8Array; messageId: string } {
-  const boundary = `km_${randomBytes(18).toString("hex")}`;
-  const alternative = `km_alt_${randomBytes(18).toString("hex")}`;
-  const messageId = `<${Date.now()}.${randomBytes(12).toString("hex")}@${input.messageIdDomain}>`;
-  const headers = [
-    `Date: ${new Date().toUTCString()}`,
-    `Message-ID: ${messageId}`,
-    `From: ${input.from}`,
-    `To: ${input.to.join(", ")}`,
-    input.cc?.length ? `Cc: ${input.cc.join(", ")}` : undefined,
-    input.replyTo ? `Reply-To: ${input.replyTo}` : undefined,
-    input.inReplyTo ? `In-Reply-To: ${normalizeMessageId(input.inReplyTo)}` : undefined,
-    input.references?.length ? `References: ${input.references.map(normalizeMessageId).join(" ")}` : undefined,
-    `Subject: ${encodeHeader(input.subject)}`,
-    "MIME-Version: 1.0",
-    `Content-Type: multipart/mixed; boundary="${boundary}"`
-  ].filter((value): value is string => Boolean(value));
-
-  const safeText = input.text.replace(/\r?\n/g, "\r\n");
-  const safeHtml = `<!doctype html><html><body style="font-family:Arial,sans-serif;white-space:pre-wrap">${escapeHtml(input.text).replace(/\r?\n/g, "<br>")}</body></html>`;
-  const bodyParts = [
-    `--${boundary}`,
-    `Content-Type: multipart/alternative; boundary="${alternative}"`,
-    "",
-    `--${alternative}`,
-    'Content-Type: text/plain; charset="UTF-8"',
-    "Content-Transfer-Encoding: base64",
-    "",
-    base64Lines(Buffer.from(safeText, "utf8")),
-    `--${alternative}`,
-    'Content-Type: text/html; charset="UTF-8"',
-    "Content-Transfer-Encoding: base64",
-    "",
-    base64Lines(Buffer.from(safeHtml, "utf8")),
-    `--${alternative}--`
-  ];
-
-  for (const attachment of input.attachments || []) {
-    const filename = sanitizeFilename(attachment.filename);
-    bodyParts.push(
-      `--${boundary}`,
-      `Content-Type: ${safeContentType(attachment.contentType)}; name="${escapeQuoted(filename)}"`,
-      `Content-Disposition: attachment; filename="${escapeQuoted(filename)}"`,
-      "Content-Transfer-Encoding: base64",
-      "",
-      base64Lines(Buffer.from(attachment.bytes))
-    );
-  }
-  bodyParts.push(`--${boundary}--`, "");
-
-  const raw = Buffer.from([...headers, "", ...bodyParts].join("\r\n"), "utf8");
-  return { raw, messageId };
-}
-
-function parsePart(source: string): MimePart {
-  const split = splitHeadersAndBody(source);
-  const headers = parseHeaders(split.headers);
-  const content = parseParameterizedHeader(headers["content-type"] || "text/plain");
-  const disposition = parseParameterizedHeader(headers["content-disposition"] || "");
+  const date = headers.date ? Date.parse(headers.date) : Number.NaN;
   return {
     headers,
-    contentType: (content.value || "text/plain").toLowerCase(),
-    charset: content.params.charset,
-    filename: disposition.params.filename || content.params.name,
-    disposition: disposition.value,
-    contentId: headers["content-id"],
-    transferEncoding: headers["content-transfer-encoding"],
-    body: split.body
+    internetMessageId: firstMessageId(headers["message-id"]),
+    inReplyTo: firstMessageId(headers["in-reply-to"]),
+    references,
+    from,
+    to: parseAddressList(headers.to),
+    cc: parseAddressList(headers.cc),
+    bcc: parseAddressList(headers.bcc),
+    replyTo: parseAddressList(headers["reply-to"]),
+    subject: decodeHeaderWords(headers.subject || "(no subject)").trim() || "(no subject)",
+    date: Number.isFinite(date) ? date : undefined,
+    text: bodies.text.join("\n\n").trim() || (bodies.html.length ? htmlToText(bodies.html.join("\n")) : undefined),
+    html: bodies.html.join("\n").trim() || undefined,
+    attachments
   };
 }
 
-function collectParts(root: MimePart): {
-  textParts: MimePart[];
-  htmlParts: MimePart[];
-  attachments: MimePart[];
-} {
-  const result = { textParts: [] as MimePart[], htmlParts: [] as MimePart[], attachments: [] as MimePart[] };
-  visit(root, result);
-  return result;
-}
+export function buildAdminMailRawMime(input: {
+  from: AdminMailAddress;
+  to: readonly AdminMailAddress[];
+  cc?: readonly AdminMailAddress[];
+  bcc?: readonly AdminMailAddress[];
+  replyTo?: readonly AdminMailAddress[];
+  subject: string;
+  text: string;
+  html?: string;
+  internetMessageIdDomain: string;
+  inReplyTo?: string;
+  references?: readonly string[];
+  attachments?: readonly Readonly<{ filename: string; contentType: string; bytes: Uint8Array; contentId?: string }>[];
+}): { raw: Uint8Array; internetMessageId: string } {
+  const internetMessageId = `<${randomUUID()}@${cleanMessageIdDomain(input.internetMessageIdDomain)}>`;
+  const mixedBoundary = `bls-mixed-${randomUUID()}`;
+  const alternativeBoundary = `bls-alt-${randomUUID()}`;
+  const attachments = input.attachments ?? [];
+  const lines: string[] = [
+    `From: ${formatAddress(input.from)}`,
+    `To: ${input.to.map(formatAddress).join(", ")}`,
+    ...(input.cc?.length ? [`Cc: ${input.cc.map(formatAddress).join(", ")}`] : []),
+    ...(input.replyTo?.length ? [`Reply-To: ${input.replyTo.map(formatAddress).join(", ")}`] : []),
+    `Subject: ${encodeHeaderWord(input.subject)}`,
+    `Date: ${new Date().toUTCString()}`,
+    `Message-ID: ${internetMessageId}`,
+    ...(input.inReplyTo ? [`In-Reply-To: ${normalizeMessageId(input.inReplyTo)}`] : []),
+    ...(input.references?.length ? [`References: ${input.references.map(normalizeMessageId).join(" ")}`] : []),
+    "MIME-Version: 1.0"
+  ];
 
-function visit(part: MimePart, out: { textParts: MimePart[]; htmlParts: MimePart[]; attachments: MimePart[] }) {
-  if (part.contentType.startsWith("multipart/")) {
-    const boundary = parseParameterizedHeader(part.headers["content-type"] || "").params.boundary;
-    if (!boundary) return;
-    for (const child of splitMultipart(part.body, boundary)) visit(parsePart(child), out);
-    return;
+  const textPart = [
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    wrapBase64(Buffer.from(input.text, "utf8").toString("base64"))
+  ].join("\r\n");
+  const html = input.html?.trim();
+  const body = html
+    ? [
+        `--${alternativeBoundary}`,
+        textPart,
+        `--${alternativeBoundary}`,
+        "Content-Type: text/html; charset=UTF-8",
+        "Content-Transfer-Encoding: base64",
+        "",
+        wrapBase64(Buffer.from(html, "utf8").toString("base64")),
+        `--${alternativeBoundary}--`
+      ].join("\r\n")
+    : textPart;
+
+  if (!attachments.length) {
+    lines.push(
+      html ? `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"` : "Content-Type: text/plain; charset=UTF-8",
+      ...(html ? ["", body] : ["Content-Transfer-Encoding: base64", "", wrapBase64(Buffer.from(input.text, "utf8").toString("base64"))])
+    );
+    return { raw: Buffer.from(lines.join("\r\n"), "utf8"), internetMessageId };
   }
-  const disposition = (part.disposition || "").toLowerCase();
-  if (part.filename || disposition.startsWith("attachment")) {
-    out.attachments.push(part);
-    return;
+
+  lines.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`, "");
+  if (html) {
+    lines.push(`--${mixedBoundary}`, `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"`, "", body);
+  } else {
+    lines.push(`--${mixedBoundary}`, textPart);
   }
-  if (part.contentType.startsWith("text/plain")) out.textParts.push(part);
-  else if (part.contentType.startsWith("text/html")) out.htmlParts.push(part);
-}
-
-function splitHeadersAndBody(source: string): { headers: string; body: string } {
-  const match = /\r?\n\r?\n/.exec(source);
-  if (!match || match.index === undefined) return { headers: source, body: "" };
-  return { headers: source.slice(0, match.index), body: source.slice(match.index + match[0].length) };
-}
-
-function parseHeaders(block: string): Record<string, string> {
-  const unfolded = block.replace(/\r?\n[ \t]+/g, " ");
-  const headers: Record<string, string> = {};
-  for (const line of unfolded.split(/\r?\n/)) {
-    const index = line.indexOf(":");
-    if (index <= 0) continue;
-    const key = line.slice(0, index).trim().toLowerCase();
-    const value = line.slice(index + 1).trim();
-    headers[key] = headers[key] ? `${headers[key]}, ${value}` : value;
+  for (const attachment of attachments) {
+    const safeName = cleanFilename(attachment.filename);
+    lines.push(
+      `--${mixedBoundary}`,
+      `Content-Type: ${cleanContentType(attachment.contentType)}; name*=UTF-8''${encodeRfc2231(safeName)}`,
+      "Content-Transfer-Encoding: base64",
+      `Content-Disposition: attachment; filename*=UTF-8''${encodeRfc2231(safeName)}`,
+      ...(attachment.contentId ? [`Content-ID: <${attachment.contentId.replace(/[<>\r\n]/g, "")}>`] : []),
+      "",
+      wrapBase64(Buffer.from(attachment.bytes).toString("base64"))
+    );
   }
-  return headers;
+  lines.push(`--${mixedBoundary}--`, "");
+  return { raw: Buffer.from(lines.join("\r\n"), "utf8"), internetMessageId };
 }
 
-function parseParameterizedHeader(value: string): { value: string; params: Record<string, string> } {
-  const segments = splitSemicolonAware(value);
-  const base = (segments.shift() || "").trim();
-  const params: Record<string, string> = {};
-  for (const segment of segments) {
-    const index = segment.indexOf("=");
-    if (index < 1) continue;
-    const key = segment.slice(0, index).trim().toLowerCase();
-    const raw = segment.slice(index + 1).trim().replace(/^"|"$/g, "");
-    params[key.replace(/\*$/, "")] = decodeRfc2231(raw);
-  }
-  return { value: base, params };
+export function adminMailThreadKey(input: { subject: string; internetMessageId?: string; inReplyTo?: string; references?: readonly string[] }): string {
+  // The first References entry is the root RFC 5322 message in normal reply chains.
+  // For one-hop replies without References, In-Reply-To points at the root message.
+  // For a root message itself, use its own Message-ID so its future replies hash identically.
+  const lineageId = input.references?.[0] || input.inReplyTo || input.internetMessageId;
+  const basis = lineageId
+    ? `message:${normalizeMessageId(lineageId).toLowerCase()}`
+    : `subject:${normalizeThreadSubject(input.subject).toLowerCase()}`;
+  return createHash("sha256").update(basis).digest("hex");
 }
 
-function splitSemicolonAware(value: string): string[] {
-  const parts: string[] = [];
-  let current = "";
-  let quoted = false;
-  for (const char of value) {
-    if (char === '"') quoted = !quoted;
-    if (char === ";" && !quoted) {
-      parts.push(current);
-      current = "";
-    } else current += char;
-  }
-  parts.push(current);
-  return parts;
-}
-
-function splitMultipart(body: string, boundary: string): string[] {
-  const marker = `--${boundary}`;
-  const end = `--${boundary}--`;
-  const lines = body.split(/\r?\n/);
-  const parts: string[] = [];
-  let current: string[] | undefined;
-  for (const line of lines) {
-    if (line === marker || line === end) {
-      if (current?.length) parts.push(current.join("\r\n"));
-      current = line === end ? undefined : [];
-      if (line === end) break;
-      continue;
-    }
-    if (current) current.push(line);
-  }
-  return parts;
-}
-
-function decodeTextPart(part: MimePart): string {
-  const bytes = decodeTransfer(part.body, part.transferEncoding);
-  const charset = (part.charset || "utf-8").toLowerCase();
-  if (charset.includes("iso-8859-1") || charset.includes("latin1")) return Buffer.from(bytes).toString("latin1");
-  try { return new TextDecoder(charset as "utf-8").decode(bytes); }
-  catch { return Buffer.from(bytes).toString("utf8"); }
-}
-
-function decodeTransfer(body: string, encoding?: string): Uint8Array {
-  const kind = (encoding || "").trim().toLowerCase();
-  if (kind === "base64") return Buffer.from(body.replace(/\s+/g, ""), "base64");
-  if (kind === "quoted-printable") return decodeQuotedPrintable(body);
-  return Buffer.from(body, "latin1");
-}
-
-function decodeQuotedPrintable(value: string): Uint8Array {
-  const normalized = value.replace(/=\r?\n/g, "");
-  const bytes: number[] = [];
-  for (let i = 0; i < normalized.length; i += 1) {
-    if (normalized[i] === "=" && /^[0-9A-Fa-f]{2}$/.test(normalized.slice(i + 1, i + 3))) {
-      bytes.push(Number.parseInt(normalized.slice(i + 1, i + 3), 16));
-      i += 2;
-    } else bytes.push(normalized.charCodeAt(i) & 0xff);
-  }
-  return Uint8Array.from(bytes);
-}
-
-function decodeHeader(value: string): string {
-  return value.replace(/=\?([^?]+)\?([bBqQ])\?([^?]*)\?=/g, (_all, charsetRaw: string, encodingRaw: string, data: string) => {
-    const charset = String(charsetRaw).toLowerCase();
-    const encoding = String(encodingRaw).toLowerCase();
-    const bytes = encoding === "b"
-      ? Buffer.from(data, "base64")
-      : decodeQuotedPrintable(data.replace(/_/g, " "));
-    if (charset.includes("iso-8859-1") || charset.includes("latin1")) return Buffer.from(bytes).toString("latin1");
-    try { return new TextDecoder(charset as "utf-8").decode(bytes); }
-    catch { return Buffer.from(bytes).toString("utf8"); }
-  }).replace(/\?=\s+=\?/g, "?==?");
-}
-
-function splitAddressHeader(value?: string): readonly string[] {
-  if (!value?.trim()) return [];
-  const decoded = decodeHeader(value);
-  const result: string[] = [];
-  let current = "";
-  let quoted = false;
-  let angleDepth = 0;
-  for (const char of decoded) {
-    if (char === '"') quoted = !quoted;
-    if (!quoted && char === "<") angleDepth += 1;
-    if (!quoted && char === ">" && angleDepth > 0) angleDepth -= 1;
-    if (char === "," && !quoted && angleDepth === 0) {
-      if (current.trim()) result.push(current.trim());
-      current = "";
-    } else current += char;
-  }
-  if (current.trim()) result.push(current.trim());
-  return result;
-}
-
-function extractMessageIds(value?: string): readonly string[] {
-  if (!value) return [];
-  return [...value.matchAll(/<[^<>\s]+>/g)].map((match) => match[0]).slice(-30);
-}
-
-function cleanMessageId(value?: string): string | undefined {
-  return extractMessageIds(value)[0];
-}
-
-function normalizeMessageId(value: string): string {
-  const cleaned = value.trim();
-  return cleaned.startsWith("<") ? cleaned : `<${cleaned.replace(/[<>]/g, "")}>`;
-}
-
-function cleanContentId(value?: string): string | undefined {
-  if (!value) return undefined;
-  return value.trim().replace(/^<|>$/g, "") || undefined;
-}
-
-function encodeHeader(value: string): string {
-  if (/^[\x20-\x7E]*$/.test(value)) return value.replace(/[\r\n]+/g, " ");
-  return `=?UTF-8?B?${Buffer.from(value.replace(/[\r\n]+/g, " "), "utf8").toString("base64")}?=`;
-}
-
-function decodeRfc2231(value: string): string {
-  const match = /^([^']*)'[^']*'(.*)$/.exec(value);
-  if (!match) return decodeHeader(value);
-  try { return decodeURIComponent(match[2]); } catch { return match[2]; }
-}
-
-function stripHtml(html: string): string {
+export function htmlToText(html: string): string {
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/p\s*>/gi, "\n")
+    .replace(/<\/div\s*>/gi, "\n")
+    .replace(/<li\b[^>]*>/gi, "• ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n[ \t]+/g, "\n")
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
     .trim();
 }
 
-function sanitizeFilename(value: string): string {
-  return value.replace(/[\r\n\0]/g, "").replace(/[\\/]/g, "_").trim().slice(0, 180) || "attachment";
+function walkPart(part: MimePart, bodies: { text: string[]; html: string[] }, attachments: ParsedAdminMailAttachment[], counter: { index: number }): void {
+  const contentType = parseParameterizedHeader(part.headers["content-type"] || "text/plain; charset=us-ascii");
+  if (contentType.value.startsWith("multipart/") && contentType.params.boundary) {
+    for (const child of splitMultipart(part.body, contentType.params.boundary)) {
+      walkPart(child, bodies, attachments, counter);
+    }
+    return;
+  }
+
+  const disposition = parseParameterizedHeader(part.headers["content-disposition"] || "");
+  const filenameRaw = disposition.params.filename || contentType.params.name;
+  const isAttachment = disposition.value === "attachment" || Boolean(filenameRaw) || (!contentType.value.startsWith("text/") && contentType.value !== "message/rfc822");
+  const decodedBytes = decodeTransfer(part.body, part.headers["content-transfer-encoding"]);
+  const partIndex = counter.index++;
+
+  if (isAttachment) {
+    attachments.push({
+      partIndex,
+      filename: cleanFilename(decodeHeaderWords(filenameRaw || `attachment-${partIndex}`)),
+      contentType: cleanContentType(contentType.value || "application/octet-stream"),
+      byteSize: decodedBytes.byteLength,
+      contentId: cleanContentId(part.headers["content-id"]),
+      disposition: disposition.value || undefined,
+      bytes: decodedBytes
+    });
+    return;
+  }
+
+  const charset = contentType.params.charset || "utf-8";
+  if (contentType.value === "text/html") bodies.html.push(decodeCharset(decodedBytes, charset));
+  else if (contentType.value === "text/plain" || !contentType.value) bodies.text.push(decodeCharset(decodedBytes, charset));
+  else if (contentType.value === "message/rfc822") {
+    try {
+      const nested = parseAdminMailMime(decodedBytes);
+      if (nested.text) bodies.text.push(nested.text);
+      if (nested.html) bodies.html.push(nested.html);
+      for (const attachment of nested.attachments) attachments.push({ ...attachment, partIndex: counter.index++ });
+    } catch {
+      bodies.text.push(decodeCharset(decodedBytes, charset));
+    }
+  }
 }
 
-function safeContentType(value: string): string {
-  const normalized = value.trim().toLowerCase();
-  return /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(normalized) ? normalized : "application/octet-stream";
+function splitPart(buffer: Buffer): MimePart {
+  const text = buffer.toString("latin1");
+  const match = /\r?\n\r?\n/.exec(text);
+  if (!match || match.index === undefined) return { headers: {}, body: buffer };
+  const headerText = text.slice(0, match.index);
+  const bodyStart = match.index + match[0].length;
+  return { headers: parseHeaders(headerText), body: buffer.subarray(bodyStart) };
+}
+
+function splitMultipart(body: Buffer, boundary: string): MimePart[] {
+  const text = body.toString("latin1");
+  const marker = `--${boundary}`;
+  const endMarker = `--${boundary}--`;
+  const parts: MimePart[] = [];
+  let cursor = text.indexOf(marker);
+  while (cursor >= 0) {
+    cursor += marker.length;
+    if (text.startsWith("--", cursor) || text.startsWith(endMarker, cursor - marker.length)) break;
+    if (text.startsWith("\r\n", cursor)) cursor += 2;
+    else if (text.startsWith("\n", cursor)) cursor += 1;
+    const next = text.indexOf(marker, cursor);
+    if (next < 0) break;
+    let end = next;
+    while (end > cursor && (text[end - 1] === "\n" || text[end - 1] === "\r")) end -= 1;
+    if (end > cursor) parts.push(splitPart(Buffer.from(text.slice(cursor, end), "latin1")));
+    cursor = next;
+  }
+  return parts;
+}
+
+function parseHeaders(headerText: string): Record<string, string> {
+  const unfolded = headerText.replace(/\r?\n[ \t]+/g, " ");
+  const result: Record<string, string> = {};
+  for (const line of unfolded.split(/\r?\n/)) {
+    const colon = line.indexOf(":");
+    if (colon <= 0) continue;
+    const key = line.slice(0, colon).trim().toLowerCase();
+    const value = line.slice(colon + 1).trim();
+    if (!key) continue;
+    result[key] = result[key] ? `${result[key]}, ${value}` : value;
+  }
+  return result;
+}
+
+function parseParameterizedHeader(value: string): { value: string; params: Record<string, string> } {
+  const pieces = splitSemicolon(value);
+  const main = (pieces.shift() || "").trim().toLowerCase();
+  const params: Record<string, string> = {};
+  for (const piece of pieces) {
+    const eq = piece.indexOf("=");
+    if (eq <= 0) continue;
+    const key = piece.slice(0, eq).trim().toLowerCase();
+    let raw = piece.slice(eq + 1).trim();
+    if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) raw = raw.slice(1, -1);
+    if (key.endsWith("*")) {
+      const decoded = decodeRfc2231(raw);
+      params[key.slice(0, -1)] = decoded;
+    } else {
+      params[key] = raw.replace(/\\(["\\])/g, "$1");
+    }
+  }
+  return { value: main, params };
+}
+
+function splitSemicolon(value: string): string[] {
+  const out: string[] = [];
+  let current = "", quoted = false, quote = "";
+  for (const ch of value) {
+    if ((ch === '"' || ch === "'")) {
+      if (!quoted) { quoted = true; quote = ch; }
+      else if (quote === ch) quoted = false;
+    }
+    if (ch === ";" && !quoted) { out.push(current); current = ""; }
+    else current += ch;
+  }
+  out.push(current);
+  return out;
+}
+
+function parseAddressList(value?: string): AdminMailAddress[] {
+  if (!value?.trim()) return [];
+  return splitAddressList(value).flatMap((part) => {
+    const trimmed = decodeHeaderWords(part.trim());
+    const angle = trimmed.match(/^(.*)<([^<>]+)>$/);
+    const address = (angle?.[2] || trimmed).trim().replace(/^mailto:/i, "").toLowerCase();
+    if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)) return [];
+    const name = angle?.[1]?.trim().replace(/^["']|["']$/g, "") || undefined;
+    return [{ address, name: name || undefined }];
+  });
+}
+
+function splitAddressList(value: string): string[] {
+  const out: string[] = [];
+  let current = "", quoted = false, quote = "", angleDepth = 0;
+  for (const ch of value) {
+    if ((ch === '"' || ch === "'")) {
+      if (!quoted) { quoted = true; quote = ch; }
+      else if (quote === ch) quoted = false;
+    } else if (!quoted && ch === "<") angleDepth += 1;
+    else if (!quoted && ch === ">") angleDepth = Math.max(0, angleDepth - 1);
+    if (ch === "," && !quoted && angleDepth === 0) { if (current.trim()) out.push(current.trim()); current = ""; }
+    else current += ch;
+  }
+  if (current.trim()) out.push(current.trim());
+  return out;
+}
+
+function decodeTransfer(body: Buffer, encoding?: string): Buffer {
+  const kind = encoding?.trim().toLowerCase();
+  if (kind === "base64") return Buffer.from(body.toString("ascii").replace(/\s+/g, ""), "base64");
+  if (kind === "quoted-printable") return decodeQuotedPrintable(body.toString("latin1"));
+  return body;
+}
+
+function decodeQuotedPrintable(input: string): Buffer {
+  const normalized = input.replace(/=\r?\n/g, "");
+  const bytes: number[] = [];
+  for (let i = 0; i < normalized.length; i += 1) {
+    if (normalized[i] === "=" && /^[0-9A-Fa-f]{2}$/.test(normalized.slice(i + 1, i + 3))) {
+      bytes.push(Number.parseInt(normalized.slice(i + 1, i + 3), 16));
+      i += 2;
+    } else {
+      bytes.push(normalized.charCodeAt(i) & 0xff);
+    }
+  }
+  return Buffer.from(bytes);
+}
+
+function decodeHeaderWords(value: string): string {
+  return value.replace(/=\?([^?\s]+)\?([bBqQ])\?([^?]*)\?=/g, (_match, charset: string, mode: string, encoded: string) => {
+    try {
+      const bytes = mode.toLowerCase() === "b"
+        ? Buffer.from(encoded, "base64")
+        : decodeQuotedPrintable(encoded.replace(/_/g, " "));
+      return decodeCharset(bytes, charset);
+    } catch {
+      return encoded;
+    }
+  }).replace(/\?=\s+=\?/g, "?==?");
+}
+
+function decodeCharset(bytes: Uint8Array, charset: string): string {
+  const normalized = charset.trim().replace(/^["']|["']$/g, "").toLowerCase();
+  const aliases: Record<string, string> = {
+    "utf8": "utf-8",
+    "us-ascii": "utf-8",
+    "ascii": "utf-8",
+    "iso-8859-1": "windows-1252",
+    "latin1": "windows-1252"
+  };
+  try {
+    return new TextDecoder(aliases[normalized] || normalized || "utf-8", { fatal: false }).decode(bytes);
+  } catch {
+    return Buffer.from(bytes).toString("utf8");
+  }
+}
+
+function messageIds(value?: string): string[] {
+  if (!value) return [];
+  const matches = value.match(/<[^<>\s]+>/g);
+  return matches ? matches.map(normalizeMessageId) : [];
+}
+
+function firstMessageId(value?: string): string | undefined {
+  return messageIds(value)[0];
+}
+
+function normalizeMessageId(value: string): string {
+  const trimmed = value.trim().replace(/[\r\n]/g, "");
+  if (!trimmed) return "";
+  return trimmed.startsWith("<") && trimmed.endsWith(">") ? trimmed : `<${trimmed.replace(/[<>]/g, "")}>`;
+}
+
+function normalizeThreadSubject(subject: string): string {
+  let value = decodeHeaderWords(subject).trim();
+  for (let i = 0; i < 8; i += 1) {
+    const next = value.replace(/^\s*(re|fw|fwd)\s*:\s*/i, "").trim();
+    if (next === value) break;
+    value = next;
+  }
+  return value || "(no subject)";
+}
+
+function cleanMessageIdDomain(value: string): string {
+  const domain = value.trim().toLowerCase().replace(/^https?:\/\//, "").split("/")[0];
+  return /^[a-z0-9.-]+$/.test(domain) && domain.includes(".") ? domain : "kontamou.site";
+}
+
+function cleanFilename(value: string): string {
+  const result = value.replace(/[\u0000-\u001f\u007f/\\]/g, "_").trim().slice(0, 180);
+  return result || "attachment";
+}
+
+function cleanContentType(value: string): string {
+  const result = value.trim().toLowerCase();
+  return /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(result) ? result : "application/octet-stream";
+}
+
+function cleanContentId(value?: string): string | undefined {
+  const result = value?.trim().replace(/^<|>$/g, "").replace(/[\r\n]/g, "");
+  return result || undefined;
+}
+
+function decodeRfc2231(value: string): string {
+  const match = value.match(/^([^']*)'[^']*'(.*)$/);
+  const charset = match?.[1] || "utf-8";
+  const payload = match?.[2] || value;
+  try {
+    const bytes: number[] = [];
+    for (let i = 0; i < payload.length; i += 1) {
+      if (payload[i] === "%" && /^[0-9A-Fa-f]{2}$/.test(payload.slice(i + 1, i + 3))) {
+        bytes.push(Number.parseInt(payload.slice(i + 1, i + 3), 16));
+        i += 2;
+      } else bytes.push(payload.charCodeAt(i) & 0xff);
+    }
+    return decodeCharset(Uint8Array.from(bytes), charset);
+  } catch {
+    return payload;
+  }
+}
+
+function formatAddress(value: AdminMailAddress): string {
+  const address = value.address.trim().toLowerCase().replace(/[\r\n<>]/g, "");
+  if (!value.name?.trim()) return address;
+  return `${encodeHeaderWord(value.name.trim())} <${address}>`;
+}
+
+function encodeHeaderWord(value: string): string {
+  const clean = value.replace(/[\r\n]/g, " ").trim().slice(0, 998);
+  if (/^[\x20-\x7E]*$/.test(clean)) return clean;
+  return `=?UTF-8?B?${Buffer.from(clean, "utf8").toString("base64")}?=`;
+}
+
+function encodeRfc2231(value: string): string {
+  return encodeURIComponent(value).replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
 }
 
 function escapeQuoted(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return value.replace(/[\r\n]/g, " ").replace(/(["\\])/g, "\\$1");
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-
-function base64Lines(value: Buffer): string {
-  return value.toString("base64").match(/.{1,76}/g)?.join("\r\n") || "";
+function wrapBase64(value: string): string {
+  return value.match(/.{1,76}/g)?.join("\r\n") || "";
 }
