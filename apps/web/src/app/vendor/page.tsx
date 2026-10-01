@@ -47,7 +47,8 @@ export default async function VendorBackofficePage() {
       <div>
         <div className="eyebrow">Αρχική · σήμερα</div>
         <h1>{overview.vendor.name}</h1>
-        <p className="lead">Το κέντρο ελέγχου του καταστήματός σου: επείγουσες εργασίες πρώτες, άμεση αναζήτηση λειτουργιών και καθαρή μετάβαση από εικόνα σε ενέργεια.</p>\n        {operatingContext.capabilities.includes("catalogue.import") && <div className="workspace-action-buttons"><Link className="button button-secondary" href="/vendor/catalog/feed">XML Product Feed</Link></div>}
+        <p className="lead">Το κέντρο ελέγχου του καταστήματός σου: επείγουσες εργασίες πρώτες, άμεση αναζήτηση λειτουργιών και καθαρή μετάβαση από εικόνα σε ενέργεια.</p>
+        {operatingContext.capabilities.includes("catalogue.import") && <div className="workspace-action-buttons"><Link className="button button-secondary" href="/vendor/catalog/feed">XML Product Feed</Link></div>}
       </div>
       <aside className="dashboard-health-card">
         <span>Τοπικός σύμβουλος</span>
