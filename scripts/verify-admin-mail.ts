@@ -16,7 +16,7 @@ const checks: Array<[string, boolean]> = [
   ["Admin route exposes Inbox/Sent/Starred/Archive", ["Inbox", "Sent", "Starred", "Archive"].every((value) => files.page.includes(value))],
   ["Admin route exposes compose, reply and forward", ["Compose", "Reply", "Forward"].every((value) => files.page.includes(value))],
   ["Admin route exposes filter and sort controls", ["name=\"read\"", "name=\"direction\"", "name=\"status\"", "name=\"attachments\"", "name=\"sort\""].every((value) => files.page.includes(value))],
-  ["Dynamic Admin Mail SQL uses positional bind placeholders", files.runtime.includes("m.status=${params.length}") && files.runtime.includes("LIMIT ${limitParam}")],
+  ["Dynamic Admin Mail SQL uses positional bind placeholders", files.runtime.includes("m.status=$${params.length}") && files.runtime.includes("LIMIT $${limitParam}")],
   ["Bulk mail actions are visible individual controls", ["value=\"read\">Read", "value=\"unread\">Unread", "value=\"archive\">Archive", "value=\"trash\">Delete"].every((value) => files.page.includes(value))],
   ["Mailbox filters live in a full-width command bar", files.page.includes("admin-mail-commandbar") && files.page.indexOf("admin-mail-commandbar") < files.page.indexOf("admin-mail-shell")],
   ["Admin route exposes checkbox bulk actions", files.page.includes("admin-mail-bulk-form") && files.page.includes('name="messageIds"') && files.actions.includes("bulkMailAction")],
