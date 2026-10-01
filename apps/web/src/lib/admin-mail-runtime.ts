@@ -108,7 +108,7 @@ export function adminMailConfiguration(env: NodeJS.ProcessEnv = process.env): Re
   }
 }
 
-export async function syncAdminInboundMail(input: { maxNew?: number } = {}): Promise<{ indexed: number; scanned: number }> {
+export async function syncAdminInboundMail(input: { maxNew?: number } = {}): Promise<{ indexed: number; scanned: number; failed: number }> {
   const config = resolveMailConfig();
   const storage = inboundStorage(config);
   const pool = getProductionPostgresRuntime().sqlPool;
@@ -121,6 +121,7 @@ export async function syncAdminInboundMail(input: { maxNew?: number } = {}): Pro
   let continuationToken = cursor.rows[0]?.continuation_token || undefined;
   let indexed = 0;
   let scanned = 0;
+  let failed = 0;
   let pages = 0;
   let recoveredStaleCursor = false;
 
@@ -159,11 +160,25 @@ export async function syncAdminInboundMail(input: { maxNew?: number } = {}): Pro
 
       for (const object of eligible) {
         if (known.has(object.objectKey)) continue;
-        const stored = await storage.read(object.objectKey);
-        const bytes = await readStreamBounded(stored.stream, MAX_RAW_BYTES);
-        const parsed = parseAdminMailMime(bytes);
-        await persistInbound(parsed, object);
-        indexed += 1;
+        try {
+          const stored = await storage.read(object.objectKey);
+          const bytes = await readStreamBounded(stored.stream, MAX_RAW_BYTES);
+          const parsed = parseAdminMailMime(bytes);
+          await persistInbound(parsed, object);
+          indexed += 1;
+          await pool.query("DELETE FROM admin_mail_ingest_failures WHERE s3_object_key=$1", [object.objectKey]).catch(() => undefined);
+        } catch (error) {
+          failed += 1;
+          const errorMessage = (error instanceof Error ? error.message : String(error)).replace(/[\r\n]+/g, " ").slice(0, 1000);
+          await pool.query(`
+            INSERT INTO admin_mail_ingest_failures (s3_object_key,error_message,attempts,first_failed_at,last_failed_at)
+            VALUES ($1,$2,1,now(),now())
+            ON CONFLICT (s3_object_key) DO UPDATE
+            SET error_message=EXCLUDED.error_message,
+                attempts=admin_mail_ingest_failures.attempts+1,
+                last_failed_at=now()
+          `, [object.objectKey, errorMessage]);
+        }
       }
     }
 
@@ -178,7 +193,7 @@ export async function syncAdminInboundMail(input: { maxNew?: number } = {}): Pro
     if (!continuationToken) break;
   }
 
-  return { indexed, scanned };
+  return { indexed, scanned, failed };
 }
 
 export async function adminMailWorkspace(
@@ -478,6 +493,9 @@ export async function sendAdminMail(
 }
 
 function resolveMailConfig(env: NodeJS.ProcessEnv = process.env): MailConfig {
+  if (env.BLS_MAIL_ENABLED?.trim().toLowerCase() !== "true") {
+    throw new Error("Admin Mail is disabled. Set BLS_MAIL_ENABLED=true to enable SES + S3 mailbox operations.");
+  }
   const ses = sesMailConfigFromEnv(env);
   const region = ses.region.trim();
   if (region !== REQUIRED_REGION) throw new Error(`Admin Mail is locked to AWS ${REQUIRED_REGION}; configured region is ${region || "empty"}.`);
