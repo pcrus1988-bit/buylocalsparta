@@ -59,21 +59,21 @@ export function VendorShippingClient({ initial }: { initial: Workspace }) {
       <WorkspaceHowItWorks className="vendor-page-help">
         <p><strong>1. Δημιούργησε την ετικέτα</strong> όταν εμφανιστεί το σχετικό κουμπί.</p>
         <p><strong>2. Εκτύπωσε και τοποθέτησέ την</strong> στο σωστό δέμα.</p>
-        <p><strong>3. Επιβεβαίωσε την παράδοση στον courier</strong> μόνο όταν το δέμα έχει πραγματικά φύγει από το κατάστημα.</p>
-        <p>Μετά την παράδοση στον courier, η πορεία ενημερώνεται από την BOX NOW και δεν χρειάζεται χειροκίνητη αλλαγή.</p>
+        <p><strong>3. Επιβεβαίωσε την παράδοση στον μεταφορέα</strong> μόνο όταν το δέμα έχει πραγματικά φύγει από το κατάστημα.</p>
+        <p>Μετά την παράδοση στον μεταφορέα, η πορεία ενημερώνεται από την BOX NOW και δεν χρειάζεται χειροκίνητη αλλαγή.</p>
       </WorkspaceHowItWorks>
       {!initial.configured && <VendorActionNotice tone="waiting" title="Η αποστολή μέσω BOX NOW δεν είναι ακόμη έτοιμη για το κατάστημά σου">Το ΚΟΝΤΑ ΜΟΥ πρέπει πρώτα να ολοκληρώσει τη ρύθμιση σημείου αποστολής. Δεν χρειάζεται να αλλάξεις κάποια ρύθμιση.</VendorActionNotice>}
       {initial.shipments.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν αποστολές αυτή τη στιγμή." body="Νέες παραγγελίες για αποστολή θα εμφανιστούν εδώ αυτόματα." /> : <div className="workspace-queue-list">{initial.shipments.map((shipment) => {
         const needsAction = shipment.canCreate || shipment.canHandover;
         const completed = ["delivered", "completed"].includes(shipment.status.toLowerCase());
         return <article className="workspace-queue-card" key={shipment.id}>
-          <div className="workspace-queue-head"><div><strong className="vendor-case-title">{shipment.orderNumber}</strong><small>{shipment.destinationLabel ?? (shipment.destinationLockerId ? `BOX NOW locker ${shipment.destinationLockerId}` : "Το σημείο παράδοσης δεν έχει ακόμη οριστεί")}</small></div><span className="vendor-merchant-status">{vendorStatusLabel(shipment.status)}</span></div>
+          <div className="workspace-queue-head"><div><strong className="vendor-case-title">{shipment.orderNumber}</strong><small>{shipment.destinationLabel ?? (shipment.destinationLockerId ? `Θυρίδα BOX NOW ${shipment.destinationLockerId}` : "Το σημείο παράδοσης δεν έχει ακόμη οριστεί")}</small></div><span className="vendor-merchant-status">{vendorStatusLabel(shipment.status)}</span></div>
           <VendorLifecycle steps={shippingLifecycle(shipment)} ariaLabel={`Πορεία αποστολής ${shipment.orderNumber}`} />
           {shipment.manualReview ? <VendorActionNotice tone="danger" title="Η δημιουργία αποστολής χρειάζεται επανέλεγχο">Δεν δημιουργούμε δεύτερη αποστολή. Χρησιμοποίησε την ενέργεια παρακάτω ώστε το σύστημα να ελέγξει πρώτα την υπάρχουσα προσπάθεια.</VendorActionNotice>
             : needsAction ? <VendorActionNotice tone="attention" title="Χρειάζεται ενέργεια από εσένα" />
               : completed ? <VendorActionNotice tone="positive" title="Η αποστολή ολοκληρώθηκε" />
                 : <VendorActionNotice tone="waiting" title="Περιμένουμε ενημέρωση από την BOX NOW">Δεν χρειάζεται να αλλάξεις κατάσταση χειροκίνητα.</VendorActionNotice>}
-          <div className="workspace-queue-primary">{shipment.trackingNumber && <span>Tracking {shipment.trackingNumber}</span>}</div>
+          <div className="workspace-queue-primary">{shipment.trackingNumber && <span>Αριθμός αποστολής {shipment.trackingNumber}</span>}</div>
           {shipment.error && <p className="workspace-queue-summary">{shipment.error}</p>}
           <div className="workspace-action-bar"><span>{shipment.canCreate ? "Ξεκίνα δημιουργώντας την ετικέτα της αποστολής." : shipment.canHandover ? "Επιβεβαίωσε μόνο όταν ο μεταφορέας έχει παραλάβει το δέμα." : "Δεν υπάρχει ενέργεια από το κατάστημα αυτή τη στιγμή."}</span><div className="workspace-action-buttons">
             {shipment.canCreate && <button className="button" disabled={busy === shipment.fulfilmentId || !initial.configured} onClick={() => void act("/api/vendor/shipping/create", { fulfilmentId: shipment.fulfilmentId }, shipment.fulfilmentId)}>{busy === shipment.fulfilmentId ? "Έλεγχος…" : shipment.manualReview ? "Έλεγχος υπάρχουσας αποστολής" : "Δημιουργία ετικέτας"}</button>}
@@ -82,10 +82,10 @@ export function VendorShippingClient({ initial }: { initial: Workspace }) {
           </div></div>
           <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη">
             <div className="workspace-compact-list">
-              <div className="workspace-compact-row"><strong>Fulfilment</strong><span className="vendor-technical-id">{shipment.fulfilmentId}</span><small className="vendor-technical-id">Order {shipment.orderId}</small></div>
-              <div className="workspace-compact-row"><strong>BOX NOW state</strong><span>{shipment.providerCreationState}</span></div>
-              {shipment.providerReferenceNumber && <div className="workspace-compact-row"><strong>Provider reference</strong><span className="vendor-technical-id">{shipment.providerReferenceNumber}</span></div>}
-              {shipment.parcelIds.length > 0 && <div className="workspace-compact-row"><strong>Parcel IDs</strong><span className="vendor-technical-id">{shipment.parcelIds.join(" · ")}</span></div>}
+              <div className="workspace-compact-row"><strong>Κωδικός εκπλήρωσης</strong><span className="vendor-technical-id">{shipment.fulfilmentId}</span><small className="vendor-technical-id">Παραγγελία {shipment.orderId}</small></div>
+              <div className="workspace-compact-row"><strong>Κατάσταση BOX NOW</strong><span>{shipment.providerCreationState}</span></div>
+              {shipment.providerReferenceNumber && <div className="workspace-compact-row"><strong>Αναφορά παρόχου</strong><span className="vendor-technical-id">{shipment.providerReferenceNumber}</span></div>}
+              {shipment.parcelIds.length > 0 && <div className="workspace-compact-row"><strong>Κωδικοί δεμάτων</strong><span className="vendor-technical-id">{shipment.parcelIds.join(" · ")}</span></div>}
             </div>
           </WorkspaceRecordDetails>
         </article>;
