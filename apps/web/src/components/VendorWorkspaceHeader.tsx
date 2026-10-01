@@ -163,12 +163,6 @@ export function VendorWorkspaceHeader() {
       detail: "Δες το κατάστημά σου όπως θα το βλέπει ο πελάτης.",
       href: "/vendor/preview",
       state: "explore"
-    },
-    {
-      label: "4 · Τι ακολουθεί",
-      detail: "Δες τα τελευταία βήματα πριν από την ενεργοποίηση.",
-      href: "/vendor/trial#activation",
-      state: "explore"
     }
   ] as const : [];
 
