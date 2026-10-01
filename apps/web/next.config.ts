@@ -75,6 +75,7 @@ const SEARCH_EXCLUDED_SOURCES = [
   "/vendor/reports/:path*",
   "/vendor/returns/:path*",
   "/vendor/shipping/:path*",
+  "/vendor/settings/:path*",
   "/vendor/storefront/:path*",
   "/vendor/trust/:path*",
   "/api/account/:path*",
