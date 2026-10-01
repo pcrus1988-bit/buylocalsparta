@@ -411,7 +411,7 @@ function resolveMailConfig(env: NodeJS.ProcessEnv = process.env): MailConfig {
   return {
     region,
     bucket,
-    prefix: (env.BLS_MAIL_INBOUND_PREFIX || env.KONTAMOU_MAIL_INBOUND_PREFIX || "").trim().replace(/^\\/+/, ""),
+    prefix: (env.BLS_MAIL_INBOUND_PREFIX || env.KONTAMOU_MAIL_INBOUND_PREFIX || "").trim().replace(/^\/+/, ""),
     fromAddresses,
     displayName: (env.KONTAMOU_MAIL_DISPLAY_NAME || env.BLS_MAIL_FROM_NAME || "ΚΟΝΤΑ ΜΟΥ").trim() || "ΚΟΝΤΑ ΜΟΥ",
     messageIdDomain: (env.BLS_MAIL_MESSAGE_ID_DOMAIN || "kontamou.site").trim() || "kontamou.site",
