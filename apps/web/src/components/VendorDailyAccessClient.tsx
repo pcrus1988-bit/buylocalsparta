@@ -67,7 +67,7 @@ export function VendorDailyAccessClient({ initial, csrfToken }: { initial: Reado
 
   return <div className="vendor-daily-access-stack">
     <section className="workspace-queue-card vendor-daily-access-card">
-      <div><div className="eyebrow">Νέα πρόσβαση</div><h2 className="vendor-card-title">Δώσε πρόσβαση στην καθημερινή λειτουργία</h2><p className="vendor-card-copy">Ο λογαριασμός Daily βλέπει μόνο τις καθημερινές εργασίες: παραγγελίες, Ask Local, QR παραλαβές και ειδοποιήσεις. Δεν αποκτά πρόσβαση στο πλήρη χώρο συνεργάτη.</p></div>
+      <div><div className="eyebrow">Νέα πρόσβαση</div><h2 className="vendor-card-title">Δώσε πρόσβαση στην καθημερινή λειτουργία</h2><p className="vendor-card-copy">Ο λογαριασμός Daily βλέπει μόνο τις καθημερινές εργασίες: παραγγελίες, Ask Local, QR παραλαβές και ειδοποιήσεις. Δεν αποκτά πρόσβαση στον πλήρη χώρο συνεργάτη.</p></div>
       <VendorLifecycle steps={[
         { label: "Στοιχεία ατόμου", tone: "attention" },
         { label: "Δημιουργία πρόσβασης", tone: "future" },
