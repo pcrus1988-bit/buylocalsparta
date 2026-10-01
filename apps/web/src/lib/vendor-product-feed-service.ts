@@ -424,7 +424,7 @@ export async function saveVendorProductFeed(
       ]);
 
       const finalRun = await tx.query<SqlRow>(sql(
-        "SELECT r.public_id,f.public_id AS feed_public_id,r.trigger_type,r.status,r.total_rows,r.valid_rows,r.error_rows,",
+        "SELECT r.public_id,f.public_id AS feed_public_id,r.trigger_type,r.status,r.total_rows,r.valid_rows,r.error_rows,r.validation_errors,",
         "r.created_submissions,r.updated_submissions,r.updated_offers,r.protected_inventory_rows,r.missing_rows,",
         "r.error_message,r.started_at,r.finished_at FROM vendor_product_feed_runs r",
         "JOIN vendor_product_feeds f ON f.id=r.feed_id WHERE r.id=$1::uuid"
