@@ -72,14 +72,18 @@ export function VendorInstagramFeed(props: {
   useEffect(() => {
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
     videoRefs.current.forEach((video, index) => {
-      video.muted = index !== activeIndex || !soundOn || settings?.muted !== false;
+      video.muted = index !== activeIndex || !soundOn;
       if (index === activeIndex && settings?.autoplay && !reducedMotion) {
         void video.play().catch(() => undefined);
       } else {
         video.pause();
       }
     });
-  }, [activeIndex, settings?.autoplay, settings?.muted, soundOn]);
+  }, [activeIndex, settings?.autoplay, soundOn]);
+
+  useEffect(() => {
+    if (settings) setSoundOn(settings.muted === false);
+  }, [settings?.muted]);
 
   const move = useCallback((direction: -1 | 1) => {
     if (!items.length) return;
