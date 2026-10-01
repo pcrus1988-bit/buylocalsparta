@@ -92,3 +92,14 @@ test("recognizes common variant and additional-image fields", () => {
   assert.equal(parsed.suggestedMapping.color, "g:color");
   assert.equal(parsed.suggestedMapping.additionalImageUrl, "g:additional_image_link");
 });
+
+
+test("does not coerce foreign currency symbols to EUR", () => {
+  assert.equal(parseXmlMoneyMinor("12.00 $"), 1200);
+  assert.equal(parseXmlCurrency(undefined, "12.00 $"), "USD");
+  assert.equal(parseXmlCurrency(undefined, "12.00 £"), "GBP");
+  assert.equal(parseXmlCurrency(undefined, "12.00 €"), "EUR");
+  assert.equal(parseXmlCurrency(undefined, "12.00 RON"), "RON");
+  assert.equal(parseXmlCurrency("USD", "12.00"), "USD");
+  assert.equal(parseXmlCurrency(undefined, "12.00"), "EUR");
+});
