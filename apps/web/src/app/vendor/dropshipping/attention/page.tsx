@@ -59,7 +59,7 @@ export default async function DropshippingAttentionPage() {
       <div>
         <div className="eyebrow">Κέντρο dropshipping</div>
         <h1>Χρειάζονται προσοχή</h1>
-        <p className="lead">Μία συγκεντρωτική ουρά για πραγματικά operational προβλήματα: public προϊόντα χωρίς διαθεσιμότητα, missing cost, εκκρεμή auto-pricing, stale availability, supplier withdrawals και ενεργά OVERPRICED προϊόντα.</p>
+        <p className="lead">Μία συγκεντρωτική ουρά για πραγματικά προβλήματα: δημοσιευμένα προϊόντα χωρίς διαθεσιμότητα, ελλιπείς τιμές αγοράς, εκκρεμή αυτόματη τιμολόγηση, παλιά στοιχεία διαθεσιμότητας, αποσύρσεις προμηθευτή και προϊόντα με ένδειξη υψηλής τιμής.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
           <Link className="button button-secondary" href="/vendor/dropshipping">← Dropshipping</Link>
           <Link className="button button-secondary" href="/vendor/dropshipping/health">Κατάσταση ροής</Link>
