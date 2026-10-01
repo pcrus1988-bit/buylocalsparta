@@ -212,7 +212,8 @@ export function VendorProductFeedClient({
     }
     const data = await request(payload("save"), "save");
     if (!data) return;
-    setSuccess(sourceType === "url" ? "Ο σύνδεσμος XML αποθηκεύτηκε και συγχρονίστηκε." : "Το XML εισήχθη στον κατάλογο.");
+    const queued = data.preview?.validRows ?? preview.validRows;
+    setSuccess(`Το XML αποθηκεύτηκε. ${queued.toLocaleString("el-GR")} έγκυρα προϊόντα μπήκαν για επεξεργασία και η αντιστοίχιση με τον κατάλογο συνεχίζεται αυτόματα.`);
     setPreview(null);
     router.refresh();
   }
@@ -220,7 +221,7 @@ export function VendorProductFeedClient({
   async function syncFeed(feedId: string) {
     const data = await request({ feedId }, "sync:" + feedId, "POST", "/api/vendor/catalog/feed/sync");
     if (!data) return;
-    setSuccess("Ο συγχρονισμός ολοκληρώθηκε.");
+    setSuccess("Τα νέα δεδομένα του XML αποθηκεύτηκαν. Η αντιστοίχιση των προϊόντων συνεχίζεται αυτόματα.");
     router.refresh();
   }
 
