@@ -283,6 +283,20 @@ export async function syncDueVendorProductFeeds(limit=3) {
   return {claimed:claimed.rowCount,results};
 }
 
+export async function adminSetVendorProductFeedStatus(feedPublicId:string,status:"active"|"paused") {
+  const result=await pool().query(`
+    UPDATE public.vendor_product_feeds SET
+      status=$2,
+      last_error=CASE WHEN $2='active' THEN NULL ELSE last_error END,
+      next_sync_at=CASE WHEN $2='active' AND source_kind='url' THEN now() ELSE next_sync_at END,
+      updated_at=now()
+    WHERE public_id=$1
+    RETURNING public_id
+  `,[feedPublicId,status]);
+  if(!result.rowCount) throw new Error("Feed not found");
+  return {ok:true};
+}
+
 export async function adminVendorProductFeedWorkspace() {
   const result=await pool().query(`
     SELECT f.public_id,f.name,f.source_kind,f.source_url,f.status,f.detected_format,f.sync_interval_minutes,
@@ -347,7 +361,7 @@ async function persistFeedAnalysis(
       UPDATE public.vendor_product_feeds SET
         status='active',detected_format=$2,record_tag=$3,mapping=$4::jsonb,observed_fields=$5::jsonb,
         last_source_hash=$6,last_product_count=$7,last_ready_count=$8,last_warning_count=$9,last_error_count=$10,last_excluded_count=$11,
-        last_sync_started_at=COALESCE(last_sync_started_at,$12),last_sync_completed_at=now(),next_sync_at=$13,
+        last_sync_started_at=$12,last_sync_completed_at=now(),next_sync_at=$13,
         last_error=NULL,consecutive_failures=0,updated_at=now()
       WHERE id=$1::uuid
     `,[feed.id,analysis.detectedFormat,analysis.recordTag,JSON.stringify(analysis.mapping),JSON.stringify(analysis.fields),analysis.sourceHash,
@@ -500,7 +514,7 @@ async function createFeedSubmissions(client:PoolClient,feed:FeedRow):Promise<num
       SELECT gen_random_uuid(),'vps_'||gen_random_uuid()::text,i.market_id,i.vendor_id,$2::uuid,i.vendor_sku,cv.category_id,
              jsonb_strip_nulls(jsonb_build_object('title',i.title,'brand',i.brand,'mpn',i.mpn,'gtin',i.gtin)),
              COALESCE(i.price_minor,0),i.currency,COALESCE(i.stock_quantity,0),0,ARRAY['pickup']::fulfilment_mode[],true,
-             'xml_feed',jsonb_build_object('feedPublicId',$3,'externalProductId',i.external_product_id,'feedManaged',true),
+             'xml_feed',jsonb_strip_nulls(jsonb_build_object('feedPublicId',$3,'externalProductId',i.external_product_id,'feedManaged',true,'description',i.description,'imageUrl',i.image_url,'additionalImageUrls',i.additional_image_urls,'productUrl',i.product_url,'categoryPath',i.category_path,'size',i.size,'color',i.color,'availability',i.availability)),
              'linked',i.canonical_variant_id,$4::uuid,now(),now()
       FROM public.vendor_product_feed_items i
       JOIN public.canonical_variants cv ON cv.id=i.canonical_variant_id
@@ -541,7 +555,7 @@ async function createFeedSubmissions(client:PoolClient,feed:FeedRow):Promise<num
       SELECT gen_random_uuid(),'vps_'||gen_random_uuid()::text,i.market_id,i.vendor_id,$2::uuid,i.vendor_sku,c.category_id,
              jsonb_strip_nulls(jsonb_build_object('title',i.title,'brand',i.brand,'mpn',i.mpn,'gtin',i.gtin)),
              COALESCE(i.price_minor,0),i.currency,COALESCE(i.stock_quantity,0),0,ARRAY['pickup']::fulfilment_mode[],true,
-             'xml_feed',jsonb_build_object('feedPublicId',$3,'externalProductId',i.external_product_id,'feedManaged',true),
+             'xml_feed',jsonb_strip_nulls(jsonb_build_object('feedPublicId',$3,'externalProductId',i.external_product_id,'feedManaged',true,'description',i.description,'imageUrl',i.image_url,'additionalImageUrls',i.additional_image_urls,'productUrl',i.product_url,'categoryPath',i.category_path,'size',i.size,'color',i.color,'availability',i.availability)),
              'submitted',$4::uuid,now(),now()
       FROM public.vendor_product_feed_items i JOIN candidates c ON c.item_id=i.id AND c.rn=1
       WHERE NOT EXISTS (
@@ -583,18 +597,31 @@ async function applyLinkedCommerce(client:PoolClient,feed:FeedRow) {
   `,[feed.id,feed.public_id]);
 
   const inventory=await client.query(`
-    WITH changed AS (
+    WITH desired AS (
+      SELECT ib.offer_id,ib.on_hand AS previous_on_hand,GREATEST(i.stock_quantity,ib.active_reservations) AS next_on_hand,
+             i.external_product_id
+      FROM public.inventory_balances ib
+      JOIN public.vendor_product_feed_items i ON i.vendor_offer_id=ib.offer_id
+      WHERE i.feed_id=$1::uuid AND i.stock_quantity IS NOT NULL
+        AND i.state NOT IN ('error','excluded','missing')
+    ), changed AS (
       UPDATE public.inventory_balances ib
-         SET on_hand=GREATEST(i.stock_quantity,ib.active_reservations),
-             source='vendor_xml_feed',source_confidence='merchant_feed',
+         SET on_hand=d.next_on_hand,source='vendor_xml_feed',source_confidence='merchant_feed',
              stock_confirmed_at=now(),freshness_status='fresh',updated_at=now()
-        FROM public.vendor_product_feed_items i
-       WHERE i.feed_id=$1::uuid AND i.vendor_offer_id=ib.offer_id AND i.stock_quantity IS NOT NULL
-         AND i.state NOT IN ('error','excluded','missing')
-       RETURNING ib.offer_id
+        FROM desired d
+       WHERE ib.offer_id=d.offer_id
+       RETURNING ib.offer_id,d.previous_on_hand,d.next_on_hand,d.external_product_id
+    ), movements AS (
+      INSERT INTO public.inventory_movements(id,public_id,offer_id,movement_type,quantity_delta,source,metadata,created_at)
+      SELECT gen_random_uuid(),'im_'||gen_random_uuid()::text,offer_id,'feed_reconcile',
+             next_on_hand-previous_on_hand,'vendor_xml_feed',
+             jsonb_build_object('feedPublicId',$2,'externalProductId',external_product_id,'from',previous_on_hand,'to',next_on_hand),now()
+      FROM changed WHERE next_on_hand<>previous_on_hand
+      RETURNING id
     )
-    SELECT count(*)::int AS count FROM changed
-  `,[feed.id]);
+    SELECT (SELECT count(*)::int FROM changed) AS updated_count,
+           (SELECT count(*)::int FROM movements) AS movement_count
+  `,[feed.id,feed.public_id]);
 
   await client.query(`
     UPDATE public.vendor_product_feed_items i
@@ -603,7 +630,7 @@ async function applyLinkedCommerce(client:PoolClient,feed:FeedRow) {
         AND i.state NOT IN ('error','excluded','missing')
   `,[feed.id]);
 
-  return {linkedOffers:integer(linked.rows[0]?.count),stockUpdates:integer(inventory.rows[0]?.count)};
+  return {linkedOffers:integer(linked.rows[0]?.count),stockUpdates:integer(inventory.rows[0]?.updated_count)};
 }
 
 async function reconcileMissingOffers(client:PoolClient,feed:FeedRow) {
@@ -615,20 +642,39 @@ async function reconcileMissingOffers(client:PoolClient,feed:FeedRow) {
       FROM public.vendor_product_feed_items i
       WHERE i.feed_id=$1::uuid AND i.vendor_offer_id=vo.id AND i.state='missing'
         AND i.missing_successful_runs>=$3 AND i.hidden_by_feed=false AND vo.status='approved'
-      RETURNING i.id
+      RETURNING vo.id AS offer_id,vo.vendor_id
+    ), item_update AS (
+      UPDATE public.vendor_product_feed_items i SET hidden_by_feed=true,updated_at=now()
+      FROM changed c WHERE i.vendor_offer_id=c.offer_id
+      RETURNING c.offer_id,c.vendor_id,i.external_product_id
     )
-    UPDATE public.vendor_product_feed_items i SET hidden_by_feed=true,updated_at=now()
-    FROM changed c WHERE i.id=c.id RETURNING i.id
+    INSERT INTO public.vendor_catalog_visibility_events(vendor_id,offer_id,scope,visible,metadata,created_at)
+    SELECT vendor_id,offer_id,'product',false,
+           jsonb_build_object('source','vendor_xml_feed','feedPublicId',$2,'externalProductId',external_product_id,'reason','missing_after_successful_feed_grace'),
+           now()
+    FROM item_update
+    RETURNING id
   `,[feed.id,feed.public_id,feed.missing_grace_runs]);
 
   await client.query(`
-    UPDATE public.inventory_balances ib SET
-      on_hand=ib.active_reservations,source='vendor_xml_feed',source_confidence='merchant_feed',
-      stock_confirmed_at=now(),freshness_status='fresh',updated_at=now()
-    FROM public.vendor_product_feed_items i
-    WHERE i.feed_id=$1::uuid AND i.vendor_offer_id=ib.offer_id AND i.state='missing'
-      AND i.missing_successful_runs>=$2
-  `,[feed.id,feed.missing_grace_runs]);
+    WITH desired AS (
+      SELECT ib.offer_id,ib.on_hand AS previous_on_hand,ib.active_reservations AS next_on_hand,i.external_product_id
+      FROM public.inventory_balances ib
+      JOIN public.vendor_product_feed_items i ON i.vendor_offer_id=ib.offer_id
+      WHERE i.feed_id=$1::uuid AND i.state='missing' AND i.missing_successful_runs>=$2
+    ), changed AS (
+      UPDATE public.inventory_balances ib SET
+        on_hand=d.next_on_hand,source='vendor_xml_feed',source_confidence='merchant_feed',
+        stock_confirmed_at=now(),freshness_status='fresh',updated_at=now()
+      FROM desired d WHERE ib.offer_id=d.offer_id
+      RETURNING ib.offer_id,d.previous_on_hand,d.next_on_hand,d.external_product_id
+    )
+    INSERT INTO public.inventory_movements(id,public_id,offer_id,movement_type,quantity_delta,source,metadata,created_at)
+    SELECT gen_random_uuid(),'im_'||gen_random_uuid()::text,offer_id,'feed_missing',
+           next_on_hand-previous_on_hand,'vendor_xml_feed',
+           jsonb_build_object('feedPublicId',$3,'externalProductId',external_product_id,'from',previous_on_hand,'to',next_on_hand),now()
+    FROM changed WHERE next_on_hand<>previous_on_hand
+  `,[feed.id,feed.missing_grace_runs,feed.public_id]);
 
   const restored=await client.query(`
     WITH changed AS (
@@ -637,13 +683,21 @@ async function reconcileMissingOffers(client:PoolClient,feed:FeedRow) {
              updated_at=now()
       FROM public.vendor_product_feed_items i
       WHERE i.feed_id=$1::uuid AND i.vendor_offer_id=vo.id AND i.state<>'missing'
-        AND i.hidden_by_feed=true AND vo.status='approved'
+        AND i.hidden_by_feed=true
         AND COALESCE(vo.source_payload->>'feedMissingPause','false')='true'
-      RETURNING i.id
+      RETURNING vo.id AS offer_id,vo.vendor_id
+    ), item_update AS (
+      UPDATE public.vendor_product_feed_items i SET hidden_by_feed=false,updated_at=now()
+      FROM changed c WHERE i.vendor_offer_id=c.offer_id
+      RETURNING c.offer_id,c.vendor_id,i.external_product_id
     )
-    UPDATE public.vendor_product_feed_items i SET hidden_by_feed=false,updated_at=now()
-    FROM changed c WHERE i.id=c.id RETURNING i.id
-  `,[feed.id]);
+    INSERT INTO public.vendor_catalog_visibility_events(vendor_id,offer_id,scope,visible,metadata,created_at)
+    SELECT vendor_id,offer_id,'product',true,
+           jsonb_build_object('source','vendor_xml_feed','feedPublicId',$2,'externalProductId',external_product_id,'reason','product_returned_to_feed'),
+           now()
+    FROM item_update
+    RETURNING id
+  `,[feed.id,feed.public_id]);
 
   return {hidden:hidden.rowCount,restored:restored.rowCount,submissions:0};
 }
