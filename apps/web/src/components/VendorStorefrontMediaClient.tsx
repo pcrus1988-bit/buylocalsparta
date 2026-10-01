@@ -170,7 +170,7 @@ export function VendorStorefrontMediaClient({ initial }: { initial: Workspace })
           <div className="workspace-queue-head"><div><strong>{ROLE_LABELS[asset.role]}</strong><small>{asset.filename}</small></div><span className="status-pill">{statusLabel(asset)}</span></div>
           <div className="workspace-queue-primary"><span>Scan {asset.scanStatus}</span><span>Rights {asset.rightsStatus}</span><span>Moderation {asset.moderationStatus}</span><span>Publication {asset.publicationStatus}</span></div>
           {asset.rejectionReason && <div className="workspace-inline-note"><strong>Παρατήρηση:</strong> {asset.rejectionReason}</div>}
-          <div className="workspace-action-bar"><span>{asset.publicationStatus === "published" ? "Η απόσυρση αφαιρεί την εικόνα από το δημόσιο storefront." : "Μπορείς να αποσύρεις την υποβολή όσο περιμένει έλεγχο ή δημοσίευση."}</span><button className="button button-secondary" type="button" disabled={busy} onClick={() => void archive(asset.id)}>Απόσυρση</button></div>
+          <div className="workspace-action-bar"><span>{asset.publicationStatus === "published" ? "Η απόσυρση αφαιρεί την εικόνα από το δημόσιο προφίλ." : "Μπορείς να αποσύρεις την υποβολή όσο περιμένει έλεγχο ή δημοσίευση."}</span><button className="button button-secondary" type="button" disabled={busy} onClick={() => void archive(asset.id)}>Απόσυρση</button></div>
         </article>)}
       </div>}
     </section>
