@@ -21,13 +21,15 @@ type CatalogProductCardSource = CatalogCard & Readonly<{
   msrpMinor?: number | null;
 }>;
 
-const SUPPLIER_IMAGE_HOST = "brandsgateway-img.s3.fr-par.scw.cloud";
-const CATALOG_IMAGE_SIZES = "(max-width: 620px) calc(100vw - 24px), (max-width: 960px) calc((100vw - 54px) / 2), 280px";
+const OPTIMIZED_SUPPLIER_IMAGE_HOSTS = new Set([
+  "brandsgateway-img.s3.fr-par.scw.cloud",
+  "cdn.symphonya.eu"
+]);
 
 function optimizedSupplierImage(src: string): boolean {
   try {
     const url = new URL(src);
-    return url.protocol === "https:" && url.hostname === SUPPLIER_IMAGE_HOST;
+    return url.protocol === "https:" && OPTIMIZED_SUPPLIER_IMAGE_HOSTS.has(url.hostname);
   } catch {
     return false;
   }
@@ -153,8 +155,9 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
         {useOptimizedImage ? <Image
           src={imageSrc}
           alt={product.mediaAlt ?? displayTitle}
-          fill
-          sizes={CATALOG_IMAGE_SIZES}
+          width={320}
+          height={320}
+          quality={70}
           preload={index === 0}
           decoding="async"
           referrerPolicy="no-referrer"
