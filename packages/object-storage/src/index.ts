@@ -1,4 +1,4 @@
-import { CopyObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, PutObjectCommand, S3Client, type S3ClientConfig } from "@aws-sdk/client-s3";
+import { CopyObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client, type S3ClientConfig } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export type ObjectStorageConfig = Readonly<{
@@ -12,7 +12,7 @@ export type ObjectStorageConfig = Readonly<{
 }>;
 
 export type StoredObjectMetadata = Readonly<{ objectKey:string; contentType?:string; byteSize:number; etag?:string }>;
-export type StoredObjectRead = Readonly<{ objectKey:string; stream:AsyncIterable<Uint8Array>; etag?:string; byteSize?:number; contentType?:string }>;
+export type StoredObjectRead = Readonly<{ objectKey:string; stream:AsyncIterable<Uint8Array>; etag?:string; byteSize?:number; contentType?:string }>;\nexport type StoredObjectListItem = Readonly<{ objectKey:string; etag?:string; byteSize:number; lastModified?:number }>;
 
 export class S3ObjectStorage {
   readonly #client: S3Client;
@@ -31,6 +31,27 @@ export class S3ObjectStorage {
     const command = new PutObjectCommand({ Bucket: this.#config.bucket, Key: input.objectKey, ContentType: input.contentType });
     const url = await getSignedUrl(this.#client, command, { expiresIn: expiresInSeconds, signableHeaders: new Set(["content-type"]) });
     return { url, headers: { "content-type": input.contentType }, expiresInSeconds };
+  }
+
+  async list(input: { prefix?: string; maxKeys?: number; continuationToken?: string } = {}): Promise<{ items: readonly StoredObjectListItem[]; nextContinuationToken?: string }> {
+    const maxKeys = Math.max(1, Math.min(1000, Math.floor(input.maxKeys ?? 100)));
+    const result = await this.#client.send(new ListObjectsV2Command({
+      Bucket: this.#config.bucket,
+      Prefix: input.prefix || undefined,
+      MaxKeys: maxKeys,
+      ContinuationToken: input.continuationToken
+    }));
+    const items = (result.Contents || []).flatMap((entry): StoredObjectListItem[] => {
+      if (!entry.Key) return [];
+      const byteSize = Number(entry.Size ?? 0);
+      return [{
+        objectKey: entry.Key,
+        etag: entry.ETag,
+        byteSize: Number.isSafeInteger(byteSize) && byteSize >= 0 ? byteSize : 0,
+        lastModified: entry.LastModified ? entry.LastModified.getTime() : undefined
+      }];
+    });
+    return { items, nextContinuationToken: result.NextContinuationToken };
   }
 
   async head(objectKey: string): Promise<StoredObjectMetadata | undefined> {
