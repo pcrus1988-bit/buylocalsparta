@@ -62,6 +62,7 @@ const MANAGED_CAPABILITIES = [
   "shop.manage",
   "catalogue.read",
   "catalogue.submit",
+  "catalogue.import",
   "offer.manage",
   "pricing.manage",
   "inventory.manage",
@@ -85,7 +86,6 @@ const MANAGED_CAPABILITIES = [
  * operates its HUB storefront rather than merely fulfilling KONTA MOY-managed work.
  */
 const SELF_GOVERNED_EXTRA_CAPABILITIES = [
-  "catalogue.import",
   "local_delivery.manage",
   "aade.manage",
   "promotions.manage",
