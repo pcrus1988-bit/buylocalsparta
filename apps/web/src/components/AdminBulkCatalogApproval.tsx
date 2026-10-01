@@ -5,48 +5,88 @@ import { useRouter } from "next/navigation";
 
 export function AdminBulkCatalogApproval({
   csrfToken,
-  submissionIds
+  query,
+  status,
+  filteredTotal
 }: {
   csrfToken: string;
-  submissionIds: readonly string[];
+  query?: string;
+  status?: string;
+  filteredTotal: number;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  if (!submissionIds.length) return null;
+  if (!filteredTotal) return null;
 
   async function approve() {
-    if (!window.confirm(`Approve up to ${submissionIds.length.toLocaleString("el-GR")} submissions on this page? Products with multiple possible matches will be skipped.`)) return;
+    const scopeLabel = query || status ? "the full filtered result set" : "all catalogue submissions";
+    if (!window.confirm(
+      `Approve every eligible submission across ${scopeLabel} (${filteredTotal.toLocaleString("el-GR")} matching products)? This is not limited to the current page. Products with multiple possible matches will be skipped.`
+    )) return;
+
     const reason = window.prompt("Approval reason", "Bulk approval by Admin");
     if (reason === null) return;
 
     setBusy(true);
     setMessage("");
     setError("");
-    try {
-      const response = await fetch("/api/admin/catalog/bulk-approve", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-csrf-token": csrfToken
-        },
-        body: JSON.stringify({ submissionIds, reason })
-      });
-      const payload = await response.json() as {
-        error?: string;
-        approved?: number;
-        skipped?: number;
-        failed?: number;
-        details?: Array<{ id: string; status: string; detail?: string }>;
-      };
-      if (!response.ok) throw new Error(payload.error ?? "Bulk approval failed.");
 
-      const approved = Number(payload.approved ?? 0);
-      const skipped = Number(payload.skipped ?? 0);
-      const failed = Number(payload.failed ?? 0);
-      setMessage(`${approved.toLocaleString("el-GR")} approved${skipped ? ` · ${skipped.toLocaleString("el-GR")} skipped` : ""}${failed ? ` · ${failed.toLocaleString("el-GR")} failed` : ""}.`);
+    let approved = 0;
+    let skipped = 0;
+    let failed = 0;
+    let scanned = 0;
+    let cursor: string | undefined;
+
+    try {
+      for (let batch = 0; batch < 1000; batch += 1) {
+        const response = await fetch("/api/admin/catalog/bulk-approve", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-csrf-token": csrfToken
+          },
+          body: JSON.stringify({
+            scope: "all",
+            q: query,
+            status,
+            cursor,
+            reason
+          })
+        });
+
+        const payload = await response.json() as {
+          error?: string;
+          approved?: number;
+          skipped?: number;
+          failed?: number;
+          scanned?: number;
+          hasMore?: boolean;
+          nextCursor?: string;
+        };
+
+        if (!response.ok) throw new Error(payload.error ?? "Bulk approval failed.");
+
+        approved += Number(payload.approved ?? 0);
+        skipped += Number(payload.skipped ?? 0);
+        failed += Number(payload.failed ?? 0);
+        scanned += Number(payload.scanned ?? 0);
+
+        setMessage(
+          `${scanned.toLocaleString("el-GR")} checked · ${approved.toLocaleString("el-GR")} approved${skipped ? ` · ${skipped.toLocaleString("el-GR")} skipped` : ""}${failed ? ` · ${failed.toLocaleString("el-GR")} failed` : ""}.`
+        );
+
+        if (!payload.hasMore) break;
+        if (!payload.nextCursor || payload.nextCursor === cursor) {
+          throw new Error("Bulk approval could not advance to the next batch.");
+        }
+        cursor = payload.nextCursor;
+
+        if (batch === 999) throw new Error("Bulk approval exceeded the safe batch limit.");
+      }
+
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Bulk approval failed.");
@@ -55,14 +95,18 @@ export function AdminBulkCatalogApproval({
     }
   }
 
+  const buttonLabel = query || status
+    ? `Bulk approve all filtered (${filteredTotal.toLocaleString("el-GR")})`
+    : `Bulk approve all (${filteredTotal.toLocaleString("el-GR")})`;
+
   return <div className="workspace-action-bar" style={{ margin: "14px 0" }}>
-    <span>Bulk action applies to approvable submissions on the current page. Ambiguous multi-match products stay in manual review.</span>
+    <span>One action processes every eligible product across all result pages. Ambiguous multi-match products stay in manual review.</span>
     <div className="workspace-action-buttons">
       <button type="button" className="button button-primary" disabled={busy} onClick={() => void approve()}>
-        {busy ? "Approving…" : `Bulk approve (${submissionIds.length.toLocaleString("el-GR")})`}
+        {busy ? "Approving all…" : buttonLabel}
       </button>
     </div>
-    {message && <div className="workspace-inline-note" role="status" style={{ flexBasis: "100%" }}><strong>Done.</strong> {message}</div>}
+    {message && <div className="workspace-inline-note" role="status" style={{ flexBasis: "100%" }}><strong>{busy ? "Working." : "Done."}</strong> {message}</div>}
     {error && <div className="form-error" role="alert" style={{ flexBasis: "100%" }}><strong>Bulk approval failed.</strong> {error}</div>}
   </div>;
 }
