@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { isDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping-access";
 import {
   fetchVendorXml,
@@ -9,6 +10,7 @@ import {
   connectVendorProductFeed,
   saveVendorProductFeed,
   setVendorProductFeedStatus,
+  syncVendorProductFeed,
   vendorProductFeedWorkspace
 } from "../../../../../lib/vendor-product-feed-service";
 import { requireVendorCapability } from "../../../../../lib/vendor-session";
@@ -77,12 +79,21 @@ export async function POST(request: Request) {
     if (action === "save" && sourceType === "url") {
       const sourceUrl = string(body.sourceUrl);
       if (!sourceUrl) throw new Error("Δώσε το URL του XML feed.");
-      return Response.json(await connectVendorProductFeed(principal, {
+      const connected = await connectVendorProductFeed(principal, {
         sourceUrl,
         feedName: string(body.feedName) ?? "XML Feed",
         syncIntervalMinutes: Number(body.syncIntervalMinutes ?? 360),
         ...mapping(body)
-      }), { status: 202 });
+      });
+      after(async () => {
+        try {
+          await syncVendorProductFeed(principal, connected.feedId, "manual");
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error(JSON.stringify({ level: "error", event: "vendor_product_feed.initial_background_sync_failed", feedId: connected.feedId, message }));
+        }
+      });
+      return Response.json(connected, { status: 202 });
     }
 
     let xml: string;
