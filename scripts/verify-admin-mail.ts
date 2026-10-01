@@ -22,10 +22,12 @@ const checks: Array<[string, boolean]> = [
   ["Inbound defaults to the SES S3 bucket", files.runtime.includes('const DEFAULT_BUCKET = "kontamou-inbound-emails"')],
   ["Inbound source stays in S3", files.runtime.includes("s3_object_key") && files.runtime.includes("inboundStorage(config).read")],
   ["S3 abstraction supports bounded listing", files.objectStorage.includes("ListObjectsV2Command") && files.objectStorage.includes("async list(")],
-  ["Mailbox metadata, per-admin state and S3 cursor are durable", files.migration.includes("admin_mail_messages") && files.migration.includes("admin_mail_state") && files.migration.includes("admin_mail_sync_state")],
+  ["Mailbox metadata, per-admin state, S3 cursor and quarantine are durable", files.migration.includes("admin_mail_messages") && files.migration.includes("admin_mail_state") && files.migration.includes("admin_mail_sync_state") && files.migration.includes("admin_mail_ingest_failures")],
   ["Mailbox tables have RLS enabled", files.migration.includes("ALTER TABLE public.admin_mail_messages ENABLE ROW LEVEL SECURITY") && files.migration.includes("ALTER TABLE public.admin_mail_state ENABLE ROW LEVEL SECURITY") && files.migration.includes("ALTER TABLE public.admin_mail_sync_state ENABLE ROW LEVEL SECURITY")],
   ["Mailbox runtime roles have explicit RLS policies", files.migration.includes("bls_admin_mail_messages_runtime_all") && files.migration.includes("bls_admin_mail_state_runtime_all") && files.migration.includes("bls_admin_mail_sync_state_runtime_all")],
   ["Inbound sync persists continuation progress", files.runtime.includes("admin_mail_sync_state") && files.runtime.includes("MAX_SYNC_PAGES_PER_RUN")],
+  ["Malformed inbound objects are quarantined without wedging S3 sync", files.runtime.includes("admin_mail_ingest_failures") && files.runtime.includes("failed += 1")],
+  ["Mailbox honors explicit mail enablement", files.runtime.includes("BLS_MAIL_ENABLED") && files.runtime.includes("Admin Mail is disabled")],
   ["Mailbox is visible in Admin navigation", files.navigation.includes('href: "/admin/mail"')],
   ["Server Action body is bounded", files.nextConfig.includes('bodySizeLimit: "4mb"')]
 ];
