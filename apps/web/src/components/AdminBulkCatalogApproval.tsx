@@ -42,32 +42,16 @@ export function AdminBulkCatalogApproval({
 
     try {
       for (let batch = 0; batch < 1000; batch += 1) {
-        const response = await fetch("/api/admin/catalog/bulk-approve", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-csrf-token": csrfToken
-          },
-          body: JSON.stringify({
+        const payload = await postBulkApproval({
+          csrfToken,
+          body: {
             scope: "all",
             q: query,
             status,
             cursor,
             reason
-          })
+          }
         });
-
-        const payload = await response.json() as {
-          error?: string;
-          approved?: number;
-          skipped?: number;
-          failed?: number;
-          scanned?: number;
-          hasMore?: boolean;
-          nextCursor?: string;
-        };
-
-        if (!response.ok) throw new Error(payload.error ?? "Bulk approval failed.");
 
         approved += Number(payload.approved ?? 0);
         skipped += Number(payload.skipped ?? 0);
@@ -109,4 +93,53 @@ export function AdminBulkCatalogApproval({
     {message && <div className="workspace-inline-note" role="status" style={{ flexBasis: "100%" }}><strong>{busy ? "Working." : "Done."}</strong> {message}</div>}
     {error && <div className="form-error" role="alert" style={{ flexBasis: "100%" }}><strong>Bulk approval failed.</strong> {error}</div>}
   </div>;
+}
+
+
+type BulkApprovalPayload = {
+  error?: string;
+  approved?: number;
+  skipped?: number;
+  failed?: number;
+  scanned?: number;
+  hasMore?: boolean;
+  nextCursor?: string;
+};
+
+async function postBulkApproval(input: {
+  csrfToken: string;
+  body: Record<string, unknown>;
+}): Promise<BulkApprovalPayload> {
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      const response = await fetch("/api/admin/catalog/bulk-approve", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-csrf-token": input.csrfToken
+        },
+        body: JSON.stringify(input.body)
+      });
+      const payload = await response.json() as BulkApprovalPayload;
+      if (response.ok) return payload;
+
+      const error = new Error(payload.error ?? "Bulk approval failed.");
+      if (!isTransientBulkError(error.message) || attempt === 3) throw error;
+      lastError = error;
+    } catch (cause) {
+      const error = cause instanceof Error ? cause : new Error("Bulk approval request failed.");
+      if (!isTransientBulkError(error.message) || attempt === 3) throw error;
+      lastError = error;
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, 600 * (attempt + 1)));
+  }
+
+  throw lastError ?? new Error("Bulk approval failed.");
+}
+
+function isTransientBulkError(message: string): boolean {
+  return /timeout|timed out|trying to connect|connection|ECONN|ETIMEDOUT|fetch failed|network/i.test(message);
 }

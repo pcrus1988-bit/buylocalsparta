@@ -9,6 +9,7 @@ import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, Work
 import { adminMatchingWorkspace } from "../../../lib/admin-runtime";
 import { getAdminSession } from "../../../lib/admin-session";
 
+export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Admin · Vendor Matching", robots: { index: false, follow: false } };
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; submission?: string; page?: string }> }) {
