@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import type { WorkspaceNavGroup, WorkspaceNavLink } from "../lib/workspace-navigation";
 
@@ -38,12 +39,17 @@ export function VendorDomainNavigation({ id, groups, onNavigate }: Readonly<{ id
 
 export function VendorContextNavigation({ groups }: Readonly<{ groups: ReadonlyArray<WorkspaceNavGroup> }>) {
   const pathname = usePathname();
+  const navRef = useRef<HTMLElement>(null);
   const group = activeContext(pathname, groups)?.group;
   if (!group) return null;
   const links = group.links.filter((link) => !link.contextHidden);
   if (links.length <= 1) return null;
   const current = activeLink(pathname, links);
-  return <nav className="vendor-context-nav" aria-label={`${group.label} · ενότητες`}>
+  useEffect(() => {
+    const active = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    active?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [pathname]);
+  return <nav ref={navRef} className="vendor-context-nav" aria-label={`${group.label} · ενότητες`}>
     {links.map((link) => <Link href={link.href} key={link.href} className={current?.href === link.href ? "is-active" : undefined} aria-current={current?.href === link.href ? "page" : undefined}>{link.label}</Link>)}
   </nav>;
 }
