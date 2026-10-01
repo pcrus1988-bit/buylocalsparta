@@ -9,7 +9,7 @@ const REQUIRED_REGION = "eu-north-1";
 const DEFAULT_BUCKET = "kontamou-inbound-emails";
 const DEFAULT_FROM = ["partners@kontamou.site", "info@kontamou.site"] as const;
 const MAX_RAW_BYTES = 30 * 1024 * 1024;
-const MAX_SYNC_OBJECTS = 5_000;
+const MAX_SYNC_PAGES_PER_RUN = 25;
 const MAX_SYNC_NEW = 40;
 const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
 const MAX_TOTAL_ATTACHMENT_BYTES = 3 * 1024 * 1024;
@@ -111,37 +111,59 @@ export function adminMailConfiguration(env: NodeJS.ProcessEnv = process.env): Re
 export async function syncAdminInboundMail(input: { maxNew?: number } = {}): Promise<{ indexed: number; scanned: number }> {
   const config = resolveMailConfig();
   const storage = inboundStorage(config);
-  const objects: StoredObjectListItem[] = [];
-  let continuationToken: string | undefined;
-  do {
-    const page = await storage.list({ prefix: config.prefix || undefined, maxKeys: 1000, continuationToken });
-    objects.push(...page.items.filter((item) => item.byteSize > 0 && item.byteSize <= MAX_RAW_BYTES));
-    continuationToken = page.nextContinuationToken;
-  } while (continuationToken && objects.length < MAX_SYNC_OBJECTS);
-
-  objects.sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
-  const candidateObjects = objects.slice(0, MAX_SYNC_OBJECTS);
-  if (!candidateObjects.length) return { indexed: 0, scanned: 0 };
-
   const pool = getProductionPostgresRuntime().sqlPool;
-  const keys = candidateObjects.map((item) => item.objectKey);
-  const existing = await pool.query<{ s3_object_key: string }>(
-    "SELECT s3_object_key FROM admin_mail_messages WHERE s3_object_key = ANY($1::text[])",
-    [keys]
-  );
-  const known = new Set(existing.rows.map((row) => row.s3_object_key));
   const maxNew = Math.max(1, Math.min(100, Math.floor(input.maxNew ?? MAX_SYNC_NEW)));
-  const pending = candidateObjects.filter((item) => !known.has(item.objectKey)).slice(0, maxNew);
+  const scope = `${config.bucket}:${config.prefix || "/"}`;
+  const cursor = await pool.query<{ continuation_token: string | null }>(
+    "SELECT continuation_token FROM admin_mail_sync_state WHERE scope=$1 LIMIT 1",
+    [scope]
+  );
+  let continuationToken = cursor.rows[0]?.continuation_token || undefined;
   let indexed = 0;
+  let scanned = 0;
+  let pages = 0;
 
-  for (const object of pending) {
-    const stored = await storage.read(object.objectKey);
-    const bytes = await readStreamBounded(stored.stream, MAX_RAW_BYTES);
-    const parsed = parseAdminMailMime(bytes);
-    await persistInbound(parsed, object);
-    indexed += 1;
+  while (pages < MAX_SYNC_PAGES_PER_RUN && indexed < maxNew) {
+    const remaining = Math.max(1, maxNew - indexed);
+    const page = await storage.list({
+      prefix: config.prefix || undefined,
+      maxKeys: Math.min(100, remaining),
+      continuationToken
+    });
+    pages += 1;
+    scanned += page.items.length;
+
+    const eligible = page.items.filter((item) => item.byteSize > 0 && item.byteSize <= MAX_RAW_BYTES);
+    if (eligible.length) {
+      const keys = eligible.map((item) => item.objectKey);
+      const existing = await pool.query<{ s3_object_key: string }>(
+        "SELECT s3_object_key FROM admin_mail_messages WHERE s3_object_key = ANY($1::text[])",
+        [keys]
+      );
+      const known = new Set(existing.rows.map((row) => row.s3_object_key));
+
+      for (const object of eligible) {
+        if (known.has(object.objectKey)) continue;
+        const stored = await storage.read(object.objectKey);
+        const bytes = await readStreamBounded(stored.stream, MAX_RAW_BYTES);
+        const parsed = parseAdminMailMime(bytes);
+        await persistInbound(parsed, object);
+        indexed += 1;
+      }
+    }
+
+    continuationToken = page.nextContinuationToken;
+    await pool.query(`
+      INSERT INTO admin_mail_sync_state (scope,continuation_token,updated_at)
+      VALUES ($1,$2,now())
+      ON CONFLICT (scope) DO UPDATE
+      SET continuation_token=EXCLUDED.continuation_token,updated_at=now()
+    `, [scope, continuationToken || null]);
+
+    if (!continuationToken) break;
   }
-  return { indexed, scanned: candidateObjects.length };
+
+  return { indexed, scanned };
 }
 
 export async function adminMailWorkspace(
@@ -209,10 +231,18 @@ export async function adminMailWorkspace(
     LIMIT $${limitParam}
   `, params);
 
-  const messages = list.rows.map(projectSummary);
+  let messages = list.rows.map(projectSummary);
   const selectedId = input.selectedId && messages.some((message) => message.id === input.selectedId)
     ? input.selectedId
     : input.selectedId || messages[0]?.id;
+  const autoSelected = !input.selectedId && selectedId
+    ? messages.find((message) => message.id === selectedId)
+    : undefined;
+  const autoSelectedUnread = Boolean(autoSelected && !autoSelected.isRead);
+  if (autoSelected && !autoSelected.isRead) {
+    await markAdminMailRead(principal, autoSelected.id, true);
+    messages = messages.map((message) => message.id === autoSelected.id ? { ...message, isRead: true } : message);
+  }
   let thread: readonly AdminMailThreadMessage[] = [];
   if (selectedId) {
     const selected = await pool.query<{ thread_key: string }>("SELECT thread_key FROM admin_mail_messages WHERE public_id=$1 LIMIT 1", [selectedId]);
@@ -244,7 +274,7 @@ export async function adminMailWorkspace(
     selectedId,
     metrics: {
       inbox: Number(metric.inbox || 0),
-      unread: Number(metric.unread || 0),
+      unread: Math.max(0, Number(metric.unread || 0) - (autoSelectedUnread && autoSelected?.direction === "incoming" && !autoSelected.archived ? 1 : 0)),
       sent: Number(metric.sent || 0),
       starred: Number(metric.starred || 0),
       archived: Number(metric.archived || 0),
