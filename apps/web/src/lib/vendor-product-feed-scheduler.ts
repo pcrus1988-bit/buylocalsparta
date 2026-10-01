@@ -184,3 +184,81 @@ export async function syncDueVendorProductFeeds(limit = DEFAULT_LIMIT) {
     results
   };
 }
+
+
+export async function processPendingVendorProductFeedSubmissions(limit = 500) {
+  const safeLimit = Number.isSafeInteger(limit) ? Math.min(1000, Math.max(1, limit)) : 500;
+  const batchSize = 25;
+  const runtime = getProductionPostgresRuntime();
+  let processed = 0;
+  let linked = 0;
+  let needsReview = 0;
+  let submitted = 0;
+  let batches = 0;
+
+  while (processed < safeLimit) {
+    const client = await runtime.nativePool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL ROLE bls_platform_runtime");
+      await client.query("SET LOCAL statement_timeout='120s'");
+
+      const selected = await client.query<SqlRow>(`
+        SELECT s.id::text
+        FROM public.vendor_product_submissions s
+        JOIN public.vendor_product_feed_items i ON i.submission_id=s.id
+        WHERE s.status='draft'
+          AND i.state='present'
+        ORDER BY s.created_at,s.id
+        FOR UPDATE OF s SKIP LOCKED
+        LIMIT $1
+      `, [Math.min(batchSize, safeLimit - processed)]);
+
+      const ids = selected.rows.map((row) => String(row.id)).filter(Boolean);
+      if (!ids.length) {
+        await client.query("COMMIT");
+        break;
+      }
+
+      await client.query(`
+        UPDATE public.vendor_product_submissions
+        SET status='submitted',updated_at=now()
+        WHERE id=ANY($1::uuid[]) AND status='draft'
+      `, [ids]);
+
+      const states = await client.query<SqlRow>(`
+        SELECT status,count(*)::integer AS count
+        FROM public.vendor_product_submissions
+        WHERE id=ANY($1::uuid[])
+        GROUP BY status
+      `, [ids]);
+
+      for (const row of states.rows) {
+        const count = Number(row.count ?? 0);
+        if (row.status === "linked") linked += count;
+        else if (row.status === "needs_review") needsReview += count;
+        else if (row.status === "submitted") submitted += count;
+      }
+
+      await client.query(`
+        UPDATE public.vendor_product_feed_items i
+        SET canonical_variant_id=s.canonical_variant_id,updated_at=now()
+        FROM public.vendor_product_submissions s
+        WHERE i.submission_id=s.id
+          AND s.id=ANY($1::uuid[])
+          AND s.canonical_variant_id IS NOT NULL
+      `, [ids]);
+
+      await client.query("COMMIT");
+      processed += ids.length;
+      batches += 1;
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch {}
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  return { processed, linked, needsReview, submitted, batches };
+}
