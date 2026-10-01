@@ -283,28 +283,41 @@ export class PostgresVendorOperationsService {
     });
   }
 
-  async submitProducts(principal:SessionPrincipal,submissionIds?:readonly string[]){
+  async submitProducts(principal:SessionPrincipal,submissionIds?:readonly string[],batchSize=50){
     const vendorId=requiredVendorId(principal);
     const requested=submissionIds===undefined?undefined:[...new Set(submissionIds.map((value)=>value.trim()).filter(Boolean))];
     if(requested&&requested.length>5000) throw new Error("Bulk submission is limited to 5000 products at a time");
-    if(requested&&requested.length===0) return {submitted:0,skipped:0};
+    if(requested&&requested.length===0) return {submitted:0,skipped:0,remaining:0};
+    const limit=Math.max(1,Math.min(100,Math.floor(batchSize)||50));
     return this.#uow.withTransaction(vendorScope(principal.userId,vendorId),async(tx)=>{
-      const changed=await tx.query<SqlRow>(`UPDATE vendor_product_submissions
-        SET status='submitted',updated_at=now()
+      const selected=await tx.query<SqlRow>(`SELECT id::text AS id,public_id
+        FROM vendor_product_submissions
         WHERE vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$1)
           AND status='draft'
           AND ($2::text[] IS NULL OR public_id=ANY($2::text[]))
-        RETURNING id::text AS id,public_id`,[vendorId,requested??null]);
-      if(changed.rowCount){
-        const submissionUuids=changed.rows.map((row)=>text(row.id,"submission.id"));
+        ORDER BY updated_at ASC,public_id ASC
+        LIMIT $3
+        FOR UPDATE SKIP LOCKED`,[vendorId,requested??null,limit]);
+      if(selected.rowCount){
+        const submissionUuids=selected.rows.map((row)=>text(row.id,"submission.id"));
+        await tx.query(`UPDATE vendor_product_submissions
+          SET status='submitted',updated_at=now()
+          WHERE id=ANY($1::uuid[]) AND status='draft'`,[submissionUuids]);
         await tx.query(`INSERT INTO catalog_workflow_events(id,public_id,submission_id,actor_id,action,from_status,to_status,metadata,created_at)
           SELECT gen_random_uuid(),'cwe_'||gen_random_uuid()::text,s.id::uuid,(SELECT id FROM users WHERE public_id=$2 LIMIT 1),'submit','draft','submitted',
                  jsonb_build_object('bulk',true),now()
           FROM unnest($1::text[]) AS s(id)`,[submissionUuids,principal.userId]);
       }
+      const remainingResult=await tx.query<SqlRow>(`SELECT COUNT(*)::int AS remaining
+        FROM vendor_product_submissions
+        WHERE vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$1)
+          AND status='draft'
+          AND ($2::text[] IS NULL OR public_id=ANY($2::text[]))`,[vendorId,requested??null]);
+      const remaining=int(remainingResult.rows[0]?.remaining??0,"remaining");
       return {
-        submitted:changed.rowCount,
-        skipped:requested?Math.max(0,requested.length-changed.rowCount):0
+        submitted:selected.rowCount,
+        skipped:requested?Math.max(0,requested.length-selected.rowCount-remaining):0,
+        remaining
       };
     });
   }
