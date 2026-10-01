@@ -99,18 +99,30 @@ async function loadCandidates(limit: number): Promise<readonly Candidate[]> {
           AND jsonb_array_length(i.source_payload->'additionalImageUrls')>0
         )
       )
-      AND (
-        SELECT count(*)
-        FROM public.product_media pm
-        WHERE pm.canonical_variant_id=i.canonical_variant_id
-          AND pm.vendor_id=i.vendor_id
-          AND pm.kind='image'
-          AND pm.original_filename LIKE ('vfeed:' || i.id::text || ':%')
-      ) < LEAST(
-        $1::integer,
-        (CASE WHEN NULLIF(i.source_payload->>'imageUrl','') IS NOT NULL THEN 1 ELSE 0 END)
-        + CASE WHEN jsonb_typeof(i.source_payload->'additionalImageUrls')='array'
-               THEN jsonb_array_length(i.source_payload->'additionalImageUrls') ELSE 0 END
+      AND EXISTS (
+        SELECT 1
+        FROM (
+          SELECT NULLIF(i.source_payload->>'imageUrl','') AS src, 0::bigint AS ord
+          UNION ALL
+          SELECT NULLIF(images.value,''), images.ord
+          FROM jsonb_array_elements_text(
+            CASE WHEN jsonb_typeof(i.source_payload->'additionalImageUrls')='array'
+              THEN i.source_payload->'additionalImageUrls' ELSE '[]'::jsonb END
+          ) WITH ORDINALITY AS images(value,ord)
+        ) source_image
+        WHERE source_image.src IS NOT NULL
+          AND source_image.ord < $1::bigint
+          AND NOT EXISTS (
+            SELECT 1
+            FROM public.product_media pm
+            WHERE pm.canonical_variant_id=i.canonical_variant_id
+              AND pm.vendor_id=i.vendor_id
+              AND pm.kind='image'
+              AND pm.original_filename LIKE (
+                'vfeed:' || i.id::text || ':%:' ||
+                substr(encode(extensions.digest(source_image.src,'sha256')),1,12) || ':%'
+              )
+          )
       )
     ORDER BY i.updated_at DESC,i.id
     LIMIT $2
