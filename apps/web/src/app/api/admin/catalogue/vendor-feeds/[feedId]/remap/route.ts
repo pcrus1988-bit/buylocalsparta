@@ -1,9 +1,9 @@
 import type { VendorXmlFieldMapping } from "@buy-local-sparta/core";
-import { requireAdminSession } from "../../../../../../lib/admin-session";
+import { requireAdminSession } from "../../../../../../../lib/admin-session";
 import {
   adminPreviewVendorProductFeedMapping,
   adminRemapVendorProductFeed
-} from "../../../../../../lib/admin-vendor-product-feed-service";
+} from "../../../../../../../lib/admin-vendor-product-feed-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
