@@ -69,6 +69,28 @@ for (const requirement of ["Phone ergonomics for vendor operational lifecycles",
 const vendorCatalogMobileCss = read("apps/web/src/components/VendorCatalogClient.module.css");
 for (const requirement of ["Narrow-phone catalogue controls", "@media(max-width:420px)", ".stockEditor{grid-template-columns:1fr}", ".productHead{grid-template-columns:1fr}"]) if (!vendorCatalogMobileCss.includes(requirement)) failures.push(`Vendor mobile catalogue polish is missing ${requirement}`);
 
+for (const requirement of ["description: \"Σήμερα, εκκρεμότητες και γρήγορες ενέργειες\"", 'label: "Όλες"', 'label: "Εμφάνιση στη Google"']) if (!vendorNavigation.includes(requirement)) failures.push(`Vendor navigation clarity is missing ${requirement}`);
+for (const requirement of ["vendor-domain-copy", "group.description"]) if (!vendorDomainNav.includes(requirement)) failures.push(`Vendor guided navigation is missing ${requirement}`);
+for (const requirement of ["Vendor UX consolidation — one visual language", ".vendor-settings-card", ".vendor-page-action-row", ".vendor-card-grid"]) if (!vendorIaCss.includes(requirement)) failures.push(`Vendor UX consolidation is missing ${requirement}`);
+
+const vendorSettingsPage = read("apps/web/src/app/vendor/settings/page.tsx");
+for (const requirement of ["vendor-settings-card", "Εμφάνιση στη Google", "Ρύθμιση εμφάνισης"]) if (!vendorSettingsPage.includes(requirement)) failures.push(`Vendor settings clarity is missing ${requirement}`);
+
+const vendorTrialPage = read("apps/web/src/app/vendor/trial/page.tsx");
+for (const requirement of ["Συνέχισε το βήμα", "tourDisclosureSummary", "<details className={styles.guideTour}"]) if (!vendorTrialPage.includes(requirement)) failures.push(`Vendor trial simplification is missing ${requirement}`);
+
+const vendorPlainLanguageFiles = [
+  "apps/web/src/app/vendor/orders/page.tsx",
+  "apps/web/src/app/vendor/dropshipping/attention/page.tsx",
+  "apps/web/src/components/VendorProductFeedClient.tsx"
+] as const;
+for (const vendorPath of vendorPlainLanguageFiles) {
+  const source = read(vendorPath);
+  for (const forbidden of ["Review queue", "Published · unavailable", "Field mapping", ">Upload XML</button>", "status σε ένα σημείο", "Χρησιμοποίησε τα tabs"]) {
+    if (source.includes(forbidden)) failures.push(`Vendor UI still exposes technical wording ${forbidden} in ${vendorPath}`);
+  }
+}
+
 for (const path of [
   "apps/web/src/app/vendor/orders/page.tsx",
   "apps/web/src/app/vendor/notifications/page.tsx",
