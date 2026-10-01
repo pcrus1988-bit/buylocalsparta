@@ -5,6 +5,7 @@ import { VendorProductFeedClient } from "../../../../components/VendorProductFee
 import { VendorWorkspaceHeader } from "../../../../components/VendorWorkspaceHeader";
 import { WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
 import { vendorCatalogWorkspace } from "../../../../lib/vendor-backoffice-service";
+import { isDropshippingOnlyVendor } from "../../../../lib/vendor-dropshipping-access";
 import { vendorProductFeedWorkspace } from "../../../../lib/vendor-product-feed-service";
 import { getVendorSession, vendorOperatingContextForPrincipal } from "../../../../lib/vendor-session";
 
@@ -18,7 +19,7 @@ export default async function VendorProductFeedPage() {
   if (!principal) redirect("/vendor/login");
 
   const operatingContext = await vendorOperatingContextForPrincipal(principal);
-  if (!operatingContext.capabilities.includes("catalogue.import")) redirect("/vendor/catalog");
+  if (!operatingContext.capabilities.includes("catalogue.import") || await isDropshippingOnlyVendor(principal.vendorId)) redirect("/vendor/catalog");
 
   const [catalog, feeds] = await Promise.all([
     vendorCatalogWorkspace(principal),
