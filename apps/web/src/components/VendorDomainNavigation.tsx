@@ -46,7 +46,7 @@ export function VendorContextNavigation({ groups }: Readonly<{ groups: ReadonlyA
   useEffect(() => {
     const active = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
     active?.scrollIntoView({ block: "nearest", inline: "center" });
-  }, [pathname]);
+  }, [pathname, current?.href, links.length]);
   if (!group || links.length <= 1) return null;
   return <nav ref={navRef} className="vendor-context-nav" aria-label={`${group.label} · ενότητες`}>
     {links.map((link) => <Link href={link.href} key={link.href} className={current?.href === link.href ? "is-active" : undefined} aria-current={current?.href === link.href ? "page" : undefined}>{link.label}</Link>)}
