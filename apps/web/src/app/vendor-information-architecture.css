@@ -221,3 +221,32 @@
   .vendor-inline-reset-form .button{width:100%}
   .vendor-daily-access-actions>.button{width:100%}
 }
+
+
+.vendor-order-lines,
+.vendor-order-private-panel{margin-top:12px}
+.vendor-manual-shipment-form{
+  display:grid;
+  gap:10px;
+  margin-top:12px;
+}
+.vendor-manual-shipment-form label{
+  display:grid;
+  gap:6px;
+  color:var(--dash-ink);
+  font-size:11px;
+  font-weight:800;
+}
+.vendor-manual-shipment-input{
+  width:100%;
+  min-height:44px;
+  box-sizing:border-box;
+}
+.vendor-manual-shipment-form textarea.vendor-manual-shipment-input{min-height:82px}
+
+@media(max-width:620px){
+  .vendor-manual-shipment-form .button{width:100%}
+  .vendor-order-private-panel .account-card-head{align-items:stretch;flex-direction:column}
+  .vendor-order-private-panel .account-card-head .button,
+  .vendor-order-private-panel .account-card-head .text-button{align-self:flex-start}
+}
