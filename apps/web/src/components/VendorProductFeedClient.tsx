@@ -78,7 +78,7 @@ const fieldLabels: ReadonlyArray<[keyof VendorXmlFieldMapping, string]> = [
   ["price", "Τελική τιμή πώλησης"],
   ["currency", "Νόμισμα"],
   ["stock", "Απόθεμα"],
-  ["availability", "Availability"],
+  ["availability", "Διαθεσιμότητα"],
   ["categoryCode", "Κωδικός κατηγορίας ΚΟΝΤΑ ΜΟΥ"],
   ["sourceCategory", "Κατηγορία XML"],
   ["imageUrl", "Κύρια εικόνα"],
@@ -254,7 +254,7 @@ export function VendorProductFeedClient({
       return;
     }
     if (file.size > 4 * 1024 * 1024) {
-      setError("Το upload υποστηρίζει έως 4 MB. Για μεγαλύτερο αρχείο χρησιμοποίησε σύνδεσμο XML.");
+      setError("Το ανέβασμα αρχείου υποστηρίζει έως 4 MB. Για μεγαλύτερο αρχείο χρησιμοποίησε σύνδεσμο XML.");
       return;
     }
     const content = await file.text();
