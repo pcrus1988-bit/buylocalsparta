@@ -4,168 +4,87 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const SITE_ORIGIN = "https://kontamou.site";
-const INVALID_XML_10_CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/gu;
-
-type SnapshotRow = Readonly<{
-  canonical_variant_id: string;
-  id: string;
-  title: string;
-  description: string | null;
-  link: string | null;
-  source_image_link: string | null;
-  amount_micros: string | null;
-  currency_code: string | null;
-  brand: string | null;
-  product_type: string | null;
+type SnapshotState = Readonly<{
+  generation_id: string;
+  item_count: number;
+  generated_at: Date | string;
 }>;
 
-function cleanXmlText(value: string): string {
-  return value.replace(INVALID_XML_10_CONTROL, "").trim();
-}
+type SnapshotChunk = Readonly<{
+  chunk_index: number;
+  xml_chunk: string;
+  item_count: number;
+}>;
 
-function escapeXml(value: string): string {
-  return cleanXmlText(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&apos;");
-}
+type SnapshotCache = Readonly<{
+  generationId: string;
+  itemCount: number;
+  generatedAt: string;
+  chunks: readonly SnapshotChunk[];
+}>;
 
-function decodeHtmlEntities(value: string): string {
-  return value
-    .replace(/&nbsp;/giu, " ")
-    .replace(/&amp;/giu, "&")
-    .replace(/&lt;/giu, "<")
-    .replace(/&gt;/giu, ">")
-    .replace(/&quot;/giu, '"')
-    .replace(/&#(?:39|x27);/giu, "'")
-    .replace(/&#(\d+);/gu, (_match, digits: string) => {
-      const codePoint = Number(digits);
-      return Number.isSafeInteger(codePoint) && codePoint > 0 && codePoint <= 0x10ffff
-        ? String.fromCodePoint(codePoint)
-        : "";
-    })
-    .replace(/&#x([0-9a-f]+);/giu, (_match, digits: string) => {
-      const codePoint = Number.parseInt(digits, 16);
-      return Number.isSafeInteger(codePoint) && codePoint > 0 && codePoint <= 0x10ffff
-        ? String.fromCodePoint(codePoint)
-        : "";
-    });
-}
+let memorySnapshot: SnapshotCache | undefined;
 
-function plainDescription(value: string | null): string | undefined {
-  if (!value?.trim()) return undefined;
-  const normalized = decodeHtmlEntities(
-    value
-      .replace(/<br\s*\/?>/giu, "\n")
-      .replace(/<\/(?:p|div|li|tr|h[1-6])>/giu, "\n")
-      .replace(/<[^>]*>/gu, " ")
-  )
-    .replace(/[ \t]+/gu, " ")
-    .replace(/\s*\n\s*/gu, "\n")
-    .replace(/\n{3,}/gu, "\n\n")
-    .trim();
-
-  return normalized || undefined;
-}
-
-function optionalTag(name: string, value: string | undefined): string {
-  const normalized = value?.trim();
-  return normalized ? `    <${name}>${escapeXml(normalized)}</${name}>\n` : "";
-}
-
-function priceFromMicros(raw: string | null): string | undefined {
-  const normalized = raw?.trim();
-  if (!normalized || !/^\d+$/u.test(normalized)) return undefined;
-  const micros = Number(normalized);
-  if (!Number.isFinite(micros) || micros <= 0) return undefined;
-  return (micros / 1_000_000).toFixed(2);
-}
-
-function safeKontamouLink(raw: string | null): string | undefined {
-  const normalized = raw?.trim();
-  if (!normalized) return undefined;
-  try {
-    const url = new URL(normalized);
-    if (url.protocol !== "https:" || (url.hostname !== "kontamou.site" && url.hostname !== "www.kontamou.site")) {
-      return undefined;
-    }
-    return url.toString();
-  } catch {
-    return undefined;
-  }
-}
-
-function rowXml(row: SnapshotRow): string {
-  const price = priceFromMicros(row.amount_micros);
-  const imageLink = row.source_image_link?.trim()
-    ? `${SITE_ORIGIN}/api/catalog-source-image/${encodeURIComponent(row.canonical_variant_id)}`
-    : undefined;
-
-  return [
-    "  <product>",
-    `    <id>${escapeXml(row.id)}</id>`,
-    `    <title>${escapeXml(row.title)}</title>`,
-    optionalTag("description", plainDescription(row.description)).trimEnd(),
-    optionalTag("link", safeKontamouLink(row.link)).trimEnd(),
-    optionalTag("image_link", imageLink).trimEnd(),
-    optionalTag("price", price).trimEnd(),
-    optionalTag("currency_code", price ? (row.currency_code?.trim().toUpperCase() || "EUR") : undefined).trimEnd(),
-    optionalTag("brand", row.brand?.trim() || undefined).trimEnd(),
-    optionalTag("product_type", row.product_type?.trim() || undefined).trimEnd(),
-    "  </product>"
-  ].filter(Boolean).join("\n");
-}
-
-async function loadProducts(): Promise<readonly SnapshotRow[]> {
+async function loadSnapshot(): Promise<SnapshotCache> {
   if (!productionDatabaseConfigured()) {
     throw new Error("Production database is not configured");
   }
 
-  const result = await getProductionPostgresRuntime().nativePool.query<SnapshotRow>(`
-    SELECT DISTINCT ON (mps.canonical_variant_id)
-      mps.canonical_variant_id::text,
-      COALESCE(NULLIF(btrim(mps.offer_id), ''), mps.canonical_variant_id::text) AS id,
-      btrim(mps.last_submitted_payload #>> '{productAttributes,title}') AS title,
-      NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,description}'), '') AS description,
-      NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,link}'), '') AS link,
-      NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,imageLink}'), '') AS source_image_link,
-      NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,price,amountMicros}'), '') AS amount_micros,
-      NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,price,currencyCode}'), '') AS currency_code,
-      NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,brand}'), '') AS brand,
-      COALESCE(
-        NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,productType}'), ''),
-        NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,productTypes,0}'), '')
-      ) AS product_type
-    FROM public.merchant_product_sync mps
-    WHERE mps.sync_status = 'synced'
-      AND mps.canonical_variant_id IS NOT NULL
-      AND mps.feed_label = 'GR'
-      AND mps.last_submitted_payload IS NOT NULL
-      AND NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,title}'), '') IS NOT NULL
-      AND COALESCE(mps.last_submitted_payload #>> '{productAttributes,availability}', 'IN_STOCK') = 'IN_STOCK'
-    ORDER BY
-      mps.canonical_variant_id,
-      CASE mps.content_language WHEN 'el' THEN 0 WHEN 'en' THEN 1 ELSE 2 END,
-      mps.last_success_at DESC NULLS LAST,
-      mps.updated_at DESC
+  const db = getProductionPostgresRuntime().nativePool;
+  const stateResult = await db.query<SnapshotState>(`
+    select generation_id::text, item_count, generated_at
+    from bls_private.product_xml_export_state
+    where export_key = 'products'
+    limit 1
   `);
 
-  return result.rows;
+  const state = stateResult.rows[0];
+  if (!state) throw new Error("Product XML snapshot is not available");
+
+  const generatedAt = state.generated_at instanceof Date
+    ? state.generated_at.toISOString()
+    : String(state.generated_at);
+
+  if (memorySnapshot?.generationId === state.generation_id) {
+    return memorySnapshot;
+  }
+
+  const chunkResult = await db.query<SnapshotChunk>(`
+    select chunk_index, xml_chunk, item_count
+    from bls_private.product_xml_export_chunks
+    where generation_id = $1::uuid
+    order by chunk_index
+  `, [state.generation_id]);
+
+  if (!chunkResult.rows.length) {
+    throw new Error("Product XML snapshot has no chunks");
+  }
+
+  const chunkItemCount = chunkResult.rows.reduce((total, chunk) => total + Number(chunk.item_count), 0);
+  if (chunkItemCount !== Number(state.item_count)) {
+    throw new Error(`Product XML snapshot count mismatch: expected ${state.item_count}, got ${chunkItemCount}`);
+  }
+
+  memorySnapshot = {
+    generationId: state.generation_id,
+    itemCount: Number(state.item_count),
+    generatedAt,
+    chunks: chunkResult.rows
+  };
+
+  return memorySnapshot;
 }
 
 export async function GET(): Promise<Response> {
   try {
-    const rows = await loadProducts();
+    const snapshot = await loadSnapshot();
     const encoder = new TextEncoder();
 
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(encoder.encode('<?xml version="1.0" encoding="UTF-8"?>\n<products>\n'));
-        for (const row of rows) {
-          controller.enqueue(encoder.encode(rowXml(row) + "\n"));
+        for (const chunk of snapshot.chunks) {
+          controller.enqueue(encoder.encode(chunk.xml_chunk));
         }
         controller.enqueue(encoder.encode("</products>\n"));
         controller.close();
@@ -177,9 +96,11 @@ export async function GET(): Promise<Response> {
       headers: {
         "Content-Type": "application/xml; charset=utf-8",
         "Content-Disposition": 'attachment; filename="kontamou-products.xml"',
-        "Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=900",
+        "Cache-Control": "public, max-age=300, s-maxage=900, stale-while-revalidate=3600",
+        "ETag": `"${snapshot.generationId}"`,
         "X-Robots-Tag": "noindex, follow",
-        "X-Kontamou-Product-Items": String(rows.length),
+        "X-Kontamou-Product-Items": String(snapshot.itemCount),
+        "X-Kontamou-Product-Generated-At": snapshot.generatedAt,
         "X-Content-Type-Options": "nosniff"
       }
     });
@@ -195,7 +116,7 @@ export async function GET(): Promise<Response> {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-store",
-        "Retry-After": "300",
+        "Retry-After": "60",
         "X-Robots-Tag": "noindex, nofollow"
       }
     });
