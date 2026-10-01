@@ -11,7 +11,7 @@ async function csrfToken(): Promise<string> {
   const response = await fetch("/api/vendor/auth-context", { cache: "no-store" });
   if (!response.ok) throw new Error("Η συνεδρία συνεργάτη έληξε.");
   const payload = await response.json() as { csrfToken?: string };
-  if (!payload.csrfToken) throw new Error("Δεν βρέθηκε ασφαλές token συνεδρίας.");
+  if (!payload.csrfToken) throw new Error("Δεν βρέθηκε ασφαλής σύνδεση συνεδρίας.");
   return payload.csrfToken;
 }
 
@@ -28,7 +28,7 @@ export function DropshippingProductFieldControls({ offerId }: Props) {
     try {
       const response = await fetch(`/api/vendor/dropshipping/presentation?offerId=${encodeURIComponent(offerId)}`, { cache: "no-store" });
       const payload = await response.json() as { error?: string; fields?: DropshipPublicFields; overridden?: boolean };
-      if (!response.ok || !payload.fields) throw new Error(payload.error ?? "Η φόρτωση public fields απέτυχε.");
+      if (!response.ok || !payload.fields) throw new Error(payload.error ?? "Η φόρτωση των στοιχείων εμφάνισης απέτυχε.");
       setValue(payload.fields);
       setOverridden(Boolean(payload.overridden));
       setLoaded(true);
@@ -51,8 +51,8 @@ export function DropshippingProductFieldControls({ offerId }: Props) {
         body: JSON.stringify(action === "save-product" ? { action, offerId, fields: value } : { action, offerId })
       });
       const payload = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "Η αλλαγή public fields απέτυχε.");
-      setMessage(action === "save-product" ? "Αποθηκεύτηκε product override." : "Το προϊόν χρησιμοποιεί ξανά τα supplier defaults.");
+      if (!response.ok) throw new Error(payload.error ?? "Η αλλαγή των στοιχείων εμφάνισης απέτυχε.");
+      setMessage(action === "save-product" ? "Αποθηκεύτηκαν οι ειδικές ρυθμίσεις αυτού του προϊόντος." : "Το προϊόν χρησιμοποιεί ξανά τις γενικές ρυθμίσεις του προμηθευτή.");
       setOverridden(action === "save-product");
       if (action === "reset-product") {
         setLoaded(false);
@@ -64,18 +64,18 @@ export function DropshippingProductFieldControls({ offerId }: Props) {
   }
 
   return <details style={{ marginTop: 10 }} onToggle={(event) => { if (event.currentTarget.open) void load(); }}>
-    <summary style={{ cursor: "pointer", fontWeight: 700 }}>Public fields{loaded ? (overridden ? " · override" : " · supplier defaults") : ""}</summary>
-    {!loaded ? <small style={{ display: "block", marginTop: 10 }}>{busy ? "Φόρτωση…" : "Άνοιξε για να φορτωθούν οι public field ρυθμίσεις."}</small> : <>
+    <summary style={{ cursor: "pointer", fontWeight: 700 }}>Στοιχεία που εμφανίζονται στον πελάτη{loaded ? (overridden ? " · ειδικές ρυθμίσεις" : " · γενικές ρυθμίσεις") : ""}</summary>
+    {!loaded ? <small style={{ display: "block", marginTop: 10 }}>{busy ? "Φόρτωση…" : "Άνοιξε για να φορτωθούν οι ρυθμίσεις εμφάνισης."}</small> : <>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(120px,1fr))", gap: 8, marginTop: 10 }}>
-        <label><input type="checkbox" checked={value.model} onChange={(event) => setField("model", event.target.checked)} /> Model</label>
+        <label><input type="checkbox" checked={value.model} onChange={(event) => setField("model", event.target.checked)} /> Μοντέλο</label>
         <label><input type="checkbox" checked={value.mpn} onChange={(event) => setField("mpn", event.target.checked)} /> MPN</label>
         <label><input type="checkbox" checked={value.gtin} onChange={(event) => setField("gtin", event.target.checked)} /> GTIN/EAN</label>
-        <label><input type="checkbox" checked={value.technicalAttributes} onChange={(event) => setField("technicalAttributes", event.target.checked)} /> Technical</label>
-        <label><input type="checkbox" checked={value.supplierSku} onChange={(event) => setField("supplierSku", event.target.checked)} /> Supplier SKU</label>
+        <label><input type="checkbox" checked={value.technicalAttributes} onChange={(event) => setField("technicalAttributes", event.target.checked)} /> Τεχνικά χαρακτηριστικά</label>
+        <label><input type="checkbox" checked={value.supplierSku} onChange={(event) => setField("supplierSku", event.target.checked)} /> SKU προμηθευτή</label>
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-        <button className="button button-secondary" type="button" disabled={busy} onClick={() => mutate("save-product")}>Save override</button>
-        <button className="button button-secondary" type="button" disabled={busy || !overridden} onClick={() => mutate("reset-product")}>Use supplier defaults</button>
+        <button className="button button-secondary" type="button" disabled={busy} onClick={() => mutate("save-product")}>Αποθήκευση ειδικών ρυθμίσεων</button>
+        <button className="button button-secondary" type="button" disabled={busy || !overridden} onClick={() => mutate("reset-product")}>Χρήση γενικών ρυθμίσεων</button>
       </div>
     </>}
     {message ? <small role="status" style={{ display: "block", marginTop: 8 }}>{message}</small> : null}
