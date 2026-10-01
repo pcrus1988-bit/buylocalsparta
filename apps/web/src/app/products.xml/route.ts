@@ -127,7 +127,7 @@ async function loadProducts(): Promise<readonly SnapshotRow[]> {
   const result = await getProductionPostgresRuntime().nativePool.query<SnapshotRow>(`
     SELECT DISTINCT ON (mps.canonical_variant_id)
       mps.canonical_variant_id::text,
-      COALESCE(NULLIF(btrim(mps.offer_id), ''), mps.canonical_variant_id::text) AS id,
+      mps.canonical_variant_id::text AS id,
       btrim(mps.last_submitted_payload #>> '{productAttributes,title}') AS title,
       NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,description}'), '') AS description,
       NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,link}'), '') AS link,
@@ -137,9 +137,12 @@ async function loadProducts(): Promise<readonly SnapshotRow[]> {
       NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,brand}'), '') AS brand,
       COALESCE(
         NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,productType}'), ''),
-        NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,productTypes,0}'), '')
+        NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,productTypes,0}'), ''),
+        NULLIF(btrim(rm.category_code), '')
       ) AS product_type
     FROM public.merchant_product_sync mps
+    LEFT JOIN public.storefront_catalog_read_model rm
+      ON rm.canonical_variant_id = mps.canonical_variant_id
     WHERE mps.sync_status = 'synced'
       AND mps.canonical_variant_id IS NOT NULL
       AND mps.feed_label = 'GR'
