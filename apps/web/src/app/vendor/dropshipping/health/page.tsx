@@ -89,16 +89,16 @@ export default async function DropshippingFeedHealthPage() {
           const missingCostHref = supplierWorkspaceUrl(supplier.code, { cost: "missing_cost" });
           return <article className="workspace-queue-card" key={supplier.id}>
             <div className="workspace-queue-head">
-              <div><strong>{supplier.displayName}</strong><small>{supplier.code} · {supplier.providerKind}</small></div>
+              <div><strong>{supplier.displayName}</strong><small>Συνδεδεμένος προμηθευτής</small></div>
               <span className="vendor-merchant-status">{health.label}</span>
             </div>
             <p style={{ marginTop: 10 }}>{health.detail}</p>
             {!supplier.active ? <div className="workspace-compact-list" style={{ marginTop: 12 }}>
-              <div className="workspace-compact-row"><strong>Εμπόδιο συγχρονισμού</strong><span>Ανενεργός προμηθευτής</span><small>Η ροή του προμηθευτή δεν πρέπει να συγχρονίζεται όσο ο προμηθευτής παραμένει ανενεργός.</small></div>
+              <div className="workspace-compact-row"><strong>Γιατί δεν ενημερώνεται;</strong><span>Ανενεργός προμηθευτής</span><small>Οι αυτόματες ενημερώσεις παραμένουν σταματημένες όσο ο προμηθευτής είναι ανενεργός.</small></div>
             </div> : null}
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
               <div className="workspace-compact-row"><strong>Προμηθευτής</strong><span>{supplier.active ? "Ενεργός" : "Ανενεργός"}</span></div>
-              <div className="workspace-compact-row"><strong>Συγχρονισμός καταλόγου</strong><span>{supplier.catalogueSyncEnabled ? "Ενεργός" : "Ανενεργός"}</span></div>
+              <div className="workspace-compact-row"><strong>Αυτόματη ενημέρωση καταλόγου</strong><span>{supplier.catalogueSyncEnabled ? "Ενεργή" : "Ανενεργή"}</span></div>
               <div className="workspace-compact-row"><strong>Αποστολή παραγγελιών στον προμηθευτή</strong><span>{supplier.orderForwardingEnabled ? "Ενεργή" : "Ανενεργή"}</span></div>
               <div className="workspace-compact-row"><strong>Ενημέρωση παρακολούθησης αποστολής</strong><span>{supplier.trackingSyncEnabled ? "Ενεργή" : "Ανενεργή"}</span></div>
               <div className="workspace-compact-row"><strong>Τελευταίος έλεγχος</strong><span>{date(supplier.lastHealthcheckAt)}</span><small>{age(health.healthcheckAgeMinutes)}</small></div>
