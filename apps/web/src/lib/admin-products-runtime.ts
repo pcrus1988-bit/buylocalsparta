@@ -59,7 +59,7 @@ async function postgresProductListWorkspace(principal:SessionPrincipal,filters:A
     if(state==="draft")where.push("cv.active=FALSE AND cv.suppressed=FALSE AND cv.recalled=FALSE");
     if(state==="suppressed")where.push("cv.suppressed=TRUE");
     if(state==="recalled")where.push("cv.recalled=TRUE");
-    if(state==="uncategorized")where.push("cv.category_id IS NULL");
+    if(state==="uncategorized")where.push("cv.category_id IS NULL AND cv.suppressed=FALSE AND cv.recalled=FALSE AND (cv.active=TRUE OR cv.family_id IS NOT NULL OR EXISTS (SELECT 1 FROM vendor_offers vo_taxonomy WHERE vo_taxonomy.canonical_variant_id=cv.id) OR EXISTS (SELECT 1 FROM catalog_source_product_links csl_taxonomy WHERE csl_taxonomy.canonical_variant_id=cv.id AND csl_taxonomy.link_status='linked'))");
     if(state==="missing_media")where.push("NOT EXISTS (SELECT 1 FROM product_media pm_filter WHERE pm_filter.canonical_variant_id=cv.id AND pm_filter.scan_status='clean' AND pm_filter.rights_status='approved' AND pm_filter.moderation_status='approved')");
     if(state==="no_offer")where.push("NOT EXISTS (SELECT 1 FROM vendor_offers vo_filter WHERE vo_filter.canonical_variant_id=cv.id AND vo_filter.status='approved' AND COALESCE(vo_filter.merchant_visible,TRUE)=TRUE AND COALESCE(vo_filter.merchant_pause_active,FALSE)=FALSE AND vo_filter.customer_price_minor>0)");
 
@@ -114,7 +114,7 @@ async function postgresProductsSummaryWorkspace(principal:SessionPrincipal):Prom
       "COALESCE((SELECT n_live_tup FROM pg_stat_user_tables WHERE schemaname='public' AND relname='vendor_offers'),0)::bigint AS vendor_offers_approx,"+
       "COALESCE((SELECT n_live_tup FROM pg_stat_user_tables WHERE schemaname='public' AND relname='storefront_catalog_read_model'),0)::bigint AS storefront_products_approx,"+
       "(SELECT COUNT(*)::int FROM categories WHERE market_id=$1::uuid) AS categories,"+
-      "(SELECT COUNT(*)::int FROM (SELECT 1 FROM canonical_variants WHERE market_id=$1::uuid AND category_id IS NULL AND suppressed=FALSE AND recalled=FALSE LIMIT 2001) bounded_uncategorized) AS uncategorized_live",
+      "(SELECT COUNT(*)::int FROM (SELECT 1 FROM canonical_variants cv WHERE cv.market_id=$1::uuid AND cv.category_id IS NULL AND cv.suppressed=FALSE AND cv.recalled=FALSE AND (cv.active=TRUE OR cv.family_id IS NOT NULL OR EXISTS (SELECT 1 FROM vendor_offers vo_taxonomy WHERE vo_taxonomy.canonical_variant_id=cv.id) OR EXISTS (SELECT 1 FROM catalog_source_product_links csl_taxonomy WHERE csl_taxonomy.canonical_variant_id=cv.id AND csl_taxonomy.link_status='linked')) LIMIT 2001) bounded_uncategorized) AS uncategorized_live",
       [market]
     );
     const categoryResult=await tx.query<SqlRow>(
