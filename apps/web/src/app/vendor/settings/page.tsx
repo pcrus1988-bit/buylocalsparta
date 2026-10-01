@@ -36,7 +36,7 @@ export default async function VendorSettingsPage() {
     }
   ];
 
-  if (capabilities.has("staff.manage")) core.push({
+  if (context.roles.includes("vendor_owner") && capabilities.has("staff.manage")) core.push({
     title: "Πρόσβαση ομάδας",
     body: "Διαχειρίσου ποιος μπορεί να χρησιμοποιεί το KONTA MOY Daily για τις καθημερινές εργασίες.",
     href: "/vendor/daily-access",
