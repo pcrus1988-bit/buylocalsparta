@@ -286,7 +286,7 @@ export function VendorProductFeedClient({
       </div>
 
       <div className="workspace-action-bar" style={{ marginTop: 16 }}>
-        <span><strong>KONTA MOU XML specification:</strong> χρησιμοποίησέ το για zero-mapping σύνδεση. Δεν είναι υποχρεωτικό — δεχόμαστε και custom / Google Merchant / e-shop feeds.</span>
+        <span><strong>KONTA MOU XML specification:</strong> χρησιμοποίησέ το για zero-mapping σύνδεση. Βασικά πεδία: ID, τίτλος, τιμή, stock και κατηγορία. Δεν είναι υποχρεωτικό — δεχόμαστε και custom / Google Merchant / e-shop feeds.</span>
         <button type="button" className="button button-secondary" onClick={downloadKontaMouTemplate}>Λήψη XML template</button>
       </div>
 
