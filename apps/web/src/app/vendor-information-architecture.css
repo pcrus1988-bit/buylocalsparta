@@ -43,3 +43,14 @@
   .vendor-app .vendor-section{padding-top:22px;padding-bottom:24px}
   .vendor-command-card{padding:15px;gap:12px}
 }
+
+
+@media(max-width:620px){
+  .vendor-app input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+  .vendor-app select,
+  .vendor-app textarea{font-size:16px}
+  .vendor-app .workspace-form-actions{width:100%;display:grid;grid-template-columns:1fr}
+  .vendor-app .workspace-form-actions .button{width:100%;min-height:44px}
+  .vendor-app .workspace-action-buttons .button{min-height:44px}
+  .vendor-daily-access-form{grid-template-columns:1fr!important}
+}
