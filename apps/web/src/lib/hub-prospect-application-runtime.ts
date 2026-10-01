@@ -561,9 +561,9 @@ export async function ensureExistingHubProspectTrial(input: {
         email: common.email,
         phone: requiredText(snapshot.phone, "hub_prospect.phone"),
         primaryCategory: requiredText(snapshot.primary_category, "hub_prospect.primary_category"),
-        websiteUrl: optionalText(snapshot.website_url),
-        currentSalesChannels: optionalText(snapshot.current_sales_channels),
-        notes: optionalText(snapshot.notes)
+        websiteUrl: optionalSnapshotText(snapshot.website_url),
+        currentSalesChannels: optionalSnapshotText(snapshot.current_sales_channels),
+        notes: optionalSnapshotText(snapshot.notes)
       };
       const trial = await provisionHubProspectTrial(tx, {
         prospectUuid: requiredText(locked.rows[0].prospect_uuid, "hub_prospect.id"),
@@ -669,6 +669,12 @@ function optionalLimited(value: string | undefined, max: number): string | undef
   if (!normalized) return undefined;
   if (normalized.length > max) throw new HubProspectApplicationError(400, "field_too_long", `Το κείμενο μπορεί να έχει έως ${max} χαρακτήρες.`);
   return normalized;
+}
+
+function optionalSnapshotText(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized || undefined;
 }
 
 function requiredText(value: unknown, label: string): string {
