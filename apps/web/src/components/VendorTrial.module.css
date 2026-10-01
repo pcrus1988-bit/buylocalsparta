@@ -119,3 +119,20 @@
   .tourDisclosureSummary>small{display:none}
   .tourDisclosureSummary>span>strong{font-size:1.05rem}
 }
+
+
+/* Progressive disclosure for optional storefront controls. */
+.editorGroup{margin:14px 0;border:1px solid #e1e5e3;border-radius:14px;background:#fbfcfb;overflow:hidden}
+.editorGroup>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;padding:10px 12px;cursor:pointer;list-style:none}
+.editorGroup>summary::-webkit-details-marker{display:none}
+.editorGroup>summary>span{display:grid;gap:2px}
+.editorGroup>summary strong{font-size:.9rem}
+.editorGroup>summary small{color:var(--muted,#68736e);font-size:.75rem;line-height:1.35}
+.editorGroup>summary:after{content:"+";display:grid;place-items:center;width:28px;height:28px;border:1px solid #d9dfdc;border-radius:9px;background:#fff;font-weight:900}
+.editorGroup[open]>summary:after{content:"−"}
+.editorGroupBody{padding:4px 12px 14px;border-top:1px solid #e7ebe8}
+.editorGroupBody>.field:first-child{margin-top:12px}
+@media(max-width:640px){
+  .editorGroup>summary{min-height:52px}
+  .editorGroupBody{padding:4px 10px 12px}
+}
