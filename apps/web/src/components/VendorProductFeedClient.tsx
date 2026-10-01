@@ -273,41 +273,41 @@ export function VendorProductFeedClient({
   }
 
   return <>
-    {error && <div className="shell form-error vendor-error" role="alert"><strong>XML Feed:</strong> {error}</div>}
+    {error && <div className="shell form-error vendor-error" role="alert"><strong>Εισαγωγή XML:</strong> {error}</div>}
     {success && <div className="shell workspace-inline-note" role="status"><strong>Έτοιμο.</strong> {success}</div>}
 
     <section className="shell vendor-section">
       <div className="workspace-section-heading">
-        <div><div className="eyebrow">Product Feed</div><h2>Σύνδεσε τον κατάλογό σου με XML</h2></div>
-        <p>Ανέβασε ένα XML μία φορά ή σύνδεσε μόνιμο XML URL. Το ΚΟΝΤΑ ΜΟΥ αναγνωρίζει τα πεδία, ελέγχει τα προϊόντα και τα περνά στο υπάρχον canonical matching workflow.</p>
+        <div><div className="eyebrow">Εισαγωγή προϊόντων</div><h2>Σύνδεσε τον κατάλογό σου με XML</h2></div>
+        <p>Ανέβασε ένα XML μία φορά ή σύνδεσε μόνιμο XML URL. Το ΚΟΝΤΑ ΜΟΥ αναγνωρίζει τα πεδία, ελέγχει τα προϊόντα και τα αντιστοιχίζει με τον υπάρχοντα κατάλογο.</p>
       </div>
 
       <div className="workspace-how-grid">
-        <p><strong>Δεν δημιουργούμε διπλό κατάλογο:</strong> νέα προϊόντα περνούν από matching και approval, ενώ υπάρχοντα offers ενημερώνουν τιμή και stock.</p>
-        <p><strong>Ασφαλές stock:</strong> ο συγχρονισμός δεν κατεβάζει φυσικό απόθεμα κάτω από ενεργές δεσμεύσεις παραγγελιών.</p>
-        <p><strong>Σταθερή ταυτότητα:</strong> Κωδικός προϊόντος / SKU / GTIN κρατά το ίδιο προϊόν συνδεδεμένο σε κάθε επόμενο sync.</p>
+        <p><strong>Δεν δημιουργούμε διπλό κατάλογο:</strong> τα νέα προϊόντα περνούν από αντιστοίχιση και έλεγχο, ενώ στα υπάρχοντα ενημερώνονται η τιμή και το απόθεμα.</p>
+        <p><strong>Ασφαλές απόθεμα:</strong> ο συγχρονισμός δεν κατεβάζει φυσικό απόθεμα κάτω από ενεργές δεσμεύσεις παραγγελιών.</p>
+        <p><strong>Σταθερή ταυτότητα:</strong> Κωδικός προϊόντος / SKU / GTIN κρατά το ίδιο προϊόν συνδεδεμένο σε κάθε επόμενο συγχρονισμό.</p>
       </div>
 
       <div className="workspace-action-bar" style={{ marginTop: 16 }}>
-        <span><strong>KONTA MOU XML specification:</strong> χρησιμοποίησέ το για zero-mapping σύνδεση. Βασικά πεδία: ID, τίτλος, τιμή, stock και κατηγορία. Δεν είναι υποχρεωτικό — δεχόμαστε και custom / Google Merchant / e-shop feeds.</span>
-        <button type="button" className="button button-secondary" onClick={downloadKontaMouTemplate}>Λήψη XML template</button>
+        <span><strong>Πρότυπο XML ΚΟΝΤΑ ΜΟΥ:</strong> χρησιμοποίησέ το για σύνδεση χωρίς χειροκίνητη αντιστοίχιση. Βασικά πεδία: κωδικός, τίτλος, τιμή, απόθεμα και κατηγορία. Δεν είναι υποχρεωτικό — δεχόμαστε και XML από Google Merchant ή e-shop.</span>
+        <button type="button" className="button button-secondary" onClick={downloadKontaMouTemplate}>Λήψη προτύπου XML</button>
       </div>
 
       <div className="workspace-tool-panel" style={{ marginTop: 18 }}>
         <div className="workspace-tool-body">
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+          <div className="vendor-segmented-actions">
             <button type="button" className={sourceType === "url" ? "button" : "button button-secondary"} onClick={() => { setSourceType("url"); setPreview(null); }}>Σύνδεση XML URL</button>
-            <button type="button" className={sourceType === "upload" ? "button" : "button button-secondary"} onClick={() => { setSourceType("upload"); setPreview(null); }}>Upload XML</button>
+            <button type="button" className={sourceType === "upload" ? "button" : "button button-secondary"} onClick={() => { setSourceType("upload"); setPreview(null); }}>Ανέβασμα XML</button>
           </div>
 
           <div className="workspace-form-grid">
             <label>
-              <span>Όνομα feed</span>
-              <input value={feedName} onChange={(event) => setFeedName(event.target.value)} maxLength={120} placeholder="π.χ. Κύριος κατάλογος e-shop" />
+              <span>Όνομα σύνδεσης</span>
+              <input value={feedName} onChange={(event) => setFeedName(event.target.value)} maxLength={120} placeholder="π.χ. Κύριος κατάλογος προϊόντων" />
             </label>
 
             {sourceType === "url" ? <>
-              <label style={{ gridColumn: "1 / -1" }}>
+              <label className="workspace-form-field span-2">
                 <span>XML URL</span>
                 <input type="url" value={sourceUrl} onChange={(event) => { setSourceUrl(event.target.value); setPreview(null); }} placeholder="https://eshop.gr/products.xml" />
               </label>
@@ -320,7 +320,7 @@ export function VendorProductFeedClient({
                   <option value={1440}>Κάθε ημέρα</option>
                 </select>
               </label>
-            </> : <label style={{ gridColumn: "1 / -1" }}>
+            </> : <label className="workspace-form-field span-2">
               <span>XML αρχείο · έως 4 MB</span>
               <input type="file" accept=".xml,text/xml,application/xml" onChange={(event) => void chooseFile(event.target.files?.[0])} />
               {filename && <small>{filename}</small>}
@@ -352,8 +352,8 @@ export function VendorProductFeedClient({
 
     {preview && <section className="shell vendor-section">
       <div className="workspace-section-heading">
-        <div><div className="eyebrow">Preview</div><h2>{preview.validRows.toLocaleString("el-GR")} έτοιμα από {preview.totalRows.toLocaleString("el-GR")}</h2></div>
-        <p>Εντοπίστηκε επαναλαμβανόμενο element <strong>&lt;{preview.itemTag}&gt;</strong>. Τα πεδία παρακάτω μπορούν να διορθωθούν πριν την εισαγωγή.</p>
+        <div><div className="eyebrow">Προεπισκόπηση</div><h2>{preview.validRows.toLocaleString("el-GR")} έτοιμα από {preview.totalRows.toLocaleString("el-GR")}</h2></div>
+        <p>Εντοπίστηκε επαναλαμβανόμενο στοιχείο <strong>&lt;{preview.itemTag}&gt;</strong>. Τα πεδία παρακάτω μπορούν να διορθωθούν πριν την εισαγωγή.</p>
       </div>
 
       <div className="workspace-metric-strip">
@@ -364,7 +364,7 @@ export function VendorProductFeedClient({
       </div>
 
       <details className="workspace-tool-panel" open>
-        <summary><span><strong>Field mapping</strong><small>Το ΚΟΝΤΑ ΜΟΥ έκανε αυτόματη αναγνώριση. Άλλαξε μόνο ό,τι χρειάζεται.</small></span></summary>
+        <summary><span><strong>Αντιστοίχιση πεδίων</strong><small>Το ΚΟΝΤΑ ΜΟΥ έκανε αυτόματη αναγνώριση. Άλλαξε μόνο ό,τι χρειάζεται.</small></span></summary>
         <div className="workspace-tool-body">
           <div className="workspace-form-grid">
             {fieldLabels.map(([key, label]) => <label key={key}>
@@ -376,14 +376,14 @@ export function VendorProductFeedClient({
             </label>)}
           </div>
           <div className="workspace-action-bar" style={{ marginTop: 16 }}>
-            <span>Μετά από αλλαγή mapping, τρέξε ξανά την προεπισκόπηση για νέο validation.</span>
+            <span>Μετά από αλλαγή αντιστοίχισης, κάνε ξανά έλεγχο της προεπισκόπησης.</span>
             <button type="button" className="button button-secondary" disabled={Boolean(busy)} onClick={() => void previewFeed()}>Επανέλεγχος</button>
           </div>
         </div>
       </details>
 
       {preview.sourceCategories.length > 0 && <details className="workspace-tool-panel">
-        <summary><span><strong>Αντιστοίχιση κατηγοριών XML</strong><small>{preview.sourceCategories.length} διαφορετικές κατηγορίες βρέθηκαν στο feed.</small></span></summary>
+        <summary><span><strong>Αντιστοίχιση κατηγοριών XML</strong><small>{preview.sourceCategories.length} διαφορετικές κατηγορίες βρέθηκαν στο XML.</small></span></summary>
         <div className="workspace-tool-body">
           <div className="workspace-compact-list">
             {preview.sourceCategories.slice(0, 50).map((source) => <div className="workspace-compact-row" key={source}>
@@ -391,27 +391,27 @@ export function VendorProductFeedClient({
               <select
                 value={categoryMapping[source] ?? ""}
                 onChange={(event) => setCategoryMapping((current) => ({ ...current, [source]: event.target.value }))}
-                style={{ minWidth: 260 }}
+                className="vendor-xml-category-select"
               >
-                <option value="">Αυτόματο / default</option>
+                <option value="">Αυτόματο / προεπιλεγμένο</option>
                 {categories.map((category) => <option key={category.code} value={category.code}>{category.path ?? category.name}</option>)}
               </select>
             </div>)}
           </div>
-          {preview.sourceCategories.length > 50 && <small>Εμφανίζονται οι πρώτες 50 κατηγορίες. Οι υπόλοιπες θα χρησιμοποιήσουν αυτόματο matching ή την προεπιλεγμένη κατηγορία.</small>}
+          {preview.sourceCategories.length > 50 && <small>Εμφανίζονται οι πρώτες 50 κατηγορίες. Οι υπόλοιπες θα χρησιμοποιήσουν αυτόματη αντιστοίχιση ή την προεπιλεγμένη κατηγορία.</small>}
           <div className="workspace-action-bar" style={{ marginTop: 16 }}>
-            <span>Αποθήκευσε τα mappings με το feed ή τρέξε νέο validation πριν τη σύνδεση.</span>
-            <button type="button" className="button button-secondary" disabled={Boolean(busy)} onClick={() => void previewFeed()}>Έλεγχος mappings</button>
+            <span>Αποθήκευσε τις αντιστοιχίσεις με τη σύνδεση ή κάνε νέο έλεγχο πριν τη σύνδεση.</span>
+            <button type="button" className="button button-secondary" disabled={Boolean(busy)} onClick={() => void previewFeed()}>Έλεγχος αντιστοιχίσεων</button>
           </div>
         </div>
       </details>}
 
       {preview.errors.length > 0 && <details className="workspace-tool-panel" open>
-        <summary><span><strong>Προβλήματα που βρέθηκαν</strong><small>Τα μη έγκυρα rows δεν θα εισαχθούν.</small></span></summary>
+        <summary><span><strong>Προβλήματα που βρέθηκαν</strong><small>Οι μη έγκυρες γραμμές δεν θα εισαχθούν.</small></span></summary>
         <div className="workspace-tool-body">
           <div className="workspace-compact-list">
             {preview.errors.slice(0, 40).map((item, index) => <div className="workspace-compact-row" key={String(item.rowNumber) + ":" + index}>
-              <strong>Row {item.rowNumber}{item.externalId ? " · " + item.externalId : ""}</strong>
+              <strong>Γραμμή {item.rowNumber}{item.externalId ? " · " + item.externalId : ""}</strong>
               <span>{item.field ? item.field + ": " : ""}{item.message}</span>
             </div>)}
           </div>
@@ -419,10 +419,10 @@ export function VendorProductFeedClient({
       </details>}
 
       <details className="workspace-tool-panel">
-        <summary><span><strong>Δείγμα προϊόντων</strong><small>Έλεγχος των πρώτων έγκυρων γραμμών μετά το mapping.</small></span></summary>
-        <div className="workspace-tool-body" style={{ overflowX: "auto" }}>
+        <summary><span><strong>Δείγμα προϊόντων</strong><small>Έλεγχος των πρώτων έγκυρων γραμμών μετά την αντιστοίχιση.</small></span></summary>
+        <div className="workspace-tool-body vendor-table-scroll">
           <table className="workspace-table">
-            <thead><tr><th>ID</th><th>Προϊόν</th><th>Κατηγορία</th><th>Τιμή</th><th>Stock</th></tr></thead>
+            <thead><tr><th>ID</th><th>Προϊόν</th><th>Κατηγορία</th><th>Τιμή</th><th>Απόθεμα</th></tr></thead>
             <tbody>{preview.sample.slice(0, 20).map((row) => <tr key={row.externalId}>
               <td>{row.externalId}</td>
               <td><strong>{row.title}</strong><small style={{ display: "block" }}>{[row.brand, row.vendorSku, row.gtin].filter(Boolean).join(" · ")}</small></td>
@@ -437,11 +437,11 @@ export function VendorProductFeedClient({
 
     <section className="shell vendor-section">
       <div className="workspace-section-heading">
-        <div><div className="eyebrow">Connected feeds</div><h2>XML συνδέσεις & συγχρονισμοί</h2></div>
-        <p>Τα URL feeds μπορούν να παγώσουν ή να συγχρονιστούν άμεσα. Τα uploads παραμένουν στο ιστορικό ως one-time εισαγωγές.</p>
+        <div><div className="eyebrow">Συνδεδεμένα XML</div><h2>Συνδέσεις & συγχρονισμοί</h2></div>
+        <p>Οι συνδέσεις XML μπορούν να παγώσουν ή να συγχρονιστούν άμεσα. Τα αρχεία που ανέβασες παραμένουν στο ιστορικό ως εφάπαξ εισαγωγές.</p>
       </div>
 
-      {initial.feeds.length === 0 ? <div className="workspace-inline-note">Δεν έχει συνδεθεί ακόμη XML feed.</div> : <div className="workspace-queue-list">
+      {initial.feeds.length === 0 ? <div className="workspace-inline-note">Δεν έχει συνδεθεί ακόμη XML.</div> : <div className="workspace-queue-list">
         {initial.feeds.map((feed) => <article className="workspace-queue-card" key={feed.id}>
           <div className="workspace-queue-head">
             <div><strong>{feed.name}</strong><small>{feed.sourceType === "url" ? feed.sourceUrl : feed.sourceFilename}</small></div>
@@ -451,8 +451,8 @@ export function VendorProductFeedClient({
             {feed.sourceType === "url" && !feed.lastSuccessAt
               ? <span>Αναμονή πρώτου συγχρονισμού</span>
               : <span>{feed.readyCount.toLocaleString("el-GR")} έτοιμα</span>}
-            <span>{feed.errorCount.toLocaleString("el-GR")} errors</span>
-            <span>Τελευταίο sync: {when(feed.lastSyncAt)}</span>
+            <span>{feed.errorCount.toLocaleString("el-GR")} σφάλματα</span>
+            <span>Τελευταίος συγχρονισμός: {when(feed.lastSyncAt)}</span>
             {feed.sourceType === "url" && <span>Επόμενο: {feed.status === "paused" ? "σε παύση" : when(feed.nextSyncAt)}</span>}
           </div>
           {feed.lastError && <div className="workspace-inline-note">{feed.lastError}</div>}
@@ -463,7 +463,7 @@ export function VendorProductFeedClient({
                 {busy === "sync:" + feed.id ? "Συγχρονισμός…" : "Συγχρονισμός τώρα"}
               </button>
               <button type="button" className="button button-secondary" disabled={Boolean(busy)} onClick={() => editFeed(feed)}>
-                Mapping / Remap
+                Αντιστοίχιση πεδίων
               </button>
               <button type="button" className="button button-ghost" disabled={Boolean(busy)} onClick={() => void toggleFeed(feed)}>
                 {feed.status === "paused" ? "Ενεργοποίηση" : "Παύση"}
@@ -474,23 +474,23 @@ export function VendorProductFeedClient({
       </div>}
 
       {initial.recentRuns.length > 0 && <details className="workspace-tool-panel" style={{ marginTop: 18 }}>
-        <summary><span><strong>Ιστορικό sync</strong><small>Οι 30 πιο πρόσφατες εκτελέσεις.</small></span></summary>
+        <summary><span><strong>Ιστορικό συγχρονισμών</strong><small>Οι 30 πιο πρόσφατες εκτελέσεις.</small></span></summary>
         <div className="workspace-tool-body">
           <div className="workspace-compact-list">
             {initial.recentRuns.map((run) => <div className="workspace-compact-row" key={run.id}>
               <div>
                 <strong>{when(run.startedAt)} · {run.triggerType} · {run.status}</strong>
                 {run.validationErrors.length > 0 && <details style={{ marginTop: 6 }}>
-                  <summary>Προβολή {run.validationErrors.length.toLocaleString("el-GR")} validation errors</summary>
+                  <summary>Προβολή {run.validationErrors.length.toLocaleString("el-GR")} σφάλματα ελέγχου</summary>
                   <div className="workspace-compact-list" style={{ marginTop: 8 }}>
                     {run.validationErrors.slice(0, 40).map((item,index) => <div className="workspace-compact-row" key={run.id + ":" + index}>
-                      <strong>Row {item.rowNumber}{item.externalId ? " · " + item.externalId : ""}</strong>
+                      <strong>Γραμμή {item.rowNumber}{item.externalId ? " · " + item.externalId : ""}</strong>
                       <span>{item.field ? item.field + ": " : ""}{item.message}</span>
                     </div>)}
                   </div>
                 </details>}
               </div>
-              <span>{run.validRows}/{run.totalRows} valid · {run.createdSubmissions} νέα · {run.updatedOffers} offers · {run.errorRows} errors</span>
+              <span>{run.validRows}/{run.totalRows} έγκυρα · {run.createdSubmissions} νέα · {run.updatedOffers} προσφορές · {run.errorRows} σφάλματα</span>
             </div>)}
           </div>
         </div>
