@@ -171,3 +171,53 @@
   .vendor-dropshipping-default-grid>label{min-height:44px}
   .vendor-app details>summary{touch-action:manipulation}
 }
+
+
+/* Vendor pass 3: component-level forms and dense workflows. */
+.vendor-segmented-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-bottom:16px;
+}
+.vendor-table-scroll{
+  overflow-x:auto;
+  overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;
+}
+.vendor-xml-category-select{
+  width:100%;
+  min-width:220px;
+}
+.vendor-daily-access-stack,
+.vendor-daily-access-list,
+.vendor-daily-access-card,
+.vendor-daily-access-actions{
+  display:grid;
+  gap:14px;
+}
+.vendor-daily-access-stack{gap:24px}
+.vendor-daily-access-card.is-inactive{opacity:.68}
+.vendor-card-title{margin:4px 0 6px;color:var(--dash-navy)}
+.vendor-card-copy{margin:0;color:var(--dash-muted);font-size:12px;line-height:1.55}
+.vendor-field-help{color:var(--dash-muted);font-size:10px;line-height:1.45}
+.vendor-inline-reset-form{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.vendor-inline-reset-form input{
+  flex:1 1 220px;
+  min-width:0;
+}
+
+@media(max-width:620px){
+  .vendor-segmented-actions{display:grid;grid-template-columns:1fr 1fr}
+  .vendor-segmented-actions .button{width:100%}
+  .vendor-xml-category-select{min-width:0}
+  .vendor-daily-access-form{grid-template-columns:1fr!important}
+  .vendor-daily-access-form .span-2{grid-column:auto!important}
+  .vendor-inline-reset-form{display:grid;grid-template-columns:1fr}
+  .vendor-inline-reset-form .button{width:100%}
+  .vendor-daily-access-actions>.button{width:100%}
+}
