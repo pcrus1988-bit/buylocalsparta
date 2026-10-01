@@ -120,7 +120,7 @@ async function loadCandidates(limit: number): Promise<readonly Candidate[]> {
               AND pm.kind='image'
               AND pm.original_filename LIKE (
                 'vfeed:' || i.id::text || ':%:' ||
-                substr(encode(extensions.digest(source_image.src,'sha256')),1,12) || ':%'
+                substr(md5(source_image.src),1,12) || ':%'
               )
           )
       )
@@ -156,7 +156,7 @@ function basenameFromUrl(value: string): string {
 }
 
 function originalFilename(candidate: Candidate, image: FeedImage): string {
-  const hash = createHash("sha256").update(image.src).digest("hex").slice(0, 12);
+  const hash = createHash("md5").update(image.src).digest("hex").slice(0, 12);
   return `vfeed:${candidate.itemUuid}:${image.sortOrder}:${hash}:${basenameFromUrl(image.src)}`.slice(0, 240);
 }
 
