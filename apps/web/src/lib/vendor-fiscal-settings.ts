@@ -515,7 +515,7 @@ export async function testVendorAadeConnection(principal: SessionPrincipal): Pro
   const checkedAt = Date.now();
   try {
     const today = aadeToday();
-    await client.requestTransmittedDocs({ mark: "0", dateFrom: today, dateTo: today });
+    await client.requestMyIncome({ dateFrom: today, dateTo: today });
     await recordConnectionStatus(principal, context, identity, "succeeded");
     return { ok: true, checkedAt, snapshot: await vendorFiscalSettings(principal) };
   } catch (error) {
