@@ -138,6 +138,38 @@ for (const destination of ["/vendor/catalog", "/vendor/shipping", "/vendor/retur
 if (!vendorDashboard.includes('density="compact"')) failures.push("Vendor dashboard quick actions must use compact density");
 if (vendorDashboard.includes('fetch("/api/vendor/logout"')) failures.push("Vendor logout must stay in the shared header");
 
+
+for (const forbidden of ['kicker: "Catalog"', 'kicker: "Fulfilment"', '<div className="eyebrow">Fulfilment</div>', '<div className="eyebrow">Inventory</div>', "<dt>Safety stock</dt>", ">On hand</label>", "invoice matching", "settlement controls"]) {
+  if (vendorDashboard.includes(forbidden)) failures.push(`Vendor home still exposes system wording ${forbidden}`);
+}
+
+const vendorDailyAccess = read("apps/web/src/components/VendorDailyAccessClient.tsx");
+if (vendorDailyAccess.includes("<VendorLifecycle")) failures.push("Vendor Daily access must not show redundant lifecycle strips");
+for (const requirement of ["Τι μπορεί να κάνει;", "Ποιος έχει πρόσβαση", "Συνδεδεμένες συσκευές / συνεδρίες"]) if (!vendorDailyAccess.includes(requirement)) failures.push(`Vendor Daily access simplification is missing ${requirement}`);
+
+const vendorStorefrontBuilder = read("apps/web/src/components/VendorStorefrontBuilder.tsx");
+for (const requirement of ["styles.editorGroup", "Ενότητες προφίλ", "Προαιρετική σύνδεση αναρτήσεων και Reels", "Ιδιωτική προεπισκόπηση"]) if (!vendorStorefrontBuilder.includes(requirement)) failures.push(`Vendor storefront progressive disclosure is missing ${requirement}`);
+
+const vendorDeliveryEligibility = read("apps/web/src/components/VendorDeliveryEligibilityPanel.tsx");
+for (const forbidden of ["Φορτώνονται μόνο <strong>{PAGE_SIZE}</strong>", "Αναζήτηση και φίλτρα εκτελούνται στη βάση", "δεν κατεβάζει πλέον όλο τον κατάλογο"]) if (vendorDeliveryEligibility.includes(forbidden)) failures.push(`Vendor delivery modes still expose implementation detail ${forbidden}`);
+for (const requirement of ["Εφαρμογή σε πολλά προϊόντα", "Δικές σου ρυθμίσεις", "Επίλεξε τα εμφανιζόμενα"]) if (!vendorDeliveryEligibility.includes(requirement)) failures.push(`Vendor delivery modes clarity is missing ${requirement}`);
+
+const vendorSmartProductForm = read("apps/web/src/components/VendorSmartProductForm.tsx");
+for (const forbidden of ["canonical προϊόν", "canonical παραλλαγής", "canonical matching"]) if (vendorSmartProductForm.includes(forbidden)) failures.push(`Vendor product form still exposes catalogue internals ${forbidden}`);
+
+const dropshippingFields = read("apps/web/src/components/DropshippingProductFieldControls.tsx");
+for (const forbidden of ["Public fields", "Save override", "Use supplier defaults", "product override", "supplier defaults"]) if (dropshippingFields.includes(forbidden)) failures.push(`Dropshipping product fields still expose internal wording ${forbidden}`);
+for (const requirement of ["Στοιχεία που εμφανίζονται στον πελάτη", "Αποθήκευση ειδικών ρυθμίσεων", "Χρήση γενικών ρυθμίσεων"]) if (!dropshippingFields.includes(requirement)) failures.push(`Dropshipping product field UX is missing ${requirement}`);
+
+const vendorArchivedProducts = read("apps/web/src/components/VendorArchivedProductsPanel.tsx");
+for (const forbidden of ["Αρχείο Admin", "στον Admin"]) if (vendorArchivedProducts.includes(forbidden)) failures.push(`Archived product recovery still exposes admin wording ${forbidden}`);
+
+const vendorPriceManager = read("apps/web/src/components/VendorPriceManager.tsx");
+for (const forbidden of [">Markup</label>", "backoffice", "στο checkout", "στον server"]) if (vendorPriceManager.includes(forbidden)) failures.push(`Vendor price manager still exposes technical wording ${forbidden}`);
+for (const requirement of ["αγορά → περιθώριο → έκπτωση", "Τι θα βλέπει ο πελάτης:", "Εμφάνιση προτεινόμενης λιανικής στο κατάστημα"]) if (!vendorPriceManager.includes(requirement)) failures.push(`Vendor pricing UX is missing ${requirement}`);
+
+for (const requirement of ['eyebrow="Συνεργασία"', "Εμφάνιση στη Google", "Ρύθμιση εμφάνισης"]) if (!vendorSettingsPage.includes(requirement)) failures.push(`Vendor settings index second-pass polish is missing ${requirement}`);
+
 requireText("apps/web/src/app/admin/page.tsx", ["AdminDashboardCanvas", 'id: "attention"', "totalAttention", 'kind: "metric"', "/admin/partners/pipeline", "/admin/matching", "/admin/trust", "/admin/finance", "/admin/fairness"]);
 requireText("apps/web/src/components/AdminDashboardCanvas.tsx", ["STORAGE_KEY", "defaultLayout", "mergeLayout", "saveCurrentView", "resetLayout", "widgetQuery", "admin-dashboard-canvas", "admin-dashboard-widget-stats", "admin-dashboard-widget-list", "admin-dashboard-widget-controls"]);
 if (read("apps/web/src/app/admin/page.tsx").includes("Admin directory")) failures.push("Admin Command Centre must not duplicate the sidebar directory");
