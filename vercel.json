@@ -15,6 +15,10 @@
       "schedule": "*/10 * * * *"
     },
     {
+      "path": "/api/cron/vendor-product-feeds",
+      "schedule": "*/10 * * * *"
+    },
+    {
       "path": "/api/cron/vitex-source-monitor",
       "schedule": "17 * * * *"
     },
