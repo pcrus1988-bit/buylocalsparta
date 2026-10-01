@@ -124,23 +124,42 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
 
   async function bulkSubmitDrafts() {
     if (!draftSubmissions.length) return;
-    if (!window.confirm("Να σταλούν και τα " + draftSubmissions.length.toLocaleString("el-GR") + " πρόχειρα προϊόντα για έλεγχο;")) return;
+    const total = draftSubmissions.length;
+    if (!window.confirm("Να σταλούν και τα " + total.toLocaleString("el-GR") + " πρόχειρα προϊόντα για έλεγχο;")) return;
     setBusy("bulk-submit");
     setError("");
     setNotice("");
+    let submitted = 0;
+    let skipped = 0;
     try {
-      const response = await fetch("/api/vendor/catalog/products/bulk-submit", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-csrf-token": initial.csrfToken },
-        body: JSON.stringify({ all: true })
-      });
-      const payload = await response.json() as { error?: string; submitted?: number; skipped?: number };
-      if (!response.ok) throw new Error(payload.error ?? "Η μαζική υποβολή δεν ολοκληρώθηκε.");
-      const skippedText = payload.skipped ? " · " + payload.skipped.toLocaleString("el-GR") + " παραλείφθηκαν επειδή δεν ήταν πλέον πρόχειρα" : "";
-      setNotice(Number(payload.submitted ?? 0).toLocaleString("el-GR") + " προϊόντα στάλθηκαν για έλεγχο" + skippedText + ".");
+      for (let batchNumber = 0; batchNumber < 100; batchNumber += 1) {
+        const response = await fetch("/api/vendor/catalog/products/bulk-submit", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-csrf-token": initial.csrfToken },
+          body: JSON.stringify({ all: true, batchSize: 50 })
+        });
+        const payload = await response.json() as { error?: string; submitted?: number; skipped?: number; remaining?: number };
+        if (!response.ok) throw new Error(payload.error ?? "Η μαζική υποβολή δεν ολοκληρώθηκε.");
+
+        const batchSubmitted = Number(payload.submitted ?? 0);
+        const batchSkipped = Number(payload.skipped ?? 0);
+        const remaining = Number(payload.remaining ?? 0);
+        submitted += batchSubmitted;
+        skipped += batchSkipped;
+        setNotice(
+          remaining > 0
+            ? submitted.toLocaleString("el-GR") + " από " + total.toLocaleString("el-GR") + " προϊόντα στάλθηκαν για έλεγχο…"
+            : submitted.toLocaleString("el-GR") + " προϊόντα στάλθηκαν για έλεγχο" + (skipped ? " · " + skipped.toLocaleString("el-GR") + " παραλείφθηκαν" : "") + "."
+        );
+
+        if (remaining <= 0) break;
+        if (batchSubmitted === 0) throw new Error("Η μαζική υποβολή σταμάτησε χωρίς πρόοδο. Δοκίμασε ξανά.");
+      }
       router.refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Η μαζική υποβολή δεν ολοκληρώθηκε.");
+      const message = cause instanceof Error ? cause.message : "Η μαζική υποβολή δεν ολοκληρώθηκε.";
+      setError((submitted ? submitted.toLocaleString("el-GR") + " προϊόντα στάλθηκαν πριν διακοπεί η διαδικασία. " : "") + message);
+      router.refresh();
     } finally {
       setBusy("");
     }
