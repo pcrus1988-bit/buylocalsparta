@@ -19,7 +19,7 @@ export default async function VendorDailyAccessPage() {
       <div>
         <div className="eyebrow">Ρυθμίσεις · Daily</div>
         <h1>Πρόσβαση στο KONTA MOY Daily</h1>
-        <p className="lead">Διαχειρίσου ποιος μπορεί να χρησιμοποιεί την καθημερινή λειτουργία. Δεν υπάρχουν επιμέρους ρόλοι Daily: κάθε ενεργή πρόσβαση έχει το ίδιο περιορισμένο εύρος λειτουργιών.</p>
+        <p className="lead">Δώσε ξεχωριστή πρόσβαση στα άτομα της ομάδας που χειρίζονται τις καθημερινές εργασίες, χωρίς να τους ανοίγεις ολόκληρο τον χώρο συνεργάτη.</p>
       </div>
     </section>
     <section className="shell vendor-section" style={{ maxWidth: 920 }}>
