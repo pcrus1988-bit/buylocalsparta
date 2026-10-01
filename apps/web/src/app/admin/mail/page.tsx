@@ -117,7 +117,10 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
   if (configuration.configured) {
     try {
       const sync = await syncAdminInboundMail({ maxNew: 25 });
-      if (sync.indexed > 0) syncNotice = `${sync.indexed} new message${sync.indexed === 1 ? "" : "s"} indexed from S3.`;
+      const notices: string[] = [];
+      if (sync.indexed > 0) notices.push(`${sync.indexed} new message${sync.indexed === 1 ? "" : "s"} indexed from S3.`);
+      if (sync.failed > 0) notices.push(`${sync.failed} inbound object${sync.failed === 1 ? "" : "s"} quarantined for review; later S3 mail will continue syncing.`);
+      syncNotice = notices.join(" ");
     } catch (error) {
       syncNotice = error instanceof Error ? error.message : "Inbound S3 sync failed.";
     }
