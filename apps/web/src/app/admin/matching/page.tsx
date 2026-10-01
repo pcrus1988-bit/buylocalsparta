@@ -31,7 +31,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
   const candidateActions = data.metrics.candidateActions;
   const linked = data.metrics.linked;
   const offerReady = data.metrics.offerReady;
-  const bulkApprovalIds = filteredSubmissions.filter((item) => ["submitted", "needs_review", "linked"].includes(item.status)).map((item) => item.id);
   const hrefFor = (submissionId: string) => {
     const search = new URLSearchParams();
     if (query) search.set("q", query);
@@ -60,7 +59,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Triage workspace" title="Matching queue & decision panel" note="Search σε source title, vendor, category, canonical ID ή submission ID. Δημιουργία canonical εδώ αφορά μόνο product identity· δεν δημιουργεί ή τιμολογεί vendor offer." />
       <form method="get" className="admin-directory-filters"><label><span>Search</span><input name="q" defaultValue={query ?? ""} placeholder="Product, vendor, canonical ID…" /></label><label><span>Status</span><select name="status" defaultValue={status ?? ""}><option value="">All statuses</option>{statuses.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</select></label><div><button className="button button-secondary" type="submit">Filter</button>{(query || status) && <Link className="text-link" href="/admin/matching">Clear</Link>}</div></form>
-      <AdminBulkCatalogApproval csrfToken={data.csrfToken} submissionIds={bulkApprovalIds} />
+      <AdminBulkCatalogApproval csrfToken={data.csrfToken} query={query} status={status} filteredTotal={data.filteredTotal} />
       {filteredSubmissions.length === 0 ? <WorkspaceEmptyState title="Δεν βρέθηκαν matching submissions με αυτά τα φίλτρα." /> : <div className="admin-split-workspace">
         <div className="admin-triage-list" aria-label="Matching submissions">{filteredSubmissions.map((submission) => {
           const decisions = submission.candidates.filter((candidate) => ["pending", "auto_linked"].includes(candidate.status)).length;
