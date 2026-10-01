@@ -142,7 +142,7 @@ function inferCategoryCode(
   const genderFrom = (value: string) => ({
     male: hasIn(value, "ανδρ", "mens ", " men "),
     female: hasIn(value, "γυναικ", "womens ", " women "),
-    kid: hasIn(value, "παιδ", "αγορ", "κοριτσ", "kids ", "child")
+    kid: hasIn(value, "παιδ", "αγορ", "κοριτσ", "μπεμπ", "kids ", "child", "baby")
   });
   let gender = genderFrom(leaf);
   if (!gender.male && !gender.female && !gender.kid) gender = genderFrom(titleKey);
@@ -163,7 +163,7 @@ function inferCategoryCode(
 
   if (has("μποτακ", "μποτες", " boots", " boot ")) return available(male ? "mens-boots" : female ? "womens-boots" : kid ? "kids-boots" : undefined);
   if (has("επισημ", "formal") && has("παπου", "shoe")) return available(male ? "mens-formal-shoes" : female ? "womens-formal-shoes" : kid ? "kids-formal-shoes" : undefined);
-  if (has("σανδαλ", "σαγιον", "havaianas", "crocs", "sandal")) return available(male ? "mens-sandals" : female ? "womens-sandals" : kid ? "kids-sandals" : undefined);
+  if (has("σανδαλ", "σαγιον", "σαμπο", "havaianas", "crocs", "sandal", "clog")) return available(male ? "mens-sandals" : female ? "womens-sandals" : kid ? "kids-sandals" : undefined);
   if ((has("αθλητικ") && has("παπου")) || has("sneaker", "trainer")) {
     if (has("τρεξ", "running")) return available(male ? "mens-running-shoes" : female ? "womens-running-shoes" : kid ? "kids-running-shoes" : undefined);
     return available(male ? "mens-sneakers" : female ? "womens-sneakers" : kid ? "kids-sneakers" : undefined);
@@ -179,7 +179,7 @@ function inferCategoryCode(
   if (has("φορεμα", "dress")) return available(female ? "fashion-womens-dresses" : male ? "fashion-mens-dresses" : undefined);
   if (has("φουστ", "skirt")) return available(female ? "fashion-womens-skirts" : male ? "fashion-mens-skirts" : undefined);
   if (has("ολοσωμ", "jumpsuit")) return available(female ? "fashion-womens-jumpsuits" : undefined);
-  if (has("σετ", "φορμ", "κολαν", "φουτερ", "ζακετ", "tracksuit", "legging", "hoodie", "sweatshirt")) {
+  if (has("σετ", "φορμ", "κολαν", "φουτερ", "ζακετ", "μπουστακ", "tracksuit", "legging", "hoodie", "sweatshirt", "sports bra")) {
     return available(male ? "fashion-mens-activewear" : female ? "fashion-womens-activewear" : undefined);
   }
 
