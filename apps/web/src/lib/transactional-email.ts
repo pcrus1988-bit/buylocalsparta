@@ -1,6 +1,7 @@
 import { ResendEmailProvider, ResendWebhookVerifier, resendConfigFromEnv, resendDeliveryEnabled } from "@buy-local-sparta/resend-notifications";
 import type { Notification } from "@buy-local-sparta/core";
 import { buildAdminMailRawMime } from "./admin-mail-mime";
+import { indexDeliveredSesMail } from "./admin-mail-outbound-index";
 import { sendRawSesEmail, sesMailConfigFromEnv, sesMailConfigured } from "./admin-mail-ses";
 import { resolveAutomaticEmailTemplate } from "./email-template-lab";
 
@@ -52,12 +53,26 @@ export async function sendTransactionalEmail(input: TransactionalEmailInput): Pr
       text: resolved.text,
       internetMessageIdDomain: domain
     });
-    return sendRawSesEmail({
+    const delivery = await sendRawSesEmail({
       config: sesMailConfigFromEnv(),
       raw: mime.raw,
       from: fromAddress,
       to: [destination]
     });
+    try {
+      await indexDeliveredSesMail({ raw: mime.raw, providerMessageId: delivery.providerMessageId, sentAt: Date.now() });
+    } catch (indexError) {
+      // SES already accepted the email. Mailbox indexing must never turn a successful
+      // delivery into a retryable send failure that could duplicate the message.
+      console.error(JSON.stringify({
+        level: "error",
+        event: "transactional_email.sent_index_failed",
+        providerMessageId: delivery.providerMessageId,
+        eventType: input.eventType,
+        message: indexError instanceof Error ? indexError.message : String(indexError)
+      }));
+    }
+    return delivery;
   }
 
   const now = Date.now();
