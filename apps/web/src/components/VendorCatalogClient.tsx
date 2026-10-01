@@ -224,7 +224,7 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
           <span style={{ display: "block", marginTop: 4 }}>Σύνδεσε XML URL ή ανέβασε XML αρχείο και κράτησε τιμές, stock, εικόνες και νέα προϊόντα συγχρονισμένα.</span>
         </div>
         <div className="workspace-action-buttons">
-          <Link className="button" href="/vendor/catalog/feed">XML Product Feed</Link>
+          <Link className="button" href="/vendor/catalog/feed">XML Feed / Product Import</Link>
         </div>
       </div>}
       <details className="workspace-tool-panel" open>
