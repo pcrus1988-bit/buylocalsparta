@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { VendorLifecycle } from "../../../components/VendorLifecycle";
+import { VendorStorefrontBuilder } from "../../../components/VendorStorefrontBuilder";
 import { VendorStorefrontMediaClient } from "../../../components/VendorStorefrontMediaClient";
 import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
 import { WorkspaceHowItWorks, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { getVendorSession } from "../../../lib/vendor-session";
 import { vendorProfileMediaWorkspace } from "../../../lib/vendor-profile-media-service";
+import { vendorStorefrontWorkspace } from "../../../lib/vendor-storefront-settings";
 
 export const metadata: Metadata = { title: "Vendor · Storefront", robots: { index: false, follow: false } };
 
@@ -18,6 +20,7 @@ export default async function VendorStorefrontPage() {
   const principal = await getVendorSession();
   if (!principal) redirect("/vendor/login");
   const workspace = await vendorProfileMediaWorkspace(principal);
+  const storefront = await vendorStorefrontWorkspace(principal);
   const liveRoles = new Set(workspace.assignments.filter(isPublished).map((asset) => asset.role));
   const steps = [
     { label: "Λογότυπο", tone: liveRoles.has("logo") ? "done" as const : "attention" as const, detail: liveRoles.has("logo") ? "Δημοσιευμένο" : "Πρόσθεσε λογότυπο" },
@@ -51,6 +54,15 @@ export default async function VendorStorefrontPage() {
         <p><strong>Άνθρωποι / ομάδα:</strong> υποστηρίζει την ανθρώπινη, συμβουλευτική ταυτότητα του ΚΟΝΤΑ ΜΟΥ.</p>
         <p><strong>Gallery:</strong> δείχνει χώρο, υπηρεσίες και εμπειρία. Οι φωτογραφίες προϊόντων διαχειρίζονται ξεχωριστά.</p>
       </WorkspaceHowItWorks>
+    </section>
+
+    <section className="shell vendor-section">
+      <WorkspaceSectionHeading
+        eyebrow="Storefront Builder"
+        title="Σχεδίαση, ενότητες & Instagram"
+        note="Ρύθμισε τη δημόσια βιτρίνα, σύνδεσε το επαγγελματικό Instagram και έλεγξε πώς θα εμφανίζεται το περιεχόμενο σε mobile και desktop."
+      />
+      <VendorStorefrontBuilder initial={storefront} csrfToken={principal.csrfToken} />
     </section>
 
     <VendorStorefrontMediaClient initial={workspace} />

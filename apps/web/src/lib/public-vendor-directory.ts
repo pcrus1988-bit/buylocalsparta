@@ -5,6 +5,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 import { approvedVendorImages, approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "./public-media-service";
 import { hasUsablePublicCoordinates } from "./public-data-integrity";
 import { publicVendorTaxonomies, type PublicVendorTaxonomy } from "./public-vendor-taxonomy";
+import { publicVendorInstagramSettings, type VendorInstagramSettings } from "./vendor-storefront-settings";
 
 export type PublicVendorCoordinates = Readonly<{
   latitude: number;
@@ -65,6 +66,7 @@ export type PublicVendorDirectoryEntry = Readonly<{
   mediaId?: string;
   mediaAlt?: string;
   directoryStatus: PublicVendorDirectoryStatus;
+  instagram?: VendorInstagramSettings;
 }>;
 
 type VendorDirectoryRow = SqlRow & {
@@ -104,6 +106,7 @@ type VendorDirectoryRow = SqlRow & {
   research_online_shop_url?: string | null;
   research_checked_at?: string | null;
   canonical_count?: number | string | null;
+  storefront_settings?: unknown;
 };
 
 function optionalText(value: unknown): string | undefined {
@@ -228,7 +231,8 @@ function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
     taxonomies: publicVendorTaxonomies({ majorBranch, subBranch, categoryCodes }),
     research,
     canonicalCount: isPartner ? asCount(row.canonical_count) : 0,
-    directoryStatus: isPartner ? "partner" : "research"
+    directoryStatus: isPartner ? "partner" : "research",
+    instagram: isPartner ? publicVendorInstagramSettings(row.storefront_settings) : undefined
   };
 }
 
@@ -239,6 +243,7 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
     SELECT v.public_id AS vendor_id,
            v.trading_name AS vendor_name,
            v.status::text AS vendor_status,
+           v.storefront_settings,
            adviser.name AS adviser_name,
            location.name AS location_name,
            location.address_line1,
@@ -415,7 +420,7 @@ const loadPersistedPublicVendorDirectoryEntry = unstable_cache(
     const fallback = fallbackImages[0];
     return fallback ? { ...vendor, mediaId: fallback.mediaId, mediaAlt: fallback.altText } : vendor;
   },
-  ["public-vendor-directory-entry-v2"],
+  ["public-vendor-directory-entry-v3"],
   { revalidate: 60 }
 );
 
