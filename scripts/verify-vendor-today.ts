@@ -38,7 +38,7 @@ const client = readFileSync("apps/web/src/components/VendorDailyHomeClient.tsx",
 const page = readFileSync("apps/web/src/app/daily/page.tsx", "utf8");
 if (!source.includes('timeZone: "Europe/Athens"')) throw new Error("Today intelligence must use the Sparta/Athens calendar day");
 if (!source.includes("72 * HOUR_MS")) throw new Error("Stock freshness must have an explicit 72-hour boundary");
-if (!client.includes("Σήμερα · Σπάρτη") || !client.includes("stockFreshnessPercent")) throw new Error("Daily home must expose the localized Today operating brief and stock freshness");
+if (!client.includes("Σήμερα · {marketLabel}") || !client.includes("stockFreshnessPercent")) throw new Error("Daily home must expose the HUB-aware localized Today operating brief and stock freshness");
 const inboxIndex = client.indexOf("Χρειάζεται επιβεβαίωση");
 const todayIndex = client.indexOf('id="daily-today-title"');
 if (inboxIndex < 0 || todayIndex < 0 || inboxIndex > todayIndex) throw new Error("Unacknowledged orders must appear before the Today summary");
