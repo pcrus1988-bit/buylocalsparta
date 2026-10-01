@@ -236,10 +236,11 @@ export async function saveVendorProductFeed(
       await tx.query(sql(
         "UPDATE vendor_offers vo SET merchant_visible=COALESCE(i.previous_offer_merchant_visible,false),updated_at=now()",
         "FROM vendor_product_feed_items i",
-        "WHERE i.feed_id=$1::uuid AND i.state='present' AND i.hidden_by_feed=true AND i.offer_id=vo.id"
+        "WHERE i.feed_id=$1::uuid AND i.state='present' AND i.hidden_by_feed=true AND i.offer_id=vo.id",
+        "AND i.hidden_by_feed_at IS NOT NULL AND vo.merchant_visibility_updated_at<=i.hidden_by_feed_at"
       ), [feedUuid]);
       await tx.query(sql(
-        "UPDATE vendor_product_feed_items SET hidden_by_feed=false,previous_offer_merchant_visible=NULL,updated_at=now()",
+        "UPDATE vendor_product_feed_items SET hidden_by_feed=false,previous_offer_merchant_visible=NULL,hidden_by_feed_at=NULL,updated_at=now()",
         "WHERE feed_id=$1::uuid AND state='present' AND hidden_by_feed=true"
       ), [feedUuid]);
 
@@ -252,7 +253,7 @@ export async function saveVendorProductFeed(
         missingRows = missing.rowCount;
 
         await tx.query(sql(
-          "UPDATE vendor_product_feed_items i SET state='retired',hidden_by_feed=true,",
+          "UPDATE vendor_product_feed_items i SET state='retired',hidden_by_feed=true,hidden_by_feed_at=now(),",
           "previous_offer_merchant_visible=vo.merchant_visible,updated_at=now()",
           "FROM vendor_offers vo",
           "WHERE i.feed_id=$1::uuid AND i.state='missing' AND i.consecutive_missing>=2",
@@ -310,6 +311,16 @@ export async function saveVendorProductFeed(
         "FROM vendor_product_feed_items i WHERE i.feed_id=$1::uuid AND i.state='present' AND i.offer_id=ib.offer_id"
       ), [feedUuid]);
 
+      // Reuse a pending/manual/CSV submission with the same vendor+location SKU
+      // before creating a new feed-owned submission. This preserves the existing
+      // catalogue identity instead of tripping the unique vendor SKU constraint.
+      await tx.query(sql(
+        "UPDATE vendor_product_feed_items i SET submission_id=s.id,updated_at=now()",
+        "FROM vendor_product_submissions s",
+        "WHERE i.feed_id=$1::uuid AND i.state='present' AND i.offer_id IS NULL AND i.submission_id IS NULL",
+        "AND i.vendor_sku IS NOT NULL AND s.vendor_id=$2::uuid AND s.location_id=$3::uuid AND s.vendor_sku=i.vendor_sku"
+      ), [feedUuid, vendorUuid, locationUuid]);
+
       const updatedSubmissions = await tx.query<SqlRow>(sql(
         "UPDATE vendor_product_submissions s SET",
         "vendor_sku=COALESCE(i.vendor_sku,s.vendor_sku),supplier_unit_price_minor=(i.source_payload->>'priceMinor')::bigint,",
@@ -332,6 +343,8 @@ export async function saveVendorProductFeed(
         "JOIN LATERAL (SELECT c.id FROM categories c WHERE c.code=i.source_payload->>'categoryCode'",
         "AND (c.market_id IS NULL OR c.market_id=$2::uuid) ORDER BY c.market_id NULLS LAST LIMIT 1) c ON true",
         "WHERE i.feed_id=$1::uuid AND i.state='present' AND i.offer_id IS NULL AND i.submission_id IS NULL",
+        "AND (i.vendor_sku IS NULL OR NOT EXISTS (SELECT 1 FROM vendor_product_submissions existing",
+        "WHERE existing.vendor_id=$3::uuid AND existing.location_id=$4::uuid AND existing.vendor_sku=i.vendor_sku))",
         "RETURNING id,source_payload->>'feedExternalId' AS external_id"
       ), [feedUuid, marketUuid, vendorUuid, locationUuid, feedPublicId, userUuid]);
 
@@ -341,6 +354,15 @@ export async function saveVendorProductFeed(
         "AND s.vendor_id=$2::uuid AND s.source='api' AND s.source_payload->>'feedId'=$3",
         "AND s.source_payload->>'feedExternalId'=i.external_product_id"
       ), [feedUuid, vendorUuid, feedPublicId]);
+
+      // If a competing/manual import created the same SKU between the pre-check
+      // and insert, attach that authoritative row rather than failing the feed.
+      await tx.query(sql(
+        "UPDATE vendor_product_feed_items i SET submission_id=s.id,updated_at=now()",
+        "FROM vendor_product_submissions s",
+        "WHERE i.feed_id=$1::uuid AND i.submission_id IS NULL AND i.offer_id IS NULL AND i.vendor_sku IS NOT NULL",
+        "AND s.vendor_id=$2::uuid AND s.location_id=$3::uuid AND s.vendor_sku=i.vendor_sku"
+      ), [feedUuid, vendorUuid, locationUuid]);
 
       await tx.query(sql(
         "UPDATE vendor_product_submissions s SET status='submitted',updated_at=now()",
