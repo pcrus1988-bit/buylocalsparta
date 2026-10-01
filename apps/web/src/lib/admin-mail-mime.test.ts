@@ -35,14 +35,28 @@ test("admin mail MIME round-trips UTF-8 body, reply headers and attachments", ()
   assert.match(built.internetMessageId, /@kontamou\.site>$/);
 });
 
-test("thread key ignores Re/Fwd subject prefixes and uses reply lineage when present", () => {
-  const base = adminMailThreadKey({ subject: "Vendor application" });
-  assert.equal(adminMailThreadKey({ subject: "Re: Vendor application" }), base);
-  assert.equal(adminMailThreadKey({ subject: "Fwd: Re: Vendor application" }), base);
+test("thread key keeps root and external reply chains together", () => {
+  const subjectOnly = adminMailThreadKey({ subject: "Vendor application" });
+  assert.equal(adminMailThreadKey({ subject: "Re: Vendor application" }), subjectOnly);
+  assert.equal(adminMailThreadKey({ subject: "Fwd: Re: Vendor application" }), subjectOnly);
 
-  const replyA = adminMailThreadKey({ subject: "Something else", inReplyTo: "<root@kontamou.site>" });
-  const replyB = adminMailThreadKey({ subject: "Re: Changed subject", references: ["<root@kontamou.site>"] });
-  assert.equal(replyA, replyB);
+  const root = adminMailThreadKey({
+    subject: "Vendor application",
+    internetMessageId: "<root@kontamou.site>"
+  });
+  const oneHopReply = adminMailThreadKey({
+    subject: "Re: Vendor application",
+    internetMessageId: "<reply-1@example.com>",
+    inReplyTo: "<root@kontamou.site>"
+  });
+  const deepReply = adminMailThreadKey({
+    subject: "Changed subject",
+    internetMessageId: "<reply-2@example.com>",
+    inReplyTo: "<reply-1@example.com>",
+    references: ["<root@kontamou.site>", "<reply-1@example.com>"]
+  });
+  assert.equal(oneHopReply, root);
+  assert.equal(deepReply, root);
 });
 
 test("parser accepts a minimal SES-style RFC822 message", () => {
