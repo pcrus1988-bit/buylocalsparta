@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { type SqlRow } from "@buy-local-sparta/core";
 import { S3ObjectStorage, objectStorageConfigFromEnv } from "@buy-local-sparta/object-storage";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
-import { assertPublicVendorUrl } from "./vendor-product-feed-preview";
+import { fetchPublicVendorResource } from "./vendor-product-feed-preview";
 
 type Candidate = Readonly<{
   itemUuid: string;
@@ -162,41 +162,20 @@ async function existingFilenames(candidate: Candidate): Promise<Set<string>> {
 }
 
 async function downloadImage(rawUrl: string): Promise<{ bytes: Uint8Array; contentType: string; sha256: string }> {
-  let url = new URL(rawUrl);
-  for (let redirect = 0; redirect <= 3; redirect += 1) {
-    await assertPublicVendorUrl(url);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20_000);
-    try {
-      const response = await fetch(url, {
-        method: "GET",
-        redirect: "manual",
-        signal: controller.signal,
-        headers: {
-          accept: "image/jpeg,image/png,image/webp;q=0.9,*/*;q=0.1",
-          "user-agent": "KONTAMOU-VendorFeed-Media/1.0 (+https://kontamou.site/)"
-        }
-      });
-      if ([301,302,303,307,308].includes(response.status)) {
-        const location = response.headers.get("location");
-        if (!location || redirect === 3) throw new Error("vendor_feed_image_redirect_invalid");
-        url = new URL(location, url);
-        continue;
-      }
-      if (!response.ok) throw new Error(`vendor_feed_image_http_${response.status}`);
-      const contentType = (response.headers.get("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
-      if (!ALLOWED_IMAGE_TYPES.has(contentType)) throw new Error(`vendor_feed_image_type_${contentType || "unknown"}`);
-      const maxBytes = maxMediaBytes();
-      const declared = Number(response.headers.get("content-length") ?? 0);
-      if (Number.isFinite(declared) && declared > maxBytes) throw new Error("vendor_feed_image_too_large");
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      if (!bytes.byteLength || bytes.byteLength > maxBytes) throw new Error("vendor_feed_image_size_invalid");
-      return { bytes, contentType, sha256: createHash("sha256").update(bytes).digest("hex") };
-    } finally {
-      clearTimeout(timer);
-    }
+  const response = await fetchPublicVendorResource(rawUrl, {
+    maxBytes: maxMediaBytes(),
+    accept: "image/jpeg,image/png,image/webp;q=0.9,*/*;q=0.1",
+    userAgent: "KONTAMOU-VendorFeed-Media/1.0 (+https://kontamou.site/)"
+  });
+  if (!ALLOWED_IMAGE_TYPES.has(response.contentType)) {
+    throw new Error(`vendor_feed_image_type_${response.contentType || "unknown"}`);
   }
-  throw new Error("vendor_feed_image_fetch_failed");
+  if (!response.bytes.byteLength) throw new Error("vendor_feed_image_size_invalid");
+  return {
+    bytes: response.bytes,
+    contentType: response.contentType,
+    sha256: createHash("sha256").update(response.bytes).digest("hex")
+  };
 }
 
 async function persistImage(candidate: Candidate, image: FeedImage, filename: string): Promise<"imported" | "skipped"> {
