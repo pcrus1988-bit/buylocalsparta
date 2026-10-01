@@ -394,6 +394,7 @@ export function AdminMailClient({
       {detail && <div className="admin-mail-reader-content">
         <header className="admin-mail-reader-head">
           <div className="admin-mail-reader-actions">
+            <button type="button" className="admin-mail-back-list" onClick={() => { setSelectedId(undefined); setDetail(undefined); }}>← Mail list</button>
             {detail.direction === "inbound" && <button type="button" onClick={beginReply}>↩ Reply</button>}
             <button type="button" onClick={beginForward}>↗ Forward</button>
             <button type="button" title={detail.starred ? "Unstar" : "Star"} onClick={() => void updateState({ starred: !detail.starred }, detail.starred ? "Star removed." : "Message starred.")}>{detail.starred ? "★" : "☆"}</button>
