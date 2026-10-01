@@ -1,5 +1,7 @@
 import { ResendEmailProvider, ResendWebhookVerifier, resendConfigFromEnv, resendDeliveryEnabled } from "@buy-local-sparta/resend-notifications";
 import type { Notification } from "@buy-local-sparta/core";
+import { buildAdminMailRawMime } from "./admin-mail-mime";
+import { sendRawSesEmail, sesMailConfigFromEnv, sesMailConfigured } from "./admin-mail-ses";
 import { resolveAutomaticEmailTemplate } from "./email-template-lab";
 
 const globals = globalThis as typeof globalThis & {
@@ -18,7 +20,7 @@ export type TransactionalEmailInput = Readonly<{
 }>;
 
 export function transactionalEmailConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
-  return resendDeliveryEnabled(env) && Boolean(env.RESEND_API_KEY?.trim());
+  return sesMailConfigured(env) || resendTransactionalConfigured(env);
 }
 
 export async function sendTransactionalEmail(input: TransactionalEmailInput): Promise<{ providerMessageId: string }> {
@@ -31,6 +33,33 @@ export async function sendTransactionalEmail(input: TransactionalEmailInput): Pr
     purpose: "transactional",
     payload: input.payload
   });
+  const destination = normalizeEmail(input.to);
+
+  // SES is the primary delivery path for KONTA MOU. This keeps application,
+  // Trial and operational notifications on the same outbound infrastructure
+  // as /admin/mail. Resend remains a compatibility fallback while legacy
+  // notification/webhook flows are migrated.
+  if (sesMailConfigured()) {
+    const fromAddress = normalizeEmail(requiredEnv("BLS_MAIL_FROM"));
+    const fromName = process.env.BLS_MAIL_FROM_NAME?.trim() || "KONTA MOY";
+    const replyTo = optionalEmail(process.env.BLS_MAIL_REPLY_TO);
+    const domain = process.env.BLS_MAIL_MESSAGE_ID_DOMAIN?.trim() || fromAddress.split("@")[1] || "kontamou.site";
+    const mime = buildAdminMailRawMime({
+      from: { address: fromAddress, name: fromName },
+      to: [{ address: destination }],
+      replyTo: replyTo ? [{ address: replyTo }] : undefined,
+      subject: resolved.subject,
+      text: resolved.text,
+      internetMessageIdDomain: domain
+    });
+    return sendRawSesEmail({
+      config: sesMailConfigFromEnv(),
+      raw: mime.raw,
+      from: fromAddress,
+      to: [destination]
+    });
+  }
+
   const now = Date.now();
   const notification: Notification = {
     id: `direct:${input.idempotencyKey}`,
@@ -48,7 +77,7 @@ export async function sendTransactionalEmail(input: TransactionalEmailInput): Pr
   };
   return directProvider().send({
     notification,
-    destination: normalizeEmail(input.to),
+    destination,
     idempotencyKey: input.idempotencyKey
   });
 }
@@ -117,7 +146,7 @@ export async function fetchResendReceivedEmail(emailId: string): Promise<Readonl
   html?: string;
   headers: Record<string, string>;
 }>> {
-  if (!transactionalEmailConfigured()) throw new Error("Transactional email delivery is not enabled");
+  if (!resendTransactionalConfigured()) throw new Error("Resend inbound email delivery is not enabled");
   if (!/^[A-Za-z0-9_-]{6,200}$/.test(emailId)) throw new Error("Invalid Resend received email id");
   const config = resendConfigFromEnv();
   const controller = new AbortController();
@@ -177,6 +206,20 @@ export async function forwardReceivedEmailToOperations(input: { webhookEventId: 
 
 function directProvider(): ResendEmailProvider {
   return globals.__blsDirectResendProvider ??= new ResendEmailProvider(resendConfigFromEnv());
+}
+
+function resendTransactionalConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
+  return resendDeliveryEnabled(env) && Boolean(env.RESEND_API_KEY?.trim());
+}
+
+function requiredEnv(name: string, env: NodeJS.ProcessEnv = process.env): string {
+  const value = env[name]?.trim();
+  if (!value) throw new Error(`${name} is required for SES transactional email`);
+  return value;
+}
+
+function optionalEmail(value: string | undefined): string | undefined {
+  return value?.trim() ? normalizeEmail(value) : undefined;
 }
 
 function resendWebhookEndpoint(): string {
