@@ -7,6 +7,8 @@ import { vendorDashboard } from "../../lib/vendor-runtime";
 import { synchronizeOperationalEvents, vendorAdviceWorkspace } from "../../lib/vendor-backoffice-service";
 import { vendorOrderNotificationWorkspace } from "../../lib/order-sla";
 import { productionDatabaseConfigured } from "../../lib/postgres-runtime";
+import { vendorOperatingContextForPrincipal } from "../../lib/vendor-session";
+import { vendorHubDisplayName } from "../../lib/vendor-hub-display";
 
 export const metadata: Metadata = {
   title: "KONTA MOY Daily",
@@ -26,12 +28,13 @@ export default async function VendorDailyPage() {
 
   synchronizeOperationalEvents();
   const generatedAt = Date.now();
-  const [dashboard, advice, sla, push] = await Promise.all([
+  const [dashboard, advice, sla, push, operatingContext] = await Promise.all([
     vendorDashboard(principal),
     vendorAdviceWorkspace(principal),
     productionDatabaseConfigured() ? vendorOrderNotificationWorkspace(principal) : Promise.resolve(emptySlaWorkspace),
-    dailyPushStatus(principal)
+    dailyPushStatus(principal),
+    vendorOperatingContextForPrincipal(principal)
   ]);
 
-  return <VendorDailyHomeClient dashboard={dashboard} advice={advice} sla={sla} push={push} generatedAt={generatedAt} />;
+  return <VendorDailyHomeClient dashboard={dashboard} advice={advice} sla={sla} push={push} generatedAt={generatedAt} marketLabel={vendorHubDisplayName(operatingContext)} />;
 }
