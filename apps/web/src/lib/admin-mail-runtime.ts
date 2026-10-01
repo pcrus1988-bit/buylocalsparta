@@ -493,9 +493,15 @@ export async function sendAdminMail(
 }
 
 function resolveMailConfig(env: NodeJS.ProcessEnv = process.env): MailConfig {
-  if (env.BLS_MAIL_ENABLED?.trim().toLowerCase() !== "true") {
-    throw new Error("Admin Mail is disabled. Set BLS_MAIL_ENABLED=true to enable SES + S3 mailbox operations.");
+  const enabled = env.BLS_MAIL_ENABLED?.trim().toLowerCase();
+  if (enabled && enabled !== "true" && enabled !== "false") {
+    throw new Error("BLS_MAIL_ENABLED must be true or false when configured.");
   }
+  if (enabled === "false") {
+    throw new Error("Admin Mail is disabled because BLS_MAIL_ENABLED=false.");
+  }
+  // The mailbox is operational by default when the existing SES/S3 settings are
+  // valid. BLS_MAIL_ENABLED=false remains an emergency kill switch.
   const ses = sesMailConfigFromEnv(env);
   const region = ses.region.trim();
   if (region !== REQUIRED_REGION) throw new Error(`Admin Mail is locked to AWS ${REQUIRED_REGION}; configured region is ${region || "empty"}.`);
