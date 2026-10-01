@@ -121,28 +121,9 @@ export default async function VendorTrialPage() {
           <div className={styles.metric}><small>Αρχεία</small><strong>{trial.mediaCount}</strong></div>
         </div>
         <div className={styles.heroActions}>
-          <Link className={styles.heroAction} href="/vendor/preview">Προεπισκόπηση →</Link>
-          <Link className={`${styles.heroAction} ${styles.heroActionGhost}`} href="/vendor/catalog">Πρόσθεσε προϊόντα</Link>
-          <Link className={`${styles.heroAction} ${styles.heroActionGhost}`} href="/vendor">Άνοιξε την αρχική</Link>
+          <Link className={styles.heroAction} href={recommendedStep.href}>Συνέχισε το βήμα {recommendedStep.number} →</Link>
+          {recommendedStep.number !== 3 && <Link className={`${styles.heroAction} ${styles.heroActionGhost}`} href="/vendor/preview">Προεπισκόπηση</Link>}
         </div>
-      </section>
-
-      <section id="trial-safety" className={styles.safetyGrid} aria-label="Τι επιτρέπεται στη δοκιμή">
-        <article className={styles.safetyCard}>
-          <span className={styles.tourBadge}>Μπορείς τώρα</span>
-          <h2>Να προετοιμάσεις το κατάστημά σου</h2>
-          <p>Η περιγραφή, η εμφάνιση, τα προϊόντα και η προεπισκόπηση αποθηκεύονται και παραμένουν διαθέσιμα.</p>
-        </article>
-        <article className={styles.safetyCard}>
-          <span className={styles.tourBadge}>Παραμένει κλειδωμένο</span>
-          <h2>Πωλήσεις πριν την ενεργοποίηση</h2>
-          <p>Δημόσιες πωλήσεις, πραγματικές πληρωμές και εκκαθαρίσεις δεν ενεργοποιούνται από τη δοκιμή.</p>
-        </article>
-        <article className={styles.safetyCard}>
-          <span className={styles.tourBadge}>Μετά τη δοκιμή</span>
-          <h2>Η δουλειά σου δεν διαγράφεται</h2>
-          <p>Οι ρυθμίσεις μένουν αποθηκευμένες όσο συνεχίζεται ο έλεγχος της αίτησης και μπορούν να ενεργοποιηθούν όταν ολοκληρωθούν οι απαραίτητοι έλεγχοι.</p>
-        </article>
       </section>
 
       <section className={styles.nextStep} aria-labelledby="trial-next-step-title">
@@ -167,14 +148,32 @@ export default async function VendorTrialPage() {
         </Link>)}
       </nav>
 
-      <section className={styles.guideTour} aria-labelledby="trial-tour-title">
-        <div className={styles.tourHeading}>
-          <div>
+      <section id="trial-safety" className={styles.safetyGrid} aria-label="Τι επιτρέπεται στη δοκιμή">
+        <article className={styles.safetyCard}>
+          <span className={styles.tourBadge}>Μπορείς τώρα</span>
+          <h2>Να προετοιμάσεις το κατάστημά σου</h2>
+          <p>Η περιγραφή, η εμφάνιση, τα προϊόντα και η προεπισκόπηση αποθηκεύονται και παραμένουν διαθέσιμα.</p>
+        </article>
+        <article className={styles.safetyCard}>
+          <span className={styles.tourBadge}>Παραμένει κλειδωμένο</span>
+          <h2>Πωλήσεις πριν την ενεργοποίηση</h2>
+          <p>Δημόσιες πωλήσεις, πραγματικές πληρωμές και εκκαθαρίσεις δεν ενεργοποιούνται από τη δοκιμή.</p>
+        </article>
+        <article className={styles.safetyCard}>
+          <span className={styles.tourBadge}>Μετά τη δοκιμή</span>
+          <h2>Η δουλειά σου δεν διαγράφεται</h2>
+          <p>Οι ρυθμίσεις μένουν αποθηκευμένες όσο συνεχίζεται ο έλεγχος της αίτησης και μπορούν να ενεργοποιηθούν όταν ολοκληρωθούν οι απαραίτητοι έλεγχοι.</p>
+        </article>
+      </section>
+
+      <details className={styles.guideTour}>
+        <summary className={styles.tourDisclosureSummary}>
+          <span>
             <span className={styles.nextStepEyebrow}>Προαιρετικά</span>
-            <h2 id="trial-tour-title">Εξερεύνησε τα υπόλοιπα όταν τα χρειαστείς</h2>
-          </div>
-          <p>Αυτές οι ενότητες δεν είναι μέρος της αρχικής προετοιμασίας. Μπορείς να τις ανοίξεις όποτε θέλεις.</p>
-        </div>
+            <strong>Δες και τις υπόλοιπες ενότητες</strong>
+          </span>
+          <small>Δεν χρειάζονται για να ολοκληρώσεις την αρχική προετοιμασία.</small>
+        </summary>
         <div className={styles.tourGrid}>
           {tour.map((item) => <article className={styles.tourCard} key={item.title}>
             <span className={styles.tourBadge}>{item.eyebrow}</span>
@@ -183,7 +182,7 @@ export default async function VendorTrialPage() {
             <Link href={item.href}>{item.action} →</Link>
           </article>)}
         </div>
-      </section>
+      </details>
 
       <section id="storefront-builder" className={styles.builderSection}>
         <div className={styles.tourHeading}>
