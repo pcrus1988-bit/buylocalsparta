@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { assertAdminPermission, recordAdminAudit } from "./admin-runtime";
-import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
@@ -74,7 +74,7 @@ export async function adminVendorShopsWorkspace(principal: SessionPrincipal) {
     return { csrfToken: principal.csrfToken, databaseConfigured: false, shops: [] as AdminManagedVendorShop[] };
   }
 
-  const runtime = getProductionPostgresRuntime();
+  const runtime = getAdminPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
   return uow.withTransaction(platformScope(principal.userId), async (tx) => {
     const rows = await tx.query<SqlRow>(`
@@ -195,7 +195,7 @@ export async function setAdminVendorOperationalState(principal: SessionPrincipal
   if (input.reason.trim().length < 3) throw new Error("Operational-state reason is required");
 
   const now = input.now ?? Date.now();
-  const runtime = getProductionPostgresRuntime();
+  const runtime = getAdminPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
   const result = await uow.withTransaction(platformScope(principal.userId), async (tx) => {
     const vendorResult = await tx.query<SqlRow>(`
@@ -254,7 +254,7 @@ export async function setAdminVendorDirectoryVisibility(principal: SessionPrinci
   if (!productionDatabaseConfigured()) throw new Error("Vendor visibility controls require the production database");
   const now = input.now ?? Date.now();
   const reason = input.reason?.trim() || (input.visible ? "Admin published vendor directory profile" : "Admin hid vendor directory profile");
-  const runtime = getProductionPostgresRuntime();
+  const runtime = getAdminPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
 
   const result = await uow.withTransaction(platformScope(principal.userId), async (tx) => {
@@ -285,6 +285,10 @@ export async function setAdminVendorDirectoryVisibility(principal: SessionPrinci
       if (!current || text(current.status) !== "active" || !current.signed_at || !optionalText(current.source_document_reference)) {
         throw new Error("Record an active signed cooperation agreement with a document reference before publishing this shop");
       }
+    }
+
+    if (bool(vendor.public_directory_visible) === input.visible) {
+      return { vendorId: vendorPublicId, visible: input.visible, status, unchanged: true };
     }
 
     await tx.query(`UPDATE vendor_businesses
@@ -335,7 +339,7 @@ export async function recordAdminVendorAgreement(principal: SessionPrincipal, in
   const endsAt = input.endsAt ? new Date(input.endsAt) : undefined;
   if (endsAt && (!Number.isFinite(endsAt.getTime()) || endsAt <= startsAt)) throw new Error("Agreement end date must be after the start date");
 
-  const runtime = getProductionPostgresRuntime();
+  const runtime = getAdminPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
   const result = await uow.withTransaction(platformScope(principal.userId), async (tx) => {
     const vendorResult = await tx.query<SqlRow>(`
