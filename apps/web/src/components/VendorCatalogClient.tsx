@@ -60,6 +60,7 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
   const router = useRouter();
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [csv, setCsv] = useState(initial.csvTemplate);
   const [query, setQuery] = useState("");
@@ -74,6 +75,7 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
     setStockDrafts(Object.fromEntries(initial.catalogProducts.map((product) => [product.offerId, { onHand: String(product.onHand), safetyStock: String(product.safetyStock) }])));
   }, [initial.catalogProducts]);
 
+  const draftSubmissions = initial.submissions.filter((item) => item.status === "draft");
   const awaitingReview = initial.submissions.filter((item) => ["submitted", "needs_review"].includes(item.status)).length;
   const linked = initial.submissions.filter((item) => Boolean(item.canonicalVariantId)).length;
   const rejected = initial.submissions.filter((item) => item.status === "rejected").length;
@@ -120,6 +122,30 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
     }
   }
 
+  async function bulkSubmitDrafts() {
+    if (!draftSubmissions.length) return;
+    if (!window.confirm("Να σταλούν και τα " + draftSubmissions.length.toLocaleString("el-GR") + " πρόχειρα προϊόντα για έλεγχο;")) return;
+    setBusy("bulk-submit");
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/vendor/catalog/products/bulk-submit", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": initial.csrfToken },
+        body: JSON.stringify({ all: true })
+      });
+      const payload = await response.json() as { error?: string; submitted?: number; skipped?: number };
+      if (!response.ok) throw new Error(payload.error ?? "Η μαζική υποβολή δεν ολοκληρώθηκε.");
+      const skippedText = payload.skipped ? " · " + payload.skipped.toLocaleString("el-GR") + " παραλείφθηκαν επειδή δεν ήταν πλέον πρόχειρα" : "";
+      setNotice(Number(payload.submitted ?? 0).toLocaleString("el-GR") + " προϊόντα στάλθηκαν για έλεγχο" + skippedText + ".");
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Η μαζική υποβολή δεν ολοκληρώθηκε.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   function changeCategoryVisibility(item: CategoryControl, visible: boolean) {
     if (!visible && !window.confirm(`Να κρυφτεί η κατηγορία «${item.name}»; Θα σταματήσουν προσωρινά να εμφανίζονται ${item.productCount} προϊόντα της κατηγορίας και των υποκατηγοριών της.`)) return;
     void call(`category:${item.id}`, "/api/vendor/catalog/visibility", { scope: "category", categoryId: item.id, visible }, "PUT");
@@ -131,6 +157,7 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
 
   return <>
     {error && <div className="shell form-error vendor-error" role="alert"><strong>Η αλλαγή δεν αποθηκεύτηκε.</strong> {error}</div>}
+    {notice && <div className="shell workspace-inline-note" role="status"><strong>Έτοιμο.</strong> {notice}</div>}
 
     <WorkspaceMetricStrip items={[
       { label: "Εμφανίζονται στο κατάστημα", value: initial.catalogMetrics.visibleProducts, tone: initial.catalogMetrics.visibleProducts ? "positive" : "default" },
@@ -252,6 +279,14 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
         <p><strong>Χρειάζεται διόρθωση:</strong> διάβασε τον λόγο που εμφανίζεται στην κάρτα πριν το υποβάλεις ξανά.</p>
       </WorkspaceHowItWorks>
       <WorkspaceMetricStrip items={[{ label: "Καταχωρήσεις", value: initial.submissions.length }, { label: "Σε έλεγχο", value: awaitingReview, tone: awaitingReview ? "attention" : "default" }, { label: "Αντιστοιχισμένα", value: linked, tone: linked ? "positive" : "default" }, { label: "Χρειάζονται διόρθωση", value: rejected, tone: rejected ? "attention" : "default" }]} />
+      {draftSubmissions.length > 0 && <div className="workspace-action-bar" style={{ marginBottom: 14 }}>
+        <span><strong>{draftSubmissions.length.toLocaleString("el-GR")} προϊόντα</strong> είναι έτοιμα για αποστολή στον έλεγχο ΚΟΝΤΑ ΜΟΥ.</span>
+        <div className="workspace-action-buttons">
+          <button type="button" className="button" disabled={Boolean(busy)} onClick={() => void bulkSubmitDrafts()}>
+            {busy === "bulk-submit" ? "Μαζική υποβολή…" : "Αποστολή όλων για έλεγχο (" + draftSubmissions.length.toLocaleString("el-GR") + ")"}
+          </button>
+        </div>
+      </div>}
       {initial.submissions.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν προϊόντα σε αναμονή." body="Αυτό είναι φυσιολογικό όταν όλα τα προϊόντα έχουν ήδη εγκριθεί." /> : <div className="workspace-queue-list">{initial.submissions.map((item) => <article className="workspace-queue-card" key={item.id}>
         <div className="workspace-queue-head"><div><strong>{item.title}</strong><small>{item.vendorSku ?? "Χωρίς SKU"} · {item.categoryCode} · {when(item.updatedAt)}</small></div><span className="vendor-merchant-status">{submissionStatusLabel(item.status)}</span></div>
         <div className="workspace-queue-primary"><span>Τιμή {item.supplierPrice}</span><span>Φυσικό απόθεμα {item.stockOnHand}</span><span>{item.canonicalVariantId ? "Αναγνωρίστηκε" : `${item.candidates.length} πιθανές αντιστοιχίσεις`}</span></div>
