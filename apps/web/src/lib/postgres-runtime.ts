@@ -3,10 +3,16 @@ import { EXPECTED_SCHEMA_VERSION, createPostgresRuntimeFromEnv, type ProductionP
 
 const WEB_EXPECTED_SCHEMA_VERSION = EXPECTED_SCHEMA_VERSION;
 const globalKey = "__buyLocalSpartaPostgresRuntime" as const;
-const globals = globalThis as typeof globalThis & { [globalKey]?: ProductionPostgresRuntime };
+const adminGlobalKey = "__buyLocalSpartaAdminPostgresRuntime" as const;
+const globals = globalThis as typeof globalThis & {
+  [globalKey]?: ProductionPostgresRuntime;
+  [adminGlobalKey]?: ProductionPostgresRuntime;
+};
 const WEB_DB_POOL_MAX = "1";
 const WEB_DB_CONNECT_TIMEOUT_MS = "15000";
 const WEB_DB_IDLE_TIMEOUT_MS = "5000";
+const ADMIN_DB_CONNECT_TIMEOUT_MS = "8000";
+const ADMIN_DB_IDLE_TIMEOUT_MS = "15000";
 
 export function resolveDatabaseUrlFromEnv(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const explicit = env.DATABASE_URL?.trim();
@@ -76,6 +82,26 @@ export function databaseRuntimeRequired(): boolean { return process.env.NODE_ENV
 export function getProductionPostgresRuntime(): ProductionPostgresRuntime {
   if (!productionDatabaseConfigured()) throw new Error("DATABASE_URL or POSTGRES_URL is required for production shared state");
   return globals[globalKey] ?? (globals[globalKey] = createPostgresRuntimeFromEnv({ env: buildWebPostgresRuntimeEnv(), applicationName: "buy-local-sparta-web" }));
+}
+
+/**
+ * Admin traffic gets its own tiny local pool so a long storefront/crawler query cannot
+ * occupy the only per-instance connection and starve a governed Admin mutation.
+ * Supabase transaction pooling still multiplexes both pools onto the same database;
+ * this only reserves one local Vercel connection lane for low-volume Admin work.
+ */
+export function getAdminPostgresRuntime(): ProductionPostgresRuntime {
+  if (!productionDatabaseConfigured()) throw new Error("DATABASE_URL or POSTGRES_URL is required for production shared state");
+  if (globals[adminGlobalKey]) return globals[adminGlobalKey];
+
+  const env = {
+    ...buildWebPostgresRuntimeEnv(),
+    BLS_DB_APPLICATION_NAME: "buy-local-sparta-web-admin",
+    BLS_DB_POOL_MAX: "1",
+    BLS_DB_CONNECT_TIMEOUT_MS: ADMIN_DB_CONNECT_TIMEOUT_MS,
+    BLS_DB_IDLE_TIMEOUT_MS: ADMIN_DB_IDLE_TIMEOUT_MS
+  };
+  return (globals[adminGlobalKey] = createPostgresRuntimeFromEnv({ env, applicationName: "buy-local-sparta-web-admin" }));
 }
 
 export async function productionDatabaseReadiness() {
