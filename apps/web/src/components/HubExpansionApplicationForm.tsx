@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type { HubBillingCycle, HubExpansionPlanCode } from "../lib/hub-expansion-plans";
 import styles from "./HubExpansionApplicationForm.module.css";
 
@@ -76,16 +76,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
   const [receipt, setReceipt] = useState<Receipt>();
   const restoredAfmRef = useRef(false);
 
-  useEffect(() => {
-    if (restoredAfmRef.current) return;
-    restoredAfmRef.current = true;
-    const storedAfm = (sessionStorage.getItem(JOIN_AFM_STORAGE_KEY) ?? "").replace(/\\D/g, "").slice(0, 9);
-    if (storedAfm.length !== 9) return;
-    setTaxNumber(storedAfm);
-    void lookupCompany(storedAfm);
-  }, []);
-
-  async function lookupCompany(afmOverride?: string) {
+  const lookupCompany = useCallback(async (afmOverride?: string) => {
     const candidateAfm = (afmOverride ?? taxNumber).replace(/\D/g, "").slice(0, 9);
     if (candidateAfm.length !== 9) {
       setLookupError("Το ΑΦΜ πρέπει να έχει 9 ψηφία.");
@@ -126,7 +117,16 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
       setLookupError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η επαλήθευση της επιχείρησης και του HUB.");
       setLookupStage("afm");
     }
-  }
+  }, [taxNumber]);
+
+  useEffect(() => {
+    if (restoredAfmRef.current) return;
+    restoredAfmRef.current = true;
+    const storedAfm = (sessionStorage.getItem(JOIN_AFM_STORAGE_KEY) ?? "").replace(/\D/g, "").slice(0, 9);
+    if (storedAfm.length !== 9) return;
+    setTaxNumber(storedAfm);
+    void lookupCompany(storedAfm);
+  }, [lookupCompany]);
 
   function changeAfm() {
     setCompany(undefined);
@@ -236,7 +236,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
         />
         {lookupStage === "matched"
           ? <button className="button button-secondary" type="button" onClick={changeAfm}>Αλλαγή ΑΦΜ</button>
-          : <button className="button button-secondary" type="button" disabled={lookupStage === "loading" || taxNumber.length !== 9} onClick={lookupCompany}>{lookupStage === "loading" ? "Έλεγχος…" : "Ανάκτηση από ΓΕΜΗ"}</button>}
+          : <button className="button button-secondary" type="button" disabled={lookupStage === "loading" || taxNumber.length !== 9} onClick={() => void lookupCompany()}>{lookupStage === "loading" ? "Έλεγχος…" : "Ανάκτηση από ΓΕΜΗ"}</button>}
       </div>
       {lookupError && <div className={styles.error} role="alert">{lookupError}</div>}
     </section>
