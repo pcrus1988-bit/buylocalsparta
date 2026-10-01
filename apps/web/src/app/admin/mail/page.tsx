@@ -12,9 +12,11 @@ import {
   type AdminMailWorkspace
 } from "../../../lib/admin-mail-runtime";
 import {
+  bulkMailAction,
   sendMailAction,
   syncMailboxAction,
   toggleArchiveMailAction,
+  toggleDeleteMailAction,
   toggleReadMailAction,
   toggleStarMailAction
 } from "./actions";
@@ -41,35 +43,60 @@ function one(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] || "" : value || "";
 }
 
-function folderHref(folder: string, q = ""): string {
+type MailView = Readonly<{
+  q: string;
+  read: AdminMailWorkspace["filters"]["read"];
+  direction: AdminMailWorkspace["filters"]["direction"];
+  status: AdminMailWorkspace["filters"]["status"];
+  attachments: AdminMailWorkspace["filters"]["attachments"];
+  sort: AdminMailWorkspace["filters"]["sort"];
+}>;
+
+function appendViewParams(params: URLSearchParams, view: MailView): void {
+  if (view.q) params.set("q", view.q);
+  if (view.read !== "all") params.set("read", view.read);
+  if (view.direction !== "all") params.set("direction", view.direction);
+  if (view.status !== "all") params.set("status", view.status);
+  if (view.attachments !== "all") params.set("attachments", view.attachments);
+  if (view.sort !== "newest") params.set("sort", view.sort);
+}
+
+function folderHref(folder: string, view: MailView): string {
   const params = new URLSearchParams({ folder });
-  if (q) params.set("q", q);
+  appendViewParams(params, view);
   return `/admin/mail?${params.toString()}`;
 }
 
-function messageHref(folder: string, messageId: string, q = ""): string {
+function messageHref(folder: string, messageId: string, view: MailView): string {
   const params = new URLSearchParams({ folder, message: messageId });
-  if (q) params.set("q", q);
+  appendViewParams(params, view);
   return `/admin/mail?${params.toString()}`;
 }
 
-function composeHref(folder: string, messageId: string | undefined, mode: "compose" | "reply" | "forward", q = ""): string {
+function composeHref(folder: string, messageId: string | undefined, mode: "compose" | "reply" | "forward", view: MailView): string {
   const params = new URLSearchParams({ folder, compose: "1", mode });
   if (messageId) params.set("message", messageId);
-  if (q) params.set("q", q);
+  appendViewParams(params, view);
   return `/admin/mail?${params.toString()}#compose`;
 }
 
-function emptyWorkspace(configurationMessage: string, fromAddresses: readonly string[], folder: AdminMailWorkspace["folder"], q: string): AdminMailWorkspace {
+function emptyWorkspace(
+  configurationMessage: string,
+  fromAddresses: readonly string[],
+  folder: AdminMailWorkspace["folder"],
+  q: string,
+  filters: AdminMailWorkspace["filters"]
+): AdminMailWorkspace {
   return {
     configured: false,
     configurationMessage,
     fromAddresses,
     folder,
     query: q,
+    filters,
     messages: [],
     thread: [],
-    metrics: { inbox: 0, unread: 0, sent: 0, starred: 0, archived: 0, all: 0 }
+    metrics: { inbox: 0, unread: 0, sent: 0, starred: 0, archived: 0, trash: 0, all: 0 }
   };
 }
 
@@ -112,6 +139,13 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
   const folder = one(params.folder);
   const query = one(params.q).slice(0, 200);
   const selectedId = one(params.message) || undefined;
+  const requestedFilters: AdminMailWorkspace["filters"] = {
+    read: one(params.read) === "read" || one(params.read) === "unread" ? one(params.read) as "read" | "unread" : "all",
+    direction: one(params.direction) === "incoming" || one(params.direction) === "outgoing" ? one(params.direction) as "incoming" | "outgoing" : "all",
+    status: ["received", "sent", "queued", "failed"].includes(one(params.status)) ? one(params.status) as "received" | "sent" | "queued" | "failed" : "all",
+    attachments: one(params.attachments) === "with" || one(params.attachments) === "without" ? one(params.attachments) as "with" | "without" : "all",
+    sort: ["oldest", "sender", "subject"].includes(one(params.sort)) ? one(params.sort) as "oldest" | "sender" | "subject" : "newest"
+  };
   const configuration = adminMailConfiguration();
   let syncNotice = "";
   if (configuration.configured) {
@@ -129,14 +163,21 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
   let workspace: AdminMailWorkspace;
   try {
     workspace = configuration.configured
-      ? await adminMailWorkspace(principal, { folder, q: query, selectedId })
-      : emptyWorkspace(configuration.message, configuration.fromAddresses, folder === "sent" || folder === "starred" || folder === "archive" || folder === "all" ? folder : "inbox", query);
+      ? await adminMailWorkspace(principal, { folder, q: query, selectedId, ...requestedFilters })
+      : emptyWorkspace(
+          configuration.message,
+          configuration.fromAddresses,
+          folder === "sent" || folder === "starred" || folder === "archive" || folder === "trash" || folder === "all" ? folder : "inbox",
+          query,
+          requestedFilters
+        );
   } catch (error) {
     workspace = emptyWorkspace(
       error instanceof Error ? `Mailbox data is not ready: ${error.message}` : "Mailbox data is not ready.",
       configuration.fromAddresses,
-      folder === "sent" || folder === "starred" || folder === "archive" || folder === "all" ? folder : "inbox",
-      query
+      folder === "sent" || folder === "starred" || folder === "archive" || folder === "trash" || folder === "all" ? folder : "inbox",
+      query,
+      requestedFilters
     );
   }
 
@@ -150,12 +191,15 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
   const composeBody = selected && mode === "forward" ? forwardBody(selected) : "";
   const error = one(params.error);
   const sent = one(params.sent) === "1";
+  const view: MailView = { q: workspace.query, ...workspace.filters };
+  const clearView: MailView = { q: "", read: "all", direction: "all", status: "all", attachments: "all", sort: "newest" };
 
   const folders = [
     { id: "inbox", label: "Inbox", value: workspace.metrics.inbox, secondary: workspace.metrics.unread ? `${workspace.metrics.unread} unread` : "" },
     { id: "sent", label: "Sent", value: workspace.metrics.sent, secondary: "" },
     { id: "starred", label: "Starred", value: workspace.metrics.starred, secondary: "" },
     { id: "archive", label: "Archive", value: workspace.metrics.archived, secondary: "" },
+    { id: "trash", label: "Trash", value: workspace.metrics.trash, secondary: "" },
     { id: "all", label: "All mail", value: workspace.metrics.all, secondary: "" }
   ];
 
@@ -169,7 +213,7 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
         <p>Incoming and outgoing KONTA MOU email in one operational workspace. Inbound mail stays authoritative in AWS S3; operator messages are sent through AWS SES.</p>
       </div>
       <div className="admin-mail-hero-actions">
-        <Link className="button" href={composeHref(workspace.folder, workspace.selectedId, "compose", workspace.query)}>Compose</Link>
+        <Link className="button" href={composeHref(workspace.folder, workspace.selectedId, "compose", view)}>Compose</Link>
         <form action={syncMailboxAction}>
           <input type="hidden" name="csrfToken" value={principal.csrfToken} />
           <button className="button button-secondary" type="submit">Sync inbox</button>
@@ -191,9 +235,9 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
 
     <section className="shell admin-mail-shell" aria-label="Admin mailbox">
       <aside className="admin-mail-folders" aria-label="Mail folders">
-        <Link className="admin-mail-compose-button" href={composeHref(workspace.folder, workspace.selectedId, "compose", workspace.query)}>＋ Compose</Link>
+        <Link className="admin-mail-compose-button" href={composeHref(workspace.folder, workspace.selectedId, "compose", view)}>＋ Compose</Link>
         <nav>
-          {folders.map((item) => <Link key={item.id} className={workspace.folder === item.id ? "is-active" : ""} href={folderHref(item.id, workspace.query)}>
+          {folders.map((item) => <Link key={item.id} className={workspace.folder === item.id ? "is-active" : ""} href={folderHref(item.id, view)}>
             <span>{item.label}{item.secondary ? <small>{item.secondary}</small> : null}</span>
             <strong>{item.value}</strong>
           </Link>)}
@@ -205,14 +249,46 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
       </aside>
 
       <div className="admin-mail-list-pane">
-        <form className="admin-mail-search" action="/admin/mail" method="get">
+        <form className="admin-mail-search admin-mail-filter-form" action="/admin/mail" method="get">
           <input type="hidden" name="folder" value={workspace.folder} />
-          <label>
+          <label className="admin-mail-search-field">
             <span className="sr-only">Search mail</span>
             <input name="q" type="search" defaultValue={workspace.query} placeholder="Search sender, recipient, subject or preview…" />
           </label>
-          <button type="submit">Search</button>
-          {workspace.query ? <Link href={folderHref(workspace.folder)}>Clear</Link> : null}
+          <label><span>Read</span><select name="read" defaultValue={workspace.filters.read}>
+            <option value="all">All</option><option value="unread">Unread</option><option value="read">Read</option>
+          </select></label>
+          <label><span>Direction</span><select name="direction" defaultValue={workspace.filters.direction}>
+            <option value="all">All</option><option value="incoming">Incoming</option><option value="outgoing">Outgoing</option>
+          </select></label>
+          <label><span>Status</span><select name="status" defaultValue={workspace.filters.status}>
+            <option value="all">All</option><option value="received">Received</option><option value="sent">Sent</option><option value="queued">Queued</option><option value="failed">Failed</option>
+          </select></label>
+          <label><span>Attachments</span><select name="attachments" defaultValue={workspace.filters.attachments}>
+            <option value="all">All</option><option value="with">With files</option><option value="without">No files</option>
+          </select></label>
+          <label><span>Sort</span><select name="sort" defaultValue={workspace.filters.sort}>
+            <option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="sender">Sender A–Z</option><option value="subject">Subject A–Z</option>
+          </select></label>
+          <button type="submit">Apply</button>
+          <Link href={folderHref(workspace.folder, clearView)}>Reset</Link>
+        </form>
+
+        <form id="admin-mail-bulk-form" className="admin-mail-bulk" action={bulkMailAction}>
+          <input type="hidden" name="csrfToken" value={principal.csrfToken} />
+          <strong>Selected emails</strong>
+          <select name="bulkAction" defaultValue="read" aria-label="Bulk action">
+            <option value="read">Mark read</option>
+            <option value="unread">Mark unread</option>
+            <option value="star">Add star</option>
+            <option value="unstar">Remove star</option>
+            <option value="archive">Move → Archive</option>
+            <option value="inbox">Move → Inbox / restore</option>
+            <option value="trash">Delete → Trash</option>
+            <option value="restore">Restore from Trash</option>
+          </select>
+          <button type="submit">Apply action</button>
+          <small>Tick one or more messages below.</small>
         </form>
 
         <div className="admin-mail-list" role="list">
@@ -225,6 +301,14 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
             const identity = message.direction === "incoming" ? message.from : `To: ${message.to.join(", ")}`;
             return <article key={message.id} role="listitem" className={`admin-mail-row${active ? " is-active" : ""}${!message.isRead && message.direction === "incoming" ? " is-unread" : ""}`}>
               <div className="admin-mail-row-actions">
+                <input
+                  className="admin-mail-select"
+                  type="checkbox"
+                  name="messageIds"
+                  value={message.id}
+                  form="admin-mail-bulk-form"
+                  aria-label={`Select ${message.subject}`}
+                />
                 <form action={toggleStarMailAction}>
                   <input type="hidden" name="csrfToken" value={principal.csrfToken} />
                   <input type="hidden" name="messageId" value={message.id} />
@@ -232,7 +316,7 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
                   <button type="submit" title={message.isStarred ? "Remove star" : "Star"} aria-label={message.isStarred ? "Remove star" : "Star"}>{message.isStarred ? "★" : "☆"}</button>
                 </form>
               </div>
-              <Link className="admin-mail-row-main" href={messageHref(workspace.folder, message.id, workspace.query)}>
+              <Link className="admin-mail-row-main" href={messageHref(workspace.folder, message.id, view)}>
                 <div className="admin-mail-row-top"><strong>{identity}</strong><time>{compactDate(timestamp)}</time></div>
                 <div className="admin-mail-row-subject"><span>{message.subject}</span>{message.attachmentCount ? <small>📎 {message.attachmentCount}</small> : null}</div>
                 <p>{message.preview || "No preview available."}</p>
@@ -260,15 +344,21 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
               <span>{workspace.thread.length} message{workspace.thread.length === 1 ? "" : "s"}</span>
             </div>
             {selected ? <div className="admin-mail-thread-actions">
-              <Link className="button button-secondary" href={composeHref(workspace.folder, selected.id, "reply", workspace.query)}>Reply</Link>
-              <Link className="button button-secondary" href={composeHref(workspace.folder, selected.id, "forward", workspace.query)}>Forward</Link>
-              <form action={toggleArchiveMailAction}>
+              <Link className="button button-secondary" href={composeHref(workspace.folder, selected.id, "reply", view)}>Reply</Link>
+              <Link className="button button-secondary" href={composeHref(workspace.folder, selected.id, "forward", view)}>Forward</Link>
+              {!selected.deleted ? <form action={toggleArchiveMailAction}>
                 <input type="hidden" name="csrfToken" value={principal.csrfToken} />
                 <input type="hidden" name="messageId" value={selected.id} />
                 <input type="hidden" name="value" value={selected.archived ? "false" : "true"} />
-                <button className="button button-secondary" type="submit">{selected.archived ? "Restore" : "Archive"}</button>
+                <button className="button button-secondary" type="submit">{selected.archived ? "Move to Inbox" : "Archive"}</button>
+              </form> : null}
+              <form action={toggleDeleteMailAction}>
+                <input type="hidden" name="csrfToken" value={principal.csrfToken} />
+                <input type="hidden" name="messageId" value={selected.id} />
+                <input type="hidden" name="value" value={selected.deleted ? "false" : "true"} />
+                <button className={`button button-secondary${selected.deleted ? "" : " admin-mail-delete-button"}`} type="submit">{selected.deleted ? "Restore" : "Delete"}</button>
               </form>
-              {selected.direction === "incoming" ? <form action={toggleReadMailAction}>
+              {selected.direction === "incoming" && !selected.deleted ? <form action={toggleReadMailAction}>
                 <input type="hidden" name="csrfToken" value={principal.csrfToken} />
                 <input type="hidden" name="messageId" value={selected.id} />
                 <input type="hidden" name="value" value={selected.isRead ? "false" : "true"} />
@@ -326,7 +416,7 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
           </div>
           <div className="admin-mail-compose-actions">
             <button className="button" type="submit" disabled={!workspace.configured}>Send with SES</button>
-            <Link className="button button-secondary" href={workspace.selectedId ? messageHref(workspace.folder, workspace.selectedId, workspace.query) : folderHref(workspace.folder, workspace.query)}>Close</Link>
+            <Link className="button button-secondary" href={workspace.selectedId ? messageHref(workspace.folder, workspace.selectedId, view) : folderHref(workspace.folder, view)}>Close</Link>
           </div>
         </form>
       </details>
