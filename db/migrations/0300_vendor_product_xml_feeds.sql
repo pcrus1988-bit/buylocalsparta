@@ -94,6 +94,7 @@ CREATE TABLE public.vendor_product_feed_items (
   last_validation_errors jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(last_validation_errors)='array'),
   first_seen_at timestamptz NOT NULL DEFAULT now(),
   last_seen_at timestamptz NOT NULL DEFAULT now(),
+  last_stock_sync_at timestamptz,
   last_changed_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(feed_id,external_product_id)
@@ -161,8 +162,10 @@ BEGIN
   IF v_vendor IS NULL OR v_vendor<>NEW.vendor_id THEN
     RAISE EXCEPTION 'vendor product feed child scope mismatch';
   END IF;
-  IF TG_TABLE_NAME='vendor_product_feed_runs' AND v_market<>NEW.market_id THEN
-    RAISE EXCEPTION 'vendor product feed run market scope mismatch';
+  IF TG_TABLE_NAME='vendor_product_feed_runs' THEN
+    IF v_market<>NEW.market_id THEN
+      RAISE EXCEPTION 'vendor product feed run market scope mismatch';
+    END IF;
   END IF;
   RETURN NEW;
 END;
