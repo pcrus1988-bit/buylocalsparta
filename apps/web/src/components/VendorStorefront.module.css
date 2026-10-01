@@ -20,10 +20,11 @@
 
 /* Products come immediately after the shop hero. The richer shop story stays available below the catalogue. */
 .catalogSection{order:1;padding:72px 0 80px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:rgba(255,253,248,.38)}
-.section{order:2;padding:70px 0}
-.askSection{order:3;padding:78px 0}
-.infoSection{order:4;padding:0 0 82px}
-.page > :global(footer){order:5}
+.instagramSection{order:2;border-bottom:1px solid var(--line);background:radial-gradient(circle at 85% 10%,rgba(178,150,97,.1),transparent 26rem),rgba(255,253,248,.72)}
+.section{order:3;padding:70px 0}
+.askSection{order:4;padding:78px 0}
+.infoSection{order:5;padding:0 0 82px}
+.page > :global(footer){order:6}
 .section[aria-labelledby="people-story-title"] .sectionLead{display:none}
 
 .sectionHeader{display:flex;justify-content:space-between;align-items:end;gap:34px;margin-bottom:30px}.sectionHeader h2{margin-bottom:0}.sectionLead{max-width:470px;margin:0;color:var(--ink-soft);font-size:13px;line-height:1.65}
