@@ -221,7 +221,7 @@ export function DropshippingProductControls(props: Props) {
           <div className="workspace-compact-row"><strong>Αποθεματικό μεταφορικών</strong><span>{euro(props.recommendation.embeddedShippingMinor)}</span><small>{shippingStatusLabel(props.recommendation.shippingStatus)} · absorption {percent(props.recommendation.shippingAbsorptionScore == null ? null : props.recommendation.shippingAbsorptionScore * 100)}</small></div>
         </> : null}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(90px,1fr))", gap: 8 }}>
+      <div className="vendor-dropshipping-price-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(90px,1fr))", gap: 8 }}>
         <label><small>Τιμή πώλησης €</small><input type="text" inputMode="decimal" value={sellingPriceDraft} onFocus={() => setEditingSellingPrice(true)} onChange={(event) => setSellingPriceDraft(event.target.value)} onBlur={commitSellingPrice} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} style={{ width: "100%" }} /></label>
         <label><small>Περιθώριο %</small><input type="number" min="0" max="1000" step="0.01" value={markup} onChange={(event) => setMarkup(Number(event.target.value))} style={{ width: "100%" }} /></label>
         <label><small>Έκπτωση %</small><input type="number" min="0" max="100" step="0.1" value={discount} onChange={(event) => setDiscount(Number(event.target.value))} style={{ width: "100%" }} /></label>
