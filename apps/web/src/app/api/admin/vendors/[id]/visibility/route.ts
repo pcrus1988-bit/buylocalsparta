@@ -48,16 +48,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         message: error instanceof Error ? error.message : String(error)
       }));
     }
+    if (transient) {
+      return Response.json(
+        { error: "Η βάση δεδομένων είναι προσωρινά απασχολημένη. Η δημοσίευση δεν εφαρμόστηκε· δοκιμάστε ξανά." },
+        { status: 503, headers: { "Retry-After": "2" } }
+      );
+    }
     return Response.json(
-      {
-        error: transient
-          ? "Η βάση δεδομένων είναι προσωρινά απασχολημένη. Η δημοσίευση δεν εφαρμόστηκε· δοκιμάστε ξανά."
-          : error instanceof Error ? error.message : "vendor_visibility_failed"
-      },
-      {
-        status: transient ? 503 : 400,
-        headers: transient ? { "Retry-After": "2" } : undefined
-      }
+      { error: error instanceof Error ? error.message : "vendor_visibility_failed" },
+      { status: 400 }
     );
   }
 }
