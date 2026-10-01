@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS admin_mail_sync_state (
   last_sync_completed_at timestamptz,
   last_success_at timestamptz,
   last_error text,
+  continuation_token text,
   scanned_objects integer NOT NULL DEFAULT 0 CHECK (scanned_objects >= 0),
   imported_messages integer NOT NULL DEFAULT 0 CHECK (imported_messages >= 0),
   updated_at timestamptz NOT NULL DEFAULT now()
