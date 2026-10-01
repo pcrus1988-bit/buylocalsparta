@@ -53,7 +53,7 @@ export type AdminMailWorkspace = Readonly<{
   messages: readonly AdminMailSummary[];
   thread: readonly AdminMailThreadMessage[];
   selectedId?: string;
-  metrics: Readonly<{ inbox: number; unread: number; sent: number; starred: number; archived: number }>;
+  metrics: Readonly<{ inbox: number; unread: number; sent: number; starred: number; archived: number; all: number }>;
   lastInboundAt?: number;
 }>;
 
@@ -166,13 +166,13 @@ export async function adminMailWorkspace(
   }
 
   const pool = getProductionPostgresRuntime().sqlPool;
-  const metricsResult = await pool.query<SqlRow>(`
+  if (input.selectedId && /^mail_[a-f0-9]{32}$/i.test(input.selectedId)) {\n    await markAdminMailRead(principal, input.selectedId, true);\n  }\n  const metricsResult = await pool.query<SqlRow>(`
     SELECT
       count(*) FILTER (WHERE m.direction='incoming' AND COALESCE(s.archived_at IS NOT NULL,false)=false)::int AS inbox,
       count(*) FILTER (WHERE m.direction='incoming' AND COALESCE(s.archived_at IS NOT NULL,false)=false AND COALESCE(s.is_read,false)=false)::int AS unread,
       count(*) FILTER (WHERE m.direction='outgoing')::int AS sent,
       count(*) FILTER (WHERE COALESCE(s.is_starred,false)=true)::int AS starred,
-      count(*) FILTER (WHERE s.archived_at IS NOT NULL)::int AS archived,
+      count(*) FILTER (WHERE s.archived_at IS NOT NULL)::int AS archived,\n      count(*)::int AS all,
       max(m.received_at) FILTER (WHERE m.direction='incoming') AS last_inbound_at
     FROM admin_mail_messages m
     LEFT JOIN admin_mail_state s ON s.message_id=m.id AND s.user_public_id=$1
@@ -189,7 +189,7 @@ export async function adminMailWorkspace(
   if (query) {
     params.push(`%${query}%`);
     const index = params.length;
-    where.push(`(m.subject ILIKE $${index} OR m.from_address ILIKE $${index} OR array_to_string(m.to_addresses,' ') ILIKE $${index} OR m.preview ILIKE $${index})`);
+    where.push(`(m.subject ILIKE ${index} OR m.from_address ILIKE ${index} OR array_to_string(m.to_addresses,' ') ILIKE ${index} OR m.preview ILIKE ${index} OR m.body_text ILIKE ${index})`);
   }
   params.push(120);
   const limitParam = params.length;
@@ -227,7 +227,6 @@ export async function adminMailWorkspace(
       `, [principal.userId, threadKey]);
       thread = rows.rows.map(projectThread);
     }
-    await markAdminMailRead(principal, selectedId, true);
   }
 
   return {
@@ -244,8 +243,7 @@ export async function adminMailWorkspace(
       unread: Number(metric.unread || 0),
       sent: Number(metric.sent || 0),
       starred: Number(metric.starred || 0),
-      archived: Number(metric.archived || 0)
-    },
+      archived: Number(metric.archived || 0),\n      all: Number(metric.all || 0)\n    },
     lastInboundAt: epochOptional(metric.last_inbound_at)
   };
 }
