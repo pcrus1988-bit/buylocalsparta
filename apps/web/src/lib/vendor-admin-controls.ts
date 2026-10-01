@@ -220,12 +220,12 @@ export async function setAdminVendorOperationalState(principal: SessionPrincipal
       if (from === "closed") throw new Error("Closed shops cannot be reopened with the operational toggle");
       if (researchOnly && applications.rowCount === 0) throw new Error("Research prospects must complete formal onboarding before activation");
       await tx.query(`UPDATE vendor_businesses
-        SET status='active',contract_started_at=COALESCE(contract_started_at,$2),contract_ended_at=NULL,updated_at=$2
+        SET status='active',demo_mode=false,demo_mode_updated_at=$2,contract_started_at=COALESCE(contract_started_at,$2),contract_ended_at=NULL,updated_at=$2
         WHERE id=$1::uuid`, [vendorUuid, new Date(now)]);
     } else {
       if (from === "closed") throw new Error("Closed shops are already non-operational");
       await tx.query(`UPDATE vendor_businesses
-        SET status='suspended',updated_at=$2
+        SET status='suspended',demo_mode=false,demo_mode_updated_at=$2,updated_at=$2
         WHERE id=$1::uuid`, [vendorUuid, new Date(now)]);
     }
 
