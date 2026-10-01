@@ -11,7 +11,9 @@ export async function GET(_request: Request, context: Context) {
     const principal = await requireAdminSession(undefined, { permission: "notifications.manage" });
     const { id, partIndex } = await context.params;
     const attachment = await readAdminMailAttachment(principal, decodeURIComponent(id), Number(partIndex));
-    return new Response(attachment.bytes, {
+    const body = new Uint8Array(attachment.bytes.byteLength);
+    body.set(attachment.bytes);
+    return new Response(body.buffer, {
       headers: {
         "Cache-Control": "private, no-store",
         "Content-Type": attachment.contentType,
