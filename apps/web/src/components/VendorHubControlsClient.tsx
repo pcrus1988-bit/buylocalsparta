@@ -137,7 +137,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
     {error && <div className="shell form-error vendor-error" role="alert"><strong>Δεν αποθηκεύτηκε.</strong> {error}</div>}
     {success && <div className="shell workspace-page-callout is-positive" role="status"><strong>Ολοκληρώθηκε.</strong> {success}</div>}
 
-    <section className="shell vendor-section">
+    {!sections && <section className="shell vendor-section">
       <WorkspaceMetricStrip items={[
         { label: "HUB", value: workspace.hubId ?? workspace.marketId },
         { label: "Τοπική παράδοση", value: workspace.localDelivery.active ? "Ενεργή" : "Ανενεργή", tone: workspace.localDelivery.active ? "positive" : "default" },
@@ -145,7 +145,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
         { label: "AADE σε αναμονή", value: pendingAade, tone: pendingAade ? "attention" : "default" },
         { label: "Αλλαγή πλάνου", value: pendingSubscription, tone: pendingSubscription ? "attention" : "default" }
       ]} />
-    </section>
+    </section>}
 
     {show("delivery") && <section className="shell vendor-section" id="local-delivery">
       <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · Παραδόσεις" title="Περιοχή τοπικής παράδοσης" note="Η ρύθμιση είναι δική σου και υπερισχύει της γενικής κάλυψης HUB για το κατάστημά σου. Η τιμολόγηση μεταφοράς παραμένει στους κανόνες του HUB." />
