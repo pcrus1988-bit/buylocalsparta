@@ -94,20 +94,20 @@ export default async function DropshippingFeedHealthPage() {
             </div>
             <p style={{ marginTop: 10 }}>{health.detail}</p>
             {!supplier.active ? <div className="workspace-compact-list" style={{ marginTop: 12 }}>
-              <div className="workspace-compact-row"><strong>Εμπόδιο συγχρονισμού</strong><span>Ανενεργός προμηθευτής</span><small>Το supplier feed δεν πρέπει να συγχρονίζεται όσο ο supplier παραμένει ανενεργός.</small></div>
+              <div className="workspace-compact-row"><strong>Εμπόδιο συγχρονισμού</strong><span>Ανενεργός προμηθευτής</span><small>Η ροή του προμηθευτή δεν πρέπει να συγχρονίζεται όσο ο προμηθευτής παραμένει ανενεργός.</small></div>
             </div> : null}
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
               <div className="workspace-compact-row"><strong>Προμηθευτής</strong><span>{supplier.active ? "Ενεργός" : "Ανενεργός"}</span></div>
               <div className="workspace-compact-row"><strong>Συγχρονισμός καταλόγου</strong><span>{supplier.catalogueSyncEnabled ? "Enabled" : "Disabled"}</span></div>
               <div className="workspace-compact-row"><strong>Προώθηση παραγγελιών</strong><span>{supplier.orderForwardingEnabled ? "Enabled" : "Disabled"}</span></div>
               <div className="workspace-compact-row"><strong>Συγχρονισμός παρακολούθησης</strong><span>{supplier.trackingSyncEnabled ? "Enabled" : "Disabled"}</span></div>
-              <div className="workspace-compact-row"><strong>Τελευταίο healthcheck</strong><span>{date(supplier.lastHealthcheckAt)}</span><small>{age(health.healthcheckAgeMinutes)}</small></div>
+              <div className="workspace-compact-row"><strong>Τελευταίος έλεγχος</strong><span>{date(supplier.lastHealthcheckAt)}</span><small>{age(health.healthcheckAgeMinutes)}</small></div>
               <div className="workspace-compact-row"><strong>Αποτέλεσμα ελέγχου</strong><span>{supplier.lastHealthcheckOk === true ? "OK" : supplier.lastHealthcheckOk === false ? "FAILED" : "Άγνωστο"}</span></div>
               <div className="workspace-compact-row"><strong>Τελευταία ενημέρωση καταλόγου</strong><span>{date(supplier.lastCatalogueSyncAt)}</span><small>{age(health.catalogueSyncAgeMinutes)}</small></div>
               <div className="workspace-compact-row"><strong>Προϊόντα</strong><span>{supplier.totalProducts}</span><small>{supplier.availableProducts} supplier-available · {supplier.publishedProducts} published</small></div>
             </div>
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>
-              <div className="workspace-compact-row"><strong>Αμετάβλητα χωρίς επανεπεξεργασία &gt;12ωρ.</strong><span>{unchangedMaterializationRows}</span><small>Πληροφοριακό για delta feeds — δεν θεωρείται μόνο του failure.</small></div>
+              <div className="workspace-compact-row"><strong>Αμετάβλητα χωρίς επανεπεξεργασία &gt;12ωρ.</strong><span>{unchangedMaterializationRows}</span><small>Πληροφοριακό για ροές μεταβολών — δεν θεωρείται από μόνο του πρόβλημα.</small></div>
               <div className="workspace-compact-row"><strong>Χωρίς στοιχεία διαθεσιμότητας</strong><span>{missingAvailability}</span>{missingAvailability > 0 ? <Link href={missingAvailabilityHref}>Προβολή προϊόντων</Link> : null}</div>
               <div className="workspace-compact-row"><strong>Δημοσιευμένα χωρίς διαθεσιμότητα</strong><span>{publishedUnavailable}</span>{publishedUnavailable > 0 ? <Link href={publishedUnavailableHref}>Προβολή προϊόντων</Link> : null}</div>
               <div className="workspace-compact-row"><strong>Χωρίς τιμή αγοράς</strong><span>{missingCost}</span>{missingCost > 0 ? <Link href={missingCostHref}>Προβολή προϊόντων</Link> : null}</div>
@@ -116,7 +116,7 @@ export default async function DropshippingFeedHealthPage() {
             <Link className="button button-secondary" style={{ marginTop: 12 }} href={supplierHref}>Άνοιγμα προμηθευτή</Link>
           </article>;
         })}
-        {!suppliers.length ? <article className="workspace-queue-card"><strong>Δεν υπάρχει σύνδεση προμηθευτή.</strong><p>Το account είναι Dropshipping-only, αλλά δεν βρέθηκε supplier για παρακολούθηση.</p></article> : null}
+        {!suppliers.length ? <article className="workspace-queue-card"><strong>Δεν υπάρχει σύνδεση προμηθευτή.</strong><p>Το κατάστημα λειτουργεί με dropshipping, αλλά δεν βρέθηκε προμηθευτής για παρακολούθηση.</p></article> : null}
       </div>
     </section>
   </main>;
