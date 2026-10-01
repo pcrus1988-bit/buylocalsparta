@@ -134,9 +134,9 @@ export function buildAdminMailRawMime(input: {
     const safeName = cleanFilename(attachment.filename);
     lines.push(
       `--${mixedBoundary}`,
-      `Content-Type: ${cleanContentType(attachment.contentType)}; name="${escapeQuoted(safeName)}"`,
+      `Content-Type: ${cleanContentType(attachment.contentType)}; name*=UTF-8''${encodeRfc2231(safeName)}`,
       "Content-Transfer-Encoding: base64",
-      `Content-Disposition: attachment; filename="${escapeQuoted(safeName)}"`,
+      `Content-Disposition: attachment; filename*=UTF-8''${encodeRfc2231(safeName)}`,
       ...(attachment.contentId ? [`Content-ID: <${attachment.contentId.replace(/[<>\r\n]/g, "")}>`] : []),
       "",
       wrapBase64(Buffer.from(attachment.bytes).toString("base64"))
@@ -442,13 +442,17 @@ function decodeRfc2231(value: string): string {
 function formatAddress(value: AdminMailAddress): string {
   const address = value.address.trim().toLowerCase().replace(/[\r\n<>]/g, "");
   if (!value.name?.trim()) return address;
-  return `"${escapeQuoted(value.name.trim())}" <${address}>`;
+  return `${encodeHeaderWord(value.name.trim())} <${address}>`;
 }
 
 function encodeHeaderWord(value: string): string {
   const clean = value.replace(/[\r\n]/g, " ").trim().slice(0, 998);
   if (/^[\x20-\x7E]*$/.test(clean)) return clean;
   return `=?UTF-8?B?${Buffer.from(clean, "utf8").toString("base64")}?=`;
+}
+
+function encodeRfc2231(value: string): string {
+  return encodeURIComponent(value).replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
 }
 
 function escapeQuoted(value: string): string {
