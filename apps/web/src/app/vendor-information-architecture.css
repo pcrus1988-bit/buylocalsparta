@@ -145,3 +145,19 @@
   .vendor-app .workspace-form-actions{position:sticky;bottom:0;z-index:8;margin:14px -14px -14px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--vendor-border);background:rgba(255,253,250,.96);backdrop-filter:blur(12px)}
   .vendor-app .workspace-form-actions .button{width:100%}
 }
+
+
+/* Vendor readability overrides: operational text must remain comfortably readable. */
+.vendor-app .workspace-page-section-side p{font-size:12px;text-align:left}
+.vendor-app .workspace-page-metric>span{font-size:10px;line-height:1.35}
+.vendor-app .workspace-page-metric>strong{font-size:22px;line-height:1.15}
+.vendor-app .workspace-page-metric>small{font-size:10px;line-height:1.35}
+.vendor-app .workspace-form-field label,
+.vendor-app .workspace-form-field>span{font-size:11px;line-height:1.35}
+.vendor-app .workspace-compact-row strong{font-size:12px;line-height:1.35}
+.vendor-app .workspace-compact-row span{font-size:11px;line-height:1.45}
+.vendor-app .workspace-compact-row small{font-size:10px;line-height:1.45}
+.vendor-app .workspace-action-bar>span{font-size:11px;line-height:1.45}
+.vendor-app .workspace-how-it-works-body{font-size:12px;line-height:1.6}
+.vendor-app .workspace-page-empty p{font-size:12px}
+.vendor-app .workspace-page-empty h3{font-size:24px}
