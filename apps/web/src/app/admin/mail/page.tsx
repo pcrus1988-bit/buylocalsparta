@@ -234,7 +234,8 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
                 <div className="admin-mail-row-subject"><span>{message.subject}</span>{message.attachmentCount ? <small>📎 {message.attachmentCount}</small> : null}</div>
                 <p>{message.preview || "No preview available."}</p>
                 <div className="admin-mail-row-meta">
-                  <span>{message.direction === "incoming" ? "Incoming" : "Sent"}</span>
+                  <span>{message.direction === "incoming" ? "Incoming" : message.status === "sent" ? "Sent" : message.status === "queued" ? "Sending" : "Send failed"}</span>
+                  {message.direction === "outgoing" && message.status !== "sent" ? <span className="needs-attention">{message.status === "queued" ? "Awaiting SES confirmation" : "Delivery needs attention"}</span> : null}
                   {message.spamVerdict && message.spamVerdict !== "PASS" ? <span className="needs-attention">Spam: {message.spamVerdict}</span> : null}
                   {message.virusVerdict && message.virusVerdict !== "PASS" ? <span className="needs-attention">Virus: {message.virusVerdict}</span> : null}
                 </div>
@@ -284,6 +285,7 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
                 <div>
                   <time>{fmtDate(message.receivedAt || message.sentAt)}</time>
                   <span className={`admin-mail-direction ${message.direction}`}>{message.direction === "incoming" ? "IN" : "OUT"}</span>
+                  {message.direction === "outgoing" && message.status !== "sent" ? <span className="needs-attention">{message.status.toUpperCase()}</span> : null}
                 </div>
               </header>
               {(message.spamVerdict || message.virusVerdict) ? <div className="admin-mail-verdicts">
