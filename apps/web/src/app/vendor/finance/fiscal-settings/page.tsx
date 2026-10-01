@@ -19,7 +19,7 @@ export default async function VendorFiscalSettingsPage() {
     <VendorWorkspaceHeader />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
-        <div className="eyebrow">HUB ${vendorHubDisplayName(context)} · Οικονομικά</div>
+        <div className="eyebrow">HUB {vendorHubDisplayName(context)} · Οικονομικά</div>
         <h1>AADE & παραστατικά</h1>
         <p className="lead">Ρύθμισε τη σύνδεση myDATA, την αρίθμηση, τον τρόπο εμφάνισης του φόρου και την εμφάνιση του PDF της επιχείρησής σου.</p>
       </div>
