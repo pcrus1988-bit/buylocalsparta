@@ -111,6 +111,7 @@ requireText(hubApplicationForm, "Άνοιξε το 3ήμερο Vendor Trial", "H
 requireText(hubApplicationForm, '"x-csrf-token": csrfToken', "Signed-in HUB Trial application must send CSRF protection");
 requireText(trialRuntime, "FROM hub_expansion_prospects", "Trial runtime must resolve HUB prospect trial records");
 requireText(trialRuntime, "getVendorTrialSnapshotForPrincipal", "Verified vendor session must be able to resolve its active Trial");
+requireText(trialRuntime, '{ platformAccess: true, marketId: "sparta", requestId: "vendor-trial-authenticated-session" }', "Authenticated Trial fallback must use authorized platform scope while retaining explicit owner/vendor filters");
 requireText(trialRuntime, "createVendorTrialAccessForUser", "Password-authenticated Trial re-entry must support users with multiple vendor memberships");
 requireText(vendorLoginRoute, "createVendorTrialAccessForUser", "Vendor login must issue the active Trial session when Trial re-entry was requested");
 requireText(vendorLoginRoute, "VENDOR_TRIAL_COOKIE", "Vendor login Trial re-entry must persist the signed Trial cookie");
