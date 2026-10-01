@@ -114,20 +114,20 @@ export default async function VendorTrialPage() {
             <small>Λήξη {new Intl.DateTimeFormat("el-GR",{dateStyle:"medium",timeStyle:"short",timeZone:"Europe/Athens"}).format(new Date(trial.trialExpiresAt))}</small>
           </div>
         </div>
-        <div className={styles.progressTrack} aria-label={`Πρόοδος setup ${progress}%`}><div className={styles.progressFill} style={{ width: `${progress}%` }} /></div>
+        <div className={styles.progressTrack} aria-label={`Πρόοδος προετοιμασίας ${progress}%`}><div className={styles.progressFill} style={{ width: `${progress}%` }} /></div>
         <div className={styles.metricRow}>
           <div className={styles.metric}><small>Βασικές ρυθμίσεις</small><strong>{completed}/3</strong></div>
           <div className={styles.metric}><small>Προϊόντα</small><strong>{trial.productCount}</strong></div>
           <div className={styles.metric}><small>Αρχεία</small><strong>{trial.mediaCount}</strong></div>
         </div>
         <div className={styles.heroActions}>
-          <Link className={styles.heroAction} href="/vendor/preview">Preview Storefront →</Link>
+          <Link className={styles.heroAction} href="/vendor/preview">Προεπισκόπηση →</Link>
           <Link className={`${styles.heroAction} ${styles.heroActionGhost}`} href="/vendor/catalog">Πρόσθεσε προϊόντα</Link>
-          <Link className={`${styles.heroAction} ${styles.heroActionGhost}`} href="/vendor">Άνοιξε Dashboard</Link>
+          <Link className={`${styles.heroAction} ${styles.heroActionGhost}`} href="/vendor">Άνοιξε την αρχική</Link>
         </div>
       </section>
 
-      <section id="trial-safety" className={styles.safetyGrid} aria-label="Τι επιτρέπεται στο trial">
+      <section id="trial-safety" className={styles.safetyGrid} aria-label="Τι επιτρέπεται στη δοκιμή">
         <article className={styles.safetyCard}>
           <span className={styles.tourBadge}>Μπορείς τώρα</span>
           <h2>Να προετοιμάσεις το κατάστημά σου</h2>
@@ -139,7 +139,7 @@ export default async function VendorTrialPage() {
           <p>Δημόσιες πωλήσεις, πραγματικές πληρωμές και εκκαθαρίσεις δεν ενεργοποιούνται από τη δοκιμή.</p>
         </article>
         <article className={styles.safetyCard}>
-          <span className={styles.tourBadge}>Μετά το trial</span>
+          <span className={styles.tourBadge}>Μετά τη δοκιμή</span>
           <h2>Η δουλειά σου δεν διαγράφεται</h2>
           <p>Οι ρυθμίσεις μένουν αποθηκευμένες όσο συνεχίζεται ο έλεγχος της αίτησης και μπορούν να ενεργοποιηθούν όταν ολοκληρωθούν οι απαραίτητοι έλεγχοι.</p>
         </article>
@@ -199,7 +199,7 @@ export default async function VendorTrialPage() {
       <section id="activation" className={styles.activationPanel}>
         <div>
           <span className={styles.nextStepEyebrow}>Επόμενα βήματα</span>
-          <h2>Τι συμβαίνει όταν τελειώσει το trial</h2>
+          <h2>Τι συμβαίνει όταν τελειώσει η δοκιμή</h2>
           <p>Η δοκιμή δεν αποτελεί τελική ενεργοποίηση. Η αίτησή σου συνεχίζει στον απαραίτητο έλεγχο και ό,τι έχεις ετοιμάσει παραμένει αποθηκευμένο.</p>
         </div>
         <div className={styles.activationSteps}>
