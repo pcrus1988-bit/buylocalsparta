@@ -1,17 +1,24 @@
-import { getCrawlerCatalogCards } from "../../lib/crawler-catalog";
-import { getPublicProductSeoInventory } from "../../lib/catalog-view";
-import { productPublicPath } from "../../lib/product-url";
-import { publicCatalogueCardDescription, publicCatalogueTitleLabel } from "../../lib/public-data-integrity";
-import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../lib/seo-entity-policy";
-import { getSeoEntityOverridesSnapshot } from "../../lib/seo-entity-overrides";
-import { getSeoGlobalSettingsSnapshot } from "../../lib/seo-settings";
-import { productIndexEligibility } from "../../lib/seo-visibility-policy";
+import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../lib/postgres-runtime";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
-const SPARTA_POSTCODE = "23100";
+const SITE_ORIGIN = "https://kontamou.site";
 const INVALID_XML_10_CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/gu;
+
+type SnapshotRow = Readonly<{
+  canonical_variant_id: string;
+  id: string;
+  title: string;
+  description: string | null;
+  link: string | null;
+  source_image_link: string | null;
+  amount_micros: string | null;
+  currency_code: string | null;
+  brand: string | null;
+  product_type: string | null;
+}>;
 
 function cleanXmlText(value: string): string {
   return value.replace(INVALID_XML_10_CONTROL, "").trim();
@@ -26,135 +33,156 @@ function escapeXml(value: string): string {
     .replaceAll("'", "&apos;");
 }
 
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&nbsp;/giu, " ")
+    .replace(/&amp;/giu, "&")
+    .replace(/&lt;/giu, "<")
+    .replace(/&gt;/giu, ">")
+    .replace(/&quot;/giu, '"')
+    .replace(/&#(?:39|x27);/giu, "'")
+    .replace(/&#(\d+);/gu, (_match, digits: string) => {
+      const codePoint = Number(digits);
+      return Number.isSafeInteger(codePoint) && codePoint > 0 && codePoint <= 0x10ffff
+        ? String.fromCodePoint(codePoint)
+        : "";
+    })
+    .replace(/&#x([0-9a-f]+);/giu, (_match, digits: string) => {
+      const codePoint = Number.parseInt(digits, 16);
+      return Number.isSafeInteger(codePoint) && codePoint > 0 && codePoint <= 0x10ffff
+        ? String.fromCodePoint(codePoint)
+        : "";
+    });
+}
+
+function plainDescription(value: string | null): string | undefined {
+  if (!value?.trim()) return undefined;
+  const normalized = decodeHtmlEntities(
+    value
+      .replace(/<br\s*\/?>/giu, "\n")
+      .replace(/<\/(?:p|div|li|tr|h[1-6])>/giu, "\n")
+      .replace(/<[^>]*>/gu, " ")
+  )
+    .replace(/[ \t]+/gu, " ")
+    .replace(/\s*\n\s*/gu, "\n")
+    .replace(/\n{3,}/gu, "\n\n")
+    .trim();
+
+  return normalized || undefined;
+}
+
 function optionalTag(name: string, value: string | undefined): string {
   const normalized = value?.trim();
   return normalized ? `    <${name}>${escapeXml(normalized)}</${name}>\n` : "";
 }
 
-function publicImageUrl(
-  input: Readonly<{ id: string; mediaId?: string; sourceImageAvailable?: boolean }>,
-  origin: string
-): string | undefined {
-  if (input.mediaId) {
-    return new URL(`/api/media/${encodeURIComponent(input.mediaId)}`, `${origin}/`).toString();
-  }
-  if (input.sourceImageAvailable) {
-    return new URL(`/api/catalog-source-image/${encodeURIComponent(input.id)}`, `${origin}/`).toString();
-  }
-  return undefined;
+function priceFromMicros(raw: string | null): string | undefined {
+  const normalized = raw?.trim();
+  if (!normalized || !/^\d+$/u.test(normalized)) return undefined;
+  const micros = Number(normalized);
+  if (!Number.isFinite(micros) || micros <= 0) return undefined;
+  return (micros / 1_000_000).toFixed(2);
 }
 
-type ExportProduct = Readonly<{
-  id: string;
-  title: string;
-  description?: string;
-  link?: string;
-  imageLink?: string;
-  price?: string;
-  currencyCode?: string;
-  brand?: string;
-  productType?: string;
-}>;
+function safeKontamouLink(raw: string | null): string | undefined {
+  const normalized = raw?.trim();
+  if (!normalized) return undefined;
+  try {
+    const url = new URL(normalized);
+    if (url.protocol !== "https:" || (url.hostname !== "kontamou.site" && url.hostname !== "www.kontamou.site")) {
+      return undefined;
+    }
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
 
-function productXml(product: ExportProduct): string {
+function rowXml(row: SnapshotRow): string {
+  const price = priceFromMicros(row.amount_micros);
+  const imageLink = row.source_image_link?.trim()
+    ? `${SITE_ORIGIN}/api/catalog-source-image/${encodeURIComponent(row.canonical_variant_id)}`
+    : undefined;
+
   return [
     "  <product>",
-    `    <id>${escapeXml(product.id)}</id>`,
-    `    <title>${escapeXml(product.title)}</title>`,
-    optionalTag("description", product.description).trimEnd(),
-    optionalTag("link", product.link).trimEnd(),
-    optionalTag("image_link", product.imageLink).trimEnd(),
-    optionalTag("price", product.price).trimEnd(),
-    optionalTag("currency_code", product.currencyCode).trimEnd(),
-    optionalTag("brand", product.brand).trimEnd(),
-    optionalTag("product_type", product.productType).trimEnd(),
+    `    <id>${escapeXml(row.id)}</id>`,
+    `    <title>${escapeXml(row.title)}</title>`,
+    optionalTag("description", plainDescription(row.description)).trimEnd(),
+    optionalTag("link", safeKontamouLink(row.link)).trimEnd(),
+    optionalTag("image_link", imageLink).trimEnd(),
+    optionalTag("price", price).trimEnd(),
+    optionalTag("currency_code", price ? (row.currency_code?.trim().toUpperCase() || "EUR") : undefined).trimEnd(),
+    optionalTag("brand", row.brand?.trim() || undefined).trimEnd(),
+    optionalTag("product_type", row.product_type?.trim() || undefined).trimEnd(),
     "  </product>"
   ].filter(Boolean).join("\n");
 }
 
-function buildProductsXml(products: readonly ExportProduct[]): string {
-  const items = products
-    .slice()
-    .sort((left, right) => left.id.localeCompare(right.id))
-    .map(productXml)
-    .join("\n");
+async function loadProducts(): Promise<readonly SnapshotRow[]> {
+  if (!productionDatabaseConfigured()) {
+    throw new Error("Production database is not configured");
+  }
 
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<products>\n${items ? `${items}\n` : ""}</products>\n`;
-}
+  const result = await getProductionPostgresRuntime().nativePool.query<SnapshotRow>(`
+    SELECT DISTINCT ON (mps.canonical_variant_id)
+      mps.canonical_variant_id::text,
+      COALESCE(NULLIF(btrim(mps.offer_id), ''), mps.canonical_variant_id::text) AS id,
+      btrim(mps.last_submitted_payload #>> '{productAttributes,title}') AS title,
+      NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,description}'), '') AS description,
+      NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,link}'), '') AS link,
+      NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,imageLink}'), '') AS source_image_link,
+      NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,price,amountMicros}'), '') AS amount_micros,
+      NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,price,currencyCode}'), '') AS currency_code,
+      NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,brand}'), '') AS brand,
+      COALESCE(
+        NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,productType}'), ''),
+        NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,productTypes,0}'), '')
+      ) AS product_type
+    FROM public.merchant_product_sync mps
+    WHERE mps.sync_status = 'synced'
+      AND mps.canonical_variant_id IS NOT NULL
+      AND mps.feed_label = 'GR'
+      AND mps.last_submitted_payload IS NOT NULL
+      AND NULLIF(btrim(mps.last_submitted_payload #>> '{productAttributes,title}'), '') IS NOT NULL
+      AND COALESCE(mps.last_submitted_payload #>> '{productAttributes,availability}', 'IN_STOCK') = 'IN_STOCK'
+    ORDER BY
+      mps.canonical_variant_id,
+      CASE mps.content_language WHEN 'el' THEN 0 WHEN 'en' THEN 1 ELSE 2 END,
+      mps.last_success_at DESC NULLS LAST,
+      mps.updated_at DESC
+  `);
 
-function xmlResponse(xml: string, itemCount: number): Response {
-  return new Response(xml, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/xml; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="kontamou-products.xml"',
-      "Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=900",
-      "X-Robots-Tag": "noindex, follow",
-      "X-Kontamou-Product-Items": String(itemCount),
-      "X-Content-Type-Options": "nosniff"
-    }
-  });
+  return result.rows;
 }
 
 export async function GET(): Promise<Response> {
   try {
-    const [{ settings }, overrides, inventory] = await Promise.all([
-      getSeoGlobalSettingsSnapshot(),
-      getSeoEntityOverridesSnapshot(),
-      getPublicProductSeoInventory()
-    ]);
-    const origin = settings.canonicalOrigin.replace(/\/$/, "");
+    const rows = await loadProducts();
+    const encoder = new TextEncoder();
 
-    if (!settings.indexingEnabled) {
-      return xmlResponse(buildProductsXml([]), 0);
-    }
-
-    if (!inventory.mediaProjectionAvailable) {
-      throw new Error("Public product media projection is unavailable");
-    }
-
-    const cards = await getCrawlerCatalogCards(SPARTA_POSTCODE);
-    const recordById = new Map(inventory.products.map((product) => [product.id, product]));
-    const products: ExportProduct[] = [];
-
-    for (const card of cards) {
-      const record = recordById.get(card.id);
-      if (!record || !card.available || !Number.isSafeInteger(card.priceMinor) || card.priceMinor <= 0) {
-        continue;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('<?xml version="1.0" encoding="UTF-8"?>\n<products>\n'));
+        for (const row of rows) {
+          controller.enqueue(encoder.encode(rowXml(row) + "\n"));
+        }
+        controller.enqueue(encoder.encode("</products>\n"));
+        controller.close();
       }
+    });
 
-      const quality = productIndexEligibility(record);
-      const reference: SeoEntityReference = { kind: "product", id: record.id };
-      const override = findSeoEntityOverride(overrides.entries, reference);
-      const control = resolveSeoEntityControl({
-        settings,
-        kind: reference.kind,
-        entityEligible: quality.blockingReasons.length === 0,
-        defaultIndexAllowed: quality.eligible,
-        override
-      });
-      if (!control.indexAllowed) continue;
-
-      const title = publicCatalogueTitleLabel(record.title);
-      if (!title) continue;
-
-      const imageLink = publicImageUrl(card, origin);
-      const description = publicCatalogueCardDescription(record.description ?? "") || undefined;
-
-      products.push({
-        id: record.id,
-        title,
-        description,
-        link: new URL(override?.canonicalPath ?? productPublicPath(record), `${origin}/`).toString(),
-        imageLink,
-        price: (card.priceMinor / 100).toFixed(2),
-        currencyCode: "EUR",
-        brand: record.brand?.trim() || undefined,
-        productType: (record.categoryLabel ?? record.categoryCode)?.trim() || undefined
-      });
-    }
-
-    return xmlResponse(buildProductsXml(products), products.length);
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/xml; charset=utf-8",
+        "Content-Disposition": 'attachment; filename="kontamou-products.xml"',
+        "Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=900",
+        "X-Robots-Tag": "noindex, follow",
+        "X-Kontamou-Product-Items": String(rows.length),
+        "X-Content-Type-Options": "nosniff"
+      }
+    });
   } catch (error) {
     console.error(JSON.stringify({
       level: "error",
