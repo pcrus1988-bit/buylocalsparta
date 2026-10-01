@@ -1,6 +1,18 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
+export type VendorInstagramSettings = Readonly<{
+  enabled: boolean;
+  sectionTitle: string;
+  contentMode: "reels" | "all" | "posts";
+  itemCount: 4 | 8 | 12 | 20;
+  autoplay: boolean;
+  muted: boolean;
+  mobileLayout: "reels" | "carousel";
+  desktopLayout: "spotlight" | "carousel";
+  curatedUrls: readonly string[];
+}>;
+
 export type VendorStorefrontSettings = Readonly<{
   accentColor: string;
   heroStyle: "split" | "centered" | "editorial";
@@ -11,6 +23,7 @@ export type VendorStorefrontSettings = Readonly<{
   showAbout: boolean;
   showLocation: boolean;
   showContact: boolean;
+  instagram: VendorInstagramSettings;
 }>;
 
 export type VendorStorefrontWorkspace = Readonly<{
@@ -44,6 +57,18 @@ export type VendorStorefrontPreviewProduct = Readonly<{
   source: "offer" | "submission";
 }>;
 
+const DEFAULT_INSTAGRAM_SETTINGS: VendorInstagramSettings = {
+  enabled: false,
+  sectionTitle: "Δες μας στο Instagram",
+  contentMode: "reels",
+  itemCount: 8,
+  autoplay: true,
+  muted: true,
+  mobileLayout: "reels",
+  desktopLayout: "spotlight",
+  curatedUrls: []
+};
+
 const DEFAULT_SETTINGS: VendorStorefrontSettings = {
   accentColor: "#0f766e",
   heroStyle: "split",
@@ -53,7 +78,8 @@ const DEFAULT_SETTINGS: VendorStorefrontSettings = {
   showBazaar: true,
   showAbout: true,
   showLocation: true,
-  showContact: true
+  showContact: true,
+  instagram: DEFAULT_INSTAGRAM_SETTINGS
 };
 
 export async function vendorStorefrontWorkspace(principal: SessionPrincipal): Promise<VendorStorefrontWorkspace> {
@@ -378,8 +404,67 @@ function normalizeSettings(value: unknown): VendorStorefrontSettings {
     showBazaar: booleanValue(source.showBazaar, DEFAULT_SETTINGS.showBazaar),
     showAbout: booleanValue(source.showAbout, DEFAULT_SETTINGS.showAbout),
     showLocation: booleanValue(source.showLocation, DEFAULT_SETTINGS.showLocation),
-    showContact: booleanValue(source.showContact, DEFAULT_SETTINGS.showContact)
+    showContact: booleanValue(source.showContact, DEFAULT_SETTINGS.showContact),
+    instagram: normalizeInstagramSettings(source.instagram)
   };
+}
+
+export function publicVendorInstagramSettings(value: unknown): VendorInstagramSettings | undefined {
+  const settings = normalizeSettings(value).instagram;
+  return settings.enabled ? settings : undefined;
+}
+
+function normalizeInstagramSettings(value: unknown): VendorInstagramSettings {
+  const source = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  const contentMode = source.contentMode === "all" || source.contentMode === "posts" || source.contentMode === "reels"
+    ? source.contentMode
+    : DEFAULT_INSTAGRAM_SETTINGS.contentMode;
+  const itemCount = source.itemCount === 4 || source.itemCount === 8 || source.itemCount === 12 || source.itemCount === 20
+    ? source.itemCount
+    : DEFAULT_INSTAGRAM_SETTINGS.itemCount;
+  const mobileLayout = source.mobileLayout === "carousel" || source.mobileLayout === "reels"
+    ? source.mobileLayout
+    : DEFAULT_INSTAGRAM_SETTINGS.mobileLayout;
+  const desktopLayout = source.desktopLayout === "carousel" || source.desktopLayout === "spotlight"
+    ? source.desktopLayout
+    : DEFAULT_INSTAGRAM_SETTINGS.desktopLayout;
+  return {
+    enabled: booleanValue(source.enabled, DEFAULT_INSTAGRAM_SETTINGS.enabled),
+    sectionTitle: boundedText(source.sectionTitle, 80) || DEFAULT_INSTAGRAM_SETTINGS.sectionTitle,
+    contentMode,
+    itemCount,
+    autoplay: booleanValue(source.autoplay, DEFAULT_INSTAGRAM_SETTINGS.autoplay),
+    muted: booleanValue(source.muted, DEFAULT_INSTAGRAM_SETTINGS.muted),
+    mobileLayout,
+    desktopLayout,
+    curatedUrls: normalizeInstagramUrls(source.curatedUrls)
+  };
+}
+
+function normalizeInstagramUrls(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  for (const candidate of value) {
+    if (typeof candidate !== "string") continue;
+    try {
+      const url = new URL(candidate.trim());
+      const host = url.hostname.toLowerCase().replace(/^www\./, "");
+      if (url.protocol !== "https:" || host !== "instagram.com") continue;
+      if (!/^\/(?:p|reel|reels)\/[A-Za-z0-9_-]+\/?$/.test(url.pathname)) continue;
+      const normalized = `https://www.instagram.com${url.pathname.replace(/\/$/, "")}/`;
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+        urls.push(normalized);
+      }
+    } catch {
+      // Ignore malformed curation URLs instead of making a legacy storefront unreadable.
+    }
+    if (urls.length >= 20) break;
+  }
+  return urls;
 }
 
 function boundedText(value: unknown, max: number): string {
