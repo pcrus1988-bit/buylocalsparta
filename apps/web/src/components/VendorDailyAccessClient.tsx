@@ -91,18 +91,9 @@ export function VendorDailyAccessClient({ initial, csrfToken }: { initial: Reado
           <div><strong style={{ display: "block", fontSize: "1.05rem" }}>{access.displayName}</strong><span style={{ opacity: .68 }}>{access.email}</span></div>
           <span className="vendor-merchant-status">{access.active ? "Ενεργή πρόσβαση" : "Ανακλήθηκε"}</span>
         </div>
-        <VendorLifecycle steps={access.active ? [
-          { label: "Δημιουργήθηκε", tone: "done" },
-          { label: "Ενεργή", tone: "current" },
-          { label: "Ανάκληση", tone: "future" }
-        ] : [
-          { label: "Δημιουργήθηκε", tone: "done" },
-          { label: "Ήταν ενεργή", tone: "done" },
-          { label: "Ανακλήθηκε", tone: "blocked" }
-        ]} ariaLabel={`Κατάσταση πρόσβασης ${access.displayName}`} />
         <div className="workspace-compact-list">
-          <div className="workspace-compact-row"><strong>Ενεργές συνεδρίες</strong><span>{access.activeSessions}</span></div>
-          <div className="workspace-compact-row"><strong>Συσκευές με ειδοποιήσεις</strong><span>{access.pushDevices}</span></div>
+          <div className="workspace-compact-row"><strong>Συνδεδεμένες συσκευές / συνεδρίες</strong><span>{access.activeSessions}</span></div>
+          <div className="workspace-compact-row"><strong>Συσκευές με ειδοποιήσεις ενεργές</strong><span>{access.pushDevices}</span></div>
           <div className="workspace-compact-row"><strong>Δημιουργήθηκε</strong><span>{date(access.createdAt)}</span></div>
         </div>
         {access.active && <div style={{ display: "grid", gap: 10 }}>
