@@ -345,11 +345,12 @@ export async function sendAdminMail(
   if (text.length > 500_000) throw new Error("Message body is too large");
 
   const attachments = await normalizeOutgoingAttachments(input.attachments || []);
+  const pool = getProductionPostgresRuntime().sqlPool;
   let inReplyTo: string | undefined;
   let references: readonly string[] = [];
   let threadKey: string | undefined;
   if (input.inReplyToId) {
-    const reply = await getProductionPostgresRuntime().sqlPool.query<{ rfc_message_id: string | null; reference_ids: string[]; thread_key: string }>(
+    const reply = await pool.query<{ rfc_message_id: string | null; reference_ids: string[]; thread_key: string }>(
       "SELECT rfc_message_id,reference_ids,thread_key FROM admin_mail_messages WHERE public_id=$1 LIMIT 1",
       [input.inReplyToId]
     );
@@ -375,14 +376,6 @@ export async function sendAdminMail(
     attachments
   });
 
-  const sendResult = await sendRawSesEmail({
-    config: config.ses,
-    raw: built.raw,
-    from: fromAddress,
-    to,
-    cc,
-    bcc
-  });
   const publicId = `mail_${randomUUID().replace(/-/g, "")}`;
   const finalThreadKey = threadKey || adminMailThreadKey({
     subject,
@@ -397,18 +390,20 @@ export async function sendAdminMail(
     byteSize: attachment.bytes.byteLength,
     inline: false
   }));
-  await getProductionPostgresRuntime().sqlPool.query(`
+
+  // Persist the operator action before handing the message to SES. This avoids
+  // presenting a delivered email as an unsaved failure if a later DB write fails.
+  await pool.query(`
     INSERT INTO admin_mail_messages (
-      public_id,direction,provider,transport_key,ses_message_id,rfc_message_id,in_reply_to,reference_ids,thread_key,
+      public_id,direction,provider,transport_key,rfc_message_id,in_reply_to,reference_ids,thread_key,
       from_address,to_addresses,cc_addresses,bcc_addresses,reply_to,subject,preview,body_text,has_attachments,attachment_count,attachments,
-      status,sent_at,created_by_user_public_id
+      status,created_by_user_public_id
     ) VALUES (
-      $1,'outgoing','ses',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$8,$12,$13,$14,$15,$16,$17::jsonb,'sent',now(),$18
+      $1,'outgoing','ses',$2,$3,$4,$5,$6,$7,$8,$9,$10,$7,$11,$12,$13,$14,$15,$16::jsonb,'queued',$17
     )
   `, [
     publicId,
-    `ses:${sendResult.providerMessageId}`,
-    sendResult.providerMessageId,
+    `outbound:${publicId}`,
     built.internetMessageId,
     inReplyTo || null,
     references,
@@ -425,6 +420,44 @@ export async function sendAdminMail(
     JSON.stringify(attachmentMetadata),
     principal.userId
   ]);
+
+  let sendResult: { providerMessageId: string };
+  try {
+    sendResult = await sendRawSesEmail({
+      config: config.ses,
+      raw: built.raw,
+      from: fromAddress,
+      to,
+      cc,
+      bcc
+    });
+  } catch (error) {
+    const deliveryError = (error instanceof Error ? error.message : String(error)).replace(/[\r\n]+/g, " ").slice(0, 1000);
+    await pool.query(
+      "UPDATE admin_mail_messages SET status='failed',delivery_error=$2,updated_at=now() WHERE public_id=$1",
+      [publicId, deliveryError]
+    ).catch(() => undefined);
+    throw error;
+  }
+
+  try {
+    await pool.query(`
+      UPDATE admin_mail_messages
+      SET transport_key=$2,ses_message_id=$3,status='sent',sent_at=now(),delivery_error=NULL,updated_at=now()
+      WHERE public_id=$1
+    `, [publicId, `ses:${sendResult.providerMessageId}`, sendResult.providerMessageId]);
+  } catch (error) {
+    // SES has already accepted the message. Do not tell the operator that sending
+    // failed and risk a duplicate; the durable queued row remains available for repair.
+    console.error(JSON.stringify({
+      level: "error",
+      event: "admin_mail.sent_state_update_failed",
+      publicId,
+      providerMessageId: sendResult.providerMessageId,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+  }
+
   return { publicId, providerMessageId: sendResult.providerMessageId };
 }
 
@@ -434,9 +467,11 @@ function resolveMailConfig(env: NodeJS.ProcessEnv = process.env): MailConfig {
   if (region !== REQUIRED_REGION) throw new Error(`Admin Mail is locked to AWS ${REQUIRED_REGION}; configured region is ${region || "empty"}.`);
   const bucket = (env.BLS_MAIL_INBOUND_BUCKET || env.KONTAMOU_MAIL_INBOUND_BUCKET || env.SES_INBOUND_BUCKET || DEFAULT_BUCKET).trim();
   if (!bucket) throw new Error("Admin Mail inbound S3 bucket is missing");
-  const sourceList = (env.BLS_MAIL_FROM_ADDRESSES || env.KONTAMOU_MAIL_FROM_ADDRESSES || env.BLS_MAIL_FROM || DEFAULT_FROM.join(","))
-    .split(",").map((value) => normalizeEmail(value)).filter(Boolean);
-  const fromAddresses = [...new Set(sourceList)];
+  const explicitFromAddresses = env.BLS_MAIL_FROM_ADDRESSES || env.KONTAMOU_MAIL_FROM_ADDRESSES;
+  const sourceList = explicitFromAddresses
+    ? explicitFromAddresses.split(",")
+    : [env.BLS_MAIL_FROM || "", ...DEFAULT_FROM];
+  const fromAddresses = [...new Set(sourceList.map((value) => value.trim()).filter(Boolean).map((value) => normalizeEmail(value)))];
   if (!fromAddresses.length) throw new Error("Admin Mail requires at least one From address");
   return {
     region,
