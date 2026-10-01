@@ -59,6 +59,7 @@ async function postgresProductListWorkspace(principal:SessionPrincipal,filters:A
     if(state==="draft")where.push("cv.active=FALSE AND cv.suppressed=FALSE AND cv.recalled=FALSE");
     if(state==="suppressed")where.push("cv.suppressed=TRUE");
     if(state==="recalled")where.push("cv.recalled=TRUE");
+    // Taxonomy work queue excludes inactive orphan rows that have no family, offer or linked source product.
     if(state==="uncategorized")where.push("cv.category_id IS NULL AND cv.suppressed=FALSE AND cv.recalled=FALSE AND (cv.active=TRUE OR cv.family_id IS NOT NULL OR EXISTS (SELECT 1 FROM vendor_offers vo_taxonomy WHERE vo_taxonomy.canonical_variant_id=cv.id) OR EXISTS (SELECT 1 FROM catalog_source_product_links csl_taxonomy WHERE csl_taxonomy.canonical_variant_id=cv.id AND csl_taxonomy.link_status='linked'))");
     if(state==="missing_media")where.push("NOT EXISTS (SELECT 1 FROM product_media pm_filter WHERE pm_filter.canonical_variant_id=cv.id AND pm_filter.scan_status='clean' AND pm_filter.rights_status='approved' AND pm_filter.moderation_status='approved')");
     if(state==="no_offer")where.push("NOT EXISTS (SELECT 1 FROM vendor_offers vo_filter WHERE vo_filter.canonical_variant_id=cv.id AND vo_filter.status='approved' AND COALESCE(vo_filter.merchant_visible,TRUE)=TRUE AND COALESCE(vo_filter.merchant_pause_active,FALSE)=FALSE AND vo_filter.customer_price_minor>0)");
