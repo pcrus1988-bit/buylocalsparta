@@ -30,7 +30,10 @@ export function VendorDomainNavigation({ id, groups, onNavigate }: Readonly<{ id
       const active = current?.group.label === group.label;
       return <Link href={href} key={group.label} className={active ? "is-active" : undefined} aria-current={active ? "page" : undefined} onClick={onNavigate}>
         <span className="vendor-domain-icon" aria-hidden="true">{group.icon ?? group.links[0]?.icon ?? "·"}</span>
-        <span>{group.label}</span>
+        <span className="vendor-domain-copy">
+          <strong>{group.label}</strong>
+          {group.description && <small>{group.description}</small>}
+        </span>
         <i aria-hidden="true">›</i>
       </Link>;
     })}
