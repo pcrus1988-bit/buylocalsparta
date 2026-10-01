@@ -65,9 +65,9 @@ export function VendorDailyAccessClient({ initial, csrfToken }: { initial: Reado
     finally { setBusy(""); }
   }
 
-  return <div style={{ display: "grid", gap: 24 }}>
-    <section className="workspace-queue-card" style={{ display: "grid", gap: 16 }}>
-      <div><div className="eyebrow">Νέα πρόσβαση</div><h2 style={{ margin: "4px 0 6px" }}>Δώσε πρόσβαση στην καθημερινή λειτουργία</h2><p style={{ margin: 0, opacity: .72 }}>Ο λογαριασμός Daily βλέπει μόνο τις καθημερινές εργασίες: παραγγελίες, Ask Local, QR παραλαβές και ειδοποιήσεις. Δεν αποκτά πρόσβαση στο πλήρη χώρο συνεργάτη.</p></div>
+  return <div className="vendor-daily-access-stack">
+    <section className="workspace-queue-card vendor-daily-access-card">
+      <div><div className="eyebrow">Νέα πρόσβαση</div><h2 className="vendor-card-title">Δώσε πρόσβαση στην καθημερινή λειτουργία</h2><p className="vendor-card-copy">Ο λογαριασμός Daily βλέπει μόνο τις καθημερινές εργασίες: παραγγελίες, Ask Local, QR παραλαβές και ειδοποιήσεις. Δεν αποκτά πρόσβαση στο πλήρη χώρο συνεργάτη.</p></div>
       <VendorLifecycle steps={[
         { label: "Στοιχεία ατόμου", tone: "attention" },
         { label: "Δημιουργία πρόσβασης", tone: "future" },
@@ -78,21 +78,21 @@ export function VendorDailyAccessClient({ initial, csrfToken }: { initial: Reado
         <p><strong>Ο κωδικός είναι ξεχωριστός</strong> από τον λογαριασμό ιδιοκτήτη του χώρου συνεργάτη. Αν αλλάξεις τον κωδικό, οι προηγούμενες Daily συνεδρίες κλείνουν.</p>
         <p><strong>Ανάκληση πρόσβασης:</strong> αποσυνδέει αμέσως το συγκεκριμένο άτομο από όλες τις ενεργές Daily συνεδρίες.</p>
       </WorkspaceHowItWorks>
-      <form className="vendor-daily-access-form" onSubmit={create} style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
-        <label style={{ display: "grid", gap: 6 }}>Όνομα<input name="displayName" required maxLength={120} placeholder="π.χ. Μαρία — Κατάστημα" /></label>
-        <label style={{ display: "grid", gap: 6 }}>Email<input name="email" type="email" required autoComplete="off" /></label>
-        <label style={{ display: "grid", gap: 6, gridColumn: "1 / -1" }}>Αρχικός κωδικός<input name="password" type="password" required minLength={10} autoComplete="new-password" /><small style={{ opacity: .65 }}>Τουλάχιστον 10 χαρακτήρες. Χρησιμοποίησε ξεχωριστό email που δεν είναι ήδη λογαριασμός KONTA MOY.</small></label>
-        <button className="button" type="submit" disabled={Boolean(busy)} style={{ gridColumn: "1 / -1" }}>{busy === "create" ? "Δημιουργία…" : "Δημιουργία πρόσβασης Daily"}</button>
+      <form className="vendor-daily-access-form workspace-form-grid" onSubmit={create}>
+        <label className="workspace-form-field">Όνομα<input name="displayName" required maxLength={120} placeholder="π.χ. Μαρία — Κατάστημα" /></label>
+        <label className="workspace-form-field">Email<input name="email" type="email" required autoComplete="off" /></label>
+        <label className="workspace-form-field span-2">Αρχικός κωδικός<input name="password" type="password" required minLength={10} autoComplete="new-password" /><small className="vendor-field-help">Τουλάχιστον 10 χαρακτήρες. Χρησιμοποίησε ξεχωριστό email που δεν είναι ήδη λογαριασμός KONTA MOY.</small></label>
+        <button className="button span-2" type="submit" disabled={Boolean(busy)}>{busy === "create" ? "Δημιουργία…" : "Δημιουργία πρόσβασης Daily"}</button>
       </form>
       {error && <VendorActionNotice tone="danger" title="Η ενέργεια δεν ολοκληρώθηκε">{error}</VendorActionNotice>}
       {success && <VendorActionNotice tone="positive" title="Ολοκληρώθηκε">{success}</VendorActionNotice>}
     </section>
 
-    <section style={{ display: "grid", gap: 12 }}>
-      <div><div className="eyebrow">Πρόσβαση Daily</div><h2 style={{ margin: "4px 0" }}>Άτομα με πρόσβαση</h2><p style={{ margin: 0, opacity: .7 }}>Βλέπεις άμεσα ποιος έχει ενεργή πρόσβαση, αν υπάρχουν συνδεδεμένες συνεδρίες και αν έχουν ενεργοποιηθεί ειδοποιήσεις σε συσκευή.</p></div>
-      {accesses.length === 0 ? <div className="workspace-queue-card">Δεν έχει δημιουργηθεί ακόμη ξεχωριστή πρόσβαση Daily.</div> : accesses.map((access) => <article className="workspace-queue-card" key={access.id} style={{ display: "grid", gap: 14, opacity: access.active ? 1 : .65 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
-          <div><strong style={{ display: "block", fontSize: "1.05rem" }}>{access.displayName}</strong><span style={{ opacity: .68 }}>{access.email}</span></div>
+    <section className="vendor-daily-access-list">
+      <div><div className="eyebrow">Πρόσβαση Daily</div><h2 className="vendor-card-title">Άτομα με πρόσβαση</h2><p className="vendor-card-copy">Βλέπεις άμεσα ποιος έχει ενεργή πρόσβαση, αν υπάρχουν συνδεδεμένες συνεδρίες και αν έχουν ενεργοποιηθεί ειδοποιήσεις σε συσκευή.</p></div>
+      {accesses.length === 0 ? <div className="workspace-queue-card">Δεν έχει δημιουργηθεί ακόμη πρόσβαση για συνεργάτη ή υπάλληλο.</div> : accesses.map((access) => <article className={`workspace-queue-card vendor-daily-access-card${access.active ? "" : " is-inactive"}`} key={access.id}>
+        <div className="workspace-queue-head">
+          <div><strong>{access.displayName}</strong><small>{access.email}</small></div>
           <span className="vendor-merchant-status">{access.active ? "Ενεργή πρόσβαση" : "Ανακλήθηκε"}</span>
         </div>
         <VendorLifecycle steps={access.active ? [
@@ -109,8 +109,8 @@ export function VendorDailyAccessClient({ initial, csrfToken }: { initial: Reado
           <div className="workspace-compact-row"><strong>Συσκευές με ειδοποιήσεις</strong><span>{access.pushDevices}</span></div>
           <div className="workspace-compact-row"><strong>Δημιουργήθηκε</strong><span>{date(access.createdAt)}</span></div>
         </div>
-        {access.active && <div style={{ display: "grid", gap: 10 }}>
-          <details className="workspace-record-details"><summary>Αλλαγή κωδικού</summary><div><form onSubmit={(event) => void resetPassword(event, access.id)} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><input name="password" type="password" minLength={10} required placeholder="Νέος κωδικός" autoComplete="new-password" style={{ flex: "1 1 220px" }} /><button className="button button-secondary" type="submit" disabled={Boolean(busy)}>{busy === `reset:${access.id}` ? "Αλλαγή…" : "Αλλαγή κωδικού"}</button></form></div></details>
+        {access.active && <div className="vendor-daily-access-actions">
+          <details className="workspace-record-details"><summary>Αλλαγή κωδικού</summary><div><form className="vendor-inline-reset-form" onSubmit={(event) => void resetPassword(event, access.id)}><input name="password" type="password" minLength={10} required placeholder="Νέος κωδικός" autoComplete="new-password" /><button className="button button-secondary" type="submit" disabled={Boolean(busy)}>{busy === `reset:${access.id}` ? "Αλλαγή…" : "Αλλαγή κωδικού"}</button></form></div></details>
           <button className="button button-secondary" type="button" disabled={Boolean(busy)} onClick={() => void revoke(access.id)}>{busy === access.id ? "Ανάκληση…" : "Ανάκληση πρόσβασης"}</button>
         </div>}
       </article>)}
