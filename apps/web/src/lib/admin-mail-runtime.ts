@@ -391,8 +391,8 @@ function resolveMailConfig(env: NodeJS.ProcessEnv = process.env): MailConfig {
   if (region !== REQUIRED_REGION) throw new Error(`Admin Mail is locked to AWS ${REQUIRED_REGION}; configured region is ${region || "empty"}.`);
   const bucket = (env.KONTAMOU_MAIL_INBOUND_BUCKET || env.SES_INBOUND_BUCKET || DEFAULT_BUCKET).trim();
   if (!bucket) throw new Error("Admin Mail inbound S3 bucket is missing");
-  const accessKeyId = (env.KONTAMOU_MAIL_AWS_ACCESS_KEY_ID || env.AWS_ACCESS_KEY_ID || "").trim();
-  const secretAccessKey = (env.KONTAMOU_MAIL_AWS_SECRET_ACCESS_KEY || env.AWS_SECRET_ACCESS_KEY || "").trim();
+  const accessKeyId = (env.KONTAMOU_MAIL_AWS_ACCESS_KEY_ID || env.BLS_OBJECT_STORAGE_ACCESS_KEY_ID || env.AWS_ACCESS_KEY_ID || env.OBJECT_STORAGE_ACCESS_KEY || "").trim();
+  const secretAccessKey = (env.KONTAMOU_MAIL_AWS_SECRET_ACCESS_KEY || env.BLS_OBJECT_STORAGE_SECRET_ACCESS_KEY || env.AWS_SECRET_ACCESS_KEY || env.OBJECT_STORAGE_SECRET_KEY || "").trim();
   if (!accessKeyId || !secretAccessKey) throw new Error("Admin Mail AWS access key and secret are required");
   const sourceList = (env.KONTAMOU_MAIL_FROM_ADDRESSES || DEFAULT_FROM.join(","))
     .split(",").map((value) => normalizeEmail(value)).filter(Boolean);
@@ -404,7 +404,7 @@ function resolveMailConfig(env: NodeJS.ProcessEnv = process.env): MailConfig {
     prefix: (env.KONTAMOU_MAIL_INBOUND_PREFIX || "").trim().replace(/^\/+/, ""),
     accessKeyId,
     secretAccessKey,
-    sessionToken: env.KONTAMOU_MAIL_AWS_SESSION_TOKEN?.trim() || env.AWS_SESSION_TOKEN?.trim() || undefined,
+    sessionToken: env.KONTAMOU_MAIL_AWS_SESSION_TOKEN?.trim() || env.BLS_OBJECT_STORAGE_SESSION_TOKEN?.trim() || env.AWS_SESSION_TOKEN?.trim() || undefined,
     fromAddresses,
     displayName: (env.KONTAMOU_MAIL_DISPLAY_NAME || "ΚΟΝΤΑ ΜΟΥ").trim() || "ΚΟΝΤΑ ΜΟΥ"
   };
