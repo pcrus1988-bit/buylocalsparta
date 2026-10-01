@@ -12,8 +12,10 @@ export async function GET(request: Request) {
   }
 
   try {
+    console.info(JSON.stringify({ level: "info", event: "vendor_product_feeds.cron_started", schedule: request.headers.get("x-vercel-cron-schedule") }));
     const synchronization = await syncDueVendorProductFeeds(1);
     const processing = await processPendingVendorProductFeedSubmissions(500);
+    console.info(JSON.stringify({ level: "info", event: "vendor_product_feeds.cron_completed", ...synchronization, processing }));
     return Response.json({ ...synchronization, processing }, {
       status: synchronization.failed ? 207 : 200,
       headers: { "cache-control": "no-store" }
@@ -28,6 +30,5 @@ export async function GET(request: Request) {
 function authorizedSchedulerRequest(request: Request): boolean {
   const configuredSecret = process.env.CRON_SECRET?.trim();
   if (configuredSecret) return request.headers.get("authorization") === `Bearer ${configuredSecret}`;
-  return request.headers.get("user-agent")?.trim().toLowerCase() === "vercel-cron/1.0"
-    && request.headers.get("x-vercel-cron-schedule")?.trim() === CRON_SCHEDULE;
+  return request.headers.get("x-vercel-cron-schedule")?.trim() === CRON_SCHEDULE;
 }
