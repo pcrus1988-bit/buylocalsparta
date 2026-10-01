@@ -10,7 +10,7 @@ import { vendorProductFeedWorkspace } from "../../../../lib/vendor-product-feed-
 import { getVendorSession, vendorOperatingContextForPrincipal } from "../../../../lib/vendor-session";
 
 export const metadata: Metadata = {
-  title: "XML Product Feed",
+  title: "Εισαγωγή προϊόντων με XML",
   robots: { index: false, follow: false }
 };
 
@@ -38,10 +38,10 @@ export default async function VendorProductFeedPage() {
 
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
-        <div className="eyebrow">Προϊόντα · XML Product Feed</div>
+        <div className="eyebrow">Προϊόντα · Εισαγωγή XML</div>
         <h1>Σύνδεσε ολόκληρο τον κατάλογό σου</h1>
         <p className="lead">
-          Ανέβασε XML ή σύνδεσε το XML URL του e-shop σου. Το ΚΟΝΤΑ ΜΟΥ ελέγχει το feed,
+          Ανέβασε XML ή σύνδεσε το XML URL του e-shop σου. Το ΚΟΝΤΑ ΜΟΥ ελέγχει την πηγή XML,
           αντιστοιχίζει τα πεδία και κρατά τιμές και απόθεμα συγχρονισμένα χωρίς χειροκίνητη καταχώρηση.
         </p>
         <div className="workspace-action-buttons">
@@ -53,7 +53,7 @@ export default async function VendorProductFeedPage() {
     <section className="shell vendor-section">
       <WorkspaceSectionHeading
         eyebrow="Πριν ξεκινήσεις"
-        title="Το XML δεν παρακάμπτει την ποιότητα του καταλόγου"
+        title="Το XML δεν παρακάμπτει τους ελέγχους του καταλόγου"
         note="Τα νέα προϊόντα περνούν από το ίδιο canonical matching και approval workflow με κάθε άλλη καταχώρηση. Τα ήδη συνδεδεμένα προϊόντα μπορούν να ενημερώνουν αυτόματα την τιμή και το πραγματικό stock του δικού σου offer."
       />
     </section>
