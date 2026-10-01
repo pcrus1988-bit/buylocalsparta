@@ -21,6 +21,7 @@ import {
   toggleStarMailAction
 } from "./actions";
 import { AdminMailPageSelection } from "./AdminMailPageSelection";
+import { AdminMailPageSizeSelect } from "./AdminMailPageSizeSelect";
 
 export const metadata: Metadata = { title: "Admin · Mail", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -75,12 +76,6 @@ function folderHref(folder: string, view: MailView): string {
 function pageHref(folder: string, page: number, view: MailView): string {
   const params = new URLSearchParams({ folder });
   appendViewParams(params, { ...view, page });
-  return `/admin/mail?${params.toString()}`;
-}
-
-function pageSizeHref(folder: string, pageSize: 10 | 20 | 50 | 100, view: MailView): string {
-  const params = new URLSearchParams({ folder });
-  appendViewParams(params, { ...view, page: 1, pageSize });
   return `/admin/mail?${params.toString()}`;
 }
 
@@ -332,14 +327,7 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
             <strong>{workspace.pagination.from}–{workspace.pagination.to} of {workspace.pagination.total}</strong>
             <span>{workspace.folder === "inbox" ? "Inbox" : workspace.folder === "sent" ? "Sent" : workspace.folder === "starred" ? "Starred" : workspace.folder === "archive" ? "Archive" : workspace.folder === "trash" ? "Trash" : "All mail"}</span>
           </div>
-          <div className="admin-mail-page-size" aria-label="Emails per page">
-            <span>Show</span>
-            {([10, 20, 50, 100] as const).map((size) => <Link
-              key={size}
-              className={workspace.pagination.pageSize === size ? "is-active" : ""}
-              href={pageSizeHref(workspace.folder, size, view)}
-            >{size}</Link>)}
-          </div>
+          <AdminMailPageSizeSelect value={workspace.pagination.pageSize} />
         </div>
         <form id="admin-mail-bulk-form" className="admin-mail-bulk" action={bulkMailAction}>
           <input type="hidden" name="csrfToken" value={principal.csrfToken} />
