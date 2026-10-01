@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const BULK_BATCH_SIZE = 50;
+const BULK_BATCH_SIZE = 10;
 
 type CandidateRow = {
   id: string;
@@ -84,7 +84,9 @@ export async function POST(request: Request) {
       details: results.filter((item) => item.status !== "approved").slice(0, 30)
     });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "catalog_bulk_approve_failed" }, { status: 400 });
+    const message = error instanceof Error ? error.message : "catalog_bulk_approve_failed";
+    const transient = /timeout|timed out|trying to connect|connection|ECONN|ETIMEDOUT/i.test(message);
+    return Response.json({ error: message }, { status: transient ? 503 : 400 });
   }
 }
 
