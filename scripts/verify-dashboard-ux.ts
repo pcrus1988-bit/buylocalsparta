@@ -82,11 +82,12 @@ for (const requirement of ["Συνέχισε το βήμα", "tourDisclosureSumm
 const vendorPlainLanguageFiles = [
   "apps/web/src/app/vendor/orders/page.tsx",
   "apps/web/src/app/vendor/dropshipping/attention/page.tsx",
-  "apps/web/src/components/VendorProductFeedClient.tsx"
+  "apps/web/src/components/VendorProductFeedClient.tsx",
+  "apps/web/src/components/VendorCatalogClient.tsx"
 ] as const;
 for (const vendorPath of vendorPlainLanguageFiles) {
   const source = read(vendorPath);
-  for (const forbidden of ["Review queue", "Published · unavailable", "Field mapping", ">Upload XML</button>", "status σε ένα σημείο", "Χρησιμοποίησε τα tabs"]) {
+  for (const forbidden of ["Review queue", "Published · unavailable", "Field mapping", ">Upload XML</button>", "status σε ένα σημείο", "Χρησιμοποίησε τα tabs", "XML Feed / Product Import", "live canonical matching", "canonical προϊόν", "Φυσικό stock", "<strong>Offer</strong>", "<strong>Product reference</strong>"]) {
     if (source.includes(forbidden)) failures.push(`Vendor UI still exposes technical wording ${forbidden} in ${vendorPath}`);
   }
 }
