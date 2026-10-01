@@ -19,11 +19,11 @@ export function VendorStockFreshnessPanel({ snapshot }: { snapshot: VendorStockF
   const stale = snapshot.items.filter((item) => !item.fresh);
 
   return <section className="shell vendor-section">
-    <WorkspaceSectionHeading eyebrow="Διαθεσιμότητα" title="Πρόσφατη επιβεβαίωση αποθέματος" note="Το ΚΟΝΤΑ ΜΟΥ δεν διαφημίζει ως διαθέσιμο stock που έχει μείνει χωρίς πρόσφατη επιβεβαίωση. Αυτό προστατεύει από overselling και κρατά σωστά τα στοιχεία που βλέπουν πελάτες και Google." />
+    <WorkspaceSectionHeading eyebrow="Διαθεσιμότητα" title="Πρόσφατη επιβεβαίωση αποθέματος" note="Όταν το απόθεμα δεν έχει επιβεβαιωθεί πρόσφατα, το προϊόν δεν εμφανίζεται ως διαθέσιμο. Έτσι αποφεύγονται παραγγελίες για ποσότητες που μπορεί να μην υπάρχουν πλέον." />
     <WorkspaceMetricStrip items={[
       { label: "Πρόσφατα", value: snapshot.freshCount, tone: snapshot.freshCount ? "positive" : "default" },
       { label: "Χρειάζονται επιβεβαίωση", value: snapshot.staleCount, tone: snapshot.staleCount ? "attention" : "positive" },
-      { label: "Stock εκτός online διαθεσιμότητας", value: snapshot.staleSellableCount, tone: snapshot.staleSellableCount ? "attention" : "positive", hint: "Έχουν ποσότητα, αλλά η επιβεβαίωση έληξε" }
+      { label: "Προϊόντα προσωρινά μη διαθέσιμα", value: snapshot.staleSellableCount, tone: snapshot.staleSellableCount ? "attention" : "positive", hint: "Έχουν ποσότητα, αλλά χρειάζεται νέα επιβεβαίωση" }
     ]} />
 
     {stale.length > 0
@@ -32,13 +32,13 @@ export function VendorStockFreshnessPanel({ snapshot }: { snapshot: VendorStockF
         <div className="workspace-queue-list" style={{ marginTop: 18 }}>
           {stale.map((item) => <article className="workspace-queue-card" key={item.offerId}>
             <div className="workspace-queue-head"><div><strong>{item.title}</strong><small>Τελευταία επιβεβαίωση: {when(item.stockConfirmedAt)} · ισχύς {duration(item.freshnessTtlSeconds)}</small></div><span className="status-pill">Χρειάζεται επιβεβαίωση</span></div>
-            <div className="workspace-queue-primary"><span>{item.availableToSell} διαθέσιμα τεμάχια στο τελευταίο καταγεγραμμένο stock</span></div>
-            {item.merchantPauseActive && <div className="workspace-inline-note"><strong>Το προϊόν είναι επίσης κρυφό από εσένα.</strong> Επανέφερέ το από τον διακόπτη ορατότητας και επιβεβαίωσε το stock πριν θεωρηθεί ξανά διαθέσιμο.</div>}
-            {!item.merchantPauseActive && item.offerStatus !== "approved" && <div className="workspace-inline-note"><strong>Το προϊόν χρειάζεται επίσης επανέγκριση.</strong> Μπορείς να επιβεβαιώσεις το stock τώρα, αλλά η δημόσια πώληση θα επιστρέψει μόνο αφού εγκριθεί η επανενεργοποίηση.</div>}
+            <div className="workspace-queue-primary"><span>{item.availableToSell} διαθέσιμα τεμάχια στο τελευταίο καταγεγραμμένο απόθεμα</span></div>
+            {item.merchantPauseActive && <div className="workspace-inline-note"><strong>Το προϊόν είναι επίσης κρυφό από εσένα.</strong> Επανέφερέ το από τον διακόπτη εμφάνισης και επιβεβαίωσε το απόθεμα πριν θεωρηθεί ξανά διαθέσιμο.</div>}
+            {!item.merchantPauseActive && item.offerStatus !== "approved" && <div className="workspace-inline-note"><strong>Το προϊόν χρειάζεται επίσης επανέγκριση.</strong> Μπορείς να επιβεβαιώσεις το απόθεμα τώρα, αλλά η δημόσια πώληση θα επιστρέψει μόνο αφού εγκριθεί η επανενεργοποίηση.</div>}
           </article>)}
         </div>
-        <div className="workspace-action-bar" style={{ marginTop: 18 }}><span>Η επιβεβαίωση γίνεται μέσα στον κατάλογο. Αίτημα Admin χρειάζεται μόνο όταν το προϊόν εμφανίζεται στην ξεχωριστή ενότητα επανέγκρισης.</span><a className="button button-secondary" href="#live-catalog">Πήγαινε στο απόθεμα</a></div>
+        <div className="workspace-action-bar" style={{ marginTop: 18 }}><span>Η επιβεβαίωση γίνεται μέσα στον κατάλογο. Αίτημα προς το ΚΟΝΤΑ ΜΟΥ χρειάζεται μόνο όταν το προϊόν εμφανίζεται στην ξεχωριστή ενότητα επανέγκρισης.</span><a className="button button-secondary" href="#live-catalog">Πήγαινε στο απόθεμα</a></div>
       </>
-      : <div className="workspace-inline-note" style={{ marginTop: 18 }}><strong>Όλο το καταγεγραμμένο stock είναι πρόσφατα επιβεβαιωμένο.</strong> Δεν υπάρχει αυτή τη στιγμή προϊόν που να μπλοκάρεται μόνο λόγω παλιάς επιβεβαίωσης αποθέματος.</div>}
+      : <div className="workspace-inline-note" style={{ marginTop: 18 }}><strong>Όλο το καταγεγραμμένο απόθεμα είναι πρόσφατα επιβεβαιωμένο.</strong> Δεν υπάρχει αυτή τη στιγμή προϊόν που να μπλοκάρεται μόνο λόγω παλιάς επιβεβαίωσης αποθέματος.</div>}
   </section>;
 }
