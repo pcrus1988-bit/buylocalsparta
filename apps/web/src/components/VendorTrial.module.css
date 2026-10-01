@@ -68,3 +68,38 @@
   .activationSteps{grid-template-columns:1fr}
   .guideTour,.builderSection,.activationPanel{padding:18px}
 }
+
+
+/* Simplified vendor onboarding: compact, touch-first mobile layout. */
+.steps{grid-template-columns:repeat(4,minmax(0,1fr))}
+.tourCard{min-height:180px}
+@media(max-width:640px){
+  .trialShell{padding:12px 10px 44px}
+  .hero{padding:20px 16px;border-radius:18px}
+  .hero h1{font-size:clamp(1.85rem,9vw,2.35rem);line-height:1.04}
+  .hero p{font-size:.95rem;line-height:1.5}
+  .countdown{width:100%;max-width:none;box-sizing:border-box;padding:14px 16px}
+  .metricRow{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .metric{min-width:0;padding:10px 8px}
+  .metric small{display:block;font-size:.67rem;line-height:1.2}
+  .metric strong{font-size:1.08rem}
+  .nextStep{margin-top:12px;padding:16px}
+  .steps{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:8px;padding:0 0 5px;overscroll-behavior-x:contain}
+  .stepCard{flex:0 0 min(82vw,320px);scroll-snap-align:start;padding:14px}
+  .guideTour,.builderSection,.activationPanel{padding:16px;border-radius:18px}
+  .tourCard{min-height:0}
+  .trialBanner{display:grid;grid-template-columns:minmax(0,1fr) auto;justify-content:stretch;gap:6px 8px;padding:8px 10px}
+  .trialBanner>strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .trialBanner>span{display:none}
+  .trialBannerButton,.trialBannerLink{padding:7px 9px;font-size:.76rem;white-space:nowrap}
+  .trialBannerLink{grid-column:2}
+  .guideBackdrop{align-items:stretch}
+  .guideDrawer{width:100%;padding:calc(16px + env(safe-area-inset-top)) 16px calc(18px + env(safe-area-inset-bottom));overscroll-behavior:contain}
+  .guideHeader h2{font-size:1.6rem}
+  .guideStep{padding:10px}
+  .floatingPreview{display:none}
+}
+@media(max-width:380px){
+  .trialBanner{grid-template-columns:1fr}
+  .trialBannerButton,.trialBannerLink{grid-column:1;width:100%;box-sizing:border-box;text-align:center}
+}
