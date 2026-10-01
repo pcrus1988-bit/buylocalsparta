@@ -57,8 +57,8 @@ export default async function VendorReportsPage({ searchParams }: { searchParams
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div>
-      <div className="eyebrow">Στατιστικά · αναφορές</div><h1>Αναφορές PDF</h1>
-      <p className="lead">Δημιούργησε τις συνηθισμένες αναφορές με ένα κλικ. Χρησιμοποίησε την προχωρημένη προσαρμογή μόνο όταν χρειάζεσαι συγκεκριμένο προϊόν, κατηγορία, περίοδο ή συνδυασμό δεδομένων.</p>
+      <div className="eyebrow">Στατιστικά · αναφορές</div><h1>Αναφορές</h1>
+      <p className="lead">Δημιούργησε τις συνηθισμένες αναφορές με ένα κλικ. Αν χρειάζεσαι κάτι πιο συγκεκριμένο, μπορείς να επιλέξεις περίοδο, προϊόν, κατηγορία ή δεδομένα.</p>
     </div></section>
 
     <WorkspaceMetricStrip items={[
@@ -74,10 +74,10 @@ export default async function VendorReportsPage({ searchParams }: { searchParams
     {first(query.saved) === "1" ? <section className="shell vendor-section"><VendorActionNotice tone="positive" title="Το πρότυπο αποθηκεύτηκε" /></section> : null}
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Γρήγορες αναφορές" title="Οι πιο χρήσιμες αναφορές με ένα κλικ" note="Από προεπιλογή χρησιμοποιούνται οι τελευταίες 30 ημέρες. Μπορείς να αλλάξεις περίοδο στην προχωρημένη προσαρμογή." />
+      <WorkspaceSectionHeading eyebrow="Γρήγορες αναφορές" title="Οι πιο χρήσιμες αναφορές με ένα κλικ" note="Από προεπιλογή χρησιμοποιούνται οι τελευταίες 30 ημέρες. Για διαφορετική περίοδο χρησιμοποίησε την προσαρμογή πιο κάτω." />
       <WorkspaceHowItWorks className="vendor-page-help">
         <p>Επίλεξε την αναφορά που θέλεις και πάτησε «Δημιουργία PDF». Η αναφορά είναι πάντα περιορισμένη στα δεδομένα του δικού σου καταστήματος.</p>
-        <p>Αν χρειάζεσαι διαφορετικές ημερομηνίες, συγκεκριμένο προϊόν ή πιο σύνθετη σύγκριση, άνοιξε την «Προχωρημένη προσαρμογή» παρακάτω.</p>
+        <p>Αν χρειάζεσαι διαφορετικές ημερομηνίες, συγκεκριμένο προϊόν ή πιο σύνθετη σύγκριση, άνοιξε την «Προσαρμογή αναφοράς» παρακάτω.</p>
       </WorkspaceHowItWorks>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 14 }}>
         <QuickReport title="Πωλήσεις & προμήθειες — 30 ημέρες" body="Πωλήσεις, καθαρή αξία, προμήθειες και σχετικές επιστροφές." preset="sales_commissions" />
@@ -89,9 +89,9 @@ export default async function VendorReportsPage({ searchParams }: { searchParams
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Προχωρημένα" title="Προσαρμοσμένη αναφορά" note="Χρησιμοποίησέ την όταν θέλεις να περιορίσεις την αναφορά σε συγκεκριμένη περίοδο, κατηγορία, προϊόν, μάρκα ή σημείο." />
+      <WorkspaceSectionHeading eyebrow="Προσαρμογή" title="Προσαρμοσμένη αναφορά" note="Χρησιμοποίησέ την όταν θέλεις να περιορίσεις την αναφορά σε συγκεκριμένη περίοδο, κατηγορία, προϊόν, μάρκα ή σημείο." />
       <details className="workspace-tool-panel">
-        <summary><span><strong>Προχωρημένη προσαρμογή</strong><small>Φίλτρα, σύγκριση περιόδων και επιλογή δεδομένων.</small></span></summary>
+        <summary><span><strong>Προσαρμογή αναφοράς</strong><small>Ημερομηνίες, φίλτρα, σύγκριση περιόδων και επιλογή δεδομένων.</small></span></summary>
         <div className="workspace-tool-body">
           <form action={createVendorReportAction}>
             <ReportBuilderFields admin={false} options={options} />
@@ -128,7 +128,7 @@ export default async function VendorReportsPage({ searchParams }: { searchParams
           {report.status === "ready" ? <>
             <div className="workspace-queue-primary"><span>Καθαρές πωλήσεις {euro(m.netSalesMinor)}</span><span>Προμήθεια {euro(m.commissionMinor)}</span><span>{Number(m.views ?? 0)} προβολές</span><span>{Number(m.purchases ?? 0)} αγορές</span></div>
             {insights.slice(0, 2).map((insight, index) => <p key={index} style={{ margin: "6px 0", opacity: .78 }}>{insight}</p>)}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}><a className="button" href={`/api/reports/${report.publicId}/download`}>Άνοιγμα PDF</a>
+            <div className="vendor-page-action-row"><a className="button" href={`/api/reports/${report.publicId}/download`}>Άνοιγμα PDF</a>
               <form action={emailVendorReportAction}><input type="hidden" name="reportId" value={report.publicId} /><button className="button button-secondary" type="submit">Αποστολή στο email μου</button></form></div>
           </> : report.status === "failed" ? <VendorActionNotice tone="danger" title="Η δημιουργία δεν ολοκληρώθηκε">Δημιούργησε ξανά την αναφορά. Αν το πρόβλημα επαναλαμβάνεται, άνοιξε τις τεχνικές λεπτομέρειες.<WorkspaceRecordDetails label="Τεχνική λεπτομέρεια"><span className="vendor-technical-id">{report.errorMessage ?? "report_generation_failed"}</span></WorkspaceRecordDetails></VendorActionNotice> : <VendorActionNotice tone="waiting" title="Η αναφορά δεν είναι ακόμη έτοιμη">Η σελίδα θα δείξει το PDF μόλις ολοκληρωθεί η δημιουργία.</VendorActionNotice>}
           <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες αναφοράς"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Κωδικός αναφοράς</strong><span className="vendor-technical-id">{report.publicId}</span></div><div className="workspace-compact-row"><strong>Μέγεθος</strong><span>{report.rowCount} γραμμές δεδομένων · {report.pageCount} σελίδες</span></div></div></WorkspaceRecordDetails>
