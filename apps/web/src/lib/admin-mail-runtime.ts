@@ -402,16 +402,16 @@ function resolveMailConfig(env: NodeJS.ProcessEnv = process.env): MailConfig {
   const ses = sesMailConfigFromEnv(env);
   const region = ses.region.trim();
   if (region !== REQUIRED_REGION) throw new Error(`Admin Mail is locked to AWS ${REQUIRED_REGION}; configured region is ${region || "empty"}.`);
-  const bucket = (env.KONTAMOU_MAIL_INBOUND_BUCKET || env.SES_INBOUND_BUCKET || DEFAULT_BUCKET).trim();
+  const bucket = (env.BLS_MAIL_INBOUND_BUCKET || env.KONTAMOU_MAIL_INBOUND_BUCKET || env.SES_INBOUND_BUCKET || DEFAULT_BUCKET).trim();
   if (!bucket) throw new Error("Admin Mail inbound S3 bucket is missing");
-  const sourceList = (env.KONTAMOU_MAIL_FROM_ADDRESSES || env.BLS_MAIL_FROM || DEFAULT_FROM.join(","))
+  const sourceList = (env.BLS_MAIL_FROM_ADDRESSES || env.KONTAMOU_MAIL_FROM_ADDRESSES || env.BLS_MAIL_FROM || DEFAULT_FROM.join(","))
     .split(",").map((value) => normalizeEmail(value)).filter(Boolean);
   const fromAddresses = [...new Set(sourceList)];
   if (!fromAddresses.length) throw new Error("Admin Mail requires at least one From address");
   return {
     region,
     bucket,
-    prefix: (env.KONTAMOU_MAIL_INBOUND_PREFIX || "").trim().replace(/^\\/+/, ""),
+    prefix: (env.BLS_MAIL_INBOUND_PREFIX || env.KONTAMOU_MAIL_INBOUND_PREFIX || "").trim().replace(/^\\/+/, ""),
     fromAddresses,
     displayName: (env.KONTAMOU_MAIL_DISPLAY_NAME || env.BLS_MAIL_FROM_NAME || "ΚΟΝΤΑ ΜΟΥ").trim() || "ΚΟΝΤΑ ΜΟΥ",
     messageIdDomain: (env.BLS_MAIL_MESSAGE_ID_DOMAIN || "kontamou.site").trim() || "kontamou.site",
