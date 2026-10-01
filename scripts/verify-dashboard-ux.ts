@@ -77,6 +77,7 @@ for (const path of [
   "apps/web/src/app/vendor/reports/page.tsx",
   "apps/web/src/app/vendor/daily-access/page.tsx",
   "apps/web/src/app/vendor/trial/page.tsx",
+  "apps/web/src/app/vendor/trial-expired/page.tsx",
   "apps/web/src/app/vendor/settings/page.tsx",
   "apps/web/src/app/vendor/dropshipping/page.tsx",
   "apps/web/src/app/vendor/dropshipping/analytics/page.tsx",
