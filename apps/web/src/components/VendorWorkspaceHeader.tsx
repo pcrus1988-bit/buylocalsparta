@@ -280,7 +280,7 @@ export function VendorWorkspaceHeader() {
     <div className="vendor-topbar">
       <div className="vendor-topbar-main">
         <div className="vendor-breadcrumbs"><VendorBreadcrumbs groups={navigation} /></div>
-        <Link className="vendor-daily-launch" href="/daily?install=1"><span aria-hidden="true">↓</span> Εγκατάσταση Daily</Link>
+        <Link className="vendor-daily-launch" href="/daily?install=1" aria-label="Εγκατάσταση εφαρμογής KONTA MOY Daily"><span aria-hidden="true">↓</span> Εγκατάσταση Daily</Link>
       </div>
       <VendorContextNavigation groups={navigation} />
     </div>
