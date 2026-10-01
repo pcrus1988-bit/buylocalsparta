@@ -58,6 +58,17 @@ CREATE TABLE IF NOT EXISTS public.admin_mail_sync_state (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS public.admin_mail_ingest_failures (
+  s3_object_key text PRIMARY KEY,
+  error_message text NOT NULL,
+  attempts integer NOT NULL DEFAULT 1 CHECK (attempts > 0),
+  first_failed_at timestamptz NOT NULL DEFAULT now(),
+  last_failed_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS admin_mail_ingest_failures_last_failed_idx
+  ON public.admin_mail_ingest_failures(last_failed_at DESC);
+
 CREATE INDEX IF NOT EXISTS admin_mail_messages_inbox_idx
   ON public.admin_mail_messages(direction,received_at DESC)
   WHERE direction='incoming';
@@ -78,6 +89,7 @@ CREATE INDEX IF NOT EXISTS admin_mail_state_user_idx
 ALTER TABLE public.admin_mail_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_mail_state ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_mail_sync_state ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_mail_ingest_failures ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS bls_admin_mail_messages_runtime_all ON public.admin_mail_messages;
 CREATE POLICY bls_admin_mail_messages_runtime_all ON public.admin_mail_messages
@@ -100,17 +112,27 @@ CREATE POLICY bls_admin_mail_sync_state_runtime_all ON public.admin_mail_sync_st
   USING (true)
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS bls_admin_mail_ingest_failures_runtime_all ON public.admin_mail_ingest_failures;
+CREATE POLICY bls_admin_mail_ingest_failures_runtime_all ON public.admin_mail_ingest_failures
+  FOR ALL
+  TO bls_app_runtime, bls_platform_runtime
+  USING (true)
+  WITH CHECK (true);
+
 REVOKE ALL ON TABLE public.admin_mail_messages
   FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime, bls_platform_runtime;
 REVOKE ALL ON TABLE public.admin_mail_state
   FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime, bls_platform_runtime;
 REVOKE ALL ON TABLE public.admin_mail_sync_state
   FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime, bls_platform_runtime;
+REVOKE ALL ON TABLE public.admin_mail_ingest_failures
+  FROM PUBLIC, anon, authenticated, service_role, bls_app_runtime, bls_platform_runtime;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public.admin_mail_messages,
   public.admin_mail_state,
-  public.admin_mail_sync_state
+  public.admin_mail_sync_state,
+  public.admin_mail_ingest_failures
 TO bls_app_runtime, bls_platform_runtime;
 
 COMMENT ON TABLE public.admin_mail_messages IS
@@ -121,5 +143,7 @@ COMMENT ON TABLE public.admin_mail_state IS
   'Per-Admin read, starred and archive state for the operational mailbox.';
 COMMENT ON TABLE public.admin_mail_sync_state IS
   'Durable S3 continuation cursor so mailbox ingestion advances across arbitrarily large inbound prefixes.';
+COMMENT ON TABLE public.admin_mail_ingest_failures IS
+  'Quarantine ledger for inbound S3 objects that could not be indexed; raw RFC822 remains in S3 for investigation and retry.';
 
 COMMIT;
