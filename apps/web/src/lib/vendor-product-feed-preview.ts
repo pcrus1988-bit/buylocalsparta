@@ -1,5 +1,8 @@
+import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
+import { request as httpRequest, type IncomingHttpHeaders } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import {
   PostgresUnitOfWork,
@@ -325,71 +328,155 @@ export function normalizeVendorFeedUrl(value: string | undefined): string {
   return url.toString();
 }
 
-export async function fetchVendorXml(rawUrl: string): Promise<string> {
+type PublicVendorTarget = Readonly<{ address: string; family: 4 | 6 }>;
+export type PublicVendorResource = Readonly<{
+  bytes: Uint8Array;
+  contentType: string;
+  finalUrl: string;
+  headers: IncomingHttpHeaders;
+}>;
+export type PublicVendorResourceOptions = Readonly<{
+  maxBytes: number;
+  accept: string;
+  userAgent: string;
+  timeoutMs?: number;
+}>;
+
+async function resolvePublicVendorTarget(url: URL): Promise<PublicVendorTarget> {
+  const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+  if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local") || !hostname.includes(".")) {
+    throw new Error("Το URL πρέπει να είναι δημόσια προσβάσιμο.");
+  }
+  const literalFamily = isIP(hostname);
+  if (literalFamily) {
+    if (!isPublicIp(hostname)) throw new Error("Το URL δείχνει σε μη δημόσια διεύθυνση.");
+    return { address: hostname, family: literalFamily as 4 | 6 };
+  }
+
+  const addresses = await lookup(hostname, { all: true, verbatim: true });
+  if (!addresses.length || addresses.some((entry) => !isPublicIp(entry.address))) {
+    throw new Error("Το URL επιλύεται σε μη δημόσια διεύθυνση.");
+  }
+  const selected = addresses[0]!;
+  return { address: selected.address, family: selected.family as 4 | 6 };
+}
+
+async function requestPinnedPublicResource(
+  url: URL,
+  target: PublicVendorTarget,
+  options: PublicVendorResourceOptions
+): Promise<Readonly<{ statusCode: number; headers: IncomingHttpHeaders; bytes: Uint8Array }>> {
+  const maxBytes = Math.max(1, Math.trunc(options.maxBytes));
+  const timeoutMs = Math.max(1_000, Math.trunc(options.timeoutMs ?? 20_000));
+
+  return new Promise((resolve, reject) => {
+    const requestFn = url.protocol === "https:" ? httpsRequest : httpRequest;
+    let settled = false;
+    const finishReject = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+
+    const request = requestFn(url, {
+      method: "GET",
+      family: target.family,
+      lookup: ((_hostname: string, _options: unknown, callback: (error: NodeJS.ErrnoException | null, address: string, family: number) => void) => {
+        callback(null, target.address, target.family);
+      }) as never,
+      headers: {
+        accept: options.accept,
+        "user-agent": options.userAgent
+      }
+    }, (response) => {
+      const statusCode = response.statusCode ?? 0;
+      if ([301, 302, 303, 307, 308].includes(statusCode)) {
+        response.resume();
+        if (!settled) {
+          settled = true;
+          resolve({ statusCode, headers: response.headers, bytes: new Uint8Array() });
+        }
+        return;
+      }
+
+      const declared = Number(response.headers["content-length"] ?? 0);
+      if (Number.isFinite(declared) && declared > maxBytes) {
+        response.resume();
+        request.destroy(new Error("vendor_resource_too_large"));
+        return;
+      }
+
+      const chunks: Buffer[] = [];
+      let total = 0;
+      response.on("data", (chunk: Buffer | string) => {
+        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        total += bytes.byteLength;
+        if (total > maxBytes) {
+          request.destroy(new Error("vendor_resource_too_large"));
+          return;
+        }
+        chunks.push(bytes);
+      });
+      response.on("error", (error) => finishReject(error instanceof Error ? error : new Error(String(error))));
+      response.on("end", () => {
+        if (settled) return;
+        settled = true;
+        resolve({ statusCode, headers: response.headers, bytes: Buffer.concat(chunks, total) });
+      });
+    });
+
+    request.setTimeout(timeoutMs, () => request.destroy(new Error("vendor_resource_timeout")));
+    request.on("error", (error) => finishReject(error instanceof Error ? error : new Error(String(error))));
+    request.end();
+  });
+}
+
+export async function fetchPublicVendorResource(
+  rawUrl: string,
+  options: PublicVendorResourceOptions
+): Promise<PublicVendorResource> {
   let url = new URL(normalizeVendorFeedUrl(rawUrl));
   for (let redirect = 0; redirect <= 3; redirect += 1) {
-    await assertPublicVendorUrl(url);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20_000);
-    try {
-      const response = await fetch(url, {
-        method: "GET",
-        redirect: "manual",
-        signal: controller.signal,
-        headers: {
-          accept: "application/xml,text/xml,application/rss+xml,text/plain;q=0.8,*/*;q=0.2",
-          "user-agent": "KONTAMOU-VendorFeed/1.0 (+https://kontamou.site/)"
-        }
-      });
-      if ([301, 302, 303, 307, 308].includes(response.status)) {
-        const location = response.headers.get("location");
-        if (!location || redirect === 3) throw new Error("Το XML URL κάνει μη έγκυρη ή υπερβολική ανακατεύθυνση.");
-        url = new URL(location, url);
-        continue;
-      }
-      if (!response.ok) throw new Error("Το XML URL επέστρεψε HTTP " + response.status + ".");
-      const declared = Number(response.headers.get("content-length") ?? 0);
-      if (Number.isFinite(declared) && declared > VENDOR_XML_REMOTE_MAX_BYTES) throw new Error("Το XML URL υπερβαίνει το μέγιστο μέγεθος των 20 MB.");
-      if (!response.body) return await response.text();
+    // Resolve once, reject every private/local answer, then pin the actual socket
+    // lookup to the validated address. This closes the DNS-rebinding gap between
+    // validation and the outbound request while preserving Host/SNI validation.
+    const target = await resolvePublicVendorTarget(url);
+    const response = await requestPinnedPublicResource(url, target, options);
 
-      const reader = response.body.getReader();
-      const chunks: Uint8Array[] = [];
-      let total = 0;
-      while (true) {
-        const part = await reader.read();
-        if (part.done) break;
-        total += part.value.byteLength;
-        if (total > VENDOR_XML_REMOTE_MAX_BYTES) {
-          await reader.cancel();
-          throw new Error("Το XML URL υπερβαίνει το μέγιστο μέγεθος των 20 MB.");
-        }
-        chunks.push(part.value);
-      }
-      const bytes = new Uint8Array(total);
-      let offset = 0;
-      for (const chunk of chunks) {
-        bytes.set(chunk, offset);
-        offset += chunk.byteLength;
-      }
-      return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-    } finally {
-      clearTimeout(timer);
+    if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
+      const location = Array.isArray(response.headers.location) ? response.headers.location[0] : response.headers.location;
+      if (!location || redirect === 3) throw new Error("Το URL κάνει μη έγκυρη ή υπερβολική ανακατεύθυνση.");
+      url = new URL(location, url);
+      continue;
     }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw new Error("Το URL επέστρεψε HTTP " + response.statusCode + ".");
+    }
+
+    const contentTypeHeader = Array.isArray(response.headers["content-type"])
+      ? response.headers["content-type"][0]
+      : response.headers["content-type"];
+    return {
+      bytes: response.bytes,
+      contentType: (contentTypeHeader ?? "").split(";")[0]!.trim().toLowerCase(),
+      finalUrl: url.toString(),
+      headers: response.headers
+    };
   }
-  throw new Error("Δεν ήταν δυνατή η λήψη του XML.");
+  throw new Error("Δεν ήταν δυνατή η λήψη του URL.");
+}
+
+export async function fetchVendorXml(rawUrl: string): Promise<string> {
+  const response = await fetchPublicVendorResource(rawUrl, {
+    maxBytes: VENDOR_XML_REMOTE_MAX_BYTES,
+    accept: "application/xml,text/xml,application/rss+xml,text/plain;q=0.8,*/*;q=0.2",
+    userAgent: "KONTAMOU-VendorFeed/1.0 (+https://kontamou.site/)"
+  });
+  return new TextDecoder("utf-8", { fatal: false }).decode(response.bytes);
 }
 
 export async function assertPublicVendorUrl(url: URL) {
-  const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
-  if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local") || !hostname.includes(".")) {
-    throw new Error("Το XML URL πρέπει να είναι δημόσια προσβάσιμο.");
-  }
-  if (isIP(hostname)) {
-    if (!isPublicIp(hostname)) throw new Error("Το XML URL δείχνει σε μη δημόσια διεύθυνση.");
-    return;
-  }
-  const addresses = await lookup(hostname, { all: true, verbatim: true });
-  if (!addresses.length || addresses.some((entry) => !isPublicIp(entry.address))) throw new Error("Το XML URL επιλύεται σε μη δημόσια διεύθυνση.");
+  await resolvePublicVendorTarget(url);
 }
 
 function isPublicIp(address: string): boolean {
