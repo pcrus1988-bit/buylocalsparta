@@ -87,6 +87,7 @@ const SEARCH_EXCLUDED_SOURCES = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  experimental: { serverActions: { bodySizeLimit: "4mb" } },
   outputFileTracingRoot: MONOREPO_ROOT,
   // pdfmake -> @foliojs-fork/pdfkit/fontkit reads shaping tables from disk at
   // runtime. Next's static tracer cannot discover those dynamic fs reads, so

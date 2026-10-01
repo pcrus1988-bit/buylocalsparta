@@ -78,12 +78,13 @@ const ANALYTICS_OPERATOR_LINKS = new Map<string, { order: number; label?: string
 const CONTENT_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>([
   ["/admin/content", { order: 0, label: "CMS & Routing" }],
   ["/admin/hero", { order: 1, label: "Homepage" }],
-  ["/admin/email-lab", { order: 2, label: "Email" }],
-  ["/admin/seo", { order: 3, label: "SEO Overview" }],
-  ["/admin/seo/issues", { order: 4, label: "SEO Issues" }],
-  ["/admin/seo/pages", { order: 5, label: "SEO Pages" }],
-  ["/admin/seo/search-console", { order: 6, label: "Search Console" }],
-  ["/admin/seo/production", { order: 7, label: "Production Visibility" }]
+  ["/admin/mail", { order: 2, label: "Mailbox" }],
+  ["/admin/email-lab", { order: 3, label: "Email" }],
+  ["/admin/seo", { order: 4, label: "SEO Overview" }],
+  ["/admin/seo/issues", { order: 5, label: "SEO Issues" }],
+  ["/admin/seo/pages", { order: 6, label: "SEO Pages" }],
+  ["/admin/seo/search-console", { order: 7, label: "Search Console" }],
+  ["/admin/seo/production", { order: 8, label: "Production Visibility" }]
 ]);
 
 const PLATFORM_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>([
