@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import styles from "./VendorCatalogClient.module.css";
 import { VendorSmartProductForm } from "./VendorSmartProductForm";
@@ -217,6 +218,15 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
         <p><strong>Αν βρεθεί:</strong> επιβεβαίωσέ το και θα συμπληρωθούν τίτλος, κατηγορία, μάρκα, μοντέλο και GTIN. Η σύνδεση αποθηκεύεται μαζί με την προσφορά σου.</p>
         <p><strong>Δικά σου στοιχεία:</strong> SKU, τιμή, απόθεμα και παραλλαγή/ποικιλία παραμένουν στοιχεία του καταστήματός σου και δεν αλλάζουν το κοινό canonical προϊόν.</p>
       </WorkspaceHowItWorks>
+      {canImportCatalogue && <div className="workspace-action-bar" style={{ marginBottom: 18 }}>
+        <div>
+          <strong>Έχεις πολλά προϊόντα ή ήδη διαθέσιμο XML από το e-shop σου;</strong>
+          <span style={{ display: "block", marginTop: 4 }}>Σύνδεσε XML URL ή ανέβασε XML αρχείο και κράτησε τιμές, stock, εικόνες και νέα προϊόντα συγχρονισμένα.</span>
+        </div>
+        <div className="workspace-action-buttons">
+          <Link className="button" href="/vendor/catalog/feed">XML Product Feed</Link>
+        </div>
+      </div>}
       <details className="workspace-tool-panel" open>
         <summary><span><strong>Έξυπνη χειροκίνητη καταχώρηση</strong><small>Για ένα ή λίγα προϊόντα · με live canonical matching.</small></span></summary>
         <div className="workspace-tool-body">
