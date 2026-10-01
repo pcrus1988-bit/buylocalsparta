@@ -5,7 +5,7 @@ import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader
 import { getVendorSession } from "../../../lib/vendor-session";
 import { vendorReturnsWorkspace } from "../../../lib/vendor-backoffice-service";
 
-export const metadata: Metadata = { title: "Vendor Returns", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Επιστροφές", robots: { index: false, follow: false } };
 
 export default async function VendorReturnsPage() {
   const principal = await getVendorSession();
@@ -13,7 +13,7 @@ export default async function VendorReturnsPage() {
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
-      <div><div className="eyebrow">After-sales</div><h1>Returns</h1><p className="lead">Δες μόνο τα repair/replacement tasks που έχουν ανατεθεί στο κατάστημά σου και συνέχισε από το τρέχον operational στάδιο.</p></div>
+      <div><div className="eyebrow">Μετά την πώληση</div><h1>Επιστροφές</h1><p className="lead">Δες μόνο τις επισκευές και αντικαταστάσεις που έχουν ανατεθεί στο κατάστημά σου και συνέχισε από το τρέχον στάδιο.</p></div>
     </section>
     <VendorReturnsClient initial={await vendorReturnsWorkspace(principal)} />
   </main>;
