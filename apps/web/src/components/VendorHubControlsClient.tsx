@@ -26,6 +26,24 @@ function planPrice(plan: VendorHubControlsWorkspace["subscription"]["plans"][num
   return "Χωρίς σταθερή συνδρομή";
 }
 
+function vendorSettingStatus(status: string) {
+  const labels: Record<string, string> = {
+    pending: "Σε αναμονή",
+    approved: "Εγκρίθηκε",
+    rejected: "Απορρίφθηκε",
+    active: "Ενεργό",
+    inactive: "Ανενεργό",
+    completed: "Ολοκληρώθηκε",
+    failed: "Απέτυχε",
+    transmitted: "Στάλθηκε στην AADE",
+    accepted: "Έγινε αποδεκτό",
+    review: "Έλεγχος",
+    reconcile: "Συμφωνία",
+    retry: "Επανάληψη"
+  };
+  return labels[status] ?? status.replaceAll("_", " ");
+}
+
 export type VendorHubControlSection = "delivery" | "seo" | "promotions" | "aade" | "subscription";
 
 export function VendorHubControlsClient({ initial, sections }: { initial: VendorHubControlsWorkspace; sections?: readonly VendorHubControlSection[] }) {
@@ -176,15 +194,15 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
     </section>}
 
     {show("seo") && <section className="vendor-section section-tint" id="seo"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="SEO" title="Πηγαία στοιχεία καταστήματος" note="Ελέγχεις το περιεχόμενο που περιγράφει τη δική σου επιχείρηση. Οι τεχνικές διευθύνσεις, η ευρετηρίαση και τα δεδομένα αναζήτησης παραμένουν κεντρικά." />
+      <WorkspaceSectionHeading eyebrow="Εμφάνιση στη Google" title="Πώς περιγράφεται το κατάστημά σου" note="Εσύ γράφεις τα κείμενα της επιχείρησής σου. Το ΚΟΝΤΑ ΜΟΥ χειρίζεται τις τεχνικές ρυθμίσεις αναζήτησης." />
       {(["el","en"] as const).map((locale) => <details className="workspace-tool-panel" open={locale === "el"} key={locale}>
-        <summary><span><strong>{locale === "el" ? "Ελληνικά" : "English"}</strong><small>Περιεχόμενο προφίλ και SEO</small></span></summary>
+        <summary><span><strong>{locale === "el" ? "Ελληνικά" : "Αγγλικά"}</strong><small>Κείμενα προφίλ και αναζήτησης</small></span></summary>
         <div className="workspace-tool-body">
           <div className="workspace-form-field"><label htmlFor={`short-${locale}`}>Σύντομη περιγραφή</label><textarea id={`short-${locale}`} value={seo[locale].shortDescription} onChange={(event) => updateSeo(locale, "shortDescription", event.target.value)} /></div>
           <div className="workspace-form-field"><label htmlFor={`story-${locale}`}>Ιστορία / παρουσίαση</label><textarea id={`story-${locale}`} value={seo[locale].story} onChange={(event) => updateSeo(locale, "story", event.target.value)} /></div>
           <div className="workspace-form-field"><label htmlFor={`expertise-${locale}`}>Εξειδίκευση</label><textarea id={`expertise-${locale}`} value={seo[locale].expertise} onChange={(event) => updateSeo(locale, "expertise", event.target.value)} /></div>
-          <div className="workspace-form-field"><label htmlFor={`seo-title-${locale}`}>Τίτλος SEO</label><input id={`seo-title-${locale}`} value={seo[locale].seoTitle} onChange={(event) => updateSeo(locale, "seoTitle", event.target.value)} /></div>
-          <div className="workspace-form-field"><label htmlFor={`seo-description-${locale}`}>Περιγραφή SEO</label><textarea id={`seo-description-${locale}`} value={seo[locale].seoDescription} onChange={(event) => updateSeo(locale, "seoDescription", event.target.value)} /></div>
+          <div className="workspace-form-field"><label htmlFor={`seo-title-${locale}`}>Τίτλος για Google</label><input id={`seo-title-${locale}`} value={seo[locale].seoTitle} onChange={(event) => updateSeo(locale, "seoTitle", event.target.value)} /></div>
+          <div className="workspace-form-field"><label htmlFor={`seo-description-${locale}`}>Περιγραφή για Google</label><textarea id={`seo-description-${locale}`} value={seo[locale].seoDescription} onChange={(event) => updateSeo(locale, "seoDescription", event.target.value)} /></div>
           <div className="workspace-form-actions"><button className="button" type="button" disabled={Boolean(busy)} onClick={() => void saveSeo(locale)}>{busy === `seo:${locale}` ? "Αποθήκευση…" : "Αποθήκευση"}</button></div>
         </div>
       </details>)}
@@ -207,7 +225,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
         <div className="workspace-form-actions"><button className="button" type="button" disabled={Boolean(busy)} onClick={() => void submitPromotion()}>{busy === "promotion" ? "Υποβολή…" : "Υποβολή προώθησης"}</button></div>
       </div>}
       {workspace.promotions.requests.length > 0 && <div className="workspace-queue-list">{workspace.promotions.requests.map((item) => <article className="workspace-queue-card" key={item.id}>
-        <div className="workspace-queue-head"><div><strong>{item.name}</strong><small>{item.title} · {when(item.createdAt)}</small></div><WorkspaceStatusBadge status={item.status} /></div>
+        <div className="workspace-queue-head"><div><strong>{item.name}</strong><small>{item.title} · {when(item.createdAt)}</small></div><WorkspaceStatusBadge status={item.status} label={vendorSettingStatus(item.status)} /></div>
         <div className="workspace-queue-primary"><span>{euro(item.currentPriceMinor)} → {euro(item.promotionalPriceMinor)}</span><span>{when(item.startsAt)} — {when(item.endsAt)}</span></div>
         {item.reviewNote && <p className="workspace-queue-summary">{item.reviewNote}</p>}
       </article>)}</div>}
@@ -223,19 +241,19 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
           <div className="workspace-form-actions"><button className="button" type="button" disabled={Boolean(busy)} onClick={() => void submitAade()}>{busy === "aade" ? "Υποβολή…" : "Υποβολή αιτήματος"}</button></div>
         </div>
         <div className="workspace-queue-list">{workspace.aade.documents.slice(0, 20).map((document) => <article className="workspace-queue-card" key={document.id}>
-          <div className="workspace-queue-head"><div><strong>{document.documentNumber ?? document.id}</strong><small>{document.type} · {when(document.createdAt)}</small></div><WorkspaceStatusBadge status={document.transmissionStatus} /></div>
+          <div className="workspace-queue-head"><div><strong>{document.documentNumber ?? document.id}</strong><small>{document.type} · {when(document.createdAt)}</small></div><WorkspaceStatusBadge status={document.transmissionStatus} label={vendorSettingStatus(document.transmissionStatus)} /></div>
           <div className="workspace-queue-primary"><span>{euro(document.grossMinor)}</span>{document.aadeMark && <span>MARK {document.aadeMark}</span>}{document.qrUrl && <a href={document.qrUrl} target="_blank" rel="noreferrer">AADE QR ↗</a>}</div>
           {document.lastError && <p className="workspace-queue-summary">{document.lastError}</p>}
         </article>)}</div>
       </>}
-      {workspace.aade.requests.length > 0 && <details className="workspace-tool-panel"><summary><span><strong>Ιστορικό αιτημάτων AADE</strong><small>{workspace.aade.requests.length} εγγραφές</small></span></summary><div className="workspace-tool-body workspace-compact-list">{workspace.aade.requests.map((item) => <div className="workspace-compact-row" key={item.id}><strong>{item.action} · {item.documentId}</strong><WorkspaceStatusBadge status={item.status} /><small>{when(item.createdAt)}{item.resolutionNote ? ` · ${item.resolutionNote}` : ""}</small></div>)}</div></details>}
+      {workspace.aade.requests.length > 0 && <details className="workspace-tool-panel"><summary><span><strong>Ιστορικό αιτημάτων AADE</strong><small>{workspace.aade.requests.length} εγγραφές</small></span></summary><div className="workspace-tool-body workspace-compact-list">{workspace.aade.requests.map((item) => <div className="workspace-compact-row" key={item.id}><strong>{vendorSettingStatus(item.action)} · {item.documentId}</strong><WorkspaceStatusBadge status={item.status} label={vendorSettingStatus(item.status)} /><small>{when(item.createdAt)}{item.resolutionNote ? ` · ${item.resolutionNote}` : ""}</small></div>)}</div></details>}
     </div></section>}
 
     {show("subscription") && <section className="shell vendor-section" id="subscription">
       <WorkspaceSectionHeading eyebrow="Πλάνο" title="Πλάνο συνεργασίας" note="Η επιλογή πλάνου γίνεται από εσένα, αλλά αλλαγές που επηρεάζουν εμπορική συμφωνία ή χρέωση ενεργοποιούνται μόνο μετά τον συμβατικό έλεγχο." />
       {workspace.subscription.current ? <WorkspaceMetricStrip items={[
         { label: "Τρέχον πλάνο", value: workspace.subscription.current.planName },
-        { label: "Κατάσταση", value: workspace.subscription.current.status },
+        { label: "Κατάσταση", value: vendorSettingStatus(workspace.subscription.current.status) },
         { label: "Έναρξη", value: when(workspace.subscription.current.startsAt) }
       ]} /> : <WorkspaceEmptyState title="Δεν υπάρχει ενεργή συνδρομή στο HUB." body="Μπορείς να ζητήσεις διαθέσιμο πλάνο μόλις έχει ρυθμιστεί για το συγκεκριμένο HUB." />}
       {workspace.subscription.plans.length > 0 && <div className="workspace-tool-panel" style={{ padding: "1rem" }}>
@@ -244,7 +262,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
         <div className="workspace-form-actions"><button className="button" type="button" disabled={Boolean(busy) || !subscription.planCode || pendingSubscription > 0} onClick={() => void submitSubscription()}>{pendingSubscription > 0 ? "Υπάρχει αίτημα σε αναμονή" : busy === "subscription" ? "Υποβολή…" : "Αίτημα αλλαγής πλάνου"}</button></div>
       </div>}
       {workspace.subscription.requests.length > 0 && <div className="workspace-queue-list">{workspace.subscription.requests.map((item) => <article className="workspace-queue-card" key={item.id}>
-        <div className="workspace-queue-head"><div><strong>{item.planName}</strong><small>{when(item.createdAt)}</small></div><WorkspaceStatusBadge status={item.status} /></div>
+        <div className="workspace-queue-head"><div><strong>{item.planName}</strong><small>{when(item.createdAt)}</small></div><WorkspaceStatusBadge status={item.status} label={vendorSettingStatus(item.status)} /></div>
         {item.note && <p className="workspace-queue-summary">{item.note}</p>}
         {item.resolutionNote && <p className="workspace-queue-summary"><strong>Απάντηση:</strong> {item.resolutionNote}</p>}
       </article>)}</div>}
