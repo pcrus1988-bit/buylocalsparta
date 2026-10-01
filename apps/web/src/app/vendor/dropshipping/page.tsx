@@ -173,7 +173,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
                 <small>{product.cachedQuantity == null ? "Ποσότητα άγνωστη" : `Qty ${product.cachedQuantity}`} · έλεγχος {date(product.availabilityCheckedAt)}</small>
               </div>
               <div className="workspace-compact-row">
-                <strong>Προϊόν προμηθευτή ID</strong>
+                <strong>Κωδικός προϊόντος προμηθευτή</strong>
                 <span>{product.sourceProductKey}</span>
                 <small>{product.priceState ? `price state: ${product.priceState}` : "κατάλογο πηγής"}</small>
               </div>
@@ -189,14 +189,14 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
               showMsrp={product.showMsrp}
             /> : <div className="workspace-compact-row" style={{ marginTop: 12 }}>
               <strong>Έτοιμο αποτέλεσμα αναζήτησης</strong>
-              <small>Το προϊόν υπάρχει στο supplier κατάλογο πηγής αλλά δεν έχει δημιουργημένη προσφορά καταστήματος ακόμη.</small>
+              <small>Το προϊόν υπάρχει στον κατάλογο του προμηθευτή αλλά δεν έχει δημιουργηθεί ακόμη προσφορά καταστήματος.</small>
             </div>}
           </article>)}
         </div>
 
         {!products.length ? <article className="workspace-queue-card">
           <strong>Δεν βρέθηκαν προϊόντα.</strong>
-          <p>Δοκίμασε τίτλο, brand, SKU, EAN ή supplier product ID με διαφορετική γραφή.</p>
+          <p>Δοκίμασε τίτλο, μάρκα, SKU, EAN ή κωδικό προϊόντος προμηθευτή με διαφορετική γραφή.</p>
         </article> : null}
       </> : null}
     </section> : <section className="shell vendor-section">
