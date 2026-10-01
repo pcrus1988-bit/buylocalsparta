@@ -6,6 +6,7 @@ import {
   type VendorProductFeedMappingInput
 } from "../../../../../lib/vendor-product-feed-preview";
 import {
+  connectVendorProductFeed,
   saveVendorProductFeed,
   setVendorProductFeedStatus,
   vendorProductFeedWorkspace
@@ -73,6 +74,17 @@ export async function POST(request: Request) {
     const sourceType = body.sourceType === "url" ? "url" : body.sourceType === "upload" ? "upload" : undefined;
     if (!sourceType) throw new Error("Επίλεξε XML upload ή XML URL.");
 
+    if (action === "save" && sourceType === "url") {
+      const sourceUrl = string(body.sourceUrl);
+      if (!sourceUrl) throw new Error("Δώσε το URL του XML feed.");
+      return Response.json(await connectVendorProductFeed(principal, {
+        sourceUrl,
+        feedName: string(body.feedName) ?? "XML Feed",
+        syncIntervalMinutes: Number(body.syncIntervalMinutes ?? 360),
+        ...mapping(body)
+      }), { status: 202 });
+    }
+
     let xml: string;
     if (sourceType === "url") {
       const sourceUrl = string(body.sourceUrl);
@@ -93,9 +105,8 @@ export async function POST(request: Request) {
 
     return Response.json(await saveVendorProductFeed(principal, {
       sourceType,
-      sourceUrl: string(body.sourceUrl),
       sourceFilename: string(body.sourceFilename),
-      feedName: string(body.feedName) ?? (sourceType === "url" ? "XML Feed" : "XML Upload"),
+      feedName: string(body.feedName) ?? "XML Upload",
       syncIntervalMinutes: Number(body.syncIntervalMinutes ?? 360),
       xml,
       ...mapping(body)
