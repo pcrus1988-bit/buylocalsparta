@@ -109,13 +109,19 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
     // next/image defaults to q=75 unless the requested quality is explicitly allowed.
-    qualities: [75, 90],
+    qualities: [60, 70, 75, 90],
     remotePatterns: [
       {
         protocol: "https",
         hostname: "brandsgateway-img.s3.fr-par.scw.cloud",
         port: "",
         pathname: "/**"
+      },
+      {
+        protocol: "https",
+        hostname: "cdn.symphonya.eu",
+        port: "",
+        pathname: "/images/**"
       }
     ],
     // Supplier image URLs are stable catalogue assets. Keep optimized derivatives
