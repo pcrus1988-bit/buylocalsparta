@@ -42,10 +42,19 @@ export async function syncMailboxAction(formData: FormData) {
   const principal = await requireMailAdmin(text(formData.get("csrfToken")));
   try {
     const result = await syncAdminInboundMail({ maxNew: 80 });
-    await recordAdminAudit(principal, "admin_mail.inbound_sync", "admin_mailbox", "ses-s3", "Manual Admin mailbox sync", {
-      indexed: result.indexed,
-      scanned: result.scanned
-    });
+    try {
+      await recordAdminAudit(principal, "admin_mail.inbound_sync", "admin_mailbox", "ses-s3", "Manual Admin mailbox sync", {
+        indexed: result.indexed,
+        scanned: result.scanned,
+        failed: result.failed
+      });
+    } catch (auditError) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "admin_mail.sync_audit_failed",
+        message: auditError instanceof Error ? auditError.message : String(auditError)
+      }));
+    }
     revalidatePath("/admin/mail");
   } catch (error) {
     redirectWithError(error);
@@ -71,16 +80,27 @@ export async function sendMailAction(formData: FormData) {
     redirectWithError(error, true);
   }
 
-  await recordAdminAudit(principal, "admin_mail.sent", "admin_mail_message", result.publicId, "Sent from Admin Mail through AWS SES", {
-    provider: "ses",
-    providerMessageId: result.providerMessageId,
-    recipientCount: [text(formData.get("to")), text(formData.get("cc")), text(formData.get("bcc"))]
-      .join(",")
-      .split(/[;,\n]+/)
-      .filter((value) => value.trim()).length,
-    attachmentCount: attachments.length,
-    reply: Boolean(text(formData.get("inReplyToId")))
-  });
+  try {
+    await recordAdminAudit(principal, "admin_mail.sent", "admin_mail_message", result.publicId, "Sent from Admin Mail through AWS SES", {
+      provider: "ses",
+      providerMessageId: result.providerMessageId,
+      recipientCount: [text(formData.get("to")), text(formData.get("cc")), text(formData.get("bcc"))]
+        .join(",")
+        .split(/[;,\n]+/)
+        .filter((value) => value.trim()).length,
+      attachmentCount: attachments.length,
+      reply: Boolean(text(formData.get("inReplyToId")))
+    });
+  } catch (auditError) {
+    // SES already accepted the message. Audit degradation must not invite a duplicate send.
+    console.error(JSON.stringify({
+      level: "error",
+      event: "admin_mail.sent_audit_failed",
+      publicId: result.publicId,
+      providerMessageId: result.providerMessageId,
+      message: auditError instanceof Error ? auditError.message : String(auditError)
+    }));
+  }
   revalidatePath("/admin/mail");
   redirect(`/admin/mail?folder=sent&message=${encodeURIComponent(result.publicId)}&sent=1`);
 }
