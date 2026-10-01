@@ -10,8 +10,8 @@ const DEFAULT_FROM = ["partners@kontamou.site", "info@kontamou.site"] as const;
 const MAX_RAW_BYTES = 30 * 1024 * 1024;
 const MAX_SYNC_OBJECTS = 5_000;
 const MAX_SYNC_NEW = 40;
-const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
-const MAX_TOTAL_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
+const MAX_TOTAL_ATTACHMENT_BYTES = 3 * 1024 * 1024;
 
 type MailFolder = "inbox" | "sent" | "starred" | "archive" | "all";
 
@@ -545,9 +545,9 @@ async function normalizeOutgoingAttachments(files: readonly File[]): Promise<rea
   let total = 0;
   const result: Array<{ filename: string; contentType: string; bytes: Uint8Array }> = [];
   for (const file of actual) {
-    if (file.size > MAX_ATTACHMENT_BYTES) throw new Error(`${file.name} is larger than 5 MB`);
+    if (file.size > MAX_ATTACHMENT_BYTES) throw new Error(`${file.name} is larger than 3 MB`);
     total += file.size;
-    if (total > MAX_TOTAL_ATTACHMENT_BYTES) throw new Error("Total attachment size is larger than 8 MB");
+    if (total > MAX_TOTAL_ATTACHMENT_BYTES) throw new Error("Total attachment size is larger than 3 MB");
     result.push({
       filename: file.name.replace(/[\r\n\0]/g, "").replace(/[\\/]/g, "_").slice(0, 180) || "attachment",
       contentType: file.type || "application/octet-stream",
