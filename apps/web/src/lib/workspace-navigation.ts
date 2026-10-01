@@ -63,9 +63,9 @@ export const VENDOR_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
       { label: "Πρόσβαση ομάδας", href: "/vendor/daily-access", icon: "◈", vendorCapability: "staff.manage" },
       { label: "Τοπικές παραδόσεις", href: "/vendor/settings/delivery", icon: "⌁", vendorCapability: "local_delivery.manage" },
       { label: "Φορολογικά & AADE", href: "/vendor/settings/aade", icon: "#", vendorCapability: "aade.manage" },
-      { label: "Προωθητικές ενέργειες", href: "/vendor/settings/promotions", icon: "%", vendorCapability: "promotions.manage" },
-      { label: "SEO καταστήματος", href: "/vendor/settings/seo", icon: "⌕", vendorCapability: "seo.source_data.manage" },
-      { label: "Πλάνο συνεργασίας", href: "/vendor/settings/subscription", icon: "◎", vendorCapability: "subscription.manage" }
+      { label: "Προσφορές & εκπτώσεις", href: "/vendor/settings/promotions", icon: "%", vendorCapability: "promotions.manage" },
+      { label: "Εμφάνιση στη Google", href: "/vendor/settings/seo", icon: "⌕", vendorCapability: "seo.source_data.manage" },
+      { label: "Συνδρομή & συνεργασία", href: "/vendor/settings/subscription", icon: "◎", vendorCapability: "subscription.manage" }
     ]
   }
 ];
