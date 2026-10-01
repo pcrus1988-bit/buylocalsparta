@@ -122,14 +122,29 @@ export async function syncAdminInboundMail(input: { maxNew?: number } = {}): Pro
   let indexed = 0;
   let scanned = 0;
   let pages = 0;
+  let recoveredStaleCursor = false;
 
   while (pages < MAX_SYNC_PAGES_PER_RUN && indexed < maxNew) {
     const remaining = Math.max(1, maxNew - indexed);
-    const page = await storage.list({
-      prefix: config.prefix || undefined,
-      maxKeys: Math.min(100, remaining),
-      continuationToken
-    });
+    let page: Awaited<ReturnType<S3ObjectStorage["list"]>>;
+    try {
+      page = await storage.list({
+        prefix: config.prefix || undefined,
+        maxKeys: Math.min(100, remaining),
+        continuationToken
+      });
+    } catch (error) {
+      if (continuationToken && !recoveredStaleCursor) {
+        recoveredStaleCursor = true;
+        continuationToken = undefined;
+        await pool.query(
+          "UPDATE admin_mail_sync_state SET continuation_token=NULL,updated_at=now() WHERE scope=$1",
+          [scope]
+        ).catch(() => undefined);
+        continue;
+      }
+      throw error;
+    }
     pages += 1;
     scanned += page.items.length;
 
@@ -304,12 +319,13 @@ export async function getAdminMailAttachment(
   void principal;
   if (!Number.isSafeInteger(attachmentIndex) || attachmentIndex < 0 || attachmentIndex > 100) throw new Error("Invalid attachment index");
   const pool = getProductionPostgresRuntime().sqlPool;
-  const result = await pool.query<{ direction: string; s3_object_key: string | null }>(
-    "SELECT direction,s3_object_key FROM admin_mail_messages WHERE public_id=$1 LIMIT 1",
+  const result = await pool.query<{ direction: string; s3_object_key: string | null; virus_verdict: string | null }>(
+    "SELECT direction,s3_object_key,virus_verdict FROM admin_mail_messages WHERE public_id=$1 LIMIT 1",
     [publicId]
   );
   const row = result.rows[0];
   if (!row || row.direction !== "incoming" || !row.s3_object_key) throw new Error("Attachment source is not available");
+  if (row.virus_verdict && row.virus_verdict.toUpperCase() !== "PASS") throw new Error("Attachment blocked by SES virus screening");
   const config = resolveMailConfig();
   const stored = await inboundStorage(config).read(row.s3_object_key);
   const parsed = parseAdminMailMime(await readStreamBounded(stored.stream, MAX_RAW_BYTES));
