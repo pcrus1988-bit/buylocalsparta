@@ -275,6 +275,10 @@ export async function saveVendorProductFeed(
           "FROM vendor_product_feed_items i",
           "WHERE i.feed_id=$1::uuid AND i.state='retired' AND i.offer_id=ib.offer_id"
         ), [feedUuid]);
+        await tx.query(sql(
+          "UPDATE vendor_product_feed_items SET last_stock_sync_at=now(),updated_at=now()",
+          "WHERE feed_id=$1::uuid AND state='retired' AND offer_id IS NOT NULL"
+        ), [feedUuid]);
       }
 
       await tx.query(sql(
@@ -310,6 +314,10 @@ export async function saveVendorProductFeed(
         "on_hand=GREATEST((i.source_payload->>'stockOnHand')::integer,ib.active_reservations),",
         "source='vendor_feed',source_confidence='merchant_confirmed',stock_confirmed_at=now(),freshness_status='fresh',updated_at=now()",
         "FROM vendor_product_feed_items i WHERE i.feed_id=$1::uuid AND i.state='present' AND i.offer_id=ib.offer_id"
+      ), [feedUuid]);
+      await tx.query(sql(
+        "UPDATE vendor_product_feed_items SET last_stock_sync_at=now(),updated_at=now()",
+        "WHERE feed_id=$1::uuid AND state='present' AND offer_id IS NOT NULL"
       ), [feedUuid]);
 
       // Reuse a pending/manual/CSV submission with the same vendor+location SKU
