@@ -7,6 +7,7 @@ import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { VendorAskLocalPanel } from "../../../components/VendorAskLocalPanel";
 import { VendorCatalogBrowser } from "../../../components/VendorCatalogBrowser";
+import { VendorInstagramFeed } from "../../../components/VendorInstagramFeed";
 import { VendorLocationMap } from "../../../components/VendorLocationMap";
 import styles from "../../../components/VendorStorefront.module.css";
 import { getAccountSession } from "../../../lib/account-session";
@@ -447,6 +448,16 @@ export default async function VendorPage({ params }: Props) {
           )}
         </div>
       </section>
+
+      {!isResearch && vendor.instagram && <div className={styles.instagramSection}>
+        <div className="shell">
+          <VendorInstagramFeed
+            vendorId={vendor.id}
+            vendorName={vendor.name}
+            sectionTitle={vendor.instagram.sectionTitle}
+          />
+        </div>
+      </div>}
 
       <section className={styles.askSection} id="ask-local" aria-labelledby="vendor-ask-title">
         <div className="shell">
