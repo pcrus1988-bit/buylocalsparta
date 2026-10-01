@@ -38,6 +38,6 @@ export function VendorLoginForm({ demoEnabled, redirectTo = "/vendor" }: { demoE
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}
     <button className="button" type="submit" disabled={busy}>{busy ? "Σύνδεση…" : "Σύνδεση στον χώρο συνεργάτη"}</button>
-    {demoEnabled && <p className="login-demo-note"><strong>Development vendor:</strong> vendor1@demo.local / Vendor!12345. Τα demo καταστήματα είναι φανταστικά.</p>}
+    {demoEnabled && <p className="login-demo-note"><strong>Δοκιμαστικός λογαριασμός ανάπτυξης:</strong> vendor1@demo.local / Vendor!12345. Τα δοκιμαστικά καταστήματα είναι φανταστικά.</p>}
   </form>;
 }
