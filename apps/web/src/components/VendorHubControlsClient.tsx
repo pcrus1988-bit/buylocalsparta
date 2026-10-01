@@ -144,7 +144,7 @@ export function VendorHubControlsClient({ initial }: { initial: VendorHubControl
     </section>
 
     <section className="shell vendor-section" id="local-delivery">
-      <WorkspaceSectionHeading eyebrow="SELF_GOVERNED · Delivery" title="Περιοχή τοπικής παράδοσης" note="Η ρύθμιση είναι δική σου και υπερισχύει της γενικής κάλυψης HUB για το κατάστημά σου. Η τιμολόγηση μεταφοράς παραμένει στους κανόνες του HUB." />
+      <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · Παραδόσεις" title="Περιοχή τοπικής παράδοσης" note="Η ρύθμιση είναι δική σου και υπερισχύει της γενικής κάλυψης HUB για το κατάστημά σου. Η τιμολόγηση μεταφοράς παραμένει στους κανόνες του HUB." />
       <WorkspaceHowItWorks>
         <p><strong>Ταχυδρομικοί κώδικες:</strong> βάλε ολόκληρο ΤΚ ή πρόθεμα, π.χ. 24100 ή 241.</p>
         <p><strong>Απενεργοποίηση:</strong> σταματά τη δική σου local-delivery ζώνη χωρίς να διαγράφει τη ρύθμιση.</p>
@@ -172,7 +172,7 @@ export function VendorHubControlsClient({ initial }: { initial: VendorHubControl
     </section>
 
     <section className="vendor-section section-tint" id="seo"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="SELF_GOVERNED · SEO" title="Πηγαία στοιχεία καταστήματος" note="Ελέγχεις το περιεχόμενο που περιγράφει τη δική σου επιχείρηση. Canonical URLs, indexability, sitemap και marketplace schema παραμένουν κεντρικά." />
+      <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · SEO" title="Πηγαία στοιχεία καταστήματος" note="Ελέγχεις το περιεχόμενο που περιγράφει τη δική σου επιχείρηση. Canonical URLs, indexability, sitemap και marketplace schema παραμένουν κεντρικά." />
       {(["el","en"] as const).map((locale) => <details className="workspace-tool-panel" open={locale === "el"} key={locale}>
         <summary><span><strong>{locale === "el" ? "Ελληνικά" : "English"}</strong><small>Store profile + SEO source copy</small></span></summary>
         <div className="workspace-tool-body">
@@ -187,12 +187,12 @@ export function VendorHubControlsClient({ initial }: { initial: VendorHubControl
     </div></section>
 
     <section className="shell vendor-section" id="promotions">
-      <WorkspaceSectionHeading eyebrow="SELF_GOVERNED · Promotions" title="Αιτήματα προωθητικών ενεργειών" note="Δηλώνεις τη δική σου εμπορική πρόταση. Η τελική δημόσια promotional price ενεργοποιείται μόνο αφού περάσει τους marketplace και νομικούς ελέγχους τιμής." />
+      <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · Προωθήσεις" title="Αιτήματα προωθητικών ενεργειών" note="Δηλώνεις τη δική σου εμπορική πρόταση. Η τελική δημόσια promotional price ενεργοποιείται μόνο αφού περάσει τους marketplace και νομικούς ελέγχους τιμής." />
       <WorkspaceHowItWorks>
         <p><strong>Δεν αλλάζει άμεσα η δημόσια τιμή.</strong> Το αίτημα κρατά snapshot της τρέχουσας τιμής και περνά έλεγχο πριν εφαρμοστεί.</p>
         <p><strong>Ιστορικό τιμών:</strong> παραμένει κεντρικό ώστε οι ανακοινώσεις έκπτωσης να είναι ελέγξιμες.</p>
       </WorkspaceHowItWorks>
-      {workspace.promotions.offers.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν ενεργές προσφορές προϊόντων." body="Μόλις υπάρχουν εγκεκριμένα offers, θα μπορείς να προτείνεις promotion." /> : <div className="workspace-tool-panel" style={{ padding: "1rem" }}>
+      {workspace.promotions.offers.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν ενεργές προσφορές προϊόντων." body="Μόλις υπάρχουν εγκεκριμένα προϊόντα, θα μπορείς να προτείνεις προώθηση." /> : <div className="workspace-tool-panel" style={{ padding: "1rem" }}>
         <label className="workspace-form-field"><span>Προϊόν</span><select value={promotion.offerId} onChange={(event) => setPromotion((current) => ({ ...current, offerId: event.target.value }))}>{workspace.promotions.offers.map((offer) => <option key={offer.offerId} value={offer.offerId}>{offer.title} · {euro(offer.priceMinor)}</option>)}</select></label>
         {selectedOffer && <p className="workspace-page-muted">Τρέχουσα τιμή: <strong>{euro(selectedOffer.priceMinor)}</strong></p>}
         <label className="workspace-form-field"><span>Όνομα promotion</span><input value={promotion.name} onChange={(event) => setPromotion((current) => ({ ...current, name: event.target.value }))} /></label>
@@ -200,7 +200,7 @@ export function VendorHubControlsClient({ initial }: { initial: VendorHubControl
         <label className="workspace-form-field"><span>Έναρξη</span><input type="datetime-local" value={promotion.startsAt} onChange={(event) => setPromotion((current) => ({ ...current, startsAt: event.target.value }))} /></label>
         <label className="workspace-form-field"><span>Λήξη</span><input type="datetime-local" value={promotion.endsAt} onChange={(event) => setPromotion((current) => ({ ...current, endsAt: event.target.value }))} /></label>
         <label className="workspace-form-field"><span>Λόγος / σημείωση</span><textarea value={promotion.reason} onChange={(event) => setPromotion((current) => ({ ...current, reason: event.target.value }))} /></label>
-        <div className="workspace-form-actions"><button className="button" type="button" disabled={Boolean(busy)} onClick={() => void submitPromotion()}>{busy === "promotion" ? "Υποβολή…" : "Υποβολή promotion"}</button></div>
+        <div className="workspace-form-actions"><button className="button" type="button" disabled={Boolean(busy)} onClick={() => void submitPromotion()}>{busy === "promotion" ? "Υποβολή…" : "Υποβολή προώθησης"}</button></div>
       </div>}
       {workspace.promotions.requests.length > 0 && <div className="workspace-queue-list">{workspace.promotions.requests.map((item) => <article className="workspace-queue-card" key={item.id}>
         <div className="workspace-queue-head"><div><strong>{item.name}</strong><small>{item.title} · {when(item.createdAt)}</small></div><WorkspaceStatusBadge status={item.status} /></div>
@@ -210,8 +210,8 @@ export function VendorHubControlsClient({ initial }: { initial: VendorHubControl
     </section>
 
     <section className="vendor-section section-tint" id="aade"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="SELF_GOVERNED · AADE" title="myDATA & φορολογικά αιτήματα" note="Βλέπεις μόνο τα φορολογικά έγγραφα της επιχείρησής σου. Retry/reconcile δεν εκτελείται τυφλά: το αίτημα μπαίνει στην ασφαλή φορολογική ροή." />
-      {workspace.aade.documents.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν vendor-owned φορολογικά έγγραφα." body="Όταν δημιουργηθούν σχετικά παραστατικά, η κατάσταση AADE θα εμφανίζεται εδώ." /> : <>
+      <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · AADE" title="myDATA & φορολογικά αιτήματα" note="Βλέπεις μόνο τα φορολογικά έγγραφα της επιχείρησής σου. Retry/reconcile δεν εκτελείται τυφλά: το αίτημα μπαίνει στην ασφαλή φορολογική ροή." />
+      {workspace.aade.documents.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν φορολογικά έγγραφα του καταστήματος." body="Όταν δημιουργηθούν σχετικά παραστατικά, η κατάσταση AADE θα εμφανίζεται εδώ." /> : <>
         <div className="workspace-tool-panel" style={{ padding: "1rem" }}>
           <label className="workspace-form-field"><span>Παραστατικό</span><select value={aade.documentId} onChange={(event) => setAade((current) => ({ ...current, documentId: event.target.value }))}>{workspace.aade.documents.map((document) => <option value={document.id} key={document.id}>{document.documentNumber ?? document.id} · {document.transmissionStatus} · {euro(document.grossMinor)}</option>)}</select></label>
           <label className="workspace-form-field"><span>Ενέργεια</span><select value={aade.action} onChange={(event) => setAade((current) => ({ ...current, action: event.target.value }))}><option value="review">Έλεγχος</option><option value="reconcile">Reconcile με AADE</option><option value="retry">Ασφαλές retry μετά από έλεγχο</option></select></label>
@@ -228,7 +228,7 @@ export function VendorHubControlsClient({ initial }: { initial: VendorHubControl
     </div></section>
 
     <section className="shell vendor-section" id="subscription">
-      <WorkspaceSectionHeading eyebrow="SELF_GOVERNED · Plan" title="Πλάνο συνεργασίας" note="Η επιλογή πλάνου γίνεται από εσένα, αλλά αλλαγές που επηρεάζουν εμπορική συμφωνία ή χρέωση ενεργοποιούνται μόνο μετά τον συμβατικό έλεγχο." />
+      <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · Πλάνο" title="Πλάνο συνεργασίας" note="Η επιλογή πλάνου γίνεται από εσένα, αλλά αλλαγές που επηρεάζουν εμπορική συμφωνία ή χρέωση ενεργοποιούνται μόνο μετά τον συμβατικό έλεγχο." />
       {workspace.subscription.current ? <WorkspaceMetricStrip items={[
         { label: "Τρέχον πλάνο", value: workspace.subscription.current.planName },
         { label: "Κατάσταση", value: workspace.subscription.current.status },
