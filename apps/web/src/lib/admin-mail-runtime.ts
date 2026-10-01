@@ -1,0 +1,671 @@
+import { createHash, createHmac, randomUUID } from "node:crypto";
+import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
+import { S3ObjectStorage, type StoredObjectListItem } from "@buy-local-sparta/object-storage";
+import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { buildRawEmail, parseRawEmail, type ParsedMailMessage } from "./admin-mail-mime";
+
+const REQUIRED_REGION = "eu-north-1";
+const DEFAULT_BUCKET = "kontamou-inbound-emails";
+const DEFAULT_FROM = ["partners@kontamou.site", "info@kontamou.site"] as const;
+const MAX_RAW_BYTES = 30 * 1024 * 1024;
+const MAX_SYNC_OBJECTS = 5_000;
+const MAX_SYNC_NEW = 40;
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const MAX_TOTAL_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+
+type MailFolder = "inbox" | "sent" | "starred" | "archive" | "all";
+
+export type AdminMailSummary = Readonly<{
+  id: string;
+  direction: "incoming" | "outgoing";
+  status: string;
+  from: string;
+  to: readonly string[];
+  cc: readonly string[];
+  subject: string;
+  preview: string;
+  sentAt?: number;
+  receivedAt?: number;
+  attachmentCount: number;
+  spamVerdict?: string;
+  virusVerdict?: string;
+  isRead: boolean;
+  isStarred: boolean;
+  archived: boolean;
+  threadKey: string;
+}>;
+
+export type AdminMailThreadMessage = AdminMailSummary & Readonly<{
+  bodyText: string;
+  replyTo?: string;
+  rfcMessageId?: string;
+  inReplyTo?: string;
+  references: readonly string[];
+  attachments: readonly Readonly<{ index: number; filename: string; contentType: string; byteSize: number; inline: boolean }>[];
+}>;
+
+export type AdminMailWorkspace = Readonly<{
+  configured: boolean;
+  configurationMessage: string;
+  fromAddresses: readonly string[];
+  folder: MailFolder;
+  query: string;
+  messages: readonly AdminMailSummary[];
+  thread: readonly AdminMailThreadMessage[];
+  selectedId?: string;
+  metrics: Readonly<{ inbox: number; unread: number; sent: number; starred: number; archived: number }>;
+  lastInboundAt?: number;
+}>;
+
+type MailConfig = Readonly<{
+  region: string;
+  bucket: string;
+  prefix: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+  fromAddresses: readonly string[];
+  displayName: string;
+}>;
+
+type MailRow = SqlRow & {
+  public_id: string;
+  direction: "incoming" | "outgoing";
+  status: string;
+  from_address: string;
+  to_addresses: string[];
+  cc_addresses: string[];
+  subject: string;
+  preview: string;
+  body_text: string;
+  sent_at: Date | string | null;
+  received_at: Date | string | null;
+  attachment_count: number | string;
+  attachments: unknown;
+  spam_verdict: string | null;
+  virus_verdict: string | null;
+  is_read: boolean | null;
+  is_starred: boolean | null;
+  archived_at: Date | string | null;
+  thread_key: string;
+  reply_to: string | null;
+  rfc_message_id: string | null;
+  in_reply_to: string | null;
+  reference_ids: string[];
+};
+
+export function adminMailConfiguration(env: NodeJS.ProcessEnv = process.env): Readonly<{
+  configured: boolean;
+  message: string;
+  fromAddresses: readonly string[];
+}> {
+  if (!productionDatabaseConfigured(env)) return { configured: false, message: "PostgreSQL is not configured.", fromAddresses: DEFAULT_FROM };
+  try {
+    const config = resolveMailConfig(env);
+    return { configured: true, message: `SES + S3 ready in ${config.region} · ${config.bucket}`, fromAddresses: config.fromAddresses };
+  } catch (error) {
+    return { configured: false, message: error instanceof Error ? error.message : String(error), fromAddresses: DEFAULT_FROM };
+  }
+}
+
+export async function syncAdminInboundMail(input: { maxNew?: number } = {}): Promise<{ indexed: number; scanned: number }> {
+  const config = resolveMailConfig();
+  const storage = inboundStorage(config);
+  const objects: StoredObjectListItem[] = [];
+  let continuationToken: string | undefined;
+  do {
+    const page = await storage.list({ prefix: config.prefix || undefined, maxKeys: 1000, continuationToken });
+    objects.push(...page.items.filter((item) => item.byteSize > 0 && item.byteSize <= MAX_RAW_BYTES));
+    continuationToken = page.nextContinuationToken;
+  } while (continuationToken && objects.length < MAX_SYNC_OBJECTS);
+
+  objects.sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
+  const candidateObjects = objects.slice(0, MAX_SYNC_OBJECTS);
+  if (!candidateObjects.length) return { indexed: 0, scanned: 0 };
+
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const keys = candidateObjects.map((item) => item.objectKey);
+  const existing = await pool.query<{ s3_object_key: string }>(
+    "SELECT s3_object_key FROM admin_mail_messages WHERE s3_object_key = ANY($1::text[])",
+    [keys]
+  );
+  const known = new Set(existing.rows.map((row) => row.s3_object_key));
+  const maxNew = Math.max(1, Math.min(100, Math.floor(input.maxNew ?? MAX_SYNC_NEW)));
+  const pending = candidateObjects.filter((item) => !known.has(item.objectKey)).slice(0, maxNew);
+  let indexed = 0;
+
+  for (const object of pending) {
+    const stored = await storage.read(object.objectKey);
+    const bytes = await readStreamBounded(stored.stream, MAX_RAW_BYTES);
+    const parsed = parseRawEmail(bytes);
+    await persistInbound(parsed, object);
+    indexed += 1;
+  }
+  return { indexed, scanned: candidateObjects.length };
+}
+
+export async function adminMailWorkspace(
+  principal: SessionPrincipal,
+  input: { folder?: string; q?: string; selectedId?: string } = {}
+): Promise<AdminMailWorkspace> {
+  const configuration = adminMailConfiguration();
+  const folder = normalizeFolder(input.folder);
+  const query = (input.q || "").trim().slice(0, 200);
+  if (!configuration.configured) {
+    return {
+      configured: false,
+      configurationMessage: configuration.message,
+      fromAddresses: configuration.fromAddresses,
+      folder,
+      query,
+      messages: [],
+      thread: [],
+      selectedId: input.selectedId,
+      metrics: { inbox: 0, unread: 0, sent: 0, starred: 0, archived: 0 }
+    };
+  }
+
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const metricsResult = await pool.query<SqlRow>(`
+    SELECT
+      count(*) FILTER (WHERE m.direction='incoming' AND COALESCE(s.archived_at IS NOT NULL,false)=false)::int AS inbox,
+      count(*) FILTER (WHERE m.direction='incoming' AND COALESCE(s.archived_at IS NOT NULL,false)=false AND COALESCE(s.is_read,false)=false)::int AS unread,
+      count(*) FILTER (WHERE m.direction='outgoing')::int AS sent,
+      count(*) FILTER (WHERE COALESCE(s.is_starred,false)=true)::int AS starred,
+      count(*) FILTER (WHERE s.archived_at IS NOT NULL)::int AS archived,
+      max(m.received_at) FILTER (WHERE m.direction='incoming') AS last_inbound_at
+    FROM admin_mail_messages m
+    LEFT JOIN admin_mail_state s ON s.message_id=m.id AND s.user_public_id=$1
+  `, [principal.userId]);
+  const metric = metricsResult.rows[0] || {};
+
+  const params: unknown[] = [principal.userId];
+  const where: string[] = [];
+  if (folder === "inbox") {
+    where.push("m.direction='incoming'", "s.archived_at IS NULL");
+  } else if (folder === "sent") where.push("m.direction='outgoing'");
+  else if (folder === "starred") where.push("COALESCE(s.is_starred,false)=true");
+  else if (folder === "archive") where.push("s.archived_at IS NOT NULL");
+  if (query) {
+    params.push(`%${query}%`);
+    const index = params.length;
+    where.push(`(m.subject ILIKE $${index} OR m.from_address ILIKE $${index} OR array_to_string(m.to_addresses,' ') ILIKE $${index} OR m.preview ILIKE $${index})`);
+  }
+  params.push(120);
+  const limitParam = params.length;
+  const list = await pool.query<MailRow>(`
+    SELECT m.public_id,m.direction,m.status,m.from_address,m.to_addresses,m.cc_addresses,m.subject,m.preview,m.body_text,
+           m.sent_at,m.received_at,m.attachment_count,m.attachments,m.spam_verdict,m.virus_verdict,m.thread_key,
+           m.reply_to,m.rfc_message_id,m.in_reply_to,m.reference_ids,
+           COALESCE(s.is_read,false) AS is_read,COALESCE(s.is_starred,false) AS is_starred,s.archived_at
+    FROM admin_mail_messages m
+    LEFT JOIN admin_mail_state s ON s.message_id=m.id AND s.user_public_id=$1
+    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+    ORDER BY COALESCE(m.received_at,m.sent_at,m.created_at) DESC
+    LIMIT $${limitParam}
+  `, params);
+
+  const messages = list.rows.map(projectSummary);
+  const selectedId = input.selectedId && messages.some((message) => message.id === input.selectedId)
+    ? input.selectedId
+    : input.selectedId || messages[0]?.id;
+  let thread: readonly AdminMailThreadMessage[] = [];
+  if (selectedId) {
+    const selected = await pool.query<{ thread_key: string }>("SELECT thread_key FROM admin_mail_messages WHERE public_id=$1 LIMIT 1", [selectedId]);
+    const threadKey = selected.rows[0]?.thread_key;
+    if (threadKey) {
+      const rows = await pool.query<MailRow>(`
+        SELECT m.public_id,m.direction,m.status,m.from_address,m.to_addresses,m.cc_addresses,m.subject,m.preview,m.body_text,
+               m.sent_at,m.received_at,m.attachment_count,m.attachments,m.spam_verdict,m.virus_verdict,m.thread_key,
+               m.reply_to,m.rfc_message_id,m.in_reply_to,m.reference_ids,
+               COALESCE(s.is_read,false) AS is_read,COALESCE(s.is_starred,false) AS is_starred,s.archived_at
+        FROM admin_mail_messages m
+        LEFT JOIN admin_mail_state s ON s.message_id=m.id AND s.user_public_id=$1
+        WHERE m.thread_key=$2
+        ORDER BY COALESCE(m.received_at,m.sent_at,m.created_at) ASC
+        LIMIT 100
+      `, [principal.userId, threadKey]);
+      thread = rows.rows.map(projectThread);
+    }
+    await markAdminMailRead(principal, selectedId, true);
+  }
+
+  return {
+    configured: true,
+    configurationMessage: configuration.message,
+    fromAddresses: configuration.fromAddresses,
+    folder,
+    query,
+    messages,
+    thread,
+    selectedId,
+    metrics: {
+      inbox: Number(metric.inbox || 0),
+      unread: Number(metric.unread || 0),
+      sent: Number(metric.sent || 0),
+      starred: Number(metric.starred || 0),
+      archived: Number(metric.archived || 0)
+    },
+    lastInboundAt: epochOptional(metric.last_inbound_at)
+  };
+}
+
+export async function markAdminMailRead(principal: SessionPrincipal, publicId: string, isRead: boolean): Promise<void> {
+  await upsertState(principal, publicId, { isRead });
+}
+
+export async function starAdminMail(principal: SessionPrincipal, publicId: string, isStarred: boolean): Promise<void> {
+  await upsertState(principal, publicId, { isStarred });
+}
+
+export async function archiveAdminMail(principal: SessionPrincipal, publicId: string, archived: boolean): Promise<void> {
+  await upsertState(principal, publicId, { archived });
+}
+
+export async function getAdminMailAttachment(
+  principal: SessionPrincipal,
+  publicId: string,
+  attachmentIndex: number
+): Promise<{ filename: string; contentType: string; bytes: Uint8Array }> {
+  void principal;
+  if (!Number.isSafeInteger(attachmentIndex) || attachmentIndex < 0 || attachmentIndex > 100) throw new Error("Invalid attachment index");
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const result = await pool.query<{ direction: string; s3_object_key: string | null }>(
+    "SELECT direction,s3_object_key FROM admin_mail_messages WHERE public_id=$1 LIMIT 1",
+    [publicId]
+  );
+  const row = result.rows[0];
+  if (!row || row.direction !== "incoming" || !row.s3_object_key) throw new Error("Attachment source is not available");
+  const config = resolveMailConfig();
+  const stored = await inboundStorage(config).read(row.s3_object_key);
+  const parsed = parseRawEmail(await readStreamBounded(stored.stream, MAX_RAW_BYTES));
+  const attachment = parsed.attachments[attachmentIndex];
+  if (!attachment) throw new Error("Attachment not found");
+  return { filename: attachment.filename, contentType: attachment.contentType, bytes: attachment.bytes };
+}
+
+export async function sendAdminMail(
+  principal: SessionPrincipal,
+  input: {
+    from: string;
+    to: string;
+    cc?: string;
+    bcc?: string;
+    subject: string;
+    text: string;
+    inReplyToId?: string;
+    attachments?: readonly File[];
+  }
+): Promise<{ publicId: string; providerMessageId: string }> {
+  const config = resolveMailConfig();
+  const fromAddress = normalizeEmail(input.from);
+  if (!config.fromAddresses.includes(fromAddress)) throw new Error("This From address is not allowed for Admin Mail");
+  const to = parseEmailList(input.to);
+  const cc = parseEmailList(input.cc || "");
+  const bcc = parseEmailList(input.bcc || "");
+  if (!to.length) throw new Error("At least one recipient is required");
+  const subject = input.subject.trim().slice(0, 240);
+  if (!subject) throw new Error("Subject is required");
+  const text = input.text.trim();
+  if (!text) throw new Error("Message body is required");
+  if (text.length > 500_000) throw new Error("Message body is too large");
+
+  const attachments = await normalizeOutgoingAttachments(input.attachments || []);
+  let inReplyTo: string | undefined;
+  let references: readonly string[] = [];
+  let threadKey: string | undefined;
+  if (input.inReplyToId) {
+    const reply = await getProductionPostgresRuntime().sqlPool.query<{ rfc_message_id: string | null; reference_ids: string[]; thread_key: string }>(
+      "SELECT rfc_message_id,reference_ids,thread_key FROM admin_mail_messages WHERE public_id=$1 LIMIT 1",
+      [input.inReplyToId]
+    );
+    const row = reply.rows[0];
+    if (row) {
+      inReplyTo = row.rfc_message_id || undefined;
+      references = [...(row.reference_ids || []), ...(row.rfc_message_id ? [row.rfc_message_id] : [])].slice(-30);
+      threadKey = row.thread_key;
+    }
+  }
+
+  const built = buildRawEmail({
+    from: `${encodeDisplayName(config.displayName)} <${fromAddress}>`,
+    to,
+    cc,
+    bcc,
+    subject,
+    text,
+    replyTo: fromAddress,
+    inReplyTo,
+    references,
+    messageIdDomain: "kontamou.site",
+    attachments
+  });
+
+  const sendResult = await sendSesRaw(config, { from: fromAddress, to, cc, bcc, raw: built.raw });
+  const publicId = `mail_${randomUUID().replace(/-/g, "")}`;
+  const finalThreadKey = threadKey || references[0] || inReplyTo || built.messageId;
+  const attachmentMetadata = attachments.map((attachment, index) => ({
+    index,
+    filename: attachment.filename,
+    contentType: attachment.contentType,
+    byteSize: attachment.bytes.byteLength,
+    inline: false
+  }));
+  await getProductionPostgresRuntime().sqlPool.query(`
+    INSERT INTO admin_mail_messages (
+      public_id,direction,provider,transport_key,ses_message_id,rfc_message_id,in_reply_to,reference_ids,thread_key,
+      from_address,to_addresses,cc_addresses,bcc_addresses,reply_to,subject,preview,body_text,has_attachments,attachment_count,attachments,
+      status,sent_at,created_by_user_public_id
+    ) VALUES (
+      $1,'outgoing','ses',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$8,$12,$13,$14,$15,$16,$17::jsonb,'sent',now(),$18
+    )
+  `, [
+    publicId,
+    `ses:${sendResult.messageId}`,
+    sendResult.messageId,
+    built.messageId,
+    inReplyTo || null,
+    references,
+    finalThreadKey,
+    fromAddress,
+    to,
+    cc,
+    bcc,
+    subject,
+    preview(text),
+    text,
+    attachmentMetadata.length > 0,
+    attachmentMetadata.length,
+    JSON.stringify(attachmentMetadata),
+    principal.userId
+  ]);
+  return { publicId, providerMessageId: sendResult.messageId };
+}
+
+function resolveMailConfig(env: NodeJS.ProcessEnv = process.env): MailConfig {
+  const region = (env.KONTAMOU_MAIL_AWS_REGION || env.SES_REGION || env.AWS_REGION || REQUIRED_REGION).trim();
+  if (region !== REQUIRED_REGION) throw new Error(`Admin Mail is locked to AWS ${REQUIRED_REGION}; configured region is ${region || "empty"}.`);
+  const bucket = (env.KONTAMOU_MAIL_INBOUND_BUCKET || env.SES_INBOUND_BUCKET || DEFAULT_BUCKET).trim();
+  if (!bucket) throw new Error("Admin Mail inbound S3 bucket is missing");
+  const accessKeyId = (env.KONTAMOU_MAIL_AWS_ACCESS_KEY_ID || env.AWS_ACCESS_KEY_ID || "").trim();
+  const secretAccessKey = (env.KONTAMOU_MAIL_AWS_SECRET_ACCESS_KEY || env.AWS_SECRET_ACCESS_KEY || "").trim();
+  if (!accessKeyId || !secretAccessKey) throw new Error("Admin Mail AWS access key and secret are required");
+  const sourceList = (env.KONTAMOU_MAIL_FROM_ADDRESSES || DEFAULT_FROM.join(","))
+    .split(",").map((value) => normalizeEmail(value)).filter(Boolean);
+  const fromAddresses = [...new Set(sourceList)];
+  if (!fromAddresses.length) throw new Error("Admin Mail requires at least one From address");
+  return {
+    region,
+    bucket,
+    prefix: (env.KONTAMOU_MAIL_INBOUND_PREFIX || "").trim().replace(/^\/+/, ""),
+    accessKeyId,
+    secretAccessKey,
+    sessionToken: env.KONTAMOU_MAIL_AWS_SESSION_TOKEN?.trim() || env.AWS_SESSION_TOKEN?.trim() || undefined,
+    fromAddresses,
+    displayName: (env.KONTAMOU_MAIL_DISPLAY_NAME || "ΚΟΝΤΑ ΜΟΥ").trim() || "ΚΟΝΤΑ ΜΟΥ"
+  };
+}
+
+function inboundStorage(config: MailConfig): S3ObjectStorage {
+  return new S3ObjectStorage({
+    bucket: config.bucket,
+    region: config.region,
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    uploadTtlSeconds: 900
+  });
+}
+
+async function persistInbound(parsed: ParsedMailMessage, object: StoredObjectListItem): Promise<void> {
+  const publicId = `mail_${randomUUID().replace(/-/g, "")}`;
+  const threadKey = parsed.references[0] || parsed.inReplyTo || parsed.messageId || `subject:${normalizeSubject(parsed.subject)}`;
+  const attachmentMetadata = parsed.attachments.map((attachment) => ({
+    index: attachment.index,
+    filename: attachment.filename,
+    contentType: attachment.contentType,
+    byteSize: attachment.byteSize,
+    inline: attachment.inline
+  }));
+  const receivedAt = object.lastModified ? new Date(object.lastModified) : new Date();
+  const spamVerdict = parsed.headers["x-ses-spam-verdict"]?.trim() || undefined;
+  const virusVerdict = parsed.headers["x-ses-virus-verdict"]?.trim() || undefined;
+  await getProductionPostgresRuntime().sqlPool.query(`
+    INSERT INTO admin_mail_messages (
+      public_id,direction,provider,transport_key,s3_object_key,rfc_message_id,in_reply_to,reference_ids,thread_key,
+      from_address,to_addresses,cc_addresses,bcc_addresses,reply_to,subject,preview,body_text,has_attachments,attachment_count,attachments,
+      spam_verdict,virus_verdict,status,sent_at,received_at
+    ) VALUES (
+      $1,'incoming','ses',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19,$20,'received',$21,$22
+    )
+    ON CONFLICT (transport_key) DO NOTHING
+  `, [
+    publicId,
+    `s3:${object.objectKey}`,
+    object.objectKey,
+    parsed.messageId || null,
+    parsed.inReplyTo || null,
+    parsed.references,
+    threadKey,
+    parsed.from,
+    parsed.to,
+    parsed.cc,
+    parsed.bcc,
+    parsed.replyTo || null,
+    parsed.subject,
+    preview(parsed.text),
+    parsed.text.slice(0, 1_000_000),
+    attachmentMetadata.length > 0,
+    attachmentMetadata.length,
+    JSON.stringify(attachmentMetadata),
+    spamVerdict || null,
+    virusVerdict || null,
+    parsed.sentAt ? new Date(parsed.sentAt) : null,
+    receivedAt
+  ]);
+}
+
+async function upsertState(
+  principal: SessionPrincipal,
+  publicId: string,
+  patch: { isRead?: boolean; isStarred?: boolean; archived?: boolean }
+): Promise<void> {
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const message = await pool.query<{ id: string }>("SELECT id::text AS id FROM admin_mail_messages WHERE public_id=$1 LIMIT 1", [publicId]);
+  if (!message.rows[0]) throw new Error("Mail message not found");
+  await pool.query(`
+    INSERT INTO admin_mail_state (message_id,user_public_id,is_read,is_starred,archived_at,updated_at)
+    VALUES ($1::uuid,$2,$3,$4,$5,now())
+    ON CONFLICT (message_id,user_public_id) DO UPDATE SET
+      is_read=COALESCE($3,admin_mail_state.is_read),
+      is_starred=COALESCE($4,admin_mail_state.is_starred),
+      archived_at=CASE WHEN $6::boolean IS NULL THEN admin_mail_state.archived_at WHEN $6 THEN now() ELSE NULL END,
+      updated_at=now()
+  `, [
+    message.rows[0].id,
+    principal.userId,
+    patch.isRead ?? null,
+    patch.isStarred ?? null,
+    patch.archived === true ? new Date() : null,
+    patch.archived ?? null
+  ]);
+}
+
+function projectSummary(row: MailRow): AdminMailSummary {
+  return {
+    id: row.public_id,
+    direction: row.direction,
+    status: row.status,
+    from: row.from_address,
+    to: row.to_addresses || [],
+    cc: row.cc_addresses || [],
+    subject: row.subject,
+    preview: row.preview,
+    sentAt: epochOptional(row.sent_at),
+    receivedAt: epochOptional(row.received_at),
+    attachmentCount: Number(row.attachment_count || 0),
+    spamVerdict: row.spam_verdict || undefined,
+    virusVerdict: row.virus_verdict || undefined,
+    isRead: row.is_read === true,
+    isStarred: row.is_starred === true,
+    archived: Boolean(row.archived_at),
+    threadKey: row.thread_key
+  };
+}
+
+function projectThread(row: MailRow): AdminMailThreadMessage {
+  const attachments = Array.isArray(row.attachments)
+    ? row.attachments.flatMap((value): Array<{ index: number; filename: string; contentType: string; byteSize: number; inline: boolean }> => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+        const item = value as Record<string, unknown>;
+        if (typeof item.filename !== "string" || typeof item.index !== "number") return [];
+        return [{
+          index: item.index,
+          filename: item.filename,
+          contentType: typeof item.contentType === "string" ? item.contentType : "application/octet-stream",
+          byteSize: Number(item.byteSize || 0),
+          inline: item.inline === true
+        }];
+      })
+    : [];
+  return {
+    ...projectSummary(row),
+    bodyText: row.body_text,
+    replyTo: row.reply_to || undefined,
+    rfcMessageId: row.rfc_message_id || undefined,
+    inReplyTo: row.in_reply_to || undefined,
+    references: row.reference_ids || [],
+    attachments
+  };
+}
+
+async function normalizeOutgoingAttachments(files: readonly File[]): Promise<readonly { filename: string; contentType: string; bytes: Uint8Array }[]> {
+  const actual = files.filter((file) => file.size > 0 && file.name);
+  if (actual.length > 8) throw new Error("Up to 8 attachments are allowed");
+  let total = 0;
+  const result: Array<{ filename: string; contentType: string; bytes: Uint8Array }> = [];
+  for (const file of actual) {
+    if (file.size > MAX_ATTACHMENT_BYTES) throw new Error(`${file.name} is larger than 5 MB`);
+    total += file.size;
+    if (total > MAX_TOTAL_ATTACHMENT_BYTES) throw new Error("Total attachment size is larger than 8 MB");
+    result.push({
+      filename: file.name.replace(/[\r\n\0]/g, "").replace(/[\\/]/g, "_").slice(0, 180) || "attachment",
+      contentType: file.type || "application/octet-stream",
+      bytes: new Uint8Array(await file.arrayBuffer())
+    });
+  }
+  return result;
+}
+
+async function sendSesRaw(
+  config: MailConfig,
+  input: { from: string; to: readonly string[]; cc: readonly string[]; bcc: readonly string[]; raw: Uint8Array }
+): Promise<{ messageId: string }> {
+  const host = `email.${config.region}.amazonaws.com`;
+  const path = "/v2/email/outbound-emails";
+  const payload = JSON.stringify({
+    FromEmailAddress: input.from,
+    Destination: { ToAddresses: input.to, CcAddresses: input.cc, BccAddresses: input.bcc },
+    Content: { Raw: { Data: Buffer.from(input.raw).toString("base64") } }
+  });
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const shortDate = amzDate.slice(0, 8);
+  const payloadHash = sha256(payload);
+  const signedHeaders = config.sessionToken
+    ? "content-type;host;x-amz-content-sha256;x-amz-date;x-amz-security-token"
+    : "content-type;host;x-amz-content-sha256;x-amz-date";
+  const canonicalHeaders = [
+    "content-type:application/json",
+    `host:${host}`,
+    `x-amz-content-sha256:${payloadHash}`,
+    `x-amz-date:${amzDate}`,
+    ...(config.sessionToken ? [`x-amz-security-token:${config.sessionToken}`] : [])
+  ].join("\n") + "\n";
+  const canonicalRequest = ["POST", path, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
+  const scope = `${shortDate}/${config.region}/ses/aws4_request`;
+  const stringToSign = ["AWS4-HMAC-SHA256", amzDate, scope, sha256(canonicalRequest)].join("\n");
+  const kDate = hmac(`AWS4${config.secretAccessKey}`, shortDate);
+  const kRegion = hmac(kDate, config.region);
+  const kService = hmac(kRegion, "ses");
+  const kSigning = hmac(kService, "aws4_request");
+  const signature = createHmac("sha256", kSigning).update(stringToSign).digest("hex");
+  const authorization = `AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+  const response = await fetch(`https://${host}${path}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      host,
+      "x-amz-content-sha256": payloadHash,
+      "x-amz-date": amzDate,
+      ...(config.sessionToken ? { "x-amz-security-token": config.sessionToken } : {}),
+      authorization
+    },
+    body: payload,
+    cache: "no-store"
+  });
+  const data = await response.json().catch(() => ({})) as Record<string, unknown>;
+  if (!response.ok) {
+    const message = typeof data.message === "string" ? data.message : typeof data.Message === "string" ? data.Message : `SES send failed (${response.status})`;
+    throw new Error(message);
+  }
+  const messageId = typeof data.MessageId === "string" ? data.MessageId : typeof data.messageId === "string" ? data.messageId : "";
+  if (!messageId) throw new Error("SES did not return a MessageId");
+  return { messageId };
+}
+
+function hmac(key: string | Uint8Array, value: string): Buffer {
+  return createHmac("sha256", key).update(value).digest();
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function readStreamBounded(stream: AsyncIterable<Uint8Array>, maxBytes: number): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for await (const chunk of stream) {
+    total += chunk.byteLength;
+    if (total > maxBytes) throw new Error("Inbound email exceeds the configured raw message size limit");
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), total);
+}
+
+function parseEmailList(value: string): readonly string[] {
+  if (!value.trim()) return [];
+  const values = value.split(/[;,\n]+/).map((entry) => entry.trim()).filter(Boolean).map(normalizeEmail);
+  return [...new Set(values)].slice(0, 50);
+}
+
+function normalizeEmail(value: string): string {
+  const source = value.trim();
+  const extracted = source.match(/<([^<>]+)>/)?.[1] || source;
+  const email = extracted.trim().toLowerCase();
+  if (!email) return "";
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error(`Invalid email address: ${source.slice(0, 120)}`);
+  return email;
+}
+
+function normalizeFolder(value?: string): MailFolder {
+  return value === "sent" || value === "starred" || value === "archive" || value === "all" ? value : "inbox";
+}
+
+function normalizeSubject(value: string): string {
+  return value.replace(/^\s*((re|fw|fwd)\s*:\s*)+/i, "").trim().toLowerCase().slice(0, 300);
+}
+
+function preview(value: string): string {
+  return value.replace(/\s+/g, " ").trim().slice(0, 280);
+}
+
+function epochOptional(value: unknown): number | undefined {
+  if (!value) return undefined;
+  const epoch = value instanceof Date ? value.getTime() : Date.parse(String(value));
+  return Number.isFinite(epoch) ? epoch : undefined;
+}
+
+function encodeDisplayName(value: string): string {
+  if (/^[\x20-\x7E]+$/.test(value)) return `"${value.replace(/["\\]/g, "")}"`;
+  return `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`;
+}
