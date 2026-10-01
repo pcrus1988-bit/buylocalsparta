@@ -7,8 +7,8 @@ import { VendorDashboardTools } from "../../components/VendorDashboardTools";
 import { WorkspaceHowItWorks, WorkspaceMetricStrip, WorkspaceSectionHeading } from "../../components/WorkspacePagePrimitives";
 import { WorkspaceQuickLinks } from "../../components/WorkspaceQuickLinks";
 import { vendorHomeOverview } from "../../lib/vendor-home-overview";
-import { isDropshippingOnlyVendor } from "../../lib/vendor-dropshipping-access";
-import { getVendorSession, vendorOperatingContextForPrincipal } from "../../lib/vendor-session";
+import { isDropshippingOnlyVendorPublicId } from "../../lib/vendor-dropshipping-constants";
+import { getVendorSession } from "../../lib/vendor-session";
 
 export const metadata: Metadata = { title: "Χώρος συνεργάτη", robots: { index: false, follow: false } };
 
@@ -20,10 +20,16 @@ export default async function VendorBackofficePage() {
   const principal = await getVendorSession();
   if (!principal) redirect("/vendor/login");
 
-  const [overview, operatingContext, dropshippingOnly] = await Promise.all([vendorHomeOverview(principal), vendorOperatingContextForPrincipal(principal), isDropshippingOnlyVendor(principal.vendorId)]);
+  // Keep the landing route on one database-dependent operation. The Vercel web
+  // runtime intentionally has a one-client pool; parallel DB calls here used to
+  // queue behind each other and amplify timeouts under load.
+  const overview = await vendorHomeOverview(principal);
+  const canImportXml = principal.roles.some((role) => role === "vendor_owner" || role === "vendor_catalog");
+  const dropshippingOnly = isDropshippingOnlyVendorPublicId(principal.vendorId);
+  const dataAvailable = !overview.degraded;
   const performance = overview.performance;
   const orderNotifications = overview.orderNotifications;
-  const attention = [
+  const attention = dataAvailable ? [
     orderNotifications.requiringAction > 0 ? {
       title: `${orderNotifications.requiringAction} παραγγελίες χρειάζονται ενέργεια`,
       note: orderNotifications.breached > 0
@@ -38,8 +44,8 @@ export default async function VendorBackofficePage() {
       href: "/vendor/catalog",
       urgent: false
     } : null
-  ].filter((item): item is { title: string; note: string; href: string; urgent: boolean } => Boolean(item));
-  const showOnboarding = principal.roles.includes("vendor_owner") && overview.metrics.activeProducts === 0;
+  ].filter((item): item is { title: string; note: string; href: string; urgent: boolean } => Boolean(item)) : [];
+  const showOnboarding = dataAvailable && principal.roles.includes("vendor_owner") && overview.metrics.activeProducts === 0;
 
   return <main className="vendor-app">
     <VendorWorkspaceHeader />
@@ -49,7 +55,7 @@ export default async function VendorBackofficePage() {
         <div className="eyebrow">Αρχική · σήμερα</div>
         <h1>{overview.vendor.name}</h1>
         <p className="lead">Το κέντρο ελέγχου του καταστήματός σου: επείγουσες εργασίες πρώτες, άμεση αναζήτηση λειτουργιών και καθαρή μετάβαση από εικόνα σε ενέργεια.</p>
-        {operatingContext.capabilities.includes("catalogue.import") && !dropshippingOnly && <div className="workspace-action-buttons"><Link className="button button-secondary" href="/vendor/catalog/feed">Εισαγωγή XML</Link></div>}
+        {canImportXml && !dropshippingOnly && <div className="workspace-action-buttons"><Link className="button button-secondary" href="/vendor/catalog/feed">Εισαγωγή XML</Link></div>}
       </div>
       <aside className="dashboard-health-card">
         <span>Τοπικός σύμβουλος</span>
@@ -74,24 +80,27 @@ export default async function VendorBackofficePage() {
     </section>}
 
     <WorkspaceMetricStrip items={[
-      { label: "Χρειάζονται ενέργεια", value: orderNotifications.requiringAction, tone: orderNotifications.requiringAction ? "attention" : "default" },
-      { label: "Ενεργά προϊόντα", value: overview.metrics.activeProducts },
-      { label: "Διαθέσιμα τεμάχια", value: overview.metrics.availableUnits },
-      { label: "Αγορές · 30 ημέρες", value: performance.purchases },
-      { label: "Πωλήσεις · 30 ημέρες", value: euro(performance.revenueMinor) }
+      { label: "Χρειάζονται ενέργεια", value: dataAvailable ? orderNotifications.requiringAction : "—", tone: dataAvailable && orderNotifications.requiringAction ? "attention" : "default" },
+      { label: "Ενεργά προϊόντα", value: dataAvailable ? overview.metrics.activeProducts : "—" },
+      { label: "Διαθέσιμα τεμάχια", value: dataAvailable ? overview.metrics.availableUnits : "—" },
+      { label: "Αγορές · 30 ημέρες", value: dataAvailable ? performance.purchases : "—" },
+      { label: "Πωλήσεις · 30 ημέρες", value: dataAvailable ? euro(performance.revenueMinor) : "—" }
     ]} />
 
     <VendorDashboardTools metrics={{
-      orders: orderNotifications.requiringAction,
-      overdue: orderNotifications.breached,
-      lowStock: overview.metrics.lowStockProducts,
-      activeProducts: overview.metrics.activeProducts,
-      purchases30d: performance.purchases
+      orders: dataAvailable ? orderNotifications.requiringAction : 0,
+      overdue: dataAvailable ? orderNotifications.breached : 0,
+      lowStock: dataAvailable ? overview.metrics.lowStockProducts : 0,
+      activeProducts: dataAvailable ? overview.metrics.activeProducts : 0,
+      purchases30d: dataAvailable ? performance.purchases : 0
     }} />
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Σήμερα" title="Τι χρειάζεται την προσοχή σου" note="Οι πραγματικές εκκρεμότητες εμφανίζονται πρώτες. Αν δεν υπάρχει κάρτα, δεν χρειάζεται να ψάχνεις για κρυφή εργασία." />
-      {attention.length ? <div className="vendor-command-list">
+      {!dataAvailable ? <div className="workspace-empty-state">
+        <strong>Η αρχική είναι διαθέσιμη. Τα ζωντανά στατιστικά ανανεώνονται.</strong>
+        <p>Μπορείς να συνεχίσεις κανονικά σε προϊόντα, παραγγελίες, κατάστημα και οικονομικά χωρίς να περιμένεις.</p>
+      </div> : attention.length ? <div className="vendor-command-list">
         {attention.map((item) => <article className={`vendor-command-card${item.urgent ? " is-urgent" : ""}`} key={item.title}>
           <div><strong>{item.title}</strong><small>{item.note}</small></div>
           <Link className={item.urgent ? "button" : "button button-secondary"} href={item.href}>Άνοιγμα</Link>
@@ -104,13 +113,13 @@ export default async function VendorBackofficePage() {
       eyebrow="Χώροι εργασίας"
       title="Διαχείριση καταστήματος"
       links={[
-        { kicker: "Καθημερινά", label: "Παραγγελίες", description: "Αποδοχή, προετοιμασία, αποστολές, παραλαβές και επιστροφές.", href: "/vendor/orders", value: overview.metrics.ordersRequiringAction },
-        { kicker: "Κατάλογος", label: "Προϊόντα", description: "Κατάλογος, απόθεμα, εμφάνιση και έγγραφα προϊόντων.", href: "/vendor/catalog", value: overview.metrics.activeProducts },
+        { kicker: "Καθημερινά", label: "Παραγγελίες", description: "Αποδοχή, προετοιμασία, αποστολές, παραλαβές και επιστροφές.", href: "/vendor/orders", ...(dataAvailable ? { value: overview.metrics.ordersRequiringAction } : {}) },
+        { kicker: "Κατάλογος", label: "Προϊόντα", description: "Κατάλογος, απόθεμα, εμφάνιση και έγγραφα προϊόντων.", href: "/vendor/catalog", ...(dataAvailable ? { value: overview.metrics.activeProducts } : {}) },
         { kicker: "Εξυπηρέτηση", label: "Πελάτες", description: "Μηνύματα, ραντεβού, Ask Local και ιδιωτικές προσφορές.", href: "/vendor/advice" },
         { kicker: "Προφίλ", label: "Κατάστημα", description: "Η δημόσια εικόνα και οι φωτογραφίες του καταστήματός σου.", href: "/vendor/storefront" },
         { kicker: "Πληρωμές", label: "Οικονομικά", description: "Παραστατικά, πληρωμές και εμπορική συμφωνία.", href: "/vendor/finance" },
         { kicker: "Απόδοση", label: "Στατιστικά", description: "Πωλήσεις, μετατροπή, απόδοση προϊόντων και αναφορές.", href: "/vendor/analytics" },
-        { kicker: "Έλεγχος", label: "Προθεσμίες & ειδοποιήσεις", description: "Ενεργές προθεσμίες και ιστορικό λειτουργικών ειδοποιήσεων.", href: "/vendor/notifications", value: orderNotifications.requiringAction }
+        { kicker: "Έλεγχος", label: "Προθεσμίες & ειδοποιήσεις", description: "Ενεργές προθεσμίες και ιστορικό λειτουργικών ειδοποιήσεων.", href: "/vendor/notifications", ...(dataAvailable ? { value: orderNotifications.requiringAction } : {}) }
       ]}
     />
 
