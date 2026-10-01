@@ -3,7 +3,7 @@ import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { S3ObjectStorage, objectStorageConfigFromEnv } from "@buy-local-sparta/object-storage";
 import { resendConfigFromEnv } from "@buy-local-sparta/resend-notifications";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
-import { KONTA_MOY_LEGAL_DETAILS, renderVendorAgreementPdf, type VendorAgreementPdfData } from "./vendor-agreement-pdf";
+import { KONTA_MOY_LEGAL_DETAILS, VENDOR_AGREEMENT_TEMPLATE_REVISION, renderVendorAgreementPdf, type VendorAgreementPdfData } from "./vendor-agreement-pdf";
 
 export type CommissionTaxMode = "included" | "plus_vat" | "none";
 export type CommercialAgreementStatus =
@@ -419,7 +419,7 @@ export async function createCommercialAgreement(principal: SessionPrincipal, raw
       randomUUID(), publicId, v.market_id, v.id, subscriptionUuid, agreementVersion, startsAt, endsAt ?? null,
       commissionRateBps, commissionTaxMode, commissionTaxRateBps, listingFeeMinor ?? null, recurringFeeMinor ?? null,
       recurringFeePeriod ?? null,
-      JSON.stringify({ commissionAuthority: "individual_vendor_agreement", customerPricePolicy: "vendor_final_price_no_markup" }),
+      JSON.stringify({ commissionAuthority: "individual_vendor_agreement", customerPricePolicy: "vendor_final_price_no_markup", templateRevision: VENDOR_AGREEMENT_TEMPLATE_REVISION }),
       JSON.stringify(vendorSnapshot), JSON.stringify(commercialTermsSnapshot), actorUserId
     ]);
     await audit(client, { agreementId: String(inserted.rows[0].id), vendorId: String(v.id), action: "agreement_created", toStatus: "data_complete", actorUserId, metadata: { agreementCode: inserted.rows[0].agreement_code } });
