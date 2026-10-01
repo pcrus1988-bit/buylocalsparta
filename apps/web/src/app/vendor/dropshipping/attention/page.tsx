@@ -57,13 +57,13 @@ export default async function DropshippingAttentionPage() {
 
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
-        <div className="eyebrow">Dropshipping Control Centre</div>
-        <h1>Needs attention</h1>
+        <div className="eyebrow">Κέντρο dropshipping</div>
+        <h1>Χρειάζονται προσοχή</h1>
         <p className="lead">Μία συγκεντρωτική ουρά για πραγματικά operational προβλήματα: public προϊόντα χωρίς διαθεσιμότητα, missing cost, εκκρεμή auto-pricing, stale availability, supplier withdrawals και ενεργά OVERPRICED προϊόντα.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
           <Link className="button button-secondary" href="/vendor/dropshipping">← Dropshipping</Link>
-          <Link className="button button-secondary" href="/vendor/dropshipping/health">Feed health</Link>
-          <Link className="button button-secondary" href="/vendor/dropshipping/activity">Activity</Link>
+          <Link className="button button-secondary" href="/vendor/dropshipping/health">Κατάσταση ροής</Link>
+          <Link className="button button-secondary" href="/vendor/dropshipping/activity">Δραστηριότητα</Link>
         </div>
       </div>
     </section>
@@ -97,25 +97,25 @@ export default async function DropshippingAttentionPage() {
             </div>
             <p style={{ marginTop: 8 }}>{issue.explanation}</p>
             <div className="workspace-compact-list" style={{ marginTop: 10 }}>
-              <div className="workspace-compact-row"><strong>Buying price</strong><span>{money(item.supplierCostMinor)}</span></div>
-              <div className="workspace-compact-row"><strong>Final price</strong><span>{money(item.customerPriceMinor)}</span></div>
+              <div className="workspace-compact-row"><strong>Τιμή αγοράς</strong><span>{money(item.supplierCostMinor)}</span></div>
+              <div className="workspace-compact-row"><strong>Τελική τιμή</strong><span>{money(item.customerPriceMinor)}</span></div>
               <div className="workspace-compact-row"><strong>MSRP</strong><span>{money(item.msrpMinor)}</span></div>
-              <div className="workspace-compact-row"><strong>Availability checked</strong><span>{date(item.availabilityCheckedAt)}</span></div>
-              {item.deletedAt ? <div className="workspace-compact-row"><strong>Supplier deleted</strong><span>{date(item.deletedAt)}</span></div> : null}
+              <div className="workspace-compact-row"><strong>Τελευταίος έλεγχος διαθεσιμότητας</strong><span>{date(item.availabilityCheckedAt)}</span></div>
+              {item.deletedAt ? <div className="workspace-compact-row"><strong>Αφαιρέθηκε από τον προμηθευτή</strong><span>{date(item.deletedAt)}</span></div> : null}
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
               <Link className="button button-secondary" href={`/vendor/dropshipping?q=${encodeURIComponent(item.title)}&supplier=${encodeURIComponent(item.supplierCode)}`}>Άνοιγμα προϊόντος</Link>
-              {item.kind === "published_unavailable" ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(item.supplierCode)}&publication=published&availability=out_of_stock`}>Όλα τα public unavailable</Link> : null}
-              {item.kind === "missing_cost" ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(item.supplierCode)}&cost=missing_cost`}>Όλα τα missing cost</Link> : null}
-              {item.kind === "pricing_pending" ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(item.supplierCode)}&pricingFlag=PENDING`}>Όλα τα pricing pending</Link> : null}
-              {item.kind === "overpriced" ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(item.supplierCode)}&pricingFlag=OVERPRICED&publication=published`}>Όλα τα ενεργά OVERPRICED</Link> : null}
+              {item.kind === "published_unavailable" ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(item.supplierCode)}&publication=published&availability=out_of_stock`}>Όλα τα δημοσιευμένα χωρίς απόθεμα</Link> : null}
+              {item.kind === "missing_cost" ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(item.supplierCode)}&cost=missing_cost`}>Όλα χωρίς τιμή αγοράς</Link> : null}
+              {item.kind === "pricing_pending" ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(item.supplierCode)}&pricingFlag=PENDING`}>Όλα με τιμολόγηση σε αναμονή</Link> : null}
+              {item.kind === "overpriced" ? <Link className="button button-secondary" href={`/vendor/dropshipping?supplier=${encodeURIComponent(item.supplierCode)}&pricingFlag=OVERPRICED&publication=published`}>Όλα με ένδειξη υψηλής τιμής</Link> : null}
             </div>
           </article>;
         })}
 
         {!workspace.items.length ? <article className="workspace-queue-card">
           <strong>Δεν υπάρχει κάτι που να χρειάζεται άμεσο έλεγχο.</strong>
-          <p>Τα supplier feeds, buying prices, auto-pricing, availability και ενεργά pricing diagnostics δεν έχουν αυτή τη στιγμή actionable exception.</p>
+          <p>Τα ροές προμηθευτών, τιμές αγοράς, αυτόματη τιμολόγηση, διαθεσιμότητα και ενεργές ενδείξεις τιμής δεν έχουν αυτή τη στιγμή εκκρεμότητα που απαιτεί ενέργεια.</p>
         </article> : null}
       </div>
     </section>
