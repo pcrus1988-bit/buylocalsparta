@@ -41,6 +41,7 @@ export type AdminVendorProductFeedRun = Readonly<{
   totalRows: number;
   validRows: number;
   errorRows: number;
+  validationErrors: readonly { rowNumber: number; externalId?: string; field?: string; message: string }[];
   createdSubmissions: number;
   updatedSubmissions: number;
   updatedOffers: number;
@@ -83,6 +84,19 @@ function jsonObject(value: unknown): Record<string, unknown> {
     }
   }
   return {};
+}
+
+function jsonArray<T>(value: unknown): readonly T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed as T[] : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 export async function adminVendorProductFeedWorkspace(
@@ -148,6 +162,7 @@ export async function adminVendorProductFeedWorkspace(
         r.total_rows,
         r.valid_rows,
         r.error_rows,
+        r.validation_errors,
         r.created_submissions,
         r.updated_submissions,
         r.updated_offers,
@@ -201,6 +216,7 @@ export async function adminVendorProductFeedWorkspace(
         totalRows: int(row.total_rows),
         validRows: int(row.valid_rows),
         errorRows: int(row.error_rows),
+        validationErrors: jsonArray<{ rowNumber: number; externalId?: string; field?: string; message: string }>(row.validation_errors),
         createdSubmissions: int(row.created_submissions),
         updatedSubmissions: int(row.updated_submissions),
         updatedOffers: int(row.updated_offers),
