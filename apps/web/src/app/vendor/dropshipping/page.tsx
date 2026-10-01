@@ -71,12 +71,12 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
         title="Επίλεξε προμηθευτή"
         note="Φορτώνονται μόνο τα βασικά στοιχεία και ο συνολικός αριθμός προϊόντων. Τα προϊόντα ανακτώνται αποκλειστικά μέσω αναζήτησης."
       />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))", gap: 14 }}>
+      <div className="vendor-card-grid">
         {suppliers.map((supplier) => <article className="workspace-queue-card" key={supplier.id}>
           <div className="workspace-queue-head">
             <div>
               <strong>{supplier.displayName}</strong>
-              <small>{supplier.code} · {supplier.providerKind}</small>
+              <small>Συνδεδεμένος προμηθευτής</small>
             </div>
             <span className="vendor-merchant-status">{supplier.active ? "Ενεργός" : "Ανενεργός"}</span>
           </div>
@@ -94,7 +94,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
             className={selectedSupplier?.code === supplier.code ? "button" : "button button-secondary"}
             href={`/vendor/dropshipping?supplier=${encodeURIComponent(supplier.code)}`}
           >
-            {selectedSupplier?.code === supplier.code ? "Επιλεγμένος" : "Άνοιγμα προμηθευτή"}
+            {selectedSupplier?.code === supplier.code ? "Επιλεγμένος" : "Επιλογή"}
           </Link>
         </article>)}
         {!suppliers.length ? <article className="workspace-queue-card">
@@ -146,10 +146,10 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
       {searchActive ? <>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
           <strong>{products.length} αποτελέσματα</strong>
-          <small>Εμφανίζονται έως 40 αποτελέσματα από το κατάλογο πηγής. Κάνε πιο συγκεκριμένη αναζήτηση αν χρειάζεται.</small>
+          <small>Εμφανίζονται έως 40 αποτελέσματα. Κάνε πιο συγκεκριμένη αναζήτηση αν χρειάζεται.</small>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
+        <div className="vendor-card-grid">
           {products.map((product) => <article className="workspace-queue-card" key={product.sourceProductId}>
             <div className="workspace-queue-head">
               <div>
@@ -159,7 +159,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {product.pricingFlag === "OVERPRICED" ? <span className="vendor-merchant-status">ΥΨΗΛΗ ΤΙΜΗ</span> : null}
                 {product.offerId
-                  ? <span className="vendor-merchant-status">{product.published ? "Published" : "Unpublished"}</span>
+                  ? <span className="vendor-merchant-status">{product.published ? "Δημοσιευμένο" : "Μη δημοσιευμένο"}</span>
                   : <span className="vendor-merchant-status">Κατάλογος πηγής</span>}
               </div>
             </div>
@@ -170,12 +170,12 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
               <div className="workspace-compact-row">
                 <strong>Απόθεμα προμηθευτή</strong>
                 <span>{product.cachedAvailable ? "Διαθέσιμο" : "Μη διαθέσιμο"}</span>
-                <small>{product.cachedQuantity == null ? "Ποσότητα άγνωστη" : `Qty ${product.cachedQuantity}`} · έλεγχος {date(product.availabilityCheckedAt)}</small>
+                <small>{product.cachedQuantity == null ? "Ποσότητα άγνωστη" : `Ποσότητα ${product.cachedQuantity}`} · έλεγχος {date(product.availabilityCheckedAt)}</small>
               </div>
               <div className="workspace-compact-row">
                 <strong>Κωδικός προϊόντος προμηθευτή</strong>
                 <span>{product.sourceProductKey}</span>
-                <small>{product.priceState ? `price state: ${product.priceState}` : "κατάλογο πηγής"}</small>
+                <small>{product.priceState ? `Κατάσταση τιμής: ${product.priceState}` : "Κατάλογος προμηθευτή"}</small>
               </div>
             </div>
 

@@ -133,7 +133,7 @@ export function VendorTrustClient({ initial }: { initial: Workspace }) {
     ]} />
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Πώς λειτουργεί" title="Τι κάνεις σε αυτή τη σελίδα" note="Χρησιμοποίησέ την όταν θέλεις να δώσεις στην πλατφόρμα υλικό ή έγγραφα που αποδεικνύουν ότι ένα προϊόν μπορεί να παρουσιαστεί σωστά και με ασφάλεια." />
+      <WorkspaceSectionHeading eyebrow="Υλικό προϊόντων" title="Τι θέλεις να προσθέσεις;" note="Για τα περισσότερα προϊόντα αρκούν σωστές φωτογραφίες ή βίντεο. Πιστοποιητικά και δηλώσεις χρειάζονται μόνο όταν υπάρχουν ή όταν ζητηθούν." />
       <div className="workspace-dual-grid">
         <article className="workspace-queue-card">
           <div className="workspace-queue-head"><div><strong>1. Φωτογραφίες, βίντεο και PDF</strong><small>Για την παρουσίαση ή τεκμηρίωση ενός προϊόντος.</small></div></div>
@@ -168,7 +168,7 @@ export function VendorTrustClient({ initial }: { initial: Workspace }) {
           </div>
         </details>
 
-        <details className="workspace-tool-panel" open>
+        <details className="workspace-tool-panel">
           <summary><span><strong>2. Καταχώρισε πιστοποιητικό / έγγραφο</strong><small>Μόνο αν υπάρχει ή σου έχει ζητηθεί.</small></span></summary>
           <div className="workspace-tool-body"><form onSubmit={compliance}>
             <div className="workspace-form-grid">
@@ -188,9 +188,8 @@ export function VendorTrustClient({ initial }: { initial: Workspace }) {
       <WorkspaceSectionHeading eyebrow="Κατάσταση αρχείων" title="Φωτογραφίες, βίντεο & PDF που έχεις στείλει" note="«Σε έλεγχο» σημαίνει ότι δεν χρειάζεται να κάνεις κάτι. Αν εμφανιστεί «Χρειάζεται διόρθωση», διάβασε την αιτία κάτω από το αρχείο και ανέβασε διορθωμένη έκδοση." />
       {initial.assets.length === 0 ? <WorkspaceEmptyState title="Δεν έχεις στείλει ακόμη αρχεία." body="Όταν ανεβάσεις φωτογραφία, βίντεο ή PDF, η πορεία του ελέγχου θα εμφανίζεται εδώ." /> : <div className="workspace-queue-list">{initial.assets.map((asset) => <article className="workspace-queue-card" key={asset.id}>
         <div className="workspace-queue-head"><div><strong>{asset.filename}</strong><small>{mediaKindLabel(asset.kind)} · {productTitle(asset.canonicalVariantId)} · {(asset.byteSize / 1024).toFixed(1)} KB</small></div><span className="status-pill">{mediaOverallStatus(asset)}</span></div>
-        <div className="workspace-queue-primary"><span>Ασφάλεια αρχείου: {statusLabel(asset.scanStatus)}</span><span>Δικαιώματα χρήσης: {statusLabel(asset.rightsStatus)}</span><span>Έλεγχος περιεχομένου: {statusLabel(asset.moderationStatus)}</span></div>
         {asset.rejectionReason && <p className="workspace-queue-summary"><strong>Τι χρειάζεται διόρθωση:</strong> {asset.rejectionReason}</p>}
-        <WorkspaceRecordDetails label="Τεχνικές πληροφορίες"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Κωδικός αρχείου</strong><span>{asset.id}</span></div><div className="workspace-compact-row"><strong>Κωδικός προϊόντος</strong><span>{asset.canonicalVariantId ?? "—"}</span></div><div className="workspace-compact-row"><strong>Ανέβηκε</strong><span>{new Date(asset.createdAt).toLocaleString("el-GR")}</span></div></div></WorkspaceRecordDetails>
+        <WorkspaceRecordDetails label="Λεπτομέρειες ελέγχου"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Ασφάλεια αρχείου</strong><span>{statusLabel(asset.scanStatus)}</span></div><div className="workspace-compact-row"><strong>Δικαιώματα χρήσης</strong><span>{statusLabel(asset.rightsStatus)}</span></div><div className="workspace-compact-row"><strong>Έλεγχος περιεχομένου</strong><span>{statusLabel(asset.moderationStatus)}</span></div><div className="workspace-compact-row"><strong>Κωδικός αρχείου</strong><span>{asset.id}</span></div><div className="workspace-compact-row"><strong>Κωδικός προϊόντος</strong><span>{asset.canonicalVariantId ?? "—"}</span></div><div className="workspace-compact-row"><strong>Ανέβηκε</strong><span>{new Date(asset.createdAt).toLocaleString("el-GR")}</span></div></div></WorkspaceRecordDetails>
       </article>)}</div>}
     </div></section>
 
@@ -200,7 +199,7 @@ export function VendorTrustClient({ initial }: { initial: Workspace }) {
         <div className="workspace-queue-head"><div><strong>{productTitle(document.canonicalVariantId)}</strong><small>{document.type}{document.issuer ? ` · ${document.issuer}` : ""}</small></div><span className="status-pill">{statusLabel(document.status)}</span></div>
         {document.validTo && <p className="workspace-queue-summary">Ισχύει έως: {new Date(document.validTo).toLocaleDateString("el-GR")}</p>}
         {document.rejectionReason && <p className="workspace-queue-summary"><strong>Τι χρειάζεται διόρθωση:</strong> {document.rejectionReason}</p>}
-        <WorkspaceRecordDetails label="Τεχνικές πληροφορίες"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Κωδικός εγγράφου</strong><span>{document.id}</span></div><div className="workspace-compact-row"><strong>Κωδικός προϊόντος</strong><span>{document.canonicalVariantId}</span></div><div className="workspace-compact-row"><strong>Αριθμός / αναφορά</strong><span>{document.identifier ?? "—"}</span></div>{document.mediaAssetId && <div className="workspace-compact-row"><strong>Συνδεδεμένο αρχείο</strong><span>{document.mediaAssetId}</span></div>}</div></WorkspaceRecordDetails>
+        <WorkspaceRecordDetails label="Λεπτομέρειες εγγράφου"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Κωδικός εγγράφου</strong><span>{document.id}</span></div><div className="workspace-compact-row"><strong>Κωδικός προϊόντος</strong><span>{document.canonicalVariantId}</span></div><div className="workspace-compact-row"><strong>Αριθμός / αναφορά</strong><span>{document.identifier ?? "—"}</span></div>{document.mediaAssetId && <div className="workspace-compact-row"><strong>Συνδεδεμένο αρχείο</strong><span>{document.mediaAssetId}</span></div>}</div></WorkspaceRecordDetails>
       </article>)}</div>}
     </section>
   </>;

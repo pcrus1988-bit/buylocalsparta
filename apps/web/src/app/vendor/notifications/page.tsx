@@ -46,7 +46,7 @@ export default async function Page() {
     <WorkspaceMetricStrip items={[
       { label: "Χρειάζονται ενέργεια", value: data.metrics.requiringAction, tone: data.metrics.requiringAction ? "attention" : "default" },
       { label: "Εκπρόθεσμα", value: data.metrics.breached, tone: data.metrics.breached ? "attention" : "default" },
-      { label: "Κλιμακωμένα", value: data.metrics.escalated, tone: data.metrics.escalated ? "attention" : "default" },
+      { label: "Χρειάζονται άμεση προσοχή", value: data.metrics.escalated, tone: data.metrics.escalated ? "attention" : "default" },
       { label: "Νέες ειδοποιήσεις", value: data.metrics.unread }
     ]} />
 
@@ -68,7 +68,7 @@ export default async function Page() {
           <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη">
             <div className="workspace-compact-list">
               <div className="workspace-compact-row"><strong>Κατάσταση συστήματος</strong><span>{item.state}</span><small>{vendorStatusLabel(item.fulfilmentStatus)}</small></div>
-              <div className="workspace-compact-row"><strong>SLA case</strong><span className="vendor-technical-id">{item.id}</span><small className="vendor-technical-id">Fulfilment {item.fulfilmentId}</small></div>
+              <div className="workspace-compact-row"><strong>Κωδικός προθεσμίας</strong><span className="vendor-technical-id">{item.id}</span><small className="vendor-technical-id">Εσωτερική παραγγελία {item.fulfilmentId}</small></div>
             </div>
           </WorkspaceRecordDetails>
         </article>;
@@ -76,7 +76,7 @@ export default async function Page() {
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Πώς ορίζονται οι χρόνοι" title="Η συμφωνία σου" note="Οι λεπτομέρειες της πολιτικής προθεσμιών παραμένουν διαθέσιμες για διαφάνεια, χωρίς να καταλαμβάνουν την κύρια οθόνη εργασίας." />
+      <WorkspaceSectionHeading eyebrow="Χρόνοι εξυπηρέτησης" title="Οι συμφωνημένες προθεσμίες σου" note="Οι χρόνοι που ισχύουν για το κατάστημά σου εμφανίζονται εδώ για αναφορά. Δεν χρειάζεται να τους υπολογίζεις χειροκίνητα." />
       <WorkspaceHowItWorks title="Προθεσμίες της εμπορικής συμφωνίας">
         {data.activeAgreement ? <>
           <p><strong>{data.activeAgreement.agreementCode} · έκδοση {data.activeAgreement.agreementVersion}</strong></p>

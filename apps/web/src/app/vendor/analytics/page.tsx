@@ -98,7 +98,7 @@ export default async function VendorAnalyticsPage({ searchParams }: { searchPara
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Ανθρώπινη εξυπηρέτηση" title="Συμβουλή & Ask Local" note="Οι μετρήσεις αυτές είναι συνολικές για το κατάστημα μέχρι κάθε interaction να έχει αξιόπιστη απόδοση σε συγκεκριμένο προϊόν." />
+      <WorkspaceSectionHeading eyebrow="Ανθρώπινη εξυπηρέτηση" title="Συμβουλή & Ask Local" note="Οι μετρήσεις αυτές είναι συνολικές για το κατάστημα μέχρι κάθε αλληλεπίδραση να μπορεί να συνδεθεί αξιόπιστα με συγκεκριμένο προϊόν." />
       <div className="workspace-dual-grid">
         <article className="workspace-queue-card"><strong>Συμβουλή πελατών</strong><div className="workspace-compact-list" style={{ marginTop: 12 }}><div className="workspace-compact-row"><strong>Έναρξη συμβουλής</strong><span>{legacy.adviceStarts}</span></div><div className="workspace-compact-row"><strong>Ραντεβού</strong><span>{legacy.appointmentsBooked}</span></div></div></article>
         <article className="workspace-queue-card"><strong>Ask Local</strong><div className="workspace-compact-list" style={{ marginTop: 12 }}><div className="workspace-compact-row"><strong>Αιτήματα</strong><span>{legacy.counterofferRequests}</span></div><div className="workspace-compact-row"><strong>Ιδιωτικές προσφορές</strong><span>{legacy.counterofferOffers}</span><small>{legacy.counterofferAccepted} έγιναν αποδεκτές</small></div></div></article>
@@ -116,7 +116,7 @@ export default async function VendorAnalyticsPage({ searchParams }: { searchPara
             <div className="workspace-compact-row"><strong>Αγορές</strong><span>{row.purchases}</span><small>{row.unitsSold} τεμάχια · {pct(row.purchases, row.pageViews)} μετατροπή</small></div>
             <div className="workspace-compact-row"><strong>Πωλήσεις</strong><span>{euro(row.revenueMinor)}</span></div>
           </div>
-          <WorkspaceRecordDetails label="Προχωρημένες μετρήσεις">
+          <WorkspaceRecordDetails label="Αναλυτικές μετρήσεις">
             <div className="workspace-compact-list">
               <div className="workspace-compact-row"><strong>Δίκαιες εμφανίσεις</strong><span>{row.impressions}</span></div>
               <div className="workspace-compact-row"><strong>Μέσος ενεργός χρόνος</strong><span>{duration(row.pageViews ? row.engagedSeconds / row.pageViews : 0)}</span></div>
@@ -127,8 +127,8 @@ export default async function VendorAnalyticsPage({ searchParams }: { searchPara
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Προχωρημένα" title="Μετρήσεις εμφάνισης & απόδοσης" note="Χρήσιμες για βαθύτερη ανάλυση, όχι απαραίτητες για την καθημερινή λειτουργία του καταστήματος." />
-      <WorkspaceRecordDetails label="Προβολή προχωρημένων μετρήσεων">
+      <WorkspaceSectionHeading eyebrow="Λεπτομέρειες" title="Μετρήσεις εμφάνισης & απόδοσης" note="Χρήσιμες για βαθύτερη ανάλυση, όχι απαραίτητες για την καθημερινή λειτουργία του καταστήματος." />
+      <WorkspaceRecordDetails label="Προβολή αναλυτικών μετρήσεων">
         <div className="workspace-compact-list">
           <div className="workspace-compact-row"><strong>Δίκαιες / έγκυρες εμφανίσεις</strong><span>{t.impressions}</span></div>
           <div className="workspace-compact-row"><strong>Μοναδικοί επισκέπτες προϊόντων</strong><span>{t.uniqueViewers}</span></div>

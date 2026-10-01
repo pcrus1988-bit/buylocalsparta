@@ -103,3 +103,36 @@
   .trialBanner{grid-template-columns:1fr}
   .trialBannerButton,.trialBannerLink{grid-column:1;width:100%;box-sizing:border-box;text-align:center}
 }
+
+
+/* Trial UX: keep the next task obvious and optional exploration quiet. */
+.tourDisclosureSummary{display:flex;align-items:center;justify-content:space-between;gap:20px;cursor:pointer;list-style:none}
+.tourDisclosureSummary::-webkit-details-marker{display:none}
+.tourDisclosureSummary>span{display:grid;gap:5px}
+.tourDisclosureSummary>span>strong{font-size:1.2rem;line-height:1.25}
+.tourDisclosureSummary>small{max-width:520px;color:var(--muted,#66736d);line-height:1.5}
+.tourDisclosureSummary:after{content:"+";width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;border:1px solid #dbe3df;border-radius:50%;font-size:1.2rem}
+.guideTour[open] .tourDisclosureSummary{margin-bottom:18px}
+.guideTour[open] .tourDisclosureSummary:after{content:"−"}
+@media(max-width:640px){
+  .tourDisclosureSummary{align-items:flex-start;gap:10px}
+  .tourDisclosureSummary>small{display:none}
+  .tourDisclosureSummary>span>strong{font-size:1.05rem}
+}
+
+
+/* Progressive disclosure for optional storefront controls. */
+.editorGroup{margin:14px 0;border:1px solid #e1e5e3;border-radius:14px;background:#fbfcfb;overflow:hidden}
+.editorGroup>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;padding:10px 12px;cursor:pointer;list-style:none}
+.editorGroup>summary::-webkit-details-marker{display:none}
+.editorGroup>summary>span{display:grid;gap:2px}
+.editorGroup>summary strong{font-size:.9rem}
+.editorGroup>summary small{color:var(--muted,#68736e);font-size:.75rem;line-height:1.35}
+.editorGroup>summary:after{content:"+";display:grid;place-items:center;width:28px;height:28px;border:1px solid #d9dfdc;border-radius:9px;background:#fff;font-weight:900}
+.editorGroup[open]>summary:after{content:"−"}
+.editorGroupBody{padding:4px 12px 14px;border-top:1px solid #e7ebe8}
+.editorGroupBody>.field:first-child{margin-top:12px}
+@media(max-width:640px){
+  .editorGroup>summary{min-height:52px}
+  .editorGroupBody{padding:4px 10px 12px}
+}

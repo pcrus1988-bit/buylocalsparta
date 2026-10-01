@@ -17,7 +17,7 @@ export default async function VendorOrdersPage() {
       <div>
         <div className="eyebrow">Παραγγελίες</div>
         <h1>Οι παραγγελίες του καταστήματός σου</h1>
-        <p className="lead">Αποδοχή, προετοιμασία και βασικές αλλαγές status σε ένα σημείο. Χρησιμοποίησε τα tabs για προθεσμίες, αποστολές, παραλαβές και επιστροφές.</p>
+        <p className="lead">Δες τι χρειάζεται να κάνεις σε κάθε παραγγελία και προχώρησέ την μόνο όταν το αντίστοιχο βήμα έχει πραγματικά ολοκληρωθεί. Οι προθεσμίες, αποστολές, παραλαβές και επιστροφές βρίσκονται ακριβώς από πάνω.</p>
       </div>
     </section>
     <VendorOrdersClient initial={await vendorDashboard(principal)} />

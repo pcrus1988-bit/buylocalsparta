@@ -86,9 +86,9 @@ export function VendorPickupCollectClient({ initial, token, csrfToken, returnHre
       {error && <p className="form-error" role="alert"><strong>Η παραγγελία δεν έκλεισε.</strong> {error}</p>}
 
       <WorkspaceHowItWorks>
-        <p>Η επιβεβαίωση είναι το τελικό βήμα της παραλαβής. Μετά το πάτημα, η παραγγελία καταγράφεται ως παραδοθείσα και ο πελάτης ενημερώνεται.</p>
+        <p>Η επιβεβαίωση είναι το τελικό βήμα. Μόλις πατήσεις «Παράδοση στον πελάτη», η παραγγελία καταγράφεται ως παραδοθείσα και ο πελάτης ενημερώνεται.</p>
       </WorkspaceHowItWorks>
-      <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη"><div className="workspace-compact-row"><strong>Order ID</strong><span className="vendor-technical-id">{data.orderId}</span></div></WorkspaceRecordDetails>
+      <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη"><div className="workspace-compact-row"><strong>Κωδικός παραγγελίας</strong><span className="vendor-technical-id">{data.orderId}</span></div></WorkspaceRecordDetails>
       <Link className="button button-secondary" href={returnHref}>Επιστροφή στις παραγγελίες</Link>
     </div>
   </section>;

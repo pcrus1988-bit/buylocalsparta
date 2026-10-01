@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { VendorActionNotice, VendorLifecycle } from "./VendorLifecycle";
+import { VendorActionNotice } from "./VendorLifecycle";
 import { WorkspaceHowItWorks } from "./WorkspacePagePrimitives";
 
 type Access = {
@@ -67,14 +67,10 @@ export function VendorDailyAccessClient({ initial, csrfToken }: { initial: Reado
 
   return <div style={{ display: "grid", gap: 24 }}>
     <section className="workspace-queue-card" style={{ display: "grid", gap: 16 }}>
-      <div><div className="eyebrow">Νέα πρόσβαση</div><h2 style={{ margin: "4px 0 6px" }}>Δώσε πρόσβαση στην καθημερινή λειτουργία</h2><p style={{ margin: 0, opacity: .72 }}>Ο λογαριασμός Daily βλέπει μόνο τις καθημερινές εργασίες: παραγγελίες, Ask Local, QR παραλαβές και ειδοποιήσεις. Δεν αποκτά πρόσβαση στο πλήρη χώρο συνεργάτη.</p></div>
-      <VendorLifecycle steps={[
-        { label: "Στοιχεία ατόμου", tone: "attention" },
-        { label: "Δημιουργία πρόσβασης", tone: "future" },
-        { label: "Σύνδεση στο Daily", tone: "future" }
-      ]} ariaLabel="Δημιουργία Daily πρόσβασης" />
+      <div><div className="eyebrow">Νέα πρόσβαση</div><h2 style={{ margin: "4px 0 6px" }}>Πρόσθεσε άτομο στην καθημερινή λειτουργία</h2><p style={{ margin: 0, opacity: .72 }}>Ο λογαριασμός Daily βλέπει μόνο τις καθημερινές εργασίες: παραγγελίες, Ask Local, QR παραλαβές και ειδοποιήσεις. Δεν αποκτά πρόσβαση στο πλήρη χώρο συνεργάτη.</p></div>
+<div className="workspace-inline-note"><strong>Τι μπορεί να κάνει;</strong> Παραγγελίες, Ask Local, παραλαβές QR και καθημερινές ειδοποιήσεις. Δεν έχει πρόσβαση σε οικονομικά, ρυθμίσεις ή διαχείριση καταστήματος.</div>
       <WorkspaceHowItWorks>
-        <p><strong>Δεν υπάρχουν διαφορετικοί ρόλοι Daily.</strong> Κάθε ενεργή Daily πρόσβαση έχει το ίδιο περιορισμένο εύρος λειτουργιών.</p>
+        <p><strong>Ίδια καθημερινή πρόσβαση για όλους:</strong> κάθε ενεργός λογαριασμός Daily βλέπει το ίδιο περιορισμένο σύνολο καθημερινών εργασιών.</p>
         <p><strong>Ο κωδικός είναι ξεχωριστός</strong> από τον λογαριασμό ιδιοκτήτη του χώρου συνεργάτη. Αν αλλάξεις τον κωδικό, οι προηγούμενες Daily συνεδρίες κλείνουν.</p>
         <p><strong>Ανάκληση πρόσβασης:</strong> αποσυνδέει αμέσως το συγκεκριμένο άτομο από όλες τις ενεργές Daily συνεδρίες.</p>
       </WorkspaceHowItWorks>
@@ -89,24 +85,15 @@ export function VendorDailyAccessClient({ initial, csrfToken }: { initial: Reado
     </section>
 
     <section style={{ display: "grid", gap: 12 }}>
-      <div><div className="eyebrow">Πρόσβαση Daily</div><h2 style={{ margin: "4px 0" }}>Άτομα με πρόσβαση</h2><p style={{ margin: 0, opacity: .7 }}>Βλέπεις άμεσα ποιος έχει ενεργή πρόσβαση, αν υπάρχουν συνδεδεμένες συνεδρίες και αν έχουν ενεργοποιηθεί ειδοποιήσεις σε συσκευή.</p></div>
+      <div><div className="eyebrow">Ομάδα Daily</div><h2 style={{ margin: "4px 0" }}>Ποιος έχει πρόσβαση</h2><p style={{ margin: 0, opacity: .7 }}>Έλεγξε ποιοι λογαριασμοί είναι ενεργοί και ανάκλησε άμεσα την πρόσβαση όταν δεν χρειάζεται πλέον.</p></div>
       {accesses.length === 0 ? <div className="workspace-queue-card">Δεν έχει δημιουργηθεί ακόμη ξεχωριστή πρόσβαση Daily.</div> : accesses.map((access) => <article className="workspace-queue-card" key={access.id} style={{ display: "grid", gap: 14, opacity: access.active ? 1 : .65 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
           <div><strong style={{ display: "block", fontSize: "1.05rem" }}>{access.displayName}</strong><span style={{ opacity: .68 }}>{access.email}</span></div>
           <span className="vendor-merchant-status">{access.active ? "Ενεργή πρόσβαση" : "Ανακλήθηκε"}</span>
         </div>
-        <VendorLifecycle steps={access.active ? [
-          { label: "Δημιουργήθηκε", tone: "done" },
-          { label: "Ενεργή", tone: "current" },
-          { label: "Ανάκληση", tone: "future" }
-        ] : [
-          { label: "Δημιουργήθηκε", tone: "done" },
-          { label: "Ήταν ενεργή", tone: "done" },
-          { label: "Ανακλήθηκε", tone: "blocked" }
-        ]} ariaLabel={`Κατάσταση πρόσβασης ${access.displayName}`} />
         <div className="workspace-compact-list">
-          <div className="workspace-compact-row"><strong>Ενεργές συνεδρίες</strong><span>{access.activeSessions}</span></div>
-          <div className="workspace-compact-row"><strong>Συσκευές με ειδοποιήσεις</strong><span>{access.pushDevices}</span></div>
+          <div className="workspace-compact-row"><strong>Συνδεδεμένες συσκευές / συνεδρίες</strong><span>{access.activeSessions}</span></div>
+          <div className="workspace-compact-row"><strong>Συσκευές με ειδοποιήσεις ενεργές</strong><span>{access.pushDevices}</span></div>
           <div className="workspace-compact-row"><strong>Δημιουργήθηκε</strong><span>{date(access.createdAt)}</span></div>
         </div>
         {access.active && <div style={{ display: "grid", gap: 10 }}>

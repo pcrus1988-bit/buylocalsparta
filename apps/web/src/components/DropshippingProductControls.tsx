@@ -207,18 +207,18 @@ export function DropshippingProductControls(props: Props) {
 
   return <details style={{ marginTop: 12 }}>
     <summary style={{ cursor: "pointer", fontWeight: 700, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-      <span>Ρυθμίσεις προϊόντος &amp; ενέργειες</span>
-      <small style={{ fontWeight: 500 }}>{visible ? "Δημόσιο" : "Κρυφό"} · Περιθώριο {percent(markup)} · Έκπτωση {percent(discount)}</small>
+      <span>Τιμή & εμφάνιση προϊόντος</span>
+      <small style={{ fontWeight: 500 }}>{visible ? "Εμφανίζεται" : "Κρυφό"} · Περιθώριο {percent(markup)} · Έκπτωση {percent(discount)}</small>
     </summary>
     <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
       <div className="workspace-compact-list">
-        <div className="workspace-compact-row"><strong>MSRP / Προτεινόμενη λιανική</strong><span>{euro(props.msrpMinor)}</span><small>Τιμή αναφοράς προμηθευτή · δεν περιορίζει την αυτόματη τιμή</small></div>
+        <div className="workspace-compact-row"><strong>Προτεινόμενη λιανική προμηθευτή</strong><span>{euro(props.msrpMinor)}</span><small>Χρησιμοποιείται ως τιμή αναφοράς.</small></div>
         {props.recommendation ? <>
-          <div className="workspace-compact-row"><strong>Προτεινόμενη τιμή πώλησης</strong><span>{euro(props.recommendation.recommendedSellingPriceMinor)}</span><small>Με υπολογισμό μεταφορικών · Economy Ελλάδας · κατάληξη 4,90 / 9,90</small></div>
-          {props.recommendation.overpriced ? <div className="workspace-compact-row"><strong>Εσωτερική ένδειξη</strong><span>OVERPRICED</span><small>{euro(props.recommendation.overpricedByMinor)} πάνω από MSRP · {percent(props.recommendation.overpricedByPercent)}</small></div> : null}
+          <div className="workspace-compact-row"><strong>Προτεινόμενη τιμή πώλησης</strong><span>{euro(props.recommendation.recommendedSellingPriceMinor)}</span><small>Περιλαμβάνει την πρόβλεψη κόστους μεταφοράς για Ελλάδα.</small></div>
+          {props.recommendation.overpriced ? <div className="workspace-compact-row"><strong>Έλεγχος τιμής</strong><span>Υψηλότερη από την προτεινόμενη λιανική</span><small>{euro(props.recommendation.overpricedByMinor)} υψηλότερα · {percent(props.recommendation.overpricedByPercent)}</small></div> : null}
           <div className="workspace-compact-row"><strong>Κέρδος €</strong><span>{euro(liveProfit.profitMinor)}</span><small>Στην τρέχουσα τιμή πώλησης</small></div>
           <div className="workspace-compact-row"><strong>Κέρδος %</strong><span>{percent(liveProfit.profitPercent)}</span><small>Μετά τον ΦΠΑ, το κόστος συναλλαγής και το αποθεματικό μεταφορικών</small></div>
-          <div className="workspace-compact-row"><strong>Αποθεματικό μεταφορικών</strong><span>{euro(props.recommendation.embeddedShippingMinor)}</span><small>{shippingStatusLabel(props.recommendation.shippingStatus)} · absorption {percent(props.recommendation.shippingAbsorptionScore == null ? null : props.recommendation.shippingAbsorptionScore * 100)}</small></div>
+          <div className="workspace-compact-row"><strong>Πρόβλεψη κόστους μεταφοράς</strong><span>{euro(props.recommendation.embeddedShippingMinor)}</span><small>{shippingStatusLabel(props.recommendation.shippingStatus)}{props.recommendation.shippingAbsorptionScore == null ? "" : ` · κάλυψη ${percent(props.recommendation.shippingAbsorptionScore * 100)}`}</small></div>
         </> : null}
       </div>
       <div className="vendor-dropshipping-price-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(90px,1fr))", gap: 8 }}>
@@ -228,9 +228,9 @@ export function DropshippingProductControls(props: Props) {
       </div>
       {previewMinor != null ? <small>Υπολογισμένη τελική τιμή: <strong>{euro(previewMinor)}</strong>{recommendedDefault ? " · προ-συμπληρωμένη από την αυτόματη τιμολόγηση" : ""}</small> : null}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button className="button button-secondary" type="button" onClick={savePricing} disabled={busy || props.supplierCostMinor == null}>Αποθήκευση εξαίρεσης</button>
+        <button className="button button-secondary" type="button" onClick={savePricing} disabled={busy || props.supplierCostMinor == null}>Αποθήκευση ειδικής τιμής</button>
         <button className="button button-secondary" type="button" onClick={toggleVisibility} disabled={busy}>{visible ? "Απόκρυψη" : "Δημοσίευση"}</button>
-        <button className="button button-secondary" type="button" onClick={resetToSupplierDefaults} disabled={busy || props.supplierCostMinor == null}>Επαναφορά στις ρυθμίσεις προμηθευτή</button>
+        <button className="button button-secondary" type="button" onClick={resetToSupplierDefaults} disabled={busy || props.supplierCostMinor == null}>Χρήση γενικών ρυθμίσεων</button>
         <button className="button button-secondary" type="button" onClick={refreshAvailability} disabled={busy}>Ανανέωση διαθεσιμότητας</button>
       </div>
       <DropshippingProductFieldControls offerId={props.offerId} />

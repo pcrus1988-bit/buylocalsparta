@@ -294,11 +294,11 @@ export function VendorFinanceClient({ initial }: { initial: Workspace }) {
           <div className="workspace-compact-row"><strong>Λογαριασμός</strong><span>{initial.payoutDestination.maskedAccount}</span></div>
           {initial.payoutDestination.verifiedAt && <div className="workspace-compact-row"><strong>Επαληθεύτηκε</strong><span>{dateTime(initial.payoutDestination.verifiedAt)}</span></div>}
         </div></WorkspaceRecordDetails>
-      </article> : <WorkspaceEmptyState title="Δεν έχει οριστεί ακόμη επαληθευμένος λογαριασμός πληρωμής." body="Δεν μπορεί να οριστικοποιηθεί settlement μέχρι να υπάρχει επαληθευμένος προορισμός πληρωμής. Επικοινώνησε με την υποστήριξη για την ασφαλή καταχώριση ή αλλαγή του." />}
+      </article> : <WorkspaceEmptyState title="Δεν έχει οριστεί ακόμη επαληθευμένος λογαριασμός πληρωμής." body="Δεν μπορεί να οριστικοποιηθεί πληρωμή μέχρι να υπάρχει επαληθευμένος λογαριασμός. Επικοινώνησε με την υποστήριξη για ασφαλή καταχώριση ή αλλαγή." />}
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Εμπορικοί όροι" title="Η συμφωνία σου με το KONTA MOY" note="Η προμήθεια προκύπτει από τη συμφωνία που ήταν σε ισχύ τη στιγμή της παραγγελίας και αποθηκεύεται ως snapshot. Μελλοντική αλλαγή συμφωνίας δεν αλλάζει παλιές πωλήσεις." />
+      <WorkspaceSectionHeading eyebrow="Εμπορικοί όροι" title="Η συμφωνία σου με το KONTA MOY" note="Η προμήθεια υπολογίζεται με τη συμφωνία που ίσχυε όταν έγινε η παραγγελία. Μελλοντική αλλαγή συμφωνίας δεν αλλάζει παλιές πωλήσεις." />
       {initial.commercialTerms ? <article className="workspace-queue-card">
         <div className="workspace-queue-head">
           <div><strong>{initial.commercialTerms.agreementCode}</strong><small>{initial.commercialTerms.activatedAt ? `Ενεργοποίηση ${date(initial.commercialTerms.activatedAt)}` : initial.commercialTerms.signedAt ? `Υπογραφή ${date(initial.commercialTerms.signedAt)}` : "Η συμφωνία δεν έχει ακόμη ενεργοποιηθεί"}</small></div>
@@ -406,7 +406,7 @@ export function VendorFinanceClient({ initial }: { initial: Workspace }) {
       <WorkspaceSectionHeading eyebrow="Επόμενες ενέργειες" title="Τι χρειάζεται τώρα" note="Η σελίδα δείχνει μόνο ενέργειες που χρειάζονται πραγματικά από το κατάστημά σου ή από το KONTA MOY." />
       <div className="workspace-queue-list">
         <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>{invoiceNeeded ? `${invoiceNeeded} παραστατικά χρειάζονται υποβολή` : "Δεν εκκρεμεί παραστατικό από εσένα"}</strong><small>{review ? `${review} οικονομικές εγγραφές βρίσκονται σε έλεγχο.` : "Δεν υπάρχει εγγραφή σε έλεγχο."}</small></div></div></article>
-        <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>{paid ? `${paid} πληρωμές έχουν ολοκληρωθεί` : "Δεν υπάρχει ακόμη ολοκληρωμένη πληρωμή"}</strong><small>Για ιστορική ανάλυση πωλήσεων και performance χρησιμοποίησε τα Reports.</small></div></div><div className="workspace-form-actions"><a className="button button-secondary" href="/vendor/reports">Άνοιγμα Reports</a></div></article>
+        <article className="workspace-queue-card"><div className="workspace-queue-head"><div><strong>{paid ? `${paid} πληρωμές έχουν ολοκληρωθεί` : "Δεν υπάρχει ακόμη ολοκληρωμένη πληρωμή"}</strong><small>Για ιστορική ανάλυση πωλήσεων και απόδοσης χρησιμοποίησε τις Αναφορές.</small></div></div><div className="workspace-form-actions"><a className="button button-secondary" href="/vendor/reports">Άνοιγμα αναφορών</a></div></article>
       </div>
     </section>
   </>;

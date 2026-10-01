@@ -45,9 +45,9 @@ export default async function DropshippingAnalyticsPage({ searchParams }: { sear
       <div>
         <div className="eyebrow">Κέντρο dropshipping</div>
         <h1>Στατιστικά</h1>
-        <p className="lead">Απόδοση ανά προμηθευτή dropshipping με τις υπάρχουσες μετρήσεις του ΚΟΝΤΑ ΜΟΥ.</p>
+        <p className="lead">Δες ποιοι προμηθευτές και ποια προϊόντα φέρνουν επισκέψεις, καλάθια και αγορές στο κατάστημά σου.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-          <Link className="button button-secondary" href="/vendor/dropshipping">← Dropshipping</Link>
+          <Link className="button button-secondary" href="/vendor/dropshipping">← Προϊόντα</Link>
           {[7, 30, 90].map((days) => <Link
             key={days}
             className={days === periodDays ? "button" : "button button-secondary"}
@@ -58,7 +58,7 @@ export default async function DropshippingAnalyticsPage({ searchParams }: { sear
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Προμηθευτής" title="Επίλεξε προμηθευτή" note="Οι μετρήσεις περιορίζονται στα αντιστοιχισμένα προϊόντα που συνδέονται με τον επιλεγμένο προμηθευτή και στο συνδεδεμένο κατάστημα." />
+      <WorkspaceSectionHeading eyebrow="Προμηθευτής" title="Επίλεξε προμηθευτή" note="Επίλεξε τον προμηθευτή που θέλεις να εξετάσεις. Οι αριθμοί αφορούν μόνο τα προϊόντα του δικού σου καταστήματος." />
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {workspace.suppliers.map((supplier) => <Link
           key={supplier.id}
@@ -93,7 +93,7 @@ export default async function DropshippingAnalyticsPage({ searchParams }: { sear
 
       <section className="shell vendor-section">
         <WorkspaceSectionHeading eyebrow="Κορυφαία προϊόντα" title="Προϊόντα με τη μεγαλύτερη απόδοση" note="Ταξινόμηση κατά έσοδα, αγορές και προβολές προϊόντων. Εμφανίζονται έως 20 προϊόντα." />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 14 }}>
+        <div className="vendor-card-grid">
           {analytics?.topProducts.map((product) => <article className="workspace-queue-card" key={product.canonicalVariantId}>
             <div className="workspace-queue-head"><div><strong>{product.productTitle}</strong><small>{product.categoryName}</small></div><span className="vendor-merchant-status">{euro(product.revenueMinor)}</span></div>
             <div className="workspace-compact-list" style={{ marginTop: 12 }}>

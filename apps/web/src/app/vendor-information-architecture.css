@@ -283,3 +283,257 @@
     grid-column:1/-1;
   }
 }
+
+
+/* Complete vendor mobile workspace pass — 2026-10-01. */
+@media (max-width: 780px) {
+  .vendor-app { min-width: 0; overflow-x: clip; }
+  .vendor-app .shell { width: 100%; max-width: none; padding-inline: 16px; }
+  .vendor-app .vendor-hero,
+  .vendor-app .vendor-hero-compact { padding-inline: 16px; }
+  .vendor-app .vendor-hero .hero-actions,
+  .vendor-app .vendor-hero-compact .hero-actions,
+  .vendor-app .workspace-action-buttons {
+    width: 100%;
+  }
+  .vendor-app .workspace-action-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+  }
+  .vendor-app .workspace-action-buttons .button,
+  .vendor-app .hero-actions .button {
+    min-width: 0;
+    justify-content: center;
+    text-align: center;
+  }
+  .vendor-app .workspace-action-bar { align-items: stretch; }
+  .vendor-app .workspace-action-bar > span { max-width: none; }
+  .vendor-app .workspace-queue-card,
+  .vendor-app .workspace-tool-panel,
+  .vendor-app .workspace-page-empty { border-radius: 15px; }
+  .vendor-app .workspace-queue-primary > span { line-height: 1.35; }
+  .vendor-app .workspace-section-tabs {
+    max-width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .vendor-app .workspace-section-tabs::-webkit-scrollbar { display: none; }
+  .vendor-app .workspace-section-tabs a { flex: 0 0 auto; min-height: 40px; }
+  .vendor-app table { max-width: 100%; }
+}
+
+@media (max-width: 620px) {
+  .vendor-app { --vendor-topbar: 72px; padding-top: 132px; }
+  .vendor-header { min-height: 60px; padding: 8px 10px; }
+  .vendor-header .workspace-brand-row {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .vendor-header .workspace-identity { min-width: 0; flex: 1 1 auto; }
+  .vendor-header .workspace-identity > span:last-child { min-width: 0; }
+  .vendor-header .workspace-identity strong,
+  .vendor-header .workspace-identity small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .vendor-header .workspace-menu-toggle {
+    flex: 0 0 auto;
+    min-width: 88px;
+    min-height: 44px;
+    padding-inline: 12px;
+    touch-action: manipulation;
+  }
+  .vendor-header.is-menu-open {
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+  .vendor-header.is-menu-open .workspace-brand-row {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding-bottom: 8px;
+    background: #17283b;
+  }
+  .vendor-header.is-menu-open .vendor-domain-nav {
+    gap: 5px;
+    margin-top: 4px;
+    padding: 8px 0 14px;
+  }
+  .vendor-domain-nav a {
+    min-height: 52px;
+    grid-template-columns: 36px minmax(0, 1fr) 18px;
+    padding-inline: 10px;
+    border-radius: 13px;
+    font-size: 14px;
+  }
+  .vendor-domain-icon { min-width: 32px; min-height: 32px; border-radius: 10px; }
+  .vendor-topbar {
+    top: 60px;
+    min-height: 72px;
+    padding: 4px 10px 6px;
+  }
+  .vendor-topbar-main { min-height: 28px; }
+  .vendor-daily-launch { min-height: 30px; padding-inline: 9px; font-size: 9px; }
+  .vendor-context-nav {
+    gap: 6px;
+    margin: 1px -10px 0;
+    padding: 0 10px 2px;
+    scroll-padding-inline: 10px;
+  }
+  .vendor-context-nav a {
+    min-height: 34px;
+    padding: 0 11px;
+    border: 1px solid var(--vendor-border);
+    border-radius: 999px;
+    background: rgba(255, 253, 249, .7);
+    font-size: 10.5px;
+  }
+  .vendor-context-nav a::after { display: none; }
+  .vendor-context-nav a.is-active {
+    border-color: rgba(185, 148, 81, .45);
+    background: #f4ead3;
+    box-shadow: inset 0 0 0 1px rgba(185, 148, 81, .08);
+  }
+  .vendor-app .shell { padding-inline: 12px; }
+  .vendor-app .vendor-hero,
+  .vendor-app .vendor-hero-compact { padding-inline: 12px; }
+  .vendor-app .vendor-hero h1,
+  .vendor-app .vendor-hero-compact h1 { overflow-wrap: anywhere; }
+  .vendor-app .workspace-page-metrics { width: calc(100% - 24px); margin-top: 12px; }
+  .vendor-app .workspace-action-buttons {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .vendor-app .workspace-action-buttons .button,
+  .vendor-app .hero-actions .button {
+    width: 100%;
+    min-height: 46px;
+  }
+  .vendor-app .workspace-queue-head { flex-direction: column; gap: 9px; }
+  .vendor-app .vendor-merchant-status,
+  .vendor-app .workspace-status-badge {
+    align-self: flex-start;
+    max-width: 100%;
+    white-space: normal;
+  }
+  .vendor-app .workspace-queue-primary {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .vendor-app .workspace-queue-primary > span {
+    width: 100%;
+    min-height: 36px;
+    box-sizing: border-box;
+    padding: 7px 10px;
+  }
+  .vendor-app .workspace-tool-panel > summary {
+    min-height: 56px;
+    padding-inline: 12px;
+    gap: 10px;
+  }
+  .vendor-app .workspace-tool-panel > .workspace-tool-body { padding: 0 12px 12px; }
+  .vendor-app .workspace-record-details > summary { min-height: 44px; }
+  .vendor-app .workspace-message { max-width: 100%; }
+  .vendor-app .workspace-inline-note { font-size: 12px; }
+  .vendor-app .workspace-compact-row { padding: 11px 12px; }
+  .vendor-app .workspace-page-empty { padding: 18px 16px; }
+  .vendor-app .workspace-form-grid { gap: 12px; }
+  .vendor-app .workspace-form-actions {
+    margin-right: -12px;
+    margin-left: -12px;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+  .vendor-app table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    scrollbar-width: thin;
+  }
+  .vendor-app table th,
+  .vendor-app table td { min-width: 112px; }
+}
+
+@media (max-width: 380px) {
+  .vendor-app .workspace-page-metrics { grid-template-columns: 1fr; }
+  .vendor-header .workspace-identity small { display: none; }
+  .vendor-header .workspace-menu-toggle { min-width: 78px; }
+}
+
+
+/* Vendor UX consolidation — one visual language across every /vendor section. */
+.vendor-domain-copy{min-width:0;display:grid;gap:2px}
+.vendor-domain-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:1.25}
+.vendor-domain-copy small{overflow:hidden;color:rgba(255,255,255,.46);font-size:9px;font-weight:600;line-height:1.3;text-overflow:ellipsis;white-space:nowrap}
+.vendor-domain-nav a.is-active .vendor-domain-copy small{color:rgba(23,40,59,.68)}
+.vendor-app .workspace-page-section-heading h2{font-size:clamp(24px,2.2vw,32px);line-height:1.12;letter-spacing:-.02em}
+.vendor-app .workspace-page-section-side{align-items:flex-start}
+.vendor-app .workspace-page-section-side p{max-width:560px}
+.vendor-app .workspace-queue-card>p:not([class]){margin:9px 0 0;color:var(--dash-muted);font-size:12px;line-height:1.55}
+.vendor-app .workspace-queue-card .button{align-self:flex-start}
+.vendor-app .workspace-action-bar{min-height:46px}
+.vendor-app .workspace-action-buttons{align-items:stretch}
+.vendor-app .workspace-action-buttons .button{display:inline-flex;align-items:center;justify-content:center}
+.vendor-app .workspace-tool-panel>summary small{max-width:760px}
+.vendor-app .workspace-how-it-works>summary{min-height:44px;box-sizing:border-box}
+.vendor-app .workspace-how-it-works-body{max-width:960px}
+.vendor-app .workspace-form-field{min-width:0}
+.vendor-app .workspace-form-field label,
+.vendor-app .workspace-form-field>span{font-weight:850;color:var(--dash-ink)}
+.vendor-app .workspace-form-field input,
+.vendor-app .workspace-form-field select,
+.vendor-app .workspace-form-field textarea{border:1px solid #ded6ca;background:#fffdfa}
+.vendor-app .workspace-form-field input:hover,
+.vendor-app .workspace-form-field select:hover,
+.vendor-app .workspace-form-field textarea:hover{border-color:#c9bdab}
+.vendor-app .workspace-compact-list{gap:7px}
+.vendor-app .workspace-compact-row{border-color:#e9e1d5;background:#fbf9f5}
+.vendor-app .vendor-merchant-status{line-height:1.35}
+.vendor-settings-card{position:relative;color:inherit;text-decoration:none;transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+.vendor-settings-card:hover{border-color:rgba(185,148,81,.5);box-shadow:0 10px 28px rgba(31,42,52,.06);transform:translateY(-1px)}
+.vendor-settings-card:focus-visible{outline:3px solid rgba(185,148,81,.32);outline-offset:3px}
+.vendor-settings-card>strong{color:var(--dash-navy);font-size:15px;line-height:1.35}
+.vendor-settings-card-action{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:auto;padding-top:14px;border-top:1px solid #ece5da;color:var(--dash-navy);font-size:11px;font-weight:900}
+.vendor-settings-card-action span:last-child{font-size:16px;color:var(--dash-gold)}
+.vendor-page-action-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.vendor-page-action-row .button{min-height:42px}
+.vendor-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.vendor-card-grid>.workspace-queue-card{min-width:0}
+.vendor-muted-explainer{margin:10px 0 0;color:var(--dash-muted);font-size:11px;line-height:1.55}
+
+@media(min-width:1021px){
+  .vendor-app{--vendor-sidebar:276px}
+  .vendor-domain-nav{gap:5px}
+  .vendor-domain-nav a{min-height:58px;grid-template-columns:34px minmax(0,1fr) 14px;padding:6px 10px 6px 8px}
+  .vendor-domain-icon{min-width:29px;min-height:29px}
+}
+
+@media(max-width:1020px){
+  .vendor-domain-nav a{min-height:54px}
+  .vendor-domain-copy strong{font-size:13px}
+  .vendor-domain-copy small{font-size:10px;white-space:normal}
+}
+
+@media(max-width:620px){
+  .vendor-domain-copy{gap:0}
+  .vendor-domain-copy strong{font-size:14px}
+  .vendor-domain-copy small{display:none}
+  .vendor-settings-card:hover{transform:none}
+  .vendor-settings-card-action{min-height:38px}
+  .vendor-page-action-row{display:grid;grid-template-columns:1fr}
+  .vendor-page-action-row .button{width:100%;justify-content:center}
+  .vendor-card-grid{grid-template-columns:1fr}
+  .vendor-app .workspace-page-section-heading h2{font-size:clamp(23px,7vw,29px)}
+  .vendor-app .workspace-page-section-side p{font-size:11.5px}
+}

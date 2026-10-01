@@ -134,7 +134,7 @@ export function VendorPriceManager({ csrfToken, products }: Props) {
       return;
     }
     if (msrpMinor !== undefined && msrpMinor < 0) {
-      setError("Η MSRP πρέπει να είναι έγκυρο μη αρνητικό ποσό.");
+      setError("Η προτεινόμενη λιανική πρέπει να είναι έγκυρο μη αρνητικό ποσό.");
       return;
     }
 
@@ -174,14 +174,14 @@ export function VendorPriceManager({ csrfToken, products }: Props) {
     <summary>
       <span>
         <strong>Τιμολόγηση προϊόντων</strong>
-        <small>Τιμή αγοράς ιδιωτικά, χειροκίνητη ή υπολογιζόμενη λιανική, markup, έκπτωση και προαιρετική δημόσια MSRP.</small>
+        <small>Τιμή αγοράς, τελική τιμή, περιθώριο, έκπτωση και προτεινόμενη λιανική σε ένα σημείο.</small>
       </span>
     </summary>
     <div className="workspace-tool-body">
-      <div className="workspace-inline-note"><strong>Απόρρητο:</strong> η τιμή αγοράς και οι κανόνες markup/έκπτωσης είναι ορατοί μόνο στο δικό σου backoffice. Ο πελάτης λαμβάνει μόνο την τελική λιανική και, αν το επιλέξεις, την MSRP.</div>
+      <div className="workspace-inline-note"><strong>Απόρρητο:</strong> η τιμή αγοράς και οι κανόνες υπολογισμού είναι ορατοί μόνο στο κατάστημά σου. Ο πελάτης βλέπει μόνο την τελική τιμή και, αν το επιλέξεις, την προτεινόμενη λιανική.</div>
       <div className="workspace-form-field">
         <label htmlFor="vendor-price-search">Αναζήτηση προϊόντος</label>
-        <input id="vendor-price-search" type="search" placeholder="Όνομα, SKU, GTIN, μάρκα ή product reference…" value={query} onChange={(event) => setQuery(event.target.value)} />
+        <input id="vendor-price-search" type="search" placeholder="Όνομα, SKU, GTIN, μάρκα ή κωδικός προϊόντος…" value={query} onChange={(event) => setQuery(event.target.value)} />
       </div>
       {error && <div className="form-error" role="alert">{error}</div>}
       {success && <div className="workspace-empty-state" role="status"><strong>{success}</strong></div>}
@@ -202,7 +202,7 @@ export function VendorPriceManager({ csrfToken, products }: Props) {
               <label htmlFor={`pricing-mode-${item.offerId}`}>Τρόπος τιμολόγησης</label>
               <select id={`pricing-mode-${item.offerId}`} value={draft.pricingMode} onChange={(event) => updateDraft(item.offerId, { pricingMode: event.target.value as PricingMode })}>
                 <option value="manual">Χειροκίνητα</option>
-                <option value="calculated">Υπολογισμός: αγορά → markup → έκπτωση</option>
+                <option value="calculated">Υπολογισμός: αγορά → περιθώριο → έκπτωση</option>
               </select>
             </div>
 
@@ -214,11 +214,11 @@ export function VendorPriceManager({ csrfToken, products }: Props) {
               </div>
 
               <div className="workspace-form-field" style={{ minWidth: 150, margin: 0 }}>
-                <label htmlFor={`markup-type-${item.offerId}`}>Markup</label>
+                <label htmlFor={`markup-type-${item.offerId}`}>Περιθώριο</label>
                 <select id={`markup-type-${item.offerId}`} value={draft.markupType} onChange={(event) => updateDraft(item.offerId, { markupType: event.target.value as AdjustmentType })}>
                   <option value="">Χωρίς</option><option value="percent">Ποσοστό %</option><option value="fixed">Ποσό €</option>
                 </select>
-                <input aria-label="Τιμή markup" type="number" min="0" step="0.01" inputMode="decimal" disabled={!draft.markupType} value={draft.markupValue} onChange={(event) => updateDraft(item.offerId, { markupValue: event.target.value })} />
+                <input aria-label="Τιμή περιθωρίου" type="number" min="0" step="0.01" inputMode="decimal" disabled={!draft.markupType} value={draft.markupValue} onChange={(event) => updateDraft(item.offerId, { markupValue: event.target.value })} />
               </div>
 
               <div className="workspace-form-field" style={{ minWidth: 150, margin: 0 }}>
@@ -232,25 +232,25 @@ export function VendorPriceManager({ csrfToken, products }: Props) {
               <div className="workspace-form-field" style={{ minWidth: 180, margin: 0 }}>
                 <label htmlFor={`retail-${item.offerId}`}>Τελική τιμή λιανικής (€)</label>
                 <input id={`retail-${item.offerId}`} type="number" min="0" max="1000000" step="0.01" inputMode="decimal" readOnly={draft.pricingMode === "calculated"} value={draft.pricingMode === "calculated" ? (finalMinor === undefined ? "" : toDraft(finalMinor)) : draft.retailPrice} onChange={(event) => updateDraft(item.offerId, { retailPrice: event.target.value })} />
-                <small>{draft.pricingMode === "calculated" ? "Υπολογίζεται και επαληθεύεται ξανά στον server." : "Η δημόσια τιμή που χρησιμοποιεί και το checkout."}</small>
+                <small>{draft.pricingMode === "calculated" ? "Υπολογίζεται αυτόματα πριν αποθηκευτεί." : "Η τιμή που βλέπει και πληρώνει ο πελάτης."}</small>
               </div>
             </div>
 
             <div className="workspace-form-actions" style={{ alignItems: "end", flexWrap: "wrap" }}>
               <div className="workspace-form-field" style={{ minWidth: 180, margin: 0 }}>
-                <label htmlFor={`msrp-${item.offerId}`}>Προτεινόμενη λιανική MSRP (€)</label>
+                <label htmlFor={`msrp-${item.offerId}`}>Προτεινόμενη λιανική (€)</label>
                 <input id={`msrp-${item.offerId}`} type="number" min="0" max="1000000" step="0.01" inputMode="decimal" value={draft.msrp} onChange={(event) => updateDraft(item.offerId, { msrp: event.target.value })} />
               </div>
               <label className="workspace-inline-form" style={{ alignItems: "center" }}>
                 <input type="checkbox" checked={draft.showMsrp} onChange={(event) => updateDraft(item.offerId, { showMsrp: event.target.checked })} />
-                <span>Εμφάνιση MSRP στο κατάστημα</span>
+                <span>Εμφάνιση προτεινόμενης λιανικής στο κατάστημα</span>
               </label>
               <button type="button" className="button" disabled={busy === item.offerId} onClick={() => void save(item)}>{busy === item.offerId ? "Αποθήκευση…" : "Αποθήκευση τιμολόγησης"}</button>
             </div>
 
             <div className="workspace-inline-note">
-              <strong>Προεπισκόπηση πελάτη:</strong> {draft.showMsrp && msrpMinor !== undefined && finalMinor !== undefined && msrpMinor > finalMinor ? <><s>{euro(msrpMinor)}</s> · </> : null}{finalMinor === undefined ? "—" : euro(finalMinor)}
-              {differenceMinor !== undefined ? <span> · Ιδιωτική διαφορά λιανικής − αγοράς: {euro(differenceMinor)}</span> : null}
+              <strong>Τι θα βλέπει ο πελάτης:</strong> {draft.showMsrp && msrpMinor !== undefined && finalMinor !== undefined && msrpMinor > finalMinor ? <><s>{euro(msrpMinor)}</s> · </> : null}{finalMinor === undefined ? "—" : euro(finalMinor)}
+              {differenceMinor !== undefined ? <span> · Διαφορά λιανικής − αγοράς: {euro(differenceMinor)}</span> : null}
             </div>
             <small>Τελευταία ενημέρωση {when(item.updatedAt)} · Η πραγματική αλλαγή της τελικής λιανικής συνεχίζει να καταγράφεται στο ιστορικό τιμών.</small>
           </article>;

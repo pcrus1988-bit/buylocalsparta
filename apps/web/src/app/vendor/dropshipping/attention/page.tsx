@@ -7,7 +7,7 @@ import { isDropshippingOnlyVendor } from "../../../../lib/vendor-dropshipping-ac
 import { vendorDropshippingAttention, type DropshippingAttentionKind } from "../../../../lib/vendor-dropshipping-attention";
 import { getVendorSession } from "../../../../lib/vendor-session";
 
-export const metadata: Metadata = { title: "Dropshipping · Needs attention", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Dropshipping · Χρειάζονται προσοχή", robots: { index: false, follow: false } };
 
 const money = (minor: number | null) => minor == null
   ? "—"
@@ -19,28 +19,28 @@ const date = (value: string | null) => value
 
 const issueCopy: Record<DropshippingAttentionKind, Readonly<{ label: string; explanation: string }>> = {
   published_unavailable: {
-    label: "Published · unavailable",
-    explanation: "Το προϊόν είναι public αλλά το supplier cache το δείχνει μη διαθέσιμο. Το checkout εξακολουθεί να επανελέγχει τον supplier, όμως η storefront κατάσταση χρειάζεται έλεγχο."
+    label: "Δημοσιευμένο χωρίς διαθεσιμότητα",
+    explanation: "Το προϊόν είναι δημοσιευμένο, αλλά ο τελευταίος έλεγχος του προμηθευτή το δείχνει μη διαθέσιμο. Η διαθεσιμότητα ελέγχεται ξανά πριν από την αγορά, όμως χρειάζεται να ελέγξεις την τρέχουσα κατάσταση."
   },
   missing_cost: {
-    label: "Missing buying price",
-    explanation: "Δεν υπάρχει έγκυρη supplier buying price, άρα δεν μπορεί να υπολογιστεί ασφαλής αυτόματη τιμή."
+    label: "Λείπει τιμή αγοράς",
+    explanation: "Δεν υπάρχει έγκυρη τιμή αγοράς από τον προμηθευτή, επομένως δεν μπορεί να υπολογιστεί σωστά η τελική τιμή."
   },
   pricing_pending: {
-    label: "Pricing pending",
-    explanation: "Υπάρχει supplier buying price αλλά το προϊόν δεν έχει ακόμη ολοκληρώσει το NOVA V2 auto-pricing pass. Η αυτόματη δημοσίευση παραμένει fail-closed μέχρι να ολοκληρωθεί η τιμολόγηση."
+    label: "Η τιμή υπολογίζεται",
+    explanation: "Υπάρχει τιμή αγοράς, αλλά ο αυτόματος υπολογισμός της τελικής τιμής δεν έχει ολοκληρωθεί ακόμη. Το προϊόν δεν δημοσιεύεται αυτόματα μέχρι να ολοκληρωθεί ο έλεγχος."
   },
   stale_availability: {
-    label: "Stale availability",
-    explanation: "Η διαθεσιμότητα δεν έχει επαληθευτεί τις τελευταίες 24 ώρες. Έλεγξε πρώτα το feed health πριν αλλάξεις χειροκίνητα stock."
+    label: "Παλιός έλεγχος διαθεσιμότητας",
+    explanation: "Η διαθεσιμότητα δεν έχει επαληθευτεί τις τελευταίες 24 ώρες. Έλεγξε πρώτα την κατάσταση της ροής πριν αλλάξεις χειροκίνητα το απόθεμα."
   },
   withdrawn: {
-    label: "Removed by supplier",
-    explanation: "Το προϊόν εμφανίστηκε στο deleted feed του supplier και έχει αποσυρθεί αυτόματα από τη Dropshipping προσφορά."
+    label: "Αποσύρθηκε από τον προμηθευτή",
+    explanation: "Ο προμηθευτής έχει αποσύρει το προϊόν και η αντίστοιχη προσφορά dropshipping έχει απενεργοποιηθεί αυτόματα."
   },
   overpriced: {
-    label: "OVERPRICED",
-    explanation: "Η υπολογισμένη τιμή είναι πάνω από το supplier MSRP. Αυτό είναι diagnostic και δεν μπλοκάρει αυτόματα την τιμή, σύμφωνα με την ενεργή NOVA πολιτική."
+    label: "Υψηλή τελική τιμή",
+    explanation: "Η υπολογισμένη τελική τιμή είναι υψηλότερη από την προτεινόμενη τιμή του προμηθευτή. Η ένδειξη είναι ενημερωτική και χρειάζεται εμπορικό έλεγχο."
   }
 };
 
@@ -60,7 +60,7 @@ export default async function DropshippingAttentionPage() {
         <div className="eyebrow">Κέντρο dropshipping</div>
         <h1>Χρειάζονται προσοχή</h1>
         <p className="lead">Μία συγκεντρωτική ουρά για πραγματικά προβλήματα: δημοσιευμένα προϊόντα χωρίς διαθεσιμότητα, ελλιπείς τιμές αγοράς, εκκρεμή αυτόματη τιμολόγηση, παλιά στοιχεία διαθεσιμότητας, αποσύρσεις προμηθευτή και προϊόντα με ένδειξη υψηλής τιμής.</p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+        <div className="vendor-page-action-row">
           <Link className="button button-secondary" href="/vendor/dropshipping">← Dropshipping</Link>
           <Link className="button button-secondary" href="/vendor/dropshipping/health">Κατάσταση ροής</Link>
           <Link className="button button-secondary" href="/vendor/dropshipping/activity">Δραστηριότητα</Link>
@@ -69,29 +69,29 @@ export default async function DropshippingAttentionPage() {
     </section>
 
     <WorkspaceMetricStrip items={[
-      { label: "Public unavailable", value: counts.publishedUnavailable, tone: counts.publishedUnavailable ? "attention" : "positive" },
-      { label: "Missing cost", value: counts.missingCost, tone: counts.missingCost ? "attention" : "positive" },
-      { label: "Pricing pending", value: counts.pricingPending, tone: counts.pricingPending ? "attention" : "positive" },
-      { label: "Stale availability", value: counts.staleAvailability, tone: counts.staleAvailability ? "attention" : "positive" },
-      { label: "Supplier withdrawals", value: counts.withdrawn, tone: counts.withdrawn ? "attention" : "default" },
-      { label: "Active OVERPRICED", value: counts.overpriced, tone: counts.overpriced ? "attention" : "positive" }
+      { label: "Δημοσιευμένα χωρίς διαθεσιμότητα", value: counts.publishedUnavailable, tone: counts.publishedUnavailable ? "attention" : "positive" },
+      { label: "Χωρίς τιμή αγοράς", value: counts.missingCost, tone: counts.missingCost ? "attention" : "positive" },
+      { label: "Τιμή σε υπολογισμό", value: counts.pricingPending, tone: counts.pricingPending ? "attention" : "positive" },
+      { label: "Παλιός έλεγχος διαθεσιμότητας", value: counts.staleAvailability, tone: counts.staleAvailability ? "attention" : "positive" },
+      { label: "Αποσύρθηκαν από προμηθευτή", value: counts.withdrawn, tone: counts.withdrawn ? "attention" : "default" },
+      { label: "Υψηλή τελική τιμή", value: counts.overpriced, tone: counts.overpriced ? "attention" : "positive" }
     ]} />
 
     <section className="shell vendor-section">
       <WorkspaceSectionHeading
-        eyebrow="Review queue"
+        eyebrow="Προτεραιότητες"
         title="Προϊόντα που χρειάζονται έλεγχο"
-        note="Η σειρά δίνει προτεραιότητα σε public-but-unavailable, missing cost, pricing pending και stale availability. Supplier withdrawals και OVERPRICED diagnostics ακολουθούν."
+        note="Πρώτα εμφανίζονται τα προϊόντα που μπορούν να επηρεάσουν άμεσα τη διαθεσιμότητα ή την τιμή. Οι αποσύρσεις προμηθευτή και οι ενδείξεις υψηλής τιμής ακολουθούν."
       />
 
-      <div style={{ display: "grid", gap: 12 }}>
+      <div className="workspace-queue-list">
         {workspace.items.map((item) => {
           const issue = issueCopy[item.kind];
           return <article className="workspace-queue-card" key={`${item.kind}:${item.offerId}`}>
             <div className="workspace-queue-head">
               <div>
                 <strong>{item.title}</strong>
-                <small>{item.supplierName} · update {date(item.updatedAt)}</small>
+                <small>{item.supplierName} · ενημέρωση {date(item.updatedAt)}</small>
               </div>
               <span className="vendor-merchant-status">{issue.label}</span>
             </div>
@@ -115,7 +115,7 @@ export default async function DropshippingAttentionPage() {
 
         {!workspace.items.length ? <article className="workspace-queue-card">
           <strong>Δεν υπάρχει κάτι που να χρειάζεται άμεσο έλεγχο.</strong>
-          <p>Τα ροές προμηθευτών, τιμές αγοράς, αυτόματη τιμολόγηση, διαθεσιμότητα και ενεργές ενδείξεις τιμής δεν έχουν αυτή τη στιγμή εκκρεμότητα που απαιτεί ενέργεια.</p>
+          <p>Οι ροές προμηθευτών, οι τιμές αγοράς, η αυτόματη τιμολόγηση και η διαθεσιμότητα δεν έχουν αυτή τη στιγμή εκκρεμότητα που απαιτεί ενέργεια.</p>
         </article> : null}
       </div>
     </section>

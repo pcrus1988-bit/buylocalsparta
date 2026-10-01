@@ -178,7 +178,7 @@ export function VendorReturnsClient({ initial }: { initial: Workspace }) {
           </section>}
 
           <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη">
-            <div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Return ID</strong><span className="vendor-technical-id">{item.id}</span></div><div className="workspace-compact-row"><strong>Order</strong><span className="vendor-technical-id">{item.orderId}</span></div><div className="workspace-compact-row"><strong>Product reference</strong><span className="vendor-technical-id">{item.canonicalVariantId}</span></div>{item.authorization && <div className="workspace-compact-row"><strong>{item.authorization.rmaCode}</strong><span>{item.authorization.instructions}</span></div>}</div>
+            <div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Κωδικός επιστροφής</strong><span className="vendor-technical-id">{item.id}</span></div><div className="workspace-compact-row"><strong>Παραγγελία</strong><span className="vendor-technical-id">{item.orderId}</span></div><div className="workspace-compact-row"><strong>Κωδικός προϊόντος</strong><span className="vendor-technical-id">{item.canonicalVariantId}</span></div>{item.authorization && <div className="workspace-compact-row"><strong>{item.authorization.rmaCode}</strong><span>{item.authorization.instructions}</span></div>}</div>
           </WorkspaceRecordDetails>
         </article>;
       })}</div>}

@@ -33,7 +33,7 @@ if (vendorNavigation.includes('label: "Εργαλεία HUB"')) failures.push("V
 requireText("apps/web/src/app/vendor/settings/page.tsx", ["Όλα τα βασικά του καταστήματός σου σε ένα σημείο", "/vendor/storefront", "/vendor/preview", "/vendor/finance"]);
 requireText("apps/web/src/app/vendor/preview/page.tsx", ["VendorWorkspaceHeader", "ΙΔΙΩΤΙΚΗ ΠΡΟΕΠΙΣΚΟΠΗΣΗ"]);
 const vendorHeader = read("apps/web/src/components/VendorWorkspaceHeader.tsx");
-for (const requirement of ["VENDOR_WORKSPACE_NAVIGATION", "WorkspaceNavigation", "aria-expanded={menuOpen}", "workspace-menu-toggle", 'fetch("/api/vendor/auth-context"', 'fetch("/api/vendor/logout"', "x-csrf-token"]) if (!vendorHeader.includes(requirement)) failures.push(`Vendor shell is missing ${requirement}`);
+for (const requirement of ["VENDOR_WORKSPACE_NAVIGATION", "WorkspaceNavigation", "aria-expanded={menuOpen}", "workspace-menu-toggle", 'fetch("/api/vendor/auth-context"', 'fetch("/api/vendor/logout"', "x-csrf-token", "usePathname", 'body.style.overflow = "hidden"', 'event.key !== "Escape"', "setMenuOpen(false)", "setTrialGuideOpen(false)"]) if (!vendorHeader.includes(requirement)) failures.push(`Vendor shell is missing ${requirement}`);
 if (vendorHeader.includes('fetch("/api/vendor/session"')) failures.push("Vendor shell must not load the full vendor dashboard just to resolve navigation auth context");
 
 requireText("apps/web/src/components/AdminDomainNavigation.tsx", ["usePathname", "AdminDomainNavigation", "AdminContextNavigation", "AdminBreadcrumbs", "entityLabel", 'from "next/link"', 'aria-current={active ? "page"', "admin-domain-badge", '"99+"']);
@@ -58,7 +58,39 @@ const accountStyles = read("apps/web/src/components/CustomerAccountExperience.mo
 for (const requirement of [".priorityGrid", ".trackerCard", ".askLocalCard", ".secondaryDetails", "@media (max-width: 620px)"]) if (!accountStyles.includes(requirement)) failures.push(`Customer account experience styles are missing ${requirement}`);
 
 const vendorIaCss = read("apps/web/src/app/vendor-information-architecture.css");
-for (const requirement of [".vendor-settings-grid", ".vendor-subpage-back", ".vendor-app .workspace-page-metrics", ".vendor-app .workspace-form-actions", "@media(max-width:620px)"]) if (!vendorIaCss.includes(requirement)) failures.push(`Vendor subpage polish is missing ${requirement}`);
+for (const requirement of [".vendor-settings-grid", ".vendor-subpage-back", ".vendor-app .workspace-page-metrics", ".vendor-app .workspace-form-actions", "@media(max-width:620px)", "Complete vendor mobile workspace pass", "height: 100dvh", "min-height: 52px", "overflow-x: clip", "grid-template-columns: 1fr"]) if (!vendorIaCss.includes(requirement)) failures.push(`Vendor subpage polish is missing ${requirement}`);
+
+const vendorDomainNav = read("apps/web/src/components/VendorDomainNavigation.tsx");
+for (const requirement of ["useRef", "scrollIntoView", '[aria-current="page"]', 'inline: "center"']) if (!vendorDomainNav.includes(requirement)) failures.push(`Vendor mobile context navigation is missing ${requirement}`);
+
+const vendorLifecycleCss = read("apps/web/src/app/vendor-lifecycle.css");
+for (const requirement of ["Phone ergonomics for vendor operational lifecycles", "@media(max-width:620px)", "width:32px", "font-size:13px"]) if (!vendorLifecycleCss.includes(requirement)) failures.push(`Vendor mobile lifecycle polish is missing ${requirement}`);
+
+const vendorCatalogMobileCss = read("apps/web/src/components/VendorCatalogClient.module.css");
+for (const requirement of ["Narrow-phone catalogue controls", "@media(max-width:420px)", ".stockEditor{grid-template-columns:1fr}", ".productHead{grid-template-columns:1fr}"]) if (!vendorCatalogMobileCss.includes(requirement)) failures.push(`Vendor mobile catalogue polish is missing ${requirement}`);
+
+for (const requirement of ["description: \"Σήμερα, εκκρεμότητες και γρήγορες ενέργειες\"", 'label: "Όλες"', 'label: "Εμφάνιση στη Google"']) if (!vendorNavigation.includes(requirement)) failures.push(`Vendor navigation clarity is missing ${requirement}`);
+for (const requirement of ["vendor-domain-copy", "group.description"]) if (!vendorDomainNav.includes(requirement)) failures.push(`Vendor guided navigation is missing ${requirement}`);
+for (const requirement of ["Vendor UX consolidation — one visual language", ".vendor-settings-card", ".vendor-page-action-row", ".vendor-card-grid"]) if (!vendorIaCss.includes(requirement)) failures.push(`Vendor UX consolidation is missing ${requirement}`);
+
+const vendorSettingsPage = read("apps/web/src/app/vendor/settings/page.tsx");
+for (const requirement of ["vendor-settings-card", "Εμφάνιση στη Google", "Ρύθμιση εμφάνισης"]) if (!vendorSettingsPage.includes(requirement)) failures.push(`Vendor settings clarity is missing ${requirement}`);
+
+const vendorTrialPage = read("apps/web/src/app/vendor/trial/page.tsx");
+for (const requirement of ["Συνέχισε το βήμα", "tourDisclosureSummary", "<details className={styles.guideTour}"]) if (!vendorTrialPage.includes(requirement)) failures.push(`Vendor trial simplification is missing ${requirement}`);
+
+const vendorPlainLanguageFiles = [
+  "apps/web/src/app/vendor/orders/page.tsx",
+  "apps/web/src/app/vendor/dropshipping/attention/page.tsx",
+  "apps/web/src/components/VendorProductFeedClient.tsx",
+  "apps/web/src/components/VendorCatalogClient.tsx"
+] as const;
+for (const vendorPath of vendorPlainLanguageFiles) {
+  const source = read(vendorPath);
+  for (const forbidden of ["Review queue", "Published · unavailable", "Field mapping", ">Upload XML</button>", "status σε ένα σημείο", "Χρησιμοποίησε τα tabs", "XML Feed / Product Import", "live canonical matching", "canonical προϊόν", "Φυσικό stock", "<strong>Offer</strong>", "<strong>Product reference</strong>"]) {
+    if (source.includes(forbidden)) failures.push(`Vendor UI still exposes technical wording ${forbidden} in ${vendorPath}`);
+  }
+}
 
 for (const path of [
   "apps/web/src/app/vendor/orders/page.tsx",
@@ -105,6 +137,38 @@ const vendorDashboard = read("apps/web/src/components/VendorDashboardClient.tsx"
 for (const destination of ["/vendor/catalog", "/vendor/shipping", "/vendor/returns", "/vendor/trust", "/vendor/advice", "/vendor/finance"]) if (!vendorDashboard.includes(`href: "${destination}"`)) failures.push(`Vendor dashboard is missing task path ${destination}`);
 if (!vendorDashboard.includes('density="compact"')) failures.push("Vendor dashboard quick actions must use compact density");
 if (vendorDashboard.includes('fetch("/api/vendor/logout"')) failures.push("Vendor logout must stay in the shared header");
+
+
+for (const forbidden of ['kicker: "Catalog"', 'kicker: "Fulfilment"', '<div className="eyebrow">Fulfilment</div>', '<div className="eyebrow">Inventory</div>', "<dt>Safety stock</dt>", ">On hand</label>", "invoice matching", "settlement controls"]) {
+  if (vendorDashboard.includes(forbidden)) failures.push(`Vendor home still exposes system wording ${forbidden}`);
+}
+
+const vendorDailyAccess = read("apps/web/src/components/VendorDailyAccessClient.tsx");
+if (vendorDailyAccess.includes("<VendorLifecycle")) failures.push("Vendor Daily access must not show redundant lifecycle strips");
+for (const requirement of ["Τι μπορεί να κάνει;", "Ποιος έχει πρόσβαση", "Συνδεδεμένες συσκευές / συνεδρίες"]) if (!vendorDailyAccess.includes(requirement)) failures.push(`Vendor Daily access simplification is missing ${requirement}`);
+
+const vendorStorefrontBuilder = read("apps/web/src/components/VendorStorefrontBuilder.tsx");
+for (const requirement of ["styles.editorGroup", "Ενότητες προφίλ", "Προαιρετική σύνδεση αναρτήσεων και Reels", "Ιδιωτική προεπισκόπηση"]) if (!vendorStorefrontBuilder.includes(requirement)) failures.push(`Vendor storefront progressive disclosure is missing ${requirement}`);
+
+const vendorDeliveryEligibility = read("apps/web/src/components/VendorDeliveryEligibilityPanel.tsx");
+for (const forbidden of ["Φορτώνονται μόνο <strong>{PAGE_SIZE}</strong>", "Αναζήτηση και φίλτρα εκτελούνται στη βάση", "δεν κατεβάζει πλέον όλο τον κατάλογο"]) if (vendorDeliveryEligibility.includes(forbidden)) failures.push(`Vendor delivery modes still expose implementation detail ${forbidden}`);
+for (const requirement of ["Εφαρμογή σε πολλά προϊόντα", "Δικές σου ρυθμίσεις", "Επίλεξε τα εμφανιζόμενα"]) if (!vendorDeliveryEligibility.includes(requirement)) failures.push(`Vendor delivery modes clarity is missing ${requirement}`);
+
+const vendorSmartProductForm = read("apps/web/src/components/VendorSmartProductForm.tsx");
+for (const forbidden of ["canonical προϊόν", "canonical παραλλαγής", "canonical matching"]) if (vendorSmartProductForm.includes(forbidden)) failures.push(`Vendor product form still exposes catalogue internals ${forbidden}`);
+
+const dropshippingFields = read("apps/web/src/components/DropshippingProductFieldControls.tsx");
+for (const forbidden of ["Public fields", "Save override", "Use supplier defaults", "product override", "supplier defaults"]) if (dropshippingFields.includes(forbidden)) failures.push(`Dropshipping product fields still expose internal wording ${forbidden}`);
+for (const requirement of ["Στοιχεία που εμφανίζονται στον πελάτη", "Αποθήκευση ειδικών ρυθμίσεων", "Χρήση γενικών ρυθμίσεων"]) if (!dropshippingFields.includes(requirement)) failures.push(`Dropshipping product field UX is missing ${requirement}`);
+
+const vendorArchivedProducts = read("apps/web/src/components/VendorArchivedProductsPanel.tsx");
+for (const forbidden of ["Αρχείο Admin", "στον Admin"]) if (vendorArchivedProducts.includes(forbidden)) failures.push(`Archived product recovery still exposes admin wording ${forbidden}`);
+
+const vendorPriceManager = read("apps/web/src/components/VendorPriceManager.tsx");
+for (const forbidden of [">Markup</label>", "backoffice", "στο checkout", "στον server"]) if (vendorPriceManager.includes(forbidden)) failures.push(`Vendor price manager still exposes technical wording ${forbidden}`);
+for (const requirement of ["αγορά → περιθώριο → έκπτωση", "Τι θα βλέπει ο πελάτης:", "Εμφάνιση προτεινόμενης λιανικής στο κατάστημα"]) if (!vendorPriceManager.includes(requirement)) failures.push(`Vendor pricing UX is missing ${requirement}`);
+
+for (const requirement of ['eyebrow="Συνεργασία"', "Εμφάνιση στη Google", "Ρύθμιση εμφάνισης"]) if (!vendorSettingsPage.includes(requirement)) failures.push(`Vendor settings index second-pass polish is missing ${requirement}`);
 
 requireText("apps/web/src/app/admin/page.tsx", ["AdminDashboardCanvas", 'id: "attention"', "totalAttention", 'kind: "metric"', "/admin/partners/pipeline", "/admin/matching", "/admin/trust", "/admin/finance", "/admin/fairness"]);
 requireText("apps/web/src/components/AdminDashboardCanvas.tsx", ["STORAGE_KEY", "defaultLayout", "mergeLayout", "saveCurrentView", "resetLayout", "widgetQuery", "admin-dashboard-canvas", "admin-dashboard-widget-stats", "admin-dashboard-widget-list", "admin-dashboard-widget-controls"]);
