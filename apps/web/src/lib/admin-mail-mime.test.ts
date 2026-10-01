@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildRawEmail, parseRawEmail } from "./admin-mail-mime.ts";
+import { buildAdminMailRawMime, parseAdminMailMime } from "./admin-mail-mime.ts";
 
 test("parses SES inbound headers and a plain text message", () => {
   const raw = [
@@ -17,11 +17,11 @@ test("parses SES inbound headers and a plain text message", () => {
     "Hello from the inbound mailbox."
   ].join("\r\n");
 
-  const parsed = parseRawEmail(raw);
-  assert.equal(parsed.messageId, "<incoming-1@example.com>");
+  const parsed = parseAdminMailMime(raw);
+  assert.equal(parsed.internetMessageId, "<incoming-1@example.com>");
   assert.equal(parsed.subject, "Hello KONTA MOU");
-  assert.match(parsed.from, /sender@example\.com/);
-  assert.deepEqual(parsed.to, ["partners@kontamou.site"]);
+  assert.equal(parsed.from.address, "sender@example.com");
+  assert.deepEqual(parsed.to.map((entry) => entry.address), ["partners@kontamou.site"]);
   assert.equal(parsed.text, "Hello from the inbound mailbox.");
   assert.equal(parsed.headers["x-ses-spam-verdict"], "PASS");
   assert.equal(parsed.headers["x-ses-virus-verdict"], "PASS");
@@ -29,19 +29,19 @@ test("parses SES inbound headers and a plain text message", () => {
 
 test("builds a unicode reply with attachment that can be parsed again", () => {
   const attachment = new TextEncoder().encode("attachment body");
-  const built = buildRawEmail({
-    from: "=?UTF-8?B?zprOm86dzqTOkSDOnM6fzqU=?= <partners@kontamou.site>",
-    to: ["customer@example.com"],
-    cc: ["copy@example.com"],
+  const built = buildAdminMailRawMime({
+    from: { name: "ΚΟΝΤΑ ΜΟΥ", address: "partners@kontamou.site" },
+    to: [{ address: "customer@example.com" }],
+    cc: [{ address: "copy@example.com" }],
     subject: "Απάντηση για τη συνεργασία",
     text: "Καλημέρα!\n\nΕυχαριστούμε για το μήνυμα.",
     inReplyTo: "<incoming-1@example.com>",
     references: ["<older@example.com>", "<incoming-1@example.com>"],
-    messageIdDomain: "kontamou.site",
+    internetMessageIdDomain: "kontamou.site",
     attachments: [{ filename: "details.txt", contentType: "text/plain", bytes: attachment }]
   });
 
-  const parsed = parseRawEmail(built.raw);
+  const parsed = parseAdminMailMime(built.raw);
   assert.equal(parsed.subject, "Απάντηση για τη συνεργασία");
   assert.equal(parsed.inReplyTo, "<incoming-1@example.com>");
   assert.deepEqual(parsed.references, ["<older@example.com>", "<incoming-1@example.com>"]);
