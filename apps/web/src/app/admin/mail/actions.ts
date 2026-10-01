@@ -7,10 +7,13 @@ import { assertAdminCsrf, assertAdminPermission, recordAdminAudit } from "../../
 import { productionDatabaseConfigured } from "../../../lib/postgres-runtime";
 import {
   archiveAdminMail,
+  bulkAdminMail,
+  deleteAdminMail,
   markAdminMailRead,
   sendAdminMail,
   starAdminMail,
-  syncAdminInboundMail
+  syncAdminInboundMail,
+  type AdminMailBulkAction
 } from "../../../lib/admin-mail-runtime";
 
 const text = (value: FormDataEntryValue | null): string => typeof value === "string" ? value : "";
@@ -28,6 +31,12 @@ function safeMessageId(value: string): string {
   const id = value.trim();
   if (!/^mail_[a-f0-9]{32}$/i.test(id)) throw new Error("Invalid mail message id");
   return id;
+}
+
+function safeBulkAction(value: string): AdminMailBulkAction {
+  if (value === "read" || value === "unread" || value === "star" || value === "unstar" ||
+      value === "archive" || value === "inbox" || value === "trash" || value === "restore") return value;
+  throw new Error("Choose a valid bulk action");
 }
 
 function redirectWithError(error: unknown, compose = false): never {
@@ -129,5 +138,39 @@ export async function toggleArchiveMailAction(formData: FormData) {
   const next = text(formData.get("value")) === "true";
   await archiveAdminMail(principal, messageId, next);
   await recordAdminAudit(principal, next ? "admin_mail.archived" : "admin_mail.restored", "admin_mail_message", messageId, "Admin mailbox state change");
+  revalidatePath("/admin/mail");
+}
+
+
+export async function toggleDeleteMailAction(formData: FormData) {
+  const principal = await requireMailAdmin(text(formData.get("csrfToken")));
+  const messageId = safeMessageId(text(formData.get("messageId")));
+  const next = text(formData.get("value")) === "true";
+  await deleteAdminMail(principal, messageId, next);
+  await recordAdminAudit(
+    principal,
+    next ? "admin_mail.trashed" : "admin_mail.restored_from_trash",
+    "admin_mail_message",
+    messageId,
+    "Admin mailbox trash state change"
+  );
+  revalidatePath("/admin/mail");
+}
+
+export async function bulkMailAction(formData: FormData) {
+  const principal = await requireMailAdmin(text(formData.get("csrfToken")));
+  const action = safeBulkAction(text(formData.get("bulkAction")));
+  const ids = formData.getAll("messageIds")
+    .filter((value): value is string => typeof value === "string")
+    .map(safeMessageId);
+  const count = await bulkAdminMail(principal, ids, action);
+  await recordAdminAudit(
+    principal,
+    `admin_mail.bulk.${action}`,
+    "admin_mailbox",
+    "selection",
+    "Admin mailbox bulk action",
+    { action, count, messageIds: ids.slice(0, 120) }
+  );
   revalidatePath("/admin/mail");
 }
