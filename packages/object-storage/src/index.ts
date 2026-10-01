@@ -8,6 +8,7 @@ export type ObjectStorageConfig = Readonly<{
   forcePathStyle?: boolean;
   accessKeyId?: string;
   secretAccessKey?: string;
+  sessionToken?: string;
   uploadTtlSeconds: number;
 }>;
 
@@ -23,7 +24,7 @@ export class S3ObjectStorage {
 
   constructor(config: ObjectStorageConfig) {
     this.#config = config;
-    const credentials = config.accessKeyId && config.secretAccessKey ? { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey } : undefined;
+    const credentials = config.accessKeyId && config.secretAccessKey ? { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey, ...(config.sessionToken ? { sessionToken: config.sessionToken } : {}) } : undefined;
     const clientConfig: S3ClientConfig = { region: config.region, endpoint: config.endpoint, forcePathStyle: config.forcePathStyle, credentials };
     this.#client = new S3Client(clientConfig);
   }
@@ -126,6 +127,7 @@ export function objectStorageConfigFromEnv(env: NodeJS.ProcessEnv = process.env)
     || undefined;
   if ((accessKeyId && !secretAccessKey) || (!accessKeyId && secretAccessKey)) throw new Error("Object storage access key and secret must be configured together");
 
+  const sessionToken = env.AWS_SESSION_TOKEN?.trim() || undefined;
   const endpoint = env.BLS_OBJECT_STORAGE_ENDPOINT?.trim() || env.OBJECT_STORAGE_ENDPOINT?.trim() || undefined;
   const forcePathStyleRaw = env.BLS_OBJECT_STORAGE_FORCE_PATH_STYLE?.trim();
   if (forcePathStyleRaw && forcePathStyleRaw !== "true" && forcePathStyleRaw !== "false") {
@@ -142,6 +144,7 @@ export function objectStorageConfigFromEnv(env: NodeJS.ProcessEnv = process.env)
     forcePathStyle,
     accessKeyId,
     secretAccessKey,
+    sessionToken,
     uploadTtlSeconds: integer(env.BLS_MEDIA_UPLOAD_TTL_SECONDS, 900)
   };
 }
