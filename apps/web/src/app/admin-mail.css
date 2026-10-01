@@ -306,3 +306,116 @@
   .admin-mail-bulk-head{align-items:flex-start}
   .admin-mail-bulk-head .admin-mail-bulk-label{width:100%}
 }
+
+
+/* Admin Mail scrolling + page-size reliability */
+.admin-mail-shell{
+  height:clamp(560px,72dvh,760px);
+  min-height:0;
+  max-height:none;
+  align-items:stretch;
+}
+.admin-mail-list-pane{
+  display:flex;
+  flex-direction:column;
+  height:100%;
+  min-height:0;
+  overflow:hidden;
+}
+.admin-mail-list-head,
+.admin-mail-bulk,
+.admin-mail-pagination{
+  flex:0 0 auto;
+}
+.admin-mail-list{
+  flex:1 1 0;
+  min-height:0;
+  max-height:none;
+  overflow-y:auto!important;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+}
+.admin-mail-reader{
+  display:flex;
+  flex-direction:column;
+  height:100%;
+  min-height:0;
+  overflow:hidden;
+}
+.admin-mail-thread-head{
+  flex:0 0 auto;
+}
+.admin-mail-thread{
+  flex:1 1 0;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+}
+.admin-mail-page-size-select{
+  display:flex;
+  align-items:center;
+  gap:.45rem;
+  flex:0 0 auto;
+}
+.admin-mail-page-size-select>span{
+  font-size:.62rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  color:var(--muted,#657068);
+  white-space:nowrap;
+}
+.admin-mail-page-size-select select{
+  min-width:72px;
+  min-height:34px;
+  padding:.4rem 1.8rem .4rem .55rem;
+  border:1px solid var(--line,#d8dfda);
+  border-radius:9px;
+  background:var(--surface,#fff);
+  color:inherit;
+  font:inherit;
+  font-size:.72rem;
+  font-weight:750;
+  cursor:pointer;
+}
+.admin-mail-page-size-select select:disabled{
+  opacity:.65;
+  cursor:wait;
+}
+
+@media (max-width:1020px){
+  .admin-mail-shell{
+    height:auto;
+    min-height:0;
+    max-height:none;
+  }
+  .admin-mail-list-pane{
+    height:auto;
+    overflow:visible;
+  }
+  .admin-mail-list{
+    flex:none;
+    max-height:58vh;
+    overflow-y:auto!important;
+  }
+  .admin-mail-reader{
+    height:auto;
+    min-height:420px;
+    overflow:visible;
+  }
+  .admin-mail-thread{
+    max-height:58vh;
+    overflow-y:auto;
+  }
+}
+@media (max-width:620px){
+  .admin-mail-list-head{
+    align-items:center;
+  }
+  .admin-mail-page-size-select{
+    width:auto;
+  }
+}
