@@ -48,6 +48,8 @@ export type VendorAgreementPdfData = Readonly<{
   govgrReference?: string;
 }>;
 
+export const VENDOR_AGREEMENT_TEMPLATE_REVISION = "KM-VENDOR-2026-10-V2";
+
 export const KONTA_MOY_LEGAL_DETAILS = Object.freeze({
   legalName: "SP BUSINESS LAB – ΠΟΛΙΑΚΟΦ ΣΤΑΝΙΣΛΑΒ",
   brand: "KONTA MOY",
@@ -118,6 +120,7 @@ export function buildVendorAgreementDocument(data: VendorAgreementPdfData): Reco
         body: [
           ["Κωδικός Συμφωνίας", data.agreementCode],
           ["Έκδοση", `v${data.agreementVersion}`],
+          ["Έκδοση προτύπου", VENDOR_AGREEMENT_TEMPLATE_REVISION],
           ["Ημερομηνία δημιουργίας", date(data.createdAt)],
           ["Ημερομηνία έναρξης", date(data.startsAt)],
           ["Reference gov.gr", agreementReference]
