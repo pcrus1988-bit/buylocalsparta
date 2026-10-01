@@ -71,14 +71,18 @@ const fieldLabels: ReadonlyArray<[keyof VendorXmlFieldMapping, string]> = [
   ["model", "Μοντέλο"],
   ["mpn", "MPN"],
   ["gtin", "EAN / GTIN"],
-  ["price", "Τιμή"],
+  ["price", "Τελική τιμή πώλησης"],
   ["currency", "Νόμισμα"],
   ["stock", "Απόθεμα"],
   ["availability", "Availability"],
   ["categoryCode", "KONTA MOU category code"],
   ["sourceCategory", "Κατηγορία XML"],
   ["imageUrl", "Κύρια εικόνα"],
+  ["additionalImageUrl", "Επιπλέον εικόνες"],
   ["productUrl", "Product URL"],
+  ["itemGroupId", "Ομάδα / parent προϊόντος"],
+  ["size", "Μέγεθος"],
+  ["color", "Χρώμα"],
   ["condition", "Κατάσταση"]
 ];
 
