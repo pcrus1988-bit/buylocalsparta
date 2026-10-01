@@ -353,8 +353,7 @@ export async function saveVendorProductFeed(
         "vendor_sku=COALESCE(i.vendor_sku,s.vendor_sku),supplier_unit_price_minor=(i.source_payload->>'priceMinor')::bigint,",
         "stock_on_hand=(i.source_payload->>'stockOnHand')::integer,source_payload=i.source_payload||jsonb_build_object('feedId',$2::text,'feedExternalId',i.external_product_id),",
         "category_id=COALESCE((SELECT c.id FROM categories c WHERE c.code=i.source_payload->>'categoryCode'",
-        "AND (c.market_id IS NULL OR c.market_id=$3::uuid) ORDER BY c.market_id NULLS LAST LIMIT 1),s.category_id),",
-        "status=CASE WHEN s.status='draft' THEN 'submitted' ELSE s.status END,updated_at=now()",
+        "AND (c.market_id IS NULL OR c.market_id=$3::uuid) ORDER BY c.market_id NULLS LAST LIMIT 1),s.category_id),updated_at=now()",
         "FROM vendor_product_feed_items i WHERE i.feed_id=$1::uuid AND i.state='present' AND i.offer_id IS NULL",
         "AND i.submission_id=s.id AND s.vendor_id=$4::uuid AND s.status IN ('draft','submitted','needs_review','rejected','linked') RETURNING s.id"
       ), [feedUuid, feedPublicId, marketUuid, vendorUuid]);
@@ -366,7 +365,7 @@ export async function saveVendorProductFeed(
         "jsonb_strip_nulls(jsonb_build_object('title',i.source_payload->>'title','brand',i.source_payload->>'brand','model',i.source_payload->>'model',",
         "'mpn',i.source_payload->>'mpn','gtin',i.gtin,'condition',COALESCE(i.source_payload->>'condition','new'))),",
         "(i.source_payload->>'priceMinor')::bigint,'EUR',2400,(i.source_payload->>'stockOnHand')::integer,0,ARRAY['pickup']::fulfilment_mode[],true,'api',",
-        "i.source_payload||jsonb_build_object('feedId',$5::text,'feedExternalId',i.external_product_id),'submitted',$6::uuid,now(),now()",
+        "i.source_payload||jsonb_build_object('feedId',$5::text,'feedExternalId',i.external_product_id),'draft',$6::uuid,now(),now()",
         "FROM vendor_product_feed_items i",
         "JOIN LATERAL (SELECT c.id FROM categories c WHERE c.code=i.source_payload->>'categoryCode'",
         "AND (c.market_id IS NULL OR c.market_id=$2::uuid) ORDER BY c.market_id NULLS LAST LIMIT 1) c ON true",
