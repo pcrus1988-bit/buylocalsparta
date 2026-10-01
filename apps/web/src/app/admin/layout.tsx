@@ -28,6 +28,7 @@ import "../admin-platform-operational.css";
 import "../admin-launchcontrol.css";
 import "../admin-assistant.css";
 import "../admin-power-ux.css";
+import "../admin-mail.css";
 import { AdminAssistantShell } from "../../components/AdminAssistantShell";
 import { ScopedPwaInstallClient } from "../../components/ScopedPwaInstallClient";
 import { adminAssistantEnabled } from "../../lib/admin-assistant/config";
