@@ -85,6 +85,7 @@ CREATE TABLE public.vendor_product_feed_items (
   source_payload jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(source_payload)='object'),
   submission_id uuid REFERENCES public.vendor_product_submissions(id),
   canonical_variant_id uuid REFERENCES public.canonical_variants(id),
+  offer_id uuid REFERENCES public.vendor_offers(id),
   state text NOT NULL DEFAULT 'present' CHECK (state IN ('present','missing','retired','invalid')),
   consecutive_missing integer NOT NULL DEFAULT 0 CHECK (consecutive_missing >= 0),
   last_validation_errors jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(last_validation_errors)='array'),
@@ -100,6 +101,9 @@ CREATE INDEX vendor_product_feed_items_vendor_state_idx
 CREATE INDEX vendor_product_feed_items_submission_idx
   ON public.vendor_product_feed_items(submission_id)
   WHERE submission_id IS NOT NULL;
+CREATE INDEX vendor_product_feed_items_offer_idx
+  ON public.vendor_product_feed_items(offer_id)
+  WHERE offer_id IS NOT NULL;
 CREATE INDEX vendor_product_feed_items_vendor_sku_idx
   ON public.vendor_product_feed_items(vendor_id,vendor_sku)
   WHERE vendor_sku IS NOT NULL;
