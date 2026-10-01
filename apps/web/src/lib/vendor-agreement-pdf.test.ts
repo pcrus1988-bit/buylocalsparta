@@ -40,6 +40,7 @@ test("vendor agreement v2 contains current commerce workflows and HUB evidence",
     "Vendor Daily",
     "ΠΑΡΑΡΤΗΜΑ Δ – ΦΟΡΟΛΟΓΙΚΗ ΡΟΗ / AADE / ΠΑΡΑΣΤΑΤΙΚΑ",
     "ΠΑΡΑΡΤΗΜΑ Ε – HUB / ΠΡΟΓΡΑΜΜΑ / ΛΕΙΤΟΥΡΓΙΚΕΣ ΔΥΝΑΤΟΤΗΤΕΣ",
+    "KM-VENDOR-2026-10-V2",
     "KM-HUB-019",
     "Καλαμάτα",
     "GROWTH"
