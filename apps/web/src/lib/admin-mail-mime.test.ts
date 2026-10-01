@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildRawEmail, parseRawEmail } from "./admin-mail-mime";
+import { buildRawEmail, parseRawEmail } from "./admin-mail-mime.ts";
 
 test("parses SES inbound headers and a plain text message", () => {
   const raw = [
