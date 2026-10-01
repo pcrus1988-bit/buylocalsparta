@@ -58,3 +58,5 @@ jobs:
         run: node --experimental-strip-types --test apps/web/src/lib/admin-mail-mime.test.ts
       - name: Web TypeScript
         run: npx tsc --noEmit -p apps/web/tsconfig.json
+      - name: Build Admin web
+        run: npm run build --workspace apps/web
