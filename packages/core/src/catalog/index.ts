@@ -11,5 +11,6 @@ export {
 } from "./management.ts";
 export { CatalogManagementService } from "./management-compat.ts";
 export * from "./import.ts";
+export * from "./xml-feed.ts";
 export * from "./governance.ts";
 export * from "./colors.ts";
