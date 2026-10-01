@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { HubBillingCycle, HubExpansionPlanCode } from "../lib/hub-expansion-plans";
 import styles from "./HubExpansionApplicationForm.module.css";
 
 type LookupStage = "afm" | "loading" | "matched";
+
+const JOIN_AFM_STORAGE_KEY = "kontamou:vendor-join-afm";
 
 type GemiCompany = Readonly<{
   afm: string;
@@ -72,8 +74,25 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
   const [hub, setHub] = useState<ResolvedHub>();
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState<Receipt>();
+  const restoredAfmRef = useRef(false);
 
-  async function lookupCompany() {
+  useEffect(() => {
+    if (restoredAfmRef.current) return;
+    restoredAfmRef.current = true;
+    const storedAfm = (sessionStorage.getItem(JOIN_AFM_STORAGE_KEY) ?? "").replace(/\\D/g, "").slice(0, 9);
+    if (storedAfm.length !== 9) return;
+    setTaxNumber(storedAfm);
+    void lookupCompany(storedAfm);
+  }, []);
+
+  async function lookupCompany(afmOverride?: string) {
+    const candidateAfm = (afmOverride ?? taxNumber).replace(/\D/g, "").slice(0, 9);
+    if (candidateAfm.length !== 9) {
+      setLookupError("Το ΑΦΜ πρέπει να έχει 9 ψηφία.");
+      setLookupStage("afm");
+      return;
+    }
+    setTaxNumber(candidateAfm);
     setLookupError("");
     setError("");
     setLookupStage("loading");
@@ -81,7 +100,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
       const response = await fetch("/api/hubs/resolve-company-by-afm", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ afm: taxNumber })
+        body: JSON.stringify({ afm: candidateAfm })
       });
       const data = await response.json() as {
         company?: GemiCompany;
@@ -99,6 +118,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
       setCompany(data.company);
       setHub(data.hub);
       setTaxNumber(data.company.afm);
+      sessionStorage.setItem(JOIN_AFM_STORAGE_KEY, data.company.afm);
       setLookupStage("matched");
     } catch (cause) {
       setCompany(undefined);
@@ -113,6 +133,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
     setHub(undefined);
     setLookupError("");
     setError("");
+    sessionStorage.removeItem(JOIN_AFM_STORAGE_KEY);
     setLookupStage("afm");
   }
 
@@ -151,6 +172,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle }: Props) {
       ) {
         throw new Error("Η αίτηση καταχωρίστηκε αλλά δεν επιστράφηκε έγκυρη απόδειξη.");
       }
+      sessionStorage.removeItem(JOIN_AFM_STORAGE_KEY);
       setReceipt({
         reference: result.reference,
         status: "pending",
