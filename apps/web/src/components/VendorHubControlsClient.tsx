@@ -102,7 +102,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
 
   async function saveSeo(locale: "el" | "en") {
     const value = seo[locale];
-    const payload = await call(`seo:${locale}`, "/api/vendor/hub/seo", "PUT", value, locale === "el" ? "Τα ελληνικά SEO/source στοιχεία αποθηκεύτηκαν." : "Τα αγγλικά SEO/source στοιχεία αποθηκεύτηκαν.");
+    const payload = await call(`seo:${locale}`, "/api/vendor/hub/seo", "PUT", value, locale === "el" ? "Τα ελληνικά στοιχεία SEO αποθηκεύτηκαν." : "Τα αγγλικά στοιχεία SEO αποθηκεύτηκαν.");
     if (payload) setSeo((current) => ({ ...current, [locale]: { ...payload.seo[locale] } }));
   }
 
@@ -148,7 +148,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
     </section>}
 
     {show("delivery") && <section className="shell vendor-section" id="local-delivery">
-      <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · Παραδόσεις" title="Περιοχή τοπικής παράδοσης" note="Η ρύθμιση είναι δική σου και υπερισχύει της γενικής κάλυψης HUB για το κατάστημά σου. Η τιμολόγηση μεταφοράς παραμένει στους κανόνες του HUB." />
+      <WorkspaceSectionHeading eyebrow="Παραδόσεις" title="Περιοχή τοπικής παράδοσης" note="Η ρύθμιση είναι δική σου και υπερισχύει της γενικής κάλυψης HUB για το κατάστημά σου. Η τιμολόγηση μεταφοράς παραμένει στους κανόνες του HUB." />
       <WorkspaceHowItWorks>
         <p><strong>Ταχυδρομικοί κώδικες:</strong> βάλε ολόκληρο ΤΚ ή πρόθεμα, π.χ. 24100 ή 241.</p>
         <p><strong>Απενεργοποίηση:</strong> σταματά τη δική σου ζώνη τοπικής παράδοσης χωρίς να διαγράφει τη ρύθμιση.</p>
@@ -176,7 +176,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
     </section>}
 
     {show("seo") && <section className="vendor-section section-tint" id="seo"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · SEO" title="Πηγαία στοιχεία καταστήματος" note="Ελέγχεις το περιεχόμενο που περιγράφει τη δική σου επιχείρηση. Οι τεχνικές διευθύνσεις, η ευρετηρίαση και τα δεδομένα αναζήτησης παραμένουν κεντρικά." />
+      <WorkspaceSectionHeading eyebrow="SEO" title="Πηγαία στοιχεία καταστήματος" note="Ελέγχεις το περιεχόμενο που περιγράφει τη δική σου επιχείρηση. Οι τεχνικές διευθύνσεις, η ευρετηρίαση και τα δεδομένα αναζήτησης παραμένουν κεντρικά." />
       {(["el","en"] as const).map((locale) => <details className="workspace-tool-panel" open={locale === "el"} key={locale}>
         <summary><span><strong>{locale === "el" ? "Ελληνικά" : "English"}</strong><small>Περιεχόμενο προφίλ και SEO</small></span></summary>
         <div className="workspace-tool-body">
@@ -191,7 +191,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
     </div></section>}
 
     {show("promotions") && <section className="shell vendor-section" id="promotions">
-      <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · Προωθήσεις" title="Αιτήματα προωθητικών ενεργειών" note="Δηλώνεις τη δική σου εμπορική πρόταση. Η τελική δημόσια προωθητική τιμή ενεργοποιείται μόνο αφού περάσει τους ελέγχους της πλατφόρμας και τους νομικούς ελέγχους τιμής." />
+      <WorkspaceSectionHeading eyebrow="Προωθήσεις" title="Αιτήματα προωθητικών ενεργειών" note="Δηλώνεις τη δική σου εμπορική πρόταση. Η τελική δημόσια προωθητική τιμή ενεργοποιείται μόνο αφού περάσει τους ελέγχους της πλατφόρμας και τους νομικούς ελέγχους τιμής." />
       <WorkspaceHowItWorks>
         <p><strong>Δεν αλλάζει άμεσα η δημόσια τιμή.</strong> Το αίτημα κρατά καταγραφή της τρέχουσας τιμής και περνά έλεγχο πριν εφαρμοστεί.</p>
         <p><strong>Ιστορικό τιμών:</strong> παραμένει κεντρικό ώστε οι ανακοινώσεις έκπτωσης να είναι ελέγξιμες.</p>
@@ -214,7 +214,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
     </section>}
 
     {show("aade") && <section className="vendor-section section-tint" id="aade"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · AADE" title="myDATA & φορολογικά αιτήματα" note="Βλέπεις μόνο τα φορολογικά έγγραφα της επιχείρησής σου. Επανάληψη ή συμφωνία δεν εκτελείται αυτόματα: το αίτημα μπαίνει στην ασφαλή φορολογική ροή." />
+      <WorkspaceSectionHeading eyebrow="AADE" title="myDATA & φορολογικά αιτήματα" note="Βλέπεις μόνο τα φορολογικά έγγραφα της επιχείρησής σου. Επανάληψη ή συμφωνία δεν εκτελείται αυτόματα: το αίτημα μπαίνει στην ασφαλή φορολογική ροή." />
       {workspace.aade.documents.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν φορολογικά έγγραφα του καταστήματος." body="Όταν δημιουργηθούν σχετικά παραστατικά, η κατάσταση AADE θα εμφανίζεται εδώ." /> : <>
         <div className="workspace-tool-panel" style={{ padding: "1rem" }}>
           <label className="workspace-form-field"><span>Παραστατικό</span><select value={aade.documentId} onChange={(event) => setAade((current) => ({ ...current, documentId: event.target.value }))}>{workspace.aade.documents.map((document) => <option value={document.id} key={document.id}>{document.documentNumber ?? document.id} · {document.transmissionStatus} · {euro(document.grossMinor)}</option>)}</select></label>
@@ -232,7 +232,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
     </div></section>}
 
     {show("subscription") && <section className="shell vendor-section" id="subscription">
-      <WorkspaceSectionHeading eyebrow="Αυτοδιαχείριση · Πλάνο" title="Πλάνο συνεργασίας" note="Η επιλογή πλάνου γίνεται από εσένα, αλλά αλλαγές που επηρεάζουν εμπορική συμφωνία ή χρέωση ενεργοποιούνται μόνο μετά τον συμβατικό έλεγχο." />
+      <WorkspaceSectionHeading eyebrow="Πλάνο" title="Πλάνο συνεργασίας" note="Η επιλογή πλάνου γίνεται από εσένα, αλλά αλλαγές που επηρεάζουν εμπορική συμφωνία ή χρέωση ενεργοποιούνται μόνο μετά τον συμβατικό έλεγχο." />
       {workspace.subscription.current ? <WorkspaceMetricStrip items={[
         { label: "Τρέχον πλάνο", value: workspace.subscription.current.planName },
         { label: "Κατάσταση", value: workspace.subscription.current.status },
