@@ -2,14 +2,19 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import styles from "../../../components/VendorTrial.module.css";
-import { getVendorTrialSnapshot } from "../../../lib/vendor-trial-runtime";
+import { getVendorTrialSnapshot, getVendorTrialSnapshotForPrincipal, isVendorTrialPrincipal } from "../../../lib/vendor-trial-runtime";
+import { getVendorSession } from "../../../lib/vendor-session";
 
 export const metadata: Metadata = { title: "Vendor Trial ολοκληρώθηκε", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
 export default async function VendorTrialExpiredPage() {
-  const trial = await getVendorTrialSnapshot();
-  if (!trial) redirect("/vendor/login");
+  const principal = await getVendorSession();
+  if (!principal) redirect("/vendor/login?next=/vendor/trial");
+  const trial = isVendorTrialPrincipal(principal)
+    ? await getVendorTrialSnapshot()
+    : await getVendorTrialSnapshotForPrincipal(principal);
+  if (!trial) redirect("/vendor");
   if (trial.active) redirect("/vendor/trial");
 
   return <main className={styles.trialShell}>
