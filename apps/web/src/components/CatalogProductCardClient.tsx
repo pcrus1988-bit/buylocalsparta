@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { LocalCommerceProof as LocalCommerceProofValue } from "../lib/local-commerce-proof";
@@ -10,6 +11,20 @@ import { storefrontCategoryForCode } from "../lib/storefront-taxonomy";
 import { publicPriceBadgeLabel, publicSavingsLabel, type PriceHighlightKind } from "../lib/public-price-presentation";
 import { BrandMarketplaceLink } from "./BrandMarketplaceLink";
 import { LocalCommerceProof } from "./LocalCommerceProof";
+
+const OPTIMIZED_SUPPLIER_IMAGE_HOSTS = new Set([
+  "brandsgateway-img.s3.fr-par.scw.cloud",
+  "cdn.symphonya.eu"
+]);
+
+function optimizedSupplierImage(src: string): boolean {
+  try {
+    const url = new URL(src);
+    return url.protocol === "https:" && OPTIMIZED_SUPPLIER_IMAGE_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
+}
 
 const catalogImageStyle = {
   position: "absolute",
@@ -127,6 +142,7 @@ export function CatalogProductCardClient({ product, index = 0, vendorContext, de
   const governedSourceFallback = !directImageSrc;
   const imageSrc = directImageSrc ?? `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
   const externalImage = governedSourceFallback || Boolean(imageSrc.startsWith("https://"));
+  const useOptimizedImage = Boolean(product.mediaId) || optimizedSupplierImage(imageSrc);
   const eagerImage = index === 0;
   const productHref = demoVendorId
     ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
@@ -139,7 +155,17 @@ export function CatalogProductCardClient({ product, index = 0, vendorContext, de
         {governedSourceFallback ? <span className="art-category">{category.name}</span> : null}
         {governedSourceFallback ? <span className="art-symbol" aria-hidden="true">{category.symbol}</span> : null}
         {governedSourceFallback ? <span className="art-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span> : null}
-        <img
+        {useOptimizedImage ? <Image
+          src={imageSrc}
+          alt={product.mediaAlt ?? displayTitle}
+          width={320}
+          height={320}
+          quality={70}
+          priority={eagerImage}
+          decoding="async"
+          referrerPolicy="no-referrer"
+          style={catalogImageStyle}
+        /> : <img
           src={imageSrc}
           alt={product.mediaAlt ?? displayTitle}
           loading={eagerImage ? "eager" : "lazy"}
@@ -147,7 +173,7 @@ export function CatalogProductCardClient({ product, index = 0, vendorContext, de
           decoding="async"
           referrerPolicy={externalImage ? "no-referrer" : undefined}
           style={catalogImageStyle}
-        />
+        />}
         {prominentSavings && savingLabel && msrpMinor !== undefined ? (
           <span
             aria-label={highlightKind === "sale" ? `ΠΛΤ ${formatEuroMinor(msrpMinor)}, SALE, όφελος ${savingLabel}%` : `ΠΛΤ ${formatEuroMinor(msrpMinor)}, όφελος ${savingLabel}%`}
