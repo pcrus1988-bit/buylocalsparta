@@ -67,15 +67,15 @@ export function VendorDailyAccessClient({ initial, csrfToken }: { initial: Reado
 
   return <div style={{ display: "grid", gap: 24 }}>
     <section className="workspace-queue-card" style={{ display: "grid", gap: 16 }}>
-      <div><div className="eyebrow">Νέα πρόσβαση</div><h2 style={{ margin: "4px 0 6px" }}>Δώσε πρόσβαση στην καθημερινή λειτουργία</h2><p style={{ margin: 0, opacity: .72 }}>Ο λογαριασμός Daily βλέπει μόνο τις καθημερινές εργασίες: παραγγελίες, Ask Local, QR παραλαβές και ειδοποιήσεις. Δεν αποκτά πρόσβαση στο πλήρες vendor backoffice.</p></div>
+      <div><div className="eyebrow">Νέα πρόσβαση</div><h2 style={{ margin: "4px 0 6px" }}>Δώσε πρόσβαση στην καθημερινή λειτουργία</h2><p style={{ margin: 0, opacity: .72 }}>Ο λογαριασμός Daily βλέπει μόνο τις καθημερινές εργασίες: παραγγελίες, Ask Local, QR παραλαβές και ειδοποιήσεις. Δεν αποκτά πρόσβαση στο πλήρη χώρο συνεργάτη.</p></div>
       <VendorLifecycle steps={[
         { label: "Στοιχεία ατόμου", tone: "attention" },
         { label: "Δημιουργία πρόσβασης", tone: "future" },
         { label: "Σύνδεση στο Daily", tone: "future" }
       ]} ariaLabel="Δημιουργία Daily πρόσβασης" />
       <WorkspaceHowItWorks>
-        <p><strong>Δεν υπάρχουν διαφορετικοί ρόλοι Daily.</strong> Κάθε ενεργή Daily πρόσβαση έχει το ίδιο περιορισμένο operational scope.</p>
-        <p><strong>Ο κωδικός είναι ξεχωριστός</strong> από τον λογαριασμό ιδιοκτήτη του vendor dashboard. Αν αλλάξεις τον κωδικό, οι προηγούμενες Daily συνεδρίες κλείνουν.</p>
+        <p><strong>Δεν υπάρχουν διαφορετικοί ρόλοι Daily.</strong> Κάθε ενεργή Daily πρόσβαση έχει το ίδιο περιορισμένο εύρος λειτουργιών.</p>
+        <p><strong>Ο κωδικός είναι ξεχωριστός</strong> από τον λογαριασμό ιδιοκτήτη του χώρου συνεργάτη. Αν αλλάξεις τον κωδικό, οι προηγούμενες Daily συνεδρίες κλείνουν.</p>
         <p><strong>Ανάκληση πρόσβασης:</strong> αποσυνδέει αμέσως το συγκεκριμένο άτομο από όλες τις ενεργές Daily συνεδρίες.</p>
       </WorkspaceHowItWorks>
       <form onSubmit={create} style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
@@ -89,7 +89,7 @@ export function VendorDailyAccessClient({ initial, csrfToken }: { initial: Reado
     </section>
 
     <section style={{ display: "grid", gap: 12 }}>
-      <div><div className="eyebrow">Πρόσβαση Daily</div><h2 style={{ margin: "4px 0" }}>Άτομα με πρόσβαση</h2><p style={{ margin: 0, opacity: .7 }}>Βλέπεις άμεσα ποιος έχει ενεργή πρόσβαση, αν υπάρχουν συνδεδεμένες συνεδρίες και αν έχει ενεργοποιηθεί push σε συσκευή.</p></div>
+      <div><div className="eyebrow">Πρόσβαση Daily</div><h2 style={{ margin: "4px 0" }}>Άτομα με πρόσβαση</h2><p style={{ margin: 0, opacity: .7 }}>Βλέπεις άμεσα ποιος έχει ενεργή πρόσβαση, αν υπάρχουν συνδεδεμένες συνεδρίες και αν έχουν ενεργοποιηθεί ειδοποιήσεις σε συσκευή.</p></div>
       {accesses.length === 0 ? <div className="workspace-queue-card">Δεν έχει δημιουργηθεί ακόμη ξεχωριστή πρόσβαση Daily.</div> : accesses.map((access) => <article className="workspace-queue-card" key={access.id} style={{ display: "grid", gap: 14, opacity: access.active ? 1 : .65 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
           <div><strong style={{ display: "block", fontSize: "1.05rem" }}>{access.displayName}</strong><span style={{ opacity: .68 }}>{access.email}</span></div>
@@ -106,7 +106,7 @@ export function VendorDailyAccessClient({ initial, csrfToken }: { initial: Reado
         ]} ariaLabel={`Κατάσταση πρόσβασης ${access.displayName}`} />
         <div className="workspace-compact-list">
           <div className="workspace-compact-row"><strong>Ενεργές συνεδρίες</strong><span>{access.activeSessions}</span></div>
-          <div className="workspace-compact-row"><strong>Συσκευές με push</strong><span>{access.pushDevices}</span></div>
+          <div className="workspace-compact-row"><strong>Συσκευές με ειδοποιήσεις</strong><span>{access.pushDevices}</span></div>
           <div className="workspace-compact-row"><strong>Δημιουργήθηκε</strong><span>{date(access.createdAt)}</span></div>
         </div>
         {access.active && <div style={{ display: "grid", gap: 10 }}>
