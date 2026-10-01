@@ -91,13 +91,13 @@ export class PostgresAdminOperationsLiveService extends BasePostgresAdminOperati
       if(vendorUuid){
         const transitionAt=new Date(now);
         if(input.to==="active") {
-          await tx.query("UPDATE vendor_businesses SET status='active',verification_completed_at=COALESCE(verification_completed_at,$2),contract_started_at=COALESCE(contract_started_at,$2),contract_ended_at=NULL,public_directory_visible=false,public_directory_visibility_updated_at=$2,public_directory_visibility_reason='New activation awaiting explicit public publication',updated_at=$2 WHERE id=$1::uuid",[vendorUuid,transitionAt]);
+          await tx.query("UPDATE vendor_businesses SET status='active',demo_mode=false,demo_mode_updated_at=$2,verification_completed_at=COALESCE(verification_completed_at,$2),contract_started_at=COALESCE(contract_started_at,$2),contract_ended_at=NULL,public_directory_visible=false,public_directory_visibility_updated_at=$2,public_directory_visibility_reason='New activation awaiting explicit public publication',updated_at=$2 WHERE id=$1::uuid",[vendorUuid,transitionAt]);
           await tx.query("UPDATE vendor_locations SET verified_at=COALESCE(verified_at,$2),updated_at=$2 WHERE vendor_id=$1::uuid AND active=true",[vendorUuid,transitionAt]);
         } else if(["catalog_onboarding","test_ready"].includes(input.to)) {
           await tx.query("UPDATE vendor_businesses SET status=$2,verification_completed_at=COALESCE(verification_completed_at,$3),public_directory_visible=false,public_directory_visibility_updated_at=$3,public_directory_visibility_reason=$4,updated_at=$3 WHERE id=$1::uuid",[vendorUuid,input.to,transitionAt,`Onboarding state changed to ${input.to}`]);
           await tx.query("UPDATE vendor_locations SET verified_at=COALESCE(verified_at,$2),updated_at=$2 WHERE vendor_id=$1::uuid AND active=true",[vendorUuid,transitionAt]);
         } else if(["verification_pending","restricted","suspended","closed"].includes(input.to)) {
-          await tx.query("UPDATE vendor_businesses SET status=$2,public_directory_visible=false,public_directory_visibility_updated_at=$3,public_directory_visibility_reason=$4,updated_at=$3 WHERE id=$1::uuid",[vendorUuid,input.to,transitionAt,`Onboarding state changed to ${input.to}`]);
+          await tx.query("UPDATE vendor_businesses SET status=$2,demo_mode=false,demo_mode_updated_at=$3,public_directory_visible=false,public_directory_visibility_updated_at=$3,public_directory_visibility_reason=$4,updated_at=$3 WHERE id=$1::uuid",[vendorUuid,input.to,transitionAt,`Onboarding state changed to ${input.to}`]);
         }
       }
       await tx.query("UPDATE vendor_applications SET vendor_id=$2,status=$3,verification_notes=COALESCE($4,verification_notes),updated_at=$5 WHERE id=$1::uuid",[text(row.application_uuid,"application_uuid"),vendorUuid??null,input.to,input.to==="catalog_onboarding"?reason:null,new Date(now)]);
