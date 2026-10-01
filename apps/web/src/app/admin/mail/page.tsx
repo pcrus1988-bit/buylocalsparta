@@ -294,11 +294,11 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
               </div> : null}
               <pre>{message.bodyText}</pre>
               {message.attachments.length ? <div className="admin-mail-attachments">
-                {message.attachments.map((attachment) => message.direction === "incoming"
+                {message.attachments.map((attachment) => message.direction === "incoming" && (!message.virusVerdict || message.virusVerdict === "PASS")
                   ? <a key={attachment.index} href={`/api/admin/mail/attachment/${encodeURIComponent(message.id)}/${attachment.index}`}>
                       <strong>{attachment.filename}</strong><span>{attachment.contentType} · {Math.max(1, Math.round(attachment.byteSize / 1024))} KB</span>
                     </a>
-                  : <span className="admin-mail-attachment-static" key={attachment.index}><strong>{attachment.filename}</strong><span>{attachment.contentType} · {Math.max(1, Math.round(attachment.byteSize / 1024))} KB</span></span>)}
+                  : <span className="admin-mail-attachment-static" key={attachment.index}><strong>{attachment.filename}</strong><span>{message.direction === "incoming" ? "Blocked by SES virus screening" : `${attachment.contentType} · ${Math.max(1, Math.round(attachment.byteSize / 1024))} KB`}</span></span>)}
               </div> : null}
             </article>)}
           </div>
