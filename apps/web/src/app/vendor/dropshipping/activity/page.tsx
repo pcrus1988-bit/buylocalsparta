@@ -7,7 +7,7 @@ import { isDropshippingOnlyVendor } from "../../../../lib/vendor-dropshipping-ac
 import { vendorDropshippingActivity } from "../../../../lib/vendor-dropshipping-activity";
 import { getVendorSession } from "../../../../lib/vendor-session";
 
-export const metadata: Metadata = { title: "Δραστηριότητα dropshipping", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Ιστορικό αλλαγών προϊόντων προμηθευτών", robots: { index: false, follow: false } };
 
 const date = (value: string | null) => value
   ? new Intl.DateTimeFormat("el-GR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(value))
@@ -26,12 +26,12 @@ export default async function DropshippingActivityPage() {
     <VendorWorkspaceHeader />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
-        <div className="eyebrow">Κέντρο dropshipping</div>
-        <h1>Δραστηριότητα</h1>
+        <div className="eyebrow">Προϊόντα προμηθευτών</div>
+        <h1>Ιστορικό αλλαγών</h1>
         <p className="lead">Χειροκίνητες αλλαγές προϊόντων και συγκεντρωτική κίνηση συγχρονισμών προμηθευτή και τιμολόγησης, χωρίς να γεμίζει το ιστορικό με χιλιάδες τεχνικές ενημερώσεις.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-          <Link className="button button-secondary" href="/vendor/dropshipping">← Dropshipping</Link>
-          <Link className="button button-secondary" href="/vendor/dropshipping/health">Κατάσταση ροής</Link>
+          <Link className="button button-secondary" href="/vendor/dropshipping">← Προϊόντα προμηθευτών</Link>
+          <Link className="button button-secondary" href="/vendor/dropshipping/health">Συγχρονισμός</Link>
         </div>
       </div>
     </section>
@@ -58,7 +58,7 @@ export default async function DropshippingActivityPage() {
     </section>
 
     <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Αυτόματες λειτουργίες" title="Συγχρονισμοί προμηθευτών & τιμών" note="Οι τεχνικές ενημερώσεις συνοψίζονται ανά προμηθευτή. Τα μετρήσεις είναι λειτουργικά στοιχεία, όχι ξεχωριστές χειροκίνητες ενέργειες." />
+      <WorkspaceSectionHeading eyebrow="Αυτόματες λειτουργίες" title="Συγχρονισμοί προμηθευτών & τιμών" note="Οι τεχνικές ενημερώσεις συνοψίζονται ανά προμηθευτή. Οι μετρήσεις είναι λειτουργικά στοιχεία, όχι ξεχωριστές χειροκίνητες ενέργειες." />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 14 }}>
         {activity.suppliers.map((supplier) => <article className="workspace-queue-card" key={supplier.supplierCode}>
           <div className="workspace-queue-head"><div><strong>{supplier.supplierName}</strong><small>{supplier.supplierCode}</small></div></div>
@@ -70,7 +70,7 @@ export default async function DropshippingActivityPage() {
           </div>
           <Link className="button button-secondary" style={{ marginTop: 12 }} href={`/vendor/dropshipping?supplier=${encodeURIComponent(supplier.supplierCode)}`}>Άνοιγμα προμηθευτή</Link>
         </article>)}
-        {!activity.suppliers.length ? <article className="workspace-queue-card"><strong>Δεν υπάρχει δραστηριότητα προμηθευτή.</strong><p>Δεν βρέθηκε σύνδεση προμηθευτή dropshipping για αυτό το κατάστημα.</p></article> : null}
+        {!activity.suppliers.length ? <article className="workspace-queue-card"><strong>Δεν υπάρχει δραστηριότητα προμηθευτή.</strong><p>Δεν βρέθηκε σύνδεση προμηθευτή για αυτό το κατάστημα.</p></article> : null}
       </div>
     </section>
   </main>;

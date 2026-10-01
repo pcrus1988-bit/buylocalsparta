@@ -102,7 +102,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
 
   async function saveSeo(locale: "el" | "en") {
     const value = seo[locale];
-    const payload = await call(`seo:${locale}`, "/api/vendor/hub/seo", "PUT", value, locale === "el" ? "Τα ελληνικά στοιχεία SEO αποθηκεύτηκαν." : "Τα αγγλικά στοιχεία SEO αποθηκεύτηκαν.");
+    const payload = await call(`seo:${locale}`, "/api/vendor/hub/seo", "PUT", value, locale === "el" ? "Τα ελληνικά στοιχεία εμφάνισης αποθηκεύτηκαν." : "Τα αγγλικά στοιχεία εμφάνισης αποθηκεύτηκαν.");
     if (payload) setSeo((current) => ({ ...current, [locale]: { ...payload.seo[locale] } }));
   }
 
@@ -176,22 +176,22 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
     </section>}
 
     {show("seo") && <section className="vendor-section section-tint" id="seo"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="SEO" title="Πηγαία στοιχεία καταστήματος" note="Ελέγχεις το περιεχόμενο που περιγράφει τη δική σου επιχείρηση. Οι τεχνικές διευθύνσεις, η ευρετηρίαση και τα δεδομένα αναζήτησης παραμένουν κεντρικά." />
+      <WorkspaceSectionHeading eyebrow="Αναζήτηση" title="Πώς παρουσιάζεται το κατάστημά σου στη Google" note="Εσύ γράφεις τα κείμενα της επιχείρησής σου. Το ΚΟΝΤΑ ΜΟΥ διαχειρίζεται τις τεχνικές ρυθμίσεις και την ευρετηρίαση." />
       {(["el","en"] as const).map((locale) => <details className="workspace-tool-panel" open={locale === "el"} key={locale}>
-        <summary><span><strong>{locale === "el" ? "Ελληνικά" : "English"}</strong><small>Περιεχόμενο προφίλ και SEO</small></span></summary>
+        <summary><span><strong>{locale === "el" ? "Ελληνικά" : "Αγγλικά"}</strong><small>Κείμενα προφίλ και αναζήτησης</small></span></summary>
         <div className="workspace-tool-body">
           <div className="workspace-form-field"><label htmlFor={`short-${locale}`}>Σύντομη περιγραφή</label><textarea id={`short-${locale}`} value={seo[locale].shortDescription} onChange={(event) => updateSeo(locale, "shortDescription", event.target.value)} /></div>
           <div className="workspace-form-field"><label htmlFor={`story-${locale}`}>Ιστορία / παρουσίαση</label><textarea id={`story-${locale}`} value={seo[locale].story} onChange={(event) => updateSeo(locale, "story", event.target.value)} /></div>
           <div className="workspace-form-field"><label htmlFor={`expertise-${locale}`}>Εξειδίκευση</label><textarea id={`expertise-${locale}`} value={seo[locale].expertise} onChange={(event) => updateSeo(locale, "expertise", event.target.value)} /></div>
-          <div className="workspace-form-field"><label htmlFor={`seo-title-${locale}`}>Τίτλος SEO</label><input id={`seo-title-${locale}`} value={seo[locale].seoTitle} onChange={(event) => updateSeo(locale, "seoTitle", event.target.value)} /></div>
-          <div className="workspace-form-field"><label htmlFor={`seo-description-${locale}`}>Περιγραφή SEO</label><textarea id={`seo-description-${locale}`} value={seo[locale].seoDescription} onChange={(event) => updateSeo(locale, "seoDescription", event.target.value)} /></div>
+          <div className="workspace-form-field"><label htmlFor={`seo-title-${locale}`}>Τίτλος για Google</label><input id={`seo-title-${locale}`} value={seo[locale].seoTitle} onChange={(event) => updateSeo(locale, "seoTitle", event.target.value)} /></div>
+          <div className="workspace-form-field"><label htmlFor={`seo-description-${locale}`}>Περιγραφή για Google</label><textarea id={`seo-description-${locale}`} value={seo[locale].seoDescription} onChange={(event) => updateSeo(locale, "seoDescription", event.target.value)} /></div>
           <div className="workspace-form-actions"><button className="button" type="button" disabled={Boolean(busy)} onClick={() => void saveSeo(locale)}>{busy === `seo:${locale}` ? "Αποθήκευση…" : "Αποθήκευση"}</button></div>
         </div>
       </details>)}
     </div></section>}
 
     {show("promotions") && <section className="shell vendor-section" id="promotions">
-      <WorkspaceSectionHeading eyebrow="Προωθήσεις" title="Αιτήματα προωθητικών ενεργειών" note="Δηλώνεις τη δική σου εμπορική πρόταση. Η τελική δημόσια προωθητική τιμή ενεργοποιείται μόνο αφού περάσει τους ελέγχους της πλατφόρμας και τους νομικούς ελέγχους τιμής." />
+      <WorkspaceSectionHeading eyebrow="Προσφορές" title="Προσφορές & εκπτώσεις" note="Δηλώνεις τη δική σου εμπορική πρόταση. Η τελική δημόσια προωθητική τιμή ενεργοποιείται μόνο αφού περάσει τους ελέγχους της πλατφόρμας και τους νομικούς ελέγχους τιμής." />
       <WorkspaceHowItWorks>
         <p><strong>Δεν αλλάζει άμεσα η δημόσια τιμή.</strong> Το αίτημα κρατά καταγραφή της τρέχουσας τιμής και περνά έλεγχο πριν εφαρμοστεί.</p>
         <p><strong>Ιστορικό τιμών:</strong> παραμένει κεντρικό ώστε οι ανακοινώσεις έκπτωσης να είναι ελέγξιμες.</p>

@@ -13,7 +13,7 @@ import { isDropshippingOnlyVendor } from "../../../lib/vendor-dropshipping-acces
 import { getVendorSession } from "../../../lib/vendor-session";
 
 export const metadata: Metadata = {
-  title: "Dropshipping",
+  title: "Προϊόντα προμηθευτών",
   robots: { index: false, follow: false }
 };
 
@@ -57,8 +57,8 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
 
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
-        <div className="eyebrow">Κέντρο dropshipping</div>
-        <h1>Dropshipping</h1>
+        <div className="eyebrow">Προϊόντα προμηθευτών</div>
+        <h1>Κατάλογος προμηθευτών</h1>
         <p className="lead">
           Ο κατάλογος δεν φορτώνεται αυτόματα. Επίλεξε προμηθευτή και αναζήτησε μόνο τα προϊόντα που χρειάζεσαι.
         </p>
@@ -98,7 +98,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
           </Link>
         </article>)}
         {!suppliers.length ? <article className="workspace-queue-card">
-          <strong>Δεν υπάρχει προμηθευτής dropshipping.</strong>
+          <strong>Δεν υπάρχει συνδεδεμένος προμηθευτής.</strong>
           <p>Δεν βρέθηκε σύνδεση προμηθευτή για αυτό το κατάστημα.</p>
         </article> : null}
       </div>
@@ -159,7 +159,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {product.pricingFlag === "OVERPRICED" ? <span className="vendor-merchant-status">ΥΨΗΛΗ ΤΙΜΗ</span> : null}
                 {product.offerId
-                  ? <span className="vendor-merchant-status">{product.published ? "Published" : "Unpublished"}</span>
+                  ? <span className="vendor-merchant-status">{product.published ? "Δημοσιευμένο" : "Μη δημοσιευμένο"}</span>
                   : <span className="vendor-merchant-status">Κατάλογος πηγής</span>}
               </div>
             </div>
@@ -170,7 +170,7 @@ export default async function VendorDropshippingPage({ searchParams }: { searchP
               <div className="workspace-compact-row">
                 <strong>Απόθεμα προμηθευτή</strong>
                 <span>{product.cachedAvailable ? "Διαθέσιμο" : "Μη διαθέσιμο"}</span>
-                <small>{product.cachedQuantity == null ? "Ποσότητα άγνωστη" : `Qty ${product.cachedQuantity}`} · έλεγχος {date(product.availabilityCheckedAt)}</small>
+                <small>{product.cachedQuantity == null ? "Ποσότητα άγνωστη" : `Ποσότητα ${product.cachedQuantity}`} · έλεγχος {date(product.availabilityCheckedAt)}</small>
               </div>
               <div className="workspace-compact-row">
                 <strong>Κωδικός προϊόντος προμηθευτή</strong>

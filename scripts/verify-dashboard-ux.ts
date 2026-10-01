@@ -101,6 +101,25 @@ for (const path of [
   const source = read(path);
   if (source.includes("Dropshipping Control Centre")) failures.push(`Dropshipping page regressed to English control-centre heading: ${path}`);
 }
+
+requireText("apps/web/src/app/vendor/settings/page.tsx", ["Προσφορές & εκπτώσεις", "Εμφάνιση στη Google", "Συνδρομή & συνεργασία"]);
+requireText("apps/web/src/components/VendorWorkspaceHeader.tsx", ["Προϊόντα προμηθευτών", "Ιστορικό αλλαγών"]);
+requireText("apps/web/src/app/vendor/dropshipping/attention/page.tsx", ["Δημοσιευμένο χωρίς διαθεσιμότητα", "Χωρίς τιμή αγοράς", "Τιμολόγηση σε αναμονή"]);
+requireText("apps/web/src/app/vendor/dropshipping/health/page.tsx", ["Συγχρονισμός & διαθεσιμότητα", "Επιτυχής", "Αποτυχία"]);
+for (const [path, forbidden] of [
+  ["apps/web/src/app/vendor/orders/page.tsx", "αλλαγές status"],
+  ["apps/web/src/app/vendor/catalog/page.tsx", "Φυσικό stock"],
+  ["apps/web/src/app/vendor/reports/page.tsx", "vendor login"],
+  ["apps/web/src/app/vendor/dropshipping/attention/page.tsx", "Needs attention"],
+  ["apps/web/src/app/vendor/dropshipping/attention/page.tsx", "Review queue"],
+  ["apps/web/src/app/vendor/dropshipping/health/page.tsx", '"Enabled"'],
+  ["apps/web/src/app/vendor/dropshipping/health/page.tsx", '"Disabled"'],
+  ["apps/web/src/components/DropshippingSupplierDefaultsControls.tsx", "Supplier-wide action"],
+  ["apps/web/src/components/DropshippingProductFieldControls.tsx", "Save override"],
+  ["apps/web/src/components/DropshippingSupplierFieldControls.tsx", "Public fields"]
+] as const) {
+  if (read(path).includes(forbidden)) failures.push(`Vendor merchant copy regressed to internal wording: ${path} -> ${forbidden}`);
+}
 const vendorDashboard = read("apps/web/src/components/VendorDashboardClient.tsx");
 for (const destination of ["/vendor/catalog", "/vendor/shipping", "/vendor/returns", "/vendor/trust", "/vendor/advice", "/vendor/finance"]) if (!vendorDashboard.includes(`href: "${destination}"`)) failures.push(`Vendor dashboard is missing task path ${destination}`);
 if (!vendorDashboard.includes('density="compact"')) failures.push("Vendor dashboard quick actions must use compact density");

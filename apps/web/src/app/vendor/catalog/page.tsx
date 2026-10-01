@@ -108,11 +108,11 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
       <div className="workspace-queue-list">{assignedCatalogue.products.map((item) => <article className="workspace-queue-card" key={item.id}>
         <div className="workspace-queue-head">
           <div><strong>{item.title}</strong><small>{[item.brand, item.model, item.vendorSku].filter(Boolean).join(" · ") || "Χωρίς κωδικό προμηθευτή"} · {item.sourceName}</small></div>
-          <span className="status-pill">{item.demoMode ? "ΔΟΚΙΜΗ · ανατεθειμένο" : "assigned"}</span>
+          <span className="status-pill">{item.demoMode ? "ΔΟΚΙΜΗ · ανατεθειμένο" : "Ανατεθειμένο"}</span>
         </div>
         <div className="workspace-queue-primary">
           <span>Τιμή προμηθευτή: {item.priceCheckStatus === "confirmed" ? item.verifiedSupplierPrice ?? "επιβεβαιωμένη" : "σε αναμονή"}</span>
-          <span>Φυσικό stock: {item.stockCheckStatus === "confirmed" ? String(item.verifiedStockOnHand ?? 0) : item.stockCheckStatus === "unavailable" ? "δεν υπάρχει τώρα" : "σε αναμονή"}</span>
+          <span>Φυσικό απόθεμα: {item.stockCheckStatus === "confirmed" ? String(item.verifiedStockOnHand ?? 0) : item.stockCheckStatus === "unavailable" ? "δεν υπάρχει τώρα" : "σε αναμονή"}</span>
           <span>{item.canonicalVariantId ? "Διαθέσιμη αντιστοίχιση καταλόγου" : "Εκκρεμεί αντιστοίχιση καταλόγου"}</span>
         </div>
         {item.sourcePrice && <div className="workspace-inline-note">Τιμή αναφοράς καταλόγου: {item.sourcePrice}{item.sourcePriceKind ? ` · ${item.sourcePriceKind}` : ""}. Δεν θεωρείται αυτόματα δική σου τιμή προμηθευτή.</div>}
@@ -129,8 +129,8 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
               <form action={confirmAssignedCatalogueAction} className="workspace-inline-form">
                 <input type="hidden" name="assortmentId" value={item.id} />
                 <input type="hidden" name="assignedOffset" value={assignedOffset} />
-                <label><span>Φυσικό stock</span><input name="stockOnHand" type="number" min="0" max="1000000" step="1" inputMode="numeric" placeholder="0" required /></label>
-                <button className="button button-secondary" type="submit">Επιβεβαίωση stock</button>
+                <label><span>Φυσικό απόθεμα</span><input name="stockOnHand" type="number" min="0" max="1000000" step="1" inputMode="numeric" placeholder="0" required /></label>
+                <button className="button button-secondary" type="submit">Επιβεβαίωση αποθέματος</button>
               </form>
               <form action={confirmAssignedCatalogueAction}>
                 <input type="hidden" name="assortmentId" value={item.id} />
@@ -143,10 +143,10 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
         </div>}
         <WorkspaceRecordDetails label="Στοιχεία πηγής"><div className="workspace-compact-list">
           <div className="workspace-compact-row"><strong>Κατάλογος προμηθευτή</strong><span>{item.sourceName} · {item.sourceCode}</span></div>
-          <div className="workspace-compact-row"><strong>Assortment state</strong><span>{item.assortmentStatus} · {item.availabilityMode}</span></div>
+          <div className="workspace-compact-row"><strong>Κατάσταση ανάθεσης</strong><span>{item.assortmentStatus} · {item.availabilityMode}</span></div>
           <div className="workspace-compact-row"><strong>Στοιχεία τιμής</strong><span>{item.priceCheckStatus}</span></div>
           <div className="workspace-compact-row"><strong>Στοιχεία αποθέματος</strong><span>{item.stockCheckStatus}</span></div>
-          {item.canonicalVariantId && <div className="workspace-compact-row"><strong>Canonical variant</strong><span className="vendor-technical-id">{item.canonicalVariantId}</span></div>}
+          {item.canonicalVariantId && <div className="workspace-compact-row"><strong>Κεντρική παραλλαγή</strong><span className="vendor-technical-id">{item.canonicalVariantId}</span></div>}
         </div></WorkspaceRecordDetails>
       </article>)}</div>
 
@@ -171,12 +171,12 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
       <WorkspaceHowItWorks>
         <p><strong>Τιμή πώλησης:</strong> είναι η τελική τιμή της δικής σου προσφοράς. Κάθε πραγματική αλλαγή κρατιέται στο ιστορικό και ενημερώνει τον admin.</p>
         <p><strong>Φυσικό απόθεμα:</strong> πόσα τεμάχια υπάρχουν πραγματικά στο κατάστημα.</p>
-        <p><strong>Επιβεβαίωση αποθέματος:</strong> κάθε αποθήκευση επιβεβαιώνει ξανά ότι το stock είναι πραγματικό και πρόσφατο, ακόμη κι αν η ποσότητα δεν άλλαξε. Η πρόσφατη επιβεβαίωση είναι απαραίτητη για δημόσια διαθεσιμότητα και Google Merchant Center.</p>
+        <p><strong>Επιβεβαίωση αποθέματος:</strong> κάθε αποθήκευση επιβεβαιώνει ξανά ότι το απόθεμα είναι πραγματικό και πρόσφατο, ακόμη κι αν η ποσότητα δεν άλλαξε. Η πρόσφατη επιβεβαίωση είναι απαραίτητη για δημόσια διαθεσιμότητα και Google Merchant Center.</p>
         <p><strong>Απόθεμα ασφαλείας:</strong> τεμάχια που θέλεις να μένουν εκτός online πώλησης για να μειώνεται ο κίνδυνος overselling.</p>
         <p><strong>Δεσμευμένα:</strong> τεμάχια που έχουν ήδη κρατηθεί προσωρινά για ενεργές παραγγελίες.</p>
         <p><strong>Διαθέσιμα προς πώληση:</strong> το ποσό που μπορεί πραγματικά να προσφερθεί online μετά τις δεσμεύσεις και το απόθεμα ασφαλείας.</p>
         <p><strong>Τοπική παράδοση:</strong> είναι ενεργή από προεπιλογή. Μπορείς να ορίσεις συγκεκριμένο προϊόν ως «μόνο παραλαβή», χωρίς να επηρεάζεται η διαθεσιμότητα των υπόλοιπων προϊόντων σου.</p>
-        <p><strong>Απόκρυψη:</strong> δεν διαγράφει προϊόν ή stock· απλώς σταματά προσωρινά τη δημόσια πώληση. Προϊόν που έκρυψες εσύ το επαναφέρεις από τον ίδιο διακόπτη· προϊόν που αρχειοθέτησε ο Admin εμφανίζεται ξεχωριστά και χρειάζεται επανέγκριση.</p>
+        <p><strong>Απόκρυψη:</strong> δεν διαγράφει προϊόν ή απόθεμα· απλώς σταματά προσωρινά τη δημόσια πώληση. Προϊόν που έκρυψες εσύ το επαναφέρεις από τον ίδιο διακόπτη· προϊόν που αρχειοθέτησε ο Admin εμφανίζεται ξεχωριστά και χρειάζεται επανέγκριση.</p>
       </WorkspaceHowItWorks>
       <VendorDeliveryEligibilityPanel csrfToken={workspace.csrfToken} />
       <VendorPriceManager csrfToken={workspace.csrfToken} products={catalogProducts} />
@@ -205,6 +205,6 @@ function parseEuroMinor(value: string): number {
 }
 function parseStock(value: string): number {
   const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < 0 || parsed > 1_000_000) throw new Error("Το φυσικό stock πρέπει να είναι μη αρνητικός ακέραιος.");
+  if (!Number.isSafeInteger(parsed) || parsed < 0 || parsed > 1_000_000) throw new Error("Το φυσικό απόθεμα πρέπει να είναι μη αρνητικός ακέραιος.");
   return parsed;
 }

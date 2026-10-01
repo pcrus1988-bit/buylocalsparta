@@ -70,7 +70,7 @@ export default async function VendorReportsPage({ searchParams }: { searchParams
 
     {error ? <section className="shell vendor-section"><VendorActionNotice tone="danger" title="Η αναφορά δεν ολοκληρώθηκε">Δοκίμασε ξανά. Αν το πρόβλημα συνεχίζεται, οι τεχνικές λεπτομέρειες μπορούν να δοθούν στην υποστήριξη.<WorkspaceRecordDetails label="Τεχνική λεπτομέρεια"><span className="vendor-technical-id">{error}</span></WorkspaceRecordDetails></VendorActionNotice></section> : null}
     {first(query.created) === "1" ? <section className="shell vendor-section"><VendorActionNotice tone="positive" title="Η αναφορά δημιουργήθηκε">Το PDF είναι διαθέσιμο στην ενότητα «Πρόσφατες αναφορές».</VendorActionNotice></section> : null}
-    {first(query.emailed) === "1" ? <section className="shell vendor-section"><VendorActionNotice tone="positive" title="Το email στάλθηκε">Ο σύνδεσμος της αναφοράς παραμένει προστατευμένος και απαιτεί vendor login.</VendorActionNotice></section> : null}
+    {first(query.emailed) === "1" ? <section className="shell vendor-section"><VendorActionNotice tone="positive" title="Το email στάλθηκε">Ο σύνδεσμος της αναφοράς παραμένει προστατευμένος και απαιτεί σύνδεση στον χώρο συνεργάτη.</VendorActionNotice></section> : null}
     {first(query.saved) === "1" ? <section className="shell vendor-section"><VendorActionNotice tone="positive" title="Το πρότυπο αποθηκεύτηκε" /></section> : null}
 
     <section className="shell vendor-section">

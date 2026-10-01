@@ -9,7 +9,7 @@ import { vendorDropshippingSupplierAnalytics } from "../../../../lib/vendor-drop
 import { vendorDropshippingWorkspace } from "../../../../lib/vendor-dropshipping-service";
 import { getVendorSession } from "../../../../lib/vendor-session";
 
-export const metadata: Metadata = { title: "Στατιστικά dropshipping", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Απόδοση προϊόντων προμηθευτών", robots: { index: false, follow: false } };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 const first = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -43,11 +43,11 @@ export default async function DropshippingAnalyticsPage({ searchParams }: { sear
     <VendorWorkspaceHeader />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined">
       <div>
-        <div className="eyebrow">Κέντρο dropshipping</div>
-        <h1>Στατιστικά</h1>
-        <p className="lead">Απόδοση ανά προμηθευτή dropshipping με τις υπάρχουσες μετρήσεις του ΚΟΝΤΑ ΜΟΥ.</p>
+        <div className="eyebrow">Προϊόντα προμηθευτών</div>
+        <h1>Απόδοση</h1>
+        <p className="lead">Απόδοση ανά προμηθευτή με τις υπάρχουσες μετρήσεις πωλήσεων και επισκεψιμότητας του ΚΟΝΤΑ ΜΟΥ.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-          <Link className="button button-secondary" href="/vendor/dropshipping">← Dropshipping</Link>
+          <Link className="button button-secondary" href="/vendor/dropshipping">← Προϊόντα προμηθευτών</Link>
           {[7, 30, 90].map((days) => <Link
             key={days}
             className={days === periodDays ? "button" : "button button-secondary"}
@@ -65,7 +65,7 @@ export default async function DropshippingAnalyticsPage({ searchParams }: { sear
           className={supplier.id === selectedSupplier?.id ? "button" : "button button-secondary"}
           href={`/vendor/dropshipping/analytics?supplier=${encodeURIComponent(supplier.code)}&days=${periodDays}`}
         >{supplier.displayName}</Link>)}
-        {!workspace.suppliers.length ? <span>Δεν υπάρχει συνδεδεμένος προμηθευτής dropshipping.</span> : null}
+        {!workspace.suppliers.length ? <span>Δεν υπάρχει συνδεδεμένος προμηθευτής.</span> : null}
       </div>
     </section>
 

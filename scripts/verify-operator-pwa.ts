@@ -40,7 +40,7 @@ if (!install.includes("beforeinstallprompt") || !install.includes("appinstalled"
 if (!install.includes("display-mode: standalone") || !install.includes("Προσθήκη στην οθόνη Αφετηρίας") || !install.includes("Download App")) {
   throw new Error("PWA installer must avoid prompting installed apps and provide prominent install guidance");
 }
-if (!vendorHeader.includes('/daily?install=1') || !vendorHeader.includes("Download App · KONTA MOY Daily")) {
+if (!vendorHeader.includes('/daily?install=1') || !vendorHeader.includes('aria-label="Εγκατάσταση εφαρμογής KONTA MOY Daily"') || !vendorHeader.includes("Εγκατάσταση Daily")) {
   throw new Error("Vendor workspace must visibly advertise the installable Daily app");
 }
 

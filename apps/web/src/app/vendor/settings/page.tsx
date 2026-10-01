@@ -57,22 +57,22 @@ export default async function VendorSettingsPage() {
     action: "Άνοιγμα AADE"
   });
   if (capabilities.has("promotions.manage")) hub.push({
-    title: "Προωθητικές ενέργειες",
+    title: "Προσφορές & εκπτώσεις",
     body: "Πρότεινε προωθητικές τιμές με διαφανή έλεγχο πριν από τη δημόσια ενεργοποίηση.",
     href: "/vendor/settings/promotions",
-    action: "Διαχείριση προωθήσεων"
+    action: "Διαχείριση προσφορών"
   });
   if (capabilities.has("seo.source_data.manage")) hub.push({
-    title: "SEO καταστήματος",
-    body: "Ρύθμισε το περιεχόμενο που περιγράφει την επιχείρησή σου στις μηχανές αναζήτησης.",
+    title: "Εμφάνιση στη Google",
+    body: "Γράψε τον τίτλο και την περιγραφή με τα οποία θέλεις να παρουσιάζεται η επιχείρησή σου στην αναζήτηση.",
     href: "/vendor/settings/seo",
-    action: "Ρύθμιση SEO"
+    action: "Ρύθμιση εμφάνισης"
   });
   if (capabilities.has("subscription.manage")) hub.push({
-    title: "Πλάνο συνεργασίας",
+    title: "Συνδρομή & συνεργασία",
     body: "Δες το τρέχον πλάνο και υπέβαλε αίτημα αλλαγής όταν υπάρχει διαθέσιμη επιλογή.",
     href: "/vendor/settings/subscription",
-    action: "Διαχείριση πλάνου"
+    action: "Προβολή συνεργασίας"
   });
 
   return <main className="vendor-app">
