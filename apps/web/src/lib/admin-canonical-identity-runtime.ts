@@ -197,7 +197,7 @@ export async function adminCreateCanonicalIdentity(
        ) VALUES(
          $1, $2, $3::uuid, $4::uuid, $5, $6, $7, $8, $9,
          $10::jsonb, $11, NULL, 'EUR',
-         $12, true, false, false, NULL, $13, $13
+         $12, true, false, false, $13, $13, $13
        )`,
       [
         canonicalUuid,
