@@ -110,9 +110,9 @@ function effectivePriceRaw(record: Parameters<typeof xmlFieldValue>[0], mappedFi
   const saleFields = new Set(["g:sale_price", "sale_price"]);
 
   if (!mappedField || regularFields.has(normalizedField ?? "")) {
-    return xmlFieldValue(record, "g:sale_price")
-      ?? xmlFieldValue(record, "sale_price")
-      ?? mapped
+    const salePrice = xmlFieldValue(record, "g:sale_price") ?? xmlFieldValue(record, "sale_price");
+    if (salePrice && parseXmlMoneyMinor(salePrice) !== undefined) return salePrice;
+    return mapped
       ?? xmlFieldValue(record, "g:price")
       ?? xmlFieldValue(record, "price");
   }
@@ -265,6 +265,7 @@ export async function prepareVendorProductFeed(
   const categories = await categoriesForVendor(principal);
   const mapping = cleanMapping(input.fieldMapping, parsed.suggestedMapping);
   const byCode = new Map(categories.map((category) => [category.code.toLowerCase(), category]));
+  const availableCategoryCodes = new Set(byCode.keys());
   const byName = new Map<string, VendorProductFeedCategory>();
   for (const category of categories) {
     const key = normalizeCategoryKey(category.name);
@@ -313,7 +314,7 @@ export async function prepareVendorProductFeed(
         if (leaf) category = byName.get(normalizeCategoryKey(leaf));
       }
       if (!category) {
-        const inferredCode = inferCategoryCode(sourceCategory, title, new Set(byCode.keys()));
+        const inferredCode = inferCategoryCode(sourceCategory, title, availableCategoryCodes);
         if (inferredCode) category = byCode.get(inferredCode);
       }
     }
