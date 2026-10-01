@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { VENDOR_WORKSPACE_NAVIGATION } from "../lib/workspace-navigation";
 import { VendorBreadcrumbs, VendorContextNavigation, VendorDomainNavigation } from "./VendorDomainNavigation";
@@ -11,6 +11,7 @@ import trialStyles from "./VendorTrial.module.css";
 
 export function VendorWorkspaceHeader() {
   const router = useRouter();
+  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [roles, setRoles] = useState<readonly string[]>([]);
@@ -33,6 +34,35 @@ export function VendorWorkspaceHeader() {
     operatingModel: "MANAGED" | "SELF_GOVERNED";
     capabilities: readonly string[];
   }>();
+
+  // Mobile navigation should behave like a real app drawer: route changes close it,
+  // Escape closes overlays, and the underlying page does not continue scrolling.
+  useEffect(() => {
+    setMenuOpen(false);
+    setTrialGuideOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!menuOpen && !trialGuideOpen) return;
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousBodyOverflow = body.style.overflow;
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMenuOpen(false);
+      setTrialGuideOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      html.style.overflow = previousHtmlOverflow;
+      body.style.overflow = previousBodyOverflow;
+    };
+  }, [menuOpen, trialGuideOpen]);
 
   useEffect(() => {
     let active = true;
@@ -207,7 +237,7 @@ export function VendorWorkspaceHeader() {
             <small>{selfGoverned ? `Αυτοδιαχειριζόμενο HUB · ${marketLabel}${operatingContext?.hubId ? ` · ${operatingContext.hubId}` : ""}` : "ΚΟΝΤΑ ΜΟΥ Σπάρτη"}</small>
           </span>
         </Link>
-        <button className="workspace-menu-toggle" type="button" aria-expanded={menuOpen} aria-controls="vendor-workspace-navigation" onClick={() => setMenuOpen((current) => !current)}>
+        <button className="workspace-menu-toggle" type="button" aria-expanded={menuOpen} aria-controls="vendor-workspace-navigation" aria-label={menuOpen ? "Κλείσιμο μενού συνεργάτη" : "Άνοιγμα μενού συνεργάτη"} onClick={() => setMenuOpen((current) => !current)}>
           <span>{menuOpen ? "Κλείσιμο" : "Μενού"}</span><i aria-hidden="true" />
         </button>
       </div>
