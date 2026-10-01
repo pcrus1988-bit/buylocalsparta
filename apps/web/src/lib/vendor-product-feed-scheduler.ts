@@ -5,18 +5,19 @@ import { syncVendorProductFeed } from "./vendor-product-feed-service";
 type ClaimedFeed = Readonly<{
   feedId: string;
   vendorId: string;
-  userId: string;
-  email: string;
+  userId?: string;
+  email?: string;
 }>;
 
 const LEASE_MINUTES = 15;
 const DEFAULT_LIMIT = 3;
 
 function schedulerPrincipal(feed: ClaimedFeed): SessionPrincipal {
+  if (!feed.userId) throw new Error("No active vendor user is available for scheduled XML synchronization.");
   return {
     userId: feed.userId,
-    email: feed.email,
-    roles: ["vendor_owner"],
+    email: feed.email || "vendor-feed@kontamou.invalid",
+    roles: ["vendor_catalog"],
     vendorId: feed.vendorId,
     csrfToken: "vendor-product-feed-scheduler",
     sessionId: `vendor-product-feed-scheduler:${feed.feedId}`
@@ -53,17 +54,27 @@ export async function syncDueVendorProductFeeds(limit = DEFAULT_LIMIT) {
       SELECT
         l.public_id AS feed_id,
         COALESCE(v.public_id,v.id::text) AS vendor_id,
-        COALESCE(u.public_id,u.id::text) AS user_id,
-        u.email
+        COALESCE(actor.public_id,actor.id::text) AS user_id,
+        actor.email
       FROM leased l
       JOIN public.vendor_businesses v ON v.id=l.vendor_id
-      JOIN public.users u ON u.id=l.created_by
+      LEFT JOIN LATERAL (
+        SELECT u.id,u.public_id,u.email
+        FROM public.vendor_users vu
+        JOIN public.users u ON u.id=vu.user_id
+        WHERE vu.vendor_id=l.vendor_id AND vu.active=true AND u.status='active'
+        ORDER BY CASE WHEN EXISTS (
+          SELECT 1 FROM public.vendor_user_roles vur
+          WHERE vur.vendor_user_id=vu.id AND vur.role='vendor_owner'
+        ) THEN 0 ELSE 1 END,vu.created_at,vu.id
+        LIMIT 1
+      ) actor ON true
     `, [safeLimit, LEASE_MINUTES]);
     claimed = result.rows.map((row) => ({
       feedId: String(row.feed_id),
       vendorId: String(row.vendor_id),
-      userId: String(row.user_id),
-      email: String(row.email)
+      userId: row.user_id ? String(row.user_id) : undefined,
+      email: row.email ? String(row.email) : undefined
     }));
     await client.query("COMMIT");
   } catch (error) {
@@ -92,6 +103,16 @@ export async function syncDueVendorProductFeeds(limit = DEFAULT_LIMIT) {
               updated_at=now()
           WHERE public_id=$1 AND source_type='url' AND status='active'
         `, [feed.feedId, message, LEASE_MINUTES]);
+        await failureClient.query(`
+          INSERT INTO public.vendor_product_feed_runs(
+            feed_id,market_id,vendor_id,trigger_type,status,error_message,created_by,finished_at
+          )
+          SELECT f.id,f.market_id,f.vendor_id,'scheduled','failed',$2,
+                 (SELECT u.id FROM public.users u WHERE u.public_id=$3 OR u.id::text=$3 LIMIT 1),
+                 now()
+          FROM public.vendor_product_feeds f
+          WHERE f.public_id=$1
+        `, [feed.feedId, message, feed.userId ?? null]);
         await failureClient.query("COMMIT");
       } catch {
         try { await failureClient.query("ROLLBACK"); } catch {}
