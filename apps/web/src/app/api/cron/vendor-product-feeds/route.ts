@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await syncDueVendorProductFeeds(3);
+    const result = await syncDueVendorProductFeeds(1);
     return Response.json(result, {
       status: result.failed ? 207 : 200,
       headers: { "cache-control": "no-store" }
