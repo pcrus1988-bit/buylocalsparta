@@ -88,6 +88,8 @@ CREATE TABLE public.vendor_product_feed_items (
   offer_id uuid REFERENCES public.vendor_offers(id),
   state text NOT NULL DEFAULT 'present' CHECK (state IN ('present','missing','retired','invalid')),
   consecutive_missing integer NOT NULL DEFAULT 0 CHECK (consecutive_missing >= 0),
+  hidden_by_feed boolean NOT NULL DEFAULT false,
+  previous_offer_merchant_visible boolean,
   last_validation_errors jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(last_validation_errors)='array'),
   first_seen_at timestamptz NOT NULL DEFAULT now(),
   last_seen_at timestamptz NOT NULL DEFAULT now(),
