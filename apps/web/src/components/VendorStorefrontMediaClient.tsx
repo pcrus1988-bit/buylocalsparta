@@ -41,6 +41,19 @@ function statusLabel(asset: VendorProfileMediaAssignment): string {
   return "Σε έλεγχο";
 }
 
+function mediaStateLabel(value: string): string {
+  const labels: Record<string,string> = {
+    clean: "Καθαρό",
+    pending: "Σε αναμονή",
+    approved: "Εγκεκριμένο",
+    rejected: "Απορρίφθηκε",
+    published: "Δημοσιευμένο",
+    archived: "Αρχειοθετημένο",
+    draft: "Πρόχειρο"
+  };
+  return labels[value] ?? value.replaceAll("_", " ");
+}
+
 function publicMediaUrl(asset: VendorProfileMediaAssignment): string | undefined {
   return asset.publicationStatus === "published" && approved(asset) ? `/api/media/${encodeURIComponent(asset.mediaId)}` : undefined;
 }
@@ -168,7 +181,7 @@ export function VendorStorefrontMediaClient({ initial }: { initial: Workspace })
       {active.length === 0 ? <WorkspaceEmptyState title="Δεν έχεις υποβάλει ακόμη εικόνες καταστήματος." body="Ξεκίνα με λογότυπο, μία καθαρή φωτογραφία της πρόσοψης και μία προαιρετική φωτογραφία της ομάδας." /> : <div className="workspace-queue-list">
         {active.map((asset) => <article className="workspace-queue-card" key={asset.id}>
           <div className="workspace-queue-head"><div><strong>{ROLE_LABELS[asset.role]}</strong><small>{asset.filename}</small></div><span className="status-pill">{statusLabel(asset)}</span></div>
-          <div className="workspace-queue-primary"><span>Έλεγχος αρχείου: {asset.scanStatus}</span><span>Δικαιώματα: {asset.rightsStatus}</span><span>Έλεγχος περιεχομένου: {asset.moderationStatus}</span><span>Δημοσίευση: {asset.publicationStatus}</span></div>
+          <div className="workspace-queue-primary"><span>Έλεγχος αρχείου: {mediaStateLabel(asset.scanStatus)}</span><span>Δικαιώματα: {mediaStateLabel(asset.rightsStatus)}</span><span>Έλεγχος περιεχομένου: {mediaStateLabel(asset.moderationStatus)}</span><span>Δημοσίευση: {mediaStateLabel(asset.publicationStatus)}</span></div>
           {asset.rejectionReason && <div className="workspace-inline-note"><strong>Παρατήρηση:</strong> {asset.rejectionReason}</div>}
           <div className="workspace-action-bar"><span>{asset.publicationStatus === "published" ? "Η απόσυρση αφαιρεί την εικόνα από το δημόσιο προφίλ." : "Μπορείς να αποσύρεις την υποβολή όσο περιμένει έλεγχο ή δημοσίευση."}</span><button className="button button-secondary" type="button" disabled={busy} onClick={() => void archive(asset.id)}>Απόσυρση</button></div>
         </article>)}
