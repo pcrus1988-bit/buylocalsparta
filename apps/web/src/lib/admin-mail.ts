@@ -282,10 +282,22 @@ export async function syncAdminInboundMail(principal: SessionPrincipal, input: {
         const raw = await readStream(stored.stream, config.maxRawBytes);
         const parsed = parseAdminMailMime(raw);
         const publicId = `mail_${randomUUID()}`;
-        const threadKey = adminMailThreadKey(parsed);
+        const fallbackThreadKey = adminMailThreadKey(parsed);
         const receivedAt = parsed.date ?? object.lastModifiedAt ?? Date.now();
         const rawSha256 = createHash("sha256").update(raw).digest("hex");
         await uow().withTransaction(platformScope(principal.userId), async (tx) => {
+          const lineageIds = [parsed.inReplyTo, ...parsed.references.slice().reverse()].filter((value): value is string => Boolean(value));
+          let threadKey = fallbackThreadKey;
+          if (lineageIds.length) {
+            const parent = await tx.query<SqlRow>(`
+              SELECT thread_key
+              FROM admin_mail_messages
+              WHERE internet_message_id = ANY($1::text[]) AND deleted_at IS NULL
+              ORDER BY array_position($1::text[], internet_message_id)
+              LIMIT 1
+            `, [lineageIds]);
+            if (parent.rowCount) threadKey = text(parent.rows[0].thread_key) || fallbackThreadKey;
+          }
           const insert = await tx.query<SqlRow>(`
             INSERT INTO admin_mail_messages(
               public_id,direction,provider,internet_message_id,thread_key,in_reply_to,references_header,
