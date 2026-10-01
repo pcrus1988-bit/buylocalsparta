@@ -63,10 +63,10 @@ export default async function VendorSettingsPage() {
     action: "Διαχείριση προωθήσεων"
   });
   if (capabilities.has("seo.source_data.manage")) hub.push({
-    title: "SEO καταστήματος",
-    body: "Ρύθμισε το περιεχόμενο που περιγράφει την επιχείρησή σου στις μηχανές αναζήτησης.",
+    title: "Εμφάνιση στη Google",
+    body: "Ρύθμισε τον τίτλο και την περιγραφή με τα οποία παρουσιάζεται η επιχείρησή σου στις μηχανές αναζήτησης.",
     href: "/vendor/settings/seo",
-    action: "Ρύθμιση SEO"
+    action: "Ρύθμιση εμφάνισης"
   });
   if (capabilities.has("subscription.manage")) hub.push({
     title: "Πλάνο συνεργασίας",
@@ -97,7 +97,7 @@ export default async function VendorSettingsPage() {
     </section>
 
     {hub.length > 0 && <section className="vendor-section section-tint"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="HUB" title="Ρυθμίσεις που διαχειρίζεσαι εσύ" note="Εμφανίζονται μόνο οι δυνατότητες που ανήκουν στον δικό σου τύπο συνεργασίας και στο δικό σου HUB." />
+      <WorkspaceSectionHeading eyebrow="Συνεργασία" title="Ρυθμίσεις που διαχειρίζεσαι εσύ" note="Εμφανίζονται μόνο οι επιλογές που ισχύουν για το δικό σου κατάστημα και τον κόμβο στον οποίο ανήκεις." />
       <div className="vendor-settings-grid">
         {hub.map((item) => <Link className="workspace-queue-card vendor-settings-card" href={item.href} key={item.href}>
           <strong>{item.title}</strong>
