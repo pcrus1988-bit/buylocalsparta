@@ -33,7 +33,7 @@ export default async function VendorPreviewPage() {
   const settings = storefront.settings;
   const knownProductCount = trial?.productCount ?? products.length;
 
-  return <><VendorWorkspaceHeader /><main className={styles.trialShell}>
+  return <><VendorWorkspaceHeader /><main className="vendor-app"><div className={styles.trialShell}>
     <div className={styles.previewToolbar}>
       <div>
         <span className={styles.demoPill}>ΙΔΙΩΤΙΚΗ ΠΡΟΕΠΙΣΚΟΠΗΣΗ</span>
@@ -86,7 +86,7 @@ export default async function VendorPreviewPage() {
         </div>
       </div>
     </div>
-  </main></>;
+  </div></main></>;
 }
 
 async function activeVendorPreviewProducts(vendorId: string): Promise<readonly VendorStorefrontPreviewProduct[]> {
