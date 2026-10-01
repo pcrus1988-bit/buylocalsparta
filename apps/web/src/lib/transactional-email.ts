@@ -2,6 +2,7 @@ import { ResendEmailProvider, ResendWebhookVerifier, resendConfigFromEnv, resend
 import type { Notification } from "@buy-local-sparta/core";
 import { buildAdminMailRawMime } from "./admin-mail-mime";
 import { sendRawSesEmail, sesMailConfigFromEnv, sesMailConfigured } from "./admin-mail-ses";
+import { archiveSentAdminMailBestEffort } from "./admin-mail-store";
 import { resolveAutomaticEmailTemplate } from "./email-template-lab";
 
 const globals = globalThis as typeof globalThis & {
@@ -52,12 +53,14 @@ export async function sendTransactionalEmail(input: TransactionalEmailInput): Pr
       text: resolved.text,
       internetMessageIdDomain: domain
     });
-    return sendRawSesEmail({
+    const delivery = await sendRawSesEmail({
       config: sesMailConfigFromEnv(),
       raw: mime.raw,
       from: fromAddress,
       to: [destination]
     });
+    await archiveSentAdminMailBestEffort({ raw: mime.raw, sentAt: Date.now() });
+    return delivery;
   }
 
   const now = Date.now();
