@@ -9,14 +9,29 @@ import { adminVendorsWorkspace, hasAdminPermission } from "../../../lib/admin-ru
 import { getAdminSession } from "../../../lib/admin-session";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../lib/postgres-runtime";
 import { researchVendorsWorkspace } from "../../../lib/research-vendors-runtime";
+import { hubProspectDisplayReference } from "../../../lib/hub-prospect-application-runtime";
 import { vendorApplicationPlanCompactLabel, vendorApplicationPlanSnapshotFromRow, type VendorApplicationPlanSnapshot } from "../../../lib/vendor-application-plan";
-import { setApplicationDemoMode } from "./actions";
+import { provisionHubProspectTrialAction, setApplicationDemoMode, setHubProspectStatus } from "./actions";
 
 export const metadata: Metadata = { title: "Admin · Applications", robots: { index: false, follow: false } };
 
 const PRE_LIVE = new Set(["application_started", "verification_pending", "catalog_onboarding", "test_ready"]);
 const APPLICATION_INBOX = new Set(["application_started", "verification_pending"]);
 const fmtDate = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(value));
+const fmtMoney = (value: number) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(value / 100);
+const OPEN_HUB_STATUSES = new Set(["pending", "contacted", "qualified", "verified", "approved"]);
+
+function hubNextStatus(status: string): { status: string; label: string } | undefined {
+  switch (status) {
+    case "pending": return { status: "contacted", label: "Mark contacted" };
+    case "contacted": return { status: "qualified", label: "Qualify" };
+    case "qualified": return { status: "verified", label: "Verify" };
+    case "verified": return { status: "approved", label: "Approve for onboarding" };
+    case "approved": return { status: "converted", label: "Move to onboarding" };
+    case "declined": return { status: "contacted", label: "Re-open" };
+    default: return undefined;
+  }
+}
 
 type VendorProjectionRow = SqlRow & {
   public_id: string;
@@ -70,6 +85,13 @@ type HubProspectRow = SqlRow & {
   notes: string | null;
   status: string;
   payment_state: string;
+  setup_fee_cents: number | string;
+  recurring_fee_cents: number | string;
+  commission_bps: number | string;
+  trial_vendor_public_id: string | null;
+  trial_demo_mode: boolean | null;
+  trial_started_at: Date | string | null;
+  trial_expires_at: Date | string | null;
   created_at: Date | string;
   updated_at: Date | string;
 };
@@ -87,6 +109,7 @@ type RegistryProjection = {
   trialExpiresAt?: number;
 };
 type HubProspectProjection = {
+  internalId: string;
   reference: string;
   hubSlug: string;
   hubCity: string;
@@ -108,6 +131,13 @@ type HubProspectProjection = {
   notes?: string;
   status: string;
   paymentState: string;
+  setupFeeCents: number;
+  recurringFeeCents: number;
+  commissionBps: number;
+  trialVendorId?: string;
+  trialDemoMode: boolean;
+  trialStartedAt?: number;
+  trialExpiresAt?: number;
   createdAt: number;
   updatedAt: number;
 };
@@ -176,11 +206,14 @@ export default async function ApplicationsPage() {
         ORDER BY vp.code
       `),
       runtime.sqlPool.query<HubProspectRow>(`
-        SELECT public_id,hub_slug,hub_city,hub_region,plan_code,billing_cycle,tax_number,gemi_number,
-               business_name,legal_name,contact_name,email,phone,address_line,postal_code,primary_category,
-               website_url,current_sales_channels,notes,status,payment_state,created_at,updated_at
-        FROM hub_expansion_prospects
-        ORDER BY created_at DESC
+        SELECT h.public_id,h.hub_slug,h.hub_city,h.hub_region,h.plan_code,h.billing_cycle,h.tax_number,h.gemi_number,
+               h.business_name,h.legal_name,h.contact_name,h.email,h.phone,h.address_line,h.postal_code,h.primary_category,
+               h.website_url,h.current_sales_channels,h.notes,h.status,h.payment_state,h.setup_fee_cents,h.recurring_fee_cents,
+               h.commission_bps,h.trial_started_at,h.trial_expires_at,h.created_at,h.updated_at,
+               v.public_id AS trial_vendor_public_id,v.demo_mode AS trial_demo_mode
+        FROM hub_expansion_prospects h
+        LEFT JOIN vendor_businesses v ON v.id=h.vendor_id
+        ORDER BY h.created_at DESC
         LIMIT 250
       `)
     ]);
@@ -203,8 +236,12 @@ export default async function ApplicationsPage() {
     }
     for (const row of planResult.rows) planByCode.set(row.code, vendorApplicationPlanSnapshotFromRow(row));
     for (const row of hubProspectResult.rows) {
+      const createdAt = Date.parse(String(row.created_at));
+      const trialStartedAt = row.trial_started_at ? Date.parse(String(row.trial_started_at)) : Number.NaN;
+      const trialExpiresAt = row.trial_expires_at ? Date.parse(String(row.trial_expires_at)) : Number.NaN;
       hubProspects.push({
-        reference: row.public_id,
+        internalId: row.public_id,
+        reference: hubProspectDisplayReference(row.public_id, row.hub_slug, createdAt),
         hubSlug: row.hub_slug,
         hubCity: row.hub_city,
         hubRegion: row.hub_region,
@@ -225,7 +262,14 @@ export default async function ApplicationsPage() {
         notes: row.notes || undefined,
         status: row.status,
         paymentState: row.payment_state,
-        createdAt: Date.parse(String(row.created_at)),
+        setupFeeCents: Number(row.setup_fee_cents ?? 0),
+        recurringFeeCents: Number(row.recurring_fee_cents ?? 0),
+        commissionBps: Number(row.commission_bps ?? 0),
+        trialVendorId: row.trial_vendor_public_id || undefined,
+        trialDemoMode: row.trial_demo_mode === true,
+        trialStartedAt: Number.isFinite(trialStartedAt) ? trialStartedAt : undefined,
+        trialExpiresAt: Number.isFinite(trialExpiresAt) ? trialExpiresAt : undefined,
+        createdAt,
         updatedAt: Date.parse(String(row.updated_at))
       });
     }
@@ -236,7 +280,8 @@ export default async function ApplicationsPage() {
   const demoEnabled = [...demoByVendor.values()].filter((vendor) => vendor.demoMode).length;
   const registryMatched = [...registryByApplication.values()].filter((registry) => registry.lookupStatus === "matched").length;
   const pendingHubApplications = hubProspects.filter((prospect) => prospect.status === "pending").length;
-  const totalQueue = formalApplications.length + pendingHubApplications + promotedResearch.length;
+  const openHubApplications = hubProspects.filter((prospect) => OPEN_HUB_STATUSES.has(prospect.status)).length;
+  const totalQueue = formalApplications.length + openHubApplications + promotedResearch.length;
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={applicationWorkspace.csrfToken} />
@@ -256,7 +301,7 @@ export default async function ApplicationsPage() {
 
     <WorkspaceMetricStrip items={[
       { label: "Application queue", value: totalQueue, tone: totalQueue ? "attention" : "default" },
-      { label: "HUB applications", value: hubProspects.length, tone: pendingHubApplications ? "attention" : "default", hint: `${pendingHubApplications} pending` },
+      { label: "HUB applications", value: hubProspects.length, tone: openHubApplications ? "attention" : "default", hint: `${openHubApplications} open · ${pendingHubApplications} new` },
       { label: "Inbound not provisioned", value: unlinked, tone: unlinked ? "attention" : "positive", hint: "A pre-live vendor record is created only when needed" },
       { label: "Verification pending", value: verificationPending },
       { label: "ΓΕΜΗ matched", value: registryMatched, tone: registryMatched ? "positive" : "default", hint: "Legal identity matched; representation still requires verification" },
@@ -334,28 +379,77 @@ export default async function ApplicationsPage() {
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="Hub expansion" title="Applications from /hubs/join" note="HUB applications are persisted separately from Sparta vendor onboarding, but are surfaced here in the same Admin intake inbox so no submitted prospect disappears from operations view." />
+      <WorkspaceSectionHeading eyebrow="Hub expansion" title="Applications from /hubs/join" note="HUB applications are part of the operational intake queue. Every card shows the readable application number, subscription snapshot, Trial state and the next governed Admin action." />
       {hubProspects.length === 0 ? <WorkspaceEmptyState title="No HUB applications have been submitted yet." body="New /hubs/join submissions will appear here immediately after they are stored." /> : <div className="workspace-queue-list">
-        {hubProspects.map((prospect) => <article className="workspace-queue-card" id={`hub-application-${prospect.reference}`} key={prospect.reference}>
-          <div className="workspace-queue-head">
-            <div><strong>{prospect.businessName}</strong><small>{prospect.legalName} · {prospect.email}</small></div>
-            <WorkspaceStatusBadge status={prospect.status} />
-          </div>
-          <div className="workspace-queue-primary">
-            <span>{prospect.hubCity} · {prospect.hubRegion}</span>
-            <span>Plan {prospect.planCode} · {prospect.billingCycle}</span>
-            <span>{prospect.primaryCategory}</span>
-            <span>{prospect.phone}</span>
-          </div>
-          <div className="workspace-inline-note">
-            <strong>HUB {prospect.hubSlug}</strong>{` · ΑΦΜ ${prospect.taxNumber}`}{prospect.gemiNumber ? ` · ΓΕΜΗ ${prospect.gemiNumber}` : ""}{` · payment ${prospect.paymentState}`}
-          </div>
-          <p className="workspace-queue-summary">{prospect.notes ?? prospect.currentSalesChannels ?? "No additional application notes supplied."}</p>
-          <div className="workspace-inline-note">Contact: <strong>{prospect.contactName}</strong> · {prospect.addressLine} · {prospect.postalCode}{prospect.websiteUrl ? ` · ${prospect.websiteUrl}` : ""}</div>
-          <div className="workspace-action-bar">
-            <span>Reference {prospect.reference} · received {fmtDate(prospect.createdAt)} · updated {fmtDate(prospect.updatedAt)}</span>
-          </div>
-        </article>)}
+        {hubProspects.map((prospect) => {
+          const next = hubNextStatus(prospect.status);
+          const trialActive = Boolean(prospect.trialExpiresAt && prospect.trialExpiresAt > Date.now() && prospect.trialDemoMode);
+          return <article className="workspace-queue-card" id={`hub-application-${prospect.reference}`} key={prospect.internalId}>
+            <div className="workspace-queue-head">
+              <div>
+                <strong>{prospect.businessName}</strong>
+                <small>{prospect.legalName} · {prospect.email}</small>
+                <small><strong>{prospect.reference}</strong></small>
+              </div>
+              <WorkspaceStatusBadge status={prospect.status} />
+            </div>
+            <div className="workspace-queue-primary">
+              <span>{prospect.hubCity} · {prospect.hubRegion}</span>
+              <span>Plan {prospect.planCode.toUpperCase()} · {prospect.billingCycle}</span>
+              <span>{prospect.primaryCategory}</span>
+              <span>{prospect.phone}</span>
+            </div>
+            <div className="workspace-inline-note">
+              <strong>Subscription snapshot</strong>
+              {` · setup ${fmtMoney(prospect.setupFeeCents)} · recurring ${prospect.planCode === "claim" ? "free" : fmtMoney(prospect.recurringFeeCents)} · commission ${(prospect.commissionBps / 100).toFixed(2)}% · payment ${prospect.paymentState}`}
+            </div>
+            <div className="workspace-inline-note">
+              <strong>HUB {prospect.hubSlug}</strong>{` · ΑΦΜ ${prospect.taxNumber}`}{prospect.gemiNumber ? ` · ΓΕΜΗ ${prospect.gemiNumber}` : ""}
+            </div>
+            <p className="workspace-queue-summary">{prospect.notes ?? prospect.currentSalesChannels ?? "No additional application notes supplied."}</p>
+            <div className="workspace-inline-note">Contact: <strong>{prospect.contactName}</strong> · {prospect.addressLine} · {prospect.postalCode}{prospect.websiteUrl ? ` · ${prospect.websiteUrl}` : ""}</div>
+            <div className="workspace-inline-note">
+              <strong>3-day Trial:</strong>{" "}
+              {prospect.planCode === "claim"
+                ? "Not included with CLAIM."
+                : prospect.trialVendorId
+                  ? trialActive
+                    ? `ACTIVE · expires ${fmtDate(prospect.trialExpiresAt!)}`
+                    : `Provisioned · ${prospect.trialExpiresAt ? `expired ${fmtDate(prospect.trialExpiresAt)}` : "expiry unavailable"}`
+                  : "Not provisioned yet."}
+            </div>
+            <div className="workspace-action-bar">
+              <span>Received {fmtDate(prospect.createdAt)} · updated {fmtDate(prospect.updatedAt)}</span>
+              <div className="workspace-action-buttons">
+                {prospect.trialVendorId && <Link className="button button-secondary" href={`/admin/partners/${encodeURIComponent(prospect.trialVendorId)}/catalogue`}>Trial catalogue</Link>}
+                {prospect.trialVendorId && <Link className="button button-secondary" href={`/demo/vendor/${encodeURIComponent(prospect.trialVendorId)}`} target="_blank">Private preview ↗</Link>}
+              </div>
+            </div>
+
+            {prospect.planCode !== "claim" && !["declined", "converted"].includes(prospect.status) && <form action={provisionHubProspectTrialAction} className="admin-directory-filters" style={{ marginTop: 12 }}>
+              <input type="hidden" name="csrfToken" value={applicationWorkspace.csrfToken} />
+              <input type="hidden" name="applicationId" value={prospect.internalId} />
+              <input type="hidden" name="reason" value="Create or resend private 3-day Trial access from Admin Applications" />
+              <button className="button" type="submit">{prospect.trialVendorId ? "Resend Trial access email" : "Create Trial & send email"}</button>
+            </form>}
+
+            {next && <form action={setHubProspectStatus} className="admin-directory-filters" style={{ marginTop: 12 }}>
+              <input type="hidden" name="csrfToken" value={applicationWorkspace.csrfToken} />
+              <input type="hidden" name="applicationId" value={prospect.internalId} />
+              <input type="hidden" name="status" value={next.status} />
+              <label><span>Workflow note</span><input name="reason" defaultValue={`Admin review: ${prospect.status} → ${next.status}`} minLength={3} maxLength={500} required /></label>
+              <button className="button button-secondary" type="submit">{next.label}</button>
+            </form>}
+
+            {!["declined", "converted"].includes(prospect.status) && <form action={setHubProspectStatus} className="admin-directory-filters" style={{ marginTop: 8 }}>
+              <input type="hidden" name="csrfToken" value={applicationWorkspace.csrfToken} />
+              <input type="hidden" name="applicationId" value={prospect.internalId} />
+              <input type="hidden" name="status" value="declined" />
+              <label><span>Decline reason</span><input name="reason" placeholder="Reason sent to applicant…" minLength={3} maxLength={500} required /></label>
+              <button className="button button-secondary" type="submit">Decline</button>
+            </form>}
+          </article>;
+        })}
       </div>}
     </div></section>
 
