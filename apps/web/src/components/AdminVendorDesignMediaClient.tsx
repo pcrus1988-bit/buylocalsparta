@@ -55,36 +55,48 @@ export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadM
     setBusy(true);
     setError("");
     try {
-      if (mediaUploadMode !== "direct") throw new Error(`Media upload unavailable: ${mediaReadinessMessage}`);
       const form = new FormData(formElement);
       const file = form.get("file");
       const profileRole = String(form.get("profileRole") ?? "") as Role;
       if (!(file instanceof File) || file.size <= 0) throw new Error("Choose an image first.");
-      const intentResponse = await fetch("/api/admin/vendor-design/media-intents", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
-        body: JSON.stringify({
-          vendorId,
-          profileRole,
-          filename: file.name,
-          contentType: file.type,
-          byteSize: file.size,
-          altText: String(form.get("altText") ?? ""),
-          rightsOwner: String(form.get("rightsOwner") ?? "")
-        })
-      });
-      const intent = await intentResponse.json();
-      if (!intentResponse.ok) throw new Error(intent.error ?? "Could not create the secure upload.");
-      if (file.size > Number(intent.maxBytes)) throw new Error("The image exceeds the permitted upload size.");
-      const put = await fetch(String(intent.uploadUrl), { method: "PUT", headers: intent.headers as Record<string, string>, body: file });
-      if (!put.ok) throw new Error("Image upload failed.");
-      const complete = await fetch("/api/admin/vendor-design/media-complete", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
-        body: JSON.stringify({ intentId: intent.intentId })
-      });
-      const result = await complete.json();
-      if (!complete.ok) throw new Error(result.error ?? "Could not complete the image submission.");
+
+      if (mediaUploadMode === "direct") {
+        const intentResponse = await fetch("/api/admin/vendor-design/media-intents", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+          body: JSON.stringify({
+            vendorId,
+            profileRole,
+            filename: file.name,
+            contentType: file.type,
+            byteSize: file.size,
+            altText: String(form.get("altText") ?? ""),
+            rightsOwner: String(form.get("rightsOwner") ?? "")
+          })
+        });
+        const intent = await intentResponse.json();
+        if (!intentResponse.ok) throw new Error(intent.error ?? "Could not create the secure upload.");
+        if (file.size > Number(intent.maxBytes)) throw new Error("The image exceeds the permitted upload size.");
+        const put = await fetch(String(intent.uploadUrl), { method: "PUT", headers: intent.headers as Record<string, string>, body: file });
+        if (!put.ok) throw new Error("Image upload failed.");
+        const complete = await fetch("/api/admin/vendor-design/media-complete", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+          body: JSON.stringify({ intentId: intent.intentId })
+        });
+        const result = await complete.json();
+        if (!complete.ok) throw new Error(result.error ?? "Could not complete the image submission.");
+      } else {
+        if (file.size > 3_500_000) throw new Error("Image must be no larger than 3.5 MB while secure object storage is offline.");
+        form.set("vendorId", vendorId);
+        const fallback = await fetch("/api/admin/vendor-design/media-upload", {
+          method: "POST",
+          headers: { "x-csrf-token": csrfToken },
+          body: form
+        });
+        const result = await fallback.json();
+        if (!fallback.ok) throw new Error(result.error ?? "Could not upload the storefront image.");
+      }
       formElement.reset();
       router.refresh();
     } catch (cause) {
@@ -137,18 +149,18 @@ export function AdminVendorDesignMediaClient({ csrfToken, vendorId, mediaUploadM
 
     <section className="vendor-section section-tint"><div>
       <WorkspaceSectionHeading eyebrow="Upload" title="Add or replace storefront media" note="Admin uploads use the same private storage, automated malware scan, rights review and moderation workflow as vendor uploads." />
-      {mediaUploadMode !== "direct" && <div className="workspace-inline-note" role="status"><strong>Media upload unavailable.</strong> {mediaReadinessMessage}. Storefront text/location editing and existing published media remain available.</div>}
+      {mediaUploadMode !== "direct" && <div className="workspace-inline-note" role="status"><strong>Admin image upload fallback active.</strong> {mediaReadinessMessage}. New JPEG, PNG and WebP images up to 3.5 MB are stored privately in PostgreSQL, signature-validated, and still require rights/moderation approval before publication.</div>}
       <details className="workspace-tool-panel" open>
         <summary><span><strong>New storefront image</strong><small>JPEG, PNG or WebP</small></span></summary>
         <div className="workspace-tool-body">
           <form onSubmit={upload}>
             <div className="workspace-form-grid">
               <label>Image role<select name="profileRole" required defaultValue="logo"><option value="logo">Λογότυπο</option><option value="storefront">Κύρια φωτογραφία καταστήματος</option><option value="team">Άνθρωποι / ομάδα</option><option value="gallery">Gallery</option></select></label>
-              <label>File<input name="file" type="file" accept="image/jpeg,image/png,image/webp" required disabled={mediaUploadMode !== "direct"} /></label>
+              <label>File<input name="file" type="file" accept="image/jpeg,image/png,image/webp" required /></label>
               <label className="workspace-form-span-2">Alt text<input name="altText" required maxLength={240} placeholder="Describe exactly what the customer sees" /></label>
               <label className="workspace-form-span-2">Rights owner<input name="rightsOwner" required maxLength={200} placeholder="Business, photographer or rights holder" /></label>
             </div>
-            <div className="workspace-action-bar"><span>Upload creates a draft. The image remains private; Admin preview becomes available only after the automated scanner reports clean.</span><button className="button" type="submit" disabled={busy || mediaUploadMode !== "direct"}>{busy ? "Working…" : "Upload for review"}</button></div>
+            <div className="workspace-action-bar"><span>{mediaUploadMode === "direct" ? "Upload creates a draft. The image remains private; Admin preview becomes available only after the automated scanner reports clean." : "Upload creates a private draft immediately. Image file signatures are validated server-side; rights and moderation approval are still required before publication."}</span><button className="button" type="submit" disabled={busy}>{busy ? "Working…" : "Upload for review"}</button></div>
           </form>
         </div>
       </details>
