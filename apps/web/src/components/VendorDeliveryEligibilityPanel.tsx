@@ -209,7 +209,7 @@ export function VendorDeliveryEligibilityPanel({ csrfToken }: { csrfToken: strin
       <div>
         <div className={styles.eyebrow}>Παραλαβή & παράδοση</div>
         <h3>Τρόποι διάθεσης προϊόντων</h3>
-        <p>Φορτώνονται μόνο <strong>{PAGE_SIZE}</strong> προϊόντα κάθε φορά. Αναζήτηση και φίλτρα εκτελούνται στη βάση, ενώ η μαζική αλλαγή μπορεί να εφαρμοστεί σε όλο τον κατάλογο χωρίς να φορτωθούν όλα τα προϊόντα στο κινητό.</p>
+        <p>Επίλεξε για κάθε προϊόν αν μπορεί να παραδοθεί, να παραληφθεί από το κατάστημα ή και τα δύο. Για πολλά προϊόντα χρησιμοποίησε τη μαζική αλλαγή.</p>
       </div>
       <input className={styles.search} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Αναζήτηση προϊόντος / SKU" aria-label="Αναζήτηση προϊόντος ή SKU" />
     </div>
@@ -218,23 +218,23 @@ export function VendorDeliveryEligibilityPanel({ csrfToken }: { csrfToken: strin
       <span><strong>{summary.total.toLocaleString("el-GR")}</strong> προϊόντα</span>
       <span><strong>{summary.delivery.toLocaleString("el-GR")}</strong> με παράδοση</span>
       <span><strong>{summary.pickup.toLocaleString("el-GR")}</strong> με παραλαβή</span>
-      <span><strong>{summary.custom.toLocaleString("el-GR")}</strong> χειροκίνητα</span>
+      <span><strong>{summary.custom.toLocaleString("el-GR")}</strong> με δική σου ρύθμιση</span>
     </div>
 
     <div className={styles.filters} aria-label="Φίλτρα τρόπου διάθεσης">
       <button type="button" className={filter === "all" ? styles.filterActive : styles.filter} onClick={() => chooseFilter("all")}>Όλα</button>
       <button type="button" className={filter === "delivery" ? styles.filterActive : styles.filter} onClick={() => chooseFilter("delivery")}>Παράδοση</button>
       <button type="button" className={filter === "pickup" ? styles.filterActive : styles.filter} onClick={() => chooseFilter("pickup")}>Παραλαβή</button>
-      <button type="button" className={filter === "custom" ? styles.filterActive : styles.filter} onClick={() => chooseFilter("custom")}>Χειροκίνητες αλλαγές</button>
+      <button type="button" className={filter === "custom" ? styles.filterActive : styles.filter} onClick={() => chooseFilter("custom")}>Δικές σου ρυθμίσεις</button>
     </div>
 
     <div className={styles.bulkBar}>
       <label className={styles.selectAll}>
         <input type="checkbox" checked={allPageSelected} disabled={products.length === 0 || loading || bulkBusy} onChange={(event) => toggleAllVisible(event.target.checked)} />
-        <span>{selectedCount ? `${selectedCount.toLocaleString("el-GR")} επιλεγμένα` : "Επιλογή σελίδας"}</span>
+        <span>{selectedCount ? `${selectedCount.toLocaleString("el-GR")} επιλεγμένα` : "Επίλεξε τα εμφανιζόμενα"}</span>
       </label>
       <div className={styles.bulkModes}>
-        <span className={styles.bulkLabel}>Μαζική αλλαγή</span>
+        <span className={styles.bulkLabel}>Εφαρμογή σε πολλά προϊόντα</span>
         <label className={bulkDelivery ? styles.modeActive : styles.mode}>
           <input type="checkbox" checked={bulkDelivery} disabled={bulkBusy} onChange={(event) => setBulkDelivery(event.target.checked)} />
           <span>Παράδοση</span>
@@ -261,7 +261,7 @@ export function VendorDeliveryEligibilityPanel({ csrfToken }: { csrfToken: strin
         <strong title={product.title}>{product.title}</strong>
         <div className={styles.meta}>
           <span>{product.vendorSku ? `SKU ${product.vendorSku}` : "Χωρίς SKU"}</span>
-          {product.explicitVendorChoice && <span className={styles.customBadge}>Χειροκίνητο</span>}
+          {product.explicitVendorChoice && <span className={styles.customBadge}>Δική σου ρύθμιση</span>}
         </div>
       </div>
       <div className={styles.rowModes}>
@@ -282,6 +282,6 @@ export function VendorDeliveryEligibilityPanel({ csrfToken }: { csrfToken: strin
       <button type="button" className={styles.filter} disabled={!hasMore || loading} onClick={() => setOffset((value) => value + PAGE_SIZE)}>Επόμενα →</button>
     </div>
 
-    <div className={styles.footnote}>Η σελίδα δεν κατεβάζει πλέον όλο τον κατάλογο για να εμφανίσει Παραλαβή/Παράδοση. Οι ζώνες, η χωρητικότητα και η χρέωση παράδοσης συνεχίζουν να ελέγχονται από τις ρυθμίσεις τοπικής παράδοσης.</div>
+    <div className={styles.footnote}>Οι περιοχές εξυπηρέτησης και οι χρεώσεις παράδοσης ρυθμίζονται ξεχωριστά στις «Τοπικές παραδόσεις». Εδώ ορίζεις μόνο ποιοι τρόποι διάθεσης επιτρέπονται για κάθε προϊόν.</div>
   </section>;
 }
