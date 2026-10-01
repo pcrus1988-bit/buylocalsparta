@@ -237,7 +237,7 @@ export async function getVendorTrialSnapshotForPrincipal(
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);
   const result = await uow.withTransaction(
-    { actorUserId: principal.userId, vendorId: principal.vendorId, requestId: "vendor-trial-authenticated-session" },
+    { platformAccess: true, marketId: "sparta", requestId: "vendor-trial-authenticated-session" },
     (tx) => tx.query<SqlRow>(`
       WITH trial_record AS (
         SELECT public_id,trial_started_at,owner_user_id,vendor_id
