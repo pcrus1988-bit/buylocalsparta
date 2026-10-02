@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { useStudioRuntime } from "./StudioExperienceRuntime";
 import styles from "./ColorSpatialUniverse.module.css";
 
@@ -242,7 +242,7 @@ export function ColorSpatialUniverse({selectedHex,selectedLabel,studioLabel,item
   return(
     <div className={styles.universe}>
       <canvas ref={canvasRef} aria-hidden="true"/>
-      <div className={styles.center} style={{"--selected-color":selectedHex} as React.CSSProperties} aria-hidden="true"><i/><span/></div>
+      <div className={styles.center} style={{"--selected-color":selectedHex} as CSSProperties} aria-hidden="true"><i/><span/></div>
       <div className={styles.productField} aria-label={`Κοντινότερα προϊόντα στο ${selectedLabel}`}>
         {visibleItems.map((item,index)=>{
           const angle=(index/Math.max(1,visibleItems.length))*Math.PI*2-Math.PI/2;
@@ -257,7 +257,7 @@ export function ColorSpatialUniverse({selectedHex,selectedLabel,studioLabel,item
               style={{left:`${x}%`,top:`${y}%`}}
               title={`${item.title} · ${item.match}% match`}
             >
-              <span style={{"--node-color":item.colorHex} as React.CSSProperties}>
+              <span style={{"--node-color":item.colorHex} as CSSProperties}>
                 <img src={item.imageSrc} alt="" loading="lazy" decoding="async"/>
               </span>
               <b>{item.match}%</b>
