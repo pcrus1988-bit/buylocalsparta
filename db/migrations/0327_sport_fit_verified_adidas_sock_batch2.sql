@@ -227,7 +227,7 @@ SELECT id
 FROM public.vendor_businesses
 WHERE public_slug='kerasiotis';
 
-DO $
+DO $$
 DECLARE v_count integer;
 BEGIN
   SELECT count(*) INTO v_count FROM _sport_327_kerasiotis_vendor;
@@ -235,7 +235,7 @@ BEGIN
     RAISE EXCEPTION 'Schema 327 requires exactly one Kerasiotis vendor with public_slug=kerasiotis, found %',v_count;
   END IF;
 END
-$;
+$$;
 
 CREATE TEMP TABLE _sport_327_family (
   style_code text NOT NULL,
