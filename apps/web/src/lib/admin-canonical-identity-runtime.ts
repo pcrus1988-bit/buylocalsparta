@@ -115,7 +115,6 @@ export async function adminCreateCanonicalIdentity(
          s.status,
          s.canonical_variant_id,
          s.market_id::text AS market_uuid,
-         s.vendor_id::text AS vendor_uuid,
          s.category_id::text AS category_uuid,
          s.source_identity,
          s.source_payload,
@@ -139,31 +138,6 @@ export async function adminCreateCanonicalIdentity(
     const sourceDescription = typeof sourcePayload.description === "string" && sourcePayload.description.trim()
       ? sourcePayload.description.trim().slice(0, 10_000)
       : undefined;
-    const identityAttributes = identity.attributes && typeof identity.attributes === "object" && !Array.isArray(identity.attributes)
-      ? identity.attributes as Record<string, unknown>
-      : {};
-    const sourceVariantAttributes = jsonObject(sourcePayload.variantAttributes);
-    const canonicalVariantAttributes = { ...sourceVariantAttributes, ...identityAttributes };
-    const sourceFeedId = text(sourcePayload.feedId);
-    const sourceItemGroupId = text(sourcePayload.itemGroupId);
-    let siblingFamilyUuid: string | undefined;
-    if (sourceFeedId && sourceItemGroupId) {
-      const siblingFamily = await tx.query<SqlRow>(
-        `SELECT cv.family_id::text AS family_uuid
-         FROM vendor_product_submissions sibling
-         JOIN canonical_variants cv ON cv.id=sibling.canonical_variant_id
-         WHERE sibling.vendor_id=$1::uuid
-           AND sibling.id<>$2::uuid
-           AND sibling.source_payload->>'feedId'=$3
-           AND sibling.source_payload->>'itemGroupId'=$4
-           AND cv.category_id=$5::uuid
-           AND cv.family_id IS NOT NULL
-         ORDER BY sibling.updated_at DESC,cv.created_at
-         LIMIT 1`,
-        [text(row.vendor_uuid), text(row.submission_uuid), sourceFeedId, sourceItemGroupId, text(row.category_uuid)]
-      );
-      siblingFamilyUuid = text(siblingFamily.rows[0]?.family_uuid);
-    }
     const title = input.titleEl?.trim()
       || (typeof identity.title === "string" && identity.title.trim() ? identity.title.trim() : "Untitled product");
     const rawGtin = typeof identity.gtin === "string" ? identity.gtin.trim() : "";
@@ -224,11 +198,11 @@ export async function adminCreateCanonicalIdentity(
       `INSERT INTO canonical_variants(
          id, public_id, market_id, category_id, slug, gtin, mpn, model, condition,
          variant_attributes, warranty_basis, platform_price_minor, currency,
-         tax_rate_bps, active, suppressed, recalled, price_updated_at, created_at, updated_at, family_id
+         tax_rate_bps, active, suppressed, recalled, price_updated_at, created_at, updated_at
        ) VALUES(
          $1, $2, $3::uuid, $4::uuid, $5, $6, $7, $8, $9,
          $10::jsonb, $11, NULL, 'EUR',
-         $12, true, false, false, $13, $13, $13, $14::uuid
+         $12, true, false, false, $13, $13, $13
        )`,
       [
         canonicalUuid,
@@ -240,11 +214,10 @@ export async function adminCreateCanonicalIdentity(
         typeof identity.mpn === "string" ? identity.mpn.trim() || null : null,
         typeof identity.model === "string" ? identity.model.trim() || null : null,
         typeof identity.condition === "string" ? identity.condition : "new",
-        JSON.stringify(canonicalVariantAttributes),
+        JSON.stringify(identity.attributes && typeof identity.attributes === "object" ? identity.attributes : {}),
         typeof identity.warrantyBasis === "string" ? identity.warrantyBasis.trim() || null : null,
         taxRateBps,
-        new Date(now),
-        siblingFamilyUuid ?? null
+        new Date(now)
       ]
     );
 
