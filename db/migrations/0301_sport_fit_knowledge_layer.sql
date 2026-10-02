@@ -285,6 +285,24 @@ ON CONFLICT (product_type_id,attribute_id) DO UPDATE SET
   variant_axis_order=NULL,
   updated_at=now();
 
+-- Ensure later-imported sports families inherit the already-governed category
+-- Product Type default before normalized sports attributes are attached.
+UPDATE public.product_families pf
+SET product_type_id=cpt.product_type_id,
+    updated_at=now()
+FROM public.category_product_types cpt
+JOIN public.categories c ON c.id=cpt.category_id
+WHERE cpt.category_id=pf.category_id
+  AND cpt.is_default=true
+  AND pf.product_type_id IS NULL
+  AND c.code IN (
+    'mens-running-shoes','womens-running-shoes','kids-running-shoes',
+    'mens-sneakers','womens-sneakers','kids-sneakers',
+    'socks-hosiery',
+    'fashion-mens-activewear','fashion-womens-activewear','sports-clothing',
+    'fitness-accessories','team-sports-equipment'
+  );
+
 -- ---------------------------------------------------------------------------
 -- 3. Knowledge lifecycle / evidence / enrichment queue
 -- ---------------------------------------------------------------------------
