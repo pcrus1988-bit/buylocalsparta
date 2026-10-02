@@ -212,3 +212,45 @@ test("blocked identity conflicts are excluded from recommendations", () => {
   assert.equal(result.primary?.id, "safe");
   assert.ok(!result.ranked.some((item) => item.id === "blocked"));
 });
+
+
+test("brand-specific measured size hints apply only to the matching footwear brand", () => {
+  const adidasExact = product({
+    id: "adidas-exact",
+    title: "adidas Running Shoe",
+    brand: "adidas",
+    categoryCode: "mens-running-shoes",
+    sizes: ["42 2/3"]
+  });
+  const adidasWrong = product({
+    id: "adidas-wrong",
+    title: "adidas Running Shoe Other Size",
+    brand: "adidas",
+    categoryCode: "mens-running-shoes",
+    sizes: ["44"]
+  });
+  const otherBrand = product({
+    id: "other-brand",
+    title: "Other Running Shoe",
+    brand: "Other Brand",
+    categoryCode: "mens-running-shoes",
+    sizes: ["44"]
+  });
+
+  const answers = {
+    activity: "running" as const,
+    audience: "men" as const,
+    surface: "road" as const,
+    brandSizeHints: {
+      adidas: ["42", "42 2/3"]
+    }
+  };
+
+  const exactScore = scoreSportFitProduct(adidasExact, answers);
+  const wrongScore = scoreSportFitProduct(adidasWrong, answers);
+  const otherScore = scoreSportFitProduct(otherBrand, answers);
+
+  assert.equal(exactScore.matchedSize, "42 2/3");
+  assert.ok(exactScore.score > wrongScore.score);
+  assert.ok(otherScore.score > wrongScore.score, "another brand must not inherit the adidas size mismatch penalty");
+});
