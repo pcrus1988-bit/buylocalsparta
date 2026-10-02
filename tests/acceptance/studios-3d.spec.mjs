@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 test("Studios hub keeps semantic navigation when 3D is disabled", async ({ page }) => {
   await page.goto("/studios");
@@ -85,4 +87,26 @@ test("Active Color Finder Studio renders its shade laboratory", async ({ page })
   await expect(page.getByText(/SHADE LAB/).first()).toBeVisible();
   await expect(page.getByText(/CLOSEST SAMPLES|CATALOGUE LOADING/).first()).toBeVisible();
   await expect(page.getByRole("link", { name: /STUDIOS/i }).first()).toBeVisible();
+});
+
+
+test("Universe identity is reserved for Sport Fit", async () => {
+  const nonSportStudioFiles = [
+    "apps/web/src/components/StudioDistrictScene.tsx",
+    "apps/web/src/components/PaintBuildSpatialScene.tsx",
+    "apps/web/src/components/StyleShowroomScene.tsx",
+    "apps/web/src/components/ColorLabScene.tsx"
+  ];
+
+  for (const file of nonSportStudioFiles) {
+    const source = readFileSync(resolve(process.cwd(), file), "utf8");
+    expect(source).not.toMatch(/\buniverse\b/i);
+    expect(source).not.toMatch(/\borbit(?:ing)?\b/i);
+  }
+
+  const sportSource = readFileSync(
+    resolve(process.cwd(), "apps/web/src/components/SportFitImmersiveExperience.tsx"),
+    "utf8"
+  );
+  expect(sportSource).toMatch(/LIVE PRODUCT UNIVERSE/);
 });
