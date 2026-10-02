@@ -187,7 +187,11 @@ function requestedActivityCodes(answers: SportFitAnswers): readonly string[] {
       ? ["walking", "hiking"]
       : ["walking"];
   }
-  if (answers.activity === "gym") return ["gym_training", "general_training"];
+  if (answers.activity === "gym") {
+    return answers.gymTrainingType === "treadmill"
+      ? ["gym_training", "general_training", "running"]
+      : ["gym_training", "general_training"];
+  }
   if (answers.activity === "football") return ["football", "team_sports"];
   if (answers.activity === "hiking") return ["hiking"];
   if (answers.activity === "basketball") return ["basketball", "team_sports"];
@@ -282,7 +286,7 @@ export function sportFitCandidateSupportsRequestedActivity(product: SportFitProd
   const knowledge = usableKnowledge(product);
   const knownActivities = knowledgeList(knowledge?.activities);
   if (knownActivities.length > 0) {
-    return knownActivities.includes(normalize(answers.activity));
+    return hasKnowledgeMatch(knownActivities, requestedActivityCodes(answers));
   }
 
   const text = strictIdentityText(product);

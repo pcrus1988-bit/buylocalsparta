@@ -1,6 +1,6 @@
 # KONTA MOY Sport & Fit recommendation rules
 
-Ruleset: `2026-10-02.7`
+Ruleset: `2026-10-02.8`
 
 Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. They do not require an external recommendation API and they do not infer missing technical product facts.
 
@@ -118,6 +118,8 @@ A neutral support label is not treated as proof of poor lateral stability; it re
 Generic words such as “versatile” or “all-round” in catalogue marketing copy do not create technical evidence. A product with only one documented context remains `unknown` for the versatility requirement rather than being marked incompatible.
 
 Kit items use the same principle: broader governed activity/use-case evidence can improve their versatility confidence without inventing performance claims.
+
+Controlled broad activity classes are also honored by candidate admission: `racket_sports` can satisfy tennis/padel entry and `team_sports` can satisfy basketball/volleyball entry before the more specific surface/use-case rules rank the product.
 
 ## Complete My Kit
 

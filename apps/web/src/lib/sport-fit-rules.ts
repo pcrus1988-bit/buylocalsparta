@@ -6,7 +6,7 @@ import type {
   SportFitTechnicalRequirement
 } from "./sport-fit-engine.ts";
 
-export const SPORT_FIT_RULESET_VERSION = "2026-10-02.7";
+export const SPORT_FIT_RULESET_VERSION = "2026-10-02.8";
 
 export type SportFitRuleEvaluation = Readonly<{
   eligible: boolean;
@@ -54,10 +54,10 @@ function requestedActivityValues(answers: SportFitAnswers): readonly string[] {
     return ["walking", "hiking"];
   }
   if (answers.activity === "football") return ["football", "team_sports"];
-  if (answers.activity === "basketball") return ["basketball"];
-  if (answers.activity === "tennis") return ["tennis"];
-  if (answers.activity === "padel") return ["padel"];
-  if (answers.activity === "volleyball") return ["volleyball"];
+  if (answers.activity === "basketball") return ["basketball", "team_sports"];
+  if (answers.activity === "tennis") return ["tennis", "racket_sports"];
+  if (answers.activity === "padel") return ["padel", "racket_sports"];
+  if (answers.activity === "volleyball") return ["volleyball", "team_sports"];
   return [answers.activity];
 }
 

@@ -149,3 +149,84 @@ test("recommendation ranking promotes governed versatility before price", () => 
 
   assert.equal(result.primary?.id, "broad-more-expensive");
 });
+
+
+test("racket-sports classification survives the tennis candidate gate", () => {
+  const shoe = product({
+    id: "broad-racket-shoe",
+    title: "Court Control Shoe",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["racket_sports"],
+      surfaces: ["court_hard"],
+      useCases: ["tennis_training"]
+    }
+  });
+
+  const result = buildSportFitRecommendation([shoe], {
+    activity: "tennis",
+    audience: "men",
+    surface: "court_hard",
+    useCase: "tennis_training"
+  });
+
+  assert.equal(result.primary?.id, "broad-racket-shoe");
+});
+
+test("team-sports classification survives the basketball candidate gate", () => {
+  const shoe = product({
+    id: "broad-team-shoe",
+    title: "Indoor Team Court Shoe",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["team_sports"],
+      surfaces: ["court_indoor"],
+      useCases: ["basketball_training"]
+    }
+  });
+
+  const result = buildSportFitRecommendation([shoe], {
+    activity: "basketball",
+    audience: "men",
+    surface: "court_indoor",
+    useCase: "basketball_training"
+  });
+
+  assert.equal(result.primary?.id, "broad-team-shoe");
+});
+
+
+test("gym treadmill scoring accepts governed running evidence", () => {
+  const treadmillShoe = product({
+    id: "treadmill-running-shoe",
+    title: "Treadmill Running Trainer",
+    categoryCode: "mens-running-shoes",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["treadmill"],
+      useCases: ["gym_cardio"],
+      cushioningLevel: "medium"
+    }
+  });
+
+  const scored = scoreSportFitProduct(treadmillShoe, {
+    activity: "gym",
+    audience: "men",
+    surface: "treadmill",
+    gymTrainingType: "treadmill",
+    useCase: "gym_cardio"
+  });
+
+  assert.equal(scored.technicalEligible, true);
+  assert.ok(scored.technicalRequirements.some((item) =>
+    item.id === "requirement.activity" && item.status === "match"
+  ));
+  assert.ok(scored.appliedRules.includes("activity.verified_match"));
+  assert.ok(scored.score >= 20);
+});
