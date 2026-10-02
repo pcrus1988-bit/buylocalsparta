@@ -505,19 +505,21 @@ export function SportFitWebGLUniverse({
   }, [visibleProducts]);
 
   useEffect(() => {
-    const canvasElement = canvasRef.current;
-    if (!canvasElement) return;
+    const currentCanvas = canvasRef.current;
+    if (!currentCanvas) return;
+    const canvasElement: HTMLCanvasElement = currentCanvas;
 
-    const webgl = canvasElement.getContext("webgl", {
+    const currentWebgl = canvasElement.getContext("webgl", {
       alpha: true,
       antialias: true,
       premultipliedAlpha: false,
       powerPreference: "high-performance"
     });
-    if (!webgl) {
+    if (!currentWebgl) {
       setWebglUnavailable(true);
       return;
     }
+    const webgl: WebGLRenderingContext = currentWebgl;
 
     let program: WebGLProgram;
     let starProgram: WebGLProgram;
