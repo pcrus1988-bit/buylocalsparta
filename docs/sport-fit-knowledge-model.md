@@ -287,7 +287,7 @@ Migration `0308_sport_fit_verified_kerasiotis_footwear_batch2.sql` adds a second
 
 Migration `0309_sport_fit_adidas_kids_size_guide.sql` adds the official adidas kids footwear size chart as a separate `kids` audience guide. The server deterministically prefers an exact audience guide over a unisex fallback, which prevents the adult chart from becoming the primary measured-size source for a child profile.
 
-The runtime schema gate is 311. All migrations through 0311 have immutable checksum manifests.
+The runtime schema gate is 313. All migrations through 0313 have immutable checksum manifests.
 
 
 ## Live brand identity bridge
@@ -327,3 +327,27 @@ Migration `0311_sport_fit_verified_kerasiotis_footwear_batch3.sql` extends exact
 - Ultrarun 5 TR `JQ6920`: running across road/trail surfaces, explicit true-to-size guidance, water-resistant upper, reference weight, 11 mm drop and 35/24 mm stack.
 
 As with the earlier seeds, only exact manufacturer claims are normalized. The mixed-terrain facts can influence trail/mixed walking or running recommendations without turning general marketing language into unsupported technical values.
+
+
+## Schema 312 — verified Reebok walking/work footwear
+
+Migration `0312_sport_fit_verified_reebok_work_n_cushion.sql` adds exact manufacturer evidence for Kerasiotis Reebok Work N Cushion 4.0 `100001162`:
+
+- the style resolves to exactly one canonical family before facts can publish;
+- `walking` is normalized from Reebok's explicit walking/work positioning;
+- a governed `all_day_standing` use case captures Reebok's long-shift / all-day-on-feet claim;
+- generic support and cushioning wording remains source evidence only and is **not** converted into a normalized support/cushioning level.
+
+This gives the walking guide manufacturer-backed knowledge for a current work/standing shoe while preserving unknown technical fields in the enrichment queue.
+
+
+## Schema 313 — verified Skechers training footwear
+
+Migration `0313_sport_fit_verified_skechers_bountiful.sql` adds exact official evidence for Skechers Bountiful `12606-BKRG`:
+
+- the full style/color code is required because the shorter `12606` identifier spans multiple catalogue families/colorways;
+- the exact `12606-BKRG` identity resolves to one canonical family;
+- `general_training` is normalized from Skechers' explicit workout/training description;
+- Memory Foam, supportive and shock-absorbing wording is preserved as evidence but does not create an invented cushioning or support level.
+
+The runtime schema gate is 313.
