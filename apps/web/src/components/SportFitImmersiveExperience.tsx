@@ -631,8 +631,20 @@ export function SportFitImmersiveExperience({
 
   const selectedFinalist = finalists.find((product) => product.id === selectedFinalistId) ?? finalists[0];
 
+  useEffect(() => {
+    if (step === "results") return;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [step]);
+
   return (
-    <div className={styles.studio}>
+    <div className={`${styles.studio} ${step !== "results" ? styles.liveStudio : ""}`}>
       <header className={styles.header}>
         <button type="button" className={styles.brand} onClick={() => { void resetExperience(); }}>
           <span>KONTA MOY</span>
