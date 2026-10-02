@@ -375,6 +375,62 @@ export async function adminQueueBrandGuideEnrichment(principal: SessionPrincipal
   });
 }
 
+export async function adminQueueMissingBrandGuides(principal: SessionPrincipal, limit = 100): Promise<number> {
+  assertAdminPermission(principal, "catalog.write");
+  const runtime = requirePostgres();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool);
+  return uow.withTransaction(platformScope(principal.userId), async (tx) => {
+    const safeLimit = Math.max(1, Math.min(250, Math.trunc(limit)));
+    const result = await tx.query<{ id: string }>(`
+      WITH candidates AS (
+        SELECT b.id
+        FROM brands b
+        WHERE b.status = 'active'
+          AND NULLIF(b.website, '') IS NOT NULL
+          AND COALESCE(b.metadata->'brand_guide'->>'status', 'empty') IN ('empty', 'draft', 'needs_review')
+          AND COALESCE(b.metadata->'brand_guide'->>'agent_status', '') NOT IN ('queued', 'processing')
+          AND EXISTS (
+            SELECT 1
+            FROM storefront_catalog_read_model rm
+            WHERE rm.brand_id = b.id
+              AND (
+                (rm.local_sellable = TRUE AND rm.local_available_until > NOW())
+                OR
+                (rm.dropship_sellable = TRUE AND rm.dropship_available_until > NOW())
+              )
+          )
+        ORDER BY
+          CASE COALESCE(b.metadata->'brand_guide'->>'status', 'empty')
+            WHEN 'empty' THEN 0
+            WHEN 'draft' THEN 1
+            ELSE 2
+          END,
+          b.updated_at,
+          b.id
+        FOR UPDATE SKIP LOCKED
+        LIMIT $1::integer
+      )
+      UPDATE brands b
+      SET metadata = jsonb_set(
+            COALESCE(b.metadata, '{}'::jsonb),
+            '{brand_guide}',
+            COALESCE(b.metadata->'brand_guide', '{}'::jsonb)
+              || jsonb_build_object(
+                'agent_status', 'queued',
+                'agent_requested_at', NOW(),
+                'agent_last_error', NULL
+              ),
+            TRUE
+          ),
+          updated_at = NOW()
+      FROM candidates c
+      WHERE b.id = c.id
+      RETURNING b.id::text AS id
+    `, [safeLimit]);
+    return result.rowCount ?? result.rows.length;
+  });
+}
+
 export async function adminBrandGuideAgentQueue(principal: SessionPrincipal, limit = 100): Promise<readonly Readonly<{
   id: string;
   name: string;

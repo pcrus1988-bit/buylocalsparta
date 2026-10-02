@@ -60,6 +60,26 @@ export function AdminBrandManagement({
     }
   }
 
+  async function bulkAction(action: string) {
+    setBusyId("__bulk__");
+    setMessage(undefined);
+    try {
+      const response = await fetch("/api/admin/catalogue/brands", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+        body: JSON.stringify({ action })
+      });
+      const payload = await response.json() as { error?: string; message?: string; queued?: number };
+      if (!response.ok) throw new Error(payload.error ?? "Bulk brand action failed");
+      setMessage(payload.message ?? "Η ενέργεια ολοκληρώθηκε.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Bulk brand action failed");
+    } finally {
+      setBusyId(undefined);
+    }
+  }
+
   async function saveGuide(event: React.FormEvent<HTMLFormElement>, brandId: string) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -133,8 +153,19 @@ export function AdminBrandManagement({
       </label>
       <button className="button button-secondary" type="submit">Filter</button>
       {(query || coverage !== "all" || guide !== "all") ? <a className="button button-secondary" href="/admin/catalogue/brands">Clear</a> : null}
+      <button
+        className="button button-secondary"
+        type="button"
+        disabled={busyId === "__bulk__"}
+        onClick={() => {
+          if (window.confirm("Να μπουν έως 100 επιλέξιμα brands στην ουρά για AI Brand Guide draft; Δεν δημοσιεύονται αυτόματα.")) {
+            void bulkAction("queue_missing_guides");
+          }
+        }}
+      >{busyId === "__bulk__" ? "Queuing…" : "Queue 100 AI drafts"}</button>
       <strong>{filteredTotal.toLocaleString("el-GR")} brands</strong>
     </form>
+    <p className="admin-brand-queue-note">Η bulk ουρά περιλαμβάνει μόνο active brands με official website, live προϊόντα και μη τελικό Brand Guide. Τα AI drafts παραμένουν <strong>needs review / noindex</strong> μέχρι χειροκίνητη έγκριση.</p>
 
     {message ? <p className="admin-brand-message" role="status">{message}</p> : null}
 
@@ -251,7 +282,8 @@ export function AdminBrandManagement({
       .admin-brand-toolbar input,.admin-brand-toolbar select,.admin-brand-actions input,.admin-brand-actions select,.admin-brand-actions textarea{width:100%;box-sizing:border-box;min-height:42px;border:1px solid #d6ddd9;border-radius:12px;padding:9px 11px;background:#fff;font:inherit}
       .admin-brand-actions textarea{resize:vertical;line-height:1.45}
       .admin-brand-toolbar strong{margin-left:auto;padding:10px 0}
-      .admin-brand-message{margin:0;padding:11px 14px;border-radius:12px;background:#eef5f1}
+.admin-brand-queue-note{margin:-8px 0 0;color:#61716a;font-size:12px;line-height:1.5}
+            .admin-brand-message{margin:0;padding:11px 14px;border-radius:12px;background:#eef5f1}
       .admin-brand-table-wrap{overflow:auto;border:1px solid #dfe5e1;border-radius:18px;background:#fff}
       .admin-brand-table{width:100%;border-collapse:collapse;min-width:1120px}
       .admin-brand-table th,.admin-brand-table td{padding:14px 12px;border-bottom:1px solid #edf0ee;text-align:left;vertical-align:top}
