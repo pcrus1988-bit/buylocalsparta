@@ -6,7 +6,7 @@ export type SportActivity = (typeof SPORT_ACTIVITIES)[number];
 export const SPORT_AUDIENCES = ["men", "women", "kids"] as const;
 export type SportAudience = (typeof SPORT_AUDIENCES)[number];
 
-export const SPORT_SURFACES = ["road", "treadmill", "mixed", "trail", "indoor", "grass", "artificial", "court_hard", "court_clay", "court_indoor", "court_outdoor", "court_artificial"] as const;
+export const SPORT_SURFACES = ["road", "treadmill", "mixed", "trail", "indoor", "grass", "artificial", "court_hard", "court_clay", "court_indoor", "court_outdoor", "court_artificial", "sand"] as const;
 export type SportSurface = (typeof SPORT_SURFACES)[number];
 
 export const SPORT_FREQUENCIES = ["light", "regular", "high"] as const;
@@ -186,6 +186,7 @@ function requestedSurfaceCodes(surface: SportSurface): readonly string[] {
   if (surface === "court_indoor") return ["court_indoor", "indoor"];
   if (surface === "court_outdoor") return ["court_outdoor"];
   if (surface === "court_artificial") return ["court_artificial"];
+  if (surface === "sand") return ["sand"];
   return ["mixed", "road", "trail"];
 }
 
