@@ -287,7 +287,7 @@ Migration `0308_sport_fit_verified_kerasiotis_footwear_batch2.sql` adds a second
 
 Migration `0309_sport_fit_adidas_kids_size_guide.sql` adds the official adidas kids footwear size chart as a separate `kids` audience guide. The server deterministically prefers an exact audience guide over a unisex fallback, which prevents the adult chart from becoming the primary measured-size source for a child profile.
 
-The current runtime schema gate is 315. All migrations through 0315 have immutable checksum manifests.
+The current runtime schema gate is 316. All migrations through 0316 have immutable checksum manifests.
 
 
 ## Live brand identity bridge
@@ -350,7 +350,7 @@ Migration `0313_sport_fit_verified_skechers_bountiful.sql` adds exact official e
 - `general_training` is normalized from Skechers' explicit workout/training description;
 - Memory Foam, supportive and shock-absorbing wording is preserved as evidence but does not create an invented cushioning or support level.
 
-The runtime schema gate is now 315.
+The runtime schema gate is now 316.
 
 
 ## Schema 314 — Skechers activity and taxonomy conflict handling
@@ -384,4 +384,26 @@ Cloudfoam / Cloudfoam+ comfort language is preserved in source evidence but is n
 
 The live catalogue identity check resolves each of `IH9808`, `KJ1750` and `KJ1757` to exactly one canonical family before migration 0315 is allowed to publish facts.
 
-The runtime schema gate is 315.
+The runtime schema gate is 316.
+
+
+## Schema 316 — GSA vendor-feed sock knowledge
+
+Migration `0316_sport_fit_gsa_vendor_feed_sock_facts.sql` promotes only direct claims from the connected Kerasiotis XML into governed GSA sock facts. Vendor-feed evidence remains lower tier than first-party manufacturer evidence.
+
+Exact families covered:
+
+- GSA `81-16073-01`: explicit invisible/no-show construction → `sock_height=no_show`.
+- GSA `81-19103`: explicit daily exercise positioning indoors/outdoors → `sport_activity=general_training`.
+- GSA `81-19109`: explicit low-cut performance training, GSA HYDRO dry-feel claim and high breathability → `general_training`, `sock_height=ankle`, `moisture_wicking=true`, `breathability_level=high`.
+- GSA `81-1981-51` and `81-1981-52`: explicit thermal winter-sports construction and dry-feet/moisture claim → `thermal_level=thermal`, `moisture_wicking=true`.
+- GSA `82-16143-01` and `82-16143-02`: direct keep-feet-dry claim → `moisture_wicking=true`.
+- GSA `82-19109`: explicit athletic training and low-cut construction → `general_training`, `sock_height=ankle`.
+
+The XML also contains marketing phrases such as “extra cushioned” and compression wording without a governed intensity. Those claims remain unnormalized evidence instead of being forced into `max`, `medium`, or another invented level.
+
+Sport & Fit runtime knowledge now exposes sock breathability, thermal and compression fields in addition to height, cushioning, moisture-wicking and arch-support fields.
+
+## Trusted live brand aliases
+
+Kerasiotis currently supplies the misspelling `Sketchers` for Skechers products. Sport & Fit normalizes only this verified alias to `Skechers` for display/identity and to the `skechers` size-guide key. Other brand names are not rewritten by heuristic similarity.
