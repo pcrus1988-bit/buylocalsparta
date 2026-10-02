@@ -111,7 +111,8 @@ function seedTechnicalRequirements(
   cushioning: string,
   support: string,
   width: string,
-  footballCode: string
+  footballCode: string,
+  weightG: number | undefined
 ) {
   addRequirement(
     state,
@@ -183,7 +184,7 @@ function seedTechnicalRequirements(
         if (useCases.has("long_run") || cushioning === "high" || cushioning === "max") status = "match";
         else if (cushioning === "minimal" || cushioning === "low") status = "conflict";
       } else if (answers.distance === "short") {
-        if (useCases.has("speed_training") || useCases.has("race_day") || (typeof product.knowledge?.weightG === "number" && product.knowledge.weightG <= 280)) status = "match";
+        if (useCases.has("speed_training") || useCases.has("race_day") || (typeof weightG === "number" && weightG <= 280)) status = "match";
       } else if (useCases.has("daily_training") || useCases.has("easy_run")) {
         status = "match";
       }
@@ -207,7 +208,7 @@ function seedTechnicalRequirements(
         if (cushioning === "high" || cushioning === "max") status = "match";
         else if (cushioning === "minimal" || cushioning === "low") status = "conflict";
       } else if (answers.runnerNeed === "speed") {
-        if (useCases.has("speed_training") || useCases.has("race_day") || (typeof product.knowledge?.weightG === "number" && product.knowledge.weightG <= 280)) status = "match";
+        if (useCases.has("speed_training") || useCases.has("race_day") || (typeof weightG === "number" && weightG <= 280)) status = "match";
       } else if (answers.runnerNeed === "wide_fit") {
         if (width === "wide" || width === "extra_wide") status = "match";
         else if (width === "narrow") status = "conflict";
@@ -321,7 +322,8 @@ export function evaluateSportFitRules(
     cushioning,
     support,
     width,
-    footballCode
+    footballCode,
+    knowledge?.weightG
   );
 
   if (!product.available || product.availableToSell <= 0) {
