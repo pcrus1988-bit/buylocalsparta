@@ -102,7 +102,7 @@ function createProgram(gl:WebGLRenderingContext){
   return p;
 }
 
-type V=readonly[number,number,number,number];
+type V=readonly [number,number,number,number];
 function line(out:V[],a:readonly[number,number,number],b:readonly[number,number,number],kind=0,index=0){
   const w=kind+index/10;
   out.push([a[0],a[1],a[2],w],[b[0],b[1],b[2],w]);
