@@ -687,7 +687,7 @@ export function buildSportFitRecommendation(
   const ranked = uniqueRanked(scored);
   const footwear = ranked.filter((product) => product.role === "footwear");
   const primary = footwear[0] ?? ranked[0];
-  const alternatives = footwear.filter((product) => product.id !== primary?.id).slice(0, 3);
+  const alternatives = footwear.filter((product) => product.id !== primary?.id).slice(0, 4);
 
   const kit: SportFitScoredProduct[] = [];
   const usedIds = new Set(primary ? [primary.id] : []);
