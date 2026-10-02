@@ -64,7 +64,13 @@ ranked AS (
 )
 UPDATE public.vendor_businesses AS vendor
 SET public_slug = CASE
-  WHEN ranked.duplicate_count = 1 OR ranked.rn = 1 THEN ranked.base_slug
+  WHEN (ranked.duplicate_count = 1 OR ranked.rn = 1)
+       AND ranked.base_slug <> ALL(ARRAY[
+    'advice','analytics','catalog','daily-access','dropshipping','finance','hub',
+    'login','notifications','orders','pickup','preview','reports','returns',
+    'settings','shipping','storefront','trial','trial-expired','trust'
+  ]::text[])
+    THEN ranked.base_slug
   ELSE pg_catalog.btrim(pg_catalog.left(ranked.base_slug, 70), '-') || '-' ||
        pg_catalog.lower(pg_catalog.right(pg_catalog.regexp_replace(ranked.public_id, '[^A-Za-z0-9]', '', 'g'), 8))
 END
@@ -84,6 +90,17 @@ ALTER TABLE public.vendor_businesses
 ALTER TABLE public.vendor_businesses
   ADD CONSTRAINT vendor_businesses_public_slug_format_ck
   CHECK (public_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$');
+
+ALTER TABLE public.vendor_businesses
+  DROP CONSTRAINT IF EXISTS vendor_businesses_public_slug_reserved_ck;
+
+ALTER TABLE public.vendor_businesses
+  ADD CONSTRAINT vendor_businesses_public_slug_reserved_ck
+  CHECK (public_slug <> ALL(ARRAY[
+    'advice','analytics','catalog','daily-access','dropshipping','finance','hub',
+    'login','notifications','orders','pickup','preview','reports','returns',
+    'settings','shipping','storefront','trial','trial-expired','trust'
+  ]::text[]));
 
 CREATE OR REPLACE FUNCTION public.assign_vendor_public_slug()
 RETURNS trigger
@@ -111,11 +128,16 @@ BEGIN
     )
   );
 
-  IF EXISTS (
-    SELECT 1
-    FROM public.vendor_businesses existing
-    WHERE existing.public_slug = candidate
-  ) THEN
+  IF candidate = ANY(ARRAY[
+    'advice','analytics','catalog','daily-access','dropshipping','finance','hub',
+    'login','notifications','orders','pickup','preview','reports','returns',
+    'settings','shipping','storefront','trial','trial-expired','trust'
+  ]::text[])
+     OR EXISTS (
+       SELECT 1
+       FROM public.vendor_businesses existing
+       WHERE existing.public_slug = candidate
+     ) THEN
     candidate := pg_catalog.btrim(pg_catalog.left(candidate, 70), '-') || '-' || suffix;
   END IF;
 
