@@ -145,13 +145,18 @@ async function loadCandidates(
   const result = await getProductionPostgresRuntime().nativePool.query<CandidateRow>(`
     WITH live_offer AS (
       SELECT vo.canonical_variant_id, min(vo.customer_price_minor) AS live_price_minor
-      FROM public.vendor_offers vo
+      FROM public.canonical_variants shard_cv
+      JOIN public.vendor_offers vo ON vo.canonical_variant_id=shard_cv.id
       JOIN public.vendor_businesses v ON v.id=vo.vendor_id
       JOIN public.vendor_locations l ON l.id=vo.location_id
       LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
       LEFT JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
       LEFT JOIN public.inventory_balances ib ON ib.offer_id=vo.id
-      WHERE vo.status='approved'
+      WHERE shard_cv.active=true
+        AND shard_cv.suppressed=false
+        AND shard_cv.recalled=false
+        AND mod(abs(hashtext(shard_cv.public_id)::bigint),$2::bigint)=$3::bigint
+        AND vo.status='approved'
         AND vo.merchant_visible=true
         AND vo.merchant_pause_active=false
         AND vo.customer_price_minor>0
@@ -208,11 +213,6 @@ async function loadCandidates(
       AND cv.recalled=false
       AND nullif(btrim(pt.title),'') IS NOT NULL
       AND nullif(btrim(coalesce(pt.description,'')),'') IS NOT NULL
-      AND (
-        mps.id IS NULL
-        OR mps.sync_status<>'synced'
-        OR mod(abs(hashtext(cv.public_id)::bigint),$2::bigint)=$3::bigint
-      )
     ORDER BY
       CASE WHEN mps.id IS NULL OR mps.sync_status<>'synced' THEN 0 ELSE 1 END,
       mps.last_success_at NULLS FIRST,
