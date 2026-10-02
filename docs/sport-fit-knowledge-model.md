@@ -514,3 +514,16 @@ For the newly added sports, recommendation eligibility is evidence-gated. A prod
 Ruleset version: `2026-10-02.2`.
 
 Expansion vocabulary migration: `0323`. Current branch runtime schema gate: `324` after the subsequent exact Runfalcon 6 ATR enrichment (`0324`).
+
+
+## Schema 323 — expanded activity and court vocabulary
+
+Migration `0323_sport_fit_activity_use_case_expansion.sql` aligns the governed database vocabulary with the expanded deterministic Sport & Fit engine. It adds first-class hiking, basketball, tennis, padel and volleyball activity semantics, racket-sport grouping, court and sand surfaces, and controlled walking, gym-functional, hiking and court-sport use cases. This migration adds vocabulary only: product-level suitability still requires normal evidence/provenance before it can influence a recommendation.
+
+## Schema 324 — adidas Runfalcon 6 ATR IH1838
+
+Migration `0324_sport_fit_verified_adidas_runfalcon6atr.sql` upgrades current Kerasiotis style `IH1838` from lower-tier vendor-feed activity evidence to exact adidas manufacturer evidence. The exact product page supports running classification, true-to-size guidance, 254 g reference weight, 9 mm heel-to-toe drop, 36 mm heel stack and 26 mm forefoot stack.
+
+Cloudfoam wording remains descriptive evidence and is not converted into a normalized cushioning or support level. Exact surface/use-case classification also remains open until first-party exact-code evidence supports it.
+
+The runtime schema gate is now **324**.
