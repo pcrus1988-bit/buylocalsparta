@@ -168,6 +168,22 @@ const vendorPriceManager = read("apps/web/src/components/VendorPriceManager.tsx"
 for (const forbidden of [">Markup</label>", "backoffice", "στο checkout", "στον server"]) if (vendorPriceManager.includes(forbidden)) failures.push(`Vendor price manager still exposes technical wording ${forbidden}`);
 for (const requirement of ["αγορά → περιθώριο → έκπτωση", "Τι θα βλέπει ο πελάτης:", "Εμφάνιση προτεινόμενης λιανικής στο κατάστημα"]) if (!vendorPriceManager.includes(requirement)) failures.push(`Vendor pricing UX is missing ${requirement}`);
 
+const vendorConfirmation = read("apps/web/src/components/VendorConfirmation.tsx");
+for (const requirement of ["useVendorConfirmation", 'role="dialog"', 'aria-modal="true"', 'event.key === "Escape"', "vendor-confirmation-actions"]) if (!vendorConfirmation.includes(requirement)) failures.push(`Vendor confirmation UX is missing ${requirement}`);
+for (const vendorPath of [
+  "apps/web/src/components/VendorOrdersClient.tsx",
+  "apps/web/src/components/VendorReturnsClient.tsx",
+  "apps/web/src/components/VendorCatalogClient.tsx",
+  "apps/web/src/components/VendorDailyAccessClient.tsx",
+  "apps/web/src/components/VendorPickupCollectClient.tsx"
+] as const) {
+  const source = read(vendorPath);
+  if (source.includes("window.confirm")) failures.push(`Vendor workflow still uses a browser-native confirm dialog: ${vendorPath}`);
+  if (!source.includes("useVendorConfirmation")) failures.push(`Vendor workflow is missing contextual confirmation UX: ${vendorPath}`);
+}
+for (const requirement of [".vendor-confirmation-backdrop", ".vendor-confirmation-dialog", ".vendor-confirmation-actions"]) if (!vendorIaCss.includes(requirement)) failures.push(`Vendor confirmation styles are missing ${requirement}`);
+
+
 for (const requirement of ['eyebrow="Συνεργασία"', "Εμφάνιση στη Google", "Ρύθμιση εμφάνισης"]) if (!vendorSettingsPage.includes(requirement)) failures.push(`Vendor settings index second-pass polish is missing ${requirement}`);
 
 requireText("apps/web/src/app/admin/page.tsx", ["AdminDashboardCanvas", 'id: "attention"', "totalAttention", 'kind: "metric"', "/admin/partners/pipeline", "/admin/matching", "/admin/trust", "/admin/finance", "/admin/fairness"]);
