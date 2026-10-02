@@ -1,6 +1,6 @@
 # KONTA MOY Sport & Fit recommendation rules
 
-Ruleset: `2026-10-02.4`
+Ruleset: `2026-10-02.5`
 
 Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. They do not require an external recommendation API and they do not infer missing technical product facts.
 
@@ -110,6 +110,22 @@ A neutral support label is not treated as proof of poor lateral stability; it re
 - Verified width profiles can influence standard/wide/narrow preferences.
 - A documented narrow model is rejected for an explicit wide-fit requirement.
 - Unknown width or length fit is not treated as verified compatibility.
+
+## Complete My Kit
+
+Kit items now use their own weighted technical-confidence profile instead of inheriting near-perfect confidence from stock alone.
+
+For socks, tops, bottoms, layers and accessories, the engine can evaluate:
+- documented activity and exact use-case evidence;
+- moisture-wicking evidence in higher-sweat / high-frequency contexts;
+- breathability where frequent use or comfort makes it relevant;
+- sock cushioning for comfort/cushioning requests;
+- documented sock arch-support construction for a stability preference, without making a medical claim;
+- weather protection for outdoor/weather-priority contexts;
+- thermal evidence for hiking layers/socks;
+- reflective details for frequent running contexts.
+
+A missing performance fact stays `unknown`. A generic in-stock shirt or sock therefore no longer receives 100% technical confidence simply because availability is known. Documented cross-sport activity differences lower confidence but do not hard-reject versatile apparel; hard incompatibility remains reserved for categories such as footwear where the evidence supports a deterministic exclusion.
 
 ## Explainability
 
