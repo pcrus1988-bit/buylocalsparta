@@ -4,6 +4,7 @@ import type { CatalogCard, CatalogFilters } from "./catalog-view";
 import { matchesCatalogAttributeFilters, type CatalogAttributeFilters } from "./catalog-attribute-filter";
 import { loadCatalogMetadata } from "./catalog-metadata";
 import { approvedCatalogImages } from "./public-media-service";
+import { getPublicProductDetails } from "./public-product-detail";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { storefrontCategoryBySlug } from "./storefront-taxonomy";
 import { getLocalStorefrontReadModelWindow } from "./storefront-read-model";
@@ -206,6 +207,9 @@ export async function getShopCatalogPage(input: ShopCatalogPageInput): Promise<S
   if (!assigned.length) return { products: [], total, hasMore: offset + candidateLimit < total };
 
   const assignedIds = assigned.map((record) => record.id);
+  // Source-hosted vendor media is projected in one bounded batch so card images do
+  // not fall back to one database-backed proxy request per product.
+  const sourceDetails = await getPublicProductDetails(assignedIds);
   const [stickyPrices, images] = await Promise.all([
     loadStickyPrices(assignedIds, input.visitorKey, postcode),
     approvedCatalogImages(assigned.map((record) => ({ canonicalVariantId: record.id, preferredVendorId: record.vendorId }))).catch((error) => {
@@ -252,6 +256,8 @@ export async function getShopCatalogPage(input: ShopCatalogPageInput): Promise<S
       adviser: record.adviser,
       mediaId: image?.mediaId,
       mediaAlt: image?.altText,
+      previewImageSrc: image ? undefined : sourceDetails.get(record.id)?.sourceImageUrl,
+      sourceImageAvailable: Boolean(sourceDetails.get(record.id)?.sourceImageUrl),
       available: true,
       availableToSell: record.availableToSell,
       msrpMinor: projectedMsrpMinor > priceMinor ? projectedMsrpMinor : null

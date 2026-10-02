@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { getCatalogCard, type CatalogCard } from "./catalog-view";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { getPublicProductDetails } from "./public-product-detail";
 
 const ROTATION_WINDOW_MS = 30 * 60 * 1000;
 const OPEN_FULFILMENT_STATUSES = ["awaiting_acceptance", "accepted", "picking", "packed", "ready_for_handover", "shipped"] as const;
@@ -227,5 +228,17 @@ export async function getHomepageCatalogCards(
     }
   }
 
-  return cards;
+  const missingPreviewIds = cards
+    .filter((card) => !card.mediaId && !card.previewImageSrc)
+    .map((card) => card.id);
+  if (!missingPreviewIds.length) return cards;
+
+  const sourceDetails = await getPublicProductDetails(missingPreviewIds);
+  return cards.map((card) => {
+    if (card.mediaId || card.previewImageSrc) return card;
+    const sourceImageUrl = sourceDetails.get(card.id)?.sourceImageUrl;
+    return sourceImageUrl
+      ? { ...card, previewImageSrc: sourceImageUrl, sourceImageAvailable: true }
+      : card;
+  });
 }
