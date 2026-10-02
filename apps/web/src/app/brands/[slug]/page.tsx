@@ -8,7 +8,10 @@ import { getPublicBrandGuide } from "../../../lib/brand-guide-runtime";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import styles from "./page.module.css";
 
-type Props = Readonly<{ params: Promise<{ slug: string }> }>;
+type Props = Readonly<{
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ hub?: string | string[] }>;
+}>;
 
 function host(value: string): string {
   try { return new URL(value).hostname.replace(/^www\./, ""); } catch { return value; }
@@ -20,6 +23,8 @@ function jsonLd(value: unknown): string {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
+  // Search metadata remains tied to the stable default public market. The rendered
+  // page below is request-local and follows the visitor's selected HUB.
   const brand = await getPublicBrandGuide(slug);
   if (!brand) return { title: "Brand | ΚΟΝΤΑ ΜΟΥ", robots: { index: false, follow: true } };
 
@@ -39,9 +44,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function BrandGuidePage({ params }: Props) {
+export default async function BrandGuidePage({ params, searchParams }: Props) {
   const { slug } = await params;
-  const brand = await getPublicBrandGuide(slug);
+  const query = searchParams ? await searchParams : {};
+  const hub = Array.isArray(query.hub) ? query.hub[0] : query.hub;
+  const locality = hub?.trim() || undefined;
+  const brand = await getPublicBrandGuide(slug, locality);
   if (!brand) notFound();
 
   const { settings } = await getSeoGlobalSettingsSnapshot();
@@ -144,7 +152,7 @@ export default async function BrandGuidePage({ params }: Props) {
       {brand.products.length ? <section className={styles.section}>
         <div className={styles.sectionHeader}>
           <div><div className="eyebrow">Διαθέσιμα τώρα</div><h2>Επιλογές {brand.name}</h2></div>
-          <p className={styles.copy}>Μικρό δείγμα από την τρέχουσα εμπορική διαθεσιμότητα. Η πλήρης λίστα παραμένει στο marketplace ώστε τιμές και απόθεμα να ακολουθούν τους ίδιους κανόνες με το υπόλοιπο ΚΟΝΤΑ ΜΟΥ.</p>
+          <p className={styles.copy}>Μικρό δείγμα από την τρέχουσα διαθεσιμότητα του brand σε όλα τα ενεργά καταστήματα του επιλεγμένου hub — όχι από ένα μόνο κατάστημα. Η πλήρης λίστα παραμένει στο marketplace ώστε τιμές και απόθεμα να ακολουθούν τους ίδιους κανόνες με το υπόλοιπο ΚΟΝΤΑ ΜΟΥ.</p>
         </div>
         <div className={styles.productGrid}>
           {brand.products.map((product, index) => <CatalogProductCard product={product} index={index} key={product.id} />)}
@@ -160,7 +168,11 @@ export default async function BrandGuidePage({ params }: Props) {
           <p className={styles.copy}>Αυτές οι προτάσεις δεν είναι πληρωμένη κατάταξη. Βασίζονται στις ενεργές κατηγορίες που μοιράζονται με το {brand.name} και στην τρέχουσα διαθεσιμότητα του καταλόγου.</p>
         </div>
         <div className={styles.relatedGrid}>
-          {brand.relatedBrands.map((related) => <Link className={styles.relatedCard} href={`/brands/${related.slug}`} key={related.id}>
+          {brand.relatedBrands.map((related) => <Link
+            className={styles.relatedCard}
+            href={locality ? `/brands/${related.slug}?hub=${encodeURIComponent(locality)}` : `/brands/${related.slug}`}
+            key={related.id}
+          >
             <div className={styles.relatedLogo}>
               {related.logoUrl ? <img src={related.logoUrl} alt="" loading="lazy" decoding="async" /> : <span>{related.name}</span>}
             </div>
