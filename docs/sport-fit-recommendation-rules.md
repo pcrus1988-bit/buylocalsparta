@@ -1,6 +1,6 @@
 # KONTA MOY Sport & Fit recommendation rules
 
-Ruleset: `2026-10-02.5`
+Ruleset: `2026-10-02.6`
 
 Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. They do not require an external recommendation API and they do not infer missing technical product facts.
 
@@ -110,6 +110,14 @@ A neutral support label is not treated as proof of poor lateral stability; it re
 - Verified width profiles can influence standard/wide/narrow preferences.
 - A documented narrow model is rejected for an explicit wide-fit requirement.
 - Unknown width or length fit is not treated as verified compatibility.
+
+## Versatility
+
+`versatility` is now a governed preference rather than a generic fallback score. Footwear can earn a verified versatility match from documented breadth across activities, surfaces or use cases, or from an explicitly broad controlled classification such as general training / team sports / racket sports.
+
+Generic words such as “versatile” or “all-round” in catalogue marketing copy do not create technical evidence. A product with only one documented context remains `unknown` for the versatility requirement rather than being marked incompatible.
+
+Kit items use the same principle: broader governed activity/use-case evidence can improve their versatility confidence without inventing performance claims.
 
 ## Complete My Kit
 
