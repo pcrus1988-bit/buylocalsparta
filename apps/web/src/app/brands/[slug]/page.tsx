@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CatalogProductCard } from "../../../components/CatalogProductCard";
@@ -6,6 +7,7 @@ import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { getPublicBrandGuide } from "../../../lib/brand-guide-runtime";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
+import { HUB_LOCALITY_COOKIE } from "../../../lib/primary-location-gateway";
 import styles from "./page.module.css";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
@@ -20,7 +22,8 @@ function jsonLd(value: unknown): string {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const brand = await getPublicBrandGuide(slug);
+  const locality = (await cookies()).get(HUB_LOCALITY_COOKIE)?.value;
+  const brand = await getPublicBrandGuide(slug, locality);
   if (!brand) return { title: "Brand | ΚΟΝΤΑ ΜΟΥ", robots: { index: false, follow: true } };
 
   const description = brand.description
@@ -41,7 +44,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BrandGuidePage({ params }: Props) {
   const { slug } = await params;
-  const brand = await getPublicBrandGuide(slug);
+  const locality = (await cookies()).get(HUB_LOCALITY_COOKIE)?.value;
+  const brand = await getPublicBrandGuide(slug, locality);
   if (!brand) notFound();
 
   const { settings } = await getSeoGlobalSettingsSnapshot();
@@ -144,7 +148,7 @@ export default async function BrandGuidePage({ params }: Props) {
       {brand.products.length ? <section className={styles.section}>
         <div className={styles.sectionHeader}>
           <div><div className="eyebrow">Διαθέσιμα τώρα</div><h2>Επιλογές {brand.name}</h2></div>
-          <p className={styles.copy}>Μικρό δείγμα από την τρέχουσα εμπορική διαθεσιμότητα. Η πλήρης λίστα παραμένει στο marketplace ώστε τιμές και απόθεμα να ακολουθούν τους ίδιους κανόνες με το υπόλοιπο ΚΟΝΤΑ ΜΟΥ.</p>
+          <p className={styles.copy}>Μικρό δείγμα από την τρέχουσα διαθεσιμότητα του brand σε όλα τα ενεργά καταστήματα του επιλεγμένου hub — όχι από ένα μόνο κατάστημα. Η πλήρης λίστα παραμένει στο marketplace ώστε τιμές και απόθεμα να ακολουθούν τους ίδιους κανόνες με το υπόλοιπο ΚΟΝΤΑ ΜΟΥ.</p>
         </div>
         <div className={styles.productGrid}>
           {brand.products.map((product, index) => <CatalogProductCard product={product} index={index} key={product.id} />)}
