@@ -6,9 +6,10 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as Reac
 import { useEffect, useMemo, useRef, useState } from "react";
 import { STUDIO_DESTINATIONS, type StudioDestination } from "../lib/studio-registry";
 import { consumeStudioTravel, markStudioTravel } from "../lib/studio-travel";
+import { createStudioProgram, resizeStudioCanvas, studioDprCap, type StudioQualityTier } from "../lib/studio-webgl";
 import styles from "./StudioHubUniverse.module.css";
 
-type QualityTier = "high" | "balanced" | "lite";
+type QualityTier = StudioQualityTier;
 type Vec3 = readonly [number, number, number];
 
 type Projection = Readonly<{
@@ -90,37 +91,6 @@ void main() {
   gl_FragColor = vec4(color, radial * alpha);
 }
 `;
-
-function compileShader(gl: WebGLRenderingContext, type: number, source: string): WebGLShader {
-  const shader = gl.createShader(type);
-  if (!shader) throw new Error("studio_shader_create_failed");
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    const message = gl.getShaderInfoLog(shader) || "studio_shader_compile_failed";
-    gl.deleteShader(shader);
-    throw new Error(message);
-  }
-  return shader;
-}
-
-function createProgram(gl: WebGLRenderingContext): WebGLProgram {
-  const program = gl.createProgram();
-  if (!program) throw new Error("studio_program_create_failed");
-  const vertex = compileShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
-  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
-  gl.attachShader(program, vertex);
-  gl.attachShader(program, fragment);
-  gl.linkProgram(program);
-  gl.deleteShader(vertex);
-  gl.deleteShader(fragment);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    const message = gl.getProgramInfoLog(program) || "studio_program_link_failed";
-    gl.deleteProgram(program);
-    throw new Error(message);
-  }
-  return program;
-}
 
 function seeded(index: number, salt: number): number {
   let value = Math.imul(index + 17, 1103515245) + Math.imul(salt + 31, 12345);
@@ -316,7 +286,7 @@ export function StudioHubUniverse() {
     let resizeObserver: ResizeObserver | null = null;
 
     try {
-      const activeProgram = createProgram(gl);
+      const activeProgram = createStudioProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER, "studio_hub");
       program = activeProgram;
       buffer = gl.createBuffer();
       if (!buffer) throw new Error("studio_buffer_create_failed");
@@ -342,16 +312,8 @@ export function StudioHubUniverse() {
       const timeLocation = gl.getUniformLocation(activeProgram, "u_time");
       const focusLocation = gl.getUniformLocation(activeProgram, "u_focus");
 
-      const dprCap = nextTier === "high" ? 1.8 : nextTier === "balanced" ? 1.5 : 1.15;
-      const resize = () => {
-        const rect = stage.getBoundingClientRect();
-        const dpr = Math.min(window.devicePixelRatio || 1, dprCap);
-        canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-        canvas.height = Math.max(1, Math.floor(rect.height * dpr));
-        canvas.style.width = `${rect.width}px`;
-        canvas.style.height = `${rect.height}px`;
-        gl.viewport(0, 0, canvas.width, canvas.height);
-      };
+      const dprCap = studioDprCap(nextTier, { high: 1.8, balanced: 1.5, lite: 1.15 });
+      const resize = () => { resizeStudioCanvas(canvas, stage, gl, dprCap); };
 
       resizeObserver = new ResizeObserver(resize);
       resizeObserver.observe(stage);
