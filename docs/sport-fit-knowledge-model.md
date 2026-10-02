@@ -566,14 +566,25 @@ The migration verifies that all fourteen product codes resolve to exactly one ac
 
 The runtime schema gate is now **326**.
 
+## Schema 327 — second verified adidas sock batch and strict feed identity bridge
 
-## Schema 327 — adidas sock construction follow-up
+Migration `0327_sport_fit_verified_adidas_sock_batch2.sql` adds exact first-party adidas evidence for thirteen additional current Kerasiotis sock families. Where `canonical_variants.mpn` is not yet populated, identity may bridge through an exact adidas style-code token in the current trusted Kerasiotis vendor feed, but only when that code resolves to exactly one active canonical family.
 
-Migration `0327_sport_fit_verified_adidas_sock_followup.sql` adds exact manufacturer construction evidence for the two remaining current Kerasiotis sock families with exact MPN identity outside schema 326:
+Governed facts added:
+- `IC1301`: gym training + crew height.
+- `IC1302`: gym training + crew height.
+- `JF8541`: gym training + ankle height.
+- `JF8542`: gym training + ankle height.
+- `JW9794`: gym training + crew height; anti-slip remains evidence only because no governed anti-slip attribute exists yet.
+- `HT3451`: ankle height only.
+- `JX1095`: explicit moisture-wicking only; Terrex naming alone is not promoted to a sport activity.
+- `KC9617`: gym training + explicit arch support; manufacturer mid-cut wording remains unmapped.
+- `KC9639`: crew height + arch support.
+- `KE5503`: crew height + arch support.
+- `KR2352`: crew height only; Minecraft/lifestyle wording is not promoted to a sport activity.
+- `KR4903`: exact `sock_cushioning=none` only. Official adidas regional pages conflict on height and category placement, so height and sport activity remain intentionally unknown.
+- `KD1727`: explicit arch support only; mid-height and generic cushioning wording remain ungraded.
 
-- `KR2352` (adidas Minecraft Kids 3 Pairs): `sock_height=crew` from the exact adidas product page. School/playtime/everyday-active wording is not promoted to a governed sport activity.
-- `KR4903` (Youth Girls Leo Graphic Socks): `sock_cushioning=none` from the exact adidas product details. Official adidas regional pages conflict on height/category placement, so height and sport activity remain intentionally unknown.
-
-This migration preserves the same fail-closed identity rule: each MPN must resolve to exactly one active canonical family before a fact is published. It also demonstrates that an explicit negative construction claim such as “No cushioning” may be normalized while generic positive wording such as “cushioned” remains ungraded unless adidas publishes a controlled intensity.
+The batch preserves the fail-closed rule for identity and keeps generic “cushioned”, “soft”, “light/thin”, lifestyle positioning and conflicting regional merchandising out of governed technical fields.
 
 The runtime schema gate is now **327**.
