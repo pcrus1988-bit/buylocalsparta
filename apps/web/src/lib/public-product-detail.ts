@@ -17,6 +17,7 @@ export type PublicProductDetail = Readonly<{
   supplierCode?: string;
   sourceGtin?: string;
   sourceImageUrl?: string;
+  sourceImageUrls: readonly string[];
   manualUrl?: string;
   technicalAttributes: readonly PublicTechnicalAttribute[];
   variantFamilyId?: string;
@@ -167,6 +168,52 @@ function optionalText(value: unknown): string | undefined {
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
+
+function sourceImageUrls(
+  sourceCode: unknown,
+  sourceWebsite: unknown,
+  primary: unknown,
+  sourceNormalized: Record<string, unknown>,
+  sourceRaw: Record<string, unknown>
+): readonly string[] {
+  const candidates: unknown[] = [
+    primary,
+    sourceNormalized.imageUrl,
+    sourceNormalized.image_url,
+    sourceRaw.imageUrl,
+    sourceRaw.image_url
+  ];
+  const append = (value: unknown) => {
+    if (Array.isArray(value)) {
+      for (const entry of value) append(entry);
+      return;
+    }
+    if (value && typeof value === "object") {
+      const image = objectValue(value);
+      candidates.push(image.src ?? image.url ?? image.image ?? image.imageUrl ?? image.image_url);
+      return;
+    }
+    candidates.push(value);
+  };
+
+  append(sourceNormalized.images);
+  append(sourceRaw.images);
+  append(sourceRaw.additionalImageUrls);
+  append(sourceRaw.additional_image_urls);
+  append(sourceRaw.additional_image_link);
+
+  const urls: string[] = [];
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    const trusted = trustedCatalogSourceHttpsUrl(sourceCode, sourceWebsite, candidate);
+    if (!trusted || seen.has(trusted)) continue;
+    seen.add(trusted);
+    urls.push(trusted);
+    if (urls.length >= 12) break;
+  }
+  return urls;
+}
+
 
 function jsonObject(value: unknown): Record<string, unknown> {
   if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
@@ -320,11 +367,14 @@ function productDetailFromRow(row: ProductDetailRow): PublicProductDetail {
     ?? optionalText(sourceRaw.description_el)
     ?? optionalText(sourceRaw.description);
   const variantGroupSize = Math.max(1, Math.trunc(numeric(sourceNormalized.variantGroupSize) ?? numeric(sourceRaw.variant_group_size) ?? 1));
-  const sourceImageUrl = trustedCatalogSourceHttpsUrl(
+  const imageUrls = sourceImageUrls(
     row.source_code,
     row.source_website,
-    row.source_image_url ?? sourceNormalized.imageUrl ?? sourceRaw.image_url
+    row.source_image_url,
+    sourceNormalized,
+    sourceRaw
   );
+  const sourceImageUrl = imageUrls[0];
   const manualUrl = trustedCatalogSourceHttpsUrl(
     row.source_code,
     row.source_website,
@@ -339,6 +389,7 @@ function productDetailFromRow(row: ProductDetailRow): PublicProductDetail {
     supplierCode: optionalText(row.source_supplier_code) ?? optionalText(sourceRaw.supplier_code),
     sourceGtin: optionalText(sourceRaw.gtin13) ?? optionalText(sourceRaw.gtin) ?? optionalText(sourceNormalized.gtin13),
     sourceImageUrl,
+    sourceImageUrls: imageUrls,
     manualUrl,
     technicalAttributes: technicalAttributes(specifications, canonicalAttributes, sourceNormalized, sourceRaw),
     variantFamilyId: optionalText(sourceNormalized.variantFamilyId) ?? optionalText(sourceRaw.variant_family_id),
