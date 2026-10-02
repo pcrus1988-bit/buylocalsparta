@@ -298,7 +298,9 @@ function fitImage(
 }
 
 function atlasProxySrc(product: SportFitUniverseVisualProduct): string {
-  return `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
+  // Version the Sport & Fit request so previously cached 404 responses from
+  // the supplier-only proxy lookup cannot keep the WebGL atlas on fallbacks.
+  return `/api/catalog-source-image/${encodeURIComponent(product.id)}?sf=2`;
 }
 
 async function buildAtlas(products: readonly SportFitUniverseVisualProduct[]): Promise<HTMLCanvasElement> {
