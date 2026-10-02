@@ -355,3 +355,27 @@ test("size-guide brand keys use the trusted Skechers alias only", () => {
   assert.equal(sportSizeGuideBrandKey("Skechers"), "skechers");
   assert.equal(sportSizeGuideBrandKey("Reebok"), "reebok");
 });
+
+
+test("governed sock thermal and breathability facts reach result reasons", () => {
+  const sock = product({
+    id: "gsa-thermal-sock",
+    title: "GSA thermal sock",
+    categoryCode: "socks-hosiery",
+    sizes: [],
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      breathabilityLevel: "high",
+      thermalLevel: "thermal"
+    }
+  });
+
+  const scored = scoreSportFitProduct(sock, {
+    activity: "walking",
+    audience: "men"
+  });
+
+  assert.ok(scored.reasons.some((reason) => /διαπνοή/i.test(reason)));
+  assert.ok(scored.reasons.some((reason) => /θερμική/i.test(reason)));
+});
