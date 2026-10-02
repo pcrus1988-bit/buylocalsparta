@@ -390,10 +390,10 @@ export async function prepareVendorProductFeed(
       itemGroupId: trimOptional(xmlFieldValue(record, mapping.itemGroupId), 300),
       size,
       color,
-      variantAttributes: Object.fromEntries([
-        ["size", size],
-        ["color", color]
-      ].filter((entry): entry is [string, string] => Boolean(entry[1])))
+      variantAttributes: {
+        ...(size ? { size, sizes_observed: [size] } : {}),
+        ...(color ? { color } : {})
+      }
     };
     valid.push({
       rowNumber: record.index,
