@@ -603,3 +603,17 @@ The migration was executed against the live KONTA MOY schema inside a transactio
 
 The runtime schema gate is now **328**.
 
+## Schema 329 — lifestyle exclusion classification and Rockadia hiking enrichment
+
+Migration \`0329_sport_fit_lifestyle_hiking_reconciliation.sql\` adds a governed non-sport activity classification and one additional exact-code adidas hiking family.
+
+- Ultimashow 2.0 \`IE8898\`: the previous conflict represented an exact adidas lifestyle/errands statement against a broad KONTA MOY running-shoe taxonomy fact. Schema 329 removes the taxonomy-only running fact and the temporary conflict evidence, adds \`sport_activity=casual_lifestyle\`, and preserves explicit true-to-size guidance. \`casual_lifestyle\` is marked non-selectable for Sport & Fit; it exists so a known manufacturer use can produce a deterministic activity mismatch instead of allowing title/category heuristics to reintroduce the product as performance running footwear.
+- Terrex Rockadia \`KZ9174\`: exact adidas evidence adds \`sport_activity=hiking\` and \`fit_length_profile=true_to_size\`. Surface, hiking use-case, cushioning, support, geometry, width and weather protection remain unknown until exact evidence is available.
+
+The new \`casual_lifestyle\` activity value is evidence infrastructure, not a new Studio sport. It is intentionally outside the user-selectable activity set. This lets the recommendation rules distinguish “unknown sport use” from “manufacturer-documented non-sport/lifestyle use” without inventing walking or running suitability.
+
+As with the preceding batches, Cloudfoam and generic comfort wording are retained only in provenance and are not mapped to cushioning/support intensity.
+
+Schema 329 was executed against the live KONTA MOY schema inside a transaction ending in \`ROLLBACK\`. Exact-code uniqueness guards, IE8898 conflict replacement, KZ9174 enrichment, knowledge refresh and post-write assertions all passed, and a post-rehearsal read confirmed that no schema-329 rows were persisted.
+
+The runtime schema gate is now **329**.
