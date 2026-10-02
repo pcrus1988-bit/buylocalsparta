@@ -85,10 +85,24 @@ function hasAny(text: string, terms: readonly string[]): boolean {
   return terms.some((term) => text.includes(normalize(term)));
 }
 
-function exactSize(product: SportFitProduct, requestedSize: string | undefined): string | undefined {
+function matchingSize(product: SportFitProduct, requestedSize: string | undefined, role: SportProductRole): string | undefined {
   const target = normalize(requestedSize).replace(/^eu\s*/, "");
-  if (!target) return undefined;
-  return product.sizes.find((size) => normalize(size).replace(/^eu\s*/, "") === target);
+  if (!target || (role !== "footwear" && role !== "socks")) return undefined;
+
+  const exact = product.sizes.find((size) => normalize(size).replace(/^eu\s*/, "") === target);
+  if (exact) return exact;
+  if (role !== "socks") return undefined;
+
+  const numericTarget = Number(target.replace(",", "."));
+  if (!Number.isFinite(numericTarget)) return undefined;
+  return product.sizes.find((size) => {
+    const normalized = normalize(size).replace(/^eu\s*/, "").replace(",", ".");
+    const range = normalized.match(/^(\d{1,2}(?:\.\d+)?)\s*[-–—/]\s*(\d{1,2}(?:\.\d+)?)$/);
+    if (!range) return false;
+    const min = Number(range[1]);
+    const max = Number(range[2]);
+    return Number.isFinite(min) && Number.isFinite(max) && numericTarget >= Math.min(min, max) && numericTarget <= Math.max(min, max);
+  });
 }
 
 function productText(product: SportFitProduct): string {
@@ -235,12 +249,13 @@ function budgetScore(product: SportFitProduct, budgetMinor: number | undefined):
   return -10;
 }
 
-function sizeScore(product: SportFitProduct, requestedSize: string | undefined): Readonly<{ score: number; matchedSize?: string }> {
-  if (!normalize(requestedSize)) return { score: 5 };
-  const match = exactSize(product, requestedSize);
+function sizeScore(product: SportFitProduct, requestedSize: string | undefined, role: SportProductRole): Readonly<{ score: number; matchedSize?: string }> {
+  if (role !== "footwear" && role !== "socks") return { score: 0 };
+  if (!normalize(requestedSize)) return { score: 4 };
+  const match = matchingSize(product, requestedSize, role);
   if (match) return { score: 15, matchedSize: match };
-  if (product.sizes.length > 0) return { score: -30 };
-  return { score: -5 };
+  if (product.sizes.length > 0) return { score: role === "footwear" ? -30 : -8 };
+  return { score: -4 };
 }
 
 function reasonsFor(
@@ -277,7 +292,7 @@ function reasonsFor(
 export function scoreSportFitProduct(product: SportFitProduct, answers: SportFitAnswers): SportFitScoredProduct {
   const text = productText(product);
   const role = sportProductRole(product);
-  const size = sizeScore(product, answers.size);
+  const size = sizeScore(product, answers.size, role);
   let score = 5;
 
   score += activityScore(product, answers, text, role);
