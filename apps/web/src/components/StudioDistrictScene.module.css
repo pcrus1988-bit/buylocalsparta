@@ -132,7 +132,7 @@
 }
 .portalMotif i{position:absolute;display:block;box-sizing:border-box}
 
-/* Sport & Fit: only this portal keeps circular / universe-like motion. */
+/* Sport & Fit: only this portal keeps circular floating-product motion. */
 .portalMotif[data-kind="sport-fit"] i{
   width:8px;height:8px;border:1px solid rgba(92,244,219,.8);border-radius:50%;
 }
