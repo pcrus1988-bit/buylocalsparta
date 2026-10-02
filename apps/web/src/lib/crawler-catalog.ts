@@ -42,7 +42,8 @@ export async function getCrawlerCatalogCards(
     filters,
     attributeFilters: {},
     limit: remaining,
-    offset: 0
+    offset: 0,
+    diversify: false
   });
   const seen = new Set(localProducts.map((product) => product.id));
   localProducts.push(...dropshipPage.products.filter((product) => !seen.has(product.id)).slice(0, remaining));
