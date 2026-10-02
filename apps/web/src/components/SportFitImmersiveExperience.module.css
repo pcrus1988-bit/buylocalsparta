@@ -271,7 +271,15 @@ perspective:1200px;isolation:isolate}
     max-height:56dvh;
     padding:10px 4px 4px;
     mask-image:linear-gradient(to bottom,transparent 0,#000 12px,#000 100%);
-    border-radius:22px 22px 10px 10px
+    border-radius:22px 22px 10px 10px;
+    transition:transform .24s cubic-bezier(.22,.8,.2,1),opacity .18s ease,visibility 0s linear 0s
+  }
+  .liveStudio .guidePane.guidePaneProductOpen{
+    transform:translateY(calc(100% + 28px));
+    opacity:0;
+    visibility:hidden;
+    pointer-events:none;
+    transition:transform .24s cubic-bezier(.22,.8,.2,1),opacity .18s ease,visibility 0s linear .18s
   }
   .liveStudio .guideCard{
     padding:20px 20px 22px;

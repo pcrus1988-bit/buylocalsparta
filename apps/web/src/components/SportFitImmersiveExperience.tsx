@@ -278,7 +278,8 @@ function ProductUniverse({
   initialCount,
   survivingCount,
   busy,
-  unavailable
+  unavailable,
+  onProductCardOpenChange
 }: {
   products: readonly UniverseProduct[];
   leavingIds: ReadonlySet<string>;
@@ -286,6 +287,7 @@ function ProductUniverse({
   survivingCount: number;
   busy: boolean;
   unavailable: boolean;
+  onProductCardOpenChange?: (open: boolean) => void;
 }) {
   return (
     <div className={styles.universe}>
@@ -302,7 +304,12 @@ function ProductUniverse({
 
       <div className={styles.scene} aria-label="Διαδραστικό τρισδιάστατο σύμπαν των προϊόντων που παραμένουν συμβατά">
         {products.length ? (
-          <SportFitWebGLUniverse products={products} leavingIds={leavingIds} busy={busy} />
+          <SportFitWebGLUniverse
+            products={products}
+            leavingIds={leavingIds}
+            busy={busy}
+            onProductCardOpenChange={onProductCardOpenChange}
+          />
         ) : (
           <div className={styles.universeEmpty}>
             {unavailable ? "Ο live κατάλογος δεν είναι διαθέσιμος αυτή τη στιγμή." : busy ? "Φορτώνουμε το 3D σύμπαν…" : "Δεν μένει ακόμη συμβατό προϊόν με αυτές τις επιλογές."}
@@ -350,6 +357,7 @@ export function SportFitImmersiveExperience({
   const [initialCount, setInitialCount] = useState(0);
   const [survivingCount, setSurvivingCount] = useState(0);
   const [selectedFinalistId, setSelectedFinalistId] = useState("");
+  const [productCardOpen, setProductCardOpen] = useState(false);
 
   const universeRef = useRef<readonly UniverseProduct[]>([]);
   const requestSequenceRef = useRef(0);
@@ -512,6 +520,7 @@ export function SportFitImmersiveExperience({
     setUseCase(undefined);
     setResponse(undefined);
     setSelectedFinalistId("");
+    setProductCardOpen(false);
     setError("");
     setLeavingIds(new Set());
     setUniverseBusy(true);
@@ -676,10 +685,11 @@ export function SportFitImmersiveExperience({
               survivingCount={survivingCount}
               busy={universeBusy}
               unavailable={universeUnavailable}
+              onProductCardOpenChange={setProductCardOpen}
             />
           </div>
 
-          <div className={styles.guidePane}>
+          <div className={`${styles.guidePane} ${productCardOpen ? styles.guidePaneProductOpen : ""}`}>
             {step === "activity" ? (
               <section className={styles.guideCard}>
                 <span className={styles.kicker}>01 · ΔΡΑΣΤΗΡΙΟΤΗΤΑ</span>

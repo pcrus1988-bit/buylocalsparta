@@ -29,6 +29,7 @@ type Props = Readonly<{
   mode?: "cloud" | "finalists";
   selectedId?: string;
   onSelect?: (id: string) => void;
+  onProductCardOpenChange?: (open: boolean) => void;
   busy?: boolean;
 }>;
 
@@ -472,6 +473,7 @@ export function SportFitWebGLUniverse({
   mode = "cloud",
   selectedId,
   onSelect,
+  onProductCardOpenChange,
   busy = false
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -508,6 +510,11 @@ export function SportFitWebGLUniverse({
     () => products.find((product) => product.id === openedId),
     [openedId, products]
   );
+
+  useEffect(() => {
+    onProductCardOpenChange?.(Boolean(openedProduct));
+    return () => onProductCardOpenChange?.(false);
+  }, [openedProduct, onProductCardOpenChange]);
 
   useEffect(() => {
     openedIdRef.current = openedId;
