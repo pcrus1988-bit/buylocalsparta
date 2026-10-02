@@ -617,3 +617,20 @@ As with the preceding batches, Cloudfoam and generic comfort wording are retaine
 Schema 329 was executed against the live KONTA MOY schema inside a transaction ending in \`ROLLBACK\`. Exact-code uniqueness guards, IE8898 conflict replacement, KZ9174 enrichment, knowledge refresh and post-write assertions all passed, and a post-rehearsal read confirmed that no schema-329 rows were persisted.
 
 The runtime schema gate is now **329**.
+
+
+## Schema 330 — Skechers lifestyle reconciliation
+
+Migration `0330_sport_fit_skechers_lifestyle_reconciliation.sql` resolves the three highest-priority remaining Kerasiotis footwear classification blockers created by schema 314. Each exact Skechers base style code resolves to one active canonical family before any fact is changed.
+
+- `117385` (BOBS Sport B Flex Hi - Flying Hi): exact Skechers classification is casual/fashion rather than performance running.
+- `117485` (BOBS Sport Squad Waves - Just Wading): exact Skechers classification is casual/fashion rather than performance running.
+- `117731` (BOBS Moda Flex - Mellow Dawn): exact Skechers description identifies the product as a casual design rather than performance running footwear.
+
+For each family, schema 330 removes only the temporary schema-314 manufacturer conflict row and the broad `kontamou_catalog_taxonomy` running evidence, removes the normalized `running` activity, and replaces it with the schema-329 governed `sport_activity=casual_lifestyle` value. The queue is then marked complete as a non-sport exclusion classification, so the Studio treats these families as deterministic activity mismatches instead of repeatedly requesting performance-running specifications.
+
+The migration fails closed if a style resolves to zero or multiple active canonical families, or if any unexpected third source has active `sport_activity` evidence. Memory Foam, comfort, flexibility and traction wording remain provenance only; no cushioning, support, drop, stack, width, toe-box or weather-protection fact is inferred from those claims.
+
+Schema 330 was executed against the live KONTA MOY schema inside a transaction ending in `ROLLBACK`, with a temporary schema-329 prerequisite value created inside that same transaction because production has not yet applied schema 329. Identity guards, evidence-source guards, activity replacement, knowledge refresh, queue completion and post-write assertions passed. A post-rehearsal read confirmed that `casual_lifestyle` and all schema-330 changes were rolled back and the three live queue rows remain blocked until the migration chain is deployed.
+
+The runtime schema gate is now **330**.
