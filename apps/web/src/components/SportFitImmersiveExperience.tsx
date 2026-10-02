@@ -22,6 +22,19 @@ import type {
 import styles from "./SportFitImmersiveExperience.module.css";
 
 type Step = "activity" | "profile" | "details" | "results";
+type ProfileQuestion = "audience" | "size" | "footLength" | "budget";
+type DetailQuestion = "gymTraining" | "surface" | "useCase" | "frequency" | "distance" | "runnerNeed" | "fitPreference" | "priority";
+
+const PROFILE_QUESTIONS: readonly ProfileQuestion[] = ["audience", "size", "footLength", "budget"];
+
+function detailQuestionsFor(activity: SportActivity): readonly DetailQuestion[] {
+  if (activity === "gym") return ["gymTraining", "frequency", "fitPreference", "priority"];
+  const questions: DetailQuestion[] = ["surface", "useCase", "frequency"];
+  if (activity === "running" || activity === "walking") questions.push("distance");
+  if (activity === "running") questions.push("runnerNeed");
+  questions.push("fitPreference", "priority");
+  return questions;
+}
 
 type UniverseProduct = Readonly<{
   id: string;
@@ -358,6 +371,9 @@ export function SportFitImmersiveExperience({
   const [survivingCount, setSurvivingCount] = useState(0);
   const [selectedFinalistId, setSelectedFinalistId] = useState("");
   const [productCardOpen, setProductCardOpen] = useState(false);
+  const [guideCollapsed, setGuideCollapsed] = useState(false);
+  const [profileQuestionIndex, setProfileQuestionIndex] = useState(0);
+  const [detailQuestionIndex, setDetailQuestionIndex] = useState(0);
 
   const universeRef = useRef<readonly UniverseProduct[]>([]);
   const requestSequenceRef = useRef(0);
@@ -366,6 +382,16 @@ export function SportFitImmersiveExperience({
   const availableSurfaces = useMemo(() => surfacesFor(activity), [activity]);
   const availablePriorities = useMemo(() => prioritiesFor(activity), [activity]);
   const availableUseCases = USE_CASES[activity];
+  const detailQuestions = useMemo(() => detailQuestionsFor(activity), [activity]);
+  const profileQuestion = PROFILE_QUESTIONS[Math.min(profileQuestionIndex, PROFILE_QUESTIONS.length - 1)];
+  const detailQuestion = detailQuestions[Math.min(detailQuestionIndex, Math.max(0, detailQuestions.length - 1))] ?? "priority";
+  const totalGuideQuestions = PROFILE_QUESTIONS.length + detailQuestions.length;
+  const currentGuideQuestionNumber = step === "profile"
+    ? profileQuestionIndex + 1
+    : step === "details"
+      ? PROFILE_QUESTIONS.length + detailQuestionIndex + 1
+      : 0;
+  const guideProgressValue = String(Math.round((currentGuideQuestionNumber / Math.max(1, totalGuideQuestions)) * 100)) + "%";
 
   useEffect(() => {
     const requestId = ++requestSequenceRef.current;
@@ -521,6 +547,9 @@ export function SportFitImmersiveExperience({
     setResponse(undefined);
     setSelectedFinalistId("");
     setProductCardOpen(false);
+    setGuideCollapsed(false);
+    setProfileQuestionIndex(0);
+    setDetailQuestionIndex(0);
     setError("");
     setLeavingIds(new Set());
     setUniverseBusy(true);
@@ -557,6 +586,9 @@ export function SportFitImmersiveExperience({
     setResponse(undefined);
     setSelectedFinalistId("");
     setError("");
+    setGuideCollapsed(false);
+    setProfileQuestionIndex(0);
+    setDetailQuestionIndex(0);
     setStep("profile");
     void refreshUniverse({ activity: next }, "all", true);
   }
@@ -574,10 +606,64 @@ export function SportFitImmersiveExperience({
     void refreshUniverse({ gymTrainingType: next, surface: derivedSurface, useCase: derivedUseCase });
   }
 
+  function detailQuestionHasAnswer(question: DetailQuestion): boolean {
+    if (question === "gymTraining") return Boolean(gymTrainingType);
+    if (question === "surface") return Boolean(surface);
+    if (question === "useCase") return Boolean(useCase);
+    if (question === "frequency") return Boolean(frequency);
+    if (question === "distance") return Boolean(distance);
+    if (question === "runnerNeed") return Boolean(runnerNeed);
+    if (question === "fitPreference") return Boolean(fitPreference);
+    return Boolean(priority);
+  }
+
+  function advanceProfileQuestion() {
+    if (profileQuestion === "audience" && !audience) return;
+    if (profileQuestion !== "audience" && audience) void refreshUniverse({}, audience);
+    if (profileQuestionIndex < PROFILE_QUESTIONS.length - 1) {
+      setProfileQuestionIndex((index) => index + 1);
+      return;
+    }
+    if (!audience) return;
+    setDetailQuestionIndex(0);
+    setGuideCollapsed(false);
+    setStep("details");
+  }
+
+  function retreatProfileQuestion() {
+    if (profileQuestionIndex > 0) {
+      setProfileQuestionIndex((index) => index - 1);
+      return;
+    }
+    setStep("activity");
+  }
+
+  function advanceDetailQuestion() {
+    if (!detailQuestionHasAnswer(detailQuestion)) return;
+    if (detailQuestionIndex < detailQuestions.length - 1) {
+      setDetailQuestionIndex((index) => index + 1);
+      return;
+    }
+    void recommend();
+  }
+
+  function retreatDetailQuestion() {
+    if (detailQuestionIndex > 0) {
+      setDetailQuestionIndex((index) => index - 1);
+      return;
+    }
+    setProfileQuestionIndex(PROFILE_QUESTIONS.length - 1);
+    setStep("profile");
+  }
+
   function goBack() {
-    if (step === "profile") setStep("activity");
-    else if (step === "details") setStep("profile");
-    else if (step === "results") setStep("details");
+    setGuideCollapsed(false);
+    if (step === "profile") retreatProfileQuestion();
+    else if (step === "details") retreatDetailQuestion();
+    else if (step === "results") {
+      setDetailQuestionIndex(Math.max(0, detailQuestions.length - 1));
+      setStep("details");
+    }
   }
 
   const detailsComplete = Boolean(
@@ -689,7 +775,15 @@ export function SportFitImmersiveExperience({
             />
           </div>
 
-          <div className={`${styles.guidePane} ${productCardOpen ? styles.guidePaneProductOpen : ""}`}>
+          <div className={`${styles.guidePane} ${(productCardOpen || guideCollapsed) ? styles.guidePaneProductOpen : ""}`}>
+            <button
+              type="button"
+              className={styles.guideCollapseButton}
+              onClick={() => setGuideCollapsed(true)}
+              aria-label="Απόκρυψη οδηγού για περιήγηση στα προϊόντα"
+            >
+              <span>Απόκρυψη οδηγού</span><b>⌄</b>
+            </button>
             {step === "activity" ? (
               <section className={styles.guideCard}>
                 <span className={styles.kicker}>01 · ΔΡΑΣΤΗΡΙΟΤΗΤΑ</span>
@@ -710,73 +804,108 @@ export function SportFitImmersiveExperience({
 
             {step === "profile" ? (
               <section className={styles.guideCard}>
-                <span className={styles.kicker}>02 · {activityLabel(activity).toUpperCase()} · ΕΦΑΡΜΟΓΗ</span>
-                <h1>Ποιος θα το φορέσει;</h1>
-                <p>Η επιλογή audience αλλάζει αμέσως το live σύνολο. Μέγεθος, πέλμα και budget είναι προαιρετικά αλλά μπορούν να αφαιρέσουν αδύναμες επιλογές νωρίς.</p>
-
-                <fieldset>
-                  <legend>Για ποιον ψάχνουμε;</legend>
-                  <div className={styles.pills}>
-                    {AUDIENCES.map((item) => (
-                      <button
-                        type="button"
-                        className={audience === item.key ? styles.selected : ""}
-                        onClick={() => {
-                          setAudience(item.key);
-                          void refreshUniverse({ audience: item.key }, item.key);
-                        }}
-                        key={item.key}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
-
-                <div className={styles.inputs}>
-                  <label>
-                    <span>Γνωστό μέγεθος EU</span>
-                    <input value={size} onChange={(event) => setSize(event.target.value)} placeholder="π.χ. 42 ή 42 2/3" inputMode="decimal" />
-                  </label>
-                  <label>
-                    <span>Μήκος πέλματος</span>
-                    <div className={styles.unitInput}>
-                      <input value={footLength} onChange={(event) => setFootLength(event.target.value)} placeholder="π.χ. 26,1" inputMode="decimal" />
-                      <b>cm</b>
-                    </div>
-                    <small>Χρησιμοποιείται μόνο όταν υπάρχει αποθηκευμένος τεκμηριωμένος brand size guide.</small>
-                  </label>
-                  <label>
-                    <span>Μέγιστο budget</span>
-                    <div className={styles.unitInput}>
-                      <input value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="π.χ. 100" inputMode="decimal" />
-                      <b>€</b>
-                    </div>
-                  </label>
+                <div className={styles.questionProgress}>
+                  <span>ΕΡΩΤΗΣΗ {currentGuideQuestionNumber} / {totalGuideQuestions}</span>
+                  <div><i style={{ width: guideProgressValue }} /></div>
                 </div>
+                <span className={styles.kicker}>02 · {activityLabel(activity).toUpperCase()} · ΕΦΑΡΜΟΓΗ</span>
 
-                <button
-                  type="button"
-                  className={styles.primaryAction}
-                  disabled={!audience}
-                  onClick={() => {
-                    if (!audience) return;
-                    void refreshUniverse({}, audience);
-                    setStep("details");
-                  }}
-                >
-                  Συνέχεια <span>→</span>
-                </button>
+                {profileQuestion === "audience" ? (
+                  <>
+                    <h1>Ποιος θα το φορέσει;</h1>
+                    <p>Η επιλογή αλλάζει αμέσως το live σύνολο προϊόντων.</p>
+                    <fieldset>
+                      <legend>Για ποιον ψάχνουμε;</legend>
+                      <div className={styles.pills}>
+                        {AUDIENCES.map((item) => (
+                          <button
+                            type="button"
+                            className={audience === item.key ? styles.selected : ""}
+                            onClick={() => {
+                              setAudience(item.key);
+                              void refreshUniverse({ audience: item.key }, item.key);
+                            }}
+                            key={item.key}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
+                  </>
+                ) : null}
+
+                {profileQuestion === "size" ? (
+                  <>
+                    <h1>Ξέρεις το EU μέγεθός σου;</h1>
+                    <p>Προαιρετικό. Αν το γνωρίζεις, θα απομακρύνουμε προϊόντα που δεν έχουν αυτό το μέγεθος.</p>
+                    <div className={styles.inputs}>
+                      <label>
+                        <span>Γνωστό μέγεθος EU</span>
+                        <input value={size} onChange={(event) => setSize(event.target.value)} placeholder="π.χ. 42 ή 42 2/3" inputMode="decimal" autoFocus />
+                      </label>
+                    </div>
+                  </>
+                ) : null}
+
+                {profileQuestion === "footLength" ? (
+                  <>
+                    <h1>Έχεις μέτρηση πέλματος;</h1>
+                    <p>Προαιρετικό. Χρησιμοποιείται μόνο όταν υπάρχει τεκμηριωμένος οδηγός μεγέθους για τη συγκεκριμένη μάρκα.</p>
+                    <div className={styles.inputs}>
+                      <label>
+                        <span>Μήκος πέλματος</span>
+                        <div className={styles.unitInput}>
+                          <input value={footLength} onChange={(event) => setFootLength(event.target.value)} placeholder="π.χ. 26,1" inputMode="decimal" autoFocus />
+                          <b>cm</b>
+                        </div>
+                      </label>
+                    </div>
+                  </>
+                ) : null}
+
+                {profileQuestion === "budget" ? (
+                  <>
+                    <h1>Θέλεις όριο budget;</h1>
+                    <p>Προαιρετικό. Το πεδίο θα κρατήσει μόνο επιλογές μέσα στο όριο που βάζεις.</p>
+                    <div className={styles.inputs}>
+                      <label>
+                        <span>Μέγιστο budget</span>
+                        <div className={styles.unitInput}>
+                          <input value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="π.χ. 100" inputMode="decimal" autoFocus />
+                          <b>€</b>
+                        </div>
+                      </label>
+                    </div>
+                  </>
+                ) : null}
+
+                <div className={styles.questionNav}>
+                  <button type="button" className={styles.secondaryAction} onClick={retreatProfileQuestion}>← Προηγούμενη</button>
+                  <button
+                    type="button"
+                    className={styles.primaryAction}
+                    disabled={profileQuestion === "audience" && !audience}
+                    onClick={advanceProfileQuestion}
+                  >
+                    {profileQuestionIndex === PROFILE_QUESTIONS.length - 1 ? "Συνέχεια στη χρήση" : (profileQuestion === "audience" ? "Επόμενη ερώτηση" : "Συνέχεια / Παράλειψη")}
+                    <span>→</span>
+                  </button>
+                </div>
               </section>
             ) : null}
 
             {step === "details" ? (
               <section className={styles.guideCard}>
+                <div className={styles.questionProgress}>
+                  <span>ΕΡΩΤΗΣΗ {currentGuideQuestionNumber} / {totalGuideQuestions}</span>
+                  <div><i style={{ width: guideProgressValue }} /></div>
+                </div>
                 <span className={styles.kicker}>03 · {activityLabel(activity).toUpperCase()} · ΧΡΗΣΗ</span>
-                <h1>Κάθε απάντηση <em>καθαρίζει τον χώρο.</em></h1>
-                <p>Το 3D πεδίο δεν είναι animation-βιτρίνα: κάθε μετακίνηση προκύπτει από το ίδιο deterministic rules layer που θα δώσει τα τελικά matches.</p>
+                <h1>Μία ερώτηση <em>τη φορά.</em></h1>
+                <p>Κάθε επιλογή ενημερώνει αμέσως το 3D πεδίο. Μπορείς να κρύψεις τον οδηγό οποιαδήποτε στιγμή και να εξερευνήσεις τα προϊόντα.</p>
 
-                {activity === "gym" ? (
+                {detailQuestion === "gymTraining" ? (
                   <fieldset>
                     <legend>Τι είδους προπόνηση κάνεις περισσότερο;</legend>
                     <div className={styles.cardChoices}>
@@ -793,7 +922,9 @@ export function SportFitImmersiveExperience({
                       ))}
                     </div>
                   </fieldset>
-                ) : (
+                ) : null}
+
+                {detailQuestion === "surface" ? (
                   <fieldset>
                     <legend>{activity === "football" ? "Σε τι γήπεδο;" : "Σε ποια επιφάνεια;"}</legend>
                     <div className={styles.choiceGrid}>
@@ -812,9 +943,9 @@ export function SportFitImmersiveExperience({
                       ))}
                     </div>
                   </fieldset>
-                )}
+                ) : null}
 
-                {activity !== "gym" ? (
+                {detailQuestion === "useCase" ? (
                   <fieldset>
                     <legend>{activity === "hiking" ? "Τι είδους εξόρμηση;" : activity === "walking" ? "Ποια είναι η βασική χρήση;" : "Τι κάνεις κυρίως;"}</legend>
                     <div className={styles.choiceGrid}>
@@ -835,26 +966,28 @@ export function SportFitImmersiveExperience({
                   </fieldset>
                 ) : null}
 
-                <fieldset>
-                  <legend>Πόσο συχνά;</legend>
-                  <div className={styles.pills}>
-                    {FREQUENCIES.map((item) => (
-                      <button
-                        type="button"
-                        key={item.key}
-                        className={frequency === item.key ? styles.selected : ""}
-                        onClick={() => {
-                          setFrequency(item.key);
-                          void refreshUniverse({ frequency: item.key });
-                        }}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
+                {detailQuestion === "frequency" ? (
+                  <fieldset>
+                    <legend>Πόσο συχνά;</legend>
+                    <div className={styles.pills}>
+                      {FREQUENCIES.map((item) => (
+                        <button
+                          type="button"
+                          key={item.key}
+                          className={frequency === item.key ? styles.selected : ""}
+                          onClick={() => {
+                            setFrequency(item.key);
+                            void refreshUniverse({ frequency: item.key });
+                          }}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                ) : null}
 
-                {(activity === "running" || activity === "walking") ? (
+                {detailQuestion === "distance" ? (
                   <fieldset>
                     <legend>Τυπική απόσταση;</legend>
                     <div className={styles.pills}>
@@ -875,7 +1008,7 @@ export function SportFitImmersiveExperience({
                   </fieldset>
                 ) : null}
 
-                {activity === "running" ? (
+                {detailQuestion === "runnerNeed" ? (
                   <fieldset>
                     <legend>Ποια ανάγκη περιγράφει καλύτερα αυτό που ψάχνεις;</legend>
                     <div className={styles.choiceGrid}>
@@ -896,60 +1029,79 @@ export function SportFitImmersiveExperience({
                   </fieldset>
                 ) : null}
 
-                <fieldset>
-                  <legend>Πώς θέλεις να εφαρμόζει το παπούτσι;</legend>
-                  <div className={styles.pills}>
-                    {FIT_PREFERENCES.map((item) => (
-                      <button
-                        type="button"
-                        key={item.key}
-                        className={fitPreference === item.key ? styles.selected : ""}
-                        onClick={() => {
-                          setFitPreference(item.key);
-                          void refreshUniverse({ fitPreference: item.key });
-                        }}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
+                {detailQuestion === "fitPreference" ? (
+                  <fieldset>
+                    <legend>Πώς θέλεις να εφαρμόζει το παπούτσι;</legend>
+                    <div className={styles.pills}>
+                      {FIT_PREFERENCES.map((item) => (
+                        <button
+                          type="button"
+                          key={item.key}
+                          className={fitPreference === item.key ? styles.selected : ""}
+                          onClick={() => {
+                            setFitPreference(item.key);
+                            void refreshUniverse({ fitPreference: item.key });
+                          }}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                ) : null}
 
-                <fieldset>
-                  <legend>Τι θέλεις περισσότερο;</legend>
-                  <div className={styles.cardChoices}>
-                    {availablePriorities.map((item) => (
-                      <button
-                        type="button"
-                        key={item.key}
-                        className={priority === item.key ? styles.selectedCard : ""}
-                        onClick={() => {
-                          setPriority(item.key);
-                          void refreshUniverse({ priority: item.key });
-                        }}
-                      >
-                        <strong>{item.label}</strong>
-                        <small>{item.body}</small>
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
+                {detailQuestion === "priority" ? (
+                  <fieldset>
+                    <legend>Τι θέλεις περισσότερο;</legend>
+                    <div className={styles.cardChoices}>
+                      {availablePriorities.map((item) => (
+                        <button
+                          type="button"
+                          key={item.key}
+                          className={priority === item.key ? styles.selectedCard : ""}
+                          onClick={() => {
+                            setPriority(item.key);
+                            void refreshUniverse({ priority: item.key });
+                          }}
+                        >
+                          <strong>{item.label}</strong>
+                          <small>{item.body}</small>
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                ) : null}
 
                 {error ? <p className={styles.error} role="alert">{error}</p> : null}
 
-                <button
-                  type="button"
-                  className={styles.primaryAction}
-                  disabled={loading || !detailsComplete}
-                  onClick={recommend}
-                >
-                  {loading ? "Αναδιπλώνουμε τους 5 καλύτερους…" : "Δείξε μου τους 5 καλύτερους"}
-                  <span>→</span>
-                </button>
-                {!detailsComplete ? <small className={styles.completionHint}>Ολοκλήρωσε τις παραπάνω επιλογές για να κλειδώσουμε το τελικό Top 5.</small> : null}
+                <div className={styles.questionNav}>
+                  <button type="button" className={styles.secondaryAction} onClick={retreatDetailQuestion}>← Προηγούμενη</button>
+                  <button
+                    type="button"
+                    className={styles.primaryAction}
+                    disabled={loading || !detailQuestionHasAnswer(detailQuestion)}
+                    onClick={advanceDetailQuestion}
+                  >
+                    {detailQuestionIndex === detailQuestions.length - 1
+                      ? (loading ? "Αναδιπλώνουμε τους 5 καλύτερους…" : "Δείξε μου τους 5 καλύτερους")
+                      : "Επόμενη ερώτηση"}
+                    <span>→</span>
+                  </button>
+                </div>
+                {!detailQuestionHasAnswer(detailQuestion) ? <small className={styles.completionHint}>Διάλεξε μία απάντηση για να συνεχίσουμε.</small> : null}
               </section>
             ) : null}
           </div>
+          {guideCollapsed && !productCardOpen ? (
+            <button
+              type="button"
+              className={styles.guideResumeButton}
+              onClick={() => setGuideCollapsed(false)}
+              aria-label="Εμφάνιση οδηγού Sport & Fit"
+            >
+              <span>Συνέχισε τον οδηγό</span><b>↑</b>
+            </button>
+          ) : null}
         </main>
       ) : null}
 
