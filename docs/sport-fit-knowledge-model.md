@@ -287,7 +287,7 @@ Migration `0308_sport_fit_verified_kerasiotis_footwear_batch2.sql` adds a second
 
 Migration `0309_sport_fit_adidas_kids_size_guide.sql` adds the official adidas kids footwear size chart as a separate `kids` audience guide. The server deterministically prefers an exact audience guide over a unisex fallback, which prevents the adult chart from becoming the primary measured-size source for a child profile.
 
-The runtime schema gate is 310. All migrations through 0310 have immutable checksum manifests.
+The runtime schema gate is 311. All migrations through 0311 have immutable checksum manifests.
 
 
 ## Live brand identity bridge
@@ -316,3 +316,14 @@ The candidates API no longer hard-codes adidas. It discovers active footwear siz
 The live Kerasiotis Sport & Fit scope currently has vendor-feed brand identity for all 528 queried variants, while the same queried set has no normalized canonical brand relation yet. The vendor-feed identity fallback therefore remains necessary for the measured-size layer to reach the intended products.
 
 Reebok's official kids chart is intentionally **not** mapped to EU stock sizes here because the currently verified US kids chart publishes heel-to-toe measurements with US labels but does not provide the EU conversion needed by the present storefront-size matching path. A kids profile never falls back to an adult/unisex guide when an exact kids guide is unavailable.
+
+
+## Schema 311 — verified mixed-terrain footwear
+
+Migration `0311_sport_fit_verified_kerasiotis_footwear_batch3.sql` extends exact-code adidas evidence for current Kerasiotis mixed-terrain footwear:
+
+- Terrex Anylander `JR6599`: hiking, trail use, reference weight, 10 mm drop and 27/17 mm heel/forefoot stack.
+- Terrex Anylander RAIN.RDY `JR9087`: hiking, trail use, explicit true-to-size guidance, water-resistant weather protection, reference weight, 10 mm drop and 27/17 mm stack.
+- Ultrarun 5 TR `JQ6920`: running across road/trail surfaces, explicit true-to-size guidance, water-resistant upper, reference weight, 11 mm drop and 35/24 mm stack.
+
+As with the earlier seeds, only exact manufacturer claims are normalized. The mixed-terrain facts can influence trail/mixed walking or running recommendations without turning general marketing language into unsupported technical values.
