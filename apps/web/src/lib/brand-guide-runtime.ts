@@ -13,6 +13,15 @@ import {
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { storefrontCategoryForCode, storefrontLeafForSubcategory } from "./storefront-taxonomy";
 
+/**
+ * Brand discovery must use the same public market boundary as the current storefront.
+ * Sparta is the only live public hub today. Keeping these values explicit prevents
+ * a newly staged/prelaunch market from leaking product counts into /brands before
+ * the rest of the public catalogue has become market-aware.
+ */
+const CURRENT_PUBLIC_BRAND_MARKET_CODE = "sparta";
+const CURRENT_PUBLIC_BRAND_POSTCODE = "23100";
+
 type BrandRow = Readonly<{
   id: string;
   name: string;
@@ -242,9 +251,12 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
     const inventoryResult = await runtime.nativePool.query<{ live_product_count: number | string }>(`
       SELECT COUNT(DISTINCT rm.canonical_variant_id)::integer AS live_product_count
       FROM public.storefront_catalog_read_model rm
+      JOIN public.canonical_variants market_cv ON market_cv.id = rm.canonical_variant_id
+      JOIN public.markets market_scope ON market_scope.id = market_cv.market_id
       WHERE rm.brand_id = $1::uuid
+        AND market_scope.code = $2
         AND ${liveInventoryPredicate("rm")}
-    `, [row.id]);
+    `, [row.id, CURRENT_PUBLIC_BRAND_MARKET_CODE]);
     liveProductCount = count(inventoryResult.rows[0]?.live_product_count);
   } catch (error) {
     console.warn(JSON.stringify({
@@ -264,16 +276,19 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
         COALESCE(el.name, en.name, c.slug, rm.category_code) AS label,
         COUNT(DISTINCT rm.canonical_variant_id)::integer AS product_count
       FROM public.storefront_catalog_read_model rm
+      JOIN public.canonical_variants market_cv ON market_cv.id = rm.canonical_variant_id
+      JOIN public.markets market_scope ON market_scope.id = market_cv.market_id
       LEFT JOIN public.categories c ON c.id = rm.category_id
       LEFT JOIN public.category_translations el
         ON el.category_id = rm.category_id AND el.locale = 'el'
       LEFT JOIN public.category_translations en
         ON en.category_id = rm.category_id AND en.locale = 'en'
       WHERE rm.brand_id = $1::uuid
+        AND market_scope.code = $2
         AND ${liveInventoryPredicate("rm")}
       GROUP BY rm.category_code, rm.department_code, c.slug, el.name, en.name
       ORDER BY product_count DESC, COALESCE(el.name, en.name, c.slug, rm.category_code)
-    `, [row.id]);
+    `, [row.id, CURRENT_PUBLIC_BRAND_MARKET_CODE]);
     allCategories = categoryResult.rows.map((category) => mapCategory(category, row.name));
   } catch (error) {
     console.warn(JSON.stringify({
@@ -290,7 +305,10 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
       WITH target_categories AS MATERIALIZED (
         SELECT DISTINCT rm.category_code
         FROM public.storefront_catalog_read_model rm
+        JOIN public.canonical_variants market_cv ON market_cv.id = rm.canonical_variant_id
+        JOIN public.markets market_scope ON market_scope.id = market_cv.market_id
         WHERE rm.brand_id = $1::uuid
+          AND market_scope.code = $2
           AND rm.category_code IS NOT NULL
           AND ${liveInventoryPredicate("rm")}
       ),
@@ -299,8 +317,11 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
           rm.brand_id,
           COUNT(DISTINCT rm.category_code)::integer AS shared_category_count
         FROM public.storefront_catalog_read_model rm
+        JOIN public.canonical_variants market_cv ON market_cv.id = rm.canonical_variant_id
+        JOIN public.markets market_scope ON market_scope.id = market_cv.market_id
         JOIN target_categories tc ON tc.category_code = rm.category_code
         WHERE rm.brand_id <> $1::uuid
+          AND market_scope.code = $2
           AND ${liveInventoryPredicate("rm")}
         GROUP BY rm.brand_id
         ORDER BY shared_category_count DESC
@@ -311,8 +332,11 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
           rm.brand_id,
           COUNT(DISTINCT rm.canonical_variant_id)::integer AS live_product_count
         FROM public.storefront_catalog_read_model rm
+        JOIN public.canonical_variants market_cv ON market_cv.id = rm.canonical_variant_id
+        JOIN public.markets market_scope ON market_scope.id = market_cv.market_id
         JOIN overlap o ON o.brand_id = rm.brand_id
-        WHERE ${liveInventoryPredicate("rm")}
+        WHERE market_scope.code = $2
+          AND ${liveInventoryPredicate("rm")}
         GROUP BY rm.brand_id
       )
       SELECT
@@ -329,7 +353,7 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
       WHERE b.status = 'active'
       ORDER BY o.shared_category_count DESC, t.live_product_count DESC, lower(b.name)
       LIMIT 6
-    `, [row.id]);
+    `, [row.id, CURRENT_PUBLIC_BRAND_MARKET_CODE]);
 
     relatedBrands = relatedResult.rows.map((related) => ({
       id: related.id,
@@ -348,7 +372,7 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
     }));
   }
 
-  const products = await getCachedCrawlerCatalogCards("23100", "", "", { brand: row.name }, 8)
+  const products = await getCachedCrawlerCatalogCards(CURRENT_PUBLIC_BRAND_POSTCODE, "", "", { brand: row.name }, 8)
     .catch((error) => {
       console.warn(JSON.stringify({
         level: "warn",
@@ -401,7 +425,10 @@ export async function getPublicBrandDirectory(options: Readonly<{
     WITH live AS MATERIALIZED (
       SELECT DISTINCT rm.brand_id, rm.canonical_variant_id
       FROM public.storefront_catalog_read_model rm
+      JOIN public.canonical_variants market_cv ON market_cv.id = rm.canonical_variant_id
+      JOIN public.markets market_scope ON market_scope.id = market_cv.market_id
       WHERE rm.brand_id IS NOT NULL
+        AND market_scope.code = $5
         AND ${liveInventoryPredicate("rm")}
     ),
     totals AS (
@@ -432,7 +459,7 @@ export async function getPublicBrandDirectory(options: Readonly<{
     FROM filtered f
     ORDER BY f.live_product_count DESC, lower(f.name), f.id
     LIMIT $3::integer OFFSET $4::integer
-  `, [query, letter, limit, offset]);
+  `, [query, letter, limit, offset, CURRENT_PUBLIC_BRAND_MARKET_CODE]);
 
   const total = count(result.rows[0]?.total_count);
   const items = result.rows.map((row) => {
@@ -475,7 +502,10 @@ export async function getIndexableBrandGuideSitemapInventory(): Promise<readonly
     WITH live AS MATERIALIZED (
       SELECT DISTINCT rm.brand_id, rm.canonical_variant_id
       FROM public.storefront_catalog_read_model rm
+      JOIN public.canonical_variants market_cv ON market_cv.id = rm.canonical_variant_id
+      JOIN public.markets market_scope ON market_scope.id = market_cv.market_id
       WHERE rm.brand_id IS NOT NULL
+        AND market_scope.code = $1
         AND ${liveInventoryPredicate("rm")}
     ),
     totals AS (
@@ -502,7 +532,7 @@ export async function getIndexableBrandGuideSitemapInventory(): Promise<readonly
       AND b.metadata->'brand_guide'->>'status'='published'
       AND COALESCE((b.metadata->'brand_guide'->>'seo_indexable')::boolean, false)=true
     ORDER BY b.updated_at DESC, b.id
-  `);
+  `, [CURRENT_PUBLIC_BRAND_MARKET_CODE]);
 
   return result.rows.flatMap((row) => {
     const liveProductCount = count(row.live_product_count);
