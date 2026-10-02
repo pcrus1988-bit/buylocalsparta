@@ -22,8 +22,9 @@ function jsonLd(value: unknown): string {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const locality = (await cookies()).get(HUB_LOCALITY_COOKIE)?.value;
-  const brand = await getPublicBrandGuide(slug, locality);
+  // Search metadata remains tied to the stable default public market. The rendered
+  // page below is request-local and follows the visitor's selected HUB.
+  const brand = await getPublicBrandGuide(slug);
   if (!brand) return { title: "Brand | ΚΟΝΤΑ ΜΟΥ", robots: { index: false, follow: true } };
 
   const description = brand.description
