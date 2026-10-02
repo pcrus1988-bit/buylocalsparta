@@ -3,6 +3,7 @@ import {
   parseSportFitAnswers,
   scoreSportFitProduct,
   sportFitCandidateSupportsRequestedActivity,
+  sportFitFamilyKey,
   sportProductRole,
   sportProductTier,
   type SportAudience,
@@ -61,20 +62,11 @@ function universePreview(product: SportFitProduct | SportFitScoredProduct): Univ
   };
 }
 
-function familyKey(product: SportFitProduct): string {
-  return product.familyId || product.title
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "") || product.id;
-}
-
 function uniqueFamilies<T extends SportFitProduct>(products: readonly T[]): readonly T[] {
   const seen = new Set<string>();
   const output: T[] = [];
   for (const product of products) {
-    const key = familyKey(product);
+    const key = sportFitFamilyKey(product);
     if (seen.has(key)) continue;
     seen.add(key);
     output.push(product);
