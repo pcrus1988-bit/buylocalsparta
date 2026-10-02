@@ -3,6 +3,7 @@ import { getSportFitCatalog } from "../../../../lib/sport-fit-catalog";
 import { availableStoredSportSizeGuideBrands, resolveStoredSportSize } from "../../../../lib/sport-fit-size-guide-server";
 import { productionDatabaseConfigured } from "../../../../lib/postgres-runtime";
 import { sportSizeGuideBrandKey } from "../../../../lib/sport-fit-brand";
+import { SPORT_FIT_RULESET_VERSION } from "../../../../lib/sport-fit-rules";
 
 const DEFAULT_KERASIOTIS_VENDOR_ID = "vendor_4d7b281c8b2541f685f1";
 
@@ -15,7 +16,7 @@ function safeVendorId(value: unknown): string {
 export async function POST(request: Request) {
   if (!productionDatabaseConfigured()) {
     return Response.json(
-      { vendorId: DEFAULT_KERASIOTIS_VENDOR_ID, vendorName: "", candidateCount: 0, recommendation: { alternatives: [], kit: [], ranked: [] } },
+      { vendorId: DEFAULT_KERASIOTIS_VENDOR_ID, vendorName: "", candidateCount: 0, recommendation: { rulesetVersion: SPORT_FIT_RULESET_VERSION, alternatives: [], kit: [], ranked: [] } },
       { headers: { "Cache-Control": "no-store" } }
     );
   }
