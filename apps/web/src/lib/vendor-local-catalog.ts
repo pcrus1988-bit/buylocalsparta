@@ -5,6 +5,7 @@ import { loadCatalogDepartmentCodes } from "./catalog-category-department";
 import { loadCatalogMetadata } from "./catalog-metadata";
 import { isPublicCatalogueTitle } from "./public-data-integrity";
 import { approvedCatalogImages } from "./public-media-service";
+import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { isDropshippingOnlyVendorPublicId } from "./vendor-dropshipping-constants";
 
@@ -17,6 +18,9 @@ type LocalVendorCatalogRow = Readonly<{
   available_to_sell: number | string;
   vendor_id: string;
   vendor_name: string;
+  preview_image_src: string | null;
+  source_code: string | null;
+  source_website: string | null;
 }>;
 
 export type VendorLocalCatalogPage = Readonly<{
@@ -69,6 +73,9 @@ async function readVendorLocalCatalogRows(vendorId: string): Promise<readonly Lo
         ) AS available_to_sell,
         v.public_id AS vendor_id,
         COALESCE(NULLIF(v.trading_name,''),v.legal_name) AS vendor_name,
+        media.source_url AS preview_image_src,
+        media.source_code,
+        media.source_website,
         vo.updated_at,
         0 AS source_rank
       FROM vendor_businesses v
@@ -81,6 +88,20 @@ async function readVendorLocalCatalogRows(vendorId: string): Promise<readonly Lo
       LEFT JOIN categories c ON c.id=cv.category_id
       LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      LEFT JOIN LATERAL (
+        SELECT pm.source_url,cs.code AS source_code,cs.website AS source_website
+        FROM product_media pm
+        JOIN catalog_sources cs ON cs.id=pm.source_id AND cs.active=true
+        WHERE pm.canonical_variant_id=cv.id
+          AND pm.vendor_id=v.id
+          AND pm.kind='image'
+          AND pm.scan_status='clean'
+          AND pm.rights_status='approved'
+          AND pm.moderation_status='approved'
+          AND pm.source_url IS NOT NULL
+        ORDER BY pm.sort_order ASC,pm.created_at ASC,pm.id
+        LIMIT 1
+      ) media ON true
       WHERE v.public_id=$1
         AND v.status='active'
         AND COALESCE(vo.source_payload->>'dropship','false') <> 'true'
@@ -106,6 +127,9 @@ async function readVendorLocalCatalogRows(vendorId: string): Promise<readonly Lo
         0::bigint AS available_to_sell,
         v.public_id AS vendor_id,
         COALESCE(NULLIF(v.trading_name,''),v.legal_name) AS vendor_name,
+        NULL::text AS preview_image_src,
+        NULL::text AS source_code,
+        NULL::text AS source_website,
         vca.updated_at,
         1 AS source_rank
       FROM vendor_catalog_assortments vca
@@ -138,7 +162,8 @@ async function readVendorLocalCatalogRows(vendorId: string): Promise<readonly Lo
       SELECT * FROM assigned_vitex
     )
     SELECT DISTINCT ON (id)
-      id,slug,title,category_code,price_minor,available_to_sell,vendor_id,vendor_name
+      id,slug,title,category_code,price_minor,available_to_sell,vendor_id,vendor_name,
+      preview_image_src,source_code,source_website
     FROM combined
     ORDER BY id,source_rank,updated_at DESC
   `, [vendorId]);
@@ -164,20 +189,29 @@ async function hydrateVendorLocalCatalogRows(
   const metadata = await loadCatalogMetadata(ids);
   const departmentCodes = await loadCatalogDepartmentCodes(ids);
 
+  const previewImages = new Map<string, string>();
+  for (const row of rows) {
+    const preview = trustedCatalogSourceHttpsUrl(row.source_code, row.source_website, row.preview_image_src);
+    if (preview) previewImages.set(row.id, preview);
+  }
+
   let imagesByCanonical = new Map<string, Awaited<ReturnType<typeof approvedCatalogImages>>[number]>();
-  try {
-    const images = await approvedCatalogImages(rows.map((row) => ({
-      canonicalVariantId: row.id,
-      preferredVendorId: vendorId
-    })));
-    imagesByCanonical = new Map(images.map((image) => [image.canonicalVariantId, image]));
-  } catch (error) {
-    console.error(JSON.stringify({
-      level: "error",
-      event: "storefront.vendor_local_media_projection_failed",
-      vendorId,
-      message: error instanceof Error ? error.message : String(error)
-    }));
+  const rowsNeedingStoredMedia = rows.filter((row) => !previewImages.has(row.id));
+  if (rowsNeedingStoredMedia.length > 0) {
+    try {
+      const images = await approvedCatalogImages(rowsNeedingStoredMedia.map((row) => ({
+        canonicalVariantId: row.id,
+        preferredVendorId: vendorId
+      })));
+      imagesByCanonical = new Map(images.map((image) => [image.canonicalVariantId, image]));
+    } catch (error) {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "storefront.vendor_local_media_projection_failed",
+        vendorId,
+        message: error instanceof Error ? error.message : String(error)
+      }));
+    }
   }
 
   return rows.map((row) => {
@@ -209,6 +243,7 @@ async function hydrateVendorLocalCatalogRows(
       vendorName: row.vendor_name,
       mediaId: image?.mediaId,
       mediaAlt: image?.altText,
+      previewImageSrc: previewImages.get(row.id),
       availableToSell,
       available: availableToSell > 0
     } satisfies CatalogCard;
