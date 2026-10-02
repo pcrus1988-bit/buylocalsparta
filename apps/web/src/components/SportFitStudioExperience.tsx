@@ -14,7 +14,8 @@ import type {
   SportGymTrainingType,
   SportPriority,
   SportRunnerNeed,
-  SportSurface
+  SportSurface,
+  SportUseCase
 } from "../lib/sport-fit-engine";
 import styles from "./SportFitStudioExperience.module.css";
 
@@ -41,7 +42,12 @@ const ACTIVITIES: readonly Readonly<{ key: SportActivity; icon: string; title: s
   { key: "running", icon: "↗", title: "Τρέξιμο", body: "Παπούτσι, κάλτσες και αθλητικό set για τον τρόπο που τρέχεις." },
   { key: "walking", icon: "→", title: "Περπάτημα", body: "Άνεση και καθημερινή κίνηση χωρίς ατελείωτα φίλτρα." },
   { key: "gym", icon: "＋", title: "Γυμναστήριο", body: "Training παπούτσι, ρούχα και χρήσιμα συμπληρώματα." },
-  { key: "football", icon: "◉", title: "Ποδόσφαιρο", body: "Παπούτσι, κάλτσες και εξοπλισμός με βάση το γήπεδο." }
+  { key: "football", icon: "◉", title: "Ποδόσφαιρο", body: "Παπούτσι, κάλτσες και εξοπλισμός με βάση το γήπεδο." },
+  { key: "hiking", icon: "△", title: "Πεζοπορία / Outdoor", body: "Trail, ημερήσια πεζοπορία και πιο τεχνικές διαδρομές με σωστό terrain match." },
+  { key: "basketball", icon: "●", title: "Μπάσκετ", body: "Court παπούτσι και set με έμφαση σε επιφάνεια, σταθερότητα και πρόσφυση." },
+  { key: "tennis", icon: "◌", title: "Τένις", body: "Επιλογή για hard court, χώμα ή indoor με τεκμηριωμένη court χρήση." },
+  { key: "padel", icon: "◇", title: "Padel", body: "Παπούτσι και set για τεχνητό court, indoor ή outdoor παιχνίδι." },
+  { key: "volleyball", icon: "↕", title: "Βόλεϊ", body: "Indoor ή outdoor επιλογές με sport-specific αντιστοίχιση και fit." }
 ];
 
 const AUDIENCES: readonly Readonly<{ key: SportAudience; label: string }>[] = [
@@ -55,7 +61,9 @@ const PRIORITIES: readonly Readonly<{ key: SportPriority; label: string; body: s
   { key: "cushioning", label: "Απορρόφηση", body: "Δίνουμε βάρος σε cushioning / foam signals." },
   { key: "lightweight", label: "Ελαφριά αίσθηση", body: "Προτεραιότητα σε ελαφριά ή speed-oriented μοντέλα." },
   { key: "stability", label: "Σταθερότητα", body: "Προτιμάμε προϊόντα με σαφή ένδειξη support / stability." },
-  { key: "versatility", label: "Πολυχρηστικότητα", body: "Ισορροπημένη επιλογή για διαφορετικές χρήσεις." }
+  { key: "versatility", label: "Πολυχρηστικότητα", body: "Ισορροπημένη επιλογή για διαφορετικές χρήσεις." },
+  { key: "traction", label: "Πρόσφυση", body: "Δίνουμε βάρος σε τεκμηριωμένο grip / traction για έδαφος ή court." },
+  { key: "weather", label: "Προστασία καιρού", body: "Προτιμάμε τεκμηριωμένη προστασία από νερό ή δύσκολες συνθήκες." }
 ];
 
 const FREQUENCIES: readonly Readonly<{ key: SportFrequency; label: string }>[] = [
@@ -85,6 +93,64 @@ const FIT_PREFERENCES: readonly Readonly<{ key: SportFitPreference; label: strin
   { key: "narrow", label: "Στενότερη" }
 ];
 
+const USE_CASES: Readonly<Record<SportActivity, readonly Readonly<{ key: SportUseCase; label: string }>[]>> = {
+  running: [
+    { key: "daily_training", label: "Καθημερινή προπόνηση" },
+    { key: "easy_run", label: "Χαλαρό τρέξιμο" },
+    { key: "recovery_run", label: "Recovery run" },
+    { key: "long_run", label: "Μεγάλη απόσταση" },
+    { key: "speed_training", label: "Tempo / speed training" },
+    { key: "race_day", label: "Αγώνας" }
+  ],
+  walking: [
+    { key: "daily_walking", label: "Καθημερινό περπάτημα" },
+    { key: "all_day_standing", label: "Πολύωρη ορθοστασία" },
+    { key: "travel_walking", label: "Πολύ περπάτημα / ταξίδι" }
+  ],
+  gym: [
+    { key: "gym_strength", label: "Βάρη / strength" },
+    { key: "gym_functional", label: "Functional / HIIT" },
+    { key: "gym_cardio", label: "Cardio / διάδρομος" }
+  ],
+  football: [
+    { key: "football_training", label: "Προπόνηση" },
+    { key: "football_match", label: "Αγώνας" }
+  ],
+  hiking: [
+    { key: "day_hike", label: "Ημερήσια πεζοπορία" },
+    { key: "technical_hike", label: "Τεχνική / ορεινή διαδρομή" },
+    { key: "urban_outdoor", label: "Outdoor + πόλη / ταξίδι" }
+  ],
+  basketball: [
+    { key: "basketball_training", label: "Προπόνηση" },
+    { key: "basketball_match", label: "Αγώνας" }
+  ],
+  tennis: [
+    { key: "tennis_training", label: "Προπόνηση" },
+    { key: "tennis_match", label: "Αγώνας" }
+  ],
+  padel: [
+    { key: "padel_training", label: "Προπόνηση" },
+    { key: "padel_match", label: "Αγώνας" }
+  ],
+  volleyball: [
+    { key: "volleyball_training", label: "Προπόνηση" },
+    { key: "volleyball_match", label: "Αγώνας" }
+  ]
+};
+
+const DEFAULT_USE_CASE: Readonly<Record<SportActivity, SportUseCase>> = {
+  running: "daily_training",
+  walking: "daily_walking",
+  gym: "gym_functional",
+  football: "football_training",
+  hiking: "day_hike",
+  basketball: "basketball_training",
+  tennis: "tennis_training",
+  padel: "padel_training",
+  volleyball: "volleyball_training"
+};
+
 const GYM_TRAINING_TYPES: readonly Readonly<{ key: SportGymTrainingType; label: string; body: string }>[] = [
   { key: "strength", label: "Βάρη / strength", body: "Προτεραιότητα στη σταθερότητα και στον έλεγχο." },
   { key: "functional", label: "Functional / HIIT", body: "Ισορροπία σταθερότητας, ευελιξίας και απόκρισης." },
@@ -104,12 +170,45 @@ function surfacesFor(activity: SportActivity): readonly Readonly<{ key: SportSur
     { key: "treadmill", label: "Διάδρομος" },
     { key: "mixed", label: "Μικτή προπόνηση" }
   ];
+  if (activity === "hiking") return [
+    { key: "trail", label: "Trail / μονοπάτι" },
+    { key: "mixed", label: "Μικτό terrain" },
+    { key: "road", label: "Outdoor + πόλη" }
+  ];
+  if (activity === "basketball") return [
+    { key: "court_indoor", label: "Indoor court" },
+    { key: "court_outdoor", label: "Outdoor court" },
+    { key: "court_hard", label: "Hard court" }
+  ];
+  if (activity === "tennis") return [
+    { key: "court_hard", label: "Hard court" },
+    { key: "court_clay", label: "Χώμα / clay" },
+    { key: "court_indoor", label: "Indoor court" }
+  ];
+  if (activity === "padel") return [
+    { key: "court_artificial", label: "Τεχνητός τάπητας" },
+    { key: "court_indoor", label: "Indoor court" },
+    { key: "court_outdoor", label: "Outdoor court" }
+  ];
+  if (activity === "volleyball") return [
+    { key: "court_indoor", label: "Indoor court" },
+    { key: "court_outdoor", label: "Outdoor court" },
+    { key: "sand", label: "Άμμος / beach" }
+  ];
   return [
     { key: "road", label: "Άσφαλτος" },
     { key: "treadmill", label: "Διάδρομος" },
     { key: "trail", label: "Χώμα / trail" },
     { key: "mixed", label: "Μικτή χρήση" }
   ];
+}
+
+function prioritiesFor(activity: SportActivity): readonly Readonly<{ key: SportPriority; label: string; body: string }>[] {
+  if (activity === "hiking") return PRIORITIES.filter((item) => ["comfort", "cushioning", "stability", "traction", "weather", "versatility"].includes(item.key));
+  if (["basketball", "tennis", "padel", "volleyball", "football"].includes(activity)) {
+    return PRIORITIES.filter((item) => ["comfort", "lightweight", "stability", "traction", "versatility"].includes(item.key));
+  }
+  return PRIORITIES.filter((item) => item.key !== "traction" && item.key !== "weather");
 }
 
 function activityLabel(activity: SportActivity): string {
@@ -171,15 +270,20 @@ export function SportFitStudioExperience({
   const [runnerNeed, setRunnerNeed] = useState<SportRunnerNeed>("all_rounder");
   const [fitPreference, setFitPreference] = useState<SportFitPreference>("standard");
   const [gymTrainingType, setGymTrainingType] = useState<SportGymTrainingType>("mixed");
+  const [useCase, setUseCase] = useState<SportUseCase>("daily_training");
   const [response, setResponse] = useState<ApiResponse>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const availableSurfaces = useMemo(() => surfacesFor(activity), [activity]);
+  const availablePriorities = useMemo(() => prioritiesFor(activity), [activity]);
+  const availableUseCases = USE_CASES[activity];
 
   function chooseActivity(next: SportActivity) {
     setActivity(next);
-    setSurface(next === "football" ? "grass" : next === "gym" ? "mixed" : "road");
+    const firstSurface = surfacesFor(next)[0]?.key ?? "road";
+    setSurface(next === "gym" ? "mixed" : firstSurface);
+    setUseCase(DEFAULT_USE_CASE[next]);
     if (next === "running") setRunnerNeed("all_rounder");
     if (next === "gym") setGymTrainingType("mixed");
     setStep("profile");
@@ -214,7 +318,8 @@ export function SportFitStudioExperience({
             priority,
             runnerNeed: activity === "running" ? runnerNeed : undefined,
             fitPreference,
-            gymTrainingType: activity === "gym" ? gymTrainingType : undefined
+            gymTrainingType: activity === "gym" ? gymTrainingType : undefined,
+            useCase
           }
         })
       });
@@ -325,6 +430,7 @@ export function SportFitStudioExperience({
                         onClick={() => {
                           setGymTrainingType(item.key);
                           setSurface(item.key === "treadmill" ? "treadmill" : item.key === "mixed" ? "mixed" : "indoor");
+                          setUseCase(item.key === "strength" ? "gym_strength" : item.key === "cardio" || item.key === "treadmill" ? "gym_cardio" : "gym_functional");
                         }}
                       >
                         <strong>{item.label}</strong>
@@ -339,6 +445,17 @@ export function SportFitStudioExperience({
                   <div className={styles.choiceGrid}>{availableSurfaces.map((item) => <button type="button" key={item.key} className={surface === item.key ? styles.selectedCard : ""} onClick={() => setSurface(item.key)}>{item.label}</button>)}</div>
                 </fieldset>
               )}
+
+              {activity !== "gym" ? (
+                <fieldset>
+                  <legend>{activity === "hiking" ? "Τι είδους εξόρμηση;" : activity === "walking" ? "Ποια είναι η βασική χρήση;" : "Ποια είναι η βασική χρήση;"}</legend>
+                  <div className={styles.choiceGrid}>
+                    {availableUseCases.map((item) => (
+                      <button type="button" key={item.key} className={useCase === item.key ? styles.selectedCard : ""} onClick={() => setUseCase(item.key)}>{item.label}</button>
+                    ))}
+                  </div>
+                </fieldset>
+              ) : null}
 
               <fieldset>
                 <legend>Πόσο συχνά;</legend>
@@ -366,7 +483,7 @@ export function SportFitStudioExperience({
 
               <fieldset>
                 <legend>Τι θέλεις περισσότερο;</legend>
-                <div className={styles.priorityGrid}>{PRIORITIES.map((item) => <button type="button" key={item.key} className={priority === item.key ? styles.selectedCard : ""} onClick={() => setPriority(item.key)}><strong>{item.label}</strong><small>{item.body}</small></button>)}</div>
+                <div className={styles.priorityGrid}>{availablePriorities.map((item) => <button type="button" key={item.key} className={priority === item.key ? styles.selectedCard : ""} onClick={() => setPriority(item.key)}><strong>{item.label}</strong><small>{item.body}</small></button>)}</div>
               </fieldset>
 
               {error ? <p className={styles.error} role="alert">{error}</p> : null}
