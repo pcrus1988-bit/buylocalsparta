@@ -94,7 +94,7 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
            v4.display_short_description_el AS short_description,
            cv.gtin,
            cv.mpn,
-           COALESCE(v4.display_description_el,el.description,en.description) AS description,
+           COALESCE(v4.display_description_el,el.description,en.description,feed_submission.description) AS description,
            b.name AS brand,
            b.logo_object_key AS brand_logo_object_key,
            COALESCE(ctel.name,cten.name,c.code) AS category_label,
@@ -127,6 +127,15 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
                ce.updated_at DESC
       LIMIT 1
     ) v4 ON true
+    LEFT JOIN LATERAL (
+      SELECT NULLIF(btrim(s.source_payload->>'description'),'') AS description
+      FROM vendor_product_submissions s
+      WHERE s.canonical_variant_id=cv.id
+        AND s.source_payload ? 'feedId'
+        AND NULLIF(btrim(s.source_payload->>'description'),'') IS NOT NULL
+      ORDER BY s.updated_at DESC,s.id DESC
+      LIMIT 1
+    ) feed_submission ON true
     WHERE cv.public_id = ANY($1::text[])
       AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
   `, [ids]);

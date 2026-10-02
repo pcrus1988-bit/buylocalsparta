@@ -117,6 +117,7 @@ export async function adminCreateCanonicalIdentity(
          s.market_id::text AS market_uuid,
          s.category_id::text AS category_uuid,
          s.source_identity,
+         s.source_payload,
          s.supplier_tax_rate_bps
        FROM vendor_product_submissions s
        WHERE s.public_id = $1 OR s.id::text = $1
@@ -133,6 +134,10 @@ export async function adminCreateCanonicalIdentity(
     }
 
     const identity = jsonObject(row.source_identity);
+    const sourcePayload = jsonObject(row.source_payload);
+    const sourceDescription = typeof sourcePayload.description === "string" && sourcePayload.description.trim()
+      ? sourcePayload.description.trim().slice(0, 10_000)
+      : undefined;
     const title = input.titleEl?.trim()
       || (typeof identity.title === "string" && identity.title.trim() ? identity.title.trim() : "Untitled product");
     const rawGtin = typeof identity.gtin === "string" ? identity.gtin.trim() : "";
@@ -219,8 +224,8 @@ export async function adminCreateCanonicalIdentity(
     await tx.query(
       `INSERT INTO product_translations(
          canonical_variant_id, locale, title, description, specifications, seo_title, seo_description
-       ) VALUES($1, 'el', $2, NULL, '{}'::jsonb, $2, NULL)`,
-      [canonicalUuid, title]
+       ) VALUES($1, 'el', $2, $3, '{}'::jsonb, $2, NULL)`,
+      [canonicalUuid, title, sourceDescription ?? null]
     );
     await tx.query(
       `UPDATE product_merge_candidates
