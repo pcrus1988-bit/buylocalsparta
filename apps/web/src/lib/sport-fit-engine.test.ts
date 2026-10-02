@@ -487,7 +487,7 @@ test("running rules combine distance, frequency, cushioning and verified use cas
   });
 
   assert.equal(result.primary?.id, "long-run");
-  assert.equal(result.rulesetVersion, "2026-10-02.11");
+  assert.equal(result.rulesetVersion, "2026-10-02.12");
   assert.ok(result.primary?.appliedRules.includes("running.long_run_use_case"));
   assert.ok(result.primary?.reasons.some((reason) => /long-run|cushioning/i.test(reason)));
 });
@@ -1224,4 +1224,99 @@ test("Complete My Kit prefers exact sport evidence over a broad team-sports top"
 
   assert.equal(result.primary?.id, "basketball-primary");
   assert.equal(result.kit.find((item) => item.role === "top")?.id, "basketball-top");
+});
+
+
+test("final Top 5 uses the governed evidence pool when governed footwear exists", () => {
+  const governed = product({
+    id: "governed-road-shoe",
+    title: "Daily Trainer",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"],
+      useCases: ["daily_training"]
+    }
+  });
+  const heuristicA = product({
+    id: "heuristic-running-a",
+    title: "Running Comfort Shoe",
+    categoryCode: "mens-running-shoes",
+    description: "Road running cushion comfort"
+  });
+  const heuristicB = product({
+    id: "heuristic-running-b",
+    title: "Running Speed Shoe",
+    categoryCode: "mens-running-shoes",
+    description: "Road running lightweight speed"
+  });
+
+  const result = buildSportFitRecommendation([heuristicA, heuristicB, governed], {
+    activity: "running",
+    audience: "men",
+    surface: "road",
+    useCase: "daily_training"
+  });
+
+  assert.equal(result.finalistEvidenceMode, "governed");
+  assert.equal(result.primary?.id, "governed-road-shoe");
+  assert.equal(result.alternatives.length, 0);
+  assert.deepEqual(result.ranked.map((item) => item.id), ["governed-road-shoe"]);
+});
+
+test("heuristic footwear remains a cautious fallback when no governed primary evidence exists", () => {
+  const first = product({
+    id: "heuristic-only-a",
+    title: "Road Running Shoe",
+    categoryCode: "mens-running-shoes",
+    description: "Running road daily trainer"
+  });
+  const second = product({
+    id: "heuristic-only-b",
+    title: "Road Runner Cushion",
+    categoryCode: "mens-running-shoes",
+    description: "Running road cushion"
+  });
+
+  const result = buildSportFitRecommendation([first, second], {
+    activity: "running",
+    audience: "men",
+    surface: "road"
+  });
+
+  assert.equal(result.finalistEvidenceMode, "heuristic_fallback");
+  assert.ok(result.primary);
+  assert.ok(result.ranked.length >= 1);
+});
+
+test("a governed broad sport classification is enough to enter the governed finalist pool", () => {
+  const broad = product({
+    id: "governed-team-sports",
+    title: "Indoor Team Court Shoe",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["team_sports"],
+      surfaces: ["court_indoor"]
+    }
+  });
+  const heuristic = product({
+    id: "heuristic-basketball",
+    title: "Basketball Shoe",
+    categoryCode: "mens-basketball-shoes",
+    description: "Indoor basketball court shoe"
+  });
+
+  const result = buildSportFitRecommendation([heuristic, broad], {
+    activity: "basketball",
+    audience: "men",
+    surface: "court_indoor"
+  });
+
+  assert.equal(result.finalistEvidenceMode, "governed");
+  assert.equal(result.primary?.id, "governed-team-sports");
+  assert.equal(result.alternatives.length, 0);
 });
