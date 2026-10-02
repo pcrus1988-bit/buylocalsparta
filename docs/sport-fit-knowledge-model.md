@@ -527,3 +527,18 @@ Migration `0324_sport_fit_verified_adidas_runfalcon6atr.sql` upgrades current Ke
 Cloudfoam wording remains descriptive evidence and is not converted into a normalized cushioning or support level. Exact surface/use-case classification also remains open until first-party exact-code evidence supports it.
 
 The runtime schema gate is now **324**.
+
+
+## Schema 326 — exact performance apparel, sock and walking-fit batch
+
+Migration `0326_sport_fit_exact_apparel_walking_batch.sql` expands governed knowledge without relying on broad fashion categories or sport-inspired marketing copy.
+
+Exact adidas product identities now enroll current Kerasiotis families that previously fell outside the original activewear intake: `JM5104` and `JN4724` as basketball apparel, and `KS5836` as running apparel. The batch stores direct moisture-management evidence for the two basketball pieces where the exact manufacturer/vendor description supports it, and an explicit reflective-detail fact for `KS5836` from the exact Kerasiotis feed record.
+
+For `KC9628`, the exact adidas page supports `sock_height=low_cut` and explicit arch support. It is not assigned a sport merely because it is an adidas sock; the activity remains unresolved.
+
+For Cloudfoam Flex styles `KJ4808` and `KJ7282`, the exact Kerasiotis feed describes everyday walking and a wide fit. Walking is therefore added as a second evidenced activity, alongside the existing running fact, with `daily_walking` and `footwear_width_profile=wide`. No cushioning/support intensity is inferred from Cloudfoam wording.
+
+Lifestyle products whose descriptions only say basketball-inspired, tennis-inspired or similar remain outside performance evidence. Each seeded style must resolve to exactly one active canonical family or the migration fails closed.
+
+The runtime schema gate is now **326**.
