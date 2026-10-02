@@ -287,7 +287,7 @@ Migration `0308_sport_fit_verified_kerasiotis_footwear_batch2.sql` adds a second
 
 Migration `0309_sport_fit_adidas_kids_size_guide.sql` adds the official adidas kids footwear size chart as a separate `kids` audience guide. The server deterministically prefers an exact audience guide over a unisex fallback, which prevents the adult chart from becoming the primary measured-size source for a child profile.
 
-The current runtime schema gate is 317. All migrations through 0317 have immutable checksum manifests.
+The current runtime schema gate is 318. All migrations through 0317 have immutable checksum manifests.
 
 
 ## Live brand identity bridge
@@ -350,7 +350,7 @@ Migration `0313_sport_fit_verified_skechers_bountiful.sql` adds exact official e
 - `general_training` is normalized from Skechers' explicit workout/training description;
 - Memory Foam, supportive and shock-absorbing wording is preserved as evidence but does not create an invented cushioning or support level.
 
-The runtime schema gate is now 317.
+The runtime schema gate is now 318.
 
 
 ## Schema 314 — Skechers activity and taxonomy conflict handling
@@ -384,7 +384,7 @@ Cloudfoam / Cloudfoam+ comfort language is preserved in source evidence but is n
 
 The live catalogue identity check resolves each of `IH9808`, `KJ1750` and `KJ1757` to exactly one canonical family before migration 0315 is allowed to publish facts.
 
-The runtime schema gate is 317.
+The runtime schema gate is 318.
 
 
 ## Schema 316 — GSA vendor-feed sock knowledge
@@ -421,15 +421,15 @@ Migration `0317_sport_fit_verified_adidas_footwear_batch5.sql` extends exact man
 Schema 317 is another example of manufacturer evidence being allowed to **remove** an overly broad catalogue inference instead of only adding positive facts.
 
 
-## Schema 317 — exact adidas footwear reconciliation
+## Schema 318 — verified adidas sock and running-apparel facts
 
-Migration `0317_sport_fit_verified_adidas_footwear_batch5.sql` adds exact first-party adidas evidence for four current Kerasiotis families while preserving fail-closed semantics:
+Migration `0318_sport_fit_verified_adidas_sock_apparel.sql` adds exact first-party adidas evidence for two current Kerasiotis families:
 
-- Eclyptix 2000 `JH6911`: adidas classifies the exact style as women's Sportswear and gives usual-size guidance. The migration removes only the broad KONTA MOY taxonomy-derived `running` hint and normalizes `fit_length_profile=true_to_size`; retro-running styling is not promoted to a performance-running fact.
-- Response 2 Women `KJ1757`: supplements the earlier exact identity with manufacturer-backed running, road/trail use, daily and long-run context, neutral pronation, true-to-size guidance, 256 g reference weight, 8 mm drop and 31/23 mm heel/forefoot geometry.
-- Galaxy 7 Women `JP6592`: running, road use, short-to-mid-distance context, neutral pronation, true-to-size guidance, 278 g reference weight, 6 mm drop and 34/28 mm heel/forefoot geometry.
-- Terrex Eastrail 3 `JR4007`: hiking, trail use, 337.6 g reference weight and 9 mm drop.
+- Essentials CLIMACOOL Crew Socks 3 Pairs `JD9571`: Gym & Training activity, crew height, explicit CLIMACOOL sweat-wicking, and explicit arch support.
+- adi365 Running Essentials Tank `KB5970`: running activity, explicit CLIMACOOL sweat-management evidence, and an explicit reflective Performance logo.
 
-The migration requires every manufacturer style code to resolve to exactly one active canonical family before publishing facts. Cloudfoam/EVA comfort language remains evidence only; it is not converted into a normalized cushioning level without an explicit governed manufacturer classification.
+The migration intentionally does **not** map the generic word “cushioned” on `JD9571` to `sock_cushioning=light|medium|max`, and it does not invent a breathability level from CLIMACOOL marketing language. Those fields remain open until a governed manufacturer mapping or an exact level claim exists.
 
-The runtime schema gate is 317.
+Both style codes were checked against the live Kerasiotis catalogue and resolve to exactly one active canonical family before the migration can publish facts.
+
+The runtime schema gate is 318.
