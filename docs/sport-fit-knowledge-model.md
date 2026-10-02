@@ -234,6 +234,8 @@ The pilot now contains exact manufacturer evidence for a small set of current Ke
 - Duramo RC2 `JS4435`: running, road/track, daily training, reference weight, heel-to-toe drop and heel/forefoot stack.
 - Terrex Skychaser AX5 `JQ2217`: hiking, trail/technical terrain, reference weight, heel-to-toe drop and heel/forefoot stack.
 - Duramo SL 2 `JP9203`: manufacturer evidence exists, but the product code currently resolves to two canonical families. Both families are blocked from Sport & Fit enrichment until catalogue identity is reconciled.
+- Duramo SL 2 `JQ0604`: running/training, reference weight, 8 mm drop and 31/23 mm heel/forefoot stack from the exact adidas product page.
+- Duramo SL 2 `JP9217`: women’s running/training, reference weight normalized from the published 8.7 oz value, 8 mm drop, 31/23 mm stack and explicit true-to-size guidance.
 
 The duplicate-family case is deliberate evidence that the knowledge layer fails closed: a high-quality external source does not override ambiguous internal identity.
 
@@ -266,3 +268,8 @@ The deterministic resolver follows these rules:
 6. Product-specific fit adjustments remain separate evidence. A generic brand chart never proves that a particular model runs short, true-to-size or long.
 
 The Sport & Fit Studio accepts optional foot length in centimetres. The server converts it to millimetres, resolves it against the stored guide and sends brand-scoped size hints into the recommendation engine. Manual EU size remains available and is used for brands without a resolved guide.
+
+
+## Schema 307 enrichment
+
+Migration `0307_sport_fit_verified_duramo_sl2_seed.sql` extends the exact-code manufacturer seed with current Kerasiotis Duramo SL 2 families `JQ0604` and `JP9217`. It deliberately leaves normalized cushioning/support level unknown: phrases such as “light, stable cushioning” remain source evidence until a governed brand-technology mapping can translate them without overstating the manufacturer claim.
