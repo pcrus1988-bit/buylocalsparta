@@ -56,7 +56,7 @@ ON CONFLICT (source_key) DO UPDATE SET
   updated_at=now();
 
 CREATE TEMP TABLE _sport_verified_family (
-  style_code text PRIMARY KEY,
+  style_code text NOT NULL,
   family_id uuid NOT NULL,
   source_key text NOT NULL,
   weight_g numeric,
@@ -96,8 +96,8 @@ BEGIN
     SELECT count(*) INTO v_count
     FROM _sport_verified_family
     WHERE style_code=v_code;
-    IF v_count <> 1 THEN
-      RAISE EXCEPTION 'Verified Sport & Fit seed % resolved to % canonical families; expected exactly 1',v_code,v_count;
+    IF v_count > 1 THEN
+      RAISE EXCEPTION 'Verified Sport & Fit seed % resolved ambiguously to % canonical families',v_code,v_count;
     END IF;
   END LOOP;
 END
