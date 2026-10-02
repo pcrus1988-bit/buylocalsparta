@@ -141,8 +141,11 @@ export type SportFitScoredProduct = SportFitProduct & Readonly<{
   appliedRules: readonly string[];
 }>;
 
+export type SportFitFinalistEvidenceMode = "governed" | "heuristic_fallback";
+
 export type SportFitRecommendation = Readonly<{
   rulesetVersion: string;
+  finalistEvidenceMode: SportFitFinalistEvidenceMode;
   primary?: SportFitScoredProduct;
   alternatives: readonly SportFitScoredProduct[];
   kit: readonly SportFitScoredProduct[];
@@ -736,6 +739,15 @@ function uniqueRanked(products: readonly SportFitScoredProduct[]): readonly Spor
   return output;
 }
 
+export function sportFitHasGovernedPrimaryEvidence(product: SportFitScoredProduct): boolean {
+  if (sportProductTier(product.role) !== "primary") return false;
+
+  return product.technicalRequirements.some((item) =>
+    item.status === "match"
+    && item.id !== "requirement.stock"
+  );
+}
+
 function kitSelectionEligible(
   product: SportFitScoredProduct,
   answers: SportFitAnswers
@@ -798,8 +810,21 @@ export function buildSportFitRecommendation(
   // Tier 1 is the field that can become the Top 5. Socks, apparel and
   // accessories remain Tier 2 and are only allowed into Complete My Kit.
   const primaryRanked = eligible.filter((product) => sportProductTier(product.role) === "primary");
-  const primary = primaryRanked[0];
-  const alternatives = primaryRanked.filter((product) => product.id !== primary?.id).slice(0, 4);
+
+  // Keep lower-evidence candidates visible in the interactive universe, but do
+  // not let them dilute a final Top 5 once at least one governed technical
+  // match exists. If the catalogue has no governed primary evidence at all,
+  // retain the heuristic fallback so the Studio can still produce a cautious
+  // result rather than collapsing to an empty state.
+  const governedPrimaryRanked = primaryRanked.filter(sportFitHasGovernedPrimaryEvidence);
+  const finalistEvidenceMode: SportFitFinalistEvidenceMode =
+    governedPrimaryRanked.length > 0 ? "governed" : "heuristic_fallback";
+  const finalistRanked = governedPrimaryRanked.length > 0
+    ? governedPrimaryRanked
+    : primaryRanked;
+
+  const primary = finalistRanked[0];
+  const alternatives = finalistRanked.filter((product) => product.id !== primary?.id).slice(0, 4);
 
   const kit: SportFitScoredProduct[] = [];
   if (primary) {
@@ -819,10 +844,11 @@ export function buildSportFitRecommendation(
 
   return {
     rulesetVersion: SPORT_FIT_RULESET_VERSION,
+    finalistEvidenceMode,
     primary,
     alternatives,
     kit,
-    ranked: primaryRanked.slice(0, 24)
+    ranked: finalistRanked.slice(0, 24)
   };
 }
 

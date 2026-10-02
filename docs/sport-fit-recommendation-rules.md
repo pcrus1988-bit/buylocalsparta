@@ -1,6 +1,6 @@
 # KONTA MOY Sport & Fit recommendation rules
 
-Ruleset: `2026-10-02.11`
+Ruleset: `2026-10-02.12`
 
 Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. They do not require an external recommendation API and they do not infer missing technical product facts.
 
@@ -171,6 +171,17 @@ Each scored product carries:
 - the ruleset version on the recommendation response.
 
 Primary ranking is now ordered by `technicalScore`, then `technicalCoverage`, then the softer recommendation score. This prevents an aggressively worded catalogue title from beating a product with stronger governed evidence.
+
+### Finalist evidence floor
+
+The interactive universe may keep technically eligible heuristic candidates visible while the user is exploring. Final Top 5 selection is stricter:
+
+- if at least one Tier 1 footwear candidate has a governed non-stock technical match, the final pool contains only Tier 1 candidates with governed technical evidence;
+- stock alone never satisfies the finalist evidence floor;
+- heuristic-only footwear remains visible in the broader candidate universe but does not dilute evidence-backed finalists;
+- if the catalogue has no governed Tier 1 evidence at all, the engine falls back to the technically eligible heuristic pool instead of returning an artificial empty state.
+
+The response exposes `finalistEvidenceMode` as either `governed` or `heuristic_fallback`, making the fallback explicit and auditable.
 
 This makes rule changes testable and auditable without exposing raw evidence text to the storefront.
 
