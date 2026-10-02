@@ -37,7 +37,7 @@
   animation:studio-content-exit .5s cubic-bezier(.2,.74,.2,1) both;
 }
 
-/* SPORT & FIT — the only Studio that uses a tunnel / universe transition. */
+/* SPORT & FIT — the only Studio that uses a circular ring-tunnel transition. */
 .runtime[data-studio="sport-fit"] .travelVeil{
   background:
     radial-gradient(circle at 50% 50%,transparent 0 7%,rgba(4,8,7,.12) 12%,rgba(4,8,7,.78) 58%,#040807 100%);
