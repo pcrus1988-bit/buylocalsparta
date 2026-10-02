@@ -288,3 +288,174 @@
 @media(prefers-reduced-motion:reduce){
   .dockLink,.stage[data-travelling] .heroCopy,.stage[data-travelling] .studioDock{transition:none!important}
 }
+
+.mobileNavigator{display:none}
+
+@media(max-width:720px){
+  .heroCopy{
+    margin:12px 12px 0;
+    width:calc(100% - 24px);
+  }
+  .heroCopy>span{font-size:6.5px}
+  .heroCopy h1{
+    max-width:300px;
+    margin:6px 0 6px;
+    font-size:30px;
+    line-height:.94;
+  }
+  .heroCopy p{display:none}
+  .sceneHint{display:none}
+  .studioDock{display:none}
+
+  .mobileNavigator{
+    --accent:#50e5ca;
+    position:absolute;
+    z-index:28;
+    left:50%;
+    bottom:calc(12px + env(safe-area-inset-bottom));
+    transform:translateX(-50%);
+    width:min(calc(100% - 20px),430px);
+    display:grid;
+    grid-template-columns:46px minmax(0,1fr) 46px;
+    grid-template-rows:auto auto auto;
+    align-items:center;
+    gap:8px 9px;
+    padding:9px;
+    border:1px solid rgba(245,240,232,.14);
+    border-radius:22px;
+    background:linear-gradient(180deg,rgba(18,19,17,.84),rgba(12,13,12,.92));
+    box-shadow:0 24px 60px rgba(0,0,0,.42);
+    backdrop-filter:blur(18px) saturate(1.08);
+    -webkit-backdrop-filter:blur(18px) saturate(1.08);
+  }
+  .mobileArrow{
+    width:46px;
+    height:46px;
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:50%;
+    background:rgba(255,255,255,.035);
+    color:#f4efe7;
+    font:600 20px/1 Arial,sans-serif;
+    display:grid;
+    place-items:center;
+    cursor:pointer;
+  }
+  .mobileArrow:active{transform:scale(.96)}
+  .mobileArrow:focus-visible{outline:2px solid #d5d0c6;outline-offset:2px}
+
+  .mobileFocusCard{
+    --accent:#50e5ca;
+    min-width:0;
+    display:grid;
+    grid-template-columns:1fr auto;
+    align-items:end;
+    gap:2px 8px;
+    padding:8px 10px 9px;
+    border:1px solid color-mix(in srgb,var(--accent) 32%,rgba(255,255,255,.10));
+    border-radius:16px;
+    background:
+      linear-gradient(180deg,color-mix(in srgb,var(--accent) 9%,rgba(255,255,255,.025)),rgba(255,255,255,.018));
+  }
+  .mobileFocusCard[data-tone="sport"]{--accent:#50e5ca}
+  .mobileFocusCard[data-tone="build"]{--accent:#d69a52}
+  .mobileFocusCard[data-tone="style"]{--accent:#d28fb8}
+  .mobileFocusCard[data-tone="color"]{--accent:#7fa7e5}
+  .mobileFocusCard>span{
+    grid-column:1;
+    color:color-mix(in srgb,var(--accent) 72%,#b8b8b2);
+    font-size:7px;
+    font-weight:900;
+    letter-spacing:.16em;
+  }
+  .mobileFocusCard>strong{
+    grid-column:1;
+    min-width:0;
+    overflow:hidden;
+    color:#f4efe7;
+    font:500 22px/1.02 Georgia,serif;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .mobileFocusCard>small{
+    grid-column:1;
+    min-width:0;
+    overflow:hidden;
+    color:#8f938e;
+    font-size:6px;
+    font-weight:850;
+    letter-spacing:.10em;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .mobileFocusCard>button{
+    grid-column:2;
+    grid-row:1 / 4;
+    align-self:stretch;
+    min-width:92px;
+    padding:0 10px;
+    border:0;
+    border-radius:12px;
+    background:var(--accent);
+    color:#111412;
+    font:900 8px/1.12 Arial,sans-serif;
+    letter-spacing:.08em;
+    cursor:pointer;
+    box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 20%,transparent);
+  }
+  .mobileFocusCard>button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+  .mobileDots{
+    grid-column:1 / -1;
+    display:flex;
+    justify-content:center;
+    gap:6px;
+  }
+  .mobileDots i{
+    width:18px;
+    height:3px;
+    border-radius:999px;
+    background:rgba(255,255,255,.15);
+  }
+  .mobileDots i[data-active]{
+    background:#ece6dc;
+    box-shadow:0 0 12px rgba(255,255,255,.2);
+  }
+  .mobileNavigator>p{
+    grid-column:1 / -1;
+    margin:0;
+    text-align:center;
+    color:#71766f;
+    font-size:7px;
+    letter-spacing:.05em;
+  }
+  .stage[data-travelling] .mobileNavigator{opacity:.48;transition:opacity .28s ease}
+}
+
+@media(max-width:390px){
+  .topBar{min-height:54px}
+  .heroCopy{margin-top:9px}
+  .heroCopy h1{font-size:28px;max-width:280px}
+  .mobileNavigator{
+    width:calc(100% - 12px);
+    bottom:calc(6px + env(safe-area-inset-bottom));
+    grid-template-columns:42px minmax(0,1fr) 42px;
+    gap:6px;
+    padding:7px;
+    border-radius:19px;
+  }
+  .mobileArrow{width:42px;height:42px}
+  .mobileFocusCard{padding:7px 8px}
+  .mobileFocusCard>strong{font-size:19px}
+  .mobileFocusCard>button{min-width:84px;font-size:7px}
+  .mobileNavigator>p{font-size:6.5px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .mobileArrow:active{transform:none}
+  .stage[data-travelling] .mobileNavigator{transition:none}
+}
+
+@media(max-width:720px){
+  .stage:not(.staticMode) .studioDock{display:none!important}
+  .stage:not(.staticMode) .mobileNavigator{display:grid}
+}
