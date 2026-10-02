@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildSportFitRecommendation, scoreSportFitProduct, type SportFitProduct } from "./sport-fit-engine.ts";
+import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, type SportFitProduct } from "./sport-fit-engine.ts";
 
 function product(overrides: Partial<SportFitProduct> & Pick<SportFitProduct, "id" | "title" | "categoryCode">): SportFitProduct {
   return {
@@ -322,4 +322,21 @@ test("multiple brand size hints remain isolated per footwear brand", () => {
   assert.equal(reebokScore.matchedSize, "42");
   assert.ok(adidasScore.score > 0);
   assert.ok(reebokScore.score > 0);
+});
+
+
+test("kids foot measurements down to the stored adidas chart range are accepted", () => {
+  const smallestStoredChartMeasurement = parseSportFitAnswers({
+    activity: "walking",
+    audience: "kids",
+    footLengthMm: 81
+  });
+  const belowSupportedRange = parseSportFitAnswers({
+    activity: "walking",
+    audience: "kids",
+    footLengthMm: 79
+  });
+
+  assert.equal(smallestStoredChartMeasurement.footLengthMm, 81);
+  assert.equal(belowSupportedRange.footLengthMm, undefined);
 });
