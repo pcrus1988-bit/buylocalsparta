@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { revalidatePath } from "next/cache";
 import {
   PostgresUnitOfWork,
   type SessionPrincipal,
@@ -444,6 +445,11 @@ export async function saveVendorProductFeed(
     },
     { isolation: "serializable", statementTimeoutMs: 180_000 }
   );
+
+  // Vendor storefront catalogue reads live offer/inventory data behind a short
+  // cache. Invalidate that route after every XML write so availability changes
+  // are visible on the next storefront request instead of waiting for cache TTL.
+  revalidatePath(`/vendor/${vendorId}`);
 
   return { feedId: result.feedId, preview: prepared.preview, run: result.run };
 }
