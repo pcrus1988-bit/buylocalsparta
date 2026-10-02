@@ -1,0 +1,81 @@
+.runtime{
+  position:relative;
+  min-height:100%;
+  isolation:isolate;
+}
+.travelVeil{
+  position:fixed;
+  inset:0;
+  z-index:2147483600;
+  overflow:hidden;
+  pointer-events:none;
+  opacity:0;
+  visibility:hidden;
+  background:
+    radial-gradient(circle at 50% 50%,transparent 0 7%,rgba(4,8,7,.12) 12%,rgba(4,8,7,.78) 58%,#040807 100%);
+}
+.travelVeil>i{
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:24vmin;
+  height:24vmin;
+  border:1px solid rgba(198,255,243,.24);
+  border-radius:50%;
+  transform:translate(-50%,-50%) scale(.25);
+  box-shadow:0 0 60px rgba(89,255,223,.08),inset 0 0 30px rgba(89,255,223,.04);
+}
+.travelVeil>i:nth-child(2){width:44vmin;height:44vmin;animation-delay:.05s}
+.travelVeil>i:nth-child(3){width:68vmin;height:68vmin;animation-delay:.1s}
+.travelVeil>i:nth-child(4){width:94vmin;height:94vmin;animation-delay:.15s}
+.travelVeil>span{
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:9px;
+  height:9px;
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+  background:#d8fff8;
+  box-shadow:0 0 42px rgba(120,255,230,.85);
+}
+.runtime[data-entering] .travelVeil{
+  visibility:visible;
+  animation:studio-enter-veil .64s cubic-bezier(.2,.74,.2,1) both;
+}
+.runtime[data-entering] .travelVeil>i{animation:studio-enter-ring .64s cubic-bezier(.2,.74,.2,1) both}
+.runtime[data-exiting] .travelVeil{
+  visibility:visible;
+  animation:studio-exit-veil .5s cubic-bezier(.2,.74,.2,1) both;
+}
+.runtime[data-exiting] .travelVeil>i{animation:studio-exit-ring .5s cubic-bezier(.2,.74,.2,1) both}
+.runtime[data-exiting]>*:not(.travelVeil){
+  animation:studio-content-exit .5s cubic-bezier(.2,.74,.2,1) both;
+}
+@keyframes studio-enter-veil{
+  0%{opacity:1;filter:blur(0)}
+  45%{opacity:.72}
+  100%{opacity:0;filter:blur(6px)}
+}
+@keyframes studio-enter-ring{
+  0%{transform:translate(-50%,-50%) scale(2.8);opacity:0}
+  22%{opacity:.75}
+  100%{transform:translate(-50%,-50%) scale(.35);opacity:0}
+}
+@keyframes studio-exit-veil{
+  0%{opacity:0}
+  100%{opacity:1}
+}
+@keyframes studio-exit-ring{
+  0%{transform:translate(-50%,-50%) scale(.25);opacity:0}
+  25%{opacity:.7}
+  100%{transform:translate(-50%,-50%) scale(2.9);opacity:0}
+}
+@keyframes studio-content-exit{
+  from{transform:scale(1);filter:blur(0);opacity:1}
+  to{transform:scale(1.035);filter:blur(3px);opacity:.35}
+}
+@media(prefers-reduced-motion:reduce){
+  .travelVeil{display:none}
+  .runtime[data-exiting]>*:not(.travelVeil){animation:none}
+}
