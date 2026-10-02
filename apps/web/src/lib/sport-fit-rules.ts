@@ -405,7 +405,7 @@ export function evaluateSportFitRules(
 
   if (answers.activity === "running" && role === "footwear") {
     if (answers.surface && surfaces.size && knownSurfaceMatches(answers.surface, surfaces)) {
-      push(state, "running.surface_match", 12, "Κανόνας τρεξίματος: τεκμηριωμένη επιφάνεια");
+      push(state, "running.surface_match", 12, "Τεκμηριωμένη καταλληλότητα επιφάνειας · κανόνας τρεξίματος");
     }
 
     if (answers.distance === "long") {
