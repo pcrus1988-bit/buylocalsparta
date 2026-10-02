@@ -129,9 +129,11 @@ function sceneGeometry(audience:"women"|"men",count:number){
 export function StyleSpatialScene({audience,items,activeSlot,onSelect}:Props){
   const canvasRef=useRef<HTMLCanvasElement>(null);
   const frameRef=useRef<number|null>(null);
+  const activeIndexRef=useRef(-10);
   const {qualityTier,reducedMotion}=useStudioRuntime();
   const visibleItems=useMemo(()=>items.slice(0,8),[items]);
-  const activeIndex=Math.max(0,visibleItems.findIndex(item=>item.slot===activeSlot));
+  const activeIndex=visibleItems.findIndex(item=>item.slot===activeSlot);
+  activeIndexRef.current=activeSlot&&activeIndex>=0?activeIndex:-10;
 
   useEffect(()=>{
     const canvas=canvasRef.current;
@@ -185,7 +187,7 @@ export function StyleSpatialScene({audience,items,activeSlot,onSelect}:Props){
         gl.uniform1f(aspect,width/Math.max(1,height));
         gl.uniform1f(dprLoc,Math.min(devicePixelRatio||1,dprCap));
         gl.uniform1f(timeLoc,time/1000);
-        gl.uniform1f(activeLoc,activeSlot?activeIndex:-10);
+        gl.uniform1f(activeLoc,activeIndexRef.current);
         bind(lb);gl.drawArrays(gl.LINES,0,geometry.lines.length/4);
         bind(pb);gl.drawArrays(gl.POINTS,0,geometry.points.length/4);
         if(!reducedMotion)frameRef.current=requestAnimationFrame(render);
@@ -198,7 +200,7 @@ export function StyleSpatialScene({audience,items,activeSlot,onSelect}:Props){
       if(frameRef.current!==null)cancelAnimationFrame(frameRef.current);
       if(lineBuffer)gl.deleteBuffer(lineBuffer);if(pointBuffer)gl.deleteBuffer(pointBuffer);if(p)gl.deleteProgram(p);
     };
-  },[activeIndex,activeSlot,audience,qualityTier,reducedMotion,visibleItems.length]);
+  },[audience,qualityTier,reducedMotion,visibleItems.length]);
 
   return(
     <div className={styles.scene} data-count={visibleItems.length}>
