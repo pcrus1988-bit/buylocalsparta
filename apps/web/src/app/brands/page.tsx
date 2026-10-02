@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
 import { getPublicBrandDirectory } from "../../lib/brand-guide-runtime";
+import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import styles from "./page.module.css";
 
 const PAGE_SIZE = 48;
@@ -29,12 +30,13 @@ function href(params: { q?: string; letter?: string }, page: number): string {
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const params = await searchParams;
   const hasFilterState = Boolean(params.q?.trim() || params.letter?.trim() || (params.page && params.page !== "1"));
-  return {
+  const governed = await governedStaticSeoMetadata("/brands", {
     title: "Brands στο ΚΟΝΤΑ ΜΟΥ",
-    description: "Ανακάλυψε brands μέσα από τις κατηγορίες που εκπροσωπούν και τα προϊόντα που είναι πραγματικά διαθέσιμα στο ΚΟΝΤΑ ΜΟΥ.",
-    alternates: { canonical: "/brands" },
-    robots: hasFilterState ? { index: false, follow: true } : undefined
-  };
+    description: "Ανακάλυψε brands μέσα από τις κατηγορίες που εκπροσωπούν και τα προϊόντα που είναι πραγματικά διαθέσιμα στο ΚΟΝΤΑ ΜΟΥ."
+  });
+  return hasFilterState
+    ? { ...governed, alternates: { canonical: "/brands" }, robots: { index: false, follow: true } }
+    : governed;
 }
 
 export default async function BrandsPage({ searchParams }: Props) {
