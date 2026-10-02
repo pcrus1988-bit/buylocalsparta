@@ -17,10 +17,10 @@ test("Studios hub keeps semantic navigation when 3D is disabled", async ({ page 
     await expect(page.locator(`nav a[href="${destination}"]`)).toHaveCount(1);
   }
 
-  const mode = page.getByRole("button", { name: "Απλή προβολή" });
+  const mode = page.getByRole("button", { name: "Λίστα" });
   await expect(mode).toBeVisible();
   await mode.click();
-  await expect(page.getByRole("button", { name: "3D προβολή" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "3D χώρος" })).toBeVisible();
 
   const sport = page.locator('nav a[href="/sport-fit-studio"]');
   await expect(sport).toBeVisible();
@@ -115,4 +115,40 @@ test("Universe identity is reserved for Sport Fit", async () => {
     "utf8"
   );
   expect(sportSource).toMatch(/LIVE PRODUCT UNIVERSE/);
+});
+
+
+test("Mobile Studio District uses guided focus navigation and hides commerce dock", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/studios");
+
+  await expect(page.locator("canvas")).toHaveCount(1);
+  await expect(page.locator(".customer-mobile-commerce-nav")).toHaveCount(0);
+
+  const enter = page.getByRole("button", { name: "ENTER STUDIO" });
+  await expect(enter).toBeVisible();
+
+  const title = page.getByText("Sport & Fit", { exact: true }).last();
+  await expect(title).toBeVisible();
+
+  await page.getByRole("button", { name: "Επόμενο Studio" }).click();
+  await expect(page.getByText("Paint & Build", { exact: true }).last()).toBeVisible();
+
+  await enter.click();
+  await expect(page).toHaveURL(/\/paint-and-build-studio(?:[?#].*)?$/);
+});
+
+test("Immersive Studio routes stay free of the global mobile commerce dock", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  for (const route of [
+    "/studios",
+    "/sport-fit-studio",
+    "/paint-and-build-studio",
+    "/fitting-room",
+    "/color-finder"
+  ]) {
+    await page.goto(route);
+    await expect(page.locator(".customer-mobile-commerce-nav")).toHaveCount(0);
+  }
 });
