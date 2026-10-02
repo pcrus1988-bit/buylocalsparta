@@ -268,7 +268,7 @@ test("documented hiking footwear is compatible with trail walking but not road r
       identityQuality: "strong",
       activities: ["hiking"],
       surfaces: ["trail"],
-      useCases: ["technical_hiking"]
+      useCases: ["technical_hike"]
     }
   });
 
@@ -452,7 +452,7 @@ test("running rules combine distance, frequency, cushioning and verified use cas
   });
 
   assert.equal(result.primary?.id, "long-run");
-  assert.equal(result.rulesetVersion, "2026-10-02.1");
+  assert.equal(result.rulesetVersion, "2026-10-02.2");
   assert.ok(result.primary?.appliedRules.includes("running.long_run_use_case"));
   assert.ok(result.primary?.reasons.some((reason) => /long-run|cushioning/i.test(reason)));
 });
