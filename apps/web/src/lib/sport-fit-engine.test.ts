@@ -287,3 +287,39 @@ test("documented hiking footwear is compatible with trail walking but not road r
   assert.ok(trailWalking.score > roadRunning.score);
   assert.ok(trailWalking.reasons.some((reason) => /δραστηριότητας/i.test(reason)));
 });
+
+
+test("multiple brand size hints remain isolated per footwear brand", () => {
+  const adidas = product({
+    id: "adidas-multi-brand",
+    title: "adidas Running Shoe",
+    brand: "Adidas",
+    categoryCode: "mens-running-shoes",
+    sizes: ["42 2/3"]
+  });
+  const reebok = product({
+    id: "reebok-multi-brand",
+    title: "Reebok Running Shoe",
+    brand: "Reebok",
+    categoryCode: "mens-running-shoes",
+    sizes: ["42"]
+  });
+
+  const answers = {
+    activity: "running" as const,
+    audience: "men" as const,
+    surface: "road" as const,
+    brandSizeHints: {
+      adidas: ["42 2/3"],
+      reebok: ["42"]
+    }
+  };
+
+  const adidasScore = scoreSportFitProduct(adidas, answers);
+  const reebokScore = scoreSportFitProduct(reebok, answers);
+
+  assert.equal(adidasScore.matchedSize, "42 2/3");
+  assert.equal(reebokScore.matchedSize, "42");
+  assert.ok(adidasScore.score > 0);
+  assert.ok(reebokScore.score > 0);
+});
