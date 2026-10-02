@@ -1,6 +1,6 @@
 # KONTA MOY Sport & Fit recommendation rules
 
-Ruleset: `2026-10-02.9`
+Ruleset: `2026-10-02.10`
 
 Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. They do not require an external recommendation API and they do not infer missing technical product facts.
 
@@ -126,6 +126,8 @@ Controlled broad activity classes are also honored by candidate admission: `rack
 Kit items now use their own weighted technical-confidence profile instead of inheriting near-perfect confidence from stock alone.
 
 Final kit selection now only runs after a Tier 1 footwear primary exists. A secondary item with a documented activity conflict cannot occupy a final kit slot, and a sock with comparable numeric sizing must contain the requested shoe size when its size range is known.
+
+A Tier 2 item also needs at least one governed non-stock technical match before it can enter a final **Complete My Kit** slot. Stock, price and generic catalogue/title heuristics can keep an item browseable, but they no longer turn an otherwise unverified sock/apparel/accessory into a kit recommendation.
 
 For socks, tops, bottoms, layers and accessories, the engine can evaluate:
 - documented activity and exact use-case evidence;
