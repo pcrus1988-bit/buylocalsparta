@@ -223,7 +223,7 @@ export async function getDropshipStorefrontReadModelWindow(
           AND NOT EXISTS (
             SELECT 1
             FROM bls_private.storefront_dropship_live_family live_shadow
-            WHERE live_shadow.supplier_id::text=fm.dropship_supplier_id
+            WHERE live_shadow.supplier_id=fm.dropship_supplier_id::uuid
               AND live_shadow.external_product_id=fm.dropship_external_product_id
               AND live_shadow.available_until>now()
           )
@@ -302,7 +302,7 @@ export async function getDropshipStorefrontReadModelWindow(
         AND NOT EXISTS (
           SELECT 1
           FROM bls_private.storefront_dropship_live_family live_shadow
-          WHERE live_shadow.supplier_id::text=fm.dropship_supplier_id
+          WHERE live_shadow.supplier_id=fm.dropship_supplier_id::uuid
             AND live_shadow.external_product_id=fm.dropship_external_product_id
             AND live_shadow.available_until>now()
         )
