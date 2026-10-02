@@ -379,3 +379,29 @@ test("governed sock thermal and breathability facts reach result reasons", () =>
   assert.ok(scored.reasons.some((reason) => /διαπνοή/i.test(reason)));
   assert.ok(scored.reasons.some((reason) => /θερμική/i.test(reason)));
 });
+
+test("governed running-apparel moisture and reflective facts reach result reasons", () => {
+  const top = product({
+    id: "adidas-kb5970",
+    title: "adi365 Running Essentials Tank",
+    categoryCode: "fashion-mens-tshirts-tops",
+    sizes: ["M"],
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["running"],
+      moistureWicking: true,
+      reflectiveDetails: true
+    }
+  });
+
+  const scored = scoreSportFitProduct(top, {
+    activity: "running",
+    audience: "men"
+  });
+
+  assert.ok(scored.reasons.some((reason) => /δραστηριότητας/i.test(reason)));
+  assert.ok(scored.reasons.some((reason) => /υγρασίας/i.test(reason)));
+  assert.ok(scored.reasons.some((reason) => /ανακλαστικές/i.test(reason)));
+});
+
