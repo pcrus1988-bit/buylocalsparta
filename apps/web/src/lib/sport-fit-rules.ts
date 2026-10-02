@@ -6,7 +6,7 @@ import type {
   SportFitTechnicalRequirement
 } from "./sport-fit-engine.ts";
 
-export const SPORT_FIT_RULESET_VERSION = "2026-10-02.6";
+export const SPORT_FIT_RULESET_VERSION = "2026-10-02.7";
 
 export type SportFitRuleEvaluation = Readonly<{
   eligible: boolean;
@@ -137,6 +137,24 @@ function seedKitTechnicalRequirements(
       useCases.has(normalize(answers.useCase))
         ? "Τεκμηριωμένος τύπος χρήσης για το σετ"
         : "Δεν υπάρχει ακόμη ειδική τεκμηρίωση για αυτόν τον τύπο χρήσης"
+    );
+  }
+
+  if (answers.priority === "versatility") {
+    const broadKitEvidence =
+      activities.size >= 2
+      || useCases.size >= 2
+      || activities.has("general_training")
+      || activities.has("team_sports")
+      || activities.has("racket_sports");
+    addRequirement(
+      state,
+      "requirement.kit_versatility",
+      9,
+      broadKitEvidence ? "match" : "unknown",
+      broadKitEvidence
+        ? "Τεκμηριωμένη ευελιξία δραστηριοτήτων / χρήσεων"
+        : "Η ευελιξία χρήσεων δεν έχει ακόμη τεκμηριωθεί"
     );
   }
 
@@ -341,6 +359,25 @@ function seedTechnicalRequirements(
       else fitStatus = width === "standard" ? "match" : "unknown";
     }
     addRequirement(state, "requirement.fit_width", 10, fitStatus, width ? "Τεκμηριωμένο width profile" : "Το width profile δεν έχει ακόμη τεκμηριωθεί");
+  }
+
+  if (answers.priority === "versatility") {
+    const broadFootwearEvidence =
+      activities.size >= 2
+      || surfaces.size >= 2
+      || useCases.size >= 2
+      || activities.has("general_training")
+      || activities.has("team_sports")
+      || activities.has("racket_sports");
+    addRequirement(
+      state,
+      "requirement.versatility_profile",
+      12,
+      broadFootwearEvidence ? "match" : "unknown",
+      broadFootwearEvidence
+        ? "Τεκμηριωμένο εύρος δραστηριοτήτων / επιφανειών / χρήσεων"
+        : "Το εύρος χρήσεων δεν έχει ακόμη τεκμηριωθεί"
+    );
   }
 
   if (answers.activity === "football" && answers.surface) {
@@ -705,6 +742,36 @@ export function evaluateSportFitRules(
     ) {
       push(state, "kit.sock_cushioning_verified", 5);
     }
+  }
+
+  if (
+    answers.priority === "versatility"
+    && role !== "footwear"
+    && ["socks", "top", "bottom", "layer", "accessory"].includes(role)
+    && (
+      activities.size >= 2
+      || useCases.size >= 2
+      || activities.has("general_training")
+      || activities.has("team_sports")
+      || activities.has("racket_sports")
+    )
+  ) {
+    push(state, "kit.versatility_verified", 4);
+  }
+
+  if (
+    answers.priority === "versatility"
+    && role === "footwear"
+    && (
+      activities.size >= 2
+      || surfaces.size >= 2
+      || useCases.size >= 2
+      || activities.has("general_training")
+      || activities.has("team_sports")
+      || activities.has("racket_sports")
+    )
+  ) {
+    push(state, "priority.versatility_verified", 8, "Τεχνικός κανόνας: τεκμηριωμένο εύρος χρήσεων");
   }
 
   if (role === "footwear" && activities.size) {
