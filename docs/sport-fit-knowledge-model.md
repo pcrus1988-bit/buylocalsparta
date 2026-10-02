@@ -588,3 +588,18 @@ Governed facts added:
 The batch preserves the fail-closed rule for identity and keeps generic “cushioned”, “soft”, “light/thin”, lifestyle positioning and conflicting regional merchandising out of governed technical fields.
 
 The runtime schema gate is now **327**.
+
+## Schema 328 — adidas footwear identity reconciliation
+
+Migration `0328_sport_fit_adidas_footwear_reconciliation.sql` combines exact first-party adidas enrichment with catalogue-identity correction for three current Kerasiotis footwear families.
+
+- `JP9203` (Duramo SL 2): the historical duplicate-canonical-family blocker is cleared only after the exact manufacturer code resolves to one active canonical family. Governed facts are running, road + track, short-to-mid-distance training, race-day context, neutral support, true-to-size guidance, 291 g reference weight, 9 mm drop and 33/24 mm heel/forefoot stack.
+- `KJ9916` (Ultimashow 2.0): exact adidas classification is Sportswear with explicit workout positioning. The earlier KONTA MOY running fact came only from the broad running-shoe taxonomy, so that taxonomy evidence is removed and replaced with `sport_activity=general_training` plus explicit true-to-size guidance.
+- `KJ7282` (Cloudfoam Flex Laces): exact adidas classification is Sportswear with explicit daily-walking positioning. The taxonomy-only running evidence is removed and replaced with `sport_activity=walking`, `sport_use_case=daily_walking` and explicit true-to-size guidance.
+
+The correction is deliberately evidence-scoped. It removes only `kontamou_catalog_taxonomy` / `taxonomy_mapping` running evidence for the two exact products whose manufacturer classification is more specific. It does not create negative activity facts, and it does not translate Cloudfoam, LIGHTMOTION, generic stability, arch-reinforcement or comfort wording into governed cushioning/support intensity.
+
+The migration was executed against the live KONTA MOY schema inside a transaction ending in `ROLLBACK`. Exact-code uniqueness guards, historical JP9203 unblock logic, taxonomy-evidence replacement, knowledge refresh and post-write assertions all passed without persisting production changes.
+
+The runtime schema gate is now **328**.
+
