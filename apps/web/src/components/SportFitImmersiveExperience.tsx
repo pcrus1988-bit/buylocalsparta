@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { productPublicPath } from "../lib/product-url";
 import { SportFitWebGLUniverse } from "./SportFitWebGLUniverse";
+import { useStudioRuntime } from "./StudioExperienceRuntime";
 import type {
   SportActivity,
   SportAudience,
@@ -383,6 +384,7 @@ export function SportFitImmersiveExperience({
   vendorId?: string;
   vendorName?: string;
 }) {
+  const { exitToHub } = useStudioRuntime();
   const [step, setStep] = useState<Step>("activity");
   const [activity, setActivity] = useState<SportActivity>("running");
   const [audience, setAudience] = useState<SportAudience | null>(null);
@@ -762,7 +764,7 @@ export function SportFitImmersiveExperience({
         </div>
         <div className={styles.headerActions}>
           {step !== "activity" ? <button type="button" onClick={goBack} aria-label="Πίσω">←</button> : null}
-          <Link href={`/vendor/${encodeURIComponent(vendorId)}`} aria-label="Έξοδος από το Sport & Fit Studio">×</Link>
+          <button type="button" onClick={exitToHub} aria-label="Έξοδος προς τα KONTA MOY Studios">×</button>
         </div>
       </header>
 
