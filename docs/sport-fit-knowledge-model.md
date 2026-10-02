@@ -566,9 +566,9 @@ The migration verifies that all fourteen product codes resolve to exactly one ac
 
 The runtime schema gate is now **326**.
 
-## Schema 327 — second verified adidas sock batch and strict feed identity bridge
+## Schema 327 — second verified adidas sock batch and canonical identity bridge
 
-Migration `0327_sport_fit_verified_adidas_sock_batch2.sql` adds exact first-party adidas evidence for thirteen additional current Kerasiotis sock families. Where `canonical_variants.mpn` is not yet populated, identity may bridge through an exact adidas style-code token in the current trusted Kerasiotis vendor feed, but only when that code resolves to exactly one active canonical family.
+Migration `0327_sport_fit_verified_adidas_sock_batch2.sql` adds exact first-party adidas evidence for thirteen additional current Kerasiotis sock families. Where `canonical_variants.mpn` is not yet populated, identity bridges through an exact hyphen-bounded adidas style-code token already present in `canonical_variants.slug`, and only when that code resolves to exactly one active canonical family. This avoids scanning the much larger vendor-feed table during migration.
 
 Governed facts added:
 - `IC1301`: gym training + crew height.
