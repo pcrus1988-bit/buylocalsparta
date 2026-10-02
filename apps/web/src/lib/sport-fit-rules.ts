@@ -6,7 +6,7 @@ import type {
   SportFitTechnicalRequirement
 } from "./sport-fit-engine.ts";
 
-export const SPORT_FIT_RULESET_VERSION = "2026-10-02.10";
+export const SPORT_FIT_RULESET_VERSION = "2026-10-02.11";
 
 export type SportFitRuleEvaluation = Readonly<{
   eligible: boolean;
@@ -59,6 +59,16 @@ function requestedActivityValues(answers: SportFitAnswers): readonly string[] {
   if (answers.activity === "padel") return ["padel", "racket_sports"];
   if (answers.activity === "volleyball") return ["volleyball", "team_sports"];
   return [answers.activity];
+}
+
+function broadActivityClass(answers: SportFitAnswers): string | undefined {
+  if (answers.activity === "football" || answers.activity === "basketball" || answers.activity === "volleyball") {
+    return "team_sports";
+  }
+  if (answers.activity === "tennis" || answers.activity === "padel") {
+    return "racket_sports";
+  }
+  return undefined;
 }
 
 function addRequirement(
@@ -127,6 +137,21 @@ function seedKitTechnicalRequirements(
       ? "Τεκμηριωμένη δραστηριότητα για το συμπληρωματικό προϊόν"
       : "Η δραστηριότητα του συμπληρωματικού προϊόντος δεν έχει ακόμη τεκμηριωθεί"
   );
+
+  const broadClass = broadActivityClass(answers);
+  if (broadClass && activities.size && includesAny(activities, requestedActivities)) {
+    const exactActivity = normalize(answers.activity);
+    const exactMatch = activities.has(exactActivity);
+    addRequirement(
+      state,
+      "requirement.kit_activity_specificity",
+      7,
+      exactMatch ? "match" : "unknown",
+      exactMatch
+        ? "Τεκμηριωμένη ειδική δραστηριότητα για το συμπληρωματικό προϊόν"
+        : `Υπάρχει τεκμηρίωση ${broadClass}, αλλά όχι ακόμη ειδική τεκμηρίωση ${exactActivity}`
+    );
+  }
 
   if (answers.useCase) {
     addRequirement(
@@ -327,6 +352,21 @@ function seedTechnicalRequirements(
     activities.size ? (includesAny(activities, requestedActivities) ? "match" : "conflict") : "unknown",
     activities.size ? "Τεκμηριωμένη δραστηριότητα" : "Η τεχνική δραστηριότητα δεν έχει ακόμη τεκμηριωθεί"
   );
+
+  const broadClass = broadActivityClass(answers);
+  if (broadClass && activities.size && includesAny(activities, requestedActivities)) {
+    const exactActivity = normalize(answers.activity);
+    const exactMatch = activities.has(exactActivity);
+    addRequirement(
+      state,
+      "requirement.activity_specificity",
+      10,
+      exactMatch ? "match" : "unknown",
+      exactMatch
+        ? "Τεκμηριωμένη sport-specific δραστηριότητα"
+        : `Τεκμηριωμένη ευρύτερη κλάση ${broadClass}, χωρίς ακόμη exact ${exactActivity} evidence`
+    );
+  }
 
   if (
     answers.surface
@@ -562,6 +602,19 @@ function seedTechnicalRequirements(
   }
 
   if (["basketball", "tennis", "padel", "volleyball"].includes(answers.activity)) {
+    if (answers.surface && surfaces.size && knownSurfaceMatches(answers.surface, surfaces)) {
+      const exactSurface = normalize(answers.surface);
+      addRequirement(
+        state,
+        "requirement.court_surface_specificity",
+        8,
+        surfaces.has(exactSurface) ? "match" : "unknown",
+        surfaces.has(exactSurface)
+          ? "Τεκμηριωμένη ακριβής court επιφάνεια"
+          : "Υπάρχει συμβατή ευρύτερη επιφάνεια, αλλά όχι ακόμη exact court-surface evidence"
+      );
+    }
+
     if (answers.priority === "stability") {
       const stabilityStatus: SportFitTechnicalRequirement["status"] =
         ["guided", "stability", "max_support"].includes(support) ? "match" : "unknown";
@@ -721,6 +774,9 @@ export function evaluateSportFitRules(
     const requestedActivities = requestedActivityValues(answers);
     if (activities.size && includesAny(activities, requestedActivities)) {
       push(state, "kit.activity_verified_match", 7);
+      if (broadActivityClass(answers) && activities.has(normalize(answers.activity))) {
+        push(state, "kit.activity_specific_match", 3);
+      }
     }
     if (answers.useCase && useCases.has(normalize(answers.useCase))) {
       push(state, "kit.use_case_verified_match", 5);
@@ -785,6 +841,9 @@ export function evaluateSportFitRules(
       );
     }
     push(state, "activity.verified_match", 8, "Τεχνικός κανόνας: τεκμηριωμένη χρήση για τη δραστηριότητα");
+    if (broadActivityClass(answers) && activities.has(normalize(answers.activity))) {
+      push(state, "activity.specific_verified_match", 6, "Τεχνικός κανόνας: exact sport-specific τεκμηρίωση");
+    }
   }
 
   if (
@@ -972,6 +1031,9 @@ export function evaluateSportFitRules(
   if (["basketball", "tennis", "padel", "volleyball"].includes(answers.activity) && role === "footwear") {
     if (answers.surface && surfaces.size && knownSurfaceMatches(answers.surface, surfaces)) {
       push(state, "court.surface_match", 14, "Κανόνας court sport: τεκμηριωμένη συμβατότητα επιφάνειας");
+      if (surfaces.has(normalize(answers.surface))) {
+        push(state, "court.surface_specific_match", 5, "Κανόνας court sport: exact επιφάνεια");
+      }
     }
     if (answers.useCase && useCases.has(normalize(answers.useCase))) {
       push(state, "court.use_case_match", 12, "Κανόνας court sport: τεκμηριωμένος τύπος προπόνησης / αγώνα");
