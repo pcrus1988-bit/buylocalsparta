@@ -256,16 +256,17 @@ Schema version 306 adds a separate governed sizing layer:
 - `sport_size_guide_entries`
 - `sport_size_guide_labels`
 
-The first guide is the official adidas adult/unisex footwear heel-to-toe chart. The database stores the manufacturer measurement points and EU, UK, US and JP labels rather than embedding conversions in UI code.
+Schema 306 introduced the official adidas adult/unisex footwear heel-to-toe chart. Schema 309 adds the official adidas kids footwear chart. The database stores manufacturer measurement points and size-system labels rather than embedding conversions in UI code. The kids guide contains 36 heel-to-toe rows and 108 audience-scoped EU, UK and US labels.
 
 The deterministic resolver follows these rules:
 
 1. An exact heel-to-toe measurement returns the exact chart row.
 2. A measurement between two rows returns both adjacent chart sizes instead of guessing.
-3. Audience-specific labels, such as US Women, take priority over a unisex fallback for that size system.
-4. Measurements outside the chart range return no automatic size.
-5. A brand guide only affects products of that brand. An adidas result must not penalize another brand.
-6. Product-specific fit adjustments remain separate evidence. A generic brand chart never proves that a particular model runs short, true-to-size or long.
+3. Audience-specific guides take priority over a unisex guide. For example, a kids profile uses the kids chart when present; adult audiences may fall back to the unisex chart when no exact audience guide exists.
+4. Within a selected guide, audience-specific labels, such as US Women, take priority over a unisex fallback for that size system.
+5. Measurements outside the chart range return no automatic size.
+6. A brand guide only affects products of that brand. An adidas result must not penalize another brand.
+7. Product-specific fit adjustments remain separate evidence. A generic brand chart never proves that a particular model runs short, true-to-size or long.
 
 The Sport & Fit Studio accepts optional foot length in centimetres. The server converts it to millimetres, resolves it against the stored guide and sends brand-scoped size hints into the recommendation engine. Manual EU size remains available and is used for brands without a resolved guide.
 
@@ -273,3 +274,17 @@ The Sport & Fit Studio accepts optional foot length in centimetres. The server c
 ## Schema 307 enrichment
 
 Migration `0307_sport_fit_verified_duramo_sl2_seed.sql` extends the exact-code manufacturer seed with current Kerasiotis Duramo SL 2 families `JQ0604` and `JP9217`. It deliberately leaves normalized cushioning/support level unknown: phrases such as “light, stable cushioning” remain source evidence until a governed brand-technology mapping can translate them without overstating the manufacturer claim.
+
+
+## Schema 308–309 enrichment
+
+Migration `0308_sport_fit_verified_kerasiotis_footwear_batch2.sql` adds a second exact-code adidas footwear batch:
+
+- Duramo SL 2 `KJ4150`: running, road/track, short-to-mid-distance training and race-day use, true-to-size guidance, reference weight, drop and heel/forefoot stack.
+- Duramo RC2 `KJ4189`: running, competition/short-distance use, true-to-size guidance, reference weight and drop.
+- Duramo SL 2 `JS4403`: running/training, reference weight, drop and heel/forefoot stack.
+- Adizero SL2 `IF6748`: kept in research/reconciliation state because current official adidas regional pages disagree on technical measurements and fit advice. No disputed value is normalized.
+
+Migration `0309_sport_fit_adidas_kids_size_guide.sql` adds the official adidas kids footwear size chart as a separate `kids` audience guide. The server deterministically prefers an exact audience guide over a unisex fallback, which prevents the adult chart from becoming the primary measured-size source for a child profile.
+
+The runtime schema gate is 309. All migrations through 0309 have immutable checksum manifests.
