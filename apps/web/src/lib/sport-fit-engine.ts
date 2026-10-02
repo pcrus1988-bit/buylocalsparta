@@ -350,11 +350,11 @@ export function buildSportFitRecommendation(
 }
 
 function enumValue<T extends readonly string[]>(values: T, value: unknown, fallback: T[number]): T[number] {
-  return typeof value === "string" && values.includes(value) ? value as T[number] : fallback;
+  return typeof value === "string" && (values as readonly string[]).includes(value) ? value as T[number] : fallback;
 }
 
 function optionalEnumValue<T extends readonly string[]>(values: T, value: unknown): T[number] | undefined {
-  return typeof value === "string" && values.includes(value) ? value as T[number] : undefined;
+  return typeof value === "string" && (values as readonly string[]).includes(value) ? value as T[number] : undefined;
 }
 
 export function parseSportFitAnswers(input: unknown): SportFitAnswers {
