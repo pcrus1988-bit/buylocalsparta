@@ -462,3 +462,17 @@ The migration deliberately does **not** copy KJ0411's richer fit or terrain deta
 Both style codes were checked against the live catalogue and resolve to one active canonical family each before the migration was committed. The migration repeats that uniqueness check at execution time and fails closed if catalogue identity changes.
 
 The runtime schema gate is 320.
+
+
+## Schema 321 — direct Kerasiotis running activity
+
+Migration `0321_sport_fit_kerasiotis_running_activity.sql` closes two current catalogue activity gaps without weakening the evidence model:
+
+- `IH1838` (Runfalcon 6 ATR W): the connected Kerasiotis feed title explicitly states running use.
+- `KJ4808` (Cloudfoam Flex-Laces): the connected Kerasiotis feed title explicitly states running use.
+
+These are stored as direct vendor-feed evidence at lower confidence than an exact manufacturer product page. The migration intentionally does not convert `Cloudfoam` into a cushioning intensity and does not convert the `ATR` token into a surface/terrain classification. Those fields remain queued for exact manufacturer research.
+
+Both MPNs were confirmed as active, approved, visible Kerasiotis catalogue identities before the migration was committed, and the migration requires each code to resolve to exactly one active canonical family.
+
+The runtime schema gate is 321.
