@@ -25,6 +25,7 @@ function safeVendor(value: string | undefined): string | undefined {
 
 export async function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/fitting-room", {
+    canonicalPath: "https://kontamou.site/fitting-room",
     title: "Fitting Room · KONTA MOY",
     description: "Μπες στο Fitting Room του ΚΟΝΤΑ ΜΟΥ, πες μας τι σου αρέσει και φτιάξε ολοκληρωμένα looks που μπορείς να αλλάξεις, να αποθηκεύσεις και να μοιραστείς."
   });
