@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ColorStudioSelector, type ColorStudioShadeCandidate } from "./ColorStudioSelector";
 import { BuildStudioGuidanceResult } from "./BuildStudioGuidanceResult";
+import { useStudioRuntime } from "./StudioExperienceRuntime";
 import { mapBuildStudioScenario, type BuildGuidanceScenarioRequest } from "../lib/build-guidance-scenario-map";
 import {
   BUILD_MODULES,
@@ -179,6 +180,7 @@ function ModulePictogram({ module }: { module: BuildModuleKey }) {
 }
 
 export function PaintBuildStudioExperience() {
+  const { exitToHub } = useStudioRuntime();
   const [screen, setScreen] = useState<StudioScreen>("hub");
 
   const [paintSurfaceKey, setPaintSurfaceKey] = useState<PaintSurfaceKey>("interior-wall");
@@ -281,9 +283,7 @@ export function PaintBuildStudioExperience() {
   }
 
   function exitStudio() {
-    if (document.fullscreenElement) void document.exitFullscreen?.().catch(() => undefined);
-    if (window.history.length > 1) window.history.back();
-    else window.location.assign("/");
+    exitToHub();
   }
 
   function choosePaintSurface(key: PaintSurfaceKey) {
