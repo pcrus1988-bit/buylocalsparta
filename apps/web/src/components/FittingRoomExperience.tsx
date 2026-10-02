@@ -1406,8 +1406,9 @@ export function FittingRoomExperience({
     return (
       <div className={styles.fullscreenTakeover} role="dialog" aria-modal="true" aria-label="KONTA MOY Fitting Room">
       <section className={styles.room}>
+        <div className={styles.questionSpatialBackdrop}><StyleSpatialScene audience={audience} items={[]} /></div>
         <div className={styles.roomHeader}>
-          <button type="button" className={styles.exit} onClick={leaveImmersive}>× Έξοδος</button>
+          <div className={styles.roomExitGroup}><button type="button" className={styles.exit} onClick={exitToHub}>← STUDIOS</button><button type="button" className={styles.exit} onClick={leaveImmersive}>× Fullscreen</button></div>
           <div className={styles.roomWordmark}><strong>FITTING ROOM</strong><span>by KONTA MOY</span></div>
           <span className={styles.stepCount}>{step + 1} / 5</span>
         </div>
