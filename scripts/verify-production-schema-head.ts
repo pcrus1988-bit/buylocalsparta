@@ -57,6 +57,7 @@ async function verifyProductionSchemaHead(): Promise<void> {
   throw new Error("DATABASE_URL or POSTGRES_URL is required for the production schema gate outside Vercel production builds");
 }
 
+// Keep enough retry headroom for short Supavisor pressure incidents before using the direct-DB fallback.
 const TRANSIENT_SCHEMA_RETRY_DELAYS_MS = [500, 1_500, 3_000] as const;
 
 async function retryTransientSchemaVerification(
