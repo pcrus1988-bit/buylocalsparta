@@ -3,10 +3,11 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { StudioDestination } from "../lib/studio-registry";
+import type { StudioQualityTier } from "../lib/studio-webgl";
 import { consumeStudioTravel, markStudioTravel } from "../lib/studio-travel";
 import styles from "./StudioExperienceRuntime.module.css";
 
-export type StudioQualityTier = "high" | "balanced" | "lite";
+export type { StudioQualityTier } from "../lib/studio-webgl";
 type StudioId = StudioDestination["id"];
 
 type RuntimeValue = Readonly<{
