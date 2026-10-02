@@ -75,6 +75,7 @@ type UniverseResponse = Readonly<{
   vendorName: string;
   candidateCount: number;
   survivingCount: number;
+  secondaryCount?: number;
   universe: readonly UniverseProduct[];
   error?: string;
 }>;
@@ -1157,7 +1158,10 @@ export function SportFitImmersiveExperience({
             </div>
             <div className={styles.resultFacts}>
               <span>{initialCount}<small>στην αρχή</small></span>
-              <span>{response?.survivingCount ?? 0}<small>τεχνικά συμβατά</small></span>
+              <span>{response?.survivingCount ?? 0}<small>κύριες αντιστοιχίσεις</small></span>
+              {(response?.secondaryCount ?? 0) > 0 ? (
+                <span>{response?.secondaryCount ?? 0}<small>2ου επιπέδου</small></span>
+              ) : null}
               <span>{finalists.length}<small>finalists</small></span>
             </div>
           </section>
@@ -1222,7 +1226,12 @@ export function SportFitImmersiveExperience({
             </>
           ) : (
             <div className={styles.empty}>
-              <p>Δεν θα ξεδιπλώσουμε προϊόν ως «ταιριαστό» όταν τα διαθέσιμα τεχνικά στοιχεία, η επιφάνεια, το fit ή το απόθεμα δεν το στηρίζουν.</p>
+              <p>
+                Δεν θα ξεδιπλώσουμε προϊόν ως «ταιριαστό» όταν τα διαθέσιμα τεχνικά στοιχεία, η επιφάνεια, το fit ή το απόθεμα δεν το στηρίζουν.
+                {(response?.secondaryCount ?? 0) > 0
+                  ? ` Υπάρχουν ${response?.secondaryCount ?? 0} συμπληρωματικές επιλογές 2ου επιπέδου (όπως κάλτσες, ένδυση ή αξεσουάρ), αλλά δεν μετρούν ως κύριες αντιστοιχίσεις ή finalists.`
+                  : ""}
+              </p>
             </div>
           )}
 
