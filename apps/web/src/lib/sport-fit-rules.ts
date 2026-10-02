@@ -86,7 +86,8 @@ function summarizeRequirements(requirements: readonly SportFitTechnicalRequireme
       earned += item.weight;
       covered += item.weight;
     } else if (item.status === "conflict") {
-      covered += item.weight;
+      // A documented conflict increases certainty about rejection/suitability,
+      // but it must never count as positive compatibility coverage.
     } else {
       // Unknown facts remain unknown: they receive only a small neutral allowance,
       // never the same value as documented compatibility.
