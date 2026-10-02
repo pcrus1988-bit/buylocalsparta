@@ -26,6 +26,8 @@ type UniverseProductPreview = Readonly<{
   previewImageSrc?: string;
   priceMinor: number;
   score?: number;
+  technicalScore?: number;
+  technicalCoverage?: number;
   matchedSize?: string;
   role?: string;
   reasons?: readonly string[];
@@ -49,6 +51,8 @@ function universePreview(product: SportFitProduct | SportFitScoredProduct): Univ
     previewImageSrc: product.previewImageSrc,
     priceMinor: product.priceMinor,
     score: scored?.score,
+    technicalScore: scored?.technicalScore,
+    technicalCoverage: scored?.technicalCoverage,
     matchedSize: scored?.matchedSize,
     role: scored?.role,
     reasons: scored?.reasons
@@ -228,7 +232,9 @@ export async function POST(request: Request) {
         .filter(usableForRecommendation)
         .map((product) => scoreSportFitProduct(product, resolvedAnswers))
         .sort((left, right) =>
-          right.score - left.score
+          right.technicalScore - left.technicalScore
+          || right.technicalCoverage - left.technicalCoverage
+          || right.score - left.score
           || left.priceMinor - right.priceMinor
           || left.title.localeCompare(right.title, "el")
         )
