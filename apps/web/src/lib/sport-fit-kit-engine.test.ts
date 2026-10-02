@@ -360,3 +360,85 @@ test("known cross-sport activity conflicts do not occupy final kit slots", () =>
   assert.equal(result.primary?.id, "running-primary");
   assert.equal(result.kit.some((item) => item.id === "football-only-top"), false);
 });
+
+
+test("stock-only secondary products stay browseable but do not become final kit recommendations", () => {
+  const shoe = product({
+    id: "evidenced-running-primary",
+    title: "Road Running Shoe",
+    categoryCode: "mens-running-shoes",
+    sizes: ["42"],
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"],
+      useCases: ["daily_training"]
+    }
+  });
+  const genericSock = product({
+    id: "stock-only-generic-sock",
+    title: "Sport Sock",
+    categoryCode: "socks-hosiery",
+    sizes: ["40-46"]
+  });
+
+  const result = buildSportFitRecommendation([genericSock, shoe], {
+    activity: "running",
+    audience: "men",
+    size: "42",
+    surface: "road",
+    useCase: "daily_training"
+  });
+
+  assert.equal(result.primary?.id, "evidenced-running-primary");
+  assert.equal(result.kit.some((item) => item.id === "stock-only-generic-sock"), false);
+
+  const scoredSock = scoreSportFitProduct(genericSock, {
+    activity: "running",
+    audience: "men",
+    size: "42",
+    surface: "road",
+    useCase: "daily_training"
+  });
+  assert.equal(scoredSock.technicalEligible, true);
+  assert.ok(scoredSock.score >= 20);
+  assert.ok(scoredSock.technicalRequirements.some((item) =>
+    item.id === "requirement.kit_activity" && item.status === "unknown"
+  ));
+});
+
+test("one governed kit match is enough to admit a compatible secondary product", () => {
+  const shoe = product({
+    id: "primary-road-shoe",
+    title: "Road Running Shoe",
+    categoryCode: "mens-running-shoes",
+    sizes: ["42"],
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"]
+    }
+  });
+  const activitySock = product({
+    id: "running-evidence-sock",
+    title: "Running Sock",
+    categoryCode: "socks-hosiery",
+    sizes: ["40-46"],
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"]
+    }
+  });
+
+  const result = buildSportFitRecommendation([activitySock, shoe], {
+    activity: "running",
+    audience: "men",
+    size: "42",
+    surface: "road"
+  });
+
+  assert.equal(result.kit.find((item) => item.role === "socks")?.id, "running-evidence-sock");
+});
