@@ -536,3 +536,25 @@ Migration `0325_sport_fit_handball_badminton_vocabulary.sql` extends the control
 The migration is vocabulary-only. It does not assign either activity to any product family and does not weaken evidence/provenance requirements. Handball can use the existing governed `team_sports` broad class and badminton can use `racket_sports`; exact sport evidence remains more specific in recommendation ranking.
 
 The runtime schema gate is now **325**.
+
+
+## Schema 326 — verified adidas sock training and fit batch
+
+Migration `0326_sport_fit_verified_adidas_sock_batch.sql` adds exact first-party adidas evidence for nine current Kerasiotis sock families. It supersedes the earlier unmerged sock-only schema-325 proposal after schema 325 was assigned to the handball/badminton vocabulary expansion.
+
+Governed facts added:
+- `JZ0529`: `sport_activity=gym_training`, explicit arch support; manufacturer “mid-cut” remains unmapped because there is no exact controlled `mid_cut` value.
+- `KC9613`: gym training, ankle height, arch support.
+- `KC9614`: gym training, ankle height, arch support.
+- `KC9628`: low-cut height, arch support; no sport activity inferred from its everyday/casual positioning.
+- `JD9568`: gym training, quarter height, CLIMACOOL moisture-wicking, arch support.
+- `JC6453`: gym training, quarter height, CLIMACOOL moisture-wicking, arch support.
+- `IC1303`: gym training and ankle height.
+- `IC1294`: quarter height only; day-to-day positioning is not promoted to a sport activity.
+- `IC1299`: low-cut height only; everyday sneaker positioning is not promoted to a sport activity.
+
+Generic “cushioned”, “thin/light” and descriptive breathability wording remains evidence text only. It is not converted into `sock_cushioning`, `compression_level`, `thermal_level` or `breathability_level` without an exact controlled claim or governed manufacturer mapping.
+
+The migration verifies that all nine product codes resolve to exactly one active canonical family before publishing facts and includes post-write assertions for six gym-training facts, eight controlled height facts, six arch-support facts and two moisture-management facts.
+
+The runtime schema gate is now **326**.
