@@ -79,6 +79,36 @@ const cachedSportSizeGuide = unstable_cache(
   { revalidate: 86_400 }
 );
 
+type SizeGuideBrandRow = Readonly<{ brand_name: string }>;
+
+async function readSportSizeGuideBrands(productRole: string): Promise<readonly string[]> {
+  if (!productionDatabaseConfigured()) return [];
+
+  const result = await getProductionPostgresRuntime().nativePool.query<SizeGuideBrandRow>(`
+    SELECT DISTINCT b.name AS brand_name
+    FROM sport_size_guides g
+    JOIN brands b ON b.id=g.brand_id
+    JOIN sport_knowledge_sources s ON s.id=g.source_id AND s.active=true
+    WHERE g.active=true
+      AND g.product_role=$1
+    ORDER BY lower(b.name)
+  `, [safeRole(productRole)]);
+
+  return result.rows.map((row) => row.brand_name.trim()).filter(Boolean);
+}
+
+const cachedSportSizeGuideBrands = unstable_cache(
+  readSportSizeGuideBrands,
+  ["sport-fit-size-guide-brands-v1"],
+  { revalidate: 86_400 }
+);
+
+export async function availableStoredSportSizeGuideBrands(
+  productRole: "footwear" | "sock" | "apparel" | "equipment" | "accessory" = "footwear"
+): Promise<readonly string[]> {
+  return cachedSportSizeGuideBrands(safeRole(productRole));
+}
+
 export async function resolveStoredSportSize(input: Readonly<{
   brand: string;
   productRole?: "footwear" | "sock" | "apparel" | "equipment" | "accessory";
