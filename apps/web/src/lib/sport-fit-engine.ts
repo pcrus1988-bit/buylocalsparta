@@ -469,6 +469,19 @@ function priorityScore(product: SportFitProduct, priority: SportPriority | undef
     if ((knowledge?.weatherProtection ?? []).length > 0) return 14;
     return hasAny(text, ["waterproof", "water resistant", "rain.rdy", "gore tex", "gore-tex", "αδιαβροχ", "υδροαπωθ"]) ? 12 : 4;
   }
+  if (priority === "versatility") {
+    const activities = knowledgeList(knowledge?.activities);
+    const surfaces = knowledgeList(knowledge?.surfaces);
+    const useCases = knowledgeList(knowledge?.useCases);
+    const broadEvidence =
+      activities.length >= 2
+      || surfaces.length >= 2
+      || useCases.length >= 2
+      || activities.includes("general training")
+      || activities.includes("team sports")
+      || activities.includes("racket sports");
+    return broadEvidence ? 12 : 5;
+  }
   return 8;
 }
 
@@ -713,6 +726,30 @@ function uniqueRanked(products: readonly SportFitScoredProduct[]): readonly Spor
   return output;
 }
 
+function kitSelectionEligible(
+  product: SportFitScoredProduct,
+  answers: SportFitAnswers
+): boolean {
+  if (sportProductTier(product.role) !== "secondary") return false;
+
+  const activityRequirement = product.technicalRequirements.find(
+    (item) => item.id === "requirement.kit_activity"
+  );
+  if (activityRequirement?.status === "conflict") return false;
+
+  if (product.role === "socks" && answers.size && product.sizes.length > 0) {
+    const requestedNumeric = Number(
+      normalize(answers.size).replace(/^eu\s*/, "").replace(",", ".")
+    );
+    const hasComparableNumericSizing = product.sizes.some((size) => /\d/.test(size));
+    if (Number.isFinite(requestedNumeric) && hasComparableNumericSizing && !product.matchedSize) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export function buildSportFitRecommendation(
   products: readonly SportFitProduct[],
   answers: SportFitAnswers
@@ -745,12 +782,19 @@ export function buildSportFitRecommendation(
   const alternatives = primaryRanked.filter((product) => product.id !== primary?.id).slice(0, 4);
 
   const kit: SportFitScoredProduct[] = [];
-  const usedIds = new Set(primary ? [primary.id] : []);
-  for (const role of ["socks", "top", "bottom", "layer", "accessory"] as const) {
-    const item = eligible.find((product) => product.role === role && !usedIds.has(product.id) && product.score >= 35);
-    if (!item) continue;
-    usedIds.add(item.id);
-    kit.push(item);
+  if (primary) {
+    const usedIds = new Set([primary.id]);
+    for (const role of ["socks", "top", "bottom", "layer", "accessory"] as const) {
+      const item = eligible.find((product) =>
+        product.role === role
+        && !usedIds.has(product.id)
+        && product.score >= 35
+        && kitSelectionEligible(product, answers)
+      );
+      if (!item) continue;
+      usedIds.add(item.id);
+      kit.push(item);
+    }
   }
 
   return {
