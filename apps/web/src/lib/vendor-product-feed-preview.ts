@@ -229,6 +229,62 @@ function sizeFromProductUrl(productUrl: string | undefined, title: string | unde
   }
 }
 
+type FeedColorRule = Readonly<{ label: string; pattern: RegExp }>;
+
+const FEED_COLOR_RULES: readonly FeedColorRule[] = [
+  { label: "Σάπιο μήλο", pattern: /(^|[^\p{L}])σαπιο[\s-]+μηλο([^\p{L}]|$)/u },
+  { label: "Σιέλ", pattern: /(^|[^\p{L}])(?:σιελ|γαλαζ\p{L}*|sky[\s-]+blue)([^\p{L}]|$)/u },
+  { label: "Ανθρακί", pattern: /(^|[^\p{L}])(?:ανθρακι|charcoal)([^\p{L}]|$)/u },
+  { label: "Εκρού", pattern: /(^|[^\p{L}])(?:εκρου|ecru)([^\p{L}]|$)/u },
+  { label: "Κρεμ", pattern: /(^|[^\p{L}])(?:κρεμ|cream)([^\p{L}]|$)/u },
+  { label: "Λιλά", pattern: /(^|[^\p{L}])(?:λιλα|lilac)([^\p{L}]|$)/u },
+  { label: "Φούξια", pattern: /(^|[^\p{L}])(?:φουξια|fuchsia|fuschia)([^\p{L}]|$)/u },
+  { label: "Λαδί", pattern: /(^|[^\p{L}])(?:λαδι|olive)([^\p{L}]|$)/u },
+  { label: "Πετρόλ", pattern: /(^|[^\p{L}])(?:πετρολ|petrol|teal)([^\p{L}]|$)/u },
+  { label: "Μέντα", pattern: /(^|[^\p{L}])(?:μεντα|mint)([^\p{L}]|$)/u },
+  { label: "Μαύρο", pattern: /(^|[^\p{L}])(?:μαυρ\p{L}*|black)([^\p{L}]|$)/u },
+  { label: "Λευκό", pattern: /(^|[^\p{L}])(?:λευκ\p{L}*|ασπρ\p{L}*|white)([^\p{L}]|$)/u },
+  { label: "Μπλε", pattern: /(^|[^\p{L}])(?:μπλε|blue|navy)([^\p{L}]|$)/u },
+  { label: "Κόκκινο", pattern: /(^|[^\p{L}])(?:κοκκιν\p{L}*|red)([^\p{L}]|$)/u },
+  { label: "Πράσινο", pattern: /(^|[^\p{L}])(?:πρασιν\p{L}*|green)([^\p{L}]|$)/u },
+  { label: "Γκρι", pattern: /(^|[^\p{L}])(?:γκρι|grey|gray)([^\p{L}]|$)/u },
+  { label: "Μπεζ", pattern: /(^|[^\p{L}])(?:μπεζ|beige)([^\p{L}]|$)/u },
+  { label: "Καφέ", pattern: /(^|[^\p{L}])(?:καφε|brown)([^\p{L}]|$)/u },
+  { label: "Ροζ", pattern: /(^|[^\p{L}])(?:ροζ|pink)([^\p{L}]|$)/u },
+  { label: "Μωβ", pattern: /(^|[^\p{L}])(?:μωβ|μοβ|purple|violet)([^\p{L}]|$)/u },
+  { label: "Κίτρινο", pattern: /(^|[^\p{L}])(?:κιτριν\p{L}*|yellow)([^\p{L}]|$)/u },
+  { label: "Πορτοκαλί", pattern: /(^|[^\p{L}])(?:πορτοκαλ\p{L}*|orange)([^\p{L}]|$)/u },
+  { label: "Μπορντό", pattern: /(^|[^\p{L}])(?:μπορντο|burgundy|bordeaux)([^\p{L}]|$)/u },
+  { label: "Χακί", pattern: /(^|[^\p{L}])(?:χακι|khaki)([^\p{L}]|$)/u },
+  { label: "Χρυσό", pattern: /(^|[^\p{L}])(?:χρυσ\p{L}*|gold|golden)([^\p{L}]|$)/u },
+  { label: "Ασημί", pattern: /(^|[^\p{L}])(?:ασημ\p{L}*|silver)([^\p{L}]|$)/u },
+  { label: "Τιρκουάζ", pattern: /(^|[^\p{L}])(?:τιρκουαζ|turquoise)([^\p{L}]|$)/u },
+  { label: "Κοραλί", pattern: /(^|[^\p{L}])(?:κοραλ\p{L}*|coral)([^\p{L}]|$)/u }
+];
+
+function normalizeColorSignal(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLocaleLowerCase("el")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function colorMentions(value: string): readonly Readonly<{ label: string; index: number }>[] {
+  const signal = normalizeColorSignal(value);
+  const matches: Array<{ label: string; index: number }> = [];
+  for (const rule of FEED_COLOR_RULES) {
+    const match = rule.pattern.exec(signal);
+    if (match?.index !== undefined) matches.push({ label: rule.label, index: match.index });
+  }
+  return matches.sort((left, right) => left.index - right.index);
+}
+
+function colorFromTitle(title: string | undefined): string | undefined {
+  return title ? colorMentions(title)[0]?.label : undefined;
+}
+
 function colorFromDescription(description: string | undefined): string | undefined {
   if (!description) return undefined;
   for (const line of description.split(/\r?\n/)) {
@@ -236,7 +292,19 @@ function colorFromDescription(description: string | undefined): string | undefin
     const value = match?.[1]?.trim();
     if (value) return value.slice(0, 160);
   }
-  return undefined;
+
+  // Kerasiotis descriptions often use natural-language phrases such as
+  // "σε μπλε χρώμα" instead of a dedicated XML field. Only accept a
+  // contextual description inference when every colour-bearing "χρώμα"
+  // segment points to the same canonical colour.
+  const labels = new Set<string>();
+  for (const segment of description.split(/[.!?\r\n]+/)) {
+    const normalized = normalizeColorSignal(segment);
+    if (!normalized.includes("χρωμ")) continue;
+    for (const mention of colorMentions(segment)) labels.add(mention.label);
+    if (labels.size > 1) return undefined;
+  }
+  return labels.size === 1 ? [...labels][0] : undefined;
 }
 
 function hash(value: unknown): string {
@@ -368,7 +436,9 @@ export async function prepareVendorProductFeed(
     const description = trimOptional(xmlFieldValue(record, mapping.description), 10_000);
     const productUrl = safeHttpUrl(xmlFieldValue(record, mapping.productUrl));
     const size = trimOptional(xmlFieldValue(record, mapping.size), 160) ?? sizeFromProductUrl(productUrl, title);
-    const color = trimOptional(xmlFieldValue(record, mapping.color), 160) ?? colorFromDescription(description);
+    const color = trimOptional(xmlFieldValue(record, mapping.color), 160)
+      ?? colorFromTitle(title)
+      ?? colorFromDescription(description);
     const payload = {
       feedExternalId: externalId,
       vendorSku,
@@ -422,6 +492,36 @@ export async function prepareVendorProductFeed(
     });
   }
 
+  // A single item_group_id represents size variants of the same Kerasiotis
+  // product. If the group exposes exactly one colour anywhere, reuse it for
+  // colour-less siblings. Never do the same for size: size is variant-specific.
+  const groupColors = new Map<string, Map<string, string>>();
+  for (const row of valid) {
+    if (!row.itemGroupId || !row.color) continue;
+    const key = normalizeColorSignal(row.color);
+    if (!key) continue;
+    const colors = groupColors.get(row.itemGroupId) ?? new Map<string, string>();
+    colors.set(key, row.color);
+    groupColors.set(row.itemGroupId, colors);
+  }
+  const enrichedRows = valid.map((row) => {
+    if (row.color || !row.itemGroupId) return row;
+    const colors = groupColors.get(row.itemGroupId);
+    if (!colors || colors.size !== 1) return row;
+    const color = [...colors.values()][0]!;
+    const payload = {
+      ...row.payload,
+      color,
+      variantAttributes: {
+        ...((row.payload.variantAttributes && typeof row.payload.variantAttributes === "object" && !Array.isArray(row.payload.variantAttributes))
+          ? row.payload.variantAttributes as Record<string, unknown>
+          : {}),
+        color
+      }
+    };
+    return { ...row, color, sourceHash: hash(payload), payload };
+  });
+
   return {
     preview: {
       itemTag: parsed.itemTag,
@@ -430,12 +530,12 @@ export async function prepareVendorProductFeed(
       sourceCategories: [...sourceCategories].sort((a, b) => a.localeCompare(b, "el")).slice(0, 200),
       categories,
       totalRows: parsed.records.length,
-      validRows: valid.length,
-      errorRows: parsed.records.length - valid.length,
-      sample: valid.slice(0, 50).map(({ payload: _payload, ...row }) => row),
+      validRows: enrichedRows.length,
+      errorRows: parsed.records.length - enrichedRows.length,
+      sample: enrichedRows.slice(0, 50).map(({ payload: _payload, ...row }) => row),
       errors: errors.slice(0, 150)
     },
-    rows: valid,
+    rows: enrichedRows,
     observedExternalIds: [...observedExternalIds],
     reconciliationSafe: parsed.records.length > 0 && observedExternalIds.size / parsed.records.length >= 0.95
   };
