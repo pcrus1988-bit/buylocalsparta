@@ -27,11 +27,7 @@ uniform float u_yaw;
 uniform float u_pitch;
 uniform float u_camera;
 uniform float u_aspect;
-uniform float u_dpr;
-uniform float u_time;
-uniform float u_focus;
 varying float v_kind;
-varying float v_focus;
 varying float v_depth;
 
 void main() {
@@ -53,14 +49,7 @@ void main() {
     1.0
   );
 
-  float portal = step(0.5, a_kind);
-  float focused = 1.0 - step(0.5, abs(a_kind - u_focus));
-  float pulse = 0.88 + 0.12 * sin(u_time * 1.9 + a_kind * 1.7);
-  float baseSize = mix(1.7, 4.6 + focused * 2.4, portal);
-  gl_PointSize = clamp(baseSize * (11.0 / depth) * u_dpr * mix(1.0, pulse, portal), 1.0, 14.0 * u_dpr);
-
   v_kind = a_kind;
-  v_focus = focused;
   v_depth = depth;
 }
 `;
@@ -68,27 +57,22 @@ void main() {
 const FRAGMENT_SHADER = `
 precision mediump float;
 varying float v_kind;
-varying float v_focus;
 varying float v_depth;
 
-vec3 portalColor(float kind) {
-  if (kind < 1.5) return vec3(0.36, 0.96, 0.87);
-  if (kind < 2.5) return vec3(0.98, 0.72, 0.36);
-  if (kind < 3.5) return vec3(0.91, 0.55, 0.78);
-  return vec3(0.55, 0.72, 1.0);
+vec3 districtColor(float kind) {
+  if (kind < 0.5) return vec3(0.30, 0.36, 0.34);
+  if (kind < 1.5) return vec3(0.34, 0.86, 0.77);
+  if (kind < 2.5) return vec3(0.83, 0.61, 0.34);
+  if (kind < 3.5) return vec3(0.78, 0.53, 0.68);
+  return vec3(0.50, 0.65, 0.84);
 }
 
 void main() {
-  vec2 centered = gl_PointCoord - vec2(0.5);
-  float d = dot(centered, centered);
-  if (d > 0.25) discard;
-
-  float portal = step(0.5, v_kind);
-  vec3 star = vec3(0.67, 0.83, 0.82);
-  vec3 color = mix(star, portalColor(v_kind), portal);
-  float radial = 1.0 - smoothstep(0.02, 0.25, d);
-  float alpha = mix(clamp(0.54 - v_depth * 0.018, 0.08, 0.34), 0.58 + v_focus * 0.34, portal);
-  gl_FragColor = vec4(color, radial * alpha);
+  vec3 color = districtColor(v_kind);
+  float alpha = v_kind < 0.5
+    ? clamp(0.36 - v_depth * 0.012, 0.10, 0.26)
+    : clamp(0.76 - v_depth * 0.018, 0.34, 0.74);
+  gl_FragColor = vec4(color, alpha);
 }
 `;
 
@@ -106,38 +90,57 @@ function adaptedPosition(position: Vec3, compact: boolean): Vec3 {
 
 function createSceneData(tier: QualityTier, compact: boolean): Float32Array {
   const data: number[] = [];
-  const push = (x: number, y: number, z: number, kind: number) => data.push(x, y, z, kind);
+  const vertex = (p: Vec3, kind: number) => data.push(p[0], p[1], p[2], kind);
+  const line = (a: Vec3, b: Vec3, kind: number) => {
+    vertex(a, kind);
+    vertex(b, kind);
+  };
+  const rect = (cx: number, cy: number, z: number, w: number, h: number, kind: number) => {
+    const x1 = cx - w / 2;
+    const x2 = cx + w / 2;
+    const y1 = cy - h / 2;
+    const y2 = cy + h / 2;
+    line([x1,y1,z],[x2,y1,z],kind);
+    line([x2,y1,z],[x2,y2,z],kind);
+    line([x2,y2,z],[x1,y2,z],kind);
+    line([x1,y2,z],[x1,y1,z],kind);
+  };
 
-  // Neutral Studio District floor — not a starfield.
-  const floorStep = tier === "lite" ? 2.2 : tier === "balanced" ? 1.65 : 1.35;
-  for (let x = -12; x <= 12; x += floorStep) {
-    for (let z = -8; z <= 7; z += floorStep) {
-      const fade = Math.abs(x) + Math.abs(z);
-      if (fade > 17 && ((Math.round(x / floorStep) + Math.round(z / floorStep)) % 2)) continue;
-      push(x, -3.55, z - 1.5, 0);
-    }
+  // Architectural concourse floor and ceiling perspective lines.
+  const gridStep = tier === "lite" ? 2.4 : tier === "balanced" ? 1.8 : 1.4;
+  for (let x = -10; x <= 10; x += gridStep) {
+    line([x,-3.25,-8],[x,-3.25,7],0);
   }
+  for (let z = -8; z <= 7; z += gridStep) {
+    line([-10,-3.25,z],[10,-3.25,z],0);
+  }
+
+  // Side walls / structural frames make the hub read as an interior district.
+  line([-8.8,-3.25,-6.5],[-8.8,4.6,-6.5],0);
+  line([8.8,-3.25,-6.5],[8.8,4.6,-6.5],0);
+  line([-8.8,4.6,-6.5],[8.8,4.6,-6.5],0);
+  line([-8.8,-3.25,4.5],[-8.8,4.6,-6.5],0);
+  line([8.8,-3.25,4.5],[8.8,4.6,-6.5],0);
 
   STUDIO_DESTINATIONS.forEach((studio, studioIndex) => {
     const [px, py, pz] = adaptedPosition(studio.position, compact);
     const kind = studioIndex + 1;
 
+    // Every destination is a grounded architectural doorway first.
+    rect(px,py,pz,2.1,2.55,kind);
+    line([px-1.05,py-1.28,pz],[px-1.45,py-1.58,pz+.55],kind);
+    line([px+1.05,py-1.28,pz],[px+1.45,py-1.58,pz+.55],kind);
+
     if (studio.id === "sport-fit") {
-      // Sport & Fit alone gets the circular floating-product field.
-      const ringCount = tier === "lite" ? 24 : 42;
-      for (let index = 0; index < ringCount; index += 1) {
-        const angle = (index / ringCount) * Math.PI * 2;
-        const radius = .88 + .13 * Math.sin(index * 2.1);
-        push(px + Math.cos(angle) * radius, py + Math.sin(angle) * radius, pz, kind);
-      }
-      const floatCount = tier === "lite" ? 8 : 14;
-      for (let index = 0; index < floatCount; index += 1) {
-        const angle = seeded(index, 21) * Math.PI * 2;
-        const radius = 1.2 + seeded(index, 22) * .85;
-        push(
-          px + Math.cos(angle) * radius,
-          py + (seeded(index, 23) - .5) * 1.55,
-          pz + Math.sin(angle) * .55,
+      // A circular product-field preview exists INSIDE the Sport doorway only.
+      const segments = tier === "lite" ? 16 : 26;
+      for (let i=0;i<segments;i+=1) {
+        const a=(i/segments)*Math.PI*2;
+        const b=((i+1)/segments)*Math.PI*2;
+        const r=.62;
+        line(
+          [px+Math.cos(a)*r,py+Math.sin(a)*r,pz+.03],
+          [px+Math.cos(b)*r,py+Math.sin(b)*r,pz+.03],
           kind
         );
       }
@@ -145,54 +148,30 @@ function createSceneData(tier: QualityTier, compact: boolean): Float32Array {
     }
 
     if (studio.id === "paint-build") {
-      // Architectural bay: wall grid + floor/material baseline.
-      const cols = tier === "lite" ? 5 : 7;
-      const rows = tier === "lite" ? 4 : 6;
-      for (let row = 0; row < rows; row += 1) {
-        for (let col = 0; col < cols; col += 1) {
-          push(
-            px + (col - (cols - 1) / 2) * .34,
-            py + (row - (rows - 1) / 2) * .30,
-            pz,
-            kind
-          );
+      // Wall / tile / material bay.
+      for(let row=0;row<3;row+=1){
+        for(let col=0;col<3;col+=1){
+          rect(px+(col-1)*.48,py+(row-1)*.48,pz+.04,.38,.38,kind);
         }
       }
-      for (let index = -4; index <= 4; index += 1) {
-        push(px + index * .32, py - 1.08, pz + .25 + Math.abs(index) * .05, kind);
-      }
+      line([px-.78,py-.95,pz+.08],[px+.78,py-.95,pz+.08],kind);
       return;
     }
 
     if (studio.id === "style") {
-      // Fitting-room doorway + runway leading into it.
-      const frameSteps = tier === "lite" ? 6 : 9;
-      for (let i = 0; i <= frameSteps; i += 1) {
-        const t = i / frameSteps;
-        push(px - .76, py - .92 + t * 1.84, pz, kind);
-        push(px + .76, py - .92 + t * 1.84, pz, kind);
-        push(px - .76 + t * 1.52, py + .92, pz, kind);
-      }
-      for (let i = 0; i < 7; i += 1) {
-        const depth = i * .18;
-        const width = .28 + i * .12;
-        push(px - width, py - 1.02 - i * .05, pz + depth, kind);
-        push(px + width, py - 1.02 - i * .05, pz + depth, kind);
-      }
+      // Mirror, mannequin axis and runway perspective.
+      rect(px,py+.15,pz+.04,.82,1.55,kind);
+      line([px,py+.86,pz+.07],[px,py-.64,pz+.07],kind);
+      line([px-.34,py+.32,pz+.07],[px+.34,py+.32,pz+.07],kind);
+      line([px-.30,py-.48,pz+.07],[px-.62,py-1.15,pz+.48],kind);
+      line([px+.30,py-.48,pz+.07],[px+.62,py-1.15,pz+.48],kind);
       return;
     }
 
-    // Color Finder: a swatch wall / sample matrix.
-    const cols = tier === "lite" ? 4 : 5;
-    const rows = tier === "lite" ? 4 : 5;
-    for (let row = 0; row < rows; row += 1) {
-      for (let col = 0; col < cols; col += 1) {
-        push(
-          px + (col - (cols - 1) / 2) * .38,
-          py + (row - (rows - 1) / 2) * .34,
-          pz + ((row + col) % 2) * .05,
-          kind
-        );
+    // Color Finder: physical swatch wall / sample board.
+    for(let row=0;row<3;row+=1){
+      for(let col=0;col<4;col+=1){
+        rect(px+(col-1.5)*.36,py+(row-1)*.42,pz+.04,.27,.31,kind);
       }
     }
   });
@@ -375,9 +354,6 @@ export function StudioDistrictScene() {
       const pitchLocation = gl.getUniformLocation(activeProgram, "u_pitch");
       const cameraLocation = gl.getUniformLocation(activeProgram, "u_camera");
       const aspectLocation = gl.getUniformLocation(activeProgram, "u_aspect");
-      const dprLocation = gl.getUniformLocation(activeProgram, "u_dpr");
-      const timeLocation = gl.getUniformLocation(activeProgram, "u_time");
-      const focusLocation = gl.getUniformLocation(activeProgram, "u_focus");
 
       const dprCap = studioDprCap(nextTier, { high: 1.8, balanced: 1.5, lite: 1.15 });
       const resize = () => { resizeStudioCanvas(canvas, stage, gl, dprCap); };
@@ -391,7 +367,6 @@ export function StudioDistrictScene() {
         if (!document.hidden) {
           const width = stage.clientWidth;
           const height = stage.clientHeight;
-          const dpr = Math.min(window.devicePixelRatio || 1, dprCap);
 
           const activeTravellingId = travellingIdRef.current;
           const activeFocusedId = focusedIdRef.current;
@@ -419,10 +394,7 @@ export function StudioDistrictScene() {
           gl.uniform1f(pitchLocation, pitchRef.current);
           gl.uniform1f(cameraLocation, cameraRef.current);
           gl.uniform1f(aspectLocation, width / Math.max(1, height));
-          gl.uniform1f(dprLocation, dpr);
-          gl.uniform1f(timeLocation, time / 1000);
-          gl.uniform1f(focusLocation, focusedIndexRef.current >= 0 ? focusedIndexRef.current + 1 : -1);
-          gl.drawArrays(gl.POINTS, 0, sceneData.length / 4);
+          gl.drawArrays(gl.LINES, 0, sceneData.length / 4);
 
           const compactPortals = width <= 720;
           const compactLayout: Readonly<Record<StudioDestination["id"], readonly [number, number]>> = {
@@ -577,10 +549,10 @@ export function StudioDistrictScene() {
         </p>
       </div>
 
-      <div className={styles.core} aria-hidden="true">
-        <span />
+      <div className={styles.atrium} aria-hidden="true">
+        <span>KONTA MOY</span>
+        <strong>STUDIO DISTRICT</strong>
         <i />
-        <b />
       </div>
 
       <nav className={styles.portalLayer} aria-label="KONTA MOY Studios">
