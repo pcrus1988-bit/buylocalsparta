@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PaintBuildStudioExperience } from "../../components/PaintBuildStudioExperience";
 import { SiteFooter } from "../../components/SiteFooter";
+import { StudioExperienceRuntime } from "../../components/StudioExperienceRuntime";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import styles from "./page.module.css";
 
@@ -15,7 +16,7 @@ export function generateMetadata(): Promise<Metadata> {
 export default function PaintAndBuildStudioPage() {
   return (
     <main className={styles.page}>
-      <PaintBuildStudioExperience />
+      <StudioExperienceRuntime studioId="paint-build"><PaintBuildStudioExperience /></StudioExperienceRuntime>
       <SiteFooter />
     </main>
   );
