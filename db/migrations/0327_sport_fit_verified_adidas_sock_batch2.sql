@@ -164,12 +164,12 @@ INSERT INTO _sport_327_seed VALUES
   'adidas_leo_graphic_kids_kr4903_official',
   'LEO Graphic Kids Socks · KR4903',
   'https://www.adidas.de/leo-grafik-kids-socken/KR4903.html',
-  'gym_training',
-  'ankle',
+  NULL,
+  NULL,
   'none',
   NULL,
   NULL,
-  'Exact adidas KR4903 page classifies the product under Fitness & Training, lists ankle length, and explicitly states no cushioning. Lightweight/thin wording is not used to infer thermal, compression or breathability levels.'
+  'Official adidas pages for exact code KR4903 consistently state no cushioning, so sock_cushioning=none is governed. Adidas regional pages conflict on height and merchandising classification (ankle/Fitness & Training versus crew/everyday positioning), so sock_height and sport_activity remain intentionally unknown.'
 ),
 (
   'KD1727',
@@ -555,9 +555,9 @@ BEGIN
   JOIN _sport_327_family f ON f.family_id=pfav.family_id
   WHERE ad.code='sport_activity'
     AND av.code='gym_training'
-    AND f.style_code IN ('IC1301','IC1302','JF8541','JF8542','JW9794','KC9617','KR4903');
-  IF v_gym<>7 THEN
-    RAISE EXCEPTION 'Expected seven verified gym-training sock facts in migration 327, found %',v_gym;
+    AND f.style_code IN ('IC1301','IC1302','JF8541','JF8542','JW9794','KC9617');
+  IF v_gym<>6 THEN
+    RAISE EXCEPTION 'Expected six verified gym-training sock facts in migration 327, found %',v_gym;
   END IF;
 
   SELECT count(*) INTO v_heights
@@ -567,11 +567,11 @@ BEGIN
   JOIN _sport_327_family f ON f.family_id=pfav.family_id
   WHERE ad.code='sock_height'
     AND (
-      (f.style_code IN ('JF8541','JF8542','HT3451','KR4903') AND av.code='ankle')
+      (f.style_code IN ('JF8541','JF8542','HT3451') AND av.code='ankle')
       OR (f.style_code IN ('IC1301','IC1302','JW9794','KC9639','KE5503','KR2352') AND av.code='crew')
     );
-  IF v_heights<>10 THEN
-    RAISE EXCEPTION 'Expected ten verified controlled sock-height facts in migration 327, found %',v_heights;
+  IF v_heights<>9 THEN
+    RAISE EXCEPTION 'Expected nine verified controlled sock-height facts in migration 327, found %',v_heights;
   END IF;
 
   SELECT count(*) INTO v_arch
