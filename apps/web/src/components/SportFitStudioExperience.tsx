@@ -47,7 +47,9 @@ const ACTIVITIES: readonly Readonly<{ key: SportActivity; icon: string; title: s
   { key: "basketball", icon: "●", title: "Μπάσκετ", body: "Court παπούτσι και set με έμφαση σε επιφάνεια, σταθερότητα και πρόσφυση." },
   { key: "tennis", icon: "◌", title: "Τένις", body: "Επιλογή για hard court, χώμα ή indoor με τεκμηριωμένη court χρήση." },
   { key: "padel", icon: "◇", title: "Padel", body: "Παπούτσι και set για τεχνητό court, indoor ή outdoor παιχνίδι." },
-  { key: "volleyball", icon: "↕", title: "Βόλεϊ", body: "Indoor ή outdoor επιλογές με sport-specific αντιστοίχιση και fit." }
+  { key: "volleyball", icon: "↕", title: "Βόλεϊ", body: "Indoor ή outdoor επιλογές με sport-specific αντιστοίχιση και fit." },
+  { key: "handball", icon: "◐", title: "Χάντμπολ", body: "Indoor court, γρήγορες αλλαγές κατεύθυνσης και σταθερότητα." },
+  { key: "badminton", icon: "⌁", title: "Μπάντμιντον", body: "Indoor court, ελαφριά αίσθηση και γρήγορη μετακίνηση." }
 ];
 
 const AUDIENCES: readonly Readonly<{ key: SportAudience; label: string }>[] = [
@@ -136,6 +138,14 @@ const USE_CASES: Readonly<Record<SportActivity, readonly Readonly<{ key: SportUs
   volleyball: [
     { key: "volleyball_training", label: "Προπόνηση" },
     { key: "volleyball_match", label: "Αγώνας" }
+  ],
+  handball: [
+    { key: "handball_training", label: "Προπόνηση" },
+    { key: "handball_match", label: "Αγώνας" }
+  ],
+  badminton: [
+    { key: "badminton_training", label: "Προπόνηση" },
+    { key: "badminton_match", label: "Αγώνας" }
   ]
 };
 
@@ -148,7 +158,9 @@ const DEFAULT_USE_CASE: Readonly<Record<SportActivity, SportUseCase>> = {
   basketball: "basketball_training",
   tennis: "tennis_training",
   padel: "padel_training",
-  volleyball: "volleyball_training"
+  volleyball: "volleyball_training",
+  handball: "handball_training",
+  badminton: "badminton_training"
 };
 
 const GYM_TRAINING_TYPES: readonly Readonly<{ key: SportGymTrainingType; label: string; body: string }>[] = [
@@ -195,6 +207,15 @@ function surfacesFor(activity: SportActivity): readonly Readonly<{ key: SportSur
     { key: "court_outdoor", label: "Outdoor court" },
     { key: "sand", label: "Άμμος / beach" }
   ];
+  if (activity === "handball") return [
+    { key: "court_indoor", label: "Indoor court" },
+    { key: "court_hard", label: "Hard court" },
+    { key: "court_outdoor", label: "Outdoor court" }
+  ];
+  if (activity === "badminton") return [
+    { key: "court_indoor", label: "Indoor court" },
+    { key: "court_hard", label: "Hard court" }
+  ];
   return [
     { key: "road", label: "Άσφαλτος" },
     { key: "treadmill", label: "Διάδρομος" },
@@ -205,7 +226,7 @@ function surfacesFor(activity: SportActivity): readonly Readonly<{ key: SportSur
 
 function prioritiesFor(activity: SportActivity): readonly Readonly<{ key: SportPriority; label: string; body: string }>[] {
   if (activity === "hiking") return PRIORITIES.filter((item) => ["comfort", "cushioning", "stability", "traction", "weather", "versatility"].includes(item.key));
-  if (["basketball", "tennis", "padel", "volleyball", "football"].includes(activity)) {
+  if (["basketball", "tennis", "padel", "volleyball", "handball", "badminton", "football"].includes(activity)) {
     return PRIORITIES.filter((item) => ["comfort", "lightweight", "stability", "traction", "versatility"].includes(item.key));
   }
   return PRIORITIES.filter((item) => item.key !== "traction" && item.key !== "weather");
