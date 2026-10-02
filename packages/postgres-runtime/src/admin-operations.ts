@@ -63,9 +63,15 @@ export class PostgresAdminOperationsService {
 
   async dashboard(principal: SessionPrincipal) {
     const now = Date.now();
-    const [metrics, analytics, security, health, recentAudit] = await Promise.all([
-      this.#metrics(principal), this.marketAnalytics(principal), this.#securitySummary(principal, now - DAY), this.operationalHealth(principal), this.#auditRows(principal, 10)
-    ]);
+    // The Admin runtime deliberately uses a one-client serverless pool. Starting five
+    // independent transactions concurrently only creates local checkout waiters and amplifies
+    // pressure on Supavisor. Keep dashboard reads sequential so each transaction releases its
+    // connection before the next one starts.
+    const metrics = await this.#metrics(principal);
+    const analytics = await this.marketAnalytics(principal);
+    const security = await this.#securitySummary(principal, now - DAY);
+    const health = await this.operationalHealth(principal);
+    const recentAudit = await this.#auditRows(principal, 10);
     return {
       account: { email: principal.email, roles: principal.roles },
       csrfToken: principal.csrfToken,
