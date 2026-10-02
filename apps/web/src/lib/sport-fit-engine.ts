@@ -282,7 +282,7 @@ export function sportFitCandidateSupportsRequestedActivity(product: SportFitProd
   const knowledge = usableKnowledge(product);
   const knownActivities = knowledgeList(knowledge?.activities);
   if (knownActivities.length > 0) {
-    return knownActivities.includes(normalize(answers.activity));
+    return hasKnowledgeMatch(knownActivities, requestedActivityCodes(answers));
   }
 
   const text = strictIdentityText(product);
