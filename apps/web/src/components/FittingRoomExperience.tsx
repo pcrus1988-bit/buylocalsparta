@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { productPublicPath } from "../lib/product-url";
 import { styleLookShareCodeFromToken } from "../lib/style-look-share-code";
-import { StyleSpatialScene } from "./StyleSpatialScene";
+import { StyleShowroomScene } from "./StyleShowroomScene";
 import { useStudioRuntime } from "./StudioExperienceRuntime";
 import styles from "./FittingRoomExperience.module.css";
 
@@ -1406,7 +1406,7 @@ export function FittingRoomExperience({
     return (
       <div className={styles.fullscreenTakeover} role="dialog" aria-modal="true" aria-label="KONTA MOY Fitting Room">
       <section className={styles.room}>
-        <div className={styles.questionSpatialBackdrop}><StyleSpatialScene audience={audience} items={[]} /></div>
+        <div className={styles.questionSpatialBackdrop}><StyleShowroomScene audience={audience} items={[]} /></div>
         <div className={styles.roomHeader}>
           <div className={styles.roomExitGroup}><button type="button" className={styles.exit} onClick={exitToHub}>← STUDIOS</button><button type="button" className={styles.exit} onClick={leaveImmersive}>× Fullscreen</button></div>
           <div className={styles.roomWordmark}><strong>FITTING ROOM</strong><span>by KONTA MOY</span></div>
@@ -1484,7 +1484,7 @@ export function FittingRoomExperience({
         </aside>
 
         <div className={styles.lookStage}>
-          <StyleSpatialScene
+          <StyleShowroomScene
             audience={audience}
             activeSlot={editingSlot}
             items={slotsForAudience(audience)
