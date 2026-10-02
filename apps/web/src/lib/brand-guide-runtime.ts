@@ -255,7 +255,6 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
         AND ${liveInventoryPredicate("rm")}
       GROUP BY rm.category_code, rm.department_code, c.slug, el.name, en.name
       ORDER BY product_count DESC, COALESCE(el.name, en.name, c.slug, rm.category_code)
-      LIMIT 10
     `, [row.id]),
     runtime.nativePool.query<RelatedBrandRow>(`
       WITH target_categories AS MATERIALIZED (
@@ -264,6 +263,27 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
         WHERE rm.brand_id = $1::uuid
           AND rm.category_code IS NOT NULL
           AND ${liveInventoryPredicate("rm")}
+      ),
+      overlap AS MATERIALIZED (
+        SELECT
+          rm.brand_id,
+          COUNT(DISTINCT rm.category_code)::integer AS shared_category_count
+        FROM public.storefront_catalog_read_model rm
+        JOIN target_categories tc ON tc.category_code = rm.category_code
+        WHERE rm.brand_id <> $1::uuid
+          AND ${liveInventoryPredicate("rm")}
+        GROUP BY rm.brand_id
+        ORDER BY shared_category_count DESC
+        LIMIT 24
+      ),
+      totals AS (
+        SELECT
+          rm.brand_id,
+          COUNT(DISTINCT rm.canonical_variant_id)::integer AS live_product_count
+        FROM public.storefront_catalog_read_model rm
+        JOIN overlap o ON o.brand_id = rm.brand_id
+        WHERE ${liveInventoryPredicate("rm")}
+        GROUP BY rm.brand_id
       )
       SELECT
         b.id,
@@ -271,16 +291,13 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
         b.public_slug,
         b.logo_object_key,
         b.metadata->>'logo_external_url' AS logo_external_url,
-        COUNT(DISTINCT rm.category_code)::integer AS shared_category_count,
-        COUNT(DISTINCT rm.canonical_variant_id)::integer AS live_product_count
-      FROM public.storefront_catalog_read_model rm
-      JOIN target_categories tc ON tc.category_code = rm.category_code
-      JOIN public.brands b ON b.id = rm.brand_id
-      WHERE rm.brand_id <> $1::uuid
-        AND b.status = 'active'
-        AND ${liveInventoryPredicate("rm")}
-      GROUP BY b.id, b.name, b.public_slug, b.logo_object_key, b.metadata
-      ORDER BY shared_category_count DESC, live_product_count DESC, lower(b.name)
+        o.shared_category_count,
+        t.live_product_count
+      FROM overlap o
+      JOIN totals t ON t.brand_id = o.brand_id
+      JOIN public.brands b ON b.id = o.brand_id
+      WHERE b.status = 'active'
+      ORDER BY o.shared_category_count DESC, t.live_product_count DESC, lower(b.name)
       LIMIT 6
     `, [row.id]),
     getCachedCrawlerCatalogCards("23100", "", "", { brand: row.name }, 8).catch(() => [])
@@ -288,7 +305,8 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
 
   const liveProductCount = count(inventoryResult.rows[0]?.live_product_count);
   const signals = guideSignals(row, liveProductCount);
-  const categories = categoryResult.rows.map((category) => mapCategory(category, row.name));
+  const allCategories = categoryResult.rows.map((category) => mapCategory(category, row.name));
+  const categories = allCategories.slice(0, 10);
 
   return {
     id: row.id,
@@ -303,7 +321,7 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
     qualityScore: signals.qualityScore,
     indexable: signals.indexable,
     liveProductCount,
-    departments: departmentSummaries(categories, row.name),
+    departments: departmentSummaries(allCategories, row.name),
     categories,
     relatedBrands: relatedResult.rows.map((related) => ({
       id: related.id,
