@@ -103,7 +103,7 @@
     "check:fulfilment-progress": "node --experimental-strip-types scripts/verify-customer-fulfilment-progress.ts",
     "check:fairness-schema": "node --experimental-strip-types scripts/verify-fairness-live-schema.ts",
     "test:catalog-size": "node --experimental-strip-types --test apps/web/src/lib/catalog-size.test.ts",
-    "test:sport-fit": "node --experimental-strip-types --test apps/web/src/lib/sport-fit-engine.test.ts apps/web/src/lib/sport-fit-size-guide.test.ts",
+    "test:sport-fit": "node --experimental-strip-types --test apps/web/src/lib/sport-fit-engine.test.ts apps/web/src/lib/sport-fit-technical-profiles.test.ts apps/web/src/lib/sport-fit-size-guide.test.ts",
     "test:color-finder": "node --experimental-strip-types --test apps/web/src/lib/color-finder.test.ts",
     "test:paint-consultant": "node --experimental-strip-types --test apps/web/src/lib/paint-consultant.test.ts",
     "test:build-consultant": "node --experimental-strip-types --test apps/web/src/lib/build-consultant.test.ts",
