@@ -247,3 +247,116 @@ test("Complete My Kit chooses the better-evidenced sock within the same role", (
   assert.equal(result.primary?.id, "running-shoe");
   assert.equal(result.kit.find((item) => item.role === "socks")?.id, "documented-kit-sock");
 });
+
+
+test("Complete My Kit stays empty without a Tier-1 primary match", () => {
+  const sock = product({
+    id: "secondary-only-sock",
+    title: "Running Sock 43-46",
+    categoryCode: "socks-hosiery",
+    sizes: ["43-46"],
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      moistureWicking: true
+    }
+  });
+
+  const result = buildSportFitRecommendation([sock], {
+    activity: "running",
+    audience: "men",
+    size: "44",
+    surface: "road"
+  });
+
+  assert.equal(result.primary, undefined);
+  assert.equal(result.kit.length, 0);
+});
+
+test("Complete My Kit excludes an explicitly incompatible numeric sock range", () => {
+  const shoe = product({
+    id: "road-shoe-44",
+    title: "Road Running Shoe",
+    categoryCode: "mens-running-shoes",
+    sizes: ["44"],
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"],
+      useCases: ["daily_training"]
+    }
+  });
+  const wrongSock = product({
+    id: "sock-35-38",
+    title: "Running Sock 35-38",
+    categoryCode: "socks-hosiery",
+    sizes: ["35-38"],
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      moistureWicking: true
+    }
+  });
+  const matchingSock = product({
+    id: "sock-43-46",
+    title: "Running Sock 43-46",
+    categoryCode: "socks-hosiery",
+    sizes: ["43-46"],
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      moistureWicking: true
+    }
+  });
+
+  const result = buildSportFitRecommendation([wrongSock, matchingSock, shoe], {
+    activity: "running",
+    audience: "men",
+    size: "44",
+    surface: "road"
+  });
+
+  assert.equal(result.primary?.id, "road-shoe-44");
+  assert.equal(result.kit.find((item) => item.role === "socks")?.id, "sock-43-46");
+});
+
+test("known cross-sport activity conflicts do not occupy final kit slots", () => {
+  const shoe = product({
+    id: "running-primary",
+    title: "Road Running Shoe",
+    categoryCode: "mens-running-shoes",
+    sizes: ["42"],
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"]
+    }
+  });
+  const footballTop = product({
+    id: "football-only-top",
+    title: "Football Training Top",
+    categoryCode: "fashion-mens-tshirts-tops",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["football"],
+      moistureWicking: true
+    }
+  });
+
+  const result = buildSportFitRecommendation([footballTop, shoe], {
+    activity: "running",
+    audience: "men",
+    size: "42",
+    surface: "road",
+    frequency: "high"
+  });
+
+  assert.equal(result.primary?.id, "running-primary");
+  assert.equal(result.kit.some((item) => item.id === "football-only-top"), false);
+});
