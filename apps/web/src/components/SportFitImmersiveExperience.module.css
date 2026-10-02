@@ -336,3 +336,183 @@ perspective:1200px;isolation:isolate}
   .liveStudio .pills{gap:6px}
   .liveStudio .pills button{min-height:38px;padding:8px 11px}
 }
+
+
+/* Sequential guide: one question at a time, with a permanently collapsible mobile sheet. */
+.questionMeta{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  margin-bottom:4px
+}
+.questionMeta>b{
+  color:rgba(190,255,244,.48);
+  font-size:9px;
+  letter-spacing:.12em;
+  font-weight:800
+}
+.questionActions{
+  display:grid;
+  grid-template-columns:minmax(0,.68fr) minmax(0,1.32fr);
+  gap:8px;
+  margin-top:8px
+}
+.questionActions .primaryAction{
+  min-width:0
+}
+.secondaryAction{
+  min-height:58px;
+  border:1px solid rgba(214,255,247,.15);
+  background:rgba(5,11,9,.48);
+  color:#d7e9e4;
+  padding:0 15px;
+  font:inherit;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.03em;
+  cursor:pointer
+}
+.secondaryAction:hover{
+  border-color:rgba(190,255,244,.34);
+  background:rgba(170,255,239,.07)
+}
+.guideCollapseToggle{
+  display:none
+}
+
+@media(max-width:900px){
+  .liveStudio .guidePane{
+    max-height:50dvh;
+    mask-image:none;
+    -webkit-mask-image:none;
+    overflow-y:auto;
+    padding-top:0
+  }
+  .guideCollapseToggle{
+    position:sticky;
+    top:0;
+    z-index:7;
+    display:flex;
+    width:100%;
+    min-height:52px;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    border:1px solid rgba(180,255,243,.17);
+    border-bottom:0;
+    border-radius:18px 18px 0 0;
+    background:rgba(6,13,11,.88);
+    color:#effbf8;
+    padding:8px 13px;
+    cursor:pointer;
+    backdrop-filter:blur(20px) saturate(125%);
+    -webkit-backdrop-filter:blur(20px) saturate(125%);
+    box-shadow:0 8px 30px rgba(0,0,0,.22)
+  }
+  .guideCollapseToggle span{
+    display:block;
+    min-width:0;
+    text-align:left
+  }
+  .guideCollapseToggle small,
+  .guideCollapseToggle strong{
+    display:block
+  }
+  .guideCollapseToggle small{
+    color:#82dfcf;
+    font-size:7px;
+    line-height:1.1;
+    letter-spacing:.14em;
+    margin-bottom:3px
+  }
+  .guideCollapseToggle strong{
+    max-width:70vw;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    font-size:12px;
+    line-height:1.1
+  }
+  .guideCollapseToggle>b{
+    flex:0 0 auto;
+    width:32px;
+    height:32px;
+    display:grid;
+    place-items:center;
+    border:1px solid rgba(190,255,244,.16);
+    border-radius:50%;
+    font-size:17px;
+    line-height:1;
+    font-weight:500
+  }
+  .liveStudio .guideCard{
+    border-radius:0 0 18px 18px;
+    border-top-color:rgba(180,255,243,.08);
+    min-height:0
+  }
+  .liveStudio .guideCard h1{
+    font-size:clamp(28px,8vw,38px);
+    margin-top:10px
+  }
+  .liveStudio .guideCard>p{
+    margin-bottom:14px
+  }
+  .questionActions{
+    grid-template-columns:1fr 1.35fr
+  }
+  .secondaryAction,
+  .questionActions .primaryAction{
+    min-height:50px;
+    font-size:10px
+  }
+
+  .liveStudio .guidePane.guidePaneCollapsed{
+    left:auto;
+    right:12px;
+    bottom:max(12px,env(safe-area-inset-bottom,0));
+    width:min(330px,calc(100vw - 24px));
+    max-height:none;
+    min-width:0;
+    padding:0;
+    overflow:visible;
+    border-radius:999px
+  }
+  .liveStudio .guidePane.guidePaneCollapsed .guideCard{
+    display:none
+  }
+  .liveStudio .guidePane.guidePaneCollapsed .guideCollapseToggle{
+    position:relative;
+    border:1px solid rgba(180,255,243,.22);
+    border-radius:999px;
+    min-height:58px;
+    padding:9px 10px 9px 16px;
+    background:rgba(4,11,9,.80);
+    box-shadow:0 12px 40px rgba(0,0,0,.34),0 0 0 1px rgba(116,255,236,.035);
+    backdrop-filter:blur(18px) saturate(130%);
+    -webkit-backdrop-filter:blur(18px) saturate(130%)
+  }
+  .liveStudio .guidePane.guidePaneCollapsed .guideCollapseToggle small{
+    color:#8ff0df
+  }
+}
+
+@media(max-width:520px){
+  .liveStudio .guidePane{
+    max-height:48dvh
+  }
+  .questionMeta>b{
+    font-size:8px
+  }
+  .questionActions{
+    grid-template-columns:1fr
+  }
+  .secondaryAction,
+  .questionActions .primaryAction{
+    width:100%
+  }
+  .liveStudio .guidePane.guidePaneCollapsed{
+    width:min(310px,calc(100vw - 20px));
+    right:10px
+  }
+}
