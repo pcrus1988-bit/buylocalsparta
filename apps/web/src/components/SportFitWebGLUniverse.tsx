@@ -466,7 +466,11 @@ export function SportFitWebGLUniverse({
     void buildAtlas(visibleProducts).then((atlas) => {
       if (cancelled) return;
       const canvas = canvasRef.current;
-      const gl = canvas?.getContext("webgl", {
+      if (!canvas) {
+        setWebglUnavailable(true);
+        return;
+      }
+      const gl = canvas.getContext("webgl", {
         alpha: true,
         antialias: true,
         premultipliedAlpha: false,
@@ -501,16 +505,16 @@ export function SportFitWebGLUniverse({
   }, [visibleProducts]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const canvasElement = canvasRef.current;
+    if (!canvasElement) return;
 
-    const gl = canvas.getContext("webgl", {
+    const webgl = canvasElement.getContext("webgl", {
       alpha: true,
       antialias: true,
       premultipliedAlpha: false,
       powerPreference: "high-performance"
     });
-    if (!gl) {
+    if (!webgl) {
       setWebglUnavailable(true);
       return;
     }
@@ -518,19 +522,19 @@ export function SportFitWebGLUniverse({
     let program: WebGLProgram;
     let starProgram: WebGLProgram;
     try {
-      program = createProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER);
-      starProgram = createProgram(gl, STAR_VERTEX_SHADER, STAR_FRAGMENT_SHADER);
+      program = createProgram(webgl, VERTEX_SHADER, FRAGMENT_SHADER);
+      starProgram = createProgram(webgl, STAR_VERTEX_SHADER, STAR_FRAGMENT_SHADER);
     } catch {
       setWebglUnavailable(true);
       return;
     }
 
-    const positionBuffer = gl.createBuffer();
-    const uvBuffer = gl.createBuffer();
-    const sizeBuffer = gl.createBuffer();
-    const opacityBuffer = gl.createBuffer();
-    const scoreBuffer = gl.createBuffer();
-    const starBuffer = gl.createBuffer();
+    const positionBuffer = webgl.createBuffer();
+    const uvBuffer = webgl.createBuffer();
+    const sizeBuffer = webgl.createBuffer();
+    const opacityBuffer = webgl.createBuffer();
+    const scoreBuffer = webgl.createBuffer();
+    const starBuffer = webgl.createBuffer();
     if (!positionBuffer || !uvBuffer || !sizeBuffer || !opacityBuffer || !scoreBuffer || !starBuffer) {
       setWebglUnavailable(true);
       return;
@@ -547,26 +551,26 @@ export function SportFitWebGLUniverse({
       starData[index * 3 + 1] = Math.cos(phi) * radius * 0.72;
       starData[index * 3 + 2] = Math.sin(phi) * Math.sin(theta) * radius;
     }
-    gl.bindBuffer(gl.ARRAY_BUFFER, starBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, starData, gl.STATIC_DRAW);
+    webgl.bindBuffer(webgl.ARRAY_BUFFER, starBuffer);
+    webgl.bufferData(webgl.ARRAY_BUFFER, starData, webgl.STATIC_DRAW);
 
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    gl.disable(gl.DEPTH_TEST);
+    webgl.enable(webgl.BLEND);
+    webgl.blendFunc(webgl.SRC_ALPHA, webgl.ONE_MINUS_SRC_ALPHA);
+    webgl.disable(webgl.DEPTH_TEST);
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let lastTime = performance.now();
 
     function resize() {
-      const rect = canvas.getBoundingClientRect();
+      const rect = canvasElement.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 1.55);
       const width = Math.max(1, Math.round(rect.width * dpr));
       const height = Math.max(1, Math.round(rect.height * dpr));
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width;
-        canvas.height = height;
+      if (canvasElement.width !== width || canvasElement.height !== height) {
+        canvasElement.width = width;
+        canvasElement.height = height;
       }
-      gl.viewport(0, 0, width, height);
+      webgl.viewport(0, 0, width, height);
     }
 
     function bindAttribute(
@@ -576,17 +580,17 @@ export function SportFitWebGLUniverse({
       size: number,
       data?: Float32Array
     ) {
-      const location = gl.getAttribLocation(targetProgram, name);
+      const location = webgl.getAttribLocation(targetProgram, name);
       if (location < 0) return;
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-      if (data) gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
-      gl.enableVertexAttribArray(location);
-      gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0);
+      webgl.bindBuffer(webgl.ARRAY_BUFFER, buffer);
+      if (data) webgl.bufferData(webgl.ARRAY_BUFFER, data, webgl.DYNAMIC_DRAW);
+      webgl.enableVertexAttribArray(location);
+      webgl.vertexAttribPointer(location, size, webgl.FLOAT, false, 0, 0);
     }
 
     function uniform1f(targetProgram: WebGLProgram, name: string, value: number) {
-      const location = gl.getUniformLocation(targetProgram, name);
-      if (location) gl.uniform1f(location, value);
+      const location = webgl.getUniformLocation(targetProgram, name);
+      if (location) webgl.uniform1f(location, value);
     }
 
     function frame(now: number) {
@@ -622,23 +626,23 @@ export function SportFitWebGLUniverse({
         scores[index] = node.product.technicalScore ?? node.product.score ?? 48;
       });
 
-      const rect = canvas.getBoundingClientRect();
+      const rect = canvasElement.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 1.55);
       const aspect = rect.width / Math.max(1, rect.height);
 
-      gl.clearColor(0.018, 0.027, 0.027, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
+      webgl.clearColor(0.018, 0.027, 0.027, 0);
+      webgl.clear(webgl.COLOR_BUFFER_BIT);
 
-      gl.useProgram(starProgram);
+      webgl.useProgram(starProgram);
       bindAttribute(starProgram, starBuffer, "a_position", 3);
       uniform1f(starProgram, "u_yaw", yawRef.current);
       uniform1f(starProgram, "u_pitch", pitchRef.current);
       uniform1f(starProgram, "u_camera", cameraRef.current);
       uniform1f(starProgram, "u_aspect", aspect);
       uniform1f(starProgram, "u_dpr", dpr);
-      gl.drawArrays(gl.POINTS, 0, starCount);
+      webgl.drawArrays(webgl.POINTS, 0, starCount);
 
-      gl.useProgram(program);
+      webgl.useProgram(program);
       bindAttribute(program, positionBuffer, "a_position", 3, positions);
       bindAttribute(program, uvBuffer, "a_uvRect", 4, uvs);
       bindAttribute(program, sizeBuffer, "a_size", 1, sizes);
@@ -652,33 +656,33 @@ export function SportFitWebGLUniverse({
       uniform1f(program, "u_dpr", dpr);
       uniform1f(program, "u_time", now / 1000);
 
-      const atlas = (canvas as HTMLCanvasElement & { __sportAtlas?: WebGLTexture }).__sportAtlas;
+      const atlas = (canvasElement as HTMLCanvasElement & { __sportAtlas?: WebGLTexture }).__sportAtlas;
       if (atlas && atlasReady) {
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, atlas);
-        const atlasLocation = gl.getUniformLocation(program, "u_atlas");
-        if (atlasLocation) gl.uniform1i(atlasLocation, 0);
+        webgl.activeTexture(webgl.TEXTURE0);
+        webgl.bindTexture(webgl.TEXTURE_2D, atlas);
+        const atlasLocation = webgl.getUniformLocation(program, "u_atlas");
+        if (atlasLocation) webgl.uniform1i(atlasLocation, 0);
       }
-      gl.drawArrays(gl.POINTS, 0, nodes.length);
+      webgl.drawArrays(webgl.POINTS, 0, nodes.length);
 
       animationRef.current = requestAnimationFrame(frame);
     }
 
     animationRef.current = requestAnimationFrame(frame);
     const observer = new ResizeObserver(resize);
-    observer.observe(canvas);
+    observer.observe(canvasElement);
 
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
       observer.disconnect();
-      gl.deleteProgram(program);
-      gl.deleteProgram(starProgram);
-      gl.deleteBuffer(positionBuffer);
-      gl.deleteBuffer(uvBuffer);
-      gl.deleteBuffer(sizeBuffer);
-      gl.deleteBuffer(opacityBuffer);
-      gl.deleteBuffer(scoreBuffer);
-      gl.deleteBuffer(starBuffer);
+      webgl.deleteProgram(program);
+      webgl.deleteProgram(starProgram);
+      webgl.deleteBuffer(positionBuffer);
+      webgl.deleteBuffer(uvBuffer);
+      webgl.deleteBuffer(sizeBuffer);
+      webgl.deleteBuffer(opacityBuffer);
+      webgl.deleteBuffer(scoreBuffer);
+      webgl.deleteBuffer(starBuffer);
     };
   }, [atlasReady, mode]);
 
