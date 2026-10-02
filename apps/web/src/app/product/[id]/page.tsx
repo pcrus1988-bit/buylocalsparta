@@ -215,6 +215,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   if (!product) return { title: "Προϊόν" };
   const metadataCrawler = await isReadOnlyPublicCrawlerRequest();
   if (metadataCrawler) {
+    const crawlerDetail = product.sourceImageAvailable ? await getPublicProductDetail(product.id) : undefined;
     const displayTitle = publicCatalogueTitleLabel(product.title);
     const quality = productIndexEligibility(product);
     const description = productSeoDescription({ title: displayTitle, description: product.description });
@@ -230,9 +231,10 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
         keywords: [displayTitle, product.brand, product.categoryLabel],
         openGraphImage: product.mediaId
           ? `/api/media/${encodeURIComponent(product.mediaId)}`
-          : product.sourceImageAvailable
-            ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
-            : undefined
+          : crawlerDetail?.sourceImageUrl
+            ?? (product.sourceImageAvailable
+              ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
+              : undefined)
       },
       entityEligible: quality.blockingReasons.length === 0,
       defaultIndexAllowed: quality.eligible
@@ -279,9 +281,10 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
       ],
       openGraphImage: product.mediaId
         ? `/api/media/${encodeURIComponent(product.mediaId)}`
-        : product.sourceImageAvailable
-          ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
-          : undefined
+        : detail?.sourceImageUrl
+          ?? (product.sourceImageAvailable
+            ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
+            : undefined)
     },
     entityEligible: quality.blockingReasons.length === 0,
     defaultIndexAllowed: quality.eligible
@@ -351,11 +354,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
     const productUrl = new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString();
     const categoryUrl = `${origin}/category/${category.slug}`;
     const displayPrice = publicCatalogPriceLabel(product);
+    const crawlerDetail = summary.sourceImageAvailable ? await getPublicProductDetail(product.id) : undefined;
     const crawlerImageUrl = product.mediaId
       ? `${origin}/api/media/${encodeURIComponent(product.mediaId)}`
-      : summary.sourceImageAvailable
-        ? `${origin}/api/catalog-source-image/${encodeURIComponent(product.id)}`
-        : undefined;
+      : crawlerDetail?.sourceImageUrl
+        ?? (summary.sourceImageAvailable
+          ? `${origin}/api/catalog-source-image/${encodeURIComponent(product.id)}`
+          : undefined);
     const crawlerStructuredData = {
       "@context": "https://schema.org",
       "@graph": [
@@ -436,12 +441,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
       ? [{ canonicalVariantId: product.id, mediaId: product.mediaId, altText: product.mediaAlt }]
       : [];
   const primaryImage = mediaGallery[0];
-  // Keep source imagery on a stable KONTA MOY URL for crawlers, structured data
-  // and the storefront. The endpoint resolves only governed public source images
-  // and is explicitly allowed in robots.txt.
+  const sourceImageGallery = primaryImage ? [] : detail?.sourceImageUrls ?? [];
+  // Prefer trusted approved source URLs directly when media is source-hosted
+  // instead of forcing every product view through a database-backed image proxy.
   const supplierImageSrc = primaryImage
     ? undefined
     : product.previewImageSrc
+      ?? sourceImageGallery[0]
       ?? (summary.sourceImageAvailable
         ? `/api/catalog-source-image/${encodeURIComponent(product.id)}`
         : undefined);
@@ -553,7 +559,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const structuredOfferData = publicCatalogHasOfferPrice(product) ? offerData : undefined;
   const structuredImages = mediaGallery.length
     ? mediaGallery.map((image) => `${origin}/api/media/${encodeURIComponent(image.mediaId)}`)
-    : supplierImageSrc ? [new URL(supplierImageSrc, `${origin}/`).toString()] : undefined;
+    : sourceImageGallery.length
+      ? sourceImageGallery.map((src) => new URL(src, `${origin}/`).toString())
+      : supplierImageSrc ? [new URL(supplierImageSrc, `${origin}/`).toString()] : undefined;
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
@@ -608,6 +616,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
               {mediaGallery.slice(1).map((image) => (
                 <div key={image.mediaId} style={{ position: "relative", aspectRatio: "1 / 1", overflow: "hidden", border: "1px solid var(--line)", borderRadius: 14, background: "var(--white)" }}>
                   <Image src={`/api/media/${encodeURIComponent(image.mediaId)}`} alt={image.altText ?? displayTitle} fill sizes="(max-width: 620px) 22vw, 11vw" style={thumbnailImageStyle} />
+                </div>
+              ))}
+            </div>
+          ) : sourceImageGallery.length > 1 ? (
+            <div aria-label="Επιπλέον φωτογραφίες προϊόντος" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
+              {sourceImageGallery.slice(1).map((src, index) => (
+                <div key={src} style={{ position: "relative", aspectRatio: "1 / 1", overflow: "hidden", border: "1px solid var(--line)", borderRadius: 14, background: "var(--white)" }}>
+                  <img src={src} alt={`${displayTitle} · ${index + 2}`} loading="lazy" decoding="async" referrerPolicy="no-referrer" style={{ width: "100%", height: "100%", ...thumbnailImageStyle }} />
                 </div>
               ))}
             </div>
