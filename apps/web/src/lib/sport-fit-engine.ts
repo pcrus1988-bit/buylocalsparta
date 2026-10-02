@@ -249,7 +249,9 @@ function candidateSupportsRequestedActivity(product: SportFitProduct, answers: S
 
   const knowledge = usableKnowledge(product);
   const knownActivities = knowledgeList(knowledge?.activities);
-  if (knownActivities.length > 0) return hasKnowledgeMatch(knownActivities, requestedActivityCodes(answers));
+  if (knownActivities.length > 0) {
+    return knownActivities.includes(normalize(answers.activity));
+  }
 
   const text = strictIdentityText(product);
   if (answers.activity === "hiking") return hasAny(text, ["hiking", "terrex", "trail", "πεζοπορ", "outdoor"]);
