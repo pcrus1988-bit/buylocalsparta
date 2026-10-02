@@ -287,7 +287,7 @@ Migration `0308_sport_fit_verified_kerasiotis_footwear_batch2.sql` adds a second
 
 Migration `0309_sport_fit_adidas_kids_size_guide.sql` adds the official adidas kids footwear size chart as a separate `kids` audience guide. The server deterministically prefers an exact audience guide over a unisex fallback, which prevents the adult chart from becoming the primary measured-size source for a child profile.
 
-The runtime schema gate is 309. All migrations through 0309 have immutable checksum manifests.
+The runtime schema gate is 310. All migrations through 0310 have immutable checksum manifests.
 
 
 ## Live brand identity bridge
@@ -299,3 +299,20 @@ The Kerasiotis sports catalogue currently carries direct vendor-feed brand value
 3. latest non-empty vendor-feed `source_payload.brand` for the same canonical variant.
 
 The third path is an identity fallback, not a technical-specification inference. It enables brand-scoped size guides to attach to the correct live products while the broader catalogue brand backfill is still incomplete. Technical Sport & Fit facts still require the normal evidence policy and strong exact-product identity.
+
+
+## Schema 310 — Reebok sizing
+
+Migration `0310_sport_fit_reebok_size_guide.sql` adds the official Reebok adult/unisex footwear heel-to-toe table:
+
+- 21 manufacturer measurement rows;
+- EU and UK unisex labels;
+- US Men and US Women labels;
+- JP labels;
+- between-row resolution remains deterministic and returns both adjacent choices.
+
+The candidates API no longer hard-codes adidas. It discovers active footwear size-guide brands from the governed database, intersects them with footwear brands present in the current catalogue, and resolves only those guides. Brand hints remain isolated per brand.
+
+The live Kerasiotis Sport & Fit scope currently has vendor-feed brand identity for all 528 queried variants, while the same queried set has no normalized canonical brand relation yet. The vendor-feed identity fallback therefore remains necessary for the measured-size layer to reach the intended products.
+
+Reebok's official kids chart is intentionally **not** mapped to EU stock sizes here because the currently verified US kids chart publishes heel-to-toe measurements with US labels but does not provide the EU conversion needed by the present storefront-size matching path. A kids profile never falls back to an adult/unisex guide when an exact kids guide is unavailable.
