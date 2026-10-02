@@ -29,6 +29,14 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/vendor-product-feeds",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/vendor-product-feed-media",
+      "schedule": "*/10 * * * *"
+    },
+    {
       "path": "/api/cron/merchant-sync",
       "schedule": "*/10 * * * *"
     },
