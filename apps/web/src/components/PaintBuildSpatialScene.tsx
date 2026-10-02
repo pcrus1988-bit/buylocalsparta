@@ -109,6 +109,7 @@ function buildProject(module: BuildModuleKey | undefined, progress: number) {
     positions.forEach(([x,y,z], index) => {
       rectangle(lines, x-.9, y-.7, x+.9, y+.7, z, index % 2 ? 2 : 1);
       addLine(lines, [x-.55,y,z+.1], [x+.55,y,z+.1], 2);
+      points.push([x,y,z+.18,3]);
     });
   }
 
@@ -119,6 +120,10 @@ function buildProject(module: BuildModuleKey | undefined, progress: number) {
     addLine(lines, [2.7,-.4,.5], [2.7,1.8,.5], 2);
     addLine(lines, [2.1,1.8,.5], [3.3,1.8,.5], 2);
     addLine(lines, [3.3,1.8,.5], [3.3,2.15,.5], 2);
+    // Paint tray + bucket + roller head.
+    rectangle(lines, -3.25,-2.2,-1.45,-1.72,.65,2);
+    rectangle(lines, -3.05,-1.68,-2.05,-.55,.5,2);
+    points.push([2.7,1.8,.62,3],[-2.55,-.55,.62,3]);
   } else if (module === "waterproofing") {
     addLine(lines, [-4,-1.35,-1.5], [0,2.35,-2.4], 1);
     addLine(lines, [0,2.35,-2.4], [4,-1.35,-1.5], 1);
@@ -137,6 +142,10 @@ function buildProject(module: BuildModuleKey | undefined, progress: number) {
     for (let offset=.18; offset<=.7; offset+=.17) {
       rectangle(lines,-3.7-offset,-2.3-offset,3.7+offset,1.8+offset,-1.75+offset*.15,2);
     }
+    // Mechanical fixings through insulation boards.
+    for (let x=-2.8;x<=2.8;x+=1.4) {
+      for (let y=-1.55;y<=1.15;y+=1.35) points.push([x,y,-1.0,3]);
+    }
   } else if (module === "repair") {
     rectangle(lines,-3.8,-2.2,3.8,2.8,-1.9,1);
     const crack = [
@@ -145,12 +154,10 @@ function buildProject(module: BuildModuleKey | undefined, progress: number) {
     for(let i=0;i<crack.length-1;i+=1) addLine(lines,crack[i],crack[i+1],2);
     addLine(lines,[-.8,1.65,-1.72],[-1.55,1.2,-1.7],2);
     addLine(lines,[-.35,-.65,-1.63],[.5,-1.05,-1.61],2);
-  }
-
-  for (let i=0;i<54;i+=1) {
-    const angle=(i/54)*Math.PI*2;
-    const radius=4.5+(i%7)*.34;
-    points.push([Math.cos(angle)*radius,Math.sin(angle*1.7)*2.6-0.2,Math.sin(angle)*2.4-1.5,3]);
+    crack.forEach(([x,y,z]) => points.push([x,y,z+.14,3]));
+    // Repair hawk / trowel on the floor.
+    rectangle(lines, 2.25,-2.28,3.65,-1.45,.45,2);
+    addLine(lines,[2.95,-1.45,.45],[3.35,-.7,.45],2);
   }
 
   return {
@@ -158,6 +165,13 @@ function buildProject(module: BuildModuleKey | undefined, progress: number) {
     points: new Float32Array(points.flat())
   };
 }
+
+const PROJECT_LABEL: Readonly<Record<BuildModuleKey, string>> = {
+  paint: "ΒΑΦΗ ΧΩΡΟΥ",
+  waterproofing: "ΣΤΕΓΑΝΟΠΟΙΗΣΗ",
+  insulation: "ΘΕΡΜΟΜΟΝΩΣΗ",
+  repair: "ΕΠΙΣΚΕΥΗ ΕΠΙΦΑΝΕΙΑΣ"
+};
 
 export function PaintBuildSpatialScene({ module, progress = 0, accent = "#CBB27A", result = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -267,10 +281,15 @@ export function PaintBuildSpatialScene({ module, progress = 0, accent = "#CBB27A
   },[module,progress,qualityTier,reducedMotion,result]);
 
   return (
-    <div className={styles.scene} aria-hidden="true">
+    <div className={styles.scene} data-project={module ?? "hub"} aria-hidden="true">
       <canvas ref={canvasRef} />
       <div className={styles.vignette} />
       <div className={styles.floorGlow} />
+      <div className={styles.projectTag}>
+        <span>PAINT & BUILD · PROJECT ROOM</span>
+        <strong>{module ? PROJECT_LABEL[module] : "ΕΠΙΛΕΞΕ ΤΟ ΕΡΓΟ ΣΟΥ"}</strong>
+        {result ? <small>PROJECT KIT READY</small> : null}
+      </div>
     </div>
   );
 }
