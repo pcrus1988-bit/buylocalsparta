@@ -345,6 +345,44 @@ async function getPublicCatalogPrimarySourceImage(
   return row ? sourceImagesFromRow(row)[0] : undefined;
 }
 
+async function getPublicApprovedProductMediaSourceImage(
+  canonicalVariantId: string
+): Promise<PublicCatalogSourceImage | undefined> {
+  const canonicalId = canonicalVariantId.trim();
+  if (!canonicalId) return undefined;
+
+  const result = await getProductionPostgresRuntime().nativePool.query<SourceGalleryRow>(`
+    SELECT
+      '{}'::jsonb AS normalized_payload,
+      pm.source_url AS source_image_url,
+      cs.code AS source_code,
+      cs.website AS source_website,
+      COALESCE(el.title,en.title,cv.model,cv.slug) AS source_title
+    FROM canonical_variants cv
+    JOIN markets m ON m.id=cv.market_id
+    JOIN product_media pm
+      ON pm.canonical_variant_id=cv.id
+     AND pm.kind='image'
+     AND pm.source_url IS NOT NULL
+     AND pm.scan_status='clean'
+     AND pm.rights_status='approved'
+     AND pm.moderation_status='approved'
+    JOIN catalog_sources cs ON cs.id=pm.source_id AND cs.active=true
+    LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+    LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+    WHERE cv.public_id=$1
+      AND m.code='sparta'
+      AND cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
+    ORDER BY pm.sort_order ASC,pm.created_at DESC,pm.id
+    LIMIT 1
+  `, [canonicalId]);
+
+  const row = result.rows[0];
+  return row ? sourceImagesFromRow(row)[0] : undefined;
+}
+
 async function getPublicDropshipMediaSourceImage(
   canonicalVariantId: string
 ): Promise<PublicCatalogSourceImage | undefined> {
@@ -390,6 +428,12 @@ async function getPublicDropshipMediaSourceImage(
 const getCachedPublicCatalogPrimarySourceImage = unstable_cache(
   async (canonicalVariantId: string) => getPublicCatalogPrimarySourceImage(canonicalVariantId),
   ["public-catalog-primary-source-image-v1"],
+  { revalidate: 86_400 }
+);
+
+const getCachedPublicApprovedProductMediaSourceImage = unstable_cache(
+  async (canonicalVariantId: string) => getPublicApprovedProductMediaSourceImage(canonicalVariantId),
+  ["public-approved-product-media-source-image-v1"],
   { revalidate: 86_400 }
 );
 
@@ -442,9 +486,18 @@ export async function getPublicCatalogSourceImageAtIndex(
   if (!Number.isSafeInteger(index) || index < 0 || index >= MAX_GALLERY_IMAGES) return undefined;
 
   if (index === 0) {
-    // Dropship media is the cheapest governed projection and covers legacy as
-    // well as newly materialized supplier products. Resolve/cache it first so
-    // image proxy requests do not depend on the heavier source-link query.
+    // First use the governed approved product_media projection. This covers
+    // local/XML vendor media as well as supplier media without trusting a URL
+    // supplied by the browser, and it keeps the WebGL texture atlas same-origin.
+    const approvedMedia = await resilientPrimaryLookup(
+      "approved_product_media",
+      canonicalVariantId,
+      () => getCachedPublicApprovedProductMediaSourceImage(canonicalVariantId)
+    );
+    if (approvedMedia.image) return approvedMedia.image;
+
+    // Retain the older supplier-specific fallbacks for catalogue rows whose
+    // approved product_media projection has not been materialized yet.
     const dropshipMedia = await resilientPrimaryLookup(
       "dropship_media",
       canonicalVariantId,
@@ -467,7 +520,7 @@ export async function getPublicCatalogSourceImageAtIndex(
     // A database outage is not the same thing as a missing image. Bubble the
     // transient failure so the proxy returns 503/no-store instead of poisoning
     // the CDN with a cached 404 for a product that really has media.
-    if (dropshipMedia.failed || linkedPrimary.failed) {
+    if (approvedMedia.failed || dropshipMedia.failed || linkedPrimary.failed) {
       throw new Error("catalog source image lookup temporarily unavailable");
     }
     return undefined;

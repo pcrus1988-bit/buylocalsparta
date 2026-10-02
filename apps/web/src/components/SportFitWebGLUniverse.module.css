@@ -38,6 +38,41 @@
   z-index:2;
   outline:none
 }
+
+.spriteLayer{
+  position:absolute;
+  inset:0;
+  z-index:6;
+  pointer-events:none;
+  overflow:hidden
+}
+.productSprite{
+  position:absolute;
+  left:0;
+  top:0;
+  width:1px;
+  height:1px;
+  opacity:0;
+  visibility:hidden;
+  border-radius:50%;
+  overflow:hidden;
+  background:rgba(247,244,236,.96);
+  box-shadow:
+    0 0 0 1px rgba(186,255,243,.32),
+    0 0 22px rgba(97,255,229,.14),
+    0 12px 28px rgba(0,0,0,.28);
+  transform-origin:center;
+  transition:opacity .2s ease,filter .2s ease;
+  will-change:transform,width,height,opacity
+}
+.productSprite img{
+  width:100%;
+  height:100%;
+  display:block;
+  object-fit:contain;
+  background:#f7f4ec;
+  border-radius:50%
+}
 .reticle{
   position:absolute;
   left:50%;
