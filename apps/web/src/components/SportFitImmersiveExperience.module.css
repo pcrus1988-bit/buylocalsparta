@@ -344,3 +344,160 @@ perspective:1200px;isolation:isolate}
   .liveStudio .pills{gap:6px}
   .liveStudio .pills button{min-height:38px;padding:8px 11px}
 }
+
+
+/* Sequential guide flow: keep one decision visible at a time so the 3D field
+   remains the dominant surface, especially on mobile. */
+.questionProgress{
+  display:grid;
+  grid-template-columns:auto minmax(70px,1fr);
+  align-items:center;
+  gap:12px;
+  margin:0 0 14px;
+  color:rgba(178,255,241,.62);
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:.14em
+}
+.questionProgress>div{
+  height:2px;
+  overflow:hidden;
+  background:rgba(178,255,241,.10)
+}
+.questionProgress i{
+  display:block;
+  height:100%;
+  background:linear-gradient(90deg,#78f7df,#ecfff9);
+  box-shadow:0 0 14px rgba(107,255,226,.35);
+  transition:width .28s ease
+}
+.questionNav{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  align-items:stretch;
+  gap:8px;
+  margin-top:8px
+}
+.questionNav .primaryAction{margin:0}
+.secondaryAction{
+  min-height:58px;
+  border:1px solid rgba(210,255,246,.13);
+  background:rgba(8,13,11,.46);
+  color:rgba(235,252,247,.72);
+  padding:0 15px;
+  font:inherit;
+  font-size:11px;
+  font-weight:800;
+  cursor:pointer
+}
+.secondaryAction:hover{
+  border-color:rgba(190,255,244,.34);
+  color:#f5fffc
+}
+.guideCollapseButton,.guideResumeButton{display:none}
+
+@media(max-width:900px){
+  .liveStudio .guidePane{
+    overflow:visible
+  }
+  .liveStudio .guideCard{
+    max-height:calc(56dvh - 34px);
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    scrollbar-width:none
+  }
+  .liveStudio .guideCard::-webkit-scrollbar{display:none}
+  .guideCollapseButton{
+    position:sticky;
+    top:0;
+    z-index:5;
+    margin:0 8px 7px auto;
+    min-height:32px;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    border:1px solid rgba(157,255,239,.16);
+    border-radius:999px;
+    background:rgba(4,10,9,.76);
+    color:rgba(223,255,248,.72);
+    padding:0 11px;
+    font-size:8px;
+    font-weight:900;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    cursor:pointer
+  }
+  .guideCollapseButton b{font-size:13px;line-height:1}
+  .guideResumeButton{
+    position:absolute;
+    right:max(12px,env(safe-area-inset-right,0));
+    bottom:max(14px,env(safe-area-inset-bottom,0));
+    z-index:44;
+    min-height:46px;
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    border:1px solid rgba(151,255,238,.25);
+    border-radius:999px;
+    background:rgba(5,15,13,.84);
+    color:#eafff9;
+    padding:0 15px;
+    box-shadow:0 14px 38px rgba(0,0,0,.34),0 0 28px rgba(96,255,229,.08);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    font-size:9px;
+    font-weight:900;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    cursor:pointer
+  }
+  .guideResumeButton b{
+    display:grid;
+    place-items:center;
+    width:24px;
+    height:24px;
+    border-radius:50%;
+    background:rgba(165,255,240,.10);
+    color:#a9ffef
+  }
+  .questionProgress{
+    grid-template-columns:auto 1fr;
+    margin-bottom:10px
+  }
+  .questionNav{
+    position:sticky;
+    bottom:-2px;
+    z-index:3;
+    padding-top:8px;
+    background:linear-gradient(180deg,transparent,rgba(7,14,12,.94) 24%)
+  }
+}
+
+@media(max-width:520px){
+  .questionNav{
+    grid-template-columns:1fr
+  }
+  .questionNav .secondaryAction{
+    min-height:40px;
+    order:2
+  }
+  .questionNav .primaryAction{
+    min-height:52px;
+    order:1
+  }
+  .liveStudio .guideCard{
+    max-height:calc(54dvh - 32px)
+  }
+  .guideCollapseButton span{display:none}
+  .guideCollapseButton{
+    min-width:34px;
+    justify-content:center;
+    padding:0 9px
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .questionProgress i{transition:none}
+}
