@@ -23,8 +23,7 @@ type CatalogProductCardSource = CatalogCard & Readonly<{
 
 const OPTIMIZED_SUPPLIER_IMAGE_HOSTS = new Set([
   "brandsgateway-img.s3.fr-par.scw.cloud",
-  "cdn.symphonya.eu",
-  "www.e-kerasiotis.gr"
+  "cdn.symphonya.eu"
 ]);
 
 function optimizedSupplierImage(src: string): boolean {
@@ -140,6 +139,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
   const governedSourceFallback = !directImageSrc;
   const imageSrc = directImageSrc ?? `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
   const externalImage = governedSourceFallback || imageSrc.startsWith("https://");
+  const kerasiotisExternalImage = imageSrc.startsWith("https://www.e-kerasiotis.gr/");
   const useOptimizedImage = Boolean(product.mediaId) || optimizedSupplierImage(imageSrc);
   const productHref = demoVendorId
     ? `/demo/vendor/${encodeURIComponent(demoVendorId)}/product/${encodeURIComponent(product.slug || product.id)}`
@@ -169,7 +169,7 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
           loading={index === 0 ? "eager" : "lazy"}
           fetchPriority={index === 0 ? "high" : "auto"}
           decoding="async"
-          referrerPolicy={externalImage ? "no-referrer" : undefined}
+          referrerPolicy={kerasiotisExternalImage ? "strict-origin-when-cross-origin" : externalImage ? "no-referrer" : undefined}
           className={styles.catalogImage}
         />}
         {prominentSavings && savingLabel && projectedMsrpMinor !== undefined ? (
