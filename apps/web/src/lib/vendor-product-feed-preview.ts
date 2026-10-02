@@ -232,6 +232,7 @@ function sizeFromProductUrl(productUrl: string | undefined, title: string | unde
 type FeedColorRule = Readonly<{ label: string; pattern: RegExp }>;
 
 const FEED_COLOR_RULES: readonly FeedColorRule[] = [
+  { label: "Πολύχρωμο", pattern: /(^|[^\p{L}])(?:πολυχρωμ\p{L}*|διαφορετικ\p{L}*[\s-]+χρωματ\p{L}*|\d+[\s-]+χρωματ\p{L}*|multi[\s-]?colou?r(?:ed)?)([^\p{L}]|$)/u },
   { label: "Σάπιο μήλο", pattern: /(^|[^\p{L}])σαπιο[\s-]+μηλο([^\p{L}]|$)/u },
   { label: "Σιέλ", pattern: /(^|[^\p{L}])(?:σιελ|γαλαζ\p{L}*|sky[\s-]+blue)([^\p{L}]|$)/u },
   { label: "Ανθρακί", pattern: /(^|[^\p{L}])(?:ανθρακι|charcoal)([^\p{L}]|$)/u },
@@ -294,17 +295,26 @@ function colorFromDescription(description: string | undefined): string | undefin
   }
 
   // Kerasiotis descriptions often use natural-language phrases such as
-  // "σε μπλε χρώμα" instead of a dedicated XML field. Only accept a
-  // contextual description inference when every colour-bearing "χρώμα"
-  // segment points to the same canonical colour.
+  // "σε μπλε χρώμα" or "κίτρινη απόχρωση honey" instead of a dedicated
+  // XML field. Only accept a contextual inference when all explicit shade
+  // signals in the same product resolve to one canonical colour.
   const labels = new Set<string>();
   for (const segment of description.split(/[.!?\r\n]+/)) {
     const normalized = normalizeColorSignal(segment);
-    if (!normalized.includes("χρωμ")) continue;
+    if (!normalized.includes("χρωμ") && !normalized.includes("αποχρ")) continue;
     for (const mention of colorMentions(segment)) labels.add(mention.label);
+    if (/(^|[^\p{L}])honey([^\p{L}]|$)/u.test(normalized)) labels.add("Κίτρινο");
     if (labels.size > 1) return undefined;
   }
-  return labels.size === 1 ? [...labels][0] : undefined;
+  if (labels.size === 1) return [...labels][0];
+
+  // A very small set of commercial colourway names can occur in the lead
+  // sentence without the Greek words for colour/shade. Keep this fallback
+  // intentionally narrow and require a single unambiguous signal.
+  const lead = normalizeColorSignal(description.slice(0, 320));
+  const commercial = new Set<string>();
+  if (/(^|[^\p{L}])coffee[\s-]+bean([^\p{L}]|$)/u.test(lead)) commercial.add("Καφέ");
+  return commercial.size === 1 ? [...commercial][0] : undefined;
 }
 
 function hash(value: unknown): string {
