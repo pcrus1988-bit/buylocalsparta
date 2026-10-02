@@ -35,8 +35,7 @@ function staticInboundSources(href: string): readonly string[] {
   return unique(sources);
 }
 
-export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
-  assertAdminPermission(principal, "content.read");
+async function buildSeoCrawlGraph() {
   const [[productResult, vendorResult, cmsResult], { settings }, overrides] = await Promise.all([
     Promise.allSettled([
       getPublicProductSitemapInventory(),
@@ -186,4 +185,18 @@ export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
       categoriesAvailable: true
     }
   } as const;
+}
+
+
+/**
+ * System-only graph projection for CRON/control-plane refreshes. This performs no
+ * authorization itself; callers must remain server-only and protect their entrypoint.
+ */
+export async function systemSeoCrawlGraph() {
+  return buildSeoCrawlGraph();
+}
+
+export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
+  assertAdminPermission(principal, "content.read");
+  return buildSeoCrawlGraph();
 }
