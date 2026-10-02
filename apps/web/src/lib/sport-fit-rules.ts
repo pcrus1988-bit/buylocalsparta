@@ -115,13 +115,13 @@ export function evaluateSportFitRules(
         : answers.activity === "football"
           ? ["football", "team_sports"]
           : answers.activity === "basketball"
-            ? ["basketball", "team_sports"]
+            ? ["basketball"]
             : answers.activity === "tennis"
-              ? ["tennis", "racket_sports"]
+              ? ["tennis"]
               : answers.activity === "padel"
-                ? ["padel", "racket_sports"]
+                ? ["padel"]
                 : answers.activity === "volleyball"
-                  ? ["volleyball", "team_sports"]
+                  ? ["volleyball"]
                   : [answers.activity];
 
     if (!includesAny(activities, requested)) {
