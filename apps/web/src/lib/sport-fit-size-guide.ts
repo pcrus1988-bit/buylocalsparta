@@ -20,6 +20,17 @@ export type SportMeasuredSizeResolution = Readonly<{
   sizeLabels: readonly string[];
 }>;
 
+
+export function preferredSportSizeGuideScopes(
+  availableScopes: readonly SportSizeGuideAudience[],
+  audience: SportSizeGuideAudience
+): readonly SportSizeGuideAudience[] {
+  const scopes = new Set(availableScopes);
+  if (scopes.has(audience)) return [audience];
+  if (scopes.has("unisex")) return ["unisex"];
+  return [];
+}
+
 function normalizedSystem(value: string): string {
   return value.trim().toLocaleUpperCase("en-US");
 }
