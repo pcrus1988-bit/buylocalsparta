@@ -38,6 +38,10 @@ export type SportFitKnowledge = Readonly<{
   weightG?: number;
   footballSurfaceCode?: string;
   weatherProtection?: readonly string[];
+  sockHeight?: string;
+  sockCushioning?: string;
+  moistureWicking?: boolean;
+  sockArchSupport?: boolean;
 }>;
 
 export type SportFitAnswers = Readonly<{
@@ -389,6 +393,15 @@ function reasonsFor(
   }
   if (knowledge && answers.priority === "stability" && knowledge.supportLevel) {
     reasons.push("Τεκμηριωμένο support: " + knowledge.supportLevel);
+  }
+  if (knowledge && role === "socks" && knowledge.moistureWicking === true) {
+    reasons.push("Τεκμηριωμένη απομάκρυνση υγρασίας");
+  }
+  if (knowledge && role === "socks" && knowledge.sockArchSupport === true) {
+    reasons.push("Τεκμηριωμένη στήριξη καμάρας");
+  }
+  if (knowledge && role === "socks" && knowledge.sockHeight) {
+    reasons.push("Τεκμηριωμένο ύψος κάλτσας: " + knowledge.sockHeight);
   }
 
   if (answers.surface === "trail" && hasAny(text, ["trail", "terrex", "hiking", "outdoor"])) reasons.push("Έχει σαφή ένδειξη trail / outdoor στον κατάλογο");
