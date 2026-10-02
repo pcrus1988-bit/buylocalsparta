@@ -1,11 +1,11 @@
 -- KONTA MOY — second verified adidas sock knowledge batch for current Kerasiotis families.
--- Schema 327 extends exact-code first-party coverage and adds a strict identity bridge
--- for current Kerasiotis feed rows where the adidas style code is present in the trusted
--- vendor feed title/MPN but has not yet been backfilled to canonical_variants.mpn.
+-- Schema 327 extends exact-code first-party coverage and adds a strict canonical identity bridge
+-- for current Kerasiotis rows where the adidas style code is present as an exact token in the
+-- canonical variant slug but has not yet been backfilled to canonical_variants.mpn.
 --
 -- Evidence policy:
 -- - exact manufacturer product-code identity only;
--- - a style code may resolve through canonical MPN OR an exact token in an Adidas Kerasiotis feed row;
+-- - a style code may resolve through canonical MPN OR an exact hyphen-bounded token in canonical_variants.slug;
 -- - every style code must resolve to exactly one active canonical family or the migration fails closed;
 -- - normalize only explicit activity, controlled height, moisture-wicking, arch-support,
 --   and exact cushioning-level facts;
@@ -199,7 +199,7 @@ SELECT
     'styleCode',style_code,
     'scope','exact product-level manufacturer sock facts',
     'productRole','sock',
-    'catalogueIdentityBridge','canonical MPN or exact Adidas code token in current Kerasiotis vendor feed',
+    'catalogueIdentityBridge','canonical MPN or exact hyphen-bounded Adidas code token in canonical variant slug',
     'requireSingleCanonicalFamily',true,
     'doNotInferCushioningIntensity',true,
     'doNotInferBreathabilityLevel',true,
@@ -218,25 +218,6 @@ ON CONFLICT (source_key) DO UPDATE SET
   active=true,
   updated_at=now();
 
-CREATE TEMP TABLE _sport_327_kerasiotis_vendor (
-  vendor_id uuid PRIMARY KEY
-) ON COMMIT DROP;
-
-INSERT INTO _sport_327_kerasiotis_vendor(vendor_id)
-SELECT id
-FROM public.vendor_businesses
-WHERE public_slug='kerasiotis';
-
-DO $$
-DECLARE v_count integer;
-BEGIN
-  SELECT count(*) INTO v_count FROM _sport_327_kerasiotis_vendor;
-  IF v_count<>1 THEN
-    RAISE EXCEPTION 'Schema 327 requires exactly one Kerasiotis vendor with public_slug=kerasiotis, found %',v_count;
-  END IF;
-END
-$$;
-
 CREATE TEMP TABLE _sport_327_family (
   style_code text NOT NULL,
   family_id uuid NOT NULL,
@@ -251,53 +232,8 @@ CREATE TEMP TABLE _sport_327_family (
   PRIMARY KEY(style_code,family_id)
 ) ON COMMIT DROP;
 
-WITH identity_candidates AS (
-  SELECT
-    s.style_code,
-    cv.family_id,
-    'canonical_mpn'::text AS identity_route
-  FROM _sport_327_seed s
-  JOIN public.canonical_variants cv
-    ON cv.active=true
-   AND upper(coalesce(nullif(btrim(cv.mpn),''),''))=s.style_code
-
-  UNION ALL
-
-  SELECT
-    s.style_code,
-    cv.family_id,
-    'trusted_vendor_feed_exact_code'::text AS identity_route
-  FROM _sport_327_kerasiotis_vendor k
-  JOIN public.vendor_product_feed_items vf
-    ON vf.vendor_id=k.vendor_id
-   AND coalesce(vf.hidden_by_feed,false)=false
-  JOIN _sport_327_seed s
-    ON (
-      upper(coalesce(nullif(btrim(vf.source_payload->>'mpn'),''),''))=s.style_code
-      OR (
-        position(s.style_code in upper(coalesce(vf.source_payload->>'title','')))>0
-        AND upper(coalesce(vf.source_payload->>'title',''))
-              ~ ('(^|[^A-Z0-9])' || s.style_code || '([^A-Z0-9]|$)')
-      )
-    )
-  JOIN public.canonical_variants cv
-    ON cv.id=vf.canonical_variant_id
-   AND cv.active=true
-  WHERE upper(coalesce(nullif(btrim(vf.source_payload->>'brand'),''),''))='ADIDAS'
-),
-identity_resolved AS (
-  SELECT
-    style_code,
-    family_id,
-    CASE
-      WHEN bool_or(identity_route='canonical_mpn') THEN 'canonical_mpn'
-      ELSE 'trusted_vendor_feed_exact_code'
-    END AS identity_route
-  FROM identity_candidates
-  GROUP BY style_code,family_id
-)
 INSERT INTO _sport_327_family
-SELECT
+SELECT DISTINCT
   s.style_code,
   pf.id,
   s.source_key,
@@ -307,14 +243,23 @@ SELECT
   s.moisture_wicking,
   s.sock_arch_support,
   s.evidence_summary,
-  i.identity_route
+  CASE
+    WHEN upper(coalesce(nullif(btrim(cv.mpn),''),''))=s.style_code
+      THEN 'canonical_mpn'
+    ELSE 'canonical_slug_exact_code'
+  END
 FROM _sport_327_seed s
-JOIN identity_resolved i ON i.style_code=s.style_code
+JOIN public.canonical_variants cv
+  ON cv.active=true
+ AND (
+   upper(coalesce(nullif(btrim(cv.mpn),''),''))=s.style_code
+   OR strpos('-'||upper(coalesce(cv.slug,''))||'-', '-'||s.style_code||'-')>0
+ )
 JOIN public.product_families pf
-  ON pf.id=i.family_id
+  ON pf.id=cv.family_id
  AND pf.active=true;
 
-DO $$
+DO $$DO $$
 DECLARE
   r record;
   v_count integer;
@@ -325,7 +270,7 @@ BEGIN
     WHERE style_code=r.style_code;
 
     IF v_count<>1 THEN
-      RAISE EXCEPTION 'adidas sock style % must resolve to exactly one active canonical family through canonical MPN or trusted Kerasiotis exact-code identity, found %',r.style_code,v_count;
+      RAISE EXCEPTION 'adidas sock style % must resolve to exactly one active canonical family through canonical MPN or canonical slug exact-code identity, found %',r.style_code,v_count;
     END IF;
   END LOOP;
 END
@@ -368,7 +313,7 @@ SELECT DISTINCT
     'compression_level','moisture_wicking','breathability_level','thermal_level'
   ]::text[],
   jsonb_build_object(
-    'identityPreference',ARRAY['mpn','manufacturer_product_code','trusted_vendor_feed_exact_code','brand_model','exact_title'],
+    'identityPreference',ARRAY['mpn','manufacturer_product_code','canonical_slug_exact_code','brand_model','exact_title'],
     'acceptProductFactsOnlyWhenIdentityStrong',true,
     'lastVerifiedStyleCode',f.style_code,
     'identityRoute',f.identity_route,
@@ -571,7 +516,7 @@ DECLARE
   v_arch integer;
   v_moisture integer;
   v_no_cushioning integer;
-  v_feed_identity integer;
+  v_slug_identity integer;
 BEGIN
   SELECT count(*) INTO v_sources
   FROM public.sport_knowledge_sources s
@@ -586,11 +531,11 @@ BEGIN
     RAISE EXCEPTION 'Expected thirteen canonical adidas sock families in migration 327, found %',v_families;
   END IF;
 
-  SELECT count(*) INTO v_feed_identity
+  SELECT count(*) INTO v_slug_identity
   FROM _sport_327_family
-  WHERE identity_route='trusted_vendor_feed_exact_code';
-  IF v_feed_identity<1 THEN
-    RAISE EXCEPTION 'Expected migration 327 to exercise the strict trusted vendor-feed exact-code identity bridge';
+  WHERE identity_route='canonical_slug_exact_code';
+  IF v_slug_identity<>11 THEN
+    RAISE EXCEPTION 'Expected eleven schema-327 families to use canonical slug exact-code identity, found %',v_slug_identity;
   END IF;
 
   SELECT count(*) INTO v_gym
