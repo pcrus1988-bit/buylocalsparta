@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { productPublicPath } from "../lib/product-url";
 import { styleLookShareCodeFromToken } from "../lib/style-look-share-code";
+import { StyleSpatialScene } from "./StyleSpatialScene";
+import { useStudioRuntime } from "./StudioExperienceRuntime";
 import styles from "./FittingRoomExperience.module.css";
 
 type Audience = "women" | "men";
@@ -724,6 +726,7 @@ export function FittingRoomExperience({
   csrfToken?: string;
   savedLookId?: string;
 }) {
+  const { exitToHub } = useStudioRuntime();
   const [started, setStarted] = useState(false);
   const [step, setStep] = useState<Step>(0);
   const [audience, setAudience] = useState<Audience>("women");
@@ -1457,6 +1460,7 @@ export function FittingRoomExperience({
           <strong>FITTING ROOM</strong>
         </div>
         <div className={styles.topActions}>
+          <button type="button" onClick={exitToHub} aria-label="Επιστροφή στα KONTA MOY Studios">STUDIOS</button>
           <button type="button" className={styles.exitGameButton} onClick={leaveImmersive} aria-label="Έξοδος από την πλήρη οθόνη">×</button>
           <button type="button" onClick={() => { setLooks([]); setProducts([]); setStep(0); setStarted(true); setEditingSlot(null); }}>Νέα συνεδρία</button>
           <button type="button" onClick={() => void shareCurrentLook()}>Share</button>
@@ -1479,6 +1483,25 @@ export function FittingRoomExperience({
         </aside>
 
         <div className={styles.lookStage}>
+          <StyleSpatialScene
+            audience={audience}
+            activeSlot={editingSlot}
+            items={slotsForAudience(audience)
+              .filter((slot) => !(slot === "bottom" && isStandaloneOutfit(currentLook.slots.main)))
+              .map((slot) => {
+                const product = currentLook.slots[slot];
+                if (!product) return undefined;
+                const meta = slotMeta(slot, audience);
+                return {
+                  slot,
+                  label: meta.label,
+                  title: product.title,
+                  imageSrc: product.imageSrc || `/api/catalog-source-image/${encodeURIComponent(product.id)}`
+                };
+              })
+              .filter((item): item is NonNullable<typeof item> => Boolean(item))}
+            onSelect={(slot) => setEditingSlot(slot as SlotKey)}
+          />
           {looks.length > 1 ? <div className={styles.lookTabs}>{looks.map((look, index) => <button key={look.name} type="button" className={activeLook === index ? styles.lookTabActive : undefined} onClick={() => { setActiveLook(index); setEditingSlot(null); }}><span>{index < 3 ? `0${index + 1}` : "YOU"}</span><strong>{look.name}</strong></button>)}</div> : null}
 
           <div className={styles.composition}>
