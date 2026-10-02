@@ -6,7 +6,7 @@ import type {
   SportFitTechnicalRequirement
 } from "./sport-fit-engine.ts";
 
-export const SPORT_FIT_RULESET_VERSION = "2026-10-02.3";
+export const SPORT_FIT_RULESET_VERSION = "2026-10-02.4";
 
 export type SportFitRuleEvaluation = Readonly<{
   eligible: boolean;
@@ -109,6 +109,7 @@ function seedTechnicalRequirements(
   activities: ReadonlySet<string>,
   surfaces: ReadonlySet<string>,
   useCases: ReadonlySet<string>,
+  weatherProtection: ReadonlySet<string>,
   cushioning: string,
   support: string,
   width: string,
@@ -237,6 +238,168 @@ function seedTechnicalRequirements(
     }
     addRequirement(state, "requirement.gym_training_type", 24, status, "Τεχνικό προφίλ για τον τύπο προπόνησης");
   }
+
+  if (answers.activity === "walking") {
+    if (answers.distance === "long" || answers.frequency === "high") {
+      const enduranceStatus: SportFitTechnicalRequirement["status"] =
+        includesAny(useCases, ["daily_walking", "all_day_standing", "travel_walking"])
+        || cushioning === "high"
+        || cushioning === "max"
+          ? "match"
+          : "unknown";
+      addRequirement(
+        state,
+        "requirement.walking_endurance_profile",
+        12,
+        enduranceStatus,
+        "Τεχνικό προφίλ για παρατεταμένο περπάτημα"
+      );
+    }
+
+    if (answers.priority === "comfort") {
+      const comfortStatus: SportFitTechnicalRequirement["status"] =
+        includesAny(useCases, ["daily_walking", "all_day_standing", "travel_walking"])
+        || ["medium", "high", "max"].includes(cushioning)
+          ? "match"
+          : "unknown";
+      addRequirement(
+        state,
+        "requirement.walking_comfort_profile",
+        10,
+        comfortStatus,
+        "Τεκμηρίωση για άνεση σε καθημερινό / πολύωρο περπάτημα"
+      );
+    } else if (answers.priority === "cushioning") {
+      const cushioningStatus: SportFitTechnicalRequirement["status"] =
+        ["medium", "high", "max"].includes(cushioning)
+          ? "match"
+          : ["minimal", "low"].includes(cushioning)
+            ? "conflict"
+            : "unknown";
+      addRequirement(
+        state,
+        "requirement.walking_cushioning_profile",
+        12,
+        cushioningStatus,
+        "Τεχνικό προφίλ απορρόφησης για περπάτημα"
+      );
+    } else if (answers.priority === "traction" && answers.surface) {
+      addRequirement(
+        state,
+        "requirement.walking_traction_surface",
+        10,
+        surfaces.size ? (knownSurfaceMatches(answers.surface, surfaces) ? "match" : "conflict") : "unknown",
+        "Τεκμηριωμένη συμβατότητα επιφάνειας για πρόσφυση"
+      );
+    } else if (answers.priority === "weather") {
+      addRequirement(
+        state,
+        "requirement.walking_weather_protection",
+        10,
+        weatherProtection.size ? "match" : "unknown",
+        weatherProtection.size ? "Τεκμηριωμένη προστασία από καιρό" : "Η προστασία από καιρό δεν έχει ακόμη τεκμηριωθεί"
+      );
+    }
+  }
+
+  if (answers.activity === "hiking") {
+    if (answers.useCase === "technical_hike") {
+      const technicalTerrainStatus: SportFitTechnicalRequirement["status"] =
+        useCases.has("technical_hike")
+          || includesAny(surfaces, ["trail", "mixed"])
+          ? "match"
+          : useCases.size || surfaces.size
+            ? "conflict"
+            : "unknown";
+      addRequirement(
+        state,
+        "requirement.hiking_technical_terrain",
+        18,
+        technicalTerrainStatus,
+        "Τεχνικό terrain / trail προφίλ πεζοπορίας"
+      );
+    } else if (answers.useCase === "day_hike" || answers.useCase === "urban_outdoor") {
+      addRequirement(
+        state,
+        "requirement.hiking_use_case_profile",
+        12,
+        useCases.size ? (useCases.has(normalize(answers.useCase)) ? "match" : "conflict") : "unknown",
+        "Τεκμηριωμένος τύπος πεζοπορίας / outdoor χρήσης"
+      );
+    }
+
+    if (answers.priority === "weather") {
+      addRequirement(
+        state,
+        "requirement.hiking_weather_protection",
+        14,
+        weatherProtection.size ? "match" : "unknown",
+        weatherProtection.size ? "Τεκμηριωμένη προστασία από νερό / άνεμο" : "Η προστασία από καιρό δεν έχει ακόμη τεκμηριωθεί"
+      );
+    }
+
+    if (answers.priority === "traction" && answers.surface) {
+      addRequirement(
+        state,
+        "requirement.hiking_traction_surface",
+        14,
+        surfaces.size ? (knownSurfaceMatches(answers.surface, surfaces) ? "match" : "conflict") : "unknown",
+        "Τεκμηριωμένη συμβατότητα terrain για πρόσφυση"
+      );
+    }
+  }
+
+  if (["basketball", "tennis", "padel", "volleyball"].includes(answers.activity)) {
+    if (answers.priority === "stability") {
+      const stabilityStatus: SportFitTechnicalRequirement["status"] =
+        ["guided", "stability", "max_support"].includes(support) ? "match" : "unknown";
+      addRequirement(
+        state,
+        "requirement.court_lateral_stability",
+        14,
+        stabilityStatus,
+        "Τεκμηριωμένο προφίλ σταθερότητας για αλλαγές κατεύθυνσης"
+      );
+    }
+
+    if (answers.priority === "cushioning" || answers.priority === "comfort") {
+      const courtCushioningStatus: SportFitTechnicalRequirement["status"] =
+        ["medium", "high", "max"].includes(cushioning)
+          ? "match"
+          : answers.priority === "cushioning" && ["minimal", "low"].includes(cushioning)
+            ? "conflict"
+            : "unknown";
+      addRequirement(
+        state,
+        "requirement.court_cushioning_profile",
+        12,
+        courtCushioningStatus,
+        "Τεχνικό cushioning profile για court sport"
+      );
+    }
+
+    if (answers.priority === "traction" && answers.surface) {
+      addRequirement(
+        state,
+        "requirement.court_traction_surface",
+        14,
+        surfaces.size ? (knownSurfaceMatches(answers.surface, surfaces) ? "match" : "conflict") : "unknown",
+        "Τεκμηριωμένη συμβατότητα court επιφάνειας για πρόσφυση"
+      );
+    }
+
+    if (answers.frequency === "high") {
+      const activityTrainingUseCase = `${answers.activity}_training`;
+      const activityMatchUseCase = `${answers.activity}_match`;
+      addRequirement(
+        state,
+        "requirement.court_frequency_profile",
+        8,
+        includesAny(useCases, [activityTrainingUseCase, activityMatchUseCase]) ? "match" : "unknown",
+        "Τεκμηριωμένο sport-specific use case για συχνή χρήση"
+      );
+    }
+  }
 }
 
 function knownSurfaceMatches(surface: SportSurface, actual: ReadonlySet<string>): boolean {
@@ -306,6 +469,7 @@ export function evaluateSportFitRules(
   const activities = values(knowledge?.activities);
   const surfaces = values(knowledge?.surfaces);
   const useCases = values(knowledge?.useCases);
+  const weatherProtection = values(knowledge?.weatherProtection);
   const cushioning = normalize(knowledge?.cushioningLevel);
   const support = normalize(knowledge?.supportLevel);
   const width = normalize(knowledge?.widthProfile);
@@ -320,6 +484,7 @@ export function evaluateSportFitRules(
     activities,
     surfaces,
     useCases,
+    weatherProtection,
     cushioning,
     support,
     width,
@@ -464,6 +629,38 @@ export function evaluateSportFitRules(
     if (answers.distance === "long" && (cushioning === "high" || cushioning === "max")) {
       push(state, "walking.long_cushioning", 8, "Κανόνας περπατήματος: αυξημένο cushioning για μεγάλη διάρκεια");
     }
+    if (
+      answers.frequency === "high"
+      && includesAny(useCases, ["daily_walking", "all_day_standing", "travel_walking"])
+    ) {
+      push(state, "walking.high_frequency_use", 7, "Κανόνας περπατήματος: τεκμηριωμένη χρήση για συχνό / πολύωρο περπάτημα");
+    }
+    if (
+      answers.priority === "comfort"
+      && (
+        includesAny(useCases, ["daily_walking", "all_day_standing", "travel_walking"])
+        || ["medium", "high", "max"].includes(cushioning)
+      )
+    ) {
+      push(state, "walking.comfort_profile", 8, "Κανόνας περπατήματος: τεκμηριωμένο comfort profile");
+    } else if (answers.priority === "cushioning") {
+      if (["medium", "high", "max"].includes(cushioning)) {
+        push(state, "walking.cushioning_match", 8, "Κανόνας περπατήματος: cushioning συμβατό με την προτεραιότητα");
+      } else if (["minimal", "low"].includes(cushioning)) {
+        push(state, "walking.cushioning_low", -8);
+      }
+    }
+    if (
+      answers.priority === "traction"
+      && answers.surface
+      && surfaces.size
+      && knownSurfaceMatches(answers.surface, surfaces)
+    ) {
+      push(state, "walking.traction_surface_match", 8, "Κανόνας περπατήματος: τεκμηριωμένη επιφάνεια για πρόσφυση");
+    }
+    if (answers.priority === "weather" && weatherProtection.size) {
+      push(state, "walking.weather_protection", 8, "Κανόνας περπατήματος: τεκμηριωμένη προστασία από καιρό");
+    }
   }
 
   if (answers.activity === "hiking" && role === "footwear") {
@@ -475,8 +672,22 @@ export function evaluateSportFitRules(
     } else if (answers.useCase === "day_hike" && useCases.has("day_hike")) {
       push(state, "hiking.day_use", 13, "Κανόνας πεζοπορίας: τεκμηριωμένη χρήση για ημερήσια πεζοπορία");
     }
-    if (answers.priority === "weather" && (knowledge?.weatherProtection?.length ?? 0) > 0) {
+    if (answers.priority === "weather" && weatherProtection.size) {
       push(state, "hiking.weather_protection", 12, "Κανόνας πεζοπορίας: τεκμηριωμένη προστασία από καιρό");
+    }
+    if (
+      answers.priority === "traction"
+      && answers.surface
+      && surfaces.size
+      && knownSurfaceMatches(answers.surface, surfaces)
+    ) {
+      push(state, "hiking.traction_surface_match", 10, "Κανόνας πεζοπορίας: τεκμηριωμένο terrain για πρόσφυση");
+    }
+    if (
+      answers.useCase === "technical_hike"
+      && (useCases.has("technical_hike") || includesAny(surfaces, ["trail", "mixed"]))
+    ) {
+      push(state, "hiking.technical_terrain_profile", 9, "Κανόνας πεζοπορίας: τεχνικό trail profile");
     }
   }
 
@@ -489,6 +700,27 @@ export function evaluateSportFitRules(
     }
     if (answers.priority === "stability" && ["guided", "stability", "max_support"].includes(support)) {
       push(state, "court.stability_match", 8, "Κανόνας court sport: τεκμηριωμένη σταθερότητα");
+    }
+    if (answers.priority === "cushioning" || answers.priority === "comfort") {
+      if (["medium", "high", "max"].includes(cushioning)) {
+        push(state, "court.cushioning_match", 8, "Κανόνας court sport: cushioning συμβατό με την προτεραιότητα");
+      } else if (answers.priority === "cushioning" && ["minimal", "low"].includes(cushioning)) {
+        push(state, "court.cushioning_low", -8);
+      }
+    }
+    if (
+      answers.priority === "traction"
+      && answers.surface
+      && surfaces.size
+      && knownSurfaceMatches(answers.surface, surfaces)
+    ) {
+      push(state, "court.traction_surface_match", 9, "Κανόνας court sport: τεκμηριωμένη επιφάνεια για πρόσφυση");
+    }
+    if (
+      answers.frequency === "high"
+      && includesAny(useCases, [`${answers.activity}_training`, `${answers.activity}_match`])
+    ) {
+      push(state, "court.high_frequency_use", 6, "Κανόνας court sport: τεκμηριωμένη sport-specific χρήση για συχνή προπόνηση");
     }
   }
 
