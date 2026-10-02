@@ -534,7 +534,7 @@ export function parseSportFitAnswers(input: unknown): SportFitAnswers {
   const parsedBudget = Number(value.budgetMinor);
   const budgetMinor = Number.isSafeInteger(parsedBudget) && parsedBudget > 0 ? Math.min(parsedBudget, 500_000) : undefined;
   const parsedFootLengthMm = Number(value.footLengthMm);
-  const footLengthMm = Number.isFinite(parsedFootLengthMm) && parsedFootLengthMm >= 150 && parsedFootLengthMm <= 400
+  const footLengthMm = Number.isFinite(parsedFootLengthMm) && parsedFootLengthMm >= 80 && parsedFootLengthMm <= 400
     ? Math.round(parsedFootLengthMm * 10) / 10
     : undefined;
 
