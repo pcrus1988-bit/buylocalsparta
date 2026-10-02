@@ -18,6 +18,28 @@ export type SportPriority = (typeof SPORT_PRIORITIES)[number];
 
 export type SportProductRole = "footwear" | "socks" | "top" | "bottom" | "layer" | "accessory" | "other";
 
+export type SportKnowledgeStatus = "pending" | "researching" | "partial" | "verified" | "conflict" | "insufficient";
+export type SportKnowledgeQueueStatus = "pending" | "leased" | "completed" | "partial" | "failed" | "blocked";
+
+export type SportFitKnowledge = Readonly<{
+  status?: SportKnowledgeStatus;
+  identityQuality?: "weak" | "medium" | "strong";
+  queueStatus?: SportKnowledgeQueueStatus;
+  completenessScore?: number;
+  evidenceScore?: number;
+  activities?: readonly string[];
+  surfaces?: readonly string[];
+  useCases?: readonly string[];
+  cushioningLevel?: string;
+  supportLevel?: string;
+  fitLengthProfile?: string;
+  widthProfile?: string;
+  dropMm?: number;
+  weightG?: number;
+  footballSurfaceCode?: string;
+  weatherProtection?: readonly string[];
+}>;
+
 export type SportFitAnswers = Readonly<{
   activity: SportActivity;
   audience: SportAudience;
@@ -31,6 +53,7 @@ export type SportFitAnswers = Readonly<{
 
 export type SportFitProduct = Readonly<{
   id: string;
+  familyId?: string;
   slug: string;
   title: string;
   priceMinor: number;
@@ -47,6 +70,7 @@ export type SportFitProduct = Readonly<{
   mediaId?: string;
   mediaAlt?: string;
   previewImageSrc?: string;
+  knowledge?: SportFitKnowledge;
   available: boolean;
   availableToSell: number;
 }>;
@@ -83,6 +107,44 @@ function clampScore(value: number): number {
 
 function hasAny(text: string, terms: readonly string[]): boolean {
   return terms.some((term) => text.includes(normalize(term)));
+}
+
+function usableKnowledge(product: SportFitProduct): SportFitKnowledge | undefined {
+  const knowledge = product.knowledge;
+  if (!knowledge) return undefined;
+  if (knowledge.queueStatus === "blocked" || knowledge.status === "conflict" || knowledge.status === "insufficient") return undefined;
+  if (knowledge.identityQuality === "weak") return undefined;
+  return knowledge;
+}
+
+function requestedActivityCodes(activity: SportActivity): readonly string[] {
+  if (activity === "running") return ["running"];
+  if (activity === "walking") return ["walking"];
+  if (activity === "gym") return ["gym_training", "general_training"];
+  return ["football", "team_sports"];
+}
+
+function requestedSurfaceCodes(surface: SportSurface): readonly string[] {
+  if (surface === "road") return ["road"];
+  if (surface === "treadmill") return ["treadmill", "indoor"];
+  if (surface === "trail") return ["trail"];
+  if (surface === "indoor") return ["indoor"];
+  if (surface === "grass") return ["natural_grass_firm", "natural_grass_soft", "multi_ground"];
+  if (surface === "artificial") return ["artificial_grass", "turf", "multi_ground"];
+  return ["mixed", "road", "trail"];
+}
+
+function knowledgeList(values: readonly string[] | undefined): readonly string[] {
+  return (values ?? []).map(normalize).filter(Boolean);
+}
+
+function normalizedKnowledgeValue(value: string | undefined): string {
+  return normalize(value);
+}
+
+function hasKnowledgeMatch(values: readonly string[] | undefined, expected: readonly string[]): boolean {
+  const normalizedValues = new Set(knowledgeList(values));
+  return expected.some((value) => normalizedValues.has(normalize(value)));
 }
 
 function matchingSize(product: SportFitProduct, requestedSize: string | undefined, role: SportProductRole): string | undefined {
@@ -153,6 +215,22 @@ export function sportProductRole(product: SportFitProduct): SportProductRole {
 
 function activityScore(product: SportFitProduct, answers: SportFitAnswers, text: string, role: SportProductRole): number {
   const category = normalize(product.categoryCode);
+  const knowledge = usableKnowledge(product);
+  const knownActivities = knowledgeList(knowledge?.activities);
+  if (knownActivities.length > 0) {
+    const matches = hasKnowledgeMatch(knownActivities, requestedActivityCodes(answers.activity));
+    if (matches) {
+      if (role === "footwear") return 46;
+      if (role === "socks") return 28;
+      if (role === "top" || role === "bottom" || role === "layer") return 27;
+      if (role === "accessory") return 26;
+      return 18;
+    }
+    // A documented activity mismatch should outweigh optimistic title/category heuristics.
+    if (role === "footwear") return 2;
+    return 6;
+  }
+
   const runningSignal = category.includes("running shoes") || hasAny(text, ["running", "run ", "δρομ", "τρεξ", "runner"]);
   const footballSignal = category.includes("team sports equipment") || hasAny(text, ["football", "soccer", "futsal", "ποδοσφ", "turf", "tf ", "fg ", "ag "]);
   const gymSignal = category.includes("fitness accessories") || hasAny(text, ["training", "workout", "fitness", "gym", "aeroready", "dry fit", "dri fit"]);
@@ -195,6 +273,14 @@ function activityScore(product: SportFitProduct, answers: SportFitAnswers, text:
 
 function surfaceScore(product: SportFitProduct, surface: SportSurface | undefined, text: string, role: SportProductRole): number {
   if (!surface) return 4;
+
+  const knowledge = usableKnowledge(product);
+  const knownSurfaces = knowledgeList(knowledge?.surfaces);
+  if (knownSurfaces.length > 0) {
+    if (hasKnowledgeMatch(knownSurfaces, requestedSurfaceCodes(surface))) return 16;
+    return role === "footwear" ? -6 : 2;
+  }
+
   const trail = hasAny(text, ["trail", "terrex", "hiking", "outdoor", "ορειν", "πεζοπορ"]);
   const indoor = hasAny(text, ["indoor", "court", "training", "gym", "futsal"]);
   const artificial = hasAny(text, ["turf", "artificial", "tf ", "ag "]);
@@ -208,19 +294,32 @@ function surfaceScore(product: SportFitProduct, surface: SportSurface | undefine
   return role === "footwear" ? 8 : 5;
 }
 
-function priorityScore(priority: SportPriority | undefined, text: string): number {
+function priorityScore(product: SportFitProduct, priority: SportPriority | undefined, text: string): number {
   if (!priority) return 4;
+  const knowledge = usableKnowledge(product);
+  const cushioning = normalizedKnowledgeValue(knowledge?.cushioningLevel);
+  const support = normalizedKnowledgeValue(knowledge?.supportLevel);
+
   if (priority === "comfort") {
-    return hasAny(text, ["comfort", "soft", "foam", "cloud", "gel", "cush", "αναπαυ", "ανεσ"]) ? 12 : 5;
+    if (cushioning === "high" || cushioning === "max") return 12;
+    return hasAny(text, ["comfort", "soft", "foam", "cloud", "gel", "cush", "αναπαυ", "ανεσ"]) ? 10 : 5;
   }
   if (priority === "cushioning") {
-    return hasAny(text, ["cush", "foam", "gel", "boost", "air", "cloud", "απορροφ"]) ? 12 : 4;
+    if (cushioning === "max") return 14;
+    if (cushioning === "high") return 13;
+    if (cushioning === "medium") return 10;
+    if (cushioning === "minimal" || cushioning === "low") return 2;
+    return hasAny(text, ["cush", "foam", "gel", "boost", "air", "cloud", "απορροφ"]) ? 10 : 4;
   }
   if (priority === "lightweight") {
     return hasAny(text, ["lightweight", "light ", "ultra light", "speed", "adizero", "ελαφρ"]) ? 12 : 4;
   }
   if (priority === "stability") {
-    return hasAny(text, ["stability", "stable", "support", "control", "στηριξ", "σταθερ"]) ? 12 : 4;
+    if (support === "max support" || support === "max_support") return 14;
+    if (support === "stability") return 13;
+    if (support === "guided" || support === "guided support") return 10;
+    if (support === "neutral") return 4;
+    return hasAny(text, ["stability", "stable", "support", "control", "στηριξ", "σταθερ"]) ? 10 : 4;
   }
   return 8;
 }
@@ -278,6 +377,20 @@ function reasonsFor(
   if (answers.budgetMinor && product.priceMinor <= answers.budgetMinor) reasons.push("Εντός του budget σου");
   if (product.available && product.availableToSell > 0) reasons.push("Διαθέσιμο τώρα");
 
+  const knowledge = usableKnowledge(product);
+  if (knowledge && hasKnowledgeMatch(knowledge.activities, requestedActivityCodes(answers.activity))) {
+    reasons.push("Τεκμηριωμένη αντιστοίχιση δραστηριότητας");
+  }
+  if (knowledge && answers.surface && hasKnowledgeMatch(knowledge.surfaces, requestedSurfaceCodes(answers.surface))) {
+    reasons.push("Τεκμηριωμένη καταλληλότητα επιφάνειας");
+  }
+  if (knowledge && answers.priority === "cushioning" && knowledge.cushioningLevel) {
+    reasons.push("Τεκμηριωμένο cushioning: " + knowledge.cushioningLevel);
+  }
+  if (knowledge && answers.priority === "stability" && knowledge.supportLevel) {
+    reasons.push("Τεκμηριωμένο support: " + knowledge.supportLevel);
+  }
+
   if (answers.surface === "trail" && hasAny(text, ["trail", "terrex", "hiking", "outdoor"])) reasons.push("Έχει σαφή ένδειξη trail / outdoor στον κατάλογο");
   if ((answers.surface === "artificial" || answers.surface === "grass") && hasAny(text, ["football", "soccer", "futsal", "turf", "tf ", "fg ", "ag "])) reasons.push("Έχει σαφή ένδειξη ποδοσφαιρικής χρήσης στον κατάλογο");
 
@@ -297,7 +410,7 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
 
   score += activityScore(product, answers, text, role);
   score += surfaceScore(product, answers.surface, text, role);
-  score += priorityScore(answers.priority, text);
+  score += priorityScore(product, answers.priority, text);
   score += distanceScore(answers.distance, text, role);
   score += frequencyScore(answers.frequency, text);
   score += budgetScore(product, answers.budgetMinor);
@@ -337,7 +450,14 @@ export function buildSportFitRecommendation(
   answers: SportFitAnswers
 ): SportFitRecommendation {
   const scored = products
-    .filter((product) => product.available && product.availableToSell > 0 && product.priceMinor > 0)
+    .filter((product) =>
+      product.available
+      && product.availableToSell > 0
+      && product.priceMinor > 0
+      && product.knowledge?.queueStatus !== "blocked"
+      && product.knowledge?.status !== "conflict"
+      && product.knowledge?.status !== "insufficient"
+    )
     .map((product) => scoreSportFitProduct(product, answers))
     .filter((product) => product.score >= 20)
     .sort((left, right) => right.score - left.score || left.priceMinor - right.priceMinor || left.title.localeCompare(right.title, "el"));
