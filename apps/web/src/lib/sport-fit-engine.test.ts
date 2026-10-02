@@ -92,3 +92,32 @@ test("over-budget products receive a material ranking penalty", () => {
 
   assert.ok(scoreSportFitProduct(affordable, answers).score > scoreSportFitProduct(expensive, answers).score);
 });
+
+
+test("shoe size does not penalize apparel and can match a sock size range", () => {
+  const sock = product({
+    id: "sock-range",
+    title: "Running Socks 43-46",
+    categoryCode: "socks-hosiery",
+    sizes: ["43-46"],
+    priceMinor: 1200
+  });
+  const top = product({
+    id: "top-m",
+    title: "Training T-Shirt - M",
+    categoryCode: "fashion-mens-tshirts-tops",
+    sizes: ["M"],
+    priceMinor: 2500
+  });
+  const answers = {
+    activity: "running" as const,
+    audience: "men" as const,
+    size: "44",
+    surface: "road" as const
+  };
+
+  const scoredSock = scoreSportFitProduct(sock, answers);
+  const scoredTop = scoreSportFitProduct(top, answers);
+  assert.equal(scoredSock.matchedSize, "43-46");
+  assert.ok(scoredTop.score >= 20);
+});
