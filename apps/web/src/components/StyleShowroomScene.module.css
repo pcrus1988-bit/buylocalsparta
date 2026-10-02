@@ -21,9 +21,8 @@
 }
 .rack{position:absolute;inset:0;z-index:2;pointer-events:none}
 .garmentCard{
-  --row:0;
   position:absolute;
-  top:calc(18% + var(--row) * 18%);
+  top:18%;
   width:clamp(86px,9vw,126px);
   padding:8px 8px 9px;
   border:1px solid rgba(226,204,174,.18);
@@ -38,10 +37,10 @@
 }
 .garmentCard[data-side="left"]{left:7%;transform:perspective(700px) rotateY(7deg)}
 .garmentCard[data-side="right"]{right:7%;transform:perspective(700px) rotateY(-7deg)}
-.garmentCard[data-row="0"]{--row:0}
-.garmentCard[data-row="1"]{--row:1}
-.garmentCard[data-row="2"]{--row:2}
-.garmentCard[data-row="3"]{--row:3}
+.garmentCard[data-row="0"]{top:18%}
+.garmentCard[data-row="1"]{top:36%}
+.garmentCard[data-row="2"]{top:54%}
+.garmentCard[data-row="3"]{top:72%}
 .garmentCard:hover,.garmentCard:focus-visible,.garmentCard[data-active]{
   outline:none;
   border-color:rgba(232,207,170,.62);
@@ -81,7 +80,10 @@
   .garmentCard{width:76px;padding:6px}
   .garmentCard[data-side="left"]{left:4%}
   .garmentCard[data-side="right"]{right:4%}
-  .garmentCard{top:calc(16% + var(--row) * 19%)}
+  .garmentCard[data-row="0"]{top:16%}
+  .garmentCard[data-row="1"]{top:35%}
+  .garmentCard[data-row="2"]{top:54%}
+  .garmentCard[data-row="3"]{top:73%}
 }
 @media(max-width:430px){
   .garmentCard{width:68px}
