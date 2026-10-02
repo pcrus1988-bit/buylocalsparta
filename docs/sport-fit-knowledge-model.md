@@ -350,7 +350,7 @@ Migration `0313_sport_fit_verified_skechers_bountiful.sql` adds exact official e
 - `general_training` is normalized from Skechers' explicit workout/training description;
 - Memory Foam, supportive and shock-absorbing wording is preserved as evidence but does not create an invented cushioning or support level.
 
-The runtime schema gate is now 318.
+The runtime schema gate is now 319.
 
 
 ## Schema 314 — Skechers activity and taxonomy conflict handling
@@ -384,7 +384,7 @@ Cloudfoam / Cloudfoam+ comfort language is preserved in source evidence but is n
 
 The live catalogue identity check resolves each of `IH9808`, `KJ1750` and `KJ1757` to exactly one canonical family before migration 0315 is allowed to publish facts.
 
-The runtime schema gate is 318.
+The runtime schema gate is 319.
 
 
 ## Schema 316 — GSA vendor-feed sock knowledge
@@ -432,4 +432,19 @@ The migration intentionally does **not** map the generic word “cushioned” on
 
 Both style codes were checked against the live Kerasiotis catalogue and resolve to exactly one active canonical family before the migration can publish facts.
 
-The runtime schema gate is 318.
+The runtime schema gate is 319.
+
+
+## Schema 319 — verified adidas football apparel
+
+Migration `0319_sport_fit_verified_adidas_football_apparel.sql` adds exact first-party adidas evidence for three current Kerasiotis Squadra 25 Training Jacket families:
+
+- `JE2774`: football activity, football-training use case and explicit AEROREADY moisture-management evidence.
+- `JP3389`: football activity and football-training use case from the exact manufacturer product classification/title.
+- `JV6067`: football activity and football-training use case from the exact manufacturer product classification/title.
+
+The technology rule is deliberately colorway-specific. Moisture-wicking is normalized only for `JE2774`, whose exact adidas page publishes the AEROREADY moisture-management claim. The migration does not transfer AEROREADY, breathability, thermal or weather-protection claims to `JP3389` or `JV6067` merely because they share the Squadra 25 model name.
+
+All three style codes must resolve to exactly one active canonical family before any fact is published.
+
+The runtime schema gate is 319.
