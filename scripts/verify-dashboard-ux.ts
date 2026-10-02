@@ -169,7 +169,7 @@ for (const forbidden of [">Markup</label>", "backoffice", "στο checkout", "σ
 for (const requirement of ["αγορά → περιθώριο → έκπτωση", "Τι θα βλέπει ο πελάτης:", "Εμφάνιση προτεινόμενης λιανικής στο κατάστημα"]) if (!vendorPriceManager.includes(requirement)) failures.push(`Vendor pricing UX is missing ${requirement}`);
 
 const vendorConfirmation = read("apps/web/src/components/VendorConfirmation.tsx");
-for (const requirement of ["useVendorConfirmation", 'role="dialog"', 'aria-modal="true"', 'event.key === "Escape"', 'event.key !== "Tab"', "dialogRef", "returnFocusRef", "closeAndRestoreFocus", "flushSync", "vendor-confirmation-actions"]) if (!vendorConfirmation.includes(requirement)) failures.push(`Vendor confirmation UX is missing ${requirement}`);
+for (const requirement of ["useVendorConfirmation", 'role="dialog"', 'aria-modal="true"', 'event.key === "Escape"', 'event.key !== "Tab"', "dialogRef", "returnFocusRef", "closeAndRestoreFocus", "target?.isConnected", "vendor-confirmation-actions"]) if (!vendorConfirmation.includes(requirement)) failures.push(`Vendor confirmation UX is missing ${requirement}`);
 for (const vendorPath of [
   "apps/web/src/components/VendorOrdersClient.tsx",
   "apps/web/src/components/VendorReturnsClient.tsx",
