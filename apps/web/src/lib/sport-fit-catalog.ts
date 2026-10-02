@@ -91,7 +91,9 @@ function stringList(value: unknown): readonly string[] {
 }
 
 function stringValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (Array.isArray(value)) return value.find((item): item is string => typeof item === "string" && item.trim().length > 0)?.trim();
+  return undefined;
 }
 
 function numberValue(value: unknown): number | undefined {
@@ -189,8 +191,10 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
         SELECT
           ad.code,
           CASE
-            WHEN ad.data_type IN ('enum','multienum')
+            WHEN ad.data_type='multienum'
               THEN to_jsonb(array_agg(av.code ORDER BY pfav.position) FILTER (WHERE av.code IS NOT NULL))
+            WHEN ad.data_type='enum'
+              THEN to_jsonb(max(av.code))
             WHEN ad.data_type='number'
               THEN to_jsonb(max(pfav.number_value))
             WHEN ad.data_type='boolean'
