@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ColorStudioSelector, type ColorStudioShadeCandidate } from "./ColorStudioSelector";
 import { BuildStudioGuidanceResult } from "./BuildStudioGuidanceResult";
 import { useStudioRuntime } from "./StudioExperienceRuntime";
+import { PaintBuildSpatialScene } from "./PaintBuildSpatialScene";
 import { mapBuildStudioScenario, type BuildGuidanceScenarioRequest } from "../lib/build-guidance-scenario-map";
 import {
   BUILD_MODULES,
@@ -204,6 +205,8 @@ export function PaintBuildStudioExperience() {
   const activeModule = BUILD_MODULES.find((module) => module.key === activeModuleKey);
   const step = SCREEN_STEP[screen];
   const totalSteps = activeModuleKey ? MODULE_SCREEN_COUNT[activeModuleKey] : undefined;
+  const spatialProgress = step && totalSteps ? step / totalSteps : 0.14;
+  const spatialResult = screen.endsWith("-result");
 
   const paintSurfaceDefinition = paintSurface(paintSurfaceKey);
   const paintCondition = paintSurfaceDefinition.conditions.find((condition) => condition.key === paintConditionKey)
@@ -296,6 +299,7 @@ export function PaintBuildStudioExperience() {
 
   return (
     <div className={`${styles.fullscreenStudio} ${screen === "hub" ? styles.hubMode : ""}`} role="application" aria-label="KONTA MOY Paint & Build Studio">
+      <PaintBuildSpatialScene module={activeModuleKey} progress={spatialProgress} accent={activeModuleKey === "paint" ? paintColour : "#CBB27A"} result={spatialResult} />
       <header className={styles.studioHeader}>
         <button type="button" className={styles.brandButton} onClick={goHub} aria-label="Paint & Build Studio αρχική"><span>KONTA MOY</span><strong>PAINT & BUILD STUDIO</strong></button>
         {screen !== "hub" && activeModule ? <div className={styles.headerProject}><span>{activeModule.eyebrow}</span><strong>{activeModule.subtitle}</strong></div> : <div className={styles.headerProject}><span>PROJECT PLANNER</span><strong>Από το έργο στη σωστή εφαρμογή</strong></div>}
