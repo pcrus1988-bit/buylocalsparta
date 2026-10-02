@@ -45,6 +45,7 @@ function knownSurfaceMatches(surface: SportSurface, actual: ReadonlySet<string>)
   if (surface === "court_indoor") return includesAny(actual, ["court_indoor", "indoor"]);
   if (surface === "court_outdoor") return includesAny(actual, ["court_outdoor"]);
   if (surface === "court_artificial") return includesAny(actual, ["court_artificial"]);
+  if (surface === "sand") return includesAny(actual, ["sand"]);
   return includesAny(actual, ["mixed", "road", "trail"]);
 }
 
