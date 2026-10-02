@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { productPublicPath } from "../lib/product-url";
+import { SportFitWebGLUniverse } from "./SportFitWebGLUniverse";
 import type {
   SportActivity,
   SportAudience,
@@ -33,6 +33,8 @@ type UniverseProduct = Readonly<{
   previewImageSrc?: string;
   priceMinor: number;
   score?: number;
+  technicalScore?: number;
+  technicalCoverage?: number;
   matchedSize?: string;
   role?: string;
   reasons?: readonly string[];
@@ -231,10 +233,6 @@ function euro(minor: number): string {
   return new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(minor / 100);
 }
 
-function productImageSrc(product: Pick<UniverseProduct, "id" | "previewImageSrc">): string {
-  return product.previewImageSrc || `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
-}
-
 function ProductImage({ product }: { product: SportFitScoredProduct }) {
   const src = product.previewImageSrc || `/api/catalog-source-image/${encodeURIComponent(product.id)}`;
   return (
@@ -274,39 +272,6 @@ function ProductResultCard({ product, featured = false }: { product: SportFitSco
   );
 }
 
-function hashId(value: string): number {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-function bubbleStyle(product: UniverseProduct): CSSProperties {
-  const seed = hashId(product.familyId || product.id);
-  const angle = ((seed % 360) * Math.PI) / 180;
-  const radius = 25 + ((seed >>> 9) % 24);
-  const rawScore = typeof product.score === "number" ? product.score : undefined;
-  const contraction = rawScore === undefined ? 1 : Math.max(0.28, 1.18 - rawScore / 108);
-  const x = Math.cos(angle) * radius * contraction;
-  const y = Math.sin(angle) * radius * 0.76 * contraction;
-  const z = rawScore === undefined
-    ? ((seed >>> 16) % 260) - 130
-    : Math.round((rawScore - 50) * 4.8 + ((seed >>> 19) % 70) - 35);
-  const size = 58 + ((seed >>> 5) % 38) + (rawScore === undefined ? 0 : Math.round(rawScore / 9));
-  const scale = rawScore === undefined ? 0.9 + ((seed >>> 22) % 14) / 100 : 0.78 + rawScore / 250;
-
-  return {
-    "--x": `${x.toFixed(2)}%`,
-    "--y": `${y.toFixed(2)}%`,
-    "--z": `${z}px`,
-    "--bubble-size": `${Math.min(128, size)}px`,
-    "--bubble-scale": scale.toFixed(3),
-    "--float-delay": `-${(seed % 5000) / 1000}s`
-  } as CSSProperties;
-}
-
 function ProductUniverse({
   products,
   leavingIds,
@@ -322,29 +287,12 @@ function ProductUniverse({
   busy: boolean;
   unavailable: boolean;
 }) {
-  const sceneRef = useRef<HTMLDivElement>(null);
-
-  function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
-    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const bounds = event.currentTarget.getBoundingClientRect();
-    if (!bounds.width || !bounds.height) return;
-    const relativeX = (event.clientX - bounds.left) / bounds.width - 0.5;
-    const relativeY = (event.clientY - bounds.top) / bounds.height - 0.5;
-    sceneRef.current?.style.setProperty("--tilt-x", `${(-relativeY * 6).toFixed(2)}deg`);
-    sceneRef.current?.style.setProperty("--tilt-y", `${(relativeX * 8).toFixed(2)}deg`);
-  }
-
-  function resetTilt() {
-    sceneRef.current?.style.setProperty("--tilt-x", "0deg");
-    sceneRef.current?.style.setProperty("--tilt-y", "0deg");
-  }
-
   return (
-    <div className={styles.universe} onPointerMove={handlePointerMove} onPointerLeave={resetTilt}>
+    <div className={styles.universe}>
       <div className={styles.universeTopline}>
         <div>
-          <span>LIVE PRODUCT UNIVERSE</span>
-          <strong>{busy ? "Αναδιατάσσουμε…" : `${survivingCount} προϊόντα παραμένουν`}</strong>
+          <span>LIVE PRODUCT UNIVERSE · TRUE 3D</span>
+          <strong>{busy ? "Αναδιατάσσουμε το 3D πεδίο…" : `${survivingCount} προϊόντα παραμένουν`}</strong>
         </div>
         <div className={styles.universeCounter}>
           <b>{survivingCount}</b>
@@ -352,51 +300,20 @@ function ProductUniverse({
         </div>
       </div>
 
-      <div className={styles.scene} ref={sceneRef} aria-label="Ζωντανή τρισδιάστατη απεικόνιση των προϊόντων που παραμένουν συμβατά">
-        <div className={styles.sceneGrid} aria-hidden="true" />
-        <div className={styles.sceneCore} aria-hidden="true"><span /></div>
-        <div className={styles.universeCloud}>
-          {products.map((product) => {
-            const leaving = leavingIds.has(product.id);
-            const strong = typeof product.score === "number" && product.score >= 75;
-            const src = productImageSrc(product);
-            return (
-              <div
-                className={[styles.bubble, leaving ? styles.bubbleLeaving : "", strong ? styles.bubbleStrong : ""].filter(Boolean).join(" ")}
-                style={bubbleStyle(product)}
-                key={product.id}
-                title={product.title}
-                aria-hidden="true"
-              >
-                <div className={styles.bubbleCore}>
-                  <span className={styles.bubbleFallback}>{(product.brand || product.title).slice(0, 1).toUpperCase()}</span>
-                  <img
-                    src={src}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                    referrerPolicy={src.startsWith("https://") ? "strict-origin-when-cross-origin" : undefined}
-                    onError={(event) => { event.currentTarget.style.display = "none"; }}
-                  />
-                  {typeof product.score === "number" ? <b>{product.score}%</b> : null}
-                </div>
-                <span className={styles.bubbleLabel}>{product.brand || product.categoryLabel || "SPORT"}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        {!products.length ? (
+      <div className={styles.scene} aria-label="Διαδραστικό τρισδιάστατο σύμπαν των προϊόντων που παραμένουν συμβατά">
+        {products.length ? (
+          <SportFitWebGLUniverse products={products} leavingIds={leavingIds} busy={busy} />
+        ) : (
           <div className={styles.universeEmpty}>
-            {unavailable ? "Ο live κατάλογος δεν είναι διαθέσιμος αυτή τη στιγμή." : "Δεν μένει ακόμη συμβατό προϊόν με αυτές τις επιλογές."}
+            {unavailable ? "Ο live κατάλογος δεν είναι διαθέσιμος αυτή τη στιγμή." : busy ? "Φορτώνουμε το 3D σύμπαν…" : "Δεν μένει ακόμη συμβατό προϊόν με αυτές τις επιλογές."}
           </div>
-        ) : null}
+        )}
       </div>
 
       <div className={styles.universeLegend}>
-        <span><i className={styles.legendStrong} /> ισχυρό ταίριασμα</span>
-        <span><i className={styles.legendPossible} /> πιθανό ταίριασμα</span>
-        <span>κάθε απάντηση μετακινεί ή απομακρύνει προϊόντα</span>
+        <span><i className={styles.legendStrong} /> κοντά στο κέντρο = ισχυρότερο τεχνικό ταίριασμα</span>
+        <span><i className={styles.legendPossible} /> έξω τροχιά = πιθανή επιλογή</span>
+        <span>drag / touch για περιστροφή · pinch / wheel για zoom · tap για focus</span>
       </div>
     </div>
   );
@@ -1046,7 +963,15 @@ export function SportFitImmersiveExperience({
             <>
               <section className={styles.finalistStage}>
                 <div className={styles.sectionLabel}><span>01</span><strong>TOP 5 · ΠΑΤΗΣΕ ΕΝΑ ΠΡΟΪΟΝ ΓΙΑ ΝΑ ΞΕΔΙΠΛΩΘΕΙ</strong></div>
-                <div className={styles.finalistOrbit} aria-label="Οι πέντε καλύτερες αντιστοιχίσεις">
+                <div className={styles.finalistWebgl}>
+                  <SportFitWebGLUniverse
+                    products={finalists}
+                    mode="finalists"
+                    selectedId={selectedFinalist.id}
+                    onSelect={setSelectedFinalistId}
+                  />
+                </div>
+                <div className={styles.finalistRail} aria-label="Οι πέντε καλύτερες αντιστοιχίσεις">
                   {finalists.map((product, index) => (
                     <button
                       type="button"
@@ -1054,10 +979,7 @@ export function SportFitImmersiveExperience({
                       className={selectedFinalist.id === product.id ? styles.finalistSelected : ""}
                       onClick={() => setSelectedFinalistId(product.id)}
                     >
-                      <span className={styles.finalistRank}>0{index + 1}</span>
-                      <span className={styles.finalistImage}>
-                        <ProductImage product={product} />
-                      </span>
+                      <span>0{index + 1}</span>
                       <strong>{product.score}%</strong>
                       <small>{product.brand || "SPORT"}</small>
                     </button>
