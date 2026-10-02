@@ -137,7 +137,7 @@ async function reconcileAccountIssues(token: string): Promise<number> {
     const url = new URL(`${ACCOUNTS_API}/accounts/${ACCOUNT_ID}/issues`);
     url.searchParams.set("page_size","1000");
     url.searchParams.set("language_code","el-GR");
-    url.searchParams.set("time_zone.id","Europe/Athens");
+    // Google Merchant Accounts v1 currently rejects the documented time_zone.id query\n    // field for this account. Localization is optional, so omit it rather than failing\n    // the entire status reconciliation job; language_code remains sufficient here.
     if (pageToken) url.searchParams.set("page_token",pageToken);
     const page = await apiJson<AccountIssuePage>(token,url);
     all.push(...(page.accountIssues ?? []));
