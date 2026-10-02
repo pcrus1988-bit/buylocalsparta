@@ -600,6 +600,9 @@ function reasonsFor(
   if (knowledge && role === "socks" && knowledge.sockHeight) {
     reasons.push("Τεκμηριωμένο ύψος κάλτσας: " + knowledge.sockHeight);
   }
+  if (knowledge && role === "socks" && knowledge.sockCushioning) {
+    reasons.push("Τεκμηριωμένο cushioning κάλτσας: " + knowledge.sockCushioning);
+  }
   if (knowledge && role === "socks" && knowledge.breathabilityLevel) {
     reasons.push("Τεκμηριωμένη διαπνοή: " + knowledge.breathabilityLevel);
   }
@@ -612,6 +615,13 @@ function reasonsFor(
     && (role === "top" || role === "bottom" || role === "layer")
   ) {
     reasons.push("Τεκμηριωμένες ανακλαστικές λεπτομέρειες");
+  }
+  if (
+    knowledge
+    && (knowledge.weatherProtection?.length ?? 0) > 0
+    && (role === "socks" || role === "top" || role === "bottom" || role === "layer")
+  ) {
+    reasons.push("Τεκμηριωμένη προστασία από καιρό");
   }
 
   if (answers.budgetMinor && product.priceMinor <= answers.budgetMinor) reasons.push("Εντός του budget σου");
