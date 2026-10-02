@@ -6,7 +6,7 @@ import type {
   SportFitTechnicalRequirement
 } from "./sport-fit-engine.ts";
 
-export const SPORT_FIT_RULESET_VERSION = "2026-10-02.12";
+export const SPORT_FIT_RULESET_VERSION = "2026-10-02.13";
 
 export type SportFitRuleEvaluation = Readonly<{
   eligible: boolean;
@@ -58,14 +58,16 @@ function requestedActivityValues(answers: SportFitAnswers): readonly string[] {
   if (answers.activity === "tennis") return ["tennis", "racket_sports"];
   if (answers.activity === "padel") return ["padel", "racket_sports"];
   if (answers.activity === "volleyball") return ["volleyball", "team_sports"];
+  if (answers.activity === "handball") return ["handball", "team_sports"];
+  if (answers.activity === "badminton") return ["badminton", "racket_sports"];
   return [answers.activity];
 }
 
 function broadActivityClass(answers: SportFitAnswers): string | undefined {
-  if (answers.activity === "football" || answers.activity === "basketball" || answers.activity === "volleyball") {
+  if (answers.activity === "football" || answers.activity === "basketball" || answers.activity === "volleyball" || answers.activity === "handball") {
     return "team_sports";
   }
-  if (answers.activity === "tennis" || answers.activity === "padel") {
+  if (answers.activity === "tennis" || answers.activity === "padel" || answers.activity === "badminton") {
     return "racket_sports";
   }
   return undefined;
@@ -189,7 +191,7 @@ function seedKitTechnicalRequirements(
     || answers.activity === "running"
     || answers.activity === "gym"
     || answers.activity === "football"
-    || ["basketball", "tennis", "padel", "volleyball"].includes(answers.activity);
+    || ["basketball", "tennis", "padel", "volleyball", "handball", "badminton"].includes(answers.activity);
 
   if (performanceRole && sweatContext) {
     addRequirement(
@@ -370,7 +372,7 @@ function seedTechnicalRequirements(
 
   if (
     answers.surface
-    && ["running", "walking", "football", "hiking", "basketball", "tennis", "padel", "volleyball"].includes(answers.activity)
+    && ["running", "walking", "football", "hiking", "basketball", "tennis", "padel", "volleyball", "handball", "badminton"].includes(answers.activity)
   ) {
     addRequirement(
       state,
@@ -601,7 +603,7 @@ function seedTechnicalRequirements(
     }
   }
 
-  if (["basketball", "tennis", "padel", "volleyball"].includes(answers.activity)) {
+  if (["basketball", "tennis", "padel", "volleyball", "handball", "badminton"].includes(answers.activity)) {
     if (answers.surface && surfaces.size && knownSurfaceMatches(answers.surface, surfaces)) {
       const exactSurface = normalize(answers.surface);
       addRequirement(
@@ -850,7 +852,7 @@ export function evaluateSportFitRules(
     role === "footwear"
     && answers.surface
     && surfaces.size
-    && ["running", "walking", "football", "hiking", "basketball", "tennis", "padel", "volleyball"].includes(answers.activity)
+    && ["running", "walking", "football", "hiking", "basketball", "tennis", "padel", "volleyball", "handball", "badminton"].includes(answers.activity)
     && !knownSurfaceMatches(answers.surface, surfaces)
   ) {
     return reject(
@@ -1028,7 +1030,7 @@ export function evaluateSportFitRules(
     }
   }
 
-  if (["basketball", "tennis", "padel", "volleyball"].includes(answers.activity) && role === "footwear") {
+  if (["basketball", "tennis", "padel", "volleyball", "handball", "badminton"].includes(answers.activity) && role === "footwear") {
     if (answers.surface && surfaces.size && knownSurfaceMatches(answers.surface, surfaces)) {
       push(state, "court.surface_match", 14, "Κανόνας court sport: τεκμηριωμένη συμβατότητα επιφάνειας");
       if (surfaces.has(normalize(answers.surface))) {

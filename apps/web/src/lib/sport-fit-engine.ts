@@ -1,6 +1,6 @@
 import { evaluateSportFitRules, SPORT_FIT_RULESET_VERSION } from "./sport-fit-rules.ts";
 
-export const SPORT_ACTIVITIES = ["running", "walking", "gym", "football", "hiking", "basketball", "tennis", "padel", "volleyball"] as const;
+export const SPORT_ACTIVITIES = ["running", "walking", "gym", "football", "hiking", "basketball", "tennis", "padel", "volleyball", "handball", "badminton"] as const;
 export type SportActivity = (typeof SPORT_ACTIVITIES)[number];
 
 export const SPORT_AUDIENCES = ["men", "women", "kids"] as const;
@@ -27,7 +27,9 @@ export const SPORT_USE_CASES = [
   "basketball_training", "basketball_match",
   "tennis_training", "tennis_match",
   "padel_training", "padel_match",
-  "volleyball_training", "volleyball_match"
+  "volleyball_training", "volleyball_match",
+  "handball_training", "handball_match",
+  "badminton_training", "badminton_match"
 ] as const;
 export type SportUseCase = (typeof SPORT_USE_CASES)[number];
 
@@ -210,6 +212,8 @@ function requestedActivityCodes(answers: SportFitAnswers): readonly string[] {
   if (answers.activity === "basketball") return ["basketball", "team_sports"];
   if (answers.activity === "tennis") return ["tennis", "racket_sports"];
   if (answers.activity === "padel") return ["padel", "racket_sports"];
+  if (answers.activity === "handball") return ["handball", "team_sports"];
+  if (answers.activity === "badminton") return ["badminton", "racket_sports"];
   return ["volleyball", "team_sports"];
 }
 
@@ -307,6 +311,8 @@ export function sportFitCandidateSupportsRequestedActivity(product: SportFitProd
   if (answers.activity === "basketball") return hasAny(text, ["basketball", "μπασκετ", "μπάσκετ"]);
   if (answers.activity === "tennis") return hasAny(text, ["tennis", "τενις", "τένις"]);
   if (answers.activity === "padel") return hasAny(text, ["padel", "παντελ", "πάντελ"]);
+  if (answers.activity === "handball") return hasAny(text, ["handball", "χαντμπολ", "χάντμπολ"]);
+  if (answers.activity === "badminton") return hasAny(text, ["badminton", "μπαντμιντον", "μπάντμιντον"]);
   return hasAny(text, ["volleyball", "volley", "βολει", "βόλεϊ"]);
 }
 
@@ -401,7 +407,7 @@ function activityScore(product: SportFitProduct, answers: SportFitAnswers, text:
     return role === "footwear" ? 8 : 3;
   }
 
-  if (["basketball", "tennis", "padel", "volleyball"].includes(answers.activity)) {
+  if (["basketball", "tennis", "padel", "volleyball", "handball", "badminton"].includes(answers.activity)) {
     const identity = strictIdentityText(product);
     const signal = answers.activity === "basketball"
       ? hasAny(identity, ["basketball", "μπασκετ", "μπάσκετ"])
@@ -409,7 +415,11 @@ function activityScore(product: SportFitProduct, answers: SportFitAnswers, text:
         ? hasAny(identity, ["tennis", "τενις", "τένις"])
         : answers.activity === "padel"
           ? hasAny(identity, ["padel", "παντελ", "πάντελ"])
-          : hasAny(identity, ["volleyball", "volley", "βολει", "βόλεϊ"]);
+          : answers.activity === "handball"
+            ? hasAny(identity, ["handball", "χαντμπολ", "χάντμπολ"])
+            : answers.activity === "badminton"
+              ? hasAny(identity, ["badminton", "μπαντμιντον", "μπάντμιντον"])
+              : hasAny(identity, ["volleyball", "volley", "βολει", "βόλεϊ"]);
     if (signal && role === "footwear") return 44;
     if (signal && role === "accessory") return 38;
     if (signal && (role === "top" || role === "bottom" || role === "layer")) return 30;
@@ -439,7 +449,7 @@ function surfaceScore(product: SportFitProduct, surface: SportSurface | undefine
   const indoor = hasAny(text, ["indoor", "court", "training", "gym", "futsal"]);
   const artificial = hasAny(text, ["turf", "artificial", "tf ", "ag "]);
   const grass = hasAny(text, ["firm ground", "fg ", "grass", "γρασιδ"]);
-  const court = hasAny(text, ["court", "tennis", "padel", "basketball", "volleyball", "τενις", "παντελ", "μπασκετ", "βολει"]);
+  const court = hasAny(text, ["court", "tennis", "padel", "basketball", "volleyball", "handball", "badminton", "τενις", "παντελ", "μπασκετ", "βολει", "χαντμπολ", "μπαντμιντον"]);
 
   if (["court_hard", "court_clay", "court_indoor", "court_outdoor", "court_artificial"].includes(surface)) {
     return court ? 14 : role === "footwear" ? 3 : 5;
@@ -556,7 +566,11 @@ function useCaseScore(product: SportFitProduct, useCase: SportUseCase | undefine
     padel_training: ["padel", "training", "παντελ"],
     padel_match: ["padel", "match", "παντελ"],
     volleyball_training: ["volleyball", "volley", "training", "βολει"],
-    volleyball_match: ["volleyball", "volley", "match", "βολει"]
+    volleyball_match: ["volleyball", "volley", "match", "βολει"],
+    handball_training: ["handball", "training", "χαντμπολ"],
+    handball_match: ["handball", "match", "χαντμπολ"],
+    badminton_training: ["badminton", "training", "μπαντμιντον"],
+    badminton_match: ["badminton", "match", "μπαντμιντον"]
   };
   return hasAny(text, signals[useCase]) ? 8 : 3;
 }
@@ -698,9 +712,9 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
     score += 10;
     score += ruleEvaluation.adjustment;
 
-    if (["running", "walking", "football", "hiking", "basketball", "tennis", "padel", "volleyball"].includes(answers.activity) && role === "footwear") score += 8;
+    if (["running", "walking", "football", "hiking", "basketball", "tennis", "padel", "volleyball", "handball", "badminton"].includes(answers.activity) && role === "footwear") score += 8;
     if (answers.activity === "gym" && (role === "footwear" || role === "top" || role === "bottom" || role === "accessory")) score += 6;
-    if (["basketball", "tennis", "padel", "volleyball"].includes(answers.activity) && (role === "accessory" || role === "top" || role === "bottom")) score += 4;
+    if (["basketball", "tennis", "padel", "volleyball", "handball", "badminton"].includes(answers.activity) && (role === "accessory" || role === "top" || role === "bottom")) score += 4;
   } else {
     score = 0;
   }

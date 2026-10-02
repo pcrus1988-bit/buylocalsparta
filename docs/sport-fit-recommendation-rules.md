@@ -1,6 +1,6 @@
 # KONTA MOY Sport & Fit recommendation rules
 
-Ruleset: `2026-10-02.12`
+Ruleset: `2026-10-02.13`
 
 Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. They do not require an external recommendation API and they do not infer missing technical product facts.
 
@@ -92,7 +92,7 @@ Low or missing evidence is not silently converted into comfort or weather protec
 
 Hiking has its own terrain profile rather than reusing generic walking logic. Technical hikes look for exact `technical_hike` evidence or documented trail/mixed-terrain compatibility. Day-hike and urban-outdoor use cases remain distinct. Weather priority only receives a verified match when water/wind protection is documented, and traction priority is tied to documented terrain compatibility.
 
-## Basketball, tennis, padel and volleyball
+## Basketball, tennis, padel, volleyball, handball and badminton
 
 Court sports keep sport identity and surface as hard technical gates when those facts are known. The weighted technical profile additionally evaluates:
 - lateral-stability preference from documented support/stability facts;
@@ -101,6 +101,8 @@ Court sports keep sport identity and surface as hard technical gates when those 
 - high-frequency use from sport-specific training/match evidence.
 
 A neutral support label is not treated as proof of poor lateral stability; it remains unknown for that requirement. Likewise, a missing cushioning or court-surface fact is not promoted to a positive match.
+
+Handball follows the controlled team-sport court model with indoor/hard/outdoor court choices. Badminton follows the racket-sport court model with indoor/hard court choices. In both paths, exact sport evidence outranks a broad controlled class, while the broad class remains eligible rather than being treated as a conflict. The controlled database vocabulary for these two paths is registered by schema `0325`; the vocabulary migration itself assigns no product-level facts.
 
 ## Fit and size
 
@@ -119,7 +121,7 @@ Generic words such as “versatile” or “all-round” in catalogue marketing 
 
 Kit items use the same principle: broader governed activity/use-case evidence can improve their versatility confidence without inventing performance claims.
 
-Controlled broad activity classes are also honored by candidate admission: `racket_sports` can satisfy tennis/padel entry and `team_sports` can satisfy basketball/volleyball entry before the more specific surface/use-case rules rank the product.
+Controlled broad activity classes are also honored by candidate admission: `racket_sports` can satisfy tennis/padel/badminton entry and `team_sports` can satisfy basketball/volleyball/handball entry before the more specific surface/use-case rules rank the product.
 
 ### Specificity precedence
 
@@ -127,7 +129,8 @@ Broad controlled classifications remain valid compatibility evidence, but they a
 
 - exact `basketball` outranks `team_sports` for a basketball request;
 - exact `tennis` / `padel` outranks `racket_sports` for the corresponding request;
-- exact `volleyball` outranks `team_sports`;
+- exact `volleyball` / `handball` outranks `team_sports` for the corresponding request;
+- exact `badminton` outranks `racket_sports`;
 - an exact selected court surface such as `court_indoor` outranks a broader compatible `indoor` fact.
 
 The broader classification remains eligible and browseable; it receives an `unknown` state for the specificity requirement rather than a conflict. This lets the engine use verified broad evidence without pretending it is as precise as an exact manufacturer-backed fact.
