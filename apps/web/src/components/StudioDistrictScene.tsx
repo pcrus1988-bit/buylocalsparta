@@ -105,35 +105,99 @@ function adaptedPosition(position: Vec3, compact: boolean): Vec3 {
 }
 
 function createSceneData(tier: QualityTier, compact: boolean): Float32Array {
-  const starCount = tier === "high" ? 260 : tier === "balanced" ? 180 : 100;
-  const ringCount = tier === "lite" ? 24 : 40;
-  const stride = 4;
-  const data = new Float32Array((starCount + STUDIO_DESTINATIONS.length * ringCount) * stride);
-  let cursor = 0;
+  const data: number[] = [];
+  const push = (x: number, y: number, z: number, kind: number) => data.push(x, y, z, kind);
 
-  for (let index = 0; index < starCount; index += 1) {
-    const theta = seeded(index, 1) * Math.PI * 2;
-    const phi = Math.acos(2 * seeded(index, 2) - 1);
-    const radius = 8 + seeded(index, 3) * 12;
-    data[cursor++] = Math.sin(phi) * Math.cos(theta) * radius;
-    data[cursor++] = Math.cos(phi) * radius * 0.72;
-    data[cursor++] = Math.sin(phi) * Math.sin(theta) * radius - 3;
-    data[cursor++] = 0;
+  // Neutral Studio District floor — not a starfield.
+  const floorStep = tier === "lite" ? 2.2 : tier === "balanced" ? 1.65 : 1.35;
+  for (let x = -12; x <= 12; x += floorStep) {
+    for (let z = -8; z <= 7; z += floorStep) {
+      const fade = Math.abs(x) + Math.abs(z);
+      if (fade > 17 && ((Math.round(x / floorStep) + Math.round(z / floorStep)) % 2)) continue;
+      push(x, -3.55, z - 1.5, 0);
+    }
   }
 
   STUDIO_DESTINATIONS.forEach((studio, studioIndex) => {
     const [px, py, pz] = adaptedPosition(studio.position, compact);
-    for (let index = 0; index < ringCount; index += 1) {
-      const angle = (index / ringCount) * Math.PI * 2;
-      const radius = 0.94 + 0.08 * Math.sin(index * 2.3 + studioIndex);
-      data[cursor++] = px + Math.cos(angle) * radius;
-      data[cursor++] = py + Math.sin(angle) * radius;
-      data[cursor++] = pz;
-      data[cursor++] = studioIndex + 1;
+    const kind = studioIndex + 1;
+
+    if (studio.id === "sport-fit") {
+      // Sport & Fit alone gets a product-universe ring / floating field.
+      const ringCount = tier === "lite" ? 24 : 42;
+      for (let index = 0; index < ringCount; index += 1) {
+        const angle = (index / ringCount) * Math.PI * 2;
+        const radius = .88 + .13 * Math.sin(index * 2.1);
+        push(px + Math.cos(angle) * radius, py + Math.sin(angle) * radius, pz, kind);
+      }
+      const floatCount = tier === "lite" ? 8 : 14;
+      for (let index = 0; index < floatCount; index += 1) {
+        const angle = seeded(index, 21) * Math.PI * 2;
+        const radius = 1.2 + seeded(index, 22) * .85;
+        push(
+          px + Math.cos(angle) * radius,
+          py + (seeded(index, 23) - .5) * 1.55,
+          pz + Math.sin(angle) * .55,
+          kind
+        );
+      }
+      return;
+    }
+
+    if (studio.id === "paint-build") {
+      // Architectural bay: wall grid + floor/material baseline.
+      const cols = tier === "lite" ? 5 : 7;
+      const rows = tier === "lite" ? 4 : 6;
+      for (let row = 0; row < rows; row += 1) {
+        for (let col = 0; col < cols; col += 1) {
+          push(
+            px + (col - (cols - 1) / 2) * .34,
+            py + (row - (rows - 1) / 2) * .30,
+            pz,
+            kind
+          );
+        }
+      }
+      for (let index = -4; index <= 4; index += 1) {
+        push(px + index * .32, py - 1.08, pz + .25 + Math.abs(index) * .05, kind);
+      }
+      return;
+    }
+
+    if (studio.id === "style") {
+      // Fitting-room doorway + runway leading into it.
+      const frameSteps = tier === "lite" ? 6 : 9;
+      for (let i = 0; i <= frameSteps; i += 1) {
+        const t = i / frameSteps;
+        push(px - .76, py - .92 + t * 1.84, pz, kind);
+        push(px + .76, py - .92 + t * 1.84, pz, kind);
+        push(px - .76 + t * 1.52, py + .92, pz, kind);
+      }
+      for (let i = 0; i < 7; i += 1) {
+        const depth = i * .18;
+        const width = .28 + i * .12;
+        push(px - width, py - 1.02 - i * .05, pz + depth, kind);
+        push(px + width, py - 1.02 - i * .05, pz + depth, kind);
+      }
+      return;
+    }
+
+    // Color Finder: a swatch wall / sample matrix.
+    const cols = tier === "lite" ? 4 : 5;
+    const rows = tier === "lite" ? 4 : 5;
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < cols; col += 1) {
+        push(
+          px + (col - (cols - 1) / 2) * .38,
+          py + (row - (rows - 1) / 2) * .34,
+          pz + ((row + col) % 2) * .05,
+          kind
+        );
+      }
     }
   });
 
-  return data;
+  return new Float32Array(data);
 }
 
 function rotate(point: Vec3, yaw: number, pitch: number): [number, number, number] {
@@ -203,6 +267,7 @@ function StudioPortal({
       style={{ "--studio-order": index } as CSSProperties}
     >
       <span className={styles.portalIndex}>{String(index + 1).padStart(2, "0")}</span>
+      <span className={styles.portalMotif} data-kind={studio.id} aria-hidden="true"><i /><i /><i /><i /></span>
       <span className={styles.portalEyebrow}>{studio.eyebrow}</span>
       <strong>{studio.title}</strong>
       <small>{studio.description}</small>
