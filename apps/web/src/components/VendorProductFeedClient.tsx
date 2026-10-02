@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { VendorXmlFieldMapping } from "@buy-local-sparta/core";
 
@@ -146,7 +147,7 @@ export function VendorProductFeedClient({
   const [xml, setXml] = useState("");
   const [filename, setFilename] = useState("");
   const [feedName, setFeedName] = useState("XML προϊόντων");
-  const [interval, setInterval] = useState(360);
+  const [interval, setInterval] = useState(60);
   const [mapping, setMapping] = useState<VendorXmlFieldMapping>({});
   const [categoryMapping, setCategoryMapping] = useState<Record<string, string>>({});
   const [defaultCategoryCode, setDefaultCategoryCode] = useState("");
@@ -253,8 +254,8 @@ export function VendorProductFeedClient({
     if (!data) return;
     const queued = data.preview?.validRows ?? preview.validRows;
     setSuccess(sourceType === "url"
-      ? `Η σύνδεση αποθηκεύτηκε. Ο πρώτος συγχρονισμός ξεκίνησε στο παρασκήνιο για ${queued.toLocaleString("el-GR")} έγκυρα προϊόντα και η κατάσταση θα ανανεωθεί αυτόματα.`
-      : `Το XML αποθηκεύτηκε. ${queued.toLocaleString("el-GR")} έγκυρα προϊόντα μπήκαν για επεξεργασία και η αντιστοίχιση με τον κατάλογο συνεχίζεται αυτόματα.`);
+      ? `Η σύνδεση αποθηκεύτηκε. Ο πρώτος συγχρονισμός ξεκίνησε για ${queued.toLocaleString("el-GR")} έγκυρα προϊόντα. Όσα είναι νέα θα εμφανιστούν ως πρόχειρα στον Κατάλογο για να τα στείλεις εσύ για έγκριση.`
+      : `Το XML αποθηκεύτηκε. ${queued.toLocaleString("el-GR")} έγκυρα προϊόντα επεξεργάστηκαν. Όσα είναι νέα θα εμφανιστούν ως πρόχειρα στον Κατάλογο για να τα στείλεις εσύ για έγκριση.`);
     setPreview(null);
     router.refresh();
   }
@@ -326,6 +327,7 @@ export function VendorProductFeedClient({
         <p><strong>Δεν δημιουργούμε διπλό κατάλογο:</strong> τα νέα προϊόντα ελέγχονται πριν δημοσιευτούν, ενώ τα ήδη συνδεδεμένα ενημερώνουν τιμή και απόθεμα.</p>
         <p><strong>Ασφαλές απόθεμα:</strong> ο συγχρονισμός δεν μειώνει το διαθέσιμο απόθεμα κάτω από ποσότητες που έχουν ήδη δεσμευτεί σε παραγγελίες.</p>
         <p><strong>Σταθερή ταυτότητα:</strong> ο κωδικός προϊόντος, το SKU ή το GTIN κρατούν το ίδιο προϊόν συνδεδεμένο σε κάθε επόμενο συγχρονισμό.</p>
+        <p><strong>Νέα προϊόντα:</strong> όσα δεν υπάρχουν ακόμη στον κατάλογο αποθηκεύονται ως πρόχειρα. Εσύ αποφασίζεις πότε θα τα στείλεις στο ΚΟΝΤΑ ΜΟΥ για έγκριση· δεν υποβάλλονται αυτόματα.</p>
       </div>
 
       <div className="workspace-action-bar" style={{ marginTop: 16 }}>
@@ -478,6 +480,7 @@ export function VendorProductFeedClient({
     <section className="shell vendor-section">
       <div className="workspace-section-heading vendor-xml-section-heading">
         <div><div className="eyebrow">Συνδεδεμένα XML</div><h2>Συνδέσεις & ενημερώσεις</h2></div>
+        <Link className="button button-secondary" href="/vendor/catalog#pending-products">Νέα προϊόντα για έγκριση</Link>
         <p>Οι μόνιμοι σύνδεσμοι XML μπορούν να μπουν σε παύση ή να ενημερωθούν άμεσα. Τα αρχεία που ανεβαίνουν παραμένουν στο ιστορικό ως εφάπαξ εισαγωγές.</p>
       </div>
 
