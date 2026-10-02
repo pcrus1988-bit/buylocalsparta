@@ -18,6 +18,7 @@ export const SITE_LINKS = {
   colorFinder: { label: "Color Finder", href: "/color-finder", description: "Διάλεξε χρώμα και βρες τις πιο κοντινές διαθέσιμες αποχρώσεις nail polish." },
   paintStudio: { label: "Paint Studio", href: "/paint-and-build-studio", description: "Η Τέλεια Πινελιά: βρες σύστημα βαφής, απόχρωση και ποσότητα με έναν απλό Paint Consultant 3 βημάτων." },
   fittingRoom: { label: "Style Builder", href: "/fitting-room", description: "Δημιούργησε ολοκληρωμένα looks στο Fitting Room του ΚΟΝΤΑ ΜΟΥ, άλλαξέ τα και μοιράσου τα." },
+  sportFitStudio: { label: "Sport & Fit Studio", href: "/sport-fit-studio", description: "Βρες αθλητικά παπούτσια και ολοκληρωμένο set με βάση δραστηριότητα, μέγεθος, χρήση και τεκμηριωμένα χαρακτηριστικά." },
   bazaar: { label: "BAZAAR", href: "/bazaar", description: "Greece-wide outlet για Preloved, Preowned / Defect, open-box και επιλεγμένα επιστρεφόμενα προϊόντα, πλήρως χωρισμένο από τον κανονικό κατάλογο." },
   shops: { label: "Καταστήματα & άνθρωποι", href: "/shops", description: "Χαρτογραφημένες τοπικές επιχειρήσεις και ενεργοί συνεργάτες, με σαφή ένδειξη του σταδίου συνεργασίας." },
   shopsMap: { label: "Χάρτης καταστημάτων", href: "/shops/map", description: "Διαδραστικός χάρτης τοπικών επιχειρήσεων με κατηγορίες, φίλτρα απόστασης και απευθείας πρόσβαση σε κάθε δημόσιο dossier." },
@@ -53,6 +54,7 @@ export const INDEXABLE_STATIC_ROUTES: ReadonlyArray<IndexableStaticRoute> = [
   { ...SITE_LINKS.colorFinder, changeFrequency: "daily", priority: 0.9 },
   { ...SITE_LINKS.paintStudio, changeFrequency: "daily", priority: 0.9 },
   { ...SITE_LINKS.fittingRoom, changeFrequency: "daily", priority: 0.85 },
+  { ...SITE_LINKS.sportFitStudio, changeFrequency: "daily", priority: 0.85 },
   { ...SITE_LINKS.bazaar, changeFrequency: "hourly", priority: 0.9 },
   { ...SITE_LINKS.shops, changeFrequency: "daily", priority: 0.85 },
   { ...SITE_LINKS.shopsMap, changeFrequency: "daily", priority: 0.8 },
@@ -97,7 +99,7 @@ export const FOOTER_NAVIGATION = [
 ] as const;
 
 export const HUMAN_SITEMAP_SECTIONS = [
-  { title: "Ανακάλυψη", links: [SITE_LINKS.home, SITE_LINKS.shop, SITE_LINKS.brands, SITE_LINKS.colorFinder, SITE_LINKS.paintStudio, SITE_LINKS.fittingRoom, SITE_LINKS.bazaar, SITE_LINKS.shops, SITE_LINKS.shopsMap] },
+  { title: "Ανακάλυψη", links: [SITE_LINKS.home, SITE_LINKS.shop, SITE_LINKS.brands, SITE_LINKS.colorFinder, SITE_LINKS.paintStudio, SITE_LINKS.fittingRoom, SITE_LINKS.sportFitStudio, SITE_LINKS.bazaar, SITE_LINKS.shops, SITE_LINKS.shopsMap] },
   { title: "Άνθρωποι & συμβουλή", links: [SITE_LINKS.advice, SITE_LINKS.askLocal] },
   { title: "Η εμπειρία αγοράς", links: [SITE_LINKS.howItWorks, SITE_LINKS.giftCards, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
   { title: "Νομικά & ιδιωτικότητα", links: [SITE_LINKS.terms, SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] },
