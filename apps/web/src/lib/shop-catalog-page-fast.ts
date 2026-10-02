@@ -3,7 +3,7 @@ import { formatMoney, money } from "@buy-local-sparta/core";
 import type { CatalogCard, CatalogFilters } from "./catalog-view";
 import { matchesCatalogAttributeFilters, type CatalogAttributeFilters } from "./catalog-attribute-filter";
 import { loadCatalogMetadata } from "./catalog-metadata";
-import { approvedCatalogImages } from "./public-media-service";
+import { approvedCatalogImages, approvedCatalogSourceImages } from "./public-media-service";
 import { getPublicProductDetails } from "./public-product-detail";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { storefrontCategoryBySlug } from "./storefront-taxonomy";
@@ -207,9 +207,6 @@ export async function getShopCatalogPage(input: ShopCatalogPageInput): Promise<S
   if (!assigned.length) return { products: [], total, hasMore: offset + candidateLimit < total };
 
   const assignedIds = assigned.map((record) => record.id);
-  // Source-hosted vendor media is projected in one bounded batch so card images do
-  // not fall back to one database-backed proxy request per product.
-  const sourceDetails = await getPublicProductDetails(assignedIds);
   const [stickyPrices, images] = await Promise.all([
     loadStickyPrices(assignedIds, input.visitorKey, postcode),
     approvedCatalogImages(assigned.map((record) => ({ canonicalVariantId: record.id, preferredVendorId: record.vendorId }))).catch((error) => {
@@ -222,6 +219,30 @@ export async function getShopCatalogPage(input: ShopCatalogPageInput): Promise<S
     })
   ]);
   const imageByCanonical = new Map(images.map((image) => [image.canonicalVariantId, image] as const));
+
+  // Vendor XML products commonly keep reviewed media as a trusted source URL rather
+  // than an S3 object. Resolve those URLs directly for cards before falling back to
+  // the canonical source-link projection; the generic image proxy does not know
+  // about every vendor-feed source and otherwise yields blank Guide results.
+  const sourceImageRequests = assigned
+    .filter((record) => !imageByCanonical.has(record.id))
+    .map((record) => ({ canonicalVariantId: record.id, preferredVendorId: record.vendorId }));
+  const sourceImages = sourceImageRequests.length
+    ? await approvedCatalogSourceImages(sourceImageRequests).catch((error) => {
+        console.error(JSON.stringify({
+          level: "error",
+          event: "storefront.public_source_media_projection_failed",
+          message: error instanceof Error ? error.message : String(error)
+        }));
+        return [];
+      })
+    : [];
+  const sourceImageByCanonical = new Map(sourceImages.map((image) => [image.canonicalVariantId, image] as const));
+  const sourceDetailIds = sourceImageRequests
+    .map((request) => request.canonicalVariantId)
+    .filter((id) => !sourceImageByCanonical.has(id));
+  const sourceDetails = sourceDetailIds.length ? await getPublicProductDetails(sourceDetailIds) : new Map();
+
   const departmentByCanonical = new Map(candidateRows.map((row) => [row.canonical_public_id, row.department_code ?? undefined] as const));
 
   const products: ShopCatalogCard[] = assigned.flatMap((record) => {
@@ -256,8 +277,8 @@ export async function getShopCatalogPage(input: ShopCatalogPageInput): Promise<S
       adviser: record.adviser,
       mediaId: image?.mediaId,
       mediaAlt: image?.altText,
-      previewImageSrc: image ? undefined : sourceDetails.get(record.id)?.sourceImageUrl,
-      sourceImageAvailable: Boolean(sourceDetails.get(record.id)?.sourceImageUrl),
+      previewImageSrc: image ? undefined : sourceImageByCanonical.get(record.id)?.src ?? sourceDetails.get(record.id)?.sourceImageUrl,
+      sourceImageAvailable: Boolean(sourceImageByCanonical.get(record.id)?.src ?? sourceDetails.get(record.id)?.sourceImageUrl),
       available: true,
       availableToSell: record.availableToSell,
       msrpMinor: projectedMsrpMinor > priceMinor ? projectedMsrpMinor : null
