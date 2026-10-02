@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 const STATIC_ROUTE_MATRIX = [
-  "/", "/shop", "/shops", "/shops/map", "/advice", "/ask-local", "/cart", "/checkout",
+  "/", "/shop", "/studios", "/sport-fit-studio", "/paint-and-build-studio", "/fitting-room", "/color-finder", "/shops", "/shops/map", "/advice", "/ask-local", "/cart", "/checkout",
   "/login", "/register", "/forgot-password", "/reset-password", "/verify-email", "/confirm-email-change",
   "/how-it-works", "/fairness", "/delivery-pickup", "/payments-security", "/returns-refunds",
   "/privacy", "/cookies", "/privacy-controls", "/accessibility", "/about", "/help", "/join",
