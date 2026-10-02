@@ -83,9 +83,20 @@ function seeded(index: number, salt: number): number {
   return (value >>> 0) / 4294967295;
 }
 
-function adaptedPosition(position: Vec3, compact: boolean): Vec3 {
-  if (!compact) return position;
-  return [position[0] * 0.62, position[1] * 1.08, position[2]];
+function districtPosition(studio: StudioDestination, compact: boolean): Vec3 {
+  const desktop: Readonly<Record<StudioDestination["id"], Vec3>> = {
+    "sport-fit": [-4.2, -0.65, -0.7],
+    "paint-build": [4.2, -0.65, -0.7],
+    "style": [-4.2, -0.65, -4.1],
+    "color": [4.2, -0.65, -4.1]
+  };
+  const mobile: Readonly<Record<StudioDestination["id"], Vec3>> = {
+    "sport-fit": [-2.6, -0.55, -1.0],
+    "paint-build": [2.6, -0.55, -1.0],
+    "style": [-2.6, -0.55, -3.8],
+    "color": [2.6, -0.55, -3.8]
+  };
+  return (compact ? mobile : desktop)[studio.id];
 }
 
 function createSceneData(tier: QualityTier, compact: boolean): Float32Array {
@@ -123,7 +134,7 @@ function createSceneData(tier: QualityTier, compact: boolean): Float32Array {
   line([8.8,-3.25,4.5],[8.8,4.6,-6.5],0);
 
   STUDIO_DESTINATIONS.forEach((studio, studioIndex) => {
-    const [px, py, pz] = adaptedPosition(studio.position, compact);
+    const [px, py, pz] = districtPosition(studio, compact);
     const kind = studioIndex + 1;
 
     // Every destination is a grounded architectural doorway first.
@@ -377,7 +388,7 @@ export function StudioDistrictScene() {
               : undefined;
 
           if (destination && !reducedMotionRef.current) {
-            const [dx, dy] = adaptedPosition(destination.position, width <= 720);
+            const [dx, dy] = districtPosition(destination, width <= 720);
             targetYawRef.current += ((dx > 0 ? -0.12 : 0.12) - targetYawRef.current) * 0.035;
             targetPitchRef.current += ((dy > 0 ? 0.055 : -0.055) - targetPitchRef.current) * 0.03;
           }
@@ -418,7 +429,7 @@ export function StudioDistrictScene() {
             }
 
             const projection = project(
-              studio.position,
+              districtPosition(studio, false),
               yawRef.current,
               pitchRef.current,
               cameraRef.current,
@@ -462,7 +473,7 @@ export function StudioDistrictScene() {
         setFocusedId(studio.id);
         setTravellingId(studio.id);
         cameraRef.current = 8.35;
-        const [dx, dy] = adaptedPosition(studio.position, window.innerWidth <= 720);
+        const [dx, dy] = districtPosition(studio, window.innerWidth <= 720);
         targetYawRef.current = dx > 0 ? -0.12 : 0.12;
         targetPitchRef.current = dy > 0 ? 0.055 : -0.055;
         returnTimerRef.current = setTimeout(() => {
