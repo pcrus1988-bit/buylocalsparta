@@ -6,7 +6,7 @@ import type {
   SportFitTechnicalRequirement
 } from "./sport-fit-engine.ts";
 
-export const SPORT_FIT_RULESET_VERSION = "2026-10-02.9";
+export const SPORT_FIT_RULESET_VERSION = "2026-10-02.10";
 
 export type SportFitRuleEvaluation = Readonly<{
   eligible: boolean;
