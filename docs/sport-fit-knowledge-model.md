@@ -419,3 +419,17 @@ Migration `0317_sport_fit_verified_adidas_footwear_batch5.sql` extends exact man
 - Terrex Eastrail 3 `JR4007`: hiking, trail / uneven terrain, 337.6 g reference weight and 9 mm drop.
 
 Schema 317 is another example of manufacturer evidence being allowed to **remove** an overly broad catalogue inference instead of only adding positive facts.
+
+
+## Schema 317 — exact adidas footwear reconciliation
+
+Migration `0317_sport_fit_verified_adidas_footwear_batch5.sql` adds exact first-party adidas evidence for four current Kerasiotis families while preserving fail-closed semantics:
+
+- Eclyptix 2000 `JH6911`: adidas classifies the exact style as women's Sportswear and gives usual-size guidance. The migration removes only the broad KONTA MOY taxonomy-derived `running` hint and normalizes `fit_length_profile=true_to_size`; retro-running styling is not promoted to a performance-running fact.
+- Response 2 Women `KJ1757`: supplements the earlier exact identity with manufacturer-backed running, road/trail use, daily and long-run context, neutral pronation, true-to-size guidance, 256 g reference weight, 8 mm drop and 31/23 mm heel/forefoot geometry.
+- Galaxy 7 Women `JP6592`: running, road use, short-to-mid-distance context, neutral pronation, true-to-size guidance, 278 g reference weight, 6 mm drop and 34/28 mm heel/forefoot geometry.
+- Terrex Eastrail 3 `JR4007`: hiking, trail use, 337.6 g reference weight and 9 mm drop.
+
+The migration requires every manufacturer style code to resolve to exactly one active canonical family before publishing facts. Cloudfoam/EVA comfort language remains evidence only; it is not converted into a normalized cushioning level without an explicit governed manufacturer classification.
+
+The runtime schema gate is 317.
