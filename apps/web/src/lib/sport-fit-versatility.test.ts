@@ -149,3 +149,52 @@ test("recommendation ranking promotes governed versatility before price", () => 
 
   assert.equal(result.primary?.id, "broad-more-expensive");
 });
+
+
+test("racket-sports classification survives the tennis candidate gate", () => {
+  const shoe = product({
+    id: "broad-racket-shoe",
+    title: "Court Control Shoe",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["racket_sports"],
+      surfaces: ["court_hard"],
+      useCases: ["tennis_training"]
+    }
+  });
+
+  const result = buildSportFitRecommendation([shoe], {
+    activity: "tennis",
+    audience: "men",
+    surface: "court_hard",
+    useCase: "tennis_training"
+  });
+
+  assert.equal(result.primary?.id, "broad-racket-shoe");
+});
+
+test("team-sports classification survives the basketball candidate gate", () => {
+  const shoe = product({
+    id: "broad-team-shoe",
+    title: "Indoor Team Court Shoe",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["team_sports"],
+      surfaces: ["court_indoor"],
+      useCases: ["basketball_training"]
+    }
+  });
+
+  const result = buildSportFitRecommendation([shoe], {
+    activity: "basketball",
+    audience: "men",
+    surface: "court_indoor",
+    useCase: "basketball_training"
+  });
+
+  assert.equal(result.primary?.id, "broad-team-shoe");
+});
