@@ -5,6 +5,45 @@
 
 BEGIN;
 
+
+
+-- Generic footwear is intentionally able to represent walking, gym, football and
+-- running-derived models. Migration 0301 registered the broad Sport & Fit contract
+-- but omitted the shoe-geometry fields used by the verified evidence below.
+-- Extend the governed Product Type contract before attaching those facts; do not
+-- bypass bls_private.validate_product_attribute_value().
+WITH geometry_rule(attribute_code,filterable,sort_order) AS (
+  VALUES
+    ('heel_to_toe_drop_mm'::text,true,141),
+    ('heel_stack_height_mm'::text,false,142),
+    ('forefoot_stack_height_mm'::text,false,143),
+    ('plate_type'::text,true,195)
+)
+INSERT INTO public.product_type_attributes(
+  product_type_id,attribute_id,requirement_level,value_level,
+  filterable,searchable,customer_visible,comparable,
+  variant_defining,allow_multiple,sort_order,variant_axis_order
+)
+SELECT
+  pt.id,ad.id,'optional','family',
+  r.filterable,false,true,true,
+  false,false,r.sort_order,NULL
+FROM geometry_rule r
+JOIN public.product_types pt ON pt.code='footwear'
+JOIN public.attribute_definitions ad ON ad.code=r.attribute_code
+ON CONFLICT (product_type_id,attribute_id) DO UPDATE SET
+  requirement_level=EXCLUDED.requirement_level,
+  value_level=EXCLUDED.value_level,
+  filterable=EXCLUDED.filterable,
+  searchable=EXCLUDED.searchable,
+  customer_visible=EXCLUDED.customer_visible,
+  comparable=EXCLUDED.comparable,
+  variant_defining=false,
+  allow_multiple=false,
+  sort_order=EXCLUDED.sort_order,
+  variant_axis_order=NULL,
+  updated_at=now();
+
 CREATE TEMP TABLE _sport_304_value_seed (
   attribute_code text NOT NULL,
   value_code text NOT NULL,
