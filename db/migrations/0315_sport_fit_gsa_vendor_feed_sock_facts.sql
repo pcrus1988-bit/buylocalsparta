@@ -264,7 +264,7 @@ SELECT
   ad.id,
   f.position,
   av.id,
-  'vendor',
+  'vendor_submission',
   CASE
     WHEN f.attribute_code='sock_height' THEN 0.95000
     ELSE 0.90000
@@ -278,7 +278,7 @@ ON CONFLICT (family_id,attribute_id,position) DO UPDATE SET
   number_value=NULL,
   boolean_value=NULL,
   dimension_value=NULL,
-  source='vendor',
+  source='vendor_submission',
   confidence=EXCLUDED.confidence,
   updated_at=now();
 
@@ -341,7 +341,7 @@ SELECT
   ad.id,
   0,
   f.bool_value,
-  'vendor',
+  'vendor_submission',
   0.90000
 FROM boolean_facts f
 JOIN public.attribute_definitions ad ON ad.code=f.attribute_code
@@ -351,7 +351,7 @@ ON CONFLICT (family_id,attribute_id,position) DO UPDATE SET
   number_value=NULL,
   boolean_value=EXCLUDED.boolean_value,
   dimension_value=NULL,
-  source='vendor',
+  source='vendor_submission',
   confidence=EXCLUDED.confidence,
   updated_at=now();
 
