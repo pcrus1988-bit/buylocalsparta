@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { STUDIO_DESTINATIONS, type StudioDestination } from "../lib/studio-registry";
+import { consumeStudioTravel, markStudioTravel } from "../lib/studio-travel";
 import styles from "./StudioHubUniverse.module.css";
 
 type QualityTier = "high" | "balanced" | "lite";
@@ -247,6 +248,7 @@ export function StudioHubUniverse() {
   const portalRefs = useRef(new Map<string, HTMLAnchorElement>());
   const animationRef = useRef<number | null>(null);
   const navigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const returnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const yawRef = useRef(0.08);
   const pitchRef = useRef(-0.035);
   const targetYawRef = useRef(0.08);
@@ -433,8 +435,27 @@ export function StudioHubUniverse() {
     };
   }, [simpleMode]);
 
-  useEffect(() => () => {
-    if (navigationTimerRef.current) clearTimeout(navigationTimerRef.current);
+  useEffect(() => {
+    const marker = consumeStudioTravel("hub");
+    if (marker?.from && marker.from !== "hub") {
+      const studio = STUDIO_DESTINATIONS.find((item) => item.id === marker.from);
+      if (studio) {
+        setFocusedId(studio.id);
+        setTravellingId(studio.id);
+        cameraRef.current = 8.35;
+        const [dx, dy] = adaptedPosition(studio.position, window.innerWidth <= 720);
+        targetYawRef.current = dx > 0 ? -0.12 : 0.12;
+        targetPitchRef.current = dy > 0 ? 0.055 : -0.055;
+        returnTimerRef.current = setTimeout(() => {
+          setTravellingId(undefined);
+          setFocusedId(undefined);
+        }, 620);
+      }
+    }
+    return () => {
+      if (navigationTimerRef.current) clearTimeout(navigationTimerRef.current);
+      if (returnTimerRef.current) clearTimeout(returnTimerRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -462,6 +483,7 @@ export function StudioHubUniverse() {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
     if (simpleMode || reducedMotion || !webglAvailable) return;
     event.preventDefault();
+    markStudioTravel("hub", studio.id);
     setFocusedId(studio.id);
     setTravellingId(studio.id);
     navigationTimerRef.current = setTimeout(() => router.push(studio.href), 520);
