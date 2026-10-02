@@ -51,12 +51,19 @@ const MARKS: Readonly<Record<SearchDiscoveryKind, string>> = {
   product: "•"
 };
 
+const SEARCH_DISCOVERY_CACHE_TTL_MS = 20_000;
+const searchDiscoveryCache = new Map<string, Readonly<{
+  expiresAt: number;
+  payload: SearchDiscoveryResponse;
+}>>();
+
 export function useSearchDiscovery(query: string, limit = 12): SearchDiscoveryState {
   const [items, setItems] = useState<readonly SearchDiscoveryItem[]>([]);
   const [hasResults, setHasResults] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const normalized = query.trim();
+  const cacheKey = normalized.toLocaleLowerCase("el");
 
   useEffect(() => {
     if (normalized.length < 2) {
@@ -66,6 +73,16 @@ export function useSearchDiscovery(query: string, limit = 12): SearchDiscoverySt
       setError(false);
       return;
     }
+
+    const cached = searchDiscoveryCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      setItems(dedupeSuggestions(cached.payload.items ?? []).slice(0, Math.max(4, Math.min(20, limit))));
+      setHasResults(typeof cached.payload.hasResults === "boolean" ? cached.payload.hasResults : null);
+      setLoading(false);
+      setError(false);
+      return;
+    }
+    if (cached) searchDiscoveryCache.delete(cacheKey);
 
     const controller = new AbortController();
     setLoading(true);
@@ -78,6 +95,14 @@ export function useSearchDiscovery(query: string, limit = 12): SearchDiscoverySt
         });
         if (!response.ok) throw new Error("Search discovery unavailable");
         const payload = await response.json() as SearchDiscoveryResponse;
+        searchDiscoveryCache.set(cacheKey, {
+          expiresAt: Date.now() + SEARCH_DISCOVERY_CACHE_TTL_MS,
+          payload
+        });
+        if (searchDiscoveryCache.size > 100) {
+          const oldestKey = searchDiscoveryCache.keys().next().value;
+          if (oldestKey) searchDiscoveryCache.delete(oldestKey);
+        }
         setItems(dedupeSuggestions(payload.items ?? []).slice(0, Math.max(4, Math.min(20, limit))));
         setHasResults(typeof payload.hasResults === "boolean" ? payload.hasResults : null);
       } catch (caught) {
@@ -88,13 +113,13 @@ export function useSearchDiscovery(query: string, limit = 12): SearchDiscoverySt
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
-    }, 180);
+    }, 70);
 
     return () => {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [limit, normalized]);
+  }, [cacheKey, limit, normalized]);
 
   return { items, hasResults, loading, error };
 }
@@ -114,12 +139,13 @@ export function SearchDiscoveryPanel({
     items: items.filter((item) => group.kinds.includes(item.kind))
   })).filter((group) => group.items.length > 0), [items]);
 
-  if (!open || query.trim().length < 2 || (!loading && grouped.length === 0)) return null;
+  if (!open || query.trim().length < 2) return null;
 
   const panelClass = [styles.panel, placement === "above" ? styles.above : styles.below, styles[surface]].filter(Boolean).join(" ");
 
   return <div id={id} className={panelClass} aria-label="Προτάσεις αναζήτησης">
     {loading && grouped.length === 0 ? <div className={styles.loading}>Αναζήτηση στην τοπική αγορά…</div> : null}
+    {!loading && grouped.length === 0 ? <div className={styles.loading}>Δεν βρέθηκαν προτάσεις για αυτή την αναζήτηση.</div> : null}
     {grouped.map((group) => <section className={styles.group} key={group.label}>
       <span className={styles.groupTitle}>{group.label}</span>
       {group.items.map((item) => <a
