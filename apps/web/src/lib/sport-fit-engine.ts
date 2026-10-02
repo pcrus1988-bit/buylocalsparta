@@ -1,0 +1,376 @@
+export const SPORT_ACTIVITIES = ["running", "walking", "gym", "football"] as const;
+export type SportActivity = (typeof SPORT_ACTIVITIES)[number];
+
+export const SPORT_AUDIENCES = ["men", "women", "kids"] as const;
+export type SportAudience = (typeof SPORT_AUDIENCES)[number];
+
+export const SPORT_SURFACES = ["road", "treadmill", "mixed", "trail", "indoor", "grass", "artificial"] as const;
+export type SportSurface = (typeof SPORT_SURFACES)[number];
+
+export const SPORT_FREQUENCIES = ["light", "regular", "high"] as const;
+export type SportFrequency = (typeof SPORT_FREQUENCIES)[number];
+
+export const SPORT_DISTANCES = ["short", "medium", "long"] as const;
+export type SportDistance = (typeof SPORT_DISTANCES)[number];
+
+export const SPORT_PRIORITIES = ["comfort", "cushioning", "lightweight", "stability", "versatility"] as const;
+export type SportPriority = (typeof SPORT_PRIORITIES)[number];
+
+export type SportProductRole = "footwear" | "socks" | "top" | "bottom" | "layer" | "accessory" | "other";
+
+export type SportFitAnswers = Readonly<{
+  activity: SportActivity;
+  audience: SportAudience;
+  size?: string;
+  budgetMinor?: number;
+  surface?: SportSurface;
+  frequency?: SportFrequency;
+  distance?: SportDistance;
+  priority?: SportPriority;
+}>;
+
+export type SportFitProduct = Readonly<{
+  id: string;
+  slug: string;
+  title: string;
+  priceMinor: number;
+  categoryCode: string;
+  categoryLabel?: string;
+  brand?: string;
+  color?: string;
+  sizes: readonly string[];
+  fit?: string;
+  description?: string;
+  attributes?: Readonly<Record<string, string>>;
+  vendorId?: string;
+  vendorName?: string;
+  mediaId?: string;
+  mediaAlt?: string;
+  previewImageSrc?: string;
+  available: boolean;
+  availableToSell: number;
+}>;
+
+export type SportFitScoredProduct = SportFitProduct & Readonly<{
+  role: SportProductRole;
+  score: number;
+  reasons: readonly string[];
+  matchedSize?: string;
+}>;
+
+export type SportFitRecommendation = Readonly<{
+  primary?: SportFitScoredProduct;
+  alternatives: readonly SportFitScoredProduct[];
+  kit: readonly SportFitScoredProduct[];
+  ranked: readonly SportFitScoredProduct[];
+}>;
+
+const SIZE_TRAILER = /\s*(?:[-–—]\s*)?(?:EU\s*)?(?:\d{1,2}(?:[.,]\d)?|3XS|2XS|XS|S|M|L|XL|2XL|3XL|4XL|5XL)\s*$/iu;
+
+function normalize(value: string | undefined): string {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("el-GR")
+    .replace(/[^\p{L}\p{N}.]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function hasAny(text: string, terms: readonly string[]): boolean {
+  return terms.some((term) => text.includes(normalize(term)));
+}
+
+function exactSize(product: SportFitProduct, requestedSize: string | undefined): string | undefined {
+  const target = normalize(requestedSize).replace(/^eu\s*/, "");
+  if (!target) return undefined;
+  return product.sizes.find((size) => normalize(size).replace(/^eu\s*/, "") === target);
+}
+
+function productText(product: SportFitProduct): string {
+  return normalize([
+    product.title,
+    product.categoryCode,
+    product.categoryLabel,
+    product.brand,
+    product.color,
+    product.fit,
+    product.description,
+    ...Object.entries(product.attributes ?? {}).flatMap(([key, value]) => [key, value])
+  ].filter(Boolean).join(" "));
+}
+
+export function sportProductRole(product: SportFitProduct): SportProductRole {
+  const category = normalize(product.categoryCode);
+  const text = productText(product);
+
+  if (
+    category.includes("running shoes")
+    || category.includes("sneakers")
+    || hasAny(text, ["παπουτσι", "shoe", "sneaker", "trainer", "football boot", "ποδοσφαιρικο"])
+  ) return "footwear";
+  if (category.includes("socks hosiery") || hasAny(text, ["καλτσ", "sock"])) return "socks";
+  if (
+    category.includes("shorts")
+    || category.includes("trousers")
+    || hasAny(text, ["short", "σορτ", "κολαν", "legging", "παντελον", "track pant"])
+  ) return "bottom";
+  if (
+    category.includes("tshirts")
+    || category.includes("tops")
+    || hasAny(text, ["t shirt", "tshirt", "μπλουζ", "φανελ", "jersey"])
+  ) return "top";
+  if (
+    category.includes("activewear")
+    || category.includes("sports clothing")
+    || hasAny(text, ["ζακετ", "fleece", "hood", "jacket", "φουτερ"])
+  ) return "layer";
+  if (
+    category.includes("fitness accessories")
+    || category.includes("team sports equipment")
+    || hasAny(text, ["μπαλα", "ball", "bag", "τσαντ", "bottle", "παγουρ", "glove"])
+  ) return "accessory";
+  return "other";
+}
+
+function activityScore(product: SportFitProduct, answers: SportFitAnswers, text: string, role: SportProductRole): number {
+  const category = normalize(product.categoryCode);
+  const runningSignal = category.includes("running shoes") || hasAny(text, ["running", "run ", "δρομ", "τρεξ", "runner"]);
+  const footballSignal = category.includes("team sports equipment") || hasAny(text, ["football", "soccer", "futsal", "ποδοσφ", "turf", "tf ", "fg ", "ag "]);
+  const gymSignal = category.includes("fitness accessories") || hasAny(text, ["training", "workout", "fitness", "gym", "aeroready", "dry fit", "dri fit"]);
+  const outdoorSignal = hasAny(text, ["trail", "terrex", "hiking", "outdoor", "πεζοπορ"]);
+
+  if (answers.activity === "running") {
+    if (runningSignal && role === "footwear") return 40;
+    if (role === "footwear") return 24;
+    if (role === "socks") return 22;
+    if (role === "top" || role === "bottom" || role === "layer") return gymSignal ? 20 : 13;
+    if (role === "accessory") return 10;
+    return outdoorSignal ? 8 : 2;
+  }
+
+  if (answers.activity === "walking") {
+    if (role === "footwear" && (runningSignal || category.includes("sneakers"))) return 36;
+    if (role === "footwear") return 24;
+    if (role === "socks") return 22;
+    if (role === "top" || role === "bottom" || role === "layer") return 14;
+    if (role === "accessory") return outdoorSignal ? 14 : 8;
+    return 2;
+  }
+
+  if (answers.activity === "gym") {
+    if (gymSignal && role === "accessory") return 34;
+    if (gymSignal && (role === "top" || role === "bottom" || role === "layer")) return 32;
+    if (role === "footwear") return runningSignal ? 24 : 28;
+    if (role === "top" || role === "bottom" || role === "layer") return 22;
+    if (role === "socks") return 18;
+    return role === "accessory" ? 24 : 2;
+  }
+
+  if (footballSignal && role === "footwear") return 42;
+  if (footballSignal) return 36;
+  if (role === "socks") return 30;
+  if (role === "top" || role === "bottom" || role === "layer") return 22;
+  if (role === "footwear") return 12;
+  return role === "accessory" ? 18 : 2;
+}
+
+function surfaceScore(product: SportFitProduct, surface: SportSurface | undefined, text: string, role: SportProductRole): number {
+  if (!surface) return 4;
+  const trail = hasAny(text, ["trail", "terrex", "hiking", "outdoor", "ορειν", "πεζοπορ"]);
+  const indoor = hasAny(text, ["indoor", "court", "training", "gym", "futsal"]);
+  const artificial = hasAny(text, ["turf", "artificial", "tf ", "ag "]);
+  const grass = hasAny(text, ["firm ground", "fg ", "grass", "γρασιδ"]);
+
+  if (surface === "trail") return trail ? 14 : role === "footwear" ? 2 : 5;
+  if (surface === "treadmill" || surface === "indoor") return indoor ? 12 : role === "footwear" ? 8 : 5;
+  if (surface === "artificial") return artificial ? 14 : role === "footwear" ? 3 : 5;
+  if (surface === "grass") return grass ? 14 : role === "footwear" ? 3 : 5;
+  if (surface === "road") return trail ? 2 : role === "footwear" ? 10 : 5;
+  return role === "footwear" ? 8 : 5;
+}
+
+function priorityScore(priority: SportPriority | undefined, text: string): number {
+  if (!priority) return 4;
+  if (priority === "comfort") {
+    return hasAny(text, ["comfort", "soft", "foam", "cloud", "gel", "cush", "αναπαυ", "ανεσ"]) ? 12 : 5;
+  }
+  if (priority === "cushioning") {
+    return hasAny(text, ["cush", "foam", "gel", "boost", "air", "cloud", "απορροφ"]) ? 12 : 4;
+  }
+  if (priority === "lightweight") {
+    return hasAny(text, ["lightweight", "light ", "ultra light", "speed", "adizero", "ελαφρ"]) ? 12 : 4;
+  }
+  if (priority === "stability") {
+    return hasAny(text, ["stability", "stable", "support", "control", "στηριξ", "σταθερ"]) ? 12 : 4;
+  }
+  return 8;
+}
+
+function distanceScore(distance: SportDistance | undefined, text: string, role: SportProductRole): number {
+  if (!distance) return 3;
+  if (role !== "footwear") return 4;
+  const cushioning = hasAny(text, ["cush", "foam", "gel", "boost", "cloud", "απορροφ"]);
+  const speed = hasAny(text, ["speed", "race", "racing", "adizero", "lightweight", "ελαφρ"]);
+  if (distance === "long") return cushioning ? 10 : 6;
+  if (distance === "short") return speed ? 9 : 6;
+  return 8;
+}
+
+function frequencyScore(frequency: SportFrequency | undefined, text: string): number {
+  if (!frequency) return 3;
+  if (frequency === "high") return hasAny(text, ["performance", "training", "aeroready", "dry fit", "dri fit", "technical"]) ? 8 : 5;
+  if (frequency === "regular") return 6;
+  return 5;
+}
+
+function budgetScore(product: SportFitProduct, budgetMinor: number | undefined): number {
+  if (!budgetMinor) return 4;
+  if (product.priceMinor <= budgetMinor) return 8;
+  if (product.priceMinor <= Math.round(budgetMinor * 1.1)) return 2;
+  return -10;
+}
+
+function sizeScore(product: SportFitProduct, requestedSize: string | undefined): Readonly<{ score: number; matchedSize?: string }> {
+  if (!normalize(requestedSize)) return { score: 5 };
+  const match = exactSize(product, requestedSize);
+  if (match) return { score: 15, matchedSize: match };
+  if (product.sizes.length > 0) return { score: -30 };
+  return { score: -5 };
+}
+
+function reasonsFor(
+  product: SportFitProduct,
+  answers: SportFitAnswers,
+  role: SportProductRole,
+  text: string,
+  matchedSize: string | undefined
+): readonly string[] {
+  const reasons: string[] = [];
+  const category = normalize(product.categoryCode);
+
+  if (role === "footwear" && category.includes("running shoes")) reasons.push("Κατηγορία παπουτσιού τρεξίματος");
+  else if (role === "footwear") reasons.push("Παπούτσι που ταιριάζει στη δραστηριότητα");
+  else if (role === "socks") reasons.push("Συμπληρώνει το σετ ως κάλτσα");
+  else if (role === "top" || role === "bottom" || role === "layer") reasons.push("Αθλητικό ένδυμα για το προτεινόμενο σετ");
+  else if (role === "accessory") reasons.push("Χρήσιμο συμπλήρωμα για τη δραστηριότητα");
+
+  if (matchedSize) reasons.push("Διαθέσιμο στο μέγεθος " + matchedSize);
+  if (answers.budgetMinor && product.priceMinor <= answers.budgetMinor) reasons.push("Εντός του budget σου");
+  if (product.available && product.availableToSell > 0) reasons.push("Διαθέσιμο τώρα");
+
+  if (answers.surface === "trail" && hasAny(text, ["trail", "terrex", "hiking", "outdoor"])) reasons.push("Έχει σαφή ένδειξη trail / outdoor στον κατάλογο");
+  if ((answers.surface === "artificial" || answers.surface === "grass") && hasAny(text, ["football", "soccer", "futsal", "turf", "tf ", "fg ", "ag "])) reasons.push("Έχει σαφή ένδειξη ποδοσφαιρικής χρήσης στον κατάλογο");
+
+  if (answers.priority === "comfort" && hasAny(text, ["comfort", "soft", "foam", "gel", "cloud"])) reasons.push("Ο κατάλογος περιέχει ένδειξη άνεσης / μαλακής αίσθησης");
+  if (answers.priority === "cushioning" && hasAny(text, ["cush", "foam", "gel", "boost", "cloud", "απορροφ"])) reasons.push("Ο κατάλογος περιέχει ένδειξη απορρόφησης / cushioning");
+  if (answers.priority === "lightweight" && hasAny(text, ["lightweight", "light ", "speed", "adizero", "ελαφρ"])) reasons.push("Ο κατάλογος περιέχει ένδειξη ελαφριάς / γρήγορης κατασκευής");
+  if (answers.priority === "stability" && hasAny(text, ["stability", "stable", "support", "control", "στηριξ", "σταθερ"])) reasons.push("Ο κατάλογος περιέχει ένδειξη στήριξης / σταθερότητας");
+
+  return reasons.slice(0, 4);
+}
+
+export function scoreSportFitProduct(product: SportFitProduct, answers: SportFitAnswers): SportFitScoredProduct {
+  const text = productText(product);
+  const role = sportProductRole(product);
+  const size = sizeScore(product, answers.size);
+  let score = 5;
+
+  score += activityScore(product, answers, text, role);
+  score += surfaceScore(product, answers.surface, text, role);
+  score += priorityScore(answers.priority, text);
+  score += distanceScore(answers.distance, text, role);
+  score += frequencyScore(answers.frequency, text);
+  score += budgetScore(product, answers.budgetMinor);
+  score += size.score;
+  score += product.available && product.availableToSell > 0 ? 10 : -40;
+
+  if ((answers.activity === "running" || answers.activity === "walking" || answers.activity === "football") && role === "footwear") score += 8;
+  if (answers.activity === "gym" && (role === "footwear" || role === "top" || role === "bottom" || role === "accessory")) score += 6;
+
+  return {
+    ...product,
+    role,
+    score: clampScore(score),
+    reasons: reasonsFor(product, answers, role, text, size.matchedSize),
+    matchedSize: size.matchedSize
+  };
+}
+
+function familyKey(product: SportFitScoredProduct): string {
+  return normalize(product.title.replace(SIZE_TRAILER, "")) || product.id;
+}
+
+function uniqueRanked(products: readonly SportFitScoredProduct[]): readonly SportFitScoredProduct[] {
+  const seen = new Set<string>();
+  const output: SportFitScoredProduct[] = [];
+  for (const product of products) {
+    const key = familyKey(product);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(product);
+  }
+  return output;
+}
+
+export function buildSportFitRecommendation(
+  products: readonly SportFitProduct[],
+  answers: SportFitAnswers
+): SportFitRecommendation {
+  const scored = products
+    .filter((product) => product.available && product.availableToSell > 0 && product.priceMinor > 0)
+    .map((product) => scoreSportFitProduct(product, answers))
+    .filter((product) => product.score >= 20)
+    .sort((left, right) => right.score - left.score || left.priceMinor - right.priceMinor || left.title.localeCompare(right.title, "el"));
+
+  const ranked = uniqueRanked(scored);
+  const footwear = ranked.filter((product) => product.role === "footwear");
+  const primary = footwear[0] ?? ranked[0];
+  const alternatives = footwear.filter((product) => product.id !== primary?.id).slice(0, 3);
+
+  const kit: SportFitScoredProduct[] = [];
+  const usedIds = new Set(primary ? [primary.id] : []);
+  for (const role of ["socks", "top", "bottom", "layer", "accessory"] as const) {
+    const item = ranked.find((product) => product.role === role && !usedIds.has(product.id) && product.score >= 35);
+    if (!item) continue;
+    usedIds.add(item.id);
+    kit.push(item);
+  }
+
+  return {
+    primary,
+    alternatives,
+    kit,
+    ranked: ranked.slice(0, 24)
+  };
+}
+
+function enumValue<T extends readonly string[]>(values: T, value: unknown, fallback: T[number]): T[number] {
+  return typeof value === "string" && values.includes(value) ? value as T[number] : fallback;
+}
+
+function optionalEnumValue<T extends readonly string[]>(values: T, value: unknown): T[number] | undefined {
+  return typeof value === "string" && values.includes(value) ? value as T[number] : undefined;
+}
+
+export function parseSportFitAnswers(input: unknown): SportFitAnswers {
+  const value = input && typeof input === "object" && !Array.isArray(input) ? input as Record<string, unknown> : {};
+  const size = typeof value.size === "string" ? value.size.trim().slice(0, 24) : "";
+  const parsedBudget = Number(value.budgetMinor);
+  const budgetMinor = Number.isSafeInteger(parsedBudget) && parsedBudget > 0 ? Math.min(parsedBudget, 500_000) : undefined;
+
+  return {
+    activity: enumValue(SPORT_ACTIVITIES, value.activity, "running"),
+    audience: enumValue(SPORT_AUDIENCES, value.audience, "men"),
+    size: size || undefined,
+    budgetMinor,
+    surface: optionalEnumValue(SPORT_SURFACES, value.surface),
+    frequency: optionalEnumValue(SPORT_FREQUENCIES, value.frequency),
+    distance: optionalEnumValue(SPORT_DISTANCES, value.distance),
+    priority: optionalEnumValue(SPORT_PRIORITIES, value.priority)
+  };
+}
