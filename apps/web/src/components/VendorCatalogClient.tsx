@@ -312,7 +312,7 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
       </div></details>}
     </div></section>
 
-    <section className="shell vendor-section">
+    <section className="shell vendor-section" id="pending-products">
       <WorkspaceSectionHeading eyebrow="Νέα προϊόντα" title="Προϊόντα που περιμένουν ολοκλήρωση" note="Εδώ βλέπεις μόνο προϊόντα που χρειάζονται ακόμη αναγνώριση, έλεγχο ή διόρθωση πριν ολοκληρωθεί η καταχώρησή τους." />
       <WorkspaceHowItWorks>
         <p><strong>Χρειάζεται υποβολή:</strong> το προϊόν δεν βρέθηκε στον υπάρχοντα κατάλογο και αποθηκεύτηκε ως νέο για έλεγχο.</p>
