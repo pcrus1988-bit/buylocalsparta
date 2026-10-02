@@ -417,43 +417,78 @@ export async function saveVendorProductFeed(
         "FROM vendor_product_submissions s WHERE i.feed_id=$1::uuid AND i.submission_id=s.id AND s.canonical_variant_id IS NOT NULL"
       ), [feedUuid]);
 
-      // Keep variant metadata synchronized even after a submission is approved.
-      // Approved submissions are otherwise immutable for commercial/catalogue fields,
-      // but their source identity should still reflect the XML-owned size/color facts.
+      // Feed-owned size/color facts are a replacement projection, not an
+      // append-only merge. This lets a later XML sync remove a stale size/color
+      // while preserving unrelated submission identity attributes.
       const attributeUpdatedSubmissions = await tx.query<SqlRow>(sql(
-        "UPDATE vendor_product_submissions s SET",
-        "source_identity=COALESCE(s.source_identity,'{}'::jsonb)||jsonb_build_object('attributes',",
-        "COALESCE(s.source_identity->'attributes','{}'::jsonb)||(i.source_payload->'variantAttributes')),updated_at=now()",
-        "FROM vendor_product_feed_items i WHERE i.feed_id=$1::uuid AND i.state='present' AND i.submission_id=s.id",
-        "AND s.vendor_id=$2::uuid",
-        "AND jsonb_typeof(i.source_payload->'variantAttributes')='object' AND i.source_payload->'variantAttributes'<>'{}'::jsonb",
-        "AND NOT (COALESCE(s.source_identity->'attributes','{}'::jsonb) @> (i.source_payload->'variantAttributes')) RETURNING s.id"
+        "WITH projected AS (",
+        "SELECT s.id,COALESCE(s.source_identity,'{}'::jsonb)||jsonb_build_object('attributes',",
+        "(COALESCE(s.source_identity->'attributes','{}'::jsonb)-'size'-'sizes_observed'-'color')||",
+        "CASE WHEN jsonb_typeof(i.source_payload->'variantAttributes')='object' THEN i.source_payload->'variantAttributes' ELSE '{}'::jsonb END",
+        ") AS next_identity",
+        "FROM vendor_product_feed_items i JOIN vendor_product_submissions s ON s.id=i.submission_id",
+        "WHERE i.feed_id=$1::uuid AND i.state='present' AND s.vendor_id=$2::uuid",
+        ")",
+        "UPDATE vendor_product_submissions s SET source_identity=p.next_identity,updated_at=now()",
+        "FROM projected p WHERE s.id=p.id AND COALESCE(s.source_identity,'{}'::jsonb) IS DISTINCT FROM p.next_identity RETURNING s.id"
       ), [feedUuid, vendorUuid]);
 
+      // The XML is authoritative for size/color only when this canonical is not
+      // shared by another active vendor. Shared canonicals receive missing feed
+      // facts but retain established global attributes from the other merchant.
       await tx.query(sql(
-        "UPDATE canonical_variants cv SET variant_attributes=COALESCE(cv.variant_attributes,'{}'::jsonb)||i.source_payload->'variantAttributes',updated_at=now()",
-        "FROM vendor_product_feed_items i WHERE i.feed_id=$1::uuid AND i.state='present' AND i.canonical_variant_id=cv.id",
-        "AND jsonb_typeof(i.source_payload->'variantAttributes')='object' AND i.source_payload->'variantAttributes'<>'{}'::jsonb",
-        "AND COALESCE(cv.variant_attributes,'{}'::jsonb) IS DISTINCT FROM COALESCE(cv.variant_attributes,'{}'::jsonb)||i.source_payload->'variantAttributes'"
-      ), [feedUuid]);
-
-      await tx.query(sql(
-        "WITH eligible AS (",
-        "SELECT i.canonical_variant_id,i.source_payload->>'itemGroupId' AS group_id,cv.category_id,cv.family_id,cv.created_at",
+        "WITH projected AS (",
+        "SELECT cv.id,CASE WHEN NOT EXISTS (",
+        "SELECT 1 FROM vendor_offers other WHERE other.canonical_variant_id=cv.id AND other.vendor_id<>$2::uuid",
+        "AND other.status NOT IN ('archived','suppressed')",
+        ") THEN",
+        "(COALESCE(cv.variant_attributes,'{}'::jsonb)-'size'-'sizes_observed'-'color')||",
+        "CASE WHEN jsonb_typeof(i.source_payload->'variantAttributes')='object' THEN i.source_payload->'variantAttributes' ELSE '{}'::jsonb END",
+        "ELSE",
+        "CASE WHEN jsonb_typeof(i.source_payload->'variantAttributes')='object' THEN i.source_payload->'variantAttributes' ELSE '{}'::jsonb END||COALESCE(cv.variant_attributes,'{}'::jsonb)",
+        "END AS next_attributes",
         "FROM vendor_product_feed_items i JOIN canonical_variants cv ON cv.id=i.canonical_variant_id",
         "WHERE i.feed_id=$1::uuid AND i.state='present' AND i.canonical_variant_id IS NOT NULL",
-        "AND NULLIF(i.source_payload->>'itemGroupId','') IS NOT NULL",
-        "AND jsonb_typeof(i.source_payload->'variantAttributes')='object' AND i.source_payload->'variantAttributes'<>'{}'::jsonb",
+        ")",
+        "UPDATE canonical_variants cv SET variant_attributes=p.next_attributes,updated_at=now()",
+        "FROM projected p WHERE cv.id=p.id AND COALESCE(cv.variant_attributes,'{}'::jsonb) IS DISTINCT FROM p.next_attributes"
+      ), [feedUuid, vendorUuid]);
+
+      // item_group_id is the supplier's family identity. Include attribute-less
+      // siblings (for example a temporarily unsized shoe row), but never detach a
+      // canonical from an established family that also contains products outside
+      // this exact current feed group. This makes repeated syncs convergent without
+      // letting a bad group id rewrite unrelated catalogue families.
+      await tx.query(sql(
+        "WITH eligible AS (",
+        "SELECT i.canonical_variant_id,btrim(i.source_payload->>'itemGroupId') AS group_id,cv.category_id,cv.family_id,cv.created_at",
+        "FROM vendor_product_feed_items i JOIN canonical_variants cv ON cv.id=i.canonical_variant_id",
+        "WHERE i.feed_id=$1::uuid AND i.state='present' AND i.canonical_variant_id IS NOT NULL",
+        "AND NULLIF(btrim(i.source_payload->>'itemGroupId'),'') IS NOT NULL",
         "), grouped AS (",
         "SELECT group_id,category_id FROM eligible GROUP BY group_id,category_id HAVING count(*)>1",
-        "), targets AS (",
-        "SELECT DISTINCT ON (e.group_id,e.category_id) e.group_id,e.category_id,e.family_id AS target_family_id",
+        "), family_counts AS (",
+        "SELECT e.group_id,e.category_id,e.family_id,count(*) AS source_members,min(e.created_at) AS oldest_member",
         "FROM eligible e JOIN grouped g USING(group_id,category_id)",
-        "WHERE e.family_id IS NOT NULL ORDER BY e.group_id,e.category_id,e.created_at,e.canonical_variant_id",
-        ")",
-        "UPDATE canonical_variants cv SET family_id=t.target_family_id,updated_at=now()",
+        "WHERE e.family_id IS NOT NULL GROUP BY e.group_id,e.category_id,e.family_id",
+        "), targets AS (",
+        "SELECT DISTINCT ON (group_id,category_id) group_id,category_id,family_id AS target_family_id",
+        "FROM family_counts ORDER BY group_id,category_id,source_members DESC,oldest_member,family_id",
+        "), safe_moves AS (",
+        "SELECT e.canonical_variant_id,t.target_family_id",
         "FROM eligible e JOIN targets t ON t.group_id=e.group_id AND t.category_id=e.category_id",
-        "WHERE cv.id=e.canonical_variant_id AND cv.family_id IS DISTINCT FROM t.target_family_id"
+        "WHERE e.family_id IS DISTINCT FROM t.target_family_id",
+        "AND (e.family_id IS NULL OR NOT EXISTS (",
+        "SELECT 1 FROM canonical_variants existing",
+        "WHERE existing.family_id=e.family_id AND existing.id<>e.canonical_variant_id AND existing.active=true",
+        "AND NOT EXISTS (",
+        "SELECT 1 FROM eligible same_group WHERE same_group.canonical_variant_id=existing.id",
+        "AND same_group.group_id=e.group_id AND same_group.category_id=e.category_id",
+        ")",
+        "))",
+        ")",
+        "UPDATE canonical_variants cv SET family_id=s.target_family_id,updated_at=now()",
+        "FROM safe_moves s WHERE cv.id=s.canonical_variant_id"
       ), [feedUuid]);
 
       const runStatus = prepared.preview.errorRows > 0 ? "partial" : "completed";
