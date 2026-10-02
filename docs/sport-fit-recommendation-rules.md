@@ -1,6 +1,6 @@
 # KONTA MOY Sport & Fit recommendation rules
 
-Ruleset: `2026-10-02.1`
+Ruleset: `2026-10-02.3`
 
 Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. They do not require an external recommendation API and they do not infer missing technical product facts.
 
@@ -9,9 +9,10 @@ Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. T
 1. **Commercial eligibility** — product is active, priced, visible and has fresh positive stock.
 2. **Known-size eligibility** — when the requested footwear size is known and the product exposes sizes, a missing size is a hard rejection.
 3. **Governed technical compatibility** — documented activity, surface, football outsole and fit conflicts are evaluated before generic catalogue heuristics.
-4. **Sport-specific suitability rules** — running, walking, gym and football each apply their own technical matrix.
-5. **Secondary preference scoring** — budget and softer catalogue signals can reorder technically eligible products, but they cannot rescue a hard incompatibility.
-6. **Complete My Kit** — apparel, socks and accessories are selected independently after the primary technical match.
+4. **Technical requirement profile** — every footwear candidate is evaluated against weighted requirements and receives a separate `technicalScore` plus `technicalCoverage`. A documented match scores above an unknown fact; an unknown fact is never treated as verified compatibility.
+5. **Sport-specific suitability rules** — running, walking, gym, football and the expanded sport paths apply their own technical matrix.
+6. **Secondary preference scoring** — budget and softer catalogue signals can reorder candidates only after technical compatibility. They cannot rescue a hard incompatibility or outrank a materially stronger governed technical match.
+7. **Complete My Kit** — apparel, socks and accessories are selected independently after the primary technical match.
 
 Unknown facts remain unknown. A missing fact is not converted into a positive claim.
 
@@ -28,7 +29,8 @@ Primary inputs:
 - verified use case;
 - verified weight / fit where available;
 - requested size;
-- fresh stock.
+- fresh stock;
+- technical evidence coverage across the selected running profile.
 
 Examples:
 
@@ -91,9 +93,14 @@ Walking uses documented walking/hiking activity, selected surface, daily/all-day
 Each scored product carries:
 
 - `technicalEligible`;
+- `technicalScore` (0–100), based on the weighted technical requirement profile;
+- `technicalCoverage` (0–100), showing how much of the requested technical profile is actually documented;
+- `technicalRequirements`, with `match`, `conflict`, `unknown` or `not_applicable` state per requirement;
 - `appliedRules` rule identifiers;
 - concise customer-facing reasons;
 - the ruleset version on the recommendation response.
+
+Primary ranking is now ordered by `technicalScore`, then `technicalCoverage`, then the softer recommendation score. This prevents an aggressively worded catalogue title from beating a product with stronger governed evidence.
 
 This makes rule changes testable and auditable without exposing raw evidence text to the storefront.
 
