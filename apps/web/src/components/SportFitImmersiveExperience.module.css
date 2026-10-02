@@ -64,3 +64,275 @@ perspective:1200px;isolation:isolate}
 .finalistRail small{margin-top:2px;font-size:8px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.67}
 @media(max-width:900px){.finalistWebgl{height:440px}}
 @media(max-width:620px){.finalistWebgl{height:360px}.finalistRail{display:flex;overflow-x:auto;scroll-snap-type:x mandatory}.finalistRail button{min-width:104px;scroll-snap-align:start}}
+
+
+/* Full-viewport live Sport & Fit composition. The WebGL scene is the page;
+   the deterministic guide floats above it instead of consuming document flow. */
+.liveStudio{
+  position:fixed;
+  inset:0;
+  z-index:5000;
+  width:100vw;
+  height:100dvh;
+  min-height:100dvh;
+  overflow:hidden;
+  background:#040807;
+  color:#f5f1e8
+}
+.liveStudio .header{
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  z-index:80;
+  height:74px;
+  padding:
+    env(safe-area-inset-top,0)
+    max(18px,env(safe-area-inset-right,0))
+    0
+    max(18px,env(safe-area-inset-left,0));
+  box-sizing:content-box;
+  background:linear-gradient(180deg,rgba(4,8,7,.92) 0%,rgba(4,8,7,.56) 72%,rgba(4,8,7,0) 100%);
+  border-bottom:0;
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px)
+}
+.liveStudio .progress{
+  position:absolute;
+  top:74px;
+  left:0;
+  right:0;
+  z-index:79;
+  background:rgba(180,255,242,.08)
+}
+.liveStudio .progress span{
+  background:linear-gradient(90deg,#a8fff0,#f5f1e8)
+}
+.liveStudio .immersive{
+  position:absolute;
+  inset:0;
+  display:block;
+  max-width:none;
+  width:100%;
+  height:100%;
+  margin:0;
+  padding:0
+}
+.liveStudio .universePane{
+  position:absolute;
+  inset:0;
+  min-width:0
+}
+.liveStudio .universe{
+  position:absolute;
+  inset:0;
+  min-height:0;
+  height:100%;
+  display:block
+}
+.liveStudio .scene{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:auto;
+  min-height:100%;
+  border:0;
+  box-shadow:none
+}
+.liveStudio .scene:before{
+  background:
+    radial-gradient(circle at 45% 45%,transparent 0 46%,rgba(0,0,0,.16) 68%,rgba(0,0,0,.56) 100%),
+    linear-gradient(90deg,rgba(0,0,0,.05) 0%,transparent 55%,rgba(0,0,0,.20) 100%)
+}
+.liveStudio .universeTopline{
+  position:absolute;
+  z-index:26;
+  top:92px;
+  left:clamp(18px,3vw,42px);
+  width:min(430px,42vw);
+  padding:10px 12px;
+  border-left:1px solid rgba(126,255,236,.24);
+  background:linear-gradient(90deg,rgba(3,10,9,.68),rgba(3,10,9,.12) 82%,transparent);
+  backdrop-filter:blur(7px);
+  -webkit-backdrop-filter:blur(7px);
+  pointer-events:none
+}
+.liveStudio .universeTopline span{
+  color:rgba(190,255,244,.66)
+}
+.liveStudio .universeCounter{
+  position:absolute;
+  left:calc(100% + 16px);
+  top:8px;
+  text-align:left
+}
+.liveStudio .universeLegend{
+  position:absolute;
+  z-index:24;
+  left:clamp(18px,3vw,42px);
+  bottom:20px;
+  max-width:calc(100vw - min(500px,42vw) - 86px);
+  padding:10px 12px;
+  color:rgba(226,244,239,.58);
+  background:rgba(3,10,9,.42);
+  border:1px solid rgba(126,255,236,.08);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  pointer-events:none
+}
+.liveStudio .guidePane{
+  position:absolute;
+  z-index:42;
+  top:96px;
+  right:clamp(18px,2.4vw,34px);
+  bottom:22px;
+  width:min(455px,39vw);
+  min-width:340px;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(170,255,240,.24) transparent;
+  mask-image:linear-gradient(to bottom,transparent 0,#000 16px,#000 calc(100% - 20px),transparent 100%);
+  padding:12px 2px 22px 12px
+}
+.liveStudio .guidePane::-webkit-scrollbar{width:4px}
+.liveStudio .guidePane::-webkit-scrollbar-thumb{background:rgba(170,255,240,.22);border-radius:99px}
+.liveStudio .guideCard{
+  border:1px solid rgba(158,255,239,.16);
+  background:linear-gradient(145deg,rgba(8,15,13,.76),rgba(10,12,10,.58));
+  box-shadow:0 24px 90px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.035);
+  backdrop-filter:blur(20px) saturate(125%);
+  -webkit-backdrop-filter:blur(20px) saturate(125%);
+  padding:clamp(22px,2.2vw,32px)
+}
+.liveStudio .kicker{
+  color:#91e9db
+}
+.liveStudio .guideCard h1{
+  font-size:clamp(34px,3.5vw,54px);
+  line-height:.98;
+  margin:14px 0 16px
+}
+.liveStudio .guideCard>p{
+  margin-bottom:20px;
+  color:rgba(235,240,235,.72)
+}
+.liveStudio .activityChoices{
+  gap:7px
+}
+.liveStudio .activityChoices button,
+.liveStudio .choiceGrid button,
+.liveStudio .cardChoices button,
+.liveStudio .pills button{
+  background:rgba(8,13,11,.52);
+  border-color:rgba(210,255,246,.13)
+}
+.liveStudio .activityChoices button:hover,
+.liveStudio .choiceGrid button:hover,
+.liveStudio .cardChoices button:hover,
+.liveStudio .pills button:hover{
+  background:rgba(185,255,242,.10);
+  border-color:rgba(190,255,244,.34)
+}
+.liveStudio .inputs input{
+  background:rgba(4,9,8,.56);
+  border-color:rgba(210,255,246,.14)
+}
+.liveStudio .primaryAction{
+  background:rgba(231,255,248,.94)
+}
+
+@media(max-width:900px){
+  .liveStudio .header{
+    height:68px;
+    padding-left:max(16px,env(safe-area-inset-left,0));
+    padding-right:max(16px,env(safe-area-inset-right,0))
+  }
+  .liveStudio .progress{top:68px}
+  .liveStudio .universeTopline{
+    top:78px;
+    left:14px;
+    width:min(66vw,360px);
+    padding:8px 10px
+  }
+  .liveStudio .universeCounter{
+    left:calc(100% + 8px);
+    top:4px
+  }
+  .liveStudio .universeCounter b{font-size:25px}
+  .liveStudio .universeLegend{display:none}
+  .liveStudio .guidePane{
+    top:auto;
+    left:10px;
+    right:10px;
+    bottom:max(10px,env(safe-area-inset-bottom,0));
+    width:auto;
+    min-width:0;
+    max-height:56dvh;
+    padding:10px 4px 4px;
+    mask-image:linear-gradient(to bottom,transparent 0,#000 12px,#000 100%);
+    border-radius:22px 22px 10px 10px
+  }
+  .liveStudio .guideCard{
+    padding:20px 20px 22px;
+    border-radius:20px;
+    background:linear-gradient(155deg,rgba(7,14,12,.73),rgba(9,11,9,.62));
+    border-color:rgba(180,255,243,.16);
+    box-shadow:0 18px 65px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.035)
+  }
+  .liveStudio .guideCard h1{
+    font-size:clamp(30px,9.2vw,43px);
+    line-height:.98;
+    margin:11px 0 13px
+  }
+  .liveStudio .guideCard>p{
+    font-size:13px;
+    line-height:1.48;
+    margin-bottom:16px
+  }
+  .liveStudio .activityChoices button{
+    grid-template-columns:30px 1fr auto;
+    min-height:56px;
+    padding:9px 11px
+  }
+  .liveStudio .activityChoices strong{font-size:13px}
+  .liveStudio .activityChoices small{display:none}
+  .liveStudio .disclosure{font-size:9px;margin-top:11px}
+  .liveStudio .choiceGrid,
+  .liveStudio .cardChoices{grid-template-columns:1fr 1fr}
+  .liveStudio .cardChoices button{min-height:65px}
+}
+
+@media(max-width:520px){
+  .liveStudio .brand span{font-size:9px}
+  .liveStudio .brand strong{font-size:12px}
+  .liveStudio .headerActions button,
+  .liveStudio .headerActions a{width:42px;height:42px}
+  .liveStudio .universeTopline{
+    width:56vw;
+    top:76px
+  }
+  .liveStudio .universeTopline strong{
+    font-size:12px;
+    line-height:1.25
+  }
+  .liveStudio .universeCounter small{font-size:8px}
+  .liveStudio .guidePane{
+    left:8px;
+    right:8px;
+    bottom:max(8px,env(safe-area-inset-bottom,0));
+    max-height:54dvh
+  }
+  .liveStudio .guideCard{
+    padding:17px 16px 19px;
+    border-radius:18px
+  }
+  .liveStudio .guideCard h1{
+    font-size:clamp(28px,8.7vw,38px)
+  }
+  .liveStudio .kicker{font-size:9px}
+  .liveStudio .choiceGrid,
+  .liveStudio .cardChoices{grid-template-columns:1fr}
+  .liveStudio .pills{gap:6px}
+  .liveStudio .pills button{min-height:38px;padding:8px 11px}
+}
