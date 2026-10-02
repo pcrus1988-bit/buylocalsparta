@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { SiteFooter } from "../../components/SiteFooter";
 import { SiteHeader } from "../../components/SiteHeader";
 import { getPublicBrandDirectory } from "../../lib/brand-guide-runtime";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
+import { HUB_LOCALITY_COOKIE } from "../../lib/primary-location-gateway";
 import styles from "./page.module.css";
 
 const PAGE_SIZE = 48;
@@ -44,9 +46,11 @@ export default async function BrandsPage({ searchParams }: Props) {
   const q = params.q?.trim().slice(0, 100) || "";
   const letter = /^[A-Z0-9]$/i.test(params.letter ?? "") ? params.letter!.toUpperCase() : "";
   const page = pageNumber(params.page);
+  const locality = (await cookies()).get(HUB_LOCALITY_COOKIE)?.value;
   const directory = await getPublicBrandDirectory({
     q: q || undefined,
     letter: letter || undefined,
+    selectedHubSlug: locality,
     limit: PAGE_SIZE,
     offset: (page - 1) * PAGE_SIZE
   });
@@ -59,11 +63,11 @@ export default async function BrandsPage({ searchParams }: Props) {
           <div>
             <div className="eyebrow">Brand discovery · όχι απλώς φίλτρα</div>
             <h1>Μπες στον κόσμο του brand.</h1>
-            <p>Δες τι αντιπροσωπεύει κάθε brand, σε ποιες κατηγορίες ξεχωρίζει και τι μπορείς να αγοράσεις πραγματικά τώρα μέσα από το ΚΟΝΤΑ ΜΟΥ.</p>
+            <p>Δες τι αντιπροσωπεύει κάθε brand, σε ποιες κατηγορίες ξεχωρίζει και τι μπορείς να αγοράσεις πραγματικά τώρα από όλα τα ενεργά καταστήματα του επιλεγμένου hub.</p>
           </div>
           <div className={styles.heroMetric}>
             <strong>{directory.total.toLocaleString("el-GR")}</strong>
-            <span>brands με ενεργή διαθεσιμότητα στον κατάλογο</span>
+            <span>brands με ενεργή διαθεσιμότητα στο επιλεγμένο hub</span>
           </div>
         </div>
       </div>
