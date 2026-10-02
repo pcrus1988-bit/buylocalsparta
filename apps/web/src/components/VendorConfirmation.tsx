@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 export type VendorConfirmationRequest = Readonly<{
   title: string;
@@ -16,17 +17,12 @@ export function useVendorConfirmation() {
   const dialogRef = useRef<HTMLElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
-  // Restore focus before the confirmed action can enter a busy/disabled state.
-  const closeAndRestoreFocus = useCallback(async () => {
+  // Close the modal before the confirmed action can enter a busy/disabled state.
+  const closeAndRestoreFocus = useCallback(() => {
     const target = returnFocusRef.current;
     returnFocusRef.current = null;
-    setPending(null);
-    await new Promise<void>((resolve) => {
-      window.requestAnimationFrame(() => {
-        target?.focus();
-        resolve();
-      });
-    });
+    flushSync(() => setPending(null));
+    target?.focus();
   }, []);
 
   useEffect(() => {
@@ -43,7 +39,7 @@ export function useVendorConfirmation() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        void closeAndRestoreFocus();
+        closeAndRestoreFocus();
         return;
       }
       if (event.key !== "Tab") return;
@@ -85,14 +81,14 @@ export function useVendorConfirmation() {
 
   async function confirmPending() {
     const action = pending?.onConfirm;
-    await closeAndRestoreFocus();
+    closeAndRestoreFocus();
     if (action) await action();
   }
 
   const confirmationDialog = pending ? <div
     className="vendor-confirmation-backdrop"
     role="presentation"
-    onMouseDown={() => void closeAndRestoreFocus()}
+    onMouseDown={closeAndRestoreFocus}
   >
     <section
       ref={dialogRef}
@@ -107,7 +103,7 @@ export function useVendorConfirmation() {
       <h2 id="vendor-confirmation-title">{pending.title}</h2>
       <p id="vendor-confirmation-body">{pending.body}</p>
       <div className="vendor-confirmation-actions">
-        <button className="button button-secondary" type="button" onClick={() => void closeAndRestoreFocus()}>
+        <button className="button button-secondary" type="button" onClick={closeAndRestoreFocus}>
           {pending.cancelLabel ?? "Ακύρωση"}
         </button>
         <button className={pending.tone === "danger" ? "button vendor-confirmation-danger" : "button"} type="button" onClick={() => void confirmPending()}>
