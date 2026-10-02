@@ -101,6 +101,10 @@ function numberValue(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function booleanValue(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
 function knowledgeStatus(value: string | null): SportKnowledgeStatus | undefined {
   return value && ["pending","researching","partial","verified","conflict","insufficient"].includes(value)
     ? value as SportKnowledgeStatus
@@ -138,7 +142,11 @@ function sportKnowledge(row: SportCatalogRow): SportFitKnowledge | undefined {
     dropMm: numberValue(facts.heel_to_toe_drop_mm),
     weightG: numberValue(facts.shoe_weight_g),
     footballSurfaceCode: stringValue(facts.football_surface_code),
-    weatherProtection: stringList(facts.weather_protection)
+    weatherProtection: stringList(facts.weather_protection),
+    sockHeight: stringValue(facts.sock_height),
+    sockCushioning: stringValue(facts.sock_cushioning),
+    moistureWicking: booleanValue(facts.moisture_wicking),
+    sockArchSupport: booleanValue(facts.sock_arch_support)
   };
 }
 
