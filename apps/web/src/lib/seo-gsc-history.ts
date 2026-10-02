@@ -285,18 +285,40 @@ export async function syncSearchConsoleHistory(principal: SessionPrincipal) {
     const runId = String(run.rows[0]?.id ?? "");
     if (!runId) throw new Error("Unable to persist Search Console sync.");
 
-    for (const row of pages) {
-      const url = new URL(row.key, `${seo.settings.canonicalOrigin}/`).toString();
+    if (pages.length) {
+      const pagePayload = pages.map((row) => ({
+        public_id: publicId("gsc_page"),
+        route: row.key,
+        url: new URL(row.key, `${seo.settings.canonicalOrigin}/`).toString(),
+        clicks: row.clicks,
+        impressions: row.impressions,
+        ctr: row.ctr,
+        position: row.position
+      }));
       await tx.query(`
         INSERT INTO seo_gsc_page_metrics(public_id,sync_run_id,route,url,clicks,impressions,ctr,position)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8)
-      `, [publicId("gsc_page"), runId, row.key, url, row.clicks, row.impressions, row.ctr, row.position]);
+        SELECT p.public_id,$1::uuid,p.route,p.url,p.clicks,p.impressions,p.ctr,p.position
+        FROM jsonb_to_recordset($2::jsonb) AS p(
+          public_id text,route text,url text,clicks integer,impressions integer,ctr numeric,position numeric
+        )
+      `, [runId, JSON.stringify(pagePayload)]);
     }
-    for (const row of queries) {
+    if (queries.length) {
+      const queryPayload = queries.map((row) => ({
+        public_id: publicId("gsc_query"),
+        query_text: row.key,
+        clicks: row.clicks,
+        impressions: row.impressions,
+        ctr: row.ctr,
+        position: row.position
+      }));
       await tx.query(`
         INSERT INTO seo_gsc_query_metrics(public_id,sync_run_id,query_text,clicks,impressions,ctr,position)
-        VALUES($1,$2,$3,$4,$5,$6,$7)
-      `, [publicId("gsc_query"), runId, row.key, row.clicks, row.impressions, row.ctr, row.position]);
+        SELECT q.public_id,$1::uuid,q.query_text,q.clicks,q.impressions,q.ctr,q.position
+        FROM jsonb_to_recordset($2::jsonb) AS q(
+          public_id text,query_text text,clicks integer,impressions integer,ctr numeric,position numeric
+        )
+      `, [runId, JSON.stringify(queryPayload)]);
     }
   });
 
@@ -354,18 +376,40 @@ export async function syncSearchConsoleHistorySystem() {
     const runId = String(run.rows[0]?.id ?? "");
     if (!runId) throw new Error("Unable to persist Search Console sync.");
 
-    for (const row of pages) {
-      const url = new URL(row.key, `${seo.settings.canonicalOrigin}/`).toString();
+    if (pages.length) {
+      const pagePayload = pages.map((row) => ({
+        public_id: publicId("gsc_page"),
+        route: row.key,
+        url: new URL(row.key, `${seo.settings.canonicalOrigin}/`).toString(),
+        clicks: row.clicks,
+        impressions: row.impressions,
+        ctr: row.ctr,
+        position: row.position
+      }));
       await tx.query(`
         INSERT INTO seo_gsc_page_metrics(public_id,sync_run_id,route,url,clicks,impressions,ctr,position)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8)
-      `, [publicId("gsc_page"), runId, row.key, url, row.clicks, row.impressions, row.ctr, row.position]);
+        SELECT p.public_id,$1::uuid,p.route,p.url,p.clicks,p.impressions,p.ctr,p.position
+        FROM jsonb_to_recordset($2::jsonb) AS p(
+          public_id text,route text,url text,clicks integer,impressions integer,ctr numeric,position numeric
+        )
+      `, [runId, JSON.stringify(pagePayload)]);
     }
-    for (const row of queries) {
+    if (queries.length) {
+      const queryPayload = queries.map((row) => ({
+        public_id: publicId("gsc_query"),
+        query_text: row.key,
+        clicks: row.clicks,
+        impressions: row.impressions,
+        ctr: row.ctr,
+        position: row.position
+      }));
       await tx.query(`
         INSERT INTO seo_gsc_query_metrics(public_id,sync_run_id,query_text,clicks,impressions,ctr,position)
-        VALUES($1,$2,$3,$4,$5,$6,$7)
-      `, [publicId("gsc_query"), runId, row.key, row.clicks, row.impressions, row.ctr, row.position]);
+        SELECT q.public_id,$1::uuid,q.query_text,q.clicks,q.impressions,q.ctr,q.position
+        FROM jsonb_to_recordset($2::jsonb) AS q(
+          public_id text,query_text text,clicks integer,impressions integer,ctr numeric,position numeric
+        )
+      `, [runId, JSON.stringify(queryPayload)]);
     }
   });
 
