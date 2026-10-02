@@ -8,7 +8,7 @@ export type VendorConfirmationRequest = Readonly<{
   confirmLabel?: string;
   cancelLabel?: string;
   tone?: "default" | "danger";
-  onConfirm: () => void | Promise<void>;
+  onConfirm: () => unknown | Promise<unknown>;
 }>;
 
 export function useVendorConfirmation() {
