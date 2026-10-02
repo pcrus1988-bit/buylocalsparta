@@ -163,9 +163,28 @@
 
 .room {
   background:
-    linear-gradient(90deg, rgba(53,42,35,.14) 1px, transparent 1px) 0 0/80px 80px,
-    #141211;
+    linear-gradient(90deg, rgba(53,42,35,.10) 1px, transparent 1px) 0 0/80px 80px,
+    rgba(20,18,17,.76);
 }
+.questionSpatialBackdrop{
+  position:absolute;
+  inset:70px 0 0;
+  z-index:0;
+  opacity:.48;
+  pointer-events:none;
+}
+.questionSpatialBackdrop > *{
+  width:100%;
+  height:100%;
+  min-height:100%;
+  margin:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+}
+.roomHeader,.roomBody{position:relative;z-index:2}
+.roomExitGroup{justify-self:start;display:flex;gap:5px;align-items:center}
+
 
 .roomHeader,
 .lookTopBar {
