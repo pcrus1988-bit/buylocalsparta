@@ -2,268 +2,62 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { STUDIO_DESTINATIONS, type StudioDestination } from "../lib/studio-registry";
 import { consumeStudioTravel, markStudioTravel } from "../lib/studio-travel";
-import { createStudioProgram, resizeStudioCanvas, studioDprCap, type StudioQualityTier } from "../lib/studio-webgl";
 import styles from "./StudioDistrictScene.module.css";
 
-type QualityTier = StudioQualityTier;
-type Vec3 = readonly [number, number, number];
+type StudioId = StudioDestination["id"];
+type QualityTier = "high" | "balanced" | "lite";
 
-type Projection = Readonly<{
-  x: number;
-  y: number;
-  depth: number;
-  visible: boolean;
-}>;
+const ACCENTS: Readonly<Record<StudioId, number>> = {
+  "sport-fit": 0x50e5ca,
+  "paint-build": 0xd69a52,
+  style: 0xd28fb8,
+  color: 0x7fa7e5
+};
 
-const VERTEX_SHADER = `
-precision highp float;
-attribute vec3 a_position;
-attribute float a_kind;
-uniform float u_yaw;
-uniform float u_pitch;
-uniform float u_camera;
-uniform float u_aspect;
-varying float v_kind;
-varying float v_depth;
-
-void main() {
-  float cy = cos(u_yaw);
-  float sy = sin(u_yaw);
-  float cx = cos(u_pitch);
-  float sx = sin(u_pitch);
-
-  vec3 p = a_position;
-  p = vec3(cy * p.x + sy * p.z, p.y, -sy * p.x + cy * p.z);
-  p = vec3(p.x, cx * p.y - sx * p.z, sx * p.y + cx * p.z);
-
-  float depth = max(1.4, u_camera - p.z);
-  float f = 1.78;
-  gl_Position = vec4(
-    (p.x * f / max(u_aspect, 0.58)) / depth,
-    (p.y * f) / depth,
-    clamp((depth - 1.0) / 30.0 * 2.0 - 1.0, -1.0, 1.0),
-    1.0
-  );
-
-  v_kind = a_kind;
-  v_depth = depth;
-}
-`;
-
-const FRAGMENT_SHADER = `
-precision mediump float;
-varying float v_kind;
-varying float v_depth;
-
-vec3 districtColor(float kind) {
-  if (kind < 0.5) return vec3(0.30, 0.36, 0.34);
-  if (kind < 1.5) return vec3(0.34, 0.86, 0.77);
-  if (kind < 2.5) return vec3(0.83, 0.61, 0.34);
-  if (kind < 3.5) return vec3(0.78, 0.53, 0.68);
-  return vec3(0.50, 0.65, 0.84);
-}
-
-void main() {
-  vec3 color = districtColor(v_kind);
-  float alpha = v_kind < 0.5
-    ? clamp(0.36 - v_depth * 0.012, 0.10, 0.26)
-    : clamp(0.76 - v_depth * 0.018, 0.34, 0.74);
-  gl_FragColor = vec4(color, alpha);
-}
-`;
-
-function seeded(index: number, salt: number): number {
-  let value = Math.imul(index + 17, 1103515245) + Math.imul(salt + 31, 12345);
-  value ^= value >>> 13;
-  value = Math.imul(value, 1274126177);
-  return (value >>> 0) / 4294967295;
-}
-
-function districtPosition(studio: StudioDestination, compact: boolean): Vec3 {
-  const desktop: Readonly<Record<StudioDestination["id"], Vec3>> = {
-    "sport-fit": [-4.2, -0.65, -0.7],
-    "paint-build": [4.2, -0.65, -0.7],
-    "style": [-4.2, -0.65, -4.1],
-    "color": [4.2, -0.65, -4.1]
-  };
-  const mobile: Readonly<Record<StudioDestination["id"], Vec3>> = {
-    "sport-fit": [-2.6, -0.55, -1.0],
-    "paint-build": [2.6, -0.55, -1.0],
-    "style": [-2.6, -0.55, -3.8],
-    "color": [2.6, -0.55, -3.8]
-  };
-  return (compact ? mobile : desktop)[studio.id];
-}
-
-function createSceneData(tier: QualityTier, compact: boolean): Float32Array {
-  const data: number[] = [];
-  const vertex = (p: Vec3, kind: number) => data.push(p[0], p[1], p[2], kind);
-  const line = (a: Vec3, b: Vec3, kind: number) => {
-    vertex(a, kind);
-    vertex(b, kind);
-  };
-  const rect = (cx: number, cy: number, z: number, w: number, h: number, kind: number) => {
-    const x1 = cx - w / 2;
-    const x2 = cx + w / 2;
-    const y1 = cy - h / 2;
-    const y2 = cy + h / 2;
-    line([x1,y1,z],[x2,y1,z],kind);
-    line([x2,y1,z],[x2,y2,z],kind);
-    line([x2,y2,z],[x1,y2,z],kind);
-    line([x1,y2,z],[x1,y1,z],kind);
-  };
-
-  // Architectural concourse floor and ceiling perspective lines.
-  const gridStep = tier === "lite" ? 2.4 : tier === "balanced" ? 1.8 : 1.4;
-  for (let x = -10; x <= 10; x += gridStep) {
-    line([x,-3.25,-8],[x,-3.25,7],0);
-  }
-  for (let z = -8; z <= 7; z += gridStep) {
-    line([-10,-3.25,z],[10,-3.25,z],0);
-  }
-
-  // Side walls / structural frames make the hub read as an interior district.
-  line([-8.8,-3.25,-6.5],[-8.8,4.6,-6.5],0);
-  line([8.8,-3.25,-6.5],[8.8,4.6,-6.5],0);
-  line([-8.8,4.6,-6.5],[8.8,4.6,-6.5],0);
-  line([-8.8,-3.25,4.5],[-8.8,4.6,-6.5],0);
-  line([8.8,-3.25,4.5],[8.8,4.6,-6.5],0);
-
-  STUDIO_DESTINATIONS.forEach((studio, studioIndex) => {
-    const [px, py, pz] = districtPosition(studio, compact);
-    const kind = studioIndex + 1;
-
-    // Every destination is a grounded architectural doorway first.
-    rect(px,py,pz,2.1,2.55,kind);
-    line([px-1.05,py-1.28,pz],[px-1.45,py-1.58,pz+.55],kind);
-    line([px+1.05,py-1.28,pz],[px+1.45,py-1.58,pz+.55],kind);
-
-    if (studio.id === "sport-fit") {
-      // A circular product-field preview exists INSIDE the Sport doorway only.
-      const segments = tier === "lite" ? 16 : 26;
-      for (let i=0;i<segments;i+=1) {
-        const a=(i/segments)*Math.PI*2;
-        const b=((i+1)/segments)*Math.PI*2;
-        const r=.62;
-        line(
-          [px+Math.cos(a)*r,py+Math.sin(a)*r,pz+.03],
-          [px+Math.cos(b)*r,py+Math.sin(b)*r,pz+.03],
-          kind
-        );
-      }
-      return;
-    }
-
-    if (studio.id === "paint-build") {
-      // Wall / tile / material bay.
-      for(let row=0;row<3;row+=1){
-        for(let col=0;col<3;col+=1){
-          rect(px+(col-1)*.48,py+(row-1)*.48,pz+.04,.38,.38,kind);
-        }
-      }
-      line([px-.78,py-.95,pz+.08],[px+.78,py-.95,pz+.08],kind);
-      return;
-    }
-
-    if (studio.id === "style") {
-      // Mirror, mannequin axis and runway perspective.
-      rect(px,py+.15,pz+.04,.82,1.55,kind);
-      line([px,py+.86,pz+.07],[px,py-.64,pz+.07],kind);
-      line([px-.34,py+.32,pz+.07],[px+.34,py+.32,pz+.07],kind);
-      line([px-.30,py-.48,pz+.07],[px-.62,py-1.15,pz+.48],kind);
-      line([px+.30,py-.48,pz+.07],[px+.62,py-1.15,pz+.48],kind);
-      return;
-    }
-
-    // Color Finder: physical swatch wall / sample board.
-    for(let row=0;row<3;row+=1){
-      for(let col=0;col<4;col+=1){
-        rect(px+(col-1.5)*.36,py+(row-1)*.42,pz+.04,.27,.31,kind);
-      }
-    }
-  });
-
-  return new Float32Array(data);
-}
-
-function rotate(point: Vec3, yaw: number, pitch: number): [number, number, number] {
-  const cy = Math.cos(yaw);
-  const sy = Math.sin(yaw);
-  const cx = Math.cos(pitch);
-  const sx = Math.sin(pitch);
-  const [x, y, z] = point;
-  const x1 = cy * x + sy * z;
-  const z1 = -sy * x + cy * z;
-  return [x1, cx * y - sx * z1, sx * y + cx * z1];
-}
-
-function project(point: Vec3, yaw: number, pitch: number, camera: number, width: number, height: number): Projection {
-  const [x, y, z] = rotate(point, yaw, pitch);
-  const depth = camera - z;
-  if (!width || !height || depth <= 1.45) return { x: width / 2, y: height / 2, depth, visible: false };
-  const aspect = width / height;
-  const f = 1.78;
-  const ndcX = (x * f / Math.max(aspect, 0.58)) / depth;
-  const ndcY = (y * f) / depth;
-  return {
-    x: (ndcX * 0.5 + 0.5) * width,
-    y: (0.5 - ndcY * 0.5) * height,
-    depth,
-    visible: Math.abs(ndcX) < 1.25 && Math.abs(ndcY) < 1.25
-  };
-}
+const DOORS: Readonly<Record<StudioId, Readonly<{ x: number; z: number; side: -1 | 1 }>>> = {
+  "sport-fit": { x: -4.7, z: 1.1, side: -1 },
+  "paint-build": { x: 4.7, z: 1.1, side: 1 },
+  style: { x: -4.7, z: -5.0, side: -1 },
+  color: { x: 4.7, z: -5.0, side: 1 }
+};
 
 function qualityTier(width: number): QualityTier {
-  const cores = navigator.hardwareConcurrency || 4;
+  const cores = typeof navigator === "undefined" ? 4 : navigator.hardwareConcurrency || 4;
   if (width <= 640 || cores <= 4) return "lite";
   if (width >= 1180 && cores >= 8) return "high";
   return "balanced";
 }
 
-function StudioPortal({
+function StudioDockLink({
   studio,
-  index,
-  portalRef,
-  focused,
+  active,
   travelling,
-  onFocusChange,
   onNavigate
 }: {
   studio: StudioDestination;
-  index: number;
-  portalRef: (node: HTMLAnchorElement | null) => void;
-  focused: boolean;
+  active: boolean;
   travelling: boolean;
-  onFocusChange: (id?: StudioDestination["id"]) => void;
   onNavigate: (event: ReactMouseEvent<HTMLAnchorElement>, studio: StudioDestination) => void;
 }) {
   return (
     <Link
-      ref={portalRef}
       href={studio.href}
-      className={styles.portal}
+      className={styles.dockLink}
       data-tone={studio.tone}
-      data-focused={focused || undefined}
+      data-active={active || undefined}
       data-travelling={travelling || undefined}
-      onMouseEnter={() => onFocusChange(studio.id)}
-      onMouseLeave={() => onFocusChange(undefined)}
-      onFocus={() => onFocusChange(studio.id)}
-      onBlur={() => onFocusChange(undefined)}
       onClick={(event) => onNavigate(event, studio)}
-      style={{ "--studio-order": index } as CSSProperties}
     >
-      <span className={styles.portalIndex}>{String(index + 1).padStart(2, "0")}</span>
-      <span className={styles.portalPreview} data-kind={studio.id} aria-hidden="true">
-        <i /><i /><i /><i /><i /><i />
+      <span className={styles.dockDot} aria-hidden="true" />
+      <span>
+        <small>{studio.eyebrow}</small>
+        <strong>{studio.title}</strong>
       </span>
-      <span className={styles.portalEyebrow}>{studio.eyebrow}</span>
-      <strong>{studio.title}</strong>
-      <small>{studio.description}</small>
-      <b>ENTER <span aria-hidden="true">→</span></b>
+      <b aria-hidden="true">→</b>
     </Link>
   );
 }
@@ -271,37 +65,29 @@ function StudioPortal({
 export function StudioDistrictScene() {
   const router = useRouter();
   const stageRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const portalRefs = useRef(new Map<string, HTMLAnchorElement>());
-  const animationRef = useRef<number | null>(null);
-  const navigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const returnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const yawRef = useRef(0.08);
-  const pitchRef = useRef(-0.035);
-  const targetYawRef = useRef(0.08);
-  const targetPitchRef = useRef(-0.035);
-  const cameraRef = useRef(10.8);
-  const focusedIdRef = useRef<StudioDestination["id"] | undefined>(undefined);
-  const travellingIdRef = useRef<StudioDestination["id"] | undefined>(undefined);
-  const focusedIndexRef = useRef(-1);
+  const mountRef = useRef<HTMLDivElement>(null);
+  const travelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const enterRef = useRef<(studioId: StudioId) => void>(() => undefined);
+  const focusedIdRef = useRef<StudioId | undefined>(undefined);
+  const travellingIdRef = useRef<StudioId | undefined>(undefined);
   const reducedMotionRef = useRef(false);
+
   const [ready, setReady] = useState(false);
-  const [webglAvailable, setWebglAvailable] = useState(true);
+  const [threeAvailable, setThreeAvailable] = useState(true);
   const [simpleMode, setSimpleMode] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
-  const [focusedId, setFocusedId] = useState<StudioDestination["id"]>();
-  const [travellingId, setTravellingId] = useState<StudioDestination["id"]>();
+  const [focusedId, setFocusedId] = useState<StudioId>();
+  const [travellingId, setTravellingId] = useState<StudioId>();
   const [tier, setTier] = useState<QualityTier>("balanced");
-
-  const focusedIndex = useMemo(
-    () => STUDIO_DESTINATIONS.findIndex((studio) => studio.id === focusedId),
-    [focusedId]
-  );
 
   focusedIdRef.current = focusedId;
   travellingIdRef.current = travellingId;
-  focusedIndexRef.current = focusedIndex;
   reducedMotionRef.current = reducedMotion;
+
+  const focusedStudio = useMemo(
+    () => STUDIO_DESTINATIONS.find((studio) => studio.id === focusedId),
+    [focusedId]
+  );
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -311,226 +97,571 @@ export function StudioDistrictScene() {
     return () => media.removeEventListener("change", sync);
   }, []);
 
-  useEffect(() => {
-    const stage = stageRef.current;
-    const canvas = canvasRef.current;
-    if (!stage || !canvas || simpleMode) {
-      setReady(true);
+  function enterStudio(studioId: StudioId) {
+    const studio = STUDIO_DESTINATIONS.find((item) => item.id === studioId);
+    if (!studio) return;
+    if (travelTimerRef.current) clearTimeout(travelTimerRef.current);
+
+    markStudioTravel("hub", studio.id);
+    setFocusedId(studio.id);
+
+    if (simpleMode || reducedMotion || !threeAvailable) {
+      router.push(studio.href);
       return;
     }
 
-    const compact = stage.clientWidth <= 720;
-    const nextTier = qualityTier(stage.clientWidth);
-    setTier(nextTier);
+    setTravellingId(studio.id);
+    travelTimerRef.current = setTimeout(() => router.push(studio.href), 760);
+  }
 
-    const gl = canvas.getContext("webgl", {
-      alpha: false,
-      antialias: nextTier !== "lite",
-      depth: false,
-      powerPreference: "high-performance",
-      preserveDrawingBuffer: false
-    });
+  enterRef.current = enterStudio;
 
-    if (!gl) {
-      setWebglAvailable(false);
+  function handleNavigate(event: ReactMouseEvent<HTMLAnchorElement>, studio: StudioDestination) {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    event.preventDefault();
+    enterStudio(studio.id);
+  }
+
+  useEffect(() => {
+    const marker = consumeStudioTravel("hub");
+    if (marker?.from && marker.from !== "hub") {
+      setFocusedId(marker.from);
+      if (!reducedMotionRef.current) {
+        setTravellingId(marker.from);
+        travelTimerRef.current = setTimeout(() => setTravellingId(undefined), 620);
+      }
+    }
+    return () => {
+      if (travelTimerRef.current) clearTimeout(travelTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    const mount = mountRef.current;
+    if (!stage || !mount || simpleMode) {
       setReady(true);
       return;
     }
 
     let disposed = false;
-    let program: WebGLProgram | null = null;
-    let buffer: WebGLBuffer | null = null;
+    let frame = 0;
     let resizeObserver: ResizeObserver | null = null;
+    const cleanups: Array<() => void> = [];
 
-    try {
-      const activeProgram = createStudioProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER, "studio_district");
-      program = activeProgram;
-      buffer = gl.createBuffer();
-      if (!buffer) throw new Error("studio_buffer_create_failed");
-
-      const sceneData = createSceneData(nextTier, compact);
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-      gl.bufferData(gl.ARRAY_BUFFER, sceneData, gl.STATIC_DRAW);
-      gl.useProgram(activeProgram);
-
-      const stride = 4 * Float32Array.BYTES_PER_ELEMENT;
-      const positionLocation = gl.getAttribLocation(activeProgram, "a_position");
-      const kindLocation = gl.getAttribLocation(activeProgram, "a_kind");
-      gl.enableVertexAttribArray(positionLocation);
-      gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, stride, 0);
-      gl.enableVertexAttribArray(kindLocation);
-      gl.vertexAttribPointer(kindLocation, 1, gl.FLOAT, false, stride, 3 * Float32Array.BYTES_PER_ELEMENT);
-
-      const yawLocation = gl.getUniformLocation(activeProgram, "u_yaw");
-      const pitchLocation = gl.getUniformLocation(activeProgram, "u_pitch");
-      const cameraLocation = gl.getUniformLocation(activeProgram, "u_camera");
-      const aspectLocation = gl.getUniformLocation(activeProgram, "u_aspect");
-
-      const dprCap = studioDprCap(nextTier, { high: 1.8, balanced: 1.5, lite: 1.15 });
-      const resize = () => { resizeStudioCanvas(canvas, stage, gl, dprCap); };
-
-      resizeObserver = new ResizeObserver(resize);
-      resizeObserver.observe(stage);
-      resize();
-
-      const render = (time: number) => {
+    void (async () => {
+      try {
+        const THREE = await import("three");
         if (disposed) return;
-        if (!document.hidden) {
-          const width = stage.clientWidth;
-          const height = stage.clientHeight;
 
-          const activeTravellingId = travellingIdRef.current;
-          const activeFocusedId = focusedIdRef.current;
-          const destination = activeTravellingId
-            ? STUDIO_DESTINATIONS.find((studio) => studio.id === activeTravellingId)
-            : activeFocusedId
-              ? STUDIO_DESTINATIONS.find((studio) => studio.id === activeFocusedId)
-              : undefined;
+        const nextTier = qualityTier(stage.clientWidth);
+        setTier(nextTier);
 
-          if (destination && !reducedMotionRef.current) {
-            const [dx, dy] = districtPosition(destination, width <= 720);
-            targetYawRef.current += ((dx > 0 ? -0.12 : 0.12) - targetYawRef.current) * 0.035;
-            targetPitchRef.current += ((dy > 0 ? 0.055 : -0.055) - targetPitchRef.current) * 0.03;
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x171613);
+        scene.fog = new THREE.FogExp2(0x171613, nextTier === "lite" ? 0.035 : 0.028);
+
+        const camera = new THREE.PerspectiveCamera(
+          stage.clientWidth <= 720 ? 58 : 48,
+          stage.clientWidth / Math.max(1, stage.clientHeight),
+          0.1,
+          80
+        );
+        camera.position.set(0, stage.clientWidth <= 720 ? 2.35 : 2.55, 10.8);
+
+        const renderer = new THREE.WebGLRenderer({
+          antialias: nextTier !== "lite",
+          powerPreference: "high-performance",
+          alpha: false
+        });
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.06;
+        renderer.shadowMap.enabled = nextTier !== "lite";
+        if (renderer.shadowMap.enabled) renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, nextTier === "high" ? 1.65 : nextTier === "balanced" ? 1.35 : 1));
+        renderer.domElement.className = styles.threeCanvas;
+        renderer.domElement.setAttribute("aria-hidden", "true");
+        renderer.domElement.style.touchAction = "pan-y";
+        mount.replaceChildren(renderer.domElement);
+
+        const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+
+        function canvasTexture(base: string, line: string, tile = 42) {
+          const canvas = document.createElement("canvas");
+          canvas.width = 256;
+          canvas.height = 256;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return undefined;
+          ctx.fillStyle = base;
+          ctx.fillRect(0, 0, 256, 256);
+          for (let i = 0; i < 1250; i += 1) {
+            const alpha = 0.012 + Math.random() * 0.035;
+            ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+            ctx.fillRect(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 2, 1 + Math.random() * 2);
           }
-
-          yawRef.current += (targetYawRef.current - yawRef.current) * (reducedMotionRef.current ? 1 : 0.055);
-          pitchRef.current += (targetPitchRef.current - pitchRef.current) * (reducedMotionRef.current ? 1 : 0.055);
-          const targetCamera = activeTravellingId ? 8.2 : 10.8;
-          cameraRef.current += (targetCamera - cameraRef.current) * (reducedMotionRef.current ? 1 : 0.07);
-
-          gl.clearColor(0.014, 0.027, 0.025, 1);
-          gl.clear(gl.COLOR_BUFFER_BIT);
-          gl.useProgram(activeProgram);
-          gl.uniform1f(yawLocation, yawRef.current);
-          gl.uniform1f(pitchLocation, pitchRef.current);
-          gl.uniform1f(cameraLocation, cameraRef.current);
-          gl.uniform1f(aspectLocation, width / Math.max(1, height));
-          gl.drawArrays(gl.LINES, 0, sceneData.length / 4);
-
-          const compactPortals = width <= 720;
-          const compactLayout: Readonly<Record<StudioDestination["id"], readonly [number, number]>> = {
-            "sport-fit": [27, 46],
-            "paint-build": [73, 46],
-            "style": [27, 69],
-            "color": [73, 69]
-          };
-
-          STUDIO_DESTINATIONS.forEach((studio) => {
-            const node = portalRefs.current.get(studio.id);
-            if (!node) return;
-
-            if (compactPortals) {
-              const [xPercent, yPercent] = compactLayout[studio.id];
-              node.style.setProperty("--portal-x", `${xPercent}%`);
-              node.style.setProperty("--portal-y", `${yPercent}%`);
-              node.style.setProperty("--portal-scale", "1");
-              node.style.setProperty("--portal-opacity", "1");
-              return;
-            }
-
-            const projection = project(
-              districtPosition(studio, false),
-              yawRef.current,
-              pitchRef.current,
-              cameraRef.current,
-              width,
-              height
-            );
-            const scale = Math.max(0.74, Math.min(1.08, 10.2 / Math.max(7.5, projection.depth)));
-            node.style.setProperty("--portal-x", `${projection.x}px`);
-            node.style.setProperty("--portal-y", `${projection.y}px`);
-            node.style.setProperty("--portal-scale", scale.toFixed(3));
-            node.style.setProperty("--portal-opacity", projection.visible ? "1" : "0");
-          });
+          ctx.strokeStyle = line;
+          ctx.lineWidth = 1;
+          for (let x = 0; x <= 256; x += tile) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 256); ctx.stroke();
+          }
+          for (let y = 0; y <= 256; y += tile) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(256, y); ctx.stroke();
+          }
+          const texture = new THREE.CanvasTexture(canvas);
+          texture.wrapS = THREE.RepeatWrapping;
+          texture.wrapT = THREE.RepeatWrapping;
+          texture.repeat.set(4, 9);
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.anisotropy = maxAnisotropy;
+          return texture;
         }
 
-        animationRef.current = window.requestAnimationFrame(render);
-      };
+        function signTexture(title: string, subtitle: string, accent: string) {
+          const canvas = document.createElement("canvas");
+          canvas.width = 768;
+          canvas.height = 220;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return undefined;
+          ctx.fillStyle = "#121311";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = accent;
+          ctx.fillRect(0, 0, 8, canvas.height);
+          ctx.fillStyle = "#f4efe7";
+          ctx.font = "600 58px Arial";
+          ctx.fillText(title, 48, 91);
+          ctx.fillStyle = "#9f9b93";
+          ctx.font = "700 20px Arial";
+          ctx.letterSpacing = "4px";
+          ctx.fillText(subtitle, 50, 145);
+          ctx.fillStyle = "#6f756f";
+          ctx.font = "700 17px Arial";
+          ctx.fillText("ENTER  →", 50, 185);
+          const texture = new THREE.CanvasTexture(canvas);
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.anisotropy = maxAnisotropy;
+          return texture;
+        }
 
-      setWebglAvailable(true);
-      setReady(true);
-      animationRef.current = window.requestAnimationFrame(render);
-    } catch (error) {
-      console.error("[studios] WebGL hub unavailable", error);
-      setWebglAvailable(false);
-      setReady(true);
-    }
+        const floorMap = canvasTexture("#4a4339", "rgba(205,194,178,.10)", 48);
+        const wallMap = canvasTexture("#2b2a26", "rgba(218,211,199,.04)", 64);
+
+        const floorMaterial = new THREE.MeshStandardMaterial({
+          color: 0x665e52,
+          map: floorMap,
+          roughness: 0.82,
+          metalness: 0.05
+        });
+        const wallMaterial = new THREE.MeshStandardMaterial({
+          color: 0x34332f,
+          map: wallMap,
+          roughness: 0.93,
+          metalness: 0.02
+        });
+        const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x171816, roughness: 0.82, metalness: 0.08 });
+        const brassMaterial = new THREE.MeshStandardMaterial({ color: 0x8e7959, roughness: 0.42, metalness: 0.62 });
+
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(12, 28), floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.set(0, 0, -2.5);
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        const runner = new THREE.Mesh(
+          new THREE.PlaneGeometry(2.8, 24),
+          new THREE.MeshStandardMaterial({ color: 0x24231f, roughness: 0.72, metalness: 0.04 })
+        );
+        runner.rotation.x = -Math.PI / 2;
+        runner.position.set(0, 0.012, -3.0);
+        runner.receiveShadow = true;
+        scene.add(runner);
+
+        const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.34, 5.8, 24), wallMaterial);
+        leftWall.position.set(-5.15, 2.9, -2.5);
+        leftWall.receiveShadow = true;
+        scene.add(leftWall);
+
+        const rightWall = leftWall.clone();
+        rightWall.position.x = 5.15;
+        scene.add(rightWall);
+
+        const farWall = new THREE.Mesh(new THREE.BoxGeometry(10.6, 5.8, 0.36), wallMaterial);
+        farWall.position.set(0, 2.9, -14.3);
+        farWall.receiveShadow = true;
+        scene.add(farWall);
+
+        const ceiling = new THREE.Mesh(
+          new THREE.PlaneGeometry(10.3, 25),
+          new THREE.MeshStandardMaterial({ color: 0x23231f, roughness: 0.95, side: THREE.DoubleSide })
+        );
+        ceiling.rotation.x = Math.PI / 2;
+        ceiling.position.set(0, 5.75, -2.8);
+        scene.add(ceiling);
+
+        for (let z = 6; z >= -13; z -= 3.8) {
+          const beam = new THREE.Mesh(new THREE.BoxGeometry(10.1, 0.14, 0.18), brassMaterial);
+          beam.position.set(0, 5.42, z);
+          scene.add(beam);
+
+          const strip = new THREE.Mesh(
+            new THREE.BoxGeometry(5.0, 0.035, 0.08),
+            new THREE.MeshBasicMaterial({ color: 0xd9d1c2 })
+          );
+          strip.position.set(0, 5.31, z);
+          scene.add(strip);
+        }
+
+        const hemi = new THREE.HemisphereLight(0xf1e7d7, 0x211f1b, 1.25);
+        scene.add(hemi);
+
+        const key = new THREE.DirectionalLight(0xfff0dc, 1.2);
+        key.position.set(3.5, 6.8, 7.5);
+        key.castShadow = renderer.shadowMap.enabled;
+        if (key.castShadow) {
+          key.shadow.mapSize.set(nextTier === "high" ? 2048 : 1024, nextTier === "high" ? 2048 : 1024);
+          key.shadow.camera.near = 0.5;
+          key.shadow.camera.far = 30;
+        }
+        scene.add(key);
+
+        const hitMeshes: any[] = [];
+        const studioGroups = new Map<StudioId, any>();
+
+        function addBox(group: any, size: readonly [number, number, number], position: readonly [number, number, number], material: any, cast = true) {
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), material);
+          mesh.position.set(position[0], position[1], position[2]);
+          mesh.castShadow = cast && renderer.shadowMap.enabled;
+          mesh.receiveShadow = true;
+          group.add(mesh);
+          return mesh;
+        }
+
+        function addCylinder(group: any, radius: number, height: number, position: readonly [number, number, number], material: any, rotationZ = 0) {
+          const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, height, 20), material);
+          mesh.position.set(position[0], position[1], position[2]);
+          mesh.rotation.z = rotationZ;
+          mesh.castShadow = renderer.shadowMap.enabled;
+          group.add(mesh);
+          return mesh;
+        }
+
+        function createDoor(studio: StudioDestination) {
+          const cfg = DOORS[studio.id];
+          const accent = ACCENTS[studio.id];
+          const accentColor = new THREE.Color(accent);
+          const group = new THREE.Group();
+          group.position.set(cfg.x, 1.55, cfg.z);
+          group.rotation.y = cfg.side < 0 ? Math.PI / 2 : -Math.PI / 2;
+
+          const frameMaterial = new THREE.MeshStandardMaterial({
+            color: 0x423d35,
+            roughness: 0.48,
+            metalness: 0.55
+          });
+          const accentMaterial = new THREE.MeshStandardMaterial({
+            color: accent,
+            emissive: accent,
+            emissiveIntensity: 0.38,
+            roughness: 0.38,
+            metalness: 0.42
+          });
+          const recessMaterial = new THREE.MeshStandardMaterial({
+            color: 0x111210,
+            roughness: 0.88,
+            metalness: 0.06
+          });
+
+          addBox(group, [0.18, 3.45, 0.35], [-1.35, 0, 0], frameMaterial);
+          addBox(group, [0.18, 3.45, 0.35], [1.35, 0, 0], frameMaterial);
+          addBox(group, [2.88, 0.18, 0.35], [0, 1.64, 0], frameMaterial);
+          addBox(group, [2.72, 0.08, 0.34], [0, -1.69, 0], brassMaterial);
+          addBox(group, [2.56, 3.15, 0.18], [0, -0.02, -0.25], recessMaterial, false);
+
+          const sign = signTexture(studio.title, studio.eyebrow, `#${accent.toString(16).padStart(6, "0")}`);
+          if (sign) {
+            const signMesh = new THREE.Mesh(
+              new THREE.PlaneGeometry(2.72, 0.78),
+              new THREE.MeshBasicMaterial({ map: sign, transparent: false })
+            );
+            signMesh.position.set(0, 2.28, 0.04);
+            group.add(signMesh);
+          }
+
+          const light = new THREE.PointLight(accent, nextTier === "lite" ? 4.5 : 7.0, 4.5, 2);
+          light.position.set(0, 0.4, 1.1);
+          group.add(light);
+
+          if (studio.id === "sport-fit") {
+            const torus = new THREE.Mesh(
+              new THREE.TorusGeometry(0.82, 0.035, 12, 64),
+              accentMaterial
+            );
+            torus.position.set(0, 0.18, -0.08);
+            group.add(torus);
+
+            const sphereGeometry = new THREE.SphereGeometry(0.10, 16, 12);
+            const points = [
+              [-0.72, 0.7, 0.04], [-0.40, -0.58, 0.06], [0.15, 0.58, 0.0],
+              [0.68, -0.24, 0.02], [0.58, 0.82, -0.02], [-0.08, -0.10, 0.04]
+            ];
+            points.forEach(([x, y, z]) => {
+              const sphere = new THREE.Mesh(sphereGeometry, accentMaterial);
+              sphere.position.set(x, y, z);
+              sphere.castShadow = renderer.shadowMap.enabled;
+              group.add(sphere);
+            });
+          }
+
+          if (studio.id === "paint-build") {
+            const tileColors = [0xd7c2a2, 0x88715e, 0xc79a62, 0x5e665e, 0xb9a890, 0x846c52];
+            tileColors.forEach((color, index) => {
+              const tile = addBox(
+                group,
+                [0.58, 0.45, 0.10],
+                [-0.72 + (index % 3) * 0.72, 0.75 - Math.floor(index / 3) * 0.62, 0.0],
+                new THREE.MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.02 }),
+                false
+              );
+              tile.receiveShadow = true;
+            });
+            const canMaterial = new THREE.MeshStandardMaterial({ color: 0xd6d0c5, roughness: 0.38, metalness: 0.68 });
+            addCylinder(group, 0.26, 0.56, [-0.62, -1.03, 0.25], canMaterial);
+            const roller = addCylinder(group, 0.055, 1.0, [0.55, -0.75, 0.18], brassMaterial, Math.PI / 3);
+            roller.rotation.x = Math.PI / 2;
+            addBox(group, [0.78, 0.15, 0.18], [0.87, -0.34, 0.19], accentMaterial);
+          }
+
+          if (studio.id === "style") {
+            const mirror = new THREE.Mesh(
+              new THREE.PlaneGeometry(0.95, 1.9),
+              new THREE.MeshStandardMaterial({ color: 0x9ba0a1, roughness: 0.12, metalness: 0.9 })
+            );
+            mirror.position.set(0, 0.45, -0.12);
+            group.add(mirror);
+
+            const skin = new THREE.MeshStandardMaterial({ color: 0xc8aa91, roughness: 0.78 });
+            const cloth = new THREE.MeshStandardMaterial({ color: 0x2d2c2a, roughness: 0.58 });
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.19, 18, 14), skin);
+            head.position.set(0, 0.86, 0.18);
+            group.add(head);
+            addCylinder(group, 0.25, 0.82, [0, 0.28, 0.18], cloth);
+            addCylinder(group, 0.07, 0.78, [-0.28, 0.28, 0.18], skin, 0.10);
+            addCylinder(group, 0.07, 0.78, [0.28, 0.28, 0.18], skin, -0.10);
+            addCylinder(group, 0.08, 0.86, [-0.13, -0.58, 0.18], cloth, 0.03);
+            addCylinder(group, 0.08, 0.86, [0.13, -0.58, 0.18], cloth, -0.03);
+
+            addCylinder(group, 0.025, 1.8, [-0.92, 0.15, 0.18], brassMaterial);
+            addCylinder(group, 0.025, 1.8, [0.92, 0.15, 0.18], brassMaterial);
+            const rail = addCylinder(group, 0.025, 1.84, [0, 0.95, 0.18], brassMaterial, Math.PI / 2);
+            rail.rotation.x = Math.PI / 2;
+          }
+
+          if (studio.id === "color") {
+            const swatches = [0xa94f66, 0x587caf, 0xc29b53, 0x628f77, 0x8f697f, 0xb67955, 0x4f887f, 0x8567a1, 0xb68d9e, 0x53718e, 0xc2b26a, 0x7a9b69];
+            swatches.forEach((color, index) => {
+              addBox(
+                group,
+                [0.48, 0.36, 0.08],
+                [-0.82 + (index % 4) * 0.55, 0.92 - Math.floor(index / 4) * 0.50, 0.0],
+                new THREE.MeshStandardMaterial({ color, roughness: 0.68, metalness: 0.02 }),
+                false
+              );
+            });
+            addBox(group, [1.72, 0.12, 0.78], [0, -1.12, 0.24], brassMaterial);
+            addBox(group, [0.62, 0.48, 0.07], [0, -0.72, 0.38], accentMaterial, false);
+          }
+
+          const hit = new THREE.Mesh(
+            new THREE.BoxGeometry(2.9, 3.55, 0.85),
+            new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+          );
+          hit.position.set(0, 0, 0.18);
+          hit.userData.studioId = studio.id;
+          group.add(hit);
+          hitMeshes.push(hit);
+
+          scene.add(group);
+          studioGroups.set(studio.id, group);
+        }
+
+        STUDIO_DESTINATIONS.forEach(createDoor);
+
+        const directory = new THREE.Group();
+        directory.position.set(0, 1.25, -10.8);
+        addBox(directory, [4.6, 2.4, 0.16], [0, 0, 0], darkMaterial, false);
+        const directoryTexture = signTexture("KONTA MOY STUDIOS", "CHOOSE A SPACE · ENTER · DISCOVER", "#9fb9af");
+        if (directoryTexture) {
+          const display = new THREE.Mesh(
+            new THREE.PlaneGeometry(4.25, 1.38),
+            new THREE.MeshBasicMaterial({ map: directoryTexture })
+          );
+          display.position.z = 0.10;
+          directory.add(display);
+        }
+        scene.add(directory);
+
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+        const pointerStart = { x: 0, y: 0 };
+        let pointerMoved = false;
+        let pointerTargetX = 0;
+        let pointerTargetY = 0;
+
+        function pointerCoords(event: PointerEvent) {
+          const rect = renderer.domElement.getBoundingClientRect();
+          pointer.x = ((event.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
+          pointer.y = -((event.clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
+        }
+
+        const onPointerDown = (event: PointerEvent) => {
+          pointerStart.x = event.clientX;
+          pointerStart.y = event.clientY;
+          pointerMoved = false;
+        };
+
+        const onPointerMove = (event: PointerEvent) => {
+          const dx = event.clientX - pointerStart.x;
+          const dy = event.clientY - pointerStart.y;
+          if (Math.hypot(dx, dy) > 8) pointerMoved = true;
+
+          if (event.pointerType === "mouse") {
+            const rect = renderer.domElement.getBoundingClientRect();
+            pointerTargetX = ((event.clientX - rect.left) / Math.max(1, rect.width) - 0.5) * 0.34;
+            pointerTargetY = ((event.clientY - rect.top) / Math.max(1, rect.height) - 0.5) * 0.10;
+            pointerCoords(event);
+            raycaster.setFromCamera(pointer, camera);
+            const hit = raycaster.intersectObjects(hitMeshes, false)[0];
+            const id = hit?.object?.userData?.studioId as StudioId | undefined;
+            renderer.domElement.style.cursor = id ? "pointer" : "default";
+            if (id) setFocusedId(id);
+          }
+        };
+
+        const onPointerUp = (event: PointerEvent) => {
+          if (pointerMoved) return;
+          pointerCoords(event);
+          raycaster.setFromCamera(pointer, camera);
+          const hit = raycaster.intersectObjects(hitMeshes, false)[0];
+          const id = hit?.object?.userData?.studioId as StudioId | undefined;
+          if (id) enterRef.current(id);
+        };
+
+        renderer.domElement.addEventListener("pointerdown", onPointerDown);
+        renderer.domElement.addEventListener("pointermove", onPointerMove);
+        renderer.domElement.addEventListener("pointerup", onPointerUp);
+        cleanups.push(() => {
+          renderer.domElement.removeEventListener("pointerdown", onPointerDown);
+          renderer.domElement.removeEventListener("pointermove", onPointerMove);
+          renderer.domElement.removeEventListener("pointerup", onPointerUp);
+        });
+
+        const defaultTarget = new THREE.Vector3(0, 1.45, -3.6);
+        const desiredPosition = new THREE.Vector3();
+        const desiredTarget = new THREE.Vector3();
+        const currentTarget = defaultTarget.clone();
+
+        function targetForStudio(id: StudioId) {
+          const cfg = DOORS[id];
+          return new THREE.Vector3(cfg.x * 0.82, 1.5, cfg.z);
+        }
+
+        function cameraPositionForStudio(id: StudioId) {
+          const cfg = DOORS[id];
+          return new THREE.Vector3(cfg.x * 0.34, 2.15, cfg.z + 3.2);
+        }
+
+        const resize = () => {
+          const width = stage.clientWidth;
+          const height = stage.clientHeight;
+          const nextMobile = width <= 720;
+          camera.aspect = width / Math.max(1, height);
+          camera.fov = nextMobile ? 58 : 48;
+          camera.updateProjectionMatrix();
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, nextTier === "high" ? 1.65 : nextTier === "balanced" ? 1.35 : 1));
+          renderer.setSize(width, height, false);
+        };
+        resizeObserver = new ResizeObserver(resize);
+        resizeObserver.observe(stage);
+        resize();
+
+        const clock = new THREE.Clock();
+
+        const render = () => {
+          if (disposed) return;
+          const elapsed = clock.getElapsedTime();
+          const activeTravel = travellingIdRef.current;
+          const activeFocus = focusedIdRef.current;
+
+          if (activeTravel) {
+            desiredPosition.copy(cameraPositionForStudio(activeTravel));
+            desiredTarget.copy(targetForStudio(activeTravel));
+          } else {
+            desiredPosition.set(
+              pointerTargetX * (stage.clientWidth <= 720 ? 0.25 : 1.0),
+              (stage.clientWidth <= 720 ? 2.35 : 2.55) - pointerTargetY,
+              10.8
+            );
+            desiredTarget.copy(activeFocus ? targetForStudio(activeFocus) : defaultTarget);
+          }
+
+          const ease = reducedMotionRef.current ? 1 : activeTravel ? 0.075 : 0.035;
+          camera.position.lerp(desiredPosition, ease);
+          currentTarget.lerp(desiredTarget, reducedMotionRef.current ? 1 : 0.05);
+          camera.lookAt(currentTarget);
+
+          const sport = studioGroups.get("sport-fit");
+          if (sport && !reducedMotionRef.current) {
+            const torus = sport.children.find((child: any) => child.geometry?.type === "TorusGeometry");
+            if (torus) torus.rotation.z = elapsed * 0.18;
+          }
+
+          renderer.render(scene, camera);
+          frame = window.requestAnimationFrame(render);
+        };
+
+        setThreeAvailable(true);
+        setReady(true);
+        frame = window.requestAnimationFrame(render);
+
+        cleanups.push(() => {
+          resizeObserver?.disconnect();
+          window.cancelAnimationFrame(frame);
+          scene.traverse((object: any) => {
+            object.geometry?.dispose?.();
+            const materials = Array.isArray(object.material) ? object.material : object.material ? [object.material] : [];
+            materials.forEach((material: any) => {
+              material.map?.dispose?.();
+              material.dispose?.();
+            });
+          });
+          floorMap?.dispose?.();
+          wallMap?.dispose?.();
+          renderer.dispose();
+          mount.replaceChildren();
+        });
+      } catch (error) {
+        console.error("[studios] Three.js district unavailable", error);
+        setThreeAvailable(false);
+        setReady(true);
+      }
+    })();
 
     return () => {
       disposed = true;
-      resizeObserver?.disconnect();
-      if (animationRef.current !== null) window.cancelAnimationFrame(animationRef.current);
-      if (buffer) gl.deleteBuffer(buffer);
-      if (program) gl.deleteProgram(program);
+      cleanups.reverse().forEach((cleanup) => cleanup());
     };
   }, [simpleMode]);
 
-  useEffect(() => {
-    const marker = consumeStudioTravel("hub");
-    if (marker?.from && marker.from !== "hub") {
-      const studio = STUDIO_DESTINATIONS.find((item) => item.id === marker.from);
-      if (studio) {
-        setFocusedId(studio.id);
-        setTravellingId(studio.id);
-        cameraRef.current = 8.35;
-        const [dx, dy] = districtPosition(studio, window.innerWidth <= 720);
-        targetYawRef.current = dx > 0 ? -0.12 : 0.12;
-        targetPitchRef.current = dy > 0 ? 0.055 : -0.055;
-        returnTimerRef.current = setTimeout(() => {
-          setTravellingId(undefined);
-          setFocusedId(undefined);
-        }, 620);
-      }
-    }
-    return () => {
-      if (navigationTimerRef.current) clearTimeout(navigationTimerRef.current);
-      if (returnTimerRef.current) clearTimeout(returnTimerRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (focusedId || travellingId) return;
-    targetYawRef.current = 0.08;
-    targetPitchRef.current = -0.035;
-  }, [focusedId, travellingId]);
-
-  function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
-    if (simpleMode || reducedMotion || event.pointerType !== "mouse") return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / Math.max(1, rect.width) - 0.5) * 2;
-    const y = ((event.clientY - rect.top) / Math.max(1, rect.height) - 0.5) * 2;
-    targetYawRef.current = x * -0.16;
-    targetPitchRef.current = y * -0.075;
-  }
-
-  function handlePointerLeave() {
-    if (focusedId || travellingId) return;
-    targetYawRef.current = 0.08;
-    targetPitchRef.current = -0.035;
-  }
-
-  function handleNavigate(event: ReactMouseEvent<HTMLAnchorElement>, studio: StudioDestination) {
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
-    if (simpleMode || reducedMotion || !webglAvailable) return;
-    event.preventDefault();
-    markStudioTravel("hub", studio.id);
-    setFocusedId(studio.id);
-    setTravellingId(studio.id);
-    navigationTimerRef.current = setTimeout(() => router.push(studio.href), 520);
-  }
-
-  const staticPresentation = simpleMode || !webglAvailable || !ready;
+  const staticPresentation = simpleMode || !threeAvailable;
 
   return (
     <section
       ref={stageRef}
       className={`${styles.stage} ${ready ? styles.ready : ""} ${staticPresentation ? styles.staticMode : ""}`}
       data-travelling={travellingId || undefined}
-      onPointerMove={handlePointerMove}
-      onPointerLeave={handlePointerLeave}
       aria-labelledby="studios-title"
     >
-      <canvas ref={canvasRef} className={styles.canvas} aria-hidden="true" />
+      <div ref={mountRef} className={styles.threeMount} aria-hidden="true" />
 
       <div className={styles.topBar}>
         <Link href="/" className={styles.homeLink}>← ΚΟΝΤΑ ΜΟΥ</Link>
@@ -547,47 +678,47 @@ export function StudioDistrictScene() {
             setTravellingId(undefined);
           }}
         >
-          {simpleMode ? "3D προβολή" : "Απλή προβολή"}
+          {simpleMode ? "3D χώρος" : "Λίστα"}
         </button>
       </div>
 
-      <div className={styles.heroCopy}>
-        <span>KONTA MOY · INTERACTIVE STUDIOS</span>
-        <h1 id="studios-title">Μπες μέσα.<br /><em>Βρες το σωστό.</em></h1>
-        <p>
-          Τέσσερα εξειδικευμένα περιβάλλοντα. Η ίδια λογική αγοράς:
-          πραγματικά προϊόντα, πραγματική διαθεσιμότητα και καθοδήγηση πριν από την επιλογή.
-        </p>
-      </div>
+      <header className={styles.heroCopy}>
+        <span>KONTA MOY · STUDIO DISTRICT</span>
+        <h1 id="studios-title">Διάλεξε χώρο.<br /><em>Μπες μέσα.</em></h1>
+        <p>Τέσσερα διαφορετικά εργαλεία, τέσσερις διαφορετικοί χώροι. Tap στην πραγματική 3D είσοδο ή διάλεξε από τον οδηγό.</p>
+      </header>
 
-      <div className={styles.atrium} aria-hidden="true">
-        <span>KONTA MOY</span>
-        <strong>STUDIO DISTRICT</strong>
-        <i />
-      </div>
+      {staticPresentation ? (
+        <nav className={styles.fallbackGrid} aria-label="KONTA MOY Studios">
+          {STUDIO_DESTINATIONS.map((studio) => (
+            <Link key={studio.id} href={studio.href} className={styles.fallbackCard} data-tone={studio.tone}>
+              <small>{studio.eyebrow}</small>
+              <strong>{studio.title}</strong>
+              <span>{studio.description}</span>
+              <b>ENTER →</b>
+            </Link>
+          ))}
+        </nav>
+      ) : (
+        <>
+          <div className={styles.sceneHint}>
+            <span>REAL-TIME 3D · {tier.toUpperCase()}</span>
+            <b>{focusedStudio ? focusedStudio.title : "Tap μία φωτισμένη είσοδο"}</b>
+          </div>
 
-      <nav className={styles.portalLayer} aria-label="KONTA MOY Studios">
-        {STUDIO_DESTINATIONS.map((studio, index) => (
-          <StudioPortal
-            key={studio.id}
-            studio={studio}
-            index={index}
-            portalRef={(node) => {
-              if (node) portalRefs.current.set(studio.id, node);
-              else portalRefs.current.delete(studio.id);
-            }}
-            focused={focusedId === studio.id}
-            travelling={travellingId === studio.id}
-            onFocusChange={setFocusedId}
-            onNavigate={handleNavigate}
-          />
-        ))}
-      </nav>
-
-      <div className={styles.statusBar}>
-        <span>{webglAvailable && !simpleMode ? `3D ENGINE · ${tier.toUpperCase()}` : "SEMANTIC FALLBACK"}</span>
-        <p>{simpleMode ? "Διάλεξε Studio από τη λίστα." : "Tap ένα Studio για να μπεις · η πλοήγηση παραμένει κανονικό URL."}</p>
-      </div>
+          <nav className={styles.studioDock} aria-label="KONTA MOY Studios">
+            {STUDIO_DESTINATIONS.map((studio) => (
+              <StudioDockLink
+                key={studio.id}
+                studio={studio}
+                active={focusedId === studio.id}
+                travelling={travellingId === studio.id}
+                onNavigate={handleNavigate}
+              />
+            ))}
+          </nav>
+        </>
+      )}
 
       <p className={styles.srStatus} aria-live="polite">
         {travellingId ? `Μετάβαση στο ${STUDIO_DESTINATIONS.find((studio) => studio.id === travellingId)?.title ?? "Studio"}` : ""}
