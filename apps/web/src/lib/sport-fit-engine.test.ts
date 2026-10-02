@@ -452,7 +452,7 @@ test("running rules combine distance, frequency, cushioning and verified use cas
   });
 
   assert.equal(result.primary?.id, "long-run");
-  assert.equal(result.rulesetVersion, "2026-10-02.2");
+  assert.equal(result.rulesetVersion, "2026-10-02.3");
   assert.ok(result.primary?.appliedRules.includes("running.long_run_use_case"));
   assert.ok(result.primary?.reasons.some((reason) => /long-run|cushioning/i.test(reason)));
 });
@@ -754,4 +754,168 @@ test("new Sport & Fit activities, court surfaces and use cases parse only from c
   assert.equal(invalid.surface, undefined);
   assert.equal(invalid.useCase, undefined);
   assert.equal(invalid.priority, undefined);
+});
+
+
+test("governed technical evidence outranks a stronger heuristic-only running title", () => {
+  const verified = product({
+    id: "verified-road-runner",
+    title: "Daily Trainer",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"],
+      useCases: ["daily_training", "long_run"],
+      cushioningLevel: "high",
+      supportLevel: "neutral",
+      widthProfile: "standard"
+    }
+  });
+  const heuristic = product({
+    id: "heuristic-runner",
+    title: "Ultra Performance Running Cushion Speed Shoe",
+    categoryCode: "mens-running-shoes",
+    description: "Running performance comfort cushion lightweight speed training"
+  });
+
+  const answers = {
+    activity: "running" as const,
+    audience: "men" as const,
+    surface: "road" as const,
+    distance: "long" as const,
+    frequency: "high" as const,
+    runnerNeed: "soft_ride" as const,
+    fitPreference: "standard" as const
+  };
+
+  const verifiedScore = scoreSportFitProduct(verified, answers);
+  const heuristicScore = scoreSportFitProduct(heuristic, answers);
+  const result = buildSportFitRecommendation([heuristic, verified], answers);
+
+  assert.ok(verifiedScore.technicalScore > heuristicScore.technicalScore);
+  assert.ok(verifiedScore.technicalCoverage > heuristicScore.technicalCoverage);
+  assert.equal(result.primary?.id, "verified-road-runner");
+});
+
+test("running technical profile combines surface distance frequency runner need and fit", () => {
+  const matched = product({
+    id: "matched-running-profile",
+    title: "Matched Runner",
+    categoryCode: "mens-running-shoes",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"],
+      useCases: ["daily_training", "long_run"],
+      cushioningLevel: "high",
+      supportLevel: "neutral",
+      widthProfile: "wide"
+    }
+  });
+  const partial = product({
+    id: "partial-running-profile",
+    title: "Partial Runner",
+    categoryCode: "mens-running-shoes",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"],
+      cushioningLevel: "low",
+      supportLevel: "neutral",
+      widthProfile: "standard"
+    }
+  });
+  const answers = {
+    activity: "running" as const,
+    audience: "men" as const,
+    surface: "road" as const,
+    distance: "long" as const,
+    frequency: "high" as const,
+    runnerNeed: "soft_ride" as const,
+    fitPreference: "wide" as const
+  };
+
+  const good = scoreSportFitProduct(matched, answers);
+  const weak = scoreSportFitProduct(partial, answers);
+
+  assert.ok(good.technicalScore > weak.technicalScore);
+  assert.ok(good.technicalRequirements.some((item) => item.id === "requirement.running_distance_profile" && item.status === "match"));
+  assert.ok(weak.technicalRequirements.some((item) => item.id === "requirement.running_distance_profile" && item.status === "conflict"));
+});
+
+test("football outsole compatibility materially raises technical confidence", () => {
+  const verifiedAg = product({
+    id: "verified-ag",
+    title: "Football Boot",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["football"],
+      surfaces: ["artificial_grass"],
+      footballSurfaceCode: "ag"
+    }
+  });
+  const unknownBoot = product({
+    id: "unknown-football",
+    title: "Football Boot",
+    categoryCode: "mens-sneakers"
+  });
+  const answers = {
+    activity: "football" as const,
+    audience: "men" as const,
+    surface: "artificial" as const
+  };
+
+  const verified = scoreSportFitProduct(verifiedAg, answers);
+  const unknown = scoreSportFitProduct(unknownBoot, answers);
+
+  assert.ok(verified.technicalScore > unknown.technicalScore);
+  assert.ok(verified.technicalRequirements.some((item) => item.id === "requirement.football_outsole" && item.status === "match"));
+});
+
+test("gym technical profile separates stable strength footwear from max-cushion neutral footwear", () => {
+  const strength = product({
+    id: "strength-profile",
+    title: "Strength Trainer",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["gym_training"],
+      useCases: ["gym_strength"],
+      cushioningLevel: "low",
+      supportLevel: "stability"
+    }
+  });
+  const maxCushion = product({
+    id: "max-cushion-profile",
+    title: "Soft Cardio Trainer",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["gym_training"],
+      useCases: ["gym_cardio"],
+      cushioningLevel: "max",
+      supportLevel: "neutral"
+    }
+  });
+  const answers = {
+    activity: "gym" as const,
+    audience: "men" as const,
+    gymTrainingType: "strength" as const,
+    surface: "indoor" as const
+  };
+
+  const stable = scoreSportFitProduct(strength, answers);
+  const soft = scoreSportFitProduct(maxCushion, answers);
+
+  assert.ok(stable.technicalScore > soft.technicalScore);
+  assert.ok(stable.technicalRequirements.some((item) => item.id === "requirement.gym_training_type" && item.status === "match"));
+  assert.ok(soft.technicalRequirements.some((item) => item.id === "requirement.gym_training_type" && item.status === "conflict"));
 });
