@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  preferredSportSizeGuideScopes,
   resolveMeasuredSportSize,
   type SportSizeGuidePoint
 } from "./sport-fit-size-guide.ts";
@@ -58,4 +59,27 @@ test("out-of-range measurements do not manufacture a size", () => {
 
 test("invalid measurements are rejected", () => {
   assert.throws(() => resolveMeasuredSportSize(points, 0, "EU", "men"), /INVALID_FOOT_MEASUREMENT/);
+});
+
+
+test("kids-specific guide scope outranks unisex fallback", () => {
+  assert.deepEqual(
+    preferredSportSizeGuideScopes(["unisex", "kids"], "kids"),
+    ["kids"]
+  );
+  assert.deepEqual(
+    preferredSportSizeGuideScopes(["unisex", "kids"], "men"),
+    ["unisex"]
+  );
+});
+
+test("an exact audience guide outranks unisex for future audience-specific charts", () => {
+  assert.deepEqual(
+    preferredSportSizeGuideScopes(["unisex", "women"], "women"),
+    ["women"]
+  );
+  assert.deepEqual(
+    preferredSportSizeGuideScopes(["kids"], "men"),
+    []
+  );
 });
