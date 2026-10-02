@@ -527,3 +527,21 @@ Migration `0324_sport_fit_verified_adidas_runfalcon6atr.sql` upgrades current Ke
 Cloudfoam wording remains descriptive evidence and is not converted into a normalized cushioning or support level. Exact surface/use-case classification also remains open until first-party exact-code evidence supports it.
 
 The runtime schema gate is now **324**.
+
+
+## Schema 325 — verified adidas sock fit and gym facts
+
+Migration `0325_sport_fit_verified_adidas_sock_batch.sql` adds exact first-party adidas evidence for four current Kerasiotis sock families:
+
+- `JZ0529`: `sport_activity=gym_training` and explicit `sock_arch_support=true`. adidas calls the product “mid-cut”, but Sport & Fit currently has no exact `mid_cut` height value, so the migration deliberately leaves `sock_height` unresolved instead of coercing it to quarter or crew.
+- `KC9613`: `sport_activity=gym_training`, `sock_height=ankle`, and explicit `sock_arch_support=true`.
+- `KC9614`: `sport_activity=gym_training`, `sock_height=ankle`, and explicit `sock_arch_support=true`.
+- `KC9628`: `sock_height=low_cut` and explicit `sock_arch_support=true`. The manufacturer page describes everyday work/casual use rather than a sport, so no `sport_activity` value is inferred.
+
+Generic “cushioned”, “thin/light” and breathability wording is preserved as evidence text but is not converted into `sock_cushioning`, `compression_level`, `thermal_level` or `breathability_level` without an exact controlled claim or governed mapping.
+
+These facts are useful to the Tier-2 Complete My Kit path without weakening its evidence gate: gym-specific socks can satisfy the governed kit-activity requirement, and explicit arch support can satisfy the sock stability requirement when the user prioritizes stability. Stock and title heuristics still cannot substitute for governed technical evidence.
+
+Every style code must resolve to exactly one active canonical family before the migration can publish facts.
+
+The runtime schema gate is now **325**.
