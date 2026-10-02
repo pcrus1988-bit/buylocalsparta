@@ -850,6 +850,15 @@ export function StudioDistrictScene() {
         const desiredPosition = new THREE.Vector3();
         const desiredTarget = new THREE.Vector3();
         const currentTarget = defaultTarget.clone();
+        const basePixelRatio = Math.min(
+          window.devicePixelRatio || 1,
+          nextTier === "high" ? 1.65 : nextTier === "balanced" ? 1.35 : 1
+        );
+        let adaptivePixelRatio = basePixelRatio;
+        let adaptiveSampleCount = 0;
+        let adaptiveFrameTotal = 0;
+        let lastFrameTime = performance.now();
+        let adaptiveSettled = false;
 
         function targetForStudio(id: StudioId) {
           const cfg = DOORS[id];
@@ -869,7 +878,7 @@ export function StudioDistrictScene() {
           camera.aspect = width / Math.max(1, height);
           camera.fov = nextMobile ? 58 : 48;
           camera.updateProjectionMatrix();
-          renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, nextTier === "high" ? 1.65 : nextTier === "balanced" ? 1.35 : 1));
+          renderer.setPixelRatio(adaptivePixelRatio);
           renderer.setSize(width, height, false);
         };
         resizeObserver = new ResizeObserver(resize);
@@ -880,6 +889,32 @@ export function StudioDistrictScene() {
 
         const render = () => {
           if (disposed) return;
+          const now = performance.now();
+          const frameDelta = Math.min(80, now - lastFrameTime);
+          lastFrameTime = now;
+
+          if (!adaptiveSettled && mobileRef.current && frameDelta > 0) {
+            adaptiveFrameTotal += frameDelta;
+            adaptiveSampleCount += 1;
+            if (adaptiveSampleCount >= 55) {
+              const averageFrame = adaptiveFrameTotal / adaptiveSampleCount;
+              if (averageFrame > 28 && adaptivePixelRatio > 0.9) {
+                adaptivePixelRatio = Math.max(0.9, adaptivePixelRatio * 0.78);
+                renderer.setPixelRatio(adaptivePixelRatio);
+                renderer.setSize(stage.clientWidth, stage.clientHeight, false);
+                adaptiveSampleCount = 0;
+                adaptiveFrameTotal = 0;
+              } else if (averageFrame > 21 && adaptivePixelRatio > 1.0) {
+                adaptivePixelRatio = Math.max(1.0, adaptivePixelRatio * 0.88);
+                renderer.setPixelRatio(adaptivePixelRatio);
+                renderer.setSize(stage.clientWidth, stage.clientHeight, false);
+                adaptiveSettled = true;
+              } else {
+                adaptiveSettled = true;
+              }
+            }
+          }
+
           const elapsed = clock.getElapsedTime();
           const activeTravel = travellingIdRef.current;
           const activeFocus = focusedIdRef.current;
