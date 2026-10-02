@@ -536,3 +536,119 @@ Migration `0325_sport_fit_handball_badminton_vocabulary.sql` extends the control
 The migration is vocabulary-only. It does not assign either activity to any product family and does not weaken evidence/provenance requirements. Handball can use the existing governed `team_sports` broad class and badminton can use `racket_sports`; exact sport evidence remains more specific in recommendation ranking.
 
 The runtime schema gate is now **325**.
+
+
+## Schema 326 — verified adidas sock training and fit batch
+
+Migration `0326_sport_fit_verified_adidas_sock_batch.sql` adds exact first-party adidas evidence for nine current Kerasiotis sock families. It supersedes the earlier unmerged sock-only schema-325 proposal after schema 325 was assigned to the handball/badminton vocabulary expansion.
+
+Governed facts added:
+- `JZ0529`: `sport_activity=gym_training`, explicit arch support; manufacturer “mid-cut” remains unmapped because there is no exact controlled `mid_cut` value.
+- `KC9613`: gym training, ankle height, arch support.
+- `KC9614`: gym training, ankle height, arch support.
+- `KC9628`: low-cut height, arch support; no sport activity inferred from its everyday/casual positioning.
+- `JD9568`: gym training, quarter height, CLIMACOOL moisture-wicking, arch support.
+- `JC6453`: gym training, quarter height, CLIMACOOL moisture-wicking, arch support.
+- `IC1303`: gym training and ankle height.
+- `IC1294`: quarter height only; day-to-day positioning is not promoted to a sport activity.
+- `IC1299`: low-cut height only; everyday sneaker positioning is not promoted to a sport activity.
+
+Generic “cushioned”, “thin/light” and descriptive breathability wording remains evidence text only. It is not converted into `sock_cushioning`, `compression_level`, `thermal_level` or `breathability_level` without an exact controlled claim or governed manufacturer mapping.
+
+Additional exact-code coverage in the same migration includes:
+- `KQ6773`: crew height and fitted arch support only. Adidas regional pages disagree between Gym & Training and Lifestyle classification, so activity is intentionally left unknown.
+- `KQ9439`: gym training, crew height and fitted arch support.
+- `KQ9227`: ankle height and arch support only; active-kid/daily wording is not promoted to a governed sport.
+- `KQ9229`: crew height and arch support only; customer-review activity claims are ignored.
+- `KX1277`: gym training and crew height from manufacturer workout-ready positioning.
+
+The migration verifies that all fourteen product codes resolve to exactly one active canonical family before publishing facts and includes post-write assertions for eight gym-training facts, thirteen controlled height facts, ten arch-support facts and two moisture-management facts.
+
+The runtime schema gate is now **326**.
+
+## Schema 327 — second verified adidas sock batch and canonical identity bridge
+
+Migration `0327_sport_fit_verified_adidas_sock_batch2.sql` adds exact first-party adidas evidence for thirteen additional current Kerasiotis sock families. Where `canonical_variants.mpn` is not yet populated, identity bridges through an exact hyphen-bounded adidas style-code token already present in `canonical_variants.slug`, and only when that code resolves to exactly one active canonical family. This avoids scanning the much larger vendor-feed table during migration.
+
+Governed facts added:
+- `IC1301`: gym training + crew height.
+- `IC1302`: gym training + crew height.
+- `JF8541`: gym training + ankle height.
+- `JF8542`: gym training + ankle height.
+- `JW9794`: gym training + crew height; anti-slip remains evidence only because no governed anti-slip attribute exists yet.
+- `HT3451`: ankle height only.
+- `JX1095`: explicit moisture-wicking only; Terrex naming alone is not promoted to a sport activity.
+- `KC9617`: gym training + explicit arch support; manufacturer mid-cut wording remains unmapped.
+- `KC9639`: crew height + arch support.
+- `KE5503`: crew height + arch support.
+- `KR2352`: crew height only; Minecraft/lifestyle wording is not promoted to a sport activity.
+- `KR4903`: exact `sock_cushioning=none` only. Official adidas regional pages conflict on height and category placement, so height and sport activity remain intentionally unknown.
+- `KD1727`: explicit arch support only; mid-height and generic cushioning wording remain ungraded.
+
+The batch preserves the fail-closed rule for identity and keeps generic “cushioned”, “soft”, “light/thin”, lifestyle positioning and conflicting regional merchandising out of governed technical fields.
+
+The runtime schema gate is now **327**.
+
+## Schema 328 — adidas footwear identity reconciliation
+
+Migration `0328_sport_fit_adidas_footwear_reconciliation.sql` combines exact first-party adidas enrichment with catalogue-identity correction for three current Kerasiotis footwear families.
+
+- `JP9203` (Duramo SL 2): the historical duplicate-canonical-family blocker is cleared only after the exact manufacturer code resolves to one active canonical family. Governed facts are running, road + track, short-to-mid-distance training, race-day context, neutral support, true-to-size guidance, 291 g reference weight, 9 mm drop and 33/24 mm heel/forefoot stack.
+- `KJ9916` (Ultimashow 2.0): exact adidas classification is Sportswear with explicit workout positioning. The earlier KONTA MOY running fact came only from the broad running-shoe taxonomy, so that taxonomy evidence is removed and replaced with `sport_activity=general_training` plus explicit true-to-size guidance.
+- `KJ7282` (Cloudfoam Flex Laces): exact adidas classification is Sportswear with explicit daily-walking positioning. The taxonomy-only running evidence is removed and replaced with `sport_activity=walking`, `sport_use_case=daily_walking` and explicit true-to-size guidance.
+
+The correction is deliberately evidence-scoped. It removes only `kontamou_catalog_taxonomy` / `taxonomy_mapping` running evidence for the two exact products whose manufacturer classification is more specific. It does not create negative activity facts, and it does not translate Cloudfoam, LIGHTMOTION, generic stability, arch-reinforcement or comfort wording into governed cushioning/support intensity.
+
+The migration was executed against the live KONTA MOY schema inside a transaction ending in `ROLLBACK`. Exact-code uniqueness guards, historical JP9203 unblock logic, taxonomy-evidence replacement, knowledge refresh and post-write assertions all passed without persisting production changes.
+
+The runtime schema gate is now **328**.
+
+## Schema 329 — lifestyle exclusion classification and Rockadia hiking enrichment
+
+Migration \`0329_sport_fit_lifestyle_hiking_reconciliation.sql\` adds a governed non-sport activity classification and one additional exact-code adidas hiking family.
+
+- Ultimashow 2.0 \`IE8898\`: the previous conflict represented an exact adidas lifestyle/errands statement against a broad KONTA MOY running-shoe taxonomy fact. Schema 329 removes the taxonomy-only running fact and the temporary conflict evidence, adds \`sport_activity=casual_lifestyle\`, and preserves explicit true-to-size guidance. \`casual_lifestyle\` is marked non-selectable for Sport & Fit; it exists so a known manufacturer use can produce a deterministic activity mismatch instead of allowing title/category heuristics to reintroduce the product as performance running footwear.
+- Terrex Rockadia \`KZ9174\`: exact adidas evidence adds \`sport_activity=hiking\` and \`fit_length_profile=true_to_size\`. Surface, hiking use-case, cushioning, support, geometry, width and weather protection remain unknown until exact evidence is available.
+
+The new \`casual_lifestyle\` activity value is evidence infrastructure, not a new Studio sport. It is intentionally outside the user-selectable activity set. This lets the recommendation rules distinguish “unknown sport use” from “manufacturer-documented non-sport/lifestyle use” without inventing walking or running suitability.
+
+As with the preceding batches, Cloudfoam and generic comfort wording are retained only in provenance and are not mapped to cushioning/support intensity.
+
+Schema 329 was executed against the live KONTA MOY schema inside a transaction ending in \`ROLLBACK\`. Exact-code uniqueness guards, IE8898 conflict replacement, KZ9174 enrichment, knowledge refresh and post-write assertions all passed, and a post-rehearsal read confirmed that no schema-329 rows were persisted.
+
+The runtime schema gate is now **329**.
+
+
+## Schema 330 — Skechers lifestyle reconciliation
+
+Migration `0330_sport_fit_skechers_lifestyle_reconciliation.sql` resolves the three highest-priority remaining Kerasiotis footwear classification blockers created by schema 314. Each exact Skechers base style code resolves to one active canonical family before any fact is changed.
+
+- `117385` (BOBS Sport B Flex Hi - Flying Hi): exact Skechers classification is casual/fashion rather than performance running.
+- `117485` (BOBS Sport Squad Waves - Just Wading): exact Skechers classification is casual/fashion rather than performance running.
+- `117731` (BOBS Moda Flex - Mellow Dawn): exact Skechers description identifies the product as a casual design rather than performance running footwear.
+
+For each family, schema 330 removes only the temporary schema-314 manufacturer conflict row and the broad `kontamou_catalog_taxonomy` running evidence, removes the normalized `running` activity, and replaces it with the schema-329 governed `sport_activity=casual_lifestyle` value. The queue is then marked complete as a non-sport exclusion classification, so the Studio treats these families as deterministic activity mismatches instead of repeatedly requesting performance-running specifications.
+
+The migration fails closed if a style resolves to zero or multiple active canonical families, or if any unexpected third source has active `sport_activity` evidence. Memory Foam, comfort, flexibility and traction wording remain provenance only; no cushioning, support, drop, stack, width, toe-box or weather-protection fact is inferred from those claims.
+
+Schema 330 was executed against the live KONTA MOY schema inside a transaction ending in `ROLLBACK`, with a temporary schema-329 prerequisite value created inside that same transaction because production has not yet applied schema 329. Identity guards, evidence-source guards, activity replacement, knowledge refresh, queue completion and post-write assertions passed. A post-rehearsal read confirmed that `casual_lifestyle` and all schema-330 changes were rolled back and the three live queue rows remain blocked until the migration chain is deployed.
+
+The runtime schema gate is now **330**.
+
+
+## Schema 331 — Adizero SL2 stable-fact reconciliation
+
+Migration `0331_sport_fit_adizero_sl2_safe_reconciliation.sql` revisits exact adidas style `IF6748` (Adizero SL2) after schema 317 deliberately left the family without normalized facts because official adidas regional pages disagree on fit advice and technical measurements.
+
+The migration separates stable facts from disputed ones:
+- `sport_activity=running` is explicit on official adidas Australia, Egypt and Brazil product pages.
+- The Brazil product page explicitly positions IF6748 for fast training and competitions, mapped to `sport_use_case=speed_training` and `sport_use_case=race_day`.
+- Fit remains unknown. Australia and Brazil recommend the usual size, while Egypt advises ordering at least one size larger.
+- Weight/drop/stack remain unknown at the governed family level. Australia/Egypt report 238 g, 9.5 mm drop and 36.9/27.4 mm heel/forefoot stack for UK 8.5, while Brazil reports a different measurement set/reference size.
+- Lightstrike Pro is retained as manufacturer provenance but is not converted into a governed cushioning intensity.
+
+Schema 331 fails closed if IF6748 does not resolve to exactly one active canonical family or if any disputed fit/geometry field has already been normalized before the migration. It lowers the enrichment priority from the manual-reconciliation blocker level only after publishing the stable running/use-case facts; disputed fields remain explicitly requested with `normalizeDisputedFields=false`.
+
+Schema 331 was executed against the live KONTA MOY schema inside a transaction ending in `ROLLBACK`. Exact identity, disputed-field guards, fact insertion, knowledge refresh, queue reprioritization and post-write assertions passed. A post-rehearsal read confirmed the production queue remained at its pre-migration priority/state because no test changes were persisted.
+
+The runtime schema gate is now **331**.
