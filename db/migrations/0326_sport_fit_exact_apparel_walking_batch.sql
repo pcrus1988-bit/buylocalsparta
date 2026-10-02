@@ -110,6 +110,72 @@ BEGIN
 END
 $$;
 
+-- Sport performance facts are cross-cutting. Keep a precise fashion subtype
+-- (for example `top`) when one exists, but allow the same governed optional
+-- performance attributes as the broad apparel type. Do not attach sock-only
+-- contracts to tops.
+WITH apparel_contract AS (
+  SELECT
+    top_type.id AS product_type_id,
+    pta.attribute_id,
+    pta.requirement_level,
+    pta.value_level,
+    pta.filterable,
+    pta.searchable,
+    pta.customer_visible,
+    pta.comparable,
+    pta.variant_defining,
+    pta.allow_multiple,
+    pta.sort_order,
+    pta.variant_axis_order
+  FROM public.product_types apparel_type
+  JOIN public.product_type_attributes pta ON pta.product_type_id=apparel_type.id
+  JOIN public.attribute_definitions ad ON ad.id=pta.attribute_id
+  CROSS JOIN public.product_types top_type
+  WHERE apparel_type.code='apparel'
+    AND top_type.code='top'
+    AND ad.code IN (
+      'sport_activity','sport_surface','sport_use_case','compression_level',
+      'moisture_wicking','breathability_level','thermal_level',
+      'reflective_details','weather_protection'
+    )
+)
+INSERT INTO public.product_type_attributes(
+  product_type_id,attribute_id,requirement_level,value_level,
+  filterable,searchable,customer_visible,comparable,
+  variant_defining,allow_multiple,sort_order,variant_axis_order
+)
+SELECT
+  product_type_id,attribute_id,requirement_level,value_level,
+  filterable,searchable,customer_visible,comparable,
+  variant_defining,allow_multiple,sort_order,variant_axis_order
+FROM apparel_contract
+ON CONFLICT (product_type_id,attribute_id) DO UPDATE SET
+  requirement_level=EXCLUDED.requirement_level,
+  value_level=EXCLUDED.value_level,
+  filterable=EXCLUDED.filterable,
+  searchable=EXCLUDED.searchable,
+  customer_visible=EXCLUDED.customer_visible,
+  comparable=EXCLUDED.comparable,
+  variant_defining=EXCLUDED.variant_defining,
+  allow_multiple=EXCLUDED.allow_multiple,
+  sort_order=EXCLUDED.sort_order,
+  variant_axis_order=EXCLUDED.variant_axis_order,
+  updated_at=now();
+
+-- Some imported fashion categories do not yet have a Product Type default.
+-- For exact performance apparel only, attach the broad governed apparel type
+-- when the canonical family has no type. Existing precise subtypes are retained.
+UPDATE public.product_families pf
+SET product_type_id=pt.id,
+    updated_at=now()
+FROM _sport_326_family f
+CROSS JOIN public.product_types pt
+WHERE pf.id=f.family_id
+  AND f.product_role='apparel'
+  AND pf.product_type_id IS NULL
+  AND pt.code='apparel';
+
 -- Exact product evidence can enroll performance apparel even when the commerce
 -- category is a generic T-shirt/short/top category.
 INSERT INTO public.sport_product_knowledge(
