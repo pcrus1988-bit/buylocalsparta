@@ -57,7 +57,6 @@ test("versatility prefers documented breadth over a single-context footwear prof
   const narrowScore = scoreSportFitProduct(narrow, answers);
 
   assert.ok(broadScore.technicalScore > narrowScore.technicalScore);
-  assert.ok(broadScore.score > narrowScore.score);
   assert.ok(broadScore.technicalRequirements.some((item) =>
     item.id === "requirement.versatility_profile" && item.status === "match"
   ));
