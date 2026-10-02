@@ -417,6 +417,19 @@ export async function saveVendorProductFeed(
         "FROM vendor_product_submissions s WHERE i.feed_id=$1::uuid AND i.submission_id=s.id AND s.canonical_variant_id IS NOT NULL"
       ), [feedUuid]);
 
+      // Keep variant metadata synchronized even after a submission is approved.
+      // Approved submissions are otherwise immutable for commercial/catalogue fields,
+      // but their source identity should still reflect the XML-owned size/color facts.
+      const attributeUpdatedSubmissions = await tx.query<SqlRow>(sql(
+        "UPDATE vendor_product_submissions s SET",
+        "source_identity=COALESCE(s.source_identity,'{}'::jsonb)||jsonb_build_object('attributes',",
+        "COALESCE(s.source_identity->'attributes','{}'::jsonb)||(i.source_payload->'variantAttributes')),updated_at=now()",
+        "FROM vendor_product_feed_items i WHERE i.feed_id=$1::uuid AND i.state='present' AND i.submission_id=s.id",
+        "AND s.vendor_id=$2::uuid",
+        "AND jsonb_typeof(i.source_payload->'variantAttributes')='object' AND i.source_payload->'variantAttributes'<>'{}'::jsonb",
+        "AND NOT (COALESCE(s.source_identity->'attributes','{}'::jsonb) @> (i.source_payload->'variantAttributes')) RETURNING s.id"
+      ), [feedUuid, vendorUuid]);
+
       await tx.query(sql(
         "UPDATE canonical_variants cv SET variant_attributes=COALESCE(cv.variant_attributes,'{}'::jsonb)||i.source_payload->'variantAttributes',updated_at=now()",
         "FROM vendor_product_feed_items i WHERE i.feed_id=$1::uuid AND i.state='present' AND i.canonical_variant_id=cv.id",
@@ -449,7 +462,7 @@ export async function saveVendorProductFeed(
         "updated_submissions=$7,updated_offers=$8,protected_inventory_rows=$9,missing_rows=$10,finished_at=now() WHERE id=$1::uuid"
       ), [
         runUuid, runStatus, prepared.preview.totalRows, prepared.preview.validRows, prepared.preview.errorRows,
-        created.rowCount, updatedSubmissions.rowCount, changedOffers.rowCount, protectedInventoryRows, missingRows
+        created.rowCount, updatedSubmissions.rowCount + attributeUpdatedSubmissions.rowCount, changedOffers.rowCount, protectedInventoryRows, missingRows
       ]);
 
       await tx.query(sql(
