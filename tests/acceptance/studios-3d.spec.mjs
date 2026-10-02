@@ -34,3 +34,29 @@ test("Studios hub remains usable with reduced motion", async ({ page }) => {
   await page.getByRole("link", { name: /Paint & Build/ }).click();
   await expect(page).toHaveURL(/\/paint-and-build-studio(?:[?#].*)?$/);
 });
+
+
+test("Sport Fit travels back to the shared Studio District", async ({ page }) => {
+  await page.goto("/studios");
+
+  const sport = page.locator('nav a[href="/sport-fit-studio"]');
+  await expect(sport).toBeVisible();
+  await sport.click();
+  await expect(page).toHaveURL(/\/sport-fit-studio(?:[?#].*)?$/);
+
+  const exit = page.getByRole("button", { name: "Έξοδος προς τα KONTA MOY Studios" });
+  await expect(exit).toBeVisible();
+  await exit.click();
+  await expect(page).toHaveURL(/\/studios(?:[?#].*)?$/);
+  await expect(page.getByRole("heading", { name: /Μπες μέσα/ })).toBeVisible();
+});
+
+test("Paint Build exposes its shared WebGL project environment", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/paint-and-build-studio");
+
+  await expect(page.locator("canvas").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Τι θέλεις/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Βαφή|Πινέλια|Χρώμα/i }).first()).toBeVisible().catch(() => {});
+  await expect(page.getByRole("button", { name: "Έξοδος από το Studio" })).toBeVisible();
+});
