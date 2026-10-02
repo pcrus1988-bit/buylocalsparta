@@ -158,14 +158,14 @@ export function AdminBrandManagement({
         type="button"
         disabled={busyId === "__bulk__"}
         onClick={() => {
-          if (window.confirm("Να μπουν έως 100 επιλέξιμα brands στην ουρά για AI Brand Guide draft; Δεν δημοσιεύονται αυτόματα.")) {
+          if (window.confirm("Να μπουν έως 100 επιλέξιμα brands στη λίστα εργασίας για ChatGPT Brand Guide research; Δεν δημοσιεύονται αυτόματα.")) {
             void bulkAction("queue_missing_guides");
           }
         }}
-      >{busyId === "__bulk__" ? "Queuing…" : "Queue 100 AI drafts"}</button>
+      >{busyId === "__bulk__" ? "Queuing…" : "Queue 100 for ChatGPT"}</button>
       <strong>{filteredTotal.toLocaleString("el-GR")} brands</strong>
     </form>
-    <p className="admin-brand-queue-note">Η bulk ουρά περιλαμβάνει μόνο active brands με official website, live προϊόντα και μη τελικό Brand Guide. Τα AI drafts παραμένουν <strong>needs review / noindex</strong> μέχρι χειροκίνητη έγκριση.</p>
+    <p className="admin-brand-queue-note">Η λίστα εργασίας περιλαμβάνει μόνο active brands με official website, live προϊόντα και μη τελικό Brand Guide. Το ChatGPT research γράφεται ως <strong>needs review / noindex</strong> και δεν απαιτεί OpenAI API key.</p>
 
     {message ? <p className="admin-brand-message" role="status">{message}</p> : null}
 
@@ -232,7 +232,7 @@ export function AdminBrandManagement({
                       <label className="admin-brand-checkbox"><input name="seoIndexable" type="checkbox" defaultChecked={brand.guide.seoIndexable} /><span>Request SEO indexing after the hard quality gate passes</span></label>
                       <div className="admin-brand-action-row">
                         <button className="button" disabled={busy}>Save Brand Guide</button>
-                        <button className="button button-secondary" type="button" disabled={busy} onClick={() => void jsonAction(brand.id, "queue_guide_enrichment")}>Queue AI enrichment</button>
+                        <button className="button button-secondary" type="button" disabled={busy} onClick={() => void jsonAction(brand.id, "queue_guide_enrichment")}>Queue for ChatGPT research</button>
                       </div>
                     </form>
                   </details>
