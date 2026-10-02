@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import {
+  preferredSportSizeGuideScopes,
   resolveMeasuredSportSize,
   type SportMeasuredSizeResolution,
   type SportSizeGuideAudience,
@@ -93,10 +94,11 @@ export async function resolveStoredSportSize(input: Readonly<{
   );
   if (!rows.length) return undefined;
 
-  const exactAudienceRows = rows.filter((row) => row.guide_audience_scope === input.audience);
-  const scopedRows = exactAudienceRows.length
-    ? exactAudienceRows
-    : rows.filter((row) => row.guide_audience_scope === "unisex");
+  const preferredScopes = preferredSportSizeGuideScopes(
+    rows.map((row) => row.guide_audience_scope),
+    input.audience
+  );
+  const scopedRows = rows.filter((row) => preferredScopes.includes(row.guide_audience_scope));
   if (!scopedRows.length) return undefined;
 
   const pointMap = new Map<number, SportSizeGuideLabel[]>();
