@@ -2,10 +2,11 @@ import { unstable_cache } from "next/cache";
 import { loadCatalogMetadata } from "./catalog-metadata";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
-import type { SportAudience, SportFitProduct } from "./sport-fit-engine";
+import type { SportAudience, SportFitKnowledge, SportFitProduct, SportKnowledgeQueueStatus, SportKnowledgeStatus } from "./sport-fit-engine";
 
 type SportCatalogRow = Readonly<{
   id: string;
+  family_id: string | null;
   slug: string;
   title: string;
   category_code: string;
@@ -16,6 +17,12 @@ type SportCatalogRow = Readonly<{
   preview_image_src: string | null;
   source_code: string | null;
   source_website: string | null;
+  knowledge_status: string | null;
+  identity_quality: string | null;
+  completeness_score: number | string | null;
+  evidence_score: number | string | null;
+  queue_status: string | null;
+  sport_facts: unknown;
 }>;
 
 export type SportFitCatalogSnapshot = Readonly<{
@@ -62,6 +69,77 @@ function safeInt(value: unknown): number {
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
 }
 
+function safeUnitInterval(value: unknown): number | undefined {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : undefined;
+}
+
+function objectValue(value: unknown): Readonly<Record<string, unknown>> {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value !== "string" || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+function stringList(value: unknown): readonly string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  return typeof value === "string" && value.trim() ? [value.trim()] : [];
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function numberValue(value: unknown): number | undefined {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function knowledgeStatus(value: string | null): SportKnowledgeStatus | undefined {
+  return value && ["pending","researching","partial","verified","conflict","insufficient"].includes(value)
+    ? value as SportKnowledgeStatus
+    : undefined;
+}
+
+function queueStatus(value: string | null): SportKnowledgeQueueStatus | undefined {
+  return value && ["pending","leased","completed","partial","failed","blocked"].includes(value)
+    ? value as SportKnowledgeQueueStatus
+    : undefined;
+}
+
+function sportKnowledge(row: SportCatalogRow): SportFitKnowledge | undefined {
+  const facts = objectValue(row.sport_facts);
+  const status = knowledgeStatus(row.knowledge_status);
+  const queue = queueStatus(row.queue_status);
+  const identityQuality = row.identity_quality === "weak" || row.identity_quality === "medium" || row.identity_quality === "strong"
+    ? row.identity_quality
+    : undefined;
+  if (!status && !queue && !identityQuality && Object.keys(facts).length === 0) return undefined;
+
+  return {
+    status,
+    identityQuality,
+    queueStatus: queue,
+    completenessScore: safeUnitInterval(row.completeness_score),
+    evidenceScore: safeUnitInterval(row.evidence_score),
+    activities: stringList(facts.sport_activity),
+    surfaces: stringList(facts.sport_surface),
+    useCases: stringList(facts.sport_use_case),
+    cushioningLevel: stringValue(facts.cushioning_level),
+    supportLevel: stringValue(facts.support_level),
+    fitLengthProfile: stringValue(facts.fit_length_profile),
+    widthProfile: stringValue(facts.footwear_width_profile),
+    dropMm: numberValue(facts.heel_to_toe_drop_mm),
+    weightG: numberValue(facts.shoe_weight_g),
+    footballSurfaceCode: stringValue(facts.football_surface_code),
+    weatherProtection: stringList(facts.weather_protection)
+  };
+}
+
 function safeVendorId(value: string): string {
   const vendorId = value.trim();
   if (!/^[A-Za-z0-9_-]{3,128}$/.test(vendorId)) throw new Error("INVALID_VENDOR");
@@ -75,6 +153,7 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
   const result = await getProductionPostgresRuntime().nativePool.query<SportCatalogRow>(`
     SELECT
       cv.public_id AS id,
+      pf.id AS family_id,
       cv.slug,
       COALESCE(NULLIF(el.title,''),NULLIF(en.title,''),NULLIF(cv.model,''),NULLIF(pf.model,''),cv.slug) AS title,
       c.code AS category_code,
@@ -90,12 +169,45 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
       COALESCE(NULLIF(v.trading_name,''),v.legal_name) AS vendor_name,
       media.source_url AS preview_image_src,
       media.source_code,
-      media.source_website
+      media.source_website,
+      sk.knowledge_status,
+      sk.identity_quality,
+      sk.completeness_score,
+      sk.evidence_score,
+      sq.status AS queue_status,
+      sportfacts.facts AS sport_facts
     FROM vendor_businesses v
     JOIN vendor_offers vo ON vo.vendor_id=v.id
     JOIN vendor_locations l ON l.id=vo.location_id
     JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
     LEFT JOIN product_families pf ON pf.id=cv.family_id
+    LEFT JOIN sport_product_knowledge sk ON sk.family_id=pf.id
+    LEFT JOIN sport_knowledge_enrichment_queue sq ON sq.family_id=pf.id
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(jsonb_object_agg(fact.code,fact.value),'{}'::jsonb) AS facts
+      FROM (
+        SELECT
+          ad.code,
+          CASE
+            WHEN ad.data_type IN ('enum','multienum')
+              THEN to_jsonb(array_agg(av.code ORDER BY pfav.position) FILTER (WHERE av.code IS NOT NULL))
+            WHEN ad.data_type='number'
+              THEN to_jsonb(max(pfav.number_value))
+            WHEN ad.data_type='boolean'
+              THEN to_jsonb(bool_or(pfav.boolean_value))
+            ELSE to_jsonb(max(pfav.text_value))
+          END AS value
+        FROM product_family_attribute_values pfav
+        JOIN attribute_definitions ad ON ad.id=pfav.attribute_id
+        LEFT JOIN attribute_values av ON av.id=pfav.attribute_value_id
+        WHERE pfav.family_id=pf.id
+          AND ad.group_code LIKE 'sport%'
+          AND coalesce(pfav.confidence,0)>=0.70
+        GROUP BY ad.code,ad.data_type
+      ) fact
+      WHERE fact.value IS NOT NULL
+        AND fact.value <> 'null'::jsonb
+    ) sportfacts ON true
     JOIN categories c ON c.id=cv.category_id
     JOIN inventory_balances ib ON ib.offer_id=vo.id
     LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
@@ -160,6 +272,7 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
 
     return [{
       id: row.id,
+      familyId: row.family_id ?? undefined,
       slug: row.slug,
       title: details?.title ?? row.title,
       priceMinor,
@@ -174,6 +287,7 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
       vendorId: row.vendor_id,
       vendorName: row.vendor_name,
       previewImageSrc: trustedCatalogSourceHttpsUrl(row.source_code, row.source_website, row.preview_image_src),
+      knowledge: sportKnowledge(row),
       available: true,
       availableToSell
     }];
@@ -188,7 +302,7 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
 
 const cachedSportFitCatalog = unstable_cache(
   readSportFitCatalog,
-  ["sport-fit-catalog-v1"],
+  ["sport-fit-catalog-v2"],
   { revalidate: 30 }
 );
 
