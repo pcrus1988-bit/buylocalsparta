@@ -1,6 +1,5 @@
 import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 
 // Keep each cached projection comfortably below Next.js' 2 MB unstable_cache value ceiling.
 // At ~97k active variants, 16 shards produced ~3.2 MB cache entries and therefore never cached.
@@ -55,14 +54,6 @@ function stringArray(value: unknown): readonly string[] {
   return value.flatMap((entry) => typeof entry === "string" && entry.trim() ? [entry.trim()] : []);
 }
 
-function trustedSourceImageAvailable(
-  sourceCode: string | null,
-  sourceWebsite: string | null,
-  sourceImageUrl: string | null
-): boolean {
-  return Boolean(trustedCatalogSourceHttpsUrl(sourceCode, sourceWebsite, sourceImageUrl));
-}
-
 function assertShard(shard: number): void {
   if (!Number.isSafeInteger(shard) || shard < 0 || shard >= PRODUCT_SITEMAP_SHARD_COUNT) {
     throw new RangeError(`Invalid product sitemap shard: ${shard}`);
@@ -98,39 +89,29 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
         rm.gtin,
         rm.mpn,
         rm.color,
-        rm.sizes
+        rm.sizes,
+        COUNT(*) OVER (
+          PARTITION BY lower(BTRIM(rm.title))
+        )::int AS duplicate_title_count
       FROM public.storefront_catalog_read_model rm
+      LEFT JOIN bls_private.storefront_dropship_live_family live
+        ON rm.dropship_supplier_id IS NOT NULL
+       AND live.supplier_id=rm.dropship_supplier_id::uuid
+       AND live.external_product_id=rm.dropship_external_product_id
+       AND live.available_until>now()
       WHERE (
           $1::integer IS NULL
           OR mod(get_byte(decode(md5(rm.canonical_public_id), 'hex'), 0), $2::integer)=$1::integer
         )
         AND (
           (rm.local_sellable=true AND rm.local_available_until>now())
+          OR (live.supplier_id IS NOT NULL AND live.sellable=true)
           OR (
-            rm.dropship_sellable=true
+            live.supplier_id IS NULL
+            AND rm.dropship_sellable=true
             AND rm.dropship_available_until>now()
-            AND NOT EXISTS (
-              SELECT 1
-              FROM bls_private.storefront_dropship_live_family live_shadow
-              WHERE live_shadow.supplier_id::text=rm.dropship_supplier_id
-                AND live_shadow.external_product_id=rm.dropship_external_product_id
-                AND live_shadow.available_until>now()
-            )
-          )
-          OR EXISTS (
-            SELECT 1
-            FROM bls_private.storefront_dropship_live_family live
-            WHERE live.supplier_id::text=rm.dropship_supplier_id
-              AND live.external_product_id=rm.dropship_external_product_id
-              AND live.sellable=true
-              AND live.available_until>now()
           )
         )
-    ), title_counts AS MATERIALIZED (
-      SELECT lower(BTRIM(rm.title)) AS title_key,
-             GREATEST(1,COUNT(*))::int AS duplicate_title_count
-      FROM public.storefront_catalog_read_model rm
-      GROUP BY lower(BTRIM(rm.title))
     ), approved_media AS MATERIALIZED (
       SELECT DISTINCT ON (pm.canonical_variant_id)
              pm.canonical_variant_id,pm.public_id AS media_id
@@ -143,18 +124,6 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
         AND pm.object_key IS NOT NULL
         AND pm.content_type IN ('image/jpeg','image/png','image/webp')
       ORDER BY pm.canonical_variant_id,pm.reviewed_at DESC NULLS LAST,pm.created_at DESC,pm.public_id
-    ), source_media AS MATERIALIZED (
-      SELECT DISTINCT ON (csl.canonical_variant_id)
-             csl.canonical_variant_id,sp.source_image_url,cs.website AS source_website,cs.code AS source_code
-      FROM public_base base
-      JOIN catalog_source_product_links csl
-        ON csl.canonical_variant_id=base.id
-       AND csl.link_status='approved'
-      JOIN catalog_source_products sp
-        ON sp.id=csl.source_product_id
-       AND sp.source_image_url IS NOT NULL
-      JOIN catalog_sources cs ON cs.id=sp.source_id AND cs.active=true
-      ORDER BY csl.canonical_variant_id,csl.confidence DESC,csl.updated_at DESC,csl.id DESC
     )
     SELECT
       base.id_public AS id,
@@ -166,16 +135,14 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
       base.gtin,
       base.mpn,
       media.media_id,
-      source.source_image_url,
-      source.source_website,
-      source.source_code,
+      NULL::text AS source_image_url,
+      NULL::text AS source_website,
+      NULL::text AS source_code,
       base.color,
       base.sizes,
-      counts.duplicate_title_count
+      base.duplicate_title_count
     FROM public_base base
-    JOIN title_counts counts ON counts.title_key=lower(BTRIM(base.title))
     LEFT JOIN approved_media media ON media.canonical_variant_id=base.id
-    LEFT JOIN source_media source ON source.canonical_variant_id=base.id
     ORDER BY base.id_public
   `, [shard, PRODUCT_SITEMAP_SHARD_COUNT]);
 
@@ -189,7 +156,7 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
     gtin: text(row.gtin),
     mpn: text(row.mpn),
     mediaId: text(row.media_id),
-    sourceImageAvailable: trustedSourceImageAvailable(row.source_code, row.source_website, row.source_image_url),
+    sourceImageAvailable: false,
     offerAvailable: true as const,
     color: text(row.color),
     sizes: stringArray(row.sizes),
@@ -205,7 +172,7 @@ const cachedPublicProductSitemapInventory = unstable_cache(
 
 const cachedPublicProductSitemapShard = unstable_cache(
   (shard: number) => readPublicProductSitemapInventory(shard),
-  ["public-product-sitemap-inventory-shard-v6-read-model-live-overlay-64"],
+  ["public-product-sitemap-inventory-shard-v7-indexed-read-model-64"],
   { revalidate: 3600 }
 );
 
