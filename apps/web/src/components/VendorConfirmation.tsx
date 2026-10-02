@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 
 export type VendorConfirmationRequest = Readonly<{
   title: string;
@@ -17,12 +16,12 @@ export function useVendorConfirmation() {
   const dialogRef = useRef<HTMLElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
-  // Close the modal before the confirmed action can enter a busy/disabled state.
   const closeAndRestoreFocus = useCallback(() => {
     const target = returnFocusRef.current;
     returnFocusRef.current = null;
-    flushSync(() => setPending(null));
     target?.focus();
+    setPending(null);
+    return target;
   }, []);
 
   useEffect(() => {
@@ -81,8 +80,12 @@ export function useVendorConfirmation() {
 
   async function confirmPending() {
     const action = pending?.onConfirm;
-    closeAndRestoreFocus();
-    if (action) await action();
+    const target = closeAndRestoreFocus();
+    try {
+      if (action) await action();
+    } finally {
+      if (target?.isConnected && !target.matches(":disabled")) target.focus();
+    }
   }
 
   const confirmationDialog = pending ? <div
