@@ -1,0 +1,94 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { buildSportFitRecommendation, scoreSportFitProduct, type SportFitProduct } from "./sport-fit-engine.ts";
+
+function product(overrides: Partial<SportFitProduct> & Pick<SportFitProduct, "id" | "title" | "categoryCode">): SportFitProduct {
+  return {
+    slug: overrides.id,
+    priceMinor: 7000,
+    sizes: ["42"],
+    available: true,
+    availableToSell: 2,
+    ...overrides
+  };
+}
+
+test("running guide prefers an exact-size running shoe over a sneaker with a wrong known size", () => {
+  const exact = product({
+    id: "run-1",
+    title: "Road Running Cushion Shoe - 42",
+    categoryCode: "mens-running-shoes",
+    sizes: ["42"],
+    description: "Cushioned daily running shoe for road training"
+  });
+  const wrong = product({
+    id: "sneaker-1",
+    title: "Lifestyle Sneaker - 43",
+    categoryCode: "mens-sneakers",
+    sizes: ["43"]
+  });
+
+  const result = buildSportFitRecommendation([wrong, exact], {
+    activity: "running",
+    audience: "men",
+    size: "42",
+    surface: "road",
+    priority: "cushioning",
+    frequency: "regular",
+    distance: "medium",
+    budgetMinor: 10000
+  });
+
+  assert.equal(result.primary?.id, "run-1");
+  assert.equal(result.primary?.matchedSize, "42");
+  assert.ok(result.primary?.reasons.some((reason) => /μέγεθος 42/i.test(reason)));
+});
+
+test("trail evidence improves a trail shoe relative to a generic road shoe", () => {
+  const trail = product({
+    id: "trail-1",
+    title: "Terrex Trail Running Shoe - 42",
+    categoryCode: "mens-running-shoes",
+    description: "Trail outdoor grip"
+  });
+  const road = product({
+    id: "road-1",
+    title: "Classic Road Running Shoe - 42",
+    categoryCode: "mens-running-shoes"
+  });
+  const answers = {
+    activity: "running" as const,
+    audience: "men" as const,
+    size: "42",
+    surface: "trail" as const,
+    priority: "versatility" as const
+  };
+
+  assert.ok(scoreSportFitProduct(trail, answers).score > scoreSportFitProduct(road, answers).score);
+});
+
+test("complete-kit selection can add socks and activewear beside the primary shoe", () => {
+  const result = buildSportFitRecommendation([
+    product({ id: "shoe", title: "Running Shoe - 42", categoryCode: "mens-running-shoes" }),
+    product({ id: "sock", title: "Performance Running Socks - 42", categoryCode: "socks-hosiery", priceMinor: 1200 }),
+    product({ id: "top", title: "Aeroready Training T-Shirt - M", categoryCode: "fashion-mens-tshirts-tops", sizes: ["M"], priceMinor: 2500 }),
+    product({ id: "short", title: "Training Shorts - M", categoryCode: "fashion-mens-shorts", sizes: ["M"], priceMinor: 3000 })
+  ], {
+    activity: "running",
+    audience: "men",
+    surface: "road",
+    priority: "comfort"
+  });
+
+  assert.equal(result.primary?.id, "shoe");
+  assert.ok(result.kit.some((item) => item.role === "socks"));
+  assert.ok(result.kit.some((item) => item.role === "top" || item.role === "bottom"));
+});
+
+test("over-budget products receive a material ranking penalty", () => {
+  const affordable = product({ id: "a", title: "Running Shoe A - 42", categoryCode: "mens-running-shoes", priceMinor: 8000 });
+  const expensive = product({ id: "b", title: "Running Shoe B - 42", categoryCode: "mens-running-shoes", priceMinor: 18000 });
+  const answers = { activity: "running" as const, audience: "men" as const, budgetMinor: 10000 };
+
+  assert.ok(scoreSportFitProduct(affordable, answers).score > scoreSportFitProduct(expensive, answers).score);
+});
