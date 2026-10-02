@@ -287,7 +287,7 @@ Migration `0308_sport_fit_verified_kerasiotis_footwear_batch2.sql` adds a second
 
 Migration `0309_sport_fit_adidas_kids_size_guide.sql` adds the official adidas kids footwear size chart as a separate `kids` audience guide. The server deterministically prefers an exact audience guide over a unisex fallback, which prevents the adult chart from becoming the primary measured-size source for a child profile.
 
-The current runtime schema gate is 316. All migrations through 0316 have immutable checksum manifests.
+The current runtime schema gate is 317. All migrations through 0317 have immutable checksum manifests.
 
 
 ## Live brand identity bridge
@@ -350,7 +350,7 @@ Migration `0313_sport_fit_verified_skechers_bountiful.sql` adds exact official e
 - `general_training` is normalized from Skechers' explicit workout/training description;
 - Memory Foam, supportive and shock-absorbing wording is preserved as evidence but does not create an invented cushioning or support level.
 
-The runtime schema gate is now 316.
+The runtime schema gate is now 317.
 
 
 ## Schema 314 — Skechers activity and taxonomy conflict handling
@@ -384,7 +384,7 @@ Cloudfoam / Cloudfoam+ comfort language is preserved in source evidence but is n
 
 The live catalogue identity check resolves each of `IH9808`, `KJ1750` and `KJ1757` to exactly one canonical family before migration 0315 is allowed to publish facts.
 
-The runtime schema gate is 316.
+The runtime schema gate is 317.
 
 
 ## Schema 316 — GSA vendor-feed sock knowledge
@@ -407,3 +407,15 @@ Sport & Fit runtime knowledge now exposes sock breathability, thermal and compre
 ## Trusted live brand aliases
 
 Kerasiotis currently supplies the misspelling `Sketchers` for Skechers products. Sport & Fit normalizes only this verified alias to `Skechers` for display/identity and to the `skechers` size-guide key. Other brand names are not rewritten by heuristic similarity.
+
+
+## Schema 317 — verified adidas footwear batch 5
+
+Migration `0317_sport_fit_verified_adidas_footwear_batch5.sql` extends exact manufacturer evidence for four current Kerasiotis adidas families:
+
+- Eclyptix 2000 `JH6911`: adidas classifies the exact product as Sportswear with retro-running styling and everyday-comfort positioning. Sport & Fit removes the earlier broad taxonomy-derived running activity and keeps only explicit true-to-size guidance; retro styling is not treated as performance-running evidence.
+- Response 2 Women `KJ1757`: running, road/trail use, daily and long-run use cases, neutral support, true-to-size guidance, 256 g reference weight, 8 mm drop and 31/23 mm heel/forefoot stack.
+- Galaxy 7 Women `JP6592`: road running, short-to-mid-distance training, neutral support, true-to-size guidance, 278 g reference weight, 6 mm drop and 34/28 mm stack.
+- Terrex Eastrail 3 `JR4007`: hiking, trail / uneven terrain, 337.6 g reference weight and 9 mm drop.
+
+Schema 317 is another example of manufacturer evidence being allowed to **remove** an overly broad catalogue inference instead of only adding positive facts.
