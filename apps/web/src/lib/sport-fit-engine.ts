@@ -41,6 +41,13 @@ export const SPORT_GYM_TRAINING_TYPES = ["strength", "functional", "cardio", "tr
 export type SportGymTrainingType = (typeof SPORT_GYM_TRAINING_TYPES)[number];
 
 export type SportProductRole = "footwear" | "socks" | "top" | "bottom" | "layer" | "accessory" | "other";
+export type SportProductTier = "primary" | "secondary" | "unsupported";
+
+export function sportProductTier(role: SportProductRole): SportProductTier {
+  if (role === "footwear") return "primary";
+  if (role === "socks" || role === "top" || role === "bottom" || role === "layer" || role === "accessory") return "secondary";
+  return "unsupported";
+}
 
 export type SportKnowledgeStatus = "pending" | "researching" | "partial" | "verified" | "conflict" | "insufficient";
 export type SportKnowledgeQueueStatus = "pending" | "leased" | "completed" | "partial" | "failed" | "blocked";
@@ -730,15 +737,17 @@ export function buildSportFitRecommendation(
       || left.title.localeCompare(right.title, "el")
     );
 
-  const ranked = uniqueRanked(scored);
-  const footwear = ranked.filter((product) => product.role === "footwear");
-  const primary = footwear[0] ?? ranked[0];
-  const alternatives = footwear.filter((product) => product.id !== primary?.id).slice(0, 4);
+  const eligible = uniqueRanked(scored);
+  // Tier 1 is the field that can become the Top 5. Socks, apparel and
+  // accessories remain Tier 2 and are only allowed into Complete My Kit.
+  const primaryRanked = eligible.filter((product) => sportProductTier(product.role) === "primary");
+  const primary = primaryRanked[0];
+  const alternatives = primaryRanked.filter((product) => product.id !== primary?.id).slice(0, 4);
 
   const kit: SportFitScoredProduct[] = [];
   const usedIds = new Set(primary ? [primary.id] : []);
   for (const role of ["socks", "top", "bottom", "layer", "accessory"] as const) {
-    const item = ranked.find((product) => product.role === role && !usedIds.has(product.id) && product.score >= 35);
+    const item = eligible.find((product) => product.role === role && !usedIds.has(product.id) && product.score >= 35);
     if (!item) continue;
     usedIds.add(item.id);
     kit.push(item);
@@ -749,7 +758,7 @@ export function buildSportFitRecommendation(
     primary,
     alternatives,
     kit,
-    ranked: ranked.slice(0, 24)
+    ranked: primaryRanked.slice(0, 24)
   };
 }
 
