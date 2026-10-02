@@ -14,9 +14,9 @@
   overflow: hidden;
   color: var(--studio-ivory);
   background:
-    radial-gradient(circle at 12% -12%, rgba(203,178,122,.12), transparent 32rem),
-    radial-gradient(circle at 90% 10%, rgba(120,138,107,.08), transparent 28rem),
-    var(--studio-bg);
+    radial-gradient(circle at 12% -12%, rgba(203,178,122,.10), transparent 32rem),
+    radial-gradient(circle at 90% 10%, rgba(120,138,107,.06), transparent 28rem),
+    rgba(10,10,11,.68);
   isolation: isolate;
 }
 
@@ -25,6 +25,8 @@
 }
 
 .studioHeader {
+  position: relative;
+  z-index: 4;
   min-height: 72px;
   padding:
     max(12px, env(safe-area-inset-top))
@@ -103,6 +105,8 @@
 .exitButton { font-size: 25px; line-height: 1; }
 
 .progressShell {
+  position: relative;
+  z-index: 3;
   padding: 10px max(18px, env(safe-area-inset-right)) 0 max(18px, env(safe-area-inset-left));
   background: rgba(10,10,11,.76);
 }
@@ -131,6 +135,8 @@
 }
 
 .screenViewport {
+  position: relative;
+  z-index: 2;
   min-height: 0;
   overflow: hidden;
 }
