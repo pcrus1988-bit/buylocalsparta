@@ -1,5 +1,6 @@
 import { buildSportFitRecommendation, parseSportFitAnswers } from "../../../../lib/sport-fit-engine";
 import { getSportFitCatalog } from "../../../../lib/sport-fit-catalog";
+import { resolveStoredSportSize } from "../../../../lib/sport-fit-size-guide-server";
 import { productionDatabaseConfigured } from "../../../../lib/postgres-runtime";
 
 const DEFAULT_KERASIOTIS_VENDOR_ID = "vendor_4d7b281c8b2541f685f1";
@@ -23,13 +24,34 @@ export async function POST(request: Request) {
     const vendorId = safeVendorId(body.vendorId);
     const answers = parseSportFitAnswers(body.answers);
     const catalog = await getSportFitCatalog(vendorId, answers.audience);
-    const recommendation = buildSportFitRecommendation(catalog.products, answers);
+
+    const adidasSizeGuide = answers.footLengthMm
+      ? await resolveStoredSportSize({
+          brand: "adidas",
+          productRole: "footwear",
+          locale: "el",
+          measurementMm: answers.footLengthMm,
+          sizeSystem: "EU",
+          audience: answers.audience
+        })
+      : undefined;
+
+    const resolvedAnswers = adidasSizeGuide && !adidasSizeGuide.outOfRange && adidasSizeGuide.sizeLabels.length
+      ? {
+          ...answers,
+          brandSizeHints: {
+            adidas: adidasSizeGuide.sizeLabels
+          }
+        }
+      : answers;
+    const recommendation = buildSportFitRecommendation(catalog.products, resolvedAnswers);
 
     return Response.json(
       {
         vendorId: catalog.vendorId,
         vendorName: catalog.vendorName,
         candidateCount: catalog.products.length,
+        sizeGuide: adidasSizeGuide,
         recommendation
       },
       { headers: { "Cache-Control": "private, no-store" } }
