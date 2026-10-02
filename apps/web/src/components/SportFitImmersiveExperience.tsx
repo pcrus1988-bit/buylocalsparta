@@ -344,10 +344,10 @@ function ProductUniverse({
       <div className={styles.universeTopline}>
         <div>
           <span>LIVE PRODUCT UNIVERSE</span>
-          <strong>{busy ? "Αναδιατάσσουμε…" : `${survivingCount || initialCount} προϊόντα παραμένουν`}</strong>
+          <strong>{busy ? "Αναδιατάσσουμε…" : `${survivingCount} προϊόντα παραμένουν`}</strong>
         </div>
         <div className={styles.universeCounter}>
-          <b>{survivingCount || initialCount}</b>
+          <b>{survivingCount}</b>
           <small>από {initialCount || "—"}</small>
         </div>
       </div>
