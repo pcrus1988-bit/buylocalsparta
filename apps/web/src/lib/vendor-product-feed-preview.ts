@@ -213,6 +213,35 @@ function safeHttpUrls(value: string | undefined): readonly string[] {
   return [...new Set(value.split(/\s*\|\s*|\s*,\s*(?=https?:\/\/)/i).map((item) => safeHttpUrl(item)).filter((item): item is string => Boolean(item)))].slice(0, 20);
 }
 
+function titleSizeCandidate(title: string | undefined): string | undefined {
+  const candidate = title?.match(/\s+-\s+([^\r\n]{1,32})\s*$/)?.[1]?.trim();
+  if (!candidate) return undefined;
+  const numericSize = /^\d{1,3}(?:[.,]\d+)?(?:\s+\d\s*\/\s*\d)?(?:\s*-\s*\d{1,3}(?:[.,]\d+)?(?:\s+\d\s*\/\s*\d)?)?$/;
+  const namedSize = /^(?:XXXS|XXS|XS|S|M|L|XL|XXL|XXXL|[2-6]XL|OS|O\/S|ONE\s*SIZE)$/i;
+  return numericSize.test(candidate) || namedSize.test(candidate) ? candidate.replace(",", ".") : undefined;
+}
+
+function sizeFromProductUrl(productUrl: string | undefined, title: string | undefined): string | undefined {
+  if (!productUrl) return undefined;
+  try {
+    const raw = new URL(productUrl).searchParams.get("attribute_pa_megethos")?.trim();
+    if (!raw) return undefined;
+    return titleSizeCandidate(title) ?? raw.replaceAll("_", "-");
+  } catch {
+    return undefined;
+  }
+}
+
+function colorFromDescription(description: string | undefined): string | undefined {
+  if (!description) return undefined;
+  for (const line of description.split(/\r?\n/)) {
+    const match = line.match(/^\s*[•·*\-]?\s*(?:Χρώμα(?:\s+προϊόντος)?|Product\s+colou?r|Colou?r)\s*:\s*(.+?)\s*$/i);
+    const value = match?.[1]?.trim();
+    if (value) return value.slice(0, 160);
+  }
+  return undefined;
+}
+
 function hash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
@@ -339,11 +368,15 @@ export async function prepareVendorProductFeed(
       continue;
     }
 
+    const description = trimOptional(xmlFieldValue(record, mapping.description), 10_000);
+    const productUrl = safeHttpUrl(xmlFieldValue(record, mapping.productUrl));
+    const size = trimOptional(xmlFieldValue(record, mapping.size), 160) ?? sizeFromProductUrl(productUrl, title);
+    const color = trimOptional(xmlFieldValue(record, mapping.color), 160) ?? colorFromDescription(description);
     const payload = {
       feedExternalId: externalId,
       vendorSku,
       title,
-      description: trimOptional(xmlFieldValue(record, mapping.description), 10_000),
+      description,
       brand: trimOptional(xmlFieldValue(record, mapping.brand), 200),
       model: trimOptional(xmlFieldValue(record, mapping.model), 300),
       mpn: trimOptional(xmlFieldValue(record, mapping.mpn), 300),
@@ -356,13 +389,13 @@ export async function prepareVendorProductFeed(
       stockOnHand,
       imageUrl: safeHttpUrl(xmlFieldValue(record, mapping.imageUrl)),
       additionalImageUrls: safeHttpUrls(xmlFieldValue(record, mapping.additionalImageUrl)),
-      productUrl: safeHttpUrl(xmlFieldValue(record, mapping.productUrl)),
+      productUrl,
       itemGroupId: trimOptional(xmlFieldValue(record, mapping.itemGroupId), 300),
-      size: trimOptional(xmlFieldValue(record, mapping.size), 160),
-      color: trimOptional(xmlFieldValue(record, mapping.color), 160),
+      size,
+      color,
       variantAttributes: Object.fromEntries([
-        ["size", trimOptional(xmlFieldValue(record, mapping.size), 160)],
-        ["color", trimOptional(xmlFieldValue(record, mapping.color), 160)]
+        ["size", size],
+        ["color", color]
       ].filter((entry): entry is [string, string] => Boolean(entry[1])))
     };
     valid.push({
