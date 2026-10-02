@@ -635,3 +635,30 @@ test("new rule inputs are parsed only from controlled values", () => {
   assert.equal(invalid.fitPreference, undefined);
   assert.equal(invalid.runnerNeed, undefined);
 });
+
+
+test("gym treadmill explicitly accepts governed running footwear", () => {
+  const runningShoe = product({
+    id: "treadmill-running-shoe",
+    title: "Road Running Shoe",
+    categoryCode: "womens-running-shoes",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"],
+      cushioningLevel: "medium",
+      supportLevel: "neutral"
+    }
+  });
+
+  const scored = scoreSportFitProduct(runningShoe, {
+    activity: "gym",
+    audience: "women",
+    gymTrainingType: "treadmill",
+    surface: "treadmill"
+  });
+
+  assert.equal(scored.technicalEligible, true);
+  assert.ok(scored.score > 0);
+});
