@@ -71,6 +71,7 @@ export function StudioDistrictScene() {
   const focusedIdRef = useRef<StudioId | undefined>(undefined);
   const travellingIdRef = useRef<StudioId | undefined>(undefined);
   const reducedMotionRef = useRef(false);
+  const mobileRef = useRef(false);
 
   const [ready, setReady] = useState(false);
   const [threeAvailable, setThreeAvailable] = useState(true);
@@ -79,10 +80,12 @@ export function StudioDistrictScene() {
   const [focusedId, setFocusedId] = useState<StudioId>();
   const [travellingId, setTravellingId] = useState<StudioId>();
   const [tier, setTier] = useState<QualityTier>("balanced");
+  const [mobileFocusedIndex, setMobileFocusedIndex] = useState(0);
 
   focusedIdRef.current = focusedId;
   travellingIdRef.current = travellingId;
   reducedMotionRef.current = reducedMotion;
+  const mobileFocusedStudio = STUDIO_DESTINATIONS[mobileFocusedIndex] ?? STUDIO_DESTINATIONS[0];
 
   const focusedStudio = useMemo(
     () => STUDIO_DESTINATIONS.find((studio) => studio.id === focusedId),
@@ -93,9 +96,20 @@ export function StudioDistrictScene() {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     const sync = () => setReducedMotion(media.matches);
     sync();
+    if (window.innerWidth <= 720 && !focusedIdRef.current) {
+      setFocusedId(STUDIO_DESTINATIONS[0].id);
+      setMobileFocusedIndex(0);
+    }
     media.addEventListener("change", sync);
     return () => media.removeEventListener("change", sync);
   }, []);
+
+  function focusMobileStudio(nextIndex: number) {
+    const count = STUDIO_DESTINATIONS.length;
+    const normalized = ((nextIndex % count) + count) % count;
+    setMobileFocusedIndex(normalized);
+    setFocusedId(STUDIO_DESTINATIONS[normalized].id);
+  }
 
   function enterStudio(studioId: StudioId) {
     const studio = STUDIO_DESTINATIONS.find((item) => item.id === studioId);
@@ -217,6 +231,79 @@ export function StudioDistrictScene() {
           return texture;
         }
 
+        function heightTexture(tile = 48, concrete = false) {
+          const canvas = document.createElement("canvas");
+          canvas.width = 256;
+          canvas.height = 256;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return undefined;
+          const image = ctx.createImageData(256, 256);
+          for (let i = 0; i < image.data.length; i += 4) {
+            const value = concrete
+              ? 118 + Math.floor((Math.random() - 0.5) * 24)
+              : 142 + Math.floor((Math.random() - 0.5) * 12);
+            image.data[i] = value;
+            image.data[i + 1] = value;
+            image.data[i + 2] = value;
+            image.data[i + 3] = 255;
+          }
+          ctx.putImageData(image, 0, 0);
+          if (!concrete) {
+            ctx.strokeStyle = "rgb(72,72,72)";
+            ctx.lineWidth = 3;
+            for (let x = 0; x <= 256; x += tile) {
+              ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 256); ctx.stroke();
+            }
+            for (let y = 0; y <= 256; y += tile) {
+              ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(256, y); ctx.stroke();
+            }
+          }
+          const texture = new THREE.CanvasTexture(canvas);
+          texture.wrapS = THREE.RepeatWrapping;
+          texture.wrapT = THREE.RepeatWrapping;
+          texture.repeat.set(concrete ? 3 : 4, concrete ? 5 : 9);
+          texture.anisotropy = maxAnisotropy;
+          return texture;
+        }
+
+        function buildEnvironmentTexture() {
+          const environment = new THREE.Scene();
+          environment.background = new THREE.Color(0x24221e);
+          const floor = new THREE.Mesh(
+            new THREE.PlaneGeometry(30, 30),
+            new THREE.MeshBasicMaterial({ color: 0x4f473c })
+          );
+          floor.rotation.x = -Math.PI / 2;
+          environment.add(floor);
+
+          const panels = [
+            { p: [0, 6, -7], s: [9, 2.5], c: 0xffead2 },
+            { p: [-7, 3, 0], s: [3, 6], c: 0xc7e4da },
+            { p: [7, 3, 1], s: [3, 6], c: 0xe7c9b4 },
+            { p: [0, 3, 7], s: [8, 4], c: 0x8da49d }
+          ];
+          panels.forEach(({ p, s, c: color }, index) => {
+            const panel = new THREE.Mesh(
+              new THREE.PlaneGeometry(s[0], s[1]),
+              new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide })
+            );
+            panel.position.set(p[0], p[1], p[2]);
+            if (index === 1) panel.rotation.y = Math.PI / 2;
+            if (index === 2) panel.rotation.y = -Math.PI / 2;
+            if (index === 3) panel.rotation.y = Math.PI;
+            environment.add(panel);
+          });
+
+          const pmrem = new THREE.PMREMGenerator(renderer);
+          const result = pmrem.fromScene(environment, 0.06);
+          pmrem.dispose();
+          environment.traverse((object: any) => {
+            object.geometry?.dispose?.();
+            object.material?.dispose?.();
+          });
+          return result.texture;
+        }
+
         function signTexture(title: string, subtitle: string, accent: string) {
           const canvas = document.createElement("canvas");
           canvas.width = 768;
@@ -243,23 +330,59 @@ export function StudioDistrictScene() {
           return texture;
         }
 
-        const floorMap = canvasTexture("#4a4339", "rgba(205,194,178,.10)", 48);
-        const wallMap = canvasTexture("#2b2a26", "rgba(218,211,199,.04)", 64);
+        const floorMap = canvasTexture("#575047", "rgba(224,216,204,.10)", 48);
+        const floorBump = heightTexture(48, false);
+        const wallMap = canvasTexture("#353431", "rgba(235,230,219,.025)", 64);
+        const wallBump = heightTexture(64, true);
+        const environmentTexture = buildEnvironmentTexture();
+        scene.environment = environmentTexture;
 
-        const floorMaterial = new THREE.MeshStandardMaterial({
-          color: 0x665e52,
+        const floorMaterial = new THREE.MeshPhysicalMaterial({
+          color: 0x756b5f,
           map: floorMap,
-          roughness: 0.82,
-          metalness: 0.05
+          bumpMap: floorBump,
+          bumpScale: 0.025,
+          roughness: 0.36,
+          metalness: 0.04,
+          clearcoat: 0.22,
+          clearcoatRoughness: 0.34,
+          envMapIntensity: 0.62
         });
         const wallMaterial = new THREE.MeshStandardMaterial({
-          color: 0x34332f,
+          color: 0x45433f,
           map: wallMap,
-          roughness: 0.93,
-          metalness: 0.02
+          bumpMap: wallBump,
+          bumpScale: 0.055,
+          roughness: 0.88,
+          metalness: 0.01,
+          envMapIntensity: 0.24
         });
-        const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x171816, roughness: 0.82, metalness: 0.08 });
-        const brassMaterial = new THREE.MeshStandardMaterial({ color: 0x8e7959, roughness: 0.42, metalness: 0.62 });
+        const darkMaterial = new THREE.MeshPhysicalMaterial({
+          color: 0x1d1e1b,
+          roughness: 0.66,
+          metalness: 0.12,
+          clearcoat: 0.08,
+          envMapIntensity: 0.42
+        });
+        const brassMaterial = new THREE.MeshPhysicalMaterial({
+          color: 0x9a7c54,
+          roughness: 0.24,
+          metalness: 0.86,
+          clearcoat: 0.16,
+          clearcoatRoughness: 0.22,
+          envMapIntensity: 1.15
+        });
+        const smokedGlassMaterial = new THREE.MeshPhysicalMaterial({
+          color: 0x8b9d98,
+          roughness: 0.08,
+          metalness: 0.0,
+          transmission: nextTier === "lite" ? 0.32 : 0.74,
+          thickness: 0.18,
+          ior: 1.45,
+          transparent: true,
+          opacity: nextTier === "lite" ? 0.26 : 0.72,
+          envMapIntensity: 1.25
+        });
 
         const floor = new THREE.Mesh(new THREE.PlaneGeometry(12, 28), floorMaterial);
         floor.rotation.x = -Math.PI / 2;
@@ -269,7 +392,14 @@ export function StudioDistrictScene() {
 
         const runner = new THREE.Mesh(
           new THREE.PlaneGeometry(2.8, 24),
-          new THREE.MeshStandardMaterial({ color: 0x24231f, roughness: 0.72, metalness: 0.04 })
+          new THREE.MeshPhysicalMaterial({
+            color: 0x282622,
+            roughness: 0.52,
+            metalness: 0.06,
+            clearcoat: 0.12,
+            clearcoatRoughness: 0.44,
+            envMapIntensity: 0.45
+          })
         );
         runner.rotation.x = -Math.PI / 2;
         runner.position.set(0, 0.012, -3.0);
@@ -298,23 +428,99 @@ export function StudioDistrictScene() {
         ceiling.position.set(0, 5.75, -2.8);
         scene.add(ceiling);
 
+        // Smoked glass partitions keep the District architectural without hiding the Studio bays.
+        [-1.95, 1.95].forEach((x) => {
+          const glass = new THREE.Mesh(new THREE.BoxGeometry(0.035, 3.4, 5.4), smokedGlassMaterial);
+          glass.position.set(x, 1.75, -8.6);
+          glass.receiveShadow = true;
+          scene.add(glass);
+        });
+
+        // Central bench — wood on brass legs.
+        const woodMaterial = new THREE.MeshPhysicalMaterial({
+          color: 0x72533d,
+          roughness: 0.42,
+          metalness: 0.0,
+          clearcoat: 0.14,
+          clearcoatRoughness: 0.36,
+          envMapIntensity: 0.58
+        });
+        const bench = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.18, 0.75), woodMaterial);
+        bench.position.set(0, 0.62, -1.8);
+        bench.castShadow = renderer.shadowMap.enabled;
+        bench.receiveShadow = true;
+        scene.add(bench);
+        [-0.92, 0.92].forEach((x) => {
+          const leg = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.62, 0.52), brassMaterial);
+          leg.position.set(x, 0.31, -1.8);
+          leg.castShadow = renderer.shadowMap.enabled;
+          scene.add(leg);
+        });
+
+        // Planters and greenery add scale, softness and real-world depth.
+        const planterMaterial = new THREE.MeshPhysicalMaterial({
+          color: 0x403c36,
+          roughness: 0.68,
+          metalness: 0.08,
+          envMapIntensity: 0.38
+        });
+        const leafMaterial = new THREE.MeshStandardMaterial({
+          color: 0x496452,
+          roughness: 0.78,
+          metalness: 0.0
+        });
+        [-3.55, 3.55].forEach((x, sideIndex) => {
+          [-2.0, -9.2].forEach((z, zIndex) => {
+            const planter = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.28, 0.72, 24), planterMaterial);
+            planter.position.set(x, 0.36, z);
+            planter.castShadow = renderer.shadowMap.enabled;
+            scene.add(planter);
+            const leafCount = nextTier === "lite" ? 4 : 7;
+            for (let i = 0; i < leafCount; i += 1) {
+              const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8), leafMaterial);
+              const angle = (i / leafCount) * Math.PI * 2 + sideIndex * 0.4 + zIndex * 0.2;
+              leaf.scale.set(0.55, 1.65, 0.38);
+              leaf.rotation.z = Math.sin(angle) * 0.65;
+              leaf.position.set(
+                x + Math.cos(angle) * 0.16,
+                0.88 + (i % 3) * 0.15,
+                z + Math.sin(angle) * 0.16
+              );
+              leaf.castShadow = renderer.shadowMap.enabled;
+              scene.add(leaf);
+            }
+          });
+        });
+
         for (let z = 6; z >= -13; z -= 3.8) {
           const beam = new THREE.Mesh(new THREE.BoxGeometry(10.1, 0.14, 0.18), brassMaterial);
           beam.position.set(0, 5.42, z);
           scene.add(beam);
 
-          const strip = new THREE.Mesh(
-            new THREE.BoxGeometry(5.0, 0.035, 0.08),
-            new THREE.MeshBasicMaterial({ color: 0xd9d1c2 })
-          );
-          strip.position.set(0, 5.31, z);
+          const stripMaterial = new THREE.MeshStandardMaterial({
+            color: 0xfff2db,
+            emissive: 0xffe6bd,
+            emissiveIntensity: nextTier === "lite" ? 1.2 : 2.0,
+            roughness: 0.22
+          });
+          const strip = new THREE.Mesh(new THREE.BoxGeometry(4.7, 0.035, 0.10), stripMaterial);
+          strip.position.set(0, 5.30, z);
           scene.add(strip);
+
+          if (nextTier !== "lite") {
+            const spot = new THREE.SpotLight(0xffead0, 65, 11, Math.PI / 5.5, 0.55, 1.7);
+            spot.position.set(0, 5.16, z);
+            spot.target.position.set(0, 0, z - 0.6);
+            spot.castShadow = renderer.shadowMap.enabled;
+            spot.shadow.mapSize.set(nextTier === "high" ? 1024 : 512, nextTier === "high" ? 1024 : 512);
+            scene.add(spot, spot.target);
+          }
         }
 
-        const hemi = new THREE.HemisphereLight(0xf1e7d7, 0x211f1b, 1.25);
+        const hemi = new THREE.HemisphereLight(0xf5ead8, 0x24211d, 0.78);
         scene.add(hemi);
 
-        const key = new THREE.DirectionalLight(0xfff0dc, 1.2);
+        const key = new THREE.DirectionalLight(0xfff0dc, 1.65);
         key.position.set(3.5, 6.8, 7.5);
         key.castShadow = renderer.shadowMap.enabled;
         if (key.castShadow) {
@@ -353,22 +559,28 @@ export function StudioDistrictScene() {
           group.position.set(cfg.x, 1.55, cfg.z);
           group.rotation.y = cfg.side < 0 ? Math.PI / 2 : -Math.PI / 2;
 
-          const frameMaterial = new THREE.MeshStandardMaterial({
-            color: 0x423d35,
-            roughness: 0.48,
-            metalness: 0.55
+          const frameMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0x51483c,
+            roughness: 0.28,
+            metalness: 0.72,
+            clearcoat: 0.12,
+            envMapIntensity: 1.0
           });
-          const accentMaterial = new THREE.MeshStandardMaterial({
+          const accentMaterial = new THREE.MeshPhysicalMaterial({
             color: accent,
             emissive: accent,
-            emissiveIntensity: 0.38,
-            roughness: 0.38,
-            metalness: 0.42
+            emissiveIntensity: 0.52,
+            roughness: 0.24,
+            metalness: 0.46,
+            clearcoat: 0.24,
+            envMapIntensity: 1.12
           });
-          const recessMaterial = new THREE.MeshStandardMaterial({
+          const recessMaterial = new THREE.MeshPhysicalMaterial({
             color: 0x111210,
-            roughness: 0.88,
-            metalness: 0.06
+            roughness: 0.54,
+            metalness: 0.08,
+            clearcoat: 0.05,
+            envMapIntensity: 0.38
           });
 
           addBox(group, [0.18, 3.45, 0.35], [-1.35, 0, 0], frameMaterial);
@@ -376,6 +588,10 @@ export function StudioDistrictScene() {
           addBox(group, [2.88, 0.18, 0.35], [0, 1.64, 0], frameMaterial);
           addBox(group, [2.72, 0.08, 0.34], [0, -1.69, 0], brassMaterial);
           addBox(group, [2.56, 3.15, 0.18], [0, -0.02, -0.25], recessMaterial, false);
+
+          const glassPane = new THREE.Mesh(new THREE.PlaneGeometry(2.34, 2.84), smokedGlassMaterial);
+          glassPane.position.set(0, -0.02, 0.02);
+          group.add(glassPane);
 
           const sign = signTexture(studio.title, studio.eyebrow, `#${accent.toString(16).padStart(6, "0")}`);
           if (sign) {
@@ -538,12 +754,36 @@ export function StudioDistrictScene() {
         };
 
         const onPointerUp = (event: PointerEvent) => {
+          const dx = event.clientX - pointerStart.x;
+          const dy = event.clientY - pointerStart.y;
+
+          if (mobileRef.current && Math.abs(dx) > 46 && Math.abs(dx) > Math.abs(dy) * 1.15) {
+            setMobileFocusedIndex((current) => {
+              const count = STUDIO_DESTINATIONS.length;
+              const next = ((current + (dx < 0 ? 1 : -1)) % count + count) % count;
+              setFocusedId(STUDIO_DESTINATIONS[next].id);
+              return next;
+            });
+            return;
+          }
+
           if (pointerMoved) return;
           pointerCoords(event);
           raycaster.setFromCamera(pointer, camera);
           const hit = raycaster.intersectObjects(hitMeshes, false)[0];
           const id = hit?.object?.userData?.studioId as StudioId | undefined;
-          if (id) enterRef.current(id);
+          if (!id) return;
+
+          if (mobileRef.current) {
+            const index = STUDIO_DESTINATIONS.findIndex((studio) => studio.id === id);
+            if (index >= 0) {
+              setMobileFocusedIndex(index);
+              setFocusedId(id);
+            }
+            return;
+          }
+
+          enterRef.current(id);
         };
 
         renderer.domElement.addEventListener("pointerdown", onPointerDown);
@@ -574,6 +814,7 @@ export function StudioDistrictScene() {
           const width = stage.clientWidth;
           const height = stage.clientHeight;
           const nextMobile = width <= 720;
+          mobileRef.current = nextMobile;
           camera.aspect = width / Math.max(1, height);
           camera.fov = nextMobile ? 58 : 48;
           camera.updateProjectionMatrix();
@@ -595,10 +836,14 @@ export function StudioDistrictScene() {
           if (activeTravel) {
             desiredPosition.copy(cameraPositionForStudio(activeTravel));
             desiredTarget.copy(targetForStudio(activeTravel));
+          } else if (mobileRef.current && activeFocus) {
+            const cfg = DOORS[activeFocus];
+            desiredPosition.set(cfg.x * 0.13, 2.05, cfg.z + 5.7);
+            desiredTarget.copy(targetForStudio(activeFocus));
           } else {
             desiredPosition.set(
-              pointerTargetX * (stage.clientWidth <= 720 ? 0.25 : 1.0),
-              (stage.clientWidth <= 720 ? 2.35 : 2.55) - pointerTargetY,
+              pointerTargetX,
+              2.55 - pointerTargetY,
               10.8
             );
             desiredTarget.copy(activeFocus ? targetForStudio(activeFocus) : defaultTarget);
@@ -635,7 +880,10 @@ export function StudioDistrictScene() {
             });
           });
           floorMap?.dispose?.();
+          floorBump?.dispose?.();
           wallMap?.dispose?.();
+          wallBump?.dispose?.();
+          environmentTexture?.dispose?.();
           renderer.dispose();
           mount.replaceChildren();
         });
@@ -704,6 +952,21 @@ export function StudioDistrictScene() {
           <div className={styles.sceneHint}>
             <span>REAL-TIME 3D · {tier.toUpperCase()}</span>
             <b>{focusedStudio ? focusedStudio.title : "Tap μία φωτισμένη είσοδο"}</b>
+          </div>
+
+          <div className={styles.mobileNavigator} aria-label="Πλοήγηση στα KONTA MOY Studios">
+            <button type="button" className={styles.mobileArrow} aria-label="Προηγούμενο Studio" onClick={() => focusMobileStudio(mobileFocusedIndex - 1)}>←</button>
+            <div className={styles.mobileFocusCard} data-tone={mobileFocusedStudio.tone}>
+              <span>{String(mobileFocusedIndex + 1).padStart(2, "0")} / {String(STUDIO_DESTINATIONS.length).padStart(2, "0")}</span>
+              <strong>{mobileFocusedStudio.title}</strong>
+              <small>{mobileFocusedStudio.eyebrow}</small>
+              <button type="button" onClick={() => enterStudio(mobileFocusedStudio.id)}>ENTER STUDIO</button>
+            </div>
+            <button type="button" className={styles.mobileArrow} aria-label="Επόμενο Studio" onClick={() => focusMobileStudio(mobileFocusedIndex + 1)}>→</button>
+            <div className={styles.mobileDots} aria-hidden="true">
+              {STUDIO_DESTINATIONS.map((studio, index) => <i key={studio.id} data-active={index === mobileFocusedIndex || undefined} />)}
+            </div>
+            <p>Swipe αριστερά / δεξιά για τον επόμενο χώρο</p>
           </div>
 
           <nav className={styles.studioDock} aria-label="KONTA MOY Studios">
