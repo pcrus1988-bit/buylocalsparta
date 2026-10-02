@@ -452,7 +452,7 @@ test("running rules combine distance, frequency, cushioning and verified use cas
   });
 
   assert.equal(result.primary?.id, "long-run");
-  assert.equal(result.rulesetVersion, "2026-10-02.3");
+  assert.equal(result.rulesetVersion, "2026-10-02.4");
   assert.ok(result.primary?.appliedRules.includes("running.long_run_use_case"));
   assert.ok(result.primary?.reasons.some((reason) => /long-run|cushioning/i.test(reason)));
 });
