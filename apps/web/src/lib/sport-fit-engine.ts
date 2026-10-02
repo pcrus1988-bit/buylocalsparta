@@ -89,6 +89,15 @@ export type SportFitAnswers = Readonly<{
   useCase?: SportUseCase;
 }>;
 
+export type SportFitRequirementStatus = "match" | "conflict" | "unknown" | "not_applicable";
+
+export type SportFitTechnicalRequirement = Readonly<{
+  id: string;
+  weight: number;
+  status: SportFitRequirementStatus;
+  reason?: string;
+}>;
+
 export type SportFitProduct = Readonly<{
   id: string;
   familyId?: string;
@@ -119,6 +128,9 @@ export type SportFitScoredProduct = SportFitProduct & Readonly<{
   reasons: readonly string[];
   matchedSize?: string;
   technicalEligible: boolean;
+  technicalScore: number;
+  technicalCoverage: number;
+  technicalRequirements: readonly SportFitTechnicalRequirement[];
   appliedRules: readonly string[];
 }>;
 
@@ -644,6 +656,9 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
     reasons: [...technicalReasons, ...reasonsFor(product, answers, role, text, size.matchedSize)].slice(0, 4),
     matchedSize: size.matchedSize,
     technicalEligible,
+    technicalScore: ruleEvaluation.technicalScore,
+    technicalCoverage: ruleEvaluation.technicalCoverage,
+    technicalRequirements: ruleEvaluation.technicalRequirements,
     appliedRules: [
       ...(stockEligible ? ["stock.positive"] : ["stock.unavailable"]),
       ...(hardSizeMismatch ? ["fit.requested_size_mismatch"] : size.matchedSize ? ["fit.requested_size_match"] : []),
@@ -684,7 +699,13 @@ export function buildSportFitRecommendation(
     )
     .map((product) => scoreSportFitProduct(product, answers))
     .filter((product) => product.technicalEligible && product.score >= 20)
-    .sort((left, right) => right.score - left.score || left.priceMinor - right.priceMinor || left.title.localeCompare(right.title, "el"));
+    .sort((left, right) =>
+      right.technicalScore - left.technicalScore
+      || right.technicalCoverage - left.technicalCoverage
+      || right.score - left.score
+      || left.priceMinor - right.priceMinor
+      || left.title.localeCompare(right.title, "el")
+    );
 
   const ranked = uniqueRanked(scored);
   const footwear = ranked.filter((product) => product.role === "footwear");
