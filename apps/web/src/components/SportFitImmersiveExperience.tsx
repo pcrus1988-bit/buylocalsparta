@@ -737,9 +737,9 @@ export function SportFitImmersiveExperience({
         </div>
       </header>
 
-      {step !== "activity" ? (
+      {step !== "results" ? (
         <div className={styles.progress}>
-          <span style={{ width: step === "profile" ? "34%" : step === "details" ? "68%" : "100%" }} />
+          <span style={{ width: `${Math.max(4, Math.round((currentGuideQuestion / totalGuideQuestions) * 100))}%` }} />
         </div>
       ) : null}
 
