@@ -45,6 +45,7 @@ export type SportFitKnowledge = Readonly<{
   breathabilityLevel?: string;
   thermalLevel?: string;
   compressionLevel?: string;
+  reflectiveDetails?: boolean;
 }>;
 
 export type SportFitAnswers = Readonly<{
@@ -417,7 +418,11 @@ function reasonsFor(
   if (knowledge && answers.priority === "stability" && knowledge.supportLevel) {
     reasons.push("Τεκμηριωμένο support: " + knowledge.supportLevel);
   }
-  if (knowledge && role === "socks" && knowledge.moistureWicking === true) {
+  if (
+    knowledge
+    && knowledge.moistureWicking === true
+    && (role === "socks" || role === "top" || role === "bottom" || role === "layer")
+  ) {
     reasons.push("Τεκμηριωμένη απομάκρυνση υγρασίας");
   }
   if (knowledge && role === "socks" && knowledge.sockArchSupport === true) {
@@ -431,6 +436,13 @@ function reasonsFor(
   }
   if (knowledge && role === "socks" && knowledge.thermalLevel) {
     reasons.push("Τεκμηριωμένη θερμική προστασία: " + knowledge.thermalLevel);
+  }
+  if (
+    knowledge
+    && knowledge.reflectiveDetails === true
+    && (role === "top" || role === "bottom" || role === "layer")
+  ) {
+    reasons.push("Τεκμηριωμένες ανακλαστικές λεπτομέρειες");
   }
 
   if (answers.budgetMinor && product.priceMinor <= answers.budgetMinor) reasons.push("Εντός του budget σου");
