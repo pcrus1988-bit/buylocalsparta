@@ -448,3 +448,17 @@ The technology rule is deliberately colorway-specific. Moisture-wicking is norma
 All three style codes must resolve to exactly one active canonical family before any fact is published.
 
 The runtime schema gate is 319.
+
+
+## Schema 320 — verified adidas Terrex Rockadia
+
+Migration `0320_sport_fit_verified_adidas_rockadia.sql` adds exact-code first-party adidas evidence for two current Kerasiotis Rockadia families:
+
+- `KJ0410`: hiking activity and explicit true-to-size guidance from the exact adidas product page.
+- `KJ0411`: hiking and walking activity, trail and road/city-street use, daily-walking context, wide fit and explicit true-to-size guidance from the exact adidas product page.
+
+The migration deliberately does **not** copy KJ0411's richer fit or terrain details to KJ0410 merely because both are Rockadia colorways. It also does not translate EVA cushioning wording into `cushioning_level`; normalized cushioning intensity remains unresolved until an exact governed claim or measurement supports it.
+
+Both style codes were checked against the live catalogue and resolve to one active canonical family each before the migration was committed. The migration repeats that uniqueness check at execution time and fails closed if catalogue identity changes.
+
+The runtime schema gate is 320.
