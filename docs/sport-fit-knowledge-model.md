@@ -513,4 +513,4 @@ For the newly added sports, recommendation eligibility is evidence-gated. A prod
 
 Ruleset version: `2026-10-02.2`.
 
-Runtime schema gate after this expansion: `323`.
+Expansion vocabulary migration: `0323`. Current branch runtime schema gate: `324` after the subsequent exact Runfalcon 6 ATR enrichment (`0324`).
