@@ -527,3 +527,12 @@ Migration `0324_sport_fit_verified_adidas_runfalcon6atr.sql` upgrades current Ke
 Cloudfoam wording remains descriptive evidence and is not converted into a normalized cushioning or support level. Exact surface/use-case classification also remains open until first-party exact-code evidence supports it.
 
 The runtime schema gate is now **324**.
+
+
+## Schema 325 — handball and badminton governed vocabulary
+
+Migration `0325_sport_fit_handball_badminton_vocabulary.sql` extends the controlled Sport & Fit vocabulary with first-class `handball` and `badminton` activities plus `handball_training`, `handball_match`, `badminton_training` and `badminton_match` use cases.
+
+The migration is vocabulary-only. It does not assign either activity to any product family and does not weaken evidence/provenance requirements. Handball can use the existing governed `team_sports` broad class and badminton can use `racket_sports`; exact sport evidence remains more specific in recommendation ranking.
+
+The runtime schema gate is now **325**.
