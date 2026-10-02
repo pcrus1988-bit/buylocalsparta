@@ -683,27 +683,27 @@ export function evaluateSportFitRules(
   if (role !== "footwear" && ["socks", "top", "bottom", "layer", "accessory"].includes(role)) {
     const requestedActivities = requestedActivityValues(answers);
     if (activities.size && includesAny(activities, requestedActivities)) {
-      push(state, "kit.activity_verified_match", 7, "Τεχνικός κανόνας σετ: τεκμηριωμένη δραστηριότητα");
+      push(state, "kit.activity_verified_match", 7);
     }
     if (answers.useCase && useCases.has(normalize(answers.useCase))) {
-      push(state, "kit.use_case_verified_match", 5, "Τεχνικός κανόνας σετ: τεκμηριωμένος τύπος χρήσης");
+      push(state, "kit.use_case_verified_match", 5);
     }
     if (knowledge?.moistureWicking === true) {
-      push(state, "kit.moisture_management_verified", 4, "Τεχνικός κανόνας σετ: τεκμηριωμένη απομάκρυνση υγρασίας");
+      push(state, "kit.moisture_management_verified", 4);
     }
     if (
       answers.priority === "weather"
       && weatherProtection.size
       && (role === "socks" || role === "top" || role === "bottom" || role === "layer")
     ) {
-      push(state, "kit.weather_protection_verified", 5, "Τεχνικός κανόνας σετ: τεκμηριωμένη προστασία από καιρό");
+      push(state, "kit.weather_protection_verified", 5);
     }
     if (
       role === "socks"
       && answers.priority === "cushioning"
       && ["medium", "max"].includes(sockCushioning)
     ) {
-      push(state, "kit.sock_cushioning_verified", 5, "Τεχνικός κανόνας σετ: τεκμηριωμένο cushioning κάλτσας");
+      push(state, "kit.sock_cushioning_verified", 5);
     }
   }
 
