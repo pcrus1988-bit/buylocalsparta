@@ -27,6 +27,7 @@ export function preferredSportSizeGuideScopes(
 ): readonly SportSizeGuideAudience[] {
   const scopes = new Set(availableScopes);
   if (scopes.has(audience)) return [audience];
+  if (audience === "kids") return [];
   if (scopes.has("unisex")) return ["unisex"];
   return [];
 }
