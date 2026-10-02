@@ -393,8 +393,6 @@ function reasonsFor(
   else if (role === "accessory") reasons.push("Χρήσιμο συμπλήρωμα για τη δραστηριότητα");
 
   if (matchedSize) reasons.push("Διαθέσιμο στο μέγεθος " + matchedSize);
-  if (answers.budgetMinor && product.priceMinor <= answers.budgetMinor) reasons.push("Εντός του budget σου");
-  if (product.available && product.availableToSell > 0) reasons.push("Διαθέσιμο τώρα");
 
   const knowledge = usableKnowledge(product);
   if (knowledge && hasKnowledgeMatch(knowledge.activities, requestedActivityCodes(answers.activity))) {
@@ -418,6 +416,9 @@ function reasonsFor(
   if (knowledge && role === "socks" && knowledge.sockHeight) {
     reasons.push("Τεκμηριωμένο ύψος κάλτσας: " + knowledge.sockHeight);
   }
+
+  if (answers.budgetMinor && product.priceMinor <= answers.budgetMinor) reasons.push("Εντός του budget σου");
+  if (product.available && product.availableToSell > 0) reasons.push("Διαθέσιμο τώρα");
 
   if (answers.surface === "trail" && hasAny(text, ["trail", "terrex", "hiking", "outdoor"])) reasons.push("Έχει σαφή ένδειξη trail / outdoor στον κατάλογο");
   if ((answers.surface === "artificial" || answers.surface === "grass") && hasAny(text, ["football", "soccer", "futsal", "turf", "tf ", "fg ", "ag "])) reasons.push("Έχει σαφή ένδειξη ποδοσφαιρικής χρήσης στον κατάλογο");
