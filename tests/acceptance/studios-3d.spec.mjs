@@ -60,3 +60,26 @@ test("Paint Build exposes its shared WebGL project environment", async ({ page }
   await expect(page.getByRole("application", { name: "KONTA MOY Paint & Build Studio" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Έξοδος από το Studio" })).toBeVisible();
 });
+
+
+test("Style questionnaire enters a WebGL fitting room", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/fitting-room");
+
+  const enter = page.getByRole("button", { name: /Μπες στο fitting room/i });
+  await expect(enter).toBeVisible();
+  await enter.click();
+
+  await expect(page.getByRole("dialog", { name: "KONTA MOY Fitting Room" })).toBeVisible();
+  await expect(page.locator("canvas").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /STUDIOS/i }).first()).toBeVisible();
+});
+
+test("Active Color Finder Studio renders its spatial colour universe", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/color-finder?category=studio-nails&categoryLabel=Nails");
+
+  await expect(page.locator("canvas").first()).toBeVisible();
+  await expect(page.getByText(/closest products orbiting|Το πεδίο θα γεμίσει/).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: /STUDIOS/i }).first()).toBeVisible();
+});
