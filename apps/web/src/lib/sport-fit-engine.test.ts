@@ -452,7 +452,7 @@ test("running rules combine distance, frequency, cushioning and verified use cas
   });
 
   assert.equal(result.primary?.id, "long-run");
-  assert.equal(result.rulesetVersion, "2026-10-02.5");
+  assert.equal(result.rulesetVersion, "2026-10-02.6");
   assert.ok(result.primary?.appliedRules.includes("running.long_run_use_case"));
   assert.ok(result.primary?.reasons.some((reason) => /long-run|cushioning/i.test(reason)));
 });
@@ -919,3 +919,32 @@ test("gym technical profile separates stable strength footwear from max-cushion 
   assert.ok(stable.technicalRequirements.some((item) => item.id === "requirement.gym_training_type" && item.status === "match"));
   assert.ok(soft.technicalRequirements.some((item) => item.id === "requirement.gym_training_type" && item.status === "conflict"));
 });
+
+test("tier-two socks never become a primary match or finalist", () => {
+  const result = buildSportFitRecommendation([
+    product({
+      id: "sock-only",
+      title: "Performance Running Socks 43-46",
+      categoryCode: "socks-hosiery",
+      sizes: ["43-46"],
+      priceMinor: 1200,
+      knowledge: {
+        status: "verified",
+        identityQuality: "strong",
+        activities: ["running"],
+        moistureWicking: true
+      }
+    })
+  ], {
+    activity: "running",
+    audience: "men",
+    size: "44",
+    surface: "road"
+  });
+
+  assert.equal(result.primary, undefined);
+  assert.equal(result.alternatives.length, 0);
+  assert.equal(result.ranked.length, 0);
+  assert.ok(result.kit.every((item) => item.role !== "footwear"));
+});
+

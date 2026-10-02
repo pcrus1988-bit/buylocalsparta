@@ -1,6 +1,6 @@
 # KONTA MOY Sport & Fit recommendation rules
 
-Ruleset: `2026-10-02.5`
+Ruleset: `2026-10-02.6`
 
 Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. They do not require an external recommendation API and they do not infer missing technical product facts.
 
@@ -12,7 +12,7 @@ Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. T
 4. **Technical requirement profile** — every footwear candidate is evaluated against weighted requirements and receives a separate `technicalScore` plus `technicalCoverage`. A documented match scores above an unknown fact; an unknown fact is never treated as verified compatibility.
 5. **Sport-specific suitability rules** — running, walking, gym, football and the expanded sport paths apply their own technical matrix.
 6. **Secondary preference scoring** — budget and softer catalogue signals can reorder candidates only after technical compatibility. They cannot rescue a hard incompatibility or outrank a materially stronger governed technical match.
-7. **Complete My Kit** — apparel, socks and accessories are selected independently after the primary technical match.
+7. **Product tier split** — Tier 1 contains only footwear that can become a primary match or Top 5 finalist. Socks, apparel and accessories are Tier 2: they never count as primary technical survivors and are selected independently only for **Complete My Kit** after a Tier 1 match exists.
 
 Unknown facts remain unknown. A missing fact is not converted into a positive claim.
 
