@@ -26,9 +26,13 @@ const DOORS: Readonly<Record<StudioId, Readonly<{ x: number; z: number; side: -1
 };
 
 function qualityTier(width: number): QualityTier {
-  const cores = typeof navigator === "undefined" ? 4 : navigator.hardwareConcurrency || 4;
-  if (width <= 640 || cores <= 4) return "lite";
-  if (width >= 1180 && cores >= 8) return "high";
+  if (typeof navigator === "undefined") return width <= 640 ? "lite" : "balanced";
+  const cores = navigator.hardwareConcurrency || 4;
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4;
+
+  if (cores <= 4 || memory <= 3) return "lite";
+  if (width <= 720) return cores >= 8 && memory >= 4 ? "balanced" : "lite";
+  if (width >= 1180 && cores >= 8 && memory >= 8) return "high";
   return "balanced";
 }
 
