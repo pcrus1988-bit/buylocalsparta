@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { BuildModuleKey } from "../lib/build-consultant";
+import { createStudioProgram, hexToStudioRgb, resizeStudioCanvas, studioDprCap } from "../lib/studio-webgl";
 import { useStudioRuntime } from "./StudioExperienceRuntime";
 import styles from "./PaintBuildSpatialScene.module.css";
 
@@ -74,37 +75,6 @@ void main() {
   gl_FragColor = vec4(color, alpha);
 }
 `;
-
-function shader(gl: WebGLRenderingContext, type: number, source: string): WebGLShader {
-  const value = gl.createShader(type);
-  if (!value) throw new Error("paint_build_shader_create_failed");
-  gl.shaderSource(value, source);
-  gl.compileShader(value);
-  if (!gl.getShaderParameter(value, gl.COMPILE_STATUS)) {
-    const message = gl.getShaderInfoLog(value) || "paint_build_shader_compile_failed";
-    gl.deleteShader(value);
-    throw new Error(message);
-  }
-  return value;
-}
-
-function program(gl: WebGLRenderingContext): WebGLProgram {
-  const value = gl.createProgram();
-  if (!value) throw new Error("paint_build_program_create_failed");
-  const vs = shader(gl, gl.VERTEX_SHADER, VERTEX);
-  const fs = shader(gl, gl.FRAGMENT_SHADER, FRAGMENT);
-  gl.attachShader(value, vs);
-  gl.attachShader(value, fs);
-  gl.linkProgram(value);
-  gl.deleteShader(vs);
-  gl.deleteShader(fs);
-  if (!gl.getProgramParameter(value, gl.LINK_STATUS)) {
-    const message = gl.getProgramInfoLog(value) || "paint_build_program_link_failed";
-    gl.deleteProgram(value);
-    throw new Error(message);
-  }
-  return value;
-}
 
 function addLine(target: Vertex[], a: readonly [number, number, number], b: readonly [number, number, number], kind = 0) {
   target.push([a[0], a[1], a[2], kind], [b[0], b[1], b[2], kind]);
@@ -189,16 +159,6 @@ function buildProject(module: BuildModuleKey | undefined, progress: number) {
   };
 }
 
-function hexToRgb(hex: string): [number, number, number] {
-  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!match) return [0.80,0.70,0.48];
-  return [
-    parseInt(match[1],16)/255,
-    parseInt(match[2],16)/255,
-    parseInt(match[3],16)/255
-  ];
-}
-
 export function PaintBuildSpatialScene({ module, progress = 0, accent = "#CBB27A", result = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<number | null>(null);
@@ -223,7 +183,7 @@ export function PaintBuildSpatialScene({ module, progress = 0, accent = "#CBB27A
     let disposed = false;
 
     try {
-      const createdProgram = program(gl);
+      const createdProgram = createStudioProgram(gl, VERTEX, FRAGMENT, "paint_build");
       activeProgram = createdProgram;
       const scene = buildProject(module, progress);
       const createdLineBuffer = gl.createBuffer();
@@ -241,8 +201,8 @@ export function PaintBuildSpatialScene({ module, progress = 0, accent = "#CBB27A
       const timeLocation = gl.getUniformLocation(createdProgram,"u_time");
       const accentLocation = gl.getUniformLocation(createdProgram,"u_accent");
       const resultLocation = gl.getUniformLocation(createdProgram,"u_result");
-      const [r,g,b] = hexToRgb(accent);
-      const dprCap = qualityTier === "high" ? 1.6 : qualityTier === "balanced" ? 1.35 : 1;
+      const [r,g,b] = hexToStudioRgb(accent);
+      const dprCap = studioDprCap(qualityTier);
 
       gl.useProgram(createdProgram);
       gl.enable(gl.BLEND);
@@ -253,15 +213,7 @@ export function PaintBuildSpatialScene({ module, progress = 0, accent = "#CBB27A
       gl.bindBuffer(gl.ARRAY_BUFFER,createdPointBuffer);
       gl.bufferData(gl.ARRAY_BUFFER,scene.points,gl.STATIC_DRAW);
 
-      const resize=()=>{
-        const rect=host.getBoundingClientRect();
-        const dpr=Math.min(window.devicePixelRatio||1,dprCap);
-        canvas.width=Math.max(1,Math.floor(rect.width*dpr));
-        canvas.height=Math.max(1,Math.floor(rect.height*dpr));
-        canvas.style.width=`${rect.width}px`;
-        canvas.style.height=`${rect.height}px`;
-        gl.viewport(0,0,canvas.width,canvas.height);
-      };
+      const resize=()=>{ resizeStudioCanvas(canvas, host, gl, dprCap); };
       observer=new ResizeObserver(resize);
       observer.observe(host);
       resize();
