@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import styles from "./VendorCatalogClient.module.css";
 import { VendorSmartProductForm } from "./VendorSmartProductForm";
+import { useVendorConfirmation } from "./VendorConfirmation";
 import { WorkspaceEmptyState, WorkspaceHowItWorks, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "./WorkspacePagePrimitives";
 
 type CatalogProduct = {
@@ -70,6 +71,7 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
   const [brand, setBrand] = useState("all");
   const [sort, setSort] = useState("updated");
   const [stockDrafts, setStockDrafts] = useState<Record<string, StockDraft>>(() => Object.fromEntries(initial.catalogProducts.map((product) => [product.offerId, { onHand: String(product.onHand), safetyStock: String(product.safetyStock) }])));
+  const { requestConfirmation, confirmationDialog } = useVendorConfirmation();
 
   useEffect(() => {
     setStockDrafts(Object.fromEntries(initial.catalogProducts.map((product) => [product.offerId, { onHand: String(product.onHand), safetyStock: String(product.safetyStock) }])));
@@ -125,7 +127,6 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
   async function bulkSubmitDrafts() {
     if (!draftSubmissions.length) return;
     const total = draftSubmissions.length;
-    if (!window.confirm("Να σταλούν και τα " + total.toLocaleString("el-GR") + " πρόχειρα προϊόντα για έλεγχο;")) return;
     setBusy("bulk-submit");
     setError("");
     setNotice("");
@@ -165,9 +166,29 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
     }
   }
 
+  function requestBulkSubmitDrafts() {
+    const total = draftSubmissions.length;
+    if (!total) return;
+    requestConfirmation({
+      title: `Να σταλούν ${total.toLocaleString("el-GR")} προϊόντα για έλεγχο;`,
+      body: "Θα υποβληθούν όλα τα πρόχειρα προϊόντα που είναι έτοιμα. Η διαδικασία δεν τα δημοσιεύει αυτόματα· απλώς τα στέλνει στον έλεγχο ΚΟΝΤΑ ΜΟΥ.",
+      confirmLabel: "Αποστολή όλων για έλεγχο",
+      onConfirm: () => bulkSubmitDrafts()
+    });
+  }
+
   function changeCategoryVisibility(item: CategoryControl, visible: boolean) {
-    if (!visible && !window.confirm(`Να κρυφτεί η κατηγορία «${item.name}»; Θα σταματήσουν προσωρινά να εμφανίζονται ${item.productCount} προϊόντα της κατηγορίας και των υποκατηγοριών της.`)) return;
-    void call(`category:${item.id}`, "/api/vendor/catalog/visibility", { scope: "category", categoryId: item.id, visible }, "PUT");
+    if (visible) {
+      void call(`category:${item.id}`, "/api/vendor/catalog/visibility", { scope: "category", categoryId: item.id, visible }, "PUT");
+      return;
+    }
+    requestConfirmation({
+      title: `Να κρυφτεί η κατηγορία «${item.name}»;`,
+      body: `Θα σταματήσουν προσωρινά να εμφανίζονται ${item.productCount.toLocaleString("el-GR")} προϊόντα της κατηγορίας και των υποκατηγοριών της. Δεν διαγράφεται προϊόν ή απόθεμα.`,
+      confirmLabel: "Απόκρυψη κατηγορίας",
+      tone: "danger",
+      onConfirm: () => call(`category:${item.id}`, "/api/vendor/catalog/visibility", { scope: "category", categoryId: item.id, visible: false }, "PUT")
+    });
   }
 
   const canConfirmImport = Boolean(preview && preview.totalRows > 0 && preview.errors.length === 0);
@@ -175,6 +196,7 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
   const resetFilters = () => { setQuery(""); setCategory("all"); setVisibility("all"); setStock("all"); setBrand("all"); setSort("updated"); };
 
   return <>
+    {confirmationDialog}
     {error && <div className="shell form-error vendor-error" role="alert"><strong>Η αλλαγή δεν αποθηκεύτηκε.</strong> {error}</div>}
     {notice && <div className="shell workspace-inline-note" role="status"><strong>Έτοιμο.</strong> {notice}</div>}
 
@@ -301,7 +323,7 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
       {draftSubmissions.length > 0 && <div className="workspace-action-bar" style={{ marginBottom: 14 }}>
         <span><strong>{draftSubmissions.length.toLocaleString("el-GR")} προϊόντα</strong> είναι έτοιμα για αποστολή στον έλεγχο ΚΟΝΤΑ ΜΟΥ.</span>
         <div className="workspace-action-buttons">
-          <button type="button" className="button" disabled={Boolean(busy)} onClick={() => void bulkSubmitDrafts()}>
+          <button type="button" className="button" disabled={Boolean(busy)} onClick={requestBulkSubmitDrafts}>
             {busy === "bulk-submit" ? "Μαζική υποβολή…" : "Αποστολή όλων για έλεγχο (" + draftSubmissions.length.toLocaleString("el-GR") + ")"}
           </button>
         </div>
