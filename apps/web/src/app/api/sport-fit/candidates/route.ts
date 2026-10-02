@@ -2,6 +2,7 @@ import {
   buildSportFitRecommendation,
   parseSportFitAnswers,
   scoreSportFitProduct,
+  sportFitCandidateSupportsRequestedActivity,
   sportProductRole,
   sportProductTier,
   type SportAudience,
@@ -234,6 +235,7 @@ export async function POST(request: Request) {
     const scoredFamilies = uniqueFamilies(
       catalog.products
         .filter(usableForRecommendation)
+        .filter((product) => sportFitCandidateSupportsRequestedActivity(product, resolvedAnswers))
         .map((product) => scoreSportFitProduct(product, resolvedAnswers))
         .sort((left, right) =>
           right.technicalScore - left.technicalScore
