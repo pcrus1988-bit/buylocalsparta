@@ -441,69 +441,56 @@ async function persistFailure(
 }
 
 async function loadStaleOfferIds(shard: number): Promise<readonly string[]> {
+  // Drive cleanup from the already-sharded Merchant sync rows, then test each
+  // persisted offer against the bounded storefront projection. Never rebuild the
+  // entire live English catalogue just to identify stale rows.
   const result = await getProductionPostgresRuntime().nativePool.query<{ offer_id: string }>(`
-    WITH live_english AS (
-      SELECT DISTINCT cv.public_id AS offer_id
-      FROM public.canonical_variants cv
-      JOIN public.product_translations en
-        ON en.canonical_variant_id=cv.id AND en.locale='en'
-      LEFT JOIN public.product_translations el
-        ON el.canonical_variant_id=cv.id AND el.locale='el'
-      JOIN public.vendor_offers vo ON vo.canonical_variant_id=cv.id
-      JOIN public.vendor_businesses v ON v.id=vo.vendor_id
-      JOIN public.vendor_locations l ON l.id=vo.location_id
-      LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
-      LEFT JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
-      LEFT JOIN public.inventory_balances ib ON ib.offer_id=vo.id
-      WHERE cv.active=true
-        AND cv.suppressed=false
-        AND cv.recalled=false
-        AND vo.status='approved'
-        AND vo.merchant_visible=true
-        AND vo.merchant_pause_active=false
-        AND vo.customer_price_minor>0
-        AND v.status='active'
-        AND l.active=true
-        AND nullif(btrim(en.title),'') IS NOT NULL
-        AND nullif(btrim(coalesce(en.description,'')),'') IS NOT NULL
-        AND NOT (
-          nullif(btrim(el.title),'') IS NOT NULL
-          AND nullif(btrim(coalesce(el.description,'')),'') IS NOT NULL
-        )
-        AND (
-          (
-            dso.id IS NOT NULL
-            AND dso.active=true
-            AND ds.active=true
-            AND ds.api_authoritative_availability=true
-            AND dso.cached_available=true
-            AND dso.cached_quantity>=1
-            AND dso.availability_expires_at>now()
-            AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-          )
-          OR (
-            dso.id IS NULL
-            AND GREATEST(
-              0,
-              COALESCE(ib.on_hand,0)
-                - COALESCE(ib.active_reservations,0)
-                - COALESCE(ib.safety_stock,0)
-                - COALESCE(ib.blocked,0)
-            )>0
-          )
-        )
-    )
     SELECT mps.offer_id
     FROM public.merchant_product_sync mps
-    LEFT JOIN live_english le ON le.offer_id=mps.offer_id
     WHERE mps.merchant_account_id=$1
       AND mps.content_language=$2
       AND mps.feed_label=$3
       AND mps.sync_status='synced'
-      AND le.offer_id IS NULL
       AND mod(abs(hashtext(mps.offer_id)::bigint),$4::bigint)=$5::bigint
+      AND NOT EXISTS (
+        SELECT 1
+        FROM public.storefront_catalog_read_model rm
+        JOIN public.canonical_variants cv
+          ON cv.id=rm.canonical_variant_id
+        JOIN public.product_translations en
+          ON en.canonical_variant_id=rm.canonical_variant_id
+         AND en.locale='en'
+        LEFT JOIN public.product_translations el
+          ON el.canonical_variant_id=rm.canonical_variant_id
+         AND el.locale='el'
+        LEFT JOIN bls_private.storefront_dropship_live_family live
+          ON rm.dropship_supplier_id IS NOT NULL
+         AND live.supplier_id=rm.dropship_supplier_id::uuid
+         AND live.external_product_id=rm.dropship_external_product_id
+         AND live.available_until>now()
+        WHERE rm.canonical_public_id=mps.offer_id
+          AND cv.active=true
+          AND cv.suppressed=false
+          AND cv.recalled=false
+          AND nullif(btrim(en.title),'') IS NOT NULL
+          AND nullif(btrim(coalesce(en.description,'')),'') IS NOT NULL
+          AND NOT (
+            nullif(btrim(el.title),'') IS NOT NULL
+            AND nullif(btrim(coalesce(el.description,'')),'') IS NOT NULL
+          )
+          AND (
+            (rm.local_sellable=true AND rm.local_available_until>now())
+            OR (live.supplier_id IS NOT NULL AND live.sellable=true)
+            OR (
+              live.supplier_id IS NULL
+              AND rm.dropship_sellable=true
+              AND rm.dropship_available_until>now()
+            )
+          )
+      )
     ORDER BY mps.offer_id
-  `, [ACCOUNT_ID, LANGUAGE, FEED_LABEL, SHARD_COUNT, shard]);
+    LIMIT $6
+  `, [ACCOUNT_ID, LANGUAGE, FEED_LABEL, SHARD_COUNT, shard, RUN_BATCH_TARGET]);
   return result.rows.map((row) => row.offer_id);
 }
 async function deleteProduct(accessToken: string, dataSource: string, offerId: string): Promise<void> {
