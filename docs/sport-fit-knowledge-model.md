@@ -476,3 +476,18 @@ These are stored as direct vendor-feed evidence at lower confidence than an exac
 Both MPNs were confirmed as active, approved, visible Kerasiotis catalogue identities before the migration was committed, and the migration requires each code to resolve to exactly one active canonical family.
 
 The runtime schema gate is 321.
+
+
+## Schema 322 — verified adidas Duramo RC2 KJ6635
+
+Migration `0322_sport_fit_verified_adidas_duramo_rc2.sql` adds first-party adidas evidence for current Kerasiotis style `KJ6635`.
+
+The exact manufacturer page supports:
+- `sport_activity=running`
+- `sport_surface=road`
+
+The same page uses generic “cushioned”, “stable”, “support” and “regular fit” language. Those phrases are preserved in source evidence but are not converted into `cushioning_level`, `support_level` or `footwear_width_profile` without a controlled adidas-specific mapping.
+
+The live catalogue was checked before commit and KJ6635 resolves to one active canonical family; the migration repeats that guard at execution time.
+
+The runtime schema gate is 322.
