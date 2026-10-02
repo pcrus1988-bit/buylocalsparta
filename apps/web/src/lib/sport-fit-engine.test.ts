@@ -121,3 +121,94 @@ test("shoe size does not penalize apparel and can match a sock size range", () =
   assert.equal(scoredSock.matchedSize, "43-46");
   assert.ok(scoredTop.score >= 20);
 });
+
+
+test("governed surface facts outrank misleading title heuristics", () => {
+  const verifiedRoad = product({
+    id: "verified-road",
+    title: "Outdoor Trail Style Running Shoe - 42",
+    categoryCode: "mens-running-shoes",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      evidenceScore: 0.7,
+      activities: ["running"],
+      surfaces: ["road"]
+    }
+  });
+  const heuristicRoad = product({
+    id: "heuristic-road",
+    title: "Road Running Shoe - 42",
+    categoryCode: "mens-running-shoes",
+    description: "road running shoe"
+  });
+
+  const answers = {
+    activity: "running" as const,
+    audience: "men" as const,
+    size: "42",
+    surface: "road" as const
+  };
+
+  const verified = scoreSportFitProduct(verifiedRoad, answers);
+  const heuristic = scoreSportFitProduct(heuristicRoad, answers);
+  assert.ok(verified.score > heuristic.score);
+  assert.ok(verified.reasons.some((reason) => /Τεκμηριωμένη καταλληλότητα επιφάνειας/i.test(reason)));
+});
+
+test("documented activity mismatch outweighs optimistic product-title wording", () => {
+  const documentedWalking = product({
+    id: "walking-only",
+    title: "Performance Running Speed Shoe - 42",
+    categoryCode: "mens-running-shoes",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["walking"],
+      surfaces: ["road"]
+    }
+  });
+  const unknownRunning = product({
+    id: "running-unknown",
+    title: "Running Shoe - 42",
+    categoryCode: "mens-running-shoes"
+  });
+
+  const answers = {
+    activity: "running" as const,
+    audience: "men" as const,
+    size: "42",
+    surface: "road" as const
+  };
+
+  assert.ok(scoreSportFitProduct(unknownRunning, answers).score > scoreSportFitProduct(documentedWalking, answers).score);
+});
+
+test("blocked identity conflicts are excluded from recommendations", () => {
+  const blocked = product({
+    id: "blocked",
+    title: "Running Shoe - 42",
+    categoryCode: "womens-running-shoes",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      queueStatus: "blocked",
+      activities: ["running"]
+    }
+  });
+  const safe = product({
+    id: "safe",
+    title: "Running Shoe Safe - 42",
+    categoryCode: "womens-running-shoes"
+  });
+
+  const result = buildSportFitRecommendation([blocked, safe], {
+    activity: "running",
+    audience: "women",
+    size: "42",
+    surface: "road"
+  });
+
+  assert.equal(result.primary?.id, "safe");
+  assert.ok(!result.ranked.some((item) => item.id === "blocked"));
+});
