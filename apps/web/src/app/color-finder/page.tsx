@@ -151,7 +151,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 
   if (!categoryCode) {
     return governedStaticSeoMetadata("/color-finder", {
-    canonicalPath: "https://kontamou.site/color-finder",
+      canonicalPath: "https://kontamou.site/color-finder",
       title: "Color Finder Studios · ΚΟΝΤΑ ΜΟΥ",
       description: "Διάλεξε Color Studio και ξεκίνα από το χρώμα: νύχια, χείλη, μάτια, μακιγιάζ, μαλλιά, παπούτσια, αξεσουάρ, μόδα και σπίτι."
     });
@@ -159,6 +159,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 
   const context = resolveColorFinderContext(categoryCode, first(params.categoryLabel));
   return governedStaticSeoMetadata("/color-finder", {
+    canonicalPath: "https://kontamou.site/color-finder",
     title: `${context.studioLabel} · Color Finder`,
     description: `${context.heroBody} Το ΚΟΝΤΑ ΜΟΥ συγκρίνει μόνο διαθέσιμα προϊόντα της σχετικής κατηγορίας.`
   });
