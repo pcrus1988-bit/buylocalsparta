@@ -164,6 +164,7 @@ export async function getCrawlerLocalCatalogPageFast(
       vendorName: row.vendor_name,
       mediaId: image?.mediaId,
       mediaAlt: image?.altText,
+      previewImageSrc: image ? undefined : sourceDetail?.sourceImageUrl,
       sourceImageAvailable: Boolean(sourceDetail?.sourceImageUrl),
       available: true,
       availableToSell
