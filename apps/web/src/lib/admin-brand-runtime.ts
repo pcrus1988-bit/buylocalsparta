@@ -388,7 +388,7 @@ export async function adminQueueMissingBrandGuides(principal: SessionPrincipal, 
         WHERE b.status = 'active'
           AND NULLIF(b.website, '') IS NOT NULL
           AND COALESCE(b.metadata->'brand_guide'->>'status', 'empty') IN ('empty', 'draft', 'needs_review')
-          AND COALESCE(b.metadata->'brand_guide'->>'agent_status', '') NOT IN ('queued', 'processing')
+          AND COALESCE(b.metadata->'brand_guide'->>'agent_status', '') NOT IN ('queued', 'processing', 'complete')
           AND EXISTS (
             SELECT 1
             FROM storefront_catalog_read_model rm
