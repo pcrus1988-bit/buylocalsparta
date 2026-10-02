@@ -13,6 +13,112 @@ function usesLocalDatabase(url: string): boolean {
   }
 }
 
+const LOOPBACK_SPORT_FIT_STYLE_CODES = [
+  "KJ4150", "KJ4189", "JS4403", "IF6748",
+  "JR6599", "JR9087", "JQ6920",
+  "100001162", "12606-BKRG",
+  "12606-TPE", "12606-BBK", "150370-BKRG", "117385-LIL", "117485-BBK", "117731-BBK",
+  "IH9808", "KJ1750", "KJ1757",
+  "81-16073-01", "81-19103", "81-19109", "81-1981-51", "81-1981-52", "82-16143-01", "82-16143-02", "82-19109",
+  "JH6911", "JP6592", "JR4007",
+  "JD9571", "KB5970",
+  "JE2774", "JP3389", "JV6067",
+  "KJ0410", "KJ0411",
+  "IH1838", "KJ4808", "KJ6635"
+] as const;
+
+async function seedLoopbackSportFitCatalogueIdentities(client: any): Promise<void> {
+  // Migrations 0308+ contain immutable, production-data enrichment assertions:
+  // each verified supplier/manufacturer style must resolve to exactly one live
+  // canonical family. Hosted production already has those catalogue identities,
+  // but a fresh plain-Postgres CI database intentionally has no commerce data.
+  //
+  // Give loopback migration replay the minimal non-commerce identity topology
+  // needed to exercise those migrations without weakening their assertions or
+  // changing registered migration checksums. No vendor offers or inventory are
+  // created, so these fixtures can never become storefront-sellable test items.
+  await client.query(
+    `
+      DO $sport_fit_ci$
+      DECLARE
+        v_market_id uuid;
+        v_category_id uuid;
+        v_brand_id uuid;
+        v_family_id uuid;
+        v_style_code text;
+        v_slug text;
+      BEGIN
+        INSERT INTO public.markets(code,name,country_code,currency,timezone,default_locale)
+        VALUES ('__sport_fit_ci__','Sport & Fit CI','GR','EUR','Europe/Athens','el')
+        ON CONFLICT (code) DO NOTHING;
+
+        SELECT id INTO v_market_id
+        FROM public.markets
+        WHERE code='__sport_fit_ci__';
+
+        INSERT INTO public.categories(market_id,code,slug,active)
+        VALUES (v_market_id,'sport_fit_ci','sport-fit-ci',true)
+        ON CONFLICT (market_id,slug) DO NOTHING;
+
+        SELECT id INTO v_category_id
+        FROM public.categories
+        WHERE market_id=v_market_id AND slug='sport-fit-ci';
+
+        INSERT INTO public.brands(name,normalized_name)
+        VALUES ('Sport Fit CI','sport fit ci')
+        ON CONFLICT (normalized_name) DO NOTHING;
+
+        SELECT id INTO v_brand_id
+        FROM public.brands
+        WHERE normalized_name='sport fit ci';
+
+        FOREACH v_style_code IN ARRAY ARRAY[${LOOPBACK_SPORT_FIT_STYLE_CODES.map((code) => `'${code}'`).join(",")} ]::text[]
+        LOOP
+          v_family_id := NULL;
+
+          SELECT cv.family_id INTO v_family_id
+          FROM public.canonical_variants cv
+          JOIN public.product_families pf ON pf.id=cv.family_id
+          WHERE cv.market_id=v_market_id
+            AND cv.active=true
+            AND pf.active=true
+            AND (
+              upper(coalesce(nullif(btrim(cv.mpn),''),''))=upper(v_style_code)
+              OR upper(coalesce(cv.slug,'')) LIKE '%' || upper(v_style_code) || '%'
+              OR upper(replace(coalesce(cv.slug,''),'_','-')) LIKE '%' || upper(v_style_code) || '%'
+            )
+          ORDER BY cv.created_at
+          LIMIT 1;
+
+          IF v_family_id IS NULL THEN
+            INSERT INTO public.product_families(
+              market_id,brand_id,category_id,model,active,created_at,updated_at
+            )
+            VALUES (
+              v_market_id,v_brand_id,v_category_id,'CI ' || v_style_code,true,now(),now()
+            )
+            RETURNING id INTO v_family_id;
+
+            v_slug := 'sport-fit-ci-' || lower(regexp_replace(v_style_code,'[^a-zA-Z0-9]+','-','g'));
+
+            INSERT INTO public.canonical_variants(
+              market_id,family_id,brand_id,category_id,slug,mpn,model,condition,
+              variant_attributes,platform_price_minor,currency,tax_rate_bps,
+              active,suppressed,recalled,created_at,updated_at
+            )
+            VALUES (
+              v_market_id,v_family_id,v_brand_id,v_category_id,v_slug,v_style_code,'CI ' || v_style_code,'new',
+              '{}'::jsonb,1,'EUR',2400,
+              true,false,false,now(),now()
+            );
+          END IF;
+        END LOOP;
+      END
+      $sport_fit_ci$;
+    `
+  );
+}
+
 let pgModule: any;
 try {
   pgModule = await import("pg");
@@ -91,6 +197,8 @@ try {
     const applied = await client.query("SELECT version, filename, sha256 FROM schema_migrations ORDER BY version");
     const byVersion = new Map<number, { filename: string; sha256: string }>(applied.rows.map((row: any) => [Number(row.version), { filename: row.filename, sha256: row.sha256 }]));
 
+    let loopbackSportFitSeeded = false;
+
     for (const migration of migrations) {
       const existing = byVersion.get(migration.version);
       if (existing) {
@@ -100,6 +208,11 @@ try {
         console.log(`skip ${migration.filename}`);
         continue;
       }
+      if (usesLocalDatabase(connectionString) && !loopbackSportFitSeeded && migration.version >= 308) {
+        await seedLoopbackSportFitCatalogueIdentities(client);
+        loopbackSportFitSeeded = true;
+      }
+
       console.log(`apply ${migration.filename}`);
       await client.query("BEGIN");
       try {
