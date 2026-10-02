@@ -405,3 +405,233 @@ test("governed running-apparel moisture and reflective facts reach result reason
   assert.ok(scored.reasons.some((reason) => /ανακλαστικές/i.test(reason)));
 });
 
+
+
+test("running rules combine distance, frequency, cushioning and verified use case", () => {
+  const longRun = product({
+    id: "long-run",
+    title: "Long Run Shoe",
+    categoryCode: "mens-running-shoes",
+    sizes: ["42"],
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"],
+      useCases: ["daily_training", "long_run"],
+      cushioningLevel: "high",
+      supportLevel: "neutral",
+      fitLengthProfile: "true_to_size"
+    }
+  });
+  const speed = product({
+    id: "speed",
+    title: "Speed Shoe",
+    categoryCode: "mens-running-shoes",
+    sizes: ["42"],
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"],
+      useCases: ["speed_training"],
+      cushioningLevel: "low",
+      supportLevel: "neutral"
+    }
+  });
+
+  const result = buildSportFitRecommendation([speed, longRun], {
+    activity: "running",
+    audience: "men",
+    size: "42",
+    surface: "road",
+    distance: "long",
+    frequency: "high",
+    runnerNeed: "soft_ride",
+    fitPreference: "standard"
+  });
+
+  assert.equal(result.primary?.id, "long-run");
+  assert.equal(result.rulesetVersion, "2026-10-02.1");
+  assert.ok(result.primary?.appliedRules.includes("running.long_run_use_case"));
+  assert.ok(result.primary?.reasons.some((reason) => /long-run|cushioning/i.test(reason)));
+});
+
+test("football rules reject a documented outsole code that conflicts with the selected ground", () => {
+  const ag = product({
+    id: "ag-boot",
+    title: "AG Football Boot",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["football"],
+      footballSurfaceCode: "ag"
+    }
+  });
+  const fg = product({
+    id: "fg-boot",
+    title: "FG Football Boot",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["football"],
+      footballSurfaceCode: "fg"
+    }
+  });
+
+  const agScore = scoreSportFitProduct(ag, {
+    activity: "football",
+    audience: "men",
+    surface: "artificial"
+  });
+  const fgScore = scoreSportFitProduct(fg, {
+    activity: "football",
+    audience: "men",
+    surface: "artificial"
+  });
+
+  assert.equal(agScore.technicalEligible, true);
+  assert.equal(fgScore.technicalEligible, false);
+  assert.ok(agScore.appliedRules.includes("football.boot_surface_match"));
+  assert.ok(fgScore.appliedRules.includes("football.boot_surface_mismatch"));
+});
+
+test("gym strength rules prefer stability over maximum cushioning", () => {
+  const stable = product({
+    id: "strength-stable",
+    title: "Stable Training Shoe",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["gym_training"],
+      useCases: ["gym_strength"],
+      cushioningLevel: "medium",
+      supportLevel: "stability"
+    }
+  });
+  const soft = product({
+    id: "cardio-soft",
+    title: "Soft Cardio Shoe",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["gym_training"],
+      useCases: ["gym_cardio"],
+      cushioningLevel: "max",
+      supportLevel: "neutral"
+    }
+  });
+
+  const answers = {
+    activity: "gym" as const,
+    audience: "men" as const,
+    gymTrainingType: "strength" as const,
+    surface: "indoor" as const,
+    priority: "stability" as const
+  };
+
+  assert.ok(scoreSportFitProduct(stable, answers).score > scoreSportFitProduct(soft, answers).score);
+  assert.ok(scoreSportFitProduct(stable, answers).appliedRules.includes("gym.strength_use_case"));
+});
+
+test("wide-fit requirement fails closed against documented narrow footwear", () => {
+  const narrow = product({
+    id: "narrow-runner",
+    title: "Narrow Running Shoe",
+    categoryCode: "mens-running-shoes",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"],
+      widthProfile: "narrow"
+    }
+  });
+  const wide = product({
+    id: "wide-runner",
+    title: "Wide Running Shoe",
+    categoryCode: "mens-running-shoes",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"],
+      widthProfile: "wide"
+    }
+  });
+  const answers = {
+    activity: "running" as const,
+    audience: "men" as const,
+    surface: "road" as const,
+    runnerNeed: "wide_fit" as const,
+    fitPreference: "wide" as const
+  };
+
+  assert.equal(scoreSportFitProduct(narrow, answers).technicalEligible, false);
+  assert.equal(buildSportFitRecommendation([narrow, wide], answers).primary?.id, "wide-runner");
+});
+
+test("known requested shoe-size miss is excluded instead of merely penalized", () => {
+  const wrongSize = product({
+    id: "wrong-size",
+    title: "Running Shoe Wrong Size",
+    categoryCode: "mens-running-shoes",
+    sizes: ["43"],
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"]
+    }
+  });
+  const exactSize = product({
+    id: "exact-size",
+    title: "Running Shoe Exact Size",
+    categoryCode: "mens-running-shoes",
+    sizes: ["42"],
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"]
+    }
+  });
+
+  const answers = {
+    activity: "running" as const,
+    audience: "men" as const,
+    size: "42",
+    surface: "road" as const
+  };
+
+  assert.equal(scoreSportFitProduct(wrongSize, answers).technicalEligible, false);
+  assert.equal(buildSportFitRecommendation([wrongSize, exactSize], answers).primary?.id, "exact-size");
+});
+
+test("new rule inputs are parsed only from controlled values", () => {
+  const parsed = parseSportFitAnswers({
+    activity: "gym",
+    audience: "women",
+    gymTrainingType: "strength",
+    fitPreference: "wide",
+    runnerNeed: "speed"
+  });
+  const invalid = parseSportFitAnswers({
+    activity: "running",
+    audience: "men",
+    gymTrainingType: "bodybuilding-ish",
+    fitPreference: "whatever",
+    runnerNeed: "medical_pronation_guess"
+  });
+
+  assert.equal(parsed.gymTrainingType, "strength");
+  assert.equal(parsed.fitPreference, "wide");
+  assert.equal(parsed.runnerNeed, "speed");
+  assert.equal(invalid.gymTrainingType, undefined);
+  assert.equal(invalid.fitPreference, undefined);
+  assert.equal(invalid.runnerNeed, undefined);
+});
