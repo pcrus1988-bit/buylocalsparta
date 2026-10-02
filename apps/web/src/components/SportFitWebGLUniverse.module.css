@@ -490,3 +490,87 @@
 @media(prefers-reduced-motion:reduce){
   .scanning i{animation:none}
 }
+
+
+/* Mobile product inspection stays spatial: the card behaves like a bottom
+   sheet so the user keeps visual context of the 3D universe above it. */
+@media(max-width:700px){
+  .popupBackdrop{
+    place-items:end center;
+    padding:0 max(8px,env(safe-area-inset-right,0)) max(8px,env(safe-area-inset-bottom,0)) max(8px,env(safe-area-inset-left,0));
+    background:linear-gradient(180deg,rgba(2,8,7,.08) 0%,rgba(2,8,7,.20) 34%,rgba(2,8,7,.56) 100%);
+    backdrop-filter:blur(4px) saturate(1.03);
+    -webkit-backdrop-filter:blur(4px) saturate(1.03)
+  }
+  .popupCard{
+    width:100%;
+    max-height:min(72dvh,610px);
+    border-radius:25px 25px 16px 16px;
+    overscroll-behavior:contain;
+    box-shadow:0 -18px 64px rgba(0,0,0,.44),inset 0 1px 0 rgba(255,255,255,.05)
+  }
+  .popupCard:before{
+    content:"";
+    position:absolute;
+    z-index:5;
+    top:8px;
+    left:50%;
+    width:42px;
+    height:4px;
+    border-radius:999px;
+    transform:translateX(-50%);
+    background:rgba(210,255,247,.28)
+  }
+  .popupClose{
+    top:12px;
+    right:12px;
+    width:40px;
+    height:40px;
+    font-size:22px
+  }
+  .popupVisual{
+    min-height:168px;
+    padding:26px 18px 4px
+  }
+  .popupVisual img{
+    width:min(46vw,178px);
+    max-height:178px
+  }
+  .popupOrbit{width:min(58vw,205px)}
+  .popupCopy{
+    padding:14px 18px max(20px,env(safe-area-inset-bottom,0))
+  }
+  .popupCopy h2{
+    margin-top:7px;
+    font-size:clamp(20px,6vw,25px);
+    line-height:1.04
+  }
+  .popupFacts{margin-top:12px;gap:6px}
+  .popupFacts strong{font-size:18px}
+  .popupFacts b,.popupFacts small{padding:6px 8px;font-size:8px}
+  .popupReasons{margin-top:14px;padding-top:12px}
+  .popupReasons ul{margin-top:7px;gap:4px}
+  .popupReasons li{font-size:11px;line-height:1.35}
+  .popupHint{margin-top:14px;font-size:11px}
+  .popupActions{
+    position:sticky;
+    bottom:-1px;
+    z-index:3;
+    margin:16px -18px -20px;
+    padding:12px 18px max(14px,env(safe-area-inset-bottom,0));
+    grid-template-columns:1fr 1fr;
+    background:linear-gradient(180deg,rgba(6,15,13,.74),rgba(6,15,13,.98) 30%);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px)
+  }
+  .popupActions a,.popupActions button{min-height:42px;padding:0 11px;font-size:9px}
+}
+
+@media(max-width:430px){
+  .popupCard{max-height:min(69dvh,560px)}
+  .popupVisual{min-height:144px;padding-top:24px}
+  .popupVisual img{width:min(42vw,152px);max-height:152px}
+  .popupOrbit{width:min(52vw,180px)}
+  .popupCopy{padding-top:12px}
+  .popupActions{grid-template-columns:1fr}
+}
