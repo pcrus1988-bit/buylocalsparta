@@ -487,7 +487,7 @@ test("running rules combine distance, frequency, cushioning and verified use cas
   });
 
   assert.equal(result.primary?.id, "long-run");
-  assert.equal(result.rulesetVersion, "2026-10-02.10");
+  assert.equal(result.rulesetVersion, "2026-10-02.11");
   assert.ok(result.primary?.appliedRules.includes("running.long_run_use_case"));
   assert.ok(result.primary?.reasons.some((reason) => /long-run|cushioning/i.test(reason)));
 });
@@ -1071,4 +1071,157 @@ test("canonical family id de-duplicates differently titled variants in Top 5", (
   assert.equal(finalists.filter((item) => item?.familyId === "family-xml-123").length, 1);
   assert.equal(result.ranked.filter((item) => item.familyId === "family-xml-123").length, 1);
   assert.equal(result.primary?.id, "shoe-blue-42");
+});
+
+
+test("exact basketball evidence outranks a broad team-sports classification", () => {
+  const broad = product({
+    id: "broad-team-court",
+    title: "Team Court Shoe",
+    categoryCode: "mens-sneakers",
+    priceMinor: 7000,
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["team_sports"],
+      surfaces: ["court_indoor"],
+      useCases: ["basketball_training"],
+      cushioningLevel: "medium"
+    }
+  });
+  const exact = product({
+    id: "exact-basketball",
+    title: "Basketball Court Shoe",
+    categoryCode: "mens-sneakers",
+    priceMinor: 7000,
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["basketball"],
+      surfaces: ["court_indoor"],
+      useCases: ["basketball_training"],
+      cushioningLevel: "medium"
+    }
+  });
+  const answers = {
+    activity: "basketball" as const,
+    audience: "men" as const,
+    surface: "court_indoor" as const,
+    useCase: "basketball_training" as const
+  };
+
+  const broadScore = scoreSportFitProduct(broad, answers);
+  const exactScore = scoreSportFitProduct(exact, answers);
+  const result = buildSportFitRecommendation([broad, exact], answers);
+
+  assert.equal(broadScore.technicalEligible, true);
+  assert.equal(exactScore.technicalEligible, true);
+  assert.ok(exactScore.technicalScore > broadScore.technicalScore);
+  assert.ok(broadScore.technicalRequirements.some((item) =>
+    item.id === "requirement.activity_specificity" && item.status === "unknown"
+  ));
+  assert.ok(exactScore.technicalRequirements.some((item) =>
+    item.id === "requirement.activity_specificity" && item.status === "match"
+  ));
+  assert.equal(result.primary?.id, "exact-basketball");
+});
+
+test("exact court surface evidence outranks a generic indoor surface", () => {
+  const genericIndoor = product({
+    id: "generic-indoor-tennis",
+    title: "Tennis Indoor Shoe",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["tennis"],
+      surfaces: ["indoor"],
+      useCases: ["tennis_training"]
+    }
+  });
+  const exactCourt = product({
+    id: "exact-indoor-tennis",
+    title: "Tennis Court Shoe",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["tennis"],
+      surfaces: ["court_indoor"],
+      useCases: ["tennis_training"]
+    }
+  });
+  const answers = {
+    activity: "tennis" as const,
+    audience: "men" as const,
+    surface: "court_indoor" as const,
+    useCase: "tennis_training" as const
+  };
+
+  const genericScore = scoreSportFitProduct(genericIndoor, answers);
+  const exactScore = scoreSportFitProduct(exactCourt, answers);
+  const result = buildSportFitRecommendation([genericIndoor, exactCourt], answers);
+
+  assert.ok(exactScore.technicalScore > genericScore.technicalScore);
+  assert.ok(genericScore.technicalRequirements.some((item) =>
+    item.id === "requirement.court_surface_specificity" && item.status === "unknown"
+  ));
+  assert.ok(exactScore.technicalRequirements.some((item) =>
+    item.id === "requirement.court_surface_specificity" && item.status === "match"
+  ));
+  assert.equal(result.primary?.id, "exact-indoor-tennis");
+});
+
+test("Complete My Kit prefers exact sport evidence over a broad team-sports top", () => {
+  const shoe = product({
+    id: "basketball-primary",
+    title: "Basketball Shoe",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["basketball"],
+      surfaces: ["court_indoor"],
+      useCases: ["basketball_training"]
+    }
+  });
+  const broadTop = product({
+    id: "team-sports-top",
+    title: "Team Training Top",
+    categoryCode: "fashion-mens-tshirts-tops",
+    sizes: ["M"],
+    priceMinor: 2500,
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["team_sports"],
+      useCases: ["basketball_training"],
+      moistureWicking: true
+    }
+  });
+  const exactTop = product({
+    id: "basketball-top",
+    title: "Basketball Training Top",
+    categoryCode: "fashion-mens-tshirts-tops",
+    sizes: ["M"],
+    priceMinor: 2500,
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["basketball"],
+      useCases: ["basketball_training"],
+      moistureWicking: true
+    }
+  });
+
+  const result = buildSportFitRecommendation([broadTop, exactTop, shoe], {
+    activity: "basketball",
+    audience: "men",
+    surface: "court_indoor",
+    useCase: "basketball_training",
+    frequency: "high"
+  });
+
+  assert.equal(result.primary?.id, "basketball-primary");
+  assert.equal(result.kit.find((item) => item.role === "top")?.id, "basketball-top");
 });
