@@ -1,3 +1,5 @@
+import { evaluateSportFitRules, SPORT_FIT_RULESET_VERSION } from "./sport-fit-rules.ts";
+
 export const SPORT_ACTIVITIES = ["running", "walking", "gym", "football"] as const;
 export type SportActivity = (typeof SPORT_ACTIVITIES)[number];
 
@@ -15,6 +17,15 @@ export type SportDistance = (typeof SPORT_DISTANCES)[number];
 
 export const SPORT_PRIORITIES = ["comfort", "cushioning", "lightweight", "stability", "versatility"] as const;
 export type SportPriority = (typeof SPORT_PRIORITIES)[number];
+
+export const SPORT_RUNNER_NEEDS = ["neutral", "guided_support", "wide_fit", "soft_ride", "speed", "all_rounder"] as const;
+export type SportRunnerNeed = (typeof SPORT_RUNNER_NEEDS)[number];
+
+export const SPORT_FIT_PREFERENCES = ["standard", "wide", "narrow"] as const;
+export type SportFitPreference = (typeof SPORT_FIT_PREFERENCES)[number];
+
+export const SPORT_GYM_TRAINING_TYPES = ["strength", "functional", "cardio", "treadmill", "mixed"] as const;
+export type SportGymTrainingType = (typeof SPORT_GYM_TRAINING_TYPES)[number];
 
 export type SportProductRole = "footwear" | "socks" | "top" | "bottom" | "layer" | "accessory" | "other";
 
@@ -59,6 +70,9 @@ export type SportFitAnswers = Readonly<{
   frequency?: SportFrequency;
   distance?: SportDistance;
   priority?: SportPriority;
+  runnerNeed?: SportRunnerNeed;
+  fitPreference?: SportFitPreference;
+  gymTrainingType?: SportGymTrainingType;
 }>;
 
 export type SportFitProduct = Readonly<{
@@ -90,9 +104,12 @@ export type SportFitScoredProduct = SportFitProduct & Readonly<{
   score: number;
   reasons: readonly string[];
   matchedSize?: string;
+  technicalEligible: boolean;
+  appliedRules: readonly string[];
 }>;
 
 export type SportFitRecommendation = Readonly<{
+  rulesetVersion: string;
   primary?: SportFitScoredProduct;
   alternatives: readonly SportFitScoredProduct[];
   kit: readonly SportFitScoredProduct[];
@@ -463,26 +480,46 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
   const text = productText(product);
   const role = sportProductRole(product);
   const size = sizeScore(product, answers, role);
+  const requested = requestedSizes(product, answers, role);
+  const hardSizeMismatch = role === "footwear" && requested.length > 0 && product.sizes.length > 0 && !size.matchedSize;
+  const ruleEvaluation = evaluateSportFitRules(product, answers, role);
+  const stockEligible = product.available && product.availableToSell > 0;
+  const technicalEligible = stockEligible && !hardSizeMismatch && ruleEvaluation.eligible;
   let score = 5;
 
-  score += activityScore(product, answers, text, role);
-  score += surfaceScore(product, answers.surface, text, role);
-  score += priorityScore(product, answers.priority, text);
-  score += distanceScore(answers.distance, text, role);
-  score += frequencyScore(product, answers.frequency, text);
-  score += budgetScore(product, answers.budgetMinor);
-  score += size.score;
-  score += product.available && product.availableToSell > 0 ? 10 : -40;
+  if (technicalEligible) {
+    score += activityScore(product, answers, text, role);
+    score += surfaceScore(product, answers.surface, text, role);
+    score += priorityScore(product, answers.priority, text);
+    score += distanceScore(answers.distance, text, role);
+    score += frequencyScore(product, answers.frequency, text);
+    score += budgetScore(product, answers.budgetMinor);
+    score += size.score;
+    score += 10;
+    score += ruleEvaluation.adjustment;
 
-  if ((answers.activity === "running" || answers.activity === "walking" || answers.activity === "football") && role === "footwear") score += 8;
-  if (answers.activity === "gym" && (role === "footwear" || role === "top" || role === "bottom" || role === "accessory")) score += 6;
+    if ((answers.activity === "running" || answers.activity === "walking" || answers.activity === "football") && role === "footwear") score += 8;
+    if (answers.activity === "gym" && (role === "footwear" || role === "top" || role === "bottom" || role === "accessory")) score += 6;
+  } else {
+    score = 0;
+  }
+
+  const technicalReasons = hardSizeMismatch
+    ? ["Δεν υπάρχει το ζητούμενο μέγεθος σε διαθέσιμη παραλλαγή"]
+    : ruleEvaluation.reasons;
 
   return {
     ...product,
     role,
     score: clampScore(score),
-    reasons: reasonsFor(product, answers, role, text, size.matchedSize),
-    matchedSize: size.matchedSize
+    reasons: [...technicalReasons, ...reasonsFor(product, answers, role, text, size.matchedSize)].slice(0, 4),
+    matchedSize: size.matchedSize,
+    technicalEligible,
+    appliedRules: [
+      ...(stockEligible ? ["stock.positive"] : ["stock.unavailable"]),
+      ...(hardSizeMismatch ? ["fit.requested_size_mismatch"] : size.matchedSize ? ["fit.requested_size_match"] : []),
+      ...ruleEvaluation.ruleIds
+    ]
   };
 }
 
@@ -516,7 +553,7 @@ export function buildSportFitRecommendation(
       && product.knowledge?.status !== "insufficient"
     )
     .map((product) => scoreSportFitProduct(product, answers))
-    .filter((product) => product.score >= 20)
+    .filter((product) => product.technicalEligible && product.score >= 20)
     .sort((left, right) => right.score - left.score || left.priceMinor - right.priceMinor || left.title.localeCompare(right.title, "el"));
 
   const ranked = uniqueRanked(scored);
@@ -534,6 +571,7 @@ export function buildSportFitRecommendation(
   }
 
   return {
+    rulesetVersion: SPORT_FIT_RULESET_VERSION,
     primary,
     alternatives,
     kit,
@@ -568,6 +606,9 @@ export function parseSportFitAnswers(input: unknown): SportFitAnswers {
     surface: optionalEnumValue(SPORT_SURFACES, value.surface),
     frequency: optionalEnumValue(SPORT_FREQUENCIES, value.frequency),
     distance: optionalEnumValue(SPORT_DISTANCES, value.distance),
-    priority: optionalEnumValue(SPORT_PRIORITIES, value.priority)
+    priority: optionalEnumValue(SPORT_PRIORITIES, value.priority),
+    runnerNeed: optionalEnumValue(SPORT_RUNNER_NEEDS, value.runnerNeed),
+    fitPreference: optionalEnumValue(SPORT_FIT_PREFERENCES, value.fitPreference),
+    gymTrainingType: optionalEnumValue(SPORT_GYM_TRAINING_TYPES, value.gymTrainingType)
   };
 }
