@@ -198,3 +198,35 @@ test("team-sports classification survives the basketball candidate gate", () => 
 
   assert.equal(result.primary?.id, "broad-team-shoe");
 });
+
+
+test("gym treadmill scoring accepts governed running evidence", () => {
+  const treadmillShoe = product({
+    id: "treadmill-running-shoe",
+    title: "Treadmill Running Trainer",
+    categoryCode: "mens-running-shoes",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["treadmill"],
+      useCases: ["gym_cardio"],
+      cushioningLevel: "medium"
+    }
+  });
+
+  const scored = scoreSportFitProduct(treadmillShoe, {
+    activity: "gym",
+    audience: "men",
+    surface: "treadmill",
+    gymTrainingType: "treadmill",
+    useCase: "gym_cardio"
+  });
+
+  assert.equal(scored.technicalEligible, true);
+  assert.ok(scored.technicalRequirements.some((item) =>
+    item.id === "requirement.activity" && item.status === "match"
+  ));
+  assert.ok(scored.appliedRules.includes("activity.verified_match"));
+  assert.ok(scored.score >= 20);
+});
