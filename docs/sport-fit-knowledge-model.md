@@ -555,6 +555,13 @@ Governed facts added:
 
 Generic “cushioned”, “thin/light” and descriptive breathability wording remains evidence text only. It is not converted into `sock_cushioning`, `compression_level`, `thermal_level` or `breathability_level` without an exact controlled claim or governed manufacturer mapping.
 
-The migration verifies that all nine product codes resolve to exactly one active canonical family before publishing facts and includes post-write assertions for six gym-training facts, eight controlled height facts, six arch-support facts and two moisture-management facts.
+Additional exact-code coverage in the same migration includes:
+- `KQ6773`: crew height and fitted arch support only. Adidas regional pages disagree between Gym & Training and Lifestyle classification, so activity is intentionally left unknown.
+- `KQ9439`: gym training, crew height and fitted arch support.
+- `KQ9227`: ankle height and arch support only; active-kid/daily wording is not promoted to a governed sport.
+- `KQ9229`: crew height and arch support only; customer-review activity claims are ignored.
+- `KX1277`: gym training and crew height from manufacturer workout-ready positioning.
+
+The migration verifies that all fourteen product codes resolve to exactly one active canonical family before publishing facts and includes post-write assertions for eight gym-training facts, thirteen controlled height facts, ten arch-support facts and two moisture-management facts.
 
 The runtime schema gate is now **326**.
