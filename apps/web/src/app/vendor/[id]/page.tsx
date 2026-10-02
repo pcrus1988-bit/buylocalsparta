@@ -445,7 +445,13 @@ export default async function VendorPage({ params }: Props) {
               <strong>Δεν υπάρχει ενεργός κατάλογος προϊόντων.</strong> Η επιχείρηση είναι ακόμη δημόσια χαρτογραφημένη / προσκεκλημένη και δεν παρουσιάζεται ως ενεργός συνεργάτης της πλατφόρμας.
             </div>
           ) : (
-            <VendorCatalogBrowser products={products} vendor={{ name: vendor.name, adviser: vendor.adviser }} vendorId={vendor.id} initialNextOffset={initialCatalogPage.nextOffset} />
+            <VendorCatalogBrowser
+              products={products}
+              vendor={{ name: vendor.name, adviser: vendor.adviser }}
+              vendorId={vendor.id}
+              initialNextOffset={initialCatalogPage.nextOffset}
+              openGuideOnInitialLoad={vendor.id !== "vendor_4d7b281c8b2541f685f1"}
+            />
           )}
         </div>
       </section>
