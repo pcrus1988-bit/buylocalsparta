@@ -7,6 +7,7 @@ import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { SiteHeader } from "../../components/SiteHeader";
 import { SiteFooter } from "../../components/SiteFooter";
 import { FittingRoomExperience } from "../../components/FittingRoomExperience";
+import { StudioExperienceRuntime } from "../../components/StudioExperienceRuntime";
 import styles from "./page.module.css";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -44,13 +45,15 @@ export default async function FittingRoomPage({ searchParams }: Props) {
     <main className={styles.page}>
       <div className={styles.announcement}>KONTA MOY FITTING ROOM · Your look, your choices.</div>
       <SiteHeader />
-      <FittingRoomExperience
-        vendorId={vendorId}
-        hubSlug={hub.slug}
-        hubName={hub.nameEl}
-        csrfToken={principal?.csrfToken}
-        savedLookId={savedLookId}
-      />
+      <StudioExperienceRuntime studioId="style">
+        <FittingRoomExperience
+          vendorId={vendorId}
+          hubSlug={hub.slug}
+          hubName={hub.nameEl}
+          csrfToken={principal?.csrfToken}
+          savedLookId={savedLookId}
+        />
+      </StudioExperienceRuntime>
       <SiteFooter />
     </main>
   );
