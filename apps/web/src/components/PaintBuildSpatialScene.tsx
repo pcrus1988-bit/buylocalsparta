@@ -162,6 +162,8 @@ function buildProject(module: BuildModuleKey | undefined, progress: number) {
 export function PaintBuildSpatialScene({ module, progress = 0, accent = "#CBB27A", result = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<number | null>(null);
+  const accentRgbRef = useRef(hexToStudioRgb(accent));
+  accentRgbRef.current = hexToStudioRgb(accent);
   const { qualityTier, reducedMotion } = useStudioRuntime();
 
   useEffect(() => {
@@ -201,7 +203,6 @@ export function PaintBuildSpatialScene({ module, progress = 0, accent = "#CBB27A
       const timeLocation = gl.getUniformLocation(createdProgram,"u_time");
       const accentLocation = gl.getUniformLocation(createdProgram,"u_accent");
       const resultLocation = gl.getUniformLocation(createdProgram,"u_result");
-      const [r,g,b] = hexToStudioRgb(accent);
       const dprCap = studioDprCap(qualityTier);
 
       gl.useProgram(createdProgram);
@@ -238,6 +239,7 @@ export function PaintBuildSpatialScene({ module, progress = 0, accent = "#CBB27A
         gl.uniform1f(aspectLocation,width/Math.max(1,height));
         gl.uniform1f(dprLocation,dpr);
         gl.uniform1f(timeLocation,time/1000);
+        const [r,g,b] = accentRgbRef.current;
         gl.uniform3f(accentLocation,r,g,b);
         gl.uniform1f(resultLocation,result?1:0);
 
@@ -262,7 +264,7 @@ export function PaintBuildSpatialScene({ module, progress = 0, accent = "#CBB27A
       if(pointBuffer)gl.deleteBuffer(pointBuffer);
       if(activeProgram)gl.deleteProgram(activeProgram);
     };
-  },[accent,module,progress,qualityTier,reducedMotion,result]);
+  },[module,progress,qualityTier,reducedMotion,result]);
 
   return (
     <div className={styles.scene} aria-hidden="true">
