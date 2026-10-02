@@ -20,6 +20,14 @@ type BatchSourcePrimaryRow = SqlRow & {
   source_position: number | string | null;
 };
 
+type ProductMediaSourceRow = SqlRow & {
+  source_code: string | null;
+  source_website: string | null;
+  source_title: string | null;
+  source_image_url: string | null;
+  source_position: number | string | null;
+};
+
 export type PublicCatalogSourceImage = Readonly<{
   index: number;
   position: number;
@@ -345,6 +353,63 @@ async function getPublicCatalogPrimarySourceImage(
   return row ? sourceImagesFromRow(row)[0] : undefined;
 }
 
+async function getPublicVendorMediaGallery(
+  canonicalVariantId: string
+): Promise<readonly PublicCatalogSourceImage[]> {
+  const canonicalId = canonicalVariantId.trim();
+  if (!canonicalId) return [];
+
+  const result = await getProductionPostgresRuntime().nativePool.query<ProductMediaSourceRow>(`
+    SELECT
+      cs.code AS source_code,
+      cs.website AS source_website,
+      COALESCE(el.title,en.title,cv.model,cv.slug) AS source_title,
+      pm.source_url AS source_image_url,
+      pm.sort_order AS source_position
+    FROM canonical_variants cv
+    JOIN markets m ON m.id=cv.market_id
+    JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
+    JOIN vendor_businesses vb ON vb.id=vo.vendor_id
+    JOIN product_media pm
+      ON pm.canonical_variant_id=cv.id
+     AND pm.vendor_id=vo.vendor_id
+     AND pm.kind='image'
+     AND pm.source_url IS NOT NULL
+     AND pm.scan_status='clean'
+     AND pm.rights_status='approved'
+     AND pm.moderation_status='approved'
+    JOIN catalog_sources cs ON cs.id=pm.source_id AND cs.active=true
+    LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
+    LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+    WHERE cv.public_id=$1
+      AND m.code='sparta'
+      AND cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
+      AND vo.status='approved'
+      AND vo.merchant_visible=true
+      AND vo.merchant_pause_active=false
+      AND vb.status='active'
+    ORDER BY pm.sort_order ASC,pm.created_at ASC,pm.id
+    LIMIT ${MAX_GALLERY_IMAGES}
+  `, [canonicalId]);
+
+  const images: PublicCatalogSourceImage[] = [];
+  const seen = new Set<string>();
+  for (const row of result.rows) {
+    const src = trustedCatalogSourceHttpsUrl(row.source_code, row.source_website, row.source_image_url);
+    if (!src || seen.has(src)) continue;
+    seen.add(src);
+    images.push({
+      index: images.length,
+      position: numericPosition(row.source_position, images.length),
+      src,
+      altText: optionalText(row.source_title)
+    });
+  }
+  return images;
+}
+
 async function getPublicDropshipMediaSourceImage(
   canonicalVariantId: string
 ): Promise<PublicCatalogSourceImage | undefined> {
@@ -396,6 +461,12 @@ const getCachedPublicCatalogPrimarySourceImage = unstable_cache(
 const getCachedPublicDropshipMediaSourceImage = unstable_cache(
   async (canonicalVariantId: string) => getPublicDropshipMediaSourceImage(canonicalVariantId),
   ["public-dropship-media-source-image-v1"],
+  { revalidate: 86_400 }
+);
+
+const getCachedPublicVendorMediaGallery = unstable_cache(
+  async (canonicalVariantId: string) => getPublicVendorMediaGallery(canonicalVariantId),
+  ["public-vendor-media-gallery-v1"],
   { revalidate: 86_400 }
 );
 
@@ -452,6 +523,13 @@ export async function getPublicCatalogSourceImageAtIndex(
     );
     if (dropshipMedia.image) return dropshipMedia.image;
 
+    const vendorMedia = await resilientPrimaryLookup(
+      "vendor_media",
+      canonicalVariantId,
+      async () => (await getCachedPublicVendorMediaGallery(canonicalVariantId))[0]
+    );
+    if (vendorMedia.image) return vendorMedia.image;
+
     const linkedPrimary = await resilientPrimaryLookup(
       "canonical_source_link",
       canonicalVariantId,
@@ -467,12 +545,15 @@ export async function getPublicCatalogSourceImageAtIndex(
     // A database outage is not the same thing as a missing image. Bubble the
     // transient failure so the proxy returns 503/no-store instead of poisoning
     // the CDN with a cached 404 for a product that really has media.
-    if (dropshipMedia.failed || linkedPrimary.failed) {
+    if (dropshipMedia.failed || vendorMedia.failed || linkedPrimary.failed) {
       throw new Error("catalog source image lookup temporarily unavailable");
     }
     return undefined;
   }
 
   const gallery = await getPublicCatalogSourceGallery(canonicalVariantId);
-  return gallery[index];
+  if (gallery[index]) return gallery[index];
+
+  const vendorGallery = await getCachedPublicVendorMediaGallery(canonicalVariantId);
+  return vendorGallery[index];
 }
