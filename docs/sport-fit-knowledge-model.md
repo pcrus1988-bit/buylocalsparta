@@ -287,7 +287,7 @@ Migration `0308_sport_fit_verified_kerasiotis_footwear_batch2.sql` adds a second
 
 Migration `0309_sport_fit_adidas_kids_size_guide.sql` adds the official adidas kids footwear size chart as a separate `kids` audience guide. The server deterministically prefers an exact audience guide over a unisex fallback, which prevents the adult chart from becoming the primary measured-size source for a child profile.
 
-The runtime schema gate is 313. All migrations through 0313 have immutable checksum manifests.
+The current runtime schema gate is 315. All migrations through 0315 have immutable checksum manifests.
 
 
 ## Live brand identity bridge
@@ -350,4 +350,38 @@ Migration `0313_sport_fit_verified_skechers_bountiful.sql` adds exact official e
 - `general_training` is normalized from Skechers' explicit workout/training description;
 - Memory Foam, supportive and shock-absorbing wording is preserved as evidence but does not create an invented cushioning or support level.
 
-The runtime schema gate is 313.
+The runtime schema gate is now 315.
+
+
+## Schema 314 — Skechers activity and taxonomy conflict handling
+
+Migration `0314_sport_fit_skechers_training_and_taxonomy_conflicts.sql` adds three exact Skechers training identities and explicitly blocks three products whose official manufacturer classification conflicts with the current KONTA MOY running-shoe taxonomy.
+
+Verified training identities:
+
+- Bountiful `12606-TPE`;
+- Bountiful `12606-BBK`;
+- Skech-Air Dynamight 2.0 - New Heights `150370-BKRG`.
+
+Blocked classification conflicts:
+
+- BOBS Sport B Flex Hi - Flying Hi `117385-LIL`;
+- BOBS Sport Squad Waves - Just Wading `117485-BBK`;
+- BOBS Moda Flex - Mellow Dawn `117731-BBK`.
+
+The conflict path deliberately fails closed: an exact official casual/fashion classification prevents the family from being recommended as running footwear until the catalogue taxonomy is reconciled.
+
+
+## Schema 315 — Galaxy 8 and Response 2 running knowledge
+
+Migration `0315_sport_fit_verified_kerasiotis_running_batch4.sql` extends exact-code manufacturer evidence for current Kerasiotis adidas running footwear:
+
+- Galaxy 8 `IH9808`: running plus walking, daily-walking context, 326 g reference weight, 5 mm drop and 37/32 mm heel/forefoot stack.
+- Response 2 Men `KJ1750`: running, road surface, easy-run and long-run use cases, 301 g reference weight, 8 mm drop and 32/24 mm heel/forefoot stack.
+- Response 2 Women `KJ1757`: running plus exact manufacturer true-to-size guidance.
+
+Cloudfoam / Cloudfoam+ comfort language is preserved in source evidence but is not converted into a normalized cushioning level. Generic support language likewise remains unnormalized unless adidas publishes an explicit governed level.
+
+The live catalogue identity check resolves each of `IH9808`, `KJ1750` and `KJ1757` to exactly one canonical family before migration 0315 is allowed to publish facts.
+
+The runtime schema gate is 315.
