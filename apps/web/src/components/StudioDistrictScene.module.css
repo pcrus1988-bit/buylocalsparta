@@ -63,19 +63,19 @@
   z-index:3;
   left:50%;
   top:54%;
-  width:170px;
-  height:170px;
-  transform:translate(-50%,-50%);
-  border:1px solid rgba(157,241,225,.08);
-  border-radius:50%;
+  width:112px;
+  height:112px;
+  transform:translate(-50%,-50%) rotate(45deg);
+  border:1px solid rgba(157,241,225,.09);
+  border-radius:3px;
   pointer-events:none;
 }
-.core:before,.core:after{content:"";position:absolute;border:1px solid rgba(157,241,225,.065);border-radius:50%}
-.core:before{inset:-80px}.core:after{inset:-190px}
-.core span,.core i,.core b{position:absolute;left:50%;top:50%;border-radius:50%;transform:translate(-50%,-50%)}
-.core span{width:8px;height:8px;background:#c9fff4;box-shadow:0 0 34px rgba(116,255,236,.7)}
-.core i{width:54px;height:54px;border:1px solid rgba(116,255,236,.14)}
-.core b{width:108px;height:108px;border:1px dashed rgba(116,255,236,.1)}
+.core:before,.core:after{content:"";position:absolute;border:1px solid rgba(157,241,225,.06);border-radius:2px}
+.core:before{inset:-60px}.core:after{inset:-132px;border-style:dashed}
+.core span,.core i,.core b{position:absolute;left:50%;top:50%;border-radius:2px;transform:translate(-50%,-50%)}
+.core span{width:10px;height:10px;background:#c9fff4;box-shadow:0 0 30px rgba(116,255,236,.52)}
+.core i{width:42px;height:42px;border:1px solid rgba(116,255,236,.14)}
+.core b{width:78px;height:78px;border:1px dashed rgba(116,255,236,.1)}
 
 .portalLayer{position:absolute;inset:72px 0 0;z-index:15;pointer-events:none}
 .portal{
@@ -121,9 +121,46 @@
   box-shadow:0 26px 74px rgba(0,0,0,.35),0 0 0 1px rgba(245,241,232,.05);
 }
 .portal[data-travelling]{border-color:#f5f1e8;background:rgba(245,241,232,.1)}
+.portalMotif{
+  position:absolute;
+  right:12px;
+  top:31px;
+  width:38px;
+  height:34px;
+  opacity:.62;
+  pointer-events:none;
+}
+.portalMotif i{position:absolute;display:block;box-sizing:border-box}
+
+/* Sport & Fit: only this portal keeps circular / universe-like motion. */
+.portalMotif[data-kind="sport-fit"] i{
+  width:8px;height:8px;border:1px solid rgba(92,244,219,.8);border-radius:50%;
+}
+.portalMotif[data-kind="sport-fit"] i:nth-child(1){left:2px;top:13px}
+.portalMotif[data-kind="sport-fit"] i:nth-child(2){left:15px;top:2px;width:11px;height:11px}
+.portalMotif[data-kind="sport-fit"] i:nth-child(3){right:1px;top:15px;width:6px;height:6px}
+.portalMotif[data-kind="sport-fit"] i:nth-child(4){left:16px;bottom:1px;width:7px;height:7px}
+
+/* Paint & Build: wall/material grid. */
+.portalMotif[data-kind="paint-build"]{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:2px}
+.portalMotif[data-kind="paint-build"] i{position:relative;border:1px solid rgba(250,180,86,.62);background:rgba(250,180,86,.05)}
+
+/* Style: mirror + runway. */
+.portalMotif[data-kind="style"] i:nth-child(1){left:12px;top:1px;width:15px;height:24px;border:1px solid rgba(234,141,201,.65)}
+.portalMotif[data-kind="style"] i:nth-child(2){left:4px;bottom:1px;width:14px;height:1px;background:rgba(234,141,201,.55);transform:rotate(-16deg)}
+.portalMotif[data-kind="style"] i:nth-child(3){right:4px;bottom:1px;width:14px;height:1px;background:rgba(234,141,201,.55);transform:rotate(16deg)}
+.portalMotif[data-kind="style"] i:nth-child(4){left:18px;top:0;width:1px;height:28px;background:rgba(234,141,201,.28)}
+
+/* Color Finder: swatch matrix. */
+.portalMotif[data-kind="color"]{display:grid;grid-template-columns:repeat(2,1fr);gap:3px;padding:3px}
+.portalMotif[data-kind="color"] i{position:relative;border:1px solid rgba(135,174,255,.65)}
+.portalMotif[data-kind="color"] i:nth-child(1){background:rgba(221,99,126,.22)}
+.portalMotif[data-kind="color"] i:nth-child(2){background:rgba(101,159,223,.22)}
+.portalMotif[data-kind="color"] i:nth-child(3){background:rgba(211,177,90,.22)}
+.portalMotif[data-kind="color"] i:nth-child(4){background:rgba(115,191,150,.22)}
 .portalIndex{position:absolute;right:12px;top:10px;font-size:8px;letter-spacing:.12em;color:#71807b}
-.portalEyebrow{display:block;padding-right:30px;font-size:7px;font-weight:900;letter-spacing:.16em;color:#82908b}
-.portal strong{display:block;margin-top:13px;font-family:var(--font-serif,Georgia,serif);font-size:clamp(22px,2vw,30px);font-weight:500;line-height:1}
+.portalEyebrow{display:block;padding-right:48px;font-size:7px;font-weight:900;letter-spacing:.16em;color:#82908b}
+.portal strong{display:block;margin-top:13px;padding-right:42px;font-family:var(--font-serif,Georgia,serif);font-size:clamp(22px,2vw,30px);font-weight:500;line-height:1}
 .portal small{display:block;margin-top:9px;color:#9ca8a4;font-size:10px;line-height:1.45}
 .portal>b{display:flex;align-items:center;justify-content:space-between;margin-top:13px;padding-top:9px;border-top:1px solid rgba(245,241,232,.09);font-size:8px;letter-spacing:.15em}
 
@@ -145,7 +182,7 @@
 
 .stage[data-travelling] .portal:not([data-travelling]){opacity:.16!important;filter:blur(2px)}
 .stage[data-travelling] .heroCopy{opacity:.3;transition:opacity .32s ease}
-.stage[data-travelling] .core{transform:translate(-50%,-50%) scale(1.35);opacity:.28;transition:transform .5s ease,opacity .5s ease}
+.stage[data-travelling] .core{transform:translate(-50%,-50%) rotate(45deg) scale(1.28);opacity:.28;transition:transform .5s ease,opacity .5s ease}
 
 .staticMode{overflow:visible;min-height:auto;padding-bottom:48px;background:#07100e}
 .staticMode .canvas,.staticMode .core{display:none}
@@ -205,6 +242,7 @@
   .heroCopy>span{font-size:8px}.heroCopy h1{font-size:45px;max-width:360px}.heroCopy p{max-width:390px;font-size:11px}
   .portalLayer{inset:64px 0 0}
   .portal{width:152px;min-height:130px;padding:10px}
+  .portalMotif{right:9px;top:28px;transform:scale(.82);transform-origin:top right}
   .portalEyebrow{font-size:6px}.portal strong{font-size:20px;margin-top:10px}.portal small{font-size:8px;line-height:1.35;margin-top:7px}.portal>b{font-size:7px;margin-top:9px}
   .statusBar{left:12px;right:12px;bottom:12px}.statusBar p{max-width:220px;font-size:8px}
   .staticMode .portalLayer,.stage:not(.ready) .portalLayer{grid-template-columns:1fr;padding-left:14px;padding-right:14px}
