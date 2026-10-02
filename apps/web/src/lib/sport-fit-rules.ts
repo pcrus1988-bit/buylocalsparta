@@ -5,7 +5,7 @@ import type {
   SportSurface
 } from "./sport-fit-engine.ts";
 
-export const SPORT_FIT_RULESET_VERSION = "2026-10-02.1";
+export const SPORT_FIT_RULESET_VERSION = "2026-10-02.2";
 
 export type SportFitRuleEvaluation = Readonly<{
   eligible: boolean;
@@ -40,6 +40,11 @@ function knownSurfaceMatches(surface: SportSurface, actual: ReadonlySet<string>)
   if (surface === "indoor") return includesAny(actual, ["indoor"]);
   if (surface === "grass") return includesAny(actual, ["natural_grass_firm", "natural_grass_soft", "multi_ground"]);
   if (surface === "artificial") return includesAny(actual, ["artificial_grass", "turf", "multi_ground"]);
+  if (surface === "court_hard") return includesAny(actual, ["court_hard"]);
+  if (surface === "court_clay") return includesAny(actual, ["court_clay"]);
+  if (surface === "court_indoor") return includesAny(actual, ["court_indoor", "indoor"]);
+  if (surface === "court_outdoor") return includesAny(actual, ["court_outdoor"]);
+  if (surface === "court_artificial") return includesAny(actual, ["court_artificial"]);
   return includesAny(actual, ["mixed", "road", "trail"]);
 }
 
@@ -106,7 +111,15 @@ export function evaluateSportFitRules(
         ? ["walking", "hiking"]
         : answers.activity === "football"
           ? ["football", "team_sports"]
-          : [answers.activity];
+          : answers.activity === "basketball"
+            ? ["basketball", "team_sports"]
+            : answers.activity === "tennis"
+              ? ["tennis", "racket_sports"]
+              : answers.activity === "padel"
+                ? ["padel", "racket_sports"]
+                : answers.activity === "volleyball"
+                  ? ["volleyball", "team_sports"]
+                  : [answers.activity];
 
     if (!includesAny(activities, requested)) {
       return reject(
@@ -122,7 +135,7 @@ export function evaluateSportFitRules(
     role === "footwear"
     && answers.surface
     && surfaces.size
-    && ["running", "walking", "football"].includes(answers.activity)
+    && ["running", "walking", "football", "hiking", "basketball", "tennis", "padel", "volleyball"].includes(answers.activity)
     && !knownSurfaceMatches(answers.surface, surfaces)
   ) {
     return reject(
@@ -130,6 +143,10 @@ export function evaluateSportFitRules(
       "Η τεκμηριωμένη επιφάνεια του παπουτσιού δεν ταιριάζει με τη χρήση",
       state
     );
+  }
+
+  if (answers.useCase && useCases.size && useCases.has(normalize(answers.useCase))) {
+    push(state, "use_case.verified_match", 12, "Τεχνικός κανόνας: τεκμηριωμένη χρήση / τύπος προπόνησης");
   }
 
   if (answers.activity === "football" && role === "footwear") {
@@ -224,11 +241,41 @@ export function evaluateSportFitRules(
   }
 
   if (answers.activity === "walking" && role === "footwear") {
-    if (useCases.has("daily_walking") || useCases.has("all_day_standing")) {
+    if (answers.useCase === "all_day_standing" && useCases.has("all_day_standing")) {
+      push(state, "walking.all_day_standing", 18, "Κανόνας περπατήματος: τεκμηριωμένη χρήση για πολύωρη ορθοστασία");
+    } else if (answers.useCase === "travel_walking" && useCases.has("travel_walking")) {
+      push(state, "walking.travel_use", 16, "Κανόνας περπατήματος: τεκμηριωμένη χρήση για πολύ περπάτημα / ταξίδι");
+    } else if (useCases.has("daily_walking") || useCases.has("all_day_standing")) {
       push(state, "walking.daily_use", 14, "Κανόνας περπατήματος: τεκμηριωμένη καθημερινή / all-day χρήση");
     }
     if (answers.distance === "long" && (cushioning === "high" || cushioning === "max")) {
       push(state, "walking.long_cushioning", 8, "Κανόνας περπατήματος: αυξημένο cushioning για μεγάλη διάρκεια");
+    }
+  }
+
+  if (answers.activity === "hiking" && role === "footwear") {
+    if (answers.surface && surfaces.size && knownSurfaceMatches(answers.surface, surfaces)) {
+      push(state, "hiking.surface_match", 15, "Κανόνας πεζοπορίας: τεκμηριωμένη συμβατότητα εδάφους");
+    }
+    if (answers.useCase === "technical_hike" && useCases.has("technical_hike")) {
+      push(state, "hiking.technical_use", 16, "Κανόνας πεζοπορίας: τεκμηριωμένη χρήση σε τεχνικό terrain");
+    } else if (answers.useCase === "day_hike" && useCases.has("day_hike")) {
+      push(state, "hiking.day_use", 13, "Κανόνας πεζοπορίας: τεκμηριωμένη χρήση για ημερήσια πεζοπορία");
+    }
+    if (answers.priority === "weather" && (knowledge?.weatherProtection?.length ?? 0) > 0) {
+      push(state, "hiking.weather_protection", 12, "Κανόνας πεζοπορίας: τεκμηριωμένη προστασία από καιρό");
+    }
+  }
+
+  if (["basketball", "tennis", "padel", "volleyball"].includes(answers.activity) && role === "footwear") {
+    if (answers.surface && surfaces.size && knownSurfaceMatches(answers.surface, surfaces)) {
+      push(state, "court.surface_match", 14, "Κανόνας court sport: τεκμηριωμένη συμβατότητα επιφάνειας");
+    }
+    if (answers.useCase && useCases.has(normalize(answers.useCase))) {
+      push(state, "court.use_case_match", 12, "Κανόνας court sport: τεκμηριωμένος τύπος προπόνησης / αγώνα");
+    }
+    if (answers.priority === "stability" && ["guided", "stability", "max_support"].includes(support)) {
+      push(state, "court.stability_match", 8, "Κανόνας court sport: τεκμηριωμένη σταθερότητα");
     }
   }
 
