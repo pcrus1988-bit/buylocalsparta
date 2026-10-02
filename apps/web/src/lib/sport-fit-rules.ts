@@ -107,7 +107,9 @@ export function evaluateSportFitRules(
 
   if (role === "footwear" && activities.size) {
     const requested = answers.activity === "gym"
-      ? ["gym_training", "general_training"]
+      ? answers.gymTrainingType === "treadmill"
+        ? ["gym_training", "general_training", "running"]
+        : ["gym_training", "general_training"]
       : answers.activity === "walking" && (answers.surface === "trail" || answers.surface === "mixed")
         ? ["walking", "hiking"]
         : answers.activity === "football"
