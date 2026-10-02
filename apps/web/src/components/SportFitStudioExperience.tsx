@@ -284,6 +284,7 @@ export function SportFitStudioExperience({
     const firstSurface = surfacesFor(next)[0]?.key ?? "road";
     setSurface(next === "gym" ? "mixed" : firstSurface);
     setUseCase(DEFAULT_USE_CASE[next]);
+    setPriority("comfort");
     if (next === "running") setRunnerNeed("all_rounder");
     if (next === "gym") setGymTrainingType("mixed");
     setStep("profile");
