@@ -59,16 +59,42 @@ async function inspectionCandidates(canonicalOrigin: string): Promise<readonly s
       FROM public.seo_gsc_url_inspections
       WHERE route IS NOT NULL
       GROUP BY route
+    ), eligible AS (
+      SELECT u.route,li.last_inspected_at
+      FROM public.seo_urls u
+      JOIN public.markets m ON m.id=u.market_id AND m.code=$2
+      LEFT JOIN last_inspection li ON li.route=u.route
+      WHERE u.active=true
+        AND u.desired_indexable=true
+        AND u.route NOT LIKE '/product/%'
+    ), core AS (
+      SELECT route,last_inspected_at
+      FROM eligible
+      WHERE route IN ('/','/shop')
+      ORDER BY last_inspected_at ASC NULLS FIRST,route
+      LIMIT 2
+    ), categories AS (
+      SELECT route,last_inspected_at
+      FROM eligible
+      WHERE route LIKE '/category/%'
+      ORDER BY last_inspected_at ASC NULLS FIRST,route
+      LIMIT 4
+    ), vendors AS (
+      SELECT route,last_inspected_at
+      FROM eligible
+      WHERE route LIKE '/vendor/%'
+      ORDER BY last_inspected_at ASC NULLS FIRST,route
+      LIMIT 8
+    ), sampled AS (
+      SELECT route,last_inspected_at,0 AS priority FROM core
+      UNION ALL
+      SELECT route,last_inspected_at,1 AS priority FROM categories
+      UNION ALL
+      SELECT route,last_inspected_at,2 AS priority FROM vendors
     )
-    SELECT $1 || u.route AS inspection_url
-    FROM public.seo_urls u
-    JOIN public.markets m ON m.id=u.market_id AND m.code=$2
-    LEFT JOIN last_inspection li ON li.route=u.route
-    WHERE u.active=true
-      AND u.desired_indexable=true
-      AND u.route NOT LIKE '/product/%'
-    ORDER BY li.last_inspected_at ASC NULLS FIRST,u.route
-    LIMIT 12
+    SELECT $1 || route AS inspection_url
+    FROM sampled
+    ORDER BY priority,last_inspected_at ASC NULLS FIRST,route
   `, [origin, marketCode()]);
 
   const products = await runtime.nativePool.query<CandidateRow>(`
@@ -103,7 +129,7 @@ async function inspectionCandidates(canonicalOrigin: string): Promise<readonly s
     FROM candidate c
     LEFT JOIN last_inspection li ON li.route=c.route
     ORDER BY li.last_inspected_at ASC NULLS FIRST,c.route
-    LIMIT 12
+    LIMIT 10
   `);
 
   return [...new Set(
