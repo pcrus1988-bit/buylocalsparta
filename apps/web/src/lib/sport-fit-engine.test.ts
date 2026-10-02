@@ -452,7 +452,7 @@ test("running rules combine distance, frequency, cushioning and verified use cas
   });
 
   assert.equal(result.primary?.id, "long-run");
-  assert.equal(result.rulesetVersion, "2026-10-02.8");
+  assert.equal(result.rulesetVersion, "2026-10-02.9");
   assert.ok(result.primary?.appliedRules.includes("running.long_run_use_case"));
   assert.ok(result.primary?.reasons.some((reason) => /long-run|cushioning/i.test(reason)));
 });
@@ -975,3 +975,65 @@ test("survivor activity gate uses the same strict court-sport identity as finali
   assert.equal(result.primary?.id, "basketball-performance");
 });
 
+
+
+test("canonical family id de-duplicates differently titled variants in Top 5", () => {
+  const blue = product({
+    id: "shoe-blue-42",
+    familyId: "family-xml-123",
+    title: "Performance Runner Blue EU 42",
+    categoryCode: "mens-running-shoes",
+    sizes: ["42"],
+    priceMinor: 8000,
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"],
+      useCases: ["daily_training"]
+    }
+  });
+  const red = product({
+    id: "shoe-red-42",
+    familyId: "family-xml-123",
+    title: "Performance Runner Red EU 42",
+    categoryCode: "mens-running-shoes",
+    sizes: ["42"],
+    priceMinor: 8200,
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"],
+      useCases: ["daily_training"]
+    }
+  });
+  const secondFamily = product({
+    id: "shoe-family-two",
+    familyId: "family-xml-456",
+    title: "Daily Road Trainer EU 42",
+    categoryCode: "mens-running-shoes",
+    sizes: ["42"],
+    priceMinor: 8500,
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"],
+      useCases: ["daily_training"]
+    }
+  });
+
+  const result = buildSportFitRecommendation([red, secondFamily, blue], {
+    activity: "running",
+    audience: "men",
+    size: "42",
+    surface: "road",
+    useCase: "daily_training"
+  });
+
+  const finalists = [result.primary, ...result.alternatives].filter(Boolean);
+  assert.equal(finalists.filter((item) => item?.familyId === "family-xml-123").length, 1);
+  assert.equal(result.ranked.filter((item) => item.familyId === "family-xml-123").length, 1);
+  assert.equal(result.primary?.id, "shoe-blue-42");
+});

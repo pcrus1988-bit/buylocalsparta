@@ -1,6 +1,6 @@
 # KONTA MOY Sport & Fit recommendation rules
 
-Ruleset: `2026-10-02.8`
+Ruleset: `2026-10-02.9`
 
 Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. They do not require an external recommendation API and they do not infer missing technical product facts.
 
@@ -138,6 +138,10 @@ For socks, tops, bottoms, layers and accessories, the engine can evaluate:
 - reflective details for frequent running contexts.
 
 A missing performance fact stays `unknown`. A generic in-stock shirt or sock therefore no longer receives 100% technical confidence simply because availability is known. Documented cross-sport activity differences lower confidence but do not hard-reject versatile apparel; hard incompatibility remains reserved for categories such as footwear where the evidence supports a deterministic exclusion.
+
+## Canonical product families
+
+Recommendation de-duplication uses the canonical `familyId` whenever it is available. XML size/color variants from the same family therefore count as one product family in the universe, survivor counts and Top 5, even when their variant titles differ. Title-based grouping is only a fallback for products that do not yet have a canonical family identity.
 
 ## Explainability
 
