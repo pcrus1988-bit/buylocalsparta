@@ -662,3 +662,96 @@ test("gym treadmill explicitly accepts governed running footwear", () => {
   assert.equal(scored.technicalEligible, true);
   assert.ok(scored.score > 0);
 });
+
+
+test("hiking path prefers documented hiking footwear and excludes documented running-only footwear", () => {
+  const hiking = product({
+    id: "hike-terrex",
+    title: "Terrex Hiking Shoe",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["hiking"],
+      surfaces: ["trail"],
+      useCases: ["day_hike"],
+      weatherProtection: ["water_resistant"]
+    }
+  });
+  const roadRunner = product({
+    id: "road-only",
+    title: "Road Running Shoe",
+    categoryCode: "mens-running-shoes",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road"],
+      useCases: ["daily_training"]
+    }
+  });
+
+  const result = buildSportFitRecommendation([roadRunner, hiking], {
+    activity: "hiking",
+    audience: "men",
+    surface: "trail",
+    useCase: "day_hike",
+    priority: "weather"
+  });
+
+  assert.equal(result.primary?.id, "hike-terrex");
+  assert.equal(result.ranked.some((item) => item.id === "road-only"), false);
+  assert.ok(result.primary?.appliedRules.includes("hiking.surface_match"));
+});
+
+test("basketball path rejects lifestyle basketball inspiration unless sport identity is explicit", () => {
+  const lifestyle = product({
+    id: "rapid-court",
+    title: "Rapid Court Low",
+    categoryCode: "mens-sneakers",
+    description: "Lifestyle streetwear sneaker inspired by classic basketball style"
+  });
+  const basketball = product({
+    id: "court-performance",
+    title: "Performance Basketball Shoe",
+    categoryCode: "mens-basketball-shoes",
+    description: "Indoor court training shoe"
+  });
+
+  const result = buildSportFitRecommendation([lifestyle, basketball], {
+    activity: "basketball",
+    audience: "men",
+    surface: "court_indoor",
+    useCase: "basketball_training",
+    priority: "stability"
+  });
+
+  assert.equal(result.primary?.id, "court-performance");
+  assert.equal(result.ranked.some((item) => item.id === "rapid-court"), false);
+});
+
+test("new Sport & Fit activities, court surfaces and use cases parse only from controlled values", () => {
+  const parsed = parseSportFitAnswers({
+    activity: "padel",
+    audience: "women",
+    surface: "court_artificial",
+    useCase: "padel_match",
+    priority: "traction"
+  });
+  const invalid = parseSportFitAnswers({
+    activity: "pickleball",
+    audience: "men",
+    surface: "parking_lot",
+    useCase: "weekend_fun",
+    priority: "fashion"
+  });
+
+  assert.equal(parsed.activity, "padel");
+  assert.equal(parsed.surface, "court_artificial");
+  assert.equal(parsed.useCase, "padel_match");
+  assert.equal(parsed.priority, "traction");
+  assert.equal(invalid.activity, "running");
+  assert.equal(invalid.surface, undefined);
+  assert.equal(invalid.useCase, undefined);
+  assert.equal(invalid.priority, undefined);
+});
