@@ -218,6 +218,25 @@ ON CONFLICT (source_key) DO UPDATE SET
   active=true,
   updated_at=now();
 
+CREATE TEMP TABLE _sport_327_kerasiotis_vendor (
+  vendor_id uuid PRIMARY KEY
+) ON COMMIT DROP;
+
+INSERT INTO _sport_327_kerasiotis_vendor(vendor_id)
+SELECT id
+FROM public.vendor_businesses
+WHERE public_slug='kerasiotis';
+
+DO $
+DECLARE v_count integer;
+BEGIN
+  SELECT count(*) INTO v_count FROM _sport_327_kerasiotis_vendor;
+  IF v_count<>1 THEN
+    RAISE EXCEPTION 'Schema 327 requires exactly one Kerasiotis vendor with public_slug=kerasiotis, found %',v_count;
+  END IF;
+END
+$;
+
 CREATE TEMP TABLE _sport_327_family (
   style_code text NOT NULL,
   family_id uuid NOT NULL,
@@ -232,8 +251,53 @@ CREATE TEMP TABLE _sport_327_family (
   PRIMARY KEY(style_code,family_id)
 ) ON COMMIT DROP;
 
+WITH identity_candidates AS (
+  SELECT
+    s.style_code,
+    cv.family_id,
+    'canonical_mpn'::text AS identity_route
+  FROM _sport_327_seed s
+  JOIN public.canonical_variants cv
+    ON cv.active=true
+   AND upper(coalesce(nullif(btrim(cv.mpn),''),''))=s.style_code
+
+  UNION ALL
+
+  SELECT
+    s.style_code,
+    cv.family_id,
+    'trusted_vendor_feed_exact_code'::text AS identity_route
+  FROM _sport_327_kerasiotis_vendor k
+  JOIN public.vendor_product_feed_items vf
+    ON vf.vendor_id=k.vendor_id
+   AND coalesce(vf.hidden_by_feed,false)=false
+  JOIN _sport_327_seed s
+    ON (
+      upper(coalesce(nullif(btrim(vf.source_payload->>'mpn'),''),''))=s.style_code
+      OR (
+        position(s.style_code in upper(coalesce(vf.source_payload->>'title','')))>0
+        AND upper(coalesce(vf.source_payload->>'title',''))
+              ~ ('(^|[^A-Z0-9])' || s.style_code || '([^A-Z0-9]|$)')
+      )
+    )
+  JOIN public.canonical_variants cv
+    ON cv.id=vf.canonical_variant_id
+   AND cv.active=true
+  WHERE upper(coalesce(nullif(btrim(vf.source_payload->>'brand'),''),''))='ADIDAS'
+),
+identity_resolved AS (
+  SELECT
+    style_code,
+    family_id,
+    CASE
+      WHEN bool_or(identity_route='canonical_mpn') THEN 'canonical_mpn'
+      ELSE 'trusted_vendor_feed_exact_code'
+    END AS identity_route
+  FROM identity_candidates
+  GROUP BY style_code,family_id
+)
 INSERT INTO _sport_327_family
-SELECT DISTINCT
+SELECT
   s.style_code,
   pf.id,
   s.source_key,
@@ -243,30 +307,11 @@ SELECT DISTINCT
   s.moisture_wicking,
   s.sock_arch_support,
   s.evidence_summary,
-  CASE
-    WHEN upper(coalesce(nullif(btrim(cv.mpn),''),''))=s.style_code THEN 'canonical_mpn'
-    ELSE 'trusted_vendor_feed_exact_code'
-  END
+  i.identity_route
 FROM _sport_327_seed s
-JOIN public.canonical_variants cv
-  ON cv.active=true
- AND (
-   upper(coalesce(nullif(btrim(cv.mpn),''),''))=s.style_code
-   OR EXISTS (
-     SELECT 1
-     FROM public.vendor_product_feed_items vf
-     WHERE vf.canonical_variant_id=cv.id
-       AND coalesce(vf.hidden_by_feed,false)=false
-       AND upper(coalesce(nullif(btrim(vf.source_payload->>'brand'),''),''))='ADIDAS'
-       AND (
-         upper(coalesce(nullif(btrim(vf.source_payload->>'mpn'),''),''))=s.style_code
-         OR upper(coalesce(vf.source_payload->>'title',''))
-              ~ ('(^|[^A-Z0-9])' || s.style_code || '([^A-Z0-9]|$)')
-       )
-   )
- )
+JOIN identity_resolved i ON i.style_code=s.style_code
 JOIN public.product_families pf
-  ON pf.id=cv.family_id
+  ON pf.id=i.family_id
  AND pf.active=true;
 
 DO $$
