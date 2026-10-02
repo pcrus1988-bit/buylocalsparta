@@ -1,12 +1,12 @@
 import { evaluateSportFitRules, SPORT_FIT_RULESET_VERSION } from "./sport-fit-rules.ts";
 
-export const SPORT_ACTIVITIES = ["running", "walking", "gym", "football"] as const;
+export const SPORT_ACTIVITIES = ["running", "walking", "gym", "football", "hiking", "basketball", "tennis", "padel", "volleyball"] as const;
 export type SportActivity = (typeof SPORT_ACTIVITIES)[number];
 
 export const SPORT_AUDIENCES = ["men", "women", "kids"] as const;
 export type SportAudience = (typeof SPORT_AUDIENCES)[number];
 
-export const SPORT_SURFACES = ["road", "treadmill", "mixed", "trail", "indoor", "grass", "artificial"] as const;
+export const SPORT_SURFACES = ["road", "treadmill", "mixed", "trail", "indoor", "grass", "artificial", "court_hard", "court_clay", "court_indoor", "court_outdoor", "court_artificial"] as const;
 export type SportSurface = (typeof SPORT_SURFACES)[number];
 
 export const SPORT_FREQUENCIES = ["light", "regular", "high"] as const;
@@ -15,8 +15,21 @@ export type SportFrequency = (typeof SPORT_FREQUENCIES)[number];
 export const SPORT_DISTANCES = ["short", "medium", "long"] as const;
 export type SportDistance = (typeof SPORT_DISTANCES)[number];
 
-export const SPORT_PRIORITIES = ["comfort", "cushioning", "lightweight", "stability", "versatility"] as const;
+export const SPORT_PRIORITIES = ["comfort", "cushioning", "lightweight", "stability", "versatility", "traction", "weather"] as const;
 export type SportPriority = (typeof SPORT_PRIORITIES)[number];
+
+export const SPORT_USE_CASES = [
+  "daily_training", "easy_run", "recovery_run", "long_run", "speed_training", "race_day",
+  "daily_walking", "all_day_standing", "travel_walking",
+  "gym_strength", "gym_cardio", "gym_functional",
+  "football_training", "football_match",
+  "day_hike", "technical_hike", "urban_outdoor",
+  "basketball_training", "basketball_match",
+  "tennis_training", "tennis_match",
+  "padel_training", "padel_match",
+  "volleyball_training", "volleyball_match"
+] as const;
+export type SportUseCase = (typeof SPORT_USE_CASES)[number];
 
 export const SPORT_RUNNER_NEEDS = ["neutral", "guided_support", "wide_fit", "soft_ride", "speed", "all_rounder"] as const;
 export type SportRunnerNeed = (typeof SPORT_RUNNER_NEEDS)[number];
@@ -73,6 +86,7 @@ export type SportFitAnswers = Readonly<{
   runnerNeed?: SportRunnerNeed;
   fitPreference?: SportFitPreference;
   gymTrainingType?: SportGymTrainingType;
+  useCase?: SportUseCase;
 }>;
 
 export type SportFitProduct = Readonly<{
@@ -152,7 +166,12 @@ function requestedActivityCodes(answers: SportFitAnswers): readonly string[] {
       : ["walking"];
   }
   if (answers.activity === "gym") return ["gym_training", "general_training"];
-  return ["football", "team_sports"];
+  if (answers.activity === "football") return ["football", "team_sports"];
+  if (answers.activity === "hiking") return ["hiking"];
+  if (answers.activity === "basketball") return ["basketball", "team_sports"];
+  if (answers.activity === "tennis") return ["tennis", "racket_sports"];
+  if (answers.activity === "padel") return ["padel", "racket_sports"];
+  return ["volleyball", "team_sports"];
 }
 
 function requestedSurfaceCodes(surface: SportSurface): readonly string[] {
@@ -162,7 +181,16 @@ function requestedSurfaceCodes(surface: SportSurface): readonly string[] {
   if (surface === "indoor") return ["indoor"];
   if (surface === "grass") return ["natural_grass_firm", "natural_grass_soft", "multi_ground"];
   if (surface === "artificial") return ["artificial_grass", "turf", "multi_ground"];
+  if (surface === "court_hard") return ["court_hard"];
+  if (surface === "court_clay") return ["court_clay"];
+  if (surface === "court_indoor") return ["court_indoor", "indoor"];
+  if (surface === "court_outdoor") return ["court_outdoor"];
+  if (surface === "court_artificial") return ["court_artificial"];
   return ["mixed", "road", "trail"];
+}
+
+function requestedUseCaseCodes(useCase: SportUseCase | undefined): readonly string[] {
+  return useCase ? [useCase] : [];
 }
 
 function knowledgeList(values: readonly string[] | undefined): readonly string[] {
@@ -209,6 +237,25 @@ function productText(product: SportFitProduct): string {
     product.description,
     ...Object.entries(product.attributes ?? {}).flatMap(([key, value]) => [key, value])
   ].filter(Boolean).join(" "));
+}
+
+function strictIdentityText(product: SportFitProduct): string {
+  return normalize([product.title, product.categoryCode, product.categoryLabel].filter(Boolean).join(" "));
+}
+
+function candidateSupportsRequestedActivity(product: SportFitProduct, answers: SportFitAnswers): boolean {
+  if (["running", "walking", "gym", "football"].includes(answers.activity)) return true;
+
+  const knowledge = usableKnowledge(product);
+  const knownActivities = knowledgeList(knowledge?.activities);
+  if (knownActivities.length > 0) return hasKnowledgeMatch(knownActivities, requestedActivityCodes(answers));
+
+  const text = strictIdentityText(product);
+  if (answers.activity === "hiking") return hasAny(text, ["hiking", "terrex", "trail", "πεζοπορ", "outdoor"]);
+  if (answers.activity === "basketball") return hasAny(text, ["basketball", "μπασκετ", "μπάσκετ"]);
+  if (answers.activity === "tennis") return hasAny(text, ["tennis", "τενις", "τένις"]);
+  if (answers.activity === "padel") return hasAny(text, ["padel", "παντελ", "πάντελ"]);
+  return hasAny(text, ["volleyball", "volley", "βολει", "βόλεϊ"]);
 }
 
 export function sportProductRole(product: SportFitProduct): SportProductRole {
@@ -294,6 +341,30 @@ function activityScore(product: SportFitProduct, answers: SportFitAnswers, text:
     return role === "accessory" ? 24 : 2;
   }
 
+  if (answers.activity === "hiking") {
+    if (outdoorSignal && role === "footwear") return 44;
+    if (outdoorSignal) return role === "accessory" ? 32 : 28;
+    if (role === "socks") return 24;
+    if (role === "top" || role === "bottom" || role === "layer") return 20;
+    return role === "footwear" ? 8 : 3;
+  }
+
+  if (["basketball", "tennis", "padel", "volleyball"].includes(answers.activity)) {
+    const identity = strictIdentityText(product);
+    const signal = answers.activity === "basketball"
+      ? hasAny(identity, ["basketball", "μπασκετ", "μπάσκετ"])
+      : answers.activity === "tennis"
+        ? hasAny(identity, ["tennis", "τενις", "τένις"])
+        : answers.activity === "padel"
+          ? hasAny(identity, ["padel", "παντελ", "πάντελ"])
+          : hasAny(identity, ["volleyball", "volley", "βολει", "βόλεϊ"]);
+    if (signal && role === "footwear") return 44;
+    if (signal && role === "accessory") return 38;
+    if (signal && (role === "top" || role === "bottom" || role === "layer")) return 30;
+    if (role === "socks") return 22;
+    return signal ? 24 : 2;
+  }
+
   if (footballSignal && role === "footwear") return 42;
   if (footballSignal) return 36;
   if (role === "socks") return 30;
@@ -316,7 +387,11 @@ function surfaceScore(product: SportFitProduct, surface: SportSurface | undefine
   const indoor = hasAny(text, ["indoor", "court", "training", "gym", "futsal"]);
   const artificial = hasAny(text, ["turf", "artificial", "tf ", "ag "]);
   const grass = hasAny(text, ["firm ground", "fg ", "grass", "γρασιδ"]);
+  const court = hasAny(text, ["court", "tennis", "padel", "basketball", "volleyball", "τενις", "παντελ", "μπασκετ", "βολει"]);
 
+  if (["court_hard", "court_clay", "court_indoor", "court_outdoor", "court_artificial"].includes(surface)) {
+    return court ? 14 : role === "footwear" ? 3 : 5;
+  }
   if (surface === "trail") return trail ? 14 : role === "footwear" ? 2 : 5;
   if (surface === "treadmill" || surface === "indoor") return indoor ? 12 : role === "footwear" ? 8 : 5;
   if (surface === "artificial") return artificial ? 14 : role === "footwear" ? 3 : 5;
@@ -352,6 +427,13 @@ function priorityScore(product: SportFitProduct, priority: SportPriority | undef
     if (support === "neutral") return 4;
     return hasAny(text, ["stability", "stable", "support", "control", "στηριξ", "σταθερ"]) ? 10 : 4;
   }
+  if (priority === "traction") {
+    return hasAny(text, ["traction", "grip", "traxion", "lug", "προσφυ", "αντιολισθ"]) ? 13 : 4;
+  }
+  if (priority === "weather") {
+    if ((knowledge?.weatherProtection ?? []).length > 0) return 14;
+    return hasAny(text, ["waterproof", "water resistant", "rain.rdy", "gore tex", "gore-tex", "αδιαβροχ", "υδροαπωθ"]) ? 12 : 4;
+  }
   return 8;
 }
 
@@ -373,6 +455,45 @@ function frequencyScore(product: SportFitProduct, frequency: SportFrequency | un
   if (frequency === "high") return hasAny(text, ["performance", "training", "aeroready", "dry fit", "dri fit", "technical"]) ? 8 : 5;
   if (frequency === "regular") return 6;
   return 5;
+}
+
+function useCaseScore(product: SportFitProduct, useCase: SportUseCase | undefined, text: string, role: SportProductRole): number {
+  if (!useCase) return 3;
+  const knowledge = usableKnowledge(product);
+  const knownUseCases = knowledgeList(knowledge?.useCases);
+  if (knownUseCases.length > 0) {
+    if (hasKnowledgeMatch(knownUseCases, requestedUseCaseCodes(useCase))) return 11;
+    return role === "footwear" || role === "accessory" ? 1 : 3;
+  }
+
+  const signals: Readonly<Record<SportUseCase, readonly string[]>> = {
+    daily_training: ["training", "daily"],
+    easy_run: ["easy run", "daily run"],
+    recovery_run: ["recovery"],
+    long_run: ["long run", "long distance"],
+    speed_training: ["speed", "tempo", "interval"],
+    race_day: ["race", "racing", "competition"],
+    daily_walking: ["walking", "walk", "περπατ"],
+    all_day_standing: ["all day", "work", "standing", "ορθοστασ"],
+    travel_walking: ["travel", "walking", "city", "urban"],
+    gym_strength: ["strength", "weight", "lifting", "stable", "ενδυναμ"],
+    gym_cardio: ["cardio", "treadmill", "training"],
+    gym_functional: ["functional", "cross training", "training"],
+    football_training: ["football", "soccer", "training"],
+    football_match: ["football", "soccer", "match"],
+    day_hike: ["hiking", "trail", "πεζοπορ"],
+    technical_hike: ["technical", "trail", "hiking", "terrex", "ορειν"],
+    urban_outdoor: ["outdoor", "urban", "city", "walking"],
+    basketball_training: ["basketball", "training", "μπασκετ"],
+    basketball_match: ["basketball", "match", "μπασκετ"],
+    tennis_training: ["tennis", "training", "τενις"],
+    tennis_match: ["tennis", "match", "τενις"],
+    padel_training: ["padel", "training", "παντελ"],
+    padel_match: ["padel", "match", "παντελ"],
+    volleyball_training: ["volleyball", "volley", "training", "βολει"],
+    volleyball_match: ["volleyball", "volley", "match", "βολει"]
+  };
+  return hasAny(text, signals[useCase]) ? 8 : 3;
 }
 
 function budgetScore(product: SportFitProduct, budgetMinor: number | undefined): number {
@@ -425,6 +546,9 @@ function reasonsFor(
   const knowledge = usableKnowledge(product);
   if (knowledge && hasKnowledgeMatch(knowledge.activities, requestedActivityCodes(answers))) {
     reasons.push("Τεκμηριωμένη αντιστοίχιση δραστηριότητας");
+  }
+  if (knowledge && answers.useCase && hasKnowledgeMatch(knowledge.useCases, requestedUseCaseCodes(answers.useCase))) {
+    reasons.push("Τεκμηριωμένη αντιστοίχιση χρήσης / προπόνησης");
   }
   if (knowledge && answers.surface && hasKnowledgeMatch(knowledge.surfaces, requestedSurfaceCodes(answers.surface))) {
     reasons.push("Τεκμηριωμένη καταλληλότητα επιφάνειας");
@@ -493,13 +617,15 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
     score += priorityScore(product, answers.priority, text);
     score += distanceScore(answers.distance, text, role);
     score += frequencyScore(product, answers.frequency, text);
+    score += useCaseScore(product, answers.useCase, text, role);
     score += budgetScore(product, answers.budgetMinor);
     score += size.score;
     score += 10;
     score += ruleEvaluation.adjustment;
 
-    if ((answers.activity === "running" || answers.activity === "walking" || answers.activity === "football") && role === "footwear") score += 8;
+    if (["running", "walking", "football", "hiking", "basketball", "tennis", "padel", "volleyball"].includes(answers.activity) && role === "footwear") score += 8;
     if (answers.activity === "gym" && (role === "footwear" || role === "top" || role === "bottom" || role === "accessory")) score += 6;
+    if (["basketball", "tennis", "padel", "volleyball"].includes(answers.activity) && (role === "accessory" || role === "top" || role === "bottom")) score += 4;
   } else {
     score = 0;
   }
@@ -551,6 +677,7 @@ export function buildSportFitRecommendation(
       && product.knowledge?.queueStatus !== "blocked"
       && product.knowledge?.status !== "conflict"
       && product.knowledge?.status !== "insufficient"
+      && candidateSupportsRequestedActivity(product, answers)
     )
     .map((product) => scoreSportFitProduct(product, answers))
     .filter((product) => product.technicalEligible && product.score >= 20)
@@ -609,6 +736,7 @@ export function parseSportFitAnswers(input: unknown): SportFitAnswers {
     priority: optionalEnumValue(SPORT_PRIORITIES, value.priority),
     runnerNeed: optionalEnumValue(SPORT_RUNNER_NEEDS, value.runnerNeed),
     fitPreference: optionalEnumValue(SPORT_FIT_PREFERENCES, value.fitPreference),
-    gymTrainingType: optionalEnumValue(SPORT_GYM_TRAINING_TYPES, value.gymTrainingType)
+    gymTrainingType: optionalEnumValue(SPORT_GYM_TRAINING_TYPES, value.gymTrainingType),
+    useCase: optionalEnumValue(SPORT_USE_CASES, value.useCase)
   };
 }
