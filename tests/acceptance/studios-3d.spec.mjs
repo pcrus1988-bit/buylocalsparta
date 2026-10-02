@@ -57,6 +57,6 @@ test("Paint Build exposes its shared WebGL project environment", async ({ page }
 
   await expect(page.locator("canvas").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: /Τι θέλεις/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Βαφή|Πινέλια|Χρώμα/i }).first()).toBeVisible().catch(() => {});
+  await expect(page.getByRole("application", { name: "KONTA MOY Paint & Build Studio" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Έξοδος από το Studio" })).toBeVisible();
 });
