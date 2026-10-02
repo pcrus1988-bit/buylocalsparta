@@ -7,6 +7,7 @@ import styles from "./page.module.css";
 
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/sport-fit-studio", {
+    canonicalPath: "https://kontamou.site/sport-fit-studio",
     title: "Sport & Fit Studio · ΚΟΝΤΑ ΜΟΥ",
     description: "Βρες παπούτσι και αθλητικό set με βάση τη δραστηριότητα, το μέγεθος και τη χρήση σου, από πραγματικά διαθέσιμα προϊόντα."
   });
