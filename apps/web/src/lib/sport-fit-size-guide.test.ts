@@ -71,6 +71,10 @@ test("kids-specific guide scope outranks unisex fallback", () => {
     preferredSportSizeGuideScopes(["unisex", "kids"], "men"),
     ["unisex"]
   );
+  assert.deepEqual(
+    preferredSportSizeGuideScopes(["unisex"], "kids"),
+    []
+  );
 });
 
 test("an exact audience guide outranks unisex for future audience-specific charts", () => {
