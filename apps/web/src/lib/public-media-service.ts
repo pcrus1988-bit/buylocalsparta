@@ -2,6 +2,7 @@ import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { S3ObjectStorage, objectStorageConfigFromEnv, type StoredObjectRead } from "@buy-local-sparta/object-storage";
 import type { VendorProfileMediaRole } from "@buy-local-sparta/postgres-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 
 export type CatalogMediaRequest = Readonly<{
   canonicalVariantId: string;
@@ -11,6 +12,12 @@ export type CatalogMediaRequest = Readonly<{
 export type ApprovedCatalogImage = Readonly<{
   canonicalVariantId: string;
   mediaId: string;
+  altText?: string;
+}>;
+
+export type ApprovedCatalogSourceImage = Readonly<{
+  canonicalVariantId: string;
+  src: string;
   altText?: string;
 }>;
 
@@ -32,6 +39,14 @@ export type ApprovedPublicMediaRead = StoredObjectRead & Readonly<{
 type CatalogImageRow = SqlRow & {
   canonical_public_id: string;
   media_public_id: string;
+  alt_text?: string | null;
+};
+
+type CatalogSourceImageRow = SqlRow & {
+  canonical_public_id: string;
+  source_url: string;
+  source_code: string;
+  source_website: string;
   alt_text?: string | null;
 };
 
@@ -130,6 +145,88 @@ export async function approvedCatalogImages(requests: readonly CatalogMediaReque
       mediaId: requiredText(row.media_public_id, "media_public_id"),
       altText: optionalText(row.alt_text)
     })));
+  }
+
+  return images;
+}
+
+/**
+ * Resolve approved source-hosted catalogue images without requiring object storage.
+ *
+ * Vendor XML feeds materialize reviewed source URLs in product_media. Public shop
+ * and cart surfaces need this projection because those URLs are not guaranteed to
+ * have a catalog_source_product_links row yet. The same scan/rights/moderation
+ * gates used by stored public media still apply, and every returned URL is checked
+ * against its governed catalogue source host before leaving the server.
+ */
+export async function approvedCatalogSourceImages(
+  requests: readonly CatalogMediaRequest[]
+): Promise<readonly ApprovedCatalogSourceImage[]> {
+  if (!productionDatabaseConfigured() || requests.length === 0) return [];
+
+  const unique = new Map<string, CatalogMediaRequest>();
+  for (const request of requests) {
+    if (!request.canonicalVariantId.trim()) continue;
+    unique.set(request.canonicalVariantId, request);
+  }
+  if (unique.size === 0) return [];
+
+  const runtime = getProductionPostgresRuntime();
+  const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 10_000, lockTimeoutMs: 2_000 });
+  const requested = [...unique.values()];
+  const images: ApprovedCatalogSourceImage[] = [];
+
+  for (let offset = 0; offset < requested.length; offset += CATALOG_MEDIA_BATCH_SIZE) {
+    const payload = requested.slice(offset, offset + CATALOG_MEDIA_BATCH_SIZE).map((request) => ({
+      canonical_variant_id: request.canonicalVariantId,
+      preferred_vendor_id: request.preferredVendorId ?? null
+    }));
+
+    const result = await uow.withTransaction(
+      { actorUserId: "public-storefront", marketId: "sparta", platformAccess: true },
+      (tx) => tx.query<CatalogSourceImageRow>(`
+        WITH requested AS (
+          SELECT canonical_variant_id, preferred_vendor_id
+          FROM jsonb_to_recordset($1::jsonb) AS r(canonical_variant_id text, preferred_vendor_id text)
+        )
+        SELECT DISTINCT ON (r.canonical_variant_id)
+               r.canonical_variant_id AS canonical_public_id,
+               pm.source_url,
+               cs.code AS source_code,
+               cs.website AS source_website,
+               pm.alt_text
+        FROM requested r
+        JOIN canonical_variants cv ON cv.public_id=r.canonical_variant_id
+        JOIN markets m ON m.id=cv.market_id
+        JOIN product_media pm ON pm.canonical_variant_id=cv.id
+        JOIN catalog_sources cs ON cs.id=pm.source_id AND cs.active=true
+        LEFT JOIN vendor_businesses v ON v.id=pm.vendor_id
+        WHERE m.code='sparta'
+          AND cv.active=true AND cv.suppressed=false AND cv.recalled=false
+          AND pm.kind='image'
+          AND pm.scan_status='clean'
+          AND pm.rights_status='approved'
+          AND pm.moderation_status='approved'
+          AND pm.source_url IS NOT NULL
+        ORDER BY r.canonical_variant_id,
+                 CASE WHEN r.preferred_vendor_id IS NOT NULL AND v.public_id=r.preferred_vendor_id THEN 0 ELSE 1 END,
+                 pm.sort_order ASC,
+                 pm.reviewed_at DESC NULLS LAST,
+                 pm.created_at ASC,
+                 pm.id
+      `, [JSON.stringify(payload)]),
+      { readOnly: true }
+    );
+
+    for (const row of result.rows) {
+      const src = trustedCatalogSourceHttpsUrl(row.source_code, row.source_website, row.source_url);
+      if (!src) continue;
+      images.push({
+        canonicalVariantId: requiredText(row.canonical_public_id, "canonical_public_id"),
+        src,
+        altText: optionalText(row.alt_text)
+      });
+    }
   }
 
   return images;
