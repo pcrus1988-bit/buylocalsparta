@@ -23,6 +23,7 @@ import {
   type ColorProductType
 } from "../lib/color-finder";
 import type { ColorFinderContext } from "../lib/color-finder-context";
+import { ColorSpatialUniverse } from "./ColorSpatialUniverse";
 import styles from "./ColorFinderExperience.module.css";
 
 type FinishFilter = "all" | ColorFinish;
@@ -752,6 +753,20 @@ export function ColorFinderExperience({
             <span aria-hidden="true">·</span>
             <span>Βρες αυτό που σου ταιριάζει</span>
           </div>
+
+          <ColorSpatialUniverse
+            selectedHex={selectedHex}
+            selectedLabel={selectedShade.label}
+            studioLabel={context.studioLabel}
+            items={visibleMatches.slice(0, 10).map((product) => ({
+              id: product.id,
+              slug: product.slug,
+              title: product.title,
+              imageSrc: product.imageSrc,
+              colorHex: product.colorHex,
+              match: product.match
+            }))}
+          />
         </div>
 
         <div className={styles.selectorCard}>
