@@ -487,7 +487,7 @@ test("running rules combine distance, frequency, cushioning and verified use cas
   });
 
   assert.equal(result.primary?.id, "long-run");
-  assert.equal(result.rulesetVersion, "2026-10-02.12");
+  assert.equal(result.rulesetVersion, "2026-10-02.13");
   assert.ok(result.primary?.appliedRules.includes("running.long_run_use_case"));
   assert.ok(result.primary?.reasons.some((reason) => /long-run|cushioning/i.test(reason)));
 });
@@ -1319,4 +1319,160 @@ test("a governed broad sport classification is enough to enter the governed fina
   assert.equal(result.finalistEvidenceMode, "governed");
   assert.equal(result.primary?.id, "governed-team-sports");
   assert.equal(result.alternatives.length, 0);
+});
+
+
+test("handball accepts governed team-sports evidence but prefers exact handball evidence", () => {
+  const broad = product({
+    id: "broad-handball-team",
+    title: "Indoor Team Court Shoe",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["team_sports"],
+      surfaces: ["court_indoor"],
+      useCases: ["handball_training"],
+      supportLevel: "stability"
+    }
+  });
+  const exact = product({
+    id: "exact-handball",
+    title: "Handball Indoor Shoe",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["handball"],
+      surfaces: ["court_indoor"],
+      useCases: ["handball_training"],
+      supportLevel: "stability"
+    }
+  });
+  const answers = {
+    activity: "handball" as const,
+    audience: "men" as const,
+    surface: "court_indoor" as const,
+    useCase: "handball_training" as const,
+    priority: "stability" as const
+  };
+
+  const broadScore = scoreSportFitProduct(broad, answers);
+  const exactScore = scoreSportFitProduct(exact, answers);
+  const result = buildSportFitRecommendation([broad, exact], answers);
+
+  assert.equal(broadScore.technicalEligible, true);
+  assert.equal(exactScore.technicalEligible, true);
+  assert.ok(exactScore.technicalScore > broadScore.technicalScore);
+  assert.ok(broadScore.technicalRequirements.some((item) =>
+    item.id === "requirement.activity_specificity" && item.status === "unknown"
+  ));
+  assert.ok(exactScore.technicalRequirements.some((item) =>
+    item.id === "requirement.activity_specificity" && item.status === "match"
+  ));
+  assert.equal(result.primary?.id, "exact-handball");
+});
+
+test("badminton accepts governed racket-sports evidence but prefers exact badminton evidence", () => {
+  const broad = product({
+    id: "broad-badminton-racket",
+    title: "Indoor Racket Court Shoe",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["racket_sports"],
+      surfaces: ["court_indoor"],
+      useCases: ["badminton_training"],
+      cushioningLevel: "medium"
+    }
+  });
+  const exact = product({
+    id: "exact-badminton",
+    title: "Badminton Indoor Shoe",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["badminton"],
+      surfaces: ["court_indoor"],
+      useCases: ["badminton_training"],
+      cushioningLevel: "medium"
+    }
+  });
+  const answers = {
+    activity: "badminton" as const,
+    audience: "women" as const,
+    surface: "court_indoor" as const,
+    useCase: "badminton_training" as const,
+    priority: "lightweight" as const
+  };
+
+  const broadScore = scoreSportFitProduct(broad, answers);
+  const exactScore = scoreSportFitProduct(exact, answers);
+  const result = buildSportFitRecommendation([broad, exact], answers);
+
+  assert.equal(broadScore.technicalEligible, true);
+  assert.equal(exactScore.technicalEligible, true);
+  assert.ok(exactScore.technicalScore > broadScore.technicalScore);
+  assert.equal(result.primary?.id, "exact-badminton");
+});
+
+test("strict activity identity recognizes handball and badminton without admitting a generic sneaker", () => {
+  const generic = product({
+    id: "generic-court-sneaker",
+    title: "Indoor Court Sneaker",
+    categoryCode: "mens-sneakers"
+  });
+  const handball = product({
+    id: "handball-title-signal",
+    title: "Performance Handball Shoe",
+    categoryCode: "mens-sneakers"
+  });
+  const badminton = product({
+    id: "badminton-title-signal",
+    title: "Performance Badminton Shoe",
+    categoryCode: "mens-sneakers"
+  });
+
+  assert.equal(sportFitCandidateSupportsRequestedActivity(generic, {
+    activity: "handball",
+    audience: "men",
+    surface: "court_indoor"
+  }), false);
+  assert.equal(sportFitCandidateSupportsRequestedActivity(handball, {
+    activity: "handball",
+    audience: "men",
+    surface: "court_indoor"
+  }), true);
+  assert.equal(sportFitCandidateSupportsRequestedActivity(generic, {
+    activity: "badminton",
+    audience: "men",
+    surface: "court_indoor"
+  }), false);
+  assert.equal(sportFitCandidateSupportsRequestedActivity(badminton, {
+    activity: "badminton",
+    audience: "men",
+    surface: "court_indoor"
+  }), true);
+});
+
+test("Sport & Fit answer parser accepts handball and badminton use cases", () => {
+  const handball = parseSportFitAnswers({
+    activity: "handball",
+    audience: "men",
+    surface: "court_indoor",
+    useCase: "handball_match"
+  });
+  const badminton = parseSportFitAnswers({
+    activity: "badminton",
+    audience: "women",
+    surface: "court_hard",
+    useCase: "badminton_training"
+  });
+
+  assert.equal(handball.activity, "handball");
+  assert.equal(handball.useCase, "handball_match");
+  assert.equal(badminton.activity, "badminton");
+  assert.equal(badminton.useCase, "badminton_training");
 });
