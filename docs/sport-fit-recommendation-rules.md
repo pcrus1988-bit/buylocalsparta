@@ -1,6 +1,6 @@
 # KONTA MOY Sport & Fit recommendation rules
 
-Ruleset: `2026-10-02.3`
+Ruleset: `2026-10-02.4`
 
 Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. They do not require an external recommendation API and they do not infer missing technical product facts.
 
@@ -78,6 +78,29 @@ For strength work, high/max cushioning receives a penalty because the rules prio
 ## Walking
 
 Walking uses documented walking/hiking activity, selected surface, daily/all-day use cases, fit, distance, size and stock. Trail walking may accept documented hiking footwear. Road running does not inherit that compatibility.
+
+The technical profile now separates:
+- prolonged walking (long distance / high frequency);
+- explicit cushioning priority;
+- all-day / travel / daily-walking evidence;
+- traction requests against documented surface compatibility;
+- weather requests against documented weather-protection facts.
+
+Low or missing evidence is not silently converted into comfort or weather protection.
+
+## Hiking / outdoor
+
+Hiking has its own terrain profile rather than reusing generic walking logic. Technical hikes look for exact `technical_hike` evidence or documented trail/mixed-terrain compatibility. Day-hike and urban-outdoor use cases remain distinct. Weather priority only receives a verified match when water/wind protection is documented, and traction priority is tied to documented terrain compatibility.
+
+## Basketball, tennis, padel and volleyball
+
+Court sports keep sport identity and surface as hard technical gates when those facts are known. The weighted technical profile additionally evaluates:
+- lateral-stability preference from documented support/stability facts;
+- cushioning/comfort preference from governed cushioning levels;
+- traction preference from exact court-surface compatibility;
+- high-frequency use from sport-specific training/match evidence.
+
+A neutral support label is not treated as proof of poor lateral stability; it remains unknown for that requirement. Likewise, a missing cushioning or court-surface fact is not promoted to a positive match.
 
 ## Fit and size
 
