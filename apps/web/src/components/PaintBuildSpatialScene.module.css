@@ -32,3 +32,49 @@
 @media(prefers-reduced-motion:reduce){
   .floorGlow{display:none}
 }
+
+.projectTag{
+  position:absolute;
+  z-index:2;
+  left:clamp(14px,3vw,38px);
+  bottom:clamp(14px,3vw,32px);
+  display:grid;
+  gap:4px;
+  padding:10px 12px;
+  border-left:2px solid rgba(203,178,122,.62);
+  background:rgba(8,8,9,.42);
+  backdrop-filter:blur(8px);
+  text-transform:uppercase;
+}
+.projectTag span{
+  color:rgba(203,178,122,.8);
+  font-size:7px;
+  font-weight:900;
+  letter-spacing:.16em;
+}
+.projectTag strong{
+  color:rgba(245,242,236,.92);
+  font-size:10px;
+  letter-spacing:.1em;
+}
+.projectTag small{
+  color:rgba(255,255,255,.46);
+  font-size:7px;
+  letter-spacing:.12em;
+}
+.scene[data-project="paint"] .floorGlow{
+  background:radial-gradient(ellipse,rgba(184,132,92,.11),transparent 70%);
+}
+.scene[data-project="waterproofing"] .floorGlow{
+  background:radial-gradient(ellipse,rgba(87,142,164,.10),transparent 70%);
+}
+.scene[data-project="insulation"] .floorGlow{
+  background:radial-gradient(ellipse,rgba(195,178,117,.10),transparent 70%);
+}
+.scene[data-project="repair"] .floorGlow{
+  background:radial-gradient(ellipse,rgba(153,133,118,.10),transparent 70%);
+}
+@media(max-width:720px){
+  .projectTag{left:12px;bottom:12px;padding:8px 10px}
+  .projectTag strong{font-size:9px}
+}
