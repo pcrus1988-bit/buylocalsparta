@@ -58,7 +58,7 @@
     },
     {
       "path": "/api/cron/seo-gsc-diagnostics",
-      "schedule": "47 4 * * *"
+      "schedule": "47 */6 * * *"
     },
     {
       "path": "/api/cron/symphonya-catalogue",
