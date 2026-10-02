@@ -329,6 +329,7 @@ export default async function VendorPage({ params }: Props) {
                   <>
                     <a className="button" href="#products">Δες προϊόντα</a>
                     <a className="button button-secondary" href="#ask-local">Ρώτησε το κατάστημα</a>
+                    {vendor.id === "vendor_4d7b281c8b2541f685f1" ? <a className="button button-secondary" href="/sport-fit-studio">Sport & Fit Studio →</a> : null}
                   </>
                 ) : (
                   <>
