@@ -91,6 +91,37 @@
   font-size: 1.03rem;
   line-height: 1.7;
 }
+.departmentGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.departmentCard {
+  display: grid;
+  gap: 10px;
+  min-height: 152px;
+  padding: 20px;
+  border: 1px solid rgba(23,60,52,.13);
+  border-radius: 22px;
+  background: rgba(255,255,255,.76);
+  color: inherit;
+  text-decoration: none;
+}
+.departmentCard span {
+  color: var(--ink-soft);
+  font-size: .69rem;
+  font-weight: 800;
+  letter-spacing: .11em;
+}
+.departmentCard strong {
+  align-self: end;
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  line-height: 1;
+}
+.departmentCard small {
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
 .categoryGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -121,6 +152,56 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0,1fr));
   gap: 16px;
+}
+.relatedGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 12px;
+}
+.relatedCard {
+  display: grid;
+  grid-template-columns: 82px minmax(0,1fr);
+  gap: 14px;
+  align-items: center;
+  min-height: 108px;
+  padding: 14px;
+  border: 1px solid rgba(23,60,52,.12);
+  border-radius: 18px;
+  background: rgba(255,255,255,.68);
+  color: inherit;
+  text-decoration: none;
+}
+.relatedLogo {
+  display: grid;
+  place-items: center;
+  width: 82px;
+  height: 72px;
+  padding: 8px;
+  border-radius: 13px;
+  background: rgba(255,255,255,.82);
+  overflow: hidden;
+}
+.relatedLogo img {
+  max-width: 100%;
+  max-height: 52px;
+  object-fit: contain;
+}
+.relatedLogo span {
+  max-width: 100%;
+  font-size: .7rem;
+  font-weight: 800;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.relatedCard strong,
+.relatedCard span {
+  display: block;
+}
+.relatedCard span {
+  margin-top: 6px;
+  color: var(--ink-soft);
+  font-size: .78rem;
+  line-height: 1.4;
 }
 .ctaRow {
   display: flex;
@@ -160,6 +241,7 @@
 @media (max-width: 980px) {
   .hero { grid-template-columns: 1fr; }
   .heroAside { grid-template-columns: repeat(3, 1fr); }
+  .departmentGrid, .relatedGrid { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .productGrid { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
 @media (max-width: 720px) {
@@ -169,5 +251,5 @@
   .facts { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
-  .categoryGrid, .productGrid { grid-template-columns: 1fr; }
+  .departmentGrid, .categoryGrid, .relatedGrid, .productGrid { grid-template-columns: 1fr; }
 }
