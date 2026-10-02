@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { createStudioProgram, hexToStudioRgb, resizeStudioCanvas, studioDprCap } from "../lib/studio-webgl";
 import { useStudioRuntime } from "./StudioExperienceRuntime";
 import styles from "./ColorSpatialUniverse.module.css";
 
@@ -72,37 +73,6 @@ void main(){
 }
 `;
 
-function compile(gl:WebGLRenderingContext,type:number,source:string){
-  const s=gl.createShader(type);
-  if(!s)throw new Error("color_spatial_shader_create_failed");
-  gl.shaderSource(s,source);gl.compileShader(s);
-  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){
-    const message=gl.getShaderInfoLog(s)||"color_spatial_shader_compile_failed";
-    gl.deleteShader(s);throw new Error(message);
-  }
-  return s;
-}
-
-function createProgram(gl:WebGLRenderingContext){
-  const p=gl.createProgram();
-  if(!p)throw new Error("color_spatial_program_create_failed");
-  const vs=compile(gl,gl.VERTEX_SHADER,VERTEX);
-  const fs=compile(gl,gl.FRAGMENT_SHADER,FRAGMENT);
-  gl.attachShader(p,vs);gl.attachShader(p,fs);gl.linkProgram(p);
-  gl.deleteShader(vs);gl.deleteShader(fs);
-  if(!gl.getProgramParameter(p,gl.LINK_STATUS)){
-    const message=gl.getProgramInfoLog(p)||"color_spatial_program_link_failed";
-    gl.deleteProgram(p);throw new Error(message);
-  }
-  return p;
-}
-
-function rgb(hex:string):[number,number,number]{
-  const match=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if(!match)return[.8,.5,.5];
-  return[parseInt(match[1],16)/255,parseInt(match[2],16)/255,parseInt(match[3],16)/255];
-}
-
 function seeded(index:number,salt:number){
   let value=Math.imul(index+31,1103515245)+Math.imul(salt+17,12345);
   value^=value>>>13;value=Math.imul(value,1274126177);
@@ -114,7 +84,7 @@ function buildScene(selectedHex:string,items:readonly ColorSpatialItem[],quality
   const backgroundCount=quality==="high"?220:quality==="balanced"?150:90;
   const clusterCount=quality==="lite"?7:12;
   const values:number[]=[];
-  const selected=rgb(selectedHex);
+  const selected=hexToStudioRgb(selectedHex,[.8,.5,.5]);
 
   for(let i=0;i<backgroundCount;i+=1){
     const theta=seeded(i,2)*Math.PI*2;
@@ -134,7 +104,7 @@ function buildScene(selectedHex:string,items:readonly ColorSpatialItem[],quality
   }
 
   items.slice(0,clusterCount).forEach((item,index)=>{
-    const color=rgb(item.colorHex);
+    const color=hexToStudioRgb(item.colorHex,[.8,.5,.5]);
     const closeness=Math.max(0,Math.min(1,item.match/100));
     const angle=(index/Math.max(1,Math.min(items.length,clusterCount)))*Math.PI*2;
     const radius=1.35+(1-closeness)*3.4;
@@ -179,7 +149,7 @@ export function ColorSpatialUniverse({selectedHex,selectedLabel,studioLabel,item
     let disposed=false;
 
     try{
-      const activeProgram=createProgram(gl);p=activeProgram;
+      const activeProgram=createStudioProgram(gl,VERTEX,FRAGMENT,"color_spatial");p=activeProgram;
       const scene=buildScene(selectedHex,visibleItems,qualityTier);
       const activeBuffer=gl.createBuffer();
       if(!activeBuffer)throw new Error("color_spatial_buffer_create_failed");
@@ -204,16 +174,9 @@ export function ColorSpatialUniverse({selectedHex,selectedLabel,studioLabel,item
       const aspect=gl.getUniformLocation(activeProgram,"u_aspect");
       const dprLoc=gl.getUniformLocation(activeProgram,"u_dpr");
       const timeLoc=gl.getUniformLocation(activeProgram,"u_time");
-      const dprCap=qualityTier==="high"?1.55:qualityTier==="balanced"?1.3:1;
+      const dprCap=studioDprCap(qualityTier,{high:1.55,balanced:1.3,lite:1});
 
-      const resize=()=>{
-        const rect=host.getBoundingClientRect();
-        const dpr=Math.min(devicePixelRatio||1,dprCap);
-        canvas.width=Math.max(1,Math.floor(rect.width*dpr));
-        canvas.height=Math.max(1,Math.floor(rect.height*dpr));
-        canvas.style.width=`${rect.width}px`;canvas.style.height=`${rect.height}px`;
-        gl.viewport(0,0,canvas.width,canvas.height);
-      };
+      const resize=()=>{ resizeStudioCanvas(canvas,host,gl,dprCap); };
       observer=new ResizeObserver(resize);observer.observe(host);resize();
 
       const render=(time:number)=>{
