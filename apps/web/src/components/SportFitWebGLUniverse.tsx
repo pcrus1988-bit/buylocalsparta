@@ -1,7 +1,10 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { productPublicPath } from "../lib/product-url";
 import styles from "./SportFitWebGLUniverse.module.css";
 
 export type SportFitUniverseVisualProduct = Readonly<{
@@ -47,6 +50,7 @@ const MAX_MOBILE_NODES = 42;
 const ATLAS_GRID = 8;
 const ATLAS_CELL = 128;
 const ATLAS_SIZE = ATLAS_GRID * ATLAS_CELL;
+const EURO_FORMATTER = new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" });
 
 const VERTEX_SHADER = `
 precision highp float;
@@ -397,7 +401,9 @@ export function SportFitWebGLUniverse({
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchDistanceRef = useRef<number | undefined>(undefined);
   const hoveredIdRef = useRef<string | undefined>(undefined);
+  const openedIdRef = useRef<string | undefined>(undefined);
   const [hoveredId, setHoveredId] = useState<string>();
+  const [openedId, setOpenedId] = useState<string>();
   const [webglUnavailable, setWebglUnavailable] = useState(false);
   const [atlasReady, setAtlasReady] = useState(false);
 
@@ -412,6 +418,23 @@ export function SportFitWebGLUniverse({
     () => products.find((product) => product.id === hoveredId) ?? products.find((product) => product.id === selectedId),
     [hoveredId, products, selectedId]
   );
+
+  const openedProduct = useMemo(
+    () => products.find((product) => product.id === openedId),
+    [openedId, products]
+  );
+
+  useEffect(() => {
+    openedIdRef.current = openedId;
+    if (!openedId) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpenedId(undefined);
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [openedId]);
 
   useEffect(() => {
     productsRef.current = visibleProducts;
@@ -600,7 +623,7 @@ export function SportFitWebGLUniverse({
       const dt = Math.min(0.05, Math.max(0.001, (now - lastTime) / 1000));
       lastTime = now;
 
-      if (!reduceMotion && !dragRef.current && mode === "cloud") {
+      if (!reduceMotion && !dragRef.current && !openedIdRef.current && mode === "cloud") {
         yawRef.current += dt * 0.035;
       }
 
@@ -779,6 +802,8 @@ export function SportFitWebGLUniverse({
       if (id) {
         setHoveredId(id);
         hoveredIdRef.current = id;
+        setOpenedId(id);
+        openedIdRef.current = id;
         onSelect?.(id);
       }
     }
@@ -793,7 +818,15 @@ export function SportFitWebGLUniverse({
     return (
       <div className={styles.fallback} role="img" aria-label="Product universe fallback">
         {visibleProducts.slice(0, 20).map((product) => (
-          <button type="button" key={product.id} onClick={() => onSelect?.(product.id)}>
+          <button
+            type="button"
+            key={product.id}
+            onClick={() => {
+              setOpenedId(product.id);
+              openedIdRef.current = product.id;
+              onSelect?.(product.id);
+            }}
+          >
             <img src={atlasProxySrc(product)} alt="" loading="lazy" />
             <span>{product.brand || product.title}</span>
           </button>
@@ -807,7 +840,7 @@ export function SportFitWebGLUniverse({
       <canvas
         ref={canvasRef}
         className={styles.canvas}
-        aria-label="Interactive 3D product universe. Drag to rotate, pinch or wheel to zoom, and tap a product to focus it."
+        aria-label="Interactive 3D product universe. Drag to rotate, pinch or wheel to zoom, and tap a product to open its product card."
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={finishPointer}
@@ -835,10 +868,84 @@ export function SportFitWebGLUniverse({
       <div className={styles.controls}>
         <span>DRAG · ROTATE</span>
         <span>PINCH/WHEEL · ZOOM</span>
-        <span>TAP · FOCUS</span>
+        <span>TAP · OPEN CARD</span>
       </div>
 
       {busy ? <div className={styles.scanning}><i /><span>RECALCULATING MATCH SPACE</span></div> : null}
+
+      {openedProduct ? (
+        <div
+          className={styles.popupBackdrop}
+          role="presentation"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setOpenedId(undefined);
+          }}
+        >
+          <article
+            className={styles.popupCard}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sport-fit-product-popup-title"
+          >
+            <button
+              type="button"
+              className={styles.popupClose}
+              aria-label="Κλείσιμο κάρτας προϊόντος"
+              onClick={() => setOpenedId(undefined)}
+              autoFocus
+            >
+              ×
+            </button>
+
+            <div className={styles.popupVisual}>
+              <Image
+                src={atlasProxySrc(openedProduct)}
+                alt={openedProduct.title}
+                width={520}
+                height={520}
+                sizes="(max-width: 700px) 78vw, 310px"
+                unoptimized
+              />
+              <div className={styles.popupOrbit} aria-hidden="true"><span /><i /></div>
+            </div>
+
+            <div className={styles.popupCopy}>
+              <span className={styles.popupKicker}>
+                {openedProduct.brand || openedProduct.categoryLabel || "SPORT & FIT"}
+              </span>
+              <h2 id="sport-fit-product-popup-title">{openedProduct.title}</h2>
+
+              <div className={styles.popupFacts}>
+                <strong>{EURO_FORMATTER.format(openedProduct.priceMinor / 100)}</strong>
+                {typeof openedProduct.score === "number" ? <b>{openedProduct.score}% match</b> : null}
+                {openedProduct.matchedSize ? <small>EU {openedProduct.matchedSize}</small> : null}
+              </div>
+
+              {openedProduct.reasons?.length ? (
+                <div className={styles.popupReasons}>
+                  <span>ΓΙΑΤΙ ΠΑΡΑΜΕΝΕΙ ΣΤΟ ΠΕΔΙΟ</span>
+                  <ul>
+                    {openedProduct.reasons.slice(0, 4).map((reason) => <li key={reason}>{reason}</li>)}
+                  </ul>
+                </div>
+              ) : (
+                <p className={styles.popupHint}>
+                  Αυτό το προϊόν παραμένει ορατό με βάση τα φίλτρα και τους κανόνες που έχεις επιλέξει μέχρι τώρα.
+                </p>
+              )}
+
+              <div className={styles.popupActions}>
+                <Link href={productPublicPath(openedProduct)} prefetch={false}>
+                  Δες το προϊόν <span>→</span>
+                </Link>
+                <button type="button" onClick={() => setOpenedId(undefined)}>
+                  Συνέχισε στο σύμπαν
+                </button>
+              </div>
+            </div>
+          </article>
+        </div>
+      ) : null}
 
       {hoveredProduct ? (
         <div className={styles.productHud}>
