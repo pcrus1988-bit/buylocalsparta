@@ -199,7 +199,7 @@ type GroupedLocalVendorCatalogRow = LocalVendorCatalogRow & Readonly<{
 }>;
 
 function decodeNumericTitleEntities(value: string): string {
-  return value.replace(/&#(?:(\\d+)|x([0-9a-f]+));/gi, (match, decimal: string | undefined, hex: string | undefined) => {
+  return value.replace(/&#(?:(\d+)|x([0-9a-f]+));/gi, (match, decimal: string | undefined, hex: string | undefined) => {
     const codePoint = Number.parseInt(decimal ?? hex ?? "", hex ? 16 : 10);
     if (!Number.isSafeInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) return match;
     if (codePoint === 9 || codePoint === 10 || codePoint === 13) return " ";
@@ -212,16 +212,15 @@ function decodeNumericTitleEntities(value: string): string {
   });
 }
 
+function escapeRegExp(value: string): string {
+  const special = "\\^$.*+?()[]{}|";
+  return [...value].map((character) => special.includes(character) ? "\\" + character : character).join("");
+}
+
 function familyCardTitle(title: string, size: string | null): string {
-  const clean = decodeNumericTitleEntities(title).replace(/\\s+/g, " ").trim();
+  const clean = decodeNumericTitleEntities(title).replace(/\s+/g, " ").trim();
   if (!size) return clean;
-  const escapedSize = size.replace(/[.*+?^$(){}|[\\]\\\\]/g, "\\const loadVendorLocalCatalogRows = unstable_cache(
-  readVendorLocalCatalogRows,
-  ["vendor-local-catalog-rows-v2"],
-  { revalidate: 15 }
-);
-");
-  return clean.replace(new RegExp("\\s+-\\s+" + escapedSize + "\\s*$", "i"), "").trim();
+  return clean.replace(new RegExp("\\s+-\\s+" + escapeRegExp(size) + "\\s*$", "i"), "").trim();
 }
 
 function preferredFamilyRepresentative(left: LocalVendorCatalogRow, right: LocalVendorCatalogRow): LocalVendorCatalogRow {
