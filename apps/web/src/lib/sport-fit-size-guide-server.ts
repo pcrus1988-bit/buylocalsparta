@@ -16,6 +16,7 @@ type SizeGuideRow = Readonly<{
   measurement_help: string | null;
   measurement_mm: number | string;
   size_system: string;
+  guide_audience_scope: SportSizeGuideAudience;
   audience_scope: SportSizeGuideAudience;
   size_label: string;
 }>;
@@ -48,6 +49,7 @@ async function readSportSizeGuide(brand: string, productRole: string, locale: st
     SELECT
       g.guide_key,
       g.guide_version,
+      g.audience_scope AS guide_audience_scope,
       s.publisher,
       s.url AS source_url,
       tr.measurement_help,
@@ -91,8 +93,14 @@ export async function resolveStoredSportSize(input: Readonly<{
   );
   if (!rows.length) return undefined;
 
+  const exactAudienceRows = rows.filter((row) => row.guide_audience_scope === input.audience);
+  const scopedRows = exactAudienceRows.length
+    ? exactAudienceRows
+    : rows.filter((row) => row.guide_audience_scope === "unisex");
+  if (!scopedRows.length) return undefined;
+
   const pointMap = new Map<number, SportSizeGuideLabel[]>();
-  for (const row of rows) {
+  for (const row of scopedRows) {
     const measurementMm = Number(row.measurement_mm);
     if (!Number.isFinite(measurementMm)) continue;
     const labels = pointMap.get(measurementMm) ?? [];
@@ -110,7 +118,7 @@ export async function resolveStoredSportSize(input: Readonly<{
   }));
   const sizeSystem = (input.sizeSystem ?? "EU").trim().toLocaleUpperCase("en-US");
   const resolved = resolveMeasuredSportSize(points, input.measurementMm, sizeSystem, input.audience);
-  const first = rows[0]!;
+  const first = scopedRows[0]!;
 
   return {
     ...resolved,
