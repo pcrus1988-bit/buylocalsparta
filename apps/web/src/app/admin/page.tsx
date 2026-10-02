@@ -24,7 +24,36 @@ export default async function AdminPage() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
 
-  const dashboard = await adminDashboard(principal);
+  const dashboard = await adminDashboard(principal).catch(() => ({
+    account: { email: principal.email, roles: principal.roles },
+    csrfToken: principal.csrfToken,
+    metrics: {
+      vendorApplications: 0,
+      vendorVerificationQueue: 0,
+      catalogReviewQueue: 0,
+      pendingMedia: 0,
+      pendingCompliance: 0,
+      payableProcurements: 0,
+      fairnessAppeals: 0,
+      orders: 0
+    },
+    analytics: {
+      searches: 0,
+      searchSuccessRate: 0,
+      uniqueSearchCtr: 0,
+      grossMerchandiseValue: "—",
+      orders: 0,
+      averageOrderValue: "—"
+    },
+    health: {
+      ok: true,
+      state: "degraded" as const,
+      checks: [],
+      checkedAt: Date.now()
+    },
+    recentAudit: [],
+    security: { total: 0, byType: {}, bySeverity: {} }
+  }));
   const navigationGroups = adminNavigationForPrincipal(principal);
   const categoryGroups = navigationGroups.filter((group) => group.href && group.href !== "/admin");
   const canFulfil = hasAdminPermission(principal, "fulfilment.read");
