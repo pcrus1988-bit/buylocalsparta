@@ -154,7 +154,7 @@ export async function POST(request: Request) {
         survivingCount: 0,
         secondaryCount: 0,
         universe: [],
-        recommendation: { alternatives: [], kit: [], ranked: [] }
+        recommendation: { finalistEvidenceMode: "heuristic_fallback", alternatives: [], kit: [], ranked: [] }
       },
       { headers: { "Cache-Control": "no-store" } }
     );
