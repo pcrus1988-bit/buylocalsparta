@@ -28,6 +28,29 @@ export function detectStudioQualityTier(width: number): StudioQualityTier {
   return "balanced";
 }
 
+export function StudioHubExitLink({
+  className,
+  children
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  const { exitToHub } = useStudioRuntime();
+  return (
+    <a
+      href="/studios"
+      className={className}
+      onClick={(event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+        event.preventDefault();
+        exitToHub();
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
 export function useStudioRuntime(): RuntimeValue {
   const value = useContext(StudioRuntimeContext);
   if (!value) throw new Error("useStudioRuntime must be used inside StudioExperienceRuntime");
