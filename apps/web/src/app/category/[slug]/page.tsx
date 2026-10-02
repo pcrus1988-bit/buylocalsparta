@@ -90,7 +90,9 @@ export default async function CategoryPage({ params }: Props) {
   });
   const categoryUrl = new URL(override?.canonicalPath ?? `/category/${category.slug}`, `${settings.canonicalOrigin}/`).toString();
   const merchants = [...new Map(availableProducts.flatMap((product) =>
-    product.vendorId && product.vendorName ? [[product.vendorId, product.vendorName] as const] : []
+    product.vendorId && product.vendorName
+      ? [[product.vendorId, { name: product.vendorName, slug: product.vendorSlug }] as const]
+      : []
   )).entries()];
   const itemList = availableProducts.slice(0, 24).map((product, index) => ({
     "@type": "ListItem",
@@ -193,10 +195,10 @@ export default async function CategoryPage({ params }: Props) {
           <p className="section-note">Τα καταστήματα εμφανίζονται επειδή διαθέτουν ενεργό προϊόν στην κατηγορία — όχι επειδή αγόρασαν θέση προβολής.</p>
         </div>
         <div className="category-merchant-grid">
-          {merchants.map(([vendorId, vendorName]) => (
-            <a href={`/vendor/${encodeURIComponent(vendorId)}`} key={vendorId}>
-              <span aria-hidden="true">{vendorName.slice(0, 1).toLocaleUpperCase("el")}</span>
-              <strong>{vendorName}</strong>
+          {merchants.map(([vendorId, vendor]) => (
+            <a href={`/vendor/${encodeURIComponent(vendor.slug ?? vendorId)}`} key={vendorId}>
+              <span aria-hidden="true">{vendor.name.slice(0, 1).toLocaleUpperCase("el")}</span>
+              <strong>{vendor.name}</strong>
               <small>Δες κατάστημα και στοιχεία →</small>
             </a>
           ))}
