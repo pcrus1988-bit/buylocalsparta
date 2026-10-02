@@ -213,9 +213,29 @@ function safeHttpUrls(value: string | undefined): readonly string[] {
   return [...new Set(value.split(/\s*\|\s*|\s*,\s*(?=https?:\/\/)/i).map((item) => safeHttpUrl(item)).filter((item): item is string => Boolean(item)))].slice(0, 20);
 }
 
+function decodeNumericTextEntities(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const decoded = value.replace(/&#(?:(\d+)|x([0-9a-f]+));/gi, (match, decimal: string | undefined, hex: string | undefined) => {
+    const codePoint = Number.parseInt(decimal ?? hex ?? "", hex ? 16 : 10);
+    if (!Number.isSafeInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) return match;
+    if (codePoint === 9 || codePoint === 10 || codePoint === 13) return " ";
+    if (codePoint < 32) return "";
+    try {
+      return String.fromCodePoint(codePoint);
+    } catch {
+      return match;
+    }
+  }).replace(/\s+/g, " ").trim();
+  return decoded || undefined;
+}
+
 function titleSizeCandidate(title: string | undefined): string | undefined {
   const candidate = title?.match(/\s+-\s+([^\r\n]{1,32})\s*$/)?.[1]?.trim();
   return candidate ? candidate.replace(",", ".") : undefined;
+}
+
+function normalizedSizeSignal(value: string): string {
+  return value.normalize("NFKC").trim().toLocaleLowerCase("el").replaceAll("_", "-").replace(/\s+/g, "");
 }
 
 function sizeFromProductUrl(productUrl: string | undefined, title: string | undefined): string | undefined {
@@ -223,7 +243,9 @@ function sizeFromProductUrl(productUrl: string | undefined, title: string | unde
   try {
     const raw = new URL(productUrl).searchParams.get("attribute_pa_megethos")?.trim();
     if (!raw) return undefined;
-    return titleSizeCandidate(title) ?? raw.replaceAll("_", "-");
+    const urlSize = raw.replaceAll("_", "-");
+    const titleSize = titleSizeCandidate(title);
+    return titleSize && normalizedSizeSignal(titleSize) === normalizedSizeSignal(urlSize) ? titleSize : urlSize;
   } catch {
     return undefined;
   }
@@ -398,7 +420,7 @@ export async function prepareVendorProductFeed(
     );
     const vendorSku = trimOptional(xmlFieldValue(record, mapping.vendorSku), 300);
     const gtin = trimOptional(xmlFieldValue(record, mapping.gtin), 64);
-    const title = trimOptional(xmlFieldValue(record, mapping.title), 500);
+    const title = decodeNumericTextEntities(trimOptional(xmlFieldValue(record, mapping.title), 500));
     const priceRaw = effectivePriceRaw(record, mapping.price);
     const priceMinor = parseXmlMoneyMinor(priceRaw);
     const currency = parseXmlCurrency(xmlFieldValue(record, mapping.currency), priceRaw);
@@ -443,7 +465,7 @@ export async function prepareVendorProductFeed(
       continue;
     }
 
-    const description = trimOptional(xmlFieldValue(record, mapping.description), 10_000);
+    const description = decodeNumericTextEntities(trimOptional(xmlFieldValue(record, mapping.description), 10_000));
     const productUrl = safeHttpUrl(xmlFieldValue(record, mapping.productUrl));
     const size = trimOptional(xmlFieldValue(record, mapping.size), 160) ?? sizeFromProductUrl(productUrl, title);
     const color = trimOptional(xmlFieldValue(record, mapping.color), 160)
