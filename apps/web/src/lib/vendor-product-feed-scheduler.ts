@@ -38,7 +38,7 @@ export async function syncVendorProductFeedAsPlatform(feedId: string) {
       SELECT
         f.public_id AS feed_id,
         COALESCE(v.public_id,v.id::text) AS vendor_id,
-        COALESCE(actor.public_id,actor.id::text) AS user_id,
+        actor.id::text AS user_id,
         actor.email
       FROM public.vendor_product_feeds f
       JOIN public.vendor_businesses v ON v.id=f.vendor_id
@@ -107,7 +107,7 @@ export async function syncDueVendorProductFeeds(limit = DEFAULT_LIMIT) {
       SELECT
         l.public_id AS feed_id,
         COALESCE(v.public_id,v.id::text) AS vendor_id,
-        COALESCE(actor.public_id,actor.id::text) AS user_id,
+        actor.id::text AS user_id,
         actor.email
       FROM leased l
       JOIN public.vendor_businesses v ON v.id=l.vendor_id
