@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import { createStudioProgram, resizeStudioCanvas, studioDprCap } from "../lib/studio-webgl";
 import { useStudioRuntime } from "./StudioExperienceRuntime";
 import styles from "./StyleSpatialScene.module.css";
 
@@ -77,31 +78,6 @@ void main(){
 }
 `;
 
-function compile(gl:WebGLRenderingContext,type:number,source:string){
-  const s=gl.createShader(type);
-  if(!s)throw new Error("style_shader_create_failed");
-  gl.shaderSource(s,source);gl.compileShader(s);
-  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){
-    const message=gl.getShaderInfoLog(s)||"style_shader_compile_failed";
-    gl.deleteShader(s);throw new Error(message);
-  }
-  return s;
-}
-
-function createProgram(gl:WebGLRenderingContext){
-  const p=gl.createProgram();
-  if(!p)throw new Error("style_program_create_failed");
-  const vs=compile(gl,gl.VERTEX_SHADER,VERTEX);
-  const fs=compile(gl,gl.FRAGMENT_SHADER,FRAGMENT);
-  gl.attachShader(p,vs);gl.attachShader(p,fs);gl.linkProgram(p);
-  gl.deleteShader(vs);gl.deleteShader(fs);
-  if(!gl.getProgramParameter(p,gl.LINK_STATUS)){
-    const message=gl.getProgramInfoLog(p)||"style_program_link_failed";
-    gl.deleteProgram(p);throw new Error(message);
-  }
-  return p;
-}
-
 type V=readonly [number,number,number,number];
 function line(out:V[],a:readonly[number,number,number],b:readonly[number,number,number],kind=0,index=0){
   const w=kind+index/10;
@@ -171,7 +147,7 @@ export function StyleSpatialScene({audience,items,activeSlot,onSelect}:Props){
     let disposed=false;
 
     try{
-      const activeProgram=createProgram(gl);p=activeProgram;
+      const activeProgram=createStudioProgram(gl,VERTEX,FRAGMENT,"style");p=activeProgram;
       const geometry=sceneGeometry(audience,visibleItems.length);
       const lb=gl.createBuffer();const pb=gl.createBuffer();
       if(!lb||!pb)throw new Error("style_buffer_create_failed");
@@ -187,19 +163,12 @@ export function StyleSpatialScene({audience,items,activeSlot,onSelect}:Props){
       const dprLoc=gl.getUniformLocation(activeProgram,"u_dpr");
       const timeLoc=gl.getUniformLocation(activeProgram,"u_time");
       const activeLoc=gl.getUniformLocation(activeProgram,"u_active");
-      const dprCap=qualityTier==="high"?1.6:qualityTier==="balanced"?1.35:1;
+      const dprCap=studioDprCap(qualityTier);
 
       gl.bindBuffer(gl.ARRAY_BUFFER,lb);gl.bufferData(gl.ARRAY_BUFFER,geometry.lines,gl.STATIC_DRAW);
       gl.bindBuffer(gl.ARRAY_BUFFER,pb);gl.bufferData(gl.ARRAY_BUFFER,geometry.points,gl.STATIC_DRAW);
 
-      const resize=()=>{
-        const rect=host.getBoundingClientRect();
-        const dpr=Math.min(devicePixelRatio||1,dprCap);
-        canvas.width=Math.max(1,Math.floor(rect.width*dpr));
-        canvas.height=Math.max(1,Math.floor(rect.height*dpr));
-        canvas.style.width=`${rect.width}px`;canvas.style.height=`${rect.height}px`;
-        gl.viewport(0,0,canvas.width,canvas.height);
-      };
+      const resize=()=>{ resizeStudioCanvas(canvas,host,gl,dprCap); };
       observer=new ResizeObserver(resize);observer.observe(host);resize();
 
       const bind=(b:WebGLBuffer)=>{
