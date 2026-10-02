@@ -13,7 +13,7 @@ import {
 } from "./published-dropship-catalog-page";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
-const LOCAL_PRESENCE_CACHE_SECONDS = 300;
+const LOCAL_PRESENCE_CACHE_SECONDS = 900;
 const PUBLIC_DISCOVERY_CACHE_SECONDS = 900;
 
 const cachedLocalShopPresence = unstable_cache(
