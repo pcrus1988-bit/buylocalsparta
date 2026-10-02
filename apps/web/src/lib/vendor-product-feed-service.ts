@@ -430,6 +430,7 @@ export async function saveVendorProductFeed(
         "FROM vendor_product_feed_items i JOIN canonical_variants cv ON cv.id=i.canonical_variant_id",
         "WHERE i.feed_id=$1::uuid AND i.state='present' AND i.canonical_variant_id IS NOT NULL",
         "AND NULLIF(i.source_payload->>'itemGroupId','') IS NOT NULL",
+        "AND jsonb_typeof(i.source_payload->'variantAttributes')='object' AND i.source_payload->'variantAttributes'<>'{}'::jsonb",
         "), grouped AS (",
         "SELECT group_id,category_id FROM eligible GROUP BY group_id,category_id HAVING count(*)>1",
         "), targets AS (",
