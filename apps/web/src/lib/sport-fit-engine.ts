@@ -462,6 +462,19 @@ function priorityScore(product: SportFitProduct, priority: SportPriority | undef
     if ((knowledge?.weatherProtection ?? []).length > 0) return 14;
     return hasAny(text, ["waterproof", "water resistant", "rain.rdy", "gore tex", "gore-tex", "αδιαβροχ", "υδροαπωθ"]) ? 12 : 4;
   }
+  if (priority === "versatility") {
+    const activities = knowledgeList(knowledge?.activities);
+    const surfaces = knowledgeList(knowledge?.surfaces);
+    const useCases = knowledgeList(knowledge?.useCases);
+    const broadEvidence =
+      activities.length >= 2
+      || surfaces.length >= 2
+      || useCases.length >= 2
+      || activities.includes("general training")
+      || activities.includes("team sports")
+      || activities.includes("racket sports");
+    return broadEvidence ? 12 : 5;
+  }
   return 8;
 }
 
