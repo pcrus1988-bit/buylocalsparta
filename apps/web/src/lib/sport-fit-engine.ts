@@ -42,6 +42,9 @@ export type SportFitKnowledge = Readonly<{
   sockCushioning?: string;
   moistureWicking?: boolean;
   sockArchSupport?: boolean;
+  breathabilityLevel?: string;
+  thermalLevel?: string;
+  compressionLevel?: string;
 }>;
 
 export type SportFitAnswers = Readonly<{
@@ -422,6 +425,12 @@ function reasonsFor(
   }
   if (knowledge && role === "socks" && knowledge.sockHeight) {
     reasons.push("Τεκμηριωμένο ύψος κάλτσας: " + knowledge.sockHeight);
+  }
+  if (knowledge && role === "socks" && knowledge.breathabilityLevel) {
+    reasons.push("Τεκμηριωμένη διαπνοή: " + knowledge.breathabilityLevel);
+  }
+  if (knowledge && role === "socks" && knowledge.thermalLevel) {
+    reasons.push("Τεκμηριωμένη θερμική προστασία: " + knowledge.thermalLevel);
   }
 
   if (answers.budgetMinor && product.priceMinor <= answers.budgetMinor) reasons.push("Εντός του budget σου");
