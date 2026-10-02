@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CatalogProductCard } from "../../../components/CatalogProductCard";
@@ -7,10 +6,12 @@ import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { getPublicBrandGuide } from "../../../lib/brand-guide-runtime";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
-import { HUB_LOCALITY_COOKIE } from "../../../lib/primary-location-gateway";
 import styles from "./page.module.css";
 
-type Props = Readonly<{ params: Promise<{ slug: string }> }>;
+type Props = Readonly<{
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ hub?: string }>;
+}>;
 
 function host(value: string): string {
   try { return new URL(value).hostname.replace(/^www\./, ""); } catch { return value; }
@@ -43,9 +44,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function BrandGuidePage({ params }: Props) {
-  const { slug } = await params;
-  const locality = (await cookies()).get(HUB_LOCALITY_COOKIE)?.value;
+export default async function BrandGuidePage({ params, searchParams }: Props) {
+  const [{ slug }, query] = await Promise.all([params, searchParams]);
+  const locality = query.hub?.trim() || undefined;
   const brand = await getPublicBrandGuide(slug, locality);
   if (!brand) notFound();
 
@@ -165,7 +166,11 @@ export default async function BrandGuidePage({ params }: Props) {
           <p className={styles.copy}>Αυτές οι προτάσεις δεν είναι πληρωμένη κατάταξη. Βασίζονται στις ενεργές κατηγορίες που μοιράζονται με το {brand.name} και στην τρέχουσα διαθεσιμότητα του καταλόγου.</p>
         </div>
         <div className={styles.relatedGrid}>
-          {brand.relatedBrands.map((related) => <Link className={styles.relatedCard} href={`/brands/${related.slug}`} key={related.id}>
+          {brand.relatedBrands.map((related) => <Link
+            className={styles.relatedCard}
+            href={locality ? `/brands/${related.slug}?hub=${encodeURIComponent(locality)}` : `/brands/${related.slug}`}
+            key={related.id}
+          >
             <div className={styles.relatedLogo}>
               {related.logoUrl ? <img src={related.logoUrl} alt="" loading="lazy" decoding="async" /> : <span>{related.name}</span>}
             </div>
