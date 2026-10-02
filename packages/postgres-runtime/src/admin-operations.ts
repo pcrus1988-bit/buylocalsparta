@@ -339,6 +339,31 @@ export class PostgresAdminOperationsService {
         let offerUuid:string;
         if(existing.rowCount){offerUuid=text(existing.rows[0].id,"offer.id");await tx.query(`UPDATE vendor_offers SET status='approved',supplier_unit_price_minor=$2,currency=$3,supplier_tax_rate_bps=$4,fulfilment_modes=$5::fulfilment_mode[],advice_capabilities=$6::jsonb,approved_at=$7,updated_at=$7 WHERE id=$1`,[offerUuid,int(r.supplier_unit_price_minor,"supplier_unit_price_minor"),text(r.currency,"currency"),int(r.supplier_tax_rate_bps,"supplier_tax_rate_bps"),r.fulfilment_modes,JSON.stringify({advice:Boolean(r.advice_available)}),new Date(now)]);}else{offerUuid=randomUUID();await tx.query(`INSERT INTO vendor_offers(id,public_id,market_id,vendor_id,location_id,canonical_variant_id,vendor_sku,status,supplier_unit_price_minor,currency,supplier_tax_rate_bps,fulfilment_modes,advice_capabilities,approved_at,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,'approved',$8,$9,$10,$11::fulfilment_mode[],$12::jsonb,$13,$13,$13)`,[offerUuid,offerPublic,text(r.market_uuid,"market_uuid"),text(r.vendor_uuid,"vendor_uuid"),text(r.location_uuid,"location_uuid"),canonicalUuid,optionalText(r.vendor_sku)??null,int(r.supplier_unit_price_minor,"supplier_unit_price_minor"),text(r.currency,"currency"),int(r.supplier_tax_rate_bps,"supplier_tax_rate_bps"),r.fulfilment_modes,JSON.stringify({advice:Boolean(r.advice_available)}),new Date(now)]);}
         await tx.query(`INSERT INTO inventory_balances(offer_id,on_hand,active_reservations,safety_stock,blocked,source,source_confidence,stock_confirmed_at,freshness_ttl_seconds,freshness_status,updated_at) VALUES($1,$2,0,$3,0,'catalog_approval','merchant_confirmed',$4,86400,'fresh',$4) ON CONFLICT(offer_id) DO UPDATE SET on_hand=EXCLUDED.on_hand,safety_stock=EXCLUDED.safety_stock,stock_confirmed_at=EXCLUDED.stock_confirmed_at,freshness_status='fresh',updated_at=EXCLUDED.updated_at`,[offerUuid,int(r.stock_on_hand,"stock_on_hand"),int(r.safety_stock,"safety_stock"),new Date(now)]);
+
+        // If this submission originated from a connected vendor XML feed, attach
+        // the approved offer back to that feed item inside the same transaction.
+        // From this point on XML stock is authoritative; approval remains a
+        // separate moderation decision and never turns future feed rows into
+        // auto-approved catalogue entries.
+        await tx.query(`
+          UPDATE vendor_product_feed_items
+          SET offer_id=$2::uuid,canonical_variant_id=$3::uuid,last_stock_sync_at=now(),updated_at=now()
+          WHERE submission_id=$1::uuid AND state='present'
+        `,[text(r.submission_uuid,"submission_uuid"),offerUuid,canonicalUuid]);
+        await tx.query(`
+          UPDATE inventory_balances ib
+          SET on_hand=GREATEST((i.source_payload->>'stockOnHand')::integer,ib.active_reservations),
+              source='vendor_feed',
+              source_confidence='merchant_confirmed',
+              stock_confirmed_at=now(),
+              freshness_status='fresh',
+              updated_at=now()
+          FROM vendor_product_feed_items i
+          WHERE i.submission_id=$1::uuid
+            AND i.state='present'
+            AND i.offer_id=ib.offer_id
+        `,[text(r.submission_uuid,"submission_uuid")]);
+
         await tx.query("UPDATE vendor_product_submissions SET status='approved',rejection_reason=NULL,updated_at=$2 WHERE id=$1",[text(r.submission_uuid,"submission_uuid"),new Date(now)]);await this.#catalogEvent(tx,text(r.submission_uuid,"submission_uuid"),principal.userId,"catalog.offer_approved",from,"approved",canonicalUuid,input.reason,now);return{id:text(r.public_id,"submission.public_id"),status:"approved"};
       }
       await tx.query("UPDATE vendor_product_submissions SET status='rejected',rejection_reason=$2,updated_at=$3 WHERE id=$1",[text(r.submission_uuid,"submission_uuid"),input.reason.trim(),new Date(now)]);await this.#catalogEvent(tx,text(r.submission_uuid,"submission_uuid"),principal.userId,"catalog.offer_rejected",from,"rejected",optionalText(r.canonical_uuid),input.reason,now);return{id:text(r.public_id,"submission.public_id"),status:"rejected"};
