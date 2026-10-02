@@ -134,7 +134,7 @@ async function loadSearchCandidates(query: string): Promise<readonly SearchCandi
   if (process.env.BLS_SEARCH_ENABLED === "true" && runtime.search) {
     try {
       const hits = await runtime.search.search({ marketId: "sparta", q: query, type: "product", limit: 24 });
-      return hits.map((hit) => {
+      const indexed = hits.map((hit) => {
         const document = hit.document;
         const metadata = document.metadata ?? {};
         const routeKey = typeof metadata.slug === "string" && metadata.slug.trim() ? metadata.slug.trim() : document.id;
@@ -151,6 +151,16 @@ async function loadSearchCandidates(query: string): Promise<readonly SearchCandi
           score: hit.score
         };
       });
+      if (indexed.length > 0) return indexed;
+
+      // A healthy provider can still be empty/stale after a large vendor import.
+      // Treat zero hits as degraded freshness and fall through to the authoritative
+      // storefront projection instead of presenting an empty suggestion panel.
+      console.warn(JSON.stringify({
+        level: "warn",
+        event: "storefront.search_suggest_index_empty_fallback",
+        queryLength: query.length
+      }));
     } catch (error) {
       console.error(JSON.stringify({
         level: "error",
