@@ -10,7 +10,7 @@ import styles from "./page.module.css";
 
 type Props = Readonly<{
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ hub?: string }>;
+  searchParams?: Promise<{ hub?: string | string[] }>;
 }>;
 
 function host(value: string): string {
@@ -45,8 +45,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function BrandGuidePage({ params, searchParams }: Props) {
-  const [{ slug }, query] = await Promise.all([params, searchParams]);
-  const locality = query.hub?.trim() || undefined;
+  const { slug } = await params;
+  const query = searchParams ? await searchParams : {};
+  const hub = Array.isArray(query.hub) ? query.hub[0] : query.hub;
+  const locality = hub?.trim() || undefined;
   const brand = await getPublicBrandGuide(slug, locality);
   if (!brand) notFound();
 
