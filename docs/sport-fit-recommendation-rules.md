@@ -102,7 +102,7 @@ Court sports keep sport identity and surface as hard technical gates when those 
 
 A neutral support label is not treated as proof of poor lateral stability; it remains unknown for that requirement. Likewise, a missing cushioning or court-surface fact is not promoted to a positive match.
 
-Handball follows the controlled team-sport court model with indoor/hard/outdoor court choices. Badminton follows the racket-sport court model with indoor/hard court choices. In both paths, exact sport evidence outranks a broad controlled class, while the broad class remains eligible rather than being treated as a conflict.
+Handball follows the controlled team-sport court model with indoor/hard/outdoor court choices. Badminton follows the racket-sport court model with indoor/hard court choices. In both paths, exact sport evidence outranks a broad controlled class, while the broad class remains eligible rather than being treated as a conflict. The controlled database vocabulary for these two paths is registered by schema `0325`; the vocabulary migration itself assigns no product-level facts.
 
 ## Fit and size
 
