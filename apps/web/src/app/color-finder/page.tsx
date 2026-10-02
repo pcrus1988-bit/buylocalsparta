@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { ColorFinderExperience } from "../../components/ColorFinderExperience";
+import { StudioExperienceRuntime, StudioHubExitLink } from "../../components/StudioExperienceRuntime";
 import { SiteFooter } from "../../components/SiteFooter";
 import { resolveColorFinderContext } from "../../lib/color-finder-context";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
@@ -169,13 +170,15 @@ export default async function ColorFinderPage({ searchParams }: Props) {
   const vendorId = first(params.vendor)?.trim();
   const returnTo = safeLocalPath(first(params.returnTo));
   const backHref = returnTo ?? "/";
+  const useStudioBack = !returnTo && !vendorId;
   const selectedStudio = studioDefinition(requestedCategoryCode);
 
   if (!requestedCategoryCode) {
     return (
+      <StudioExperienceRuntime studioId="color">
       <main className={`${styles.page} ${styles.hubPage}`}>
         <div className={styles.topBar}>
-          <Link href={backHref} className={styles.back}>← ΚΟΝΤΑ ΜΟΥ</Link>
+          {useStudioBack ? <StudioHubExitLink className={styles.back}>← STUDIOS</StudioHubExitLink> : <Link href={backHref} className={styles.back}>← ΚΟΝΤΑ ΜΟΥ</Link>}
           <div className={styles.wordmark}>
             <strong>COLOR FINDER</strong>
             <span>by KONTA MOY</span>
@@ -267,6 +270,7 @@ export default async function ColorFinderPage({ searchParams }: Props) {
 
         <SiteFooter />
       </main>
+      </StudioExperienceRuntime>
     );
   }
 
@@ -278,9 +282,10 @@ export default async function ColorFinderPage({ searchParams }: Props) {
   const shopLabel = vendorId ? "BACK TO STORE" : context.shopLabel;
 
   return (
+    <StudioExperienceRuntime studioId="color">
     <main className={styles.page}>
       <div className={styles.topBar}>
-        <Link href={backHref} className={styles.back}>← KONTA MOY</Link>
+        {useStudioBack ? <StudioHubExitLink className={styles.back}>← STUDIOS</StudioHubExitLink> : <Link href={backHref} className={styles.back}>← KONTA MOY</Link>}
         <div className={styles.wordmark}>
           <strong>{context.studioLabel}</strong>
           <span>COLOR FINDER · by KONTA MOY</span>
@@ -309,5 +314,6 @@ export default async function ColorFinderPage({ searchParams }: Props) {
 
       <SiteFooter />
     </main>
+    </StudioExperienceRuntime>
   );
 }
