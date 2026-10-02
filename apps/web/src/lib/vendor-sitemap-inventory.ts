@@ -168,7 +168,7 @@ async function readVendorSitemapInventory(): Promise<readonly PublicVendorDirect
 
 const cachedVendorSitemapInventory = unstable_cache(
   readVendorSitemapInventory,
-  ["seo-vendor-sitemap-inventory-v1"],
+  ["seo-vendor-sitemap-inventory-v2"],
   { revalidate: 900 }
 );
 
