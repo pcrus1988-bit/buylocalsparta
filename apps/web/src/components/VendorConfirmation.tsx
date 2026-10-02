@@ -16,6 +16,18 @@ export function useVendorConfirmation() {
   const dialogRef = useRef<HTMLElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
+  async function closeAndRestoreFocus() {
+    const target = returnFocusRef.current;
+    returnFocusRef.current = null;
+    setPending(null);
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => {
+        target?.focus();
+        resolve();
+      });
+    });
+  }
+
   useEffect(() => {
     if (!pending) return;
     const previousOverflow = document.body.style.overflow;
@@ -30,7 +42,7 @@ export function useVendorConfirmation() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        setPending(null);
+        void closeAndRestoreFocus();
         return;
       }
       if (event.key !== "Tab") return;
@@ -57,11 +69,13 @@ export function useVendorConfirmation() {
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
-      const target = returnFocusRef.current;
-      returnFocusRef.current = null;
-      target?.focus();
     };
   }, [pending]);
+
+  useEffect(() => () => {
+    returnFocusRef.current?.focus();
+    returnFocusRef.current = null;
+  }, []);
 
   function requestConfirmation(request: VendorConfirmationRequest) {
     returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -70,14 +84,14 @@ export function useVendorConfirmation() {
 
   async function confirmPending() {
     const action = pending?.onConfirm;
-    setPending(null);
+    await closeAndRestoreFocus();
     if (action) await action();
   }
 
   const confirmationDialog = pending ? <div
     className="vendor-confirmation-backdrop"
     role="presentation"
-    onMouseDown={() => setPending(null)}
+    onMouseDown={() => void closeAndRestoreFocus()}
   >
     <section
       ref={dialogRef}
@@ -92,7 +106,7 @@ export function useVendorConfirmation() {
       <h2 id="vendor-confirmation-title">{pending.title}</h2>
       <p id="vendor-confirmation-body">{pending.body}</p>
       <div className="vendor-confirmation-actions">
-        <button className="button button-secondary" type="button" onClick={() => setPending(null)}>
+        <button className="button button-secondary" type="button" onClick={() => void closeAndRestoreFocus()}>
           {pending.cancelLabel ?? "Ακύρωση"}
         </button>
         <button className={pending.tone === "danger" ? "button vendor-confirmation-danger" : "button"} type="button" onClick={() => void confirmPending()}>
