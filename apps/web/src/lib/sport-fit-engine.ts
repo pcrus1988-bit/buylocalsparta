@@ -276,7 +276,7 @@ function strictIdentityText(product: SportFitProduct): string {
   return normalize([product.title, product.categoryCode, product.categoryLabel].filter(Boolean).join(" "));
 }
 
-function candidateSupportsRequestedActivity(product: SportFitProduct, answers: SportFitAnswers): boolean {
+export function sportFitCandidateSupportsRequestedActivity(product: SportFitProduct, answers: SportFitAnswers): boolean {
   if (["running", "walking", "gym", "football"].includes(answers.activity)) return true;
 
   const knowledge = usableKnowledge(product);
@@ -725,7 +725,7 @@ export function buildSportFitRecommendation(
       && product.knowledge?.queueStatus !== "blocked"
       && product.knowledge?.status !== "conflict"
       && product.knowledge?.status !== "insufficient"
-      && candidateSupportsRequestedActivity(product, answers)
+      && sportFitCandidateSupportsRequestedActivity(product, answers)
     )
     .map((product) => scoreSportFitProduct(product, answers))
     .filter((product) => product.technicalEligible && product.score >= 20)
