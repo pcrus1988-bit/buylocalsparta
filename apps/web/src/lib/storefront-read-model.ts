@@ -140,19 +140,36 @@ export async function getLocalStorefrontReadModelWindow(
 ): Promise<readonly StorefrontReadModelCandidate[]> {
   if (!productionDatabaseConfigured()) return [];
   const result = await getProductionPostgresRuntime().nativePool.query<StorefrontReadModelCandidate>(`
+    WITH matching AS MATERIALIZED (
+      SELECT
+        rm.*,
+        ROW_NUMBER() OVER (
+          PARTITION BY COALESCE(rm.family_id::text,rm.canonical_public_id)
+          ORDER BY
+            CASE WHEN $10::text='price-asc' THEN rm.min_price_minor END ASC,
+            CASE WHEN $10::text='price-desc' THEN rm.min_price_minor END DESC,
+            CASE WHEN $10::text NOT IN ('price-asc','price-desc') THEN rm.created_at END DESC,
+            rm.canonical_public_id
+        ) AS family_rank
+      FROM public.storefront_catalog_read_model rm
+      WHERE rm.local_sellable=true
+        AND rm.local_available_until>now()
+        ${FILTER_SQL}
+    ), family_rows AS (
+      SELECT *
+      FROM matching
+      WHERE family_rank=1
+    )
     SELECT
-      rm.canonical_public_id,
-      rm.department_code,
+      family_rows.canonical_public_id,
+      family_rows.department_code,
       COUNT(*) OVER() AS total_count
-    FROM public.storefront_catalog_read_model rm
-    WHERE rm.local_sellable=true
-      AND rm.local_available_until>now()
-      ${FILTER_SQL}
+    FROM family_rows
     ORDER BY
-      CASE WHEN $10::text='price-asc' THEN rm.min_price_minor END ASC,
-      CASE WHEN $10::text='price-desc' THEN rm.min_price_minor END DESC,
-      CASE WHEN $10::text NOT IN ('price-asc','price-desc') THEN rm.created_at END DESC,
-      rm.canonical_public_id
+      CASE WHEN $10::text='price-asc' THEN family_rows.min_price_minor END ASC,
+      CASE WHEN $10::text='price-desc' THEN family_rows.min_price_minor END DESC,
+      CASE WHEN $10::text NOT IN ('price-asc','price-desc') THEN family_rows.created_at END DESC,
+      family_rows.canonical_public_id
     LIMIT $11 OFFSET $12
   `, parameters(input));
   return result.rows;
