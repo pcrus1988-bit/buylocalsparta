@@ -288,3 +288,14 @@ Migration `0308_sport_fit_verified_kerasiotis_footwear_batch2.sql` adds a second
 Migration `0309_sport_fit_adidas_kids_size_guide.sql` adds the official adidas kids footwear size chart as a separate `kids` audience guide. The server deterministically prefers an exact audience guide over a unisex fallback, which prevents the adult chart from becoming the primary measured-size source for a child profile.
 
 The runtime schema gate is 309. All migrations through 0309 have immutable checksum manifests.
+
+
+## Live brand identity bridge
+
+The Kerasiotis sports catalogue currently carries direct vendor-feed brand values even where the canonical family/variant brand relation has not yet been normalized. The Sport & Fit catalogue loader therefore resolves brand in this order:
+
+1. governed catalogue metadata brand;
+2. canonical family/variant brand;
+3. latest non-empty vendor-feed `source_payload.brand` for the same canonical variant.
+
+The third path is an identity fallback, not a technical-specification inference. It enables brand-scoped size guides to attach to the correct live products while the broader catalogue brand backfill is still incomplete. Technical Sport & Fit facts still require the normal evidence policy and strong exact-product identity.
