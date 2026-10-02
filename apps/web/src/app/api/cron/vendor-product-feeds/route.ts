@@ -1,4 +1,4 @@
-import { processPendingVendorProductFeedSubmissions, syncDueVendorProductFeeds } from "../../../../lib/vendor-product-feed-scheduler";
+import { syncDueVendorProductFeeds } from "../../../../lib/vendor-product-feed-scheduler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,9 +14,8 @@ export async function GET(request: Request) {
   try {
     console.info(JSON.stringify({ level: "info", event: "vendor_product_feeds.cron_started", schedule: request.headers.get("x-vercel-cron-schedule") }));
     const synchronization = await syncDueVendorProductFeeds(1);
-    const processing = await processPendingVendorProductFeedSubmissions(500);
-    console.info(JSON.stringify({ level: "info", event: "vendor_product_feeds.cron_completed", ...synchronization, processing }));
-    return Response.json({ ...synchronization, processing }, {
+    console.info(JSON.stringify({ level: "info", event: "vendor_product_feeds.cron_completed", ...synchronization }));
+    return Response.json(synchronization, {
       status: synchronization.failed ? 207 : 200,
       headers: { "cache-control": "no-store" }
     });

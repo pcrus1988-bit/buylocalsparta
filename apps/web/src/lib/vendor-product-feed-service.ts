@@ -162,7 +162,7 @@ export async function saveVendorProductFeed(
   const vendorId = requiredVendorId(principal);
   const name = input.feedName.trim().slice(0, 120);
   if (name.length < 2) throw new Error("Δώσε ένα όνομα για το XML feed.");
-  const interval = [60, 180, 360, 1440].includes(Number(input.syncIntervalMinutes)) ? Number(input.syncIntervalMinutes) : 360;
+  const interval = [60, 180, 360, 1440].includes(Number(input.syncIntervalMinutes)) ? Number(input.syncIntervalMinutes) : 60;
   const sourceUrl = input.sourceType === "url" ? normalizeVendorFeedUrl(input.sourceUrl) : undefined;
   if (input.sourceType === "upload" && !input.sourceFilename?.trim()) throw new Error("Λείπει το όνομα του XML αρχείου.");
 
@@ -298,13 +298,25 @@ export async function saveVendorProductFeed(
         ), [feedUuid]);
       }
 
+      // Admin approval creates the vendor offer after the XML item has already been
+      // attached to a submission. Reconnect that exact lineage first so the XML
+      // becomes the authoritative price/stock source immediately after approval.
+      await tx.query(sql(
+        "UPDATE vendor_product_feed_items i SET offer_id=vo.id,canonical_variant_id=vo.canonical_variant_id,updated_at=now()",
+        "FROM vendor_product_submissions s",
+        "JOIN vendor_offers vo ON vo.vendor_id=s.vendor_id AND vo.location_id=s.location_id",
+        "AND vo.canonical_variant_id=s.canonical_variant_id AND vo.status='approved'",
+        "WHERE i.feed_id=$1::uuid AND i.state='present' AND i.offer_id IS NULL AND i.submission_id=s.id",
+        "AND s.status='approved' AND s.canonical_variant_id IS NOT NULL"
+      ), [feedUuid]);
+
       await tx.query(sql(
         "WITH candidates AS (",
         "SELECT i.id AS item_id,vo.id AS offer_id,vo.canonical_variant_id,",
         "count(*) OVER (PARTITION BY i.id) AS candidate_count,",
         "row_number() OVER (PARTITION BY i.id ORDER BY CASE WHEN i.vendor_sku IS NOT NULL AND vo.vendor_sku=i.vendor_sku THEN 0 ELSE 1 END,vo.id) AS rn",
         "FROM vendor_product_feed_items i",
-        "JOIN vendor_offers vo ON vo.vendor_id=i.vendor_id",
+        "JOIN vendor_offers vo ON vo.vendor_id=i.vendor_id AND vo.status='approved'",
         "LEFT JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id",
         "WHERE i.feed_id=$1::uuid AND i.state='present' AND i.offer_id IS NULL",
         "AND ((i.vendor_sku IS NOT NULL AND vo.vendor_sku=i.vendor_sku) OR",
@@ -327,10 +339,14 @@ export async function saveVendorProductFeed(
       const protectedInventoryRows = int(protectedInventory.rows[0]?.count);
 
       await tx.query(sql(
-        "UPDATE inventory_balances ib SET",
-        "on_hand=GREATEST((i.source_payload->>'stockOnHand')::integer,ib.active_reservations),",
-        "source='vendor_feed',source_confidence='merchant_confirmed',stock_confirmed_at=now(),freshness_status='fresh',updated_at=now()",
-        "FROM vendor_product_feed_items i WHERE i.feed_id=$1::uuid AND i.state='present' AND i.offer_id=ib.offer_id"
+        "INSERT INTO inventory_balances(offer_id,on_hand,active_reservations,safety_stock,blocked,source,source_confidence,stock_confirmed_at,freshness_ttl_seconds,freshness_status,updated_at)",
+        "SELECT i.offer_id,(i.source_payload->>'stockOnHand')::integer,0,0,0,'vendor_feed','merchant_confirmed',now(),86400,'fresh',now()",
+        "FROM vendor_product_feed_items i",
+        "WHERE i.feed_id=$1::uuid AND i.state='present' AND i.offer_id IS NOT NULL",
+        "ON CONFLICT(offer_id) DO UPDATE SET",
+        "on_hand=GREATEST(EXCLUDED.on_hand,inventory_balances.active_reservations),",
+        "source='vendor_feed',source_confidence='merchant_confirmed',stock_confirmed_at=EXCLUDED.stock_confirmed_at,",
+        "freshness_status='fresh',updated_at=EXCLUDED.updated_at"
       ), [feedUuid]);
       await tx.query(sql(
         "UPDATE vendor_product_feed_items SET last_stock_sync_at=now(),updated_at=now()",
