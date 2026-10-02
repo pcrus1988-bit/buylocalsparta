@@ -540,7 +540,11 @@ FROM candidates
 WHERE product_role IS NOT NULL
 ON CONFLICT (family_id) DO UPDATE SET
   product_role=EXCLUDED.product_role,
-  identity_quality=GREATEST(public.sport_product_knowledge.identity_quality,EXCLUDED.identity_quality),
+  identity_quality=CASE
+    WHEN public.sport_product_knowledge.identity_quality='strong' OR EXCLUDED.identity_quality='strong' THEN 'strong'
+    WHEN public.sport_product_knowledge.identity_quality='medium' OR EXCLUDED.identity_quality='medium' THEN 'medium'
+    ELSE 'weak'
+  END,
   updated_at=now();
 
 -- Seed only facts justified directly by category semantics.
