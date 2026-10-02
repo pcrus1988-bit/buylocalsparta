@@ -23,7 +23,8 @@ type CatalogProductCardSource = CatalogCard & Readonly<{
 
 const OPTIMIZED_SUPPLIER_IMAGE_HOSTS = new Set([
   "brandsgateway-img.s3.fr-par.scw.cloud",
-  "cdn.symphonya.eu"
+  "cdn.symphonya.eu",
+  "www.e-kerasiotis.gr"
 ]);
 
 function optimizedSupplierImage(src: string): boolean {
