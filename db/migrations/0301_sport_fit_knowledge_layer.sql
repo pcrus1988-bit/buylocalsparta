@@ -240,8 +240,12 @@ INSERT INTO _sport_rule_seed VALUES
 ('footwear','footwear_width_profile','optional','family',true,false,true,true,false,160),
 ('footwear','toe_box_profile','optional','family',true,false,true,true,false,170),
 ('footwear','fit_length_profile','optional','family',true,false,true,true,false,180),
-('footwear','football_surface_code','optional','family',true,true,true,true,false,190),
-('footwear','weather_protection','optional','family',true,false,true,false,true,200),
+('footwear','heel_to_toe_drop_mm','optional','family',true,false,true,true,false,190),
+('footwear','heel_stack_height_mm','optional','family',false,false,true,true,false,200),
+('footwear','forefoot_stack_height_mm','optional','family',false,false,true,true,false,210),
+('footwear','plate_type','optional','family',true,false,true,true,false,220),
+('footwear','football_surface_code','optional','family',true,true,true,true,false,230),
+('footwear','weather_protection','optional','family',true,false,true,false,true,240),
 
 -- Apparel supports sports use and performance properties without assuming sport from fashion alone.
 ('apparel','sport_activity','optional','family',true,true,true,true,true,100),
