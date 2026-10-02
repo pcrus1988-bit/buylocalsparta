@@ -11,6 +11,7 @@ type SportCatalogRow = Readonly<{
   title: string;
   category_code: string;
   brand_name: string | null;
+  feed_brand: string | null;
   price_minor: number | string;
   available_to_sell: number | string;
   vendor_id: string;
@@ -169,6 +170,7 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
       COALESCE(NULLIF(el.title,''),NULLIF(en.title,''),NULLIF(cv.model,''),NULLIF(pf.model,''),cv.slug) AS title,
       c.code AS category_code,
       b.name AS brand_name,
+      feed_identity.brand AS feed_brand,
       vo.customer_price_minor AS price_minor,
       GREATEST(
         0,
@@ -194,6 +196,15 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
     JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
     LEFT JOIN product_families pf ON pf.id=cv.family_id
     LEFT JOIN brands b ON b.id=COALESCE(cv.brand_id,pf.brand_id)
+    LEFT JOIN LATERAL (
+      SELECT NULLIF(btrim(s.source_payload->>'brand'),'') AS brand
+      FROM vendor_product_submissions s
+      WHERE s.canonical_variant_id=cv.id
+        AND s.source_payload ? 'feedId'
+        AND NULLIF(btrim(s.source_payload->>'brand'),'') IS NOT NULL
+      ORDER BY s.updated_at DESC,s.id DESC
+      LIMIT 1
+    ) feed_identity ON true
     LEFT JOIN sport_product_knowledge sk ON sk.family_id=pf.id
     LEFT JOIN sport_knowledge_enrichment_queue sq ON sq.family_id=pf.id
     LEFT JOIN LATERAL (
@@ -293,7 +304,7 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
       priceMinor,
       categoryCode: row.category_code,
       categoryLabel: details?.categoryLabel,
-      brand: details?.brand ?? row.brand_name ?? undefined,
+      brand: details?.brand ?? row.brand_name ?? row.feed_brand ?? undefined,
       color: details?.color,
       sizes: details?.sizes ?? [],
       fit: details?.fit,
