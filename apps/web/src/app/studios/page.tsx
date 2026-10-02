@@ -6,6 +6,7 @@ import { STUDIO_DESTINATIONS } from "../../lib/studio-registry";
 
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/studios", {
+    canonicalPath: "https://kontamou.site/studios",
     title: "KONTA MOY Studios · Διαδραστική καθοδήγηση αγορών",
     description:
       "Μπες στα KONTA MOY Studios: Sport & Fit, Paint & Build, Style και Color Finder σε μία κοινή διαδραστική εμπειρία."
