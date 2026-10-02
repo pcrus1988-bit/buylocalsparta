@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { SiteFooter } from "../../components/SiteFooter";
-import { StudioHubUniverse } from "../../components/StudioHubUniverse";
+import { StudioDistrictScene } from "../../components/StudioDistrictScene";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { STUDIO_DESTINATIONS } from "../../lib/studio-registry";
 
@@ -39,7 +39,7 @@ export default function StudiosPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replaceAll("<", "\\u003c") }}
       />
-      <StudioHubUniverse />
+      <StudioDistrictScene />
       <SiteFooter />
     </main>
   );
