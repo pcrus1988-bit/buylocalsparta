@@ -303,6 +303,13 @@ function atlasProxySrc(product: SportFitUniverseVisualProduct): string {
   return `/api/catalog-source-image/${encodeURIComponent(product.id)}?sf=2`;
 }
 
+function browserProductImageSrc(product: SportFitUniverseVisualProduct): string {
+  // Browsers can display approved remote catalogue media without granting
+  // canvas read access. This is intentionally separate from the WebGL atlas:
+  // some vendor origins block server-side fetches and omit CORS headers.
+  return product.previewImageSrc || atlasProxySrc(product);
+}
+
 async function buildAtlas(products: readonly SportFitUniverseVisualProduct[]): Promise<HTMLCanvasElement> {
   const atlas = document.createElement("canvas");
   atlas.width = ATLAS_SIZE;
@@ -399,6 +406,7 @@ export function SportFitWebGLUniverse({
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchDistanceRef = useRef<number | undefined>(undefined);
   const hoveredIdRef = useRef<string | undefined>(undefined);
+  const spriteRefs = useRef(new Map<string, HTMLSpanElement>());
   const [hoveredId, setHoveredId] = useState<string>();
   const [webglUnavailable, setWebglUnavailable] = useState(false);
   const [atlasReady, setAtlasReady] = useState(false);
@@ -669,6 +677,33 @@ export function SportFitWebGLUniverse({
       }
       webgl.drawArrays(webgl.POINTS, 0, nodes.length);
 
+      for (const node of nodes) {
+        const sprite = spriteRefs.current.get(node.id);
+        if (!sprite) continue;
+        const projected = projectPoint(
+          node.current,
+          yawRef.current,
+          pitchRef.current,
+          cameraRef.current,
+          rect.width,
+          rect.height
+        );
+        if (!projected || node.opacity < 0.02) {
+          sprite.style.opacity = "0";
+          sprite.style.visibility = "hidden";
+          continue;
+        }
+
+        const pointSize = Math.max(24, Math.min(132, node.size * 11 / projected.depth));
+        const imageSize = Math.max(18, pointSize * 0.74);
+        sprite.style.visibility = "visible";
+        sprite.style.opacity = String(Math.max(0, Math.min(1, node.opacity)));
+        sprite.style.width = `${imageSize}px`;
+        sprite.style.height = `${imageSize}px`;
+        sprite.style.zIndex = String(Math.max(1, Math.round(900 - projected.depth * 25)));
+        sprite.style.transform = `translate3d(${projected.x - imageSize / 2}px,${projected.y - imageSize / 2}px,0) scale(${node.targetOpacity > 0 ? 1 : 0.42})`;
+      }
+
       animationRef.current = requestAnimationFrame(frame);
     }
 
@@ -823,6 +858,30 @@ export function SportFitWebGLUniverse({
         }}
         onWheel={handleWheel}
       />
+
+      <div className={styles.spriteLayer} aria-hidden="true">
+        {visibleProducts.map((product) => (
+          <span
+            key={product.id}
+            className={styles.productSprite}
+            ref={(element) => {
+              if (element) spriteRefs.current.set(product.id, element);
+              else spriteRefs.current.delete(product.id);
+            }}
+          >
+            <img
+              src={browserProductImageSrc(product)}
+              alt=""
+              decoding="async"
+              loading="eager"
+              referrerPolicy={product.previewImageSrc?.startsWith("https://") ? "strict-origin-when-cross-origin" : undefined}
+              onError={(event) => {
+                event.currentTarget.style.display = "none";
+              }}
+            />
+          </span>
+        ))}
+      </div>
 
       <div className={styles.reticle} aria-hidden="true">
         <span />
