@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SiteFooter } from "../../components/SiteFooter";
+import { StudioExperienceRuntime } from "../../components/StudioExperienceRuntime";
 import { SportFitImmersiveExperience } from "../../components/SportFitImmersiveExperience";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import styles from "./page.module.css";
@@ -14,7 +15,7 @@ export function generateMetadata(): Promise<Metadata> {
 export default function SportFitStudioPage() {
   return (
     <main className={styles.page}>
-      <SportFitImmersiveExperience />
+      <StudioExperienceRuntime studioId="sport-fit"><SportFitImmersiveExperience /></StudioExperienceRuntime>
       <SiteFooter />
     </main>
   );
