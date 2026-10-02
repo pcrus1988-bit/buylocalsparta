@@ -388,14 +388,14 @@ export function SportFitWebGLUniverse({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nodesRef = useRef<Map<string, NodeState>>(new Map());
   const productsRef = useRef<readonly SportFitUniverseVisualProduct[]>(products);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
   const yawRef = useRef(0.18);
   const pitchRef = useRef(-0.08);
   const cameraRef = useRef(mode === "finalists" ? 10.5 : 12.5);
-  const dragRef = useRef<{ pointerId: number; x: number; y: number; moved: boolean }>();
+  const dragRef = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | undefined>(undefined);
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
-  const pinchDistanceRef = useRef<number>();
-  const hoveredIdRef = useRef<string>();
+  const pinchDistanceRef = useRef<number | undefined>(undefined);
+  const hoveredIdRef = useRef<string | undefined>(undefined);
   const [hoveredId, setHoveredId] = useState<string>();
   const [webglUnavailable, setWebglUnavailable] = useState(false);
   const [atlasReady, setAtlasReady] = useState(false);
