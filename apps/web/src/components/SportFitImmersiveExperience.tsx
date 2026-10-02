@@ -313,7 +313,7 @@ function ProductUniverse({
       <div className={styles.universeLegend}>
         <span><i className={styles.legendStrong} /> κοντά στο κέντρο = ισχυρότερο τεχνικό ταίριασμα</span>
         <span><i className={styles.legendPossible} /> έξω τροχιά = πιθανή επιλογή</span>
-        <span>drag / touch για περιστροφή · pinch / wheel για zoom · tap για focus</span>
+        <span>drag / touch για περιστροφή · pinch / wheel για zoom · tap για άνοιγμα κάρτας προϊόντος</span>
       </div>
     </div>
   );
