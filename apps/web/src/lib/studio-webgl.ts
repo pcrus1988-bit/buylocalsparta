@@ -1,4 +1,4 @@
-import type { StudioQualityTier } from "../components/StudioExperienceRuntime";
+export type StudioQualityTier = "high" | "balanced" | "lite";
 
 export function createStudioProgram(
   gl: WebGLRenderingContext,
