@@ -222,3 +222,47 @@ Many running titles already contain useful identity/technology tokens such as mo
 - A model can be recommended because its documented properties match the user's stated preferences; that is not a medical prescription.
 - Weak identity web matches remain `insufficient` and do not publish normalized facts.
 - Conflicting high-confidence sources set the knowledge state to `conflict` until resolved.
+
+
+## Verified pilot knowledge currently encoded
+
+The pilot now contains exact manufacturer evidence for a small set of current Kerasiotis adidas products. This is intentionally a governed seed, not a claim that every sports product is fully enriched.
+
+### Footwear
+
+- Duramo RC2 `JQ8077`: running, road/track, daily training, reference weight, heel-to-toe drop and heel/forefoot stack.
+- Duramo RC2 `JS4435`: running, road/track, daily training, reference weight, heel-to-toe drop and heel/forefoot stack.
+- Terrex Skychaser AX5 `JQ2217`: hiking, trail/technical terrain, reference weight, heel-to-toe drop and heel/forefoot stack.
+- Duramo SL 2 `JP9203`: manufacturer evidence exists, but the product code currently resolves to two canonical families. Both families are blocked from Sport & Fit enrichment until catalogue identity is reconciled.
+
+The duplicate-family case is deliberate evidence that the knowledge layer fails closed: a high-quality external source does not override ambiguous internal identity.
+
+### Socks
+
+- Essentials CLIMACOOL Low Cut `JC6452`: low-cut height, gym/training context, explicit moisture-wicking claim and explicit arch support.
+- Thin & Light Sportswear Ankle `JZ0528`: ankle height, gym/training context and explicit arch support.
+- Think Linear Ankle `IC1306`: ankle height only where the manufacturer statement is unambiguous.
+
+Marketing terms such as “cushioned”, “soft” or “stable” are not automatically converted to normalized cushioning/support levels unless the source provides a sufficiently clear classification.
+
+## Size-guide knowledge
+
+Schema version 306 adds a separate governed sizing layer:
+
+- `sport_size_guides`
+- `sport_size_guide_translations`
+- `sport_size_guide_entries`
+- `sport_size_guide_labels`
+
+The first guide is the official adidas adult/unisex footwear heel-to-toe chart. The database stores the manufacturer measurement points and EU, UK, US and JP labels rather than embedding conversions in UI code.
+
+The deterministic resolver follows these rules:
+
+1. An exact heel-to-toe measurement returns the exact chart row.
+2. A measurement between two rows returns both adjacent chart sizes instead of guessing.
+3. Audience-specific labels, such as US Women, take priority over a unisex fallback for that size system.
+4. Measurements outside the chart range return no automatic size.
+5. A brand guide only affects products of that brand. An adidas result must not penalize another brand.
+6. Product-specific fit adjustments remain separate evidence. A generic brand chart never proves that a particular model runs short, true-to-size or long.
+
+The Sport & Fit Studio accepts optional foot length in centimetres. The server converts it to millimetres, resolves it against the stored guide and sends brand-scoped size hints into the recommendation engine. Manual EU size remains available and is used for brands without a resolved guide.
