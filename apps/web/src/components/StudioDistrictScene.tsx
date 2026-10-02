@@ -267,7 +267,9 @@ function StudioPortal({
       style={{ "--studio-order": index } as CSSProperties}
     >
       <span className={styles.portalIndex}>{String(index + 1).padStart(2, "0")}</span>
-      <span className={styles.portalMotif} data-kind={studio.id} aria-hidden="true"><i /><i /><i /><i /></span>
+      <span className={styles.portalPreview} data-kind={studio.id} aria-hidden="true">
+        <i /><i /><i /><i /><i /><i />
+      </span>
       <span className={styles.portalEyebrow}>{studio.eyebrow}</span>
       <strong>{studio.title}</strong>
       <small>{studio.description}</small>
@@ -422,11 +424,29 @@ export function StudioDistrictScene() {
           gl.uniform1f(focusLocation, focusedIndexRef.current >= 0 ? focusedIndexRef.current + 1 : -1);
           gl.drawArrays(gl.POINTS, 0, sceneData.length / 4);
 
+          const compactPortals = width <= 720;
+          const compactLayout: Readonly<Record<StudioDestination["id"], readonly [number, number]>> = {
+            "sport-fit": [27, 46],
+            "paint-build": [73, 46],
+            "style": [27, 69],
+            "color": [73, 69]
+          };
+
           STUDIO_DESTINATIONS.forEach((studio) => {
             const node = portalRefs.current.get(studio.id);
             if (!node) return;
+
+            if (compactPortals) {
+              const [xPercent, yPercent] = compactLayout[studio.id];
+              node.style.setProperty("--portal-x", `${xPercent}%`);
+              node.style.setProperty("--portal-y", `${yPercent}%`);
+              node.style.setProperty("--portal-scale", "1");
+              node.style.setProperty("--portal-opacity", "1");
+              return;
+            }
+
             const projection = project(
-              adaptedPosition(studio.position, width <= 720),
+              studio.position,
               yawRef.current,
               pitchRef.current,
               cameraRef.current,
