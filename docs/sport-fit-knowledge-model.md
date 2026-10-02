@@ -634,3 +634,21 @@ The migration fails closed if a style resolves to zero or multiple active canoni
 Schema 330 was executed against the live KONTA MOY schema inside a transaction ending in `ROLLBACK`, with a temporary schema-329 prerequisite value created inside that same transaction because production has not yet applied schema 329. Identity guards, evidence-source guards, activity replacement, knowledge refresh, queue completion and post-write assertions passed. A post-rehearsal read confirmed that `casual_lifestyle` and all schema-330 changes were rolled back and the three live queue rows remain blocked until the migration chain is deployed.
 
 The runtime schema gate is now **330**.
+
+
+## Schema 331 — Adizero SL2 stable-fact reconciliation
+
+Migration `0331_sport_fit_adizero_sl2_safe_reconciliation.sql` revisits exact adidas style `IF6748` (Adizero SL2) after schema 317 deliberately left the family without normalized facts because official adidas regional pages disagree on fit advice and technical measurements.
+
+The migration separates stable facts from disputed ones:
+- `sport_activity=running` is explicit on official adidas Australia, Egypt and Brazil product pages.
+- The Brazil product page explicitly positions IF6748 for fast training and competitions, mapped to `sport_use_case=speed_training` and `sport_use_case=race_day`.
+- Fit remains unknown. Australia and Brazil recommend the usual size, while Egypt advises ordering at least one size larger.
+- Weight/drop/stack remain unknown at the governed family level. Australia/Egypt report 238 g, 9.5 mm drop and 36.9/27.4 mm heel/forefoot stack for UK 8.5, while Brazil reports a different measurement set/reference size.
+- Lightstrike Pro is retained as manufacturer provenance but is not converted into a governed cushioning intensity.
+
+Schema 331 fails closed if IF6748 does not resolve to exactly one active canonical family or if any disputed fit/geometry field has already been normalized before the migration. It lowers the enrichment priority from the manual-reconciliation blocker level only after publishing the stable running/use-case facts; disputed fields remain explicitly requested with `normalizeDisputedFields=false`.
+
+Schema 331 was executed against the live KONTA MOY schema inside a transaction ending in `ROLLBACK`. Exact identity, disputed-field guards, fact insertion, knowledge refresh, queue reprioritization and post-write assertions passed. A post-rehearsal read confirmed the production queue remained at its pre-migration priority/state because no test changes were persisted.
+
+The runtime schema gate is now **331**.
