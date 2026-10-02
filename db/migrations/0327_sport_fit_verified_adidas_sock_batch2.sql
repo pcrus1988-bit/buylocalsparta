@@ -259,7 +259,7 @@ JOIN public.product_families pf
   ON pf.id=cv.family_id
  AND pf.active=true;
 
-DO $
+DO $$
 DECLARE
   r record;
   v_count integer;
