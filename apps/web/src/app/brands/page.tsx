@@ -88,7 +88,11 @@ export default async function BrandsPage({ searchParams }: Props) {
       </div>
 
       {directory.items.length ? <section className={styles.grid} aria-label="Brands">
-        {directory.items.map((brand) => <Link className={styles.card} href={`/brands/${brand.slug}`} key={brand.id}>
+        {directory.items.map((brand) => <Link
+          className={styles.card}
+          href={locality ? `/brands/${brand.slug}?hub=${encodeURIComponent(locality)}` : `/brands/${brand.slug}`}
+          key={brand.id}
+        >
           <div className={styles.logoBox}>
             {brand.logoUrl
               ? <img src={brand.logoUrl} alt={`Λογότυπο ${brand.name}`} loading="lazy" decoding="async" />
