@@ -1,9 +1,9 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
+import { PostgresUnitOfWork, type SessionPrincipal, type SqlExecutor, type SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission, recordAdminAudit } from "./admin-runtime";
-import { adminSeoCrawlGraph, type SeoCrawlGraphNode } from "./seo-crawl-graph";
+import { adminSeoCrawlGraph, systemSeoCrawlGraph, type SeoCrawlGraphNode } from "./seo-crawl-graph";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 const PAGE_LIMIT = 1000;
@@ -158,10 +158,10 @@ function uniqueRoutes(nodes: readonly SeoCrawlGraphNode[]) {
   }
 }
 
-export async function syncSeoUrlRegistry(principal: SessionPrincipal) {
-  assertAdminPermission(principal, "content.write");
-  if (!productionDatabaseConfigured()) throw new Error("SEO URL registry persistence requires PostgreSQL runtime.");
-  const graph = await adminSeoCrawlGraph(principal);
+async function persistSeoUrlRegistryGraph(
+  graph: Awaited<ReturnType<typeof systemSeoCrawlGraph>>,
+  actorUserId?: string
+) {
   if (!completeGraph(graph)) throw new Error("SEO URL registry sync requires complete product, vendor, CMS and category projections. No rows were deactivated.");
   uniqueRoutes(graph.nodes);
 
@@ -179,7 +179,8 @@ export async function syncSeoUrlRegistry(principal: SessionPrincipal) {
   }));
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 15_000, lockTimeoutMs: 3_000 });
-  const result = await uow.withTransaction({ actorUserId: principal.userId, marketId: marketCode(), platformAccess: true }, async (tx) => {
+
+  const write = async (tx: SqlExecutor) => {
     // Large catalogues are deliberately written in bounded batches. A single giant
     // jsonb_to_recordset payload became fragile once the dropshipping catalogue grew
     // into tens of thousands of canonical products.
@@ -214,7 +215,7 @@ export async function syncSeoUrlRegistry(principal: SessionPrincipal) {
     }
 
     // Every current node is stamped with the exact same sync timestamp above. This
-    // lets deactivation stay O(stale rows) instead of sending a 30k+ route array back
+    // lets deactivation stay O(stale rows) instead of sending a huge route array back
     // to PostgreSQL just to express NOT IN current graph.
     const deactivated = await tx.query<{ public_id: string }>(`
       UPDATE seo_urls
@@ -225,10 +226,30 @@ export async function syncSeoUrlRegistry(principal: SessionPrincipal) {
       RETURNING public_id
     `, [now]);
     return { synced: graph.nodes.length, deactivated: deactivated.rowCount, generatedAt: graph.generatedAt };
-  }, { isolation: "serializable" });
+  };
 
+  return actorUserId
+    ? uow.withTransaction({ actorUserId, marketId: marketCode(), platformAccess: true }, write, { isolation: "serializable" })
+    : uow.withTransaction({ marketId: marketCode(), platformAccess: true }, write, { isolation: "serializable" });
+}
+
+export async function syncSeoUrlRegistry(principal: SessionPrincipal) {
+  assertAdminPermission(principal, "content.write");
+  if (!productionDatabaseConfigured()) throw new Error("SEO URL registry persistence requires PostgreSQL runtime.");
+  const graph = await adminSeoCrawlGraph(principal);
+  const result = await persistSeoUrlRegistryGraph(graph, principal.userId);
   await recordAdminAudit(principal, "seo.url_registry_synced", "seo_url_registry", marketCode(), "Refresh derived governed URL registry", result);
   return result;
+}
+
+/**
+ * CRON-safe refresh of the derived registry. It mirrors current live SEO policy but
+ * deliberately does not create a fake human audit actor.
+ */
+export async function syncSeoUrlRegistrySystem() {
+  if (!productionDatabaseConfigured()) throw new Error("SEO URL registry persistence requires PostgreSQL runtime.");
+  const graph = await systemSeoCrawlGraph();
+  return persistSeoUrlRegistryGraph(graph);
 }
 
 export async function getSeoUrlRegistryWorkspace(principal: SessionPrincipal): Promise<SeoUrlRegistryWorkspace> {
