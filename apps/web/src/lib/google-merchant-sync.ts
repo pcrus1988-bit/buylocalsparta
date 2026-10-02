@@ -143,84 +143,54 @@ async function loadCandidates(
   batchTarget = RUN_BATCH_TARGET
 ): Promise<readonly CandidateRow[]> {
   const result = await getProductionPostgresRuntime().nativePool.query<CandidateRow>(`
-    WITH live_offer AS (
-      SELECT vo.canonical_variant_id, min(vo.customer_price_minor) AS live_price_minor
-      FROM public.canonical_variants shard_cv
-      JOIN public.vendor_offers vo ON vo.canonical_variant_id=shard_cv.id
-      JOIN public.vendor_businesses v ON v.id=vo.vendor_id
-      JOIN public.vendor_locations l ON l.id=vo.location_id
-      LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
-      LEFT JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
-      LEFT JOIN public.inventory_balances ib ON ib.offer_id=vo.id
-      WHERE shard_cv.active=true
-        AND shard_cv.suppressed=false
-        AND shard_cv.recalled=false
-        AND mod(abs(hashtext(shard_cv.public_id)::bigint),$2::bigint)=$3::bigint
-        AND vo.status='approved'
-        AND vo.merchant_visible=true
-        AND vo.merchant_pause_active=false
-        AND vo.customer_price_minor>0
-        AND v.status='active'
-        AND l.active=true
-        AND (
-          (
-            dso.id IS NOT NULL
-            AND dso.active=true
-            AND ds.active=true
-            AND ds.api_authoritative_availability=true
-            AND dso.cached_available=true
-            AND dso.cached_quantity>=1
-            AND dso.availability_expires_at>now()
-            AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-          )
-          OR (
-            dso.id IS NULL
-            AND GREATEST(
-              0,
-              COALESCE(ib.on_hand,0)
-                - COALESCE(ib.active_reservations,0)
-                - COALESCE(ib.safety_stock,0)
-                - COALESCE(ib.blocked,0)
-            )>0
-          )
-        )
-      GROUP BY vo.canonical_variant_id
-    )
     SELECT
-      cv.id AS canonical_variant_id,
-      cv.public_id AS canonical_public_id,
-      cv.slug,
-      pt.title,
-      pt.description,
-      cv.gtin,
-      cv.mpn,
-      COALESCE(NULLIF(btrim(rm.brand_name),''),b.name) AS brand_name,
-      NULLIF(btrim(rm.color),'') AS color,
+      rm.canonical_variant_id,
+      rm.canonical_public_id,
+      rm.slug,
+      rm.title,
+      rm.description,
+      rm.gtin,
+      rm.mpn,
+      rm.brand_name,
+      rm.color,
       cv.condition,
-      lo.live_price_minor AS min_price_minor
-    FROM public.canonical_variants cv
-    JOIN live_offer lo ON lo.canonical_variant_id=cv.id
-    JOIN public.product_translations pt ON pt.canonical_variant_id=cv.id AND pt.locale='el'
-    LEFT JOIN public.brands b ON b.id=cv.brand_id
-    LEFT JOIN public.storefront_catalog_read_model rm ON rm.canonical_variant_id=cv.id
+      rm.min_price_minor
+    FROM public.storefront_catalog_read_model rm
+    JOIN public.canonical_variants cv ON cv.id=rm.canonical_variant_id
+    LEFT JOIN bls_private.storefront_dropship_live_family live
+      ON rm.dropship_supplier_id IS NOT NULL
+     AND live.supplier_id=rm.dropship_supplier_id::uuid
+     AND live.external_product_id=rm.dropship_external_product_id
+     AND live.available_until>now()
     LEFT JOIN public.merchant_product_sync mps
       ON mps.merchant_account_id=$1
      AND mps.content_language='el'
      AND mps.feed_label='GR'
-     AND mps.offer_id=cv.public_id
-    WHERE cv.active=true
+     AND mps.offer_id=rm.canonical_public_id
+    WHERE mod(abs(hashtext(rm.canonical_public_id)::bigint),$2::bigint)=$3::bigint
+      AND cv.active=true
       AND cv.suppressed=false
       AND cv.recalled=false
-      AND nullif(btrim(pt.title),'') IS NOT NULL
-      AND nullif(btrim(coalesce(pt.description,'')),'') IS NOT NULL
+      AND nullif(btrim(rm.title),'') IS NOT NULL
+      AND nullif(btrim(coalesce(rm.description,'')),'') IS NOT NULL
+      AND (
+        (rm.local_sellable=true AND rm.local_available_until>now())
+        OR (live.supplier_id IS NOT NULL AND live.sellable=true)
+        OR (
+          live.supplier_id IS NULL
+          AND rm.dropship_sellable=true
+          AND rm.dropship_available_until>now()
+        )
+      )
     ORDER BY
       CASE WHEN mps.id IS NULL OR mps.sync_status<>'synced' THEN 0 ELSE 1 END,
       mps.last_success_at NULLS FIRST,
-      cv.public_id
+      rm.canonical_public_id
     LIMIT $4
   `, [accountId, shardCount, shard, batchTarget]);
   return result.rows;
-}function toCandidate(row: CandidateRow): GoogleMerchantCandidate {
+}
+function toCandidate(row: CandidateRow): GoogleMerchantCandidate {
   return { canonicalPublicId: row.canonical_public_id, slug: row.slug, title: row.title, description: row.description, gtin: row.gtin, mpn: row.mpn, brand: row.brand_name, color: row.color, condition: row.condition, priceMinor: row.min_price_minor };
 }
 
