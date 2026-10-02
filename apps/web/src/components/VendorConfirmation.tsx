@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type VendorConfirmationRequest = Readonly<{
   title: string;
@@ -16,7 +16,7 @@ export function useVendorConfirmation() {
   const dialogRef = useRef<HTMLElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
-  async function closeAndRestoreFocus() {
+  const closeAndRestoreFocus = useCallback(async () => {
     const target = returnFocusRef.current;
     returnFocusRef.current = null;
     setPending(null);
@@ -26,7 +26,7 @@ export function useVendorConfirmation() {
         resolve();
       });
     });
-  }
+  }, []);
 
   useEffect(() => {
     if (!pending) return;
@@ -70,7 +70,7 @@ export function useVendorConfirmation() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [pending]);
+  }, [pending, closeAndRestoreFocus]);
 
   useEffect(() => () => {
     returnFocusRef.current?.focus();
