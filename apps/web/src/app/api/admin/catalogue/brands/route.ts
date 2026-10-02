@@ -158,13 +158,13 @@ export async function POST(request: Request) {
 
     if (action === "queue_missing_guides") {
       const queued = await adminQueueMissingBrandGuides(principal, 100);
-      await recordAdminAudit(principal, "brand.guide.bulk_enrichment_queued", "brand", "bulk", "Admin bulk queued Brand Guide enrichment", { queued });
+      await recordAdminAudit(principal, "brand.guide.bulk_enrichment_queued", "brand", "bulk", "Admin bulk queued Brand Guides for ChatGPT research", { queued });
       return Response.json({
         ok: true,
         queued,
         message: queued
-          ? `${queued.toLocaleString("el-GR")} brands μπήκαν στην ουρά για Brand Guide enrichment.`
-          : "Δεν βρέθηκαν επιλέξιμα brands για νέα ουρά."
+          ? `${queued.toLocaleString("el-GR")} brands μπήκαν στη λίστα εργασίας για ChatGPT Brand Guide research.`
+          : "Δεν βρέθηκαν επιλέξιμα brands για τη λίστα εργασίας."
       });
     }
 
@@ -215,8 +215,8 @@ export async function POST(request: Request) {
 
     if (action === "queue_guide_enrichment") {
       await adminQueueBrandGuideEnrichment(principal, brandId);
-      await recordAdminAudit(principal, "brand.guide.enrichment_queued", "brand", brandId, "Admin queued Brand Guide enrichment");
-      return Response.json({ ok: true, message: "Το brand μπήκε στην ουρά για Brand Guide enrichment." });
+      await recordAdminAudit(principal, "brand.guide.enrichment_queued", "brand", brandId, "Admin queued Brand Guide for ChatGPT research");
+      return Response.json({ ok: true, message: "Το brand μπήκε στη λίστα εργασίας για ChatGPT Brand Guide research." });
     }
 
     if (action === "retry_enrichment") {
