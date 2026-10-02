@@ -6,6 +6,7 @@ import { publicBrandLogoUrl } from "../lib/brand-logo";
 
 type HomepageBrand = Readonly<{
   name: string;
+  slug: string;
   logoObjectKey: string;
   logoExternalUrl: string;
   productCount: number;
@@ -19,12 +20,14 @@ function safeBrands(payload: HomepageBrandPayload): readonly HomepageBrand[] {
     if (!value || typeof value !== "object") return [];
     const record = value as Record<string, unknown>;
     const name = typeof record.name === "string" ? record.name.trim() : "";
+    const slug = typeof record.slug === "string" ? record.slug.trim() : "";
     const logoObjectKey = typeof record.logoObjectKey === "string" ? record.logoObjectKey.trim() : "";
     const logoExternalUrl = typeof record.logoExternalUrl === "string" ? record.logoExternalUrl.trim() : "";
     const rawCount = Number(record.productCount);
-    if (!name || (!logoObjectKey && !logoExternalUrl)) return [];
+    if (!name || !slug || (!logoObjectKey && !logoExternalUrl)) return [];
     return [{
       name,
+      slug,
       logoObjectKey,
       logoExternalUrl,
       productCount: Number.isFinite(rawCount) && rawCount > 0 ? Math.floor(rawCount) : 0
@@ -43,8 +46,8 @@ function BrandRunnerItem({ brand, duplicate = false }: { brand: HomepageBrand; d
   return (
     <Link
       className="brand-runner-item"
-      href={`/shop?brand=${encodeURIComponent(brand.name)}`}
-      aria-label={duplicate ? undefined : `Δες προϊόντα ${brand.name}`}
+      href={`/brands/${brand.slug}`}
+      aria-label={duplicate ? undefined : `Ανακάλυψε το Brand Guide ${brand.name}`}
       title={duplicate ? undefined : title}
       tabIndex={duplicate ? -1 : undefined}
     >

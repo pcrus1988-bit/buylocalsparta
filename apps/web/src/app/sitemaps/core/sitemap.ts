@@ -8,6 +8,7 @@ import { STOREFRONT_CATEGORIES } from "../../../lib/storefront-taxonomy";
 import { getPublicCmsSitemapEntries } from "../../../lib/public-cms";
 import { EDITORIAL_COLLECTIONS } from "../../../lib/editorial-collections";
 import { getPublicVendorSitemapInventory } from "../../../lib/vendor-sitemap-inventory";
+import { getIndexableBrandGuideSitemapInventory } from "../../../lib/brand-guide-runtime";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,14 @@ function safeLastModified(value: string | undefined): Date | undefined { if (!va
 function cmsLastModified(value: number): Date | undefined { const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? undefined : parsed; }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [{ settings }, overrideSnapshot] = await Promise.all([getSeoGlobalSettingsSnapshot(), getSeoEntityOverridesSnapshot()]);
+  const [{ settings }, overrideSnapshot, brandGuides] = await Promise.all([
+    getSeoGlobalSettingsSnapshot(),
+    getSeoEntityOverridesSnapshot(),
+    getIndexableBrandGuideSitemapInventory().catch((error) => {
+      console.error(JSON.stringify({ level: "error", event: "seo.sitemap_brand_guides_failed", message: String(error) }));
+      return [];
+    })
+  ]);
   if (!settings.indexingEnabled) return [];
   const cmsEntries = settings.sitemap.staticPages ? await getPublicCmsSitemapEntries().catch((error) => { console.error(JSON.stringify({ level: "error", event: "seo.sitemap_cms_failed", message: String(error) })); return []; }) : [];
   const categories = settings.sitemap.categories ? STOREFRONT_CATEGORIES : [];
@@ -34,6 +42,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
   let vendors: Awaited<ReturnType<typeof getPublicVendorSitemapInventory>> | null = null;
   if (settings.sitemap.partnerVendors || settings.sitemap.researchVendors) { try { vendors = await getPublicVendorSitemapInventory(); } catch (error) { console.error(JSON.stringify({ level: "error", event: "seo.sitemap_vendors_failed", message: String(error) })); throw error; } }
-  const entries: MetadataRoute.Sitemap = [...fixed, ...(vendors ? vendors.flatMap((vendor) => { const isPartner = vendor.directoryStatus === "partner"; if (isPartner && !settings.sitemap.partnerVendors) return []; if (!isPartner && !settings.sitemap.researchVendors) return []; const reference: SeoEntityReference = { kind: isPartner ? "partner_vendor" : "research_vendor", id: vendor.id }; const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore }); const { override, control } = governed(reference, isPartner || quality.blockingReasons.length === 0, isPartner || (settings.researchVendorIndexingEnabled && quality.eligible)); return control.sitemapAllowed ? [{ url: absoluteSeoCanonical(origin, reference, override), changeFrequency: isPartner ? "weekly" as const : "monthly" as const, priority: isPartner ? 0.7 : 0.6, lastModified: safeLastModified(override?.lastReviewedAt ?? vendor.research?.checkedAt) }] : []; }) : [])];
+  const brandEntries: MetadataRoute.Sitemap = brandGuides.map((brand) => ({
+    url: new URL(`/brands/${brand.slug}`, `${origin}/`).toString(),
+    changeFrequency: "weekly" as const,
+    priority: 0.72,
+    lastModified: safeLastModified(brand.updatedAt)
+  }));
+  const entries: MetadataRoute.Sitemap = [...fixed, ...brandEntries, ...(vendors ? vendors.flatMap((vendor) => { const isPartner = vendor.directoryStatus === "partner"; if (isPartner && !settings.sitemap.partnerVendors) return []; if (!isPartner && !settings.sitemap.researchVendors) return []; const reference: SeoEntityReference = { kind: isPartner ? "partner_vendor" : "research_vendor", id: vendor.id }; const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore }); const { override, control } = governed(reference, isPartner || quality.blockingReasons.length === 0, isPartner || (settings.researchVendorIndexingEnabled && quality.eligible)); return control.sitemapAllowed ? [{ url: absoluteSeoCanonical(origin, reference, override), changeFrequency: isPartner ? "weekly" as const : "monthly" as const, priority: isPartner ? 0.7 : 0.6, lastModified: safeLastModified(override?.lastReviewedAt ?? vendor.research?.checkedAt) }] : []; }) : [])];
   return [...new Map(entries.map((entry) => [entry.url, entry])).values()];
 }

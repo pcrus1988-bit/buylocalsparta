@@ -4,10 +4,13 @@ import { recordAdminAudit } from "../../../../../lib/admin-runtime";
 import {
   adminBrandIdentity,
   adminQueueBrandEnrichment,
+  adminQueueBrandGuideEnrichment,
   adminRemoveBrandLogo,
   adminSetBrandLogo,
+  adminUpdateBrandGuide,
   adminUpdateBrandWebsite
 } from "../../../../../lib/admin-brand-runtime";
+import { BRAND_GUIDE_STATUSES, type BrandGuideStatus } from "../../../../../lib/brand-guide";
 
 const PROJECT_URL = "https://eemihhfreggbigxejjhj.supabase.co";
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
@@ -16,6 +19,46 @@ function uuid(value: unknown): string {
   const text = String(value ?? "").trim();
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)) throw new Error("Invalid brand id");
   return text;
+}
+
+function boundedText(value: unknown, max: number): string {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+function optionalNumber(value: unknown, min: number, max: number): number | null {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) throw new Error("Invalid numeric brand-guide field");
+  return parsed;
+}
+
+function textList(value: unknown, maxItems = 12): string[] {
+  const input = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[\n,]/)
+      : [];
+  return [...new Set(input.map((item) => boundedText(item, 160)).filter(Boolean))].slice(0, maxItems);
+}
+
+function sourceUrls(value: unknown): readonly Readonly<{ url: string; type: string }>[] {
+  return textList(value, 12).map((item) => {
+    const url = new URL(item);
+    if (url.protocol !== "https:" || url.username || url.password || !url.hostname.includes(".")) throw new Error("Brand Guide sources must be public HTTPS URLs");
+    return { url: url.toString(), type: "official_or_authoritative" };
+  });
+}
+
+function countryCode(value: unknown): string {
+  const text = boundedText(value, 2).toUpperCase();
+  if (text && !/^[A-Z]{2}$/.test(text)) throw new Error("Country must use a two-letter ISO code");
+  return text;
+}
+
+function guideStatus(value: unknown): BrandGuideStatus {
+  const status = String(value ?? "draft") as BrandGuideStatus;
+  if (!BRAND_GUIDE_STATUSES.includes(status)) throw new Error("Invalid Brand Guide status");
+  return status;
 }
 
 function officialWebsite(value: unknown): string | undefined {
@@ -119,17 +162,62 @@ export async function POST(request: Request) {
       await recordAdminAudit(principal, "brand.website.update", "brand", brandId, "Admin updated official brand website", { website: website ?? null });
       return Response.json({ ok: true, message: "Το official website αποθηκεύτηκε." });
     }
+
+    if (action === "save_guide") {
+      const status = guideStatus(body.status);
+      const now = new Date().toISOString();
+      const guidePatch: Record<string, unknown> = {
+        status,
+        seo_indexable: body.seoIndexable === true,
+        founded_year: optionalNumber(body.foundedYear, 1000, new Date().getUTCFullYear()),
+        parent_company: boundedText(body.parentCompany, 200) || null,
+        brand_story: boundedText(body.brandStory, 6000) || null,
+        why_it_stands_out: boundedText(body.whyItStandsOut, 6000) || null,
+        known_for: textList(body.knownFor),
+        signature_products: textList(body.signatureProducts),
+        notable_innovations: textList(body.notableInnovations),
+        primary_categories: textList(body.primaryCategories),
+        product_families: textList(body.productFamilies),
+        style_tags: textList(body.styleTags),
+        audience: textList(body.audience),
+        price_position: boundedText(body.pricePosition, 120) || null,
+        source_urls: sourceUrls(body.sourceUrls),
+        reviewed_at: status === "ready" || status === "published" ? now : null,
+        enrichment_version: "brand-guide-v1"
+      };
+      await adminUpdateBrandGuide(principal, {
+        brandId,
+        description: boundedText(body.description, 1800),
+        countryCode: countryCode(body.countryCode),
+        guidePatch
+      });
+      await recordAdminAudit(principal, "brand.guide.update", "brand", brandId, "Admin updated Brand Guide content", {
+        status,
+        seoIndexableRequested: body.seoIndexable === true,
+        sourceCount: Array.isArray(guidePatch.source_urls) ? guidePatch.source_urls.length : 0
+      });
+      return Response.json({ ok: true, message: "Το Brand Guide αποθηκεύτηκε." });
+    }
+
+    if (action === "queue_guide_enrichment") {
+      await adminQueueBrandGuideEnrichment(principal, brandId);
+      await recordAdminAudit(principal, "brand.guide.enrichment_queued", "brand", brandId, "Admin queued Brand Guide enrichment");
+      return Response.json({ ok: true, message: "Το brand μπήκε στην ουρά για Brand Guide enrichment." });
+    }
+
     if (action === "retry_enrichment") {
       await adminQueueBrandEnrichment(principal, brandId);
       await recordAdminAudit(principal, "brand.logo.retry_requested", "brand", brandId, "Admin requested brand-logo enrichment retry");
-      return Response.json({ ok: true, message: "Το brand μπήκε ξανά σε pending enrichment." });
+      return Response.json({ ok: true, message: "Το brand μπήκε ξανά σε pending logo enrichment." });
     }
+
     if (action === "remove_logo") {
       const brand = await adminBrandIdentity(principal, brandId);
       await adminRemoveBrandLogo(principal, brandId);
       await recordAdminAudit(principal, "brand.logo.remove", "brand", brandId, "Admin removed canonical brand logo from storefront use", { previousObjectKey: brand.logoObjectKey ?? null });
       return Response.json({ ok: true, message: "Το λογότυπο αφαιρέθηκε από τις storefront κάρτες." });
     }
+
     throw new Error("Unknown brand action");
   } catch (error) {
     const message = error instanceof Error ? error.message : "brand_action_failed";

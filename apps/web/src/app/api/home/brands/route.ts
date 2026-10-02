@@ -7,6 +7,7 @@ const BRAND_LIMIT = 24;
 
 type HomepageBrandRow = Readonly<{
   name: string;
+  public_slug: string;
   logo_object_key: string | null;
   logo_external_url: string | null;
   product_count: number | string;
@@ -23,6 +24,7 @@ export async function GET() {
   try {
     const result = await getProductionPostgresRuntime().nativePool.query<HomepageBrandRow>(`
       SELECT b.name,
+             b.public_slug,
              b.logo_object_key,
              b.metadata->>'logo_external_url' AS logo_external_url,
              COUNT(DISTINCT cv.id)::integer AS product_count
@@ -47,19 +49,21 @@ export async function GET() {
             AND v.status = 'active'
             AND l.active = true
         )
-      GROUP BY b.id, b.name, b.logo_object_key, b.metadata
+      GROUP BY b.id, b.name, b.public_slug, b.logo_object_key, b.metadata
       ORDER BY product_count DESC, b.name
       LIMIT $1
     `, [BRAND_LIMIT]);
 
     const brands = result.rows.flatMap((row) => {
       const name = String(row.name ?? "").trim();
+      const slug = String(row.public_slug ?? "").trim();
       const logoObjectKey = String(row.logo_object_key ?? "").trim();
       const logoExternalUrl = String(row.logo_external_url ?? "").trim();
       const productCount = Number(row.product_count);
-      if (!name || (!logoObjectKey && !logoExternalUrl)) return [];
+      if (!name || !slug || (!logoObjectKey && !logoExternalUrl)) return [];
       return [{
         name,
+        slug,
         logoObjectKey,
         logoExternalUrl,
         productCount: Number.isFinite(productCount) && productCount > 0 ? Math.floor(productCount) : 0
