@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, type SportFitProduct } from "./sport-fit-engine.ts";
+import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, sportFitCandidateSupportsRequestedActivity, type SportFitProduct } from "./sport-fit-engine.ts";
 import { canonicalSportBrand, sportSizeGuideBrandKey } from "./sport-fit-brand.ts";
 
 function product(overrides: Partial<SportFitProduct> & Pick<SportFitProduct, "id" | "title" | "categoryCode">): SportFitProduct {
@@ -946,5 +946,32 @@ test("tier-two socks never become a primary match or finalist", () => {
   assert.equal(result.alternatives.length, 0);
   assert.equal(result.ranked.length, 0);
   assert.ok(result.kit.every((item) => item.role !== "footwear"));
+});
+
+test("survivor activity gate uses the same strict court-sport identity as finalist ranking", () => {
+  const genericSneaker = product({
+    id: "generic-court-look",
+    title: "Lifestyle Sneaker",
+    categoryCode: "mens-sneakers",
+    description: "Basketball-inspired streetwear style"
+  });
+  const performanceBasketball = product({
+    id: "basketball-performance",
+    title: "Performance Basketball Shoe",
+    categoryCode: "mens-basketball-shoes",
+    description: "Indoor court training shoe"
+  });
+  const answers = {
+    activity: "basketball" as const,
+    audience: "men" as const,
+    surface: "court_indoor" as const,
+    useCase: "basketball_training" as const
+  };
+
+  assert.equal(sportFitCandidateSupportsRequestedActivity(genericSneaker, answers), false);
+  assert.equal(sportFitCandidateSupportsRequestedActivity(performanceBasketball, answers), true);
+
+  const result = buildSportFitRecommendation([genericSneaker, performanceBasketball], answers);
+  assert.equal(result.primary?.id, "basketball-performance");
 });
 
