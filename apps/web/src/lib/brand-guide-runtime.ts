@@ -232,14 +232,32 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
   const row = brandResult.rows[0];
   if (!row) return undefined;
 
-  const [inventoryResult, categoryResult, relatedResult, products] = await Promise.all([
-    runtime.nativePool.query<{ live_product_count: number | string }>(`
+  // The web runtime intentionally uses a one-client PostgreSQL pool on Vercel.
+  // Running several live Brand Guide queries in Promise.all makes those queries
+  // compete for that single client and can surface as "timeout exceeded when trying
+  // to connect". Keep the critical path sequential and let non-critical discovery
+  // sections degrade independently instead of taking down the whole public page.
+  let liveProductCount = 0;
+  try {
+    const inventoryResult = await runtime.nativePool.query<{ live_product_count: number | string }>(`
       SELECT COUNT(DISTINCT rm.canonical_variant_id)::integer AS live_product_count
       FROM public.storefront_catalog_read_model rm
       WHERE rm.brand_id = $1::uuid
         AND ${liveInventoryPredicate("rm")}
-    `, [row.id]),
-    runtime.nativePool.query<BrandCategoryRow>(`
+    `, [row.id]);
+    liveProductCount = count(inventoryResult.rows[0]?.live_product_count);
+  } catch (error) {
+    console.warn(JSON.stringify({
+      level: "warn",
+      event: "brand_guide.inventory_degraded",
+      slug: cleanSlug,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+  }
+
+  let allCategories: PublicBrandCategory[] = [];
+  try {
+    const categoryResult = await runtime.nativePool.query<BrandCategoryRow>(`
       SELECT
         rm.category_code,
         rm.department_code,
@@ -255,8 +273,20 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
         AND ${liveInventoryPredicate("rm")}
       GROUP BY rm.category_code, rm.department_code, c.slug, el.name, en.name
       ORDER BY product_count DESC, COALESCE(el.name, en.name, c.slug, rm.category_code)
-    `, [row.id]),
-    runtime.nativePool.query<RelatedBrandRow>(`
+    `, [row.id]);
+    allCategories = categoryResult.rows.map((category) => mapCategory(category, row.name));
+  } catch (error) {
+    console.warn(JSON.stringify({
+      level: "warn",
+      event: "brand_guide.categories_degraded",
+      slug: cleanSlug,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+  }
+
+  let relatedBrands: PublicRelatedBrand[] = [];
+  try {
+    const relatedResult = await runtime.nativePool.query<RelatedBrandRow>(`
       WITH target_categories AS MATERIALIZED (
         SELECT DISTINCT rm.category_code
         FROM public.storefront_catalog_read_model rm
@@ -299,13 +329,37 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
       WHERE b.status = 'active'
       ORDER BY o.shared_category_count DESC, t.live_product_count DESC, lower(b.name)
       LIMIT 6
-    `, [row.id]),
-    getCachedCrawlerCatalogCards("23100", "", "", { brand: row.name }, 8).catch(() => [])
-  ]);
+    `, [row.id]);
 
-  const liveProductCount = count(inventoryResult.rows[0]?.live_product_count);
+    relatedBrands = relatedResult.rows.map((related) => ({
+      id: related.id,
+      name: related.name,
+      slug: related.public_slug,
+      logoUrl: publicBrandLogoUrl(related.logo_object_key, related.logo_external_url),
+      sharedCategoryCount: count(related.shared_category_count),
+      liveProductCount: count(related.live_product_count)
+    }));
+  } catch (error) {
+    console.warn(JSON.stringify({
+      level: "warn",
+      event: "brand_guide.related_brands_degraded",
+      slug: cleanSlug,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+  }
+
+  const products = await getCachedCrawlerCatalogCards("23100", "", "", { brand: row.name }, 8)
+    .catch((error) => {
+      console.warn(JSON.stringify({
+        level: "warn",
+        event: "brand_guide.products_degraded",
+        slug: cleanSlug,
+        message: error instanceof Error ? error.message : String(error)
+      }));
+      return [];
+    });
+
   const signals = guideSignals(row, liveProductCount);
-  const allCategories = categoryResult.rows.map((category) => mapCategory(category, row.name));
   const categories = allCategories.slice(0, 10);
 
   return {
@@ -323,14 +377,7 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
     liveProductCount,
     departments: departmentSummaries(allCategories, row.name),
     categories,
-    relatedBrands: relatedResult.rows.map((related) => ({
-      id: related.id,
-      name: related.name,
-      slug: related.public_slug,
-      logoUrl: publicBrandLogoUrl(related.logo_object_key, related.logo_external_url),
-      sharedCategoryCount: count(related.shared_category_count),
-      liveProductCount: count(related.live_product_count)
-    })),
+    relatedBrands,
     products,
     shopHref: brandShopHref(row.name)
   };
