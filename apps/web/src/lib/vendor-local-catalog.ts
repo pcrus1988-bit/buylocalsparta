@@ -18,6 +18,8 @@ type LocalVendorCatalogRow = Readonly<{
   available_to_sell: number | string;
   vendor_id: string;
   vendor_name: string;
+  feed_group_key: string | null;
+  variant_size: string | null;
   preview_image_src: string | null;
   source_code: string | null;
   source_website: string | null;
@@ -73,6 +75,8 @@ async function readVendorLocalCatalogRows(vendorId: string): Promise<readonly Lo
         ) AS available_to_sell,
         v.public_id AS vendor_id,
         COALESCE(NULLIF(v.trading_name,''),v.legal_name) AS vendor_name,
+        feed_item.feed_group_key,
+        feed_item.variant_size,
         media.source_url AS preview_image_src,
         media.source_code,
         media.source_website,
@@ -88,6 +92,17 @@ async function readVendorLocalCatalogRows(vendorId: string): Promise<readonly Lo
       LEFT JOIN categories c ON c.id=cv.category_id
       LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      LEFT JOIN LATERAL (
+        SELECT i.feed_id::text||':'||btrim(i.source_payload->>'itemGroupId') AS feed_group_key,
+               NULLIF(btrim(i.source_payload->>'size'),'') AS variant_size
+        FROM vendor_product_feed_items i
+        WHERE i.vendor_id=v.id
+          AND i.canonical_variant_id=cv.id
+          AND i.state='present'
+          AND NULLIF(btrim(i.source_payload->>'itemGroupId'),'') IS NOT NULL
+        ORDER BY i.last_seen_at DESC,i.updated_at DESC,i.id DESC
+        LIMIT 1
+      ) feed_item ON true
       LEFT JOIN LATERAL (
         SELECT pm.source_url,cs.code AS source_code,cs.website AS source_website
         FROM product_media pm
@@ -127,6 +142,8 @@ async function readVendorLocalCatalogRows(vendorId: string): Promise<readonly Lo
         0::bigint AS available_to_sell,
         v.public_id AS vendor_id,
         COALESCE(NULLIF(v.trading_name,''),v.legal_name) AS vendor_name,
+        NULL::text AS feed_group_key,
+        NULL::text AS variant_size,
         NULL::text AS preview_image_src,
         NULL::text AS source_code,
         NULL::text AS source_website,
@@ -163,7 +180,7 @@ async function readVendorLocalCatalogRows(vendorId: string): Promise<readonly Lo
     )
     SELECT DISTINCT ON (id)
       id,slug,title,category_code,price_minor,available_to_sell,vendor_id,vendor_name,
-      preview_image_src,source_code,source_website
+      feed_group_key,variant_size,preview_image_src,source_code,source_website
     FROM combined
     ORDER BY id,source_rank,updated_at DESC
   `, [vendorId]);
@@ -173,13 +190,95 @@ async function readVendorLocalCatalogRows(vendorId: string): Promise<readonly Lo
 
 const loadVendorLocalCatalogRows = unstable_cache(
   readVendorLocalCatalogRows,
-  ["vendor-local-catalog-rows-v2"],
+  ["vendor-local-catalog-rows-v3"],
   { revalidate: 15 }
 );
 
+type GroupedLocalVendorCatalogRow = LocalVendorCatalogRow & Readonly<{
+  variant_sizes: readonly string[];
+}>;
+
+function decodeNumericTitleEntities(value: string): string {
+  return value.replace(/&#(?:(\\d+)|x([0-9a-f]+));/gi, (match, decimal: string | undefined, hex: string | undefined) => {
+    const codePoint = Number.parseInt(decimal ?? hex ?? "", hex ? 16 : 10);
+    if (!Number.isSafeInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) return match;
+    if (codePoint === 9 || codePoint === 10 || codePoint === 13) return " ";
+    if (codePoint < 32) return "";
+    try {
+      return String.fromCodePoint(codePoint);
+    } catch {
+      return match;
+    }
+  });
+}
+
+function familyCardTitle(title: string, size: string | null): string {
+  const clean = decodeNumericTitleEntities(title).replace(/\\s+/g, " ").trim();
+  if (!size) return clean;
+  const escapedSize = size.replace(/[.*+?^$(){}|[\\]\\\\]/g, "\\const loadVendorLocalCatalogRows = unstable_cache(
+  readVendorLocalCatalogRows,
+  ["vendor-local-catalog-rows-v2"],
+  { revalidate: 15 }
+);
+");
+  return clean.replace(new RegExp("\\s+-\\s+" + escapedSize + "\\s*$", "i"), "").trim();
+}
+
+function preferredFamilyRepresentative(left: LocalVendorCatalogRow, right: LocalVendorCatalogRow): LocalVendorCatalogRow {
+  const leftAvailable = safeMinor(left.available_to_sell) > 0;
+  const rightAvailable = safeMinor(right.available_to_sell) > 0;
+  if (leftAvailable !== rightAvailable) return rightAvailable ? right : left;
+
+  const leftPrice = safeMinor(left.price_minor);
+  const rightPrice = safeMinor(right.price_minor);
+  if (leftPrice !== rightPrice) return rightPrice < leftPrice ? right : left;
+
+  const titleOrder = left.title.localeCompare(right.title, "el", { numeric: true, sensitivity: "base" });
+  if (titleOrder !== 0) return titleOrder <= 0 ? left : right;
+  return left.id <= right.id ? left : right;
+}
+
+/**
+ * XML feed rows remain exact variant-level inventory identities, while the vendor
+ * storefront is family-level discovery. Collapse only rows sharing the same current
+ * feed + item_group_id, so manual products and unrelated canonicals are untouched.
+ */
+function collapseVendorFeedVariants(rows: readonly LocalVendorCatalogRow[]): readonly GroupedLocalVendorCatalogRow[] {
+  const groups = new Map<string, {
+    representative: LocalVendorCatalogRow;
+    availableToSell: number;
+    sizes: Set<string>;
+  }>();
+
+  for (const row of rows) {
+    const key = row.feed_group_key ?? "canonical:" + row.id;
+    const size = row.variant_size?.trim();
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, {
+        representative: row,
+        availableToSell: safeMinor(row.available_to_sell),
+        sizes: new Set(size ? [size] : [])
+      });
+      continue;
+    }
+
+    existing.representative = preferredFamilyRepresentative(existing.representative, row);
+    existing.availableToSell += safeMinor(row.available_to_sell);
+    if (size) existing.sizes.add(size);
+  }
+
+  return [...groups.values()].map(({ representative, availableToSell, sizes }) => ({
+    ...representative,
+    title: familyCardTitle(representative.title, representative.variant_size),
+    available_to_sell: availableToSell,
+    variant_sizes: [...sizes].sort((left, right) => left.localeCompare(right, "el", { numeric: true, sensitivity: "base" }))
+  }));
+}
+
 async function hydrateVendorLocalCatalogRows(
   vendorId: string,
-  rows: readonly LocalVendorCatalogRow[]
+  rows: readonly GroupedLocalVendorCatalogRow[]
 ): Promise<readonly CatalogCard[]> {
   if (rows.length === 0) return [];
 
@@ -235,7 +334,7 @@ async function hydrateVendorLocalCatalogRows(
       brand: details?.brand,
       brandLogoObjectKey: details?.brandLogoObjectKey,
       color: details?.color,
-      sizes: details?.sizes ?? [],
+      sizes: row.variant_sizes.length ? row.variant_sizes : details?.sizes ?? [],
       fit: details?.fit,
       composition: details?.composition,
       madeIn: details?.madeIn,
@@ -270,7 +369,7 @@ async function readVendorLocalCatalogPage(
   limit: number,
   availableOnly: boolean
 ): Promise<VendorLocalCatalogPage> {
-  const rows = await loadVendorLocalCatalogRows(vendorId);
+  const rows = collapseVendorFeedVariants(await loadVendorLocalCatalogRows(vendorId));
   const filtered = availableOnly
     ? rows.filter((row) => safeMinor(row.available_to_sell) > 0)
     : rows;
@@ -285,7 +384,7 @@ async function readVendorLocalCatalogPage(
 
 const cachedVendorLocalCatalogPage = unstable_cache(
   readVendorLocalCatalogPage,
-  ["vendor-local-catalog-page-v1"],
+  ["vendor-local-catalog-page-v2"],
   { revalidate: 15 }
 );
 
@@ -299,7 +398,7 @@ export async function getVendorLocalCatalogPage(
 }
 
 export async function getVendorLocalCatalogFacetCards(vendorId: string): Promise<readonly CatalogCard[]> {
-  const rows = await loadVendorLocalCatalogRows(vendorId);
+  const rows = collapseVendorFeedVariants(await loadVendorLocalCatalogRows(vendorId));
   if (rows.length === 0) return [];
 
   const ids = rows.map((row) => row.id);
@@ -330,7 +429,7 @@ export async function getVendorLocalCatalogFacetCards(vendorId: string): Promise
       brand: details?.brand,
       brandLogoObjectKey: details?.brandLogoObjectKey,
       color: details?.color,
-      sizes: details?.sizes ?? [],
+      sizes: row.variant_sizes.length ? row.variant_sizes : details?.sizes ?? [],
       fit: details?.fit,
       composition: details?.composition,
       madeIn: details?.madeIn,
@@ -343,6 +442,6 @@ export async function getVendorLocalCatalogFacetCards(vendorId: string): Promise
 }
 
 export async function getVendorLocalCatalogCards(vendorId: string): Promise<readonly CatalogCard[]> {
-  const rows = await loadVendorLocalCatalogRows(vendorId);
+  const rows = collapseVendorFeedVariants(await loadVendorLocalCatalogRows(vendorId));
   return hydrateVendorLocalCatalogRows(vendorId, rows);
 }
