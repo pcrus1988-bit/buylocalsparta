@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { productPublicPath } from "../lib/product-url";
 import styles from "./SportFitWebGLUniverse.module.css";
 
 export type SportFitUniverseVisualProduct = Readonly<{
@@ -47,6 +49,7 @@ const MAX_MOBILE_NODES = 42;
 const ATLAS_GRID = 8;
 const ATLAS_CELL = 128;
 const ATLAS_SIZE = ATLAS_GRID * ATLAS_CELL;
+const EURO_FORMATTER = new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" });
 
 const VERTEX_SHADER = `
 precision highp float;
@@ -310,6 +313,82 @@ function browserProductImageSrc(product: SportFitUniverseVisualProduct): string 
   return product.previewImageSrc || atlasProxySrc(product);
 }
 
+function ProductPopup({
+  product,
+  onClose
+}: {
+  product: SportFitUniverseVisualProduct;
+  onClose: () => void;
+}) {
+  const imageSrc = browserProductImageSrc(product);
+  return (
+    <div
+      className={styles.popupBackdrop}
+      role="presentation"
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <article
+        className={styles.popupCard}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sport-fit-product-popup-title"
+      >
+        <button
+          type="button"
+          className={styles.popupClose}
+          aria-label="Κλείσιμο κάρτας προϊόντος"
+          onClick={onClose}
+          autoFocus
+        >
+          ×
+        </button>
+
+        <div className={styles.popupVisual}>
+          <img
+            src={imageSrc}
+            alt={product.title}
+            decoding="async"
+            loading="eager"
+            referrerPolicy={product.previewImageSrc?.startsWith("https://") ? "strict-origin-when-cross-origin" : undefined}
+          />
+          <div className={styles.popupOrbit} aria-hidden="true"><span /><i /></div>
+        </div>
+
+        <div className={styles.popupCopy}>
+          <span className={styles.popupKicker}>{product.brand || product.categoryLabel || "SPORT & FIT"}</span>
+          <h2 id="sport-fit-product-popup-title">{product.title}</h2>
+
+          <div className={styles.popupFacts}>
+            <strong>{EURO_FORMATTER.format(product.priceMinor / 100)}</strong>
+            {typeof product.score === "number" ? <b>{product.score}% match</b> : null}
+            {product.matchedSize ? <small>EU {product.matchedSize}</small> : null}
+          </div>
+
+          {product.reasons?.length ? (
+            <div className={styles.popupReasons}>
+              <span>ΓΙΑΤΙ ΠΑΡΑΜΕΝΕΙ ΣΤΟ ΠΕΔΙΟ</span>
+              <ul>{product.reasons.slice(0, 4).map((reason) => <li key={reason}>{reason}</li>)}</ul>
+            </div>
+          ) : (
+            <p className={styles.popupHint}>
+              Αυτό το προϊόν παραμένει ορατό με βάση τα φίλτρα και τους κανόνες που έχεις επιλέξει μέχρι τώρα.
+            </p>
+          )}
+
+          <div className={styles.popupActions}>
+            <Link href={productPublicPath(product)} prefetch={false}>
+              Δες το προϊόν <span>→</span>
+            </Link>
+            <button type="button" onClick={onClose}>Συνέχισε στο σύμπαν</button>
+          </div>
+        </div>
+      </article>
+    </div>
+  );
+}
+
 async function buildAtlas(products: readonly SportFitUniverseVisualProduct[]): Promise<HTMLCanvasElement> {
   const atlas = document.createElement("canvas");
   atlas.width = ATLAS_SIZE;
@@ -406,8 +485,10 @@ export function SportFitWebGLUniverse({
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchDistanceRef = useRef<number | undefined>(undefined);
   const hoveredIdRef = useRef<string | undefined>(undefined);
+  const openedIdRef = useRef<string | undefined>(undefined);
   const spriteRefs = useRef(new Map<string, HTMLSpanElement>());
   const [hoveredId, setHoveredId] = useState<string>();
+  const [openedId, setOpenedId] = useState<string>();
   const [webglUnavailable, setWebglUnavailable] = useState(false);
   const [atlasReady, setAtlasReady] = useState(false);
 
@@ -422,6 +503,23 @@ export function SportFitWebGLUniverse({
     () => products.find((product) => product.id === hoveredId) ?? products.find((product) => product.id === selectedId),
     [hoveredId, products, selectedId]
   );
+
+  const openedProduct = useMemo(
+    () => products.find((product) => product.id === openedId),
+    [openedId, products]
+  );
+
+  useEffect(() => {
+    openedIdRef.current = openedId;
+    if (!openedId) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpenedId(undefined);
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [openedId]);
 
   useEffect(() => {
     productsRef.current = visibleProducts;
@@ -610,7 +708,7 @@ export function SportFitWebGLUniverse({
       const dt = Math.min(0.05, Math.max(0.001, (now - lastTime) / 1000));
       lastTime = now;
 
-      if (!reduceMotion && !dragRef.current && mode === "cloud") {
+      if (!reduceMotion && !dragRef.current && !openedIdRef.current && mode === "cloud") {
         yawRef.current += dt * 0.035;
       }
 
@@ -816,6 +914,8 @@ export function SportFitWebGLUniverse({
       if (id) {
         setHoveredId(id);
         hoveredIdRef.current = id;
+        setOpenedId(id);
+        openedIdRef.current = id;
         onSelect?.(id);
       }
     }
@@ -828,13 +928,24 @@ export function SportFitWebGLUniverse({
 
   if (webglUnavailable) {
     return (
-      <div className={styles.fallback} role="img" aria-label="Product universe fallback">
-        {visibleProducts.slice(0, 20).map((product) => (
-          <button type="button" key={product.id} onClick={() => onSelect?.(product.id)}>
-            <img src={atlasProxySrc(product)} alt="" loading="lazy" />
-            <span>{product.brand || product.title}</span>
-          </button>
-        ))}
+      <div className={styles.stage}>
+        <div className={styles.fallback} role="img" aria-label="Product universe fallback">
+          {visibleProducts.slice(0, 20).map((product) => (
+            <button
+              type="button"
+              key={product.id}
+              onClick={() => {
+                setOpenedId(product.id);
+                openedIdRef.current = product.id;
+                onSelect?.(product.id);
+              }}
+            >
+              <img src={browserProductImageSrc(product)} alt="" loading="lazy" />
+              <span>{product.brand || product.title}</span>
+            </button>
+          ))}
+        </div>
+        {openedProduct ? <ProductPopup product={openedProduct} onClose={() => setOpenedId(undefined)} /> : null}
       </div>
     );
   }
@@ -844,7 +955,7 @@ export function SportFitWebGLUniverse({
       <canvas
         ref={canvasRef}
         className={styles.canvas}
-        aria-label="Interactive 3D product universe. Drag to rotate, pinch or wheel to zoom, and tap a product to focus it."
+        aria-label="Interactive 3D product universe. Drag to rotate, pinch or wheel to zoom, and tap a product to open its product card."
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={finishPointer}
@@ -896,10 +1007,12 @@ export function SportFitWebGLUniverse({
       <div className={styles.controls}>
         <span>DRAG · ROTATE</span>
         <span>PINCH/WHEEL · ZOOM</span>
-        <span>TAP · FOCUS</span>
+        <span>TAP · OPEN CARD</span>
       </div>
 
       {busy ? <div className={styles.scanning}><i /><span>RECALCULATING MATCH SPACE</span></div> : null}
+
+      {openedProduct ? <ProductPopup product={openedProduct} onClose={() => setOpenedId(undefined)} /> : null}
 
       {hoveredProduct ? (
         <div className={styles.productHud}>
