@@ -23,7 +23,7 @@ import {
   type ColorProductType
 } from "../lib/color-finder";
 import type { ColorFinderContext } from "../lib/color-finder-context";
-import { ColorSpatialUniverse } from "./ColorSpatialUniverse";
+import { ColorLabScene } from "./ColorLabScene";
 import styles from "./ColorFinderExperience.module.css";
 
 type FinishFilter = "all" | ColorFinish;
@@ -765,7 +765,7 @@ export function ColorFinderExperience({
             <span>Βρες αυτό που σου ταιριάζει</span>
           </div>
 
-          <ColorSpatialUniverse
+          <ColorLabScene
             selectedHex={selectedHex}
             selectedLabel={selectedShade.label}
             studioLabel={context.studioLabel}
