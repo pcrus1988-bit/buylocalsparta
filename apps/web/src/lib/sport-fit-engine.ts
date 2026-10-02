@@ -747,6 +747,16 @@ function kitSelectionEligible(
   );
   if (activityRequirement?.status === "conflict") return false;
 
+  const hasGovernedKitMatch = product.technicalRequirements.some((item) =>
+    item.status === "match"
+    && item.id !== "requirement.stock"
+    && (
+      item.id.startsWith("requirement.kit_")
+      || item.id.startsWith("requirement.sock_")
+    )
+  );
+  if (!hasGovernedKitMatch) return false;
+
   if (product.role === "socks" && answers.size && product.sizes.length > 0) {
     const requestedNumeric = Number(
       normalize(answers.size).replace(/^eu\s*/, "").replace(",", ".")
