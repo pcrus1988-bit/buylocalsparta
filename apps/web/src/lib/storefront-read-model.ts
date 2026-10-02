@@ -129,6 +129,113 @@ const FAMILY_FILTER_SQL = `
   AND ($9::bigint IS NULL OR fm.min_price_minor <= $9)
 `;
 
+async function getLiveLocalSearchGapWindow(
+  input: StorefrontReadModelWindowInput
+): Promise<readonly StorefrontReadModelCandidate[]> {
+  const cleanQuery = input.query?.trim() ?? "";
+  if (!cleanQuery) return [];
+  const result = await getProductionPostgresRuntime().nativePool.query<StorefrontReadModelCandidate>(`
+    WITH RECURSIVE category_tree AS (
+      SELECT c.id,c.parent_id,c.code,c.code AS department_code
+      FROM public.categories c
+      JOIN public.markets m ON m.id=c.market_id
+      WHERE m.code='sparta' AND c.parent_id IS NULL
+
+      UNION ALL
+
+      SELECT child.id,child.parent_id,child.code,parent.department_code
+      FROM public.categories child
+      JOIN category_tree parent ON child.parent_id=parent.id
+    ), live_rm AS (
+      SELECT DISTINCT ON (cv.id)
+        cv.public_id AS canonical_public_id,
+        c.code AS category_code,
+        tree.department_code,
+        COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+        NULLIF(BTRIM(COALESCE(b.name,pfb.name,'')),'') AS brand_name,
+        cv.gtin,
+        cv.mpn,
+        lower(COALESCE(
+          el.specifications->>'color',
+          en.specifications->>'color',
+          cv.variant_attributes->>'color',
+          ''
+        )) AS color,
+        COALESCE(
+          el.specifications->'sizes',
+          en.specifications->'sizes',
+          cv.variant_attributes->'sizes_observed',
+          '[]'::jsonb
+        ) AS sizes,
+        lower(COALESCE(el.specifications->>'fit',en.specifications->>'fit','')) AS fit,
+        vo.customer_price_minor AS min_price_minor,
+        cv.created_at,
+        to_tsvector(
+          'simple',
+          concat_ws(
+            ' ',
+            COALESCE(el.title,en.title,cv.model,cv.slug),
+            COALESCE(b.name,pfb.name,''),
+            COALESCE(cv.gtin,''),
+            COALESCE(cv.mpn,''),
+            c.code,
+            tree.department_code
+          )
+        ) AS search_vector
+      FROM public.canonical_variants cv
+      JOIN public.markets m ON m.id=cv.market_id AND m.code='sparta'
+      JOIN public.categories c ON c.id=cv.category_id
+      JOIN category_tree tree ON tree.id=cv.category_id
+      JOIN public.vendor_offers vo ON vo.canonical_variant_id=cv.id
+      JOIN public.vendor_businesses v ON v.id=vo.vendor_id
+      JOIN public.vendor_locations l ON l.id=vo.location_id
+      JOIN public.inventory_balances ib ON ib.offer_id=vo.id
+      LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+      LEFT JOIN public.product_families pf ON pf.id=cv.family_id
+      LEFT JOIN public.brands b ON b.id=COALESCE(cv.brand_id,pf.brand_id)
+      LEFT JOIN public.product_translations el
+        ON el.canonical_variant_id=cv.id AND el.locale='el'
+      LEFT JOIN public.product_translations en
+        ON en.canonical_variant_id=cv.id AND en.locale='en'
+      LEFT JOIN public.storefront_catalog_read_model projected
+        ON projected.canonical_variant_id=cv.id
+      WHERE projected.canonical_variant_id IS NULL
+        AND dso.id IS NULL
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
+        AND cv.active=true
+        AND cv.suppressed=false
+        AND cv.recalled=false
+        AND vo.status='approved'
+        AND vo.merchant_visible=true
+        AND vo.merchant_pause_active=false
+        AND vo.customer_price_minor>0
+        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+        AND 'pickup'::fulfilment_mode=ANY(vo.fulfilment_modes)
+        AND v.status='active'
+        AND l.active=true
+        AND GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)>=1
+        AND ib.stock_confirmed_at IS NOT NULL
+        AND ib.stock_confirmed_at+make_interval(secs=>ib.freshness_ttl_seconds)>now()
+        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+      ORDER BY cv.id,vo.customer_price_minor ASC,vo.updated_at DESC
+    )
+    SELECT
+      rm.canonical_public_id,
+      rm.department_code,
+      COUNT(*) OVER() AS total_count
+    FROM live_rm rm
+    WHERE true
+      ${FILTER_SQL}
+    ORDER BY
+      CASE WHEN $10::text='price-asc' THEN rm.min_price_minor END ASC,
+      CASE WHEN $10::text='price-desc' THEN rm.min_price_minor END DESC,
+      CASE WHEN $10::text NOT IN ('price-asc','price-desc') THEN rm.created_at END DESC,
+      rm.canonical_public_id
+    LIMIT $11 OFFSET $12
+  `, parameters(input));
+  return result.rows;
+}
+
 /**
  * Candidate discovery only. Personalized vendor assignment deliberately happens
  * after this function has reduced the catalogue to a small page-sized window.
@@ -153,7 +260,12 @@ export async function getLocalStorefrontReadModelWindow(
       rm.canonical_public_id
     LIMIT $11 OFFSET $12
   `, parameters(input));
-  return result.rows;
+  if (result.rows.length || !(input.query?.trim())) return result.rows;
+
+  // The precomputed projection can lag behind a just-approved local vendor feed.
+  // Search only (never broad browse) gets a bounded live gap lookup so newly
+  // sellable products remain discoverable while the projection refresh catches up.
+  return getLiveLocalSearchGapWindow(input);
 }
 
 function dropshipSort(sort?: string, alias = "fm"): string {
