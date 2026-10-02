@@ -424,7 +424,7 @@ const loadPersistedPublicVendorDirectoryEntry = unstable_cache(
     const fallback = fallbackImages[0];
     return fallback ? { ...vendor, mediaId: fallback.mediaId, mediaAlt: fallback.altText } : vendor;
   },
-  ["public-vendor-directory-entry-v3"],
+  ["public-vendor-directory-entry-v4"],
   { revalidate: 60 }
 );
 
