@@ -263,7 +263,7 @@ function collapseVendorFeedVariants(rows: readonly LocalVendorCatalogRow[]): rea
     }
 
     existing.representative = preferredFamilyRepresentative(existing.representative, row);
-    existing.availableToSell += safeMinor(row.available_to_sell);
+    existing.availableToSell = Math.max(existing.availableToSell, safeMinor(row.available_to_sell));
     if (size) existing.sizes.add(size);
   }
 
