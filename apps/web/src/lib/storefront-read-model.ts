@@ -21,6 +21,8 @@ export type StorefrontReadModelWindowInput = Readonly<{
   sort?: string;
   limit: number;
   offset: number;
+  /** Crawler-only reads can skip expensive diversity ranking while keeping shopper browse unchanged. */
+  diversify?: boolean;
 }>;
 
 export type StorefrontReadModelCandidate = Readonly<{
@@ -262,6 +264,69 @@ export async function getDropshipStorefrontReadModelWindow(
     input.offset,
     HOT_SYMPHONYA_FAMILY_CAP
   ];
+
+  // Googlebot/homepage projections do not need shopper-facing diversity ranking.
+  // Apply filters before UNION and LIMIT so filtered crawler reads never materialize
+  // and window-rank the entire live dropship family projection.
+  if (input.diversify === false && HOT_SYMPHONYA_FAMILY_CAP === 0) {
+    const fastResult = await pool.query<StorefrontDropshipFamilyCandidate>(`
+      WITH filtered_stable AS MATERIALIZED (
+        SELECT
+          fm.dropship_supplier_id,
+          fm.dropship_external_product_id,
+          fm.available_until,
+          fm.newest_at,
+          fm.min_price_minor,
+          fm.category_codes,
+          fm.department_codes,
+          fm.brand_names,
+          fm.colors,
+          fm.fits,
+          fm.sizes_text,
+          fm.search_vector
+        FROM public.storefront_dropship_family_read_model fm
+        WHERE fm.available_until>now()
+          AND NOT EXISTS (
+            SELECT 1
+            FROM bls_private.storefront_dropship_live_family live_shadow
+            WHERE live_shadow.supplier_id=fm.dropship_supplier_id::uuid
+              AND live_shadow.external_product_id=fm.dropship_external_product_id
+              AND live_shadow.available_until>now()
+          )
+          ${FAMILY_FILTER_SQL}
+      ), filtered_live AS MATERIALIZED (
+        SELECT
+          fm.supplier_id::text AS dropship_supplier_id,
+          fm.external_product_id AS dropship_external_product_id,
+          fm.available_until,
+          fm.newest_at,
+          fm.min_price_minor,
+          fm.category_codes,
+          fm.department_codes,
+          fm.brand_names,
+          fm.colors,
+          fm.fits,
+          fm.sizes_text,
+          fm.search_vector
+        FROM bls_private.storefront_dropship_live_family fm
+        WHERE fm.sellable=true
+          AND fm.available_until>now()
+          ${FAMILY_FILTER_SQL}
+      ), filtered_combined AS (
+        SELECT * FROM filtered_stable
+        UNION ALL
+        SELECT * FROM filtered_live
+      )
+      SELECT
+        fm.dropship_supplier_id AS supplier_id,
+        fm.dropship_external_product_id AS external_product_id
+      FROM filtered_combined fm
+      ORDER BY ${orderBy}
+      LIMIT ($10::integer + 1) OFFSET $11
+    `, familyFilterParameters.slice(0, 11));
+    return dropshipPageWithSentinel(fastResult.rows, input);
+  }
+
   const result = await pool.query<StorefrontDropshipFamilyCandidate>(`
     WITH RECURSIVE category_tree AS (
       SELECT
