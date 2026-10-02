@@ -121,6 +121,61 @@ INSERT INTO _sport_326_seed VALUES
   NULL,
   NULL,
   'Exact adidas IC1299 page explicitly lists low-cut construction and light/thin feel. The product is positioned for everyday sneaker use, so no sport activity, thermal level, compression level or cushioning level is inferred.'
+),
+(
+  'KQ6773',
+  'adidas_3_stripes_cushioned_crew_kq6773_official',
+  '3-Stripes Cushioned Crew Socks 3 Pair Pack · KQ6773',
+  'https://www.adidas.ch/en/3-stripes-cushioned-crew-socks-3-pair-pack/KQ6773.html',
+  NULL,
+  'crew',
+  NULL,
+  true,
+  'Exact adidas KQ6773 page lists crew length and fitted arch support. Adidas regional pages classify this exact code differently between Gym & Training and Lifestyle, so no sport_activity value is published from category placement.'
+),
+(
+  'KQ9439',
+  'adidas_cushioned_sportswear_crew_kq9439_official',
+  'CUSHIONED SPORTSWEAR CREW SOCKS 3 PAIR PACK · KQ9439',
+  'https://www.adidas.de/en/cushioned-sportswear-crew-socks-3-pair-pack/KQ9439.html',
+  'gym_training',
+  'crew',
+  NULL,
+  true,
+  'Exact adidas KQ9439 page lists Gym & Training classification, crew length and fitted arch support and explicitly describes gym use. Generic cushioned-footbed wording is not converted into a controlled cushioning intensity.'
+),
+(
+  'KQ9227',
+  'adidas_cushioned_sportswear_ankle_kq9227_official',
+  'CUSHIONED SPORTSWEAR ANKLE SOCKS 3 PAIR PACK · KQ9227',
+  'https://www.adidas.com/kw/en/cushioned-sportswear-ankle-socks-3-pair-pack/KQ9227.html',
+  NULL,
+  'ankle',
+  NULL,
+  true,
+  'Exact adidas KQ9227 page lists ankle length and arch support for active kids. The page describes daily activity rather than a specific governed sport, so no sport_activity value is inferred.'
+),
+(
+  'KQ9229',
+  'adidas_cushioned_sportswear_crew_kq9229_official',
+  'CUSHIONED SPORTSWEAR CREW SOCKS 3 PAIR PACK · KQ9229',
+  'https://www.adidas.ch/en/cushioned-sportswear-crew-socks-3-pair-pack/KQ9229.html',
+  NULL,
+  'crew',
+  NULL,
+  true,
+  'Exact adidas KQ9229 page lists crew length and arch support. Customer-review use cases are not treated as manufacturer sport evidence, so no sport_activity value is inferred.'
+),
+(
+  'KX1277',
+  'adidas_linear_crew_cushioned_kx1277_official',
+  'Linear Crew Cushioned Socks 3 Pairs · KX1277',
+  'https://www.adidas.co.uk/linear-crew-cushioned-socks-3-pairs/KX1277.html',
+  'gym_training',
+  'crew',
+  NULL,
+  NULL,
+  'Exact adidas KX1277 page lists crew length and describes the socks as workout-ready, with a Training & Gym merchandising path. Gym suitability is normalized; generic cushioning wording is not converted into an intensity.'
 );
 
 INSERT INTO public.sport_knowledge_sources(
@@ -141,7 +196,8 @@ SELECT
     'doNotInferCushioningIntensity',true,
     'doNotInferBreathabilityLevel',true,
     'doNotInferThermalFromThinLight',true,
-    'doNotMapMidCutWithoutControlledRule',true
+    'doNotMapMidCutWithoutControlledRule',true,
+    'doNotInferActivityFromConflictingRegionalClassification',true
   )
 FROM _sport_326_seed
 ON CONFLICT (source_key) DO UPDATE SET
@@ -424,13 +480,13 @@ BEGIN
   FROM public.sport_knowledge_sources s
   JOIN _sport_326_seed seed ON seed.source_key=s.source_key
   WHERE s.active;
-  IF v_sources<>9 THEN
-    RAISE EXCEPTION 'Expected nine active adidas sock sources in migration 326, found %',v_sources;
+  IF v_sources<>14 THEN
+    RAISE EXCEPTION 'Expected fourteen active adidas sock sources in migration 326, found %',v_sources;
   END IF;
 
   SELECT count(DISTINCT family_id) INTO v_families FROM _sport_326_family;
-  IF v_families<>9 THEN
-    RAISE EXCEPTION 'Expected nine canonical adidas sock families in migration 326, found %',v_families;
+  IF v_families<>14 THEN
+    RAISE EXCEPTION 'Expected fourteen canonical adidas sock families in migration 326, found %',v_families;
   END IF;
 
   SELECT count(*) INTO v_gym
@@ -440,9 +496,9 @@ BEGIN
   JOIN _sport_326_family f ON f.family_id=pfav.family_id
   WHERE ad.code='sport_activity'
     AND av.code='gym_training'
-    AND f.style_code IN ('JZ0529','KC9613','KC9614','JD9568','JC6453','IC1303');
-  IF v_gym<>6 THEN
-    RAISE EXCEPTION 'Expected six verified gym-training sock facts in migration 326, found %',v_gym;
+    AND f.style_code IN ('JZ0529','KC9613','KC9614','JD9568','JC6453','IC1303','KQ9439','KX1277');
+  IF v_gym<>8 THEN
+    RAISE EXCEPTION 'Expected eight verified gym-training sock facts in migration 326, found %',v_gym;
   END IF;
 
   SELECT count(*) INTO v_heights
@@ -455,9 +511,11 @@ BEGIN
       (f.style_code IN ('KC9613','KC9614','IC1303') AND av.code='ankle')
       OR (f.style_code IN ('KC9628','IC1299') AND av.code='low_cut')
       OR (f.style_code IN ('JD9568','JC6453','IC1294') AND av.code='quarter')
+      OR (f.style_code IN ('KQ6773','KQ9439','KQ9229','KX1277') AND av.code='crew')
+      OR (f.style_code='KQ9227' AND av.code='ankle')
     );
-  IF v_heights<>8 THEN
-    RAISE EXCEPTION 'Expected eight verified controlled sock-height facts in migration 326, found %',v_heights;
+  IF v_heights<>13 THEN
+    RAISE EXCEPTION 'Expected thirteen verified controlled sock-height facts in migration 326, found %',v_heights;
   END IF;
 
   SELECT count(*) INTO v_arch
@@ -466,9 +524,9 @@ BEGIN
   JOIN _sport_326_family f ON f.family_id=pfav.family_id
   WHERE ad.code='sock_arch_support'
     AND pfav.boolean_value=true
-    AND f.style_code IN ('JZ0529','KC9613','KC9614','KC9628','JD9568','JC6453');
-  IF v_arch<>6 THEN
-    RAISE EXCEPTION 'Expected explicit arch support for six adidas sock families, found %',v_arch;
+    AND f.style_code IN ('JZ0529','KC9613','KC9614','KC9628','JD9568','JC6453','KQ6773','KQ9439','KQ9227','KQ9229');
+  IF v_arch<>10 THEN
+    RAISE EXCEPTION 'Expected explicit arch support for ten adidas sock families, found %',v_arch;
   END IF;
 
   SELECT count(*) INTO v_moisture
