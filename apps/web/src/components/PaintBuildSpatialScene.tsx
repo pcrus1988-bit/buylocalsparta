@@ -223,31 +223,34 @@ export function PaintBuildSpatialScene({ module, progress = 0, accent = "#CBB27A
     let disposed = false;
 
     try {
-      activeProgram = program(gl);
+      const createdProgram = program(gl);
+      activeProgram = createdProgram;
       const scene = buildProject(module, progress);
-      lineBuffer = gl.createBuffer();
-      pointBuffer = gl.createBuffer();
-      if (!lineBuffer || !pointBuffer) throw new Error("paint_build_buffer_create_failed");
+      const createdLineBuffer = gl.createBuffer();
+      const createdPointBuffer = gl.createBuffer();
+      if (!createdLineBuffer || !createdPointBuffer) throw new Error("paint_build_buffer_create_failed");
+      lineBuffer = createdLineBuffer;
+      pointBuffer = createdPointBuffer;
 
-      const vertexLocation = gl.getAttribLocation(activeProgram,"a_vertex");
-      const yawLocation = gl.getUniformLocation(activeProgram,"u_yaw");
-      const pitchLocation = gl.getUniformLocation(activeProgram,"u_pitch");
-      const cameraLocation = gl.getUniformLocation(activeProgram,"u_camera");
-      const aspectLocation = gl.getUniformLocation(activeProgram,"u_aspect");
-      const dprLocation = gl.getUniformLocation(activeProgram,"u_dpr");
-      const timeLocation = gl.getUniformLocation(activeProgram,"u_time");
-      const accentLocation = gl.getUniformLocation(activeProgram,"u_accent");
-      const resultLocation = gl.getUniformLocation(activeProgram,"u_result");
+      const vertexLocation = gl.getAttribLocation(createdProgram,"a_vertex");
+      const yawLocation = gl.getUniformLocation(createdProgram,"u_yaw");
+      const pitchLocation = gl.getUniformLocation(createdProgram,"u_pitch");
+      const cameraLocation = gl.getUniformLocation(createdProgram,"u_camera");
+      const aspectLocation = gl.getUniformLocation(createdProgram,"u_aspect");
+      const dprLocation = gl.getUniformLocation(createdProgram,"u_dpr");
+      const timeLocation = gl.getUniformLocation(createdProgram,"u_time");
+      const accentLocation = gl.getUniformLocation(createdProgram,"u_accent");
+      const resultLocation = gl.getUniformLocation(createdProgram,"u_result");
       const [r,g,b] = hexToRgb(accent);
       const dprCap = qualityTier === "high" ? 1.6 : qualityTier === "balanced" ? 1.35 : 1;
 
-      gl.useProgram(activeProgram);
+      gl.useProgram(createdProgram);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
 
-      gl.bindBuffer(gl.ARRAY_BUFFER,lineBuffer);
+      gl.bindBuffer(gl.ARRAY_BUFFER,createdLineBuffer);
       gl.bufferData(gl.ARRAY_BUFFER,scene.lines,gl.STATIC_DRAW);
-      gl.bindBuffer(gl.ARRAY_BUFFER,pointBuffer);
+      gl.bindBuffer(gl.ARRAY_BUFFER,createdPointBuffer);
       gl.bufferData(gl.ARRAY_BUFFER,scene.points,gl.STATIC_DRAW);
 
       const resize=()=>{
@@ -276,7 +279,7 @@ export function PaintBuildSpatialScene({ module, progress = 0, accent = "#CBB27A
         const dpr=Math.min(window.devicePixelRatio||1,dprCap);
         gl.clearColor(0,0,0,0);
         gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.useProgram(activeProgram);
+        gl.useProgram(createdProgram);
         gl.uniform1f(yawLocation,reducedMotion ? -0.05 : -0.06+Math.sin(time*.00018)*.045);
         gl.uniform1f(pitchLocation,-0.055);
         gl.uniform1f(cameraLocation,11.2);
@@ -286,9 +289,9 @@ export function PaintBuildSpatialScene({ module, progress = 0, accent = "#CBB27A
         gl.uniform3f(accentLocation,r,g,b);
         gl.uniform1f(resultLocation,result?1:0);
 
-        bind(lineBuffer);
+        bind(createdLineBuffer);
         gl.drawArrays(gl.LINES,0,scene.lines.length/4);
-        bind(pointBuffer);
+        bind(createdPointBuffer);
         gl.drawArrays(gl.POINTS,0,scene.points.length/4);
 
         if(!reducedMotion) frameRef.current=requestAnimationFrame(render);
