@@ -2,16 +2,20 @@ import type {
   SportFitAnswers,
   SportFitProduct,
   SportProductRole,
-  SportSurface
+  SportSurface,
+  SportFitTechnicalRequirement
 } from "./sport-fit-engine.ts";
 
-export const SPORT_FIT_RULESET_VERSION = "2026-10-02.2";
+export const SPORT_FIT_RULESET_VERSION = "2026-10-02.3";
 
 export type SportFitRuleEvaluation = Readonly<{
   eligible: boolean;
   adjustment: number;
   reasons: readonly string[];
   ruleIds: readonly string[];
+  technicalScore: number;
+  technicalCoverage: number;
+  technicalRequirements: readonly SportFitTechnicalRequirement[];
   rejectionReason?: string;
 }>;
 
@@ -30,6 +34,207 @@ function values(values: readonly string[] | undefined): ReadonlySet<string> {
 
 function includesAny(actual: ReadonlySet<string>, expected: readonly string[]): boolean {
   return expected.some((item) => actual.has(normalize(item)));
+}
+
+
+type MutableRuleState = {
+  adjustment: number;
+  reasons: string[];
+  ruleIds: string[];
+  technicalRequirements: SportFitTechnicalRequirement[];
+};
+
+function requestedActivityValues(answers: SportFitAnswers): readonly string[] {
+  if (answers.activity === "gym") {
+    return answers.gymTrainingType === "treadmill"
+      ? ["gym_training", "general_training", "running"]
+      : ["gym_training", "general_training"];
+  }
+  if (answers.activity === "walking" && (answers.surface === "trail" || answers.surface === "mixed")) {
+    return ["walking", "hiking"];
+  }
+  if (answers.activity === "football") return ["football", "team_sports"];
+  if (answers.activity === "basketball") return ["basketball"];
+  if (answers.activity === "tennis") return ["tennis"];
+  if (answers.activity === "padel") return ["padel"];
+  if (answers.activity === "volleyball") return ["volleyball"];
+  return [answers.activity];
+}
+
+function addRequirement(
+  state: MutableRuleState,
+  id: string,
+  weight: number,
+  status: SportFitTechnicalRequirement["status"],
+  reason?: string
+) {
+  state.technicalRequirements.push({ id, weight, status, reason });
+}
+
+function summarizeRequirements(requirements: readonly SportFitTechnicalRequirement[]): Readonly<{
+  score: number;
+  coverage: number;
+}> {
+  const active = requirements.filter((item) => item.status !== "not_applicable" && item.weight > 0);
+  const totalWeight = active.reduce((sum, item) => sum + item.weight, 0);
+  if (!totalWeight) return { score: 50, coverage: 0 };
+
+  let earned = 0;
+  let covered = 0;
+  for (const item of active) {
+    if (item.status === "match") {
+      earned += item.weight;
+      covered += item.weight;
+    } else if (item.status === "conflict") {
+      covered += item.weight;
+    } else {
+      // Unknown facts remain unknown: they receive only a small neutral allowance,
+      // never the same value as documented compatibility.
+      earned += item.weight * 0.35;
+    }
+  }
+
+  return {
+    score: Math.max(0, Math.min(100, Math.round((earned / totalWeight) * 100))),
+    coverage: Math.max(0, Math.min(100, Math.round((covered / totalWeight) * 100)))
+  };
+}
+
+function seedTechnicalRequirements(
+  state: MutableRuleState,
+  product: SportFitProduct,
+  answers: SportFitAnswers,
+  role: SportProductRole,
+  activities: ReadonlySet<string>,
+  surfaces: ReadonlySet<string>,
+  useCases: ReadonlySet<string>,
+  cushioning: string,
+  support: string,
+  width: string,
+  footballCode: string
+) {
+  addRequirement(
+    state,
+    "requirement.stock",
+    18,
+    product.available && product.availableToSell > 0 ? "match" : "conflict",
+    product.available && product.availableToSell > 0 ? "Διαθέσιμο απόθεμα" : "Χωρίς διαθέσιμο απόθεμα"
+  );
+
+  if (role !== "footwear") return;
+
+  const requestedActivities = requestedActivityValues(answers);
+  addRequirement(
+    state,
+    "requirement.activity",
+    22,
+    activities.size ? (includesAny(activities, requestedActivities) ? "match" : "conflict") : "unknown",
+    activities.size ? "Τεκμηριωμένη δραστηριότητα" : "Η τεχνική δραστηριότητα δεν έχει ακόμη τεκμηριωθεί"
+  );
+
+  if (
+    answers.surface
+    && ["running", "walking", "football", "hiking", "basketball", "tennis", "padel", "volleyball"].includes(answers.activity)
+  ) {
+    addRequirement(
+      state,
+      "requirement.surface",
+      18,
+      surfaces.size ? (knownSurfaceMatches(answers.surface, surfaces) ? "match" : "conflict") : "unknown",
+      surfaces.size ? "Τεκμηριωμένη συμβατότητα επιφάνειας" : "Η επιφάνεια δεν έχει ακόμη τεκμηριωθεί"
+    );
+  }
+
+  if (answers.useCase) {
+    addRequirement(
+      state,
+      "requirement.use_case",
+      12,
+      useCases.size ? (useCases.has(normalize(answers.useCase)) ? "match" : "conflict") : "unknown",
+      useCases.size ? "Τεκμηριωμένος τύπος χρήσης" : "Ο συγκεκριμένος τύπος χρήσης δεν έχει ακόμη τεκμηριωθεί"
+    );
+  }
+
+  if (answers.fitPreference) {
+    let fitStatus: SportFitTechnicalRequirement["status"] = "unknown";
+    if (width) {
+      if (answers.fitPreference === "wide") fitStatus = width === "wide" || width === "extra_wide" ? "match" : width === "narrow" ? "conflict" : "unknown";
+      else if (answers.fitPreference === "narrow") fitStatus = width === "narrow" ? "match" : width === "extra_wide" ? "conflict" : "unknown";
+      else fitStatus = width === "standard" ? "match" : "unknown";
+    }
+    addRequirement(state, "requirement.fit_width", 10, fitStatus, width ? "Τεκμηριωμένο width profile" : "Το width profile δεν έχει ακόμη τεκμηριωθεί");
+  }
+
+  if (answers.activity === "football" && answers.surface) {
+    const compatibility = footballCodeCompatibility(answers.surface, footballCode);
+    addRequirement(
+      state,
+      "requirement.football_outsole",
+      24,
+      compatibility === "match" ? "match" : compatibility === "mismatch" ? "conflict" : "unknown",
+      footballCode ? `Τεκμηριωμένος τύπος σόλας ${footballCode.toUpperCase()}` : "Ο τύπος ποδοσφαιρικής σόλας δεν έχει ακόμη τεκμηριωθεί"
+    );
+  }
+
+  if (answers.activity === "running") {
+    if (answers.distance) {
+      let status: SportFitTechnicalRequirement["status"] = "unknown";
+      if (answers.distance === "long") {
+        if (useCases.has("long_run") || cushioning === "high" || cushioning === "max") status = "match";
+        else if (cushioning === "minimal" || cushioning === "low") status = "conflict";
+      } else if (answers.distance === "short") {
+        if (useCases.has("speed_training") || useCases.has("race_day") || (typeof product.knowledge?.weightG === "number" && product.knowledge.weightG <= 280)) status = "match";
+      } else if (useCases.has("daily_training") || useCases.has("easy_run")) {
+        status = "match";
+      }
+      addRequirement(state, "requirement.running_distance_profile", 14, status, "Τεχνικό προφίλ για τη συνήθη απόσταση");
+    }
+
+    if (answers.frequency && answers.frequency !== "light") {
+      const status = useCases.has("daily_training") || cushioning === "high" || cushioning === "max" ? "match" : "unknown";
+      addRequirement(state, "requirement.running_frequency_profile", 10, status, "Τεχνικό προφίλ για τη συχνότητα χρήσης");
+    }
+
+    if (answers.runnerNeed) {
+      let status: SportFitTechnicalRequirement["status"] = "unknown";
+      if (answers.runnerNeed === "guided_support") {
+        if (["guided", "stability", "max_support"].includes(support)) status = "match";
+        else if (support === "neutral") status = "conflict";
+      } else if (answers.runnerNeed === "neutral") {
+        if (support === "neutral") status = "match";
+        else if (support === "max_support") status = "conflict";
+      } else if (answers.runnerNeed === "soft_ride") {
+        if (cushioning === "high" || cushioning === "max") status = "match";
+        else if (cushioning === "minimal" || cushioning === "low") status = "conflict";
+      } else if (answers.runnerNeed === "speed") {
+        if (useCases.has("speed_training") || useCases.has("race_day") || (typeof product.knowledge?.weightG === "number" && product.knowledge.weightG <= 280)) status = "match";
+      } else if (answers.runnerNeed === "wide_fit") {
+        if (width === "wide" || width === "extra_wide") status = "match";
+        else if (width === "narrow") status = "conflict";
+      } else if (useCases.has("daily_training")) {
+        status = "match";
+      }
+      addRequirement(state, "requirement.running_runner_need", 18, status, "Τεχνική αντιστοίχιση της ανάγκης του δρομέα");
+    }
+  }
+
+  if (answers.activity === "gym" && answers.gymTrainingType) {
+    let status: SportFitTechnicalRequirement["status"] = "unknown";
+    if (answers.gymTrainingType === "strength") {
+      if (useCases.has("gym_strength") || ["stability", "guided", "max_support"].includes(support) || ["minimal", "low", "medium"].includes(cushioning)) status = "match";
+      if ((cushioning === "high" || cushioning === "max") && support === "neutral") status = "conflict";
+    } else if (answers.gymTrainingType === "cardio" || answers.gymTrainingType === "treadmill") {
+      if (useCases.has("gym_cardio") || ["medium", "high", "max"].includes(cushioning)) status = "match";
+      else if (cushioning === "minimal" || cushioning === "low") status = "conflict";
+    } else if (answers.gymTrainingType === "functional") {
+      if (activities.has("general_training") || activities.has("gym_training")) {
+        status = support === "stability" || cushioning === "medium" ? "match" : "unknown";
+      }
+    } else if (answers.gymTrainingType === "mixed" && (activities.has("general_training") || activities.has("gym_training"))) {
+      status = "match";
+    }
+    addRequirement(state, "requirement.gym_training_type", 24, status, "Τεχνικό προφίλ για τον τύπο προπόνησης");
+  }
 }
 
 function knownSurfaceMatches(surface: SportSurface, actual: ReadonlySet<string>): boolean {
@@ -58,7 +263,7 @@ function footballCodeCompatibility(surface: SportSurface | undefined, code: stri
 }
 
 function push(
-  state: { adjustment: number; reasons: string[]; ruleIds: string[] },
+  state: MutableRuleState,
   ruleId: string,
   adjustment: number,
   reason?: string
@@ -68,12 +273,16 @@ function push(
   if (reason) state.reasons.push(reason);
 }
 
-function reject(ruleId: string, reason: string, state: { adjustment: number; reasons: string[]; ruleIds: string[] }): SportFitRuleEvaluation {
+function reject(ruleId: string, reason: string, state: MutableRuleState): SportFitRuleEvaluation {
+  const technical = summarizeRequirements(state.technicalRequirements);
   return {
     eligible: false,
     adjustment: state.adjustment,
     reasons: [reason, ...state.reasons].slice(0, 4),
     ruleIds: [ruleId, ...state.ruleIds],
+    technicalScore: technical.score,
+    technicalCoverage: technical.coverage,
+    technicalRequirements: state.technicalRequirements,
     rejectionReason: reason
   };
 }
@@ -83,7 +292,7 @@ export function evaluateSportFitRules(
   answers: SportFitAnswers,
   role: SportProductRole
 ): SportFitRuleEvaluation {
-  const state = { adjustment: 0, reasons: [] as string[], ruleIds: [] as string[] };
+  const state: MutableRuleState = { adjustment: 0, reasons: [], ruleIds: [], technicalRequirements: [] };
   const candidateKnowledge = product.knowledge;
   const knowledge = candidateKnowledge
     && candidateKnowledge.queueStatus !== "blocked"
@@ -101,28 +310,26 @@ export function evaluateSportFitRules(
   const lengthFit = normalize(knowledge?.fitLengthProfile);
   const footballCode = normalize(knowledge?.footballSurfaceCode);
 
+  seedTechnicalRequirements(
+    state,
+    product,
+    answers,
+    role,
+    activities,
+    surfaces,
+    useCases,
+    cushioning,
+    support,
+    width,
+    footballCode
+  );
+
   if (!product.available || product.availableToSell <= 0) {
     return reject("stock.positive_required", "Δεν υπάρχει διαθέσιμο απόθεμα τώρα", state);
   }
 
   if (role === "footwear" && activities.size) {
-    const requested = answers.activity === "gym"
-      ? answers.gymTrainingType === "treadmill"
-        ? ["gym_training", "general_training", "running"]
-        : ["gym_training", "general_training"]
-      : answers.activity === "walking" && (answers.surface === "trail" || answers.surface === "mixed")
-        ? ["walking", "hiking"]
-        : answers.activity === "football"
-          ? ["football", "team_sports"]
-          : answers.activity === "basketball"
-            ? ["basketball"]
-            : answers.activity === "tennis"
-              ? ["tennis"]
-              : answers.activity === "padel"
-                ? ["padel"]
-                : answers.activity === "volleyball"
-                  ? ["volleyball"]
-                  : [answers.activity];
+    const requested = requestedActivityValues(answers);
 
     if (!includesAny(activities, requested)) {
       return reject(
@@ -304,10 +511,14 @@ export function evaluateSportFitRules(
     }
   }
 
+  const technical = summarizeRequirements(state.technicalRequirements);
   return {
     eligible: true,
     adjustment: Math.max(-30, Math.min(45, state.adjustment)),
     reasons: state.reasons.slice(0, 4),
-    ruleIds: state.ruleIds
+    ruleIds: state.ruleIds,
+    technicalScore: technical.score,
+    technicalCoverage: technical.coverage,
+    technicalRequirements: state.technicalRequirements
   };
 }
