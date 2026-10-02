@@ -5,6 +5,7 @@ import {
   adminBrandIdentity,
   adminQueueBrandEnrichment,
   adminQueueBrandGuideEnrichment,
+  adminQueueMissingBrandGuides,
   adminRemoveBrandLogo,
   adminSetBrandLogo,
   adminUpdateBrandGuide,
@@ -153,8 +154,21 @@ export async function POST(request: Request) {
     if (contentType.toLowerCase().startsWith("multipart/form-data")) return await handleMultipart(request, principal);
 
     const body = await request.json() as Record<string, unknown>;
-    const brandId = uuid(body.brandId);
     const action = String(body.action ?? "");
+
+    if (action === "queue_missing_guides") {
+      const queued = await adminQueueMissingBrandGuides(principal, 100);
+      await recordAdminAudit(principal, "brand.guide.bulk_enrichment_queued", "brand", "bulk", "Admin bulk queued Brand Guide enrichment", { queued });
+      return Response.json({
+        ok: true,
+        queued,
+        message: queued
+          ? `${queued.toLocaleString("el-GR")} brands μπήκαν στην ουρά για Brand Guide enrichment.`
+          : "Δεν βρέθηκαν επιλέξιμα brands για νέα ουρά."
+      });
+    }
+
+    const brandId = uuid(body.brandId);
 
     if (action === "website") {
       const website = officialWebsite(body.website);
