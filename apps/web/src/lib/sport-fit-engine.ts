@@ -155,7 +155,10 @@ function normalize(value: string | undefined): string {
 }
 
 function clampScore(value: number): number {
-  return Math.max(0, Math.min(100, Math.round(value)));
+  // The legacy additive score has more than 100 possible points now that the
+  // governed rules layer contributes verified technical evidence. Keep useful
+  // headroom so strong candidates do not all collapse to an indistinguishable 100%.
+  return Math.max(0, Math.min(100, Math.round(value / 1.25)));
 }
 
 function hasAny(text: string, terms: readonly string[]): boolean {
@@ -230,7 +233,17 @@ function matchingSize(product: SportFitProduct, requestedSize: string | undefine
   const numericTarget = Number(target.replace(",", "."));
   if (!Number.isFinite(numericTarget)) return undefined;
   return product.sizes.find((size) => {
-    const normalized = normalize(size).replace(/^eu\s*/, "").replace(",", ".");
+    // Do not use the general search-text normalizer here: it intentionally
+    // removes punctuation, which turns a real sock range such as 43-46 into
+    // "43 46" before the range parser can inspect it.
+    const normalized = size
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLocaleLowerCase("el-GR")
+      .trim()
+      .replace(/^eu\s*/, "")
+      .replace(",", ".")
+      .replace(/\s+/g, " ");
     const range = normalized.match(/^(\d{1,2}(?:\.\d+)?)\s*[-–—/]\s*(\d{1,2}(?:\.\d+)?)$/);
     if (!range) return false;
     const min = Number(range[1]);
