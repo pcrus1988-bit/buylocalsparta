@@ -161,6 +161,16 @@ function normalize(value: string | undefined): string {
     .trim();
 }
 
+export function sportFitFamilyKey(
+  product: Pick<SportFitProduct, "id" | "familyId" | "title">
+): string {
+  const familyId = product.familyId?.trim();
+  if (familyId) return `family:${familyId}`;
+
+  const titleKey = normalize(product.title.replace(SIZE_TRAILER, ""));
+  return titleKey ? `title:${titleKey}` : `id:${product.id}`;
+}
+
 function clampScore(value: number): number {
   // The legacy additive score has more than 100 possible points now that the
   // governed rules layer contributes verified technical evidence. Keep useful
@@ -187,7 +197,11 @@ function requestedActivityCodes(answers: SportFitAnswers): readonly string[] {
       ? ["walking", "hiking"]
       : ["walking"];
   }
-  if (answers.activity === "gym") return ["gym_training", "general_training"];
+  if (answers.activity === "gym") {
+    return answers.gymTrainingType === "treadmill"
+      ? ["gym_training", "general_training", "running"]
+      : ["gym_training", "general_training"];
+  }
   if (answers.activity === "football") return ["football", "team_sports"];
   if (answers.activity === "hiking") return ["hiking"];
   if (answers.activity === "basketball") return ["basketball", "team_sports"];
@@ -282,7 +296,7 @@ export function sportFitCandidateSupportsRequestedActivity(product: SportFitProd
   const knowledge = usableKnowledge(product);
   const knownActivities = knowledgeList(knowledge?.activities);
   if (knownActivities.length > 0) {
-    return knownActivities.includes(normalize(answers.activity));
+    return hasKnowledgeMatch(knownActivities, requestedActivityCodes(answers));
   }
 
   const text = strictIdentityText(product);
@@ -710,15 +724,11 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
   };
 }
 
-function familyKey(product: SportFitScoredProduct): string {
-  return normalize(product.title.replace(SIZE_TRAILER, "")) || product.id;
-}
-
 function uniqueRanked(products: readonly SportFitScoredProduct[]): readonly SportFitScoredProduct[] {
   const seen = new Set<string>();
   const output: SportFitScoredProduct[] = [];
   for (const product of products) {
-    const key = familyKey(product);
+    const key = sportFitFamilyKey(product);
     if (seen.has(key)) continue;
     seen.add(key);
     output.push(product);
@@ -736,6 +746,16 @@ function kitSelectionEligible(
     (item) => item.id === "requirement.kit_activity"
   );
   if (activityRequirement?.status === "conflict") return false;
+
+  const hasGovernedKitMatch = product.technicalRequirements.some((item) =>
+    item.status === "match"
+    && item.id !== "requirement.stock"
+    && (
+      item.id.startsWith("requirement.kit_")
+      || item.id.startsWith("requirement.sock_")
+    )
+  );
+  if (!hasGovernedKitMatch) return false;
 
   if (product.role === "socks" && answers.size && product.sizes.length > 0) {
     const requestedNumeric = Number(

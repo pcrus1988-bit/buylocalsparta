@@ -1,6 +1,6 @@
 # KONTA MOY Sport & Fit recommendation rules
 
-Ruleset: `2026-10-02.7`
+Ruleset: `2026-10-02.10`
 
 Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. They do not require an external recommendation API and they do not infer missing technical product facts.
 
@@ -119,11 +119,15 @@ Generic words such as “versatile” or “all-round” in catalogue marketing 
 
 Kit items use the same principle: broader governed activity/use-case evidence can improve their versatility confidence without inventing performance claims.
 
+Controlled broad activity classes are also honored by candidate admission: `racket_sports` can satisfy tennis/padel entry and `team_sports` can satisfy basketball/volleyball entry before the more specific surface/use-case rules rank the product.
+
 ## Complete My Kit
 
 Kit items now use their own weighted technical-confidence profile instead of inheriting near-perfect confidence from stock alone.
 
 Final kit selection now only runs after a Tier 1 footwear primary exists. A secondary item with a documented activity conflict cannot occupy a final kit slot, and a sock with comparable numeric sizing must contain the requested shoe size when its size range is known.
+
+A Tier 2 item also needs at least one governed non-stock technical match before it can enter a final **Complete My Kit** slot. Stock, price and generic catalogue/title heuristics can keep an item browseable, but they no longer turn an otherwise unverified sock/apparel/accessory into a kit recommendation.
 
 For socks, tops, bottoms, layers and accessories, the engine can evaluate:
 - documented activity and exact use-case evidence;
@@ -136,6 +140,10 @@ For socks, tops, bottoms, layers and accessories, the engine can evaluate:
 - reflective details for frequent running contexts.
 
 A missing performance fact stays `unknown`. A generic in-stock shirt or sock therefore no longer receives 100% technical confidence simply because availability is known. Documented cross-sport activity differences lower confidence but do not hard-reject versatile apparel; hard incompatibility remains reserved for categories such as footwear where the evidence supports a deterministic exclusion.
+
+## Canonical product families
+
+Recommendation de-duplication uses the canonical `familyId` whenever it is available. XML size/color variants from the same family therefore count as one product family in the universe, survivor counts and Top 5, even when their variant titles differ. Title-based grouping is only a fallback for products that do not yet have a canonical family identity.
 
 ## Explainability
 
