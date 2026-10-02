@@ -21,6 +21,15 @@ type ApiResponse = Readonly<{
   vendorId: string;
   vendorName: string;
   candidateCount: number;
+  sizeGuide?: Readonly<{
+    measurementMm: number;
+    exact: boolean;
+    outOfRange: boolean;
+    sizeLabels: readonly string[];
+    publisher: string;
+    sizeSystem: string;
+    measurementHelp?: string;
+  }>;
   recommendation: SportFitRecommendation;
   error?: string;
 }>;
@@ -127,6 +136,7 @@ export function SportFitStudioExperience({
   const [activity, setActivity] = useState<SportActivity>("running");
   const [audience, setAudience] = useState<SportAudience>("men");
   const [size, setSize] = useState("");
+  const [footLength, setFootLength] = useState("");
   const [budget, setBudget] = useState("");
   const [surface, setSurface] = useState<SportSurface>("road");
   const [frequency, setFrequency] = useState<SportFrequency>("regular");
@@ -155,6 +165,7 @@ export function SportFitStudioExperience({
     setError("");
     try {
       const budgetEuros = Number(budget.replace(",", "."));
+      const footLengthCm = Number(footLength.replace(",", "."));
       const result = await fetch("/api/sport-fit/candidates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -164,6 +175,7 @@ export function SportFitStudioExperience({
             activity,
             audience,
             size: size.trim() || undefined,
+            footLengthMm: Number.isFinite(footLengthCm) && footLengthCm > 0 ? Math.round(footLengthCm * 10) : undefined,
             budgetMinor: Number.isFinite(budgetEuros) && budgetEuros > 0 ? Math.round(budgetEuros * 100) : undefined,
             surface,
             frequency,
@@ -238,7 +250,7 @@ export function SportFitStudioExperience({
             <div className={styles.questionIntro}>
               <span className={styles.kicker}>{activityLabel(activity)} · 01</span>
               <h1>Πες μας τα βασικά.</h1>
-              <p>Το μέγεθος είναι προαιρετικό, αλλά όταν το ξέρουμε δεν θα προτείνουμε γνωστό variant άλλου μεγέθους.</p>
+              <p>Μπορείς να δώσεις γνωστό μέγεθος ή μήκος πέλματος. Το μήκος χρησιμοποιείται μόνο με τεκμηριωμένο brand size guide· σήμερα έχουμε ενσωματωμένο τον επίσημο οδηγό adidas.</p>
             </div>
             <div className={styles.formPanel}>
               <fieldset>
@@ -246,7 +258,12 @@ export function SportFitStudioExperience({
                 <div className={styles.pills}>{AUDIENCES.map((item) => <button type="button" className={audience === item.key ? styles.selected : ""} onClick={() => setAudience(item.key)} key={item.key}>{item.label}</button>)}</div>
               </fieldset>
               <div className={styles.inputs}>
-                <label><span>Μέγεθος παπουτσιού</span><input value={size} onChange={(event) => setSize(event.target.value)} placeholder="π.χ. 42 ή 38.5" inputMode="decimal" /></label>
+                <label><span>Γνωστό μέγεθος EU</span><input value={size} onChange={(event) => setSize(event.target.value)} placeholder="π.χ. 42 ή 42 2/3" inputMode="decimal" /></label>
+                <label>
+                  <span>Μήκος πέλματος</span>
+                  <div className={styles.unitInput}><input value={footLength} onChange={(event) => setFootLength(event.target.value)} placeholder="π.χ. 26,1" inputMode="decimal" /><b>cm</b></div>
+                  <small className={styles.inputHelp}>Για adidas εφαρμόζεται ο επίσημος heel-to-toe πίνακας. Αν πέφτεις ανάμεσα σε δύο γραμμές, κρατάμε και τις δύο.</small>
+                </label>
                 <label><span>Μέγιστο budget</span><div className={styles.euroInput}><input value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="π.χ. 100" inputMode="decimal" /><b>€</b></div></label>
               </div>
               <button type="button" className={styles.primaryAction} onClick={() => setStep("details")}>Συνέχεια <span>→</span></button>
@@ -296,6 +313,20 @@ export function SportFitStudioExperience({
               <div><span className={styles.kicker}>ΤΟ SPORT SET ΣΟΥ</span><h1>{primary ? "Η καλύτερη αντιστοίχιση από όσα είναι διαθέσιμα τώρα." : "Δεν βρήκαμε αρκετά συμβατά προϊόντα."}</h1></div>
               <div className={styles.resultFacts}><span>{response?.candidateCount ?? 0}<small>live candidates</small></span><span>{kit.length + (primary ? 1 : 0)}<small>στο set</small></span></div>
             </div>
+
+            {response?.sizeGuide ? (
+              <div className={styles.sizeGuideNote}>
+                <strong>SIZE GUIDE · {response.sizeGuide.publisher}</strong>
+                {response.sizeGuide.outOfRange ? (
+                  <p>Η μέτρηση {(response.sizeGuide.measurementMm / 10).toLocaleString("el-GR")} cm είναι έξω από το εύρος του διαθέσιμου πίνακα. Δεν εφαρμόσαμε αυτόματη αντιστοίχιση μεγέθους.</p>
+                ) : (
+                  <p>
+                    {(response.sizeGuide.measurementMm / 10).toLocaleString("el-GR")} cm → {response.sizeGuide.sizeSystem} {response.sizeGuide.sizeLabels.join(" ή ")}.
+                    {" "}Αυτή η αντιστοίχιση επηρεάζει μόνο προϊόντα adidas, όχι άλλες μάρκες.
+                  </p>
+                )}
+              </div>
+            ) : null}
 
             {primary ? (
               <>
