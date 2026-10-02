@@ -16,7 +16,8 @@ import type {
   SportGymTrainingType,
   SportPriority,
   SportRunnerNeed,
-  SportSurface
+  SportSurface,
+  SportUseCase
 } from "../lib/sport-fit-engine";
 import styles from "./SportFitImmersiveExperience.module.css";
 
@@ -114,6 +115,52 @@ const FIT_PREFERENCES: readonly Readonly<{ key: SportFitPreference; label: strin
   { key: "narrow", label: "Στενότερη" }
 ];
 
+const USE_CASES: Readonly<Record<SportActivity, readonly Readonly<{ key: SportUseCase; label: string }>[]>> = {
+  running: [
+    { key: "daily_training", label: "Καθημερινή προπόνηση" },
+    { key: "easy_run", label: "Χαλαρό τρέξιμο" },
+    { key: "recovery_run", label: "Recovery run" },
+    { key: "long_run", label: "Μεγάλη απόσταση" },
+    { key: "speed_training", label: "Tempo / speed training" },
+    { key: "race_day", label: "Αγώνας" }
+  ],
+  walking: [
+    { key: "daily_walking", label: "Καθημερινό περπάτημα" },
+    { key: "all_day_standing", label: "Πολύωρη ορθοστασία" },
+    { key: "travel_walking", label: "Πολύ περπάτημα / ταξίδι" }
+  ],
+  gym: [
+    { key: "gym_strength", label: "Βάρη / strength" },
+    { key: "gym_functional", label: "Functional / HIIT" },
+    { key: "gym_cardio", label: "Cardio / διάδρομος" }
+  ],
+  football: [
+    { key: "football_training", label: "Προπόνηση" },
+    { key: "football_match", label: "Αγώνας" }
+  ],
+  hiking: [
+    { key: "day_hike", label: "Ημερήσια πεζοπορία" },
+    { key: "technical_hike", label: "Τεχνική / ορεινή διαδρομή" },
+    { key: "urban_outdoor", label: "Outdoor + πόλη / ταξίδι" }
+  ],
+  basketball: [
+    { key: "basketball_training", label: "Προπόνηση" },
+    { key: "basketball_match", label: "Αγώνας" }
+  ],
+  tennis: [
+    { key: "tennis_training", label: "Προπόνηση" },
+    { key: "tennis_match", label: "Αγώνας" }
+  ],
+  padel: [
+    { key: "padel_training", label: "Προπόνηση" },
+    { key: "padel_match", label: "Αγώνας" }
+  ],
+  volleyball: [
+    { key: "volleyball_training", label: "Προπόνηση" },
+    { key: "volleyball_match", label: "Αγώνας" }
+  ]
+};
+
 const GYM_TRAINING_TYPES: readonly Readonly<{ key: SportGymTrainingType; label: string; body: string }>[] = [
   { key: "strength", label: "Βάρη / strength", body: "Σταθερότητα και έλεγχος." },
   { key: "functional", label: "Functional / HIIT", body: "Ισορροπία σταθερότητας και απόκρισης." },
@@ -135,7 +182,8 @@ function surfacesFor(activity: SportActivity): readonly Readonly<{ key: SportSur
   ];
   if (activity === "basketball") return [
     { key: "court_indoor", label: "Indoor court" },
-    { key: "court_outdoor", label: "Outdoor court" }
+    { key: "court_outdoor", label: "Outdoor court" },
+    { key: "court_hard", label: "Hard court" }
   ];
   if (activity === "tennis") return [
     { key: "court_hard", label: "Hard court" },
@@ -149,7 +197,8 @@ function surfacesFor(activity: SportActivity): readonly Readonly<{ key: SportSur
   ];
   if (activity === "volleyball") return [
     { key: "court_indoor", label: "Indoor court" },
-    { key: "court_outdoor", label: "Outdoor court" }
+    { key: "court_outdoor", label: "Outdoor court" },
+    { key: "sand", label: "Άμμος / beach" }
   ];
   if (activity === "hiking") return [
     { key: "trail", label: "Μονοπάτι / trail" },
@@ -162,6 +211,16 @@ function surfacesFor(activity: SportActivity): readonly Readonly<{ key: SportSur
     { key: "trail", label: "Χώμα / trail" },
     { key: "mixed", label: "Μικτή χρήση" }
   ];
+}
+
+function prioritiesFor(activity: SportActivity): readonly Readonly<{ key: SportPriority; label: string; body: string }>[] {
+  if (activity === "hiking") {
+    return PRIORITIES.filter((item) => ["comfort", "cushioning", "stability", "traction", "weather", "versatility"].includes(item.key));
+  }
+  if (["basketball", "tennis", "padel", "volleyball", "football"].includes(activity)) {
+    return PRIORITIES.filter((item) => ["comfort", "lightweight", "stability", "traction", "versatility"].includes(item.key));
+  }
+  return PRIORITIES.filter((item) => item.key !== "traction" && item.key !== "weather");
 }
 
 function activityLabel(activity: SportActivity): string {
@@ -363,6 +422,7 @@ export function SportFitImmersiveExperience({
   const [runnerNeed, setRunnerNeed] = useState<SportRunnerNeed>();
   const [fitPreference, setFitPreference] = useState<SportFitPreference>();
   const [gymTrainingType, setGymTrainingType] = useState<SportGymTrainingType>();
+  const [useCase, setUseCase] = useState<SportUseCase>();
   const [response, setResponse] = useState<ApiResponse>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -379,6 +439,8 @@ export function SportFitImmersiveExperience({
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const availableSurfaces = useMemo(() => surfacesFor(activity), [activity]);
+  const availablePriorities = useMemo(() => prioritiesFor(activity), [activity]);
+  const availableUseCases = USE_CASES[activity];
 
   useEffect(() => {
     const requestId = ++requestSequenceRef.current;
@@ -470,6 +532,7 @@ export function SportFitImmersiveExperience({
     const nextRunnerNeed = overrides.runnerNeed ?? runnerNeed;
     const nextFit = overrides.fitPreference ?? fitPreference;
     const nextGymTraining = overrides.gymTrainingType ?? gymTrainingType;
+    const nextUseCase = overrides.useCase ?? useCase;
 
     if (nextSurface) answer.surface = nextSurface;
     if (nextFrequency) answer.frequency = nextFrequency;
@@ -478,6 +541,7 @@ export function SportFitImmersiveExperience({
     if (nextActivity === "running" && nextRunnerNeed) answer.runnerNeed = nextRunnerNeed;
     if (nextFit) answer.fitPreference = nextFit;
     if (nextActivity === "gym" && nextGymTraining) answer.gymTrainingType = nextGymTraining;
+    if (nextUseCase) answer.useCase = nextUseCase;
 
     return answer;
   }
@@ -523,6 +587,7 @@ export function SportFitImmersiveExperience({
     setRunnerNeed(undefined);
     setFitPreference(undefined);
     setGymTrainingType(undefined);
+    setUseCase(undefined);
     setResponse(undefined);
     setSelectedFinalistId("");
     setError("");
@@ -532,9 +597,15 @@ export function SportFitImmersiveExperience({
 
   function chooseGymTraining(next: SportGymTrainingType) {
     const derivedSurface: SportSurface = next === "treadmill" ? "treadmill" : next === "mixed" ? "mixed" : "indoor";
+    const derivedUseCase: SportUseCase = next === "strength"
+      ? "gym_strength"
+      : next === "cardio" || next === "treadmill"
+        ? "gym_cardio"
+        : "gym_functional";
     setGymTrainingType(next);
     setSurface(derivedSurface);
-    void refreshUniverse({ gymTrainingType: next, surface: derivedSurface });
+    setUseCase(derivedUseCase);
+    void refreshUniverse({ gymTrainingType: next, surface: derivedSurface, useCase: derivedUseCase });
   }
 
   function goBack() {
@@ -548,6 +619,7 @@ export function SportFitImmersiveExperience({
     && frequency
     && fitPreference
     && priority
+    && useCase
     && (
       activity === "gym"
         ? gymTrainingType
@@ -763,6 +835,27 @@ export function SportFitImmersiveExperience({
                   </fieldset>
                 )}
 
+                {activity !== "gym" ? (
+                  <fieldset>
+                    <legend>{activity === "hiking" ? "Τι είδους εξόρμηση;" : activity === "walking" ? "Ποια είναι η βασική χρήση;" : "Τι κάνεις κυρίως;"}</legend>
+                    <div className={styles.choiceGrid}>
+                      {availableUseCases.map((item) => (
+                        <button
+                          type="button"
+                          key={item.key}
+                          className={useCase === item.key ? styles.selectedCard : ""}
+                          onClick={() => {
+                            setUseCase(item.key);
+                            void refreshUniverse({ useCase: item.key });
+                          }}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                ) : null}
+
                 <fieldset>
                   <legend>Πόσο συχνά;</legend>
                   <div className={styles.pills}>
@@ -846,7 +939,7 @@ export function SportFitImmersiveExperience({
                 <fieldset>
                   <legend>Τι θέλεις περισσότερο;</legend>
                   <div className={styles.cardChoices}>
-                    {PRIORITIES.map((item) => (
+                    {availablePriorities.map((item) => (
                       <button
                         type="button"
                         key={item.key}
