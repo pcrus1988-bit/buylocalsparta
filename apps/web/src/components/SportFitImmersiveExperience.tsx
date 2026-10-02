@@ -578,6 +578,46 @@ export function SportFitImmersiveExperience({
     }
   }
 
+  async function resetExperience() {
+    const requestId = ++requestSequenceRef.current;
+    setStep("activity");
+    setAudience(null);
+    setSize("");
+    setFootLength("");
+    setBudget("");
+    setSurface(undefined);
+    setFrequency(undefined);
+    setDistance(undefined);
+    setPriority(undefined);
+    setRunnerNeed(undefined);
+    setFitPreference(undefined);
+    setGymTrainingType(undefined);
+    setUseCase(undefined);
+    setResponse(undefined);
+    setSelectedFinalistId("");
+    setError("");
+    setLeavingIds(new Set());
+    setUniverseBusy(true);
+    setUniverseUnavailable(false);
+
+    try {
+      const result = await fetch(`/api/sport-fit/candidates?vendorId=${encodeURIComponent(vendorId)}`, { cache: "no-store" });
+      const payload = await result.json() as UniverseResponse;
+      if (!result.ok) throw new Error(payload.error || "sport_fit_universe_unavailable");
+      if (requestId !== requestSequenceRef.current) return;
+      const next = payload.universe ?? [];
+      universeRef.current = next;
+      setUniverseProducts(next);
+      setInitialCount(payload.candidateCount ?? next.length);
+      setSurvivingCount(payload.survivingCount ?? payload.candidateCount ?? next.length);
+    } catch {
+      if (requestId !== requestSequenceRef.current) return;
+      setUniverseUnavailable(true);
+    } finally {
+      if (requestId === requestSequenceRef.current) setUniverseBusy(false);
+    }
+  }
+
   function chooseActivity(next: SportActivity) {
     setActivity(next);
     setSurface(undefined);
@@ -677,7 +717,7 @@ export function SportFitImmersiveExperience({
   return (
     <div className={styles.studio}>
       <header className={styles.header}>
-        <button type="button" className={styles.brand} onClick={() => setStep("activity")}>
+        <button type="button" className={styles.brand} onClick={() => { void resetExperience(); }}>
           <span>KONTA MOY</span>
           <strong>SPORT & FIT STUDIO</strong>
         </button>
@@ -1050,11 +1090,7 @@ export function SportFitImmersiveExperience({
           <div className={styles.resultActions}>
             <button
               type="button"
-              onClick={() => {
-                setStep("activity");
-                setResponse(undefined);
-                setSelectedFinalistId("");
-              }}
+              onClick={() => { void resetExperience(); }}
             >
               Νέα αναζήτηση
             </button>
