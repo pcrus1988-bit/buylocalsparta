@@ -16,6 +16,7 @@ export function useVendorConfirmation() {
   const dialogRef = useRef<HTMLElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
+  // Restore focus before the confirmed action can enter a busy/disabled state.
   const closeAndRestoreFocus = useCallback(async () => {
     const target = returnFocusRef.current;
     returnFocusRef.current = null;
