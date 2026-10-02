@@ -123,7 +123,7 @@ function createSceneData(tier: QualityTier, compact: boolean): Float32Array {
     const kind = studioIndex + 1;
 
     if (studio.id === "sport-fit") {
-      // Sport & Fit alone gets a product-universe ring / floating field.
+      // Sport & Fit alone gets the circular floating-product field.
       const ringCount = tier === "lite" ? 24 : 42;
       for (let index = 0; index < ringCount; index += 1) {
         const angle = (index / ringCount) * Math.PI * 2;
