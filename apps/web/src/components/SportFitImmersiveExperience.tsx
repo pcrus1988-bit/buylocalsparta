@@ -636,6 +636,29 @@ export function SportFitImmersiveExperience({
     setStep("details");
   }
 
+  function submitSizeQuestion() {
+    const nextSize = size.trim();
+    if (nextSize) void refreshUniverse({ size: nextSize }, audience ?? undefined);
+    advanceProfileQuestion();
+  }
+
+  function submitFootLengthQuestion() {
+    const cm = Number(footLength.replace(",", "."));
+    if (Number.isFinite(cm) && cm > 0) {
+      void refreshUniverse({ footLengthMm: Math.round(cm * 10) }, audience ?? undefined);
+    }
+    advanceProfileQuestion();
+  }
+
+  function submitBudgetQuestion() {
+    const euros = Number(budget.replace(",", "."));
+    if (Number.isFinite(euros) && euros > 0) {
+      void refreshUniverse({ budgetMinor: Math.round(euros * 100) }, audience ?? undefined);
+    }
+    setDetailQuestionIndex(0);
+    setStep("details");
+  }
+
   function advanceDetailQuestion() {
     setDetailQuestionIndex((current) => Math.min(current + 1, detailQuestions.length - 1));
   }
@@ -839,7 +862,20 @@ export function SportFitImmersiveExperience({
                     <div className={styles.inputs}>
                       <label>
                         <span>Μέγεθος EU</span>
-                        <input value={size} onChange={(event) => setSize(event.target.value)} placeholder="π.χ. 42 ή 42 2/3" inputMode="decimal" autoFocus />
+                        <input
+                          value={size}
+                          onChange={(event) => setSize(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter") return;
+                            event.preventDefault();
+                            submitSizeQuestion();
+                          }}
+                          placeholder="π.χ. 42 ή 42 2/3"
+                          inputMode="decimal"
+                          enterKeyHint="next"
+                          autoComplete="off"
+                          autoFocus
+                        />
                       </label>
                     </div>
                     <div className={styles.questionActions}>
@@ -847,10 +883,7 @@ export function SportFitImmersiveExperience({
                       <button
                         type="button"
                         className={styles.primaryAction}
-                        onClick={() => {
-                          if (size.trim()) void refreshUniverse({ size: size.trim() }, audience ?? undefined);
-                          advanceProfileQuestion();
-                        }}
+                        onClick={submitSizeQuestion}
                       >
                         Συνέχεια <span>→</span>
                       </button>
@@ -866,7 +899,20 @@ export function SportFitImmersiveExperience({
                       <label>
                         <span>Μήκος πέλματος</span>
                         <div className={styles.unitInput}>
-                          <input value={footLength} onChange={(event) => setFootLength(event.target.value)} placeholder="π.χ. 26,1" inputMode="decimal" autoFocus />
+                          <input
+                            value={footLength}
+                            onChange={(event) => setFootLength(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter") return;
+                              event.preventDefault();
+                              submitFootLengthQuestion();
+                            }}
+                            placeholder="π.χ. 26,1"
+                            inputMode="decimal"
+                            enterKeyHint="next"
+                            autoComplete="off"
+                            autoFocus
+                          />
                           <b>cm</b>
                         </div>
                       </label>
@@ -876,11 +922,7 @@ export function SportFitImmersiveExperience({
                       <button
                         type="button"
                         className={styles.primaryAction}
-                        onClick={() => {
-                          const cm = Number(footLength.replace(",", "."));
-                          if (Number.isFinite(cm) && cm > 0) void refreshUniverse({ footLengthMm: Math.round(cm * 10) }, audience ?? undefined);
-                          advanceProfileQuestion();
-                        }}
+                        onClick={submitFootLengthQuestion}
                       >
                         Συνέχεια <span>→</span>
                       </button>
@@ -896,7 +938,20 @@ export function SportFitImmersiveExperience({
                       <label>
                         <span>Μέγιστο budget</span>
                         <div className={styles.unitInput}>
-                          <input value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="π.χ. 100" inputMode="decimal" autoFocus />
+                          <input
+                            value={budget}
+                            onChange={(event) => setBudget(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter") return;
+                              event.preventDefault();
+                              submitBudgetQuestion();
+                            }}
+                            placeholder="π.χ. 100"
+                            inputMode="decimal"
+                            enterKeyHint="next"
+                            autoComplete="off"
+                            autoFocus
+                          />
                           <b>€</b>
                         </div>
                       </label>
@@ -916,12 +971,7 @@ export function SportFitImmersiveExperience({
                       <button
                         type="button"
                         className={styles.primaryAction}
-                        onClick={() => {
-                          const euros = Number(budget.replace(",", "."));
-                          if (Number.isFinite(euros) && euros > 0) void refreshUniverse({ budgetMinor: Math.round(euros * 100) }, audience ?? undefined);
-                          setDetailQuestionIndex(0);
-                          setStep("details");
-                        }}
+                        onClick={submitBudgetQuestion}
                       >
                         Συνέχεια <span>→</span>
                       </button>
