@@ -1,6 +1,6 @@
 # KONTA MOY Sport & Fit recommendation rules
 
-Ruleset: `2026-10-02.10`
+Ruleset: `2026-10-02.11`
 
 Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. They do not require an external recommendation API and they do not infer missing technical product facts.
 
@@ -120,6 +120,19 @@ Generic words such as “versatile” or “all-round” in catalogue marketing 
 Kit items use the same principle: broader governed activity/use-case evidence can improve their versatility confidence without inventing performance claims.
 
 Controlled broad activity classes are also honored by candidate admission: `racket_sports` can satisfy tennis/padel entry and `team_sports` can satisfy basketball/volleyball entry before the more specific surface/use-case rules rank the product.
+
+### Specificity precedence
+
+Broad controlled classifications remain valid compatibility evidence, but they are no longer treated as equally specific as an exact sport fact. When otherwise comparable candidates exist:
+
+- exact `basketball` outranks `team_sports` for a basketball request;
+- exact `tennis` / `padel` outranks `racket_sports` for the corresponding request;
+- exact `volleyball` outranks `team_sports`;
+- an exact selected court surface such as `court_indoor` outranks a broader compatible `indoor` fact.
+
+The broader classification remains eligible and browseable; it receives an `unknown` state for the specificity requirement rather than a conflict. This lets the engine use verified broad evidence without pretending it is as precise as an exact manufacturer-backed fact.
+
+The same precedence applies to **Complete My Kit**: a sport-specific secondary product outranks an otherwise equivalent broad team/racket-sport item.
 
 ## Complete My Kit
 
