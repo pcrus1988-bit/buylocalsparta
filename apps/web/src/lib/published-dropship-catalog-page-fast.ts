@@ -62,6 +62,8 @@ export type PublishedDropshipCatalogPageInput = Readonly<{
   sort?: string;
   limit?: number;
   offset?: number;
+  /** Set false only for read-only crawler projections; shopper browsing keeps diversity ranking. */
+  diversify?: boolean;
 }>;
 
 function safeMinor(value: unknown): number | undefined {
@@ -121,7 +123,8 @@ export async function getPublishedDropshipCatalogPage(
     maxPriceMinor: input.maxPriceMinor,
     sort: input.sort,
     limit,
-    offset
+    offset,
+    diversify: input.diversify
   }) as readonly PublishedDropshipFamilyRow[];
 
   if (!familyWindow.length) return { products: [], total: 0, hasMore: false };
