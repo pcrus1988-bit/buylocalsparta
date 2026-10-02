@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { StudioDestination } from "../lib/studio-registry";
 import { consumeStudioTravel, markStudioTravel } from "../lib/studio-travel";
@@ -39,7 +39,7 @@ export function StudioExperienceRuntime({
   children
 }: {
   studioId: StudioId;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const router = useRouter();
   const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
