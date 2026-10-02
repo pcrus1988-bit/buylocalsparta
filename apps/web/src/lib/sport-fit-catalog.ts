@@ -149,7 +149,10 @@ function sportKnowledge(row: SportCatalogRow): SportFitKnowledge | undefined {
     sockHeight: stringValue(facts.sock_height),
     sockCushioning: stringValue(facts.sock_cushioning),
     moistureWicking: booleanValue(facts.moisture_wicking),
-    sockArchSupport: booleanValue(facts.sock_arch_support)
+    sockArchSupport: booleanValue(facts.sock_arch_support),
+    breathabilityLevel: stringValue(facts.breathability_level),
+    thermalLevel: stringValue(facts.thermal_level),
+    compressionLevel: stringValue(facts.compression_level)
   };
 }
 
