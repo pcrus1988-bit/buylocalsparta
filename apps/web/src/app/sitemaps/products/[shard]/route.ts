@@ -33,10 +33,9 @@ function emptySitemap(): string {
 /**
  * Product + image sitemap.
  *
- * Admission uses the authoritative live-offer projection from
- * product-sitemap-inventory rather than storefront read-model freshness. This keeps
- * organic indexability aligned with the same stock evidence used by commerce and
- * Merchant Center while exposing stable same-origin image URLs to Googlebot-Image.
+ * Admission uses the bounded sitemap projection from product-sitemap-inventory.
+ * It consumes the public read model plus the incremental live-availability overlay,
+ * avoiding repeated scans of the full live offer graph when Google fetches shards.
  */
 export async function GET(_request: Request, { params }: RouteContext): Promise<Response> {
   const { shard: shardSegment } = await params;
@@ -134,7 +133,7 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
     status: 200,
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, s-maxage=60, stale-while-revalidate=60"
+      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400"
     }
   });
 }

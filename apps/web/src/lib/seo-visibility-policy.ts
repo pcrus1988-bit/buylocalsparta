@@ -315,8 +315,13 @@ export function productIndexEligibility(
   if (hasImage) {
     score += 1;
     reasons.push(hasApprovedMedia ? "approved public media" : "approved catalogue-source image");
+  } else if (hasDescription && hasIdentity) {
+    // Image discovery is not required to happen inside the sitemap projection.
+    // Strong product pages may expose a governed source image in metadata/schema
+    // while the sitemap remains a cheap, reliable URL-discovery document.
+    reasons.push("strong text and identity evidence; image discovery may come from the product page");
   } else {
-    blockingReasons.push("missing approved or trusted public image");
+    blockingReasons.push("missing public image without strong text and identity evidence");
   }
   if (hasIdentity) {
     score += 1;
