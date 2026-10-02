@@ -123,10 +123,14 @@ function usableKnowledge(product: SportFitProduct): SportFitKnowledge | undefine
   return knowledge;
 }
 
-function requestedActivityCodes(activity: SportActivity): readonly string[] {
-  if (activity === "running") return ["running"];
-  if (activity === "walking") return ["walking"];
-  if (activity === "gym") return ["gym_training", "general_training"];
+function requestedActivityCodes(answers: SportFitAnswers): readonly string[] {
+  if (answers.activity === "running") return ["running"];
+  if (answers.activity === "walking") {
+    return answers.surface === "trail" || answers.surface === "mixed"
+      ? ["walking", "hiking"]
+      : ["walking"];
+  }
+  if (answers.activity === "gym") return ["gym_training", "general_training"];
   return ["football", "team_sports"];
 }
 
@@ -224,7 +228,7 @@ function activityScore(product: SportFitProduct, answers: SportFitAnswers, text:
   const knowledge = usableKnowledge(product);
   const knownActivities = knowledgeList(knowledge?.activities);
   if (knownActivities.length > 0) {
-    const matches = hasKnowledgeMatch(knownActivities, requestedActivityCodes(answers.activity));
+    const matches = hasKnowledgeMatch(knownActivities, requestedActivityCodes(answers));
     if (matches) {
       if (role === "footwear") return 46;
       if (role === "socks") return 28;
@@ -340,8 +344,11 @@ function distanceScore(distance: SportDistance | undefined, text: string, role: 
   return 8;
 }
 
-function frequencyScore(frequency: SportFrequency | undefined, text: string): number {
+function frequencyScore(product: SportFitProduct, frequency: SportFrequency | undefined, text: string): number {
   if (!frequency) return 3;
+  const knowledge = usableKnowledge(product);
+  const useCases = knowledgeList(knowledge?.useCases);
+  if ((frequency === "high" || frequency === "regular") && useCases.includes("daily training")) return 8;
   if (frequency === "high") return hasAny(text, ["performance", "training", "aeroready", "dry fit", "dri fit", "technical"]) ? 8 : 5;
   if (frequency === "regular") return 6;
   return 5;
@@ -395,7 +402,7 @@ function reasonsFor(
   if (matchedSize) reasons.push("Διαθέσιμο στο μέγεθος " + matchedSize);
 
   const knowledge = usableKnowledge(product);
-  if (knowledge && hasKnowledgeMatch(knowledge.activities, requestedActivityCodes(answers.activity))) {
+  if (knowledge && hasKnowledgeMatch(knowledge.activities, requestedActivityCodes(answers))) {
     reasons.push("Τεκμηριωμένη αντιστοίχιση δραστηριότητας");
   }
   if (knowledge && answers.surface && hasKnowledgeMatch(knowledge.surfaces, requestedSurfaceCodes(answers.surface))) {
@@ -441,7 +448,7 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
   score += surfaceScore(product, answers.surface, text, role);
   score += priorityScore(product, answers.priority, text);
   score += distanceScore(answers.distance, text, role);
-  score += frequencyScore(answers.frequency, text);
+  score += frequencyScore(product, answers.frequency, text);
   score += budgetScore(product, answers.budgetMinor);
   score += size.score;
   score += product.available && product.availableToSell > 0 ? 10 : -40;
