@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type VendorConfirmationRequest = Readonly<{
   title: string;
@@ -13,22 +13,58 @@ export type VendorConfirmationRequest = Readonly<{
 
 export function useVendorConfirmation() {
   const [pending, setPending] = useState<VendorConfirmationRequest | null>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!pending) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+
+    const dialog = dialogRef.current;
+    const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ) ?? []);
+    focusable()[0]?.focus();
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPending(null);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setPending(null);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const items = focusable();
+      if (!items.length) {
+        event.preventDefault();
+        return;
+      }
+
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !dialog?.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !dialog?.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
     };
+
     window.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
+      const target = returnFocusRef.current;
+      returnFocusRef.current = null;
+      target?.focus();
     };
   }, [pending]);
 
   function requestConfirmation(request: VendorConfirmationRequest) {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setPending(request);
   }
 
@@ -44,6 +80,7 @@ export function useVendorConfirmation() {
     onMouseDown={() => setPending(null)}
   >
     <section
+      ref={dialogRef}
       className={`vendor-confirmation-dialog${pending.tone === "danger" ? " is-danger" : ""}`}
       role="dialog"
       aria-modal="true"
