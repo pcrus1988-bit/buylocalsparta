@@ -375,7 +375,7 @@ async function processBrand(brand: BrandRow, workerId: number) {
         update public.brands
         set website = coalesce(nullif(website,''), ${website}),
             logo_object_key = ${key},
-            metadata = ${JSON.stringify({ ...md, brand_backfill_agent: workerId + 1, brand_backfill_last_run_at: now })}::jsonb,
+            metadata = ${JSON.stringify({ ...md, brand_backfill_agent: workerId + 1, brand_backfill_last_run_at: now })}::text::jsonb,
             updated_at = now()
         where id = ${brand.id}::uuid
       `;
@@ -397,7 +397,7 @@ async function processBrand(brand: BrandRow, workerId: number) {
   await sql`
     update public.brands
     set website = case when nullif(website,'') is null then ${website} else website end,
-        metadata = ${JSON.stringify(md)}::jsonb,
+        metadata = ${JSON.stringify(md)}::text::jsonb,
         updated_at = case when ${websiteChanged} then now() else updated_at end
     where id = ${brand.id}::uuid
   `;
