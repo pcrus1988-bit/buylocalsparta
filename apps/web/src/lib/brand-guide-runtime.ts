@@ -38,6 +38,16 @@ type BrandDirectoryRow = BrandRow & Readonly<{
   total_count: number | string;
 }>;
 
+type RelatedBrandRow = Readonly<{
+  id: string;
+  name: string;
+  public_slug: string;
+  logo_object_key: string | null;
+  logo_external_url: string | null;
+  shared_category_count: number | string;
+  live_product_count: number | string;
+}>;
+
 export type PublicBrandCategory = Readonly<{
   code: string;
   label: string;
@@ -45,6 +55,23 @@ export type PublicBrandCategory = Readonly<{
   departmentLabel: string;
   productCount: number;
   href: string;
+}>;
+
+export type PublicBrandDepartment = Readonly<{
+  slug: string;
+  label: string;
+  productCount: number;
+  categoryCount: number;
+  href: string;
+}>;
+
+export type PublicRelatedBrand = Readonly<{
+  id: string;
+  name: string;
+  slug: string;
+  logoUrl?: string;
+  sharedCategoryCount: number;
+  liveProductCount: number;
 }>;
 
 export type PublicBrandGuide = Readonly<{
@@ -60,7 +87,9 @@ export type PublicBrandGuide = Readonly<{
   qualityScore: number;
   indexable: boolean;
   liveProductCount: number;
+  departments: readonly PublicBrandDepartment[];
   categories: readonly PublicBrandCategory[];
+  relatedBrands: readonly PublicRelatedBrand[];
   products: readonly CatalogCard[];
   shopHref: string;
 }>;
@@ -104,6 +133,14 @@ function brandShopHref(name: string): string {
   return `/shop?brand=${encodeURIComponent(name)}`;
 }
 
+function departmentHref(name: string, departmentSlug: string): string {
+  const query = new URLSearchParams({
+    brand: name,
+    category: departmentSlug
+  });
+  return `/shop?${query.toString()}`;
+}
+
 function categoryHref(name: string, departmentSlug: string, code: string): string {
   const query = new URLSearchParams({
     brand: name,
@@ -124,6 +161,29 @@ function mapCategory(row: BrandCategoryRow, brandName: string): PublicBrandCateg
     productCount: count(row.product_count),
     href: categoryHref(brandName, department.slug, row.category_code)
   };
+}
+
+function departmentSummaries(categories: readonly PublicBrandCategory[], brandName: string): readonly PublicBrandDepartment[] {
+  const groups = new Map<string, { label: string; productCount: number; categoryCount: number }>();
+  for (const category of categories) {
+    const current = groups.get(category.departmentSlug) ?? {
+      label: category.departmentLabel,
+      productCount: 0,
+      categoryCount: 0
+    };
+    current.productCount += category.productCount;
+    current.categoryCount += 1;
+    groups.set(category.departmentSlug, current);
+  }
+  return [...groups.entries()]
+    .map(([slug, group]) => ({
+      slug,
+      label: group.label,
+      productCount: group.productCount,
+      categoryCount: group.categoryCount,
+      href: departmentHref(brandName, slug)
+    }))
+    .sort((a, b) => b.productCount - a.productCount || a.label.localeCompare(b.label, "el"));
 }
 
 function guideSignals(row: BrandRow, liveProductCount: number) {
@@ -172,7 +232,7 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
   const row = brandResult.rows[0];
   if (!row) return undefined;
 
-  const [inventoryResult, categoryResult, products] = await Promise.all([
+  const [inventoryResult, categoryResult, relatedResult, products] = await Promise.all([
     runtime.nativePool.query<{ live_product_count: number | string }>(`
       SELECT COUNT(DISTINCT rm.canonical_variant_id)::integer AS live_product_count
       FROM public.storefront_catalog_read_model rm
@@ -195,13 +255,58 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
         AND ${liveInventoryPredicate("rm")}
       GROUP BY rm.category_code, rm.department_code, c.slug, el.name, en.name
       ORDER BY product_count DESC, COALESCE(el.name, en.name, c.slug, rm.category_code)
-      LIMIT 10
+    `, [row.id]),
+    runtime.nativePool.query<RelatedBrandRow>(`
+      WITH target_categories AS MATERIALIZED (
+        SELECT DISTINCT rm.category_code
+        FROM public.storefront_catalog_read_model rm
+        WHERE rm.brand_id = $1::uuid
+          AND rm.category_code IS NOT NULL
+          AND ${liveInventoryPredicate("rm")}
+      ),
+      overlap AS MATERIALIZED (
+        SELECT
+          rm.brand_id,
+          COUNT(DISTINCT rm.category_code)::integer AS shared_category_count
+        FROM public.storefront_catalog_read_model rm
+        JOIN target_categories tc ON tc.category_code = rm.category_code
+        WHERE rm.brand_id <> $1::uuid
+          AND ${liveInventoryPredicate("rm")}
+        GROUP BY rm.brand_id
+        ORDER BY shared_category_count DESC
+        LIMIT 24
+      ),
+      totals AS (
+        SELECT
+          rm.brand_id,
+          COUNT(DISTINCT rm.canonical_variant_id)::integer AS live_product_count
+        FROM public.storefront_catalog_read_model rm
+        JOIN overlap o ON o.brand_id = rm.brand_id
+        WHERE ${liveInventoryPredicate("rm")}
+        GROUP BY rm.brand_id
+      )
+      SELECT
+        b.id,
+        b.name,
+        b.public_slug,
+        b.logo_object_key,
+        b.metadata->>'logo_external_url' AS logo_external_url,
+        o.shared_category_count,
+        t.live_product_count
+      FROM overlap o
+      JOIN totals t ON t.brand_id = o.brand_id
+      JOIN public.brands b ON b.id = o.brand_id
+      WHERE b.status = 'active'
+      ORDER BY o.shared_category_count DESC, t.live_product_count DESC, lower(b.name)
+      LIMIT 6
     `, [row.id]),
     getCachedCrawlerCatalogCards("23100", "", "", { brand: row.name }, 8).catch(() => [])
   ]);
 
   const liveProductCount = count(inventoryResult.rows[0]?.live_product_count);
   const signals = guideSignals(row, liveProductCount);
+  const allCategories = categoryResult.rows.map((category) => mapCategory(category, row.name));
+  const categories = allCategories.slice(0, 10);
 
   return {
     id: row.id,
@@ -216,7 +321,16 @@ export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBra
     qualityScore: signals.qualityScore,
     indexable: signals.indexable,
     liveProductCount,
-    categories: categoryResult.rows.map((category) => mapCategory(category, row.name)),
+    departments: departmentSummaries(allCategories, row.name),
+    categories,
+    relatedBrands: relatedResult.rows.map((related) => ({
+      id: related.id,
+      name: related.name,
+      slug: related.public_slug,
+      logoUrl: publicBrandLogoUrl(related.logo_object_key, related.logo_external_url),
+      sharedCategoryCount: count(related.shared_category_count),
+      liveProductCount: count(related.live_product_count)
+    })),
     products,
     shopHref: brandShopHref(row.name)
   };

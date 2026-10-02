@@ -113,9 +113,23 @@ export default async function BrandGuidePage({ params }: Props) {
         </div>
       </section> : null}
 
+      {brand.departments.length ? <section className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <div><div className="eyebrow">Ο χάρτης του brand</div><h2>Πού συναντάς το {brand.name}.</h2></div>
+          <p className={styles.copy}>Αντί για μία επίπεδη λίστα προϊόντων, ξεκίνα από τον τομέα που σε ενδιαφέρει. Οι διαδρομές παρακάτω δημιουργούνται από τη σημερινή πραγματική διαθεσιμότητα του brand.</p>
+        </div>
+        <div className={styles.departmentGrid}>
+          {brand.departments.map((department) => <Link className={styles.departmentCard} href={department.href} key={department.slug}>
+            <span>ΤΟΜΕΑΣ</span>
+            <strong>{department.label}</strong>
+            <small>{department.productCount.toLocaleString("el-GR")} προϊόντα · {department.categoryCount.toLocaleString("el-GR")} {department.categoryCount === 1 ? "κατηγορία" : "κατηγορίες"} →</small>
+          </Link>)}
+        </div>
+      </section> : null}
+
       {brand.categories.length ? <section className={styles.section}>
         <div className={styles.sectionHeader}>
-          <div><div className="eyebrow">Ξεκίνα από αυτό που ψάχνεις</div><h2>Τι έχει διαθέσιμο τώρα.</h2></div>
+          <div><div className="eyebrow">Πιο συγκεκριμένα</div><h2>Κατηγορίες {brand.name}</h2></div>
           <p className={styles.copy}>Οι ενότητες δεν είναι στατικές SEO κατηγορίες. Προκύπτουν από τα πραγματικά προϊόντα {brand.name} που είναι αυτή τη στιγμή διαθέσιμα στο ΚΟΝΤΑ ΜΟΥ.</p>
         </div>
         <div className={styles.categoryGrid}>
@@ -137,6 +151,24 @@ export default async function BrandGuidePage({ params }: Props) {
         </div>
         <div className={styles.ctaRow}>
           <Link className="button" href={brand.shopHref}>Όλα τα προϊόντα {brand.name} →</Link>
+        </div>
+      </section> : null}
+
+      {brand.relatedBrands.length ? <section className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <div><div className="eyebrow">Συνέχισε την ανακάλυψη</div><h2>Brands με κοινό έδαφος.</h2></div>
+          <p className={styles.copy}>Αυτές οι προτάσεις δεν είναι πληρωμένη κατάταξη. Βασίζονται στις ενεργές κατηγορίες που μοιράζονται με το {brand.name} και στην τρέχουσα διαθεσιμότητα του καταλόγου.</p>
+        </div>
+        <div className={styles.relatedGrid}>
+          {brand.relatedBrands.map((related) => <Link className={styles.relatedCard} href={`/brands/${related.slug}`} key={related.id}>
+            <div className={styles.relatedLogo}>
+              {related.logoUrl ? <img src={related.logoUrl} alt="" loading="lazy" decoding="async" /> : <span>{related.name}</span>}
+            </div>
+            <div>
+              <strong>{related.name}</strong>
+              <span>{related.sharedCategoryCount.toLocaleString("el-GR")} κοινές {related.sharedCategoryCount === 1 ? "κατηγορία" : "κατηγορίες"} · {related.liveProductCount.toLocaleString("el-GR")} διαθέσιμα</span>
+            </div>
+          </Link>)}
         </div>
       </section> : null}
 
