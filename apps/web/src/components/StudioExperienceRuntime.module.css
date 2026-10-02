@@ -11,11 +11,38 @@
   pointer-events:none;
   opacity:0;
   visibility:hidden;
+  background:linear-gradient(180deg,rgba(5,7,7,.96),rgba(3,5,5,.99));
+}
+.travelVeil>i,.travelVeil>span{
+  position:absolute;
+  display:block;
+  box-sizing:border-box;
+}
+.travelVeil>span{
+  left:50%;
+  top:50%;
+  width:9px;
+  height:9px;
+  transform:translate(-50%,-50%);
+}
+.runtime[data-entering] .travelVeil{
+  visibility:visible;
+  animation:studio-enter-veil .64s cubic-bezier(.2,.74,.2,1) both;
+}
+.runtime[data-exiting] .travelVeil{
+  visibility:visible;
+  animation:studio-exit-veil .5s cubic-bezier(.2,.74,.2,1) both;
+}
+.runtime[data-exiting]>*:not(.travelVeil){
+  animation:studio-content-exit .5s cubic-bezier(.2,.74,.2,1) both;
+}
+
+/* SPORT & FIT — the only Studio that uses a tunnel / universe transition. */
+.runtime[data-studio="sport-fit"] .travelVeil{
   background:
     radial-gradient(circle at 50% 50%,transparent 0 7%,rgba(4,8,7,.12) 12%,rgba(4,8,7,.78) 58%,#040807 100%);
 }
-.travelVeil>i{
-  position:absolute;
+.runtime[data-studio="sport-fit"] .travelVeil>i{
   left:50%;
   top:50%;
   width:24vmin;
@@ -25,51 +52,139 @@
   transform:translate(-50%,-50%) scale(.25);
   box-shadow:0 0 60px rgba(89,255,223,.08),inset 0 0 30px rgba(89,255,223,.04);
 }
-.travelVeil>i:nth-child(2){width:44vmin;height:44vmin;animation-delay:.05s}
-.travelVeil>i:nth-child(3){width:68vmin;height:68vmin;animation-delay:.1s}
-.travelVeil>i:nth-child(4){width:94vmin;height:94vmin;animation-delay:.15s}
-.travelVeil>span{
-  position:absolute;
-  left:50%;
-  top:50%;
-  width:9px;
-  height:9px;
+.runtime[data-studio="sport-fit"] .travelVeil>i:nth-child(2){width:44vmin;height:44vmin;animation-delay:.05s}
+.runtime[data-studio="sport-fit"] .travelVeil>i:nth-child(3){width:68vmin;height:68vmin;animation-delay:.1s}
+.runtime[data-studio="sport-fit"] .travelVeil>i:nth-child(4){width:94vmin;height:94vmin;animation-delay:.15s}
+.runtime[data-studio="sport-fit"] .travelVeil>span{
   border-radius:50%;
-  transform:translate(-50%,-50%);
   background:#d8fff8;
   box-shadow:0 0 42px rgba(120,255,230,.85);
 }
-.runtime[data-entering] .travelVeil{
-  visibility:visible;
-  animation:studio-enter-veil .64s cubic-bezier(.2,.74,.2,1) both;
+.runtime[data-studio="sport-fit"][data-entering] .travelVeil>i{animation:studio-enter-ring .64s cubic-bezier(.2,.74,.2,1) both}
+.runtime[data-studio="sport-fit"][data-exiting] .travelVeil>i{animation:studio-exit-ring .5s cubic-bezier(.2,.74,.2,1) both}
+
+/* PAINT & BUILD — architectural frames close/open like moving through project bays. */
+.runtime[data-studio="paint-build"] .travelVeil{
+  background:
+    linear-gradient(rgba(203,178,122,.045) 1px,transparent 1px) 0 0/48px 48px,
+    linear-gradient(90deg,rgba(203,178,122,.045) 1px,transparent 1px) 0 0/48px 48px,
+    #080809;
 }
-.runtime[data-entering] .travelVeil>i{animation:studio-enter-ring .64s cubic-bezier(.2,.74,.2,1) both}
-.runtime[data-exiting] .travelVeil{
-  visibility:visible;
-  animation:studio-exit-veil .5s cubic-bezier(.2,.74,.2,1) both;
+.runtime[data-studio="paint-build"] .travelVeil>i{
+  left:50%;
+  top:50%;
+  width:22vmin;
+  height:34vmin;
+  border:1px solid rgba(226,191,119,.28);
+  border-radius:2px;
+  transform:translate(-50%,-50%) scale(.25);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.015);
 }
-.runtime[data-exiting] .travelVeil>i{animation:studio-exit-ring .5s cubic-bezier(.2,.74,.2,1) both}
-.runtime[data-exiting]>*:not(.travelVeil){
-  animation:studio-content-exit .5s cubic-bezier(.2,.74,.2,1) both;
+.runtime[data-studio="paint-build"] .travelVeil>i:nth-child(2){width:38vmin;height:52vmin;animation-delay:.04s}
+.runtime[data-studio="paint-build"] .travelVeil>i:nth-child(3){width:58vmin;height:72vmin;animation-delay:.08s}
+.runtime[data-studio="paint-build"] .travelVeil>i:nth-child(4){width:82vmin;height:96vmin;animation-delay:.12s}
+.runtime[data-studio="paint-build"] .travelVeil>span{
+  width:12px;height:12px;border-radius:2px;
+  background:#d8bd7e;
+  box-shadow:0 0 30px rgba(216,189,126,.45);
 }
+.runtime[data-studio="paint-build"][data-entering] .travelVeil>i{animation:studio-enter-frame .64s cubic-bezier(.2,.74,.2,1) both}
+.runtime[data-studio="paint-build"][data-exiting] .travelVeil>i{animation:studio-exit-frame .5s cubic-bezier(.2,.74,.2,1) both}
+
+/* STYLE — fitting-room panels / curtains reveal the showroom. */
+.runtime[data-studio="style"] .travelVeil{
+  background:linear-gradient(90deg,#0d0b0b,#17110f 50%,#0d0b0b);
+}
+.runtime[data-studio="style"] .travelVeil>i{
+  top:50%;
+  width:24vw;
+  height:120vh;
+  border-left:1px solid rgba(232,184,214,.22);
+  border-right:1px solid rgba(232,184,214,.1);
+  background:linear-gradient(90deg,rgba(46,30,38,.92),rgba(23,17,19,.7));
+  transform:translate(-50%,-50%) scaleY(1);
+}
+.runtime[data-studio="style"] .travelVeil>i:nth-child(1){left:12.5%}
+.runtime[data-studio="style"] .travelVeil>i:nth-child(2){left:37.5%;animation-delay:.035s}
+.runtime[data-studio="style"] .travelVeil>i:nth-child(3){left:62.5%;animation-delay:.07s}
+.runtime[data-studio="style"] .travelVeil>i:nth-child(4){left:87.5%;animation-delay:.105s}
+.runtime[data-studio="style"] .travelVeil>span{
+  width:1px;height:50vh;
+  background:rgba(240,205,224,.52);
+  box-shadow:0 0 26px rgba(240,205,224,.28);
+}
+.runtime[data-studio="style"][data-entering] .travelVeil>i{animation:studio-enter-curtain .64s cubic-bezier(.2,.74,.2,1) both}
+.runtime[data-studio="style"][data-exiting] .travelVeil>i{animation:studio-exit-curtain .5s cubic-bezier(.2,.74,.2,1) both}
+
+/* COLOR FINDER — shade cards expand/recede like entering a physical colour lab. */
+.runtime[data-studio="color"] .travelVeil{
+  background:#0b0b0d;
+}
+.runtime[data-studio="color"] .travelVeil>i{
+  width:28vmin;
+  height:28vmin;
+  border:8px solid rgba(245,241,235,.72);
+  transform:translate(-50%,-50%) scale(.2);
+  box-shadow:0 20px 50px rgba(0,0,0,.32);
+}
+.runtime[data-studio="color"] .travelVeil>i:nth-child(1){left:34%;top:34%;background:#b95c74}
+.runtime[data-studio="color"] .travelVeil>i:nth-child(2){left:66%;top:34%;background:#668fc0;animation-delay:.04s}
+.runtime[data-studio="color"] .travelVeil>i:nth-child(3){left:34%;top:66%;background:#c7a45f;animation-delay:.08s}
+.runtime[data-studio="color"] .travelVeil>i:nth-child(4){left:66%;top:66%;background:#6e9f83;animation-delay:.12s}
+.runtime[data-studio="color"] .travelVeil>span{
+  width:18vmin;height:18vmin;
+  border:6px solid rgba(245,241,235,.82);
+  background:#8b6a78;
+  transform:translate(-50%,-50%);
+  box-shadow:0 24px 60px rgba(0,0,0,.36);
+}
+.runtime[data-studio="color"][data-entering] .travelVeil>i{animation:studio-enter-swatch .64s cubic-bezier(.2,.74,.2,1) both}
+.runtime[data-studio="color"][data-exiting] .travelVeil>i{animation:studio-exit-swatch .5s cubic-bezier(.2,.74,.2,1) both}
+
 @keyframes studio-enter-veil{
   0%{opacity:1;filter:blur(0)}
   45%{opacity:.72}
   100%{opacity:0;filter:blur(6px)}
+}
+@keyframes studio-exit-veil{
+  0%{opacity:0}
+  100%{opacity:1}
 }
 @keyframes studio-enter-ring{
   0%{transform:translate(-50%,-50%) scale(2.8);opacity:0}
   22%{opacity:.75}
   100%{transform:translate(-50%,-50%) scale(.35);opacity:0}
 }
-@keyframes studio-exit-veil{
-  0%{opacity:0}
-  100%{opacity:1}
-}
 @keyframes studio-exit-ring{
   0%{transform:translate(-50%,-50%) scale(.25);opacity:0}
   25%{opacity:.7}
   100%{transform:translate(-50%,-50%) scale(2.9);opacity:0}
+}
+@keyframes studio-enter-frame{
+  0%{transform:translate(-50%,-50%) scale(2.4);opacity:0}
+  24%{opacity:.7}
+  100%{transform:translate(-50%,-50%) scale(.45);opacity:0}
+}
+@keyframes studio-exit-frame{
+  0%{transform:translate(-50%,-50%) scale(.35);opacity:0}
+  24%{opacity:.72}
+  100%{transform:translate(-50%,-50%) scale(2.55);opacity:0}
+}
+@keyframes studio-enter-curtain{
+  0%{transform:translate(-50%,-50%) scaleX(1.45);opacity:1}
+  100%{transform:translate(-50%,-50%) scaleX(.04);opacity:0}
+}
+@keyframes studio-exit-curtain{
+  0%{transform:translate(-50%,-50%) scaleX(.04);opacity:0}
+  100%{transform:translate(-50%,-50%) scaleX(1.45);opacity:1}
+}
+@keyframes studio-enter-swatch{
+  0%{transform:translate(-50%,-50%) scale(2.5);opacity:.95}
+  100%{transform:translate(-50%,-50%) scale(.3);opacity:0}
+}
+@keyframes studio-exit-swatch{
+  0%{transform:translate(-50%,-50%) scale(.25);opacity:0}
+  100%{transform:translate(-50%,-50%) scale(2.55);opacity:.95}
 }
 @keyframes studio-content-exit{
   from{transform:scale(1);filter:blur(0);opacity:1}
