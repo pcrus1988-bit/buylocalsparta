@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { VendorActionNotice } from "./VendorLifecycle";
+import { useVendorConfirmation } from "./VendorConfirmation";
 import { WorkspaceHowItWorks } from "./WorkspacePagePrimitives";
 
 type Access = {
@@ -22,6 +23,7 @@ export function VendorDailyAccessClient({ initial, csrfToken }: { initial: Reado
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const { requestConfirmation, confirmationDialog } = useVendorConfirmation();
 
   async function send(body: Record<string, unknown>) {
     const response = await fetch("/api/vendor/daily-access", {
@@ -48,7 +50,6 @@ export function VendorDailyAccessClient({ initial, csrfToken }: { initial: Reado
   }
 
   async function revoke(accessId: string) {
-    if (!window.confirm("Να ανακληθεί αυτή η Daily πρόσβαση; Όλες οι ενεργές συνεδρίες του συγκεκριμένου λογαριασμού θα τερματιστούν αμέσως.")) return;
     setBusy(accessId); setError(""); setSuccess("");
     try { await send({ action: "revoke", accessId }); setSuccess("Η πρόσβαση ανακλήθηκε και οι ενεργές Daily συνεδρίες τερματίστηκαν."); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Η ανάκληση απέτυχε"); }
@@ -66,6 +67,7 @@ export function VendorDailyAccessClient({ initial, csrfToken }: { initial: Reado
   }
 
   return <div style={{ display: "grid", gap: 24 }}>
+    {confirmationDialog}
     <section className="workspace-queue-card" style={{ display: "grid", gap: 16 }}>
       <div><div className="eyebrow">Νέα πρόσβαση</div><h2 style={{ margin: "4px 0 6px" }}>Πρόσθεσε άτομο στην καθημερινή λειτουργία</h2><p style={{ margin: 0, opacity: .72 }}>Ο λογαριασμός Daily βλέπει μόνο τις καθημερινές εργασίες: παραγγελίες, Ask Local, QR παραλαβές και ειδοποιήσεις. Δεν αποκτά πρόσβαση στο πλήρη χώρο συνεργάτη.</p></div>
 <div className="workspace-inline-note"><strong>Τι μπορεί να κάνει;</strong> Παραγγελίες, Ask Local, παραλαβές QR και καθημερινές ειδοποιήσεις. Δεν έχει πρόσβαση σε οικονομικά, ρυθμίσεις ή διαχείριση καταστήματος.</div>
@@ -98,7 +100,7 @@ export function VendorDailyAccessClient({ initial, csrfToken }: { initial: Reado
         </div>
         {access.active && <div style={{ display: "grid", gap: 10 }}>
           <details className="workspace-record-details"><summary>Αλλαγή κωδικού</summary><div><form onSubmit={(event) => void resetPassword(event, access.id)} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><input name="password" type="password" minLength={10} required placeholder="Νέος κωδικός" autoComplete="new-password" style={{ flex: "1 1 220px" }} /><button className="button button-secondary" type="submit" disabled={Boolean(busy)}>{busy === `reset:${access.id}` ? "Αλλαγή…" : "Αλλαγή κωδικού"}</button></form></div></details>
-          <button className="button button-secondary" type="button" disabled={Boolean(busy)} onClick={() => void revoke(access.id)}>{busy === access.id ? "Ανάκληση…" : "Ανάκληση πρόσβασης"}</button>
+          <button className="button button-secondary" type="button" disabled={Boolean(busy)} onClick={() => requestConfirmation({ title: "Να ανακληθεί αυτή η πρόσβαση Daily;", body: "Το άτομο θα αποσυνδεθεί άμεσα από όλες τις ενεργές συνεδρίες Daily. Η πρόσβαση μπορεί να δημιουργηθεί ξανά αργότερα αν χρειαστεί.", confirmLabel: "Ανάκληση πρόσβασης", tone: "danger", onConfirm: () => revoke(access.id) })}>{busy === access.id ? "Ανάκληση…" : "Ανάκληση πρόσβασης"}</button>
         </div>}
       </article>)}
     </section>

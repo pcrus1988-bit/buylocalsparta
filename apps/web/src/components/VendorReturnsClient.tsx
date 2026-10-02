@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { VendorActionNotice, VendorLifecycle, type VendorLifecycleStep, vendorStatusLabel } from "./VendorLifecycle";
+import { useVendorConfirmation } from "./VendorConfirmation";
 import { WorkspaceEmptyState, WorkspaceHowItWorks, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "./WorkspacePagePrimitives";
 
 type Workspace = { csrfToken: string; returns: readonly any[] };
@@ -100,17 +101,12 @@ export function VendorReturnsClient({ initial }: { initial: Workspace }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  const { requestConfirmation, confirmationDialog } = useVendorConfirmation();
   const replacementCases = initial.returns.filter((item) => Boolean(item.replacement)).length;
   const repairCases = initial.returns.filter((item) => Boolean(item.repair)).length;
   const intakeCases = initial.returns.filter((item) => ["in_transit", "received"].includes(item.status)).length;
 
   async function act(returnId: string, kind: string, action: string) {
-    if (["reject", "fail", "deliver", "return_to_customer"].includes(action)) {
-      const message = action === "reject" ? "Επιβεβαιώνεις ότι το κατάστημα δεν μπορεί να αναλάβει την αντικατάσταση;"
-        : action === "fail" ? "Επιβεβαιώνεις ότι η επισκευή δεν μπορεί να ολοκληρωθεί;"
-          : "Επιβεβαιώνεις ότι το προϊόν παραδόθηκε στον πελάτη;";
-      if (!window.confirm(message)) return;
-    }
     const key = `${returnId}:${kind}:${action}`;
     setBusy(key);
     setError("");
@@ -124,7 +120,38 @@ export function VendorReturnsClient({ initial }: { initial: Workspace }) {
     } finally { setBusy(""); }
   }
 
+  function requestAction(returnId: string, kind: string, action: string) {
+    const confirmation = action === "reject" ? {
+      title: "Δεν μπορείς να αναλάβεις την αντικατάσταση;",
+      body: "Η αντικατάσταση θα σταματήσει να προχωρά από το κατάστημά σου. Επίλεξέ το μόνο όταν πραγματικά δεν μπορείς να την αναλάβεις.",
+      confirmLabel: "Ναι, δεν μπορώ να την αναλάβω",
+      tone: "danger" as const
+    } : action === "fail" ? {
+      title: "Η επισκευή δεν μπορεί να ολοκληρωθεί;",
+      body: "Η υπόθεση θα ενημερωθεί ότι η επισκευή δεν είναι δυνατή. Βεβαιώσου ότι έχει προηγηθεί ο απαραίτητος έλεγχος.",
+      confirmLabel: "Ναι, δεν είναι δυνατή",
+      tone: "danger" as const
+    } : action === "deliver" ? {
+      title: "Παραδόθηκε η αντικατάσταση στον πελάτη;",
+      body: "Με την επιβεβαίωση η αντικατάσταση καταγράφεται ως παραδοθείσα και η υπόθεση προχωρά στο επόμενο στάδιο.",
+      confirmLabel: "Ναι, παραδόθηκε",
+      tone: "default" as const
+    } : action === "return_to_customer" ? {
+      title: "Επιστράφηκε το προϊόν στον πελάτη;",
+      body: "Με την επιβεβαίωση η επισκευή καταγράφεται ως ολοκληρωμένη για το κατάστημά σου.",
+      confirmLabel: "Ναι, επιστράφηκε",
+      tone: "default" as const
+    } : null;
+
+    if (!confirmation) {
+      void act(returnId, kind, action);
+      return;
+    }
+    requestConfirmation({ ...confirmation, onConfirm: () => act(returnId, kind, action) });
+  }
+
   return <>
+    {confirmationDialog}
     {error && <div className="shell form-error vendor-error" role="alert"><strong>Η κατάσταση δεν άλλαξε.</strong> {error}</div>}
     <WorkspaceMetricStrip items={[
       { label: "Επιστροφές", value: initial.returns.length },
@@ -166,14 +193,14 @@ export function VendorReturnsClient({ initial }: { initial: Workspace }) {
             <div className="workspace-tool-body">
               <strong>Αντικατάσταση</strong>
               <VendorLifecycle steps={replacementLifecycle(item.replacement)} ariaLabel="Πορεία αντικατάστασης" />
-              {replacementNext.length ? <div className="workspace-action-buttons" style={{ marginTop: 14 }}>{replacementNext.map((action) => <button className={`button${action === "reject" ? " button-secondary" : ""}`} disabled={Boolean(busy)} key={action} onClick={() => void act(item.id, "replacement", action)}>{busy === `${item.id}:replacement:${action}` ? "Ενημέρωση…" : replacementLabels[action]}</button>)}</div> : <p className="vendor-waiting-copy">Δεν υπάρχει διαθέσιμη ενέργεια για το κατάστημα στο τρέχον στάδιο.</p>}
+              {replacementNext.length ? <div className="workspace-action-buttons" style={{ marginTop: 14 }}>{replacementNext.map((action) => <button className={`button${action === "reject" ? " button-secondary" : ""}`} disabled={Boolean(busy)} key={action} onClick={() => requestAction(item.id, "replacement", action)}>{busy === `${item.id}:replacement:${action}` ? "Ενημέρωση…" : replacementLabels[action]}</button>)}</div> : <p className="vendor-waiting-copy">Δεν υπάρχει διαθέσιμη ενέργεια για το κατάστημα στο τρέχον στάδιο.</p>}
             </div>
           </section>}
           {item.repair && <section className="workspace-tool-panel" style={{ marginTop: 12 }}>
             <div className="workspace-tool-body">
               <strong>Επισκευή</strong>
               <VendorLifecycle steps={repairLifecycle(item.repair)} ariaLabel="Πορεία επισκευής" />
-              {repairNext.length ? <div className="workspace-action-buttons" style={{ marginTop: 14 }}>{repairNext.map((action) => <button className={`button${action === "fail" ? " button-secondary" : ""}`} disabled={Boolean(busy)} key={action} onClick={() => void act(item.id, "repair", action)}>{busy === `${item.id}:repair:${action}` ? "Ενημέρωση…" : repairLabels[action]}</button>)}</div> : <p className="vendor-waiting-copy">Δεν υπάρχει διαθέσιμη ενέργεια για το κατάστημα στο τρέχον στάδιο.</p>}
+              {repairNext.length ? <div className="workspace-action-buttons" style={{ marginTop: 14 }}>{repairNext.map((action) => <button className={`button${action === "fail" ? " button-secondary" : ""}`} disabled={Boolean(busy)} key={action} onClick={() => requestAction(item.id, "repair", action)}>{busy === `${item.id}:repair:${action}` ? "Ενημέρωση…" : repairLabels[action]}</button>)}</div> : <p className="vendor-waiting-copy">Δεν υπάρχει διαθέσιμη ενέργεια για το κατάστημα στο τρέχον στάδιο.</p>}
             </div>
           </section>}
 

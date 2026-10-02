@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { VendorActionNotice, VendorLifecycle, type VendorLifecycleStep, vendorStatusLabel } from "./VendorLifecycle";
+import { useVendorConfirmation } from "./VendorConfirmation";
 import { WorkspaceEmptyState, WorkspaceHowItWorks, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "./WorkspacePagePrimitives";
 
 type Fulfilment = {
@@ -97,10 +98,9 @@ export function VendorOrdersClient({ initial }: { initial: Dashboard }) {
   const [deliveryContacts, setDeliveryContacts] = useState<Record<string, DeliveryContact | undefined>>({});
   const [error, setError] = useState("");
   const [shipmentDrafts, setShipmentDrafts] = useState<Record<string, { carrier: string; trackingNumber: string; deliveryNote: string }>>({});
+  const { requestConfirmation, confirmationDialog } = useVendorConfirmation();
 
   async function act(fulfilmentId: string, action: string) {
-    if (action === "reject" && !window.confirm("Να δηλωθεί ότι το κατάστημά σου δεν μπορεί να εξυπηρετήσει αυτή την παραγγελία;")) return;
-    if (action === "delivered" && !window.confirm("Επιβεβαιώνεις ότι τα σωστά προϊόντα παραδόθηκαν στον πελάτη;")) return;
     const key = `${fulfilmentId}:${action}`;
     setBusy(key);
     setError("");
@@ -184,6 +184,7 @@ export function VendorOrdersClient({ initial }: { initial: Dashboard }) {
   const shipping = data.fulfilments.filter((item) => item.mode !== "pickup").length;
 
   return <>
+    {confirmationDialog}
     {error && <div className="shell form-error vendor-error" role="alert"><strong>Η κατάσταση δεν άλλαξε.</strong> {error} Δοκίμασε ξανά.</div>}
 
     <WorkspaceMetricStrip items={[
@@ -258,7 +259,28 @@ export function VendorOrdersClient({ initial }: { initial: Dashboard }) {
             {item.actions.length > 0 && <div className="workspace-action-bar">
               <span>Η κύρια ενέργεια προχωρά την παραγγελία στο επόμενο στάδιο.</span>
               <div className="workspace-action-buttons">
-                {item.actions.map((action) => <button key={action} type="button" className={action === "reject" ? "button button-secondary" : "button"} disabled={Boolean(busy)} onClick={() => void act(item.id, action)}>{busy === `${item.id}:${action}` ? "Ενημέρωση…" : action === "ready" && item.mode === "local_delivery" ? "Έτοιμο για οδηγό" : actionLabel[action] ?? vendorStatusLabel(action)}</button>)}
+                {item.actions.map((action) => <button key={action} type="button" className={action === "reject" ? "button button-secondary" : "button"} disabled={Boolean(busy)} onClick={() => {
+                  if (action === "reject") {
+                    requestConfirmation({
+                      title: "Δεν μπορείς να εξυπηρετήσεις την παραγγελία;",
+                      body: "Η παραγγελία θα σταματήσει να εκτελείται από το κατάστημά σου. Χρησιμοποίησε αυτή την ενέργεια μόνο όταν πραγματικά δεν μπορείς να την εξυπηρετήσεις.",
+                      confirmLabel: "Ναι, δεν μπορώ να την εξυπηρετήσω",
+                      tone: "danger",
+                      onConfirm: () => act(item.id, action)
+                    });
+                    return;
+                  }
+                  if (action === "delivered") {
+                    requestConfirmation({
+                      title: "Παραδόθηκαν τα σωστά προϊόντα;",
+                      body: "Με την επιβεβαίωση η παράδοση καταγράφεται ως ολοκληρωμένη. Έλεγξε πρώτα ότι ο πελάτης παρέλαβε τα σωστά προϊόντα.",
+                      confirmLabel: "Ναι, παραδόθηκαν",
+                      onConfirm: () => act(item.id, action)
+                    });
+                    return;
+                  }
+                  void act(item.id, action);
+                }}>{busy === `${item.id}:${action}` ? "Ενημέρωση…" : action === "ready" && item.mode === "local_delivery" ? "Έτοιμο για οδηγό" : actionLabel[action] ?? vendorStatusLabel(action)}</button>)}
               </div>
             </div>}
           </article>;

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { VendorActionNotice, VendorLifecycle, type VendorLifecycleStep } from "./VendorLifecycle";
+import { useVendorConfirmation } from "./VendorConfirmation";
 import { WorkspaceHowItWorks, WorkspaceRecordDetails } from "./WorkspacePagePrimitives";
 
 type Preview = {
@@ -39,9 +40,9 @@ export function VendorPickupCollectClient({ initial, token, csrfToken, returnHre
   const [data, setData] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const { requestConfirmation, confirmationDialog } = useVendorConfirmation();
 
   async function collect() {
-    if (!window.confirm("Επιβεβαιώνεις ότι έλεγξες τα προϊόντα και τα παραδίδεις τώρα στον πελάτη;")) return;
     setBusy(true);
     setError("");
     try {
@@ -60,7 +61,9 @@ export function VendorPickupCollectClient({ initial, token, csrfToken, returnHre
     }
   }
 
-  return <section className="shell vendor-section" style={{ maxWidth: 760 }}>
+  return <>
+    {confirmationDialog}
+    <section className="shell vendor-section" style={{ maxWidth: 760 }}>
     <div className="workspace-queue-card" style={{ display: "grid", gap: 18 }}>
       <div>
         <div className="eyebrow">Παραλαβή από κατάστημα</div>
@@ -78,7 +81,7 @@ export function VendorPickupCollectClient({ initial, token, csrfToken, returnHre
 
       {data.status === "ready" && <>
         <VendorActionNotice tone="attention" title="Χρειάζεται τελική επιβεβαίωση από εσένα">Έλεγξε ότι παραδίδεις τα σωστά προϊόντα στον πελάτη που παρουσίασε το QR.</VendorActionNotice>
-        <button className="button" type="button" disabled={busy} onClick={() => void collect()}>{busy ? "Ολοκλήρωση…" : "Παράδοση στον πελάτη"}</button>
+        <button className="button" type="button" disabled={busy} onClick={() => requestConfirmation({ title: "Να ολοκληρωθεί η παραλαβή;", body: "Επιβεβαίωσε μόνο αφού ελέγξεις ότι ο πελάτης παρέλαβε τα σωστά προϊόντα που αντιστοιχούν σε αυτό το QR.", confirmLabel: "Παράδοση στον πελάτη", onConfirm: () => collect() })}>{busy ? "Ολοκλήρωση…" : "Παράδοση στον πελάτη"}</button>
       </>}
 
       {data.status === "collected" && <VendorActionNotice tone="positive" title="Η παραλαβή επιβεβαιώθηκε">{data.collectedAt ? `Ολοκληρώθηκε ${date(data.collectedAt)}. ` : ""}Δεν απαιτείται άλλη ενέργεια.</VendorActionNotice>}
@@ -91,5 +94,6 @@ export function VendorPickupCollectClient({ initial, token, csrfToken, returnHre
       <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη"><div className="workspace-compact-row"><strong>Κωδικός παραγγελίας</strong><span className="vendor-technical-id">{data.orderId}</span></div></WorkspaceRecordDetails>
       <Link className="button button-secondary" href={returnHref}>Επιστροφή στις παραγγελίες</Link>
     </div>
-  </section>;
+  </section>
+  </>;
 }
