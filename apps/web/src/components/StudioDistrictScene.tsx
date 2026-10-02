@@ -204,6 +204,21 @@ export function StudioDistrictScene() {
         mount.replaceChildren(renderer.domElement);
 
         const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+        const textureLoader = new THREE.TextureLoader();
+        const localDisplayTextures = new Map<string, any>();
+
+        async function loadLocalDisplay(path: string) {
+          if (localDisplayTextures.has(path)) return localDisplayTextures.get(path);
+          try {
+            const texture = await textureLoader.loadAsync(path);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.anisotropy = maxAnisotropy;
+            localDisplayTextures.set(path, texture);
+            return texture;
+          } catch {
+            return undefined;
+          }
+        }
 
         function canvasTexture(base: string, line: string, tile = 42) {
           const canvas = document.createElement("canvas");
@@ -555,7 +570,7 @@ export function StudioDistrictScene() {
           return mesh;
         }
 
-        function createDoor(studio: StudioDestination) {
+        async function createDoor(studio: StudioDestination) {
           const cfg = DOORS[studio.id];
           const accent = ACCENTS[studio.id];
           const group = new THREE.Group();
@@ -658,6 +673,23 @@ export function StudioDistrictScene() {
             mirror.position.set(0, 0.45, -0.12);
             group.add(mirror);
 
+            const fittingRoomTexture = await loadLocalDisplay("/fitting-room/loading/fitting-room.webp");
+            if (fittingRoomTexture) {
+              const display = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.88, 1.45),
+                new THREE.MeshPhysicalMaterial({
+                  map: fittingRoomTexture,
+                  roughness: 0.16,
+                  metalness: 0.02,
+                  clearcoat: 0.34,
+                  clearcoatRoughness: 0.18,
+                  envMapIntensity: 0.72
+                })
+              );
+              display.position.set(-0.92, 0.32, 0.04);
+              group.add(display);
+            }
+
             const skin = new THREE.MeshStandardMaterial({ color: 0xc8aa91, roughness: 0.78 });
             const cloth = new THREE.MeshStandardMaterial({ color: 0x2d2c2a, roughness: 0.58 });
             const head = new THREE.Mesh(new THREE.SphereGeometry(0.19, 18, 14), skin);
@@ -676,6 +708,22 @@ export function StudioDistrictScene() {
           }
 
           if (studio.id === "color") {
+            const colorStudioTexture = await loadLocalDisplay("/color-finder/studios/home-color-studio.png");
+            if (colorStudioTexture) {
+              const display = new THREE.Mesh(
+                new THREE.PlaneGeometry(2.0, 1.18),
+                new THREE.MeshPhysicalMaterial({
+                  map: colorStudioTexture,
+                  roughness: 0.18,
+                  clearcoat: 0.26,
+                  clearcoatRoughness: 0.18,
+                  envMapIntensity: 0.55
+                })
+              );
+              display.position.set(0, 0.72, -0.04);
+              group.add(display);
+            }
+
             const swatches = [0xa94f66, 0x587caf, 0xc29b53, 0x628f77, 0x8f697f, 0xb67955, 0x4f887f, 0x8567a1, 0xb68d9e, 0x53718e, 0xc2b26a, 0x7a9b69];
             swatches.forEach((color, index) => {
               addBox(
@@ -703,7 +751,7 @@ export function StudioDistrictScene() {
           studioGroups.set(studio.id, group);
         }
 
-        STUDIO_DESTINATIONS.forEach(createDoor);
+        await Promise.all(STUDIO_DESTINATIONS.map((studio) => createDoor(studio)));
 
         const directory = new THREE.Group();
         directory.position.set(0, 1.25, -10.8);
@@ -887,6 +935,8 @@ export function StudioDistrictScene() {
           wallMap?.dispose?.();
           wallBump?.dispose?.();
           environmentTexture?.dispose?.();
+          localDisplayTextures.forEach((texture) => texture.dispose?.());
+          localDisplayTextures.clear();
           renderer.dispose();
           mount.replaceChildren();
         });
