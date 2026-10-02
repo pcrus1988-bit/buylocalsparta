@@ -93,9 +93,15 @@ test("Active Color Finder Studio renders its shade laboratory", async ({ page })
 test("Universe identity is reserved for Sport Fit", async () => {
   const nonSportStudioFiles = [
     "apps/web/src/components/StudioDistrictScene.tsx",
+    "apps/web/src/components/StudioDistrictScene.module.css",
+    "apps/web/src/components/StudioExperienceRuntime.tsx",
+    "apps/web/src/components/StudioExperienceRuntime.module.css",
     "apps/web/src/components/PaintBuildSpatialScene.tsx",
+    "apps/web/src/components/PaintBuildSpatialScene.module.css",
     "apps/web/src/components/StyleShowroomScene.tsx",
-    "apps/web/src/components/ColorLabScene.tsx"
+    "apps/web/src/components/StyleShowroomScene.module.css",
+    "apps/web/src/components/ColorLabScene.tsx",
+    "apps/web/src/components/ColorLabScene.module.css"
   ];
 
   for (const file of nonSportStudioFiles) {
