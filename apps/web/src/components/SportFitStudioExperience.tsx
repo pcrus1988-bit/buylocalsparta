@@ -7,10 +7,13 @@ import type {
   SportActivity,
   SportAudience,
   SportDistance,
+  SportFitPreference,
   SportFitRecommendation,
   SportFitScoredProduct,
   SportFrequency,
+  SportGymTrainingType,
   SportPriority,
+  SportRunnerNeed,
   SportSurface
 } from "../lib/sport-fit-engine";
 import styles from "./SportFitStudioExperience.module.css";
@@ -65,6 +68,29 @@ const DISTANCES: readonly Readonly<{ key: SportDistance; label: string }>[] = [
   { key: "short", label: "Έως 5 km" },
   { key: "medium", label: "5–10 km" },
   { key: "long", label: "10+ km" }
+];
+
+const RUNNER_NEEDS: readonly Readonly<{ key: SportRunnerNeed; label: string }>[] = [
+  { key: "neutral", label: "Neutral αίσθηση" },
+  { key: "guided_support", label: "Περισσότερη στήριξη" },
+  { key: "wide_fit", label: "Πιο φαρδιά εφαρμογή" },
+  { key: "soft_ride", label: "Πιο μαλακή κύλιση" },
+  { key: "speed", label: "Ταχύτητα / ελαφριά αίσθηση" },
+  { key: "all_rounder", label: "Ένα παπούτσι για τα περισσότερα" }
+];
+
+const FIT_PREFERENCES: readonly Readonly<{ key: SportFitPreference; label: string }>[] = [
+  { key: "standard", label: "Κανονική" },
+  { key: "wide", label: "Φαρδιά" },
+  { key: "narrow", label: "Στενότερη" }
+];
+
+const GYM_TRAINING_TYPES: readonly Readonly<{ key: SportGymTrainingType; label: string; body: string }>[] = [
+  { key: "strength", label: "Βάρη / strength", body: "Προτεραιότητα στη σταθερότητα και στον έλεγχο." },
+  { key: "functional", label: "Functional / HIIT", body: "Ισορροπία σταθερότητας, ευελιξίας και απόκρισης." },
+  { key: "cardio", label: "Cardio", body: "Περισσότερη άνεση και cushioning για επαναλαμβανόμενη κίνηση." },
+  { key: "treadmill", label: "Διάδρομος", body: "Running-oriented λογική με συμβατή απορρόφηση." },
+  { key: "mixed", label: "Μικτή προπόνηση", body: "All-round επιλογή χωρίς ακραίο cushioning ή αστάθεια." }
 ];
 
 function surfacesFor(activity: SportActivity): readonly Readonly<{ key: SportSurface; label: string }>[] {
@@ -142,6 +168,9 @@ export function SportFitStudioExperience({
   const [frequency, setFrequency] = useState<SportFrequency>("regular");
   const [distance, setDistance] = useState<SportDistance>("medium");
   const [priority, setPriority] = useState<SportPriority>("comfort");
+  const [runnerNeed, setRunnerNeed] = useState<SportRunnerNeed>("all_rounder");
+  const [fitPreference, setFitPreference] = useState<SportFitPreference>("standard");
+  const [gymTrainingType, setGymTrainingType] = useState<SportGymTrainingType>("mixed");
   const [response, setResponse] = useState<ApiResponse>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -150,7 +179,9 @@ export function SportFitStudioExperience({
 
   function chooseActivity(next: SportActivity) {
     setActivity(next);
-    setSurface(next === "football" ? "grass" : next === "gym" ? "indoor" : "road");
+    setSurface(next === "football" ? "grass" : next === "gym" ? "mixed" : "road");
+    if (next === "running") setRunnerNeed("all_rounder");
+    if (next === "gym") setGymTrainingType("mixed");
     setStep("profile");
   }
 
@@ -180,7 +211,10 @@ export function SportFitStudioExperience({
             surface,
             frequency,
             distance: activity === "running" || activity === "walking" ? distance : undefined,
-            priority
+            priority,
+            runnerNeed: activity === "running" ? runnerNeed : undefined,
+            fitPreference,
+            gymTrainingType: activity === "gym" ? gymTrainingType : undefined
           }
         })
       });
@@ -276,13 +310,35 @@ export function SportFitStudioExperience({
             <div className={styles.questionIntro}>
               <span className={styles.kicker}>{activityLabel(activity)} · 02</span>
               <h1>Πώς το χρησιμοποιείς;</h1>
-              <p>Οι απαντήσεις γίνονται διαφανή scoring signals. Δεν δημιουργούμε χαρακτηριστικά που δεν υπάρχουν στον κατάλογο.</p>
+              <p>Οι απαντήσεις περνούν πρώτα από τεχνικούς κανόνες συμβατότητας και μετά από scoring. Τεκμηριωμένη ασυμβατότητα σε δραστηριότητα, επιφάνεια, τύπο σόλας, fit ή διαθέσιμο μέγεθος δεν μπορεί να «σωθεί» από generic λέξεις του καταλόγου.</p>
             </div>
             <div className={styles.formPanel}>
-              <fieldset>
-                <legend>{activity === "football" ? "Σε τι γήπεδο;" : activity === "gym" ? "Τι είδους προπόνηση;" : "Πού κινείσαι συνήθως;"}</legend>
-                <div className={styles.choiceGrid}>{availableSurfaces.map((item) => <button type="button" key={item.key} className={surface === item.key ? styles.selectedCard : ""} onClick={() => setSurface(item.key)}>{item.label}</button>)}</div>
-              </fieldset>
+              {activity === "gym" ? (
+                <fieldset>
+                  <legend>Τι είδους προπόνηση κάνεις περισσότερο;</legend>
+                  <div className={styles.priorityGrid}>
+                    {GYM_TRAINING_TYPES.map((item) => (
+                      <button
+                        type="button"
+                        key={item.key}
+                        className={gymTrainingType === item.key ? styles.selectedCard : ""}
+                        onClick={() => {
+                          setGymTrainingType(item.key);
+                          setSurface(item.key === "treadmill" ? "treadmill" : item.key === "mixed" ? "mixed" : "indoor");
+                        }}
+                      >
+                        <strong>{item.label}</strong>
+                        <small>{item.body}</small>
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+              ) : (
+                <fieldset>
+                  <legend>{activity === "football" ? "Σε τι γήπεδο;" : "Πού κινείσαι συνήθως;"}</legend>
+                  <div className={styles.choiceGrid}>{availableSurfaces.map((item) => <button type="button" key={item.key} className={surface === item.key ? styles.selectedCard : ""} onClick={() => setSurface(item.key)}>{item.label}</button>)}</div>
+                </fieldset>
+              )}
 
               <fieldset>
                 <legend>Πόσο συχνά;</legend>
@@ -295,6 +351,18 @@ export function SportFitStudioExperience({
                   <div className={styles.pills}>{DISTANCES.map((item) => <button type="button" key={item.key} className={distance === item.key ? styles.selected : ""} onClick={() => setDistance(item.key)}>{item.label}</button>)}</div>
                 </fieldset>
               ) : null}
+
+              {activity === "running" ? (
+                <fieldset>
+                  <legend>Ποια ανάγκη περιγράφει καλύτερα αυτό που ψάχνεις;</legend>
+                  <div className={styles.choiceGrid}>{RUNNER_NEEDS.map((item) => <button type="button" key={item.key} className={runnerNeed === item.key ? styles.selectedCard : ""} onClick={() => setRunnerNeed(item.key)}>{item.label}</button>)}</div>
+                </fieldset>
+              ) : null}
+
+              <fieldset>
+                <legend>Πώς θέλεις να εφαρμόζει το παπούτσι;</legend>
+                <div className={styles.pills}>{FIT_PREFERENCES.map((item) => <button type="button" key={item.key} className={fitPreference === item.key ? styles.selected : ""} onClick={() => setFitPreference(item.key)}>{item.label}</button>)}</div>
+              </fieldset>
 
               <fieldset>
                 <legend>Τι θέλεις περισσότερο;</legend>
