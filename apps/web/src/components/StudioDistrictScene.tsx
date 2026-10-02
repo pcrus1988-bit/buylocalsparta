@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { STUDIO_DESTINATIONS, type StudioDestination } from "../lib/studio-registry";
 import { consumeStudioTravel, markStudioTravel } from "../lib/studio-travel";
@@ -558,7 +558,6 @@ export function StudioDistrictScene() {
         function createDoor(studio: StudioDestination) {
           const cfg = DOORS[studio.id];
           const accent = ACCENTS[studio.id];
-          const accentColor = new THREE.Color(accent);
           const group = new THREE.Group();
           group.position.set(cfg.x, 1.55, cfg.z);
           group.rotation.y = cfg.side < 0 ? Math.PI / 2 : -Math.PI / 2;
