@@ -78,7 +78,14 @@ export function evaluateSportFitRules(
   role: SportProductRole
 ): SportFitRuleEvaluation {
   const state = { adjustment: 0, reasons: [] as string[], ruleIds: [] as string[] };
-  const knowledge = product.knowledge;
+  const candidateKnowledge = product.knowledge;
+  const knowledge = candidateKnowledge
+    && candidateKnowledge.queueStatus !== "blocked"
+    && candidateKnowledge.status !== "conflict"
+    && candidateKnowledge.status !== "insufficient"
+    && candidateKnowledge.identityQuality !== "weak"
+      ? candidateKnowledge
+      : undefined;
   const activities = values(knowledge?.activities);
   const surfaces = values(knowledge?.surfaces);
   const useCases = values(knowledge?.useCases);
