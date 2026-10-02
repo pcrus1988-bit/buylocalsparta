@@ -439,13 +439,14 @@ function SortSelect({ value, onChange, compact = false }: { value: CatalogSort; 
   </label>;
 }
 
-export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId, initialTotal, initialNextOffset }: {
+export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId, initialTotal, initialNextOffset, openGuideOnInitialLoad = true }: {
   products: readonly CatalogCard[];
   vendor: Readonly<{ name: string; adviser?: string }>;
   demoVendorId?: string;
   vendorId?: string;
   initialTotal?: number;
   initialNextOffset?: number | null;
+  openGuideOnInitialLoad?: boolean;
 }) {
   const hasSeededPublicPage = !demoVendorId && Boolean(vendorId) && products.length > 0;
   const [query, setQuery] = useState("");
@@ -702,8 +703,8 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
       }
     }
     setGuideDomain(availableGuideDomains.length === 1 ? availableGuideDomains[0] : null);
-    setGuideOpen(true);
-  }, [availableGuideDomains, demoMode, facetsError, facetsLoading, guideCategories, guideFacets, isGuidedVendor, remoteFacets]);
+    if (openGuideOnInitialLoad) setGuideOpen(true);
+  }, [availableGuideDomains, demoMode, facetsError, facetsLoading, guideCategories, guideFacets, isGuidedVendor, openGuideOnInitialLoad, remoteFacets]);
 
   useEffect(() => {
     if (!guideOpen && !filtersOpen) return;
