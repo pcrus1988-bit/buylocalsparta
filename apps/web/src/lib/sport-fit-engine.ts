@@ -48,6 +48,8 @@ export type SportFitAnswers = Readonly<{
   activity: SportActivity;
   audience: SportAudience;
   size?: string;
+  footLengthMm?: number;
+  brandSizeHints?: Readonly<Record<string, readonly string[]>>;
   budgetMinor?: number;
   surface?: SportSurface;
   frequency?: SportFrequency;
@@ -352,11 +354,24 @@ function budgetScore(product: SportFitProduct, budgetMinor: number | undefined):
   return -10;
 }
 
-function sizeScore(product: SportFitProduct, requestedSize: string | undefined, role: SportProductRole): Readonly<{ score: number; matchedSize?: string }> {
+function requestedSizes(product: SportFitProduct, answers: SportFitAnswers, role: SportProductRole): readonly string[] {
+  if (role === "footwear") {
+    const brandKey = normalize(product.brand);
+    const brandHints = brandKey ? answers.brandSizeHints?.[brandKey] : undefined;
+    if (brandHints?.length) return brandHints.filter((value) => normalize(value));
+  }
+  return normalize(answers.size) ? [answers.size!] : [];
+}
+
+function sizeScore(product: SportFitProduct, answers: SportFitAnswers, role: SportProductRole): Readonly<{ score: number; matchedSize?: string }> {
   if (role !== "footwear" && role !== "socks") return { score: 0 };
-  if (!normalize(requestedSize)) return { score: 4 };
-  const match = matchingSize(product, requestedSize, role);
-  if (match) return { score: 15, matchedSize: match };
+  const requested = requestedSizes(product, answers, role);
+  if (!requested.length) return { score: 4 };
+
+  for (const requestedSize of requested) {
+    const match = matchingSize(product, requestedSize, role);
+    if (match) return { score: 15, matchedSize: match };
+  }
   if (product.sizes.length > 0) return { score: role === "footwear" ? -30 : -8 };
   return { score: -4 };
 }
@@ -418,7 +433,7 @@ function reasonsFor(
 export function scoreSportFitProduct(product: SportFitProduct, answers: SportFitAnswers): SportFitScoredProduct {
   const text = productText(product);
   const role = sportProductRole(product);
-  const size = sizeScore(product, answers.size, role);
+  const size = sizeScore(product, answers, role);
   let score = 5;
 
   score += activityScore(product, answers, text, role);
@@ -510,11 +525,16 @@ export function parseSportFitAnswers(input: unknown): SportFitAnswers {
   const size = typeof value.size === "string" ? value.size.trim().slice(0, 24) : "";
   const parsedBudget = Number(value.budgetMinor);
   const budgetMinor = Number.isSafeInteger(parsedBudget) && parsedBudget > 0 ? Math.min(parsedBudget, 500_000) : undefined;
+  const parsedFootLengthMm = Number(value.footLengthMm);
+  const footLengthMm = Number.isFinite(parsedFootLengthMm) && parsedFootLengthMm >= 150 && parsedFootLengthMm <= 400
+    ? Math.round(parsedFootLengthMm * 10) / 10
+    : undefined;
 
   return {
     activity: enumValue(SPORT_ACTIVITIES, value.activity, "running"),
     audience: enumValue(SPORT_AUDIENCES, value.audience, "men"),
     size: size || undefined,
+    footLengthMm,
     budgetMinor,
     surface: optionalEnumValue(SPORT_SURFACES, value.surface),
     frequency: optionalEnumValue(SPORT_FREQUENCIES, value.frequency),
