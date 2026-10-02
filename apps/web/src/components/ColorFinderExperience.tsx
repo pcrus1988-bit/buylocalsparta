@@ -199,6 +199,17 @@ export function ColorFinderExperience({
   }, [brand, eligibleProducts, finish, productType, sortMode]);
 
   const visibleMatches = matches.slice(0, visibleLimit);
+  const spatialItems = useMemo(
+    () => matches.slice(0, 10).map((product) => ({
+      id: product.id,
+      slug: product.slug,
+      title: product.title,
+      imageSrc: product.imageSrc,
+      colorHex: product.colorHex,
+      match: product.match
+    })),
+    [matches]
+  );
   const catalogueAvailable = catalogueState === "ready" && catalogProducts.length > 0;
   const availableFinishes = useMemo(
     () => (Object.keys(FINISH_LABELS) as ColorFinish[])
@@ -758,14 +769,7 @@ export function ColorFinderExperience({
             selectedHex={selectedHex}
             selectedLabel={selectedShade.label}
             studioLabel={context.studioLabel}
-            items={visibleMatches.slice(0, 10).map((product) => ({
-              id: product.id,
-              slug: product.slug,
-              title: product.title,
-              imageSrc: product.imageSrc,
-              colorHex: product.colorHex,
-              match: product.match
-            }))}
+            items={spatialItems}
           />
         </div>
 
