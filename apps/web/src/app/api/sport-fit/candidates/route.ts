@@ -2,6 +2,7 @@ import { buildSportFitRecommendation, parseSportFitAnswers, sportProductRole } f
 import { getSportFitCatalog } from "../../../../lib/sport-fit-catalog";
 import { availableStoredSportSizeGuideBrands, resolveStoredSportSize } from "../../../../lib/sport-fit-size-guide-server";
 import { productionDatabaseConfigured } from "../../../../lib/postgres-runtime";
+import { sportSizeGuideBrandKey } from "../../../../lib/sport-fit-brand";
 
 const DEFAULT_KERASIOTIS_VENDOR_ID = "vendor_4d7b281c8b2541f685f1";
 
@@ -9,16 +10,6 @@ function safeVendorId(value: unknown): string {
   const candidate = typeof value === "string" && value.trim() ? value.trim() : DEFAULT_KERASIOTIS_VENDOR_ID;
   if (!/^[A-Za-z0-9_-]{3,128}$/.test(candidate)) throw new Error("INVALID_VENDOR");
   return candidate;
-}
-
-function brandKey(value: string | undefined): string {
-  return (value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("el-GR")
-    .replace(/[^\p{L}\p{N}.]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 export async function POST(request: Request) {
@@ -38,12 +29,12 @@ export async function POST(request: Request) {
     const resolvedSizeGuides = answers.footLengthMm
       ? await (async () => {
           const activeGuideBrands = await availableStoredSportSizeGuideBrands("footwear");
-          const guideBrandByKey = new Map(activeGuideBrands.map((brand) => [brandKey(brand), brand] as const));
+          const guideBrandByKey = new Map(activeGuideBrands.map((brand) => [sportSizeGuideBrandKey(brand), brand] as const));
           const catalogBrandByKey = new Map<string,string>();
 
           for (const product of catalog.products) {
             if (sportProductRole(product) !== "footwear" || !product.brand) continue;
-            const key = brandKey(product.brand);
+            const key = sportSizeGuideBrandKey(product.brand);
             if (key && guideBrandByKey.has(key) && !catalogBrandByKey.has(key)) {
               catalogBrandByKey.set(key, guideBrandByKey.get(key)!);
             }
@@ -73,7 +64,7 @@ export async function POST(request: Request) {
       ? { ...answers, brandSizeHints }
       : answers;
     const recommendation = buildSportFitRecommendation(catalog.products, resolvedAnswers);
-    const primaryBrandKey = brandKey(recommendation.primary?.brand);
+    const primaryBrandKey = sportSizeGuideBrandKey(recommendation.primary?.brand);
     const primarySizeGuide = resolvedSizeGuides.find(({ brandKey: key }) => key === primaryBrandKey)?.guide;
 
     return Response.json(
