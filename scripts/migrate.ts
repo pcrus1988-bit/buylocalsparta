@@ -56,8 +56,12 @@ async function seedLoopbackSportFitCatalogueIdentities(client: any): Promise<voi
         FROM public.markets
         WHERE code='__sport_fit_ci__';
 
-        INSERT INTO public.categories(market_id,code,slug,active)
-        VALUES (v_market_id,'sport_fit_ci','sport-fit-ci',true)
+        INSERT INTO public.categories(
+          market_id,code,slug,taxonomy_role,assignable,discoverable,sort_order,active
+        )
+        VALUES (
+          v_market_id,'sport_fit_ci','sport-fit-ci','product_class',true,false,9999,true
+        )
         ON CONFLICT (market_id,slug) DO NOTHING;
 
         SELECT id INTO v_category_id
