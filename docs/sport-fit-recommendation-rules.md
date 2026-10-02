@@ -1,6 +1,6 @@
 # KONTA MOY Sport & Fit recommendation rules
 
-Ruleset: `2026-10-02.5`
+Ruleset: `2026-10-02.7`
 
 Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. They do not require an external recommendation API and they do not infer missing technical product facts.
 
@@ -12,7 +12,7 @@ Sport & Fit recommendations are a KONTA MOY-owned deterministic expert system. T
 4. **Technical requirement profile** — every footwear candidate is evaluated against weighted requirements and receives a separate `technicalScore` plus `technicalCoverage`. A documented match scores above an unknown fact; an unknown fact is never treated as verified compatibility.
 5. **Sport-specific suitability rules** — running, walking, gym, football and the expanded sport paths apply their own technical matrix.
 6. **Secondary preference scoring** — budget and softer catalogue signals can reorder candidates only after technical compatibility. They cannot rescue a hard incompatibility or outrank a materially stronger governed technical match.
-7. **Complete My Kit** — apparel, socks and accessories are selected independently after the primary technical match.
+7. **Product tier split** — Tier 1 contains only footwear that can become a primary match or Top 5 finalist. Socks, apparel and accessories are Tier 2: they never count as primary technical survivors and are selected independently only for **Complete My Kit** after a Tier 1 match exists.
 
 Unknown facts remain unknown. A missing fact is not converted into a positive claim.
 
@@ -111,9 +111,19 @@ A neutral support label is not treated as proof of poor lateral stability; it re
 - A documented narrow model is rejected for an explicit wide-fit requirement.
 - Unknown width or length fit is not treated as verified compatibility.
 
+## Versatility
+
+`versatility` is a governed preference rather than a generic fallback score. Footwear can earn a verified versatility match from documented breadth across activities, surfaces or use cases, or from an explicitly broad controlled classification such as general training / team sports / racket sports.
+
+Generic words such as “versatile” or “all-round” in catalogue marketing copy do not create technical evidence. A product with only one documented context remains `unknown` for the versatility requirement rather than being marked incompatible.
+
+Kit items use the same principle: broader governed activity/use-case evidence can improve their versatility confidence without inventing performance claims.
+
 ## Complete My Kit
 
 Kit items now use their own weighted technical-confidence profile instead of inheriting near-perfect confidence from stock alone.
+
+Final kit selection now only runs after a Tier 1 footwear primary exists. A secondary item with a documented activity conflict cannot occupy a final kit slot, and a sock with comparable numeric sizing must contain the requested shoe size when its size range is known.
 
 For socks, tops, bottoms, layers and accessories, the engine can evaluate:
 - documented activity and exact use-case evidence;

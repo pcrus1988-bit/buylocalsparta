@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, type SportFitProduct } from "./sport-fit-engine.ts";
+import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, sportFitCandidateSupportsRequestedActivity, type SportFitProduct } from "./sport-fit-engine.ts";
 import { canonicalSportBrand, sportSizeGuideBrandKey } from "./sport-fit-brand.ts";
 
 function product(overrides: Partial<SportFitProduct> & Pick<SportFitProduct, "id" | "title" | "categoryCode">): SportFitProduct {
@@ -452,7 +452,7 @@ test("running rules combine distance, frequency, cushioning and verified use cas
   });
 
   assert.equal(result.primary?.id, "long-run");
-  assert.equal(result.rulesetVersion, "2026-10-02.5");
+  assert.equal(result.rulesetVersion, "2026-10-02.7");
   assert.ok(result.primary?.appliedRules.includes("running.long_run_use_case"));
   assert.ok(result.primary?.reasons.some((reason) => /long-run|cushioning/i.test(reason)));
 });
@@ -919,3 +919,59 @@ test("gym technical profile separates stable strength footwear from max-cushion 
   assert.ok(stable.technicalRequirements.some((item) => item.id === "requirement.gym_training_type" && item.status === "match"));
   assert.ok(soft.technicalRequirements.some((item) => item.id === "requirement.gym_training_type" && item.status === "conflict"));
 });
+
+test("tier-two socks never become a primary match or finalist", () => {
+  const result = buildSportFitRecommendation([
+    product({
+      id: "sock-only",
+      title: "Performance Running Socks 43-46",
+      categoryCode: "socks-hosiery",
+      sizes: ["43-46"],
+      priceMinor: 1200,
+      knowledge: {
+        status: "verified",
+        identityQuality: "strong",
+        activities: ["running"],
+        moistureWicking: true
+      }
+    })
+  ], {
+    activity: "running",
+    audience: "men",
+    size: "44",
+    surface: "road"
+  });
+
+  assert.equal(result.primary, undefined);
+  assert.equal(result.alternatives.length, 0);
+  assert.equal(result.ranked.length, 0);
+  assert.ok(result.kit.every((item) => item.role !== "footwear"));
+});
+
+test("survivor activity gate uses the same strict court-sport identity as finalist ranking", () => {
+  const genericSneaker = product({
+    id: "generic-court-look",
+    title: "Lifestyle Sneaker",
+    categoryCode: "mens-sneakers",
+    description: "Basketball-inspired streetwear style"
+  });
+  const performanceBasketball = product({
+    id: "basketball-performance",
+    title: "Performance Basketball Shoe",
+    categoryCode: "mens-basketball-shoes",
+    description: "Indoor court training shoe"
+  });
+  const answers = {
+    activity: "basketball" as const,
+    audience: "men" as const,
+    surface: "court_indoor" as const,
+    useCase: "basketball_training" as const
+  };
+
+  assert.equal(sportFitCandidateSupportsRequestedActivity(genericSneaker, answers), false);
+  assert.equal(sportFitCandidateSupportsRequestedActivity(performanceBasketball, answers), true);
+
+  const result = buildSportFitRecommendation([genericSneaker, performanceBasketball], answers);
+  assert.equal(result.primary?.id, "basketball-performance");
+});
+

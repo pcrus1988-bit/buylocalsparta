@@ -2,7 +2,9 @@ import {
   buildSportFitRecommendation,
   parseSportFitAnswers,
   scoreSportFitProduct,
+  sportFitCandidateSupportsRequestedActivity,
   sportProductRole,
+  sportProductTier,
   type SportAudience,
   type SportFitProduct,
   type SportFitScoredProduct
@@ -97,6 +99,7 @@ export async function GET(request: Request) {
         vendorName: "",
         candidateCount: 0,
         survivingCount: 0,
+        secondaryCount: 0,
         universe: []
       },
       { headers: { "Cache-Control": "private, no-store" } }
@@ -129,6 +132,7 @@ export async function GET(request: Request) {
         vendorName: snapshots.find((snapshot) => snapshot.vendorName)?.vendorName ?? "",
         candidateCount: families.length,
         survivingCount: families.length,
+        secondaryCount: 0,
         universe: withImagesFirst.slice(0, UNIVERSE_LIMIT).map(universePreview)
       },
       { headers: { "Cache-Control": "private, no-store" } }
@@ -156,6 +160,7 @@ export async function POST(request: Request) {
         vendorName: "",
         candidateCount: 0,
         survivingCount: 0,
+        secondaryCount: 0,
         universe: [],
         recommendation: { alternatives: [], kit: [], ranked: [] }
       },
@@ -230,6 +235,7 @@ export async function POST(request: Request) {
     const scoredFamilies = uniqueFamilies(
       catalog.products
         .filter(usableForRecommendation)
+        .filter((product) => sportFitCandidateSupportsRequestedActivity(product, resolvedAnswers))
         .map((product) => scoreSportFitProduct(product, resolvedAnswers))
         .sort((left, right) =>
           right.technicalScore - left.technicalScore
@@ -239,7 +245,9 @@ export async function POST(request: Request) {
           || left.title.localeCompare(right.title, "el")
         )
     );
-    const survivors = scoredFamilies.filter((product) => product.technicalEligible && product.score >= 20);
+    const technicallyEligible = scoredFamilies.filter((product) => product.technicalEligible && product.score >= 20);
+    const survivors = technicallyEligible.filter((product) => sportProductTier(product.role) === "primary");
+    const secondarySurvivors = technicallyEligible.filter((product) => sportProductTier(product.role) === "secondary");
 
     return Response.json(
       {
@@ -247,6 +255,7 @@ export async function POST(request: Request) {
         vendorName: catalog.vendorName,
         candidateCount: uniqueFamilies(catalog.products.filter(usableForRecommendation)).length,
         survivingCount: survivors.length,
+        secondaryCount: secondarySurvivors.length,
         universe: survivors.slice(0, UNIVERSE_LIMIT).map(universePreview),
         sizeGuide: primarySizeGuide,
         recommendation

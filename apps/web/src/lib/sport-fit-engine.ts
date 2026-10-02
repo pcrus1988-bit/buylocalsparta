@@ -41,6 +41,13 @@ export const SPORT_GYM_TRAINING_TYPES = ["strength", "functional", "cardio", "tr
 export type SportGymTrainingType = (typeof SPORT_GYM_TRAINING_TYPES)[number];
 
 export type SportProductRole = "footwear" | "socks" | "top" | "bottom" | "layer" | "accessory" | "other";
+export type SportProductTier = "primary" | "secondary" | "unsupported";
+
+export function sportProductTier(role: SportProductRole): SportProductTier {
+  if (role === "footwear") return "primary";
+  if (role === "socks" || role === "top" || role === "bottom" || role === "layer" || role === "accessory") return "secondary";
+  return "unsupported";
+}
 
 export type SportKnowledgeStatus = "pending" | "researching" | "partial" | "verified" | "conflict" | "insufficient";
 export type SportKnowledgeQueueStatus = "pending" | "leased" | "completed" | "partial" | "failed" | "blocked";
@@ -269,7 +276,7 @@ function strictIdentityText(product: SportFitProduct): string {
   return normalize([product.title, product.categoryCode, product.categoryLabel].filter(Boolean).join(" "));
 }
 
-function candidateSupportsRequestedActivity(product: SportFitProduct, answers: SportFitAnswers): boolean {
+export function sportFitCandidateSupportsRequestedActivity(product: SportFitProduct, answers: SportFitAnswers): boolean {
   if (["running", "walking", "gym", "football"].includes(answers.activity)) return true;
 
   const knowledge = usableKnowledge(product);
@@ -461,6 +468,19 @@ function priorityScore(product: SportFitProduct, priority: SportPriority | undef
   if (priority === "weather") {
     if ((knowledge?.weatherProtection ?? []).length > 0) return 14;
     return hasAny(text, ["waterproof", "water resistant", "rain.rdy", "gore tex", "gore-tex", "αδιαβροχ", "υδροαπωθ"]) ? 12 : 4;
+  }
+  if (priority === "versatility") {
+    const activities = knowledgeList(knowledge?.activities);
+    const surfaces = knowledgeList(knowledge?.surfaces);
+    const useCases = knowledgeList(knowledge?.useCases);
+    const broadEvidence =
+      activities.length >= 2
+      || surfaces.length >= 2
+      || useCases.length >= 2
+      || activities.includes("general training")
+      || activities.includes("team sports")
+      || activities.includes("racket sports");
+    return broadEvidence ? 12 : 5;
   }
   return 8;
 }
@@ -706,6 +726,30 @@ function uniqueRanked(products: readonly SportFitScoredProduct[]): readonly Spor
   return output;
 }
 
+function kitSelectionEligible(
+  product: SportFitScoredProduct,
+  answers: SportFitAnswers
+): boolean {
+  if (sportProductTier(product.role) !== "secondary") return false;
+
+  const activityRequirement = product.technicalRequirements.find(
+    (item) => item.id === "requirement.kit_activity"
+  );
+  if (activityRequirement?.status === "conflict") return false;
+
+  if (product.role === "socks" && answers.size && product.sizes.length > 0) {
+    const requestedNumeric = Number(
+      normalize(answers.size).replace(/^eu\s*/, "").replace(",", ".")
+    );
+    const hasComparableNumericSizing = product.sizes.some((size) => /\d/.test(size));
+    if (Number.isFinite(requestedNumeric) && hasComparableNumericSizing && !product.matchedSize) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export function buildSportFitRecommendation(
   products: readonly SportFitProduct[],
   answers: SportFitAnswers
@@ -718,7 +762,7 @@ export function buildSportFitRecommendation(
       && product.knowledge?.queueStatus !== "blocked"
       && product.knowledge?.status !== "conflict"
       && product.knowledge?.status !== "insufficient"
-      && candidateSupportsRequestedActivity(product, answers)
+      && sportFitCandidateSupportsRequestedActivity(product, answers)
     )
     .map((product) => scoreSportFitProduct(product, answers))
     .filter((product) => product.technicalEligible && product.score >= 20)
@@ -730,18 +774,27 @@ export function buildSportFitRecommendation(
       || left.title.localeCompare(right.title, "el")
     );
 
-  const ranked = uniqueRanked(scored);
-  const footwear = ranked.filter((product) => product.role === "footwear");
-  const primary = footwear[0] ?? ranked[0];
-  const alternatives = footwear.filter((product) => product.id !== primary?.id).slice(0, 4);
+  const eligible = uniqueRanked(scored);
+  // Tier 1 is the field that can become the Top 5. Socks, apparel and
+  // accessories remain Tier 2 and are only allowed into Complete My Kit.
+  const primaryRanked = eligible.filter((product) => sportProductTier(product.role) === "primary");
+  const primary = primaryRanked[0];
+  const alternatives = primaryRanked.filter((product) => product.id !== primary?.id).slice(0, 4);
 
   const kit: SportFitScoredProduct[] = [];
-  const usedIds = new Set(primary ? [primary.id] : []);
-  for (const role of ["socks", "top", "bottom", "layer", "accessory"] as const) {
-    const item = ranked.find((product) => product.role === role && !usedIds.has(product.id) && product.score >= 35);
-    if (!item) continue;
-    usedIds.add(item.id);
-    kit.push(item);
+  if (primary) {
+    const usedIds = new Set([primary.id]);
+    for (const role of ["socks", "top", "bottom", "layer", "accessory"] as const) {
+      const item = eligible.find((product) =>
+        product.role === role
+        && !usedIds.has(product.id)
+        && product.score >= 35
+        && kitSelectionEligible(product, answers)
+      );
+      if (!item) continue;
+      usedIds.add(item.id);
+      kit.push(item);
+    }
   }
 
   return {
@@ -749,7 +802,7 @@ export function buildSportFitRecommendation(
     primary,
     alternatives,
     kit,
-    ranked: ranked.slice(0, 24)
+    ranked: primaryRanked.slice(0, 24)
   };
 }
 
