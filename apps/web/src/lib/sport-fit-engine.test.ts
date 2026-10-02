@@ -254,3 +254,36 @@ test("brand-specific measured size hints apply only to the matching footwear bra
   assert.ok(exactScore.score > wrongScore.score);
   assert.ok(otherScore.score > wrongScore.score, "another brand must not inherit the adidas size mismatch penalty");
 });
+
+
+test("documented hiking footwear is compatible with trail walking but not road running", () => {
+  const hiking = product({
+    id: "hiking-shoe",
+    title: "Technical Hiking Shoe - 42",
+    categoryCode: "mens-sneakers",
+    sizes: ["42"],
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["hiking"],
+      surfaces: ["trail"],
+      useCases: ["technical_hiking"]
+    }
+  });
+
+  const trailWalking = scoreSportFitProduct(hiking, {
+    activity: "walking",
+    audience: "men",
+    size: "42",
+    surface: "trail"
+  });
+  const roadRunning = scoreSportFitProduct(hiking, {
+    activity: "running",
+    audience: "men",
+    size: "42",
+    surface: "road"
+  });
+
+  assert.ok(trailWalking.score > roadRunning.score);
+  assert.ok(trailWalking.reasons.some((reason) => /δραστηριότητας/i.test(reason)));
+});
