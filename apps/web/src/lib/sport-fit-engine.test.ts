@@ -71,9 +71,44 @@ test("trail evidence improves a trail shoe relative to a generic road shoe", () 
 test("complete-kit selection can add socks and activewear beside the primary shoe", () => {
   const result = buildSportFitRecommendation([
     product({ id: "shoe", title: "Running Shoe - 42", categoryCode: "mens-running-shoes" }),
-    product({ id: "sock", title: "Performance Running Socks - 42", categoryCode: "socks-hosiery", priceMinor: 1200 }),
-    product({ id: "top", title: "Aeroready Training T-Shirt - M", categoryCode: "fashion-mens-tshirts-tops", sizes: ["M"], priceMinor: 2500 }),
-    product({ id: "short", title: "Training Shorts - M", categoryCode: "fashion-mens-shorts", sizes: ["M"], priceMinor: 3000 })
+    product({
+      id: "sock",
+      title: "Performance Running Socks - 42",
+      categoryCode: "socks-hosiery",
+      priceMinor: 1200,
+      knowledge: {
+        status: "verified",
+        identityQuality: "strong",
+        activities: ["running"],
+        moistureWicking: true
+      }
+    }),
+    product({
+      id: "top",
+      title: "Aeroready Training T-Shirt - M",
+      categoryCode: "fashion-mens-tshirts-tops",
+      sizes: ["M"],
+      priceMinor: 2500,
+      knowledge: {
+        status: "verified",
+        identityQuality: "strong",
+        activities: ["running"],
+        moistureWicking: true
+      }
+    }),
+    product({
+      id: "short",
+      title: "Training Shorts - M",
+      categoryCode: "fashion-mens-shorts",
+      sizes: ["M"],
+      priceMinor: 3000,
+      knowledge: {
+        status: "verified",
+        identityQuality: "strong",
+        activities: ["running"],
+        moistureWicking: true
+      }
+    })
   ], {
     activity: "running",
     audience: "men",
