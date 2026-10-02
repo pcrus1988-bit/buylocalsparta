@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildSportFitRecommendation, parseSportFitAnswers, scoreSportFitProduct, type SportFitProduct } from "./sport-fit-engine.ts";
+import { canonicalSportBrand, sportSizeGuideBrandKey } from "./sport-fit-brand.ts";
 
 function product(overrides: Partial<SportFitProduct> & Pick<SportFitProduct, "id" | "title" | "categoryCode">): SportFitProduct {
   return {
@@ -339,4 +340,18 @@ test("kids foot measurements down to the stored adidas chart range are accepted"
 
   assert.equal(smallestStoredChartMeasurement.footLengthMm, 81);
   assert.equal(belowSupportedRange.footLengthMm, undefined);
+});
+
+
+test("Sport Fit normalizes the Kerasiotis Sketchers typo without inventing other aliases", () => {
+  assert.equal(canonicalSportBrand("Sketchers"), "Skechers");
+  assert.equal(canonicalSportBrand("Skechers"), "Skechers");
+  assert.equal(canonicalSportBrand("Reebok"), "Reebok");
+  assert.equal(canonicalSportBrand(undefined), undefined);
+});
+
+test("size-guide brand keys use the trusted Skechers alias only", () => {
+  assert.equal(sportSizeGuideBrandKey("Sketchers"), "skechers");
+  assert.equal(sportSizeGuideBrandKey("Skechers"), "skechers");
+  assert.equal(sportSizeGuideBrandKey("Reebok"), "reebok");
 });
