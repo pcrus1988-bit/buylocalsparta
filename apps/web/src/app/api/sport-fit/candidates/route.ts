@@ -162,10 +162,27 @@ export async function POST(request: Request) {
   try {
     const body = await request.json() as Record<string, unknown>;
     const vendorId = safeVendorId(body.vendorId);
-    const answers = parseSportFitAnswers(body.answers);
-    const catalog = await getSportFitCatalog(vendorId, answers.audience);
+    const rawAnswers = body.answers && typeof body.answers === "object" && !Array.isArray(body.answers)
+      ? body.answers as Record<string, unknown>
+      : {};
+    const previewAllAudiences = rawAnswers.audience === "all";
+    const answers = parseSportFitAnswers(previewAllAudiences ? { ...rawAnswers, audience: "men" } : rawAnswers);
+    const snapshots = previewAllAudiences
+      ? await Promise.all(UNIVERSE_AUDIENCES.map((audience) => getSportFitCatalog(vendorId, audience)))
+      : [await getSportFitCatalog(vendorId, answers.audience)];
+    const mergedProducts = new Map<string, SportFitProduct>();
+    for (const snapshot of snapshots) {
+      for (const product of snapshot.products) {
+        if (!mergedProducts.has(product.id)) mergedProducts.set(product.id, product);
+      }
+    }
+    const catalog = {
+      vendorId,
+      vendorName: snapshots.find((snapshot) => snapshot.vendorName)?.vendorName ?? "",
+      products: [...mergedProducts.values()]
+    };
 
-    const resolvedSizeGuides = answers.footLengthMm
+    const resolvedSizeGuides = answers.footLengthMm && !previewAllAudiences
       ? await (async () => {
           const activeGuideBrands = await availableStoredSportSizeGuideBrands("footwear");
           const guideBrandByKey = new Map(activeGuideBrands.map((brand) => [sportSizeGuideBrandKey(brand), brand] as const));
