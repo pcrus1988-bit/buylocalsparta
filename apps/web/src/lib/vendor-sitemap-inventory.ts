@@ -6,6 +6,7 @@ import { publicVendorTaxonomies } from "./public-vendor-taxonomy";
 
 type VendorSitemapRow = SqlRow & {
   vendor_id: string;
+  vendor_slug: string;
   vendor_name: string;
   vendor_status: string;
   address_line1?: string | null;
@@ -67,6 +68,7 @@ function fromRow(row: VendorSitemapRow): PublicVendorDirectoryEntry {
 
   return {
     id: row.vendor_id,
+    slug: row.vendor_slug,
     name: row.vendor_name,
     location: addressLine1 && locality && postcode
       ? {
@@ -126,6 +128,7 @@ async function readVendorSitemapInventory(): Promise<readonly PublicVendorDirect
         GROUP BY source_link.vendor_id
       )
       SELECT v.public_id AS vendor_id,
+             v.public_slug AS vendor_slug,
              v.trading_name AS vendor_name,
              v.status::text AS vendor_status,
              location.address_line1,
