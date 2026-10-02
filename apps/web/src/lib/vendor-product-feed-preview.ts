@@ -215,10 +215,7 @@ function safeHttpUrls(value: string | undefined): readonly string[] {
 
 function titleSizeCandidate(title: string | undefined): string | undefined {
   const candidate = title?.match(/\s+-\s+([^\r\n]{1,32})\s*$/)?.[1]?.trim();
-  if (!candidate) return undefined;
-  const numericSize = /^\d{1,3}(?:[.,]\d+)?(?:\s+\d\s*\/\s*\d)?(?:\s*-\s*\d{1,3}(?:[.,]\d+)?(?:\s+\d\s*\/\s*\d)?)?$/;
-  const namedSize = /^(?:XXXS|XXS|XS|S|M|L|XL|XXL|XXXL|[2-6]XL|OS|O\/S|ONE\s*SIZE)$/i;
-  return numericSize.test(candidate) || namedSize.test(candidate) ? candidate.replace(",", ".") : undefined;
+  return candidate ? candidate.replace(",", ".") : undefined;
 }
 
 function sizeFromProductUrl(productUrl: string | undefined, title: string | undefined): string | undefined {
