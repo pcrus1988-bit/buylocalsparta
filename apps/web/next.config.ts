@@ -125,6 +125,12 @@ const nextConfig: NextConfig = {
         hostname: "cdn.symphonya.eu",
         port: "",
         pathname: "/images/**"
+      },
+      {
+        protocol: "https",
+        hostname: "www.e-kerasiotis.gr",
+        port: "",
+        pathname: "/wp-content/uploads/**"
       }
     ],
     // Supplier image URLs are stable catalogue assets. Keep optimized derivatives
