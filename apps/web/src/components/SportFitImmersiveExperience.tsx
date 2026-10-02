@@ -1154,7 +1154,7 @@ export function SportFitImmersiveExperience({
           <section className={styles.finalHero}>
             <div>
               <span className={styles.resultKicker}>ΤΟ ΤΕΛΙΚΟ ΣΟΥ ΠΕΔΙΟ</span>
-              <h1>{primary ? "Από το σύμπαν έμειναν οι 5 ισχυρότερες αντιστοιχίσεις." : "Δεν έμεινε αρκετά τεκμηριωμένη επιλογή."}</h1>
+              <h1>{primary ? "Από το σύμπαν έμειναν έως 5 ισχυρές τελικές αντιστοιχίσεις." : "Δεν έμεινε αρκετά τεκμηριωμένη επιλογή."}</h1>
             </div>
             <div className={styles.resultFacts}>
               <span>{initialCount}<small>στην αρχή</small></span>
@@ -1165,6 +1165,13 @@ export function SportFitImmersiveExperience({
               <span>{finalists.length}<small>finalists</small></span>
             </div>
           </section>
+
+          {response?.recommendation.finalistEvidenceMode === "heuristic_fallback" && primary ? (
+            <div className={styles.sizeGuideNote}>
+              <strong>EVIDENCE MODE · ΠΡΟΣΕΚΤΙΚΟ FALLBACK</strong>
+              <p>Δεν υπάρχει ακόμη αρκετή καταγεγραμμένη τεχνική τεκμηρίωση για κύρια παπούτσια σε αυτό το μονοπάτι. Οι επιλογές που βλέπεις είναι οι καλύτερες τεχνικά επιλέξιμες υποψηφιότητες του live καταλόγου, αλλά δεν παρουσιάζονται ως πλήρως τεκμηριωμένες.</p>
+            </div>
+          ) : null}
 
           {response?.sizeGuide ? (
             <div className={styles.sizeGuideNote}>
