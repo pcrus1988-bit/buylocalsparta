@@ -38,7 +38,11 @@ const COMMON_CATEGORIES = [
   "socks-hosiery",
   "sports-clothing",
   "fitness-accessories",
-  "team-sports-equipment"
+  "team-sports-equipment",
+  "outdoor-equipment",
+  "racket-sports-equipment",
+  "basketball-equipment",
+  "volleyball-equipment"
 ] as const;
 
 const CATEGORY_SCOPE: Readonly<Record<SportAudience, readonly string[]>> = {
@@ -46,6 +50,11 @@ const CATEGORY_SCOPE: Readonly<Record<SportAudience, readonly string[]>> = {
     ...COMMON_CATEGORIES,
     "mens-running-shoes",
     "mens-sneakers",
+    "mens-hiking-shoes",
+    "mens-basketball-shoes",
+    "mens-tennis-shoes",
+    "mens-padel-shoes",
+    "mens-volleyball-shoes",
     "fashion-mens-activewear",
     "fashion-mens-tshirts-tops",
     "fashion-mens-shorts",
@@ -55,6 +64,11 @@ const CATEGORY_SCOPE: Readonly<Record<SportAudience, readonly string[]>> = {
     ...COMMON_CATEGORIES,
     "womens-running-shoes",
     "womens-sneakers",
+    "womens-hiking-shoes",
+    "womens-basketball-shoes",
+    "womens-tennis-shoes",
+    "womens-padel-shoes",
+    "womens-volleyball-shoes",
     "fashion-womens-activewear",
     "fashion-womens-tops",
     "fashion-womens-shorts",
@@ -63,7 +77,12 @@ const CATEGORY_SCOPE: Readonly<Record<SportAudience, readonly string[]>> = {
   kids: [
     ...COMMON_CATEGORIES,
     "kids-running-shoes",
-    "kids-sneakers"
+    "kids-sneakers",
+    "kids-hiking-shoes",
+    "kids-basketball-shoes",
+    "kids-tennis-shoes",
+    "kids-padel-shoes",
+    "kids-volleyball-shoes"
   ]
 };
 
