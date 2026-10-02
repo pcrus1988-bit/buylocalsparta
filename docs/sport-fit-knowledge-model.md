@@ -491,3 +491,26 @@ The same page uses generic “cushioned”, “stable”, “support” and “r
 The live catalogue was checked before commit and KJ6635 resolves to one active canonical family; the migration repeats that guard at execution time.
 
 The runtime schema gate is 322.
+
+
+## Activity and use-case expansion (schema 323)
+
+Sport & Fit now treats these as first-class customer paths:
+
+- Running
+- Walking
+- Gym / fitness
+- Football
+- Hiking / outdoor
+- Basketball
+- Tennis
+- Padel
+- Volleyball
+
+The expansion adds governed activity values, court/outdoor surfaces, and use cases rather than treating the sports as generic catalogue filters. New surface vocabulary includes hard court, clay, indoor court, outdoor court, artificial court and sand/beach. New use cases include all-day standing, travel walking, functional/HIIT, day hike, technical hike, urban outdoor, and training-versus-match modes for basketball, tennis, padel and volleyball.
+
+For the newly added sports, recommendation eligibility is evidence-gated. A product with governed activity facts must contain the specific requested sport. If governed activity facts are not yet available, only strong sport identity in the product title/category can admit the product. Descriptive lifestyle copy such as “basketball-inspired” is not sufficient by itself. This preserves the existing rule that externally researched facts only influence recommendations after exact product identity and evidence checks.
+
+Ruleset version: `2026-10-02.2`.
+
+Runtime schema gate after this expansion: `323`.
