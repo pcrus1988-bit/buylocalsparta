@@ -21,11 +21,18 @@ function itemCountLabel(count: number): string {
 function CartLine({ item }: { item: CartItem }) {
   const { setQuantity, removeItem } = useCart();
   const meta = itemMeta(item);
+  const externalImage = item.imageUrl?.startsWith("https://") === true;
+  const kerasiotisExternalImage = item.imageUrl?.startsWith("https://www.e-kerasiotis.gr/") === true;
+  const imageReferrerPolicy = kerasiotisExternalImage
+    ? "strict-origin-when-cross-origin"
+    : externalImage
+      ? "no-referrer"
+      : undefined;
 
   return (
     <article className={styles.line}>
       <div className={styles.thumb} aria-hidden={!item.imageUrl}>
-        {item.imageUrl ? <img src={item.imageUrl} alt={item.imageAlt ?? item.title} loading="lazy" /> : <span>ΚΜ</span>}
+        {item.imageUrl ? <img src={item.imageUrl} alt={item.imageAlt ?? item.title} loading="lazy" referrerPolicy={imageReferrerPolicy} /> : <span>ΚΜ</span>}
       </div>
       <div className={styles.lineBody}>
         <div className={styles.lineTop}>

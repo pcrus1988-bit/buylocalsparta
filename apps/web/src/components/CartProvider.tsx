@@ -222,7 +222,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const details = new Map(body.items.map((item) => [item.canonicalVariantId, item]));
         setItems((current) => current.map((item) => {
           const detail = details.get(item.canonicalVariantId);
-          return detail ? { ...item, ...detail } : item;
+          return detail ? {
+            ...item,
+            ...detail,
+            imageUrl: detail.imageUrl ?? item.imageUrl,
+            imageAlt: detail.imageAlt ?? item.imageAlt
+          } : item;
         }));
       })
       .catch((error: unknown) => {

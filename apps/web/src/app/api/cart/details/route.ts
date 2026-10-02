@@ -1,6 +1,6 @@
 import { loadCatalogMetadata } from "../../../../lib/catalog-metadata";
 import { getPublicProductDetails } from "../../../../lib/public-product-detail";
-import { approvedCatalogImages, type ApprovedCatalogImage } from "../../../../lib/public-media-service";
+import { approvedCatalogImages, approvedCatalogSourceImages, type ApprovedCatalogImage } from "../../../../lib/public-media-service";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../lib/postgres-runtime";
 
 const MAX_CART_ITEMS = 100;
@@ -114,6 +114,20 @@ async function safeApprovedCatalogImages(productIds: readonly string[]): Promise
   }
 }
 
+async function safeApprovedCatalogSourceImages(productIds: readonly string[]) {
+  try {
+    return await approvedCatalogSourceImages(productIds.map((canonicalVariantId) => ({ canonicalVariantId })));
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: "warn",
+      event: "cart.product_source_media_batch_failed",
+      canonicalVariantCount: productIds.length,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return [];
+  }
+}
+
 export async function POST(request: Request) {
   const ids = await requestedIds(request);
   if (ids.length === 0) return Response.json({ items: [] });
@@ -129,19 +143,21 @@ export async function POST(request: Request) {
       safeApprovedCatalogImages(productIds)
     ]);
     const imageByProduct = new Map(images.map((image) => [image.canonicalVariantId, image]));
+    const sourceImageIds = productIds.filter((productId) => !imageByProduct.has(productId));
+    const sourceImages = sourceImageIds.length ? await safeApprovedCatalogSourceImages(sourceImageIds) : [];
+    const sourceImageByProduct = new Map(sourceImages.map((image) => [image.canonicalVariantId, image]));
 
     return Response.json({
       items: productIds.map((productId) => {
         const details = metadata.get(productId);
         const publicDetail = publicDetails.get(productId);
         const image = imageByProduct.get(productId);
+        const sourceImageUrl = sourceImageByProduct.get(productId)?.src ?? publicDetail?.sourceImageUrl;
         return {
           canonicalVariantId: productId,
           imageUrl: image?.mediaId
             ? `/api/media/${encodeURIComponent(image.mediaId)}`
-            : publicDetail?.sourceImageUrl
-              ? `/api/catalog-source-image/${encodeURIComponent(productId)}`
-              : undefined,
+            : sourceImageUrl,
           imageAlt: clipped(image?.altText ?? details?.title, 500),
           sku: clipped(details?.mpn, 160),
           gtin: clipped(details?.gtin ?? publicDetail?.sourceGtin, 64),
