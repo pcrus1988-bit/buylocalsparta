@@ -1,5 +1,6 @@
 "use client";
 
+import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./SportFitWebGLUniverse.module.css";
 
@@ -718,7 +719,7 @@ export function SportFitWebGLUniverse({
     if (canvasRef.current) canvasRef.current.style.cursor = id ? "pointer" : dragRef.current ? "grabbing" : "grab";
   }
 
-  function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
+  function handlePointerDown(event: ReactPointerEvent<HTMLCanvasElement>) {
     const canvas = event.currentTarget;
     canvas.setPointerCapture(event.pointerId);
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -730,7 +731,7 @@ export function SportFitWebGLUniverse({
     }
   }
 
-  function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
+  function handlePointerMove(event: ReactPointerEvent<HTMLCanvasElement>) {
     const previousPointer = pointersRef.current.get(event.pointerId);
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
@@ -759,7 +760,7 @@ export function SportFitWebGLUniverse({
     updateHover(event.clientX, event.clientY);
   }
 
-  function finishPointer(event: React.PointerEvent<HTMLCanvasElement>) {
+  function finishPointer(event: ReactPointerEvent<HTMLCanvasElement>) {
     const drag = dragRef.current;
     const wasClick = drag?.pointerId === event.pointerId && !drag.moved;
     pointersRef.current.delete(event.pointerId);
@@ -777,7 +778,7 @@ export function SportFitWebGLUniverse({
     }
   }
 
-  function handleWheel(event: React.WheelEvent<HTMLCanvasElement>) {
+  function handleWheel(event: ReactWheelEvent<HTMLCanvasElement>) {
     event.preventDefault();
     cameraRef.current = Math.max(7.2, Math.min(18.5, cameraRef.current + event.deltaY * 0.007));
   }
