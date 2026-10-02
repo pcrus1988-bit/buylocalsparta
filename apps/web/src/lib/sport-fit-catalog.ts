@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { loadCatalogMetadata } from "./catalog-metadata";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
+import { canonicalSportBrand } from "./sport-fit-brand";
 import type { SportAudience, SportFitKnowledge, SportFitProduct, SportKnowledgeQueueStatus, SportKnowledgeStatus } from "./sport-fit-engine";
 
 type SportCatalogRow = Readonly<{
@@ -304,7 +305,7 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
       priceMinor,
       categoryCode: row.category_code,
       categoryLabel: details?.categoryLabel,
-      brand: details?.brand ?? row.brand_name ?? row.feed_brand ?? undefined,
+      brand: canonicalSportBrand(details?.brand ?? row.brand_name ?? row.feed_brand ?? undefined),
       color: details?.color,
       sizes: details?.sizes ?? [],
       fit: details?.fit,
