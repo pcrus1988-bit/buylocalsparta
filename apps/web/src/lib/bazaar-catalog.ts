@@ -251,7 +251,7 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
   return cards;
 }
 
-const BAZAAR_CATALOG_CACHE_SECONDS = 30;
+// BAZAAR availability is revalidated again before cart/order actions. Keep the\n// expensive public catalogue projection warm long enough to protect the one-client\n// web pool from recurring cold scans during normal browsing.\nconst BAZAAR_CATALOG_CACHE_SECONDS = 300;
 
 const cachedBazaarCatalog = unstable_cache(
   async (
