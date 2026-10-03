@@ -959,3 +959,22 @@ The exact migration passed a live schema-408 transactional rehearsal ending in `
 Migration SHA-256: `79a7f69fd6cca3a798b71a19d0486e861828f66f58e0eafb9473bdf106b72b91`.
 
 The runtime schema gate on this change is **409**.
+
+
+## Schema 410 — Saucony performance/lifestyle split
+
+Migration `0410_sport_fit_saucony_performance_lifestyle_split.sql` governs seven currently sellable zero-knowledge Saucony canonical families with opposite recommendation semantics rather than treating every supplier “athletic sneaker” the same.
+
+Five current manufacturer-classified lifestyle families are governed as `sport_activity=casual_lifestyle`: Jazz Original `S2044`, Jazz Triple `S60530-62`, Shadow 5000 `S70853`, and Ride Millennium `S70812-43` / `S70812-49`. Jazz Original also receives `fit_length_profile=short` from Saucony’s explicit current recommendation to buy half a size up. Historical running-line origins, Grid/EVA cushioning and supplier sports wording remain provenance context only.
+
+Two Endorphin Azura `S21070` canonical families receive current first-party performance knowledge despite living in the generic `mens-sneakers` catalogue category. Saucony’s current product page and Running Shoe Buyer’s Guide govern `sport_activity=running`; `sport_use_case=daily_training`, `speed_training`, and `race_day`; `support_level=neutral`; `plate_type=none`; **8 mm drop**; **40 mm heel / 32 mm forefoot stack**; and **240 g men’s reference weight**. Surface, ordinal cushioning grade, width, toe-box, fit length and weather protection remain unknown because the current evidence does not map them cleanly to the governed ontology.
+
+The batch adds **26 normalized family facts**, **26 active first-party evidence rows**, and **6 current Saucony manufacturer sources** across **7 live canonical families**. Queue reconciliation removes resolved fields and non-applicable `football_surface_code` while retaining only unresolved technical fields.
+
+Regression coverage protects both directions of the classification problem: Endorphin Azura remains running-eligible even when supplier taxonomy says generic sneaker, while Shadow 5000 remains hard-excluded from running even when supplier/title wording invokes performance or running heritage.
+
+The exact schema-410 migration passed a live schema-409 transaction ending in `ROLLBACK`. Identity, approved-visible commerce, fact/evidence/source counts, unsupported-inference guards, conflict checks and queue reconciliation all passed. Post-rollback read-back confirmed schema 409 with zero target facts/evidence and zero schema-410 sources.
+
+Migration SHA-256: `a868dbf5830467dc44e348744fc5665353740db30a94997393c7440a71081745`.
+
+The runtime schema gate on this change is **410**.
