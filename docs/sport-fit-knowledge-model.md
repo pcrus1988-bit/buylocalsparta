@@ -652,3 +652,18 @@ Schema 331 fails closed if IF6748 does not resolve to exactly one active canonic
 Schema 331 was executed against the live KONTA MOY schema inside a transaction ending in `ROLLBACK`. Exact identity, disputed-field guards, fact insertion, knowledge refresh, queue reprioritization and post-write assertions passed. A post-rehearsal read confirmed the production queue remained at its pre-migration priority/state because no test changes were persisted.
 
 The runtime schema gate is now **331**.
+
+## Schema 391 — hiking knowledge deepening and queue hygiene
+
+Migration `0391_sport_fit_hiking_knowledge_deepening.sql` continues the governed Sport & Fit knowledge layer after the production-wide schema sequence reached 390.
+
+- Terrex Eastrail 3 `JR4007`: exact adidas manufacturer evidence adds `fit_length_profile=true_to_size` and `sport_use_case=technical_hike`. The technical-hike normalization is grounded in the exact manufacturer description of mountain-trail use with traction/stability on steep, uneven terrain. Existing hiking, trail, weight and drop facts remain intact.
+- Terrex Rockadia `KZ9174`: exact adidas identity and true-to-size guidance remain the highest-tier facts. Exact-code secondary references add walking, trail + road use, daily walking, wide fit and a 320.4 g reference weight at deliberately lower confidence. No cushioning/support intensity or weather-protection claim is inferred.
+- Hiking enrichment queue: non-blocked hiking footwear no longer re-requests facts already normalized on the family, and `football_surface_code` is removed from hiking-only families. Conflict/blocked rows are left untouched so a known disagreement can still be researched deliberately.
+
+The migration is vendor-independent at the fact layer: all normalized technical facts remain attached to canonical families, while sellability and stock stay in vendor offers.
+
+The exact committed schema-391 migration was replayed against production inside a transaction ending in `ROLLBACK`; identity guards, fact/evidence inserts, knowledge refresh, queue cleanup and post-write assertions passed without persisting test rows.
+
+The global runtime schema gate is now **391**.
+
