@@ -34,7 +34,7 @@ const allowedVercelCrons = new Map([
   ["/api/cron/nova-canonical-media", "27 * * * *"],
   ["/api/cron/nova-availability-failover", "*/15 * * * *"],
   ["/api/cron/symphonya-catalogue", "2 * * * *"],
-  ["/api/cron/symphonya-stock", "5,20,35,50 * * * *"],
+  ["/api/cron/symphonya-stock", "5,35 * * * *"],
   ["/api/cron/symphonya-pipeline", "9 * * * *"],
   ["/api/cron/dropship-order-reconciliation", "*/5 * * * *"],
   ["/api/cron/flash-sale-availability", "*/5 * * * *"],
