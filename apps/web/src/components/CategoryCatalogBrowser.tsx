@@ -47,11 +47,6 @@ function normalized(value: string | undefined): string {
   return (value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("el");
 }
 
-function unique(values: readonly (string | undefined)[]): readonly string[] {
-  return [...new Set(values.filter((value): value is string => Boolean(value?.trim())).map((value) => value.trim()))]
-    .sort((left, right) => left.localeCompare(right, "el"));
-}
-
 function countedFacetOptions(entries: readonly { value?: string; label?: string }[]): readonly FacetOption[] {
   const values = new Map<string, { label: string; count: number }>();
   for (const entry of entries) {
