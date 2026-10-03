@@ -251,7 +251,9 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
   return cards;
 }
 
-const BAZAAR_CATALOG_CACHE_SECONDS = 30;
+// Availability is revalidated again at cart/order actions. Keep this expensive
+// public discovery projection warm long enough to avoid recurring cold joins.
+const BAZAAR_CATALOG_CACHE_SECONDS = 300;
 
 const cachedBazaarCatalog = unstable_cache(
   async (
