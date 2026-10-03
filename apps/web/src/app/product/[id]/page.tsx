@@ -43,12 +43,16 @@ const productImageStyle = {
   objectPosition: "center",
   padding: 0,
   background: "transparent",
+  transform: "scale(1.09)",
+  transformOrigin: "center",
   zIndex: 1
 } as const;
 
 const thumbnailImageStyle = {
   objectFit: "cover",
-  objectPosition: "center"
+  objectPosition: "center",
+  transform: "scale(1.09)",
+  transformOrigin: "center"
 } as const;
 
 const PRIVATE_TECHNICAL_ATTRIBUTE_KEYS = new Set([
