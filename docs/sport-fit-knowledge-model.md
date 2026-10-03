@@ -724,4 +724,6 @@ Migration `0336_sport_fit_verified_adidas_football_apparel.sql` onboards two liv
 - CLIMACOOL sweat-management wording supports moisture management only. It does not create a breathability or thermal intensity.
 - Customer-review claims are excluded.
 
+Schemas 333 through 336 were rehearsed together against the live KONTA MOY catalogue inside one transaction ending in `ROLLBACK`. All identity, Product Type, normalized-fact, evidence, conflict, queue and post-write assertions passed, and post-rollback reads confirmed that no schema-336 sources/knowledge/queue rows persisted.
+
 The runtime schema gate is now **336**.
