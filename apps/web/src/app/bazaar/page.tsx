@@ -11,7 +11,7 @@ import {
   bazaarProductNoticeSummary,
   bazaarProductNoticeTitle,
   bazaarSourceLabel,
-  getBazaarCatalog,
+  getCachedBazaarCatalog,
   type BazaarCard
 } from "../../lib/bazaar-catalog";
 import { getCachedBazaarFacets } from "../../lib/bazaar-facets";
@@ -113,24 +113,25 @@ export default async function BazaarPage({ searchParams }: BazaarPageProps) {
   const hasExperienceFilters = Boolean(dealFloor || lastOneOnly);
   const hasAnyFilters = hasCatalogFilters || hasExperienceFilters;
 
-  const [products, facets] = await Promise.all([
-    getBazaarCatalog({ query, condition, source, brand, category, limit: 120 }).catch((error) => {
-      console.error(JSON.stringify({
-        level: "error",
-        event: "bazaar.catalog_unavailable",
-        message: error instanceof Error ? error.message : String(error)
-      }));
-      return [];
-    }),
-    getCachedBazaarFacets().catch((error) => {
-      console.error(JSON.stringify({
-        level: "error",
-        event: "bazaar.facets_unavailable",
-        message: error instanceof Error ? error.message : String(error)
-      }));
-      return { brands: [], categories: [], conditions: [], sources: [] };
-    })
-  ]);
+  // The production web runtime intentionally uses one PostgreSQL client per
+  // instance. Keep cold catalogue/facet fills sequential so they cannot compete
+  // for the same pool slot; both paths are cached, so warm requests remain fast.
+  const products = await getCachedBazaarCatalog({ query, condition, source, brand, category, limit: 72 }).catch((error) => {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "bazaar.catalog_unavailable",
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return [];
+  });
+  const facets = await getCachedBazaarFacets().catch((error) => {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "bazaar.facets_unavailable",
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return { brands: [], categories: [], conditions: [], sources: [] };
+  });
 
   const { brands, categories, conditions, sources } = facets;
   const bySavings = [...products].sort((a, b) =>
