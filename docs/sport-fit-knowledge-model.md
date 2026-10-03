@@ -746,3 +746,6 @@ Migration `0397_sport_fit_post_enrichment_queue_hygiene.sql` fixes a live queue-
 The migration derives the remaining queue directly from normalized family facts, changes no technical fact/evidence, and fails closed if any target identity, governed baseline or expected unresolved field set has drifted.
 
 The pending runtime schema gate is **397** until this reconciliation is merged and applied.
+
+
+The exact schema-397 migration was replayed against live production schema 396 inside a transaction ending in `ROLLBACK`. It removed all seven already-normalized requests and both non-applicable football-surface requests inside the rehearsal, passed its exact unresolved-field assertions, and post-rollback verification confirmed production still retained the original 7 + 2 stale requests.
