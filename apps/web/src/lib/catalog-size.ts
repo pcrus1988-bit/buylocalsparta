@@ -172,6 +172,35 @@ function fractionDetails(value: string): Readonly<{ numerator: number; denominat
   return null;
 }
 
+function compactFootwearFractionToken(value: string): NumericSizeToken | null {
+  const normalized = clean(value)
+    .toUpperCase()
+    .replace(/^EU\s*[-:/]?\s*/, "")
+    .replace(/\s+/g, "");
+  const match = normalized.match(/^(\d{2})(12|13|23|14|34)$/);
+  if (!match) return null;
+
+  const integerPart = Number(match[1]);
+  if (integerPart < CLEAR_EU_FOOTWEAR_MIN || integerPart > CLEAR_EU_FOOTWEAR_MAX) return null;
+
+  const fractions: Readonly<Record<string, Readonly<{ numerator: number; denominator: number; glyph: string }>>> = {
+    "12": { numerator: 1, denominator: 2, glyph: "½" },
+    "13": { numerator: 1, denominator: 3, glyph: "⅓" },
+    "23": { numerator: 2, denominator: 3, glyph: "⅔" },
+    "14": { numerator: 1, denominator: 4, glyph: "¼" },
+    "34": { numerator: 3, denominator: 4, glyph: "¾" }
+  };
+  const fraction = fractions[match[2]];
+  if (!fraction) return null;
+
+  return {
+    key: String(integerPart) + "+" + String(fraction.numerator) + "/" + String(fraction.denominator),
+    label: String(integerPart) + fraction.glyph,
+    numeric: integerPart + fraction.numerator / fraction.denominator,
+    integerPart
+  };
+}
+
 function numericSizeToken(value: string): NumericSizeToken | null {
   const normalized = clean(value).replace(",", ".");
   const fractional = normalized.match(/^(\d{1,3})(?:\s*[-+]?\s*)(½|⅓|⅔|¼|¾|1\/2|1\/3|2\/3|1\/4|3\/4)$/);
@@ -352,6 +381,12 @@ export function canonicalizeCatalogSize(rawValue: string, domain: CatalogSizeDom
   }
 
   if (domain === "footwear") {
+    // Some supplier feeds compact fractional EU sizes by stripping separators,
+    // e.g. adidas 47 1/3 -> "4713". This encoding is only interpreted in
+    // footwear context and only when the leading EU size is within a sane range.
+    const compactFraction = compactFootwearFractionToken(raw);
+    if (compactFraction) return systemSize("EU", compactFraction, "footwear", raw);
+
     const explicitValues = explicitSystemValues(raw);
     const explicitEu = explicitValues.find((entry) => entry.system === "EU");
     if (explicitEu) return systemSize("EU", explicitEu.token, "footwear", raw);

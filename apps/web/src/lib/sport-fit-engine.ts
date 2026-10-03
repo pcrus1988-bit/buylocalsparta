@@ -1,3 +1,4 @@
+import { canonicalizeCatalogSize } from "./catalog-size.ts";
 import { evaluateSportFitRules, SPORT_FIT_RULESET_VERSION } from "./sport-fit-rules.ts";
 
 export const SPORT_ACTIVITIES = ["running", "walking", "gym", "football", "hiking", "basketball", "tennis", "padel", "volleyball", "handball", "badminton"] as const;
@@ -251,12 +252,19 @@ function hasKnowledgeMatch(values: readonly string[] | undefined, expected: read
 }
 
 function matchingSize(product: SportFitProduct, requestedSize: string | undefined, role: SportProductRole): string | undefined {
-  const target = normalize(requestedSize).replace(/^eu\s*/, "");
-  if (!target || (role !== "footwear" && role !== "socks")) return undefined;
+  const requested = requestedSize?.trim() ?? "";
+  if (!requested || (role !== "footwear" && role !== "socks")) return undefined;
 
+  if (role === "footwear") {
+    const targetKey = canonicalizeCatalogSize(requested, "footwear").key;
+    return product.sizes.find((size) =>
+      canonicalizeCatalogSize(size, "footwear").key === targetKey
+    );
+  }
+
+  const target = normalize(requested).replace(/^eu\s*/, "");
   const exact = product.sizes.find((size) => normalize(size).replace(/^eu\s*/, "") === target);
   if (exact) return exact;
-  if (role !== "socks") return undefined;
 
   const numericTarget = Number(target.replace(",", "."));
   if (!Number.isFinite(numericTarget)) return undefined;
