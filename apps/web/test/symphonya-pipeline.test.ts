@@ -227,7 +227,8 @@ test("general storefront surfaces newly published Symphonya families before the 
 
 test("Symphonya stock persistence uses the indexed supplier product id without an EAN OR fallback", () => {
   const runtime = readFileSync(new URL("../src/lib/symphonya-stock-sync-runtime.ts", import.meta.url), "utf8");
-  assert.match(runtime, /dso\.supplier_id=supplier\.id AND dso\.external_product_id=stock\.external_product_id/);
+  assert.match(runtime, /JOIN supplier ON supplier\.id=dso\.supplier_id/);
+  assert.match(runtime, /JOIN stock ON stock\.external_product_id=dso\.external_product_id/);
   assert.doesNotMatch(runtime, /dso\.external_product_id=stock\.external_product_id OR/);
 });
 
