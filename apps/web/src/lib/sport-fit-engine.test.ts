@@ -1756,6 +1756,33 @@ test("governed Cloudfoam Flex walking evidence overrides contradictory running t
   }), false);
 });
 
+test("governed New Balance lifestyle identity blocks running-heritage contamination", () => {
+  const heritageLifestyle = product({
+    id: "new-balance-740-u740bm2",
+    title: "New Balance 740 Daily Runner Running-Inspired Shoe",
+    categoryCode: "mens-running-shoes",
+    brand: "New Balance",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["casual_lifestyle"]
+    }
+  });
+
+  const answers = {
+    activity: "running" as const,
+    audience: "men" as const,
+    surface: "road" as const
+  };
+
+  const scored = scoreSportFitProduct(heritageLifestyle, answers);
+  assert.equal(scored.technicalEligible, false);
+  assert.equal(sportFitCandidateSupportsRequestedActivity(heritageLifestyle, answers), false);
+  assert.ok(scored.technicalRequirements.some((item) =>
+    item.id === "requirement.activity" && item.status === "conflict"
+  ));
+});
+
 test("governed casual-lifestyle footwear is hard-excluded from running despite athletic retailer wording", () => {
   const lifestyleOnly = product({
     id: "governed-lifestyle-only",
