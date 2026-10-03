@@ -652,3 +652,32 @@ Schema 331 fails closed if IF6748 does not resolve to exactly one active canonic
 Schema 331 was executed against the live KONTA MOY schema inside a transaction ending in `ROLLBACK`. Exact identity, disputed-field guards, fact insertion, knowledge refresh, queue reprioritization and post-write assertions passed. A post-rehearsal read confirmed the production queue remained at its pre-migration priority/state because no test changes were persisted.
 
 The runtime schema gate is now **331**.
+
+
+## Schema 332 — handball and badminton vocabulary
+
+Migration `0332_sport_fit_handball_badminton_vocabulary.sql` extends the controlled Sport & Fit vocabulary without assigning product-level suitability.
+
+- `sport_activity=handball` and `sport_activity=badminton` are first-class controlled activities.
+- Handball receives `handball_training` and `handball_match` use cases.
+- Badminton receives `badminton_training` and `badminton_match` use cases.
+- Product-level facts still require the normal governed evidence/provenance workflow; the vocabulary migration alone cannot make a product recommendable for either sport.
+
+The runtime schema gate is now **332**.
+
+## Schema 333 — direct Kerasiotis feed refinements
+
+Migration `0333_sport_fit_direct_kerasiotis_refinements.sql` strengthens four exact live canonical families using literal claims from the connected Kerasiotis XML feed.
+
+- `JR9720` Terrex Anylander J: exact feed title/description adds `sport_activity=hiking`. Traxion and generic uneven-surface wording remain provenance only; no specific trail surface is inferred.
+- `KK4280` Response 2 M: exact feed title/description confirms `sport_activity=running` and explicitly states asphalt use, normalized as `sport_surface=road`. Cloudfoam+ and generic support wording do not create cushioning/support levels.
+- `KQ9728` Essentials Climacool: direct feed wording confirms `sport_activity=general_training` and `moisture_wicking=true`.
+- `KR2147` Essentials Climacool: direct feed wording confirms `sport_activity=general_training` and `moisture_wicking=true`.
+
+Existing catalogue-taxonomy evidence is preserved. Schema 333 adds direct vendor-feed provenance and strengthens the normalized fact source/confidence where the value is the same. It fails closed if any target code does not resolve to exactly one active canonical family or if an unexpected normalized value is already present.
+
+Generic technology and marketing wording remains conservative: Cloudfoam is not converted into cushioning/support intensity, Traxion is not converted into a specific surface without an explicit surface claim, and generic ventilation wording is not converted into a breathability level.
+
+The migration was rehearsed against the live KONTA MOY catalogue inside a transaction ending in `ROLLBACK`. Identity guards, expected-state guards, evidence/fact writes, knowledge refresh, queue updates and post-write assertions passed. A post-rehearsal read confirmed that no schema-333 source or normalized fact persisted.
+
+The runtime schema gate is now **333**.
