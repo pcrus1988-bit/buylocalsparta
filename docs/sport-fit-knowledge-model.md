@@ -925,3 +925,18 @@ Migration SHA-256: `f6104d87d1ba8db0bddb0e84ff49be3bb1169b369539b3011ef183319d0a
 
 The runtime schema gate on this change is **407**.
 
+## Schema 408 — sellable On Cloud X Tempo hybrid-training governance
+
+Migration `0408_sport_fit_on_cloud_x_tempo_hybrid_training.sql` enriches four currently sellable, zero-knowledge On Cloud X Tempo canonical families: men `3MG30110969` and `3MG30116013`, and women `3WG30090969` and `3WG30095084`.
+
+Current first-party On evidence governs Cloud X Tempo as a hybrid model spanning training/gym mixed workouts and running context. The normalized knowledge is deliberately narrow: `sport_activity=gym_training`, `sport_activity=running`, `sport_use_case=gym_functional`, `fit_length_profile=true_to_size`, **8 mm** heel-to-toe drop, and the published reference weight (**307 g men / 249 g women**).
+
+The pass adds **24 normalized family facts**, **24 active first-party evidence rows**, and **5 current manufacturer sources** across **4 live canonical families**. It does **not** infer road or indoor surface, cushioning grade, support grade, heel/forefoot stack, width, toe-box profile, plate type, or weather protection from descriptive marketing language. Those fields remain unresolved.
+
+All four enrichment queues are reconciled: resolved fields and non-applicable `football_surface_code` are removed, while the unresolved technical fields stay explicitly queued. Recommendation regression coverage preserves the hybrid activity semantics: Cloud X Tempo can satisfy governed functional-gym and running activity requests, while a different governed sport such as basketball is a hard mismatch.
+
+Before repository registration, the exact schema-408 migration was executed against the live schema-407 production database inside a transaction ending in `ROLLBACK`. Its identity, approved-visible-commerce, normalized fact/evidence/source counts, unsupported-inference guards, conflict guard, and queue reconciliation assertions all passed, and production data remained unchanged after the rehearsal.
+
+Migration SHA-256: `29fb131c68f32ae403dc139c965809f63a03c6b484fa0147574fde3403da3bab`.
+
+The runtime schema gate on this change is **408**.
