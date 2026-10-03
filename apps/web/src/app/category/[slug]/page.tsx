@@ -8,7 +8,7 @@ import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides
 import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
 import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 import { productPublicPath } from "../../../lib/product-url";
-import { getCachedCrawlerCatalogCards } from "../../../lib/cached-public-shop-page";
+import { getCachedCrawlerCatalogCards, getCachedPublishedDropshipShopPage } from "../../../lib/cached-public-shop-page";
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
 import { getCachedShopSupplierFacets } from "../../../lib/shop-supplier-facets";
 
@@ -61,7 +61,46 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 async function getBoundedCategoryProducts(categorySlug: string) {
-  return getCachedCrawlerCatalogCards("23100", "", categorySlug, {}, CATEGORY_PAGE_SIZE);
+  // Category landings must reflect the same hub-wide live catalogue as /shop.
+  // The crawler projection can legitimately be paused/stale during load-shedding,
+  // while the compact dropship live-family table is maintained incrementally.
+  // Serialize both reads because the web runtime intentionally owns one PG client.
+  const localProducts = await getCachedCrawlerCatalogCards("23100", "", categorySlug, {}, CATEGORY_PAGE_SIZE);
+  const dropshipPage = await getCachedPublishedDropshipShopPage({
+    query: "",
+    category: categorySlug,
+    filters: {},
+    attributeFilters: {},
+    limit: CATEGORY_PAGE_SIZE,
+    offset: 0
+  }).catch((error) => {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "storefront.category_dropship_products_degraded",
+      category: categorySlug,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return { products: [], total: 0, hasMore: false };
+  });
+
+  const merged: Array<(typeof localProducts)[number]> = [];
+  const seen = new Set<string>();
+  const sources = [localProducts, dropshipPage.products] as const;
+  let cursor = 0;
+  while (merged.length < CATEGORY_PAGE_SIZE) {
+    let added = false;
+    for (const source of sources) {
+      const product = source[cursor];
+      if (!product || seen.has(product.id)) continue;
+      seen.add(product.id);
+      merged.push(product);
+      added = true;
+      if (merged.length >= CATEGORY_PAGE_SIZE) break;
+    }
+    if (!added && sources.every((source) => cursor >= source.length - 1)) break;
+    cursor += 1;
+  }
+  return merged;
 }
 
 export default async function CategoryPage({ params }: Props) {
