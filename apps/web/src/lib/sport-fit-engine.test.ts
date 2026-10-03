@@ -1635,3 +1635,35 @@ test("street-surface evidence on general-training footwear does not hard-reject 
   ), false);
 });
 
+
+test("governed casual-lifestyle footwear is hard-excluded from running despite athletic retailer wording", () => {
+  const lifestyleOnly = product({
+    id: "governed-lifestyle-only",
+    title: "Performance Running Athletic Sneaker",
+    categoryCode: "womens-running-shoes",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["casual_lifestyle"],
+      fitLengthProfile: "true_to_size",
+      dropMm: 8,
+      weightG: 216
+    }
+  });
+
+  const scored = scoreSportFitProduct(lifestyleOnly, {
+    activity: "running",
+    audience: "women",
+    surface: "road"
+  });
+  const result = buildSportFitRecommendation([lifestyleOnly], {
+    activity: "running",
+    audience: "women",
+    surface: "road"
+  });
+
+  assert.equal(scored.technicalEligible, false);
+  assert.ok(scored.appliedRules.includes("activity.known_mismatch"));
+  assert.equal(result.primary, undefined);
+  assert.equal(result.ranked.length, 0);
+});
