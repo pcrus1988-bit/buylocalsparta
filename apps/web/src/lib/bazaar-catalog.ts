@@ -1,4 +1,5 @@
 import { normalizeSearchText } from "@buy-local-sparta/core";
+import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedCatalogImages } from "./public-media-service";
 import { publicDescriptionText } from "./public-description-text";
@@ -119,76 +120,37 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
   const brand = filters.brand?.trim() || null;
   const category = filters.category?.trim() || null;
   const result = await getProductionPostgresRuntime().nativePool.query<BazaarRow>(`
-    SELECT DISTINCT ON (cv.id)
-      cv.public_id AS canonical_public_id,
-      cv.slug,
-      COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
-      COALESCE(el.description,en.description) AS description,
-      c.code AS category_code,
-      b.name AS brand_name,
-      b.logo_object_key AS brand_logo_object_key,
-      cv.condition,
-      cv.bazaar_source,
-      vo.customer_price_minor,
-      vo.msrp_minor,
-      CASE
-        WHEN dso.id IS NOT NULL THEN GREATEST(COALESCE(dso.cached_quantity,0),0)
-        ELSE GREATEST(0,COALESCE(ib.on_hand,0)-COALESCE(ib.active_reservations,0)-COALESCE(ib.safety_stock,0)-COALESCE(ib.blocked,0))
-      END AS available_to_sell,
-      v.public_id AS vendor_public_id,
-      v.trading_name AS vendor_name,
-      (dso.id IS NOT NULL) AS supplier_fulfilled
-    FROM canonical_variants cv
-    JOIN categories c ON c.id=cv.category_id
-    JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
-    JOIN vendor_businesses v ON v.id=vo.vendor_id
-    JOIN vendor_locations l ON l.id=vo.location_id
-    LEFT JOIN brands b ON b.id=cv.brand_id
-    LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
-    LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-    LEFT JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
-    LEFT JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
-    LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
-    WHERE cv.commerce_channel='bazaar'
-      AND ($2::text IS NULL OR cv.slug=$2 OR cv.public_id=$2)
+    SELECT
+      brm.canonical_public_id,
+      brm.slug,
+      brm.title,
+      brm.description,
+      brm.category_code,
+      brm.brand_name,
+      brm.brand_logo_object_key,
+      brm.condition,
+      brm.bazaar_source,
+      brm.customer_price_minor,
+      brm.msrp_minor,
+      brm.available_to_sell,
+      brm.vendor_public_id,
+      brm.vendor_name,
+      brm.supplier_fulfilled
+    FROM public.storefront_bazaar_read_model brm
+    WHERE (NOT brm.supplier_fulfilled OR brm.available_until>now())
+      AND ($2::text IS NULL OR brm.slug=$2 OR brm.canonical_public_id=$2)
       AND ($3::text IS NULL OR
-        COALESCE(el.title,en.title,cv.model,cv.slug,'') ILIKE '%' || $3 || '%' OR
-        COALESCE(el.description,en.description,'') ILIKE '%' || $3 || '%' OR
-        COALESCE(b.name,'') ILIKE '%' || $3 || '%' OR
-        c.code ILIKE '%' || $3 || '%' OR
-        cv.condition ILIKE '%' || $3 || '%' OR
-        COALESCE(cv.bazaar_source,'') ILIKE '%' || $3 || '%')
-      AND ($4::text IS NULL OR cv.condition=$4)
-      AND ($5::text IS NULL OR cv.bazaar_source=$5)
-      AND ($6::text IS NULL OR b.name=$6)
-      AND ($7::text IS NULL OR c.code=$7)
-      AND cv.active=true
-      AND cv.suppressed=false
-      AND cv.recalled=false
-      AND vo.status='approved'
-      AND vo.merchant_visible=true
-      AND vo.merchant_pause_active=false
-      AND vo.customer_price_minor>0
-      AND v.status='active'
-      AND l.active=true
-      AND (
-        (
-          dso.id IS NOT NULL
-          AND dso.active=true
-          AND ds.active=true
-          AND ds.api_authoritative_availability=true
-          AND dso.cached_available=true
-          AND dso.cached_quantity>=1
-          AND dso.availability_expires_at IS NOT NULL
-          AND dso.availability_expires_at>now()
-          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-        )
-        OR (
-          dso.id IS NULL
-          AND GREATEST(0,COALESCE(ib.on_hand,0)-COALESCE(ib.active_reservations,0)-COALESCE(ib.safety_stock,0)-COALESCE(ib.blocked,0))>0
-        )
-      )
-    ORDER BY cv.id,vo.customer_price_minor ASC,vo.updated_at DESC,vo.public_id
+        brm.title ILIKE '%' || $3 || '%' OR
+        COALESCE(brm.description,'') ILIKE '%' || $3 || '%' OR
+        COALESCE(brm.brand_name,'') ILIKE '%' || $3 || '%' OR
+        brm.category_code ILIKE '%' || $3 || '%' OR
+        brm.condition ILIKE '%' || $3 || '%' OR
+        COALESCE(brm.bazaar_source,'') ILIKE '%' || $3 || '%')
+      AND ($4::text IS NULL OR brm.condition=$4)
+      AND ($5::text IS NULL OR brm.bazaar_source=$5)
+      AND ($6::text IS NULL OR brm.brand_name=$6)
+      AND ($7::text IS NULL OR brm.category_code=$7)
+    ORDER BY brm.canonical_variant_id
     LIMIT $1
   `,[limit,slugOrId,queryText,condition,requestedSource,brand,category]);
 
@@ -248,6 +210,45 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
   }
 
   return cards;
+}
+
+// Discovery data may be a few minutes stale; cart and order actions revalidate
+// current supplier/local availability before accepting the item.
+const BAZAAR_CATALOG_CACHE_SECONDS = 300;
+
+const cachedBazaarCatalog = unstable_cache(
+  async (
+    query: string,
+    condition: string,
+    source: string,
+    brand: string,
+    category: string,
+    limit: number,
+    slugOrId: string
+  ): Promise<readonly BazaarCard[]> => getBazaarCatalog({
+    query,
+    condition,
+    source,
+    brand,
+    category,
+    limit,
+    slugOrId
+  }),
+  ["public-bazaar-catalog-v3-read-model"],
+  { revalidate: BAZAAR_CATALOG_CACHE_SECONDS }
+);
+
+export async function getCachedBazaarCatalog(filters: BazaarFilters = {}): Promise<readonly BazaarCard[]> {
+  const limit = Math.max(1, Math.min(500, Number.isSafeInteger(filters.limit) ? Number(filters.limit) : 240));
+  return cachedBazaarCatalog(
+    filters.query?.trim().slice(0, 160) ?? "",
+    filters.condition?.trim().slice(0, 80) ?? "",
+    filters.source?.trim().slice(0, 80) ?? "",
+    filters.brand?.trim().slice(0, 160) ?? "",
+    filters.category?.trim().slice(0, 160) ?? "",
+    limit,
+    filters.slugOrId?.trim().slice(0, 220) ?? ""
+  );
 }
 
 export async function getBazaarProductBySlug(slug: string): Promise<BazaarCard | undefined> {

@@ -1,5 +1,5 @@
 -- KONTA MOY — exact adidas basketball apparel onboarding.
--- Schema 336 adds the first exact product-level basketball apparel facts to the
+-- Schema 393 adds the first exact product-level basketball apparel facts to the
 -- governed Sport & Fit layer for current Kerasiotis style JN4724.
 --
 -- Evidence policy:
@@ -11,12 +11,12 @@
 
 BEGIN;
 
-CREATE TEMP TABLE _sport_335_family (
+CREATE TEMP TABLE _sport_393_family (
   style_code text PRIMARY KEY,
   family_id uuid NOT NULL
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_335_family(style_code,family_id)
+INSERT INTO _sport_393_family(style_code,family_id)
 SELECT 'JN4724',resolved.family_id
 FROM (
   SELECT DISTINCT cv.family_id
@@ -35,9 +35,9 @@ FROM (
 DO $$
 DECLARE v_count integer;
 BEGIN
-  SELECT count(*) INTO v_count FROM _sport_335_family;
+  SELECT count(*) INTO v_count FROM _sport_393_family;
   IF v_count<>1 THEN
-    RAISE EXCEPTION 'Sport & Fit schema 336 JN4724 must resolve to exactly one active canonical family, found %',v_count;
+    RAISE EXCEPTION 'Sport & Fit schema 393 JN4724 must resolve to exactly one active canonical family, found %',v_count;
   END IF;
 END
 $$;
@@ -48,7 +48,7 @@ DO $$
 DECLARE v_count integer;
 BEGIN
   SELECT count(DISTINCT cv.family_id) INTO v_count
-  FROM _sport_335_family f
+  FROM _sport_393_family f
   JOIN public.canonical_variants cv ON cv.family_id=f.family_id
   JOIN public.catalog_source_product_links l
     ON l.canonical_variant_id=cv.id
@@ -60,7 +60,7 @@ BEGIN
   WHERE upper(coalesce(sp.title,'')) LIKE '%JN4724%';
 
   IF v_count<>1 THEN
-    RAISE EXCEPTION 'Schema 336 requires an approved Kerasiotis bridge for JN4724, found % families',v_count;
+    RAISE EXCEPTION 'Schema 393 requires an approved Kerasiotis bridge for JN4724, found % families',v_count;
   END IF;
 END
 $$;
@@ -79,7 +79,7 @@ BEGIN
   WHERE ad.code IN ('sport_activity','moisture_wicking');
 
   IF v_count<>2 THEN
-    RAISE EXCEPTION 'Schema 336 requires apparel Product Type contracts for sport_activity and moisture_wicking, found %',v_count;
+    RAISE EXCEPTION 'Schema 393 requires apparel Product Type contracts for sport_activity and moisture_wicking, found %',v_count;
   END IF;
 END
 $$;
@@ -91,7 +91,7 @@ DECLARE v_count integer;
 BEGIN
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_335_family f ON f.family_id=pfav.family_id
+  JOIN _sport_393_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE ad.code IN (
     'sport_activity','sport_use_case','moisture_wicking','breathability_level',
@@ -104,7 +104,7 @@ BEGIN
 
   SELECT count(*) INTO v_count
   FROM public.sport_product_knowledge k
-  JOIN _sport_335_family f ON f.family_id=k.family_id;
+  JOIN _sport_393_family f ON f.family_id=k.family_id;
 
   IF v_count<>0 THEN
     RAISE EXCEPTION 'JN4724 unexpectedly already exists in sport_product_knowledge';
@@ -112,7 +112,7 @@ BEGIN
 
   SELECT count(*) INTO v_count
   FROM public.sport_knowledge_enrichment_queue q
-  JOIN _sport_335_family f ON f.family_id=q.family_id;
+  JOIN _sport_393_family f ON f.family_id=q.family_id;
 
   IF v_count<>0 THEN
     RAISE EXCEPTION 'JN4724 unexpectedly already exists in sport_knowledge_enrichment_queue';
@@ -160,14 +160,14 @@ SELECT
   'strong',
   now(),
   'Exact adidas JN4724 page identifies Basketball apparel and explicitly states moisture-managing AEROREADY. Breathability and thermal intensity remain unknown.'
-FROM _sport_335_family;
+FROM _sport_393_family;
 
 INSERT INTO public.product_family_attribute_values(
   family_id,attribute_id,position,attribute_value_id,source,confidence
 )
 SELECT
   f.family_id,ad.id,0,av.id,'enrichment',1.00000
-FROM _sport_335_family f
+FROM _sport_393_family f
 JOIN public.attribute_definitions ad
   ON ad.code='sport_activity'
  AND ad.active=true
@@ -192,7 +192,7 @@ SELECT
   'Product title / description / classification',
   1.00000,
   1.00000
-FROM _sport_335_family f
+FROM _sport_393_family f
 JOIN public.attribute_definitions ad ON ad.code='sport_activity'
 JOIN public.sport_knowledge_sources s
   ON s.source_key='adidas_basketball_all_world_tank_jn4724_official';
@@ -202,7 +202,7 @@ INSERT INTO public.product_family_attribute_values(
 )
 SELECT
   f.family_id,ad.id,0,true,'enrichment',1.00000
-FROM _sport_335_family f
+FROM _sport_393_family f
 JOIN public.attribute_definitions ad
   ON ad.code='moisture_wicking'
  AND ad.active=true;
@@ -223,7 +223,7 @@ SELECT
   'Product Description',
   1.00000,
   1.00000
-FROM _sport_335_family f
+FROM _sport_393_family f
 JOIN public.attribute_definitions ad ON ad.code='moisture_wicking'
 JOIN public.sport_knowledge_sources s
   ON s.source_key='adidas_basketball_all_world_tank_jn4724_official';
@@ -248,12 +248,12 @@ SELECT
     'ignoreCustomerReviews',true,
     'doNotInferBreathabilityFromAeroready',true
   )
-FROM _sport_335_family;
+FROM _sport_393_family;
 
 DO $$
 DECLARE r record;
 BEGIN
-  FOR r IN SELECT family_id FROM _sport_335_family LOOP
+  FOR r IN SELECT family_id FROM _sport_393_family LOOP
     PERFORM bls_private.refresh_sport_product_knowledge(r.family_id);
   END LOOP;
 
@@ -261,7 +261,7 @@ BEGIN
   SET status=CASE WHEN k.knowledge_status='verified' THEN 'completed' ELSE 'partial' END,
       updated_at=now()
   FROM public.sport_product_knowledge k
-  JOIN _sport_335_family f ON f.family_id=k.family_id
+  JOIN _sport_393_family f ON f.family_id=k.family_id
   WHERE q.family_id=f.family_id;
 END
 $$;
@@ -274,7 +274,7 @@ DECLARE
 BEGIN
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_335_family f ON f.family_id=pfav.family_id
+  JOIN _sport_393_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   JOIN public.attribute_values av ON av.id=pfav.attribute_value_id
   WHERE ad.code='sport_activity'
@@ -282,48 +282,48 @@ BEGIN
     AND av.code='basketball';
 
   IF v_count<>1 THEN
-    RAISE EXCEPTION 'Schema 336 expected one JN4724 basketball fact, found %',v_count;
+    RAISE EXCEPTION 'Schema 393 expected one JN4724 basketball fact, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_335_family f ON f.family_id=pfav.family_id
+  JOIN _sport_393_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE ad.code='moisture_wicking'
     AND pfav.position=0
     AND pfav.boolean_value=true;
 
   IF v_count<>1 THEN
-    RAISE EXCEPTION 'Schema 336 expected JN4724 moisture_wicking=true, found %',v_count;
+    RAISE EXCEPTION 'Schema 393 expected JN4724 moisture_wicking=true, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.sport_product_fact_evidence e
-  JOIN _sport_335_family f ON f.family_id=e.family_id
+  JOIN _sport_393_family f ON f.family_id=e.family_id
   JOIN public.sport_knowledge_sources s ON s.id=e.source_id
   WHERE s.source_key='adidas_basketball_all_world_tank_jn4724_official'
     AND e.active;
 
   IF v_count<>2 THEN
-    RAISE EXCEPTION 'Schema 336 expected two active JN4724 manufacturer evidence rows, found %',v_count;
+    RAISE EXCEPTION 'Schema 393 expected two active JN4724 manufacturer evidence rows, found %',v_count;
   END IF;
 
   SELECT knowledge_status,conflict_count INTO v_status,v_conflicts
   FROM public.sport_product_knowledge k
-  JOIN _sport_335_family f ON f.family_id=k.family_id;
+  JOIN _sport_393_family f ON f.family_id=k.family_id;
 
   IF v_status<>'partial' OR coalesce(v_conflicts,0)<>0 THEN
-    RAISE EXCEPTION 'Schema 336 expected JN4724 partial/no-conflict knowledge, found status %, conflicts %',v_status,v_conflicts;
+    RAISE EXCEPTION 'Schema 393 expected JN4724 partial/no-conflict knowledge, found status %, conflicts %',v_status,v_conflicts;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_335_family f ON f.family_id=pfav.family_id
+  JOIN _sport_393_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE ad.code IN ('breathability_level','thermal_level');
 
   IF v_count<>0 THEN
-    RAISE EXCEPTION 'Schema 336 must not infer breathability/thermal intensity; found % forbidden facts',v_count;
+    RAISE EXCEPTION 'Schema 393 must not infer breathability/thermal intensity; found % forbidden facts',v_count;
   END IF;
 END
 $$;

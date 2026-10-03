@@ -1,5 +1,5 @@
 -- KONTA MOY - exact adidas Response 2 KK4280 geometry/use-case/fit enrichment.
--- Schema 346 adds only explicit first-party facts from the exact adidas Mexico
+-- Schema 403 adds only explicit first-party facts from the exact adidas Mexico
 -- product page. Existing running/road evidence is preserved.
 --
 -- Facts added:
@@ -19,12 +19,12 @@
 
 BEGIN;
 
-CREATE TEMP TABLE _sport_346_family (
+CREATE TEMP TABLE _sport_403_family (
   style_code text PRIMARY KEY,
   family_id uuid NOT NULL
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_346_family(style_code,family_id)
+INSERT INTO _sport_403_family(style_code,family_id)
 SELECT wanted.style_code,resolved.family_id
 FROM (VALUES ('KK4280'::text)) AS wanted(style_code)
 CROSS JOIN LATERAL (
@@ -44,18 +44,18 @@ CROSS JOIN LATERAL (
 DO $$
 DECLARE v_count integer;
 BEGIN
-  SELECT count(*) INTO v_count FROM _sport_346_family;
+  SELECT count(*) INTO v_count FROM _sport_403_family;
   IF v_count<>1 THEN
-    RAISE EXCEPTION 'Sport & Fit schema 346 KK4280 must resolve to exactly one active canonical family, found %',v_count;
+    RAISE EXCEPTION 'Sport & Fit schema 403 KK4280 must resolve to exactly one active canonical family, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
-  FROM _sport_346_family f
+  FROM _sport_403_family f
   JOIN public.sport_product_knowledge k ON k.family_id=f.family_id
   JOIN public.sport_knowledge_enrichment_queue q ON q.family_id=f.family_id;
 
   IF v_count<>1 THEN
-    RAISE EXCEPTION 'Schema 346 requires the existing governed KK4280 family and queue row, found %',v_count;
+    RAISE EXCEPTION 'Schema 403 requires the existing governed KK4280 family and queue row, found %',v_count;
   END IF;
 END
 $$;
@@ -98,7 +98,7 @@ DECLARE v_bad integer;
 BEGIN
   SELECT count(*) INTO v_bad
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_346_family f ON f.family_id=pfav.family_id
+  JOIN _sport_403_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE ad.code IN (
     'sport_use_case',
@@ -110,12 +110,12 @@ BEGIN
   );
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Schema 346 found % unexpected pre-existing KK4280 target facts',v_bad;
+    RAISE EXCEPTION 'Schema 403 found % unexpected pre-existing KK4280 target facts',v_bad;
   END IF;
 END
 $$;
 
-CREATE TEMP TABLE _sport_346_enum (
+CREATE TEMP TABLE _sport_403_enum (
   attribute_code text NOT NULL,
   position integer NOT NULL,
   value_code text NOT NULL,
@@ -124,7 +124,7 @@ CREATE TEMP TABLE _sport_346_enum (
   PRIMARY KEY(attribute_code,position)
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_346_enum VALUES
+INSERT INTO _sport_403_enum VALUES
 (
   'sport_use_case',0,'long_run',
   'The exact adidas KK4280 description explicitly positions the Response 2 for a long-distance run.',
@@ -136,14 +136,14 @@ INSERT INTO _sport_346_enum VALUES
   'Size guide > true to size'
 );
 
-CREATE TEMP TABLE _sport_346_numeric (
+CREATE TEMP TABLE _sport_403_numeric (
   attribute_code text PRIMARY KEY,
   number_value numeric NOT NULL,
   evidence_excerpt text NOT NULL,
   source_locator text NOT NULL
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_346_numeric VALUES
+INSERT INTO _sport_403_numeric VALUES
 (
   'heel_to_toe_drop_mm',8,
   'The exact adidas KK4280 details publish an 8 mm midsole drop.',
@@ -169,7 +169,7 @@ DO $$
 DECLARE v_count integer;
 BEGIN
   SELECT count(*) INTO v_count
-  FROM _sport_346_enum e
+  FROM _sport_403_enum e
   JOIN public.attribute_definitions ad
     ON ad.code=e.attribute_code
    AND ad.active=true
@@ -179,18 +179,18 @@ BEGIN
    AND av.active=true;
 
   IF v_count<>2 THEN
-    RAISE EXCEPTION 'Schema 346 expected two governed enum mappings, found %',v_count;
+    RAISE EXCEPTION 'Schema 403 expected two governed enum mappings, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
-  FROM _sport_346_numeric n
+  FROM _sport_403_numeric n
   JOIN public.attribute_definitions ad
     ON ad.code=n.attribute_code
    AND ad.active=true
    AND ad.data_type='number';
 
   IF v_count<>4 THEN
-    RAISE EXCEPTION 'Schema 346 expected four governed numeric attributes, found %',v_count;
+    RAISE EXCEPTION 'Schema 403 expected four governed numeric attributes, found %',v_count;
   END IF;
 END
 $$;
@@ -205,7 +205,7 @@ SELECT
   av.id,
   'enrichment',
   1.00000
-FROM _sport_346_enum e
+FROM _sport_403_enum e
 JOIN public.attribute_definitions ad
   ON ad.code=e.attribute_code
  AND ad.active=true
@@ -213,7 +213,7 @@ JOIN public.attribute_values av
   ON av.attribute_id=ad.id
  AND av.code=e.value_code
  AND av.active=true
-CROSS JOIN _sport_346_family f;
+CROSS JOIN _sport_403_family f;
 
 INSERT INTO public.product_family_attribute_values(
   family_id,attribute_id,position,number_value,source,confidence
@@ -225,11 +225,11 @@ SELECT
   n.number_value,
   'enrichment',
   1.00000
-FROM _sport_346_numeric n
+FROM _sport_403_numeric n
 JOIN public.attribute_definitions ad
   ON ad.code=n.attribute_code
  AND ad.active=true
-CROSS JOIN _sport_346_family f
+CROSS JOIN _sport_403_family f
 ON CONFLICT (family_id,attribute_id,position) DO UPDATE SET
   attribute_value_id=NULL,
   text_value=NULL,
@@ -256,11 +256,11 @@ SELECT
   e.source_locator,
   1.00000,
   1.00000
-FROM _sport_346_enum e
+FROM _sport_403_enum e
 JOIN public.attribute_definitions ad ON ad.code=e.attribute_code
 JOIN public.sport_knowledge_sources s
   ON s.source_key='adidas_response_2_kk4280_mexico_official'
-CROSS JOIN _sport_346_family f;
+CROSS JOIN _sport_403_family f;
 
 INSERT INTO public.sport_product_fact_evidence(
   family_id,attribute_id,position,source_id,evidence_strength,extraction_method,
@@ -278,11 +278,11 @@ SELECT
   n.source_locator,
   1.00000,
   1.00000
-FROM _sport_346_numeric n
+FROM _sport_403_numeric n
 JOIN public.attribute_definitions ad ON ad.code=n.attribute_code
 JOIN public.sport_knowledge_sources s
   ON s.source_key='adidas_response_2_kk4280_mexico_official'
-CROSS JOIN _sport_346_family f;
+CROSS JOIN _sport_403_family f;
 
 UPDATE public.sport_product_knowledge k
 SET
@@ -290,7 +290,7 @@ SET
     'Exact adidas KK4280 evidence adds long-run use, 8 mm drop, 32/24 mm stack, 301 g weight and true-to-size guidance. Existing running/road facts remain unchanged; classic fit is not mapped to width and Cloudfoam+ wording is not converted into cushioning intensity.',
   last_enriched_at=now(),
   updated_at=now()
-FROM _sport_346_family f
+FROM _sport_403_family f
 WHERE k.family_id=f.family_id;
 
 UPDATE public.sport_knowledge_enrichment_queue q
@@ -336,13 +336,13 @@ SET
   last_error=NULL,
   next_attempt_at=NULL,
   updated_at=now()
-FROM _sport_346_family f
+FROM _sport_403_family f
 WHERE q.family_id=f.family_id;
 
 DO $$
 DECLARE r record;
 BEGIN
-  FOR r IN SELECT family_id FROM _sport_346_family LOOP
+  FOR r IN SELECT family_id FROM _sport_403_family LOOP
     PERFORM bls_private.refresh_sport_product_knowledge(r.family_id);
   END LOOP;
 END
@@ -353,7 +353,7 @@ DECLARE v_count integer; v_bad integer;
 BEGIN
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_346_family f ON f.family_id=pfav.family_id
+  JOIN _sport_403_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   JOIN public.attribute_values av ON av.id=pfav.attribute_value_id
   WHERE
@@ -362,14 +362,14 @@ BEGIN
     (ad.code='fit_length_profile' AND av.code='true_to_size' AND pfav.position=0);
 
   IF v_count<>2 THEN
-    RAISE EXCEPTION 'Schema 346 expected two normalized enum facts, found %',v_count;
+    RAISE EXCEPTION 'Schema 403 expected two normalized enum facts, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_346_family f ON f.family_id=pfav.family_id
+  JOIN _sport_403_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
-  JOIN _sport_346_numeric n
+  JOIN _sport_403_numeric n
     ON n.attribute_code=ad.code
    AND n.number_value=pfav.number_value
   WHERE pfav.position=0
@@ -377,12 +377,12 @@ BEGIN
     AND pfav.confidence=1.00000;
 
   IF v_count<>4 THEN
-    RAISE EXCEPTION 'Schema 346 expected four exact normalized numeric facts, found %',v_count;
+    RAISE EXCEPTION 'Schema 403 expected four exact normalized numeric facts, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.sport_product_fact_evidence fact
-  JOIN _sport_346_family f ON f.family_id=fact.family_id
+  JOIN _sport_403_family f ON f.family_id=fact.family_id
   JOIN public.sport_knowledge_sources s ON s.id=fact.source_id
   WHERE s.source_key='adidas_response_2_kk4280_mexico_official'
     AND fact.active
@@ -391,12 +391,12 @@ BEGIN
     AND fact.identity_confidence=1.00000;
 
   IF v_count<>6 THEN
-    RAISE EXCEPTION 'Schema 346 expected six active exact manufacturer evidence rows, found %',v_count;
+    RAISE EXCEPTION 'Schema 403 expected six active exact manufacturer evidence rows, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.sport_knowledge_enrichment_queue q
-  JOIN _sport_346_family f ON f.family_id=q.family_id
+  JOIN _sport_403_family f ON f.family_id=q.family_id
   WHERE
     'sport_use_case'=ANY(q.requested_fields)
     OR 'heel_to_toe_drop_mm'=ANY(q.requested_fields)
@@ -406,7 +406,7 @@ BEGIN
     OR 'fit_length_profile'=ANY(q.requested_fields);
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Schema 346 expected resolved KK4280 fields removed from the enrichment queue, found % stale rows',v_bad;
+    RAISE EXCEPTION 'Schema 403 expected resolved KK4280 fields removed from the enrichment queue, found % stale rows',v_bad;
   END IF;
 END
 $$;

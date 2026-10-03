@@ -1,5 +1,5 @@
 -- KONTA MOY — conflict-aware Sport & Fit direct-evidence refinement.
--- Schema 335 extends schema 334 without flattening source disagreements.
+-- Schema 392 extends schema 391 without flattening source disagreements.
 --
 -- Evidence policy:
 -- - exact product identity is required before any family-level fact/evidence is written;
@@ -11,13 +11,13 @@
 
 BEGIN;
 
-CREATE TEMP TABLE _sport_334_family (
+CREATE TEMP TABLE _sport_392_family (
   style_code text PRIMARY KEY,
   family_id uuid NOT NULL,
   product_role text NOT NULL
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_334_family(style_code,family_id,product_role)
+INSERT INTO _sport_392_family(style_code,family_id,product_role)
 SELECT
   wanted.style_code,
   resolved.family_id,
@@ -49,11 +49,11 @@ BEGIN
     SELECT * FROM (VALUES ('KJ0410'::text),('JQ6920'::text),('JR9087'::text)) x(style_code)
   LOOP
     SELECT count(*) INTO v_count
-    FROM _sport_334_family
+    FROM _sport_392_family
     WHERE style_code=r.style_code;
 
     IF v_count<>1 THEN
-      RAISE EXCEPTION 'Sport & Fit schema 335 style % must resolve to exactly one active canonical family, found %',r.style_code,v_count;
+      RAISE EXCEPTION 'Sport & Fit schema 392 style % must resolve to exactly one active canonical family, found %',r.style_code,v_count;
     END IF;
   END LOOP;
 END
@@ -64,7 +64,7 @@ DO $$
 DECLARE v_count integer;
 BEGIN
   SELECT count(*) INTO v_count
-  FROM _sport_334_family f
+  FROM _sport_392_family f
   WHERE f.style_code IN ('KJ0410','JR9087')
     AND EXISTS (
       SELECT 1
@@ -85,7 +85,7 @@ BEGIN
     );
 
   IF v_count<>2 THEN
-    RAISE EXCEPTION 'Schema 335 requires approved Kerasiotis links for exact KJ0410 and JR9087 families; found %',v_count;
+    RAISE EXCEPTION 'Schema 392 requires approved Kerasiotis links for exact KJ0410 and JR9087 families; found %',v_count;
   END IF;
 END
 $$;
@@ -101,7 +101,7 @@ BEGIN
     AND active;
 
   IF v_count<>1 THEN
-    RAISE EXCEPTION 'Schema 335 requires one active exact adidas JQ6920 source, found %',v_count;
+    RAISE EXCEPTION 'Schema 392 requires one active exact adidas JQ6920 source, found %',v_count;
   END IF;
 END
 $$;
@@ -161,7 +161,7 @@ DECLARE v_bad integer;
 BEGIN
   SELECT count(*) INTO v_bad
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_334_family f
+  JOIN _sport_392_family f
     ON f.family_id=pfav.family_id
    AND f.style_code='KJ0410'
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
@@ -170,12 +170,12 @@ BEGIN
     OR ad.code IN ('sport_surface','sport_use_case','footwear_width_profile');
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'KJ0410 has % unexpected normalized rows in schema-335 target positions',v_bad;
+    RAISE EXCEPTION 'KJ0410 has % unexpected normalized rows in schema-392 target positions',v_bad;
   END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_334_family f
+  JOIN _sport_392_family f
     ON f.family_id=pfav.family_id
    AND f.style_code='KJ0410'
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
@@ -190,7 +190,7 @@ BEGIN
 END
 $$;
 
-CREATE TEMP TABLE _sport_334_kj0410_enum (
+CREATE TEMP TABLE _sport_392_kj0410_enum (
   attribute_code text NOT NULL,
   position integer NOT NULL,
   value_code text NOT NULL,
@@ -199,7 +199,7 @@ CREATE TEMP TABLE _sport_334_kj0410_enum (
   PRIMARY KEY(attribute_code,position)
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_334_kj0410_enum VALUES
+INSERT INTO _sport_392_kj0410_enum VALUES
 (
   'sport_activity',1,'walking',
   'The exact Kerasiotis KJ0410 description positions Terrex Rockadia for hiking, walks and everyday routes.',
@@ -236,8 +236,8 @@ SELECT
   av.id,
   'vendor_submission',
   0.90000
-FROM _sport_334_family f
-JOIN _sport_334_kj0410_enum k ON true
+FROM _sport_392_family f
+JOIN _sport_392_kj0410_enum k ON true
 JOIN public.attribute_definitions ad
   ON ad.code=k.attribute_code
  AND ad.active=true
@@ -263,8 +263,8 @@ SELECT
   k.source_locator,
   0.90000,
   1.00000
-FROM _sport_334_family f
-JOIN _sport_334_kj0410_enum k ON true
+FROM _sport_392_family f
+JOIN _sport_392_kj0410_enum k ON true
 JOIN public.attribute_definitions ad ON ad.code=k.attribute_code
 JOIN public.sport_knowledge_sources s
   ON s.source_key='kerasiotis_xml_adidas_terrex_rockadia_kj0410'
@@ -274,7 +274,7 @@ UPDATE public.sport_product_knowledge k
 SET review_notes='Exact manufacturer evidence retains hiking/size guidance; direct Kerasiotis feed adds walking, trail + city-road use, daily walking and wide fit. EVA/cushioning wording remains ungraded.',
     last_enriched_at=now(),
     updated_at=now()
-FROM _sport_334_family f
+FROM _sport_392_family f
 WHERE f.style_code='KJ0410'
   AND k.family_id=f.family_id;
 
@@ -302,7 +302,7 @@ SET status=CASE WHEN q.status='blocked' THEN q.status ELSE 'partial' END,
     last_error=NULL,
     next_attempt_at=NULL,
     updated_at=now()
-FROM _sport_334_family f
+FROM _sport_392_family f
 WHERE f.style_code='KJ0410'
   AND q.family_id=f.family_id;
 
@@ -340,7 +340,7 @@ DECLARE v_count integer;
 BEGIN
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_334_family f
+  JOIN _sport_392_family f
     ON f.family_id=pfav.family_id
    AND f.style_code='JQ6920'
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
@@ -352,7 +352,7 @@ BEGIN
 
   SELECT count(*) INTO v_count
   FROM public.sport_product_fact_evidence e
-  JOIN _sport_334_family f
+  JOIN _sport_392_family f
     ON f.family_id=e.family_id
    AND f.style_code='JQ6920'
   JOIN public.attribute_definitions ad ON ad.id=e.attribute_id
@@ -370,7 +370,7 @@ INSERT INTO public.product_family_attribute_values(
 )
 SELECT
   f.family_id,ad.id,0,true,'enrichment',1.00000
-FROM _sport_334_family f
+FROM _sport_392_family f
 JOIN public.attribute_definitions ad
   ON ad.code='reflective_details'
  AND ad.active=true
@@ -392,7 +392,7 @@ SELECT
   'Product Description',
   1.00000,
   1.00000
-FROM _sport_334_family f
+FROM _sport_392_family f
 JOIN public.attribute_definitions ad ON ad.code='reflective_details'
 JOIN public.sport_knowledge_sources s ON s.source_key='adidas_ultrarun_5_tr_jq6920_official'
 WHERE f.style_code='JQ6920';
@@ -401,7 +401,7 @@ UPDATE public.sport_product_knowledge k
 SET last_enriched_at=now(),
     review_notes=coalesce(k.review_notes || ' ','') || 'Exact adidas JQ6920 reflective-detail claim added; Bounce remains ungraded as cushioning intensity.',
     updated_at=now()
-FROM _sport_334_family f
+FROM _sport_392_family f
 WHERE f.style_code='JQ6920'
   AND k.family_id=f.family_id;
 
@@ -417,7 +417,7 @@ DECLARE
 BEGIN
   SELECT count(*) INTO v_expected
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_334_family f
+  JOIN _sport_392_family f
     ON f.family_id=pfav.family_id
    AND f.style_code='JR9087'
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
@@ -435,7 +435,7 @@ BEGIN
 
   SELECT count(*) INTO v_bad
   FROM public.sport_product_fact_evidence e
-  JOIN _sport_334_family f
+  JOIN _sport_392_family f
     ON f.family_id=e.family_id
    AND f.style_code='JR9087'
   JOIN public.sport_knowledge_sources s ON s.id=e.source_id
@@ -443,12 +443,12 @@ BEGIN
     AND e.active;
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'JR9087 already has % active schema-335 Kerasiotis conflict evidence rows',v_bad;
+    RAISE EXCEPTION 'JR9087 already has % active schema-392 Kerasiotis conflict evidence rows',v_bad;
   END IF;
 END
 $$;
 
-CREATE TEMP TABLE _sport_334_jr9087_conflict (
+CREATE TEMP TABLE _sport_392_jr9087_conflict (
   attribute_code text NOT NULL,
   position integer NOT NULL,
   evidence_value jsonb NOT NULL,
@@ -457,7 +457,7 @@ CREATE TEMP TABLE _sport_334_jr9087_conflict (
   PRIMARY KEY(attribute_code,position)
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_334_jr9087_conflict VALUES
+INSERT INTO _sport_392_jr9087_conflict VALUES
 (
   'shoe_weight_g',0,'330'::jsonb,
   'Kerasiotis JR9087 feed publishes weight 330 g with reference size EUR 38 2/3; adidas first-party normalization remains 390 g at UK 8.5.',
@@ -500,8 +500,8 @@ SELECT
   c.source_locator,
   0.90000,
   1.00000
-FROM _sport_334_family f
-JOIN _sport_334_jr9087_conflict c ON true
+FROM _sport_392_family f
+JOIN _sport_392_jr9087_conflict c ON true
 JOIN public.attribute_definitions ad ON ad.code=c.attribute_code
 JOIN public.sport_knowledge_sources s
   ON s.source_key='kerasiotis_xml_adidas_terrex_anylander_rainrdy_jr9087'
@@ -511,7 +511,7 @@ UPDATE public.sport_product_knowledge k
 SET review_notes='Source conflict retained: adidas first-party JR9087 normalization remains authoritative (390 g at UK 8.5; 10 mm drop; 27/17 mm stack; conservative water_resistant), while the connected Kerasiotis feed publishes 330 g at EUR 38 2/3, 9 mm, 26/17 mm and waterproof wording. Do not auto-resolve across reference sizes/sources.',
     last_enriched_at=now(),
     updated_at=now()
-FROM _sport_334_family f
+FROM _sport_392_family f
 WHERE f.style_code='JR9087'
   AND k.family_id=f.family_id;
 
@@ -520,7 +520,7 @@ WHERE f.style_code='JR9087'
 DO $$
 DECLARE r record;
 BEGIN
-  FOR r IN SELECT family_id FROM _sport_334_family LOOP
+  FOR r IN SELECT family_id FROM _sport_392_family LOOP
     PERFORM bls_private.refresh_sport_product_knowledge(r.family_id);
   END LOOP;
 END
@@ -547,7 +547,7 @@ SET status='blocked',
     last_error=NULL,
     next_attempt_at=NULL,
     updated_at=now()
-FROM _sport_334_family f
+FROM _sport_392_family f
 WHERE f.style_code='JR9087'
   AND q.family_id=f.family_id;
 
@@ -559,7 +559,7 @@ SET status=CASE
       ELSE 'partial'
     END,
     updated_at=now()
-FROM _sport_334_family f
+FROM _sport_392_family f
 JOIN public.sport_product_knowledge k ON k.family_id=f.family_id
 WHERE f.style_code IN ('KJ0410','JQ6920')
   AND q.family_id=f.family_id;
@@ -573,7 +573,7 @@ DECLARE
 BEGIN
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_334_family f
+  JOIN _sport_392_family f
     ON f.family_id=pfav.family_id
    AND f.style_code='KJ0410'
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
@@ -586,12 +586,12 @@ BEGIN
     OR (ad.code='footwear_width_profile' AND pfav.position=0 AND av.code='wide');
 
   IF v_count<>5 THEN
-    RAISE EXCEPTION 'Schema 335 expected five KJ0410 direct-feed normalized additions, found %',v_count;
+    RAISE EXCEPTION 'Schema 392 expected five KJ0410 direct-feed normalized additions, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_334_family f
+  JOIN _sport_392_family f
     ON f.family_id=pfav.family_id
    AND f.style_code='JQ6920'
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
@@ -600,12 +600,12 @@ BEGIN
     AND pfav.boolean_value=true;
 
   IF v_count<>1 THEN
-    RAISE EXCEPTION 'Schema 335 expected JQ6920 reflective_details=true, found %',v_count;
+    RAISE EXCEPTION 'Schema 392 expected JQ6920 reflective_details=true, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.sport_product_fact_evidence e
-  JOIN _sport_334_family f
+  JOIN _sport_392_family f
     ON f.family_id=e.family_id
    AND f.style_code='JR9087'
   JOIN public.sport_knowledge_sources s ON s.id=e.source_id
@@ -613,21 +613,21 @@ BEGIN
     AND e.active;
 
   IF v_count<>5 THEN
-    RAISE EXCEPTION 'Schema 335 expected five JR9087 Kerasiotis evidence rows, found %',v_count;
+    RAISE EXCEPTION 'Schema 392 expected five JR9087 Kerasiotis evidence rows, found %',v_count;
   END IF;
 
   SELECT conflict_count INTO v_conflicts
   FROM public.sport_product_knowledge k
-  JOIN _sport_334_family f ON f.family_id=k.family_id
+  JOIN _sport_392_family f ON f.family_id=k.family_id
   WHERE f.style_code='JR9087';
 
   IF coalesce(v_conflicts,0)<4 THEN
-    RAISE EXCEPTION 'Schema 335 expected at least four JR9087 active source conflicts, found %',coalesce(v_conflicts,0);
+    RAISE EXCEPTION 'Schema 392 expected at least four JR9087 active source conflicts, found %',coalesce(v_conflicts,0);
   END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_334_family f
+  JOIN _sport_392_family f
     ON f.family_id=pfav.family_id
    AND f.style_code='JR9087'
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
@@ -640,17 +640,17 @@ BEGIN
     OR (ad.code='weather_protection' AND av.code<>'water_resistant');
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Schema 335 unexpectedly changed % manufacturer-normalized JR9087 facts',v_bad;
+    RAISE EXCEPTION 'Schema 392 unexpectedly changed % manufacturer-normalized JR9087 facts',v_bad;
   END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.sport_knowledge_enrichment_queue q
-  JOIN _sport_334_family f ON f.family_id=q.family_id
+  JOIN _sport_392_family f ON f.family_id=q.family_id
   WHERE f.style_code='JR9087'
     AND (q.status<>'blocked' OR q.priority<220);
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Schema 335 failed to block the unresolved JR9087 cross-source conflict';
+    RAISE EXCEPTION 'Schema 392 failed to block the unresolved JR9087 cross-source conflict';
   END IF;
 END
 $$;

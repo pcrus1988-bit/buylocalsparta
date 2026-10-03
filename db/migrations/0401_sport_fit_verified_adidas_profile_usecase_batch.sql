@@ -1,5 +1,5 @@
 -- KONTA MOY — exact adidas footwear profile/use-case refinements.
--- Schema 344 closes explicit manufacturer-backed gaps on four already-governed
+-- Schema 401 closes explicit manufacturer-backed gaps on four already-governed
 -- footwear families. It does not infer cushioning/support intensity from
 -- LIGHTMOTION, EVA, generic comfort, "regular fit", review text, or AI summaries.
 --
@@ -12,12 +12,12 @@
 
 BEGIN;
 
-CREATE TEMP TABLE _sport_344_family (
+CREATE TEMP TABLE _sport_401_family (
   style_code text PRIMARY KEY,
   family_id uuid NOT NULL
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_344_family(style_code,family_id)
+INSERT INTO _sport_401_family(style_code,family_id)
 SELECT wanted.style_code,resolved.family_id
 FROM (
   VALUES
@@ -48,11 +48,11 @@ BEGIN
     FROM (VALUES ('JQ8077'::text),('JS4403'::text),('JR6599'::text),('JS4435'::text)) x(style_code)
   LOOP
     SELECT count(*) INTO v_count
-    FROM _sport_344_family
+    FROM _sport_401_family
     WHERE style_code=r.style_code;
 
     IF v_count<>1 THEN
-      RAISE EXCEPTION 'Sport & Fit schema 344 style % must resolve to exactly one active canonical family, found %',
+      RAISE EXCEPTION 'Sport & Fit schema 401 style % must resolve to exactly one active canonical family, found %',
         r.style_code,v_count;
     END IF;
   END LOOP;
@@ -64,12 +64,12 @@ DO $$
 DECLARE v_count integer;
 BEGIN
   SELECT count(*) INTO v_count
-  FROM _sport_344_family f
+  FROM _sport_401_family f
   JOIN public.sport_product_knowledge k ON k.family_id=f.family_id
   JOIN public.sport_knowledge_enrichment_queue q ON q.family_id=f.family_id;
 
   IF v_count<>4 THEN
-    RAISE EXCEPTION 'Schema 344 requires four existing governed footwear families with queue rows, found %',v_count;
+    RAISE EXCEPTION 'Schema 401 requires four existing governed footwear families with queue rows, found %',v_count;
   END IF;
 END
 $$;
@@ -163,7 +163,7 @@ DECLARE v_bad integer;
 BEGIN
   SELECT count(*) INTO v_bad
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_344_family f ON f.family_id=pfav.family_id
+  JOIN _sport_401_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   LEFT JOIN public.attribute_values av ON av.id=pfav.attribute_value_id
   WHERE
@@ -187,12 +187,12 @@ BEGIN
     (f.style_code='JS4435' AND ad.code='fit_length_profile' AND av.code='true_to_size');
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Schema 344 found % unexpected pre-existing target values',v_bad;
+    RAISE EXCEPTION 'Schema 401 found % unexpected pre-existing target values',v_bad;
   END IF;
 END
 $$;
 
-CREATE TEMP TABLE _sport_344_enum (
+CREATE TEMP TABLE _sport_401_enum (
   style_code text NOT NULL,
   source_key text NOT NULL,
   attribute_code text NOT NULL,
@@ -203,7 +203,7 @@ CREATE TEMP TABLE _sport_344_enum (
   PRIMARY KEY(style_code,attribute_code,position)
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_344_enum VALUES
+INSERT INTO _sport_401_enum VALUES
 (
   'JQ8077',
   'adidas_duramo_rc2_jq8077_philippines_profile_official',
@@ -280,7 +280,7 @@ DO $$
 DECLARE v_count integer;
 BEGIN
   SELECT count(*) INTO v_count
-  FROM _sport_344_enum e
+  FROM _sport_401_enum e
   JOIN public.attribute_definitions ad
     ON ad.code=e.attribute_code
    AND ad.active=true
@@ -290,7 +290,7 @@ BEGIN
    AND av.active=true;
 
   IF v_count<>10 THEN
-    RAISE EXCEPTION 'Schema 344 expected ten governed attribute/value mappings, found %',v_count;
+    RAISE EXCEPTION 'Schema 401 expected ten governed attribute/value mappings, found %',v_count;
   END IF;
 END
 $$;
@@ -305,8 +305,8 @@ SELECT
   av.id,
   'enrichment',
   1.00000
-FROM _sport_344_enum e
-JOIN _sport_344_family f ON f.style_code=e.style_code
+FROM _sport_401_enum e
+JOIN _sport_401_family f ON f.style_code=e.style_code
 JOIN public.attribute_definitions ad
   ON ad.code=e.attribute_code
  AND ad.active=true
@@ -331,8 +331,8 @@ SELECT
   e.source_locator,
   1.00000,
   1.00000
-FROM _sport_344_enum e
-JOIN _sport_344_family f ON f.style_code=e.style_code
+FROM _sport_401_enum e
+JOIN _sport_401_family f ON f.style_code=e.style_code
 JOIN public.attribute_definitions ad ON ad.code=e.attribute_code
 JOIN public.sport_knowledge_sources s ON s.source_key=e.source_key;
 
@@ -350,7 +350,7 @@ SET
   END,
   last_enriched_at=now(),
   updated_at=now()
-FROM _sport_344_family f
+FROM _sport_401_family f
 WHERE k.family_id=f.family_id;
 
 UPDATE public.sport_knowledge_enrichment_queue q
@@ -414,13 +414,13 @@ SET
   last_error=NULL,
   next_attempt_at=NULL,
   updated_at=now()
-FROM _sport_344_family f
+FROM _sport_401_family f
 WHERE q.family_id=f.family_id;
 
 DO $$
 DECLARE r record;
 BEGIN
-  FOR r IN SELECT family_id FROM _sport_344_family LOOP
+  FOR r IN SELECT family_id FROM _sport_401_family LOOP
     PERFORM bls_private.refresh_sport_product_knowledge(r.family_id);
   END LOOP;
 END
@@ -431,10 +431,10 @@ DECLARE v_count integer; v_bad integer;
 BEGIN
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_344_family f ON f.family_id=pfav.family_id
+  JOIN _sport_401_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   JOIN public.attribute_values av ON av.id=pfav.attribute_value_id
-  JOIN _sport_344_enum e
+  JOIN _sport_401_enum e
     ON e.style_code=f.style_code
    AND e.attribute_code=ad.code
    AND e.position=pfav.position
@@ -443,15 +443,15 @@ BEGIN
     AND pfav.confidence=1.00000;
 
   IF v_count<>10 THEN
-    RAISE EXCEPTION 'Schema 344 expected ten normalized exact manufacturer facts, found %',v_count;
+    RAISE EXCEPTION 'Schema 401 expected ten normalized exact manufacturer facts, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.sport_product_fact_evidence fact
-  JOIN _sport_344_family f ON f.family_id=fact.family_id
+  JOIN _sport_401_family f ON f.family_id=fact.family_id
   JOIN public.attribute_definitions ad ON ad.id=fact.attribute_id
   JOIN public.sport_knowledge_sources s ON s.id=fact.source_id
-  JOIN _sport_344_enum e
+  JOIN _sport_401_enum e
     ON e.style_code=f.style_code
    AND e.attribute_code=ad.code
    AND e.position=fact.position
@@ -463,12 +463,12 @@ BEGIN
     AND fact.identity_confidence=1.00000;
 
   IF v_count<>10 THEN
-    RAISE EXCEPTION 'Schema 344 expected ten active exact manufacturer evidence rows, found %',v_count;
+    RAISE EXCEPTION 'Schema 401 expected ten active exact manufacturer evidence rows, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.sport_knowledge_enrichment_queue q
-  JOIN _sport_344_family f ON f.family_id=q.family_id
+  JOIN _sport_401_family f ON f.family_id=q.family_id
   WHERE
     (f.style_code IN ('JQ8077','JS4403') AND (
       'sport_use_case'=ANY(q.requested_fields)
@@ -482,7 +482,7 @@ BEGIN
     OR (f.style_code='JS4435' AND 'fit_length_profile'=ANY(q.requested_fields));
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Schema 344 expected newly resolved fields removed from enrichment queues; found % stale queue rows',v_bad;
+    RAISE EXCEPTION 'Schema 401 expected newly resolved fields removed from enrichment queues; found % stale queue rows',v_bad;
   END IF;
 END
 $$;

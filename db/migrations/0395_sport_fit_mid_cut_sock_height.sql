@@ -1,5 +1,5 @@
 -- KONTA MOY — governed mid-cut sock-height vocabulary.
--- Schema 338 resolves an explicit knowledge-model gap left intentionally open in
+-- Schema 395 resolves an explicit knowledge-model gap left intentionally open in
 -- schemas 326–327: adidas JZ0529 and KC9617 are manufacturer-described as
 -- "mid-cut", but sock_height had no exact controlled value.
 --
@@ -46,13 +46,13 @@ WHERE ad.code='sock_height' AND av.code='mid_cut'
 ON CONFLICT (attribute_value_id,locale) DO UPDATE SET
   label=EXCLUDED.label;
 
-CREATE TEMP TABLE _sport_337_target (
+CREATE TEMP TABLE _sport_395_target (
   style_code text PRIMARY KEY,
   source_key text NOT NULL,
   family_id uuid NOT NULL
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_337_target(style_code,source_key,family_id)
+INSERT INTO _sport_395_target(style_code,source_key,family_id)
 SELECT DISTINCT ON (x.style_code)
   x.style_code,
   x.source_key,
@@ -105,7 +105,7 @@ BEGIN
       );
 
     IF v_count<>1 THEN
-      RAISE EXCEPTION 'Sport & Fit schema 338 style % must resolve to exactly one active canonical family, found %',r.style_code,v_count;
+      RAISE EXCEPTION 'Sport & Fit schema 395 style % must resolve to exactly one active canonical family, found %',r.style_code,v_count;
     END IF;
 
     SELECT count(*) INTO v_count
@@ -114,7 +114,7 @@ BEGIN
       AND s.active=true;
 
     IF v_count<>1 THEN
-      RAISE EXCEPTION 'Sport & Fit schema 338 requires one active source %, found %',r.source_key,v_count;
+      RAISE EXCEPTION 'Sport & Fit schema 395 requires one active source %, found %',r.source_key,v_count;
     END IF;
   END LOOP;
 END
@@ -123,19 +123,19 @@ $$;
 DO $$
 DECLARE v_count integer;
 BEGIN
-  SELECT count(*) INTO v_count FROM _sport_337_target;
+  SELECT count(*) INTO v_count FROM _sport_395_target;
   IF v_count<>2 THEN
-    RAISE EXCEPTION 'Sport & Fit schema 338 expected two exact target families, found %',v_count;
+    RAISE EXCEPTION 'Sport & Fit schema 395 expected two exact target families, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_337_target t ON t.family_id=pfav.family_id
+  JOIN _sport_395_target t ON t.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE ad.code='sock_height';
 
   IF v_count<>0 THEN
-    RAISE EXCEPTION 'Sport & Fit schema 338 targets unexpectedly already have % sock_height facts',v_count;
+    RAISE EXCEPTION 'Sport & Fit schema 395 targets unexpectedly already have % sock_height facts',v_count;
   END IF;
 END
 $$;
@@ -150,7 +150,7 @@ SELECT
   av.id,
   'enrichment',
   1.00000
-FROM _sport_337_target t
+FROM _sport_395_target t
 JOIN public.attribute_definitions ad
   ON ad.code='sock_height'
  AND ad.active=true
@@ -179,7 +179,7 @@ SELECT
   'Manufacturer product title / description > mid-cut',
   1.00000,
   1.00000
-FROM _sport_337_target t
+FROM _sport_395_target t
 JOIN public.attribute_definitions ad ON ad.code='sock_height'
 JOIN public.sport_knowledge_sources s ON s.source_key=t.source_key;
 
@@ -192,7 +192,7 @@ SET metadata =
            'midCutVocabularyResolvedBySchema',338
          ),
     updated_at=now()
-FROM _sport_337_target t
+FROM _sport_395_target t
 WHERE s.source_key=t.source_key;
 
 UPDATE public.sport_knowledge_enrichment_queue q
@@ -206,14 +206,14 @@ SET requested_fields=array_remove(q.requested_fields,'sock_height'),
          ),
     reason='Exact adidas mid-cut sock height is now governed; continue only unresolved sport/performance fields',
     updated_at=now()
-FROM _sport_337_target t
+FROM _sport_395_target t
 WHERE q.family_id=t.family_id
   AND q.status<>'blocked';
 
 DO $$
 DECLARE r record;
 BEGIN
-  FOR r IN SELECT family_id FROM _sport_337_target LOOP
+  FOR r IN SELECT family_id FROM _sport_395_target LOOP
     PERFORM bls_private.refresh_sport_product_knowledge(r.family_id);
   END LOOP;
 
@@ -221,7 +221,7 @@ BEGIN
   SET status=CASE WHEN k.knowledge_status='verified' THEN 'completed' ELSE 'partial' END,
       updated_at=now()
   FROM public.sport_product_knowledge k
-  JOIN _sport_337_target t ON t.family_id=k.family_id
+  JOIN _sport_395_target t ON t.family_id=k.family_id
   WHERE q.family_id=k.family_id
     AND q.status<>'blocked';
 END
@@ -240,12 +240,12 @@ BEGIN
     AND av.active=true;
 
   IF v_count<>1 THEN
-    RAISE EXCEPTION 'Sport & Fit schema 338 expected one active sock_height=mid_cut value, found %',v_count;
+    RAISE EXCEPTION 'Sport & Fit schema 395 expected one active sock_height=mid_cut value, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_337_target t ON t.family_id=pfav.family_id
+  JOIN _sport_395_target t ON t.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   JOIN public.attribute_values av ON av.id=pfav.attribute_value_id
   WHERE ad.code='sock_height'
@@ -254,12 +254,12 @@ BEGIN
     AND pfav.confidence=1.00000;
 
   IF v_count<>2 THEN
-    RAISE EXCEPTION 'Sport & Fit schema 338 expected two exact mid-cut height facts, found %',v_count;
+    RAISE EXCEPTION 'Sport & Fit schema 395 expected two exact mid-cut height facts, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.sport_product_fact_evidence e
-  JOIN _sport_337_target t ON t.family_id=e.family_id
+  JOIN _sport_395_target t ON t.family_id=e.family_id
   JOIN public.attribute_definitions ad ON ad.id=e.attribute_id
   JOIN public.sport_knowledge_sources s ON s.id=e.source_id
   WHERE ad.code='sock_height'
@@ -268,27 +268,27 @@ BEGIN
     AND s.source_key=t.source_key;
 
   IF v_count<>2 THEN
-    RAISE EXCEPTION 'Sport & Fit schema 338 expected two active manufacturer sock-height evidence rows, found %',v_count;
+    RAISE EXCEPTION 'Sport & Fit schema 395 expected two active manufacturer sock-height evidence rows, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.sport_knowledge_enrichment_queue q
-  JOIN _sport_337_target t ON t.family_id=q.family_id
+  JOIN _sport_395_target t ON t.family_id=q.family_id
   WHERE 'sock_height'=ANY(q.requested_fields);
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Sport & Fit schema 338 expected sock_height removed from both enrichment requests, found % unresolved',v_bad;
+    RAISE EXCEPTION 'Sport & Fit schema 395 expected sock_height removed from both enrichment requests, found % unresolved',v_bad;
   END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_337_target t ON t.family_id=pfav.family_id
+  JOIN _sport_395_target t ON t.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE ad.code IN ('sock_cushioning','compression_level','breathability_level','thermal_level')
     AND pfav.updated_at >= transaction_timestamp();
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Sport & Fit schema 338 must not infer cushioning/compression/breathability/thermal values; found % new/updated forbidden facts',v_bad;
+    RAISE EXCEPTION 'Sport & Fit schema 395 must not infer cushioning/compression/breathability/thermal values; found % new/updated forbidden facts',v_bad;
   END IF;
 END
 $$;

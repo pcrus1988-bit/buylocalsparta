@@ -1,5 +1,5 @@
 -- KONTA MOY — exact adidas footwear fit/profile refinements.
--- Schema 343 closes explicit manufacturer-backed fit/profile gaps on three
+-- Schema 400 closes explicit manufacturer-backed fit/profile gaps on three
 -- already-governed footwear families without promoting generic comfort or
 -- technology wording into cushioning/support intensity.
 --
@@ -17,12 +17,12 @@
 
 BEGIN;
 
-CREATE TEMP TABLE _sport_343_family (
+CREATE TEMP TABLE _sport_400_family (
   style_code text PRIMARY KEY,
   family_id uuid NOT NULL
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_343_family(style_code,family_id)
+INSERT INTO _sport_400_family(style_code,family_id)
 SELECT wanted.style_code,resolved.family_id
 FROM (
   VALUES ('IH9808'::text),('KJ6635'::text),('KJ7282'::text)
@@ -47,11 +47,11 @@ BEGIN
   FOR r IN SELECT * FROM (VALUES ('IH9808'::text),('KJ6635'::text),('KJ7282'::text)) x(style_code)
   LOOP
     SELECT count(*) INTO v_count
-    FROM _sport_343_family
+    FROM _sport_400_family
     WHERE style_code=r.style_code;
 
     IF v_count<>1 THEN
-      RAISE EXCEPTION 'Sport & Fit schema 343 style % must resolve to exactly one active canonical family, found %',
+      RAISE EXCEPTION 'Sport & Fit schema 400 style % must resolve to exactly one active canonical family, found %',
         r.style_code,v_count;
     END IF;
   END LOOP;
@@ -63,12 +63,12 @@ DO $$
 DECLARE v_count integer;
 BEGIN
   SELECT count(*) INTO v_count
-  FROM _sport_343_family f
+  FROM _sport_400_family f
   JOIN public.sport_product_knowledge k ON k.family_id=f.family_id
   JOIN public.sport_knowledge_enrichment_queue q ON q.family_id=f.family_id;
 
   IF v_count<>3 THEN
-    RAISE EXCEPTION 'Schema 343 requires three existing governed footwear families with queue rows, found %',v_count;
+    RAISE EXCEPTION 'Schema 400 requires three existing governed footwear families with queue rows, found %',v_count;
   END IF;
 END
 $$;
@@ -85,7 +85,7 @@ BEGIN
     AND active;
 
   IF v_count<>1 THEN
-    RAISE EXCEPTION 'Schema 343 requires the existing exact adidas KJ7282 source, found %',v_count;
+    RAISE EXCEPTION 'Schema 400 requires the existing exact adidas KJ7282 source, found %',v_count;
   END IF;
 END
 $$;
@@ -147,7 +147,7 @@ DECLARE v_bad integer;
 BEGIN
   SELECT count(*) INTO v_bad
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_343_family f ON f.family_id=pfav.family_id
+  JOIN _sport_400_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE
     (f.style_code='IH9808' AND ad.code IN (
@@ -157,12 +157,12 @@ BEGIN
     OR (f.style_code='KJ7282' AND ad.code='footwear_width_profile');
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Schema 343 found % unexpected pre-existing normalized target rows',v_bad;
+    RAISE EXCEPTION 'Schema 400 found % unexpected pre-existing normalized target rows',v_bad;
   END IF;
 END
 $$;
 
-CREATE TEMP TABLE _sport_343_enum (
+CREATE TEMP TABLE _sport_400_enum (
   style_code text NOT NULL,
   source_key text NOT NULL,
   attribute_code text NOT NULL,
@@ -173,7 +173,7 @@ CREATE TEMP TABLE _sport_343_enum (
   PRIMARY KEY(style_code,attribute_code,position)
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_343_enum VALUES
+INSERT INTO _sport_400_enum VALUES
 (
   'IH9808',
   'adidas_galaxy_8_ih9808_germany_profile_official',
@@ -227,8 +227,8 @@ SELECT
   av.id,
   'enrichment',
   1.00000
-FROM _sport_343_enum e
-JOIN _sport_343_family f ON f.style_code=e.style_code
+FROM _sport_400_enum e
+JOIN _sport_400_family f ON f.style_code=e.style_code
 JOIN public.attribute_definitions ad
   ON ad.code=e.attribute_code
  AND ad.active=true
@@ -253,8 +253,8 @@ SELECT
   e.source_locator,
   1.00000,
   1.00000
-FROM _sport_343_enum e
-JOIN _sport_343_family f ON f.style_code=e.style_code
+FROM _sport_400_enum e
+JOIN _sport_400_family f ON f.style_code=e.style_code
 JOIN public.attribute_definitions ad ON ad.code=e.attribute_code
 JOIN public.sport_knowledge_sources s ON s.source_key=e.source_key;
 
@@ -270,7 +270,7 @@ SET
   END,
   last_enriched_at=now(),
   updated_at=now()
-FROM _sport_343_family f
+FROM _sport_400_family f
 WHERE k.family_id=f.family_id;
 
 UPDATE public.sport_knowledge_enrichment_queue q
@@ -326,13 +326,13 @@ SET
   last_error=NULL,
   next_attempt_at=NULL,
   updated_at=now()
-FROM _sport_343_family f
+FROM _sport_400_family f
 WHERE q.family_id=f.family_id;
 
 DO $$
 DECLARE r record;
 BEGIN
-  FOR r IN SELECT family_id FROM _sport_343_family LOOP
+  FOR r IN SELECT family_id FROM _sport_400_family LOOP
     PERFORM bls_private.refresh_sport_product_knowledge(r.family_id);
   END LOOP;
 END
@@ -343,10 +343,10 @@ DECLARE v_count integer; v_bad integer;
 BEGIN
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_343_family f ON f.family_id=pfav.family_id
+  JOIN _sport_400_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   JOIN public.attribute_values av ON av.id=pfav.attribute_value_id
-  JOIN _sport_343_enum e
+  JOIN _sport_400_enum e
     ON e.style_code=f.style_code
    AND e.attribute_code=ad.code
    AND e.position=pfav.position
@@ -355,15 +355,15 @@ BEGIN
     AND pfav.confidence=1.00000;
 
   IF v_count<>6 THEN
-    RAISE EXCEPTION 'Schema 343 expected six normalized exact manufacturer facts, found %',v_count;
+    RAISE EXCEPTION 'Schema 400 expected six normalized exact manufacturer facts, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.sport_product_fact_evidence fact
-  JOIN _sport_343_family f ON f.family_id=fact.family_id
+  JOIN _sport_400_family f ON f.family_id=fact.family_id
   JOIN public.attribute_definitions ad ON ad.id=fact.attribute_id
   JOIN public.sport_knowledge_sources s ON s.id=fact.source_id
-  JOIN _sport_343_enum e
+  JOIN _sport_400_enum e
     ON e.style_code=f.style_code
    AND e.attribute_code=ad.code
    AND e.position=fact.position
@@ -375,12 +375,12 @@ BEGIN
     AND fact.identity_confidence=1.00000;
 
   IF v_count<>6 THEN
-    RAISE EXCEPTION 'Schema 343 expected six active exact manufacturer evidence rows, found %',v_count;
+    RAISE EXCEPTION 'Schema 400 expected six active exact manufacturer evidence rows, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.sport_knowledge_enrichment_queue q
-  JOIN _sport_343_family f ON f.family_id=q.family_id
+  JOIN _sport_400_family f ON f.family_id=q.family_id
   WHERE
     (f.style_code='IH9808' AND (
       'sport_surface'=ANY(q.requested_fields)
@@ -392,7 +392,7 @@ BEGIN
     OR (f.style_code='KJ7282' AND 'footwear_width_profile'=ANY(q.requested_fields));
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Schema 343 expected newly resolved fields removed from enrichment queues; found % stale queue rows',v_bad;
+    RAISE EXCEPTION 'Schema 400 expected newly resolved fields removed from enrichment queues; found % stale queue rows',v_bad;
   END IF;
 END
 $$;

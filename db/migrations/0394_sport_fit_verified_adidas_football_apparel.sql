@@ -1,5 +1,5 @@
 -- KONTA MOY — exact adidas football apparel onboarding.
--- Schema 337 adds two live Entrada26 apparel families that were present in the
+-- Schema 394 adds two live Entrada26 apparel families that were present in the
 -- canonical catalogue but absent from sport_product_knowledge.
 --
 -- Evidence policy:
@@ -11,12 +11,12 @@
 
 BEGIN;
 
-CREATE TEMP TABLE _sport_336_family (
+CREATE TEMP TABLE _sport_394_family (
   style_code text PRIMARY KEY,
   family_id uuid NOT NULL
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_336_family(style_code,family_id)
+INSERT INTO _sport_394_family(style_code,family_id)
 SELECT w.style_code,r.family_id
 FROM (VALUES ('JZ2505'::text),('KE9848'::text)) w(style_code)
 CROSS JOIN LATERAL (
@@ -38,9 +38,9 @@ DECLARE r record; v_count integer;
 BEGIN
   FOR r IN SELECT * FROM (VALUES ('JZ2505'::text),('KE9848'::text)) x(style_code)
   LOOP
-    SELECT count(*) INTO v_count FROM _sport_336_family WHERE style_code=r.style_code;
+    SELECT count(*) INTO v_count FROM _sport_394_family WHERE style_code=r.style_code;
     IF v_count<>1 THEN
-      RAISE EXCEPTION 'Sport & Fit schema 337 style % must resolve to exactly one active canonical family, found %',r.style_code,v_count;
+      RAISE EXCEPTION 'Sport & Fit schema 394 style % must resolve to exactly one active canonical family, found %',r.style_code,v_count;
     END IF;
   END LOOP;
 END
@@ -51,34 +51,34 @@ DO $$
 DECLARE v_count integer;
 BEGIN
   SELECT count(*) INTO v_count
-  FROM _sport_336_family f
+  FROM _sport_394_family f
   JOIN public.product_families pf ON pf.id=f.family_id
   JOIN public.product_types pt ON pt.id=pf.product_type_id
   WHERE pt.code='apparel';
 
   IF v_count<>2 THEN
-    RAISE EXCEPTION 'Schema 337 requires both target families to be apparel; found %',v_count;
+    RAISE EXCEPTION 'Schema 394 requires both target families to be apparel; found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.sport_product_knowledge k
-  JOIN _sport_336_family f ON f.family_id=k.family_id;
+  JOIN _sport_394_family f ON f.family_id=k.family_id;
 
   IF v_count<>0 THEN
-    RAISE EXCEPTION 'Schema 337 target families unexpectedly already exist in sport_product_knowledge: % rows',v_count;
+    RAISE EXCEPTION 'Schema 394 target families unexpectedly already exist in sport_product_knowledge: % rows',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.sport_knowledge_enrichment_queue q
-  JOIN _sport_336_family f ON f.family_id=q.family_id;
+  JOIN _sport_394_family f ON f.family_id=q.family_id;
 
   IF v_count<>0 THEN
-    RAISE EXCEPTION 'Schema 337 target families unexpectedly already exist in enrichment queue: % rows',v_count;
+    RAISE EXCEPTION 'Schema 394 target families unexpectedly already exist in enrichment queue: % rows',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_336_family f ON f.family_id=pfav.family_id
+  JOIN _sport_394_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE ad.code IN (
     'sport_activity','sport_use_case','moisture_wicking',
@@ -86,7 +86,7 @@ BEGIN
   );
 
   IF v_count<>0 THEN
-    RAISE EXCEPTION 'Schema 337 target families unexpectedly already have % governed sport facts',v_count;
+    RAISE EXCEPTION 'Schema 394 target families unexpectedly already have % governed sport facts',v_count;
   END IF;
 END
 $$;
@@ -96,7 +96,7 @@ DO $$
 DECLARE v_count integer;
 BEGIN
   SELECT count(DISTINCT f.style_code) INTO v_count
-  FROM _sport_336_family f
+  FROM _sport_394_family f
   WHERE EXISTS (
     SELECT 1
     FROM public.canonical_variants cv
@@ -112,7 +112,7 @@ BEGIN
   );
 
   IF v_count<>2 THEN
-    RAISE EXCEPTION 'Schema 337 requires approved Kerasiotis bridges for both exact adidas codes; found %',v_count;
+    RAISE EXCEPTION 'Schema 394 requires approved Kerasiotis bridges for both exact adidas codes; found %',v_count;
   END IF;
 END
 $$;
@@ -176,9 +176,9 @@ SELECT
     WHEN 'JZ2505' THEN 'Exact adidas page verifies football, training + match use and CLIMACOOL sweat management. Breathability/thermal intensity remain unknown.'
     WHEN 'KE9848' THEN 'Exact adidas page verifies football training apparel and CLIMACOOL heat/sweat management. Breathability/thermal intensity remain unknown.'
   END
-FROM _sport_336_family f;
+FROM _sport_394_family f;
 
-CREATE TEMP TABLE _sport_336_enum (
+CREATE TEMP TABLE _sport_394_enum (
   style_code text NOT NULL,
   attribute_code text NOT NULL,
   position integer NOT NULL,
@@ -188,7 +188,7 @@ CREATE TEMP TABLE _sport_336_enum (
   PRIMARY KEY(style_code,attribute_code,position)
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_336_enum VALUES
+INSERT INTO _sport_394_enum VALUES
 (
   'JZ2505','sport_activity',0,'football',
   'Exact adidas JZ2505 description says the Entrada26 Jersey is designed for people who live and breathe football.',
@@ -220,8 +220,8 @@ INSERT INTO public.product_family_attribute_values(
 )
 SELECT
   f.family_id,ad.id,e.position,av.id,'enrichment',1.00000
-FROM _sport_336_enum e
-JOIN _sport_336_family f ON f.style_code=e.style_code
+FROM _sport_394_enum e
+JOIN _sport_394_family f ON f.style_code=e.style_code
 JOIN public.attribute_definitions ad
   ON ad.code=e.attribute_code
  AND ad.active=true
@@ -246,8 +246,8 @@ SELECT
   e.source_locator,
   1.00000,
   1.00000
-FROM _sport_336_enum e
-JOIN _sport_336_family f ON f.style_code=e.style_code
+FROM _sport_394_enum e
+JOIN _sport_394_family f ON f.style_code=e.style_code
 JOIN public.attribute_definitions ad ON ad.code=e.attribute_code
 JOIN public.sport_knowledge_sources s ON s.source_key=CASE e.style_code
   WHEN 'JZ2505' THEN 'adidas_entrada26_jersey_jz2505_official'
@@ -259,7 +259,7 @@ INSERT INTO public.product_family_attribute_values(
 )
 SELECT
   f.family_id,ad.id,0,true,'enrichment',1.00000
-FROM _sport_336_family f
+FROM _sport_394_family f
 JOIN public.attribute_definitions ad
   ON ad.code='moisture_wicking'
  AND ad.active=true;
@@ -283,7 +283,7 @@ SELECT
   'Product Description',
   1.00000,
   1.00000
-FROM _sport_336_family f
+FROM _sport_394_family f
 JOIN public.attribute_definitions ad ON ad.code='moisture_wicking'
 JOIN public.sport_knowledge_sources s ON s.source_key=CASE f.style_code
   WHEN 'JZ2505' THEN 'adidas_entrada26_jersey_jz2505_official'
@@ -313,12 +313,12 @@ SELECT
     'ignoreCustomerReviews',true,
     'doNotInferBreathabilityOrThermalIntensity',true
   )
-FROM _sport_336_family f;
+FROM _sport_394_family f;
 
 DO $$
 DECLARE r record;
 BEGIN
-  FOR r IN SELECT family_id FROM _sport_336_family LOOP
+  FOR r IN SELECT family_id FROM _sport_394_family LOOP
     PERFORM bls_private.refresh_sport_product_knowledge(r.family_id);
   END LOOP;
 
@@ -326,7 +326,7 @@ BEGIN
   SET status=CASE WHEN k.knowledge_status='verified' THEN 'completed' ELSE 'partial' END,
       updated_at=now()
   FROM public.sport_product_knowledge k
-  JOIN _sport_336_family f ON f.family_id=k.family_id
+  JOIN _sport_394_family f ON f.family_id=k.family_id
   WHERE q.family_id=f.family_id;
 END
 $$;
@@ -338,7 +338,7 @@ DECLARE
 BEGIN
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_336_family f ON f.family_id=pfav.family_id
+  JOIN _sport_394_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   JOIN public.attribute_values av ON av.id=pfav.attribute_value_id
   WHERE
@@ -346,23 +346,23 @@ BEGIN
     OR (ad.code='sport_use_case' AND av.code IN ('football_training','football_match'));
 
   IF v_count<>5 THEN
-    RAISE EXCEPTION 'Schema 337 expected five controlled football activity/use-case facts, found %',v_count;
+    RAISE EXCEPTION 'Schema 394 expected five controlled football activity/use-case facts, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_336_family f ON f.family_id=pfav.family_id
+  JOIN _sport_394_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE ad.code='moisture_wicking'
     AND pfav.boolean_value=true;
 
   IF v_count<>2 THEN
-    RAISE EXCEPTION 'Schema 337 expected two moisture_wicking=true facts, found %',v_count;
+    RAISE EXCEPTION 'Schema 394 expected two moisture_wicking=true facts, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.sport_product_fact_evidence e
-  JOIN _sport_336_family f ON f.family_id=e.family_id
+  JOIN _sport_394_family f ON f.family_id=e.family_id
   JOIN public.sport_knowledge_sources s ON s.id=e.source_id
   WHERE s.source_key IN (
     'adidas_entrada26_jersey_jz2505_official',
@@ -371,28 +371,28 @@ BEGIN
   AND e.active;
 
   IF v_count<>7 THEN
-    RAISE EXCEPTION 'Schema 337 expected seven active manufacturer evidence rows, found %',v_count;
+    RAISE EXCEPTION 'Schema 394 expected seven active manufacturer evidence rows, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_336_family f ON f.family_id=pfav.family_id
+  JOIN _sport_394_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE ad.code IN ('breathability_level','thermal_level');
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Schema 337 must not infer breathability/thermal intensity; found % forbidden facts',v_bad;
+    RAISE EXCEPTION 'Schema 394 must not infer breathability/thermal intensity; found % forbidden facts',v_bad;
   END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.sport_product_knowledge k
-  JOIN _sport_336_family f ON f.family_id=k.family_id
+  JOIN _sport_394_family f ON f.family_id=k.family_id
   WHERE k.knowledge_status<>'partial'
      OR k.conflict_count<>0
      OR k.identity_quality<>'strong';
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Schema 337 expected both families partial/strong/no-conflict; found % invalid rows',v_bad;
+    RAISE EXCEPTION 'Schema 394 expected both families partial/strong/no-conflict; found % invalid rows',v_bad;
   END IF;
 END
 $$;

@@ -1,5 +1,5 @@
 -- KONTA MOY - exact adidas football-apparel taxonomy correction and evidence backfill.
--- Schema 340 replaces stale broad catalogue-taxonomy activity claims with exact
+-- Schema 397 replaces stale broad catalogue-taxonomy activity claims with exact
 -- first-party adidas football evidence for four live Squadra/Entrada families.
 --
 -- Policy:
@@ -12,7 +12,7 @@
 
 BEGIN;
 
-CREATE TEMP TABLE _sport_339_family (
+CREATE TEMP TABLE _sport_397_family (
   style_code text PRIMARY KEY,
   family_id uuid NOT NULL,
   source_key text NOT NULL,
@@ -20,7 +20,7 @@ CREATE TEMP TABLE _sport_339_family (
   source_url text NOT NULL
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_339_family(style_code,family_id,source_key,source_title,source_url)
+INSERT INTO _sport_397_family(style_code,family_id,source_key,source_title,source_url)
 SELECT w.style_code,r.family_id,w.source_key,w.source_title,w.source_url
 FROM (
   VALUES
@@ -44,32 +44,32 @@ CROSS JOIN LATERAL (
 DO $$
 DECLARE v_count integer;
 BEGIN
-  SELECT count(*) INTO v_count FROM _sport_339_family;
+  SELECT count(*) INTO v_count FROM _sport_397_family;
   IF v_count<>4 THEN
-    RAISE EXCEPTION 'Schema 340 requires four exact canonical style-code resolutions, found %',v_count;
+    RAISE EXCEPTION 'Schema 397 requires four exact canonical style-code resolutions, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
-  FROM _sport_339_family f
+  FROM _sport_397_family f
   JOIN public.product_families pf ON pf.id=f.family_id
   JOIN public.product_types pt ON pt.id=pf.product_type_id
   JOIN public.sport_product_knowledge k ON k.family_id=f.family_id AND k.product_role='apparel'
   JOIN public.sport_knowledge_enrichment_queue q ON q.family_id=f.family_id
   WHERE pt.code='apparel';
   IF v_count<>4 THEN
-    RAISE EXCEPTION 'Schema 340 requires four governed apparel families with queue rows, found %',v_count;
+    RAISE EXCEPTION 'Schema 397 requires four governed apparel families with queue rows, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.sport_product_fact_evidence e
-  JOIN _sport_339_family f ON f.family_id=e.family_id
+  JOIN _sport_397_family f ON f.family_id=e.family_id
   JOIN public.attribute_definitions ad ON ad.id=e.attribute_id AND ad.code='sport_activity'
   JOIN public.sport_knowledge_sources s ON s.id=e.source_id AND s.source_key='kontamou_catalog_taxonomy'
   WHERE e.position=0
     AND e.active
     AND e.evidence_value=to_jsonb('general_training'::text);
   IF v_count<>4 THEN
-    RAISE EXCEPTION 'Schema 340 expected four active broad taxonomy activity claims, found %',v_count;
+    RAISE EXCEPTION 'Schema 397 expected four active broad taxonomy activity claims, found %',v_count;
   END IF;
 END
 $$;
@@ -89,7 +89,7 @@ SELECT
     'ignoreReturnDerivedFitSignals',true,
     'doNotInferBreathabilityOrThermalIntensity',true
   )
-FROM _sport_339_family f
+FROM _sport_397_family f
 ON CONFLICT (source_key) DO UPDATE SET
   source_type=EXCLUDED.source_type,
   publisher=EXCLUDED.publisher,
@@ -100,7 +100,7 @@ ON CONFLICT (source_key) DO UPDATE SET
   active=true,
   updated_at=now();
 
-CREATE TEMP TABLE _sport_339_enum (
+CREATE TEMP TABLE _sport_397_enum (
   style_code text NOT NULL,
   attribute_code text NOT NULL,
   position integer NOT NULL,
@@ -110,7 +110,7 @@ CREATE TEMP TABLE _sport_339_enum (
   PRIMARY KEY(style_code,attribute_code,position)
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_339_enum VALUES
+INSERT INTO _sport_397_enum VALUES
 ('JD2978','sport_activity',0,'football','Exact adidas JD2978 description calls this a football training jacket created for amateur play and tells the wearer to focus completely on football.','Product Description'),
 ('JD2978','sport_use_case',0,'football_training','Exact adidas JD2978 is explicitly named and described as a football training jacket.','Product title / Product Description'),
 ('H57525','sport_activity',0,'football','Exact adidas H57525 page classifies the Entrada 22 Track Jacket as Women / Soccer.','Product classification'),
@@ -121,8 +121,8 @@ INSERT INTO public.product_family_attribute_values(
   family_id,attribute_id,position,attribute_value_id,source,confidence
 )
 SELECT f.family_id,ad.id,e.position,av.id,'enrichment',1.00000
-FROM _sport_339_enum e
-JOIN _sport_339_family f ON f.style_code=e.style_code
+FROM _sport_397_enum e
+JOIN _sport_397_family f ON f.style_code=e.style_code
 JOIN public.attribute_definitions ad ON ad.code=e.attribute_code AND ad.active=true
 JOIN public.attribute_values av ON av.attribute_id=ad.id AND av.code=e.value_code AND av.active=true
 ON CONFLICT (family_id,attribute_id,position) DO UPDATE SET
@@ -142,17 +142,17 @@ INSERT INTO public.sport_product_fact_evidence(
 SELECT
   f.family_id,ad.id,e.position,s.id,'manufacturer_claim','page_text',
   to_jsonb(e.value_code),e.evidence_excerpt,e.source_locator,1.00000,1.00000
-FROM _sport_339_enum e
-JOIN _sport_339_family f ON f.style_code=e.style_code
+FROM _sport_397_enum e
+JOIN _sport_397_family f ON f.style_code=e.style_code
 JOIN public.attribute_definitions ad ON ad.code=e.attribute_code
 JOIN public.sport_knowledge_sources s ON s.source_key=f.source_key;
 
-CREATE TEMP TABLE _sport_339_bool (
+CREATE TEMP TABLE _sport_397_bool (
   style_code text PRIMARY KEY,
   evidence_excerpt text NOT NULL
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_339_bool VALUES
+INSERT INTO _sport_397_bool VALUES
 ('JV6067','Exact adidas JV6067 description states that moisture-managing AEROREADY keeps the wearer dry on and off the pitch.'),
 ('JD2978','Exact adidas JD2978 description states that AEROREADY manages/absorbs moisture for football training.'),
 ('HI2135','Exact adidas HI2135 description states that AEROREADY manages moisture so the player can stay focused on the game.');
@@ -161,8 +161,8 @@ INSERT INTO public.product_family_attribute_values(
   family_id,attribute_id,position,boolean_value,source,confidence
 )
 SELECT f.family_id,ad.id,0,true,'enrichment',1.00000
-FROM _sport_339_bool b
-JOIN _sport_339_family f ON f.style_code=b.style_code
+FROM _sport_397_bool b
+JOIN _sport_397_family f ON f.style_code=b.style_code
 JOIN public.attribute_definitions ad ON ad.code='moisture_wicking' AND ad.active=true
 ON CONFLICT (family_id,attribute_id,position) DO UPDATE SET
   attribute_value_id=NULL,
@@ -181,8 +181,8 @@ INSERT INTO public.sport_product_fact_evidence(
 SELECT
   f.family_id,ad.id,0,s.id,'manufacturer_claim','page_text',
   'true'::jsonb,b.evidence_excerpt,'Product Description',1.00000,1.00000
-FROM _sport_339_bool b
-JOIN _sport_339_family f ON f.style_code=b.style_code
+FROM _sport_397_bool b
+JOIN _sport_397_family f ON f.style_code=b.style_code
 JOIN public.attribute_definitions ad ON ad.code='moisture_wicking'
 JOIN public.sport_knowledge_sources s ON s.source_key=f.source_key;
 
@@ -204,7 +204,7 @@ SET
     ORDER BY replacement.created_at DESC
     LIMIT 1
   )
-FROM _sport_339_family f
+FROM _sport_397_family f
 JOIN public.attribute_definitions ad ON ad.code='sport_activity'
 JOIN public.sport_knowledge_sources legacy_source ON legacy_source.source_key='kontamou_catalog_taxonomy'
 WHERE old.family_id=f.family_id
@@ -216,7 +216,7 @@ WHERE old.family_id=f.family_id
 
 -- JV6067 was already normalized to football; correct the other three.
 WITH exact_football AS (
-  SELECT family_id FROM _sport_339_family
+  SELECT family_id FROM _sport_397_family
   WHERE style_code IN ('JD2978','H57525','HI2135')
 )
 UPDATE public.product_family_attribute_values pfav
@@ -247,7 +247,7 @@ SET
   END,
   last_enriched_at=now(),
   updated_at=now()
-FROM _sport_339_family f
+FROM _sport_397_family f
 WHERE k.family_id=f.family_id;
 
 UPDATE public.sport_knowledge_enrichment_queue q
@@ -275,13 +275,13 @@ SET
   ),
   last_error=NULL,
   updated_at=now()
-FROM _sport_339_family f
+FROM _sport_397_family f
 WHERE q.family_id=f.family_id;
 
 DO $$
 DECLARE r record;
 BEGIN
-  FOR r IN SELECT family_id FROM _sport_339_family LOOP
+  FOR r IN SELECT family_id FROM _sport_397_family LOOP
     PERFORM bls_private.refresh_sport_product_knowledge(r.family_id);
   END LOOP;
 
@@ -289,7 +289,7 @@ BEGIN
   SET status=CASE WHEN k.knowledge_status='verified' THEN 'completed' ELSE 'partial' END,
       updated_at=now()
   FROM public.sport_product_knowledge k
-  JOIN _sport_339_family f ON f.family_id=k.family_id
+  JOIN _sport_397_family f ON f.family_id=k.family_id
   WHERE q.family_id=f.family_id;
 END
 $$;
@@ -299,50 +299,50 @@ DECLARE v_count integer; v_bad integer;
 BEGIN
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_339_family f ON f.family_id=pfav.family_id
+  JOIN _sport_397_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id AND ad.code='sport_activity'
   JOIN public.attribute_values av ON av.id=pfav.attribute_value_id
   WHERE pfav.position=0 AND av.code='football';
-  IF v_count<>4 THEN RAISE EXCEPTION 'Schema 340 expected four normalized football activity facts, found %',v_count; END IF;
+  IF v_count<>4 THEN RAISE EXCEPTION 'Schema 397 expected four normalized football activity facts, found %',v_count; END IF;
 
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_339_family f ON f.family_id=pfav.family_id
+  JOIN _sport_397_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id AND ad.code='sport_use_case'
   JOIN public.attribute_values av ON av.id=pfav.attribute_value_id
   WHERE pfav.position=0 AND av.code='football_training';
-  IF v_count<>3 THEN RAISE EXCEPTION 'Schema 340 expected three football_training facts, found %',v_count; END IF;
+  IF v_count<>3 THEN RAISE EXCEPTION 'Schema 397 expected three football_training facts, found %',v_count; END IF;
 
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_339_family f ON f.family_id=pfav.family_id
+  JOIN _sport_397_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id AND ad.code='moisture_wicking'
   WHERE pfav.boolean_value=true;
-  IF v_count<>3 THEN RAISE EXCEPTION 'Schema 340 expected three moisture_wicking=true facts, found %',v_count; END IF;
+  IF v_count<>3 THEN RAISE EXCEPTION 'Schema 397 expected three moisture_wicking=true facts, found %',v_count; END IF;
 
   SELECT count(*) INTO v_count
   FROM public.sport_product_fact_evidence e
-  JOIN _sport_339_family f ON f.family_id=e.family_id
+  JOIN _sport_397_family f ON f.family_id=e.family_id
   JOIN public.attribute_definitions ad ON ad.id=e.attribute_id AND ad.code='sport_activity'
   JOIN public.sport_knowledge_sources s ON s.id=e.source_id AND s.source_key='kontamou_catalog_taxonomy'
   WHERE e.position=0
     AND e.evidence_value=to_jsonb('general_training'::text)
     AND e.active=false
     AND e.superseded_by IS NOT NULL;
-  IF v_count<>4 THEN RAISE EXCEPTION 'Schema 340 expected four superseded taxonomy evidence rows, found %',v_count; END IF;
+  IF v_count<>4 THEN RAISE EXCEPTION 'Schema 397 expected four superseded taxonomy evidence rows, found %',v_count; END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_339_family f ON f.family_id=pfav.family_id
+  JOIN _sport_397_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE ad.code IN ('breathability_level','thermal_level');
-  IF v_bad<>0 THEN RAISE EXCEPTION 'Schema 340 must not infer breathability/thermal intensity; found % forbidden facts',v_bad; END IF;
+  IF v_bad<>0 THEN RAISE EXCEPTION 'Schema 397 must not infer breathability/thermal intensity; found % forbidden facts',v_bad; END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.sport_product_knowledge k
-  JOIN _sport_339_family f ON f.family_id=k.family_id
+  JOIN _sport_397_family f ON f.family_id=k.family_id
   WHERE k.identity_quality<>'strong' OR k.conflict_count<>0 OR k.knowledge_status='conflict';
-  IF v_bad<>0 THEN RAISE EXCEPTION 'Schema 340 expected strong identity and zero conflicts for all four families; found % invalid rows',v_bad; END IF;
+  IF v_bad<>0 THEN RAISE EXCEPTION 'Schema 397 expected strong identity and zero conflicts for all four families; found % invalid rows',v_bad; END IF;
 END
 $$;
 

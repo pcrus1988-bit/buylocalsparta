@@ -1,5 +1,5 @@
 -- KONTA MOY — verified adidas apparel batch 2.
--- Schema 339 onboards three current Kerasiotis adidas apparel families with
+-- Schema 396 onboards three current Kerasiotis adidas apparel families with
 -- exact, source-backed Sport & Fit facts.
 --
 -- Evidence policy:
@@ -13,12 +13,12 @@
 
 BEGIN;
 
-CREATE TEMP TABLE _sport_338_target (
+CREATE TEMP TABLE _sport_396_target (
   style_code text PRIMARY KEY,
   family_id uuid NOT NULL
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_338_target(style_code,family_id)
+INSERT INTO _sport_396_target(style_code,family_id)
 SELECT w.style_code,r.family_id
 FROM (VALUES ('HF6619'::text),('IA1808'::text),('IJ5427'::text)) w(style_code)
 CROSS JOIN LATERAL (
@@ -41,11 +41,11 @@ BEGIN
   FOR r IN SELECT * FROM (VALUES ('HF6619'::text),('IA1808'::text),('IJ5427'::text)) x(style_code)
   LOOP
     SELECT count(*) INTO v_count
-    FROM _sport_338_target
+    FROM _sport_396_target
     WHERE style_code=r.style_code;
 
     IF v_count<>1 THEN
-      RAISE EXCEPTION 'Sport & Fit schema 339 style % must resolve to exactly one active canonical family, found %',r.style_code,v_count;
+      RAISE EXCEPTION 'Sport & Fit schema 396 style % must resolve to exactly one active canonical family, found %',r.style_code,v_count;
     END IF;
   END LOOP;
 END
@@ -57,35 +57,35 @@ DO $$
 DECLARE v_count integer;
 BEGIN
   SELECT count(*) INTO v_count
-  FROM _sport_338_target t
+  FROM _sport_396_target t
   JOIN public.product_families pf ON pf.id=t.family_id
   JOIN public.product_types pt ON pt.id=pf.product_type_id
   WHERE pt.code='apparel'
     AND pt.status='active';
 
   IF v_count<>3 THEN
-    RAISE EXCEPTION 'Schema 339 requires all three targets to be active apparel families; found %',v_count;
+    RAISE EXCEPTION 'Schema 396 requires all three targets to be active apparel families; found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.sport_product_knowledge k
-  JOIN _sport_338_target t ON t.family_id=k.family_id;
+  JOIN _sport_396_target t ON t.family_id=k.family_id;
 
   IF v_count<>0 THEN
-    RAISE EXCEPTION 'Schema 339 targets unexpectedly already exist in sport_product_knowledge: % rows',v_count;
+    RAISE EXCEPTION 'Schema 396 targets unexpectedly already exist in sport_product_knowledge: % rows',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.sport_knowledge_enrichment_queue q
-  JOIN _sport_338_target t ON t.family_id=q.family_id;
+  JOIN _sport_396_target t ON t.family_id=q.family_id;
 
   IF v_count<>0 THEN
-    RAISE EXCEPTION 'Schema 339 targets unexpectedly already exist in enrichment queue: % rows',v_count;
+    RAISE EXCEPTION 'Schema 396 targets unexpectedly already exist in enrichment queue: % rows',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_338_target t ON t.family_id=pfav.family_id
+  JOIN _sport_396_target t ON t.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE ad.code IN (
     'sport_activity','sport_surface','sport_use_case','moisture_wicking',
@@ -94,7 +94,7 @@ BEGIN
   );
 
   IF v_count<>0 THEN
-    RAISE EXCEPTION 'Schema 339 targets unexpectedly already have % governed Sport & Fit family facts',v_count;
+    RAISE EXCEPTION 'Schema 396 targets unexpectedly already have % governed Sport & Fit family facts',v_count;
   END IF;
 END
 $$;
@@ -104,7 +104,7 @@ $$;
 DO $$
 DECLARE r record; v_count integer;
 BEGIN
-  FOR r IN SELECT style_code,family_id FROM _sport_338_target LOOP
+  FOR r IN SELECT style_code,family_id FROM _sport_396_target LOOP
     SELECT count(*) INTO v_count
     FROM public.canonical_variants cv
     JOIN public.catalog_source_product_links l
@@ -118,7 +118,7 @@ BEGIN
       AND upper(coalesce(sp.title,'')) LIKE '%' || r.style_code || '%';
 
     IF v_count<1 THEN
-      RAISE EXCEPTION 'Schema 339 requires an approved Kerasiotis bridge for %, found % rows',r.style_code,v_count;
+      RAISE EXCEPTION 'Schema 396 requires an approved Kerasiotis bridge for %, found % rows',r.style_code,v_count;
     END IF;
   END LOOP;
 END
@@ -142,7 +142,7 @@ BEGIN
     AND pta.value_level='family';
 
   IF v_count<>5 THEN
-    RAISE EXCEPTION 'Schema 339 requires five apparel Sport & Fit attribute contracts, found %',v_count;
+    RAISE EXCEPTION 'Schema 396 requires five apparel Sport & Fit attribute contracts, found %',v_count;
   END IF;
 END
 $$;
@@ -245,9 +245,9 @@ SELECT
     WHEN 'IA1808' THEN 'Exact adidas page verifies trail running plus DWR light-rain and WIND.RDY wind protection. Waterproof, breathability, thermal and reflective claims remain unknown.'
     WHEN 'IJ5427' THEN 'Exact adidas page verifies running, WIND.RDY wind protection, built-in water repellency and reflective details. Breathability and thermal intensity remain unknown.'
   END
-FROM _sport_338_target t;
+FROM _sport_396_target t;
 
-CREATE TEMP TABLE _sport_338_enum (
+CREATE TEMP TABLE _sport_396_enum (
   style_code text NOT NULL,
   attribute_code text NOT NULL,
   position integer NOT NULL,
@@ -261,7 +261,7 @@ CREATE TEMP TABLE _sport_338_enum (
   PRIMARY KEY(style_code,attribute_code,position)
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_338_enum VALUES
+INSERT INTO _sport_396_enum VALUES
 (
   'HF6619','sport_activity',0,'general_training',
   'adidas_training_essentials_maternity_hf6619_official',
@@ -329,8 +329,8 @@ SELECT
   av.id,
   CASE WHEN e.evidence_strength='manufacturer_claim' THEN 'enrichment' ELSE 'vendor_submission' END,
   e.confidence
-FROM _sport_338_enum e
-JOIN _sport_338_target t ON t.style_code=e.style_code
+FROM _sport_396_enum e
+JOIN _sport_396_target t ON t.style_code=e.style_code
 JOIN public.attribute_definitions ad
   ON ad.code=e.attribute_code
  AND ad.active=true
@@ -355,12 +355,12 @@ SELECT
   e.source_locator,
   e.confidence,
   1.00000
-FROM _sport_338_enum e
-JOIN _sport_338_target t ON t.style_code=e.style_code
+FROM _sport_396_enum e
+JOIN _sport_396_target t ON t.style_code=e.style_code
 JOIN public.attribute_definitions ad ON ad.code=e.attribute_code
 JOIN public.sport_knowledge_sources s ON s.source_key=e.source_key;
 
-CREATE TEMP TABLE _sport_338_bool (
+CREATE TEMP TABLE _sport_396_bool (
   style_code text NOT NULL,
   attribute_code text NOT NULL,
   bool_value boolean NOT NULL,
@@ -373,7 +373,7 @@ CREATE TEMP TABLE _sport_338_bool (
   PRIMARY KEY(style_code,attribute_code)
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_338_bool VALUES
+INSERT INTO _sport_396_bool VALUES
 (
   'HF6619','moisture_wicking',true,
   'kerasiotis_xml_adidas_training_essentials_hf6619',
@@ -399,8 +399,8 @@ SELECT
   b.bool_value,
   CASE WHEN b.evidence_strength='manufacturer_claim' THEN 'enrichment' ELSE 'vendor_submission' END,
   b.confidence
-FROM _sport_338_bool b
-JOIN _sport_338_target t ON t.style_code=b.style_code
+FROM _sport_396_bool b
+JOIN _sport_396_target t ON t.style_code=b.style_code
 JOIN public.attribute_definitions ad
   ON ad.code=b.attribute_code
  AND ad.active=true;
@@ -421,8 +421,8 @@ SELECT
   b.source_locator,
   b.confidence,
   1.00000
-FROM _sport_338_bool b
-JOIN _sport_338_target t ON t.style_code=b.style_code
+FROM _sport_396_bool b
+JOIN _sport_396_target t ON t.style_code=b.style_code
 JOIN public.attribute_definitions ad ON ad.code=b.attribute_code
 JOIN public.sport_knowledge_sources s ON s.source_key=b.source_key;
 
@@ -460,12 +460,12 @@ SELECT
     'doNotInferCompression',true,
     'doNotMapWaterRepellentToWaterproof',true
   )
-FROM _sport_338_target t;
+FROM _sport_396_target t;
 
 DO $$
 DECLARE r record;
 BEGIN
-  FOR r IN SELECT family_id FROM _sport_338_target LOOP
+  FOR r IN SELECT family_id FROM _sport_396_target LOOP
     PERFORM bls_private.refresh_sport_product_knowledge(r.family_id);
   END LOOP;
 
@@ -473,7 +473,7 @@ BEGIN
   SET status=CASE WHEN k.knowledge_status='verified' THEN 'completed' ELSE 'partial' END,
       updated_at=now()
   FROM public.sport_product_knowledge k
-  JOIN _sport_338_target t ON t.family_id=k.family_id
+  JOIN _sport_396_target t ON t.family_id=k.family_id
   WHERE q.family_id=t.family_id;
 END
 $$;
@@ -485,7 +485,7 @@ DECLARE
 BEGIN
   SELECT count(*) INTO v_count
   FROM public.sport_product_fact_evidence e
-  JOIN _sport_338_target t ON t.family_id=e.family_id
+  JOIN _sport_396_target t ON t.family_id=e.family_id
   JOIN public.sport_knowledge_sources s ON s.id=e.source_id
   WHERE s.source_key IN (
     'adidas_training_essentials_maternity_hf6619_official',
@@ -496,12 +496,12 @@ BEGIN
     AND e.active;
 
   IF v_count<>10 THEN
-    RAISE EXCEPTION 'Schema 339 expected ten active evidence rows, found %',v_count;
+    RAISE EXCEPTION 'Schema 396 expected ten active evidence rows, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_338_target t ON t.family_id=pfav.family_id
+  JOIN _sport_396_target t ON t.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   JOIN public.attribute_values av ON av.id=pfav.attribute_value_id
   WHERE
@@ -516,12 +516,12 @@ BEGIN
     (t.style_code='IJ5427' AND ad.code='sport_activity' AND av.code='running');
 
   IF v_count<>8 THEN
-    RAISE EXCEPTION 'Schema 339 expected eight controlled enum facts, found %',v_count;
+    RAISE EXCEPTION 'Schema 396 expected eight controlled enum facts, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_338_target t ON t.family_id=pfav.family_id
+  JOIN _sport_396_target t ON t.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE
     (t.style_code='HF6619' AND ad.code='moisture_wicking' AND pfav.boolean_value=true)
@@ -529,39 +529,39 @@ BEGIN
     (t.style_code='IJ5427' AND ad.code='reflective_details' AND pfav.boolean_value=true);
 
   IF v_count<>2 THEN
-    RAISE EXCEPTION 'Schema 339 expected two controlled boolean facts, found %',v_count;
+    RAISE EXCEPTION 'Schema 396 expected two controlled boolean facts, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_338_target t ON t.family_id=pfav.family_id
+  JOIN _sport_396_target t ON t.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   LEFT JOIN public.attribute_values av ON av.id=pfav.attribute_value_id
   WHERE ad.code IN ('breathability_level','thermal_level','compression_level')
      OR (ad.code='weather_protection' AND av.code='waterproof');
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Schema 339 must not infer breathability/thermal/compression or waterproof facts; found % forbidden facts',v_bad;
+    RAISE EXCEPTION 'Schema 396 must not infer breathability/thermal/compression or waterproof facts; found % forbidden facts',v_bad;
   END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.sport_product_knowledge k
-  JOIN _sport_338_target t ON t.family_id=k.family_id
+  JOIN _sport_396_target t ON t.family_id=k.family_id
   WHERE k.knowledge_status<>'partial'
      OR k.conflict_count<>0
      OR k.identity_quality<>'strong';
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Schema 339 expected all three families partial/strong/no-conflict; found % invalid rows',v_bad;
+    RAISE EXCEPTION 'Schema 396 expected all three families partial/strong/no-conflict; found % invalid rows',v_bad;
   END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.sport_knowledge_enrichment_queue q
-  JOIN _sport_338_target t ON t.family_id=q.family_id
+  JOIN _sport_396_target t ON t.family_id=q.family_id
   WHERE q.status<>'partial';
 
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Schema 339 expected all three enrichment rows to remain partial; found % invalid rows',v_bad;
+    RAISE EXCEPTION 'Schema 396 expected all three enrichment rows to remain partial; found % invalid rows',v_bad;
   END IF;
 END
 $$;

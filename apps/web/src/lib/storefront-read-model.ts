@@ -310,6 +310,12 @@ function dropshipSort(sort?: string, alias = "fm"): string {
   return `${alias}.newest_at DESC,${alias}.dropship_supplier_id,${alias}.dropship_external_product_id`;
 }
 
+function dropshipLiveSort(sort?: string): string {
+  if (sort === "price-asc") return "lf.min_price_minor ASC,lf.supplier_id,lf.external_product_id";
+  if (sort === "price-desc") return "lf.min_price_minor DESC,lf.supplier_id,lf.external_product_id";
+  return "lf.newest_at DESC,lf.supplier_id,lf.external_product_id";
+}
+
 function dropshipPageWithSentinel(
   rows: readonly StorefrontDropshipFamilyCandidate[],
   input: StorefrontReadModelWindowInput
@@ -357,7 +363,7 @@ export async function getDropshipStorefrontReadModelWindow(
 
   if (!hasFilters) {
     const stableOrderBy = dropshipSort(input.sort, "fm");
-    const liveOrderBy = dropshipSort(input.sort, "lf");
+    const liveOrderBy = dropshipLiveSort(input.sort);
     const result = await pool.query<StorefrontDropshipFamilyCandidate>(`
       WITH stable AS MATERIALIZED (
         SELECT

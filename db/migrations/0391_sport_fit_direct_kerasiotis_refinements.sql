@@ -1,5 +1,5 @@
 -- KONTA MOY — direct Kerasiotis feed refinements for four exact Sport & Fit families.
--- Schema 334 strengthens only facts stated literally in the connected vendor feed.
+-- Schema 391 strengthens only facts stated literally in the connected vendor feed.
 --
 -- Evidence policy:
 -- - exact canonical MPN identity only; each code must resolve to exactly one active family;
@@ -12,7 +12,7 @@
 
 BEGIN;
 
-CREATE TEMP TABLE _sport_333_seed (
+CREATE TEMP TABLE _sport_391_seed (
   style_code text PRIMARY KEY,
   product_role text NOT NULL,
   source_key text NOT NULL,
@@ -24,7 +24,7 @@ CREATE TEMP TABLE _sport_333_seed (
   evidence_summary text NOT NULL
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_333_seed VALUES
+INSERT INTO _sport_391_seed VALUES
 (
   'JR9720',
   'footwear',
@@ -92,7 +92,7 @@ SELECT
     'doNotMapTraxionToSpecificSurfaceWithoutExplicitSurface',true,
     'doNotMapGenericVentilationToBreathabilityLevel',true
   )
-FROM _sport_333_seed
+FROM _sport_391_seed
 ON CONFLICT (source_key) DO UPDATE SET
   source_type=EXCLUDED.source_type,
   publisher=EXCLUDED.publisher,
@@ -103,7 +103,7 @@ ON CONFLICT (source_key) DO UPDATE SET
   active=true,
   updated_at=now();
 
-CREATE TEMP TABLE _sport_333_family (
+CREATE TEMP TABLE _sport_391_family (
   style_code text NOT NULL,
   family_id uuid NOT NULL,
   product_role text NOT NULL,
@@ -115,7 +115,7 @@ CREATE TEMP TABLE _sport_333_family (
   PRIMARY KEY(style_code,family_id)
 ) ON COMMIT DROP;
 
-INSERT INTO _sport_333_family
+INSERT INTO _sport_391_family
 SELECT DISTINCT
   s.style_code,
   pf.id,
@@ -125,7 +125,7 @@ SELECT DISTINCT
   s.surface_code,
   s.moisture_wicking,
   s.evidence_summary
-FROM _sport_333_seed s
+FROM _sport_391_seed s
 JOIN public.canonical_variants cv
   ON cv.active=true
  AND (
@@ -139,13 +139,13 @@ JOIN public.product_families pf
 DO $$
 DECLARE r record; v_count integer;
 BEGIN
-  FOR r IN SELECT style_code FROM _sport_333_seed LOOP
+  FOR r IN SELECT style_code FROM _sport_391_seed LOOP
     SELECT count(DISTINCT family_id) INTO v_count
-    FROM _sport_333_family
+    FROM _sport_391_family
     WHERE style_code=r.style_code;
 
     IF v_count<>1 THEN
-      RAISE EXCEPTION 'Sport & Fit schema 334 style % must resolve to exactly one active canonical family, found %',r.style_code,v_count;
+      RAISE EXCEPTION 'Sport & Fit schema 391 style % must resolve to exactly one active canonical family, found %',r.style_code,v_count;
     END IF;
   END LOOP;
 END
@@ -161,18 +161,18 @@ DECLARE
 BEGIN
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_333_family f ON f.family_id=pfav.family_id
+  JOIN _sport_391_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   JOIN public.attribute_values av ON av.id=pfav.attribute_value_id
   WHERE f.style_code='JR9720'
     AND ad.code='sport_activity';
   IF v_count<>0 THEN
-    RAISE EXCEPTION 'JR9720 unexpectedly already has % normalized sport_activity facts; refusing automatic schema-334 enrichment',v_count;
+    RAISE EXCEPTION 'JR9720 unexpectedly already has % normalized sport_activity facts; refusing automatic schema-391 enrichment',v_count;
   END IF;
 
   SELECT count(*) INTO v_bad
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_333_family f ON f.family_id=pfav.family_id
+  JOIN _sport_391_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   LEFT JOIN public.attribute_values av ON av.id=pfav.attribute_value_id
   WHERE (
@@ -181,27 +181,27 @@ BEGIN
       (f.style_code IN ('KQ9728','KR2147') AND ad.code='sport_activity' AND coalesce(av.code,'')<>'general_training')
   );
   IF v_bad<>0 THEN
-    RAISE EXCEPTION 'Schema 334 found % unexpected existing normalized activity facts on KK4280/KQ9728/KR2147',v_bad;
+    RAISE EXCEPTION 'Schema 391 found % unexpected existing normalized activity facts on KK4280/KQ9728/KR2147',v_bad;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_333_family f ON f.family_id=pfav.family_id
+  JOIN _sport_391_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE f.style_code='KK4280'
     AND ad.code='sport_surface';
   IF v_count<>0 THEN
-    RAISE EXCEPTION 'KK4280 unexpectedly already has % normalized sport_surface facts; refusing automatic schema-334 enrichment',v_count;
+    RAISE EXCEPTION 'KK4280 unexpectedly already has % normalized sport_surface facts; refusing automatic schema-391 enrichment',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_333_family f ON f.family_id=pfav.family_id
+  JOIN _sport_391_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE f.style_code IN ('KQ9728','KR2147')
     AND ad.code='moisture_wicking';
   IF v_count<>0 THEN
-    RAISE EXCEPTION 'KQ9728/KR2147 unexpectedly already have % normalized moisture_wicking facts; refusing automatic schema-334 enrichment',v_count;
+    RAISE EXCEPTION 'KQ9728/KR2147 unexpectedly already have % normalized moisture_wicking facts; refusing automatic schema-391 enrichment',v_count;
   END IF;
 END
 $$;
@@ -222,7 +222,7 @@ SELECT
       THEN 'Direct Kerasiotis feed verifies running and asphalt/road use; Cloudfoam+ and generic support language remain ungraded.'
     ELSE 'Direct Kerasiotis feed verifies general training and moisture-wicking; ventilation wording remains ungraded.'
   END
-FROM _sport_333_family
+FROM _sport_391_family
 ON CONFLICT (family_id) DO UPDATE SET
   product_role=EXCLUDED.product_role,
   identity_quality='strong',
@@ -234,7 +234,7 @@ WITH enum_facts AS (
   SELECT
     family_id,source_key,'sport_activity'::text AS attribute_code,activity_code AS value_code,0 AS position,
     evidence_summary AS evidence_note,'source_payload.title + source_payload.description'::text AS locator
-  FROM _sport_333_family
+  FROM _sport_391_family
   WHERE activity_code IS NOT NULL
 
   UNION ALL
@@ -242,7 +242,7 @@ WITH enum_facts AS (
   SELECT
     family_id,source_key,'sport_surface',surface_code,0,
     evidence_summary,'source_payload.description'
-  FROM _sport_333_family
+  FROM _sport_391_family
   WHERE surface_code IS NOT NULL
 )
 INSERT INTO public.product_family_attribute_values(
@@ -270,7 +270,7 @@ WITH enum_facts AS (
   SELECT
     family_id,source_key,'sport_activity'::text AS attribute_code,activity_code AS value_code,0 AS position,
     evidence_summary AS evidence_note,'source_payload.title + source_payload.description'::text AS locator
-  FROM _sport_333_family
+  FROM _sport_391_family
   WHERE activity_code IS NOT NULL
 
   UNION ALL
@@ -278,7 +278,7 @@ WITH enum_facts AS (
   SELECT
     family_id,source_key,'sport_surface',surface_code,0,
     evidence_summary,'source_payload.description'
-  FROM _sport_333_family
+  FROM _sport_391_family
   WHERE surface_code IS NOT NULL
 )
 INSERT INTO public.sport_product_fact_evidence(
@@ -297,7 +297,7 @@ WITH boolean_facts AS (
     family_id,source_key,'moisture_wicking'::text AS attribute_code,
     moisture_wicking AS bool_value,evidence_summary AS evidence_note,
     'source_payload.description'::text AS locator
-  FROM _sport_333_family
+  FROM _sport_391_family
   WHERE moisture_wicking IS NOT NULL
 )
 INSERT INTO public.product_family_attribute_values(
@@ -322,7 +322,7 @@ WITH boolean_facts AS (
     family_id,source_key,'moisture_wicking'::text AS attribute_code,
     moisture_wicking AS bool_value,evidence_summary AS evidence_note,
     'source_payload.description'::text AS locator
-  FROM _sport_333_family
+  FROM _sport_391_family
   WHERE moisture_wicking IS NOT NULL
 )
 INSERT INTO public.sport_product_fact_evidence(
@@ -369,7 +369,7 @@ SELECT
     'preferExactManufacturerPageForRemainingFacts',true,
     'doNotInferTechnicalIntensityFromMarketing',true
   )
-FROM _sport_333_family f
+FROM _sport_391_family f
 ON CONFLICT (family_id) DO UPDATE SET
   product_role=EXCLUDED.product_role,
   status=CASE
@@ -397,7 +397,7 @@ ON CONFLICT (family_id) DO UPDATE SET
 DO $$
 DECLARE r record;
 BEGIN
-  FOR r IN SELECT DISTINCT family_id FROM _sport_333_family LOOP
+  FOR r IN SELECT DISTINCT family_id FROM _sport_391_family LOOP
     PERFORM bls_private.refresh_sport_product_knowledge(r.family_id);
   END LOOP;
 
@@ -410,7 +410,7 @@ BEGIN
       END,
       updated_at=now()
   FROM public.sport_product_knowledge k
-  JOIN _sport_333_family f ON f.family_id=k.family_id
+  JOIN _sport_391_family f ON f.family_id=k.family_id
   WHERE q.family_id=f.family_id
     AND q.status<>'blocked';
 END
@@ -435,17 +435,17 @@ BEGIN
   )
   AND active;
   IF v_sources<>4 THEN
-    RAISE EXCEPTION 'Expected four active schema-334 Kerasiotis sources, found %',v_sources;
+    RAISE EXCEPTION 'Expected four active schema-391 Kerasiotis sources, found %',v_sources;
   END IF;
 
-  SELECT count(DISTINCT family_id) INTO v_families FROM _sport_333_family;
+  SELECT count(DISTINCT family_id) INTO v_families FROM _sport_391_family;
   IF v_families<>4 THEN
-    RAISE EXCEPTION 'Expected four exact canonical families in schema 334, found %',v_families;
+    RAISE EXCEPTION 'Expected four exact canonical families in schema 391, found %',v_families;
   END IF;
 
   SELECT count(*) INTO v_activities
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_333_family f ON f.family_id=pfav.family_id
+  JOIN _sport_391_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   JOIN public.attribute_values av ON av.id=pfav.attribute_value_id
   WHERE ad.code='sport_activity'
@@ -455,12 +455,12 @@ BEGIN
       OR (f.style_code IN ('KQ9728','KR2147') AND av.code='general_training')
     );
   IF v_activities<>4 THEN
-    RAISE EXCEPTION 'Expected four exact schema-334 activity facts, found %',v_activities;
+    RAISE EXCEPTION 'Expected four exact schema-391 activity facts, found %',v_activities;
   END IF;
 
   SELECT count(*) INTO v_road
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_333_family f ON f.family_id=pfav.family_id
+  JOIN _sport_391_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   JOIN public.attribute_values av ON av.id=pfav.attribute_value_id
   WHERE f.style_code='KK4280'
@@ -472,7 +472,7 @@ BEGIN
 
   SELECT count(*) INTO v_moisture
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_333_family f ON f.family_id=pfav.family_id
+  JOIN _sport_391_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE f.style_code IN ('KQ9728','KR2147')
     AND ad.code='moisture_wicking'
@@ -483,7 +483,7 @@ BEGIN
 
   SELECT count(*) INTO v_forbidden
   FROM public.product_family_attribute_values pfav
-  JOIN _sport_333_family f ON f.family_id=pfav.family_id
+  JOIN _sport_391_family f ON f.family_id=pfav.family_id
   JOIN public.attribute_definitions ad ON ad.id=pfav.attribute_id
   WHERE (
     f.style_code='KK4280' AND ad.code IN ('cushioning_level','support_level')
@@ -493,7 +493,7 @@ BEGIN
     f.style_code IN ('KQ9728','KR2147') AND ad.code='breathability_level'
   );
   IF v_forbidden<>0 THEN
-    RAISE EXCEPTION 'Schema 334 would leave % unsupported normalized technical-intensity/surface facts',v_forbidden;
+    RAISE EXCEPTION 'Schema 391 would leave % unsupported normalized technical-intensity/surface facts',v_forbidden;
   END IF;
 END
 $$;
