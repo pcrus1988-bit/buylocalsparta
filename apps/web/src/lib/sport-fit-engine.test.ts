@@ -1987,3 +1987,69 @@ test("governed Saucony Originals identity blocks historical running-DNA contamin
   assert.equal(recommendation.primary, undefined);
   assert.equal(recommendation.ranked.length, 0);
 });
+
+
+test("Endorphin Azura performance knowledge overrides generic sneaker categorization", () => {
+  const azura = product({
+    id: "saucony-endorphin-azura-s21070",
+    title: "Saucony Endorphin Azura",
+    categoryCode: "mens-sneakers",
+    brand: "Saucony",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["running"],
+      useCases: ["daily_training", "speed_training", "race_day"],
+      supportLevel: "neutral",
+      plateType: "none",
+      dropMm: 8,
+      heelStackMm: 40,
+      forefootStackMm: 32,
+      weightG: 240
+    }
+  });
+
+  const scored = scoreSportFitProduct(azura, {
+    activity: "running",
+    audience: "men",
+    runnerNeed: "speed"
+  });
+
+  assert.equal(scored.technicalEligible, true);
+  assert.equal(sportFitCandidateSupportsRequestedActivity(azura, {
+    activity: "running",
+    audience: "men"
+  }), true);
+  assert.ok(scored.technicalRequirements.some((item) =>
+    item.id === "requirement.activity" && item.status === "match"
+  ));
+  assert.ok(scored.score > 0);
+});
+
+test("current Saucony lifestyle identity blocks retro running heritage from recommendations", () => {
+  const shadow = product({
+    id: "saucony-shadow-5000-s70853",
+    title: "Saucony Shadow 5000 Performance Running Heritage",
+    categoryCode: "mens-running-shoes",
+    brand: "Saucony",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["casual_lifestyle"]
+    }
+  });
+
+  const answers = {
+    activity: "running" as const,
+    audience: "men" as const,
+    surface: "road" as const
+  };
+  const scored = scoreSportFitProduct(shadow, answers);
+  const result = buildSportFitRecommendation([shadow], answers);
+
+  assert.equal(scored.technicalEligible, false);
+  assert.equal(sportFitCandidateSupportsRequestedActivity(shadow, answers), false);
+  assert.ok(scored.appliedRules.includes("activity.known_mismatch"));
+  assert.equal(result.primary, undefined);
+  assert.equal(result.ranked.length, 0);
+});
