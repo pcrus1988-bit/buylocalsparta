@@ -1635,3 +1635,75 @@ test("street-surface evidence on general-training footwear does not hard-reject 
   ), false);
 });
 
+test("exact basketball knowledge overrides a misleading generic sneaker catalogue label", () => {
+  const b480 = product({
+    id: "new-balance-gsb480",
+    title: "Black And White Leather Athletic Sneakers",
+    categoryCode: "womens-sneakers",
+    brand: "New Balance",
+    sizes: ["EU36/US6", "EU38/US8"],
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["basketball"]
+    }
+  });
+
+  const basketball = scoreSportFitProduct(b480, {
+    activity: "basketball",
+    audience: "kids"
+  });
+  const walking = scoreSportFitProduct(b480, {
+    activity: "walking",
+    audience: "kids"
+  });
+
+  assert.equal(sportFitCandidateSupportsRequestedActivity(b480, {
+    activity: "basketball",
+    audience: "kids"
+  }), true);
+  assert.equal(basketball.technicalEligible, true);
+  assert.ok(basketball.technicalRequirements.some((item) =>
+    item.id === "requirement.activity" && item.status === "match"
+  ));
+  assert.equal(walking.technicalEligible, false);
+  assert.ok(walking.technicalRequirements.some((item) =>
+    item.id === "requirement.activity" && item.status === "conflict"
+  ));
+});
+
+test("governed Advantage 2.0 walking identity blocks tennis-heritage heuristic contamination", () => {
+  const advantage = product({
+    id: "adidas-ig9166",
+    title: "Advantage 2.0 Tennis-Inspired Shoes",
+    categoryCode: "mens-sneakers",
+    brand: "adidas",
+    sizes: ["46"],
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["walking", "casual_lifestyle"],
+      useCases: ["daily_walking"],
+      fitLengthProfile: "true_to_size"
+    }
+  });
+
+  const walking = scoreSportFitProduct(advantage, {
+    activity: "walking",
+    audience: "men",
+    useCase: "daily_walking"
+  });
+
+  assert.equal(walking.technicalEligible, true);
+  assert.ok(walking.technicalRequirements.some((item) =>
+    item.id === "requirement.activity" && item.status === "match"
+  ));
+  assert.ok(walking.technicalRequirements.some((item) =>
+    item.id === "requirement.use_case" && item.status === "match"
+  ));
+  assert.equal(sportFitCandidateSupportsRequestedActivity(advantage, {
+    activity: "tennis",
+    audience: "men",
+    surface: "court_hard"
+  }), false);
+});
