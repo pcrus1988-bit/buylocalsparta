@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 
 // Keep each cached projection comfortably below Next.js' 2 MB unstable_cache value ceiling.
 // At ~97k active variants, 16 shards produced ~3.2 MB cache entries and therefore never cached.
@@ -15,6 +16,7 @@ export type PublicProductSitemapCandidate = Readonly<{
   gtin?: string;
   mpn?: string;
   mediaId?: string;
+  sourceImageUrl?: string;
   sourceImageAvailable: boolean;
   offerAvailable: true;
   color?: string;
@@ -124,6 +126,21 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
         AND pm.object_key IS NOT NULL
         AND pm.content_type IN ('image/jpeg','image/png','image/webp')
       ORDER BY pm.canonical_variant_id,pm.reviewed_at DESC NULLS LAST,pm.created_at DESC,pm.public_id
+    ), approved_source_media AS MATERIALIZED (
+      SELECT DISTINCT ON (pm.canonical_variant_id)
+             pm.canonical_variant_id,
+             pm.source_url AS source_image_url,
+             cs.website AS source_website,
+             cs.code AS source_code
+      FROM public_base base
+      JOIN product_media pm ON pm.canonical_variant_id=base.id
+      JOIN catalog_sources cs ON cs.id=pm.source_id AND cs.active=true
+      WHERE pm.kind='image'
+        AND pm.scan_status='clean'
+        AND pm.rights_status='approved'
+        AND pm.moderation_status='approved'
+        AND pm.source_url IS NOT NULL
+      ORDER BY pm.canonical_variant_id,pm.sort_order ASC,pm.reviewed_at DESC NULLS LAST,pm.created_at ASC,pm.id
     )
     SELECT
       base.id_public AS id,
@@ -135,18 +152,21 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
       base.gtin,
       base.mpn,
       media.media_id,
-      NULL::text AS source_image_url,
-      NULL::text AS source_website,
-      NULL::text AS source_code,
+      source_media.source_image_url,
+      source_media.source_website,
+      source_media.source_code,
       base.color,
       base.sizes,
       base.duplicate_title_count
     FROM public_base base
     LEFT JOIN approved_media media ON media.canonical_variant_id=base.id
+    LEFT JOIN approved_source_media source_media ON source_media.canonical_variant_id=base.id
     ORDER BY base.id_public
   `, [shard, PRODUCT_SITEMAP_SHARD_COUNT]);
 
-  return result.rows.map((row) => ({
+  return result.rows.map((row) => {
+    const sourceImageUrl = trustedCatalogSourceHttpsUrl(row.source_code, row.source_website, row.source_image_url);
+    return {
     id: row.id,
     slug: row.slug,
     title: row.title,
@@ -156,12 +176,14 @@ async function readPublicProductSitemapInventory(shard: number | null): Promise<
     gtin: text(row.gtin),
     mpn: text(row.mpn),
     mediaId: text(row.media_id),
-    sourceImageAvailable: false,
+    sourceImageUrl,
+    sourceImageAvailable: Boolean(sourceImageUrl),
     offerAvailable: true as const,
     color: text(row.color),
     sizes: stringArray(row.sizes),
     duplicateTitleCount: safeCount(row.duplicate_title_count)
-  }));
+    };
+  });
 }
 
 const cachedPublicProductSitemapInventory = unstable_cache(
@@ -172,7 +194,7 @@ const cachedPublicProductSitemapInventory = unstable_cache(
 
 const cachedPublicProductSitemapShard = unstable_cache(
   (shard: number) => readPublicProductSitemapInventory(shard),
-  ["public-product-sitemap-inventory-shard-v7-indexed-read-model-64"],
+  ["public-product-sitemap-inventory-shard-v8-direct-source-images-64"],
   { revalidate: 3600 }
 );
 
