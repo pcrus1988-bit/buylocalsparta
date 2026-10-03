@@ -336,23 +336,17 @@ function assetCandidates(html: string, pageUrl: string, brand: string): AssetCan
 
   for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
     const tag = m[0];
-    const lower = fold(tag);
-    const alt = fold(attr(tag, "alt") || "");
+    const altRaw = attr(tag, "alt") || "";
+    const alt = fold(altRaw);
     const raw = attr(tag, "src") || attr(tag, "data-src") || attr(tag, "data-lazy-src") || attr(tag, "srcset");
-    const brandHit = tokens.some((t) => alt.includes(t) || lower.includes(t));
-    const logoHit = /\b(?:logo|wordmark|brandmark|site[-_ ]?brand|header[-_ ]?brand|navbar[-_ ]?brand)\b/i.test(tag)
-      || /(?:logo|wordmark|brandmark|header[-_ ]?logo|site[-_ ]?logo)/i.test(raw || "");
-    if (!logoHit) continue;
-    addUrl(raw, brandHit ? 160 : 140, "logo_img");
-  }
-
-  for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
-    const tag = m[0];
-    const rel = (attr(tag, "rel") || "").toLowerCase();
-    const href = attr(tag, "href");
-    if (rel.includes("mask-icon")) addUrl(href, 105, "mask_icon");
-    else if (rel.includes("apple-touch-icon")) addUrl(href, 80, "apple_touch_icon");
-    else if (rel.includes("icon")) addUrl(href, 55, "site_icon");
+    const brandAltHit = tokens.some((t) => alt.includes(t));
+    const rawLogoHint = /(?:logo|wordmark|brandmark|header[-_ ]?logo|site[-_ ]?logo)/i.test(raw || "");
+    const altLogoHint = /(?:logo|wordmark|brandmark)/i.test(altRaw);
+    // Product names, wishlist icons and campaign images often contain the brand name.
+    // Accept an <img> only when the asset itself is logo-named, or its alt text
+    // explicitly identifies a brand logo.
+    if (!rawLogoHint && !(brandAltHit && altLogoHint)) continue;
+    addUrl(raw, rawLogoHint && brandAltHit ? 165 : 150, "logo_img");
   }
 
   const svgRegex = /<svg\b[^>]{0,1200}>[\s\S]{0,180000}?<\/svg>/gi;
@@ -360,10 +354,12 @@ function assetCandidates(html: string, pageUrl: string, brand: string): AssetCan
     const svg = m[0];
     const open = svg.slice(0, Math.min(svg.indexOf(">") + 1, 1200));
     const lower = fold(open);
-    const brandHit = tokens.some((t) => lower.includes(t));
-    const logoHit = /logo|wordmark|brandmark|site[-_ ]?brand|aria-label/i.test(open);
-    if (brandHit || logoHit) {
-      out.push({ kind: "inline_svg", svg, score: brandHit && logoHit ? 155 : 130, discovery: "inline_svg" });
+    const aria = fold(attr(open, "aria-label") || "");
+    const brandHit = tokens.some((t) => lower.includes(t) || aria.includes(t));
+    const explicitLogoHit = /logo|wordmark|brandmark|site[-_ ]?brand|header[-_ ]?brand/i.test(open);
+    const ariaBrandHit = Boolean(aria) && tokens.some((t) => aria.includes(t));
+    if (explicitLogoHit || ariaBrandHit) {
+      out.push({ kind: "inline_svg", svg, score: explicitLogoHit && brandHit ? 160 : 145, discovery: "inline_svg" });
       if (out.length > 40) break;
     }
   }
