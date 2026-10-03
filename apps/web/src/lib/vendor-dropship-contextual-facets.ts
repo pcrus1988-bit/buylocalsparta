@@ -354,6 +354,7 @@ export async function getContextualVendorDropshipFacets(
         lf.supplier_id::text AS dropship_supplier_id,
         lf.external_product_id AS dropship_external_product_id,
         lf.category_codes,
+        lf.department_codes,
         lf.brand_names_normalized,
         lf.colors,
         lf.sizes,
