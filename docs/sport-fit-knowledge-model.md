@@ -730,3 +730,6 @@ Migration `0396_sport_fit_verified_adidas_response2_kk4280.sql` adds first-party
 The exact adidas Mexico product source adds `sport_use_case=long_run`, `fit_length_profile=true_to_size`, `heel_to_toe_drop_mm=8`, `heel_stack_height_mm=32`, `forefoot_stack_height_mm=24`, and `shoe_weight_g=301`. Classic-fit and Cloudfoam+ wording remain non-authoritative for governed width/cushioning intensity.
 
 Schema 396 intentionally keeps cushioning level, support level, width profile, toe-box profile, plate type and weather protection unknown until direct evidence exists. Technical facts remain canonical-family knowledge; live size/stock remains vendor-offer/inventory state.
+
+
+The exact committed schemas 395 and 396 were replayed together against live production schema 394 inside one transaction ending in `ROLLBACK`. All family-identity, baseline, fact/evidence, unsupported-inference, knowledge-refresh and enrichment-queue assertions passed. Post-rehearsal verification confirmed the rehearsal introduced no persistent source/fact rows. The pending runtime schema gate is **396** until these migrations are merged and applied.
