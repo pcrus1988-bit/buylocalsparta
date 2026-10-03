@@ -766,3 +766,17 @@ The exact committed schema-398 migration (SHA-256 `9d1efe0245a6e7d5d78ff1fec9e6e
 
 The runtime schema gate on this change is **398**.
 
+## Schema 399 — exact New Balance B480 and adidas Advantage 2.0 identity corrections
+
+Migration `0399_sport_fit_exact_identity_corrections.sql` deepens two currently sellable footwear families using exact first-party product evidence and explicit identity guards.
+
+- New Balance B480 catalogue base MPN `GSB480`: the sellable black/white family is bridged to manufacturer style `GSB480BW` and gains only `sport_activity=basketball`. A rehearsal initially exposed a second catalogue family sharing the same base MPN; schema 399 therefore requires the live source product plus black/white sellable identity before facts can be written.
+- adidas Advantage 2.0 `IG9166`: exact adidas evidence adds `sport_activity=walking`, `sport_activity=casual_lifestyle`, `sport_use_case=daily_walking`, and `fit_length_profile=true_to_size`. Tennis heritage remains design context and is not treated as performance-tennis evidence.
+
+The New Balance official regional product pages expose conflicting foot-length rows for the same B480 style. Because the current stored size-guide runtime is brand-scoped, schema 399 deliberately publishes **no** New Balance brand-wide size guide. That unresolved sizing conflict stays visible in provenance/queue metadata instead of being guessed or propagated to unrelated New Balance models.
+
+Five normalized facts and five exact-manufacturer fact-evidence rows are added. Four manufacturer source records preserve the US/Spain New Balance and Qatar/Greece adidas provenance used by the pass. The target queues are then reconciled so only genuinely unresolved fields remain; non-applicable `football_surface_code` is removed.
+
+Two recommendation regressions protect the correction: exact basketball knowledge must override a misleading generic/women's-sneaker catalogue label, and governed IG9166 walking knowledge must prevent tennis-inspired title text from reintroducing performance-tennis eligibility.
+
+The exact migration was rehearsed against live production schema 398 inside a transaction ending in `ROLLBACK`. The first rehearsal correctly failed on ambiguous `GSB480` identity; after tightening the bridge to the live black/white source family, the second rehearsal passed all identity, fact, evidence, inference and queue assertions. The runtime schema gate on this change is **399**.
