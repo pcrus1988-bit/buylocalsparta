@@ -652,3 +652,20 @@ Schema 331 fails closed if IF6748 does not resolve to exactly one active canonic
 Schema 331 was executed against the live KONTA MOY schema inside a transaction ending in `ROLLBACK`. Exact identity, disputed-field guards, fact insertion, knowledge refresh, queue reprioritization and post-write assertions passed. A post-rehearsal read confirmed the production queue remained at its pre-migration priority/state because no test changes were persisted.
 
 The runtime schema gate is now **331**.
+
+
+## Schema 332 — exact manufacturer safe refinements
+
+Migration `0332_sport_fit_exact_safe_refinements.sql` closes five narrow evidence gaps without broadening the Sport & Fit inference policy:
+
+- `JR6599` (Terrex Anylander): adds `sport_use_case=day_hike` from exact adidas wording that spans short forest walks through extended day hikes.
+- `JR9087` (Terrex Anylander Rain.Rdy): upgrades `weather_protection` from the earlier conservative `water_resistant` normalization to `waterproof`. The exact adidas product page explicitly calls the shoe waterproof and states that RAIN.RDY seals out the elements to keep feet dry in wet conditions. The older active weather evidence is retired before the stronger exact-code evidence is inserted.
+- `KJ0411` (Terrex Rockadia): adds the exact adidas Chile reference weight of `320.4 g`. No cushioning or support intensity is inferred from EVA/comfort wording.
+- `JS4403` (Duramo SL 2): adds `sport_use_case=daily_training` from the exact adidas training positioning. The page's generic supportive/cushioning language remains provenance only and is not converted into governed support/cushioning intensity.
+- `KB5970` (adi365 Running Essentials Tank): adds `sport_use_case=daily_training` from explicit everyday-running positioning. CLIMACOOL and reflective-logo facts were already governed; no breathability intensity is invented.
+
+Each code must resolve to exactly one active canonical family. The migration refuses to overwrite unexpected pre-existing target facts, records product-level manufacturer evidence for every refinement, removes the resolved field from its enrichment queue request, refreshes the governed Sport & Fit knowledge projection, and asserts all five facts/evidence rows before commit.
+
+Schema 332 was executed against the live KONTA MOY schema inside a transaction ending in `ROLLBACK`. Identity guards, evidence replacement, fact writes, knowledge refresh, queue updates and post-write assertions passed. A post-rehearsal read confirmed that the transaction persisted nothing: the new KJ0411 Chile source is absent and JR9087 remains `water_resistant` in production until the migration chain is deployed.
+
+The runtime schema gate is now **332**.
