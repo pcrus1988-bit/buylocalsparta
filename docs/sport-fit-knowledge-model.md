@@ -102,6 +102,8 @@ Use for identity and direct claims already present in the feed:
 
 Do not infer technical measurements that are absent from the feed.
 
+When an exact, approved source product contradicts itself, prefer the more specific direct claim only when identity is strong and the contradiction can be preserved explicitly. A broad SEO/title/category label must not override a detailed exact-product description that directly states the intended activity or fit. Superseded evidence remains in the audit trail rather than being deleted.
+
 ### Tier 2 — exact manufacturer product page
 
 Preferred source for:
@@ -879,3 +881,22 @@ The exact migration was rehearsed against production schema 404 inside a transac
 Migration SHA-256: `81f5690dea88a84b3e649376a1702619c3df62bb083a9555c54e5d9018ce48d3`.
 
 The runtime schema gate on this change is **405**.
+
+
+## Schema 406 — Cloudfoam Flex connected-feed conflict reconciliation
+
+Migration `0406_sport_fit_cloudfoam_flex_feed_reconciliation.sql` corrects one live cross-sport recommendation bug and deepens fit knowledge for two currently approved and stocked adidas Cloudfoam Flex canonical families, `KJ4808` and `KJ7282`.
+
+For `KJ4808`, the exact approved connected source product is internally contradictory: its broad title/category says running, while its detailed product description explicitly calls it a walking shoe, says it is designed for daily walks and lists a **wide fit**. Schema 406 therefore replaces the normalized `running` activity with `walking`, adds `sport_use_case=daily_walking` and `footwear_width_profile=wide`, and preserves both historical running evidence rows as inactive audit history linked through `superseded_by`. The source metadata records the title/description conflict and the exact resolution policy.
+
+For `KJ7282`, exact adidas manufacturer evidence already governs walking, daily walking and true-to-size fit. The exact approved connected-feed description adds only the explicit **wide-fit** fact; it does not reintroduce the feed title's broader running wording.
+
+The pass deliberately leaves Cloudfoam cushioning, generic stability/arch-support language, surface, support intensity, drop/stack, weight, toe-box, plate and weather protection unknown unless separately governed evidence exists. Queue cleanup removes only resolved or non-applicable requested fields.
+
+A recommendation regression protects the user-visible behavior: a strongly governed KJ4808-like walking product must remain eligible for a daily-walking request and must be hard-excluded from running even when its raw retailer title and catalogue category contain running language.
+
+The exact migration was rehearsed against live production schema 405 inside a transaction ending in `ROLLBACK`; all identity, approved-source-link, exact-description, evidence-supersession, queue-hygiene and unsupported-inference assertions passed.
+
+Migration SHA-256: `b44868e8f732f60a5be62b3066881ec29fa3d7ee47c4e41075948b0888c2f1c0`.
+
+The runtime schema gate on this change is **406**.
