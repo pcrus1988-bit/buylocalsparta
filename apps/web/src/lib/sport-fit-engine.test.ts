@@ -1954,3 +1954,36 @@ test("governed Cloud X Tempo preserves hybrid gym-running activity without cross
   assert.equal(sportFitCandidateSupportsRequestedActivity(cloudXTempo, basketballAnswers), false);
   assert.equal(basketball.technicalEligible, false);
 });
+
+
+test("governed Saucony Originals identity blocks historical running-DNA contamination", () => {
+  const retroSaucony = product({
+    id: "saucony-progrid-guide-7-originals",
+    title: "Saucony ProGrid Guide 7 Running Athletic Sneaker",
+    categoryCode: "mens-running-shoes",
+    brand: "Saucony",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["casual_lifestyle"]
+    }
+  });
+
+  const answers = {
+    activity: "running" as const,
+    audience: "men" as const,
+    surface: "road" as const
+  };
+
+  const scored = scoreSportFitProduct(retroSaucony, answers);
+  const recommendation = buildSportFitRecommendation([retroSaucony], answers);
+
+  assert.equal(scored.technicalEligible, false);
+  assert.equal(sportFitCandidateSupportsRequestedActivity(retroSaucony, answers), false);
+  assert.ok(scored.appliedRules.includes("activity.known_mismatch"));
+  assert.ok(scored.technicalRequirements.some((item) =>
+    item.id === "requirement.activity" && item.status === "conflict"
+  ));
+  assert.equal(recommendation.primary, undefined);
+  assert.equal(recommendation.ranked.length, 0);
+});
