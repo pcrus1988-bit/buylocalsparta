@@ -712,3 +712,16 @@ Migration `0335_sport_fit_verified_adidas_basketball_jn4724.sql` onboards the fi
 This turns the basketball vocabulary into real product-level recommendation evidence rather than leaving it as taxonomy-only capability.
 
 The runtime schema gate is now **335**.
+
+
+## Schema 336 — verified adidas football apparel
+
+Migration `0336_sport_fit_verified_adidas_football_apparel.sql` onboards two live Entrada26 families that existed in the canonical catalogue but were absent from the governed Sport & Fit layer.
+
+- `JZ2505` Entrada26 Jersey: exact adidas evidence adds `sport_activity=football`, `football_training`, `football_match` and `moisture_wicking=true`.
+- `KE9848` Entrada26 Training Pants: exact adidas evidence adds `sport_activity=football`, `football_training` and `moisture_wicking=true`.
+- Both families are inserted into `sport_product_knowledge` as strong-identity apparel and queued only for unresolved performance fields.
+- CLIMACOOL sweat-management wording supports moisture management only. It does not create a breathability or thermal intensity.
+- Customer-review claims are excluded.
+
+The runtime schema gate is now **336**.
