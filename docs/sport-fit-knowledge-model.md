@@ -667,3 +667,19 @@ The exact committed schema-391 migration was first replayed against production i
 
 The global runtime schema gate and production database are now **391**.
 
+## Schema 392 — sellable Duramo RC2 fit and race-use deepening
+
+Migration `0392_sport_fit_duramo_rc2_evidence_deepening.sql` deepens three currently sellable adidas Duramo RC2 canonical families using exact-code first-party manufacturer pages.
+
+- `JS4435`: adds `fit_length_profile=true_to_size`, `support_level=neutral` from the explicit manufacturer pronation classification, and `sport_use_case=race_day` from the explicit “Best for Racing” classification. Existing running, daily-training, road + track, weight and stack/drop facts are preserved.
+- `JQ8077`: adds the same governed fit, neutral-pronation and race-day facts while preserving existing running, daily-training, road + track, weight and geometry evidence.
+- `KJ6635`: adds only `fit_length_profile=true_to_size`. The manufacturer also uses stable/cushioned/Lightmotion language, but schema 392 deliberately does not convert those statements into a governed cushioning or support intensity.
+
+The migration adds three new regional first-party evidence sources and seven normalized fact/evidence pairs. It also prunes already-satisfied requested fields from the three targeted enrichment-queue rows and removes the football-only surface-code request from this running-footwear batch.
+
+Identity remains family-level and vendor-independent. The migration fails closed unless each exact style code resolves to exactly one active canonical family, verifies the expected pre-existing running/surface/use-case baselines before adding anything, and asserts that KJ6635 did not acquire unsupported cushioning/support/width facts.
+
+The exact migration was replayed against production schema 391 inside a transaction ending in `ROLLBACK`; all identity guards, seven fact inserts, seven evidence inserts, knowledge refreshes, queue-pruning checks and unsupported-inference assertions passed without persisting rehearsal rows.
+
+The runtime schema gate is now **392**; production remains at schema 391 until the migration is deployed.
+
