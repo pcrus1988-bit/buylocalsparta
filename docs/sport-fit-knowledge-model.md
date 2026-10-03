@@ -917,6 +917,10 @@ A recommendation regression covers the user-visible failure mode: a New Balance 
 
 The migration is designed to fail closed on changed canonical identity, pre-existing target facts, missing approved-visible commerce, unsupported inferred facts, conflicts, or stale queue fields.
 
+After the merged Cloudfoam Flex schema 406 was applied to production, the exact schema-407 migration was rehearsed again against that sequential live baseline inside a transaction ending in `ROLLBACK`. Identity, approved-visible commerce, normalized fact/evidence/source counts, unsupported-inference guards, non-conflict state and queue reconciliation all passed. Post-rollback read-back confirmed production remained at schema 406 with zero schema-407 sources and zero target-family facts.
+
+The Sport Fit WebGL Acceptance workflow passed on the schema-407 PR head, including the Sport & Fit rules verifier, migration checksum verification and the production Next.js build. Vercel preview also passed. Unrelated repository-wide SEO/legacy empty-catalogue checks remain outside this batch.
+
 Migration SHA-256: `f6104d87d1ba8db0bddb0e84ff49be3bb1169b369539b3011ef183319d0ac98c`.
 
 The runtime schema gate on this change is **407**.
