@@ -83,7 +83,7 @@ async function getBoundedCategoryProducts(categorySlug: string) {
     return { products: [], total: 0, hasMore: false };
   });
 
-  const merged = [];
+  const merged: Array<(typeof localProducts)[number]> = [];
   const seen = new Set<string>();
   const sources = [localProducts, dropshipPage.products] as const;
   let cursor = 0;
