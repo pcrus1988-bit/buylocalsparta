@@ -821,3 +821,24 @@ The exact schema-402 migration was rehearsed against live production schema 401 
 Migration SHA-256: `762a132e5063d55c5bd96b5976af85625eeb0cb91a81d4c941e934bb5931e05e`.
 
 The runtime schema gate on this change is **402**.
+
+
+## Schema 403 — reference-size-aware conflict governance for JR9087
+
+Migration `0403_sport_fit_reference_size_conflict_governance.sql` resolves the highest-priority blocked Sport & Fit family, adidas Terrex Anylander RAIN.RDY `JR9087`, without averaging measurements or discarding lower-tier provenance.
+
+The root problem was broader than one product: `refresh_sport_product_knowledge` treated any two active evidence values for the same fact position as a family-wide conflict. The runtime deliberately excludes `conflict` / blocked knowledge from recommendations, so a disagreement in reference shoe weight or geometry could suppress otherwise undisputed hiking, trail, fit and waterproof intelligence.
+
+Schema 403 adds `sport_product_fact_evidence.reference_size_entry_id`, linked to the normalized Sport & Fit size-guide entries. Conflict detection now keeps a disagreement non-conflicting only when every differing evidence row is explicitly scoped to a normalized reference size and no two sources disagree at the same reference-size entry. Unscoped disagreements remain conflicts.
+
+For `JR9087`, the existing adidas guide proves that UK 8.5 maps to the 263 mm entry while EU 38 2/3 maps to the 238 mm entry. Exact adidas Turkey and adidas Malaysia pages both publish 390 g at UK 8.5 plus 10 mm drop and 27/17 mm heel/forefoot stack. The direct Kerasiotis feed's 330 g observation is retained active and scoped to EU 38 2/3; it is no longer falsely interpreted as the same-size weight measurement. The feed's conflicting 9 mm drop and 26 mm heel-stack rows are retained as inactive, superseded audit evidence because two exact first-party manufacturer pages agree on the model-level 10 mm / 27 mm values. The matching 17 mm forefoot evidence remains active.
+
+The migration adds **1 manufacturer source** and **4 exact first-party evidence rows**, adds no new canonical product fact values, preserves the manufacturer's existing normalized 390 g / 10 mm / 27 mm / 17 mm facts, and moves JR9087 from family-wide `conflict` + blocked queue to `partial` + an ordinary enrichment queue containing only unresolved technical-profile/use-case fields.
+
+A recommendation regression protects the user-visible consequence: a JR9087-like product with strong governed hiking, trail, true-to-size and waterproof knowledge remains technically eligible once the reference-size evidence conflict has been resolved.
+
+The exact migration was rehearsed against live production schema 402 inside a transaction ending in `ROLLBACK`; schema alteration, normalized size-entry mapping, manufacturer corroboration, evidence supersession, refined conflict counting, knowledge refresh and queue reconciliation all passed. Post-rollback verification confirmed production remained at three JR9087 conflicts, `conflict` knowledge status and a blocked queue.
+
+Migration SHA-256: `4ea7fd648dfc08b448c08e17a9dd4c0253cb82defbe88961c8624f64f1e90db3`.
+
+The runtime schema gate on this change is **403**.
