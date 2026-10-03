@@ -842,3 +842,22 @@ The exact migration was rehearsed against live production schema 402 inside a tr
 Migration SHA-256: `4ea7fd648dfc08b448c08e17a9dd4c0253cb82defbe88961c8624f64f1e90db3`.
 
 The runtime schema gate on this change is **403**.
+
+
+## Schema 404 — live Rockadia manufacturer evidence and queue hygiene
+
+Migration `0404_sport_fit_rockadia_manufacturer_evidence_queue_hygiene.sql` deepens two currently approved, visible and stocked adidas Terrex Rockadia canonical families, `KJ0410` and `KJ0411`, using exact-code first-party manufacturer evidence.
+
+For `KJ0410`, the exact adidas Peru page explicitly identifies a wide last, walking/hiking use, rugged-path and city-street context, everyday walking/journey context, and a published weight of **320.4 g**. The migration upgrades the already-normalized walking, trail, road, daily-walking and wide-fit facts from lower-tier feed confidence to exact manufacturer confidence and adds the previously missing weight fact. For `KJ0411`, the exact adidas Romania page publishes the same **320.4 g** weight for that exact product code, so the missing weight fact is added without transferring the value from another colorway.
+
+The pass intentionally does **not** convert EVA cushioning copy into a normalized cushioning intensity, does not infer a support grade from generic support language, and does not invent drop/stack, toe-box, plate or weather-protection facts. Those fields remain unresolved in the enrichment queue.
+
+Schema 404 also fixes a queue-quality defect discovered during prioritization: a superseded JP9203 canonical family with no active variants remained blocked at priority 200. Its historical knowledge is preserved, but its enrichment queue row is closed as non-actionable so live sellable families receive the intended priority.
+
+Regression guards in the migration verify exact family identity, approved-visible offer presence, the two authoritative 320.4 g facts, exact manufacturer evidence linkage, non-conflict knowledge status, pruning of already-resolved/non-applicable requested fields, and closure of the orphan JP9203 queue row.
+
+The migration was rehearsed against the live production state inside a transaction ending in `ROLLBACK` before application.
+
+Migration SHA-256: `4073449d12727809edc411f2b3cc118dd036b828ec4ada1ce3c7e6f62fae44cc`.
+
+The runtime schema gate on this change is **404**.
