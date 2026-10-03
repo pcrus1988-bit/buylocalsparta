@@ -16,10 +16,10 @@
   pointer-events: none;
   background: linear-gradient(
     180deg,
-    rgba(12, 39, 31, 0) 44%,
-    rgba(12, 39, 31, .08) 58%,
-    rgba(12, 39, 31, .48) 76%,
-    rgba(12, 39, 31, .82) 100%
+    rgba(12, 39, 31, 0) 50%,
+    rgba(12, 39, 31, .03) 62%,
+    rgba(12, 39, 31, .18) 78%,
+    rgba(12, 39, 31, .48) 100%
   );
 }
 
@@ -43,15 +43,17 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  object-position: center 42%;
-  padding: 14px 14px 70px;
-  background: linear-gradient(180deg, #fbfaf6 0%, #f3efe7 100%);
+  object-position: center top;
+  padding: 0;
+  background: #f4f1ea;
   z-index: 1;
+  transform: scale(1.04);
+  transform-origin: center top;
   transition: transform .28s ease;
 }
 
 .visualCard:hover .catalogImage {
-  transform: scale(1.025);
+  transform: scale(1.07);
 }
 
 .visualBody {
@@ -61,17 +63,18 @@
   bottom: 0;
   z-index: 4;
   min-width: 0;
-  padding: 18px 16px 15px;
+  padding: 16px 14px 13px;
   color: #fff;
   background: linear-gradient(
     180deg,
-    rgba(13, 43, 35, .12) 0%,
-    rgba(13, 43, 35, .66) 24%,
-    rgba(13, 43, 35, .90) 100%
+    rgba(13, 43, 35, .08) 0%,
+    rgba(13, 43, 35, .34) 26%,
+    rgba(13, 43, 35, .60) 64%,
+    rgba(13, 43, 35, .76) 100%
   );
-  border-top: 1px solid rgba(255, 255, 255, .14);
-  -webkit-backdrop-filter: blur(10px) saturate(118%);
-  backdrop-filter: blur(10px) saturate(118%);
+  border-top: 1px solid rgba(255, 255, 255, .16);
+  -webkit-backdrop-filter: blur(16px) saturate(124%);
+  backdrop-filter: blur(16px) saturate(124%);
 }
 
 .categoryPill {
@@ -84,9 +87,9 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
-  margin-top: 7px;
+  margin-top: 5px;
 }
 
 .titleStack h3 {
@@ -111,7 +114,7 @@
 
 .productBottom {
   justify-content: flex-start;
-  margin-top: 8px !important;
+  margin-top: 6px !important;
 }
 
 .priceText {
@@ -144,7 +147,7 @@
 }
 
 .vendorLine {
-  margin: 6px 0 0 !important;
+  margin: 4px 0 0 !important;
   color: rgba(255, 255, 255, .72) !important;
   font-size: 9.5px !important;
   line-height: 1.25;
@@ -222,14 +225,20 @@
   }
 
   .catalogImage {
-    padding: 9px 8px 56px;
-    object-position: center 40%;
+    padding: 0;
+    object-position: center top;
+    transform: scale(1.06);
+    transform-origin: center top;
+  }
+
+  .visualCard:hover .catalogImage {
+    transform: scale(1.08);
   }
 
   .visualBody {
-    padding: 13px 11px 11px;
-    -webkit-backdrop-filter: blur(8px) saturate(112%);
-    backdrop-filter: blur(8px) saturate(112%);
+    padding: 12px 10px 10px;
+    -webkit-backdrop-filter: blur(15px) saturate(122%);
+    backdrop-filter: blur(15px) saturate(122%);
   }
 
   .categoryPill {
@@ -247,7 +256,7 @@
   }
 
   .productBottom {
-    margin-top: 7px !important;
+    margin-top: 5px !important;
   }
 
   .priceText {
@@ -255,7 +264,7 @@
   }
 
   .vendorLine {
-    margin-top: 5px !important;
+    margin-top: 4px !important;
     font-size: 8.5px !important;
   }
 
@@ -308,7 +317,12 @@
   }
 
   .catalogImage {
-    padding: 14px 14px 72px;
+    padding: 0;
+    transform: scale(1.045);
+  }
+
+  .visualCard:hover .catalogImage {
+    transform: scale(1.07);
   }
 
   .visualBody {
