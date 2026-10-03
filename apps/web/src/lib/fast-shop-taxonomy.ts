@@ -13,6 +13,7 @@ type FastTaxonomyRow = Readonly<{
   brands: unknown;
   colors: unknown;
   sizes: unknown;
+  fits: unknown;
 }>;
 
 type AvailableCategoryPair = Readonly<{ categoryCode: string; departmentCode?: string }>;
@@ -83,6 +84,7 @@ function fallbackTaxonomy(): AvailableCatalogTaxonomy {
   return {
     categories: STOREFRONT_CATEGORIES,
     facets: EMPTY_FACETS,
+    fits: [],
     attributeFacets: []
   };
 }
@@ -101,20 +103,9 @@ export async function getFastShopTaxonomy(
 ): Promise<AvailableCatalogTaxonomy> {
   if (!productionDatabaseConfigured()) return fallbackTaxonomy();
 
-  // The default /shop browse must not block product rendering on a catalogue-wide
-  // DISTINCT/JSON facet aggregation. Detailed facets are useful only after the
-  // customer introduces taxonomy/search context; the top-level category vocabulary
-  // is governed application data and can be returned immediately.
-  const hasFacetContext = Boolean(
-    category.trim()
-      || query.trim()
-      || filters.subcategory?.trim()
-      || filters.brand?.trim()
-      || filters.color?.trim()
-      || filters.size?.trim()
-  );
-  if (!hasFacetContext) return fallbackTaxonomy();
-
+  // Facet vocabulary is catalogue/discovery metadata. It must remain available even
+  // when the heavyweight stock projection is temporarily load-shed; sellability is
+  // enforced independently by the product window and checkout validation.
   const prefixes = categoryPrefixes(category);
   const search = query.trim();
   const selectedSizes = decodeCatalogSizeGroup(filters.size ?? "");
@@ -140,11 +131,11 @@ export async function getFastShopTaxonomy(
           NULLIF(BTRIM(COALESCE(rm.brand_name,'')),'') AS brand,
           NULLIF(BTRIM(COALESCE(rm.color,'')),'') AS color,
           rm.sizes,
+          NULLIF(BTRIM(COALESCE(rm.fit,'')),'') AS fit,
           rm.search_vector,
           rm.gtin,
           rm.mpn
         FROM public.storefront_facet_read_model rm
-        WHERE rm.available_until>now()
       ), hot_symphonya AS MATERIALIZED (
         SELECT DISTINCT ON (cv.id)
           cv.id AS canonical_variant_id,
@@ -164,6 +155,12 @@ export async function getFastShopTaxonomy(
             cv.variant_attributes->'sizes_observed',
             '[]'::jsonb
           ) AS sizes,
+          NULLIF(BTRIM(COALESCE(
+            el.specifications->>'fit',
+            en.specifications->>'fit',
+            cv.variant_attributes->>'fit',
+            ''
+          )),'') AS fit,
           to_tsvector(
             'simple',
             concat_ws(
@@ -224,13 +221,13 @@ export async function getFastShopTaxonomy(
           )
         ORDER BY cv.id,dso.availability_checked_at DESC NULLS LAST,vo.updated_at DESC,vo.id
       ), combined AS MATERIALIZED (
-        SELECT canonical_variant_id,category_code,category_label,department_code,brand,color,sizes,search_vector,gtin,mpn
+        SELECT canonical_variant_id,category_code,category_label,department_code,brand,color,sizes,fit,search_vector,gtin,mpn
         FROM stable
         UNION ALL
-        SELECT canonical_variant_id,category_code,category_label,department_code,brand,color,sizes,search_vector,gtin,mpn
+        SELECT canonical_variant_id,category_code,category_label,department_code,brand,color,sizes,fit,search_vector,gtin,mpn
         FROM hot_symphonya
       ), base AS MATERIALIZED (
-        SELECT category_code,category_label,department_code,brand,color,sizes
+        SELECT category_code,category_label,department_code,brand,color,sizes,fit
         FROM combined
         WHERE (
             cardinality($1::text[])=0 OR EXISTS (
@@ -287,6 +284,42 @@ export async function getFastShopTaxonomy(
           AND ($4::text='' OR lower(COALESCE(brand,''))=lower($4))
           AND ($5::text='' OR lower(COALESCE(color,''))=lower($5))
         GROUP BY size_entry.value
+      ), fit_values AS (
+        SELECT fit_entry.value AS value,COUNT(*)::int AS count
+        FROM bls_private.storefront_dropship_live_family live_family
+        CROSS JOIN LATERAL unnest(live_family.fits) fit_entry(value)
+        WHERE live_family.sellable=true
+          AND live_family.available_until>now()
+          AND (
+            cardinality($1::text[])=0
+            OR EXISTS (
+              SELECT 1
+              FROM unnest(live_family.category_codes) category_code
+              CROSS JOIN unnest($1::text[]) prefix
+              WHERE lower(category_code)=prefix
+                 OR lower(category_code) LIKE prefix||'-%'
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM unnest(live_family.department_codes) department_code
+              CROSS JOIN unnest($1::text[]) prefix
+              WHERE lower(department_code)=prefix
+                 OR lower(department_code) LIKE prefix||'-%'
+            )
+          )
+          AND (
+            $2::text='' OR live_family.search_vector @@ plainto_tsquery('simple',$2)
+          )
+          AND ($3::text='' OR live_family.category_codes @> ARRAY[$3]::text[])
+          AND ($4::text='' OR live_family.brand_names_normalized @> ARRAY[lower($4)]::text[])
+          AND ($5::text='' OR live_family.colors @> ARRAY[lower($5)]::text[])
+          AND (cardinality($6::text[])=0 OR EXISTS (
+            SELECT 1
+            FROM unnest(live_family.sizes) actual_size(value)
+            CROSS JOIN unnest($6::text[]) selected_size(value)
+            WHERE lower(actual_size.value)=lower(selected_size.value)
+          ))
+        GROUP BY fit_entry.value
       )
       SELECT
         COALESCE((
@@ -308,7 +341,11 @@ export async function getFastShopTaxonomy(
           SELECT jsonb_agg(jsonb_build_object('value',value,'label',value,'count',count) ORDER BY value)
           FROM color_values
         ),'[]'::jsonb) AS colors,
-        COALESCE((SELECT jsonb_agg(jsonb_build_object('value',value,'count',count) ORDER BY value) FROM size_values),'[]'::jsonb) AS sizes
+        COALESCE((SELECT jsonb_agg(jsonb_build_object('value',value,'count',count) ORDER BY value) FROM size_values),'[]'::jsonb) AS sizes,
+        COALESCE((
+          SELECT jsonb_agg(jsonb_build_object('value',value,'label',value,'count',count) ORDER BY count DESC,value)
+          FROM fit_values
+        ),'[]'::jsonb) AS fits
     `, [
       prefixes,
       search,
@@ -344,6 +381,7 @@ export async function getFastShopTaxonomy(
         colors: facetRows(row.colors),
         sizes
       },
+      fits: facetRows(row.fits),
       attributeFacets: []
     };
   } catch (error) {

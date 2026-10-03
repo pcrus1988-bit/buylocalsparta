@@ -60,7 +60,7 @@ const cachedLocalShopPresence = unstable_cache(
 const cachedPublishedDropshipPage = unstable_cache(
   async (input: PublishedDropshipCatalogPageInput): Promise<PublishedDropshipCatalogPage> =>
     getPublishedDropshipCatalogPage(input),
-  ["public-shop-dropship-page-v1"],
+  ["public-shop-dropship-page-v2"],
   { revalidate: PUBLIC_DISCOVERY_CACHE_SECONDS }
 );
 

@@ -96,7 +96,10 @@ async function loadFastAttributeFacets(
           rm.gtin,
           rm.mpn
         FROM public.storefront_filter_read_model rm
-        WHERE rm.available_until>now()
+        -- Attribute vocabulary is discovery metadata, not a stock assertion.
+        -- This projection may legitimately lag while heavyweight catalogue refresh
+        -- work is load-shed; availability is enforced independently when products
+        -- are selected and again at checkout.
       ), hot_symphonya AS MATERIALIZED (
         SELECT DISTINCT ON (cv.id)
           cv.id AS canonical_variant_id,

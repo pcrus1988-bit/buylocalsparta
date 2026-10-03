@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { after } from "next/server";
 import { interpretSearchQuery } from "@buy-local-sparta/core";
-import type { CatalogCard } from "../../lib/catalog-view";
+import type { CatalogCard, CatalogFacetOption } from "../../lib/catalog-view";
 import { getShopCatalogPage } from "../../lib/shop-catalog-page";
 import { getCachedShopTaxonomy } from "../../lib/cached-shop-taxonomy";
 import { SiteHeader } from "../../components/SiteHeader";
@@ -14,6 +14,7 @@ import { ShopFilterFacets } from "../../components/ShopFilterFacets";
 import {
   inferStorefrontTaxonomyIntent,
   resolveStorefrontSubcategoryIntent,
+  STOREFRONT_CATEGORIES,
   storefrontCategoryBySlug,
   storefrontFacetEnabled,
   storefrontLeafForSubcategory
@@ -28,6 +29,7 @@ import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { isReadOnlyPublicCrawlerRequest } from "../../lib/request-audience";
 import { getCachedCrawlerCatalogCards, getCachedPublishedDropshipShopPage, hasLiveLocalShopProducts } from "../../lib/cached-public-shop-page";
 import { getSeoGlobalSettingsSnapshot } from "../../lib/seo-settings";
+import { getCachedShopSupplierFacets } from "../../lib/shop-supplier-facets";
 
 const SHOP_PAGE_SIZE = 30;
 const SHOP_INDEXABLE_QUERY_KEYS = new Set([
@@ -107,6 +109,62 @@ function interleaveHubSearchProducts(
   return result;
 }
 
+function fallbackFacetOptions(values: readonly { value?: string; label?: string }[]): CatalogFacetOption[] {
+  const counts = new Map<string, { label: string; count: number }>();
+  for (const entry of values) {
+    const value = entry.value?.trim();
+    if (!value) continue;
+    const current = counts.get(value);
+    counts.set(value, {
+      label: entry.label?.trim() || current?.label || value,
+      count: (current?.count ?? 0) + 1
+    });
+  }
+  return [...counts.entries()]
+    .map(([value, entry]) => ({ value, label: entry.label, count: entry.count }))
+    .sort((left, right) => left.label.localeCompare(right.label, "el"));
+}
+
+function deriveFallbackFacets(products: readonly ShopCard[]) {
+  return {
+    subcategories: fallbackFacetOptions(products.map((product) => ({
+      value: product.categoryCode,
+      label: product.categoryLabel ?? product.categoryCode
+    }))),
+    brands: fallbackFacetOptions(products.map((product) => ({
+      value: product.brand,
+      label: product.brand
+    }))),
+    colors: fallbackFacetOptions(products.map((product) => ({
+      value: product.color,
+      label: product.color
+    }))),
+    sizes: fallbackFacetOptions(products.flatMap((product) =>
+      product.sizes.map((size) => ({ value: size, label: size }))
+    )),
+    fits: fallbackFacetOptions(products.map((product) => ({
+      value: product.fit,
+      label: product.fit
+    })))
+  };
+}
+
+function mergeFacetOptions(
+  primary: readonly CatalogFacetOption[],
+  fallback: readonly CatalogFacetOption[]
+): readonly CatalogFacetOption[] {
+  if (!fallback.length) return primary;
+  const merged = new Map(primary.map((entry) => [entry.value, entry] as const));
+  for (const entry of fallback) {
+    const existing = merged.get(entry.value);
+    if (!existing) merged.set(entry.value, entry);
+    else if (typeof existing.count !== "number" && typeof entry.count === "number") {
+      merged.set(entry.value, { ...existing, count: entry.count });
+    }
+  }
+  return [...merged.values()];
+}
+
 function shopPageHref(params: Record<string, string | string[] | undefined>, page: number): string {
   const next = new URLSearchParams();
   for (const [key, rawValue] of Object.entries(params)) {
@@ -182,7 +240,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   let attributeFilters: CatalogAttributeFilters = explicitAttributeFilters;
   let resolvedNaturalAttributeFilters: CatalogAttributeFilters = {};
   let subcategory = requestedSubcategory;
-  let filters = { subcategory, brand, color, size };
+  let filters = { subcategory, brand, color, size, fit };
 
   // The Vercel web runtime intentionally uses one PostgreSQL client per instance.
   // Keep DB-backed cache misses sequential: starting presence/SEO reads alongside
@@ -195,7 +253,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     : resolveStorefrontSubcategoryIntent(activeLeaf, taxonomy.facets.subcategories);
   if (inferredSubcategory) {
     subcategory = inferredSubcategory.value;
-    filters = { subcategory, brand, color, size };
+    filters = { subcategory, brand, color, size, fit };
     taxonomy = await getCachedShopTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
   }
   resolvedNaturalAttributeFilters = resolveStorefrontAttributeIntents(
@@ -210,9 +268,8 @@ export default async function ShopPage({ searchParams }: ShopProps) {
 
   const groupedSubcategories = subcategory ? [] : requestedGuideSubcategories;
   const productFilters = { ...filters, fit, subcategories: groupedSubcategories };
-  const facets = taxonomy.facets;
   const attributeFacets = taxonomy.attributeFacets;
-  const availableCategories = taxonomy.categories;
+  const availableCategories = taxonomy.categories.length ? taxonomy.categories : STOREFRONT_CATEGORIES;
   const categoryView = availableCategories.some((item) => item.slug === category) ? storefrontCategoryBySlug(category) : undefined;
   const allowDropship = searchIntent.availability !== "pickup_today";
   let products: ShopCard[] = [];
@@ -354,10 +411,71 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     }
   }
 
+  const fallbackFacetProducts = [...products];
   products = products.filter(purchasablePublicProduct);
   if (availability === "available") products = products.filter((product) => product.available);
-  const fitOptions = [...new Set(products.map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
-  if (fit) products = products.filter((product) => product.fit === fit);
+  const fallbackFacets = deriveFallbackFacets(fallbackFacetProducts);
+
+  // Supplier-backed filters must be derived from the same live family projection
+  // that selects products. The broader taxonomy projection intentionally keeps
+  // discovery vocabulary during stock load-shedding, so it can contain values that
+  // are not currently sellable. Using it as the only facet source creates clickable
+  // options with positive historical counts that correctly return zero live products.
+  const supplierFacets = allowDropship && !readOnlyCrawler
+    ? await getCachedShopSupplierFacets({
+        query: catalogQuery,
+        category,
+        subcategories: subcategory ? [subcategory] : groupedSubcategories,
+        brand,
+        color,
+        size,
+        fit
+      }).catch((error) => {
+        console.error(JSON.stringify({
+          level: "error",
+          event: "storefront.shop_supplier_facets_degraded",
+          message: error instanceof Error ? error.message : String(error)
+        }));
+        return undefined;
+      })
+    : undefined;
+
+  // If there is no live local catalogue, supplier facets are authoritative rather
+  // than additive. This prevents stale discovery-only taxonomy values from leaking
+  // back into a dropship-only filter panel. In a mixed HUB catalogue we merge both
+  // sources so local and supplier-backed choices remain discoverable together.
+  const supplierFacetsAuthoritative = !localProductsAvailable && supplierFacets !== undefined;
+  const liveFacetOptions = (
+    taxonomyOptions: readonly CatalogFacetOption[],
+    supplierOptions: readonly CatalogFacetOption[]
+  ): readonly CatalogFacetOption[] => (
+    supplierFacetsAuthoritative
+      ? supplierOptions
+      : mergeFacetOptions(taxonomyOptions, supplierOptions)
+  );
+
+  const facets = {
+    subcategories: mergeFacetOptions(
+      liveFacetOptions(taxonomy.facets.subcategories, supplierFacets?.categories ?? []),
+      fallbackFacets.subcategories
+    ),
+    brands: mergeFacetOptions(
+      liveFacetOptions(taxonomy.facets.brands, supplierFacets?.brands ?? []),
+      fallbackFacets.brands
+    ),
+    colors: mergeFacetOptions(
+      liveFacetOptions(taxonomy.facets.colors, supplierFacets?.colors ?? []),
+      fallbackFacets.colors
+    ),
+    sizes: mergeFacetOptions(
+      liveFacetOptions(taxonomy.facets.sizes, supplierFacets?.sizes ?? []),
+      fallbackFacets.sizes
+    )
+  };
+  const fitOptions = mergeFacetOptions(
+    liveFacetOptions(taxonomy.fits ?? [], supplierFacets?.fits ?? []),
+    fallbackFacets.fits
+  );
   if (searchIntent.availability === "pickup_today") products = products.filter((product) => product.localProof?.pickup && product.localProof.stockConfirmedToday);
   if (minPriceMinor !== undefined) products = products.filter((product) => product.priceMinor >= minPriceMinor);
   if (maxPriceMinor !== undefined) products = products.filter((product) => product.priceMinor <= maxPriceMinor);
@@ -499,7 +617,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               brands={showBrand ? facets.brands : []}
               colors={showColor ? facets.colors : []}
               sizes={showSize ? facets.sizes : []}
-              fits={showFit ? fitOptions.map((item) => ({ value: item, label: item })) : []}
+              fits={showFit ? fitOptions : []}
               attributeFacets={attributeFacets}
               selectedBrand={brand}
               selectedColor={color}

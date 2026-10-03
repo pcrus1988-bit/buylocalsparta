@@ -37,7 +37,6 @@ type PublishedDropshipPageRow = Readonly<{
   vendor_slug: string;
   vendor_name: string;
   vendor_presentation: unknown;
-  is_match: boolean;
   sort_ordinal: number | string;
 }>;
 
@@ -93,11 +92,6 @@ function categoryPrefixes(category: string): readonly string[] {
   return governed ? governed.aliases.map(normalizeCategory) : [normalized];
 }
 
-function subcategoryValues(filters: CatalogFilters & Readonly<{ fit?: string; subcategories?: readonly string[] }>): readonly string[] {
-  if (filters.subcategory?.trim()) return [filters.subcategory.trim()];
-  return [...new Set((filters.subcategories ?? []).map((value) => value.trim()).filter(Boolean))].slice(0, 64);
-}
-
 /**
  * Dropship source families are selected from the compact read model. Only the
  * selected page is then hydrated from authoritative supplier/offer tables.
@@ -110,7 +104,6 @@ export async function getPublishedDropshipCatalogPage(
   const limit = Math.max(1, Math.min(MAX_PAGE_SIZE, input.limit ?? 30));
   const offset = Math.max(0, input.offset ?? 0);
   const filters = input.filters ?? {};
-  const selectedSubcategories = subcategoryValues(filters);
   const attributeFilters = input.attributeFilters ?? {};
   const prefixes = categoryPrefixes(input.category ?? "");
   const query = (input.query ?? "").trim();
@@ -161,42 +154,8 @@ export async function getPublishedDropshipCatalogPage(
         vo.public_id AS offer_public_id,
         cv.slug,
         COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
-        COALESCE(el.description,en.description,'') AS description,
         c.code AS category_code,
         tree.department_code,
-        COALESCE(b.name,pfb.name) AS brand_name,
-        lower(COALESCE(
-          el.specifications->>'color',
-          en.specifications->>'color',
-          cv.variant_attributes->>'color',
-          ''
-        )) AS color,
-        COALESCE(
-          el.specifications->'sizes',
-          en.specifications->'sizes',
-          cv.variant_attributes->'sizes_observed',
-          '[]'::jsonb
-        ) AS sizes,
-        lower(COALESCE(
-          el.specifications->>'fit',
-          en.specifications->>'fit',
-          ''
-        )) AS fit,
-        to_tsvector(
-          'simple',
-          concat_ws(
-            ' ',
-            COALESCE(el.title,en.title,cv.model,cv.slug),
-            COALESCE(el.description,en.description,''),
-            COALESCE(b.name,pfb.name,''),
-            COALESCE(cv.gtin,''),
-            COALESCE(cv.mpn,''),
-            c.code,
-            tree.department_code
-          )
-        ) AS search_vector,
-        cv.gtin,
-        cv.mpn,
         vo.customer_price_minor,
         vo.msrp_minor,
         dso.cached_quantity,
@@ -219,9 +178,6 @@ export async function getPublishedDropshipCatalogPage(
       JOIN category_tree tree ON tree.id=cv.category_id
       JOIN public.vendor_businesses v ON v.id=vo.vendor_id
       JOIN public.vendor_locations l ON l.id=vo.location_id
-      LEFT JOIN public.product_families pf ON pf.id=cv.family_id
-      LEFT JOIN public.brands b ON b.id=cv.brand_id
-      LEFT JOIN public.brands pfb ON pfb.id=pf.brand_id
       LEFT JOIN public.product_translations el
         ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN public.product_translations en
@@ -268,44 +224,10 @@ export async function getPublishedDropshipCatalogPage(
       vendor_slug,
       vendor_name,
       vendor_presentation,
-      sort_ordinal,
-      (
-        (cardinality($3::text[])=0 OR EXISTS (
-          SELECT 1 FROM unnest($3::text[]) prefix
-          WHERE lower(category_code)=prefix
-             OR lower(category_code) LIKE prefix||'-%'
-             OR lower(department_code)=prefix
-             OR lower(department_code) LIKE prefix||'-%'
-        ))
-        AND (cardinality($4::text[])=0 OR category_code=ANY($4::text[]))
-        AND ($5::text='' OR lower(COALESCE(brand_name,''))=lower($5))
-        AND ($6::text='' OR lower(COALESCE(color,''))=lower($6))
-        AND ($7::text='' OR COALESCE(sizes,'[]'::jsonb) ? $7)
-        AND ($8::text='' OR lower(COALESCE(fit,''))=lower($8))
-        AND ($9::bigint IS NULL OR customer_price_minor>=$9)
-        AND ($10::bigint IS NULL OR customer_price_minor<=$10)
-        AND (
-          $11::text='' OR
-          search_vector @@ plainto_tsquery('simple',$11)
-          OR COALESCE(gtin,'')=$11
-          OR lower(COALESCE(mpn,''))=lower($11)
-        )
-      ) AS is_match
+      sort_ordinal
     FROM base
     ORDER BY sort_ordinal,customer_price_minor,canonical_public_id
-  `, [
-    supplierIds,
-    externalProductIds,
-    prefixes,
-    selectedSubcategories,
-    filters.brand ?? "",
-    filters.color ?? "",
-    filters.size ?? "",
-    filters.fit ?? "",
-    input.minPriceMinor ?? null,
-    input.maxPriceMinor ?? null,
-    query
-  ]);
+  `, [supplierIds, externalProductIds]);
 
   const base = result.rows.flatMap((row) => {
     const priceMinor = safeMinor(row.customer_price_minor);
@@ -332,7 +254,6 @@ export async function getPublishedDropshipCatalogPage(
       vendorSlug: row.vendor_slug,
       vendorName: row.vendor_name,
       publicFields: presentation.fields,
-      matchedBySql: row.is_match
     }];
   });
   if (!base.length) return { products: [], total, hasMore: familyWindowHasMore };
@@ -340,7 +261,13 @@ export async function getPublishedDropshipCatalogPage(
   const ids = base.map((record) => record.id);
   const metadata = await loadCatalogMetadata(ids);
   const matchingIds = new Set(base.flatMap((record) => {
-    if (!record.matchedBySql) return [];
+    // Family discovery already applied category, brand, color, size, fit, price and
+    // search filters against the maintained supplier-family projection. Rechecking
+    // those dimensions against one canonical child here is incorrect: supplier
+    // family facets can be richer than the canonical child metadata, so a family
+    // with a real matching color/size/fit was being discarded during hydration.
+    // Keep the selected family and only apply governed structured attributes here,
+    // because those attributes are intentionally canonical-variant specific.
     if (Object.keys(attributeFilters).length === 0) return [record.id];
     if (record.publicFields.technicalAttributes === false) return [];
     return matchesCatalogAttributeFilters(metadata.get(record.id)?.attributes, attributeFilters) ? [record.id] : [];

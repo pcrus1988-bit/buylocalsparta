@@ -10,6 +10,7 @@ import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 import { productPublicPath } from "../../../lib/product-url";
 import { getCachedCrawlerCatalogCards } from "../../../lib/cached-public-shop-page";
 import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "../../../lib/storefront-taxonomy";
+import { getCachedShopSupplierFacets } from "../../../lib/shop-supplier-facets";
 
 export const revalidate = 900;
 export const dynamicParams = true;
@@ -72,6 +73,15 @@ export default async function CategoryPage({ params }: Props) {
   // are infrequent and should serialize DB-backed cache misses rather than queue
   // several reads for the same single pool slot.
   const products = await getBoundedCategoryProducts(category.slug);
+  const supplierFacets = await getCachedShopSupplierFacets({ category: category.slug }).catch((error) => {
+    console.error(JSON.stringify({
+      level: "error",
+      event: "storefront.category_supplier_facets_degraded",
+      category: category.slug,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return undefined;
+  });
   const { settings } = await getSeoGlobalSettingsSnapshot();
   const overrideSnapshot = await getSeoEntityOverridesSnapshot();
   const purchasableProducts = products.filter((product) => product.available && product.priceMinor > 0 && Boolean(product.vendorId));
@@ -178,7 +188,18 @@ export default async function CategoryPage({ params }: Props) {
           </div>
           {purchasableProducts.length ? (
             <>
-              <CategoryCatalogBrowser products={purchasableProducts} categoryName={category.label} />
+              <CategoryCatalogBrowser
+                products={purchasableProducts}
+                categoryName={category.label}
+                categorySlug={category.slug}
+                fullFacets={supplierFacets ? {
+                  subcategories: supplierFacets.categories,
+                  brands: supplierFacets.brands,
+                  colors: supplierFacets.colors,
+                  sizes: supplierFacets.sizes,
+                  fits: supplierFacets.fits
+                } : undefined}
+              />
               <div style={{ marginTop: 24 }}>
                 <a className="button" href={`/shop?category=${encodeURIComponent(category.slug)}`}>Δες όλη την κατηγορία και όλα τα φίλτρα</a>
               </div>
