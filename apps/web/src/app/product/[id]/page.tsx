@@ -10,6 +10,7 @@ import { SiteHeader } from "../../../components/SiteHeader";
 import { ProductAccountActions } from "../../../components/ProductAccountActions";
 import { ProductDetailSections, type ProductDetailRow } from "../../../components/ProductDetailSections";
 import { ProductSuitability } from "../../../components/ProductSuitability";
+import { SportFitProductIntelligence } from "../../../components/SportFitProductIntelligence";
 import { ProductVariantSelector } from "../../../components/ProductVariantSelector";
 import { ProductVendorHumanCard } from "../../../components/ProductVendorHumanCard";
 import { PublicPriceComparison } from "../../../components/PublicPriceComparison";
@@ -159,6 +160,14 @@ function publicTechnicalAttributes(attributes: readonly PublicTechnicalAttribute
 
 function customerTechnicalAttributes(attributes: readonly PublicTechnicalAttribute[]): readonly PublicTechnicalAttribute[] {
   return attributes.filter((attribute) => !isCompatibilityPresentationKey(attribute.key));
+}
+
+function isLikelySportFootwear(product: Readonly<{ title: string; categoryCode?: string; categoryLabel?: string }>): boolean {
+  const text = [product.title, product.categoryCode, product.categoryLabel]
+    .filter(Boolean)
+    .join(" ")
+    .toLocaleLowerCase("el-GR");
+  return /(running|sneaker|shoe|footwear|boot|trainer|hiking|trail|basketball|tennis|padel|volleyball|handball|badminton|football|soccer|παπουτσ|υποδημ)/iu.test(text);
 }
 
 function isPackagingAttribute(attribute: PublicTechnicalAttribute): boolean {
@@ -640,6 +649,18 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <ProductBrandTitle title={displayTitle} brand={displayBrand} logoObjectKey={product.brandLogoObjectKey} />
 
           <ProductVariantSelector currentVariantId={product.id} title={variantSelectorTitle} options={variantOptions} varyingKeys={varyingVariantKeys} />
+
+          {isLikelySportFootwear(product) ? (
+            <SportFitProductIntelligence
+              productId={product.id}
+              vendorId={product.vendorId}
+              title={displayTitle}
+              brand={displayBrand}
+              imageSrc={cartImageUrl}
+              sizes={meaningfulSizes}
+              availableToSell={product.availableToSell}
+            />
+          ) : null}
 
           <div className="purchase-card" style={{ marginTop: 18 }}>
             <div>
