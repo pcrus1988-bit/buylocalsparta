@@ -732,4 +732,20 @@ The exact adidas Mexico product source adds `sport_use_case=long_run`, `fit_leng
 Schema 396 intentionally keeps cushioning level, support level, width profile, toe-box profile, plate type and weather protection unknown until direct evidence exists. Technical facts remain canonical-family knowledge; live size/stock remains vendor-offer/inventory state.
 
 
-The exact committed schemas 395 and 396 were replayed together against live production schema 394 inside one transaction ending in `ROLLBACK`. All family-identity, baseline, fact/evidence, unsupported-inference, knowledge-refresh and enrichment-queue assertions passed. Post-rehearsal verification confirmed the rehearsal introduced no persistent source/fact rows. The pending runtime schema gate is **396** until these migrations are merged and applied.
+The exact committed schemas 395 and 396 were replayed together against live production schema 394 inside one transaction ending in `ROLLBACK`. All family-identity, baseline, fact/evidence, unsupported-inference, knowledge-refresh and enrichment-queue assertions passed. Post-rehearsal verification confirmed the rehearsal introduced no persistent source/fact rows. Schemas 395 and 396 were merged as PR #1268 and applied atomically to production with their immutable SHA-256 checksums. Live read-back confirmed the expected four-family fact/evidence state, zero conflicts, and production migration-ledger versions 395–396.
+
+
+## Schema 397 — post-enrichment queue hygiene
+
+Migration `0397_sport_fit_post_enrichment_queue_hygiene.sql` fixes a live queue-regression discovered immediately after the schema-396 read-back. The four enriched families still requested fields that were already normalized, which would waste research capacity and risk duplicate/conflicting future evidence.
+
+- `JR9720`: removes already-governed `sport_activity` and the non-applicable `football_surface_code`.
+- `KK4280`: removes already-governed `sport_activity`, `sport_surface`, `sport_use_case`, fit and geometry/weight requests, plus `football_surface_code`.
+- `KQ9728` and `KR2147`: remove already-governed `sport_activity` and `moisture_wicking`.
+
+The migration derives the remaining queue directly from normalized family facts, changes no technical fact/evidence, and fails closed if any target identity, governed baseline or expected unresolved field set has drifted.
+
+The pending runtime schema gate is **397** until this reconciliation is merged and applied.
+
+
+The exact schema-397 migration was replayed against live production schema 396 inside a transaction ending in `ROLLBACK`. It removed all seven already-normalized requests and both non-applicable football-surface requests inside the rehearsal, passed its exact unresolved-field assertions, and post-rollback verification confirmed production still retained the original 7 + 2 stale requests.
