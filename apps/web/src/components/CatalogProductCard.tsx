@@ -55,7 +55,7 @@ function StaticPublicCatalogPrice({
   savingLabel?: string;
   prominentSavings: boolean;
 }) {
-  return <div className="price">
+  return <div className={`price ${styles.priceText}`}>
     {msrpMinor !== undefined && !prominentSavings ? <div className={styles.msrpRow}>
       <s aria-label={`Προτεινόμενη λιανική ${formatEuroMinor(msrpMinor)}`} className={styles.msrpInline}>ΠΛΤ {formatEuroMinor(msrpMinor)}</s>
       {savingLabel ? <span aria-label={`Όφελος ${savingLabel}% σε σχέση με την προτεινόμενη λιανική`} className={styles.inlineSavings}>−{savingLabel}% vs ΠΛΤ</span> : null}
@@ -148,8 +148,8 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
   const brandLabel = `Δες ${displayTitle}`;
 
   return (
-    <article className={`product-card${index >= 6 ? ` ${styles.deferredCard}` : ""}`}>
-      <Link href={productHref} prefetch={false} className={`product-art ${category.artClass}`} aria-label={brandLabel}>
+    <article className={`product-card ${styles.visualCard}${index >= 6 ? ` ${styles.deferredCard}` : ""}`}>
+      <Link href={productHref} prefetch={false} className={`product-art ${category.artClass} ${styles.visualArt}`} aria-label={brandLabel}>
         {governedSourceFallback ? <span className="art-category">{category.name}</span> : null}
         {governedSourceFallback ? <span className="art-symbol" aria-hidden="true">{category.symbol}</span> : null}
         {governedSourceFallback ? <span className="art-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span> : null}
@@ -188,8 +188,8 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
           </span>
         ) : null}
       </Link>
-      <div className="product-body">
-        <div className="eyebrow">{product.categoryLabel ?? category.label}</div>
+      <div className={`product-body ${styles.visualBody}`}>
+        <div className={`eyebrow ${styles.categoryPill}`}>{product.categoryLabel ?? category.label}</div>
         <div className={`catalog-card-title-stack ${styles.titleStack}`}>
           {product.brand ? product.brandLogoObjectKey ? <BrandMarketplaceLink
             brand={product.brand}
@@ -218,9 +218,9 @@ export function CatalogProductCard({ product, index = 0, vendorContext, demoVend
           />
         </div>
         {!demoMode && vendorStorefrontListing && !product.available
-          ? <p className="catalog-card-vendor">Διαθεσιμότητα κατόπιν επιβεβαίωσης από το κατάστημα</p>
-          : (!supplierFulfilled && vendorName ? <p className="catalog-card-vendor">{vendorName}</p> : null)}
-        {!demoMode && !supplierFulfilled && product.available ? <LocalCommerceProof proof={product.localProof} compact /> : null}
+          ? <p className={`catalog-card-vendor ${styles.vendorLine}`}>Διαθεσιμότητα κατόπιν επιβεβαίωσης από το κατάστημα</p>
+          : (!supplierFulfilled && vendorName ? <p className={`catalog-card-vendor ${styles.vendorLine}`}>{vendorName}</p> : null)}
+        {!demoMode && !supplierFulfilled && product.available ? <div className={styles.localProof}><LocalCommerceProof proof={product.localProof} compact /></div> : null}
       </div>
     </article>
   );
