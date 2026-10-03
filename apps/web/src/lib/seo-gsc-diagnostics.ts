@@ -11,6 +11,8 @@ import {
   inspectAndPersistSearchConsoleUrlSystem,
   syncSearchConsoleHistorySystem
 } from "./seo-gsc-history";
+import { getPublicVendorSitemapInventory } from "./vendor-sitemap-inventory";
+import { researchVendorIndexEligibility } from "./seo-visibility-policy";
 
 const INSPECTION_BATCH_SIZE = 24;
 const CONCURRENCY = 4;
@@ -48,7 +50,11 @@ function errorText(error: unknown): string {
     .slice(0, 700);
 }
 
-async function inspectionCandidates(canonicalOrigin: string): Promise<readonly string[]> {
+async function inspectionCandidates(
+  canonicalOrigin: string,
+  researchVendorMinimumScore: number,
+  researchVendorIndexingEnabled: boolean
+): Promise<readonly string[]> {
   if (!productionDatabaseConfigured()) return [];
   const origin = new URL(canonicalOrigin).origin;
   const runtime = getProductionPostgresRuntime();
@@ -67,6 +73,7 @@ async function inspectionCandidates(canonicalOrigin: string): Promise<readonly s
       WHERE u.active=true
         AND u.desired_indexable=true
         AND u.route NOT LIKE '/product/%'
+        AND u.route NOT LIKE '/vendor/%'
     ), core AS (
       SELECT route,last_inspected_at
       FROM eligible
@@ -79,23 +86,46 @@ async function inspectionCandidates(canonicalOrigin: string): Promise<readonly s
       WHERE route LIKE '/category/%'
       ORDER BY last_inspected_at ASC NULLS FIRST,route
       LIMIT 4
-    ), vendors AS (
-      SELECT route,last_inspected_at
-      FROM eligible
-      WHERE route LIKE '/vendor/%'
-      ORDER BY last_inspected_at ASC NULLS FIRST,route
-      LIMIT 8
     ), sampled AS (
       SELECT route,last_inspected_at,0 AS priority FROM core
       UNION ALL
       SELECT route,last_inspected_at,1 AS priority FROM categories
-      UNION ALL
-      SELECT route,last_inspected_at,2 AS priority FROM vendors
     )
     SELECT $1 || route AS inspection_url
     FROM sampled
     ORDER BY priority,last_inspected_at ASC NULLS FIRST,route
   `, [origin, marketCode()]);
+
+  // The persisted SEO URL registry predates the September research-vendor policy
+  // recovery and can be stale between manual admin refreshes. Vendor inspection
+  // sampling therefore comes from the same lightweight current projection and
+  // eligibility rule used by the sitemap, while inspection history still decides
+  // which eligible vendors are sampled first.
+  const vendorInventory = await getPublicVendorSitemapInventory();
+  const vendorRoutes = vendorInventory.flatMap((vendor) => {
+    if (vendor.directoryStatus === "partner") return [`/vendor/${encodeURIComponent(vendor.id)}`];
+    const quality = researchVendorIndexEligibility(vendor, {
+      enabled: researchVendorIndexingEnabled,
+      minimumScore: researchVendorMinimumScore
+    });
+    return quality.eligible ? [`/vendor/${encodeURIComponent(vendor.id)}`] : [];
+  });
+  const vendorHistory = vendorRoutes.length
+    ? await runtime.nativePool.query<{ route: string; last_inspected_at: Date | string | null }>(`
+        SELECT requested.route,max(i.captured_at) AS last_inspected_at
+        FROM unnest($1::text[]) requested(route)
+        LEFT JOIN public.seo_gsc_url_inspections i ON i.route=requested.route
+        GROUP BY requested.route
+      `, [vendorRoutes])
+    : { rows: [] as { route: string; last_inspected_at: Date | string | null }[] };
+  const vendorUrls = vendorHistory.rows
+    .sort((left,right) => {
+      const leftTime = left.last_inspected_at ? new Date(left.last_inspected_at).getTime() : 0;
+      const rightTime = right.last_inspected_at ? new Date(right.last_inspected_at).getTime() : 0;
+      return leftTime - rightTime || left.route.localeCompare(right.route);
+    })
+    .slice(0,8)
+    .map((row) => origin + row.route);
 
   const products = await runtime.nativePool.query<CandidateRow>(`
     WITH preferred AS (
@@ -133,7 +163,7 @@ async function inspectionCandidates(canonicalOrigin: string): Promise<readonly s
   `);
 
   return [...new Set(
-    [...governed.rows, ...products.rows]
+    [...governed.rows, ...vendorUrls.map((inspection_url) => ({ inspection_url })), ...products.rows]
       .map((row) => row.inspection_url?.trim())
       .filter((value): value is string => Boolean(value))
   )].slice(0, INSPECTION_BATCH_SIZE);
@@ -194,7 +224,11 @@ export async function syncSeoGscDiagnostics(): Promise<SeoGscDiagnosticsResult> 
     syncSearchConsoleHistorySystem()
   ]);
   const sitemap = await reconcileSitemaps(settings.canonicalOrigin);
-  const candidates = await inspectionCandidates(settings.canonicalOrigin);
+  const candidates = await inspectionCandidates(
+    settings.canonicalOrigin,
+    settings.researchVendorMinimumScore,
+    settings.researchVendorIndexingEnabled
+  );
   const errors: string[] = [];
   let pass = 0;
   let neutral = 0;
