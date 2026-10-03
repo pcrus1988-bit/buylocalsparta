@@ -367,11 +367,11 @@ function assetCandidates(html: string, pageUrl: string, brand: string): AssetCan
     const rawBrandHit = tokens.some((t) => foldedRaw.includes(t));
     const rawLogoHint = /(?:logo|wordmark|brandmark|header[-_ ]?logo|site[-_ ]?logo)/i.test(raw || "");
     const altLogoHint = /(?:logo|wordmark|brandmark)/i.test(altRaw);
-    const obviousNonBrandAsset = /(?:mastercard|visa|amex|paypal|payment|wishlist|heart|search|instagram|facebook|messenger|flag|campaign|chasing[-_ ]?summer)/i.test(raw || "");
+    const obviousNonBrandAsset = /(?:american[-_ ]?express|mastercard|visa|amex|paypal|klarna|afterpay|clearpay|apple[-_ ]?pay|google[-_ ]?pay|shop[-_ ]?pay|discover|diners|unionpay|payment|wishlist|heart|search|instagram|facebook|messenger|flag|campaign|chasing[-_ ]?summer)/i.test(raw || "");
     // A generic "logo" filename can be a payment, campaign or partner mark.
     // Require explicit brand identity in either the asset path or alt text.
     if (obviousNonBrandAsset) continue;
-    if (!(rawLogoHint && (rawBrandHit || brandAltHit))) continue;
+    if (!(rawLogoHint && rawBrandHit)) continue;
     addUrl(raw, rawBrandHit && brandAltHit ? 170 : 155, "logo_img");
   }
 
