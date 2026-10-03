@@ -740,6 +740,9 @@ test("gym treadmill explicitly accepts governed running footwear", () => {
   });
 
   assert.equal(scored.technicalEligible, true);
+  assert.equal(azura.knowledge?.plateType, "none");
+  assert.equal(azura.knowledge?.heelStackMm, 40);
+  assert.equal(azura.knowledge?.forefootStackMm, 32);
   assert.ok(scored.score > 0);
 });
 
