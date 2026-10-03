@@ -72,7 +72,7 @@ INSERT INTO public.sport_knowledge_sources(
 )
 SELECT
   f.source_key,
-  'manufacturer_product_page',
+  'manufacturer_product',
   'On',
   CASE f.style_code
     WHEN '3WF10061043' THEN 'Women''s Cloud 6 Black | Black · 3WF10061043'
