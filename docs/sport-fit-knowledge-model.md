@@ -724,5 +724,7 @@ The migration adds three exact manufacturer surface fact/evidence pairs, refresh
 
 Regression coverage protects road + trail matching for governed multi-surface running footwear and confirms that a general-training shoe with positive street-surface evidence is not hard-rejected for a gym treadmill request, because gym surface is not modeled as an exhaustive footwear-surface whitelist.
 
+The exact schema-395 migration was replayed against live production schema 394 with the terminal transaction changed to `ROLLBACK`. Exact identity/source guards, three surface fact/evidence inserts, knowledge refresh, queue pruning, unsupported-inference guards and final assertions all passed without persisting rehearsal rows.
+
 The runtime schema gate is now **395**.
 
