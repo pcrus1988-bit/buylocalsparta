@@ -67,10 +67,6 @@
       "schedule": "17 * * * *"
     },
     {
-      "path": "/api/cron/seo-production-metrics",
-      "schedule": "37 4 * * *"
-    },
-    {
       "path": "/api/cron/seo-gsc-diagnostics",
       "schedule": "47 */6 * * *"
     }
