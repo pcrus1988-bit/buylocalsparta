@@ -711,3 +711,22 @@ The migration fails closed unless both style codes still resolve to exactly one 
 The exact schema-394 migration was replayed against live production schema 393 inside a transaction ending in `ROLLBACK`; both target queues reduced to the expected unresolved field sets and no technical fact/evidence row changed.
 
 Schema 394 was merged as PR #1265 and applied to production with checksum `a8d287357d40148a9df4de72e56a74d36230c956c276e732772260589471d233`. Live read-back confirmed JP9203 now requests only five genuinely unresolved fields and JQ6920 only six, with no already-normalized or football-only request remaining. The global runtime schema gate and production database are now **394**.
+
+
+## Schema 395 — recover stranded sellable Sport & Fit knowledge
+
+Migration `0395_sport_fit_stranded_sellable_refinements.sql` ports the still-unapplied four-family direct-evidence batch from the superseded schema-392 branch onto the current production baseline after schemas 392–394 were independently occupied.
+
+- Terrex Anylander J `JR9720`: exact connected Kerasiotis feed evidence adds `sport_activity=hiking`. Traxion/uneven-surface wording remains source context and is not promoted to a governed trail-surface fact.
+- Response 2 M `KK4280`: exact connected Kerasiotis feed evidence adds `sport_activity=running` and `sport_surface=road` from explicit running/asphalt wording. Cloudfoam+ language is not converted into cushioning or support intensity.
+- Essentials Climacool `KQ9728` and `KR2147`: exact connected-feed evidence adds `sport_activity=general_training` and `moisture_wicking=true` from explicit training plus sweat/moisture-removal wording. Ventilation language is deliberately not graded into `breathability_level`.
+
+All four families were still sellable and still queued for initial Sport & Fit backfill on production schema 394. The migration retains vendor-feed evidence at its existing lower evidence tier, fails closed on exact family identity, refreshes the canonical-family knowledge projection, removes only facts that are now genuinely resolved from the queue, and forbids unsupported cushioning/support/breathability/surface inference.
+
+## Schema 396 — exact adidas Response 2 KK4280 deepening
+
+Migration `0396_sport_fit_verified_adidas_response2_kk4280.sql` adds first-party adidas evidence to the same sellable `KK4280` canonical family after schema 395 establishes its running/road baseline.
+
+The exact adidas Mexico product source adds `sport_use_case=long_run`, `fit_length_profile=true_to_size`, `heel_to_toe_drop_mm=8`, `heel_stack_height_mm=32`, `forefoot_stack_height_mm=24`, and `shoe_weight_g=301`. Classic-fit and Cloudfoam+ wording remain non-authoritative for governed width/cushioning intensity.
+
+Schema 396 intentionally keeps cushioning level, support level, width profile, toe-box profile, plate type and weather protection unknown until direct evidence exists. Technical facts remain canonical-family knowledge; live size/stock remains vendor-offer/inventory state.
