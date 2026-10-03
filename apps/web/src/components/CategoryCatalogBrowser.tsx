@@ -68,6 +68,28 @@ function countedFacetOptions(entries: readonly { value?: string; label?: string 
     .sort((left, right) => left.label.localeCompare(right.label, "el"));
 }
 
+function mergeFacetOptions(
+  primary: readonly FacetOption[],
+  secondary: readonly FacetOption[]
+): readonly FacetOption[] {
+  const merged = new Map<string, FacetOption>();
+  for (const entry of [...primary, ...secondary]) {
+    const key = entry.value.trim().toLocaleLowerCase("en");
+    if (!key) continue;
+    const current = merged.get(key);
+    merged.set(key, current
+      ? {
+          value: current.value || entry.value,
+          label: current.label || entry.label || entry.value,
+          count: Math.max(current.count, entry.count)
+        }
+      : entry);
+  }
+  return [...merged.values()].sort((left, right) =>
+    right.count - left.count || left.label.localeCompare(right.label, "el")
+  );
+}
+
 function rank(value: string): number {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
@@ -142,7 +164,23 @@ function audienceLabel(value: FashionAudience): string {
   return value === "women" ? "Γυναικεία" : value === "men" ? "Ανδρικά" : "Αξεσουάρ & τσάντες";
 }
 
-export function CategoryCatalogBrowser({ products, categoryName }: { products: readonly CatalogCard[]; categoryName: string }) {
+export function CategoryCatalogBrowser({
+  products,
+  categoryName,
+  categorySlug,
+  fullFacets
+}: {
+  products: readonly CatalogCard[];
+  categoryName: string;
+  categorySlug: string;
+  fullFacets?: Readonly<{
+    subcategories: readonly FacetOption[];
+    brands: readonly FacetOption[];
+    colors: readonly FacetOption[];
+    sizes: readonly FacetOption[];
+    fits: readonly FacetOption[];
+  }>;
+}) {
   const [query, setQuery] = useState("");
   const [subcategory, setSubcategory] = useState("all");
   const [brand, setBrand] = useState("all");
@@ -158,18 +196,27 @@ export function CategoryCatalogBrowser({ products, categoryName }: { products: r
   const [fashionTotal, setFashionTotal] = useState(0);
   const [fashionLoading, setFashionLoading] = useState(isFashion);
 
-  const subcategories = useMemo(() => countedFacetOptions(products.map((product) => ({
+  const localSubcategories = useMemo(() => countedFacetOptions(products.map((product) => ({
     value: product.categoryCode,
     label: product.categoryLabel ?? product.categoryCode
   }))), [products]);
-  const brands = useMemo(() => unique(products.map((product) => product.brand)), [products]);
-  const colors = useMemo(() => unique(products.map((product) => product.color)), [products]);
-  const fits = useMemo(() => unique(products.map((product) => product.fit)), [products]);
+  const localBrands = useMemo(() => countedFacetOptions(products.map((product) => ({
+    value: product.brand,
+    label: product.brand
+  }))), [products]);
+  const localColors = useMemo(() => countedFacetOptions(products.map((product) => ({
+    value: product.color,
+    label: product.color
+  }))), [products]);
+  const localFits = useMemo(() => countedFacetOptions(products.map((product) => ({
+    value: product.fit,
+    label: product.fit
+  }))), [products]);
   const sizeDomain = useMemo(
     () => inferCatalogSizeDomain(products.flatMap((product) => [product.categoryCode, product.categoryLabel ?? ""])),
     [products]
   );
-  const sizes = useMemo(() => {
+  const localSizes = useMemo(() => {
     const counts = new Map<string, number>();
     for (const product of products) {
       for (const raw of product.sizes) {
@@ -182,9 +229,45 @@ export function CategoryCatalogBrowser({ products, categoryName }: { products: r
       sizeDomain
     );
   }, [products, sizeDomain]);
+  const subcategories = useMemo(
+    () => mergeFacetOptions(fullFacets?.subcategories ?? [], localSubcategories),
+    [fullFacets?.subcategories, localSubcategories]
+  );
+  const brands = useMemo(
+    () => mergeFacetOptions(fullFacets?.brands ?? [], localBrands),
+    [fullFacets?.brands, localBrands]
+  );
+  const colors = useMemo(
+    () => mergeFacetOptions(fullFacets?.colors ?? [], localColors),
+    [fullFacets?.colors, localColors]
+  );
+  const sizes = useMemo(
+    () => mergeFacetOptions(fullFacets?.sizes ?? [], localSizes),
+    [fullFacets?.sizes, localSizes]
+  );
+  const fits = useMemo(
+    () => mergeFacetOptions(fullFacets?.fits ?? [], localFits),
+    [fullFacets?.fits, localFits]
+  );
+  const hasFullCatalogFacets = Boolean(
+    fullFacets && (
+      fullFacets.subcategories.length
+        || fullFacets.brands.length
+        || fullFacets.colors.length
+        || fullFacets.sizes.length
+        || fullFacets.fits.length
+    )
+  );
 
   useEffect(() => {
     if (!isFashion) return;
+    const serverFashionFacets = (fullFacets?.subcategories ?? []).filter(isFashionFacet);
+    if (serverFashionFacets.length) {
+      setFashionFacets(serverFashionFacets);
+      setFashionTotal(serverFashionFacets.reduce((sum, entry) => sum + entry.count, 0));
+      setFashionLoading(false);
+      return;
+    }
     let cancelled = false;
     const load = async () => {
       try {
@@ -204,7 +287,7 @@ export function CategoryCatalogBrowser({ products, categoryName }: { products: r
     };
     void load();
     return () => { cancelled = true; };
-  }, [isFashion]);
+  }, [fullFacets?.subcategories, isFashion]);
 
   useEffect(() => {
     if (!guideOpen) return;
@@ -253,6 +336,19 @@ export function CategoryCatalogBrowser({ products, categoryName }: { products: r
     setGuideOpen(true);
   };
 
+  const applyFacet = (key: "subcategory" | "brand" | "color" | "size" | "fit", value: string) => {
+    if (!hasFullCatalogFacets || value === "all") {
+      if (key === "subcategory") setSubcategory(value);
+      else if (key === "brand") setBrand(value);
+      else if (key === "color") setColor(value);
+      else if (key === "size") setSize(value);
+      else setFit(value);
+      return;
+    }
+    const params = new URLSearchParams({ category: categorySlug, [key]: value });
+    window.location.assign(`/shop?${params.toString()}`);
+  };
+
   const audienceEntries = guideAudience ? fashionFacets.filter((entry) => audienceFor(entry) === guideAudience) : [];
   const groups = buildGroups(audienceEntries);
   const selectedGroup = guideFamily ? groups.find((group) => group.key === guideFamily) : undefined;
@@ -289,11 +385,11 @@ export function CategoryCatalogBrowser({ products, categoryName }: { products: r
       <button className="categoryFilterToggle" type="button" aria-expanded={filtersOpen} aria-controls="category-filter-fields" onClick={() => setFiltersOpen((value) => !value)}>Φίλτρα{activeFilterCount ? ` · ${activeFilterCount}` : ""}<span aria-hidden="true">{filtersOpen ? "×" : "☰"}</span></button>
       <div id="category-filter-fields" className={`categoryFilterFields${filtersOpen ? " isOpen" : ""}`}>
         {isFashion ? <button className="guideInlineButton" type="button" onClick={restartGuide}>Οδηγός κατηγορίας</button> : null}
-        {subcategories.length > 1 && <label><span>Υποκατηγορία</span><select value={subcategory} onChange={(event) => setSubcategory(event.target.value)}><option value="all">Όλες</option>{subcategories.map((entry) => <option value={entry.value} key={entry.value}>{entry.label} ({entry.count})</option>)}</select></label>}
-        {brands.length > 1 && <label><span>Μάρκα</span><select value={brand} onChange={(event) => setBrand(event.target.value)}><option value="all">Όλες</option>{brands.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>}
-        {colors.length > 1 && <label><span>Χρώμα</span><select value={color} onChange={(event) => setColor(event.target.value)}><option value="all">Όλα</option>{colors.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>}
-        {sizes.length > 1 && <label><span>Μέγεθος</span><select value={size} onChange={(event) => setSize(event.target.value)}><option value="all">Όλα</option>{sizes.map((entry) => <option value={entry.value} key={entry.value}>{entry.label}{entry.count > 0 ? ` (${entry.count})` : ""}</option>)}</select></label>}
-        {fits.length > 1 && <label><span>Γραμμή / Fit</span><select value={fit} onChange={(event) => setFit(event.target.value)}><option value="all">Όλα</option>{fits.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>}
+        {subcategories.length > 1 && <label><span>Υποκατηγορία</span><select value={subcategory} onChange={(event) => applyFacet("subcategory", event.target.value)}><option value="all">Όλες</option>{subcategories.map((entry) => <option value={entry.value} key={entry.value}>{entry.label} ({entry.count})</option>)}</select></label>}
+        {brands.length > 1 && <label><span>Μάρκα</span><select value={brand} onChange={(event) => applyFacet("brand", event.target.value)}><option value="all">Όλες</option>{brands.map((entry) => <option value={entry.value} key={entry.value}>{entry.label}{entry.count > 0 ? ` (${entry.count})` : ""}</option>)}</select></label>}
+        {colors.length > 1 && <label><span>Χρώμα</span><select value={color} onChange={(event) => applyFacet("color", event.target.value)}><option value="all">Όλα</option>{colors.map((entry) => <option value={entry.value} key={entry.value}>{entry.label}{entry.count > 0 ? ` (${entry.count})` : ""}</option>)}</select></label>}
+        {sizes.length > 1 && <label><span>Μέγεθος</span><select value={size} onChange={(event) => applyFacet("size", event.target.value)}><option value="all">Όλα</option>{sizes.map((entry) => <option value={entry.value} key={entry.value}>{entry.label}{entry.count > 0 ? ` (${entry.count})` : ""}</option>)}</select></label>}
+        {fits.length > 1 && <label><span>Γραμμή / Fit</span><select value={fit} onChange={(event) => applyFacet("fit", event.target.value)}><option value="all">Όλα</option>{fits.map((entry) => <option value={entry.value} key={entry.value}>{entry.label}{entry.count > 0 ? ` (${entry.count})` : ""}</option>)}</select></label>}
       </div>
     </div>
 
