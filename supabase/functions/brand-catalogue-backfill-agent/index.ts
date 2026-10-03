@@ -1,7 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import postgres from "npm:postgres@3.4.7";
 
-const EXPECTED_TOKEN_SHA256 = "6939601f1e372b7e9578cd0ecab113f6bc075ca0ee57e1927683d73932e24935";
 const WORKER_COUNT = 5;
 const BATCH_LIMIT = 2;
 const FETCH_TIMEOUT_MS = 9000;
@@ -35,11 +34,6 @@ function jsonHeaders(extra: Record<string, string> = {}) {
   return { "content-type": "application/json", ...extra };
 }
 
-async function sha256(value: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest)).map((x) => x.toString(16).padStart(2, "0")).join("");
-}
-
 function fold(value: string) {
   return value.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
 }
@@ -61,17 +55,138 @@ function coreTokens(value: string) {
   return fold(value).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !stop.has(w));
 }
 
+function isIpLiteral(host: string) {
+  const h = host.replace(/^\[|\]$/g, "");
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(h) || h.includes(":");
+}
+
+function isPublicIpv4(ip: string) {
+  const p = ip.split(".").map(Number);
+  if (p.length !== 4 || p.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return false;
+  const [a, b, c] = p;
+  if (a === 0 || a === 10 || a === 127 || a >= 224) return false;
+  if (a === 100 && b >= 64 && b <= 127) return false;
+  if (a === 169 && b === 254) return false;
+  if (a === 172 && b >= 16 && b <= 31) return false;
+  if (a === 192 && b === 168) return false;
+  if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
+  if (a === 192 && b === 88 && c === 99) return false;
+  if (a === 198 && (b === 18 || b === 19)) return false;
+  if (a === 198 && b === 51 && c === 100) return false;
+  if (a === 203 && b === 0 && c === 113) return false;
+  return true;
+}
+
+function isPublicIpv6(ip: string) {
+  const h = ip.toLowerCase().replace(/^\[|\]$/g, "");
+  if (h.startsWith("::ffff:")) {
+    const mapped = h.slice("::ffff:".length);
+    return /^\d/.test(mapped) ? isPublicIpv4(mapped) : false;
+  }
+  if (h === "::" || h === "::1" || h.startsWith("fc") || h.startsWith("fd") || /^fe[89ab]/.test(h) || h.startsWith("ff")) return false;
+  if (h.startsWith("2001:db8")) return false;
+  const first = Number.parseInt(h.split(":")[0] || "0", 16);
+  return Number.isFinite(first) && first >= 0x2000 && first <= 0x3fff;
+}
+
+function isPublicIp(ip: string) {
+  return ip.includes(":") ? isPublicIpv6(ip) : isPublicIpv4(ip);
+}
+
 function safeHttps(raw: string, base?: string) {
   try {
     const u = new URL(raw.trim().replaceAll("&amp;", "&"), base);
     if (u.protocol !== "https:" || u.username || u.password) return undefined;
-    const host = u.hostname.toLowerCase();
-    if (!host.includes(".") || host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) return undefined;
-    if (/^(?:127\.|0\.0\.0\.0$|\[?::1\]?$)/i.test(host)) return undefined;
+    const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    if (!host.includes(".") || host === "localhost") return undefined;
+    if ([".local", ".internal", ".localhost", ".home", ".lan", ".test", ".invalid"].some((s) => host.endsWith(s))) return undefined;
+    if (isIpLiteral(host)) return undefined;
     return u.toString();
   } catch {
     return undefined;
   }
+}
+
+const hostSafetyCache = new Map<string, Promise<boolean>>();
+
+async function hostResolvesPublic(host: string) {
+  const normalized = host.toLowerCase().replace(/^\[|\]$/g, "");
+  let cached = hostSafetyCache.get(normalized);
+  if (cached) return cached;
+  cached = (async () => {
+    const lookup = async (type: "A" | "AAAA") => {
+      const resp = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(normalized)}&type=${type}`, {
+        redirect: "error",
+        signal: AbortSignal.timeout(3500),
+        headers: { accept: "application/dns-json" }
+      });
+      if (!resp.ok) throw new Error(`dns_http_${resp.status}`);
+      const data = await resp.json() as { Answer?: Array<{ data?: string }> };
+      return (data.Answer ?? [])
+        .map((x) => (x.data || "").trim())
+        .filter((x) => type === "A" ? /^\d{1,3}(?:\.\d{1,3}){3}$/.test(x) : x.includes(":"));
+    };
+    try {
+      const [v4, v6] = await Promise.all([lookup("A"), lookup("AAAA")]);
+      const ips = [...v4, ...v6];
+      return ips.length > 0 && ips.every(isPublicIp);
+    } catch {
+      return false;
+    }
+  })();
+  hostSafetyCache.set(normalized, cached);
+  return cached;
+}
+
+async function fetchSafe(url: string, init: RequestInit, timeoutMs: number) {
+  let current = safeHttps(url);
+  if (!current) throw new Error("unsafe_url");
+  for (let hop = 0; hop <= 5; hop++) {
+    const currentUrl = new URL(current);
+    if (!await hostResolvesPublic(currentUrl.hostname)) throw new Error("unsafe_or_unresolved_destination");
+    const resp = await fetch(current, {
+      ...init,
+      redirect: "manual",
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+    if ([301, 302, 303, 307, 308].includes(resp.status)) {
+      const location = resp.headers.get("location");
+      if (!location) throw new Error("redirect_without_location");
+      const next = safeHttps(location, current);
+      if (!next) throw new Error("unsafe_redirect");
+      current = next;
+      continue;
+    }
+    return { resp, url: current };
+  }
+  throw new Error("too_many_redirects");
+}
+
+async function readLimitedBody(resp: Response, maxBytes: number, label: string) {
+  const declared = Number(resp.headers.get("content-length") || "0");
+  if (Number.isFinite(declared) && declared > maxBytes) throw new Error(`${label}_too_large`);
+  if (!resp.body) return new Uint8Array();
+  const reader = resp.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error(`${label}_too_large`);
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
 }
 
 function dedupe<T>(items: T[], key: (item: T) => string) {
@@ -82,6 +197,14 @@ function dedupe<T>(items: T[], key: (item: T) => string) {
     seen.add(k);
     return true;
   });
+}
+
+function metadataDelta(original: Record<string, unknown>, next: Record<string, unknown>) {
+  const delta: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(next)) {
+    if (JSON.stringify(original[key]) !== JSON.stringify(value)) delta[key] = value;
+  }
+  return delta;
 }
 
 function websiteCandidates(brand: BrandRow): SiteCandidate[] {
@@ -140,20 +263,19 @@ function htmlSignals(html: string, brand: string, finalUrl: string) {
 }
 
 async function fetchHtml(url: string) {
-  const resp = await fetch(url, {
-    redirect: "follow",
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  const { resp, url: finalUrl } = await fetchSafe(url, {
     headers: {
-      "user-agent": "Mozilla/5.0 (compatible; KONTA-MOY-BrandVerifier/2.0; +https://kontamou.site)",
+      "user-agent": "Mozilla/5.0 (compatible; KONTA-MOY-BrandVerifier/3.0; +https://kontamou.site)",
       "accept-language": "en-US,en;q=0.9",
       accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1"
     }
-  });
+  }, FETCH_TIMEOUT_MS);
   if (!resp.ok) throw new Error(`site_http_${resp.status}`);
   const type = (resp.headers.get("content-type") || "").toLowerCase();
   if (type && !type.includes("text/html") && !type.includes("application/xhtml+xml")) throw new Error(`site_type_${type.slice(0, 40)}`);
-  const html = (await resp.text()).slice(0, MAX_HTML_BYTES);
-  return { html, url: resp.url || url };
+  const bytes = await readLimitedBody(resp, MAX_HTML_BYTES, "html");
+  const html = new TextDecoder().decode(bytes);
+  return { html, url: finalUrl };
 }
 
 async function resolveOfficialSite(brand: BrandRow) {
@@ -216,11 +338,12 @@ function assetCandidates(html: string, pageUrl: string, brand: string): AssetCan
     const tag = m[0];
     const lower = fold(tag);
     const alt = fold(attr(tag, "alt") || "");
-    const brandHit = tokens.some((t) => alt.includes(t) || lower.includes(t));
-    const logoHit = /\b(?:logo|wordmark|brandmark|site[-_ ]?brand|header[-_ ]?brand)\b/i.test(tag);
-    if (!brandHit && !logoHit) continue;
     const raw = attr(tag, "src") || attr(tag, "data-src") || attr(tag, "data-lazy-src") || attr(tag, "srcset");
-    addUrl(raw, brandHit && logoHit ? 160 : brandHit ? 145 : 135, brandHit ? "brand_img" : "logo_img");
+    const brandHit = tokens.some((t) => alt.includes(t) || lower.includes(t));
+    const logoHit = /\b(?:logo|wordmark|brandmark|site[-_ ]?brand|header[-_ ]?brand|navbar[-_ ]?brand)\b/i.test(tag)
+      || /(?:logo|wordmark|brandmark|header[-_ ]?logo|site[-_ ]?logo)/i.test(raw || "");
+    if (!logoHit) continue;
+    addUrl(raw, brandHit ? 160 : 140, "logo_img");
   }
 
   for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
@@ -264,17 +387,15 @@ async function fetchAsset(candidate: AssetCandidate) {
     return { bytes, mime: "image/svg+xml", ext: "svg" };
   }
 
-  const resp = await fetch(candidate.url, {
-    redirect: "follow",
-    signal: AbortSignal.timeout(ASSET_TIMEOUT_MS),
+  const { resp } = await fetchSafe(candidate.url, {
     headers: {
-      "user-agent": "Mozilla/5.0 (compatible; KONTA-MOY-BrandAssetVerifier/2.0; +https://kontamou.site)",
-      accept: "image/svg+xml,image/png,image/webp,image/*;q=0.8,*/*;q=0.1"
+      "user-agent": "Mozilla/5.0 (compatible; KONTA-MOY-BrandAssetVerifier/3.0; +https://kontamou.site)",
+      accept: "image/svg+xml,image/png,image/webp,image/jpeg,image/*;q=0.8,*/*;q=0.1"
     }
-  });
+  }, ASSET_TIMEOUT_MS);
   if (!resp.ok) throw new Error(`asset_http_${resp.status}`);
-  const bytes = new Uint8Array(await resp.arrayBuffer());
-  if (bytes.byteLength < 80 || bytes.byteLength > MAX_ASSET_BYTES) throw new Error(`asset_size_${bytes.byteLength}`);
+  const bytes = await readLimitedBody(resp, MAX_ASSET_BYTES, "asset");
+  if (bytes.byteLength < 80) throw new Error(`asset_size_${bytes.byteLength}`);
 
   const declared = (resp.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
   const head = new TextDecoder().decode(bytes.slice(0, Math.min(bytes.byteLength, 5000)));
@@ -283,6 +404,9 @@ async function fetchAsset(candidate: AssetCandidate) {
   }
   if (new TextDecoder().decode(bytes.slice(0, 4)) === "RIFF" && new TextDecoder().decode(bytes.slice(8, 12)) === "WEBP") {
     return { bytes, mime: "image/webp", ext: "webp" };
+  }
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return { bytes, mime: "image/jpeg", ext: "jpg" };
   }
   if ((declared === "image/svg+xml" || head.trimStart().startsWith("<svg") || head.trimStart().startsWith("<?xml")) && safeSvg(new TextDecoder().decode(bytes))) {
     return { bytes, mime: "image/svg+xml", ext: "svg" };
@@ -328,7 +452,8 @@ function reasonText(error: unknown) {
 
 async function processBrand(brand: BrandRow, workerId: number) {
   const now = new Date().toISOString();
-  const md = brand.metadata && typeof brand.metadata === "object" ? { ...brand.metadata } : {};
+  const originalMd = brand.metadata && typeof brand.metadata === "object" ? { ...brand.metadata } : {};
+  const md = { ...originalMd };
   let page: { html: string; url: string; source: string; verified: boolean } | undefined;
   let website = brand.website?.trim() || null;
   let websiteChanged = false;
@@ -342,7 +467,9 @@ async function processBrand(brand: BrandRow, workerId: number) {
       Object.assign(md, {
         website_source_url: page.url,
         website_source_type: page.source === "derived_domain" ? "derived_official_domain_verified" : "official_site",
-        website_verified_at: now
+        website_verified_at: now,
+        website_enrichment_status: "complete",
+        website_enrichment_reason: null
       });
     }
   } catch (error) {
@@ -352,6 +479,18 @@ async function processBrand(brand: BrandRow, workerId: number) {
       website_enrichment_reason: website ? null : reasonText(error)
     });
   }
+
+  const finishMeta = () => {
+    const next = {
+      ...md,
+      brand_backfill_agent: workerId + 1,
+      brand_backfill_last_run_at: now
+    } as Record<string, unknown>;
+    if (typeof originalMd.logo_retry_requested_at === "string") {
+      next.logo_retry_acknowledged_at = now;
+    }
+    return metadataDelta(originalMd, next);
+  };
 
   if (!brand.logo_object_key && page) {
     try {
@@ -371,14 +510,20 @@ async function processBrand(brand: BrandRow, workerId: number) {
         logo_enrichment_status: "complete",
         logo_enrichment_reason: null
       });
-      await sql`
+      const patch = finishMeta();
+      const updated = await sql<{ id: string }[]>`
         update public.brands
-        set website = coalesce(nullif(website,''), ${website}),
+        set website = case when nullif(website,'') is null then ${website} else website end,
             logo_object_key = ${key},
-            metadata = ${JSON.stringify({ ...md, brand_backfill_agent: workerId + 1, brand_backfill_last_run_at: now })}::text::jsonb,
+            metadata = coalesce(metadata,'{}'::jsonb) || ${JSON.stringify(patch)}::text::jsonb,
             updated_at = now()
         where id = ${brand.id}::uuid
+          and nullif(logo_object_key,'') is null
+        returning id::text
       `;
+      if (updated.length === 0) {
+        return { brand: brand.name, status: "skipped_concurrent_logo_edit", websiteChanged: false, logoChanged: false };
+      }
       logoChanged = true;
       return { brand: brand.name, status: "updated", websiteChanged, logoChanged, website, key };
     } catch (error) {
@@ -390,14 +535,11 @@ async function processBrand(brand: BrandRow, workerId: number) {
     }
   }
 
-  Object.assign(md, {
-    brand_backfill_agent: workerId + 1,
-    brand_backfill_last_run_at: now
-  });
+  const patch = finishMeta();
   await sql`
     update public.brands
     set website = case when nullif(website,'') is null then ${website} else website end,
-        metadata = ${JSON.stringify(md)}::text::jsonb,
+        metadata = coalesce(metadata,'{}'::jsonb) || ${JSON.stringify(patch)}::text::jsonb,
         updated_at = case when ${websiteChanged} then now() else updated_at end
     where id = ${brand.id}::uuid
   `;
@@ -415,7 +557,16 @@ Deno.serve(async (req: Request) => {
   const started = Date.now();
   if (req.method !== "POST") return new Response("method not allowed", { status: 405 });
   const supplied = req.headers.get("x-agent-token") || "";
-  if (!supplied || await sha256(supplied) !== EXPECTED_TOKEN_SHA256) return new Response("forbidden", { status: 403 });
+  if (!supplied) return new Response("forbidden", { status: 403 });
+  const authRows = await sql<{ ok: boolean }[]>`
+    select exists(
+      select 1
+      from vault.decrypted_secrets
+      where name = 'brand_backfill_agent_token'
+        and decrypted_secret = ${supplied}
+    ) as ok
+  `;
+  if (!authRows[0]?.ok) return new Response("forbidden", { status: 403 });
 
   const workerIdRaw = Number(req.headers.get("x-worker-id") ?? "-1");
   const workerId = Number.isInteger(workerIdRaw) ? workerIdRaw : -1;
@@ -448,6 +599,11 @@ Deno.serve(async (req: Request) => {
       and (
         nullif(b.metadata->>'brand_backfill_last_run_at','') is null
         or (b.metadata->>'brand_backfill_last_run_at')::timestamptz < now() - interval '18 hours'
+        or (
+          nullif(b.metadata->>'logo_retry_requested_at','') is not null
+          and (b.metadata->>'logo_retry_requested_at')::timestamptz >
+              coalesce((b.metadata->>'brand_backfill_last_run_at')::timestamptz, to_timestamp(0))
+        )
       )
     order by coalesce(u.product_count,0) desc,
              coalesce((b.metadata->>'brand_backfill_last_run_at')::timestamptz, to_timestamp(0)) asc,
