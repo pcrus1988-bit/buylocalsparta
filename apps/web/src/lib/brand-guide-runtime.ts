@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import type { CatalogCard } from "./catalog-view";
 import { getCachedCrawlerCatalogCards } from "./cached-public-shop-page";
 import { publicBrandLogoUrl } from "./brand-logo";
@@ -35,7 +36,7 @@ type BrandCategoryRow = Readonly<{
 
 type BrandDirectoryRow = BrandRow & Readonly<{
   live_product_count: number | string;
-  total_count: number | string;
+  updated_at: string;
 }>;
 
 type RelatedBrandRow = Readonly<{
@@ -121,14 +122,6 @@ function optional(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function liveInventoryPredicate(alias = "rm"): string {
-  return `(
-    (${alias}.local_sellable = true AND ${alias}.local_available_until > now())
-    OR
-    (${alias}.dropship_sellable = true AND ${alias}.dropship_available_until > now())
-  )`;
-}
-
 function brandShopHref(name: string): string {
   return `/shop?brand=${encodeURIComponent(name)}`;
 }
@@ -205,211 +198,199 @@ function guideSignals(row: BrandRow, liveProductCount: number) {
   };
 }
 
-export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBrandGuide | undefined> => {
-  if (!productionDatabaseConfigured()) return undefined;
-  const cleanSlug = slug.trim().toLowerCase().slice(0, 180);
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(cleanSlug)) return undefined;
+const BRAND_GUIDE_CACHE_SECONDS = 300;
+const BRAND_DIRECTORY_CACHE_SECONDS = 300;
 
-  const runtime = getProductionPostgresRuntime();
-  const brandResult = await runtime.nativePool.query<BrandRow>(`
-    SELECT
-      b.id,
-      b.name,
-      b.normalized_name,
-      b.public_slug,
-      b.website,
-      b.logo_object_key,
-      b.metadata->>'logo_external_url' AS logo_external_url,
-      b.country_code,
-      b.description,
-      b.metadata
-    FROM public.brands b
-    WHERE b.public_slug = $1
-      AND b.status = 'active'
-    LIMIT 1
-  `, [cleanSlug]);
+const cachedPublicBrandGuide = unstable_cache(
+  async (cleanSlug: string): Promise<PublicBrandGuide | undefined> => {
+    if (!productionDatabaseConfigured()) return undefined;
 
-  const row = brandResult.rows[0];
-  if (!row) return undefined;
-
-  // The web runtime intentionally uses a one-client PostgreSQL pool on Vercel.
-  // Running several live Brand Guide queries in Promise.all makes those queries
-  // compete for that single client and can surface as "timeout exceeded when trying
-  // to connect". Keep the critical path sequential and let non-critical discovery
-  // sections degrade independently instead of taking down the whole public page.
-  let liveProductCount = 0;
-  try {
-    const inventoryResult = await runtime.nativePool.query<{ live_product_count: number | string }>(`
-      SELECT COUNT(DISTINCT rm.canonical_variant_id)::integer AS live_product_count
-      FROM public.storefront_catalog_read_model rm
-      WHERE rm.brand_id = $1::uuid
-        AND ${liveInventoryPredicate("rm")}
-    `, [row.id]);
-    liveProductCount = count(inventoryResult.rows[0]?.live_product_count);
-  } catch (error) {
-    console.warn(JSON.stringify({
-      level: "warn",
-      event: "brand_guide.inventory_degraded",
-      slug: cleanSlug,
-      message: error instanceof Error ? error.message : String(error)
-    }));
-  }
-
-  let allCategories: PublicBrandCategory[] = [];
-  try {
-    const categoryResult = await runtime.nativePool.query<BrandCategoryRow>(`
-      SELECT
-        rm.category_code,
-        rm.department_code,
-        COALESCE(el.name, en.name, c.slug, rm.category_code) AS label,
-        COUNT(DISTINCT rm.canonical_variant_id)::integer AS product_count
-      FROM public.storefront_catalog_read_model rm
-      LEFT JOIN public.categories c ON c.id = rm.category_id
-      LEFT JOIN public.category_translations el
-        ON el.category_id = rm.category_id AND el.locale = 'el'
-      LEFT JOIN public.category_translations en
-        ON en.category_id = rm.category_id AND en.locale = 'en'
-      WHERE rm.brand_id = $1::uuid
-        AND ${liveInventoryPredicate("rm")}
-      GROUP BY rm.category_code, rm.department_code, c.slug, el.name, en.name
-      ORDER BY product_count DESC, COALESCE(el.name, en.name, c.slug, rm.category_code)
-    `, [row.id]);
-    allCategories = categoryResult.rows.map((category) => mapCategory(category, row.name));
-  } catch (error) {
-    console.warn(JSON.stringify({
-      level: "warn",
-      event: "brand_guide.categories_degraded",
-      slug: cleanSlug,
-      message: error instanceof Error ? error.message : String(error)
-    }));
-  }
-
-  let relatedBrands: PublicRelatedBrand[] = [];
-  try {
-    const relatedResult = await runtime.nativePool.query<RelatedBrandRow>(`
-      WITH target_categories AS MATERIALIZED (
-        SELECT DISTINCT rm.category_code
-        FROM public.storefront_catalog_read_model rm
-        WHERE rm.brand_id = $1::uuid
-          AND rm.category_code IS NOT NULL
-          AND ${liveInventoryPredicate("rm")}
-      ),
-      overlap AS MATERIALIZED (
-        SELECT
-          rm.brand_id,
-          COUNT(DISTINCT rm.category_code)::integer AS shared_category_count
-        FROM public.storefront_catalog_read_model rm
-        JOIN target_categories tc ON tc.category_code = rm.category_code
-        WHERE rm.brand_id <> $1::uuid
-          AND ${liveInventoryPredicate("rm")}
-        GROUP BY rm.brand_id
-        ORDER BY shared_category_count DESC
-        LIMIT 24
-      ),
-      totals AS (
-        SELECT
-          rm.brand_id,
-          COUNT(DISTINCT rm.canonical_variant_id)::integer AS live_product_count
-        FROM public.storefront_catalog_read_model rm
-        JOIN overlap o ON o.brand_id = rm.brand_id
-        WHERE ${liveInventoryPredicate("rm")}
-        GROUP BY rm.brand_id
-      )
+    const runtime = getProductionPostgresRuntime();
+    const brandResult = await runtime.nativePool.query<BrandRow>(`
       SELECT
         b.id,
         b.name,
+        b.normalized_name,
         b.public_slug,
+        b.website,
         b.logo_object_key,
         b.metadata->>'logo_external_url' AS logo_external_url,
-        o.shared_category_count,
-        t.live_product_count
-      FROM overlap o
-      JOIN totals t ON t.brand_id = o.brand_id
-      JOIN public.brands b ON b.id = o.brand_id
-      WHERE b.status = 'active'
-      ORDER BY o.shared_category_count DESC, t.live_product_count DESC, lower(b.name)
-      LIMIT 6
-    `, [row.id]);
+        b.country_code,
+        b.description,
+        b.metadata
+      FROM public.brands b
+      WHERE b.public_slug = $1
+        AND b.status = 'active'
+      LIMIT 1
+    `, [cleanSlug]);
 
-    relatedBrands = relatedResult.rows.map((related) => ({
-      id: related.id,
-      name: related.name,
-      slug: related.public_slug,
-      logoUrl: publicBrandLogoUrl(related.logo_object_key, related.logo_external_url),
-      sharedCategoryCount: count(related.shared_category_count),
-      liveProductCount: count(related.live_product_count)
-    }));
-  } catch (error) {
-    console.warn(JSON.stringify({
-      level: "warn",
-      event: "brand_guide.related_brands_degraded",
-      slug: cleanSlug,
-      message: error instanceof Error ? error.message : String(error)
-    }));
-  }
+    const row = brandResult.rows[0];
+    if (!row) return undefined;
 
-  const products = await getCachedCrawlerCatalogCards("23100", "", "", { brand: row.name }, 8)
-    .catch((error) => {
+    let liveProductCount = 0;
+    let allCategories: PublicBrandCategory[] = [];
+
+    try {
+      const inventoryResult = await runtime.nativePool.query<{ live_product_count: number | string }>(`
+        SELECT COUNT(*)::integer AS live_product_count
+        FROM bls_private.storefront_dropship_live_family lf
+        WHERE lf.sellable=true
+          AND lf.available_until>now()
+          AND lf.brand_names_normalized @> ARRAY[$1::text]
+      `, [row.normalized_name]);
+      liveProductCount = count(inventoryResult.rows[0]?.live_product_count);
+
+      const categoryResult = await runtime.nativePool.query<BrandCategoryRow>(`
+        SELECT
+          category_code,
+          NULL::text AS department_code,
+          NULL::text AS label,
+          COUNT(*)::integer AS product_count
+        FROM bls_private.storefront_dropship_live_family lf
+        CROSS JOIN LATERAL unnest(lf.category_codes) category_code
+        WHERE lf.sellable=true
+          AND lf.available_until>now()
+          AND lf.brand_names_normalized @> ARRAY[$1::text]
+        GROUP BY category_code
+        ORDER BY product_count DESC, category_code
+      `, [row.normalized_name]);
+      allCategories = categoryResult.rows.map((category) => mapCategory(category, row.name));
+    } catch (error) {
       console.warn(JSON.stringify({
         level: "warn",
-        event: "brand_guide.products_degraded",
+        event: "brand_guide.live_family_projection_degraded",
         slug: cleanSlug,
         message: error instanceof Error ? error.message : String(error)
       }));
-      return [];
-    });
+    }
 
-  const signals = guideSignals(row, liveProductCount);
-  const categories = allCategories.slice(0, 10);
+    let relatedBrands: PublicRelatedBrand[] = [];
+    const targetCategories = allCategories.slice(0, 10).map((category) => category.code);
+    if (targetCategories.length > 0) {
+      try {
+        const relatedResult = await runtime.nativePool.query<RelatedBrandRow>(`
+          WITH live_totals AS MATERIALIZED (
+            SELECT
+              brand_key,
+              COUNT(*)::integer AS live_product_count
+            FROM bls_private.storefront_dropship_live_family lf
+            CROSS JOIN LATERAL unnest(lf.brand_names_normalized) brand_key
+            WHERE lf.sellable=true
+              AND lf.available_until>now()
+            GROUP BY brand_key
+          ),
+          overlap AS MATERIALIZED (
+            SELECT
+              brand_key,
+              COUNT(DISTINCT category_code)::integer AS shared_category_count
+            FROM bls_private.storefront_dropship_live_family lf
+            CROSS JOIN LATERAL unnest(lf.brand_names_normalized) brand_key
+            CROSS JOIN LATERAL unnest(lf.category_codes) category_code
+            WHERE lf.sellable=true
+              AND lf.available_until>now()
+              AND lf.category_codes && $2::text[]
+              AND brand_key<>$1
+            GROUP BY brand_key
+            ORDER BY shared_category_count DESC
+            LIMIT 24
+          )
+          SELECT
+            b.id,
+            b.name,
+            b.public_slug,
+            b.logo_object_key,
+            b.metadata->>'logo_external_url' AS logo_external_url,
+            o.shared_category_count,
+            t.live_product_count
+          FROM overlap o
+          JOIN live_totals t ON t.brand_key=o.brand_key
+          JOIN public.brands b ON b.normalized_name=o.brand_key
+          WHERE b.status='active'
+          ORDER BY o.shared_category_count DESC,t.live_product_count DESC,lower(b.name)
+          LIMIT 6
+        `, [row.normalized_name, targetCategories]);
 
-  return {
-    id: row.id,
-    name: row.name,
-    normalizedName: row.normalized_name,
-    slug: row.public_slug,
-    website: optional(row.website),
-    logoUrl: signals.logoUrl,
-    countryCode: optional(row.country_code),
-    description: optional(row.description),
-    guide: signals.guide,
-    qualityScore: signals.qualityScore,
-    indexable: signals.indexable,
-    liveProductCount,
-    departments: departmentSummaries(allCategories, row.name),
-    categories,
-    relatedBrands,
-    products,
-    shopHref: brandShopHref(row.name)
-  };
+        relatedBrands = relatedResult.rows.map((related) => ({
+          id: related.id,
+          name: related.name,
+          slug: related.public_slug,
+          logoUrl: publicBrandLogoUrl(related.logo_object_key, related.logo_external_url),
+          sharedCategoryCount: count(related.shared_category_count),
+          liveProductCount: count(related.live_product_count)
+        }));
+      } catch (error) {
+        console.warn(JSON.stringify({
+          level: "warn",
+          event: "brand_guide.related_brands_degraded",
+          slug: cleanSlug,
+          message: error instanceof Error ? error.message : String(error)
+        }));
+      }
+    }
+
+    const products = await getCachedCrawlerCatalogCards("23100", "", "", { brand: row.name }, 8)
+      .catch((error) => {
+        console.warn(JSON.stringify({
+          level: "warn",
+          event: "brand_guide.products_degraded",
+          slug: cleanSlug,
+          message: error instanceof Error ? error.message : String(error)
+        }));
+        return [];
+      });
+
+    // Local-only branded inventory is currently rare, but a bounded product
+    // projection is authoritative. Preserve indexability if such a brand has
+    // sellable local products even when it has no supplier-family row.
+    liveProductCount = Math.max(liveProductCount, products.length);
+
+    const signals = guideSignals(row, liveProductCount);
+    const categories = allCategories.slice(0, 10);
+
+    return {
+      id: row.id,
+      name: row.name,
+      normalizedName: row.normalized_name,
+      slug: row.public_slug,
+      website: optional(row.website),
+      logoUrl: signals.logoUrl,
+      countryCode: optional(row.country_code),
+      description: optional(row.description),
+      guide: signals.guide,
+      qualityScore: signals.qualityScore,
+      indexable: signals.indexable,
+      liveProductCount,
+      departments: departmentSummaries(allCategories, row.name),
+      categories,
+      relatedBrands,
+      products,
+      shopHref: brandShopHref(row.name)
+    };
+  },
+  ["public-brand-guide-v3-live-family"],
+  { revalidate: BRAND_GUIDE_CACHE_SECONDS }
+);
+
+export const getPublicBrandGuide = cache(async (slug: string): Promise<PublicBrandGuide | undefined> => {
+  const cleanSlug = slug.trim().toLowerCase().slice(0, 180);
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(cleanSlug)) return undefined;
+  return cachedPublicBrandGuide(cleanSlug);
 });
 
-export async function getPublicBrandDirectory(options: Readonly<{
-  q?: string;
-  letter?: string;
-  limit?: number;
-  offset?: number;
-}> = {}): Promise<PublicBrandDirectory> {
-  const limit = Math.max(12, Math.min(72, Math.trunc(options.limit ?? 48)));
-  const offset = Math.max(0, Math.trunc(options.offset ?? 0));
-  if (!productionDatabaseConfigured()) return { items: [], total: 0, limit, offset, hasMore: false };
-
-  const query = options.q?.trim().slice(0, 100) || null;
-  const letterCandidate = options.letter?.trim().toUpperCase();
-  const letter = letterCandidate && /^[A-Z0-9]$/.test(letterCandidate) ? letterCandidate : null;
-
-  const result = await getProductionPostgresRuntime().nativePool.query<BrandDirectoryRow>(`
-    WITH live AS MATERIALIZED (
-      SELECT DISTINCT rm.brand_id, rm.canonical_variant_id
-      FROM public.storefront_catalog_read_model rm
-      WHERE rm.brand_id IS NOT NULL
-        AND ${liveInventoryPredicate("rm")}
-    ),
-    totals AS (
-      SELECT brand_id, COUNT(*)::integer AS live_product_count
-      FROM live
-      GROUP BY brand_id
-    ),
-    filtered AS (
+const cachedBrandDirectoryInventory = unstable_cache(
+  async (): Promise<readonly BrandDirectoryRow[]> => {
+    if (!productionDatabaseConfigured()) return [];
+    const result = await getProductionPostgresRuntime().nativePool.query<BrandDirectoryRow>(`
+      WITH live_counts AS (
+        SELECT
+          brand_key,
+          COUNT(*)::integer AS live_product_count
+        FROM bls_private.storefront_dropship_live_family lf
+        CROSS JOIN LATERAL unnest(lf.brand_names_normalized) brand_key
+        WHERE lf.sellable=true
+          AND lf.available_until>now()
+        GROUP BY brand_key
+      )
       SELECT
         b.id,
         b.name,
@@ -421,21 +402,45 @@ export async function getPublicBrandDirectory(options: Readonly<{
         b.country_code,
         b.description,
         b.metadata,
-        t.live_product_count
-      FROM public.brands b
-      JOIN totals t ON t.brand_id = b.id
-      WHERE b.status = 'active'
-        AND ($1::text IS NULL OR b.name ILIKE '%' || $1 || '%' OR b.normalized_name ILIKE '%' || $1 || '%')
-        AND ($2::text IS NULL OR upper(left(b.name, 1)) = $2)
-    )
-    SELECT f.*, COUNT(*) OVER()::integer AS total_count
-    FROM filtered f
-    ORDER BY f.live_product_count DESC, lower(f.name), f.id
-    LIMIT $3::integer OFFSET $4::integer
-  `, [query, letter, limit, offset]);
+        b.updated_at::text AS updated_at,
+        counts.live_product_count
+      FROM live_counts counts
+      JOIN public.brands b ON b.normalized_name=counts.brand_key
+      WHERE b.status='active'
+      ORDER BY counts.live_product_count DESC,lower(b.name),b.id
+    `);
+    return result.rows;
+  },
+  ["public-brand-directory-v4-live-family"],
+  { revalidate: BRAND_DIRECTORY_CACHE_SECONDS }
+);
 
-  const total = count(result.rows[0]?.total_count);
-  const items = result.rows.map((row) => {
+export async function getPublicBrandDirectory(options: Readonly<{
+  q?: string;
+  letter?: string;
+  limit?: number;
+  offset?: number;
+}> = {}): Promise<PublicBrandDirectory> {
+  const limit = Math.max(12, Math.min(72, Math.trunc(options.limit ?? 48)));
+  const offset = Math.max(0, Math.trunc(options.offset ?? 0));
+  if (!productionDatabaseConfigured()) return { items: [], total: 0, limit, offset, hasMore: false };
+
+  const query = options.q?.trim().slice(0, 100).toLocaleLowerCase("el-GR") ?? "";
+  const letterCandidate = options.letter?.trim().toUpperCase();
+  const letter = letterCandidate && /^[A-Z0-9]$/.test(letterCandidate) ? letterCandidate : "";
+
+  const inventory = await cachedBrandDirectoryInventory();
+  const filtered = inventory.filter((row) => {
+    const queryMatch = !query
+      || row.name.toLocaleLowerCase("el-GR").includes(query)
+      || row.normalized_name.toLocaleLowerCase("el-GR").includes(query);
+    const letterMatch = !letter || row.name.slice(0, 1).toUpperCase() === letter;
+    return queryMatch && letterMatch;
+  });
+
+  const total = filtered.length;
+  const page = filtered.slice(offset, offset + limit);
+  const items = page.map((row) => {
     const liveProductCount = count(row.live_product_count);
     const signals = guideSignals(row, liveProductCount);
     return {
@@ -459,11 +464,6 @@ export async function getPublicBrandDirectory(options: Readonly<{
 }
 
 
-type BrandSitemapRow = BrandRow & Readonly<{
-  live_product_count: number | string;
-  updated_at: string;
-}>;
-
 export type PublicBrandSitemapEntry = Readonly<{
   slug: string;
   updatedAt: string;
@@ -471,40 +471,8 @@ export type PublicBrandSitemapEntry = Readonly<{
 
 export async function getIndexableBrandGuideSitemapInventory(): Promise<readonly PublicBrandSitemapEntry[]> {
   if (!productionDatabaseConfigured()) return [];
-  const result = await getProductionPostgresRuntime().nativePool.query<BrandSitemapRow>(`
-    WITH live AS MATERIALIZED (
-      SELECT DISTINCT rm.brand_id, rm.canonical_variant_id
-      FROM public.storefront_catalog_read_model rm
-      WHERE rm.brand_id IS NOT NULL
-        AND ${liveInventoryPredicate("rm")}
-    ),
-    totals AS (
-      SELECT brand_id, COUNT(*)::integer AS live_product_count
-      FROM live
-      GROUP BY brand_id
-    )
-    SELECT
-      b.id,
-      b.name,
-      b.normalized_name,
-      b.public_slug,
-      b.website,
-      b.logo_object_key,
-      b.metadata->>'logo_external_url' AS logo_external_url,
-      b.country_code,
-      b.description,
-      b.metadata,
-      b.updated_at::text AS updated_at,
-      t.live_product_count
-    FROM public.brands b
-    JOIN totals t ON t.brand_id = b.id
-    WHERE b.status='active'
-      AND b.metadata->'brand_guide'->>'status'='published'
-      AND COALESCE((b.metadata->'brand_guide'->>'seo_indexable')::boolean, false)=true
-    ORDER BY b.updated_at DESC, b.id
-  `);
-
-  return result.rows.flatMap((row) => {
+  const inventory = await cachedBrandDirectoryInventory();
+  return inventory.flatMap((row) => {
     const liveProductCount = count(row.live_product_count);
     const signals = guideSignals(row, liveProductCount);
     return signals.indexable
