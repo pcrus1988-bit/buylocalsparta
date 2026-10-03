@@ -33,68 +33,24 @@ const VALID_SOURCES = new Set<BazaarSource>([
 async function loadBazaarFacets(): Promise<BazaarFacets> {
   if (!productionDatabaseConfigured()) return EMPTY_FACETS;
 
+  // Facet discovery is catalogue metadata, not an inventory reservation. Keep it
+  // independent from the expensive offer/stock joins; the result query and all
+  // cart/order actions still enforce live sellability.
   const result = await getProductionPostgresRuntime().nativePool.query<FacetRow>(`
-    WITH bazaar_variants AS MATERIALIZED (
-      SELECT
-        cv.id,
-        NULLIF(BTRIM(b.name),'') AS brand,
-        c.code AS category,
-        cv.condition,
-        cv.bazaar_source
-      FROM canonical_variants cv
-      JOIN categories c ON c.id=cv.category_id
-      LEFT JOIN brands b ON b.id=cv.brand_id
-      WHERE cv.commerce_channel='bazaar'
-        AND cv.active=true
-        AND cv.suppressed=false
-        AND cv.recalled=false
-    ), eligible AS MATERIALIZED (
-      SELECT bv.*
-      FROM bazaar_variants bv
-      WHERE EXISTS (
-        SELECT 1
-        FROM vendor_offers vo
-        JOIN vendor_businesses v ON v.id=vo.vendor_id AND v.status='active'
-        JOIN vendor_locations l ON l.id=vo.location_id AND l.active=true
-        LEFT JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
-        LEFT JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
-        LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
-        WHERE vo.canonical_variant_id=bv.id
-          AND vo.status='approved'
-          AND vo.merchant_visible=true
-          AND vo.merchant_pause_active=false
-          AND vo.customer_price_minor>0
-          AND (
-            (
-              dso.id IS NOT NULL
-              AND dso.active=true
-              AND ds.active=true
-              AND ds.api_authoritative_availability=true
-              AND dso.cached_available=true
-              AND dso.cached_quantity>=1
-              AND dso.availability_expires_at IS NOT NULL
-              AND dso.availability_expires_at>now()
-              AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-            )
-            OR (
-              dso.id IS NULL
-              AND GREATEST(
-                0,
-                COALESCE(ib.on_hand,0)
-                  - COALESCE(ib.active_reservations,0)
-                  - COALESCE(ib.safety_stock,0)
-                  - COALESCE(ib.blocked,0)
-              )>0
-            )
-          )
-      )
-    )
     SELECT
-      ARRAY_AGG(DISTINCT brand ORDER BY brand) FILTER (WHERE brand IS NOT NULL) AS brands,
-      ARRAY_AGG(DISTINCT category ORDER BY category) AS categories,
-      ARRAY_AGG(DISTINCT condition ORDER BY condition) AS conditions,
-      ARRAY_AGG(DISTINCT bazaar_source ORDER BY bazaar_source) FILTER (WHERE bazaar_source IS NOT NULL) AS sources
-    FROM eligible
+      ARRAY_AGG(DISTINCT NULLIF(BTRIM(b.name),'') ORDER BY NULLIF(BTRIM(b.name),''))
+        FILTER (WHERE NULLIF(BTRIM(b.name),'') IS NOT NULL) AS brands,
+      ARRAY_AGG(DISTINCT c.code ORDER BY c.code) AS categories,
+      ARRAY_AGG(DISTINCT cv.condition ORDER BY cv.condition) AS conditions,
+      ARRAY_AGG(DISTINCT cv.bazaar_source ORDER BY cv.bazaar_source)
+        FILTER (WHERE cv.bazaar_source IS NOT NULL) AS sources
+    FROM canonical_variants cv
+    JOIN categories c ON c.id=cv.category_id
+    LEFT JOIN brands b ON b.id=cv.brand_id
+    WHERE cv.commerce_channel='bazaar'
+      AND cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
   `);
 
   const row = result.rows[0];
@@ -109,6 +65,6 @@ async function loadBazaarFacets(): Promise<BazaarFacets> {
 
 export const getCachedBazaarFacets = unstable_cache(
   loadBazaarFacets,
-  ["bazaar-facets-v5-bazaar-first"],
-  { revalidate: 300 }
+  ["bazaar-facets-v6-catalogue-metadata"],
+  { revalidate: 900 }
 );

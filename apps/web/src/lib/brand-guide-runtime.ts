@@ -199,7 +199,7 @@ function guideSignals(row: BrandRow, liveProductCount: number) {
 }
 
 const BRAND_GUIDE_CACHE_SECONDS = 300;
-const BRAND_DIRECTORY_CACHE_SECONDS = 300;
+const BRAND_DIRECTORY_CACHE_SECONDS = 900;
 
 const cachedPublicBrandGuide = unstable_cache(
   async (cleanSlug: string): Promise<PublicBrandGuide | undefined> => {
@@ -411,7 +411,7 @@ const cachedBrandDirectoryInventory = unstable_cache(
     `);
     return result.rows;
   },
-  ["public-brand-directory-v4-live-family"],
+  ["public-brand-directory-v5-live-family-15m"],
   { revalidate: BRAND_DIRECTORY_CACHE_SECONDS }
 );
 
