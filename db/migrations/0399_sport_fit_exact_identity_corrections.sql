@@ -37,13 +37,25 @@ CROSS JOIN LATERAL (
   JOIN public.brands b
     ON b.id=pf.brand_id
    AND lower(b.name)=lower(wanted.brand_name)
+  LEFT JOIN bls_private.storefront_dropship_live_family live
+    ON live.supplier_id=pf.source_supplier_id
+   AND live.external_product_id=pf.source_external_product_id
   WHERE cv.active=true
     AND cv.suppressed=false
     AND cv.recalled=false
     AND (
-      (wanted.style_code='GSB480' AND upper(coalesce(nullif(btrim(cv.mpn),''),''))='GSB480')
+      (
+        wanted.style_code='GSB480'
+        AND upper(coalesce(nullif(btrim(cv.mpn),''),''))='GSB480'
+        AND pf.source_external_product_id='10415563'
+        AND live.sellable=true
+        AND lower(coalesce(live.sort_title,'')) LIKE '%black%white%'
+      )
       OR
-      (wanted.style_code='IG9166' AND upper(coalesce(nullif(btrim(cv.mpn),''),'')) LIKE 'IG9166%')
+      (
+        wanted.style_code='IG9166'
+        AND upper(coalesce(nullif(btrim(cv.mpn),''),'')) LIKE 'IG9166%'
+      )
     )
 ) resolved;
 
@@ -114,7 +126,7 @@ FROM (
       'manufacturerStyleCode','GSB480BW',
       'catalogueBaseMpn','GSB480',
       'audience','big_kids_8_12',
-      'identityBridge','manufacturer style extends the exact catalogue base MPN',
+      'identityBridge','manufacturer style GSB480BW maps to the sellable black/white catalogue family via base MPN GSB480 plus source external product 10415563',
       'classificationKind','performance_sport',
       'doNotInferCourtSurfaceSubtype',true,
       'doNotInferWidthProfileFromOfferedWidths',true,
