@@ -362,14 +362,17 @@ function assetCandidates(html: string, pageUrl: string, brand: string): AssetCan
     const altRaw = attr(tag, "alt") || "";
     const alt = fold(altRaw);
     const raw = attr(tag, "src") || attr(tag, "data-src") || attr(tag, "data-lazy-src") || attr(tag, "srcset");
+    const foldedRaw = fold(raw || "");
     const brandAltHit = tokens.some((t) => alt.includes(t));
+    const rawBrandHit = tokens.some((t) => foldedRaw.includes(t));
     const rawLogoHint = /(?:logo|wordmark|brandmark|header[-_ ]?logo|site[-_ ]?logo)/i.test(raw || "");
     const altLogoHint = /(?:logo|wordmark|brandmark)/i.test(altRaw);
-    // Product names, wishlist icons and campaign images often contain the brand name.
-    // Accept an <img> only when the asset itself is logo-named, or its alt text
-    // explicitly identifies a brand logo.
-    if (!rawLogoHint && !(brandAltHit && altLogoHint)) continue;
-    addUrl(raw, rawLogoHint && brandAltHit ? 165 : 150, "logo_img");
+    const obviousNonBrandAsset = /(?:mastercard|visa|amex|paypal|payment|wishlist|heart|search|instagram|facebook|messenger|flag|campaign|chasing[-_ ]?summer)/i.test(raw || "");
+    // A generic "logo" filename can be a payment, campaign or partner mark.
+    // Require explicit brand identity in either the asset path or alt text.
+    if (obviousNonBrandAsset) continue;
+    if (!((rawLogoHint && (rawBrandHit || brandAltHit)) || (brandAltHit && altLogoHint))) continue;
+    addUrl(raw, rawBrandHit && brandAltHit ? 170 : 155, "logo_img");
   }
 
   const svgRegex = /<svg\b[^>]{0,1200}>[\s\S]{0,180000}?<\/svg>/gi;
