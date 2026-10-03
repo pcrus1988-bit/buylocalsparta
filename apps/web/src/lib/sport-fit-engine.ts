@@ -306,13 +306,17 @@ function strictIdentityText(product: SportFitProduct): string {
 }
 
 export function sportFitCandidateSupportsRequestedActivity(product: SportFitProduct, answers: SportFitAnswers): boolean {
-  if (["running", "walking", "gym", "football"].includes(answers.activity)) return true;
-
   const knowledge = usableKnowledge(product);
   const knownActivities = knowledgeList(knowledge?.activities);
   if (knownActivities.length > 0) {
     return hasKnowledgeMatch(knownActivities, requestedActivityCodes(answers));
   }
+
+  // Legacy core activities may still use the broad fallback pool when governed
+  // activity evidence is absent. Once exact governed activity exists, however,
+  // the branch above is authoritative and raw title/category heuristics cannot
+  // re-admit a documented cross-sport mismatch.
+  if (["running", "walking", "gym", "football"].includes(answers.activity)) return true;
 
   const text = strictIdentityText(product);
   if (answers.activity === "hiking") return hasAny(text, ["hiking", "terrex", "trail", "πεζοπορ", "outdoor"]);
