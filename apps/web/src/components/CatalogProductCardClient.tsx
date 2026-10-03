@@ -11,6 +11,7 @@ import { storefrontCategoryForCode } from "../lib/storefront-taxonomy";
 import { publicPriceBadgeLabel, publicSavingsLabel, type PriceHighlightKind } from "../lib/public-price-presentation";
 import { BrandMarketplaceLink } from "./BrandMarketplaceLink";
 import { LocalCommerceProof } from "./LocalCommerceProof";
+import styles from "./CatalogProductCard.module.css";
 
 const OPTIMIZED_SUPPLIER_IMAGE_HOSTS = new Set([
   "brandsgateway-img.s3.fr-par.scw.cloud",
@@ -26,16 +27,6 @@ function optimizedSupplierImage(src: string): boolean {
   }
 }
 
-const catalogImageStyle = {
-  position: "absolute",
-  inset: 0,
-  width: "100%",
-  height: "100%",
-  objectFit: "contain",
-  padding: "16px",
-  background: "#fff",
-  zIndex: 1
-} as const;
 
 export type CatalogProductCardClientProduct = Readonly<{
   id: string;
@@ -105,10 +96,10 @@ function PublicCatalogPrice({
   savingLabel?: string;
   prominentSavings: boolean;
 }) {
-  return <div className="price">
-    {msrpMinor !== undefined && !prominentSavings ? <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-      <s aria-label={`Προτεινόμενη λιανική ${formatEuroMinor(msrpMinor)}`} style={{ fontSize: "0.72em", opacity: 0.62, fontWeight: 500 }}>ΠΛΤ {formatEuroMinor(msrpMinor)}</s>
-      {savingLabel ? <span aria-label={`Όφελος ${savingLabel}% σε σχέση με την προτεινόμενη λιανική`} style={{ fontSize: "0.62em", fontWeight: 800, whiteSpace: "nowrap" }}>−{savingLabel}% vs ΠΛΤ</span> : null}
+  return <div className={`price ${styles.priceText}`}>
+    {msrpMinor !== undefined && !prominentSavings ? <div className={styles.msrpRow}>
+      <s aria-label={`Προτεινόμενη λιανική ${formatEuroMinor(msrpMinor)}`} className={styles.msrpInline}>ΠΛΤ {formatEuroMinor(msrpMinor)}</s>
+      {savingLabel ? <span aria-label={`Όφελος ${savingLabel}% σε σχέση με την προτεινόμενη λιανική`} className={styles.inlineSavings}>−{savingLabel}% vs ΠΛΤ</span> : null}
     </div> : null}
     <span aria-label={`Τελική τιμή ${formatEuroMinor(retailPriceMinor)}`}>{priceLabel}</span>
   </div>;
@@ -151,8 +142,8 @@ export function CatalogProductCardClient({ product, index = 0, vendorContext, de
   const priceLabel = publicCatalogPriceLabel(product);
 
   return (
-    <article className="product-card">
-      <Link href={productHref} prefetch={false} className={`product-art ${category.artClass}`} aria-label={`Δες ${displayTitle}`}>
+    <article className={`product-card ${styles.visualCard}`}>
+      <Link href={productHref} prefetch={false} className={`product-art ${category.artClass} ${styles.visualArt}`} aria-label={`Δες ${displayTitle}`}>
         {governedSourceFallback ? <span className="art-category">{category.name}</span> : null}
         {governedSourceFallback ? <span className="art-symbol" aria-hidden="true">{category.symbol}</span> : null}
         {governedSourceFallback ? <span className="art-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span> : null}
@@ -165,7 +156,7 @@ export function CatalogProductCardClient({ product, index = 0, vendorContext, de
           priority={eagerImage}
           decoding="async"
           referrerPolicy="no-referrer"
-          style={catalogImageStyle}
+          className={styles.catalogImage}
         /> : <img
           src={imageSrc}
           alt={product.mediaAlt ?? displayTitle}
@@ -173,45 +164,27 @@ export function CatalogProductCardClient({ product, index = 0, vendorContext, de
           fetchPriority={index === 0 ? "high" : "auto"}
           decoding="async"
           referrerPolicy={kerasiotisExternalImage ? "strict-origin-when-cross-origin" : externalImage ? "no-referrer" : undefined}
-          style={catalogImageStyle}
+          className={styles.catalogImage}
         />}
         {prominentSavings && savingLabel && msrpMinor !== undefined ? (
           <span
             aria-label={highlightKind === "sale" ? `ΠΛΤ ${formatEuroMinor(msrpMinor)}, SALE, όφελος ${savingLabel}%` : `ΠΛΤ ${formatEuroMinor(msrpMinor)}, όφελος ${savingLabel}%`}
             data-price-highlight-kind={highlightKind}
-            style={{
-              position: "absolute",
-              zIndex: 3,
-              top: 14,
-              right: 14,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
-              gap: 5
-            }}
+            className={styles.savingsBadge}
           >
-            <s aria-hidden="true" style={{ color: "rgba(13, 43, 35, .62)", fontSize: ".7rem", fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap" }}>ΠΛΤ {formatEuroMinor(msrpMinor)}</s>
+            <s aria-hidden="true" className={styles.savingsMsrp}>ΠΛΤ {formatEuroMinor(msrpMinor)}</s>
             <span
               aria-hidden="true"
-              style={{
-                background: highlightKind === "sale" ? "var(--terracotta, #aa664f)" : "#111",
-                color: "#fff",
-                borderRadius: 999,
-                padding: "9px 13px",
-                fontWeight: 900,
-                fontSize: ".92rem",
-                lineHeight: 1,
-                boxShadow: "0 8px 22px rgba(0,0,0,.12)"
-              }}
+              className={`${styles.savingsPill}${highlightKind === "sale" ? ` ${styles.salePill}` : ""}`}
             >
               {publicPriceBadgeLabel(highlightKind, savingLabel)}
             </span>
           </span>
         ) : null}
       </Link>
-      <div className="product-body">
-        <div className="eyebrow">{product.categoryLabel ?? category.label}</div>
-        <div className="catalog-card-title-stack">
+      <div className={`product-body ${styles.visualBody}`}>
+        <div className={`eyebrow ${styles.categoryPill}`}>{product.categoryLabel ?? category.label}</div>
+        <div className={`catalog-card-title-stack ${styles.titleStack}`}>
           {product.brand ? <BrandMarketplaceLink
             brand={product.brand}
             logoObjectKey={product.brandLogoObjectKey}
@@ -223,33 +196,13 @@ export function CatalogProductCardClient({ product, index = 0, vendorContext, de
           /> : null}
           <h3><Link href={productHref} prefetch={false}>{displayTitle}</Link></h3>
         </div>
-        <div className="product-bottom">
+        <div className={`product-bottom ${styles.productBottom}`}>
           <PublicCatalogPrice msrpMinor={msrpMinor} retailPriceMinor={product.priceMinor} priceLabel={priceLabel} savingLabel={savingLabel} prominentSavings={prominentSavings} />
         </div>
-        {!supplierFulfilled && vendorName ? <p className="catalog-card-vendor">{vendorName}</p> : null}
-        {!demoMode && !supplierFulfilled ? <LocalCommerceProof proof={product.localProof} compact /> : null}
+        {!supplierFulfilled && vendorName ? <p className={`catalog-card-vendor ${styles.vendorLine}`}>{vendorName}</p> : null}
+        {!demoMode && !supplierFulfilled ? <div className={styles.localProof}><LocalCommerceProof proof={product.localProof} compact /></div> : null}
       </div>
-      <style jsx>{`
-        .catalog-card-title-stack {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 7px;
-          min-width: 0;
-          margin-top: 11px;
-        }
-        .catalog-card-title-stack h3 {
-          width: 100%;
-          min-width: 0;
-          margin: 0;
-        }
-        .product-bottom {
-          justify-content: flex-start;
-        }
-        @media (max-width: 620px) {
-          .catalog-card-title-stack { gap: 6px; }
-        }
-      `}</style>
+
     </article>
   );
 }
