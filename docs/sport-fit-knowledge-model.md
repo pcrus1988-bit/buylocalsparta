@@ -671,9 +671,9 @@ Carried verified refinements:
 - adi365 Running Essentials Tank `KB5970`: explicit everyday-running `daily_training` use case.
 
 New exact-code enrichment:
-- Response 2 `KK4280`: running, road surface, long-run use, true-to-size guidance, 301 g reference weight, 8 mm drop and 32/24 mm heel/forefoot stack from the exact adidas Mexico product page.
+- Response 2 `KK4280`: running, road surface, explicit neutral-pronation support classification, long-run use, true-to-size guidance, 301 g reference weight, 8 mm drop and 32/24 mm heel/forefoot stack from the exact adidas Mexico product page.
 
-Cloudfoam+ comfort/support wording on KK4280 remains provenance only and is not converted into `cushioning_level` or `support_level`. The migration fails closed if any of the six style codes stops resolving to exactly one active canonical family or if an unexpected target fact already exists.
+Cloudfoam+ comfort/generic support wording on KK4280 remains provenance only and is not converted into `cushioning_level` or a stronger support claim. `support_level=neutral` is published only because the exact product page separately classifies the shoe for neutral pronation. The migration fails closed if any of the six style codes stops resolving to exactly one active canonical family or if an unexpected target fact already exists.
 
 Current queued research deliberately remains unresolved for `JR9720`, `KQ9728` and `KR2147` until exact first-party product-page evidence is available; reseller classification alone is not enough to publish new governed Sport & Fit facts.
 
