@@ -69,7 +69,10 @@ export type SportFitKnowledge = Readonly<{
   fitLengthProfile?: string;
   widthProfile?: string;
   dropMm?: number;
+  heelStackMm?: number;
+  forefootStackMm?: number;
   weightG?: number;
+  plateType?: string;
   footballSurfaceCode?: string;
   weatherProtection?: readonly string[];
   sockHeight?: string;
