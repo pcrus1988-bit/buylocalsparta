@@ -6,6 +6,7 @@ import { useState } from "react";
 import { NON_INDEXABLE_PAGE_ROUTES, PRIMARY_NAVIGATION } from "../lib/site-navigation";
 import { isCustomerMobileCommercePath } from "../lib/customer-mobile-commerce";
 import { useCart } from "./CartProvider";
+import { SearchDiscoveryPanel, useSearchDiscovery } from "./SearchDiscovery";
 
 const PRIVATE_VENDOR_ROUTES = new Set(NON_INDEXABLE_PAGE_ROUTES.filter((route) => route.startsWith("/vendor/")) as ReadonlyArray<string>);
 
@@ -48,6 +49,10 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
   const { count, openCart, isCartOpen, cartPulseKey } = useCart();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const { items: searchItems, loading: searchLoading } = useSearchDiscovery(searchQuery, 12);
+  const showSearchDiscovery = searchOpen && searchQuery.trim().length >= 2;
   const relocateMobileCommerceActions = isCustomerMobileCommercePath(pathname);
   const flashSaleActive = pathname === "/flash-sale";
 
@@ -89,10 +94,40 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
           <span className="header-location-dot" aria-hidden="true" />
           <span>Σπάρτη</span>
         </Link>
-        <form className="header-search" action="/shop" role="search">
+        <form
+          className="header-search"
+          action="/shop"
+          role="search"
+          onFocus={() => setSearchOpen(true)}
+          onBlur={() => window.setTimeout(() => setSearchOpen(false), 120)}
+          style={{ position: "relative" }}
+        >
           <label className="header-search-label" htmlFor="site-header-search">Αναζήτηση προϊόντων</label>
           <SearchIcon />
-          <input id="site-header-search" name="q" type="search" placeholder="Αναζήτηση" maxLength={120} autoComplete="off" />
+          <input
+            id="site-header-search"
+            name="q"
+            type="search"
+            value={searchQuery}
+            onChange={(event) => {
+              setSearchQuery(event.target.value);
+              setSearchOpen(true);
+            }}
+            placeholder="Αναζήτηση"
+            maxLength={120}
+            autoComplete="off"
+            aria-expanded={showSearchDiscovery}
+            aria-controls="site-header-search-discovery"
+          />
+          <SearchDiscoveryPanel
+            id="site-header-search-discovery"
+            query={searchQuery}
+            items={searchItems}
+            loading={searchLoading}
+            open={searchOpen}
+            surface="home"
+            onNavigate={() => setSearchOpen(false)}
+          />
         </form>
         <Link className={`cart-button account-button${pathname.startsWith("/account") ? " is-active" : ""}`} href="/account" aria-label="Λογαριασμός">
           <AccountIcon />
@@ -106,6 +141,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
 
       <style>{`
         .header-actions > button.cart-button { font: inherit; cursor: pointer; }
+        #site-header-search-discovery { left: auto; right: 0; width: min(420px, calc(100vw - 24px)); }
         .site-header > .flash-sale-shortcut { display: none; }
 
         @media (min-width: 1321px) {
