@@ -37,7 +37,6 @@ type PublishedDropshipPageRow = Readonly<{
   vendor_slug: string;
   vendor_name: string;
   vendor_presentation: unknown;
-  is_match: boolean;
   sort_ordinal: number | string;
 }>;
 
@@ -93,11 +92,6 @@ function categoryPrefixes(category: string): readonly string[] {
   return governed ? governed.aliases.map(normalizeCategory) : [normalized];
 }
 
-function subcategoryValues(filters: CatalogFilters & Readonly<{ fit?: string; subcategories?: readonly string[] }>): readonly string[] {
-  if (filters.subcategory?.trim()) return [filters.subcategory.trim()];
-  return [...new Set((filters.subcategories ?? []).map((value) => value.trim()).filter(Boolean))].slice(0, 64);
-}
-
 /**
  * Dropship source families are selected from the compact read model. Only the
  * selected page is then hydrated from authoritative supplier/offer tables.
@@ -110,7 +104,6 @@ export async function getPublishedDropshipCatalogPage(
   const limit = Math.max(1, Math.min(MAX_PAGE_SIZE, input.limit ?? 30));
   const offset = Math.max(0, input.offset ?? 0);
   const filters = input.filters ?? {};
-  const selectedSubcategories = subcategoryValues(filters);
   const attributeFilters = input.attributeFilters ?? {};
   const prefixes = categoryPrefixes(input.category ?? "");
   const query = (input.query ?? "").trim();
@@ -268,44 +261,10 @@ export async function getPublishedDropshipCatalogPage(
       vendor_slug,
       vendor_name,
       vendor_presentation,
-      sort_ordinal,
-      (
-        (cardinality($3::text[])=0 OR EXISTS (
-          SELECT 1 FROM unnest($3::text[]) prefix
-          WHERE lower(category_code)=prefix
-             OR lower(category_code) LIKE prefix||'-%'
-             OR lower(department_code)=prefix
-             OR lower(department_code) LIKE prefix||'-%'
-        ))
-        AND (cardinality($4::text[])=0 OR category_code=ANY($4::text[]))
-        AND ($5::text='' OR lower(COALESCE(brand_name,''))=lower($5))
-        AND ($6::text='' OR lower(COALESCE(color,''))=lower($6))
-        AND ($7::text='' OR COALESCE(sizes,'[]'::jsonb) ? $7)
-        AND ($8::text='' OR lower(COALESCE(fit,''))=lower($8))
-        AND ($9::bigint IS NULL OR customer_price_minor>=$9)
-        AND ($10::bigint IS NULL OR customer_price_minor<=$10)
-        AND (
-          $11::text='' OR
-          search_vector @@ plainto_tsquery('simple',$11)
-          OR COALESCE(gtin,'')=$11
-          OR lower(COALESCE(mpn,''))=lower($11)
-        )
-      ) AS is_match
+      sort_ordinal
     FROM base
     ORDER BY sort_ordinal,customer_price_minor,canonical_public_id
-  `, [
-    supplierIds,
-    externalProductIds,
-    prefixes,
-    selectedSubcategories,
-    filters.brand ?? "",
-    filters.color ?? "",
-    filters.size ?? "",
-    filters.fit ?? "",
-    input.minPriceMinor ?? null,
-    input.maxPriceMinor ?? null,
-    query
-  ]);
+  `, [supplierIds, externalProductIds]);
 
   const base = result.rows.flatMap((row) => {
     const priceMinor = safeMinor(row.customer_price_minor);
@@ -332,7 +291,6 @@ export async function getPublishedDropshipCatalogPage(
       vendorSlug: row.vendor_slug,
       vendorName: row.vendor_name,
       publicFields: presentation.fields,
-      matchedBySql: row.is_match
     }];
   });
   if (!base.length) return { products: [], total, hasMore: familyWindowHasMore };
