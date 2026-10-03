@@ -254,7 +254,6 @@ export async function getFastShopTaxonomy(
             SELECT 1 FROM unnest($6::text[]) selected_size(value)
             WHERE COALESCE(sizes,'[]'::jsonb) ? selected_size.value
           ))
-          AND ($7::text='' OR lower(COALESCE(fit,''))=lower($7))
         GROUP BY category_code,category_label
       ), brand_values AS (
         SELECT brand AS value,COUNT(*)::int AS count
@@ -266,7 +265,6 @@ export async function getFastShopTaxonomy(
             SELECT 1 FROM unnest($6::text[]) selected_size(value)
             WHERE COALESCE(sizes,'[]'::jsonb) ? selected_size.value
           ))
-          AND ($7::text='' OR lower(COALESCE(fit,''))=lower($7))
         GROUP BY brand
       ), color_values AS (
         SELECT color AS value,COUNT(*)::int AS count
@@ -278,7 +276,6 @@ export async function getFastShopTaxonomy(
             SELECT 1 FROM unnest($6::text[]) selected_size(value)
             WHERE COALESCE(sizes,'[]'::jsonb) ? selected_size.value
           ))
-          AND ($7::text='' OR lower(COALESCE(fit,''))=lower($7))
         GROUP BY color
       ), size_values AS (
         SELECT size_entry.value,COUNT(*)::int AS count
@@ -287,20 +284,43 @@ export async function getFastShopTaxonomy(
         WHERE ($3::text='' OR category_code=$3)
           AND ($4::text='' OR lower(COALESCE(brand,''))=lower($4))
           AND ($5::text='' OR lower(COALESCE(color,''))=lower($5))
-          AND ($7::text='' OR lower(COALESCE(fit,''))=lower($7))
         GROUP BY size_entry.value
       ), fit_values AS (
-        SELECT fit AS value,COUNT(*)::int AS count
-        FROM base
-        WHERE fit IS NOT NULL
-          AND ($3::text='' OR category_code=$3)
-          AND ($4::text='' OR lower(COALESCE(brand,''))=lower($4))
-          AND ($5::text='' OR lower(COALESCE(color,''))=lower($5))
+        SELECT fit_entry.value AS value,COUNT(*)::int AS count
+        FROM bls_private.storefront_dropship_live_family live_family
+        CROSS JOIN LATERAL unnest(live_family.fits) fit_entry(value)
+        WHERE live_family.sellable=true
+          AND live_family.available_until>now()
+          AND (
+            cardinality($1::text[])=0
+            OR EXISTS (
+              SELECT 1
+              FROM unnest(live_family.category_codes) category_code
+              CROSS JOIN unnest($1::text[]) prefix
+              WHERE lower(category_code)=prefix
+                 OR lower(category_code) LIKE prefix||'-%'
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM unnest(live_family.department_codes) department_code
+              CROSS JOIN unnest($1::text[]) prefix
+              WHERE lower(department_code)=prefix
+                 OR lower(department_code) LIKE prefix||'-%'
+            )
+          )
+          AND (
+            $2::text='' OR live_family.search_vector @@ plainto_tsquery('simple',$2)
+          )
+          AND ($3::text='' OR live_family.category_codes @> ARRAY[$3]::text[])
+          AND ($4::text='' OR live_family.brand_names_normalized @> ARRAY[lower($4)]::text[])
+          AND ($5::text='' OR live_family.colors @> ARRAY[lower($5)]::text[])
           AND (cardinality($6::text[])=0 OR EXISTS (
-            SELECT 1 FROM unnest($6::text[]) selected_size(value)
-            WHERE COALESCE(sizes,'[]'::jsonb) ? selected_size.value
+            SELECT 1
+            FROM unnest(live_family.sizes) actual_size(value)
+            CROSS JOIN unnest($6::text[]) selected_size(value)
+            WHERE lower(actual_size.value)=lower(selected_size.value)
           ))
-        GROUP BY fit
+        GROUP BY fit_entry.value
       )
       SELECT
         COALESCE((
