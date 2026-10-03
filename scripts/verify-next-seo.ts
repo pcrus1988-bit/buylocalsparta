@@ -261,6 +261,11 @@ if (!requestAudience.includes("read-only public")) failures.push("Crawler classi
 // Human sitemap and crawl graph provide real internal-link coverage.
 for (const contract of ["getPublicVendorDirectory", "resolveSeoEntityControl", "researchVendorIndexEligibility", "sitemapAllowed", "vendorGroups", "/vendor/", 'getAvailableStorefrontCategories("23100")', "availableCategories.map"]) requireText(humanSitemap, contract, `Human sitemap governed discovery is missing ${contract}`);
 for (const contract of ["adminSeoCrawlGraph", '"/shop catalogue"', '"/shops directory"', '"Homepage category rail"', '"/sitemap governed vendor directory"', "orphan", "weak", "indexAllowed"]) requireText(crawlGraph, contract, `SEO crawl graph is missing ${contract}`);
+for (const contract of [
+  'const route = `/vendor/${encodeURIComponent(vendor.slug)}`',
+  'canonicalUrl: new URL(override?.canonicalPath ?? route'
+]) requireText(crawlGraph, contract, `SEO crawl graph vendor routing is missing ${contract}`);
+if (crawlGraph.includes('route: `/vendor/${encodeURIComponent(vendor.id)}`')) failures.push("SEO crawl graph must use the public vendor slug, not the internal/public vendor ID, for public routes");
 for (const contract of ["Internal linking & orphan diagnostics", "Weakly linked", "Orphans", "Open public page"]) requireText(adminCrawlPage, contract, `Admin crawl graph UI is missing ${contract}`);
 
 // Private route/header and diagnostic hardening.
