@@ -14,17 +14,21 @@ export function ProductBrandTitle({ title, brand, logoObjectKey }: Readonly<{
       .product-brand-title-row {
         display: flex;
         align-items: flex-start;
-        gap: 14px;
+        gap: 10px;
         min-width: 0;
-        margin: 12px 0 25px;
+        margin: 8px 0 14px;
       }
       .product-brand-title-row h1 {
         flex: 1 1 auto;
         min-width: 0;
         margin: 0;
+        font-size: clamp(28px, 3.2vw, 42px);
+        line-height: 1.02;
+        letter-spacing: -0.035em;
       }
       @media (max-width: 620px) {
-        .product-brand-title-row { gap: 11px; }
+        .product-brand-title-row { gap: 9px; margin-bottom: 12px; }
+        .product-brand-title-row h1 { font-size: clamp(27px, 8vw, 34px); }
       }
     `}</style>
   </div>;
