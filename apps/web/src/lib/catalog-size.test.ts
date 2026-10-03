@@ -34,6 +34,18 @@ test("preserves fractional footwear sizes as distinct canonical values", () => {
   assert.notEqual(fractional.key, canonicalizeCatalogSize("37", "footwear").key);
 });
 
+test("normalizes compact supplier fractional footwear encodings", () => {
+  const compactThird = canonicalizeCatalogSize("4713", "footwear");
+  assert.equal(compactThird.key, canonicalizeCatalogSize("EU 47 1/3", "footwear").key);
+  assert.equal(compactThird.label, "EU 47⅓");
+
+  const compactTwoThirds = canonicalizeCatalogSize("4723", "footwear");
+  assert.equal(compactTwoThirds.key, canonicalizeCatalogSize("47⅔", "footwear").key);
+  assert.equal(compactTwoThirds.label, "EU 47⅔");
+
+  assert.equal(canonicalizeCatalogSize("4713", "generic").key, "raw:4713");
+});
+
 test("bundles equivalent apparel alpha and EU representations", () => {
   const s = canonicalizeCatalogSize("S", "apparel");
   assert.equal(s.label, "S · EU 36–38");
