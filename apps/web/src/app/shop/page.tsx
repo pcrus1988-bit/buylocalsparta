@@ -464,7 +464,6 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     mergeFacetOptions(taxonomy.fits ?? [], supplierFacets?.fits ?? []),
     fallbackFacets.fits
   );
-  if (fit) products = products.filter((product) => product.fit === fit);
   if (searchIntent.availability === "pickup_today") products = products.filter((product) => product.localProof?.pickup && product.localProof.stockConfirmedToday);
   if (minPriceMinor !== undefined) products = products.filter((product) => product.priceMinor >= minPriceMinor);
   if (maxPriceMinor !== undefined) products = products.filter((product) => product.priceMinor <= maxPriceMinor);
