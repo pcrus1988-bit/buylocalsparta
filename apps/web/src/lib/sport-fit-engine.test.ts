@@ -487,7 +487,7 @@ test("running rules combine distance, frequency, cushioning and verified use cas
   });
 
   assert.equal(result.primary?.id, "long-run");
-  assert.equal(result.rulesetVersion, "2026-10-02.13");
+  assert.equal(result.rulesetVersion, "2026-10-03.1");
   assert.ok(result.primary?.appliedRules.includes("running.long_run_use_case"));
   assert.ok(result.primary?.reasons.some((reason) => /long-run|cushioning/i.test(reason)));
 });
@@ -1739,4 +1739,54 @@ test("governed casual-lifestyle footwear is hard-excluded from running despite a
   assert.ok(scored.appliedRules.includes("activity.known_mismatch"));
   assert.equal(result.primary, undefined);
   assert.equal(result.ranked.length, 0);
+});
+
+
+test("exact gym-functional evidence satisfies a functional gym request without invented cushioning or support", () => {
+  const genericGym = product({
+    id: "generic-governed-gym",
+    title: "Generic Gym Trainer",
+    categoryCode: "mens-sneakers",
+    priceMinor: 12000,
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["gym_training"]
+    }
+  });
+  const exactFunctional = product({
+    id: "on-cloud-x-5-functional",
+    title: "On Cloud X 5",
+    categoryCode: "mens-sneakers",
+    priceMinor: 12000,
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["gym_training"],
+      useCases: ["gym_functional"],
+      fitLengthProfile: "true_to_size",
+      dropMm: 8,
+      weightG: 290
+    }
+  });
+
+  const answers = {
+    activity: "gym" as const,
+    audience: "men" as const,
+    gymTrainingType: "functional" as const
+  };
+  const genericScore = scoreSportFitProduct(genericGym, answers);
+  const exactScore = scoreSportFitProduct(exactFunctional, answers);
+  const result = buildSportFitRecommendation([genericGym, exactFunctional], answers);
+
+  assert.equal(genericScore.technicalEligible, true);
+  assert.equal(exactScore.technicalEligible, true);
+  assert.ok(genericScore.technicalRequirements.some((item) =>
+    item.id === "requirement.gym_training_type" && item.status === "unknown"
+  ));
+  assert.ok(exactScore.technicalRequirements.some((item) =>
+    item.id === "requirement.gym_training_type" && item.status === "match"
+  ));
+  assert.ok(exactScore.technicalScore > genericScore.technicalScore);
+  assert.equal(result.primary?.id, "on-cloud-x-5-functional");
 });
