@@ -23,6 +23,8 @@ export type StorefrontReadModelWindowInput = Readonly<{
   offset: number;
   /** Crawler-only reads can skip expensive diversity ranking while keeping shopper browse unchanged. */
   diversify?: boolean;
+  /** Crawler projections do not need an exact catalogue-wide count. */
+  countTotal?: boolean;
 }>;
 
 export type StorefrontReadModelCandidate = Readonly<{
@@ -139,6 +141,45 @@ export async function getLocalStorefrontReadModelWindow(
   input: StorefrontReadModelWindowInput
 ): Promise<readonly StorefrontReadModelCandidate[]> {
   if (!productionDatabaseConfigured()) return [];
+
+  if (input.countTotal === false) {
+    const result = await getProductionPostgresRuntime().nativePool.query<StorefrontReadModelCandidate>(`
+      WITH matching AS MATERIALIZED (
+        SELECT
+          rm.canonical_public_id,
+          rm.family_id,
+          rm.department_code,
+          rm.min_price_minor,
+          rm.created_at,
+          ROW_NUMBER() OVER (
+            PARTITION BY COALESCE(rm.family_id::text,rm.canonical_public_id)
+            ORDER BY
+              CASE WHEN $10::text='price-asc' THEN rm.min_price_minor END ASC,
+              CASE WHEN $10::text='price-desc' THEN rm.min_price_minor END DESC,
+              CASE WHEN $10::text NOT IN ('price-asc','price-desc') THEN rm.created_at END DESC,
+              rm.canonical_public_id
+          ) AS family_rank
+        FROM public.storefront_catalog_read_model rm
+        WHERE rm.local_sellable=true
+          AND rm.local_available_until>now()
+          ${FILTER_SQL}
+      )
+      SELECT
+        matching.canonical_public_id,
+        matching.department_code,
+        0::bigint AS total_count
+      FROM matching
+      WHERE matching.family_rank=1
+      ORDER BY
+        CASE WHEN $10::text='price-asc' THEN matching.min_price_minor END ASC,
+        CASE WHEN $10::text='price-desc' THEN matching.min_price_minor END DESC,
+        CASE WHEN $10::text NOT IN ('price-asc','price-desc') THEN matching.created_at END DESC,
+        matching.canonical_public_id
+      LIMIT $11 OFFSET $12
+    `, parameters(input));
+    return result.rows;
+  }
+
   const result = await getProductionPostgresRuntime().nativePool.query<StorefrontReadModelCandidate>(`
     WITH matching AS MATERIALIZED (
       SELECT
