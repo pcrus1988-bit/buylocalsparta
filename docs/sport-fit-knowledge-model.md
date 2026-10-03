@@ -711,3 +711,18 @@ The migration fails closed unless both style codes still resolve to exactly one 
 The exact schema-394 migration was replayed against live production schema 393 inside a transaction ending in `ROLLBACK`; both target queues reduced to the expected unresolved field sets and no technical fact/evidence row changed.
 
 Schema 394 was merged as PR #1265 and applied to production with checksum `a8d287357d40148a9df4de72e56a74d36230c956c276e732772260589471d233`. Live read-back confirmed JP9203 now requests only five genuinely unresolved fields and JQ6920 only six, with no already-normalized or football-only request remaining. The global runtime schema gate and production database are now **394**.
+
+## Schema 395 — exact first-party surface evidence and queue hygiene
+
+Migration `0395_sport_fit_exact_surface_evidence.sql` deepens exact sellable adidas footwear without promoting generic marketing language into controlled technical levels.
+
+- Runfalcon 6 ATR `IH1838`: the exact adidas manufacturer page now explicitly states running on city streets and rugged trails and describes a multi-terrain outsole. Schema 395 normalizes `sport_surface=road` and `sport_surface=trail` while preserving the existing running identity, true-to-size guidance, 254 g weight and 9 mm / 36 mm / 26 mm geometry.
+- Ultimashow 2.0 `KJ9916`: the exact adidas page explicitly states reliable outsole grip for street surfaces. Schema 395 normalizes `sport_surface=road` while preserving the stronger manufacturer classification as Sportswear / `general_training`; it does not reclassify the family as running.
+- Cloudfoam Flex Laces `KJ7282`: no new technical fact is invented. The pass only reconciles its queue against already-governed walking, daily-walking and true-to-size facts.
+
+The migration adds three exact manufacturer surface fact/evidence pairs, refreshes the two first-party source records used for new surface facts, and removes already-satisfied or football-only requests from the three non-blocked queues. Cloudfoam language, generic stability/support wording, regular/loose fit and comfort claims remain provenance only: schema 395 deliberately does not infer cushioning intensity, support level or width profile from them.
+
+Regression coverage protects road + trail matching for governed multi-surface running footwear and confirms that a general-training shoe with positive street-surface evidence is not hard-rejected for a gym treadmill request, because gym surface is not modeled as an exhaustive footwear-surface whitelist.
+
+The runtime schema gate is now **395**.
+
