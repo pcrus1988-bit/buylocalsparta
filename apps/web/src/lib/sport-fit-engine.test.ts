@@ -1572,3 +1572,66 @@ test("race-day request prefers exact governed race evidence over otherwise match
   assert.equal(result.primary?.id, "duramo-rc2-race");
 });
 
+test("governed road and trail evidence matches both Runfalcon-style running surfaces", () => {
+  const multiSurface = product({
+    id: "governed-road-trail-runner",
+    title: "All Terrain Running Shoe",
+    categoryCode: "womens-running-shoes",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road", "trail"],
+      fitLengthProfile: "true_to_size"
+    }
+  });
+
+  const road = scoreSportFitProduct(multiSurface, {
+    activity: "running",
+    audience: "women",
+    surface: "road"
+  });
+  const trail = scoreSportFitProduct(multiSurface, {
+    activity: "running",
+    audience: "women",
+    surface: "trail"
+  });
+
+  assert.equal(road.technicalEligible, true);
+  assert.equal(trail.technicalEligible, true);
+  assert.ok(road.technicalRequirements.some((item) =>
+    item.id === "requirement.surface" && item.status === "match"
+  ));
+  assert.ok(trail.technicalRequirements.some((item) =>
+    item.id === "requirement.surface" && item.status === "match"
+  ));
+});
+
+test("street-surface evidence on general-training footwear does not hard-reject a gym treadmill request", () => {
+  const trainer = product({
+    id: "general-training-street-shoe",
+    title: "General Training Shoe",
+    categoryCode: "mens-running-shoes",
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["general_training"],
+      surfaces: ["road"],
+      fitLengthProfile: "true_to_size"
+    }
+  });
+
+  const scored = scoreSportFitProduct(trainer, {
+    activity: "gym",
+    audience: "men",
+    surface: "treadmill",
+    gymTrainingType: "treadmill"
+  });
+
+  assert.equal(scored.technicalEligible, true);
+  assert.equal(scored.appliedRules.includes("surface.known_mismatch"), false);
+  assert.equal(scored.technicalRequirements.some((item) =>
+    item.id === "requirement.surface" && item.status === "conflict"
+  ), false);
+});
+
