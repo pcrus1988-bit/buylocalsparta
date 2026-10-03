@@ -18,7 +18,7 @@ export default async function VendorSettingsPage() {
   const core: SettingsCard[] = [
     {
       title: "Επιχείρηση & δημόσιο προφίλ",
-      body: "Περιγραφή, εμφάνιση, λογότυπο, φωτογραφίες και Instagram του καταστήματός σου.",
+      body: "Περιγραφή, κύρια και δευτερεύοντα χρώματα μάρκας, λογότυπο, φωτογραφίες και Instagram του καταστήματός σου.",
       href: "/vendor/storefront",
       action: "Ρύθμιση προφίλ"
     },
