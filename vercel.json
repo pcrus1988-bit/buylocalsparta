@@ -12,15 +12,15 @@
     },
     {
       "path": "/api/cron/catalogue-crawler",
-      "schedule": "*/10 * * * *"
+      "schedule": "7,37 * * * *"
     },
     {
       "path": "/api/cron/vendor-product-feeds",
-      "schedule": "*/10 * * * *"
+      "schedule": "12,42 * * * *"
     },
     {
       "path": "/api/cron/vendor-product-feed-media",
-      "schedule": "*/10 * * * *"
+      "schedule": "22 * * * *"
     },
     {
       "path": "/api/cron/vitex-source-monitor",
@@ -28,11 +28,11 @@
     },
     {
       "path": "/api/cron/nova-canonical-media",
-      "schedule": "*/10 * * * *"
+      "schedule": "27 * * * *"
     },
     {
       "path": "/api/cron/nova-availability-failover",
-      "schedule": "*/5 * * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/symphonya-catalogue",
@@ -40,7 +40,7 @@
     },
     {
       "path": "/api/cron/symphonya-stock",
-      "schedule": "*/5 * * * *"
+      "schedule": "5,20,35,50 * * * *"
     },
     {
       "path": "/api/cron/symphonya-pipeline",
@@ -65,10 +65,6 @@
     {
       "path": "/api/cron/zendrop-pipeline",
       "schedule": "17 * * * *"
-    },
-    {
-      "path": "/api/cron/seo-production-metrics",
-      "schedule": "37 4 * * *"
     },
     {
       "path": "/api/cron/seo-gsc-diagnostics",

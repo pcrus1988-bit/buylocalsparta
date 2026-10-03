@@ -50,14 +50,13 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
   let products: Awaited<ReturnType<typeof getPublicProductSitemapInventoryShard>>;
 
   try {
-    const [settingsSnapshot, overrides, productShard] = await Promise.all([
-      getSeoGlobalSettingsSnapshot(),
-      getSeoEntityOverridesSnapshot(),
-      getPublicProductSitemapInventoryShard(shard)
-    ]);
+    // Keep crawler-facing reads sequential. The Vercel web runtime deliberately
+    // uses a tiny PostgreSQL pool, so three parallel reads can queue behind each
+    // other during catalogue pressure and turn a cache miss into a connection timeout.
+    const settingsSnapshot = await getSeoGlobalSettingsSnapshot();
     settings = settingsSnapshot.settings;
-    overrideSnapshot = overrides;
-    products = productShard;
+    overrideSnapshot = await getSeoEntityOverridesSnapshot();
+    products = await getPublicProductSitemapInventoryShard(shard);
   } catch (error) {
     // A public sitemap endpoint must remain fetchable even during temporary database
     // connection pressure. Return an empty, explicitly degraded sitemap rather than
@@ -96,11 +95,12 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
     if (!control.sitemapAllowed) return [];
 
     const url = new URL(override?.canonicalPath ?? productPublicPath(product), `${origin}/`).toString();
-    const imageUrl = product.mediaId
-      ? new URL(`/api/media/${encodeURIComponent(product.mediaId)}`, `${origin}/`).toString()
-      : product.sourceImageAvailable
-        ? new URL(`/api/catalog-source-image/${encodeURIComponent(product.id)}`, `${origin}/`).toString()
-        : undefined;
+    // Prefer the governed supplier URL directly. During recovery the local image
+    // proxy has produced intermittent Next runtime packaging failures and DB
+    // connection timeouts; omitting a proxy-only image is safer than advertising
+    // a crawler URL that can return 5xx. Product pages and Merchant feeds retain
+    // their independent media projections.
+    const imageUrl = product.sourceImageUrl;
 
     return [{
       url,
