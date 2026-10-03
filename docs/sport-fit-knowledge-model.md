@@ -679,7 +679,7 @@ The migration adds three new regional first-party evidence sources and seven nor
 
 Identity remains family-level and vendor-independent. The migration fails closed unless each exact style code resolves to exactly one active canonical family, verifies the expected pre-existing running/surface/use-case baselines before adding anything, and asserts that KJ6635 did not acquire unsupported cushioning/support/width facts.
 
-The exact migration was replayed against production schema 391 inside a transaction ending in `ROLLBACK`; all identity guards, seven fact inserts, seven evidence inserts, knowledge refreshes, queue-pruning checks and unsupported-inference assertions passed without persisting rehearsal rows.
+The exact migration was first replayed against production schema 391 inside a transaction ending in `ROLLBACK`; all identity guards, seven fact inserts, seven evidence inserts, knowledge refreshes, queue-pruning checks and unsupported-inference assertions passed without persisting rehearsal rows. After PR #1261 merged, that same committed migration was applied to production and recorded in `schema_migrations` as version 392 with its immutable SHA-256 checksum. Live read-back confirmed all seven normalized facts and all seven targeted manufacturer evidence rows, zero conflicts on the three enriched families, and queue pruning down to unresolved fields only.
 
-The runtime schema gate is now **392**; production remains at schema 391 until the migration is deployed.
+The global runtime schema gate and production database are now **392**.
 
