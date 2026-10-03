@@ -187,6 +187,15 @@
   border: 1px solid var(--km-premium-line);
   background: #fff;
 }
+.product-detail-art.product-detail-art--media {
+  min-height: 0;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  background: #f4f1ea;
+}
+.product-detail-art.product-detail-art--media::before {
+  display: none;
+}
 .product-detail-copy > h1 {
   max-width: 760px;
   margin-top: 12px;
