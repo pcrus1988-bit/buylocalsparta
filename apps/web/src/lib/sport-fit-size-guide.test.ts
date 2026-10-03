@@ -87,3 +87,35 @@ test("an exact audience guide outranks unisex for future audience-specific chart
     []
   );
 });
+
+
+test("Saucony unisex chart preserves exact EU, US audience and JPN conversions", () => {
+  const sauconyPoints: readonly SportSizeGuidePoint[] = [
+    {
+      measurementMm: 250,
+      labels: [
+        { sizeSystem: "EU", audienceScope: "unisex", sizeLabel: "40" },
+        { sizeSystem: "UK", audienceScope: "unisex", sizeLabel: "6" },
+        { sizeSystem: "US", audienceScope: "men", sizeLabel: "7" },
+        { sizeSystem: "US", audienceScope: "women", sizeLabel: "8.5" },
+        { sizeSystem: "JPN", audienceScope: "unisex", sizeLabel: "25" }
+      ]
+    },
+    {
+      measurementMm: 255,
+      labels: [
+        { sizeSystem: "EU", audienceScope: "unisex", sizeLabel: "40.5" },
+        { sizeSystem: "UK", audienceScope: "unisex", sizeLabel: "6.5" },
+        { sizeSystem: "US", audienceScope: "men", sizeLabel: "7.5" },
+        { sizeSystem: "US", audienceScope: "women", sizeLabel: "9" },
+        { sizeSystem: "JPN", audienceScope: "unisex", sizeLabel: "25.5" }
+      ]
+    }
+  ];
+
+  assert.deepEqual(resolveMeasuredSportSize(sauconyPoints, 250, "EU", "men").sizeLabels, ["40"]);
+  assert.deepEqual(resolveMeasuredSportSize(sauconyPoints, 250, "US", "men").sizeLabels, ["7"]);
+  assert.deepEqual(resolveMeasuredSportSize(sauconyPoints, 250, "US", "women").sizeLabels, ["8.5"]);
+  assert.deepEqual(resolveMeasuredSportSize(sauconyPoints, 250, "JPN", "women").sizeLabels, ["25"]);
+  assert.deepEqual(resolveMeasuredSportSize(sauconyPoints, 252, "EU", "women").sizeLabels, ["40", "40.5"]);
+});
