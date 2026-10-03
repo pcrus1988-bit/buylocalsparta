@@ -383,13 +383,21 @@ function assetCandidates(html: string, pageUrl: string, brand: string): AssetCan
   for (const m of html.matchAll(svgRegex)) {
     const svg = m[0];
     const open = svg.slice(0, Math.min(svg.indexOf(">") + 1, 1200));
-    const lower = fold(open);
+    const probe = svg.slice(0, 3200);
+    const lower = fold(probe);
     const aria = fold(attr(open, "aria-label") || "");
-    const brandHit = tokens.some((t) => lower.includes(t) || aria.includes(t));
-    const explicitLogoHit = /logo|wordmark|brandmark|site[-_ ]?brand|header[-_ ]?brand/i.test(open);
+    const title = fold(svg.match(/<title[^>]*>([^<]{1,180})<\/title>/i)?.[1] || "");
+    const brandHit = tokens.some((t) => lower.includes(t) || aria.includes(t) || title.includes(t));
+    const explicitLogoHit = /logo|wordmark|brandmark|site[-_ ]?brand|header[-_ ]?brand/i.test(probe);
     const ariaBrandHit = Boolean(aria) && tokens.some((t) => aria.includes(t));
-    if (explicitLogoHit || ariaBrandHit) {
-      out.push({ kind: "inline_svg", svg, score: explicitLogoHit && brandHit ? 160 : 145, discovery: "inline_svg" });
+    const titleBrandHit = Boolean(title) && tokens.some((t) => title.includes(t));
+    if (explicitLogoHit || ariaBrandHit || titleBrandHit) {
+      out.push({
+        kind: "inline_svg",
+        svg,
+        score: explicitLogoHit && brandHit ? 175 : titleBrandHit ? 165 : 150,
+        discovery: "inline_svg"
+      });
       if (out.length > 40) break;
     }
   }
@@ -525,18 +533,44 @@ async function processBrand(brand: BrandRow, workerId: number) {
     return metadataDelta(originalMd, next);
   };
 
-  if (!brand.logo_object_key && page) {
+  const queuedManualInlineSvg =
+    typeof md.manual_verified_logo_inline_svg === "string"
+      ? md.manual_verified_logo_inline_svg
+      : undefined;
+  const queuedLegacyLogoUrl =
+    md.logo_source_type === "official_site_logo" && typeof md.logo_external_url === "string"
+      ? safeHttps(md.logo_external_url)
+      : undefined;
+  const directLogoSourcePage =
+    typeof md.manual_verified_logo_source_page === "string"
+      ? safeHttps(md.manual_verified_logo_source_page)
+      : undefined;
+
+  if (!brand.logo_object_key && (page || queuedManualInlineSvg || queuedLegacyLogoUrl)) {
     try {
-      const selected = await chooseLogo(page.html, page.url, brand.name);
+      const selected = queuedManualInlineSvg
+        ? {
+            candidate: { kind: "inline_svg" as const, svg: queuedManualInlineSvg, score: 1000, discovery: "manual_verified_inline_svg" },
+            asset: await fetchAsset({ kind: "inline_svg", svg: queuedManualInlineSvg, score: 1000, discovery: "manual_verified_inline_svg" })
+          }
+        : queuedLegacyLogoUrl
+          ? {
+              candidate: { kind: "url" as const, url: queuedLegacyLogoUrl, score: 999, discovery: "legacy_verified_official_logo" },
+              asset: await fetchAsset({ kind: "url", url: queuedLegacyLogoUrl, score: 999, discovery: "legacy_verified_official_logo" })
+            }
+          : await chooseLogo(page!.html, page!.url, brand.name);
       const key = `brands/${slug(brand.name) || "brand"}-${brand.id.slice(0, 8)}/logo.${selected.asset.ext}`;
       await uploadLogo(key, selected.asset);
-      const sourceUrl = selected.candidate.kind === "url" ? selected.candidate.url : page.url;
+      const sourcePage = page?.url || directLogoSourcePage || website || brand.website;
+      if (!sourcePage) throw new Error("verified_logo_missing_source_page");
+      const sourceUrl = selected.candidate.kind === "url" ? selected.candidate.url : sourcePage;
       Object.assign(md, {
         logo_external_url: null,
+        manual_verified_logo_inline_svg: null,
         logo_source_url: sourceUrl,
         logo_source_domain: new URL(sourceUrl).hostname,
         logo_source_type: "official_site_canonical_copy",
-        logo_source_page: page.url,
+        logo_source_page: sourcePage,
         logo_source_discovery: selected.candidate.discovery,
         logo_verified_at: now,
         logo_checked_at: now,
@@ -628,7 +662,10 @@ Deno.serve(async (req: Request) => {
       nullif(b.website,'') is null
       or (
         nullif(b.logo_object_key,'') is null
-        and nullif(b.metadata->>'logo_external_url','') is null
+        and (
+          nullif(b.metadata->>'logo_external_url','') is null
+          or b.metadata->>'logo_source_type'='official_site_logo'
+        )
         and coalesce(b.metadata->>'logo_auto_enrichment_blocked','false') <> 'true'
       )
     )
