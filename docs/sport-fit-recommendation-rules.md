@@ -198,3 +198,16 @@ The recommendation rules consume only the governed Sport & Fit knowledge layer:
 4. lower-confidence catalogue/title heuristics only when no stronger fact exists.
 
 Blocked, conflicting, insufficient or weak-identity knowledge cannot drive hard technical decisions.
+
+### Superseded broad taxonomy evidence
+
+When exact product-level evidence establishes a more specific sport/activity classification than an older catalogue-taxonomy mapping, the exact supported classification becomes the normalized value. The older taxonomy evidence remains auditable but is marked inactive and linked through `superseded_by`; it must not continue to create an artificial conflict or an equally live recommendation path.
+
+This is a source-specificity correction, not permission to reinterpret marketing copy. Technology names, generic comfort language, or broad category placement cannot create cushioning/support/surface/fit facts without the required governed evidence.
+
+### Cross-sport correction is a hard eligibility change
+
+If an exact product is corrected from one sport/activity to another, candidate generation must use the corrected active governed fact. A stale catalogue category, vendor title, popularity score, price score, or commercial ranking must not reintroduce the product into the superseded sport.
+
+For example, after schema 405, adidas Cloudfoam Flex Laces `KJ4808` is governed as walking/daily-walking footwear with wide fit. Its former running taxonomy/title evidence is retained only as inactive provenance and cannot make the family eligible for performance-running recommendations.
+

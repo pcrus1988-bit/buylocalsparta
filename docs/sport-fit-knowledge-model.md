@@ -667,3 +667,61 @@ The exact committed schema-391 migration was first replayed against production i
 
 The global runtime schema gate and production database are now **391**.
 
+## Schemas 392–405 — reconciled pending knowledge chain after production 391
+
+Production schema 391 introduced the hiking batch before the earlier pending Sport & Fit chain could merge. The pending work was therefore rebuilt from current `main` and renumbered monotonically to schemas 392–404. The one overlapping JR4007 true-to-size write was removed from the former surface/fit batch because production schema 391 already governs that exact fact.
+
+The preserved chain contains:
+
+- **392** — direct Kerasiotis exact-code refinements for `JR9720`, `KK4280`, `KQ9728`, and `KR2147`.
+- **393** — conflict-aware exact evidence for `KJ0410`, `JQ6920`, and `JR9087`, including deliberate retention of unresolved source disagreement.
+- **394** — exact adidas basketball apparel knowledge for `JN4724`.
+- **395** — exact adidas football apparel knowledge for `JZ2505` and `KE9848`.
+- **396** — governed `sock_height=mid_cut` for exact adidas `JZ0529` and `KC9617`.
+- **397** — verified adidas apparel batch for `HF6619`, `IA1808`, and `IJ5427`.
+- **398** — exact manufacturer football taxonomy correction for `JV6067`, `JD2978`, `H57525`, and `HI2135`, with broad taxonomy evidence retained but superseded.
+- **399** — Entrada 22 football apparel correction for `H57537`, `HG6287`, and `HI2138`.
+- **400** — exact manufacturer reference weight for Terrex Rockadia `KJ0411`.
+- **401** — exact adidas fit/profile facts for `IH9808`, `KJ6635`, and `KJ7282`.
+- **402** — exact adidas profile/use-case facts for `JQ8077`, `JS4403`, `JR6599`, and `JS4435`.
+- **403** — exact adidas surface/fit facts for `IH1838` and `KJ1750`. JR4007 is intentionally absent because its exact true-to-size fact is already production-governed by schema 391.
+- **404** — exact adidas Response 2 `KK4280` long-run, geometry, weight, and true-to-size facts.
+
+All schemas 392–404 preserve canonical-family ownership of technical knowledge, exact-code identity guards, provenance rows, queue hygiene, conservative unknown handling, and post-write assertions.
+
+## Schema 405 — KJ4808 walking correction and KJ4150 profile deepening
+
+Migration `0405_sport_fit_kj4808_walking_kj4150_profile.sql` resolves one live cross-sport recommendation bug and deepens one in-stock running family.
+
+### KJ4808 Cloudfoam Flex Laces
+
+The governed family had been normalized as `sport_activity=running` from a broad KONTA MOY running-shoe taxonomy mapping plus the connected vendor-feed title. A review of the exact connected description and exact-code specialist listings supports walking instead.
+
+Schema 405 therefore:
+
+- replaces the normalized activity with `sport_activity=walking`;
+- adds `sport_use_case=daily_walking`;
+- adds `footwear_width_profile=wide`;
+- preserves the former running evidence for audit, marks it inactive, and links it to the exact-code walking replacement through `superseded_by`;
+- removes resolved fields and `football_surface_code` from the enrichment queue;
+- leaves cushioning/support intensity, surface, geometry, toe-box shape and length fit unknown.
+
+This is a hard eligibility correction: KJ4808 must no longer enter performance-running recommendations merely because an upstream category/title labeled it as running.
+
+### KJ4150 Duramo SL 2
+
+The exact adidas KJ4150 product page explicitly publishes a neutral pronation classification and standard/regular men width. Schema 405 adds:
+
+- `support_level=neutral`;
+- `footwear_width_profile=standard`.
+
+Existing exact running, road/track, short-distance/race, geometry, weight and true-to-size facts remain unchanged. LIGHTMOTION wording is not converted into a cushioning intensity.
+
+### Verification
+
+Schema 405 was executed against the live production catalogue inside a transaction ending in `ROLLBACK`; exact identity, five normalized target facts, evidence insertion, running-evidence supersession, queue cleanup, knowledge refresh and post-write assertions all passed. A post-rollback read confirmed that the schema-405 source rows and facts did not persist.
+
+The complete reconciled schemas **392–405** were then executed together on top of production schema 391 inside one transaction ending in `ROLLBACK`. The full chain passed without error, including the JR4007 overlap removal.
+
+The pending runtime schema gate is **405**; production remains at **391** until this chain is merged and applied.
+
