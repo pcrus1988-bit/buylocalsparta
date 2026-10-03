@@ -1709,6 +1709,53 @@ test("governed Advantage 2.0 walking identity blocks tennis-heritage heuristic c
 });
 
 
+test("governed Cloudfoam Flex walking evidence overrides contradictory running title and category", () => {
+  const cloudfoamFlex = product({
+    id: "adidas-kj4808",
+    title: "ADIDAS CLOUDFOAM FLEX-LACES WOMENS RUNNING SHOES",
+    categoryCode: "womens-running-shoes",
+    brand: "adidas",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["walking"],
+      useCases: ["daily_walking"],
+      widthProfile: "wide"
+    }
+  });
+
+  const walking = scoreSportFitProduct(cloudfoamFlex, {
+    activity: "walking",
+    audience: "women",
+    useCase: "daily_walking"
+  });
+  const running = scoreSportFitProduct(cloudfoamFlex, {
+    activity: "running",
+    audience: "women",
+    surface: "road"
+  });
+
+  assert.equal(walking.technicalEligible, true);
+  assert.ok(walking.technicalRequirements.some((item) =>
+    item.id === "requirement.activity" && item.status === "match"
+  ));
+  assert.ok(walking.technicalRequirements.some((item) =>
+    item.id === "requirement.use_case" && item.status === "match"
+  ));
+  assert.equal(sportFitCandidateSupportsRequestedActivity(cloudfoamFlex, {
+    activity: "walking",
+    audience: "women"
+  }), true);
+
+  assert.equal(running.technicalEligible, false);
+  assert.ok(running.appliedRules.includes("activity.known_mismatch"));
+  assert.equal(sportFitCandidateSupportsRequestedActivity(cloudfoamFlex, {
+    activity: "running",
+    audience: "women",
+    surface: "road"
+  }), false);
+});
+
 test("governed casual-lifestyle footwear is hard-excluded from running despite athletic retailer wording", () => {
   const lifestyleOnly = product({
     id: "governed-lifestyle-only",
