@@ -818,6 +818,6 @@ The three enrichment queues are reconciled from their actual canonical-family fa
 
 The exact schema-402 migration was rehearsed against live production schema 401 inside a transaction ending in `ROLLBACK`. Identity resolution, JP9203 width insertion/evidence, seven-row provenance supersession, queue reconciliation and unsupported-inference guards all passed. Post-rollback verification confirmed that no rehearsal source or JP9203 width fact persisted and that the original seven duplicate evidence groups remained present.
 
-Migration SHA-256: `f1a4751925c17233456e8284189982cd289fee0dfe105c92d5c887b0b7979d85`.
+Migration SHA-256: `762a132e5063d55c5bd96b5976af85625eeb0cb91a81d4c941e934bb5931e05e`.
 
 The runtime schema gate on this change is **402**.
