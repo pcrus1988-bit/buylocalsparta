@@ -35,8 +35,7 @@ function staticInboundSources(href: string): readonly string[] {
   return unique(sources);
 }
 
-export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
-  assertAdminPermission(principal, "content.read");
+async function buildSeoCrawlGraph() {
   const [[productResult, vendorResult, cmsResult], { settings }, overrides] = await Promise.all([
     Promise.allSettled([
       getPublicProductSitemapInventory(),
@@ -166,7 +165,6 @@ export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
 
   return {
     generatedAt: new Date().toISOString(),
-    csrfToken: principal.csrfToken,
     origin: settings.canonicalOrigin,
     nodes: [...nodes].sort((a, b) => Number(b.indexAllowed) - Number(a.indexAllowed) || a.inboundSources.length - b.inboundSources.length || a.label.localeCompare(b.label, "el")),
     orphan,
@@ -186,4 +184,19 @@ export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
       categoriesAvailable: true
     }
   } as const;
+}
+
+
+/**
+ * System-only graph projection for CRON/control-plane refreshes. Authorization is
+ * enforced at the protected server entrypoint; this function never accepts a user.
+ */
+export async function systemSeoCrawlGraph() {
+  return buildSeoCrawlGraph();
+}
+
+export async function adminSeoCrawlGraph(principal: SessionPrincipal) {
+  assertAdminPermission(principal, "content.read");
+  const graph = await buildSeoCrawlGraph();
+  return { ...graph, csrfToken: principal.csrfToken } as const;
 }
