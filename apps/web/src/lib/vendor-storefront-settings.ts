@@ -1,5 +1,11 @@
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import {
+  DEFAULT_VENDOR_PRIMARY_COLOR,
+  DEFAULT_VENDOR_SECONDARY_COLOR,
+  normalizeVendorBrandColor,
+  type VendorStorefrontTheme
+} from "./vendor-storefront-theme";
 
 export type VendorInstagramSettings = Readonly<{
   enabled: boolean;
@@ -14,6 +20,9 @@ export type VendorInstagramSettings = Readonly<{
 }>;
 
 export type VendorStorefrontSettings = Readonly<{
+  primaryColor: string;
+  secondaryColor: string;
+  /** Backward-compatible alias for the previous one-color storefront setting. */
   accentColor: string;
   heroStyle: "split" | "centered" | "editorial";
   heroTitle: string;
@@ -70,7 +79,9 @@ const DEFAULT_INSTAGRAM_SETTINGS: VendorInstagramSettings = {
 };
 
 const DEFAULT_SETTINGS: VendorStorefrontSettings = {
-  accentColor: "#0f766e",
+  primaryColor: DEFAULT_VENDOR_PRIMARY_COLOR,
+  secondaryColor: DEFAULT_VENDOR_SECONDARY_COLOR,
+  accentColor: DEFAULT_VENDOR_PRIMARY_COLOR,
   heroStyle: "split",
   heroTitle: "",
   showFeatured: true,
@@ -389,14 +400,16 @@ function normalizeSettings(value: unknown): VendorStorefrontSettings {
   const source = value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
-  const accent = typeof source.accentColor === "string" && /^#[0-9a-fA-F]{6}$/.test(source.accentColor)
-    ? source.accentColor.toLowerCase()
-    : DEFAULT_SETTINGS.accentColor;
+  const legacyAccent = normalizeVendorBrandColor(source.accentColor, DEFAULT_VENDOR_PRIMARY_COLOR);
+  const primaryColor = normalizeVendorBrandColor(source.primaryColor, legacyAccent);
+  const secondaryColor = normalizeVendorBrandColor(source.secondaryColor, DEFAULT_VENDOR_SECONDARY_COLOR);
   const heroStyle = source.heroStyle === "centered" || source.heroStyle === "editorial" || source.heroStyle === "split"
     ? source.heroStyle
     : DEFAULT_SETTINGS.heroStyle;
   return {
-    accentColor: accent,
+    primaryColor,
+    secondaryColor,
+    accentColor: primaryColor,
     heroStyle,
     heroTitle: boundedText(source.heroTitle, 100),
     showFeatured: booleanValue(source.showFeatured, DEFAULT_SETTINGS.showFeatured),
@@ -406,6 +419,14 @@ function normalizeSettings(value: unknown): VendorStorefrontSettings {
     showLocation: booleanValue(source.showLocation, DEFAULT_SETTINGS.showLocation),
     showContact: booleanValue(source.showContact, DEFAULT_SETTINGS.showContact),
     instagram: normalizeInstagramSettings(source.instagram)
+  };
+}
+
+export function publicVendorStorefrontTheme(value: unknown): VendorStorefrontTheme {
+  const settings = normalizeSettings(value);
+  return {
+    primaryColor: settings.primaryColor,
+    secondaryColor: settings.secondaryColor
   };
 }
 

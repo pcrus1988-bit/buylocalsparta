@@ -60,7 +60,7 @@ export default async function VendorStorefrontPage() {
       <WorkspaceSectionHeading
         eyebrow="Εμφάνιση καταστήματος"
         title="Σχεδίαση, ενότητες & Instagram"
-        note="Ρύθμισε τη δημόσια βιτρίνα, σύνδεσε το επαγγελματικό Instagram και έλεγξε πώς θα εμφανίζεται το περιεχόμενο σε κινητό και υπολογιστή."
+        note="Ρύθμισε τα κύρια και δευτερεύοντα χρώματα της μάρκας σου, τη δημόσια βιτρίνα και το Instagram, και έλεγξε το αποτέλεσμα σε κινητό και υπολογιστή."
       />
       <VendorStorefrontBuilder initial={storefront} csrfToken={principal.csrfToken} />
     </section>
