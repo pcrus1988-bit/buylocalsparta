@@ -710,4 +710,4 @@ The migration fails closed unless both style codes still resolve to exactly one 
 
 The exact schema-394 migration was replayed against live production schema 393 inside a transaction ending in `ROLLBACK`; both target queues reduced to the expected unresolved field sets and no technical fact/evidence row changed.
 
-The pending runtime schema gate is **394**; production remains at **393** until this migration is merged and applied.
+Schema 394 was merged as PR #1265 and applied to production with checksum `a8d287357d40148a9df4de72e56a74d36230c956c276e732772260589471d233`. Live read-back confirmed JP9203 now requests only five genuinely unresolved fields and JQ6920 only six, with no already-normalized or football-only request remaining. The global runtime schema gate and production database are now **394**.
