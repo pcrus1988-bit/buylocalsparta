@@ -799,3 +799,18 @@ Migration `0342_sport_fit_verified_adidas_rockadia_kj0411_weight.sql` closes one
 - The enrichment queue removes only `shoe_weight_g` from KJ0411's unresolved fields and leaves remaining unknown technical properties queued.
 
 The runtime schema gate is now **342**.
+
+## Schema 343 — exact adidas footwear fit/profile refinements
+
+Migration `0343_sport_fit_verified_adidas_fit_profile_batch.sql` closes six explicit manufacturer-backed gaps on three already-governed footwear families.
+
+- `IH9808` adidas Galaxy 8: exact adidas product classifications add `sport_surface=road`, `support_level=neutral` from the explicit neutral-pronation classification, `footwear_width_profile=standard` from the explicit Regular width classification, and `fit_length_profile=true_to_size`.
+- `KJ6635` adidas Duramo RC2: exact adidas size guidance adds `fit_length_profile=true_to_size`.
+- `KJ7282` adidas Cloudfoam Flex Laces: the exact product details publish a loose/roomy fit (`Ajuste holgado`), normalized to the governed `footwear_width_profile=wide`.
+
+The migration deliberately excludes customer-review text and AI review summaries. Cloudfoam, Lightmotion, generic cushioning language and generic stability/support wording remain provenance only and are not promoted into cushioning or stronger support intensity.
+
+Schema 343 was rehearsed against the live KONTA MOY catalogue inside one transaction ending in `ROLLBACK`. Exact-family identity, existing governed-state, controlled-vocabulary, six normalized-fact/evidence writes, queue cleanup, refresh and post-write assertions all passed. A post-rollback read confirmed production remained at schema 333 with zero schema-343 source rows and zero schema-343 target facts persisted.
+
+The runtime schema gate is now **343**.
+
