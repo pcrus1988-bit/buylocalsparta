@@ -30,6 +30,17 @@ type AssetCandidate =
   | { kind: "url"; url: string; score: number; discovery: string }
   | { kind: "inline_svg"; svg: string; score: number; discovery: string };
 
+const OFFICIAL_SITE_OVERRIDES: Record<string, string> = {
+  "antony morato": "https://www.antonymorato.com/",
+  "ballantyne": "https://www.ballantyne.it/",
+  "fred perry": "https://www.fredperry.com/",
+  "laminar": "https://www.herno.com/en/laminar/laminar-hp.html",
+  "paris texas": "https://paristexasbrand.com/",
+  "philipp plein": "https://www.plein.com/",
+  "refrigiwear": "https://refrigiwear1954.com/en",
+  "the row": "https://www.therow.com/"
+};
+
 function jsonHeaders(extra: Record<string, string> = {}) {
   return { "content-type": "application/json", ...extra };
 }
@@ -215,11 +226,14 @@ function websiteCandidates(brand: BrandRow): SiteCandidate[] {
     if (safe) out.push({ url: safe, source });
   };
 
+  const brandKey = fold(brand.name).replace(/\s+/g, " ").trim();
+  const override = OFFICIAL_SITE_OVERRIDES[brandKey];
+  add(override, "curated_override");
   add(brand.website, "existing_website");
   const md = brand.metadata ?? {};
   add(typeof md.website_source_url === "string" ? md.website_source_url : undefined, "metadata_source");
 
-  if (!brand.website) {
+  if (!brand.website && !override) {
     const c = compact(brand.name);
     const s = slug(brand.name);
     if (c.length >= 3) {
@@ -287,8 +301,17 @@ async function resolveOfficialSite(brand: BrandRow) {
         lastReason = "unsafe_redirect";
         continue;
       }
-      if (brand.website || candidate.source === "metadata_source") {
+      const md = brand.metadata ?? {};
+      const sourceType = typeof md.website_source_type === "string" ? md.website_source_type : "";
+      const trustedExisting = candidate.source === "existing_website" && Boolean(brand.website) && !sourceType.startsWith("derived_");
+      const trustedMetadata = candidate.source === "metadata_source" && Boolean(sourceType) && !sourceType.startsWith("derived_");
+      if (candidate.source === "curated_override" || trustedExisting || trustedMetadata) {
         return { ...page, source: candidate.source, verified: true };
+      }
+      const foldedPage = fold(page.html.slice(0, 180000));
+      if (/(chamber of commerce|visitor bureau|tourism office|city government|municipal government)/i.test(foldedPage)) {
+        lastReason = "non_brand_civic_site";
+        continue;
       }
       const signals = htmlSignals(page.html, brand.name, page.url);
       if (signals.parked) {
@@ -457,12 +480,19 @@ async function processBrand(brand: BrandRow, workerId: number) {
 
   try {
     page = await resolveOfficialSite(brand);
-    if (!website) {
+    const currentSafeWebsite = website ? safeHttps(website) : undefined;
+    const overrideChanged = page.source === "curated_override" && currentSafeWebsite !== safeHttps(page.url);
+    if (!website || overrideChanged) {
       website = page.url;
       websiteChanged = true;
       Object.assign(md, {
         website_source_url: page.url,
-        website_source_type: page.source === "derived_domain" ? "derived_official_domain_verified" : "official_site",
+        website_source_type:
+          page.source === "derived_domain"
+            ? "derived_official_domain_verified"
+            : page.source === "curated_override"
+              ? "curated_official_override"
+              : "official_site",
         website_verified_at: now,
         website_enrichment_status: "complete",
         website_enrichment_reason: null
@@ -589,7 +619,11 @@ Deno.serve(async (req: Request) => {
     left join used u on u.brand_id=b.id
     where (
       nullif(b.website,'') is null
-      or (nullif(b.logo_object_key,'') is null and nullif(b.metadata->>'logo_external_url','') is null)
+      or (
+        nullif(b.logo_object_key,'') is null
+        and nullif(b.metadata->>'logo_external_url','') is null
+        and coalesce(b.metadata->>'logo_auto_enrichment_blocked','false') <> 'true'
+      )
     )
       and mod((hashtext(b.id::text)::bigint + 2147483648), ${WORKER_COUNT}) = ${workerId}
       and (
