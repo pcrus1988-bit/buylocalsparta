@@ -780,3 +780,23 @@ Five normalized facts and five exact-manufacturer fact-evidence rows are added. 
 Two recommendation regressions protect the correction: exact basketball knowledge must override a misleading generic/women's-sneaker catalogue label, and governed IG9166 walking knowledge must prevent tennis-inspired title text from reintroducing performance-tennis eligibility.
 
 The exact migration was rehearsed against live production schema 398 inside a transaction ending in `ROLLBACK`. The first rehearsal correctly failed on ambiguous `GSB480` identity; after tightening the bridge to the live black/white source family, the second rehearsal passed all identity, fact, evidence, inference and queue assertions. The runtime schema gate on this change is **399**.
+
+
+## Schema 400 — exact lifestyle identity and Cloud 6 geometry/fit
+
+Migration `0400_sport_fit_lifestyle_identity_cloud6_geometry.sql` closes a high-value cross-sport contamination gap in two currently sellable footwear families that entered the catalogue through an athletic-sneaker retail taxonomy but had no governed Sport & Fit facts.
+
+- On Cloud 6 `3WF10061200`: exact first-party On evidence adds `sport_activity=casual_lifestyle`, `fit_length_profile=true_to_size`, `heel_to_toe_drop_mm=8`, and `shoe_weight_g=216`. The manufacturer positions the Cloud 6 family for Active life / all-day lifestyle use. Cushioning/support wording is intentionally not converted into governed intensity.
+- Saucony ProGrid Omni 9 Premium `S70740-15`: the exact first-party Saucony product breadcrumb classifies the model under Lifestyle, so `sport_activity=casual_lifestyle` is added. Retro running technology, cushioning/support language and breathable-mesh marketing are retained as evidence context only and are not promoted into present-day performance-sport suitability.
+
+The migration adds **5 normalized family facts**, **5 matching first-party evidence rows**, and **2 manufacturer source records** across **2 canonical product families**. It changes no vendor-offer price, stock or fulfilment data.
+
+Both enrichment queues are reconciled from the new canonical-family facts: resolved fields and the non-applicable `football_surface_code` request are removed, while surface, use case, cushioning, support, width, toe-box, plate, weather and unresolved geometry fields remain explicitly unknown. The migration asserts that it creates no unsupported `cushioning_level`, `support_level`, `footwear_width_profile`, `toe_box_profile`, `sport_surface`, `sport_use_case` or `weather_protection` facts.
+
+A recommendation regression protects the hard-eligibility behavior: footwear with strong governed `casual_lifestyle` activity is rejected for a running request via `activity.known_mismatch` even when retailer title/category wording contains optimistic running or athletic signals. Popularity, price and heuristic text therefore cannot override the canonical activity conflict.
+
+The exact committed schema-400 migration was replayed against live production schema 399 with its terminal `COMMIT` replaced by `ROLLBACK`. Both identities resolved to one active canonical family, all 5 fact/evidence inserts passed, unsupported-inference guards remained at zero, queue-hygiene assertions passed, and post-rollback verification confirmed that no target source or fact persisted.
+
+Migration SHA-256: `5d026f4456785f68f3ac99f4e701918872cddc6d3dd4b6f8d35d78baf526e27c`.
+
+The runtime schema gate on this change is **400**.
