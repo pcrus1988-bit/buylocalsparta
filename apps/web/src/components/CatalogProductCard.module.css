@@ -37,6 +37,7 @@
   display: none !important;
 }
 
+/* Keep the product canvas edge-to-edge; whitespace should come only from the source asset itself. */
 .catalogImage {
   position: absolute;
   inset: 0;
