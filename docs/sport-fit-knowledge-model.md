@@ -663,7 +663,7 @@ Migration `0391_sport_fit_hiking_knowledge_deepening.sql` continues the governed
 
 The migration is vendor-independent at the fact layer: all normalized technical facts remain attached to canonical families, while sellability and stock stay in vendor offers.
 
-The exact committed schema-391 migration was replayed against production inside a transaction ending in `ROLLBACK`; identity guards, fact/evidence inserts, knowledge refresh, queue cleanup and post-write assertions passed without persisting test rows.
+The exact committed schema-391 migration was first replayed against production inside a transaction ending in `ROLLBACK`; identity guards, fact/evidence inserts, knowledge refresh, queue cleanup and post-write assertions passed without persisting test rows. After merge, the same governed migration was applied to production together with app migration-ledger version 391 and re-verified against the live knowledge tables.
 
-The global runtime schema gate is now **391**.
+The global runtime schema gate and production database are now **391**.
 
