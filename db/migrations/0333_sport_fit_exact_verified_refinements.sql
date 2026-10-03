@@ -62,6 +62,7 @@ INSERT INTO public.sport_knowledge_sources(
     'heelStackMm',32,
     'forefootStackMm',24,
     'surface','road',
+    'pronation','neutral',
     'fitLengthProfile','true_to_size',
     'doNotInferCushioningFromCloudfoamMarketing',true,
     'doNotInferSupportFromGenericSupportLanguage',true
@@ -132,6 +133,7 @@ BEGIN
     OR (f.style_code='KK4280' AND ad.code='sport_activity' AND av.code IS DISTINCT FROM 'running')
     OR (f.style_code='KK4280' AND ad.code='sport_surface' AND av.code IS DISTINCT FROM 'road')
     OR (f.style_code='KK4280' AND ad.code='sport_use_case' AND av.code IS DISTINCT FROM 'long_run')
+    OR (f.style_code='KK4280' AND ad.code='support_level' AND av.code IS DISTINCT FROM 'neutral')
     OR (f.style_code='KK4280' AND ad.code='fit_length_profile' AND av.code IS DISTINCT FROM 'true_to_size')
     OR (f.style_code='KK4280' AND ad.code='shoe_weight_g' AND pfav.number_value IS DISTINCT FROM 301)
     OR (f.style_code='KK4280' AND ad.code='heel_to_toe_drop_mm' AND pfav.number_value IS DISTINCT FROM 8)
@@ -169,6 +171,8 @@ WITH enum_facts(style_code,attribute_code,value_code,position,source_key,evidenc
      'Exact adidas KK4280 page says the full-length rubber outsole provides reliable traction on road surfaces.','Product description'),
     ('KK4280','sport_use_case','long_run',0,'adidas_response_2_kk4280_mexico_official',
      'Exact adidas KK4280 page explicitly positions the shoe from a morning jog through a long-distance run.','Product description'),
+    ('KK4280','support_level','neutral',0,'adidas_response_2_kk4280_mexico_official',
+     'Exact adidas KK4280 page explicitly classifies the shoe for neutral pronation.','Best for > Pronation'),
     ('KK4280','fit_length_profile','true_to_size',0,'adidas_response_2_kk4280_mexico_official',
      'Exact adidas KK4280 size guidance says the product is true to size and recommends the usual size.','Size guidance')
 )
@@ -225,6 +229,8 @@ WITH enum_facts(style_code,attribute_code,value_code,position,source_key,evidenc
      'Exact adidas KK4280 page says the full-length rubber outsole provides reliable traction on road surfaces.','Product description'),
     ('KK4280','sport_use_case','long_run',0,'adidas_response_2_kk4280_mexico_official',
      'Exact adidas KK4280 page explicitly positions the shoe from a morning jog through a long-distance run.','Product description'),
+    ('KK4280','support_level','neutral',0,'adidas_response_2_kk4280_mexico_official',
+     'Exact adidas KK4280 page explicitly classifies the shoe for neutral pronation.','Best for > Pronation'),
     ('KK4280','fit_length_profile','true_to_size',0,'adidas_response_2_kk4280_mexico_official',
      'Exact adidas KK4280 size guidance says the product is true to size and recommends the usual size.','Size guidance')
 )
@@ -271,7 +277,7 @@ SET status='partial',
       WHEN 'KJ0411' THEN 'Verified exact adidas Rockadia reference weight added; continue unresolved technical fields'
       WHEN 'JS4403' THEN 'Verified exact adidas running-training use case added; continue unresolved technical fields'
       WHEN 'KB5970' THEN 'Verified exact adidas everyday-running use case added; continue unresolved apparel performance fields'
-      WHEN 'KK4280' THEN 'Verified exact adidas Response 2 running/road/long-run/fit/geometry facts added; continue unresolved cushioning/support/width/weather fields'
+      WHEN 'KK4280' THEN 'Verified exact adidas Response 2 running/road/neutral-support/long-run/fit/geometry facts added; continue unresolved cushioning/width/weather fields'
     END,
     requested_fields=CASE f.style_code
       WHEN 'JR6599' THEN array_remove(q.requested_fields,'sport_use_case')
@@ -287,9 +293,11 @@ SET status='partial',
                 array_remove(
                   array_remove(
                     array_remove(
-                      array_remove(q.requested_fields,'sport_activity'),
-                    'sport_surface'),
-                  'sport_use_case'),
+                      array_remove(
+                        array_remove(q.requested_fields,'sport_activity'),
+                      'sport_surface'),
+                    'sport_use_case'),
+                  'support_level'),
                 'fit_length_profile'),
               'shoe_weight_g'),
             'heel_to_toe_drop_mm'),
@@ -331,13 +339,14 @@ BEGIN
     OR (f.style_code='KK4280' AND ad.code='sport_activity' AND av.code='running')
     OR (f.style_code='KK4280' AND ad.code='sport_surface' AND av.code='road')
     OR (f.style_code='KK4280' AND ad.code='sport_use_case' AND av.code='long_run')
+    OR (f.style_code='KK4280' AND ad.code='support_level' AND av.code='neutral')
     OR (f.style_code='KK4280' AND ad.code='fit_length_profile' AND av.code='true_to_size')
     OR (f.style_code='KK4280' AND ad.code='shoe_weight_g' AND pfav.number_value=301)
     OR (f.style_code='KK4280' AND ad.code='heel_to_toe_drop_mm' AND pfav.number_value=8)
     OR (f.style_code='KK4280' AND ad.code='heel_stack_height_mm' AND pfav.number_value=32)
     OR (f.style_code='KK4280' AND ad.code='forefoot_stack_height_mm' AND pfav.number_value=24);
-  IF v_expected<>13 THEN
-    RAISE EXCEPTION 'Sport & Fit schema 333 expected thirteen governed refinements, found %',v_expected;
+  IF v_expected<>14 THEN
+    RAISE EXCEPTION 'Sport & Fit schema 333 expected fourteen governed refinements, found %',v_expected;
   END IF;
 
   SELECT count(*) INTO v_evidence
@@ -352,10 +361,10 @@ BEGIN
     OR (f.style_code='JS4403' AND ad.code='sport_use_case' AND s.source_key='adidas_duramo_sl2_js4403_official')
     OR (f.style_code='KB5970' AND ad.code='sport_use_case' AND s.source_key='adidas_adi365_running_essentials_tank_kb5970_official')
     OR (f.style_code='KK4280' AND s.source_key='adidas_response_2_kk4280_mexico_official'
-        AND ad.code IN ('sport_activity','sport_surface','sport_use_case','fit_length_profile',
+        AND ad.code IN ('sport_activity','sport_surface','sport_use_case','support_level','fit_length_profile',
                         'shoe_weight_g','heel_to_toe_drop_mm','heel_stack_height_mm','forefoot_stack_height_mm'));
-  IF v_evidence<>13 THEN
-    RAISE EXCEPTION 'Sport & Fit schema 333 expected thirteen active exact manufacturer evidence rows, found %',v_evidence;
+  IF v_evidence<>14 THEN
+    RAISE EXCEPTION 'Sport & Fit schema 333 expected fourteen active exact manufacturer evidence rows, found %',v_evidence;
   END IF;
 
   SELECT count(*) INTO v_old_weather
