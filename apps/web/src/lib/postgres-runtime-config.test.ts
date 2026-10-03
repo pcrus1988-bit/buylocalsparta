@@ -25,7 +25,7 @@ describe("production database configuration", () => {
     const runtimeEnv = buildWebPostgresRuntimeEnv(source);
 
     expect(runtimeEnv.DATABASE_URL).toContain("db.example.supabase.co");
-    expect(runtimeEnv.BLS_DB_POOL_MAX).toBe("1");
+    expect(runtimeEnv.BLS_DB_POOL_MAX).toBe("2");
     expect(runtimeEnv.BLS_DB_IDLE_TIMEOUT_MS).toBe("5000");
     expect(source.BLS_DB_POOL_MAX).toBeUndefined();
     expect(source.BLS_DB_IDLE_TIMEOUT_MS).toBeUndefined();
