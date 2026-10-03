@@ -1790,3 +1790,46 @@ test("exact gym-functional evidence satisfies a functional gym request without i
   assert.ok(exactScore.technicalScore > genericScore.technicalScore);
   assert.equal(result.primary?.id, "on-cloud-x-5-functional");
 });
+
+
+test("resolved reference-size evidence keeps governed JR9087-like hiking knowledge recommendation-eligible", () => {
+  const anylander = product({
+    id: "jr9087-reference-size-resolved",
+    title: "adidas Terrex Anylander Rain.Rdy",
+    categoryCode: "mens-hiking-shoes",
+    sizes: ["42 2/3"],
+    knowledge: {
+      status: "partial",
+      queueStatus: "partial",
+      identityQuality: "strong",
+      activities: ["hiking"],
+      surfaces: ["trail"],
+      fitLengthProfile: "true_to_size",
+      dropMm: 10,
+      weightG: 390,
+      weatherProtection: ["waterproof"]
+    }
+  });
+
+  const answers = {
+    activity: "hiking" as const,
+    audience: "men" as const,
+    surface: "trail" as const,
+    priority: "weather" as const
+  };
+  const scored = scoreSportFitProduct(anylander, answers);
+  const result = buildSportFitRecommendation([anylander], answers);
+
+  assert.equal(scored.technicalEligible, true);
+  assert.equal(sportFitCandidateSupportsRequestedActivity(anylander, answers), true);
+  assert.ok(scored.technicalRequirements.some((item) =>
+    item.id === "requirement.activity" && item.status === "match"
+  ));
+  assert.ok(scored.technicalRequirements.some((item) =>
+    item.id === "requirement.surface" && item.status === "match"
+  ));
+  assert.ok(scored.technicalRequirements.some((item) =>
+    item.id === "requirement.hiking_weather_protection" && item.status === "match"
+  ));
+  assert.equal(result.primary?.id, anylander.id);
+});
