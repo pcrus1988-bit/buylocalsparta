@@ -29,6 +29,7 @@ import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { isReadOnlyPublicCrawlerRequest } from "../../lib/request-audience";
 import { getCachedCrawlerCatalogCards, getCachedPublishedDropshipShopPage, hasLiveLocalShopProducts } from "../../lib/cached-public-shop-page";
 import { getSeoGlobalSettingsSnapshot } from "../../lib/seo-settings";
+import { getCachedShopSupplierFacets } from "../../lib/shop-supplier-facets";
 
 const SHOP_PAGE_SIZE = 30;
 const SHOP_INDEXABLE_QUERY_KEYS = new Set([
@@ -411,16 +412,58 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   }
 
   const fallbackFacetProducts = [...products];
-    products = products.filter(purchasablePublicProduct);
+  products = products.filter(purchasablePublicProduct);
   if (availability === "available") products = products.filter((product) => product.available);
   const fallbackFacets = deriveFallbackFacets(fallbackFacetProducts);
+
+  const taxonomyNeedsSupplierSupplement = allowDropship && (
+    taxonomy.facets.subcategories.length === 0
+      || taxonomy.facets.brands.length === 0
+      || taxonomy.facets.colors.length === 0
+      || taxonomy.facets.sizes.length === 0
+      || (taxonomy.fits?.length ?? 0) === 0
+  );
+  const supplierFacets = taxonomyNeedsSupplierSupplement && !readOnlyCrawler
+    ? await getCachedShopSupplierFacets({
+        query: catalogQuery,
+        category,
+        subcategories: subcategory ? [subcategory] : groupedSubcategories,
+        brand,
+        color,
+        size,
+        fit
+      }).catch((error) => {
+        console.error(JSON.stringify({
+          level: "error",
+          event: "storefront.shop_supplier_facets_degraded",
+          message: error instanceof Error ? error.message : String(error)
+        }));
+        return undefined;
+      })
+    : undefined;
+
   const facets = {
-    subcategories: mergeFacetOptions(taxonomy.facets.subcategories, fallbackFacets.subcategories),
-    brands: mergeFacetOptions(taxonomy.facets.brands, fallbackFacets.brands),
-    colors: mergeFacetOptions(taxonomy.facets.colors, fallbackFacets.colors),
-    sizes: mergeFacetOptions(taxonomy.facets.sizes, fallbackFacets.sizes)
+    subcategories: mergeFacetOptions(
+      mergeFacetOptions(taxonomy.facets.subcategories, supplierFacets?.categories ?? []),
+      fallbackFacets.subcategories
+    ),
+    brands: mergeFacetOptions(
+      mergeFacetOptions(taxonomy.facets.brands, supplierFacets?.brands ?? []),
+      fallbackFacets.brands
+    ),
+    colors: mergeFacetOptions(
+      mergeFacetOptions(taxonomy.facets.colors, supplierFacets?.colors ?? []),
+      fallbackFacets.colors
+    ),
+    sizes: mergeFacetOptions(
+      mergeFacetOptions(taxonomy.facets.sizes, supplierFacets?.sizes ?? []),
+      fallbackFacets.sizes
+    )
   };
-  const fitOptions = mergeFacetOptions(taxonomy.fits ?? [], fallbackFacets.fits);
+  const fitOptions = mergeFacetOptions(
+    mergeFacetOptions(taxonomy.fits ?? [], supplierFacets?.fits ?? []),
+    fallbackFacets.fits
+  );
   if (fit) products = products.filter((product) => product.fit === fit);
   if (searchIntent.availability === "pickup_today") products = products.filter((product) => product.localProof?.pickup && product.localProof.stockConfirmedToday);
   if (minPriceMinor !== undefined) products = products.filter((product) => product.priceMinor >= minPriceMinor);
