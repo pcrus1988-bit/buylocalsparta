@@ -416,14 +416,12 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   if (availability === "available") products = products.filter((product) => product.available);
   const fallbackFacets = deriveFallbackFacets(fallbackFacetProducts);
 
-  const taxonomyNeedsSupplierSupplement = allowDropship && (
-    taxonomy.facets.subcategories.length === 0
-      || taxonomy.facets.brands.length === 0
-      || taxonomy.facets.colors.length === 0
-      || taxonomy.facets.sizes.length === 0
-      || (taxonomy.fits?.length ?? 0) === 0
-  );
-  const supplierFacets = taxonomyNeedsSupplierSupplement && !readOnlyCrawler
+  // Supplier-backed filters must be derived from the same live family projection
+  // that selects products. The broader taxonomy projection intentionally keeps
+  // discovery vocabulary during stock load-shedding, so it can contain values that
+  // are not currently sellable. Using it as the only facet source creates clickable
+  // options with positive historical counts that correctly return zero live products.
+  const supplierFacets = allowDropship && !readOnlyCrawler
     ? await getCachedShopSupplierFacets({
         query: catalogQuery,
         category,
@@ -442,26 +440,40 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       })
     : undefined;
 
+  // If there is no live local catalogue, supplier facets are authoritative rather
+  // than additive. This prevents stale discovery-only taxonomy values from leaking
+  // back into a dropship-only filter panel. In a mixed HUB catalogue we merge both
+  // sources so local and supplier-backed choices remain discoverable together.
+  const supplierFacetsAuthoritative = !localProductsAvailable && supplierFacets !== undefined;
+  const liveFacetOptions = (
+    taxonomyOptions: readonly CatalogFacetOption[],
+    supplierOptions: readonly CatalogFacetOption[]
+  ): readonly CatalogFacetOption[] => (
+    supplierFacetsAuthoritative
+      ? supplierOptions
+      : mergeFacetOptions(taxonomyOptions, supplierOptions)
+  );
+
   const facets = {
     subcategories: mergeFacetOptions(
-      mergeFacetOptions(taxonomy.facets.subcategories, supplierFacets?.categories ?? []),
+      liveFacetOptions(taxonomy.facets.subcategories, supplierFacets?.categories ?? []),
       fallbackFacets.subcategories
     ),
     brands: mergeFacetOptions(
-      mergeFacetOptions(taxonomy.facets.brands, supplierFacets?.brands ?? []),
+      liveFacetOptions(taxonomy.facets.brands, supplierFacets?.brands ?? []),
       fallbackFacets.brands
     ),
     colors: mergeFacetOptions(
-      mergeFacetOptions(taxonomy.facets.colors, supplierFacets?.colors ?? []),
+      liveFacetOptions(taxonomy.facets.colors, supplierFacets?.colors ?? []),
       fallbackFacets.colors
     ),
     sizes: mergeFacetOptions(
-      mergeFacetOptions(taxonomy.facets.sizes, supplierFacets?.sizes ?? []),
+      liveFacetOptions(taxonomy.facets.sizes, supplierFacets?.sizes ?? []),
       fallbackFacets.sizes
     )
   };
   const fitOptions = mergeFacetOptions(
-    mergeFacetOptions(taxonomy.fits ?? [], supplierFacets?.fits ?? []),
+    liveFacetOptions(taxonomy.fits ?? [], supplierFacets?.fits ?? []),
     fallbackFacets.fits
   );
   if (searchIntent.availability === "pickup_today") products = products.filter((product) => product.localProof?.pickup && product.localProof.stockConfirmedToday);
