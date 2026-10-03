@@ -1,8 +1,9 @@
 name: SEO Google Diagnostics
 
+# Production scheduling is owned by Vercel Cron via /api/cron/seo-gsc-diagnostics.
+# Keep this workflow only as an optional manual fallback so a missing GitHub
+# CRON_SECRET cannot generate false-red scheduled failures.
 on:
-  schedule:
-    - cron: "7 5 * * *"
   workflow_dispatch:
 
 permissions:
@@ -20,10 +21,13 @@ jobs:
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
       SEO_GSC_DIAGNOSTICS_URL: https://kontamou.site/api/cron/seo-gsc-diagnostics
     steps:
-      - name: Verify scheduler secret
+      - name: Explain unavailable manual fallback
+        if: env.CRON_SECRET == ''
         shell: bash
-        run: test -n "$CRON_SECRET"
+        run: echo "::notice::GitHub CRON_SECRET is not configured; production SEO diagnostics continue through Vercel Cron."
+
       - name: Refresh Search Console SEO diagnostics
+        if: env.CRON_SECRET != ''
         shell: bash
         run: |
           curl --fail-with-body --silent --show-error \
