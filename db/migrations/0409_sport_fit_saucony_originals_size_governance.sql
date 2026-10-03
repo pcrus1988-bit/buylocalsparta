@@ -456,7 +456,7 @@ INSERT INTO public.sport_size_guides(
 )
 SELECT
   'saucony_footwear_unisex_heel_to_toe_v1',
-  brand_id,
+  b.brand_id,
   s.id,
   'footwear',
   'unisex',
