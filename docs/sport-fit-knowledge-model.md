@@ -696,4 +696,18 @@ All three identities are required to resolve to exactly one active canonical fam
 
 The exact schema-393 migration was replayed against live production schema 392 inside a transaction ending in `ROLLBACK`. Identity/source guards, KJ0410 facts, JQ6920 reflective evidence, JR9087 weather supersession, evidence-conflict counting, queue cleanup and post-write assertions passed. The rehearsal produced exactly three JR9087 active conflicts and left only weight/drop/heel-stack in its blocked reconciliation queue.
 
-The pending runtime schema gate is **393**; production remains at **392** until this migration is merged and applied.
+Schema 393 was merged as PR #1264 and applied to production with its immutable checksum. Live read-back confirmed `weather_protection=waterproof` for JR9087, exactly three active measurement conflicts, and the blocked reconciliation queue limited to weight/drop/heel-stack. The global runtime schema gate and production database are now **393**.
+
+## Schema 394 — sellable-footwear enrichment queue reconciliation
+
+Migration `0394_sport_fit_sellable_queue_reconciliation.sql` fixes stale enrichment requests discovered during schema-393 production verification without changing any technical fact.
+
+- Duramo SL 2 `JP9203`: already-governed running, surface, use-case, neutral-support, geometry, weight and true-to-size fields are removed from the research queue. Remaining work is restricted to cushioning, width, toe-box, plate and weather protection.
+- Ultrarun 5 TR `JQ6920`: already-governed running, mixed-surface, geometry, weight, fit and weather fields are removed from the queue after the schema-393 reflective enrichment. Remaining work is restricted to use-case, cushioning, support, width, toe-box and plate.
+- `football_surface_code` is removed from both exact governed running-shoe queues.
+
+The migration fails closed unless both style codes still resolve to exactly one active canonical family, both retain governed running identity, and neither queue is blocked. It derives remaining requests from normalized family facts instead of maintaining a duplicate manual list.
+
+The exact schema-394 migration was replayed against live production schema 393 inside a transaction ending in `ROLLBACK`; both target queues reduced to the expected unresolved field sets and no technical fact/evidence row changed.
+
+The pending runtime schema gate is **394**; production remains at **393** until this migration is merged and applied.
