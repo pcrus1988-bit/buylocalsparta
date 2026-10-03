@@ -39,6 +39,10 @@ type BrandDirectoryRow = BrandRow & Readonly<{
   updated_at: string;
 }>;
 
+type BrandDirectoryPageRow = BrandDirectoryRow & Readonly<{
+  total_count: number | string;
+}>;
+
 type RelatedBrandRow = Readonly<{
   id: string;
   name: string;
@@ -199,7 +203,7 @@ function guideSignals(row: BrandRow, liveProductCount: number) {
 }
 
 const BRAND_GUIDE_CACHE_SECONDS = 300;
-const BRAND_DIRECTORY_CACHE_SECONDS = 900;
+const BRAND_DIRECTORY_CACHE_SECONDS = 300;
 
 const cachedPublicBrandGuide = unstable_cache(
   async (cleanSlug: string): Promise<PublicBrandGuide | undefined> => {
@@ -381,37 +385,64 @@ const cachedBrandDirectoryInventory = unstable_cache(
   async (): Promise<readonly BrandDirectoryRow[]> => {
     if (!productionDatabaseConfigured()) return [];
     const result = await getProductionPostgresRuntime().nativePool.query<BrandDirectoryRow>(`
-      WITH live_counts AS (
-        SELECT
-          brand_key,
-          COUNT(*)::integer AS live_product_count
-        FROM bls_private.storefront_dropship_live_family lf
-        CROSS JOIN LATERAL unnest(lf.brand_names_normalized) brand_key
-        WHERE lf.sellable=true
-          AND lf.available_until>now()
-        GROUP BY brand_key
-      )
       SELECT
-        b.id,
-        b.name,
-        b.normalized_name,
-        b.public_slug,
-        b.website,
-        b.logo_object_key,
-        b.metadata->>'logo_external_url' AS logo_external_url,
-        b.country_code,
-        b.description,
-        b.metadata,
-        b.updated_at::text AS updated_at,
-        counts.live_product_count
-      FROM live_counts counts
-      JOIN public.brands b ON b.normalized_name=counts.brand_key
-      WHERE b.status='active'
-      ORDER BY counts.live_product_count DESC,lower(b.name),b.id
+        brm.id,
+        brm.name,
+        brm.normalized_name,
+        brm.public_slug,
+        brm.website,
+        brm.logo_object_key,
+        brm.logo_external_url,
+        brm.country_code,
+        brm.description,
+        brm.metadata,
+        brm.updated_at,
+        brm.live_product_count
+      FROM public.storefront_brand_directory_read_model brm
+      ORDER BY brm.live_product_count DESC,lower(brm.name),brm.id
     `);
     return result.rows;
   },
-  ["public-brand-directory-v5-live-family-15m"],
+  ["public-brand-directory-v6-read-model"],
+  { revalidate: BRAND_DIRECTORY_CACHE_SECONDS }
+);
+
+const cachedBrandDirectoryPage = unstable_cache(
+  async (
+    query: string,
+    letter: string,
+    limit: number,
+    offset: number
+  ): Promise<Readonly<{ rows: readonly BrandDirectoryPageRow[]; total: number }>> => {
+    if (!productionDatabaseConfigured()) return { rows: [], total: 0 };
+    const result = await getProductionPostgresRuntime().nativePool.query<BrandDirectoryPageRow>(`
+      SELECT
+        brm.id,
+        brm.name,
+        brm.normalized_name,
+        brm.public_slug,
+        brm.website,
+        brm.logo_object_key,
+        brm.logo_external_url,
+        brm.country_code,
+        brm.description,
+        brm.metadata,
+        brm.updated_at,
+        brm.live_product_count,
+        COUNT(*) OVER()::integer AS total_count
+      FROM public.storefront_brand_directory_read_model brm
+      WHERE ($1::text='' OR brm.name ILIKE '%' || $1 || '%' OR brm.normalized_name ILIKE '%' || $1 || '%')
+        AND ($2::text='' OR UPPER(LEFT(brm.name,1))=$2)
+      ORDER BY brm.live_product_count DESC,lower(brm.name),brm.id
+      LIMIT $3
+      OFFSET $4
+    `, [query,letter,limit,offset]);
+    return {
+      rows: result.rows,
+      total: count(result.rows[0]?.total_count)
+    };
+  },
+  ["public-brand-directory-page-v1-read-model"],
   { revalidate: BRAND_DIRECTORY_CACHE_SECONDS }
 );
 
@@ -429,20 +460,10 @@ export async function getPublicBrandDirectory(options: Readonly<{
   const letterCandidate = options.letter?.trim().toUpperCase();
   const letter = letterCandidate && /^[A-Z0-9]$/.test(letterCandidate) ? letterCandidate : "";
 
-  const inventory = await cachedBrandDirectoryInventory();
-  const filtered = inventory.filter((row) => {
-    const queryMatch = !query
-      || row.name.toLocaleLowerCase("el-GR").includes(query)
-      || row.normalized_name.toLocaleLowerCase("el-GR").includes(query);
-    const letterMatch = !letter || row.name.slice(0, 1).toUpperCase() === letter;
-    return queryMatch && letterMatch;
-  });
-
-  const total = filtered.length;
-  const page = filtered.slice(offset, offset + limit);
-  const items = page.map((row) => {
+  const page = await cachedBrandDirectoryPage(query,letter,limit,offset);
+  const items = page.rows.map((row) => {
     const liveProductCount = count(row.live_product_count);
-    const signals = guideSignals(row, liveProductCount);
+    const signals = guideSignals(row,liveProductCount);
     return {
       id: row.id,
       name: row.name,
@@ -456,13 +477,12 @@ export async function getPublicBrandDirectory(options: Readonly<{
 
   return {
     items,
-    total,
+    total: page.total,
     limit,
     offset,
-    hasMore: offset + items.length < total
+    hasMore: offset + items.length < page.total
   };
 }
-
 
 export type PublicBrandSitemapEntry = Readonly<{
   slug: string;
