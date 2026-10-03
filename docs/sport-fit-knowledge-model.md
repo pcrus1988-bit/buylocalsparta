@@ -940,3 +940,22 @@ Before repository registration, the exact schema-408 migration was executed agai
 Migration SHA-256: `5f33c966acb8d0b0661928e19ef4070811f5ed389009042f7ebb7789aa0e15cb`.
 
 The runtime schema gate on this change is **408**.
+
+
+## Schema 409 — Saucony Originals identity and official unisex sizing
+
+Migration `0409_sport_fit_saucony_originals_size_governance.sql` governs **15 currently sellable, zero-knowledge Saucony families** across ProGrid Omni 9, ProGrid Omni 9 TMY, ProGrid Guide 7 and ProGrid Triumph 4. Together the targeted canonical families currently carry **118 approved-visible marketplace offers**.
+
+Current first-party Saucony pages classify these model lines under **Lifestyle, Originals or Retro Tech**. Historical phrases such as “running DNA,” “taken straight from the 2007 running catalogue,” Grid/ProGrid cushioning and stability language remain provenance context only. They are not normalized into current performance-running activity, road/trail surface, use case, cushioning/support grade, stack/drop, weight, width, toe-box, fit profile, plate or weather facts.
+
+The product-family pass adds **15 normalized `sport_activity=casual_lifestyle` facts** and **15 active first-party evidence rows**. This gives the recommendation engine a deterministic hard conflict when supplier titles/categories misleadingly surface these current Originals products as performance-running footwear.
+
+The same migration adds the missing governed **Saucony unisex footwear size guide**: **27 heel-to-toe measurement rows from 210 mm through 350 mm** and **135 normalized labels** across EU, UK, US men/unisex, US women and JPN. The chart remains brand-level and vendor-independent. Between-row measurements return both adjacent sizes; no model-specific fit adjustment is applied without separate product evidence.
+
+All 15 enrichment queues are reconciled from canonical-family facts. `sport_activity` and non-applicable `football_surface_code` are removed from the unresolved queue while unsupported technical fields stay explicitly unknown. Regression coverage verifies both the running-heritage hard exclusion and representative Saucony EU/US/JPN measurement conversion.
+
+The exact migration passed a live schema-408 transactional rehearsal ending in `ROLLBACK`. Identity resolution, approved-visible commerce, source/fact/evidence counts, unsupported-inference guards, conflict checks, queue reconciliation and size-guide cardinality all passed. Post-rollback read-back confirmed schema 408 with zero target facts/evidence, zero Saucony size guides and zero schema-409 sources.
+
+Migration SHA-256: `79a7f69fd6cca3a798b71a19d0486e861828f66f58e0eafb9473bdf106b72b91`.
+
+The runtime schema gate on this change is **409**.
