@@ -693,4 +693,6 @@ Migration `0334_sport_fit_conflict_aware_direct_evidence.sql` extends the govern
 
 This makes an important provenance rule explicit: differing source/reference-size measurements remain independently auditable. A lower-tier source cannot silently replace a first-party normalized fact, and a real cross-source disagreement is surfaced for review rather than converted into false certainty.
 
+Schemas 333 and 334 were rehearsed together against the live KONTA MOY catalogue inside one transaction ending in `ROLLBACK`. The first rehearsal exposed that `reflective_details` was governed globally but not yet allowed on the `running_shoe` Product Type; schema 334 now extends that contract explicitly. The second rehearsal passed all identity, Product Type, evidence, conflict-refresh and post-write assertions. A post-rehearsal read confirmed that no source, Product Type mapping, normalized fact or conflict state persisted.
+
 The runtime schema gate is now **334**.
