@@ -52,6 +52,7 @@ export type PublicVendorDirectoryStatus = "partner" | "research";
 
 export type PublicVendorDirectoryEntry = Readonly<{
   id: string;
+  slug: string;
   name: string;
   adviser?: string;
   location?: PublicVendorLocation;
@@ -71,6 +72,7 @@ export type PublicVendorDirectoryEntry = Readonly<{
 
 type VendorDirectoryRow = SqlRow & {
   vendor_id: string;
+  vendor_slug: string;
   vendor_name: string;
   vendor_status: string;
   adviser_name?: string | null;
@@ -220,6 +222,7 @@ function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
     : undefined;
   return {
     id: row.vendor_id,
+    slug: row.vendor_slug,
     name: row.vendor_name,
     adviser: isPartner ? optionalText(row.adviser_name) : undefined,
     location,
@@ -241,6 +244,7 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 15_000, lockTimeoutMs: 5_000 });
   const result = await uow.withTransaction({ marketId: "sparta", platformAccess: true }, (tx) => tx.query<VendorDirectoryRow>(`
     SELECT v.public_id AS vendor_id,
+           v.public_slug AS vendor_slug,
            v.trading_name AS vendor_name,
            v.status::text AS vendor_status,
            v.storefront_settings,
@@ -337,7 +341,7 @@ async function databaseDirectory(vendorId?: string): Promise<readonly PublicVend
         v.status='active'
         OR (v.status='invited' AND v.public_id LIKE 'vendor_research_%')
       )
-      AND ($2::text IS NULL OR v.public_id=$2 OR v.id::text=$2)
+      AND ($2::text IS NULL OR v.public_id=$2 OR v.id::text=$2 OR v.public_slug=$2)
     ORDER BY CASE WHEN v.status='active' THEN 0 ELSE 1 END,v.trading_name,v.public_id
   `, ["sparta", vendorId ?? null]), { readOnly: true });
   return result.rows.map(fromDatabaseRow);
@@ -420,7 +424,7 @@ const loadPersistedPublicVendorDirectoryEntry = unstable_cache(
     const fallback = fallbackImages[0];
     return fallback ? { ...vendor, mediaId: fallback.mediaId, mediaAlt: fallback.altText } : vendor;
   },
-  ["public-vendor-directory-entry-v3"],
+  ["public-vendor-directory-entry-v4"],
   { revalidate: 60 }
 );
 
