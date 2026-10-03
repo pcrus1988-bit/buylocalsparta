@@ -191,7 +191,8 @@
   min-height: 0;
   aspect-ratio: 1 / 1;
   padding: 0;
-  background: #f4f1ea;
+  border: 0;
+  background: transparent;
 }
 .product-detail-art.product-detail-art--media::before {
   display: none;
