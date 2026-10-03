@@ -647,6 +647,51 @@ test("known requested shoe-size miss is excluded instead of merely penalized", (
   assert.equal(buildSportFitRecommendation([wrongSize, exactSize], answers).primary?.id, "exact-size");
 });
 
+test("compact fractional supplier shoe size matches canonical EU fractional request", () => {
+  const eastrail = product({
+    id: "jr4007-47-third",
+    title: "adidas Terrex Eastrail 3",
+    categoryCode: "mens-running-shoes",
+    sizes: ["4713"],
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["hiking"],
+      surfaces: ["trail"],
+      useCases: ["technical_hike"],
+      fitLengthProfile: "true_to_size"
+    }
+  });
+  const wrongSize = product({
+    id: "jr4007-wrong-size",
+    title: "adidas Terrex Eastrail 3",
+    categoryCode: "mens-running-shoes",
+    sizes: ["48"],
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["hiking"],
+      surfaces: ["trail"],
+      useCases: ["technical_hike"],
+      fitLengthProfile: "true_to_size"
+    }
+  });
+
+  const answers = {
+    activity: "hiking" as const,
+    audience: "men" as const,
+    size: "EU 47⅓",
+    surface: "trail" as const,
+    useCase: "technical_hike" as const
+  };
+
+  const scored = scoreSportFitProduct(eastrail, answers);
+  assert.equal(scored.technicalEligible, true);
+  assert.equal(scored.matchedSize, "4713");
+  assert.equal(scoreSportFitProduct(wrongSize, answers).technicalEligible, false);
+  assert.equal(buildSportFitRecommendation([wrongSize, eastrail], answers).primary?.id, "jr4007-47-third");
+});
+
 test("new rule inputs are parsed only from controlled values", () => {
   const parsed = parseSportFitAnswers({
     activity: "gym",
