@@ -33,6 +33,7 @@ export type CatalogCard = Readonly<{
   composition?: string;
   madeIn?: string;
   vendorId?: string;
+  vendorSlug?: string;
   vendorName?: string;
   adviser?: string;
   mediaId?: string;
