@@ -814,3 +814,18 @@ Schema 343 was rehearsed against the live KONTA MOY catalogue inside one transac
 
 The runtime schema gate is now **343**.
 
+## Schema 344 — exact adidas footwear profile/use-case batch
+
+Migration `0344_sport_fit_verified_adidas_profile_usecase_batch.sql` closes ten explicit manufacturer-backed gaps across four already-governed adidas footwear families.
+
+- `JQ8077` Duramo RC2: exact adidas Philippines classification adds `sport_use_case=race_day`, `support_level=neutral` from the explicit neutral-pronation classification, and `fit_length_profile=true_to_size`.
+- `JS4403` Duramo SL 2: exact adidas Malaysia evidence adds `short_mid_distance_training`, `race_day`, `support_level=neutral`, and `fit_length_profile=true_to_size`.
+- `JR6599` Terrex Anylander: exact adidas Philippines evidence adds `sport_use_case=day_hike` and `fit_length_profile=true_to_size`.
+- `JS4435` Duramo RC2: exact adidas Philippines size guidance adds `fit_length_profile=true_to_size`.
+
+The batch remains conservative. LIGHTMOTION and EVA wording is not converted into a cushioning intensity, generic support wording is not upgraded beyond an explicit pronation classification, and “regular fit” is not treated as a governed footwear-width claim. Customer-review text and AI-generated review summaries are excluded from evidence.
+
+Schema 344 was executed against the live KONTA MOY catalogue inside a transaction ending in `ROLLBACK`. Exact-code identity, governed controlled values, ten normalized facts, ten evidence rows, queue cleanup, knowledge refresh and post-write assertions all passed. A post-rollback verification confirmed production remained at schema 333 with zero schema-344 sources and zero schema-344 target facts persisted.
+
+The runtime schema gate is now **344**.
+
