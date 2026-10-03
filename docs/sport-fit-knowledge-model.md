@@ -696,3 +696,19 @@ This makes an important provenance rule explicit: differing source/reference-siz
 Schemas 333 and 334 were rehearsed together against the live KONTA MOY catalogue inside one transaction ending in `ROLLBACK`. The first rehearsal exposed that `reflective_details` was governed globally but not yet allowed on the `running_shoe` Product Type; schema 334 now extends that contract explicitly. The second rehearsal passed all identity, Product Type, evidence, conflict-refresh and post-write assertions. A post-rehearsal read confirmed that no source, Product Type mapping, normalized fact or conflict state persisted.
 
 The runtime schema gate is now **334**.
+
+
+## Schema 335 — verified adidas basketball apparel JN4724
+
+Migration `0335_sport_fit_verified_adidas_basketball_jn4724.sql` onboards the first exact live basketball apparel family into the governed Sport & Fit product knowledge layer.
+
+- `JN4724` adidas Basketball All-World Sleeveless Tank Top resolves to one current canonical family through its exact product-code token.
+- The exact adidas product page supplies `sport_activity=basketball`.
+- adidas explicitly describes AEROREADY as moisture-managing and keeping the wearer dry during play, normalized as `moisture_wicking=true`.
+- The family is newly inserted into `sport_product_knowledge` with role `apparel` and strong identity, then refreshed through the normal completeness/evidence rules.
+- Breathability and thermal intensity remain unknown; AEROREADY is not promoted into either field.
+- Customer-review claims are excluded from evidence.
+
+This turns the basketball vocabulary into real product-level recommendation evidence rather than leaving it as taxonomy-only capability.
+
+The runtime schema gate is now **335**.
