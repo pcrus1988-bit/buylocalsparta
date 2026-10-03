@@ -52,6 +52,22 @@ function unique(values: readonly (string | undefined)[]): readonly string[] {
     .sort((left, right) => left.localeCompare(right, "el"));
 }
 
+function countedFacetOptions(entries: readonly { value?: string; label?: string }[]): readonly FacetOption[] {
+  const values = new Map<string, { label: string; count: number }>();
+  for (const entry of entries) {
+    const value = entry.value?.trim();
+    if (!value) continue;
+    const current = values.get(value);
+    values.set(value, {
+      label: entry.label?.trim() || current?.label || value,
+      count: (current?.count ?? 0) + 1
+    });
+  }
+  return [...values.entries()]
+    .map(([value, entry]) => ({ value, label: entry.label, count: entry.count }))
+    .sort((left, right) => left.label.localeCompare(right.label, "el"));
+}
+
 function rank(value: string): number {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
@@ -128,9 +144,11 @@ function audienceLabel(value: FashionAudience): string {
 
 export function CategoryCatalogBrowser({ products, categoryName }: { products: readonly CatalogCard[]; categoryName: string }) {
   const [query, setQuery] = useState("");
+  const [subcategory, setSubcategory] = useState("all");
   const [brand, setBrand] = useState("all");
   const [color, setColor] = useState("all");
   const [size, setSize] = useState("all");
+  const [fit, setFit] = useState("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const isFashion = categoryName === "Μόδα & αξεσουάρ";
   const [guideOpen, setGuideOpen] = useState(isFashion);
@@ -140,8 +158,13 @@ export function CategoryCatalogBrowser({ products, categoryName }: { products: r
   const [fashionTotal, setFashionTotal] = useState(0);
   const [fashionLoading, setFashionLoading] = useState(isFashion);
 
+  const subcategories = useMemo(() => countedFacetOptions(products.map((product) => ({
+    value: product.categoryCode,
+    label: product.categoryLabel ?? product.categoryCode
+  }))), [products]);
   const brands = useMemo(() => unique(products.map((product) => product.brand)), [products]);
   const colors = useMemo(() => unique(products.map((product) => product.color)), [products]);
+  const fits = useMemo(() => unique(products.map((product) => product.fit)), [products]);
   const sizeDomain = useMemo(
     () => inferCatalogSizeDomain(products.flatMap((product) => [product.categoryCode, product.categoryLabel ?? ""])),
     [products]
@@ -199,23 +222,27 @@ export function CategoryCatalogBrowser({ products, categoryName }: { products: r
     const needle = normalized(query);
     const selectedSizes = size === "all" ? [] : decodeCatalogSizeGroup(size);
     return products.filter((product) => {
+      if (subcategory !== "all" && product.categoryCode !== subcategory) return false;
       if (brand !== "all" && product.brand !== brand) return false;
       if (color !== "all" && product.color !== color) return false;
       if (selectedSizes.length && !product.sizes.some((raw) => selectedSizes.includes(raw.trim()))) return false;
+      if (fit !== "all" && product.fit !== fit) return false;
       if (!needle) return true;
       return normalized([product.title, product.description, product.brand, product.color, product.mpn, product.gtin, ...product.sizes].filter(Boolean).join(" ")).includes(needle);
     });
-  }, [brand, color, products, query, size]);
+  }, [brand, color, fit, products, query, size, subcategory]);
 
-  const activeFilterCount = [brand, color, size].filter((value) => value !== "all").length;
+  const activeFilterCount = [subcategory, brand, color, size, fit].filter((value) => value !== "all").length;
   const filtering = Boolean(query) || activeFilterCount > 0;
   const visibleProducts = useMemo(() => filtering ? filtered : showcase(filtered, categoryName), [categoryName, filtered, filtering]);
 
   const clear = () => {
     setQuery("");
+    setSubcategory("all");
     setBrand("all");
     setColor("all");
     setSize("all");
+    setFit("all");
     setFiltersOpen(false);
   };
 
@@ -262,9 +289,11 @@ export function CategoryCatalogBrowser({ products, categoryName }: { products: r
       <button className="categoryFilterToggle" type="button" aria-expanded={filtersOpen} aria-controls="category-filter-fields" onClick={() => setFiltersOpen((value) => !value)}>Φίλτρα{activeFilterCount ? ` · ${activeFilterCount}` : ""}<span aria-hidden="true">{filtersOpen ? "×" : "☰"}</span></button>
       <div id="category-filter-fields" className={`categoryFilterFields${filtersOpen ? " isOpen" : ""}`}>
         {isFashion ? <button className="guideInlineButton" type="button" onClick={restartGuide}>Οδηγός κατηγορίας</button> : null}
+        {subcategories.length > 1 && <label><span>Υποκατηγορία</span><select value={subcategory} onChange={(event) => setSubcategory(event.target.value)}><option value="all">Όλες</option>{subcategories.map((entry) => <option value={entry.value} key={entry.value}>{entry.label} ({entry.count})</option>)}</select></label>}
         {brands.length > 1 && <label><span>Μάρκα</span><select value={brand} onChange={(event) => setBrand(event.target.value)}><option value="all">Όλες</option>{brands.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>}
         {colors.length > 1 && <label><span>Χρώμα</span><select value={color} onChange={(event) => setColor(event.target.value)}><option value="all">Όλα</option>{colors.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>}
         {sizes.length > 1 && <label><span>Μέγεθος</span><select value={size} onChange={(event) => setSize(event.target.value)}><option value="all">Όλα</option>{sizes.map((entry) => <option value={entry.value} key={entry.value}>{entry.label}{entry.count > 0 ? ` (${entry.count})` : ""}</option>)}</select></label>}
+        {fits.length > 1 && <label><span>Γραμμή / Fit</span><select value={fit} onChange={(event) => setFit(event.target.value)}><option value="all">Όλα</option>{fits.map((value) => <option value={value} key={value}>{value}</option>)}</select></label>}
       </div>
     </div>
 
