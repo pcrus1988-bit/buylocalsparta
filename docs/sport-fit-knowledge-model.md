@@ -843,3 +843,17 @@ Schema 345 was executed against the live KONTA MOY catalogue inside a transactio
 
 The runtime schema gate is now **345**.
 
+## Schema 346 - exact adidas Response 2 KK4280 geometry/use-case/fit
+
+Migration `0346_sport_fit_verified_adidas_response2_kk4280.sql` closes six exact first-party gaps for the live adidas Response 2 family `KK4280`.
+
+- The exact adidas Mexico product page adds `sport_use_case=long_run` from its explicit long-distance running positioning.
+- Published footwear geometry is normalized exactly as `heel_to_toe_drop_mm=8`, `heel_stack_height_mm=32`, and `forefoot_stack_height_mm=24`.
+- The exact published shoe weight is normalized as `shoe_weight_g=301`.
+- adidas size guidance adds `fit_length_profile=true_to_size`.
+- Existing running/road evidence remains unchanged.
+- Customer reviews and the adidas AI review summary are excluded. Classic/regular fit is not mapped to width, and Cloudfoam+ wording is not converted into cushioning or support intensity.
+
+Schema 346 was executed against the live KONTA MOY catalogue inside a transaction ending in `ROLLBACK`. Exact-code identity, governed enum/numeric attributes, six normalized facts, six evidence rows, queue cleanup, knowledge refresh and post-write assertions all passed. Post-rollback verification confirmed production remains at schema 333 with zero schema-346 source rows and zero schema-346 target facts persisted.
+
+The runtime schema gate is now **346**.
