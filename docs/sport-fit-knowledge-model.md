@@ -756,3 +756,19 @@ All three families are newly onboarded into `sport_product_knowledge` as strong-
 Schema 338 was rehearsed against the live KONTA MOY catalogue inside a transaction ending in `ROLLBACK`. Exact-family identity, approved Kerasiotis bridge, Product Type contract, normalized fact/evidence, refresh, queue and forbidden-inference assertions all passed. A post-rollback read confirmed zero schema-338 sources or knowledge rows persisted, while production remained at schema 332.
 
 The runtime schema gate is now **338**.
+
+
+## Schema 339 — exact adidas football taxonomy correction
+
+Migration `0339_sport_fit_verified_adidas_football_taxonomy_correction.sql` resolves a source-precedence problem in four live Squadra/Entrada apparel families.
+
+- `JV6067` Squadra 25 Training Jacket keeps its already-normalized `sport_activity=football` and `football_training` facts, gains manufacturer-backed `moisture_wicking=true`, and has the older broad `general_training` catalogue-taxonomy evidence marked inactive/superseded.
+- `JD2978` Squadra 25 Training Jacket is corrected from broad `general_training` to exact `football`, gains `football_training`, and gains `moisture_wicking=true`.
+- `H57525` Entrada 22 Track Jacket is corrected from broad `general_training` to exact women’s football/soccer classification. Moisture and use-case fields remain unresolved rather than inferred.
+- `HI2135` Entrada 22 Training Jacket is corrected from broad `general_training` to exact `football`, gains `football_training`, and gains `moisture_wicking=true`.
+
+The older KONTA MOY taxonomy evidence is not deleted: schema 339 preserves it for audit, links it to the first-party replacement through `superseded_by`, and deactivates it so the refresh engine no longer treats the broad classification as a live conflict. AEROREADY wording is used only where the exact adidas page explicitly describes moisture management; it is not promoted into breathability or thermal intensity.
+
+Schema 339 was rehearsed against the live KONTA MOY catalogue inside a transaction ending in `ROLLBACK`. Exact identity, governed apparel state, normalization, evidence supersession, knowledge refresh, queue updates and forbidden-inference assertions passed. A post-rehearsal read confirmed no new source persisted and the four legacy taxonomy activity rows remained active in production.
+
+The runtime schema gate is now **339**.
