@@ -749,3 +749,20 @@ Schema 397 was merged as PR #1270 and applied to production with checksum `a7a3c
 
 
 The exact schema-397 migration was replayed against live production schema 396 inside a transaction ending in `ROLLBACK`. It removed all seven already-normalized requests and both non-applicable football-surface requests inside the rehearsal, passed its exact unresolved-field assertions, and post-rollback verification confirmed production still retained the original 7 + 2 stale requests.
+
+## Schema 398 — exact adidas surface evidence and queue reconciliation
+
+Migration `0398_sport_fit_exact_surface_evidence.sql` deepens three exact sellable adidas footwear families on top of production schema 397.
+
+- Runfalcon 6 ATR `IH1838`: exact first-party adidas evidence adds `sport_surface=road` and `sport_surface=trail` from explicit city-street, rugged-trail and multi-terrain-outsole wording. Existing running identity, true-to-size guidance, 254 g reference weight and 9 / 36 / 26 mm drop/stack facts remain unchanged.
+- Ultimashow 2.0 `KJ9916`: exact first-party adidas evidence adds `sport_surface=road` from the explicit street-surface outsole statement. Its governed activity remains `general_training`; it is not reclassified as running.
+- Cloudfoam Flex Laces `KJ7282`: no speculative technical fact is added. The pass reconciles its queue against already-governed walking, daily-walking and true-to-size facts.
+
+The migration adds three normalized surface facts and three matching first-party evidence rows, then removes already-satisfied requested fields and football-only `football_surface_code` from the three non-blocked footwear queues. Cloudfoam wording, generic support/stability language and regular/loose fit wording remain evidence context only; the migration asserts that no `cushioning_level`, `support_level` or `footwear_width_profile` fact is created from those phrases.
+
+Two recommendation regressions protect the new governed behavior: road + trail evidence must match both requested running surfaces, and positive street-surface evidence on a `general_training` shoe must not create a gym/treadmill hard mismatch.
+
+The exact committed schema-398 migration (SHA-256 `9d1efe0245a6e7d5d78ff1fec9e6ee7e30ad9aa1b8770f476d99c3583af2e70e`) was replayed against live production schema 397 with its terminal `COMMIT` replaced by `ROLLBACK`. Identity/source guards, all three fact/evidence inserts, knowledge refreshes, queue reconciliation, unsupported-inference guards and final assertions passed.
+
+The runtime schema gate on this change is **398**.
+
