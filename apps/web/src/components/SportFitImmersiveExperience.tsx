@@ -380,10 +380,12 @@ function ProductUniverse({
 
 export function SportFitImmersiveExperience({
   vendorId = "vendor_4d7b281c8b2541f685f1",
-  vendorName = "ΚΕΡΑΣΙΩΤΗΣ"
+  vendorName = "ΚΟΝΤΑ ΜΟΥ",
+  candidateProductId
 }: {
   vendorId?: string;
   vendorName?: string;
+  candidateProductId?: string;
 }) {
   const [step, setStep] = useState<Step>("activity");
   const [activity, setActivity] = useState<SportActivity>("running");
@@ -435,6 +437,11 @@ export function SportFitImmersiveExperience({
     : step === "profile"
       ? PROFILE_QUESTION_LABELS[profileQuestion]
       : DETAIL_QUESTION_LABELS[detailQuestion];
+
+  const candidateUniverseProduct = useMemo(
+    () => candidateProductId ? universeProducts.find((product) => product.id === candidateProductId) : undefined,
+    [candidateProductId, universeProducts]
+  );
 
   useEffect(() => {
     const requestId = ++requestSequenceRef.current;
@@ -724,7 +731,12 @@ export function SportFitImmersiveExperience({
       }
       setResponse(payload);
       applyUniverse(payload.universe ?? [], payload.survivingCount ?? 0);
-      setSelectedFinalistId(payload.recommendation.primary?.id ?? "");
+      const candidateFinalist = candidateProductId
+        ? [payload.recommendation.primary, ...payload.recommendation.alternatives]
+            .filter(Boolean)
+            .find((product) => product?.id === candidateProductId)
+        : undefined;
+      setSelectedFinalistId(candidateFinalist?.id ?? payload.recommendation.primary?.id ?? "");
       setStep("results");
     } catch {
       if (requestId !== requestSequenceRef.current) return;
@@ -748,6 +760,19 @@ export function SportFitImmersiveExperience({
   }, [response]);
 
   const selectedFinalist = finalists.find((product) => product.id === selectedFinalistId) ?? finalists[0];
+
+  const candidateMatch = useMemo(
+    () => candidateProductId && response
+      ? response.recommendation.ranked.find((product) => product.id === candidateProductId)
+      : undefined,
+    [candidateProductId, response]
+  );
+  const candidateRank = candidateMatch && response
+    ? response.recommendation.ranked.findIndex((product) => product.id === candidateMatch.id) + 1
+    : 0;
+  const exitHref = candidateProductId
+    ? `/product/${encodeURIComponent(candidateProductId)}`
+    : `/vendor/${encodeURIComponent(vendorId)}`;
 
   useEffect(() => {
     if (step === "results") return;
@@ -774,7 +799,7 @@ export function SportFitImmersiveExperience({
         </div>
         <div className={styles.headerActions}>
           {step !== "activity" ? <button type="button" onClick={goBack} aria-label="Πίσω">←</button> : null}
-          <Link href={`/vendor/${encodeURIComponent(vendorId)}`} aria-label="Έξοδος από το Sport & Fit Studio">×</Link>
+          <Link href={exitHref} aria-label={candidateProductId ? "Επιστροφή στο προϊόν" : "Έξοδος από το Sport & Fit Studio"}>×</Link>
         </div>
       </header>
 
@@ -819,6 +844,13 @@ export function SportFitImmersiveExperience({
                   <span className={styles.kicker}>01 · ΔΡΑΣΤΗΡΙΟΤΗΤΑ</span>
                   <b>1 / {totalGuideQuestions}</b>
                 </div>
+                {candidateProductId ? (
+                  <div className={styles.candidateContext}>
+                    <span>ΕΛΕΓΧΟΣ ΣΥΓΚΕΚΡΙΜΕΝΟΥ ΠΡΟΪΟΝΤΟΣ</span>
+                    <strong>{candidateUniverseProduct?.title ?? "Το παπούτσι που άνοιξες"}</strong>
+                    <small>Θα ελέγξουμε πρώτα αν αυτό το μοντέλο ταιριάζει στις ανάγκες σου και, αν όχι, θα σου δείξουμε ισχυρότερες επιλογές.</small>
+                  </div>
+                ) : null}
                 <h1>Τι θέλεις να <em>κάνεις;</em></h1>
                 <p>Διάλεξε μία δραστηριότητα. Το σύμπαν θα αφαιρέσει αμέσως ό,τι δεν ταιριάζει.</p>
                 <div className={styles.activityChoices}>
@@ -1197,6 +1229,34 @@ export function SportFitImmersiveExperience({
             </div>
           </section>
 
+          {candidateProductId ? (
+            candidateMatch ? (
+              <section className={styles.candidateAssessment}>
+                <div className={styles.candidateAssessmentHead}>
+                  <div>
+                    <span>ΤΟ ΠΑΠΟΥΤΣΙ ΠΟΥ ΕΛΕΓΧΕΙΣ</span>
+                    <strong>{candidateMatch.title}</strong>
+                  </div>
+                  <div>
+                    <b>{candidateMatch.score}%</b>
+                    <small>{candidateRank > 0 ? `#${candidateRank} στη συνολική κατάταξη` : "προσωπικό match"}</small>
+                  </div>
+                </div>
+                <p>
+                  {candidateMatch.score >= 80
+                    ? "Το συγκεκριμένο μοντέλο παραμένει ισχυρή αντιστοίχιση για το προφίλ σου."
+                    : "Το συγκεκριμένο μοντέλο αξιολογήθηκε κανονικά. Παρακάτω βλέπεις και τις ισχυρότερες διαθέσιμες εναλλακτικές."}
+                </p>
+              </section>
+            ) : (
+              <section className={styles.candidateRejected}>
+                <span>ΤΟ ΠΑΠΟΥΤΣΙ ΠΟΥ ΕΛΕΓΧΕΙΣ</span>
+                <strong>Δεν υπάρχει τελικό ranked match για αυτό το μοντέλο.</strong>
+                <p>Το συγκεκριμένο προϊόν δεν βρίσκεται στις τελικές επιλέξιμες ranked επιλογές για αυτό το προφίλ. Μπορεί να αποκλείστηκε από technical / live rules ή να έμεινε εκτός του τελικού ranked window. Δεν θα εμφανίσουμε τεχνητό ποσοστό match.</p>
+              </section>
+            )
+          ) : null}
+
           {response?.recommendation.finalistEvidenceMode === "heuristic_fallback" && primary ? (
             <div className={styles.sizeGuideNote}>
               <strong>EVIDENCE MODE · ΠΡΟΣΕΚΤΙΚΟ FALLBACK</strong>
@@ -1280,7 +1340,11 @@ export function SportFitImmersiveExperience({
             >
               Νέα αναζήτηση
             </button>
-            <Link href={`/vendor/${encodeURIComponent(vendorId)}`}>Όλα τα προϊόντα {vendorName} →</Link>
+            {candidateProductId ? (
+              <Link href={exitHref}>Επιστροφή στο προϊόν →</Link>
+            ) : (
+              <Link href={`/vendor/${encodeURIComponent(vendorId)}`}>Όλα τα προϊόντα {vendorName} →</Link>
+            )}
           </div>
         </main>
       ) : null}

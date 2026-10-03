@@ -249,6 +249,12 @@ export function SportFitProductIntelligence({
   const surfaces = knowledge?.surfaces ?? [];
   const useCases = knowledge?.useCases ?? [];
 
+  const studioHref = useMemo(() => {
+    const query = new URLSearchParams({ candidate_product: productId });
+    if (vendorId) query.set("candidate_vendor", vendorId);
+    return `/sport-fit-studio?${query.toString()}`;
+  }, [productId, vendorId]);
+
   const technicalFacts = useMemo(() => [
     knowledge?.dropMm !== undefined ? { label: "Heel-to-toe drop", value: `${knowledge.dropMm} mm` } : undefined,
     knowledge?.weightG !== undefined ? { label: "Βάρος", value: `${Math.round(knowledge.weightG)} g` } : undefined,
@@ -403,9 +409,9 @@ export function SportFitProductIntelligence({
               </section>
 
               <div className={styles.actions}>
-                <Link href="/sport-fit-studio" className={styles.primaryCta}>
+                <Link href={studioHref} className={styles.primaryCta}>
                   <span>✦</span>
-                  <div><small>SPORT & FIT STUDIO</small><strong>Βρες το σωστό παπούτσι για εσένα</strong></div>
+                  <div><small>SPORT & FIT STUDIO</small><strong>Έλεγξε αυτό το παπούτσι για εσένα</strong></div>
                   <b>→</b>
                 </Link>
                 <button type="button" className={styles.secondaryCta} onClick={() => setOpen(false)}>Επιστροφή στο προϊόν</button>

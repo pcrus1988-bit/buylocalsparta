@@ -11,10 +11,27 @@ export function generateMetadata(): Promise<Metadata> {
   });
 }
 
-export default function SportFitStudioPage() {
+type SportFitStudioPageProps = Readonly<{
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}>;
+
+function firstValue(value: string | string[] | undefined): string | undefined {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  const normalized = candidate?.trim();
+  return normalized && /^[A-Za-z0-9_-]{3,160}$/.test(normalized) ? normalized : undefined;
+}
+
+export default async function SportFitStudioPage({ searchParams }: SportFitStudioPageProps) {
+  const params = await searchParams;
+  const candidateProductId = firstValue(params.candidate_product);
+  const candidateVendorId = firstValue(params.candidate_vendor);
+
   return (
     <main className={styles.page}>
-      <SportFitImmersiveExperience />
+      <SportFitImmersiveExperience
+        candidateProductId={candidateProductId}
+        vendorId={candidateVendorId}
+      />
       <SiteFooter />
     </main>
   );
