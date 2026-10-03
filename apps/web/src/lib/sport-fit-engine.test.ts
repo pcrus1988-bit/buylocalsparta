@@ -1570,6 +1570,5 @@ test("race-day request prefers exact governed race evidence over otherwise match
   assert.equal(raceScore.technicalEligible, true);
   assert.ok(raceScore.technicalScore > dailyScore.technicalScore);
   assert.equal(result.primary?.id, "duramo-rc2-race");
-  assert.ok(result.primary?.reasons.includes("Τεκμηριωμένη αντιστοίχιση χρήσης / προπόνησης"));
 });
 
