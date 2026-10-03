@@ -102,7 +102,7 @@ Court sports keep sport identity and surface as hard technical gates when those 
 
 A neutral support label is not treated as proof of poor lateral stability; it remains unknown for that requirement. Likewise, a missing cushioning or court-surface fact is not promoted to a positive match.
 
-Handball follows the controlled team-sport court model with indoor/hard/outdoor court choices. Badminton follows the racket-sport court model with indoor/hard court choices. In both paths, exact sport evidence outranks a broad controlled class, while the broad class remains eligible rather than being treated as a conflict. The controlled database vocabulary for these two paths is registered by schema `0325`; the vocabulary migration itself assigns no product-level facts.
+Handball follows the controlled team-sport court model with indoor/hard/outdoor court choices. Badminton follows the racket-sport court model with indoor/hard court choices. In both paths, exact sport evidence outranks a broad controlled class, while the broad class remains eligible rather than being treated as a conflict. The controlled database vocabulary for these two paths is registered by schema `0332`; the vocabulary migration itself assigns no product-level facts.
 
 ## Fit and size
 
@@ -198,3 +198,10 @@ The recommendation rules consume only the governed Sport & Fit knowledge layer:
 4. lower-confidence catalogue/title heuristics only when no stronger fact exists.
 
 Blocked, conflicting, insufficient or weak-identity knowledge cannot drive hard technical decisions.
+
+
+### Superseded broad taxonomy evidence
+
+When an exact manufacturer product page supplies a more specific sport classification than an older KONTA MOY catalogue-taxonomy mapping, the specific manufacturer fact becomes the normalized value. The older taxonomy evidence remains stored for audit but is marked inactive and linked through `superseded_by`; it must not continue to generate an artificial conflict or rank as an equally live alternative fact.
+
+This is a specificity/source-precedence correction, not permission to reinterpret marketing copy. Technology names such as AEROREADY or CLIMACOOL only create governed performance facts when the exact source text explicitly states the supported property.

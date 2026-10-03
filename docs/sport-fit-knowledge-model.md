@@ -652,3 +652,138 @@ Schema 331 fails closed if IF6748 does not resolve to exactly one active canonic
 Schema 331 was executed against the live KONTA MOY schema inside a transaction ending in `ROLLBACK`. Exact identity, disputed-field guards, fact insertion, knowledge refresh, queue reprioritization and post-write assertions passed. A post-rehearsal read confirmed the production queue remained at its pre-migration priority/state because no test changes were persisted.
 
 The runtime schema gate is now **331**.
+
+
+## Schema 332 — handball and badminton vocabulary
+
+Migration `0332_sport_fit_handball_badminton_vocabulary.sql` extends the controlled Sport & Fit vocabulary without assigning product-level suitability.
+
+- `sport_activity=handball` and `sport_activity=badminton` are first-class controlled activities.
+- Handball receives `handball_training` and `handball_match` use cases.
+- Badminton receives `badminton_training` and `badminton_match` use cases.
+- Product-level facts still require the normal governed evidence/provenance workflow; the vocabulary migration alone cannot make a product recommendable for either sport.
+
+The runtime schema gate is now **332**.
+
+## Schema 333 — direct Kerasiotis feed refinements
+
+Migration `0333_sport_fit_direct_kerasiotis_refinements.sql` strengthens four exact live canonical families using literal claims from the connected Kerasiotis XML feed.
+
+- `JR9720` Terrex Anylander J: exact feed title/description adds `sport_activity=hiking`. Traxion and generic uneven-surface wording remain provenance only; no specific trail surface is inferred.
+- `KK4280` Response 2 M: exact feed title/description confirms `sport_activity=running` and explicitly states asphalt use, normalized as `sport_surface=road`. Cloudfoam+ and generic support wording do not create cushioning/support levels.
+- `KQ9728` Essentials Climacool: direct feed wording confirms `sport_activity=general_training` and `moisture_wicking=true`.
+- `KR2147` Essentials Climacool: direct feed wording confirms `sport_activity=general_training` and `moisture_wicking=true`.
+
+Existing catalogue-taxonomy evidence is preserved. Schema 333 adds direct vendor-feed provenance and strengthens the normalized fact source/confidence where the value is the same. It fails closed if any target code does not resolve to exactly one active canonical family or if an unexpected normalized value is already present.
+
+Generic technology and marketing wording remains conservative: Cloudfoam is not converted into cushioning/support intensity, Traxion is not converted into a specific surface without an explicit surface claim, and generic ventilation wording is not converted into a breathability level.
+
+The migration was rehearsed against the live KONTA MOY catalogue inside a transaction ending in `ROLLBACK`. Identity guards, expected-state guards, evidence/fact writes, knowledge refresh, queue updates and post-write assertions passed. A post-rehearsal read confirmed that no schema-333 source or normalized fact persisted.
+
+The runtime schema gate is now **333**.
+
+
+## Schema 334 — conflict-aware direct evidence
+
+Migration `0334_sport_fit_conflict_aware_direct_evidence.sql` extends the governed knowledge layer with missing exact facts while preserving source disagreements instead of flattening them.
+
+- `KJ0410` Terrex Rockadia M keeps its existing exact manufacturer-backed hiking and size guidance. Literal Kerasiotis feed claims add walking, trail + city-road coverage, daily walking and a wide fit. EVA/cushioning language remains ungraded.
+- `JQ6920` Ultrarun 5 TR gains `reflective_details=true` from the existing exact adidas manufacturer source. Bounce remains descriptive provenance and does not become a cushioning intensity.
+- `JR9087` Terrex Anylander R.RDY remains normalized to the current first-party adidas measurements (390 g at UK 8.5, 10 mm drop, 27/17 mm stack and conservative `water_resistant`). The connected Kerasiotis feed publishes a different reference set (330 g at EUR 38 2/3, 9 mm, 26/17 mm and waterproof wording). Schema 334 retains those direct-feed claims as active evidence, refreshes the family into a conflict state and blocks automatic reconciliation; it does **not** overwrite the stronger manufacturer normalization.
+
+This makes an important provenance rule explicit: differing source/reference-size measurements remain independently auditable. A lower-tier source cannot silently replace a first-party normalized fact, and a real cross-source disagreement is surfaced for review rather than converted into false certainty.
+
+Schemas 333 and 334 were rehearsed together against the live KONTA MOY catalogue inside one transaction ending in `ROLLBACK`. The first rehearsal exposed that `reflective_details` was governed globally but not yet allowed on the `running_shoe` Product Type; schema 334 now extends that contract explicitly. The second rehearsal passed all identity, Product Type, evidence, conflict-refresh and post-write assertions. A post-rehearsal read confirmed that no source, Product Type mapping, normalized fact or conflict state persisted.
+
+The runtime schema gate is now **334**.
+
+
+## Schema 335 — verified adidas basketball apparel JN4724
+
+Migration `0335_sport_fit_verified_adidas_basketball_jn4724.sql` onboards the first exact live basketball apparel family into the governed Sport & Fit product knowledge layer.
+
+- `JN4724` adidas Basketball All-World Sleeveless Tank Top resolves to one current canonical family through its exact product-code token.
+- The exact adidas product page supplies `sport_activity=basketball`.
+- adidas explicitly describes AEROREADY as moisture-managing and keeping the wearer dry during play, normalized as `moisture_wicking=true`.
+- The family is newly inserted into `sport_product_knowledge` with role `apparel` and strong identity, then refreshed through the normal completeness/evidence rules.
+- Breathability and thermal intensity remain unknown; AEROREADY is not promoted into either field.
+- Customer-review claims are excluded from evidence.
+
+This turns the basketball vocabulary into real product-level recommendation evidence rather than leaving it as taxonomy-only capability.
+
+The runtime schema gate is now **335**.
+
+
+## Schema 336 — verified adidas football apparel
+
+Migration `0336_sport_fit_verified_adidas_football_apparel.sql` onboards two live Entrada26 families that existed in the canonical catalogue but were absent from the governed Sport & Fit layer.
+
+- `JZ2505` Entrada26 Jersey: exact adidas evidence adds `sport_activity=football`, `football_training`, `football_match` and `moisture_wicking=true`.
+- `KE9848` Entrada26 Training Pants: exact adidas evidence adds `sport_activity=football`, `football_training` and `moisture_wicking=true`.
+- Both families are inserted into `sport_product_knowledge` as strong-identity apparel and queued only for unresolved performance fields.
+- CLIMACOOL sweat-management wording supports moisture management only. It does not create a breathability or thermal intensity.
+- Customer-review claims are excluded.
+
+Schemas 333 through 336 were rehearsed together against the live KONTA MOY catalogue inside one transaction ending in `ROLLBACK`. All identity, Product Type, normalized-fact, evidence, conflict, queue and post-write assertions passed, and post-rollback reads confirmed that no schema-336 sources/knowledge/queue rows persisted.
+
+The runtime schema gate is now **336**.
+
+## Schema 337 — exact mid-cut sock-height vocabulary
+
+Migration `0337_sport_fit_mid_cut_sock_height.sql` resolves a deliberate vocabulary gap left by schemas 326–327.
+
+- The controlled `sock_height` vocabulary now includes `mid_cut` between quarter and crew instead of forcing manufacturer “mid-cut” wording into a nearby but non-equivalent height.
+- adidas `JZ0529` and `KC9617` now receive `sock_height=mid_cut` from their already-verified exact manufacturer sources.
+- Their existing gym-training / arch-support evidence is preserved; schema 337 adds only the missing height fact.
+- Generic “cushioned” wording still does not create a governed cushioning intensity, and no compression, breathability or thermal level is inferred.
+- The enrichment queue removes `sock_height` from these two exact families while retaining unresolved performance fields.
+- Source metadata records that the former “do not map mid-cut without a controlled rule” guard has been resolved by the explicit `mid_cut` value.
+
+Schema 337 was rehearsed against the live KONTA MOY database inside a transaction ending in `ROLLBACK`. Identity guards, vocabulary registration, normalized facts, evidence writes, queue cleanup and no-extra-inference assertions all passed. A post-rollback read confirmed that no `mid_cut` value persisted.
+
+The runtime schema gate is now **337**.
+
+## Schema 338 — verified adidas apparel batch 2
+
+Migration `0338_sport_fit_verified_adidas_apparel_batch2.sql` extends the governed apparel knowledge layer with three current Kerasiotis adidas families whose exact style-code identities resolve to one active canonical family each.
+
+- `HF6619` Training Essentials 7/8 Leggings (Maternity): the exact adidas page classifies the product as workout/training apparel, normalized as `sport_activity=general_training`. The connected Kerasiotis feed independently and explicitly states AEROREADY moisture absorption, normalized as `moisture_wicking=true` at vendor-feed confidence.
+- `IA1808` Terrex Trail Running Wind Jacket: exact adidas evidence adds `sport_activity=running`, `sport_surface=trail`, and both `weather_protection=water_resistant` and `wind_resistant`. DWR/light-rain wording is deliberately not upgraded to waterproof.
+- `IJ5427` Own the Run Allover Print Running Windbreaker: exact adidas evidence adds `sport_activity=running`, `weather_protection=water_resistant`, `wind_resistant`, and `reflective_details=true`.
+
+All three families are newly onboarded into `sport_product_knowledge` as strong-identity apparel and remain partial while unresolved fields stay queued. Customer reviews are excluded. No breathability, thermal or compression intensity is inferred from generic marketing language, and water repellency never becomes a waterproof claim.
+
+Schema 338 was rehearsed against the live KONTA MOY catalogue inside a transaction ending in `ROLLBACK`. Exact-family identity, approved Kerasiotis bridge, Product Type contract, normalized fact/evidence, refresh, queue and forbidden-inference assertions all passed. A post-rollback read confirmed zero schema-338 sources or knowledge rows persisted, while production remained at schema 332.
+
+The runtime schema gate is now **338**.
+
+
+## Schema 339 — exact adidas football taxonomy correction
+
+Migration `0339_sport_fit_verified_adidas_football_taxonomy_correction.sql` resolves a source-precedence problem in four live Squadra/Entrada apparel families.
+
+- `JV6067` Squadra 25 Training Jacket keeps its already-normalized `sport_activity=football` and `football_training` facts, gains manufacturer-backed `moisture_wicking=true`, and has the older broad `general_training` catalogue-taxonomy evidence marked inactive/superseded.
+- `JD2978` Squadra 25 Training Jacket is corrected from broad `general_training` to exact `football`, gains `football_training`, and gains `moisture_wicking=true`.
+- `H57525` Entrada 22 Track Jacket is corrected from broad `general_training` to exact women’s football/soccer classification. Moisture and use-case fields remain unresolved rather than inferred.
+- `HI2135` Entrada 22 Training Jacket is corrected from broad `general_training` to exact `football`, gains `football_training`, and gains `moisture_wicking=true`.
+
+The older KONTA MOY taxonomy evidence is not deleted: schema 339 preserves it for audit, links it to the first-party replacement through `superseded_by`, and deactivates it so the refresh engine no longer treats the broad classification as a live conflict. AEROREADY wording is used only where the exact adidas page explicitly describes moisture management; it is not promoted into breathability or thermal intensity.
+
+Schema 339 was rehearsed against the live KONTA MOY catalogue inside a transaction ending in `ROLLBACK`. Exact identity, governed apparel state, normalization, evidence supersession, knowledge refresh, queue updates and forbidden-inference assertions passed. A post-rehearsal read confirmed no new source persisted and the four legacy taxonomy activity rows remained active in production.
+
+The runtime schema gate is now **339**.
+
+
+## Schema 340 — verified adidas Entrada 22 apparel batch
+
+Migration `0340_sport_fit_verified_adidas_entrada22_apparel.sql` continues the exact-product football cleanup with three live Entrada 22 families that were still represented only by broad `general_training` catalogue taxonomy.
+
+- `H57537` Entrada 22 Training Jacket: exact adidas evidence replaces the broad activity with `sport_activity=football`, adds `football_training`, and adds `moisture_wicking=true`.
+- `HG6287` Entrada 22 Track Jacket: exact adidas evidence replaces the broad activity with `sport_activity=football` and adds `moisture_wicking=true`; the use case stays unresolved because the manufacturer page does not explicitly narrow it to training.
+- `HI2138` Entrada 22 Track Top: exact adidas evidence replaces the broad activity with `sport_activity=football` and adds `moisture_wicking=true`; the use case likewise stays unresolved.
+
+For all three families, the former KONTA MOY `general_training` evidence is preserved for audit, marked inactive and linked to its manufacturer-backed replacement through `superseded_by`. Generic AEROREADY wording is not converted into breathability or thermal intensity.
+
+Schema 340 was rehearsed against the live KONTA MOY database inside a transaction ending in `ROLLBACK`. Exact identity, existing governed state, normalized facts, evidence supersession, queue cleanup, refresh and forbidden-inference assertions passed. Production remains unchanged.
+
+The runtime schema gate is now **340**.
