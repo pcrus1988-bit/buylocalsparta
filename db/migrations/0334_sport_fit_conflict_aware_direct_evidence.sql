@@ -306,6 +306,33 @@ FROM _sport_334_family f
 WHERE f.style_code='KJ0410'
   AND q.family_id=f.family_id;
 
+-- Reflective visibility is a legitimate family-level running-shoe fact, but the
+-- running_shoe Product Type did not yet expose the already-governed global attribute.
+-- Extend the Product Type contract using the same semantics already used by apparel.
+INSERT INTO public.product_type_attributes(
+  product_type_id,attribute_id,requirement_level,value_level,filterable,searchable,
+  customer_visible,comparable,variant_defining,allow_multiple,sort_order
+)
+SELECT
+  pt.id,
+  ad.id,
+  'optional',
+  'family',
+  true,
+  false,
+  true,
+  false,
+  false,
+  false,
+  240
+FROM public.product_types pt
+JOIN public.attribute_definitions ad
+  ON ad.code='reflective_details'
+ AND ad.active=true
+WHERE pt.code='running_shoe'
+  AND pt.status='active'
+ON CONFLICT (product_type_id,attribute_id) DO NOTHING;
+
 -- JQ6920: adidas explicitly states that reflective details light up in dim light.
 -- This is a missing first-party boolean fact, not a marketing-to-intensity inference.
 DO $$
