@@ -86,7 +86,7 @@ SELECT
   END,
   f.brand_id,
   now(),
-  'verified',
+  'current',
   jsonb_build_object(
     'verificationMethod','exact_style_code_manufacturer_page',
     'exactStyleCode',f.style_code,
@@ -101,7 +101,7 @@ ON CONFLICT (source_key) DO UPDATE SET
   url=EXCLUDED.url,
   brand_id=EXCLUDED.brand_id,
   retrieved_at=EXCLUDED.retrieved_at,
-  source_status='verified',
+  source_status='current',
   metadata=EXCLUDED.metadata,
   active=true,
   updated_at=now();
