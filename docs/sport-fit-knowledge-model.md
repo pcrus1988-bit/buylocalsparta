@@ -683,3 +683,17 @@ The exact migration was first replayed against production schema 391 inside a tr
 
 The global runtime schema gate and production database are now **392**.
 
+
+## Schema 393 — conflict-aware direct evidence and weather reconciliation
+
+Migration `0393_sport_fit_conflict_aware_direct_evidence.sql` deepens three exact, currently governed adidas footwear families while preserving provenance and refusing to flatten source disagreements.
+
+- Terrex Rockadia `KJ0410`: direct approved Kerasiotis source evidence adds walking, trail + road/city use, daily-walking context and wide fit alongside the existing exact adidas hiking and true-to-size facts. EVA/comfort language remains ungraded, and the non-football queue no longer requests `football_surface_code`.
+- Ultrarun 5 TR `JQ6920`: exact adidas manufacturer evidence adds `reflective_details=true`; the existing global reflective attribute is exposed on the `running_shoe` Product Type contract without inventing a reflectivity intensity.
+- Terrex Anylander RAIN.RDY `JR9087`: the exact adidas page explicitly classifies the shoe as waterproof, so the earlier conservative `water_resistant` normalization is superseded by `weather_protection=waterproof` with an evidence link. The connected Kerasiotis feed corroborates waterproof use and the 17 mm forefoot stack, but disagrees on reference-size-dependent weight, drop and heel stack. Those three disagreements remain active evidence conflicts; the manufacturer-normalized 390 g / 10 mm / 27 mm values are retained and the queue is blocked for explicit source/reference-size reconciliation rather than averaged.
+
+All three identities are required to resolve to exactly one active canonical family. The migration keeps technical facts at family level, leaves vendor sellability/stock untouched, and refreshes the existing Sport & Fit knowledge state after evidence changes.
+
+The exact schema-393 migration was replayed against live production schema 392 inside a transaction ending in `ROLLBACK`. Identity/source guards, KJ0410 facts, JQ6920 reflective evidence, JR9087 weather supersession, evidence-conflict counting, queue cleanup and post-write assertions passed. The rehearsal produced exactly three JR9087 active conflicts and left only weight/drop/heel-stack in its blocked reconciliation queue.
+
+The pending runtime schema gate is **393**; production remains at **392** until this migration is merged and applied.
