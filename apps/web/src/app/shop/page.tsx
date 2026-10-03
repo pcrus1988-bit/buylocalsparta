@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { after } from "next/server";
 import { interpretSearchQuery } from "@buy-local-sparta/core";
-import type { CatalogCard } from "../../lib/catalog-view";
+import type { CatalogCard, CatalogFacetOption } from "../../lib/catalog-view";
 import { getShopCatalogPage } from "../../lib/shop-catalog-page";
 import { getCachedShopTaxonomy } from "../../lib/cached-shop-taxonomy";
 import { SiteHeader } from "../../components/SiteHeader";
@@ -14,6 +14,7 @@ import { ShopFilterFacets } from "../../components/ShopFilterFacets";
 import {
   inferStorefrontTaxonomyIntent,
   resolveStorefrontSubcategoryIntent,
+  STOREFRONT_CATEGORIES,
   storefrontCategoryBySlug,
   storefrontFacetEnabled,
   storefrontLeafForSubcategory
@@ -105,6 +106,62 @@ function interleaveHubSearchProducts(
     }
   }
   return result;
+}
+
+function fallbackFacetOptions(values: readonly { value?: string; label?: string }[]): CatalogFacetOption[] {
+  const counts = new Map<string, { label: string; count: number }>();
+  for (const entry of values) {
+    const value = entry.value?.trim();
+    if (!value) continue;
+    const current = counts.get(value);
+    counts.set(value, {
+      label: entry.label?.trim() || current?.label || value,
+      count: (current?.count ?? 0) + 1
+    });
+  }
+  return [...counts.entries()]
+    .map(([value, entry]) => ({ value, label: entry.label, count: entry.count }))
+    .sort((left, right) => left.label.localeCompare(right.label, "el"));
+}
+
+function deriveFallbackFacets(products: readonly ShopCard[]) {
+  return {
+    subcategories: fallbackFacetOptions(products.map((product) => ({
+      value: product.categoryCode,
+      label: product.categoryLabel ?? product.categoryCode
+    }))),
+    brands: fallbackFacetOptions(products.map((product) => ({
+      value: product.brand,
+      label: product.brand
+    }))),
+    colors: fallbackFacetOptions(products.map((product) => ({
+      value: product.color,
+      label: product.color
+    }))),
+    sizes: fallbackFacetOptions(products.flatMap((product) =>
+      product.sizes.map((size) => ({ value: size, label: size }))
+    )),
+    fits: fallbackFacetOptions(products.map((product) => ({
+      value: product.fit,
+      label: product.fit
+    })))
+  };
+}
+
+function mergeFacetOptions(
+  primary: readonly CatalogFacetOption[],
+  fallback: readonly CatalogFacetOption[]
+): readonly CatalogFacetOption[] {
+  if (!fallback.length) return primary;
+  const merged = new Map(primary.map((entry) => [entry.value, entry] as const));
+  for (const entry of fallback) {
+    const existing = merged.get(entry.value);
+    if (!existing) merged.set(entry.value, entry);
+    else if (typeof existing.count !== "number" && typeof entry.count === "number") {
+      merged.set(entry.value, { ...existing, count: entry.count });
+    }
+  }
+  return [...merged.values()];
 }
 
 function shopPageHref(params: Record<string, string | string[] | undefined>, page: number): string {
@@ -210,9 +267,8 @@ export default async function ShopPage({ searchParams }: ShopProps) {
 
   const groupedSubcategories = subcategory ? [] : requestedGuideSubcategories;
   const productFilters = { ...filters, fit, subcategories: groupedSubcategories };
-  const facets = taxonomy.facets;
   const attributeFacets = taxonomy.attributeFacets;
-  const availableCategories = taxonomy.categories;
+  const availableCategories = taxonomy.categories.length ? taxonomy.categories : STOREFRONT_CATEGORIES;
   const categoryView = availableCategories.some((item) => item.slug === category) ? storefrontCategoryBySlug(category) : undefined;
   const allowDropship = searchIntent.availability !== "pickup_today";
   let products: ShopCard[] = [];
@@ -354,13 +410,17 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     }
   }
 
-  products = products.filter(purchasablePublicProduct);
+  const fallbackFacetProducts = [...products];
+    products = products.filter(purchasablePublicProduct);
   if (availability === "available") products = products.filter((product) => product.available);
-  const fitOptions = taxonomy.fits?.length
-    ? taxonomy.fits
-    : [...new Set(products.map((product) => product.fit).filter((value): value is string => Boolean(value)))]
-      .sort((a, b) => a.localeCompare(b, "el"))
-      .map((value) => ({ value, label: value }));
+  const fallbackFacets = deriveFallbackFacets(fallbackFacetProducts);
+  const facets = {
+    subcategories: mergeFacetOptions(taxonomy.facets.subcategories, fallbackFacets.subcategories),
+    brands: mergeFacetOptions(taxonomy.facets.brands, fallbackFacets.brands),
+    colors: mergeFacetOptions(taxonomy.facets.colors, fallbackFacets.colors),
+    sizes: mergeFacetOptions(taxonomy.facets.sizes, fallbackFacets.sizes)
+  };
+  const fitOptions = mergeFacetOptions(taxonomy.fits ?? [], fallbackFacets.fits);
   if (fit) products = products.filter((product) => product.fit === fit);
   if (searchIntent.availability === "pickup_today") products = products.filter((product) => product.localProof?.pickup && product.localProof.stockConfirmedToday);
   if (minPriceMinor !== undefined) products = products.filter((product) => product.priceMinor >= minPriceMinor);
