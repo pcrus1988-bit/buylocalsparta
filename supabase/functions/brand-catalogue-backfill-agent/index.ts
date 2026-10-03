@@ -538,7 +538,8 @@ async function processBrand(brand: BrandRow, workerId: number) {
       ? md.manual_verified_logo_inline_svg
       : undefined;
   const queuedLegacyLogoUrl =
-    md.logo_source_type === "official_site_logo" && typeof md.logo_external_url === "string"
+    ["official_site_logo","official_wordmark"].includes(String(md.logo_source_type || "")) &&
+    typeof md.logo_external_url === "string"
       ? safeHttps(md.logo_external_url)
       : undefined;
   const directLogoSourcePage =
@@ -664,7 +665,7 @@ Deno.serve(async (req: Request) => {
         nullif(b.logo_object_key,'') is null
         and (
           nullif(b.metadata->>'logo_external_url','') is null
-          or b.metadata->>'logo_source_type'='official_site_logo'
+          or b.metadata->>'logo_source_type' in ('official_site_logo','official_wordmark')
         )
         and coalesce(b.metadata->>'logo_auto_enrichment_blocked','false') <> 'true'
       )
