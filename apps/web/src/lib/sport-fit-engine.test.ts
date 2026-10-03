@@ -1907,3 +1907,50 @@ test("resolved reference-size evidence keeps governed JR9087-like hiking knowled
   ));
   assert.equal(result.primary?.id, anylander.id);
 });
+test("governed Cloud X Tempo preserves hybrid gym-running activity without cross-sport leakage", () => {
+  const cloudXTempo = product({
+    id: "on-cloud-x-tempo-3mg30110969",
+    title: "On Cloud X Tempo - smooth ride of a runner for mixed workouts",
+    categoryCode: "mens-sneakers",
+    brand: "ON",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["gym_training", "running"],
+      useCases: ["gym_functional"],
+      fitLengthProfile: "true_to_size",
+      dropMm: 8,
+      weightG: 307
+    }
+  });
+
+  const gymAnswers = {
+    activity: "gym" as const,
+    audience: "men" as const,
+    gymTrainingType: "functional" as const
+  };
+  const runningAnswers = {
+    activity: "running" as const,
+    audience: "men" as const
+  };
+  const basketballAnswers = {
+    activity: "basketball" as const,
+    audience: "men" as const
+  };
+
+  const gym = scoreSportFitProduct(cloudXTempo, gymAnswers);
+  const running = scoreSportFitProduct(cloudXTempo, runningAnswers);
+  const basketball = scoreSportFitProduct(cloudXTempo, basketballAnswers);
+
+  assert.equal(gym.technicalEligible, true);
+  assert.ok(gym.technicalRequirements.some((item) =>
+    item.id === "requirement.activity" && item.status === "match"
+  ));
+  assert.ok(gym.technicalRequirements.some((item) =>
+    item.id === "requirement.gym_training_type" && item.status === "match"
+  ));
+  assert.equal(sportFitCandidateSupportsRequestedActivity(cloudXTempo, runningAnswers), true);
+  assert.equal(running.technicalEligible, true);
+  assert.equal(sportFitCandidateSupportsRequestedActivity(cloudXTempo, basketballAnswers), false);
+  assert.equal(basketball.technicalEligible, false);
+});
