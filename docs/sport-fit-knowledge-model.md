@@ -800,3 +800,5 @@ The exact committed schema-400 migration was replayed against live production sc
 Migration SHA-256: `5d026f4456785f68f3ac99f4e701918872cddc6d3dd4b6f8d35d78baf526e27c`.
 
 The runtime schema gate on this change is **400**.
+
+Schema 400 was applied atomically to production after PR #1275 merged. Live read-back confirmed schema version 400 and checksum `5d026f4456785f68f3ac99f4e701918872cddc6d3dd4b6f8d35d78baf526e27c`; On Cloud 6 has the expected four governed facts with four evidence rows, Saucony S70740-15 has the expected lifestyle fact with one evidence row, both families have strong identity and zero conflicts, both queues contain only unresolved fields, and unsupported technical-intensity/surface/use-case fact count remains zero.
