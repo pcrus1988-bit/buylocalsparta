@@ -214,7 +214,7 @@ if (!shop.includes("isReadOnlyPublicCrawlerRequest") || !shop.includes("getCrawl
 if (!vendorLayout.includes("resolveSeoEntityControl") || !vendorLayout.includes("settings.researchVendorMinimumScore") || !vendorLayout.includes("getSeoEntityOverridesSnapshot")) failures.push("Vendor metadata layout must combine global settings, Model C eligibility and governed overrides");
 if (!vendor.includes('"@type": "LocalBusiness"') || !vendor.includes('type="application/ld+json"')) failures.push("Public vendor profiles must emit LocalBusiness JSON-LD");
 requireText(vendor, 'replaceAll("<", "\\\\u003c")', "Structured data must escape HTML-opening characters");
-if (!(vendor.includes("buildGovernedSeoMetadata") && vendor.includes('canonicalPath: `/vendor/${encodeURIComponent(vendor.id)}`'))) failures.push("Vendor metadata must publish a canonical URL");
+if (!(vendor.includes("buildGovernedSeoMetadata") && vendor.includes('canonicalPath: `/vendor/${encodeURIComponent(vendor.slug)}`'))) failures.push("Vendor metadata must publish the company-slug canonical URL");
 requireText(vendor, "seoControl.schemaAllowed ? <script", "Vendor structured data must honor the governed schema decision");
 
 // Product metadata/schema and crawler/customer separation.
