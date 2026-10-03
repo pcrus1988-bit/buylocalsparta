@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { unstable_cache } from "next/cache";
 import { notFound } from "next/navigation";
-import { cache } from "react";
+import { cache, type CSSProperties } from "react";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { VendorAskLocalPanel } from "../../../components/VendorAskLocalPanel";
@@ -21,6 +21,7 @@ import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides
 import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
 import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 import { researchVendorIndexEligibility } from "../../../lib/seo-visibility-policy";
+import { vendorStorefrontThemeTokens } from "../../../lib/vendor-storefront-theme";
 
 type Props = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -276,6 +277,20 @@ export default async function VendorPage({ params }: Props) {
       longitude: location.coordinates.longitude
     } : undefined
   };
+  const storefrontTheme = !isResearch && vendor.storefrontTheme
+    ? vendorStorefrontThemeTokens(vendor.storefrontTheme)
+    : undefined;
+  const storefrontThemeStyle = storefrontTheme ? {
+    "--vendor-primary": storefrontTheme.primaryColor,
+    "--vendor-secondary": storefrontTheme.secondaryColor,
+    "--vendor-on-primary": storefrontTheme.onPrimary,
+    "--vendor-on-secondary": storefrontTheme.onSecondary,
+    "--vendor-primary-soft": storefrontTheme.primarySoft,
+    "--vendor-primary-surface": storefrontTheme.primarySurface,
+    "--vendor-secondary-soft": storefrontTheme.secondarySoft,
+    "--vendor-secondary-surface": storefrontTheme.secondarySurface
+  } as CSSProperties : undefined;
+
   const breadcrumbStructuredData = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -287,7 +302,7 @@ export default async function VendorPage({ params }: Props) {
   };
 
   return (
-    <main className={styles.page}>
+    <main className={`${styles.page} ${storefrontTheme ? styles.brandedPage : ""}`} style={storefrontThemeStyle}>
       {seoControl.schemaAllowed ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(businessStructuredData).replaceAll("<", "\\u003c") }} /> : null}
       {seoControl.indexAllowed ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbStructuredData).replaceAll("<", "\\u003c") }} /> : null}
       <div className="announcement">
