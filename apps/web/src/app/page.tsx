@@ -16,7 +16,7 @@ import { getCrawlerHomepageCatalogCards } from "../lib/crawler-catalog";
 
 const FEATURED_PRODUCT_LIMIT = 8;
 const HOMEPAGE_REVALIDATE_SECONDS = 900; // Keep crawl-critical homepage projections warm during catalogue DB pressure.
-export const revalidate = HOMEPAGE_REVALIDATE_SECONDS;
+export const revalidate = 900;
 
 const FAQ_ITEMS = [
   {
