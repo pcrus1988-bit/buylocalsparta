@@ -11,6 +11,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    console.info(JSON.stringify({ level: "info", event: "seo.gsc_diagnostics_started", startedAt: new Date().toISOString() }));
     const diagnostics = await syncSeoGscDiagnostics();
     const hasErrors = diagnostics.errors.length > 0;
     const payload = {
