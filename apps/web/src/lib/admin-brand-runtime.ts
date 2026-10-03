@@ -385,20 +385,16 @@ export async function adminQueueMissingBrandGuides(principal: SessionPrincipal, 
       WITH candidates AS (
         SELECT b.id
         FROM brands b
+        JOIN (
+          SELECT DISTINCT rm.brand_id
+          FROM storefront_catalog_read_model rm
+          WHERE rm.brand_id IS NOT NULL
+            AND COALESCE(rm.eligible_offer_count, 0) > 0
+        ) represented ON represented.brand_id = b.id
         WHERE b.status = 'active'
           AND NULLIF(b.website, '') IS NOT NULL
           AND COALESCE(b.metadata->'brand_guide'->>'status', 'empty') IN ('empty', 'draft', 'needs_review')
           AND COALESCE(b.metadata->'brand_guide'->>'agent_status', '') NOT IN ('queued', 'processing', 'complete')
-          AND EXISTS (
-            SELECT 1
-            FROM storefront_catalog_read_model rm
-            WHERE rm.brand_id = b.id
-              AND (
-                (rm.local_sellable = TRUE AND rm.local_available_until > NOW())
-                OR
-                (rm.dropship_sellable = TRUE AND rm.dropship_available_until > NOW())
-              )
-          )
         ORDER BY
           CASE COALESCE(b.metadata->'brand_guide'->>'status', 'empty')
             WHEN 'empty' THEN 0
