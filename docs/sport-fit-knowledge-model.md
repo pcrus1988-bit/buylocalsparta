@@ -772,3 +772,18 @@ The older KONTA MOY taxonomy evidence is not deleted: schema 339 preserves it fo
 Schema 339 was rehearsed against the live KONTA MOY catalogue inside a transaction ending in `ROLLBACK`. Exact identity, governed apparel state, normalization, evidence supersession, knowledge refresh, queue updates and forbidden-inference assertions passed. A post-rehearsal read confirmed no new source persisted and the four legacy taxonomy activity rows remained active in production.
 
 The runtime schema gate is now **339**.
+
+
+## Schema 340 — verified adidas Entrada 22 apparel batch
+
+Migration `0340_sport_fit_verified_adidas_entrada22_apparel.sql` continues the exact-product football cleanup with three live Entrada 22 families that were still represented only by broad `general_training` catalogue taxonomy.
+
+- `H57537` Entrada 22 Training Jacket: exact adidas evidence replaces the broad activity with `sport_activity=football`, adds `football_training`, and adds `moisture_wicking=true`.
+- `HG6287` Entrada 22 Track Jacket: exact adidas evidence replaces the broad activity with `sport_activity=football` and adds `moisture_wicking=true`; the use case stays unresolved because the manufacturer page does not explicitly narrow it to training.
+- `HI2138` Entrada 22 Track Top: exact adidas evidence replaces the broad activity with `sport_activity=football` and adds `moisture_wicking=true`; the use case likewise stays unresolved.
+
+For all three families, the former KONTA MOY `general_training` evidence is preserved for audit, marked inactive and linked to its manufacturer-backed replacement through `superseded_by`. Generic AEROREADY wording is not converted into breathability or thermal intensity.
+
+Schema 340 was rehearsed against the live KONTA MOY database inside a transaction ending in `ROLLBACK`. Exact identity, existing governed state, normalized facts, evidence supersession, queue cleanup, refresh and forbidden-inference assertions passed. Production remains unchanged.
+
+The runtime schema gate is now **340**.
