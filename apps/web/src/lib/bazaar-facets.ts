@@ -33,24 +33,18 @@ const VALID_SOURCES = new Set<BazaarSource>([
 async function loadBazaarFacets(): Promise<BazaarFacets> {
   if (!productionDatabaseConfigured()) return EMPTY_FACETS;
 
-  // Facet discovery is catalogue metadata, not an inventory reservation. Keep it
-  // independent from the expensive offer/stock joins; the result query and all
-  // cart/order actions still enforce live sellability.
+  // Read the same precomputed live BAZAAR projection as product discovery.
+  // Checkout/order actions remain the authoritative live availability boundary.
   const result = await getProductionPostgresRuntime().nativePool.query<FacetRow>(`
     SELECT
-      ARRAY_AGG(DISTINCT NULLIF(BTRIM(b.name),'') ORDER BY NULLIF(BTRIM(b.name),''))
-        FILTER (WHERE NULLIF(BTRIM(b.name),'') IS NOT NULL) AS brands,
-      ARRAY_AGG(DISTINCT c.code ORDER BY c.code) AS categories,
-      ARRAY_AGG(DISTINCT cv.condition ORDER BY cv.condition) AS conditions,
-      ARRAY_AGG(DISTINCT cv.bazaar_source ORDER BY cv.bazaar_source)
-        FILTER (WHERE cv.bazaar_source IS NOT NULL) AS sources
-    FROM canonical_variants cv
-    JOIN categories c ON c.id=cv.category_id
-    LEFT JOIN brands b ON b.id=cv.brand_id
-    WHERE cv.commerce_channel='bazaar'
-      AND cv.active=true
-      AND cv.suppressed=false
-      AND cv.recalled=false
+      ARRAY_AGG(DISTINCT NULLIF(BTRIM(brm.brand_name),'') ORDER BY NULLIF(BTRIM(brm.brand_name),''))
+        FILTER (WHERE NULLIF(BTRIM(brm.brand_name),'') IS NOT NULL) AS brands,
+      ARRAY_AGG(DISTINCT brm.category_code ORDER BY brm.category_code) AS categories,
+      ARRAY_AGG(DISTINCT brm.condition ORDER BY brm.condition) AS conditions,
+      ARRAY_AGG(DISTINCT brm.bazaar_source ORDER BY brm.bazaar_source)
+        FILTER (WHERE brm.bazaar_source IS NOT NULL) AS sources
+    FROM public.storefront_bazaar_read_model brm
+    WHERE (NOT brm.supplier_fulfilled OR brm.available_until>now())
   `);
 
   const row = result.rows[0];
@@ -65,6 +59,6 @@ async function loadBazaarFacets(): Promise<BazaarFacets> {
 
 export const getCachedBazaarFacets = unstable_cache(
   loadBazaarFacets,
-  ["bazaar-facets-v6-catalogue-metadata"],
-  { revalidate: 900 }
+  ["bazaar-facets-v7-read-model"],
+  { revalidate: 300 }
 );
