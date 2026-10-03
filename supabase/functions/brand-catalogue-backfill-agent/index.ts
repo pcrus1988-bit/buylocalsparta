@@ -342,7 +342,11 @@ function assetCandidates(html: string, pageUrl: string, brand: string): AssetCan
     const first = raw.split(",")[0]?.trim().split(/\s+/)[0];
     if (!first) return;
     const url = safeHttps(first, pageUrl);
-    if (url) out.push({ kind: "url", url, score, discovery });
+    if (!url) return;
+    const lowerUrl = fold(url);
+    const obviousNonBrandAsset = /(?:algolia|american[-_ ]?express|mastercard|visa|amex|paypal|klarna|afterpay|clearpay|apple[-_ ]?pay|google[-_ ]?pay|shop[-_ ]?pay|discover|diners|unionpay|payment|wishlist|heart|search|instagram|facebook|messenger|favicon|flag|campaign)/i.test(lowerUrl);
+    if (obviousNonBrandAsset) return;
+    out.push({ kind: "url", url, score, discovery });
   };
 
   for (const m of html.matchAll(/"logo"\s*:\s*(?:"([^"]+)"|\{[^{}]{0,600}"url"\s*:\s*"([^"]+)")/gi)) {
