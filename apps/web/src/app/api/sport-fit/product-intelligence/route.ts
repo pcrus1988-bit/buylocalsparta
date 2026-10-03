@@ -1,5 +1,5 @@
-import { productionDatabaseConfigured, getProductionPostgresRuntime } from "../../../../../lib/postgres-runtime";
-import { sportProductRole, type SportFitKnowledge, type SportFitProduct } from "../../../../../lib/sport-fit-engine";
+import { productionDatabaseConfigured, getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
+import { sportProductRole, type SportFitKnowledge, type SportFitProduct } from "../../../../lib/sport-fit-engine";
 
 type IntelligenceRow = Readonly<{
   id: string;
