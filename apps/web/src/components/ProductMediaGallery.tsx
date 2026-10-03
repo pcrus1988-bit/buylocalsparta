@@ -22,13 +22,15 @@ const iconButtonStyle = {
   width: 42,
   height: 42,
   borderRadius: 999,
-  border: "1px solid rgba(17, 24, 39, 0.16)",
-  background: "rgba(255,255,255,0.94)",
+  border: "1px solid rgba(255, 255, 255, 0.42)",
+  background: "rgba(255, 255, 255, 0.66)",
   color: "#111827",
   display: "grid",
   placeItems: "center",
   cursor: "pointer",
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.12)"
+  WebkitBackdropFilter: "blur(12px) saturate(118%)",
+  backdropFilter: "blur(12px) saturate(118%)",
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.10)"
 } as const;
 
 function MagnifierIcon() {
