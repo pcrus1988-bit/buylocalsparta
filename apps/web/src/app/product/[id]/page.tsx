@@ -39,14 +39,16 @@ const productImageStyle = {
   inset: 0,
   width: "100%",
   height: "100%",
-  objectFit: "contain",
-  padding: "18px",
-  background: "#fff",
+  objectFit: "cover",
+  objectPosition: "center",
+  padding: 0,
+  background: "transparent",
   zIndex: 1
 } as const;
 
 const thumbnailImageStyle = {
-  objectFit: "contain"
+  objectFit: "cover",
+  objectPosition: "center"
 } as const;
 
 const PRIVATE_TECHNICAL_ATTRIBUTE_KEYS = new Set([
@@ -398,7 +400,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <div className="announcement">ΚΟΝΤΑ ΜΟΥ: Η Σπάρτη δίπλα σου</div>
         <SiteHeader compact />
         <section className="shell product-detail">
-          <div className={`product-detail-art ${category.artClass}`}>
+          <div className={`product-detail-art ${crawlerImageUrl ? "product-detail-art--media " : ""}${category.artClass}`}>
             {crawlerImageUrl ? <img src={crawlerImageUrl} alt={product.mediaAlt ?? displayTitle} loading="eager" fetchPriority="high" style={productImageStyle} /> : <>
               <span className="detail-category">{category.name}</span>
               <span className="detail-symbol" aria-hidden="true">{category.symbol}</span>
@@ -604,7 +606,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
       <section className="shell product-detail">
         <div style={{ display: "grid", gap: 12, alignSelf: "start" }}>
-          <div className={`product-detail-art ${category.artClass}`}>
+          <div className={`product-detail-art ${hasProductImage ? "product-detail-art--media " : ""}${category.artClass}`}>
             {!hasProductImage ? <span className="detail-category">{category.name}</span> : null}
             {!hasProductImage ? <span className="detail-symbol" aria-hidden="true">{category.symbol}</span> : null}
             {primaryImage ? <Image src={`/api/media/${encodeURIComponent(primaryImage.mediaId)}`} alt={primaryImage.altText ?? displayTitle} fill sizes="(max-width: 900px) 100vw, 48vw" priority style={productImageStyle} /> : supplierImageSrc ? <img src={supplierImageSrc} alt={displayTitle} loading="eager" fetchPriority="high" style={productImageStyle} /> : null}
