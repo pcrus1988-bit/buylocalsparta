@@ -727,3 +727,18 @@ Migration `0336_sport_fit_verified_adidas_football_apparel.sql` onboards two liv
 Schemas 333 through 336 were rehearsed together against the live KONTA MOY catalogue inside one transaction ending in `ROLLBACK`. All identity, Product Type, normalized-fact, evidence, conflict, queue and post-write assertions passed, and post-rollback reads confirmed that no schema-336 sources/knowledge/queue rows persisted.
 
 The runtime schema gate is now **336**.
+
+## Schema 337 — exact mid-cut sock-height vocabulary
+
+Migration `0337_sport_fit_mid_cut_sock_height.sql` resolves a deliberate vocabulary gap left by schemas 326–327.
+
+- The controlled `sock_height` vocabulary now includes `mid_cut` between quarter and crew instead of forcing manufacturer “mid-cut” wording into a nearby but non-equivalent height.
+- adidas `JZ0529` and `KC9617` now receive `sock_height=mid_cut` from their already-verified exact manufacturer sources.
+- Their existing gym-training / arch-support evidence is preserved; schema 337 adds only the missing height fact.
+- Generic “cushioned” wording still does not create a governed cushioning intensity, and no compression, breathability or thermal level is inferred.
+- The enrichment queue removes `sock_height` from these two exact families while retaining unresolved performance fields.
+- Source metadata records that the former “do not map mid-cut without a controlled rule” guard has been resolved by the explicit `mid_cut` value.
+
+Schema 337 was rehearsed against the live KONTA MOY database inside a transaction ending in `ROLLBACK`. Identity guards, vocabulary registration, normalized facts, evidence writes, queue cleanup and no-extra-inference assertions all passed. A post-rollback read confirmed that no `mid_cut` value persisted.
+
+The runtime schema gate is now **337**.
