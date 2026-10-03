@@ -652,3 +652,45 @@ Schema 331 fails closed if IF6748 does not resolve to exactly one active canonic
 Schema 331 was executed against the live KONTA MOY schema inside a transaction ending in `ROLLBACK`. Exact identity, disputed-field guards, fact insertion, knowledge refresh, queue reprioritization and post-write assertions passed. A post-rehearsal read confirmed the production queue remained at its pre-migration priority/state because no test changes were persisted.
 
 The runtime schema gate is now **331**.
+
+
+## Schema 332 — handball and badminton vocabulary
+
+Migration `0332_sport_fit_handball_badminton_vocabulary.sql` extends the controlled Sport & Fit vocabulary without assigning product-level suitability.
+
+- `sport_activity=handball` and `sport_activity=badminton` are first-class controlled activities.
+- Handball receives `handball_training` and `handball_match` use cases.
+- Badminton receives `badminton_training` and `badminton_match` use cases.
+- Product-level facts still require the normal governed evidence/provenance workflow; the vocabulary migration alone cannot make a product recommendable for either sport.
+
+The runtime schema gate is now **332**.
+
+## Schema 333 — direct Kerasiotis feed refinements
+
+Migration `0333_sport_fit_direct_kerasiotis_refinements.sql` strengthens four exact live canonical families using literal claims from the connected Kerasiotis XML feed.
+
+- `JR9720` Terrex Anylander J: exact feed title/description adds `sport_activity=hiking`. Traxion and generic uneven-surface wording remain provenance only; no specific trail surface is inferred.
+- `KK4280` Response 2 M: exact feed title/description confirms `sport_activity=running` and explicitly states asphalt use, normalized as `sport_surface=road`. Cloudfoam+ and generic support wording do not create cushioning/support levels.
+- `KQ9728` Essentials Climacool: direct feed wording confirms `sport_activity=general_training` and `moisture_wicking=true`.
+- `KR2147` Essentials Climacool: direct feed wording confirms `sport_activity=general_training` and `moisture_wicking=true`.
+
+Existing catalogue-taxonomy evidence is preserved. Schema 333 adds direct vendor-feed provenance and strengthens the normalized fact source/confidence where the value is the same. It fails closed if any target code does not resolve to exactly one active canonical family or if an unexpected normalized value is already present.
+
+Generic technology and marketing wording remains conservative: Cloudfoam is not converted into cushioning/support intensity, Traxion is not converted into a specific surface without an explicit surface claim, and generic ventilation wording is not converted into a breathability level.
+
+The migration was rehearsed against the live KONTA MOY catalogue inside a transaction ending in `ROLLBACK`. Identity guards, expected-state guards, evidence/fact writes, knowledge refresh, queue updates and post-write assertions passed. A post-rehearsal read confirmed that no schema-333 source or normalized fact persisted.
+
+The runtime schema gate is now **333**.
+
+
+## Schema 334 — conflict-aware direct evidence
+
+Migration `0334_sport_fit_conflict_aware_direct_evidence.sql` extends the governed knowledge layer with missing exact facts while preserving source disagreements instead of flattening them.
+
+- `KJ0410` Terrex Rockadia M keeps its existing exact manufacturer-backed hiking and size guidance. Literal Kerasiotis feed claims add walking, trail + city-road coverage, daily walking and a wide fit. EVA/cushioning language remains ungraded.
+- `JQ6920` Ultrarun 5 TR gains `reflective_details=true` from the existing exact adidas manufacturer source. Bounce remains descriptive provenance and does not become a cushioning intensity.
+- `JR9087` Terrex Anylander R.RDY remains normalized to the current first-party adidas measurements (390 g at UK 8.5, 10 mm drop, 27/17 mm stack and conservative `water_resistant`). The connected Kerasiotis feed publishes a different reference set (330 g at EUR 38 2/3, 9 mm, 26/17 mm and waterproof wording). Schema 334 retains those direct-feed claims as active evidence, refreshes the family into a conflict state and blocks automatic reconciliation; it does **not** overwrite the stronger manufacturer normalization.
+
+This makes an important provenance rule explicit: differing source/reference-size measurements remain independently auditable. A lower-tier source cannot silently replace a first-party normalized fact, and a real cross-source disagreement is surfaced for review rather than converted into false certainty.
+
+The runtime schema gate is now **334**.
