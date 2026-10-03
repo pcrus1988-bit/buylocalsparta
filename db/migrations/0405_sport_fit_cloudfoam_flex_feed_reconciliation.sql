@@ -503,8 +503,7 @@ WITH replacement AS (
 UPDATE public.sport_product_fact_evidence old
 SET
   active=false,
-  superseded_by=(SELECT id FROM replacement),
-  updated_at=now()
+  superseded_by=(SELECT id FROM replacement)
 FROM _sport_405_family f,
      public.attribute_definitions ad,
      public.sport_knowledge_sources s
