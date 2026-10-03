@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
-import { getHomepageCatalogCards } from "../lib/home-catalog";
-import { getVisitorKey } from "../lib/visitor";
 import { CatalogProductCard } from "../components/CatalogProductCard";
 import { HomeQuickSearch } from "../components/HomeQuickSearch";
 import { HomeHeroCarousel } from "../components/HomeHeroCarousel";
@@ -15,10 +13,10 @@ import { SiteHeader } from "../components/SiteHeader";
 import styles from "./home-premium.module.css";
 import { governedStaticSeoMetadata } from "../lib/seo-metadata";
 import { getCrawlerHomepageCatalogCards } from "../lib/crawler-catalog";
-import { isReadOnlyPublicCrawlerRequest } from "../lib/request-audience";
 
 const FEATURED_PRODUCT_LIMIT = 8;
 const HOMEPAGE_REVALIDATE_SECONDS = 900; // Keep crawl-critical homepage projections warm during catalogue DB pressure.
+export const revalidate = HOMEPAGE_REVALIDATE_SECONDS;
 
 const FAQ_ITEMS = [
   {
@@ -111,9 +109,12 @@ function editorialRank(seed: string, vendorId: string): number {
  * Fair Vendor Assignment. It gives active partners stable exposure for one visitor
  * during the day without consuming or mutating checkout assignment state.
  */
-function selectEditorialVendors(vendors: readonly PublicVendorDirectoryEntry[], visitorKey: string): readonly PublicVendorDirectoryEntry[] {
-  const dayBucket = new Date().toISOString().slice(0, 10);
-  const seed = `${dayBucket}:${visitorKey || "public"}`;
+function selectEditorialVendors(vendors: readonly PublicVendorDirectoryEntry[]): readonly PublicVendorDirectoryEntry[] {
+  // Editorial exposure rotates on a shared 30-minute bucket so the homepage can
+  // stay ISR/CDN-cacheable. Transactional Fair Vendor Assignment remains separate
+  // and continues to select the seller at cart/checkout boundaries.
+  const rotationBucket = Math.floor(Date.now() / (30 * 60 * 1000));
+  const seed = `public:${rotationBucket}`;
   return vendors
     .filter((vendor) => vendor.directoryStatus === "partner")
     .sort((left, right) => editorialRank(seed, left.id) - editorialRank(seed, right.id) || left.id.localeCompare(right.id))
@@ -121,33 +122,14 @@ function selectEditorialVendors(vendors: readonly PublicVendorDirectoryEntry[], 
 }
 
 export default async function Home() {
-  const readOnlyCrawler = await isReadOnlyPublicCrawlerRequest();
-  const visitorKey = readOnlyCrawler ? "" : await homepageSectionOrFallback("visitor-key", () => getVisitorKey(), "");
-
   const [featuredProducts, heroSlides, visibleCategories, vendorDirectory] = await Promise.all([
-    homepageSectionOrFallback(
-      "featured-products",
-      async () => {
-        if (readOnlyCrawler) return getCachedCrawlerHomepageCards();
-
-        const localCards = await getHomepageCatalogCards(visitorKey, "23100", FEATURED_PRODUCT_LIMIT);
-        if (localCards.length >= FEATURED_PRODUCT_LIMIT) return localCards;
-
-        const publicCards = await getCachedCrawlerHomepageCards();
-        const seen = new Set(localCards.map((product) => product.id));
-        return [
-          ...localCards,
-          ...publicCards.filter((product) => !seen.has(product.id))
-        ].slice(0, FEATURED_PRODUCT_LIMIT);
-      },
-      []
-    ),
+    homepageSectionOrFallback("featured-products", getCachedCrawlerHomepageCards, []),
     homepageSectionOrFallback("hero-slides", getCachedHomepageHeroSlides, []),
     homepageSectionOrFallback("visible-categories", getCachedHomepageCategories, []),
     homepageSectionOrFallback("vendor-directory", getCachedHomepageVendors, [])
   ]);
 
-  const activeVendors = selectEditorialVendors(vendorDirectory, visitorKey);
+  const activeVendors = selectEditorialVendors(vendorDirectory);
 
   const homepageStructuredData = {
     "@context": "https://schema.org",
