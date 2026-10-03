@@ -802,3 +802,22 @@ Migration SHA-256: `5d026f4456785f68f3ac99f4e701918872cddc6d3dd4b6f8d35d78baf526
 The runtime schema gate on this change is **400**.
 
 Schema 400 was applied atomically to production after PR #1275 merged. Live read-back confirmed schema version 400 and checksum `5d026f4456785f68f3ac99f4e701918872cddc6d3dd4b6f8d35d78baf526e27c`; On Cloud 6 has the expected four governed facts with four evidence rows, Saucony S70740-15 has the expected lifestyle fact with one evidence row, both families have strong identity and zero conflicts, both queues contain only unresolved fields, and unsupported technical-intensity/surface/use-case fact count remains zero.
+
+
+## Schema 402 — JP9203 exact width and evidence/queue hygiene
+
+Migration `0402_sport_fit_jp9203_width_evidence_hygiene.sql` deepens one currently sellable adidas running family and repairs two provenance-heavy running families without introducing speculative technical facts.
+
+- adidas Duramo SL 2 `JP9203`: exact first-party adidas France evidence adds `footwear_width_profile=standard` from the explicit men's-width classification. Existing governed running, road/track, short-to-mid-distance training, race-preparation, neutral-support, true-to-size and geometry facts remain unchanged.
+- adidas Galaxy 8 `IH9808`: five duplicated active first-party evidence pairs are consolidated by retaining the newest row active and preserving the older rows as inactive history linked through `superseded_by`.
+- adidas Duramo RC2 `KJ6635`: two duplicated active first-party evidence pairs are consolidated in the same provenance-preserving way.
+
+The pass adds **1 normalized family fact** and **1 new first-party evidence row**. It supersedes **7 redundant active evidence rows** rather than deleting them, preserving audit history while restoring a single active evidence row per exact source/fact position.
+
+The three enrichment queues are reconciled from their actual canonical-family facts: already-resolved requested fields and non-applicable `football_surface_code` are removed. JP9203 deliberately leaves cushioning intensity, toe-box profile, plate type and weather protection unknown because the exact manufacturer page does not provide sufficiently governed values for those fields.
+
+The exact schema-402 migration was rehearsed against live production schema 401 inside a transaction ending in `ROLLBACK`. Identity resolution, JP9203 width insertion/evidence, seven-row provenance supersession, queue reconciliation and unsupported-inference guards all passed. Post-rollback verification confirmed that no rehearsal source or JP9203 width fact persisted and that the original seven duplicate evidence groups remained present.
+
+Migration SHA-256: `f1a4751925c17233456e8284189982cd289fee0dfe105c92d5c887b0b7979d85`.
+
+The runtime schema gate on this change is **402**.
