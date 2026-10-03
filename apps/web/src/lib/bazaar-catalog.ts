@@ -1,4 +1,5 @@
 import { normalizeSearchText } from "@buy-local-sparta/core";
+import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedCatalogImages } from "./public-media-service";
 import { publicDescriptionText } from "./public-description-text";
@@ -248,6 +249,43 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
   }
 
   return cards;
+}
+
+const BAZAAR_CATALOG_CACHE_SECONDS = 30;
+
+const cachedBazaarCatalog = unstable_cache(
+  async (
+    query: string,
+    condition: string,
+    source: string,
+    brand: string,
+    category: string,
+    limit: number,
+    slugOrId: string
+  ): Promise<readonly BazaarCard[]> => getBazaarCatalog({
+    query,
+    condition,
+    source,
+    brand,
+    category,
+    limit,
+    slugOrId
+  }),
+  ["public-bazaar-catalog-v1"],
+  { revalidate: BAZAAR_CATALOG_CACHE_SECONDS }
+);
+
+export async function getCachedBazaarCatalog(filters: BazaarFilters = {}): Promise<readonly BazaarCard[]> {
+  const limit = Math.max(1, Math.min(500, Number.isSafeInteger(filters.limit) ? Number(filters.limit) : 240));
+  return cachedBazaarCatalog(
+    filters.query?.trim().slice(0, 160) ?? "",
+    filters.condition?.trim().slice(0, 80) ?? "",
+    filters.source?.trim().slice(0, 80) ?? "",
+    filters.brand?.trim().slice(0, 160) ?? "",
+    filters.category?.trim().slice(0, 160) ?? "",
+    limit,
+    filters.slugOrId?.trim().slice(0, 220) ?? ""
+  );
 }
 
 export async function getBazaarProductBySlug(slug: string): Promise<BazaarCard | undefined> {
