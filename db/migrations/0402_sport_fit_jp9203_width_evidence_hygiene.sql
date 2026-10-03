@@ -6,8 +6,6 @@
 -- No technical intensity, toe-box, plate or weather fact is inferred from generic
 -- marketing language. Vendor-offer price, stock and fulfilment data are untouched.
 
-BEGIN;
-
 CREATE TEMP TABLE _sport_402_family (
   style_code text PRIMARY KEY,
   family_id uuid NOT NULL,
@@ -288,4 +286,3 @@ BEGIN
 END
 $$;
 
-COMMIT;
