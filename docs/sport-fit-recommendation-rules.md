@@ -198,3 +198,10 @@ The recommendation rules consume only the governed Sport & Fit knowledge layer:
 4. lower-confidence catalogue/title heuristics only when no stronger fact exists.
 
 Blocked, conflicting, insufficient or weak-identity knowledge cannot drive hard technical decisions.
+
+
+### Superseded broad taxonomy evidence
+
+When an exact manufacturer product page supplies a more specific sport classification than an older KONTA MOY catalogue-taxonomy mapping, the specific manufacturer fact becomes the normalized value. The older taxonomy evidence remains stored for audit but is marked inactive and linked through `superseded_by`; it must not continue to generate an artificial conflict or rank as an equally live alternative fact.
+
+This is a specificity/source-precedence correction, not permission to reinterpret marketing copy. Technology names such as AEROREADY or CLIMACOOL only create governed performance facts when the exact source text explicitly states the supported property.
