@@ -371,7 +371,7 @@ function assetCandidates(html: string, pageUrl: string, brand: string): AssetCan
     // A generic "logo" filename can be a payment, campaign or partner mark.
     // Require explicit brand identity in either the asset path or alt text.
     if (obviousNonBrandAsset) continue;
-    if (!((rawLogoHint && (rawBrandHit || brandAltHit)) || (brandAltHit && altLogoHint))) continue;
+    if (!(rawLogoHint && (rawBrandHit || brandAltHit))) continue;
     addUrl(raw, rawBrandHit && brandAltHit ? 170 : 155, "logo_img");
   }
 
