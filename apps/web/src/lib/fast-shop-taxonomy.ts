@@ -109,7 +109,6 @@ export async function getFastShopTaxonomy(
   const prefixes = categoryPrefixes(category);
   const search = query.trim();
   const selectedSizes = decodeCatalogSizeGroup(filters.size ?? "");
-  const selectedFit = (filters as CatalogFilters & Readonly<{ fit?: string }>).fit?.trim() ?? "";
   try {
     const result = await getProductionPostgresRuntime().nativePool.query<FastTaxonomyRow>(`
       WITH RECURSIVE category_tree AS (
@@ -353,8 +352,7 @@ export async function getFastShopTaxonomy(
       filters.subcategory ?? "",
       filters.brand ?? "",
       filters.color ?? "",
-      selectedSizes,
-      selectedFit
+      selectedSizes
     ]);
 
     const row = result.rows[0];
