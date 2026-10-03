@@ -5,6 +5,7 @@ describe("public vendor directory status contract", () => {
   it("keeps research entries distinct from partners", () => {
     const research: PublicVendorDirectoryEntry = {
       id: "vendor_research_census_0001",
+      slug: "research-merchant",
       name: "Research merchant",
       categoryCodes: [],
       researchCategory: "Agricultural supplies & machinery",

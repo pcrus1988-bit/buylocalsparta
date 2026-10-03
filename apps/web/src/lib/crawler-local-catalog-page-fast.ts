@@ -19,6 +19,7 @@ type CrawlerLocalRow = Readonly<{
   customer_price_minor: number | string;
   available_to_sell: number | string;
   vendor_public_id: string;
+  vendor_slug: string;
   vendor_name: string;
 }>;
 
@@ -75,6 +76,7 @@ export async function getCrawlerLocalCatalogPageFast(
       vo.customer_price_minor,
       GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)::integer AS available_to_sell,
       v.public_id AS vendor_public_id,
+      v.public_slug AS vendor_slug,
       v.trading_name AS vendor_name
     FROM canonical_variants cv
     JOIN categories c ON c.id=cv.category_id
@@ -161,6 +163,7 @@ export async function getCrawlerLocalCatalogPageFast(
       composition: details?.composition,
       madeIn: details?.madeIn,
       vendorId: row.vendor_public_id,
+      vendorSlug: row.vendor_slug,
       vendorName: row.vendor_name,
       mediaId: image?.mediaId,
       mediaAlt: image?.altText,

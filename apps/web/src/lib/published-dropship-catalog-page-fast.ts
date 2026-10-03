@@ -34,6 +34,7 @@ type PublishedDropshipPageRow = Readonly<{
   msrp_minor: number | string | null;
   cached_quantity: number | string | null;
   vendor_public_id: string;
+  vendor_slug: string;
   vendor_name: string;
   vendor_presentation: unknown;
   is_match: boolean;
@@ -200,6 +201,7 @@ export async function getPublishedDropshipCatalogPage(
         vo.msrp_minor,
         dso.cached_quantity,
         v.public_id AS vendor_public_id,
+        v.public_slug AS vendor_slug,
         v.trading_name AS vendor_name,
         ds.configuration->'vendorPresentation' AS vendor_presentation,
         dso.availability_checked_at,
@@ -263,6 +265,7 @@ export async function getPublishedDropshipCatalogPage(
       msrp_minor,
       cached_quantity,
       vendor_public_id,
+      vendor_slug,
       vendor_name,
       vendor_presentation,
       sort_ordinal,
@@ -326,6 +329,7 @@ export async function getPublishedDropshipCatalogPage(
       available: true,
       availableToSell: safeQuantity(row.cached_quantity),
       vendorId: row.vendor_public_id,
+      vendorSlug: row.vendor_slug,
       vendorName: row.vendor_name,
       publicFields: presentation.fields,
       matchedBySql: row.is_match
@@ -398,6 +402,7 @@ export async function getPublishedDropshipCatalogPage(
       composition: technicalAttributesVisible ? details?.composition : undefined,
       madeIn: technicalAttributesVisible ? details?.madeIn : undefined,
       vendorId: record.vendorId,
+      vendorSlug: record.vendorSlug,
       vendorName: record.vendorName,
       mediaId: image?.mediaId,
       mediaAlt: image?.altText ?? sourceImage?.altText,

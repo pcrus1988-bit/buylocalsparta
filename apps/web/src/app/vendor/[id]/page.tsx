@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { unstable_cache } from "next/cache";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { cache, type CSSProperties } from "react";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
@@ -18,7 +18,7 @@ import { approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "../
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
-import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
+import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
 import { buildGovernedSeoMetadata } from "../../../lib/seo-metadata";
 import { researchVendorIndexEligibility } from "../../../lib/seo-visibility-policy";
 import { vendorStorefrontThemeTokens } from "../../../lib/vendor-storefront-theme";
@@ -162,10 +162,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // DB-backed metadata reads sequential so metadata generation cannot queue
   // multiple acquisitions against its own pool slot.
   const vendor = await getCachedPublicVendorDirectoryEntry(id);
-  const profileMedia = await getCachedApprovedVendorProfileMedia(id);
+  if (!vendor) return { title: "Κατάστημα" };
+  const profileMedia = await getCachedApprovedVendorProfileMedia(vendor.id);
   const { settings } = await getCachedSeoGlobalSettingsSnapshot();
   const overrides = await getCachedSeoEntityOverridesSnapshot();
-  if (!vendor) return { title: "Κατάστημα" };
   const isResearch = vendor.directoryStatus === "research";
   const reference: SeoEntityReference = { kind: isResearch ? "research_vendor" : "partner_vendor", id: vendor.id };
   const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore });
@@ -181,7 +181,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     defaults: {
       title: `${vendor.name} · ${isResearch ? "Τοπική επιχείρηση" : "Τοπικό κατάστημα"}`,
       description,
-      canonicalPath: `/vendor/${encodeURIComponent(vendor.id)}`,
+      canonicalPath: `/vendor/${encodeURIComponent(vendor.slug)}`,
       openGraphTitle: vendor.name,
       openGraphDescription: description,
       openGraphImage: ogMedia,
@@ -202,10 +202,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function VendorPage({ params }: Props) {
   const { id } = await params;
   const vendor = await getCachedPublicVendorDirectoryEntry(id);
+  if (!vendor) notFound();
+  if (id !== vendor.slug) permanentRedirect(`/vendor/${encodeURIComponent(vendor.slug)}`);
+
   const { settings } = await getCachedSeoGlobalSettingsSnapshot();
   const overrides = await getCachedSeoEntityOverridesSnapshot();
-  if (!vendor) notFound();
-
   const isResearch = vendor.directoryStatus === "research";
   const reference: SeoEntityReference = { kind: isResearch ? "research_vendor" : "partner_vendor", id: vendor.id };
   const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore });
@@ -225,11 +226,11 @@ export default async function VendorPage({ params }: Props) {
   // filters change or the customer navigates deeper.
   const initialCatalogPage = isResearch
     ? EMPTY_INITIAL_VENDOR_CATALOG_PAGE
-    : await getInitialVendorCatalogPage(id);
+    : await getInitialVendorCatalogPage(vendor.id);
   const principal = isResearch ? undefined : await getAccountSession();
   const profileMedia: readonly ApprovedVendorProfileMedia[] = isResearch
     ? []
-    : await getCachedApprovedVendorProfileMedia(id);
+    : await getCachedApprovedVendorProfileMedia(vendor.id);
   const products = initialCatalogPage.products;
   const location = vendor.location;
   const merchantStoryMedia = vendor.story?.mediaUrl;
@@ -242,7 +243,7 @@ export default async function VendorPage({ params }: Props) {
   const teamUrl = mediaPath(teamMedia);
   const website = safeHttpUrl(vendor.research?.onlineShopUrl);
   const directoryProfile = safeHttpUrl(vendor.research?.directoryProfileUrl);
-  const vendorUrl = absoluteSeoCanonical(settings.canonicalOrigin, reference, override);
+  const vendorUrl = new URL(override?.canonicalPath ?? `/vendor/${encodeURIComponent(vendor.slug)}`, `${settings.canonicalOrigin}/`).toString();
   const fullAddress = addressText(location);
   const mapHref = `/shops/map?vendor=${encodeURIComponent(vendor.id)}`;
   const adviserName = vendor.adviser ?? "Η ομάδα του καταστήματος";

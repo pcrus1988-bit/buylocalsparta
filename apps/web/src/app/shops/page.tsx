@@ -221,7 +221,7 @@ export default async function ShopsPage({ searchParams }: Props) {
 
                             <div className="shop-card-action">
                               <small>{vendor.story ? "Δημοσιευμένη ιστορία καταστήματος" : "Προϊόντα · συμβουλή · στοιχεία"}</small>
-                              <a className="text-link" href={`/vendor/${encodeURIComponent(vendor.id)}`}>Γνώρισε το κατάστημα →</a>
+                              <a className="text-link" href={`/vendor/${encodeURIComponent(vendor.slug)}`}>Γνώρισε το κατάστημα →</a>
                             </div>
                           </div>
                         </article>
@@ -261,7 +261,7 @@ export default async function ShopsPage({ searchParams }: Props) {
                             return (
                               <div className="shop-meta-row" key={vendor.id}>
                                 <span>{label}</span>
-                                <strong><a className="text-link" href={`/vendor/${encodeURIComponent(vendor.id)}`}>{vendor.name} →</a></strong>
+                                <strong><a className="text-link" href={`/vendor/${encodeURIComponent(vendor.slug)}`}>{vendor.name} →</a></strong>
                               </div>
                             );
                           })}

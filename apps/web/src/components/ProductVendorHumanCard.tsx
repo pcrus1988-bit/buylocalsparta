@@ -69,6 +69,7 @@ export async function ProductVendorHumanCard({
   const description = presentation?.profileShortDescription
     ?? presentation?.story?.excerpt
     ?? presentation?.profileStory;
+  const vendorHref = `/vendor/${encodeURIComponent(presentation?.slug ?? vendorId)}`;
 
   return <div className="vendor-card product-vendor-human">
     <div className={`product-vendor-human-media${mediaSrc ? " has-image" : ""}`} style={mediaFrameStyle}>
@@ -78,13 +79,13 @@ export async function ProductVendorHumanCard({
     </div>
     <div>
       <div className="eyebrow">Τοπικό κατάστημα · πραγματική παρουσία</div>
-      <strong><a href={`/vendor/${encodeURIComponent(vendorId)}`}>{vendorName}</a></strong>
+      <strong><a href={vendorHref}>{vendorName}</a></strong>
       {adviser
         ? <p><strong>{adviser}</strong> μπορεί να σε βοηθήσει με συμβατότητα, χρήση, διαθεσιμότητα ή τη σωστή παραλλαγή.</p>
         : <p>{description ?? "Δες το κατάστημα ή ρώτησέ το πριν ολοκληρώσεις την αγορά."}</p>}
       <div className="vendor-actions">
         <a className="button button-secondary" href={`/ask-local?product=${encodeURIComponent(productId)}&vendor=${encodeURIComponent(vendorId)}`}>{adviser ? `Ρώτησε ${adviser}` : "Ρώτησε το κατάστημα"}</a>
-        <a className="text-link" href={`/vendor/${encodeURIComponent(vendorId)}`}>Δες το κατάστημα →</a>
+        <a className="text-link" href={vendorHref}>Δες το κατάστημα →</a>
       </div>
     </div>
   </div>;
