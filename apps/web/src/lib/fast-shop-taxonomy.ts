@@ -103,9 +103,10 @@ export async function getFastShopTaxonomy(
 ): Promise<AvailableCatalogTaxonomy> {
   if (!productionDatabaseConfigured()) return fallbackTaxonomy();
 
-  // Facet vocabulary is catalogue/discovery metadata. It must remain available even
-  // when the heavyweight stock projection is temporarily load-shed; sellability is
-  // enforced independently by the product window and checkout validation.
+  // Shopper-facing facet counts must describe values that can currently lead to a
+  // sellable result. Resilience to a temporarily thin projection is provided by the
+  // live supplier-family supplement and the successfully loaded product-window
+  // fallback in /shop; expired rows must not become clickable false positives.
   const prefixes = categoryPrefixes(category);
   const search = query.trim();
   const selectedSizes = decodeCatalogSizeGroup(filters.size ?? "");
@@ -136,6 +137,7 @@ export async function getFastShopTaxonomy(
           rm.gtin,
           rm.mpn
         FROM public.storefront_facet_read_model rm
+        WHERE rm.available_until>now()
       ), hot_symphonya AS MATERIALIZED (
         SELECT DISTINCT ON (cv.id)
           cv.id AS canonical_variant_id,
