@@ -182,7 +182,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   let attributeFilters: CatalogAttributeFilters = explicitAttributeFilters;
   let resolvedNaturalAttributeFilters: CatalogAttributeFilters = {};
   let subcategory = requestedSubcategory;
-  let filters = { subcategory, brand, color, size };
+  let filters = { subcategory, brand, color, size, fit };
 
   // The Vercel web runtime intentionally uses one PostgreSQL client per instance.
   // Keep DB-backed cache misses sequential: starting presence/SEO reads alongside
@@ -195,7 +195,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     : resolveStorefrontSubcategoryIntent(activeLeaf, taxonomy.facets.subcategories);
   if (inferredSubcategory) {
     subcategory = inferredSubcategory.value;
-    filters = { subcategory, brand, color, size };
+    filters = { subcategory, brand, color, size, fit };
     taxonomy = await getCachedShopTaxonomy(category, catalogQuery, filters, "23100", activeLeaf?.key, attributeFilters);
   }
   resolvedNaturalAttributeFilters = resolveStorefrontAttributeIntents(
@@ -356,7 +356,11 @@ export default async function ShopPage({ searchParams }: ShopProps) {
 
   products = products.filter(purchasablePublicProduct);
   if (availability === "available") products = products.filter((product) => product.available);
-  const fitOptions = [...new Set(products.map((product) => product.fit).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el"));
+  const fitOptions = taxonomy.fits?.length
+    ? taxonomy.fits
+    : [...new Set(products.map((product) => product.fit).filter((value): value is string => Boolean(value)))]
+      .sort((a, b) => a.localeCompare(b, "el"))
+      .map((value) => ({ value, label: value }));
   if (fit) products = products.filter((product) => product.fit === fit);
   if (searchIntent.availability === "pickup_today") products = products.filter((product) => product.localProof?.pickup && product.localProof.stockConfirmedToday);
   if (minPriceMinor !== undefined) products = products.filter((product) => product.priceMinor >= minPriceMinor);
@@ -499,7 +503,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
               brands={showBrand ? facets.brands : []}
               colors={showColor ? facets.colors : []}
               sizes={showSize ? facets.sizes : []}
-              fits={showFit ? fitOptions.map((item) => ({ value: item, label: item })) : []}
+              fits={showFit ? fitOptions : []}
               attributeFacets={attributeFacets}
               selectedBrand={brand}
               selectedColor={color}
