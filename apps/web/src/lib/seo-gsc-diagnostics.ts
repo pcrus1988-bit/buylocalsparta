@@ -18,7 +18,8 @@ const CONCURRENCY = 4;
 type CandidateRow = Readonly<{ inspection_url: string }>;
 
 export type SeoGscDiagnosticsResult = Readonly<{
-  history: Awaited<ReturnType<typeof syncSearchConsoleHistorySystem>>;
+  history: Awaited<ReturnType<typeof syncSearchConsoleHistorySystem>> | null;
+  historyError?: string;
   inspected: number;
   pass: number;
   neutral: number;
@@ -78,13 +79,13 @@ async function inspectionCandidates(canonicalOrigin: string): Promise<readonly s
       FROM eligible
       WHERE route LIKE '/category/%'
       ORDER BY last_inspected_at ASC NULLS FIRST,route
-      LIMIT 4
+      LIMIT 2
     ), vendors AS (
       SELECT route,last_inspected_at
       FROM eligible
       WHERE route LIKE '/vendor/%'
       ORDER BY last_inspected_at ASC NULLS FIRST,route
-      LIMIT 8
+      LIMIT 16
     ), sampled AS (
       SELECT route,last_inspected_at,0 AS priority FROM core
       UNION ALL
@@ -129,7 +130,7 @@ async function inspectionCandidates(canonicalOrigin: string): Promise<readonly s
     FROM candidate c
     LEFT JOIN last_inspection li ON li.route=c.route
     ORDER BY li.last_inspected_at ASC NULLS FIRST,c.route
-    LIMIT 10
+    LIMIT 4
   `);
 
   return [...new Set(
@@ -189,10 +190,7 @@ async function mapConcurrent<T, R>(items: readonly T[], concurrency: number, wor
 
 export async function syncSeoGscDiagnostics(): Promise<SeoGscDiagnosticsResult> {
   if (!productionDatabaseConfigured()) throw new Error("Search Console diagnostics require PostgreSQL runtime.");
-  const [{ settings }, history] = await Promise.all([
-    getSeoGlobalSettingsSnapshot(),
-    syncSearchConsoleHistorySystem()
-  ]);
+  const { settings } = await getSeoGlobalSettingsSnapshot();
   const sitemap = await reconcileSitemaps(settings.canonicalOrigin);
   const candidates = await inspectionCandidates(settings.canonicalOrigin);
   const errors: string[] = [];
@@ -218,8 +216,18 @@ export async function syncSeoGscDiagnostics(): Promise<SeoGscDiagnosticsResult> 
     }
   });
 
+  let history: Awaited<ReturnType<typeof syncSearchConsoleHistorySystem>> | null = null;
+  let historyError: string | undefined;
+  try {
+    history = await syncSearchConsoleHistorySystem();
+  } catch (error) {
+    historyError = errorText(error);
+    errors.push(`Search Console history sync: ${historyError}`);
+  }
+
   return {
     history,
+    historyError,
     inspected: candidates.length - errors.length,
     pass,
     neutral,
