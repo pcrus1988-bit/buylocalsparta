@@ -652,3 +652,30 @@ Schema 331 fails closed if IF6748 does not resolve to exactly one active canonic
 Schema 331 was executed against the live KONTA MOY schema inside a transaction ending in `ROLLBACK`. Exact identity, disputed-field guards, fact insertion, knowledge refresh, queue reprioritization and post-write assertions passed. A post-rehearsal read confirmed the production queue remained at its pre-migration priority/state because no test changes were persisted.
 
 The runtime schema gate is now **331**.
+
+## Schema 332 — reconciled handball and badminton vocabulary
+
+After the production migration-history reconciliation, the handball/badminton vocabulary migration is numbered `0332_sport_fit_handball_badminton_vocabulary.sql`. It adds first-class `handball` and `badminton` activity values plus training/match use cases. The migration remains vocabulary-only: no product family receives those sports without normal governed evidence.
+
+The runtime schema gate at this point is **332**.
+
+## Schema 333 — exact adidas refinements and Response 2 KK4280
+
+Migration `0333_sport_fit_exact_verified_refinements.sql` carries forward five exact-code manufacturer refinements that could not land at schema 332 after the production migration sequence was reconciled, and adds a newly verified Response 2 family.
+
+Carried verified refinements:
+- Terrex Anylander `JR6599`: explicit `day_hike` use case.
+- Terrex Anylander RAIN.RDY `JR9087`: weather protection corrected from conservative `water_resistant` to exact manufacturer `waterproof` evidence; the superseded weather evidence is retired.
+- Terrex Rockadia `KJ0411`: exact 320.4 g manufacturer reference weight.
+- Duramo SL 2 `JS4403`: explicit running `daily_training` use case.
+- adi365 Running Essentials Tank `KB5970`: explicit everyday-running `daily_training` use case.
+
+New exact-code enrichment:
+- Response 2 `KK4280`: running, road surface, explicit neutral-pronation support classification, long-run use, true-to-size guidance, 301 g reference weight, 8 mm drop and 32/24 mm heel/forefoot stack from the exact adidas Mexico product page.
+
+Cloudfoam+ comfort/generic support wording on KK4280 remains provenance only and is not converted into `cushioning_level` or a stronger support claim. `support_level=neutral` is published only because the exact product page separately classifies the shoe for neutral pronation. The migration fails closed if any of the six style codes stops resolving to exactly one active canonical family or if an unexpected target fact already exists.
+
+Current queued research deliberately remains unresolved for `JR9720`, `KQ9728` and `KR2147` until exact first-party product-page evidence is available; reseller classification alone is not enough to publish new governed Sport & Fit facts.
+
+The runtime schema gate is now **333**.
+
