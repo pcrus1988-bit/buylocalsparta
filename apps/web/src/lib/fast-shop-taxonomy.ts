@@ -2,21 +2,18 @@ import type { CatalogFacetOption, CatalogFilters } from "./catalog-view";
 import type { CatalogAttributeFilters } from "./catalog-attribute-filter";
 import type { AvailableCatalogTaxonomy } from "./available-catalog-taxonomy";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { STOREFRONT_CATEGORIES, categoryCodeMatches, storefrontCategoryBySlug } from "./storefront-taxonomy";
+import { STOREFRONT_CATEGORIES, storefrontCategoryBySlug } from "./storefront-taxonomy";
 import { decodeCatalogSizeGroup, groupCatalogSizeFacets, inferCatalogSizeDomain } from "./catalog-size";
 
 const EMPTY_FACETS = { subcategories: [], brands: [], colors: [], sizes: [] } as const;
 
 type FastTaxonomyRow = Readonly<{
-  category_pairs: unknown;
   subcategories: unknown;
   brands: unknown;
   colors: unknown;
   sizes: unknown;
   fits: unknown;
 }>;
-
-type AvailableCategoryPair = Readonly<{ categoryCode: string; departmentCode?: string }>;
 
 type FacetRow = Readonly<{ value: string; label: string; count?: number }>;
 type SizeFacetRow = Readonly<{ value: string; count: number }>;
@@ -67,18 +64,6 @@ function sizeFacetRows(value: unknown): readonly SizeFacetRow[] {
     const count = Number(record.count);
     if (!option || !Number.isFinite(count) || count <= 0) return [];
     return [{ value: option, count }];
-  });
-}
-
-function availableCategoryPairs(value: unknown): readonly AvailableCategoryPair[] {
-  return arrayValue(value).flatMap((entry) => {
-    const record = recordValue(entry);
-    const categoryCode = stringValue(record.categoryCode);
-    if (!categoryCode) return [];
-    return [{
-      categoryCode,
-      departmentCode: stringValue(record.departmentCode)
-    }];
   });
 }
 
@@ -236,14 +221,14 @@ export async function getFastShopTaxonomy(
           AND ib.stock_confirmed_at IS NOT NULL
           AND ib.stock_confirmed_at+make_interval(secs=>ib.freshness_ttl_seconds)>now()
         ORDER BY cv.id,vo.customer_price_minor ASC,ib.stock_confirmed_at DESC,vo.public_id
-      ), combined AS MATERIALIZED (
+      ), combined AS (
         SELECT item_key,category_codes,department_codes,brands,colors,sizes,fits,search_vector
         FROM live_dropship
         UNION ALL
         SELECT item_key,category_codes,department_codes,brands,colors,sizes,fits,search_vector
         FROM local_live
       ), base AS MATERIALIZED (
-        SELECT *
+        SELECT item_key,category_codes,brands,colors,sizes,fits
         FROM combined
         WHERE (
           cardinality($1::text[])=0
@@ -270,7 +255,7 @@ export async function getFastShopTaxonomy(
         SELECT
           category_code AS value,
           COALESCE(MAX(ctel.name),MAX(cten.name),category_code) AS label,
-          COUNT(DISTINCT base.item_key)::int AS count
+          COUNT(*)::int AS count
         FROM base
         CROSS JOIN LATERAL unnest(base.category_codes) category_entry(category_code)
         LEFT JOIN public.categories c
@@ -305,7 +290,7 @@ export async function getFastShopTaxonomy(
         SELECT
           brand_value AS value,
           COALESCE(MAX(brand_record.name),brand_value) AS label,
-          COUNT(DISTINCT base.item_key)::int AS count
+          COUNT(*)::int AS count
         FROM base
         CROSS JOIN LATERAL unnest(base.brands) brand_entry(brand_value)
         LEFT JOIN public.brands brand_record
@@ -332,7 +317,7 @@ export async function getFastShopTaxonomy(
         SELECT
           color_value AS value,
           color_value AS label,
-          COUNT(DISTINCT base.item_key)::int AS count
+          COUNT(*)::int AS count
         FROM base
         CROSS JOIN LATERAL unnest(base.colors) color_entry(color_value)
         WHERE (
@@ -356,7 +341,7 @@ export async function getFastShopTaxonomy(
       ), size_values AS (
         SELECT
           size_value AS value,
-          COUNT(DISTINCT base.item_key)::int AS count
+          COUNT(*)::int AS count
         FROM base
         CROSS JOIN LATERAL unnest(base.sizes) size_entry(size_value)
         WHERE (
@@ -376,7 +361,7 @@ export async function getFastShopTaxonomy(
         SELECT
           fit_value AS value,
           fit_value AS label,
-          COUNT(DISTINCT base.item_key)::int AS count
+          COUNT(*)::int AS count
         FROM base
         CROSS JOIN LATERAL unnest(base.fits) fit_entry(fit_value)
         WHERE (
@@ -399,21 +384,6 @@ export async function getFastShopTaxonomy(
         GROUP BY fit_value
       )
       SELECT
-        COALESCE((
-          SELECT jsonb_agg(
-            jsonb_build_object(
-              'categoryCode',category_code,
-              'departmentCode',department_code
-            )
-            ORDER BY category_code,department_code
-          )
-          FROM (
-            SELECT DISTINCT category_code,department_code
-            FROM combined
-            CROSS JOIN LATERAL unnest(combined.category_codes) category_entry(category_code)
-            CROSS JOIN LATERAL unnest(combined.department_codes) department_entry(department_code)
-          ) category_pairs
-        ),'[]'::jsonb) AS category_pairs,
         COALESCE((
           SELECT jsonb_agg(
             jsonb_build_object('value',value,'label',label,'count',count)
@@ -473,15 +443,8 @@ export async function getFastShopTaxonomy(
     const sizes = groupCatalogSizeFacets(sizeFacetRows(row.sizes), sizeDomain)
       .map((entry) => ({ value: entry.value, label: entry.label, count: entry.count }));
 
-    const categoryPairs = availableCategoryPairs(row.category_pairs);
-    const categories = STOREFRONT_CATEGORIES.filter((storefrontCategory) =>
-      categoryPairs.some((pair) =>
-        categoryCodeMatches(pair.categoryCode, storefrontCategory.slug, pair.departmentCode)
-      )
-    );
-
     return {
-      categories: categories.length ? categories : STOREFRONT_CATEGORIES,
+      categories: STOREFRONT_CATEGORIES,
       facets: {
         subcategories,
         brands: facetRows(row.brands),
