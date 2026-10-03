@@ -766,3 +766,22 @@ The exact committed schema-398 migration (SHA-256 `9d1efe0245a6e7d5d78ff1fec9e6e
 
 The runtime schema gate on this change is **398**.
 
+
+## Schema 399 — exact lifestyle identity and Cloud 6 geometry/fit
+
+Migration `0399_sport_fit_lifestyle_identity_cloud6_geometry.sql` closes a high-value cross-sport contamination gap in two currently sellable footwear families that entered the catalogue through an athletic-sneaker retail taxonomy but had no governed Sport & Fit facts.
+
+- On Cloud 6 `3WF10061200`: exact first-party On evidence adds `sport_activity=casual_lifestyle`, `fit_length_profile=true_to_size`, `heel_to_toe_drop_mm=8`, and `shoe_weight_g=216`. The manufacturer positions the exact Cloud 6 family for Active life / all-day lifestyle use. Cushioning/support wording is intentionally not converted into governed intensity.
+- Saucony ProGrid Omni 9 Premium `S70740-15`: the exact first-party Saucony product breadcrumb classifies the model under Lifestyle, so `sport_activity=casual_lifestyle` is added. Retro running technology, cushioning/support language and breathable-mesh marketing are retained as evidence context only and are not promoted into present-day performance-sport suitability.
+
+The migration therefore adds **5 normalized family facts**, **5 matching first-party evidence rows**, and **2 manufacturer source records** across **2 canonical product families**. It changes no vendor-offer price, stock or fulfilment data.
+
+Both enrichment queues are reconciled from the new canonical-family facts: resolved fields and the non-applicable `football_surface_code` request are removed, while surface, use case, cushioning, support, width, toe-box, plate, weather and unresolved geometry fields remain explicitly unknown. The migration asserts that it creates no unsupported `cushioning_level`, `support_level`, `footwear_width_profile`, `toe_box_profile`, `sport_surface`, `sport_use_case` or `weather_protection` facts.
+
+A recommendation regression protects the hard-eligibility behavior: footwear with strong governed `casual_lifestyle` activity is rejected for a running request via `activity.known_mismatch` even when retailer title/category wording contains optimistic “running” or “athletic” signals. Popularity, price and heuristic text therefore cannot override the canonical activity conflict.
+
+The exact schema-399 migration was replayed against live production schema 398 with its terminal `COMMIT` replaced by `ROLLBACK`. Both identities resolved to one active canonical family, all 5 fact/evidence inserts passed, unsupported-inference guards remained at zero, queue-hygiene assertions passed, and post-rollback verification confirmed that no source or target fact persisted.
+
+Migration SHA-256: `e79e9bd004fd298511ee42311fad32b3ee965d97a0b94dd5dfac91c7d0e17247`.
+
+The runtime schema gate on this change is **399**.
