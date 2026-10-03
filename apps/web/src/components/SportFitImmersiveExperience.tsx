@@ -1251,8 +1251,8 @@ export function SportFitImmersiveExperience({
             ) : (
               <section className={styles.candidateRejected}>
                 <span>ΤΟ ΠΑΠΟΥΤΣΙ ΠΟΥ ΕΛΕΓΧΕΙΣ</span>
-                <strong>Δεν πέρασε τα τεχνικά / live eligibility φίλτρα.</strong>
-                <p>Δεν θα εμφανίσουμε τεχνητό ποσοστό match όταν το μοντέλο δεν επιβιώνει στους hard rules, στο ζητούμενο μέγεθος ή στη live διαθεσιμότητα. Οι εναλλακτικές παρακάτω προκύπτουν από το ίδιο προφίλ.</p>
+                <strong>Δεν υπάρχει τελικό ranked match για αυτό το μοντέλο.</strong>
+                <p>Το συγκεκριμένο προϊόν δεν βρίσκεται στις τελικές επιλέξιμες ranked επιλογές για αυτό το προφίλ. Μπορεί να αποκλείστηκε από technical / live rules ή να έμεινε εκτός του τελικού ranked window. Δεν θα εμφανίσουμε τεχνητό ποσοστό match.</p>
               </section>
             )
           ) : null}
