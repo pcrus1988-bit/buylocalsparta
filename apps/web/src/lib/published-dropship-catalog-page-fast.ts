@@ -340,7 +340,13 @@ export async function getPublishedDropshipCatalogPage(
   const ids = base.map((record) => record.id);
   const metadata = await loadCatalogMetadata(ids);
   const matchingIds = new Set(base.flatMap((record) => {
-    if (!record.matchedBySql) return [];
+    // Family discovery already applied category, brand, color, size, fit, price and
+    // search filters against the maintained supplier-family projection. Rechecking
+    // those dimensions against one canonical child here is incorrect: supplier
+    // family facets can be richer than the canonical child metadata, so a family
+    // with a real matching color/size/fit was being discarded during hydration.
+    // Keep the selected family and only apply governed structured attributes here,
+    // because those attributes are intentionally canonical-variant specific.
     if (Object.keys(attributeFilters).length === 0) return [record.id];
     if (record.publicFields.technicalAttributes === false) return [];
     return matchesCatalogAttributeFilters(metadata.get(record.id)?.attributes, attributeFilters) ? [record.id] : [];
