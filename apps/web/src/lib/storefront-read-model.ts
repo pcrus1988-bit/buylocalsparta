@@ -175,6 +175,143 @@ export async function getLocalStorefrontReadModelWindow(
   return result.rows;
 }
 
+
+/**
+ * Search must remain authoritative even while the heavyweight catalogue materialized
+ * view is paused or stale. Active local-vendor inventory is small enough to discover
+ * a bounded search window directly from current offers/inventory, so typed searches
+ * never silently drop an active HUB vendor merely because a background refresh was
+ * load-shed.
+ */
+export async function getLiveLocalStorefrontSearchWindow(
+  input: StorefrontReadModelWindowInput
+): Promise<readonly StorefrontReadModelCandidate[]> {
+  if (!productionDatabaseConfigured()) return [];
+  const cleanQuery = input.query?.trim() ?? "";
+  if (!cleanQuery) return getLocalStorefrontReadModelWindow(input);
+
+  const result = await getProductionPostgresRuntime().nativePool.query<StorefrontReadModelCandidate>(`
+    WITH RECURSIVE category_tree AS (
+      SELECT c.id,c.parent_id,c.code,c.code AS department_code
+      FROM public.categories c
+      JOIN public.markets m ON m.id=c.market_id
+      WHERE m.code='sparta'
+        AND c.parent_id IS NULL
+
+      UNION ALL
+
+      SELECT child.id,child.parent_id,child.code,parent.department_code
+      FROM public.categories child
+      JOIN category_tree parent ON child.parent_id=parent.id
+    ), fresh_local AS MATERIALIZED (
+      SELECT DISTINCT ON (cv.id)
+        cv.public_id AS canonical_public_id,
+        cv.family_id,
+        c.code AS category_code,
+        tree.department_code,
+        COALESCE(b.name,pfb.name) AS brand_name,
+        lower(COALESCE(
+          el.specifications->>'color',
+          en.specifications->>'color',
+          cv.variant_attributes->>'color',
+          ''
+        )) AS color,
+        COALESCE(
+          el.specifications->'sizes',
+          en.specifications->'sizes',
+          cv.variant_attributes->'sizes_observed',
+          '[]'::jsonb
+        ) AS sizes,
+        lower(COALESCE(el.specifications->>'fit',en.specifications->>'fit','')) AS fit,
+        vo.customer_price_minor AS min_price_minor,
+        cv.created_at,
+        COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+        cv.gtin,
+        cv.mpn,
+        to_tsvector(
+          'simple',
+          concat_ws(
+            ' ',
+            COALESCE(el.title,en.title,cv.model,cv.slug),
+            COALESCE(el.description,en.description,''),
+            COALESCE(b.name,pfb.name,''),
+            COALESCE(cv.gtin,''),
+            COALESCE(cv.mpn,''),
+            c.code,
+            tree.department_code
+          )
+        ) AS search_vector
+      FROM public.inventory_balances ib
+      JOIN public.vendor_offers vo ON vo.id=ib.offer_id
+      JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
+      JOIN public.categories c ON c.id=cv.category_id
+      JOIN category_tree tree ON tree.id=cv.category_id
+      JOIN public.vendor_businesses v ON v.id=vo.vendor_id
+      JOIN public.vendor_locations l ON l.id=vo.location_id
+      LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+      LEFT JOIN public.product_families pf ON pf.id=cv.family_id
+      LEFT JOIN public.brands b ON b.id=cv.brand_id
+      LEFT JOIN public.brands pfb ON pfb.id=pf.brand_id
+      LEFT JOIN public.product_translations el
+        ON el.canonical_variant_id=cv.id AND el.locale='el'
+      LEFT JOIN public.product_translations en
+        ON en.canonical_variant_id=cv.id AND en.locale='en'
+      WHERE dso.id IS NULL
+        AND COALESCE(cv.commerce_channel,'normal')='normal'
+        AND cv.active=true
+        AND cv.suppressed=false
+        AND cv.recalled=false
+        AND vo.status='approved'
+        AND vo.merchant_visible=true
+        AND vo.merchant_pause_active=false
+        AND vo.customer_price_minor>0
+        AND 'pickup'::fulfilment_mode=ANY(vo.fulfilment_modes)
+        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+        AND v.status='active'
+        AND l.active=true
+        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+        AND GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)>=1
+        AND ib.stock_confirmed_at IS NOT NULL
+        AND ib.stock_confirmed_at+make_interval(secs=>ib.freshness_ttl_seconds)>now()
+      ORDER BY
+        cv.id,
+        vo.customer_price_minor ASC,
+        ib.stock_confirmed_at DESC,
+        vo.public_id
+    ), matching AS MATERIALIZED (
+      SELECT
+        rm.*,
+        ROW_NUMBER() OVER (
+          PARTITION BY COALESCE(rm.family_id::text,rm.canonical_public_id)
+          ORDER BY
+            CASE WHEN $10::text='price-asc' THEN rm.min_price_minor END ASC,
+            CASE WHEN $10::text='price-desc' THEN rm.min_price_minor END DESC,
+            CASE WHEN $10::text NOT IN ('price-asc','price-desc') THEN rm.created_at END DESC,
+            rm.canonical_public_id
+        ) AS family_rank
+      FROM fresh_local rm
+      WHERE true
+        ${FILTER_SQL}
+    ), family_rows AS (
+      SELECT *
+      FROM matching
+      WHERE family_rank=1
+    )
+    SELECT
+      family_rows.canonical_public_id,
+      family_rows.department_code,
+      COUNT(*) OVER() AS total_count
+    FROM family_rows
+    ORDER BY
+      CASE WHEN $10::text='price-asc' THEN family_rows.min_price_minor END ASC,
+      CASE WHEN $10::text='price-desc' THEN family_rows.min_price_minor END DESC,
+      CASE WHEN $10::text NOT IN ('price-asc','price-desc') THEN family_rows.created_at END DESC,
+      family_rows.canonical_public_id
+    LIMIT $11 OFFSET $12
+  `, parameters(input));
+  return result.rows;
+}
+
 function dropshipSort(sort?: string, alias = "fm"): string {
   if (sort === "price-asc") return `${alias}.min_price_minor ASC,${alias}.dropship_supplier_id,${alias}.dropship_external_product_id`;
   if (sort === "price-desc") return `${alias}.min_price_minor DESC,${alias}.dropship_supplier_id,${alias}.dropship_external_product_id`;
@@ -627,14 +764,48 @@ export async function getStorefrontReadModelSearchCandidates(
       ) AS rank
     FROM public.storefront_catalog_read_model rm
     WHERE (
-        (rm.local_sellable=true AND rm.local_available_until>now())
-        OR (rm.dropship_sellable=true AND rm.dropship_available_until>now())
-      )
-      AND (
         rm.search_vector @@ plainto_tsquery('simple',$1)
         OR lower(rm.title || ' ' || COALESCE(rm.brand_name,'')) LIKE '%'||lower($1)||'%'
         OR COALESCE(rm.gtin,'')=$1
         OR lower(COALESCE(rm.mpn,''))=lower($1)
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM public.vendor_offers vo
+        JOIN public.vendor_businesses v ON v.id=vo.vendor_id
+        JOIN public.vendor_locations l ON l.id=vo.location_id
+        LEFT JOIN public.inventory_balances ib ON ib.offer_id=vo.id
+        LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+        LEFT JOIN public.dropship_suppliers ds ON ds.id=dso.supplier_id
+        WHERE vo.canonical_variant_id=rm.canonical_variant_id
+          AND vo.status='approved'
+          AND vo.merchant_visible=true
+          AND vo.merchant_pause_active=false
+          AND vo.customer_price_minor>0
+          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+          AND v.status='active'
+          AND l.active=true
+          AND bls_private.vendor_category_effectively_visible(vo.vendor_id,rm.category_id)
+          AND (
+            (
+              dso.id IS NULL
+              AND 'pickup'::fulfilment_mode=ANY(vo.fulfilment_modes)
+              AND ib.offer_id IS NOT NULL
+              AND GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)>=1
+              AND ib.stock_confirmed_at IS NOT NULL
+              AND ib.stock_confirmed_at+make_interval(secs=>ib.freshness_ttl_seconds)>now()
+            )
+            OR (
+              dso.id IS NOT NULL
+              AND ds.active=true
+              AND ds.api_authoritative_availability=true
+              AND dso.active=true
+              AND dso.cached_available=true
+              AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
+              AND dso.availability_expires_at IS NOT NULL
+              AND dso.availability_expires_at>now()
+            )
+          )
       )
     ORDER BY rank DESC,rm.created_at DESC,rm.canonical_public_id
     LIMIT $2
