@@ -22,15 +22,15 @@ const iconButtonStyle = {
   width: 42,
   height: 42,
   borderRadius: 999,
-  border: "1px solid rgba(255, 255, 255, 0.42)",
-  background: "rgba(255, 255, 255, 0.66)",
+  border: "1px solid rgba(255, 255, 255, 0.56)",
+  background: "rgba(255, 255, 255, 0.42)",
   color: "#111827",
   display: "grid",
   placeItems: "center",
   cursor: "pointer",
-  WebkitBackdropFilter: "blur(12px) saturate(118%)",
-  backdropFilter: "blur(12px) saturate(118%)",
-  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.10)"
+  WebkitBackdropFilter: "blur(14px) saturate(122%)",
+  backdropFilter: "blur(14px) saturate(122%)",
+  boxShadow: "0 7px 20px rgba(15, 23, 42, 0.09)"
 } as const;
 
 function MagnifierIcon() {
@@ -93,7 +93,7 @@ export function ProductMediaGallery({ images, badge, placeholderLabel, placehold
             type="button"
             onClick={() => setLightboxOpen(true)}
             aria-label="Άνοιγμα φωτογραφίας σε μεγέθυνση"
-            style={{ position: "absolute", inset: 0, border: 0, padding: 0, margin: 0, background: "#fff", cursor: "zoom-in", zIndex: 1 }}
+            style={{ position: "absolute", inset: 0, border: 0, padding: 0, margin: 0, background: "transparent", cursor: "zoom-in", zIndex: 1 }}
           >
             <img
               src={activeImage.src}
@@ -101,7 +101,7 @@ export function ProductMediaGallery({ images, badge, placeholderLabel, placehold
               loading="eager"
               fetchPriority="high"
               draggable={false}
-              style={{ width: "100%", height: "100%", objectFit: "contain", padding: 18, display: "block", background: "#fff" }}
+              style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", padding: 0, display: "block", background: "transparent", transform: "scale(1.09)", transformOrigin: "center" }}
             />
           </button>
         ) : null}
@@ -150,15 +150,15 @@ export function ProductMediaGallery({ images, badge, placeholderLabel, placehold
                 width: 78,
                 height: 78,
                 overflow: "hidden",
-                border: index === activeIndex ? "2px solid currentColor" : "1px solid var(--line)",
+                border: index === activeIndex ? "2px solid var(--forest)" : "1px solid transparent",
                 borderRadius: 12,
-                background: "#fff",
+                background: "transparent",
                 cursor: "pointer",
-                padding: 4,
+                padding: 0,
                 scrollSnapAlign: "start"
               }}
             >
-              <img src={image.src} alt="" loading="lazy" draggable={false} style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+              <img src={image.src} alt="" loading="lazy" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", display: "block", transform: "scale(1.06)", transformOrigin: "center" }} />
             </button>
           ))}
         </div>
