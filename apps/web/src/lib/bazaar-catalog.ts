@@ -120,7 +120,7 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
   const brand = filters.brand?.trim() || null;
   const category = filters.category?.trim() || null;
   const result = await getProductionPostgresRuntime().nativePool.query<BazaarRow>(`
-    SELECT DISTINCT ON (cv.id)
+    SELECT
       cv.public_id AS canonical_public_id,
       cv.slug,
       COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
@@ -130,26 +130,71 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
       b.logo_object_key AS brand_logo_object_key,
       cv.condition,
       cv.bazaar_source,
-      vo.customer_price_minor,
-      vo.msrp_minor,
-      CASE
-        WHEN dso.id IS NOT NULL THEN GREATEST(COALESCE(dso.cached_quantity,0),0)
-        ELSE GREATEST(0,COALESCE(ib.on_hand,0)-COALESCE(ib.active_reservations,0)-COALESCE(ib.safety_stock,0)-COALESCE(ib.blocked,0))
-      END AS available_to_sell,
-      v.public_id AS vendor_public_id,
-      v.trading_name AS vendor_name,
-      (dso.id IS NOT NULL) AS supplier_fulfilled
+      best.customer_price_minor,
+      best.msrp_minor,
+      best.available_to_sell,
+      best.vendor_public_id,
+      best.vendor_name,
+      best.supplier_fulfilled
     FROM canonical_variants cv
     JOIN categories c ON c.id=cv.category_id
-    JOIN vendor_offers vo ON vo.canonical_variant_id=cv.id
-    JOIN vendor_businesses v ON v.id=vo.vendor_id
-    JOIN vendor_locations l ON l.id=vo.location_id
     LEFT JOIN brands b ON b.id=cv.brand_id
     LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
     LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
-    LEFT JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
-    LEFT JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
-    LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
+    JOIN LATERAL (
+      SELECT
+        vo.customer_price_minor,
+        vo.msrp_minor,
+        CASE
+          WHEN dso.id IS NOT NULL THEN GREATEST(COALESCE(dso.cached_quantity,0),0)
+          ELSE GREATEST(
+            0,
+            COALESCE(ib.on_hand,0)
+              - COALESCE(ib.active_reservations,0)
+              - COALESCE(ib.safety_stock,0)
+              - COALESCE(ib.blocked,0)
+          )
+        END AS available_to_sell,
+        v.public_id AS vendor_public_id,
+        v.trading_name AS vendor_name,
+        (dso.id IS NOT NULL) AS supplier_fulfilled
+      FROM vendor_offers vo
+      JOIN vendor_businesses v ON v.id=vo.vendor_id AND v.status='active'
+      JOIN vendor_locations l ON l.id=vo.location_id AND l.active=true
+      LEFT JOIN dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+      LEFT JOIN dropship_suppliers ds ON ds.id=dso.supplier_id
+      LEFT JOIN inventory_balances ib ON ib.offer_id=vo.id
+      WHERE vo.canonical_variant_id=cv.id
+        AND vo.status='approved'
+        AND vo.merchant_visible=true
+        AND vo.merchant_pause_active=false
+        AND vo.customer_price_minor>0
+        AND (
+          (
+            dso.id IS NOT NULL
+            AND dso.active=true
+            AND ds.active=true
+            AND ds.api_authoritative_availability=true
+            AND dso.cached_available=true
+            AND dso.cached_quantity>=1
+            AND dso.availability_expires_at IS NOT NULL
+            AND dso.availability_expires_at>now()
+            AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+          )
+          OR (
+            dso.id IS NULL
+            AND GREATEST(
+              0,
+              COALESCE(ib.on_hand,0)
+                - COALESCE(ib.active_reservations,0)
+                - COALESCE(ib.safety_stock,0)
+                - COALESCE(ib.blocked,0)
+            )>0
+          )
+        )
+      ORDER BY vo.customer_price_minor ASC,vo.updated_at DESC,vo.public_id
+      LIMIT 1
+    ) best ON true
     WHERE cv.commerce_channel='bazaar'
       AND ($2::text IS NULL OR cv.slug=$2 OR cv.public_id=$2)
       AND ($3::text IS NULL OR
@@ -166,30 +211,7 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
       AND cv.active=true
       AND cv.suppressed=false
       AND cv.recalled=false
-      AND vo.status='approved'
-      AND vo.merchant_visible=true
-      AND vo.merchant_pause_active=false
-      AND vo.customer_price_minor>0
-      AND v.status='active'
-      AND l.active=true
-      AND (
-        (
-          dso.id IS NOT NULL
-          AND dso.active=true
-          AND ds.active=true
-          AND ds.api_authoritative_availability=true
-          AND dso.cached_available=true
-          AND dso.cached_quantity>=1
-          AND dso.availability_expires_at IS NOT NULL
-          AND dso.availability_expires_at>now()
-          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-        )
-        OR (
-          dso.id IS NULL
-          AND GREATEST(0,COALESCE(ib.on_hand,0)-COALESCE(ib.active_reservations,0)-COALESCE(ib.safety_stock,0)-COALESCE(ib.blocked,0))>0
-        )
-      )
-    ORDER BY cv.id,vo.customer_price_minor ASC,vo.updated_at DESC,vo.public_id
+    ORDER BY cv.id
     LIMIT $1
   `,[limit,slugOrId,queryText,condition,requestedSource,brand,category]);
 
@@ -251,7 +273,9 @@ export async function getBazaarCatalog(filters: BazaarFilters = {}): Promise<rea
   return cards;
 }
 
-const BAZAAR_CATALOG_CACHE_SECONDS = 30;
+// Discovery data may be a few minutes stale; cart and order actions revalidate
+// current supplier/local availability before accepting the item.
+const BAZAAR_CATALOG_CACHE_SECONDS = 300;
 
 const cachedBazaarCatalog = unstable_cache(
   async (
@@ -271,7 +295,7 @@ const cachedBazaarCatalog = unstable_cache(
     limit,
     slugOrId
   }),
-  ["public-bazaar-catalog-v1"],
+  ["public-bazaar-catalog-v2-lateral"],
   { revalidate: BAZAAR_CATALOG_CACHE_SECONDS }
 );
 
