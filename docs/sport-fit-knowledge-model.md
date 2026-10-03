@@ -732,4 +732,21 @@ The exact adidas Mexico product source adds `sport_use_case=long_run`, `fit_leng
 Schema 396 intentionally keeps cushioning level, support level, width profile, toe-box profile, plate type and weather protection unknown until direct evidence exists. Technical facts remain canonical-family knowledge; live size/stock remains vendor-offer/inventory state.
 
 
-The exact committed schemas 395 and 396 were replayed together against live production schema 394 inside one transaction ending in `ROLLBACK`. All family-identity, baseline, fact/evidence, unsupported-inference, knowledge-refresh and enrichment-queue assertions passed. Post-rehearsal verification confirmed the rehearsal introduced no persistent source/fact rows. The pending runtime schema gate is **396** until these migrations are merged and applied.
+The exact committed schemas 395 and 396 were replayed together against live production schema 394 inside one transaction ending in `ROLLBACK`. All family-identity, baseline, fact/evidence, unsupported-inference, knowledge-refresh and enrichment-queue assertions passed. Post-rehearsal verification confirmed the rehearsal introduced no persistent source/fact rows. Schemas 395 and 396 are now applied in production; the production database and runtime schema gate are **396**.
+
+## Schema 397 — exact adidas surface evidence and queue reconciliation
+
+Migration `0397_sport_fit_exact_surface_evidence.sql` deepens three exact sellable adidas footwear families while preserving the governed separation between technical knowledge and live commercial state.
+
+- Runfalcon 6 ATR `IH1838`: exact first-party adidas evidence adds `sport_surface=road` and `sport_surface=trail` because the manufacturer description explicitly covers city streets, rugged trails and a multi-terrain outsole. Existing running identity, true-to-size guidance, 254 g reference weight and 9 / 36 / 26 mm drop/stack facts remain unchanged.
+- Ultimashow 2.0 `KJ9916`: exact first-party adidas evidence adds `sport_surface=road` from the manufacturer's explicit street-surface outsole statement. Its stronger manufacturer activity classification remains `general_training`; schema 397 does not reclassify it as running.
+- Cloudfoam Flex Laces `KJ7282`: no speculative technical fact is added. The migration only reconciles its queue against already-governed walking, daily-walking and true-to-size facts.
+
+The pass adds three normalized surface facts and three matching first-party evidence rows. It also removes already-satisfied requested fields and football-only `football_surface_code` from the three non-blocked footwear queues. Cloudfoam wording, generic support/stability language and regular/loose fit wording remain evidence context only; the migration explicitly asserts that no `cushioning_level`, `support_level` or `footwear_width_profile` fact is created from those phrases.
+
+Two recommendation regressions cover the newly governed behavior: road + trail evidence must match both requested running surfaces, and positive street-surface evidence on a `general_training` shoe must not create a gym/treadmill hard mismatch.
+
+The exact committed schema-397 migration was replayed against live production schema 396 with its terminal `COMMIT` replaced by `ROLLBACK`. Identity/source guards, all three fact/evidence inserts, knowledge refreshes, queue reconciliation, unsupported-inference guards and final assertions passed. Post-rehearsal read-back confirmed production remained on schema 396 and the target surface facts were not persisted by the test transaction.
+
+The runtime schema gate on this change is **397**.
+
