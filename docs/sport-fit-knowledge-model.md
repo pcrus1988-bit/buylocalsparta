@@ -753,4 +753,6 @@ Migration `0338_sport_fit_verified_adidas_apparel_batch2.sql` extends the govern
 
 All three families are newly onboarded into `sport_product_knowledge` as strong-identity apparel and remain partial while unresolved fields stay queued. Customer reviews are excluded. No breathability, thermal or compression intensity is inferred from generic marketing language, and water repellency never becomes a waterproof claim.
 
+Schema 338 was rehearsed against the live KONTA MOY catalogue inside a transaction ending in `ROLLBACK`. Exact-family identity, approved Kerasiotis bridge, Product Type contract, normalized fact/evidence, refresh, queue and forbidden-inference assertions all passed. A post-rollback read confirmed zero schema-338 sources or knowledge rows persisted, while production remained at schema 332.
+
 The runtime schema gate is now **338**.
