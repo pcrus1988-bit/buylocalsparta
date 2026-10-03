@@ -143,12 +143,13 @@ async function buildSeoCrawlGraph() {
       isPartner || quality.blockingReasons.length === 0,
       isPartner || (settings.researchVendorIndexingEnabled && quality.eligible)
     );
+    const route = `/vendor/${encodeURIComponent(vendor.slug)}`;
     nodes.push({
       key: `${kind}:${vendor.id}`,
       kind,
       label: vendor.name,
-      route: `/vendor/${encodeURIComponent(vendor.id)}`,
-      canonicalUrl: absoluteSeoCanonical(settings.canonicalOrigin, reference, override),
+      route,
+      canonicalUrl: new URL(override?.canonicalPath ?? route, `${settings.canonicalOrigin}/`).toString(),
       indexAllowed: control.indexAllowed,
       sitemapAllowed: control.sitemapAllowed,
       inboundSources: unique([

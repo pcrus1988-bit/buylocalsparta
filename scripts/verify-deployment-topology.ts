@@ -27,20 +27,22 @@ assert(vercel.outputDirectory === "apps/web/.next", "Vercel output must point at
 const vercelCrons = Array.isArray(vercel.crons) ? vercel.crons : [];
 const allowedVercelCrons = new Map([
   ["/api/cron/delivery-dispatch", "*/5 * * * *"],
-  ["/api/cron/catalogue-crawler", "*/10 * * * *"],
-  ["/api/cron/vendor-product-feeds", "*/10 * * * *"],
-  ["/api/cron/vendor-product-feed-media", "*/10 * * * *"],
+  ["/api/cron/catalogue-crawler", "7,37 * * * *"],
+  ["/api/cron/vendor-product-feeds", "12,42 * * * *"],
+  ["/api/cron/vendor-product-feed-media", "22 * * * *"],
   ["/api/cron/vitex-source-monitor", "17 * * * *"],
-  ["/api/cron/nova-canonical-media", "*/10 * * * *"],
-  ["/api/cron/nova-availability-failover", "* * * * *"],
+  ["/api/cron/nova-canonical-media", "27 * * * *"],
+  ["/api/cron/nova-availability-failover", "*/15 * * * *"],
   ["/api/cron/symphonya-catalogue", "2 * * * *"],
-  ["/api/cron/symphonya-stock", "*/5 * * * *"],
+  ["/api/cron/symphonya-stock", "5,20,35,50 * * * *"],
   ["/api/cron/symphonya-pipeline", "9 * * * *"],
   ["/api/cron/dropship-order-reconciliation", "*/5 * * * *"],
   ["/api/cron/flash-sale-availability", "*/5 * * * *"],
   ["/api/cron/zendrop-shopify-inventory", "23 * * * *"],
   ["/api/cron/zendrop-catalogue", "7 * * * *"],
   ["/api/cron/zendrop-pipeline", "17 * * * *"],
+  ["/api/cron/seo-url-registry", "53 4 * * *"],
+  ["/api/cron/seo-gsc-diagnostics", "47 */6 * * *"],
 ]);
 assert(
   vercelCrons.every((cron: Record<string, unknown>) =>

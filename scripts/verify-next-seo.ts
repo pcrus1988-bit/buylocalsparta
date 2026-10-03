@@ -212,6 +212,12 @@ if (!shop.includes("isReadOnlyPublicCrawlerRequest") || !shop.includes("getCrawl
 
 // Vendor metadata/schema.
 if (!vendorLayout.includes("resolveSeoEntityControl") || !vendorLayout.includes("settings.researchVendorMinimumScore") || !vendorLayout.includes("getSeoEntityOverridesSnapshot")) failures.push("Vendor metadata layout must combine global settings, Model C eligibility and governed overrides");
+for (const contract of [
+  'id: vendor?.id ?? id',
+  'const vendorRoute = `/vendor/${encodeURIComponent(vendor.slug)}`',
+  'new URL(override?.canonicalPath ?? vendorRoute'
+]) requireText(vendorLayout, contract, `Vendor layout canonical governance is missing ${contract}`);
+if (vendorLayout.includes("absoluteSeoCanonical(settings.canonicalOrigin, reference, override)")) failures.push("Vendor layout structured data must use the public vendor slug rather than the policy identity as its canonical route");
 if (!vendor.includes('"@type": "LocalBusiness"') || !vendor.includes('type="application/ld+json"')) failures.push("Public vendor profiles must emit LocalBusiness JSON-LD");
 requireText(vendor, 'replaceAll("<", "\\\\u003c")', "Structured data must escape HTML-opening characters");
 if (!(vendor.includes("buildGovernedSeoMetadata") && vendor.includes('canonicalPath: `/vendor/${encodeURIComponent(vendor.slug)}`'))) failures.push("Vendor metadata must publish the company-slug canonical URL");
@@ -261,6 +267,11 @@ if (!requestAudience.includes("read-only public")) failures.push("Crawler classi
 // Human sitemap and crawl graph provide real internal-link coverage.
 for (const contract of ["getPublicVendorDirectory", "resolveSeoEntityControl", "researchVendorIndexEligibility", "sitemapAllowed", "vendorGroups", "/vendor/", 'getAvailableStorefrontCategories("23100")', "availableCategories.map"]) requireText(humanSitemap, contract, `Human sitemap governed discovery is missing ${contract}`);
 for (const contract of ["adminSeoCrawlGraph", '"/shop catalogue"', '"/shops directory"', '"Homepage category rail"', '"/sitemap governed vendor directory"', "orphan", "weak", "indexAllowed"]) requireText(crawlGraph, contract, `SEO crawl graph is missing ${contract}`);
+for (const contract of [
+  'const route = `/vendor/${encodeURIComponent(vendor.slug)}`',
+  'canonicalUrl: new URL(override?.canonicalPath ?? route'
+]) requireText(crawlGraph, contract, `SEO crawl graph vendor routing is missing ${contract}`);
+if (crawlGraph.includes('route: `/vendor/${encodeURIComponent(vendor.id)}`')) failures.push("SEO crawl graph must use the public vendor slug, not the internal/public vendor ID, for public routes");
 for (const contract of ["Internal linking & orphan diagnostics", "Weakly linked", "Orphans", "Open public page"]) requireText(adminCrawlPage, contract, `Admin crawl graph UI is missing ${contract}`);
 
 // Private route/header and diagnostic hardening.

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
-import { absoluteSeoCanonical, findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
+import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
 import { getPublicVendorSearchVisibility } from "../../../lib/seo-public-visibility";
 import { researchVendorIndexEligibility } from "../../../lib/seo-visibility-policy";
 import styles from "./claim.module.css";
@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     getSeoEntityOverridesSnapshot()
   ]);
   const isResearch = vendor?.directoryStatus === "research";
-  const reference: SeoEntityReference = { kind: isResearch ? "research_vendor" : "partner_vendor", id };
+  const reference: SeoEntityReference = { kind: isResearch ? "research_vendor" : "partner_vendor", id: vendor?.id ?? id };
   const quality = vendor ? researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore }) : undefined;
   const index = resolveSeoEntityControl({
     settings,
@@ -69,7 +69,8 @@ export default async function PublicVendorProfileLayout({ children, params }: Pr
     defaultSchemaAllowed: true,
     override
   });
-  const vendorUrl = absoluteSeoCanonical(settings.canonicalOrigin, reference, override);
+  const vendorRoute = `/vendor/${encodeURIComponent(vendor.slug)}`;
+  const vendorUrl = new URL(override?.canonicalPath ?? vendorRoute, `${settings.canonicalOrigin}/`).toString();
   const origin = settings.canonicalOrigin.replace(/\/$/, "");
   const businessId = `${vendorUrl}#business`;
   const relationshipStatusId = `${vendorUrl}#kontamou-relationship-status`;
