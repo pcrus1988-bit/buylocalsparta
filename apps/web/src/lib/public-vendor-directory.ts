@@ -5,7 +5,8 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 import { approvedVendorImages, approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "./public-media-service";
 import { hasUsablePublicCoordinates } from "./public-data-integrity";
 import { publicVendorTaxonomies, type PublicVendorTaxonomy } from "./public-vendor-taxonomy";
-import { publicVendorInstagramSettings, type VendorInstagramSettings } from "./vendor-storefront-settings";
+import { publicVendorInstagramSettings, publicVendorStorefrontTheme, type VendorInstagramSettings } from "./vendor-storefront-settings";
+import type { VendorStorefrontTheme } from "./vendor-storefront-theme";
 
 export type PublicVendorCoordinates = Readonly<{
   latitude: number;
@@ -66,6 +67,7 @@ export type PublicVendorDirectoryEntry = Readonly<{
   mediaId?: string;
   mediaAlt?: string;
   directoryStatus: PublicVendorDirectoryStatus;
+  storefrontTheme?: VendorStorefrontTheme;
   instagram?: VendorInstagramSettings;
 }>;
 
@@ -232,6 +234,7 @@ function fromDatabaseRow(row: VendorDirectoryRow): PublicVendorDirectoryEntry {
     research,
     canonicalCount: isPartner ? asCount(row.canonical_count) : 0,
     directoryStatus: isPartner ? "partner" : "research",
+    storefrontTheme: isPartner ? publicVendorStorefrontTheme(row.storefront_settings) : undefined,
     instagram: isPartner ? publicVendorInstagramSettings(row.storefront_settings) : undefined
   };
 }
