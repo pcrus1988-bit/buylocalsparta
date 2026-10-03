@@ -652,3 +652,17 @@ Schema 331 fails closed if IF6748 does not resolve to exactly one active canonic
 Schema 331 was executed against the live KONTA MOY schema inside a transaction ending in `ROLLBACK`. Exact identity, disputed-field guards, fact insertion, knowledge refresh, queue reprioritization and post-write assertions passed. A post-rehearsal read confirmed the production queue remained at its pre-migration priority/state because no test changes were persisted.
 
 The runtime schema gate is now **331**.
+
+## Schema 332 — apparel activity reconciliation and training enrichment
+
+Migration `0332_sport_fit_apparel_activity_reconciliation.sql` corrects two current Kerasiotis apparel families whose only Sport & Fit activity came from the broad catalogue taxonomy, and deepens one exact training-apparel family with direct product-page evidence.
+
+- DAYREADY TRACKSUIT `JD2684`: adidas classifies the exact product as Women • Sportswear and describes it as a street-style sportswear set. Schema 332 removes only the 0.75-confidence `kontamou_catalog_taxonomy` `general_training` evidence and replaces it with the governed non-selectable `sport_activity=casual_lifestyle` classification.
+- Colour Pop Tricot Tracksuit `JX0205`: adidas classifies the exact kids product as Sportswear and positions it for all-day comfort and casual/social use. The page's conversational reference to running with friends is not promoted into performance-running or training suitability. The weak taxonomy `general_training` fact is replaced by `casual_lifestyle`.
+- adidas x FARM Rio Training Long Sleeve `KR0270`: the exact Kerasiotis product page directly states training and gym use and describes moisture movement plus CLIMACOOL sweat removal/dispersion. Schema 332 upgrades the weak taxonomy-only activity to direct `general_training` + `gym_training` evidence and adds `moisture_wicking=true` at vendor confidence.
+
+The migration deliberately does not infer a breathability level from CLIMACOOL, a compression level from slim fit, or thermal/weather properties from generic comfort language. Exact-code identity must resolve to one active canonical family, and the migration fails closed if unexpected stronger `sport_activity` evidence appears before deployment.
+
+Schema 332 was executed against the live KONTA MOY catalogue inside a transaction ending in `ROLLBACK`, with the schema-329 `casual_lifestyle` prerequisite created only inside that rehearsal transaction because production remains behind the merged migration chain. Identity guards, evidence replacement, direct training/moisture insertion, queue-state assertions and knowledge refresh all passed. A post-rehearsal read confirmed that no schema-332 source or temporary activity value persisted and that the three original taxonomy rows remained unchanged.
+
+The runtime schema gate is now **332**.
