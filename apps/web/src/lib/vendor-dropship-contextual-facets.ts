@@ -5,6 +5,9 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 
 export type VendorDropshipFacetContext = Readonly<{
   query?: string;
+  /** Governed top-level category aliases. Matches both family category and department codes. */
+  prefixes?: readonly string[];
+  /** Exact leaf category selections inside the governed top-level scope. */
   categories?: readonly string[];
   brand?: string;
   color?: string;
@@ -188,6 +191,7 @@ async function readUnfilteredLiveVendorDropshipFacets(vendorId: string): Promise
     ), base AS MATERIALIZED (
       SELECT
         lf.category_codes,
+        lf.department_codes,
         lf.brand_names_normalized,
         lf.colors,
         lf.sizes,
@@ -310,6 +314,7 @@ export async function getContextualVendorDropshipFacets(
   }
 
   const query = input.query?.trim().slice(0, 160) ?? "";
+  const prefixes = cleanMany(input.prefixes, 120, 48).map((value) => value.toLocaleLowerCase("en").replaceAll("_", "-"));
   const categories = cleanMany(input.categories);
   const brand = input.brand?.trim().slice(0, 160) ?? "";
   const color = input.color?.trim().slice(0, 120) ?? "";
@@ -317,7 +322,7 @@ export async function getContextualVendorDropshipFacets(
   const fit = input.fit?.trim().slice(0, 120).toLocaleLowerCase("en") ?? "";
   const material = input.material?.trim().slice(0, 120).toLocaleLowerCase("en") ?? "";
 
-  if (!query && categories.length === 0 && !brand && !color && sizes.length === 0 && !fit && !material) {
+  if (!query && prefixes.length === 0 && categories.length === 0 && !brand && !color && sizes.length === 0 && !fit && !material) {
     return cachedUnfilteredLiveVendorDropshipFacets(vendorId);
   }
 
@@ -362,15 +367,15 @@ export async function getContextualVendorDropshipFacets(
     ), base AS MATERIALIZED (
       SELECT
         fm.dropship_supplier_id,fm.dropship_external_product_id,
-        fm.category_codes,fm.brand_names_normalized,fm.colors,fm.sizes,fm.fits,fm.materials,fm.search_vector
+        fm.category_codes,fm.department_codes,fm.brand_names_normalized,fm.colors,fm.sizes,fm.fits,fm.materials,fm.search_vector
       FROM stable fm
-      WHERE $2::text='' OR ($9::text<>'' AND fm.search_vector @@ to_tsquery('simple',$9))
+      WHERE $2::text='' OR ($10::text<>'' AND fm.search_vector @@ to_tsquery('simple',$10))
       UNION ALL
       SELECT
         fm.dropship_supplier_id,fm.dropship_external_product_id,
-        fm.category_codes,fm.brand_names_normalized,fm.colors,fm.sizes,fm.fits,fm.materials,fm.search_vector
+        fm.category_codes,fm.department_codes,fm.brand_names_normalized,fm.colors,fm.sizes,fm.fits,fm.materials,fm.search_vector
       FROM live_overlay fm
-      WHERE $2::text='' OR ($9::text<>'' AND fm.search_vector @@ to_tsquery('simple',$9))
+      WHERE $2::text='' OR ($10::text<>'' AND fm.search_vector @@ to_tsquery('simple',$10))
     ), label_map AS MATERIALIZED (
       SELECT DISTINCT facets.facet_type,facets.value,facets.label
       FROM public.storefront_dropship_vendor_facets facets
@@ -389,12 +394,27 @@ export async function getContextualVendorDropshipFacets(
     ), matches AS MATERIALIZED (
       SELECT
         b.*,
-        (cardinality($3::text[])=0 OR b.category_codes && $3::text[]) AS category_match,
-        ($4::text='' OR b.brand_names_normalized @> ARRAY[lower($4)]::text[]) AS brand_match,
-        ($5::text='' OR EXISTS (SELECT 1 FROM unnest(b.colors) candidate(value) WHERE lower(candidate.value)=lower($5))) AS color_match,
-        (cardinality($6::text[])=0 OR b.sizes && $6::text[]) AS size_match,
-        ($7::text='' OR EXISTS (SELECT 1 FROM unnest(b.fits) candidate(value) WHERE lower(candidate.value)=lower($7))) AS fit_match,
-        ($8::text='' OR b.materials @> ARRAY[lower($8)]::text[]) AS material_match
+        (
+          cardinality($3::text[])=0
+          OR EXISTS (
+            SELECT 1
+            FROM unnest(b.category_codes) code
+            CROSS JOIN unnest($3::text[]) prefix
+            WHERE lower(code)=prefix OR lower(code) LIKE prefix||'-%'
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM unnest(b.department_codes) code
+            CROSS JOIN unnest($3::text[]) prefix
+            WHERE lower(code)=prefix OR lower(code) LIKE prefix||'-%'
+          )
+        ) AS scope_match,
+        (cardinality($4::text[])=0 OR b.category_codes && $4::text[]) AS category_match,
+        ($5::text='' OR b.brand_names_normalized @> ARRAY[lower($5)]::text[]) AS brand_match,
+        ($6::text='' OR EXISTS (SELECT 1 FROM unnest(b.colors) candidate(value) WHERE lower(candidate.value)=lower($6))) AS color_match,
+        (cardinality($7::text[])=0 OR b.sizes && $7::text[]) AS size_match,
+        ($8::text='' OR EXISTS (SELECT 1 FROM unnest(b.fits) candidate(value) WHERE lower(candidate.value)=lower($8))) AS fit_match,
+        ($9::text='' OR b.materials @> ARRAY[lower($9)]::text[]) AS material_match
       FROM base b
     ), projected AS (
       SELECT
@@ -403,7 +423,7 @@ export async function getContextualVendorDropshipFacets(
         ''::text AS label,
         COUNT(*)::int AS count
       FROM matches m
-      WHERE m.category_match AND m.brand_match AND m.color_match AND m.size_match AND m.fit_match AND m.material_match
+      WHERE m.scope_match AND m.category_match AND m.brand_match AND m.color_match AND m.size_match AND m.fit_match AND m.material_match
 
       UNION ALL
 
@@ -415,7 +435,7 @@ export async function getContextualVendorDropshipFacets(
       FROM matches m
       CROSS JOIN LATERAL unnest(m.category_codes) candidate(value)
       LEFT JOIN label_map labels ON labels.facet_type='category' AND labels.value=candidate.value
-      WHERE m.brand_match AND m.color_match AND m.size_match AND m.fit_match AND m.material_match
+      WHERE m.scope_match AND m.brand_match AND m.color_match AND m.size_match AND m.fit_match AND m.material_match
       GROUP BY candidate.value
 
       UNION ALL
@@ -428,7 +448,7 @@ export async function getContextualVendorDropshipFacets(
       FROM matches m
       CROSS JOIN LATERAL unnest(m.brand_names_normalized) candidate(value)
       LEFT JOIN label_map labels ON labels.facet_type='brand' AND lower(labels.value)=candidate.value
-      WHERE m.category_match AND m.color_match AND m.size_match AND m.fit_match AND m.material_match
+      WHERE m.scope_match AND m.category_match AND m.color_match AND m.size_match AND m.fit_match AND m.material_match
       GROUP BY candidate.value
 
       UNION ALL
@@ -441,7 +461,7 @@ export async function getContextualVendorDropshipFacets(
       FROM matches m
       CROSS JOIN LATERAL unnest(m.colors) candidate(value)
       LEFT JOIN label_map labels ON labels.facet_type='color' AND lower(labels.value)=lower(candidate.value)
-      WHERE m.category_match AND m.brand_match AND m.size_match AND m.fit_match AND m.material_match
+      WHERE m.scope_match AND m.category_match AND m.brand_match AND m.size_match AND m.fit_match AND m.material_match
       GROUP BY candidate.value
 
       UNION ALL
@@ -453,7 +473,7 @@ export async function getContextualVendorDropshipFacets(
         COUNT(*)::int
       FROM matches m
       CROSS JOIN LATERAL unnest(m.sizes) candidate(value)
-      WHERE m.category_match AND m.brand_match AND m.color_match AND m.fit_match AND m.material_match
+      WHERE m.scope_match AND m.category_match AND m.brand_match AND m.color_match AND m.fit_match AND m.material_match
       GROUP BY candidate.value
 
       UNION ALL
@@ -465,7 +485,7 @@ export async function getContextualVendorDropshipFacets(
         COUNT(*)::int
       FROM matches m
       CROSS JOIN LATERAL unnest(m.fits) candidate(value)
-      WHERE m.category_match AND m.brand_match AND m.color_match AND m.size_match AND m.material_match
+      WHERE m.scope_match AND m.category_match AND m.brand_match AND m.color_match AND m.size_match AND m.material_match
       GROUP BY candidate.value
 
       UNION ALL
@@ -477,14 +497,14 @@ export async function getContextualVendorDropshipFacets(
         COUNT(*)::int
       FROM matches m
       CROSS JOIN LATERAL unnest(m.materials) candidate(value)
-      WHERE m.category_match AND m.brand_match AND m.color_match AND m.size_match AND m.fit_match
+      WHERE m.scope_match AND m.category_match AND m.brand_match AND m.color_match AND m.size_match AND m.fit_match
       GROUP BY candidate.value
     )
     SELECT facet_type,value,label,count
     FROM projected
     WHERE facet_type='total' OR count>0
     ORDER BY facet_type,label,value
-  `, [vendorId, query, categories, brand, color, sizes, fit, material, searchPrefix]);
+  `, [vendorId, query, prefixes, categories, brand, color, sizes, fit, material, searchPrefix]);
 
-  return facetRowsToProjection(result.rows, categories);
+  return facetRowsToProjection(result.rows, categories.length ? categories : prefixes);
 }
