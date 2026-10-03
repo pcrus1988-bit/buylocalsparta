@@ -80,6 +80,33 @@ function purchasablePublicProduct(product: ShopCard): boolean {
   return product.available && product.availableToSell > 0 && product.priceMinor > 0 && Boolean(product.vendorId);
 }
 
+function interleaveHubSearchProducts(
+  localProducts: readonly ShopCard[],
+  supplierProducts: readonly ShopCard[],
+  limit = SHOP_PAGE_SIZE
+): ShopCard[] {
+  const result: ShopCard[] = [];
+  const seen = new Set<string>();
+  let localIndex = 0;
+  let supplierIndex = 0;
+
+  while (result.length < limit && (localIndex < localProducts.length || supplierIndex < supplierProducts.length)) {
+    const local = localProducts[localIndex++];
+    if (local && !seen.has(local.id)) {
+      seen.add(local.id);
+      result.push(local);
+    }
+    if (result.length >= limit) break;
+
+    const supplier = supplierProducts[supplierIndex++];
+    if (supplier && !seen.has(supplier.id)) {
+      seen.add(supplier.id);
+      result.push(supplier);
+    }
+  }
+  return result;
+}
+
 function shopPageHref(params: Record<string, string | string[] | undefined>, page: number): string {
   const next = new URLSearchParams();
   for (const [key, rawValue] of Object.entries(params)) {
@@ -226,7 +253,41 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       products.push(...dropshipPage.products.filter((product) => !seen.has(product.id)).slice(0, remaining));
     }
   } else {
-    if (!localProductsAvailable) {
+    const mixedHubSearch = localProductsAvailable && allowDropship && Boolean(catalogQuery);
+    if (mixedHubSearch) {
+      // A global search is HUB-wide, not source-wide. Give current local-vendor stock
+      // and supplier-backed stock deterministic space on every result page instead of
+      // exhausting one source before the other. This keeps an active local vendor from
+      // disappearing behind a large dropship catalogue (and vice versa).
+      const sourcePageSize = Math.ceil(SHOP_PAGE_SIZE / 2);
+      const sourceOffset = (page - 1) * sourcePageSize;
+      const localPage = await getShopCatalogPage({
+        visitorKey,
+        postcode: "23100",
+        query: catalogQuery,
+        category,
+        filters: productFilters,
+        attributeFilters,
+        minPriceMinor,
+        maxPriceMinor,
+        sort,
+        limit: sourcePageSize,
+        offset: sourceOffset
+      });
+      const dropshipPage = await getCachedPublishedDropshipShopPage({
+        query: catalogQuery,
+        category,
+        filters: productFilters,
+        attributeFilters,
+        minPriceMinor,
+        maxPriceMinor,
+        sort,
+        limit: sourcePageSize,
+        offset: sourceOffset
+      });
+      products = interleaveHubSearchProducts(localPage.products, dropshipPage.products);
+      hasNextPage = localPage.hasMore || dropshipPage.hasMore;
+    } else if (!localProductsAvailable) {
       // When there is no live local-stock catalogue, avoid performing visitor-specific
       // fairness/assignment work only to discover an empty local window. Dropship
       // discovery is public/non-personalized and can safely use the short shared cache;
@@ -483,7 +544,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
         </aside>
 
         <div className="catalog-results">
-          <div className="results-toolbar"><div><strong>{products.length} προϊόντα</strong>{query && <span> για «{valueOf(params.q)}»</span>}{categoryView && <span> · {categoryView.label}</span>}{(subcategory || groupedSubcategories.length) && <span> · {activeSubcategoryLabel}</span>}{page > 1 && <span> · Σελίδα {page}</span>}</div>{(query || availability || category) && groupedSubcategories.length === 0 && <SaveSearchButton query={query} availability={availability} category={category} />}</div>
+          <div className="results-toolbar"><div><strong>{products.length}{hasNextPage ? "+" : ""} προϊόντα</strong>{query && <span> για «{valueOf(params.q)}»</span>}{categoryView && <span> · {categoryView.label}</span>}{(subcategory || groupedSubcategories.length) && <span> · {activeSubcategoryLabel}</span>}{page > 1 && <span> · Σελίδα {page}</span>}</div>{(query || availability || category) && groupedSubcategories.length === 0 && <SaveSearchButton query={query} availability={availability} category={category} />}</div>
           {interpretedLabels.length > 0 ? <div className="category-chip-row" aria-label="Κατανόηση αναζήτησης">{interpretedLabels.map((label) => <span className="category-chip active" key={label}>{label}</span>)}</div> : null}
           {activeLeaf?.attributeHints.length ? <div className="fairness-note"><strong>Χρήσιμα χαρακτηριστικά για {activeLeaf.label.toLocaleLowerCase("el")}</strong><p>{activeLeaf.attributeHints.join(" · ")}</p></div> : null}
           {products.length === 0 ? (
