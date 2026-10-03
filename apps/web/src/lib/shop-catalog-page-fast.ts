@@ -7,7 +7,7 @@ import { approvedCatalogImages, approvedCatalogSourceImages } from "./public-med
 import { getPublicProductDetails } from "./public-product-detail";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { storefrontCategoryBySlug } from "./storefront-taxonomy";
-import { getLocalStorefrontReadModelWindow } from "./storefront-read-model";
+import { getLiveLocalStorefrontSearchWindow, getLocalStorefrontReadModelWindow } from "./storefront-read-model";
 
 const ASSIGNMENT_BATCH_SIZE = 6;
 const MAX_PAGE_SIZE = 36;
@@ -182,7 +182,7 @@ export async function getShopCatalogPage(input: ShopCatalogPageInput): Promise<S
   const prefixes = categoryPrefixes(input.category ?? "");
   const query = (input.query ?? "").trim();
 
-  const candidateRows = await getLocalStorefrontReadModelWindow({
+  const candidateInput = {
     prefixes,
     query,
     filters,
@@ -191,7 +191,13 @@ export async function getShopCatalogPage(input: ShopCatalogPageInput): Promise<S
     sort: input.sort,
     limit: candidateLimit,
     offset
-  }) as readonly CandidateRow[];
+  } as const;
+  // Typed searches must see current inventory from every active vendor in the HUB.
+  // Browse can continue using the cheap materialized projection, but search cannot
+  // depend on that projection being refreshed while catalogue load-shedding is active.
+  const candidateRows = (query
+    ? await getLiveLocalStorefrontSearchWindow(candidateInput)
+    : await getLocalStorefrontReadModelWindow(candidateInput)) as readonly CandidateRow[];
 
   const total = candidateRows.length ? safeInt(candidateRows[0].total_count) : 0;
   if (!candidateRows.length) return { products: [], total, hasMore: offset < total };
