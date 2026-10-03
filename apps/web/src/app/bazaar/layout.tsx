@@ -1,13 +1,12 @@
 import type { ReactNode } from "react";
 
 /**
- * BAZAAR is backed by direct production Postgres reads rather than framework fetch().
- * Keep the whole segment dynamic so translated merchandising copy and one-unit
- * availability are evaluated against the current database state on every request.
+ * Keep BAZAAR route behavior scoped at page level.
+ *
+ * The listing page remains request-time when it consumes searchParams, while
+ * individual product pages can use short ISR because cart/checkout revalidate
+ * authoritative availability before accepting a purchase.
  */
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 export default function BazaarLayout({ children }: Readonly<{ children: ReactNode }>) {
   return children;
 }
