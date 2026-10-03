@@ -742,3 +742,15 @@ Migration `0337_sport_fit_mid_cut_sock_height.sql` resolves a deliberate vocabul
 Schema 337 was rehearsed against the live KONTA MOY database inside a transaction ending in `ROLLBACK`. Identity guards, vocabulary registration, normalized facts, evidence writes, queue cleanup and no-extra-inference assertions all passed. A post-rollback read confirmed that no `mid_cut` value persisted.
 
 The runtime schema gate is now **337**.
+
+## Schema 338 — verified adidas apparel batch 2
+
+Migration `0338_sport_fit_verified_adidas_apparel_batch2.sql` extends the governed apparel knowledge layer with three current Kerasiotis adidas families whose exact style-code identities resolve to one active canonical family each.
+
+- `HF6619` Training Essentials 7/8 Leggings (Maternity): the exact adidas page classifies the product as workout/training apparel, normalized as `sport_activity=general_training`. The connected Kerasiotis feed independently and explicitly states AEROREADY moisture absorption, normalized as `moisture_wicking=true` at vendor-feed confidence.
+- `IA1808` Terrex Trail Running Wind Jacket: exact adidas evidence adds `sport_activity=running`, `sport_surface=trail`, and both `weather_protection=water_resistant` and `wind_resistant`. DWR/light-rain wording is deliberately not upgraded to waterproof.
+- `IJ5427` Own the Run Allover Print Running Windbreaker: exact adidas evidence adds `sport_activity=running`, `weather_protection=water_resistant`, `wind_resistant`, and `reflective_details=true`.
+
+All three families are newly onboarded into `sport_product_knowledge` as strong-identity apparel and remain partial while unresolved fields stay queued. Customer reviews are excluded. No breathability, thermal or compression intensity is inferred from generic marketing language, and water repellency never becomes a waterproof claim.
+
+The runtime schema gate is now **338**.
