@@ -6,6 +6,7 @@ import { publicVendorTaxonomies } from "./public-vendor-taxonomy";
 
 type HomepageVendorRow = SqlRow & Readonly<{
   vendor_id: string;
+  vendor_slug: string;
   vendor_name: string;
   adviser_name?: string | null;
   profile_short_description?: string | null;
@@ -78,6 +79,7 @@ export async function getHomepagePublicVendorDirectory(): Promise<readonly Publi
   const result = await getProductionPostgresRuntime().nativePool.query<HomepageVendorRow>(`
     SELECT
       v.public_id AS vendor_id,
+      v.public_slug AS vendor_slug,
       v.trading_name AS vendor_name,
       adviser.name AS adviser_name,
       profile.short_description AS profile_short_description,
@@ -135,6 +137,7 @@ export async function getHomepagePublicVendorDirectory(): Promise<readonly Publi
     const story = storyFromRow(row);
     return {
       id: row.vendor_id,
+      slug: row.vendor_slug,
       name: row.vendor_name,
       adviser: optionalText(row.adviser_name),
       story,
