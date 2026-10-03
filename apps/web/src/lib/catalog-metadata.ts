@@ -95,7 +95,7 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
            cv.gtin,
            cv.mpn,
            COALESCE(v4.display_description_el,el.description,en.description,feed_submission.description) AS description,
-           b.name AS brand,
+           COALESCE(b.name,feed_submission.brand) AS brand,
            b.logo_object_key AS brand_logo_object_key,
            COALESCE(ctel.name,cten.name,c.code) AS category_label,
            cv.variant_attributes,
@@ -128,11 +128,16 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
       LIMIT 1
     ) v4 ON true
     LEFT JOIN LATERAL (
-      SELECT NULLIF(btrim(s.source_payload->>'description'),'') AS description
+      SELECT
+        NULLIF(btrim(s.source_payload->>'description'),'') AS description,
+        NULLIF(btrim(s.source_payload->>'brand'),'') AS brand
       FROM vendor_product_submissions s
       WHERE s.canonical_variant_id=cv.id
         AND s.source_payload ? 'feedId'
-        AND NULLIF(btrim(s.source_payload->>'description'),'') IS NOT NULL
+        AND (
+          NULLIF(btrim(s.source_payload->>'description'),'') IS NOT NULL
+          OR NULLIF(btrim(s.source_payload->>'brand'),'') IS NOT NULL
+        )
       ORDER BY s.updated_at DESC,s.id DESC
       LIMIT 1
     ) feed_submission ON true
