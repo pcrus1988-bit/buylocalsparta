@@ -879,3 +879,24 @@ The exact migration was rehearsed against production schema 404 inside a transac
 Migration SHA-256: `81f5690dea88a84b3e649376a1702619c3df62bb083a9555c54e5d9018ce48d3`.
 
 The runtime schema gate on this change is **405**.
+
+## Schema 406 — sellable New Balance lifestyle identity and fit governance
+
+Migration `0406_sport_fit_new_balance_lifestyle_fit_governance.sql` closes three currently sellable, zero-knowledge New Balance footwear families with first-party manufacturer evidence while explicitly preventing running-heritage wording from becoming performance-running eligibility.
+
+- **2002R `U2002RB`**: New Balance's 2002R collection classifies the model line as **Unisex Lifestyle**. The exact U2002RB manufacturer page adds `footwear_width_profile=standard`, `fit_length_profile=true_to_size` from “Fits As Expected For Most People,” and **410 g** published weight.
+- **ABZORB 2000 `U20004GM`**: New Balance classifies ABZORB 2000 as **Unisex Lifestyle**. The exact U20004GM page adds Standard width and **414 g** published weight.
+- **740 `U740BM2`**: New Balance's current 740 collection classifies the model line as **Unisex Lifestyle**, including U740BM2. The exact U740BM2 page adds Standard (D) width.
+
+The pass adds **9 normalized family facts**, **9 active first-party evidence rows**, and **6 manufacturer sources** across **3 live canonical families**. Historical phrases such as “daily runner,” “running-inspired classics,” ABZORB cushioning, Stability Web and related technology copy are preserved only as source context; they are not converted into current running activity, surface/use-case, cushioning intensity, support grade, stack/drop, toe-box, plate or weather facts.
+
+All three enrichment queues are pruned from their real canonical-family facts and non-applicable `football_surface_code` is removed. Unverified technical fields remain explicitly unresolved.
+
+A recommendation regression covers the user-visible failure mode: a New Balance lifestyle family carrying “daily runner” / “running-inspired” catalogue wording is still hard-excluded from a running request when governed activity is `casual_lifestyle`.
+
+The exact migration was rehearsed against production schema 405 inside a transaction ending in `ROLLBACK`; family identity, approved-visible offer presence, fact/evidence/source counts, unsupported-inference guards, non-conflict state and queue reconciliation all passed. Post-rollback read-back confirmed production remained at schema 405 with zero schema-406 sources and zero target-family facts.
+
+Migration SHA-256: `e2a3334bb1ef9b4059df23168d05254b971c0aa8eb5c2511b77c0a1583d31c58`.
+
+The runtime schema gate on this change is **406**.
+
