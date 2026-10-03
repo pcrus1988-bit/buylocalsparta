@@ -6,7 +6,7 @@ import type {
   SportFitTechnicalRequirement
 } from "./sport-fit-engine.ts";
 
-export const SPORT_FIT_RULESET_VERSION = "2026-10-02.13";
+export const SPORT_FIT_RULESET_VERSION = "2026-10-03.1";
 
 export type SportFitRuleEvaluation = Readonly<{
   eligible: boolean;
@@ -484,7 +484,9 @@ function seedTechnicalRequirements(
       if (useCases.has("gym_cardio") || ["medium", "high", "max"].includes(cushioning)) status = "match";
       else if (cushioning === "minimal" || cushioning === "low") status = "conflict";
     } else if (answers.gymTrainingType === "functional") {
-      if (activities.has("general_training") || activities.has("gym_training")) {
+      if (useCases.has("gym_functional")) {
+        status = "match";
+      } else if (activities.has("general_training") || activities.has("gym_training")) {
         status = support === "stability" || cushioning === "medium" ? "match" : "unknown";
       }
     } else if (answers.gymTrainingType === "mixed" && (activities.has("general_training") || activities.has("gym_training"))) {
