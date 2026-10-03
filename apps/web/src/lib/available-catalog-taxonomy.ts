@@ -26,6 +26,8 @@ type AvailableCategoryRow = Readonly<{
 export type AvailableCatalogTaxonomy = Readonly<{
   categories: readonly StorefrontCategory[];
   facets: CatalogFacets;
+  /** Live family-level fit vocabulary. Kept separate from CatalogFacets so legacy callers stay compatible. */
+  fits?: readonly CatalogFacetOption[];
   attributeFacets: readonly CatalogAttributeFacet[];
 }>;
 
