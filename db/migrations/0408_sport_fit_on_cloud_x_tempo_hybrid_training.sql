@@ -239,12 +239,48 @@ ON CONFLICT (source_key) DO UPDATE SET
   active=true,
   updated_at=now();
 
+
+INSERT INTO public.sport_knowledge_sources(
+  source_key,source_type,publisher,title,url,brand_id,retrieved_at,
+  source_status,metadata,active
+)
+SELECT DISTINCT
+  'on_cloud_x_tempo_current_running_collection',
+  'manufacturer_product',
+  'On',
+  'Running Shoes · current Cloud X Tempo listing',
+  'https://www.on.com/en-th/shop/running/shoes',
+  t.brand_id,
+  now(),
+  'current',
+  jsonb_build_object(
+    'verificationMethod','manufacturer_running_collection_classification',
+    'modelName','Cloud X Tempo',
+    'retrievalDate','2026-10-03',
+    'scope','Current model-line running activity classification',
+    'listingLabel','Training, gym, mixed workouts',
+    'schemaVersion',408
+  ),
+  true
+FROM _sport_408_target t
+ON CONFLICT (source_key) DO UPDATE SET
+  source_type=EXCLUDED.source_type,
+  publisher=EXCLUDED.publisher,
+  title=EXCLUDED.title,
+  url=EXCLUDED.url,
+  brand_id=EXCLUDED.brand_id,
+  retrieved_at=EXCLUDED.retrieved_at,
+  source_status='current',
+  metadata=EXCLUDED.metadata,
+  active=true,
+  updated_at=now();
+
 CREATE TEMP TABLE _sport_408_enum (
   style_code text NOT NULL,
   attribute_code text NOT NULL,
   position integer NOT NULL DEFAULT 0,
   value_code text NOT NULL,
-  source_kind text NOT NULL CHECK (source_kind IN ('exact','classification')),
+  source_kind text NOT NULL CHECK (source_kind IN ('exact','classification','running_collection')),
   confidence numeric(6,5) NOT NULL,
   evidence_excerpt text NOT NULL,
   source_locator text NOT NULL,
@@ -262,9 +298,9 @@ SELECT
 FROM _sport_408_target t
 UNION ALL
 SELECT
-  t.style_code,'sport_activity',1,'running','exact',0.97000,
-  'Current On Cloud X Tempo product copy describes the hybrid workout design as combining running-shoe ride with training and explicitly includes running in the model use context.',
-  'Product description / Hybrid design'
+  t.style_code,'sport_activity',1,'running','running_collection',0.99000,
+  'On currently includes Cloud X Tempo in its manufacturer Running Shoes collection while retaining the model label Training, gym, mixed workouts.',
+  'Running Shoes collection > Cloud X Tempo'
 FROM _sport_408_target t
 UNION ALL
 SELECT
@@ -393,6 +429,7 @@ JOIN public.sport_knowledge_sources s
   ON s.source_key=CASE e.source_kind
     WHEN 'exact' THEN t.source_key
     WHEN 'classification' THEN 'on_cloud_x_tempo_current_activity_classification'
+    WHEN 'running_collection' THEN 'on_cloud_x_tempo_current_running_collection'
   END;
 
 INSERT INTO public.sport_product_fact_evidence(
@@ -510,7 +547,8 @@ BEGIN
         'on_cloud_x_tempo_m_3mg30116013_official',
         'on_cloud_x_tempo_w_3wg30090969_official',
         'on_cloud_x_tempo_w_3wg30095084_official',
-        'on_cloud_x_tempo_current_activity_classification'
+        'on_cloud_x_tempo_current_activity_classification',
+        'on_cloud_x_tempo_current_running_collection'
       )
     );
 
@@ -525,14 +563,15 @@ BEGIN
     'on_cloud_x_tempo_m_3mg30116013_official',
     'on_cloud_x_tempo_w_3wg30090969_official',
     'on_cloud_x_tempo_w_3wg30095084_official',
-    'on_cloud_x_tempo_current_activity_classification'
+    'on_cloud_x_tempo_current_activity_classification',
+    'on_cloud_x_tempo_current_running_collection'
   )
     AND source_type='manufacturer_product'
     AND source_status='current'
     AND active=true;
 
-  IF v_count<>5 THEN
-    RAISE EXCEPTION 'Schema 408 expected five current On manufacturer sources, found %',v_count;
+  IF v_count<>6 THEN
+    RAISE EXCEPTION 'Schema 408 expected six current On manufacturer sources, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_bad
