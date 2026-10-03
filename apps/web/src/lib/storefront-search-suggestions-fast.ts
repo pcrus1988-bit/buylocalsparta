@@ -131,10 +131,12 @@ export async function getStorefrontSearchSuggestions(query: string, limit = 12):
 
 async function loadSearchCandidates(query: string): Promise<readonly SearchCandidate[]> {
   const runtime = getProductionPostgresRuntime();
+  const indexed: SearchCandidate[] = [];
+
   if (process.env.BLS_SEARCH_ENABLED === "true" && runtime.search) {
     try {
       const hits = await runtime.search.search({ marketId: "sparta", q: query, type: "product", limit: 24 });
-      return hits.map((hit) => {
+      indexed.push(...hits.map((hit) => {
         const document = hit.document;
         const metadata = document.metadata ?? {};
         const routeKey = typeof metadata.slug === "string" && metadata.slug.trim() ? metadata.slug.trim() : document.id;
@@ -150,7 +152,7 @@ async function loadSearchCandidates(query: string): Promise<readonly SearchCandi
           available: document.available,
           score: hit.score
         };
-      });
+      }));
     } catch (error) {
       console.error(JSON.stringify({
         level: "error",
@@ -160,9 +162,16 @@ async function loadSearchCandidates(query: string): Promise<readonly SearchCandi
     }
   }
 
-  // Never hydrate or rank the complete catalogue in application memory. The
-  // PostgreSQL read model is already compact, indexed and availability-gated.
-  return getStorefrontReadModelSearchCandidates(query, 24);
+  // PostgreSQL is the availability authority. Never let an empty or stale dedicated
+  // search index short-circuit autocomplete: this is exactly how active HUB-vendor
+  // products disappeared from the preview while /shop could still find products.
+  const authoritative = await getStorefrontReadModelSearchCandidates(query, 24);
+  const merged = new Map<string, SearchCandidate>();
+  for (const candidate of authoritative) merged.set(candidate.id, candidate);
+  for (const candidate of indexed) {
+    if (!merged.has(candidate.id) && candidate.available !== false) merged.set(candidate.id, candidate);
+  }
+  return [...merged.values()].slice(0, 24);
 }
 
 function categoryScore(query: string, category: StorefrontCategory): number {

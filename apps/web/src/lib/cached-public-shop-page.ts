@@ -13,7 +13,7 @@ import {
 } from "./published-dropship-catalog-page";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
-const LOCAL_PRESENCE_CACHE_SECONDS = 900;
+const LOCAL_PRESENCE_CACHE_SECONDS = 30;
 const PUBLIC_DISCOVERY_CACHE_SECONDS = 900;
 
 const cachedLocalShopPresence = unstable_cache(
@@ -22,15 +22,38 @@ const cachedLocalShopPresence = unstable_cache(
     const result = await getProductionPostgresRuntime().nativePool.query<{ available: boolean }>(`
       SELECT EXISTS (
         SELECT 1
-        FROM public.storefront_catalog_read_model
-        WHERE local_sellable=true
-          AND local_available_until>now()
+        FROM public.inventory_balances ib
+        JOIN public.vendor_offers vo ON vo.id=ib.offer_id
+        JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
+        JOIN public.categories c ON c.id=cv.category_id
+        JOIN public.markets m ON m.id=c.market_id
+        JOIN public.vendor_businesses v ON v.id=vo.vendor_id
+        JOIN public.vendor_locations l ON l.id=vo.location_id
+        LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
+        WHERE m.code='sparta'
+          AND dso.id IS NULL
+          AND COALESCE(cv.commerce_channel,'normal')='normal'
+          AND cv.active=true
+          AND cv.suppressed=false
+          AND cv.recalled=false
+          AND vo.status='approved'
+          AND vo.merchant_visible=true
+          AND vo.merchant_pause_active=false
+          AND vo.customer_price_minor>0
+          AND 'pickup'::fulfilment_mode=ANY(vo.fulfilment_modes)
+          AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+          AND v.status='active'
+          AND l.active=true
+          AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+          AND GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)>=1
+          AND ib.stock_confirmed_at IS NOT NULL
+          AND ib.stock_confirmed_at+make_interval(secs=>ib.freshness_ttl_seconds)>now()
         LIMIT 1
       ) AS available
     `);
     return result.rows[0]?.available === true;
   },
-  ["public-shop-local-presence-v1"],
+  ["public-shop-local-presence-v2"],
   { revalidate: LOCAL_PRESENCE_CACHE_SECONDS }
 );
 
