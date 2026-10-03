@@ -861,3 +861,21 @@ The migration was rehearsed against the live production state inside a transacti
 Migration SHA-256: `4073449d12727809edc411f2b3cc118dd036b828ec4ada1ce3c7e6f62fae44cc`.
 
 The runtime schema gate on this change is **404**.
+
+## Schema 405 — IF6748 reference-size geometry and neutral-support deepening
+
+Migration `0405_sport_fit_if6748_reference_geometry_neutral_support.sql` deepens the currently sellable adidas Adizero SL2 `IF6748` family without erasing the regional fit disagreement preserved by schema 331.
+
+Current exact adidas Australia, Egypt and Malaysia product pages agree on the same reference measurements at **UK 8.5**: **238 g** weight, **9.5 mm** drop, **36.9 mm** heel stack and **27.4 mm** forefoot stack. Schema 405 normalizes those four values and links all twelve manufacturer evidence rows (four facts × three regions) to the existing adidas UK 8.5 / 263 mm normalized size-guide entry through `reference_size_entry_id`. This prevents a reference-size measurement from being treated as an unscoped size-independent observation.
+
+The exact adidas Malaysia IF6748 page also classifies pronation as **Neutral**, so `support_level=neutral` is added with exact first-party provenance. The pass deliberately does **not** map Lightstrike Pro marketing to a cushioning intensity and does not map “Regular fit” to a governed footwear-width profile.
+
+The fit recommendation remains unresolved by design. adidas Egypt advises sizing up, while Australia and Malaysia advise the usual size. Schema 405 therefore creates no `fit_length_profile` fact and preserves the disagreement in source metadata and the enrichment queue rather than majority-voting it away.
+
+The pass adds **5 normalized family facts**, **13 active first-party evidence rows** (12 reference-size-scoped geometry rows plus one neutral-support row), and **1 new exact manufacturer source** while re-verifying the two existing Australia/Egypt sources. The queue is reduced to the genuinely unresolved fields: cushioning level, fit-length profile, footwear width, sport surface and toe-box profile.
+
+The exact migration was rehearsed against production schema 404 inside a transaction ending in `ROLLBACK`; all identity, commerce, normalized-size, fact, evidence, conflict and queue assertions passed. Post-rollback verification confirmed production remained at schema 404 and that no Malaysia source or schema-405 queue change persisted.
+
+Migration SHA-256: `81f5690dea88a84b3e649376a1702619c3df62bb083a9555c54e5d9018ce48d3`.
+
+The runtime schema gate on this change is **405**.
