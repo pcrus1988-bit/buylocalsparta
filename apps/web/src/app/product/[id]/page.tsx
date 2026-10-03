@@ -9,7 +9,6 @@ import { ProductAnalyticsTracker } from "../../../components/ProductAnalyticsTra
 import { SiteHeader } from "../../../components/SiteHeader";
 import { ProductAccountActions } from "../../../components/ProductAccountActions";
 import { ProductDetailSections, type ProductDetailRow } from "../../../components/ProductDetailSections";
-import { ProductPurchaseInfoDialogs } from "../../../components/ProductPurchaseInfoDialogs";
 import { ProductSuitability } from "../../../components/ProductSuitability";
 import { ProductVariantSelector } from "../../../components/ProductVariantSelector";
 import { ProductVendorHumanCard } from "../../../components/ProductVendorHumanCard";
@@ -641,7 +640,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <div className="eyebrow">Τιμή & διαθεσιμότητα</div>
               <PublicPriceComparison productId={product.id} vendorId={product.vendorId} retailPriceMinor={product.priceMinor} retailLabel={displayPrice} comparisonEnabled={!readOnlyCrawler} />
               <strong>{product.available ? `${product.availableToSell} τεμ. διαθέσιμα` : "Προσωρινά μη διαθέσιμο"}</strong>
-              <span>{product.available ? (isDropship ? "Αποστολή από συνεργαζόμενο προμηθευτή." : "Η επιλογή αυτή μπορεί να προστεθεί άμεσα στο καλάθι.") : isDropship ? "Προσωρινά μη διαθέσιμο για αποστολή." : "Η αγορά ενεργοποιείται ξανά μόλις υπάρξει επιλέξιμο τοπικό απόθεμα."}</span>
             </div>
             <div className="purchase-actions">
               {readOnlyCrawler ? <button className="button" type="button" disabled={!product.available}>{product.available ? "Προσθήκη στο καλάθι" : "Μη διαθέσιμο"}</button> : <><AddToCartButton product={{
@@ -658,22 +656,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 size: meaningfulSizes.length === 1 ? meaningfulSizes[0] : undefined
               }} /><ProductAccountActions productId={product.id} /></>}
             </div>
-            {!isDropship ? <div className="purchase-confidence" aria-label="Πληροφορίες αγοράς">
-              <div className="purchase-confidence-item"><span aria-hidden="true">✓</span><div><strong>Πραγματικό τοπικό απόθεμα</strong><span>Η διαθεσιμότητα προέρχεται από ενεργό κατάστημα και επιλέξιμο προϊόν.</span></div></div>
-              <div className="purchase-confidence-item"><span aria-hidden="true">↗</span><div><strong>Παραλαβή ή αποστολή</strong><span>Οι διαθέσιμες επιλογές και το κόστος επιβεβαιώνονται πριν από την πληρωμή.</span></div></div>
-              <div className="purchase-confidence-item"><span aria-hidden="true">i</span><div><strong>{product.vendorName ?? "Τοπικός συνεργάτης"}</strong><span>{product.adviser ? `Μπορείς να ρωτήσεις ${product.adviser} πριν αγοράσεις.` : "Μπορείς να ζητήσεις βοήθεια μέσω Ask Local πριν αγοράσεις."}</span></div></div>
-            </div> : null}
-            <ProductPurchaseInfoDialogs supplierFulfilled={isDropship} showLocationLink={!isDropship} />
           </div>
 
-          {!isDropship ? <ProductVendorHumanCard productId={product.id} vendorId={product.vendorId} vendorName={product.vendorName} adviser={product.adviser} /> : null}
-
           {displayDescription ? (
-            <section style={{ marginTop: 28, paddingTop: 24, borderTop: "1px solid var(--line)" }}>
+            <section className="product-description-compact">
               <div className="eyebrow">Περιγραφή προϊόντος</div>
-              <p style={{ whiteSpace: "pre-line", marginTop: 10 }}>{displayDescription}</p>
+              <p>{displayDescription}</p>
             </section>
           ) : null}
+
+          {!isDropship ? <ProductVendorHumanCard productId={product.id} vendorId={product.vendorId} vendorName={product.vendorName} adviser={product.adviser} /> : null}
 
           <ProductSuitability suitability={suitability} />
 
