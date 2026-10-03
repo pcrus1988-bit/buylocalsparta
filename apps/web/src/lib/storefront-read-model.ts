@@ -191,24 +191,12 @@ export async function getLiveLocalStorefrontSearchWindow(
   if (!cleanQuery) return getLocalStorefrontReadModelWindow(input);
 
   const result = await getProductionPostgresRuntime().nativePool.query<StorefrontReadModelCandidate>(`
-    WITH RECURSIVE category_tree AS (
-      SELECT c.id,c.parent_id,c.code,c.code AS department_code
-      FROM public.categories c
-      JOIN public.markets m ON m.id=c.market_id
-      WHERE m.code='sparta'
-        AND c.parent_id IS NULL
-
-      UNION ALL
-
-      SELECT child.id,child.parent_id,child.code,parent.department_code
-      FROM public.categories child
-      JOIN category_tree parent ON child.parent_id=parent.id
-    ), fresh_local AS MATERIALIZED (
+    WITH fresh_local AS MATERIALIZED (
       SELECT DISTINCT ON (cv.id)
         cv.public_id AS canonical_public_id,
         cv.family_id,
         c.code AS category_code,
-        tree.department_code,
+        COALESCE(p4.code,p3.code,p2.code,p1.code,c.code) AS department_code,
         COALESCE(b.name,pfb.name) AS brand_name,
         lower(COALESCE(
           el.specifications->>'color',
@@ -238,14 +226,18 @@ export async function getLiveLocalStorefrontSearchWindow(
             COALESCE(cv.gtin,''),
             COALESCE(cv.mpn,''),
             c.code,
-            tree.department_code
+            COALESCE(p4.code,p3.code,p2.code,p1.code,c.code)
           )
         ) AS search_vector
       FROM public.inventory_balances ib
       JOIN public.vendor_offers vo ON vo.id=ib.offer_id
       JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
       JOIN public.categories c ON c.id=cv.category_id
-      JOIN category_tree tree ON tree.id=cv.category_id
+      JOIN public.markets m ON m.id=c.market_id AND m.code='sparta'
+      LEFT JOIN public.categories p1 ON p1.id=c.parent_id
+      LEFT JOIN public.categories p2 ON p2.id=p1.parent_id
+      LEFT JOIN public.categories p3 ON p3.id=p2.parent_id
+      LEFT JOIN public.categories p4 ON p4.id=p3.parent_id
       JOIN public.vendor_businesses v ON v.id=vo.vendor_id
       JOIN public.vendor_locations l ON l.id=vo.location_id
       LEFT JOIN public.dropship_supplier_offers dso ON dso.vendor_offer_id=vo.id
