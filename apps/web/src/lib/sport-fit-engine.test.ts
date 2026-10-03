@@ -1521,3 +1521,55 @@ test("Sport & Fit answer parser accepts handball and badminton use cases", () =>
   assert.equal(badminton.activity, "badminton");
   assert.equal(badminton.useCase, "badminton_training");
 });
+
+test("race-day request prefers exact governed race evidence over otherwise matching daily trainer", () => {
+  const dailyTrainer = product({
+    id: "duramo-rc2-daily",
+    title: "Duramo RC2 Daily Running Shoe",
+    categoryCode: "womens-running-shoes",
+    sizes: ["38"],
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road", "track"],
+      useCases: ["daily_training"],
+      supportLevel: "neutral",
+      fitLengthProfile: "true_to_size"
+    }
+  });
+  const raceDocumented = product({
+    id: "duramo-rc2-race",
+    title: "Duramo RC2 Race-Documented Running Shoe",
+    categoryCode: "womens-running-shoes",
+    sizes: ["38"],
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["running"],
+      surfaces: ["road", "track"],
+      useCases: ["daily_training", "race_day"],
+      supportLevel: "neutral",
+      fitLengthProfile: "true_to_size"
+    }
+  });
+
+  const answers = {
+    activity: "running" as const,
+    audience: "women" as const,
+    size: "EU 38",
+    surface: "road" as const,
+    useCase: "race_day" as const
+  };
+
+  const dailyScore = scoreSportFitProduct(dailyTrainer, answers);
+  const raceScore = scoreSportFitProduct(raceDocumented, answers);
+  const result = buildSportFitRecommendation([dailyTrainer, raceDocumented], answers);
+
+  assert.equal(dailyScore.technicalEligible, true);
+  assert.equal(raceScore.technicalEligible, true);
+  assert.ok(raceScore.technicalScore > dailyScore.technicalScore);
+  assert.equal(result.primary?.id, "duramo-rc2-race");
+  assert.ok(result.primary?.reasons.includes("Τεκμηριωμένη αντιστοίχιση χρήσης / προπόνησης"));
+});
+
