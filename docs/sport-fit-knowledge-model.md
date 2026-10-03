@@ -829,3 +829,17 @@ Schema 344 was executed against the live KONTA MOY catalogue inside a transactio
 
 The runtime schema gate is now **344**.
 
+## Schema 345 — exact adidas surface/fit refinements
+
+Migration `0345_sport_fit_verified_adidas_surface_fit_batch.sql` adds four exact manufacturer-backed facts across three already-governed footwear families.
+
+- `IH1838` Runfalcon 6 ATR: exact adidas Argentina copy explicitly positions the shoe for city streets and rugged trails, adding `sport_surface=road` and `sport_surface=trail`.
+- `JR4007` Terrex Eastrail 3: exact adidas Türkiye size guidance adds `fit_length_profile=true_to_size`.
+- `KJ1750` Response 2: exact adidas Türkiye size guidance adds `fit_length_profile=true_to_size`.
+
+The batch deliberately leaves generic Cloudfoam/EVA cushioning language, generic support language, regular-fit wording, footwear width and toe-box shape ungraded unless a governed manufacturer classification is explicit.
+
+Schema 345 was executed against the live KONTA MOY catalogue inside a transaction ending in `ROLLBACK`. Exact-code identity, governed controlled values, four normalized facts, four evidence rows, queue cleanup, knowledge refresh and post-write assertions all passed. A post-rollback verification confirmed production remained at schema 333 with zero schema-345 source rows and zero schema-345 target facts persisted.
+
+The runtime schema gate is now **345**.
+
