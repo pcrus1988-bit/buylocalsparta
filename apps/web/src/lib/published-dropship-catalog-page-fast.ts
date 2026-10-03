@@ -154,42 +154,8 @@ export async function getPublishedDropshipCatalogPage(
         vo.public_id AS offer_public_id,
         cv.slug,
         COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
-        COALESCE(el.description,en.description,'') AS description,
         c.code AS category_code,
         tree.department_code,
-        COALESCE(b.name,pfb.name) AS brand_name,
-        lower(COALESCE(
-          el.specifications->>'color',
-          en.specifications->>'color',
-          cv.variant_attributes->>'color',
-          ''
-        )) AS color,
-        COALESCE(
-          el.specifications->'sizes',
-          en.specifications->'sizes',
-          cv.variant_attributes->'sizes_observed',
-          '[]'::jsonb
-        ) AS sizes,
-        lower(COALESCE(
-          el.specifications->>'fit',
-          en.specifications->>'fit',
-          ''
-        )) AS fit,
-        to_tsvector(
-          'simple',
-          concat_ws(
-            ' ',
-            COALESCE(el.title,en.title,cv.model,cv.slug),
-            COALESCE(el.description,en.description,''),
-            COALESCE(b.name,pfb.name,''),
-            COALESCE(cv.gtin,''),
-            COALESCE(cv.mpn,''),
-            c.code,
-            tree.department_code
-          )
-        ) AS search_vector,
-        cv.gtin,
-        cv.mpn,
         vo.customer_price_minor,
         vo.msrp_minor,
         dso.cached_quantity,
@@ -212,9 +178,6 @@ export async function getPublishedDropshipCatalogPage(
       JOIN category_tree tree ON tree.id=cv.category_id
       JOIN public.vendor_businesses v ON v.id=vo.vendor_id
       JOIN public.vendor_locations l ON l.id=vo.location_id
-      LEFT JOIN public.product_families pf ON pf.id=cv.family_id
-      LEFT JOIN public.brands b ON b.id=cv.brand_id
-      LEFT JOIN public.brands pfb ON pfb.id=pf.brand_id
       LEFT JOIN public.product_translations el
         ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN public.product_translations en
