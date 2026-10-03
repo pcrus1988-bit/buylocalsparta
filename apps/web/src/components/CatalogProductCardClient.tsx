@@ -97,9 +97,9 @@ function PublicCatalogPrice({
   prominentSavings: boolean;
 }) {
   return <div className={`price ${styles.priceText}`}>
-    {msrpMinor !== undefined && !prominentSavings ? <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-      <s aria-label={`Προτεινόμενη λιανική ${formatEuroMinor(msrpMinor)}`} style={{ fontSize: "0.72em", opacity: 0.62, fontWeight: 500 }}>ΠΛΤ {formatEuroMinor(msrpMinor)}</s>
-      {savingLabel ? <span aria-label={`Όφελος ${savingLabel}% σε σχέση με την προτεινόμενη λιανική`} style={{ fontSize: "0.62em", fontWeight: 800, whiteSpace: "nowrap" }}>−{savingLabel}% vs ΠΛΤ</span> : null}
+    {msrpMinor !== undefined && !prominentSavings ? <div className={styles.msrpRow}>
+      <s aria-label={`Προτεινόμενη λιανική ${formatEuroMinor(msrpMinor)}`} className={styles.msrpInline}>ΠΛΤ {formatEuroMinor(msrpMinor)}</s>
+      {savingLabel ? <span aria-label={`Όφελος ${savingLabel}% σε σχέση με την προτεινόμενη λιανική`} className={styles.inlineSavings}>−{savingLabel}% vs ΠΛΤ</span> : null}
     </div> : null}
     <span aria-label={`Τελική τιμή ${formatEuroMinor(retailPriceMinor)}`}>{priceLabel}</span>
   </div>;
@@ -170,30 +170,12 @@ export function CatalogProductCardClient({ product, index = 0, vendorContext, de
           <span
             aria-label={highlightKind === "sale" ? `ΠΛΤ ${formatEuroMinor(msrpMinor)}, SALE, όφελος ${savingLabel}%` : `ΠΛΤ ${formatEuroMinor(msrpMinor)}, όφελος ${savingLabel}%`}
             data-price-highlight-kind={highlightKind}
-            style={{
-              position: "absolute",
-              zIndex: 3,
-              top: 14,
-              right: 14,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
-              gap: 5
-            }}
+            className={styles.savingsBadge}
           >
-            <s aria-hidden="true" style={{ color: "rgba(13, 43, 35, .62)", fontSize: ".7rem", fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap" }}>ΠΛΤ {formatEuroMinor(msrpMinor)}</s>
+            <s aria-hidden="true" className={styles.savingsMsrp}>ΠΛΤ {formatEuroMinor(msrpMinor)}</s>
             <span
               aria-hidden="true"
-              style={{
-                background: highlightKind === "sale" ? "var(--terracotta, #aa664f)" : "#111",
-                color: "#fff",
-                borderRadius: 999,
-                padding: "9px 13px",
-                fontWeight: 900,
-                fontSize: ".92rem",
-                lineHeight: 1,
-                boxShadow: "0 8px 22px rgba(0,0,0,.12)"
-              }}
+              className={`${styles.savingsPill}${highlightKind === "sale" ? ` ${styles.salePill}` : ""}`}
             >
               {publicPriceBadgeLabel(highlightKind, savingLabel)}
             </span>
