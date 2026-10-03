@@ -3,7 +3,7 @@ import { decodeCatalogSizeGroup } from "./catalog-size";
 import type { VendorDropshipFacetOption, VendorDropshipFacets } from "./vendor-dropship-catalog-page";
 import { getContextualVendorDropshipFacets } from "./vendor-dropship-contextual-facets";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { categoryCodeMatches } from "./storefront-taxonomy";
+import { storefrontCategoryBySlug } from "./storefront-taxonomy";
 
 export type ShopSupplierFacetInput = Readonly<{
   query?: string;
@@ -49,6 +49,7 @@ const cachedVendorFacets = unstable_cache(
   async (vendorId: string, contextJson: string): Promise<VendorDropshipFacets> => {
     const context = JSON.parse(contextJson) as Readonly<{
       query?: string;
+      prefixes?: readonly string[];
       categories?: readonly string[];
       brand?: string;
       color?: string;
@@ -57,7 +58,7 @@ const cachedVendorFacets = unstable_cache(
     }>;
     return getContextualVendorDropshipFacets(vendorId, context);
   },
-  ["shop-supplier-contextual-facets-v1"],
+  ["shop-supplier-contextual-facets-v2"],
   { revalidate: 300 }
 );
 
@@ -103,6 +104,7 @@ async function loadForVendors(
   vendorIds: readonly string[],
   context: Readonly<{
     query?: string;
+    prefixes?: readonly string[];
     categories?: readonly string[];
     brand?: string;
     color?: string;
@@ -132,21 +134,21 @@ export async function getCachedShopSupplierFacets(
   if (!vendorIds.length) return EMPTY;
 
   const explicitSubcategories = [...new Set((input.subcategories ?? []).map((value) => value.trim()).filter(Boolean))].slice(0, 64);
-  let categories = explicitSubcategories;
+  const requestedCategory = input.category?.trim().toLocaleLowerCase("en").replaceAll("_", "-") ?? "";
+  const governedCategory = storefrontCategoryBySlug(requestedCategory);
+  const prefixes = requestedCategory
+    ? [...new Set((governedCategory?.aliases ?? [requestedCategory]).map((value) => value.trim().toLocaleLowerCase("en").replaceAll("_", "-")).filter(Boolean))].slice(0, 48)
+    : [];
 
-  if (!categories.length && input.category?.trim()) {
-    // Resolve a governed top-level category into the concrete leaf codes carried
-    // by the live family projection. The unfiltered facet snapshot is itself cached.
-    const unfiltered = await loadForVendors(vendorIds, {});
-    categories = unfiltered.categories
-      .filter((entry) => categoryCodeMatches(entry.value, input.category))
-      .map((entry) => entry.value)
-      .slice(0, 64);
-  }
-
+  // Keep top-level department scope separate from an exact leaf selection. The
+  // live family projection carries both category_codes and department_codes, so
+  // a Fashion request correctly includes sneakers/boots/etc even when the leaf
+  // code itself does not start with "fashion-". Category facet choices remain
+  // disjunctive, but cannot leak Beauty/Home leaves outside the selected department.
   return loadForVendors(vendorIds, {
     query: input.query?.trim() || undefined,
-    categories,
+    prefixes,
+    categories: explicitSubcategories,
     brand: input.brand?.trim() || undefined,
     color: input.color?.trim() || undefined,
     sizes: decodeCatalogSizeGroup(input.size ?? ""),
