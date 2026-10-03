@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import type { VendorStorefrontSettings, VendorStorefrontWorkspace } from "../lib/vendor-storefront-settings";
+import { vendorStorefrontThemeTokens } from "../lib/vendor-storefront-theme";
 import styles from "./VendorTrial.module.css";
 
 export function VendorStorefrontBuilder(props: {
@@ -41,6 +42,14 @@ export function VendorStorefrontBuilder(props: {
     if (settings.heroStyle === "editorial") return `${styles.storeHero} ${styles.storeHeroEditorial}`;
     return styles.storeHero;
   }, [settings.heroStyle]);
+
+  const previewTheme = useMemo(
+    () => vendorStorefrontThemeTokens({
+      primaryColor: settings.primaryColor,
+      secondaryColor: settings.secondaryColor
+    }),
+    [settings.primaryColor, settings.secondaryColor]
+  );
 
   function patchSettings(patch: Partial<VendorStorefrontSettings>) {
     setSettings((current) => ({ ...current, ...patch }));
@@ -100,10 +109,29 @@ export function VendorStorefrontBuilder(props: {
       </div>
 
       <div className={styles.field}>
-        <span className={styles.fieldLegend}>Χρώμα καταστήματος</span>
-        <div className={styles.colorRow}>
-          <input aria-label="Χρώμα καταστήματος" type="color" value={settings.accentColor} onChange={(event) => patchSettings({ accentColor: event.target.value })} />
-          <input aria-label="HEX χρώμα" type="text" value={settings.accentColor} maxLength={7} onChange={(event) => patchSettings({ accentColor: /^#[0-9a-fA-F]{0,6}$/.test(event.target.value) ? event.target.value : settings.accentColor })} />
+        <span className={styles.fieldLegend}>Χρώματα μάρκας</span>
+        <p className={styles.miniNote}>Εφαρμόζονται μόνο στη δημόσια βιτρίνα του καταστήματός σου. Η δομή, η πλοήγηση και το checkout του ΚΟΝΤΑ ΜΟΥ παραμένουν σταθερά.</p>
+        <div className={styles.brandColorGrid}>
+          <label className={styles.brandColorField}>
+            <span>Κύριο χρώμα</span>
+            <div className={styles.colorRow}>
+              <input aria-label="Κύριο χρώμα μάρκας" type="color" value={/^#[0-9a-fA-F]{6}$/.test(settings.primaryColor) ? settings.primaryColor : "#0f766e"} onChange={(event) => patchSettings({ primaryColor: event.target.value, accentColor: event.target.value })} />
+              <input aria-label="HEX κύριου χρώματος" type="text" value={settings.primaryColor} maxLength={7} onChange={(event) => {
+                const value = event.target.value;
+                if (/^#[0-9a-fA-F]{0,6}$/.test(value)) patchSettings({ primaryColor: value, accentColor: value });
+              }} />
+            </div>
+          </label>
+          <label className={styles.brandColorField}>
+            <span>Δευτερεύον χρώμα</span>
+            <div className={styles.colorRow}>
+              <input aria-label="Δευτερεύον χρώμα μάρκας" type="color" value={/^#[0-9a-fA-F]{6}$/.test(settings.secondaryColor) ? settings.secondaryColor : "#b29661"} onChange={(event) => patchSettings({ secondaryColor: event.target.value })} />
+              <input aria-label="HEX δευτερεύοντος χρώματος" type="text" value={settings.secondaryColor} maxLength={7} onChange={(event) => {
+                const value = event.target.value;
+                if (/^#[0-9a-fA-F]{0,6}$/.test(value)) patchSettings({ secondaryColor: value });
+              }} />
+            </div>
+          </label>
         </div>
       </div>
 
@@ -224,7 +252,19 @@ export function VendorStorefrontBuilder(props: {
         </div>
       </div>
 
-      <div className={`${styles.previewFrame} ${device === "mobile" ? styles.mobileFrame : ""}`} style={{ "--accent": settings.accentColor } as CSSProperties}>
+      <div
+        className={`${styles.previewFrame} ${device === "mobile" ? styles.mobileFrame : ""}`}
+        style={{
+          "--brand-primary": previewTheme.primaryColor,
+          "--brand-secondary": previewTheme.secondaryColor,
+          "--brand-on-primary": previewTheme.onPrimary,
+          "--brand-on-secondary": previewTheme.onSecondary,
+          "--brand-primary-soft": previewTheme.primarySoft,
+          "--brand-primary-surface": previewTheme.primarySurface,
+          "--brand-secondary-soft": previewTheme.secondarySoft,
+          "--brand-secondary-surface": previewTheme.secondarySurface
+        } as CSSProperties}
+      >
         <div className={heroClass}>
           <div className={styles.storeEyebrow}>ΚΟΝΤΑ ΜΟΥ · {props.initial.location?.locality ?? "Τοπικό κατάστημα"}</div>
           <h3>{settings.heroTitle || props.initial.vendorName}</h3>
