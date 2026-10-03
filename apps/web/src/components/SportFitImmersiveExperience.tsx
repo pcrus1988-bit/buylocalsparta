@@ -25,6 +25,8 @@ type Step = "activity" | "profile" | "details" | "results";
 type ProfileQuestion = "audience" | "size" | "footLength" | "budget";
 type DetailQuestion = "surface" | "gymTraining" | "useCase" | "frequency" | "distance" | "runnerNeed" | "fit" | "priority" | "ready";
 
+const PROFILE_STORAGE_KEY = "kontamou:sport-fit-profile:v1";
+
 const PROFILE_QUESTIONS: readonly ProfileQuestion[] = ["audience", "size", "footLength", "budget"];
 
 function detailQuestionSequence(activity: SportActivity): readonly DetailQuestion[] {
@@ -708,8 +710,18 @@ export function SportFitImmersiveExperience({
     setUniverseBusy(true);
 
     try {
-      const payload = await fetchCandidates(buildAnswers({}, audience));
+      const answers = buildAnswers({}, audience);
+      const payload = await fetchCandidates(answers);
       if (requestId !== requestSequenceRef.current) return;
+      try {
+        localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify({
+          vendorId,
+          answers,
+          savedAt: Date.now()
+        }));
+      } catch {
+        // Sport & Fit still works when browser storage is unavailable.
+      }
       setResponse(payload);
       applyUniverse(payload.universe ?? [], payload.survivingCount ?? 0);
       setSelectedFinalistId(payload.recommendation.primary?.id ?? "");
