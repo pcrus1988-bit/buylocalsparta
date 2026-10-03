@@ -10,6 +10,15 @@ import styles from "./page.module.css";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
 
+export const revalidate = 300;
+export const dynamicParams = true;
+
+export function generateStaticParams() {
+  // Brand guides are numerous; cache each guide on first request instead of
+  // querying hundreds of brand records during every deployment build.
+  return [];
+}
+
 function host(value: string): string {
   try { return new URL(value).hostname.replace(/^www\./, ""); } catch { return value; }
 }
