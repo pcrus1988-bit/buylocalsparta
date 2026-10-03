@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import styles from "./SportFitProductIntelligence.module.css";
 
 const PROFILE_STORAGE_KEY = "kontamou:sport-fit-profile:v1";
@@ -327,10 +327,10 @@ export function SportFitProductIntelligence({
                 </div>
 
                 <div className={styles.qualityGrid}>
-                  <div className={styles.ring} style={{ "--value": completeness } as React.CSSProperties}>
+                  <div className={styles.ring} style={{ "--value": completeness } as CSSProperties}>
                     <span>{completeness}%</span><small>κάλυψη</small>
                   </div>
-                  <div className={styles.ring} style={{ "--value": evidence } as React.CSSProperties}>
+                  <div className={styles.ring} style={{ "--value": evidence } as CSSProperties}>
                     <span>{evidence}%</span><small>evidence</small>
                   </div>
                   <div className={styles.stockStat}>
@@ -351,7 +351,7 @@ export function SportFitProductIntelligence({
                   <div className={styles.matchLoading}><span /> Υπολογίζουμε το προσωπικό σου match…</div>
                 ) : personalMatch ? (
                   <div className={styles.matchContent}>
-                    <div className={styles.matchScore} style={{ "--match": personalMatch.score } as React.CSSProperties}>
+                    <div className={styles.matchScore} style={{ "--match": personalMatch.score } as CSSProperties}>
                       <strong>{personalMatch.score}%</strong>
                       <small>{personalMatch.score >= 80 ? "Ισχυρό match" : personalMatch.score >= 60 ? "Καλό match" : "Πιθανό match"}</small>
                     </div>
