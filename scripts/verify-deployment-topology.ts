@@ -3,6 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 const root = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 const web = JSON.parse(await readFile(new URL("../apps/web/package.json", import.meta.url), "utf8"));
 const vercel = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
+const appVercel = JSON.parse(await readFile(new URL("../apps/web/vercel.json", import.meta.url), "utf8"));
 const entrypoint = await readFile(new URL("../deploy/worker-entrypoint.sh", import.meta.url), "utf8");
 const dockerfile = await readFile(new URL("../deploy/worker.Dockerfile", import.meta.url), "utf8");
 const docs = await readFile(new URL("../docs/DEPLOYMENT_TOPOLOGY.md", import.meta.url), "utf8");
@@ -32,7 +33,7 @@ const allowedVercelCrons = new Map([
   ["/api/cron/vendor-product-feed-media", "22 * * * *"],
   ["/api/cron/vitex-source-monitor", "17 * * * *"],
   ["/api/cron/nova-canonical-media", "27 * * * *"],
-  ["/api/cron/nova-availability-failover", "*/15 * * * *"],
+  ["/api/cron/nova-availability-failover", "*/5 * * * *"],
   ["/api/cron/symphonya-catalogue", "2 * * * *"],
   ["/api/cron/symphonya-stock", "5 */12 * * *"],
   ["/api/cron/symphonya-pipeline", "9 * * * *"],
@@ -56,6 +57,19 @@ for (const [path, schedule] of allowedVercelCrons) {
   assert(
     vercelCrons.filter((cron: Record<string, unknown>) => cron.path === path && cron.schedule === schedule).length === 1,
     `${path} cron must exist exactly once with schedule ${schedule}`,
+  );
+}
+const appVercelCrons = Array.isArray(appVercel.crons) ? appVercel.crons : [];
+const recoveryCriticalCrons = new Map([
+  ["/api/cron/nova-availability-failover", "*/5 * * * *"],
+  ["/api/cron/symphonya-stock", "5 */12 * * *"],
+  ["/api/cron/seo-url-registry", "53 4 * * *"],
+  ["/api/cron/seo-gsc-diagnostics", "47 */6 * * *"],
+]);
+for (const [path, schedule] of recoveryCriticalCrons) {
+  assert(
+    appVercelCrons.filter((cron: Record<string, unknown>) => cron.path === path && cron.schedule === schedule).length === 1,
+    `apps/web/vercel.json must mirror recovery-critical ${path} cron at ${schedule}`,
   );
 }
 assert(symphonyaPipelineCron.includes("export const maxDuration = 55"), "Symphonya pipeline cron must remain bounded to one Vercel invocation");
