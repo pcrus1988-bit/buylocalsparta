@@ -5,13 +5,11 @@ import { redirect } from "next/navigation";
 import { VendorCatalogClient } from "../../../components/VendorCatalogClient";
 import { VendorDeliveryEligibilityPanel } from "../../../components/VendorDeliveryEligibilityPanel";
 import { VendorLifecycle } from "../../../components/VendorLifecycle";
-import { VendorStockFreshnessPanel } from "../../../components/VendorStockFreshnessPanel";
 import { VendorWorkspaceHeader } from "../../../components/VendorWorkspaceHeader";
 import { WorkspaceHowItWorks, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../components/WorkspacePagePrimitives";
 import { confirmVendorAssignedCatalogueEvidence, vendorAssignedCatalogueWorkspace } from "../../../lib/vendor-assigned-catalogue-service";
 import { getVendorSession, vendorOperatingContextForPrincipal } from "../../../lib/vendor-session";
 import { vendorCatalogWorkspace } from "../../../lib/vendor-backoffice-service";
-import { getVendorStockFreshness } from "../../../lib/vendor-stock-freshness";
 
 export const metadata: Metadata = { title: "Προϊόντα, τιμές & απόθεμα", robots: { index: false, follow: false } };
 
@@ -52,10 +50,9 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
   const params = await searchParams;
   const assignedOffset = parseAssignedOffset(params.assignedOffset);
   const operatingContext = await vendorOperatingContextForPrincipal(principal);
-  const [workspace, assignedCatalogue, stockFreshness] = await Promise.all([
+  const [workspace, assignedCatalogue] = await Promise.all([
     vendorCatalogWorkspace(principal, { loadCatalogProducts: false }),
-    vendorAssignedCatalogueWorkspace(principal, { offset: assignedOffset, limit: ASSIGNED_PAGE_SIZE }),
-    getVendorStockFreshness(principal)
+    vendorAssignedCatalogueWorkspace(principal, { offset: assignedOffset, limit: ASSIGNED_PAGE_SIZE })
   ]);
   const catalogWorkspace = workspace;
   const reviewPending = workspace.submissions.some((item) => ["submitted", "needs_review"].includes(item.status));
@@ -169,7 +166,6 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
       <VendorDeliveryEligibilityPanel csrfToken={workspace.csrfToken} />
     </section>
 
-    <VendorStockFreshnessPanel snapshot={stockFreshness} />
     <VendorCatalogClient initial={catalogWorkspace} canImportCatalogue={operatingContext.capabilities.includes("catalogue.import")} />
   </main>;
 }
