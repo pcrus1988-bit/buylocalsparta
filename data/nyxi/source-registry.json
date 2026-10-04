@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -3705,6 +3705,147 @@
           "type": "brand",
           "displayName": "Dior",
           "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "lights_lacquer_all_polish",
+      "publisher": "Lights Lacquer",
+      "title": "Singles Nail Polish Catalogue",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://lightslacquer.com/collections/all-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Lights Lacquer",
+        "scope": "nail_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Lights Lacquer",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "lights_lacquer_all_products",
+      "publisher": "Lights Lacquer",
+      "title": "All Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://lightslacquer.com/collections/all",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Lights Lacquer",
+        "scope": "all_products"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Lights Lacquer",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "lights_lacquer_collections_index",
+      "publisher": "Lights Lacquer",
+      "title": "Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://lightslacquer.com/collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Lights Lacquer",
+        "scope": "collections_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Lights Lacquer",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "lights_lacquer_latest_drops",
+      "publisher": "Lights Lacquer",
+      "title": "Latest Drops",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://lightslacquer.com/collections/latest-drops",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Lights Lacquer",
+        "scope": "new_releases"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Lights Lacquer",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "lippmann_collections_index",
+      "publisher": "LIPPMANN",
+      "title": "LIPPMANN Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://lippmannofficial.com/collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Deborah Lippmann",
+        "scope": "collections_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Deborah Lippmann",
+          "relation": "covers"
         }
       ]
     }
