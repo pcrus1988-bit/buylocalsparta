@@ -46,6 +46,12 @@ jobs:
         if: steps.preflight.outputs.configured == 'true'
         run: npm ci --ignore-scripts
 
+      - name: Sync curated NYXI source registry
+        if: steps.preflight.outputs.configured == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.NYXI_DATABASE_URL || secrets.MEDIA_DATABASE_URL }}
+        run: npm run nyxi:sources:sync
+
       - name: Drain due NYXI sources
         if: steps.preflight.outputs.configured == 'true'
         env:
