@@ -54,6 +54,27 @@ Recommended runtime controls:
 The crawler is an isolated long-running source-evidence worker. Its health port should be reachable only by the container platform's health probe.
 
 
+## `nyxi-sources` worker
+
+Required:
+
+- `DATABASE_URL`
+- `BLS_WORKER_ROLE=nyxi-sources`
+- private object-storage bucket/region/credentials
+
+Recommended runtime controls:
+
+- `BLS_NYXI_SOURCE_WORKER_ID=<stable worker identity>`
+- `BLS_NYXI_SOURCE_POLL_MS=15000`
+- `BLS_NYXI_SOURCE_LEASE_SECONDS=300`
+- `BLS_NYXI_SOURCE_REQUEST_TIMEOUT_MS=30000`
+- `BLS_NYXI_SOURCE_MAX_RESPONSE_BYTES=26214400`
+- `BLS_NYXI_SOURCE_MAX_REDIRECTS=5`
+
+The worker writes only source-check state, immutable snapshot metadata and raw source bytes under the private `private/nyxi/source-archive/` prefix. It performs no ingredient extraction, formula classification or public serving.
+
+Production collection can run without a permanent service through `.github/workflows/nyxi-source-collector.yml` every six hours. Prefer dedicated `NYXI_DATABASE_URL`, `NYXI_OBJECT_STORAGE_ACCESS_KEY_ID` and `NYXI_OBJECT_STORAGE_SECRET_ACCESS_KEY` repository secrets. The workflow supports fallback to the existing scoped MEDIA database/object-storage secrets when the same private storage permissions are intentionally shared.
+
 ## `symphonya` worker
 
 Required for catalogue/stock operation:
