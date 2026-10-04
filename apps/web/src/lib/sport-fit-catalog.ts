@@ -3,7 +3,7 @@ import { loadCatalogMetadata } from "./catalog-metadata";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 import { canonicalSportBrand } from "./sport-fit-brand";
-import type { SportAudience, SportFitKnowledge, SportFitProduct, SportKnowledgeQueueStatus, SportKnowledgeStatus } from "./sport-fit-engine";
+import type { SportAudience, SportFitKnowledge, SportFitKnowledgeEvidence, SportFitProduct, SportKnowledgeQueueStatus, SportKnowledgeStatus } from "./sport-fit-engine";
 
 type SportCatalogRow = Readonly<{
   id: string;
@@ -26,6 +26,16 @@ type SportCatalogRow = Readonly<{
   evidence_score: number | string | null;
   queue_status: string | null;
   sport_facts: unknown;
+}>;
+
+type SportEvidenceRow = Readonly<{
+  family_id: string;
+  attribute_code: string;
+  evidence_value: string;
+  evidence_strength: string | null;
+  confidence: number | string | null;
+  identity_confidence: number | string | null;
+  source_type: string | null;
 }>;
 
 export type SportFitCatalogSnapshot = Readonly<{
@@ -139,7 +149,10 @@ function queueStatus(value: string | null): SportKnowledgeQueueStatus | undefine
     : undefined;
 }
 
-function sportKnowledge(row: SportCatalogRow): SportFitKnowledge | undefined {
+function sportKnowledge(
+  row: SportCatalogRow,
+  evidence: readonly SportFitKnowledgeEvidence[]
+): SportFitKnowledge | undefined {
   const facts = objectValue(row.sport_facts);
   const status = knowledgeStatus(row.knowledge_status);
   const queue = queueStatus(row.queue_status);
@@ -175,8 +188,66 @@ function sportKnowledge(row: SportCatalogRow): SportFitKnowledge | undefined {
     breathabilityLevel: stringValue(facts.breathability_level),
     thermalLevel: stringValue(facts.thermal_level),
     compressionLevel: stringValue(facts.compression_level),
-    reflectiveDetails: booleanValue(facts.reflective_details)
+    reflectiveDetails: booleanValue(facts.reflective_details),
+    evidence
   };
+}
+
+async function readSportEvidence(
+  familyIds: readonly string[]
+): Promise<ReadonlyMap<string, readonly SportFitKnowledgeEvidence[]>> {
+  if (!familyIds.length || !productionDatabaseConfigured()) return new Map();
+
+  const result = await getProductionPostgresRuntime().nativePool.query<SportEvidenceRow>(`
+    SELECT DISTINCT ON (e.family_id,ad.code,e.evidence_value)
+      e.family_id::text AS family_id,
+      ad.code AS attribute_code,
+      CASE
+        WHEN jsonb_typeof(e.evidence_value)='string' THEN e.evidence_value #>> '{}'
+        ELSE e.evidence_value::text
+      END AS evidence_value,
+      e.evidence_strength,
+      e.confidence,
+      e.identity_confidence,
+      s.source_type
+    FROM sport_product_fact_evidence e
+    JOIN attribute_definitions ad ON ad.id=e.attribute_id
+    JOIN sport_knowledge_sources s ON s.id=e.source_id
+    WHERE e.family_id=ANY($1::uuid[])
+      AND e.active=true
+      AND s.active=true
+      AND coalesce(e.confidence,0)>=0.70
+    ORDER BY
+      e.family_id,
+      ad.code,
+      e.evidence_value,
+      CASE e.evidence_strength
+        WHEN 'direct_source' THEN 0
+        WHEN 'corroborated' THEN 1
+        ELSE 2
+      END,
+      e.identity_confidence DESC NULLS LAST,
+      e.confidence DESC NULLS LAST,
+      e.id DESC
+  `, [[...familyIds]]);
+
+  const byFamily = new Map<string, SportFitKnowledgeEvidence[]>();
+  for (const row of result.rows) {
+    const value = row.evidence_value?.trim();
+    if (!value) continue;
+    const item: SportFitKnowledgeEvidence = {
+      attributeCode: row.attribute_code,
+      value,
+      evidenceStrength: row.evidence_strength ?? undefined,
+      confidence: safeUnitInterval(row.confidence),
+      identityConfidence: safeUnitInterval(row.identity_confidence),
+      sourceType: row.source_type ?? undefined
+    };
+    const current = byFamily.get(row.family_id) ?? [];
+    current.push(item);
+    byFamily.set(row.family_id, current);
+  }
+  return byFamily;
 }
 
 function safeVendorId(value: string): string {
@@ -316,7 +387,11 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
 
   if (result.rows.length === 0) return { vendorId, vendorName: "", products: [] };
 
-  const metadata = await loadCatalogMetadata(result.rows.map((row) => row.id));
+  const familyIds = [...new Set(result.rows.flatMap((row) => row.family_id ? [row.family_id] : []))];
+  const [metadata, evidenceByFamily] = await Promise.all([
+    loadCatalogMetadata(result.rows.map((row) => row.id)),
+    readSportEvidence(familyIds)
+  ]);
   const products = result.rows.flatMap((row): readonly SportFitProduct[] => {
     const details = metadata.get(row.id);
     const priceMinor = safeInt(row.price_minor);
@@ -340,7 +415,7 @@ async function readSportFitCatalog(vendorId: string, audience: SportAudience): P
       vendorId: row.vendor_id,
       vendorName: row.vendor_name,
       previewImageSrc: trustedCatalogSourceHttpsUrl(row.source_code, row.source_website, row.preview_image_src),
-      knowledge: sportKnowledge(row),
+      knowledge: sportKnowledge(row, row.family_id ? evidenceByFamily.get(row.family_id) ?? [] : []),
       available: true,
       availableToSell
     }];
