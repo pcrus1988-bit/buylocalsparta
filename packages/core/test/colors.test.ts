@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CATALOG_COLOR_INDEX, CATALOG_SHADE_REFERENCES, catalogColorFamilyKey, catalogColorFilterValues, catalogColorMatches, matchProducts, normalizeCatalogHex, normalizeCatalogColorText, resolveCatalogColor, resolveCatalogShade, type ProductIdentity } from "../src/index.ts";
+import { CATALOG_COLOR_INDEX, CATALOG_SHADE_REFERENCES, catalogColorFamilyKey, catalogColorFilterValues, catalogColorMatches, catalogDeltaE2000, catalogHexToLab, matchProducts, nearestCatalogShadeByHex, normalizeCatalogHex, normalizeCatalogColorText, resolveCatalogColor, resolveCatalogShade, type ProductIdentity } from "../src/index.ts";
 
 test("color index carries shared display and coding metadata", () => {
   const beige = CATALOG_COLOR_INDEX.find((entry) => entry.key === "beige");
@@ -119,4 +119,19 @@ test("fine Studio shade names can be more precise than the broad filter family",
   assert.equal(pearly?.familyKey, "pink");
   assert.equal(pearly?.hex, "#D998A8");
   assert.equal(resolveCatalogColor("Pearly Pink Bubble")?.key, "pink");
+});
+
+
+test("arbitrary exact HEX shades keep their exact value while gaining a perceptual filter family", () => {
+  const shade = resolveCatalogShade("#A14F63");
+  assert.equal(shade?.hex, "#A14F63");
+  assert.equal(shade?.precision, "exact");
+  assert.ok(shade?.familyKey);
+  assert.equal(resolveCatalogColor("#A14F63")?.key, shade?.familyKey);
+  assert.equal(nearestCatalogShadeByHex("#A14F63")?.familyKey, shade?.familyKey);
+});
+
+test("shared catalogue colour science uses perceptual Lab distance", () => {
+  const lab = catalogHexToLab("#A14F63");
+  assert.equal(catalogDeltaE2000(lab, lab), 0);
 });
