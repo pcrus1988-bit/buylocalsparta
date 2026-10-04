@@ -2056,3 +2056,75 @@ test("current Saucony lifestyle identity blocks retro running heritage from reco
   assert.equal(result.primary, undefined);
   assert.equal(result.ranked.length, 0);
 });
+
+
+test("match explanations pair user input with governed knowledge evidence", () => {
+  const walking = product({
+    id: "cloudfoam-proof",
+    title: "ADIDAS CLOUDFOAM FLEX-LACES",
+    categoryCode: "womens-running-shoes",
+    sizes: ["42"],
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["walking"],
+      useCases: ["daily_walking"],
+      widthProfile: "wide",
+      fitLengthProfile: "true_to_size",
+      evidence: [
+        {
+          attributeCode: "sport_activity",
+          value: "walking",
+          evidenceStrength: "direct_source",
+          confidence: 0.9,
+          identityConfidence: 1,
+          sourceType: "vendor_feed"
+        },
+        {
+          attributeCode: "sport_use_case",
+          value: "daily_walking",
+          evidenceStrength: "direct_source",
+          confidence: 0.9,
+          identityConfidence: 1,
+          sourceType: "vendor_feed"
+        },
+        {
+          attributeCode: "footwear_width_profile",
+          value: "wide",
+          evidenceStrength: "direct_source",
+          confidence: 0.9,
+          identityConfidence: 1,
+          sourceType: "vendor_feed"
+        },
+        {
+          attributeCode: "fit_length_profile",
+          value: "true_to_size",
+          evidenceStrength: "direct_source",
+          confidence: 0.95,
+          identityConfidence: 1,
+          sourceType: "manufacturer_page"
+        }
+      ]
+    }
+  });
+
+  const scored = scoreSportFitProduct(walking, {
+    activity: "walking",
+    audience: "women",
+    size: "42",
+    useCase: "daily_walking",
+    fitPreference: "wide"
+  });
+
+  assert.deepEqual(scored.matchProofs.map((proof) => proof.id), [
+    "activity",
+    "use_case",
+    "fit_width",
+    "size_fit"
+  ]);
+  assert.match(scored.matchProofs[0]?.input ?? "", /Εσύ: Περπάτημα/);
+  assert.match(scored.matchProofs[0]?.knowledge ?? "", /περπάτημα/);
+  assert.match(scored.matchProofs[0]?.proof ?? "", /επαληθευμένη πηγή προϊόντος/);
+  assert.match(scored.matchProofs[3]?.proof ?? "", /επίσημη πηγή κατασκευαστή/);
+  assert.match(scored.matchProofs[0]?.proof ?? "", /90% confidence/);
+});
