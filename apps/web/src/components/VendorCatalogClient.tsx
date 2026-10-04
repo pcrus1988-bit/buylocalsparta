@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import styles from "./VendorCatalogClient.module.css";
 import { VendorSmartProductForm } from "./VendorSmartProductForm";
 import { VendorPriceManager } from "./VendorPriceManager";
+import { VendorArchivedProductsPanel } from "./VendorArchivedProductsPanel";
 import { useVendorConfirmation } from "./VendorConfirmation";
 import { WorkspaceEmptyState, WorkspaceHowItWorks, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "./WorkspacePagePrimitives";
 
@@ -18,7 +19,7 @@ type CatalogProduct = {
   discountType?: "percent" | "fixed"; discountValue?: number;
   msrpMinor?: number; showMsrp: boolean;
   onHand: number; reserved: number; blocked: number; safetyStock: number; availableToSell: number;
-  offerStatus: string; productVisible: boolean; categoryVisible: boolean; effectiveVisible: boolean; merchantPauseActive: boolean; canToggleVisibility: boolean; updatedAt: number;
+  offerStatus: string; productVisible: boolean; categoryVisible: boolean; effectiveVisible: boolean; merchantPauseActive: boolean; canToggleVisibility: boolean; adminArchived?: boolean; updatedAt: number;
 };
 type CategoryControl = { id: string; code: string; name: string; path: string; depth: number; productCount: number; configuredVisible: boolean; effectiveVisible: boolean };
 type CategoryOption = { id: string; code: string; name: string; path: string; depth: number };
@@ -251,6 +252,10 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
     setSearchError("");
   };
 
+  const archivedProducts = products
+    .filter((product) => product.offerStatus === "archived" && product.adminArchived)
+    .map((product) => ({ offerId: product.offerId, title: product.title, vendorSku: product.vendorSku }));
+
   return <>
     {confirmationDialog}
     {error && <div className="shell form-error vendor-error" role="alert"><strong>Η αλλαγή δεν αποθηκεύτηκε.</strong> {error}</div>}
@@ -353,6 +358,7 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
 
       {hasSearched && products.length > 0 && <VendorPriceManager csrfToken={initial.csrfToken} products={products} onSaved={() => void runSearch(resultOffset)} />}
     </section>
+    {archivedProducts.length > 0 && <VendorArchivedProductsPanel products={archivedProducts} csrfToken={initial.csrfToken} />}
 
     <section className="vendor-section section-tint"><div className="shell">
       <WorkspaceSectionHeading eyebrow="Νέο προϊόν" title="Προσθήκη προϊόντος" note="Ξεκίνα από τίτλο ή GTIN. Το ΚΟΝΤΑ ΜΟΥ ελέγχει αν το προϊόν υπάρχει ήδη και, όταν το αναγνωρίσεις, συνδέει απευθείας τη δική σου προσφορά με το υπάρχον προϊόν." />
