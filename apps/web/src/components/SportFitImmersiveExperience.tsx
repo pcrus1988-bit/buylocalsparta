@@ -72,6 +72,7 @@ type UniverseProduct = Readonly<{
   role?: string;
   reasons?: readonly string[];
   matchProofs?: readonly SportFitMatchProof[];
+  consultationSummary?: string;
 }>;
 
 type UniverseResponse = Readonly<{
@@ -319,6 +320,11 @@ function ProductResultCard({ product, featured = false }: { product: SportFitSco
         <h3><Link href={productPublicPath(product)} prefetch={false}>{product.title}</Link></h3>
         <strong className={styles.price}>{euro(product.priceMinor)}</strong>
         <MatchBar score={product.score} />
+        {product.consultationSummary ? (
+          <p className={styles.consultationSummary}>
+            <strong>Γιατί σου ταιριάζει:</strong> {product.consultationSummary}
+          </p>
+        ) : null}
         {product.matchProofs.length ? (
           <ul>
             {product.matchProofs.map((proof) => (
