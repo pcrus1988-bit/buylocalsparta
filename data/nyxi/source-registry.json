@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 7,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -2464,6 +2464,494 @@
         {
           "type": "jurisdiction",
           "displayName": "Great Britain",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "bio_sculpture_colours_overview",
+      "publisher": "Bio Sculpture",
+      "title": "Our Colors Overview",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.biosculpturegel.com/collections/our-colors",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Bio Sculpture",
+        "scope": "colour_system_overview",
+        "lines": [
+          "BIOGEL",
+          "EVO",
+          "GEMINI"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Bio Sculpture",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "bio_sculpture_all_products",
+      "publisher": "Bio Sculpture",
+      "title": "All Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.biosculpturegel.com/collections/all",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Bio Sculpture",
+        "scope": "all_products"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Bio Sculpture",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "bio_sculpture_biogel_collections",
+      "publisher": "Bio Sculpture",
+      "title": "BIOGEL Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.biosculpturegel.com/collections/biogel-collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Bio Sculpture",
+        "line": "BIOGEL",
+        "scope": "collections"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Bio Sculpture",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "bio_sculpture_biogel_colors",
+      "publisher": "Bio Sculpture",
+      "title": "BIOGEL Colors",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.biosculpturegel.com/collections/biogel-colors",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Bio Sculpture",
+        "line": "BIOGEL",
+        "scope": "colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Bio Sculpture",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "bio_sculpture_evo_colors",
+      "publisher": "Bio Sculpture",
+      "title": "EVO Colors",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.biosculpturegel.com/collections/evo-colors",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Bio Sculpture",
+        "line": "EVO",
+        "scope": "colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Bio Sculpture",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "bio_sculpture_collections_index",
+      "publisher": "Bio Sculpture",
+      "title": "Collections Index",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.biosculpturegel.com/collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Bio Sculpture",
+        "scope": "collections_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Bio Sculpture",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "mylee_uk_root",
+      "publisher": "Mylee",
+      "title": "Mylee UK Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://mylee.co.uk/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Mylee",
+        "scope": "manufacturer_root",
+        "market": "GB"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Mylee",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "mylee_single_shades",
+      "publisher": "Mylee",
+      "title": "Single Gel Nail Polishes",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://mylee.co.uk/collections/single-shades",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Mylee",
+        "scope": "single_shade_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Mylee",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "mylee_collections_index",
+      "publisher": "Mylee",
+      "title": "Mylee Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://mylee.co.uk/collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Mylee",
+        "scope": "collections_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Mylee",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "neonail_root_global",
+      "publisher": "NEONAIL",
+      "title": "NEONAIL Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://neonail.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "NEONAIL",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "NEONAIL",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "venalisa_root",
+      "publisher": "VENALISA",
+      "title": "VENALISA Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://venalisa.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "VENALISA",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "VENALISA",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "venalisa_all_gel_products",
+      "publisher": "VENALISA",
+      "title": "All Gel Nail Polish Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://venalisa.com/collections/all/gel-nail-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "VENALISA",
+        "scope": "all_gel_products"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "VENALISA",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "jinsoon_collections",
+      "publisher": "JINsoon",
+      "title": "JINsoon Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://jinsoon.com/collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "JINsoon",
+        "scope": "collections_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "JINsoon",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cirque_shop_all",
+      "publisher": "Cirque Colors",
+      "title": "Shop All",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.cirquecolors.com/collections/shop-all",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Cirque Colors",
+        "scope": "shop_all"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Cirque Colors",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cirque_collections_index",
+      "publisher": "Cirque Colors",
+      "title": "Collections Index",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.cirquecolors.com/collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Cirque Colors",
+        "scope": "collections_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Cirque Colors",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cirque_returning_shades",
+      "publisher": "Cirque Colors",
+      "title": "Returning Shades",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.cirquecolors.com/collections/returning-shades",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Cirque Colors",
+        "scope": "returning_shades"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Cirque Colors",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "nailberry_all_products",
+      "publisher": "Nailberry London",
+      "title": "All Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.nailberry.com/collections/all-products",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Nailberry",
+        "scope": "all_products"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Nailberry",
           "relation": "primary_for"
         }
       ]
