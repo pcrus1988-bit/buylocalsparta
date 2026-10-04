@@ -129,12 +129,12 @@ function inferCategoryCode(
   title: string | undefined,
   availableCodes: ReadonlySet<string>
 ): string | undefined {
-  if (!sourceCategory) return undefined;
-  const segments = sourceCategory.split(">").map((part) => normalizeCategoryKey(part)).filter(Boolean);
+  const segments = (sourceCategory ?? "").split(">").map((part) => normalizeCategoryKey(part)).filter(Boolean);
   const leaf = segments.at(-1) ?? "";
   const path = segments.join(" ");
   const titleKey = normalizeCategoryKey(title ?? "");
   const signal = [leaf, titleKey, path].filter(Boolean).join(" ");
+  if (!signal) return undefined;
   const has = (...needles: string[]) => needles.some((needle) => signal.includes(needle));
   const hasIn = (value: string, ...needles: string[]) => needles.some((needle) => value.includes(needle));
   const available = (code: string | undefined) => code && availableCodes.has(code) ? code : undefined;
@@ -246,6 +246,20 @@ function sizeFromProductUrl(productUrl: string | undefined, title: string | unde
     const urlSize = raw.replaceAll("_", "-");
     const titleSize = titleSizeCandidate(title);
     return titleSize && normalizedSizeSignal(titleSize) === normalizedSizeSignal(urlSize) ? titleSize : urlSize;
+  } catch {
+    return undefined;
+  }
+}
+
+function feedVariantDiscriminator(size: string | undefined, productUrl: string | undefined): string | undefined {
+  if (size?.trim()) return "size=" + normalizedSizeSignal(size);
+  if (!productUrl) return undefined;
+  try {
+    const params = [...new URL(productUrl).searchParams.entries()]
+      .filter(([key, value]) => value.trim() && (key.startsWith("attribute_") || key === "variation_id"))
+      .map(([key, value]) => [key.toLowerCase(), normalize(value)] as const)
+      .sort(([left], [right]) => left.localeCompare(right));
+    return params.length ? params.map(([key, value]) => key + "=" + value).join("&") : undefined;
   } catch {
     return undefined;
   }
@@ -410,17 +424,40 @@ export async function prepareVendorProductFeed(
   const seenIds = new Set<string>();
   const seenVendorSkus = new Set<string>();
   const observedExternalIds = new Set<string>();
+  const rawExternalIdCounts = new Map<string, number>();
+  const rawVendorSkuCounts = new Map<string, number>();
 
   for (const record of parsed.records) {
-    const externalId = trimOptional(
+    const rawExternalId = trimOptional(
       xmlFieldValue(record, mapping.externalId)
       ?? xmlFieldValue(record, mapping.vendorSku)
       ?? xmlFieldValue(record, mapping.gtin),
       300
     );
-    const vendorSku = trimOptional(xmlFieldValue(record, mapping.vendorSku), 300);
+    const rawVendorSku = trimOptional(xmlFieldValue(record, mapping.vendorSku), 300);
+    if (rawExternalId) rawExternalIdCounts.set(rawExternalId, (rawExternalIdCounts.get(rawExternalId) ?? 0) + 1);
+    if (rawVendorSku) rawVendorSkuCounts.set(rawVendorSku, (rawVendorSkuCounts.get(rawVendorSku) ?? 0) + 1);
+  }
+
+  for (const record of parsed.records) {
+    const rawExternalId = trimOptional(
+      xmlFieldValue(record, mapping.externalId)
+      ?? xmlFieldValue(record, mapping.vendorSku)
+      ?? xmlFieldValue(record, mapping.gtin),
+      300
+    );
+    const rawVendorSku = trimOptional(xmlFieldValue(record, mapping.vendorSku), 300);
     const gtin = trimOptional(xmlFieldValue(record, mapping.gtin), 64);
     const title = decodeNumericTextEntities(trimOptional(xmlFieldValue(record, mapping.title), 500));
+    const productUrl = safeHttpUrl(xmlFieldValue(record, mapping.productUrl));
+    const size = trimOptional(xmlFieldValue(record, mapping.size), 160) ?? sizeFromProductUrl(productUrl, title);
+    const variantDiscriminator = feedVariantDiscriminator(size, productUrl);
+    const externalId = rawExternalId && (rawExternalIdCounts.get(rawExternalId) ?? 0) > 1 && variantDiscriminator
+      ? rawExternalId + "::" + variantDiscriminator
+      : rawExternalId;
+    const vendorSku = rawVendorSku && (rawVendorSkuCounts.get(rawVendorSku) ?? 0) > 1 && variantDiscriminator
+      ? rawVendorSku + "::" + variantDiscriminator
+      : rawVendorSku;
     const priceRaw = effectivePriceRaw(record, mapping.price);
     const priceMinor = parseXmlMoneyMinor(priceRaw);
     const currency = parseXmlCurrency(xmlFieldValue(record, mapping.currency), priceRaw);
@@ -439,10 +476,10 @@ export async function prepareVendorProductFeed(
         const leaf = sourceCategory.split(">").at(-1)?.trim();
         if (leaf) category = byName.get(normalizeCategoryKey(leaf));
       }
-      if (!category) {
-        const inferredCode = inferCategoryCode(sourceCategory, title, availableCategoryCodes);
-        if (inferredCode) category = byCode.get(inferredCode);
-      }
+    }
+    if (!category) {
+      const inferredCode = inferCategoryCode(sourceCategory, title, availableCategoryCodes);
+      if (inferredCode) category = byCode.get(inferredCode);
     }
     category ??= defaultCategory;
 
@@ -466,14 +503,14 @@ export async function prepareVendorProductFeed(
     }
 
     const description = decodeNumericTextEntities(trimOptional(xmlFieldValue(record, mapping.description), 10_000));
-    const productUrl = safeHttpUrl(xmlFieldValue(record, mapping.productUrl));
-    const size = trimOptional(xmlFieldValue(record, mapping.size), 160) ?? sizeFromProductUrl(productUrl, title);
     const color = trimOptional(xmlFieldValue(record, mapping.color), 160)
       ?? colorFromTitle(title)
       ?? colorFromDescription(description);
     const payload = {
       feedExternalId: externalId,
+      sourceExternalId: rawExternalId,
       vendorSku,
+      sourceVendorSku: rawVendorSku,
       title,
       description,
       brand: trimOptional(xmlFieldValue(record, mapping.brand), 200),
