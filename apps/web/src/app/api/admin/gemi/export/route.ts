@@ -29,6 +29,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const filters = normalizeGemiAdminFilters({
       activityId: url.searchParams.get("activity"),
+      activityGroupIds: url.searchParams.get("groups"),
       prefectureId: url.searchParams.get("prefecture"),
       municipalityId: url.searchParams.get("municipality"),
       activeOnly: url.searchParams.get("activeOnly")
@@ -39,7 +40,8 @@ export async function GET(request: Request) {
       level: "info",
       event: "gemi.admin_csv_export_requested",
       actorUserId: capability.userId,
-      activityId: filters.activityId,
+      activityIds: filters.activityIds,
+      activityGroupIds: filters.activityGroupIds,
       prefectureId: filters.prefectureId,
       municipalityId: filters.municipalityId ?? null,
       activeOnly: filters.activeOnly,
