@@ -17,8 +17,9 @@ export type ColorFinderProduct = Readonly<{
   brandShade?: string;
   shadeCode?: string;
   colorDetail?: string;
-  profilePrecision?: "exact" | "canonicalized" | "family_estimate";
+  profilePrecision?: "exact" | "canonicalized" | "family_estimate" | "unknown";
   profileConfidence?: number;
+  colorEvidence?: boolean;
   colorHex: string;
   colorLabel: string;
   finish: ColorFinish;

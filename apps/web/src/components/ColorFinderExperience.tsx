@@ -44,7 +44,8 @@ const MIN_CROP_RATIO = 0.08;
 const MAX_CROP_RATIO = 0.65;
 const MIN_MATCH_PERCENT = 49;
 const MIN_PROFILE_CONFIDENCE = 0.5;
-const CATALOGUE_REQUEST_TIMEOUT_MS = 7_000;
+const CATALOGUE_REQUEST_TIMEOUT_MS = 12_000;
+const CATALOGUE_COLOR_DEBOUNCE_MS = 180;
 
 const DEFAULT_STUDIO_COLORS: Readonly<Record<ColorFinderContext["key"], string>> = {
   nails: "#B52E2E",
@@ -80,25 +81,29 @@ export function ColorFinderExperience({
   products,
   context,
   categoryCode,
-  vendorId
+  vendorId,
+  initialColorHex
 }: {
   products: readonly ColorFinderProduct[];
   context: ColorFinderContext;
   categoryCode: string;
   vendorId?: string;
+  initialColorHex?: string;
 }) {
+  const normalizedInitialColor = normalizeHex(initialColorHex ?? "") ?? DEFAULT_STUDIO_COLORS[context.key];
   const [catalogProducts, setCatalogProducts] = useState<readonly ColorFinderProduct[]>(products);
   const [catalogueState, setCatalogueState] = useState<"loading" | "ready" | "degraded">(
     products.length ? "ready" : "loading"
   );
   const [catalogReloadKey, setCatalogReloadKey] = useState(0);
-  const [selectedHex, setSelectedHex] = useState(() => DEFAULT_STUDIO_COLORS[context.key]);
+  const [selectedHex, setSelectedHex] = useState(() => normalizedInitialColor);
+  const [catalogQueryHex, setCatalogQueryHex] = useState(() => normalizedInitialColor);
   const [finish, setFinish] = useState<FinishFilter>("all");
   const [productType, setProductType] = useState<ProductTypeFilter>("all");
   const [brand, setBrand] = useState("all");
   const [sortMode, setSortMode] = useState<SortMode>("match");
   const [selectorMode, setSelectorMode] = useState<SelectorMode>("picker");
-  const [pickerHsv, setPickerHsv] = useState<HsvColor>(() => hexToHsv(DEFAULT_STUDIO_COLORS[context.key]));
+  const [pickerHsv, setPickerHsv] = useState<HsvColor>(() => hexToHsv(normalizedInitialColor));
   const [urlReady, setUrlReady] = useState(false);
   const [shareStatus, setShareStatus] = useState<"idle" | "copied">("idle");
   const [visibleLimit, setVisibleLimit] = useState(24);
@@ -119,9 +124,13 @@ export function ColorFinderExperience({
   const cropDragRef = useRef(false);
   const pickerDragRef = useRef(false);
   const photoSpotDragRef = useRef(false);
+  const initialProductsUsedRef = useRef(false);
 
   const indexedProducts = useMemo(
-    () => catalogProducts.map((product) => ({ product, lab: hexToLab(product.colorHex) })),
+    () => catalogProducts.map((product) => ({
+      product,
+      lab: product.colorEvidence === false ? undefined : hexToLab(product.colorHex)
+    })),
     [catalogProducts]
   );
 
@@ -129,8 +138,12 @@ export function ColorFinderExperience({
     const targetLab = hexToLab(selectedHex);
     return indexedProducts
       .map(({ product, lab }) => {
-        const deltaE = deltaE2000(targetLab, lab);
-        return { ...product, deltaE, match: colorMatchPercent(deltaE) };
+        const deltaE = lab ? deltaE2000(targetLab, lab) : Number.POSITIVE_INFINITY;
+        return {
+          ...product,
+          deltaE,
+          match: lab ? colorMatchPercent(deltaE) : 0
+        };
       })
       .sort((left, right) =>
         left.deltaE - right.deltaE
@@ -141,61 +154,70 @@ export function ColorFinderExperience({
 
   const eligibleProducts = useMemo(
     () => scoredProducts.filter((product) =>
-      product.match >= MIN_MATCH_PERCENT
+      product.colorEvidence !== false
+      && product.match >= MIN_MATCH_PERCENT
       && (product.profileConfidence ?? 1) >= MIN_PROFILE_CONFIDENCE
     ),
     [scoredProducts]
   );
 
+  const fallbackProducts = useMemo(
+    () => scoredProducts.filter((product) => product.colorEvidence === false),
+    [scoredProducts]
+  );
+  const fallbackMode = eligibleProducts.length === 0 && fallbackProducts.length > 0;
+  const facetProducts = fallbackMode ? fallbackProducts : eligibleProducts;
+
   const typeCounts = useMemo(() => {
     const counts = new Map<ColorProductType, number>();
-    for (const product of eligibleProducts) {
+    for (const product of facetProducts) {
       if (finish !== "all" && product.finish !== finish) continue;
       if (brand !== "all" && product.brand !== brand) continue;
       counts.set(product.productType, (counts.get(product.productType) ?? 0) + 1);
     }
     return counts;
-  }, [brand, eligibleProducts, finish]);
+  }, [brand, facetProducts, finish]);
 
   const finishCounts = useMemo(() => {
     const counts = new Map<ColorFinish, number>();
-    for (const product of eligibleProducts) {
+    for (const product of facetProducts) {
       if (productType !== "all" && product.productType !== productType) continue;
       if (brand !== "all" && product.brand !== brand) continue;
       counts.set(product.finish, (counts.get(product.finish) ?? 0) + 1);
     }
     return counts;
-  }, [brand, eligibleProducts, productType]);
+  }, [brand, facetProducts, productType]);
 
   const brandCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const product of eligibleProducts) {
+    for (const product of facetProducts) {
       if (!product.brand) continue;
       if (finish !== "all" && product.finish !== finish) continue;
       if (productType !== "all" && product.productType !== productType) continue;
       counts.set(product.brand, (counts.get(product.brand) ?? 0) + 1);
     }
     return counts;
-  }, [eligibleProducts, finish, productType]);
+  }, [facetProducts, finish, productType]);
 
   const matches = useMemo(() => {
-    const filtered = eligibleProducts
+    const source = fallbackMode ? fallbackProducts : eligibleProducts;
+    const filtered = source
       .filter((product) => finish === "all" || product.finish === finish)
       .filter((product) => productType === "all" || product.productType === productType)
       .filter((product) => brand === "all" || product.brand === brand);
 
-    if (sortMode === "price-asc") {
-      return filtered.sort((left, right) => left.priceMinor - right.priceMinor || left.deltaE - right.deltaE);
+    if (sortMode === "price-asc" || (fallbackMode && sortMode === "match")) {
+      return filtered.sort((left, right) => left.priceMinor - right.priceMinor || left.title.localeCompare(right.title, "el"));
     }
     if (sortMode === "price-desc") {
-      return filtered.sort((left, right) => right.priceMinor - left.priceMinor || left.deltaE - right.deltaE);
+      return filtered.sort((left, right) => right.priceMinor - left.priceMinor || left.title.localeCompare(right.title, "el"));
     }
     return filtered.sort((left, right) =>
       left.deltaE - right.deltaE
       || (right.profileConfidence ?? 0) - (left.profileConfidence ?? 0)
       || left.priceMinor - right.priceMinor
     );
-  }, [brand, eligibleProducts, finish, productType, sortMode]);
+  }, [brand, eligibleProducts, fallbackMode, fallbackProducts, finish, productType, sortMode]);
 
   const visibleMatches = matches.slice(0, visibleLimit);
   const catalogueAvailable = catalogueState === "ready" && catalogProducts.length > 0;
@@ -230,7 +252,18 @@ export function ColorFinderExperience({
   }, [pickerHsv, selectedHex]);
 
   useEffect(() => {
-    if (products.length) {
+    const timer = window.setTimeout(() => setCatalogQueryHex(selectedHex), CATALOGUE_COLOR_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [selectedHex]);
+
+  useEffect(() => {
+    if (
+      products.length
+      && !initialProductsUsedRef.current
+      && catalogQueryHex === normalizedInitialColor
+      && catalogReloadKey === 0
+    ) {
+      initialProductsUsedRef.current = true;
       setCatalogProducts(products);
       setCatalogueState("ready");
       return;
@@ -240,7 +273,10 @@ export function ColorFinderExperience({
     let requestActive = true;
     const timeout = window.setTimeout(() => controller.abort(), CATALOGUE_REQUEST_TIMEOUT_MS);
     setCatalogueState("loading");
-    const endpointParams = new URLSearchParams({ category: categoryCode });
+    const endpointParams = new URLSearchParams({
+      category: categoryCode,
+      color: catalogQueryHex.slice(1).toLowerCase()
+    });
     if (vendorId) endpointParams.set("vendor", vendorId);
     if (catalogReloadKey) endpointParams.set("retry", String(catalogReloadKey));
     const endpoint = `/api/color-finder/catalog?${endpointParams.toString()}`;
@@ -258,7 +294,7 @@ export function ColorFinderExperience({
       .then((payload) => {
         if (!requestActive || controller.signal.aborted) return;
         const nextProducts = Array.isArray(payload.products) ? payload.products : [];
-        if (nextProducts.length > 0) setCatalogProducts(nextProducts);
+        setCatalogProducts(nextProducts);
         setCatalogueState(payload.degraded || nextProducts.length === 0 ? "degraded" : "ready");
       })
       .catch((error) => {
@@ -273,7 +309,7 @@ export function ColorFinderExperience({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [catalogReloadKey, categoryCode, products, vendorId]);
+  }, [catalogQueryHex, catalogReloadKey, categoryCode, normalizedInitialColor, products, vendorId]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1104,7 +1140,9 @@ export function ColorFinderExperience({
             <h2 id="color-finder-results">{context.resultsTitle}</h2>
             <p aria-live="polite">
               {visibleMatches.length
-                ? `${context.resultsBody} ${visibleMatches.length} από ${matches.length} επιλογές, ${sortMode === "match" ? "με τα πιο κοντινά χρώματα πρώτα" : sortMode === "price-asc" ? "με χαμηλότερη τιμή πρώτα" : "με υψηλότερη τιμή πρώτα"}.`
+                ? fallbackMode
+                  ? `Βρήκαμε ${visibleMatches.length} από ${matches.length} διαθέσιμα ${context.productPlural}, αλλά το χρώμα τους δεν έχει ακόμη τεκμηριωθεί. Τα εμφανίζουμε χωρίς ποσοστό χρωματικής αντιστοίχισης.`
+                  : `${context.resultsBody} ${visibleMatches.length} από ${matches.length} επιλογές, ${sortMode === "match" ? "με τα πιο κοντινά χρώματα πρώτα" : sortMode === "price-asc" ? "με χαμηλότερη τιμή πρώτα" : "με υψηλότερη τιμή πρώτα"}.`
                 : `Δεν βρήκαμε ακόμα κάτι αρκετά κοντά σε αυτό το χρώμα. Δοκίμασε μια λίγο διαφορετική απόχρωση.`}
             </p>
           </div>
@@ -1122,7 +1160,7 @@ export function ColorFinderExperience({
             <span>ΤΥΠΟΣ</span>
             <div>
               <button type="button" className={productType === "all" ? styles.activeFilter : undefined} onClick={() => setProductType("all")}>
-                Όλα <small>{eligibleProducts.filter((product) =>
+                Όλα <small>{facetProducts.filter((product) =>
                   (finish === "all" || product.finish === finish)
                   && (brand === "all" || product.brand === brand)
                 ).length}</small>
@@ -1138,7 +1176,7 @@ export function ColorFinderExperience({
             <span>ΦΙΝΙΡΙΣΜΑ</span>
             <div>
               <button type="button" className={finish === "all" ? styles.activeFilter : undefined} onClick={() => setFinish("all")}>
-                Όλα <small>{eligibleProducts.filter((product) =>
+                Όλα <small>{facetProducts.filter((product) =>
                   (productType === "all" || product.productType === productType)
                   && (brand === "all" || product.brand === brand)
                 ).length}</small>
@@ -1159,7 +1197,7 @@ export function ColorFinderExperience({
               onChange={(event) => setBrand(event.target.value)}
             >
               <option value="all">
-                Όλες οι μάρκες ({eligibleProducts.filter((product) =>
+                Όλες οι μάρκες ({facetProducts.filter((product) =>
                   (finish === "all" || product.finish === finish)
                   && (productType === "all" || product.productType === productType)
                 ).length})
@@ -1191,20 +1229,29 @@ export function ColorFinderExperience({
                   <div className={styles.productBody}>
                     <div className={styles.brandRow}>
                       <span>{product.brand ?? "KONTA MOY"}</span>
-                      <strong><small>{matchQualityLabel(product.match)}</small></strong>
+                      <strong><small>{product.colorEvidence === false ? "ΧΡΩΜΑ ΣΕ ΕΜΠΛΟΥΤΙΣΜΟ" : matchQualityLabel(product.match)}</small></strong>
                     </div>
                     <h3><Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>{product.title}</Link></h3>
                     {product.brandShade || product.shadeCode ? (
                       <p className={styles.shadeName}>
                         {[product.shadeCode, product.brandShade].filter(Boolean).join(" · ")}
                       </p>
+                    ) : product.colorEvidence === false ? (
+                      <p className={styles.shadeName}>Το χρώμα του προϊόντος δεν έχει ακόμη τεκμηριωθεί.</p>
                     ) : null}
 
                     <div className={styles.swatches}>
-                      <div>
-                        <span style={{ backgroundColor: product.colorHex }} />
-                        <small>ΠΡΟΪΟΝ</small>
-                      </div>
+                      {product.colorEvidence === false ? (
+                        <div>
+                          <span style={{ backgroundColor: "transparent", border: "1px dashed currentColor" }} />
+                          <small>ΧΡΩΜΑ ΑΝΑΜΕΝΕΤΑΙ</small>
+                        </div>
+                      ) : (
+                        <div>
+                          <span style={{ backgroundColor: product.colorHex }} />
+                          <small>ΠΡΟΪΟΝ</small>
+                        </div>
+                      )}
                       <div>
                         <span style={{ backgroundColor: selectedHex }} />
                         <small>ΤΟ ΧΡΩΜΑ ΣΟΥ</small>
@@ -1213,7 +1260,7 @@ export function ColorFinderExperience({
                     </div>
                     <div className={styles.cardFooter}>
                       <div>
-                        <span>{context.showFinishFilter ? FINISH_LABELS[product.finish] : product.colorLabel}</span>
+                        <span>{product.colorEvidence === false ? "Χρώμα σε εμπλουτισμό" : context.showFinishFilter ? FINISH_LABELS[product.finish] : product.colorLabel}</span>
                         <strong>{product.price}</strong>
                       </div>
                       <Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} prefetch={false}>Δες το προϊόν →</Link>
