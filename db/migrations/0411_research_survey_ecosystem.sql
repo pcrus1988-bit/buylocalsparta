@@ -187,9 +187,10 @@ CREATE TABLE public.research_consents (
   statement_version text NOT NULL,
   granted boolean NOT NULL,
   occurred_at timestamptz NOT NULL DEFAULT now(),
-  source text NOT NULL DEFAULT 'survey_ui',
-  UNIQUE (response_id, consent_kind)
+  source text NOT NULL DEFAULT 'survey_ui'
 );
+CREATE INDEX research_consents_response_kind_time_idx
+  ON public.research_consents(response_id, consent_kind, occurred_at DESC, id DESC);
 
 CREATE TABLE public.research_answers (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -394,6 +395,14 @@ $$;
 CREATE TRIGGER research_answers_mutable_only_while_in_progress
 BEFORE INSERT OR UPDATE OR DELETE ON public.research_answers
 FOR EACH ROW EXECUTE FUNCTION public.research_guard_answer_mutation();
+
+CREATE TRIGGER research_invite_events_append_only
+BEFORE UPDATE OR DELETE ON public.research_invite_events
+FOR EACH ROW EXECUTE FUNCTION public.prevent_history_mutation();
+
+CREATE TRIGGER research_consents_append_only
+BEFORE UPDATE OR DELETE ON public.research_consents
+FOR EACH ROW EXECUTE FUNCTION public.prevent_history_mutation();
 
 CREATE OR REPLACE FUNCTION public.research_guard_locked_instrument()
 RETURNS trigger
