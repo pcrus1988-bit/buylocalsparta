@@ -1,3 +1,4 @@
+import { catalogColorMatches, resolveCatalogColor } from "@buy-local-sparta/core";
 import { unstable_cache } from "next/cache";
 import type { CatalogCard } from "../../../../../lib/catalog-view";
 import { decodeCatalogSizeGroup } from "../../../../../lib/catalog-size";
@@ -56,7 +57,7 @@ function localMatches(product: CatalogCard, context: VendorDropshipFacetContext,
   if (availableOnly && !product.available) return false;
   if (context.categories?.length && !context.categories.includes(product.categoryCode)) return false;
   if (context.brand?.trim() && normalized(product.brand) !== normalized(context.brand)) return false;
-  if (context.color?.trim() && normalized(product.color) !== normalized(context.color)) return false;
+  if (context.color?.trim() && !catalogColorMatches(product.color, context.color)) return false;
   if (context.sizes?.length) {
     const sizes = new Set((product.sizes ?? []).map((value) => normalized(value)));
     if (!context.sizes.some((value) => sizes.has(normalized(value)))) return false;
@@ -104,7 +105,13 @@ function localFacets(products: readonly CatalogCard[]): VendorDropshipFacets {
     total: products.length,
     categories: facet(products.map((product) => ({ value: product.categoryCode, label: product.categoryLabel ?? product.categoryCode }))),
     brands: facet(products.map((product) => ({ value: product.brand, label: product.brand }))),
-    colors: facet(products.map((product) => ({ value: product.color, label: product.color }))),
+    colors: facet(products.map((product) => {
+      const resolved = resolveCatalogColor(product.color);
+      return {
+        value: resolved?.key ?? product.color,
+        label: resolved?.displayNameEl ?? product.color
+      };
+    })),
     sizes: facet(products.flatMap((product) => (product.sizes ?? []).map((size) => ({ value: size, label: size })))),
     fits: facet(products.map((product) => ({ value: product.fit, label: product.fit }))),
     materials: []
@@ -216,7 +223,7 @@ const getCachedOptionalFacets = unstable_cache(
       vendorId,
       JSON.parse(serializedContext) as VendorDropshipFacetContext
     ),
-  ["vendor-catalog-contextual-facets-v2"],
+  ["vendor-catalog-contextual-facets-v3"],
   { revalidate: 30 }
 );
 
