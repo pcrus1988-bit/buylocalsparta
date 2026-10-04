@@ -88,7 +88,7 @@ export async function POST(request: Request) {
     } else {
       await createVendorProductDraft(principal, common);
     }
-    return Response.json(await vendorCatalogWorkspace(principal));
+    return Response.json(await vendorCatalogWorkspace(principal, { loadCatalogProducts: false }));
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "catalog_create_failed" }, { status: 400 });
   }
