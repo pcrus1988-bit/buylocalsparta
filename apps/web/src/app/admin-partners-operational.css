@@ -204,6 +204,104 @@
   line-height: 1.45;
 }
 
+.gemi-group-section {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.gemi-group-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gemi-group-section-head > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.gemi-group-section-head strong {
+  color: var(--dash-navy);
+  font-size: 11px;
+}
+
+.gemi-group-section-head small,
+.gemi-group-loading {
+  color: var(--dash-muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.gemi-group-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gemi-group-option {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid var(--dash-line);
+  border-radius: 11px;
+  background: rgba(255,255,255,.58);
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+}
+
+.gemi-group-option:hover {
+  background: #fffdf8;
+}
+
+.gemi-group-option.selected {
+  border-color: var(--dash-gold);
+  background: #fffaf0;
+  box-shadow: inset 0 0 0 1px rgba(188, 137, 52, .16);
+}
+
+.gemi-group-option input {
+  width: 17px;
+  height: 17px;
+  margin: 1px 0 0;
+}
+
+.gemi-group-option > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.gemi-group-option strong {
+  color: var(--dash-navy);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.gemi-group-option small {
+  color: var(--dash-muted);
+  font-size: 8.5px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.gemi-group-option em {
+  color: var(--dash-gold);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.gemi-match-kads {
+  max-height: 4.4em;
+  overflow: hidden;
+}
+
 .gemi-filter-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.65fr) minmax(180px, .7fr) minmax(180px, .8fr);
@@ -352,7 +450,7 @@
 
 .gemi-export-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 9px;
   margin-top: 14px;
 }
@@ -433,6 +531,7 @@
 }
 
 @media (max-width: 900px) {
+  .gemi-group-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .gemi-filter-grid { grid-template-columns: 1fr; }
   .gemi-active-toggle { grid-column: auto; max-width: none; }
   .gemi-export-summary { grid-template-columns: 1fr; }
@@ -442,12 +541,15 @@
 
 @media (max-width: 620px) {
   .gemi-export-card-head,
+  .gemi-group-section-head,
   .gemi-download-bar,
   .gemi-export-actions,
   .gemi-kad-input-row {
     align-items: stretch;
     flex-direction: column;
   }
+
+  .gemi-group-grid { grid-template-columns: 1fr; }
 
   .gemi-kad-results {
     position: static;

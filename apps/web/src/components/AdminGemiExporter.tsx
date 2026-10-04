@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 
 type Activity = Readonly<{ id: string; descr: string; descrEn?: string; kadVersion?: string }>;
+type ActivityGroup = Readonly<{ id: string; label: string; description: string; activityCount: number }>;
 type Prefecture = Readonly<{ id: string; descr: string; descrEn?: string }>;
 type Municipality = Readonly<{ id: string; prefectureId: string; descr: string; descrEn?: string }>;
 type Metadata = Readonly<{
   activities: readonly Activity[];
+  activityGroups: readonly ActivityGroup[];
   prefectures: readonly Prefecture[];
   municipalities: readonly Municipality[];
   fetchedAt: number;
@@ -23,8 +25,16 @@ type PreviewRow = Readonly<{
   postcode: string;
   email: string;
   website: string;
+  matchedActivities: string;
+  matchedGroups: string;
 }>;
-type Preview = Readonly<{ totalCount: number; returned: number; withEmail: number; rows: readonly PreviewRow[] }>;
+type Preview = Readonly<{
+  totalCount: number;
+  returned: number;
+  withEmail: number;
+  activityCount: number;
+  rows: readonly PreviewRow[];
+}>;
 
 function normalizeSearch(value: string): string {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("el-GR");
@@ -68,6 +78,7 @@ export function AdminGemiExporter() {
   const [metadataError, setMetadataError] = useState("");
   const [kadQuery, setKadQuery] = useState("");
   const [selectedActivity, setSelectedActivity] = useState<Activity>();
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [prefectureId, setPrefectureId] = useState("");
   const [municipalityId, setMunicipalityId] = useState("");
   const [activeOnly, setActiveOnly] = useState(true);
@@ -104,13 +115,21 @@ export function AdminGemiExporter() {
 
   const selectedPrefecture = metadata?.prefectures.find((item) => item.id === prefectureId);
   const selectedMunicipality = municipalities.find((item) => item.id === municipalityId);
+  const selectedGroups = useMemo(
+    () => metadata?.activityGroups.filter((group) => selectedGroupIds.includes(group.id)) ?? [],
+    [metadata, selectedGroupIds]
+  );
+  const hasSelection = Boolean(selectedActivity || selectedGroupIds.length);
+  const selectionSummary = [
+    ...selectedGroups.map((group) => group.label),
+    ...(selectedActivity ? [`ΚΑΔ ${selectedActivity.id}`] : [])
+  ].join(" · ");
 
   function queryString() {
-    if (!selectedActivity) return "";
-    const query = new URLSearchParams({
-      activity: selectedActivity.id,
-      activeOnly: String(activeOnly)
-    });
+    if (!hasSelection) return "";
+    const query = new URLSearchParams({ activeOnly: String(activeOnly) });
+    if (selectedActivity) query.set("activity", selectedActivity.id);
+    if (selectedGroupIds.length) query.set("groups", selectedGroupIds.join(","));
     if (prefectureId) query.set("prefecture", prefectureId);
     if (municipalityId) query.set("municipality", municipalityId);
     return query.toString();
@@ -147,6 +166,20 @@ export function AdminGemiExporter() {
     setPreview(undefined);
   }
 
+  function toggleGroup(groupId: string) {
+    setSelectedGroupIds((current) => current.includes(groupId)
+      ? current.filter((id) => id !== groupId)
+      : [...current, groupId]);
+    setPreview(undefined);
+    setPreviewError("");
+  }
+
+  function resetGroups() {
+    setSelectedGroupIds([]);
+    setPreview(undefined);
+    setPreviewError("");
+  }
+
   const downloadQuery = queryString();
 
   return <div className="gemi-export-workspace">
@@ -154,17 +187,41 @@ export function AdminGemiExporter() {
       <div className="gemi-export-card-head">
         <div>
           <span>1 · Κριτήρια ΓΕΜΗ</span>
-          <strong>Επίλεξε ΚΑΔ και περιοχή</strong>
-          <small>Τα φίλτρα προέρχονται απευθείας από τα επίσημα metadata του ΓΕΜΗ. Για prospecting εμφανίζονται μόνο οι τρέχοντες ΚΑΔ 2026.</small>
+          <strong>Επίλεξε ομάδα ΚΑΔ ή συγκεκριμένο ΚΑΔ και περιοχή</strong>
+          <small>Οι ομάδες μεταφράζονται live σε τρέχοντες ΚΑΔ 2026 από τα επίσημα metadata του ΓΕΜΗ. Μπορείς να επιλέξεις πολλές ομάδες και προαιρετικά να προσθέσεις έναν συγκεκριμένο ΚΑΔ.</small>
         </div>
         {metadata && <span className="status-pill">{metadata.activities.length.toLocaleString("el-GR")} τρέχοντες ΚΑΔ</span>}
       </div>
 
       {metadataError && <div className="workspace-inline-note form-error" role="alert">{metadataError}</div>}
 
+      <div className="gemi-group-section">
+        <div className="gemi-group-section-head">
+          <div>
+            <strong>Ομάδες ΚΑΔ</strong>
+            <small>Πολλαπλή επιλογή · οι ομάδες λειτουργούν ως ένωση (ANY). Τα αποτελέσματα αποδιπλοποιούνται από το ίδιο το ΓΕΜΗ.</small>
+          </div>
+          {selectedGroupIds.length > 0 && <button className="button button-secondary" type="button" onClick={resetGroups}>Καθαρισμός ομάδων</button>}
+        </div>
+        <div className="gemi-group-grid" aria-label="Ομάδες ΚΑΔ">
+          {metadata?.activityGroups.map((group) => {
+            const checked = selectedGroupIds.includes(group.id);
+            return <label className={`gemi-group-option${checked ? " selected" : ""}`} key={group.id}>
+              <input type="checkbox" checked={checked} onChange={() => toggleGroup(group.id)} />
+              <span>
+                <strong>{group.label}</strong>
+                <small>{group.description}</small>
+                <em>{group.activityCount.toLocaleString("el-GR")} ΚΑΔ 2026</em>
+              </span>
+            </label>;
+          })}
+          {!metadata && !metadataError && <div className="gemi-group-loading">Φόρτωση ομάδων ΚΑΔ…</div>}
+        </div>
+      </div>
+
       <div className="gemi-filter-grid">
         <label className="gemi-kad-picker">
-          <span>ΚΑΔ</span>
+          <span>Συγκεκριμένος ΚΑΔ <small>(προαιρετικά)</small></span>
           <div className="gemi-kad-input-row">
             <input
               value={kadQuery}
@@ -176,7 +233,6 @@ export function AdminGemiExporter() {
               placeholder="Γράψε κωδικό ή περιγραφή ΚΑΔ…"
               disabled={!metadata}
               autoComplete="off"
-              required
             />
             {selectedActivity && <button className="button button-secondary" type="button" onClick={resetActivity}>Αλλαγή</button>}
           </div>
@@ -234,10 +290,10 @@ export function AdminGemiExporter() {
       </div>
 
       <div className="gemi-export-actions">
-        <button className="button" type="submit" disabled={!selectedActivity || busy}>
+        <button className="button" type="submit" disabled={!hasSelection || busy}>
           {busy ? "Αναζήτηση…" : "Προεπισκόπηση αποτελεσμάτων"}
         </button>
-        <span>{selectedPrefecture ? selectedMunicipality ? `${selectedMunicipality.descr}, ${selectedPrefecture.descr}` : selectedPrefecture.descr : "Όλη η Ελλάδα"}</span>
+        <span>{selectionSummary || "Επίλεξε ομάδα ή ΚΑΔ"} · {selectedPrefecture ? selectedMunicipality ? `${selectedMunicipality.descr}, ${selectedPrefecture.descr}` : selectedPrefecture.descr : "Όλη η Ελλάδα"}</span>
       </div>
       {previewError && <div className="workspace-inline-note form-error" role="alert">{previewError}</div>}
     </form>
@@ -256,14 +312,15 @@ export function AdminGemiExporter() {
         <span>Θα δεις το συνολικό πλήθος πριν ξεκινήσεις το πλήρες CSV export.</span>
       </div> : <>
         <div className="gemi-export-summary">
-          <div><span>Σύνολο</span><strong>{preview.totalCount.toLocaleString("el-GR")}</strong><small>matching businesses</small></div>
+          <div><span>Σύνολο</span><strong>{preview.totalCount.toLocaleString("el-GR")}</strong><small>μοναδικές επιχειρήσεις</small></div>
+          <div><span>ΚΑΔ φίλτρου</span><strong>{preview.activityCount.toLocaleString("el-GR")}</strong><small>ακριβείς τρέχοντες κωδικοί</small></div>
           <div><span>Preview</span><strong>{preview.returned}</strong><small>πρώτες εγγραφές</small></div>
           <div><span>Email στο preview</span><strong>{preview.withEmail}</strong><small>δημοσιευμένα στο ΓΕΜΗ</small></div>
         </div>
 
         <div className="gemi-download-bar">
           <div>
-            <strong>{selectedActivity?.id}</strong>
+            <strong>{selectionSummary || "Επιλογή ΚΑΔ"}</strong>
             <span>{selectedMunicipality?.descr ?? selectedPrefecture?.descr ?? "Όλη η Ελλάδα"}</span>
           </div>
           {preview.totalCount > 0
@@ -279,7 +336,11 @@ export function AdminGemiExporter() {
             <span><strong>{row.legalName || row.tradingNames || "—"}</strong><small>ΓΕΜΗ {row.gemiNumber || "—"} · ΑΦΜ {row.afm || "—"}</small></span>
             <span><strong>{row.municipality || row.city || "—"}</strong><small>{row.postcode || row.prefecture || "—"}</small></span>
             <span><strong>{row.email || "—"}</strong><small>{row.website || "χωρίς website"}</small></span>
-            <span><span className="status-pill">{row.status || "—"}</span></span>
+            <span>
+              <span className="status-pill">{row.status || "—"}</span>
+              {row.matchedGroups && <small>{row.matchedGroups}</small>}
+              {row.matchedActivities && <small className="gemi-match-kads">{row.matchedActivities}</small>}
+            </span>
           </div>)}
         </div>}
       </>}

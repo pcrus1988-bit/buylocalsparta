@@ -24,7 +24,7 @@ export default async function Page() {
       <div>
         <div className="eyebrow">Partners · ΓΕΜΗ</div>
         <h1>ΓΕΜΗ Business Export</h1>
-        <p className="lead">Αναζήτησε επιχειρήσεις με επίσημο ΚΑΔ και γεωγραφικό φίλτρο ΓΕΜΗ, έλεγξε το πλήθος και κατέβασε όλα τα business-level δημόσια στοιχεία σε CSV.</p>
+        <p className="lead">Αναζήτησε επιχειρήσεις με ομάδες ΚΑΔ ή συγκεκριμένο ΚΑΔ και γεωγραφικό φίλτρο ΓΕΜΗ, έλεγξε το πλήθος και κατέβασε όλα τα business-level δημόσια στοιχεία σε CSV.</p>
       </div>
     </section>
 
@@ -37,7 +37,7 @@ export default async function Page() {
 
       <WorkspaceSectionHeading
         eyebrow="Official OpenData"
-        title="ΚΑΔ + περιοχή → πλήρες CSV"
+        title="Ομάδες ΚΑΔ / ΚΑΔ + περιοχή → πλήρες CSV"
         note="Τα φίλτρα και τα αποτελέσματα διαβάζονται live από το επίσημο ΓΕΜΗ OpenData API. Η λειτουργία δεν δημιουργεί αυτόματα vendor ή prospect records."
       />
       <AdminGemiExporter />
