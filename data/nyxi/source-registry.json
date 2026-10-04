@@ -1,5 +1,5 @@
 {
-  "version": 10,
+  "version": 11,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -3845,6 +3845,210 @@
         {
           "type": "brand",
           "displayName": "Deborah Lippmann",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "essie_gel_couture_sheers",
+      "publisher": "essie",
+      "title": "Gel Couture Sheers",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.essie.com/nail-polish/longwear/sheers",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "essie",
+        "line": "gel couture",
+        "scope": "longwear_colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "essie",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "essie_faq",
+      "publisher": "essie",
+      "title": "essie FAQ",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.essie.com/faq",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "essie",
+        "scope": "product_system_faq"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "essie",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gucci_nail_polish_fr",
+      "publisher": "Gucci",
+      "title": "Vernis à Ongles France",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "fr",
+      "canonicalUrl": "https://www.gucci.com/fr/fr/st/capsule/beauty-nailpolish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Gucci Beauty",
+        "line": "Vernis à Ongles",
+        "scope": "regional_nail_polish_catalogue",
+        "market": "FR/EU"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Gucci Beauty",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gucci_nail_polish_uk",
+      "publisher": "Gucci",
+      "title": "Vernis à Ongles UK",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.gucci.com/uk/en_gb/st/capsule/beauty-nailpolish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Gucci Beauty",
+        "line": "Vernis à Ongles",
+        "scope": "regional_nail_polish_catalogue",
+        "market": "GB"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Gucci Beauty",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gucci_nail_polish_au",
+      "publisher": "Gucci",
+      "title": "Vernis à Ongles Australia",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "AU",
+      "language": "en",
+      "canonicalUrl": "https://www.gucci.com/au/en_au/st/capsule/beauty-nailpolish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Gucci Beauty",
+        "line": "Vernis à Ongles",
+        "scope": "regional_nail_polish_catalogue",
+        "market": "AU"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Gucci Beauty",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "didier_lab_uv_gel_polishes",
+      "publisher": "Didier Lab",
+      "title": "UV Gel Polishes",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://didierlab.org/en/21-uv-gel-polishes",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Didier Lab",
+        "scope": "uv_gel_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Didier Lab",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "didier_lab_sets",
+      "publisher": "Didier Lab",
+      "title": "Nail Sets",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://didierlab.org/en/28-sets",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Didier Lab",
+        "scope": "sets_and_starter_kits"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Didier Lab",
           "relation": "covers"
         }
       ]
