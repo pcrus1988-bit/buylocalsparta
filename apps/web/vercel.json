@@ -57,6 +57,10 @@
       "schedule": "37 4 * * *"
     },
     {
+      "path": "/api/cron/seo-url-registry",
+      "schedule": "53 4 * * *"
+    },
+    {
       "path": "/api/cron/seo-gsc-diagnostics",
       "schedule": "47 */6 * * *"
     },
