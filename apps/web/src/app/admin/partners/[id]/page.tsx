@@ -5,6 +5,7 @@ import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeade
 import { VendorAgreementForm } from "../../../../components/VendorAgreementForm";
 import { VendorAgreementRenewalForm } from "../../../../components/VendorAgreementRenewalForm";
 import { VendorToggleControl } from "../../../../components/VendorToggleControl";
+import { VendorImpersonationControl } from "../../../../components/VendorImpersonationControl";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "../../../../components/WorkspacePagePrimitives";
 import { adminOrdersReturnsWorkspace } from "../../../../lib/admin-governance-runtime";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
@@ -30,6 +31,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const canOrders = hasAdminPermission(principal, "fulfilment.read");
   const canFinance = hasAdminPermission(principal, "finance.read");
   const canFinanceWrite = hasAdminPermission(principal, "finance.write");
+  const canImpersonate = principal.roles.includes("super_admin");
   const [orderData, sla] = await Promise.all([
     canOrders ? adminOrdersReturnsWorkspace(principal).catch(() => undefined) : undefined,
     canFinance ? adminSlaPolicyWorkspace().catch(() => undefined) : undefined
@@ -60,6 +62,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <div className="hero-actions">
           <Link className="text-link" href="/admin/vendors">← Partner directory</Link>
           <Link className="button button-secondary" href={`/admin/partners/${encodeURIComponent(shop.id)}/catalogue`}>Catalogue / DEMO</Link>
+          {canImpersonate && <VendorImpersonationControl vendorId={shop.id} vendorName={shop.tradingName} csrfToken={managed.csrfToken} />}
           {shop.applicationId && <Link className="text-link" href="/admin/prospects">Onboarding →</Link>}
           {agreementExpired && <Link className="button button-secondary" href="#partner-renewal">Renew agreement</Link>}
         </div>
