@@ -1,7 +1,7 @@
 import { previewVendorProductCsv, type SessionPrincipal } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { postgresVendorRuntimeEnabled } from "./vendor-runtime";
-import { vendorCatalogControlWorkspace } from "./vendor-catalog-control-service";
+import { vendorCatalogControlWorkspace, type VendorCatalogSearchInput } from "./vendor-catalog-control-service";
 import { mediaUploadMode } from "./media-upload-service";
 import {
   createVendorProductDraft as memoryCreateDraft,
@@ -42,10 +42,10 @@ function isAdviceNotification(item: { title: string }) {
   return !item.title.startsWith("vendor.order_") && !item.title.startsWith("vendor.sla_");
 }
 
-export async function vendorCatalogWorkspace(principal: SessionPrincipal) {
+export async function vendorCatalogWorkspace(principal: SessionPrincipal, search: VendorCatalogSearchInput = {}) {
   const [catalog, controls] = await Promise.all([
     postgresVendorRuntimeEnabled() ? db().catalogWorkspace(principal) : Promise.resolve(memoryCatalogWorkspace(principal)),
-    vendorCatalogControlWorkspace(principal)
+    vendorCatalogControlWorkspace(principal, search)
   ]);
   return { ...catalog, ...controls };
 }
