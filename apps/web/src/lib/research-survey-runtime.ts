@@ -251,6 +251,9 @@ export async function savePublicResearchSurvey(input: Readonly<{
   try {
     await client.query("BEGIN");
     const invite = await invitationRow(client, input.slug, input.token);
+    if (!["pilot", "fielding"].includes(text(invite.study_status)) || !["locked", "fielding"].includes(text(invite.instrument_status))) {
+      throw new Error("SURVEY_NOT_OPEN");
+    }
     if (["completed", "expired", "suppressed"].includes(text(invite.invite_status))) {
       throw new Error(text(invite.invite_status) === "completed" ? "SURVEY_ALREADY_COMPLETED" : "SURVEY_INVITE_CLOSED");
     }
