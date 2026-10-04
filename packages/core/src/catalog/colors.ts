@@ -144,6 +144,18 @@ function colorSearchTokens(entry: CatalogColorIndexEntry): readonly string[] {
     .sort((left, right) => right.length - left.length);
 }
 
+/** True when two source colour values resolve to the same shopper-facing colour. */
+export function catalogColorMatches(left: unknown, right: unknown): boolean {
+  if (typeof left !== "string" || typeof right !== "string") return false;
+  const leftText = left.trim();
+  const rightText = right.trim();
+  if (!leftText || !rightText) return false;
+  const leftResolved = resolveCatalogColor(leftText);
+  const rightResolved = resolveCatalogColor(rightText);
+  if (leftResolved && rightResolved) return leftResolved.key === rightResolved.key;
+  return normalizeCatalogColorText(leftText) === normalizeCatalogColorText(rightText);
+}
+
 /**
  * Returns the normalized values that may represent one shopper-facing colour in
  * persisted catalogue projections. Storefront filters use these aliases so source
