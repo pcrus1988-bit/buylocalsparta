@@ -280,7 +280,7 @@ async function readUnfilteredLiveVendorDropshipFacets(vendorId: string): Promise
 
 const cachedUnfilteredLiveVendorDropshipFacets = unstable_cache(
   readUnfilteredLiveVendorDropshipFacets,
-  ["vendor-dropship-unfiltered-live-facets-v1"],
+  ["vendor-dropship-unfiltered-live-facets-v2"],
   { revalidate: 15 }
 );
 
