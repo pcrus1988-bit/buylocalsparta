@@ -187,7 +187,7 @@ test("Symphonya Vercel stock cron completes full freshness cycles inside the TTL
   const pipeline = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-pipeline");
   const materialization = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-materialization");
   assert.equal(catalogue?.schedule, "2 * * * *");
-  assert.equal(stock?.schedule, "*/5 * * * *");
+  assert.equal(stock?.schedule, "5 */12 * * *");
   assert.equal(pipeline?.schedule, "28 * * * *");
   assert.equal(materialization, undefined);
 });
@@ -236,7 +236,7 @@ test("Symphonya stock cron uses concurrent cursor bursts while retaining manual 
   const route = readFileSync(new URL("../src/app/api/cron/symphonya-stock/route.ts", import.meta.url), "utf8");
   const runtime = readFileSync(new URL("../src/lib/symphonya-stock-sync-runtime.ts", import.meta.url), "utf8");
   assert.match(route, /PRIORITY_REFRESH_WINDOW_MINUTES/);
-  assert.match(route, /FULL_CURSOR_MAX_PAGES = 2/);
+  assert.match(route, /FULL_CURSOR_MAX_PAGES = 8/);
   assert.match(route, /PRIORITY_BATCH_LIMIT = 200/);
   assert.match(route, /runSymphonyaStockSyncBurst\(FULL_CURSOR_MAX_PAGES\)/);
   assert.match(route, /executionMode === "cursor"/);
