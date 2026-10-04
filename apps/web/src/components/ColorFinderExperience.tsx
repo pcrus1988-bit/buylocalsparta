@@ -44,7 +44,8 @@ const MIN_CROP_RATIO = 0.08;
 const MAX_CROP_RATIO = 0.65;
 const MIN_MATCH_PERCENT = 49;
 const MIN_PROFILE_CONFIDENCE = 0.5;
-const CATALOGUE_REQUEST_TIMEOUT_MS = 7_000;
+const CATALOGUE_REQUEST_TIMEOUT_MS = 12_000;
+const CATALOGUE_COLOR_DEBOUNCE_MS = 180;
 
 const DEFAULT_STUDIO_COLORS: Readonly<Record<ColorFinderContext["key"], string>> = {
   nails: "#B52E2E",
@@ -80,25 +81,29 @@ export function ColorFinderExperience({
   products,
   context,
   categoryCode,
-  vendorId
+  vendorId,
+  initialColorHex
 }: {
   products: readonly ColorFinderProduct[];
   context: ColorFinderContext;
   categoryCode: string;
   vendorId?: string;
+  initialColorHex?: string;
 }) {
+  const normalizedInitialColor = normalizeHex(initialColorHex ?? "") ?? DEFAULT_STUDIO_COLORS[context.key];
   const [catalogProducts, setCatalogProducts] = useState<readonly ColorFinderProduct[]>(products);
   const [catalogueState, setCatalogueState] = useState<"loading" | "ready" | "degraded">(
     products.length ? "ready" : "loading"
   );
   const [catalogReloadKey, setCatalogReloadKey] = useState(0);
-  const [selectedHex, setSelectedHex] = useState(() => DEFAULT_STUDIO_COLORS[context.key]);
+  const [selectedHex, setSelectedHex] = useState(() => normalizedInitialColor);
+  const [catalogQueryHex, setCatalogQueryHex] = useState(() => normalizedInitialColor);
   const [finish, setFinish] = useState<FinishFilter>("all");
   const [productType, setProductType] = useState<ProductTypeFilter>("all");
   const [brand, setBrand] = useState("all");
   const [sortMode, setSortMode] = useState<SortMode>("match");
   const [selectorMode, setSelectorMode] = useState<SelectorMode>("picker");
-  const [pickerHsv, setPickerHsv] = useState<HsvColor>(() => hexToHsv(DEFAULT_STUDIO_COLORS[context.key]));
+  const [pickerHsv, setPickerHsv] = useState<HsvColor>(() => hexToHsv(normalizedInitialColor));
   const [urlReady, setUrlReady] = useState(false);
   const [shareStatus, setShareStatus] = useState<"idle" | "copied">("idle");
   const [visibleLimit, setVisibleLimit] = useState(24);
@@ -119,6 +124,7 @@ export function ColorFinderExperience({
   const cropDragRef = useRef(false);
   const pickerDragRef = useRef(false);
   const photoSpotDragRef = useRef(false);
+  const initialProductsUsedRef = useRef(false);
 
   const indexedProducts = useMemo(
     () => catalogProducts.map((product) => ({ product, lab: hexToLab(product.colorHex) })),
@@ -230,7 +236,18 @@ export function ColorFinderExperience({
   }, [pickerHsv, selectedHex]);
 
   useEffect(() => {
-    if (products.length) {
+    const timer = window.setTimeout(() => setCatalogQueryHex(selectedHex), CATALOGUE_COLOR_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [selectedHex]);
+
+  useEffect(() => {
+    if (
+      products.length
+      && !initialProductsUsedRef.current
+      && catalogQueryHex === normalizedInitialColor
+      && catalogReloadKey === 0
+    ) {
+      initialProductsUsedRef.current = true;
       setCatalogProducts(products);
       setCatalogueState("ready");
       return;
@@ -240,7 +257,10 @@ export function ColorFinderExperience({
     let requestActive = true;
     const timeout = window.setTimeout(() => controller.abort(), CATALOGUE_REQUEST_TIMEOUT_MS);
     setCatalogueState("loading");
-    const endpointParams = new URLSearchParams({ category: categoryCode });
+    const endpointParams = new URLSearchParams({
+      category: categoryCode,
+      color: catalogQueryHex.slice(1).toLowerCase()
+    });
     if (vendorId) endpointParams.set("vendor", vendorId);
     if (catalogReloadKey) endpointParams.set("retry", String(catalogReloadKey));
     const endpoint = `/api/color-finder/catalog?${endpointParams.toString()}`;
@@ -258,7 +278,7 @@ export function ColorFinderExperience({
       .then((payload) => {
         if (!requestActive || controller.signal.aborted) return;
         const nextProducts = Array.isArray(payload.products) ? payload.products : [];
-        if (nextProducts.length > 0) setCatalogProducts(nextProducts);
+        setCatalogProducts(nextProducts);
         setCatalogueState(payload.degraded || nextProducts.length === 0 ? "degraded" : "ready");
       })
       .catch((error) => {
@@ -273,7 +293,7 @@ export function ColorFinderExperience({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [catalogReloadKey, categoryCode, products, vendorId]);
+  }, [catalogQueryHex, catalogReloadKey, categoryCode, normalizedInitialColor, products, vendorId]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
