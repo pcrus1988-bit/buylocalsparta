@@ -162,6 +162,7 @@ export type SportFitScoredProduct = SportFitProduct & Readonly<{
   technicalCoverage: number;
   technicalRequirements: readonly SportFitTechnicalRequirement[];
   matchProofs: readonly SportFitMatchProof[];
+  consultationSummary?: string;
   appliedRules: readonly string[];
 }>;
 
@@ -913,6 +914,186 @@ function matchProofsFor(
   return proofs.slice(0, 4);
 }
 
+
+function rawProductText(product: SportFitProduct): string {
+  return [
+    product.title,
+    product.description,
+    product.fit,
+    ...Object.entries(product.attributes ?? {}).flatMap(([key, value]) => [key, value])
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function greekJoin(parts: readonly string[]): string {
+  if (parts.length <= 1) return parts[0] ?? "";
+  if (parts.length === 2) return `${parts[0]} και ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")} και ${parts[parts.length - 1]}`;
+}
+
+function normalizedUseCaseLabel(useCase: SportUseCase | undefined, activity: SportActivity): string {
+  const label = useCase ? USE_CASE_LABELS[useCase] : ACTIVITY_LABELS[activity];
+  return label.toLocaleLowerCase("el-GR");
+}
+
+function consultativeBenefitSentence(answers: SportFitAnswers): string {
+  if (answers.useCase === "all_day_standing") {
+    return "Γι’ αυτό το προφίλ του δίνει περισσότερη έμφαση στην άνεση για πολύωρη χρήση.";
+  }
+  if (
+    answers.activity === "walking"
+    || answers.useCase === "daily_walking"
+    || answers.useCase === "travel_walking"
+  ) {
+    return "Γι’ αυτό είναι πιο σχετικό για άνετο, επαναλαμβανόμενο περπάτημα.";
+  }
+  if (answers.useCase === "long_run" || answers.distance === "long") {
+    return "Γι’ αυτό είναι πιο σχετικό όταν ζητάς άνεση και συνέπεια σε μεγαλύτερη διάρκεια.";
+  }
+  if (answers.useCase === "speed_training" || answers.useCase === "race_day" || answers.runnerNeed === "speed") {
+    return "Γι’ αυτό το τεχνικό προφίλ του είναι πιο κοντά στην ανάγκη σου για ταχύτητα.";
+  }
+  if (answers.activity === "gym" && answers.gymTrainingType === "strength") {
+    return "Γι’ αυτό ταιριάζει περισσότερο σε προπόνηση που ζητά σταθερή βάση.";
+  }
+  if (answers.activity === "hiking") {
+    return "Γι’ αυτό είναι πιο σχετικό για το έδαφος και τη χρήση που επέλεξες.";
+  }
+  if (["basketball", "tennis", "padel", "volleyball", "handball", "badminton"].includes(answers.activity)) {
+    return "Γι’ αυτό το τεχνικό προφίλ του είναι πιο κοντά στις απαιτήσεις του court sport που επέλεξες.";
+  }
+  return "Η επιλογή βασίζεται σε χαρακτηριστικά του ίδιου του προϊόντος και όχι μόνο στην κατηγορία του.";
+}
+
+function directSourceFeaturePhrases(product: SportFitProduct): readonly string[] {
+  const raw = rawProductText(product);
+  const text = normalize(raw);
+  const features: string[] = [];
+
+  function add(value: string) {
+    if (!features.includes(value)) features.push(value);
+  }
+
+  // These signals are explanatory only. They never change eligibility or score:
+  // the recommendation engine still uses governed Sport & Fit facts/rules.
+  if (text.includes("cloudfoam")) add("ενδιάμεση σόλα Cloudfoam");
+  else if (text.includes("fresh foam")) add("τεχνολογία Fresh Foam");
+  else if (text.includes("fuelcell")) add("τεχνολογία FuelCell");
+  else if (text.includes("lightstrike")) add("αφρό Lightstrike");
+  else if (text.includes("boost")) add("τεχνολογία BOOST");
+  else if (text.includes("cloudtec")) add("τεχνολογία CloudTec");
+  else if (text.includes("pwrrun")) add("αφρό PWRRUN");
+  else if (text.includes("air zoom")) add("τεχνολογία Air Zoom");
+  else if (text.includes("nike react") || text.includes("react foam")) add("αφρό React");
+  else if (text.includes("gel ")) add("τεχνολογία GEL");
+
+  if (text.includes("memory foam")) add("πάτο memory foam");
+  if (
+    text.includes("απορροφηση κραδασμων")
+    || text.includes("shock absorption")
+    || text.includes("impact absorption")
+  ) add("τεκμηριωμένη απορρόφηση κραδασμών");
+
+  if (
+    (text.includes("εγκοπ") && (text.includes("ελαστικ") || text.includes("ευκαμπ")))
+    || text.includes("flex grooves")
+  ) add("εύκαμπτη σόλα με εγκοπές");
+
+  if (text.includes("στηριξη στην καμαρα") || text.includes("arch support")) {
+    add("στήριξη καμάρας");
+  }
+
+  if (text.includes("gore tex") || text.includes("gore-tex")) add("μεμβράνη GORE-TEX");
+  if (text.includes("continental") && (text.includes("outsole") || text.includes("σολ"))) {
+    add("εξωτερική σόλα Continental");
+  }
+
+  return features;
+}
+
+function structuredConsultationFeatures(
+  product: SportFitProduct,
+  answers: SportFitAnswers,
+  matchedSize: string | undefined
+): readonly string[] {
+  const knowledge = usableKnowledge(product);
+  if (!knowledge) return [];
+
+  const features: string[] = [];
+  function add(value: string) {
+    if (!features.includes(value)) features.push(value);
+  }
+
+  const width = normalize(knowledge.widthProfile);
+  if (width === "wide") add("φαρδιά εφαρμογή");
+  else if (width === "extra wide") add("πολύ φαρδιά εφαρμογή");
+  else if (width === "narrow") add("στενότερη εφαρμογή");
+
+  const cushioning = normalize(knowledge.cushioningLevel);
+  if (cushioning === "high" || cushioning === "max") add("αυξημένη απορρόφηση κραδασμών");
+  else if (cushioning === "medium") add("μεσαία απορρόφηση κραδασμών");
+
+  const support = normalize(knowledge.supportLevel);
+  if (support === "guided" || support === "stability" || support === "max support") {
+    add("ενισχυμένη στήριξη");
+  } else if (support === "neutral") {
+    add("neutral στήριξη");
+  }
+
+  if (typeof knowledge.weightG === "number") {
+    const weight = Math.round(knowledge.weightG);
+    add(weight <= 280 ? `χαμηλό βάρος ${weight} g` : `βάρος ${weight} g`);
+  }
+
+  if (typeof knowledge.dropMm === "number") {
+    add(`διαφορά ύψους (drop) ${knowledge.dropMm} mm`);
+  }
+
+  if (knowledge.plateType) {
+    const plate = humanKnowledgeValue(knowledge.plateType);
+    add(`πλάκα ${plate}`);
+  }
+
+  if (
+    answers.surface
+    && hasKnowledgeMatch(knowledge.surfaces, requestedSurfaceCodes(answers.surface))
+  ) {
+    add(`τεκμηριωμένη χρήση σε ${SURFACE_LABELS[answers.surface].toLocaleLowerCase("el-GR")}`);
+  }
+
+  if (matchedSize && normalize(knowledge.fitLengthProfile) === "true to size") {
+    add("εφαρμογή true-to-size");
+  }
+
+  return features;
+}
+
+function consultationSummaryFor(
+  product: SportFitProduct,
+  answers: SportFitAnswers,
+  role: SportProductRole,
+  matchedSize: string | undefined,
+  matchProofs: readonly SportFitMatchProof[]
+): string | undefined {
+  if (role !== "footwear") return undefined;
+
+  const sourceFeatures = directSourceFeaturePhrases(product);
+  const governedFeatures = structuredConsultationFeatures(product, answers, matchedSize);
+  const combined = [...sourceFeatures, ...governedFeatures].filter((value, index, values) => values.indexOf(value) === index);
+
+  if (!combined.length && !matchProofs.length) return undefined;
+
+  const chosen = combined.slice(0, 4);
+  const use = normalizedUseCaseLabel(answers.useCase, answers.activity);
+
+  if (!chosen.length) {
+    return `Ταιριάζει στην επιλογή σου για ${use}, επειδή η τεκμηριωμένη χρήση και εφαρμογή του συμφωνούν με όσα δήλωσες. ${consultativeBenefitSentence(answers)}`;
+  }
+
+  return `Ταιριάζει στην επιλογή σου για ${use}, επειδή συνδυάζει ${greekJoin(chosen)}. ${consultativeBenefitSentence(answers)}`;
+}
+
 function reasonsFor(
   product: SportFitProduct,
   answers: SportFitAnswers,
@@ -1031,6 +1212,7 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
   const technicalReasons = hardSizeMismatch
     ? ["Δεν υπάρχει το ζητούμενο μέγεθος σε διαθέσιμη παραλλαγή"]
     : ruleEvaluation.reasons;
+  const matchProofs = matchProofsFor(product, answers, role, size.matchedSize, ruleEvaluation.technicalRequirements);
 
   return {
     ...product,
@@ -1042,7 +1224,8 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
     technicalScore: ruleEvaluation.technicalScore,
     technicalCoverage: ruleEvaluation.technicalCoverage,
     technicalRequirements: ruleEvaluation.technicalRequirements,
-    matchProofs: matchProofsFor(product, answers, role, size.matchedSize, ruleEvaluation.technicalRequirements),
+    matchProofs,
+    consultationSummary: consultationSummaryFor(product, answers, role, size.matchedSize, matchProofs),
     appliedRules: [
       ...(stockEligible ? ["stock.positive"] : ["stock.unavailable"]),
       ...(hardSizeMismatch ? ["fit.requested_size_mismatch"] : size.matchedSize ? ["fit.requested_size_match"] : []),
