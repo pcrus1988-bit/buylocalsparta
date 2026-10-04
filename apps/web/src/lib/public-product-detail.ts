@@ -22,6 +22,15 @@ export type PublicProductDetail = Readonly<{
   technicalAttributes: readonly PublicTechnicalAttribute[];
   variantFamilyId?: string;
   variantGroupSize: number;
+  colorProfile?: Readonly<{
+    canonicalHex: string;
+    colorFamily?: string;
+    colorDetail?: string;
+    brandShadeName?: string;
+    shadeCode?: string;
+    precision?: "exact" | "canonicalized" | "family_estimate";
+    confidence?: number;
+  }>;
 }>;
 
 type ProductDetailRow = SqlRow & {
@@ -35,6 +44,13 @@ type ProductDetailRow = SqlRow & {
   source_image_url: string | null;
   source_code: string | null;
   source_website: string | null;
+  color_profile_hex: string | null;
+  color_profile_family: string | null;
+  color_profile_detail: string | null;
+  color_profile_brand_shade: string | null;
+  color_profile_shade_code: string | null;
+  color_profile_precision: string | null;
+  color_profile_confidence: number | string | null;
 };
 
 const ATTRIBUTE_LABELS: Readonly<Record<string, string>> = {
@@ -393,7 +409,20 @@ function productDetailFromRow(row: ProductDetailRow): PublicProductDetail {
     manualUrl,
     technicalAttributes: technicalAttributes(specifications, canonicalAttributes, sourceNormalized, sourceRaw),
     variantFamilyId: optionalText(sourceNormalized.variantFamilyId) ?? optionalText(sourceRaw.variant_family_id),
-    variantGroupSize
+    variantGroupSize,
+    colorProfile: optionalText(row.color_profile_hex)
+      ? {
+          canonicalHex: optionalText(row.color_profile_hex)!,
+          colorFamily: optionalText(row.color_profile_family),
+          colorDetail: optionalText(row.color_profile_detail),
+          brandShadeName: optionalText(row.color_profile_brand_shade),
+          shadeCode: optionalText(row.color_profile_shade_code),
+          precision: ["exact","canonicalized","family_estimate"].includes(String(row.color_profile_precision))
+            ? String(row.color_profile_precision) as "exact" | "canonicalized" | "family_estimate"
+            : undefined,
+          confidence: numeric(row.color_profile_confidence)
+        }
+      : undefined
   };
 }
 
@@ -427,11 +456,19 @@ export async function getPublicProductDetails(
       SELECT cv.public_id AS canonical_public_id,cv.model,cv.variant_attributes,
              COALESCE(el.specifications,en.specifications,'{}'::jsonb) AS specifications,
              src.source_supplier_code,src.source_normalized_payload,src.source_raw_payload,
-             src.source_image_url,src.source_code,src.source_website
+             src.source_image_url,src.source_code,src.source_website,
+             pcp.canonical_hex AS color_profile_hex,
+             pcp.color_family AS color_profile_family,
+             pcp.color_detail AS color_profile_detail,
+             pcp.brand_shade_name AS color_profile_brand_shade,
+             pcp.shade_code AS color_profile_shade_code,
+             pcp.match_precision AS color_profile_precision,
+             pcp.confidence AS color_profile_confidence
       FROM canonical_variants cv
       JOIN markets m ON m.id=cv.market_id
       LEFT JOIN product_translations el ON el.canonical_variant_id=cv.id AND el.locale='el'
       LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
+      LEFT JOIN product_color_profiles pcp ON pcp.canonical_variant_id=cv.id
       LEFT JOIN LATERAL (
         SELECT latest.supplier_code AS source_supplier_code,
                latest.normalized_payload AS source_normalized_payload,

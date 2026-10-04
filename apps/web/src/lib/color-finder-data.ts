@@ -68,9 +68,34 @@ async function loadColorFinderProductsUncached(
         COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
         b.name AS brand_name,
         NULLIF(btrim(COALESCE(
-          el.specifications->>'color',
-          en.specifications->>'color',
           cv.variant_attributes->>'color',
+          cv.variant_attributes->>'colour',
+          cv.variant_attributes->>'color_name',
+          cv.variant_attributes->>'colour_name',
+          cv.variant_attributes->>'variant_color',
+          cv.variant_attributes->>'variant_colour',
+          cv.variant_attributes->>'primary_color',
+          cv.variant_attributes->>'primary_colour',
+          cv.variant_attributes->>'Χρώμα',
+          cv.variant_attributes->>'χρώμα',
+          el.specifications->>'color',
+          el.specifications->>'colour',
+          el.specifications->>'color_name',
+          el.specifications->>'colour_name',
+          el.specifications->>'variant_color',
+          el.specifications->>'variant_colour',
+          el.specifications->>'primary_color',
+          el.specifications->>'primary_colour',
+          el.specifications->>'Χρώμα',
+          el.specifications->>'χρώμα',
+          en.specifications->>'color',
+          en.specifications->>'colour',
+          en.specifications->>'color_name',
+          en.specifications->>'colour_name',
+          en.specifications->>'variant_color',
+          en.specifications->>'variant_colour',
+          en.specifications->>'primary_color',
+          en.specifications->>'primary_colour',
           ''
         )), '') AS raw_color,
         vo.customer_price_minor,
@@ -90,7 +115,12 @@ async function loadColorFinderProductsUncached(
               ELSE '[]'::jsonb
             END
           ) AS source_attr
-          WHERE lower(COALESCE(source_attr->>'name','')) IN ('color','colour')
+          WHERE lower(COALESCE(source_attr->>'name','')) IN (
+            'color','colour','χρώμα','χρωμα',
+            'color_name','colour_name','color name','colour name',
+            'variant_color','variant_colour','variant color','variant colour',
+            'primary_color','primary_colour','primary color','primary colour'
+          )
           LIMIT 1
         ) AS source_color
       FROM public.dropship_supplier_offers dso
@@ -215,14 +245,19 @@ async function loadColorFinderProductsUncached(
         });
     if (!resolved) return [];
 
-    const profilePrecision = storedUsable && storedPrecision ? storedPrecision : "canonicalized" as const;
+    const directColorEvidence = Boolean(sourceColor || rawColor);
+    const profilePrecision = storedUsable && storedPrecision
+      ? storedPrecision
+      : directColorEvidence
+        ? "canonicalized" as const
+        : "family_estimate" as const;
     const profileConfidence = storedUsable && storedConfidence !== undefined
       ? storedConfidence
       : sourceColor
-        ? 0.86
+        ? resolved.precision === "reference" ? 0.88 : 0.78
         : rawColor
-          ? 0.74
-          : 0.62;
+          ? resolved.precision === "reference" ? 0.84 : 0.74
+          : resolved.precision === "reference" ? 0.52 : 0.42;
     const productText = [
       sourceTitle,
       title,
@@ -248,7 +283,7 @@ async function loadColorFinderProductsUncached(
       profilePrecision,
       profileConfidence,
       colorHex: resolved.hex,
-      colorLabel: optionalText(row.color_detail) ?? optionalText(row.color_family) ?? resolved.label,
+      colorLabel: optionalText(row.brand_shade_name) ?? optionalText(row.color_detail) ?? resolved.label,
       finish: validFinish(row.profile_finish) ?? inferColorFinish(productText),
       productType: validProductType(row.profile_product_type) ?? inferColorProductType(productText),
       priceMinor,
@@ -261,7 +296,7 @@ async function loadColorFinderProductsUncached(
 
 const getCachedColorFinderProducts = unstable_cache(
   loadColorFinderProductsUncached,
-  ["color-finder-contextual-catalogue-v5"],
+  ["color-finder-contextual-catalogue-v6"],
   { revalidate: CACHE_SECONDS }
 );
 

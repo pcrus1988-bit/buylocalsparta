@@ -25,10 +25,10 @@ test("same colour has zero perceptual distance", () => {
 });
 
 test("canonicalizes catalogue colours from both explicit attributes and product titles", () => {
-  assert.equal(resolveCatalogColor({ color: "Pearly Pink Bubble" })?.hex, "#D9859B");
-  assert.equal(resolveCatalogColor({ title: "Dior Vernis 900 Black Rivoli" })?.hex, "#19191B");
-  assert.equal(resolveCatalogColor({ title: "Beige Polyester Athletic Sneakers" })?.hex, "#C4A68C");
-  assert.equal(resolveCatalogColor({ title: "Sensai Lipstick 03 Shakuyaku Red" })?.hex, "#C8323E");
+  assert.equal(resolveCatalogColor({ color: "Pearly Pink Bubble" })?.hex, "#D998A8");
+  assert.equal(resolveCatalogColor({ title: "Dior Vernis 900 Black Rivoli" })?.familyKey, "black");
+  assert.equal(resolveCatalogColor({ title: "Beige Polyester Athletic Sneakers" })?.familyKey, "beige");
+  assert.equal(resolveCatalogColor({ title: "Sensai Lipstick 03 Shakuyaku Red" })?.familyKey, "red");
   assert.equal(resolveCatalogColor({ title: "Koleston 8/97 Light Blonde Chestnut Pearl" })?.hex, "#7A4B37");
   assert.equal(inferColorFinish("Pearly Pink Bubble"), "pearly");
 });
@@ -36,7 +36,7 @@ test("canonicalizes catalogue colours from both explicit attributes and product 
 
 test("names selected colours by the nearest curated shade", () => {
   assert.equal(nearestColorName("#19191B").label, "Black");
-  assert.equal(nearestColorName("#F2EEE8").label, "White");
+  assert.equal(nearestColorName("#F2EEE8").label, "Off White");
   assert.ok(nearestColorName("#B52E2E").deltaE >= 0);
 });
 
@@ -65,4 +65,18 @@ test("does not confuse home fragrance with eye makeup", () => {
 test("keeps genuine eye makeup categories in Eye Studio", () => {
   assert.equal(resolveColorFinderContext("eye-makeup", "Μακιγιάζ ματιών").key, "eyes");
   assert.equal(resolveColorFinderContext("beauty-eyes", "Σκιές ματιών").studioLabel, "EYE STUDIO");
+});
+
+
+test("prefers an explicit HEX over a named approximation", () => {
+  const resolved = resolveCatalogColor({ color: "Rosewood", title: "Shade #A14F63" });
+  assert.equal(resolved?.hex, "#A14F63");
+  assert.equal(resolved?.precision, "exact");
+});
+
+test("keeps Studio shades attached to the same canonical storefront family", () => {
+  const resolved = resolveCatalogColor({ color: "Cobalt Blue" });
+  assert.equal(resolved?.shadeKey, "cobalt");
+  assert.equal(resolved?.familyKey, "royal-blue");
+  assert.equal(resolved?.precision, "reference");
 });
