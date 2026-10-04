@@ -56,12 +56,21 @@ const thumbnailImageStyle = {
   transformOrigin: "center"
 } as const;
 
-function ProductColorIndicator({ value }: { value?: string }) {
+function ProductColorIndicator({
+  value,
+  exactHex,
+  shadeName
+}: {
+  value?: string;
+  exactHex?: string;
+  shadeName?: string;
+}) {
   const source = value?.trim();
-  if (!source) return null;
-  const shade = resolveCatalogShade(source);
-  const family = resolveCatalogColor(source);
-  const label = shade?.displayNameEl ?? family?.displayNameEl ?? source;
+  const preciseSource = exactHex?.trim() || shadeName?.trim() || source;
+  if (!preciseSource) return null;
+  const shade = resolveCatalogShade(preciseSource);
+  const family = resolveCatalogColor(source ?? preciseSource);
+  const label = shadeName?.trim() || shade?.displayNameEl || family?.displayNameEl || source || preciseSource;
   const swatchStyle = family?.swatchKind === "multicolor"
     ? { background: "conic-gradient(#D52B2B, #F2C230, #388A55, #2F6DA8, #68478D, #D52B2B)" }
     : family?.swatchKind === "transparent"
@@ -538,7 +547,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? undefined
     : legacySupplierCode;
   const displayPrice = publicCatalogPriceLabel(product);
-  const displayColor = product.color ? resolveCatalogShade(product.color)?.displayNameEl ?? resolveCatalogColor(product.color)?.displayNameEl ?? product.color : undefined;
+  const displayColor = detail?.colorProfile?.brandShadeName
+    ?? detail?.colorProfile?.colorDetail
+    ?? (product.color ? resolveCatalogShade(product.color)?.displayNameEl ?? resolveCatalogColor(product.color)?.displayNameEl ?? product.color : undefined);
   const meaningfulSizes = product.sizes.filter((size) => !isMeaninglessSize(size));
   const explicitTechnicalKeys = new Set([
     displayBrand ? "brand" : "",
@@ -699,7 +710,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <ProductBrandTitle title={displayTitle} brand={displayBrand} logoObjectKey={product.brandLogoObjectKey} />
 
           <ProductVariantSelector currentVariantId={product.id} title={variantSelectorTitle} options={variantOptions} varyingKeys={varyingVariantKeys} />
-          <ProductColorIndicator value={product.color} />
+          <ProductColorIndicator
+            value={product.color}
+            exactHex={detail?.colorProfile?.canonicalHex}
+            shadeName={detail?.colorProfile?.brandShadeName ?? detail?.colorProfile?.colorDetail}
+          />
 
           {isLikelySportFootwear(product) ? (
             <SportFitProductIntelligence
