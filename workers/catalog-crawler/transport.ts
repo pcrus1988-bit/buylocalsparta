@@ -29,6 +29,8 @@ export type SecureCrawlFetchInput = Readonly<{
   userAgent: string;
   timeoutMs?: number;
   accept?: string;
+  ifNoneMatch?: string;
+  ifModifiedSince?: string;
 }>;
 
 export async function secureCrawlFetch(input: SecureCrawlFetchInput): Promise<SecureCrawlFetchResult> {
@@ -57,7 +59,9 @@ export async function secureCrawlFetch(input: SecureCrawlFetchInput): Promise<Se
       userAgent: input.userAgent,
       timeoutMs,
       maxBytes,
-      accept: input.accept
+      accept: input.accept,
+      ifNoneMatch: input.ifNoneMatch,
+      ifModifiedSince: input.ifModifiedSince
     });
 
     const location = response.headers.location;
@@ -124,6 +128,8 @@ async function requestPinned(input: {
   timeoutMs: number;
   maxBytes: number;
   accept?: string;
+  ifNoneMatch?: string;
+  ifModifiedSince?: string;
 }): Promise<{ status: number; headers: Record<string, string>; body: Buffer }> {
   const url = new URL(input.url);
   const hostname = normalizeHostname(url.hostname);
@@ -135,7 +141,9 @@ async function requestPinned(input: {
       "User-Agent": input.userAgent,
       "Accept": input.accept ?? "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.5",
       "Accept-Encoding": "identity",
-      "Cache-Control": "no-cache"
+      "Cache-Control": "no-cache",
+      ...(input.ifNoneMatch ? { "If-None-Match": input.ifNoneMatch } : {}),
+      ...(input.ifModifiedSince ? { "If-Modified-Since": input.ifModifiedSince } : {})
     },
     timeout: input.timeoutMs,
     maxHeaderSize: 64 * 1024
