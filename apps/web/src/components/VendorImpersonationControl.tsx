@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 
 export function VendorImpersonationControl({
   vendorId,
@@ -15,7 +15,7 @@ export function VendorImpersonationControl({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  async function start(event: React.FormEvent<HTMLFormElement>) {
+  async function start(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmedReason = reason.trim();
     if (trimmedReason.length < 3) {
