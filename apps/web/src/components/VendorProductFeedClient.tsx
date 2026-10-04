@@ -14,7 +14,7 @@ type PreviewRow = {
   title: string;
   brand?: string;
   gtin?: string;
-  categoryCode: string;
+  categoryCode?: string;
   priceMinor: number;
   stockOnHand: number;
 };
@@ -27,8 +27,10 @@ type Preview = {
   totalRows: number;
   validRows: number;
   errorRows: number;
+  creationBlockedRows: number;
   sample: readonly PreviewRow[];
   errors: readonly PreviewError[];
+  warnings: readonly PreviewError[];
 };
 type Feed = {
   id: string;
@@ -254,8 +256,8 @@ export function VendorProductFeedClient({
     if (!data) return;
     const queued = data.preview?.validRows ?? preview.validRows;
     setSuccess(sourceType === "url"
-      ? `Η σύνδεση αποθηκεύτηκε. Ο πρώτος συγχρονισμός ξεκίνησε για ${queued.toLocaleString("el-GR")} έγκυρα προϊόντα. Όσα είναι νέα θα εμφανιστούν ως πρόχειρα στον Κατάλογο για να τα στείλεις εσύ για έγκριση.`
-      : `Το XML αποθηκεύτηκε. ${queued.toLocaleString("el-GR")} έγκυρα προϊόντα επεξεργάστηκαν. Όσα είναι νέα θα εμφανιστούν ως πρόχειρα στον Κατάλογο για να τα στείλεις εσύ για έγκριση.`);
+      ? `Η σύνδεση αποθηκεύτηκε. Ο πρώτος συγχρονισμός ξεκίνησε για ${queued.toLocaleString("el-GR")} γραμμές. Ταυτοποιημένα υπάρχοντα προϊόντα ενημερώνονται ακόμη και χωρίς category· νέο προϊόν δημιουργείται μόνο όταν υπάρχει ασφαλής κατηγορία.`
+      : `Το XML αποθηκεύτηκε. ${queued.toLocaleString("el-GR")} γραμμές επεξεργάστηκαν. Ταυτοποιημένα υπάρχοντα προϊόντα μπορούν να εμπλουτιστούν χωρίς category· νέο προϊόν δημιουργείται μόνο όταν υπάρχει ασφαλής κατηγορία.`);
     setPreview(null);
     router.refresh();
   }
@@ -331,7 +333,7 @@ export function VendorProductFeedClient({
       </div>
 
       <div className="workspace-action-bar" style={{ marginTop: 16 }}>
-        <span><strong>Πρότυπο XML ΚΟΝΤΑ ΜΟΥ:</strong> χρησιμοποίησέ το αν θέλεις έτοιμη αντιστοίχιση πεδίων. Βασικά πεδία: κωδικός, τίτλος, τιμή, απόθεμα και κατηγορία. Δεν είναι υποχρεωτικό — δεχόμαστε και XML από e-shop ή Google Merchant.</span>
+        <span><strong>Πρότυπο XML ΚΟΝΤΑ ΜΟΥ:</strong> χρησιμοποίησέ το αν θέλεις έτοιμη αντιστοίχιση πεδίων. Για enrichment υπάρχοντος προϊόντος αρκεί σταθερή ταυτότητα και τα δεδομένα που θέλεις να ενημερώσεις. Η κατηγορία απαιτείται μόνο όταν πρέπει να δημιουργηθεί νέο προϊόν. Δεχόμαστε και XML από e-shop, Shopflix ή Google Merchant.</span>
         <button type="button" className="button button-secondary" onClick={downloadKontaMouTemplate}>Λήψη προτύπου XML</button>
       </div>
 
@@ -394,15 +396,15 @@ export function VendorProductFeedClient({
 
     {preview && <section className="shell vendor-section">
       <div className="workspace-section-heading vendor-xml-section-heading">
-        <div><div className="eyebrow">Προεπισκόπηση</div><h2>{preview.validRows.toLocaleString("el-GR")} έτοιμα από {preview.totalRows.toLocaleString("el-GR")}</h2></div>
+        <div><div className="eyebrow">Προεπισκόπηση</div><h2>{preview.validRows.toLocaleString("el-GR")} διαθέσιμα για sync από {preview.totalRows.toLocaleString("el-GR")}</h2></div>
         <p>Εντοπίστηκε επαναλαμβανόμενο element <strong>&lt;{preview.itemTag}&gt;</strong>. Τα πεδία παρακάτω μπορούν να διορθωθούν πριν την εισαγωγή.</p>
       </div>
 
       <div className="workspace-metric-strip">
         <div><small>Προϊόντα XML</small><strong>{preview.totalRows.toLocaleString("el-GR")}</strong></div>
-        <div><small>Έτοιμα</small><strong>{preview.validRows.toLocaleString("el-GR")}</strong></div>
-        <div><small>Με σφάλμα</small><strong>{preview.errorRows.toLocaleString("el-GR")}</strong></div>
-        <div><small>Πεδία XML</small><strong>{preview.fields.length.toLocaleString("el-GR")}</strong></div>
+        <div><small>Για sync / enrichment</small><strong>{preview.validRows.toLocaleString("el-GR")}</strong></div>
+        <div><small>Νέα χωρίς κατηγορία</small><strong>{preview.creationBlockedRows.toLocaleString("el-GR")}</strong></div>
+        <div><small>Με πραγματικό σφάλμα</small><strong>{preview.errorRows.toLocaleString("el-GR")}</strong></div>
       </div>
 
       <details className="workspace-tool-panel" open>
@@ -448,6 +450,18 @@ export function VendorProductFeedClient({
         </div>
       </details>}
 
+      {preview.warnings?.length > 0 && <details className="workspace-tool-panel" open>
+        <summary><span><strong>Παρατηρήσεις enrichment</strong><small>Δεν μπλοκάρουν το sync υπάρχοντος προϊόντος. Μπλοκάρουν μόνο τη δημιουργία νέου προϊόντος όπου χρειάζεται.</small></span></summary>
+        <div className="workspace-tool-body">
+          <div className="workspace-compact-list">
+            {preview.warnings.slice(0, 40).map((item, index) => <div className="workspace-compact-row" key={"warning:" + String(item.rowNumber) + ":" + index}>
+              <strong>Γραμμή {item.rowNumber}{item.externalId ? " · " + item.externalId : ""}</strong>
+              <span>{item.field ? item.field + ": " : ""}{item.message}</span>
+            </div>)}
+          </div>
+        </div>
+      </details>}
+
       {preview.errors.length > 0 && <details className="workspace-tool-panel" open>
         <summary><span><strong>Προβλήματα που βρέθηκαν</strong><small>Οι γραμμές με σφάλμα δεν θα εισαχθούν.</small></span></summary>
         <div className="workspace-tool-body">
@@ -468,7 +482,7 @@ export function VendorProductFeedClient({
             <tbody>{preview.sample.slice(0, 20).map((row) => <tr key={row.externalId}>
               <td>{row.externalId}</td>
               <td><strong>{row.title}</strong><small style={{ display: "block" }}>{[row.brand, row.vendorSku, row.gtin].filter(Boolean).join(" · ")}</small></td>
-              <td>{categoryByCode.get(row.categoryCode)?.name ?? row.categoryCode}</td>
+              <td>{row.categoryCode ? (categoryByCode.get(row.categoryCode)?.name ?? row.categoryCode) : "Μόνο enrichment · χωρίς κατηγορία"}</td>
               <td>{euro(row.priceMinor)}</td>
               <td>{row.stockOnHand}</td>
             </tr>)}</tbody>
