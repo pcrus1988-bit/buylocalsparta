@@ -1,5 +1,5 @@
 {
-  "version": 19,
+  "version": 20,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -5852,6 +5852,183 @@
           "type": "brand",
           "displayName": "CND",
           "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gelish_color_plus_all",
+      "publisher": "Nail Alliance / Gelish",
+      "title": "Gelish Color Plus All Colors",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://gelish.com/color-plus/all-colors",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Gelish",
+        "line": "Color Plus",
+        "scope": "colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Gelish",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gelish_collections_index",
+      "publisher": "Nail Alliance / Gelish",
+      "title": "Gelish Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://gelish.com/colors/collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Gelish",
+        "scope": "collections_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Gelish",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gelish_core_catalog_pdf",
+      "publisher": "Nail Alliance / Gelish",
+      "title": "Gelish Core Catalog Color Guide PDF",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://o.gelish.com/pdf/5533-HNH-CORE-Catalog-UPDATE-LS-FNL3-UPD.lowres.pdf",
+      "retrievalMethod": "pdf",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "brand": "Gelish",
+        "scope": "colour_guide_pdf"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest",
+        "historicalEvidence": true
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Gelish",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "opi_uk_root",
+      "publisher": "OPI",
+      "title": "OPI UK Official Store",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.opi.com/en-GB",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "OPI",
+        "scope": "regional_manufacturer_root",
+        "market": "GB"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "OPI",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "opi_uk_nail_lacquer",
+      "publisher": "OPI",
+      "title": "OPI UK Nail Lacquer",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.opi.com/en-GB/collections/nail-lacquer",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "OPI",
+        "line": "Nail Lacquer",
+        "scope": "regional_colour_catalogue",
+        "market": "GB"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "OPI",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "opi_uk_new_in",
+      "publisher": "OPI",
+      "title": "OPI UK New In",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.opi.com/en-GB/collections/new-in",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "OPI",
+        "scope": "regional_new_releases",
+        "market": "GB"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "OPI",
+          "relation": "covers"
         }
       ]
     }
