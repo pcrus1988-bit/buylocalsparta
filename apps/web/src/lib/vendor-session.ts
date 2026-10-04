@@ -7,11 +7,33 @@ import {
   type VendorOperatingAssignment,
   type VendorOperatingContext
 } from "@buy-local-sparta/core";
+import { ADMIN_SESSION_COOKIE, adminSessionFromToken } from "./admin-runtime";
 import { resolveVendorOperatingAssignment } from "./vendor-operating-assignment";
+import {
+  ADMIN_VENDOR_IMPERSONATION_COOKIE,
+  type VendorImpersonationSession,
+  vendorImpersonationFromToken
+} from "./vendor-impersonation";
 import { assertVendorCsrf, vendorSessionFromToken, VENDOR_SESSION_COOKIE } from "./vendor-runtime";
 import { getActiveVendorTrialPrincipal } from "./vendor-trial-runtime";
 
+export async function getVendorImpersonationSession(): Promise<VendorImpersonationSession | undefined> {
+  const store = await cookies();
+  const token = store.get(ADMIN_VENDOR_IMPERSONATION_COOKIE)?.value;
+  if (!token) return undefined;
+
+  const adminToken = store.get(ADMIN_SESSION_COOKIE)?.value;
+  if (!adminToken) return undefined;
+
+  const now = Date.now();
+  const admin = await adminSessionFromToken(adminToken, now);
+  return vendorImpersonationFromToken(token, admin, now);
+}
+
 export async function getVendorSession(): Promise<SessionPrincipal | undefined> {
+  const impersonation = await getVendorImpersonationSession();
+  if (impersonation) return impersonation.principal;
+
   const trialPrincipal = await getActiveVendorTrialPrincipal();
   if (trialPrincipal) return trialPrincipal;
 
@@ -55,7 +77,6 @@ export async function requireVendorOperatingContext(
   const resolvedAssignment = assignment ?? await resolveVendorOperatingAssignment(principal);
   return buildVendorOperatingContextFromSession(principal, resolvedAssignment);
 }
-
 
 export async function requireVendorCapability(
   capability: VendorCapability,
