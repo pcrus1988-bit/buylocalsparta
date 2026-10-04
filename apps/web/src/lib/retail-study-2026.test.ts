@@ -95,6 +95,7 @@ function record(id: string, stratumKey: string, sectorGroup: string, prefecture:
 function validAnswers(): Record<string, unknown> {
   return {
     sector_primary: "fashion-footwear",
+    consumer_retail_activity: "mainly_consumers",
     employees: "2-4",
     locations: "1",
     sales_channels: ["physical_store"],
