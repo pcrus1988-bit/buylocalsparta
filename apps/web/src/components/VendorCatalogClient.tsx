@@ -7,6 +7,8 @@ import styles from "./VendorCatalogClient.module.css";
 import { VendorSmartProductForm } from "./VendorSmartProductForm";
 import { VendorPriceManager } from "./VendorPriceManager";
 import { VendorArchivedProductsPanel } from "./VendorArchivedProductsPanel";
+import { VendorStockFreshnessPanel } from "./VendorStockFreshnessPanel";
+import type { VendorStockFreshnessSnapshot } from "../lib/vendor-stock-freshness";
 import { useVendorConfirmation } from "./VendorConfirmation";
 import { WorkspaceEmptyState, WorkspaceHowItWorks, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "./WorkspacePagePrimitives";
 
@@ -38,6 +40,7 @@ type CatalogSearchResponse = {
   offset: number;
   limit: number;
   nextOffset: number | null;
+  stockFreshness?: VendorStockFreshnessSnapshot;
   error?: string;
 };
 
@@ -92,6 +95,7 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
   const [hasSearched, setHasSearched] = useState(false);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const [stockFreshness, setStockFreshness] = useState<VendorStockFreshnessSnapshot | null>(null);
   const [stockDrafts, setStockDrafts] = useState<Record<string, StockDraft>>({});
   const { requestConfirmation, confirmationDialog } = useVendorConfirmation();
 
@@ -112,6 +116,7 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
       setResultTotal(0);
       setResultOffset(0);
       setNextOffset(null);
+      setStockFreshness(null);
       setHasSearched(false);
       setSearchError("");
       return;
@@ -136,11 +141,13 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
       setResultTotal(Number(payload.total ?? 0));
       setResultOffset(Number(payload.offset ?? 0));
       setNextOffset(payload.nextOffset ?? null);
+      setStockFreshness(payload.stockFreshness ?? null);
       setHasSearched(true);
     } catch (cause) {
       setProducts([]);
       setResultTotal(0);
       setNextOffset(null);
+      setStockFreshness(null);
       setHasSearched(true);
       setSearchError(cause instanceof Error ? cause.message : "Η αναζήτηση καταλόγου απέτυχε.");
     } finally {
@@ -248,6 +255,7 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
     setResultTotal(0);
     setResultOffset(0);
     setNextOffset(null);
+    setStockFreshness(null);
     setHasSearched(false);
     setSearchError("");
   };
@@ -358,6 +366,7 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
 
       {hasSearched && products.length > 0 && <VendorPriceManager csrfToken={initial.csrfToken} products={products} onSaved={() => void runSearch(resultOffset)} />}
     </section>
+    {hasSearched && stockFreshness && <VendorStockFreshnessPanel snapshot={stockFreshness} />}
     {archivedProducts.length > 0 && <VendorArchivedProductsPanel products={archivedProducts} csrfToken={initial.csrfToken} />}
 
     <section className="vendor-section section-tint"><div className="shell">

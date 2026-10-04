@@ -3,6 +3,7 @@ import { isDropshippingOnlyVendor } from "../../../../../lib/vendor-dropshipping
 import { createVendorProductDraft, vendorCatalogWorkspace } from "../../../../../lib/vendor-backoffice-service";
 import { searchVendorCatalogProducts } from "../../../../../lib/vendor-catalog-control-service";
 import { getVendorAdminArchivedOfferIds } from "../../../../../lib/vendor-offer-reactivation-state";
+import { getVendorStockFreshness } from "../../../../../lib/vendor-stock-freshness";
 import { createVendorProductFromCanonicalPrefill } from "../../../../../lib/vendor-canonical-prefill-service";
 import {
   createVendorStructuredProductDraft,
@@ -38,9 +39,14 @@ export async function GET(request: Request) {
 
     if (!hasSearchIntent || result.products.length === 0) return Response.json(result);
 
-    const adminArchivedOfferIds = await getVendorAdminArchivedOfferIds(principal);
+    const offerIds = result.products.map((item) => item.offerId);
+    const [adminArchivedOfferIds, stockFreshness] = await Promise.all([
+      getVendorAdminArchivedOfferIds(principal, offerIds),
+      getVendorStockFreshness(principal, offerIds)
+    ]);
     return Response.json({
       ...result,
+      stockFreshness,
       products: result.products.map((item) => ({
         ...item,
         adminArchived: adminArchivedOfferIds.has(item.offerId),

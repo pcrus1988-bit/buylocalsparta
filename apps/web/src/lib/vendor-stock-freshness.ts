@@ -54,11 +54,13 @@ function optionalEpoch(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-export async function getVendorStockFreshness(principal: SessionPrincipal): Promise<VendorStockFreshnessSnapshot> {
+export async function getVendorStockFreshness(principal: SessionPrincipal, offerIds?: readonly string[]): Promise<VendorStockFreshnessSnapshot> {
   if (!postgresVendorRuntimeEnabled()) return unavailable();
 
   try {
     const vendorId = requiredVendorId(principal);
+    const scopedOfferIds = offerIds ? [...new Set(offerIds.map((value) => value.trim()).filter(Boolean))] : undefined;
+    if (scopedOfferIds && scopedOfferIds.length === 0) return { available: true, freshCount: 0, staleCount: 0, staleSellableCount: 0, items: [] };
     const runtime = getProductionPostgresRuntime();
     const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 10_000, lockTimeoutMs: 2_000 });
 
@@ -80,8 +82,9 @@ export async function getVendorStockFreshness(principal: SessionPrincipal): Prom
         LEFT JOIN product_translations en ON en.canonical_variant_id=cv.id AND en.locale='en'
         WHERE vo.vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$1 OR id::text=$1 LIMIT 1)
           AND (vo.status='approved' OR vo.merchant_pause_active=true OR vo.status IN ('archived','suppressed'))
+          AND ($2::text[] IS NULL OR vo.public_id=ANY($2::text[]))
         ORDER BY fresh ASC,available_to_sell DESC,title,vo.public_id
-      `, [vendorId]);
+      `, [vendorId, scopedOfferIds ?? null]);
 
       const items = result.rows.map((row): VendorStockFreshnessItem => ({
         offerId: String(row.offer_id),
