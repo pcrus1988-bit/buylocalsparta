@@ -67,6 +67,8 @@ jobs:
           BLS_NYXI_SOURCE_MAX_ITEMS: '100'
           BLS_NYXI_SOURCE_REQUEST_TIMEOUT_MS: '30000'
           BLS_NYXI_SOURCE_MAX_RESPONSE_BYTES: '26214400'
+          BLS_NYXI_SOURCE_DISCOVERY_MAX_LINKS: '2000'
+          BLS_NYXI_SOURCE_DISCOVERY_MAX_BYTES: '8388608'
           BLS_NYXI_SOURCE_LEASE_SECONDS: '300'
           BLS_DB_POOL_MAX: '3'
           BLS_NYXI_SOURCE_WORKER_ID: nyxi-gha-${{ github.run_id }}-${{ github.run_attempt }}
