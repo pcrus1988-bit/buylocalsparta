@@ -27,15 +27,24 @@ export type GemiAdminMunicipality = Readonly<{
   descrEn?: string;
 }>;
 
+export type GemiAdminActivityGroup = Readonly<{
+  id: string;
+  label: string;
+  description: string;
+  activityCount: number;
+}>;
+
 export type GemiAdminMetadata = Readonly<{
   activities: readonly GemiAdminActivity[];
+  activityGroups: readonly GemiAdminActivityGroup[];
   prefectures: readonly GemiAdminPrefecture[];
   municipalities: readonly GemiAdminMunicipality[];
   fetchedAt: number;
 }>;
 
 export type GemiAdminFilters = Readonly<{
-  activityId: string;
+  activityIds: readonly string[];
+  activityGroupIds: readonly string[];
   prefectureId: string;
   municipalityId?: string;
   activeOnly: boolean;
@@ -53,13 +62,30 @@ export type GemiAdminPreviewRow = Readonly<{
   postcode: string;
   email: string;
   website: string;
+  matchedActivities: string;
+  matchedGroups: string;
 }>;
 
 export type GemiAdminPreview = Readonly<{
   totalCount: number;
   returned: number;
   withEmail: number;
+  activityCount: number;
   rows: readonly GemiAdminPreviewRow[];
+}>;
+
+type GemiActivityGroupDefinition = Readonly<{
+  id: string;
+  label: string;
+  description: string;
+  includePrefixes: readonly string[];
+  excludePrefixes?: readonly string[];
+}>;
+
+type GemiResolvedActivitySelection = Readonly<{
+  activityIds: readonly string[];
+  activityIdSet: ReadonlySet<string>;
+  groups: readonly GemiActivityGroupDefinition[];
 }>;
 
 type GemiCompany = Record<string, unknown>;
@@ -77,6 +103,135 @@ type Globals = typeof globalThis & {
   [credentialCacheKey]?: CredentialCache;
 };
 const globals = globalThis as Globals;
+
+const ACTIVITY_GROUP_DEFINITIONS: readonly GemiActivityGroupDefinition[] = [
+  {
+    id: "retail-non-food",
+    label: "Λιανική — μη τρόφιμα",
+    description: "Λιανικό εμπόριο 47.*, χωρίς τρόφιμα/ποτά/καπνό, καύσιμα και υπηρεσίες διαμεσολάβησης λιανικής.",
+    includePrefixes: ["47"],
+    excludePrefixes: ["47.11", "47.2", "47.3", "47.9"]
+  },
+  {
+    id: "retail-all",
+    label: "Όλο το λιανικό εμπόριο",
+    description: "Όλοι οι τρέχοντες ΚΑΔ 47.* του λιανικού εμπορίου.",
+    includePrefixes: ["47"]
+  },
+  {
+    id: "retail-food",
+    label: "Λιανική — τρόφιμα / ποτά / καπνός",
+    description: "Μη εξειδικευμένη λιανική με κυρίαρχα τρόφιμα και εξειδικευμένη λιανική τροφίμων, ποτών και καπνού.",
+    includePrefixes: ["47.11", "47.2"]
+  },
+  {
+    id: "wholesale-all",
+    label: "Όλο το χονδρικό εμπόριο",
+    description: "Όλοι οι τρέχοντες ΚΑΔ 46.* του χονδρικού εμπορίου.",
+    includePrefixes: ["46"]
+  },
+  {
+    id: "wholesale-non-food",
+    label: "Χονδρική — μη τρόφιμα",
+    description: "Χονδρικό εμπόριο 46.*, χωρίς αγροτικές πρώτες ύλες/ζώντα ζώα και τρόφιμα/ποτά/καπνό.",
+    includePrefixes: ["46"],
+    excludePrefixes: ["46.2", "46.3"]
+  },
+  {
+    id: "wholesale-consumer-goods",
+    label: "Χονδρική — καταναλωτικά αγαθά",
+    description: "Χονδρικό εμπόριο ειδών οικιακής και προσωπικής κατανάλωσης (46.4*).",
+    includePrefixes: ["46.4"]
+  },
+  {
+    id: "fashion-footwear",
+    label: "Μόδα / Υποδήματα / Αξεσουάρ",
+    description: "Λιανική ένδυσης και υπόδησης και οι αντίστοιχοι βασικοί ΚΑΔ χονδρικής.",
+    includePrefixes: ["47.71", "47.72", "46.41", "46.42"]
+  },
+  {
+    id: "beauty-personal-care",
+    label: "Καλλυντικά / Ομορφιά / Προσωπική φροντίδα",
+    description: "Λιανική καλλυντικών και ειδών προσωπικής φροντίδας, μαζί με τη σχετική χονδρική.",
+    includePrefixes: ["47.75", "46.45"]
+  },
+  {
+    id: "home-living",
+    label: "Σπίτι / Έπιπλα / Διακόσμηση",
+    description: "Υφάσματα, καλύμματα, οικιακές συσκευές, έπιπλα, φωτισμός και συναφή είδη σπιτιού.",
+    includePrefixes: ["47.51", "47.53", "47.54", "47.55", "46.43", "46.44", "46.47"]
+  },
+  {
+    id: "diy-building",
+    label: "Χρώματα / Εργαλεία / Οικοδομικά",
+    description: "Λιανική και χονδρική δομικών υλικών, χρωμάτων, ειδών υδραυλικών και θέρμανσης.",
+    includePrefixes: ["47.52", "46.83", "46.84"]
+  },
+  {
+    id: "electronics",
+    label: "Ηλεκτρονικά / Ηλεκτρικά",
+    description: "ICT, τηλεπικοινωνίες, ηλεκτρονικά και ηλεκτρικές οικιακές συσκευές.",
+    includePrefixes: ["47.40", "47.54", "46.5", "46.43"]
+  },
+  {
+    id: "sports-books-toys",
+    label: "Αθλητικά / Βιβλία / Παιχνίδια / Hobby",
+    description: "Βιβλία, χαρτικά, αθλητικός εξοπλισμός, παιχνίδια και λοιπά πολιτιστικά/ψυχαγωγικά είδη.",
+    includePrefixes: ["47.61", "47.62", "47.63", "47.64", "47.69"]
+  },
+  {
+    id: "jewellery-watches",
+    label: "Κοσμήματα / Ρολόγια",
+    description: "Λιανική και βασική χονδρική ρολογιών και κοσμημάτων.",
+    includePrefixes: ["47.77", "46.48"]
+  },
+  {
+    id: "flowers-pets",
+    label: "Άνθη / Φυτά / Pet",
+    description: "Λιανική ανθέων, φυτών, λιπασμάτων, κατοικίδιων και σχετικών ειδών.",
+    includePrefixes: ["47.76"]
+  },
+  {
+    id: "second-hand",
+    label: "Μεταχειρισμένα / Second-hand",
+    description: "Λιανικό εμπόριο μεταχειρισμένων αγαθών.",
+    includePrefixes: ["47.79"]
+  },
+  {
+    id: "automotive-trade",
+    label: "Οχήματα / Ανταλλακτικά",
+    description: "Χονδρικό και λιανικό εμπόριο οχημάτων, μοτοσικλετών, ανταλλακτικών και αξεσουάρ.",
+    includePrefixes: ["46.7", "47.8"]
+  }
+] as const;
+
+function normalizedKadCode(value: string): string {
+  return value.trim().replace(/\s+/g, "");
+}
+
+function kadPrefixMatches(activityId: string, prefix: string): boolean {
+  const code = normalizedKadCode(activityId);
+  const wanted = normalizedKadCode(prefix);
+  if (!code || !wanted) return false;
+  if (code === wanted || code.startsWith(wanted + ".")) return true;
+  const digits = code.replace(/\D/g, "");
+  const wantedDigits = wanted.replace(/\D/g, "");
+  return Boolean(digits && wantedDigits && digits.startsWith(wantedDigits));
+}
+
+function activityMatchesGroup(activity: GemiAdminActivity, group: GemiActivityGroupDefinition): boolean {
+  if (!group.includePrefixes.some((prefix) => kadPrefixMatches(activity.id, prefix))) return false;
+  return !(group.excludePrefixes ?? []).some((prefix) => kadPrefixMatches(activity.id, prefix));
+}
+
+function publicActivityGroups(activities: readonly GemiAdminActivity[]): GemiAdminActivityGroup[] {
+  return ACTIVITY_GROUP_DEFINITIONS.map((group) => ({
+    id: group.id,
+    label: group.label,
+    description: group.description,
+    activityCount: activities.filter((activity) => activityMatchesGroup(activity, group)).length
+  })).filter((group) => group.activityCount > 0);
+}
 
 async function gemiApiKey(now = Date.now()): Promise<string | undefined> {
   const direct = process.env.GEMI_OPENDATA_API_KEY?.trim();
@@ -223,7 +378,13 @@ export async function gemiAdminMetadata(now = Date.now(), apiKey?: string): Prom
     return { id, prefectureId, descr, descrEn: asString(item.descrEn) || undefined };
   }).sort((a, b) => a.descr.localeCompare(b.descr, "el", { sensitivity: "base" }));
 
-  const value = { activities, prefectures, municipalities, fetchedAt: now } as const;
+  const value = {
+    activities,
+    activityGroups: publicActivityGroups(activities),
+    prefectures,
+    municipalities,
+    fetchedAt: now
+  } as const;
   cache.value = value;
   cache.expiresAt = now + METADATA_TTL_MS;
   return value;
@@ -236,25 +397,72 @@ function oneId(value: unknown, label: string): string {
   return id;
 }
 
+function idList(value: unknown, label: string, maxItems = 32): string[] {
+  const raw = Array.isArray(value)
+    ? value.flatMap((item) => String(item ?? "").split(","))
+    : String(value ?? "").split(",");
+  const ids = [...new Set(raw.map((item) => item.trim()).filter(Boolean).map((item) => oneId(item, label)))];
+  if (ids.length > maxItems) throw new Error(`${label} has too many selections.`);
+  return ids;
+}
+
 export function normalizeGemiAdminFilters(input: {
   activityId?: unknown;
+  activityIds?: unknown;
+  activityGroupIds?: unknown;
   prefectureId?: unknown;
   municipalityId?: unknown;
   activeOnly?: unknown;
 }): GemiAdminFilters {
-  const activityId = oneId(input.activityId, "ΚΑΔ");
+  const activityIds = idList(input.activityIds ?? input.activityId, "ΚΑΔ");
+  const activityGroupIds = idList(input.activityGroupIds, "Ομάδα ΚΑΔ");
+  const knownGroups = new Set(ACTIVITY_GROUP_DEFINITIONS.map((group) => group.id));
+  const unknownGroup = activityGroupIds.find((id) => !knownGroups.has(id));
+  if (unknownGroup) throw new Error("Ομάδα ΚΑΔ is invalid.");
+  if (!activityIds.length && !activityGroupIds.length) throw new Error("Επίλεξε ΚΑΔ ή ομάδα ΚΑΔ.");
+
   const prefectureRaw = String(input.prefectureId ?? "").trim();
   const prefectureId = prefectureRaw ? oneId(prefectureRaw, "Νομός") : ALL_PREFECTURES;
   const municipalityRaw = String(input.municipalityId ?? "").trim();
   const municipalityId = municipalityRaw ? oneId(municipalityRaw, "Δήμος") : undefined;
   if (municipalityId && prefectureId === ALL_PREFECTURES) throw new Error("Νομός is required when Δήμος is selected.");
   const activeOnly = input.activeOnly !== false && input.activeOnly !== "false" && input.activeOnly !== "0";
-  return { activityId, prefectureId, municipalityId, activeOnly };
+  return { activityIds, activityGroupIds, prefectureId, municipalityId, activeOnly };
 }
 
-function searchParams(filters: GemiAdminFilters, offset: number, size: number): Record<string, string | number | boolean> {
+async function resolveActivitySelection(filters: GemiAdminFilters, apiKey?: string): Promise<GemiResolvedActivitySelection> {
+  const metadata = await gemiAdminMetadata(Date.now(), apiKey);
+  const activitiesById = new Map(metadata.activities.map((activity) => [activity.id, activity] as const));
+  const unknownActivity = filters.activityIds.find((id) => !activitiesById.has(id));
+  if (unknownActivity) throw new Error(`ΚΑΔ ${unknownActivity} is not a current ΓΕΜΗ activity.`);
+
+  const selectedGroups = filters.activityGroupIds.map((id) => {
+    const group = ACTIVITY_GROUP_DEFINITIONS.find((candidate) => candidate.id === id);
+    if (!group) throw new Error("Ομάδα ΚΑΔ is invalid.");
+    return group;
+  });
+
+  const activityIds = new Set(filters.activityIds);
+  for (const activity of metadata.activities) {
+    if (selectedGroups.some((group) => activityMatchesGroup(activity, group))) activityIds.add(activity.id);
+  }
+
+  if (!activityIds.size) throw new Error("Η επιλογή ομάδων δεν αντιστοιχεί σε τρέχοντες ΚΑΔ ΓΕΜΗ.");
   return {
-    activities: filters.activityId,
+    activityIds: [...activityIds].sort((a, b) => a.localeCompare(b, "el", { numeric: true })),
+    activityIdSet: activityIds,
+    groups: selectedGroups
+  };
+}
+
+function searchParams(
+  filters: GemiAdminFilters,
+  selection: GemiResolvedActivitySelection,
+  offset: number,
+  size: number
+): Record<string, string | number | boolean> {
+  return {
+    activities: selection.activityIds.join(","),
     ...(filters.prefectureId !== ALL_PREFECTURES ? { prefectures: filters.prefectureId } : {}),
     ...(filters.municipalityId ? { municipalities: filters.municipalityId } : {}),
     ...(filters.activeOnly ? { isActive: true } : {}),
@@ -264,14 +472,52 @@ function searchParams(filters: GemiAdminFilters, offset: number, size: number): 
   };
 }
 
-async function searchCompanies(filters: GemiAdminFilters, offset: number, size: number, apiKey?: string): Promise<{ totalCount: number; companies: GemiCompany[] }> {
-  const raw = await gemiGet("/companies", searchParams(filters, offset, size), 4, apiKey) as SearchResponse;
+async function searchCompanies(
+  filters: GemiAdminFilters,
+  selection: GemiResolvedActivitySelection,
+  offset: number,
+  size: number,
+  apiKey?: string
+): Promise<{ totalCount: number; companies: GemiCompany[] }> {
+  const raw = await gemiGet("/companies", searchParams(filters, selection, offset, size), 4, apiKey) as SearchResponse;
   const companies = Array.isArray(raw.searchResults) ? raw.searchResults.filter((item): item is GemiCompany => Boolean(objectField(item))) : [];
   const totalCount = Number(raw.searchMetadata?.totalCount ?? companies.length);
   return { totalCount: Number.isFinite(totalCount) && totalCount >= 0 ? totalCount : companies.length, companies };
 }
 
-function companyPreview(company: GemiCompany): GemiAdminPreviewRow {
+function matchedCompanyActivityEntries(
+  company: GemiCompany,
+  selection: GemiResolvedActivitySelection
+): Array<Record<string, unknown>> {
+  return companyActivities(company).filter((entry) => {
+    const activity = objectField(entry.activity);
+    return activity ? selection.activityIdSet.has(asString(activity.id)) : false;
+  });
+}
+
+function matchedGroupLabels(company: GemiCompany, selection: GemiResolvedActivitySelection): string[] {
+  const activities = companyActivities(company).flatMap((entry) => {
+    const activity = objectField(entry.activity);
+    if (!activity) return [];
+    const id = asString(activity.id);
+    const descr = asString(activity.descr);
+    return id ? [{ id, descr }] : [];
+  });
+  return selection.groups
+    .filter((group) => activities.some((activity) => activityMatchesGroup(activity, group)))
+    .map((group) => group.label);
+}
+
+function companyPreview(company: GemiCompany, selection: GemiResolvedActivitySelection): GemiAdminPreviewRow {
+  const matched = matchedCompanyActivityEntries(company, selection);
+  const matchedActivities = matched.map((entry) => {
+    const activity = objectField(entry.activity);
+    if (!activity) return "";
+    const id = asString(activity.id);
+    const descr = asString(activity.descr);
+    return id ? `${id}${descr ? ` · ${descr}` : ""}` : "";
+  }).filter(Boolean).join(" | ");
+
   return {
     gemiNumber: asString(company.arGemi),
     afm: asString(company.afm),
@@ -283,17 +529,21 @@ function companyPreview(company: GemiCompany): GemiAdminPreviewRow {
     city: asString(company.city),
     postcode: asString(company.zipCode),
     email: asString(company.email).toLowerCase(),
-    website: asString(company.url)
+    website: asString(company.url),
+    matchedActivities,
+    matchedGroups: matchedGroupLabels(company, selection).join(" | ")
   };
 }
 
 export async function gemiAdminPreview(filters: GemiAdminFilters, apiKey?: string): Promise<GemiAdminPreview> {
-  const page = await searchCompanies(filters, 0, 25, apiKey);
-  const rows = page.companies.map(companyPreview);
+  const selection = await resolveActivitySelection(filters, apiKey);
+  const page = await searchCompanies(filters, selection, 0, 25, apiKey);
+  const rows = page.companies.map((company) => companyPreview(company, selection));
   return {
     totalCount: page.totalCount,
     returned: rows.length,
     withEmail: rows.filter((row) => row.email).length,
+    activityCount: selection.activityIds.length,
     rows
   };
 }
@@ -322,6 +572,13 @@ function activityValues(company: GemiCompany, field: "id" | "descr" | "kadVersio
 
 function activityTypes(company: GemiCompany): string {
   return companyActivities(company).map((entry) => asString(entry.type)).filter(Boolean).join(" | ");
+}
+
+function activityValuesFromEntries(entries: readonly Record<string, unknown>[], field: "id" | "descr" | "kadVersion"): string {
+  return entries.map((entry) => {
+    const activity = objectField(entry.activity);
+    return activity ? asString(activity[field]) : "";
+  }).filter(Boolean).join(" | ");
 }
 
 const CSV_HEADERS = [
@@ -353,12 +610,23 @@ const CSV_HEADERS = [
   "activity_descriptions",
   "activity_types",
   "activity_versions",
+  "matched_activity_codes",
+  "matched_activity_descriptions",
+  "matched_kad_groups",
   "selected_kad",
+  "selected_kads",
+  "selected_kad_groups",
   "selected_prefecture_id",
   "selected_municipality_id"
 ] as const;
 
-function companyCsvRow(company: GemiCompany, filters: GemiAdminFilters): string {
+function companyCsvRow(
+  company: GemiCompany,
+  filters: GemiAdminFilters,
+  selection: GemiResolvedActivitySelection
+): string {
+  const matchedEntries = matchedCompanyActivityEntries(company, selection);
+  const selectedGroupLabels = selection.groups.map((group) => group.label);
   const values = [
     asString(company.arGemi),
     asString(company.afm),
@@ -388,7 +656,12 @@ function companyCsvRow(company: GemiCompany, filters: GemiAdminFilters): string 
     activityValues(company, "descr"),
     activityTypes(company),
     activityValues(company, "kadVersion"),
-    filters.activityId,
+    activityValuesFromEntries(matchedEntries, "id"),
+    activityValuesFromEntries(matchedEntries, "descr"),
+    matchedGroupLabels(company, selection).join(" | "),
+    filters.activityIds[0] ?? "",
+    filters.activityIds.join(" | "),
+    selectedGroupLabels.join(" | "),
     filters.prefectureId === ALL_PREFECTURES ? "" : filters.prefectureId,
     filters.municipalityId ?? ""
   ];
@@ -401,6 +674,7 @@ export function gemiAdminCsvStream(filters: GemiAdminFilters, apiKey?: string): 
   let totalCount: number | undefined;
   let headerSent = false;
   let closed = false;
+  let selectionPromise: Promise<GemiResolvedActivitySelection> | undefined;
   const seen = new Set<string>();
 
   return new ReadableStream<Uint8Array>({
@@ -412,7 +686,8 @@ export function gemiAdminCsvStream(filters: GemiAdminFilters, apiKey?: string): 
           headerSent = true;
         }
 
-        const page = await searchCompanies(filters, offset, PAGE_SIZE, apiKey);
+        const selection = await (selectionPromise ??= resolveActivitySelection(filters, apiKey));
+        const page = await searchCompanies(filters, selection, offset, PAGE_SIZE, apiKey);
         if (totalCount === undefined) totalCount = page.totalCount;
 
         if (!page.companies.length) {
@@ -426,7 +701,7 @@ export function gemiAdminCsvStream(filters: GemiAdminFilters, apiKey?: string): 
           const gemi = asString(company.arGemi);
           if (gemi && seen.has(gemi)) continue;
           if (gemi) seen.add(gemi);
-          chunk += companyCsvRow(company, filters);
+          chunk += companyCsvRow(company, filters, selection);
         }
         if (chunk) controller.enqueue(encoder.encode(chunk));
 
@@ -447,9 +722,12 @@ export function gemiAdminCsvStream(filters: GemiAdminFilters, apiKey?: string): 
 }
 
 export function gemiAdminCsvFilename(filters: GemiAdminFilters): string {
+  const selectionPart = filters.activityGroupIds.length
+    ? `groups-${filters.activityGroupIds.join("-")}`
+    : `kad-${filters.activityIds.join("-")}`;
   const parts = [
     "kontamou-gemi",
-    filters.activityId,
+    selectionPart,
     filters.municipalityId
       ? `municipality-${filters.municipalityId}`
       : filters.prefectureId !== ALL_PREFECTURES
