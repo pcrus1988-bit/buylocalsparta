@@ -37,6 +37,7 @@ Raw HTML/PDF/JSON/CSV bodies should live in governed object storage. PostgreSQL 
 - `nyxi_source_crawl_state` — operational check/retry state, separate from evidence history.
 - `nyxi_research_targets` — queue for brands, jurisdictions, ingredients, regulations, recall systems and scientific topics.
 - `nyxi_source_target_links` — source-to-target coverage relationships without asserting extracted facts.
+- `nyxi_source_candidates` — aggressively gathered URLs awaiting verification; discovery alone never promotes authority.
 
 All tables have RLS enabled and are restricted to KONTA MOY application/platform runtime roles.
 
@@ -57,9 +58,38 @@ The seed includes 23 verified primary sources spanning:
 
 The first 50 nail brands are seeded as independent research targets. OPI, essie, The GelBottle Inc, Aprés Nail and Kiara Sky begin in `in_progress`; the remainder stay queued until their source maps are discovered and verified.
 
-## Next implementation pass
+## Collection implementation
 
-1. Add the source-fetch worker with conditional requests (ETag / Last-Modified), SHA-256 hashing and raw-object archival.
-2. Discover each priority brand's official product indexes, regional sites, SDS/TDS libraries, catalogues/colour charts, reformulation notices and archived pages.
-3. Capture recall/regulatory feeds on an appropriate cadence without converting alerts into global brand conclusions.
-4. Only after source coverage is sufficient, add identity resolution and versioned assertion extraction.
+Phase 0 now includes `workers/nyxi-source-collector-worker.ts`.
+
+The collector deliberately performs **no semantic product/formula analysis**. For every verified registered source it:
+
+1. uses HTTPS-only, public-DNS-pinned acquisition with redirect revalidation;
+2. sends conditional requests using retained ETag / Last-Modified values;
+3. bounds response sizes and request duration;
+4. hashes the exact received bytes with SHA-256;
+5. stores changed raw bytes under the immutable content-addressed key
+   `private/nyxi/source-archive/<source-id>/<sha256>.<ext>`;
+6. records a versioned PostgreSQL snapshot containing retrieval/status/header provenance and the raw object key;
+7. records no new snapshot when the source is unchanged;
+8. never extracts ingredients, shade properties, legal conclusions or safety conclusions.
+
+A six-hour GitHub Actions schedule runs the source registry sync followed by the collector in bounded drain mode when repository secrets are configured.
+
+## Growing the source universe
+
+Further source discovery does not require database migrations.
+
+- `data/nyxi/source-registry.json` contains manually verified primary sources.
+- `npm run nyxi:sources:sync` idempotently upserts that curated registry and schedules new sources for capture.
+- `nyxi_source_candidates` holds discovered-but-not-yet-verified URLs from searches, indexes, sitemaps, regulator listings or manufacturer links.
+
+This distinction is intentional: NYXI can gather very broadly now while keeping the evidence bar high.
+
+The next work is therefore **source discovery, not content interpretation**:
+
+1. expand every priority brand to its official product indexes, regional sites, SDS/TDS libraries, catalogues, colour charts, technical manuals and reformulation notices;
+2. register official regulator/recall feeds and historical archives;
+3. preserve linked PDFs/JSON/CSV documents as independent sources when they are verified;
+4. retain removed and superseded sources rather than deleting them;
+5. only after source coverage is dense enough, introduce product identity resolution and versioned assertion extraction.
