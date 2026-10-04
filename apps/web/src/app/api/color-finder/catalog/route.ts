@@ -7,16 +7,18 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const categoryCode = url.searchParams.get("category")?.trim() || undefined;
   const vendorPublicId = url.searchParams.get("vendor")?.trim() || undefined;
+  const targetHex = url.searchParams.get("color")?.trim() || undefined;
 
   try {
-    const products = await getColorFinderProducts({ categoryCode, vendorPublicId });
+    const products = await getColorFinderProducts({ categoryCode, vendorPublicId, targetHex });
     return Response.json(
       {
         products,
         degraded: products.length === 0,
         scope: {
           category: categoryCode ?? "nail-care-colour",
-          vendor: vendorPublicId ?? null
+          vendor: vendorPublicId ?? null,
+          color: targetHex ?? null
         }
       },
       {
@@ -31,6 +33,7 @@ export async function GET(request: Request) {
       event: "color_finder.catalogue_endpoint_degraded",
       categoryCode: categoryCode ?? "nail-care-colour",
       vendorPublicId: vendorPublicId ?? null,
+      targetHex: targetHex ?? null,
       message: error instanceof Error ? error.message : String(error)
     }));
 
@@ -40,7 +43,8 @@ export async function GET(request: Request) {
         degraded: true,
         scope: {
           category: categoryCode ?? "nail-care-colour",
-          vendor: vendorPublicId ?? null
+          vendor: vendorPublicId ?? null,
+          color: targetHex ?? null
         }
       },
       {
