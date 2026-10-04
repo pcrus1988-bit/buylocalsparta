@@ -12,6 +12,7 @@ import {
 
 const NOVA_SUPPLIER_CODE = "nova_brandsgateway";
 const AVAILABILITY_TTL_HOURS = 12;
+const AVAILABILITY_RENEW_WINDOW_HOURS = 4;
 const DEFAULT_AVAILABILITY_REQUESTS_PER_MINUTE = 60;
 const DEFAULT_FULL_SWEEP_PAGE_SIZE = 100;
 const FALLBACK_FULL_SWEEP_PAGE_SIZE = 50;
@@ -274,48 +275,93 @@ async function refreshNovaAvailabilityPage(
   if (rows.length === 0) return 0;
 
   const update = await db.query<SqlRow>(`
-    UPDATE public.dropship_supplier_offers dso
-    SET cached_available=x.cached_available,
-        cached_quantity=x.cached_quantity,
-        availability_checked_at=$3::timestamptz,
-        availability_expires_at=$3::timestamptz + interval '${AVAILABILITY_TTL_HOURS} hours',
-        availability_payload=COALESCE(dso.availability_payload, '{}'::jsonb) || jsonb_build_object(
-          'source', 'nova_api_authoritative_full_catalogue',
-          'productId', x.external_product_id,
-          'variantId', x.external_variant_id,
-          'refreshedAt', $3::timestamptz,
-          'refreshPolicy', 'actions_batched_full_sweep_12h_ttl_rate_limited'
-        ),
-        updated_at=$3::timestamptz
-    FROM jsonb_to_recordset($1::jsonb) AS x(
-      external_product_id text,
-      external_variant_id text,
-      external_sku text,
-      cached_available boolean,
-      cached_quantity integer
-    ), public.dropship_suppliers ds,
-       public.vendor_offers vo
-    WHERE ds.id=dso.supplier_id
-      AND ds.code=$2
-      AND ds.active=true
-      AND ds.api_authoritative_availability=true
-      AND vo.id=dso.vendor_offer_id
-      AND vo.vendor_id=ds.owner_vendor_id
-      AND dso.active=true
-      AND dso.external_product_id=x.external_product_id
-      AND (
-        dso.external_variant_id=x.external_variant_id
-        OR (x.external_sku IS NOT NULL AND dso.external_sku=x.external_sku)
+    WITH incoming AS (
+      SELECT *
+      FROM jsonb_to_recordset($1::jsonb) AS x(
+        external_product_id text,
+        external_variant_id text,
+        external_sku text,
+        cached_available boolean,
+        cached_quantity integer
       )
-  `, [JSON.stringify(rows), NOVA_SUPPLIER_CODE, checkedAt]);
+    ),
+    supplier AS (
+      SELECT id,owner_vendor_id
+      FROM public.dropship_suppliers
+      WHERE code=$2
+        AND active=true
+        AND api_authoritative_availability=true
+      LIMIT 1
+    ),
+    candidates AS MATERIALIZED (
+      SELECT
+        dso.id,
+        x.external_product_id,
+        x.external_variant_id,
+        x.cached_available,
+        x.cached_quantity
+      FROM public.dropship_supplier_offers dso
+      JOIN supplier ds ON ds.id=dso.supplier_id
+      JOIN public.vendor_offers vo
+        ON vo.id=dso.vendor_offer_id
+       AND vo.vendor_id=ds.owner_vendor_id
+      JOIN incoming x
+        ON x.external_product_id=dso.external_product_id
+       AND (
+         dso.external_variant_id=x.external_variant_id
+         OR (x.external_sku IS NOT NULL AND dso.external_sku=x.external_sku)
+       )
+      WHERE dso.active=true
+        AND (
+          dso.cached_available IS DISTINCT FROM x.cached_available
+          OR dso.cached_quantity IS DISTINCT FROM x.cached_quantity
+          OR dso.availability_checked_at IS NULL
+          OR dso.availability_expires_at IS NULL
+          OR dso.availability_expires_at <= $3::timestamptz
+             + make_interval(hours=>$4::int)
+        )
+    ),
+    changed AS (
+      UPDATE public.dropship_supplier_offers dso
+      SET cached_available=candidates.cached_available,
+          cached_quantity=candidates.cached_quantity,
+          availability_checked_at=$3::timestamptz,
+          availability_expires_at=$3::timestamptz + interval '${AVAILABILITY_TTL_HOURS} hours',
+          availability_payload=COALESCE(dso.availability_payload, '{}'::jsonb) || jsonb_build_object(
+            'source', 'nova_api_authoritative_full_catalogue',
+            'productId', candidates.external_product_id,
+            'variantId', candidates.external_variant_id,
+            'refreshedAt', $3::timestamptz,
+            'refreshPolicy', 'actions_batched_full_sweep_12h_ttl_rate_limited'
+          ),
+          updated_at=$3::timestamptz
+      FROM candidates
+      WHERE dso.id=candidates.id
+      RETURNING candidates.external_product_id
+    )
+    SELECT
+      count(*)::int AS updated_count,
+      COALESCE(array_agg(DISTINCT external_product_id), ARRAY[]::text[]) AS refresh_product_ids
+    FROM changed
+  `, [
+    JSON.stringify(rows),
+    NOVA_SUPPLIER_CODE,
+    checkedAt,
+    AVAILABILITY_RENEW_WINDOW_HOURS
+  ]);
 
-  const touchedProductIds = [...new Set(rows.map((row) => row.external_product_id))];
-  await db.query(
-    `SELECT bls_private.refresh_nova_storefront_live_families($1::text[])`,
-    [touchedProductIds]
-  );
+  const summary = update.rows[0];
+  const touchedProductIds = Array.isArray(summary?.refresh_product_ids)
+    ? [...new Set(summary.refresh_product_ids.map((value) => String(value ?? "").trim()).filter(Boolean))]
+    : [];
+  if (touchedProductIds.length > 0) {
+    await db.query(
+      `SELECT bls_private.refresh_nova_storefront_live_families($1::text[])`,
+      [touchedProductIds]
+    );
+  }
 
-  return update.rowCount;
+  return Number(summary?.updated_count ?? 0);
 }
 
 /**
