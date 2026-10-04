@@ -59,7 +59,8 @@ test("enforces required matrix completeness and multi-select limits", () => {
     Q02: ["a","b","c"]
   });
   assert.equal(result.ok, false);
-  assert.deepEqual(result.invalid.sort(), ["Q01","Q02"]);
+  assert.deepEqual(result.missing, ["Q01"]);
+  assert.deepEqual(result.invalid, ["Q02"]);
 });
 
 test("readiness bands stay stable at documented boundaries", () => {
