@@ -5,6 +5,20 @@ import { secureCrawlFetch } from "./catalog-crawler/transport.ts";
 
 type WorkerMode = "continuous" | "drain";
 
+type CandidateLease = Readonly<{
+  candidateId: string;
+  canonicalUrl: string;
+  sourceFamilyHint?: string;
+  publisherHint?: string;
+  jurisdictionHint?: string;
+  discoveredFromSourceId: string;
+  etag?: string;
+  lastModified?: string;
+  lastContentSha256?: string;
+  lastHttpStatus?: number;
+  consecutiveFailures: number;
+}>;
+
 type SourceLease = Readonly<{
   sourceId: string;
   sourceKey: string;
@@ -51,6 +65,7 @@ const maxRedirects = bounded(process.env.BLS_NYXI_SOURCE_MAX_REDIRECTS, 5, 0, 10
 const maxItems = bounded(process.env.BLS_NYXI_SOURCE_MAX_ITEMS, 100, 1, 10_000, "BLS_NYXI_SOURCE_MAX_ITEMS");
 const discoveryMaxLinks = bounded(process.env.BLS_NYXI_SOURCE_DISCOVERY_MAX_LINKS, 2_000, 0, 20_000, "BLS_NYXI_SOURCE_DISCOVERY_MAX_LINKS");
 const discoveryMaxBytes = bounded(process.env.BLS_NYXI_SOURCE_DISCOVERY_MAX_BYTES, 8 * 1024 * 1024, 64 * 1024, 25 * 1024 * 1024, "BLS_NYXI_SOURCE_DISCOVERY_MAX_BYTES");
+const candidateRecheckDays = bounded(process.env.BLS_NYXI_CANDIDATE_RECHECK_DAYS, 90, 7, 3650, "BLS_NYXI_CANDIDATE_RECHECK_DAYS");
 const mode = workerMode(process.env.BLS_NYXI_SOURCE_MODE);
 const userAgent = process.env.BLS_NYXI_SOURCE_USER_AGENT?.trim() || "NYXI-EvidenceBot/0.1 (+https://kontamou.site/)";
 let stopping = false;
@@ -76,7 +91,30 @@ try {
   while (!stopping) {
     if (mode === "drain" && processed >= maxItems) break;
     const lease = await claimSource();
-    if (!lease) {
+    if (lease) {
+      processed += 1;
+      try {
+        await collectSource(lease);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await recordFailure(lease, message).catch((persistError) => {
+          log("error", "nyxi_source.failure_persist_failed", {
+            sourceKey: lease.sourceKey,
+            message: persistError instanceof Error ? persistError.message : String(persistError)
+          });
+        });
+        log("error", "nyxi_source.fetch_failed", {
+          sourceKey: lease.sourceKey,
+          url: lease.canonicalUrl,
+          consecutiveFailures: lease.consecutiveFailures + 1,
+          message
+        });
+      }
+      continue;
+    }
+
+    const candidate = await claimCandidate();
+    if (!candidate) {
       if (mode === "drain") break;
       await delay(pollMs);
       continue;
@@ -84,19 +122,19 @@ try {
 
     processed += 1;
     try {
-      await collectSource(lease);
+      await collectCandidate(candidate);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await recordFailure(lease, message).catch((persistError) => {
-        log("error", "nyxi_source.failure_persist_failed", {
-          sourceKey: lease.sourceKey,
+      await recordCandidateFailure(candidate, message).catch((persistError) => {
+        log("error", "nyxi_candidate.failure_persist_failed", {
+          candidateId: candidate.candidateId,
           message: persistError instanceof Error ? persistError.message : String(persistError)
         });
       });
-      log("error", "nyxi_source.fetch_failed", {
-        sourceKey: lease.sourceKey,
-        url: lease.canonicalUrl,
-        consecutiveFailures: lease.consecutiveFailures + 1,
+      log("error", "nyxi_candidate.fetch_failed", {
+        candidateId: candidate.candidateId,
+        url: candidate.canonicalUrl,
+        consecutiveFailures: candidate.consecutiveFailures + 1,
         message
       });
     }
@@ -166,6 +204,281 @@ async function claimSource(): Promise<SourceLease | undefined> {
     lastHttpStatus: nullableInteger(row.last_http_status),
     consecutiveFailures: integer(row.consecutive_failures ?? 0, "consecutive_failures")
   };
+}
+
+async function claimCandidate(): Promise<CandidateLease | undefined> {
+  const result = await runtime.nativePool.query(`
+    WITH due AS (
+      SELECT candidate.id
+      FROM public.nyxi_source_candidates candidate
+      WHERE candidate.candidate_status='candidate'
+        AND candidate.discovered_from_source_id IS NOT NULL
+        AND candidate.next_check_at IS NOT NULL
+        AND candidate.next_check_at<=now()
+        AND (candidate.lease_expires_at IS NULL OR candidate.lease_expires_at<=now())
+      ORDER BY candidate.first_seen_at ASC,candidate.id
+      FOR UPDATE SKIP LOCKED
+      LIMIT 1
+    )
+    UPDATE public.nyxi_source_candidates candidate
+    SET lease_owner=$1,
+        lease_expires_at=now()+($2::text || ' seconds')::interval,
+        updated_at=now()
+    FROM due
+    WHERE candidate.id=due.id
+    RETURNING
+      candidate.id::text AS candidate_id,
+      candidate.canonical_url,
+      candidate.source_family_hint,
+      candidate.publisher_hint,
+      candidate.jurisdiction_hint,
+      candidate.discovered_from_source_id::text,
+      candidate.etag,
+      candidate.last_modified,
+      candidate.last_content_sha256,
+      candidate.last_http_status,
+      candidate.consecutive_failures
+  `, [workerId, leaseSeconds]);
+
+  const row = result.rows[0] as Record<string, unknown> | undefined;
+  if (!row) return undefined;
+  return {
+    candidateId: required(row.candidate_id, "candidate_id"),
+    canonicalUrl: required(row.canonical_url, "candidate.canonical_url"),
+    sourceFamilyHint: optional(row.source_family_hint),
+    publisherHint: optional(row.publisher_hint),
+    jurisdictionHint: optional(row.jurisdiction_hint),
+    discoveredFromSourceId: required(row.discovered_from_source_id, "candidate.discovered_from_source_id"),
+    etag: optional(row.etag),
+    lastModified: optional(row.last_modified),
+    lastContentSha256: optional(row.last_content_sha256),
+    lastHttpStatus: nullableInteger(row.last_http_status),
+    consecutiveFailures: integer(row.consecutive_failures ?? 0, "candidate.consecutive_failures")
+  };
+}
+
+async function collectCandidate(candidate: CandidateLease): Promise<void> {
+  const canonical = new URL(candidate.canonicalUrl);
+  if (canonical.protocol !== "https:") throw new Error("NYXI candidate collector requires HTTPS");
+  const allowedHosts = new Set<string>();
+  addHost(allowedHosts, canonical.hostname);
+  const result = await secureCrawlFetch({
+    url: candidate.canonicalUrl,
+    policy: {
+      allowedHosts: [...allowedHosts],
+      allowSubdomains: false,
+      allowHttp: false,
+      maxRedirects,
+      maxResponseBytes
+    },
+    userAgent,
+    timeoutMs: requestTimeoutMs,
+    accept: candidateAcceptHeader(candidate.sourceFamilyHint, candidate.canonicalUrl),
+    ifNoneMatch: candidate.etag,
+    ifModifiedSince: candidate.lastModified
+  });
+
+  const nextCheckAt = new Date(Date.now() + candidateRecheckDays * 24 * 60 * 60 * 1000);
+
+  if (result.status === 304) {
+    await runtime.nativePool.query(`
+      WITH logged AS (
+        INSERT INTO public.nyxi_source_candidate_checks(
+          candidate_id,outcome,requested_url,final_url,http_status,content_sha256,
+          byte_length,etag,last_modified,worker_id,metadata
+        )
+        VALUES(
+          $1,'not_modified',$3,$4,304,$5,$6,$7,$8,$2,
+          jsonb_build_object('verifiedSource',false,'interpretationPerformed',false)
+        )
+        RETURNING id
+      )
+      UPDATE public.nyxi_source_candidates
+      SET last_checked_at=now(),
+          last_http_status=COALESCE(last_http_status,304),
+          consecutive_failures=0,
+          last_error=NULL,
+          next_check_at=$9,
+          lease_owner=NULL,
+          lease_expires_at=NULL,
+          updated_at=now()
+      WHERE id=$1 AND lease_owner=$2
+    `, [
+      candidate.candidateId,
+      workerId,
+      candidate.canonicalUrl,
+      result.finalUrl,
+      candidate.lastContentSha256 ?? null,
+      result.responseBytes,
+      result.headers.etag ?? candidate.etag ?? null,
+      result.headers["last-modified"] ?? candidate.lastModified ?? null,
+      nextCheckAt
+    ]);
+    log("info", "nyxi_candidate.not_modified", { candidateId: candidate.candidateId });
+    return;
+  }
+
+  if (result.status === 429 || result.status >= 500) {
+    throw new Error(`Candidate returned retryable HTTP ${result.status}`);
+  }
+
+  const contentType = result.headers["content-type"]?.split(";")[0]?.trim().toLowerCase() || undefined;
+  const contentChanged = !candidate.lastContentSha256 || candidate.lastContentSha256 !== result.responseSha256;
+  const successful = result.status >= 200 && result.status < 400;
+  let objectKey: string | undefined;
+
+  if (successful && contentChanged && result.body.length > 0) {
+    objectKey = candidateRawObjectKey(candidate.candidateId, result.responseSha256, contentType, result.finalUrl);
+    const existing = await storage.head(objectKey);
+    if (existing) {
+      if (existing.byteSize !== result.body.length) throw new Error("Existing NYXI candidate archive object has unexpected byte size");
+    } else {
+      await storage.write({
+        objectKey,
+        body: result.body,
+        contentType,
+        cacheControl: "private, max-age=31536000, immutable",
+        metadata: {
+          candidateid: candidate.candidateId,
+          sha256: result.responseSha256,
+          verifiedsource: "false"
+        }
+      });
+    }
+  }
+
+  const client = await runtime.nativePool.connect();
+  try {
+    await client.query("BEGIN");
+    if (successful && contentChanged) {
+      await client.query(`
+        INSERT INTO public.nyxi_source_candidate_snapshots(
+          candidate_id,retrieved_at,http_status,content_type,content_sha256,
+          raw_object_key,byte_length,etag,last_modified,metadata
+        )
+        VALUES($1,now(),$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
+        ON CONFLICT (candidate_id,content_sha256) WHERE content_sha256 IS NOT NULL DO NOTHING
+      `, [
+        candidate.candidateId,
+        result.status,
+        contentType ?? null,
+        result.responseSha256,
+        objectKey ?? null,
+        result.responseBytes,
+        result.headers.etag ?? null,
+        result.headers["last-modified"] ?? null,
+        JSON.stringify({
+          requestedUrl: candidate.canonicalUrl,
+          finalUrl: result.finalUrl,
+          discoveredFromSourceId: candidate.discoveredFromSourceId,
+          publisherHint: candidate.publisherHint ?? null,
+          jurisdictionHint: candidate.jurisdictionHint ?? null,
+          sourceFamilyHint: candidate.sourceFamilyHint ?? null,
+          redirectChain: result.redirectChain,
+          responseHeaders: evidenceHeaders(result.headers),
+          verifiedSource: false,
+          interpretationPerformed: false
+        })
+      ]);
+    }
+
+    await client.query(`
+      INSERT INTO public.nyxi_source_candidate_checks(
+        candidate_id,outcome,requested_url,final_url,http_status,content_sha256,
+        byte_length,etag,last_modified,worker_id,metadata
+      )
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)
+    `, [
+      candidate.candidateId,
+      successful ? (contentChanged ? "changed" : "unchanged") : "http_error",
+      candidate.canonicalUrl,
+      result.finalUrl,
+      result.status,
+      result.responseSha256,
+      result.responseBytes,
+      result.headers.etag ?? null,
+      result.headers["last-modified"] ?? null,
+      workerId,
+      JSON.stringify({
+        archived: Boolean(objectKey),
+        verifiedSource: false,
+        interpretationPerformed: false
+      })
+    ]);
+
+    await client.query(`
+      UPDATE public.nyxi_source_candidates
+      SET last_checked_at=now(),
+          last_http_status=$3,
+          last_content_sha256=CASE WHEN $4 THEN $5 ELSE last_content_sha256 END,
+          etag=CASE WHEN $4 THEN $6 ELSE etag END,
+          last_modified=CASE WHEN $4 THEN $7 ELSE last_modified END,
+          consecutive_failures=CASE WHEN $4 THEN 0 ELSE consecutive_failures+1 END,
+          last_error=CASE WHEN $4 THEN NULL ELSE $8 END,
+          next_check_at=$9,
+          lease_owner=NULL,
+          lease_expires_at=NULL,
+          updated_at=now()
+      WHERE id=$1 AND lease_owner=$2
+    `, [
+      candidate.candidateId,
+      workerId,
+      result.status,
+      successful,
+      successful ? result.responseSha256 : null,
+      result.headers.etag ?? null,
+      result.headers["last-modified"] ?? null,
+      successful ? null : `HTTP ${result.status}`,
+      successful ? nextCheckAt : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    ]);
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  log("info", "nyxi_candidate.checked", {
+    candidateId: candidate.candidateId,
+    status: result.status,
+    sha256: result.responseSha256,
+    archived: Boolean(objectKey),
+    verifiedSource: false
+  });
+}
+
+async function recordCandidateFailure(candidate: CandidateLease, message: string): Promise<void> {
+  const failures = candidate.consecutiveFailures + 1;
+  const retryMs = Math.min(30 * 24 * 60 * 60 * 1000, 60 * 60 * 1000 * (2 ** Math.min(8, Math.max(0, failures - 1))));
+  await runtime.nativePool.query(`
+    WITH logged AS (
+      INSERT INTO public.nyxi_source_candidate_checks(
+        candidate_id,outcome,requested_url,error_message,worker_id,metadata
+      )
+      VALUES(
+        $1,'fetch_error',$3,$4,$2,
+        jsonb_build_object('verifiedSource',false,'interpretationPerformed',false)
+      )
+      RETURNING id
+    )
+    UPDATE public.nyxi_source_candidates
+    SET last_checked_at=now(),
+        consecutive_failures=consecutive_failures+1,
+        last_error=$4,
+        next_check_at=$5,
+        lease_owner=NULL,
+        lease_expires_at=NULL,
+        updated_at=now()
+    WHERE id=$1 AND lease_owner=$2
+  `, [
+    candidate.candidateId,
+    workerId,
+    candidate.canonicalUrl,
+    message.slice(0, 4000),
+    new Date(Date.now() + retryMs)
+  ]);
 }
 
 async function collectSource(source: SourceLease): Promise<void> {
@@ -305,7 +618,7 @@ async function collectSource(source: SourceLease): Promise<void> {
         INSERT INTO public.nyxi_source_candidates(
           canonical_url,discovered_from_source_id,discovery_method,
           publisher_hint,source_family_hint,jurisdiction_hint,
-          candidate_status,first_seen_at,last_seen_at,metadata
+          candidate_status,first_seen_at,last_seen_at,next_check_at,metadata
         )
         SELECT
           candidate.canonical_url,
@@ -315,6 +628,7 @@ async function collectSource(source: SourceLease): Promise<void> {
           candidate.source_family_hint,
           $4,
           'candidate',
+          now(),
           now(),
           now(),
           jsonb_build_object(
@@ -330,6 +644,7 @@ async function collectSource(source: SourceLease): Promise<void> {
         WHERE candidate.canonical_url<>$6
         ON CONFLICT (canonical_url) DO UPDATE SET
           last_seen_at=now(),
+          next_check_at=COALESCE(public.nyxi_source_candidates.next_check_at,EXCLUDED.next_check_at),
           updated_at=now(),
           metadata=public.nyxi_source_candidates.metadata || EXCLUDED.metadata
       `, [
@@ -568,6 +883,19 @@ function evidenceHeaders(headers: Readonly<Record<string, string>>): Record<stri
   const result: Record<string, string> = {};
   for (const key of keys) if (headers[key]) result[key] = headers[key];
   return result;
+}
+
+function candidateAcceptHeader(sourceFamilyHint: string | undefined, rawUrl: string): string {
+  const pathname = new URL(rawUrl).pathname.toLowerCase();
+  if (sourceFamilyHint === "manufacturer_sds" || pathname.endsWith(".pdf")) return "application/pdf,text/html;q=0.8,*/*;q=0.3";
+  if (/\.(?:json)$/i.test(pathname)) return "application/json,text/plain;q=0.5,*/*;q=0.2";
+  if (/\.(?:csv)$/i.test(pathname)) return "text/csv,text/plain;q=0.8,*/*;q=0.2";
+  if (/\.(?:xml)$/i.test(pathname) || sourceFamilyHint === "structured_source") return "application/xml,text/xml;q=0.9,*/*;q=0.2";
+  return "text/html,application/xhtml+xml,application/pdf;q=0.8,*/*;q=0.3";
+}
+
+function candidateRawObjectKey(candidateId: string, sha256: string, contentType: string | undefined, finalUrl: string): string {
+  return `private/nyxi/candidate-archive/${candidateId}/${sha256}.${extension(contentType, finalUrl)}`;
 }
 
 function rawObjectKey(sourceId: string, sha256: string, contentType: string | undefined, finalUrl: string): string {
