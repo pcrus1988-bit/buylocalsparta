@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SiteFooter } from "../../../../components/SiteFooter";
+import { governedStaticSeoMetadata } from "../../../../lib/seo-metadata";
 import styles from "../../../../components/ResearchSurveyPage.module.css";
 
-export const metadata: Metadata = {
-  title: "Μεθοδολογία · Ελληνικό Λιανεμπόριο 2026",
-  description: "Μεθοδολογική τεκμηρίωση της μελέτης Ελληνικό Λιανεμπόριο 2026."
-};
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/research/greek-retail-2026/methodology", {
+    title: "Μεθοδολογία · Ελληνικό Λιανεμπόριο 2026",
+    description: "Μεθοδολογική τεκμηρίωση, sampling, consent, weighting και reproducibility protocol της μελέτης Ελληνικό Λιανεμπόριο 2026."
+  });
+}
 
 const stages = [
   ["1", "Population frame", "Παγωμένο snapshot του επιλέξιμου πληθυσμού επιχειρήσεων, με ακριβείς κανόνες ένταξης και hash περιεχομένου."],
@@ -60,5 +64,6 @@ export default function GreekRetailMethodologyPage() {
       <h2>Δεν δημοσιεύεται αριθμός χωρίς provenance.</h2>
       <p>Η δημόσια έκδοση θα αναφέρει target population, frame date, field dates, sampling method, invitations, starts, completes, exclusions, weighting method, unweighted/weighted bases και limitations. Αν η τελική συλλογή δεν πληροί τις προϋποθέσεις πιθανoκρατικής δειγματοληψίας, δεν θα παρουσιάζεται συμβατικό margin of error ως εάν επρόκειτο για probability sample.</p>
     </section>
+    <SiteFooter />
   </main>;
 }
