@@ -1,5 +1,5 @@
 {
-  "version": 12,
+  "version": 13,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -4382,6 +4382,178 @@
           "type": "brand",
           "displayName": "Victoria Vynn",
           "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "semilac_color_charts",
+      "publisher": "Semilac",
+      "title": "Color Charts",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://semilac.pl/en/color-charts",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Semilac",
+        "scope": "colour_chart_and_discontinued_markers"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high",
+        "historicalEvidence": true
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Semilac",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "semilac_uv_hybrid_colors",
+      "publisher": "Semilac",
+      "title": "UV Colors Hybrids",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://semilac.pl/en/uv-hybrids/uv-hybrid-colors",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Semilac",
+        "scope": "uv_hybrid_colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Semilac",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "semilac_easy_off",
+      "publisher": "Semilac",
+      "title": "Gel Polish EASY OFF",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://semilac.pl/en/uv-hybrids/lakiery-easy-off",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Semilac",
+        "scope": "easy_off_line"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Semilac",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "semilac_new_products",
+      "publisher": "Semilac",
+      "title": "New Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://semilac.pl/en/new-products",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Semilac",
+        "scope": "new_releases"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Semilac",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "semilac_uv_gels",
+      "publisher": "Semilac",
+      "title": "UV Gels",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://semilac.pl/en/uv-gels",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Semilac",
+        "scope": "uv_gels_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Semilac",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "kodi_gel_polish",
+      "publisher": "KODI Professional",
+      "title": "Gel Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://kodi.pro/nails/gel-polish/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Kodi Professional",
+        "scope": "gel_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Kodi Professional",
+          "relation": "primary_for"
         }
       ]
     }
