@@ -1,5 +1,5 @@
 {
-  "version": 23,
+  "version": 24,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -7190,6 +7190,98 @@
           "type": "brand",
           "displayName": "Mystic Nails",
           "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "the_manicure_company_msds",
+      "publisher": "The Manicure Company",
+      "title": "MSDS / Safety Data Sheets",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://www.themanicurecompany.com/en-gb/pages/msds",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "The Manicure Company",
+        "scope": "central_sds_library",
+        "preserveLinkedDocuments": true
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "The Manicure Company",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "the_manicure_company_zero_system",
+      "publisher": "The Manicure Company",
+      "title": "The Zero Gel Systems",
+      "sourceFamily": "manufacturer_product",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://www.themanicurecompany.com/pages/the-hypoallergenic-zero-gel-systems",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "The Manicure Company",
+        "line": "Zero",
+        "scope": "system_formula_claims_and_sds_pointer"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest",
+        "preserveLinkedDocuments": true
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "The Manicure Company",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gellifique_sds_2019_pdf",
+      "publisher": "Gellifique Professional",
+      "title": "Gellifique Professional UV/LED Gel Safety Data Sheet",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.gellifique.co.uk/img/cms/EU%20CLP%20SDS%20-%20GELLIFIQUEPROFESSIONAL%20UVLED%20GEL%2020190411-3.pdf",
+      "retrievalMethod": "pdf",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "brand": "Gellifique",
+        "scope": "raw_sds_pdf",
+        "documentDate": "2019-02"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest",
+        "historicalEvidence": true
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Gellifique",
+          "relation": "historical_for"
         }
       ]
     }
