@@ -26,6 +26,26 @@ export type ResolvedCatalogColor = Readonly<{
   cmyk: string;
 }>;
 
+export type CatalogShadeReference = Readonly<{
+  key: string;
+  familyKey: string;
+  displayNameEl: string;
+  displayNameEn: string;
+  hex: `#${string}`;
+  aliases: readonly string[];
+}>;
+
+export type ResolvedCatalogShade = Readonly<{
+  key: string;
+  familyKey?: string;
+  displayNameEl: string;
+  displayNameEn: string;
+  sourceValue: string;
+  matchedAlias: string;
+  hex: `#${string}`;
+  precision: "exact" | "reference" | "family";
+}>;
+
 /**
  * Shared consumer-colour reference used by catalogue ingestion and storefront
  * presentation. RAL values are deliberately named `ralApprox`: retail colour
@@ -86,6 +106,62 @@ export const CATALOG_COLOR_INDEX: readonly CatalogColorIndexEntry[] = [
   { key: "transparent", displayNameEl: "Διάφανο", displayNameEn: "Transparent", hex: "#FFFFFF", swatchKind: "transparent", aliases: ["transparent", "clear", "διαφανο", "διαφανες", "clear transparent"] },
   { key: "multicolor", displayNameEl: "Πολύχρωμο", displayNameEn: "Multicolor", hex: "#B36CA8", swatchKind: "multicolor", aliases: ["multicolor", "multi color", "multi-color", "multicolour", "multi colour", "πολυχρωμο", "πολυχρωμα", "assorted", "mixed colours", "mixed colors"] }
 ] as const;
+
+
+/**
+ * Fine-grained shade references used by Color Finder Studios. These do not
+ * create extra storefront filter facets: every shade points back to one
+ * canonical CATALOG_COLOR_INDEX family.
+ *
+ * The HEX values are curated discovery references, not manufacturer claims.
+ * Manufacturer/source HEX always wins when one is available.
+ */
+export const CATALOG_SHADE_REFERENCES: readonly CatalogShadeReference[] = [
+  { key: "cherry", familyKey: "red", displayNameEl: "Κερασί", displayNameEn: "Cherry", hex: "#B31B34", aliases: ["cherry", "κερασι", "cherry red"] },
+  { key: "berry", familyKey: "pink", displayNameEl: "Berry", displayNameEn: "Berry", hex: "#8F3155", aliases: ["berry", "berries", "berry pink", "berry red"] },
+  { key: "scarlet", familyKey: "red", displayNameEl: "Scarlet", displayNameEn: "Scarlet", hex: "#C8323E", aliases: ["scarlet", "rouge"] },
+  { key: "terracotta", familyKey: "orange", displayNameEl: "Τερακότα", displayNameEn: "Terracotta", hex: "#B95F4B", aliases: ["terracotta", "τερακοτα"] },
+  { key: "magenta", familyKey: "fuchsia", displayNameEl: "Ματζέντα", displayNameEn: "Magenta", hex: "#C83278", aliases: ["magenta", "ματζεντα"] },
+  { key: "rosewood", familyKey: "blush", displayNameEl: "Rosewood", displayNameEn: "Rosewood", hex: "#9B4E5E", aliases: ["rosewood", "rose wood"] },
+  { key: "dusty-rose", familyKey: "blush", displayNameEl: "Dusty Rose", displayNameEn: "Dusty Rose", hex: "#B77A86", aliases: ["dusty rose", "old rose"] },
+  { key: "rose", familyKey: "pink", displayNameEl: "Rose", displayNameEn: "Rose", hex: "#C96878", aliases: ["rose", "rose pink", "ροζ rose"] },
+  { key: "pearly-pink", familyKey: "pink", displayNameEl: "Περλέ ροζ", displayNameEn: "Pearly Pink", hex: "#D998A8", aliases: ["pearly pink", "pearl pink", "περλε ροζ"] },
+  { key: "mauve", familyKey: "purple", displayNameEl: "Mauve", displayNameEn: "Mauve", hex: "#9C687B", aliases: ["mauve", "μοβ ροζ"] },
+  { key: "plum", familyKey: "purple", displayNameEl: "Δαμασκηνί", displayNameEn: "Plum", hex: "#70405A", aliases: ["plum", "δαμασκηνι"] },
+  { key: "cobalt", familyKey: "royal-blue", displayNameEl: "Κοβαλτίου", displayNameEn: "Cobalt", hex: "#2D52A0", aliases: ["cobalt", "cobalt blue", "κοβαλτιο"] },
+  { key: "denim", familyKey: "blue", displayNameEl: "Denim", displayNameEn: "Denim", hex: "#4F6B8A", aliases: ["denim", "denim blue"] },
+  { key: "midnight", familyKey: "navy", displayNameEl: "Midnight Blue", displayNameEn: "Midnight Blue", hex: "#28314E", aliases: ["midnight", "midnight blue"] },
+  { key: "emerald", familyKey: "green", displayNameEl: "Σμαραγδί", displayNameEn: "Emerald", hex: "#2D7657", aliases: ["emerald", "emerald green", "σμαραγδι"] },
+  { key: "chestnut", familyKey: "brown", displayNameEl: "Καστανό", displayNameEn: "Chestnut", hex: "#7A4B37", aliases: ["chestnut", "καστανο", "κασταν"] },
+  { key: "copper", familyKey: "tan", displayNameEl: "Χάλκινο", displayNameEn: "Copper", hex: "#B7673C", aliases: ["copper", "χαλκινο", "χαλκ"] },
+  { key: "bronze", familyKey: "brown", displayNameEl: "Μπρονζέ", displayNameEn: "Bronze", hex: "#A97142", aliases: ["bronze", "μπρονζε", "μπρονζ"] },
+  { key: "blonde", familyKey: "gold", displayNameEl: "Ξανθό", displayNameEn: "Blonde", hex: "#D6B77A", aliases: ["blonde", "blond", "ξανθο", "ξανθ"] },
+  { key: "ash", familyKey: "grey", displayNameEl: "Σταχτί", displayNameEn: "Ash", hex: "#8A8178", aliases: ["ash", "ashy", "σταχτι", "σταχτ"] },
+  { key: "ecru", familyKey: "off-white", displayNameEl: "Εκρού", displayNameEn: "Ecru", hex: "#D8C9AB", aliases: ["ecru", "εκρου"] },
+  { key: "cognac", familyKey: "tan", displayNameEl: "Κονιάκ", displayNameEn: "Cognac", hex: "#9A5C32", aliases: ["cognac", "κονιακ"] },
+  { key: "rust", familyKey: "orange", displayNameEl: "Σκουριά", displayNameEn: "Rust", hex: "#A65432", aliases: ["rust", "rusty", "σκουρια"] },
+  { key: "mocha", familyKey: "brown", displayNameEl: "Μόκα", displayNameEn: "Mocha", hex: "#846257", aliases: ["mocha", "μοκα"] },
+  { key: "caramel", familyKey: "tan", displayNameEl: "Καραμέλα", displayNameEn: "Caramel", hex: "#A8704F", aliases: ["caramel", "καραμελα"] },
+  { key: "champagne", familyKey: "gold", displayNameEl: "Σαμπανί", displayNameEn: "Champagne", hex: "#D5BE92", aliases: ["champagne", "σαμπανι"] },
+  { key: "milky", familyKey: "off-white", displayNameEl: "Γαλακτερό", displayNameEn: "Milky", hex: "#E9D9D5", aliases: ["milky", "milky white", "γαλακτερο"] }
+] as const;
+
+export function normalizeCatalogHex(value: string): `#${string}` | undefined {
+  const clean = value.trim();
+  const short = clean.match(/^#?([0-9a-f]{3})$/i);
+  if (short) {
+    return `#${short[1].split("").map((part) => part + part).join("").toUpperCase()}` as `#${string}`;
+  }
+  const full = clean.match(/^#?([0-9a-f]{6})$/i);
+  return full ? `#${full[1].toUpperCase()}` as `#${string}` : undefined;
+}
+
+function extractCatalogHex(value: string): `#${string}` | undefined {
+  const direct = normalizeCatalogHex(value);
+  if (direct) return direct;
+  const embedded = value.match(/#([0-9a-f]{6}|[0-9a-f]{3})(?![0-9a-f])/i);
+  return embedded ? normalizeCatalogHex(embedded[0]) : undefined;
+}
 
 export function normalizeCatalogColorText(value: string): string {
   return value
@@ -189,6 +265,100 @@ export function catalogColorFilterValues(value: unknown): readonly string[] {
     const normalized = normalizeCatalogColorText(candidate);
     return [raw, normalized];
   }).filter(Boolean))];
+}
+
+function shadeSearchTokens(entry: CatalogShadeReference): readonly string[] {
+  return [entry.key, entry.displayNameEl, entry.displayNameEn, entry.hex, ...entry.aliases]
+    .map(normalizeCatalogColorText)
+    .filter(Boolean)
+    .sort((left, right) => right.length - left.length);
+}
+
+function resolvedShadeFromReference(
+  sourceValue: string,
+  entry: CatalogShadeReference,
+  alias: string
+): ResolvedCatalogShade {
+  return {
+    key: entry.key,
+    familyKey: entry.familyKey,
+    displayNameEl: entry.displayNameEl,
+    displayNameEn: entry.displayNameEn,
+    sourceValue,
+    matchedAlias: alias,
+    hex: entry.hex,
+    precision: "reference"
+  };
+}
+
+/**
+ * Resolves a fine shade for perceptual Studio matching while retaining the
+ * canonical storefront family. Explicit source HEX is never replaced by an
+ * approximation. Otherwise the longest known shade/family alias wins.
+ */
+export function resolveCatalogShade(value: unknown): ResolvedCatalogShade | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const sourceValue = value.trim();
+  const explicitHex = extractCatalogHex(sourceValue);
+  if (explicitHex) {
+    const exactReference = CATALOG_SHADE_REFERENCES.find((entry) => entry.hex.toUpperCase() === explicitHex.toUpperCase());
+    if (exactReference) {
+      return {
+        ...resolvedShadeFromReference(sourceValue, exactReference, explicitHex),
+        hex: explicitHex,
+        precision: "exact"
+      };
+    }
+    const exactFamily = CATALOG_COLOR_INDEX.find((entry) => entry.hex.toUpperCase() === explicitHex.toUpperCase());
+    return {
+      key: exactFamily?.key ?? explicitHex.toLowerCase(),
+      familyKey: exactFamily?.key,
+      displayNameEl: exactFamily?.displayNameEl ?? explicitHex,
+      displayNameEn: exactFamily?.displayNameEn ?? explicitHex,
+      sourceValue,
+      matchedAlias: explicitHex,
+      hex: explicitHex,
+      precision: "exact"
+    };
+  }
+
+  const normalized = normalizeCatalogColorText(sourceValue);
+  if (!normalized) return undefined;
+
+  const candidates = [
+    ...CATALOG_SHADE_REFERENCES.flatMap((entry) =>
+      shadeSearchTokens(entry).map((alias) => ({ kind: "reference" as const, entry, alias }))
+    ),
+    ...CATALOG_COLOR_INDEX.flatMap((entry) =>
+      colorSearchTokens(entry).map((alias) => ({ kind: "family" as const, entry, alias }))
+    )
+  ];
+
+  const exact = candidates.find((candidate) => candidate.alias === normalized);
+  const haystack = ` ${normalized} `;
+  const matched = exact ?? candidates
+    .filter(({ alias }) => alias.length >= 3 && haystack.includes(` ${alias} `))
+    .sort((left, right) => right.alias.length - left.alias.length)[0];
+
+  if (!matched) return undefined;
+  if (matched.kind === "reference") {
+    return resolvedShadeFromReference(sourceValue, matched.entry, matched.alias);
+  }
+
+  return {
+    key: matched.entry.key,
+    familyKey: matched.entry.key,
+    displayNameEl: matched.entry.displayNameEl,
+    displayNameEn: matched.entry.displayNameEn,
+    sourceValue,
+    matchedAlias: matched.alias,
+    hex: matched.entry.hex,
+    precision: "family"
+  };
+}
+
+export function catalogColorFamilyKey(value: unknown): string | undefined {
+  return resolveCatalogShade(value)?.familyKey ?? resolveCatalogColor(value)?.key;
 }
 
 export function resolveCatalogColor(value: unknown): ResolvedCatalogColor | undefined {
