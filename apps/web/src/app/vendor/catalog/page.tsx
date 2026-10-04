@@ -60,7 +60,6 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
   const catalogWorkspace = workspace;
   const reviewPending = workspace.submissions.some((item) => ["submitted", "needs_review"].includes(item.status));
   const hasProducts = workspace.submissions.length > 0 || assignedCatalogue.totalAssigned > 0;
-  const hasVisibleProducts = false;
   const previousAssignedOffset = Math.max(0, assignedOffset - ASSIGNED_PAGE_SIZE);
   const nextAssignedOffset = assignedOffset + assignedCatalogue.products.length;
   const hasPreviousAssigned = assignedOffset > 0;
@@ -155,7 +154,7 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
         { label: "Μάρκα & κωδικοί", tone: hasProducts ? "done" : "future", detail: "Μάρκα, μοντέλο, SKU και GTIN όπου υπάρχουν" },
         { label: "Τιμή & απόθεμα", tone: hasProducts ? "done" : "future", detail: "Τελική τιμή και φυσικό απόθεμα" },
         { label: "Έλεγχος ΚΟΝΤΑ ΜΟΥ", tone: reviewPending ? "waiting" : hasProducts ? "done" : "future", detail: reviewPending ? "Υπάρχουν προϊόντα σε έλεγχο" : "Αντιστοίχιση και έγκριση" },
-        { label: "Δημοσίευση", tone: hasVisibleProducts ? "done" : hasProducts ? "current" : "future", detail: hasVisibleProducts ? "Υπάρχουν ενεργά προϊόντα" : "Εμφάνιση στον πελάτη" }
+        { label: "Δημοσίευση", tone: hasProducts ? "current" : "future", detail: hasProducts ? "Έλεγξε τα ενεργά προϊόντα με αναζήτηση" : "Εμφάνιση στον πελάτη" }
       ]} ariaLabel="Πορεία νέου προϊόντος" />
       <WorkspaceHowItWorks>
         <p><strong>Τιμή πώλησης:</strong> είναι η τελική τιμή της δικής σου προσφοράς. Κάθε πραγματική αλλαγή κρατιέται στο ιστορικό και ενημερώνει το ΚΟΝΤΑ ΜΟΥ.</p>
