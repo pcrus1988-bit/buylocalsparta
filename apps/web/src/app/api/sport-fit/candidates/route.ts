@@ -36,6 +36,7 @@ type UniverseProductPreview = Readonly<{
   role?: string;
   reasons?: readonly string[];
   matchProofs?: readonly SportFitMatchProof[];
+  consultationSummary?: string;
 }>;
 
 function safeVendorId(value: unknown): string {
@@ -61,7 +62,8 @@ function universePreview(product: SportFitProduct | SportFitScoredProduct): Univ
     matchedSize: scored?.matchedSize,
     role: scored?.role,
     reasons: scored?.reasons,
-    matchProofs: scored?.matchProofs
+    matchProofs: scored?.matchProofs,
+    consultationSummary: scored?.consultationSummary
   };
 }
 
