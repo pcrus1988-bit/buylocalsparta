@@ -1,5 +1,5 @@
 {
-  "version": 14,
+  "version": 15,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -4744,6 +4744,235 @@
           "type": "jurisdiction",
           "displayName": "European Union",
           "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "olive_june_polish_colors",
+      "publisher": "Olive & June",
+      "title": "Polish Colors",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://oliveandjune.com/collections/polish-colors",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Olive & June",
+        "scope": "polish_colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Olive & June",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "olive_june_all_nail_polish",
+      "publisher": "Olive & June",
+      "title": "All Nail Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://oliveandjune.com/collections/all-nail-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Olive & June",
+        "scope": "all_nail_polish"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Olive & June",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "beetles_collections_index",
+      "publisher": "Beetles Gel Polish",
+      "title": "Collections Index",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.beetlesgel.com/collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Beetles",
+        "scope": "collections_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Beetles",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "beetles_all_products",
+      "publisher": "Beetles Gel Polish",
+      "title": "All Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.beetlesgel.com/collections/all",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Beetles",
+        "scope": "all_products"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Beetles",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "beetles_shop_all_colors",
+      "publisher": "Beetles Gel Polish",
+      "title": "Shop All Colors",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.beetlesgel.com/collections/shop-all-colors",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Beetles",
+        "scope": "all_nail_colours"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Beetles",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "beetles_shop_by_finish",
+      "publisher": "Beetles Gel Polish",
+      "title": "Shop by Finish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.beetlesgel.com/collections/shop-by-finish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Beetles",
+        "scope": "finish_taxonomy"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Beetles",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "holo_taco_all_products",
+      "publisher": "Holo Taco",
+      "title": "All Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.holotaco.com/collections/all-products",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Holo Taco",
+        "scope": "all_products"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Holo Taco",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cnd_shellac_system",
+      "publisher": "Creative Nail Design",
+      "title": "CND SHELLAC System",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.cnd.com/collections/cnd-shellac-system",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "CND",
+        "line": "SHELLAC",
+        "scope": "system_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "CND",
+          "relation": "primary_for"
         }
       ]
     }
