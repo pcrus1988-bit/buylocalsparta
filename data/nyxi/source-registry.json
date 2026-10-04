@@ -1,5 +1,5 @@
 {
-  "version": 15,
+  "version": 16,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -4973,6 +4973,268 @@
           "type": "brand",
           "displayName": "CND",
           "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "modelones_collections_index",
+      "publisher": "MODELONES",
+      "title": "Collections Index",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://modelones.com/collections/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Modelones",
+        "scope": "collections_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Modelones",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "akzentz_luxio_current_formula",
+      "publisher": "Akzentz",
+      "title": "Luxio Gel Polish Current Formula",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://akzentz.com/collections/luxio-original-formula",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Akzentz / Luxio",
+        "line": "Luxio",
+        "scope": "current_formula_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest",
+        "versioningSignal": "current collection includes TPO-Free and HEMA-Free facets"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Akzentz / Luxio",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "akzentz_luxio_original_formula",
+      "publisher": "Akzentz",
+      "title": "Luxio Gel Polish Original Formula",
+      "sourceFamily": "historical_archive",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://akzentz.com/collections/luxio-gel-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Akzentz / Luxio",
+        "line": "Luxio",
+        "scope": "original_formula_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest",
+        "historicalEvidence": true,
+        "versioningSignal": "official site labels this collection Original Formula and TPO-containing"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Akzentz / Luxio",
+          "relation": "historical_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "akzentz_luxio_kits",
+      "publisher": "Akzentz",
+      "title": "Luxio Kits",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://akzentz.com/collections/luxio%C2%AE-kits",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Akzentz / Luxio",
+        "line": "Luxio",
+        "scope": "kits_and_complete_collections"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Akzentz / Luxio",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "akzentz_luxio_top_50",
+      "publisher": "Akzentz",
+      "title": "Top 50 Best-Selling Luxio Gel Colours",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://akzentz.com/collections/top-50-best-selling-luxio-gel-colours",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Akzentz / Luxio",
+        "line": "Luxio",
+        "scope": "popular_colour_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Akzentz / Luxio",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "venalisa_all_products",
+      "publisher": "VENALISA",
+      "title": "All Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://venalisa.com/collections/all",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "VENALISA",
+        "scope": "all_products"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "VENALISA",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "venalisa_gel_polish_sets",
+      "publisher": "VENALISA",
+      "title": "Gel Polish Sets and Kits",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://venalisa.com/collections/gel-polish-set",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "VENALISA",
+        "scope": "gel_polish_sets"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "VENALISA",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "venalisa_gel_polish_bundles",
+      "publisher": "VENALISA",
+      "title": "Gel Polish Bundles",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://venalisa.com/collections/gel-polish-bundles",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "VENALISA",
+        "scope": "gel_polish_bundles"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "VENALISA",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "born_pretty_new_gel",
+      "publisher": "BORN PRETTY",
+      "title": "Nail Gel New",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.bornpretty.com/collections/nail-gel-new",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Born Pretty",
+        "scope": "new_gel_products"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Born Pretty",
+          "relation": "covers"
         }
       ]
     }
