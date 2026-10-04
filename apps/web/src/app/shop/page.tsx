@@ -570,7 +570,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   ].filter((label): label is string => Boolean(label));
   const showSubcategory = facets.subcategories.length > 0 && storefrontFacetEnabled(activeLeaf, "subcategory");
   const showBrand = facets.brands.length > 0 && storefrontFacetEnabled(activeLeaf, "brand");
-  const showColor = facets.colors.length > 0 && storefrontFacetEnabled(activeLeaf, "color");
+  const showColor = facets.colors.length > 0;
   const showSize = facets.sizes.length > 0 && storefrontFacetEnabled(activeLeaf, "size");
   const showFit = fitOptions.length > 0 && storefrontFacetEnabled(activeLeaf, "fit");
   const { settings: seoSettings } = await getSeoGlobalSettingsSnapshot();
