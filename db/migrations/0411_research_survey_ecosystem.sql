@@ -334,7 +334,43 @@ BEGIN
       public.research_release_snapshots, public.research_study_jobs
     FROM authenticated;
   END IF;
-END $$;
+END $;
+
+-- The browser/Data API roles remain denied. Server-side research operations are
+-- available only to the credential-bound platform runtime role and still pass
+-- through RLS. This mirrors the repository's existing platform authorization
+-- model instead of relying on table ownership or service_role.
+DO $
+DECLARE
+  table_name text;
+  policy_name text;
+BEGIN
+  FOREACH table_name IN ARRAY ARRAY[
+    'research_studies','research_instruments','research_questions',
+    'research_frame_snapshots','research_strata','research_frame_units',
+    'research_contact_points','research_sample_draws','research_sample_units',
+    'research_invites','research_invite_events','research_responses',
+    'research_consents','research_answers','research_experiment_assignments',
+    'research_response_scores','research_weights','research_analysis_runs',
+    'research_release_snapshots','research_study_jobs'
+  ]
+  LOOP
+    EXECUTE format(
+      'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.%I TO bls_platform_runtime',
+      table_name
+    );
+    policy_name := table_name || '_platform_runtime';
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL TO bls_platform_runtime USING ((SELECT bls_private.is_platform_runtime())) WITH CHECK ((SELECT bls_private.is_platform_runtime()))',
+      policy_name,
+      table_name
+    );
+  END LOOP;
+
+  GRANT USAGE, SELECT ON SEQUENCE public.research_invite_events_id_seq TO bls_platform_runtime;
+  GRANT USAGE, SELECT ON SEQUENCE public.research_consents_id_seq TO bls_platform_runtime;
+  GRANT USAGE, SELECT ON SEQUENCE public.research_answers_id_seq TO bls_platform_runtime;
+END $;
 
 CREATE OR REPLACE FUNCTION public.research_guard_answer_mutation()
 RETURNS trigger
