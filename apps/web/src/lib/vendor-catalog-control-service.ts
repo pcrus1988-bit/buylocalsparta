@@ -114,11 +114,7 @@ function normalizedCatalogSearch(input: VendorCatalogSearchInput = {}): Normaliz
 }
 function catalogSearchPattern(value: string): string | null {
   if (!value) return null;
-  return `%${value.replace(/[\\%_]/g, "\\export type VendorCatalogCategoryOption = Readonly<{
-  id: string; code: string; name: string; path: string; depth: number;
-}>;
-
-")}%`;
+  return \`%\${value.replace(/\\\\/g, "\\\\\\\\").replace(/%/g, "\\\\%").replace(/_/g, "\\\\_")}%\`;
 }
 const emptyCatalogMetrics = () => ({
   totalProducts: 0,
