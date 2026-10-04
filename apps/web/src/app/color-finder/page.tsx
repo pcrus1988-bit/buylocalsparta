@@ -4,6 +4,8 @@ import Link from "next/link";
 import { ColorFinderExperience } from "../../components/ColorFinderExperience";
 import { SiteFooter } from "../../components/SiteFooter";
 import { resolveColorFinderContext } from "../../lib/color-finder-context";
+import { normalizeHex } from "../../lib/color-finder";
+import { getColorFinderProducts } from "../../lib/color-finder-data";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import styles from "./page.module.css";
 
@@ -170,6 +172,7 @@ export default async function ColorFinderPage({ searchParams }: Props) {
   const returnTo = safeLocalPath(first(params.returnTo));
   const backHref = returnTo ?? "/";
   const selectedStudio = studioDefinition(requestedCategoryCode);
+  const requestedColorHex = normalizeHex(first(params.color)?.trim() ?? "");
 
   if (!requestedCategoryCode) {
     return (
@@ -276,6 +279,13 @@ export default async function ColorFinderPage({ searchParams }: Props) {
     ? `/vendor/${encodeURIComponent(vendorId)}`
     : selectedStudio?.shopHref ?? `/shop?category=${encodeURIComponent(categoryCode)}`;
   const shopLabel = vendorId ? "BACK TO STORE" : context.shopLabel;
+  const initialProducts = requestedColorHex
+    ? await getColorFinderProducts({
+        categoryCode,
+        vendorPublicId: vendorId,
+        targetHex: requestedColorHex
+      })
+    : [];
 
   return (
     <main className={styles.page}>
@@ -289,10 +299,11 @@ export default async function ColorFinderPage({ searchParams }: Props) {
       </div>
 
       <ColorFinderExperience
-        products={[]}
+        products={initialProducts}
         context={context}
         categoryCode={categoryCode}
         vendorId={vendorId}
+        initialColorHex={requestedColorHex}
       />
 
       <section className={styles.manifesto} aria-label="Σχετικά με το Color Finder">
