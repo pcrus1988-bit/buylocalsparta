@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -1292,6 +1292,460 @@
         {
           "type": "brand",
           "displayName": "Dior",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "orly_all_nail_colors",
+      "publisher": "ORLY",
+      "title": "All Nail Colors",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://orlybeauty.com/collections/all-nail-colors",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "ORLY",
+        "scope": "nail_color_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "ORLY",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "orly_nail_lacquer",
+      "publisher": "ORLY",
+      "title": "Nail Lacquer",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://orlybeauty.com/collections/all-nail-lacquer",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "ORLY",
+        "line": "Nail Lacquer"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "ORLY",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "semilac_root_pl",
+      "publisher": "Semilac",
+      "title": "Semilac Official Store",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://semilac.pl/en",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Semilac",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Semilac",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "semilac_uk_gel_colours",
+      "publisher": "Semilac",
+      "title": "All Gel Colours",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://semilac.co.uk/collections/semilac-gel-colours",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Semilac",
+        "scope": "gel_colour_catalogue",
+        "market": "GB"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Semilac",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "semilac_uk_tpo_free",
+      "publisher": "Semilac",
+      "title": "TPO Free Collection",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://semilac.co.uk/collections/tpo-free",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Semilac",
+        "scope": "reformulation_collection",
+        "market": "GB"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Semilac",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "neonail_uv_gel_polish",
+      "publisher": "NEONAIL",
+      "title": "UV Gel Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://neonailme.com/collections/uv-gel-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "NEONAIL",
+        "scope": "uv_gel_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "NEONAIL",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "neonail_greece_distributor",
+      "publisher": "NEONAIL Greece",
+      "title": "About NEONAIL Greece",
+      "sourceFamily": "authorised_distributor",
+      "authorityLevel": 3,
+      "jurisdiction": "GR",
+      "language": "el",
+      "canonicalUrl": "https://neonailgreece.gr/about-us/",
+      "retrievalMethod": "html",
+      "official": false,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "brand": "NEONAIL",
+        "scope": "official_greece_distributor"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "NEONAIL",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "young_nails_root",
+      "publisher": "Young Nails",
+      "title": "Young Nails Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.youngnails.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Young Nails",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Young Nails",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "lechat_root",
+      "publisher": "LeChat Nails",
+      "title": "LeChat Nails Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://lechatnails.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "LeChat",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "LeChat",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "lechat_polishes_powders",
+      "publisher": "LeChat Nails",
+      "title": "Polishes and Powders",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://lechatnails.com/product-category/polishes-powders/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "LeChat",
+        "scope": "polish_gel_powder_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "LeChat",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cuccio_lacquer_gel_collection",
+      "publisher": "Cuccio",
+      "title": "Nail Lacquer & Gel Collection",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://shopcuccio.com/collections/nail-lacquer",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Cuccio",
+        "scope": "lacquer_and_gel_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Cuccio",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cuccio_help_faqs",
+      "publisher": "Cuccio",
+      "title": "Help & FAQs",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://shopcuccio.com/pages/help-faqs",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Cuccio",
+        "scope": "technical_usage_faq"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Cuccio",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "claresa_ireland_shop",
+      "publisher": "Claresa Ireland",
+      "title": "Claresa Ireland Shop",
+      "sourceFamily": "authorised_distributor",
+      "authorityLevel": 3,
+      "jurisdiction": "IE",
+      "language": "en",
+      "canonicalUrl": "https://claresa.ie/shop/",
+      "retrievalMethod": "html",
+      "official": false,
+      "manufacturerPrimary": false,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Claresa",
+        "scope": "regional_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Claresa",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "chanel_le_vernis_gr",
+      "publisher": "CHANEL",
+      "title": "LE VERNIS Longwear Nail Colour",
+      "sourceFamily": "manufacturer_product",
+      "authorityLevel": 4,
+      "jurisdiction": "GR",
+      "language": "en",
+      "canonicalUrl": "https://www.chanel.com/gr/makeup/p/179431/le-vernis-longwear-nail-colour/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Chanel",
+        "line": "LE VERNIS",
+        "market": "GR"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Chanel",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "hermes_les_mains_rouge_h_gr",
+      "publisher": "Hermès",
+      "title": "Les Mains Hermès Nail Polish Rouge H",
+      "sourceFamily": "manufacturer_product",
+      "authorityLevel": 4,
+      "jurisdiction": "GR",
+      "language": "en",
+      "canonicalUrl": "https://www.hermes.com/gr/en/product/nail-polish-rouge-h-V60301VV085/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Hermès",
+        "line": "Les Mains Hermès",
+        "market": "GR"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Hermès",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gucci_nail_polish_us",
+      "publisher": "Gucci",
+      "title": "Vernis à Ongles Nail Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.gucci.com/us/en/st/capsule/beauty-nailpolish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Gucci Beauty",
+        "line": "Vernis à Ongles",
+        "market": "US"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Gucci Beauty",
           "relation": "primary_for"
         }
       ]
