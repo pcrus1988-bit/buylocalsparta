@@ -190,18 +190,39 @@ async function collectSource(source: SourceLease): Promise<void> {
 
   if (result.status === 304) {
     await runtime.nativePool.query(`
+      WITH logged AS (
+        INSERT INTO public.nyxi_source_checks(
+          source_id,outcome,requested_url,final_url,http_status,content_sha256,
+          byte_length,etag,last_modified,worker_id,metadata
+        )
+        VALUES(
+          $1,'not_modified',$3,$4,304,$5,$6,$7,$8,$2,
+          jsonb_build_object('interpretationPerformed',false)
+        )
+        RETURNING id
+      )
       UPDATE public.nyxi_source_crawl_state
       SET last_checked_at=now(),
           last_success_at=now(),
           last_http_status=COALESCE(last_http_status,304),
           consecutive_failures=0,
           last_error=NULL,
-          next_check_at=$3,
+          next_check_at=$9,
           lease_owner=NULL,
           lease_expires_at=NULL,
           updated_at=now()
       WHERE source_id=$1 AND lease_owner=$2
-    `, [source.sourceId, workerId, new Date(Date.now() + intervalMs(source.updateFrequency))]);
+    `, [
+      source.sourceId,
+      workerId,
+      source.canonicalUrl,
+      result.finalUrl,
+      source.lastContentSha256 ?? null,
+      result.responseBytes,
+      result.headers.etag ?? source.etag ?? null,
+      result.headers["last-modified"] ?? source.lastModified ?? null,
+      new Date(Date.now() + intervalMs(source.updateFrequency))
+    ]);
     log("info", "nyxi_source.not_modified", { sourceKey: source.sourceKey });
     return;
   }
@@ -324,6 +345,32 @@ async function collectSource(source: SourceLease): Promise<void> {
     }
 
     await client.query(`
+      INSERT INTO public.nyxi_source_checks(
+        source_id,outcome,requested_url,final_url,http_status,content_sha256,
+        byte_length,etag,last_modified,worker_id,metadata
+      )
+      VALUES(
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb
+      )
+    `, [
+      source.sourceId,
+      result.status >= 400 ? "http_error" : changed ? "changed" : "unchanged",
+      source.canonicalUrl,
+      result.finalUrl,
+      result.status,
+      result.responseSha256,
+      result.responseBytes,
+      result.headers.etag ?? null,
+      result.headers["last-modified"] ?? null,
+      workerId,
+      JSON.stringify({
+        archived: Boolean(objectKey),
+        candidatesDiscovered: discoveredCandidates.length,
+        interpretationPerformed: false
+      })
+    ]);
+
+    await client.query(`
       UPDATE public.nyxi_source_crawl_state
       SET last_checked_at=now(),
           last_success_at=CASE WHEN $3 BETWEEN 200 AND 399 THEN now() ELSE last_success_at END,
@@ -380,16 +427,32 @@ async function recordFailure(source: SourceLease, message: string): Promise<void
   const failures = source.consecutiveFailures + 1;
   const retryMs = Math.min(24 * 60 * 60 * 1000, 30 * 60 * 1000 * (2 ** Math.min(5, Math.max(0, failures - 1))));
   await runtime.nativePool.query(`
+    WITH logged AS (
+      INSERT INTO public.nyxi_source_checks(
+        source_id,outcome,requested_url,error_message,worker_id,metadata
+      )
+      VALUES(
+        $1,'fetch_error',$3,$4,$2,
+        jsonb_build_object('interpretationPerformed',false)
+      )
+      RETURNING id
+    )
     UPDATE public.nyxi_source_crawl_state
     SET last_checked_at=now(),
         consecutive_failures=consecutive_failures+1,
-        last_error=$3,
-        next_check_at=$4,
+        last_error=$4,
+        next_check_at=$5,
         lease_owner=NULL,
         lease_expires_at=NULL,
         updated_at=now()
     WHERE source_id=$1 AND lease_owner=$2
-  `, [source.sourceId, workerId, message.slice(0, 4000), new Date(Date.now() + retryMs)]);
+  `, [
+    source.sourceId,
+    workerId,
+    source.canonicalUrl,
+    message.slice(0, 4000),
+    new Date(Date.now() + retryMs)
+  ]);
 }
 
 function sourceAllowedHosts(source: SourceLease, hostname: string): string[] {
