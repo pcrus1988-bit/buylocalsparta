@@ -133,6 +133,7 @@ export async function upsertRetailStudyStratum(input: Readonly<{
   metadata?: Readonly<Record<string, unknown>>;
 }>): Promise<string> {
   const study = await ensureRetailStudy2026();
+  if (study.status !== "draft") throw new Error("RETAIL_STUDY_FRAME_IS_FROZEN");
   const runtime = getAdminPostgresRuntime();
   const result = await runtime.nativePool.query<{ id: string }>(
     `INSERT INTO public.retail_research_strata
@@ -183,6 +184,7 @@ export async function prepareRetailStudyInvitation(input: PrepareInvitationInput
        (study_id,stratum_id,token_digest,source_record_key,contact_email,contact_email_digest,sector_group,prefecture,municipality,selection_probability,metadata)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)
      ON CONFLICT (study_id,source_record_key) DO UPDATE SET
+       token_digest=EXCLUDED.token_digest,
        stratum_id=COALESCE(EXCLUDED.stratum_id,retail_research_invitations.stratum_id),
        contact_email=EXCLUDED.contact_email,
        contact_email_digest=EXCLUDED.contact_email_digest,
@@ -268,26 +270,30 @@ export async function getRetailStudyParticipantState(rawToken: string): Promise<
 
 export async function startRetailStudyResponse(rawToken: string): Promise<RetailStudyParticipantState> {
   const invitation = await requireActiveInvitation(rawToken);
+  if (invitation.response_status === "complete") throw new Error("RETAIL_STUDY_ALREADY_COMPLETED");
   const runtime = getProductionPostgresRuntime();
-  await runtime.nativePool.query("BEGIN");
+  const client = await runtime.nativePool.connect();
   try {
-    await runtime.nativePool.query(
+    await client.query("BEGIN");
+    await client.query(
       `INSERT INTO public.retail_research_responses (invitation_id,instrument_sha256,status)
        VALUES ($1,$2,'started')
        ON CONFLICT (invitation_id) DO NOTHING`,
       [invitation.invitation_id, RETAIL_STUDY_2026_INSTRUMENT_SHA256]
     );
-    await runtime.nativePool.query(
+    await client.query(
       `UPDATE public.retail_research_invitations
           SET disposition=CASE WHEN disposition IN ('prepared','sent','delivered') THEN 'started' ELSE disposition END,
               first_started_at=COALESCE(first_started_at,now())
         WHERE id=$1`,
       [invitation.invitation_id]
     );
-    await runtime.nativePool.query("COMMIT");
+    await client.query("COMMIT");
   } catch (error) {
-    await runtime.nativePool.query("ROLLBACK");
+    await client.query("ROLLBACK");
     throw error;
+  } finally {
+    client.release();
   }
   const state = await getRetailStudyParticipantState(rawToken);
   if (!state) throw new Error("RETAIL_STUDY_INVITATION_NOT_FOUND");
@@ -296,6 +302,7 @@ export async function startRetailStudyResponse(rawToken: string): Promise<Retail
 
 export async function submitRetailStudyResponse(rawToken: string, answers: SurveyAnswers): Promise<RetailStudyParticipantState> {
   const invitation = await requireActiveInvitation(rawToken);
+  if (invitation.response_status === "complete") throw new Error("RETAIL_STUDY_ALREADY_COMPLETED");
   const errors = validateRetailStudyAnswers(answers);
   if (errors.length) throw new Error("RETAIL_STUDY_ANSWERS_INVALID:" + errors.slice(0, 8).join(","));
   const runtime = getProductionPostgresRuntime();
@@ -413,7 +420,7 @@ export type RetailStudyDashboard = Readonly<{
   }>[];
 }>;
 
-export async function getRetailStudyDashboard(): Promise<RetailStudyDashboard> {
+export async function getRetailStudyDashboard(dataCutoff?: string | Date): Promise<RetailStudyDashboard> {
   const study = await ensureRetailStudy2026();
   const runtime = getAdminPostgresRuntime();
   const [countResult, frameResult, responseResult, permissionResult] = await Promise.all([
@@ -443,10 +450,12 @@ export async function getRetailStudyDashboard(): Promise<RetailStudyDashboard> {
          JOIN public.retail_research_invitations i ON i.id=r.invitation_id
          LEFT JOIN public.retail_research_strata st ON st.id=i.stratum_id
          LEFT JOIN public.retail_research_answers a ON a.response_id=r.id
-        WHERE i.study_id=$1 AND r.status='complete'
+        WHERE i.study_id=$1
+          AND r.status='complete'
+          AND ($2::timestamptz IS NULL OR r.submitted_at <= $2::timestamptz)
         GROUP BY r.id,st.stratum_key,i.sector_group,i.prefecture,i.selection_probability
         ORDER BY r.id`,
-      [study.id]
+      [study.id, dataCutoff ?? null]
     ),
     runtime.nativePool.query<{ status: string; count: string }>(
       `SELECT status,count(*)::text AS count
@@ -502,7 +511,8 @@ export async function getRetailStudyDashboard(): Promise<RetailStudyDashboard> {
 }
 
 export async function createRetailStudyAnalysisSnapshot(): Promise<Readonly<{ id: string; resultsSha256: string }>> {
-  const dashboard = await getRetailStudyDashboard();
+  const dataCutoff = new Date().toISOString();
+  const dashboard = await getRetailStudyDashboard(dataCutoff);
   const runtime = getAdminPostgresRuntime();
   const frame = await runtime.nativePool.query<{ stratum_key: string; population_count: string | number }>(
     `SELECT stratum_key,population_count FROM public.retail_research_strata WHERE study_id=$1 ORDER BY stratum_key`,
@@ -517,11 +527,12 @@ export async function createRetailStudyAnalysisSnapshot(): Promise<Readonly<{ id
   const result = await runtime.nativePool.query<{ id: string }>(
     `INSERT INTO public.retail_research_analysis_snapshots
        (study_id,analysis_version,data_cutoff,instrument_sha256,frame_sha256,weighting_method,specification_json,results_json,results_sha256)
-     VALUES ($1,$2,now(),$3,$4,$5,$6::jsonb,$7::jsonb,$8)
+     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9)
      RETURNING id::text`,
     [
       dashboard.study.id,
       RETAIL_STUDY_2026_METHODOLOGY.analysisVersion,
+      dataCutoff,
       RETAIL_STUDY_2026_INSTRUMENT_SHA256,
       sha256(frameJson),
       RETAIL_STUDY_2026_METHODOLOGY.weighting.method,
