@@ -10,17 +10,21 @@ const forbidText = (text, fragment, label) => {
   if (text.includes(fragment)) throw new Error(`${label} contains unsafe contract: ${fragment}`);
 };
 
-const [page, visibility, archiveState, stockFreshness] = await Promise.all([
+const [page, productsRoute, catalogClient, visibility, archiveState, stockFreshness] = await Promise.all([
   source("src/app/vendor/catalog/page.tsx"),
+  source("src/app/api/vendor/catalog/products/route.ts"),
+  source("src/components/VendorCatalogClient.tsx"),
   source("src/lib/vendor-product-visibility-service.ts"),
   source("src/lib/vendor-offer-reactivation-state.ts"),
   source("src/lib/vendor-stock-freshness.ts")
 ]);
 
-requireText(page, "getVendorAdminArchivedOfferIds", "Vendor catalogue reactivation UI");
-requireText(page, "adminArchivedOfferIds.has(item.offerId)", "Vendor catalogue Admin archive projection");
-requireText(page, "canToggleVisibility: item.canToggleVisibility && !adminArchivedOfferIds.has(item.offerId)", "Vendor catalogue visibility lock");
-forbidText(page, 'item.offerStatus === "archived" && !item.merchantPauseActive', "Vendor catalogue archive classification");
+const reactivationSurface = [page, productsRoute, catalogClient].join("\n");
+requireText(reactivationSurface, "getVendorAdminArchivedOfferIds", "Vendor catalogue reactivation UI");
+requireText(reactivationSurface, "adminArchivedOfferIds.has(item.offerId)", "Vendor catalogue Admin archive projection");
+requireText(reactivationSurface, "canToggleVisibility: item.canToggleVisibility && !adminArchivedOfferIds.has(item.offerId)", "Vendor catalogue visibility lock");
+requireText(catalogClient, "VendorArchivedProductsPanel", "Vendor catalogue reactivation panel");
+forbidText(reactivationSurface, 'item.offerStatus === "archived" && !item.merchantPauseActive', "Vendor catalogue archive classification");
 
 requireText(archiveState, "vendor_product_submissions", "Admin archive provenance projection");
 requireText(archiveState, 'String(row.submission_status ?? "") === "archived"', "Admin archive provenance projection");

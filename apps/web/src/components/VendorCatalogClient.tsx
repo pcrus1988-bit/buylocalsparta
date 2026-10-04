@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import styles from "./VendorCatalogClient.module.css";
 import { VendorSmartProductForm } from "./VendorSmartProductForm";
+import { VendorPriceManager } from "./VendorPriceManager";
+import { VendorArchivedProductsPanel } from "./VendorArchivedProductsPanel";
 import { useVendorConfirmation } from "./VendorConfirmation";
 import { WorkspaceEmptyState, WorkspaceHowItWorks, WorkspaceMetricStrip, WorkspaceRecordDetails, WorkspaceSectionHeading } from "./WorkspacePagePrimitives";
 
@@ -12,8 +14,12 @@ type CatalogProduct = {
   offerId: string; canonicalVariantId: string; title: string; vendorSku?: string; gtin?: string; brand?: string;
   categoryId: string; categoryCode: string; categoryName: string; categoryPathIds: readonly string[]; categoryPathCodes: readonly string[]; categoryPathNames: readonly string[]; categoryPath: string;
   retailPrice: string; retailPriceMinor: number; supplierPrice: string;
+  buyingPriceMinor?: number; pricingMode: "manual" | "calculated";
+  markupType?: "percent" | "fixed"; markupValue?: number;
+  discountType?: "percent" | "fixed"; discountValue?: number;
+  msrpMinor?: number; showMsrp: boolean;
   onHand: number; reserved: number; blocked: number; safetyStock: number; availableToSell: number;
-  offerStatus: string; productVisible: boolean; categoryVisible: boolean; effectiveVisible: boolean; merchantPauseActive: boolean; canToggleVisibility: boolean; updatedAt: number;
+  offerStatus: string; productVisible: boolean; categoryVisible: boolean; effectiveVisible: boolean; merchantPauseActive: boolean; canToggleVisibility: boolean; adminArchived?: boolean; updatedAt: number;
 };
 type CategoryControl = { id: string; code: string; name: string; path: string; depth: number; productCount: number; configuredVisible: boolean; effectiveVisible: boolean };
 type CategoryOption = { id: string; code: string; name: string; path: string; depth: number };
@@ -26,7 +32,16 @@ type Submission = {
 type Workspace = { csrfToken: string; vendorId: string; csvTemplate: string; catalogProducts: ReadonlyArray<CatalogProduct>; categories: ReadonlyArray<CategoryControl>; categoryOptions: ReadonlyArray<CategoryOption>; catalogMetrics: CatalogMetrics; submissions: ReadonlyArray<Submission> };
 type Preview = { totalRows: number; rows: readonly unknown[]; errors: readonly { rowNumber: number; field?: string; message: string }[] };
 type StockDraft = { onHand: string; safetyStock: string };
+type CatalogSearchResponse = {
+  products: ReadonlyArray<CatalogProduct>;
+  total: number;
+  offset: number;
+  limit: number;
+  nextOffset: number | null;
+  error?: string;
+};
 
+const CATALOG_PAGE_SIZE = 24;
 const when = (value: number) => new Intl.DateTimeFormat("el-GR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Athens" }).format(new Date(value));
 const isLowStock = (product: CatalogProduct) => product.availableToSell > 0 && product.availableToSell <= Math.max(2, product.safetyStock);
 
@@ -68,44 +83,70 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
   const [category, setCategory] = useState("all");
   const [visibility, setVisibility] = useState("all");
   const [stock, setStock] = useState("all");
-  const [brand, setBrand] = useState("all");
+  const [brand, setBrand] = useState("");
   const [sort, setSort] = useState("updated");
-  const [stockDrafts, setStockDrafts] = useState<Record<string, StockDraft>>(() => Object.fromEntries(initial.catalogProducts.map((product) => [product.offerId, { onHand: String(product.onHand), safetyStock: String(product.safetyStock) }])));
+  const [products, setProducts] = useState<ReadonlyArray<CatalogProduct>>([]);
+  const [resultTotal, setResultTotal] = useState(0);
+  const [resultOffset, setResultOffset] = useState(0);
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [stockDrafts, setStockDrafts] = useState<Record<string, StockDraft>>({});
   const { requestConfirmation, confirmationDialog } = useVendorConfirmation();
 
   useEffect(() => {
-    setStockDrafts(Object.fromEntries(initial.catalogProducts.map((product) => [product.offerId, { onHand: String(product.onHand), safetyStock: String(product.safetyStock) }])));
-  }, [initial.catalogProducts]);
+    setStockDrafts(Object.fromEntries(products.map((product) => [product.offerId, { onHand: String(product.onHand), safetyStock: String(product.safetyStock) }])));
+  }, [products]);
 
   const draftSubmissions = initial.submissions.filter((item) => item.status === "draft");
   const awaitingReview = initial.submissions.filter((item) => ["submitted", "needs_review"].includes(item.status)).length;
   const linked = initial.submissions.filter((item) => Boolean(item.canonicalVariantId)).length;
   const rejected = initial.submissions.filter((item) => item.status === "rejected").length;
-  const brands = useMemo(() => [...new Set(initial.catalogProducts.map((item) => item.brand).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el")), [initial.catalogProducts]);
 
-  const filteredProducts = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("el");
-    const rows = initial.catalogProducts.filter((product) => {
-      if (needle) {
-        const haystack = [product.title, product.vendorSku, product.gtin, product.brand, product.categoryPath].filter(Boolean).join(" ").toLocaleLowerCase("el");
-        if (!haystack.includes(needle)) return false;
-      }
-      if (category !== "all" && !product.categoryPathIds.includes(category)) return false;
-      if (visibility === "visible" && !product.effectiveVisible) return false;
-      if (visibility === "hidden" && product.effectiveVisible) return false;
-      if (brand !== "all" && product.brand !== brand) return false;
-      if (stock === "in" && product.availableToSell <= 0) return false;
-      if (stock === "out" && product.availableToSell > 0) return false;
-      if (stock === "low" && !isLowStock(product)) return false;
-      return true;
-    });
-    return [...rows].sort((a, b) => {
-      if (sort === "title") return a.title.localeCompare(b.title, "el");
-      if (sort === "category") return a.categoryPath.localeCompare(b.categoryPath, "el") || a.title.localeCompare(b.title, "el");
-      if (sort === "stock") return a.availableToSell - b.availableToSell || a.title.localeCompare(b.title, "el");
-      return b.updatedAt - a.updatedAt;
-    });
-  }, [initial.catalogProducts, query, category, visibility, brand, stock, sort]);
+  const hasSearchIntent = Boolean(query.trim() || category !== "all" || visibility !== "all" || stock !== "all" || brand.trim());
+
+  async function runSearch(offset = 0) {
+    if (!hasSearchIntent) {
+      setProducts([]);
+      setResultTotal(0);
+      setResultOffset(0);
+      setNextOffset(null);
+      setHasSearched(false);
+      setSearchError("");
+      return;
+    }
+    setSearching(true);
+    setSearchError("");
+    try {
+      const params = new URLSearchParams({
+        offset: String(Math.max(0, offset)),
+        limit: String(CATALOG_PAGE_SIZE),
+        sort
+      });
+      if (query.trim()) params.set("q", query.trim());
+      if (category !== "all") params.set("category", category);
+      if (visibility !== "all") params.set("visibility", visibility);
+      if (stock !== "all") params.set("stock", stock);
+      if (brand.trim()) params.set("brand", brand.trim());
+      const response = await fetch(`/api/vendor/catalog/products?${params.toString()}`, { method: "GET", cache: "no-store" });
+      const payload = await response.json() as CatalogSearchResponse;
+      if (!response.ok) throw new Error(payload.error ?? "Η αναζήτηση καταλόγου απέτυχε.");
+      setProducts(payload.products ?? []);
+      setResultTotal(Number(payload.total ?? 0));
+      setResultOffset(Number(payload.offset ?? 0));
+      setNextOffset(payload.nextOffset ?? null);
+      setHasSearched(true);
+    } catch (cause) {
+      setProducts([]);
+      setResultTotal(0);
+      setNextOffset(null);
+      setHasSearched(true);
+      setSearchError(cause instanceof Error ? cause.message : "Η αναζήτηση καταλόγου απέτυχε.");
+    } finally {
+      setSearching(false);
+    }
+  }
 
   async function call(key: string, url: string, body: unknown, method = "POST") {
     setBusy(key);
@@ -115,6 +156,9 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
       const payload = await response.json() as { error?: string; preview?: Preview };
       if (!response.ok) throw new Error(payload.error ?? "Δεν μπορέσαμε να ολοκληρώσουμε την ενέργεια.");
       if (payload.preview) setPreview(payload.preview);
+      if (hasSearched && (url === "/api/vendor/catalog/visibility" || url === "/api/vendor/catalog/inventory")) {
+        await runSearch(resultOffset);
+      }
       router.refresh();
       return payload;
     } catch (cause) {
@@ -192,20 +236,30 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
   }
 
   const canConfirmImport = Boolean(preview && preview.totalRows > 0 && preview.errors.length === 0);
-  const filtersActive = Boolean(query || category !== "all" || visibility !== "all" || stock !== "all" || brand !== "all" || sort !== "updated");
-  const resetFilters = () => { setQuery(""); setCategory("all"); setVisibility("all"); setStock("all"); setBrand("all"); setSort("updated"); };
+  const filtersActive = Boolean(query || category !== "all" || visibility !== "all" || stock !== "all" || brand || sort !== "updated");
+  const resetFilters = () => {
+    setQuery("");
+    setCategory("all");
+    setVisibility("all");
+    setStock("all");
+    setBrand("");
+    setSort("updated");
+    setProducts([]);
+    setResultTotal(0);
+    setResultOffset(0);
+    setNextOffset(null);
+    setHasSearched(false);
+    setSearchError("");
+  };
+
+  const archivedProducts = products
+    .filter((product) => product.offerStatus === "archived" && product.adminArchived)
+    .map((product) => ({ offerId: product.offerId, title: product.title, vendorSku: product.vendorSku }));
 
   return <>
     {confirmationDialog}
     {error && <div className="shell form-error vendor-error" role="alert"><strong>Η αλλαγή δεν αποθηκεύτηκε.</strong> {error}</div>}
     {notice && <div className="shell workspace-inline-note" role="status"><strong>Έτοιμο.</strong> {notice}</div>}
-
-    <WorkspaceMetricStrip items={[
-      { label: "Εμφανίζονται στο κατάστημα", value: initial.catalogMetrics.visibleProducts, tone: initial.catalogMetrics.visibleProducts ? "positive" : "default" },
-      { label: "Κρυφά", value: initial.catalogMetrics.hiddenProducts, tone: initial.catalogMetrics.hiddenProducts ? "attention" : "default" },
-      { label: "Χαμηλό απόθεμα", value: initial.catalogMetrics.lowStockProducts, tone: initial.catalogMetrics.lowStockProducts ? "attention" : "default" },
-      { label: "Χωρίς απόθεμα", value: initial.catalogMetrics.outOfStockProducts, tone: initial.catalogMetrics.outOfStockProducts ? "attention" : "default" }
-    ]} />
 
     <section className="shell vendor-section" id="live-catalog">
       <WorkspaceSectionHeading eyebrow="Κατάλογος" title="Τι βλέπει ο πελάτης και τι υπάρχει στο κατάστημα" note="Ενημέρωσε το πραγματικό απόθεμα και έλεγξε ποια προϊόντα εμφανίζονται δημόσια. Η απόκρυψη δεν διαγράφει προϊόν ή stock." />
@@ -237,16 +291,32 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
         </div>
       </details>}
 
-      <div className={styles.controlBar} aria-label="Φίλτρα καταλόγου">
-        <div className={`${styles.field} ${styles.search}`}><label htmlFor="vendor-product-search">Αναζήτηση</label><input id="vendor-product-search" type="search" placeholder="Όνομα, SKU, GTIN, μάρκα…" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
-        <div className={styles.field}><label htmlFor="vendor-category-filter">Κατηγορία</label><select id="vendor-category-filter" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">Όλες</option>{initial.categories.map((item) => <option value={item.id} key={item.id}>{`${"— ".repeat(Math.min(item.depth, 3))}${item.name} (${item.productCount})`}</option>)}</select></div>
-        <div className={styles.field}><label htmlFor="vendor-visibility-filter">Εμφάνιση</label><select id="vendor-visibility-filter" value={visibility} onChange={(event) => setVisibility(event.target.value)}><option value="all">Όλα</option><option value="visible">Εμφανίζονται</option><option value="hidden">Κρυφά</option></select></div>
-        <div className={styles.field}><label htmlFor="vendor-stock-filter">Απόθεμα</label><select id="vendor-stock-filter" value={stock} onChange={(event) => setStock(event.target.value)}><option value="all">Όλα</option><option value="in">Σε απόθεμα</option><option value="low">Χαμηλό απόθεμα</option><option value="out">Χωρίς απόθεμα</option></select></div>
-        <div className={styles.field}><label htmlFor="vendor-brand-filter">Μάρκα</label><select id="vendor-brand-filter" value={brand} onChange={(event) => setBrand(event.target.value)}><option value="all">Όλες</option>{brands.map((item) => <option value={item} key={item}>{item}</option>)}</select></div>
-      </div>
-      <div className={styles.filterSummary}><strong>{filteredProducts.length} από {initial.catalogMetrics.totalProducts} προϊόντα</strong><div className={styles.sectionTools}><div className={styles.field}><label htmlFor="vendor-sort">Ταξινόμηση</label><select id="vendor-sort" value={sort} onChange={(event) => setSort(event.target.value)}><option value="updated">Πρόσφατη ενημέρωση</option><option value="title">Όνομα A–Ω</option><option value="category">Κατηγορία</option><option value="stock">Χαμηλότερο απόθεμα</option></select></div>{filtersActive && <button className={styles.reset} type="button" onClick={resetFilters}>Καθαρισμός φίλτρων</button>}</div></div>
+      <form onSubmit={(event) => { event.preventDefault(); void runSearch(0); }}>
+        <div className={styles.controlBar} aria-label="Φίλτρα καταλόγου">
+          <div className={`${styles.field} ${styles.search}`}><label htmlFor="vendor-product-search">Αναζήτηση</label><input id="vendor-product-search" type="search" placeholder="Όνομα, SKU, GTIN, μάρκα…" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
+          <div className={styles.field}><label htmlFor="vendor-category-filter">Κατηγορία</label><select id="vendor-category-filter" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">Όλες</option>{initial.categoryOptions.map((item) => <option value={item.id} key={item.id}>{item.path}</option>)}</select></div>
+          <div className={styles.field}><label htmlFor="vendor-visibility-filter">Εμφάνιση</label><select id="vendor-visibility-filter" value={visibility} onChange={(event) => setVisibility(event.target.value)}><option value="all">Όλα</option><option value="visible">Εμφανίζονται</option><option value="hidden">Κρυφά</option></select></div>
+          <div className={styles.field}><label htmlFor="vendor-stock-filter">Απόθεμα</label><select id="vendor-stock-filter" value={stock} onChange={(event) => setStock(event.target.value)}><option value="all">Όλα</option><option value="in">Σε απόθεμα</option><option value="low">Χαμηλό απόθεμα</option><option value="out">Χωρίς απόθεμα</option></select></div>
+          <div className={styles.field}><label htmlFor="vendor-brand-filter">Μάρκα</label><input id="vendor-brand-filter" type="search" placeholder="π.χ. Nike" value={brand} onChange={(event) => setBrand(event.target.value)} /></div>
+          <div className={styles.field}><label htmlFor="vendor-sort">Ταξινόμηση</label><select id="vendor-sort" value={sort} onChange={(event) => setSort(event.target.value)}><option value="updated">Πρόσφατη ενημέρωση</option><option value="title">Όνομα A–Ω</option><option value="category">Κατηγορία</option><option value="stock">Χαμηλότερο απόθεμα</option></select></div>
+          <div className={styles.sectionTools}>
+            <button className="button" type="submit" disabled={!hasSearchIntent || searching}>{searching ? "Αναζήτηση…" : "Αναζήτηση / Εφαρμογή φίλτρων"}</button>
+            {filtersActive && <button className={styles.reset} type="button" onClick={resetFilters}>Καθαρισμός</button>}
+          </div>
+        </div>
+      </form>
 
-      {initial.catalogProducts.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν ακόμη προϊόντα." body={canImportCatalogue ? "Δημιούργησε νέο προϊόν ή εισήγαγε CSV. Μόλις εγκριθεί, θα εμφανιστεί εδώ." : "Δημιούργησε νέο προϊόν. Μόλις εγκριθεί, θα εμφανιστεί εδώ."} /> : filteredProducts.length === 0 ? <div className={styles.emptyFiltered}>Δεν βρέθηκαν προϊόντα με αυτά τα φίλτρα. <button className={styles.reset} type="button" onClick={resetFilters}>Εμφάνιση όλων</button></div> : <div className={styles.productGrid}>{filteredProducts.map((product) => {
+      <div className={styles.filterSummary}>
+        <strong>{hasSearched ? `${resultTotal.toLocaleString("el-GR")} αποτελέσματα` : "Ο κατάλογος δεν φορτώνεται αυτόματα"}</strong>
+        {hasSearched && products.length > 0 && <span>Εμφάνιση {resultOffset + 1}–{Math.min(resultOffset + products.length, resultTotal)}</span>}
+      </div>
+
+      {searchError && <div className="form-error" role="alert">{searchError}</div>}
+      {!hasSearched
+        ? <WorkspaceEmptyState title="Αναζήτησε τον κατάλογό σου" body="Για ταχύτερη φόρτωση δεν διαβάζουμε όλα τα προϊόντα όταν ανοίγεις τη σελίδα. Γράψε όνομα, SKU, GTIN ή μάρκα, ή επίλεξε κατηγορία, εμφάνιση ή κατάσταση αποθέματος και πάτησε Αναζήτηση." />
+        : products.length === 0
+          ? <div className={styles.emptyFiltered}>Δεν βρέθηκαν προϊόντα με αυτά τα κριτήρια. Άλλαξε την αναζήτηση ή τα φίλτρα και δοκίμασε ξανά.</div>
+          : <div className={styles.productGrid}>{products.map((product) => {
         const draft = stockDrafts[product.offerId] ?? { onHand: String(product.onHand), safetyStock: String(product.safetyStock) };
         const hiddenReason = !product.productVisible ? "Κρυφό από το κατάστημά σου." : !product.categoryVisible ? "Κρυφό επειδή μία κατηγορία του είναι απενεργοποιημένη." : product.offerStatus !== "approved" ? `Δεν εμφανίζεται επειδή ${offerStatusLabel(product.offerStatus).toLocaleLowerCase("el")}.` : "";
         return <article className={`${styles.productCard} ${!product.effectiveVisible ? styles.productCardHidden : ""}`} key={product.offerId}>
@@ -277,7 +347,18 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
           <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Κωδικός προσφοράς</strong><span className="vendor-technical-id">{product.offerId}</span></div><div className="workspace-compact-row"><strong>Εσωτερικός κωδικός προϊόντος</strong><span className="vendor-technical-id">{product.canonicalVariantId}</span><small>{product.offerStatus}</small></div></div></WorkspaceRecordDetails>
         </article>;
       })}</div>}
+
+      {hasSearched && resultTotal > 0 && (resultOffset > 0 || nextOffset !== null) && <div className="workspace-action-bar">
+        <span>Τα αποτελέσματα φορτώνονται σε σελίδες των {CATALOG_PAGE_SIZE} προϊόντων.</span>
+        <div className="workspace-action-buttons">
+          {resultOffset > 0 && <button className="button button-secondary" type="button" disabled={searching} onClick={() => void runSearch(Math.max(0, resultOffset - CATALOG_PAGE_SIZE))}>Προηγούμενα</button>}
+          {nextOffset !== null && <button className="button button-secondary" type="button" disabled={searching} onClick={() => void runSearch(nextOffset)}>Επόμενα</button>}
+        </div>
+      </div>}
+
+      {hasSearched && products.length > 0 && <VendorPriceManager csrfToken={initial.csrfToken} products={products} onSaved={() => void runSearch(resultOffset)} />}
     </section>
+    {archivedProducts.length > 0 && <VendorArchivedProductsPanel products={archivedProducts} csrfToken={initial.csrfToken} />}
 
     <section className="vendor-section section-tint"><div className="shell">
       <WorkspaceSectionHeading eyebrow="Νέο προϊόν" title="Προσθήκη προϊόντος" note="Ξεκίνα από τίτλο ή GTIN. Το ΚΟΝΤΑ ΜΟΥ ελέγχει αν το προϊόν υπάρχει ήδη και, όταν το αναγνωρίσεις, συνδέει απευθείας τη δική σου προσφορά με το υπάρχον προϊόν." />
