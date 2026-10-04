@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 
 type Activity = Readonly<{ id: string; descr: string; descrEn?: string; kadVersion?: string }>;
 type ActivityGroup = Readonly<{ id: string; label: string; description: string; activityCount: number }>;
+type ExportField = Readonly<{ id: string; label: string; category: string; categoryLabel: string }>;
 type Prefecture = Readonly<{ id: string; descr: string; descrEn?: string }>;
 type Municipality = Readonly<{ id: string; prefectureId: string; descr: string; descrEn?: string }>;
 type Metadata = Readonly<{
   activities: readonly Activity[];
   activityGroups: readonly ActivityGroup[];
+  exportFields: readonly ExportField[];
   prefectures: readonly Prefecture[];
   municipalities: readonly Municipality[];
   fetchedAt: number;
@@ -51,6 +53,44 @@ function activityLabel(activity: Activity): string {
   return `${activity.id} · ${activity.descr}${activity.kadVersion ? ` · ${kadVersionLabel(activity.kadVersion)}` : ""}`;
 }
 
+const EXPORT_FIELD_PRESETS = [
+  {
+    id: "crm",
+    label: "CRM / outreach",
+    fields: [
+      "gemi_number", "afm", "legal_name_el", "trade_names_el", "company_status",
+      "prefecture", "municipality", "city", "postcode",
+      "email", "phone", "website",
+      "matched_activity_codes", "matched_activity_descriptions", "matched_kad_groups"
+    ]
+  },
+  {
+    id: "contact",
+    label: "Επικοινωνία",
+    fields: [
+      "gemi_number", "afm", "legal_name_el", "trade_names_el",
+      "email", "phone", "website"
+    ]
+  },
+  {
+    id: "basic",
+    label: "Βασικά στοιχεία",
+    fields: [
+      "gemi_number", "afm", "legal_name_el", "trade_names_el", "company_status",
+      "legal_type", "prefecture", "municipality", "city"
+    ]
+  },
+  {
+    id: "activity",
+    label: "ΚΑΔ / δραστηριότητες",
+    fields: [
+      "gemi_number", "afm", "legal_name_el",
+      "activity_codes", "activity_descriptions", "activity_types",
+      "matched_activity_codes", "matched_activity_descriptions", "matched_kad_groups"
+    ]
+  }
+] as const;
+
 const TRANSIENT_DB_CONNECT_ERROR = /timeout exceeded when trying to connect|too many clients|remaining connection slots|connection terminated/i;
 
 async function gemiJson<T>(url: string): Promise<{ response: Response; payload: T & { error?: string } }> {
@@ -79,6 +119,7 @@ export function AdminGemiExporter() {
   const [kadQuery, setKadQuery] = useState("");
   const [selectedActivity, setSelectedActivity] = useState<Activity>();
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
+  const [selectedExportFields, setSelectedExportFields] = useState<string[]>([]);
   const [prefectureId, setPrefectureId] = useState("");
   const [municipalityId, setMunicipalityId] = useState("");
   const [activeOnly, setActiveOnly] = useState(true);
@@ -91,7 +132,10 @@ export function AdminGemiExporter() {
     gemiJson<Metadata>("/api/admin/gemi/metadata")
       .then(({ response, payload }) => {
         if (!response.ok) throw new Error(payload.error ?? "Δεν ήταν δυνατή η φόρτωση των φίλτρων ΓΕΜΗ.");
-        if (!cancelled) setMetadata(payload);
+        if (!cancelled) {
+          setMetadata(payload);
+          setSelectedExportFields(payload.exportFields.map((field) => field.id));
+        }
       })
       .catch((error) => {
         if (!cancelled) setMetadataError(error instanceof Error ? error.message : "Δεν ήταν δυνατή η φόρτωση των φίλτρων ΓΕΜΗ.");
@@ -115,6 +159,16 @@ export function AdminGemiExporter() {
 
   const selectedPrefecture = metadata?.prefectures.find((item) => item.id === prefectureId);
   const selectedMunicipality = municipalities.find((item) => item.id === municipalityId);
+  const exportFieldCategories = useMemo(() => {
+    if (!metadata) return [];
+    const groups = new Map<string, { label: string; fields: ExportField[] }>();
+    for (const field of metadata.exportFields) {
+      const group = groups.get(field.category) ?? { label: field.categoryLabel, fields: [] };
+      group.fields.push(field);
+      groups.set(field.category, group);
+    }
+    return [...groups.entries()].map(([id, group]) => ({ id, ...group }));
+  }, [metadata]);
   const selectedGroups = useMemo(
     () => metadata?.activityGroups.filter((group) => selectedGroupIds.includes(group.id)) ?? [],
     [metadata, selectedGroupIds]
@@ -125,13 +179,14 @@ export function AdminGemiExporter() {
     ...(selectedActivity ? [`ΚΑΔ ${selectedActivity.id}`] : [])
   ].join(" · ");
 
-  function queryString() {
+  function queryString(includeExportFields = false) {
     if (!hasSelection) return "";
     const query = new URLSearchParams({ activeOnly: String(activeOnly) });
     if (selectedActivity) query.set("activity", selectedActivity.id);
     if (selectedGroupIds.length) query.set("groups", selectedGroupIds.join(","));
     if (prefectureId) query.set("prefecture", prefectureId);
     if (municipalityId) query.set("municipality", municipalityId);
+    if (includeExportFields && selectedExportFields.length) query.set("fields", selectedExportFields.join(","));
     return query.toString();
   }
 
@@ -180,7 +235,33 @@ export function AdminGemiExporter() {
     setPreviewError("");
   }
 
-  const downloadQuery = queryString();
+  function toggleExportField(fieldId: string) {
+    setSelectedExportFields((current) => current.includes(fieldId)
+      ? current.filter((id) => id !== fieldId)
+      : [...current, fieldId]);
+  }
+
+  function setExportCategory(category: string, selected: boolean) {
+    if (!metadata) return;
+    const categoryIds = metadata.exportFields.filter((field) => field.category === category).map((field) => field.id);
+    setSelectedExportFields((current) => {
+      const currentSet = new Set(current);
+      for (const id of categoryIds) selected ? currentSet.add(id) : currentSet.delete(id);
+      return metadata.exportFields.map((field) => field.id).filter((id) => currentSet.has(id));
+    });
+  }
+
+  function applyExportPreset(fields: readonly string[]) {
+    if (!metadata) return;
+    const allowed = new Set(fields);
+    setSelectedExportFields(metadata.exportFields.map((field) => field.id).filter((id) => allowed.has(id)));
+  }
+
+  function selectAllExportFields() {
+    setSelectedExportFields(metadata?.exportFields.map((field) => field.id) ?? []);
+  }
+
+  const downloadQuery = queryString(true);
 
   return <div className="gemi-export-workspace">
     <form className="gemi-export-card" onSubmit={(event) => void runPreview(event)}>
@@ -305,6 +386,59 @@ export function AdminGemiExporter() {
           <strong>CSV επιχειρήσεων</strong>
           <small>Δεν δημιουργούνται vendors ή prospects στη βάση. Το αρχείο παράγεται live από το ΓΕΜΗ.</small>
         </div>
+        {metadata && <span className="status-pill">{selectedExportFields.length}/{metadata.exportFields.length} πεδία</span>}
+      </div>
+
+      <div className="gemi-export-field-filter">
+        <div className="gemi-export-field-filter-head">
+          <div>
+            <strong>Ποια δεδομένα να εξαχθούν;</strong>
+            <small>Αποεπίλεξε οτιδήποτε δεν χρειάζεσαι. Το CSV θα περιέχει μόνο τα επιλεγμένα πεδία.</small>
+          </div>
+          <div className="gemi-export-presets">
+            {EXPORT_FIELD_PRESETS.map((preset) => <button
+              className="button button-secondary"
+              type="button"
+              key={preset.id}
+              onClick={() => applyExportPreset(preset.fields)}
+            >{preset.label}</button>)}
+            <button className="button button-secondary" type="button" onClick={selectAllExportFields}>Όλα</button>
+            <button className="button button-secondary" type="button" onClick={() => setSelectedExportFields([])}>Κανένα</button>
+          </div>
+        </div>
+
+        <div className="gemi-export-field-categories">
+          {exportFieldCategories.map((category) => {
+            const selectedCount = category.fields.filter((field) => selectedExportFields.includes(field.id)).length;
+            const allSelected = selectedCount === category.fields.length;
+            return <section className="gemi-export-field-category" key={category.id}>
+              <div className="gemi-export-field-category-head">
+                <div>
+                  <strong>{category.label}</strong>
+                  <small>{selectedCount}/{category.fields.length}</small>
+                </div>
+                <button
+                  type="button"
+                  className="gemi-export-category-action"
+                  onClick={() => setExportCategory(category.id, !allSelected)}
+                >{allSelected ? "Καμία" : "Όλες"}</button>
+              </div>
+              <div className="gemi-export-field-list">
+                {category.fields.map((field) => <label key={field.id}>
+                  <input
+                    type="checkbox"
+                    checked={selectedExportFields.includes(field.id)}
+                    onChange={() => toggleExportField(field.id)}
+                  />
+                  <span>{field.label}</span>
+                </label>)}
+              </div>
+            </section>;
+          })}
+        </div>
+        {selectedExportFields.length === 0 && <div className="workspace-inline-note form-error" role="alert">
+          Επίλεξε τουλάχιστον ένα πεδίο για να ενεργοποιηθεί το CSV export.
+        </div>}
       </div>
 
       {!preview ? <div className="workspace-empty-state">
@@ -323,9 +457,9 @@ export function AdminGemiExporter() {
             <strong>{selectionSummary || "Επιλογή ΚΑΔ"}</strong>
             <span>{selectedMunicipality?.descr ?? selectedPrefecture?.descr ?? "Όλη η Ελλάδα"}</span>
           </div>
-          {preview.totalCount > 0
+          {preview.totalCount > 0 && selectedExportFields.length > 0
             ? <a className="button" href={`/api/admin/gemi/export?${downloadQuery}`}>Λήψη όλων ως CSV</a>
-            : <span className="status-pill">0 αποτελέσματα</span>}
+            : <span className="status-pill">{preview.totalCount > 0 ? "Επίλεξε πεδία" : "0 αποτελέσματα"}</span>}
         </div>
 
         {preview.rows.length > 0 && <div className="gemi-preview-table" role="table" aria-label="ΓΕΜΗ preview">
@@ -347,7 +481,7 @@ export function AdminGemiExporter() {
     </section>
 
     <div className="workspace-inline-note">
-      Το CSV περιλαμβάνει μόνο business-level δημόσια πεδία: ΓΕΜΗ, ΑΦΜ, επωνυμίες/τίτλους, κατάσταση, νομική μορφή, υπηρεσία ΓΕΜΗ, διεύθυνση, email, τηλέφωνο όταν επιστρέφεται, website, ημερομηνίες και δραστηριότητες ΚΑΔ. Πρόσωπα, έγγραφα, κεφάλαιο και λοιπά μη αναγκαία πεδία δεν εξάγονται. Η δημοσίευση email στο ΓΕΜΗ δεν αντιμετωπίζεται από το KONTA MOY ως συγκατάθεση για marketing.
+      Το CSV μπορεί πλέον να περιοριστεί στα business-level δημόσια πεδία που επιλέγεις πριν από τη λήψη. Πρόσωπα, έγγραφα, κεφάλαιο και λοιπά μη αναγκαία πεδία δεν εξάγονται από τη λειτουργία. Η δημοσίευση email στο ΓΕΜΗ δεν αντιμετωπίζεται από το KONTA MOY ως συγκατάθεση για marketing.
     </div>
   </div>;
 }
