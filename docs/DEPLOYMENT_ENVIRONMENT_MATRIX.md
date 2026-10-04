@@ -70,6 +70,8 @@ Recommended runtime controls:
 - `BLS_NYXI_SOURCE_REQUEST_TIMEOUT_MS=30000`
 - `BLS_NYXI_SOURCE_MAX_RESPONSE_BYTES=26214400`
 - `BLS_NYXI_SOURCE_MAX_REDIRECTS=5`
+- `BLS_NYXI_SOURCE_DISCOVERY_MAX_LINKS=2000`
+- `BLS_NYXI_SOURCE_DISCOVERY_MAX_BYTES=8388608`
 
 The worker writes only source-check state, immutable snapshot metadata and raw source bytes under the private `private/nyxi/source-archive/` prefix. It performs no ingredient extraction, formula classification or public serving.
 
