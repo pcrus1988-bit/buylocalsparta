@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -869,6 +869,429 @@
         {
           "type": "brand",
           "displayName": "Kodi Professional",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "sally_hansen_root",
+      "publisher": "Sally Hansen",
+      "title": "Sally Hansen Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.sallyhansen.com/en-us",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Sally Hansen",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Sally Hansen",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "china_glaze_root",
+      "publisher": "China Glaze",
+      "title": "China Glaze Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://chinaglaze.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "China Glaze",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "China Glaze",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "china_glaze_nail_lacquer",
+      "publisher": "China Glaze",
+      "title": "Nail Lacquers",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://chinaglaze.com/collections/nail-lacquer",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "China Glaze",
+        "scope": "nail_lacquer_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "China Glaze",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "manucurist_root",
+      "publisher": "Manucurist",
+      "title": "Manucurist Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://www.manucurist.com/en/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Manucurist",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Manucurist",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "manucurist_formula_background",
+      "publisher": "Manucurist",
+      "title": "Formula and ingredient background",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://www.manucurist.com/en/pages/earth-day",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Manucurist",
+        "scope": "formula_background"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Manucurist",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "mylee_root",
+      "publisher": "Mylee",
+      "title": "Mylee Official EU Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://www.mylee.eu/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Mylee",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Mylee",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "deborah_lippmann_all_products",
+      "publisher": "LIPPMANN",
+      "title": "LIPPMANN Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://lippmannofficial.com/collections/all",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Deborah Lippmann",
+        "scope": "product_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Deborah Lippmann",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "sns_essential_downloads",
+      "publisher": "SNS Nails",
+      "title": "Essential Downloads",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://snsnails.com/pages/essential-downloads",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "SNS",
+        "scope": "sds_manuals_color_charts",
+        "preserveLinkedPdfs": true
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "SNS",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "didier_lab_nails",
+      "publisher": "Didier Lab",
+      "title": "Didier Lab Nails",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://didierlab.org/en/13-nails",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Didier Lab",
+        "scope": "nail_product_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Didier Lab",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "beetles_sds",
+      "publisher": "Beetles Gel Polish",
+      "title": "Products SDS",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.beetlesgel.com/pages/sds-forms",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Beetles",
+        "scope": "sds_library",
+        "preserveLinkedPdfs": true
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Beetles",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "born_pretty_root",
+      "publisher": "BORN PRETTY",
+      "title": "BORN PRETTY Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.bornpretty.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Born Pretty",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Born Pretty",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "born_pretty_gel_polish",
+      "publisher": "BORN PRETTY",
+      "title": "Gel Nail Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.bornpretty.com/collections/gel-nail-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Born Pretty",
+        "scope": "gel_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Born Pretty",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "venalisa_gel_polish",
+      "publisher": "VENALISA",
+      "title": "Gel Nail Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://venalisa.com/collections/gel-nail-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "VENALISA",
+        "scope": "gel_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "VENALISA",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "modelones_gel_polish",
+      "publisher": "MODELONES",
+      "title": "Gel Nail Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://modelones.com/collections/gel-nail-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Modelones",
+        "scope": "gel_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Modelones",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "dior_vernis",
+      "publisher": "Dior",
+      "title": "Dior Vernis",
+      "sourceFamily": "manufacturer_product",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.dior.com/en_us/beauty/products/dior-vernis-C038100047.html",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Dior",
+        "line": "Dior Vernis",
+        "scope": "product_and_ingredients"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Dior",
           "relation": "primary_for"
         }
       ]
