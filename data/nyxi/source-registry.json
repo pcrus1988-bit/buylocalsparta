@@ -1,5 +1,5 @@
 {
-  "version": 11,
+  "version": 12,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -4049,6 +4049,338 @@
         {
           "type": "brand",
           "displayName": "Didier Lab",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "eu_sccs_opinions_index",
+      "publisher": "European Commission / SCCS",
+      "title": "SCCS Opinions",
+      "sourceFamily": "scientific_opinion_index",
+      "authorityLevel": 5,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://health.ec.europa.eu/scientific-committees/scientific-committee-consumer-safety-sccs/sccs-opinions_en",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "cosmetic_ingredient_safety",
+        "scope": "current_opinions_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "European Union",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "eu_sccs_tpo_2014",
+      "publisher": "European Commission / SCCS",
+      "title": "Trimethylbenzoyl diphenylphosphine oxide (TPO) — SCCS/1528/14",
+      "sourceFamily": "scientific_literature",
+      "authorityLevel": 5,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://health.ec.europa.eu/publications/trimethylbenzoyl-diphenylphosphine-oxide-tpo_en",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetic_ingredient_safety",
+        "ingredient": "TPO",
+        "scope": "historical_scientific_opinion"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high",
+        "historicalEvidence": true
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "European Union",
+          "relation": "historical_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "eu_sccs_hema_di_hema_2018",
+      "publisher": "European Commission / SCCS",
+      "title": "Safety of HEMA and Di-HEMA Trimethylhexyl Dicarbamate — SCCS/1592/17",
+      "sourceFamily": "scientific_literature",
+      "authorityLevel": 5,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://health.ec.europa.eu/publications/safety-cosmetic-ingredients-hema-and-di-hema-trimethylhexyl-dicarbamate-submission-i_en",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetic_ingredient_safety",
+        "ingredients": [
+          "HEMA",
+          "Di-HEMA Trimethylhexyl Dicarbamate"
+        ],
+        "scope": "nail_modelling_scientific_opinion"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high",
+        "historicalEvidence": true
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "European Union",
+          "relation": "historical_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "eu_sccs_notes_guidance_12",
+      "publisher": "European Commission / SCCS",
+      "title": "SCCS Notes of Guidance — 12th revision",
+      "sourceFamily": "regulatory_guidance",
+      "authorityLevel": 5,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://health.ec.europa.eu/publications/sccs-notes-guidance-testing-cosmetic-ingredients-and-their-safety-evaluation-12th-revision_en",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetic_safety_assessment",
+        "scope": "methodological_guidance"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "European Union",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "manucurist_collections_index",
+      "publisher": "Manucurist",
+      "title": "Manucurist Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://www.manucurist.com/en/collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Manucurist",
+        "scope": "collections_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Manucurist",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "manucurist_green_flash_colours",
+      "publisher": "Manucurist",
+      "title": "Green Flash Colours",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://www.manucurist.com/en/collections/couleurs-vernis-green-flash",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Manucurist",
+        "line": "Green Flash",
+        "scope": "colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Manucurist",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "manucurist_green_flash_system",
+      "publisher": "Manucurist",
+      "title": "Green Flash System",
+      "sourceFamily": "manufacturer_product",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://www.manucurist.com/en/collections/led-green-flash",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Manucurist",
+        "line": "Green Flash",
+        "scope": "system_and_formula_claims"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Manucurist",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "manucurist_green_colours",
+      "publisher": "Manucurist",
+      "title": "Green Nail Polish Colours",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://www.manucurist.com/en/collections/couleurs-vernis-green",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Manucurist",
+        "line": "Green",
+        "scope": "colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Manucurist",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "nailberry_loxygene",
+      "publisher": "Nailberry London",
+      "title": "L'Oxygéné Nail Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.nailberry.com/collections/loxygene",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Nailberry",
+        "line": "L'Oxygéné",
+        "scope": "nail_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Nailberry",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "victoria_vynn_gel_polish_color",
+      "publisher": "Victoria Vynn",
+      "title": "GEL POLISH Color",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://victoriavynn.com/en/products/product-lines/gel-polish/gel-polish-color",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Victoria Vynn",
+        "line": "GEL POLISH",
+        "scope": "colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Victoria Vynn",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "victoria_vynn_colors_effects",
+      "publisher": "Victoria Vynn",
+      "title": "Colors and Effects",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://victoriavynn.com/en/products/colors-and-effects",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Victoria Vynn",
+        "scope": "cross_line_colour_and_effect_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Victoria Vynn",
           "relation": "covers"
         }
       ]
