@@ -2123,8 +2123,8 @@ test("match explanations pair user input with governed knowledge evidence", () =
     "size_fit"
   ]);
   assert.match(scored.matchProofs[0]?.input ?? "", /Εσύ: Περπάτημα/);
-  assert.match(scored.matchProofs[0]?.knowledge ?? "", /περπάτημα/);
+  assert.match(scored.matchProofs[0]?.knowledge ?? "", /Βάση γνώσης: δραστηριότητα = περπάτημα/);
   assert.match(scored.matchProofs[0]?.proof ?? "", /επαληθευμένη πηγή προϊόντος/);
   assert.match(scored.matchProofs[3]?.proof ?? "", /επίσημη πηγή κατασκευαστή/);
-  assert.match(scored.matchProofs[0]?.proof ?? "", /90% confidence/);
+  assert.match(scored.matchProofs[0]?.proof ?? "", /βεβαιότητα 90%/);
 });
