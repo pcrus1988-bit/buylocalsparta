@@ -34,7 +34,7 @@ export type VendorProductFeedNormalizedRow = Readonly<{
   mpn?: string;
   gtin?: string;
   condition: string;
-  categoryCode: string;
+  categoryCode?: string;
   sourceCategory?: string;
   priceMinor: number;
   currency: "EUR";
@@ -56,8 +56,10 @@ export type VendorProductFeedPreview = Readonly<{
   totalRows: number;
   validRows: number;
   errorRows: number;
+  creationBlockedRows: number;
   sample: readonly VendorProductFeedNormalizedRow[];
   errors: readonly VendorProductFeedPreviewError[];
+  warnings: readonly VendorProductFeedPreviewError[];
 }>;
 export type VendorProductFeedMappingInput = Readonly<{
   fieldMapping?: VendorXmlFieldMapping;
@@ -419,6 +421,7 @@ export async function prepareVendorProductFeed(
 
   const categoryMapping = input.categoryMapping ?? {};
   const errors: VendorProductFeedPreviewError[] = [];
+  const warnings: VendorProductFeedPreviewError[] = [];
   const valid: VendorProductFeedPreparedRow[] = [];
   const sourceCategories = new Set<string>();
   const seenIds = new Set<string>();
@@ -495,7 +498,14 @@ export async function prepareVendorProductFeed(
     if (priceMinor === undefined) fail("price", "Η τιμή λείπει ή δεν είναι έγκυρη.");
     if (currency !== "EUR") fail("currency", "Το KONTA MOU δέχεται τιμές EUR. Βρέθηκε " + currency + ".");
     if (stockOnHand === undefined) fail("stock", "Λείπει έγκυρο απόθεμα ή availability.");
-    if (!category) fail("category", "Δεν βρέθηκε αντιστοίχιση κατηγορίας. Επίλεξε προεπιλεγμένη κατηγορία ή mapping.");
+    if (!category) {
+      warnings.push({
+        rowNumber: record.index,
+        externalId,
+        field: "category",
+        message: "Δεν βρέθηκε κατηγορία. Η γραμμή παραμένει διαθέσιμη για ασφαλές enrichment/sync υπάρχοντος προϊόντος, αλλά δεν θα δημιουργηθεί νέο προϊόν μέχρι να οριστεί κατηγορία."
+      });
+    }
     if (externalId) seenIds.add(externalId);
     if (rowErrors.length) {
       errors.push(...rowErrors);
@@ -520,7 +530,7 @@ export async function prepareVendorProductFeed(
       mpn: trimOptional(xmlFieldValue(record, mapping.mpn), 300),
       gtin,
       condition: normalizeCondition(xmlFieldValue(record, mapping.condition)),
-      categoryCode: category!.code,
+      categoryCode: category?.code,
       sourceCategory,
       priceMinor,
       currency: "EUR",
@@ -547,7 +557,7 @@ export async function prepareVendorProductFeed(
       mpn: payload.mpn,
       gtin,
       condition: payload.condition,
-      categoryCode: category!.code,
+      categoryCode: category?.code,
       sourceCategory,
       priceMinor: priceMinor!,
       currency: "EUR",
@@ -603,8 +613,10 @@ export async function prepareVendorProductFeed(
       totalRows: parsed.records.length,
       validRows: enrichedRows.length,
       errorRows: parsed.records.length - enrichedRows.length,
+      creationBlockedRows: enrichedRows.filter((row) => !row.categoryCode).length,
       sample: enrichedRows.slice(0, 50).map(({ payload: _payload, ...row }) => row),
-      errors: errors.slice(0, 150)
+      errors: errors.slice(0, 150),
+      warnings: warnings.slice(0, 150)
     },
     rows: enrichedRows,
     observedExternalIds: [...observedExternalIds],
