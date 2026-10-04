@@ -1,5 +1,5 @@
 {
-  "version": 21,
+  "version": 22,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -6144,6 +6144,651 @@
         {
           "type": "brand",
           "displayName": "Holo Taco",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "artistic_nail_design_root",
+      "publisher": "Artistic Nail Design",
+      "title": "Artistic Nail Design Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.artisticnaildesign.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Artistic Nail Design",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Artistic Nail Design",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "artistic_electric_euphoria_product",
+      "publisher": "Artistic Nail Design",
+      "title": "Electric Euphoria Colour Gloss Product Surface",
+      "sourceFamily": "manufacturer_product",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.artisticnaildesign.com/products/artistic-colour-gloss-soak-off-gel-glowdelic-0-5-fl-oz",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Artistic Nail Design",
+        "line": "Colour Gloss",
+        "scope": "current_collection_product_surface"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Artistic Nail Design",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "artistic_artlife_2018_pdf",
+      "publisher": "Artistic Nail Design",
+      "title": "Artistic Life Spring/Summer 2018 PDF",
+      "sourceFamily": "historical_archive",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.artisticnaildesign.com/media/pdf/8259-ART-ArtLife-SS18-ls-FNL.pdf",
+      "retrievalMethod": "pdf",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "brand": "Artistic Nail Design",
+        "scope": "historical_colour_catalogue_editorial",
+        "year": 2018
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "historicalEvidence": true,
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Artistic Nail Design",
+          "relation": "historical_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "artistic_artlife_2019_pdf",
+      "publisher": "Artistic Nail Design",
+      "title": "Artistic Life Spring/Summer 2019 PDF",
+      "sourceFamily": "historical_archive",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.artisticnaildesign.com/media/pdf/10111-ART-ArtLife-SS19-ls-fnl_web.pdf",
+      "retrievalMethod": "pdf",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "brand": "Artistic Nail Design",
+        "scope": "historical_colour_catalogue_editorial",
+        "year": 2019
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "historicalEvidence": true,
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Artistic Nail Design",
+          "relation": "historical_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "ibd_just_gel_polish",
+      "publisher": "ibd Beauty",
+      "title": "Just Gel Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://ibdbeauty.com/collections/just-gel-polish-new",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "ibd",
+        "line": "Just Gel Polish",
+        "scope": "gel_colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "ibd",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "mia_secret_nails_catalogue",
+      "publisher": "Mia Secret",
+      "title": "Mia Secret Nail Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://miasecretstore.com/en-gb/collections/nails",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Mia Secret",
+        "scope": "nail_products_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Mia Secret",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "mia_secret_gelux_canada",
+      "publisher": "Mia Secret",
+      "title": "Gelux Gel Polish Canada",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "CA",
+      "language": "en",
+      "canonicalUrl": "https://canada.miasecretstore.com/collections/gelux-gel-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Mia Secret",
+        "line": "Gelux",
+        "scope": "regional_gel_colour_catalogue",
+        "market": "CA"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Mia Secret",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "mia_secret_biobuilder_sds_product",
+      "publisher": "Mia Secret",
+      "title": "BioBuilder Gel Product and SDS Link",
+      "sourceFamily": "manufacturer_product",
+      "authorityLevel": 4,
+      "jurisdiction": "CA",
+      "language": "en",
+      "canonicalUrl": "https://canada.miasecretstore.com/products/biobuilder-gel",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Mia Secret",
+        "scope": "product_with_sds_link"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "preserveLinkedDocuments": true,
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Mia Secret",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "tammy_taylor_collections",
+      "publisher": "Tammy Taylor Nails",
+      "title": "Tammy Taylor Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://tammytaylornails.com/collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Tammy Taylor Nails",
+        "scope": "collections_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Tammy Taylor Nails",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "tammy_taylor_gelegance",
+      "publisher": "Tammy Taylor Nails",
+      "title": "Gelegance Gel Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://tammytaylornails.com/collections/gel-nail-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Tammy Taylor Nails",
+        "line": "Gelegance",
+        "scope": "gel_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Tammy Taylor Nails",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "tammy_taylor_gelegance_soulmates",
+      "publisher": "Tammy Taylor Nails",
+      "title": "Gelegance Gel Polish and Soulmate Nail Lacquer",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://tammytaylornails.com/collections/gelegance-gel-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Tammy Taylor Nails",
+        "scope": "paired_gel_and_lacquer_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Tammy Taylor Nails",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "v_beauty_pure_all_gel",
+      "publisher": "V Beauty Pure",
+      "title": "All Gel",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://vbeautypure.com/collection/all-gel",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "V Beauty Pure",
+        "scope": "all_gel_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "V Beauty Pure",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "v_beauty_pure_gel_collections",
+      "publisher": "V Beauty Pure",
+      "title": "Gel Polish Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://vbeautypure.com/collection/gel-polish-collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "V Beauty Pure",
+        "scope": "gel_polish_collections"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "V Beauty Pure",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "nail_thoughts_collections",
+      "publisher": "Nail Thoughts",
+      "title": "Nail Thoughts Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://nailthoughts.com/collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Nail Thoughts",
+        "scope": "collections_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Nail Thoughts",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "nail_thoughts_shop_all",
+      "publisher": "Nail Thoughts",
+      "title": "Nail Thoughts Shop All",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://nailthoughts.com/collections/shop-all",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Nail Thoughts",
+        "scope": "all_products"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Nail Thoughts",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "daily_charme_gel_polish",
+      "publisher": "Daily Charme",
+      "title": "Gel Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://dailycharme.com/collections/gel-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Daily Charme / Charme Gel",
+        "scope": "gel_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Daily Charme / Charme Gel",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "daily_charme_charme_gel",
+      "publisher": "Daily Charme",
+      "title": "Charme Gel",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://dailycharme.com/collections/charme-gel",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Daily Charme / Charme Gel",
+        "line": "Charme Gel",
+        "scope": "colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Daily Charme / Charme Gel",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "glitterbels_collections",
+      "publisher": "Glitterbels",
+      "title": "Glitterbels Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://glitterbels.com/collections/collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Glitterbels",
+        "scope": "colour_collections"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Glitterbels",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "the_manicure_company_all_products",
+      "publisher": "The Manicure Company",
+      "title": "All Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://www.themanicurecompany.com/collections/all",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "The Manicure Company",
+        "scope": "all_products"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "The Manicure Company",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "the_manicure_company_zero_gel",
+      "publisher": "The Manicure Company",
+      "title": "Zero Gel Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://www.themanicurecompany.com/collections/zero-gel-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "The Manicure Company",
+        "line": "Zero Gel Polish",
+        "scope": "manufacturer_formula_claim_collection"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest",
+        "preserveLinkedDocuments": true
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "The Manicure Company",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "naio_gel_polish",
+      "publisher": "Naio Nails",
+      "title": "Professional Gel Polish",
+      "sourceFamily": "retailer",
+      "authorityLevel": 3,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://naio-nails.com/collections/gel-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Naio Nails / Urban Graffiti",
+        "scope": "brand_operated_retail_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Naio Nails / Urban Graffiti",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "naio_gel_polish_colours",
+      "publisher": "Naio Nails",
+      "title": "Gel Polish Colour",
+      "sourceFamily": "retailer",
+      "authorityLevel": 3,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://naio-nails.com/collections/gel-polish-colour",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Naio Nails / Urban Graffiti",
+        "scope": "colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Naio Nails / Urban Graffiti",
           "relation": "covers"
         }
       ]
