@@ -11,6 +11,7 @@ const crawlerDocs = await readFile(new URL("../docs/CATALOG_CRAWLER_WORKER.md", 
 const nextConfig = await readFile(new URL("../apps/web/next.config.ts", import.meta.url), "utf8");
 const productionCi = await readFile(new URL("../.github/workflows/production-ci.yml", import.meta.url), "utf8");
 const mediaProduction = await readFile(new URL("../.github/workflows/media-worker-production.yml", import.meta.url), "utf8");
+const nyxiSourceCollector = await readFile(new URL("../.github/workflows/nyxi-source-collector.yml", import.meta.url), "utf8");
 const stagingActivation = await readFile(new URL("../.github/workflows/staging-activation.yml", import.meta.url), "utf8");
 const stagingEvidence = await readFile(new URL("../.github/workflows/staging-scenario-evidence.yml", import.meta.url), "utf8");
 const productionSchemaGate = await readFile(new URL("./verify-production-schema-head.ts", import.meta.url), "utf8");
@@ -91,7 +92,7 @@ for (const workflow of [productionCi, stagingActivation, stagingEvidence]) {
   assert(workflow.includes("npm ci --ignore-scripts"), "release/staging workflows must consume the committed npm lockfile");
   assert(!workflow.includes("npm install --ignore-scripts"), "release/staging workflows must not re-resolve dependencies with npm install");
 }
-for (const role of ["postgres", "search", "notifications", "media", "reports", "crawler", "nova-catalogue", "nova-order-reconciliation", "symphonya"]) assert(entrypoint.includes(`${role})`), `worker entrypoint is missing ${role} role`);
+for (const role of ["postgres", "search", "notifications", "media", "reports", "crawler", "nyxi-sources", "nova-catalogue", "nova-order-reconciliation", "symphonya"]) assert(entrypoint.includes(`${role})`), `worker entrypoint is missing ${role} role`);
 assert(entrypoint.includes("Unsupported BLS_WORKER_ROLE"), "worker entrypoint must fail closed on unknown roles");
 assert(dockerfile.includes("FROM node:24-"), "worker container must run Node 24");
 assert(dockerfile.includes("COPY package.json package-lock.json ./"), "worker image must copy the committed root lockfile before installing dependencies");
@@ -102,7 +103,7 @@ assert(docs.includes("npm ci --ignore-scripts"), "deployment runbook must docume
 assert(docs.includes("dashboard Install Command override"), "deployment runbook must document the observed Vercel dashboard override and build-time lockfile guard");
 assert(docs.includes("production schema gate"), "deployment runbook must document the hard production schema gate");
 assert(docs.includes("schema-ledger fingerprint"), "deployment runbook must document Vercel's runtime schema-fingerprint verification path");
-assert(docs.includes("BLS_WORKER_ROLE=postgres") && docs.includes("BLS_WORKER_ROLE=media") && docs.includes("BLS_WORKER_ROLE=reports"), "deployment runbook must document established independent worker roles");
+assert(docs.includes("BLS_WORKER_ROLE=postgres") && docs.includes("BLS_WORKER_ROLE=media") && docs.includes("BLS_WORKER_ROLE=reports") && docs.includes("BLS_WORKER_ROLE=nyxi-sources"), "deployment runbook must document established independent worker roles");
 assert(crawlerDocs.includes("BLS_WORKER_ROLE=crawler"), "crawler runbook must document the isolated worker role");
 assert(crawlerDocs.includes("DNS") && crawlerDocs.includes("pinned"), "crawler runbook must document DNS pinning protection");
 assert(crawlerDocs.includes("DATABASE_URL") && crawlerDocs.includes("BLS_CRAWLER_LEASE_SECONDS"), "crawler runbook must document worker database and lease configuration");
@@ -127,8 +128,14 @@ assert(envMatrix.includes(".github/workflows/media-worker-production.yml"), "env
 assert(envMatrix.includes("No Railway service"), "environment matrix must explicitly retire Railway from the production media scanner topology");
 assert(envMatrix.includes("MEILISEARCH_ADMIN_KEY") && envMatrix.includes("search worker"), "environment matrix must isolate Meilisearch index-management credentials");
 assert(envMatrix.includes("BLS_REPORT_ASYNC_ENABLED") && envMatrix.includes("reports` worker"), "environment matrix must document report worker split");
+assert(envMatrix.includes("BLS_WORKER_ROLE=nyxi-sources") && envMatrix.includes("private/nyxi/source-archive/"), "environment matrix must document NYXI source-only archival");
+assert(nyxiSourceCollector.includes("cron: '17 */6 * * *'"), "NYXI source collector must run every six hours");
+assert(nyxiSourceCollector.includes("npm run nyxi:sources:sync"), "NYXI workflow must sync the curated registry before collection");
+assert(nyxiSourceCollector.includes("BLS_NYXI_SOURCE_MODE: drain"), "NYXI scheduled collector must run in bounded drain mode");
+assert(nyxiSourceCollector.includes("npm ci --ignore-scripts"), "NYXI source collector must use the committed dependency lockfile");
 for (const path of [
   "../workers/postgres-worker.ts",
+  "../workers/nyxi-source-collector-worker.ts",
   "../workers/search-worker.ts",
   "../workers/notification-worker.ts",
   "../workers/media-worker.ts",
@@ -140,6 +147,6 @@ for (const path of [
 ]) {
   await stat(new URL(path, import.meta.url));
 }
-console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, bounded web crons, and eleven isolated Node 24 worker roles including Nova and Symphonya verified.");
+console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, bounded web crons, and isolated Node 24 worker roles including NYXI source archival, Nova and Symphonya verified.");
 
 function assert(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }
