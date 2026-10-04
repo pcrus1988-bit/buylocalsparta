@@ -11,6 +11,7 @@ import { PostgresFixedWindowRateLimiter, PostgresVendorAuthService } from "@buy-
 import { offers, runtime as commerceRuntime, variants, vendors } from "./demo-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { assertDatabaseLessPreviewCsrf, createDatabaseLessPreviewSession, databaseLessPreviewSessionEnabled, databaseLessPreviewSessionFromToken, previewCredentialMatches } from "./preview-auth";
+import { assertVendorImpersonationCsrf, isVendorImpersonationPrincipal } from "./vendor-impersonation";
 import { marketplaceReferenceMap } from "./public-reference-service";
 import { assertVendorTrialCsrf, isVendorTrialPrincipal } from "./vendor-trial-runtime";
 
@@ -83,6 +84,10 @@ export async function vendorSessionFromToken(token: string | undefined, now: num
 }
 
 export function assertVendorCsrf(principal: SessionPrincipal, suppliedToken: string | undefined): void {
+  if (isVendorImpersonationPrincipal(principal)) {
+    assertVendorImpersonationCsrf(principal, suppliedToken);
+    return;
+  }
   if (isVendorTrialPrincipal(principal)) {
     assertVendorTrialCsrf(principal, suppliedToken);
     return;
