@@ -83,6 +83,7 @@ export type SportFitKnowledge = Readonly<{
   thermalLevel?: string;
   compressionLevel?: string;
   reflectiveDetails?: boolean;
+  evidence?: readonly SportFitKnowledgeEvidence[];
 }>;
 
 export type SportFitAnswers = Readonly<{
@@ -109,6 +110,22 @@ export type SportFitTechnicalRequirement = Readonly<{
   weight: number;
   status: SportFitRequirementStatus;
   reason?: string;
+}>;
+
+export type SportFitKnowledgeEvidence = Readonly<{
+  attributeCode: string;
+  value: string;
+  evidenceStrength?: string;
+  confidence?: number;
+  identityConfidence?: number;
+  sourceType?: string;
+}>;
+
+export type SportFitMatchProof = Readonly<{
+  id: string;
+  input: string;
+  knowledge: string;
+  proof: string;
 }>;
 
 export type SportFitProduct = Readonly<{
@@ -144,6 +161,7 @@ export type SportFitScoredProduct = SportFitProduct & Readonly<{
   technicalScore: number;
   technicalCoverage: number;
   technicalRequirements: readonly SportFitTechnicalRequirement[];
+  matchProofs: readonly SportFitMatchProof[];
   appliedRules: readonly string[];
 }>;
 
@@ -619,6 +637,267 @@ function sizeScore(product: SportFitProduct, answers: SportFitAnswers, role: Spo
   return { score: -4 };
 }
 
+
+const ACTIVITY_LABELS: Readonly<Record<SportActivity, string>> = {
+  running: "Τρέξιμο",
+  walking: "Περπάτημα",
+  gym: "Γυμναστήριο",
+  football: "Ποδόσφαιρο",
+  hiking: "Πεζοπορία",
+  basketball: "Μπάσκετ",
+  tennis: "Τένις",
+  padel: "Padel",
+  volleyball: "Βόλεϊ",
+  handball: "Χάντμπολ",
+  badminton: "Μπάντμιντον"
+};
+
+const SURFACE_LABELS: Readonly<Record<SportSurface, string>> = {
+  road: "Άσφαλτος",
+  treadmill: "Διάδρομος",
+  mixed: "Μικτή επιφάνεια",
+  trail: "Χώμα / trail",
+  indoor: "Indoor",
+  grass: "Φυσικό χορτάρι",
+  artificial: "Συνθετικό / turf",
+  court_hard: "Hard court",
+  court_clay: "Clay court",
+  court_indoor: "Indoor court",
+  court_outdoor: "Outdoor court",
+  court_artificial: "Τεχνητός τάπητας",
+  sand: "Άμμος"
+};
+
+const USE_CASE_LABELS: Readonly<Partial<Record<SportUseCase, string>>> = {
+  daily_training: "Καθημερινή προπόνηση",
+  easy_run: "Χαλαρό τρέξιμο",
+  recovery_run: "Recovery run",
+  long_run: "Μεγάλη απόσταση",
+  speed_training: "Tempo / speed training",
+  race_day: "Αγώνας",
+  daily_walking: "Καθημερινό περπάτημα",
+  all_day_standing: "Πολύωρη ορθοστασία",
+  travel_walking: "Πολύ περπάτημα / ταξίδι",
+  gym_strength: "Βάρη / strength",
+  gym_cardio: "Cardio / διάδρομος",
+  gym_functional: "Functional / HIIT",
+  football_training: "Προπόνηση ποδοσφαίρου",
+  football_match: "Αγώνας ποδοσφαίρου",
+  day_hike: "Ημερήσια πεζοπορία",
+  technical_hike: "Τεχνική / ορεινή διαδρομή",
+  urban_outdoor: "Outdoor + πόλη",
+  basketball_training: "Προπόνηση μπάσκετ",
+  basketball_match: "Αγώνας μπάσκετ",
+  tennis_training: "Προπόνηση τένις",
+  tennis_match: "Αγώνας τένις",
+  padel_training: "Προπόνηση padel",
+  padel_match: "Αγώνας padel",
+  volleyball_training: "Προπόνηση βόλεϊ",
+  volleyball_match: "Αγώνας βόλεϊ",
+  handball_training: "Προπόνηση χάντμπολ",
+  handball_match: "Αγώνας χάντμπολ",
+  badminton_training: "Προπόνηση μπάντμιντον",
+  badminton_match: "Αγώνας μπάντμιντον"
+};
+
+function publicEvidenceSourceLabel(sourceType: string | undefined): string {
+  const source = normalize(sourceType);
+  if (source.includes("manufacturer") || source.includes("official") || source.includes("brand")) {
+    return "επίσημη πηγή κατασκευαστή";
+  }
+  if (source.includes("vendor") || source.includes("feed")) {
+    return "επαληθευμένη πηγή προϊόντος";
+  }
+  if (source.includes("retailer") || source.includes("product page") || source.includes("research")) {
+    return "επαληθευμένη σελίδα προϊόντος";
+  }
+  if (source.includes("catalog")) return "κατάλογος KONTA MOY";
+  return "βάση γνώσης KONTA MOY";
+}
+
+function publicEvidenceStrengthLabel(strength: string | undefined): string | undefined {
+  const value = normalize(strength);
+  if (!value) return undefined;
+  if (value.includes("direct")) return "άμεση τεκμηρίωση";
+  if (value.includes("corroborat")) return "διασταυρωμένη τεκμηρίωση";
+  if (value.includes("derived")) return "παράγωγη τεκμηρίωση";
+  return "τεκμηριωμένο fact";
+}
+
+function humanKnowledgeValue(value: string): string {
+  const normalized = normalize(value);
+  const labels: Readonly<Record<string, string>> = {
+    running: "τρέξιμο",
+    walking: "περπάτημα",
+    hiking: "πεζοπορία",
+    gym_training: "προπόνηση γυμναστηρίου",
+    general_training: "γενική προπόνηση",
+    team_sports: "ομαδικά αθλήματα",
+    racket_sports: "αθλήματα ρακέτας",
+    daily_walking: "καθημερινό περπάτημα",
+    all_day_standing: "πολύωρη ορθοστασία",
+    travel_walking: "πολύ περπάτημα / ταξίδι",
+    wide: "φαρδιά εφαρμογή",
+    extra_wide: "πολύ φαρδιά εφαρμογή",
+    standard: "κανονική εφαρμογή",
+    narrow: "στενή εφαρμογή",
+    true_to_size: "true-to-size",
+    neutral: "neutral support",
+    guided: "guided support",
+    stability: "stability support",
+    max_support: "max support",
+    minimal: "minimal cushioning",
+    low: "χαμηλό cushioning",
+    medium: "μεσαίο cushioning",
+    high: "υψηλό cushioning",
+    max: "μέγιστο cushioning",
+    road: "άσφαλτος",
+    trail: "trail",
+    treadmill: "διάδρομος",
+    indoor: "indoor",
+    court_hard: "hard court",
+    court_clay: "clay court",
+    court_indoor: "indoor court",
+    court_outdoor: "outdoor court",
+    court_artificial: "τεχνητός τάπητας",
+    sand: "άμμος"
+  };
+  return labels[normalized.replace(/ /g, "_")] ?? value.replace(/_/g, " ");
+}
+
+function matchingEvidence(
+  knowledge: SportFitKnowledge | undefined,
+  attributeCode: string,
+  expectedValue: string
+): SportFitKnowledgeEvidence | undefined {
+  const expected = normalize(expectedValue);
+  return knowledge?.evidence
+    ?.filter((item) => normalize(item.attributeCode) === normalize(attributeCode))
+    .find((item) => normalize(item.value) === expected);
+}
+
+function evidenceProofLabel(evidence: SportFitKnowledgeEvidence): string {
+  const parts = [publicEvidenceSourceLabel(evidence.sourceType)];
+  const strength = publicEvidenceStrengthLabel(evidence.evidenceStrength);
+  if (strength) parts.push(strength);
+  if (typeof evidence.confidence === "number") parts.push(`${Math.round(evidence.confidence * 100)}% confidence`);
+  return parts.join(" · ");
+}
+
+function matchedRequirement(
+  requirements: readonly SportFitTechnicalRequirement[],
+  id: string
+): boolean {
+  return requirements.some((item) => item.id === id && item.status === "match");
+}
+
+function matchProofsFor(
+  product: SportFitProduct,
+  answers: SportFitAnswers,
+  role: SportProductRole,
+  matchedSize: string | undefined,
+  requirements: readonly SportFitTechnicalRequirement[]
+): readonly SportFitMatchProof[] {
+  if (role !== "footwear") return [];
+  const knowledge = usableKnowledge(product);
+  if (!knowledge?.evidence?.length) return [];
+
+  const proofs: SportFitMatchProof[] = [];
+  const seen = new Set<string>();
+
+  function add(
+    id: string,
+    input: string,
+    attributeCode: string,
+    value: string,
+    knowledgeLabel?: string
+  ) {
+    if (seen.has(id)) return;
+    const evidence = matchingEvidence(knowledge, attributeCode, value);
+    if (!evidence) return;
+    seen.add(id);
+    proofs.push({
+      id,
+      input,
+      knowledge: knowledgeLabel ?? `Γνώση: ${humanKnowledgeValue(value)}`,
+      proof: evidenceProofLabel(evidence)
+    });
+  }
+
+  if (matchedRequirement(requirements, "requirement.activity")) {
+    const requested = requestedActivityCodes(answers).map(normalize);
+    const matched = knowledge.activities?.find((value) => requested.includes(normalize(value)));
+    if (matched) add("activity", `Εσύ: ${ACTIVITY_LABELS[answers.activity]}`, "sport_activity", matched);
+  }
+
+  if (answers.useCase && matchedRequirement(requirements, "requirement.use_case")) {
+    const matched = knowledge.useCases?.find((value) => normalize(value) === normalize(answers.useCase));
+    if (matched) {
+      add(
+        "use_case",
+        `Εσύ: ${USE_CASE_LABELS[answers.useCase] ?? humanKnowledgeValue(answers.useCase)}`,
+        "sport_use_case",
+        matched
+      );
+    }
+  }
+
+  if (answers.surface && matchedRequirement(requirements, "requirement.surface")) {
+    const expected = requestedSurfaceCodes(answers.surface).map(normalize);
+    const matched = knowledge.surfaces?.find((value) => expected.includes(normalize(value)));
+    if (matched) add("surface", `Εσύ: ${SURFACE_LABELS[answers.surface]}`, "sport_surface", matched);
+  }
+
+  if (answers.fitPreference && matchedRequirement(requirements, "requirement.fit_width") && knowledge.widthProfile) {
+    const fitLabel = answers.fitPreference === "wide" ? "Φαρδιά εφαρμογή" : answers.fitPreference === "narrow" ? "Στενότερη εφαρμογή" : "Κανονική εφαρμογή";
+    add("fit_width", `Εσύ: ${fitLabel}`, "footwear_width_profile", knowledge.widthProfile);
+  }
+
+  if (
+    answers.runnerNeed === "wide_fit"
+    && knowledge.widthProfile
+    && (normalize(knowledge.widthProfile) === "wide" || normalize(knowledge.widthProfile) === "extra wide")
+  ) {
+    add("runner_wide", "Εσύ: ανάγκη για φαρδύ fit", "footwear_width_profile", knowledge.widthProfile);
+  }
+
+  if (
+    (answers.runnerNeed === "guided_support" || answers.runnerNeed === "neutral")
+    && knowledge.supportLevel
+  ) {
+    add(
+      "runner_support",
+      answers.runnerNeed === "guided_support" ? "Εσύ: περισσότερη στήριξη" : "Εσύ: neutral αίσθηση",
+      "support_level",
+      knowledge.supportLevel
+    );
+  }
+
+  if (answers.runnerNeed === "soft_ride" && knowledge.cushioningLevel) {
+    add("runner_cushioning", "Εσύ: πιο μαλακή κύλιση", "cushioning_level", knowledge.cushioningLevel);
+  }
+
+  if (answers.priority === "cushioning" && knowledge.cushioningLevel) {
+    add("priority_cushioning", "Εσύ: προτεραιότητα στην απορρόφηση", "cushioning_level", knowledge.cushioningLevel);
+  }
+
+  if (answers.priority === "stability" && knowledge.supportLevel) {
+    add("priority_stability", "Εσύ: προτεραιότητα στη σταθερότητα", "support_level", knowledge.supportLevel);
+  }
+
+  if (answers.size && matchedSize && normalize(knowledge.fitLengthProfile) === "true to size") {
+    add(
+      "size_fit",
+      `Εσύ: μέγεθος EU ${answers.size}`,
+      "fit_length_profile",
+      knowledge.fitLengthProfile!,
+      "Γνώση: true-to-size"
+    );
+  }
+
+  return proofs.slice(0, 4);
+}
+
 function reasonsFor(
   product: SportFitProduct,
   answers: SportFitAnswers,
@@ -748,6 +1027,7 @@ export function scoreSportFitProduct(product: SportFitProduct, answers: SportFit
     technicalScore: ruleEvaluation.technicalScore,
     technicalCoverage: ruleEvaluation.technicalCoverage,
     technicalRequirements: ruleEvaluation.technicalRequirements,
+    matchProofs: matchProofsFor(product, answers, role, size.matchedSize, ruleEvaluation.technicalRequirements),
     appliedRules: [
       ...(stockEligible ? ["stock.positive"] : ["stock.unavailable"]),
       ...(hardSizeMismatch ? ["fit.requested_size_mismatch"] : size.matchedSize ? ["fit.requested_size_match"] : []),
