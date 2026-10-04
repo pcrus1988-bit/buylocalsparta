@@ -1,5 +1,5 @@
 {
-  "version": 13,
+  "version": 14,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -4554,6 +4554,196 @@
           "type": "brand",
           "displayName": "Kodi Professional",
           "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "eu_sccs_tpo_2014_pdf",
+      "publisher": "European Commission / SCCS",
+      "title": "SCCS/1528/14 TPO Final Opinion PDF",
+      "sourceFamily": "scientific_literature",
+      "authorityLevel": 5,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://health.ec.europa.eu/document/download/a52d0d88-6120-4868-8d39-3c6bb795865d_en?filename=sccs_o_149.pdf",
+      "retrievalMethod": "pdf",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetic_ingredient_safety",
+        "ingredient": "TPO",
+        "scope": "raw_final_opinion_pdf"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest",
+        "historicalEvidence": true
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "European Union",
+          "relation": "historical_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "eu_sccs_hema_di_hema_2018_pdf",
+      "publisher": "European Commission / SCCS",
+      "title": "SCCS/1592/17 HEMA and Di-HEMA Final Opinion PDF",
+      "sourceFamily": "scientific_literature",
+      "authorityLevel": 5,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://health.ec.europa.eu/document/download/f2d34117-bae2-4a1f-b659-f5fb193f58ea_en?filename=sccs_o_214.pdf&prefLang=es",
+      "retrievalMethod": "pdf",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetic_ingredient_safety",
+        "ingredients": [
+          "HEMA",
+          "Di-HEMA Trimethylhexyl Dicarbamate"
+        ],
+        "scope": "raw_final_opinion_pdf"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest",
+        "historicalEvidence": true
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "European Union",
+          "relation": "historical_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "eu_sccs_notes_guidance_12_pdf",
+      "publisher": "European Commission / SCCS",
+      "title": "SCCS Notes of Guidance 12th Revision PDF",
+      "sourceFamily": "regulatory_guidance",
+      "authorityLevel": 5,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://health.ec.europa.eu/system/files/2023-12/sccs_o_273_final.pdf",
+      "retrievalMethod": "pdf",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetic_safety_assessment",
+        "scope": "raw_guidance_pdf"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "European Union",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "eu_sccs_opinions_2016_2021",
+      "publisher": "European Commission / SCCS",
+      "title": "SCCS Opinions 2016–2021",
+      "sourceFamily": "historical_archive",
+      "authorityLevel": 5,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://health.ec.europa.eu/scientific-committees/former-scientific-committees/scientific-committee-consumer-safety-2016-2021/sccs-opinions-2016-2021_en",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetic_ingredient_safety",
+        "scope": "historical_opinions_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high",
+        "historicalEvidence": true
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "European Union",
+          "relation": "historical_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "eu_sccs_opinions_2013_2016",
+      "publisher": "European Commission / SCCS",
+      "title": "SCCS Opinions 2013–2016",
+      "sourceFamily": "historical_archive",
+      "authorityLevel": 5,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://health.ec.europa.eu/scientific-committees/former-scientific-committees/scientific-committee-consumer-safety-sccs-2013-2016/sccs-opinions-2013-2016_en",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetic_ingredient_safety",
+        "scope": "historical_opinions_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high",
+        "historicalEvidence": true
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "European Union",
+          "relation": "historical_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "eu_sccs_triphenyl_phosphate_2024",
+      "publisher": "European Commission / SCCS",
+      "title": "SCCS Final Opinion on Triphenyl Phosphate",
+      "sourceFamily": "scientific_literature",
+      "authorityLevel": 5,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://health.ec.europa.eu/latest-updates/sccs-final-opinion-triphenyl-phosphate-2024-07-26_en",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetic_ingredient_safety",
+        "ingredient": "Triphenyl phosphate",
+        "scope": "scientific_opinion"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "European Union",
+          "relation": "covers"
         }
       ]
     }
