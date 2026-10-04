@@ -1,5 +1,5 @@
 {
-  "version": 20,
+  "version": 21,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -6028,6 +6028,122 @@
         {
           "type": "brand",
           "displayName": "OPI",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "orly_gelfx",
+      "publisher": "ORLY",
+      "title": "GELFX Gel Nail Color",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://orlybeauty.com/collections/gelfx",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "ORLY",
+        "line": "GELFX",
+        "scope": "gel_colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "ORLY",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "orly_gel_nail_color",
+      "publisher": "ORLY",
+      "title": "Gel Nail Color",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://orlybeauty.com/collections/gel-nail-color",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "ORLY",
+        "scope": "gel_colour_catalogue_alt"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "ORLY",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "mooncat_collections_index",
+      "publisher": "mooncat",
+      "title": "Mooncat Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.mooncat.com/collections/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Mooncat",
+        "scope": "collections_and_dearly_departed_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high",
+        "historicalEvidence": true
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Mooncat",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "holo_taco_new_in",
+      "publisher": "Holo Taco",
+      "title": "New In Nail Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.holotaco.com/collections/new-in-nail-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Holo Taco",
+        "scope": "new_releases"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Holo Taco",
           "relation": "covers"
         }
       ]
