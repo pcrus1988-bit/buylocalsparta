@@ -73,6 +73,7 @@ The collector deliberately performs **no semantic product/formula analysis**. Fo
 6. records a versioned PostgreSQL snapshot containing retrieval/status/header provenance and the raw object key;
 7. records no new snapshot when the source is unchanged;
 8. never extracts ingredients, shade properties, legal conclusions or safety conclusions.
+9. structurally extracts same-official-domain links from HTML/XML/sitemaps into `nyxi_source_candidates`, bounded by link/byte limits; these candidates remain unverified and are not automatically promoted.
 
 A six-hour GitHub Actions schedule runs the source registry sync followed by the collector in bounded drain mode when repository secrets are configured.
 
@@ -82,7 +83,7 @@ Further source discovery does not require database migrations.
 
 - `data/nyxi/source-registry.json` contains manually verified primary sources.
 - `npm run nyxi:sources:sync` idempotently upserts that curated registry and schedules new sources for capture.
-- `nyxi_source_candidates` holds discovered-but-not-yet-verified URLs from searches, indexes, sitemaps, regulator listings or manufacturer links.
+- `nyxi_source_candidates` holds discovered-but-not-yet-verified URLs from searches, indexes, sitemaps, regulator listings or manufacturer links. The collector can populate this ledger from link structure alone; candidate discovery is explicitly not semantic analysis or authority promotion.
 
 This distinction is intentional: NYXI can gather very broadly now while keeping the evidence bar high.
 
