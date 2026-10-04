@@ -8,6 +8,7 @@ import {
   gemiAdminCsvFilename,
   gemiAdminCsvStream,
   gemiAdminPreview,
+  normalizeGemiAdminExportFields,
   normalizeGemiAdminFilters
 } from "../../../../../lib/gemi-admin-export";
 
@@ -35,6 +36,7 @@ export async function GET(request: Request) {
       activeOnly: url.searchParams.get("activeOnly")
     });
 
+    const exportFields = normalizeGemiAdminExportFields(url.searchParams.get("fields"));
     const preview = await gemiAdminPreview(filters, capability.apiKey);
     console.info(JSON.stringify({
       level: "info",
@@ -45,10 +47,11 @@ export async function GET(request: Request) {
       prefectureId: filters.prefectureId,
       municipalityId: filters.municipalityId ?? null,
       activeOnly: filters.activeOnly,
+      exportFields,
       totalCount: preview.totalCount
     }));
 
-    return new Response(gemiAdminCsvStream(filters, capability.apiKey), {
+    return new Response(gemiAdminCsvStream(filters, capability.apiKey, exportFields), {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
