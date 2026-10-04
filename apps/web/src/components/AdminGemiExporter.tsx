@@ -32,6 +32,8 @@ type PreviewRow = Readonly<{
 }>;
 type Preview = Readonly<{
   totalCount: number;
+  totalCountExact: boolean;
+  queryBatchCount: number;
   returned: number;
   withEmail: number;
   activityCount: number;
@@ -446,7 +448,11 @@ export function AdminGemiExporter() {
         <span>Θα δεις το συνολικό πλήθος πριν ξεκινήσεις το πλήρες CSV export.</span>
       </div> : <>
         <div className="gemi-export-summary">
-          <div><span>Σύνολο</span><strong>{preview.totalCount.toLocaleString("el-GR")}</strong><small>μοναδικές επιχειρήσεις</small></div>
+          <div>
+            <span>{preview.totalCountExact ? "Σύνολο" : "Έως"}</span>
+            <strong>{preview.totalCount.toLocaleString("el-GR")}</strong>
+            <small>{preview.totalCountExact ? "μοναδικές επιχειρήσεις" : `πριν από cross-batch αποδιπλοποίηση · ${preview.queryBatchCount} ασφαλή αιτήματα`}</small>
+          </div>
           <div><span>ΚΑΔ φίλτρου</span><strong>{preview.activityCount.toLocaleString("el-GR")}</strong><small>ακριβείς τρέχοντες κωδικοί</small></div>
           <div><span>Preview</span><strong>{preview.returned}</strong><small>πρώτες εγγραφές</small></div>
           <div><span>Email στο preview</span><strong>{preview.withEmail}</strong><small>δημοσιευμένα στο ΓΕΜΗ</small></div>
