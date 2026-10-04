@@ -776,11 +776,26 @@ function matchingEvidence(
     .find((item) => normalize(item.value) === expected);
 }
 
+function knowledgeFieldLabel(attributeCode: string): string {
+  const labels: Readonly<Record<string, string>> = {
+    sport_activity: "δραστηριότητα",
+    sport_use_case: "τύπος χρήσης",
+    sport_surface: "επιφάνεια",
+    footwear_width_profile: "πλάτος εφαρμογής",
+    fit_length_profile: "εφαρμογή μήκους",
+    cushioning_level: "cushioning",
+    support_level: "στήριξη",
+    weather_protection: "προστασία από καιρό",
+    shoe_weight_g: "βάρος"
+  };
+  return labels[attributeCode] ?? attributeCode.replace(/_/g, " ");
+}
+
 function evidenceProofLabel(evidence: SportFitKnowledgeEvidence): string {
   const parts = [publicEvidenceSourceLabel(evidence.sourceType)];
   const strength = publicEvidenceStrengthLabel(evidence.evidenceStrength);
   if (strength) parts.push(strength);
-  if (typeof evidence.confidence === "number") parts.push(`${Math.round(evidence.confidence * 100)}% confidence`);
+  if (typeof evidence.confidence === "number") parts.push(`βεβαιότητα ${Math.round(evidence.confidence * 100)}%`);
   return parts.join(" · ");
 }
 
@@ -819,7 +834,7 @@ function matchProofsFor(
     proofs.push({
       id,
       input,
-      knowledge: knowledgeLabel ?? `Γνώση: ${humanKnowledgeValue(value)}`,
+      knowledge: knowledgeLabel ?? `Βάση γνώσης: ${knowledgeFieldLabel(attributeCode)} = ${humanKnowledgeValue(value)}`,
       proof: evidenceProofLabel(evidence)
     });
   }
@@ -891,7 +906,7 @@ function matchProofsFor(
       `Εσύ: μέγεθος EU ${answers.size}`,
       "fit_length_profile",
       knowledge.fitLengthProfile!,
-      "Γνώση: true-to-size"
+      "Βάση γνώσης: εφαρμογή μήκους = true-to-size"
     );
   }
 
