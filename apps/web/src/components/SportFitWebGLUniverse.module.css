@@ -256,20 +256,22 @@
 }
 
 .popupBackdrop{
-  position:absolute;
+  position:fixed;
   inset:0;
-  z-index:30;
+  z-index:12000;
   display:grid;
   place-items:center;
-  padding:24px;
-  background:rgba(2,8,7,.34);
-  backdrop-filter:blur(9px) saturate(1.08);
-  -webkit-backdrop-filter:blur(9px) saturate(1.08)
+  padding:max(18px,env(safe-area-inset-top,0)) max(18px,env(safe-area-inset-right,0)) max(18px,env(safe-area-inset-bottom,0)) max(18px,env(safe-area-inset-left,0));
+  overflow:auto;
+  overscroll-behavior:contain;
+  background:rgba(2,8,7,.62);
+  backdrop-filter:blur(14px) saturate(1.08);
+  -webkit-backdrop-filter:blur(14px) saturate(1.08)
 }
 .popupCard{
   position:relative;
-  width:min(760px,100%);
-  max-height:calc(100% - 8px);
+  width:min(820px,100%);
+  max-height:min(860px,calc(100dvh - 36px));
   display:grid;
   grid-template-columns:minmax(240px,.88fr) minmax(0,1.12fr);
   border:1px solid rgba(132,255,236,.24);
@@ -297,7 +299,7 @@
   cursor:pointer;
   backdrop-filter:blur(8px)
 }
-.popupClose:focus-visible,.popupActions a:focus-visible,.popupActions button:focus-visible{
+.popupClose:focus-visible,.popupActions a:focus-visible,.popupActions button:focus-visible,.popupVariantGrid button:focus-visible,.popupProductLink:focus-visible{
   outline:2px solid #9fffee;
   outline-offset:3px
 }
@@ -404,6 +406,95 @@
   letter-spacing:.07em;
   text-transform:uppercase
 }
+.popupVariants{
+  margin-top:24px;
+  padding-top:18px;
+  border-top:1px solid rgba(141,255,238,.10)
+}
+.popupVariantsHeading{
+  display:flex;
+  align-items:end;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:11px
+}
+.popupVariantsHeading>span{
+  color:rgba(199,255,246,.58);
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:.15em
+}
+.popupVariantsHeading>small{
+  color:#bafff2;
+  font-size:9px;
+  text-align:right
+}
+.popupVariantGrid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:7px;
+  max-height:190px;
+  overflow:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(170,255,240,.24) transparent
+}
+.popupVariantGrid button{
+  min-width:0;
+  min-height:48px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:flex-start;
+  gap:3px;
+  border:1px solid rgba(134,255,236,.14);
+  border-radius:13px;
+  background:rgba(255,255,255,.025);
+  color:#eafff9;
+  padding:9px 11px;
+  text-align:left;
+  cursor:pointer
+}
+.popupVariantGrid button>span{
+  width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:10px;
+  font-weight:800
+}
+.popupVariantGrid button>small{
+  color:rgba(210,255,247,.55);
+  font-size:8px
+}
+.popupVariantGrid button:hover:not(:disabled){
+  border-color:rgba(145,255,238,.38);
+  background:rgba(127,255,236,.07)
+}
+.popupVariantGrid button:disabled{
+  opacity:.36;
+  cursor:not-allowed
+}
+.popupVariantGrid button.popupVariantSelected{
+  border-color:rgba(145,255,238,.66);
+  background:rgba(127,255,236,.13);
+  box-shadow:inset 0 0 0 1px rgba(145,255,238,.08)
+}
+.popupVariantStatus{
+  margin:0;
+  min-height:48px;
+  display:flex;
+  align-items:center;
+  color:rgba(230,255,248,.6);
+  font-size:11px;
+  line-height:1.45
+}
+.popupError{
+  margin:12px 0 0;
+  color:#ffd7d2;
+  font-size:11px;
+  line-height:1.45
+}
 .popupReasons{
   margin-top:24px;
   padding-top:18px;
@@ -439,7 +530,7 @@
   margin-top:28px
 }
 .popupActions a,.popupActions button{
-  min-height:44px;
+  min-height:46px;
   border-radius:999px;
   padding:0 16px;
   display:inline-flex;
@@ -452,15 +543,31 @@
   cursor:pointer;
   text-decoration:none
 }
-.popupActions a{
-  border:1px solid rgba(134,255,236,.38);
-  background:#dffff8;
-  color:#062019
-}
 .popupActions button{
   border:1px solid rgba(134,255,236,.16);
   background:rgba(255,255,255,.03);
   color:#dffff8
+}
+.popupActions button.popupAdd{
+  flex:1 1 220px;
+  border-color:rgba(134,255,236,.38);
+  background:#dffff8;
+  color:#062019
+}
+.popupActions button:disabled{
+  opacity:.48;
+  cursor:not-allowed
+}
+.popupProductLink{
+  margin-top:12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  color:rgba(207,255,247,.62);
+  font-size:9px;
+  letter-spacing:.08em;
+  text-decoration:none
 }
 
 @keyframes scanPulse{from{opacity:.35;transform:scale(.7)}to{opacity:1;transform:scale(1.18)}}
@@ -477,16 +584,129 @@
   .reticle span:after{left:43px;top:30px}
   .reticle i{left:41px;top:41px}
   .fallback{grid-template-columns:repeat(4,minmax(0,1fr));padding:10px}
-  .popupBackdrop{padding:10px;place-items:center}
-  .popupCard{grid-template-columns:1fr;max-height:calc(100% - 4px);overflow:auto;border-radius:20px}
-  .popupVisual{min-height:220px;padding:18px 24px 4px}
-  .popupVisual img{width:min(66vw,230px)}
-  .popupOrbit{width:min(76%,250px)}
-  .popupCopy{padding:22px 20px 24px}
-  .popupCopy h2{font-size:24px}
-  .popupActions{display:grid;grid-template-columns:1fr;margin-top:22px}
-  .popupActions a,.popupActions button{width:100%}
+  .popupBackdrop{
+    padding:max(8px,env(safe-area-inset-top,0)) max(8px,env(safe-area-inset-right,0)) max(8px,env(safe-area-inset-bottom,0)) max(8px,env(safe-area-inset-left,0));
+    place-items:center
+  }
+  .popupCard{grid-template-columns:1fr;max-height:calc(100dvh - 16px);overflow:auto;border-radius:20px}
+  .popupVisual{min-height:185px;padding:12px 24px 0}
+  .popupVisual img{width:min(54vw,205px)}
+  .popupOrbit{width:min(66%,225px)}
+  .popupCopy{padding:18px 18px 22px}
+  .popupCopy h2{font-size:22px}
+  .popupFacts{margin-top:12px}
+  .popupVariants{margin-top:16px;padding-top:14px}
+  .popupVariantGrid{grid-template-columns:repeat(2,minmax(0,1fr));max-height:142px}
+  .popupVariantGrid button{min-height:44px;padding:8px 9px}
+  .popupReasons{display:none}
+  .popupActions{display:grid;grid-template-columns:1fr;margin-top:18px}
+  .popupActions button{width:100%}
+  .popupProductLink{margin-top:11px}
 }
 @media(prefers-reduced-motion:reduce){
   .scanning i{animation:none}
+}
+
+
+/* Mobile purchase sheet stays spatial: keep the 3D universe visible above
+   variant selection and cart actions instead of replacing the whole screen. */
+@media(max-width:700px){
+  .popupBackdrop{
+    place-items:end center;
+    padding:0 max(8px,env(safe-area-inset-right,0)) max(8px,env(safe-area-inset-bottom,0)) max(8px,env(safe-area-inset-left,0));
+    background:linear-gradient(180deg,rgba(2,8,7,.08) 0%,rgba(2,8,7,.20) 34%,rgba(2,8,7,.58) 100%);
+    backdrop-filter:blur(4px) saturate(1.03);
+    -webkit-backdrop-filter:blur(4px) saturate(1.03)
+  }
+  .popupCard{
+    width:100%;
+    max-height:min(74dvh,640px);
+    border-radius:25px 25px 16px 16px;
+    overscroll-behavior:contain;
+    box-shadow:0 -18px 64px rgba(0,0,0,.44),inset 0 1px 0 rgba(255,255,255,.05)
+  }
+  .popupCard:before{
+    content:"";
+    position:absolute;
+    z-index:5;
+    top:8px;
+    left:50%;
+    width:42px;
+    height:4px;
+    border-radius:999px;
+    transform:translateX(-50%);
+    background:rgba(210,255,247,.28)
+  }
+  .popupClose{
+    top:12px;
+    right:12px;
+    width:40px;
+    height:40px;
+    font-size:22px
+  }
+  .popupVisual{
+    min-height:150px;
+    padding:25px 18px 2px
+  }
+  .popupVisual img{
+    width:min(42vw,160px);
+    max-height:160px
+  }
+  .popupOrbit{width:min(54vw,190px)}
+  .popupCopy{
+    padding:12px 18px max(18px,env(safe-area-inset-bottom,0))
+  }
+  .popupCopy h2{
+    margin-top:7px;
+    font-size:clamp(20px,6vw,24px);
+    line-height:1.04
+  }
+  .popupFacts{margin-top:11px;gap:6px}
+  .popupFacts strong{font-size:18px}
+  .popupFacts b,.popupFacts small{padding:6px 8px;font-size:8px}
+  .popupVariants{
+    margin-top:13px;
+    padding-top:11px
+  }
+  .popupVariantsHeading{margin-bottom:8px}
+  .popupVariantGrid{
+    max-height:122px;
+    gap:6px
+  }
+  .popupVariantGrid button{
+    min-height:40px;
+    padding:7px 9px
+  }
+  .popupVariantStatus{min-height:40px}
+  .popupActions{
+    position:sticky;
+    bottom:-1px;
+    z-index:3;
+    margin:14px -18px -18px;
+    padding:11px 18px max(13px,env(safe-area-inset-bottom,0));
+    grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);
+    background:linear-gradient(180deg,rgba(6,15,13,.72),rgba(6,15,13,.98) 30%);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px)
+  }
+  .popupActions button{
+    min-height:42px;
+    padding:0 10px;
+    font-size:9px
+  }
+  .popupProductLink{
+    position:relative;
+    z-index:4;
+    margin:28px 0 0;
+    padding-top:4px
+  }
+}
+
+@media(max-width:430px){
+  .popupCard{max-height:min(72dvh,590px)}
+  .popupVisual{min-height:130px;padding-top:23px}
+  .popupVisual img{width:min(38vw,140px);max-height:140px}
+  .popupOrbit{width:min(48vw,165px)}
+  .popupVariantGrid{max-height:108px}
+  .popupActions{grid-template-columns:1fr}
 }

@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { productPublicPath } from "../lib/product-url";
+import { useCart, type CartItem } from "./CartProvider";
 import styles from "./SportFitWebGLUniverse.module.css";
 
 export type SportFitUniverseVisualProduct = Readonly<{
@@ -31,6 +33,34 @@ type Props = Readonly<{
   onSelect?: (id: string) => void;
   onProductCardOpenChange?: (open: boolean) => void;
   busy?: boolean;
+}>;
+
+
+type PopupVariantAttribute = Readonly<{
+  key: string;
+  label: string;
+  value: string;
+  kind: string;
+}>;
+
+type PopupVariantOption = Readonly<{
+  canonicalVariantId: string;
+  slug: string;
+  attributes: readonly PopupVariantAttribute[];
+  available: boolean;
+  fromPriceMinor?: number;
+  imageSrc?: string;
+  imageAlt?: string;
+}>;
+
+type PopupVariantsResponse = Readonly<{
+  options?: readonly PopupVariantOption[];
+  error?: string;
+}>;
+
+type CartCandidateResponse = Readonly<{
+  item?: Omit<CartItem, "quantity">;
+  error?: string;
 }>;
 
 type NodeState = {
@@ -314,6 +344,24 @@ function browserProductImageSrc(product: SportFitUniverseVisualProduct): string 
   return product.previewImageSrc || atlasProxySrc(product);
 }
 
+function variantDisplayLabel(option: PopupVariantOption): string {
+  const attributes = option.attributes.filter((attribute) => attribute.value.trim());
+  if (!attributes.length) return "Τρέχουσα παραλλαγή";
+  return attributes
+    .map((attribute) => attribute.kind === "size" ? `EU ${attribute.value}` : `${attribute.label}: ${attribute.value}`)
+    .join(" · ");
+}
+
+function normalizedVariantValue(value: string): string {
+  return value.trim().toLocaleLowerCase("el").replace(/^eu\s*/i, "");
+}
+
+function purchaseErrorMessage(code?: string): string {
+  if (code === "variant_unavailable") return "Η επιλογή μόλις έγινε μη διαθέσιμη. Διάλεξε άλλη παραλλαγή.";
+  if (code === "variant_not_found") return "Η συγκεκριμένη επιλογή δεν είναι πλέον διαθέσιμη.";
+  return "Δεν μπορέσαμε να προσθέσουμε αυτή την επιλογή τώρα. Δοκίμασε ξανά.";
+}
+
 function ProductPopup({
   product,
   onClose
@@ -321,13 +369,91 @@ function ProductPopup({
   product: SportFitUniverseVisualProduct;
   onClose: () => void;
 }) {
+  const { addItem } = useCart();
   const imageSrc = browserProductImageSrc(product);
-  return (
+  const [options, setOptions] = useState<readonly PopupVariantOption[]>([]);
+  const [selectedVariantId, setSelectedVariantId] = useState<string>();
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoadingOptions(true);
+    setError(undefined);
+    setOptions([]);
+    setSelectedVariantId(undefined);
+
+    void fetch(`/api/sport-fit/product-options?id=${encodeURIComponent(product.id)}`, {
+      cache: "no-store",
+      signal: controller.signal
+    })
+      .then(async (response) => {
+        const payload = await response.json() as PopupVariantsResponse;
+        if (!response.ok) throw new Error(payload.error || "sport_fit_product_options_unavailable");
+        const next = payload.options ?? [];
+        if (controller.signal.aborted) return;
+
+        setOptions(next);
+        const matchedSize = product.matchedSize ? normalizedVariantValue(product.matchedSize) : "";
+        const matched = matchedSize
+          ? next.find((option) => option.available && option.attributes.some((attribute) =>
+              attribute.kind === "size" && normalizedVariantValue(attribute.value) === matchedSize
+            ))
+          : undefined;
+        const current = next.find((option) => option.available && option.canonicalVariantId === product.id);
+        const firstAvailable = next.find((option) => option.available);
+        setSelectedVariantId((matched ?? current ?? firstAvailable)?.canonicalVariantId);
+      })
+      .catch((caught: unknown) => {
+        if (caught instanceof DOMException && caught.name === "AbortError") return;
+        setError("Δεν μπορέσαμε να φορτώσουμε τις διαθέσιμες παραλλαγές.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingOptions(false);
+      });
+
+    return () => controller.abort();
+  }, [product.id, product.matchedSize]);
+
+  const selectedVariant = useMemo(
+    () => options.find((option) => option.canonicalVariantId === selectedVariantId),
+    [options, selectedVariantId]
+  );
+  const selectedPriceMinor = selectedVariant?.fromPriceMinor ?? product.priceMinor;
+  const selectedImageSrc = selectedVariant?.imageSrc || imageSrc;
+
+  const addSelectedVariant = async () => {
+    if (!selectedVariantId || adding) return;
+    setAdding(true);
+    setError(undefined);
+    try {
+      const response = await fetch("/api/cart/candidate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: selectedVariantId }),
+        cache: "no-store"
+      });
+      const payload = await response.json() as CartCandidateResponse;
+      if (!response.ok || !payload.item) {
+        setError(purchaseErrorMessage(payload.error));
+        return;
+      }
+      addItem(payload.item, 1);
+      onClose();
+    } catch {
+      setError(purchaseErrorMessage());
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const dialog = (
     <div
       className={styles.popupBackdrop}
       role="presentation"
       onPointerDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget && !adding) onClose();
       }}
     >
       <article
@@ -341,6 +467,7 @@ function ProductPopup({
           className={styles.popupClose}
           aria-label="Κλείσιμο κάρτας προϊόντος"
           onClick={onClose}
+          disabled={adding}
           autoFocus
         >
           ×
@@ -348,11 +475,11 @@ function ProductPopup({
 
         <div className={styles.popupVisual}>
           <img
-            src={imageSrc}
-            alt={product.title}
+            src={selectedImageSrc}
+            alt={selectedVariant?.imageAlt || product.title}
             decoding="async"
             loading="eager"
-            referrerPolicy={product.previewImageSrc?.startsWith("https://") ? "strict-origin-when-cross-origin" : undefined}
+            referrerPolicy={selectedImageSrc.startsWith("https://") ? "strict-origin-when-cross-origin" : undefined}
           />
           <div className={styles.popupOrbit} aria-hidden="true"><span /><i /></div>
         </div>
@@ -362,32 +489,76 @@ function ProductPopup({
           <h2 id="sport-fit-product-popup-title">{product.title}</h2>
 
           <div className={styles.popupFacts}>
-            <strong>{EURO_FORMATTER.format(product.priceMinor / 100)}</strong>
+            <strong>{EURO_FORMATTER.format(selectedPriceMinor / 100)}</strong>
             {typeof product.score === "number" ? <b>{product.score}% match</b> : null}
-            {product.matchedSize ? <small>EU {product.matchedSize}</small> : null}
+            {product.matchedSize ? <small>Πρόταση EU {product.matchedSize}</small> : null}
+          </div>
+
+          <div className={styles.popupVariants}>
+            <div className={styles.popupVariantsHeading}>
+              <span>ΜΕΓΕΘΟΣ / ΠΑΡΑΛΛΑΓΗ</span>
+              {selectedVariant ? <small>{variantDisplayLabel(selectedVariant)}</small> : null}
+            </div>
+
+            {loadingOptions ? (
+              <p className={styles.popupVariantStatus}>Φορτώνουμε διαθέσιμες επιλογές…</p>
+            ) : options.length ? (
+              <div className={styles.popupVariantGrid} role="listbox" aria-label="Επιλογή μεγέθους ή παραλλαγής">
+                {options.map((option) => {
+                  const selected = option.canonicalVariantId === selectedVariantId;
+                  return (
+                    <button
+                      key={option.canonicalVariantId}
+                      type="button"
+                      className={selected ? styles.popupVariantSelected : undefined}
+                      disabled={!option.available || adding}
+                      aria-selected={selected}
+                      onClick={() => {
+                        setSelectedVariantId(option.canonicalVariantId);
+                        setError(undefined);
+                      }}
+                    >
+                      <span>{variantDisplayLabel(option)}</span>
+                      {!option.available ? <small>Μη διαθέσιμο</small> : option.fromPriceMinor !== undefined ? <small>{EURO_FORMATTER.format(option.fromPriceMinor / 100)}</small> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className={styles.popupVariantStatus}>Δεν βρέθηκε διαθέσιμη παραλλαγή για άμεση προσθήκη.</p>
+            )}
           </div>
 
           {product.reasons?.length ? (
             <div className={styles.popupReasons}>
               <span>ΓΙΑΤΙ ΠΑΡΑΜΕΝΕΙ ΣΤΟ ΠΕΔΙΟ</span>
-              <ul>{product.reasons.slice(0, 4).map((reason) => <li key={reason}>{reason}</li>)}</ul>
+              <ul>{product.reasons.slice(0, 3).map((reason) => <li key={reason}>{reason}</li>)}</ul>
             </div>
-          ) : (
-            <p className={styles.popupHint}>
-              Αυτό το προϊόν παραμένει ορατό με βάση τα φίλτρα και τους κανόνες που έχεις επιλέξει μέχρι τώρα.
-            </p>
-          )}
+          ) : null}
+
+          {error ? <p className={styles.popupError} role="alert">{error}</p> : null}
 
           <div className={styles.popupActions}>
-            <Link href={productPublicPath(product)} prefetch={false}>
-              Δες το προϊόν <span>→</span>
-            </Link>
-            <button type="button" onClick={onClose}>Συνέχισε στο σύμπαν</button>
+            <button
+              type="button"
+              className={styles.popupAdd}
+              disabled={!selectedVariantId || adding || loadingOptions}
+              onClick={() => { void addSelectedVariant(); }}
+            >
+              {adding ? "Ελέγχουμε διαθεσιμότητα…" : "Προσθήκη στο καλάθι"}
+            </button>
+            <button type="button" onClick={onClose} disabled={adding}>Επιστροφή στο σύμπαν</button>
           </div>
+
+          <Link className={styles.popupProductLink} href={productPublicPath(product)} prefetch={false}>
+            Πλήρης σελίδα προϊόντος <span>→</span>
+          </Link>
         </div>
       </article>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(dialog, document.body) : null;
 }
 
 async function buildAtlas(products: readonly SportFitUniverseVisualProduct[]): Promise<HTMLCanvasElement> {
