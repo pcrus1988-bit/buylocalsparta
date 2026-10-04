@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { SqlRow } from "@buy-local-sparta/core";
+import { normalizeCatalogColorText, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import {
   hexToLab,
@@ -54,9 +54,47 @@ export async function runProductColorProfileSyncSlice(
       SELECT cv.id
       FROM public.categories c
       JOIN public.canonical_variants cv ON cv.category_id=c.id
+      LEFT JOIN public.product_translations candidate_en
+        ON candidate_en.canonical_variant_id=cv.id AND candidate_en.locale='en'
+      LEFT JOIN public.product_translations candidate_el
+        ON candidate_el.canonical_variant_id=cv.id AND candidate_el.locale='el'
       LEFT JOIN public.product_color_profiles existing
         ON existing.canonical_variant_id=cv.id
-      WHERE c.code='nail-care-colour'
+      WHERE (
+        c.code IN ('nail-care-colour','lip-makeup','eye-makeup','face-makeup','makeup')
+        OR c.code ~* '(hair|shoe|footwear|sneaker|boot|sandal|loafer|bag|handbag|backpack|wallet|luggage|fashion|dress|top|shirt|trouser|jean|jacket|coat|short|skirt|activewear|clothing|apparel|belt|scarf|hat|glove|sunglass|jewell|earring|necklace|bracelet|ring|watch|home|decor|candle|tableware|glassware|kitchen|furniture|lighting|houseware)'
+        OR NULLIF(btrim(COALESCE(
+          cv.variant_attributes->>'color',
+          cv.variant_attributes->>'colour',
+          cv.variant_attributes->>'color_name',
+          cv.variant_attributes->>'colour_name',
+          cv.variant_attributes->>'variant_color',
+          cv.variant_attributes->>'variant_colour',
+          cv.variant_attributes->>'primary_color',
+          cv.variant_attributes->>'primary_colour',
+          cv.variant_attributes->>'Χρώμα',
+          cv.variant_attributes->>'χρώμα',
+          candidate_en.specifications->>'color',
+          candidate_en.specifications->>'colour',
+          candidate_en.specifications->>'color_name',
+          candidate_en.specifications->>'colour_name',
+          candidate_en.specifications->>'variant_color',
+          candidate_en.specifications->>'variant_colour',
+          candidate_en.specifications->>'primary_color',
+          candidate_en.specifications->>'primary_colour',
+          candidate_el.specifications->>'color',
+          candidate_el.specifications->>'colour',
+          candidate_el.specifications->>'color_name',
+          candidate_el.specifications->>'colour_name',
+          candidate_el.specifications->>'variant_color',
+          candidate_el.specifications->>'variant_colour',
+          candidate_el.specifications->>'primary_color',
+          candidate_el.specifications->>'primary_colour',
+          candidate_el.specifications->>'Χρώμα',
+          candidate_el.specifications->>'χρώμα',
+          ''
+        )), '') IS NOT NULL
+      )
         AND cv.active=true
         AND cv.suppressed=false
         AND cv.recalled=false
@@ -249,27 +287,16 @@ function deriveProfile(row: SqlRow): DerivedProfile {
   const sourceTitle = text(row.source_title) ?? "";
   const brandName = text(facts.brand) ?? text(row.brand_name);
 
-  const explicitHex = firstHex(
-    facts.canonicalHex,
-    facts.canonical_hex,
-    facts.officialHex,
-    facts.official_hex,
-    attributes.canonical_hex,
-    attributes.official_hex,
-    attributes.shade_hex,
-    specsEn.canonical_hex,
-    specsEn.official_hex,
-    specsEn.shade_hex,
-    specsEl.canonical_hex,
-    specsEl.official_hex,
-    specsEl.shade_hex
-  );
-
   const brandShadeName = firstText(
     facts.brandShadeName,
     facts.brand_shade_name,
+    facts.shadeName,
+    facts.shade_name,
+    attributes.brand_shade_name,
     attributes.shade_name,
+    specsEn.brand_shade_name,
     specsEn.shade_name,
+    specsEl.brand_shade_name,
     specsEl.shade_name
   );
   const colorDetail = firstText(
@@ -279,19 +306,52 @@ function deriveProfile(row: SqlRow): DerivedProfile {
     specsEn.color_detail,
     specsEl.color_detail
   );
-  const rawColor = firstText(
-    facts.color,
-    attributes.color,
-    specsEn.color,
-    specsEl.color,
-    specsEl["Χρώμα"]
+  const rawColor = firstColorText(facts, attributes, specsEn, specsEl);
+  const colorEvidence = colorDetail ?? rawColor ?? brandShadeName;
+  const explicitHex = firstHex(
+    facts.canonicalHex,
+    facts.canonical_hex,
+    facts.officialHex,
+    facts.official_hex,
+    facts.colorHex,
+    facts.color_hex,
+    facts.shadeHex,
+    facts.shade_hex,
+    attributes.canonical_hex,
+    attributes.official_hex,
+    attributes.color_hex,
+    attributes.hex_color,
+    attributes.shade_hex,
+    specsEn.canonical_hex,
+    specsEn.official_hex,
+    specsEn.color_hex,
+    specsEn.hex_color,
+    specsEn.shade_hex,
+    specsEl.canonical_hex,
+    specsEl.official_hex,
+    specsEl.color_hex,
+    specsEl.hex_color,
+    specsEl.shade_hex,
+    colorDetail,
+    rawColor,
+    brandShadeName
   );
-  const colorEvidence = colorDetail ?? rawColor ?? brandShadeName ?? sourceTitle;
-  const resolved = explicitHex
-    ? { hex: explicitHex, label: colorDetail ?? rawColor ?? brandShadeName ?? explicitHex }
-    : resolveCatalogColor({ color: colorEvidence, title: sourceTitle });
 
-  const colorFamily = canonicalColorFamily(rawColor ?? colorDetail ?? brandShadeName ?? resolved?.label);
+  const namedResolved = resolveCatalogColor({
+    color: colorEvidence,
+    title: sourceTitle
+  });
+  const resolved = explicitHex
+    ? {
+        hex: explicitHex,
+        label: colorDetail ?? rawColor ?? brandShadeName ?? namedResolved?.label ?? explicitHex,
+        familyKey: namedResolved?.familyKey,
+        shadeKey: namedResolved?.shadeKey ?? explicitHex.toLowerCase(),
+        precision: "exact" as const
+      }
+    : namedResolved;
+
+  const colorFamily = namedResolved?.familyKey ?? canonicalColorFamily(rawColor ?? colorDetail ?? brandShadeName);
   const shadeCode = officialShadeCode({
     enriched: firstText(facts.shadeCode, facts.shade_code, attributes.shade_code, specsEn.shade_code, specsEl.shade_code),
     title: sourceTitle
@@ -306,29 +366,41 @@ function deriveProfile(row: SqlRow): DerivedProfile {
   );
 
   const provenanceText = JSON.stringify(factProvenance).toLowerCase();
-  const agentBacked = provenanceText.includes("nail_polish_agent")
-    || firstText(attributes.shade_enrichment_source, specsEn.shade_enrichment_source)?.includes("nail_polish_agent");
+  const enrichmentSource = firstText(
+    attributes.shade_enrichment_source,
+    attributes.color_enrichment_source,
+    specsEn.shade_enrichment_source,
+    specsEn.color_enrichment_source,
+    specsEl.shade_enrichment_source,
+    specsEl.color_enrichment_source
+  )?.toLowerCase();
+  const agentBacked = /(?:nail[_ -]?polish|color|colour|shade)[_ -]?agent/.test(provenanceText)
+    || Boolean(enrichmentSource && /(?:agent|research)/.test(enrichmentSource));
+  const directColorEvidence = Boolean(rawColor || colorDetail || brandShadeName);
   const sourceKind: SourceKind = explicitHex && provenanceText.includes("research")
     ? "research"
     : agentBacked
       ? "agent"
-      : rawColor
+      : directColorEvidence
         ? "supplier"
         : "derived";
 
   const matchPrecision: ProfilePrecision = explicitHex
     ? "exact"
-    : resolved && (rawColor || colorDetail || brandShadeName)
+    : resolved && directColorEvidence
       ? "canonicalized"
       : resolved
         ? "family_estimate"
         : "unknown";
   const confidence = matchPrecision === "exact"
-    ? Math.max(shadeConfidence ?? 0.9, 0.9)
+    ? Math.max(shadeConfidence ?? (sourceKind === "research" ? 0.98 : sourceKind === "agent" ? 0.94 : 0.9), 0.9)
     : matchPrecision === "canonicalized"
-      ? Math.min(shadeConfidence ?? 0.72, 0.82)
+      ? Math.min(
+          shadeConfidence ?? (resolved?.precision === "reference" ? 0.86 : 0.74),
+          resolved?.precision === "reference" ? 0.92 : 0.82
+        )
       : matchPrecision === "family_estimate"
-        ? 0.45
+        ? resolved?.precision === "reference" ? 0.52 : 0.42
         : 0;
 
   const canonicalHex = resolved ? normalizeHex(resolved.hex) : undefined;
@@ -391,23 +463,7 @@ function deriveProfile(row: SqlRow): DerivedProfile {
 
 function canonicalColorFamily(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
-  const normalized = normalizeText(value);
-  const families: ReadonlyArray<readonly [string, readonly string[]]> = [
-    ["black", ["black","μαυρ"]],
-    ["white", ["white","ivory","milky","λευκ"]],
-    ["grey", ["grey","gray","gris","γκρι"]],
-    ["red", ["red","rouge","scarlet","cherry","κοκκιν"]],
-    ["pink", ["pink","rose","rosé","blush","fuchsia","ροζ","φουξ"]],
-    ["purple", ["purple","violet","lilac","lavender","plum","mauve","grape","μωβ"]],
-    ["blue", ["blue","navy","cobalt","midnight","μπλε"]],
-    ["green", ["green","emerald","olive","mint","πρασιν"]],
-    ["orange", ["orange","coral","peach","salmon","terracotta","πορτοκαλ","κοραλ"]],
-    ["brown", ["brown","chocolate","mocha","caramel","bronze","καφε"]],
-    ["nude", ["nude","beige","taupe","natural","μπεζ"]],
-    ["gold", ["gold","champagne","χρυσ"]],
-    ["silver", ["silver","chrome","ασημ"]]
-  ];
-  return families.find(([, tokens]) => tokens.some((token) => normalized.includes(token)))?.[0];
+  return resolveCatalogColor({ color: value })?.familyKey;
 }
 
 function officialShadeCode(input: { enriched?: string; title: string }): string | undefined {
@@ -421,9 +477,31 @@ function officialShadeCode(input: { enriched?: string; title: string }): string 
   return input.enriched?.trim() || numericSegment;
 }
 
+const COLOR_ATTRIBUTE_KEYS = new Set([
+  "color", "colour", "χρωμα",
+  "color name", "colour name", "colorname", "colourname",
+  "variant color", "variant colour", "variantcolor", "variantcolour",
+  "primary color", "primary colour", "primarycolor", "primarycolour"
+]);
+
+function firstColorText(...records: readonly Record<string, unknown>[]): string | undefined {
+  for (const source of records) {
+    for (const [key, value] of Object.entries(source)) {
+      if (!COLOR_ATTRIBUTE_KEYS.has(normalizeCatalogColorText(key))) continue;
+      const candidate = text(value);
+      if (candidate) return candidate;
+    }
+  }
+  return undefined;
+}
+
 function firstHex(...values: unknown[]): string | undefined {
   for (const value of values) {
-    const candidate = typeof value === "string" ? normalizeHex(value) : undefined;
+    if (typeof value !== "string") continue;
+    const direct = normalizeHex(value);
+    if (direct) return direct;
+    const embedded = value.match(/#([0-9a-f]{6}|[0-9a-f]{3})(?![0-9a-f])/i)?.[0];
+    const candidate = embedded ? normalizeHex(embedded) : undefined;
     if (candidate) return candidate;
   }
   return undefined;
