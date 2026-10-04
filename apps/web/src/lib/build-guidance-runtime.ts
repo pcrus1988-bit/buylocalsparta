@@ -429,7 +429,7 @@ export function buildCustomerGuide(guidance: BuildProjectGuidance): BuildCustome
 export type BuildQuantityEstimate = Readonly<{
   status: "available" | "missing_manufacturer_values" | "manufacturer_not_selected";
   areaM2: number;
-  unit?: "L";
+  unit?: "L" | "kg";
   min?: number;
   max?: number;
   coatsMin?: number;
@@ -456,24 +456,54 @@ export function calculateBuildQuantity(guidance: BuildProjectGuidance, areaInput
   const coverageMax = numberValue(profile.coverage_m2_per_litre_max);
   const coatsMin = numberValue(profile.number_of_coats_min);
   const coatsMax = numberValue(profile.number_of_coats_max);
-  if (!areaM2 || !coverageMin || !coverageMax || !coatsMin || !coatsMax || coverageMin <= 0 || coverageMax <= 0 || coatsMin <= 0 || coatsMax <= 0) {
+  if (areaM2 && coverageMin && coverageMax && coatsMin && coatsMax
+      && coverageMin > 0 && coverageMax > 0 && coatsMin > 0 && coatsMax > 0) {
+    const min = areaM2 * Math.min(coatsMin, coatsMax) / Math.max(coverageMin, coverageMax);
+    const max = areaM2 * Math.max(coatsMin, coatsMax) / Math.min(coverageMin, coverageMax);
     return {
-      status: "missing_manufacturer_values",
+      status: "available",
       areaM2,
-      basisEl: "Δεν υπάρχουν πλήρη επαληθευμένα στοιχεία κάλυψης και αριθμού στρώσεων για θεωρητικό υπολογισμό. Δεν γίνεται υπόθεση."
+      unit: "L",
+      min: Math.round(min * 100) / 100,
+      max: Math.round(max * 100) / 100,
+      coatsMin: Math.min(coatsMin, coatsMax),
+      coatsMax: Math.max(coatsMin, coatsMax),
+      basisEl: "Θεωρητική ποσότητα από τα επαληθευμένα m²/L και τις στρώσεις του επιλεγμένου προϊόντος. Δεν προστέθηκε αυθαίρετος συντελεστής απωλειών· απορροφητικότητα, τραχύτητα και μέθοδος εφαρμογής μπορούν να αλλάξουν την πραγματική κατανάλωση."
     };
   }
 
-  const min = areaM2 * Math.min(coatsMin, coatsMax) / Math.max(coverageMin, coverageMax);
-  const max = areaM2 * Math.max(coatsMin, coatsMax) / Math.min(coverageMin, coverageMax);
+  const consumptionMin = numberValue(profile.consumption_value_min);
+  const consumptionMax = numberValue(profile.consumption_value_max) ?? consumptionMin;
+  const rawUnit = textValue(profile.consumption_unit) ?? "";
+  const consumptionUnit = rawUnit.normalize("NFKC").replace(/㎡/g, "m²").replace(/\s+/g, "").toLocaleLowerCase("en");
+  if (areaM2 && consumptionMin && consumptionMax && consumptionMin > 0 && consumptionMax > 0) {
+    const low = Math.min(consumptionMin, consumptionMax);
+    const high = Math.max(consumptionMin, consumptionMax);
+    if (/^(m²|m2)\/kg(?:coverage)?$/.test(consumptionUnit)) {
+      return {
+        status: "available",
+        areaM2,
+        unit: "kg",
+        min: Math.round((areaM2 / high) * 100) / 100,
+        max: Math.round((areaM2 / low) * 100) / 100,
+        basisEl: "Θεωρητική ποσότητα από την επαληθευμένη απόδοση m²/kg του κατασκευαστή. Δεν μετατρέπεται όγκος σε βάρος και δεν προστίθεται αυθαίρετος συντελεστής απωλειών."
+      };
+    }
+    if (/^kg\/(m²|m2)$/.test(consumptionUnit)) {
+      return {
+        status: "available",
+        areaM2,
+        unit: "kg",
+        min: Math.round((areaM2 * low) * 100) / 100,
+        max: Math.round((areaM2 * high) * 100) / 100,
+        basisEl: "Θεωρητική ποσότητα από την επαληθευμένη κατανάλωση kg/m² του κατασκευαστή. Δεν προστίθεται αυθαίρετος συντελεστής απωλειών."
+      };
+    }
+  }
+
   return {
-    status: "available",
+    status: "missing_manufacturer_values",
     areaM2,
-    unit: "L",
-    min: Math.round(min * 100) / 100,
-    max: Math.round(max * 100) / 100,
-    coatsMin: Math.min(coatsMin, coatsMax),
-    coatsMax: Math.max(coatsMin, coatsMax),
-    basisEl: "Θεωρητική ποσότητα από τα επαληθευμένα m²/L και τις στρώσεις του επιλεγμένου προϊόντος. Δεν προστέθηκε αυθαίρετος συντελεστής απωλειών· απορροφητικότητα, τραχύτητα και μέθοδος εφαρμογής μπορούν να αλλάξουν την πραγματική κατανάλωση."
+    basisEl: "Δεν υπάρχουν πλήρη επαληθευμένα στοιχεία κάλυψης/κατανάλωσης σε αναγνωρισμένη μονάδα για ασφαλή θεωρητικό υπολογισμό. Δεν γίνεται υπόθεση."
   };
 }
