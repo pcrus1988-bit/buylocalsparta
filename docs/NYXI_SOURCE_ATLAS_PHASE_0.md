@@ -38,6 +38,8 @@ Raw HTML/PDF/JSON/CSV bodies should live in governed object storage. PostgreSQL 
 - `nyxi_research_targets` — queue for brands, jurisdictions, ingredients, regulations, recall systems and scientific topics.
 - `nyxi_source_target_links` — source-to-target coverage relationships without asserting extracted facts.
 - `nyxi_source_candidates` — aggressively gathered URLs awaiting verification; discovery alone never promotes authority.
+- `nyxi_source_candidate_snapshots` — immutable raw captures of candidate URLs, kept explicitly separate from verified-source evidence.
+- `nyxi_source_candidate_checks` — append-only candidate retrieval history.
 
 All tables have RLS enabled and are restricted to KONTA MOY application/platform runtime roles.
 
@@ -86,6 +88,8 @@ Further source discovery does not require database migrations.
 - `nyxi_source_candidates` holds discovered-but-not-yet-verified URLs from searches, indexes, sitemaps, regulator listings or manufacturer links. The collector can populate this ledger from link structure alone; candidate discovery is explicitly not semantic analysis or authority promotion.
 
 This distinction is intentional: NYXI can gather very broadly now while keeping the evidence bar high.
+
+Candidate acquisition is deliberately more permissive than source verification but never changes authority. Once a URL is structurally discovered from a verified source, the collector may preserve its exact bytes under `private/nyxi/candidate-archive/<candidate-id>/<sha256>.<ext>`. Those captures are labeled `verifiedSource: false`, are not recursively crawled for more candidates, and are never promoted by the acquisition worker.
 
 The next work is therefore **source discovery, not content interpretation**:
 
