@@ -506,6 +506,8 @@ export async function prepareVendorProductFeed(
     const color = trimOptional(xmlFieldValue(record, mapping.color), 160)
       ?? colorFromTitle(title)
       ?? colorFromDescription(description);
+    const itemGroupId = trimOptional(xmlFieldValue(record, mapping.itemGroupId), 300)
+      ?? (rawExternalId && (rawExternalIdCounts.get(rawExternalId) ?? 0) > 1 ? rawExternalId : undefined);
     const payload = {
       feedExternalId: externalId,
       sourceExternalId: rawExternalId,
@@ -526,7 +528,7 @@ export async function prepareVendorProductFeed(
       imageUrl: safeHttpUrl(xmlFieldValue(record, mapping.imageUrl)),
       additionalImageUrls: safeHttpUrls(xmlFieldValue(record, mapping.additionalImageUrl)),
       productUrl,
-      itemGroupId: trimOptional(xmlFieldValue(record, mapping.itemGroupId), 300),
+      itemGroupId,
       size,
       color,
       variantAttributes: {
