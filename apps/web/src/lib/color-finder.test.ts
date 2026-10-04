@@ -36,7 +36,7 @@ test("canonicalizes catalogue colours from both explicit attributes and product 
 
 test("names selected colours by the nearest curated shade", () => {
   assert.equal(nearestColorName("#19191B").label, "Black");
-  assert.equal(nearestColorName("#F2EEE8").label, "White");
+  assert.equal(nearestColorName("#F2EEE8").label, "Off White");
   assert.ok(nearestColorName("#B52E2E").deltaE >= 0);
 });
 
