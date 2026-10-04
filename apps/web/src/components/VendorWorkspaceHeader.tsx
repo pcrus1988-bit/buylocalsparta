@@ -17,6 +17,12 @@ export function VendorWorkspaceHeader() {
   const [roles, setRoles] = useState<readonly string[]>([]);
   const [csrfToken, setCsrfToken] = useState("");
   const [dropshippingOnly, setDropshippingOnly] = useState(false);
+  const [impersonation, setImpersonation] = useState<{
+    active: boolean;
+    vendorId: string;
+    adminEmail: string;
+    expiresAt: string;
+  }>();
   const [trial, setTrial] = useState<{
     active: boolean;
     expiresAt: string;
@@ -87,12 +93,33 @@ export function VendorWorkspaceHeader() {
           brandConfigured?: boolean;
           storefrontConfigured?: boolean;
         };
+        impersonation?: {
+          active?: boolean;
+          vendorId?: string;
+          adminEmail?: string;
+          expiresAt?: string;
+        };
         account?: { roles?: readonly string[] };
       } | undefined) => {
         if (!active) return;
         if (Array.isArray(payload?.account?.roles)) setRoles(payload.account.roles);
         if (typeof payload?.csrfToken === "string") setCsrfToken(payload.csrfToken);
         setDropshippingOnly(payload?.dropshippingOnly === true);
+        if (
+          payload?.impersonation?.active === true
+          && payload.impersonation.vendorId
+          && payload.impersonation.adminEmail
+          && payload.impersonation.expiresAt
+        ) {
+          setImpersonation({
+            active: true,
+            vendorId: payload.impersonation.vendorId,
+            adminEmail: payload.impersonation.adminEmail,
+            expiresAt: payload.impersonation.expiresAt
+          });
+        } else {
+          setImpersonation(undefined);
+        }
         if (payload?.trial?.active === true && payload.trial.expiresAt && payload.trial.vendorName) {
           setTrial({
             active: true,
@@ -203,23 +230,43 @@ export function VendorWorkspaceHeader() {
     }
   ] as const : [];
 
+  async function sessionCsrfToken() {
+    if (csrfToken) return csrfToken;
+    const session = await fetch("/api/vendor/auth-context", { cache: "no-store" });
+    if (!session.ok) return "";
+    const payload = await session.json() as { csrfToken?: string };
+    return payload.csrfToken ?? "";
+  }
+
+  async function stopImpersonation() {
+    setBusy(true);
+    try {
+      const token = await sessionCsrfToken();
+      if (!token) throw new Error("vendor_session_missing_csrf");
+      const response = await fetch("/api/vendor/impersonation/stop", {
+        method: "POST",
+        headers: { "x-csrf-token": token }
+      });
+      const payload = await response.json().catch(() => ({})) as { redirectTo?: string };
+      router.replace(payload.redirectTo ?? `/admin/partners/${encodeURIComponent(impersonation?.vendorId ?? "")}`);
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function logout() {
     setBusy(true);
     try {
-      let token = csrfToken;
+      const token = await sessionCsrfToken();
       if (!token) {
-        const session = await fetch("/api/vendor/auth-context", { cache: "no-store" });
-        if (!session.ok) {
-          router.replace("/vendor/login");
-          router.refresh();
-          return;
-        }
-        const payload = await session.json() as { csrfToken?: string };
-        token = payload.csrfToken ?? "";
+        router.replace("/vendor/login");
+        router.refresh();
+        return;
       }
-      if (!token) throw new Error("vendor_session_missing_csrf");
-      await fetch("/api/vendor/logout", { method: "POST", headers: { "x-csrf-token": token } });
-      router.replace("/vendor/login");
+      const response = await fetch("/api/vendor/logout", { method: "POST", headers: { "x-csrf-token": token } });
+      const payload = await response.json().catch(() => ({})) as { redirectTo?: string };
+      router.replace(payload.redirectTo ?? "/vendor/login");
       router.refresh();
     } finally {
       setBusy(false);
@@ -227,6 +274,31 @@ export function VendorWorkspaceHeader() {
   }
 
   return <>
+    {impersonation?.active && <div
+      role="status"
+      aria-live="polite"
+      style={{
+        display: "flex",
+        gap: "0.75rem",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexWrap: "wrap",
+        padding: "0.7rem 1rem",
+        background: "#fff3cd",
+        borderBottom: "1px solid #e0b84f",
+        color: "#5f4300",
+        position: "relative",
+        zIndex: 60
+      }}
+    >
+      <span>
+        <strong>ADMIN IMPERSONATION</strong> · {impersonation.vendorId}
+        <small style={{ marginLeft: "0.5rem" }}>ως vendor_owner · {impersonation.adminEmail}</small>
+      </span>
+      <button className="button button-secondary" type="button" onClick={stopImpersonation} disabled={busy}>
+        {busy ? "Έξοδος…" : "Επιστροφή στο Admin"}
+      </button>
+    </div>}
     <header className={`workspace-header vendor-header${menuOpen ? " is-menu-open" : ""}`}>
       <div className="workspace-brand-row">
         <Link className="brand workspace-identity" href="/vendor" onClick={() => setMenuOpen(false)}>
@@ -244,10 +316,10 @@ export function VendorWorkspaceHeader() {
       </div>
       <VendorDomainNavigation id="vendor-workspace-navigation" groups={navigation} onNavigate={() => setMenuOpen(false)} />
       <div className="workspace-footer workspace-footer-stacked">
-        <span className="workspace-session"><i aria-hidden="true" /> Συνδεδεμένος · ιδιωτικός χώρος</span>
+        <span className="workspace-session"><i aria-hidden="true" /> {impersonation?.active ? "Admin impersonation · ιδιωτικός χώρος" : "Συνδεδεμένος · ιδιωτικός χώρος"}</span>
         <div className="workspace-footer-actions">
           <Link className="workspace-footer-action workspace-public-link" href="/" onClick={() => setMenuOpen(false)}>Δημόσια σελίδα <span aria-hidden="true">↗</span></Link>
-          <button className="workspace-footer-action" type="button" onClick={logout} disabled={busy}>{busy ? "Έξοδος…" : "Αποσύνδεση"}<span aria-hidden="true">↗</span></button>
+          <button className="workspace-footer-action" type="button" onClick={impersonation?.active ? stopImpersonation : logout} disabled={busy}>{busy ? "Έξοδος…" : impersonation?.active ? "Επιστροφή στο Admin" : "Αποσύνδεση"}<span aria-hidden="true">↗</span></button>
         </div>
       </div>
     </header>
