@@ -34,9 +34,17 @@ export type GemiAdminActivityGroup = Readonly<{
   activityCount: number;
 }>;
 
+export type GemiAdminExportField = Readonly<{
+  id: string;
+  label: string;
+  category: string;
+  categoryLabel: string;
+}>;
+
 export type GemiAdminMetadata = Readonly<{
   activities: readonly GemiAdminActivity[];
   activityGroups: readonly GemiAdminActivityGroup[];
+  exportFields: readonly GemiAdminExportField[];
   prefectures: readonly GemiAdminPrefecture[];
   municipalities: readonly GemiAdminMunicipality[];
   fetchedAt: number;
@@ -103,6 +111,50 @@ type Globals = typeof globalThis & {
   [credentialCacheKey]?: CredentialCache;
 };
 const globals = globalThis as Globals;
+
+const GEMI_ADMIN_EXPORT_FIELDS: readonly GemiAdminExportField[] = [
+  { id: "gemi_number", label: "Αριθμός ΓΕΜΗ", category: "identity", categoryLabel: "Ταυτότητα επιχείρησης" },
+  { id: "afm", label: "ΑΦΜ", category: "identity", categoryLabel: "Ταυτότητα επιχείρησης" },
+  { id: "legal_name_el", label: "Επωνυμία (Ελληνικά)", category: "identity", categoryLabel: "Ταυτότητα επιχείρησης" },
+  { id: "legal_names_en", label: "Επωνυμία (Λατινικά)", category: "identity", categoryLabel: "Ταυτότητα επιχείρησης" },
+  { id: "trade_names_el", label: "Διακριτικοί τίτλοι (Ελληνικά)", category: "identity", categoryLabel: "Ταυτότητα επιχείρησης" },
+  { id: "trade_names_en", label: "Διακριτικοί τίτλοι (Λατινικά)", category: "identity", categoryLabel: "Ταυτότητα επιχείρησης" },
+  { id: "company_status", label: "Κατάσταση επιχείρησης", category: "identity", categoryLabel: "Ταυτότητα επιχείρησης" },
+  { id: "legal_type", label: "Νομική μορφή", category: "identity", categoryLabel: "Ταυτότητα επιχείρησης" },
+  { id: "gemi_office", label: "Υπηρεσία ΓΕΜΗ", category: "identity", categoryLabel: "Ταυτότητα επιχείρησης" },
+
+  { id: "prefecture", label: "Νομός", category: "location", categoryLabel: "Τοποθεσία" },
+  { id: "municipality", label: "Δήμος", category: "location", categoryLabel: "Τοποθεσία" },
+  { id: "city", label: "Πόλη", category: "location", categoryLabel: "Τοποθεσία" },
+  { id: "street", label: "Οδός", category: "location", categoryLabel: "Τοποθεσία" },
+  { id: "street_number", label: "Αριθμός", category: "location", categoryLabel: "Τοποθεσία" },
+  { id: "postcode", label: "ΤΚ", category: "location", categoryLabel: "Τοποθεσία" },
+  { id: "po_box", label: "Ταχυδρομική θυρίδα", category: "location", categoryLabel: "Τοποθεσία" },
+
+  { id: "email", label: "Email", category: "contact", categoryLabel: "Επικοινωνία" },
+  { id: "phone", label: "Τηλέφωνο", category: "contact", categoryLabel: "Επικοινωνία" },
+  { id: "website", label: "Website", category: "contact", categoryLabel: "Επικοινωνία" },
+
+  { id: "incorporation_date", label: "Ημερομηνία σύστασης", category: "company", categoryLabel: "Εταιρικά στοιχεία" },
+  { id: "last_status_change", label: "Τελευταία αλλαγή κατάστασης", category: "company", categoryLabel: "Εταιρικά στοιχεία" },
+  { id: "is_branch", label: "Υποκατάστημα", category: "company", categoryLabel: "Εταιρικά στοιχεία" },
+  { id: "auto_registered", label: "Αυτοαπογραφή ολοκληρωμένη", category: "company", categoryLabel: "Εταιρικά στοιχεία" },
+  { id: "objective", label: "Σκοπός επιχείρησης", category: "company", categoryLabel: "Εταιρικά στοιχεία" },
+
+  { id: "activity_codes", label: "Όλοι οι ΚΑΔ", category: "activity", categoryLabel: "Δραστηριότητες / ΚΑΔ" },
+  { id: "activity_descriptions", label: "Περιγραφές όλων των ΚΑΔ", category: "activity", categoryLabel: "Δραστηριότητες / ΚΑΔ" },
+  { id: "activity_types", label: "Τύποι δραστηριοτήτων", category: "activity", categoryLabel: "Δραστηριότητες / ΚΑΔ" },
+  { id: "activity_versions", label: "Εκδόσεις ΚΑΔ", category: "activity", categoryLabel: "Δραστηριότητες / ΚΑΔ" },
+  { id: "matched_activity_codes", label: "ΚΑΔ που έκαναν match", category: "activity", categoryLabel: "Δραστηριότητες / ΚΑΔ" },
+  { id: "matched_activity_descriptions", label: "Περιγραφές ΚΑΔ που έκαναν match", category: "activity", categoryLabel: "Δραστηριότητες / ΚΑΔ" },
+  { id: "matched_kad_groups", label: "Ομάδες ΚΑΔ που έκαναν match", category: "activity", categoryLabel: "Δραστηριότητες / ΚΑΔ" },
+
+  { id: "selected_kad", label: "Επιλεγμένος ΚΑΔ (legacy)", category: "criteria", categoryLabel: "Κριτήρια export" },
+  { id: "selected_kads", label: "Επιλεγμένοι ΚΑΔ", category: "criteria", categoryLabel: "Κριτήρια export" },
+  { id: "selected_kad_groups", label: "Επιλεγμένες ομάδες ΚΑΔ", category: "criteria", categoryLabel: "Κριτήρια export" },
+  { id: "selected_prefecture_id", label: "ID επιλεγμένου νομού", category: "criteria", categoryLabel: "Κριτήρια export" },
+  { id: "selected_municipality_id", label: "ID επιλεγμένου δήμου", category: "criteria", categoryLabel: "Κριτήρια export" }
+] as const;
 
 const ACTIVITY_GROUP_DEFINITIONS: readonly GemiActivityGroupDefinition[] = [
   {
@@ -381,6 +433,7 @@ export async function gemiAdminMetadata(now = Date.now(), apiKey?: string): Prom
   const value = {
     activities,
     activityGroups: publicActivityGroups(activities),
+    exportFields: GEMI_ADMIN_EXPORT_FIELDS,
     prefectures,
     municipalities,
     fetchedAt: now
@@ -428,6 +481,19 @@ export function normalizeGemiAdminFilters(input: {
   if (municipalityId && prefectureId === ALL_PREFECTURES) throw new Error("Νομός is required when Δήμος is selected.");
   const activeOnly = input.activeOnly !== false && input.activeOnly !== "false" && input.activeOnly !== "0";
   return { activityIds, activityGroupIds, prefectureId, municipalityId, activeOnly };
+}
+
+export function normalizeGemiAdminExportFields(input: unknown): string[] {
+  if (input === undefined || input === null || String(input).trim() === "") {
+    return GEMI_ADMIN_EXPORT_FIELDS.map((field) => field.id);
+  }
+  const requested = idList(input, "Πεδίο export", GEMI_ADMIN_EXPORT_FIELDS.length);
+  if (!requested.length) throw new Error("Επίλεξε τουλάχιστον ένα πεδίο για export.");
+  const allowed = new Set(GEMI_ADMIN_EXPORT_FIELDS.map((field) => field.id));
+  const invalid = requested.find((id) => !allowed.has(id));
+  if (invalid) throw new Error(`Πεδίο export ${invalid} is invalid.`);
+  const requestedSet = new Set(requested);
+  return GEMI_ADMIN_EXPORT_FIELDS.map((field) => field.id).filter((id) => requestedSet.has(id));
 }
 
 async function resolveActivitySelection(filters: GemiAdminFilters, apiKey?: string): Promise<GemiResolvedActivitySelection> {
@@ -581,53 +647,16 @@ function activityValuesFromEntries(entries: readonly Record<string, unknown>[], 
   }).filter(Boolean).join(" | ");
 }
 
-const CSV_HEADERS = [
-  "gemi_number",
-  "afm",
-  "legal_name_el",
-  "legal_names_en",
-  "trade_names_el",
-  "trade_names_en",
-  "company_status",
-  "legal_type",
-  "gemi_office",
-  "prefecture",
-  "municipality",
-  "city",
-  "street",
-  "street_number",
-  "postcode",
-  "po_box",
-  "email",
-  "phone",
-  "website",
-  "incorporation_date",
-  "last_status_change",
-  "is_branch",
-  "auto_registered",
-  "objective",
-  "activity_codes",
-  "activity_descriptions",
-  "activity_types",
-  "activity_versions",
-  "matched_activity_codes",
-  "matched_activity_descriptions",
-  "matched_kad_groups",
-  "selected_kad",
-  "selected_kads",
-  "selected_kad_groups",
-  "selected_prefecture_id",
-  "selected_municipality_id"
-] as const;
+const CSV_HEADERS = GEMI_ADMIN_EXPORT_FIELDS.map((field) => field.id);
 
-function companyCsvRow(
+function companyCsvValues(
   company: GemiCompany,
   filters: GemiAdminFilters,
   selection: GemiResolvedActivitySelection
-): string {
+): readonly unknown[] {
   const matchedEntries = matchedCompanyActivityEntries(company, selection);
   const selectedGroupLabels = selection.groups.map((group) => group.label);
-  const values = [
+  return [
     asString(company.arGemi),
     asString(company.afm),
     asString(company.coNameEl),
@@ -665,10 +694,24 @@ function companyCsvRow(
     filters.prefectureId === ALL_PREFECTURES ? "" : filters.prefectureId,
     filters.municipalityId ?? ""
   ];
-  return values.map(csvCell).join(",") + "\r\n";
 }
 
-export function gemiAdminCsvStream(filters: GemiAdminFilters, apiKey?: string): ReadableStream<Uint8Array> {
+function companyCsvRow(
+  company: GemiCompany,
+  filters: GemiAdminFilters,
+  selection: GemiResolvedActivitySelection,
+  exportFields: readonly string[]
+): string {
+  const values = companyCsvValues(company, filters, selection);
+  const valueByField = new Map(CSV_HEADERS.map((header, index) => [header, values[index]] as const));
+  return exportFields.map((field) => csvCell(valueByField.get(field))).join(",") + "\r\n";
+}
+
+export function gemiAdminCsvStream(
+  filters: GemiAdminFilters,
+  apiKey?: string,
+  exportFields: readonly string[] = GEMI_ADMIN_EXPORT_FIELDS.map((field) => field.id)
+): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   let offset = 0;
   let totalCount: number | undefined;
@@ -682,7 +725,7 @@ export function gemiAdminCsvStream(filters: GemiAdminFilters, apiKey?: string): 
       if (closed) return;
       try {
         if (!headerSent) {
-          controller.enqueue(encoder.encode("\uFEFF" + CSV_HEADERS.map(csvCell).join(",") + "\r\n"));
+          controller.enqueue(encoder.encode("\uFEFF" + exportFields.map(csvCell).join(",") + "\r\n"));
           headerSent = true;
         }
 
@@ -701,7 +744,7 @@ export function gemiAdminCsvStream(filters: GemiAdminFilters, apiKey?: string): 
           const gemi = asString(company.arGemi);
           if (gemi && seen.has(gemi)) continue;
           if (gemi) seen.add(gemi);
-          chunk += companyCsvRow(company, filters, selection);
+          chunk += companyCsvRow(company, filters, selection, exportFields);
         }
         if (chunk) controller.enqueue(encoder.encode(chunk));
 
