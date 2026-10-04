@@ -58,6 +58,10 @@ const FIELD_ALIASES: Readonly<Record<keyof VendorXmlFieldMapping, readonly strin
 export function parseVendorProductXml(xml: string): VendorXmlDocument {
   const source = xml.replace(/^\uFEFF/, "");
   if (!source.trim()) throw new Error("XML content is empty");
+  const prefix = source.trimStart().slice(0, 512);
+  if (/^<!doctype\s+html\b/i.test(prefix) || /^<html\b/i.test(prefix)) {
+    throw new Error("The source returned HTML instead of a product XML document");
+  }
   if (/<!\s*(?:DOCTYPE|ENTITY)\b/i.test(source)) throw new Error("XML DTD and ENTITY declarations are not allowed");
 
   const itemTag = detectItemTag(source);
