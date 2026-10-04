@@ -2,7 +2,6 @@ import { formatMoney, money, type SqlRow } from "@buy-local-sparta/core";
 import { unstable_cache } from "next/cache";
 import { isPublicCatalogueTitle } from "./public-data-integrity";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 import {
   colorMatchPercent,
   deltaE2000,
@@ -46,11 +45,6 @@ type ColorFinderCandidateRow = SqlRow & Readonly<{
   canonical_hex: string | null;
   match_precision: string | null;
   confidence: number | string | null;
-  source_code: string | null;
-  source_website: string | null;
-  source_image_url: string | null;
-  source_title: string | null;
-  source_color: string | null;
 }>;
 
 async function loadColorFinderProductsUncached(
@@ -81,12 +75,7 @@ async function loadColorFinderProductsUncached(
       pcp.product_type AS profile_product_type,
       pcp.canonical_hex,
       pcp.match_precision,
-      pcp.confidence,
-      NULL::text AS source_code,
-      NULL::text AS source_website,
-      NULL::text AS source_image_url,
-      NULL::text AS source_title,
-      NULL::text AS source_color
+      pcp.confidence
     FROM public.storefront_catalog_read_model rm
     LEFT JOIN public.product_color_profiles pcp
       ON pcp.canonical_variant_id=rm.canonical_variant_id
