@@ -46,6 +46,8 @@ export type ResolvedCatalogShade = Readonly<{
   precision: "exact" | "reference" | "family";
 }>;
 
+export type CatalogLabColor = Readonly<{ l: number; a: number; b: number }>;
+
 /**
  * Shared consumer-colour reference used by catalogue ingestion and storefront
  * presentation. RAL values are deliberately named `ralApprox`: retail colour
@@ -182,6 +184,125 @@ function hexToRgb(hex: string): readonly [number, number, number] {
   ] as const;
 }
 
+function srgbCatalogChannel(value: number): number {
+  const n = value / 255;
+  return n <= 0.04045 ? n / 12.92 : Math.pow((n + 0.055) / 1.055, 2.4);
+}
+
+export function catalogHexToLab(hex: string): CatalogLabColor {
+  const normalized = normalizeCatalogHex(hex);
+  if (!normalized) throw new Error("Invalid HEX color");
+  const [red, green, blue] = hexToRgb(normalized);
+  const r = srgbCatalogChannel(red);
+  const g = srgbCatalogChannel(green);
+  const b = srgbCatalogChannel(blue);
+
+  const x = (r * 0.4124564 + g * 0.3575761 + b * 0.1804375) / 0.95047;
+  const y = r * 0.2126729 + g * 0.7151522 + b * 0.0721750;
+  const z = (r * 0.0193339 + g * 0.1191920 + b * 0.9503041) / 1.08883;
+
+  const pivot = (value: number) => value > 0.008856451679
+    ? Math.cbrt(value)
+    : (7.787037037 * value) + (16 / 116);
+  const fx = pivot(x);
+  const fy = pivot(y);
+  const fz = pivot(z);
+
+  return {
+    l: (116 * fy) - 16,
+    a: 500 * (fx - fy),
+    b: 200 * (fy - fz)
+  };
+}
+
+const catalogRadians = (degrees: number) => degrees * Math.PI / 180;
+const catalogDegrees = (radiansValue: number) => radiansValue * 180 / Math.PI;
+
+export function catalogDeltaE2000(left: CatalogLabColor, right: CatalogLabColor): number {
+  const avgL = (left.l + right.l) / 2;
+  const c1 = Math.sqrt(left.a * left.a + left.b * left.b);
+  const c2 = Math.sqrt(right.a * right.a + right.b * right.b);
+  const avgC = (c1 + c2) / 2;
+  const g = 0.5 * (1 - Math.sqrt(Math.pow(avgC, 7) / (Math.pow(avgC, 7) + Math.pow(25, 7))));
+  const a1 = (1 + g) * left.a;
+  const a2 = (1 + g) * right.a;
+  const c1p = Math.sqrt(a1 * a1 + left.b * left.b);
+  const c2p = Math.sqrt(a2 * a2 + right.b * right.b);
+  const h1 = ((catalogDegrees(Math.atan2(left.b, a1)) % 360) + 360) % 360;
+  const h2 = ((catalogDegrees(Math.atan2(right.b, a2)) % 360) + 360) % 360;
+
+  const dL = right.l - left.l;
+  const dC = c2p - c1p;
+  let dh = h2 - h1;
+  if (c1p * c2p === 0) dh = 0;
+  else if (dh > 180) dh -= 360;
+  else if (dh < -180) dh += 360;
+  const dH = 2 * Math.sqrt(c1p * c2p) * Math.sin(catalogRadians(dh / 2));
+
+  const avgLp = (left.l + right.l) / 2;
+  const avgCp = (c1p + c2p) / 2;
+  let avgHp = h1 + h2;
+  if (c1p * c2p === 0) avgHp = h1 + h2;
+  else if (Math.abs(h1 - h2) <= 180) avgHp = (h1 + h2) / 2;
+  else if (h1 + h2 < 360) avgHp = (h1 + h2 + 360) / 2;
+  else avgHp = (h1 + h2 - 360) / 2;
+
+  const t = 1
+    - 0.17 * Math.cos(catalogRadians(avgHp - 30))
+    + 0.24 * Math.cos(catalogRadians(2 * avgHp))
+    + 0.32 * Math.cos(catalogRadians(3 * avgHp + 6))
+    - 0.20 * Math.cos(catalogRadians(4 * avgHp - 63));
+  const deltaTheta = 30 * Math.exp(-Math.pow((avgHp - 275) / 25, 2));
+  const rc = 2 * Math.sqrt(Math.pow(avgCp, 7) / (Math.pow(avgCp, 7) + Math.pow(25, 7)));
+  const sl = 1 + (0.015 * Math.pow(avgLp - 50, 2)) / Math.sqrt(20 + Math.pow(avgLp - 50, 2));
+  const sc = 1 + 0.045 * avgCp;
+  const sh = 1 + 0.015 * avgCp * t;
+  const rt = -Math.sin(catalogRadians(2 * deltaTheta)) * rc;
+
+  const lTerm = dL / sl;
+  const cTerm = dC / sc;
+  const hTerm = dH / sh;
+  return Math.sqrt(lTerm * lTerm + cTerm * cTerm + hTerm * hTerm + rt * cTerm * hTerm);
+}
+
+export function nearestCatalogShadeByHex(value: string): Readonly<{
+  key: string;
+  familyKey: string;
+  displayNameEl: string;
+  displayNameEn: string;
+  referenceHex: `#${string}`;
+  deltaE: number;
+}> | undefined {
+  const normalized = normalizeCatalogHex(value);
+  if (!normalized) return undefined;
+  const target = catalogHexToLab(normalized);
+  const candidates = [
+    ...CATALOG_SHADE_REFERENCES.map((entry) => ({
+      key: entry.key,
+      familyKey: entry.familyKey,
+      displayNameEl: entry.displayNameEl,
+      displayNameEn: entry.displayNameEn,
+      referenceHex: entry.hex
+    })),
+    ...CATALOG_COLOR_INDEX
+      .filter((entry) => (entry.swatchKind ?? "solid") === "solid")
+      .map((entry) => ({
+        key: entry.key,
+        familyKey: entry.key,
+        displayNameEl: entry.displayNameEl,
+        displayNameEn: entry.displayNameEn,
+        referenceHex: entry.hex
+      }))
+  ];
+
+  let best: (typeof candidates)[number] & { deltaE: number } | undefined;
+  for (const candidate of candidates) {
+    const deltaE = catalogDeltaE2000(target, catalogHexToLab(candidate.referenceHex));
+    if (!best || deltaE < best.deltaE) best = { ...candidate, deltaE };
+  }
+  return best;
+}
+
 function rgbToHsl([rRaw, gRaw, bRaw]: readonly [number, number, number]): string {
   const r = rRaw / 255;
   const g = gRaw / 255;
@@ -310,11 +431,12 @@ export function resolveCatalogShade(value: unknown): ResolvedCatalogShade | unde
       };
     }
     const exactFamily = CATALOG_COLOR_INDEX.find((entry) => entry.hex.toUpperCase() === explicitHex.toUpperCase());
+    const nearest = exactFamily ? undefined : nearestCatalogShadeByHex(explicitHex);
     return {
-      key: exactFamily?.key ?? explicitHex.toLowerCase(),
-      familyKey: exactFamily?.key,
-      displayNameEl: exactFamily?.displayNameEl ?? explicitHex,
-      displayNameEn: exactFamily?.displayNameEn ?? explicitHex,
+      key: exactFamily?.key ?? nearest?.key ?? explicitHex.toLowerCase(),
+      familyKey: exactFamily?.key ?? nearest?.familyKey,
+      displayNameEl: exactFamily?.displayNameEl ?? nearest?.displayNameEl ?? explicitHex,
+      displayNameEn: exactFamily?.displayNameEn ?? nearest?.displayNameEn ?? explicitHex,
       sourceValue,
       matchedAlias: explicitHex,
       hex: explicitHex,
