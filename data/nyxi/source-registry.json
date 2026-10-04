@@ -1,0 +1,401 @@
+{
+  "version": 1,
+  "updatedAt": "2026-10-04",
+  "sources": [
+    {
+      "sourceKey": "opi_nail_lacquer_catalogue",
+      "publisher": "OPI",
+      "title": "Nail Lacquer Collection",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.opi.com/collections/nail-lacquer",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "OPI",
+        "scope": "nail_lacquer_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "OPI",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "essie_nail_polish_catalogue",
+      "publisher": "essie",
+      "title": "Nail Polish Catalogue",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.essie.com/nail-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "essie",
+        "scope": "nail_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "essie",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cnd_root",
+      "publisher": "Creative Nail Design",
+      "title": "CND Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.cnd.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "CND",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "CND",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cnd_step_by_steps",
+      "publisher": "Creative Nail Design",
+      "title": "Step By Steps",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.cnd.com/pages/step-by-steps",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "CND",
+        "scope": "professional_protocols",
+        "preserveLinkedPdfs": true
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "CND",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cnd_troubleshooting_faqs",
+      "publisher": "Creative Nail Design",
+      "title": "Troubleshooting and FAQs",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.cnd.com/pages/troubleshooting-faqs",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "CND",
+        "scope": "technical_faqs",
+        "preserveLinkedPdfs": true
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "CND",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gelish_root",
+      "publisher": "Nail Alliance / Gelish",
+      "title": "Gelish Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://gelish.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Gelish",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Gelish",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "dnd_root",
+      "publisher": "DND Gel",
+      "title": "DND Gel Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.dndgel.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "DND / DC",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "DND / DC",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "kiara_sky_root",
+      "publisher": "Kiara Sky Professional Nails",
+      "title": "Kiara Sky Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://kiarasky.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Kiara Sky",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Kiara Sky",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "bio_sculpture_root",
+      "publisher": "Bio Sculpture",
+      "title": "Bio Sculpture Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.biosculpturegel.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Bio Sculpture",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Bio Sculpture",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "akzentz_root",
+      "publisher": "Akzentz",
+      "title": "Akzentz Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://akzentz.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Akzentz / Luxio",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Akzentz / Luxio",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "zoya_root",
+      "publisher": "Zoya",
+      "title": "Zoya Official Store",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.zoyaofficial.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Zoya",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "availabilityAtDiscovery": "store_closed_page"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Zoya",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "kokoist_root",
+      "publisher": "KOKOIST USA",
+      "title": "KOKOIST USA Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://kokoistusa.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "KOKOIST",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "KOKOIST",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "indigo_root",
+      "publisher": "Indigo Nails",
+      "title": "Indigo Nails Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://www.indigo-nails.com/global-en/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Indigo Nails",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Indigo Nails",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "light_elegance_root",
+      "publisher": "Light Elegance",
+      "title": "Light Elegance Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://lightelegance.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Light Elegance",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Light Elegance",
+          "relation": "primary_for"
+        }
+      ]
+    }
+  ]
+}
