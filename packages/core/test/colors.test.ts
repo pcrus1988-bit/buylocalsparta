@@ -18,6 +18,8 @@ test("Greek and English color descriptions resolve to one normalized color", () 
   assert.equal(resolveCatalogColor("Pink / Ροζ")?.key, "pink");
   assert.equal(resolveCatalogColor("Navy Blue")?.key, "navy");
   assert.equal(resolveCatalogColor("Σκούρο Μπλε")?.key, "navy");
+  assert.equal(resolveCatalogColor("Cobalt")?.key, "royal-blue");
+  assert.equal(resolveCatalogColor("Chestnut")?.key, "brown");
 });
 
 test("RAL and HEX references can resolve through the same index", () => {
