@@ -17,7 +17,7 @@ research target
   -> [later phase] product/formula/regulation/recall knowledge graph
 ```
 
-Raw HTML/PDF/JSON/CSV bodies should live in governed object storage. PostgreSQL keeps source identity, authority, hashes, effective dates and object keys.
+Raw HTML/PDF/JSON/CSV bodies should live in governed object storage. PostgreSQL keeps source identity, authority, hashes, effective dates and object keys. A separate append-only check ledger preserves when each source was actually checked, even when the bytes were unchanged and therefore no new raw snapshot was necessary.
 
 ## Governance rules
 
