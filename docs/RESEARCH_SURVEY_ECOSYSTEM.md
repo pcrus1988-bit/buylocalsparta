@@ -50,13 +50,13 @@ The scientific sample must be drawn from the frozen eligible population, not fro
 ### Consent and response
 
 - `research_responses` contains the response lifecycle.
-- `research_consents` stores separate choices for:
+- `research_consents` is an append-only event ledger and stores separate choices for:
   - research participation
   - results notification
   - thank-you code
   - KONTA MOY marketing
 - Research participation is required to create a response.
-- The three post-survey choices are independent and optional.
+- The three post-survey choices are independent and optional. A later change or withdrawal creates a new consent event; prior evidence is never overwritten.
 - `research_answers` stores raw versioned answers.
 - A trigger blocks answer modification after the response is no longer `in_progress`.
 - The participant UI does not collect IP address as research data.
