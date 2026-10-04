@@ -41,6 +41,7 @@ type Draft = {
 type Props = Readonly<{
   csrfToken: string;
   products: ReadonlyArray<PriceProduct>;
+  onSaved?: () => void;
 }>;
 
 const toDraft = (minor: number) => (minor / 100).toFixed(2);
@@ -88,7 +89,7 @@ function calculatedRetailMinor(draft: Draft): number | undefined {
   return Number.isSafeInteger(result) ? result : undefined;
 }
 
-export function VendorPriceManager({ csrfToken, products }: Props) {
+export function VendorPriceManager({ csrfToken, products, onSaved }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState("");
@@ -162,6 +163,7 @@ export function VendorPriceManager({ csrfToken, products }: Props) {
       if (!response.ok) throw new Error(payload.error ?? "Η τιμολόγηση δεν αποθηκεύτηκε.");
       if (Number.isSafeInteger(payload.priceMinor)) updateDraft(item.offerId, { retailPrice: toDraft(payload.priceMinor!) });
       setSuccess(payload.changed === false ? `Η τιμολόγηση του «${item.title}» ήταν ήδη ίδια.` : `Η τιμολόγηση του «${item.title}» αποθηκεύτηκε.`);
+      onSaved?.();
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Η τιμολόγηση δεν αποθηκεύτηκε.");
