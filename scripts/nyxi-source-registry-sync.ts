@@ -123,14 +123,46 @@ try {
     `, [sourceId]);
 
     for (const target of source.targets ?? []) {
-      const targetResult = await client.query<{ id: string }>(`
+      const targetKey = researchTargetKey(target.type, target.displayName);
+      let targetResult = await client.query<{ id: string }>(`
         SELECT id::text
         FROM public.nyxi_research_targets
-        WHERE target_type=$1 AND display_name=$2
+        WHERE target_type=$1 AND target_key=$2
         LIMIT 1
-      `, [target.type, target.displayName]);
+      `, [target.type, targetKey]);
+
+      if (!targetResult.rows[0]?.id && target.type === "brand") {
+        targetResult = await client.query<{ id: string }>(`
+          INSERT INTO public.nyxi_research_targets(
+            target_type,target_key,display_name,priority,research_status,
+            required_source_families,metadata
+          )
+          VALUES(
+            'brand',$1,$2,50,'queued',
+            ARRAY[
+              'manufacturer_root',
+              'manufacturer_product',
+              'manufacturer_sds',
+              'manufacturer_catalogue',
+              'historical_archive'
+            ],
+            jsonb_build_object(
+              'phase',0,
+              'autoCreatedBy','nyxi-source-registry',
+              'registryVersion',$3::integer,
+              'objective','Discover primary product, ingredient, SDS, catalogue, colour-chart, reformulation and archive sources before classification.'
+            )
+          )
+          ON CONFLICT (target_type,target_key) DO UPDATE SET
+            display_name=EXCLUDED.display_name,
+            metadata=public.nyxi_research_targets.metadata || EXCLUDED.metadata,
+            updated_at=now()
+          RETURNING id::text
+        `, [targetKey, target.displayName, registry.version]);
+      }
+
       const targetId = targetResult.rows[0]?.id;
-      if (!targetId) throw new Error(`Missing NYXI research target ${target.type} / ${target.displayName}`);
+      if (!targetId) throw new Error(`Missing NYXI research target ${target.type} / ${target.displayName} (${targetKey})`);
       await client.query(`
         INSERT INTO public.nyxi_source_target_links(source_id,target_id,relation,metadata)
         VALUES($1,$2,$3,jsonb_build_object('registryVersion',$4::integer))
@@ -158,6 +190,31 @@ console.log(JSON.stringify({
   synced,
   linked
 }));
+
+function researchTargetKey(type: string, displayName: string): string {
+  if (type !== "brand") {
+    const direct = displayName.trim();
+    const jurisdictionKeys: Readonly<Record<string,string>> = {
+      "European Union": "EU",
+      "Great Britain": "GB",
+      "United States": "US",
+      "Canada": "CA",
+      "Australia": "AU",
+      "Japan": "JP",
+      "China": "CN"
+    };
+    return jurisdictionKeys[direct] ?? direct.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 120);
+  }
+  const key = displayName
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 120);
+  if (!key) throw new Error(`Cannot derive NYXI brand research key from ${displayName}`);
+  return key;
+}
 
 function validateSource(source: RegistrySource): void {
   if (!/^[a-z0-9][a-z0-9_-]{2,127}$/.test(source.sourceKey)) throw new Error(`Invalid source key ${source.sourceKey}`);
