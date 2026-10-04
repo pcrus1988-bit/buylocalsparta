@@ -61,6 +61,7 @@ export type ResearchSurveyContext = Readonly<{
   questions: readonly ResearchQuestion[];
   answers: ResearchAnswerMap;
   experiments: readonly ResearchExperimentAssignment[];
+  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>>;
 }>;
 
 function questionFromRow(row: SqlRow): ResearchQuestion {
@@ -180,8 +181,9 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
 
   let answers: ResearchAnswerMap = {};
   let experiments: readonly ResearchExperimentAssignment[] = [];
+  let consents: Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>> = {};
   if (response) {
-    const [answerResult, experimentResult] = await Promise.all([
+    const [answerResult, experimentResult, consentResult] = await Promise.all([
       pool.query<SqlRow>(`
         SELECT q.code, a.answer
         FROM research_answers a
@@ -202,6 +204,7 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
       alternativeB: objectValue(row.alternative_b) as Record<string, string | number>,
       selected: optionalText(row.selected) as "a" | "b" | "none" | undefined
     }));
+    consents = Object.fromEntries(consentResult.rows.map((row) => [text(row.consent_kind), Boolean(row.granted)])) as typeof consents;
   }
 
   return {
@@ -231,7 +234,8 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
     } : undefined,
     questions,
     answers,
-    experiments
+    experiments,
+    consents
   };
 }
 
