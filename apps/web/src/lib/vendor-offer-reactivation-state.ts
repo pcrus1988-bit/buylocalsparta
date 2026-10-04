@@ -17,9 +17,11 @@ function requiredVendorId(principal: SessionPrincipal): string {
  * archive, so using the pause bit alone would let the vendor UI misclassify (and
  * potentially attempt to restore) an offer that still needs Admin reactivation.
  */
-export async function getVendorAdminArchivedOfferIds(principal: SessionPrincipal): Promise<ReadonlySet<string>> {
+export async function getVendorAdminArchivedOfferIds(principal: SessionPrincipal, offerIds?: readonly string[]): Promise<ReadonlySet<string>> {
   if (!postgresVendorRuntimeEnabled()) return new Set();
   const vendorId = requiredVendorId(principal);
+  const scopedOfferIds = offerIds ? [...new Set(offerIds.map((value) => value.trim()).filter(Boolean))] : undefined;
+  if (scopedOfferIds && scopedOfferIds.length === 0) return new Set();
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool, { statementTimeoutMs: 10_000, lockTimeoutMs: 2_000 });
 
@@ -39,7 +41,8 @@ export async function getVendorAdminArchivedOfferIds(principal: SessionPrincipal
       ) latest ON true
       WHERE vo.vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$1 OR id::text=$1 LIMIT 1)
         AND vo.status='archived'
-    `, [vendorId]), { readOnly: true });
+        AND ($2::text[] IS NULL OR vo.public_id=ANY($2::text[]))
+    `, [vendorId, scopedOfferIds ?? null]), { readOnly: true });
 
     return new Set(result.rows
       .filter((row) => String(row.submission_status ?? "") === "archived")
