@@ -67,6 +67,70 @@ export type VendorCatalogCategoryOption = Readonly<{
   id: string; code: string; name: string; path: string; depth: number;
 }>;
 
+export type VendorCatalogSearchInput = Readonly<{
+  run?: boolean;
+  query?: string;
+  category?: string;
+  visibility?: "all" | "visible" | "hidden";
+  stock?: "all" | "in" | "low" | "out";
+  brand?: string;
+  sort?: "updated" | "title" | "category" | "stock";
+  offset?: number;
+  limit?: number;
+}>;
+
+type NormalizedVendorCatalogSearch = Readonly<{
+  run: boolean;
+  query: string;
+  category: string;
+  visibility: "all" | "visible" | "hidden";
+  stock: "all" | "in" | "low" | "out";
+  brand: string;
+  sort: "updated" | "title" | "category" | "stock";
+  offset: number;
+  limit: number;
+}>;
+
+function normalizedSearchText(value: unknown, maxLength = 160): string {
+  return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+function normalizedCatalogSearch(input: VendorCatalogSearchInput = {}): NormalizedVendorCatalogSearch {
+  const visibility = input.visibility === "visible" || input.visibility === "hidden" ? input.visibility : "all";
+  const stock = input.stock === "in" || input.stock === "low" || input.stock === "out" ? input.stock : "all";
+  const sort = input.sort === "title" || input.sort === "category" || input.sort === "stock" ? input.sort : "updated";
+  const offset = Number.isSafeInteger(input.offset) ? Math.max(0, Number(input.offset)) : 0;
+  const limit = Number.isSafeInteger(input.limit) ? Math.max(1, Math.min(60, Number(input.limit))) : 40;
+  return {
+    run: input.run === true,
+    query: normalizedSearchText(input.query),
+    category: normalizedSearchText(input.category, 120),
+    visibility,
+    stock,
+    brand: normalizedSearchText(input.brand, 120),
+    sort,
+    offset,
+    limit
+  };
+}
+function catalogSearchPattern(value: string): string | null {
+  if (!value) return null;
+  return `%${value.replace(/[\\%_]/g, "\\export type VendorCatalogCategoryOption = Readonly<{
+  id: string; code: string; name: string; path: string; depth: number;
+}>;
+
+")}%`;
+}
+const emptyCatalogMetrics = () => ({
+  totalProducts: 0,
+  visibleProducts: 0,
+  hiddenProducts: 0,
+  inStockProducts: 0,
+  outOfStockProducts: 0,
+  lowStockProducts: 0,
+  availableUnits: 0,
+  categoryCount: 0
+});
+
 function summarize(products: readonly VendorManagedCatalogProduct[]) {
   return {
     totalProducts: products.length,
@@ -80,10 +144,24 @@ function summarize(products: readonly VendorManagedCatalogProduct[]) {
   };
 }
 
-export async function vendorCatalogControlWorkspace(principal: SessionPrincipal) {
+export async function vendorCatalogControlWorkspace(principal: SessionPrincipal, input: VendorCatalogSearchInput = {}) {
+  const search = normalizedCatalogSearch(input);
+
   if (!postgresVendorRuntimeEnabled()) {
+    if (!search.run) {
+      return {
+        catalogProducts: [] as VendorManagedCatalogProduct[],
+        categories: [] as VendorCatalogCategoryControl[],
+        categoryOptions: [] as VendorCatalogCategoryOption[],
+        catalogMetrics: emptyCatalogMetrics(),
+        catalogTotalMatching: 0,
+        catalogSearchApplied: false,
+        catalogOffset: search.offset,
+        catalogLimit: search.limit
+      };
+    }
     const dashboard = await vendorDashboard(principal);
-    const products: VendorManagedCatalogProduct[] = dashboard.products.map((p) => ({
+    const allProducts: VendorManagedCatalogProduct[] = dashboard.products.map((p) => ({
       ...p, vendorSku: undefined, gtin: undefined, brand: undefined,
       categoryId: "uncategorized", categoryCode: "uncategorized", categoryName: "Χωρίς κατηγορία",
       categoryPathIds: ["uncategorized"], categoryPathCodes: ["uncategorized"], categoryPathNames: ["Χωρίς κατηγορία"], categoryPath: "Χωρίς κατηγορία",
@@ -93,11 +171,77 @@ export async function vendorCatalogControlWorkspace(principal: SessionPrincipal)
       offerStatus: "approved", productVisible: true, categoryVisible: true,
       effectiveVisible: true, merchantPauseActive: false, canToggleVisibility: false
     }));
-    return { catalogProducts: products, categories: [] as VendorCatalogCategoryControl[], categoryOptions: [] as VendorCatalogCategoryOption[], catalogMetrics: summarize(products) };
+    const needle = search.query.toLocaleLowerCase("el");
+    const categoryNeedle = search.category.toLocaleLowerCase("el");
+    const brandNeedle = search.brand.toLocaleLowerCase("el");
+    const matching = allProducts.filter((product) => {
+      if (needle && ![product.title, product.vendorSku, product.gtin, product.brand, product.categoryPath].filter(Boolean).join(" ").toLocaleLowerCase("el").includes(needle)) return false;
+      if (categoryNeedle && ![product.categoryCode, product.categoryName, product.categoryPath].join(" ").toLocaleLowerCase("el").includes(categoryNeedle)) return false;
+      if (brandNeedle && !String(product.brand ?? "").toLocaleLowerCase("el").includes(brandNeedle)) return false;
+      if (search.visibility === "visible" && !product.effectiveVisible) return false;
+      if (search.visibility === "hidden" && product.effectiveVisible) return false;
+      if (search.stock === "in" && product.availableToSell <= 0) return false;
+      if (search.stock === "out" && product.availableToSell > 0) return false;
+      if (search.stock === "low" && !(product.availableToSell > 0 && product.availableToSell <= Math.max(2, product.safetyStock))) return false;
+      return true;
+    }).sort((a, b) => {
+      if (search.sort === "title") return a.title.localeCompare(b.title, "el");
+      if (search.sort === "category") return a.categoryPath.localeCompare(b.categoryPath, "el") || a.title.localeCompare(b.title, "el");
+      if (search.sort === "stock") return a.availableToSell - b.availableToSell || a.title.localeCompare(b.title, "el");
+      return b.updatedAt - a.updatedAt;
+    });
+    const products = matching.slice(search.offset, search.offset + search.limit);
+    return {
+      catalogProducts: products,
+      categories: [] as VendorCatalogCategoryControl[],
+      categoryOptions: [] as VendorCatalogCategoryOption[],
+      catalogMetrics: { ...summarize(products), totalProducts: matching.length },
+      catalogTotalMatching: matching.length,
+      catalogSearchApplied: true,
+      catalogOffset: search.offset,
+      catalogLimit: search.limit
+    };
   }
 
   return unitOfWork().withTransaction(await vendorScope(principal), async (tx) => {
     const id = vendorId(principal);
+    const options = await tx.query<SqlRow>(`
+      WITH RECURSIVE tree AS (
+        SELECT c.id,c.parent_id,c.code,c.active,c.assignable,ARRAY[COALESCE(el.name,en.name,c.code)]::text[] path_names
+        FROM categories c
+        LEFT JOIN category_translations el ON el.category_id=c.id AND el.locale='el'
+        LEFT JOIN category_translations en ON en.category_id=c.id AND en.locale='en'
+        WHERE c.parent_id IS NULL AND (c.market_id IS NULL OR c.market_id=(SELECT market_id FROM vendor_businesses WHERE public_id=$1 OR id::text=$1 LIMIT 1))
+        UNION ALL
+        SELECT c.id,c.parent_id,c.code,c.active,c.assignable,t.path_names||COALESCE(el.name,en.name,c.code)
+        FROM categories c JOIN tree t ON c.parent_id=t.id
+        LEFT JOIN category_translations el ON el.category_id=c.id AND el.locale='el'
+        LEFT JOIN category_translations en ON en.category_id=c.id AND en.locale='en'
+        WHERE c.market_id IS NULL OR c.market_id=(SELECT market_id FROM vendor_businesses WHERE public_id=$1 OR id::text=$1 LIMIT 1)
+      ) SELECT id::text id,code,path_names FROM tree WHERE active=true AND assignable=true ORDER BY path_names
+    `,[id]);
+    const categoryOptions: VendorCatalogCategoryOption[]=options.rows.map((r)=>{const names=strings(r.path_names);return{id:text(r.id,"category_id"),code:text(r.code,"category_code"),name:names.at(-1)??text(r.code,"category_code"),path:names.join(" › "),depth:Math.max(0,names.length-1)}});
+
+    if (!search.run) {
+      return {
+        catalogProducts: [] as VendorManagedCatalogProduct[],
+        categories: [] as VendorCatalogCategoryControl[],
+        categoryOptions,
+        catalogMetrics: emptyCatalogMetrics(),
+        catalogTotalMatching: 0,
+        catalogSearchApplied: false,
+        catalogOffset: search.offset,
+        catalogLimit: search.limit
+      };
+    }
+
+    const orderBy = search.sort === "title"
+      ? "title ASC,offer_id ASC"
+      : search.sort === "category"
+        ? "path_names ASC,title ASC,offer_id ASC"
+        : search.sort === "stock"
+          ? "available_to_sell ASC,title ASC,offer_id ASC"
+          : "updated_at DESC,offer_id ASC";
     const productRows = await tx.query<SqlRow>(`
       WITH RECURSIVE tree AS (
         SELECT c.id,c.parent_id,c.code,ARRAY[c.id]::uuid[] path_ids,ARRAY[c.code]::text[] path_codes,
@@ -113,29 +257,63 @@ export async function vendorCatalogControlWorkspace(principal: SessionPrincipal)
         LEFT JOIN category_translations el ON el.category_id=c.id AND el.locale='el'
         LEFT JOIN category_translations en ON en.category_id=c.id AND en.locale='en'
         WHERE c.market_id IS NULL OR c.market_id=(SELECT market_id FROM vendor_businesses WHERE public_id=$1 OR id::text=$1 LIMIT 1)
+      ),
+      base AS (
+        SELECT vo.public_id offer_id,cv.public_id canonical_id,COALESCE(ptel.title,pten.title,cv.model,cv.slug) title,
+               vo.vendor_sku,COALESCE(vo.source_gtin,cv.gtin) gtin,b.name brand,cv.category_id::text category_id,t.code category_code,
+               t.path_ids,t.path_codes,t.path_names,vo.customer_price_minor,vo.supplier_unit_price_minor,
+               p.buying_price_minor,COALESCE(p.pricing_mode,'manual') pricing_mode,p.markup_type,p.markup_value,
+               p.discount_type,p.discount_value,vo.msrp_minor,vo.show_msrp,
+               vo.status::text offer_status,vo.merchant_visible,vo.merchant_pause_active,
+               bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id) category_visible,
+               ib.on_hand,ib.active_reservations,ib.blocked,ib.safety_stock,
+               GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked) available_to_sell,
+               GREATEST(vo.updated_at,ib.updated_at,COALESCE(p.updated_at,vo.updated_at)) updated_at
+        FROM vendor_offers vo
+        JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
+        JOIN tree t ON t.id=cv.category_id
+        JOIN inventory_balances ib ON ib.offer_id=vo.id
+        LEFT JOIN vendor_offer_pricing_private p ON p.offer_id=vo.id
+        LEFT JOIN brands b ON b.id=cv.brand_id
+        LEFT JOIN product_translations ptel ON ptel.canonical_variant_id=cv.id AND ptel.locale='el'
+        LEFT JOIN product_translations pten ON pten.canonical_variant_id=cv.id AND pten.locale='en'
+        WHERE vo.vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$1 OR id::text=$1 LIMIT 1)
+          AND (vo.status='approved' OR vo.merchant_pause_active=true OR vo.status IN ('archived','suppressed'))
+      ),
+      filtered AS (
+        SELECT *,
+               (offer_status='approved' AND merchant_visible AND category_visible) AS effective_visible
+        FROM base
+        WHERE ($2::text IS NULL OR
+               title ILIKE $2 ESCAPE '\\' OR
+               COALESCE(vendor_sku,'') ILIKE $2 ESCAPE '\\' OR
+               COALESCE(gtin,'') ILIKE $2 ESCAPE '\\' OR
+               COALESCE(brand,'') ILIKE $2 ESCAPE '\\' OR
+               array_to_string(path_names,' › ') ILIKE $2 ESCAPE '\\')
+          AND ($3::text IS NULL OR
+               category_code ILIKE $3 ESCAPE '\\' OR
+               array_to_string(path_names,' › ') ILIKE $3 ESCAPE '\\')
+          AND ($4::text IS NULL OR COALESCE(brand,'') ILIKE $4 ESCAPE '\\')
       )
-      SELECT vo.public_id offer_id,cv.public_id canonical_id,COALESCE(ptel.title,pten.title,cv.model,cv.slug) title,
-             vo.vendor_sku,COALESCE(vo.source_gtin,cv.gtin) gtin,b.name brand,cv.category_id::text category_id,t.code category_code,
-             t.path_ids,t.path_codes,t.path_names,vo.customer_price_minor,vo.supplier_unit_price_minor,
-             p.buying_price_minor,COALESCE(p.pricing_mode,'manual') pricing_mode,p.markup_type,p.markup_value,
-             p.discount_type,p.discount_value,vo.msrp_minor,vo.show_msrp,
-             vo.status::text offer_status,vo.merchant_visible,vo.merchant_pause_active,
-             bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id) category_visible,
-             ib.on_hand,ib.active_reservations,ib.blocked,ib.safety_stock,
-             GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked) available_to_sell,
-             GREATEST(vo.updated_at,ib.updated_at,COALESCE(p.updated_at,vo.updated_at)) updated_at
-      FROM vendor_offers vo
-      JOIN canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN tree t ON t.id=cv.category_id
-      JOIN inventory_balances ib ON ib.offer_id=vo.id
-      LEFT JOIN vendor_offer_pricing_private p ON p.offer_id=vo.id
-      LEFT JOIN brands b ON b.id=cv.brand_id
-      LEFT JOIN product_translations ptel ON ptel.canonical_variant_id=cv.id AND ptel.locale='el'
-      LEFT JOIN product_translations pten ON pten.canonical_variant_id=cv.id AND pten.locale='en'
-      WHERE vo.vendor_id=(SELECT id FROM vendor_businesses WHERE public_id=$1 OR id::text=$1 LIMIT 1)
-        AND (vo.status='approved' OR vo.merchant_pause_active=true OR vo.status IN ('archived','suppressed'))
-      ORDER BY t.path_names,title,vo.public_id
-    `, [id]);
+      SELECT *,count(*) OVER()::integer AS matching_total
+      FROM filtered
+      WHERE ($5::text='all' OR ($5='visible' AND effective_visible) OR ($5='hidden' AND NOT effective_visible))
+        AND ($6::text='all'
+          OR ($6='in' AND available_to_sell>0)
+          OR ($6='out' AND available_to_sell<=0)
+          OR ($6='low' AND available_to_sell>0 AND available_to_sell<=GREATEST(2,safety_stock)))
+      ORDER BY ${orderBy}
+      LIMIT $7 OFFSET $8
+    `, [
+      id,
+      catalogSearchPattern(search.query),
+      catalogSearchPattern(search.category),
+      catalogSearchPattern(search.brand),
+      search.visibility,
+      search.stock,
+      search.limit,
+      search.offset
+    ]);
 
     const products: VendorManagedCatalogProduct[] = productRows.rows.map((row) => {
       const pathIds = strings(row.path_ids), pathCodes = strings(row.path_codes), pathNames = strings(row.path_names);
@@ -152,7 +330,7 @@ export async function vendorCatalogControlWorkspace(principal: SessionPrincipal)
         discountType:adjustmentType(row.discount_type), discountValue:optionalNumber(row.discount_value),
         msrpMinor:optionalInteger(row.msrp_minor), showMsrp:Boolean(row.show_msrp),
         onHand:integer(row.on_hand,"on_hand"), reserved:integer(row.active_reservations,"active_reservations"), blocked:integer(row.blocked,"blocked"), safetyStock:integer(row.safety_stock,"safety_stock"), availableToSell:integer(row.available_to_sell,"available_to_sell"),
-        offerStatus, productVisible, categoryVisible, effectiveVisible:offerStatus === "approved" && productVisible && categoryVisible,
+        offerStatus, productVisible, categoryVisible, effectiveVisible:Boolean(row.effective_visible),
         merchantPauseActive:Boolean(row.merchant_pause_active), canToggleVisibility:offerStatus === "approved" || Boolean(row.merchant_pause_active), updatedAt:epoch(row.updated_at,"updated_at")
       };
     });
@@ -177,23 +355,17 @@ export async function vendorCatalogControlWorkspace(principal: SessionPrincipal)
       categories=[...categoryBase.values()].map((c)=>({...c,configuredVisible:flags.get(c.id)?.configuredVisible??true,effectiveVisible:flags.get(c.id)?.effectiveVisible??true})).sort((a,b)=>a.path.localeCompare(b.path,"el"));
     }
 
-    const options=await tx.query<SqlRow>(`
-      WITH RECURSIVE tree AS (
-        SELECT c.id,c.parent_id,c.code,c.active,c.assignable,ARRAY[COALESCE(el.name,en.name,c.code)]::text[] path_names
-        FROM categories c
-        LEFT JOIN category_translations el ON el.category_id=c.id AND el.locale='el'
-        LEFT JOIN category_translations en ON en.category_id=c.id AND en.locale='en'
-        WHERE c.parent_id IS NULL AND (c.market_id IS NULL OR c.market_id=(SELECT market_id FROM vendor_businesses WHERE public_id=$1 OR id::text=$1 LIMIT 1))
-        UNION ALL
-        SELECT c.id,c.parent_id,c.code,c.active,c.assignable,t.path_names||COALESCE(el.name,en.name,c.code)
-        FROM categories c JOIN tree t ON c.parent_id=t.id
-        LEFT JOIN category_translations el ON el.category_id=c.id AND el.locale='el'
-        LEFT JOIN category_translations en ON en.category_id=c.id AND en.locale='en'
-        WHERE c.market_id IS NULL OR c.market_id=(SELECT market_id FROM vendor_businesses WHERE public_id=$1 OR id::text=$1 LIMIT 1)
-      ) SELECT id::text id,code,path_names FROM tree WHERE active=true AND assignable=true ORDER BY path_names
-    `,[id]);
-    const categoryOptions: VendorCatalogCategoryOption[]=options.rows.map((r)=>{const names=strings(r.path_names);return{id:text(r.id,"category_id"),code:text(r.code,"category_code"),name:names.at(-1)??text(r.code,"category_code"),path:names.join(" › "),depth:Math.max(0,names.length-1)}});
-    return { catalogProducts:products,categories,categoryOptions,catalogMetrics:summarize(products) };
+    const totalMatching = productRows.rows.length ? integer(productRows.rows[0].matching_total,"matching_total") : 0;
+    return {
+      catalogProducts:products,
+      categories,
+      categoryOptions,
+      catalogMetrics:{...summarize(products),totalProducts:totalMatching},
+      catalogTotalMatching:totalMatching,
+      catalogSearchApplied:true,
+      catalogOffset:search.offset,
+      catalogLimit:search.limit
+    };
   },{readOnly:true});
 }
 
