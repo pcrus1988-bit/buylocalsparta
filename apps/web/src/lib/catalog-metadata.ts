@@ -176,7 +176,7 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
       fit: textValue(specifications.fit),
       composition: textValue(specifications.composition),
       madeIn: textValue(specifications.made_in) ?? textValue(attributes.made_in),
-      attributes: scalarMetadata
+      attributes: { ...scalarAttributes(attributes), ...scalarAttributes(specifications) }
     } satisfies CatalogMetadata] as const;
   }));
 }
