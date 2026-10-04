@@ -1,5 +1,5 @@
 {
-  "version": 18,
+  "version": 19,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -5786,6 +5786,72 @@
           "type": "jurisdiction",
           "displayName": "Australia",
           "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cnd_product_profiles",
+      "publisher": "Creative Nail Design",
+      "title": "Product Profiles",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.cnd.com/pages/product-profiles",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "CND",
+        "scope": "technical_product_profiles",
+        "preserveLinkedPdfs": true
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "allowedHosts": [
+          "cdn.shopify.com"
+        ],
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "CND",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cnd_sds",
+      "publisher": "Creative Nail Design",
+      "title": "Safety Data Sheets (SDS)",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.cnd.com/pages/sds",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "CND",
+        "scope": "sds_library",
+        "preserveLinkedPdfs": true
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "allowedHosts": [
+          "cdn.shopify.com"
+        ],
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "CND",
+          "relation": "primary_for"
         }
       ]
     }
