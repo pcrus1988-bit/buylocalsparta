@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import styles from "./VendorCatalogClient.module.css";
@@ -24,6 +24,18 @@ type Submission = {
   candidates: ReadonlyArray<{ id: string; canonicalVariantId: string; canonicalTitle: string; level: string; confidence: number; status: string }>;
 };
 type Workspace = { csrfToken: string; vendorId: string; csvTemplate: string; catalogProducts: ReadonlyArray<CatalogProduct>; categories: ReadonlyArray<CategoryControl>; categoryOptions: ReadonlyArray<CategoryOption>; catalogMetrics: CatalogMetrics; submissions: ReadonlyArray<Submission> };
+type CatalogSearchState = {
+  active: boolean;
+  query: string;
+  category: string;
+  visibility: "all" | "visible" | "hidden";
+  stock: "all" | "in" | "low" | "out";
+  brand: string;
+  sort: "updated" | "title" | "category" | "stock";
+  offset: number;
+  limit: number;
+  totalMatching: number;
+};
 type Preview = { totalRows: number; rows: readonly unknown[]; errors: readonly { rowNumber: number; field?: string; message: string }[] };
 type StockDraft = { onHand: string; safetyStock: string };
 
@@ -57,19 +69,19 @@ function submissionStatusLabel(value: string) {
   return labels[value] ?? offerStatusLabel(value);
 }
 
-export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: Workspace; canImportCatalogue: boolean }) {
+export function VendorCatalogClient({ initial, canImportCatalogue, catalogSearch }: { initial: Workspace; canImportCatalogue: boolean; catalogSearch: CatalogSearchState }) {
   const router = useRouter();
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [csv, setCsv] = useState(initial.csvTemplate);
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("all");
-  const [visibility, setVisibility] = useState("all");
-  const [stock, setStock] = useState("all");
-  const [brand, setBrand] = useState("all");
-  const [sort, setSort] = useState("updated");
+  const [query, setQuery] = useState(catalogSearch.query);
+  const [category, setCategory] = useState(catalogSearch.category);
+  const [visibility, setVisibility] = useState<string>(catalogSearch.visibility);
+  const [stock, setStock] = useState<string>(catalogSearch.stock);
+  const [brand, setBrand] = useState(catalogSearch.brand);
+  const [sort, setSort] = useState<string>(catalogSearch.sort);
   const [stockDrafts, setStockDrafts] = useState<Record<string, StockDraft>>(() => Object.fromEntries(initial.catalogProducts.map((product) => [product.offerId, { onHand: String(product.onHand), safetyStock: String(product.safetyStock) }])));
   const { requestConfirmation, confirmationDialog } = useVendorConfirmation();
 
@@ -77,36 +89,19 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
     setStockDrafts(Object.fromEntries(initial.catalogProducts.map((product) => [product.offerId, { onHand: String(product.onHand), safetyStock: String(product.safetyStock) }])));
   }, [initial.catalogProducts]);
 
+  useEffect(() => {
+    setQuery(catalogSearch.query);
+    setCategory(catalogSearch.category);
+    setVisibility(catalogSearch.visibility);
+    setStock(catalogSearch.stock);
+    setBrand(catalogSearch.brand);
+    setSort(catalogSearch.sort);
+  }, [catalogSearch.query, catalogSearch.category, catalogSearch.visibility, catalogSearch.stock, catalogSearch.brand, catalogSearch.sort]);
+
   const draftSubmissions = initial.submissions.filter((item) => item.status === "draft");
   const awaitingReview = initial.submissions.filter((item) => ["submitted", "needs_review"].includes(item.status)).length;
   const linked = initial.submissions.filter((item) => Boolean(item.canonicalVariantId)).length;
   const rejected = initial.submissions.filter((item) => item.status === "rejected").length;
-  const brands = useMemo(() => [...new Set(initial.catalogProducts.map((item) => item.brand).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "el")), [initial.catalogProducts]);
-
-  const filteredProducts = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("el");
-    const rows = initial.catalogProducts.filter((product) => {
-      if (needle) {
-        const haystack = [product.title, product.vendorSku, product.gtin, product.brand, product.categoryPath].filter(Boolean).join(" ").toLocaleLowerCase("el");
-        if (!haystack.includes(needle)) return false;
-      }
-      if (category !== "all" && !product.categoryPathIds.includes(category)) return false;
-      if (visibility === "visible" && !product.effectiveVisible) return false;
-      if (visibility === "hidden" && product.effectiveVisible) return false;
-      if (brand !== "all" && product.brand !== brand) return false;
-      if (stock === "in" && product.availableToSell <= 0) return false;
-      if (stock === "out" && product.availableToSell > 0) return false;
-      if (stock === "low" && !isLowStock(product)) return false;
-      return true;
-    });
-    return [...rows].sort((a, b) => {
-      if (sort === "title") return a.title.localeCompare(b.title, "el");
-      if (sort === "category") return a.categoryPath.localeCompare(b.categoryPath, "el") || a.title.localeCompare(b.title, "el");
-      if (sort === "stock") return a.availableToSell - b.availableToSell || a.title.localeCompare(b.title, "el");
-      return b.updatedAt - a.updatedAt;
-    });
-  }, [initial.catalogProducts, query, category, visibility, brand, stock, sort]);
-
   async function call(key: string, url: string, body: unknown, method = "POST") {
     setBusy(key);
     setError("");
@@ -184,7 +179,7 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
     }
     requestConfirmation({
       title: `Να κρυφτεί η κατηγορία «${item.name}»;`,
-      body: `Θα σταματήσουν προσωρινά να εμφανίζονται ${item.productCount.toLocaleString("el-GR")} προϊόντα της κατηγορίας και των υποκατηγοριών της. Δεν διαγράφεται προϊόν ή απόθεμα.`,
+      body: "Θα σταματήσουν προσωρινά να εμφανίζονται τα προϊόντα της κατηγορίας και των υποκατηγοριών της. Δεν διαγράφεται προϊόν ή απόθεμα.",
       confirmLabel: "Απόκρυψη κατηγορίας",
       tone: "danger",
       onConfirm: () => call(`category:${item.id}`, "/api/vendor/catalog/visibility", { scope: "category", categoryId: item.id, visible: false }, "PUT")
@@ -192,8 +187,36 @@ export function VendorCatalogClient({ initial, canImportCatalogue }: { initial: 
   }
 
   const canConfirmImport = Boolean(preview && preview.totalRows > 0 && preview.errors.length === 0);
-  const filtersActive = Boolean(query || category !== "all" || visibility !== "all" || stock !== "all" || brand !== "all" || sort !== "updated");
-  const resetFilters = () => { setQuery(""); setCategory("all"); setVisibility("all"); setStock("all"); setBrand("all"); setSort("updated"); };
+  const filtersActive = Boolean(query.trim() || category.trim() || visibility !== "all" || stock !== "all" || brand.trim() || sort !== "updated");
+  const previousCatalogOffset = Math.max(0, catalogSearch.offset - catalogSearch.limit);
+  const nextCatalogOffset = catalogSearch.offset + initial.catalogProducts.length;
+  const hasPreviousCatalog = catalogSearch.active && catalogSearch.offset > 0;
+  const hasNextCatalog = catalogSearch.active && nextCatalogOffset < catalogSearch.totalMatching;
+
+  function catalogHref(offset = 0): string {
+    const params = new URLSearchParams({ catalogSearch: "1" });
+    if (query.trim()) params.set("q", query.trim());
+    if (category.trim()) params.set("category", category.trim());
+    if (visibility !== "all") params.set("visibility", visibility);
+    if (stock !== "all") params.set("stock", stock);
+    if (brand.trim()) params.set("brand", brand.trim());
+    if (sort !== "updated") params.set("sort", sort);
+    if (offset > 0) params.set("catalogOffset", String(offset));
+    return `/vendor/catalog?${params.toString()}#live-catalog`;
+  }
+  function applyCatalogSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    router.push(catalogHref(0));
+  }
+  function resetFilters() {
+    setQuery("");
+    setCategory("");
+    setVisibility("all");
+    setStock("all");
+    setBrand("");
+    setSort("updated");
+    router.push("/vendor/catalog#live-catalog");
+  }
 
   return <>
     {confirmationDialog}
