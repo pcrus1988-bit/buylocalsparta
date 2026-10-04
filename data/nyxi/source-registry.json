@@ -1,5 +1,5 @@
 {
-  "version": 16,
+  "version": 17,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -5235,6 +5235,310 @@
           "type": "brand",
           "displayName": "Born Pretty",
           "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gb_cosmetics_regulation_current",
+      "publisher": "UK Legislation",
+      "title": "Cosmetic Products Regulation (EC) No 1223/2009 — GB current text",
+      "sourceFamily": "law",
+      "authorityLevel": 5,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.legislation.gov.uk/eur/2009/1223/body/2025-06-02",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "cosmetics",
+        "scope": "gb_retained_cosmetics_regulation"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "Great Britain",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gb_cosmetics_restrictions_2025_901",
+      "publisher": "UK Legislation",
+      "title": "Cosmetic Products (Restriction of Chemical Substances) (No. 2) Regulations 2025",
+      "sourceFamily": "law",
+      "authorityLevel": 5,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.legislation.gov.uk/uksi/2025/901/contents/made",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetics",
+        "scope": "chemical_restrictions_amendment_2025"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "historicalEvidence": true
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "Great Britain",
+          "relation": "historical_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gb_cosmetics_restrictions_2026_109",
+      "publisher": "UK Legislation",
+      "title": "Cosmetic Products Regulation Restriction of Chemical Substances No. 2 Regulations 2026",
+      "sourceFamily": "law",
+      "authorityLevel": 5,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.legislation.gov.uk/uksi/2026/109/introduction/made",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetics",
+        "scope": "chemical_restrictions_amendment_2026"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "Great Britain",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "jp_cosmetics_standards_pdf",
+      "publisher": "Ministry of Health, Labour and Welfare Japan",
+      "title": "Standards for Cosmetics — English PDF",
+      "sourceFamily": "law",
+      "authorityLevel": 5,
+      "jurisdiction": "JP",
+      "language": "en",
+      "canonicalUrl": "https://www.mhlw.go.jp/content/001257665.pdf",
+      "retrievalMethod": "pdf",
+      "official": true,
+      "legallyBinding": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "cosmetics",
+        "scope": "ingredient_standards_and_restrictions"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "Japan",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "jp_mhlw_cosmetics_documents_index",
+      "publisher": "Ministry of Health, Labour and Welfare Japan",
+      "title": "Cosmetics and Quasi-drugs Documents Index",
+      "sourceFamily": "regulatory_database",
+      "authorityLevel": 5,
+      "jurisdiction": "JP",
+      "language": "ja",
+      "canonicalUrl": "https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/kenkou_iryou/iyakuhin/keshouhin/index.html",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "cosmetics",
+        "scope": "standards_notices_additives_and_raw_material_documents"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "preserveLinkedPdfs": true
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "Japan",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cn_nmpa_cosmetics_index",
+      "publisher": "National Medical Products Administration",
+      "title": "NMPA Cosmetics",
+      "sourceFamily": "regulatory_database",
+      "authorityLevel": 5,
+      "jurisdiction": "CN",
+      "language": "en",
+      "canonicalUrl": "https://english.nmpa.gov.cn/cosmetics.html",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "cosmetics",
+        "scope": "regulatory_news_and_notices_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "China",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cn_nmpa_cosmetics_registration_filing",
+      "publisher": "National Medical Products Administration",
+      "title": "Provisions for Registration and Filing of Cosmetics",
+      "sourceFamily": "law",
+      "authorityLevel": 5,
+      "jurisdiction": "CN",
+      "language": "en",
+      "canonicalUrl": "https://english.nmpa.gov.cn/2022-06/30/c_785637.htm",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetics",
+        "scope": "registration_filing_and_ingredient_information"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "China",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cn_nmpa_ingredient_safety_platform_notice",
+      "publisher": "National Medical Products Administration",
+      "title": "Cosmetic Ingredient Safety Information Registration Platform Notice",
+      "sourceFamily": "regulatory_guidance",
+      "authorityLevel": 5,
+      "jurisdiction": "CN",
+      "language": "en",
+      "canonicalUrl": "https://english.nmpa.gov.cn/2021-12/30/c_739582.htm",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetic_ingredients",
+        "scope": "ingredient_safety_information_platform"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "historicalEvidence": true
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "China",
+          "relation": "historical_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cn_nmpa_safety_evaluation_guidance_2021",
+      "publisher": "National Medical Products Administration",
+      "title": "Technical Guidance for the Safety Evaluation of Cosmetics 2021",
+      "sourceFamily": "regulatory_guidance",
+      "authorityLevel": 5,
+      "jurisdiction": "CN",
+      "language": "en",
+      "canonicalUrl": "https://english.nmpa.gov.cn/2021-04/09/c_655155.htm",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetic_safety_assessment",
+        "scope": "safety_evaluation_guidance"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "historicalEvidence": true
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "China",
+          "relation": "historical_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cn_nmpa_dossier_ingredient_safety_2021",
+      "publisher": "National Medical Products Administration",
+      "title": "Implementation of Rules for Registration and Notification Dossiers of Cosmetics",
+      "sourceFamily": "regulatory_guidance",
+      "authorityLevel": 5,
+      "jurisdiction": "CN",
+      "language": "en",
+      "canonicalUrl": "https://english.nmpa.gov.cn/2021-03/05/c_656659.htm",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetics",
+        "scope": "formula_and_ingredient_safety_dossier_requirements"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "historicalEvidence": true
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "China",
+          "relation": "historical_for"
         }
       ]
     }
