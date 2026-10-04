@@ -32,7 +32,7 @@
     },
     {
       "path": "/api/cron/nova-availability-failover",
-      "schedule": "*/15 * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/symphonya-catalogue",
