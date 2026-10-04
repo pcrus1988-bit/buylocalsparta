@@ -4,33 +4,45 @@
   background:radial-gradient(circle at 12% 0%,rgba(178,150,97,.12),transparent 30rem),var(--paper)
 }
 .brandedPage{
-  background:
-    radial-gradient(circle at 12% 0%,var(--vendor-primary-soft),transparent 30rem),
-    radial-gradient(circle at 88% 16%,var(--vendor-secondary-soft),transparent 28rem),
-    var(--paper)
+  background:radial-gradient(circle at 12% 0%,rgba(178,150,97,.08),transparent 30rem),var(--paper)
 }
-.brandedPage .hero{border-bottom-color:var(--vendor-primary-soft)}
+/* Vendor branding is intentionally restrained: brand colours identify and accent the
+   storefront, while large surfaces, headings and primary actions stay in KONTA MOY's
+   neutral visual system. This keeps bright vendor palettes from overpowering content. */
+.brandedPage .hero{border-bottom-color:var(--line)}
 .brandedPage .backLink{color:var(--vendor-primary)}
-.brandedPage .logoMark{border-color:var(--vendor-primary-soft);box-shadow:0 14px 40px var(--vendor-primary-soft)}
-.brandedPage .brandMeta strong,.brandedPage .identity h1{color:var(--vendor-primary)}
-.brandedPage .quickFact{border-color:var(--vendor-primary-soft);background:var(--vendor-primary-surface)}
-.brandedPage .hero :global(.button),.brandedPage .askPanel :global(.button){border-color:var(--vendor-primary);background:var(--vendor-primary);color:var(--vendor-on-primary)}
-.brandedPage .hero :global(.button.button-secondary){border-color:var(--vendor-secondary);background:var(--vendor-secondary);color:var(--vendor-on-secondary)}
-.brandedPage .mediaPanel{border-color:var(--vendor-primary-soft);background:linear-gradient(145deg,var(--vendor-secondary),var(--vendor-primary))}
-.brandedPage .catalogSection{background:var(--vendor-primary-surface)}
-.brandedPage .instagramSection{background:radial-gradient(circle at 85% 10%,var(--vendor-secondary-soft),transparent 26rem),rgba(255,253,248,.72)}
+.brandedPage .logoMark{border-color:var(--vendor-primary-soft);box-shadow:0 14px 40px rgba(24,48,39,.08)}
+.brandedPage .brandMeta strong{color:var(--vendor-primary)}
+.brandedPage .identity h1{color:var(--ink)}
+.brandedPage .quickFact{border-color:var(--vendor-primary-soft);background:rgba(255,253,248,.62)}
+.brandedPage .hero :global(.button),.brandedPage .askPanel :global(.button){
+  border-color:var(--ink);
+  background:var(--ink);
+  color:#fff;
+  box-shadow:inset 0 -3px 0 var(--vendor-primary)
+}
+.brandedPage .hero :global(.button.button-secondary){
+  border-color:var(--line);
+  background:transparent;
+  color:var(--ink);
+  box-shadow:inset 0 -2px 0 var(--vendor-primary)
+}
+.brandedPage .mediaPanel{border-color:var(--vendor-primary-soft);background:linear-gradient(145deg,rgba(109,118,81,.86),rgba(24,48,39,.96))}
+.brandedPage .catalogSection{background:rgba(255,253,248,.38)}
+.brandedPage .instagramSection{background:radial-gradient(circle at 85% 10%,rgba(178,150,97,.1),transparent 26rem),rgba(255,253,248,.72)}
 .brandedPage .card,.brandedPage .catalogFilterPanel{border-color:var(--vendor-primary-soft)}
-.brandedPage .personAvatar,.brandedPage .storyCard{background:var(--vendor-primary);color:var(--vendor-on-primary)}
-.brandedPage .storyCard h2,.brandedPage .storyCard p,.brandedPage .storyNote{color:var(--vendor-on-primary)}
-.brandedPage .storyCard p,.brandedPage .storyNote{opacity:.82}
+.brandedPage .personAvatar,.brandedPage .storyCard{background:var(--ink);color:#eef2ed}
+.brandedPage .storyCard h2{color:#fff}
+.brandedPage .storyCard p{color:#cfd8d1}
+.brandedPage .storyNote{color:#9fb1a6}
 .brandedPage .filterCategoryButton:hover{border-color:var(--vendor-primary-soft);background:var(--vendor-primary-surface);color:var(--vendor-primary)}
 .brandedPage .filterCategoryButtonActive,.brandedPage .filterCategoryButtonActive:hover{border-color:var(--vendor-primary);background:var(--vendor-primary);color:var(--vendor-on-primary)}
 .brandedPage .field input:focus-visible,.brandedPage .field select:focus-visible,.brandedPage .askForm input:focus-visible,.brandedPage .askForm textarea:focus-visible{outline-color:var(--vendor-secondary)}
 .brandedPage .categoryChipActive{border-color:var(--vendor-primary);background:var(--vendor-primary);color:var(--vendor-on-primary)}
 .brandedPage .clearButton,.brandedPage .mapLink{color:var(--vendor-primary)}
-.brandedPage .askPanel{background:linear-gradient(135deg,var(--vendor-secondary-soft),var(--vendor-primary-surface))}
+.brandedPage .askPanel{background:#d8d8c7}
 .brandedPage .askVendorBadge{border:1px solid var(--vendor-primary-soft);background:rgba(255,253,248,.82)}
-.brandedPage .mobileFilterTrigger{background:var(--vendor-primary);color:var(--vendor-on-primary)}
+.brandedPage .mobileFilterTrigger{background:var(--ink);color:#fff;box-shadow:inset 0 -3px 0 var(--vendor-primary)}
 .brandedPage .mobileCatalogDock input:focus-visible{outline-color:var(--vendor-secondary)}
 .hero{padding:34px 0 58px;border-bottom:1px solid var(--line)}
 .backLink{display:inline-flex;align-items:center;gap:8px;margin-bottom:28px;color:var(--ink-soft);font-size:12px;font-weight:800}
