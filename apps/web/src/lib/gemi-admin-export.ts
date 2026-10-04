@@ -9,7 +9,13 @@ const ALL_PREFECTURES = "__all_prefectures__";
 // ΓΕΜΗ exposes company search as GET. Large semantic groups can expand to
 // hundreds/thousands of exact KAD ids, so keep the serialized activities
 // parameter comfortably below common proxy/server URI limits.
-const MAX_ACTIVITIES_QUERY_CHARS = 900;
+const MAX_ACTIVITIES_QUERY_CHARS = 1600;
+const GEMI_COMPANY_REQUEST_MIN_INTERVAL_MS = 450;
+const GEMI_429_FALLBACK_DELAY_MS = 2_000;
+const GEMI_MAX_RETRY_DELAY_MS = 15_000;
+
+let gemiCompanyRequestQueue: Promise<void> = Promise.resolve();
+let gemiNextCompanyRequestAt = 0;
 
 export type GemiAdminActivity = Readonly<{
   id: string;
@@ -334,6 +340,35 @@ function gemiBaseUrl(): string {
   return (process.env.GEMI_OPENDATA_BASE_URL?.trim() || DEFAULT_GEMI_BASE_URL).replace(/\/+$/, "");
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+}
+
+function retryAfterMs(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(GEMI_MAX_RETRY_DELAY_MS, Math.max(250, seconds * 1000));
+  }
+  const at = Date.parse(value);
+  if (!Number.isFinite(at)) return undefined;
+  return Math.min(GEMI_MAX_RETRY_DELAY_MS, Math.max(250, at - Date.now()));
+}
+
+async function paceGemiCompanyRequest(): Promise<void> {
+  let release!: () => void;
+  const previous = gemiCompanyRequestQueue;
+  gemiCompanyRequestQueue = new Promise<void>((resolve) => { release = resolve; });
+  await previous;
+  try {
+    const waitMs = Math.max(0, gemiNextCompanyRequestAt - Date.now());
+    if (waitMs) await sleep(waitMs);
+    gemiNextCompanyRequestAt = Date.now() + GEMI_COMPANY_REQUEST_MIN_INTERVAL_MS;
+  } finally {
+    release();
+  }
+}
+
 async function gemiGet(path: string, params: Record<string, string | number | boolean> = {}, attempts = 4, apiKey?: string): Promise<unknown> {
   const key = apiKey?.trim() || await gemiApiKey();
   if (!key) throw new Error("ΓΕΜΗ API credential is not configured.");
@@ -342,7 +377,11 @@ async function gemiGet(path: string, params: Record<string, string | number | bo
   for (const [name, value] of Object.entries(params)) url.searchParams.set(name, String(value));
 
   let lastError: Error | undefined;
+  let retryDelayMs = 0;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (retryDelayMs) await sleep(retryDelayMs);
+    if (path === "/companies") await paceGemiCompanyRequest();
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), Number(process.env.GEMI_REQUEST_TIMEOUT_MS || DEFAULT_TIMEOUT_MS));
     try {
@@ -358,13 +397,27 @@ async function gemiGet(path: string, params: Record<string, string | number | bo
       if (![429, 500, 502, 503, 504].includes(response.status)) {
         throw new Error(`ΓΕΜΗ HTTP ${response.status}: ${text.slice(0, 240)}`);
       }
+
       lastError = new Error(`ΓΕΜΗ HTTP ${response.status}`);
+      if (response.status === 429) {
+        retryDelayMs = retryAfterMs(response.headers.get("retry-after"))
+          ?? Math.min(GEMI_MAX_RETRY_DELAY_MS, GEMI_429_FALLBACK_DELAY_MS * (2 ** attempt));
+        console.warn(JSON.stringify({
+          level: "warn",
+          event: "gemi.rate_limited",
+          path,
+          attempt: attempt + 1,
+          retryDelayMs
+        }));
+      } else {
+        retryDelayMs = Math.min(GEMI_MAX_RETRY_DELAY_MS, 750 * (2 ** attempt));
+      }
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
+      retryDelayMs = Math.min(GEMI_MAX_RETRY_DELAY_MS, 750 * (2 ** attempt));
     } finally {
       clearTimeout(timeout);
     }
-    if (attempt < attempts - 1) await new Promise((resolve) => setTimeout(resolve, 500 * (2 ** attempt)));
   }
   throw lastError ?? new Error("ΓΕΜΗ request failed.");
 }
@@ -571,7 +624,7 @@ async function searchCompaniesBatch(
   size: number,
   apiKey?: string
 ): Promise<{ totalCount: number; companies: GemiCompany[] }> {
-  const raw = await gemiGet("/companies", searchParams(filters, activityIds, offset, size), 4, apiKey) as SearchResponse;
+  const raw = await gemiGet("/companies", searchParams(filters, activityIds, offset, size), 6, apiKey) as SearchResponse;
   const companies = Array.isArray(raw.searchResults)
     ? raw.searchResults.filter((item): item is GemiCompany => Boolean(objectField(item)))
     : [];
