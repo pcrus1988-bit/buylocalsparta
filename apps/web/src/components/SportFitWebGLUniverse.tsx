@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { productPublicPath } from "../lib/product-url";
+import type { SportFitMatchProof } from "../lib/sport-fit-engine";
 import styles from "./SportFitWebGLUniverse.module.css";
 
 export type SportFitUniverseVisualProduct = Readonly<{
@@ -21,6 +22,7 @@ export type SportFitUniverseVisualProduct = Readonly<{
   matchedSize?: string;
   role?: string;
   reasons?: readonly string[];
+  matchProofs?: readonly SportFitMatchProof[];
 }>;
 
 type Props = Readonly<{
@@ -367,7 +369,16 @@ function ProductPopup({
             {product.matchedSize ? <small>EU {product.matchedSize}</small> : null}
           </div>
 
-          {product.reasons?.length ? (
+          {product.matchProofs?.length ? (
+            <div className={styles.popupReasons}>
+              <span>ΔΙΚΑ ΣΟΥ ΣΤΟΙΧΕΙΑ × ΑΠΟΔΕΙΞΗ ΓΝΩΣΗΣ</span>
+              <ul>
+                {product.matchProofs.slice(0, 4).map((proof) => (
+                  <li key={proof.id}>{proof.input} → {proof.knowledge} · {proof.proof}</li>
+                ))}
+              </ul>
+            </div>
+          ) : product.reasons?.length ? (
             <div className={styles.popupReasons}>
               <span>ΓΙΑΤΙ ΠΑΡΑΜΕΝΕΙ ΣΤΟ ΠΕΔΙΟ</span>
               <ul>{product.reasons.slice(0, 4).map((reason) => <li key={reason}>{reason}</li>)}</ul>
