@@ -223,12 +223,12 @@ export function VendorCatalogClient({ initial, canImportCatalogue, catalogSearch
     {error && <div className="shell form-error vendor-error" role="alert"><strong>Η αλλαγή δεν αποθηκεύτηκε.</strong> {error}</div>}
     {notice && <div className="shell workspace-inline-note" role="status"><strong>Έτοιμο.</strong> {notice}</div>}
 
-    <WorkspaceMetricStrip items={[
-      { label: "Εμφανίζονται στο κατάστημα", value: initial.catalogMetrics.visibleProducts, tone: initial.catalogMetrics.visibleProducts ? "positive" : "default" },
-      { label: "Κρυφά", value: initial.catalogMetrics.hiddenProducts, tone: initial.catalogMetrics.hiddenProducts ? "attention" : "default" },
-      { label: "Χαμηλό απόθεμα", value: initial.catalogMetrics.lowStockProducts, tone: initial.catalogMetrics.lowStockProducts ? "attention" : "default" },
-      { label: "Χωρίς απόθεμα", value: initial.catalogMetrics.outOfStockProducts, tone: initial.catalogMetrics.outOfStockProducts ? "attention" : "default" }
-    ]} />
+    {catalogSearch.active && <WorkspaceMetricStrip items={[
+      { label: "Στη σελίδα · εμφανίζονται", value: initial.catalogMetrics.visibleProducts, tone: initial.catalogMetrics.visibleProducts ? "positive" : "default" },
+      { label: "Στη σελίδα · κρυφά", value: initial.catalogMetrics.hiddenProducts, tone: initial.catalogMetrics.hiddenProducts ? "attention" : "default" },
+      { label: "Στη σελίδα · χαμηλό απόθεμα", value: initial.catalogMetrics.lowStockProducts, tone: initial.catalogMetrics.lowStockProducts ? "attention" : "default" },
+      { label: "Στη σελίδα · χωρίς απόθεμα", value: initial.catalogMetrics.outOfStockProducts, tone: initial.catalogMetrics.outOfStockProducts ? "attention" : "default" }
+    ]} />}
 
     <section className="shell vendor-section" id="live-catalog">
       <WorkspaceSectionHeading eyebrow="Κατάλογος" title="Τι βλέπει ο πελάτης και τι υπάρχει στο κατάστημα" note="Ενημέρωσε το πραγματικό απόθεμα και έλεγξε ποια προϊόντα εμφανίζονται δημόσια. Η απόκρυψη δεν διαγράφει προϊόν ή stock." />
@@ -244,7 +244,7 @@ export function VendorCatalogClient({ initial, canImportCatalogue, catalogSearch
           <div className={styles.categoryPanel}>
             {initial.categories.map((item) => <div className={styles.categoryRow} key={item.id}>
               <div className={styles.categoryMeta} style={{ paddingLeft: Math.min(item.depth, 4) * 13 }}>
-                <div className={styles.categoryToggleTitle}><strong>{item.name}</strong><span>{item.productCount} προϊόντα</span></div>
+                <div className={styles.categoryToggleTitle}><strong>{item.name}</strong><span>{item.productCount} στα αποτελέσματα</span></div>
                 <small>{item.path}{item.configuredVisible && !item.effectiveVisible ? " · κρυφή από ανώτερη κατηγορία" : ""}</small>
               </div>
               <div className={styles.switchWrap}>
@@ -260,16 +260,25 @@ export function VendorCatalogClient({ initial, canImportCatalogue, catalogSearch
         </div>
       </details>}
 
-      <div className={styles.controlBar} aria-label="Φίλτρα καταλόγου">
-        <div className={`${styles.field} ${styles.search}`}><label htmlFor="vendor-product-search">Αναζήτηση</label><input id="vendor-product-search" type="search" placeholder="Όνομα, SKU, GTIN, μάρκα…" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
-        <div className={styles.field}><label htmlFor="vendor-category-filter">Κατηγορία</label><select id="vendor-category-filter" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">Όλες</option>{initial.categories.map((item) => <option value={item.id} key={item.id}>{`${"— ".repeat(Math.min(item.depth, 3))}${item.name} (${item.productCount})`}</option>)}</select></div>
-        <div className={styles.field}><label htmlFor="vendor-visibility-filter">Εμφάνιση</label><select id="vendor-visibility-filter" value={visibility} onChange={(event) => setVisibility(event.target.value)}><option value="all">Όλα</option><option value="visible">Εμφανίζονται</option><option value="hidden">Κρυφά</option></select></div>
-        <div className={styles.field}><label htmlFor="vendor-stock-filter">Απόθεμα</label><select id="vendor-stock-filter" value={stock} onChange={(event) => setStock(event.target.value)}><option value="all">Όλα</option><option value="in">Σε απόθεμα</option><option value="low">Χαμηλό απόθεμα</option><option value="out">Χωρίς απόθεμα</option></select></div>
-        <div className={styles.field}><label htmlFor="vendor-brand-filter">Μάρκα</label><select id="vendor-brand-filter" value={brand} onChange={(event) => setBrand(event.target.value)}><option value="all">Όλες</option>{brands.map((item) => <option value={item} key={item}>{item}</option>)}</select></div>
-      </div>
-      <div className={styles.filterSummary}><strong>{filteredProducts.length} από {initial.catalogMetrics.totalProducts} προϊόντα</strong><div className={styles.sectionTools}><div className={styles.field}><label htmlFor="vendor-sort">Ταξινόμηση</label><select id="vendor-sort" value={sort} onChange={(event) => setSort(event.target.value)}><option value="updated">Πρόσφατη ενημέρωση</option><option value="title">Όνομα A–Ω</option><option value="category">Κατηγορία</option><option value="stock">Χαμηλότερο απόθεμα</option></select></div>{filtersActive && <button className={styles.reset} type="button" onClick={resetFilters}>Καθαρισμός φίλτρων</button>}</div></div>
-
-      {initial.catalogProducts.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν ακόμη προϊόντα." body={canImportCatalogue ? "Δημιούργησε νέο προϊόν ή εισήγαγε CSV. Μόλις εγκριθεί, θα εμφανιστεί εδώ." : "Δημιούργησε νέο προϊόν. Μόλις εγκριθεί, θα εμφανιστεί εδώ."} /> : filteredProducts.length === 0 ? <div className={styles.emptyFiltered}>Δεν βρέθηκαν προϊόντα με αυτά τα φίλτρα. <button className={styles.reset} type="button" onClick={resetFilters}>Εμφάνιση όλων</button></div> : <div className={styles.productGrid}>{filteredProducts.map((product) => {
+      <form onSubmit={applyCatalogSearch} aria-label="Αναζήτηση και φίλτρα καταλόγου">
+        <div className={styles.controlBar}>
+          <div className={styles.field + " " + styles.search}><label htmlFor="vendor-product-search">Αναζήτηση</label><input id="vendor-product-search" type="search" placeholder="Όνομα, SKU, GTIN, μάρκα…" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
+          <div className={styles.field}><label htmlFor="vendor-category-filter">Κατηγορία</label><input id="vendor-category-filter" type="search" placeholder="Όνομα ή κωδικός κατηγορίας" value={category} onChange={(event) => setCategory(event.target.value)} /></div>
+          <div className={styles.field}><label htmlFor="vendor-visibility-filter">Εμφάνιση</label><select id="vendor-visibility-filter" value={visibility} onChange={(event) => setVisibility(event.target.value)}><option value="all">Όλα</option><option value="visible">Εμφανίζονται</option><option value="hidden">Κρυφά</option></select></div>
+          <div className={styles.field}><label htmlFor="vendor-stock-filter">Απόθεμα</label><select id="vendor-stock-filter" value={stock} onChange={(event) => setStock(event.target.value)}><option value="all">Όλα</option><option value="in">Σε απόθεμα</option><option value="low">Χαμηλό απόθεμα</option><option value="out">Χωρίς απόθεμα</option></select></div>
+          <div className={styles.field}><label htmlFor="vendor-brand-filter">Μάρκα</label><input id="vendor-brand-filter" type="search" placeholder="π.χ. Nike, Vitex…" value={brand} onChange={(event) => setBrand(event.target.value)} /></div>
+        </div>
+        <div className={styles.filterSummary}>
+          <strong>{catalogSearch.active ? catalogSearch.totalMatching.toLocaleString("el-GR") + " προϊόντα ταιριάζουν · " + initial.catalogProducts.length.toLocaleString("el-GR") + " φορτώθηκαν" : "Δεν φορτώθηκαν προϊόντα ακόμη"}</strong>
+          <div className={styles.sectionTools}>
+            <div className={styles.field}><label htmlFor="vendor-sort">Ταξινόμηση</label><select id="vendor-sort" value={sort} onChange={(event) => setSort(event.target.value)}><option value="updated">Πρόσφατη ενημέρωση</option><option value="title">Όνομα A–Ω</option><option value="category">Κατηγορία</option><option value="stock">Χαμηλότερο απόθεμα</option></select></div>
+            <button className="button" type="submit">Αναζήτηση / Εφαρμογή φίλτρων</button>
+            {(filtersActive || catalogSearch.active) && <button className={styles.reset} type="button" onClick={resetFilters}>Καθαρισμός</button>}
+          </div>
+        </div>
+        <div className="workspace-inline-note"><strong>Γρήγορη λειτουργία:</strong> η βάση δεν φορτώνει προϊόντα όσο γράφεις ή ανοίγεις τη σελίδα. Η αναζήτηση εκτελείται μόνο όταν πατήσεις «Αναζήτηση / Εφαρμογή φίλτρων» και επιστρέφει έως {catalogSearch.limit} προϊόντα ανά σελίδα.</div>
+      </form>
+      {!catalogSearch.active ? <WorkspaceEmptyState title="Αναζήτησε ή φιλτράρισε τον κατάλογό σου" body="Για να παραμένει η σελίδα γρήγορη, κανένα προϊόν δεν φορτώνεται αυτόματα. Βάλε όνομα, SKU, GTIN, κατηγορία, μάρκα ή φίλτρο και πάτησε Αναζήτηση." /> : initial.catalogProducts.length === 0 ? <div className={styles.emptyFiltered}>Δεν βρέθηκαν προϊόντα με αυτά τα κριτήρια. <button className={styles.reset} type="button" onClick={resetFilters}>Καθαρισμός αναζήτησης</button></div> : <><div className={styles.productGrid}>{initial.catalogProducts.map((product) => {
         const draft = stockDrafts[product.offerId] ?? { onHand: String(product.onHand), safetyStock: String(product.safetyStock) };
         const hiddenReason = !product.productVisible ? "Κρυφό από το κατάστημά σου." : !product.categoryVisible ? "Κρυφό επειδή μία κατηγορία του είναι απενεργοποιημένη." : product.offerStatus !== "approved" ? `Δεν εμφανίζεται επειδή ${offerStatusLabel(product.offerStatus).toLocaleLowerCase("el")}.` : "";
         return <article className={`${styles.productCard} ${!product.effectiveVisible ? styles.productCardHidden : ""}`} key={product.offerId}>
@@ -299,7 +308,14 @@ export function VendorCatalogClient({ initial, canImportCatalogue, catalogSearch
           <div className={styles.cardFoot}><span>Ενημέρωση {when(product.updatedAt)}</span></div>
           <WorkspaceRecordDetails label="Τεχνικές λεπτομέρειες για υποστήριξη"><div className="workspace-compact-list"><div className="workspace-compact-row"><strong>Κωδικός προσφοράς</strong><span className="vendor-technical-id">{product.offerId}</span></div><div className="workspace-compact-row"><strong>Εσωτερικός κωδικός προϊόντος</strong><span className="vendor-technical-id">{product.canonicalVariantId}</span><small>{product.offerStatus}</small></div></div></WorkspaceRecordDetails>
         </article>;
-      })}</div>}
+      })}</div>
+      {(hasPreviousCatalog || hasNextCatalog) && <div className="workspace-action-bar" style={{ marginTop: 18 }}>
+        <span>Εμφάνιση {catalogSearch.offset + 1}–{Math.min(nextCatalogOffset, catalogSearch.totalMatching)} από {catalogSearch.totalMatching.toLocaleString("el-GR")} αποτελέσματα.</span>
+        <div className="workspace-action-buttons">
+          {hasPreviousCatalog && <button type="button" className="button button-secondary" onClick={() => router.push(catalogHref(previousCatalogOffset))}>Προηγούμενα</button>}
+          {hasNextCatalog && <button type="button" className="button button-secondary" onClick={() => router.push(catalogHref(nextCatalogOffset))}>Επόμενα</button>}
+        </div>
+      </div>}</>}
     </section>
 
     <section className="vendor-section section-tint"><div className="shell">
