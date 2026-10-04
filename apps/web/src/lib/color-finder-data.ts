@@ -28,6 +28,12 @@ export type ColorFinderCatalogueScope = Readonly<{
   targetHex?: string;
 }>;
 
+type ColorFinderMediaRow = SqlRow & Readonly<{
+  canonical_public_id: string;
+  media_public_id: string;
+  alt_text: string | null;
+}>;
+
 type ColorFinderCandidateRow = SqlRow & Readonly<{
   canonical_public_id: string;
   slug: string;
@@ -57,8 +63,9 @@ async function loadColorFinderProductsUncached(
   const targetHex = normalizeHex(targetHexInput);
   if (!targetHex) return [];
   const targetLab = hexToLab(targetHex);
+  const pool = getProductionPostgresRuntime().nativePool;
 
-  const result = await getProductionPostgresRuntime().nativePool.query<ColorFinderCandidateRow>(`
+  const result = await pool.query<ColorFinderCandidateRow>(`
     SELECT
       rm.canonical_public_id,
       rm.slug,
@@ -225,14 +232,66 @@ async function loadColorFinderProductsUncached(
     }];
   });
 
-  return ranked
+  const selected = ranked
     .sort((left, right) =>
       left.deltaE - right.deltaE
       || (right.product.profileConfidence ?? 0) - (left.product.profileConfidence ?? 0)
       || left.product.priceMinor - right.product.priceMinor
     )
-    .slice(0, MAX_RESULTS)
-    .map((entry) => entry.product);
+    .slice(0, MAX_RESULTS);
+
+  if (selected.length === 0) return [];
+
+  try {
+    const mediaResult = await pool.query<ColorFinderMediaRow>(`
+      SELECT DISTINCT ON (cv.public_id)
+        cv.public_id AS canonical_public_id,
+        pm.public_id AS media_public_id,
+        pm.alt_text
+      FROM public.canonical_variants cv
+      JOIN public.product_media pm
+        ON pm.canonical_variant_id=cv.id
+       AND pm.kind='image'
+       AND pm.scan_status='clean'
+       AND pm.rights_status='approved'
+       AND pm.moderation_status='approved'
+       AND pm.object_key IS NOT NULL
+       AND pm.content_type IN ('image/jpeg','image/png','image/webp')
+      WHERE cv.public_id=ANY($1::text[])
+      ORDER BY
+        cv.public_id,
+        pm.sort_order ASC,
+        pm.reviewed_at DESC NULLS LAST,
+        pm.created_at DESC,
+        pm.public_id
+    `, [selected.map((entry) => entry.product.id)]);
+
+    const mediaByProduct = new Map(
+      mediaResult.rows.map((row) => [
+        row.canonical_public_id,
+        { mediaId: row.media_public_id, altText: optionalText(row.alt_text) }
+      ] as const)
+    );
+
+    return selected.map((entry) => {
+      const media = mediaByProduct.get(entry.product.id);
+      return media
+        ? {
+            ...entry.product,
+            imageSrc: `/api/media/${encodeURIComponent(media.mediaId)}`,
+            mediaAlt: media.altText ?? entry.product.mediaAlt
+          }
+        : entry.product;
+    });
+  } catch (error) {
+    console.warn(JSON.stringify({
+      level: "warn",
+      event: "color_finder.catalogue_media_projection_degraded",
+      selectedCount: selected.length,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return selected.map((entry) => entry.product);
+  }
 }
 
 const getCachedColorFinderProducts = unstable_cache(
