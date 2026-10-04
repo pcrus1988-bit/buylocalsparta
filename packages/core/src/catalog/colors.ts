@@ -383,6 +383,13 @@ export function resolveCatalogColor(value: unknown): ResolvedCatalogColor | unde
       .sort((left, right) => right.alias.length - left.alias.length);
     matched = candidates[0];
   }
+  if (!matched) {
+    const shade = resolveCatalogShade(sourceValue);
+    const familyEntry = shade?.familyKey
+      ? CATALOG_COLOR_INDEX.find((entry) => entry.key === shade.familyKey)
+      : undefined;
+    if (shade && familyEntry) matched = { entry: familyEntry, alias: shade.matchedAlias };
+  }
   if (!matched) return undefined;
 
   const rgb = hexToRgb(matched.entry.hex);
