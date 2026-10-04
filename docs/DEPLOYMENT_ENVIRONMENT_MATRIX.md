@@ -73,7 +73,7 @@ Recommended runtime controls:
 - `BLS_NYXI_SOURCE_DISCOVERY_MAX_LINKS=2000`
 - `BLS_NYXI_SOURCE_DISCOVERY_MAX_BYTES=8388608`
 
-The worker writes only source-check state, immutable snapshot metadata and raw source bytes under the private `private/nyxi/source-archive/` prefix. It performs no ingredient extraction, formula classification or public serving.
+The worker writes source-check state, append-only retrieval evidence, immutable snapshot metadata, structurally discovered source candidates and raw source bytes under the private `private/nyxi/source-archive/` prefix. It performs no ingredient extraction, formula classification or public serving.
 
 Production collection can run without a permanent service through `.github/workflows/nyxi-source-collector.yml` every six hours. Prefer dedicated `NYXI_DATABASE_URL`, `NYXI_OBJECT_STORAGE_ACCESS_KEY_ID` and `NYXI_OBJECT_STORAGE_SECRET_ACCESS_KEY` repository secrets. The workflow supports fallback to the existing scoped MEDIA database/object-storage secrets when the same private storage permissions are intentionally shared.
 
