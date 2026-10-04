@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -3296,6 +3296,414 @@
         {
           "type": "brand",
           "displayName": "Aprés Nail",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "tgb_gel_colour_shop_all",
+      "publisher": "The GelBottle Inc",
+      "title": "Gel Colour Shop All",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://thegelbottle.com/gel-colour-shop-all/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "The GelBottle Inc",
+        "scope": "gel_colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "The GelBottle Inc",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "tgb_gel_colour_20ml",
+      "publisher": "The GelBottle Inc",
+      "title": "Gel Colour 20ml",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://thegelbottle.com/gel-colour-20ml-1/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "The GelBottle Inc",
+        "scope": "gel_colour_20ml_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "The GelBottle Inc",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "tgb_gel_colour_collections",
+      "publisher": "The GelBottle Inc",
+      "title": "Gel Colour Kits and Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://thegelbottle.com/gel-colour-kits--collections/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "The GelBottle Inc",
+        "scope": "gel_colour_collections"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "The GelBottle Inc",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "tgb_hema_free_colour",
+      "publisher": "The GelBottle Inc",
+      "title": "HEMA-Free Colour",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://thegelbottle.com/hema-free-colour/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "The GelBottle Inc",
+        "scope": "manufacturer_designated_hema_free_collection"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "The GelBottle Inc",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "tgb_new_in_gel_colour",
+      "publisher": "The GelBottle Inc",
+      "title": "New In Gel Colour",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://thegelbottle.com/new-in-gel-colour/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "The GelBottle Inc",
+        "scope": "new_releases"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "The GelBottle Inc",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "opi_infinite_shine",
+      "publisher": "OPI",
+      "title": "Infinite Shine",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.opi.com/collections/infinite-shine",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "OPI",
+        "line": "Infinite Shine",
+        "scope": "catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "OPI",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "opi_gel_nail_polish",
+      "publisher": "OPI",
+      "title": "GelColor and GELevate Gel Nail Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.opi.com/collections/gel-nail-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "OPI",
+        "scope": "gel_nail_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "OPI",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "sally_hansen_insta_dri_us",
+      "publisher": "Sally Hansen",
+      "title": "Insta-Dri US",
+      "sourceFamily": "manufacturer_product",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.sallyhansen.com/en-us/nail-color/insta-dri",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Sally Hansen",
+        "line": "Insta-Dri",
+        "scope": "shade_formula_page",
+        "market": "US"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Sally Hansen",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "sally_hansen_insta_dri_ie",
+      "publisher": "Sally Hansen",
+      "title": "Insta-Dri Ireland",
+      "sourceFamily": "manufacturer_product",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://www.sallyhansen.com/en-ie/nail-color/nail-color/insta-dri",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Sally Hansen",
+        "line": "Insta-Dri",
+        "scope": "regional_formula_page",
+        "market": "IE/EU"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Sally Hansen",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "chanel_nail_colour_gr",
+      "publisher": "CHANEL",
+      "title": "Nail Colour Greece",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GR",
+      "language": "en",
+      "canonicalUrl": "https://www.chanel.com/gr/makeup/nails/c/5x1x7x31/nail-colour/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Chanel",
+        "line": "LE VERNIS",
+        "scope": "regional_nail_colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Chanel",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "chanel_nail_colour_us",
+      "publisher": "CHANEL",
+      "title": "Nail Colour US",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.chanel.com/us/makeup/nails/c/5x1x7x31/nail-colour/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Chanel",
+        "line": "LE VERNIS",
+        "scope": "regional_nail_colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Chanel",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "hermes_hands_gr",
+      "publisher": "Hermès",
+      "title": "Les Mains Hermès Hands and Nail Polish Greece",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GR",
+      "language": "en",
+      "canonicalUrl": "https://www.hermes.com/gr/en/category/make-up/hands/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Hermès",
+        "line": "Les Mains Hermès",
+        "scope": "hands_and_nail_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Hermès",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "hermes_nail_polish_gr",
+      "publisher": "Hermès",
+      "title": "Les Mains Hermès Nail Polish Greece",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GR",
+      "language": "en",
+      "canonicalUrl": "https://www.hermes.com/gr/en/category/make-up/hands/?facet_category=vernis_ongles",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Hermès",
+        "line": "Les Mains Hermès",
+        "scope": "nail_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Hermès",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "dior_vernis_gr",
+      "publisher": "Dior",
+      "title": "Dior Vernis Greece",
+      "sourceFamily": "manufacturer_product",
+      "authorityLevel": 4,
+      "jurisdiction": "GR",
+      "language": "en",
+      "canonicalUrl": "https://www.dior.com/en_gr/beauty/products/dior-vernis-E000002152.html",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Dior",
+        "line": "Dior Vernis",
+        "scope": "regional_product_and_ingredients"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Dior",
           "relation": "primary_for"
         }
       ]
