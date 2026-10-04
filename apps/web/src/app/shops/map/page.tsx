@@ -5,9 +5,7 @@ import { VendorMapDirectory, type VendorMapEntry, type VendorMapFacet } from "..
 import { getPublicVendorDirectory, type PublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 
-type Props = Readonly<{ searchParams: Promise<{ vendor?: string }> }>;
-
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/shops/map", {
@@ -33,9 +31,8 @@ function facetsFor(vendor: PublicVendorDirectoryEntry): readonly VendorMapFacet[
   return [...facets.values()];
 }
 
-export default async function ShopsMapPage({ searchParams }: Props) {
+export default async function ShopsMapPage() {
   const directory = await getPublicVendorDirectory();
-  const params = await searchParams;
   const vendors: readonly VendorMapEntry[] = directory.map((vendor) => ({
     id: vendor.id,
     name: vendor.name,
@@ -49,8 +46,6 @@ export default async function ShopsMapPage({ searchParams }: Props) {
     researchDistanceKm: vendor.research?.distanceKm,
     facets: facetsFor(vendor)
   }));
-  const requestedVendor = typeof params.vendor === "string" ? params.vendor.slice(0, 160) : "";
-  const initialVendorId = vendors.some((vendor) => vendor.id === requestedVendor) ? requestedVendor : undefined;
   const facetMap = new Map<string, VendorMapFacet>();
   for (const vendor of vendors) for (const facet of vendor.facets) facetMap.set(facet.key, facet);
   const facets = [...facetMap.values()].sort((a, b) => {
@@ -87,7 +82,7 @@ export default async function ShopsMapPage({ searchParams }: Props) {
           <p className="section-note">Η θέση σου ζητείται μόνο όταν πατήσεις «Χρησιμοποίησε τη θέση μου» και χρησιμοποιείται στον browser για ταξινόμηση και φιλτράρισμα απόστασης. Καταχωρίσεις χωρίς αποθηκευμένες συντεταγμένες παραμένουν διαθέσιμες στη λίστα και δεν τοποθετούνται σε ψεύτικο σημείο.</p>
         </div>
         {vendors.length
-          ? <VendorMapDirectory vendors={vendors} facets={facets} initialVendorId={initialVendorId} />
+          ? <VendorMapDirectory vendors={vendors} facets={facets} />
           : <div className="empty-state"><h2>Η βάση καταστημάτων ετοιμάζεται.</h2><p>Δεν υπάρχουν ακόμη δημόσιες καταχωρίσεις στην παραγωγική βάση δεδομένων.</p><a className="button" href="/shops">Πίσω στα καταστήματα</a></div>}
       </section>
       <SiteFooter />

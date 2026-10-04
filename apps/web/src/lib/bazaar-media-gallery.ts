@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { governedPublicMediaEnabled } from "./public-media-service";
 
@@ -11,7 +12,7 @@ type BazaarGalleryRow = Readonly<{
   alt_text: string | null;
 }>;
 
-export async function getBazaarMediaGallery(
+async function readBazaarMediaGallery(
   canonicalVariantId: string,
   preferredVendorId?: string,
   requestedLimit = 12
@@ -49,4 +50,18 @@ export async function getBazaarMediaGallery(
     mediaId: row.media_public_id,
     altText: row.alt_text?.trim() || undefined
   }));
+}
+
+const cachedBazaarMediaGallery = unstable_cache(
+  readBazaarMediaGallery,
+  ["public-bazaar-media-gallery-v1"],
+  { revalidate: 300 }
+);
+
+export async function getBazaarMediaGallery(
+  canonicalVariantId: string,
+  preferredVendorId?: string,
+  requestedLimit = 12
+): Promise<readonly BazaarGalleryMedia[]> {
+  return cachedBazaarMediaGallery(canonicalVariantId, preferredVendorId, requestedLimit);
 }

@@ -190,8 +190,8 @@ async function readVendorLocalCatalogRows(vendorId: string): Promise<readonly Lo
 
 const loadVendorLocalCatalogRows = unstable_cache(
   readVendorLocalCatalogRows,
-  ["vendor-local-catalog-rows-v3"],
-  { revalidate: 15 }
+  ["vendor-local-catalog-rows-v4-performance"],
+  { revalidate: 300 }
 );
 
 type GroupedLocalVendorCatalogRow = LocalVendorCatalogRow & Readonly<{
@@ -383,8 +383,8 @@ async function readVendorLocalCatalogPage(
 
 const cachedVendorLocalCatalogPage = unstable_cache(
   readVendorLocalCatalogPage,
-  ["vendor-local-catalog-page-v2"],
-  { revalidate: 15 }
+  ["vendor-local-catalog-page-v3-performance"],
+  { revalidate: 300 }
 );
 
 export async function getVendorLocalCatalogPage(
