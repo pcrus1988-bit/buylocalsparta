@@ -62,28 +62,33 @@ WHERE product_id='fb9a5f39-1996-4123-9e8d-bdae7a9fe722'::uuid
 INSERT INTO public.manufacturer_package_sizes(
   product_id,variant_id,amount,unit,package_label,source_evidence_id,active
 )
-SELECT 'fb9a5f39-1996-4123-9e8d-bdae7a9fe722'::uuid,NULL,v.amount,'kg',v.label,
-       '0fd6494e-7a6d-490a-bf01-bedc5113fc7e'::uuid,true
-FROM (VALUES
+SELECT mp.id,NULL,v.amount,'kg',v.label,ie.id,true
+FROM public.manufacturer_products mp
+JOIN public.manufacturer_instruction_evidence ie
+  ON ie.product_id=mp.id
+ AND ie.evidence_fingerprint='90e792262f33277ccd25eebcb710e61e83ee244c4888a85dbb6945ce9d1143d4'
+ AND ie.is_current=true
+CROSS JOIN (VALUES
   (0.4::numeric,'White 400 g'),
   (0.8::numeric,'White 800 g'),
   (5::numeric,'White 5 kg')
 ) v(amount,label)
-WHERE NOT EXISTS (
-  SELECT 1 FROM public.manufacturer_package_sizes ps
-  WHERE ps.product_id='fb9a5f39-1996-4123-9e8d-bdae7a9fe722'::uuid
-    AND ps.variant_id IS NULL
-    AND ps.amount=v.amount
-    AND lower(ps.unit)='kg'
-    AND ps.active=true
-);
+WHERE mp.manufacturer_key='acrylic-putty'
+  AND NOT EXISTS (
+    SELECT 1 FROM public.manufacturer_package_sizes ps
+    WHERE ps.product_id=mp.id
+      AND ps.variant_id IS NULL
+      AND ps.amount=v.amount
+      AND lower(ps.unit)='kg'
+      AND ps.active=true
+  );
 
 INSERT INTO public.manufacturer_application_rules(
   product_id,rule_key,source_layer,rule_revision,condition_expression,result_status,
   actions,priority,source_evidence_id,valid_from,active
 )
-VALUES (
-  'fb9a5f39-1996-4123-9e8d-bdae7a9fe722'::uuid,
+SELECT
+  mp.id,
   'pb7_acrylic_putty_small_holes_dents',
   'manufacturer',
   'pb7-2026-10-04',
@@ -91,10 +96,15 @@ VALUES (
   'eligible_with_preparation',
   '{"message":"Acrylic Putty is documented for filling/coating plaster, concrete and wood. Use only after the scenario surface-stability and preparation checks."}'::jsonb,
   85,
-  'ce11dae4-29e3-4d0e-b3d0-30270ccc94c4'::uuid,
+  ie.id,
   '2026-10-04',
   true
-)
+FROM public.manufacturer_products mp
+JOIN public.manufacturer_instruction_evidence ie
+  ON ie.product_id=mp.id
+ AND ie.evidence_fingerprint='679786029aced54bde9a78a7a16a7d3c36692e096b67e64299ff6be2cc1c7aaa'
+ AND ie.is_current=true
+WHERE mp.manufacturer_key='acrylic-putty'
 ON CONFLICT (product_id,rule_key,source_layer,rule_revision) DO UPDATE
 SET condition_expression=excluded.condition_expression,
     result_status=excluded.result_status,
@@ -111,8 +121,12 @@ SET condition_expression=excluded.condition_expression,
 UPDATE public.manufacturer_instruction_evidence
 SET is_current=false,
     valid_to='2026-10-03'
-WHERE product_id='c75e3a20-7f5c-4780-bbd2-db89609163f5'::uuid
-  AND source_id='8589e383-7b6a-4459-aff6-d4c77f125782'::uuid
+WHERE product_id=(SELECT id FROM public.manufacturer_products WHERE manufacturer_key='visto' LIMIT 1)
+  AND source_id=(SELECT id FROM public.manufacturer_technical_sources
+                 WHERE manufacturer='Vitex'
+                   AND source_url='https://www.vitex.gr/wp-content/uploads/2026/01/Vitex_Product_Catalogue_GR.pdf'
+                   AND is_current=true
+                 LIMIT 1)
   AND is_current=true;
 
 WITH e(field_name,normalized_value,exact_excerpt,fingerprint_key) AS (
@@ -146,11 +160,16 @@ INSERT INTO public.manufacturer_instruction_evidence(
   product_id,source_id,source_layer,field_name,normalized_value,section_heading,exact_excerpt,
   confidence,evidence_fingerprint,valid_from,is_current
 )
-SELECT 'c75e3a20-7f5c-4780-bbd2-db89609163f5'::uuid,
-       '8589e383-7b6a-4459-aff6-d4c77f125782'::uuid,
+SELECT mp.id,
+       ts.id,
        'manufacturer',e.field_name,e.normalized_value,'Vitex Product Catalogue GR 2026 · Visto',
        e.exact_excerpt,1,encode(digest(e.fingerprint_key,'sha256'),'hex'),'2026-10-04',true
 FROM e
+JOIN public.manufacturer_products mp ON mp.manufacturer_key='visto'
+JOIN public.manufacturer_technical_sources ts
+  ON ts.manufacturer='Vitex'
+ AND ts.source_url='https://www.vitex.gr/wp-content/uploads/2026/01/Vitex_Product_Catalogue_GR.pdf'
+ AND ts.is_current=true
 ON CONFLICT (evidence_fingerprint) DO UPDATE
 SET source_id=excluded.source_id,
     normalized_value=excluded.normalized_value,
@@ -193,43 +212,53 @@ WHERE product_id='c75e3a20-7f5c-4780-bbd2-db89609163f5'::uuid
 
 UPDATE public.manufacturer_package_sizes
 SET active=false
-WHERE product_id='c75e3a20-7f5c-4780-bbd2-db89609163f5'::uuid
+WHERE product_id=(SELECT id FROM public.manufacturer_products WHERE manufacturer_key='visto' LIMIT 1)
   AND active=true
   AND amount IN (0.4,0.8);
 
-UPDATE public.manufacturer_package_sizes
+UPDATE public.manufacturer_package_sizes ps
 SET amount=5,
     unit='kg',
     package_label='White 5 kg',
     source_evidence_id=(
-      SELECT id FROM public.manufacturer_instruction_evidence
-      WHERE evidence_fingerprint=encode(digest('pb7:visto:packages','sha256'),'hex')
+      SELECT ie.id FROM public.manufacturer_instruction_evidence ie
+      JOIN public.manufacturer_products mp ON mp.id=ie.product_id
+      WHERE mp.manufacturer_key='visto'
+        AND ie.evidence_fingerprint=encode(digest('pb7:visto:packages','sha256'),'hex')
+        AND ie.is_current=true
+      LIMIT 1
     ),
     active=true
-WHERE id='568d27ca-8d8c-4080-ae0e-9ca4f5e24528'::uuid;
+WHERE ps.product_id=(SELECT id FROM public.manufacturer_products WHERE manufacturer_key='visto' LIMIT 1)
+  AND ps.amount=5
+  AND lower(ps.unit)='kg'
+  AND ps.active=true;
 
 INSERT INTO public.manufacturer_package_sizes(
   product_id,variant_id,amount,unit,package_label,source_evidence_id,active
 )
-SELECT 'c75e3a20-7f5c-4780-bbd2-db89609163f5'::uuid,NULL,20,'kg','White 20 kg',
-       (SELECT id FROM public.manufacturer_instruction_evidence
-        WHERE evidence_fingerprint=encode(digest('pb7:visto:packages','sha256'),'hex')),
-       true
-WHERE NOT EXISTS (
-  SELECT 1 FROM public.manufacturer_package_sizes ps
-  WHERE ps.product_id='c75e3a20-7f5c-4780-bbd2-db89609163f5'::uuid
-    AND ps.variant_id IS NULL
-    AND ps.amount=20
-    AND lower(ps.unit)='kg'
-    AND ps.active=true
-);
+SELECT mp.id,NULL,20,'kg','White 20 kg',ie.id,true
+FROM public.manufacturer_products mp
+JOIN public.manufacturer_instruction_evidence ie
+  ON ie.product_id=mp.id
+ AND ie.evidence_fingerprint=encode(digest('pb7:visto:packages','sha256'),'hex')
+ AND ie.is_current=true
+WHERE mp.manufacturer_key='visto'
+  AND NOT EXISTS (
+    SELECT 1 FROM public.manufacturer_package_sizes ps
+    WHERE ps.product_id=mp.id
+      AND ps.variant_id IS NULL
+      AND ps.amount=20
+      AND lower(ps.unit)='kg'
+      AND ps.active=true
+  );
 
 INSERT INTO public.manufacturer_application_rules(
   product_id,rule_key,source_layer,rule_revision,condition_expression,result_status,
   actions,priority,source_evidence_id,valid_from,active
 )
-VALUES (
-  'c75e3a20-7f5c-4780-bbd2-db89609163f5'::uuid,
+SELECT
+  mp.id,
   'pb7_visto_damaged_plaster',
   'manufacturer',
   'pb7-2026-10-04',
@@ -237,11 +266,15 @@ VALUES (
   'eligible_with_preparation',
   '{"message":"Visto is documented for filling and skim-coating interior/exterior surfaces. It is not a structural repair product; unstable or detached plaster must first be handled by the scenario preparation rules."}'::jsonb,
   80,
-  (SELECT id FROM public.manufacturer_instruction_evidence
-   WHERE evidence_fingerprint=encode(digest('pb7:visto:description','sha256'),'hex')),
+  ie.id,
   '2026-10-04',
   true
-)
+FROM public.manufacturer_products mp
+JOIN public.manufacturer_instruction_evidence ie
+  ON ie.product_id=mp.id
+ AND ie.evidence_fingerprint=encode(digest('pb7:visto:description','sha256'),'hex')
+ AND ie.is_current=true
+WHERE mp.manufacturer_key='visto'
 ON CONFLICT (product_id,rule_key,source_layer,rule_revision) DO UPDATE
 SET condition_expression=excluded.condition_expression,
     result_status=excluded.result_status,
@@ -317,24 +350,31 @@ INSERT INTO public.manufacturer_product_compatibility(
   conditions,system_key,source_evidence_id,valid_from,is_current
 )
 SELECT
-  '8f43f77b-c3cb-4be6-8fc7-dd6734a399be'::uuid,
-  '0296e2e3-2464-400a-a9d5-1ed280db15f3'::uuid,
+  source.id,
+  target.id,
   'primer_before_topcoat',
   'required',
   'Official TDS requires two coats of Wooden Floor Primer before Wooden Floor Varnish.',
   'wooden-floor-system',
-  '46b95aed-7124-49e1-84a1-d1f9ba94fcbb'::uuid,
+  ie.id,
   '2026-10-04',
   true
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM public.manufacturer_product_compatibility c
-  WHERE c.source_product_id='8f43f77b-c3cb-4be6-8fc7-dd6734a399be'::uuid
-    AND c.target_product_id='0296e2e3-2464-400a-a9d5-1ed280db15f3'::uuid
-    AND c.relationship_type='primer_before_topcoat'
-    AND c.source_evidence_id='46b95aed-7124-49e1-84a1-d1f9ba94fcbb'::uuid
-    AND c.is_current=true
-);
+FROM public.manufacturer_products source
+JOIN public.manufacturer_products target ON target.manufacturer_key='wooden-floor-primer'
+JOIN public.manufacturer_instruction_evidence ie
+  ON ie.product_id=source.id
+ AND ie.evidence_fingerprint='ba31a5ba63a4a17ec04d43810882af59f27224eeafdb048cf73360a3dfa27496'
+ AND ie.is_current=true
+WHERE source.manufacturer_key='wooden-floor-varnish'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.manufacturer_product_compatibility c
+    WHERE c.source_product_id=source.id
+      AND c.target_product_id=target.id
+      AND c.relationship_type='primer_before_topcoat'
+      AND c.source_evidence_id=ie.id
+      AND c.is_current=true
+  );
 
 -- 7. Run-7 completion view: distinguish portfolio uncertainty and missing identity
 --    from actual technical-profile work.
