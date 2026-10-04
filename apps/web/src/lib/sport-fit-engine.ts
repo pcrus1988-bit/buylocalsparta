@@ -933,7 +933,7 @@ function greekJoin(parts: readonly string[]): string {
 }
 
 function normalizedUseCaseLabel(useCase: SportUseCase | undefined, activity: SportActivity): string {
-  const label = useCase ? USE_CASE_LABELS[useCase] : ACTIVITY_LABELS[activity];
+  const label = useCase ? (USE_CASE_LABELS[useCase] ?? ACTIVITY_LABELS[activity]) : ACTIVITY_LABELS[activity];
   return label.toLocaleLowerCase("el-GR");
 }
 
