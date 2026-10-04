@@ -86,6 +86,20 @@ export const RETAIL_STUDY_2026_QUESTIONS: readonly SurveyQuestion[] = [
     options: sectorOptions
   },
   {
+    id: "consumer_retail_activity",
+    section: "Η επιχείρησή σας",
+    type: "single",
+    title: "Πωλεί σήμερα η επιχείρηση προϊόντα απευθείας σε τελικούς καταναλωτές;",
+    help: "Η ερώτηση λειτουργεί ως έλεγχος επιλεξιμότητας, επειδή οι δημόσιοι ΚΑΔ μπορεί να περιλαμβάνουν παράλληλες χονδρικές δραστηριότητες.",
+    required: true,
+    options: [
+      { value: "mainly_consumers", label: "Ναι — κυρίως σε τελικούς καταναλωτές" },
+      { value: "consumers_and_businesses", label: "Ναι — τόσο σε καταναλωτές όσο και σε επιχειρήσεις" },
+      { value: "mainly_businesses", label: "Κυρίως σε επιχειρήσεις / B2B" },
+      { value: "not_currently", label: "Όχι, όχι αυτή την περίοδο" }
+    ]
+  },
+  {
     id: "employees",
     section: "Η επιχείρησή σας",
     type: "single",
@@ -337,7 +351,7 @@ export const RETAIL_STUDY_2026_QUESTIONS: readonly SurveyQuestion[] = [
 
 export const RETAIL_STUDY_2026_METHODOLOGY = {
   analysisVersion: RETAIL_STUDY_2026_ANALYSIS_VERSION,
-  targetPopulation: "Ενεργές επιχειρήσεις λιανικού εμπορίου μη τροφίμων στην Ελλάδα που καλύπτονται από το παγωμένο πλαίσιο ΓΕΜΗ/KAD της έρευνας.",
+  targetPopulation: "Ενεργές επιχειρήσεις μη τροφίμων στην Ελλάδα που πωλούν προϊόντα απευθείας σε τελικούς καταναλωτές και καλύπτονται από το παγωμένο πλαίσιο ΓΕΜΗ/KAD της έρευνας.",
   defaultDesignType: "census_invitation",
   samplingFrame: "GEMI OpenData snapshot, stratified by semantic retail sector and prefecture.",
   reportingDimensions: ["sector_group", "prefecture", "employees", "digital_readiness_band"],
@@ -361,7 +375,8 @@ export const RETAIL_STUDY_2026_METHODOLOGY = {
     speedingWarningUnderSeconds: 45,
     automaticSpeedExclusion: false,
     excludeInstrumentMismatch: true,
-    retainPartialResponsesSeparately: true
+    retainPartialResponsesSeparately: true,
+    eligibleConsumerRetailValues: ["mainly_consumers", "consumers_and_businesses"]
   },
   indices: {
     digitalReadiness: {
