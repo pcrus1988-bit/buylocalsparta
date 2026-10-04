@@ -56,6 +56,54 @@ const thumbnailImageStyle = {
   transformOrigin: "center"
 } as const;
 
+function ProductColorIndicator({ value }: { value?: string }) {
+  const source = value?.trim();
+  if (!source) return null;
+  const resolved = resolveCatalogColor(source);
+  const label = resolved?.displayNameEl ?? source;
+  const swatchStyle = resolved?.swatchKind === "multicolor"
+    ? { background: "conic-gradient(#D52B2B, #F2C230, #388A55, #2F6DA8, #68478D, #D52B2B)" }
+    : resolved?.swatchKind === "transparent"
+      ? {
+          background: "linear-gradient(45deg, #ffffff 25%, #d7d7d2 25% 50%, #ffffff 50% 75%, #d7d7d2 75%)",
+          backgroundSize: "8px 8px"
+        }
+      : { background: resolved?.hex ?? "transparent" };
+
+  return (
+    <div
+      aria-label={`Χρώμα ${label}`}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 10,
+        width: "fit-content",
+        marginTop: 12,
+        padding: "8px 12px",
+        border: "1px solid var(--line)",
+        borderRadius: 999
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          width: 22,
+          height: 22,
+          flex: "0 0 22px",
+          borderRadius: "50%",
+          border: "1px solid rgba(0,0,0,.18)",
+          boxShadow: "inset 0 0 0 1px rgba(255,255,255,.45)",
+          ...swatchStyle
+        }}
+      />
+      <span style={{ display: "grid", lineHeight: 1.15 }}>
+        <small style={{ color: "var(--ink-soft)", fontSize: 11 }}>Χρώμα</small>
+        <strong style={{ fontSize: 14 }}>{label}</strong>
+      </span>
+    </div>
+  );
+}
+
 const PRIVATE_TECHNICAL_ATTRIBUTE_KEYS = new Set([
   "source",
   "source_id",
@@ -423,6 +471,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <div className="product-detail-copy">
             <div className="eyebrow"><a href={`/category/${category.slug}`}>{category.label}</a></div>
             <ProductBrandTitle title={displayTitle} brand={product.brand} logoObjectKey={product.brandLogoObjectKey} />
+            <ProductColorIndicator value={product.color} />
             <div className="purchase-card" style={{ marginTop: 18 }}>
               <div>
                 <div className="eyebrow">Τιμή & διαθεσιμότητα</div>
@@ -649,6 +698,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <ProductBrandTitle title={displayTitle} brand={displayBrand} logoObjectKey={product.brandLogoObjectKey} />
 
           <ProductVariantSelector currentVariantId={product.id} title={variantSelectorTitle} options={variantOptions} varyingKeys={varyingVariantKeys} />
+          <ProductColorIndicator value={product.color} />
 
           {isLikelySportFootwear(product) ? (
             <SportFitProductIntelligence
