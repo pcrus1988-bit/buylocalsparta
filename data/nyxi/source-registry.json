@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 8,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -2952,6 +2952,350 @@
         {
           "type": "brand",
           "displayName": "Nailberry",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "londontown_all_products",
+      "publisher": "LONDONTOWN",
+      "title": "All Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.londontownusa.com/collections/all",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Londontown",
+        "scope": "all_products"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Londontown",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "londontown_shop_all",
+      "publisher": "LONDONTOWN",
+      "title": "Shop All of Londontown",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.londontownusa.com/collections/shop-all-of-londontown",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Londontown",
+        "scope": "shop_all"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Londontown",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "londontown_gb_all_products",
+      "publisher": "LONDONTOWN",
+      "title": "GB All Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.londontownusa.com/en-gb/collections/all-products",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Londontown",
+        "scope": "regional_all_products",
+        "market": "GB"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Londontown",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "kokoist_color_gel",
+      "publisher": "KOKOIST USA",
+      "title": "Color Gel",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://kokoistusa.com/collections/color-gel",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "KOKOIST",
+        "scope": "color_gel_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "KOKOIST",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "indigo_global_gel_collections",
+      "publisher": "Indigo Nails",
+      "title": "Global Gel Nail Polish Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.indigo-nails.com/global-en/gel-polish/en-collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Indigo Nails",
+        "scope": "gel_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Indigo Nails",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "indigo_eu_gel_collections",
+      "publisher": "Indigo Nails",
+      "title": "EU Gel Nail Polish Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://www.indigo-nails.com/eu-en/gel-polish/en-collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Indigo Nails",
+        "scope": "regional_gel_polish_catalogue",
+        "market": "EU"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Indigo Nails",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "indigo_uk_gel_collections",
+      "publisher": "Indigo Nails",
+      "title": "UK Gel Nail Polish Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.indigo-nails.com/uk-en/gel-polish/en-collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Indigo Nails",
+        "scope": "regional_gel_polish_catalogue",
+        "market": "GB"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Indigo Nails",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "kiara_sky_gel_polish_colors",
+      "publisher": "Kiara Sky Professional Nails",
+      "title": "Gel Nail Polish Colors",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://kiarasky.com/collections/gel-nail-polish-colors",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Kiara Sky",
+        "scope": "gel_polish_colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Kiara Sky",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "kiara_sky_dip_colors",
+      "publisher": "Kiara Sky Professional Nails",
+      "title": "Dip Nail Colors",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://kiarasky.com/collections/dip-colors",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Kiara Sky",
+        "scope": "dip_colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Kiara Sky",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "kiara_sky_color_chart",
+      "publisher": "Kiara Sky Professional Nails",
+      "title": "Color Chart",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://kiarasky.com/collections/color-chart",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Kiara Sky",
+        "scope": "colour_chart"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Kiara Sky",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "kiara_sky_collections_index",
+      "publisher": "Kiara Sky Professional Nails",
+      "title": "All Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://kiarasky.com/collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Kiara Sky",
+        "scope": "collections_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Kiara Sky",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "apres_gel_colors",
+      "publisher": "Aprés Nail",
+      "title": "Gel Colors",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://secure.apresnail.com/collections/gel-colors",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Aprés Nail",
+        "scope": "gel_colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Aprés Nail",
           "relation": "primary_for"
         }
       ]
