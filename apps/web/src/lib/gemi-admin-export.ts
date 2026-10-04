@@ -6,6 +6,10 @@ const METADATA_TTL_MS = 6 * 60 * 60 * 1000;
 const CREDENTIAL_TTL_MS = 12 * 60 * 60 * 1000;
 const PAGE_SIZE = 200;
 const ALL_PREFECTURES = "__all_prefectures__";
+// ΓΕΜΗ exposes company search as GET. Large semantic groups can expand to
+// hundreds/thousands of exact KAD ids, so keep the serialized activities
+// parameter comfortably below common proxy/server URI limits.
+const MAX_ACTIVITIES_QUERY_CHARS = 900;
 
 export type GemiAdminActivity = Readonly<{
   id: string;
@@ -76,6 +80,8 @@ export type GemiAdminPreviewRow = Readonly<{
 
 export type GemiAdminPreview = Readonly<{
   totalCount: number;
+  totalCountExact: boolean;
+  queryBatchCount: number;
   returned: number;
   withEmail: number;
   activityCount: number;
@@ -521,14 +527,34 @@ async function resolveActivitySelection(filters: GemiAdminFilters, apiKey?: stri
   };
 }
 
+function activityQueryBatches(activityIds: readonly string[]): string[][] {
+  const batches: string[][] = [];
+  let current: string[] = [];
+  let currentLength = 0;
+
+  for (const id of activityIds) {
+    const encodedLength = encodeURIComponent(id).length + (current.length ? 3 : 0); // URLSearchParams encodes comma as %2C
+    if (current.length && currentLength + encodedLength > MAX_ACTIVITIES_QUERY_CHARS) {
+      batches.push(current);
+      current = [];
+      currentLength = 0;
+    }
+    current.push(id);
+    currentLength += encodedLength;
+  }
+
+  if (current.length) batches.push(current);
+  return batches;
+}
+
 function searchParams(
   filters: GemiAdminFilters,
-  selection: GemiResolvedActivitySelection,
+  activityIds: readonly string[],
   offset: number,
   size: number
 ): Record<string, string | number | boolean> {
   return {
-    activities: selection.activityIds.join(","),
+    activities: activityIds.join(","),
     ...(filters.prefectureId !== ALL_PREFECTURES ? { prefectures: filters.prefectureId } : {}),
     ...(filters.municipalityId ? { municipalities: filters.municipalityId } : {}),
     ...(filters.activeOnly ? { isActive: true } : {}),
@@ -538,17 +564,56 @@ function searchParams(
   };
 }
 
-async function searchCompanies(
+async function searchCompaniesBatch(
   filters: GemiAdminFilters,
-  selection: GemiResolvedActivitySelection,
+  activityIds: readonly string[],
   offset: number,
   size: number,
   apiKey?: string
 ): Promise<{ totalCount: number; companies: GemiCompany[] }> {
-  const raw = await gemiGet("/companies", searchParams(filters, selection, offset, size), 4, apiKey) as SearchResponse;
-  const companies = Array.isArray(raw.searchResults) ? raw.searchResults.filter((item): item is GemiCompany => Boolean(objectField(item))) : [];
+  const raw = await gemiGet("/companies", searchParams(filters, activityIds, offset, size), 4, apiKey) as SearchResponse;
+  const companies = Array.isArray(raw.searchResults)
+    ? raw.searchResults.filter((item): item is GemiCompany => Boolean(objectField(item)))
+    : [];
   const totalCount = Number(raw.searchMetadata?.totalCount ?? companies.length);
-  return { totalCount: Number.isFinite(totalCount) && totalCount >= 0 ? totalCount : companies.length, companies };
+  return {
+    totalCount: Number.isFinite(totalCount) && totalCount >= 0 ? totalCount : companies.length,
+    companies
+  };
+}
+
+async function searchCompaniesPreview(
+  filters: GemiAdminFilters,
+  selection: GemiResolvedActivitySelection,
+  apiKey?: string
+): Promise<{ totalCount: number; totalCountExact: boolean; queryBatchCount: number; companies: GemiCompany[] }> {
+  const batches = activityQueryBatches(selection.activityIds);
+  if (batches.length === 1) {
+    const page = await searchCompaniesBatch(filters, batches[0]!, 0, 25, apiKey);
+    return { ...page, totalCountExact: true, queryBatchCount: 1 };
+  }
+
+  // Each GET remains well below the URI limit. We query only the first preview
+  // page per batch, dedupe the visible sample by GEMI number, and sum the
+  // official per-batch counts. Because one company may match KADs in more than
+  // one batch, that summed count is an upper bound, not an exact unique count.
+  const companies: GemiCompany[] = [];
+  const seen = new Set<string>();
+  let totalCount = 0;
+
+  for (const batch of batches) {
+    const page = await searchCompaniesBatch(filters, batch, 0, 25, apiKey);
+    totalCount += page.totalCount;
+    for (const company of page.companies) {
+      const gemi = asString(company.arGemi);
+      const dedupeKey = gemi || `${asString(company.afm)}:${asString(company.coNameEl)}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      if (companies.length < 25) companies.push(company);
+    }
+  }
+
+  return { totalCount, totalCountExact: false, queryBatchCount: batches.length, companies };
 }
 
 function matchedCompanyActivityEntries(
@@ -603,10 +668,12 @@ function companyPreview(company: GemiCompany, selection: GemiResolvedActivitySel
 
 export async function gemiAdminPreview(filters: GemiAdminFilters, apiKey?: string): Promise<GemiAdminPreview> {
   const selection = await resolveActivitySelection(filters, apiKey);
-  const page = await searchCompanies(filters, selection, 0, 25, apiKey);
+  const page = await searchCompaniesPreview(filters, selection, apiKey);
   const rows = page.companies.map((company) => companyPreview(company, selection));
   return {
     totalCount: page.totalCount,
+    totalCountExact: page.totalCountExact,
+    queryBatchCount: page.queryBatchCount,
     returned: rows.length,
     withEmail: rows.filter((row) => row.email).length,
     activityCount: selection.activityIds.length,
@@ -713,11 +780,13 @@ export function gemiAdminCsvStream(
   exportFields: readonly string[] = GEMI_ADMIN_EXPORT_FIELDS.map((field) => field.id)
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
-  let offset = 0;
-  let totalCount: number | undefined;
+  let batchIndex = 0;
+  let batchOffset = 0;
+  let batchTotalCount: number | undefined;
   let headerSent = false;
   let closed = false;
   let selectionPromise: Promise<GemiResolvedActivitySelection> | undefined;
+  let batches: readonly string[][] | undefined;
   const seen = new Set<string>();
 
   return new ReadableStream<Uint8Array>({
@@ -730,29 +799,44 @@ export function gemiAdminCsvStream(
         }
 
         const selection = await (selectionPromise ??= resolveActivitySelection(filters, apiKey));
-        const page = await searchCompanies(filters, selection, offset, PAGE_SIZE, apiKey);
-        if (totalCount === undefined) totalCount = page.totalCount;
+        batches ??= activityQueryBatches(selection.activityIds);
 
-        if (!page.companies.length) {
-          closed = true;
-          controller.close();
-          return;
+        while (batchIndex < batches.length) {
+          const batch = batches[batchIndex]!;
+          const page = await searchCompaniesBatch(filters, batch, batchOffset, PAGE_SIZE, apiKey);
+          if (batchTotalCount === undefined) batchTotalCount = page.totalCount;
+
+          let chunk = "";
+          for (const company of page.companies) {
+            const gemi = asString(company.arGemi);
+            const dedupeKey = gemi || `${asString(company.afm)}:${asString(company.coNameEl)}`;
+            if (seen.has(dedupeKey)) continue;
+            seen.add(dedupeKey);
+            chunk += companyCsvRow(company, filters, selection, exportFields);
+          }
+
+          batchOffset += page.companies.length;
+          const batchDone =
+            !page.companies.length ||
+            batchOffset >= (batchTotalCount ?? batchOffset) ||
+            page.companies.length < PAGE_SIZE;
+
+          if (batchDone) {
+            batchIndex += 1;
+            batchOffset = 0;
+            batchTotalCount = undefined;
+          }
+
+          if (chunk) {
+            controller.enqueue(encoder.encode(chunk));
+            return;
+          }
+          // If this page contained only cross-batch duplicates, continue inside
+          // the same pull until new rows are emitted or every batch is exhausted.
         }
 
-        let chunk = "";
-        for (const company of page.companies) {
-          const gemi = asString(company.arGemi);
-          if (gemi && seen.has(gemi)) continue;
-          if (gemi) seen.add(gemi);
-          chunk += companyCsvRow(company, filters, selection, exportFields);
-        }
-        if (chunk) controller.enqueue(encoder.encode(chunk));
-
-        offset += page.companies.length;
-        if (offset >= (totalCount ?? offset) || page.companies.length < PAGE_SIZE) {
-          closed = true;
-          controller.close();
-        }
+        closed = true;
+        controller.close();
       } catch (error) {
         closed = true;
         controller.error(error);
