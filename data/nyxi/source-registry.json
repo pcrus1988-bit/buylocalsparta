@@ -1,5 +1,5 @@
 {
-  "version": 17,
+  "version": 18,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -5539,6 +5539,253 @@
           "type": "jurisdiction",
           "displayName": "China",
           "relation": "historical_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "au_aicis_inventory_search",
+      "publisher": "Australian Industrial Chemicals Introduction Scheme",
+      "title": "Australian Inventory of Industrial Chemicals Search",
+      "sourceFamily": "regulatory_database",
+      "authorityLevel": 5,
+      "jurisdiction": "AU",
+      "language": "en",
+      "canonicalUrl": "https://services.industrialchemicals.gov.au/search-inventory/",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "continuous",
+      "coverage": {
+        "domain": "industrial_chemicals",
+        "scope": "live_inventory_search"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "approximateRecordCount": 40000,
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "Australia",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "au_aicis_inventory_snapshot_2026_06_notice",
+      "publisher": "Australian Industrial Chemicals Introduction Scheme",
+      "title": "Inventory Snapshot 2 June 2026 Notice",
+      "sourceFamily": "historical_archive",
+      "authorityLevel": 5,
+      "jurisdiction": "AU",
+      "language": "en",
+      "canonicalUrl": "https://www.industrialchemicals.gov.au/news-and-notices/available-now-download-latest-inventory-snapshot-2-june-2026",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "industrial_chemicals",
+        "scope": "inventory_snapshot_notice",
+        "snapshotDate": "2026-06-02"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "historicalEvidence": true,
+        "preserveLinkedFiles": true
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "Australia",
+          "relation": "historical_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "au_aicis_inventory_result_fields",
+      "publisher": "Australian Industrial Chemicals Introduction Scheme",
+      "title": "What Inventory Search Results Show",
+      "sourceFamily": "regulatory_guidance",
+      "authorityLevel": 5,
+      "jurisdiction": "AU",
+      "language": "en",
+      "canonicalUrl": "https://www.industrialchemicals.gov.au/chemical-information/what-your-inventory-search-results-will-show",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "industrial_chemicals",
+        "scope": "inventory_field_and_obligation_reference"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "Australia",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "au_poisons_standard_current_tga",
+      "publisher": "Therapeutic Goods Administration",
+      "title": "The Poisons Standard SUSMP",
+      "sourceFamily": "regulatory_database",
+      "authorityLevel": 5,
+      "jurisdiction": "AU",
+      "language": "en",
+      "canonicalUrl": "https://www.tga.gov.au/products/regulations-all-products/legislation-and-legislative-instruments/poisons-standard-susmp",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "poisons_and_cosmetic_ingredient_controls",
+        "scope": "current_standard_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "Australia",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "au_poisons_standard_oct_2026",
+      "publisher": "Federal Register of Legislation",
+      "title": "Therapeutic Goods Poisons Standard October 2026 Instrument 2026",
+      "sourceFamily": "law",
+      "authorityLevel": 5,
+      "jurisdiction": "AU",
+      "language": "en",
+      "canonicalUrl": "https://www.legislation.gov.au/F2026L01327/latest/text",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "poisons_and_cosmetic_ingredient_controls",
+        "scope": "current_october_2026_instrument"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "effectiveFrom": "2026-10-01",
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "Australia",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "au_poisons_standard_oct_2026_pdf",
+      "publisher": "Federal Register of Legislation",
+      "title": "Therapeutic Goods Poisons Standard October 2026 Original PDF",
+      "sourceFamily": "law",
+      "authorityLevel": 5,
+      "jurisdiction": "AU",
+      "language": "en",
+      "canonicalUrl": "https://www.legislation.gov.au/F2026L01327/asmade/2026-09-30/text/original/pdf",
+      "retrievalMethod": "pdf",
+      "official": true,
+      "legallyBinding": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "poisons_and_cosmetic_ingredient_controls",
+        "scope": "raw_october_2026_instrument_pdf"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "effectiveFrom": "2026-10-01",
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "Australia",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "au_poisons_standard_june_2026",
+      "publisher": "Federal Register of Legislation",
+      "title": "Therapeutic Goods Poisons Standard June 2026 Instrument 2026",
+      "sourceFamily": "historical_archive",
+      "authorityLevel": 5,
+      "jurisdiction": "AU",
+      "language": "en",
+      "canonicalUrl": "https://www.legislation.gov.au/F2026L00633/latest/text",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "poisons_and_cosmetic_ingredient_controls",
+        "scope": "superseded_june_2026_instrument"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "effectiveTo": "2026-09-30",
+        "historicalEvidence": true
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "Australia",
+          "relation": "historical_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "au_aicis_banned_restricted_guidance",
+      "publisher": "Australian Industrial Chemicals Introduction Scheme",
+      "title": "Banned or Restricted Chemicals",
+      "sourceFamily": "regulatory_guidance",
+      "authorityLevel": 5,
+      "jurisdiction": "AU",
+      "language": "en",
+      "canonicalUrl": "https://www.industrialchemicals.gov.au/chemical-information/banned-or-restricted-chemicals",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "industrial_chemicals_and_cosmetics",
+        "scope": "restriction_routing_guidance"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "Australia",
+          "relation": "covers"
         }
       ]
     }
