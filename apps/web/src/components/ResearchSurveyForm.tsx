@@ -214,7 +214,7 @@ export function ResearchSurveyForm({ slug, token, initial }: {
   const [experimentChoices, setExperimentChoices] = useState<Record<string, "a" | "b" | "none">>(
     Object.fromEntries(initial.experiments.flatMap((item) => item.selected ? [[String(item.taskNumber), item.selected]] : []))
   );
-  const [optionalConsents, setOptionalConsents] = useState<ConsentState>(initialConsent());
+  const [optionalConsents, setOptionalConsents] = useState<ConsentState>({ ...initialConsent(), ...initial.consents });
   const [sectionIndex, setSectionIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
