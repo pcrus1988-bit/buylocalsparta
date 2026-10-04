@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CATALOG_COLOR_INDEX, catalogColorFilterValues, catalogColorMatches, matchProducts, normalizeCatalogColorText, resolveCatalogColor, type ProductIdentity } from "../src/index.ts";
+import { CATALOG_COLOR_INDEX, CATALOG_SHADE_REFERENCES, catalogColorFamilyKey, catalogColorFilterValues, catalogColorMatches, matchProducts, normalizeCatalogHex, normalizeCatalogColorText, resolveCatalogColor, resolveCatalogShade, type ProductIdentity } from "../src/index.ts";
 
 test("color index carries shared display and coding metadata", () => {
   const beige = CATALOG_COLOR_INDEX.find((entry) => entry.key === "beige");
@@ -92,4 +92,29 @@ test("color alias comparison preserves source values while matching canonical id
   assert.equal(catalogColorMatches("Σκούρο Μπλε", "navy"), true);
   assert.equal(catalogColorMatches("Navy Blue", "red"), false);
   assert.equal(catalogColorMatches("Custom Shade 123", "Custom Shade 123"), true);
+});
+
+
+test("fine shade references stay attached to canonical storefront families", () => {
+  assert.ok(CATALOG_SHADE_REFERENCES.length >= 20);
+  const chestnut = resolveCatalogShade("Light Blonde Chestnut Pearl");
+  assert.equal(chestnut?.key, "chestnut");
+  assert.equal(chestnut?.familyKey, "brown");
+  assert.equal(chestnut?.hex, "#7A4B37");
+  assert.equal(catalogColorFamilyKey("Cobalt Blue"), "royal-blue");
+});
+
+test("explicit manufacturer HEX always wins over approximate shade naming", () => {
+  const exact = resolveCatalogShade("Rosewood #A14F63");
+  assert.equal(exact?.precision, "exact");
+  assert.equal(exact?.hex, "#A14F63");
+  assert.equal(normalizeCatalogHex("#abc"), "#AABBCC");
+});
+
+test("fine Studio shade names can be more precise than the broad filter family", () => {
+  const pearly = resolveCatalogShade("Pearly Pink Bubble");
+  assert.equal(pearly?.key, "pearly-pink");
+  assert.equal(pearly?.familyKey, "pink");
+  assert.equal(pearly?.hex, "#D998A8");
+  assert.equal(resolveCatalogColor("Pearly Pink Bubble")?.key, "pink");
 });
