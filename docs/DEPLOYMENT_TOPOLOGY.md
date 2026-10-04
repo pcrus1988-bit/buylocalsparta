@@ -46,6 +46,7 @@ The following are deliberately **not Vercel Functions**:
 - `media` — S3 staging/verification plus ClamAV streaming scan
 - `reports` — queued high-complexity reporting, multi-domain aggregation and PDF generation
 - `crawler` — governed external catalogue crawling with bounded leases and request controls
+- `nyxi-sources` — source-only NYXI evidence capture with immutable raw archival and no semantic extraction
 - `nova-catalogue` — long-running NOVA catalogue/materialization/pricing pipeline
 - `nova-order-reconciliation` — NOVA supplier-order status reconciliation
 - `symphonya` — long-running Symphonya catalogue → materialization → pricing → Greek enrichment → stock → publication pipeline
@@ -67,6 +68,7 @@ docker run --env-file worker.env -e BLS_WORKER_ROLE=notifications buy-local-spar
 docker run --env-file worker.env -e BLS_WORKER_ROLE=media buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=reports buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=crawler buy-local-sparta-worker
+docker run --env-file worker.env -e BLS_WORKER_ROLE=nyxi-sources buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=nova-catalogue buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=nova-order-reconciliation buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=symphonya buy-local-sparta-worker
@@ -114,3 +116,10 @@ Database-less Vercel previews may use Build 0.42.1+ signed stateless demo sessio
 ## Data locality
 
 Keep Vercel function region, PostgreSQL and provider-adjacent worker runtime in the same European geography where possible. Do not hard-code a Vercel region in source until the actual PostgreSQL region is selected; latency-sensitive database placement should be configured together.
+
+
+### NYXI source evidence collection
+
+The NYXI source collector is intentionally source-only. It does not extract ingredients, classify formulas, infer safety or create catalogue products. It downloads verified registered sources, uses conditional HTTP checks, archives changed raw bytes in private content-addressed object storage and records immutable snapshot provenance.
+
+The repository also schedules `.github/workflows/nyxi-source-collector.yml` every six hours in bounded drain mode. That workflow first synchronizes the curated source registry from `data/nyxi/source-registry.json`, then collects due sources. It can use dedicated `NYXI_*` repository secrets or fall back to the existing media database/private-storage credentials when those scopes are intentionally shared.
