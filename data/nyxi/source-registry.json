@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -1747,6 +1747,118 @@
           "type": "brand",
           "displayName": "Gucci Beauty",
           "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "mooncat_root",
+      "publisher": "mooncat",
+      "title": "mooncat Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.mooncat.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Mooncat",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Mooncat",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "mooncat_everything",
+      "publisher": "mooncat",
+      "title": "Everything Collection",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.mooncat.com/collections/everything",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Mooncat",
+        "scope": "product_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Mooncat",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "morgan_taylor_colours",
+      "publisher": "Gelish & Morgan Taylor",
+      "title": "Morgan Taylor Colors",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://gelish.com/colors/morgan-taylor",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Morgan Taylor",
+        "scope": "colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Morgan Taylor",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "morgan_taylor_system",
+      "publisher": "Gelish & Morgan Taylor",
+      "title": "Morgan Taylor Nail Lacquer System",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://gelish.com/morgan-taylor",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Morgan Taylor",
+        "scope": "application_system"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Morgan Taylor",
+          "relation": "covers"
         }
       ]
     }
