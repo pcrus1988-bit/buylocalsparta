@@ -19,7 +19,20 @@ import { getVendorStockFreshness } from "../../../lib/vendor-stock-freshness";
 export const metadata: Metadata = { title: "Προϊόντα, τιμές & απόθεμα", robots: { index: false, follow: false } };
 
 const ASSIGNED_PAGE_SIZE = 40;
-type Params = { assignedOffset?: string; assignedSaved?: string; assignedError?: string };
+const CATALOG_PAGE_SIZE = 40;
+type Params = {
+  assignedOffset?: string;
+  assignedSaved?: string;
+  assignedError?: string;
+  catalogSearch?: string;
+  q?: string;
+  category?: string;
+  visibility?: string;
+  stock?: string;
+  brand?: string;
+  sort?: string;
+  catalogOffset?: string;
+};
 
 async function confirmAssignedCatalogueAction(formData: FormData) {
   "use server";
@@ -54,21 +67,40 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
   if (!principal) redirect("/vendor/login");
   const params = await searchParams;
   const assignedOffset = parseAssignedOffset(params.assignedOffset);
+  const catalogSearch = {
+    run: params.catalogSearch === "1",
+    query: params.q ?? "",
+    category: params.category ?? "",
+    visibility: parseVisibility(params.visibility),
+    stock: parseStockFilter(params.stock),
+    brand: params.brand ?? "",
+    sort: parseSort(params.sort),
+    offset: parseCatalogOffset(params.catalogOffset),
+    limit: CATALOG_PAGE_SIZE
+  } as const;
   const operatingContext = await vendorOperatingContextForPrincipal(principal);
-  const [workspace, assignedCatalogue, stockFreshness, adminArchivedOfferIds] = await Promise.all([
-    vendorCatalogWorkspace(principal),
-    vendorAssignedCatalogueWorkspace(principal, { offset: assignedOffset, limit: ASSIGNED_PAGE_SIZE }),
-    getVendorStockFreshness(principal),
-    getVendorAdminArchivedOfferIds(principal)
+  const [workspace, assignedCatalogue] = await Promise.all([
+    vendorCatalogWorkspace(principal, catalogSearch),
+    vendorAssignedCatalogueWorkspace(principal, { offset: assignedOffset, limit: ASSIGNED_PAGE_SIZE })
   ]);
+  const pageOfferIds = workspace.catalogProducts.map((item) => item.offerId);
+  const [stockFreshness, adminArchivedOfferIds] = catalogSearch.run && pageOfferIds.length > 0
+    ? await Promise.all([
+        getVendorStockFreshness(principal, pageOfferIds),
+        getVendorAdminArchivedOfferIds(principal, pageOfferIds)
+      ])
+    : [
+        { available: true, freshCount: 0, staleCount: 0, staleSellableCount: 0, items: [] },
+        new Set<string>()
+      ];
   const catalogProducts = workspace.catalogProducts.map((item) => ({
     ...item,
     canToggleVisibility: item.canToggleVisibility && !adminArchivedOfferIds.has(item.offerId)
   }));
   const catalogWorkspace = { ...workspace, catalogProducts };
   const reviewPending = workspace.submissions.some((item) => ["submitted", "needs_review"].includes(item.status));
-  const hasProducts = workspace.catalogMetrics.totalProducts > 0 || assignedCatalogue.totalAssigned > 0;
-  const hasVisibleProducts = workspace.catalogMetrics.visibleProducts > 0;
+  const hasProducts = workspace.submissions.length > 0 || assignedCatalogue.totalAssigned > 0 || (catalogSearch.run && workspace.catalogTotalMatching > 0);
+  const hasVisibleProducts = catalogSearch.run && workspace.catalogMetrics.visibleProducts > 0;
   const archivedProducts = catalogProducts
     .filter((item) => item.offerStatus === "archived" && adminArchivedOfferIds.has(item.offerId))
     .map((item) => ({ offerId: item.offerId, title: item.title, vendorSku: item.vendorSku }));
@@ -179,18 +211,46 @@ export default async function VendorCatalogPage({ searchParams }: { searchParams
         <p><strong>Απόκρυψη:</strong> δεν διαγράφει το προϊόν ή το απόθεμα· απλώς σταματά προσωρινά τη δημόσια πώληση. Προϊόν που έκρυψες εσύ μπορείς να το επαναφέρεις από τον ίδιο διακόπτη. Αν έχει αρχειοθετηθεί από το ΚΟΝΤΑ ΜΟΥ, θα εμφανιστεί ξεχωριστά και θα χρειαστεί νέο έλεγχο.</p>
       </WorkspaceHowItWorks>
       <VendorDeliveryEligibilityPanel csrfToken={workspace.csrfToken} />
-      <VendorPriceManager csrfToken={workspace.csrfToken} products={catalogProducts} />
+      {catalogSearch.run && catalogProducts.length > 0 && <VendorPriceManager csrfToken={workspace.csrfToken} products={catalogProducts} />}
     </section>
 
-    <VendorStockFreshnessPanel snapshot={stockFreshness} />
-    <VendorCatalogClient initial={catalogWorkspace} canImportCatalogue={operatingContext.capabilities.includes("catalogue.import")} />
-    <VendorArchivedProductsPanel products={archivedProducts} csrfToken={workspace.csrfToken} />
+    {catalogSearch.run && <VendorStockFreshnessPanel snapshot={stockFreshness} />}
+    <VendorCatalogClient
+      initial={catalogWorkspace}
+      canImportCatalogue={operatingContext.capabilities.includes("catalogue.import")}
+      catalogSearch={{
+        active: workspace.catalogSearchApplied,
+        query: catalogSearch.query,
+        category: catalogSearch.category,
+        visibility: catalogSearch.visibility,
+        stock: catalogSearch.stock,
+        brand: catalogSearch.brand,
+        sort: catalogSearch.sort,
+        offset: workspace.catalogOffset,
+        limit: workspace.catalogLimit,
+        totalMatching: workspace.catalogTotalMatching
+      }}
+    />
+    {catalogSearch.run && <VendorArchivedProductsPanel products={archivedProducts} csrfToken={workspace.csrfToken} />}
   </main>;
 }
 
 function parseAssignedOffset(value?: string): number {
   const parsed = Number(value ?? 0);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+function parseCatalogOffset(value?: string): number {
+  const parsed = Number(value ?? 0);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+function parseVisibility(value?: string): "all" | "visible" | "hidden" {
+  return value === "visible" || value === "hidden" ? value : "all";
+}
+function parseStockFilter(value?: string): "all" | "in" | "low" | "out" {
+  return value === "in" || value === "low" || value === "out" ? value : "all";
+}
+function parseSort(value?: string): "updated" | "title" | "category" | "stock" {
+  return value === "title" || value === "category" || value === "stock" ? value : "updated";
 }
 function assignedPageHref(offset: number): string {
   return `/vendor/catalog?assignedOffset=${Math.max(0, offset)}#assigned-catalogue`;
