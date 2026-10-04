@@ -9,6 +9,7 @@ import type {
   SportAudience,
   SportDistance,
   SportFitAnswers,
+  SportFitMatchProof,
   SportFitPreference,
   SportFitRecommendation,
   SportFitScoredProduct,
@@ -70,6 +71,7 @@ type UniverseProduct = Readonly<{
   matchedSize?: string;
   role?: string;
   reasons?: readonly string[];
+  matchProofs?: readonly SportFitMatchProof[];
 }>;
 
 type UniverseResponse = Readonly<{
@@ -317,7 +319,15 @@ function ProductResultCard({ product, featured = false }: { product: SportFitSco
         <h3><Link href={productPublicPath(product)} prefetch={false}>{product.title}</Link></h3>
         <strong className={styles.price}>{euro(product.priceMinor)}</strong>
         <MatchBar score={product.score} />
-        {product.reasons.length ? <ul>{product.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul> : null}
+        {product.matchProofs.length ? (
+          <ul>
+            {product.matchProofs.map((proof) => (
+              <li key={proof.id}>{proof.input} → {proof.knowledge} · {proof.proof}</li>
+            ))}
+          </ul>
+        ) : product.reasons.length ? (
+          <ul>{product.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+        ) : null}
         <Link className={styles.productLink} href={productPublicPath(product)} prefetch={false}>Δες το προϊόν <span>→</span></Link>
       </div>
     </article>

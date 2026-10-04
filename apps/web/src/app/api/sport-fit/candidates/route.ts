@@ -7,6 +7,7 @@ import {
   sportProductRole,
   sportProductTier,
   type SportAudience,
+  type SportFitMatchProof,
   type SportFitProduct,
   type SportFitScoredProduct
 } from "../../../../lib/sport-fit-engine";
@@ -34,6 +35,7 @@ type UniverseProductPreview = Readonly<{
   matchedSize?: string;
   role?: string;
   reasons?: readonly string[];
+  matchProofs?: readonly SportFitMatchProof[];
 }>;
 
 function safeVendorId(value: unknown): string {
@@ -58,7 +60,8 @@ function universePreview(product: SportFitProduct | SportFitScoredProduct): Univ
     technicalCoverage: scored?.technicalCoverage,
     matchedSize: scored?.matchedSize,
     role: scored?.role,
-    reasons: scored?.reasons
+    reasons: scored?.reasons,
+    matchProofs: scored?.matchProofs
   };
 }
 
