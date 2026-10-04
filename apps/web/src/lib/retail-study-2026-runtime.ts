@@ -472,15 +472,18 @@ export async function getRetailStudyDashboard(dataCutoff?: string | Date): Promi
     stratumKey: row.stratum_key,
     populationCount: Number(row.population_count)
   }));
-  const records: AnalysisRecord[] = responseResult.rows.map((row) => ({
-    id: row.id,
-    stratumKey: row.stratum_key ?? row.sector_group + "|" + row.prefecture,
-    sectorGroup: row.sector_group,
-    prefecture: row.prefecture,
-    selectionProbability: Number(row.selection_probability) || 1,
-    answers: row.answers ?? {},
-    scores: scoreRetailStudy(row.answers ?? {})
-  }));
+  const eligibleValues = new Set<string>(RETAIL_STUDY_2026_METHODOLOGY.qualityRules.eligibleConsumerRetailValues);
+  const records: AnalysisRecord[] = responseResult.rows
+    .filter((row) => eligibleValues.has(String(row.answers?.consumer_retail_activity ?? "")))
+    .map((row) => ({
+      id: row.id,
+      stratumKey: row.stratum_key ?? row.sector_group + "|" + row.prefecture,
+      sectorGroup: row.sector_group,
+      prefecture: row.prefecture,
+      selectionProbability: Number(row.selection_probability) || 1,
+      answers: row.answers ?? {},
+      scores: scoreRetailStudy(row.answers ?? {})
+    }));
   const weighted = calibrateRetailStudyWeights(records, populationCells);
   const sectors = [...new Set(weighted.map((record) => record.sectorGroup))].sort();
   const sectorComparisons = sectors.map((sector) => {
