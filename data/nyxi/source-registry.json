@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -1859,6 +1859,612 @@
           "type": "brand",
           "displayName": "Morgan Taylor",
           "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "madam_glam_ingredients",
+      "publisher": "Madam Glam",
+      "title": "Ingredients Philosophy",
+      "sourceFamily": "manufacturer_product",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.madamglam.com/pages/ingrediants",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Madam Glam",
+        "scope": "ingredient_and_formula_policy"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Madam Glam",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "young_nails_polish_catalogue",
+      "publisher": "Young Nails",
+      "title": "Nail Polish Collection",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.youngnails.com/collections/yn-nail-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Young Nails",
+        "scope": "nail_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Young Nails",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "young_nails_gel_catalogue",
+      "publisher": "Young Nails",
+      "title": "Gel Collection",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.youngnails.com/collections/gel",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Young Nails",
+        "scope": "professional_gel_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Young Nails",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "young_nails_learn",
+      "publisher": "Young Nails",
+      "title": "Young Nails Learn",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.youngnails.com/pages/learn",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Young Nails",
+        "scope": "technical_education"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Young Nails",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "dnd_dnd_color_catalogue",
+      "publisher": "DND Gel",
+      "title": "DND Color",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.dndgel.com/collections/dnd-duo",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "DND / DC",
+        "line": "DND",
+        "scope": "colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "DND / DC",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "dnd_dc_color_catalogue",
+      "publisher": "DND Gel",
+      "title": "DC Color",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.dndgel.com/collections/dc-duo",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "DND / DC",
+        "line": "DC",
+        "scope": "colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "DND / DC",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gelish_colour_catalogue",
+      "publisher": "Nail Alliance / Gelish",
+      "title": "Gelish Color Catalogue",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://gelish.com/colors/gelish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Gelish",
+        "scope": "colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Gelish",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gelish_system_page",
+      "publisher": "Nail Alliance / Gelish",
+      "title": "Gelish System",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://gelish.com/gelish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Gelish",
+        "scope": "products_application_removal"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Gelish",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "lechat_faq_sds_pointer",
+      "publisher": "LeChat Nails",
+      "title": "FAQ including SDS repository link",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://lechatnails.com/faq/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "LeChat",
+        "scope": "sds_pointer_and_technical_faq"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "preserveLinkedDocuments": true
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "LeChat",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "lechat_sds_dropbox_repository",
+      "publisher": "LeChat Nails",
+      "title": "LeChat Safety Data Sheets repository",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.dropbox.com/scl/fo/hydxq1e4ygbev8bow8p7n/h?dl=0&rlkey=gadczotuft9y7oljvdmxhsenf",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "LeChat",
+        "scope": "sds_repository"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "hostedExternally": true,
+        "linkedFrom": "https://lechatnails.com/faq/"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "LeChat",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cuccio_brush_builder_sds",
+      "publisher": "Cuccio",
+      "title": "Safety Data Sheets: Star Nail, Cuccio — Brush-On Builder",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://shopcuccio.com/pages/cuccio-professional-led-uv-brush-on-builder-with-calcium",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Cuccio",
+        "scope": "sds_page",
+        "product_family": "LED/UV Brush-On Builder with Calcium"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Cuccio",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "komilfo_root_en",
+      "publisher": "Komilfo",
+      "title": "Komilfo Official Manufacturer Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "UA",
+      "language": "en",
+      "canonicalUrl": "https://komilfo.ua/en/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Komilfo",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Komilfo",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "komilfo_gel_polish_catalogue",
+      "publisher": "Komilfo",
+      "title": "Komilfo Gel Polish Catalogue",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "UA",
+      "language": "uk",
+      "canonicalUrl": "https://komilfo.ua/product-category/gel-laki-komilfo-uk/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Komilfo",
+        "scope": "gel_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "productCountObserved": 749
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Komilfo",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "komilfo_about",
+      "publisher": "Komilfo",
+      "title": "About Komilfo",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "UA",
+      "language": "uk",
+      "canonicalUrl": "https://komilfo.ua/pro-komilfo/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "brand": "Komilfo",
+        "scope": "manufacturer_identity_and_certification_context"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Komilfo",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "claresa_root_pl",
+      "publisher": "4mass S.A. / Claresa",
+      "title": "Claresa Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "pl",
+      "canonicalUrl": "https://claresa.pl/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Claresa",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Claresa",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "claresa_brand_catalogue",
+      "publisher": "4mass S.A. / Claresa",
+      "title": "Claresa Product Catalogue",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "pl",
+      "canonicalUrl": "https://claresa.pl/pl/collection/Claresa/3",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Claresa",
+        "scope": "brand_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "productCountObserved": "1100+"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Claresa",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "us_openfda_cosmetic_events_api",
+      "publisher": "U.S. Food and Drug Administration",
+      "title": "openFDA Cosmetic Adverse Events API",
+      "sourceFamily": "regulatory_database",
+      "authorityLevel": 5,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://api.fda.gov/cosmetic/event.json",
+      "retrievalMethod": "api",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetic_adverse_events",
+        "scope": "machine_readable_event_records"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "United States",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "us_openfda_cosmetic_download_index",
+      "publisher": "U.S. Food and Drug Administration",
+      "title": "openFDA Data Downloads — Cosmetics",
+      "sourceFamily": "historical_archive",
+      "authorityLevel": 5,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://open.fda.gov/data/downloads/",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "quarterly",
+      "coverage": {
+        "domain": "cosmetic_adverse_events",
+        "scope": "bulk_download_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "preserveLinkedFiles": true
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "United States",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "us_cpsc_recalls_api_docs",
+      "publisher": "U.S. Consumer Product Safety Commission",
+      "title": "CPSC Recalls API",
+      "sourceFamily": "recall_system",
+      "authorityLevel": 5,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.cpsc.gov/Recalls/CPSC-Recalls-Application-Program-Interface-API-Information?language=en",
+      "retrievalMethod": "html",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "consumer_product_recalls",
+        "scope": "api_documentation"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "relevance": "nail_tools_lamps_accessories_and_non_cosmetic_products"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "United States",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "ca_consumer_product_recalls_rss",
+      "publisher": "Government of Canada",
+      "title": "Consumer Products Recalls and Alerts RSS",
+      "sourceFamily": "recall_system",
+      "authorityLevel": 5,
+      "jurisdiction": "CA",
+      "language": "en",
+      "canonicalUrl": "https://recalls-rappels.canada.ca/en/feed/consumer-products-alerts-recalls",
+      "retrievalMethod": "rss",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "continuous",
+      "coverage": {
+        "domain": "consumer_product_recalls",
+        "scope": "consumer_products_rss"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "Canada",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gb_opss_product_safety_atom",
+      "publisher": "Office for Product Safety and Standards",
+      "title": "Product Safety Alerts, Reports and Recalls Atom Feed",
+      "sourceFamily": "recall_system",
+      "authorityLevel": 5,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.gov.uk/product-safety-alerts-reports-recalls.atom",
+      "retrievalMethod": "rss",
+      "official": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "updateFrequency": "continuous",
+      "coverage": {
+        "domain": "product_safety",
+        "scope": "all_alerts_reports_recalls_feed"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "jurisdiction",
+          "displayName": "Great Britain",
+          "relation": "primary_for"
         }
       ]
     }
