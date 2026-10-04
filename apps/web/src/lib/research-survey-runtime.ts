@@ -445,6 +445,7 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
   const rows = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
     SELECT
       s.id, s.slug, s.title, s.status, s.fieldwork_starts_at, s.fieldwork_ends_at,
+      latest_i.version AS instrument_version, latest_i.status AS instrument_status,
       COALESCE(f.frames, 0)::int AS frame_count,
       COALESCE(f.population, 0)::int AS frame_population,
       COALESCE(sd.draws, 0)::int AS sample_draw_count,
@@ -456,6 +457,10 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       COALESCE(a.analysis_runs, 0)::int AS analysis_runs,
       COALESCE(rel.releases, 0)::int AS releases
     FROM research_studies s
+    LEFT JOIN LATERAL (
+      SELECT version, status FROM research_instruments
+      WHERE study_id = s.id ORDER BY created_at DESC LIMIT 1
+    ) latest_i ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS frames, COALESCE(max(population_size), 0) AS population
       FROM research_frame_snapshots WHERE study_id = s.id
@@ -491,6 +496,8 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       status: text(row.status),
       fieldworkStartsAt: optionalText(row.fieldwork_starts_at),
       fieldworkEndsAt: optionalText(row.fieldwork_ends_at),
+      instrumentVersion: optionalText(row.instrument_version),
+      instrumentStatus: optionalText(row.instrument_status),
       frameCount: numberValue(row.frame_count),
       framePopulation: numberValue(row.frame_population),
       sampleDrawCount: numberValue(row.sample_draw_count),
@@ -562,6 +569,105 @@ export async function generateResearchInvitationBatch(
     }
     await client.query("COMMIT");
     return created;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+
+export type ResearchLifecycleAction =
+  | "lock_instrument"
+  | "start_pilot"
+  | "start_fielding"
+  | "close_fieldwork"
+  | "begin_analysis";
+
+export async function transitionResearchStudy(
+  principal: SessionPrincipal,
+  input: Readonly<{ slug: string; action: ResearchLifecycleAction }>
+): Promise<Readonly<{ studyStatus: string; instrumentStatus: string }>> {
+  assertAdminPermission(principal, "research.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  try {
+    await client.query("BEGIN");
+    const rowResult = await client.query<SqlRow>(`
+      SELECT
+        s.id AS study_id, s.status AS study_status,
+        i.id AS instrument_id, i.status AS instrument_status
+      FROM research_studies s
+      JOIN LATERAL (
+        SELECT id, status FROM research_instruments
+        WHERE study_id = s.id ORDER BY created_at DESC LIMIT 1
+      ) i ON true
+      WHERE s.slug = $1
+      FOR UPDATE OF s
+    `, [input.slug]);
+    const row = rowResult.rows[0];
+    if (!row) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+
+    let studyStatus = text(row.study_status);
+    let instrumentStatus = text(row.instrument_status);
+
+    if (input.action === "lock_instrument") {
+      if (studyStatus !== "draft" || instrumentStatus !== "draft") throw new Error("RESEARCH_LIFECYCLE_INVALID");
+      await client.query(`
+        UPDATE research_instruments SET status = 'locked', published_at = now()
+        WHERE id = $1
+      `, [row.instrument_id]);
+      instrumentStatus = "locked";
+    } else if (input.action === "start_pilot") {
+      if (!["draft", "pilot"].includes(studyStatus) || !["locked", "fielding"].includes(instrumentStatus)) {
+        throw new Error("RESEARCH_LIFECYCLE_INVALID");
+      }
+      await client.query(`
+        UPDATE research_studies
+        SET status = 'pilot', fieldwork_starts_at = COALESCE(fieldwork_starts_at, now()), updated_at = now()
+        WHERE id = $1
+      `, [row.study_id]);
+      await client.query("UPDATE research_instruments SET status = 'fielding' WHERE id = $1", [row.instrument_id]);
+      studyStatus = "pilot";
+      instrumentStatus = "fielding";
+    } else if (input.action === "start_fielding") {
+      if (!["draft", "pilot"].includes(studyStatus) || !["locked", "fielding"].includes(instrumentStatus)) {
+        throw new Error("RESEARCH_LIFECYCLE_INVALID");
+      }
+      const readiness = await client.query<SqlRow>(`
+        SELECT
+          EXISTS(SELECT 1 FROM research_frame_snapshots WHERE study_id = $1 AND status = 'frozen') AS frozen_frame,
+          EXISTS(SELECT 1 FROM research_sample_draws WHERE study_id = $1 AND status IN ('locked','fielded')) AS locked_sample
+      `, [row.study_id]);
+      if (!Boolean(readiness.rows[0]?.frozen_frame) || !Boolean(readiness.rows[0]?.locked_sample)) {
+        throw new Error("RESEARCH_FIELDING_REQUIRES_FRAME_AND_SAMPLE");
+      }
+      await client.query(`
+        UPDATE research_studies
+        SET status = 'fielding', fieldwork_starts_at = COALESCE(fieldwork_starts_at, now()), updated_at = now()
+        WHERE id = $1
+      `, [row.study_id]);
+      await client.query("UPDATE research_instruments SET status = 'fielding' WHERE id = $1", [row.instrument_id]);
+      studyStatus = "fielding";
+      instrumentStatus = "fielding";
+    } else if (input.action === "close_fieldwork") {
+      if (!["pilot", "fielding"].includes(studyStatus)) throw new Error("RESEARCH_LIFECYCLE_INVALID");
+      await client.query(`
+        UPDATE research_studies SET status = 'closed', fieldwork_ends_at = now(), updated_at = now()
+        WHERE id = $1
+      `, [row.study_id]);
+      await client.query("UPDATE research_instruments SET status = 'retired' WHERE id = $1", [row.instrument_id]);
+      studyStatus = "closed";
+      instrumentStatus = "retired";
+    } else if (input.action === "begin_analysis") {
+      if (studyStatus !== "closed") throw new Error("RESEARCH_LIFECYCLE_INVALID");
+      await client.query("UPDATE research_studies SET status = 'analysis', updated_at = now() WHERE id = $1", [row.study_id]);
+      studyStatus = "analysis";
+    }
+
+    await client.query("COMMIT");
+    return { studyStatus, instrumentStatus };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
     throw error;
