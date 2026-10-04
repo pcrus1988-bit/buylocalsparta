@@ -43,6 +43,7 @@ export async function GET(request: Request) {
       ...result,
       products: result.products.map((item) => ({
         ...item,
+        adminArchived: adminArchivedOfferIds.has(item.offerId),
         canToggleVisibility: item.canToggleVisibility && !adminArchivedOfferIds.has(item.offerId)
       }))
     });
