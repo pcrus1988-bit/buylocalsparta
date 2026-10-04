@@ -34,7 +34,7 @@ export type VendorProductFeedNormalizedRow = Readonly<{
   mpn?: string;
   gtin?: string;
   condition: string;
-  categoryCode: string;
+  categoryCode?: string;
   sourceCategory?: string;
   priceMinor: number;
   currency: "EUR";
@@ -56,8 +56,10 @@ export type VendorProductFeedPreview = Readonly<{
   totalRows: number;
   validRows: number;
   errorRows: number;
+  creationBlockedRows: number;
   sample: readonly VendorProductFeedNormalizedRow[];
   errors: readonly VendorProductFeedPreviewError[];
+  warnings: readonly VendorProductFeedPreviewError[];
 }>;
 export type VendorProductFeedMappingInput = Readonly<{
   fieldMapping?: VendorXmlFieldMapping;
@@ -129,12 +131,12 @@ function inferCategoryCode(
   title: string | undefined,
   availableCodes: ReadonlySet<string>
 ): string | undefined {
-  if (!sourceCategory) return undefined;
-  const segments = sourceCategory.split(">").map((part) => normalizeCategoryKey(part)).filter(Boolean);
+  const segments = (sourceCategory ?? "").split(">").map((part) => normalizeCategoryKey(part)).filter(Boolean);
   const leaf = segments.at(-1) ?? "";
   const path = segments.join(" ");
   const titleKey = normalizeCategoryKey(title ?? "");
   const signal = [leaf, titleKey, path].filter(Boolean).join(" ");
+  if (!signal) return undefined;
   const has = (...needles: string[]) => needles.some((needle) => signal.includes(needle));
   const hasIn = (value: string, ...needles: string[]) => needles.some((needle) => value.includes(needle));
   const available = (code: string | undefined) => code && availableCodes.has(code) ? code : undefined;
@@ -238,6 +240,10 @@ function normalizedSizeSignal(value: string): string {
   return value.normalize("NFKC").trim().toLocaleLowerCase("el").replaceAll("_", "-").replace(/\s+/g, "");
 }
 
+function normalizeVariantAttributeSignal(value: string): string {
+  return value.normalize("NFKC").trim().toLocaleLowerCase("el").replace(/\s+/g, " ");
+}
+
 function sizeFromProductUrl(productUrl: string | undefined, title: string | undefined): string | undefined {
   if (!productUrl) return undefined;
   try {
@@ -246,6 +252,20 @@ function sizeFromProductUrl(productUrl: string | undefined, title: string | unde
     const urlSize = raw.replaceAll("_", "-");
     const titleSize = titleSizeCandidate(title);
     return titleSize && normalizedSizeSignal(titleSize) === normalizedSizeSignal(urlSize) ? titleSize : urlSize;
+  } catch {
+    return undefined;
+  }
+}
+
+function feedVariantDiscriminator(size: string | undefined, productUrl: string | undefined): string | undefined {
+  if (size?.trim()) return "size=" + normalizedSizeSignal(size);
+  if (!productUrl) return undefined;
+  try {
+    const params = [...new URL(productUrl).searchParams.entries()]
+      .filter(([key, value]) => value.trim() && (key.startsWith("attribute_") || key === "variation_id"))
+      .map(([key, value]) => [key.toLowerCase(), normalizeVariantAttributeSignal(value)] as const)
+      .sort(([left], [right]) => left.localeCompare(right));
+    return params.length ? params.map(([key, value]) => key + "=" + value).join("&") : undefined;
   } catch {
     return undefined;
   }
@@ -405,22 +425,46 @@ export async function prepareVendorProductFeed(
 
   const categoryMapping = input.categoryMapping ?? {};
   const errors: VendorProductFeedPreviewError[] = [];
+  const warnings: VendorProductFeedPreviewError[] = [];
   const valid: VendorProductFeedPreparedRow[] = [];
   const sourceCategories = new Set<string>();
   const seenIds = new Set<string>();
   const seenVendorSkus = new Set<string>();
   const observedExternalIds = new Set<string>();
+  const rawExternalIdCounts = new Map<string, number>();
+  const rawVendorSkuCounts = new Map<string, number>();
 
   for (const record of parsed.records) {
-    const externalId = trimOptional(
+    const rawExternalId = trimOptional(
       xmlFieldValue(record, mapping.externalId)
       ?? xmlFieldValue(record, mapping.vendorSku)
       ?? xmlFieldValue(record, mapping.gtin),
       300
     );
-    const vendorSku = trimOptional(xmlFieldValue(record, mapping.vendorSku), 300);
+    const rawVendorSku = trimOptional(xmlFieldValue(record, mapping.vendorSku), 300);
+    if (rawExternalId) rawExternalIdCounts.set(rawExternalId, (rawExternalIdCounts.get(rawExternalId) ?? 0) + 1);
+    if (rawVendorSku) rawVendorSkuCounts.set(rawVendorSku, (rawVendorSkuCounts.get(rawVendorSku) ?? 0) + 1);
+  }
+
+  for (const record of parsed.records) {
+    const rawExternalId = trimOptional(
+      xmlFieldValue(record, mapping.externalId)
+      ?? xmlFieldValue(record, mapping.vendorSku)
+      ?? xmlFieldValue(record, mapping.gtin),
+      300
+    );
+    const rawVendorSku = trimOptional(xmlFieldValue(record, mapping.vendorSku), 300);
     const gtin = trimOptional(xmlFieldValue(record, mapping.gtin), 64);
     const title = decodeNumericTextEntities(trimOptional(xmlFieldValue(record, mapping.title), 500));
+    const productUrl = safeHttpUrl(xmlFieldValue(record, mapping.productUrl));
+    const size = trimOptional(xmlFieldValue(record, mapping.size), 160) ?? sizeFromProductUrl(productUrl, title);
+    const variantDiscriminator = feedVariantDiscriminator(size, productUrl);
+    const externalId = rawExternalId && (rawExternalIdCounts.get(rawExternalId) ?? 0) > 1 && variantDiscriminator
+      ? rawExternalId + "::" + variantDiscriminator
+      : rawExternalId;
+    const vendorSku = rawVendorSku && (rawVendorSkuCounts.get(rawVendorSku) ?? 0) > 1 && variantDiscriminator
+      ? rawVendorSku + "::" + variantDiscriminator
+      : rawVendorSku;
     const priceRaw = effectivePriceRaw(record, mapping.price);
     const priceMinor = parseXmlMoneyMinor(priceRaw);
     const currency = parseXmlCurrency(xmlFieldValue(record, mapping.currency), priceRaw);
@@ -439,10 +483,10 @@ export async function prepareVendorProductFeed(
         const leaf = sourceCategory.split(">").at(-1)?.trim();
         if (leaf) category = byName.get(normalizeCategoryKey(leaf));
       }
-      if (!category) {
-        const inferredCode = inferCategoryCode(sourceCategory, title, availableCategoryCodes);
-        if (inferredCode) category = byCode.get(inferredCode);
-      }
+    }
+    if (!category) {
+      const inferredCode = inferCategoryCode(sourceCategory, title, availableCategoryCodes);
+      if (inferredCode) category = byCode.get(inferredCode);
     }
     category ??= defaultCategory;
 
@@ -458,7 +502,14 @@ export async function prepareVendorProductFeed(
     if (priceMinor === undefined) fail("price", "Η τιμή λείπει ή δεν είναι έγκυρη.");
     if (currency !== "EUR") fail("currency", "Το KONTA MOU δέχεται τιμές EUR. Βρέθηκε " + currency + ".");
     if (stockOnHand === undefined) fail("stock", "Λείπει έγκυρο απόθεμα ή availability.");
-    if (!category) fail("category", "Δεν βρέθηκε αντιστοίχιση κατηγορίας. Επίλεξε προεπιλεγμένη κατηγορία ή mapping.");
+    if (!category) {
+      warnings.push({
+        rowNumber: record.index,
+        externalId,
+        field: "category",
+        message: "Δεν βρέθηκε κατηγορία. Η γραμμή παραμένει διαθέσιμη για ασφαλές enrichment/sync υπάρχοντος προϊόντος, αλλά δεν θα δημιουργηθεί νέο προϊόν μέχρι να οριστεί κατηγορία."
+      });
+    }
     if (externalId) seenIds.add(externalId);
     if (rowErrors.length) {
       errors.push(...rowErrors);
@@ -466,14 +517,16 @@ export async function prepareVendorProductFeed(
     }
 
     const description = decodeNumericTextEntities(trimOptional(xmlFieldValue(record, mapping.description), 10_000));
-    const productUrl = safeHttpUrl(xmlFieldValue(record, mapping.productUrl));
-    const size = trimOptional(xmlFieldValue(record, mapping.size), 160) ?? sizeFromProductUrl(productUrl, title);
     const color = trimOptional(xmlFieldValue(record, mapping.color), 160)
       ?? colorFromTitle(title)
       ?? colorFromDescription(description);
+    const itemGroupId = trimOptional(xmlFieldValue(record, mapping.itemGroupId), 300)
+      ?? (rawExternalId && (rawExternalIdCounts.get(rawExternalId) ?? 0) > 1 ? rawExternalId : undefined);
     const payload = {
       feedExternalId: externalId,
+      sourceExternalId: rawExternalId,
       vendorSku,
+      sourceVendorSku: rawVendorSku,
       title,
       description,
       brand: trimOptional(xmlFieldValue(record, mapping.brand), 200),
@@ -481,7 +534,7 @@ export async function prepareVendorProductFeed(
       mpn: trimOptional(xmlFieldValue(record, mapping.mpn), 300),
       gtin,
       condition: normalizeCondition(xmlFieldValue(record, mapping.condition)),
-      categoryCode: category!.code,
+      categoryCode: category?.code,
       sourceCategory,
       priceMinor,
       currency: "EUR",
@@ -489,7 +542,7 @@ export async function prepareVendorProductFeed(
       imageUrl: safeHttpUrl(xmlFieldValue(record, mapping.imageUrl)),
       additionalImageUrls: safeHttpUrls(xmlFieldValue(record, mapping.additionalImageUrl)),
       productUrl,
-      itemGroupId: trimOptional(xmlFieldValue(record, mapping.itemGroupId), 300),
+      itemGroupId,
       size,
       color,
       variantAttributes: {
@@ -508,7 +561,7 @@ export async function prepareVendorProductFeed(
       mpn: payload.mpn,
       gtin,
       condition: payload.condition,
-      categoryCode: category!.code,
+      categoryCode: category?.code,
       sourceCategory,
       priceMinor: priceMinor!,
       currency: "EUR",
@@ -564,8 +617,10 @@ export async function prepareVendorProductFeed(
       totalRows: parsed.records.length,
       validRows: enrichedRows.length,
       errorRows: parsed.records.length - enrichedRows.length,
+      creationBlockedRows: enrichedRows.filter((row) => !row.categoryCode).length,
       sample: enrichedRows.slice(0, 50).map(({ payload: _payload, ...row }) => row),
-      errors: errors.slice(0, 150)
+      errors: errors.slice(0, 150),
+      warnings: warnings.slice(0, 150)
     },
     rows: enrichedRows,
     observedExternalIds: [...observedExternalIds],
@@ -739,7 +794,17 @@ export async function fetchVendorXml(rawUrl: string): Promise<string> {
     accept: "application/xml,text/xml,application/rss+xml,text/plain;q=0.8,*/*;q=0.2",
     userAgent: "KONTAMOU-VendorFeed/1.0 (+https://kontamou.site/)"
   });
-  return new TextDecoder("utf-8", { fatal: false }).decode(response.bytes);
+  const xml = new TextDecoder("utf-8", { fatal: false }).decode(response.bytes);
+  const prefix = xml.replace(/^\uFEFF/, "").trimStart().slice(0, 512);
+  const bodyProbe = prefix
+    .replace(/^<\?xml[^>]*\?>\s*/i, "")
+    .replace(/^<!--[\s\S]*?-->\s*/, "");
+  if (/^<!doctype\s+html\b/i.test(bodyProbe) || /^<html\b/i.test(bodyProbe)) {
+    throw new Error(
+      "Ο σύνδεσμος επέστρεψε σελίδα HTML αντί για XML προϊόντων. Βάλε το απευθείας XML/export feed URL του e-shop ή του Shopflix, όχι σελίδα του ΚΟΝΤΑ ΜΟΥ."
+    );
+  }
+  return xml;
 }
 
 export async function assertPublicVendorUrl(url: URL) {
