@@ -7,6 +7,7 @@ import {
 import { gemiAdminPreview, normalizeGemiAdminFilters } from "../../../../../lib/gemi-admin-export";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 export async function GET(request: Request) {
   try {
