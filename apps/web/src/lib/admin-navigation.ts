@@ -72,7 +72,8 @@ const TRUST_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>(
 const ANALYTICS_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>([
   ["/admin/analytics", { order: 0, label: "Performance" }],
   ["/admin/demand", { order: 1, label: "Demand" }],
-  ["/admin/reports", { order: 2, label: "Reports" }]
+  ["/admin/research/surveys", { order: 2, label: "Research Studies" }],
+  ["/admin/reports", { order: 3, label: "Reports" }]
 ]);
 
 const CONTENT_OPERATOR_LINKS = new Map<string, { order: number; label?: string }>([
