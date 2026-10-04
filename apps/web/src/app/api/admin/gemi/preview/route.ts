@@ -23,6 +23,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const filters = normalizeGemiAdminFilters({
       activityId: url.searchParams.get("activity"),
+      activityGroupIds: url.searchParams.get("groups"),
       prefectureId: url.searchParams.get("prefecture"),
       municipalityId: url.searchParams.get("municipality"),
       activeOnly: url.searchParams.get("activeOnly")
