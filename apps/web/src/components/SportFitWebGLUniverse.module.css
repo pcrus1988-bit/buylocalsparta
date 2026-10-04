@@ -404,6 +404,25 @@
   letter-spacing:.07em;
   text-transform:uppercase
 }
+.popupConsultation{
+  margin-top:22px;
+  padding:15px 16px;
+  border:1px solid rgba(134,255,236,.13);
+  border-radius:14px;
+  background:rgba(126,255,235,.05)
+}
+.popupConsultation span{
+  color:#8ff5e2;
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:.15em
+}
+.popupConsultation p{
+  margin:8px 0 0;
+  color:rgba(240,255,251,.88);
+  font-size:13px;
+  line-height:1.55
+}
 .popupReasons{
   margin-top:24px;
   padding-top:18px;
