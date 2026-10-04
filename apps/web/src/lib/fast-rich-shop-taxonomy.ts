@@ -1,3 +1,4 @@
+import { catalogColorFilterValues } from "@buy-local-sparta/core";
 import type { CatalogFilters } from "./catalog-view";
 import type { CatalogAttributeFilters } from "./catalog-attribute-filter";
 import {
@@ -58,6 +59,7 @@ async function loadFastAttributeFacets(
 
   const prefixes = categoryPrefixes(category);
   const selectedSizes = decodeCatalogSizeGroup(filters.size ?? "");
+  const selectedColors = catalogColorFilterValues(filters.color ?? "");
   const definitionPayload = definitions.map((definition) => ({
     key: definition.key,
     label: definition.label,
@@ -224,7 +226,7 @@ async function loadFastAttributeFacets(
         WHERE base.governed_attributes ? definition.key
           AND ($3::text='' OR base.category_code=$3)
           AND ($4::text='' OR lower(COALESCE(base.brand,''))=lower($4))
-          AND ($5::text='' OR lower(COALESCE(base.color,''))=lower($5))
+          AND (cardinality($5::text[])=0 OR lower(COALESCE(base.color,''))=ANY($5::text[]))
           AND (cardinality($6::text[])=0 OR EXISTS (
             SELECT 1 FROM unnest($6::text[]) selected_size(value)
             WHERE COALESCE(base.sizes,'[]'::jsonb) ? selected_size.value
@@ -258,7 +260,7 @@ async function loadFastAttributeFacets(
       query.trim(),
       filters.subcategory ?? "",
       filters.brand ?? "",
-      filters.color ?? "",
+      selectedColors,
       selectedSizes,
       JSON.stringify(definitionPayload),
       JSON.stringify(attributeFilters)

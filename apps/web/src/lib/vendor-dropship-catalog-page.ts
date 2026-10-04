@@ -1,4 +1,4 @@
-import { formatMoney, money } from "@buy-local-sparta/core";
+import { catalogColorFilterValues, formatMoney, money } from "@buy-local-sparta/core";
 import { unstable_cache } from "next/cache";
 import type { CatalogCard } from "./catalog-view";
 import { loadCatalogMetadata } from "./catalog-metadata";
@@ -146,7 +146,7 @@ async function getLiveVendorFamilyWindow(input: Readonly<{
   query: string;
   categories: readonly string[];
   brand: string;
-  color: string;
+  colors: readonly string[];
   sizes: readonly string[];
   fit: string;
   material: string;
@@ -177,9 +177,9 @@ async function getLiveVendorFamilyWindow(input: Readonly<{
       AND fm.available_until>now()
       AND (cardinality($3::text[])=0 OR fm.category_codes && $3::text[])
       AND ($4::text='' OR fm.brand_names_normalized @> ARRAY[lower($4)]::text[])
-      AND ($5::text='' OR EXISTS (
+      AND (cardinality($5::text[])=0 OR EXISTS (
         SELECT 1 FROM unnest(fm.colors) candidate(value)
-        WHERE lower(candidate.value)=lower($5)
+        WHERE lower(candidate.value)=ANY($5::text[])
       ))
       AND (cardinality($6::text[])=0 OR fm.sizes && $6::text[])
       AND ($7::text='' OR EXISTS (
@@ -198,7 +198,7 @@ async function getLiveVendorFamilyWindow(input: Readonly<{
     input.query,
     input.categories,
     input.brand,
-    input.color,
+    input.colors,
     input.sizes,
     input.fit,
     input.material,
@@ -222,7 +222,7 @@ export async function getVendorDropshipCatalogPage(
   const query = input.query?.trim().slice(0, 160) ?? "";
   const categories = categoryValues(input);
   const brand = input.brand?.trim().slice(0, 160) ?? "";
-  const color = input.color?.trim().slice(0, 120) ?? "";
+  const colors = catalogColorFilterValues(input.color ?? "").slice(0, 64);
   const sizes = sizeValues(input);
   const fit = input.fit?.trim().slice(0, 120).toLocaleLowerCase("en") ?? "";
   const material = input.material?.trim().slice(0, 120).toLocaleLowerCase("en") ?? "";
@@ -237,7 +237,7 @@ export async function getVendorDropshipCatalogPage(
     query,
     categories,
     brand,
-    color,
+    colors,
     sizes,
     fit,
     material,

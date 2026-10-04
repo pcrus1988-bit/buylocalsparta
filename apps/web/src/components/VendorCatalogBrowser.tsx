@@ -1,5 +1,6 @@
 "use client";
 
+import { resolveCatalogColor } from "@buy-local-sparta/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CatalogCard } from "../lib/catalog-view";
 import { CatalogProductCard } from "./CatalogProductCard";
@@ -130,35 +131,6 @@ const MATERIAL_TERMS = [
   { value: "denim", label: "Denim", needles: ["denim"] }
 ] as const;
 
-const COLOR_SWATCHES: Readonly<Record<string, string>> = {
-  black: "#111111",
-  white: "#ffffff",
-  "off white": "#f4f0e6",
-  ivory: "#f4eddf",
-  beige: "#d8c5a5",
-  cream: "#eadfca",
-  blue: "#2f5da8",
-  "light blue": "#83b7df",
-  "dark blue": "#203b67",
-  navy: "#1d2d4d",
-  red: "#b83935",
-  green: "#4f7757",
-  khaki: "#777554",
-  brown: "#6f4a33",
-  camel: "#b98b5d",
-  grey: "#8a8a87",
-  gray: "#8a8a87",
-  silver: "#b8b8b8",
-  gold: "#c9a34d",
-  pink: "#d996a9",
-  purple: "#76548d",
-  violet: "#72568f",
-  yellow: "#d9b83e",
-  orange: "#d77a35",
-  burgundy: "#6f2738",
-  bordeaux: "#6f2738"
-};
-
 function normalized(value: string | undefined): string {
   return (value ?? "")
     .normalize("NFD")
@@ -177,6 +149,20 @@ function fallbackFacetOptions(values: readonly (string | undefined)[]): readonly
   return [...counts.entries()]
     .map(([value, count]) => ({ value, label: value, count }))
     .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "el"));
+}
+
+function fallbackColorFacetOptions(values: readonly (string | undefined)[]): readonly RemoteFacetOption[] {
+  const canonicalValues = values.map((value) => {
+    const resolved = resolveCatalogColor(value);
+    return resolved?.key ?? value;
+  });
+  return fallbackFacetOptions(canonicalValues).map((entry) => {
+    const resolved = resolveCatalogColor(entry.value);
+    return {
+      ...entry,
+      label: resolved?.displayNameEl ?? entry.label
+    };
+  });
 }
 
 function fallbackMaterialOptions(products: readonly CatalogCard[]): readonly RemoteFacetOption[] {
@@ -423,8 +409,28 @@ function optionLabel(options: readonly RemoteFacetOption[], value: string): stri
   return options.find((entry) => entry.value === value)?.label ?? value;
 }
 
-function colorSwatch(value: string): string | undefined {
-  return COLOR_SWATCHES[value.trim().toLocaleLowerCase("en")];
+function colorPresentation(value: string, fallbackLabel: string): Readonly<{
+  label: string;
+  style?: Readonly<{ background: string; backgroundSize?: string }>;
+}> {
+  const resolved = resolveCatalogColor(value) ?? resolveCatalogColor(fallbackLabel);
+  if (!resolved) return { label: fallbackLabel };
+  if (resolved.swatchKind === "multicolor") {
+    return {
+      label: resolved.displayNameEl,
+      style: { background: "conic-gradient(#D52B2B, #F2C230, #388A55, #2F6DA8, #68478D, #D52B2B)" }
+    };
+  }
+  if (resolved.swatchKind === "transparent") {
+    return {
+      label: resolved.displayNameEl,
+      style: {
+        background: "linear-gradient(45deg, #ffffff 25%, #d7d7d2 25% 50%, #ffffff 50% 75%, #d7d7d2 75%)",
+        backgroundSize: "8px 8px"
+      }
+    };
+  }
+  return { label: resolved.displayNameEl, style: { background: resolved.hex } };
 }
 
 function SortSelect({ value, onChange, compact = false }: { value: CatalogSort; onChange: (value: CatalogSort) => void; compact?: boolean }) {
@@ -632,7 +638,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
     [facetFallbackProducts, remoteFacets]
   );
   const colors = useMemo(
-    () => demoMode ? [] : remoteFacets?.colors.length ? remoteFacets.colors : fallbackFacetOptions(facetFallbackProducts.map((product) => product.color)),
+    () => demoMode ? [] : remoteFacets?.colors.length ? remoteFacets.colors : fallbackColorFacetOptions(facetFallbackProducts.map((product) => product.color)),
     [demoMode, facetFallbackProducts, remoteFacets]
   );
   const sizes = useMemo(
@@ -937,10 +943,10 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
     kind: "plain" | "color" = "plain"
   ) => <div className="vc-chip-grid">
     {options.slice(0, CHIP_LIMIT).map((entry) => {
-      const swatch = kind === "color" ? colorSwatch(entry.value) : undefined;
+      const colorInfo = kind === "color" ? colorPresentation(entry.value, entry.label) : undefined;
       return <button className={selectedValue === entry.value ? "active" : ""} type="button" onClick={() => onChange(selectedValue === entry.value ? "all" : entry.value)} key={entry.value}>
-        {kind === "color" ? <span className="vc-color-dot" style={swatch ? { background: swatch } : undefined}>{swatch ? "" : "◌"}</span> : null}
-        <span>{entry.label}</span><em>{entry.count}</em>
+        {kind === "color" ? <span className="vc-color-dot" style={colorInfo?.style}>{colorInfo?.style ? "" : "◌"}</span> : null}
+        <span>{colorInfo?.label ?? entry.label}</span><em>{entry.count}</em>
       </button>;
     })}
   </div>;
@@ -994,7 +1000,7 @@ export function VendorCatalogBrowser({ products, vendor, demoVendorId, vendorId,
 
         {colors.length > 1 ? <details className="vc-facet-details" open={!mobile || color !== "all"}>
           <summary><span>Χρώμα {color !== "all" ? <em>· {optionLabel(colors, color)}</em> : null}</span><em>{colors.length}</em></summary>
-          <div className="vc-facet-body"><div className="vc-facet-title"><span>Επιλογή χρώματος</span>{color !== "all" ? <button type="button" onClick={() => setColor("all")}>Καθαρισμός</button> : null}</div>{facetChips(colors, color, setColor, "color")}{colors.length > CHIP_LIMIT ? <select className="vc-more-select" value={color} onChange={(event) => setColor(event.target.value)}><option value="all">Όλα τα χρώματα</option>{colors.map((entry) => <option value={entry.value} key={entry.value}>{entry.label} ({entry.count})</option>)}</select> : null}</div>
+          <div className="vc-facet-body"><div className="vc-facet-title"><span>Επιλογή χρώματος</span>{color !== "all" ? <button type="button" onClick={() => setColor("all")}>Καθαρισμός</button> : null}</div>{facetChips(colors, color, setColor, "color")}{colors.length > CHIP_LIMIT ? <select className="vc-more-select" value={color} onChange={(event) => setColor(event.target.value)}><option value="all">Όλα τα χρώματα</option>{colors.map((entry) => <option value={entry.value} key={entry.value}>{colorPresentation(entry.value, entry.label).label} ({entry.count})</option>)}</select> : null}</div>
         </details> : null}
 
         {sizes.length > 1 ? <details className="vc-facet-details" open={size !== "all"}>

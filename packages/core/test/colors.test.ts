@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CATALOG_COLOR_INDEX, matchProducts, normalizeCatalogColorText, resolveCatalogColor, type ProductIdentity } from "../src/index.ts";
+import { CATALOG_COLOR_INDEX, catalogColorFilterValues, catalogColorMatches, matchProducts, normalizeCatalogColorText, resolveCatalogColor, type ProductIdentity } from "../src/index.ts";
 
 test("color index carries shared display and coding metadata", () => {
   const beige = CATALOG_COLOR_INDEX.find((entry) => entry.key === "beige");
@@ -74,4 +74,22 @@ test("product matching still blocks genuinely different normalized colors", () =
   const result = matchProducts(base, different);
   assert.equal(result.level, "different");
   assert.equal(result.autoMergeAllowed, false);
+});
+
+
+test("color filter aliases collapse source-language variants to one canonical facet", () => {
+  const navy = catalogColorFilterValues("navy");
+  assert.ok(navy.includes("navy"));
+  assert.ok(navy.includes("navy blue"));
+  assert.ok(navy.includes("σκούρο μπλε"));
+  assert.ok(navy.includes("σκουρο μπλε"));
+  assert.deepEqual(catalogColorFilterValues(""), []);
+});
+
+
+test("color alias comparison preserves source values while matching canonical identity", () => {
+  assert.equal(catalogColorMatches("Navy Blue", "navy"), true);
+  assert.equal(catalogColorMatches("Σκούρο Μπλε", "navy"), true);
+  assert.equal(catalogColorMatches("Navy Blue", "red"), false);
+  assert.equal(catalogColorMatches("Custom Shade 123", "Custom Shade 123"), true);
 });

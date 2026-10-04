@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { after } from "next/server";
-import { interpretSearchQuery } from "@buy-local-sparta/core";
+import { interpretSearchQuery, resolveCatalogColor } from "@buy-local-sparta/core";
 import type { CatalogCard, CatalogFacetOption } from "../../lib/catalog-view";
 import { getShopCatalogPage } from "../../lib/shop-catalog-page";
 import { getCachedShopTaxonomy } from "../../lib/cached-shop-taxonomy";
@@ -165,6 +165,26 @@ function mergeFacetOptions(
   return [...merged.values()];
 }
 
+function canonicalColorFacetOptions(options: readonly CatalogFacetOption[]): readonly CatalogFacetOption[] {
+  const grouped = new Map<string, CatalogFacetOption>();
+  for (const entry of options) {
+    const resolved = resolveCatalogColor(entry.value) ?? resolveCatalogColor(entry.label);
+    const value = resolved?.key ?? entry.value.trim();
+    if (!value) continue;
+    const label = resolved?.displayNameEl ?? entry.label;
+    const existing = grouped.get(value);
+    const hasCount = typeof existing?.count === "number" || typeof entry.count === "number";
+    grouped.set(value, {
+      value,
+      label,
+      count: hasCount ? (existing?.count ?? 0) + (entry.count ?? 0) : undefined
+    });
+  }
+  return [...grouped.values()].sort((left, right) =>
+    (right.count ?? 0) - (left.count ?? 0) || left.label.localeCompare(right.label, "el")
+  );
+}
+
 function shopPageHref(params: Record<string, string | string[] | undefined>, page: number): string {
   const next = new URLSearchParams();
   for (const [key, rawValue] of Object.entries(params)) {
@@ -228,7 +248,8 @@ export default async function ShopPage({ searchParams }: ShopProps) {
     : [];
   const requestedGuideLabel = category === "fashion" ? valueOf(params.guideLabel).trim().slice(0, 120) : "";
   const brand = valueOf(params.brand);
-  const color = valueOf(params.color);
+  const requestedColor = valueOf(params.color).trim();
+  const color = resolveCatalogColor(requestedColor)?.key ?? requestedColor;
   const size = valueOf(params.size);
   const fit = valueOf(params.fit);
   const attributeDefinitions = catalogAttributeDefinitionsForLeaf(activeLeaf?.key);
@@ -463,10 +484,10 @@ export default async function ShopPage({ searchParams }: ShopProps) {
       liveFacetOptions(taxonomy.facets.brands, supplierFacets?.brands ?? []),
       fallbackFacets.brands
     ),
-    colors: mergeFacetOptions(
+    colors: canonicalColorFacetOptions(mergeFacetOptions(
       liveFacetOptions(taxonomy.facets.colors, supplierFacets?.colors ?? []),
       fallbackFacets.colors
-    ),
+    )),
     sizes: mergeFacetOptions(
       liveFacetOptions(taxonomy.facets.sizes, supplierFacets?.sizes ?? []),
       fallbackFacets.sizes
@@ -549,7 +570,7 @@ export default async function ShopPage({ searchParams }: ShopProps) {
   ].filter((label): label is string => Boolean(label));
   const showSubcategory = facets.subcategories.length > 0 && storefrontFacetEnabled(activeLeaf, "subcategory");
   const showBrand = facets.brands.length > 0 && storefrontFacetEnabled(activeLeaf, "brand");
-  const showColor = facets.colors.length > 0 && storefrontFacetEnabled(activeLeaf, "color");
+  const showColor = facets.colors.length > 0;
   const showSize = facets.sizes.length > 0 && storefrontFacetEnabled(activeLeaf, "size");
   const showFit = fitOptions.length > 0 && storefrontFacetEnabled(activeLeaf, "fit");
   const { settings: seoSettings } = await getSeoGlobalSettingsSnapshot();

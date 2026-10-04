@@ -18,7 +18,7 @@ const readCachedFastShopTaxonomy = unstable_cache(
     postcode,
     JSON.parse(attributeFiltersJson) as CatalogAttributeFilters
   ),
-  ["shop-catalog-taxonomy-fast-v3"],
+  ["shop-catalog-taxonomy-fast-v4"],
   { revalidate: 900 }
 );
 
@@ -38,7 +38,7 @@ const readCachedRichShopTaxonomy = unstable_cache(
     leafKey,
     JSON.parse(attributeFiltersJson) as CatalogAttributeFilters
   ),
-  ["shop-catalog-taxonomy-rich-v4"],
+  ["shop-catalog-taxonomy-rich-v5"],
   { revalidate: 900 }
 );
 

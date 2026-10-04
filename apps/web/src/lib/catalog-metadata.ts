@@ -149,6 +149,18 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
     const attributes = objectValue(row.variant_attributes);
     const specifications = objectValue(row.specifications);
     const sizes = stringArray(specifications.sizes).length ? stringArray(specifications.sizes) : stringArray(attributes.sizes_observed);
+    const scalarMetadata = { ...scalarAttributes(attributes), ...scalarAttributes(specifications) };
+    const rawColor = [
+      "color",
+      "colour",
+      "χρωμα",
+      "color_name",
+      "colour_name",
+      "variant_color",
+      "variant_colour",
+      "primary_color",
+      "primary_colour"
+    ].map((key) => scalarMetadata[normalizeCatalogAttributeKey(key)]).find((value) => Boolean(value));
     return [row.id, {
       id: row.id,
       title: textValue(row.title),
@@ -158,7 +170,7 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
       description: publicDescriptionText(row.description),
       brand: textValue(row.brand) ?? textValue(specifications.brand),
       brandLogoObjectKey: textValue(row.brand_logo_object_key),
-      color: textValue(specifications.color) ?? textValue(attributes.color),
+      color: rawColor,
       sizes,
       categoryLabel: textValue(row.category_label),
       fit: textValue(specifications.fit),

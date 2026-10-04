@@ -1,3 +1,4 @@
+import { catalogColorFilterValues } from "@buy-local-sparta/core";
 import type { CatalogFacetOption, CatalogFilters } from "./catalog-view";
 import type { CatalogAttributeFilters } from "./catalog-attribute-filter";
 import type { AvailableCatalogTaxonomy } from "./available-catalog-taxonomy";
@@ -110,6 +111,7 @@ export async function getFastShopTaxonomy(
   const prefixes = categoryPrefixes(category);
   const search = query.trim();
   const selectedSizes = decodeCatalogSizeGroup(filters.size ?? "");
+  const selectedColors = catalogColorFilterValues(filters.color ?? "");
   try {
     const result = await getProductionPostgresRuntime().nativePool.query<FastTaxonomyRow>(`
       WITH RECURSIVE category_tree AS (
@@ -250,7 +252,7 @@ export async function getFastShopTaxonomy(
         SELECT category_code AS value,category_label AS label,COUNT(*)::int AS count
         FROM base
         WHERE ($4::text='' OR lower(COALESCE(brand,''))=lower($4))
-          AND ($5::text='' OR lower(COALESCE(color,''))=lower($5))
+          AND (cardinality($5::text[])=0 OR lower(COALESCE(color,''))=ANY($5::text[]))
           AND (cardinality($6::text[])=0 OR EXISTS (
             SELECT 1 FROM unnest($6::text[]) selected_size(value)
             WHERE COALESCE(sizes,'[]'::jsonb) ? selected_size.value
@@ -261,7 +263,7 @@ export async function getFastShopTaxonomy(
         FROM base
         WHERE brand IS NOT NULL
           AND ($3::text='' OR category_code=$3)
-          AND ($5::text='' OR lower(COALESCE(color,''))=lower($5))
+          AND (cardinality($5::text[])=0 OR lower(COALESCE(color,''))=ANY($5::text[]))
           AND (cardinality($6::text[])=0 OR EXISTS (
             SELECT 1 FROM unnest($6::text[]) selected_size(value)
             WHERE COALESCE(sizes,'[]'::jsonb) ? selected_size.value
@@ -284,7 +286,7 @@ export async function getFastShopTaxonomy(
         CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(base.sizes,'[]'::jsonb)) AS size_entry(value)
         WHERE ($3::text='' OR category_code=$3)
           AND ($4::text='' OR lower(COALESCE(brand,''))=lower($4))
-          AND ($5::text='' OR lower(COALESCE(color,''))=lower($5))
+          AND (cardinality($5::text[])=0 OR lower(COALESCE(color,''))=ANY($5::text[]))
         GROUP BY size_entry.value
       ), fit_values AS (
         SELECT fit_entry.value AS value,COUNT(*)::int AS count
@@ -314,7 +316,7 @@ export async function getFastShopTaxonomy(
           )
           AND ($3::text='' OR live_family.category_codes @> ARRAY[$3]::text[])
           AND ($4::text='' OR live_family.brand_names_normalized @> ARRAY[lower($4)]::text[])
-          AND ($5::text='' OR live_family.colors @> ARRAY[lower($5)]::text[])
+          AND (cardinality($5::text[])=0 OR live_family.colors && $5::text[])
           AND (cardinality($6::text[])=0 OR EXISTS (
             SELECT 1
             FROM unnest(live_family.sizes) actual_size(value)
@@ -353,7 +355,7 @@ export async function getFastShopTaxonomy(
       search,
       filters.subcategory ?? "",
       filters.brand ?? "",
-      filters.color ?? "",
+      selectedColors,
       selectedSizes
     ]);
 

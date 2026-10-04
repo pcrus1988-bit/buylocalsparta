@@ -1,40 +1,12 @@
 "use client";
 
+import { resolveCatalogColor } from "@buy-local-sparta/core";
 import { useMemo, useState } from "react";
 import type { CatalogFacetOption } from "../lib/catalog-view";
 import type { CatalogAttributeFacet } from "../lib/catalog-attribute-facets";
 
 const CHIP_LIMIT = 12;
 const BRAND_RESULT_LIMIT = 48;
-
-const COLOR_SWATCHES: Readonly<Record<string, string>> = {
-  black: "#111111",
-  white: "#ffffff",
-  "off white": "#f4f0e6",
-  ivory: "#f4eddf",
-  beige: "#d8c5a5",
-  cream: "#eadfca",
-  blue: "#2f5da8",
-  "light blue": "#83b7df",
-  "dark blue": "#203b67",
-  navy: "#1d2d4d",
-  red: "#b83935",
-  green: "#4f7757",
-  khaki: "#777554",
-  brown: "#6f4a33",
-  camel: "#b98b5d",
-  grey: "#8a8a87",
-  gray: "#8a8a87",
-  silver: "#b8b8b8",
-  gold: "#c9a34d",
-  pink: "#d996a9",
-  purple: "#76548d",
-  violet: "#72568f",
-  yellow: "#d9b83e",
-  orange: "#d77a35",
-  burgundy: "#6f2738",
-  bordeaux: "#6f2738"
-};
 
 function normalized(value: string): string {
   return value
@@ -48,8 +20,28 @@ function optionLabel(options: readonly CatalogFacetOption[], value: string): str
   return options.find((entry) => entry.value === value)?.label ?? value;
 }
 
-function colorSwatch(value: string): string | undefined {
-  return COLOR_SWATCHES[value.trim().toLocaleLowerCase("en")];
+function colorPresentation(value: string, fallbackLabel: string): Readonly<{
+  label: string;
+  style?: Readonly<{ background: string; backgroundSize?: string }>;
+}> {
+  const resolved = resolveCatalogColor(value) ?? resolveCatalogColor(fallbackLabel);
+  if (!resolved) return { label: fallbackLabel };
+  if (resolved.swatchKind === "multicolor") {
+    return {
+      label: resolved.displayNameEl,
+      style: { background: "conic-gradient(#D52B2B, #F2C230, #388A55, #2F6DA8, #68478D, #D52B2B)" }
+    };
+  }
+  if (resolved.swatchKind === "transparent") {
+    return {
+      label: resolved.displayNameEl,
+      style: {
+        background: "linear-gradient(45deg, #ffffff 25%, #d7d7d2 25% 50%, #ffffff 50% 75%, #d7d7d2 75%)",
+        backgroundSize: "8px 8px"
+      }
+    };
+  }
+  return { label: resolved.displayNameEl, style: { background: resolved.hex } };
 }
 
 function optionCount(option: CatalogFacetOption) {
@@ -69,7 +61,7 @@ function FacetChips({
 }) {
   return <div className="vc-chip-grid">
     {options.slice(0, CHIP_LIMIT).map((entry) => {
-      const swatch = color ? colorSwatch(entry.value) : undefined;
+      const colorInfo = color ? colorPresentation(entry.value, entry.label) : undefined;
       return <button
         className={value === entry.value ? "active" : ""}
         type="button"
@@ -77,8 +69,8 @@ function FacetChips({
         aria-pressed={value === entry.value}
         key={entry.value}
       >
-        {color ? <span className="vc-color-dot" style={swatch ? { background: swatch } : undefined} aria-hidden="true" /> : null}
-        <span>{entry.label}</span>
+        {color ? <span className="vc-color-dot" style={colorInfo?.style} aria-hidden="true" /> : null}
+        <span>{colorInfo?.label ?? entry.label}</span>
         {optionCount(entry)}
       </button>;
     })}
@@ -116,7 +108,7 @@ function StandardFacet({
       <FacetChips options={options} value={value} setValue={setValue} color={color} />
       {options.length > CHIP_LIMIT ? <select className="vc-more-select" value={value} onChange={(event) => setValue(event.target.value)}>
         <option value="">Όλα</option>
-        {options.map((entry) => <option value={entry.value} key={entry.value}>{entry.label}{typeof entry.count === "number" ? ` (${entry.count})` : ""}</option>)}
+        {options.map((entry) => <option value={entry.value} key={entry.value}>{color ? colorPresentation(entry.value, entry.label).label : entry.label}{typeof entry.count === "number" ? ` (${entry.count})` : ""}</option>)}
       </select> : null}
     </div>
   </details>;

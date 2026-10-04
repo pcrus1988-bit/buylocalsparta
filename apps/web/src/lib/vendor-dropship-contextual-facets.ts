@@ -1,3 +1,4 @@
+import { catalogColorFilterValues, resolveCatalogColor } from "@buy-local-sparta/core";
 import { unstable_cache } from "next/cache";
 import { groupCatalogSizeFacets, inferCatalogSizeDomain } from "./catalog-size";
 import type { VendorDropshipFacets, VendorDropshipFacetOption } from "./vendor-dropship-catalog-page";
@@ -24,36 +25,6 @@ type FacetProjectionRow = Readonly<{
   label: string;
   count: number | string;
 }>;
-
-const COLOR_LABELS: Readonly<Record<string, string>> = {
-  black: "Μαύρο",
-  white: "Λευκό",
-  "off white": "Εκρού",
-  ivory: "Ιβουάρ",
-  beige: "Μπεζ",
-  cream: "Κρεμ",
-  blue: "Μπλε",
-  "light blue": "Γαλάζιο",
-  "dark blue": "Σκούρο μπλε",
-  navy: "Navy",
-  red: "Κόκκινο",
-  green: "Πράσινο",
-  khaki: "Χακί",
-  brown: "Καφέ",
-  camel: "Camel",
-  grey: "Γκρι",
-  gray: "Γκρι",
-  silver: "Ασημί",
-  gold: "Χρυσό",
-  pink: "Ροζ",
-  purple: "Μωβ",
-  violet: "Βιολετί",
-  yellow: "Κίτρινο",
-  orange: "Πορτοκαλί",
-  burgundy: "Μπορντό",
-  bordeaux: "Μπορντό",
-  multicolor: "Πολύχρωμο"
-};
 
 const FIT_LABELS: Readonly<Record<string, string>> = {
   slim: "Slim",
@@ -111,7 +82,7 @@ function cleanMany(values: readonly string[] | undefined, max = 120, limit = 64)
 
 function localizedFacetLabel(type: FacetType, value: string, fallback: string): string {
   const normalized = value.trim().toLocaleLowerCase("en");
-  if (type === "color") return COLOR_LABELS[normalized] ?? (fallback || value);
+  if (type === "color") return resolveCatalogColor(value)?.displayNameEl ?? resolveCatalogColor(fallback)?.displayNameEl ?? (fallback || value);
   if (type === "fit") return FIT_LABELS[normalized] ?? (fallback || value);
   if (type === "material") return MATERIAL_LABELS[normalized] ?? (fallback || value);
   return fallback || value;
@@ -154,11 +125,24 @@ function facetRowsToProjection(
   const byPopularity = (left: VendorDropshipFacetOption, right: VendorDropshipFacetOption) =>
     right.count - left.count || left.label.localeCompare(right.label, "el");
 
+  const canonicalColors = new Map<string, VendorDropshipFacetOption>();
+  for (const entry of colors) {
+    const resolved = resolveCatalogColor(entry.value) ?? resolveCatalogColor(entry.label);
+    const value = resolved?.key ?? entry.value;
+    const label = resolved?.displayNameEl ?? entry.label;
+    const existing = canonicalColors.get(value);
+    canonicalColors.set(value, {
+      value,
+      label,
+      count: (existing?.count ?? 0) + entry.count
+    });
+  }
+
   return {
     total,
     categories: categories.sort(byPopularity),
     brands: brands.sort(byPopularity),
-    colors: colors.sort(byPopularity),
+    colors: [...canonicalColors.values()].sort(byPopularity),
     sizes: canonicalSizes,
     fits: fits.sort(byPopularity),
     materials: materials.sort(byPopularity)
@@ -296,7 +280,7 @@ async function readUnfilteredLiveVendorDropshipFacets(vendorId: string): Promise
 
 const cachedUnfilteredLiveVendorDropshipFacets = unstable_cache(
   readUnfilteredLiveVendorDropshipFacets,
-  ["vendor-dropship-unfiltered-live-facets-v1"],
+  ["vendor-dropship-unfiltered-live-facets-v2"],
   { revalidate: 15 }
 );
 
@@ -317,12 +301,12 @@ export async function getContextualVendorDropshipFacets(
   const prefixes = cleanMany(input.prefixes, 120, 48).map((value) => value.toLocaleLowerCase("en").replaceAll("_", "-"));
   const categories = cleanMany(input.categories);
   const brand = input.brand?.trim().slice(0, 160) ?? "";
-  const color = input.color?.trim().slice(0, 120) ?? "";
+  const colors = catalogColorFilterValues(input.color ?? "").slice(0, 64);
   const sizes = cleanMany(input.sizes);
   const fit = input.fit?.trim().slice(0, 120).toLocaleLowerCase("en") ?? "";
   const material = input.material?.trim().slice(0, 120).toLocaleLowerCase("en") ?? "";
 
-  if (!query && prefixes.length === 0 && categories.length === 0 && !brand && !color && sizes.length === 0 && !fit && !material) {
+  if (!query && prefixes.length === 0 && categories.length === 0 && !brand && colors.length === 0 && sizes.length === 0 && !fit && !material) {
     return cachedUnfilteredLiveVendorDropshipFacets(vendorId);
   }
 
@@ -407,7 +391,7 @@ export async function getContextualVendorDropshipFacets(
         b.*,
         (cardinality($4::text[])=0 OR b.category_codes && $4::text[]) AS category_match,
         ($5::text='' OR b.brand_names_normalized @> ARRAY[lower($5)]::text[]) AS brand_match,
-        ($6::text='' OR EXISTS (SELECT 1 FROM unnest(b.colors) candidate(value) WHERE lower(candidate.value)=lower($6))) AS color_match,
+        (cardinality($6::text[])=0 OR EXISTS (SELECT 1 FROM unnest(b.colors) candidate(value) WHERE lower(candidate.value)=ANY($6::text[]))) AS color_match,
         (cardinality($7::text[])=0 OR b.sizes && $7::text[]) AS size_match,
         ($8::text='' OR EXISTS (SELECT 1 FROM unnest(b.fits) candidate(value) WHERE lower(candidate.value)=lower($8))) AS fit_match,
         ($9::text='' OR b.materials @> ARRAY[lower($9)]::text[]) AS material_match
@@ -500,7 +484,7 @@ export async function getContextualVendorDropshipFacets(
     FROM projected
     WHERE facet_type='total' OR count>0
     ORDER BY facet_type,label,value
-  `, [vendorId, query, prefixes, categories, brand, color, sizes, fit, material, searchPrefix]);
+  `, [vendorId, query, prefixes, categories, brand, colors, sizes, fit, material, searchPrefix]);
 
   return facetRowsToProjection(result.rows, categories.length ? categories : prefixes);
 }

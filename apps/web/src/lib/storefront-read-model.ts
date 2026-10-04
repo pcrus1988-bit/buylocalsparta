@@ -1,3 +1,4 @@
+import { catalogColorFilterValues } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { decodeCatalogSizeGroup } from "./catalog-size";
 
@@ -65,7 +66,7 @@ function parameters(input: StorefrontReadModelWindowInput): unknown[] {
     [...(input.prefixes ?? [])],
     subcategories,
     filters.brand ?? "",
-    filters.color ?? "",
+    catalogColorFilterValues(filters.color ?? ""),
     sizes,
     filters.fit ?? "",
     input.query?.trim() ?? "",
@@ -89,7 +90,7 @@ const FILTER_SQL = `
   )
   AND (cardinality($2::text[])=0 OR rm.category_code=ANY($2::text[]))
   AND ($3::text='' OR lower(COALESCE(rm.brand_name,''))=lower($3))
-  AND ($4::text='' OR rm.color=lower($4))
+  AND (cardinality($4::text[])=0 OR lower(COALESCE(rm.color,''))=ANY($4::text[]))
   AND (cardinality($5::text[])=0 OR EXISTS (
     SELECT 1 FROM unnest($5::text[]) selected_size(value)
     WHERE COALESCE(rm.sizes,'[]'::jsonb) ? selected_size.value
@@ -122,7 +123,7 @@ const FAMILY_FILTER_SQL = `
   )
   AND (cardinality($2::text[])=0 OR fm.category_codes && $2::text[])
   AND ($3::text='' OR fm.brand_names @> ARRAY[lower($3)]::text[])
-  AND ($4::text='' OR fm.colors @> ARRAY[lower($4)]::text[])
+  AND (cardinality($4::text[])=0 OR fm.colors && $4::text[])
   AND (cardinality($5::text[])=0 OR EXISTS (
     SELECT 1 FROM unnest($5::text[]) selected_size(value)
     WHERE position('"'||lower(selected_size.value)||'"' in lower(COALESCE(fm.sizes_text,'')))>0

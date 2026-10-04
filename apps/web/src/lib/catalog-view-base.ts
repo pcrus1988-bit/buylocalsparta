@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { formatMoney, money, normalizeSearchText, searchTextRelevance } from "@buy-local-sparta/core";
+import { catalogColorMatches, formatMoney, money, normalizeSearchText, searchTextRelevance } from "@buy-local-sparta/core";
 import { cache } from "react";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedCatalogImages, type ApprovedCatalogImage } from "./public-media-service";
@@ -237,7 +237,7 @@ function sameFilterValue(left: string | undefined, right: string | undefined): b
 function matchesCatalogFilters(record: DatabaseCatalogRecord, metadata: CatalogMetadata | undefined, filters: CatalogFilters): boolean {
   if (filters.subcategory && record.categoryCode !== filters.subcategory) return false;
   if (!sameFilterValue(metadata?.brand, filters.brand)) return false;
-  if (!sameFilterValue(metadata?.color, filters.color)) return false;
+  if (filters.color && !catalogColorMatches(metadata?.color, filters.color)) return false;
   const selectedSizes = decodeCatalogSizeGroup(filters.size ?? "");
   if (selectedSizes.length && !(metadata?.sizes ?? []).some((size) => selectedSizes.some((selected) => sameFilterValue(size, selected)))) return false;
   return true;

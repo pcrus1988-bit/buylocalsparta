@@ -58,7 +58,7 @@ const cachedVendorFacets = unstable_cache(
     }>;
     return getContextualVendorDropshipFacets(vendorId, context);
   },
-  ["shop-supplier-contextual-facets-v2"],
+  ["shop-supplier-contextual-facets-v3"],
   { revalidate: 300 }
 );
 

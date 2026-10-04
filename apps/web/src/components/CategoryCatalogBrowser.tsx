@@ -1,5 +1,6 @@
 "use client";
 
+import { catalogColorMatches, resolveCatalogColor } from "@buy-local-sparta/core";
 import { useEffect, useMemo, useState } from "react";
 import type { CatalogCard } from "../lib/catalog-view";
 import { decodeCatalogSizeGroup, groupCatalogSizeFacets, inferCatalogSizeDomain } from "../lib/catalog-size";
@@ -199,10 +200,13 @@ export function CategoryCatalogBrowser({
     value: product.brand,
     label: product.brand
   }))), [products]);
-  const localColors = useMemo(() => countedFacetOptions(products.map((product) => ({
-    value: product.color,
-    label: product.color
-  }))), [products]);
+  const localColors = useMemo(() => countedFacetOptions(products.map((product) => {
+    const resolved = resolveCatalogColor(product.color);
+    return {
+      value: resolved?.key ?? product.color,
+      label: resolved?.displayNameEl ?? product.color
+    };
+  })), [products]);
   const localFits = useMemo(() => countedFacetOptions(products.map((product) => ({
     value: product.fit,
     label: product.fit
@@ -302,7 +306,7 @@ export function CategoryCatalogBrowser({
     return products.filter((product) => {
       if (subcategory !== "all" && product.categoryCode !== subcategory) return false;
       if (brand !== "all" && product.brand !== brand) return false;
-      if (color !== "all" && product.color !== color) return false;
+      if (color !== "all" && !catalogColorMatches(product.color, color)) return false;
       if (selectedSizes.length && !product.sizes.some((raw) => selectedSizes.includes(raw.trim()))) return false;
       if (fit !== "all" && product.fit !== fit) return false;
       if (!needle) return true;

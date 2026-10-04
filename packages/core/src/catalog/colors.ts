@@ -144,6 +144,53 @@ function colorSearchTokens(entry: CatalogColorIndexEntry): readonly string[] {
     .sort((left, right) => right.length - left.length);
 }
 
+/** True when two source colour values resolve to the same shopper-facing colour. */
+export function catalogColorMatches(left: unknown, right: unknown): boolean {
+  if (typeof left !== "string" || typeof right !== "string") return false;
+  const leftText = left.trim();
+  const rightText = right.trim();
+  if (!leftText || !rightText) return false;
+  const leftResolved = resolveCatalogColor(leftText);
+  const rightResolved = resolveCatalogColor(rightText);
+  if (leftResolved && rightResolved) return leftResolved.key === rightResolved.key;
+  return normalizeCatalogColorText(leftText) === normalizeCatalogColorText(rightText);
+}
+
+/**
+ * Returns the normalized values that may represent one shopper-facing colour in
+ * persisted catalogue projections. Storefront filters use these aliases so source
+ * values such as "Navy Blue", "Σκούρο Μπλε" and the canonical key "navy" resolve
+ * to the same colour facet.
+ */
+export function catalogColorFilterValues(value: unknown): readonly string[] {
+  if (typeof value !== "string" || !value.trim()) return [];
+  const source = value.trim();
+  const resolved = resolveCatalogColor(source);
+  if (!resolved) {
+    const raw = source.toLocaleLowerCase("el");
+    const normalized = normalizeCatalogColorText(source);
+    return [...new Set([raw, normalized].filter(Boolean))];
+  }
+
+  const entry = CATALOG_COLOR_INDEX.find((candidate) => candidate.key === resolved.key);
+  if (!entry) return [resolved.key];
+
+  return [...new Set([
+    source,
+    entry.key,
+    entry.displayNameEl,
+    entry.displayNameEn,
+    entry.hex,
+    entry.ralApprox ?? "",
+    entry.cssName ?? "",
+    ...entry.aliases
+  ].flatMap((candidate) => {
+    const raw = candidate.trim().toLocaleLowerCase("el");
+    const normalized = normalizeCatalogColorText(candidate);
+    return [raw, normalized];
+  }).filter(Boolean))];
+}
+
 export function resolveCatalogColor(value: unknown): ResolvedCatalogColor | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined;
   const sourceValue = value.trim();
