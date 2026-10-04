@@ -1,5 +1,5 @@
 {
-  "version": 22,
+  "version": 23,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -6789,6 +6789,406 @@
         {
           "type": "brand",
           "displayName": "Naio Nails / Urban Graffiti",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gellifique_root",
+      "publisher": "Gellifique Professional",
+      "title": "Gellifique Professional Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.gellifique.co.uk/en/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Gellifique",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Gellifique",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gellifique_gel_polish_and_paint",
+      "publisher": "Gellifique Professional",
+      "title": "Gel Polish and Paint",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.gellifique.co.uk/en/gel-polish-and-paint%28105%29",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Gellifique",
+        "scope": "gel_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest",
+        "preserveLinkedDocuments": true
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Gellifique",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "gellifique_shop_all",
+      "publisher": "Gellifique Professional",
+      "title": "Shop All Professional Gel Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.gellifique.co.uk/en/shop-now%2862%29",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Gellifique",
+        "scope": "all_professional_products"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Gellifique",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "andreia_professional_root",
+      "publisher": "Andreia Professional",
+      "title": "Andreia Professional Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://andreiaprofessional.com/en",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Andreia Professional",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Andreia Professional",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "andreia_gel_polishes",
+      "publisher": "Andreia Professional",
+      "title": "Gel Polish Catalogue",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://andreiaprofessional.com/en/collections/gel-polishes",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Andreia Professional",
+        "scope": "gel_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Andreia Professional",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "andreia_the_gel_polish",
+      "publisher": "Andreia Professional",
+      "title": "The Gel Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://andreiaprofessional.com/collections/the-gel-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Andreia Professional",
+        "line": "The Gel Polish",
+        "scope": "colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Andreia Professional",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "nails_inc_collections",
+      "publisher": "Nails Inc London",
+      "title": "Nails.INC Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://nailsinc.com/collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Nails.INC",
+        "scope": "collections_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Nails.INC",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "nails_inc_nail_polish",
+      "publisher": "Nails Inc London",
+      "title": "Nail Polish Catalogue",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://nailsinc.com/collections/nail-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Nails.INC",
+        "scope": "nail_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Nails.INC",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "nails_inc_complete_collection",
+      "publisher": "Nails Inc London",
+      "title": "The Complete Collection",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://nailsinc.com/collections/the-complete-collection",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Nails.INC",
+        "scope": "complete_product_collection"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Nails.INC",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "magpie_beauty_root",
+      "publisher": "Magpie Beauty Ltd",
+      "title": "Magpie Beauty Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.magpiebeauty.co.uk/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Magpie Beauty",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Magpie Beauty",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "magpie_all_gels",
+      "publisher": "Magpie Beauty Ltd",
+      "title": "All Gels",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.magpiebeauty.co.uk/64-all-gels",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Magpie Beauty",
+        "scope": "all_gels_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "highest"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Magpie Beauty",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "magpie_gel_colour",
+      "publisher": "Magpie Beauty Ltd",
+      "title": "Gel Colour and Glitter Gel",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.magpiebeauty.co.uk/20-gel-colour-glitter-gel",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Magpie Beauty",
+        "scope": "gel_colour_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Magpie Beauty",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "magpie_gel_colour_list",
+      "publisher": "Magpie Beauty Ltd",
+      "title": "Gel Colour List",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.magpiebeauty.co.uk/content/112-gel-colour-list",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Magpie Beauty",
+        "scope": "gel_colour_reference_list"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "archivePriority": "high"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Magpie Beauty",
+          "relation": "covers"
+        }
+      ]
+    },
+    {
+      "sourceKey": "mystic_nails_greece_polish_gel",
+      "publisher": "Mystic Nails Greece",
+      "title": "Polish-Gel Catalogue",
+      "sourceFamily": "authorised_distributor",
+      "authorityLevel": 3,
+      "jurisdiction": "GR",
+      "language": "el",
+      "canonicalUrl": "https://mysticnails.gr/polish_gel",
+      "retrievalMethod": "html",
+      "official": false,
+      "manufacturerPrimary": false,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Mystic Nails",
+        "scope": "regional_polish_gel_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Mystic Nails",
           "relation": "covers"
         }
       ]
