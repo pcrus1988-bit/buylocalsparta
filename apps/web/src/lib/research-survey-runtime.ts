@@ -281,8 +281,6 @@ export async function savePublicResearchSurvey(input: Readonly<{
       await client.query(`
         INSERT INTO research_consents (response_id, consent_kind, statement_version, granted, source)
         VALUES ($1, 'research_participation', $2, true, 'survey_ui')
-        ON CONFLICT (response_id, consent_kind)
-        DO UPDATE SET granted = EXCLUDED.granted, statement_version = EXCLUDED.statement_version, occurred_at = now()
       `, [response.id, invite.consent_statement_version]);
       await client.query(`
         UPDATE research_invites
@@ -345,12 +343,19 @@ export async function savePublicResearchSurvey(input: Readonly<{
 
     for (const [consentKind, granted] of Object.entries(input.optionalConsents ?? {})) {
       if (!["results_notification", "thank_you_code", "marketing"].includes(consentKind)) continue;
-      await client.query(`
-        INSERT INTO research_consents (response_id, consent_kind, statement_version, granted, source)
-        VALUES ($1, $2, $3, $4, 'survey_ui')
-        ON CONFLICT (response_id, consent_kind)
-        DO UPDATE SET granted = EXCLUDED.granted, statement_version = EXCLUDED.statement_version, occurred_at = now()
-      `, [response.id, consentKind, invite.consent_statement_version, Boolean(granted)]);
+      const previousConsent = await client.query<SqlRow>(`
+        SELECT granted
+        FROM research_consents
+        WHERE response_id = $1 AND consent_kind = $2
+        ORDER BY occurred_at DESC, id DESC
+        LIMIT 1
+      `, [response.id, consentKind]);
+      if (!previousConsent.rows[0] || Boolean(previousConsent.rows[0].granted) !== Boolean(granted)) {
+        await client.query(`
+          INSERT INTO research_consents (response_id, consent_kind, statement_version, granted, source)
+          VALUES ($1, $2, $3, $4, 'survey_ui')
+        `, [response.id, consentKind, invite.consent_statement_version, Boolean(granted)]);
+      }
     }
 
     await client.query(`
