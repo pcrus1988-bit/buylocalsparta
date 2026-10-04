@@ -49,6 +49,8 @@ const requestTimeoutMs = bounded(process.env.BLS_NYXI_SOURCE_REQUEST_TIMEOUT_MS,
 const maxResponseBytes = bounded(process.env.BLS_NYXI_SOURCE_MAX_RESPONSE_BYTES, 25 * 1024 * 1024, 64 * 1024, 100 * 1024 * 1024, "BLS_NYXI_SOURCE_MAX_RESPONSE_BYTES");
 const maxRedirects = bounded(process.env.BLS_NYXI_SOURCE_MAX_REDIRECTS, 5, 0, 10, "BLS_NYXI_SOURCE_MAX_REDIRECTS");
 const maxItems = bounded(process.env.BLS_NYXI_SOURCE_MAX_ITEMS, 100, 1, 10_000, "BLS_NYXI_SOURCE_MAX_ITEMS");
+const discoveryMaxLinks = bounded(process.env.BLS_NYXI_SOURCE_DISCOVERY_MAX_LINKS, 2_000, 0, 20_000, "BLS_NYXI_SOURCE_DISCOVERY_MAX_LINKS");
+const discoveryMaxBytes = bounded(process.env.BLS_NYXI_SOURCE_DISCOVERY_MAX_BYTES, 8 * 1024 * 1024, 64 * 1024, 25 * 1024 * 1024, "BLS_NYXI_SOURCE_DISCOVERY_MAX_BYTES");
 const mode = workerMode(process.env.BLS_NYXI_SOURCE_MODE);
 const userAgent = process.env.BLS_NYXI_SOURCE_USER_AGENT?.trim() || "NYXI-EvidenceBot/0.1 (+https://kontamou.site/)";
 let stopping = false;
@@ -65,6 +67,8 @@ log("info", "nyxi_source.worker_started", {
   leaseSeconds,
   requestTimeoutMs,
   maxResponseBytes,
+  discoveryMaxLinks,
+  discoveryMaxBytes,
   schema: readiness.appliedSchemaVersion
 });
 
@@ -210,6 +214,9 @@ async function collectSource(source: SourceLease): Promise<void> {
   const statusChanged = source.lastHttpStatus != null && source.lastHttpStatus !== result.status;
   const contentChanged = !source.lastContentSha256 || source.lastContentSha256 !== result.responseSha256;
   const changed = contentChanged || statusChanged;
+  const discoveredCandidates = result.status >= 200 && result.status < 400
+    ? discoverCandidateUrls(source, result.body, contentType, result.finalUrl, allowedHosts)
+    : [];
   let objectKey: string | undefined;
 
   if (contentChanged && result.body.length > 0) {
@@ -271,6 +278,50 @@ async function collectSource(source: SourceLease): Promise<void> {
       ]);
     }
 
+    if (discoveredCandidates.length) {
+      await client.query(`
+        INSERT INTO public.nyxi_source_candidates(
+          canonical_url,discovered_from_source_id,discovery_method,
+          publisher_hint,source_family_hint,jurisdiction_hint,
+          candidate_status,first_seen_at,last_seen_at,metadata
+        )
+        SELECT
+          candidate.canonical_url,
+          $1::uuid,
+          $2,
+          $3,
+          candidate.source_family_hint,
+          $4,
+          'candidate',
+          now(),
+          now(),
+          jsonb_build_object(
+            'discoveredFromSourceKey',$5::text,
+            'discoveredFromUrl',$6::text,
+            'contentType',$7::text,
+            'structuralDiscoveryOnly',true
+          )
+        FROM jsonb_to_recordset($8::jsonb) AS candidate(
+          canonical_url text,
+          source_family_hint text
+        )
+        WHERE candidate.canonical_url<>$6
+        ON CONFLICT (canonical_url) DO UPDATE SET
+          last_seen_at=now(),
+          updated_at=now(),
+          metadata=public.nyxi_source_candidates.metadata || EXCLUDED.metadata
+      `, [
+        source.sourceId,
+        source.retrievalMethod === "sitemap" ? "sitemap" : "official_link",
+        source.publisher,
+        source.jurisdiction,
+        source.sourceKey,
+        source.canonicalUrl,
+        contentType ?? null,
+        JSON.stringify(discoveredCandidates)
+      ]);
+    }
+
     await client.query(`
       UPDATE public.nyxi_source_crawl_state
       SET last_checked_at=now(),
@@ -319,7 +370,8 @@ async function collectSource(source: SourceLease): Promise<void> {
     bytes: result.responseBytes,
     sha256: result.responseSha256,
     archived: Boolean(objectKey),
-    changed
+    changed,
+    candidatesDiscovered: discoveredCandidates.length
   });
 }
 
@@ -366,6 +418,82 @@ function acceptHeader(method: string): string {
     case "sitemap": return "application/xml,text/xml;q=0.9,text/plain;q=0.5,*/*;q=0.2";
     default: return "text/html,application/xhtml+xml,application/pdf;q=0.8,application/xml;q=0.7,*/*;q=0.3";
   }
+}
+
+function discoverCandidateUrls(
+  source: SourceLease,
+  body: Buffer,
+  contentType: string | undefined,
+  finalUrl: string,
+  allowedHosts: readonly string[]
+): readonly Readonly<{ canonical_url: string; source_family_hint: string }>[] {
+  if (discoveryMaxLinks === 0 || body.length === 0) return [];
+  const type = contentType?.toLowerCase() ?? "";
+  const isHtml = type.includes("html") || source.retrievalMethod === "html";
+  const isXml = type.includes("xml") || type.includes("rss") || type.includes("atom")
+    || source.retrievalMethod === "sitemap" || source.retrievalMethod === "rss";
+  if (!isHtml && !isXml) return [];
+
+  const scan = body.subarray(0, Math.min(body.length, discoveryMaxBytes)).toString("utf8");
+  const rawLinks: string[] = [];
+
+  if (isHtml) {
+    const hrefPattern = /\bhref\s*=\s*(?:"([^"]+)"|'([^']+)')/gi;
+    for (let match = hrefPattern.exec(scan); match && rawLinks.length < discoveryMaxLinks * 4; match = hrefPattern.exec(scan)) {
+      const value = match[1] ?? match[2];
+      if (value) rawLinks.push(value);
+    }
+  }
+
+  if (isXml) {
+    const locPattern = /<loc\b[^>]*>\s*([^<]+?)\s*<\/loc>/gi;
+    for (let match = locPattern.exec(scan); match && rawLinks.length < discoveryMaxLinks * 4; match = locPattern.exec(scan)) {
+      if (match[1]) rawLinks.push(match[1]);
+    }
+  }
+
+  const allowed = new Set(allowedHosts.map((host) => host.toLowerCase().replace(/^www\./, "")));
+  const seen = new Set<string>();
+  const candidates: Array<Readonly<{ canonical_url: string; source_family_hint: string }>> = [];
+  for (const raw of rawLinks) {
+    if (candidates.length >= discoveryMaxLinks) break;
+    const decoded = raw.replace(/&amp;/gi, "&").trim();
+    if (!decoded || decoded.startsWith("#") || /^(?:mailto|tel|javascript|data):/i.test(decoded)) continue;
+    let url: URL;
+    try {
+      url = new URL(decoded, finalUrl);
+    } catch {
+      continue;
+    }
+    if (url.protocol !== "https:") continue;
+    const normalizedHost = url.hostname.toLowerCase().replace(/^www\./, "");
+    if (!allowed.has(normalizedHost)) continue;
+
+    url.hash = "";
+    for (const key of [...url.searchParams.keys()]) {
+      const lower = key.toLowerCase();
+      if (lower.startsWith("utm_") || ["gclid","fbclid","mc_cid","mc_eid"].includes(lower)) {
+        url.searchParams.delete(key);
+      }
+    }
+    const canonical = url.toString();
+    if (canonical === source.canonicalUrl || seen.has(canonical)) continue;
+    seen.add(canonical);
+    candidates.push({
+      canonical_url: canonical,
+      source_family_hint: candidateFamilyHint(url.pathname)
+    });
+  }
+  return candidates;
+}
+
+function candidateFamilyHint(pathname: string): string {
+  const path = pathname.toLowerCase();
+  if (/\.pdf$/.test(path) || /(?:^|\/)(?:sds|msds|safety[-_ ]?data)(?:\/|[-_.]|$)/.test(path)) return "manufacturer_sds";
+  if (/\.(?:csv|json|xml)$/.test(path) || /(?:sitemap|feed|api)/.test(path)) return "structured_source";
+  if (/(?:catalog|catalogue|collection|colors?|colours?|products?)/.test(path)) return "manufacturer_catalogue";
+  if (/(?:ingredient|formula|technical|manual|guide|faq|safety)/.test(path)) return "technical_reference";
+  return "official_page";
 }
 
 function evidenceHeaders(headers: Readonly<Record<string, string>>): Record<string, string> {
