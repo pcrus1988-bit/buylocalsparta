@@ -193,7 +193,7 @@ async function collectSource(source: SourceLease): Promise<void> {
       UPDATE public.nyxi_source_crawl_state
       SET last_checked_at=now(),
           last_success_at=now(),
-          last_http_status=304,
+          last_http_status=COALESCE(last_http_status,304),
           consecutive_failures=0,
           last_error=NULL,
           next_check_at=$3,
@@ -211,7 +211,8 @@ async function collectSource(source: SourceLease): Promise<void> {
   }
 
   const contentType = result.headers["content-type"]?.split(";")[0]?.trim().toLowerCase() || undefined;
-  const statusChanged = source.lastHttpStatus != null && source.lastHttpStatus !== result.status;
+  const previousRepresentationStatus = source.lastHttpStatus === 304 ? result.status : source.lastHttpStatus;
+  const statusChanged = previousRepresentationStatus != null && previousRepresentationStatus !== result.status;
   const contentChanged = !source.lastContentSha256 || source.lastContentSha256 !== result.responseSha256;
   const changed = contentChanged || statusChanged;
   const discoveredCandidates = result.status >= 200 && result.status < 400
