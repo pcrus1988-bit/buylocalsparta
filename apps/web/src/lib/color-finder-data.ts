@@ -34,6 +34,11 @@ type ColorFinderMediaRow = SqlRow & Readonly<{
   alt_text: string | null;
 }>;
 
+type RankedColorFinderProduct = Readonly<{
+  product: ColorFinderProduct;
+  deltaE: number;
+}>;
+
 type ColorFinderCandidateRow = SqlRow & Readonly<{
   canonical_public_id: string;
   slug: string;
@@ -152,7 +157,7 @@ async function loadColorFinderProductsUncached(
     ORDER BY rm.min_price_minor,rm.canonical_public_id
   `, [categoryCode, vendorPublicId]);
 
-  const ranked = result.rows.flatMap((row) => {
+  const ranked = result.rows.flatMap<RankedColorFinderProduct>((row) => {
     const id = optionalText(row.canonical_public_id);
     const slug = optionalText(row.slug);
     const title = optionalText(row.title);
@@ -169,6 +174,7 @@ async function loadColorFinderProductsUncached(
       storedResolved
       && storedPrecision
       && storedPrecision !== "family_estimate"
+      && storedPrecision !== "unknown"
       && (storedConfidence ?? 0) >= MIN_PROFILE_CONFIDENCE
     );
     const profileBrand = optionalText(row.profile_brand_name);
