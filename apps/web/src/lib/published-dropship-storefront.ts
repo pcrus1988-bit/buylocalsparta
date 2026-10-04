@@ -1,4 +1,4 @@
-import { formatMoney, money, normalizeSearchText, searchTextRelevance } from "@buy-local-sparta/core";
+import { catalogColorMatches, formatMoney, money, normalizeSearchText, searchTextRelevance } from "@buy-local-sparta/core";
 import type { CatalogAttributeFilters } from "./catalog-attribute-filter";
 import { matchesCatalogAttributeFilters } from "./catalog-attribute-filter";
 import type { CatalogCard, CatalogFilters } from "./catalog-view";
@@ -314,7 +314,7 @@ export async function getPublishedDropshipCatalogCards(
       const details = metadata.get(record.id);
       if (filters.subcategory && record.categoryCode !== filters.subcategory) return false;
       if (!sameFilterValue(details?.brand, filters.brand)) return false;
-      if (!sameFilterValue(details?.color, filters.color)) return false;
+      if (filters.color && !catalogColorMatches(details?.color, filters.color)) return false;
       if (selectedSizes.length && !record.sizes.some((size) => selectedSizes.some((selected) => sameFilterValue(size, selected)))) return false;
       if (Object.keys(attributeFilters).length > 0) {
         if (record.publicFields.technicalAttributes === false) return false;
