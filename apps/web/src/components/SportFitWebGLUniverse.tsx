@@ -23,6 +23,7 @@ export type SportFitUniverseVisualProduct = Readonly<{
   role?: string;
   reasons?: readonly string[];
   matchProofs?: readonly SportFitMatchProof[];
+  consultationSummary?: string;
 }>;
 
 type Props = Readonly<{
@@ -368,6 +369,13 @@ function ProductPopup({
             {typeof product.score === "number" ? <b>{product.score}% match</b> : null}
             {product.matchedSize ? <small>EU {product.matchedSize}</small> : null}
           </div>
+
+          {product.consultationSummary ? (
+            <div className={styles.popupConsultation}>
+              <span>ΓΙΑΤΙ ΣΟΥ ΤΑΙΡΙΑΖΕΙ</span>
+              <p>{product.consultationSummary}</p>
+            </div>
+          ) : null}
 
           {product.matchProofs?.length ? (
             <div className={styles.popupReasons}>
