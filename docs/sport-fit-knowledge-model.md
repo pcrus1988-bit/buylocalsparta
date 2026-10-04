@@ -978,3 +978,20 @@ The exact schema-410 migration passed a live schema-409 transaction ending in `R
 Migration SHA-256: `a868dbf5830467dc44e348744fc5665353740db30a94997393c7440a71081745`.
 
 The runtime schema gate on this change is **410**.
+
+
+## Schema 411 — On Cloud 6 negative weather evidence and adult sizing
+
+Migration `0411_sport_fit_on_cloud6_weather_size_governance.sql` closes two governed knowledge gaps without inventing ordinal cushioning, support, width or surface facts.
+
+Three currently sellable standard On Cloud 6 canonical families are matched by exact manufacturer style identity: men's Black/Black `3MF10071043`, women's Black/Black `3WF10061043`, and women's White/White `3WF10061200`. Each exact On product page separates the standard Cloud 6 from a dedicated Cloud 6 Waterproof model. The normalized ontology therefore gains `weather_protection=none` as an **explicit negative** state, distinct from absent/unknown weather data. Each target receives one family fact and one exact first-party evidence row; the enrichment queue removes only the resolved weather field and preserves unsupported technical fields as unknown.
+
+The runtime rules are updated at the same schema boundary. Positive weather scoring now recognizes only `waterproof`, `water_resistant` or `wind_resistant`; `none` is a documented conflict rather than a positive match. For footwear with weather as the user's priority, explicit `none` is a hard exclusion, while missing weather evidence remains unknown and does not become a fabricated rejection. Raw catalogue wording cannot rescue an explicit negative governed fact.
+
+The same migration adds separate current On men's and women's adult footwear size guides. The men's chart contains **16 measurement rows / 64 labels** and the women's chart **14 rows / 56 labels**, preserving On's EU, UK, US and JPN chart mappings. Measurement resolution uses the manufacturer length-size sequence as the brand-specific anchor, returns both adjacent chart choices between rows, and never applies a model-specific fit adjustment unless that model has its own fit evidence. This keeps brand conversion knowledge independent from Cloud 6 / Cloud X / Cloudmonster model-fit guidance.
+
+The exact migration passed a live schema-410 transaction ending in `ROLLBACK`. Exact family identity, approved-visible commerce, source availability, explicit-negative ontology creation, three fact/evidence rows, conflict checks, enrichment-queue reconciliation, two guide sources, two active guides, **30 guide entries**, and **120 normalized size labels** all passed. Post-rollback verification confirmed schema 410 with zero `weather_protection=none` values, zero On adult guides and zero schema-411 size-guide sources.
+
+Migration SHA-256: `ab7857be1e483e7c053febc6a12e1572e09d41beedfbe42f8204151d6ab8c720`.
+
+The runtime schema gate on this change is **411**.

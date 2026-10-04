@@ -487,7 +487,7 @@ test("running rules combine distance, frequency, cushioning and verified use cas
   });
 
   assert.equal(result.primary?.id, "long-run");
-  assert.equal(result.rulesetVersion, "2026-10-03.1");
+  assert.equal(result.rulesetVersion, "2026-10-05.1");
   assert.ok(result.primary?.appliedRules.includes("running.long_run_use_case"));
   assert.ok(result.primary?.reasons.some((reason) => /long-run|cushioning/i.test(reason)));
 });
@@ -2181,4 +2181,64 @@ test("consultation summary explains the why in Greek and keeps only necessary te
   assert.match(scored.consultationSummary ?? "", /memory foam/);
   assert.match(scored.consultationSummary ?? "", /απορρόφηση κραδασμών/i);
   assert.doesNotMatch(scored.consultationSummary ?? "", /confidence|match|support profile/i);
+});
+
+
+test("verified no-weather-protection is a hard footwear conflict even when catalogue copy says waterproof", () => {
+  const misleading = product({
+    id: "explicitly-unprotected-weather-shoe",
+    title: "Waterproof Trail Comfort Shoe",
+    categoryCode: "mens-hiking-shoes",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["hiking"],
+      surfaces: ["trail"],
+      weatherProtection: ["none"]
+    }
+  });
+
+  const answers = {
+    activity: "hiking" as const,
+    audience: "men" as const,
+    surface: "trail" as const,
+    priority: "weather" as const
+  };
+  const scored = scoreSportFitProduct(misleading, answers);
+  const result = buildSportFitRecommendation([misleading], answers);
+
+  assert.equal(scored.technicalEligible, false);
+  assert.ok(scored.appliedRules.includes("weather.known_unprotected"));
+  assert.ok(scored.technicalRequirements.some((item) =>
+    item.id === "requirement.hiking_weather_protection" && item.status === "conflict"
+  ));
+  assert.equal(result.primary, undefined);
+});
+
+test("missing weather evidence stays unknown instead of becoming a hard exclusion", () => {
+  const unknownWeather = product({
+    id: "unknown-weather-hiking-shoe",
+    title: "Trail Hiking Shoe",
+    categoryCode: "mens-hiking-shoes",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["hiking"],
+      surfaces: ["trail"]
+    }
+  });
+
+  const answers = {
+    activity: "hiking" as const,
+    audience: "men" as const,
+    surface: "trail" as const,
+    priority: "weather" as const
+  };
+  const scored = scoreSportFitProduct(unknownWeather, answers);
+
+  assert.equal(scored.technicalEligible, true);
+  assert.equal(scored.appliedRules.includes("weather.known_unprotected"), false);
+  assert.ok(scored.technicalRequirements.some((item) =>
+    item.id === "requirement.hiking_weather_protection" && item.status === "unknown"
+  ));
 });

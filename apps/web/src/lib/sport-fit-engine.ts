@@ -527,7 +527,9 @@ function priorityScore(product: SportFitProduct, priority: SportPriority | undef
     return hasAny(text, ["traction", "grip", "traxion", "lug", "προσφυ", "αντιολισθ"]) ? 13 : 4;
   }
   if (priority === "weather") {
-    if ((knowledge?.weatherProtection ?? []).length > 0) return 14;
+    const weatherProtection = knowledgeList(knowledge?.weatherProtection);
+    if (weatherProtection.some((value) => ["waterproof", "water_resistant", "wind_resistant"].includes(value))) return 14;
+    if (weatherProtection.includes("none")) return 1;
     return hasAny(text, ["waterproof", "water resistant", "rain.rdy", "gore tex", "gore-tex", "αδιαβροχ", "υδροαπωθ"]) ? 12 : 4;
   }
   if (priority === "versatility") {
@@ -1159,7 +1161,9 @@ function reasonsFor(
   }
   if (
     knowledge
-    && (knowledge.weatherProtection?.length ?? 0) > 0
+    && knowledgeList(knowledge.weatherProtection).some((value) =>
+      ["waterproof", "water_resistant", "wind_resistant"].includes(value)
+    )
     && (role === "socks" || role === "top" || role === "bottom" || role === "layer")
   ) {
     reasons.push("Τεκμηριωμένη προστασία από καιρό");

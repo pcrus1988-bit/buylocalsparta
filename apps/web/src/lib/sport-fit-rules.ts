@@ -6,7 +6,7 @@ import type {
   SportFitTechnicalRequirement
 } from "./sport-fit-engine.ts";
 
-export const SPORT_FIT_RULESET_VERSION = "2026-10-03.1";
+export const SPORT_FIT_RULESET_VERSION = "2026-10-05.1";
 
 export type SportFitRuleEvaluation = Readonly<{
   eligible: boolean;
@@ -34,6 +34,22 @@ function values(values: readonly string[] | undefined): ReadonlySet<string> {
 
 function includesAny(actual: ReadonlySet<string>, expected: readonly string[]): boolean {
   return expected.some((item) => actual.has(normalize(item)));
+}
+
+const POSITIVE_WEATHER_PROTECTION = ["water_resistant", "waterproof", "wind_resistant"] as const;
+
+function hasPositiveWeatherProtection(actual: ReadonlySet<string>): boolean {
+  return includesAny(actual, POSITIVE_WEATHER_PROTECTION);
+}
+
+function hasExplicitNoWeatherProtection(actual: ReadonlySet<string>): boolean {
+  return actual.has("none");
+}
+
+function weatherProtectionStatus(actual: ReadonlySet<string>): SportFitTechnicalRequirement["status"] {
+  if (hasPositiveWeatherProtection(actual)) return "match";
+  if (hasExplicitNoWeatherProtection(actual)) return "conflict";
+  return "unknown";
 }
 
 
@@ -259,10 +275,12 @@ function seedKitTechnicalRequirements(
       state,
       "requirement.kit_weather_protection",
       10,
-      weatherProtection.size ? "match" : "unknown",
-      weatherProtection.size
+      weatherProtectionStatus(weatherProtection),
+      hasPositiveWeatherProtection(weatherProtection)
         ? "Τεκμηριωμένη προστασία από καιρό"
-        : "Η προστασία από καιρό δεν έχει ακόμη τεκμηριωθεί"
+        : hasExplicitNoWeatherProtection(weatherProtection)
+          ? "Τεκμηριωμένη απουσία προστασίας από καιρό"
+          : "Η προστασία από καιρό δεν έχει ακόμη τεκμηριωθεί"
     );
   }
 
@@ -552,8 +570,12 @@ function seedTechnicalRequirements(
         state,
         "requirement.walking_weather_protection",
         10,
-        weatherProtection.size ? "match" : "unknown",
-        weatherProtection.size ? "Τεκμηριωμένη προστασία από καιρό" : "Η προστασία από καιρό δεν έχει ακόμη τεκμηριωθεί"
+        weatherProtectionStatus(weatherProtection),
+        hasPositiveWeatherProtection(weatherProtection)
+          ? "Τεκμηριωμένη προστασία από καιρό"
+          : hasExplicitNoWeatherProtection(weatherProtection)
+            ? "Τεκμηριωμένη απουσία προστασίας από καιρό"
+            : "Η προστασία από καιρό δεν έχει ακόμη τεκμηριωθεί"
       );
     }
   }
@@ -589,8 +611,12 @@ function seedTechnicalRequirements(
         state,
         "requirement.hiking_weather_protection",
         14,
-        weatherProtection.size ? "match" : "unknown",
-        weatherProtection.size ? "Τεκμηριωμένη προστασία από νερό / άνεμο" : "Η προστασία από καιρό δεν έχει ακόμη τεκμηριωθεί"
+        weatherProtectionStatus(weatherProtection),
+        hasPositiveWeatherProtection(weatherProtection)
+          ? "Τεκμηριωμένη προστασία από νερό / άνεμο"
+          : hasExplicitNoWeatherProtection(weatherProtection)
+            ? "Τεκμηριωμένη απουσία προστασίας από νερό / άνεμο"
+            : "Η προστασία από καιρό δεν έχει ακόμη τεκμηριωθεί"
       );
     }
 
@@ -790,7 +816,7 @@ export function evaluateSportFitRules(
     }
     if (
       answers.priority === "weather"
-      && weatherProtection.size
+      && hasPositiveWeatherProtection(weatherProtection)
       && (role === "socks" || role === "top" || role === "bottom" || role === "layer")
     ) {
       push(state, "kit.weather_protection_verified", 5);
@@ -860,6 +886,18 @@ export function evaluateSportFitRules(
     return reject(
       "surface.known_mismatch",
       "Η τεκμηριωμένη επιφάνεια του παπουτσιού δεν ταιριάζει με τη χρήση",
+      state
+    );
+  }
+
+  if (
+    role === "footwear"
+    && answers.priority === "weather"
+    && hasExplicitNoWeatherProtection(weatherProtection)
+  ) {
+    return reject(
+      "weather.known_unprotected",
+      "Το παπούτσι έχει τεκμηριωμένη απουσία προστασίας από καιρό",
       state
     );
   }
@@ -999,7 +1037,7 @@ export function evaluateSportFitRules(
     ) {
       push(state, "walking.traction_surface_match", 8, "Κανόνας περπατήματος: τεκμηριωμένη επιφάνεια για πρόσφυση");
     }
-    if (answers.priority === "weather" && weatherProtection.size) {
+    if (answers.priority === "weather" && hasPositiveWeatherProtection(weatherProtection)) {
       push(state, "walking.weather_protection", 8, "Κανόνας περπατήματος: τεκμηριωμένη προστασία από καιρό");
     }
   }
@@ -1013,7 +1051,7 @@ export function evaluateSportFitRules(
     } else if (answers.useCase === "day_hike" && useCases.has("day_hike")) {
       push(state, "hiking.day_use", 13, "Κανόνας πεζοπορίας: τεκμηριωμένη χρήση για ημερήσια πεζοπορία");
     }
-    if (answers.priority === "weather" && weatherProtection.size) {
+    if (answers.priority === "weather" && hasPositiveWeatherProtection(weatherProtection)) {
       push(state, "hiking.weather_protection", 12, "Κανόνας πεζοπορίας: τεκμηριωμένη προστασία από καιρό");
     }
     if (

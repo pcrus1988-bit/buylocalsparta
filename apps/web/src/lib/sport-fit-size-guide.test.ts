@@ -119,3 +119,45 @@ test("Saucony unisex chart preserves exact EU, US audience and JPN conversions",
   assert.deepEqual(resolveMeasuredSportSize(sauconyPoints, 250, "JPN", "women").sizeLabels, ["25"]);
   assert.deepEqual(resolveMeasuredSportSize(sauconyPoints, 252, "EU", "women").sizeLabels, ["40", "40.5"]);
 });
+
+
+test("On adult charts preserve audience-specific EU, UK, US and JPN mappings", () => {
+  const menPoints: readonly SportSizeGuidePoint[] = [
+    {
+      measurementMm: 270,
+      labels: [
+        { sizeSystem: "EU", audienceScope: "men", sizeLabel: "42.5" },
+        { sizeSystem: "UK", audienceScope: "men", sizeLabel: "8.5" },
+        { sizeSystem: "US", audienceScope: "men", sizeLabel: "9" },
+        { sizeSystem: "JPN", audienceScope: "men", sizeLabel: "27" }
+      ]
+    },
+    {
+      measurementMm: 275,
+      labels: [
+        { sizeSystem: "EU", audienceScope: "men", sizeLabel: "43" },
+        { sizeSystem: "UK", audienceScope: "men", sizeLabel: "9" },
+        { sizeSystem: "US", audienceScope: "men", sizeLabel: "9.5" },
+        { sizeSystem: "JPN", audienceScope: "men", sizeLabel: "27.5" }
+      ]
+    }
+  ];
+  const womenPoints: readonly SportSizeGuidePoint[] = [
+    {
+      measurementMm: 250,
+      labels: [
+        { sizeSystem: "EU", audienceScope: "women", sizeLabel: "39" },
+        { sizeSystem: "UK", audienceScope: "women", sizeLabel: "6" },
+        { sizeSystem: "US", audienceScope: "women", sizeLabel: "8" },
+        { sizeSystem: "JPN", audienceScope: "women", sizeLabel: "25" }
+      ]
+    }
+  ];
+
+  assert.deepEqual(resolveMeasuredSportSize(menPoints, 270, "EU", "men").sizeLabels, ["42.5"]);
+  assert.deepEqual(resolveMeasuredSportSize(menPoints, 272, "EU", "men").sizeLabels, ["42.5", "43"]);
+  assert.deepEqual(resolveMeasuredSportSize(menPoints, 270, "US", "men").sizeLabels, ["9"]);
+  assert.deepEqual(resolveMeasuredSportSize(womenPoints, 250, "EU", "women").sizeLabels, ["39"]);
+  assert.deepEqual(resolveMeasuredSportSize(womenPoints, 250, "UK", "women").sizeLabels, ["6"]);
+  assert.deepEqual(resolveMeasuredSportSize(womenPoints, 250, "JPN", "women").sizeLabels, ["25"]);
+});
