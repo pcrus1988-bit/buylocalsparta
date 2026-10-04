@@ -42,10 +42,13 @@ function isAdviceNotification(item: { title: string }) {
   return !item.title.startsWith("vendor.order_") && !item.title.startsWith("vendor.sla_");
 }
 
-export async function vendorCatalogWorkspace(principal: SessionPrincipal) {
+export async function vendorCatalogWorkspace(
+  principal: SessionPrincipal,
+  input: Readonly<{ loadCatalogProducts?: boolean }> = {}
+) {
   const [catalog, controls] = await Promise.all([
     postgresVendorRuntimeEnabled() ? db().catalogWorkspace(principal) : Promise.resolve(memoryCatalogWorkspace(principal)),
-    vendorCatalogControlWorkspace(principal)
+    vendorCatalogControlWorkspace(principal, { loadProducts: input.loadCatalogProducts !== false })
   ]);
   return { ...catalog, ...controls };
 }
