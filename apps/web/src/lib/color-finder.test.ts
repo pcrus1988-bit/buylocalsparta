@@ -80,3 +80,11 @@ test("keeps Studio shades attached to the same canonical storefront family", () 
   assert.equal(resolved?.familyKey, "royal-blue");
   assert.equal(resolved?.precision, "reference");
 });
+
+
+test("reported Shoe Studio shade stays above the visible-match floor", () => {
+  const target = hexToLab("#6875E9");
+  const canonicalBlue = hexToLab("#2F6DA8");
+  const match = colorMatchPercent(deltaE2000(target, canonicalBlue));
+  assert.ok(match >= 49);
+});
