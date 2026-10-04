@@ -16,6 +16,7 @@ import { getFastVendorDropshipCatalogPage } from "../../../lib/vendor-dropship-f
 import { getVendorLocalCatalogPage } from "../../../lib/vendor-local-catalog";
 import { approvedVendorProfileMedia, type ApprovedVendorProfileMedia } from "../../../lib/public-media-service";
 import { getPublicVendorDirectoryEntry } from "../../../lib/public-vendor-directory";
+import { getPublicVendorSitemapInventory } from "../../../lib/vendor-sitemap-inventory";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
 import { getSeoEntityOverridesSnapshot } from "../../../lib/seo-entity-overrides";
 import { findSeoEntityOverride, resolveSeoEntityControl, type SeoEntityReference } from "../../../lib/seo-entity-policy";
@@ -30,7 +31,16 @@ export const dynamic = "force-dynamic";
 // generateMetadata() and the page render need the same vendor + SEO projections.
 // React cache deduplicates those reads within the request instead of opening the
 // same production DB work twice for every storefront visit.
-const getCachedPublicVendorDirectoryEntry = cache((id: string) => getPublicVendorDirectoryEntry(id));
+const getCachedPublicVendorDirectoryEntry = cache(async (id: string) => {
+  // Research/vendor-directory pages are crawl-heavy and do not need the partner
+  // storefront joins. Resolve them from the same lightweight 15-minute projection
+  // used by the vendor sitemap/GSC control plane, then reserve the heavier directory
+  // query for actual partner storefronts.
+  const inventory = await getPublicVendorSitemapInventory();
+  const projected = inventory.find((vendor) => vendor.id === id || vendor.slug === id);
+  if (projected?.directoryStatus === "research") return projected;
+  return getPublicVendorDirectoryEntry(id);
+});
 const getCachedSeoGlobalSettingsSnapshot = cache(() => getSeoGlobalSettingsSnapshot());
 const getCachedSeoEntityOverridesSnapshot = cache(() => getSeoEntityOverridesSnapshot());
 const getCachedApprovedVendorProfileMedia = cache((id: string) => approvedVendorProfileMedia([id]));
@@ -163,10 +173,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // multiple acquisitions against its own pool slot.
   const vendor = await getCachedPublicVendorDirectoryEntry(id);
   if (!vendor) return { title: "Κατάστημα" };
-  const profileMedia = await getCachedApprovedVendorProfileMedia(vendor.id);
+  const isResearch = vendor.directoryStatus === "research";
+  const profileMedia = isResearch ? [] : await getCachedApprovedVendorProfileMedia(vendor.id);
   const { settings } = await getCachedSeoGlobalSettingsSnapshot();
   const overrides = await getCachedSeoEntityOverridesSnapshot();
-  const isResearch = vendor.directoryStatus === "research";
   const reference: SeoEntityReference = { kind: isResearch ? "research_vendor" : "partner_vendor", id: vendor.id };
   const quality = researchVendorIndexEligibility(vendor, { enabled: true, minimumScore: settings.researchVendorMinimumScore });
   const category = vendor.taxonomies[0];
