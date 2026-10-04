@@ -127,6 +127,12 @@ WHERE product_id=(SELECT id FROM public.manufacturer_products WHERE manufacturer
                    AND source_url='https://www.vitex.gr/wp-content/uploads/2026/01/Vitex_Product_Catalogue_GR.pdf'
                    AND is_current=true
                  LIMIT 1)
+  AND evidence_fingerprint IN (
+    '1a7a78e5112c18275d5f7c83323842260067af6703c35edeb2d08e58c23f810e',
+    'c6e41d39d59a7774a4a2dc4e0205eca6724bed924ccf9a2babba62c479719142',
+    'e73298af5b4b496fc987d34b4a57dbebb2be27122b2dec0845d26b717ae9821a',
+    '1f2fcb3c6156571ff189360080c8d357d4abe6673b74188dcafacb22aa21e1d2'
+  )
   AND is_current=true;
 
 WITH e(field_name,normalized_value,exact_excerpt,fingerprint_key) AS (
