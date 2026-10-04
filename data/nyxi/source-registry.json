@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "updatedAt": "2026-10-04",
   "sources": [
     {
@@ -393,6 +393,482 @@
         {
           "type": "brand",
           "displayName": "Light Elegance",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "madam_glam_root",
+      "publisher": "Madam Glam",
+      "title": "Madam Glam Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.madamglam.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Madam Glam",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Madam Glam",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "olive_june_root",
+      "publisher": "Olive & June",
+      "title": "Olive & June Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://oliveandjune.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Olive & June",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Olive & June",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "olive_june_polish_catalogue",
+      "publisher": "Olive & June",
+      "title": "Long Lasting Nail Polish",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://oliveandjune.com/collections/nail-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Olive & June",
+        "scope": "polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Olive & June",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "ilnp_root",
+      "publisher": "ILNP",
+      "title": "ILNP Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.ilnp.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "ILNP",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "ILNP",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "ilnp_polish_catalogue",
+      "publisher": "ILNP",
+      "title": "ILNP Nail Polish Catalogue",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.ilnp.com/nail-polish/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "ILNP",
+        "scope": "nail_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "ILNP",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "ilnp_collections",
+      "publisher": "ILNP",
+      "title": "ILNP Nail Polish Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.ilnp.com/nail-polish-collections/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "ILNP",
+        "scope": "collections"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "ILNP",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "holo_taco_root",
+      "publisher": "Holo Taco",
+      "title": "Holo Taco Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.holotaco.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Holo Taco",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Holo Taco",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "holo_taco_polish_catalogue",
+      "publisher": "Holo Taco",
+      "title": "Holo Taco Nail Polish Catalogue",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.holotaco.com/collections/nail-polish",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Holo Taco",
+        "scope": "nail_polish_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Holo Taco",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cirque_root",
+      "publisher": "Cirque Colors",
+      "title": "Cirque Colors Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.cirquecolors.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Cirque Colors",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Cirque Colors",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "cirque_all_products",
+      "publisher": "Cirque Colors",
+      "title": "Cirque Colors Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.cirquecolors.com/collections/all",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Cirque Colors",
+        "scope": "all_products"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Cirque Colors",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "lights_lacquer_root",
+      "publisher": "Lights Lacquer",
+      "title": "Lights Lacquer Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://lightslacquer.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Lights Lacquer",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Lights Lacquer",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "nailberry_root",
+      "publisher": "Nailberry London",
+      "title": "Nailberry Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.nailberry.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Nailberry",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Nailberry",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "londontown_root",
+      "publisher": "LONDONTOWN",
+      "title": "LONDONTOWN Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.londontownusa.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Londontown",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Londontown",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "jinsoon_root",
+      "publisher": "JINsoon",
+      "title": "JINsoon Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://jinsoon.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "JINsoon",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "JINsoon",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "victoria_vynn_root",
+      "publisher": "Victoria Vynn",
+      "title": "Victoria Vynn Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://victoriavynn.com/en/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Victoria Vynn",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Victoria Vynn",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "victoria_vynn_products",
+      "publisher": "Victoria Vynn",
+      "title": "Victoria Vynn Manicure Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://victoriavynn.com/en/products",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Victoria Vynn",
+        "scope": "product_catalogue"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Victoria Vynn",
+          "relation": "primary_for"
+        }
+      ]
+    },
+    {
+      "sourceKey": "kodi_root",
+      "publisher": "KODI Professional",
+      "title": "KODI Professional Official Site",
+      "sourceFamily": "manufacturer_root",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://kodi.pro/",
+      "retrievalMethod": "html",
+      "official": true,
+      "manufacturerPrimary": true,
+      "updateFrequency": "weekly",
+      "coverage": {
+        "brand": "Kodi Professional",
+        "scope": "manufacturer_root"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04"
+      },
+      "targets": [
+        {
+          "type": "brand",
+          "displayName": "Kodi Professional",
           "relation": "primary_for"
         }
       ]
