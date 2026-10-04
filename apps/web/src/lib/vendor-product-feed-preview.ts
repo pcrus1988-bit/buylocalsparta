@@ -739,7 +739,19 @@ export async function fetchVendorXml(rawUrl: string): Promise<string> {
     accept: "application/xml,text/xml,application/rss+xml,text/plain;q=0.8,*/*;q=0.2",
     userAgent: "KONTAMOU-VendorFeed/1.0 (+https://kontamou.site/)"
   });
-  return new TextDecoder("utf-8", { fatal: false }).decode(response.bytes);
+  const xml = new TextDecoder("utf-8", { fatal: false }).decode(response.bytes);
+  const prefix = xml.replace(/^\uFEFF/, "").trimStart().slice(0, 512);
+  if (
+    response.contentType === "text/html"
+    || response.contentType === "application/xhtml+xml"
+    || /^<!doctype\s+html\b/i.test(prefix)
+    || /^<html\b/i.test(prefix)
+  ) {
+    throw new Error(
+      "Ο σύνδεσμος επέστρεψε σελίδα HTML αντί για XML προϊόντων. Βάλε το απευθείας XML/export feed URL του e-shop ή του Shopflix, όχι σελίδα του ΚΟΝΤΑ ΜΟΥ."
+    );
+  }
+  return xml;
 }
 
 export async function assertPublicVendorUrl(url: URL) {
