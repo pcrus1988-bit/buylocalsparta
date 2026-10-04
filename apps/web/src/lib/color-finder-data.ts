@@ -2,10 +2,13 @@ import { formatMoney, money, type SqlRow } from "@buy-local-sparta/core";
 import { unstable_cache } from "next/cache";
 import { isPublicCatalogueTitle } from "./public-data-integrity";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
-import { trustedCatalogSourceHttpsUrl } from "./trusted-catalog-source-url";
 import {
+  colorMatchPercent,
+  deltaE2000,
+  hexToLab,
   inferColorFinish,
   inferColorProductType,
+  normalizeHex,
   resolveCatalogColor,
   type ColorFinderProduct,
   type ColorFinish,
@@ -13,13 +16,22 @@ import {
 } from "./color-finder";
 
 const CACHE_SECONDS = 900;
-const MAX_CANDIDATES = 2_000;
+const MAX_RESULTS = 600;
+const MIN_MATCH_PERCENT = 49;
+const MIN_PROFILE_CONFIDENCE = 0.5;
 const SAFE_SCOPE = /^[a-z0-9][a-z0-9_-]{1,95}$/i;
 const SAFE_VENDOR = /^[A-Za-z0-9_-]{3,128}$/;
 
 export type ColorFinderCatalogueScope = Readonly<{
   categoryCode?: string;
   vendorPublicId?: string;
+  targetHex?: string;
+}>;
+
+type ColorFinderMediaRow = SqlRow & Readonly<{
+  canonical_public_id: string;
+  media_public_id: string;
+  alt_text: string | null;
 }>;
 
 type ColorFinderCandidateRow = SqlRow & Readonly<{
@@ -39,158 +51,28 @@ type ColorFinderCandidateRow = SqlRow & Readonly<{
   canonical_hex: string | null;
   match_precision: string | null;
   confidence: number | string | null;
-  source_code: string | null;
-  source_website: string | null;
-  source_image_url: string | null;
-  source_title: string | null;
-  source_color: string | null;
 }>;
 
 async function loadColorFinderProductsUncached(
   categoryCode: string,
-  vendorPublicId: string
+  vendorPublicId: string,
+  targetHexInput: string
 ): Promise<readonly ColorFinderProduct[]> {
   if (!productionDatabaseConfigured()) return [];
 
-  const vendorPredicate = vendorPublicId ? "AND v.public_id=$2" : "";
-  const limitPlaceholder = vendorPublicId ? "$3" : "$2";
-  const queryParams = vendorPublicId
-    ? [categoryCode, vendorPublicId, MAX_CANDIDATES]
-    : [categoryCode, MAX_CANDIDATES];
+  const targetHex = normalizeHex(targetHexInput);
+  if (!targetHex) return [];
+  const targetLab = hexToLab(targetHex);
+  const pool = getProductionPostgresRuntime().nativePool;
 
-  const result = await getProductionPostgresRuntime().nativePool.query<ColorFinderCandidateRow>(`
-    WITH live_color_variants AS MATERIALIZED (
-      SELECT DISTINCT ON (cv.id)
-        cv.id AS canonical_variant_id,
-        cv.public_id AS canonical_public_id,
-        cv.slug,
-        cv.variant_attributes,
-        COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
-        b.name AS brand_name,
-        NULLIF(btrim(COALESCE(
-          cv.variant_attributes->>'color',
-          cv.variant_attributes->>'colour',
-          cv.variant_attributes->>'color_name',
-          cv.variant_attributes->>'colour_name',
-          cv.variant_attributes->>'variant_color',
-          cv.variant_attributes->>'variant_colour',
-          cv.variant_attributes->>'primary_color',
-          cv.variant_attributes->>'primary_colour',
-          cv.variant_attributes->>'Χρώμα',
-          cv.variant_attributes->>'χρώμα',
-          el.specifications->>'color',
-          el.specifications->>'colour',
-          el.specifications->>'color_name',
-          el.specifications->>'colour_name',
-          el.specifications->>'variant_color',
-          el.specifications->>'variant_colour',
-          el.specifications->>'primary_color',
-          el.specifications->>'primary_colour',
-          el.specifications->>'Χρώμα',
-          el.specifications->>'χρώμα',
-          en.specifications->>'color',
-          en.specifications->>'colour',
-          en.specifications->>'color_name',
-          en.specifications->>'colour_name',
-          en.specifications->>'variant_color',
-          en.specifications->>'variant_colour',
-          en.specifications->>'primary_color',
-          en.specifications->>'primary_colour',
-          ''
-        )), '') AS raw_color,
-        vo.customer_price_minor,
-        cs.code AS source_code,
-        cs.website AS source_website,
-        csp.source_image_url,
-        csp.title AS source_title,
-        (
-          SELECT COALESCE(
-            NULLIF(btrim(source_attr->>'value'), ''),
-            NULLIF(btrim(source_attr->'options'->>0), '')
-          )
-          FROM jsonb_array_elements(
-            CASE
-              WHEN jsonb_typeof(csp.normalized_payload->'attributes')='array'
-                THEN csp.normalized_payload->'attributes'
-              ELSE '[]'::jsonb
-            END
-          ) AS source_attr
-          WHERE lower(COALESCE(source_attr->>'name','')) IN (
-            'color','colour','χρώμα','χρωμα',
-            'color_name','colour_name','color name','colour name',
-            'variant_color','variant_colour','variant color','variant colour',
-            'primary_color','primary_colour','primary color','primary colour'
-          )
-          LIMIT 1
-        ) AS source_color
-      FROM public.dropship_supplier_offers dso
-      JOIN public.dropship_suppliers ds
-        ON ds.id=dso.supplier_id
-       AND ds.active=true
-       AND ds.api_authoritative_availability=true
-      JOIN public.vendor_offers vo ON vo.id=dso.vendor_offer_id
-      JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
-      JOIN public.categories c ON c.id=cv.category_id
-      JOIN public.markets m ON m.id=cv.market_id AND m.code='sparta'
-      JOIN public.vendor_businesses v ON v.id=vo.vendor_id AND v.status='active'
-      JOIN public.vendor_locations l ON l.id=vo.location_id AND l.active=true
-      LEFT JOIN public.product_families pf ON pf.id=cv.family_id
-      LEFT JOIN public.brands b ON b.id=COALESCE(cv.brand_id,pf.brand_id)
-      LEFT JOIN public.product_translations el
-        ON el.canonical_variant_id=cv.id AND el.locale='el'
-      LEFT JOIN public.product_translations en
-        ON en.canonical_variant_id=cv.id AND en.locale='en'
-      LEFT JOIN public.catalog_source_products csp
-        ON csp.id=dso.source_product_id
-      LEFT JOIN public.catalog_sources cs
-        ON cs.id=csp.source_id
-      WHERE dso.active=true
-        AND dso.cached_available=true
-        AND COALESCE(dso.cached_quantity,0)>=1
-        AND dso.availability_expires_at IS NOT NULL
-        AND dso.availability_expires_at>now()
-        AND (
-          ($1='studio-nails' AND c.code='nail-care-colour')
-          OR ($1='studio-lips' AND c.code='lip-makeup')
-          OR ($1='studio-eye-makeup' AND c.code='eye-makeup')
-          OR ($1='studio-makeup' AND c.code IN ('face-makeup','makeup'))
-          OR ($1='studio-hair-color' AND c.code ~* 'hair')
-          OR ($1='studio-shoes' AND c.code ~* '(shoe|footwear|sneaker|boot|sandal|loafer)')
-          OR ($1='studio-bags' AND c.code ~* '(bag|handbag|backpack|wallet|luggage)')
-          OR (
-            $1='studio-fashion'
-            AND c.code ~* '(fashion|dress|top|shirt|trouser|jean|jacket|coat|short|skirt|activewear|clothing|apparel|belt|scarf|hat|glove|sunglass|jewell|earring|necklace|bracelet|ring|watch)'
-            AND c.code !~* '(shoe|footwear|sneaker|boot|sandal|loafer|bag|handbag|backpack|wallet|luggage)'
-          )
-          OR ($1='studio-home' AND c.code ~* '(home|decor|candle|tableware|glassware|kitchen|furniture|lighting|houseware)')
-          OR ($1 NOT LIKE 'studio-%' AND c.code=$1)
-        )
-        ${vendorPredicate}
-        AND vo.status='approved'
-        AND vo.merchant_visible=true
-        AND vo.merchant_pause_active=false
-        AND vo.customer_price_minor>0
-        AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
-        AND COALESCE(cv.commerce_channel,'normal')='normal'
-        AND cv.active=true
-        AND cv.suppressed=false
-        AND cv.recalled=false
-        AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
-      ORDER BY
-        cv.id,
-        vo.customer_price_minor ASC,
-        dso.availability_checked_at DESC NULLS LAST,
-        vo.updated_at DESC,
-        vo.public_id
-      LIMIT ${limitPlaceholder}
-    )
+  const result = await pool.query<ColorFinderCandidateRow>(`
     SELECT
-      candidate.canonical_public_id,
-      candidate.slug,
-      candidate.title,
-      candidate.brand_name,
-      candidate.raw_color,
-      candidate.customer_price_minor,
+      rm.canonical_public_id,
+      rm.slug,
+      rm.title,
+      rm.brand_name,
+      NULLIF(btrim(rm.color), '') AS raw_color,
+      rm.min_price_minor AS customer_price_minor,
       pcp.brand_name AS profile_brand_name,
       pcp.shade_code,
       pcp.brand_shade_name,
@@ -200,19 +82,77 @@ async function loadColorFinderProductsUncached(
       pcp.product_type AS profile_product_type,
       pcp.canonical_hex,
       pcp.match_precision,
-      pcp.confidence,
-      candidate.source_code,
-      candidate.source_website,
-      candidate.source_image_url,
-      candidate.source_title,
-      candidate.source_color
-    FROM live_color_variants candidate
+      pcp.confidence
+    FROM public.storefront_catalog_read_model rm
     LEFT JOIN public.product_color_profiles pcp
-      ON pcp.canonical_variant_id=candidate.canonical_variant_id
-    ORDER BY candidate.customer_price_minor,candidate.canonical_public_id
-  `, queryParams);
+      ON pcp.canonical_variant_id=rm.canonical_variant_id
+    WHERE (
+      ($1='studio-nails' AND rm.category_code='nail-care-colour')
+      OR ($1='studio-lips' AND rm.category_code='lip-makeup')
+      OR ($1='studio-eye-makeup' AND rm.category_code='eye-makeup')
+      OR ($1='studio-makeup' AND rm.category_code IN ('face-makeup','makeup'))
+      OR ($1='studio-hair-color' AND rm.category_code ~* 'hair')
+      OR ($1='studio-shoes' AND rm.category_code ~* '(shoe|footwear|sneaker|boot|sandal|loafer)')
+      OR ($1='studio-bags' AND rm.category_code ~* '(bag|handbag|backpack|wallet|luggage)')
+      OR (
+        $1='studio-fashion'
+        AND rm.category_code ~* '(fashion|dress|top|shirt|trouser|jean|jacket|coat|short|skirt|activewear|clothing|apparel|belt|scarf|hat|glove|sunglass|jewell|earring|necklace|bracelet|ring|watch)'
+        AND rm.category_code !~* '(shoe|footwear|sneaker|boot|sandal|loafer|bag|handbag|backpack|wallet|luggage)'
+      )
+      OR ($1='studio-home' AND rm.category_code ~* '(home|decor|candle|tableware|glassware|kitchen|furniture|lighting|houseware)')
+      OR ($1 NOT LIKE 'studio-%' AND rm.category_code=$1)
+    )
+      AND (
+        $2::text=''
+        OR EXISTS (
+          SELECT 1
+          FROM public.vendor_offers vo
+          JOIN public.vendor_businesses v
+            ON v.id=vo.vendor_id
+           AND v.public_id=$2
+           AND v.status='active'
+          JOIN public.vendor_locations l
+            ON l.id=vo.location_id
+           AND l.active=true
+          LEFT JOIN public.inventory_balances ib
+            ON ib.offer_id=vo.id
+          LEFT JOIN public.dropship_supplier_offers dso
+            ON dso.vendor_offer_id=vo.id
+          LEFT JOIN public.dropship_suppliers ds
+            ON ds.id=dso.supplier_id
+          WHERE vo.canonical_variant_id=rm.canonical_variant_id
+            AND vo.status='approved'
+            AND vo.merchant_visible=true
+            AND vo.merchant_pause_active=false
+            AND vo.customer_price_minor>0
+            AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+            AND bls_private.vendor_category_effectively_visible(vo.vendor_id,rm.category_id)
+            AND (
+              (
+                dso.id IS NULL
+                AND ib.offer_id IS NOT NULL
+                AND 'pickup'::fulfilment_mode=ANY(vo.fulfilment_modes)
+                AND GREATEST(0,ib.on_hand-ib.active_reservations-ib.safety_stock-ib.blocked)>=1
+                AND ib.stock_confirmed_at IS NOT NULL
+                AND (ib.stock_confirmed_at + make_interval(secs => ib.freshness_ttl_seconds::double precision))>now()
+              )
+              OR (
+                dso.id IS NOT NULL
+                AND ds.active=true
+                AND ds.api_authoritative_availability=true
+                AND dso.active=true
+                AND dso.cached_available=true
+                AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
+                AND dso.availability_expires_at IS NOT NULL
+                AND dso.availability_expires_at>now()
+              )
+            )
+        )
+      )
+    ORDER BY rm.min_price_minor,rm.canonical_public_id
+  `, [categoryCode, vendorPublicId]);
 
-  return result.rows.flatMap((row) => {
+  const ranked = result.rows.flatMap((row) => {
     const id = optionalText(row.canonical_public_id);
     const slug = optionalText(row.slug);
     const title = optionalText(row.title);
@@ -229,23 +169,55 @@ async function loadColorFinderProductsUncached(
       storedResolved
       && storedPrecision
       && storedPrecision !== "family_estimate"
-      && (storedConfidence ?? 0) >= 0.5
+      && (storedConfidence ?? 0) >= MIN_PROFILE_CONFIDENCE
     );
-    const sourceColor = optionalText(row.source_color);
-    const sourceTitle = optionalText(row.source_title);
     const profileBrand = optionalText(row.profile_brand_name);
     const canonicalBrand = optionalText(row.brand_name);
     const brand = profileBrand ?? canonicalBrand;
-    const inferenceTitle = stripLeadingBrand(sourceTitle ?? title, brand);
+    const inferenceTitle = stripLeadingBrand(title, brand);
     const resolved = storedUsable && storedResolved
       ? storedResolved
       : resolveCatalogColor({
-          color: sourceColor ?? rawColor,
+          color: rawColor,
           title: inferenceTitle
         });
-    if (!resolved) return [];
 
-    const directColorEvidence = Boolean(sourceColor || rawColor);
+    if (!resolved) {
+      const productText = [
+        title,
+        rawColor,
+        optionalText(row.color_detail),
+        optionalText(row.brand_shade_name)
+      ].filter(Boolean).join(" ");
+
+      return [{
+        product: {
+          id,
+          slug,
+          title,
+          brand,
+          brandShade: optionalText(row.brand_shade_name) ?? rawColor,
+          shadeCode: optionalText(row.shade_code),
+          colorDetail: optionalText(row.color_detail) ?? optionalText(row.color_family),
+          profilePrecision: "unknown" as const,
+          profileConfidence: 0,
+          colorEvidence: false,
+          // Required by the transport shape only; the UI never presents this
+          // as the product colour when colorEvidence=false.
+          colorHex: targetHex,
+          colorLabel: "Χρώμα σε εμπλουτισμό",
+          finish: validFinish(row.profile_finish) ?? inferColorFinish(productText),
+          productType: validProductType(row.profile_product_type) ?? inferColorProductType(productText),
+          priceMinor,
+          price: formatMoney(money(priceMinor, "EUR")),
+          imageSrc: `/api/catalog-source-image/${encodeURIComponent(id)}`,
+          mediaAlt: title
+        } satisfies ColorFinderProduct,
+        deltaE: Number.POSITIVE_INFINITY
+      }];
+    }
+
+    const directColorEvidence = Boolean(rawColor);
     const profilePrecision = storedUsable && storedPrecision
       ? storedPrecision
       : directColorEvidence
@@ -253,50 +225,113 @@ async function loadColorFinderProductsUncached(
         : "family_estimate" as const;
     const profileConfidence = storedUsable && storedConfidence !== undefined
       ? storedConfidence
-      : sourceColor
-        ? resolved.precision === "reference" ? 0.88 : 0.78
-        : rawColor
-          ? resolved.precision === "reference" ? 0.84 : 0.74
-          : resolved.precision === "reference" ? 0.52 : 0.42;
+      : directColorEvidence
+        ? resolved.precision === "reference" ? 0.86 : 0.76
+        : resolved.precision === "reference"
+          ? 0.62
+          : 0.56;
+
+    const deltaE = deltaE2000(targetLab, hexToLab(resolved.hex));
+    const match = colorMatchPercent(deltaE);
+    if (match < MIN_MATCH_PERCENT || profileConfidence < MIN_PROFILE_CONFIDENCE) return [];
+
     const productText = [
-      sourceTitle,
       title,
-      sourceColor,
       rawColor,
       optionalText(row.color_detail),
       optionalText(row.brand_shade_name)
     ].filter(Boolean).join(" ");
-    const directImageSrc = trustedCatalogSourceHttpsUrl(
-      row.source_code,
-      row.source_website,
-      row.source_image_url
-    );
 
     return [{
-      id,
-      slug,
-      title,
-      brand,
-      brandShade: optionalText(row.brand_shade_name) ?? rawColor,
-      shadeCode: optionalText(row.shade_code),
-      colorDetail: optionalText(row.color_detail) ?? optionalText(row.color_family),
-      profilePrecision,
-      profileConfidence,
-      colorHex: resolved.hex,
-      colorLabel: optionalText(row.brand_shade_name) ?? optionalText(row.color_detail) ?? resolved.label,
-      finish: validFinish(row.profile_finish) ?? inferColorFinish(productText),
-      productType: validProductType(row.profile_product_type) ?? inferColorProductType(productText),
-      priceMinor,
-      price: formatMoney(money(priceMinor, "EUR")),
-      imageSrc: directImageSrc ?? `/api/catalog-source-image/${encodeURIComponent(id)}`,
-      mediaAlt: title
-    } satisfies ColorFinderProduct];
+      product: {
+        id,
+        slug,
+        title,
+        brand,
+        brandShade: optionalText(row.brand_shade_name) ?? rawColor,
+        shadeCode: optionalText(row.shade_code),
+        colorDetail: optionalText(row.color_detail) ?? optionalText(row.color_family),
+        profilePrecision,
+        profileConfidence,
+        colorEvidence: true,
+        colorHex: resolved.hex,
+        colorLabel: optionalText(row.brand_shade_name) ?? optionalText(row.color_detail) ?? resolved.label,
+        finish: validFinish(row.profile_finish) ?? inferColorFinish(productText),
+        productType: validProductType(row.profile_product_type) ?? inferColorProductType(productText),
+        priceMinor,
+        price: formatMoney(money(priceMinor, "EUR")),
+        imageSrc: `/api/catalog-source-image/${encodeURIComponent(id)}`,
+        mediaAlt: title
+      } satisfies ColorFinderProduct,
+      deltaE
+    }];
   });
+
+  const selected = ranked
+    .sort((left, right) =>
+      left.deltaE - right.deltaE
+      || (right.product.profileConfidence ?? 0) - (left.product.profileConfidence ?? 0)
+      || left.product.priceMinor - right.product.priceMinor
+    )
+    .slice(0, MAX_RESULTS);
+
+  if (selected.length === 0) return [];
+
+  try {
+    const mediaResult = await pool.query<ColorFinderMediaRow>(`
+      SELECT DISTINCT ON (cv.public_id)
+        cv.public_id AS canonical_public_id,
+        pm.public_id AS media_public_id,
+        pm.alt_text
+      FROM public.canonical_variants cv
+      JOIN public.product_media pm
+        ON pm.canonical_variant_id=cv.id
+       AND pm.kind='image'
+       AND pm.scan_status='clean'
+       AND pm.rights_status='approved'
+       AND pm.moderation_status='approved'
+       AND pm.object_key IS NOT NULL
+       AND pm.content_type IN ('image/jpeg','image/png','image/webp')
+      WHERE cv.public_id=ANY($1::text[])
+      ORDER BY
+        cv.public_id,
+        pm.sort_order ASC,
+        pm.reviewed_at DESC NULLS LAST,
+        pm.created_at DESC,
+        pm.public_id
+    `, [selected.map((entry) => entry.product.id)]);
+
+    const mediaByProduct = new Map(
+      mediaResult.rows.map((row) => [
+        row.canonical_public_id,
+        { mediaId: row.media_public_id, altText: optionalText(row.alt_text) }
+      ] as const)
+    );
+
+    return selected.map((entry) => {
+      const media = mediaByProduct.get(entry.product.id);
+      return media
+        ? {
+            ...entry.product,
+            imageSrc: `/api/media/${encodeURIComponent(media.mediaId)}`,
+            mediaAlt: media.altText ?? entry.product.mediaAlt
+          }
+        : entry.product;
+    });
+  } catch (error) {
+    console.warn(JSON.stringify({
+      level: "warn",
+      event: "color_finder.catalogue_media_projection_degraded",
+      selectedCount: selected.length,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return selected.map((entry) => entry.product);
+  }
 }
 
 const getCachedColorFinderProducts = unstable_cache(
   loadColorFinderProductsUncached,
-  ["color-finder-contextual-catalogue-v6"],
+  ["color-finder-contextual-catalogue-v7-full-hub"],
   { revalidate: CACHE_SECONDS }
 );
 
@@ -305,9 +340,10 @@ export function getColorFinderProducts(
 ): Promise<readonly ColorFinderProduct[]> {
   const requestedCategory = scope.categoryCode?.trim() ?? "";
   const requestedVendor = scope.vendorPublicId?.trim() ?? "";
+  const requestedTargetHex = normalizeHex(scope.targetHex?.trim() ?? "") ?? "#B52E2E";
   const categoryCode = SAFE_SCOPE.test(requestedCategory) ? requestedCategory : "nail-care-colour";
   const vendorPublicId = SAFE_VENDOR.test(requestedVendor) ? requestedVendor : "";
-  return getCachedColorFinderProducts(categoryCode, vendorPublicId);
+  return getCachedColorFinderProducts(categoryCode, vendorPublicId, requestedTargetHex);
 }
 
 function stripLeadingBrand(value: string, brand?: string): string {
