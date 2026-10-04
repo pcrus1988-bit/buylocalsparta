@@ -66,6 +66,14 @@ test("rejects DTD and entity declarations", () => {
   );
 });
 
+test("reports HTML documents before the generic DTD rejection", () => {
+  assert.throws(
+    () => parseVendorProductXml("<!DOCTYPE html><html><body>Vendor dashboard</body></html>"),
+    /returned HTML instead of a product XML document/
+  );
+});
+
+
 test("rejects malformed mismatched XML", () => {
   assert.throws(
     () => parseVendorProductXml("<products><product><id>1</id></item></products>"),
