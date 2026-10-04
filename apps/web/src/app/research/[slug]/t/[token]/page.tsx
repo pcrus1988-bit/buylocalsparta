@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ResearchSurveyForm } from "../../../../../components/ResearchSurveyForm";
 import { publicResearchSurvey } from "../../../../../lib/research-survey-runtime";
@@ -5,6 +6,10 @@ import styles from "../../../../../components/ResearchSurveyPage.module.css";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const metadata: Metadata = {
+  robots: { index: false, follow: false, noarchive: true, noimageindex: true },
+  referrer: "no-referrer"
+};
 
 export default async function ResearchSurveyTokenPage({ params }: {
   params: Promise<{ slug: string; token: string }>;
