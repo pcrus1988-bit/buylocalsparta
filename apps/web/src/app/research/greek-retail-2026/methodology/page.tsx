@@ -1,0 +1,64 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import styles from "../../../../components/ResearchSurveyPage.module.css";
+
+export const metadata: Metadata = {
+  title: "Μεθοδολογία · Ελληνικό Λιανεμπόριο 2026",
+  description: "Μεθοδολογική τεκμηρίωση της μελέτης Ελληνικό Λιανεμπόριο 2026."
+};
+
+const stages = [
+  ["1", "Population frame", "Παγωμένο snapshot του επιλέξιμου πληθυσμού επιχειρήσεων, με ακριβείς κανόνες ένταξης και hash περιεχομένου."],
+  ["2", "Stratification", "Στρώματα βάσει γεωγραφίας, κλάδου και μεγέθους ώστε η επιλογή και η ανάλυση να είναι ελέγξιμες."],
+  ["3", "Sample draw", "Αποθηκεύονται algorithm version, random seed, πιθανότητα ένταξης και base weight κάθε επιλεγμένης μονάδας."],
+  ["4", "Invitation", "Ο προσωπικός σύνδεσμος περιέχει τυχαίο token. Στη βάση αποθηκεύεται μόνο SHA-256 hash του token."],
+  ["5", "Consent", "Η συγκατάθεση συμμετοχής είναι χωριστή από ενημέρωση αποτελεσμάτων, κωδικό ευχαριστίας και marketing."],
+  ["6", "Instrument", "Το ερωτηματολόγιο έχει immutable version. Μετά το κλείδωμα δεν μπορούν να αλλάξουν οι ερωτήσεις του ίδιου version."],
+  ["7", "Responses", "Η ολοκληρωμένη απάντηση κλειδώνει. Οι raw answers παραμένουν συνδεδεμένες με την ακριβή έκδοση του instrument."],
+  ["8", "Weights", "Base weight, non-response adjustment και calibration adjustment έχουν ξεχωριστό version."],
+  ["9", "Analysis", "Κάθε analysis run αποθηκεύει code version, parameters, instrument version, weight version και dataset hash."],
+  ["10", "Release", "Κάθε δημόσια έκδοση συνδέεται με methodology snapshot, dataset hash και artifact hash."]
+] as const;
+
+export default function GreekRetailMethodologyPage() {
+  return <main className={styles.shell}>
+    <header className={styles.hero}>
+      <div className={styles.brand}>KONTA MOY · RESEARCH METHODS</div>
+      <span>Protocol · 2026 wave</span>
+      <h1>Μεθοδολογία & αναπαραγωγιμότητα</h1>
+      <p>Η αρχιτεκτονική της μελέτης έχει σχεδιαστεί ώστε ένα δημοσιευμένο εύρημα να μπορεί να ανακατασκευαστεί από το population frame μέχρι το τελικό report.</p>
+      <div className={styles.meta}>
+        <Link href="/research/greek-retail-2026">← Ελληνικό Λιανεμπόριο 2026</Link>
+        <span>Instrument v0.2.0 · consent statement 2026-10-04-v1</span>
+      </div>
+    </header>
+
+    <section className={styles.invalid}>
+      <div className={styles.brand}>Research chain</div>
+      {stages.map(([number, title, description]) => <article key={number} style={{ borderTop: "1px solid #d6cfbf", padding: "20px 0" }}>
+        <strong>{number.padStart(2, "0")} · {title}</strong>
+        <p>{description}</p>
+      </article>)}
+    </section>
+
+    <section className={styles.invalid}>
+      <div className={styles.brand}>Primary measures</div>
+      <h2>Δύο βασικοί δείκτες, με σταθερό scoring version.</h2>
+      <p><strong>Greek Retail Digital Readiness Score · 0–100.</strong> Βασίζεται σε πραγματικές δυνατότητες λειτουργίας, με κύριο βάρος στον οργανωμένο κατάλογο, απόθεμα, payments, orders, shipping, reporting και CRM, και συμπληρωματικά στο μερίδιο ψηφιακών πωλήσεων, τη συχνότητα ενημέρωσης και τα ψηφιακά κανάλια πώλησης.</p>
+      <p><strong>Independent Retail Friction Index · 0–100.</strong> Μετατρέπει την κλίμακα δυσκολίας 1–5 σε 0–100 και δίνει τόσο συνολικό score όσο και επιμέρους dimensions για catalogue, growth και operations.</p>
+    </section>
+
+    <section className={styles.invalid}>
+      <div className={styles.brand}>Privacy boundary</div>
+      <h2>Η ταυτότητα του δείγματος και οι απαντήσεις δεν είναι το ίδιο dataset.</h2>
+      <p>Τα στοιχεία επικοινωνίας αποθηκεύονται σε ξεχωριστό contact layer. Το token πρόσκλησης δεν αποθηκεύεται αυτούσιο και τα research tables δεν εκτίθενται απευθείας στο browser μέσω του Supabase Data API. Η δημόσια φόρμα μιλά μόνο με server-side research endpoints.</p>
+      <p>Το προαιρετικό πείραμα πλατφόρμας είναι χωριστό από το βασικό survey. Τα υποθετικά profiles δημιουργούνται deterministically ανά response ώστε να μπορούν να αναπαραχθούν αργότερα χωρίς να αποτελούν πραγματική εμπορική προσφορά.</p>
+    </section>
+
+    <section className={styles.invalid}>
+      <div className={styles.brand}>Publication rule</div>
+      <h2>Δεν δημοσιεύεται αριθμός χωρίς provenance.</h2>
+      <p>Η δημόσια έκδοση θα αναφέρει target population, frame date, field dates, sampling method, invitations, starts, completes, exclusions, weighting method, unweighted/weighted bases και limitations. Αν η τελική συλλογή δεν πληροί τις προϋποθέσεις πιθανoκρατικής δειγματοληψίας, δεν θα παρουσιάζεται συμβατικό margin of error ως εάν επρόκειτο για probability sample.</p>
+    </section>
+  </main>;
+}
