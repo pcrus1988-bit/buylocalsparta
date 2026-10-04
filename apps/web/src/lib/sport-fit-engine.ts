@@ -990,7 +990,7 @@ function directSourceFeaturePhrases(product: SportFitProduct): readonly string[]
 
   if (text.includes("memory foam")) add("πάτο memory foam");
   if (
-    text.includes("απορροφηση κραδασμων")
+    (text.includes("απορροφησ") && text.includes("κραδασμ"))
     || text.includes("shock absorption")
     || text.includes("impact absorption")
   ) add("τεκμηριωμένη απορρόφηση κραδασμών");
