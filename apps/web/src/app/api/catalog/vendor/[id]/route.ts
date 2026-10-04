@@ -134,13 +134,28 @@ function mergeFacetOptions(
   return [...merged.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "el"));
 }
 
+function canonicalColorFacetOptions(options: VendorDropshipFacets["colors"]): VendorDropshipFacets["colors"] {
+  const merged = new Map<string, { value: string; label: string; count: number }>();
+  for (const entry of options) {
+    const resolved = resolveCatalogColor(entry.value) ?? resolveCatalogColor(entry.label);
+    const value = resolved?.key ?? entry.value;
+    const current = merged.get(value);
+    merged.set(value, {
+      value,
+      label: resolved?.displayNameEl ?? current?.label ?? entry.label,
+      count: (current?.count ?? 0) + entry.count
+    });
+  }
+  return [...merged.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "el"));
+}
+
 function mergeFacets(local: VendorDropshipFacets, dropship?: VendorDropshipFacets): VendorDropshipFacets {
   if (!dropship) return local;
   return {
     total: local.total + dropship.total,
     categories: mergeFacetOptions(local.categories, dropship.categories),
     brands: mergeFacetOptions(local.brands, dropship.brands),
-    colors: mergeFacetOptions(local.colors, dropship.colors),
+    colors: canonicalColorFacetOptions(mergeFacetOptions(local.colors, dropship.colors)),
     sizes: mergeFacetOptions(local.sizes, dropship.sizes),
     fits: mergeFacetOptions(local.fits, dropship.fits),
     materials: mergeFacetOptions(local.materials, dropship.materials)
