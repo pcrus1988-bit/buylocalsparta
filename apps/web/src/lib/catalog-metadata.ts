@@ -1,4 +1,3 @@
-import { resolveCatalogColor } from "@buy-local-sparta/core";
 import { normalizeCatalogAttributeKey } from "./catalog-attribute-facets";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { publicDescriptionText } from "./public-description-text";
@@ -162,7 +161,6 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
       "primary_color",
       "primary_colour"
     ].map((key) => scalarMetadata[normalizeCatalogAttributeKey(key)]).find((value) => Boolean(value));
-    const color = resolveCatalogColor(rawColor)?.key ?? rawColor;
     return [row.id, {
       id: row.id,
       title: textValue(row.title),
@@ -172,7 +170,7 @@ export async function loadCatalogMetadata(ids: readonly string[]): Promise<Reado
       description: publicDescriptionText(row.description),
       brand: textValue(row.brand) ?? textValue(specifications.brand),
       brandLogoObjectKey: textValue(row.brand_logo_object_key),
-      color,
+      color: rawColor,
       sizes,
       categoryLabel: textValue(row.category_label),
       fit: textValue(specifications.fit),
