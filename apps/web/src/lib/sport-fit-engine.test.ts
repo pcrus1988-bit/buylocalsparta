@@ -2128,3 +2128,57 @@ test("match explanations pair user input with governed knowledge evidence", () =
   assert.match(scored.matchProofs[3]?.proof ?? "", /επίσημη πηγή κατασκευαστή/);
   assert.match(scored.matchProofs[0]?.proof ?? "", /βεβαιότητα 90%/);
 });
+
+
+test("consultation summary explains the why in Greek and keeps only necessary technology names in English", () => {
+  const walking = product({
+    id: "cloudfoam-consultation",
+    title: "ADIDAS CLOUDFOAM FLEX-LACES",
+    categoryCode: "womens-running-shoes",
+    sizes: ["42"],
+    description: [
+      "Άνετα παπούτσια για περπάτημα με τεχνολογία απορρόφησης κραδασμών Cloudfoam.",
+      "Η ελαφριά σόλα Cloudfoam διαθέτει εγκοπές για ελαστικότητα.",
+      "Το υπερυψωμένο μεσαίο τμήμα παρέχει σταθερότητα και στήριξη στην καμάρα.",
+      "Εσωτερικός πάτος memory foam."
+    ].join(" "),
+    knowledge: {
+      status: "verified",
+      identityQuality: "strong",
+      activities: ["walking"],
+      useCases: ["all_day_standing"],
+      widthProfile: "wide",
+      evidence: [
+        {
+          attributeCode: "sport_activity",
+          value: "walking",
+          evidenceStrength: "manufacturer_claim",
+          confidence: 1,
+          identityConfidence: 1,
+          sourceType: "manufacturer_product"
+        },
+        {
+          attributeCode: "sport_use_case",
+          value: "all_day_standing",
+          evidenceStrength: "manufacturer_claim",
+          confidence: 1,
+          identityConfidence: 1,
+          sourceType: "manufacturer_product"
+        }
+      ]
+    }
+  });
+
+  const scored = scoreSportFitProduct(walking, {
+    activity: "walking",
+    audience: "women",
+    useCase: "all_day_standing",
+    priority: "comfort"
+  });
+
+  assert.match(scored.consultationSummary ?? "", /πολύωρη ορθοστασία/i);
+  assert.match(scored.consultationSummary ?? "", /Cloudfoam/);
+  assert.match(scored.consultationSummary ?? "", /memory foam/);
+  assert.match(scored.consultationSummary ?? "", /απορρόφηση κραδασμών/i);
+  assert.doesNotMatch(scored.consultationSummary ?? "", /confidence|match|support profile/i);
+});
