@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SiteFooter } from "../../../components/SiteFooter";
+import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 import styles from "../../../components/ResearchSurveyPage.module.css";
 
-export const metadata: Metadata = {
-  title: "Ελληνικό Λιανεμπόριο 2026 · KONTA MOY Research",
-  description: "Μελέτη για την ψηφιακή ετοιμότητα, τις λειτουργικές δυσκολίες και τις ανάγκες των ελληνικών εμπορικών επιχειρήσεων."
-};
+export function generateMetadata(): Promise<Metadata> {
+  return governedStaticSeoMetadata("/research/greek-retail-2026", {
+    title: "Ελληνικό Λιανεμπόριο 2026 · KONTA MOY Research",
+    description: "Μελέτη για την ψηφιακή ετοιμότητα, τις λειτουργικές δυσκολίες και τις ανάγκες των ελληνικών εμπορικών επιχειρήσεων."
+  });
+}
 
 export default function GreekRetailResearchPage() {
   return <main className={styles.shell}>
@@ -25,5 +29,6 @@ export default function GreekRetailResearchPage() {
       <p>Η βασική μελέτη μετρά ψηφιακή ετοιμότητα, λειτουργική τριβή, απόκτηση πελατών, τοπικότητα, χρήση marketplaces και προθέσεις επένδυσης. Οι εμπορικές προτιμήσεις του KONTA MOY δεν αποτελούν μέρος των βασικών ερωτήσεων.</p>
       <Link href="/research/greek-retail-2026/methodology">Δείτε πώς θα μπορούν να αναπαραχθούν τα αποτελέσματα →</Link>
     </section>
+    <SiteFooter />
   </main>;
 }
