@@ -225,6 +225,16 @@ test("general storefront surfaces newly published Symphonya families before the 
 });
 
 
+test("Nova full-catalogue availability avoids rewriting unchanged fresh offers", () => {
+  const runtime = readFileSync(new URL("../src/lib/nova-availability-refresh-runtime.ts", import.meta.url), "utf8");
+  assert.match(runtime, /AVAILABILITY_RENEW_WINDOW_HOURS = 4/);
+  assert.match(runtime, /dso\.cached_available IS DISTINCT FROM x\.cached_available/);
+  assert.match(runtime, /dso\.cached_quantity IS DISTINCT FROM x\.cached_quantity/);
+  assert.match(runtime, /dso\.availability_expires_at <= \$3::timestamptz[\s\S]*make_interval\(hours=>\$4::int\)/);
+  assert.match(runtime, /array_agg\(DISTINCT external_product_id\)/);
+  assert.match(runtime, /if \(touchedProductIds\.length > 0\)/);
+});
+
 test("Symphonya stock persistence uses the indexed supplier product id without an EAN OR fallback", () => {
   const runtime = readFileSync(new URL("../src/lib/symphonya-stock-sync-runtime.ts", import.meta.url), "utf8");
   assert.match(runtime, /JOIN supplier ON supplier\.id=dso\.supplier_id/);
