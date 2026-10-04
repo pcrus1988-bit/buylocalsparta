@@ -1,4 +1,4 @@
-import { resolveCatalogColor } from "@buy-local-sparta/core";
+import { resolveCatalogColor, resolveCatalogShade } from "@buy-local-sparta/core";
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound, permanentRedirect } from "next/navigation";
@@ -59,16 +59,17 @@ const thumbnailImageStyle = {
 function ProductColorIndicator({ value }: { value?: string }) {
   const source = value?.trim();
   if (!source) return null;
-  const resolved = resolveCatalogColor(source);
-  const label = resolved?.displayNameEl ?? source;
-  const swatchStyle = resolved?.swatchKind === "multicolor"
+  const shade = resolveCatalogShade(source);
+  const family = resolveCatalogColor(source);
+  const label = shade?.displayNameEl ?? family?.displayNameEl ?? source;
+  const swatchStyle = family?.swatchKind === "multicolor"
     ? { background: "conic-gradient(#D52B2B, #F2C230, #388A55, #2F6DA8, #68478D, #D52B2B)" }
-    : resolved?.swatchKind === "transparent"
+    : family?.swatchKind === "transparent"
       ? {
           background: "linear-gradient(45deg, #ffffff 25%, #d7d7d2 25% 50%, #ffffff 50% 75%, #d7d7d2 75%)",
           backgroundSize: "8px 8px"
         }
-      : { background: resolved?.hex ?? "transparent" };
+      : { background: shade?.hex ?? family?.hex ?? "transparent" };
 
   return (
     <div
@@ -187,7 +188,7 @@ function presentTechnicalAttribute(attribute: PublicTechnicalAttribute): PublicT
   if (key === "weight_g" || key === "weightg") return { ...attribute, key: "weight_g", label: "Βάρος", value: withUnit(value, "g") };
   if (key === "capacity_l" || key === "capacityl") return { ...attribute, key: "capacity_l", label: "Χωρητικότητα", value: withUnit(value, "L") };
   if (key === "color" || key === "colour" || key === "χρωμα") {
-    return { ...attribute, key: "color", label: "Χρώμα", value: resolveCatalogColor(value)?.displayNameEl ?? value };
+    return { ...attribute, key: "color", label: "Χρώμα", value: resolveCatalogShade(value)?.displayNameEl ?? resolveCatalogColor(value)?.displayNameEl ?? value };
   }
   if (key === "size" || key === "sizes" || key === "μεγεθος") {
     if (isMeaninglessSize(value)) return undefined;
@@ -537,7 +538,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? undefined
     : legacySupplierCode;
   const displayPrice = publicCatalogPriceLabel(product);
-  const displayColor = product.color ? resolveCatalogColor(product.color)?.displayNameEl ?? product.color : undefined;
+  const displayColor = product.color ? resolveCatalogShade(product.color)?.displayNameEl ?? resolveCatalogColor(product.color)?.displayNameEl ?? product.color : undefined;
   const meaningfulSizes = product.sizes.filter((size) => !isMeaninglessSize(size));
   const explicitTechnicalKeys = new Set([
     displayBrand ? "brand" : "",
