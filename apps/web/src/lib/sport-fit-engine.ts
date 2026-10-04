@@ -961,7 +961,7 @@ function consultativeBenefitSentence(answers: SportFitAnswers): string {
     return "Γι’ αυτό είναι πιο σχετικό για το έδαφος και τη χρήση που επέλεξες.";
   }
   if (["basketball", "tennis", "padel", "volleyball", "handball", "badminton"].includes(answers.activity)) {
-    return "Γι’ αυτό το τεχνικό προφίλ του είναι πιο κοντά στις απαιτήσεις του court sport που επέλεξες.";
+    return "Γι’ αυτό το τεχνικό προφίλ του είναι πιο κοντά στις απαιτήσεις του αθλήματος γηπέδου που επέλεξες.";
   }
   return "Η επιλογή βασίζεται σε χαρακτηριστικά του ίδιου του προϊόντος και όχι μόνο στην κατηγορία του.";
 }
@@ -1038,7 +1038,7 @@ function structuredConsultationFeatures(
   if (support === "guided" || support === "stability" || support === "max support") {
     add("ενισχυμένη στήριξη");
   } else if (support === "neutral") {
-    add("neutral στήριξη");
+    add("ουδέτερη στήριξη");
   }
 
   if (typeof knowledge.weightG === "number") {
@@ -1088,7 +1088,7 @@ function consultationSummaryFor(
   const use = normalizedUseCaseLabel(answers.useCase, answers.activity);
 
   if (!chosen.length) {
-    return `Ταιριάζει στην επιλογή σου για ${use}, επειδή η τεκμηριωμένη χρήση και εφαρμογή του συμφωνούν με όσα δήλωσες. ${consultativeBenefitSentence(answers)}`;
+    return `Ταιριάζει στην επιλογή σου για ${use}, επειδή τα τεκμηριωμένα χαρακτηριστικά του συμφωνούν με όσα δήλωσες. ${consultativeBenefitSentence(answers)}`;
   }
 
   return `Ταιριάζει στην επιλογή σου για ${use}, επειδή συνδυάζει ${greekJoin(chosen)}. ${consultativeBenefitSentence(answers)}`;
