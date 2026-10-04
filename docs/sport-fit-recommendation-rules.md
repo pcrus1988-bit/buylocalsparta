@@ -88,6 +88,8 @@ The technical profile now separates:
 
 Low or missing evidence is not silently converted into comfort or weather protection.
 
+Weather protection now has three distinct runtime meanings: a documented positive protection value (for example waterproof/water-resistant/wind-resistant), explicit negative evidence (`weather_protection=none`), and genuinely unknown data. A weather-priority footwear request hard-rejects only the explicit negative state; unknown remains eligible-but-uncertain. Catalogue/title words such as “waterproof” cannot override an explicit governed negative fact.
+
 ## Hiking / outdoor
 
 Hiking has its own terrain profile rather than reusing generic walking logic. Technical hikes look for exact `technical_hike` evidence or documented trail/mixed-terrain compatibility. Day-hike and urban-outdoor use cases remain distinct. Weather priority only receives a verified match when water/wind protection is documented, and traction priority is tied to documented terrain compatibility.
