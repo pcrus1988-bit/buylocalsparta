@@ -448,6 +448,112 @@
   justify-content: flex-start;
 }
 
+.gemi-export-field-filter {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--dash-line);
+  border-radius: 12px;
+  background: rgba(255,255,255,.52);
+}
+
+.gemi-export-field-filter-head,
+.gemi-export-field-category-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gemi-export-field-filter-head > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.gemi-export-field-filter-head strong,
+.gemi-export-field-category-head strong {
+  color: var(--dash-navy);
+  font-size: 10px;
+}
+
+.gemi-export-field-filter-head small,
+.gemi-export-field-category-head small {
+  color: var(--dash-muted);
+  font-size: 8.5px;
+  line-height: 1.4;
+}
+
+.gemi-export-presets {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.gemi-export-presets .button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 8.5px;
+}
+
+.gemi-export-field-categories {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gemi-export-field-category {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--dash-line);
+  border-radius: 11px;
+  background: #fff;
+}
+
+.gemi-export-field-category-head > div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.gemi-export-category-action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--dash-gold);
+  font: inherit;
+  font-size: 8.5px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.gemi-export-field-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.gemi-export-field-list label {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px;
+  align-items: start;
+  color: var(--dash-ink);
+  font-size: 9px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.gemi-export-field-list input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+}
+
 .gemi-export-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -532,6 +638,7 @@
 
 @media (max-width: 900px) {
   .gemi-group-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gemi-export-field-categories { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .gemi-filter-grid { grid-template-columns: 1fr; }
   .gemi-active-toggle { grid-column: auto; max-width: none; }
   .gemi-export-summary { grid-template-columns: 1fr; }
@@ -542,6 +649,7 @@
 @media (max-width: 620px) {
   .gemi-export-card-head,
   .gemi-group-section-head,
+  .gemi-export-field-filter-head,
   .gemi-download-bar,
   .gemi-export-actions,
   .gemi-kad-input-row {
@@ -549,7 +657,10 @@
     flex-direction: column;
   }
 
-  .gemi-group-grid { grid-template-columns: 1fr; }
+  .gemi-group-grid,
+  .gemi-export-field-categories { grid-template-columns: 1fr; }
+
+  .gemi-export-presets { justify-content: flex-start; }
 
   .gemi-kad-results {
     position: static;
