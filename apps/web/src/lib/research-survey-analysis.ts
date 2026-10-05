@@ -1,10 +1,15 @@
 import { createHash } from "node:crypto";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
+import {
+  normal95ConfidenceInterval,
+  stratifiedSrsMeanVariance
+} from "./research-survey-statistics";
 
-const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v1";
+const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v2";
 const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v1";
 const MIN_PUBLIC_BASE = 30;
+const VARIANCE_METHOD = "stratified_srs_fpc_v1";
 
 type ResponseRow = Readonly<{
   responseId: string;
@@ -106,6 +111,20 @@ function segmentsFor(observations: readonly Observation[]): Array<Readonly<{
     }
   }
   return result;
+}
+
+function designResponsesForSegment(
+  segment: Record<string, string>,
+  responses: readonly WeightedResponse[]
+): readonly WeightedResponse[] {
+  if (segment.regionCode) return responses.filter((response) => response.regionCode === segment.regionCode);
+  if (segment.sectorCode) return responses.filter((response) => response.sectorCode === segment.sectorCode);
+  if (segment.sizeBand) {
+    return responses.filter((response) => (
+      typeof response.answers.Q02 === "string" && response.answers.Q02 === segment.sizeBand
+    ));
+  }
+  return responses;
 }
 
 function estimateSpecs(questions: readonly QuestionRow[], responses: readonly WeightedResponse[]): EstimateSpec[] {
@@ -243,7 +262,7 @@ export async function runGreekRetailAnalysis(
       datasetSha256: text(runResult.rows[0]?.dataset_sha256),
       includedResponses: numberValue(completed.rows[0]?.included_responses),
       estimateCount: numberValue(completed.rows[0]?.estimate_count),
-      varianceMethod: "not_estimated",
+      varianceMethod: VARIANCE_METHOD,
       publicMinimumBase: MIN_PUBLIC_BASE,
       idempotentReplay: true
     };
@@ -257,7 +276,7 @@ export async function runGreekRetailAnalysis(
         $1,'Automated weighted descriptive analysis',$2,$3,$4,
         jsonb_build_object(
           'jobId',$5::text,
-          'varianceMethod','not_estimated',
+          'varianceMethod',$9::text,
           'sampleDrawId',$6::text,
           'frameSnapshotId',$7::text,
           'publicMinimumBase',$8::int
@@ -273,7 +292,8 @@ export async function runGreekRetailAnalysis(
       jobId,
       draw.id,
       draw.frame_snapshot_id,
-      MIN_PUBLIC_BASE
+      MIN_PUBLIC_BASE,
+      VARIANCE_METHOD
     ]);
     analysisRunId = text(runResult.rows[0]!.id);
   } else {
@@ -281,13 +301,13 @@ export async function runGreekRetailAnalysis(
       UPDATE research_analysis_runs
       SET status='running', started_at=now(), completed_at=NULL, dataset_sha256=NULL,
           parameters=parameters || jsonb_build_object(
-            'varianceMethod','not_estimated',
+            'varianceMethod',$9::text,
             'sampleDrawId',$2::text,
             'frameSnapshotId',$3::text,
             'publicMinimumBase',$4::int
           )
       WHERE id=$1
-    `, [analysisRunId, draw.id, draw.frame_snapshot_id, MIN_PUBLIC_BASE]);
+    `, [analysisRunId, draw.id, draw.frame_snapshot_id, MIN_PUBLIC_BASE, VARIANCE_METHOD]);
     await pool.query("DELETE FROM research_analysis_estimates WHERE analysis_run_id=$1", [analysisRunId]);
   }
 
@@ -472,20 +492,46 @@ export async function runGreekRetailAnalysis(
       if (result.estimate === undefined) continue;
       const unweightedN = segment.observations.length;
       const suppressed = unweightedN < MIN_PUBLIC_BASE;
+      const domainVarianceUnsupported = Boolean(segment.segment.sizeBand);
+      const designResponses = designResponsesForSegment(segment.segment, weightedResponses);
+      const variance = domainVarianceUnsupported
+        ? { reason: "unsupported_non_stratification_domain" as const }
+        : stratifiedSrsMeanVariance(
+            segment.observations.map((observation) => ({
+              stratumId: observation.response.stratumId,
+              value: observation.value
+            })),
+            designResponses.map((response) => ({
+              stratumId: response.stratumId,
+              finalWeight: response.finalWeight
+            }))
+          );
+      const standardError = "standardError" in variance ? variance.standardError : undefined;
+      const confidence = standardError === undefined
+        ? undefined
+        : normal95ConfidenceInterval(
+            result.estimate,
+            standardError,
+            spec.metadata.format === "proportion" ? "proportion" : "mean"
+          );
       await pool.query(`
         INSERT INTO research_analysis_estimates (
           analysis_run_id,metric_key,segment,estimate,standard_error,confidence_level,
           ci_lower,ci_upper,unweighted_n,weighted_n,method,suppressed,metadata
         )
         VALUES (
-          $1,$2,$3::jsonb,$4,NULL,NULL,NULL,NULL,$5,$6,
-          'nonresponse_adjusted_weighted_descriptive_v1',$7,$8::jsonb
+          $1,$2,$3::jsonb,$4,$5,$6,$7,$8,$9,$10,
+          'nonresponse_adjusted_stratified_descriptive_v2',$11,$12::jsonb
         )
       `, [
         analysisRunId,
         spec.metricKey,
         JSON.stringify(segment.segment),
         result.estimate,
+        standardError ?? null,
+        standardError === undefined ? null : 0.95,
+        confidence?.lower ?? null,
+        confidence?.upper ?? null,
         unweightedN,
         result.weightSum,
         suppressed,
@@ -493,7 +539,9 @@ export async function runGreekRetailAnalysis(
           ...spec.metadata,
           weightVersion,
           publicMinimumBase: MIN_PUBLIC_BASE,
-          variance: "not_estimated"
+          varianceMethod: standardError === undefined ? "withheld" : VARIANCE_METHOD,
+          varianceWithheldReason: standardError === undefined ? variance.reason ?? "unavailable" : null,
+          finitePopulationCorrection: standardError !== undefined
         })
       ]);
       estimateCount += 1;
@@ -513,7 +561,7 @@ export async function runGreekRetailAnalysis(
     datasetSha256,
     includedResponses: weightedResponses.length,
     estimateCount,
-    varianceMethod: "not_estimated",
+    varianceMethod: VARIANCE_METHOD,
     publicMinimumBase: MIN_PUBLIC_BASE
   };
 }
