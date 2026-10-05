@@ -1142,8 +1142,8 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
     LEFT JOIN LATERAL (
       SELECT
         count(*) AS started,
-        count(*) FILTER (WHERE status = 'completed') AS completed,
-        count(*) FILTER (WHERE status = 'withdrawn') AS withdrawn
+        count(*) FILTER (WHERE rr.status = 'completed') AS completed,
+        count(*) FILTER (WHERE rr.status = 'withdrawn') AS withdrawn
       FROM research_responses rr
       JOIN research_invites ri ON ri.id=rr.invite_id
       WHERE rr.study_id = s.id
