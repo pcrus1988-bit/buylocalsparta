@@ -492,7 +492,8 @@ export async function buildGreekRetailRelease(
       datasetSha256: text(study.dataset_sha256),
       completedAt: study.analysis_completed_at ?? null,
       varianceMethod,
-      publicMinimumBase: numberValue(parameters.publicMinimumBase) || 30
+      publicMinimumBase: numberValue(parameters.publicMinimumBase) || 30,
+      weightDiagnostics: objectValue(parameters.weightDiagnostics)
     },
     disclosure: {
       smallBaseSuppression: true,
