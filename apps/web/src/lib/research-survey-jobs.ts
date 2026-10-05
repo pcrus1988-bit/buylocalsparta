@@ -1355,17 +1355,31 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         "UPDATE research_invites SET status='expired' WHERE id=$1 AND status='created'",
         [inviteId]
       );
-      await pool.query(`
+      const attemptFailure = await pool.query<SqlRow>(`
         UPDATE research_invite_messages
-        SET status='failed',last_error=$2,updated_at=now()
+        SET status=CASE
+              WHEN status IN ('delivered','opened','bounced','complained') THEN status
+              ELSE 'failed'
+            END,
+            last_error=CASE
+              WHEN status IN ('delivered','opened') THEN last_error
+              ELSE $2
+            END,
+            updated_at=now()
         WHERE id=$1
+        RETURNING status
       `, [attemptId, message]);
-      await pool.query(`
-        INSERT INTO research_invite_events (invite_id,event_type,metadata)
-        VALUES ($1,'expired',jsonb_build_object('source','research_worker','reason','send_failed','error',$2::text))
-      `, [inviteId, message]);
-      failedCount += 1;
-      failures.push({ sampleUnitId, error: message });
+      const finalAttemptStatus = text(attemptFailure.rows[0]?.status);
+      if (["delivered","opened"].includes(finalAttemptStatus)) {
+        sentCount += 1;
+      } else {
+        await pool.query(`
+          INSERT INTO research_invite_events (invite_id,event_type,metadata)
+          VALUES ($1,'expired',jsonb_build_object('source','research_worker','reason','send_failed','error',$2::text))
+        `, [inviteId, message]);
+        failedCount += 1;
+        failures.push({ sampleUnitId, error: message });
+      }
     }
   }
 
@@ -1687,20 +1701,35 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
       const message = (error instanceof Error ? error.message : String(error))
         .replace(/[\r\n]+/g, " ")
         .slice(0, 800);
+      let finalAttemptStatus = "failed";
       if (attemptId) {
-        await pool.query(`
+        const attemptFailure = await pool.query<SqlRow>(`
           UPDATE research_invite_messages
-          SET status='failed',last_error=$2,updated_at=now()
+          SET status=CASE
+                WHEN status IN ('delivered','opened','bounced','complained') THEN status
+                ELSE 'failed'
+              END,
+              last_error=CASE
+                WHEN status IN ('delivered','opened') THEN last_error
+                ELSE $2
+              END,
+              updated_at=now()
           WHERE id=$1
+          RETURNING status
         `, [attemptId, message]);
+        finalAttemptStatus = text(attemptFailure.rows[0]?.status) || "failed";
       }
-      await pool.query(`
-        UPDATE research_invite_access_tokens
-        SET status='revoked',revoked_at=now()
-        WHERE id=$1 AND status='active'
-      `, [accessTokenId]);
-      failedCount += 1;
-      failures.push({ inviteId, error: message });
+      if (["delivered","opened"].includes(finalAttemptStatus)) {
+        sentCount += 1;
+      } else {
+        await pool.query(`
+          UPDATE research_invite_access_tokens
+          SET status='revoked',revoked_at=now()
+          WHERE id=$1 AND status='active'
+        `, [accessTokenId]);
+        failedCount += 1;
+        failures.push({ inviteId, error: message });
+      }
     }
   }
 
