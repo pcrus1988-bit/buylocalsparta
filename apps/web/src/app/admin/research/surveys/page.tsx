@@ -160,6 +160,7 @@ export default async function ResearchSurveysAdminPage() {
               csrfToken={principal.csrfToken}
               studyStatus={study.status}
               instrumentStatus={study.instrumentStatus}
+              analysisPlanStatus={study.analysisPlanStatus}
               latestReleaseVersion={study.latestReleaseVersion}
               latestReleasePublishedAt={study.latestReleasePublishedAt}
             />}
