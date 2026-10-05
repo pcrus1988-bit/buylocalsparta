@@ -349,10 +349,11 @@ function buildScene(canvas: HTMLCanvasElement, modelImage: string, onContextLost
       vec3 lightDirection = normalize(vec3(-0.35, 0.65, 0.72));
       float diffuse = max(dot(normal, lightDirection), 0.0);
       float rim = pow(1.0 - abs(normal.z), 2.2);
-      vec3 base = u_color.rgb * (0.34 + diffuse * 0.58);
-      base += vec3(0.25, 1.0, 0.94) * rim * u_glow;
-      base += u_color.rgb * (1.0 - v_depth) * 0.12;
-      gl_FragColor = vec4(base, u_color.a);
+      vec3 base = u_color.rgb * (0.52 + diffuse * 0.62);
+      base += vec3(0.35, 1.0, 0.95) * rim * u_glow * 1.28;
+      base += u_color.rgb * (1.0 - v_depth) * 0.2;
+      base = min(base, vec3(1.0));
+      gl_FragColor = vec4(base, min(1.0, u_color.a + 0.08));
     }
   `);
 
@@ -405,6 +406,7 @@ function buildScene(canvas: HTMLCanvasElement, modelImage: string, onContextLost
   let resultCancel: (() => void) | undefined;
   let revealStartedAt = 0;
   let projection = perspective(Math.PI / 4.8, 1, 0.1, 30);
+  let viewportAspect = 1;
   let frame = 0;
   let stopped = false;
   let visible = !document.hidden;
@@ -432,7 +434,8 @@ function buildScene(canvas: HTMLCanvasElement, modelImage: string, onContextLost
       canvas.height = nextHeight;
       gl.viewport(0, 0, nextWidth, nextHeight);
     }
-    projection = perspective(Math.PI / 4.8, width / height, 0.1, 30);
+    viewportAspect = width / height;
+    projection = perspective(Math.PI / 4.8, viewportAspect, 0.1, 30);
   };
 
   const texturedPosition = gl.getAttribLocation(texturedProgram, "a_position");
@@ -503,38 +506,49 @@ function buildScene(canvas: HTMLCanvasElement, modelImage: string, onContextLost
   }
 
   function drawGarments(time: number) {
+    const portrait = viewportAspect < 0.82;
+    // The perspective camera becomes very narrow on phones. Compress horizontal
+    // flight paths into the visible frustum so garments visibly cross the customer
+    // instead of orbiting off-canvas.
+    const horizontalFactor = Math.min(0.58, Math.max(0.18, viewportAspect * 0.42));
+    const verticalFactor = portrait ? 0.72 : 0.92;
+
     actors.forEach((actor, actorIndex) => {
       const theta = time * actor.speed * actor.direction + actor.phase;
-      const x = Math.cos(theta) * actor.radius;
-      const y = Math.sin(theta * 0.73) * actor.height;
-      const z = -6.1 + Math.sin(theta * 1.17) * actor.depth;
-      const actorScale = 0.34 + (1 - Math.min(1, Math.max(0, (-z - 3.5) / 5.2))) * 0.18;
+      const lane = 0.78 + (actorIndex % 3) * 0.1;
+      const x = Math.cos(theta) * actor.radius * horizontalFactor * lane;
+      const y = Math.sin(theta * 0.73 + actorIndex * 0.22) * actor.height * verticalFactor;
+      // Cross the customer plane at z=-6 so every orbit includes clearly visible
+      // foreground passes as well as genuine behind-the-photo depth.
+      const z = -5.88 + Math.sin(theta * 1.17 + actorIndex * 0.37) * Math.min(2.0, actor.depth);
+      const nearFactor = 1 - Math.min(1, Math.max(0, (-z - 3.75) / 4.4));
+      const actorScale = (portrait ? 0.64 : 0.52) + nearFactor * (portrait ? 0.22 : 0.18);
       const actorMatrix = trs(
         x,
         y,
         z,
-        Math.sin(theta * 1.3) * 0.16,
+        Math.sin(theta * 1.3) * 0.2,
         theta + Math.PI * 0.5,
-        Math.sin(theta * 0.82 + actorIndex) * 0.23,
+        Math.sin(theta * 0.82 + actorIndex) * 0.29,
         actorScale,
         actorScale,
         actorScale
       );
 
       actor.parts.forEach((part, partIndex) => {
-        const flutter = Math.sin(time * (2.5 + actorIndex * 0.12) + partIndex * 0.9) * 0.035;
+        const flutter = Math.sin(time * (2.7 + actorIndex * 0.14) + partIndex * 0.9) * 0.055;
         const local = trs(
           part.x,
           part.y,
           part.z + flutter,
-          (part.rx ?? 0) + flutter * 0.45,
-          (part.ry ?? 0) + flutter * 0.6,
+          (part.rx ?? 0) + flutter * 0.55,
+          (part.ry ?? 0) + flutter * 0.8,
           (part.rz ?? 0) + flutter,
           part.sx,
           part.sy,
           part.sz
         );
-        drawCube(multiply(actorMatrix, local), actor.tone, 1.0);
+        drawCube(multiply(actorMatrix, local), actor.tone, 1.35);
       });
     });
   }
