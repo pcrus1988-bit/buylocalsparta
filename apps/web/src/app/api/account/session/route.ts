@@ -1,6 +1,6 @@
 import { accountHomeDashboard } from "../../../../lib/account-home-view";
 import { requireAccountSession } from "../../../../lib/account-session";
-import { customerTryOnGenerationConfigured } from "../../../../lib/try-on-runtime";
+import { customerTryOnGenerationConfigured } from "../../../../lib/try-on-config";
 import { customerTryOnBrowserStorageScope } from "../../../../lib/try-on-security";
 
 export async function GET() {
