@@ -18,6 +18,9 @@ const sesEvents = readFileSync("apps/web/src/lib/research-survey-ses-events.ts",
 const quality = readFileSync("apps/web/src/lib/research-survey-quality.ts", "utf8");
 const qualityControls = readFileSync("apps/web/src/components/ResearchStudyQualityControls.tsx", "utf8");
 const fieldworkControls = readFileSync("apps/web/src/components/ResearchStudyFieldworkControls.tsx", "utf8");
+const statistics = readFileSync("apps/web/src/lib/research-survey-statistics.ts", "utf8");
+const analysis = readFileSync("apps/web/src/lib/research-survey-analysis.ts", "utf8");
+const resultsPage = readFileSync("apps/web/src/app/research/greek-retail-2026/results/page.tsx", "utf8");
 const sesSender = readFileSync("apps/web/src/lib/admin-mail-ses.ts", "utf8");
 const gemi = readFileSync("apps/web/src/lib/gemi-admin-export.ts", "utf8");
 const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts?: Record<string, string> };
@@ -124,6 +127,11 @@ if (!quality.includes("FOR UPDATE OF rr")) errors.push("manual research QA resol
 if (!qualityControls.includes('void resolve(item, "include")')) errors.push("research QA include control missing");
 if (!qualityControls.includes('void resolve(item, "exclude")')) errors.push("research QA exclude control missing");
 if (!fieldworkControls.includes("pendingQualityReviews > 0")) errors.push("analysis UI is not gated on pending research QA");
+if (!statistics.includes("stratifiedSrsMeanVariance")) errors.push("design-aware variance helper missing");
+if (!statistics.includes("unequal_within_stratum_weights")) errors.push("variance guard for unequal stratum weights missing");
+if (!analysis.includes('VARIANCE_METHOD = "stratified_srs_fpc_v1"')) errors.push("analysis variance method is not versioned");
+if (!analysis.includes("normal95ConfidenceInterval")) errors.push("analysis confidence interval bridge missing");
+if (!resultsPage.includes("95% CI")) errors.push("public results do not surface governed confidence intervals");
 if (surveyRuntime.includes("generateResearchInvitationBatch")) errors.push("legacy plaintext invitation delivery path remains");
 if (surveyRuntime.includes("SURVEY_EXPERIMENT_INCOMPLETE")) errors.push("optional experiment still blocks completion");
 if (!surveyRuntime.includes('"eligibilityBasis":"completed_response"')) errors.push("reward eligibility is not completion-based");
