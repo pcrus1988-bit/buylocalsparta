@@ -172,7 +172,7 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
     <section className="shell customer-kpi-links account-snapshot dashboard-kpis-refined" aria-label="Σύνοψη λογαριασμού">
       <Link className={attentionOrders.length ? "customer-kpi-link needs-attention" : "customer-kpi-link"} href="/account/orders"><span>Ενεργές παραγγελίες</span><strong>{activeOrders.length}</strong><small>{attentionOrders.length ? `${attentionOrders.length} χρειάζονται προσοχή` : "Καμία ενέργεια τώρα"}</small></Link>
       <Link className={data.unreadNotifications ? "customer-kpi-link needs-attention" : "customer-kpi-link"} href="/account/notifications"><span>Νέες ειδοποιήσεις</span><strong>{data.unreadNotifications}</strong><small>Όλες οι αλλαγές σε ένα σημείο</small></Link>
-      <Link className="customer-kpi-link" href="/account/saved"><span>Wishlist</span><strong>{data.savedProducts.length}</strong><small>{data.savedSearches.length} αποθηκευμένες αναζητήσεις</small></Link>
+      <Link className="customer-kpi-link" href="/account/wishlist"><span>Wishlist</span><strong>{data.savedProducts.length}</strong><small>{data.savedSearches.length} αποθηκευμένες αναζητήσεις</small></Link>
       <Link className="customer-kpi-link" href="/account/profile"><span>Προφίλ & διευθύνσεις</span><strong>→</strong><small>Παράδοση, τιμολόγηση και στοιχεία</small></Link>
     </section>
 
@@ -193,7 +193,7 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
       <article className="account-live-card" id="saved">
         <div className="account-card-head"><div><div className="eyebrow">Για αργότερα</div><h2>Wishlist</h2></div><span className="count-pill">{data.savedProducts.length}</span></div>
         {data.savedProducts.length ? <div className="mini-list">{data.savedProducts.slice(0, 4).map((product) => <div key={product.canonicalVariantId}><Link href={productPublicPath({ id: product.canonicalVariantId, slug: product.slug })}><strong>{product.title ?? product.canonicalVariantId}</strong></Link><span>{product.price ?? ""} · {product.available ? "διαθέσιμο" : "μη διαθέσιμο"}</span><button type="button" onClick={() => void mutate(`remove-${product.canonicalVariantId}`, `/api/account/saved-products/${encodeURIComponent(product.canonicalVariantId)}`, { method: "DELETE" })}>Αφαίρεση</button></div>)}</div> : <p className="account-muted">Δεν έχεις αποθηκεύσει προϊόντα.</p>}
-        <Link className="text-link" href="/account/saved">Διαχείριση wishlist →</Link>
+        <Link className="text-link" href="/account/wishlist">Άνοιγμα Wishlist →</Link>
       </article>
 
       <details className={styles.secondaryDetails}>
