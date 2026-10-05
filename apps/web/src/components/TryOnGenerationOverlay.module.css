@@ -214,7 +214,22 @@
   stroke-width: 2.1;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
+  transform-origin: 50% 45%;
+  animation: clothFlutter 1.15s ease-in-out infinite alternate;
 }
+
+.garment path {
+  stroke-dasharray: 290;
+  stroke-dashoffset: 290;
+  animation: garmentTrace 1.25s ease-out forwards;
+}
+
+.garmentB svg,
+.garmentD svg,
+.garmentF svg { animation-delay: -.48s; }
+
+.garmentC path,
+.garmentE path { animation-delay: .12s; }
 
 .garmentA { left: 7%; top: 13%; animation: flyA 3.3s cubic-bezier(.42,0,.25,1) infinite; }
 .garmentB { right: 8%; top: 10%; animation: flyB 3.8s cubic-bezier(.4,0,.2,1) infinite .18s; }
@@ -330,6 +345,17 @@
   to { transform: translateX(70%); }
 }
 
+@keyframes clothFlutter {
+  from { transform: perspective(180px) rotateY(-7deg) skewX(-1.5deg) scaleY(.98); }
+  to { transform: perspective(180px) rotateY(8deg) skewX(1.8deg) scaleY(1.025); }
+}
+
+@keyframes garmentTrace {
+  0% { stroke-dashoffset: 290; fill-opacity: 0; }
+  55% { fill-opacity: .18; }
+  100% { stroke-dashoffset: 0; fill-opacity: 1; }
+}
+
 @keyframes flyA {
   0% { transform: translate(-90px, 48px) rotate(-24deg) scale(.55); opacity: 0; }
   24% { opacity: .95; }
@@ -398,6 +424,8 @@
   .markerC,
   .markerD,
   .garment,
+  .garment svg,
+  .garment path,
   .orbit,
   .ambient span,
   .revealSweep,
