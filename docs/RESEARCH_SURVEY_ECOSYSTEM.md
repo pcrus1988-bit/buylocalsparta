@@ -48,6 +48,9 @@ New draws use algorithm `stratified-hash-rank-v2`. When the requested sample siz
 - The frozen release stores overall and per-stratum email contactability. Low email coverage is therefore an explicit fieldwork limitation rather than being hidden inside the final response rate.
 - The admin control centre exposes the live fieldwork funnel as selected sample → sent → delivered → opened → started → completed, with stage-specific conversion percentages and withdrawals. These are operational diagnostics, not a substitute for the governed release methodology or an AAPOR response-rate classification.
 - The same admin view ranks sampling strata by completion shortfall and shows selected/sent/delivered/opened/started/completed counts for each frozen region/sector cell. This is an early non-response-balance warning: it helps fieldwork operators see where completion is lagging before weights are calculated, while keeping the full stratum list inspectable.
+- Closing fieldwork now **seals the latest disposition for every selected unit in the active draw**. Started-but-unfinished responses are appended as `partial`; any remaining progress-state case is conservatively appended as `unknown_eligibility`. Existing terminal outcomes (complete, refusal, bounce, ineligible, withdrawal, etc.) are preserved. Open invitation identities are simultaneously expired.
+- The release engine derives `greek-retail-2026-fieldwork-outcomes-v1` from those latest dispositions and refuses to build a release unless disposition coverage equals the selected sample and no progress-state disposition remains unresolved.
+- The frozen release reports both gross selected-sample completion and a conservative net-sample completion rate. The net sample subtracts only cases known to be ineligible; unknown eligibility remains in the denominator. It also publishes the exact denominator definitions rather than labelling a bespoke metric as a standard AAPOR response rate.
 
 ### Invitations
 
@@ -249,6 +252,7 @@ A release is not scientifically ready until it has:
 - reminder/recontact copy plus attempt counts by attempt kind and delivery state
 - explicit denominator rule proving reminders do not create additional invitation identities
 - overall and per-stratum fieldwork funnel, explicit denominators and final disposition counts
+- sealed final-disposition coverage for every selected sample unit, plus versioned gross/net completion and participation denominator definitions
 - weighting version and diagnostics
 - unweighted and weighted bases for published estimates
 - quality/exclusion rules
