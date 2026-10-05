@@ -45,7 +45,7 @@ export default async function ResearchSurveysAdminPage() {
     </div></section>
 
     {!overview.databaseConfigured
-      ? <section className="shell vendor-section"><WorkspaceEmptyState title="Research database is not available." body="The admin surface will activate after schema 417 is deployed." /></section>
+      ? <section className="shell vendor-section"><WorkspaceEmptyState title="Research database is not available." body="The admin surface will activate after schema 418 is deployed." /></section>
       : overview.studies.length === 0
         ? <section className="shell vendor-section"><WorkspaceEmptyState title="No research studies have been created." /></section>
         : overview.studies.map((study) => <div key={study.id}>
@@ -58,7 +58,8 @@ export default async function ResearchSurveysAdminPage() {
           ]} />
           <WorkspaceMetricStrip items={[
             { label: "QA review", value: study.qualityReview.toLocaleString("el-GR"), hint: String(study.qualityExclude) + " excluded by reviewed rules" },
-            { label: "Reward eligible", value: study.rewardEligible.toLocaleString("el-GR"), hint: String(study.rewardIssued) + " issued · " + String(study.rewardRedeemed) + " redeemed" },
+            { label: "Reward eligible", value: study.rewardEligible.toLocaleString("el-GR"), hint: String(study.rewardIssued) + " issued · " + String(study.rewardRedeemed) + " redeemed · " + String(study.rewardDeliveryFailed) + " delivery failures" },
+            { label: "Results notices", value: study.resultsNotificationSent.toLocaleString("el-GR"), hint: String(study.resultsNotificationFailed) + " delivery failures" },
             { label: "Analysis estimates", value: study.analysisEstimates.toLocaleString("el-GR"), hint: String(study.analysisRuns) + " analysis run(s)" },
             { label: "Evidence releases", value: study.releases, hint: "Versioned methodology + dataset/artifact hashes" }
           ]} />
@@ -106,9 +107,15 @@ export default async function ResearchSurveysAdminPage() {
               recruitmentTemplateVersion={study.recruitmentTemplateVersion}
               activeContacts={study.activeContacts}
               completed={study.completed}
+              rewardEligible={study.rewardEligible}
+              rewardIssued={study.rewardIssued}
+              rewardDeliveryFailed={study.rewardDeliveryFailed}
               pendingQualityReviews={study.qualityReview}
               succeededAnalysisRuns={study.succeededAnalysisRuns}
               latestReleaseVersion={study.latestReleaseVersion}
+              latestReleasePublishedAt={study.latestReleasePublishedAt}
+              resultsNotificationSent={study.resultsNotificationSent}
+              resultsNotificationFailed={study.resultsNotificationFailed}
               queuedJobs={study.queuedJobs}
               runningJobs={study.runningJobs}
             />}
