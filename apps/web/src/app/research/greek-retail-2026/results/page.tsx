@@ -35,6 +35,20 @@ function formatInterval(value: number, metadata: Record<string, unknown>): strin
   return formatEstimate(value, metadata);
 }
 
+function comparisonSegmentLabel(segment: Record<string, unknown>): string {
+  if (typeof segment.regionCode === "string") return segment.regionCode;
+  if (typeof segment.sectorCode === "string") return segment.sectorCode;
+  return "—";
+}
+
+function comparisonInterval(
+  estimate: { ciLower: number | null; ciUpper: number | null; metadata: Record<string, unknown> }
+): string {
+  return estimate.ciLower != null && estimate.ciUpper != null
+    ? formatInterval(estimate.ciLower, estimate.metadata) + "–" + formatInterval(estimate.ciUpper, estimate.metadata)
+    : "withheld";
+}
+
 function metricLabel(metricKey: string, metadata: Record<string, unknown>): string {
   const label = typeof metadata.label === "string" ? metadata.label.trim() : "";
   if (label) return label;
@@ -69,6 +83,19 @@ export default async function GreekRetailResultsPage() {
     !estimate.suppressed &&
     estimate.estimate != null &&
     Object.keys(estimate.segment).length === 0
+  );
+  const headlineKeys = new Set(["digital_readiness.mean", "retail_friction.mean"]);
+  const regionComparisons = release.estimates.filter((estimate) =>
+    !estimate.suppressed &&
+    estimate.estimate != null &&
+    headlineKeys.has(estimate.metricKey) &&
+    typeof estimate.segment.regionCode === "string"
+  );
+  const sectorComparisons = release.estimates.filter((estimate) =>
+    !estimate.suppressed &&
+    estimate.estimate != null &&
+    headlineKeys.has(estimate.metricKey) &&
+    typeof estimate.segment.sectorCode === "string"
   );
 
   return <main className={styles.shell}>
@@ -120,6 +147,58 @@ export default async function GreekRetailResultsPage() {
               {" · "}{estimate.metricKey}
             </div>
           </article>)}
+        </div>}
+    </section>
+
+    <section className={styles.invalid}>
+      <div className={styles.brand}>Descriptive comparison · Region</div>
+      <h2>Ψηφιακή ετοιμότητα και λειτουργική τριβή ανά γεωγραφική ενότητα</h2>
+      <p>Οι γραμμές είναι σταθμισμένες descriptive estimates. Τα intervals αφορούν κάθε εκτίμηση ξεχωριστά· δεν αποτελούν pairwise significance test μεταξύ δύο περιοχών.</p>
+      {regionComparisons.length === 0
+        ? <p>Δεν υπάρχουν ακόμη δημοσιεύσιμες περιφερειακές βάσεις πάνω από το disclosure threshold.</p>
+        : <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr>
+              <th style={{ textAlign: "left", padding: "10px 6px" }}>Περιοχή</th>
+              <th style={{ textAlign: "left", padding: "10px 6px" }}>Μέτρο</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>Estimate</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>95% CI</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>n</th>
+            </tr></thead>
+            <tbody>{regionComparisons.map((estimate) => <tr key={estimate.metricKey + ":" + String(estimate.segment.regionCode)}>
+              <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px" }}>{comparisonSegmentLabel(estimate.segment)}</td>
+              <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px" }}>{metricLabel(estimate.metricKey, estimate.metadata)}</td>
+              <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>{formatEstimate(estimate.estimate!, estimate.metadata)}</td>
+              <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>{comparisonInterval(estimate)}</td>
+              <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>{estimate.unweightedN.toLocaleString("el-GR")}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>}
+    </section>
+
+    <section className={styles.invalid}>
+      <div className={styles.brand}>Descriptive comparison · Sector</div>
+      <h2>Οι ίδιοι δύο δείκτες ανά κλάδο λιανικής</h2>
+      <p>Οι συγκρίσεις χρησιμοποιούν τα ίδια frozen weights και disclosure rules. Δεν εμφανίζεται κελί κάτω από το ελάχιστο unweighted base του release.</p>
+      {sectorComparisons.length === 0
+        ? <p>Δεν υπάρχουν ακόμη δημοσιεύσιμες κλαδικές βάσεις πάνω από το disclosure threshold.</p>
+        : <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr>
+              <th style={{ textAlign: "left", padding: "10px 6px" }}>Κλάδος</th>
+              <th style={{ textAlign: "left", padding: "10px 6px" }}>Μέτρο</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>Estimate</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>95% CI</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>n</th>
+            </tr></thead>
+            <tbody>{sectorComparisons.map((estimate) => <tr key={estimate.metricKey + ":" + String(estimate.segment.sectorCode)}>
+              <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px" }}>{comparisonSegmentLabel(estimate.segment)}</td>
+              <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px" }}>{metricLabel(estimate.metricKey, estimate.metadata)}</td>
+              <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>{formatEstimate(estimate.estimate!, estimate.metadata)}</td>
+              <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>{comparisonInterval(estimate)}</td>
+              <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>{estimate.unweightedN.toLocaleString("el-GR")}</td>
+            </tr>)}</tbody>
+          </table>
         </div>}
     </section>
 
