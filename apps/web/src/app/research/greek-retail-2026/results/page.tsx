@@ -147,6 +147,7 @@ export default async function GreekRetailResultsPage() {
   const methodology = objectValue(release.methodology);
   const pilot = objectValue(methodology.pilot);
   const sample = objectValue(methodology.sample);
+  const designEvidence = objectValue(sample.designEvidence);
   const fieldwork = objectValue(methodology.fieldwork);
   const analysisPlan = objectValue(methodology.analysisPlan);
   const analysis = objectValue(methodology.analysis);
@@ -213,6 +214,14 @@ export default async function GreekRetailResultsPage() {
         Email-contactable μονάδες στον main-eligible population: <strong>{numeric(fieldwork.activeEmailFrameUnits).toLocaleString("el-GR")}</strong>
         {" · "}contactability: <strong>{new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 2 }).format(numeric(fieldwork.emailContactabilityRate))}</strong>.
         Η κάλυψη email είναι ξεχωριστή από την πιθανότητα επιλογής και αποτελεί ρητό limitation της μελέτης.
+      </p>
+      <p>
+        Frozen sample plan: στόχος <strong>{numeric(designEvidence.desiredCompleteN).toLocaleString("el-GR")}</strong> completed questionnaires ·
+        {" "}expected invited-response rate <strong>{formatOptionalPercent(designEvidence.expectedResponseRate)}</strong> ·
+        {" "}planned selected n <strong>{numeric(designEvidence.plannedSelectedN).toLocaleString("el-GR")}</strong> ·
+        {" "}expected contactable <strong>{numeric(designEvidence.expectedContactableN).toLocaleString("el-GR")}</strong> ·
+        {" "}expected completes <strong>{numeric(designEvidence.expectedCompleteN).toLocaleString("el-GR")}</strong>.
+        {" "}Design SHA-256: <code>{String(designEvidence.contentSha256 ?? "—")}</code>.
       </p>
       <p>
         Delivered: <strong>{numeric(fieldwork.delivered).toLocaleString("el-GR")}</strong> ·
