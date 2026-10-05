@@ -559,11 +559,12 @@ SET search_path = public, pg_temp
 AS $research$
 BEGIN
   IF OLD.status IN ('frozen','superseded') THEN
-    IF TG_OP = 'UPDATE'
-       AND OLD.status = 'frozen'
-       AND NEW.status = 'superseded'
-       AND (to_jsonb(NEW) - 'status') IS NOT DISTINCT FROM (to_jsonb(OLD) - 'status') THEN
-      RETURN NEW;
+    IF TG_OP = 'UPDATE' THEN
+      IF OLD.status = 'frozen'
+         AND NEW.status = 'superseded'
+         AND (to_jsonb(NEW) - 'status') IS NOT DISTINCT FROM (to_jsonb(OLD) - 'status') THEN
+        RETURN NEW;
+      END IF;
     END IF;
     RAISE EXCEPTION 'research frame snapshot is immutable in status %', OLD.status;
   END IF;
@@ -584,9 +585,15 @@ AS $research$
 DECLARE frame_status text;
 DECLARE frame_id uuid;
 BEGIN
-  frame_id := COALESCE(NEW.frame_snapshot_id, OLD.frame_snapshot_id);
-  IF TG_OP = 'UPDATE' AND NEW.frame_snapshot_id IS DISTINCT FROM OLD.frame_snapshot_id THEN
-    RAISE EXCEPTION 'research frame child cannot move between snapshots';
+  IF TG_OP = 'INSERT' THEN
+    frame_id := NEW.frame_snapshot_id;
+  ELSIF TG_OP = 'DELETE' THEN
+    frame_id := OLD.frame_snapshot_id;
+  ELSE
+    frame_id := NEW.frame_snapshot_id;
+    IF NEW.frame_snapshot_id IS DISTINCT FROM OLD.frame_snapshot_id THEN
+      RAISE EXCEPTION 'research frame child cannot move between snapshots';
+    END IF;
   END IF;
   SELECT status INTO frame_status FROM public.research_frame_snapshots WHERE id=frame_id;
   IF frame_status IS DISTINCT FROM 'building' THEN
@@ -612,11 +619,12 @@ SET search_path = public, pg_temp
 AS $research$
 BEGIN
   IF OLD.status IN ('locked','fielded','superseded') THEN
-    IF TG_OP = 'UPDATE'
-       AND OLD.status IN ('locked','fielded')
-       AND NEW.status = 'superseded'
-       AND (to_jsonb(NEW) - 'status') IS NOT DISTINCT FROM (to_jsonb(OLD) - 'status') THEN
-      RETURN NEW;
+    IF TG_OP = 'UPDATE' THEN
+      IF OLD.status IN ('locked','fielded')
+         AND NEW.status = 'superseded'
+         AND (to_jsonb(NEW) - 'status') IS NOT DISTINCT FROM (to_jsonb(OLD) - 'status') THEN
+        RETURN NEW;
+      END IF;
     END IF;
     RAISE EXCEPTION 'research sample draw is immutable in status %', OLD.status;
   END IF;
@@ -637,9 +645,15 @@ AS $research$
 DECLARE draw_status text;
 DECLARE draw_id uuid;
 BEGIN
-  draw_id := COALESCE(NEW.sample_draw_id, OLD.sample_draw_id);
-  IF TG_OP = 'UPDATE' AND NEW.sample_draw_id IS DISTINCT FROM OLD.sample_draw_id THEN
-    RAISE EXCEPTION 'research sample unit cannot move between draws';
+  IF TG_OP = 'INSERT' THEN
+    draw_id := NEW.sample_draw_id;
+  ELSIF TG_OP = 'DELETE' THEN
+    draw_id := OLD.sample_draw_id;
+  ELSE
+    draw_id := NEW.sample_draw_id;
+    IF NEW.sample_draw_id IS DISTINCT FROM OLD.sample_draw_id THEN
+      RAISE EXCEPTION 'research sample unit cannot move between draws';
+    END IF;
   END IF;
   SELECT status INTO draw_status FROM public.research_sample_draws WHERE id=draw_id;
   IF draw_status IS DISTINCT FROM 'draft' THEN
@@ -684,9 +698,15 @@ AS $research$
 DECLARE run_status text;
 DECLARE run_id uuid;
 BEGIN
-  run_id := COALESCE(NEW.analysis_run_id, OLD.analysis_run_id);
-  IF TG_OP = 'UPDATE' AND NEW.analysis_run_id IS DISTINCT FROM OLD.analysis_run_id THEN
-    RAISE EXCEPTION 'research estimate cannot move between analysis runs';
+  IF TG_OP = 'INSERT' THEN
+    run_id := NEW.analysis_run_id;
+  ELSIF TG_OP = 'DELETE' THEN
+    run_id := OLD.analysis_run_id;
+  ELSE
+    run_id := NEW.analysis_run_id;
+    IF NEW.analysis_run_id IS DISTINCT FROM OLD.analysis_run_id THEN
+      RAISE EXCEPTION 'research estimate cannot move between analysis runs';
+    END IF;
   END IF;
   SELECT status INTO run_status FROM public.research_analysis_runs WHERE id=run_id;
   IF run_status = 'succeeded' THEN
@@ -709,7 +729,11 @@ AS $research$
 DECLARE frozen boolean;
 DECLARE target_version text;
 BEGIN
-  target_version := COALESCE(NEW.version, OLD.version);
+  IF TG_OP = 'DELETE' THEN
+    target_version := OLD.version;
+  ELSE
+    target_version := NEW.version;
+  END IF;
   SELECT EXISTS(
     SELECT 1 FROM public.research_analysis_runs ar
     WHERE ar.weight_version=target_version AND ar.status='succeeded'
@@ -732,11 +756,12 @@ SECURITY INVOKER
 SET search_path = public, pg_temp
 AS $research$
 BEGIN
-  IF TG_OP = 'UPDATE'
-     AND OLD.published_at IS NULL
-     AND NEW.published_at IS NOT NULL
-     AND (to_jsonb(NEW) - 'published_at') IS NOT DISTINCT FROM (to_jsonb(OLD) - 'published_at') THEN
-    RETURN NEW;
+  IF TG_OP = 'UPDATE' THEN
+    IF OLD.published_at IS NULL
+       AND NEW.published_at IS NOT NULL
+       AND (to_jsonb(NEW) - 'published_at') IS NOT DISTINCT FROM (to_jsonb(OLD) - 'published_at') THEN
+      RETURN NEW;
+    END IF;
   END IF;
   RAISE EXCEPTION 'research release snapshot is immutable after creation except for first publication timestamp';
 END;
