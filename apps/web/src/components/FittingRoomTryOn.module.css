@@ -95,7 +95,7 @@
 .modal {
   position: fixed;
   inset: 0;
-  z-index: 10030;
+  z-index: 10010;
   display: grid;
   place-items: center;
   padding: 20px;
@@ -120,7 +120,7 @@
 
 .modalPanel {
   position: relative;
-  z-index: 10035;
+  z-index: 10015;
   width: min(720px, 100%);
   max-height: min(760px, calc(100vh - 40px));
   overflow: auto;
