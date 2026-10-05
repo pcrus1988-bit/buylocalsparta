@@ -206,9 +206,12 @@ export function ResearchSurveyForm({ slug, token, initial }: {
   token: string;
   initial: ResearchSurveyContext;
 }) {
-  const [started, setStarted] = useState(Boolean(initial.response));
+  const [started, setStarted] = useState(Boolean(initial.response) && initial.response?.status === "in_progress");
   const [completed, setCompleted] = useState(initial.response?.status === "completed");
-  const [researchConsent, setResearchConsent] = useState(Boolean(initial.response));
+  const [declined, setDeclined] = useState(initial.response?.status === "withdrawn" || initial.invite.status === "suppressed");
+  const [futureResearchSuppressed, setFutureResearchSuppressed] = useState(false);
+  const [suppressFutureResearch, setSuppressFutureResearch] = useState(false);
+  const [researchConsent, setResearchConsent] = useState(Boolean(initial.response) && initial.response?.status === "in_progress");
   const [answers, setAnswers] = useState<Record<string, ResearchAnswer>>(asMutableAnswers(initial.answers));
   const [experiments, setExperiments] = useState<readonly ResearchExperimentAssignment[]>(initial.experiments);
   const [experimentChoices, setExperimentChoices] = useState<Record<string, "a" | "b" | "none">>(
@@ -289,6 +292,31 @@ export function ResearchSurveyForm({ slug, token, initial }: {
     }
   }
 
+  async function declineParticipation() {
+    try {
+      const result = await save({
+        action: "refuse",
+        suppressFutureResearch
+      });
+      setFutureResearchSuppressed(Boolean(result.futureResearchSuppressed));
+      setDeclined(true);
+      setStarted(false);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Δεν ήταν δυνατή η καταχώρηση της επιλογής σας.");
+    }
+  }
+
+  if (declined) {
+    return <div className={styles.complete}>
+      <span className={styles.kicker}>Η επιλογή σας καταχωρήθηκε</span>
+      <h2>Δεν θα ζητηθεί απάντηση σε αυτή τη μελέτη.</h2>
+      <p>{futureResearchSuppressed
+        ? "Καταχωρήθηκε επίσης ότι δεν επιθυμείτε μελλοντικές προσκλήσεις για έρευνες του KONTA MOY. Η επιλογή αυτή είναι ανεξάρτητη από οποιαδήποτε εμπορική συγκατάθεση."
+        : "Η συγκεκριμένη πρόσκληση έκλεισε χωρίς να δημιουργηθεί υποχρέωση συμμετοχής."}</p>
+      <a href={"/research/" + encodeURIComponent(slug) + "/methodology"}>Δείτε τη μεθοδολογία της μελέτης</a>
+    </div>;
+  }
+
   if (completed) {
     return <div className={styles.complete}>
       <span className={styles.kicker}>Η απάντηση καταχωρήθηκε</span>
@@ -307,8 +335,23 @@ export function ResearchSurveyForm({ slug, token, initial }: {
         <input type="checkbox" checked={researchConsent} onChange={(event) => setResearchConsent(event.target.checked)} />
         <span>Έχω ενημερωθεί για τον σκοπό της έρευνας και συμφωνώ να συμμετάσχω.</span>
       </label>
+      <div className={styles.optionalConsents}>
+        <label>
+          <input
+            type="checkbox"
+            checked={suppressFutureResearch}
+            onChange={(event) => setSuppressFutureResearch(event.target.checked)}
+          />
+          <span>Αν δεν συμμετάσχω, να μη λάβω άλλη πρόσκληση για μελλοντική έρευνα του KONTA MOY.</span>
+        </label>
+      </div>
       {message && <p className={styles.error}>{message}</p>}
-      <button type="button" className={styles.primary} disabled={saving} onClick={begin}>{saving ? "Έναρξη…" : "Έναρξη έρευνας"}</button>
+      <div className={styles.actions}>
+        <button type="button" className={styles.secondary} disabled={saving} onClick={() => void declineParticipation()}>
+          {saving ? "Καταχώρηση…" : "Δεν επιθυμώ να συμμετάσχω"}
+        </button>
+        <button type="button" className={styles.primary} disabled={saving} onClick={begin}>{saving ? "Έναρξη…" : "Έναρξη έρευνας"}</button>
+      </div>
     </div>;
   }
 
