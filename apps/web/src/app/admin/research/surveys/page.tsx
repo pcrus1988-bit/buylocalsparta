@@ -4,10 +4,12 @@ import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { ResearchStudyFieldworkControls } from "../../../../components/ResearchStudyFieldworkControls";
 import { ResearchStudyLifecycleControls } from "../../../../components/ResearchStudyLifecycleControls";
+import { ResearchStudyQualityControls } from "../../../../components/ResearchStudyQualityControls";
 import { ResearchStudySamplingControls } from "../../../../components/ResearchStudySamplingControls";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, WorkspaceStatusBadge } from "../../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
+import { researchQualityReviewQueue } from "../../../../lib/research-survey-quality";
 import { researchSurveyAdminOverview } from "../../../../lib/research-survey-runtime";
 
 export const metadata: Metadata = {
@@ -23,6 +25,12 @@ export default async function ResearchSurveysAdminPage() {
   if (!hasAdminPermission(principal, "research.read")) redirect("/admin");
 
   const overview = await researchSurveyAdminOverview(principal);
+  const qualityQueues = new Map(
+    await Promise.all(overview.studies.map(async (study) => [
+      study.slug,
+      await researchQualityReviewQueue(principal, study.slug)
+    ] as const))
+  );
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Research Studies" />
@@ -83,6 +91,12 @@ export default async function ResearchSurveysAdminPage() {
               runningJobs={study.runningJobs}
             />}
 
+            {hasAdminPermission(principal, "research.manage") && <ResearchStudyQualityControls
+              slug={study.slug}
+              csrfToken={principal.csrfToken}
+              initialItems={qualityQueues.get(study.slug) ?? []}
+            />}
+
             {hasAdminPermission(principal, "research.manage") && <ResearchStudyFieldworkControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
@@ -90,6 +104,7 @@ export default async function ResearchSurveysAdminPage() {
               recruitmentTemplateVersion={study.recruitmentTemplateVersion}
               activeContacts={study.activeContacts}
               completed={study.completed}
+              pendingQualityReviews={study.qualityReview}
               succeededAnalysisRuns={study.succeededAnalysisRuns}
               latestReleaseVersion={study.latestReleaseVersion}
               queuedJobs={study.queuedJobs}
