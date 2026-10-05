@@ -53,7 +53,7 @@ export function ResearchStudySamplingControls({
     ? Math.ceil(desiredCompletes / (responseRate * contactabilityRate))
     : 0;
   const suggestedSelected = rawSuggested > 0
-    ? Math.min(effectivePopulation, 100_000, Math.max(100, rawSuggested))
+    ? Math.min(effectivePopulation, sampleMax, Math.max(sampleMin, rawSuggested))
     : 0;
   const expectedInvitable = Math.round(suggestedSelected * contactabilityRate);
   const expectedCompletesAtSuggestion = Math.round(expectedInvitable * responseRate);
@@ -92,6 +92,8 @@ export function ResearchStudySamplingControls({
       const result = await post({
         action: "draw_sample",
         targetN: sampleN,
+        desiredCompleteN: desiredCompletes,
+        expectedResponseRate: responseRate,
         randomSeed: randomSeed.trim() || undefined,
         fieldworkPhase
       });
@@ -208,7 +210,7 @@ export function ResearchStudySamplingControls({
         />
         <button
           className="button"
-          disabled={Boolean(busy) || workerBusy || latestFrameStatus !== "frozen" || !sampleValid || (fieldworkPhase === "main" && studyStatus !== "fielding")}
+          disabled={Boolean(busy) || workerBusy || latestFrameStatus !== "frozen" || !sampleValid || !designValid || (fieldworkPhase === "main" && studyStatus !== "fielding")}
           onClick={() => void drawSample()}
           type="button"
         >{busy === "sample" ? "Queueing…" : "Draw reproducible sample"}</button>
