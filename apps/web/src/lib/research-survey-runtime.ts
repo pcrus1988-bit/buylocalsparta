@@ -126,6 +126,7 @@ async function invitationRow(
     SELECT
       ri.id AS invite_id,
       ri.status AS invite_status,
+      ri.sample_unit_id,
       ri.expires_at,
       rs.id AS study_id,
       rs.slug,
@@ -169,6 +170,25 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const pool = getProductionPostgresRuntime().sqlPool;
   const invite = await invitationRow(pool, slug, token);
+  const opened = await pool.query<SqlRow>(`
+    UPDATE research_invites
+    SET status = 'opened', first_opened_at = COALESCE(first_opened_at, now())
+    WHERE id = $1 AND status IN ('created','sent')
+    RETURNING id
+  `, [invite.invite_id]);
+  if (opened.rows[0]) {
+    await pool.query(`
+      INSERT INTO research_invite_events (invite_id, event_type, metadata)
+      VALUES ($1, 'opened', '{"source":"survey_link"}'::jsonb)
+    `, [invite.invite_id]);
+    if (invite.sample_unit_id) {
+      await pool.query(`
+        INSERT INTO research_sample_disposition_events
+          (sample_unit_id, disposition_code, eligibility, source, metadata)
+        VALUES ($1, 'opened', 'eligible', 'survey_link', '{}'::jsonb)
+      `, [invite.sample_unit_id]);
+    }
+  }
   const questions = await questionsForInstrument(pool, text(invite.instrument_id));
 
   const responseResult = await pool.query<SqlRow>(`
@@ -195,6 +215,13 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
         FROM research_experiment_assignments
         WHERE response_id = $1 AND experiment_code = 'EXP01'
         ORDER BY task_number
+      `, [response.id]),
+      pool.query<SqlRow>(`
+        SELECT DISTINCT ON (consent_kind) consent_kind, granted
+        FROM research_consents
+        WHERE response_id = $1
+          AND consent_kind IN ('results_notification','thank_you_code','marketing')
+        ORDER BY consent_kind, occurred_at DESC, id DESC
       `, [response.id])
     ]);
     answers = Object.fromEntries(answerResult.rows.map((row) => [text(row.code), row.answer as ResearchAnswer]));
@@ -224,7 +251,7 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
       consentStatementVersion: text(invite.consent_statement_version)
     },
     invite: {
-      status: text(invite.invite_status),
+      status: opened.rows[0] ? "opened" : text(invite.invite_status),
       expiresAt: optionalText(invite.expires_at)
     },
     response: response ? {
@@ -291,6 +318,13 @@ export async function savePublicResearchSurvey(input: Readonly<{
         INSERT INTO research_invite_events (invite_id, event_type, metadata)
         VALUES ($1, 'started', '{"source":"survey_ui"}'::jsonb)
       `, [invite.invite_id]);
+      if (invite.sample_unit_id) {
+        await client.query(`
+          INSERT INTO research_sample_disposition_events
+            (sample_unit_id, disposition_code, eligibility, source, metadata)
+          VALUES ($1, 'started', 'eligible', 'survey_ui', '{}'::jsonb)
+        `, [invite.sample_unit_id]);
+      }
 
       for (const assignment of experimentAssignments(text(response.id))) {
         await client.query(`
@@ -405,14 +439,27 @@ export async function savePublicResearchSurvey(input: Readonly<{
         score.frictionOverallScore ?? null,
         JSON.stringify(score.frictionDimensions)
       ]);
-      await client.query(`
+      const completion = await client.query<SqlRow>(`
         UPDATE research_responses
         SET status = 'completed',
             completed_at = now(),
             last_saved_at = now(),
             duration_seconds = GREATEST(0, floor(extract(epoch from (now() - started_at)))::int)
         WHERE id = $1
+        RETURNING duration_seconds
       `, [response.id]);
+      const durationSeconds = numberValue(completion.rows[0]?.duration_seconds);
+      const fastComplete = durationSeconds > 0 && durationSeconds < 90;
+      await client.query(`
+        INSERT INTO research_response_quality_reviews
+          (response_id, rule_version, decision, reason_codes, metrics, source)
+        VALUES ($1, 'greek-retail-2026-qc-v1', $2, $3::text[], $4::jsonb, 'automated')
+      `, [
+        response.id,
+        fastComplete ? "review" : "include",
+        fastComplete ? ["rapid_completion"] : [],
+        JSON.stringify({ durationSeconds, requiredAnswerValidation: "passed", experimentTasks: 3 })
+      ]);
       await client.query(`
         UPDATE research_invites SET status = 'completed' WHERE id = $1
       `, [invite.invite_id]);
@@ -420,6 +467,30 @@ export async function savePublicResearchSurvey(input: Readonly<{
         INSERT INTO research_invite_events (invite_id, event_type, metadata)
         VALUES ($1, 'completed', '{"source":"survey_ui"}'::jsonb)
       `, [invite.invite_id]);
+      if (invite.sample_unit_id) {
+        await client.query(`
+          INSERT INTO research_sample_disposition_events
+            (sample_unit_id, disposition_code, eligibility, source, metadata)
+          VALUES ($1, 'complete', 'eligible', 'survey_ui', '{}'::jsonb)
+        `, [invite.sample_unit_id]);
+      }
+
+      const thankYouConsent = await client.query<SqlRow>(`
+        SELECT granted
+        FROM research_consents
+        WHERE response_id = $1 AND consent_kind = 'thank_you_code'
+        ORDER BY occurred_at DESC, id DESC
+        LIMIT 1
+      `, [response.id]);
+      if (Boolean(thankYouConsent.rows[0]?.granted)) {
+        await client.query(`
+          INSERT INTO research_reward_entitlements
+            (response_id, reward_kind, reward_version, status, metadata)
+          VALUES ($1, 'thank_you_code', 'greek-retail-2026-v1', 'eligible',
+                  '{"separatedFromAnswers":true,"source":"survey_completion"}'::jsonb)
+          ON CONFLICT (response_id, reward_kind, reward_version) DO NOTHING
+        `, [response.id]);
+      }
     }
 
     const experimentResult = await client.query<SqlRow>(`
