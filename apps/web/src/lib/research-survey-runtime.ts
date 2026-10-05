@@ -656,11 +656,12 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       latest_rt.version AS recruitment_template_version,
       latest_rt.subject AS recruitment_template_subject,
       COALESCE(f.frames, 0)::int AS frame_count,
-      COALESCE(f.population, 0)::int AS frame_population,
+      COALESCE(lf.population_size, 0)::int AS frame_population,
+      COALESCE(lf.strata_count, 0)::int AS latest_frame_strata,
       lf.status AS latest_frame_status,
       lf.content_sha256 AS latest_frame_sha256,
       COALESCE(sd.draws, 0)::int AS sample_draw_count,
-      COALESCE(sd.sample_units, 0)::int AS sample_units,
+      COALESCE(ls.sample_units, 0)::int AS sample_units,
       ls.status AS latest_sample_status,
       ls.target_n AS latest_sample_target,
       COALESCE(cp.active_contacts, 0)::int AS active_contacts,
@@ -695,27 +696,35 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       LIMIT 1
     ) latest_rt ON true
     LEFT JOIN LATERAL (
-      SELECT count(*) AS frames, COALESCE(max(population_size), 0) AS population
+      SELECT count(*) AS frames
       FROM research_frame_snapshots WHERE study_id = s.id
     ) f ON true
     LEFT JOIN LATERAL (
-      SELECT status, content_sha256
-      FROM research_frame_snapshots
-      WHERE study_id = s.id
-      ORDER BY created_at DESC
+      SELECT
+        fs.id,
+        fs.status,
+        fs.content_sha256,
+        fs.population_size,
+        (SELECT count(*)::int FROM research_strata st WHERE st.frame_snapshot_id=fs.id) AS strata_count
+      FROM research_frame_snapshots fs
+      WHERE fs.study_id = s.id
+      ORDER BY fs.created_at DESC
       LIMIT 1
     ) lf ON true
     LEFT JOIN LATERAL (
-      SELECT count(DISTINCT d.id) AS draws, count(u.id) AS sample_units
+      SELECT count(*) AS draws
       FROM research_sample_draws d
-      LEFT JOIN research_sample_units u ON u.sample_draw_id = d.id
       WHERE d.study_id = s.id
     ) sd ON true
     LEFT JOIN LATERAL (
-      SELECT status, target_n
-      FROM research_sample_draws
-      WHERE study_id = s.id
-      ORDER BY created_at DESC
+      SELECT
+        d.id,
+        d.status,
+        d.target_n,
+        (SELECT count(*)::int FROM research_sample_units u WHERE u.sample_draw_id=d.id) AS sample_units
+      FROM research_sample_draws d
+      WHERE d.study_id = s.id
+      ORDER BY d.created_at DESC
       LIMIT 1
     ) ls ON true
     LEFT JOIN LATERAL (
@@ -723,10 +732,9 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
         count(*) FILTER (WHERE cp.suppression_status = 'active') AS active_contacts,
         count(*) FILTER (WHERE cp.suppression_status IN ('suppressed','invalid')) AS suppressed_contacts,
         count(*) FILTER (WHERE cp.suppression_status = 'bounced') AS bounced_contacts
-      FROM research_frame_snapshots fs
-      JOIN research_frame_units fu ON fu.frame_snapshot_id = fs.id
+      FROM research_frame_units fu
       JOIN research_contact_points cp ON cp.frame_unit_id = fu.id
-      WHERE fs.study_id = s.id
+      WHERE fu.frame_snapshot_id = lf.id
     ) cp ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS batches
@@ -808,6 +816,7 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       recruitmentTemplateSubject: optionalText(row.recruitment_template_subject),
       frameCount: numberValue(row.frame_count),
       framePopulation: numberValue(row.frame_population),
+      latestFrameStrata: numberValue(row.latest_frame_strata),
       latestFrameStatus: optionalText(row.latest_frame_status),
       latestFrameSha256: optionalText(row.latest_frame_sha256),
       sampleDrawCount: numberValue(row.sample_draw_count),
