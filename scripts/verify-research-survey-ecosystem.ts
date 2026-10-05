@@ -175,9 +175,10 @@ if (!analysis.includes("'weightDiagnostics',$3::jsonb")) errors.push("analysis r
 if (!statistics.includes("normalTwoSidedPValue")) errors.push("pairwise normal p-value helper missing");
 if (!analysis.includes('ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v3"')) errors.push("pairwise analysis code version is not v3");
 if (!analysis.includes("pairwise_independent_strata_difference_v1")) errors.push("pairwise region/sector difference estimator missing");
-if (!analysis.includes('pValueAdjustment: "none"')) errors.push("pairwise p-value multiplicity disclosure missing");
+if (!statistics.includes("benjaminiHochbergAdjustedPValues")) errors.push("pairwise FDR adjustment helper missing");
+if (!analysis.includes('adjustedPValueMethod: "benjamini_hochberg"')) errors.push("pairwise FDR-adjusted q-value persistence missing");
 if (!resultsPage.includes("Exploratory pairwise inference")) errors.push("public pairwise inference section missing");
-if (!resultsPage.includes("χωρίς διόρθωση για πολλαπλές συγκρίσεις")) errors.push("public pairwise multiplicity warning missing");
+if (!resultsPage.includes("Benjamini–Hochberg FDR-adjusted q-value")) errors.push("public pairwise FDR disclosure missing");
 
 if (!release.includes("weightDiagnostics: objectValue(parameters.weightDiagnostics)")) errors.push("release does not freeze weighting diagnostics");
 if (!resultsPage.includes("Kish effective n")) errors.push("public results do not disclose effective sample size");
