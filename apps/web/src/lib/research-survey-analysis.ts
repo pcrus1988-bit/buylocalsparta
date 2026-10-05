@@ -301,7 +301,7 @@ export async function runGreekRetailAnalysis(
       UPDATE research_analysis_runs
       SET status='running', started_at=now(), completed_at=NULL, dataset_sha256=NULL,
           parameters=parameters || jsonb_build_object(
-            'varianceMethod',$9::text,
+            'varianceMethod',$5::text,
             'sampleDrawId',$2::text,
             'frameSnapshotId',$3::text,
             'publicMinimumBase',$4::int
