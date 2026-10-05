@@ -209,8 +209,6 @@ export async function queueGreekRetailSampleDraw(
   if (!Number.isSafeInteger(targetN) || targetN < 100 || targetN > 100_000) {
     throw new Error("RESEARCH_SAMPLE_TARGET_INVALID");
   }
-  const fieldworkPhase = input.fieldworkPhase ?? "main";
-  if (!["pilot","main"].includes(fieldworkPhase)) throw new Error("RESEARCH_FIELDWORK_PHASE_INVALID");
   const randomSeed = input.randomSeed?.trim() || randomBytes(24).toString("hex");
   if (randomSeed.length < 16 || randomSeed.length > 200) throw new Error("RESEARCH_SAMPLE_SEED_INVALID");
 
@@ -218,6 +216,8 @@ export async function queueGreekRetailSampleDraw(
   const study = await pool.query<SqlRow>("SELECT id,status FROM research_studies WHERE slug=$1 LIMIT 1", [STUDY_SLUG]);
   if (!study.rows[0]) throw new Error("RESEARCH_STUDY_NOT_FOUND");
   const studyStatus = text(study.rows[0].status);
+  const fieldworkPhase: "pilot" | "main" = input.fieldworkPhase
+    ?? (["draft","pilot"].includes(studyStatus) ? "pilot" : "main");
   if (fieldworkPhase === "pilot" && !["draft","pilot"].includes(studyStatus)) {
     throw new Error("RESEARCH_PILOT_SAMPLE_PHASE_CLOSED");
   }
