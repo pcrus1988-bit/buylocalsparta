@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import styles from "./AccountSavedTryOnsPanel.module.css";
 
+type TryOnQuota = Readonly<{ limit: number; used: number; remaining: number; resetAt: string }>;
+
 type SavedTryOn = Readonly<{
   id: string;
   productId: string;
@@ -29,9 +31,18 @@ export function AccountSavedTryOnsPanel({ csrfToken }: { csrfToken: string }) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<readonly string[]>([]);
+  const [quota, setQuota] = useState<TryOnQuota>();
 
   useEffect(() => {
     const controller = new AbortController();
+    void fetch("/api/account/try-on/quota", { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const payload = await response.json() as { quota?: TryOnQuota };
+        if (payload.quota) setQuota(payload.quota);
+      })
+      .catch(() => undefined);
+
     void fetch("/api/account/try-on/saved", { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         const payload = await response.json() as { tryOns?: SavedTryOn[]; error?: string };
@@ -93,7 +104,10 @@ export function AccountSavedTryOnsPanel({ csrfToken }: { csrfToken: string }) {
           <h2 id="saved-try-ons-title">Οι δοκιμές που κράτησα</h2>
           <p>Μόνο οι προεπισκοπήσεις που αποθήκευσες ρητά μένουν στον λογαριασμό σου για σύγκριση.</p>
         </div>
-        <Link className="button button-secondary" href="/shop?category=fashion">Βρες άλλο look</Link>
+        <div className={styles.headingActions}>
+          {quota ? <span className={styles.quotaPill}>{quota.remaining}/{quota.limit} Try On διαθέσιμα</span> : null}
+          <Link className="button button-secondary" href="/shop?category=fashion">Βρες άλλο look</Link>
+        </div>
       </div>
 
       {error ? <p className={styles.error} role="alert">{error}</p> : null}
