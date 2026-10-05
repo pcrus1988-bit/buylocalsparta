@@ -29,6 +29,7 @@ export function ResearchStudySamplingControls({
   const router = useRouter();
   const [busy, setBusy] = useState<"frame" | "sample" | null>(null);
   const [targetN, setTargetN] = useState("");
+  const [fieldworkPhase, setFieldworkPhase] = useState<"pilot" | "main">("main");
   const [targetCompletes, setTargetCompletes] = useState("500");
   const [expectedResponsePct, setExpectedResponsePct] = useState("15");
   const [randomSeed, setRandomSeed] = useState("");
@@ -82,10 +83,11 @@ export function ResearchStudySamplingControls({
       const result = await post({
         action: "draw_sample",
         targetN: sampleN,
-        randomSeed: randomSeed.trim() || undefined
+        randomSeed: randomSeed.trim() || undefined,
+        fieldworkPhase
       });
       if (result.randomSeed) setRandomSeed(result.randomSeed);
-      setMessage("Το sample draw μπήκε στην ουρά. Το random seed έχει παγώσει και καταγράφεται στο evidence chain.");
+      setMessage(`Το ${fieldworkPhase === "pilot" ? "pilot" : "main"} sample draw μπήκε στην ουρά. Το random seed έχει παγώσει και καταγράφεται στο evidence chain.`);
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Το sample draw απέτυχε.");
@@ -172,6 +174,14 @@ export function ResearchStudySamplingControls({
           : "Set the number of selected businesses. This is not the target number of completed questionnaires."}
       </span>
       <div className="workspace-action-buttons">
+        <select
+          aria-label="Fieldwork phase"
+          onChange={(event) => setFieldworkPhase(event.target.value === "pilot" ? "pilot" : "main")}
+          value={fieldworkPhase}
+        >
+          <option value="pilot">Pilot holdout</option>
+          <option value="main">Main fieldwork</option>
+        </select>
         <input
           aria-label="Selected businesses"
           inputMode="numeric"
@@ -201,7 +211,7 @@ export function ResearchStudySamplingControls({
     <div className="workspace-inline-note">
       {message || (workerBusy
         ? `Worker jobs pending/running: ${queuedJobs + runningJobs}. Frame/sample actions remain locked until the current job finishes.`
-        : "Sample size is intentionally not guessed by the UI. Choose it from the desired precision, subgroup reporting needs and expected response rate.")}
+        : "Pilot and main samples are deliberately separate. Main draws exclude businesses exposed during the pilot; sample size is still chosen from precision, subgroup and expected-response needs.")}
     </div>
   </div>;
 }
