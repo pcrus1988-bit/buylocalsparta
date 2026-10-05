@@ -1,5 +1,5 @@
 import { requireAccountSession } from "../../../../lib/account-session";
-import { generateCustomerTryOn } from "../../../../lib/try-on-runtime";
+import { customerTryOnGenerationConfigured, generateCustomerTryOn } from "../../../../lib/try-on-runtime";
 import { consumeCustomerTryOnRateLimit } from "../../../../lib/customer-state-runtime";
 
 export const maxDuration = 60;
@@ -24,6 +24,12 @@ function statusFor(message: string): number {
 export async function POST(request: Request) {
   try {
     const principal = await requireAccountSession(request, true);
+    if (!customerTryOnGenerationConfigured()) {
+      return Response.json({ error: "TRY_ON_NOT_CONFIGURED" }, {
+        status: 503,
+        headers: { "Cache-Control": "no-store, private" }
+      });
+    }
     const rateLimit = await consumeCustomerTryOnRateLimit({ userId: principal.userId, now: Date.now() });
     if (!rateLimit.allowed) {
       const retryAfterSeconds = Math.max(1, Math.ceil(rateLimit.retryAfterMs / 1000));
