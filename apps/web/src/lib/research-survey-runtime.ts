@@ -413,13 +413,6 @@ export async function savePublicResearchSurvey(input: Readonly<{
         throw new Error(`SURVEY_INCOMPLETE:missing=${validation.missing.join(",")};invalid=${validation.invalid.join(",")}`);
       }
 
-      const experimentCount = await client.query<SqlRow>(`
-        SELECT count(*)::int AS count
-        FROM research_experiment_assignments
-        WHERE response_id = $1 AND experiment_code = 'EXP01' AND selected IS NOT NULL
-      `, [response.id]);
-      if (numberValue(experimentCount.rows[0]?.count) < 3) throw new Error("SURVEY_EXPERIMENT_INCOMPLETE");
-
       const score = scoreGreekRetail2026(allAnswers);
       await client.query(`
         INSERT INTO research_response_scores
@@ -450,6 +443,12 @@ export async function savePublicResearchSurvey(input: Readonly<{
       `, [response.id]);
       const durationSeconds = numberValue(completion.rows[0]?.duration_seconds);
       const fastComplete = durationSeconds > 0 && durationSeconds < 90;
+      const experimentCount = await client.query<SqlRow>(`
+        SELECT count(*)::int AS count
+        FROM research_experiment_assignments
+        WHERE response_id = $1 AND experiment_code = 'EXP01' AND selected IS NOT NULL
+      `, [response.id]);
+      const answeredExperimentTasks = numberValue(experimentCount.rows[0]?.count);
       await client.query(`
         INSERT INTO research_response_quality_reviews
           (response_id, rule_version, decision, reason_codes, metrics, source)
@@ -458,7 +457,12 @@ export async function savePublicResearchSurvey(input: Readonly<{
         response.id,
         fastComplete ? "review" : "include",
         fastComplete ? ["rapid_completion"] : [],
-        JSON.stringify({ durationSeconds, requiredAnswerValidation: "passed", experimentTasks: 3 })
+        JSON.stringify({
+          durationSeconds,
+          requiredAnswerValidation: "passed",
+          experimentTasksAnswered: answeredExperimentTasks,
+          experimentModuleRequired: false
+        })
       ]);
       await client.query(`
         UPDATE research_invites SET status = 'completed' WHERE id = $1
@@ -475,22 +479,17 @@ export async function savePublicResearchSurvey(input: Readonly<{
         `, [invite.sample_unit_id]);
       }
 
-      const thankYouConsent = await client.query<SqlRow>(`
-        SELECT granted
-        FROM research_consents
-        WHERE response_id = $1 AND consent_kind = 'thank_you_code'
-        ORDER BY occurred_at DESC, id DESC
-        LIMIT 1
+      // Reward eligibility follows completion only. Optional contact/marketing
+      // choices are recorded separately and never determine research compensation.
+      await client.query(`
+        INSERT INTO research_reward_entitlements
+          (response_id, reward_kind, reward_version, status, metadata)
+        VALUES (
+          $1, 'thank_you_code', 'greek-retail-2026-v1', 'eligible',
+          '{"separatedFromAnswers":true,"source":"survey_completion","eligibilityBasis":"completed_response"}'::jsonb
+        )
+        ON CONFLICT (response_id, reward_kind, reward_version) DO NOTHING
       `, [response.id]);
-      if (Boolean(thankYouConsent.rows[0]?.granted)) {
-        await client.query(`
-          INSERT INTO research_reward_entitlements
-            (response_id, reward_kind, reward_version, status, metadata)
-          VALUES ($1, 'thank_you_code', 'greek-retail-2026-v1', 'eligible',
-                  '{"separatedFromAnswers":true,"source":"survey_completion"}'::jsonb)
-          ON CONFLICT (response_id, reward_kind, reward_version) DO NOTHING
-        `, [response.id]);
-      }
     }
 
     const experimentResult = await client.query<SqlRow>(`
