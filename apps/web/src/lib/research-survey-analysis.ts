@@ -9,7 +9,7 @@ import {
   stratifiedSrsMeanVariance
 } from "./research-survey-statistics";
 
-const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v3";
+const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v4";
 const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v1";
 const MIN_PUBLIC_BASE = 30;
 const VARIANCE_METHOD = "stratified_srs_fpc_v1";
@@ -130,7 +130,11 @@ function designResponsesForSegment(
   return responses;
 }
 
-function estimateSpecs(questions: readonly QuestionRow[], responses: readonly WeightedResponse[]): EstimateSpec[] {
+function estimateSpecs(
+  questions: readonly QuestionRow[],
+  responses: readonly WeightedResponse[],
+  primaryMetricKeys: ReadonlySet<string>
+): EstimateSpec[] {
   const specs: EstimateSpec[] = [];
   for (const question of questions) {
     if (question.questionType === "single") {
@@ -143,7 +147,7 @@ function estimateSpecs(questions: readonly QuestionRow[], responses: readonly We
             response,
             value: response.answers[question.code] === option ? 1 : 0
           })),
-          metadata: { questionCode: question.code, option, label, format: "proportion" }
+          metadata: { questionCode: question.code, option, label, format: "proportion", analysisClassification: "prespecified_secondary" }
         });
       }
     } else if (question.questionType === "multi") {
@@ -156,7 +160,7 @@ function estimateSpecs(questions: readonly QuestionRow[], responses: readonly We
             response,
             value: (response.answers[question.code] as unknown[]).map(String).includes(option) ? 1 : 0
           })),
-          metadata: { questionCode: question.code, option, label, format: "proportion", multipleResponse: true }
+          metadata: { questionCode: question.code, option, label, format: "proportion", multipleResponse: true, analysisClassification: "prespecified_secondary" }
         });
       }
     } else if (question.questionType === "scale") {
@@ -168,7 +172,7 @@ function estimateSpecs(questions: readonly QuestionRow[], responses: readonly We
         specs.push({
           metricKey: `${question.analysisKey}.mean`,
           observations,
-          metadata: { questionCode: question.code, format: "mean" }
+          metadata: { questionCode: question.code, format: "mean", analysisClassification: "prespecified_secondary" }
         });
       }
     } else if (question.questionType === "matrix") {
@@ -183,7 +187,7 @@ function estimateSpecs(questions: readonly QuestionRow[], responses: readonly We
         specs.push({
           metricKey: `${question.analysisKey}.${item}.mean`,
           observations,
-          metadata: { questionCode: question.code, matrixItem: item, label, format: "mean" }
+          metadata: { questionCode: question.code, matrixItem: item, label, format: "mean", analysisClassification: "prespecified_secondary" }
         });
       }
     }
@@ -198,7 +202,17 @@ function estimateSpecs(questions: readonly QuestionRow[], responses: readonly We
       const value = response.scores[key];
       return typeof value === "number" && Number.isFinite(value) ? [{ response, value }] : [];
     });
-    if (observations.length) specs.push({ metricKey, observations, metadata: { format: "mean", derived: true } });
+    if (observations.length) specs.push({
+      metricKey,
+      observations,
+      metadata: {
+        format: "mean",
+        derived: true,
+        analysisClassification: primaryMetricKeys.has(metricKey)
+          ? "prespecified_primary"
+          : "prespecified_secondary"
+      }
+    });
   }
   return specs;
 }
@@ -233,6 +247,23 @@ export async function runGreekRetailAnalysis(
   const instrument = instrumentResult.rows[0];
   if (!instrument) throw new Error("RESEARCH_ANALYSIS_INSTRUMENT_MISSING");
 
+  const analysisPlanResult = await pool.query<SqlRow>(`
+    SELECT id,version,title,plan_json,content_sha256,locked_at
+    FROM research_analysis_plans
+    WHERE study_id=$1 AND instrument_id=$2 AND status='locked'
+    ORDER BY locked_at DESC,created_at DESC
+    LIMIT 1
+  `, [studyId, instrument.id]);
+  const analysisPlan = analysisPlanResult.rows[0];
+  if (!analysisPlan) throw new Error("RESEARCH_ANALYSIS_PLAN_MISSING");
+  const analysisPlanJson = objectValue(analysisPlan.plan_json);
+  const primaryMetricKeys = new Set(
+    (Array.isArray(analysisPlanJson.primaryOutcomes) ? analysisPlanJson.primaryOutcomes : [])
+      .map((outcome) => text(objectValue(outcome).metricKey))
+      .filter(Boolean)
+  );
+  if (!primaryMetricKeys.size) throw new Error("RESEARCH_ANALYSIS_PLAN_PRIMARY_OUTCOMES_MISSING");
+
   const drawResult = await pool.query<SqlRow>(`
     SELECT id, frame_snapshot_id
     FROM research_sample_draws
@@ -244,7 +275,7 @@ export async function runGreekRetailAnalysis(
   if (!draw) throw new Error("RESEARCH_ANALYSIS_SAMPLE_MISSING");
 
   let runResult = await pool.query<SqlRow>(`
-    SELECT id,status,dataset_sha256,code_version,weight_version
+    SELECT id,status,dataset_sha256,code_version,weight_version,analysis_plan_id
     FROM research_analysis_runs
     WHERE study_id=$1 AND parameters->>'jobId'=$2
     ORDER BY created_at DESC
@@ -252,6 +283,9 @@ export async function runGreekRetailAnalysis(
   `, [studyId, jobId]);
   let analysisRunId = text(runResult.rows[0]?.id);
   const weightVersion = `${WEIGHT_METHOD_VERSION}:${jobId}`;
+  if (analysisRunId && text(runResult.rows[0]?.analysis_plan_id) !== text(analysisPlan.id)) {
+    throw new Error("RESEARCH_ANALYSIS_PLAN_BINDING_MISMATCH");
+  }
   if (analysisRunId && text(runResult.rows[0]?.status) === "succeeded") {
     const completed = await pool.query<SqlRow>(`
       SELECT
@@ -267,22 +301,26 @@ export async function runGreekRetailAnalysis(
       estimateCount: numberValue(completed.rows[0]?.estimate_count),
       varianceMethod: VARIANCE_METHOD,
       publicMinimumBase: MIN_PUBLIC_BASE,
+      analysisPlanVersion: text(analysisPlan.version),
+      analysisPlanSha256: text(analysisPlan.content_sha256),
       idempotentReplay: true
     };
   }
   if (!analysisRunId) {
     runResult = await pool.query<SqlRow>(`
       INSERT INTO research_analysis_runs (
-        study_id,label,code_version,instrument_version,weight_version,parameters,status,started_at
+        study_id,label,code_version,instrument_version,weight_version,analysis_plan_id,parameters,status,started_at
       )
       VALUES (
-        $1,'Automated weighted descriptive analysis',$2,$3,$4,
+        $1,'Automated weighted descriptive analysis',$2,$3,$4,$10,
         jsonb_build_object(
           'jobId',$5::text,
           'varianceMethod',$9::text,
           'sampleDrawId',$6::text,
           'frameSnapshotId',$7::text,
-          'publicMinimumBase',$8::int
+          'publicMinimumBase',$8::int,
+          'analysisPlanVersion',$11::text,
+          'analysisPlanSha256',$12::text
         ),
         'running',now()
       )
@@ -296,7 +334,10 @@ export async function runGreekRetailAnalysis(
       draw.id,
       draw.frame_snapshot_id,
       MIN_PUBLIC_BASE,
-      VARIANCE_METHOD
+      VARIANCE_METHOD,
+      analysisPlan.id,
+      analysisPlan.version,
+      analysisPlan.content_sha256
     ]);
     analysisRunId = text(runResult.rows[0]!.id);
   } else {
@@ -307,10 +348,20 @@ export async function runGreekRetailAnalysis(
             'varianceMethod',$5::text,
             'sampleDrawId',$2::text,
             'frameSnapshotId',$3::text,
-            'publicMinimumBase',$4::int
+            'publicMinimumBase',$4::int,
+            'analysisPlanVersion',$6::text,
+            'analysisPlanSha256',$7::text
           )
       WHERE id=$1
-    `, [analysisRunId, draw.id, draw.frame_snapshot_id, MIN_PUBLIC_BASE, VARIANCE_METHOD]);
+    `, [
+      analysisRunId,
+      draw.id,
+      draw.frame_snapshot_id,
+      MIN_PUBLIC_BASE,
+      VARIANCE_METHOD,
+      analysisPlan.version,
+      analysisPlan.content_sha256
+    ]);
     await pool.query("DELETE FROM research_analysis_estimates WHERE analysis_run_id=$1", [analysisRunId]);
   }
 
@@ -498,7 +549,7 @@ export async function runGreekRetailAnalysis(
   const datasetSha256 = datasetHash.digest("hex");
 
   let estimateCount = 0;
-  for (const spec of estimateSpecs(questions, weightedResponses)) {
+  for (const spec of estimateSpecs(questions, weightedResponses, primaryMetricKeys)) {
     for (const segment of segmentsFor(spec.observations)) {
       const result = weightedMean(segment.observations);
       if (result.estimate === undefined) continue;
@@ -712,6 +763,7 @@ export async function runGreekRetailAnalysis(
           adjustedPValueMethod: "benjamini_hochberg",
           adjustmentFamily: `${pair.left.metricKey}:${pair.left.dimension}`,
           exploratory: true,
+          analysisClassification: "exploratory",
           independenceBasis: "disjoint_unions_of_sampling_strata"
         })
       ]);
@@ -737,6 +789,8 @@ export async function runGreekRetailAnalysis(
     estimateCount,
     varianceMethod: VARIANCE_METHOD,
     publicMinimumBase: MIN_PUBLIC_BASE,
+    analysisPlanVersion: text(analysisPlan.version),
+    analysisPlanSha256: text(analysisPlan.content_sha256),
     weightingDiagnostics
   };
 }
