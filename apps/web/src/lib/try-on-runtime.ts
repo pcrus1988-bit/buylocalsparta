@@ -248,6 +248,7 @@ export async function generateCustomerTryOn(input: {
   modelImageDataUrl: unknown;
   signal?: AbortSignal;
   beforeProviderRun?: () => Promise<void>;
+  onProviderFailure?: () => Promise<void>;
 }): Promise<CustomerTryOnGeneration> {
   const model = decodeDataImage(input.modelImageDataUrl, MAX_MODEL_IMAGE_BYTES, new Set(["image/jpeg", "image/png", "image/webp"]));
   const { product, image: garmentImage } = await resolveGarment(input.userPublicId, input.productId.trim());
@@ -290,6 +291,7 @@ export async function generateCustomerTryOn(input: {
       value: started.error,
       message: started.message
     });
+    await input.onProviderFailure?.();
     throw new Error(providerHttpError(runResponse.status, started.error, started.message));
   }
 
@@ -325,6 +327,7 @@ export async function generateCustomerTryOn(input: {
         status: statusResponse.status,
         value: status.error
       });
+      await input.onProviderFailure?.();
       throw new Error(providerError(status.error));
     }
     if (status.status !== "completed") continue;
