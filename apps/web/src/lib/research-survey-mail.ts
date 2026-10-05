@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { buildAdminMailRawMime, type AdminMailAddress } from "./admin-mail-mime";
 import { sendRawSesEmail, sesMailConfigFromEnv } from "./admin-mail-ses";
 
@@ -92,6 +93,124 @@ export async function sendResearchSurveyInvitation(input: Readonly<{
   });
 }
 
+export async function sendResearchThankYouCode(input: Readonly<{
+  destination: string;
+  studySlug: string;
+  studyTitle: string;
+  responseId: string;
+  deliveryId: string;
+  rewardCode: string;
+  joinUrl: string;
+  methodologyUrl: string;
+}>): Promise<Readonly<{ providerMessageId: string; subjectSha256: string; bodySha256: string }>> {
+  const subject = `Ευχαριστούμε για τη συμμετοχή σας στη μελέτη «${input.studyTitle}»`;
+  const text = [
+    "Ευχαριστούμε για την ολοκλήρωση της μελέτης.",
+    `Ο προσωπικός κωδικός ευχαριστίας σας είναι: ${input.rewardCode}`,
+    "Ο κωδικός αφορά αποκλειστικά το ευχαριστήριο όφελος συμμετοχής και δεν αποτελεί συγκατάθεση για εμπορική επικοινωνία. Οι ισχύοντες όροι εφαρμογής εμφανίζονται πριν από οποιαδήποτε εμπορική ενεργοποίηση.",
+    `Ένταξη στο KONTA MOY: ${input.joinUrl}`,
+    `Μεθοδολογία μελέτης: ${input.methodologyUrl}`
+  ].join("\n\n");
+  return sendResearchParticipantMessage({
+    destination: input.destination,
+    studySlug: input.studySlug,
+    responseId: input.responseId,
+    deliveryId: input.deliveryId,
+    messageKind: "thank_you_code",
+    subject,
+    text,
+    primaryUrl: input.joinUrl,
+    primaryLabel: "Χρήση κωδικού στο KONTA MOY →",
+    methodologyUrl: input.methodologyUrl
+  });
+}
+
+export async function sendResearchResultsNotification(input: Readonly<{
+  destination: string;
+  studySlug: string;
+  studyTitle: string;
+  responseId: string;
+  deliveryId: string;
+  releaseVersion: string;
+  resultsUrl: string;
+  methodologyUrl: string;
+}>): Promise<Readonly<{ providerMessageId: string; subjectSha256: string; bodySha256: string }>> {
+  const subject = `Δημοσιεύθηκαν τα αποτελέσματα της μελέτης «${input.studyTitle}»`;
+  const text = [
+    "Ζητήσατε να ενημερωθείτε όταν δημοσιευθούν τα αποτελέσματα της μελέτης.",
+    `Η έκδοση ${input.releaseVersion} είναι πλέον διαθέσιμη.`,
+    `Αποτελέσματα: ${input.resultsUrl}`,
+    `Μεθοδολογία: ${input.methodologyUrl}`,
+    "Η ενημέρωση αυτή αποστέλλεται βάσει της ξεχωριστής επιλογής ενημέρωσης αποτελεσμάτων και δεν αποτελεί εμπορική επικοινωνία."
+  ].join("\n\n");
+  return sendResearchParticipantMessage({
+    destination: input.destination,
+    studySlug: input.studySlug,
+    responseId: input.responseId,
+    deliveryId: input.deliveryId,
+    messageKind: "results_notification",
+    subject,
+    text,
+    primaryUrl: input.resultsUrl,
+    primaryLabel: "Δείτε τα αποτελέσματα →",
+    methodologyUrl: input.methodologyUrl
+  });
+}
+
+async function sendResearchParticipantMessage(input: Readonly<{
+  destination: string;
+  studySlug: string;
+  responseId: string;
+  deliveryId: string;
+  messageKind: "thank_you_code" | "results_notification";
+  subject: string;
+  text: string;
+  primaryUrl: string;
+  primaryLabel: string;
+  methodologyUrl: string;
+}>): Promise<Readonly<{ providerMessageId: string; subjectSha256: string; bodySha256: string }>> {
+  const configuration = assertResearchSurveyEmailReady();
+  const fromAddress = mailAddress(configuration.from, "KONTA MOY Research");
+  const replyToAddress = mailAddress(configuration.replyTo);
+  const mime = buildAdminMailRawMime({
+    from: fromAddress,
+    to: [{ address: input.destination }],
+    replyTo: [replyToAddress],
+    subject: input.subject,
+    text: input.text,
+    html: researchParticipantHtml(
+      input.subject,
+      input.text,
+      input.primaryUrl,
+      input.primaryLabel,
+      input.methodologyUrl
+    ),
+    internetMessageIdDomain: DEFAULT_DOMAIN
+  });
+  const sent = await sendRawSesEmail({
+    config: sesMailConfigFromEnv(),
+    raw: mime.raw,
+    from: formatEnvelopeFrom(configuration.from),
+    to: [input.destination],
+    configurationSetName: configuration.configurationSetName,
+    emailTags: [
+      { name: "research_study", value: safeTagValue(input.studySlug) },
+      { name: "research_delivery", value: safeTagValue(input.deliveryId) },
+      { name: "research_response", value: safeTagValue(input.responseId) },
+      { name: "research_kind", value: safeTagValue(input.messageKind) }
+    ]
+  });
+  return {
+    providerMessageId: sent.providerMessageId,
+    subjectSha256: sha256(input.subject),
+    bodySha256: sha256(input.text)
+  };
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
 export function renderRecruitmentTemplate(
   template: string,
   replacements: Readonly<Record<string, string>>
@@ -121,6 +240,42 @@ function formatEnvelopeFrom(value: string): string {
 function safeTagValue(value: string): string {
   const clean = value.trim().replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 256);
   return clean || "unknown";
+}
+
+function researchParticipantHtml(
+  subject: string,
+  text: string,
+  primaryUrl: string,
+  primaryLabel: string,
+  methodologyUrl: string
+): string {
+  const paragraphs = text
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p style="margin:0 0 16px;line-height:1.65">${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+
+  return `<!doctype html>
+<html lang="el">
+<body style="margin:0;background:#f4f0e8;font-family:Arial,Helvetica,sans-serif;color:#183027">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px 12px;background:#f4f0e8">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#fffdf8;border:1px solid #d6cfbf;border-radius:20px;overflow:hidden">
+        <tr><td style="background:#183027;color:#fffdf8;padding:28px 32px">
+          <div style="font-size:11px;letter-spacing:.14em;font-weight:800;color:#d8d8c7">KONTA MOY · ΕΡΕΥΝΑ ΛΙΑΝΕΜΠΟΡΙΟΥ</div>
+          <h1 style="font-family:Georgia,'Times New Roman',serif;font-weight:500;font-size:31px;line-height:1.1;margin:12px 0 0">${escapeHtml(subject)}</h1>
+        </td></tr>
+        <tr><td style="padding:32px">
+          ${paragraphs}
+          <p style="margin:24px 0"><a href="${escapeHtml(primaryUrl)}" style="display:inline-block;padding:14px 22px;border-radius:999px;background:#183027;color:#fffdf8;text-decoration:none;font-weight:800">${escapeHtml(primaryLabel)}</a></p>
+          <p style="font-size:13px;line-height:1.6;color:#58645f">Η επικοινωνία αυτή ανήκει στη μελέτη και ακολουθεί την αντίστοιχη επιλογή συγκατάθεσής σας. <a href="${escapeHtml(methodologyUrl)}" style="color:#183027">Μεθοδολογία και πληροφορίες μελέτης</a>.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 }
 
 function researchInvitationHtml(subject: string, text: string, surveyUrl: string, methodologyUrl: string): string {
