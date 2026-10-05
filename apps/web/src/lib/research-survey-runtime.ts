@@ -806,8 +806,11 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       COALESCE(ib.batches, 0)::int AS invite_batches,
       COALESCE(i.invites, 0)::int AS invites,
       COALESCE(i.sent, 0)::int AS sent,
+      COALESCE(i.delivered, 0)::int AS delivered,
+      COALESCE(i.opened, 0)::int AS opened,
       COALESCE(r.started, 0)::int AS started,
       COALESCE(r.completed, 0)::int AS completed,
+      COALESCE(r.withdrawn, 0)::int AS withdrawn,
       COALESCE(q.review_count, 0)::int AS quality_review,
       COALESCE(q.exclude_count, 0)::int AS quality_exclude,
       COALESCE(rw.eligible_count, 0)::int AS reward_eligible,
@@ -892,12 +895,31 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       WHERE study_id = s.id
     ) ib ON true
     LEFT JOIN LATERAL (
-      SELECT count(*) AS invites, count(*) FILTER (WHERE status IN ('sent','opened','started','completed')) AS sent
-      FROM research_invites WHERE study_id = s.id
+      SELECT
+        count(*) AS invites,
+        count(*) FILTER (WHERE status IN ('sent','opened','started','completed')) AS sent,
+        (
+          SELECT count(DISTINCT ie.invite_id)
+          FROM research_invite_events ie
+          JOIN research_invites event_invite ON event_invite.id=ie.invite_id
+          WHERE event_invite.study_id=s.id AND ie.event_type='delivered'
+        ) AS delivered,
+        (
+          SELECT count(DISTINCT ie.invite_id)
+          FROM research_invite_events ie
+          JOIN research_invites event_invite ON event_invite.id=ie.invite_id
+          WHERE event_invite.study_id=s.id AND ie.event_type='opened'
+        ) AS opened
+      FROM research_invites
+      WHERE study_id = s.id
     ) i ON true
     LEFT JOIN LATERAL (
-      SELECT count(*) AS started, count(*) FILTER (WHERE status = 'completed') AS completed
-      FROM research_responses WHERE study_id = s.id
+      SELECT
+        count(*) AS started,
+        count(*) FILTER (WHERE status = 'completed') AS completed,
+        count(*) FILTER (WHERE status = 'withdrawn') AS withdrawn
+      FROM research_responses
+      WHERE study_id = s.id
     ) r ON true
     LEFT JOIN LATERAL (
       WITH latest AS (
@@ -988,8 +1010,11 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       inviteBatches: numberValue(row.invite_batches),
       invites: numberValue(row.invites),
       sent: numberValue(row.sent),
+      delivered: numberValue(row.delivered),
+      opened: numberValue(row.opened),
       started: numberValue(row.started),
       completed: numberValue(row.completed),
+      withdrawn: numberValue(row.withdrawn),
       qualityReview: numberValue(row.quality_review),
       qualityExclude: numberValue(row.quality_exclude),
       rewardEligible: numberValue(row.reward_eligible),
