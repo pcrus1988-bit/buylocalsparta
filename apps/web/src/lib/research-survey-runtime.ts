@@ -523,7 +523,7 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
   }
   const rows = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
     SELECT
-      s.id, s.slug, s.title, s.status, s.fieldwork_starts_at, s.fieldwork_ends_at,
+      s.id, s.slug, s.title, s.status, s.fieldwork_starts_at, s.fieldwork_ends_at, s.public_results_url,
       latest_i.version AS instrument_version, latest_i.status AS instrument_status,
       latest_rt.version AS recruitment_template_version,
       latest_rt.subject AS recruitment_template_subject,
@@ -549,8 +549,11 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       COALESCE(rw.issued_count, 0)::int AS reward_issued,
       COALESCE(rw.redeemed_count, 0)::int AS reward_redeemed,
       COALESCE(a.analysis_runs, 0)::int AS analysis_runs,
+      COALESCE(a.succeeded_runs, 0)::int AS succeeded_analysis_runs,
       COALESCE(a.estimates, 0)::int AS analysis_estimates,
-      COALESCE(rel.releases, 0)::int AS releases
+      COALESCE(rel.releases, 0)::int AS releases,
+      rel.latest_release_version,
+      rel.latest_release_published_at
     FROM research_studies s
     LEFT JOIN LATERAL (
       SELECT version, status FROM research_instruments
@@ -630,13 +633,19 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
     LEFT JOIN LATERAL (
       SELECT
         count(DISTINCT ar.id) AS analysis_runs,
+        count(DISTINCT ar.id) FILTER (WHERE ar.status='succeeded') AS succeeded_runs,
         count(ae.id) AS estimates
       FROM research_analysis_runs ar
       LEFT JOIN research_analysis_estimates ae ON ae.analysis_run_id = ar.id
       WHERE ar.study_id = s.id
     ) a ON true
     LEFT JOIN LATERAL (
-      SELECT count(*) AS releases FROM research_release_snapshots WHERE study_id = s.id
+      SELECT
+        count(*) AS releases,
+        (array_agg(release_version ORDER BY created_at DESC))[1] AS latest_release_version,
+        (array_agg(published_at ORDER BY created_at DESC))[1] AS latest_release_published_at
+      FROM research_release_snapshots
+      WHERE study_id = s.id
     ) rel ON true
     LEFT JOIN LATERAL (
       SELECT
@@ -657,6 +666,7 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       status: text(row.status),
       fieldworkStartsAt: optionalText(row.fieldwork_starts_at),
       fieldworkEndsAt: optionalText(row.fieldwork_ends_at),
+      publicResultsUrl: optionalText(row.public_results_url),
       instrumentVersion: optionalText(row.instrument_version),
       instrumentStatus: optionalText(row.instrument_status),
       recruitmentTemplateVersion: optionalText(row.recruitment_template_version),
@@ -683,8 +693,11 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       rewardIssued: numberValue(row.reward_issued),
       rewardRedeemed: numberValue(row.reward_redeemed),
       analysisRuns: numberValue(row.analysis_runs),
+      succeededAnalysisRuns: numberValue(row.succeeded_analysis_runs),
       analysisEstimates: numberValue(row.analysis_estimates),
       releases: numberValue(row.releases),
+      latestReleaseVersion: optionalText(row.latest_release_version),
+      latestReleasePublishedAt: optionalText(row.latest_release_published_at),
       queuedJobs: numberValue(row.queued_jobs),
       runningJobs: numberValue(row.running_jobs),
       failedJobs: numberValue(row.failed_jobs)
@@ -697,7 +710,8 @@ export type ResearchLifecycleAction =
   | "start_pilot"
   | "start_fielding"
   | "close_fieldwork"
-  | "begin_analysis";
+  | "begin_analysis"
+  | "publish_release";
 
 export async function transitionResearchStudy(
   principal: SessionPrincipal,
@@ -778,6 +792,36 @@ export async function transitionResearchStudy(
       if (studyStatus !== "closed") throw new Error("RESEARCH_LIFECYCLE_INVALID");
       await client.query("UPDATE research_studies SET status = 'analysis', updated_at = now() WHERE id = $1", [row.study_id]);
       studyStatus = "analysis";
+    } else if (input.action === "publish_release") {
+      if (studyStatus !== "analysis") throw new Error("RESEARCH_LIFECYCLE_INVALID");
+      const releaseResult = await client.query<SqlRow>(`
+        SELECT
+          rs.id,rs.public_url,rs.artifact_sha256,rs.dataset_sha256,rs.analysis_run_id,
+          ar.status AS analysis_status,ar.dataset_sha256 AS analysis_dataset_sha256
+        FROM research_release_snapshots rs
+        JOIN research_analysis_runs ar ON ar.id=rs.analysis_run_id
+        WHERE rs.study_id=$1
+        ORDER BY rs.created_at DESC
+        LIMIT 1
+        FOR UPDATE OF rs
+      `, [row.study_id]);
+      const release = releaseResult.rows[0];
+      if (!release || !text(release.artifact_sha256)) throw new Error("RESEARCH_RELEASE_NOT_READY");
+      if (text(release.analysis_status) !== "succeeded") throw new Error("RESEARCH_RELEASE_ANALYSIS_NOT_SUCCEEDED");
+      if (text(release.dataset_sha256) !== text(release.analysis_dataset_sha256)) {
+        throw new Error("RESEARCH_RELEASE_DATASET_HASH_MISMATCH");
+      }
+      await client.query(`
+        UPDATE research_release_snapshots
+        SET published_at=COALESCE(published_at,now())
+        WHERE id=$1
+      `, [release.id]);
+      await client.query(`
+        UPDATE research_studies
+        SET status='published',public_results_url=$2,updated_at=now()
+        WHERE id=$1
+      `, [row.study_id, release.public_url]);
+      studyStatus = "published";
     }
 
     await client.query("COMMIT");
