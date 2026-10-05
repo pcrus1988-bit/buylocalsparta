@@ -11,16 +11,20 @@ const reminderMigrationPath = "db/migrations/0419_research_invite_reminder_proto
 const reminderChecksumPath = "db/migrations/checksums.0419.json";
 const analysisPlanMigrationPath = "db/migrations/0420_research_analysis_preregistration.sql";
 const analysisPlanChecksumPath = "db/migrations/checksums.0420.json";
+const securityHardeningMigrationPath = "db/migrations/0421_research_analysis_plan_function_hardening.sql";
+const securityHardeningChecksumPath = "db/migrations/checksums.0421.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const deliveryMigration = readFileSync(deliveryMigrationPath, "utf8");
 const reminderMigration = readFileSync(reminderMigrationPath, "utf8");
 const analysisPlanMigration = readFileSync(analysisPlanMigrationPath, "utf8");
+const securityHardeningMigration = readFileSync(securityHardeningMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
 const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
 const reminderChecksums = JSON.parse(readFileSync(reminderChecksumPath, "utf8")) as Record<string, string>;
 const analysisPlanChecksums = JSON.parse(readFileSync(analysisPlanChecksumPath, "utf8")) as Record<string, string>;
+const securityHardeningChecksums = JSON.parse(readFileSync(securityHardeningChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
@@ -79,6 +83,7 @@ const suppressionSha = createHash("sha256").update(suppressionMigration, "utf8")
 const deliverySha = createHash("sha256").update(deliveryMigration, "utf8").digest("hex");
 const reminderSha = createHash("sha256").update(reminderMigration, "utf8").digest("hex");
 const analysisPlanSha = createHash("sha256").update(analysisPlanMigration, "utf8").digest("hex");
+const securityHardeningSha = createHash("sha256").update(securityHardeningMigration, "utf8").digest("hex");
 if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0416 checksum does not match migration bytes");
 }
@@ -94,7 +99,10 @@ if (reminderChecksums["0419_research_invite_reminder_protocol.sql"] !== reminder
 if (analysisPlanChecksums["0420_research_analysis_preregistration.sql"] !== analysisPlanSha) {
   errors.push("0420 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 420")) errors.push("runtime schema head is not 420");
+if (securityHardeningChecksums["0421_research_analysis_plan_function_hardening.sql"] !== securityHardeningSha) {
+  errors.push("0421 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 421")) errors.push("runtime schema head is not 421");
 if (!reminderMigration.includes("CREATE TABLE public.research_invite_access_tokens")) errors.push("reminder access-token table missing");
 if (!reminderMigration.includes("CREATE TABLE public.research_invite_messages")) errors.push("invitation attempt ledger missing");
 if (!reminderMigration.includes("ALTER TABLE public.research_invite_access_tokens ENABLE ROW LEVEL SECURITY;")) errors.push("reminder access-token RLS missing");
@@ -106,6 +114,18 @@ if (!analysisPlanMigration.includes("research_analysis_plans_locked_immutable"))
 if (!analysisPlanMigration.includes("ADD COLUMN analysis_plan_id")) errors.push("analysis runs are not bound to an analysis plan");
 if (!analysisPlanMigration.includes("kontamou.research.analysis-plan.v1")) errors.push("seeded analysis-plan contract missing");
 if (!analysisPlanMigration.includes("prespecified_secondary")) errors.push("pre-specified secondary analysis classification missing from plan");
+if (!securityHardeningMigration.includes("ALTER FUNCTION public.research_prepare_analysis_plan()\n  SECURITY INVOKER;")) {
+  errors.push("analysis-plan prepare trigger remains SECURITY DEFINER");
+}
+if (!securityHardeningMigration.includes("ALTER FUNCTION public.research_guard_analysis_plan_delete()\n  SECURITY INVOKER;")) {
+  errors.push("analysis-plan delete guard remains SECURITY DEFINER");
+}
+if (!securityHardeningMigration.includes("FROM PUBLIC, anon, authenticated;")) {
+  errors.push("analysis-plan trigger functions are not revoked from public API roles");
+}
+if (!securityHardeningMigration.includes("TO bls_platform_runtime;")) {
+  errors.push("analysis-plan trigger execution is not restricted to platform runtime");
+}
 if ((migration.match(/^BEGIN;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one BEGIN");
 if ((migration.match(/^COMMIT;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one COMMIT");
 
@@ -277,7 +297,7 @@ if (!schemaRollout.includes("workflow_dispatch")) errors.push("research producti
 if (!schemaRollout.includes("environment: production")) errors.push("research production schema rollout lacks production environment gate");
 if (!schemaRollout.includes("if: ${{ inputs.apply }}")) errors.push("research schema mutation lacks explicit apply gate");
 if (!schemaRollout.includes("npm run db:migrate")) errors.push("research schema rollout bypasses checksum-aware migrator");
-if (!schemaPreflight.includes("expectedSourceVersion = 420")) errors.push("research schema rollout source-head guard missing");
+if (!schemaPreflight.includes("expectedSourceVersion = 421")) errors.push("research schema rollout source-head guard missing");
 if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
 if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
@@ -288,12 +308,13 @@ if (errors.length) {
 }
 console.log(JSON.stringify({
   ok: true,
-  schema: 420,
+  schema: 421,
   tables: created.length + 6,
   migrationSha256: sha,
   suppressionMigrationSha256: suppressionSha,
   deliveryMigrationSha256: deliverySha,
   reminderMigrationSha256: reminderSha,
   analysisPlanMigrationSha256: analysisPlanSha,
+  securityHardeningMigrationSha256: securityHardeningSha,
   worker: pkg.scripts?.["worker:research"]
 }));
