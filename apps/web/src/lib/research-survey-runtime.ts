@@ -96,10 +96,13 @@ const experimentLevels = {
 };
 
 function experimentProfile(seed: string, side: "a" | "b"): Record<string, string | number> {
-  return Object.fromEntries(Object.entries(experimentLevels).map(([attribute, values]) => [
-    attribute,
-    deterministicChoice(values, `${seed}:${attribute}:${side}`)
-  ]));
+  return Object.fromEntries(Object.entries(experimentLevels).map(([attribute, rawValues]) => {
+    const values: readonly (string | number)[] = rawValues;
+    return [
+      attribute,
+      deterministicChoice(values, `${seed}:${attribute}:${side}`)
+    ];
+  }));
 }
 
 function experimentAssignments(seed: string): readonly ResearchExperimentAssignment[] {
