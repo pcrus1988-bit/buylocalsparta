@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
+import { ResearchStudyFieldworkControls } from "../../../../components/ResearchStudyFieldworkControls";
 import { ResearchStudyLifecycleControls } from "../../../../components/ResearchStudyLifecycleControls";
 import { ResearchStudySamplingControls } from "../../../../components/ResearchStudySamplingControls";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, WorkspaceStatusBadge } from "../../../../components/WorkspacePagePrimitives";
@@ -77,6 +78,17 @@ export default async function ResearchSurveysAdminPage() {
               framePopulation={study.framePopulation}
               latestSampleStatus={study.latestSampleStatus}
               latestSampleTarget={study.latestSampleTarget}
+              queuedJobs={study.queuedJobs}
+              runningJobs={study.runningJobs}
+            />}
+
+            {hasAdminPermission(principal, "research.manage") && <ResearchStudyFieldworkControls
+              slug={study.slug}
+              csrfToken={principal.csrfToken}
+              studyStatus={study.status}
+              recruitmentTemplateVersion={study.recruitmentTemplateVersion}
+              activeContacts={study.activeContacts}
+              completed={study.completed}
               queuedJobs={study.queuedJobs}
               runningJobs={study.runningJobs}
             />}
