@@ -222,7 +222,7 @@ export async function runGreekRetailAnalysis(
   if (!draw) throw new Error("RESEARCH_ANALYSIS_SAMPLE_MISSING");
 
   let runResult = await pool.query<SqlRow>(`
-    SELECT id
+    SELECT id,status,dataset_sha256,code_version,weight_version
     FROM research_analysis_runs
     WHERE study_id=$1 AND parameters->>'jobId'=$2
     ORDER BY created_at DESC
@@ -230,6 +230,24 @@ export async function runGreekRetailAnalysis(
   `, [studyId, jobId]);
   let analysisRunId = text(runResult.rows[0]?.id);
   const weightVersion = `${WEIGHT_METHOD_VERSION}:${jobId}`;
+  if (analysisRunId && text(runResult.rows[0]?.status) === "succeeded") {
+    const completed = await pool.query<SqlRow>(`
+      SELECT
+        (SELECT count(*)::int FROM research_analysis_estimates WHERE analysis_run_id=$1) AS estimate_count,
+        (SELECT count(*)::int FROM research_weights WHERE version=$2) AS included_responses
+    `, [analysisRunId, text(runResult.rows[0]?.weight_version) || weightVersion]);
+    return {
+      analysisRunId,
+      codeVersion: text(runResult.rows[0]?.code_version) || ANALYSIS_CODE_VERSION,
+      weightVersion: text(runResult.rows[0]?.weight_version) || weightVersion,
+      datasetSha256: text(runResult.rows[0]?.dataset_sha256),
+      includedResponses: numberValue(completed.rows[0]?.included_responses),
+      estimateCount: numberValue(completed.rows[0]?.estimate_count),
+      varianceMethod: "not_estimated",
+      publicMinimumBase: MIN_PUBLIC_BASE,
+      idempotentReplay: true
+    };
+  }
   if (!analysisRunId) {
     runResult = await pool.query<SqlRow>(`
       INSERT INTO research_analysis_runs (
