@@ -119,7 +119,8 @@ function experimentAssignments(seed: string): readonly ResearchExperimentAssignm
 async function invitationRow(
   executor: { query<Row extends SqlRow = SqlRow>(text: string, params?: readonly unknown[]): Promise<{ rows: readonly Row[] }> },
   slug: string,
-  token: string
+  token: string,
+  options: Readonly<{ allowExpired?: boolean }> = {}
 ): Promise<SqlRow> {
   if (token.length < 32 || token.length > 200) throw new Error("SURVEY_INVITE_INVALID");
   const result = await executor.query<SqlRow>(`
@@ -127,6 +128,7 @@ async function invitationRow(
       ri.id AS invite_id,
       ri.status AS invite_status,
       ri.sample_unit_id,
+      ri.contact_point_id,
       ri.expires_at,
       rs.id AS study_id,
       rs.slug,
@@ -149,7 +151,9 @@ async function invitationRow(
   `, [slug, sha256(token)]);
   const row = result.rows[0];
   if (!row) throw new Error("SURVEY_INVITE_NOT_FOUND");
-  if (row.expires_at && new Date(String(row.expires_at)).getTime() < Date.now()) throw new Error("SURVEY_INVITE_EXPIRED");
+  if (!options.allowExpired && row.expires_at && new Date(String(row.expires_at)).getTime() < Date.now()) {
+    throw new Error("SURVEY_INVITE_EXPIRED");
+  }
   return row;
 }
 
@@ -264,6 +268,130 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
     experiments,
     consents
   };
+}
+
+export async function refusePublicResearchInvite(input: Readonly<{
+  slug: string;
+  token: string;
+  suppressFutureResearch?: boolean;
+}>): Promise<Readonly<{ status: "declined"; futureResearchSuppressed: boolean; responseWithdrawn: boolean }>> {
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+  const client = await getProductionPostgresRuntime().sqlPool.connect();
+
+  try {
+    await client.query("BEGIN");
+    const invite = await invitationRow(client, input.slug, input.token, { allowExpired: true });
+    if (text(invite.invite_status) === "completed") throw new Error("SURVEY_ALREADY_COMPLETED");
+
+    const responseResult = await client.query<SqlRow>(`
+      SELECT id,status
+      FROM research_responses
+      WHERE invite_id=$1
+      FOR UPDATE
+    `, [invite.invite_id]);
+    const response = responseResult.rows[0];
+    if (response && text(response.status) === "completed") throw new Error("SURVEY_ALREADY_COMPLETED");
+
+    let responseWithdrawn = false;
+    if (response && text(response.status) === "in_progress") {
+      await client.query(`
+        UPDATE research_responses
+        SET status='withdrawn',withdrawn_at=now(),last_saved_at=now()
+        WHERE id=$1
+      `, [response.id]);
+      await client.query(`
+        INSERT INTO research_consents (response_id,consent_kind,statement_version,granted,source)
+        VALUES ($1,'research_participation',$2,false,'survey_ui')
+      `, [response.id, invite.consent_statement_version]);
+      responseWithdrawn = true;
+    }
+
+    const alreadySuppressed = text(invite.invite_status) === "suppressed";
+    if (!alreadySuppressed) {
+      await client.query(`
+        UPDATE research_invites
+        SET status='suppressed'
+        WHERE id=$1 AND status <> 'completed'
+      `, [invite.invite_id]);
+      await client.query(`
+        INSERT INTO research_invite_events (invite_id,event_type,metadata)
+        VALUES (
+          $1,'suppressed',
+          jsonb_build_object(
+            'source','survey_ui',
+            'reason',$2::text,
+            'futureResearchSuppressed',$3::boolean
+          )
+        )
+      `, [
+        invite.invite_id,
+        responseWithdrawn ? "participant_withdrawal" : "participant_refusal",
+        Boolean(input.suppressFutureResearch)
+      ]);
+      if (invite.sample_unit_id) {
+        await client.query(`
+          INSERT INTO research_sample_disposition_events (
+            sample_unit_id,disposition_code,eligibility,source,metadata
+          )
+          VALUES ($1,$2,'eligible','survey_ui',jsonb_build_object('inviteId',$3::text))
+        `, [
+          invite.sample_unit_id,
+          responseWithdrawn ? "withdrawn" : "refusal",
+          invite.invite_id
+        ]);
+      }
+    }
+
+    let futureResearchSuppressed = false;
+    if (input.suppressFutureResearch && invite.contact_point_id) {
+      const contact = await client.query<SqlRow>(`
+        SELECT contact_type,contact_value_hash
+        FROM research_contact_points
+        WHERE id=$1
+        LIMIT 1
+      `, [invite.contact_point_id]);
+      const contactRow = contact.rows[0];
+      if (contactRow?.contact_value_hash) {
+        const current = await client.query<SqlRow>(`
+          SELECT action
+          FROM research_contact_suppression_events
+          WHERE contact_type=$1 AND contact_value_hash=$2
+          ORDER BY occurred_at DESC,id DESC
+          LIMIT 1
+        `, [contactRow.contact_type, contactRow.contact_value_hash]);
+        if (text(current.rows[0]?.action) !== "suppress") {
+          await client.query(`
+            INSERT INTO research_contact_suppression_events (
+              contact_type,contact_value_hash,action,reason,study_id,invite_id,source,metadata
+            )
+            VALUES (
+              $1,$2,'suppress','participant_research_opt_out',$3,$4,'survey_ui',
+              '{"scope":"future_research_invitations"}'::jsonb
+            )
+          `, [
+            contactRow.contact_type,
+            contactRow.contact_value_hash,
+            invite.study_id,
+            invite.invite_id
+          ]);
+        }
+        await client.query(`
+          UPDATE research_contact_points
+          SET suppression_status='suppressed'
+          WHERE contact_type=$1 AND contact_value_hash=$2
+        `, [contactRow.contact_type, contactRow.contact_value_hash]);
+        futureResearchSuppressed = true;
+      }
+    }
+
+    await client.query("COMMIT");
+    return { status: "declined", futureResearchSuppressed, responseWithdrawn };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function savePublicResearchSurvey(input: Readonly<{
