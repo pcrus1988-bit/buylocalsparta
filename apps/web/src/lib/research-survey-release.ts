@@ -15,6 +15,11 @@ function numberValue(value: unknown): number {
   return Number.isFinite(valueNumber) ? valueNumber : 0;
 }
 
+function rate(numerator: unknown, denominator: unknown): number | null {
+  const denominatorNumber = numberValue(denominator);
+  return denominatorNumber > 0 ? numberValue(numerator) / denominatorNumber : null;
+}
+
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -240,6 +245,48 @@ export async function buildGreekRetailRelease(
   const counts = fieldworkCounts.rows[0] ?? {};
 
   const strata = await pool.query<SqlRow>(`
+    WITH sample AS (
+      SELECT su.id,su.stratum_id
+      FROM research_sample_units su
+      WHERE su.sample_draw_id=$2
+    ),
+    sample_counts AS (
+      SELECT stratum_id,count(*)::int AS selected
+      FROM sample
+      GROUP BY stratum_id
+    ),
+    invite_base AS (
+      SELECT ri.id AS invite_id,su.stratum_id,ri.status
+      FROM research_invites ri
+      JOIN sample su ON su.id=ri.sample_unit_id
+      WHERE ri.study_id=$3
+    ),
+    invite_counts AS (
+      SELECT
+        stratum_id,
+        count(*) FILTER (WHERE status IN ('sent','opened','started','completed'))::int AS sent
+      FROM invite_base
+      GROUP BY stratum_id
+    ),
+    invite_event_counts AS (
+      SELECT
+        ib.stratum_id,
+        count(DISTINCT ib.invite_id) FILTER (WHERE ie.event_type='delivered')::int AS delivered,
+        count(DISTINCT ib.invite_id) FILTER (WHERE ie.event_type='opened')::int AS opened
+      FROM invite_base ib
+      JOIN research_invite_events ie ON ie.invite_id=ib.invite_id
+      GROUP BY ib.stratum_id
+    ),
+    response_counts AS (
+      SELECT
+        ib.stratum_id,
+        count(rr.id)::int AS started,
+        count(rr.id) FILTER (WHERE rr.status='completed')::int AS completed,
+        count(rr.id) FILTER (WHERE rr.status='withdrawn')::int AS withdrawn
+      FROM invite_base ib
+      JOIN research_responses rr ON rr.invite_id=ib.invite_id
+      GROUP BY ib.stratum_id
+    )
     SELECT
       st.code,
       st.label,
@@ -258,11 +305,22 @@ export async function buildGreekRetailRelease(
               AND cp.suppression_status='active'
               AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
           )
-      ) AS active_email_units
+      ) AS active_email_units,
+      COALESCE(sc.selected,0)::int AS selected,
+      COALESCE(ic.sent,0)::int AS sent,
+      COALESCE(iec.delivered,0)::int AS delivered,
+      COALESCE(iec.opened,0)::int AS opened,
+      COALESCE(rc.started,0)::int AS started,
+      COALESCE(rc.completed,0)::int AS completed,
+      COALESCE(rc.withdrawn,0)::int AS withdrawn
     FROM research_strata st
+    LEFT JOIN sample_counts sc ON sc.stratum_id=st.id
+    LEFT JOIN invite_counts ic ON ic.stratum_id=st.id
+    LEFT JOIN invite_event_counts iec ON iec.stratum_id=st.id
+    LEFT JOIN response_counts rc ON rc.stratum_id=st.id
     WHERE st.frame_snapshot_id=$1
     ORDER BY st.code
-  `, [frameSnapshotId]);
+  `, [frameSnapshotId, sampleDrawId, studyId]);
 
   const estimatesResult = await pool.query<SqlRow>(`
     SELECT metric_key,segment,estimate,standard_error,confidence_level,ci_lower,ci_upper,
@@ -306,9 +364,19 @@ export async function buildGreekRetailRelease(
         populationCount: numberValue(row.population_count),
         targetCompleteCount: numberValue(row.target_complete_count),
         activeEmailUnits: numberValue(row.active_email_units),
-        emailContactabilityRate: numberValue(row.population_count) > 0
-          ? numberValue(row.active_email_units) / numberValue(row.population_count)
-          : 0
+        emailContactabilityRate: rate(row.active_email_units, row.population_count),
+        selected: numberValue(row.selected),
+        sent: numberValue(row.sent),
+        delivered: numberValue(row.delivered),
+        opened: numberValue(row.opened),
+        started: numberValue(row.started),
+        completed: numberValue(row.completed),
+        withdrawn: numberValue(row.withdrawn),
+        deliveryRateOfSent: rate(row.delivered, row.sent),
+        openRateOfDelivered: rate(row.opened, row.delivered),
+        startRateOfSent: rate(row.started, row.sent),
+        completionRateOfSent: rate(row.completed, row.sent),
+        completionRateOfStarted: rate(row.completed, row.started)
       }))
     },
     sample: {
@@ -334,6 +402,11 @@ export async function buildGreekRetailRelease(
       started: numberValue(counts.started),
       completed: numberValue(counts.completed),
       withdrawn: numberValue(counts.withdrawn),
+      deliveryRateOfSent: rate(counts.delivered, counts.sent),
+      openRateOfDelivered: rate(counts.opened, counts.delivered),
+      startRateOfSent: rate(counts.started, counts.sent),
+      completionRateOfSent: rate(counts.completed, counts.sent),
+      completionRateOfStarted: rate(counts.completed, counts.started),
       analyzed: numberValue(counts.analyzed),
       qualityExcluded: numberValue(pendingReviews.rows[0]?.exclude_count)
     },
