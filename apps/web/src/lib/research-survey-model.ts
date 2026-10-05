@@ -82,7 +82,16 @@ export function validateResearchAnswers(
     } else if (question.type === "multi") {
       const allowed = new Set(questionOptions(question).map(([value]) => value));
       const max = Number(question.config.max ?? Number.POSITIVE_INFINITY);
-      if (!Array.isArray(answer) || answer.some((value) => !allowed.has(String(value))) || answer.length > max) {
+      const normalized = Array.isArray(answer) ? answer.map(String) : [];
+      const duplicates = new Set(normalized).size !== normalized.length;
+      const noneConflict = allowed.has("none") && normalized.includes("none") && normalized.length > 1;
+      if (
+        !Array.isArray(answer) ||
+        normalized.some((value) => !allowed.has(value)) ||
+        normalized.length > max ||
+        duplicates ||
+        noneConflict
+      ) {
         invalid.push(question.code);
       }
     } else if (question.type === "scale") {
@@ -104,6 +113,70 @@ export function validateResearchAnswers(
     }
   }
   return { ok: missing.length === 0 && invalid.length === 0, missing, invalid };
+}
+
+export type ResearchQualitySignals = Readonly<{
+  review: boolean;
+  reasonCodes: readonly string[];
+  metrics: Readonly<Record<string, unknown>>;
+}>;
+
+function matrixStraightlined(answer: ResearchAnswer | undefined, minimumItems = 5): boolean {
+  if (!isObject(answer)) return false;
+  const values = Object.values(answer)
+    .map(String)
+    .filter((value) => value && value !== "na");
+  return values.length >= minimumItems && new Set(values).size === 1;
+}
+
+export function researchQualitySignals(
+  answers: ResearchAnswerMap,
+  durationSeconds: number
+): ResearchQualitySignals {
+  const reasonCodes: string[] = [];
+  const channels = Array.isArray(answers.Q03) ? answers.Q03.map(String) : [];
+  const digitalChannels = ["own_eshop", "marketplace", "social"];
+  const hasDeclaredDigitalChannel = channels.some((channel) => digitalChannels.includes(channel));
+  const digitalShare = typeof answers.Q04 === "string" ? answers.Q04 : "";
+  const positiveDigitalShare = ["1_10", "11_25", "26_50", "51_75", "76_100"].includes(digitalShare);
+
+  if (
+    positiveDigitalShare &&
+    !hasDeclaredDigitalChannel &&
+    !channels.includes("other")
+  ) {
+    reasonCodes.push("digital_share_channel_mismatch");
+  }
+
+  const marketplaceExperience = typeof answers.Q13 === "string" ? answers.Q13 : "";
+  if (
+    (marketplaceExperience === "current" && !channels.includes("marketplace")) ||
+    (marketplaceExperience === "never" && channels.includes("marketplace"))
+  ) {
+    reasonCodes.push("marketplace_status_mismatch");
+  }
+
+  const straightlinedMatrices = ["Q07", "Q14", "Q15"]
+    .filter((code) => matrixStraightlined(answers[code]));
+  if (straightlinedMatrices.length >= 2) {
+    reasonCodes.push("multi_matrix_straightline");
+  }
+
+  if (durationSeconds > 0 && durationSeconds < 90) {
+    reasonCodes.push("rapid_completion");
+  }
+
+  return {
+    review: reasonCodes.length > 0,
+    reasonCodes,
+    metrics: {
+      durationSeconds,
+      declaredDigitalChannels: channels.filter((channel) => digitalChannels.includes(channel)),
+      digitalShare,
+      marketplaceExperience,
+      straightlinedMatrices
+    }
+  };
 }
 
 function average(values: readonly number[]): number | undefined {
