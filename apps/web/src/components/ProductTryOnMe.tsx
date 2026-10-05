@@ -20,6 +20,13 @@ const PREVIEW_TTL_MS = 5 * 60 * 1000;
 const MAX_MODEL_DATA_URL_CHARS = 3_450_000;
 
 type SessionPayload = Readonly<{ csrfToken?: string; tryOnStorageScope?: string; tryOnAvailable?: boolean }>;
+type TryOnQuota = Readonly<{
+  limit: number;
+  used: number;
+  remaining: number;
+  monthStart: string;
+  resetAt: string;
+}>;
 type TryOnResult = Readonly<{
   productId: string;
   productTitle: string;
@@ -31,7 +38,17 @@ type TryOnResult = Readonly<{
   expiresAt?: string;
 }>;
 type CachedPreview = Readonly<{ expiresAt: number; result: TryOnResult }>;
-type SharedGeneration = Readonly<{ controller: AbortController; promise: Promise<TryOnResult> }>;
+type TryOnGenerationResponse = Readonly<{ result: TryOnResult; quota?: TryOnQuota }>;
+type SharedGeneration = Readonly<{ controller: AbortController; promise: Promise<TryOnGenerationResponse> }>;
+
+class TryOnRequestError extends Error {
+  readonly quota?: TryOnQuota;
+  constructor(message: string, quota?: TryOnQuota) {
+    super(message);
+    this.name = "TryOnRequestError";
+    this.quota = quota;
+  }
+}
 
 const sharedGenerations = new Map<string, SharedGeneration>();
 const latestGenerationBySlot = new Map<string, string>();
@@ -46,6 +63,7 @@ function messageFor(error: string): string {
   if (error === "TRY_ON_IMAGE_TOO_LARGE") return "Η φωτογραφία είναι πολύ μεγάλη. Διάλεξε άλλη φωτογραφία.";
   if (error === "TRY_ON_STORAGE_NOT_CONFIGURED") return "Η αποθήκευση looks δεν είναι διαθέσιμη αυτή τη στιγμή.";
   if (error === "TRY_ON_RATE_LIMITED") return "Έχεις κάνει πολλές δοκιμές σε πολύ μικρό διάστημα. Περίμενε λίγο και δοκίμασε ξανά.";
+  if (error === "TRY_ON_MONTHLY_LIMIT_REACHED") return "Έχεις χρησιμοποιήσει τις 50 Try On προεπισκοπήσεις αυτού του μήνα. Το όριο ανανεώνεται την 1η του επόμενου μήνα.";
   if (error === "TRY_ON_SAVE_TOKEN_EXPIRED") return "Η προσωρινή προεπισκόπηση έληξε. Δημιούργησε νέα προεπισκόπηση πριν την αποθηκεύσεις.";
   if (error === "INVALID_TRY_ON_SAVE_TOKEN") return "Η προεπισκόπηση δεν μπορεί να αποθηκευτεί με ασφάλεια. Δημιούργησε νέα.";
   if (error === "TRY_ON_POSE_REQUIRED") return "Δεν αναγνωρίστηκε καθαρά η στάση του σώματος. Χρησιμοποίησε ολόσωμη ή 3/4 φωτογραφία με καθαρή θέα του σώματος.";
@@ -170,7 +188,7 @@ function requestSharedGeneration(input: {
   productId: string;
   photo: string;
   csrfToken: string;
-}): Promise<TryOnResult> {
+}): Promise<TryOnGenerationResponse> {
   const slot = previewKey(input.scope, input.productId);
   const key = generationKey(input.scope, input.productId, input.photo);
   const existing = sharedGenerations.get(key);
@@ -192,14 +210,14 @@ function requestSharedGeneration(input: {
     signal: controller.signal
   })
     .then(async (response) => {
-      const payload = await response.json() as { result?: TryOnResult; error?: string };
+      const payload = await response.json() as { result?: TryOnResult; quota?: TryOnQuota; error?: string };
       if (response.status === 401) reconcileActiveTryOnScope(undefined);
-      if (!response.ok || !payload.result) throw new Error(payload.error || "TRY_ON_FAILED");
+      if (!response.ok || !payload.result) throw new TryOnRequestError(payload.error || "TRY_ON_FAILED", payload.quota);
       if (latestGenerationBySlot.get(slot) === key) {
         const expiresAt = resultExpiresAt(payload.result);
         if (expiresAt > Date.now()) writePreview(input.scope, input.productId, payload.result, expiresAt);
       }
-      return payload.result;
+      return { result: payload.result, quota: payload.quota };
     })
     .finally(() => {
       sharedGenerations.delete(key);
@@ -328,6 +346,8 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   const [csrfToken, setCsrfToken] = useState<string>();
   const [storageScope, setStorageScope] = useState<string>();
   const [tryOnAvailable, setTryOnAvailable] = useState<boolean>();
+  const [quota, setQuota] = useState<TryOnQuota>();
+  const [quotaChecked, setQuotaChecked] = useState(false);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [modelImage, setModelImage] = useState<string>();
   const [result, setResult] = useState<TryOnResult>();
@@ -337,19 +357,25 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   const [error, setError] = useState("");
 
   async function generate(photo: string, token: string, scope: string) {
+    if (quota?.remaining === 0) {
+      setError(messageFor("TRY_ON_MONTHLY_LIMIT_REACHED"));
+      return;
+    }
     const attempt = generationAttempt.current + 1;
     generationAttempt.current = attempt;
     setBusy("generate");
     setError("");
     setSaved(false);
     try {
-      const generated = await requestSharedGeneration({
+      const response = await requestSharedGeneration({
         scope,
         productId,
         photo,
         csrfToken: token
       });
       if (generationAttempt.current !== attempt) return;
+      if (response.quota) setQuota(response.quota);
+      const generated = response.result;
       const cached = readPreview(scope, productId);
       const expiresAt = cached?.result.predictionId === generated.predictionId
         ? cached.expiresAt
@@ -360,6 +386,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     } catch (cause) {
       if (generationAttempt.current !== attempt) return;
       if (cause instanceof DOMException && cause.name === "AbortError") return;
+      if (cause instanceof TryOnRequestError && cause.quota) setQuota(cause.quota);
       setError(messageFor(cause instanceof Error ? cause.message : "TRY_ON_FAILED"));
     } finally {
       if (generationAttempt.current === attempt) setBusy("");
@@ -374,6 +401,8 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     setCsrfToken(undefined);
     setStorageScope(undefined);
     setTryOnAvailable(undefined);
+    setQuota(undefined);
+    setQuotaChecked(false);
     setModelImage(undefined);
     setResult(undefined);
     setPreviewExpiresAt(undefined);
@@ -393,6 +422,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
         const token = payload.csrfToken;
         const scope = payload.tryOnStorageScope;
         if (!token || !scope) {
+          setQuotaChecked(true);
           setSessionChecked(true);
           return;
         }
@@ -404,15 +434,31 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
         setTryOnAvailable(available);
         clearLegacyUnscopedTryOnData();
         if (available) {
+          try {
+            const quotaResponse = await fetch("/api/account/try-on/quota", { cache: "no-store" });
+            if (!active) return;
+            if (quotaResponse.status === 401) reconcileActiveTryOnScope(undefined);
+            if (quotaResponse.ok) {
+              const quotaPayload = await quotaResponse.json() as { quota?: TryOnQuota };
+              if (quotaPayload.quota) setQuota(quotaPayload.quota);
+            }
+          } catch {
+            // Server-side quota enforcement remains authoritative if this display read fails.
+          }
+          if (!active) return;
           const cached = readPreview(scope, productId);
           setModelImage(readStoredModel(scope));
           setResult(cached?.result);
           setPreviewExpiresAt(cached?.expiresAt);
         }
+        setQuotaChecked(true);
         setSessionChecked(true);
       })
       .catch(() => {
-        if (active) setSessionChecked(true);
+        if (active) {
+          setQuotaChecked(true);
+          setSessionChecked(true);
+        }
       });
     return () => {
       active = false;
@@ -423,14 +469,19 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   }, [productId]);
 
   useEffect(() => {
-    if (!sessionChecked || !csrfToken || !storageScope || !modelImage || result || autoStarted.current) return;
+    if (!sessionChecked || !quotaChecked || !csrfToken || !storageScope || !modelImage || result || autoStarted.current) return;
+    if (quota?.remaining === 0) return;
     autoStarted.current = true;
     void generate(modelImage, csrfToken, storageScope);
   // generate is deliberately driven only by resolved session/model/product state.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionChecked, csrfToken, storageScope, modelImage, productId, result]);
+  }, [sessionChecked, quotaChecked, csrfToken, storageScope, modelImage, productId, result, quota?.remaining]);
 
   async function choosePhoto(file: File | undefined) {
+    if (quota?.remaining === 0) {
+      setError(messageFor("TRY_ON_MONTHLY_LIMIT_REACHED"));
+      return;
+    }
     if (!file || busy || !storageScope) return;
     setBusy("photo");
     setError("");
@@ -512,6 +563,11 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     return () => window.clearTimeout(timer);
   }, [previewExpiresAt, productId, result, saved, storageScope]);
 
+  const quotaExhausted = quota?.remaining === 0;
+  const quotaResetLabel = quota
+    ? new Intl.DateTimeFormat("el-GR", { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(quota.resetAt))
+    : "";
+
   if (!sessionChecked) {
     return <section className={styles.card} aria-label="Try On Me"><div className={styles.loading}>Try On Me…</div></section>;
   }
@@ -559,25 +615,28 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
         <span className={styles.spark}>✦</span>
       </div>
 
+      {quota ? (
+        <div className={quotaExhausted ? `${styles.quota} ${styles.quotaExhausted}` : styles.quota}>
+          <div className={styles.quotaTopline}>
+            <strong>{quota.remaining} από {quota.limit} διαθέσιμες αυτόν τον μήνα</strong>
+            <span>{quota.used}/{quota.limit} χρησιμοποιήθηκαν</span>
+          </div>
+          <progress className={styles.quotaProgress} value={quota.used} max={quota.limit} aria-label={`${quota.used} από ${quota.limit} Try On προεπισκοπήσεις χρησιμοποιήθηκαν`} />
+          <small>Κάθε νέα προεπισκόπηση μετράει ως 1 χρήση. Η αποθήκευση look δεν μετράει. Επαναφορά {quotaResetLabel}.</small>
+        </div>
+      ) : null}
+
       {!modelImage ? (
         <>
           <p>Βάλε μία καθαρή φωτογραφία σου. Το KONTA MOY την αποθηκεύει μόνο στη συσκευή σου· για τη δημιουργία της προεπισκόπησης αποστέλλεται προσωρινά στον πάροχο FASHN και δεν αποθηκεύεται ως φωτογραφία προφίλ. Σε αλλαγή λογαριασμού ή ληγμένη σύνδεση, τα τοπικά Try On δεδομένα του προηγούμενου λογαριασμού καθαρίζονται.</p>
-          <label className={styles.upload}>
-            <span>{busy === "photo" ? "Ετοιμασία φωτογραφίας…" : "Πρόσθεσε φωτογραφία σου"}</span>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              disabled={Boolean(busy)}
-              onChange={(event) => void choosePhoto(event.currentTarget.files?.[0])}
-            />
-          </label>
-        </>
-      ) : (
-        <>
-          <div className={styles.modelControls}>
-            <span>Η φωτογραφία σου είναι ενεργή για Try On Me.</span>
-            <label className={styles.textAction}>
-              Αλλαγή
+          {quotaExhausted ? (
+            <div className={styles.quotaReached} role="status">
+              <strong>Το μηνιαίο όριο ολοκληρώθηκε.</strong>
+              <span>Νέες προεπισκοπήσεις θα είναι διαθέσιμες ξανά {quotaResetLabel}.</span>
+            </div>
+          ) : (
+            <label className={styles.upload}>
+              <span>{busy === "photo" ? "Ετοιμασία φωτογραφίας…" : "Πρόσθεσε φωτογραφία σου"}</span>
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
@@ -585,6 +644,23 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
                 onChange={(event) => void choosePhoto(event.currentTarget.files?.[0])}
               />
             </label>
+          )}
+        </>
+      ) : (
+        <>
+          <div className={styles.modelControls}>
+            <span>Η φωτογραφία σου είναι ενεργή για Try On Me.</span>
+            {!quotaExhausted ? (
+              <label className={styles.textAction}>
+                Αλλαγή
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={Boolean(busy)}
+                  onChange={(event) => void choosePhoto(event.currentTarget.files?.[0])}
+                />
+              </label>
+            ) : null}
             <button className={styles.textAction} type="button" onClick={removePhoto} disabled={Boolean(busy)}>Αφαίρεση</button>
           </div>
 
@@ -600,7 +676,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
             <button
               className="button button-secondary"
               type="button"
-              disabled={Boolean(busy) || !storageScope}
+              disabled={Boolean(busy) || !storageScope || quotaExhausted}
               onClick={() => storageScope && void generate(modelImage, csrfToken, storageScope)}
             >
               Δοκίμασε ξανά
@@ -617,10 +693,10 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
                 <button
                   className="button button-secondary"
                   type="button"
-                  disabled={Boolean(busy)}
+                  disabled={Boolean(busy) || quotaExhausted}
                   onClick={() => storageScope && void generate(modelImage, csrfToken, storageScope)}
                 >
-                  Νέα προεπισκόπηση
+                  {quotaExhausted ? "Μηνιαίο όριο 50/50" : "Νέα προεπισκόπηση"}
                 </button>
               </div>
               <small className={styles.expiry}>Αν δεν το κρατήσεις, η προεπισκόπηση παραμένει προσωρινά για 5 λεπτά στη συνεδρία σου.</small>
