@@ -7,7 +7,10 @@ export function ResearchStudySamplingControls({
   slug,
   csrfToken,
   latestFrameStatus,
+  studyStatus,
   framePopulation,
+  phasePopulation,
+  pilotHoldoutUnits,
   latestFrameStrata,
   activeContacts,
   latestSampleStatus,
@@ -18,7 +21,10 @@ export function ResearchStudySamplingControls({
   slug: string;
   csrfToken: string;
   latestFrameStatus?: string;
+  studyStatus: string;
   framePopulation: number;
+  phasePopulation: number;
+  pilotHoldoutUnits: number;
   latestFrameStrata: number;
   activeContacts: number;
   latestSampleStatus?: string;
@@ -29,7 +35,8 @@ export function ResearchStudySamplingControls({
   const router = useRouter();
   const [busy, setBusy] = useState<"frame" | "sample" | null>(null);
   const [targetN, setTargetN] = useState("");
-  const [fieldworkPhase, setFieldworkPhase] = useState<"pilot" | "main">("main");
+  const fieldworkPhase: "pilot" | "main" = ["draft","pilot"].includes(studyStatus) ? "pilot" : "main";
+  const effectivePopulation = phasePopulation > 0 ? phasePopulation : framePopulation;
   const [targetCompletes, setTargetCompletes] = useState("500");
   const [expectedResponsePct, setExpectedResponsePct] = useState("15");
   const [randomSeed, setRandomSeed] = useState("");
@@ -39,16 +46,16 @@ export function ResearchStudySamplingControls({
   const sampleValid = Number.isSafeInteger(sampleN) && sampleN >= 100 && sampleN <= 100_000;
   const desiredCompletes = Number(targetCompletes);
   const responseRate = Number(expectedResponsePct) / 100;
-  const contactabilityRate = framePopulation > 0 ? Math.min(1, activeContacts / framePopulation) : 0;
+  const contactabilityRate = effectivePopulation > 0 ? Math.min(1, activeContacts / effectivePopulation) : 0;
   const rawSuggested = desiredCompletes > 0 && responseRate > 0 && contactabilityRate > 0
     ? Math.ceil(desiredCompletes / (responseRate * contactabilityRate))
     : 0;
   const suggestedSelected = rawSuggested > 0
-    ? Math.min(framePopulation, 100_000, Math.max(100, rawSuggested))
+    ? Math.min(effectivePopulation, 100_000, Math.max(100, rawSuggested))
     : 0;
   const expectedInvitable = Math.round(suggestedSelected * contactabilityRate);
   const expectedCompletesAtSuggestion = Math.round(expectedInvitable * responseRate);
-  const preferredVarianceFloor = Math.min(framePopulation, latestFrameStrata * 2);
+  const preferredVarianceFloor = Math.min(effectivePopulation, latestFrameStrata * 2);
 
   async function post(body: Record<string, unknown>) {
     const response = await fetch("/api/admin/research/surveys/" + encodeURIComponent(slug) + "/jobs", {
@@ -101,8 +108,11 @@ export function ResearchStudySamplingControls({
       <span>
         <strong>Population frame</strong><br />
         {latestFrameStatus
-          ? `Latest: ${latestFrameStatus} · ${framePopulation.toLocaleString("el-GR")} businesses`
+          ? `Latest: ${latestFrameStatus} · ${framePopulation.toLocaleString("el-GR")} frozen-frame businesses`
           : "Δεν έχει παγώσει ακόμη population frame."}
+        {fieldworkPhase === "main" && pilotHoldoutUnits > 0
+          ? ` · ${pilotHoldoutUnits.toLocaleString("el-GR")} pilot holdout → ${effectivePopulation.toLocaleString("el-GR")} main-eligible`
+          : ""}
       </span>
       <button
         className="button button-secondary"
@@ -116,10 +126,10 @@ export function ResearchStudySamplingControls({
       <div style={{ width: "100%", display: "grid", gap: 10 }}>
         <span>
           <strong>Fieldwork feasibility & sample planner</strong><br />
-          Latest frame contactability: {framePopulation > 0
+          {fieldworkPhase === "pilot" ? "Pilot" : "Main"} contactability: {effectivePopulation > 0
             ? new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 2 }).format(contactabilityRate)
             : "—"}
-          {" · "}{activeContacts.toLocaleString("el-GR")} active email contacts / {framePopulation.toLocaleString("el-GR")} frame units
+          {" · "}{activeContacts.toLocaleString("el-GR")} active email contacts / {effectivePopulation.toLocaleString("el-GR")} eligible units
           {" · "}{latestFrameStrata.toLocaleString("el-GR")} sampling strata.
         </span>
         <div className="workspace-action-buttons">
@@ -174,14 +184,7 @@ export function ResearchStudySamplingControls({
           : "Set the number of selected businesses. This is not the target number of completed questionnaires."}
       </span>
       <div className="workspace-action-buttons">
-        <select
-          aria-label="Fieldwork phase"
-          onChange={(event) => setFieldworkPhase(event.target.value === "pilot" ? "pilot" : "main")}
-          value={fieldworkPhase}
-        >
-          <option value="pilot">Pilot holdout</option>
-          <option value="main">Main fieldwork</option>
-        </select>
+        <strong>{fieldworkPhase === "pilot" ? "Pilot holdout" : "Main fieldwork"}</strong>
         <input
           aria-label="Selected businesses"
           inputMode="numeric"
@@ -201,7 +204,7 @@ export function ResearchStudySamplingControls({
         />
         <button
           className="button"
-          disabled={Boolean(busy) || workerBusy || latestFrameStatus !== "frozen" || !sampleValid}
+          disabled={Boolean(busy) || workerBusy || latestFrameStatus !== "frozen" || !sampleValid || (fieldworkPhase === "main" && studyStatus !== "fielding")}
           onClick={() => void drawSample()}
           type="button"
         >{busy === "sample" ? "Queueing…" : "Draw reproducible sample"}</button>
