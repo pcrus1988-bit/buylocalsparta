@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  benjaminiHochbergAdjustedPValues,
   normal95ConfidenceInterval,
   normalTwoSidedPValue,
   proportionalStratumAllocation,
@@ -120,4 +121,18 @@ test("two-sided normal p-value is approximately five percent at the 95% critical
   const p = normalTwoSidedPValue(1.959963984540054);
   assert.ok(p !== undefined);
   assert.ok(Math.abs(p - 0.05) < 0.001);
+});
+
+
+test("Benjamini-Hochberg adjustment is monotone in sorted p-value order", () => {
+  const adjusted = benjaminiHochbergAdjustedPValues([0.01, 0.04, 0.03, 0.002]);
+  assert.equal(adjusted.length, 4);
+  assert.ok(Math.abs(adjusted[0]! - 0.02) < 1e-12);
+  assert.ok(Math.abs(adjusted[1]! - 0.04) < 1e-12);
+  assert.ok(Math.abs(adjusted[2]! - 0.04) < 1e-12);
+  assert.ok(Math.abs(adjusted[3]! - 0.008) < 1e-12);
+});
+
+test("Benjamini-Hochberg adjustment clamps invalid probability inputs", () => {
+  assert.deepEqual(benjaminiHochbergAdjustedPValues([-1, 2]), [0, 1]);
 });
