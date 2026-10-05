@@ -707,12 +707,12 @@ SECURITY INVOKER
 SET search_path = public, pg_temp
 AS $research$
 DECLARE frozen boolean;
-DECLARE weight_version text;
+DECLARE target_version text;
 BEGIN
-  weight_version := COALESCE(NEW.version, OLD.version);
+  target_version := COALESCE(NEW.version, OLD.version);
   SELECT EXISTS(
-    SELECT 1 FROM public.research_analysis_runs
-    WHERE weight_version=weight_version AND status='succeeded'
+    SELECT 1 FROM public.research_analysis_runs ar
+    WHERE ar.weight_version=target_version AND ar.status='succeeded'
   ) INTO frozen;
   IF frozen THEN
     RAISE EXCEPTION 'research weights are immutable after analysis succeeds';
