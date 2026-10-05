@@ -1,5 +1,6 @@
 import { accountHomeDashboard } from "../../../../lib/account-home-view";
 import { requireAccountSession } from "../../../../lib/account-session";
+import { customerTryOnGenerationConfigured } from "../../../../lib/try-on-runtime";
 import { customerTryOnBrowserStorageScope } from "../../../../lib/try-on-security";
 
 export async function GET() {
@@ -8,7 +9,8 @@ export async function GET() {
     const dashboard = await accountHomeDashboard(principal);
     return Response.json({
       ...dashboard,
-      tryOnStorageScope: customerTryOnBrowserStorageScope(principal.userId)
+      tryOnStorageScope: customerTryOnBrowserStorageScope(principal.userId),
+      tryOnAvailable: customerTryOnGenerationConfigured()
     }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return Response.json({ authenticated: false }, { status: 401, headers: { "Cache-Control": "no-store" } });
