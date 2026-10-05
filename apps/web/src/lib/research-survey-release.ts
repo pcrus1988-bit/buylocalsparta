@@ -155,7 +155,7 @@ export async function buildGreekRetailRelease(
   const studyResult = await pool.query<SqlRow>(`
     SELECT
       s.id,s.slug,s.title,s.subtitle,s.sponsor,s.population_definition,s.methodology_summary,
-      s.status,s.default_locale,s.fieldwork_starts_at,s.fieldwork_ends_at,
+      s.status,s.default_locale,s.pilot_started_at,s.pilot_ended_at,s.fieldwork_starts_at,s.fieldwork_ends_at,
       i.id AS instrument_id,i.version AS instrument_version,i.content_sha256 AS instrument_sha256,
       i.consent_statement_version,
       ar.code_version,ar.weight_version,ar.parameters,ar.dataset_sha256,ar.completed_at AS analysis_completed_at,
@@ -190,7 +190,10 @@ export async function buildGreekRetailRelease(
       SELECT DISTINCT ON (qr.response_id) qr.response_id,qr.decision
       FROM research_response_quality_reviews qr
       JOIN research_responses rr ON rr.id=qr.response_id
-      WHERE rr.study_id=$1 AND rr.status='completed'
+      JOIN research_invites ri ON ri.id=rr.invite_id
+      WHERE rr.study_id=$1
+        AND rr.status='completed'
+        AND ri.fieldwork_phase='main'
       ORDER BY qr.response_id,qr.created_at DESC,qr.id DESC
     )
     SELECT
@@ -209,7 +212,9 @@ export async function buildGreekRetailRelease(
     const draw = await pool.query<SqlRow>(`
       SELECT id,frame_snapshot_id
       FROM research_sample_draws
-      WHERE study_id=$1 AND status IN ('locked','fielded')
+      WHERE study_id=$1
+        AND fieldwork_phase='main'
+        AND status IN ('locked','fielded')
       ORDER BY drawn_at DESC NULLS LAST,created_at DESC
       LIMIT 1
     `, [studyId]);
@@ -221,7 +226,7 @@ export async function buildGreekRetailRelease(
   const designResult = await pool.query<SqlRow>(`
     SELECT
       d.id AS sample_draw_id,d.label AS sample_label,d.algorithm_version,d.random_seed,d.target_n,
-      d.status AS sample_status,d.drawn_at,
+      d.status AS sample_status,d.fieldwork_phase,d.drawn_at,
       f.id AS frame_snapshot_id,f.label AS frame_label,f.source_kind,f.source_reference,
       f.population_size,f.selection_criteria,f.content_sha256 AS frame_sha256,f.captured_at,f.frozen_at
     FROM research_sample_draws d
@@ -231,21 +236,43 @@ export async function buildGreekRetailRelease(
   `, [sampleDrawId, studyId]);
   const design = designResult.rows[0];
   if (!design) throw new Error("RESEARCH_RELEASE_DESIGN_MISSING");
+  if (text(design.fieldwork_phase) !== "main") throw new Error("RESEARCH_RELEASE_REQUIRES_MAIN_FIELDWORK_SAMPLE");
   frameSnapshotId = frameSnapshotId || text(design.frame_snapshot_id);
 
   const fieldworkCounts = await pool.query<SqlRow>(`
+    WITH main_invites AS (
+      SELECT ri.id
+      FROM research_invites ri
+      JOIN research_sample_units su ON su.id=ri.sample_unit_id
+      WHERE ri.study_id=$1
+        AND ri.fieldwork_phase='main'
+        AND su.sample_draw_id=$2
+    )
     SELECT
       (SELECT count(*)::int FROM research_sample_units WHERE sample_draw_id=$2) AS selected,
-      (SELECT count(*)::int FROM research_invites WHERE study_id=$1 AND sent_at IS NOT NULL) AS sent,
-      (SELECT count(DISTINCT invite_id)::int FROM research_invite_events ie
-       JOIN research_invites ri ON ri.id=ie.invite_id
-       WHERE ri.study_id=$1 AND ie.event_type='delivered') AS delivered,
-      (SELECT count(DISTINCT invite_id)::int FROM research_invite_events ie
-       JOIN research_invites ri ON ri.id=ie.invite_id
-       WHERE ri.study_id=$1 AND ie.event_type='opened') AS opened,
-      (SELECT count(*)::int FROM research_responses WHERE study_id=$1) AS started,
-      (SELECT count(*)::int FROM research_responses WHERE study_id=$1 AND status='completed') AS completed,
-      (SELECT count(*)::int FROM research_responses WHERE study_id=$1 AND status='withdrawn') AS withdrawn,
+      (SELECT count(*)::int
+       FROM research_invites ri
+       JOIN main_invites mi ON mi.id=ri.id
+       WHERE ri.sent_at IS NOT NULL) AS sent,
+      (SELECT count(DISTINCT ie.invite_id)::int
+       FROM research_invite_events ie
+       JOIN main_invites mi ON mi.id=ie.invite_id
+       WHERE ie.event_type='delivered') AS delivered,
+      (SELECT count(DISTINCT ie.invite_id)::int
+       FROM research_invite_events ie
+       JOIN main_invites mi ON mi.id=ie.invite_id
+       WHERE ie.event_type='opened') AS opened,
+      (SELECT count(*)::int
+       FROM research_responses rr
+       JOIN main_invites mi ON mi.id=rr.invite_id) AS started,
+      (SELECT count(*)::int
+       FROM research_responses rr
+       JOIN main_invites mi ON mi.id=rr.invite_id
+       WHERE rr.status='completed') AS completed,
+      (SELECT count(*)::int
+       FROM research_responses rr
+       JOIN main_invites mi ON mi.id=rr.invite_id
+       WHERE rr.status='withdrawn') AS withdrawn,
       (SELECT count(*)::int FROM research_weights w
        JOIN research_responses rr ON rr.id=w.response_id
        JOIN research_analysis_runs ar ON ar.weight_version=w.version
@@ -269,6 +296,7 @@ export async function buildGreekRetailRelease(
       FROM research_invites ri
       JOIN sample su ON su.id=ri.sample_unit_id
       WHERE ri.study_id=$3
+        AND ri.fieldwork_phase='main'
     ),
     invite_counts AS (
       SELECT
@@ -360,6 +388,7 @@ export async function buildGreekRetailRelease(
       JOIN research_invites ri ON ri.id=m.invite_id
       JOIN research_sample_units su ON su.id=ri.sample_unit_id
       WHERE ri.study_id=$1
+        AND ri.fieldwork_phase='main'
         AND su.sample_draw_id=$2
         AND m.status <> 'cancelled'
     )
@@ -384,6 +413,7 @@ export async function buildGreekRetailRelease(
     JOIN research_invites ri ON ri.id=m.invite_id
     JOIN research_sample_units su ON su.id=ri.sample_unit_id
     WHERE ri.study_id=$1
+      AND ri.fieldwork_phase='main'
       AND su.sample_draw_id=$2
     GROUP BY m.attempt_kind,m.status
     ORDER BY m.attempt_kind,m.status
@@ -411,6 +441,33 @@ export async function buildGreekRetailRelease(
     eligibility: text(row.eligibility),
     count: numberValue(row.count)
   }));
+  const pilotSummaryResult = await pool.query<SqlRow>(`
+    WITH pilot_invites AS (
+      SELECT ri.id,psu.frame_unit_id
+      FROM research_invites ri
+      JOIN research_sample_units psu ON psu.id=ri.sample_unit_id
+      WHERE ri.study_id=$1
+        AND ri.fieldwork_phase='pilot'
+        AND ri.status <> 'expired'
+    )
+    SELECT
+      (SELECT count(DISTINCT frame_unit_id)::int FROM pilot_invites) AS exposed_units,
+      (SELECT count(*)::int
+       FROM research_invites
+       WHERE study_id=$1 AND fieldwork_phase='pilot' AND sent_at IS NOT NULL) AS sent,
+      (SELECT count(*)::int
+       FROM research_responses rr
+       JOIN research_invites ri ON ri.id=rr.invite_id
+       WHERE rr.study_id=$1 AND ri.fieldwork_phase='pilot') AS started,
+      (SELECT count(*)::int
+       FROM research_responses rr
+       JOIN research_invites ri ON ri.id=rr.invite_id
+       WHERE rr.study_id=$1
+         AND ri.fieldwork_phase='pilot'
+         AND rr.status='completed') AS completed
+  `, [studyId]);
+  const pilotSummary = pilotSummaryResult.rows[0] ?? {};
+
   const fieldworkOutcome = researchFieldworkOutcomeSummary(
     numberValue(counts.selected),
     latestDispositionCounts
@@ -518,9 +575,25 @@ export async function buildGreekRetailRelease(
       randomSeed: text(design.random_seed),
       targetN: numberValue(design.target_n),
       status: text(design.sample_status),
+      fieldworkPhase: text(design.fieldwork_phase),
+      pilotHoldoutExcludedUnits: numberValue(pilotSummary.exposed_units),
+      effectivePopulationAfterPilotHoldout: Math.max(
+        0,
+        numberValue(design.population_size) - numberValue(pilotSummary.exposed_units)
+      ),
       drawnAt: design.drawn_at ?? null
     },
+    pilot: {
+      startsAt: study.pilot_started_at ?? null,
+      endsAt: study.pilot_ended_at ?? null,
+      exposedUnitsExcludedFromMainDraw: numberValue(pilotSummary.exposed_units),
+      sent: numberValue(pilotSummary.sent),
+      started: numberValue(pilotSummary.started),
+      completed: numberValue(pilotSummary.completed),
+      inclusionRule: "Pilot-exposed businesses are a holdout: their pilot interviews are never included in the main analysis and their frame units are excluded from the main probability draw."
+    },
     fieldwork: {
+      phase: "main",
       startsAt: study.fieldwork_starts_at ?? null,
       activeEmailFrameUnits: strata.rows.reduce((sum, row) => sum + numberValue(row.active_email_units), 0),
       emailContactabilityRate: numberValue(design.population_size) > 0
@@ -566,6 +639,7 @@ export async function buildGreekRetailRelease(
     },
     limitations: [
       "The sampling frame depends on the frozen G.E.MI. source snapshot and the contact points available for that frame.",
+      "Pilot participants form an explicit holdout. Pilot responses are excluded from analysis and businesses exposed during the pilot are excluded from the main fieldwork draw; the resulting main effective population is disclosed separately from the frozen frame population.",
       "Email contactability is reported for the frozen frame and by sampling stratum. Email-only fieldwork can still be biased if availability of a usable public email is related to survey outcomes after conditioning on the weighting strata.",
       "Non-response adjustment is performed within the governed sampling strata.",
       "Reminder and reissue emails are counted as contact attempts only; they reuse the canonical invite identity and therefore do not inflate sent-invitation or response-rate denominators.",
