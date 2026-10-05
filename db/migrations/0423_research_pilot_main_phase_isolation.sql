@@ -39,7 +39,7 @@ ALTER TABLE public.research_invites
   ADD CONSTRAINT research_invites_batch_phase_fk
   FOREIGN KEY (batch_id, fieldwork_phase)
   REFERENCES public.research_invite_batches(id, fieldwork_phase)
-  ON DELETE SET NULL;
+  ON DELETE RESTRICT;
 
 CREATE INDEX research_sample_draws_study_phase_status_idx
   ON public.research_sample_draws(study_id, fieldwork_phase, status, created_at DESC);
