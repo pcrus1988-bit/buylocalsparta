@@ -922,6 +922,8 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       latest_i.version AS instrument_version, latest_i.status AS instrument_status,
       latest_rt.version AS recruitment_template_version,
       latest_rt.subject AS recruitment_template_subject,
+      latest_rrt.version AS reminder_template_version,
+      latest_rrt.subject AS reminder_template_subject,
       COALESCE(f.frames, 0)::int AS frame_count,
       COALESCE(lf.population_size, 0)::int AS frame_population,
       COALESCE(lf.strata_count, 0)::int AS latest_frame_strata,
@@ -939,6 +941,8 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       COALESCE(i.sent, 0)::int AS sent,
       COALESCE(i.delivered, 0)::int AS delivered,
       COALESCE(i.opened, 0)::int AS opened,
+      COALESCE(im.reminder_sent, 0)::int AS reminder_sent,
+      COALESCE(im.reminder_failed, 0)::int AS reminder_failed,
       COALESCE(r.started, 0)::int AS started,
       COALESCE(r.completed, 0)::int AS completed,
       COALESCE(r.withdrawn, 0)::int AS withdrawn,
@@ -965,10 +969,23 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
     LEFT JOIN LATERAL (
       SELECT version, subject
       FROM research_recruitment_templates
-      WHERE study_id = s.id AND channel='email' AND status='locked'
+      WHERE study_id = s.id
+        AND channel='email'
+        AND status='locked'
+        AND purpose='research_invitation'
       ORDER BY locked_at DESC NULLS LAST, created_at DESC
       LIMIT 1
     ) latest_rt ON true
+    LEFT JOIN LATERAL (
+      SELECT version, subject
+      FROM research_recruitment_templates
+      WHERE study_id = s.id
+        AND channel='email'
+        AND status='locked'
+        AND purpose='research_reminder'
+      ORDER BY locked_at DESC NULLS LAST, created_at DESC
+      LIMIT 1
+    ) latest_rrt ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS frames
       FROM research_frame_snapshots WHERE study_id = s.id
@@ -1044,6 +1061,20 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       FROM research_invites
       WHERE study_id = s.id
     ) i ON true
+    LEFT JOIN LATERAL (
+      SELECT
+        count(*) FILTER (
+          WHERE m.attempt_kind='reminder'
+            AND m.status IN ('sent','delivered','opened')
+        ) AS reminder_sent,
+        count(*) FILTER (
+          WHERE m.attempt_kind='reminder'
+            AND m.status='failed'
+        ) AS reminder_failed
+      FROM research_invite_messages m
+      JOIN research_invites ri ON ri.id=m.invite_id
+      WHERE ri.study_id=s.id
+    ) im ON true
     LEFT JOIN LATERAL (
       SELECT
         count(*) AS started,
@@ -1126,6 +1157,8 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       instrumentStatus: optionalText(row.instrument_status),
       recruitmentTemplateVersion: optionalText(row.recruitment_template_version),
       recruitmentTemplateSubject: optionalText(row.recruitment_template_subject),
+      reminderTemplateVersion: optionalText(row.reminder_template_version),
+      reminderTemplateSubject: optionalText(row.reminder_template_subject),
       frameCount: numberValue(row.frame_count),
       framePopulation: numberValue(row.frame_population),
       latestFrameStrata: numberValue(row.latest_frame_strata),
@@ -1143,6 +1176,8 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       sent: numberValue(row.sent),
       delivered: numberValue(row.delivered),
       opened: numberValue(row.opened),
+      reminderSent: numberValue(row.reminder_sent),
+      reminderFailed: numberValue(row.reminder_failed),
       started: numberValue(row.started),
       completed: numberValue(row.completed),
       withdrawn: numberValue(row.withdrawn),
