@@ -264,6 +264,22 @@ export async function runGreekRetailAnalysis(
   );
   if (!primaryMetricKeys.size) throw new Error("RESEARCH_ANALYSIS_PLAN_PRIMARY_OUTCOMES_MISSING");
 
+  const planDisclosure = objectValue(analysisPlanJson.disclosure);
+  const planVariance = objectValue(analysisPlanJson.variance);
+  const planWeighting = objectValue(analysisPlanJson.weighting);
+  const planMinimumBase = numberValue(planDisclosure.minimumUnweightedBase);
+  const planConfidenceLevel = numberValue(planVariance.confidenceLevel);
+  const planVarianceMethod = text(planVariance.method);
+  const planNonresponseAdjustment = text(planWeighting.nonresponseAdjustment);
+  if (
+    planMinimumBase !== MIN_PUBLIC_BASE ||
+    planConfidenceLevel !== 0.95 ||
+    planVarianceMethod !== VARIANCE_METHOD ||
+    planNonresponseAdjustment !== "within_sampling_stratum"
+  ) {
+    throw new Error("RESEARCH_ANALYSIS_PLAN_CODE_MISMATCH");
+  }
+
   const drawResult = await pool.query<SqlRow>(`
     SELECT id, frame_snapshot_id
     FROM research_sample_draws
