@@ -528,7 +528,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         : undefined);
   const hasProductImage = Boolean(primaryImage || supplierImageSrc);
   const cartImageUrl = primaryImage ? `/api/media/${encodeURIComponent(primaryImage.mediaId)}` : supplierImageSrc;
-  const tryOnEligible = isTryOnGarmentCandidate(product);
+  const tryOnEligible = Boolean(process.env.FASHN_API_KEY?.trim()) && isTryOnGarmentCandidate(product);
   const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
   const suitability = await getPublicProductSuitability(product.id, technicalAttributes);
   const storefrontTechnicalAttributes = publicFields?.technicalAttributes === false
