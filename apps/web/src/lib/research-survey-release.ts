@@ -119,6 +119,33 @@ export async function buildGreekRetailRelease(
   const analysisRunId = text(input.analysisRunId);
   if (!analysisRunId) throw new Error("RESEARCH_RELEASE_ANALYSIS_RUN_REQUIRED");
 
+  const existing = await pool.query<SqlRow>(`
+    SELECT id,analysis_run_id,dataset_sha256,artifact_sha256,public_url
+    FROM research_release_snapshots
+    WHERE study_id=$1 AND release_version=$2
+    LIMIT 1
+  `, [studyId, version]);
+  if (existing.rows[0]) {
+    const row = existing.rows[0];
+    if (text(row.analysis_run_id) !== analysisRunId) throw new Error("RESEARCH_RELEASE_VERSION_EXISTS");
+    const estimates = await pool.query<SqlRow>(`
+      SELECT count(*)::int AS count
+      FROM research_analysis_estimates
+      WHERE analysis_run_id=$1
+    `, [analysisRunId]);
+    return {
+      releaseId: text(row.id),
+      releaseVersion: version,
+      analysisRunId,
+      datasetSha256: text(row.dataset_sha256),
+      artifactSha256: text(row.artifact_sha256),
+      publicUrl: text(row.public_url) || PUBLIC_RESULTS_PATH,
+      estimateCount: numberValue(estimates.rows[0]?.count),
+      jobId,
+      idempotentReplay: true
+    };
+  }
+
   const studyResult = await pool.query<SqlRow>(`
     SELECT
       s.id,s.slug,s.title,s.subtitle,s.sponsor,s.population_definition,s.methodology_summary,
