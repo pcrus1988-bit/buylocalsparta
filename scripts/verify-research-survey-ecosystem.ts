@@ -106,7 +106,7 @@ if (!surveyRuntime.includes("research_response_quality_reviews")) errors.push("s
 if (!surveyRuntime.includes("research_reward_entitlements")) errors.push("reward entitlement separation missing");
 if (!surveyRuntime.includes("research_sample_disposition_events")) errors.push("fieldwork disposition events missing");
 if (!jobs.includes("gemiResearchFrameRecords")) errors.push("GEMI frame worker bridge missing");
-if (!jobs.includes("stratified-hash-rank-v1")) errors.push("reproducible sample algorithm missing");
+if (!jobs.includes("stratified-hash-rank-v2")) errors.push("minimum-aware reproducible sample algorithm missing");
 if (!jobs.includes("processInviteBatchJob")) errors.push("worker-managed invitation delivery missing");
 if (!jobs.includes("runGreekRetailAnalysis(job.study_id, job.id)")) errors.push("analysis job bridge missing");
 if (!jobs.includes('job.job_type === "release"')) errors.push("release job bridge missing");
@@ -127,6 +127,7 @@ if (!quality.includes("FOR UPDATE OF rr")) errors.push("manual research QA resol
 if (!qualityControls.includes('void resolve(item, "include")')) errors.push("research QA include control missing");
 if (!qualityControls.includes('void resolve(item, "exclude")')) errors.push("research QA exclude control missing");
 if (!fieldworkControls.includes("pendingQualityReviews > 0")) errors.push("analysis UI is not gated on pending research QA");
+if (!statistics.includes("proportionalStratumAllocation")) errors.push("minimum-aware sample allocation helper missing");
 if (!statistics.includes("stratifiedSrsMeanVariance")) errors.push("design-aware variance helper missing");
 if (!statistics.includes("unequal_within_stratum_weights")) errors.push("variance guard for unequal stratum weights missing");
 if (!analysis.includes('VARIANCE_METHOD = "stratified_srs_fpc_v1"')) errors.push("analysis variance method is not versioned");
@@ -139,6 +140,7 @@ if (!gemi.includes("export async function* gemiResearchFrameRecords")) errors.pu
 if (!release.includes("artifactSha256 = sha256Canonical(artifact)")) errors.push("canonical public release artifact hash missing");
 if (!release.includes("RESEARCH_RELEASE_REQUIRES_QA_RESOLUTION")) errors.push("release QA gate missing");
 if (!release.includes("confidenceIntervalsPublished")) errors.push("release disclosure contract missing");
+if (!release.includes("emailContactabilityRate")) errors.push("release does not freeze frame contactability");
 if (!release.includes("idempotentReplay")) errors.push("release idempotence contract missing");
 if (!surveyRuntime.includes('"publish_release"')) errors.push("explicit publish lifecycle action missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
