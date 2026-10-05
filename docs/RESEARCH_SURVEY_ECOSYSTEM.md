@@ -105,6 +105,22 @@ Q07 values are normalized with `(answer - 1) / 4 * 100`. `Not applicable` is exc
 
 Weight versions are not overwritten. A new weighting methodology creates a new version.
 
+### Variance and confidence intervals
+
+Analysis version `greek-retail-2026-analysis-v2` uses `stratified_srs_fpc_v1` for design-aware variance when the estimate is a whole-study, region or sector estimate that can be expressed as a union of the actual sampling strata. The estimator applies the finite-population correction within each contributing stratum and publishes a 95% normal confidence interval.
+
+The engine deliberately withholds an interval when any of the following is true:
+- a contributing stratum has fewer than two analyzed responses;
+- the metric has item non-response inside a contributing stratum;
+- later calibration has produced unequal final weights inside a stratum, which would invalidate this simple SRS-within-stratum formula;
+- the requested segment is a post-hoc domain such as business-size band rather than a union of sampling strata.
+
+This is a conservative disclosure rule: absence of an interval means the implemented design-based estimator does not justify one, not that uncertainty is zero.
+
+### Quality review
+
+Automated completion checks can append a `review` decision without modifying the completed response. Analysis and release are blocked while any latest QA decision remains `review`. A `research.manage` administrator resolves the flag through the research admin surface by appending a new `include` or `exclude` decision; historical QA evidence is never overwritten. The review queue exposes only response ID, region/sector, duration, reason flags and derived scores—not contact values or raw answer payloads.
+
 ### Analysis and publication
 
 - `research_analysis_runs` records code version, instrument version, weight version, parameters and dataset hash.
