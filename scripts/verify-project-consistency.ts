@@ -382,6 +382,9 @@ for (const file of walk(join(root, "apps/web/src")).filter((path) => path.endsWi
     const href = match[1];
     if (!href.startsWith("/") || href.includes("${")) continue;
     const pathname = href.split(/[?#]/)[0] || "/";
+    // API hrefs resolve through app-router route.ts handlers, including dynamic segments.
+    // This static check validates navigational page routes only; API contracts have dedicated verifiers.
+    if (pathname.startsWith("/api/")) continue;
     if (!routes.has(pathname)) errors.push(`Broken static Next.js link ${href} in ${relative(root, file)} (no ${pathname} page)`);
   }
 }
