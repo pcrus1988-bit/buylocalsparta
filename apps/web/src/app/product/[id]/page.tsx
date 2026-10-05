@@ -692,7 +692,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           {tryOnEligible ? (
             <a
               className="button"
-              href={`#try-on-${product.id}`}
+              href={`#try-on-card-${product.id}`}
               style={{
                 width: "100%",
                 minHeight: 54,
