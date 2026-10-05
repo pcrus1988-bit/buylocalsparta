@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { ResearchStudyFieldworkControls } from "../../../../components/ResearchStudyFieldworkControls";
+import { ResearchStudyFieldworkBalance } from "../../../../components/ResearchStudyFieldworkBalance";
 import { ResearchStudyLifecycleControls } from "../../../../components/ResearchStudyLifecycleControls";
 import { ResearchStudyQualityControls } from "../../../../components/ResearchStudyQualityControls";
 import { ResearchStudySamplingControls } from "../../../../components/ResearchStudySamplingControls";
@@ -10,7 +11,7 @@ import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, Wor
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { researchQualityReviewQueue } from "../../../../lib/research-survey-quality";
-import { researchSurveyAdminOverview } from "../../../../lib/research-survey-runtime";
+import { researchFieldworkStrata, researchSurveyAdminOverview } from "../../../../lib/research-survey-runtime";
 
 export const metadata: Metadata = {
   title: "Admin · Research Studies",
@@ -34,6 +35,12 @@ export default async function ResearchSurveysAdminPage() {
     await Promise.all(overview.studies.map(async (study) => [
       study.slug,
       await researchQualityReviewQueue(principal, study.slug)
+    ] as const))
+  );
+  const fieldworkStrata = new Map(
+    await Promise.all(overview.studies.map(async (study) => [
+      study.slug,
+      await researchFieldworkStrata(principal, study.slug)
     ] as const))
   );
 
@@ -105,6 +112,8 @@ export default async function ResearchSurveysAdminPage() {
               queuedJobs={study.queuedJobs}
               runningJobs={study.runningJobs}
             />}
+
+            <ResearchStudyFieldworkBalance strata={fieldworkStrata.get(study.slug) ?? []} />
 
             {hasAdminPermission(principal, "research.manage") && <ResearchStudyQualityControls
               slug={study.slug}
