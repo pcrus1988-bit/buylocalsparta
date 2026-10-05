@@ -292,7 +292,7 @@ export async function buildGreekRetailRelease(
       GROUP BY stratum_id
     ),
     invite_base AS (
-      SELECT ri.id AS invite_id,su.stratum_id,ri.status
+      SELECT ri.id AS invite_id,su.stratum_id,ri.status,ri.sent_at
       FROM research_invites ri
       JOIN sample su ON su.id=ri.sample_unit_id
       WHERE ri.study_id=$3
@@ -301,7 +301,7 @@ export async function buildGreekRetailRelease(
     invite_counts AS (
       SELECT
         stratum_id,
-        count(*) FILTER (WHERE status IN ('sent','opened','started','completed'))::int AS sent
+        count(*) FILTER (WHERE sent_at IS NOT NULL)::int AS sent
       FROM invite_base
       GROUP BY stratum_id
     ),
