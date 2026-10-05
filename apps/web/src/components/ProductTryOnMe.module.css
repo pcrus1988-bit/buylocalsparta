@@ -39,6 +39,78 @@
   font-size: 20px;
 }
 
+
+.quota {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--white) 82%, var(--cream, #f5f1e8));
+}
+
+.quotaTopline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quotaTopline strong {
+  font-size: 13px;
+}
+
+.quotaTopline span,
+.quota small {
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.quotaProgress {
+  width: 100%;
+  height: 7px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  appearance: none;
+}
+
+.quotaProgress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.quotaProgress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--ink);
+}
+
+.quotaProgress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--ink);
+}
+
+.quotaExhausted {
+  border-style: dashed;
+}
+
+.quotaReached {
+  display: grid;
+  gap: 3px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px dashed var(--line);
+  border-radius: 15px;
+}
+
+.quotaReached span {
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .card > p {
   margin: 12px 0;
   line-height: 1.55;
@@ -165,6 +237,7 @@
 
 @media (max-width: 620px) {
   .card { padding: 15px; border-radius: 18px; }
+  .quotaTopline { align-items: flex-start; flex-direction: column; gap: 3px; }
   .previewActions > * { flex: 1 1 100%; }
 }
 
