@@ -957,6 +957,11 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       ls.status AS latest_sample_status,
       ls.fieldwork_phase AS latest_sample_phase,
       ls.target_n AS latest_sample_target,
+      ls.sample_design_sha256 AS latest_sample_design_sha256,
+      ls.desired_complete_n AS latest_sample_desired_completes,
+      ls.expected_response_rate AS latest_sample_expected_response_rate,
+      ls.contactability_rate AS latest_sample_contactability_rate,
+      ls.expected_complete_n AS latest_sample_expected_completes,
       COALESCE(cp.active_contacts, 0)::int AS active_contacts,
       COALESCE(cp.suppressed_contacts, 0)::int AS suppressed_contacts,
       COALESCE(cp.bounced_contacts, 0)::int AS bounced_contacts,
@@ -1059,8 +1064,14 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
         d.status,
         d.fieldwork_phase,
         d.target_n,
+        rsd.content_sha256 AS sample_design_sha256,
+        rsd.desired_complete_n,
+        rsd.expected_response_rate,
+        rsd.contactability_rate,
+        rsd.expected_complete_n,
         (SELECT count(*)::int FROM research_sample_units u WHERE u.sample_draw_id=d.id) AS sample_units
       FROM research_sample_draws d
+      LEFT JOIN research_sample_designs rsd ON rsd.sample_draw_id=d.id
       WHERE d.study_id = s.id
         AND d.fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
       ORDER BY d.created_at DESC
@@ -1250,6 +1261,11 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       latestSampleStatus: optionalText(row.latest_sample_status),
       latestSamplePhase: optionalText(row.latest_sample_phase),
       latestSampleTarget: numberValue(row.latest_sample_target),
+      latestSampleDesignSha256: optionalText(row.latest_sample_design_sha256),
+      latestSampleDesiredCompletes: numberValue(row.latest_sample_desired_completes),
+      latestSampleExpectedResponseRate: numberValue(row.latest_sample_expected_response_rate),
+      latestSampleContactabilityRate: numberValue(row.latest_sample_contactability_rate),
+      latestSampleExpectedCompletes: numberValue(row.latest_sample_expected_completes),
       activeContacts: numberValue(row.active_contacts),
       suppressedContacts: numberValue(row.suppressed_contacts),
       bouncedContacts: numberValue(row.bounced_contacts),
