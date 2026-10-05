@@ -221,6 +221,7 @@ export function ResearchSurveyForm({ slug, token, initial }: {
   const [sectionIndex, setSectionIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [preferenceMessage, setPreferenceMessage] = useState("");
 
   const questionSections = useMemo(() => {
     const codes = ["A", "B", "C", "D", "E", "F"];
@@ -292,6 +293,22 @@ export function ResearchSurveyForm({ slug, token, initial }: {
     }
   }
 
+  async function saveConsentPreferences() {
+    setPreferenceMessage("");
+    try {
+      const result = await save({
+        action: "preferences",
+        optionalConsents
+      });
+      if (result.consents && typeof result.consents === "object" && !Array.isArray(result.consents)) {
+        setOptionalConsents((state) => ({ ...state, ...result.consents as Partial<ConsentState> }));
+      }
+      setPreferenceMessage("Οι επιλογές επικοινωνίας ενημερώθηκαν.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Δεν ήταν δυνατή η ενημέρωση των επιλογών.");
+    }
+  }
+
   async function declineParticipation() {
     try {
       const result = await save({
@@ -322,6 +339,24 @@ export function ResearchSurveyForm({ slug, token, initial }: {
       <span className={styles.kicker}>Η απάντηση καταχωρήθηκε</span>
       <h2>Ευχαριστούμε για τη συμμετοχή σας.</h2>
       <p>Η απάντησή σας έχει κλειδωθεί ως ολοκληρωμένη και θα χρησιμοποιηθεί μόνο στο πλαίσιο της μελέτης και των επιλογών συγκατάθεσης που δώσατε.</p>
+
+      <h3>Επιλογές επικοινωνίας</h3>
+      <p>Ο προσωπικός σύνδεσμος παραμένει διαθέσιμος για να αλλάξετε αυτές τις επιλογές χωρίς να ανοίξει ξανά ή να αλλάξει η απάντησή σας.</p>
+      <div className={styles.optionalConsents}>
+        <label><input type="checkbox" checked={optionalConsents.results_notification} onChange={(event) => setOptionalConsents((state) => ({ ...state, results_notification: event.target.checked }))} /><span>Θέλω να ενημερωθώ όταν δημοσιευθούν τα αποτελέσματα.</span></label>
+        <label><input type="checkbox" checked={optionalConsents.thank_you_code} onChange={(event) => setOptionalConsents((state) => ({ ...state, thank_you_code: event.target.checked }))} /><span>Θέλω να λάβω τον κωδικό ευχαριστίας που προσφέρεται στους συμμετέχοντες.</span></label>
+        <label><input type="checkbox" checked={optionalConsents.marketing} onChange={(event) => setOptionalConsents((state) => ({ ...state, marketing: event.target.checked }))} /><span>Θέλω να λαμβάνω πληροφορίες σχετικά με τις υπηρεσίες του KONTA MOY.</span></label>
+      </div>
+      <p>Η αλλαγή ισχύει για μελλοντικές αποστολές. Μήνυμα που έχει ήδη αποσταλεί δεν μπορεί να ανακληθεί.</p>
+      {preferenceMessage && <p className={styles.success}>{preferenceMessage}</p>}
+      {message && <p className={styles.error}>{message}</p>}
+      <div className={styles.actions}>
+        <button type="button" className={styles.primary} disabled={saving} onClick={() => void saveConsentPreferences()}>
+          {saving ? "Αποθήκευση…" : "Αποθήκευση επιλογών"}
+        </button>
+      </div>
+
+      <h3>Ανάκληση συμμετοχής</h3>
       <p>Μπορείτε να ανακαλέσετε τη συμμετοχή από αυτόν τον προσωπικό σύνδεσμο. Η ανάκληση εξαιρεί την απάντηση από νέες αναλύσεις. Ήδη δημοσιευμένα συγκεντρωτικά releases παραμένουν ως ιστορικά, αμετάβλητα ερευνητικά τεκμήρια και δεν μπορούν να ανασυντεθούν αναδρομικά σε ατομικό επίπεδο.</p>
       <div className={styles.optionalConsents}>
         <label>
@@ -333,7 +368,6 @@ export function ResearchSurveyForm({ slug, token, initial }: {
           <span>Μαζί με την ανάκληση, να μη λάβω άλλη πρόσκληση για μελλοντική έρευνα του KONTA MOY.</span>
         </label>
       </div>
-      {message && <p className={styles.error}>{message}</p>}
       <div className={styles.actions}>
         <button type="button" className={styles.secondary} disabled={saving} onClick={() => void declineParticipation()}>
           {saving ? "Καταχώρηση ανάκλησης…" : "Ανάκληση συμμετοχής"}
