@@ -36,7 +36,7 @@ export function ResearchStudySamplingControls({
   const [busy, setBusy] = useState<"frame" | "sample" | null>(null);
   const [targetN, setTargetN] = useState("");
   const fieldworkPhase: "pilot" | "main" = ["draft","pilot"].includes(studyStatus) ? "pilot" : "main";
-  const effectivePopulation = phasePopulation > 0 ? phasePopulation : framePopulation;
+  const effectivePopulation = fieldworkPhase === "main" ? phasePopulation : framePopulation;
   const [targetCompletes, setTargetCompletes] = useState("500");
   const [expectedResponsePct, setExpectedResponsePct] = useState("15");
   const [randomSeed, setRandomSeed] = useState("");
@@ -171,7 +171,7 @@ export function ResearchStudySamplingControls({
           The desired completion target would require more than the current 100,000-unit draw safety cap at this contactability/response assumption. This is a fieldwork feasibility warning, not a reason to treat the smaller sample as equivalent.
         </div>}
         {contactabilityRate > 0 && contactabilityRate < 0.1 && <div className="workspace-inline-note form-error">
-          Fewer than 10% of units in the frozen frame have an active email contact. Email-only fieldwork may create substantial contactability bias; expand the contact layer or narrow the target-population claim before interpreting the study as representative of the full frame.
+          Fewer than 10% of currently eligible units have an active email contact. Email-only fieldwork may create substantial contactability bias; expand the contact layer or narrow the target-population claim before interpreting the study as representative of the full frame.
         </div>}
       </div>
     </div>
