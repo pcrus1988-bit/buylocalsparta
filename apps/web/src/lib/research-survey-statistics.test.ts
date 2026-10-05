@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   normal95ConfidenceInterval,
+  normalTwoSidedPValue,
   proportionalStratumAllocation,
   researchWeightDiagnostics,
   stratifiedSrsMeanVariance
@@ -108,4 +109,15 @@ test("weight diagnostics expose effective-sample loss from unequal weights", () 
   assert.ok((result.kishEffectiveN ?? 4) < 2);
   assert.ok((result.weightingDesignEffect ?? 1) > 2);
   assert.ok((result.coefficientOfVariation ?? 0) > 1);
+});
+
+
+test("two-sided normal p-value is one at zero difference", () => {
+  assert.ok(Math.abs((normalTwoSidedPValue(0) ?? 0) - 1) < 1e-6);
+});
+
+test("two-sided normal p-value is approximately five percent at the 95% critical z", () => {
+  const p = normalTwoSidedPValue(1.959963984540054);
+  assert.ok(p !== undefined);
+  assert.ok(Math.abs(p - 0.05) < 0.001);
 });
