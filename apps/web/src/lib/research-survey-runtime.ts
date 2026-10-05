@@ -525,6 +525,8 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
     SELECT
       s.id, s.slug, s.title, s.status, s.fieldwork_starts_at, s.fieldwork_ends_at,
       latest_i.version AS instrument_version, latest_i.status AS instrument_status,
+      latest_rt.version AS recruitment_template_version,
+      latest_rt.subject AS recruitment_template_subject,
       COALESCE(f.frames, 0)::int AS frame_count,
       COALESCE(f.population, 0)::int AS frame_population,
       lf.status AS latest_frame_status,
@@ -554,6 +556,13 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       SELECT version, status FROM research_instruments
       WHERE study_id = s.id ORDER BY created_at DESC LIMIT 1
     ) latest_i ON true
+    LEFT JOIN LATERAL (
+      SELECT version, subject
+      FROM research_recruitment_templates
+      WHERE study_id = s.id AND channel='email' AND status='locked'
+      ORDER BY locked_at DESC NULLS LAST, created_at DESC
+      LIMIT 1
+    ) latest_rt ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS frames, COALESCE(max(population_size), 0) AS population
       FROM research_frame_snapshots WHERE study_id = s.id
@@ -650,6 +659,8 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       fieldworkEndsAt: optionalText(row.fieldwork_ends_at),
       instrumentVersion: optionalText(row.instrument_version),
       instrumentStatus: optionalText(row.instrument_status),
+      recruitmentTemplateVersion: optionalText(row.recruitment_template_version),
+      recruitmentTemplateSubject: optionalText(row.recruitment_template_subject),
       frameCount: numberValue(row.frame_count),
       framePopulation: numberValue(row.frame_population),
       latestFrameStatus: optionalText(row.latest_frame_status),
