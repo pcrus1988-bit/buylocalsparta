@@ -64,6 +64,25 @@ const phaseCopy: Record<Phase, { kicker: string; title: string; detail: string }
   }
 };
 
+function ShirtGlyph() {
+  return <svg viewBox="0 0 96 96" aria-hidden="true"><path d="M33 18 18 28 8 45l14 8 8-11v38h36V42l8 11 14-8-10-17-15-10-8 8H41l-8-8Z" /></svg>;
+}
+function DressGlyph() {
+  return <svg viewBox="0 0 96 96" aria-hidden="true"><path d="M38 13h20l5 17-9 11 19 39H23l19-39-9-11 5-17Zm4 5-3 10 9 8 9-8-3-10H42Z" /></svg>;
+}
+function JacketGlyph() {
+  return <svg viewBox="0 0 96 96" aria-hidden="true"><path d="m35 16-17 11-8 24 14 5 8-17v42h32V39l8 17 14-5-8-24-17-11-7 10H42l-7-10Zm7 17h12v48H42V33Z" /></svg>;
+}
+function TrousersGlyph() {
+  return <svg viewBox="0 0 96 96" aria-hidden="true"><path d="M31 14h34l-3 66H48l-3-39-4 39H27l4-66Zm4 7-1 11h28l-1-11H35Z" /></svg>;
+}
+function SkirtGlyph() {
+  return <svg viewBox="0 0 96 96" aria-hidden="true"><path d="M33 18h30l3 10-10 52H40L30 28l3-10Zm3 8 2 8h20l2-8H36Z" /></svg>;
+}
+function HoodieGlyph() {
+  return <svg viewBox="0 0 96 96" aria-hidden="true"><path d="M48 10c10 0 17 7 18 17l13 8 9 20-14 7-8-14v32H30V48l-8 14-14-7 9-20 13-8c1-10 8-17 18-17Zm0 8c-6 0-10 4-10 10l10 8 10-8c0-6-4-10-10-10Z" /></svg>;
+}
+
 const shirtParts: readonly GarmentPart[] = [
   { x: 0, y: 0, z: 0, sx: 0.74, sy: 0.95, sz: 0.12 },
   { x: -0.72, y: 0.33, z: 0, sx: 0.58, sy: 0.28, sz: 0.11, rz: -0.42 },
@@ -718,6 +737,17 @@ export function TryOnGenerationOverlay3D({
           <h2>{copy.title}</h2>
           <p>{copy.detail}</p>
         </div>
+
+        {phase === "compose" ? (
+          <div className={styles.vectorWardrobe} aria-hidden="true">
+            <span className={`${styles.flightGarment} ${styles.flightA}`}><ShirtGlyph /></span>
+            <span className={`${styles.flightGarment} ${styles.flightB}`}><DressGlyph /></span>
+            <span className={`${styles.flightGarment} ${styles.flightC}`}><JacketGlyph /></span>
+            <span className={`${styles.flightGarment} ${styles.flightD}`}><TrousersGlyph /></span>
+            <span className={`${styles.flightGarment} ${styles.flightE}`}><SkirtGlyph /></span>
+            <span className={`${styles.flightGarment} ${styles.flightF}`}><HoodieGlyph /></span>
+          </div>
+        ) : null}
 
         <div className={styles.reticle} aria-hidden="true">
           <span className={styles.cornerA} />
