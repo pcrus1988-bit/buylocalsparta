@@ -134,6 +134,7 @@ Automated completion checks can append a `review` decision without modifying the
 
 - `research_analysis_runs` records code version, instrument version, weight version, parameters and dataset hash.
 - `research_release_snapshots` records the exact analysis run, methodology JSON, dataset SHA-256, artifact SHA-256, public URL and release version.
+- The frozen methodology now embeds the exact locked questionnaire wording/configuration, the recruitment template(s) actually used for the sampled fieldwork, overall and per-stratum sent/delivered/opened/started/completed/withdrawn counts, explicit conversion-rate denominators, and the latest final sample-disposition counts. These fieldwork facts therefore remain attached to the release even after the live study continues to evolve operationally.
 - Publishing a release queues a results-notification worker. It selects only completed responses whose latest `results_notification` consent is granted; marketing consent is neither read nor required.
 - `research_participant_deliveries` stores the operational state and content hashes for thank-you and results messages. `research_participant_delivery_events` is append-only evidence for planned/sending/sent/delivered/opened/bounced/complained/failed outcomes.
 - A published chart/table must therefore be traceable to a release snapshot and analysis run.
@@ -209,7 +210,9 @@ A release is not scientifically ready until it has:
 - sampling algorithm + seed + inclusion probabilities
 - field dates
 - invitations / starts / completes / response disposition counts
-- questionnaire version and exact wording
+- questionnaire version, exact wording, response configuration and analysis keys
+- recruitment copy/version/hash used during fieldwork
+- overall and per-stratum fieldwork funnel, explicit denominators and final disposition counts
 - weighting version and diagnostics
 - unweighted and weighted bases for published estimates
 - quality/exclusion rules
