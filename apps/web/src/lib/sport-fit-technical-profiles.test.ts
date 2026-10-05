@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { scoreSportFitProduct, type SportFitProduct } from "./sport-fit-engine.ts";
+import { scoreSportFitProduct, sportFitCandidateSupportsRequestedActivity, type SportFitProduct } from "./sport-fit-engine.ts";
 
 function product(
   overrides: Partial<SportFitProduct> & Pick<SportFitProduct, "id" | "title" | "categoryCode">
@@ -331,4 +331,35 @@ test("Cloud X Tempo exact hybrid use cases make strength and cardio deterministi
   ));
   assert.equal(cloudXTempo.knowledge?.cushioningLevel, undefined);
   assert.equal(cloudXTempo.knowledge?.supportLevel, undefined);
+});
+
+
+test("exact Skechers training knowledge blocks stale running taxonomy from re-admitting footwear", () => {
+  const miscategorisedTrainingShoe = product({
+    id: "skechers-bountiful-training",
+    title: "Skechers Bountiful Running Shoe",
+    categoryCode: "womens-running-shoes",
+    brand: "Skechers",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["general_training"]
+    }
+  });
+
+  assert.equal(
+    sportFitCandidateSupportsRequestedActivity(miscategorisedTrainingShoe, {
+      activity: "running",
+      audience: "women"
+    }),
+    false
+  );
+  assert.equal(
+    sportFitCandidateSupportsRequestedActivity(miscategorisedTrainingShoe, {
+      activity: "gym",
+      audience: "women",
+      gymTrainingType: "mixed"
+    }),
+    true
+  );
 });
