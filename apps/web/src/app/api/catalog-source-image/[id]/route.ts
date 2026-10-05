@@ -1,5 +1,7 @@
 import { getPublicCatalogSourceImageAtIndex } from "../../../../lib/public-catalog-source-gallery";
 
+export const preferredRegion = "fra1";
+
 type Context = { params: Promise<{ id: string }> };
 
 // Supplier image locations are effectively immutable for a canonical source row.
