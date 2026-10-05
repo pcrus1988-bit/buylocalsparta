@@ -157,7 +157,10 @@ export async function buildGreekRetailRelease(
       s.status,s.default_locale,s.fieldwork_starts_at,s.fieldwork_ends_at,
       i.id AS instrument_id,i.version AS instrument_version,i.content_sha256 AS instrument_sha256,
       i.consent_statement_version,
-      ar.code_version,ar.weight_version,ar.parameters,ar.dataset_sha256,ar.completed_at AS analysis_completed_at
+      ar.code_version,ar.weight_version,ar.parameters,ar.dataset_sha256,ar.completed_at AS analysis_completed_at,
+      ap.version AS analysis_plan_version,ap.title AS analysis_plan_title,
+      ap.status AS analysis_plan_status,ap.plan_json AS analysis_plan_json,
+      ap.content_sha256 AS analysis_plan_sha256,ap.locked_at AS analysis_plan_locked_at
     FROM research_studies s
     JOIN LATERAL (
       SELECT id,version,content_sha256,consent_statement_version
@@ -167,6 +170,11 @@ export async function buildGreekRetailRelease(
       LIMIT 1
     ) i ON true
     JOIN research_analysis_runs ar ON ar.id=$2 AND ar.study_id=s.id AND ar.status='succeeded'
+    JOIN research_analysis_plans ap
+      ON ap.id=ar.analysis_plan_id
+      AND ap.study_id=s.id
+      AND ap.instrument_id=i.id
+      AND ap.status='locked'
     WHERE s.id=$1
     LIMIT 1
   `, [studyId, analysisRunId]);
@@ -433,6 +441,14 @@ export async function buildGreekRetailRelease(
         config: objectValue(row.config)
       }))
     },
+    analysisPlan: {
+      version: text(study.analysis_plan_version),
+      title: text(study.analysis_plan_title),
+      status: text(study.analysis_plan_status),
+      contentSha256: text(study.analysis_plan_sha256),
+      lockedAt: study.analysis_plan_locked_at ?? null,
+      plan: objectValue(study.analysis_plan_json)
+    },
     recruitment: {
       templates: recruitmentTemplates.rows.map((row) => ({
         version: text(row.version),
@@ -530,13 +546,15 @@ export async function buildGreekRetailRelease(
     disclosure: {
       smallBaseSuppression: true,
       confidenceIntervalsPublished: varianceMethod !== "not_estimated",
-      conventionalMarginOfErrorPublished: false
+      conventionalMarginOfErrorPublished: false,
+      prespecifiedAnalysisPlanPublished: true
     },
     limitations: [
       "The sampling frame depends on the frozen G.E.MI. source snapshot and the contact points available for that frame.",
       "Email contactability is reported for the frozen frame and by sampling stratum. Email-only fieldwork can still be biased if availability of a usable public email is related to survey outcomes after conditioning on the weighting strata.",
       "Non-response adjustment is performed within the governed sampling strata.",
       "Reminder and reissue emails are counted as contact attempts only; they reuse the canonical invite identity and therefore do not inflate sent-invitation or response-rate denominators.",
+      "The locked pre-fieldwork analysis plan distinguishes pre-specified primary and secondary analyses from explicitly exploratory pairwise comparisons; later analytical additions must be labelled rather than silently back-dated into the plan.",
       varianceMethod === "not_estimated"
         ? "Design-based variance has not been estimated for this release; confidence intervals and a conventional margin of sampling error are therefore not published."
         : "Design-aware confidence intervals use the recorded stratified sampling method with finite-population correction where the metric has complete observations within contributing strata. Intervals are withheld for unsupported post-hoc domains or insufficient stratum bases."
