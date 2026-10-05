@@ -15,6 +15,54 @@ export type StratifiedVarianceResult = Readonly<{
   reason?: "no_observations" | "item_nonresponse" | "insufficient_stratum_n" | "invalid_design_weight" | "unequal_within_stratum_weights";
 }>;
 
+export type ResearchWeightDiagnostics = Readonly<{
+  count: number;
+  weightSum: number;
+  minWeight: number | null;
+  maxWeight: number | null;
+  meanWeight: number | null;
+  coefficientOfVariation: number | null;
+  kishEffectiveN: number | null;
+  weightingDesignEffect: number | null;
+}>;
+
+export function researchWeightDiagnostics(rawWeights: readonly number[]): ResearchWeightDiagnostics {
+  const weights = rawWeights.filter((weight) => Number.isFinite(weight) && weight > 0);
+  if (!weights.length) {
+    return {
+      count: 0,
+      weightSum: 0,
+      minWeight: null,
+      maxWeight: null,
+      meanWeight: null,
+      coefficientOfVariation: null,
+      kishEffectiveN: null,
+      weightingDesignEffect: null
+    };
+  }
+
+  const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
+  const sumSquares = weights.reduce((sum, weight) => sum + weight * weight, 0);
+  const meanWeight = weightSum / weights.length;
+  const variance = weights.reduce((sum, weight) => sum + (weight - meanWeight) ** 2, 0) / weights.length;
+  const coefficientOfVariation = meanWeight > 0 ? Math.sqrt(variance) / meanWeight : null;
+  const kishEffectiveN = sumSquares > 0 ? (weightSum * weightSum) / sumSquares : null;
+  const weightingDesignEffect = kishEffectiveN && kishEffectiveN > 0
+    ? weights.length / kishEffectiveN
+    : null;
+
+  return {
+    count: weights.length,
+    weightSum,
+    minWeight: Math.min(...weights),
+    maxWeight: Math.max(...weights),
+    meanWeight,
+    coefficientOfVariation,
+    kishEffectiveN,
+    weightingDesignEffect
+  };
+}
+
 const Z_95 = 1.959963984540054;
 
 export function stratifiedSrsMeanVariance(
