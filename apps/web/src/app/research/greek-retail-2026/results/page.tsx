@@ -120,6 +120,11 @@ export default async function GreekRetailResultsPage() {
         {" "}αναλυτικό σύνολο: <strong>{numeric(fieldwork.analyzed).toLocaleString("el-GR")}</strong>.
       </p>
       <p>
+        Email-contactable μονάδες στο frozen frame: <strong>{numeric(fieldwork.activeEmailFrameUnits).toLocaleString("el-GR")}</strong>
+        {" · "}contactability: <strong>{new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 2 }).format(numeric(fieldwork.emailContactabilityRate))}</strong>.
+        Η κάλυψη email είναι ξεχωριστή από την πιθανότητα επιλογής και αποτελεί ρητό limitation της μελέτης.
+      </p>
+      <p>
         Weight version: <strong>{String(analysis.weightVersion ?? "—")}</strong>. Variance method: <strong>{String(analysis.varianceMethod ?? "—")}</strong>.
         {String(analysis.varianceMethod) === "not_estimated"
           ? " Για αυτό το release δεν δημοσιεύονται confidence intervals ή συμβατικό margin of error."
