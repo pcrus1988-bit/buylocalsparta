@@ -5,10 +5,14 @@ const migrationPath = "db/migrations/0416_research_survey_ecosystem.sql";
 const checksumPath = "db/migrations/checksums.0416.json";
 const suppressionMigrationPath = "db/migrations/0417_research_contact_suppression_ledger.sql";
 const suppressionChecksumPath = "db/migrations/checksums.0417.json";
+const deliveryMigrationPath = "db/migrations/0418_research_participant_delivery.sql";
+const deliveryChecksumPath = "db/migrations/checksums.0418.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
+const deliveryMigration = readFileSync(deliveryMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
+const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const jobs = readFileSync("apps/web/src/lib/research-survey-jobs.ts", "utf8");
@@ -57,13 +61,17 @@ const expectedTables = [
 const errors: string[] = [];
 const sha = createHash("sha256").update(migration, "utf8").digest("hex");
 const suppressionSha = createHash("sha256").update(suppressionMigration, "utf8").digest("hex");
+const deliverySha = createHash("sha256").update(deliveryMigration, "utf8").digest("hex");
 if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0416 checksum does not match migration bytes");
 }
 if (suppressionChecksums["0417_research_contact_suppression_ledger.sql"] !== suppressionSha) {
   errors.push("0417 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 417")) errors.push("runtime schema head is not 417");
+if (deliveryChecksums["0418_research_participant_delivery.sql"] !== deliverySha) {
+  errors.push("0418 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 418")) errors.push("runtime schema head is not 418");
 if ((migration.match(/^BEGIN;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one BEGIN");
 if ((migration.match(/^COMMIT;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one COMMIT");
 
@@ -96,6 +104,12 @@ if (!suppressionMigration.includes("CREATE TABLE public.research_contact_suppres
 if (!suppressionMigration.includes("research_contact_suppression_events_append_only")) errors.push("suppression ledger append-only guard missing");
 if (!suppressionMigration.includes("research_contact_is_suppressed")) errors.push("suppression state helper missing");
 if (!suppressionMigration.includes("schema_415_backfill")) errors.push("existing suppression backfill missing");
+if (!deliveryMigration.includes("CREATE TABLE public.research_participant_deliveries")) errors.push("participant delivery ledger missing");
+if (!deliveryMigration.includes("CREATE TABLE public.research_participant_delivery_events")) errors.push("participant delivery event ledger missing");
+if (!deliveryMigration.includes("research_participant_delivery_events_append_only")) errors.push("participant delivery event append-only guard missing");
+if (!deliveryMigration.includes("ALTER TABLE public.research_participant_deliveries ENABLE ROW LEVEL SECURITY;")) errors.push("participant delivery ledger RLS missing");
+if (!deliveryMigration.includes("ALTER TABLE public.research_participant_delivery_events ENABLE ROW LEVEL SECURITY;")) errors.push("participant delivery events RLS missing");
+if (!deliveryMigration.includes("'reward_delivery'") || !deliveryMigration.includes("'results_notification'")) errors.push("participant delivery job types missing");
 if (!migration.includes("token_hash text NOT NULL UNIQUE")) errors.push("hashed invitation token contract missing");
 if (/\btoken\s+text\b/i.test(migration)) errors.push("plaintext invitation token column detected");
 
@@ -108,17 +122,26 @@ if (!surveyRuntime.includes("research_sample_disposition_events")) errors.push("
 if (!jobs.includes("gemiResearchFrameRecords")) errors.push("GEMI frame worker bridge missing");
 if (!jobs.includes("stratified-hash-rank-v2")) errors.push("minimum-aware reproducible sample algorithm missing");
 if (!jobs.includes("processInviteBatchJob")) errors.push("worker-managed invitation delivery missing");
+if (!jobs.includes("processRewardDeliveryJob")) errors.push("worker-managed reward delivery missing");
+if (!jobs.includes("processResultsNotificationJob")) errors.push("worker-managed results notification missing");
+if (!jobs.includes("createHmac")) errors.push("deterministic non-plaintext reward code derivation missing");
+if (!jobs.includes("research_participant_deliveries")) errors.push("participant delivery ledger worker bridge missing");
 if (!jobs.includes("runGreekRetailAnalysis(job.study_id, job.id)")) errors.push("analysis job bridge missing");
 if (!jobs.includes('job.job_type === "release"')) errors.push("release job bridge missing");
 if (!jobs.includes("buildGreekRetailRelease")) errors.push("release worker implementation missing");
 if (!jobs.includes("assertResearchSurveyEmailReady")) errors.push("research email readiness gate missing");
 if (!researchMail.includes("BLS_RESEARCH_SES_CONFIGURATION_SET")) errors.push("dedicated SES configuration set gate missing");
 if (!researchMail.includes("research_invite")) errors.push("SES research message tags missing");
+if (!researchMail.includes("sendResearchThankYouCode")) errors.push("thank-you code email workflow missing");
+if (!researchMail.includes("sendResearchResultsNotification")) errors.push("results notification email workflow missing");
+if (!researchMail.includes("research_delivery")) errors.push("participant delivery SES tags missing");
 if (!sesSender.includes("ConfigurationSetName")) errors.push("SES sender does not apply configuration set");
 if (!sesEvents.includes("BLS_RESEARCH_SES_SNS_TOPIC_ARN")) errors.push("SES SNS topic allowlist missing");
 if (!sesEvents.includes("SNS_SIGNATURE_INVALID")) errors.push("SNS signature verification missing");
 if (!sesEvents.includes("suppression_status='bounced'")) errors.push("bounce suppression bridge missing");
 if (!sesEvents.includes("research_contact_suppression_events")) errors.push("SES events do not persist cross-wave suppression");
+if (!sesEvents.includes("research_participant_delivery_events")) errors.push("SES events do not audit participant delivery outcomes");
+if (!sesEvents.includes("provider_message_not_research_message")) errors.push("SES event routing does not recognize participant messages");
 if (!jobs.includes("research_contact_is_suppressed")) errors.push("research worker does not enforce cross-wave suppression");
 if (!surveyRuntime.includes("participant_research_opt_out")) errors.push("participant future-research opt-out path missing");
 if (!quality.includes("researchQualityReviewQueue")) errors.push("manual research QA queue missing");
@@ -136,6 +159,8 @@ if (!resultsPage.includes("95% CI")) errors.push("public results do not surface 
 if (surveyRuntime.includes("generateResearchInvitationBatch")) errors.push("legacy plaintext invitation delivery path remains");
 if (surveyRuntime.includes("SURVEY_EXPERIMENT_INCOMPLETE")) errors.push("optional experiment still blocks completion");
 if (!surveyRuntime.includes('"eligibilityBasis":"completed_response"')) errors.push("reward eligibility is not completion-based");
+if (!surveyRuntime.includes("'reward_delivery','queued'")) errors.push("completion does not queue consent-scoped reward delivery");
+if (!surveyRuntime.includes("'results_notification','queued'")) errors.push("publication does not queue results notification");
 if (!gemi.includes("export async function* gemiResearchFrameRecords")) errors.push("GEMI governed record stream missing");
 if (!release.includes("artifactSha256 = sha256Canonical(artifact)")) errors.push("canonical public release artifact hash missing");
 if (!release.includes("RESEARCH_RELEASE_REQUIRES_QA_RESOLUTION")) errors.push("release QA gate missing");
@@ -151,9 +176,10 @@ if (errors.length) {
 }
 console.log(JSON.stringify({
   ok: true,
-  schema: 417,
-  tables: created.length + 1,
+  schema: 418,
+  tables: created.length + 3,
   migrationSha256: sha,
   suppressionMigrationSha256: suppressionSha,
+  deliveryMigrationSha256: deliverySha,
   worker: pkg.scripts?.["worker:research"]
 }));
