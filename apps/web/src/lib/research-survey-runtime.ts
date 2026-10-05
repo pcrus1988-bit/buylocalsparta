@@ -530,11 +530,21 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       COALESCE(f.population, 0)::int AS frame_population,
       COALESCE(sd.draws, 0)::int AS sample_draw_count,
       COALESCE(sd.sample_units, 0)::int AS sample_units,
+      COALESCE(cp.active_contacts, 0)::int AS active_contacts,
+      COALESCE(cp.suppressed_contacts, 0)::int AS suppressed_contacts,
+      COALESCE(cp.bounced_contacts, 0)::int AS bounced_contacts,
+      COALESCE(ib.batches, 0)::int AS invite_batches,
       COALESCE(i.invites, 0)::int AS invites,
       COALESCE(i.sent, 0)::int AS sent,
       COALESCE(r.started, 0)::int AS started,
       COALESCE(r.completed, 0)::int AS completed,
+      COALESCE(q.review_count, 0)::int AS quality_review,
+      COALESCE(q.exclude_count, 0)::int AS quality_exclude,
+      COALESCE(rw.eligible_count, 0)::int AS reward_eligible,
+      COALESCE(rw.issued_count, 0)::int AS reward_issued,
+      COALESCE(rw.redeemed_count, 0)::int AS reward_redeemed,
       COALESCE(a.analysis_runs, 0)::int AS analysis_runs,
+      COALESCE(a.estimates, 0)::int AS analysis_estimates,
       COALESCE(rel.releases, 0)::int AS releases
     FROM research_studies s
     LEFT JOIN LATERAL (
@@ -552,6 +562,21 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       WHERE d.study_id = s.id
     ) sd ON true
     LEFT JOIN LATERAL (
+      SELECT
+        count(*) FILTER (WHERE cp.suppression_status = 'active') AS active_contacts,
+        count(*) FILTER (WHERE cp.suppression_status IN ('suppressed','invalid')) AS suppressed_contacts,
+        count(*) FILTER (WHERE cp.suppression_status = 'bounced') AS bounced_contacts
+      FROM research_frame_snapshots fs
+      JOIN research_frame_units fu ON fu.frame_snapshot_id = fs.id
+      JOIN research_contact_points cp ON cp.frame_unit_id = fu.id
+      WHERE fs.study_id = s.id
+    ) cp ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS batches
+      FROM research_invite_batches
+      WHERE study_id = s.id
+    ) ib ON true
+    LEFT JOIN LATERAL (
       SELECT count(*) AS invites, count(*) FILTER (WHERE status IN ('sent','opened','started','completed')) AS sent
       FROM research_invites WHERE study_id = s.id
     ) i ON true
@@ -560,7 +585,29 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       FROM research_responses WHERE study_id = s.id
     ) r ON true
     LEFT JOIN LATERAL (
-      SELECT count(*) AS analysis_runs FROM research_analysis_runs WHERE study_id = s.id
+      SELECT
+        count(*) FILTER (WHERE qr.decision = 'review') AS review_count,
+        count(*) FILTER (WHERE qr.decision = 'exclude') AS exclude_count
+      FROM research_response_quality_reviews qr
+      JOIN research_responses rr ON rr.id = qr.response_id
+      WHERE rr.study_id = s.id
+    ) q ON true
+    LEFT JOIN LATERAL (
+      SELECT
+        count(*) FILTER (WHERE re.status = 'eligible') AS eligible_count,
+        count(*) FILTER (WHERE re.status = 'issued') AS issued_count,
+        count(*) FILTER (WHERE re.status = 'redeemed') AS redeemed_count
+      FROM research_reward_entitlements re
+      JOIN research_responses rr ON rr.id = re.response_id
+      WHERE rr.study_id = s.id
+    ) rw ON true
+    LEFT JOIN LATERAL (
+      SELECT
+        count(DISTINCT ar.id) AS analysis_runs,
+        count(ae.id) AS estimates
+      FROM research_analysis_runs ar
+      LEFT JOIN research_analysis_estimates ae ON ae.analysis_run_id = ar.id
+      WHERE ar.study_id = s.id
     ) a ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS releases FROM research_release_snapshots WHERE study_id = s.id
@@ -582,11 +629,21 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       framePopulation: numberValue(row.frame_population),
       sampleDrawCount: numberValue(row.sample_draw_count),
       sampleUnits: numberValue(row.sample_units),
+      activeContacts: numberValue(row.active_contacts),
+      suppressedContacts: numberValue(row.suppressed_contacts),
+      bouncedContacts: numberValue(row.bounced_contacts),
+      inviteBatches: numberValue(row.invite_batches),
       invites: numberValue(row.invites),
       sent: numberValue(row.sent),
       started: numberValue(row.started),
       completed: numberValue(row.completed),
+      qualityReview: numberValue(row.quality_review),
+      qualityExclude: numberValue(row.quality_exclude),
+      rewardEligible: numberValue(row.reward_eligible),
+      rewardIssued: numberValue(row.reward_issued),
+      rewardRedeemed: numberValue(row.reward_redeemed),
       analysisRuns: numberValue(row.analysis_runs),
+      analysisEstimates: numberValue(row.analysis_estimates),
       releases: numberValue(row.releases)
     }))
   };
