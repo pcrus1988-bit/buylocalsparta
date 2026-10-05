@@ -1,0 +1,164 @@
+import { buildAdminMailRawMime, type AdminMailAddress } from "./admin-mail-mime";
+import { sendRawSesEmail, sesMailConfigFromEnv } from "./admin-mail-ses";
+
+const DEFAULT_FROM = "partners@kontamou.site";
+const DEFAULT_REPLY_TO = "partners@kontamou.site";
+const DEFAULT_DOMAIN = "kontamou.site";
+
+export type ResearchSurveyEmailConfiguration = Readonly<{
+  enabled: boolean;
+  from: string;
+  replyTo: string;
+  configurationSetName?: string;
+}>;
+
+export function researchSurveyEmailConfiguration(
+  env: NodeJS.ProcessEnv = process.env
+): ResearchSurveyEmailConfiguration {
+  const enabled = env.BLS_RESEARCH_EMAIL_DELIVERY_ENABLED === "true";
+  return {
+    enabled,
+    from: env.BLS_RESEARCH_SES_FROM?.trim() || DEFAULT_FROM,
+    replyTo: env.BLS_RESEARCH_SES_REPLY_TO?.trim() || DEFAULT_REPLY_TO,
+    configurationSetName: env.BLS_RESEARCH_SES_CONFIGURATION_SET?.trim() || undefined
+  };
+}
+
+export function assertResearchSurveyEmailReady(env: NodeJS.ProcessEnv = process.env): ResearchSurveyEmailConfiguration {
+  const configuration = researchSurveyEmailConfiguration(env);
+  if (!configuration.enabled) {
+    throw new Error("RESEARCH_EMAIL_DELIVERY_DISABLED");
+  }
+  if (!configuration.configurationSetName) {
+    throw new Error("BLS_RESEARCH_SES_CONFIGURATION_SET is required for governed research delivery");
+  }
+  // Resolve credentials up-front so the admin queue action fails before a job is
+  // accepted if the dedicated research delivery path is not actually usable.
+  sesMailConfigFromEnv(env);
+  return configuration;
+}
+
+export async function sendResearchSurveyInvitation(input: Readonly<{
+  destination: string;
+  studySlug: string;
+  studyTitle: string;
+  inviteId: string;
+  batchId: string;
+  surveyUrl: string;
+  methodologyUrl: string;
+  subjectTemplate: string;
+  bodyTemplate: string;
+}>): Promise<Readonly<{ providerMessageId: string }>> {
+  const configuration = assertResearchSurveyEmailReady();
+  const replacements = {
+    survey_url: input.surveyUrl,
+    methodology_url: input.methodologyUrl,
+    study_title: input.studyTitle
+  };
+  const subject = renderRecruitmentTemplate(input.subjectTemplate, replacements).trim();
+  let text = renderRecruitmentTemplate(input.bodyTemplate, replacements).trim();
+  if (!subject) throw new Error("RESEARCH_RECRUITMENT_SUBJECT_EMPTY");
+  if (!text) throw new Error("RESEARCH_RECRUITMENT_BODY_EMPTY");
+  if (!text.includes(input.surveyUrl)) {
+    text += `\n\nΣυμμετοχή: ${input.surveyUrl}`;
+  }
+  if (!text.includes(input.methodologyUrl)) {
+    text += `\n\nΜεθοδολογία: ${input.methodologyUrl}`;
+  }
+
+  const fromAddress = mailAddress(configuration.from, "KONTA MOY Research");
+  const replyToAddress = mailAddress(configuration.replyTo);
+  const mime = buildAdminMailRawMime({
+    from: fromAddress,
+    to: [{ address: input.destination }],
+    replyTo: [replyToAddress],
+    subject,
+    text,
+    html: researchInvitationHtml(subject, text, input.surveyUrl, input.methodologyUrl),
+    internetMessageIdDomain: DEFAULT_DOMAIN
+  });
+
+  return sendRawSesEmail({
+    config: sesMailConfigFromEnv(),
+    raw: mime.raw,
+    from: formatEnvelopeFrom(configuration.from),
+    to: [input.destination],
+    configurationSetName: configuration.configurationSetName,
+    emailTags: [
+      { name: "research_study", value: safeTagValue(input.studySlug) },
+      { name: "research_invite", value: safeTagValue(input.inviteId) },
+      { name: "research_batch", value: safeTagValue(input.batchId) }
+    ]
+  });
+}
+
+export function renderRecruitmentTemplate(
+  template: string,
+  replacements: Readonly<Record<string, string>>
+): string {
+  return template.replace(/\{\{([a-z0-9_]+)\}\}/gi, (match, key: string) => {
+    const value = replacements[key.toLowerCase()];
+    return value === undefined ? match : value;
+  });
+}
+
+function mailAddress(value: string, defaultName?: string): AdminMailAddress {
+  const match = value.match(/^\s*([^<>]+?)?\s*<([^<>]+)>\s*$/);
+  if (match) {
+    return {
+      name: match[1]?.trim() || defaultName,
+      address: match[2]!.trim()
+    };
+  }
+  return { name: defaultName, address: value.trim() };
+}
+
+function formatEnvelopeFrom(value: string): string {
+  const parsed = mailAddress(value, "KONTA MOY Research");
+  return parsed.name ? `${parsed.name} <${parsed.address}>` : parsed.address;
+}
+
+function safeTagValue(value: string): string {
+  const clean = value.trim().replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 256);
+  return clean || "unknown";
+}
+
+function researchInvitationHtml(subject: string, text: string, surveyUrl: string, methodologyUrl: string): string {
+  const paragraphs = text
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p style="margin:0 0 16px;line-height:1.65">${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+
+  return `<!doctype html>
+<html lang="el">
+<body style="margin:0;background:#f4f0e8;font-family:Arial,Helvetica,sans-serif;color:#183027">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px 12px;background:#f4f0e8">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#fffdf8;border:1px solid #d6cfbf;border-radius:20px;overflow:hidden">
+        <tr><td style="background:#183027;color:#fffdf8;padding:28px 32px">
+          <div style="font-size:11px;letter-spacing:.14em;font-weight:800;color:#d8d8c7">KONTA MOY · ΕΡΕΥΝΑ ΛΙΑΝΕΜΠΟΡΙΟΥ</div>
+          <h1 style="font-family:Georgia,'Times New Roman',serif;font-weight:500;font-size:31px;line-height:1.1;margin:12px 0 0">${escapeHtml(subject)}</h1>
+        </td></tr>
+        <tr><td style="padding:32px">
+          ${paragraphs}
+          <p style="margin:24px 0"><a href="${escapeHtml(surveyUrl)}" style="display:inline-block;padding:14px 22px;border-radius:999px;background:#183027;color:#fffdf8;text-decoration:none;font-weight:800">Συμμετοχή στην έρευνα →</a></p>
+          <p style="font-size:13px;line-height:1.6;color:#58645f">Ο σύνδεσμος είναι προσωπικός για το επιλεγμένο δείγμα. Δεν περιέχει ΑΦΜ, email ή επωνυμία. <a href="${escapeHtml(methodologyUrl)}" style="color:#183027">Μεθοδολογία και πληροφορίες μελέτης</a>.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[character] ?? character);
+}
