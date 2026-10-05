@@ -8,7 +8,7 @@ type Action = "lock_instrument" | "start_pilot" | "start_fielding" | "close_fiel
 const LABELS: Record<Action, string> = {
   lock_instrument: "Κλείδωμα questionnaire",
   start_pilot: "Έναρξη pilot",
-  start_fielding: "Έναρξη fieldwork",
+  start_fielding: "Έναρξη κύριου fieldwork",
   close_fieldwork: "Κλείσιμο fieldwork",
   begin_analysis: "Έναρξη analysis",
   publish_release: "Δημοσίευση release"
@@ -39,10 +39,7 @@ export function ResearchStudyLifecycleControls({
   const analysisPlanLocked = analysisPlanStatus === "locked";
   if (studyStatus === "draft" && instrumentStatus === "draft") actions.push("lock_instrument");
   if (studyStatus === "draft" && instrumentStatus === "locked" && analysisPlanLocked) actions.push("start_pilot", "start_fielding");
-  if (studyStatus === "pilot") {
-    if (analysisPlanLocked) actions.push("start_fielding");
-    actions.push("close_fieldwork");
-  }
+  if (studyStatus === "pilot" && analysisPlanLocked) actions.push("start_fielding");
   if (studyStatus === "fielding") actions.push("close_fieldwork");
   if (studyStatus === "closed") actions.push("begin_analysis");
   if (studyStatus === "analysis" && latestReleaseVersion && !latestReleasePublishedAt) actions.push("publish_release");
@@ -62,11 +59,13 @@ export function ResearchStudyLifecycleControls({
       router.refresh();
     } catch (error) {
       const raw = error instanceof Error ? error.message : "Η ενέργεια απέτυχε.";
-      setMessage(raw === "RESEARCH_FIELDING_REQUIRES_FRAME_AND_SAMPLE"
-        ? "Για πλήρες fieldwork απαιτείται frozen population frame και locked sample draw."
-        : raw === "RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN" || raw === "RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN"
-          ? "Πριν από pilot ή fieldwork πρέπει να υπάρχει locked pre-fieldwork analysis plan για το ενεργό questionnaire."
-          : raw);
+      setMessage(raw === "RESEARCH_FIELDING_REQUIRES_FROZEN_FRAME"
+        ? "Για να κλείσει το pilot και να ανοίξει το κύριο fieldwork απαιτείται frozen population frame. Το main sample draw γίνεται αμέσως μετά, ώστε να αποκλειστούν οριστικά όσοι εκτέθηκαν στο pilot."
+        : raw === "RESEARCH_PILOT_CLOSE_CONTACT_JOB_RUNNING"
+          ? "Υπάρχει ακόμη ενεργό pilot invitation/reminder job. Το pilot δεν κλείνει μέχρι να ολοκληρωθεί ο sender."
+          : raw === "RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN" || raw === "RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN"
+            ? "Πριν από pilot ή fieldwork πρέπει να υπάρχει locked pre-fieldwork analysis plan για το ενεργό questionnaire."
+            : raw);
     } finally {
       setBusy(null);
     }
