@@ -56,6 +56,7 @@ export default function GreekRetailMethodologyPage() {
       <div className={styles.brand}>Privacy boundary</div>
       <h2>Η ταυτότητα του δείγματος και οι απαντήσεις δεν είναι το ίδιο dataset.</h2>
       <p>Τα στοιχεία επικοινωνίας αποθηκεύονται σε ξεχωριστό contact layer. Το token πρόσκλησης δεν αποθηκεύεται αυτούσιο και τα research tables δεν εκτίθενται απευθείας στο browser μέσω του Supabase Data API. Η δημόσια φόρμα μιλά μόνο με server-side research endpoints.</p>
+      <p>Ο παραλήπτης μπορεί να αρνηθεί τη συγκεκριμένη συμμετοχή χωρίς να δημιουργηθεί research response και, ξεχωριστά, να ζητήσει να μη λάβει μελλοντική πρόσκληση για έρευνα του KONTA MOY. Η δεύτερη επιλογή αποθηκεύεται ως append-only suppression event πάνω σε hash του contact και ελέγχεται ξανά σε κάθε νέο population frame και πριν από κάθε αποστολή. Δεν αποτελεί ούτε δημιουργεί marketing consent.</p>
       <p>Το προαιρετικό πείραμα πλατφόρμας είναι χωριστό από το βασικό survey. Τα υποθετικά profiles δημιουργούνται deterministically ανά response ώστε να μπορούν να αναπαραχθούν αργότερα χωρίς να αποτελούν πραγματική εμπορική προσφορά.</p>
     </section>
 
