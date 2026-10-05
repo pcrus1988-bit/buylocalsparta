@@ -309,10 +309,10 @@
 }
 
 @keyframes scanSweep {
-  0% { transform: translateY(0); opacity: 0; }
+  0% { top: -3px; opacity: 0; }
   8% { opacity: 1; }
   92% { opacity: 1; }
-  100% { transform: translateY(calc(min(340px, 68vw) * 1.25)); opacity: 0; }
+  100% { top: 100%; opacity: 0; }
 }
 
 @keyframes markerPulse {
