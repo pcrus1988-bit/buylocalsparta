@@ -68,6 +68,15 @@ function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
+function canonicalResearchJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalResearchJson).join(",")}]`;
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record).sort().map((key) =>
+    `${JSON.stringify(key)}:${canonicalResearchJson(record[key])}`
+  ).join(",")}}`;
+}
+
 
 function researchRewardSecret(env: NodeJS.ProcessEnv = process.env): string {
   const secret = env.BLS_RESEARCH_REWARD_SECRET?.trim();
@@ -1051,6 +1060,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
               WHERE cp.frame_unit_id=fu.id
                 AND cp.contact_type='email'
                 AND cp.suppression_status='active'
+                AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
             )
           )::int AS active_contact_count,
           count(fu.id) FILTER (
@@ -1082,6 +1092,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
               WHERE cp.frame_unit_id=fu.id
                 AND cp.contact_type='email'
                 AND cp.suppression_status='active'
+                AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
             )
           )::int AS main_active_contact_count
         FROM research_strata st
@@ -1285,7 +1296,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       allocationMethod: "proportional_min2_v1",
       strata: designStrata
     };
-    const designJson = JSON.stringify(designDocument);
+    const designJson = canonicalResearchJson(designDocument);
     const designResult = await client.query<SqlRow>(`
       INSERT INTO research_sample_designs (
         sample_draw_id,
