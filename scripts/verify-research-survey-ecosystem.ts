@@ -218,6 +218,7 @@ if (!statistics.includes("normalTwoSidedPValue")) errors.push("pairwise normal p
 if (!analysis.includes('ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v4"')) errors.push("analysis code version is not v4");
 if (!analysis.includes("RESEARCH_ANALYSIS_PLAN_MISSING")) errors.push("analysis does not require a locked preregistration plan");
 if (!analysis.includes("RESEARCH_ANALYSIS_PLAN_BINDING_MISMATCH")) errors.push("analysis retry does not enforce immutable plan binding");
+if (!analysis.includes("RESEARCH_ANALYSIS_PLAN_CODE_MISMATCH")) errors.push("analysis does not fail closed when preregistered methods diverge from executable code");
 if (!analysis.includes('analysisClassification: "prespecified_secondary"')) errors.push("pre-specified secondary estimate classification missing");
 if (!analysis.includes('"prespecified_primary"')) errors.push("pre-specified primary estimate classification missing");
 if (!analysis.includes("pairwise_independent_strata_difference_v1")) errors.push("pairwise region/sector difference estimator missing");
