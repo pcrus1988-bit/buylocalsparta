@@ -322,7 +322,24 @@ export function ResearchSurveyForm({ slug, token, initial }: {
       <span className={styles.kicker}>Η απάντηση καταχωρήθηκε</span>
       <h2>Ευχαριστούμε για τη συμμετοχή σας.</h2>
       <p>Η απάντησή σας έχει κλειδωθεί ως ολοκληρωμένη και θα χρησιμοποιηθεί μόνο στο πλαίσιο της μελέτης και των επιλογών συγκατάθεσης που δώσατε.</p>
-      <a href={"/research/" + encodeURIComponent(slug) + "/methodology"}>Δείτε τη μεθοδολογία της μελέτης</a>
+      <p>Μπορείτε να ανακαλέσετε τη συμμετοχή από αυτόν τον προσωπικό σύνδεσμο. Η ανάκληση εξαιρεί την απάντηση από νέες αναλύσεις. Ήδη δημοσιευμένα συγκεντρωτικά releases παραμένουν ως ιστορικά, αμετάβλητα ερευνητικά τεκμήρια και δεν μπορούν να ανασυντεθούν αναδρομικά σε ατομικό επίπεδο.</p>
+      <div className={styles.optionalConsents}>
+        <label>
+          <input
+            type="checkbox"
+            checked={suppressFutureResearch}
+            onChange={(event) => setSuppressFutureResearch(event.target.checked)}
+          />
+          <span>Μαζί με την ανάκληση, να μη λάβω άλλη πρόσκληση για μελλοντική έρευνα του KONTA MOY.</span>
+        </label>
+      </div>
+      {message && <p className={styles.error}>{message}</p>}
+      <div className={styles.actions}>
+        <button type="button" className={styles.secondary} disabled={saving} onClick={() => void declineParticipation()}>
+          {saving ? "Καταχώρηση ανάκλησης…" : "Ανάκληση συμμετοχής"}
+        </button>
+        <a href={"/research/" + encodeURIComponent(slug) + "/methodology"}>Δείτε τη μεθοδολογία της μελέτης</a>
+      </div>
     </div>;
   }
 
