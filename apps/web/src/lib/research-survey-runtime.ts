@@ -1312,6 +1312,31 @@ export async function transitionResearchStudy(
     } else if (input.action === "close_fieldwork") {
       if (!["pilot", "fielding"].includes(studyStatus)) throw new Error("RESEARCH_LIFECYCLE_INVALID");
 
+      // Prevent the fieldwork end timestamp from racing with an invitation or
+      // reminder sender. Queued contact jobs are cancelled transactionally. If
+      // a worker already claimed one, keep the study open until that worker has
+      // finished so the frozen closeout cannot claim that sending had ended.
+      await client.query(`
+        UPDATE research_study_jobs
+        SET
+          status='cancelled',
+          finished_at=COALESCE(finished_at,now()),
+          error_message=COALESCE(error_message,'cancelled_by_fieldwork_closeout')
+        WHERE study_id=$1
+          AND job_type IN ('invite_batch','invite_reminder')
+          AND status='queued'
+      `, [row.study_id]);
+      const runningContactJobs = await client.query<SqlRow>(`
+        SELECT count(*)::int AS count
+        FROM research_study_jobs
+        WHERE study_id=$1
+          AND job_type IN ('invite_batch','invite_reminder')
+          AND status='running'
+      `, [row.study_id]);
+      if (numberValue(runningContactJobs.rows[0]?.count) > 0) {
+        throw new Error("RESEARCH_FIELDWORK_CLOSE_CONTACT_JOB_RUNNING");
+      }
+
       // Seal the selected sample's latest disposition before fieldwork becomes
       // immutable. Started-but-unfinished responses become partial interviews;
       // every other still-open case is conservatively retained as unknown
