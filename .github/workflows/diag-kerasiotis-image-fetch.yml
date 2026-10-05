@@ -1,0 +1,35 @@
+name: Diagnose Kerasiotis image fetch
+
+on:
+  push:
+    branches:
+      - fix/try-on-kerasiotis-image-optimizer
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Fetch public garment image
+        shell: bash
+        run: |
+          set -u
+          url='https://www.e-kerasiotis.gr/wp-content/uploads/2020/04/DSCN0258_Apr207-1bd.jpg'
+          code=$(curl -L --max-time 30 --retry 0 \
+            -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36' \
+            -H 'Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8' \
+            -H 'Accept-Language: el-GR,el;q=0.9,en;q=0.8' \
+            -e 'https://www.e-kerasiotis.gr/' \
+            -o /tmp/garment.jpg \
+            -w '%{http_code}' \
+            "$url" || true)
+          bytes=$(wc -c </tmp/garment.jpg 2>/dev/null || echo 0)
+          mime=$(file -b --mime-type /tmp/garment.jpg 2>/dev/null || echo unknown)
+          echo "HTTP_STATUS=$code"
+          echo "BYTES=$bytes"
+          echo "MIME=$mime"
+          if [ "$code" != "200" ]; then exit 1; fi
+          case "$mime" in image/*) ;; *) exit 1 ;; esac
