@@ -520,6 +520,48 @@ export async function buildGreekRetailRelease(
   `, [studyId, frameSnapshotId]);
   const pilotSummary = pilotSummaryResult.rows[0] ?? {};
 
+  const protocolEventsResult = await pool.query<SqlRow>(`
+    SELECT
+      pe.id,pe.event_type,pe.lifecycle_phase,pe.category,pe.severity,
+      pe.title,pe.description,pe.rationale,pe.impact_assessment,pe.corrective_action,
+      pe.related_event_id,pe.occurred_at,pe.recorded_at,pe.evidence_json,pe.content_sha256
+    FROM research_protocol_events pe
+    WHERE pe.study_id=$1
+    ORDER BY pe.occurred_at,pe.recorded_at,pe.id
+  `, [studyId]);
+  const protocolEvents = protocolEventsResult.rows.map((row) => {
+    const evidence = objectValue(row.evidence_json);
+    if (sha256Canonical(evidence) !== text(row.content_sha256)) {
+      throw new Error(`RESEARCH_RELEASE_PROTOCOL_EVIDENCE_INTEGRITY_FAILED:${text(row.id)}`);
+    }
+    return {
+      id: text(row.id),
+      eventType: text(row.event_type),
+      lifecyclePhase: text(row.lifecycle_phase),
+      category: text(row.category),
+      severity: text(row.severity),
+      title: text(row.title),
+      description: text(row.description),
+      rationale: text(row.rationale) || null,
+      impactAssessment: text(row.impact_assessment) || null,
+      correctiveAction: text(row.corrective_action) || null,
+      relatedEventId: text(row.related_event_id) || null,
+      occurredAt: row.occurred_at ?? null,
+      recordedAt: row.recorded_at ?? null,
+      contentSha256: text(row.content_sha256)
+    };
+  });
+  const resolvedProtocolEventIds = new Set(
+    protocolEvents
+      .filter((event) => event.eventType === "resolution" && event.relatedEventId)
+      .map((event) => event.relatedEventId as string)
+  );
+  const unresolvedMaterialProtocolEvents = protocolEvents.filter((event) =>
+    event.eventType !== "resolution"
+      && ["material","critical"].includes(event.severity)
+      && !resolvedProtocolEventIds.has(event.id)
+  );
+
   const fieldworkOutcome = researchFieldworkOutcomeSummary(
     numberValue(counts.selected),
     latestDispositionCounts
@@ -563,6 +605,12 @@ export async function buildGreekRetailRelease(
         analysisKey: text(row.analysis_key),
         config: objectValue(row.config)
       }))
+    },
+    protocolEvidence: {
+      schema: "kontamou.research.protocol-event.v1",
+      eventCount: protocolEvents.length,
+      unresolvedMaterialOrCriticalCount: unresolvedMaterialProtocolEvents.length,
+      events: protocolEvents
     },
     analysisPlan: {
       version: text(study.analysis_plan_version),
