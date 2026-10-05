@@ -6,12 +6,13 @@ import { ResearchStudyFieldworkControls } from "../../../../components/ResearchS
 import { ResearchStudyFieldworkBalance } from "../../../../components/ResearchStudyFieldworkBalance";
 import { ResearchStudyLifecycleControls } from "../../../../components/ResearchStudyLifecycleControls";
 import { ResearchStudyQualityControls } from "../../../../components/ResearchStudyQualityControls";
+import { ResearchStudyProtocolControls } from "../../../../components/ResearchStudyProtocolControls";
 import { ResearchStudySamplingControls } from "../../../../components/ResearchStudySamplingControls";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, WorkspaceStatusBadge } from "../../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { researchQualityReviewQueue } from "../../../../lib/research-survey-quality";
-import { researchFieldworkStrata, researchSurveyAdminOverview } from "../../../../lib/research-survey-runtime";
+import { researchFieldworkStrata, researchProtocolEvents, researchSurveyAdminOverview } from "../../../../lib/research-survey-runtime";
 
 export const metadata: Metadata = {
   title: "Admin · Research Studies",
@@ -41,6 +42,12 @@ export default async function ResearchSurveysAdminPage() {
     await Promise.all(overview.studies.map(async (study) => [
       study.slug,
       await researchFieldworkStrata(principal, study.slug)
+    ] as const))
+  );
+  const protocolEvents = new Map(
+    await Promise.all(overview.studies.map(async (study) => [
+      study.slug,
+      await researchProtocolEvents(principal, study.slug)
     ] as const))
   );
 
@@ -166,6 +173,13 @@ export default async function ResearchSurveysAdminPage() {
             {study.failedJobs > 0 && <div className="workspace-inline-note form-error">
               {study.failedJobs} research job(s) require review before relying on the evidence chain.
             </div>}
+
+            {hasAdminPermission(principal, "research.manage") && <ResearchStudyProtocolControls
+              slug={study.slug}
+              csrfToken={principal.csrfToken}
+              studyStatus={study.status}
+              events={protocolEvents.get(study.slug) ?? []}
+            />}
 
             {hasAdminPermission(principal, "research.manage") && <ResearchStudyLifecycleControls
               slug={study.slug}
