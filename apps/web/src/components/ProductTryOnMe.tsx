@@ -697,6 +697,10 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
 
   async function selectSavedLook(item: SavedTryOnSource) {
     if (!storageScope || busy) return;
+    if (activeSavedLook?.id === item.id && modelImage) {
+      setSavedPickerOpen(false);
+      return;
+    }
     setBusy("savedSource");
     setSavedLooksError("");
     setError("");
@@ -751,6 +755,22 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     const nextSelected = nextPhotos[0];
     setModelImages(nextPhotos);
     setModelImage(nextSelected);
+    setResult(undefined);
+    setPreviewExpiresAt(undefined);
+    setSaved(false);
+    setError("");
+    setGenerationOverlay(undefined);
+    autoStarted.current = true;
+  }
+
+  function clearSavedLookSource() {
+    if (!activeSavedLook || busy || !storageScope) return;
+    generationAttempt.current += 1;
+    cancelSharedGeneration(storageScope, productId);
+    clearTryOnPreviews(storageScope);
+    const fallback = readStoredModel(storageScope) ?? modelImages[0];
+    setActiveSavedLook(undefined);
+    setModelImage(fallback);
     setResult(undefined);
     setPreviewExpiresAt(undefined);
     setSaved(false);
@@ -898,6 +918,77 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
           productTitle={productTitle}
         />
       ) : null}
+
+      {savedPickerOpen ? (
+        <div
+          className={styles.savedPickerBackdrop}
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !busy) setSavedPickerOpen(false);
+          }}
+        >
+          <div
+            className={styles.savedPickerDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="try-on-saved-picker-title"
+          >
+            <div className={styles.savedPickerHeader}>
+              <div>
+                <span className={styles.eyebrow}>KONTA MOY · SAVED LOOKS</span>
+                <h3 id="try-on-saved-picker-title">Διάλεξε saved outfit ως βάση</h3>
+                <p>Χρησιμοποίησε ένα look που έχεις ήδη κρατήσει και πρόσθεσε πάνω του το {productTitle}.</p>
+              </div>
+              <button
+                className={styles.savedPickerClose}
+                type="button"
+                aria-label="Κλείσιμο"
+                disabled={Boolean(busy)}
+                onClick={() => setSavedPickerOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            {savedLooksError ? <p className={styles.savedPickerError} role="alert">{savedLooksError}</p> : null}
+            {savedLooksLoading ? <div className={styles.savedPickerState}>Φόρτωση saved outfits…</div> : null}
+
+            {!savedLooksLoading && savedLooks.length ? (
+              <div className={styles.savedLooksGrid}>
+                {savedLooks.map((item) => {
+                  const selected = activeSavedLook?.id === item.id;
+                  return (
+                    <article className={selected ? `${styles.savedLookCard} ${styles.savedLookCardActive}` : styles.savedLookCard} key={item.id}>
+                      <img src={item.imageUrl} alt={`Saved Try On · ${item.productTitle}`} loading="lazy" />
+                      <div className={styles.savedLookCopy}>
+                        <strong>{item.productTitle}</strong>
+                        <span>{selected ? "Τρέχουσα βάση" : "Saved outfit"}</span>
+                        <button
+                          className="button button-secondary"
+                          type="button"
+                          aria-pressed={selected}
+                          disabled={Boolean(busy)}
+                          onClick={() => void selectSavedLook(item)}
+                        >
+                          {busy === "savedSource" ? "Προετοιμασία…" : selected ? "✓ Επιλεγμένο" : "Χρήση ως βάση"}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {!savedLooksLoading && !savedLooks.length && !savedLooksError ? (
+              <div className={styles.savedPickerState}>
+                <strong>Δεν έχεις saved outfit ακόμη.</strong>
+                <span>Αποθήκευσε πρώτα ένα Try On αποτέλεσμα και μετά θα μπορείς να το χρησιμοποιήσεις ως βάση για νέο garment.</span>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <div className={styles.heading}>
         <div>
           <span className={styles.eyebrow}>KONTA MOY · TRY ON ME</span>
@@ -919,31 +1010,47 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
 
       {!modelImage ? (
         <>
-          <p>Βάλε έως 3 καθαρές φωτογραφίες σου και διάλεξε από τα thumbnails ποια θα χρησιμοποιηθεί. Το KONTA MOY τις κρατά μόνο στη συσκευή/τρέχουσα συνεδρία σου· για τη δημιουργία της προεπισκόπησης αποστέλλεται προσωρινά στον πάροχο FASHN και δεν αποθηκεύεται ως φωτογραφία προφίλ. Σε αλλαγή λογαριασμού ή ληγμένη σύνδεση, τα τοπικά Try On δεδομένα του προηγούμενου λογαριασμού καθαρίζονται.</p>
+          <p>Διάλεξε βάση για το Try On: έως 3 προσωπικές φωτογραφίες ή ένα outfit που έχεις ήδη αποθηκεύσει. Έτσι μπορείς, για παράδειγμα, να πάρεις ένα saved look με T-shirt και να δοκιμάσεις πάνω του ένα παντελόνι. Οι προσωπικές φωτογραφίες παραμένουν μόνο στη συσκευή/τρέχουσα συνεδρία σου· τα saved looks φορτώνονται ιδιωτικά από τον λογαριασμό σου.</p>
           {quotaExhausted ? (
             <div className={styles.quotaReached} role="status">
               <strong>Το μηνιαίο όριο ολοκληρώθηκε.</strong>
               <span>Νέες προεπισκοπήσεις θα είναι διαθέσιμες ξανά {quotaResetLabel}.</span>
             </div>
-          ) : (
-            <label className={styles.upload}>
-              <span>{busy === "photo" ? "Ετοιμασία φωτογραφιών…" : "Πρόσθεσε έως 3 φωτογραφίες σου"}</span>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                multiple
-                disabled={Boolean(busy)}
-                onChange={(event) => void choosePhotos(event.currentTarget.files)}
-              />
-            </label>
-          )}
+          ) : null}
+          <div className={styles.sourceChoices}>
+            {!quotaExhausted ? (
+              <label className={styles.upload}>
+                <span>{busy === "photo" ? "Ετοιμασία φωτογραφιών…" : "Πρόσθεσε έως 3 φωτογραφίες σου"}</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  disabled={Boolean(busy)}
+                  onChange={(event) => void choosePhotos(event.currentTarget.files)}
+                />
+              </label>
+            ) : null}
+            {!quotaExhausted ? <span className={styles.sourceOr}>ή</span> : null}
+            <button
+              className={styles.savedSourceButton}
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={() => void openSavedPicker()}
+            >
+              <span className={styles.savedSourceIcon}>★</span>
+              <span>
+                <strong>Pick from saved</strong>
+                <small>Χρησιμοποίησε προηγούμενο outfit ως βάση</small>
+              </span>
+            </button>
+          </div>
         </>
       ) : (
         <>
           <div className={styles.photoPicker}>
             <div className={styles.photoThumbnails} role="list" aria-label="Φωτογραφίες Try On Me">
               {modelImages.map((photo, index) => {
-                const selected = photo === modelImage;
+                const selected = !activeSavedLook && photo === modelImage;
                 return (
                   <div className={styles.photoSlot} role="listitem" key={`${photoFingerprint(photo)}-${index}`}>
                     <button
@@ -971,6 +1078,21 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
                   </div>
                 );
               })}
+              {activeSavedLook ? (
+                <div className={styles.savedSourceSlot} role="listitem">
+                  <button
+                    className={`${styles.photoThumb} ${styles.photoThumbActive} ${styles.savedSourceThumb}`}
+                    type="button"
+                    aria-pressed="true"
+                    aria-label={`Saved outfit ${activeSavedLook.productTitle} χρησιμοποιείται ως βάση`}
+                    disabled={Boolean(busy)}
+                    onClick={() => void openSavedPicker()}
+                  >
+                    <img src={modelImage} alt={`Saved outfit βάση · ${activeSavedLook.productTitle}`} />
+                    <span className={styles.photoSelected}>Saved βάση</span>
+                  </button>
+                </div>
+              ) : null}
               {modelImages.length < MAX_MODEL_PHOTOS && !quotaExhausted ? (
                 <label className={styles.photoAdd}>
                   <strong>＋</strong>
@@ -984,12 +1106,25 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
                   />
                 </label>
               ) : null}
+              <button
+                className={styles.savedSourceTile}
+                type="button"
+                disabled={Boolean(busy)}
+                onClick={() => void openSavedPicker()}
+              >
+                <strong>★</strong>
+                <span>Pick from saved</span>
+              </button>
             </div>
-            <small>Μπορείς να έχεις έως 3 φωτογραφίες. Πάτησε ένα thumbnail για να επιλέξεις ποια θα χρησιμοποιηθεί στην επόμενη δημιουργία.</small>
+            <small>Επίλεξε μία από τις έως 3 προσωπικές φωτογραφίες ή πάτησε “Pick from saved” για να συνεχίσεις πάνω σε προηγούμενο outfit.</small>
           </div>
 
           <div className={styles.modelControls}>
-            <span>Η επιλεγμένη φωτογραφία χρησιμοποιείται για Try On Me.</span>
+            <span>
+              {activeSavedLook
+                ? <>Βάση: saved outfit <strong>{activeSavedLook.productTitle}</strong>. Το νέο garment θα δοκιμαστεί πάνω σε αυτό το look.</>
+                : <>Η επιλεγμένη προσωπική φωτογραφία χρησιμοποιείται για Try On Me.</>}
+            </span>
             <button
               className={styles.autoToggle}
               type="button"
@@ -999,7 +1134,13 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
             >
               Auto Try On: {autoTryOnEnabled ? "ON" : "OFF"}
             </button>
-            <button className={styles.textAction} type="button" onClick={removePhoto} disabled={Boolean(busy)}>Αφαίρεση όλων</button>
+            {activeSavedLook ? (
+              <button className={styles.textAction} type="button" onClick={clearSavedLookSource} disabled={Boolean(busy)}>
+                Καθαρισμός saved βάσης
+              </button>
+            ) : (
+              <button className={styles.textAction} type="button" onClick={removePhoto} disabled={Boolean(busy)}>Αφαίρεση όλων</button>
+            )}
           </div>
 
           {busy === "generate" && !result ? (
