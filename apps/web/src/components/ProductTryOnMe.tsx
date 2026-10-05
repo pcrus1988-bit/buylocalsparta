@@ -42,6 +42,17 @@ type TryOnResult = Readonly<{
   generatedAt: string;
   expiresAt?: string;
 }>;
+type SavedTryOnSource = Readonly<{
+  id: string;
+  productId: string;
+  productTitle: string;
+  productSlug: string;
+  predictionId: string;
+  modelName: string;
+  imageUrl: string;
+  byteSize: number;
+  createdAt: string;
+}>;
 type CachedPreview = Readonly<{ expiresAt: number; result: TryOnResult }>;
 type TryOnGenerationResponse = Readonly<{ result: TryOnResult; quota?: TryOnQuota }>;
 type SharedGeneration = Readonly<{ controller: AbortController; promise: Promise<TryOnGenerationResponse> }>;
@@ -364,7 +375,7 @@ function clearLegacyUnscopedTryOnData() {
   }
 }
 
-async function normalizeModelPhoto(file: File): Promise<string> {
+async function normalizeModelPhoto(file: Blob): Promise<string> {
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("INVALID_TRY_ON_IMAGE");
   const bitmap = await createImageBitmap(file);
   try {
@@ -407,9 +418,14 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   const [sessionChecked, setSessionChecked] = useState(false);
   const [modelImage, setModelImage] = useState<string>();
   const [modelImages, setModelImages] = useState<string[]>([]);
+  const [activeSavedLook, setActiveSavedLook] = useState<SavedTryOnSource>();
+  const [savedPickerOpen, setSavedPickerOpen] = useState(false);
+  const [savedLooks, setSavedLooks] = useState<readonly SavedTryOnSource[]>([]);
+  const [savedLooksLoading, setSavedLooksLoading] = useState(false);
+  const [savedLooksError, setSavedLooksError] = useState("");
   const [result, setResult] = useState<TryOnResult>();
   const [previewExpiresAt, setPreviewExpiresAt] = useState<number>();
-  const [busy, setBusy] = useState<"photo" | "generate" | "save" | "">("");
+  const [busy, setBusy] = useState<"photo" | "savedSource" | "generate" | "save" | "">("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [generationOverlay, setGenerationOverlay] = useState<{ photo: string; resultImage?: string }>();
@@ -481,6 +497,11 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     setAutoTryOnEnabled(true);
     setModelImage(undefined);
     setModelImages([]);
+    setActiveSavedLook(undefined);
+    setSavedPickerOpen(false);
+    setSavedLooks([]);
+    setSavedLooksLoading(false);
+    setSavedLooksError("");
     setResult(undefined);
     setPreviewExpiresAt(undefined);
     setSaved(false);
@@ -593,6 +614,23 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     };
   }, [csrfToken, quota?.resetAt]);
 
+  async function openSavedPicker() {
+    if (busy) return;
+    setSavedPickerOpen(true);
+    setSavedLooksLoading(true);
+    setSavedLooksError("");
+    try {
+      const response = await fetch("/api/account/try-on/saved", { cache: "no-store" });
+      const payload = await response.json() as { tryOns?: SavedTryOnSource[]; error?: string };
+      if (!response.ok) throw new Error(payload.error || "TRY_ON_LIST_FAILED");
+      setSavedLooks(payload.tryOns ?? []);
+    } catch {
+      setSavedLooksError("Δεν ήταν δυνατή η φόρτωση των αποθηκευμένων looks.");
+    } finally {
+      setSavedLooksLoading(false);
+    }
+  }
+
   async function choosePhotos(files: FileList | null) {
     if (quota?.remaining === 0) {
       setError(messageFor("TRY_ON_MONTHLY_LIMIT_REACHED"));
@@ -623,6 +661,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
       rememberModelGallery(storageScope, nextPhotos);
       clearTryOnPreviews(storageScope);
       setModelImages(nextPhotos);
+      setActiveSavedLook(undefined);
       setModelImage(selected);
       setResult(undefined);
       setPreviewExpiresAt(undefined);
@@ -637,11 +676,12 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   }
 
   async function selectModelPhoto(photo: string) {
-    if (!storageScope || busy || photo === modelImage) return;
+    if (!storageScope || busy || (!activeSavedLook && photo === modelImage)) return;
     generationAttempt.current += 1;
     cancelSharedGeneration(storageScope, productId);
     storeModelPhoto(storageScope, photo);
     clearTryOnPreviews(storageScope);
+    setActiveSavedLook(undefined);
     setModelImage(photo);
     setResult(undefined);
     setPreviewExpiresAt(undefined);
@@ -655,12 +695,52 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     }
   }
 
+  async function selectSavedLook(item: SavedTryOnSource) {
+    if (!storageScope || busy) return;
+    setBusy("savedSource");
+    setSavedLooksError("");
+    setError("");
+    try {
+      const response = await fetch(item.imageUrl, { cache: "no-store" });
+      if (!response.ok) throw new Error("TRY_ON_SAVED_IMAGE_LOAD_FAILED");
+      const image = await response.blob();
+      const normalized = await normalizeModelPhoto(image);
+
+      generationAttempt.current += 1;
+      cancelSharedGeneration(storageScope, productId);
+      clearTryOnPreviews(storageScope);
+      setActiveSavedLook(item);
+      setModelImage(normalized);
+      setResult(undefined);
+      setPreviewExpiresAt(undefined);
+      setSaved(false);
+      setGenerationOverlay(undefined);
+      setSavedPickerOpen(false);
+      autoStarted.current = true;
+
+      if (autoTryOnEnabled && csrfToken && quota?.remaining !== 0) {
+        await generate(normalized, csrfToken, storageScope);
+      }
+    } catch {
+      setSavedLooksError("Το αποθηκευμένο look δεν μπόρεσε να χρησιμοποιηθεί. Δοκίμασε ξανά.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   function removeModelPhoto(photo: string) {
     if (busy || !storageScope) return;
     const nextPhotos = modelImages.filter((candidate) => candidate !== photo);
     rememberModelGallery(storageScope, nextPhotos);
 
-    if (photo !== modelImage) {
+    const persistedModel = readStoredModel(storageScope);
+    if (persistedModel === photo) {
+      const fallback = nextPhotos[0];
+      if (fallback) storeModelPhoto(storageScope, fallback);
+      else removeStoredModel(storageScope);
+    }
+
+    if (activeSavedLook || photo !== modelImage) {
       setModelImages(nextPhotos);
       return;
     }
@@ -669,8 +749,6 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     cancelSharedGeneration(storageScope, productId);
     clearTryOnPreviews(storageScope);
     const nextSelected = nextPhotos[0];
-    if (nextSelected) storeModelPhoto(storageScope, nextSelected);
-    else removeStoredModel(storageScope);
     setModelImages(nextPhotos);
     setModelImage(nextSelected);
     setResult(undefined);
@@ -699,6 +777,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     }
     setModelImage(undefined);
     setModelImages([]);
+    setActiveSavedLook(undefined);
     setResult(undefined);
     setPreviewExpiresAt(undefined);
     setSaved(false);
@@ -753,6 +832,20 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     const timer = window.setTimeout(expire, remaining);
     return () => window.clearTimeout(timer);
   }, [previewExpiresAt, productId, result, saved, storageScope]);
+
+  useEffect(() => {
+    if (!savedPickerOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) setSavedPickerOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [busy, savedPickerOpen]);
 
   const quotaExhausted = quota?.remaining === 0;
   const quotaResetLabel = quota
