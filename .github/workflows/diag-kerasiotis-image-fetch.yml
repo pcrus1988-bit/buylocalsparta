@@ -14,9 +14,9 @@ permissions:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
-      - name: Fetch public garment image
+      - name: Diagnose direct fetch
         shell: bash
         run: |
           set -u
@@ -26,19 +26,39 @@ jobs:
             -H 'Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8' \
             -H 'Accept-Language: el-GR,el;q=0.9,en;q=0.8' \
             -e 'https://www.e-kerasiotis.gr/' \
-            -o /tmp/garment.jpg \
+            -o /tmp/direct-response \
             -w '%{http_code}' \
             "$url" || true)
-          bytes=$(wc -c </tmp/garment.jpg 2>/dev/null || echo 0)
-          mime=$(file -b --mime-type /tmp/garment.jpg 2>/dev/null || echo unknown)
-          echo "HTTP_STATUS=$code"
-          echo "BYTES=$bytes"
-          echo "MIME=$mime"
-          if [ "$code" != "200" ]; then
-            echo "RESPONSE_PREVIEW_START"
-            head -c 800 /tmp/garment.jpg | tr '\\n' ' ' | sed 's/[[:space:]]\\+/ /g'
-            echo
-            echo "RESPONSE_PREVIEW_END"
-            exit 1
-          fi
-          case "$mime" in image/*) ;; *) exit 1 ;; esac
+          bytes=$(wc -c </tmp/direct-response 2>/dev/null || echo 0)
+          mime=$(file -b --mime-type /tmp/direct-response 2>/dev/null || echo unknown)
+          echo "DIRECT_HTTP_STATUS=$code"
+          echo "DIRECT_BYTES=$bytes"
+          echo "DIRECT_MIME=$mime"
+
+      - name: Acquire through browser
+        shell: bash
+        run: |
+          set -euxo pipefail
+          url='https://www.e-kerasiotis.gr/wp-content/uploads/2020/04/DSCN0258_Apr207-1bd.jpg'
+          command -v google-chrome
+          timeout 45s google-chrome \
+            --headless=new \
+            --no-sandbox \
+            --disable-dev-shm-usage \
+            --disable-gpu \
+            --window-size=1600,1600 \
+            --virtual-time-budget=15000 \
+            --screenshot=/tmp/browser.png \
+            "$url" || true
+          test -s /tmp/browser.png
+          file /tmp/browser.png
+          identify /tmp/browser.png || true
+          cp /tmp/browser.png browser.png
+
+      - name: Upload browser acquisition
+        uses: actions/upload-artifact@v4
+        with:
+          name: kerasiotis-browser-acquisition
+          path: browser.png
+          if-no-files-found: error
+          retention-days: 1
