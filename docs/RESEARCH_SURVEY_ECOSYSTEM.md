@@ -53,6 +53,18 @@ New draws use algorithm `stratified-hash-rank-v2`. When the requested sample siz
 - The release engine derives `greek-retail-2026-fieldwork-outcomes-v1` from those latest dispositions and refuses to build a release unless disposition coverage equals the selected sample and no progress-state disposition remains unresolved.
 - The frozen release reports both gross selected-sample completion and a conservative net-sample completion rate. The net sample subtracts only cases known to be ineligible; unknown eligibility remains in the denominator. It also publishes the exact denominator definitions rather than labelling a bespoke metric as a standard AAPOR response rate.
 
+### Pilot / main fieldwork isolation
+
+Pilot testing and publishable main fieldwork are separate governed phases.
+
+- Sample draws, invitation batches and canonical invitations carry an explicit `fieldwork_phase` of `pilot` or `main`.
+- Pilot timing is stored in `pilot_started_at` / `pilot_ended_at`; `fieldwork_starts_at` now means the start of the publishable main fieldwork.
+- Moving from pilot to main cancels queued pilot contact jobs, refuses the transition while a pilot sender is running, expires open pilot links and freezes the pilot exposure boundary.
+- A main sample can be drawn only after the study is in `fielding`. The draw excludes every business that was actually sent a pilot invitation, matching by stable external business hash so the holdout survives a refreshed frame snapshot.
+- Pilot responses remain auditable and may still receive consent-scoped thank-you/results communications, but they are excluded from QA gates for the publishable analysis, weighting, estimates and release fieldwork denominators.
+- The release artifact discloses pilot start/end, pilot sent/started/completed counts, the number of pilot-exposed units removed from the current main frame, and the resulting main eligible population.
+- Per-stratum and overall email contactability for the release use the post-pilot main eligible population rather than the pre-pilot frozen-frame denominator.
+
 ### Invitations
 
 - `research_invites` stores only the SHA-256 hash of the random invitation token.
