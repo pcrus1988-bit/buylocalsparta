@@ -117,7 +117,7 @@ Weight versions are not overwritten. A new weighting methodology creates a new v
 
 ### Variance and confidence intervals
 
-Analysis version `greek-retail-2026-analysis-v2` uses `stratified_srs_fpc_v1` for design-aware variance when the estimate is a whole-study, region or sector estimate that can be expressed as a union of the actual sampling strata. The estimator applies the finite-population correction within each contributing stratum and publishes a 95% normal confidence interval.
+Analysis version `greek-retail-2026-analysis-v3` uses `stratified_srs_fpc_v1` for design-aware variance when the estimate is a whole-study, region or sector estimate that can be expressed as a union of the actual sampling strata. The estimator applies the finite-population correction within each contributing stratum and publishes a 95% normal confidence interval.
 
 The engine deliberately withholds an interval when any of the following is true:
 - a contributing stratum has fewer than two analyzed responses;
@@ -126,6 +126,8 @@ The engine deliberately withholds an interval when any of the following is true:
 - the requested segment is a post-hoc domain such as business-size band rather than a union of sampling strata.
 
 This is a conservative disclosure rule: absence of an interval means the implemented design-based estimator does not justify one, not that uncertainty is zero.
+
+For the two headline 0–100 indices, analysis v3 also creates exploratory pairwise differences across region and sector levels when both component estimates have design-supported standard errors. Because these domains are disjoint unions of sampling strata, the difference standard error is calculated from the two component variances. Each comparison freezes A−B, its 95% interval, z-score and two-sided normal p-value. P-values are explicitly marked `pValueAdjustment: none`: there is no family-wise or false-discovery correction, so pairwise output is exploratory evidence and must be interpreted with effect size, uncertainty, sample bases and the number of comparisons rather than a mechanical p<0.05 rule.
 
 ### Quality review
 
@@ -218,6 +220,8 @@ A release is not scientifically ready until it has:
 - unweighted and weighted bases for published estimates
 - quality/exclusion rules
 - analysis code version + dataset hash
+- weighting dispersion / Kish effective sample size diagnostics
+- pairwise comparison method, intervals and explicit multiple-comparison disclosure where comparative inference is published
 - limitations
 - release artifact hash
 
