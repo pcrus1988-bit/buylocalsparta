@@ -1,4 +1,4 @@
-import { getPublishedGreekRetailReleaseArtifact } from "../../../../../../lib/research-survey-release";
+import { getPublishedGreekRetailReleaseArtifact } from "../../../../../lib/research-survey-release";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,7 +31,7 @@ export async function GET(_request: Request, context: { params: Promise<{ slug: 
       "Content-Type": "application/json; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,
       "Cache-Control": "public, max-age=300, stale-while-revalidate=3600",
-      "Digest": `sha-256=${release.artifactSha256}`,
+      "ETag": `"${release.artifactSha256}"`,
       "X-Konta-Mou-Artifact-SHA256": release.artifactSha256
     }
   });
