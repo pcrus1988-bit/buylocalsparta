@@ -56,6 +56,8 @@ export async function sendRawSesEmail(input: {
   to: readonly string[];
   cc?: readonly string[];
   bcc?: readonly string[];
+  configurationSetName?: string;
+  emailTags?: readonly Readonly<{ name: string; value: string }>[];
 }): Promise<{ providerMessageId: string }> {
   if (!input.to.length && !input.cc?.length && !input.bcc?.length) throw new Error("At least one email recipient is required");
   const endpoint = new URL(input.config.endpoint || `https://email.${input.config.region}.amazonaws.com`);
@@ -69,7 +71,14 @@ export async function sendRawSesEmail(input: {
       CcAddresses: input.cc ?? [],
       BccAddresses: input.bcc ?? []
     },
-    Content: { Raw: { Data: Buffer.from(input.raw).toString("base64") } }
+    Content: { Raw: { Data: Buffer.from(input.raw).toString("base64") } },
+    ...(input.configurationSetName?.trim() ? { ConfigurationSetName: input.configurationSetName.trim() } : {}),
+    ...(input.emailTags?.length ? {
+      EmailTags: input.emailTags.map((tag) => ({
+        Name: validSesTagPart(tag.name, "name"),
+        Value: validSesTagPart(tag.value, "value")
+      }))
+    } : {})
   });
   const headers = signAwsRequest({
     method: "POST",
@@ -204,6 +213,14 @@ function safeJson(value: string): Record<string, unknown> | undefined {
 
 function textValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function validSesTagPart(value: string, label: "name" | "value"): string {
+  const clean = value.trim();
+  if (!clean || clean.length > 256 || !/^[A-Za-z0-9_-]+$/.test(clean)) {
+    throw new Error(`SES email tag ${label} must contain only ASCII letters, numbers, underscores or dashes and be 1-256 characters`);
+  }
+  return clean;
 }
 
 function positiveInteger(raw: string | undefined, fallback: number, name: string): number {
