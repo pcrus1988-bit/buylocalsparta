@@ -1,5 +1,5 @@
 import { randomInt, randomUUID } from "node:crypto";
-import { S3ObjectStorage, objectStorageConfigFromEnv, serverObjectStorageFromEnv, type ServerObjectStorage } from "@buy-local-sparta/object-storage";
+import { serverObjectStorageFromEnv, type ServerObjectStorage } from "@buy-local-sparta/object-storage";
 import { getCatalogCard } from "./catalog-view";
 import { approvedCatalogImageGallery } from "./public-product-media-gallery";
 import { getPublicProductDetail } from "./public-product-detail";
@@ -56,79 +56,6 @@ export type CustomerTryOnGeneration = Readonly<{
   generatedAt: string;
   expiresAt: string;
 }>;
-
-let customerTryOnStorage: S3ObjectStorage | undefined;
-let customerTryOnStorageResolved = false;
-
-function configuredObjectStorage(): S3ObjectStorage | undefined {
-  if (customerTryOnStorageResolved) return customerTryOnStorage;
-  customerTryOnStorageResolved = true;
-  try {
-    customerTryOnStorage = new S3ObjectStorage(objectStorageConfigFromEnv());
-  } catch {
-    customerTryOnStorage = undefined;
-  }
-  return customerTryOnStorage;
-}
-
-function supabaseStorageFallbackConfig() {
-  const baseUrl = (process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL)?.trim().replace(/\/+$/, "");
-  const apiKey = process.env.SUPABASE_SECRET_KEY?.trim();
-  const bucket = process.env.TRY_ON_STORAGE_BUCKET?.trim() || "buy-local-sparta-private";
-  if (!baseUrl || !apiKey) throw new Error("TRY_ON_STORAGE_NOT_CONFIGURED");
-  return { baseUrl, apiKey, bucket };
-}
-
-function supabaseStorageObjectUrl(objectKey: string) {
-  const { baseUrl, apiKey, bucket } = supabaseStorageFallbackConfig();
-  const encodedKey = objectKey.split("/").map((part) => encodeURIComponent(part)).join("/");
-  return {
-    url: `${baseUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedKey}`,
-    apiKey
-  };
-}
-
-async function uploadSupabaseFallback(objectKey: string, contentType: string, bytes: Uint8Array): Promise<void> {
-  const { url, apiKey } = supabaseStorageObjectUrl(objectKey);
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      apikey: apiKey,
-      authorization: `Bearer ${apiKey}`,
-      "content-type": contentType,
-      "x-upsert": "false"
-    },
-    body: Buffer.from(bytes),
-    cache: "no-store"
-  });
-  if (!response.ok) throw new Error(`TRY_ON_STORAGE_UPLOAD_FAILED_${response.status}`);
-}
-
-async function readSupabaseFallback(objectKey: string) {
-  const { url, apiKey } = supabaseStorageObjectUrl(objectKey);
-  const response = await fetch(url, {
-    headers: { apikey: apiKey, authorization: `Bearer ${apiKey}` },
-    cache: "no-store"
-  });
-  if (!response.ok) throw new Error(`TRY_ON_STORAGE_READ_FAILED_${response.status}`);
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  return {
-    objectKey,
-    stream: (async function* () { yield bytes; })(),
-    byteSize: bytes.byteLength,
-    contentType: response.headers.get("content-type")?.split(";")[0]?.trim() || undefined
-  };
-}
-
-async function deleteSupabaseFallback(objectKey: string): Promise<void> {
-  const { url, apiKey } = supabaseStorageObjectUrl(objectKey);
-  const response = await fetch(url, {
-    method: "DELETE",
-    headers: { apikey: apiKey, authorization: `Bearer ${apiKey}` },
-    cache: "no-store"
-  });
-  if (!response.ok && response.status !== 404) throw new Error(`TRY_ON_STORAGE_DELETE_FAILED_${response.status}`);
-}
 
 let sharedCustomerTryOnStorage: ServerObjectStorage | undefined;
 
