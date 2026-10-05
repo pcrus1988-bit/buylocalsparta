@@ -138,6 +138,22 @@ export function normal95ConfidenceInterval(
 }
 
 
+function erfApproximation(value: number): number {
+  const sign = value < 0 ? -1 : 1;
+  const x = Math.abs(value);
+  const t = 1 / (1 + 0.3275911 * x);
+  const polynomial = (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t;
+  return sign * (1 - polynomial * Math.exp(-x * x));
+}
+
+export function normalTwoSidedPValue(zScore: number): number | undefined {
+  if (!Number.isFinite(zScore)) return undefined;
+  const absolute = Math.abs(zScore);
+  const cdf = 0.5 * (1 + erfApproximation(absolute / Math.SQRT2));
+  return Math.max(0, Math.min(1, 2 * (1 - cdf)));
+}
+
+
 export type StratumAllocationInput = Readonly<{ id: string; populationCount: number }>;
 export type StratumAllocation = Readonly<{ id: string; populationCount: number; sampleCount: number }>;
 
