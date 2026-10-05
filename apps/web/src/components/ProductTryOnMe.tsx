@@ -34,7 +34,12 @@ function messageFor(error: string): string {
   if (error === "TRY_ON_RATE_LIMITED") return "Έχεις κάνει πολλές δοκιμές σε πολύ μικρό διάστημα. Περίμενε λίγο και δοκίμασε ξανά.";
   if (error === "TRY_ON_SAVE_TOKEN_EXPIRED") return "Η προσωρινή προεπισκόπηση έληξε. Δημιούργησε νέα προεπισκόπηση πριν την αποθηκεύσεις.";
   if (error === "INVALID_TRY_ON_SAVE_TOKEN") return "Η προεπισκόπηση δεν μπορεί να αποθηκευτεί με ασφάλεια. Δημιούργησε νέα.";
-  return error && !error.startsWith("TRY_ON_") ? error : "Δεν μπόρεσε να δημιουργηθεί η προεπισκόπηση. Δοκίμασε ξανά.";
+  if (error === "TRY_ON_POSE_REQUIRED") return "Δεν αναγνωρίστηκε καθαρά η στάση του σώματος. Χρησιμοποίησε ολόσωμη ή 3/4 φωτογραφία με καθαρή θέα του σώματος.";
+  if (error === "TRY_ON_CONTENT_BLOCKED") return "Η φωτογραφία δεν μπορεί να χρησιμοποιηθεί για virtual try-on. Διάλεξε άλλη φωτογραφία.";
+  if (error === "TRY_ON_INPUT_INVALID") return "Η φωτογραφία δεν είναι κατάλληλη για Try On Me. Δοκίμασε καθαρότερη φωτογραφία χωρίς έντονα εμπόδια.";
+  if (error === "TRY_ON_PROVIDER_BUSY") return "Το Try On Me έχει προσωρινά αυξημένη κίνηση. Δοκίμασε ξανά σε λίγο.";
+  if (error === "TRY_ON_CREDITS_UNAVAILABLE") return "Το Try On Me δεν είναι προσωρινά διαθέσιμο. Η υπηρεσία χρειάζεται ανανέωση χωρητικότητας.";
+  return "Δεν μπόρεσε να δημιουργηθεί η προεπισκόπηση. Δοκίμασε ξανά.";
 }
 
 function validStoredModel(value: string | null): string | undefined {
@@ -135,10 +140,30 @@ function clearLegacyUnscopedTryOnData() {
   }
 }
 
+function readFileDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("INVALID_TRY_ON_IMAGE"));
+    reader.onload = () => {
+      const value = typeof reader.result === "string" ? reader.result : "";
+      if (!value.startsWith("data:image/")) reject(new Error("INVALID_TRY_ON_IMAGE"));
+      else resolve(value);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 async function normalizeModelPhoto(file: File): Promise<string> {
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("INVALID_TRY_ON_IMAGE");
   const bitmap = await createImageBitmap(file);
   try {
+    // Keep the shopper's original pixels and encoding whenever the request will
+    // still fit comfortably inside the serverless payload budget.
+    if (file.size <= 2_550_000) {
+      const original = await readFileDataUrl(file);
+      if (original.length <= MAX_MODEL_DATA_URL_CHARS) return original;
+    }
+
     const scale = Math.min(1, 1296 / Math.max(bitmap.width, bitmap.height));
     const width = Math.max(1, Math.round(bitmap.width * scale));
     const height = Math.max(1, Math.round(bitmap.height * scale));
@@ -151,7 +176,7 @@ async function normalizeModelPhoto(file: File): Promise<string> {
     context.fillRect(0, 0, width, height);
     context.drawImage(bitmap, 0, 0, width, height);
 
-    for (const quality of [0.86, 0.8, 0.74, 0.68, 0.62]) {
+    for (const quality of [0.9, 0.84, 0.78, 0.72, 0.66, 0.6]) {
       const encoded = canvas.toDataURL("image/jpeg", quality);
       if (encoded.length <= MAX_MODEL_DATA_URL_CHARS) return encoded;
     }
@@ -165,6 +190,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   const router = useRouter();
   const pathname = usePathname();
   const autoStarted = useRef(false);
+  const generationAbort = useRef<AbortController>();
   const [csrfToken, setCsrfToken] = useState<string>();
   const [storageScope, setStorageScope] = useState<string>();
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -177,6 +203,9 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
 
   async function generate(photo: string, token: string, scope: string) {
     if (busy === "generate") return;
+    generationAbort.current?.abort();
+    const controller = new AbortController();
+    generationAbort.current = controller;
     setBusy("generate");
     setError("");
     setSaved(false);
@@ -185,23 +214,31 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": token },
         body: JSON.stringify({ productId, modelImageDataUrl: photo }),
-        cache: "no-store"
+        cache: "no-store",
+        signal: controller.signal
       });
       const payload = await response.json() as { result?: TryOnResult; error?: string };
       if (!response.ok || !payload.result) throw new Error(payload.error || "TRY_ON_FAILED");
+      if (generationAbort.current !== controller) return;
       const expiresAt = Date.now() + PREVIEW_TTL_MS;
       setResult(payload.result);
       setPreviewExpiresAt(expiresAt);
       writePreview(scope, productId, payload.result, expiresAt);
     } catch (cause) {
+      if (controller.signal.aborted) return;
       setError(messageFor(cause instanceof Error ? cause.message : "TRY_ON_FAILED"));
     } finally {
-      setBusy("");
+      if (generationAbort.current === controller) {
+        generationAbort.current = undefined;
+        setBusy("");
+      }
     }
   }
 
   useEffect(() => {
     let active = true;
+    generationAbort.current?.abort();
+    generationAbort.current = undefined;
     autoStarted.current = false;
     setSessionChecked(false);
     setCsrfToken(undefined);
@@ -240,7 +277,10 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
       .catch(() => {
         if (active) setSessionChecked(true);
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+      generationAbort.current?.abort();
+    };
   }, [productId]);
 
   useEffect(() => {
@@ -273,6 +313,8 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   }
 
   function removePhoto() {
+    generationAbort.current?.abort();
+    generationAbort.current = undefined;
     if (storageScope) {
       const key = modelKey(storageScope);
       try { window.localStorage.removeItem(key); } catch {}
