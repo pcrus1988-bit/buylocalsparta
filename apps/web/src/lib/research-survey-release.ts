@@ -429,6 +429,7 @@ export type PublishedResearchEstimate = Readonly<{
   ciUpper: number | null;
   unweightedN: number;
   weightedN: number | null;
+  method: string;
   suppressed: boolean;
   metadata: Record<string, unknown>;
 }>;
@@ -436,6 +437,7 @@ export type PublishedResearchEstimate = Readonly<{
 export async function getPublishedGreekRetailResults(slug: string): Promise<Readonly<{
   releaseVersion: string;
   publishedAt: string;
+  analysisRunId: string;
   datasetSha256: string;
   artifactSha256: string;
   methodology: Record<string, unknown>;
@@ -457,7 +459,7 @@ export async function getPublishedGreekRetailResults(slug: string): Promise<Read
 
   const estimatesResult = await pool.query<SqlRow>(`
     SELECT metric_key,segment,estimate,standard_error,confidence_level,ci_lower,ci_upper,
-           unweighted_n,weighted_n,suppressed,metadata
+           unweighted_n,weighted_n,method,suppressed,metadata
     FROM research_analysis_estimates
     WHERE analysis_run_id=$1
     ORDER BY metric_key,segment::text
@@ -466,6 +468,7 @@ export async function getPublishedGreekRetailResults(slug: string): Promise<Read
   return {
     releaseVersion: text(row.release_version),
     publishedAt: new Date(row.published_at as string | Date).toISOString(),
+    analysisRunId: text(row.analysis_run_id),
     datasetSha256: text(row.dataset_sha256),
     artifactSha256: text(row.artifact_sha256),
     methodology: objectValue(row.methodology_json),
@@ -479,8 +482,49 @@ export async function getPublishedGreekRetailResults(slug: string): Promise<Read
       ciUpper: Boolean(estimate.suppressed) || estimate.ci_upper == null ? null : numberValue(estimate.ci_upper),
       unweightedN: numberValue(estimate.unweighted_n),
       weightedN: estimate.weighted_n == null ? null : numberValue(estimate.weighted_n),
+      method: text(estimate.method),
       suppressed: Boolean(estimate.suppressed),
       metadata: objectValue(estimate.metadata)
     }))
+  };
+}
+
+
+export type PublishedResearchReleaseArtifact = Readonly<{
+  schema: "kontamou.research.release.v1";
+  releaseVersion: string;
+  studySlug: string;
+  analysisRunId: string;
+  datasetSha256: string;
+  methodology: Record<string, unknown>;
+  estimates: readonly PublishedResearchEstimate[];
+}>;
+
+export async function getPublishedGreekRetailReleaseArtifact(slug: string): Promise<Readonly<{
+  artifact: PublishedResearchReleaseArtifact;
+  canonicalJson: string;
+  artifactSha256: string;
+  integrityOk: boolean;
+}> | undefined> {
+  const published = await getPublishedGreekRetailResults(slug);
+  if (!published) return undefined;
+
+  const artifact: PublishedResearchReleaseArtifact = {
+    schema: "kontamou.research.release.v1",
+    releaseVersion: published.releaseVersion,
+    studySlug: slug,
+    analysisRunId: published.analysisRunId,
+    datasetSha256: published.datasetSha256,
+    methodology: published.methodology,
+    estimates: published.estimates
+  };
+  const canonicalJson = canonical(artifact);
+  const recomputedSha256 = createHash("sha256").update(canonicalJson, "utf8").digest("hex");
+
+  return {
+    artifact,
+    canonicalJson,
+    artifactSha256: published.artifactSha256,
+    integrityOk: recomputedSha256 === published.artifactSha256
   };
 }
