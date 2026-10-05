@@ -172,6 +172,13 @@ if (!statistics.includes("researchWeightDiagnostics")) errors.push("weighting ef
 if (!statistics.includes("unequal_within_stratum_weights")) errors.push("variance guard for unequal stratum weights missing");
 if (!analysis.includes('VARIANCE_METHOD = "stratified_srs_fpc_v1"')) errors.push("analysis variance method is not versioned");
 if (!analysis.includes("'weightDiagnostics',$3::jsonb")) errors.push("analysis run does not persist weighting diagnostics");
+if (!statistics.includes("normalTwoSidedPValue")) errors.push("pairwise normal p-value helper missing");
+if (!analysis.includes('ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v3"')) errors.push("pairwise analysis code version is not v3");
+if (!analysis.includes("pairwise_independent_strata_difference_v1")) errors.push("pairwise region/sector difference estimator missing");
+if (!analysis.includes('pValueAdjustment: "none"')) errors.push("pairwise p-value multiplicity disclosure missing");
+if (!resultsPage.includes("Exploratory pairwise inference")) errors.push("public pairwise inference section missing");
+if (!resultsPage.includes("χωρίς διόρθωση για πολλαπλές συγκρίσεις")) errors.push("public pairwise multiplicity warning missing");
+
 if (!release.includes("weightDiagnostics: objectValue(parameters.weightDiagnostics)")) errors.push("release does not freeze weighting diagnostics");
 if (!resultsPage.includes("Kish effective n")) errors.push("public results do not disclose effective sample size");
 
