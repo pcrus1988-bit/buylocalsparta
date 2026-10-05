@@ -39,6 +39,8 @@ The scientific sample must be drawn from the frozen eligible population, not fro
 - Email/phone/postal contact values have a companion SHA-256 hash for matching and suppression.
 - Contactability never changes the frozen population definition.
 - Invalid, bounced or suppressed contact points remain explicit non-response evidence rather than being silently removed from the denominator.
+- `research_contact_suppression_events` is an append-only, hash-based cross-wave ledger. Participant research opt-outs, SES complaints and bounces therefore survive later frame rebuilds instead of being trapped inside one snapshot.
+- Frame ingestion and send-time eligibility both consult the cross-wave ledger. A new G.E.MI. snapshot cannot silently reactivate a suppressed contact hash.
 
 ### Invitations
 
@@ -47,6 +49,8 @@ The scientific sample must be drawn from the frozen eligible population, not fro
 - The raw token appears only in the link delivered to the selected business.
 - No AFM, G.E.MI. number, email or company name is placed in the URL.
 - `research_invite_events` records created/sent/delivered/opened/started/saved/completed/bounced/suppressed/expired events.
+- A participant may decline the current study without creating a research response. They may independently request suppression from future KONTA MOY research invitations; that choice is not marketing consent and does not alter commercial permissions.
+- If a participant withdraws after starting, the response moves to `withdrawn`, a negative research-participation consent event is appended, and the sample-disposition ledger records the withdrawal.
 
 ### Consent and response
 
@@ -136,7 +140,7 @@ Contact values and responses are kept in separate relational domains even though
 - `/research/greek-retail-2026` — public study overview.
 - `/research/greek-retail-2026/methodology` — methodology and reproducibility statement.
 - `/research/:slug/t/:token` — tokenized participant survey.
-- `POST /api/research/:slug/t/:token` — server-side consent/save/complete endpoint.
+- `POST /api/research/:slug/t/:token` — server-side consent/save/complete endpoint plus token-authenticated refusal / future-research opt-out action.
 
 ## Admin routes
 
@@ -147,7 +151,7 @@ Contact values and responses are kept in separate relational domains even though
 
 Invitation delivery is intentionally gated. It requires a locked/fielded probability sample, a locked recruitment-template version, study status `pilot` or `fielding`, and explicit production enablement through `BLS_RESEARCH_EMAIL_DELIVERY_ENABLED=true`. The worker sends through the existing SES sender using the dedicated `BLS_RESEARCH_SES_CONFIGURATION_SET`; SES message tags carry only internal study/invite/batch identifiers, never the raw token.
 
-The SNS endpoint requires `BLS_RESEARCH_SES_SNS_TOPIC_ARN`, rejects messages for any other topic, validates the AWS signing-certificate URL and SNS signature, and writes delivery/open/bounce/complaint outcomes back into the invitation event and sample-disposition ledgers. Bounces and complaints suppress the affected research contact point.
+The SNS endpoint requires `BLS_RESEARCH_SES_SNS_TOPIC_ARN`, rejects messages for any other topic, validates the AWS signing-certificate URL and SNS signature, and writes delivery/open/bounce/complaint outcomes back into the invitation event and sample-disposition ledgers. Bounces and complaints suppress every matching research contact row and append the normalized contact hash to the cross-wave suppression ledger.
 
 ## G.E.MI. integration boundary
 
@@ -163,7 +167,7 @@ Later source updates never mutate a frozen frame. They create a new snapshot.
 
 ## Repeat waves
 
-2027 and later waves should create new study/instrument/frame/sample records while preserving stable analysis keys for longitudinal measures. Wording changes require a new instrument version and must be called out in the methodology.
+2027 and later waves should create new study/instrument/frame/sample records while preserving stable analysis keys for longitudinal measures. Wording changes require a new instrument version and must be called out in the methodology. Cross-wave contact suppression is checked during frame ingestion and again immediately before delivery, so a later wave does not override an earlier research opt-out, complaint or bounce.
 
 ## Release checklist
 
