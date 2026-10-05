@@ -1374,7 +1374,7 @@ export async function transitionResearchStudy(
             finished_at=COALESCE(finished_at,now()),
             error_message=COALESCE(error_message,'cancelled_by_pilot_closeout')
           WHERE study_id=$1
-            AND job_type IN ('invite_batch','invite_reminder')
+            AND job_type IN ('sample_draw','invite_batch','invite_reminder')
             AND status='queued'
             AND COALESCE(input->>'fieldworkPhase','pilot')='pilot'
         `, [row.study_id]);
@@ -1382,7 +1382,7 @@ export async function transitionResearchStudy(
           SELECT count(*)::int AS count
           FROM research_study_jobs
           WHERE study_id=$1
-            AND job_type IN ('invite_batch','invite_reminder')
+            AND job_type IN ('sample_draw','invite_batch','invite_reminder')
             AND status='running'
             AND COALESCE(input->>'fieldworkPhase','pilot')='pilot'
         `, [row.study_id]);
@@ -1435,7 +1435,7 @@ export async function transitionResearchStudy(
           finished_at=COALESCE(finished_at,now()),
           error_message=COALESCE(error_message,'cancelled_by_fieldwork_closeout')
         WHERE study_id=$1
-          AND job_type IN ('invite_batch','invite_reminder')
+          AND job_type IN ('sample_draw','invite_batch','invite_reminder')
           AND status='queued'
           AND COALESCE(input->>'fieldworkPhase','main')='main'
       `, [row.study_id]);
@@ -1443,7 +1443,7 @@ export async function transitionResearchStudy(
         SELECT count(*)::int AS count
         FROM research_study_jobs
         WHERE study_id=$1
-          AND job_type IN ('invite_batch','invite_reminder')
+          AND job_type IN ('sample_draw','invite_batch','invite_reminder')
           AND status='running'
           AND COALESCE(input->>'fieldworkPhase','main')='main'
       `, [row.study_id]);
