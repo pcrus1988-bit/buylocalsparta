@@ -8,6 +8,7 @@ import {
 } from "./gemi-admin-export";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { runGreekRetailAnalysis } from "./research-survey-analysis";
+import { buildGreekRetailRelease } from "./research-survey-release";
 import {
   assertResearchSurveyEmailReady,
   sendResearchSurveyInvitation
@@ -322,7 +323,7 @@ async function claimResearchJob(): Promise<ResearchJobRow | undefined> {
       SELECT id, study_id, job_type, input, output, attempts
       FROM research_study_jobs
       WHERE status='queued' AND available_at <= now()
-        AND job_type IN ('frame_snapshot','sample_draw','invite_batch','analysis')
+        AND job_type IN ('frame_snapshot','sample_draw','invite_batch','analysis','release')
       ORDER BY created_at
       FOR UPDATE SKIP LOCKED
       LIMIT 1
@@ -1173,7 +1174,9 @@ export async function processResearchStudyJobs(limit = 1): Promise<ResearchJobTi
             ? await processInviteBatchJob(job)
             : job.job_type === "analysis"
               ? await runGreekRetailAnalysis(job.study_id, job.id)
-              : (() => { throw new Error("RESEARCH_JOB_TYPE_UNSUPPORTED"); })();
+              : job.job_type === "release"
+                ? await buildGreekRetailRelease(job.study_id, job.id, objectValue(job.input))
+                : (() => { throw new Error("RESEARCH_JOB_TYPE_UNSUPPORTED"); })();
       await markJobSucceeded(job.id, { ...objectValue(job.output), ...output });
       processed += 1;
     } catch (error) {
