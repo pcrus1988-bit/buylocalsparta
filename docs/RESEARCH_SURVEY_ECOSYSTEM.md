@@ -67,6 +67,7 @@ New draws use algorithm `stratified-hash-rank-v2`. When the requested sample siz
   - KONTA MOY marketing
 - Research participation is required to create a response.
 - Completing the core study creates the thank-you reward entitlement. Reward eligibility does **not** depend on marketing consent or on asking to receive the code.
+- Delivery of the thank-you code is a separate operational step and occurs only when the latest `thank_you_code` choice is granted. The reward code is deterministically derived with HMAC from the entitlement ID and a server-only secret; only its SHA-256 hash is persisted after successful delivery.
 - The three post-survey choices are independent and optional. A later change or withdrawal creates a new consent event; prior evidence is never overwritten.
 - `research_answers` stores raw versioned answers.
 - A trigger blocks answer modification after the response is no longer `in_progress`.
@@ -130,6 +131,8 @@ Automated completion checks can append a `review` decision without modifying the
 
 - `research_analysis_runs` records code version, instrument version, weight version, parameters and dataset hash.
 - `research_release_snapshots` records the exact analysis run, methodology JSON, dataset SHA-256, artifact SHA-256, public URL and release version.
+- Publishing a release queues a results-notification worker. It selects only completed responses whose latest `results_notification` consent is granted; marketing consent is neither read nor required.
+- `research_participant_deliveries` stores the operational state and content hashes for thank-you and results messages. `research_participant_delivery_events` is append-only evidence for planned/sending/sent/delivered/opened/bounced/complained/failed outcomes.
 - A published chart/table must therefore be traceable to a release snapshot and analysis run.
 
 ## Lifecycle
@@ -167,12 +170,12 @@ Contact values and responses are kept in separate relational domains even though
 
 - `/admin/research/surveys` — research control centre.
 - `POST /api/admin/research/surveys/:slug/lifecycle` — audited lifecycle transition.
-- `POST /api/admin/research/surveys/:slug/jobs` — audited frame, sample, invitation and analysis job queue plus immutable recruitment-copy locking.
+- `POST /api/admin/research/surveys/:slug/jobs` — audited frame, sample, invitation, reward-delivery, analysis, release and results-notification queue plus immutable recruitment-copy locking.
 - `POST /api/webhooks/research-ses` — verified Amazon SNS endpoint for SES research delivery events.
 
 Invitation delivery is intentionally gated. It requires a locked/fielded probability sample, a locked recruitment-template version, study status `pilot` or `fielding`, and explicit production enablement through `BLS_RESEARCH_EMAIL_DELIVERY_ENABLED=true`. The worker sends through the existing SES sender using the dedicated `BLS_RESEARCH_SES_CONFIGURATION_SET`; SES message tags carry only internal study/invite/batch identifiers, never the raw token.
 
-The SNS endpoint requires `BLS_RESEARCH_SES_SNS_TOPIC_ARN`, rejects messages for any other topic, validates the AWS signing-certificate URL and SNS signature, and writes delivery/open/bounce/complaint outcomes back into the invitation event and sample-disposition ledgers. Bounces and complaints suppress every matching research contact row and append the normalized contact hash to the cross-wave suppression ledger.
+The SNS endpoint requires `BLS_RESEARCH_SES_SNS_TOPIC_ARN`, rejects messages for any other topic, validates the AWS signing-certificate URL and SNS signature, and writes delivery/open/bounce/complaint outcomes back into either the invitation ledgers or the participant-delivery ledger by SES provider message ID. Bounces and complaints suppress every matching research contact row and append the normalized contact hash to the cross-wave suppression ledger. A future-research opt-out alone does not cancel a separately requested thank-you or results message; a bounce, complaint or invalid contact does.
 
 ## G.E.MI. integration boundary
 
@@ -217,7 +220,19 @@ Required before any research invitation job can send:
 - `BLS_RESEARCH_EMAIL_DELIVERY_ENABLED=true`
 - `BLS_RESEARCH_SES_CONFIGURATION_SET=<dedicated research configuration set>`
 - `BLS_RESEARCH_SES_SNS_TOPIC_ARN=<SNS topic used by that configuration set>`
+- `BLS_RESEARCH_REWARD_SECRET=<at least 32 random characters>` for deterministic thank-you code derivation without plaintext code storage
 - AWS SES credentials already used by the admin-mail SES runtime
 - optional `BLS_RESEARCH_SES_FROM` and `BLS_RESEARCH_SES_REPLY_TO` (default: `partners@kontamou.site`)
 
 The SES configuration set should publish at least Delivery, Bounce and Complaint events to the configured SNS topic. Open events may also be enabled for fieldwork diagnostics; Click events are deliberately ignored by the research persistence layer.
+
+
+## Post-participation delivery invariants
+
+- Reward eligibility is completion-based; reward **delivery** is consent-based.
+- Results notification is release-based and consent-based.
+- Neither path reads or depends on KONTA MOY marketing consent.
+- Already-sent messages are idempotently skipped by unique delivery keys.
+- SES message content is not persisted; only subject/body SHA-256 hashes and provider message IDs are stored.
+- The worker may retry a failed reward email with the same derived code because the code can be regenerated from the entitlement ID and server-only HMAC secret.
+- No monetary discount percentage or credit amount is hard-coded in the research engine. Commercial reward terms remain a separately governed KONTA MOY decision.
