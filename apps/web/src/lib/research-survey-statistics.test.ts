@@ -53,3 +53,14 @@ test("proportion confidence intervals are clipped to the logical 0-1 range", () 
     upper: 1
   });
 });
+
+test("variance is withheld if later calibration creates unequal weights inside a stratum", () => {
+  const result = stratifiedSrsMeanVariance([
+    { stratumId: "a", value: 0 },
+    { stratumId: "a", value: 1 }
+  ], [
+    { stratumId: "a", finalWeight: 9 },
+    { stratumId: "a", finalWeight: 11 }
+  ]);
+  assert.equal(result.reason, "unequal_within_stratum_weights");
+});
