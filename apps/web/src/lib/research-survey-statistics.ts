@@ -173,6 +173,139 @@ export function benjaminiHochbergAdjustedPValues(rawPValues: readonly number[]):
 }
 
 
+export type ResearchFieldworkDispositionCount = Readonly<{
+  dispositionCode: string;
+  eligibility: string;
+  count: number;
+}>;
+
+export type ResearchFieldworkOutcomeSummary = Readonly<{
+  definitionVersion: "greek-retail-2026-fieldwork-outcomes-v1";
+  selected: number;
+  latestDispositionTotal: number;
+  ledgerCoverageRate: number | null;
+  knownEligible: number;
+  knownIneligible: number;
+  unknownEligibility: number;
+  netSample: number;
+  completed: number;
+  partial: number;
+  refusals: number;
+  withdrawn: number;
+  noncontact: number;
+  bounced: number;
+  invalidContact: number;
+  unresolved: number;
+  sealed: boolean;
+  completionRateOfSelected: number | null;
+  completionRateOfNetSample: number | null;
+  participationRateOfNetSample: number | null;
+  explicitDecisionCompletionShare: number | null;
+  explicitDecisionRefusalShare: number | null;
+  denominatorDefinitions: Readonly<{
+    netSample: string;
+    completionRateOfNetSample: string;
+    participationRateOfNetSample: string;
+    explicitDecisionCompletionShare: string;
+    explicitDecisionRefusalShare: string;
+  }>;
+}>;
+
+function finiteNonnegativeInteger(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.floor(value));
+}
+
+function nullableRate(numerator: number, denominator: number): number | null {
+  return denominator > 0 ? numerator / denominator : null;
+}
+
+export function researchFieldworkOutcomeSummary(
+  selectedRaw: number,
+  dispositionCounts: readonly ResearchFieldworkDispositionCount[]
+): ResearchFieldworkOutcomeSummary {
+  const selected = finiteNonnegativeInteger(selectedRaw);
+  const byCode = new Map<string, number>();
+  let knownEligible = 0;
+  let knownIneligible = 0;
+  let unknownEligibility = 0;
+  let latestDispositionTotal = 0;
+
+  for (const item of dispositionCounts) {
+    const dispositionCode = item.dispositionCode.trim();
+    const count = finiteNonnegativeInteger(item.count);
+    if (!dispositionCode || count === 0) continue;
+    byCode.set(dispositionCode, (byCode.get(dispositionCode) ?? 0) + count);
+    latestDispositionTotal += count;
+    if (item.eligibility === "eligible") knownEligible += count;
+    else if (item.eligibility === "ineligible") knownIneligible += count;
+    else unknownEligibility += count;
+  }
+
+  const count = (code: string) => byCode.get(code) ?? 0;
+  const completed = count("complete");
+  const partial = count("partial");
+  const refusals = count("refusal");
+  const withdrawn = count("withdrawn");
+  const noncontact = count("noncontact");
+  const bounced = count("bounce");
+  const invalidContact = count("invalid_contact");
+  const terminalCodes = new Set([
+    "complete",
+    "partial",
+    "refusal",
+    "noncontact",
+    "bounce",
+    "invalid_contact",
+    "ineligible",
+    "duplicate",
+    "out_of_scope",
+    "unknown_eligibility",
+    "withdrawn"
+  ]);
+  let unresolved = 0;
+  for (const [code, value] of byCode) {
+    if (!terminalCodes.has(code)) unresolved += value;
+  }
+
+  const netSample = Math.max(0, selected - knownIneligible);
+  const participation = completed + partial;
+  const explicitDecisions = completed + partial + refusals + withdrawn;
+
+  return {
+    definitionVersion: "greek-retail-2026-fieldwork-outcomes-v1",
+    selected,
+    latestDispositionTotal,
+    ledgerCoverageRate: nullableRate(latestDispositionTotal, selected),
+    knownEligible,
+    knownIneligible,
+    unknownEligibility,
+    netSample,
+    completed,
+    partial,
+    refusals,
+    withdrawn,
+    noncontact,
+    bounced,
+    invalidContact,
+    unresolved,
+    sealed: latestDispositionTotal === selected && unresolved === 0,
+    completionRateOfSelected: nullableRate(completed, selected),
+    completionRateOfNetSample: nullableRate(completed, netSample),
+    participationRateOfNetSample: nullableRate(participation, netSample),
+    explicitDecisionCompletionShare: nullableRate(completed, explicitDecisions),
+    explicitDecisionRefusalShare: nullableRate(refusals, explicitDecisions),
+    denominatorDefinitions: {
+      netSample: "selected minus latest cases known to be ineligible; unknown eligibility remains in the denominator",
+      completionRateOfNetSample: "complete / net sample",
+      participationRateOfNetSample: "(complete + partial) / net sample",
+      explicitDecisionCompletionShare: "complete / (complete + partial + refusal + withdrawn)",
+      explicitDecisionRefusalShare: "refusal / (complete + partial + refusal + withdrawn)"
+    }
+  };
+}
+
+
 export type StratumAllocationInput = Readonly<{ id: string; populationCount: number }>;
 export type StratumAllocation = Readonly<{ id: string; populationCount: number; sampleCount: number }>;
 
