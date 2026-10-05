@@ -227,9 +227,14 @@ export async function buildGreekRetailRelease(
     SELECT
       d.id AS sample_draw_id,d.label AS sample_label,d.algorithm_version,d.random_seed,d.target_n,
       d.status AS sample_status,d.fieldwork_phase,d.drawn_at,
+      sd.id AS sample_design_id,sd.desired_complete_n,sd.expected_response_rate,
+      sd.eligible_population_n,sd.active_contact_n AS design_active_contact_n,
+      sd.contactability_rate,sd.planned_selected_n,sd.expected_contactable_n,
+      sd.expected_complete_n,sd.allocation_method,sd.content_sha256 AS sample_design_sha256,
       f.id AS frame_snapshot_id,f.label AS frame_label,f.source_kind,f.source_reference,
       f.population_size,f.selection_criteria,f.content_sha256 AS frame_sha256,f.captured_at,f.frozen_at
     FROM research_sample_draws d
+    JOIN research_sample_designs sd ON sd.sample_draw_id=d.id
     JOIN research_frame_snapshots f ON f.id=d.frame_snapshot_id
     WHERE d.id=$1 AND d.study_id=$2
     LIMIT 1
@@ -365,7 +370,7 @@ export async function buildGreekRetailRelease(
       st.label,
       st.dimensions,
       st.population_count,
-      st.target_complete_count,
+      COALESCE(sds.target_complete_n,st.target_complete_count)::int AS target_complete_count,
       COALESCE(fpc.pilot_exposed_units,0)::int AS pilot_exposed_units,
       COALESCE(fpc.main_eligible_population_count,0)::int AS main_eligible_population_count,
       COALESCE(fpc.active_email_units,0)::int AS active_email_units,
@@ -377,6 +382,10 @@ export async function buildGreekRetailRelease(
       COALESCE(rc.completed,0)::int AS completed,
       COALESCE(rc.withdrawn,0)::int AS withdrawn
     FROM research_strata st
+    LEFT JOIN research_sample_designs sd ON sd.sample_draw_id=$2
+    LEFT JOIN research_sample_design_strata sds
+      ON sds.design_id=sd.id
+     AND sds.stratum_id=st.id
     LEFT JOIN frame_phase_counts fpc ON fpc.stratum_id=st.id
     LEFT JOIN sample_counts sc ON sc.stratum_id=st.id
     LEFT JOIN invite_counts ic ON ic.stratum_id=st.id
@@ -619,7 +628,21 @@ export async function buildGreekRetailRelease(
         0,
         numberValue(design.population_size) - numberValue(pilotSummary.exposed_units)
       ),
-      drawnAt: design.drawn_at ?? null
+      drawnAt: design.drawn_at ?? null,
+      designEvidence: {
+        id: text(design.sample_design_id),
+        schema: "kontamou.research.sample-design.v1",
+        contentSha256: text(design.sample_design_sha256),
+        desiredCompleteN: numberValue(design.desired_complete_n),
+        expectedResponseRate: numberValue(design.expected_response_rate),
+        eligiblePopulationN: numberValue(design.eligible_population_n),
+        activeContactN: numberValue(design.design_active_contact_n),
+        contactabilityRate: numberValue(design.contactability_rate),
+        plannedSelectedN: numberValue(design.planned_selected_n),
+        expectedContactableN: numberValue(design.expected_contactable_n),
+        expectedCompleteN: numberValue(design.expected_complete_n),
+        allocationMethod: text(design.allocation_method)
+      }
     },
     pilot: {
       startsAt: study.pilot_started_at ?? null,
