@@ -78,8 +78,8 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     if (body.action === "draw_sample") {
       const result = await queueGreekRetailSampleDraw(principal, {
         targetN: Number(body.targetN),
-        desiredCompleteN: Number(body.desiredCompleteN),
-        expectedResponseRate: Number(body.expectedResponseRate),
+        desiredCompleteN: body.desiredCompleteN === undefined ? undefined : Number(body.desiredCompleteN),
+        expectedResponseRate: body.expectedResponseRate === undefined ? undefined : Number(body.expectedResponseRate),
         randomSeed: body.randomSeed,
         fieldworkPhase: body.fieldworkPhase,
         label: body.label
@@ -90,7 +90,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         "research_study",
         slug,
         "Queue reproducible stratified sample draw",
-{ jobId: result.jobId, targetN: Number(body.targetN), desiredCompleteN: Number(body.desiredCompleteN), expectedResponseRate: Number(body.expectedResponseRate), randomSeed: result.randomSeed, fieldworkPhase: result.fieldworkPhase }
+{ jobId: result.jobId, targetN: Number(body.targetN), desiredCompleteN: body.desiredCompleteN ?? null, expectedResponseRate: body.expectedResponseRate ?? null, randomSeed: result.randomSeed, fieldworkPhase: result.fieldworkPhase }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
