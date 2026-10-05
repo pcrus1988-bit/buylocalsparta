@@ -167,8 +167,14 @@ if (!qualityControls.includes('void resolve(item, "exclude")')) errors.push("res
 if (!fieldworkControls.includes("pendingQualityReviews > 0")) errors.push("analysis UI is not gated on pending research QA");
 if (!statistics.includes("proportionalStratumAllocation")) errors.push("minimum-aware sample allocation helper missing");
 if (!statistics.includes("stratifiedSrsMeanVariance")) errors.push("design-aware variance helper missing");
+if (!statistics.includes("researchWeightDiagnostics")) errors.push("weighting effective-sample diagnostics missing");
+
 if (!statistics.includes("unequal_within_stratum_weights")) errors.push("variance guard for unequal stratum weights missing");
 if (!analysis.includes('VARIANCE_METHOD = "stratified_srs_fpc_v1"')) errors.push("analysis variance method is not versioned");
+if (!analysis.includes("'weightDiagnostics',$3::jsonb")) errors.push("analysis run does not persist weighting diagnostics");
+if (!release.includes("weightDiagnostics: objectValue(parameters.weightDiagnostics)")) errors.push("release does not freeze weighting diagnostics");
+if (!resultsPage.includes("Kish effective n")) errors.push("public results do not disclose effective sample size");
+
 if (!analysis.includes("normal95ConfidenceInterval")) errors.push("analysis confidence interval bridge missing");
 if (!resultsPage.includes("95% CI")) errors.push("public results do not surface governed confidence intervals");
 if (surveyRuntime.includes("generateResearchInvitationBatch")) errors.push("legacy plaintext invitation delivery path remains");
