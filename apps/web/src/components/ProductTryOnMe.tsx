@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import styles from "./ProductTryOnMe.module.css";
+import { TryOnGenerationOverlay } from "./TryOnGenerationOverlay";
 import {
   TRY_ON_ACTIVE_SCOPE_KEY,
   TRY_ON_AUTO_PREFIX,
@@ -391,6 +392,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   const [busy, setBusy] = useState<"photo" | "generate" | "save" | "">("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [generationOverlay, setGenerationOverlay] = useState<{ photo: string; resultImage?: string }>();
 
   async function generate(photo: string, token: string, scope: string) {
     if (quota?.remaining === 0) {
@@ -398,10 +400,12 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
       return;
     }
     const attempt = generationAttempt.current + 1;
+    const cinematicStartedAt = Date.now();
     generationAttempt.current = attempt;
     setBusy("generate");
     setError("");
     setSaved(false);
+    setGenerationOverlay({ photo });
     try {
       const response = await requestSharedGeneration({
         scope,
@@ -417,6 +421,18 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
         ? cached.expiresAt
         : resultExpiresAt(generated);
       if (expiresAt <= Date.now()) throw new Error("TRY_ON_SAVE_TOKEN_EXPIRED");
+
+      const minimumCinematicMs = 2_650;
+      const remainingCinematicMs = minimumCinematicMs - (Date.now() - cinematicStartedAt);
+      if (remainingCinematicMs > 0) {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, remainingCinematicMs));
+      }
+      if (generationAttempt.current !== attempt) return;
+
+      setGenerationOverlay({ photo, resultImage: generated.imageDataUrl });
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 720));
+      if (generationAttempt.current !== attempt) return;
+
       setResult(generated);
       setPreviewExpiresAt(expiresAt);
     } catch (cause) {
@@ -425,7 +441,10 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
       if (cause instanceof TryOnRequestError && cause.quota) setQuota(cause.quota);
       setError(messageFor(cause instanceof Error ? cause.message : "TRY_ON_FAILED"));
     } finally {
-      if (generationAttempt.current === attempt) setBusy("");
+      if (generationAttempt.current === attempt) {
+        setGenerationOverlay(undefined);
+        setBusy("");
+      }
     }
   }
 
@@ -445,6 +464,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     setPreviewExpiresAt(undefined);
     setSaved(false);
     setError("");
+    setGenerationOverlay(undefined);
 
     void fetch("/api/account/session", { cache: "no-store" })
       .then(async (response) => {
@@ -595,6 +615,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     setPreviewExpiresAt(undefined);
     setSaved(false);
     setError("");
+    setGenerationOverlay(undefined);
     autoStarted.current = false;
   }
 
@@ -660,7 +681,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
         <div className={styles.heading}>
           <div>
             <span className={styles.eyebrow}>KONTA MOY · TRY ON ME</span>
-            <h2 id={`try-on-card-${productId}`}>Δες το πάνω σου</h2>
+            <h2 id={`try-on-${productId}`}>Δες το πάνω σου</h2>
           </div>
           <span className={styles.spark}>✦</span>
         </div>
@@ -675,7 +696,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
         <div className={styles.heading}>
           <div>
             <span className={styles.eyebrow}>KONTA MOY · TRY ON ME</span>
-            <h2 id={`try-on-card-${productId}`}>Δες το πάνω σου</h2>
+            <h2 id={`try-on-${productId}`}>Δες το πάνω σου</h2>
           </div>
           <span className={styles.spark}>✦</span>
         </div>
@@ -689,10 +710,17 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
 
   return (
     <section id={`try-on-card-${productId}`} className={styles.card} aria-labelledby={`try-on-${productId}`}>
+      {generationOverlay ? (
+        <TryOnGenerationOverlay
+          modelImage={generationOverlay.photo}
+          resultImage={generationOverlay.resultImage}
+          productTitle={productTitle}
+        />
+      ) : null}
       <div className={styles.heading}>
         <div>
           <span className={styles.eyebrow}>KONTA MOY · TRY ON ME</span>
-          <h2 id={`try-on-card-${productId}`}>Δες το πάνω σου</h2>
+          <h2 id={`try-on-${productId}`}>Δες το πάνω σου</h2>
         </div>
         <span className={styles.spark}>✦</span>
       </div>
