@@ -19,6 +19,11 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+function percentage(numerator: number, denominator: number): string {
+  if (denominator <= 0) return "—";
+  return new Intl.NumberFormat("el-GR", { maximumFractionDigits: 1 }).format((numerator / denominator) * 100) + "%";
+}
+
 export default async function ResearchSurveysAdminPage() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
@@ -55,6 +60,13 @@ export default async function ResearchSurveysAdminPage() {
             { label: "Contactable units", value: study.activeContacts.toLocaleString("el-GR"), hint: String(study.suppressedContacts) + " suppressed/invalid · " + String(study.bouncedContacts) + " bounced" },
             { label: "Invitations", value: study.invites.toLocaleString("el-GR"), hint: String(study.inviteBatches) + " batch(es) · " + String(study.sent) + " sent/opened/started" },
             { label: "Completed", value: study.completed.toLocaleString("el-GR"), hint: String(study.started) + " responses started" }
+          ]} />
+          <WorkspaceMetricStrip items={[
+            { label: "Sent", value: study.sent.toLocaleString("el-GR"), hint: percentage(study.sent, study.sampleUnits) + " of selected sample" },
+            { label: "Delivered", value: study.delivered.toLocaleString("el-GR"), hint: percentage(study.delivered, study.sent) + " of sent invitations" },
+            { label: "Opened", value: study.opened.toLocaleString("el-GR"), hint: percentage(study.opened, study.delivered || study.sent) + " of delivered" },
+            { label: "Started", value: study.started.toLocaleString("el-GR"), hint: percentage(study.started, study.opened || study.sent) + " of opened" },
+            { label: "Completed", value: study.completed.toLocaleString("el-GR"), hint: percentage(study.completed, study.sent) + " of sent · " + percentage(study.completed, study.started) + " of starts · " + String(study.withdrawn) + " withdrawn" }
           ]} />
           <WorkspaceMetricStrip items={[
             { label: "QA review", value: study.qualityReview.toLocaleString("el-GR"), hint: String(study.qualityExclude) + " excluded by reviewed rules" },
