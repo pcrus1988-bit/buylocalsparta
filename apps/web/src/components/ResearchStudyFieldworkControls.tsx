@@ -26,6 +26,7 @@ export function ResearchStudyFieldworkControls({
   recruitmentTemplateVersion,
   activeContacts,
   completed,
+  pendingQualityReviews,
   succeededAnalysisRuns,
   latestReleaseVersion,
   queuedJobs,
@@ -37,6 +38,7 @@ export function ResearchStudyFieldworkControls({
   recruitmentTemplateVersion?: string;
   activeContacts: number;
   completed: number;
+  pendingQualityReviews: number;
   succeededAnalysisRuns: number;
   latestReleaseVersion?: string;
   queuedJobs: number;
@@ -201,11 +203,13 @@ export function ResearchStudyFieldworkControls({
     <div className="workspace-action-bar">
       <span>
         <strong>Analysis pipeline</strong><br />
-        Η ανάλυση τρέχει μόνο μετά το κλείσιμο fieldwork και τη μετάβαση της μελέτης σε analysis.
+        {pendingQualityReviews > 0
+          ? `Υπάρχουν ${pendingQualityReviews} εκκρεμή quality review(s). Resolve include/exclude πριν από analysis.`
+          : "Η ανάλυση τρέχει μόνο μετά το κλείσιμο fieldwork και τη μετάβαση της μελέτης σε analysis."}
       </span>
       <button
         className="button"
-        disabled={Boolean(busy) || workerBusy || studyStatus !== "analysis"}
+        disabled={Boolean(busy) || workerBusy || studyStatus !== "analysis" || pendingQualityReviews > 0}
         onClick={() => void runAnalysis()}
         type="button"
       >{busy === "analysis" ? "Queueing…" : "Run weighted analysis"}</button>
