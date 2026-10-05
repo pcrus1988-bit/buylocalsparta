@@ -6,17 +6,37 @@ function percentage(numerator: number, denominator: number): string {
 }
 
 function dimensionLabel(dimensions: Record<string, unknown>): string {
-  const region = typeof dimensions.regionCode === "string"
-    ? dimensions.regionCode
-    : typeof dimensions.region === "string"
-      ? dimensions.region
+  const region = typeof dimensions["regionCode"] === "string"
+    ? dimensions["regionCode"]
+    : typeof dimensions["region"] === "string"
+      ? dimensions["region"]
       : "";
-  const sector = typeof dimensions.sectorCode === "string"
-    ? dimensions.sectorCode
-    : typeof dimensions.sector === "string"
-      ? dimensions.sector
+  const sector = typeof dimensions["sectorCode"] === "string"
+    ? dimensions["sectorCode"]
+    : typeof dimensions["sector"] === "string"
+      ? dimensions["sector"]
       : "";
   return [region, sector].filter(Boolean).join(" · ");
+}
+
+function StratumRow({ item }: { item: ResearchFieldworkStratum }) {
+  const gap = Math.max(0, item.targetCompleteCount - item.completed);
+  const dimensions = dimensionLabel(item.dimensions);
+  return <div className="workspace-action-bar">
+    <span style={{ flex: 1, minWidth: 220 }}>
+      <strong>{item.label || item.code}</strong><br />
+      <small>{dimensions || item.code} · population {item.populationCount.toLocaleString("el-GR")}</small>
+    </span>
+    <span style={{ minWidth: 260 }}>
+      <strong>{item.completed}/{item.targetCompleteCount} completes</strong>
+      {gap > 0 ? <small> · gap {gap}</small> : <small> · target met</small>}<br />
+      <small>
+        selected {item.selected} · sent {item.sent} · delivered {item.delivered} · opened {item.opened} ·
+        started {item.started} · sent→complete {percentage(item.completed, item.sent)}
+        {item.withdrawn > 0 ? " · withdrawn " + item.withdrawn : ""}
+      </small>
+    </span>
+  </div>;
 }
 
 export function ResearchStudyFieldworkBalance({
@@ -37,6 +57,8 @@ export function ResearchStudyFieldworkBalance({
       return aRate - bRate;
     });
 
+  const primary = ranked.slice(0, 12);
+  const remainder = ranked.slice(12);
   const belowTarget = ranked.filter((item) => item.completed < item.targetCompleteCount).length;
   const noCompletes = ranked.filter((item) => item.sent > 0 && item.completed === 0).length;
 
@@ -51,27 +73,12 @@ export function ResearchStudyFieldworkBalance({
         <small>{noCompletes} contacted strata with no completes</small>
       </span>
     </div>
-    {ranked.slice(0, 12).map((item) => {
-      const gap = Math.max(0, item.targetCompleteCount - item.completed);
-      const dimensions = dimensionLabel(item.dimensions);
-      return <div className="workspace-action-bar" key={item.code}>
-        <span style={{ flex: 1, minWidth: 220 }}>
-          <strong>{item.label || item.code}</strong><br />
-          <small>{dimensions || item.code} · population {item.populationCount.toLocaleString("el-GR")}</small>
-        </span>
-        <span style={{ minWidth: 260 }}>
-          <strong>{item.completed}/{item.targetCompleteCount} completes</strong>
-          {gap > 0 ? <small> · gap {gap}</small> : <small> · target met</small>}<br />
-          <small>
-            selected {item.selected} · sent {item.sent} · delivered {item.delivered} · opened {item.opened} ·
-            started {item.started} · sent→complete {percentage(item.completed, item.sent)}
-            {item.withdrawn > 0 ? " · withdrawn " + item.withdrawn : ""}
-          </small>
-        </span>
-      </div>;
-    })}
-    {ranked.length > 12 && <div className="workspace-inline-note">
-      Showing the 12 strata with the largest completion shortfall. {ranked.length - 12} additional strata remain in the governed frame and release evidence.
-    </div>}
+    {primary.map((item) => <StratumRow item={item} key={item.code} />)}
+    {remainder.length > 0 && <details>
+      <summary className="workspace-inline-note">
+        Show {remainder.length} additional sampling strata
+      </summary>
+      {remainder.map((item) => <StratumRow item={item} key={item.code} />)}
+    </details>}
   </div>;
 }
