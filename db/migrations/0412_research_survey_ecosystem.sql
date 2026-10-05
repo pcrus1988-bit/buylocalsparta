@@ -537,14 +537,14 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = public, pg_temp
-AS $
+AS $research$
 BEGIN
   IF OLD.status IS DISTINCT FROM 'draft' THEN
     RAISE EXCEPTION 'research recruitment template is immutable in status %', OLD.status;
   END IF;
   RETURN COALESCE(NEW, OLD);
 END;
-$;
+$research$;
 
 CREATE TRIGGER research_recruitment_templates_locked_immutable
 BEFORE UPDATE OR DELETE ON public.research_recruitment_templates
