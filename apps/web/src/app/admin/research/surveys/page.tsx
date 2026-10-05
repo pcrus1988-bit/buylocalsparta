@@ -85,6 +85,8 @@ export default async function ResearchSurveysAdminPage() {
               csrfToken={principal.csrfToken}
               latestFrameStatus={study.latestFrameStatus}
               framePopulation={study.framePopulation}
+              latestFrameStrata={study.latestFrameStrata}
+              activeContacts={study.activeContacts}
               latestSampleStatus={study.latestSampleStatus}
               latestSampleTarget={study.latestSampleTarget}
               queuedJobs={study.queuedJobs}
