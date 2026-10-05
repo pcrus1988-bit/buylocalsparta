@@ -151,10 +151,6 @@ async function deletePrivateObject(objectKey: string): Promise<void> {
   await storage().delete(objectKey);
 }
 
-export function customerTryOnGenerationConfigured(): boolean {
-  return Boolean(process.env.FASHN_API_KEY?.trim());
-}
-
 function fashnApiKey(): string {
   const value = process.env.FASHN_API_KEY?.trim();
   if (!value) throw new Error("TRY_ON_NOT_CONFIGURED");
