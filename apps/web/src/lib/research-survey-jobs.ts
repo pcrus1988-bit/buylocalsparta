@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
 import {
@@ -12,7 +12,9 @@ import { proportionalStratumAllocation } from "./research-survey-statistics";
 import { buildGreekRetailRelease } from "./research-survey-release";
 import {
   assertResearchSurveyEmailReady,
-  sendResearchSurveyInvitation
+  sendResearchResultsNotification,
+  sendResearchSurveyInvitation,
+  sendResearchThankYouCode
 } from "./research-survey-mail";
 
 const STUDY_SLUG = "greek-retail-2026";
@@ -64,6 +66,43 @@ function objectValue(value: unknown): Record<string, unknown> {
 
 function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+
+function researchRewardSecret(env: NodeJS.ProcessEnv = process.env): string {
+  const secret = env.BLS_RESEARCH_REWARD_SECRET?.trim();
+  if (!secret || secret.length < 32) {
+    throw new Error("BLS_RESEARCH_REWARD_SECRET must be at least 32 characters");
+  }
+  return secret;
+}
+
+function rewardCodeForEntitlement(entitlementId: string, env: NodeJS.ProcessEnv = process.env): string {
+  const digest = createHmac("sha256", researchRewardSecret(env))
+    .update(`${STUDY_SLUG}:${entitlementId}`, "utf8")
+    .digest("hex")
+    .toUpperCase()
+    .slice(0, 12);
+  return `KM26-${digest.slice(0, 4)}-${digest.slice(4, 8)}-${digest.slice(8, 12)}`;
+}
+
+function absoluteResearchUrl(pathOrUrl: string): string {
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  const base = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://kontamou.site").replace(/\/$/, "");
+  return `${base}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
+}
+
+async function recordParticipantDeliveryEvent(
+  deliveryId: string,
+  eventType: "planned" | "sending" | "sent" | "failed" | "cancelled",
+  metadata: Record<string, unknown> = {},
+  providerMessageId?: string
+): Promise<void> {
+  await getProductionPostgresRuntime().sqlPool.query(`
+    INSERT INTO research_participant_delivery_events
+      (delivery_id,event_type,provider_message_id,metadata)
+    VALUES ($1,$2,$3,$4::jsonb)
+  `, [deliveryId, eventType, providerMessageId ?? null, JSON.stringify(metadata)]);
 }
 
 function kadMatches(code: string, prefix: string): boolean {
@@ -287,6 +326,112 @@ export async function queueGreekRetailInviteBatch(
   return { jobId: text(job.rows[0]!.id) };
 }
 
+export async function queueGreekRetailRewardDelivery(
+  principal: SessionPrincipal,
+  input: Readonly<{ limit?: number; label?: string }> = {}
+): Promise<{ jobId: string }> {
+  assertAdminPermission(principal, "research.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+  assertResearchSurveyEmailReady();
+  researchRewardSecret();
+  const limit = Math.max(1, Math.min(250, Math.floor(input.limit ?? 100)));
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const study = await pool.query<SqlRow>(
+    "SELECT id,status FROM research_studies WHERE slug=$1 LIMIT 1",
+    [STUDY_SLUG]
+  );
+  const row = study.rows[0];
+  if (!row) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+  if (text(row.status) === "archived") throw new Error("RESEARCH_REWARD_DELIVERY_ARCHIVED");
+
+  const existing = await pool.query<SqlRow>(`
+    SELECT id
+    FROM research_study_jobs
+    WHERE study_id=$1
+      AND job_type='reward_delivery'
+      AND status IN ('queued','running')
+      AND COALESCE(input->>'responseId','')=''
+    ORDER BY created_at DESC
+    LIMIT 1
+  `, [row.id]);
+  if (existing.rows[0]) return { jobId: text(existing.rows[0].id) };
+
+  const job = await pool.query<SqlRow>(`
+    INSERT INTO research_study_jobs (study_id,job_type,status,input)
+    VALUES (
+      $1,'reward_delivery','queued',
+      jsonb_build_object('limit',$2::int,'label',$3::text)
+    )
+    RETURNING id
+  `, [row.id, limit, input.label?.trim() || `reward-delivery-${new Date().toISOString()}`]);
+  return { jobId: text(job.rows[0]!.id) };
+}
+
+export async function queueGreekRetailResultsNotifications(
+  principal: SessionPrincipal,
+  input: Readonly<{ limit?: number; label?: string }> = {}
+): Promise<{ jobId: string; releaseSnapshotId: string }> {
+  assertAdminPermission(principal, "research.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+  assertResearchSurveyEmailReady();
+  const limit = Math.max(1, Math.min(250, Math.floor(input.limit ?? 100)));
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const release = await pool.query<SqlRow>(`
+    SELECT s.id AS study_id,rs.id AS release_snapshot_id
+    FROM research_studies s
+    JOIN LATERAL (
+      SELECT id
+      FROM research_release_snapshots
+      WHERE study_id=s.id AND published_at IS NOT NULL
+      ORDER BY published_at DESC,created_at DESC
+      LIMIT 1
+    ) rs ON true
+    WHERE s.slug=$1 AND s.status='published'
+    LIMIT 1
+  `, [STUDY_SLUG]);
+  const row = release.rows[0];
+  if (!row) throw new Error("RESEARCH_RESULTS_NOTIFICATION_REQUIRES_PUBLISHED_RELEASE");
+
+  const existing = await pool.query<SqlRow>(`
+    SELECT id
+    FROM research_study_jobs
+    WHERE study_id=$1
+      AND job_type='results_notification'
+      AND status IN ('queued','running')
+      AND input->>'releaseSnapshotId'=$2
+    ORDER BY created_at DESC
+    LIMIT 1
+  `, [row.study_id, row.release_snapshot_id]);
+  if (existing.rows[0]) {
+    return {
+      jobId: text(existing.rows[0].id),
+      releaseSnapshotId: text(row.release_snapshot_id)
+    };
+  }
+
+  const job = await pool.query<SqlRow>(`
+    INSERT INTO research_study_jobs (study_id,job_type,status,input)
+    VALUES (
+      $1,'results_notification','queued',
+      jsonb_build_object(
+        'releaseSnapshotId',$2::text,
+        'limit',$3::int,
+        'label',$4::text
+      )
+    )
+    RETURNING id
+  `, [
+    row.study_id,
+    row.release_snapshot_id,
+    limit,
+    input.label?.trim() || `results-notification-${new Date().toISOString()}`
+  ]);
+  return {
+    jobId: text(job.rows[0]!.id),
+    releaseSnapshotId: text(row.release_snapshot_id)
+  };
+}
+
 export async function queueGreekRetailAnalysis(
   principal: SessionPrincipal
 ): Promise<{ jobId: string }> {
@@ -324,7 +469,7 @@ async function claimResearchJob(): Promise<ResearchJobRow | undefined> {
       SELECT id, study_id, job_type, input, output, attempts
       FROM research_study_jobs
       WHERE status='queued' AND available_at <= now()
-        AND job_type IN ('frame_snapshot','sample_draw','invite_batch','analysis','release')
+        AND job_type IN ('frame_snapshot','sample_draw','invite_batch','reward_delivery','analysis','release','results_notification')
       ORDER BY created_at
       FOR UPDATE SKIP LOCKED
       LIMIT 1
@@ -1110,6 +1255,507 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   };
 }
 
+
+async function processRewardDeliveryJob(job: ResearchJobRow): Promise<Record<string, unknown>> {
+  assertResearchSurveyEmailReady();
+  researchRewardSecret();
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const input = objectValue(job.input);
+  const requestedResponseId = text(input.responseId).trim();
+  const limit = requestedResponseId
+    ? 1
+    : Math.max(1, Math.min(250, Math.floor(numberValue(input.limit) || 100)));
+
+  const candidates = await pool.query<SqlRow>(`
+    WITH latest_consent AS (
+      SELECT DISTINCT ON (rc.response_id)
+        rc.response_id,rc.granted
+      FROM research_consents rc
+      WHERE rc.consent_kind='thank_you_code'
+      ORDER BY rc.response_id,rc.occurred_at DESC,rc.id DESC
+    )
+    SELECT
+      re.id AS entitlement_id,
+      rr.id AS response_id,
+      cp.id AS contact_point_id,
+      cp.contact_value,
+      s.slug,
+      s.title
+    FROM research_reward_entitlements re
+    JOIN research_responses rr ON rr.id=re.response_id
+    JOIN research_studies s ON s.id=rr.study_id
+    JOIN research_invites ri ON ri.id=rr.invite_id
+    JOIN research_contact_points cp ON cp.id=ri.contact_point_id
+    JOIN latest_consent consent ON consent.response_id=rr.id AND consent.granted=true
+    LEFT JOIN LATERAL (
+      SELECT e.action,e.reason
+      FROM research_contact_suppression_events e
+      WHERE e.contact_type=cp.contact_type
+        AND e.contact_value_hash=cp.contact_value_hash
+      ORDER BY e.occurred_at DESC,e.id DESC
+      LIMIT 1
+    ) suppression ON true
+    WHERE rr.study_id=$1
+      AND rr.status='completed'
+      AND re.reward_kind='thank_you_code'
+      AND re.status IN ('eligible','issued')
+      AND cp.contact_type='email'
+      AND cp.contact_value <> ''
+      AND cp.suppression_status NOT IN ('invalid','bounced')
+      AND (
+        cp.suppression_status='active'
+        OR suppression.action='restore'
+        OR (
+          suppression.action='suppress'
+          AND suppression.reason='participant_research_opt_out'
+        )
+      )
+      AND ($2::text='' OR rr.id::text=$2::text)
+      AND NOT EXISTS (
+        SELECT 1
+        FROM research_participant_deliveries d
+        WHERE d.reward_entitlement_id=re.id
+          AND d.message_kind='thank_you_code'
+          AND d.status='sent'
+      )
+    ORDER BY re.created_at,re.id
+    LIMIT $3
+  `, [job.study_id, requestedResponseId, limit]);
+
+  let sentCount = 0;
+  let failedCount = 0;
+  let skippedCount = 0;
+  const failures: Array<{ responseId: string; error: string }> = [];
+  const joinUrl = absoluteResearchUrl("/join");
+  const methodologyUrl = absoluteResearchUrl(`/research/${STUDY_SLUG}/methodology`);
+
+  for (const candidate of candidates.rows) {
+    const entitlementId = text(candidate.entitlement_id);
+    const responseId = text(candidate.response_id);
+    const contactPointId = text(candidate.contact_point_id);
+    const inserted = await pool.query<SqlRow>(`
+      INSERT INTO research_participant_deliveries (
+        study_id,response_id,contact_point_id,reward_entitlement_id,
+        message_kind,consent_kind,status,provider
+      )
+      VALUES ($1,$2,$3,$4,'thank_you_code','thank_you_code','planned','ses')
+      ON CONFLICT DO NOTHING
+      RETURNING id,status
+    `, [job.study_id, responseId, contactPointId, entitlementId]);
+
+    const deliveryResult = inserted.rows[0]
+      ? inserted
+      : await pool.query<SqlRow>(`
+          SELECT id,status
+          FROM research_participant_deliveries
+          WHERE reward_entitlement_id=$1 AND message_kind='thank_you_code'
+          LIMIT 1
+        `, [entitlementId]);
+    const delivery = deliveryResult.rows[0];
+    if (!delivery) throw new Error("RESEARCH_REWARD_DELIVERY_LEDGER_MISSING");
+    const deliveryId = text(delivery.id);
+    if (text(delivery.status) === "sent") {
+      skippedCount += 1;
+      continue;
+    }
+    if (inserted.rows[0]) {
+      await recordParticipantDeliveryEvent(deliveryId, "planned", {
+        source: "research_worker",
+        jobId: job.id,
+        entitlementId
+      });
+    }
+
+    const rewardCode = rewardCodeForEntitlement(entitlementId);
+    await pool.query(`
+      UPDATE research_participant_deliveries
+      SET status='sending',
+          attempt_count=attempt_count+1,
+          last_error=NULL,
+          updated_at=now()
+      WHERE id=$1
+    `, [deliveryId]);
+    await recordParticipantDeliveryEvent(deliveryId, "sending", {
+      source: "research_worker",
+      jobId: job.id
+    });
+
+    try {
+      const sent = await sendResearchThankYouCode({
+        destination: text(candidate.contact_value),
+        studySlug: text(candidate.slug),
+        studyTitle: text(candidate.title),
+        responseId,
+        deliveryId,
+        rewardCode,
+        joinUrl,
+        methodologyUrl
+      });
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(`
+          UPDATE research_participant_deliveries
+          SET status='sent',
+              provider_message_id=$2,
+              subject_sha256=$3,
+              body_sha256=$4,
+              sent_at=now(),
+              last_error=NULL,
+              updated_at=now()
+          WHERE id=$1
+        `, [deliveryId, sent.providerMessageId, sent.subjectSha256, sent.bodySha256]);
+        await client.query(`
+          INSERT INTO research_participant_delivery_events
+            (delivery_id,event_type,provider_message_id,metadata)
+          VALUES ($1,'sent',$2,jsonb_build_object('source','ses','jobId',$3::text))
+        `, [deliveryId, sent.providerMessageId, job.id]);
+        await client.query(`
+          UPDATE research_reward_entitlements
+          SET code_hash=$2,
+              status=CASE WHEN status='eligible' THEN 'issued' ELSE status END,
+              issued_at=COALESCE(issued_at,now()),
+              metadata=metadata || jsonb_build_object(
+                'deliveryId',$3::text,
+                'codeDerivation','hmac-sha256-v1'
+              )
+          WHERE id=$1 AND status IN ('eligible','issued')
+        `, [entitlementId, sha256(rewardCode), deliveryId]);
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw error;
+      } finally {
+        client.release();
+      }
+      sentCount += 1;
+    } catch (error) {
+      const message = (error instanceof Error ? error.message : String(error))
+        .replace(/[\r\n]+/g, " ")
+        .slice(0, 1000);
+      await pool.query(`
+        UPDATE research_participant_deliveries
+        SET status='failed',last_error=$2,updated_at=now()
+        WHERE id=$1
+      `, [deliveryId, message]);
+      await recordParticipantDeliveryEvent(deliveryId, "failed", {
+        source: "research_worker",
+        jobId: job.id,
+        error: message
+      });
+      failedCount += 1;
+      failures.push({ responseId, error: message });
+    }
+  }
+
+  if (failedCount > 0) {
+    await pool.query(`
+      UPDATE research_study_jobs
+      SET output=output || $2::jsonb
+      WHERE id=$1
+    `, [job.id, JSON.stringify({
+      candidateCount: candidates.rows.length,
+      sentCount,
+      skippedCount,
+      failedCount,
+      failures: failures.slice(0, 25)
+    })]);
+    throw new Error(`RESEARCH_REWARD_DELIVERY_PARTIAL_FAILURE:${failedCount}`);
+  }
+
+  return {
+    candidateCount: candidates.rows.length,
+    sentCount,
+    skippedCount,
+    failedCount: 0
+  };
+}
+
+async function processResultsNotificationJob(job: ResearchJobRow): Promise<Record<string, unknown>> {
+  assertResearchSurveyEmailReady();
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const input = objectValue(job.input);
+  const releaseSnapshotId = text(input.releaseSnapshotId).trim();
+  const limit = Math.max(1, Math.min(250, Math.floor(numberValue(input.limit) || 100)));
+  if (!releaseSnapshotId) throw new Error("RESEARCH_RESULTS_NOTIFICATION_JOB_INVALID");
+
+  const releaseResult = await pool.query<SqlRow>(`
+    SELECT
+      rs.id,rs.release_version,rs.public_url,rs.published_at,
+      s.slug,s.title
+    FROM research_release_snapshots rs
+    JOIN research_studies s ON s.id=rs.study_id
+    WHERE rs.id=$1 AND rs.study_id=$2
+    LIMIT 1
+  `, [releaseSnapshotId, job.study_id]);
+  const release = releaseResult.rows[0];
+  if (!release || !release.published_at) {
+    throw new Error("RESEARCH_RESULTS_NOTIFICATION_REQUIRES_PUBLISHED_RELEASE");
+  }
+  const resultsUrl = absoluteResearchUrl(text(release.public_url) || `/research/${text(release.slug)}/results`);
+  const methodologyUrl = absoluteResearchUrl(`/research/${text(release.slug)}/methodology`);
+
+  const candidates = await pool.query<SqlRow>(`
+    WITH latest_consent AS (
+      SELECT DISTINCT ON (rc.response_id)
+        rc.response_id,rc.granted
+      FROM research_consents rc
+      WHERE rc.consent_kind='results_notification'
+      ORDER BY rc.response_id,rc.occurred_at DESC,rc.id DESC
+    )
+    SELECT
+      rr.id AS response_id,
+      cp.id AS contact_point_id,
+      cp.contact_value
+    FROM research_responses rr
+    JOIN research_invites ri ON ri.id=rr.invite_id
+    JOIN research_contact_points cp ON cp.id=ri.contact_point_id
+    JOIN latest_consent consent ON consent.response_id=rr.id AND consent.granted=true
+    LEFT JOIN LATERAL (
+      SELECT e.action,e.reason
+      FROM research_contact_suppression_events e
+      WHERE e.contact_type=cp.contact_type
+        AND e.contact_value_hash=cp.contact_value_hash
+      ORDER BY e.occurred_at DESC,e.id DESC
+      LIMIT 1
+    ) suppression ON true
+    WHERE rr.study_id=$1
+      AND rr.status='completed'
+      AND cp.contact_type='email'
+      AND cp.contact_value <> ''
+      AND cp.suppression_status NOT IN ('invalid','bounced')
+      AND (
+        cp.suppression_status='active'
+        OR suppression.action='restore'
+        OR (
+          suppression.action='suppress'
+          AND suppression.reason='participant_research_opt_out'
+        )
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM research_participant_deliveries d
+        WHERE d.response_id=rr.id
+          AND d.release_snapshot_id=$2
+          AND d.message_kind='results_notification'
+          AND d.status='sent'
+      )
+    ORDER BY rr.completed_at,rr.id
+    LIMIT $3
+  `, [job.study_id, releaseSnapshotId, limit]);
+
+  let sentCount = 0;
+  let failedCount = 0;
+  let skippedCount = 0;
+  const failures: Array<{ responseId: string; error: string }> = [];
+
+  for (const candidate of candidates.rows) {
+    const responseId = text(candidate.response_id);
+    const contactPointId = text(candidate.contact_point_id);
+    const inserted = await pool.query<SqlRow>(`
+      INSERT INTO research_participant_deliveries (
+        study_id,response_id,contact_point_id,release_snapshot_id,
+        message_kind,consent_kind,status,provider
+      )
+      VALUES ($1,$2,$3,$4,'results_notification','results_notification','planned','ses')
+      ON CONFLICT DO NOTHING
+      RETURNING id,status
+    `, [job.study_id, responseId, contactPointId, releaseSnapshotId]);
+    const deliveryResult = inserted.rows[0]
+      ? inserted
+      : await pool.query<SqlRow>(`
+          SELECT id,status
+          FROM research_participant_deliveries
+          WHERE response_id=$1
+            AND release_snapshot_id=$2
+            AND message_kind='results_notification'
+          LIMIT 1
+        `, [responseId, releaseSnapshotId]);
+    const delivery = deliveryResult.rows[0];
+    if (!delivery) throw new Error("RESEARCH_RESULTS_DELIVERY_LEDGER_MISSING");
+    const deliveryId = text(delivery.id);
+    if (text(delivery.status) === "sent") {
+      skippedCount += 1;
+      continue;
+    }
+    if (inserted.rows[0]) {
+      await recordParticipantDeliveryEvent(deliveryId, "planned", {
+        source: "research_worker",
+        jobId: job.id,
+        releaseSnapshotId
+      });
+    }
+
+    await pool.query(`
+      UPDATE research_participant_deliveries
+      SET status='sending',
+          attempt_count=attempt_count+1,
+          last_error=NULL,
+          updated_at=now()
+      WHERE id=$1
+    `, [deliveryId]);
+    await recordParticipantDeliveryEvent(deliveryId, "sending", {
+      source: "research_worker",
+      jobId: job.id
+    });
+
+    try {
+      const sent = await sendResearchResultsNotification({
+        destination: text(candidate.contact_value),
+        studySlug: text(release.slug),
+        studyTitle: text(release.title),
+        responseId,
+        deliveryId,
+        releaseVersion: text(release.release_version),
+        resultsUrl,
+        methodologyUrl
+      });
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(`
+          UPDATE research_participant_deliveries
+          SET status='sent',
+              provider_message_id=$2,
+              subject_sha256=$3,
+              body_sha256=$4,
+              sent_at=now(),
+              last_error=NULL,
+              updated_at=now()
+          WHERE id=$1
+        `, [deliveryId, sent.providerMessageId, sent.subjectSha256, sent.bodySha256]);
+        await client.query(`
+          INSERT INTO research_participant_delivery_events
+            (delivery_id,event_type,provider_message_id,metadata)
+          VALUES ($1,'sent',$2,jsonb_build_object(
+            'source','ses',
+            'jobId',$3::text,
+            'releaseSnapshotId',$4::text
+          ))
+        `, [deliveryId, sent.providerMessageId, job.id, releaseSnapshotId]);
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw error;
+      } finally {
+        client.release();
+      }
+      sentCount += 1;
+    } catch (error) {
+      const message = (error instanceof Error ? error.message : String(error))
+        .replace(/[\r\n]+/g, " ")
+        .slice(0, 1000);
+      await pool.query(`
+        UPDATE research_participant_deliveries
+        SET status='failed',last_error=$2,updated_at=now()
+        WHERE id=$1
+      `, [deliveryId, message]);
+      await recordParticipantDeliveryEvent(deliveryId, "failed", {
+        source: "research_worker",
+        jobId: job.id,
+        releaseSnapshotId,
+        error: message
+      });
+      failedCount += 1;
+      failures.push({ responseId, error: message });
+    }
+  }
+
+  if (failedCount > 0) {
+    await pool.query(`
+      UPDATE research_study_jobs
+      SET output=output || $2::jsonb
+      WHERE id=$1
+    `, [job.id, JSON.stringify({
+      releaseSnapshotId,
+      candidateCount: candidates.rows.length,
+      sentCount,
+      skippedCount,
+      failedCount,
+      failures: failures.slice(0, 25)
+    })]);
+    throw new Error(`RESEARCH_RESULTS_NOTIFICATION_PARTIAL_FAILURE:${failedCount}`);
+  }
+
+  const remaining = await pool.query<SqlRow>(`
+    WITH latest_consent AS (
+      SELECT DISTINCT ON (rc.response_id)
+        rc.response_id,rc.granted
+      FROM research_consents rc
+      WHERE rc.consent_kind='results_notification'
+      ORDER BY rc.response_id,rc.occurred_at DESC,rc.id DESC
+    )
+    SELECT count(*)::int AS count
+    FROM research_responses rr
+    JOIN research_invites ri ON ri.id=rr.invite_id
+    JOIN research_contact_points cp ON cp.id=ri.contact_point_id
+    JOIN latest_consent consent ON consent.response_id=rr.id AND consent.granted=true
+    LEFT JOIN LATERAL (
+      SELECT e.action,e.reason
+      FROM research_contact_suppression_events e
+      WHERE e.contact_type=cp.contact_type
+        AND e.contact_value_hash=cp.contact_value_hash
+      ORDER BY e.occurred_at DESC,e.id DESC
+      LIMIT 1
+    ) suppression ON true
+    WHERE rr.study_id=$1
+      AND rr.status='completed'
+      AND cp.contact_type='email'
+      AND cp.contact_value <> ''
+      AND cp.suppression_status NOT IN ('invalid','bounced')
+      AND (
+        cp.suppression_status='active'
+        OR suppression.action='restore'
+        OR (
+          suppression.action='suppress'
+          AND suppression.reason='participant_research_opt_out'
+        )
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM research_participant_deliveries d
+        WHERE d.response_id=rr.id
+          AND d.release_snapshot_id=$2
+          AND d.message_kind='results_notification'
+          AND d.status='sent'
+      )
+  `, [job.study_id, releaseSnapshotId]);
+  const remainingCount = numberValue(remaining.rows[0]?.count);
+  let continuationJobId: string | undefined;
+  if (remainingCount > 0) {
+    const next = await pool.query<SqlRow>(`
+      INSERT INTO research_study_jobs (study_id,job_type,status,input)
+      SELECT
+        $1,'results_notification','queued',
+        jsonb_build_object(
+          'releaseSnapshotId',$2::text,
+          'limit',$3::int,
+          'label','results-notification-continuation'
+        )
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM research_study_jobs
+        WHERE study_id=$1
+          AND job_type='results_notification'
+          AND status='queued'
+          AND input->>'releaseSnapshotId'=$2
+      )
+      RETURNING id
+    `, [job.study_id, releaseSnapshotId, limit]);
+    continuationJobId = next.rows[0] ? text(next.rows[0].id) : undefined;
+  }
+
+  return {
+    releaseSnapshotId,
+    candidateCount: candidates.rows.length,
+    sentCount,
+    skippedCount,
+    failedCount: 0,
+    remainingCount,
+    continuationJobId
+  };
+}
+
 export async function processResearchStudyJobs(limit = 1): Promise<ResearchJobTick> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const safeLimit = Math.max(1, Math.min(5, Math.floor(limit)));
@@ -1129,11 +1775,15 @@ export async function processResearchStudyJobs(limit = 1): Promise<ResearchJobTi
           ? await processSampleDrawJob(job)
           : job.job_type === "invite_batch"
             ? await processInviteBatchJob(job)
-            : job.job_type === "analysis"
-              ? await runGreekRetailAnalysis(job.study_id, job.id)
-              : job.job_type === "release"
-                ? await buildGreekRetailRelease(job.study_id, job.id, objectValue(job.input))
-                : (() => { throw new Error("RESEARCH_JOB_TYPE_UNSUPPORTED"); })();
+            : job.job_type === "reward_delivery"
+              ? await processRewardDeliveryJob(job)
+              : job.job_type === "analysis"
+                ? await runGreekRetailAnalysis(job.study_id, job.id)
+                : job.job_type === "release"
+                  ? await buildGreekRetailRelease(job.study_id, job.id, objectValue(job.input))
+                  : job.job_type === "results_notification"
+                    ? await processResultsNotificationJob(job)
+                    : (() => { throw new Error("RESEARCH_JOB_TYPE_UNSUPPORTED"); })();
       await markJobSucceeded(job.id, { ...objectValue(job.output), ...output });
       processed += 1;
     } catch (error) {
