@@ -29,13 +29,16 @@ export async function GET(request: Request, context: Context) {
 
     if (!sourceImageUrl) return missingImage();
 
+    const sourceOrigin = new URL(sourceImageUrl).origin;
     const upstream = await fetch(sourceImageUrl, {
       method: "GET",
-      redirect: "manual",
+      redirect: "follow",
       cache: "no-store",
       headers: {
-        "Accept": "image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8,*/*;q=0.1",
-        "User-Agent": "KONTA-MOU-Product-Media/1.0"
+        "Accept": "image/webp,image/png,image/jpeg,image/*;q=0.8,*/*;q=0.1",
+        "Accept-Language": "el-GR,el;q=0.9,en;q=0.8",
+        "Referer": `${sourceOrigin}/`,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
       }
     });
     if (!upstream.ok || !upstream.body) return serviceUnavailable();
