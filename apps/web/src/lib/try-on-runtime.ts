@@ -140,10 +140,9 @@ async function resolveGarment(userPublicId: string, productId: string) {
   // the same URL renders correctly in a shopper's browser.
   const image = primary
     ? `${publicOrigin()}/api/media/${encodeURIComponent(primary.mediaId)}`
-    : product.sourceImageAvailable
+    : (product.sourceImageAvailable || Boolean(detail?.sourceImageUrls?.[0]))
       ? `${publicOrigin()}/api/catalog-source-image/${encodeURIComponent(product.id)}`
-      : product.previewImageSrc
-        ?? detail?.sourceImageUrls?.[0];
+      : product.previewImageSrc;
   if (!image) throw new Error("TRY_ON_PRODUCT_IMAGE_REQUIRED");
   const garmentImage = image.startsWith("data:") ? image : new URL(image, publicOrigin()).toString();
   return { product, image: garmentImage };
