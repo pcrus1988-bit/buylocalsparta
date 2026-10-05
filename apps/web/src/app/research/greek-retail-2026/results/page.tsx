@@ -145,6 +145,8 @@ export default async function GreekRetailResultsPage() {
   }
 
   const methodology = objectValue(release.methodology);
+  const pilot = objectValue(methodology.pilot);
+  const sample = objectValue(methodology.sample);
   const fieldwork = objectValue(methodology.fieldwork);
   const analysisPlan = objectValue(methodology.analysisPlan);
   const analysis = objectValue(methodology.analysis);
@@ -200,8 +202,15 @@ export default async function GreekRetailResultsPage() {
         {" "}ολοκληρωμένες απαντήσεις: <strong>{numeric(fieldwork.completed).toLocaleString("el-GR")}</strong> ·
         {" "}αναλυτικό σύνολο: <strong>{numeric(fieldwork.analyzed).toLocaleString("el-GR")}</strong>.
       </p>
+      {(pilot.startsAt || numeric(pilot.exposedUnitsExcludedFromMainDraw) > 0) && <p>
+        Pilot: <strong>{numeric(pilot.sent).toLocaleString("el-GR")}</strong> sent ·
+        {" "}<strong>{numeric(pilot.completed).toLocaleString("el-GR")}</strong> completed ·
+        {" "}<strong>{numeric(pilot.exposedUnitsExcludedFromMainDraw).toLocaleString("el-GR")}</strong> pilot-exposed businesses excluded from the main draw.
+        {" "}Main eligible population after holdout: <strong>{numeric(sample.effectivePopulationAfterPilotHoldout).toLocaleString("el-GR")}</strong>.
+        Οι pilot απαντήσεις δεν περιλαμβάνονται στο analytical dataset.
+      </p>}
       <p>
-        Email-contactable μονάδες στο frozen frame: <strong>{numeric(fieldwork.activeEmailFrameUnits).toLocaleString("el-GR")}</strong>
+        Email-contactable μονάδες στον main-eligible population: <strong>{numeric(fieldwork.activeEmailFrameUnits).toLocaleString("el-GR")}</strong>
         {" · "}contactability: <strong>{new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 2 }).format(numeric(fieldwork.emailContactabilityRate))}</strong>.
         Η κάλυψη email είναι ξεχωριστή από την πιθανότητα επιλογής και αποτελεί ρητό limitation της μελέτης.
       </p>
