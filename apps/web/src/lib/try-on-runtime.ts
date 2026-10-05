@@ -214,8 +214,24 @@ function providerError(value: unknown, message?: unknown): string {
     || haystack.includes("pipeline")
     || haystack.includes("internalserver")
   ) return "TRY_ON_PROVIDER_BUSY";
-  if (haystack.includes("unauthorized")) return "TRY_ON_NOT_CONFIGURED";
+  if (haystack.includes("unauthorized") || haystack.includes("forbidden")) return "TRY_ON_NOT_CONFIGURED";
   return "TRY_ON_PROVIDER_FAILED";
+}
+
+function providerHttpError(status: number, value: unknown, message?: unknown): string {
+  if (status === 401 || status === 403) return "TRY_ON_NOT_CONFIGURED";
+  if (status === 408 || status === 425 || status === 429 || status >= 500) return "TRY_ON_PROVIDER_BUSY";
+  return providerError(value, message);
+}
+
+function retryAfterMs(response: Response): number {
+  const raw = response.headers.get("retry-after")?.trim();
+  if (!raw) return 2_500;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(5_000, Math.max(500, Math.ceil(seconds * 1000)));
+  const date = Date.parse(raw);
+  if (Number.isFinite(date)) return Math.min(5_000, Math.max(500, date - Date.now()));
+  return 2_500;
 }
 
 function wait(ms: number, signal?: AbortSignal) {
@@ -270,7 +286,7 @@ export async function generateCustomerTryOn(input: {
   });
   const started = await runResponse.json().catch(() => ({})) as FashnRunResponse;
   if (!runResponse.ok || !started.id) {
-    throw new Error(providerError(started.error, started.message));
+    throw new Error(providerHttpError(runResponse.status, started.error, started.message));
   }
 
   const predictionId = safePredictionId(started.id);
@@ -283,7 +299,11 @@ export async function generateCustomerTryOn(input: {
       signal: input.signal
     });
     const status = await statusResponse.json().catch(() => ({})) as FashnStatusResponse;
-    if (!statusResponse.ok) throw new Error(providerError(status.error));
+    if (statusResponse.status === 429) {
+      await wait(retryAfterMs(statusResponse), input.signal);
+      continue;
+    }
+    if (!statusResponse.ok) throw new Error(providerHttpError(statusResponse.status, status.error));
     if (status.status === "failed") throw new Error(providerError(status.error));
     if (status.status !== "completed") continue;
     const output = status.output?.[0];
