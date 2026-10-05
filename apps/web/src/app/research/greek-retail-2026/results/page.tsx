@@ -31,6 +31,10 @@ function formatEstimate(value: number, metadata: Record<string, unknown>): strin
     : new Intl.NumberFormat("el-GR", { maximumFractionDigits: 2 }).format(value);
 }
 
+function formatInterval(value: number, metadata: Record<string, unknown>): string {
+  return formatEstimate(value, metadata);
+}
+
 function metricLabel(metricKey: string, metadata: Record<string, unknown>): string {
   const label = typeof metadata.label === "string" ? metadata.label.trim() : "";
   if (label) return label;
@@ -92,7 +96,7 @@ export default async function GreekRetailResultsPage() {
         Weight version: <strong>{String(analysis.weightVersion ?? "—")}</strong>. Variance method: <strong>{String(analysis.varianceMethod ?? "—")}</strong>.
         {String(analysis.varianceMethod) === "not_estimated"
           ? " Για αυτό το release δεν δημοσιεύονται confidence intervals ή συμβατικό margin of error."
-          : ""}
+          : " Τα 95% confidence intervals δημοσιεύονται μόνο όπου το stratified design τα υποστηρίζει· για μη στρωματοποιημένα post-hoc domains ή ανεπαρκείς βάσεις παραμένουν withheld."}
       </p>
     </section>
 
@@ -110,6 +114,9 @@ export default async function GreekRetailResultsPage() {
             <div style={{ fontSize: 11, color: "#58685f" }}>
               n={estimate.unweightedN.toLocaleString("el-GR")}
               {estimate.weightedN != null ? " · weighted base " + Math.round(estimate.weightedN).toLocaleString("el-GR") : ""}
+              {estimate.ciLower != null && estimate.ciUpper != null
+                ? " · 95% CI " + formatInterval(estimate.ciLower, estimate.metadata) + "–" + formatInterval(estimate.ciUpper, estimate.metadata)
+                : " · CI withheld for this estimate"}
               {" · "}{estimate.metricKey}
             </div>
           </article>)}
