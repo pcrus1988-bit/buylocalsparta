@@ -215,8 +215,15 @@ export async function queueGreekRetailSampleDraw(
   if (randomSeed.length < 16 || randomSeed.length > 200) throw new Error("RESEARCH_SAMPLE_SEED_INVALID");
 
   const pool = getProductionPostgresRuntime().sqlPool;
-  const study = await pool.query<SqlRow>("SELECT id FROM research_studies WHERE slug=$1 LIMIT 1", [STUDY_SLUG]);
+  const study = await pool.query<SqlRow>("SELECT id,status FROM research_studies WHERE slug=$1 LIMIT 1", [STUDY_SLUG]);
   if (!study.rows[0]) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+  const studyStatus = text(study.rows[0].status);
+  if (fieldworkPhase === "pilot" && !["draft","pilot"].includes(studyStatus)) {
+    throw new Error("RESEARCH_PILOT_SAMPLE_PHASE_CLOSED");
+  }
+  if (fieldworkPhase === "main" && studyStatus !== "fielding") {
+    throw new Error("RESEARCH_MAIN_SAMPLE_REQUIRES_FIELDING");
+  }
   const frame = await pool.query<SqlRow>(`
     SELECT id FROM research_frame_snapshots
     WHERE study_id=$1 AND status='frozen'
@@ -319,7 +326,9 @@ export async function queueGreekRetailInviteBatch(
       s.id,s.status,
       EXISTS(
         SELECT 1 FROM research_sample_draws d
-        WHERE d.study_id=s.id AND d.status IN ('locked','fielded')
+        WHERE d.study_id=s.id
+          AND d.status IN ('locked','fielded')
+          AND d.fieldwork_phase=CASE WHEN s.status='pilot' THEN 'pilot' ELSE 'main' END
       ) AS sample_ready,
       EXISTS(
         SELECT 1 FROM research_recruitment_templates rt
@@ -929,6 +938,19 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
   const client = await getProductionPostgresRuntime().sqlPool.connect();
   try {
     await client.query("BEGIN");
+    const phaseState = await client.query<SqlRow>(`
+      SELECT status
+      FROM research_studies
+      WHERE id=$1
+      FOR UPDATE
+    `, [job.study_id]);
+    const currentStatus = text(phaseState.rows[0]?.status);
+    if (
+      (fieldworkPhase === "pilot" && !["draft","pilot"].includes(currentStatus))
+      || (fieldworkPhase === "main" && currentStatus !== "fielding")
+    ) {
+      throw new Error("RESEARCH_SAMPLE_FIELDWORK_PHASE_CHANGED");
+    }
     const frameResult = await client.query<SqlRow>(`
       SELECT id, population_size, content_sha256
       FROM research_frame_snapshots
@@ -953,7 +975,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
               JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
               WHERE pri.study_id=$3
                 AND pri.fieldwork_phase='pilot'
-                AND pri.status <> 'expired'
+                AND pri.sent_at IS NOT NULL
                 AND psu.frame_unit_id=fu.id
             )
           )::int AS main_population_count
@@ -1201,7 +1223,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
               JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
               WHERE pri.study_id=$2
                 AND pri.fieldwork_phase='pilot'
-                AND pri.status <> 'expired'
+                AND pri.sent_at IS NOT NULL
                 AND psu.frame_unit_id=su.frame_unit_id
             )
           )
