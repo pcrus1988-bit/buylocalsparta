@@ -1,0 +1,76 @@
+name: Research Survey Schema Rollout
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply schema 0416–0418 after the guarded preflight
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: research-survey-schema-rollout
+  cancel-in-progress: false
+
+jobs:
+  rollout:
+    name: Guarded research schema rollout
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PGSSLMODE: require
+      BLS_DB_APPLICATION_NAME: github-actions:research-schema-rollout
+
+    steps:
+      - name: Checkout selected ref
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Require production database credential
+        shell: bash
+        run: |
+          if [[ -z "${DATABASE_URL}" ]]; then
+            echo "::error::Production DATABASE_URL secret is missing."
+            exit 78
+          fi
+
+      - name: Verify immutable migration checksums
+        run: npm run db:verify
+
+      - name: Guard source head and production starting state
+        run: node --experimental-strip-types scripts/research-survey-production-schema.ts
+
+      - name: Preflight-only summary
+        if: ${{ !inputs.apply }}
+        run: |
+          echo "Research schema preflight passed."
+          echo "No database mutation was requested."
+
+      - name: Apply checksum-aware migrations through schema 0418
+        if: ${{ inputs.apply }}
+        run: npm run db:migrate
+
+      - name: Verify research schema and tables after migration
+        if: ${{ inputs.apply }}
+        run: node --experimental-strip-types scripts/research-survey-production-schema.ts --postcheck
+
+      - name: Verify application database readiness
+        if: ${{ inputs.apply }}
+        run: npm run db:ready
