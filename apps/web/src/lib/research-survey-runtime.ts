@@ -1276,7 +1276,9 @@ export async function transitionResearchStudy(
       }
       await client.query(`
         UPDATE research_studies
-        SET status = 'pilot', fieldwork_starts_at = COALESCE(fieldwork_starts_at, now()), updated_at = now()
+        SET status = 'pilot',
+            pilot_started_at = COALESCE(pilot_started_at, now()),
+            updated_at = now()
         WHERE id = $1
       `, [row.study_id]);
       await client.query("UPDATE research_instruments SET status = 'fielding' WHERE id = $1", [row.instrument_id]);
@@ -1289,28 +1291,75 @@ export async function transitionResearchStudy(
       const readiness = await client.query<SqlRow>(`
         SELECT
           EXISTS(SELECT 1 FROM research_frame_snapshots WHERE study_id = $1 AND status = 'frozen') AS frozen_frame,
-          EXISTS(SELECT 1 FROM research_sample_draws WHERE study_id = $1 AND status IN ('locked','fielded')) AS locked_sample,
           EXISTS(
             SELECT 1 FROM research_analysis_plans
             WHERE study_id=$1 AND instrument_id=$2 AND status='locked'
           ) AS locked_analysis_plan
       `, [row.study_id, row.instrument_id]);
-      if (!Boolean(readiness.rows[0]?.frozen_frame) || !Boolean(readiness.rows[0]?.locked_sample)) {
-        throw new Error("RESEARCH_FIELDING_REQUIRES_FRAME_AND_SAMPLE");
+      if (!Boolean(readiness.rows[0]?.frozen_frame)) {
+        throw new Error("RESEARCH_FIELDING_REQUIRES_FROZEN_FRAME");
       }
       if (!Boolean(readiness.rows[0]?.locked_analysis_plan)) {
         throw new Error("RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN");
       }
+
+      if (studyStatus === "pilot") {
+        await client.query(`
+          UPDATE research_study_jobs
+          SET
+            status='cancelled',
+            finished_at=COALESCE(finished_at,now()),
+            error_message=COALESCE(error_message,'cancelled_by_pilot_closeout')
+          WHERE study_id=$1
+            AND job_type IN ('invite_batch','invite_reminder')
+            AND status='queued'
+            AND COALESCE(input->>'fieldworkPhase','pilot')='pilot'
+        `, [row.study_id]);
+        const runningPilotJobs = await client.query<SqlRow>(`
+          SELECT count(*)::int AS count
+          FROM research_study_jobs
+          WHERE study_id=$1
+            AND job_type IN ('invite_batch','invite_reminder')
+            AND status='running'
+            AND COALESCE(input->>'fieldworkPhase','pilot')='pilot'
+        `, [row.study_id]);
+        if (numberValue(runningPilotJobs.rows[0]?.count) > 0) {
+          throw new Error("RESEARCH_PILOT_CLOSE_CONTACT_JOB_RUNNING");
+        }
+        await client.query(`
+          WITH expired AS (
+            UPDATE research_invites
+            SET status='expired'
+            WHERE study_id=$1
+              AND fieldwork_phase='pilot'
+              AND status IN ('created','sent','opened','started')
+            RETURNING id
+          )
+          INSERT INTO research_invite_events (invite_id,event_type,metadata)
+          SELECT
+            id,
+            'expired',
+            '{"source":"pilot_closeout","reason":"main_fieldwork_started"}'::jsonb
+          FROM expired
+        `, [row.study_id]);
+      }
+
       await client.query(`
         UPDATE research_studies
-        SET status = 'fielding', fieldwork_starts_at = COALESCE(fieldwork_starts_at, now()), updated_at = now()
+        SET status = 'fielding',
+            pilot_ended_at = CASE
+              WHEN $2::text='pilot' THEN COALESCE(pilot_ended_at, now())
+              ELSE pilot_ended_at
+            END,
+            fieldwork_starts_at = COALESCE(fieldwork_starts_at, now()),
+            updated_at = now()
         WHERE id = $1
-      `, [row.study_id]);
+      `, [row.study_id, studyStatus]);
       await client.query("UPDATE research_instruments SET status = 'fielding' WHERE id = $1", [row.instrument_id]);
       studyStatus = "fielding";
       instrumentStatus = "fielding";
     } else if (input.action === "close_fieldwork") {
-      if (!["pilot", "fielding"].includes(studyStatus)) throw new Error("RESEARCH_LIFECYCLE_INVALID");
+      if (studyStatus !== "fielding") throw new Error("RESEARCH_LIFECYCLE_INVALID");
 
       // Prevent the fieldwork end timestamp from racing with an invitation or
       // reminder sender. Queued contact jobs are cancelled transactionally. If
@@ -1325,6 +1374,7 @@ export async function transitionResearchStudy(
         WHERE study_id=$1
           AND job_type IN ('invite_batch','invite_reminder')
           AND status='queued'
+          AND COALESCE(input->>'fieldworkPhase','main')='main'
       `, [row.study_id]);
       const runningContactJobs = await client.query<SqlRow>(`
         SELECT count(*)::int AS count
@@ -1332,6 +1382,7 @@ export async function transitionResearchStudy(
         WHERE study_id=$1
           AND job_type IN ('invite_batch','invite_reminder')
           AND status='running'
+          AND COALESCE(input->>'fieldworkPhase','main')='main'
       `, [row.study_id]);
       if (numberValue(runningContactJobs.rows[0]?.count) > 0) {
         throw new Error("RESEARCH_FIELDWORK_CLOSE_CONTACT_JOB_RUNNING");
@@ -1346,7 +1397,9 @@ export async function transitionResearchStudy(
         WITH active_draw AS (
           SELECT id
           FROM research_sample_draws
-          WHERE study_id=$1 AND status IN ('locked','fielded')
+          WHERE study_id=$1
+            AND fieldwork_phase='main'
+            AND status IN ('locked','fielded')
           ORDER BY drawn_at DESC NULLS LAST,created_at DESC
           LIMIT 1
         ),
@@ -1369,6 +1422,7 @@ export async function transitionResearchStudy(
           LEFT JOIN research_invites ri
             ON ri.sample_unit_id=su.id
            AND ri.study_id=$1
+           AND ri.fieldwork_phase='main'
           LEFT JOIN research_responses rr ON rr.invite_id=ri.id
           WHERE su.sample_draw_id=(SELECT id FROM active_draw)
         )
@@ -1394,6 +1448,7 @@ export async function transitionResearchStudy(
           UPDATE research_invites
           SET status='expired'
           WHERE study_id=$1
+            AND fieldwork_phase='main'
             AND status IN ('created','sent','opened','started')
           RETURNING id
         )
