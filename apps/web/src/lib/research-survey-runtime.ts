@@ -4,6 +4,7 @@ import { assertAdminPermission } from "./admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { researchReleaseArtifactIntegrity } from "./research-survey-release";
 import {
+  researchQualitySignals,
   scoreGreekRetail2026,
   validateResearchAnswers,
   type ResearchAnswer,
@@ -677,7 +678,7 @@ export async function savePublicResearchSurvey(input: Readonly<{
         RETURNING duration_seconds
       `, [response.id]);
       const durationSeconds = numberValue(completion.rows[0]?.duration_seconds);
-      const fastComplete = durationSeconds > 0 && durationSeconds < 90;
+      const quality = researchQualitySignals(allAnswers, durationSeconds);
       const experimentCount = await client.query<SqlRow>(`
         SELECT count(*)::int AS count
         FROM research_experiment_assignments
@@ -687,16 +688,17 @@ export async function savePublicResearchSurvey(input: Readonly<{
       await client.query(`
         INSERT INTO research_response_quality_reviews
           (response_id, rule_version, decision, reason_codes, metrics, source)
-        VALUES ($1, 'greek-retail-2026-qc-v1', $2, $3::text[], $4::jsonb, 'automated')
+        VALUES ($1, 'greek-retail-2026-qc-v2', $2, $3::text[], $4::jsonb, 'automated')
       `, [
         response.id,
-        fastComplete ? "review" : "include",
-        fastComplete ? ["rapid_completion"] : [],
+        quality.review ? "review" : "include",
+        quality.reasonCodes,
         JSON.stringify({
-          durationSeconds,
+          ...quality.metrics,
           requiredAnswerValidation: "passed",
           experimentTasksAnswered: answeredExperimentTasks,
-          experimentModuleRequired: false
+          experimentModuleRequired: false,
+          automaticExclusion: false
         })
       ]);
       await client.query(`
