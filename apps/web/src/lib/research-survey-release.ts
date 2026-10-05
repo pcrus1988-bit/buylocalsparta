@@ -583,6 +583,79 @@ export type PublishedResearchEstimate = Readonly<{
   metadata: Record<string, unknown>;
 }>;
 
+export async function researchReleaseArtifactIntegrity(
+  executor: {
+    query<Row extends SqlRow = SqlRow>(
+      text: string,
+      params?: readonly unknown[]
+    ): Promise<{ rows: readonly Row[] }>;
+  },
+  releaseId: string
+): Promise<Readonly<{
+  storedSha256: string;
+  computedSha256: string;
+  integrityOk: boolean;
+}> | undefined> {
+  const releaseResult = await executor.query<SqlRow>(`
+    SELECT
+      rs.release_version,
+      rs.analysis_run_id,
+      rs.dataset_sha256,
+      rs.artifact_sha256,
+      rs.methodology_json,
+      s.slug
+    FROM research_release_snapshots rs
+    JOIN research_studies s ON s.id=rs.study_id
+    WHERE rs.id=$1
+    LIMIT 1
+  `, [releaseId]);
+  const release = releaseResult.rows[0];
+  if (!release) return undefined;
+
+  const estimatesResult = await executor.query<SqlRow>(`
+    SELECT metric_key,segment,estimate,standard_error,confidence_level,ci_lower,ci_upper,
+           unweighted_n,weighted_n,method,suppressed,metadata
+    FROM research_analysis_estimates
+    WHERE analysis_run_id=$1
+    ORDER BY metric_key,segment::text
+  `, [release.analysis_run_id]);
+
+  const estimates = estimatesResult.rows.map((row) => {
+    const suppressed = Boolean(row.suppressed);
+    return {
+      metricKey: text(row.metric_key),
+      segment: objectValue(row.segment),
+      estimate: suppressed || row.estimate == null ? null : numberValue(row.estimate),
+      standardError: suppressed || row.standard_error == null ? null : numberValue(row.standard_error),
+      confidenceLevel: suppressed || row.confidence_level == null ? null : numberValue(row.confidence_level),
+      ciLower: suppressed || row.ci_lower == null ? null : numberValue(row.ci_lower),
+      ciUpper: suppressed || row.ci_upper == null ? null : numberValue(row.ci_upper),
+      unweightedN: numberValue(row.unweighted_n),
+      weightedN: row.weighted_n == null ? null : numberValue(row.weighted_n),
+      method: text(row.method),
+      suppressed,
+      metadata: objectValue(row.metadata)
+    };
+  });
+
+  const artifact = {
+    schema: "kontamou.research.release.v1",
+    releaseVersion: text(release.release_version),
+    studySlug: text(release.slug),
+    analysisRunId: text(release.analysis_run_id),
+    datasetSha256: text(release.dataset_sha256),
+    methodology: objectValue(release.methodology_json),
+    estimates
+  };
+  const storedSha256 = text(release.artifact_sha256);
+  const computedSha256 = sha256Canonical(artifact);
+  return {
+    storedSha256,
+    computedSha256,
+    integrityOk: Boolean(storedSha256) && storedSha256 === computedSha256
+  };
+}
+
 export async function getPublishedGreekRetailResults(slug: string): Promise<Readonly<{
   releaseVersion: string;
   publishedAt: string;
