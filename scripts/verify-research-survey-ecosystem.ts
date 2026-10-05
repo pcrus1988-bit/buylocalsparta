@@ -8,6 +8,9 @@ const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<strin
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const jobs = readFileSync("apps/web/src/lib/research-survey-jobs.ts", "utf8");
+const researchMail = readFileSync("apps/web/src/lib/research-survey-mail.ts", "utf8");
+const sesEvents = readFileSync("apps/web/src/lib/research-survey-ses-events.ts", "utf8");
+const sesSender = readFileSync("apps/web/src/lib/admin-mail-ses.ts", "utf8");
 const gemi = readFileSync("apps/web/src/lib/gemi-admin-export.ts", "utf8");
 const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts?: Record<string, string> };
 
@@ -67,6 +70,7 @@ if (!migration.includes("REVOKE ALL ON") || !migration.includes("FROM anon;") ||
 if (!migration.includes("research_guard_answer_mutation")) errors.push("completed-answer immutability guard missing");
 if (!migration.includes("research_consents_append_only")) errors.push("append-only consent ledger guard missing");
 if (!migration.includes("research_sample_dispositions_append_only")) errors.push("append-only sample disposition guard missing");
+if (!migration.includes("research_recruitment_templates_locked_immutable")) errors.push("locked recruitment template immutability guard missing");
 if (!migration.includes("token_hash text NOT NULL UNIQUE")) errors.push("hashed invitation token contract missing");
 if (/\btoken\s+text\b/i.test(migration)) errors.push("plaintext invitation token column detected");
 
@@ -78,6 +82,18 @@ if (!surveyRuntime.includes("research_reward_entitlements")) errors.push("reward
 if (!surveyRuntime.includes("research_sample_disposition_events")) errors.push("fieldwork disposition events missing");
 if (!jobs.includes("gemiResearchFrameRecords")) errors.push("GEMI frame worker bridge missing");
 if (!jobs.includes("stratified-hash-rank-v1")) errors.push("reproducible sample algorithm missing");
+if (!jobs.includes("processInviteBatchJob")) errors.push("worker-managed invitation delivery missing");
+if (!jobs.includes("runGreekRetailAnalysis(job.study_id, job.id)")) errors.push("analysis job bridge missing");
+if (!jobs.includes("assertResearchSurveyEmailReady")) errors.push("research email readiness gate missing");
+if (!researchMail.includes("BLS_RESEARCH_SES_CONFIGURATION_SET")) errors.push("dedicated SES configuration set gate missing");
+if (!researchMail.includes("research_invite")) errors.push("SES research message tags missing");
+if (!sesSender.includes("ConfigurationSetName")) errors.push("SES sender does not apply configuration set");
+if (!sesEvents.includes("BLS_RESEARCH_SES_SNS_TOPIC_ARN")) errors.push("SES SNS topic allowlist missing");
+if (!sesEvents.includes("SNS_SIGNATURE_INVALID")) errors.push("SNS signature verification missing");
+if (!sesEvents.includes("suppression_status='bounced'")) errors.push("bounce suppression bridge missing");
+if (surveyRuntime.includes("generateResearchInvitationBatch")) errors.push("legacy plaintext invitation delivery path remains");
+if (surveyRuntime.includes("SURVEY_EXPERIMENT_INCOMPLETE")) errors.push("optional experiment still blocks completion");
+if (!surveyRuntime.includes('"eligibilityBasis":"completed_response"')) errors.push("reward eligibility is not completion-based");
 if (!gemi.includes("export async function* gemiResearchFrameRecords")) errors.push("GEMI governed record stream missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
 
