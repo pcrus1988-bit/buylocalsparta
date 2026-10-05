@@ -19,9 +19,11 @@ function statusFor(message: string): number {
   if (message === "TRY_ON_TIMEOUT") return 504;
   if (message === "TRY_ON_PRODUCT_NOT_FOUND" || message === "TRY_ON_ACCOUNT_NOT_FOUND") return 404;
   if (message === "TRY_ON_RATE_LIMITED" || message === "TRY_ON_MONTHLY_LIMIT_REACHED") return 429;
+  if (message === "TRY_ON_PRODUCT_IMAGE_LOAD_FAILED") return 503;
   if (
     message === "TRY_ON_PRODUCT_UNSUPPORTED"
     || message === "TRY_ON_PRODUCT_IMAGE_REQUIRED"
+    || message === "TRY_ON_MODEL_IMAGE_LOAD_FAILED"
     || message === "TRY_ON_POSE_REQUIRED"
     || message === "TRY_ON_CONTENT_BLOCKED"
     || message === "TRY_ON_INPUT_INVALID"
