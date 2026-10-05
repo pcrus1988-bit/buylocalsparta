@@ -651,16 +651,16 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     : "";
 
   if (!sessionChecked) {
-    return <section id={`try-on-${productId}`} className={styles.card} aria-label="Try On Me"><div className={styles.loading}>Try On Me…</div></section>;
+    return <section id={`try-on-card-${productId}`} className={styles.card} aria-label="Try On Me"><div className={styles.loading}>Try On Me…</div></section>;
   }
 
   if (csrfToken && tryOnAvailable === false) {
     return (
-      <section id={`try-on-${productId}`} className={styles.card} aria-labelledby={`try-on-${productId}`}>
+      <section id={`try-on-card-${productId}`} className={styles.card} aria-labelledby={`try-on-${productId}`}>
         <div className={styles.heading}>
           <div>
             <span className={styles.eyebrow}>KONTA MOY · TRY ON ME</span>
-            <h2 id={`try-on-${productId}`}>Δες το πάνω σου</h2>
+            <h2 id={`try-on-card-${productId}`}>Δες το πάνω σου</h2>
           </div>
           <span className={styles.spark}>✦</span>
         </div>
@@ -671,11 +671,11 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
 
   if (!csrfToken) {
     return (
-      <section id={`try-on-${productId}`} className={styles.card} aria-labelledby={`try-on-${productId}`}>
+      <section id={`try-on-card-${productId}`} className={styles.card} aria-labelledby={`try-on-${productId}`}>
         <div className={styles.heading}>
           <div>
             <span className={styles.eyebrow}>KONTA MOY · TRY ON ME</span>
-            <h2 id={`try-on-${productId}`}>Δες το πάνω σου</h2>
+            <h2 id={`try-on-card-${productId}`}>Δες το πάνω σου</h2>
           </div>
           <span className={styles.spark}>✦</span>
         </div>
@@ -688,11 +688,11 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   }
 
   return (
-    <section id={`try-on-${productId}`} className={styles.card} aria-labelledby={`try-on-${productId}`}>
+    <section id={`try-on-card-${productId}`} className={styles.card} aria-labelledby={`try-on-${productId}`}>
       <div className={styles.heading}>
         <div>
           <span className={styles.eyebrow}>KONTA MOY · TRY ON ME</span>
-          <h2 id={`try-on-${productId}`}>Δες το πάνω σου</h2>
+          <h2 id={`try-on-card-${productId}`}>Δες το πάνω σου</h2>
         </div>
         <span className={styles.spark}>✦</span>
       </div>
