@@ -33,6 +33,14 @@ function formatOptionalPercent(value: unknown): string {
     : "—";
 }
 
+function formatOptionalNumber(value: unknown, digits = 2): string {
+  if (value == null) return "—";
+  const result = Number(value);
+  return Number.isFinite(result)
+    ? new Intl.NumberFormat("el-GR", { maximumFractionDigits: digits }).format(result)
+    : "—";
+}
+
 function formatEstimate(value: number, metadata: Record<string, unknown>): string {
   return metadata.format === "proportion"
     ? new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 1 }).format(value)
@@ -87,6 +95,7 @@ export default async function GreekRetailResultsPage() {
   const methodology = objectValue(release.methodology);
   const fieldwork = objectValue(methodology.fieldwork);
   const analysis = objectValue(methodology.analysis);
+  const weightDiagnostics = objectValue(analysis.weightDiagnostics);
   const overall = release.estimates.filter((estimate) =>
     !estimate.suppressed &&
     estimate.estimate != null &&
@@ -146,6 +155,14 @@ export default async function GreekRetailResultsPage() {
         {String(analysis.varianceMethod) === "not_estimated"
           ? " Για αυτό το release δεν δημοσιεύονται confidence intervals ή συμβατικό margin of error."
           : " Τα 95% confidence intervals δημοσιεύονται μόνο όπου το stratified design τα υποστηρίζει· για μη στρωματοποιημένα post-hoc domains ή ανεπαρκείς βάσεις παραμένουν withheld."}
+      </p>
+      <p>
+        Kish effective n: <strong>{formatOptionalNumber(weightDiagnostics.kishEffectiveN, 1)}</strong> από
+        {" "}<strong>{numeric(weightDiagnostics.count).toLocaleString("el-GR")}</strong> weighted responses ·
+        {" "}weighting design effect: <strong>{formatOptionalNumber(weightDiagnostics.weightingDesignEffect, 2)}</strong> ·
+        {" "}weight CV: <strong>{formatOptionalNumber(weightDiagnostics.coefficientOfVariation, 2)}</strong> ·
+        {" "}max non-response adjustment: <strong>{formatOptionalNumber(weightDiagnostics.nonresponseAdjustmentMax, 2)}×</strong>.
+        Τα diagnostics αυτά δείχνουν πόση αποτελεσματική πληροφορία χάνεται από άνισα βάρη.
       </p>
     </section>
 
