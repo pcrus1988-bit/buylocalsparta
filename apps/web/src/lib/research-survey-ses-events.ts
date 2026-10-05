@@ -69,8 +69,15 @@ async function processResearchSesEvent(
   try {
     await client.query("BEGIN");
     const inviteResult = await client.query<SqlRow>(`
-      SELECT ri.id AS invite_id,ri.sample_unit_id,ri.contact_point_id,ri.status
+      SELECT
+        ri.id AS invite_id,
+        ri.study_id,
+        ri.sample_unit_id,
+        ri.contact_point_id,
+        ri.status,
+        cp.contact_value_hash
       FROM research_invites ri
+      LEFT JOIN research_contact_points cp ON cp.id=ri.contact_point_id
       JOIN research_invite_events e ON e.invite_id=ri.id
       WHERE e.event_type='sent'
         AND e.metadata->>'providerMessageId'=$1
@@ -124,7 +131,19 @@ async function processResearchSesEvent(
         await disposition(client, text(invite.sample_unit_id), "opened", "eligible", metadata);
       }
     } else if (eventType === "Bounce") {
-      if (invite.contact_point_id) {
+      if (invite.contact_value_hash) {
+        await client.query(`
+          INSERT INTO research_contact_suppression_events (
+            contact_type,contact_value_hash,action,reason,study_id,invite_id,source,metadata
+          )
+          VALUES ('email',$1,'suppress','ses_bounce',$2,$3,'ses_sns',$4::jsonb)
+        `, [invite.contact_value_hash, invite.study_id, invite.invite_id, JSON.stringify(metadata)]);
+        await client.query(`
+          UPDATE research_contact_points
+          SET suppression_status='bounced'
+          WHERE contact_type='email' AND contact_value_hash=$1
+        `, [invite.contact_value_hash]);
+      } else if (invite.contact_point_id) {
         await client.query(`
           UPDATE research_contact_points
           SET suppression_status='bounced'
@@ -140,7 +159,19 @@ async function processResearchSesEvent(
         await disposition(client, text(invite.sample_unit_id), "bounce", "eligible", metadata);
       }
     } else if (eventType === "Complaint") {
-      if (invite.contact_point_id) {
+      if (invite.contact_value_hash) {
+        await client.query(`
+          INSERT INTO research_contact_suppression_events (
+            contact_type,contact_value_hash,action,reason,study_id,invite_id,source,metadata
+          )
+          VALUES ('email',$1,'suppress','ses_complaint',$2,$3,'ses_sns',$4::jsonb)
+        `, [invite.contact_value_hash, invite.study_id, invite.invite_id, JSON.stringify(metadata)]);
+        await client.query(`
+          UPDATE research_contact_points
+          SET suppression_status='suppressed'
+          WHERE contact_type='email' AND contact_value_hash=$1
+        `, [invite.contact_value_hash]);
+      } else if (invite.contact_point_id) {
         await client.query(`
           UPDATE research_contact_points
           SET suppression_status='suppressed'
