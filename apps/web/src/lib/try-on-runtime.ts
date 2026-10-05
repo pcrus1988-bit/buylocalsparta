@@ -211,10 +211,15 @@ export async function generateCustomerTryOn(input: {
   productId: string;
   modelImageDataUrl: unknown;
   signal?: AbortSignal;
+  beforeProviderRun?: () => Promise<void>;
 }): Promise<CustomerTryOnGeneration> {
   const model = decodeDataImage(input.modelImageDataUrl, MAX_MODEL_IMAGE_BYTES, new Set(["image/jpeg", "image/png", "image/webp"]));
   const { product, image: garmentImage } = await resolveGarment(input.userPublicId, input.productId.trim());
   const apiKey = fashnApiKey();
+
+  // Reserve quota only after local image/product validation has passed and immediately
+  // before the paid provider call. This keeps the 50/month allowance aligned to cost exposure.
+  await input.beforeProviderRun?.();
 
   const runResponse = await fetch(`${FASHN_BASE_URL}/run`, {
     method: "POST",
