@@ -229,6 +229,22 @@ A release is not scientifically ready until it has:
 If probability sampling is not successfully maintained, do not present a conventional margin of sampling error as though the study were a probability sample.
 
 
+## Production schema rollout
+
+The research schema is deployed through the repository's checksum-aware migration ledger, not by applying the SQL files independently through a second migration system.
+
+`.github/workflows/research-survey-schema-rollout.yml` is a manual-only production workflow. Its default execution is preflight-only. Before any mutation it:
+
+- verifies the immutable migration checksum manifest;
+- requires the repository migration head to be exactly 418;
+- requires the production application ledger to be either clean schema 415 or already-complete schema 418;
+- rejects a schema-415 database if any key research table already exists, preventing a partial-state rollout;
+- uses the protected `production` environment and its `DATABASE_URL` secret.
+
+Only an explicit workflow dispatch with `apply=true` runs `npm run db:migrate`. The existing migrator applies missing SQL and inserts the exact filename/SHA-256 into `public.schema_migrations` in the same guarded migration transaction. Postcheck then requires schema 418 and the key research relations before application readiness is evaluated.
+
+The rollout workflow does not enable research email delivery or start fieldwork. Those remain separate governed actions.
+
 ## Production research-delivery configuration
 
 Required before any research invitation job can send:
