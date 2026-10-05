@@ -1424,6 +1424,19 @@ export async function transitionResearchStudy(
     } else if (input.action === "close_fieldwork") {
       if (studyStatus !== "fielding") throw new Error("RESEARCH_LIFECYCLE_INVALID");
 
+      const mainSampleReady = await client.query<SqlRow>(`
+        SELECT EXISTS(
+          SELECT 1
+          FROM research_sample_draws
+          WHERE study_id=$1
+            AND fieldwork_phase='main'
+            AND status IN ('locked','fielded')
+        ) AS ready
+      `, [row.study_id]);
+      if (!Boolean(mainSampleReady.rows[0]?.ready)) {
+        throw new Error("RESEARCH_FIELDWORK_CLOSE_REQUIRES_MAIN_SAMPLE");
+      }
+
       // Prevent the fieldwork end timestamp from racing with an invitation or
       // reminder sender. Queued contact jobs are cancelled transactionally. If
       // a worker already claimed one, keep the study open until that worker has
