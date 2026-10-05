@@ -79,7 +79,17 @@ function MultiQuestion({ question, value, onChange }: {
           type="checkbox"
           checked={checked}
           disabled={disabled}
-          onChange={() => onChange(checked ? selected.filter((item) => item !== optionValue) : [...selected, optionValue])}
+          onChange={() => {
+            if (checked) {
+              onChange(selected.filter((item) => item !== optionValue));
+              return;
+            }
+            if (optionValue === "none") {
+              onChange(["none"]);
+              return;
+            }
+            onChange([...selected.filter((item) => item !== "none"), optionValue]);
+          }}
         />
         <span>{label}</span>
       </label>;
