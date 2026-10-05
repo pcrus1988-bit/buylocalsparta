@@ -3,12 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import styles from "./ProductTryOnMe.module.css";
+import {
+  TRY_ON_ACTIVE_SCOPE_KEY,
+  TRY_ON_LEGACY_MODEL_KEY,
+  TRY_ON_LEGACY_PREVIEW_PREFIX,
+  TRY_ON_MODEL_PREFIX,
+  TRY_ON_PREVIEW_PREFIX
+} from "../lib/try-on-browser-storage";
 
-const MODEL_PREFIX = "km:try-on:model:v2:";
-const PREVIEW_PREFIX = "km:try-on:preview:v2:";
-const ACTIVE_SCOPE_KEY = "km:try-on:active-scope:v2";
-const LEGACY_MODEL_KEY = "km:try-on:model:v1";
-const LEGACY_PREVIEW_PREFIX = "km:try-on:preview:v1:";
+const MODEL_PREFIX = TRY_ON_MODEL_PREFIX;
+const PREVIEW_PREFIX = TRY_ON_PREVIEW_PREFIX;
+const ACTIVE_SCOPE_KEY = TRY_ON_ACTIVE_SCOPE_KEY;
+const LEGACY_MODEL_KEY = TRY_ON_LEGACY_MODEL_KEY;
+const LEGACY_PREVIEW_PREFIX = TRY_ON_LEGACY_PREVIEW_PREFIX;
 const PREVIEW_TTL_MS = 5 * 60 * 1000;
 const MAX_MODEL_DATA_URL_CHARS = 3_450_000;
 
