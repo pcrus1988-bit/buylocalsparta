@@ -19,6 +19,7 @@ type Body = {
   action?: string;
   targetN?: number;
   randomSeed?: string;
+  fieldworkPhase?: "pilot" | "main";
   label?: string;
   limit?: number;
   subject?: string;
@@ -76,6 +77,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
       const result = await queueGreekRetailSampleDraw(principal, {
         targetN: Number(body.targetN),
         randomSeed: body.randomSeed,
+        fieldworkPhase: body.fieldworkPhase,
         label: body.label
       });
       await recordAdminAudit(
@@ -84,7 +86,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         "research_study",
         slug,
         "Queue reproducible stratified sample draw",
-        { jobId: result.jobId, targetN: Number(body.targetN), randomSeed: result.randomSeed }
+{ jobId: result.jobId, targetN: Number(body.targetN), randomSeed: result.randomSeed, fieldworkPhase: result.fieldworkPhase }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
