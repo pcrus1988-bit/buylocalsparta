@@ -1,0 +1,104 @@
+.section {
+  padding-block: 32px 48px;
+}
+
+.heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+
+.heading h2 {
+  margin: 4px 0 8px;
+}
+
+.heading p {
+  margin: 0;
+  max-width: 720px;
+  color: var(--ink-soft);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--white);
+}
+
+.imageLink {
+  display: block;
+  aspect-ratio: 3 / 4;
+  background: #f2f0ec;
+}
+
+.imageLink img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.copy {
+  padding: 14px;
+}
+
+.copy small {
+  color: var(--ink-soft);
+}
+
+.copy h3 {
+  margin: 5px 0 13px;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.actions a {
+  font-weight: 800;
+}
+
+.actions button {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.empty {
+  display: grid;
+  gap: 6px;
+  padding: 22px;
+  border: 1px dashed var(--line);
+  border-radius: 18px;
+  color: var(--ink-soft);
+}
+
+.empty strong {
+  color: var(--ink);
+}
+
+.error {
+  color: #9a261f;
+  font-weight: 700;
+}
+
+@media (max-width: 700px) {
+  .heading { align-items: flex-start; flex-direction: column; }
+}
