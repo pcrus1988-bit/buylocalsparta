@@ -164,6 +164,8 @@ if (!fieldworkBalance.includes("additional sampling strata")) errors.push("full 
 if (!surveyRuntime.includes("research_response_quality_reviews")) errors.push("survey completion QA ledger missing");
 if (!surveyRuntime.includes("research_reward_entitlements")) errors.push("reward entitlement separation missing");
 if (!surveyRuntime.includes("research_sample_disposition_events")) errors.push("fieldwork disposition events missing");
+if (!surveyRuntime.includes("'fieldwork_closeout'")) errors.push("fieldwork closeout disposition sealing missing");
+if (!surveyRuntime.includes("greek-retail-2026-fieldwork-closeout-v1")) errors.push("fieldwork closeout version marker missing");
 if (!jobs.includes("gemiResearchFrameRecords")) errors.push("GEMI frame worker bridge missing");
 if (!jobs.includes("stratified-hash-rank-v2")) errors.push("minimum-aware reproducible sample algorithm missing");
 if (!jobs.includes("processInviteBatchJob")) errors.push("worker-managed invitation delivery missing");
@@ -197,6 +199,9 @@ if (!fieldworkControls.includes("Queue reminder batch")) errors.push("admin remi
 if (!sesEvents.includes("research_attempt")) errors.push("SES callback attempt recovery missing");
 if (!sesEvents.includes("research_invite_messages")) errors.push("SES callback does not update attempt ledger");
 if (!release.includes("denominatorRule")) errors.push("release does not freeze reminder denominator rule");
+if (!statistics.includes("researchFieldworkOutcomeSummary")) errors.push("fieldwork outcome denominator function missing");
+if (!release.includes("RESEARCH_RELEASE_REQUIRES_SEALED_FIELDWORK_DISPOSITIONS")) errors.push("release does not require sealed final sample dispositions");
+if (!release.includes("outcomeSummary: fieldworkOutcome")) errors.push("release does not freeze fieldwork outcome summary");
 if (!release.includes("contactAttempts")) errors.push("release does not freeze contact-attempt paradata");
 if (!surveyRuntime.includes("participant_research_opt_out")) errors.push("participant future-research opt-out path missing");
 if (!quality.includes("researchQualityReviewQueue")) errors.push("manual research QA queue missing");
