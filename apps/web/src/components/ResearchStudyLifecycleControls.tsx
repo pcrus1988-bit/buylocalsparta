@@ -19,6 +19,7 @@ export function ResearchStudyLifecycleControls({
   csrfToken,
   studyStatus,
   instrumentStatus,
+  analysisPlanStatus,
   latestReleaseVersion,
   latestReleasePublishedAt
 }: {
@@ -26,6 +27,7 @@ export function ResearchStudyLifecycleControls({
   csrfToken: string;
   studyStatus: string;
   instrumentStatus?: string;
+  analysisPlanStatus?: string;
   latestReleaseVersion?: string;
   latestReleasePublishedAt?: string;
 }) {
@@ -34,9 +36,13 @@ export function ResearchStudyLifecycleControls({
   const [message, setMessage] = useState("");
 
   const actions: Action[] = [];
+  const analysisPlanLocked = analysisPlanStatus === "locked";
   if (studyStatus === "draft" && instrumentStatus === "draft") actions.push("lock_instrument");
-  if (studyStatus === "draft" && instrumentStatus === "locked") actions.push("start_pilot", "start_fielding");
-  if (studyStatus === "pilot") actions.push("start_fielding", "close_fieldwork");
+  if (studyStatus === "draft" && instrumentStatus === "locked" && analysisPlanLocked) actions.push("start_pilot", "start_fielding");
+  if (studyStatus === "pilot") {
+    if (analysisPlanLocked) actions.push("start_fielding");
+    actions.push("close_fieldwork");
+  }
   if (studyStatus === "fielding") actions.push("close_fieldwork");
   if (studyStatus === "closed") actions.push("begin_analysis");
   if (studyStatus === "analysis" && latestReleaseVersion && !latestReleasePublishedAt) actions.push("publish_release");
@@ -57,14 +63,23 @@ export function ResearchStudyLifecycleControls({
     } catch (error) {
       const raw = error instanceof Error ? error.message : "Η ενέργεια απέτυχε.";
       setMessage(raw === "RESEARCH_FIELDING_REQUIRES_FRAME_AND_SAMPLE"
-        ? "Για πλήρες fieldwork απαιτείται frozen population frame και locked sample draw. Μπορείτε να τρέξετε pilot πριν από αυτό."
-        : raw);
+        ? "Για πλήρες fieldwork απαιτείται frozen population frame και locked sample draw."
+        : raw === "RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN" || raw === "RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN"
+          ? "Πριν από pilot ή fieldwork πρέπει να υπάρχει locked pre-fieldwork analysis plan για το ενεργό questionnaire."
+          : raw);
     } finally {
       setBusy(null);
     }
   }
 
-  if (!actions.length) return null;
+  if (!actions.length) {
+    if (["draft", "pilot"].includes(studyStatus) && instrumentStatus !== "draft" && !analysisPlanLocked) {
+      return <div className="workspace-inline-note form-error">
+        Pilot/fieldwork is blocked until the pre-fieldwork analysis plan for this questionnaire is locked.
+      </div>;
+    }
+    return null;
+  }
   return <div className="workspace-action-bar">
     <span>{message || "Οι αλλαγές lifecycle είναι ελεγχόμενες και καταγράφονται στο admin audit."}</span>
     <div className="workspace-action-buttons">
