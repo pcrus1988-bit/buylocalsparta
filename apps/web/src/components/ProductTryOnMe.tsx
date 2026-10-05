@@ -92,7 +92,13 @@ function readPreview(scope: string, productId: string): CachedPreview | undefine
     const raw = window.sessionStorage.getItem(key);
     if (!raw) return undefined;
     const cached = JSON.parse(raw) as CachedPreview;
-    if (!cached?.result?.imageDataUrl || !cached.result.saveToken || !cached.expiresAt || cached.expiresAt <= Date.now()) {
+    if (
+      !cached?.result?.imageDataUrl
+      || !cached.result.saveToken
+      || cached.result.productId !== productId
+      || !cached.expiresAt
+      || cached.expiresAt <= Date.now()
+    ) {
       window.sessionStorage.removeItem(key);
       return undefined;
     }
@@ -140,30 +146,13 @@ function clearLegacyUnscopedTryOnData() {
   }
 }
 
-function readFileDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("INVALID_TRY_ON_IMAGE"));
-    reader.onload = () => {
-      const value = typeof reader.result === "string" ? reader.result : "";
-      if (!value.startsWith("data:image/")) reject(new Error("INVALID_TRY_ON_IMAGE"));
-      else resolve(value);
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
 async function normalizeModelPhoto(file: File): Promise<string> {
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("INVALID_TRY_ON_IMAGE");
   const bitmap = await createImageBitmap(file);
   try {
-    // Keep the shopper's original pixels and encoding whenever the request will
-    // still fit comfortably inside the serverless payload budget.
-    if (file.size <= 2_550_000) {
-      const original = await readFileDataUrl(file);
-      if (original.length <= MAX_MODEL_DATA_URL_CHARS) return original;
-    }
-
+    // Re-rendering strips EXIF and other source-file metadata before the image
+    // leaves the shopper's device. 1296px retains the useful visual detail for
+    // VTON while keeping the base64 request safely below the serverless limit.
     const scale = Math.min(1, 1296 / Math.max(bitmap.width, bitmap.height));
     const width = Math.max(1, Math.round(bitmap.width * scale));
     const height = Math.max(1, Math.round(bitmap.height * scale));
@@ -176,7 +165,7 @@ async function normalizeModelPhoto(file: File): Promise<string> {
     context.fillRect(0, 0, width, height);
     context.drawImage(bitmap, 0, 0, width, height);
 
-    for (const quality of [0.9, 0.84, 0.78, 0.72, 0.66, 0.6]) {
+    for (const quality of [0.92, 0.88, 0.84, 0.8, 0.76, 0.7, 0.64]) {
       const encoded = canvas.toDataURL("image/jpeg", quality);
       if (encoded.length <= MAX_MODEL_DATA_URL_CHARS) return encoded;
     }
@@ -190,7 +179,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   const router = useRouter();
   const pathname = usePathname();
   const autoStarted = useRef(false);
-  const generationAbort = useRef<AbortController>();
+  const generationAbort = useRef<AbortController | undefined>(undefined);
   const [csrfToken, setCsrfToken] = useState<string>();
   const [storageScope, setStorageScope] = useState<string>();
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -220,7 +209,11 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
       const payload = await response.json() as { result?: TryOnResult; error?: string };
       if (!response.ok || !payload.result) throw new Error(payload.error || "TRY_ON_FAILED");
       if (generationAbort.current !== controller) return;
-      const expiresAt = Date.now() + PREVIEW_TTL_MS;
+      const generatedAt = Date.parse(payload.result.generatedAt);
+      const expiresAt = Number.isFinite(generatedAt)
+        ? generatedAt + PREVIEW_TTL_MS
+        : Date.now() + PREVIEW_TTL_MS;
+      if (expiresAt <= Date.now()) throw new Error("TRY_ON_SAVE_TOKEN_EXPIRED");
       setResult(payload.result);
       setPreviewExpiresAt(expiresAt);
       writePreview(scope, productId, payload.result, expiresAt);
