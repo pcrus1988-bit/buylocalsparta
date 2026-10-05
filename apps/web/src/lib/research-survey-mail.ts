@@ -44,7 +44,9 @@ export async function sendResearchSurveyInvitation(input: Readonly<{
   studySlug: string;
   studyTitle: string;
   inviteId: string;
-  batchId: string;
+  batchId?: string;
+  attemptId?: string;
+  attemptKind?: "initial" | "reminder" | "reissue";
   surveyUrl: string;
   methodologyUrl: string;
   subjectTemplate: string;
@@ -88,7 +90,9 @@ export async function sendResearchSurveyInvitation(input: Readonly<{
     emailTags: [
       { name: "research_study", value: safeTagValue(input.studySlug) },
       { name: "research_invite", value: safeTagValue(input.inviteId) },
-      { name: "research_batch", value: safeTagValue(input.batchId) }
+      ...(input.batchId ? [{ name: "research_batch", value: safeTagValue(input.batchId) }] : []),
+      ...(input.attemptId ? [{ name: "research_attempt", value: safeTagValue(input.attemptId) }] : []),
+      ...(input.attemptKind ? [{ name: "research_attempt_kind", value: safeTagValue(input.attemptKind) }] : [])
     ]
   });
 }
