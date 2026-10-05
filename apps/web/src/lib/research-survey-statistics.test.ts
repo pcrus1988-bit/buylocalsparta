@@ -7,7 +7,8 @@ import {
   proportionalStratumAllocation,
   researchFieldworkOutcomeSummary,
   researchWeightDiagnostics,
-  stratifiedSrsMeanVariance
+  stratifiedSrsMeanVariance,
+  weightedClusteredDifferenceInMeans
 } from "./research-survey-statistics.ts";
 
 test("stratified variance uses finite-population correction across strata", () => {
@@ -136,6 +137,36 @@ test("Benjamini-Hochberg adjustment is monotone in sorted p-value order", () => 
 
 test("Benjamini-Hochberg adjustment clamps invalid probability inputs", () => {
   assert.deepEqual(benjaminiHochbergAdjustedPValues([-1, 2]), [0, 1]);
+});
+
+
+test("clustered experimental contrast keeps repeated profile evaluations inside respondent clusters", () => {
+  const result = weightedClusteredDifferenceInMeans([
+    { clusterId: "r1", group: "level", value: 1, weight: 2 },
+    { clusterId: "r1", group: "reference", value: 0, weight: 2 },
+    { clusterId: "r2", group: "level", value: 0, weight: 1 },
+    { clusterId: "r2", group: "reference", value: 1, weight: 1 },
+    { clusterId: "r3", group: "level", value: 1, weight: 1 },
+    { clusterId: "r3", group: "reference", value: 0, weight: 1 }
+  ]);
+  assert.equal(result.reason, undefined);
+  assert.equal(result.clusterCount, 3);
+  assert.equal(result.levelClusterCount, 3);
+  assert.equal(result.referenceClusterCount, 3);
+  assert.ok(Math.abs((result.levelMean ?? 0) - 0.75) < 1e-12);
+  assert.ok(Math.abs((result.referenceMean ?? 0) - 0.25) < 1e-12);
+  assert.ok(Math.abs((result.difference ?? 0) - 0.5) < 1e-12);
+  assert.ok((result.standardError ?? 0) > 0);
+});
+
+test("clustered experimental contrast withholds variance when only one respondent contributes", () => {
+  const result = weightedClusteredDifferenceInMeans([
+    { clusterId: "r1", group: "level", value: 1, weight: 1 },
+    { clusterId: "r1", group: "reference", value: 0, weight: 1 }
+  ]);
+  assert.equal(result.difference, 1);
+  assert.equal(result.reason, "insufficient_clusters");
+  assert.equal(result.standardError, undefined);
 });
 
 
