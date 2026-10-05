@@ -3,6 +3,7 @@ import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import {
   normal95ConfidenceInterval,
+  researchWeightDiagnostics,
   stratifiedSrsMeanVariance
 } from "./research-survey-statistics";
 
@@ -458,6 +459,15 @@ export async function runGreekRetailAnalysis(
     scores: scoreMap.get(response.responseId) ?? {}
   }));
 
+  const adjustmentValues = [...adjustmentByStratum.values()]
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const weightingDiagnostics = {
+    ...researchWeightDiagnostics(weightedResponses.map((response) => response.finalWeight)),
+    nonresponseAdjustmentMin: adjustmentValues.length ? Math.min(...adjustmentValues) : null,
+    nonresponseAdjustmentMax: adjustmentValues.length ? Math.max(...adjustmentValues) : null,
+    adjustmentStrata: adjustmentValues.length
+  };
+
   const questionResult = await pool.query<SqlRow>(`
     SELECT code,question_type,analysis_key,config
     FROM research_questions
@@ -550,9 +560,12 @@ export async function runGreekRetailAnalysis(
 
   await pool.query(`
     UPDATE research_analysis_runs
-    SET dataset_sha256=$2,status='succeeded',completed_at=now()
+    SET dataset_sha256=$2,
+        status='succeeded',
+        completed_at=now(),
+        parameters=parameters || jsonb_build_object('weightDiagnostics',$3::jsonb)
     WHERE id=$1
-  `, [analysisRunId, datasetSha256]);
+  `, [analysisRunId, datasetSha256, JSON.stringify(weightingDiagnostics)]);
 
   return {
     analysisRunId,
@@ -562,6 +575,7 @@ export async function runGreekRetailAnalysis(
     includedResponses: weightedResponses.length,
     estimateCount,
     varianceMethod: VARIANCE_METHOD,
-    publicMinimumBase: MIN_PUBLIC_BASE
+    publicMinimumBase: MIN_PUBLIC_BASE,
+    weightingDiagnostics
   };
 }
