@@ -338,6 +338,39 @@ export async function buildGreekRetailRelease(
     ORDER BY position,code
   `, [study.instrument_id]);
 
+  const recruitmentTemplates = await pool.query<SqlRow>(`
+    SELECT DISTINCT
+      rt.version,
+      rt.channel,
+      rt.subject,
+      rt.body_text,
+      rt.body_sha256,
+      rt.purpose
+    FROM research_invite_batches b
+    JOIN research_recruitment_templates rt ON rt.id=b.recruitment_template_id
+    WHERE b.study_id=$1
+      AND b.sample_draw_id=$2
+      AND b.status <> 'cancelled'
+    ORDER BY rt.version,rt.channel
+  `, [studyId, sampleDrawId]);
+
+  const dispositionCounts = await pool.query<SqlRow>(`
+    WITH latest AS (
+      SELECT DISTINCT ON (e.sample_unit_id)
+        e.sample_unit_id,
+        e.disposition_code,
+        e.eligibility
+      FROM research_sample_disposition_events e
+      JOIN research_sample_units su ON su.id=e.sample_unit_id
+      WHERE su.sample_draw_id=$1
+      ORDER BY e.sample_unit_id,e.occurred_at DESC,e.id DESC
+    )
+    SELECT disposition_code,eligibility,count(*)::int AS count
+    FROM latest
+    GROUP BY disposition_code,eligibility
+    ORDER BY disposition_code,eligibility
+  `, [sampleDrawId]);
+
   const estimatesResult = await pool.query<SqlRow>(`
     SELECT metric_key,segment,estimate,standard_error,confidence_level,ci_lower,ci_upper,
            unweighted_n,weighted_n,method,suppressed,metadata
@@ -372,6 +405,16 @@ export async function buildGreekRetailRelease(
         required: Boolean(row.required),
         analysisKey: text(row.analysis_key),
         config: objectValue(row.config)
+      }))
+    },
+    recruitment: {
+      templates: recruitmentTemplates.rows.map((row) => ({
+        version: text(row.version),
+        channel: text(row.channel),
+        subject: text(row.subject) || null,
+        bodyText: text(row.body_text),
+        bodySha256: text(row.body_sha256),
+        purpose: text(row.purpose)
       }))
     },
     frame: {
@@ -435,7 +478,12 @@ export async function buildGreekRetailRelease(
       completionRateOfSent: rate(counts.completed, counts.sent),
       completionRateOfStarted: rate(counts.completed, counts.started),
       analyzed: numberValue(counts.analyzed),
-      qualityExcluded: numberValue(pendingReviews.rows[0]?.exclude_count)
+      qualityExcluded: numberValue(pendingReviews.rows[0]?.exclude_count),
+      latestDispositionCounts: dispositionCounts.rows.map((row) => ({
+        dispositionCode: text(row.disposition_code),
+        eligibility: text(row.eligibility),
+        count: numberValue(row.count)
+      }))
     },
     analysis: {
       runId: analysisRunId,
