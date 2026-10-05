@@ -408,6 +408,98 @@ export async function refusePublicResearchInvite(input: Readonly<{
   }
 }
 
+export async function updatePublicResearchConsents(input: Readonly<{
+  slug: string;
+  token: string;
+  optionalConsents: Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>;
+}>): Promise<Readonly<{
+  status: "preferences_updated";
+  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>>;
+}>> {
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+  const client = await getProductionPostgresRuntime().sqlPool.connect();
+
+  try {
+    await client.query("BEGIN");
+    const invite = await invitationRow(client, input.slug, input.token, { allowExpired: true });
+    const responseResult = await client.query<SqlRow>(`
+      SELECT id,status
+      FROM research_responses
+      WHERE invite_id=$1
+      FOR UPDATE
+    `, [invite.invite_id]);
+    const response = responseResult.rows[0];
+    if (!response) throw new Error("RESEARCH_RESPONSE_NOT_FOUND");
+    if (!["in_progress", "completed"].includes(text(response.status))) {
+      throw new Error("SURVEY_RESPONSE_CLOSED");
+    }
+
+    for (const [consentKind, granted] of Object.entries(input.optionalConsents)) {
+      if (!["results_notification", "thank_you_code", "marketing"].includes(consentKind)) continue;
+      const normalizedGranted = Boolean(granted);
+      const previousConsent = await client.query<SqlRow>(`
+        SELECT granted
+        FROM research_consents
+        WHERE response_id=$1 AND consent_kind=$2
+        ORDER BY occurred_at DESC,id DESC
+        LIMIT 1
+      `, [response.id, consentKind]);
+
+      if (!previousConsent.rows[0] || Boolean(previousConsent.rows[0].granted) !== normalizedGranted) {
+        await client.query(`
+          INSERT INTO research_consents (response_id,consent_kind,statement_version,granted,source)
+          VALUES ($1,$2,$3,$4,'survey_ui_preferences')
+        `, [response.id, consentKind, invite.consent_statement_version, normalizedGranted]);
+      }
+
+      if (!normalizedGranted && consentKind !== "marketing") {
+        await client.query(`
+          WITH cancelled AS (
+            UPDATE research_participant_deliveries
+            SET status='cancelled',
+                last_error='participant_consent_revoked',
+                updated_at=now()
+            WHERE response_id=$1
+              AND consent_kind=$2
+              AND status IN ('planned','failed')
+            RETURNING id
+          )
+          INSERT INTO research_participant_delivery_events
+            (delivery_id,event_type,metadata)
+          SELECT
+            id,
+            'cancelled',
+            jsonb_build_object(
+              'source','survey_ui_preferences',
+              'reason','participant_consent_revoked',
+              'consentKind',$2::text
+            )
+          FROM cancelled
+        `, [response.id, consentKind]);
+      }
+    }
+
+    const latest = await client.query<SqlRow>(`
+      SELECT DISTINCT ON (consent_kind) consent_kind,granted
+      FROM research_consents
+      WHERE response_id=$1
+        AND consent_kind IN ('results_notification','thank_you_code','marketing')
+      ORDER BY consent_kind,occurred_at DESC,id DESC
+    `, [response.id]);
+    const consents = Object.fromEntries(
+      latest.rows.map((row) => [text(row.consent_kind), Boolean(row.granted)])
+    ) as Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>;
+
+    await client.query("COMMIT");
+    return { status: "preferences_updated", consents };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function savePublicResearchSurvey(input: Readonly<{
   slug: string;
   token: string;
