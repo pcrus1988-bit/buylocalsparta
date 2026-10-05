@@ -94,7 +94,7 @@ export function ResearchStudySamplingControls({
   }
 
   async function drawSample() {
-    if (!sampleValid) return;
+    if (!sampleValid || !designValid) return;
     setBusy("sample");
     setMessage("");
     try {
