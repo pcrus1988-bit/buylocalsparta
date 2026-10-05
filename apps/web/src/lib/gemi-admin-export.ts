@@ -94,6 +94,22 @@ export type GemiAdminPreview = Readonly<{
   rows: readonly GemiAdminPreviewRow[];
 }>;
 
+export type GemiResearchFrameRecord = Readonly<{
+  gemiNumber: string;
+  afm: string;
+  legalName: string;
+  prefectureId: string;
+  prefecture: string;
+  municipalityId: string;
+  municipality: string;
+  city: string;
+  postcode: string;
+  email: string;
+  website: string;
+  activityCodes: readonly string[];
+  matchedActivityCodes: readonly string[];
+}>;
+
 type GemiActivityGroupDefinition = Readonly<{
   id: string;
   label: string;
@@ -437,6 +453,11 @@ function objectField(value: unknown): Record<string, unknown> | undefined {
 function nestedDescr(value: unknown): string {
   const item = objectField(value);
   return item ? asString(item.descr ?? item.description ?? item.name) : asString(value);
+}
+
+function nestedId(value: unknown): string {
+  const item = objectField(value);
+  return item ? asString(item.id ?? item.code) : "";
 }
 
 function normalizeMetadataArray<T>(value: unknown, mapper: (item: Record<string, unknown>) => T | undefined): T[] {
@@ -825,6 +846,60 @@ function companyCsvRow(
   const values = companyCsvValues(company, filters, selection);
   const valueByField = new Map(CSV_HEADERS.map((header, index) => [header, values[index]] as const));
   return exportFields.map((field) => csvCell(valueByField.get(field))).join(",") + "\r\n";
+}
+
+export async function* gemiResearchFrameRecords(
+  filters: GemiAdminFilters,
+  apiKey?: string
+): AsyncGenerator<GemiResearchFrameRecord> {
+  const selection = await resolveActivitySelection(filters, apiKey);
+  const batches = activityQueryBatches(selection.activityIds);
+  const seen = new Set<string>();
+
+  for (const batch of batches) {
+    let offset = 0;
+    let totalCount: number | undefined;
+    while (totalCount === undefined || offset < totalCount) {
+      const page = await searchCompaniesBatch(filters, batch, offset, PAGE_SIZE, apiKey);
+      totalCount ??= page.totalCount;
+      if (!page.companies.length) break;
+
+      for (const company of page.companies) {
+        const gemiNumber = asString(company.arGemi);
+        const afm = asString(company.afm);
+        const dedupeKey = gemiNumber || `${afm}:${asString(company.coNameEl)}`;
+        if (!dedupeKey || seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        const matchedEntries = matchedCompanyActivityEntries(company, selection);
+        yield {
+          gemiNumber,
+          afm,
+          legalName: asString(company.coNameEl),
+          prefectureId: nestedId(company.prefecture),
+          prefecture: nestedDescr(company.prefecture),
+          municipalityId: nestedId(company.municipality),
+          municipality: nestedDescr(company.municipality),
+          city: asString(company.city),
+          postcode: asString(company.zipCode),
+          email: asString(company.email).trim().toLowerCase(),
+          website: asString(company.url),
+          activityCodes: companyActivities(company).flatMap((entry) => {
+            const activity = objectField(entry.activity);
+            const id = activity ? asString(activity.id) : "";
+            return id ? [id] : [];
+          }),
+          matchedActivityCodes: matchedEntries.flatMap((entry) => {
+            const activity = objectField(entry.activity);
+            const id = activity ? asString(activity.id) : "";
+            return id ? [id] : [];
+          })
+        };
+      }
+
+      offset += page.companies.length;
+      if (page.companies.length < PAGE_SIZE) break;
+    }
+  }
 }
 
 export function gemiAdminCsvStream(
