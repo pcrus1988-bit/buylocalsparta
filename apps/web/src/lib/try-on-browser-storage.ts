@@ -1,6 +1,7 @@
 export const TRY_ON_MODEL_PREFIX = "km:try-on:model:v2:";
 export const TRY_ON_PREVIEW_PREFIX = "km:try-on:preview:v2:";
 export const TRY_ON_ACTIVE_SCOPE_KEY = "km:try-on:active-scope:v2";
+export const TRY_ON_AUTO_PREFIX = "km:try-on:auto:v1:";
 export const TRY_ON_LEGACY_MODEL_KEY = "km:try-on:model:v1";
 export const TRY_ON_LEGACY_PREVIEW_PREFIX = "km:try-on:preview:v1:";
 
@@ -14,6 +15,7 @@ function shouldClearTryOnKey(key: string): boolean {
   return key === TRY_ON_ACTIVE_SCOPE_KEY
     || key === TRY_ON_LEGACY_MODEL_KEY
     || key.startsWith(TRY_ON_MODEL_PREFIX)
+    || key.startsWith(TRY_ON_AUTO_PREFIX)
     || key.startsWith(TRY_ON_PREVIEW_PREFIX)
     || key.startsWith(TRY_ON_LEGACY_PREVIEW_PREFIX);
 }
