@@ -123,6 +123,11 @@ export default async function ResearchSurveysAdminPage() {
               activeContacts={study.activeContacts}
               latestSampleStatus={study.latestSampleStatus}
               latestSampleTarget={study.latestSampleTarget}
+              latestSampleDesignSha256={study.latestSampleDesignSha256}
+              latestSampleDesiredCompletes={study.latestSampleDesiredCompletes}
+              latestSampleExpectedResponseRate={study.latestSampleExpectedResponseRate}
+              latestSampleContactabilityRate={study.latestSampleContactabilityRate}
+              latestSampleExpectedCompletes={study.latestSampleExpectedCompletes}
               queuedJobs={study.queuedJobs}
               runningJobs={study.runningJobs}
             />}
