@@ -919,6 +919,156 @@ export async function researchFieldworkStrata(
   }));
 }
 
+
+export type ResearchProtocolEvent = Readonly<{
+  id: string;
+  eventType: "deviation" | "amendment" | "resolution";
+  lifecyclePhase: "design" | "pilot" | "main" | "analysis" | "publication";
+  category: "instrument" | "sampling" | "recruitment" | "fieldwork" | "privacy" | "analysis" | "publication" | "operations";
+  severity: "info" | "minor" | "material" | "critical";
+  title: string;
+  description: string;
+  rationale?: string;
+  impactAssessment?: string;
+  correctiveAction?: string;
+  relatedEventId?: string;
+  occurredAt: string;
+  recordedAt: string;
+  contentSha256: string;
+}>;
+
+function canonicalResearchEvidence(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return "[" + value.map(canonicalResearchEvidence).join(",") + "]";
+  const record = value as Record<string, unknown>;
+  return "{" + Object.keys(record).sort().map((key) =>
+    JSON.stringify(key) + ":" + canonicalResearchEvidence(record[key])
+  ).join(",") + "}";
+}
+
+export async function researchProtocolEvents(
+  principal: SessionPrincipal,
+  slug: string
+): Promise<readonly ResearchProtocolEvent[]> {
+  assertAdminPermission(principal, "research.read");
+  if (!productionDatabaseConfigured()) return [];
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT
+      pe.id,pe.event_type,pe.lifecycle_phase,pe.category,pe.severity,
+      pe.title,pe.description,pe.rationale,pe.impact_assessment,pe.corrective_action,
+      pe.related_event_id,pe.occurred_at,pe.recorded_at,pe.content_sha256
+    FROM research_protocol_events pe
+    JOIN research_studies s ON s.id=pe.study_id
+    WHERE s.slug=$1
+    ORDER BY pe.occurred_at DESC,pe.recorded_at DESC,pe.id DESC
+    LIMIT 200
+  `, [slug]);
+  return result.rows.map((row) => ({
+    id: text(row.id),
+    eventType: text(row.event_type) as ResearchProtocolEvent["eventType"],
+    lifecyclePhase: text(row.lifecycle_phase) as ResearchProtocolEvent["lifecyclePhase"],
+    category: text(row.category) as ResearchProtocolEvent["category"],
+    severity: text(row.severity) as ResearchProtocolEvent["severity"],
+    title: text(row.title),
+    description: text(row.description),
+    rationale: optionalText(row.rationale),
+    impactAssessment: optionalText(row.impact_assessment),
+    correctiveAction: optionalText(row.corrective_action),
+    relatedEventId: optionalText(row.related_event_id),
+    occurredAt: new Date(row.occurred_at as string | Date).toISOString(),
+    recordedAt: new Date(row.recorded_at as string | Date).toISOString(),
+    contentSha256: text(row.content_sha256)
+  }));
+}
+
+export async function recordResearchProtocolEvent(
+  principal: SessionPrincipal,
+  input: Readonly<{
+    slug: string;
+    eventType: ResearchProtocolEvent["eventType"];
+    lifecyclePhase: ResearchProtocolEvent["lifecyclePhase"];
+    category: ResearchProtocolEvent["category"];
+    severity: ResearchProtocolEvent["severity"];
+    title: string;
+    description: string;
+    rationale?: string;
+    impactAssessment?: string;
+    correctiveAction?: string;
+    relatedEventId?: string;
+    occurredAt?: string;
+  }>
+): Promise<Readonly<{ id: string; contentSha256: string }>> {
+  assertAdminPermission(principal, "research.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+
+  const eventTypes = new Set(["deviation","amendment","resolution"]);
+  const lifecyclePhases = new Set(["design","pilot","main","analysis","publication"]);
+  const categories = new Set(["instrument","sampling","recruitment","fieldwork","privacy","analysis","publication","operations"]);
+  const severities = new Set(["info","minor","material","critical"]);
+  if (!eventTypes.has(input.eventType)) throw new Error("RESEARCH_PROTOCOL_EVENT_TYPE_INVALID");
+  if (!lifecyclePhases.has(input.lifecyclePhase)) throw new Error("RESEARCH_PROTOCOL_PHASE_INVALID");
+  if (!categories.has(input.category)) throw new Error("RESEARCH_PROTOCOL_CATEGORY_INVALID");
+  if (!severities.has(input.severity)) throw new Error("RESEARCH_PROTOCOL_SEVERITY_INVALID");
+
+  const title = input.title.trim();
+  const description = input.description.trim();
+  const rationale = input.rationale?.trim() || "";
+  const impactAssessment = input.impactAssessment?.trim() || "";
+  const correctiveAction = input.correctiveAction?.trim() || "";
+  const relatedEventId = input.relatedEventId?.trim() || "";
+  if (title.length < 5 || title.length > 180) throw new Error("RESEARCH_PROTOCOL_TITLE_INVALID");
+  if (description.length < 10 || description.length > 12_000) throw new Error("RESEARCH_PROTOCOL_DESCRIPTION_INVALID");
+  if (input.eventType === "resolution" && !relatedEventId) throw new Error("RESEARCH_PROTOCOL_RESOLUTION_REFERENCE_REQUIRED");
+  if (["material","critical"].includes(input.severity) && !impactAssessment) {
+    throw new Error("RESEARCH_PROTOCOL_IMPACT_ASSESSMENT_REQUIRED");
+  }
+  if (input.eventType === "resolution" && !correctiveAction) {
+    throw new Error("RESEARCH_PROTOCOL_CORRECTIVE_ACTION_REQUIRED");
+  }
+
+  const occurred = input.occurredAt ? new Date(input.occurredAt) : new Date();
+  if (!Number.isFinite(occurred.getTime())) throw new Error("RESEARCH_PROTOCOL_OCCURRED_AT_INVALID");
+  const occurredAt = occurred.toISOString();
+  const evidence = {
+    schema: "kontamou.research.protocol-event.v1",
+    studySlug: input.slug,
+    eventType: input.eventType,
+    lifecyclePhase: input.lifecyclePhase,
+    category: input.category,
+    severity: input.severity,
+    title,
+    description,
+    rationale: rationale || null,
+    impactAssessment: impactAssessment || null,
+    correctiveAction: correctiveAction || null,
+    relatedEventId: relatedEventId || null,
+    occurredAt
+  };
+  const contentSha256 = sha256(canonicalResearchEvidence(evidence));
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const inserted = await pool.query<SqlRow>(`
+    INSERT INTO research_protocol_events (
+      study_id,event_type,lifecycle_phase,category,severity,title,description,
+      rationale,impact_assessment,corrective_action,related_event_id,occurred_at,
+      recorded_by,evidence_json,content_sha256
+    )
+    SELECT
+      s.id,$2,$3,$4,$5,$6,$7,
+      NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),NULLIF($11,'')::uuid,$12::timestamptz,
+      $13,$14::jsonb,$15
+    FROM research_studies s
+    WHERE s.slug=$1
+      AND s.status <> 'archived'
+    RETURNING id
+  `, [
+    input.slug,input.eventType,input.lifecyclePhase,input.category,input.severity,title,description,
+    rationale,impactAssessment,correctiveAction,relatedEventId,occurredAt,
+    principal.userId,JSON.stringify(evidence),contentSha256
+  ]);
+  if (!inserted.rows[0]) throw new Error("RESEARCH_STUDY_NOT_FOUND_OR_ARCHIVED");
+  return { id: text(inserted.rows[0].id), contentSha256 };
+}
+
 export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
   assertAdminPermission(principal, "research.read");
   if (!productionDatabaseConfigured()) {
