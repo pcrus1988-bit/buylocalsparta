@@ -10,7 +10,7 @@ import {
   weightedClusteredDifferenceInMeans
 } from "./research-survey-statistics";
 
-const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v5";
+const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v6";
 const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v1";
 const MIN_PUBLIC_BASE = 30;
 const VARIANCE_METHOD = "stratified_srs_fpc_v1";
@@ -248,7 +248,10 @@ export async function runGreekRetailAnalysis(
       SELECT DISTINCT ON (qr.response_id) qr.response_id, qr.decision
       FROM research_response_quality_reviews qr
       JOIN research_responses r ON r.id=qr.response_id
-      WHERE r.study_id=$1 AND r.status='completed'
+      JOIN research_invites ri ON ri.id=r.invite_id
+      WHERE r.study_id=$1
+        AND r.status='completed'
+        AND ri.fieldwork_phase='main'
       ORDER BY qr.response_id, qr.created_at DESC, qr.id DESC
     )
     SELECT count(*)::int AS count FROM latest WHERE decision='review'
@@ -303,7 +306,9 @@ export async function runGreekRetailAnalysis(
   const drawResult = await pool.query<SqlRow>(`
     SELECT id, frame_snapshot_id
     FROM research_sample_draws
-    WHERE study_id=$1 AND status IN ('locked','fielded')
+    WHERE study_id=$1
+      AND fieldwork_phase='main'
+      AND status IN ('locked','fielded')
     ORDER BY created_at DESC
     LIMIT 1
   `, [studyId]);
@@ -348,7 +353,7 @@ export async function runGreekRetailAnalysis(
         study_id,label,code_version,instrument_version,weight_version,analysis_plan_id,parameters,status,started_at
       )
       VALUES (
-        $1,'Weighted descriptive + randomized-profile exploratory analysis',$2,$3,$4,$10,
+        $1,'Main-fieldwork weighted descriptive + randomized-profile exploratory analysis',$2,$3,$4,$10,
         jsonb_build_object(
           'jobId',$5::text,
           'varianceMethod',$9::text,
@@ -356,7 +361,8 @@ export async function runGreekRetailAnalysis(
           'frameSnapshotId',$7::text,
           'publicMinimumBase',$8::int,
           'analysisPlanVersion',$11::text,
-          'analysisPlanSha256',$12::text
+          'analysisPlanSha256',$12::text,
+          'fieldworkPhase','main'
         ),
         'running',now()
       )
@@ -386,7 +392,8 @@ export async function runGreekRetailAnalysis(
             'frameSnapshotId',$3::text,
             'publicMinimumBase',$4::int,
             'analysisPlanVersion',$6::text,
-            'analysisPlanSha256',$7::text
+            'analysisPlanSha256',$7::text,
+            'fieldworkPhase','main'
           )
       WHERE id=$1
     `, [
@@ -446,7 +453,7 @@ export async function runGreekRetailAnalysis(
       COALESCE(fu.sector_code,'unknown') AS sector_code,
       su.base_weight
     FROM research_responses r
-    JOIN research_invites ri ON ri.id=r.invite_id
+    JOIN research_invites ri ON ri.id=r.invite_id AND ri.fieldwork_phase='main'
     JOIN research_sample_units su ON su.id=ri.sample_unit_id AND su.sample_draw_id=$2
     JOIN research_strata st ON st.id=su.stratum_id
     JOIN research_frame_units fu ON fu.id=su.frame_unit_id
