@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { CustomerActionCard, CustomerHowItWorks, CustomerLifecycle, customerOrderLifecycle } from "./CustomerAccountPrimitives";
 import styles from "./CustomerAccountExperience.module.css";
 import { productPublicPath } from "../lib/product-url";
+import { clearCustomerTryOnBrowserStorage } from "../lib/try-on-browser-storage";
 
 type Dashboard = {
   account: { email: string };
@@ -89,10 +90,15 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
 
   async function logout() {
     setBusy("logout");
+    setError("");
     try {
-      await fetch("/api/account/logout", { method: "POST", headers: { "x-csrf-token": data.csrfToken } });
+      const response = await fetch("/api/account/logout", { method: "POST", headers: { "x-csrf-token": data.csrfToken } });
+      if (!response.ok) throw new Error("Δεν ήταν δυνατή η ασφαλής αποσύνδεση.");
+      clearCustomerTryOnBrowserStorage();
       router.replace("/");
       router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η ασφαλής αποσύνδεση.");
     } finally {
       setBusy("");
     }

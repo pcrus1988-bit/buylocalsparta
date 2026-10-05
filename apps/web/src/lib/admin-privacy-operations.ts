@@ -11,6 +11,7 @@ import { platformScope } from "@buy-local-sparta/postgres-runtime";
 import { assertAdminPermission, recordAdminAudit, recordAdminPersonalDataAccess } from "./admin-runtime";
 import { adminUpdateCustomerProfile, CUSTOMER_PROFILE_LOCALES, type CustomerProfileLocale } from "./admin-customer-profile";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { purgeCustomerTryOnAssets } from "./try-on-runtime";
 import { sendTransactionalEmail } from "./transactional-email";
 
 export type AdminPrivacyOperationalRequest = Readonly<{
@@ -177,6 +178,7 @@ async function customerProfileForCorrection(principal: SessionPrincipal, userId:
 }
 
 async function disableOptionalProcessing(principal: SessionPrincipal, userId: string, options: { restrictAccount?: boolean; clearPersonalisation?: boolean; marketing?: boolean }) {
+  if (options.clearPersonalisation) await purgeCustomerTryOnAssets(userId);
   return uow().withTransaction(platformScope(principal.userId),async(tx)=>{
     const found=await tx.query<SqlRow>(`SELECT u.id::text AS user_uuid,u.status::text,u.public_id
       FROM users u WHERE u.public_id=$1 AND ${CUSTOMER_IDENTITY_PREDICATE} FOR UPDATE`,[userId]);
@@ -187,6 +189,7 @@ async function disableOptionalProcessing(principal: SessionPrincipal, userId: st
     if(options.clearPersonalisation){
       await tx.query("DELETE FROM saved_products WHERE user_id=$1::uuid",[uid]);
       await tx.query("DELETE FROM customer_style_looks WHERE user_id=$1::uuid",[uid]);
+      await tx.query("DELETE FROM customer_try_on_saves WHERE user_id=$1::uuid",[uid]);
       await tx.query("DELETE FROM saved_vendors WHERE user_id=$1::uuid",[uid]);
       await tx.query("DELETE FROM recently_viewed_products WHERE user_id=$1::uuid",[uid]);
       await tx.query("SELECT set_config('app.privacy_erasure','true',true)");

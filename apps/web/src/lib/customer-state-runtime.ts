@@ -21,11 +21,18 @@ import {
 import { accountAuthSecret, getAccountRuntime } from "./account-runtime";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import { assertDatabaseLessPreviewCsrf, createDatabaseLessPreviewSession, databaseLessPreviewSessionEnabled, databaseLessPreviewSessionFromToken, previewCredentialMatches } from "./preview-auth";
+import {
+  CUSTOMER_TRY_ON_MONTHLY_LIMIT,
+  customerTryOnQuotaSnapshot,
+  customerTryOnQuotaWindow,
+  type CustomerTryOnMonthlyQuota
+} from "./try-on-quota";
 
 const DAY = 24 * 60 * 60 * 1000;
 const postgresGlobals = globalThis as typeof globalThis & {
   __blsCustomerPostgresAuth?: PostgresCustomerAuthService;
   __blsCustomerPostgresRateLimiter?: PostgresFixedWindowRateLimiter;
+  __blsCustomerTryOnMonthlyUsage?: Map<string, number>;
 };
 
 export type CustomerStateSnapshot = Readonly<{
@@ -99,6 +106,122 @@ export async function consumeCustomerLoginRateLimit(input: { visitorKey: string;
     return getAccountRuntime().rateLimiter.consume({ key: `web-login:${input.visitorKey}`, rule: { limit: 5, windowMs: 15 * 60 * 1000 }, now: input.now });
   }
   return postgresServices().rateLimiter.consume({ route: "customer-login", key: input.visitorKey, limit: 5, windowMs: 15 * 60 * 1000, now: input.now });
+}
+
+function customerTryOnMemoryUsage(): Map<string, number> {
+  return postgresGlobals.__blsCustomerTryOnMonthlyUsage ??= new Map<string, number>();
+}
+
+function customerTryOnMemoryUsageKey(userId: string, now: number): string {
+  return `${userId}:${customerTryOnQuotaWindow(now).monthStart}`;
+}
+
+export async function customerTryOnMonthlyQuota(input: { userId: string; now: number }): Promise<CustomerTryOnMonthlyQuota> {
+  if (customerStateBackend() === "memory") {
+    const used = customerTryOnMemoryUsage().get(customerTryOnMemoryUsageKey(input.userId, input.now)) ?? 0;
+    return customerTryOnQuotaSnapshot(used, input.now);
+  }
+
+  const window = customerTryOnQuotaWindow(input.now);
+  const result = await postgresServices().runtime.nativePool.query<{ generation_count: number | string }>(`
+    SELECT COALESCE(MAX(q.generation_count),0)::int AS generation_count
+    FROM public.users u
+    LEFT JOIN public.customer_try_on_monthly_usage q
+      ON q.user_id=u.id AND q.month_start=$2::date
+    WHERE u.public_id::text=$1 OR u.id::text=$1
+  `, [input.userId, window.monthStart]);
+  return customerTryOnQuotaSnapshot(Number(result.rows[0]?.generation_count ?? 0), input.now);
+}
+
+async function reserveCustomerTryOnMonthlyQuota(input: { userId: string; now: number }): Promise<{
+  allowed: boolean;
+  quota: CustomerTryOnMonthlyQuota;
+}> {
+  if (customerStateBackend() === "memory") {
+    const usage = customerTryOnMemoryUsage();
+    const key = customerTryOnMemoryUsageKey(input.userId, input.now);
+    const used = usage.get(key) ?? 0;
+    if (used >= CUSTOMER_TRY_ON_MONTHLY_LIMIT) {
+      return { allowed: false, quota: customerTryOnQuotaSnapshot(used, input.now) };
+    }
+    const next = used + 1;
+    usage.set(key, next);
+    return { allowed: true, quota: customerTryOnQuotaSnapshot(next, input.now) };
+  }
+
+  const window = customerTryOnQuotaWindow(input.now);
+  const result = await postgresServices().runtime.nativePool.query<{ generation_count: number | string }>(`
+    INSERT INTO public.customer_try_on_monthly_usage(user_id,month_start,generation_count,created_at,updated_at)
+    SELECT u.id,$2::date,1,now(),now()
+    FROM public.users u
+    WHERE u.public_id::text=$1 OR u.id::text=$1
+    ORDER BY (u.public_id::text=$1) DESC
+    LIMIT 1
+    ON CONFLICT (user_id,month_start) DO UPDATE SET
+      generation_count=public.customer_try_on_monthly_usage.generation_count+1,
+      updated_at=now()
+    WHERE public.customer_try_on_monthly_usage.generation_count < $3
+    RETURNING generation_count
+  `, [input.userId, window.monthStart, CUSTOMER_TRY_ON_MONTHLY_LIMIT]);
+
+  const reserved = result.rows[0];
+  if (reserved) {
+    return {
+      allowed: true,
+      quota: customerTryOnQuotaSnapshot(Number(reserved.generation_count), input.now)
+    };
+  }
+
+  const quota = await customerTryOnMonthlyQuota(input);
+  if (quota.remaining > 0) throw new Error("TRY_ON_ACCOUNT_NOT_FOUND");
+  return { allowed: false, quota };
+}
+
+export async function reserveCustomerTryOnGeneration(input: { userId: string; now: number }): Promise<{
+  allowed: boolean;
+  reason?: "burst" | "monthly";
+  retryAfterMs: number;
+  quota: CustomerTryOnMonthlyQuota;
+}> {
+  const shortWindow = customerStateBackend() === "memory"
+    ? getAccountRuntime().rateLimiter.consume({
+        key: `try-on-generate-minute:${input.userId}`,
+        rule: { limit: 6, windowMs: 60 * 1000 },
+        now: input.now
+      })
+    : await postgresServices().rateLimiter.consume({
+        route: "customer-try-on-generate-minute",
+        key: input.userId,
+        limit: 6,
+        windowMs: 60 * 1000,
+        now: input.now
+      });
+
+  if (!shortWindow.allowed) {
+    return {
+      allowed: false,
+      reason: "burst",
+      retryAfterMs: shortWindow.retryAfterMs,
+      quota: await customerTryOnMonthlyQuota(input)
+    };
+  }
+
+  const monthly = await reserveCustomerTryOnMonthlyQuota(input);
+  if (!monthly.allowed) {
+    const resetAtMs = Date.parse(monthly.quota.resetAt);
+    return {
+      allowed: false,
+      reason: "monthly",
+      retryAfterMs: Math.max(1, resetAtMs - input.now),
+      quota: monthly.quota
+    };
+  }
+
+  return {
+    allowed: true,
+    retryAfterMs: 0,
+    quota: monthly.quota
+  };
 }
 
 export async function customerStateSnapshot(userId: string, now = Date.now()): Promise<CustomerStateSnapshot> {

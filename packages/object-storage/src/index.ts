@@ -16,6 +16,13 @@ export type StoredObjectMetadata = Readonly<{ objectKey:string; contentType?:str
 export type StoredObjectRead = Readonly<{ objectKey:string; stream:AsyncIterable<Uint8Array>; etag?:string; byteSize?:number; contentType?:string }>;
 export type StoredObjectListItem = Readonly<{ objectKey:string; etag?:string; byteSize:number; lastModified?:number }>;
 
+export type ServerObjectStorage = Readonly<{
+  put(input: { objectKey: string; contentType: string; body: Uint8Array }): Promise<void>;
+  head(objectKey: string): Promise<StoredObjectMetadata | undefined>;
+  read(objectKey: string): Promise<StoredObjectRead>;
+  delete(objectKey: string): Promise<void>;
+}>;
+
 export class S3ObjectStorage {
   readonly #client: S3Client;
   readonly #config: ObjectStorageConfig;
@@ -25,6 +32,15 @@ export class S3ObjectStorage {
     const credentials = config.accessKeyId && config.secretAccessKey ? { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey, ...(config.sessionToken ? { sessionToken: config.sessionToken } : {}) } : undefined;
     const clientConfig: S3ClientConfig = { region: config.region, endpoint: config.endpoint, forcePathStyle: config.forcePathStyle, credentials };
     this.#client = new S3Client(clientConfig);
+  }
+
+  async put(input: { objectKey: string; contentType: string; body: Uint8Array }): Promise<void> {
+    await this.#client.send(new PutObjectCommand({
+      Bucket: this.#config.bucket,
+      Key: input.objectKey,
+      ContentType: input.contentType,
+      Body: input.body
+    }));
   }
 
   async createUploadUrl(input: { objectKey: string; contentType: string; expiresInSeconds?: number }): Promise<{ url: string; headers: Readonly<Record<string,string>>; expiresInSeconds: number }> {
@@ -94,6 +110,122 @@ export class S3ObjectStorage {
       return { ok: false, message: error instanceof Error ? error.message : String(error) };
     }
   }
+}
+
+
+export type SupabaseRestObjectStorageConfig = Readonly<{
+  baseUrl: string;
+  secretKey: string;
+  bucket: string;
+}>;
+
+export class SupabaseRestObjectStorage implements ServerObjectStorage {
+  readonly #baseUrl: string;
+  readonly #secretKey: string;
+  readonly #bucket: string;
+
+  constructor(config: SupabaseRestObjectStorageConfig) {
+    this.#baseUrl = config.baseUrl.replace(/\/+$/, "");
+    this.#secretKey = config.secretKey;
+    this.#bucket = config.bucket;
+  }
+
+  #url(objectKey: string): string {
+    const bucket = encodeURIComponent(this.#bucket);
+    const key = objectKey.split("/").map((segment) => encodeURIComponent(segment)).join("/");
+    return `${this.#baseUrl}/storage/v1/object/${bucket}/${key}`;
+  }
+
+  #headers(contentType?: string): Record<string, string> {
+    return {
+      apikey: this.#secretKey,
+      authorization: `Bearer ${this.#secretKey}`,
+      ...(contentType ? { "content-type": contentType } : {})
+    };
+  }
+
+  async put(input: { objectKey: string; contentType: string; body: Uint8Array }): Promise<void> {
+    const response = await fetch(this.#url(input.objectKey), {
+      method: "POST",
+      headers: {
+        ...this.#headers(input.contentType),
+        "x-upsert": "false"
+      },
+      body: Buffer.from(input.body)
+    });
+    if (!response.ok) throw new Error(`Object storage upload failed with HTTP ${response.status}`);
+  }
+
+  async head(objectKey: string): Promise<StoredObjectMetadata | undefined> {
+    const response = await fetch(this.#url(objectKey), { headers: this.#headers(), cache: "no-store" });
+    if (response.status === 404) return undefined;
+    if (!response.ok) throw new Error(`Object storage metadata read failed with HTTP ${response.status}`);
+    const body = new Uint8Array(await response.arrayBuffer());
+    return {
+      objectKey,
+      contentType: response.headers.get("content-type")?.split(";")[0]?.trim() || undefined,
+      byteSize: body.byteLength,
+      etag: response.headers.get("etag") || undefined
+    };
+  }
+
+  async read(objectKey: string): Promise<StoredObjectRead> {
+    const response = await fetch(this.#url(objectKey), { headers: this.#headers(), cache: "no-store" });
+    if (!response.ok || !response.body) {
+      throw new Error(response.status === 404
+        ? "Object storage object was not found"
+        : `Object storage read failed with HTTP ${response.status}`);
+    }
+    const reader = response.body.getReader();
+    const stream = (async function* (): AsyncIterable<Uint8Array> {
+      try {
+        for (;;) {
+          const next = await reader.read();
+          if (next.done) return;
+          if (next.value) yield next.value;
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    })();
+    const length = Number(response.headers.get("content-length") ?? "");
+    return {
+      objectKey,
+      stream,
+      contentType: response.headers.get("content-type")?.split(";")[0]?.trim() || undefined,
+      byteSize: Number.isSafeInteger(length) && length >= 0 ? length : undefined,
+      etag: response.headers.get("etag") || undefined
+    };
+  }
+
+  async delete(objectKey: string): Promise<void> {
+    const response = await fetch(this.#url(objectKey), {
+      method: "DELETE",
+      headers: this.#headers(),
+      cache: "no-store"
+    });
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`Object storage delete failed with HTTP ${response.status}`);
+    }
+  }
+}
+
+export function serverObjectStorageFromEnv(
+  input: { env?: NodeJS.ProcessEnv; defaultBucket?: string } = {}
+): ServerObjectStorage {
+  const env = input.env ?? process.env;
+  const s3Bucket = env.BLS_OBJECT_STORAGE_BUCKET?.trim() || env.OBJECT_STORAGE_BUCKET?.trim();
+  const s3Region = env.BLS_OBJECT_STORAGE_REGION?.trim() || env.AWS_REGION?.trim();
+  if (s3Bucket && s3Region) return new S3ObjectStorage(objectStorageConfigFromEnv(env));
+
+  const baseUrl = (env.SUPABASE_URL ?? env.NEXT_PUBLIC_SUPABASE_URL)?.trim();
+  const secretKey = (env.SUPABASE_SECRET_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY)?.trim();
+  const bucket = s3Bucket || input.defaultBucket?.trim();
+  if (baseUrl && secretKey && bucket) {
+    return new SupabaseRestObjectStorage({ baseUrl, secretKey, bucket });
+  }
+
+  throw new Error("Server object storage is not configured");
 }
 
 export function objectStorageConfigFromEnv(env: NodeJS.ProcessEnv = process.env): ObjectStorageConfig {

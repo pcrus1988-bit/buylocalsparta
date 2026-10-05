@@ -38,6 +38,8 @@ export type PrivacyReportSnapshot = Readonly<{
   savedProducts:readonly Record<string,unknown>[];
   savedVendors:readonly Record<string,unknown>[];
   savedLooks:readonly Record<string,unknown>[];
+  savedTryOns:readonly Record<string,unknown>[];
+  tryOnMonthlyUsage:readonly Record<string,unknown>[];
   recentlyViewed:readonly Record<string,unknown>[];
   savedSearches:readonly Record<string,unknown>[];
   notifications:readonly Record<string,unknown>[];
@@ -162,6 +164,19 @@ export async function buildPrivacyReportSnapshot(actorUserId:string,userId:strin
       FROM customer_style_looks
       WHERE user_id=$1::uuid
       ORDER BY updated_at DESC`,[uid]);
+    const savedTryOns=await tx.query<SqlRow>(`
+      SELECT t.public_id::text AS public_id,cv.public_id AS canonical_variant_public_id,
+        t.product_title,t.product_slug,t.provider,t.model_name,t.prediction_id,
+        t.content_type,t.byte_size,t.created_at
+      FROM customer_try_on_saves t
+      JOIN canonical_variants cv ON cv.id=t.canonical_variant_id
+      WHERE t.user_id=$1::uuid
+      ORDER BY t.created_at DESC`,[uid]);
+    const tryOnMonthlyUsage=await tx.query<SqlRow>(`
+      SELECT month_start,generation_count,created_at,updated_at
+      FROM customer_try_on_monthly_usage
+      WHERE user_id=$1::uuid
+      ORDER BY month_start DESC`,[uid]);
     const recent=await tx.query<SqlRow>(`SELECT rv.public_id,cv.public_id AS canonical_variant_public_id,rv.viewed_at,rv.expires_at
       FROM recently_viewed_products rv JOIN canonical_variants cv ON cv.id=rv.canonical_variant_id WHERE rv.user_id=$1::uuid ORDER BY rv.viewed_at DESC`,[uid]);
     const searches=await tx.query<SqlRow>(`SELECT public_id,name,query,alerts_enabled,seen_canonical_public_ids,last_observed_count,last_observed_at,created_at,updated_at
@@ -193,7 +208,7 @@ export async function buildPrivacyReportSnapshot(actorUserId:string,userId:strin
     const counts={
       addresses:addresses.rowCount,orders:orders.rowCount,orderLines:orderLines.rowCount,payments:payments.rowCount,refunds:refunds.rowCount,paymentDisputes:paymentDisputes.rowCount,
       returns:returns.rowCount,askLocalRequests:askLocal.rowCount,privateOffers:privateOffers.rowCount,conversations:conversations.rowCount,messages:messages.rowCount,
-      giftCards:giftCards.rowCount,giftCardLedger:giftLedger.rowCount,savedProducts:savedProducts.rowCount,savedVendors:savedVendors.rowCount,savedLooks:savedLooks.rowCount,recentlyViewed:recent.rowCount,
+      giftCards:giftCards.rowCount,giftCardLedger:giftLedger.rowCount,savedProducts:savedProducts.rowCount,savedVendors:savedVendors.rowCount,savedLooks:savedLooks.rowCount,savedTryOns:savedTryOns.rowCount,tryOnMonthlyUsage:tryOnMonthlyUsage.rowCount,recentlyViewed:recent.rowCount,
       savedSearches:searches.rowCount,notifications:notifications.rowCount,sessions:sessions.rowCount,deliveryJobs:deliveryJobs.rowCount,deliveryEvents:deliveryEvents.rowCount,
       privacyRequests:privacy.rowCount,supportCases:support.rowCount,customerVisibleSupportMessages:supportMessages.rowCount
     };
@@ -208,7 +223,7 @@ export async function buildPrivacyReportSnapshot(actorUserId:string,userId:strin
       },
       addresses:map(addresses.rows),orders:map(orders.rows),orderLines:map(orderLines.rows),payments:map(payments.rows),refunds:map(refunds.rows),paymentDisputes:map(paymentDisputes.rows),
       returns:map(returns.rows),askLocalRequests:map(askLocal.rows),privateOffers:map(privateOffers.rows),conversations:map(conversations.rows),messages:map(messages.rows),
-      giftCards:map(giftCards.rows),giftCardLedger:map(giftLedger.rows),savedProducts:map(savedProducts.rows),savedVendors:map(savedVendors.rows),savedLooks:map(savedLooks.rows),recentlyViewed:map(recent.rows),
+      giftCards:map(giftCards.rows),giftCardLedger:map(giftLedger.rows),savedProducts:map(savedProducts.rows),savedVendors:map(savedVendors.rows),savedLooks:map(savedLooks.rows),savedTryOns:map(savedTryOns.rows),tryOnMonthlyUsage:map(tryOnMonthlyUsage.rows),recentlyViewed:map(recent.rows),
       savedSearches:map(searches.rows),notifications:map(notifications.rows),sessions:map(sessions.rows),deliveryJobs:map(deliveryJobs.rows),deliveryEvents:map(deliveryEvents.rows),
       privacyRequests:map(privacy.rows),supportCases:map(support.rows),customerVisibleSupportMessages:map(supportMessages.rows),counts
     };
@@ -296,7 +311,7 @@ export async function renderPrivacyReportPdf(snapshot:PrivacyReportSnapshot,requ
         ...snapshot.messages.map((m)=>[String(m.conversation_public_id??""),String(m.sender_role??m.sender_type??""),short(m.body,160),String(m.created_at??"")])
       ]},layout:"lightHorizontalLines"}:null,
       {text:"Gift Cards, saved data & delivery",style:"h2"},
-      {text:`Gift Cards: ${snapshot.giftCards.length} · Ledger entries: ${snapshot.giftCardLedger.length} · Saved products: ${snapshot.savedProducts.length} · Saved vendors: ${snapshot.savedVendors.length} · Saved looks: ${snapshot.savedLooks.length} · Saved searches: ${snapshot.savedSearches.length} · Recently viewed: ${snapshot.recentlyViewed.length} · Delivery jobs: ${snapshot.deliveryJobs.length}`},
+      {text:`Gift Cards: ${snapshot.giftCards.length} · Ledger entries: ${snapshot.giftCardLedger.length} · Saved products: ${snapshot.savedProducts.length} · Saved vendors: ${snapshot.savedVendors.length} · Saved looks: ${snapshot.savedLooks.length} · Saved Try On: ${snapshot.savedTryOns.length} · Try On usage months: ${snapshot.tryOnMonthlyUsage.length} · Saved searches: ${snapshot.savedSearches.length} · Recently viewed: ${snapshot.recentlyViewed.length} · Delivery jobs: ${snapshot.deliveryJobs.length}`},
       {text:"Αιτήματα ιδιωτικότητας",style:"h2"},
       snapshot.privacyRequests.length?{table:{headerRows:1,widths:["22%","22%","18%","38%"],body:[
         ["Reference","Type","Status","Created"],
