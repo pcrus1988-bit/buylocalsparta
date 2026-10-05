@@ -77,7 +77,7 @@ function draftFor(search: SavedSearch): SearchDraft {
   };
 }
 
-export function AccountSavedClient({ initialProducts, searches: initialSearches, csrfToken }: { initialProducts: readonly SavedProduct[]; searches: readonly SavedSearch[]; csrfToken: string }) {
+export function AccountSavedClient({ initialProducts, searches: initialSearches, csrfToken, mode = "all" }: { initialProducts: readonly SavedProduct[]; searches: readonly SavedSearch[]; csrfToken: string; mode?: "all" | "wishlist" }) {
   const [products, setProducts] = useState(initialProducts);
   const [searches, setSearches] = useState(initialSearches);
   const [editingId, setEditingId] = useState("");
@@ -86,6 +86,7 @@ export function AccountSavedClient({ initialProducts, searches: initialSearches,
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  const wishlistOnly = mode === "wishlist";
 
   async function remove(productId: string) {
     if (busy) return;
@@ -210,10 +211,10 @@ export function AccountSavedClient({ initialProducts, searches: initialSearches,
   }
 
   return <section className="shell customer-account-page">
-    <div className="customer-page-heading"><div><div className="eyebrow">Wishlist · Local Watch</div><h1>Wishlist</h1></div><p>Κράτησε ό,τι σε ενδιαφέρει και ζήτησε από το ΚΟΝΤΑ ΜΟΥ να σε ενημερώσει μόλις υπάρξει πραγματική τοπική διαθεσιμότητα.</p></div>
+    <div className="customer-page-heading"><div><div className="eyebrow">{wishlistOnly ? "Wishlist" : "Wishlist · Local Watch"}</div><h1>{wishlistOnly ? "Η Wishlist μου" : "Wishlist"}</h1></div><p>{wishlistOnly ? "Όλα τα προϊόντα που έχεις κρατήσει, με διαθεσιμότητα και ειδοποιήσεις Local Watch σε ένα ξεκάθαρο σημείο." : "Κράτησε ό,τι σε ενδιαφέρει και ζήτησε από το ΚΟΝΤΑ ΜΟΥ να σε ενημερώσει μόλις υπάρξει πραγματική τοπική διαθεσιμότητα."}</p></div>
     {error && <p className="account-action-error" role="alert">{error}</p>}
     {status && <p className="customer-saved-status" role="status">{status}</p>}
-    <div className="customer-account-grid">
+    <div className="customer-account-grid" style={wishlistOnly ? { gridTemplateColumns: "1fr" } : undefined}>
       <article className="customer-account-panel">
         <div className="account-card-head"><div><div className="eyebrow">Προϊόντα</div><h2>Η Wishlist μου</h2></div><span className="count-pill">{products.length}</span></div>
         {products.length ? <div className="customer-saved-product-list">{products.map((product) => {
@@ -234,7 +235,7 @@ export function AccountSavedClient({ initialProducts, searches: initialSearches,
         })}</div> : <div className="account-empty"><p>Η Wishlist σου είναι ακόμη άδεια.</p><Link className="text-link" href="/shop">Ανακάλυψε προϊόντα →</Link></div>}
         <CustomerHowItWorks title="Τι σημαίνει «όταν γίνει τοπικό»;"><p>Η ειδοποίηση δεν βασίζεται απλώς στο αν ένα προϊόν υπάρχει στον κατάλογο. Παρακολουθεί αν υπάρχει επιλέξιμη τοπική προσφορά με διαθέσιμο και αρκετά πρόσφατα επιβεβαιωμένο απόθεμα. Η υπάρχουσα ασφαλής λογική back-in-stock παραμένει η βάση, ώστε να μην δημιουργούμε δεύτερο παράλληλο σύστημα ειδοποιήσεων.</p></CustomerHowItWorks>
       </article>
-      <article className="customer-account-panel">
+      {!wishlistOnly && <article className="customer-account-panel">
         <div className="account-card-head"><div><div className="eyebrow">Local Watch</div><h2>Αποθηκευμένες αναζητήσεις</h2></div><span className="count-pill">{searches.length}</span></div>
         {searches.length ? <div className="customer-saved-search-list">{searches.map((search) => <div className="customer-saved-search-card" key={search.id}>
           <div className="customer-saved-search-head">
@@ -255,7 +256,7 @@ export function AccountSavedClient({ initialProducts, searches: initialSearches,
           </div>}
         </div>)}</div> : <div className="account-empty"><p>Δεν έχεις αποθηκευμένες αναζητήσεις.</p><Link className="text-link" href="/shop">Ξεκίνα αναζήτηση →</Link></div>}
         <CustomerHowItWorks title="Πώς λειτουργεί το Local Watch στις αναζητήσεις;"><p>Κρατά τα κριτήρια που επέλεξες και παρακολουθεί τις νέες αντιστοιχίσεις. Μπορείς να αλλάξεις αναζήτηση, κατηγορία ή διαθεσιμότητα, να παύσεις προσωρινά το Local Watch ή να διαγράψεις την αναζήτηση. Όταν αλλάζεις κριτήρια ή το ενεργοποιείς ξανά, τα τωρινά αποτελέσματα γίνονται το νέο σημείο αναφοράς.</p></CustomerHowItWorks>
-      </article>
+      </article>}
     </div>
   </section>;
 }
