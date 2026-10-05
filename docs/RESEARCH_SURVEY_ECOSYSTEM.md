@@ -69,6 +69,7 @@ New draws use algorithm `stratified-hash-rank-v2`. When the requested sample siz
 - Completing the core study creates the thank-you reward entitlement. Reward eligibility does **not** depend on marketing consent or on asking to receive the code.
 - Delivery of the thank-you code is a separate operational step and occurs only when the latest `thank_you_code` choice is granted. The reward code is deterministically derived with HMAC from the entitlement ID and a server-only secret; only its SHA-256 hash is persisted after successful delivery.
 - The three post-survey choices are independent and optional. A later change or withdrawal creates a new consent event; prior evidence is never overwritten.
+- The personal token link remains a privacy/preferences control after completion. Participants can change results-notification, thank-you-code and marketing choices without reopening or mutating the completed questionnaire. Revoking a participant-delivery consent cancels any planned/failed unsent delivery; already-sent messages remain immutable delivery evidence.
 - `research_answers` stores raw versioned answers.
 - A trigger blocks answer modification after the response is no longer `in_progress`.
 - The participant UI does not collect IP address as research data.
@@ -164,7 +165,7 @@ Contact values and responses are kept in separate relational domains even though
 - `/research/greek-retail-2026` — public study overview.
 - `/research/greek-retail-2026/methodology` — methodology and reproducibility statement.
 - `/research/:slug/t/:token` — tokenized participant survey.
-- `POST /api/research/:slug/t/:token` — server-side consent/save/complete endpoint plus token-authenticated refusal / future-research opt-out action.
+- `POST /api/research/:slug/t/:token` — server-side consent/save/complete endpoint plus token-authenticated refusal, future-research opt-out, and post-completion optional-consent preference updates.
 
 ## Admin routes
 
