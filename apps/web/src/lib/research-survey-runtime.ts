@@ -528,8 +528,12 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       latest_i.version AS instrument_version, latest_i.status AS instrument_status,
       COALESCE(f.frames, 0)::int AS frame_count,
       COALESCE(f.population, 0)::int AS frame_population,
+      lf.status AS latest_frame_status,
+      lf.content_sha256 AS latest_frame_sha256,
       COALESCE(sd.draws, 0)::int AS sample_draw_count,
       COALESCE(sd.sample_units, 0)::int AS sample_units,
+      ls.status AS latest_sample_status,
+      ls.target_n AS latest_sample_target,
       COALESCE(cp.active_contacts, 0)::int AS active_contacts,
       COALESCE(cp.suppressed_contacts, 0)::int AS suppressed_contacts,
       COALESCE(cp.bounced_contacts, 0)::int AS bounced_contacts,
@@ -556,11 +560,25 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       FROM research_frame_snapshots WHERE study_id = s.id
     ) f ON true
     LEFT JOIN LATERAL (
+      SELECT status, content_sha256
+      FROM research_frame_snapshots
+      WHERE study_id = s.id
+      ORDER BY created_at DESC
+      LIMIT 1
+    ) lf ON true
+    LEFT JOIN LATERAL (
       SELECT count(DISTINCT d.id) AS draws, count(u.id) AS sample_units
       FROM research_sample_draws d
       LEFT JOIN research_sample_units u ON u.sample_draw_id = d.id
       WHERE d.study_id = s.id
     ) sd ON true
+    LEFT JOIN LATERAL (
+      SELECT status, target_n
+      FROM research_sample_draws
+      WHERE study_id = s.id
+      ORDER BY created_at DESC
+      LIMIT 1
+    ) ls ON true
     LEFT JOIN LATERAL (
       SELECT
         count(*) FILTER (WHERE cp.suppression_status = 'active') AS active_contacts,
@@ -612,6 +630,14 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
     LEFT JOIN LATERAL (
       SELECT count(*) AS releases FROM research_release_snapshots WHERE study_id = s.id
     ) rel ON true
+    LEFT JOIN LATERAL (
+      SELECT
+        count(*) FILTER (WHERE status='queued') AS queued_jobs,
+        count(*) FILTER (WHERE status='running') AS running_jobs,
+        count(*) FILTER (WHERE status='failed') AS failed_jobs
+      FROM research_study_jobs
+      WHERE study_id = s.id
+    ) j ON true
     ORDER BY s.created_at DESC
   `);
   return {
@@ -627,8 +653,12 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       instrumentStatus: optionalText(row.instrument_status),
       frameCount: numberValue(row.frame_count),
       framePopulation: numberValue(row.frame_population),
+      latestFrameStatus: optionalText(row.latest_frame_status),
+      latestFrameSha256: optionalText(row.latest_frame_sha256),
       sampleDrawCount: numberValue(row.sample_draw_count),
       sampleUnits: numberValue(row.sample_units),
+      latestSampleStatus: optionalText(row.latest_sample_status),
+      latestSampleTarget: numberValue(row.latest_sample_target),
       activeContacts: numberValue(row.active_contacts),
       suppressedContacts: numberValue(row.suppressed_contacts),
       bouncedContacts: numberValue(row.bounced_contacts),
@@ -644,7 +674,10 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       rewardRedeemed: numberValue(row.reward_redeemed),
       analysisRuns: numberValue(row.analysis_runs),
       analysisEstimates: numberValue(row.analysis_estimates),
-      releases: numberValue(row.releases)
+      releases: numberValue(row.releases),
+      queuedJobs: numberValue(row.queued_jobs),
+      runningJobs: numberValue(row.running_jobs),
+      failedJobs: numberValue(row.failed_jobs)
     }))
   };
 }
