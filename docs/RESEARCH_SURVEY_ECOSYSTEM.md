@@ -65,6 +65,16 @@ Pilot testing and publishable main fieldwork are separate governed phases.
 - The release artifact discloses pilot start/end, pilot sent/started/completed counts, the number of pilot-exposed units removed from the current main frame, and the resulting main eligible population.
 - Per-stratum and overall email contactability for the release use the post-pilot main eligible population rather than the pre-pilot frozen-frame denominator.
 
+### Frozen sample-design evidence
+
+The sample planner is part of the reproducibility chain rather than transient admin UI state.
+
+- Every governed sample draw stores an immutable `research_sample_designs` record with the requested completion target, expected invited-response rate, phase-eligible population, active-email contactability, planned selected n, expected contactable n and expected completes.
+- `research_sample_design_strata` freezes the corresponding per-stratum population, contactability, selected n and target-complete allocation. Fieldwork balance reads these frozen targets instead of relying on the legacy frame-level `target_complete_count`.
+- Pilot and main designs are phase-bound to the exact sample draw by a composite foreign key, so a planner record cannot be attached to a draw from another study or fieldwork phase.
+- The sample worker derives contactability from the same frozen frame and pilot-holdout boundary used for the draw. The assumptions and allocations are serialized as `kontamou.research.sample-design.v1` and SHA-256 fingerprinted.
+- The public release artifact freezes the main sample-design fingerprint and summary assumptions, allowing readers to distinguish the planned fieldwork design from the response rate that actually occurred.
+
 ### Invitations
 
 - `research_invites` stores only the SHA-256 hash of the random invitation token.
@@ -295,12 +305,12 @@ The research schema is deployed through the repository's checksum-aware migratio
 `.github/workflows/research-survey-schema-rollout.yml` is a manual-only production workflow. Its default execution is preflight-only. Before any mutation it:
 
 - verifies the immutable migration checksum manifest;
-- requires the repository migration head to be exactly 420;
-- requires the production application ledger to be either clean schema 415 or already-complete schema 420;
+- requires the repository migration head to be exactly 424;
+- requires the production application ledger to be either clean schema 415 or already-complete schema 424;
 - rejects a schema-415 database if any key research table already exists, preventing a partial-state rollout;
 - uses the protected `production` environment and its `DATABASE_URL` secret.
 
-Only an explicit workflow dispatch with `apply=true` runs `npm run db:migrate`. The existing migrator applies missing SQL and inserts the exact filename/SHA-256 into `public.schema_migrations` in the same guarded migration transaction. Postcheck then requires schema 420 and the key research relations, including the locked analysis-plan table, before application readiness is evaluated.
+Only an explicit workflow dispatch with `apply=true` runs `npm run db:migrate`. The existing migrator applies missing SQL and inserts the exact filename/SHA-256 into `public.schema_migrations` in the same guarded migration transaction. Postcheck then requires schema 424 and the key research relations, including the locked analysis-plan and immutable sample-design tables, before application readiness is evaluated.
 
 The rollout workflow does not enable research email delivery or start fieldwork. Those remain separate governed actions. Pilot and fielding transitions additionally fail closed unless a locked analysis plan exists for the active instrument.
 
