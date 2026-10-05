@@ -246,12 +246,21 @@ export async function queueGreekRetailSampleDraw(
 
 export async function saveGreekRetailRecruitmentTemplate(
   principal: SessionPrincipal,
-  input: Readonly<{ subject: string; bodyText: string; version?: string }>
-): Promise<{ templateId: string; version: string }> {
+  input: Readonly<{
+    subject: string;
+    bodyText: string;
+    version?: string;
+    purpose?: "research_invitation" | "research_reminder";
+  }>
+): Promise<{ templateId: string; version: string; purpose: string }> {
   assertAdminPermission(principal, "research.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const subject = input.subject.trim();
   const bodyText = input.bodyText.trim();
+  const purpose = input.purpose ?? "research_invitation";
+  if (!["research_invitation","research_reminder"].includes(purpose)) {
+    throw new Error("RESEARCH_RECRUITMENT_PURPOSE_INVALID");
+  }
   if (subject.length < 5 || subject.length > 180) throw new Error("RESEARCH_RECRUITMENT_SUBJECT_INVALID");
   if (bodyText.length < 40 || bodyText.length > 12_000) throw new Error("RESEARCH_RECRUITMENT_BODY_INVALID");
   const pool = getProductionPostgresRuntime().sqlPool;
@@ -265,17 +274,17 @@ export async function saveGreekRetailRecruitmentTemplate(
     throw new Error("RESEARCH_RECRUITMENT_LOCKED_AFTER_FIELDWORK");
   }
   const version = input.version?.trim() ||
-    `invite-${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}`;
+    `${purpose === "research_reminder" ? "reminder" : "invite"}-${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}`;
   if (!/^[A-Za-z0-9._-]{3,80}$/.test(version)) throw new Error("RESEARCH_RECRUITMENT_VERSION_INVALID");
 
   const inserted = await pool.query<SqlRow>(`
     INSERT INTO research_recruitment_templates (
       study_id,version,channel,subject,body_text,body_sha256,purpose,status,locked_at
     )
-    VALUES ($1,$2,'email',$3,$4,$5,'research_invitation','locked',now())
+    VALUES ($1,$2,'email',$3,$4,$5,$6,'locked',now())
     RETURNING id
-  `, [row.id, version, subject, bodyText, sha256(bodyText)]);
-  return { templateId: text(inserted.rows[0]!.id), version };
+  `, [row.id, version, subject, bodyText, sha256(bodyText), purpose]);
+  return { templateId: text(inserted.rows[0]!.id), version, purpose };
 }
 
 export async function queueGreekRetailInviteBatch(
@@ -297,6 +306,7 @@ export async function queueGreekRetailInviteBatch(
       EXISTS(
         SELECT 1 FROM research_recruitment_templates rt
         WHERE rt.study_id=s.id AND rt.channel='email' AND rt.status='locked'
+          AND rt.purpose='research_invitation'
       ) AS template_ready
     FROM research_studies s
     WHERE s.slug=$1
@@ -324,6 +334,97 @@ export async function queueGreekRetailInviteBatch(
     RETURNING id
   `, [row.id, limit, input.label?.trim() || `research-email-${new Date().toISOString()}`]);
   return { jobId: text(job.rows[0]!.id) };
+}
+
+export async function queueGreekRetailInviteReminderBatch(
+  principal: SessionPrincipal,
+  input: Readonly<{
+    limit?: number;
+    label?: string;
+    minAgeDays?: number;
+    minGapDays?: number;
+    maxReminders?: number;
+  }> = {}
+): Promise<{ jobId: string; templateId: string }> {
+  assertAdminPermission(principal, "research.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+  assertResearchSurveyEmailReady();
+
+  const limit = Math.max(1, Math.min(500, Math.floor(input.limit ?? 100)));
+  const minAgeDays = Math.max(1, Math.min(90, Math.floor(input.minAgeDays ?? 5)));
+  const minGapDays = Math.max(1, Math.min(90, Math.floor(input.minGapDays ?? 5)));
+  const maxReminders = Math.max(1, Math.min(5, Math.floor(input.maxReminders ?? 2)));
+  const pool = getProductionPostgresRuntime().sqlPool;
+
+  const study = await pool.query<SqlRow>(`
+    SELECT
+      s.id,
+      s.status,
+      rt.id AS reminder_template_id
+    FROM research_studies s
+    JOIN LATERAL (
+      SELECT id
+      FROM research_recruitment_templates
+      WHERE study_id=s.id
+        AND channel='email'
+        AND status='locked'
+        AND purpose='research_reminder'
+      ORDER BY locked_at DESC NULLS LAST,created_at DESC
+      LIMIT 1
+    ) rt ON true
+    WHERE s.slug=$1
+    LIMIT 1
+  `, [STUDY_SLUG]);
+  const row = study.rows[0];
+  if (!row) throw new Error("RESEARCH_REMINDER_TEMPLATE_NOT_READY");
+  if (!["pilot","fielding"].includes(text(row.status))) throw new Error("SURVEY_NOT_OPEN");
+
+  const existing = await pool.query<SqlRow>(`
+    SELECT id
+    FROM research_study_jobs
+    WHERE study_id=$1
+      AND job_type='invite_reminder'
+      AND status IN ('queued','running')
+    ORDER BY created_at DESC
+    LIMIT 1
+  `, [row.id]);
+  if (existing.rows[0]) {
+    return {
+      jobId: text(existing.rows[0].id),
+      templateId: text(row.reminder_template_id)
+    };
+  }
+
+  const job = await pool.query<SqlRow>(`
+    INSERT INTO research_study_jobs (study_id,job_type,status,input)
+    VALUES (
+      $1,
+      'invite_reminder',
+      'queued',
+      jsonb_build_object(
+        'templateId',$2::text,
+        'limit',$3::int,
+        'minAgeDays',$4::int,
+        'minGapDays',$5::int,
+        'maxReminders',$6::int,
+        'label',$7::text
+      )
+    )
+    RETURNING id
+  `, [
+    row.id,
+    row.reminder_template_id,
+    limit,
+    minAgeDays,
+    minGapDays,
+    maxReminders,
+    input.label?.trim() || `research-reminder-${new Date().toISOString()}`
+  ]);
+
+  return {
+    jobId: text(job.rows[0]!.id),
+    templateId: text(row.reminder_template_id)
+  };
 }
 
 export async function queueGreekRetailRewardDelivery(
@@ -977,6 +1078,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         JOIN LATERAL (
           SELECT id FROM research_recruitment_templates
           WHERE study_id=s.id AND channel='email' AND status='locked'
+            AND purpose='research_invitation'
           ORDER BY locked_at DESC NULLS LAST,created_at DESC LIMIT 1
         ) rt ON true
         WHERE s.id=$1
@@ -1162,6 +1264,25 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       )
     `, [inviteId, batchId, batchRow.template_version]);
 
+    const attempt = await pool.query<SqlRow>(`
+      INSERT INTO research_invite_messages (
+        job_id,invite_id,contact_point_id,recruitment_template_id,
+        attempt_kind,sequence_no,status,provider
+      )
+      VALUES ($1,$2,$3,$4,'initial',1,'sending','ses')
+      ON CONFLICT (invite_id,sequence_no)
+      DO UPDATE SET
+        job_id=COALESCE(research_invite_messages.job_id,EXCLUDED.job_id),
+        updated_at=now()
+      RETURNING id,status
+    `, [
+      job.id,
+      inviteId,
+      contact.contact_point_id,
+      batchRow.recruitment_template_id
+    ]);
+    const attemptId = text(attempt.rows[0]!.id);
+
     const surveyUrl = `${base}/research/${encodeURIComponent(text(batchRow.slug))}/t/${encodeURIComponent(token)}`;
     const methodologyUrl = `${base}/research/${encodeURIComponent(text(batchRow.slug))}/methodology`;
     try {
@@ -1171,6 +1292,8 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         studyTitle: text(batchRow.title),
         inviteId,
         batchId,
+        attemptId,
+        attemptKind: "initial",
         surveyUrl,
         methodologyUrl,
         subjectTemplate: text(batchRow.subject),
@@ -1182,19 +1305,31 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         WHERE id=$1 AND status='created'
       `, [inviteId]);
       await pool.query(`
+        UPDATE research_invite_messages
+        SET status='sent',
+            provider_message_id=$2,
+            sent_at=now(),
+            updated_at=now(),
+            last_error=NULL
+        WHERE id=$1
+      `, [attemptId, delivery.providerMessageId]);
+      await pool.query(`
         INSERT INTO research_invite_events (invite_id,event_type,metadata)
         VALUES (
           $1,'sent',
           jsonb_build_object(
             'source','ses',
             'providerMessageId',$2::text,
-            'configurationSet',$3::text
+            'configurationSet',$3::text,
+            'attemptId',$4::text,
+            'attemptKind','initial'
           )
         )
       `, [
         inviteId,
         delivery.providerMessageId,
-        process.env.BLS_RESEARCH_SES_CONFIGURATION_SET?.trim() || ""
+        process.env.BLS_RESEARCH_SES_CONFIGURATION_SET?.trim() || "",
+        attemptId
       ]);
       await pool.query(`
         INSERT INTO research_sample_disposition_events (
@@ -1214,6 +1349,11 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         "UPDATE research_invites SET status='expired' WHERE id=$1 AND status='created'",
         [inviteId]
       );
+      await pool.query(`
+        UPDATE research_invite_messages
+        SET status='failed',last_error=$2,updated_at=now()
+        WHERE id=$1
+      `, [attemptId, message]);
       await pool.query(`
         INSERT INTO research_invite_events (invite_id,event_type,metadata)
         VALUES ($1,'expired',jsonb_build_object('source','research_worker','reason','send_failed','error',$2::text))
@@ -1255,6 +1395,315 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   };
 }
 
+
+async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<string, unknown>> {
+  assertResearchSurveyEmailReady();
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const input = objectValue(job.input);
+  const templateId = text(input.templateId);
+  const limit = Math.max(1, Math.min(500, Math.floor(numberValue(input.limit) || 100)));
+  const minAgeDays = Math.max(1, Math.min(90, Math.floor(numberValue(input.minAgeDays) || 5)));
+  const minGapDays = Math.max(1, Math.min(90, Math.floor(numberValue(input.minGapDays) || 5)));
+  const maxReminders = Math.max(1, Math.min(5, Math.floor(numberValue(input.maxReminders) || 2)));
+  if (!templateId) throw new Error("RESEARCH_REMINDER_TEMPLATE_NOT_READY");
+
+  const templateResult = await pool.query<SqlRow>(`
+    SELECT
+      rt.id AS template_id,
+      rt.subject,
+      rt.body_text,
+      rt.version AS template_version,
+      s.slug,
+      s.title,
+      s.status AS study_status
+    FROM research_recruitment_templates rt
+    JOIN research_studies s ON s.id=rt.study_id
+    WHERE rt.id=$1
+      AND rt.study_id=$2
+      AND rt.channel='email'
+      AND rt.status='locked'
+      AND rt.purpose='research_reminder'
+    LIMIT 1
+  `, [templateId, job.study_id]);
+  const template = templateResult.rows[0];
+  if (!template) throw new Error("RESEARCH_REMINDER_TEMPLATE_NOT_READY");
+  if (!["pilot","fielding"].includes(text(template.study_status))) throw new Error("SURVEY_NOT_OPEN");
+
+  const currentOutput = objectValue(job.output);
+  let inviteIds = Array.isArray(currentOutput.inviteIds)
+    ? currentOutput.inviteIds.map(text).filter(Boolean)
+    : [];
+
+  if (!inviteIds.length) {
+    const candidates = await pool.query<SqlRow>(`
+      WITH reminder_stats AS (
+        SELECT
+          invite_id,
+          count(*) FILTER (
+            WHERE attempt_kind='reminder'
+              AND status IN ('sent','delivered','opened')
+          )::int AS sent_reminders,
+          max(sent_at) FILTER (
+            WHERE attempt_kind='reminder'
+              AND status IN ('sent','delivered','opened')
+          ) AS last_reminder_sent_at
+        FROM research_invite_messages
+        GROUP BY invite_id
+      )
+      SELECT ri.id AS invite_id
+      FROM research_invites ri
+      JOIN research_sample_units su ON su.id=ri.sample_unit_id
+      LEFT JOIN research_responses rr ON rr.invite_id=ri.id
+      LEFT JOIN reminder_stats stats ON stats.invite_id=ri.id
+      WHERE ri.study_id=$1
+        AND ri.sent_at IS NOT NULL
+        AND ri.status IN ('sent','opened','started')
+        AND (ri.expires_at IS NULL OR ri.expires_at > now())
+        AND ri.sent_at <= now() - ($2::int * interval '1 day')
+        AND COALESCE(rr.status,'') NOT IN ('completed','withdrawn','excluded')
+        AND COALESCE(stats.sent_reminders,0) < $3
+        AND COALESCE(stats.last_reminder_sent_at,ri.sent_at)
+              <= now() - ($4::int * interval '1 day')
+        AND EXISTS (
+          SELECT 1
+          FROM research_contact_points cp
+          WHERE cp.frame_unit_id=su.frame_unit_id
+            AND cp.contact_type='email'
+            AND cp.suppression_status='active'
+            AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+        )
+      ORDER BY
+        COALESCE(stats.last_reminder_sent_at,ri.sent_at),
+        ri.created_at,
+        ri.id
+      LIMIT $5
+    `, [job.study_id, minAgeDays, maxReminders, minGapDays, limit]);
+    inviteIds = candidates.rows.map((row) => text(row.invite_id));
+
+    await pool.query(`
+      UPDATE research_study_jobs
+      SET output=output || jsonb_build_object(
+        'inviteIds',$2::jsonb,
+        'candidateCount',$3::int,
+        'templateId',$4::text,
+        'minAgeDays',$5::int,
+        'minGapDays',$6::int,
+        'maxReminders',$7::int
+      )
+      WHERE id=$1
+    `, [
+      job.id,
+      JSON.stringify(inviteIds),
+      inviteIds.length,
+      templateId,
+      minAgeDays,
+      minGapDays,
+      maxReminders
+    ]);
+  }
+
+  if (!inviteIds.length) {
+    return {
+      candidateCount: 0,
+      sentCount: 0,
+      skippedCount: 0,
+      failedCount: 0,
+      reason: "no_eligible_reminders"
+    };
+  }
+
+  const base = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://kontamou.site").replace(/\/$/, "");
+  let sentCount = 0;
+  let skippedCount = 0;
+  let failedCount = 0;
+  const failures: Array<{ inviteId: string; error: string }> = [];
+
+  for (const inviteId of inviteIds) {
+    const priorAttempt = await pool.query<SqlRow>(`
+      SELECT id,status
+      FROM research_invite_messages
+      WHERE job_id=$1 AND invite_id=$2
+      LIMIT 1
+    `, [job.id, inviteId]);
+    if (priorAttempt.rows[0]) {
+      const priorStatus = text(priorAttempt.rows[0].status);
+      if (["sent","delivered","opened"].includes(priorStatus)) sentCount += 1;
+      else {
+        skippedCount += 1;
+        failures.push({ inviteId, error: "PRIOR_ATTEMPT_NOT_RETRIED:" + priorStatus });
+      }
+      continue;
+    }
+
+    const candidate = await pool.query<SqlRow>(`
+      WITH reminder_stats AS (
+        SELECT
+          count(*) FILTER (
+            WHERE attempt_kind='reminder'
+              AND status IN ('sent','delivered','opened')
+          )::int AS sent_reminders,
+          max(sent_at) FILTER (
+            WHERE attempt_kind='reminder'
+              AND status IN ('sent','delivered','opened')
+          ) AS last_reminder_sent_at,
+          COALESCE(max(sequence_no),0)::int AS max_sequence
+        FROM research_invite_messages
+        WHERE invite_id=$1
+      )
+      SELECT
+        ri.id AS invite_id,
+        ri.sample_unit_id,
+        ri.expires_at,
+        cp.id AS contact_point_id,
+        cp.contact_value,
+        stats.sent_reminders,
+        stats.last_reminder_sent_at,
+        stats.max_sequence
+      FROM research_invites ri
+      JOIN research_sample_units su ON su.id=ri.sample_unit_id
+      LEFT JOIN research_responses rr ON rr.invite_id=ri.id
+      CROSS JOIN reminder_stats stats
+      JOIN LATERAL (
+        SELECT id,contact_value
+        FROM research_contact_points
+        WHERE frame_unit_id=su.frame_unit_id
+          AND contact_type='email'
+          AND suppression_status='active'
+          AND NOT public.research_contact_is_suppressed(contact_type,contact_value_hash)
+        ORDER BY (verified_at IS NOT NULL) DESC,verified_at DESC NULLS LAST,created_at,id
+        LIMIT 1
+      ) cp ON true
+      WHERE ri.id=$1
+        AND ri.study_id=$2
+        AND ri.sent_at IS NOT NULL
+        AND ri.status IN ('sent','opened','started')
+        AND (ri.expires_at IS NULL OR ri.expires_at > now())
+        AND ri.sent_at <= now() - ($3::int * interval '1 day')
+        AND COALESCE(rr.status,'') NOT IN ('completed','withdrawn','excluded')
+        AND stats.sent_reminders < $4
+        AND COALESCE(stats.last_reminder_sent_at,ri.sent_at)
+              <= now() - ($5::int * interval '1 day')
+      LIMIT 1
+    `, [inviteId, job.study_id, minAgeDays, maxReminders, minGapDays]);
+    const row = candidate.rows[0];
+    if (!row) {
+      skippedCount += 1;
+      continue;
+    }
+
+    const token = randomBytes(32).toString("base64url");
+    const accessToken = await pool.query<SqlRow>(`
+      INSERT INTO research_invite_access_tokens (
+        invite_id,recruitment_template_id,token_hash,token_kind,status,expires_at
+      )
+      VALUES ($1,$2,$3,'reminder','active',$4)
+      RETURNING id
+    `, [inviteId, templateId, sha256(token), row.expires_at ?? null]);
+    const accessTokenId = text(accessToken.rows[0]!.id);
+    const reminderNumber = numberValue(row.sent_reminders) + 1;
+    const sequenceNo = Math.max(2, numberValue(row.max_sequence) + 1);
+
+    let attemptId = "";
+    try {
+      const attempt = await pool.query<SqlRow>(`
+        INSERT INTO research_invite_messages (
+          job_id,invite_id,contact_point_id,recruitment_template_id,access_token_id,
+          attempt_kind,sequence_no,status,provider
+        )
+        VALUES ($1,$2,$3,$4,$5,'reminder',$6,'sending','ses')
+        RETURNING id
+      `, [
+        job.id,
+        inviteId,
+        row.contact_point_id,
+        templateId,
+        accessTokenId,
+        sequenceNo
+      ]);
+      attemptId = text(attempt.rows[0]!.id);
+
+      const surveyUrl = `${base}/research/${encodeURIComponent(text(template.slug))}/t/${encodeURIComponent(token)}`;
+      const methodologyUrl = `${base}/research/${encodeURIComponent(text(template.slug))}/methodology`;
+      const delivery = await sendResearchSurveyInvitation({
+        destination: text(row.contact_value),
+        studySlug: text(template.slug),
+        studyTitle: text(template.title),
+        inviteId,
+        attemptId,
+        attemptKind: "reminder",
+        surveyUrl,
+        methodologyUrl,
+        subjectTemplate: text(template.subject),
+        bodyTemplate: text(template.body_text)
+      });
+
+      await pool.query(`
+        UPDATE research_invite_messages
+        SET status='sent',
+            provider_message_id=$2,
+            sent_at=now(),
+            updated_at=now(),
+            last_error=NULL
+        WHERE id=$1
+      `, [attemptId, delivery.providerMessageId]);
+
+      await pool.query(`
+        INSERT INTO research_invite_events (invite_id,event_type,metadata)
+        VALUES (
+          $1,
+          'sent',
+          jsonb_build_object(
+            'source','ses',
+            'providerMessageId',$2::text,
+            'configurationSet',$3::text,
+            'attemptId',$4::text,
+            'attemptKind','reminder',
+            'reminderNumber',$5::int,
+            'templateVersion',$6::text
+          )
+        )
+      `, [
+        inviteId,
+        delivery.providerMessageId,
+        process.env.BLS_RESEARCH_SES_CONFIGURATION_SET?.trim() || "",
+        attemptId,
+        reminderNumber,
+        template.template_version
+      ]);
+      sentCount += 1;
+    } catch (error) {
+      const message = (error instanceof Error ? error.message : String(error))
+        .replace(/[\r\n]+/g, " ")
+        .slice(0, 800);
+      if (attemptId) {
+        await pool.query(`
+          UPDATE research_invite_messages
+          SET status='failed',last_error=$2,updated_at=now()
+          WHERE id=$1
+        `, [attemptId, message]);
+      }
+      await pool.query(`
+        UPDATE research_invite_access_tokens
+        SET status='revoked',revoked_at=now()
+        WHERE id=$1 AND status='active'
+      `, [accessTokenId]);
+      failedCount += 1;
+      failures.push({ inviteId, error: message });
+    }
+  }
+
+  return {
+    candidateCount: inviteIds.length,
+    sentCount,
+    skippedCount,
+    failedCount,
+    failures: failures.slice(0,25),
+    minAgeDays,
+    minGapDays,
+    maxReminders,
+    templateId
+  };
+}
 
 async function processRewardDeliveryJob(job: ResearchJobRow): Promise<Record<string, unknown>> {
   assertResearchSurveyEmailReady();
@@ -1775,14 +2224,16 @@ export async function processResearchStudyJobs(limit = 1): Promise<ResearchJobTi
           ? await processSampleDrawJob(job)
           : job.job_type === "invite_batch"
             ? await processInviteBatchJob(job)
-            : job.job_type === "reward_delivery"
-              ? await processRewardDeliveryJob(job)
+            : job.job_type === "invite_reminder"
+              ? await processInviteReminderJob(job)
+              : job.job_type === "reward_delivery"
+                ? await processRewardDeliveryJob(job)
               : job.job_type === "analysis"
-                ? await runGreekRetailAnalysis(job.study_id, job.id)
+                  ? await runGreekRetailAnalysis(job.study_id, job.id)
                 : job.job_type === "release"
-                  ? await buildGreekRetailRelease(job.study_id, job.id, objectValue(job.input))
+                    ? await buildGreekRetailRelease(job.study_id, job.id, objectValue(job.input))
                   : job.job_type === "results_notification"
-                    ? await processResultsNotificationJob(job)
+                      ? await processResultsNotificationJob(job)
                     : (() => { throw new Error("RESEARCH_JOB_TYPE_UNSUPPORTED"); })();
       await markJobSucceeded(job.id, { ...objectValue(job.output), ...output });
       processed += 1;
