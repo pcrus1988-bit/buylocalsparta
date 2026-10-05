@@ -102,8 +102,12 @@ export default async function ResearchSurveysAdminPage() {
                 </strong>
               </div>
               <div className="workspace-action-bar">
-                <span>Fieldwork</span>
-                <strong>{study.fieldworkStartsAt ? new Date(study.fieldworkStartsAt).toLocaleString("el-GR") : "Not started"} → {study.fieldworkEndsAt ? new Date(study.fieldworkEndsAt).toLocaleString("el-GR") : "open"}</strong>
+                <span>Pilot</span>
+                <strong>{study.pilotStartedAt ? new Date(study.pilotStartedAt).toLocaleString("el-GR") : "Not started"} → {study.pilotEndedAt ? new Date(study.pilotEndedAt).toLocaleString("el-GR") : study.status === "pilot" ? "open" : "—"}</strong>
+              </div>
+              <div className="workspace-action-bar">
+                <span>Main fieldwork</span>
+                <strong>{study.fieldworkStartsAt ? new Date(study.fieldworkStartsAt).toLocaleString("el-GR") : "Not started"} → {study.fieldworkEndsAt ? new Date(study.fieldworkEndsAt).toLocaleString("el-GR") : study.fieldworkStartsAt ? "open" : "—"}</strong>
               </div>
             </div>
 
@@ -111,7 +115,10 @@ export default async function ResearchSurveysAdminPage() {
               slug={study.slug}
               csrfToken={principal.csrfToken}
               latestFrameStatus={study.latestFrameStatus}
+              studyStatus={study.status}
               framePopulation={study.framePopulation}
+              phasePopulation={study.phasePopulation}
+              pilotHoldoutUnits={study.pilotHoldoutUnits}
               latestFrameStrata={study.latestFrameStrata}
               activeContacts={study.activeContacts}
               latestSampleStatus={study.latestSampleStatus}
