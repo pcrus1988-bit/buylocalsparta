@@ -3,8 +3,12 @@ import { readFileSync } from "node:fs";
 
 const migrationPath = "db/migrations/0414_research_survey_ecosystem.sql";
 const checksumPath = "db/migrations/checksums.0414.json";
+const suppressionMigrationPath = "db/migrations/0415_research_contact_suppression_ledger.sql";
+const suppressionChecksumPath = "db/migrations/checksums.0415.json";
 const migration = readFileSync(migrationPath, "utf8");
+const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
+const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const jobs = readFileSync("apps/web/src/lib/research-survey-jobs.ts", "utf8");
@@ -46,10 +50,14 @@ const expectedTables = [
 
 const errors: string[] = [];
 const sha = createHash("sha256").update(migration, "utf8").digest("hex");
+const suppressionSha = createHash("sha256").update(suppressionMigration, "utf8").digest("hex");
 if (checksums["0414_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0414 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 414")) errors.push("runtime schema head is not 414");
+if (suppressionChecksums["0415_research_contact_suppression_ledger.sql"] !== suppressionSha) {
+  errors.push("0415 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 415")) errors.push("runtime schema head is not 415");
 if ((migration.match(/^BEGIN;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one BEGIN");
 if ((migration.match(/^COMMIT;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one COMMIT");
 
@@ -78,6 +86,10 @@ if (!migration.includes("research_analysis_runs_succeeded_immutable")) errors.pu
 if (!migration.includes("research_analysis_estimates_frozen_with_run")) errors.push("analysis estimate immutability guard missing");
 if (!migration.includes("research_weights_frozen_with_analysis")) errors.push("analysis weight immutability guard missing");
 if (!migration.includes("research_release_snapshots_immutable")) errors.push("release snapshot immutability guard missing");
+if (!suppressionMigration.includes("CREATE TABLE public.research_contact_suppression_events")) errors.push("cross-wave suppression ledger missing");
+if (!suppressionMigration.includes("research_contact_suppression_events_append_only")) errors.push("suppression ledger append-only guard missing");
+if (!suppressionMigration.includes("research_contact_is_suppressed")) errors.push("suppression state helper missing");
+if (!suppressionMigration.includes("schema_415_backfill")) errors.push("existing suppression backfill missing");
 if (!migration.includes("token_hash text NOT NULL UNIQUE")) errors.push("hashed invitation token contract missing");
 if (/\btoken\s+text\b/i.test(migration)) errors.push("plaintext invitation token column detected");
 
@@ -100,6 +112,9 @@ if (!sesSender.includes("ConfigurationSetName")) errors.push("SES sender does no
 if (!sesEvents.includes("BLS_RESEARCH_SES_SNS_TOPIC_ARN")) errors.push("SES SNS topic allowlist missing");
 if (!sesEvents.includes("SNS_SIGNATURE_INVALID")) errors.push("SNS signature verification missing");
 if (!sesEvents.includes("suppression_status='bounced'")) errors.push("bounce suppression bridge missing");
+if (!sesEvents.includes("research_contact_suppression_events")) errors.push("SES events do not persist cross-wave suppression");
+if (!jobs.includes("research_contact_is_suppressed")) errors.push("research worker does not enforce cross-wave suppression");
+if (!surveyRuntime.includes("participant_research_opt_out")) errors.push("participant future-research opt-out path missing");
 if (surveyRuntime.includes("generateResearchInvitationBatch")) errors.push("legacy plaintext invitation delivery path remains");
 if (surveyRuntime.includes("SURVEY_EXPERIMENT_INCOMPLETE")) errors.push("optional experiment still blocks completion");
 if (!surveyRuntime.includes('"eligibilityBasis":"completed_response"')) errors.push("reward eligibility is not completion-based");
@@ -117,8 +132,9 @@ if (errors.length) {
 }
 console.log(JSON.stringify({
   ok: true,
-  schema: 414,
-  tables: created.length,
+  schema: 415,
+  tables: created.length + 1,
   migrationSha256: sha,
+  suppressionMigrationSha256: suppressionSha,
   worker: pkg.scripts?.["worker:research"]
 }));
