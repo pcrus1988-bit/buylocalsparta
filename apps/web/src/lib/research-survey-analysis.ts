@@ -6,10 +6,11 @@ import {
   normal95ConfidenceInterval,
   normalTwoSidedPValue,
   researchWeightDiagnostics,
-  stratifiedSrsMeanVariance
+  stratifiedSrsMeanVariance,
+  weightedClusteredDifferenceInMeans
 } from "./research-survey-statistics";
 
-const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v4";
+const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v5";
 const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v1";
 const MIN_PUBLIC_BASE = 30;
 const VARIANCE_METHOD = "stratified_srs_fpc_v1";
@@ -45,6 +46,25 @@ type EstimateSpec = Readonly<{
   metricKey: string;
   observations: readonly Observation[];
   metadata: Record<string, unknown>;
+}>;
+
+type ExperimentAssignment = Readonly<{
+  responseId: string;
+  experimentCode: string;
+  taskNumber: number;
+  randomizationSeed: string;
+  alternativeA: Record<string, unknown>;
+  alternativeB: Record<string, unknown>;
+  selected?: "a" | "b" | "none";
+}>;
+
+type ExperimentProfileObservation = Readonly<{
+  response: WeightedResponse;
+  experimentCode: string;
+  taskNumber: number;
+  side: "a" | "b";
+  attributes: Record<string, unknown>;
+  value: number;
 }>;
 
 function text(value: unknown): string {
@@ -328,7 +348,7 @@ export async function runGreekRetailAnalysis(
         study_id,label,code_version,instrument_version,weight_version,analysis_plan_id,parameters,status,started_at
       )
       VALUES (
-        $1,'Automated weighted descriptive analysis',$2,$3,$4,$10,
+        $1,'Weighted descriptive + randomized-profile exploratory analysis',$2,$3,$4,$10,
         jsonb_build_object(
           'jobId',$5::text,
           'varianceMethod',$9::text,
@@ -528,6 +548,76 @@ export async function runGreekRetailAnalysis(
     scores: scoreMap.get(response.responseId) ?? {}
   }));
 
+  const experimentResult = await pool.query<SqlRow>(`
+    SELECT
+      response_id,
+      experiment_code,
+      task_number,
+      randomization_seed,
+      alternative_a,
+      alternative_b,
+      selected
+    FROM research_experiment_assignments
+    WHERE response_id=ANY($1::uuid[])
+    ORDER BY response_id, experiment_code, task_number
+  `, [baseResponses.map((response) => response.responseId)]);
+
+  const experimentsByResponse = new Map<string, ExperimentAssignment[]>();
+  for (const row of experimentResult.rows) {
+    const responseId = text(row.response_id);
+    const selectedRaw = text(row.selected);
+    const assignment: ExperimentAssignment = {
+      responseId,
+      experimentCode: text(row.experiment_code),
+      taskNumber: numberValue(row.task_number),
+      randomizationSeed: text(row.randomization_seed),
+      alternativeA: objectValue(row.alternative_a),
+      alternativeB: objectValue(row.alternative_b),
+      selected: selectedRaw === "a" || selectedRaw === "b" || selectedRaw === "none"
+        ? selectedRaw
+        : undefined
+    };
+    const group = experimentsByResponse.get(responseId) ?? [];
+    group.push(assignment);
+    experimentsByResponse.set(responseId, group);
+  }
+
+  const responseById = new Map(weightedResponses.map((response) => [response.responseId, response] as const));
+  const experimentProfileObservations: ExperimentProfileObservation[] = [];
+  for (const assignment of experimentResult.rows.map((row): ExperimentAssignment => {
+    const selectedRaw = text(row.selected);
+    return {
+      responseId: text(row.response_id),
+      experimentCode: text(row.experiment_code),
+      taskNumber: numberValue(row.task_number),
+      randomizationSeed: text(row.randomization_seed),
+      alternativeA: objectValue(row.alternative_a),
+      alternativeB: objectValue(row.alternative_b),
+      selected: selectedRaw === "a" || selectedRaw === "b" || selectedRaw === "none"
+        ? selectedRaw
+        : undefined
+    };
+  })) {
+    const response = responseById.get(assignment.responseId);
+    if (!response || !assignment.selected) continue;
+    experimentProfileObservations.push({
+      response,
+      experimentCode: assignment.experimentCode,
+      taskNumber: assignment.taskNumber,
+      side: "a",
+      attributes: assignment.alternativeA,
+      value: assignment.selected === "a" ? 1 : 0
+    });
+    experimentProfileObservations.push({
+      response,
+      experimentCode: assignment.experimentCode,
+      taskNumber: assignment.taskNumber,
+      side: "b",
+      attributes: assignment.alternativeB,
+      value: assignment.selected === "b" ? 1 : 0
+    });
+  }
+
   const adjustmentValues = [...adjustmentByStratum.values()]
     .filter((value) => Number.isFinite(value) && value > 0);
   const weightingDiagnostics = {
@@ -559,7 +649,15 @@ export async function runGreekRetailAnalysis(
       sectorCode: response.sectorCode,
       finalWeight: Number(response.finalWeight.toFixed(10)),
       answers: response.answers,
-      scores: response.scores
+      scores: response.scores,
+      experiments: (experimentsByResponse.get(response.responseId) ?? []).map((assignment) => ({
+        experimentCode: assignment.experimentCode,
+        taskNumber: assignment.taskNumber,
+        randomizationSeed: assignment.randomizationSeed,
+        alternativeA: assignment.alternativeA,
+        alternativeB: assignment.alternativeB,
+        selected: assignment.selected ?? null
+      }))
     }) + "\n", "utf8");
   }
   const datasetSha256 = datasetHash.digest("hex");
@@ -626,6 +724,138 @@ export async function runGreekRetailAnalysis(
       estimateCount += 1;
     }
   }
+
+  const experimentQuestion = questions.find(
+    (question) => question.questionType === "experiment" && question.code === "EXP01"
+  );
+  const experimentAttributes = objectValue(experimentQuestion?.config.attributes);
+  const experimentalContrasts: Array<{
+    metricKey: string;
+    attribute: string;
+    level: string;
+    referenceLevel: string;
+    result: ReturnType<typeof weightedClusteredDifferenceInMeans>;
+    pValue: number;
+    suppressed: boolean;
+  }> = [];
+
+  if (experimentQuestion) {
+    for (const [attribute, rawLevels] of Object.entries(experimentAttributes)) {
+      if (!Array.isArray(rawLevels) || rawLevels.length < 2) continue;
+      const levels = rawLevels.map(String);
+      const referenceLevel = levels[0]!;
+      for (const level of levels.slice(1)) {
+        const contrastObservations = experimentProfileObservations.flatMap((observation) => {
+          if (observation.experimentCode !== "EXP01") return [];
+          const observedLevel = String(observation.attributes[attribute] ?? "");
+          if (observedLevel !== level && observedLevel !== referenceLevel) return [];
+          return [{
+            clusterId: observation.response.responseId,
+            group: observedLevel === level ? "level" as const : "reference" as const,
+            value: observation.value,
+            weight: observation.response.finalWeight
+          }];
+        });
+        const result = weightedClusteredDifferenceInMeans(contrastObservations);
+        if (result.difference === undefined) continue;
+        const zScore = result.standardError !== undefined && result.standardError > 0
+          ? result.difference / result.standardError
+          : result.difference === 0
+            ? 0
+            : result.difference > 0
+              ? Number.POSITIVE_INFINITY
+              : Number.NEGATIVE_INFINITY;
+        const pValue = Number.isFinite(zScore)
+          ? normalTwoSidedPValue(zScore) ?? 1
+          : 0;
+        experimentalContrasts.push({
+          metricKey: `platform_choice_experiment.amce.${attribute}.${level}`,
+          attribute,
+          level,
+          referenceLevel,
+          result,
+          pValue,
+          suppressed:
+            result.levelClusterCount < MIN_PUBLIC_BASE ||
+            result.referenceClusterCount < MIN_PUBLIC_BASE
+        });
+      }
+    }
+  }
+
+  const experimentAdjustedPValues = benjaminiHochbergAdjustedPValues(
+    experimentalContrasts.map((contrast) => contrast.pValue)
+  );
+  for (let index = 0; index < experimentalContrasts.length; index += 1) {
+    const contrast = experimentalContrasts[index]!;
+    const standardError = contrast.result.standardError;
+    const confidence = standardError === undefined
+      ? undefined
+      : normal95ConfidenceInterval(contrast.result.difference!, standardError, "mean");
+    const adjustedPValue = experimentAdjustedPValues[index] ?? 1;
+    await pool.query(`
+      INSERT INTO research_analysis_estimates (
+        analysis_run_id,metric_key,segment,estimate,standard_error,confidence_level,
+        ci_lower,ci_upper,unweighted_n,weighted_n,method,suppressed,metadata
+      )
+      VALUES (
+        $1,$2,$3::jsonb,$4,$5,$6,$7,$8,$9,NULL,
+        'randomized_profile_amce_clustered_v1',$10,$11::jsonb
+      )
+    `, [
+      analysisRunId,
+      contrast.metricKey,
+      JSON.stringify({
+        experimentCode: "EXP01",
+        attribute: contrast.attribute,
+        level: contrast.level,
+        referenceLevel: contrast.referenceLevel
+      }),
+      contrast.result.difference,
+      standardError ?? null,
+      standardError === undefined ? null : 0.95,
+      confidence?.lower ?? null,
+      confidence?.upper ?? null,
+      contrast.result.clusterCount,
+      contrast.suppressed,
+      JSON.stringify({
+        format: "difference",
+        experimentCode: "EXP01",
+        estimand: "survey_weighted_marginal_difference_in_profile_selection_probability",
+        attribute: contrast.attribute,
+        level: contrast.level,
+        referenceLevel: contrast.referenceLevel,
+        levelSelectionProbability: contrast.suppressed ? null : contrast.result.levelMean ?? null,
+        referenceSelectionProbability: contrast.suppressed ? null : contrast.result.referenceMean ?? null,
+        levelProfileObservations: contrast.result.levelObservationCount,
+        referenceProfileObservations: contrast.result.referenceObservationCount,
+        levelRespondents: contrast.result.levelClusterCount,
+        referenceRespondents: contrast.result.referenceClusterCount,
+        clusteredBy: "response_id",
+        surveyWeight: weightVersion,
+        randomizationUnit: "profile_attribute_within_response_task",
+        rawPValue: contrast.suppressed ? null : contrast.pValue,
+        adjustedPValue: contrast.suppressed ? null : adjustedPValue,
+        adjustedPValueMethod: "benjamini_hochberg",
+        adjustmentFamily: "EXP01:all_attribute_level_contrasts",
+        analysisClassification: "exploratory_not_preregistered",
+        preregistered: false,
+        publicMinimumBasePerContrastArm: MIN_PUBLIC_BASE
+      })
+    ]);
+    estimateCount += 1;
+  }
+
+  const experimentDiagnostics = {
+    method: "randomized_profile_amce_clustered_v1",
+    experimentCode: "EXP01",
+    assignedTasks: experimentResult.rows.length,
+    answeredTasks: experimentResult.rows.filter((row) => ["a","b","none"].includes(text(row.selected))).length,
+    profileObservations: experimentProfileObservations.length,
+    respondentCount: new Set(experimentProfileObservations.map((observation) => observation.response.responseId)).size,
+    contrastCount: experimentalContrasts.length,
+    analysisClassification: "exploratory_not_preregistered"
+  };
 
   const comparisonSource = await pool.query<SqlRow>(`
     SELECT
@@ -792,9 +1022,17 @@ export async function runGreekRetailAnalysis(
     SET dataset_sha256=$2,
         status='succeeded',
         completed_at=now(),
-        parameters=parameters || jsonb_build_object('weightDiagnostics',$3::jsonb)
+        parameters=parameters || jsonb_build_object(
+          'weightDiagnostics',$3::jsonb,
+          'experimentDiagnostics',$4::jsonb
+        )
     WHERE id=$1
-  `, [analysisRunId, datasetSha256, JSON.stringify(weightingDiagnostics)]);
+  `, [
+    analysisRunId,
+    datasetSha256,
+    JSON.stringify(weightingDiagnostics),
+    JSON.stringify(experimentDiagnostics)
+  ]);
 
   return {
     analysisRunId,
@@ -807,6 +1045,7 @@ export async function runGreekRetailAnalysis(
     publicMinimumBase: MIN_PUBLIC_BASE,
     analysisPlanVersion: text(analysisPlan.version),
     analysisPlanSha256: text(analysisPlan.content_sha256),
-    weightingDiagnostics
+    weightingDiagnostics,
+    experimentDiagnostics
   };
 }
