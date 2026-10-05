@@ -882,7 +882,7 @@ export async function researchFieldworkStrata(
       st.label,
       st.dimensions,
       st.population_count,
-      st.target_complete_count,
+      COALESCE(sds.target_complete_n,st.target_complete_count)::int AS target_complete_count,
       COALESCE(sc.selected,0)::int AS selected,
       COALESCE(ic.sent,0)::int AS sent,
       COALESCE(iec.delivered,0)::int AS delivered,
@@ -892,6 +892,10 @@ export async function researchFieldworkStrata(
       COALESCE(rc.withdrawn,0)::int AS withdrawn
     FROM latest_draw ld
     JOIN research_strata st ON st.frame_snapshot_id=ld.frame_snapshot_id
+    LEFT JOIN research_sample_designs sd ON sd.sample_draw_id=ld.id
+    LEFT JOIN research_sample_design_strata sds
+      ON sds.design_id=sd.id
+     AND sds.stratum_id=st.id
     LEFT JOIN sample_counts sc ON sc.stratum_id=st.id
     LEFT JOIN invite_counts ic ON ic.stratum_id=st.id
     LEFT JOIN invite_event_counts iec ON iec.stratum_id=st.id
