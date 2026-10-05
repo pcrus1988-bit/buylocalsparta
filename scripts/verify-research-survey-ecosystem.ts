@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-const migrationPath = "db/migrations/0414_research_survey_ecosystem.sql";
-const checksumPath = "db/migrations/checksums.0414.json";
-const suppressionMigrationPath = "db/migrations/0415_research_contact_suppression_ledger.sql";
-const suppressionChecksumPath = "db/migrations/checksums.0415.json";
+const migrationPath = "db/migrations/0416_research_survey_ecosystem.sql";
+const checksumPath = "db/migrations/checksums.0416.json";
+const suppressionMigrationPath = "db/migrations/0417_research_contact_suppression_ledger.sql";
+const suppressionChecksumPath = "db/migrations/checksums.0417.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
@@ -57,13 +57,13 @@ const expectedTables = [
 const errors: string[] = [];
 const sha = createHash("sha256").update(migration, "utf8").digest("hex");
 const suppressionSha = createHash("sha256").update(suppressionMigration, "utf8").digest("hex");
-if (checksums["0414_research_survey_ecosystem.sql"] !== sha) {
-  errors.push("0414 checksum does not match migration bytes");
+if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
+  errors.push("0416 checksum does not match migration bytes");
 }
-if (suppressionChecksums["0415_research_contact_suppression_ledger.sql"] !== suppressionSha) {
-  errors.push("0415 checksum does not match migration bytes");
+if (suppressionChecksums["0417_research_contact_suppression_ledger.sql"] !== suppressionSha) {
+  errors.push("0417 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 415")) errors.push("runtime schema head is not 415");
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 417")) errors.push("runtime schema head is not 417");
 if ((migration.match(/^BEGIN;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one BEGIN");
 if ((migration.match(/^COMMIT;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one COMMIT");
 
@@ -151,7 +151,7 @@ if (errors.length) {
 }
 console.log(JSON.stringify({
   ok: true,
-  schema: 415,
+  schema: 417,
   tables: created.length + 1,
   migrationSha256: sha,
   suppressionMigrationSha256: suppressionSha,
