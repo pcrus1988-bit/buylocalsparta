@@ -2,7 +2,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 import { accountAuthSecret } from "./account-auth-secret.ts";
 
 const SAVE_TOKEN_VERSION = "v1";
-const SAVE_TOKEN_TTL_MS = 5 * 60 * 1000;
+export const CUSTOMER_TRY_ON_EPHEMERAL_TTL_MS = 5 * 60 * 1000;
 
 function safeEqual(left: string, right: string): boolean {
   const a = Buffer.from(left, "utf8");
@@ -50,7 +50,7 @@ export function issueCustomerTryOnSaveToken(input: {
   now?: number;
 }): string {
   const now = input.now ?? Date.now();
-  const expiresAt = now + SAVE_TOKEN_TTL_MS;
+  const expiresAt = now + CUSTOMER_TRY_ON_EPHEMERAL_TTL_MS;
   const nonce = randomBytes(12).toString("base64url");
   const imageHash = imageDigest(input.imageBytes);
   const signature = saveSignature({ ...input, imageHash, expiresAt, nonce });
@@ -75,7 +75,7 @@ export function assertCustomerTryOnSaveToken(input: {
   const expiresAt = Number.parseInt(encodedExpiry, 36);
   const now = input.now ?? Date.now();
   if (!Number.isSafeInteger(expiresAt) || expiresAt <= now) throw new Error("TRY_ON_SAVE_TOKEN_EXPIRED");
-  if (expiresAt > now + SAVE_TOKEN_TTL_MS + 60_000) throw new Error("INVALID_TRY_ON_SAVE_TOKEN");
+  if (expiresAt > now + CUSTOMER_TRY_ON_EPHEMERAL_TTL_MS + 60_000) throw new Error("INVALID_TRY_ON_SAVE_TOKEN");
   if (!/^[A-Za-z0-9_-]{12,40}$/.test(nonce) || !/^[A-Za-z0-9_-]{40,64}$/.test(signature)) {
     throw new Error("INVALID_TRY_ON_SAVE_TOKEN");
   }
