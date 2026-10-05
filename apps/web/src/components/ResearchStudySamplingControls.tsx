@@ -43,11 +43,13 @@ export function ResearchStudySamplingControls({
   const [message, setMessage] = useState("");
   const workerBusy = queuedJobs > 0 || runningJobs > 0;
   const sampleN = Number(targetN);
-  const sampleValid = Number.isSafeInteger(sampleN) && sampleN >= 100 && sampleN <= 100_000;
+  const minSampleN = fieldworkPhase === "pilot" ? 10 : 100;
+  const maxSampleN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
+  const sampleValid = Number.isSafeInteger(sampleN) && sampleN >= minSampleN && sampleN <= maxSampleN;
   const desiredCompletes = Number(targetCompletes);
   const responseRate = Number(expectedResponsePct) / 100;
   const contactabilityRate = effectivePopulation > 0 ? Math.min(1, activeContacts / effectivePopulation) : 0;
-  const rawSuggested = desiredCompletes > 0 && responseRate > 0 && contactabilityRate > 0
+  const rawSuggested = fieldworkPhase === "main" && desiredCompletes > 0 && responseRate > 0 && contactabilityRate > 0
     ? Math.ceil(desiredCompletes / (responseRate * contactabilityRate))
     : 0;
   const suggestedSelected = rawSuggested > 0
@@ -160,9 +162,11 @@ export function ResearchStudySamplingControls({
           >Use suggested n</button>
         </div>
         <small>
-          {suggestedSelected
-            ? `Suggested selected n: ${suggestedSelected.toLocaleString("el-GR")} → about ${expectedInvitable.toLocaleString("el-GR")} contactable units → about ${expectedCompletesAtSuggestion.toLocaleString("el-GR")} completes at ${expectedResponsePct || "0"}% invited-response assumption.`
-            : "A suggestion appears once the frame has active contacts and valid completion/response assumptions."}
+          {fieldworkPhase === "pilot"
+            ? "Pilot sizing is diagnostic rather than inferential: choose 10–1,000 units to test comprehension, routing and fieldwork operations. The main sample is calculated only after the pilot holdout is sealed."
+            : suggestedSelected
+              ? `Suggested selected n: ${suggestedSelected.toLocaleString("el-GR")} → about ${expectedInvitable.toLocaleString("el-GR")} contactable units → about ${expectedCompletesAtSuggestion.toLocaleString("el-GR")} completes at ${expectedResponsePct || "0"}% invited-response assumption.`
+              : "A suggestion appears once the frame has active contacts and valid completion/response assumptions."}
           {preferredVarianceFloor > 0
             ? ` Preferred design floor for the v2 draw is up to two selected units per stratum (${preferredVarianceFloor.toLocaleString("el-GR")} units if capacity permits).`
             : ""}
@@ -188,8 +192,8 @@ export function ResearchStudySamplingControls({
         <input
           aria-label="Selected businesses"
           inputMode="numeric"
-          min={100}
-          max={100000}
+          min={minSampleN}
+          max={maxSampleN}
           onChange={(event) => setTargetN(event.target.value.replace(/[^0-9]/g, ""))}
           placeholder="Selected units"
           type="number"
@@ -214,7 +218,7 @@ export function ResearchStudySamplingControls({
     <div className="workspace-inline-note">
       {message || (workerBusy
         ? `Worker jobs pending/running: ${queuedJobs + runningJobs}. Frame/sample actions remain locked until the current job finishes.`
-        : "Pilot and main samples are deliberately separate. Main draws exclude businesses exposed during the pilot; sample size is still chosen from precision, subgroup and expected-response needs.")}
+        : "Pilot and main samples are deliberately separate. Pilot draws use diagnostic bounds (10–1,000); main draws use inferential bounds (100–100,000) and exclude every business actually contacted during the pilot.")}
     </div>
   </div>;
 }
