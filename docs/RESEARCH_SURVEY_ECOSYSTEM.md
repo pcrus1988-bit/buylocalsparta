@@ -76,6 +76,17 @@ The sample planner is part of the reproducibility chain rather than transient ad
 - The public release artifact freezes the main sample-design fingerprint and summary assumptions, allowing readers to distinguish the planned fieldwork design from the response rate that actually occurred.
 - Schema 0425 hardens this at the database boundary: design rows can only be inserted while their draw is still `draft`, draw/study/phase/target identity must match, each stratum must belong to the draw frame, and persisted selected counts must match the actual sample units before the draw can be locked.
 
+### Protocol deviations and amendments
+
+Study departures are now governed evidence rather than informal admin notes.
+
+- Schema 0426 adds the append-only `research_protocol_events` ledger for deviations, amendments and resolutions across design, pilot, main fieldwork, analysis and publication.
+- Every event records category, severity, description, optional rationale, impact assessment, corrective action, occurrence time and a canonical `kontamou.research.protocol-event.v1` SHA-256 fingerprint.
+- Material and critical events require an impact assessment. Resolution events must reference an earlier event and include corrective action.
+- Rows cannot be updated or deleted; corrections and resolutions are new evidence rows. Database triggers also prevent cross-study references.
+- The admin research workspace can create and review protocol events. The immutable release re-verifies every stored event hash, freezes the public-safe event ledger, and publishes the count of unresolved material/critical events.
+- This prevents protocol drift from being silently rewritten after fieldwork and gives later readers a direct record of departures from the planned study.
+
 ### Invitations
 
 - `research_invites` stores only the SHA-256 hash of the random invitation token.
