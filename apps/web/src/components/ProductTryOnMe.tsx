@@ -21,6 +21,8 @@ const LEGACY_MODEL_KEY = TRY_ON_LEGACY_MODEL_KEY;
 const LEGACY_PREVIEW_PREFIX = TRY_ON_LEGACY_PREVIEW_PREFIX;
 const PREVIEW_TTL_MS = 5 * 60 * 1000;
 const MAX_MODEL_DATA_URL_CHARS = 3_450_000;
+const MAX_MODEL_PHOTOS = 3;
+const RESULT_REVEAL_HOLD_MS = 3_000;
 
 type SessionPayload = Readonly<{ csrfToken?: string; tryOnStorageScope?: string; tryOnAvailable?: boolean }>;
 type TryOnQuota = Readonly<{
@@ -55,6 +57,7 @@ class TryOnRequestError extends Error {
 
 const sharedGenerations = new Map<string, SharedGeneration>();
 const latestGenerationBySlot = new Map<string, string>();
+const modelGalleriesByScope = new Map<string, string[]>();
 
 function messageFor(error: string): string {
   if (error === "AUTH_REQUIRED") return "Η σύνδεσή σου έληξε. Συνδέσου ξανά για να συνεχίσεις με το Try On Me.";
@@ -178,6 +181,19 @@ function storeModelPhoto(scope: string, value: string): void {
   }
 }
 
+function readModelGallery(scope: string): string[] {
+  const inMemory = modelGalleriesByScope.get(scope);
+  if (inMemory?.length) return inMemory.slice(0, MAX_MODEL_PHOTOS);
+  const stored = readStoredModel(scope);
+  const gallery = stored ? [stored] : [];
+  modelGalleriesByScope.set(scope, gallery);
+  return gallery;
+}
+
+function rememberModelGallery(scope: string, photos: string[]): void {
+  modelGalleriesByScope.set(scope, photos.slice(0, MAX_MODEL_PHOTOS));
+}
+
 function readPreview(scope: string, productId: string): CachedPreview | undefined {
   const key = previewKey(scope, productId);
   try {
@@ -297,6 +313,7 @@ function clearTryOnArtifactsForScope(scope: string) {
   cancelSharedGenerationsForScope(scope);
   removeStoredModel(scope);
   clearTryOnPreviews(scope);
+  modelGalleriesByScope.delete(scope);
 }
 
 function activeTryOnScope(): string | undefined {
@@ -389,6 +406,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   const [autoTryOnEnabled, setAutoTryOnEnabled] = useState(true);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [modelImage, setModelImage] = useState<string>();
+  const [modelImages, setModelImages] = useState<string[]>([]);
   const [result, setResult] = useState<TryOnResult>();
   const [previewExpiresAt, setPreviewExpiresAt] = useState<number>();
   const [busy, setBusy] = useState<"photo" | "generate" | "save" | "">("");
@@ -432,7 +450,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
       if (generationAttempt.current !== attempt) return;
 
       setGenerationOverlay({ photo, resultImage: generated.imageDataUrl });
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 720));
+      await new Promise<void>((resolve) => window.setTimeout(resolve, RESULT_REVEAL_HOLD_MS));
       if (generationAttempt.current !== attempt) return;
 
       setResult(generated);
@@ -462,6 +480,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     setQuotaChecked(false);
     setAutoTryOnEnabled(true);
     setModelImage(undefined);
+    setModelImages([]);
     setResult(undefined);
     setPreviewExpiresAt(undefined);
     setSaved(false);
@@ -506,8 +525,12 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
           }
           if (!active) return;
           const cached = readPreview(scope, productId);
+          const gallery = readModelGallery(scope);
+          const storedModel = readStoredModel(scope);
+          const selectedModel = storedModel && gallery.includes(storedModel) ? storedModel : gallery[0];
           setAutoTryOnEnabled(readAutoTryOn(scope));
-          setModelImage(readStoredModel(scope));
+          setModelImages(gallery);
+          setModelImage(selectedModel);
           setResult(cached?.result);
           setPreviewExpiresAt(cached?.expiresAt);
         }
@@ -570,30 +593,92 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     };
   }, [csrfToken, quota?.resetAt]);
 
-  async function choosePhoto(file: File | undefined) {
+  async function choosePhotos(files: FileList | null) {
     if (quota?.remaining === 0) {
       setError(messageFor("TRY_ON_MONTHLY_LIMIT_REACHED"));
       return;
     }
-    if (!file || busy || !storageScope) return;
+    if (!files?.length || busy || !storageScope) return;
+    const availableSlots = Math.max(0, MAX_MODEL_PHOTOS - modelImages.length);
+    if (availableSlots === 0) return;
+
+    const selectedFiles = Array.from(files).slice(0, availableSlots);
     setBusy("photo");
     setError("");
     try {
-      const normalized = await normalizeModelPhoto(file);
+      const normalizedPhotos: string[] = [];
+      for (const file of selectedFiles) {
+        normalizedPhotos.push(await normalizeModelPhoto(file));
+      }
+
+      const nextPhotos = [...modelImages];
+      for (const normalized of normalizedPhotos) {
+        if (!nextPhotos.includes(normalized) && nextPhotos.length < MAX_MODEL_PHOTOS) nextPhotos.push(normalized);
+      }
+      const selected = normalizedPhotos.find((photo) => nextPhotos.includes(photo)) ?? nextPhotos[0];
+      if (!selected) return;
+
       cancelSharedGeneration(storageScope, productId);
-      storeModelPhoto(storageScope, normalized);
+      storeModelPhoto(storageScope, selected);
+      rememberModelGallery(storageScope, nextPhotos);
       clearTryOnPreviews(storageScope);
-      setModelImage(normalized);
+      setModelImages(nextPhotos);
+      setModelImage(selected);
       setResult(undefined);
       setPreviewExpiresAt(undefined);
       setSaved(false);
       autoStarted.current = true;
-      if (csrfToken) await generate(normalized, csrfToken, storageScope);
+      if (csrfToken) await generate(selected, csrfToken, storageScope);
     } catch (cause) {
       setError(messageFor(cause instanceof Error ? cause.message : "INVALID_TRY_ON_IMAGE"));
     } finally {
       setBusy("");
     }
+  }
+
+  async function selectModelPhoto(photo: string) {
+    if (!storageScope || busy || photo === modelImage) return;
+    generationAttempt.current += 1;
+    cancelSharedGeneration(storageScope, productId);
+    storeModelPhoto(storageScope, photo);
+    clearTryOnPreviews(storageScope);
+    setModelImage(photo);
+    setResult(undefined);
+    setPreviewExpiresAt(undefined);
+    setSaved(false);
+    setError("");
+    setGenerationOverlay(undefined);
+    autoStarted.current = true;
+
+    if (autoTryOnEnabled && csrfToken && quota?.remaining !== 0) {
+      await generate(photo, csrfToken, storageScope);
+    }
+  }
+
+  function removeModelPhoto(photo: string) {
+    if (busy || !storageScope) return;
+    const nextPhotos = modelImages.filter((candidate) => candidate !== photo);
+    rememberModelGallery(storageScope, nextPhotos);
+
+    if (photo !== modelImage) {
+      setModelImages(nextPhotos);
+      return;
+    }
+
+    generationAttempt.current += 1;
+    cancelSharedGeneration(storageScope, productId);
+    clearTryOnPreviews(storageScope);
+    const nextSelected = nextPhotos[0];
+    if (nextSelected) storeModelPhoto(storageScope, nextSelected);
+    else removeStoredModel(storageScope);
+    setModelImages(nextPhotos);
+    setModelImage(nextSelected);
+    setResult(undefined);
+    setPreviewExpiresAt(undefined);
+    setSaved(false);
+    setError("");
+    setGenerationOverlay(undefined);
+    autoStarted.current = true;
   }
 
   function toggleAutoTryOn() {
@@ -613,6 +698,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
       clearTryOnArtifactsForScope(storageScope);
     }
     setModelImage(undefined);
+    setModelImages([]);
     setResult(undefined);
     setPreviewExpiresAt(undefined);
     setSaved(false);
@@ -740,7 +826,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
 
       {!modelImage ? (
         <>
-          <p>Βάλε μία καθαρή φωτογραφία σου. Το KONTA MOY την αποθηκεύει μόνο στη συσκευή σου· για τη δημιουργία της προεπισκόπησης αποστέλλεται προσωρινά στον πάροχο FASHN και δεν αποθηκεύεται ως φωτογραφία προφίλ. Σε αλλαγή λογαριασμού ή ληγμένη σύνδεση, τα τοπικά Try On δεδομένα του προηγούμενου λογαριασμού καθαρίζονται.</p>
+          <p>Βάλε έως 3 καθαρές φωτογραφίες σου και διάλεξε από τα thumbnails ποια θα χρησιμοποιηθεί. Το KONTA MOY τις κρατά μόνο στη συσκευή/τρέχουσα συνεδρία σου· για τη δημιουργία της προεπισκόπησης αποστέλλεται προσωρινά στον πάροχο FASHN και δεν αποθηκεύεται ως φωτογραφία προφίλ. Σε αλλαγή λογαριασμού ή ληγμένη σύνδεση, τα τοπικά Try On δεδομένα του προηγούμενου λογαριασμού καθαρίζονται.</p>
           {quotaExhausted ? (
             <div className={styles.quotaReached} role="status">
               <strong>Το μηνιαίο όριο ολοκληρώθηκε.</strong>
@@ -748,20 +834,69 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
             </div>
           ) : (
             <label className={styles.upload}>
-              <span>{busy === "photo" ? "Ετοιμασία φωτογραφίας…" : "Πρόσθεσε φωτογραφία σου"}</span>
+              <span>{busy === "photo" ? "Ετοιμασία φωτογραφιών…" : "Πρόσθεσε έως 3 φωτογραφίες σου"}</span>
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
+                multiple
                 disabled={Boolean(busy)}
-                onChange={(event) => void choosePhoto(event.currentTarget.files?.[0])}
+                onChange={(event) => void choosePhotos(event.currentTarget.files)}
               />
             </label>
           )}
         </>
       ) : (
         <>
+          <div className={styles.photoPicker}>
+            <div className={styles.photoThumbnails} role="list" aria-label="Φωτογραφίες Try On Me">
+              {modelImages.map((photo, index) => {
+                const selected = photo === modelImage;
+                return (
+                  <div className={styles.photoSlot} role="listitem" key={`${photoFingerprint(photo)}-${index}`}>
+                    <button
+                      className={selected ? `${styles.photoThumb} ${styles.photoThumbActive}` : styles.photoThumb}
+                      type="button"
+                      aria-pressed={selected}
+                      aria-label={`Χρήση φωτογραφίας ${index + 1}`}
+                      disabled={Boolean(busy)}
+                      onClick={() => void selectModelPhoto(photo)}
+                    >
+                      <img src={photo} alt={`Φωτογραφία Try On ${index + 1}`} />
+                      {selected ? <span className={styles.photoSelected}>Επιλεγμένη</span> : null}
+                    </button>
+                    {modelImages.length > 1 ? (
+                      <button
+                        className={styles.photoRemove}
+                        type="button"
+                        aria-label={`Αφαίρεση φωτογραφίας ${index + 1}`}
+                        disabled={Boolean(busy)}
+                        onClick={() => removeModelPhoto(photo)}
+                      >
+                        ×
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
+              {modelImages.length < MAX_MODEL_PHOTOS && !quotaExhausted ? (
+                <label className={styles.photoAdd}>
+                  <strong>＋</strong>
+                  <span>Πρόσθεσε</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    disabled={Boolean(busy)}
+                    onChange={(event) => void choosePhotos(event.currentTarget.files)}
+                  />
+                </label>
+              ) : null}
+            </div>
+            <small>Μπορείς να έχεις έως 3 φωτογραφίες. Πάτησε ένα thumbnail για να επιλέξεις ποια θα χρησιμοποιηθεί στην επόμενη δημιουργία.</small>
+          </div>
+
           <div className={styles.modelControls}>
-            <span>Η φωτογραφία σου είναι ενεργή για Try On Me.</span>
+            <span>Η επιλεγμένη φωτογραφία χρησιμοποιείται για Try On Me.</span>
             <button
               className={styles.autoToggle}
               type="button"
@@ -771,18 +906,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
             >
               Auto Try On: {autoTryOnEnabled ? "ON" : "OFF"}
             </button>
-            {!quotaExhausted ? (
-              <label className={styles.textAction}>
-                Αλλαγή
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  disabled={Boolean(busy)}
-                  onChange={(event) => void choosePhoto(event.currentTarget.files?.[0])}
-                />
-              </label>
-            ) : null}
-            <button className={styles.textAction} type="button" onClick={removePhoto} disabled={Boolean(busy)}>Αφαίρεση</button>
+            <button className={styles.textAction} type="button" onClick={removePhoto} disabled={Boolean(busy)}>Αφαίρεση όλων</button>
           </div>
 
           {busy === "generate" && !result ? (
