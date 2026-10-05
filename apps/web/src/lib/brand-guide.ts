@@ -14,12 +14,29 @@ export type BrandGuideSource = Readonly<{
   type?: string;
 }>;
 
+export type BrandGuideCatalogueCategory = Readonly<{
+  slug: string;
+  count: number;
+}>;
+
+export type BrandGuideCatalogueProfile = Readonly<{
+  activeFamilyCount: number;
+  generatedAt?: string;
+  topCategories: readonly BrandGuideCatalogueCategory[];
+}>;
+
 export type BrandGuideContent = Readonly<{
   status: BrandGuideStatus;
   seoIndexable: boolean;
   foundedYear?: number;
   parentCompany?: string;
   brandStory?: string;
+  catalogueSummary?: string;
+  catalogueStoryBridge?: string;
+  catalogueProfile?: BrandGuideCatalogueProfile;
+  depthSourceBasis: readonly string[];
+  depthEnrichedAt?: string;
+  depthEnrichmentVersion?: string;
   whyItStandsOut?: string;
   knownFor: readonly string[];
   signatureProducts: readonly string[];
@@ -77,6 +94,35 @@ function numberInRange(value: unknown, min: number, max: number): number | undef
   return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : undefined;
 }
 
+function catalogueCategories(value: unknown): readonly BrandGuideCatalogueCategory[] {
+  if (!Array.isArray(value)) return [];
+  const output: BrandGuideCatalogueCategory[] = [];
+  const seen = new Set<string>();
+  for (const candidate of value) {
+    const item = record(candidate);
+    const slug = optionalText(item.slug, 160);
+    const count = numberInRange(item.count, 0, Number.MAX_SAFE_INTEGER);
+    if (!slug || count === undefined || seen.has(slug)) continue;
+    seen.add(slug);
+    output.push({ slug, count });
+    if (output.length >= 8) break;
+  }
+  return output;
+}
+
+function catalogueProfile(value: unknown): BrandGuideCatalogueProfile | undefined {
+  const profile = record(value);
+  const activeFamilyCount = numberInRange(profile.active_family_count, 0, Number.MAX_SAFE_INTEGER);
+  const topCategories = catalogueCategories(profile.top_categories);
+  const generatedAt = optionalText(profile.generated_at, 64);
+  if (activeFamilyCount === undefined && !topCategories.length && !generatedAt) return undefined;
+  return {
+    activeFamilyCount: activeFamilyCount ?? 0,
+    generatedAt,
+    topCategories
+  };
+}
+
 function guideStatus(value: unknown): BrandGuideStatus {
   return BRAND_GUIDE_STATUSES.includes(value as BrandGuideStatus)
     ? value as BrandGuideStatus
@@ -123,6 +169,12 @@ export function parseBrandGuide(metadata: unknown): BrandGuideContent {
     foundedYear: numberInRange(guide.founded_year, 1000, new Date().getUTCFullYear()),
     parentCompany: optionalText(guide.parent_company, 200),
     brandStory: optionalText(guide.brand_story),
+    catalogueSummary: optionalText(guide.catalogue_summary),
+    catalogueStoryBridge: optionalText(guide.catalogue_story_bridge),
+    catalogueProfile: catalogueProfile(guide.catalogue_profile),
+    depthSourceBasis: stringList(guide.depth_source_basis, 6),
+    depthEnrichedAt: optionalText(guide.depth_enriched_at, 64),
+    depthEnrichmentVersion: optionalText(guide.depth_enrichment_version, 120),
     whyItStandsOut: optionalText(guide.why_it_stands_out),
     knownFor: stringList(guide.known_for),
     signatureProducts: stringList(guide.signature_products),

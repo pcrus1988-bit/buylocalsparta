@@ -6,6 +6,7 @@ import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { getPublicBrandGuide } from "../../../lib/brand-guide-runtime";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
+import { storefrontCategoryForCode, storefrontLeafForSubcategory } from "../../../lib/storefront-taxonomy";
 import styles from "./page.module.css";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
@@ -16,6 +17,13 @@ function host(value: string): string {
 
 function jsonLd(value: unknown): string {
   return JSON.stringify(value).replaceAll("<", "\\u003c");
+}
+
+function greekList(values: readonly string[]): string {
+  if (!values.length) return "";
+  if (values.length === 1) return values[0] ?? "";
+  if (values.length === 2) return `${values[0]} και ${values[1]}`;
+  return `${values.slice(0, -1).join(", ")} και ${values.at(-1)}`;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -75,6 +83,32 @@ export default async function BrandGuidePage({ params }: Props) {
     ...brand.guide.productFamilies
   ].filter((value, index, all) => all.indexOf(value) === index).slice(0, 8);
 
+  const categoryByCode = new Map(brand.categories.map((category) => [category.code, category] as const));
+  const catalogueHighlights = (brand.guide.catalogueProfile?.topCategories ?? [])
+    .map((profileCategory) => {
+      const liveCategory = categoryByCode.get(profileCategory.slug);
+      const department = storefrontCategoryForCode(profileCategory.slug, liveCategory?.departmentSlug);
+      return storefrontLeafForSubcategory(
+        department.slug,
+        profileCategory.slug,
+        liveCategory?.label ?? ""
+      )?.label ?? liveCategory?.label ?? department.label;
+    })
+    .filter((label, index, all) => all.indexOf(label) === index)
+    .slice(0, 3);
+  const liveCatalogueHighlights = catalogueHighlights.length
+    ? catalogueHighlights
+    : brand.categories.slice(0, 3).map((category) => category.label);
+  const catalogueStory = liveCatalogueHighlights.length
+    ? `Στο ενεργό catalogue του ΚΟΝΤΑ ΜΟΥ, η σημερινή παρουσία της μάρκας αποτυπώνεται κυρίως σε ${greekList(liveCatalogueHighlights)}. Η εικόνα αυτή συνδέει την τεκμηριωμένη ιστορία και την ταυτότητα του brand με ό,τι υπάρχει πραγματικά στον κατάλογο αυτή τη στιγμή.`
+    : brand.guide.catalogueStoryBridge ?? brand.guide.catalogueSummary;
+  const hasCatalogueDepth = Boolean(
+    catalogueStory
+    || brand.guide.catalogueProfile
+    || brand.guide.catalogueSummary
+    || brand.guide.catalogueStoryBridge
+  );
+
   return <main className={styles.page}>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumb) }} />
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(brandStructuredData) }} />
@@ -110,6 +144,33 @@ export default async function BrandGuidePage({ params }: Props) {
         <div className={styles.sectionHeader}>
           <div><div className="eyebrow">Γιατί ξεχωρίζει</div><h2>Η ταυτότητα του {brand.name}</h2></div>
           <p className={styles.copy}>{brand.guide.whyItStandsOut}</p>
+        </div>
+      </section> : null}
+
+      {hasCatalogueDepth ? <section className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <div>
+            <div className="eyebrow">Στο ΚΟΝΤΑ ΜΟΥ σήμερα</div>
+            <h2>Η ιστορία συναντά το σημερινό catalogue.</h2>
+          </div>
+          <div className={styles.storyStack}>
+            {catalogueStory ? <p className={styles.copy}>{catalogueStory}</p> : null}
+            <p className={styles.catalogueNote}>Η εμπορική εικόνα ανανεώνεται μαζί με τον ενεργό κατάλογο και δεν αντικαθιστά την τεκμηριωμένη ιστορική αφήγηση του brand.</p>
+          </div>
+        </div>
+        <div className={styles.facts}>
+          {brand.guide.catalogueProfile?.activeFamilyCount ? <div className={styles.fact}>
+            <span>Ενεργές οικογένειες προϊόντων</span>
+            <strong>{brand.guide.catalogueProfile.activeFamilyCount.toLocaleString("el-GR")}</strong>
+          </div> : null}
+          <div className={styles.fact}>
+            <span>Διαθέσιμα τώρα</span>
+            <strong>{brand.liveProductCount.toLocaleString("el-GR")} προϊόντα</strong>
+          </div>
+          {liveCatalogueHighlights[0] ? <div className={styles.fact}>
+            <span>Ισχυρότερο πεδίο σήμερα</span>
+            <strong>{liveCatalogueHighlights[0]}</strong>
+          </div> : null}
         </div>
       </section> : null}
 
