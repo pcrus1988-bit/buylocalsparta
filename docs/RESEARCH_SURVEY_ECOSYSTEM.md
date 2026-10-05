@@ -33,6 +33,8 @@ Each object has a stable identifier. Methodological objects are never silently o
 
 The scientific sample must be drawn from the frozen eligible population, not from the subset for which an email address happened to be found.
 
+New draws use algorithm `stratified-hash-rank-v2`. When the requested sample size can support it, the allocation first places up to two selected units in every non-empty sampling stratum and then distributes the remainder proportionally to remaining stratum capacity. This deliberately permits mildly disproportionate allocation; the stored inclusion probability and base weight preserve the design. If the requested sample cannot cover that preferred floor, the allocator falls back to one-per-stratum when possible and then proportional allocation.
+
 ### Contact layer
 
 - `research_contact_points` is intentionally separate from the response dataset.
@@ -41,6 +43,9 @@ The scientific sample must be drawn from the frozen eligible population, not fro
 - Invalid, bounced or suppressed contact points remain explicit non-response evidence rather than being silently removed from the denominator.
 - `research_contact_suppression_events` is an append-only, hash-based cross-wave ledger. Participant research opt-outs, SES complaints and bounces therefore survive later frame rebuilds instead of being trapped inside one snapshot.
 - Frame ingestion and send-time eligibility both consult the cross-wave ledger. A new G.E.MI. snapshot cannot silently reactivate a suppressed contact hash.
+- Contactability is measured as distinct frozen-frame units with at least one usable active email, not raw email-row count.
+- The admin sample planner combines frame contactability, a user-supplied expected invited-response rate and desired completes to show a feasibility estimate. It never silently changes the sample target.
+- The frozen release stores overall and per-stratum email contactability. Low email coverage is therefore an explicit fieldwork limitation rather than being hidden inside the final response rate.
 
 ### Invitations
 
