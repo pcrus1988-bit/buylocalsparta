@@ -272,8 +272,8 @@ export default async function GreekRetailResultsPage() {
                 {" "}{event.occurredAt ? new Date(String(event.occurredAt)).toLocaleString("el-GR") : "—"} ·
                 {" "}SHA {String(event.contentSha256 ?? "—")}
               </small>
-              {event.impactAssessment && <p><strong>Impact:</strong> {String(event.impactAssessment)}</p>}
-              {event.correctiveAction && <p><strong>Corrective action:</strong> {String(event.correctiveAction)}</p>}
+              {Boolean(event.impactAssessment) && <p><strong>Impact:</strong> {String(event.impactAssessment)}</p>}
+              {Boolean(event.correctiveAction) && <p><strong>Corrective action:</strong> {String(event.correctiveAction)}</p>}
             </article>)}
           </div>
         </>}
