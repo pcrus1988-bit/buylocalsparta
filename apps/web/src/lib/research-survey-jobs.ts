@@ -376,6 +376,13 @@ async function markJobError(job: ResearchJobRow, error: unknown): Promise<"reque
     `, [job.id, message, delayMinutes]);
     return "requeued";
   }
+  if (job.job_type === "analysis") {
+    await getProductionPostgresRuntime().sqlPool.query(`
+      UPDATE research_analysis_runs
+      SET status='failed',completed_at=now()
+      WHERE study_id=$1 AND parameters->>'jobId'=$2 AND status='running'
+    `, [job.study_id, job.id]);
+  }
   await getProductionPostgresRuntime().sqlPool.query(`
     UPDATE research_study_jobs
     SET status='failed', error_message=$2, finished_at=now()
