@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { researchFieldworkOutcomeSummary } from "./research-survey-statistics";
 
 const STUDY_SLUG = "greek-retail-2026";
 const PUBLIC_RESULTS_PATH = "/research/greek-retail-2026/results";
@@ -405,6 +406,19 @@ export async function buildGreekRetailRelease(
     ORDER BY disposition_code,eligibility
   `, [sampleDrawId]);
 
+  const latestDispositionCounts = dispositionCounts.rows.map((row) => ({
+    dispositionCode: text(row.disposition_code),
+    eligibility: text(row.eligibility),
+    count: numberValue(row.count)
+  }));
+  const fieldworkOutcome = researchFieldworkOutcomeSummary(
+    numberValue(counts.selected),
+    latestDispositionCounts
+  );
+  if (!fieldworkOutcome.sealed) {
+    throw new Error("RESEARCH_RELEASE_REQUIRES_SEALED_FIELDWORK_DISPOSITIONS");
+  }
+
   const estimatesResult = await pool.query<SqlRow>(`
     SELECT metric_key,segment,estimate,standard_error,confidence_level,ci_lower,ci_upper,
            unweighted_n,weighted_n,method,suppressed,metadata
@@ -527,11 +541,8 @@ export async function buildGreekRetailRelease(
       completionRateOfStarted: rate(counts.completed, counts.started),
       analyzed: numberValue(counts.analyzed),
       qualityExcluded: numberValue(pendingReviews.rows[0]?.exclude_count),
-      latestDispositionCounts: dispositionCounts.rows.map((row) => ({
-        dispositionCode: text(row.disposition_code),
-        eligibility: text(row.eligibility),
-        count: numberValue(row.count)
-      }))
+      latestDispositionCounts,
+      outcomeSummary: fieldworkOutcome
     },
     analysis: {
       runId: analysisRunId,
