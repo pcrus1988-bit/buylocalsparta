@@ -238,6 +238,8 @@ if (!surveyRuntime.includes("cancelled_by_fieldwork_closeout")) errors.push("fie
 if (!surveyRuntime.includes("greek-retail-2026-fieldwork-closeout-v1")) errors.push("fieldwork closeout version marker missing");
 if (!jobs.includes("gemiResearchFrameRecords")) errors.push("GEMI frame worker bridge missing");
 if (!jobs.includes("stratified-hash-rank-v2")) errors.push("minimum-aware reproducible sample algorithm missing");
+if (!jobs.includes("RESEARCH_SAMPLE_REDRAW_AFTER_CONTACT")) errors.push("sample draw is not frozen after participant contact");
+if (!jobs.includes("pfu.external_key_hash=fu.external_key_hash")) errors.push("pilot holdout does not survive frame refreshes");
 if (!jobs.includes("processInviteBatchJob")) errors.push("worker-managed invitation delivery missing");
 if (!jobs.includes("processRewardDeliveryJob")) errors.push("worker-managed reward delivery missing");
 if (!jobs.includes("processResultsNotificationJob")) errors.push("worker-managed results notification missing");
@@ -262,6 +264,7 @@ if (!sesEvents.includes("provider_message_not_research_message")) errors.push("S
 if (!jobs.includes("research_contact_is_suppressed")) errors.push("research worker does not enforce cross-wave suppression");
 if (!jobs.includes("queueGreekRetailInviteReminderBatch")) errors.push("governed reminder queue missing");
 if (!jobs.includes("processInviteReminderJob")) errors.push("governed reminder worker missing");
+if (!jobs.includes("'invite_batch','invite_reminder'")) errors.push("reminder jobs are not claimable by the research worker");
 if (!jobs.includes("PRIOR_ATTEMPT_NOT_RETRIED")) errors.push("reminder retries are not fail-closed");
 if (!jobs.includes("attemptKind: \"reminder\"")) errors.push("reminder SES attempt tagging missing");
 if (!surveyRuntime.includes("research_invite_access_tokens")) errors.push("public survey does not resolve token aliases");
@@ -275,6 +278,7 @@ if (!release.includes("outcomeSummary: fieldworkOutcome")) errors.push("release 
 if (!release.includes("contactAttempts")) errors.push("release does not freeze contact-attempt paradata");
 if (!surveyRuntime.includes("participant_research_opt_out")) errors.push("participant future-research opt-out path missing");
 if (!quality.includes("researchQualityReviewQueue")) errors.push("manual research QA queue missing");
+if (!quality.includes("ri.fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END")) errors.push("manual QA queue is not fieldwork-phase scoped");
 if (!quality.includes("resolveResearchQualityReview")) errors.push("manual research QA resolver missing");
 if (!quality.includes("FOR UPDATE OF rr")) errors.push("manual research QA resolution is not serialized");
 if (!qualityControls.includes('void resolve(item, "include")')) errors.push("research QA include control missing");
@@ -294,6 +298,8 @@ if (!analysis.includes('ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v6"'
 if (!analysis.includes("ri.fieldwork_phase='main'")) errors.push("analysis does not isolate main-fieldwork responses");
 if (!jobs.includes("pri.sent_at IS NOT NULL")) errors.push("main sample does not durably exclude pilot-exposed businesses");
 if (!surveyRuntime.includes("RESEARCH_PILOT_CLOSE_CONTACT_JOB_RUNNING")) errors.push("pilot closeout does not guard running contact jobs");
+if (!surveyRuntime.includes("'sample_draw','invite_batch','invite_reminder'")) errors.push("fieldwork phase transitions do not serialize sample/contact jobs");
+if (!surveyRuntime.includes("phasePopulation: numberValue(row.phase_population)")) errors.push("admin sample planner is not using phase-aware population");
 if (!surveyRuntime.includes("pilot_ended_at")) errors.push("pilot closeout timestamp missing");
 if (!release.includes("exposedUnitsExcludedFromMainDraw")) errors.push("release does not disclose pilot holdout");
 if (!release.includes('phase: "main"')) errors.push("release does not identify main fieldwork phase");
