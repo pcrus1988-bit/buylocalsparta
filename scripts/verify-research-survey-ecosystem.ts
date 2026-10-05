@@ -15,6 +15,8 @@ const securityHardeningMigrationPath = "db/migrations/0421_research_analysis_pla
 const securityHardeningChecksumPath = "db/migrations/checksums.0421.json";
 const experimentIntegrityMigrationPath = "db/migrations/0422_research_experiment_assignment_integrity.sql";
 const experimentIntegrityChecksumPath = "db/migrations/checksums.0422.json";
+const phaseIsolationMigrationPath = "db/migrations/0423_research_pilot_main_phase_isolation.sql";
+const phaseIsolationChecksumPath = "db/migrations/checksums.0423.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const deliveryMigration = readFileSync(deliveryMigrationPath, "utf8");
@@ -22,6 +24,7 @@ const reminderMigration = readFileSync(reminderMigrationPath, "utf8");
 const analysisPlanMigration = readFileSync(analysisPlanMigrationPath, "utf8");
 const securityHardeningMigration = readFileSync(securityHardeningMigrationPath, "utf8");
 const experimentIntegrityMigration = readFileSync(experimentIntegrityMigrationPath, "utf8");
+const phaseIsolationMigration = readFileSync(phaseIsolationMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
 const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
@@ -29,6 +32,7 @@ const reminderChecksums = JSON.parse(readFileSync(reminderChecksumPath, "utf8"))
 const analysisPlanChecksums = JSON.parse(readFileSync(analysisPlanChecksumPath, "utf8")) as Record<string, string>;
 const securityHardeningChecksums = JSON.parse(readFileSync(securityHardeningChecksumPath, "utf8")) as Record<string, string>;
 const experimentIntegrityChecksums = JSON.parse(readFileSync(experimentIntegrityChecksumPath, "utf8")) as Record<string, string>;
+const phaseIsolationChecksums = JSON.parse(readFileSync(phaseIsolationChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
@@ -90,6 +94,7 @@ const reminderSha = createHash("sha256").update(reminderMigration, "utf8").diges
 const analysisPlanSha = createHash("sha256").update(analysisPlanMigration, "utf8").digest("hex");
 const securityHardeningSha = createHash("sha256").update(securityHardeningMigration, "utf8").digest("hex");
 const experimentIntegritySha = createHash("sha256").update(experimentIntegrityMigration, "utf8").digest("hex");
+const phaseIsolationSha = createHash("sha256").update(phaseIsolationMigration, "utf8").digest("hex");
 if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0416 checksum does not match migration bytes");
 }
@@ -111,7 +116,10 @@ if (securityHardeningChecksums["0421_research_analysis_plan_function_hardening.s
 if (experimentIntegrityChecksums["0422_research_experiment_assignment_integrity.sql"] !== experimentIntegritySha) {
   errors.push("0422 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 422")) errors.push("runtime schema head is not 422");
+if (phaseIsolationChecksums["0423_research_pilot_main_phase_isolation.sql"] !== phaseIsolationSha) {
+  errors.push("0423 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 423")) errors.push("runtime schema head is not 423");
 if (!reminderMigration.includes("CREATE TABLE public.research_invite_access_tokens")) errors.push("reminder access-token table missing");
 if (!reminderMigration.includes("CREATE TABLE public.research_invite_messages")) errors.push("invitation attempt ledger missing");
 if (!reminderMigration.includes("ALTER TABLE public.research_invite_access_tokens ENABLE ROW LEVEL SECURITY;")) errors.push("reminder access-token RLS missing");
@@ -150,6 +158,16 @@ if (!experimentIntegrityMigration.includes("RESEARCH_EXPERIMENT_CHOICE_CLOSED"))
 }
 if (!experimentIntegrityMigration.includes("SECURITY INVOKER")) {
   errors.push("experiment assignment guard is not security invoker");
+}
+if (!phaseIsolationMigration.includes("fieldwork_phase text NOT NULL DEFAULT 'main'")) {
+  errors.push("pilot/main fieldwork phase columns missing");
+}
+if (!phaseIsolationMigration.includes("pilot_started_at") || !phaseIsolationMigration.includes("pilot_ended_at")) {
+  errors.push("pilot timing boundary missing");
+}
+if (!phaseIsolationMigration.includes("research_invite_batches_draw_phase_fk")
+    || !phaseIsolationMigration.includes("research_invites_batch_phase_fk")) {
+  errors.push("pilot/main phase consistency foreign keys missing");
 }
 if (!experimentIntegrityMigration.includes("FROM PUBLIC;")
     || !experimentIntegrityMigration.includes("rolname = 'anon'")
@@ -272,7 +290,13 @@ if (!statistics.includes("unequal_within_stratum_weights")) errors.push("varianc
 if (!analysis.includes('VARIANCE_METHOD = "stratified_srs_fpc_v1"')) errors.push("analysis variance method is not versioned");
 if (!analysis.includes("'weightDiagnostics',$3::jsonb")) errors.push("analysis run does not persist weighting diagnostics");
 if (!statistics.includes("normalTwoSidedPValue")) errors.push("pairwise normal p-value helper missing");
-if (!analysis.includes('ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v5"')) errors.push("analysis code version is not v5");
+if (!analysis.includes('ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v6"')) errors.push("analysis code version is not v6");
+if (!analysis.includes("ri.fieldwork_phase='main'")) errors.push("analysis does not isolate main-fieldwork responses");
+if (!jobs.includes("pri.sent_at IS NOT NULL")) errors.push("main sample does not durably exclude pilot-exposed businesses");
+if (!surveyRuntime.includes("RESEARCH_PILOT_CLOSE_CONTACT_JOB_RUNNING")) errors.push("pilot closeout does not guard running contact jobs");
+if (!surveyRuntime.includes("pilot_ended_at")) errors.push("pilot closeout timestamp missing");
+if (!release.includes("exposedUnitsExcludedFromMainDraw")) errors.push("release does not disclose pilot holdout");
+if (!release.includes('phase: "main"')) errors.push("release does not identify main fieldwork phase");
 if (!statistics.includes("weightedClusteredDifferenceInMeans")) errors.push("respondent-clustered experimental estimator missing");
 if (!statisticsTests.includes("clustered experimental contrast keeps repeated profile evaluations inside respondent clusters")) errors.push("experimental clustered estimator test missing");
 if (!analysis.includes("randomized_profile_amce_clustered_v1")) errors.push("randomized profile experiment analysis missing");
@@ -336,7 +360,7 @@ if (!schemaRollout.includes("workflow_dispatch")) errors.push("research producti
 if (!schemaRollout.includes("environment: production")) errors.push("research production schema rollout lacks production environment gate");
 if (!schemaRollout.includes("if: ${{ inputs.apply }}")) errors.push("research schema mutation lacks explicit apply gate");
 if (!schemaRollout.includes("npm run db:migrate")) errors.push("research schema rollout bypasses checksum-aware migrator");
-if (!schemaPreflight.includes("expectedSourceVersion = 422")) errors.push("research schema rollout source-head guard missing");
+if (!schemaPreflight.includes("expectedSourceVersion = 423")) errors.push("research schema rollout source-head guard missing");
 if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
 if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
@@ -347,7 +371,7 @@ if (errors.length) {
 }
 console.log(JSON.stringify({
   ok: true,
-  schema: 422,
+  schema: 423,
   tables: created.length + 6,
   migrationSha256: sha,
   suppressionMigrationSha256: suppressionSha,
@@ -356,5 +380,6 @@ console.log(JSON.stringify({
   analysisPlanMigrationSha256: analysisPlanSha,
   securityHardeningMigrationSha256: securityHardeningSha,
   experimentIntegrityMigrationSha256: experimentIntegritySha,
+  phaseIsolationMigrationSha256: phaseIsolationSha,
   worker: pkg.scripts?.["worker:research"]
 }));
