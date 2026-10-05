@@ -186,6 +186,8 @@ Lifecycle transitions use `research.manage`, CSRF protection and the existing ad
 
 All research tables are RLS-enabled. `anon` and `authenticated` receive no direct privileges on the research tables. Public browser traffic only reaches server-side Next.js research routes. The service/database connection used by the application is never exposed to the browser.
 
+Schema 0421 also removes unnecessary `SECURITY DEFINER` execution from the analysis-plan trigger functions, switches them to `SECURITY INVOKER`, revokes direct execution from `PUBLIC`, `anon` and `authenticated`, and explicitly limits execution to `bls_platform_runtime`. This keeps analysis-plan immutability enforcement inside the same server-only privilege boundary as the research tables.
+
 Contact values and responses are kept in separate relational domains even though both reside in the research schema family. Admin surfaces should expose aggregate response information by default and require an explicit, audited workflow for contact-level access.
 
 ## Public routes
