@@ -6,7 +6,7 @@ import { getPublicProductDetail } from "./public-product-detail";
 import { publicOrigin } from "./public-origin";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { isTryOnGarmentCandidate } from "./try-on-eligibility";
-import { assertCustomerTryOnSaveToken, issueCustomerTryOnSaveToken } from "./try-on-security";
+import { assertCustomerTryOnSaveToken, CUSTOMER_TRY_ON_EPHEMERAL_TTL_MS, issueCustomerTryOnSaveToken } from "./try-on-security";
 
 const FASHN_BASE_URL = "https://api.fashn.ai/v1";
 // Keep base64 JSON requests/responses comfortably below Vercel's 4.5 MB Function payload cap.
@@ -54,6 +54,7 @@ export type CustomerTryOnGeneration = Readonly<{
   imageDataUrl: string;
   saveToken: string;
   generatedAt: string;
+  expiresAt: string;
 }>;
 
 let customerTryOnStorage: S3ObjectStorage | undefined;
@@ -337,6 +338,7 @@ export async function generateCustomerTryOn(input: {
     const output = status.output?.[0];
     const result = decodeDataImage(output, MAX_SAVED_IMAGE_BYTES, new Set(["image/jpeg", "image/png"]));
     const generatedAt = Date.now();
+    const expiresAt = generatedAt + CUSTOMER_TRY_ON_EPHEMERAL_TTL_MS;
     return {
       productId: product.id,
       productTitle: product.title,
@@ -350,7 +352,8 @@ export async function generateCustomerTryOn(input: {
         imageBytes: result.bytes,
         now: generatedAt
       }),
-      generatedAt: new Date(generatedAt).toISOString()
+      generatedAt: new Date(generatedAt).toISOString(),
+      expiresAt: new Date(expiresAt).toISOString()
     };
   }
   throw new Error("TRY_ON_TIMEOUT");
