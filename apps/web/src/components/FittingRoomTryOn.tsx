@@ -351,7 +351,7 @@ export function FittingRoomTryOn({
                   <img
                     src={finalResult.imageDataUrl}
                     alt={`Try On αποτέλεσμα · ${lookName}`}
-                    style={{ transform: `scale(${zoom})` }}
+                    style={{ width: `${zoom * 100}%` }}
                     onClick={() => setZoom((current) => current > 1 ? 1 : 1.65)}
                   />
                 </div>
