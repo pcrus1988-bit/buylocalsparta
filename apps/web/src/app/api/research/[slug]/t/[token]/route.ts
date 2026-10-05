@@ -1,4 +1,4 @@
-import { savePublicResearchSurvey } from "../../../../../../lib/research-survey-runtime";
+import { refusePublicResearchInvite, savePublicResearchSurvey } from "../../../../../../lib/research-survey-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +16,14 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
   try {
     const { slug, token } = await context.params;
     const body = await request.json() as Record<string, unknown>;
+    if (body.action === "refuse") {
+      const result = await refusePublicResearchInvite({
+        slug,
+        token,
+        suppressFutureResearch: body.suppressFutureResearch === true
+      });
+      return Response.json(result, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
+    }
     const result = await savePublicResearchSurvey({
       slug,
       token,
