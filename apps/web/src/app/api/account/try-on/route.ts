@@ -9,8 +9,15 @@ function statusFor(message: string): number {
   if (message === "TRY_ON_NOT_CONFIGURED") return 503;
   if (message === "TRY_ON_TIMEOUT") return 504;
   if (message === "TRY_ON_PRODUCT_NOT_FOUND") return 404;
-  if (message === "TRY_ON_PRODUCT_UNSUPPORTED" || message === "TRY_ON_PRODUCT_IMAGE_REQUIRED") return 422;
+  if (
+    message === "TRY_ON_PRODUCT_UNSUPPORTED"
+    || message === "TRY_ON_PRODUCT_IMAGE_REQUIRED"
+    || message === "TRY_ON_POSE_REQUIRED"
+    || message === "TRY_ON_CONTENT_BLOCKED"
+    || message === "TRY_ON_INPUT_INVALID"
+  ) return 422;
   if (message === "TRY_ON_IMAGE_TOO_LARGE" || message === "INVALID_TRY_ON_IMAGE") return 400;
+  if (message === "TRY_ON_PROVIDER_BUSY" || message === "TRY_ON_CREDITS_UNAVAILABLE") return 503;
   return 502;
 }
 
@@ -37,7 +44,8 @@ export async function POST(request: Request) {
     const result = await generateCustomerTryOn({
       userPublicId: principal.userId,
       productId,
-      modelImageDataUrl: body.modelImageDataUrl
+      modelImageDataUrl: body.modelImageDataUrl,
+      signal: request.signal
     });
     return Response.json({ result }, { headers: { "Cache-Control": "no-store, private" } });
   } catch (error) {
