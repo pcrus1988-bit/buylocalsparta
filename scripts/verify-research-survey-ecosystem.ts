@@ -7,12 +7,16 @@ const suppressionMigrationPath = "db/migrations/0417_research_contact_suppressio
 const suppressionChecksumPath = "db/migrations/checksums.0417.json";
 const deliveryMigrationPath = "db/migrations/0418_research_participant_delivery.sql";
 const deliveryChecksumPath = "db/migrations/checksums.0418.json";
+const reminderMigrationPath = "db/migrations/0419_research_invite_reminder_protocol.sql";
+const reminderChecksumPath = "db/migrations/checksums.0419.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const deliveryMigration = readFileSync(deliveryMigrationPath, "utf8");
+const reminderMigration = readFileSync(reminderMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
 const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
+const reminderChecksums = JSON.parse(readFileSync(reminderChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
@@ -68,6 +72,7 @@ const errors: string[] = [];
 const sha = createHash("sha256").update(migration, "utf8").digest("hex");
 const suppressionSha = createHash("sha256").update(suppressionMigration, "utf8").digest("hex");
 const deliverySha = createHash("sha256").update(deliveryMigration, "utf8").digest("hex");
+const reminderSha = createHash("sha256").update(reminderMigration, "utf8").digest("hex");
 if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0416 checksum does not match migration bytes");
 }
@@ -77,7 +82,15 @@ if (suppressionChecksums["0417_research_contact_suppression_ledger.sql"] !== sup
 if (deliveryChecksums["0418_research_participant_delivery.sql"] !== deliverySha) {
   errors.push("0418 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 418")) errors.push("runtime schema head is not 418");
+if (reminderChecksums["0419_research_invite_reminder_protocol.sql"] !== reminderSha) {
+  errors.push("0419 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 419")) errors.push("runtime schema head is not 419");
+if (!reminderMigration.includes("CREATE TABLE public.research_invite_access_tokens")) errors.push("reminder access-token table missing");
+if (!reminderMigration.includes("CREATE TABLE public.research_invite_messages")) errors.push("invitation attempt ledger missing");
+if (!reminderMigration.includes("ALTER TABLE public.research_invite_access_tokens ENABLE ROW LEVEL SECURITY;")) errors.push("reminder access-token RLS missing");
+if (!reminderMigration.includes("ALTER TABLE public.research_invite_messages ENABLE ROW LEVEL SECURITY;")) errors.push("invitation attempt RLS missing");
+if (!reminderMigration.includes("'invite_reminder'")) errors.push("invite_reminder job type missing from schema");
 if ((migration.match(/^BEGIN;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one BEGIN");
 if ((migration.match(/^COMMIT;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one COMMIT");
 
@@ -160,6 +173,16 @@ if (!sesEvents.includes("research_contact_suppression_events")) errors.push("SES
 if (!sesEvents.includes("research_participant_delivery_events")) errors.push("SES events do not audit participant delivery outcomes");
 if (!sesEvents.includes("provider_message_not_research_message")) errors.push("SES event routing does not recognize participant messages");
 if (!jobs.includes("research_contact_is_suppressed")) errors.push("research worker does not enforce cross-wave suppression");
+if (!jobs.includes("queueGreekRetailInviteReminderBatch")) errors.push("governed reminder queue missing");
+if (!jobs.includes("processInviteReminderJob")) errors.push("governed reminder worker missing");
+if (!jobs.includes("PRIOR_ATTEMPT_NOT_RETRIED")) errors.push("reminder retries are not fail-closed");
+if (!jobs.includes("attemptKind: \"reminder\"")) errors.push("reminder SES attempt tagging missing");
+if (!surveyRuntime.includes("research_invite_access_tokens")) errors.push("public survey does not resolve token aliases");
+if (!fieldworkControls.includes("Queue reminder batch")) errors.push("admin reminder controls missing");
+if (!sesEvents.includes("research_attempt")) errors.push("SES callback attempt recovery missing");
+if (!sesEvents.includes("research_invite_messages")) errors.push("SES callback does not update attempt ledger");
+if (!release.includes("denominatorRule")) errors.push("release does not freeze reminder denominator rule");
+if (!release.includes("contactAttempts")) errors.push("release does not freeze contact-attempt paradata");
 if (!surveyRuntime.includes("participant_research_opt_out")) errors.push("participant future-research opt-out path missing");
 if (!quality.includes("researchQualityReviewQueue")) errors.push("manual research QA queue missing");
 if (!quality.includes("resolveResearchQualityReview")) errors.push("manual research QA resolver missing");
@@ -218,7 +241,7 @@ if (!schemaRollout.includes("workflow_dispatch")) errors.push("research producti
 if (!schemaRollout.includes("environment: production")) errors.push("research production schema rollout lacks production environment gate");
 if (!schemaRollout.includes("if: ${{ inputs.apply }}")) errors.push("research schema mutation lacks explicit apply gate");
 if (!schemaRollout.includes("npm run db:migrate")) errors.push("research schema rollout bypasses checksum-aware migrator");
-if (!schemaPreflight.includes("expectedSourceVersion = 418")) errors.push("research schema rollout source-head guard missing");
+if (!schemaPreflight.includes("expectedSourceVersion = 419")) errors.push("research schema rollout source-head guard missing");
 if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
 if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
@@ -229,10 +252,11 @@ if (errors.length) {
 }
 console.log(JSON.stringify({
   ok: true,
-  schema: 418,
-  tables: created.length + 3,
+  schema: 419,
+  tables: created.length + 5,
   migrationSha256: sha,
   suppressionMigrationSha256: suppressionSha,
   deliveryMigrationSha256: deliverySha,
+  reminderMigrationSha256: reminderSha,
   worker: pkg.scripts?.["worker:research"]
 }));
