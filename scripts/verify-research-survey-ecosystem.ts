@@ -13,18 +13,22 @@ const analysisPlanMigrationPath = "db/migrations/0420_research_analysis_preregis
 const analysisPlanChecksumPath = "db/migrations/checksums.0420.json";
 const securityHardeningMigrationPath = "db/migrations/0421_research_analysis_plan_function_hardening.sql";
 const securityHardeningChecksumPath = "db/migrations/checksums.0421.json";
+const experimentIntegrityMigrationPath = "db/migrations/0422_research_experiment_assignment_integrity.sql";
+const experimentIntegrityChecksumPath = "db/migrations/checksums.0422.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const deliveryMigration = readFileSync(deliveryMigrationPath, "utf8");
 const reminderMigration = readFileSync(reminderMigrationPath, "utf8");
 const analysisPlanMigration = readFileSync(analysisPlanMigrationPath, "utf8");
 const securityHardeningMigration = readFileSync(securityHardeningMigrationPath, "utf8");
+const experimentIntegrityMigration = readFileSync(experimentIntegrityMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
 const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
 const reminderChecksums = JSON.parse(readFileSync(reminderChecksumPath, "utf8")) as Record<string, string>;
 const analysisPlanChecksums = JSON.parse(readFileSync(analysisPlanChecksumPath, "utf8")) as Record<string, string>;
 const securityHardeningChecksums = JSON.parse(readFileSync(securityHardeningChecksumPath, "utf8")) as Record<string, string>;
+const experimentIntegrityChecksums = JSON.parse(readFileSync(experimentIntegrityChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
@@ -85,6 +89,7 @@ const deliverySha = createHash("sha256").update(deliveryMigration, "utf8").diges
 const reminderSha = createHash("sha256").update(reminderMigration, "utf8").digest("hex");
 const analysisPlanSha = createHash("sha256").update(analysisPlanMigration, "utf8").digest("hex");
 const securityHardeningSha = createHash("sha256").update(securityHardeningMigration, "utf8").digest("hex");
+const experimentIntegritySha = createHash("sha256").update(experimentIntegrityMigration, "utf8").digest("hex");
 if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0416 checksum does not match migration bytes");
 }
@@ -103,7 +108,10 @@ if (analysisPlanChecksums["0420_research_analysis_preregistration.sql"] !== anal
 if (securityHardeningChecksums["0421_research_analysis_plan_function_hardening.sql"] !== securityHardeningSha) {
   errors.push("0421 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 421")) errors.push("runtime schema head is not 421");
+if (experimentIntegrityChecksums["0422_research_experiment_assignment_integrity.sql"] !== experimentIntegritySha) {
+  errors.push("0422 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 422")) errors.push("runtime schema head is not 422");
 if (!reminderMigration.includes("CREATE TABLE public.research_invite_access_tokens")) errors.push("reminder access-token table missing");
 if (!reminderMigration.includes("CREATE TABLE public.research_invite_messages")) errors.push("invitation attempt ledger missing");
 if (!reminderMigration.includes("ALTER TABLE public.research_invite_access_tokens ENABLE ROW LEVEL SECURITY;")) errors.push("reminder access-token RLS missing");
@@ -130,6 +138,23 @@ if (!securityHardeningMigration.includes("FROM PUBLIC;")
 }
 if (!securityHardeningMigration.includes("TO bls_platform_runtime;")) {
   errors.push("analysis-plan trigger execution is not restricted to platform runtime");
+}
+if (!experimentIntegrityMigration.includes("research_guard_experiment_assignment_mutation")) {
+  errors.push("experiment assignment mutation guard missing");
+}
+if (!experimentIntegrityMigration.includes("RESEARCH_EXPERIMENT_RANDOMIZATION_IMMUTABLE")) {
+  errors.push("experiment profile randomization immutability guard missing");
+}
+if (!experimentIntegrityMigration.includes("RESEARCH_EXPERIMENT_CHOICE_CLOSED")) {
+  errors.push("completed experiment choice immutability guard missing");
+}
+if (!experimentIntegrityMigration.includes("SECURITY INVOKER")) {
+  errors.push("experiment assignment guard is not security invoker");
+}
+if (!experimentIntegrityMigration.includes("FROM PUBLIC;")
+    || !experimentIntegrityMigration.includes("rolname = 'anon'")
+    || !experimentIntegrityMigration.includes("rolname = 'authenticated'")) {
+  errors.push("experiment guard function is not removed from public API roles");
 }
 if ((migration.match(/^BEGIN;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one BEGIN");
 if ((migration.match(/^COMMIT;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one COMMIT");
@@ -311,7 +336,7 @@ if (!schemaRollout.includes("workflow_dispatch")) errors.push("research producti
 if (!schemaRollout.includes("environment: production")) errors.push("research production schema rollout lacks production environment gate");
 if (!schemaRollout.includes("if: ${{ inputs.apply }}")) errors.push("research schema mutation lacks explicit apply gate");
 if (!schemaRollout.includes("npm run db:migrate")) errors.push("research schema rollout bypasses checksum-aware migrator");
-if (!schemaPreflight.includes("expectedSourceVersion = 421")) errors.push("research schema rollout source-head guard missing");
+if (!schemaPreflight.includes("expectedSourceVersion = 422")) errors.push("research schema rollout source-head guard missing");
 if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
 if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
@@ -322,7 +347,7 @@ if (errors.length) {
 }
 console.log(JSON.stringify({
   ok: true,
-  schema: 421,
+  schema: 422,
   tables: created.length + 6,
   migrationSha256: sha,
   suppressionMigrationSha256: suppressionSha,
@@ -330,5 +355,6 @@ console.log(JSON.stringify({
   reminderMigrationSha256: reminderSha,
   analysisPlanMigrationSha256: analysisPlanSha,
   securityHardeningMigrationSha256: securityHardeningSha,
+  experimentIntegrityMigrationSha256: experimentIntegritySha,
   worker: pkg.scripts?.["worker:research"]
 }));
