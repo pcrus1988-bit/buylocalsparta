@@ -87,8 +87,137 @@ async function processResearchSesEvent(
     `, [providerMessageId]);
     const invite = inviteResult.rows[0];
     if (!invite) {
+      const deliveryResult = await client.query<SqlRow>(`
+        SELECT
+          d.id AS delivery_id,
+          d.study_id,
+          d.contact_point_id,
+          d.status,
+          cp.contact_type,
+          cp.contact_value_hash
+        FROM research_participant_deliveries d
+        JOIN research_contact_points cp ON cp.id=d.contact_point_id
+        WHERE d.provider_message_id=$1
+        LIMIT 1
+        FOR UPDATE OF d
+      `, [providerMessageId]);
+      const delivery = deliveryResult.rows[0];
+      if (!delivery) {
+        await client.query("COMMIT");
+        return { ignored: "provider_message_not_research_message" };
+      }
+
+      const deliveryDuplicate = await client.query<SqlRow>(`
+        SELECT 1
+        FROM research_participant_delivery_events
+        WHERE delivery_id=$1 AND metadata->>'snsMessageId'=$2
+        LIMIT 1
+      `, [delivery.delivery_id, snsMessageId]);
+      if (deliveryDuplicate.rows[0]) {
+        await client.query("COMMIT");
+        return { duplicate: true };
+      }
+
+      const metadata = {
+        source: "ses_sns",
+        snsMessageId,
+        providerMessageId,
+        providerEventType: eventType,
+        bounceType: event.bounce?.bounceType ?? null,
+        bounceSubType: event.bounce?.bounceSubType ?? null
+      };
+      let deliveryEventType: "delivered" | "opened" | "bounced" | "complained" | "failed" | undefined;
+      if (eventType === "Delivery") {
+        deliveryEventType = "delivered";
+      } else if (eventType === "Open") {
+        deliveryEventType = "opened";
+      } else if (eventType === "Bounce") {
+        deliveryEventType = "bounced";
+        const permanentBounce = event.bounce?.bounceType === "Permanent";
+        if (permanentBounce && delivery.contact_value_hash) {
+          await client.query(`
+            INSERT INTO research_contact_suppression_events (
+              contact_type,contact_value_hash,action,reason,study_id,source,metadata
+            )
+            VALUES ($1,$2,'suppress','ses_bounce',$3,'ses_sns',$4::jsonb)
+          `, [
+            delivery.contact_type,
+            delivery.contact_value_hash,
+            delivery.study_id,
+            JSON.stringify({ ...metadata, deliveryId: delivery.delivery_id })
+          ]);
+          await client.query(`
+            UPDATE research_contact_points
+            SET suppression_status='bounced'
+            WHERE contact_type=$1 AND contact_value_hash=$2
+          `, [delivery.contact_type, delivery.contact_value_hash]);
+        } else {
+          await client.query(
+            "UPDATE research_contact_points SET suppression_status='bounced' WHERE id=$1",
+            [delivery.contact_point_id]
+          );
+        }
+        await client.query(`
+          UPDATE research_participant_deliveries
+          SET status='failed',
+              last_error=$2,
+              updated_at=now()
+          WHERE id=$1
+        `, [delivery.delivery_id, `SES bounce: ${event.bounce?.bounceType ?? "unknown"}`]);
+      } else if (eventType === "Complaint") {
+        deliveryEventType = "complained";
+        if (delivery.contact_value_hash) {
+          await client.query(`
+            INSERT INTO research_contact_suppression_events (
+              contact_type,contact_value_hash,action,reason,study_id,source,metadata
+            )
+            VALUES ($1,$2,'suppress','ses_complaint',$3,'ses_sns',$4::jsonb)
+          `, [
+            delivery.contact_type,
+            delivery.contact_value_hash,
+            delivery.study_id,
+            JSON.stringify({ ...metadata, deliveryId: delivery.delivery_id })
+          ]);
+          await client.query(`
+            UPDATE research_contact_points
+            SET suppression_status='suppressed'
+            WHERE contact_type=$1 AND contact_value_hash=$2
+          `, [delivery.contact_type, delivery.contact_value_hash]);
+        } else {
+          await client.query(
+            "UPDATE research_contact_points SET suppression_status='suppressed' WHERE id=$1",
+            [delivery.contact_point_id]
+          );
+        }
+        await client.query(`
+          UPDATE research_participant_deliveries
+          SET status='failed',last_error='SES complaint',updated_at=now()
+          WHERE id=$1
+        `, [delivery.delivery_id]);
+      } else if (eventType === "Reject" || eventType === "Rendering Failure") {
+        deliveryEventType = "failed";
+        await client.query(`
+          UPDATE research_participant_deliveries
+          SET status='failed',last_error=$2,updated_at=now()
+          WHERE id=$1
+        `, [delivery.delivery_id, `SES ${eventType}`]);
+      } else {
+        await client.query("COMMIT");
+        return { ignored: eventType };
+      }
+
+      await client.query(`
+        INSERT INTO research_participant_delivery_events
+          (delivery_id,event_type,provider_message_id,metadata)
+        VALUES ($1,$2,$3,$4::jsonb)
+      `, [
+        delivery.delivery_id,
+        deliveryEventType,
+        providerMessageId,
+        JSON.stringify(metadata)
+      ]);
       await client.query("COMMIT");
-      return { ignored: "provider_message_not_research_invite" };
+      return { processed: true };
     }
 
     const duplicate = await client.query<SqlRow>(`
