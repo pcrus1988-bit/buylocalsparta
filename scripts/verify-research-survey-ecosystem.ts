@@ -34,6 +34,7 @@ const sesEvents = readFileSync("apps/web/src/lib/research-survey-ses-events.ts",
 const quality = readFileSync("apps/web/src/lib/research-survey-quality.ts", "utf8");
 const qualityControls = readFileSync("apps/web/src/components/ResearchStudyQualityControls.tsx", "utf8");
 const fieldworkControls = readFileSync("apps/web/src/components/ResearchStudyFieldworkControls.tsx", "utf8");
+const lifecycleControls = readFileSync("apps/web/src/components/ResearchStudyLifecycleControls.tsx", "utf8");
 const fieldworkBalance = readFileSync("apps/web/src/components/ResearchStudyFieldworkBalance.tsx", "utf8");
 const statistics = readFileSync("apps/web/src/lib/research-survey-statistics.ts", "utf8");
 const analysis = readFileSync("apps/web/src/lib/research-survey-analysis.ts", "utf8");
@@ -204,6 +205,8 @@ if (!quality.includes("FOR UPDATE OF rr")) errors.push("manual research QA resol
 if (!qualityControls.includes('void resolve(item, "include")')) errors.push("research QA include control missing");
 if (!qualityControls.includes('void resolve(item, "exclude")')) errors.push("research QA exclude control missing");
 if (!fieldworkControls.includes("pendingQualityReviews > 0")) errors.push("analysis UI is not gated on pending research QA");
+if (!lifecycleControls.includes('analysisPlanStatus === "locked"')) errors.push("lifecycle UI does not mirror locked analysis-plan gate");
+if (!lifecycleControls.includes("RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("lifecycle UI does not explain preregistration gate failures");
 if (!statistics.includes("proportionalStratumAllocation")) errors.push("minimum-aware sample allocation helper missing");
 if (!statistics.includes("stratifiedSrsMeanVariance")) errors.push("design-aware variance helper missing");
 if (!statistics.includes("researchWeightDiagnostics")) errors.push("weighting effective-sample diagnostics missing");
