@@ -74,14 +74,15 @@ export function AccountSavedTryOnsPanel({ csrfToken }: { csrfToken: string }) {
 
   function toggleCompare(id: string) {
     setError("");
-    setSelected((current) => {
-      if (current.includes(id)) return current.filter((selectedId) => selectedId !== id);
-      if (current.length >= 3) {
-        setError("Μπορείς να συγκρίνεις έως 3 Try On looks ταυτόχρονα.");
-        return current;
-      }
-      return [...current, id];
-    });
+    if (selected.includes(id)) {
+      setSelected(selected.filter((selectedId) => selectedId !== id));
+      return;
+    }
+    if (selected.length >= 3) {
+      setError("Μπορείς να συγκρίνεις έως 3 Try On looks ταυτόχρονα.");
+      return;
+    }
+    setSelected([...selected, id]);
   }
 
   return (
