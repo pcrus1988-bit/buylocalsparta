@@ -79,7 +79,8 @@ export function FittingRoomTryOn({
   const [resume, setResume] = useState<ResumeState>();
 
   const requiredPasses = garments.length;
-  const insufficientQuota = quota ? quota.remaining < requiredPasses : false;
+  const passesStillNeeded = finalImage ? 0 : Math.max(0, requiredPasses - (resume?.nextIndex ?? 0));
+  const insufficientQuota = quota ? quota.remaining < passesStillNeeded : false;
 
   const summary = useMemo(() => garments.map((garment) => layerLabel(garment.slot)).join(" + "), [garments]);
 
@@ -303,7 +304,7 @@ export function FittingRoomTryOn({
             )}
 
             {insufficientQuota ? (
-              <p className={styles.error}>Το συγκεκριμένο outfit χρειάζεται {requiredPasses} δημιουργίες, αλλά απομένουν {quota?.remaining ?? 0}.</p>
+              <p className={styles.error}>Το outfit χρειάζεται ακόμη {passesStillNeeded} δημιουργήσε{passesStillNeeded === 1 ? "η" : "ις"}, αλλά απομένουν {quota?.remaining ?? 0}.</p>
             ) : null}
             {error ? <p className={styles.error} role="alert">{error}</p> : null}
           </div>
