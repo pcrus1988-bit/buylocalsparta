@@ -9,14 +9,18 @@ const deliveryMigrationPath = "db/migrations/0418_research_participant_delivery.
 const deliveryChecksumPath = "db/migrations/checksums.0418.json";
 const reminderMigrationPath = "db/migrations/0419_research_invite_reminder_protocol.sql";
 const reminderChecksumPath = "db/migrations/checksums.0419.json";
+const analysisPlanMigrationPath = "db/migrations/0420_research_analysis_preregistration.sql";
+const analysisPlanChecksumPath = "db/migrations/checksums.0420.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const deliveryMigration = readFileSync(deliveryMigrationPath, "utf8");
 const reminderMigration = readFileSync(reminderMigrationPath, "utf8");
+const analysisPlanMigration = readFileSync(analysisPlanMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
 const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
 const reminderChecksums = JSON.parse(readFileSync(reminderChecksumPath, "utf8")) as Record<string, string>;
+const analysisPlanChecksums = JSON.parse(readFileSync(analysisPlanChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
@@ -73,6 +77,7 @@ const sha = createHash("sha256").update(migration, "utf8").digest("hex");
 const suppressionSha = createHash("sha256").update(suppressionMigration, "utf8").digest("hex");
 const deliverySha = createHash("sha256").update(deliveryMigration, "utf8").digest("hex");
 const reminderSha = createHash("sha256").update(reminderMigration, "utf8").digest("hex");
+const analysisPlanSha = createHash("sha256").update(analysisPlanMigration, "utf8").digest("hex");
 if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0416 checksum does not match migration bytes");
 }
@@ -85,12 +90,21 @@ if (deliveryChecksums["0418_research_participant_delivery.sql"] !== deliverySha)
 if (reminderChecksums["0419_research_invite_reminder_protocol.sql"] !== reminderSha) {
   errors.push("0419 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 419")) errors.push("runtime schema head is not 419");
+if (analysisPlanChecksums["0420_research_analysis_preregistration.sql"] !== analysisPlanSha) {
+  errors.push("0420 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 420")) errors.push("runtime schema head is not 420");
 if (!reminderMigration.includes("CREATE TABLE public.research_invite_access_tokens")) errors.push("reminder access-token table missing");
 if (!reminderMigration.includes("CREATE TABLE public.research_invite_messages")) errors.push("invitation attempt ledger missing");
 if (!reminderMigration.includes("ALTER TABLE public.research_invite_access_tokens ENABLE ROW LEVEL SECURITY;")) errors.push("reminder access-token RLS missing");
 if (!reminderMigration.includes("ALTER TABLE public.research_invite_messages ENABLE ROW LEVEL SECURITY;")) errors.push("invitation attempt RLS missing");
 if (!reminderMigration.includes("'invite_reminder'")) errors.push("invite_reminder job type missing from schema");
+if (!analysisPlanMigration.includes("CREATE TABLE public.research_analysis_plans")) errors.push("analysis preregistration table missing");
+if (!analysisPlanMigration.includes("research_analysis_plans_one_locked_per_study_idx")) errors.push("single locked analysis-plan invariant missing");
+if (!analysisPlanMigration.includes("research_analysis_plans_locked_immutable")) errors.push("locked analysis-plan immutability guard missing");
+if (!analysisPlanMigration.includes("ADD COLUMN analysis_plan_id")) errors.push("analysis runs are not bound to an analysis plan");
+if (!analysisPlanMigration.includes("kontamou.research.analysis-plan.v1")) errors.push("seeded analysis-plan contract missing");
+if (!analysisPlanMigration.includes("prespecified_secondary")) errors.push("pre-specified secondary analysis classification missing from plan");
 if ((migration.match(/^BEGIN;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one BEGIN");
 if ((migration.match(/^COMMIT;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one COMMIT");
 
@@ -198,13 +212,22 @@ if (!statistics.includes("unequal_within_stratum_weights")) errors.push("varianc
 if (!analysis.includes('VARIANCE_METHOD = "stratified_srs_fpc_v1"')) errors.push("analysis variance method is not versioned");
 if (!analysis.includes("'weightDiagnostics',$3::jsonb")) errors.push("analysis run does not persist weighting diagnostics");
 if (!statistics.includes("normalTwoSidedPValue")) errors.push("pairwise normal p-value helper missing");
-if (!analysis.includes('ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v3"')) errors.push("pairwise analysis code version is not v3");
+if (!analysis.includes('ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v4"')) errors.push("analysis code version is not v4");
+if (!analysis.includes("RESEARCH_ANALYSIS_PLAN_MISSING")) errors.push("analysis does not require a locked preregistration plan");
+if (!analysis.includes("RESEARCH_ANALYSIS_PLAN_BINDING_MISMATCH")) errors.push("analysis retry does not enforce immutable plan binding");
+if (!analysis.includes('analysisClassification: "prespecified_secondary"')) errors.push("pre-specified secondary estimate classification missing");
+if (!analysis.includes('"prespecified_primary"')) errors.push("pre-specified primary estimate classification missing");
 if (!analysis.includes("pairwise_independent_strata_difference_v1")) errors.push("pairwise region/sector difference estimator missing");
 if (!statistics.includes("benjaminiHochbergAdjustedPValues")) errors.push("pairwise FDR adjustment helper missing");
 if (!analysis.includes('adjustedPValueMethod: "benjamini_hochberg"')) errors.push("pairwise FDR-adjusted q-value persistence missing");
+if (!resultsPage.includes("Pre-fieldwork analysis plan")) errors.push("public preregistration disclosure section missing");
+if (!resultsPage.includes("analysisPlan.contentSha256")) errors.push("public preregistration fingerprint missing");
 if (!resultsPage.includes("Exploratory pairwise inference")) errors.push("public pairwise inference section missing");
 if (!resultsPage.includes("Benjamini–Hochberg FDR-adjusted q-value")) errors.push("public pairwise FDR disclosure missing");
 
+if (!release.includes("analysisPlan: {")) errors.push("release does not freeze the preregistered analysis plan");
+if (!release.includes("analysis_plan_sha256")) errors.push("release does not freeze the analysis-plan fingerprint");
+if (!release.includes("prespecifiedAnalysisPlanPublished: true")) errors.push("release disclosure does not identify preregistration");
 if (!release.includes("weightDiagnostics: objectValue(parameters.weightDiagnostics)")) errors.push("release does not freeze weighting diagnostics");
 if (!resultsPage.includes("Kish effective n")) errors.push("public results do not disclose effective sample size");
 
@@ -236,12 +259,14 @@ if (!release.includes("latestDispositionCounts")) errors.push("release does not 
 if (!release.includes("completionRateOfSent")) errors.push("release does not freeze explicit fieldwork denominators");
 if (!resultsPage.includes("Sent→complete")) errors.push("public results do not disclose frozen fieldwork conversion rate");
 if (!release.includes("idempotentReplay")) errors.push("release idempotence contract missing");
+if (!surveyRuntime.includes("RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("pilot lifecycle is not gated by preregistration");
+if (!surveyRuntime.includes("RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("fieldwork lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes('"publish_release"')) errors.push("explicit publish lifecycle action missing");
 if (!schemaRollout.includes("workflow_dispatch")) errors.push("research production schema rollout is not manual-only");
 if (!schemaRollout.includes("environment: production")) errors.push("research production schema rollout lacks production environment gate");
 if (!schemaRollout.includes("if: ${{ inputs.apply }}")) errors.push("research schema mutation lacks explicit apply gate");
 if (!schemaRollout.includes("npm run db:migrate")) errors.push("research schema rollout bypasses checksum-aware migrator");
-if (!schemaPreflight.includes("expectedSourceVersion = 419")) errors.push("research schema rollout source-head guard missing");
+if (!schemaPreflight.includes("expectedSourceVersion = 420")) errors.push("research schema rollout source-head guard missing");
 if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
 if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
@@ -252,11 +277,12 @@ if (errors.length) {
 }
 console.log(JSON.stringify({
   ok: true,
-  schema: 419,
-  tables: created.length + 5,
+  schema: 420,
+  tables: created.length + 6,
   migrationSha256: sha,
   suppressionMigrationSha256: suppressionSha,
   deliveryMigrationSha256: deliverySha,
   reminderMigrationSha256: reminderSha,
+  analysisPlanMigrationSha256: analysisPlanSha,
   worker: pkg.scripts?.["worker:research"]
 }));
