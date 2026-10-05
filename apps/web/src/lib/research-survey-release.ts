@@ -230,7 +230,7 @@ export async function buildGreekRetailRelease(
       sd.id AS sample_design_id,sd.desired_complete_n,sd.expected_response_rate,
       sd.eligible_population_n,sd.active_contact_n AS design_active_contact_n,
       sd.contactability_rate,sd.planned_selected_n,sd.expected_contactable_n,
-      sd.expected_complete_n,sd.allocation_method,sd.content_sha256 AS sample_design_sha256,
+      sd.expected_complete_n,sd.allocation_method,sd.design_json,sd.content_sha256 AS sample_design_sha256,
       f.id AS frame_snapshot_id,f.label AS frame_label,f.source_kind,f.source_reference,
       f.population_size,f.selection_criteria,f.content_sha256 AS frame_sha256,f.captured_at,f.frozen_at
     FROM research_sample_draws d
@@ -242,6 +242,9 @@ export async function buildGreekRetailRelease(
   const design = designResult.rows[0];
   if (!design) throw new Error("RESEARCH_RELEASE_DESIGN_MISSING");
   if (text(design.fieldwork_phase) !== "main") throw new Error("RESEARCH_RELEASE_REQUIRES_MAIN_FIELDWORK_SAMPLE");
+  if (sha256Canonical(objectValue(design.design_json)) !== text(design.sample_design_sha256)) {
+    throw new Error("RESEARCH_RELEASE_SAMPLE_DESIGN_INTEGRITY_FAILED");
+  }
   frameSnapshotId = frameSnapshotId || text(design.frame_snapshot_id);
 
   const fieldworkCounts = await pool.query<SqlRow>(`
@@ -370,7 +373,12 @@ export async function buildGreekRetailRelease(
       st.label,
       st.dimensions,
       st.population_count,
+      COALESCE(sds.population_n,st.population_count)::int AS design_population_n,
+      COALESCE(sds.active_contact_n,0)::int AS design_active_contact_n,
+      COALESCE(sds.selected_n,0)::int AS design_selected_n,
       COALESCE(sds.target_complete_n,st.target_complete_count)::int AS target_complete_count,
+      COALESCE(sds.expected_contactable_n,0)::int AS design_expected_contactable_n,
+      COALESCE(sds.expected_complete_n,0)::int AS design_expected_complete_n,
       COALESCE(fpc.pilot_exposed_units,0)::int AS pilot_exposed_units,
       COALESCE(fpc.main_eligible_population_count,0)::int AS main_eligible_population_count,
       COALESCE(fpc.active_email_units,0)::int AS active_email_units,
@@ -598,7 +606,12 @@ export async function buildGreekRetailRelease(
         frozenPopulationCount: numberValue(row.population_count),
         pilotHoldoutExcludedUnits: numberValue(row.pilot_exposed_units),
         mainEligiblePopulationCount: numberValue(row.main_eligible_population_count),
+        designPopulationN: numberValue(row.design_population_n),
+        designActiveContactN: numberValue(row.design_active_contact_n),
+        designSelectedN: numberValue(row.design_selected_n),
         targetCompleteCount: numberValue(row.target_complete_count),
+        designExpectedContactableN: numberValue(row.design_expected_contactable_n),
+        designExpectedCompleteN: numberValue(row.design_expected_complete_n),
         activeEmailUnits: numberValue(row.active_email_units),
         emailContactabilityRate: rate(row.active_email_units, row.main_eligible_population_count),
         selected: numberValue(row.selected),
@@ -633,6 +646,7 @@ export async function buildGreekRetailRelease(
         id: text(design.sample_design_id),
         schema: "kontamou.research.sample-design.v1",
         contentSha256: text(design.sample_design_sha256),
+        integrityVerified: true,
         desiredCompleteN: numberValue(design.desired_complete_n),
         expectedResponseRate: numberValue(design.expected_response_rate),
         eligiblePopulationN: numberValue(design.eligible_population_n),
