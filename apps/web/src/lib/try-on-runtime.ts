@@ -1,5 +1,5 @@
 import { randomInt, randomUUID } from "node:crypto";
-import { S3ObjectStorage, objectStorageConfigFromEnv } from "@buy-local-sparta/object-storage";
+import { serverObjectStorageFromEnv, type ServerObjectStorage } from "@buy-local-sparta/object-storage";
 import { getCatalogCard } from "./catalog-view";
 import { approvedCatalogImageGallery } from "./public-product-media-gallery";
 import { getPublicProductDetail } from "./public-product-detail";
@@ -343,36 +343,12 @@ function rowToSavedTryOn(row: SavedTryOnRow): CustomerSavedTryOn {
 }
 
 async function uploadPrivateObject(objectKey: string, contentType: string, bytes: Uint8Array): Promise<void> {
-  const configured = configuredObjectStorage();
-  if (configured) {
-    const signed = await configured.createUploadUrl({ objectKey, contentType, expiresInSeconds: 300 });
-    const response = await fetch(signed.url, {
-      method: "PUT",
-      headers: signed.headers,
-      body: Buffer.from(bytes),
-      cache: "no-store"
-    });
-    if (!response.ok) throw new Error(`TRY_ON_STORAGE_UPLOAD_FAILED_${response.status}`);
-
-    const metadata = await configured.head(objectKey);
-    if (!metadata || metadata.byteSize !== bytes.byteLength) {
-      await configured.delete(objectKey).catch(() => undefined);
-      throw new Error("TRY_ON_STORAGE_VERIFY_FAILED");
-    }
-    return;
-  }
-
-  await uploadSupabaseFallback(objectKey, contentType, bytes);
-  const verified = await readSupabaseFallback(objectKey);
-  if (verified.byteSize !== bytes.byteLength) {
-    await deleteSupabaseFallback(objectKey).catch(() => undefined);
+  await storage().put({ objectKey, contentType, body: bytes });
+  const metadata = await storage().head(objectKey);
+  if (!metadata || metadata.byteSize !== bytes.byteLength) {
+    await storage().delete(objectKey).catch(() => undefined);
     throw new Error("TRY_ON_STORAGE_VERIFY_FAILED");
   }
-}
-
-async function readPrivateObject(objectKey: string) {
-  const configured = configuredObjectStorage();
-  return configured ? configured.read(objectKey) : readSupabaseFallback(objectKey);
 }
 
 async function existingSavedTryOn(userPublicId: string, predictionId: string, productId: string): Promise<CustomerSavedTryOn | undefined> {
