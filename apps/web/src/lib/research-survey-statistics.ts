@@ -88,3 +88,81 @@ export function normal95ConfidenceInterval(
     ? { lower: Math.max(0, lower), upper: Math.min(1, upper) }
     : { lower, upper };
 }
+
+
+export type StratumAllocationInput = Readonly<{ id: string; populationCount: number }>;
+export type StratumAllocation = Readonly<{ id: string; populationCount: number; sampleCount: number }>;
+
+export function proportionalStratumAllocation(
+  strata: readonly StratumAllocationInput[],
+  requestedN: number,
+  preferredMinimumPerStratum = 1
+): readonly StratumAllocation[] {
+  const clean = strata
+    .map((stratum) => ({
+      id: stratum.id,
+      populationCount: Math.max(0, Math.floor(stratum.populationCount))
+    }))
+    .filter((stratum) => stratum.populationCount > 0);
+  const population = clean.reduce((sum, stratum) => sum + stratum.populationCount, 0);
+  const target = Math.min(Math.max(0, Math.floor(requestedN)), population);
+  if (!target || !clean.length) return clean.map((stratum) => ({ ...stratum, sampleCount: 0 }));
+
+  const minimum = Math.max(0, Math.floor(preferredMinimumPerStratum));
+  const preferredFloorTotal = clean.reduce(
+    (sum, stratum) => sum + Math.min(minimum, stratum.populationCount),
+    0
+  );
+  const canCoverPreferredFloor = minimum > 0 && target >= preferredFloorTotal;
+  const canCoverOnePerStratum = target >= clean.length;
+  const base = clean.map((stratum) => ({
+    ...stratum,
+    sampleCount: canCoverPreferredFloor
+      ? Math.min(minimum, stratum.populationCount)
+      : canCoverOnePerStratum
+        ? 1
+        : 0
+  }));
+  let remaining = target - base.reduce((sum, stratum) => sum + stratum.sampleCount, 0);
+
+  while (remaining > 0) {
+    const availablePopulation = base.reduce(
+      (sum, stratum) => sum + Math.max(0, stratum.populationCount - stratum.sampleCount),
+      0
+    );
+    if (!availablePopulation) break;
+
+    const quotas = base.map((stratum, index) => {
+      const capacity = Math.max(0, stratum.populationCount - stratum.sampleCount);
+      const exact = remaining * capacity / availablePopulation;
+      return {
+        index,
+        floor: Math.min(capacity, Math.floor(exact)),
+        fraction: exact - Math.floor(exact)
+      };
+    });
+
+    let added = 0;
+    for (const quota of quotas) {
+      if (!quota.floor) continue;
+      base[quota.index]!.sampleCount += quota.floor;
+      added += quota.floor;
+    }
+    remaining -= added;
+    if (remaining <= 0) break;
+
+    const ranked = quotas
+      .filter((quota) => base[quota.index]!.sampleCount < base[quota.index]!.populationCount)
+      .sort((a, b) => b.fraction - a.fraction || base[a.index]!.id.localeCompare(base[b.index]!.id));
+    if (!ranked.length) break;
+    for (const quota of ranked) {
+      if (remaining <= 0) break;
+      const stratum = base[quota.index]!;
+      if (stratum.sampleCount >= stratum.populationCount) continue;
+      stratum.sampleCount += 1;
+      remaining -= 1;
+    }
+  }
+
+  return base;
+}
