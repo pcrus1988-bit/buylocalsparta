@@ -196,14 +196,21 @@ export async function queueGreekRetailFrameBuild(principal: SessionPrincipal): P
 
 export async function queueGreekRetailSampleDraw(
   principal: SessionPrincipal,
-  input: Readonly<{ targetN: number; randomSeed?: string; label?: string }>
-): Promise<{ jobId: string; randomSeed: string }> {
+  input: Readonly<{
+    targetN: number;
+    randomSeed?: string;
+    label?: string;
+    fieldworkPhase?: "pilot" | "main";
+  }>
+): Promise<{ jobId: string; randomSeed: string; fieldworkPhase: "pilot" | "main" }> {
   assertAdminPermission(principal, "research.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const targetN = Math.floor(input.targetN);
   if (!Number.isSafeInteger(targetN) || targetN < 100 || targetN > 100_000) {
     throw new Error("RESEARCH_SAMPLE_TARGET_INVALID");
   }
+  const fieldworkPhase = input.fieldworkPhase ?? "main";
+  if (!["pilot","main"].includes(fieldworkPhase)) throw new Error("RESEARCH_FIELDWORK_PHASE_INVALID");
   const randomSeed = input.randomSeed?.trim() || randomBytes(24).toString("hex");
   if (randomSeed.length < 16 || randomSeed.length > 200) throw new Error("RESEARCH_SAMPLE_SEED_INVALID");
 
@@ -225,7 +232,11 @@ export async function queueGreekRetailSampleDraw(
     ORDER BY created_at DESC
     LIMIT 1
   `, [study.rows[0].id]);
-  if (existing.rows[0]) return { jobId: text(existing.rows[0].id), randomSeed };
+  if (existing.rows[0]) return {
+    jobId: text(existing.rows[0].id),
+    randomSeed,
+    fieldworkPhase
+  };
 
   const job = await pool.query<SqlRow>(`
     INSERT INTO research_study_jobs (study_id, job_type, status, input)
@@ -236,12 +247,19 @@ export async function queueGreekRetailSampleDraw(
       jsonb_build_object(
         'targetN', $2::int,
         'randomSeed', $3::text,
-        'label', $4::text
+        'label', $4::text,
+        'fieldworkPhase', $5::text
       )
     )
     RETURNING id
-  `, [study.rows[0].id, targetN, randomSeed, input.label?.trim() || `sample-${targetN}`]);
-  return { jobId: text(job.rows[0]!.id), randomSeed };
+  `, [
+    study.rows[0].id,
+    targetN,
+    randomSeed,
+    input.label?.trim() || `${fieldworkPhase}-sample-${targetN}`,
+    fieldworkPhase
+  ]);
+  return { jobId: text(job.rows[0]!.id), randomSeed, fieldworkPhase };
 }
 
 export async function saveGreekRetailRecruitmentTemplate(
@@ -892,6 +910,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
   const input = objectValue(job.input);
   const targetN = Math.floor(numberValue(input.targetN));
   const randomSeed = text(input.randomSeed);
+  const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
   if (!targetN || !randomSeed) throw new Error("RESEARCH_SAMPLE_JOB_INVALID");
 
   const client = await getProductionPostgresRuntime().sqlPool.connect();
@@ -909,11 +928,37 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
     if (!frame) throw new Error("RESEARCH_SAMPLE_REQUIRES_FROZEN_FRAME");
 
     const strataResult = await client.query<SqlRow>(`
-      SELECT id, code, population_count
-      FROM research_strata
-      WHERE frame_snapshot_id=$1 AND population_count > 0
+      WITH phase_population AS (
+        SELECT
+          st.id,
+          st.code,
+          st.population_count,
+          count(fu.id) FILTER (
+            WHERE NOT EXISTS (
+              SELECT 1
+              FROM research_invites pri
+              JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+              WHERE pri.study_id=$3
+                AND pri.fieldwork_phase='pilot'
+                AND pri.status <> 'expired'
+                AND psu.frame_unit_id=fu.id
+            )
+          )::int AS main_population_count
+        FROM research_strata st
+        LEFT JOIN research_frame_units fu
+          ON fu.stratum_id=st.id
+         AND fu.frame_snapshot_id=st.frame_snapshot_id
+        WHERE st.frame_snapshot_id=$1
+        GROUP BY st.id,st.code,st.population_count
+      )
+      SELECT
+        id,
+        code,
+        CASE WHEN $2='main' THEN main_population_count ELSE population_count END AS population_count
+      FROM phase_population
+      WHERE CASE WHEN $2='main' THEN main_population_count ELSE population_count END > 0
       ORDER BY code
-    `, [frame.id]);
+    `, [frame.id, fieldworkPhase, job.study_id]);
     if (!strataResult.rows.length) throw new Error("RESEARCH_SAMPLE_STRATA_MISSING");
 
     const allocations = proportionalStratumAllocation(
@@ -935,16 +980,18 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         algorithm_version,
         random_seed,
         target_n,
-        status
+        status,
+        fieldwork_phase
       )
-      VALUES ($1,$2,$3,'stratified-hash-rank-v2',$4,$5,'draft')
+      VALUES ($1,$2,$3,'stratified-hash-rank-v2',$4,$5,'draft',$6)
       RETURNING id
     `, [
       job.study_id,
       frame.id,
-      text(input.label) || `sample-${actualTargetN}`,
+      text(input.label) || `${fieldworkPhase}-sample-${actualTargetN}`,
       randomSeed,
-      actualTargetN
+      actualTargetN,
+      fieldworkPhase
     ]);
     const drawId = text(draw.rows[0]!.id);
 
@@ -955,10 +1002,23 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       const baseWeight = allocation.populationCount / allocation.sampleCount;
       const inserted = await client.query<SqlRow>(`
         WITH chosen AS (
-          SELECT id, external_key_hash
-          FROM research_frame_units
-          WHERE frame_snapshot_id=$1 AND stratum_id=$2
-          ORDER BY md5($3::text || ':' || external_key_hash), external_key_hash
+          SELECT fu.id, fu.external_key_hash
+          FROM research_frame_units fu
+          WHERE fu.frame_snapshot_id=$1
+            AND fu.stratum_id=$2
+            AND (
+              $9::text <> 'main'
+              OR NOT EXISTS (
+                SELECT 1
+                FROM research_invites pri
+                JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+                WHERE pri.study_id=$10
+                  AND pri.fieldwork_phase='pilot'
+                  AND pri.status <> 'expired'
+                  AND psu.frame_unit_id=fu.id
+              )
+            )
+          ORDER BY md5($3::text || ':' || fu.external_key_hash), fu.external_key_hash
           LIMIT $4
         ),
         numbered AS (
@@ -992,7 +1052,9 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         drawId,
         selectionOffset,
         probability.toFixed(12),
-        baseWeight.toFixed(8)
+        baseWeight.toFixed(8),
+        fieldworkPhase,
+        job.study_id
       ]);
       if (inserted.rows.length !== allocation.sampleCount) {
         throw new Error(`RESEARCH_SAMPLE_STRATUM_COUNT_MISMATCH:${allocation.id}`);
@@ -1017,8 +1079,11 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
     await client.query(`
       UPDATE research_sample_draws
       SET status='superseded'
-      WHERE study_id=$1 AND id<>$2 AND status='locked'
-    `, [job.study_id, drawId]);
+      WHERE study_id=$1
+        AND id<>$2
+        AND status='locked'
+        AND fieldwork_phase=$3
+    `, [job.study_id, drawId, fieldworkPhase]);
     await client.query(`
       UPDATE research_sample_draws
       SET status='locked', drawn_at=now()
@@ -1033,6 +1098,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       targetN: actualTargetN,
       algorithmVersion: "stratified-hash-rank-v2",
       randomSeed,
+      fieldworkPhase,
       strata: allocations.filter((allocation) => allocation.sampleCount > 0).length
     };
   } catch (error) {
@@ -1048,6 +1114,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   const pool = getProductionPostgresRuntime().sqlPool;
   const input = objectValue(job.input);
   const limit = Math.max(1, Math.min(500, Math.floor(numberValue(input.limit) || 100)));
+  const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
   const currentOutput = objectValue(job.output);
   let batchId = text(currentOutput.batchId);
   let sampleUnitIds = Array.isArray(currentOutput.sampleUnitIds)
@@ -1063,6 +1130,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
           s.id AS study_id,s.slug,s.title,s.status AS study_status,s.fieldwork_ends_at,
           i.id AS instrument_id,
           d.id AS sample_draw_id,
+          d.fieldwork_phase,
           rt.id AS recruitment_template_id
         FROM research_studies s
         JOIN LATERAL (
@@ -1071,8 +1139,10 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
           ORDER BY created_at DESC LIMIT 1
         ) i ON true
         JOIN LATERAL (
-          SELECT id FROM research_sample_draws
-          WHERE study_id=s.id AND status IN ('locked','fielded')
+          SELECT id,fieldwork_phase FROM research_sample_draws
+          WHERE study_id=s.id
+            AND status IN ('locked','fielded')
+            AND fieldwork_phase=$2
           ORDER BY created_at DESC LIMIT 1
         ) d ON true
         JOIN LATERAL (
@@ -1083,10 +1153,14 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         ) rt ON true
         WHERE s.id=$1
         FOR UPDATE OF s
-      `, [job.study_id]);
+      `, [job.study_id, fieldworkPhase]);
       const row = study.rows[0];
       if (!row) throw new Error("RESEARCH_INVITE_BATCH_NOT_READY");
       if (!["pilot","fielding"].includes(text(row.study_status))) throw new Error("SURVEY_NOT_OPEN");
+      const currentPhase = text(row.study_status) === "pilot" ? "pilot" : "main";
+      if (currentPhase !== fieldworkPhase || text(row.fieldwork_phase) !== fieldworkPhase) {
+        throw new Error("RESEARCH_FIELDWORK_PHASE_CHANGED");
+      }
 
       const candidates = await client.query<SqlRow>(`
         SELECT su.id AS sample_unit_id
@@ -1103,12 +1177,25 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
             SELECT 1 FROM research_invites ri
             WHERE ri.study_id=$2
               AND ri.sample_unit_id=su.id
+              AND ri.fieldwork_phase=$4
               AND ri.status <> 'expired'
+          )
+          AND (
+            $4::text <> 'main'
+            OR NOT EXISTS (
+              SELECT 1
+              FROM research_invites pri
+              JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+              WHERE pri.study_id=$2
+                AND pri.fieldwork_phase='pilot'
+                AND pri.status <> 'expired'
+                AND psu.frame_unit_id=su.frame_unit_id
+            )
           )
         ORDER BY su.selection_order
         LIMIT $3
         FOR UPDATE OF su SKIP LOCKED
-      `, [row.sample_draw_id, row.study_id, limit]);
+      `, [row.sample_draw_id, row.study_id, limit, fieldworkPhase]);
       sampleUnitIds = candidates.rows.map((candidate) => text(candidate.sample_unit_id));
 
       if (!sampleUnitIds.length) {
@@ -1124,17 +1211,18 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
 
       const batch = await client.query<SqlRow>(`
         INSERT INTO research_invite_batches (
-          study_id,sample_draw_id,instrument_id,recruitment_template_id,label,channel,status,planned_count
+          study_id,sample_draw_id,instrument_id,recruitment_template_id,label,channel,status,planned_count,fieldwork_phase
         )
-        VALUES ($1,$2,$3,$4,$5,'email','ready',$6)
+        VALUES ($1,$2,$3,$4,$5,'email','ready',$6,$7)
         RETURNING id
       `, [
         row.study_id,
         row.sample_draw_id,
         row.instrument_id,
         row.recruitment_template_id,
-        text(input.label) || `research-email-${new Date().toISOString()}`,
-        sampleUnitIds.length
+        text(input.label) || `${fieldworkPhase}-research-email-${new Date().toISOString()}`,
+        sampleUnitIds.length,
+        fieldworkPhase
       ]);
       batchId = text(batch.rows[0]!.id);
       await client.query(`
@@ -1157,7 +1245,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
 
   const batch = await pool.query<SqlRow>(`
     SELECT
-      b.id,b.study_id,b.sample_draw_id,b.instrument_id,b.recruitment_template_id,
+      b.id,b.study_id,b.sample_draw_id,b.instrument_id,b.recruitment_template_id,b.fieldwork_phase,
       s.slug,s.title,s.fieldwork_ends_at,
       rt.subject,rt.body_text,rt.version AS template_version
     FROM research_invite_batches b
@@ -1234,11 +1322,12 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     const token = randomBytes(32).toString("base64url");
     const invite = await pool.query<SqlRow>(`
       INSERT INTO research_invites (
-        study_id,instrument_id,sample_unit_id,contact_point_id,batch_id,token_hash,channel,status,expires_at
+        study_id,instrument_id,sample_unit_id,contact_point_id,batch_id,token_hash,channel,status,expires_at,fieldwork_phase
       )
       VALUES (
         $1,$2,$3,$4,$5,$6,'email','created',
-        COALESCE($7::timestamptz,now() + interval '30 days')
+        COALESCE($7::timestamptz,now() + interval '30 days'),
+        $8
       )
       RETURNING id,expires_at
     `, [
@@ -1248,7 +1337,8 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       contact.contact_point_id,
       batchId,
       sha256(token),
-      batchRow.fieldwork_ends_at ?? null
+      batchRow.fieldwork_ends_at ?? null,
+      batchRow.fieldwork_phase
     ]);
     const inviteRow = invite.rows[0]!;
     const inviteId = text(inviteRow.id);
