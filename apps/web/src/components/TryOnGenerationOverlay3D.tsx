@@ -292,8 +292,8 @@ function lowMotionDevice(): boolean {
 }
 
 function buildScene(canvas: HTMLCanvasElement, modelImage: string, onContextLost: () => void): SceneController {
-  const gl = (canvas.getContext("webgl2", { alpha: true, antialias: true, powerPreference: "high-performance" })
-    || canvas.getContext("webgl", { alpha: true, antialias: true, powerPreference: "high-performance" })) as GL | null;
+  const gl = (canvas.getContext("webgl", { alpha: true, antialias: true, powerPreference: "high-performance" })
+    || canvas.getContext("webgl2", { alpha: true, antialias: true, powerPreference: "high-performance" })) as GL | null;
   if (!gl) throw new Error("WEBGL_UNAVAILABLE");
 
   const texturedProgram = program(gl, `
@@ -614,7 +614,7 @@ export function TryOnGenerationOverlay3D({
   productTitle: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const sceneRef = useRef<SceneController>();
+  const sceneRef = useRef<SceneController | undefined>(undefined);
   const [phase, setPhase] = useState<Phase>("photo");
   const [fallback, setFallback] = useState(false);
 
