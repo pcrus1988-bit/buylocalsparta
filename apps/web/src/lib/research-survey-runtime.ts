@@ -632,6 +632,36 @@ export async function savePublicResearchSurvey(input: Readonly<{
         )
         ON CONFLICT (response_id, reward_kind, reward_version) DO NOTHING
       `, [response.id]);
+      await client.query(`
+        INSERT INTO research_study_jobs (study_id,job_type,status,input)
+        SELECT
+          $1,'reward_delivery','queued',
+          jsonb_build_object('responseId',$2::text,'source','survey_completion')
+        WHERE EXISTS (
+          SELECT 1
+          FROM research_consents rc
+          WHERE rc.response_id=$2
+            AND rc.consent_kind='thank_you_code'
+          ORDER BY rc.occurred_at DESC,rc.id DESC
+          LIMIT 1
+        )
+        AND (
+          SELECT rc.granted
+          FROM research_consents rc
+          WHERE rc.response_id=$2
+            AND rc.consent_kind='thank_you_code'
+          ORDER BY rc.occurred_at DESC,rc.id DESC
+          LIMIT 1
+        ) = true
+        AND NOT EXISTS (
+          SELECT 1
+          FROM research_study_jobs j
+          WHERE j.study_id=$1
+            AND j.job_type='reward_delivery'
+            AND j.input->>'responseId'=$2::text
+            AND j.status IN ('queued','running','succeeded')
+        )
+      `, [invite.study_id, response.id]);
     }
 
     const experimentResult = await client.query<SqlRow>(`
@@ -989,6 +1019,24 @@ export async function transitionResearchStudy(
         SET status='published',public_results_url=$2,updated_at=now()
         WHERE id=$1
       `, [row.study_id, release.public_url]);
+      await client.query(`
+        INSERT INTO research_study_jobs (study_id,job_type,status,input)
+        SELECT
+          $1,'results_notification','queued',
+          jsonb_build_object(
+            'releaseSnapshotId',$2::text,
+            'limit',100,
+            'source','release_publication'
+          )
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM research_study_jobs j
+          WHERE j.study_id=$1
+            AND j.job_type='results_notification'
+            AND j.input->>'releaseSnapshotId'=$2::text
+            AND j.status IN ('queued','running','succeeded')
+        )
+      `, [row.study_id, release.id]);
       studyStatus = "published";
     }
 
