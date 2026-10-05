@@ -246,6 +246,12 @@ function clearTryOnArtifactsForScope(scope: string) {
 function activeTryOnScope(): string | undefined {
   try {
     const value = window.localStorage.getItem(ACTIVE_SCOPE_KEY)?.trim();
+    if (value) return value;
+  } catch {
+    // Fall through to the tab-scoped marker.
+  }
+  try {
+    const value = window.sessionStorage.getItem(ACTIVE_SCOPE_KEY)?.trim();
     return value || undefined;
   } catch {
     return undefined;
@@ -255,12 +261,21 @@ function activeTryOnScope(): string | undefined {
 function reconcileActiveTryOnScope(nextScope: string | undefined) {
   const previousScope = activeTryOnScope();
   if (previousScope && previousScope !== nextScope) clearTryOnArtifactsForScope(previousScope);
-  try {
-    if (nextScope) window.localStorage.setItem(ACTIVE_SCOPE_KEY, nextScope);
-    else window.localStorage.removeItem(ACTIVE_SCOPE_KEY);
-  } catch {
-    // The account-specific keys still protect data if the marker cannot be persisted.
+
+  if (!nextScope) {
+    try { window.localStorage.removeItem(ACTIVE_SCOPE_KEY); } catch {}
+    try { window.sessionStorage.removeItem(ACTIVE_SCOPE_KEY); } catch {}
+    return;
   }
+
+  try {
+    window.localStorage.setItem(ACTIVE_SCOPE_KEY, nextScope);
+    try { window.sessionStorage.removeItem(ACTIVE_SCOPE_KEY); } catch {}
+    return;
+  } catch {
+    // Private browsing can reject localStorage while sessionStorage remains available.
+  }
+  try { window.sessionStorage.setItem(ACTIVE_SCOPE_KEY, nextScope); } catch {}
 }
 
 function clearLegacyUnscopedTryOnData() {
