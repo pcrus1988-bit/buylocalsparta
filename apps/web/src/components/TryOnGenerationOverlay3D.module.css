@@ -67,6 +67,114 @@
   line-height: 1.55;
 }
 
+.vectorWardrobe {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+  perspective: 900px;
+  transform-style: preserve-3d;
+}
+
+.flightGarment {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: clamp(72px, 13vw, 122px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  will-change: transform, opacity, filter;
+  filter:
+    drop-shadow(0 14px 20px rgba(0,0,0,.34))
+    drop-shadow(0 0 16px rgba(117,255,245,.6));
+}
+
+.flightGarment svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: rgba(5, 18, 26, .9);
+  stroke: #8ffff6;
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+  transform-origin: 50% 50%;
+  animation: vectorClothFlutter 850ms ease-in-out infinite alternate;
+}
+
+.flightGarment path {
+  vector-effect: non-scaling-stroke;
+}
+
+.flightA { animation: flightA 3.15s cubic-bezier(.31,.02,.22,1) infinite; }
+.flightB { animation: flightB 3.5s cubic-bezier(.34,.02,.18,1) infinite .28s; }
+.flightC { animation: flightC 3.8s cubic-bezier(.31,.02,.22,1) infinite .5s; }
+.flightD { animation: flightD 3.35s cubic-bezier(.31,.02,.2,1) infinite .75s; }
+.flightE { animation: flightE 3.65s cubic-bezier(.34,.02,.18,1) infinite 1s; }
+.flightF { animation: flightF 3.9s cubic-bezier(.31,.02,.22,1) infinite 1.25s; }
+
+@keyframes vectorClothFlutter {
+  from { transform: rotateY(-10deg) skewX(-2deg) scaleY(.97); }
+  to { transform: rotateY(12deg) skewX(2deg) scaleY(1.035); }
+}
+
+@keyframes flightA {
+  0% { transform: translate3d(-58vw, 26vh, -220px) rotateZ(-30deg) rotateY(-36deg) scale(.6); opacity: 0; }
+  14% { opacity: .95; }
+  48% { transform: translate3d(-3vw, -3vh, 120px) rotateZ(8deg) rotateY(15deg) scale(1.22); opacity: 1; }
+  100% { transform: translate3d(62vw, -24vh, -180px) rotateZ(38deg) rotateY(46deg) scale(.7); opacity: 0; }
+}
+
+@keyframes flightB {
+  0% { transform: translate3d(62vw, -20vh, -260px) rotateZ(32deg) rotateY(45deg) scale(.62); opacity: 0; }
+  16% { opacity: .92; }
+  50% { transform: translate3d(6vw, 5vh, 150px) rotateZ(-9deg) rotateY(-18deg) scale(1.28); opacity: 1; }
+  100% { transform: translate3d(-64vw, 22vh, -150px) rotateZ(-42deg) rotateY(-50deg) scale(.72); opacity: 0; }
+}
+
+@keyframes flightC {
+  0% { transform: translate3d(-52vw, -28vh, -160px) rotateZ(-20deg) rotateY(30deg) scale(.58); opacity: 0; }
+  16% { opacity: .9; }
+  52% { transform: translate3d(3vw, 9vh, 170px) rotateZ(12deg) rotateY(-12deg) scale(1.18); opacity: 1; }
+  100% { transform: translate3d(55vw, 26vh, -220px) rotateZ(34deg) rotateY(40deg) scale(.68); opacity: 0; }
+}
+
+@keyframes flightD {
+  0% { transform: translate3d(54vw, 30vh, -210px) rotateZ(28deg) rotateY(-35deg) scale(.58); opacity: 0; }
+  15% { opacity: .94; }
+  50% { transform: translate3d(-4vw, -8vh, 135px) rotateZ(-7deg) rotateY(14deg) scale(1.16); opacity: 1; }
+  100% { transform: translate3d(-58vw, -28vh, -170px) rotateZ(-38deg) rotateY(45deg) scale(.69); opacity: 0; }
+}
+
+@keyframes flightE {
+  0% { transform: translate3d(-45vw, 38vh, -250px) rotateZ(-34deg) rotateY(38deg) scale(.55); opacity: 0; }
+  18% { opacity: .92; }
+  52% { transform: translate3d(7vw, 0, 180px) rotateZ(6deg) rotateY(-10deg) scale(1.24); opacity: 1; }
+  100% { transform: translate3d(50vw, -36vh, -160px) rotateZ(42deg) rotateY(-44deg) scale(.7); opacity: 0; }
+}
+
+@keyframes flightF {
+  0% { transform: translate3d(48vw, 36vh, -210px) rotateZ(24deg) rotateY(-42deg) scale(.58); opacity: 0; }
+  17% { opacity: .93; }
+  50% { transform: translate3d(-7vw, 2vh, 155px) rotateZ(-10deg) rotateY(12deg) scale(1.2); opacity: 1; }
+  100% { transform: translate3d(-50vw, -34vh, -180px) rotateZ(-40deg) rotateY(48deg) scale(.68); opacity: 0; }
+}
+
+@media (max-width: 650px) {
+  .flightGarment {
+    width: clamp(88px, 23vw, 126px);
+  }
+
+  .flightA { animation-duration: 2.75s; }
+  .flightB { animation-duration: 3.05s; }
+  .flightC { animation-duration: 3.2s; }
+  .flightD { animation-duration: 2.9s; }
+  .flightE { animation-duration: 3.15s; }
+  .flightF { animation-duration: 3.3s; }
+}
+
 .reticle {
   position: relative;
   align-self: center;
@@ -175,7 +283,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .live i {
+  .live i,
+  .flightGarment,
+  .flightGarment svg {
     animation: none;
+  }
+
+  .flightGarment {
+    display: none;
   }
 }
