@@ -17,7 +17,7 @@ const DEFAULT_BODY = `Καλησπέρα,
 
 Η συμμετοχή ή μη συμμετοχή σας δεν επηρεάζει οποιαδήποτε εμπορική σχέση με το KONTA MOY. Οι επιλογές για ενημέρωση αποτελεσμάτων, κωδικό ευχαριστίας ή εμπορική επικοινωνία είναι ξεχωριστές από τη συγκατάθεση συμμετοχής στην έρευνα.`;
 
-type Busy = "template" | "send" | "analysis" | null;
+type Busy = "template" | "send" | "analysis" | "release" | null;
 
 export function ResearchStudyFieldworkControls({
   slug,
@@ -26,6 +26,8 @@ export function ResearchStudyFieldworkControls({
   recruitmentTemplateVersion,
   activeContacts,
   completed,
+  succeededAnalysisRuns,
+  latestReleaseVersion,
   queuedJobs,
   runningJobs
 }: {
@@ -35,6 +37,8 @@ export function ResearchStudyFieldworkControls({
   recruitmentTemplateVersion?: string;
   activeContacts: number;
   completed: number;
+  succeededAnalysisRuns: number;
+  latestReleaseVersion?: string;
   queuedJobs: number;
   runningJobs: number;
 }) {
@@ -95,6 +99,20 @@ export function ResearchStudyFieldworkControls({
       setMessage(raw === "RESEARCH_EMAIL_DELIVERY_DISABLED"
         ? "Η ερευνητική αποστολή SES είναι απενεργοποιημένη. Ενεργοποιήστε ρητά το BLS_RESEARCH_EMAIL_DELIVERY_ENABLED."
         : raw);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function buildRelease() {
+    setBusy("release");
+    setMessage("");
+    try {
+      const result = await post({ action: "build_release" });
+      setMessage("Το reproducible release μπήκε στην ουρά: " + String(result.releaseVersion || "") + ".");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Το release δεν μπήκε στην ουρά.");
     } finally {
       setBusy(null);
     }
@@ -191,6 +209,21 @@ export function ResearchStudyFieldworkControls({
         onClick={() => void runAnalysis()}
         type="button"
       >{busy === "analysis" ? "Queueing…" : "Run weighted analysis"}</button>
+    </div>
+
+    <div className="workspace-action-bar">
+      <span>
+        <strong>Reproducible release</strong><br />
+        {latestReleaseVersion
+          ? "Latest release snapshot: " + latestReleaseVersion
+          : "Μετά από επιτυχημένη ανάλυση δημιουργείται frozen release με methodology, dataset hash και artifact hash."}
+      </span>
+      <button
+        className="button"
+        disabled={Boolean(busy) || workerBusy || studyStatus !== "analysis" || succeededAnalysisRuns < 1 || Boolean(latestReleaseVersion)}
+        onClick={() => void buildRelease()}
+        type="button"
+      >{busy === "release" ? "Queueing…" : "Build release snapshot"}</button>
     </div>
 
     <div className="workspace-inline-note">
