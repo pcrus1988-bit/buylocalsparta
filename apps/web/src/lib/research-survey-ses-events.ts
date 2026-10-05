@@ -19,7 +19,10 @@ type SnsEnvelope = Readonly<{
 type SesResearchEvent = Readonly<{
   eventType?: string;
   notificationType?: string;
-  mail?: Readonly<{ messageId?: string }>;
+  mail?: Readonly<{
+    messageId?: string;
+    tags?: Readonly<Record<string, readonly string[]>>;
+  }>;
   bounce?: Readonly<{ bounceType?: string; bounceSubType?: string }>;
   complaint?: Readonly<Record<string, unknown>>;
   delivery?: Readonly<Record<string, unknown>>;
@@ -62,30 +65,54 @@ async function processResearchSesEvent(
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const providerMessageId = text(event.mail?.messageId).trim();
   const eventType = text(event.eventType || event.notificationType).trim();
+  const attemptTag = text(event.mail?.tags?.research_attempt?.[0]).trim();
   if (!providerMessageId || !eventType) return { ignored: "missing_provider_message_or_type" };
 
   const runtime = getProductionPostgresRuntime();
   const client = await runtime.sqlPool.connect();
   try {
     await client.query("BEGIN");
-    const inviteResult = await client.query<SqlRow>(`
+    const attemptResult = await client.query<SqlRow>(`
       SELECT
         ri.id AS invite_id,
         ri.study_id,
         ri.sample_unit_id,
         ri.contact_point_id,
         ri.status,
-        cp.contact_value_hash
-      FROM research_invites ri
+        cp.contact_value_hash,
+        m.id AS message_id
+      FROM research_invite_messages m
+      JOIN research_invites ri ON ri.id=m.invite_id
       LEFT JOIN research_contact_points cp ON cp.id=ri.contact_point_id
-      JOIN research_invite_events e ON e.invite_id=ri.id
-      WHERE e.event_type='sent'
-        AND e.metadata->>'providerMessageId'=$1
-      ORDER BY e.occurred_at DESC,e.id DESC
+      WHERE m.provider_message_id=$1
+         OR ($2::text<>'' AND m.id::text=$2)
+      ORDER BY m.created_at DESC,m.id DESC
       LIMIT 1
-      FOR UPDATE OF ri
-    `, [providerMessageId]);
-    const invite = inviteResult.rows[0];
+      FOR UPDATE OF m,ri
+    `, [providerMessageId, attemptTag]);
+
+    let invite = attemptResult.rows[0];
+    if (!invite) {
+      const inviteResult = await client.query<SqlRow>(`
+        SELECT
+          ri.id AS invite_id,
+          ri.study_id,
+          ri.sample_unit_id,
+          ri.contact_point_id,
+          ri.status,
+          cp.contact_value_hash,
+          NULL::uuid AS message_id
+        FROM research_invites ri
+        LEFT JOIN research_contact_points cp ON cp.id=ri.contact_point_id
+        JOIN research_invite_events e ON e.invite_id=ri.id
+        WHERE e.event_type='sent'
+          AND e.metadata->>'providerMessageId'=$1
+        ORDER BY e.occurred_at DESC,e.id DESC
+        LIMIT 1
+        FOR UPDATE OF ri
+      `, [providerMessageId]);
+      invite = inviteResult.rows[0];
+    }
     if (!invite) {
       const deliveryResult = await client.query<SqlRow>(`
         SELECT
@@ -236,11 +263,29 @@ async function processResearchSesEvent(
       snsMessageId,
       providerMessageId,
       providerEventType: eventType,
+      attemptId: text(invite.message_id) || attemptTag || null,
       bounceType: event.bounce?.bounceType ?? null,
       bounceSubType: event.bounce?.bounceSubType ?? null
     };
 
     if (eventType === "Delivery") {
+      await client.query(`
+        UPDATE research_invites
+        SET status=CASE WHEN status='created' THEN 'sent' ELSE status END,
+            sent_at=COALESCE(sent_at,now())
+        WHERE id=$1
+      `, [invite.invite_id]);
+      if (invite.message_id) {
+        await client.query(`
+          UPDATE research_invite_messages
+          SET status=CASE WHEN status IN ('opened','bounced','complained') THEN status ELSE 'delivered' END,
+              provider_message_id=COALESCE(provider_message_id,$2),
+              sent_at=COALESCE(sent_at,now()),
+              delivered_at=COALESCE(delivered_at,now()),
+              updated_at=now()
+          WHERE id=$1
+        `, [invite.message_id, providerMessageId]);
+      }
       await client.query(`
         INSERT INTO research_invite_events (invite_id,event_type,metadata)
         VALUES ($1,'delivered',$2::jsonb)
@@ -248,10 +293,22 @@ async function processResearchSesEvent(
     } else if (eventType === "Open") {
       await client.query(`
         UPDATE research_invites
-        SET status=CASE WHEN status='sent' THEN 'opened' ELSE status END,
+        SET status=CASE WHEN status IN ('created','sent') THEN 'opened' ELSE status END,
+            sent_at=COALESCE(sent_at,now()),
             first_opened_at=COALESCE(first_opened_at,now())
         WHERE id=$1
       `, [invite.invite_id]);
+      if (invite.message_id) {
+        await client.query(`
+          UPDATE research_invite_messages
+          SET status='opened',
+              provider_message_id=COALESCE(provider_message_id,$2),
+              sent_at=COALESCE(sent_at,now()),
+              opened_at=COALESCE(opened_at,now()),
+              updated_at=now()
+          WHERE id=$1
+        `, [invite.message_id, providerMessageId]);
+      }
       await client.query(`
         INSERT INTO research_invite_events (invite_id,event_type,metadata)
         VALUES ($1,'opened',$2::jsonb)
@@ -261,6 +318,20 @@ async function processResearchSesEvent(
       }
     } else if (eventType === "Bounce") {
       const permanentBounce = event.bounce?.bounceType === "Permanent";
+      if (invite.message_id) {
+        await client.query(`
+          UPDATE research_invite_messages
+          SET status='bounced',
+              provider_message_id=COALESCE(provider_message_id,$2),
+              last_error=$3,
+              updated_at=now()
+          WHERE id=$1
+        `, [
+          invite.message_id,
+          providerMessageId,
+          `SES bounce: ${event.bounce?.bounceType ?? "unknown"}`
+        ]);
+      }
       if (permanentBounce && invite.contact_value_hash) {
         await client.query(`
           INSERT INTO research_contact_suppression_events (
@@ -291,6 +362,16 @@ async function processResearchSesEvent(
         await disposition(client, text(invite.sample_unit_id), "bounce", "eligible", metadata);
       }
     } else if (eventType === "Complaint") {
+      if (invite.message_id) {
+        await client.query(`
+          UPDATE research_invite_messages
+          SET status='complained',
+              provider_message_id=COALESCE(provider_message_id,$2),
+              last_error='SES complaint',
+              updated_at=now()
+          WHERE id=$1
+        `, [invite.message_id, providerMessageId]);
+      }
       if (invite.contact_value_hash) {
         await client.query(`
           INSERT INTO research_contact_suppression_events (
@@ -325,6 +406,16 @@ async function processResearchSesEvent(
         );
       }
     } else if (eventType === "Reject" || eventType === "Rendering Failure") {
+      if (invite.message_id) {
+        await client.query(`
+          UPDATE research_invite_messages
+          SET status='failed',
+              provider_message_id=COALESCE(provider_message_id,$2),
+              last_error=$3,
+              updated_at=now()
+          WHERE id=$1
+        `, [invite.message_id, providerMessageId, `SES ${eventType}`]);
+      }
       await client.query(`
         UPDATE research_invites
         SET status=CASE WHEN status IN ('created','sent') THEN 'expired' ELSE status END
