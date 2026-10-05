@@ -1,4 +1,5 @@
 import { randomInt, randomUUID } from "node:crypto";
+import { S3ObjectStorage, objectStorageConfigFromEnv } from "@buy-local-sparta/object-storage";
 import { getCatalogCard } from "./catalog-view";
 import { approvedCatalogImageGallery } from "./public-product-media-gallery";
 import { getPublicProductDetail } from "./public-product-detail";
@@ -55,61 +56,15 @@ export type CustomerTryOnGeneration = Readonly<{
   generatedAt: string;
 }>;
 
-const DEFAULT_PRIVATE_STORAGE_BUCKET = "buy-local-sparta-private";
+let customerTryOnStorage: S3ObjectStorage | undefined;
 
-function supabasePrivateStorageConfig() {
-  const baseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL)?.trim().replace(/\/+$/, "");
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  const bucket = process.env.TRY_ON_STORAGE_BUCKET?.trim() || DEFAULT_PRIVATE_STORAGE_BUCKET;
-  if (!baseUrl || !serviceRoleKey) throw new Error("TRY_ON_STORAGE_NOT_CONFIGURED");
-  return { baseUrl, serviceRoleKey, bucket };
-}
-
-function privateStorageObjectUrl(objectKey: string): { url: string; serviceRoleKey: string } {
-  const { baseUrl, serviceRoleKey, bucket } = supabasePrivateStorageConfig();
-  const encodedBucket = encodeURIComponent(bucket);
-  const encodedKey = objectKey.split("/").map((segment) => encodeURIComponent(segment)).join("/");
-  return {
-    url: `${baseUrl}/storage/v1/object/${encodedBucket}/${encodedKey}`,
-    serviceRoleKey
-  };
-}
-
-function privateStorageHeaders(serviceRoleKey: string, contentType?: string): Record<string, string> {
-  return {
-    apikey: serviceRoleKey,
-    authorization: `Bearer ${serviceRoleKey}`,
-    ...(contentType ? { "content-type": contentType } : {})
-  };
-}
-
-async function readPrivateObject(objectKey: string): Promise<{ body: Uint8Array; contentType?: string; byteSize: number }> {
-  const { url, serviceRoleKey } = privateStorageObjectUrl(objectKey);
-  const response = await fetch(url, {
-    headers: privateStorageHeaders(serviceRoleKey),
-    cache: "no-store"
-  });
-  if (!response.ok) {
-    if (response.status === 404) throw new Error("TRY_ON_STORAGE_OBJECT_NOT_FOUND");
-    throw new Error(`TRY_ON_STORAGE_READ_FAILED_${response.status}`);
-  }
-  const body = new Uint8Array(await response.arrayBuffer());
-  return {
-    body,
-    contentType: response.headers.get("content-type")?.split(";")[0]?.trim() || undefined,
-    byteSize: body.byteLength
-  };
-}
-
-async function deletePrivateObject(objectKey: string): Promise<void> {
-  const { url, serviceRoleKey } = privateStorageObjectUrl(objectKey);
-  const response = await fetch(url, {
-    method: "DELETE",
-    headers: privateStorageHeaders(serviceRoleKey),
-    cache: "no-store"
-  });
-  if (!response.ok && response.status !== 404) {
-    throw new Error(`TRY_ON_STORAGE_DELETE_FAILED_${response.status}`);
+function storage(): S3ObjectStorage {
+  if (customerTryOnStorage) return customerTryOnStorage;
+  try {
+    customerTryOnStorage = new S3ObjectStorage(objectStorageConfigFromEnv());
+    return customerTryOnStorage;
+  } catch {
+    throw new Error("TRY_ON_STORAGE_NOT_CONFIGURED");
   }
 }
 
@@ -282,21 +237,18 @@ function rowToSavedTryOn(row: SavedTryOnRow): CustomerSavedTryOn {
 }
 
 async function uploadPrivateObject(objectKey: string, contentType: string, bytes: Uint8Array): Promise<void> {
-  const { url, serviceRoleKey } = privateStorageObjectUrl(objectKey);
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      ...privateStorageHeaders(serviceRoleKey, contentType),
-      "x-upsert": "false"
-    },
+  const signed = await storage().createUploadUrl({ objectKey, contentType, expiresInSeconds: 300 });
+  const response = await fetch(signed.url, {
+    method: "PUT",
+    headers: signed.headers,
     body: Buffer.from(bytes),
     cache: "no-store"
   });
   if (!response.ok) throw new Error(`TRY_ON_STORAGE_UPLOAD_FAILED_${response.status}`);
 
-  const verified = await readPrivateObject(objectKey);
-  if (verified.byteSize !== bytes.byteLength) {
-    await deletePrivateObject(objectKey).catch(() => undefined);
+  const metadata = await storage().head(objectKey);
+  if (!metadata || metadata.byteSize !== bytes.byteLength) {
+    await storage().delete(objectKey).catch(() => undefined);
     throw new Error("TRY_ON_STORAGE_VERIFY_FAILED");
   }
 }
@@ -376,7 +328,7 @@ export async function saveCustomerTryOn(input: {
     if (!row) throw new Error("TRY_ON_ACCOUNT_OR_PRODUCT_NOT_FOUND");
     return rowToSavedTryOn(row);
   } catch (error) {
-    await deletePrivateObject(objectKey).catch(() => undefined);
+    await storage().delete(objectKey).catch(() => undefined);
     throw error;
   }
 }
@@ -414,14 +366,14 @@ async function ownedSavedObject(userPublicId: string, savedId: string): Promise<
 export async function readCustomerSavedTryOnImage(userPublicId: string, savedId: string) {
   const owned = await ownedSavedObject(userPublicId, savedId);
   if (!owned) return undefined;
-  const object = await readPrivateObject(owned.objectKey);
+  const object = await storage().read(owned.objectKey);
   return { ...object, contentType: owned.contentType || object.contentType || "image/jpeg" };
 }
 
 export async function deleteCustomerSavedTryOn(userPublicId: string, savedId: string): Promise<boolean> {
   const owned = await ownedSavedObject(userPublicId, savedId);
   if (!owned) return false;
-  await deletePrivateObject(owned.objectKey);
+  await storage().delete(owned.objectKey);
   const result = await getProductionPostgresRuntime().nativePool.query(`
     DELETE FROM public.customer_try_on_saves t
     USING public.users u
@@ -440,7 +392,7 @@ export async function purgeCustomerTryOnAssets(userPublicId: string): Promise<nu
     JOIN public.users u ON u.id=t.user_id
     WHERE u.public_id=$1 OR u.id::text=$1
   `, [userPublicId]);
-  for (const row of result.rows) await deletePrivateObject(row.object_key);
+  for (const row of result.rows) await storage().delete(row.object_key);
   const removed = await getProductionPostgresRuntime().nativePool.query(`
     DELETE FROM public.customer_try_on_saves t
     USING public.users u
