@@ -26,11 +26,90 @@
   gap: 16px;
 }
 
+.compareTray {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--white) 84%, var(--cream, #f5f1e8));
+}
+
+.compareHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.compareHeader > div {
+  display: grid;
+  gap: 3px;
+}
+
+.compareHeader span {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.compareHeader button {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.compareGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.compareItem {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--white);
+}
+
+.compareItem img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  background: #f2f0ec;
+}
+
+.compareItem > div {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+}
+
+.compareItem strong {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.compareItem a {
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .card {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 20px;
   background: var(--white);
+}
+
+.cardSelected {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ink) 30%, transparent);
 }
 
 .imageLink {
@@ -57,6 +136,24 @@
   margin: 5px 0 13px;
   font-size: 16px;
   line-height: 1.3;
+}
+
+.compareButton {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.compareButtonSelected {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
 }
 
 .actions {
@@ -101,4 +198,10 @@
 
 @media (max-width: 700px) {
   .heading { align-items: flex-start; flex-direction: column; }
+  .compareHeader { align-items: flex-start; flex-direction: column; }
+  .compareGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 480px) {
+  .compareGrid { grid-template-columns: 1fr; }
 }
