@@ -28,7 +28,8 @@ export async function POST(request: Request) {
       productId,
       predictionId: body.predictionId,
       imageDataUrl: body.imageDataUrl,
-      saveToken: body.saveToken
+      saveToken: body.saveToken,
+      outfitName: body.outfitName
     });
     return Response.json({ saved }, {
       status: 201,
