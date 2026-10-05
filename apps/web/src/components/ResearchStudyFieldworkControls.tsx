@@ -17,13 +17,28 @@ const DEFAULT_BODY = `Καλησπέρα,
 
 Η συμμετοχή ή μη συμμετοχή σας δεν επηρεάζει οποιαδήποτε εμπορική σχέση με το KONTA MOY. Οι επιλογές για ενημέρωση αποτελεσμάτων, κωδικό ευχαριστίας ή εμπορική επικοινωνία είναι ξεχωριστές από τη συγκατάθεση συμμετοχής στην έρευνα.`;
 
-type Busy = "template" | "send" | "rewards" | "analysis" | "release" | "results" | null;
+const DEFAULT_REMINDER_SUBJECT = "Υπενθύμιση συμμετοχής στη μελέτη «Ελληνικό Λιανεμπόριο 2026»";
+const DEFAULT_REMINDER_BODY = `Καλησπέρα,
+
+Σας υπενθυμίζουμε την προαιρετική πρόσκληση συμμετοχής στη μελέτη «{{study_title}}». Αν έχετε ήδη ξεκινήσει, ο προσωπικός σύνδεσμος σας επιστρέφει στην ίδια απάντηση· δεν δημιουργεί δεύτερη συμμετοχή.
+
+{{survey_url}}
+
+Μεθοδολογία και πληροφορίες επεξεργασίας:
+{{methodology_url}}
+
+Δεν θα αποσταλούν περισσότερες υπενθυμίσεις από το προκαθορισμένο όριο της μελέτης. Η συμμετοχή ή μη συμμετοχή δεν επηρεάζει οποιαδήποτε εμπορική σχέση με το KONTA MOY.`;
+
+type Busy = "template" | "reminderTemplate" | "send" | "reminders" | "rewards" | "analysis" | "release" | "results" | null;
 
 export function ResearchStudyFieldworkControls({
   slug,
   csrfToken,
   studyStatus,
   recruitmentTemplateVersion,
+  reminderTemplateVersion,
+  reminderSent,
+  reminderFailed,
   activeContacts,
   completed,
   rewardEligible,
@@ -42,6 +57,9 @@ export function ResearchStudyFieldworkControls({
   csrfToken: string;
   studyStatus: string;
   recruitmentTemplateVersion?: string;
+  reminderTemplateVersion?: string;
+  reminderSent: number;
+  reminderFailed: number;
   activeContacts: number;
   completed: number;
   rewardEligible: number;
@@ -60,11 +78,26 @@ export function ResearchStudyFieldworkControls({
   const [busy, setBusy] = useState<Busy>(null);
   const [subject, setSubject] = useState(DEFAULT_SUBJECT);
   const [bodyText, setBodyText] = useState(DEFAULT_BODY);
+  const [reminderSubject, setReminderSubject] = useState(DEFAULT_REMINDER_SUBJECT);
+  const [reminderBodyText, setReminderBodyText] = useState(DEFAULT_REMINDER_BODY);
   const [batchSize, setBatchSize] = useState("100");
+  const [reminderBatchSize, setReminderBatchSize] = useState("100");
+  const [reminderMinAgeDays, setReminderMinAgeDays] = useState("5");
+  const [reminderMinGapDays, setReminderMinGapDays] = useState("5");
+  const [reminderMaxCount, setReminderMaxCount] = useState("2");
   const [message, setMessage] = useState("");
   const workerBusy = queuedJobs > 0 || runningJobs > 0;
   const batchN = Number(batchSize);
   const batchValid = Number.isSafeInteger(batchN) && batchN >= 1 && batchN <= 500;
+  const reminderBatchN = Number(reminderBatchSize);
+  const reminderAgeN = Number(reminderMinAgeDays);
+  const reminderGapN = Number(reminderMinGapDays);
+  const reminderMaxN = Number(reminderMaxCount);
+  const reminderValid =
+    Number.isSafeInteger(reminderBatchN) && reminderBatchN >= 1 && reminderBatchN <= 500 &&
+    Number.isSafeInteger(reminderAgeN) && reminderAgeN >= 1 && reminderAgeN <= 90 &&
+    Number.isSafeInteger(reminderGapN) && reminderGapN >= 1 && reminderGapN <= 90 &&
+    Number.isSafeInteger(reminderMaxN) && reminderMaxN >= 1 && reminderMaxN <= 5;
   const fielding = studyStatus === "pilot" || studyStatus === "fielding";
 
   async function post(body: Record<string, unknown>) {
@@ -84,6 +117,7 @@ export function ResearchStudyFieldworkControls({
     try {
       const result = await post({
         action: "save_recruitment_template",
+        purpose: "research_invitation",
         subject,
         bodyText
       });
@@ -91,6 +125,50 @@ export function ResearchStudyFieldworkControls({
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Η πρόσκληση δεν αποθηκεύτηκε.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function lockReminderTemplate() {
+    setBusy("reminderTemplate");
+    setMessage("");
+    try {
+      const result = await post({
+        action: "save_recruitment_template",
+        purpose: "research_reminder",
+        subject: reminderSubject,
+        bodyText: reminderBodyText
+      });
+      setMessage("Η έκδοση υπενθύμισης κλειδώθηκε: " + String(result.version || ""));
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Η υπενθύμιση δεν αποθηκεύτηκε.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function sendReminders() {
+    if (!reminderValid) return;
+    setBusy("reminders");
+    setMessage("");
+    try {
+      const result = await post({
+        action: "send_reminders",
+        limit: reminderBatchN,
+        minAgeDays: reminderAgeN,
+        minGapDays: reminderGapN,
+        maxReminders: reminderMaxN,
+        label: "fieldwork-reminder-" + new Date().toISOString()
+      });
+      setMessage("Η παρτίδα υπενθυμίσεων μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
+      router.refresh();
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : "Η υπενθύμιση δεν μπήκε στην ουρά.";
+      setMessage(raw === "RESEARCH_EMAIL_DELIVERY_DISABLED"
+        ? "Η ερευνητική αποστολή SES είναι απενεργοποιημένη. Ενεργοποιήστε ρητά το BLS_RESEARCH_EMAIL_DELIVERY_ENABLED."
+        : raw);
     } finally {
       setBusy(null);
     }
@@ -256,6 +334,108 @@ export function ResearchStudyFieldworkControls({
 
     <div className="workspace-action-bar">
       <span>
+        <strong>Reminder protocol</strong><br />
+        {reminderTemplateVersion
+          ? `Locked reminder version: ${reminderTemplateVersion} · ${reminderSent.toLocaleString("el-GR")} sent · ${reminderFailed.toLocaleString("el-GR")} failed.`
+          : "Δεν υπάρχει κλειδωμένη έκδοση υπενθύμισης. Οι υπενθυμίσεις δεν μπορούν να σταλούν χωρίς ξεχωριστό versioned template."}
+      </span>
+    </div>
+
+    {!reminderTemplateVersion && <div className="workspace-action-bar">
+      <div style={{ width: "100%", display: "grid", gap: 10 }}>
+        <label>
+          <strong>Θέμα υπενθύμισης</strong><br />
+          <input
+            aria-label="Research reminder subject"
+            maxLength={180}
+            onChange={(event) => setReminderSubject(event.target.value)}
+            type="text"
+            value={reminderSubject}
+          />
+        </label>
+        <label>
+          <strong>Κείμενο υπενθύμισης</strong><br />
+          <textarea
+            aria-label="Research reminder body"
+            onChange={(event) => setReminderBodyText(event.target.value)}
+            rows={10}
+            value={reminderBodyText}
+          />
+        </label>
+        <button
+          className="button button-secondary"
+          disabled={Boolean(busy)}
+          onClick={() => void lockReminderTemplate()}
+          type="button"
+        >{busy === "reminderTemplate" ? "Κλείδωμα…" : "Κλείδωμα έκδοσης υπενθύμισης"}</button>
+      </div>
+    </div>}
+
+    <div className="workspace-action-bar">
+      <span>
+        <strong>Governed reminders</strong><br />
+        Ο ίδιος canonical invite/response παραμένει ενεργός. Κάθε email παίρνει νέο opaque token hash και καταγράφεται ως contact attempt, χωρίς να αυξάνει τον αριθμό των invitations ή το response-rate denominator.
+      </span>
+      <div className="workspace-action-buttons" style={{ flexWrap: "wrap" }}>
+        <label>
+          <small>Batch</small><br />
+          <input
+            aria-label="Reminder batch size"
+            inputMode="numeric"
+            max={500}
+            min={1}
+            onChange={(event) => setReminderBatchSize(event.target.value.replace(/[^0-9]/g, ""))}
+            type="number"
+            value={reminderBatchSize}
+          />
+        </label>
+        <label>
+          <small>First after days</small><br />
+          <input
+            aria-label="Reminder minimum invitation age days"
+            inputMode="numeric"
+            max={90}
+            min={1}
+            onChange={(event) => setReminderMinAgeDays(event.target.value.replace(/[^0-9]/g, ""))}
+            type="number"
+            value={reminderMinAgeDays}
+          />
+        </label>
+        <label>
+          <small>Gap days</small><br />
+          <input
+            aria-label="Reminder minimum gap days"
+            inputMode="numeric"
+            max={90}
+            min={1}
+            onChange={(event) => setReminderMinGapDays(event.target.value.replace(/[^0-9]/g, ""))}
+            type="number"
+            value={reminderMinGapDays}
+          />
+        </label>
+        <label>
+          <small>Max reminders</small><br />
+          <input
+            aria-label="Maximum reminders per invite"
+            inputMode="numeric"
+            max={5}
+            min={1}
+            onChange={(event) => setReminderMaxCount(event.target.value.replace(/[^0-9]/g, ""))}
+            type="number"
+            value={reminderMaxCount}
+          />
+        </label>
+        <button
+          className="button button-secondary"
+          disabled={Boolean(busy) || workerBusy || !fielding || !reminderTemplateVersion || !reminderValid}
+          onClick={() => void sendReminders()}
+          type="button"
+        >{busy === "reminders" ? "Queueing…" : "Queue reminder batch"}</button>
+      </div>
+    </div>
+
+    <div className="workspace-action-bar">
+      <span>
         <strong>Participant thank-you delivery</strong><br />
         {rewardEligible.toLocaleString("el-GR")} entitlement(s) παραμένουν eligible · {rewardIssued.toLocaleString("el-GR")} issued · {rewardDeliveryFailed.toLocaleString("el-GR")} failed delivery record(s).
         Η αποστολή απαιτεί μόνο τη χωριστή επιλογή “thank-you code” και δεν διαβάζει marketing consent.
@@ -316,7 +496,7 @@ export function ResearchStudyFieldworkControls({
     <div className="workspace-inline-note">
       {message || (workerBusy
         ? "Υπάρχει ήδη research worker job σε αναμονή ή εκτέλεση."
-        : "Τα invitation tokens δημιουργούνται μέσα στον worker και δεν αποθηκεύονται ποτέ σε plaintext. Bounces/complaints επιστρέφουν στη suppression ledger μέσω του SES SNS webhook.")}
+        : "Τα invitation/reminder tokens δημιουργούνται μέσα στον worker και δεν αποθηκεύονται ποτέ σε plaintext. Οι υπενθυμίσεις επαναχρησιμοποιούν το ίδιο canonical invite και καταγράφονται ως ξεχωριστά contact attempts. Bounces/complaints επιστρέφουν στη suppression ledger μέσω του SES SNS webhook.")}
     </div>
   </div>;
 }
