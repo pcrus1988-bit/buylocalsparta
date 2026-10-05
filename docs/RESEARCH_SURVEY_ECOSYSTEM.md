@@ -113,6 +113,7 @@ Q07 values are normalized with `(answer - 1) / 4 * 100`. `Not applicable` is exc
 - weight version and metadata
 
 Weight versions are not overwritten. A new weighting methodology creates a new version.
+ Every succeeded analysis also freezes weight-dispersion diagnostics: weight count/sum/range/mean, coefficient of variation, Kish effective sample size, weighting design effect, and the minimum/maximum within-stratum non-response adjustment. These diagnostics quantify how much effective information is lost to unequal weights and make extreme non-response correction visible instead of hiding it behind a single weighted estimate.
 
 ### Variance and confidence intervals
 
