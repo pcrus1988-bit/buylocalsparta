@@ -387,6 +387,7 @@ if (!release.includes("researchReleaseArtifactIntegrity")) errors.push("transact
 if (!surveyRuntime.includes("RESEARCH_RELEASE_ARTIFACT_HASH_MISMATCH")) errors.push("publication does not fail closed on artifact hash mismatch");
 
 if (!release.includes("recomputedSha256 === published.artifactSha256")) errors.push("published release artifact integrity check missing");
+if (!release.includes("value instanceof Date")) errors.push("release canonicalizer does not normalize PostgreSQL timestamps");
 if (!release.includes("method: text(estimate.method)")) errors.push("published artifact reconstruction drops estimate method");
 if (!releaseRoute.includes("X-Konta-Mou-Artifact-SHA256")) errors.push("canonical release endpoint does not expose artifact hash");
 if (!releaseRoute.includes("Content-Disposition")) errors.push("canonical release endpoint is not downloadable");
