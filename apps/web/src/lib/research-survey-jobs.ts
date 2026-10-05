@@ -610,7 +610,7 @@ async function claimResearchJob(): Promise<ResearchJobRow | undefined> {
       SELECT id, study_id, job_type, input, output, attempts
       FROM research_study_jobs
       WHERE status='queued' AND available_at <= now()
-        AND job_type IN ('frame_snapshot','sample_draw','invite_batch','reward_delivery','analysis','release','results_notification')
+        AND job_type IN ('frame_snapshot','sample_draw','invite_batch','invite_reminder','reward_delivery','analysis','release','results_notification')
       ORDER BY created_at
       FOR UPDATE SKIP LOCKED
       LIMIT 1
