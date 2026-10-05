@@ -4,6 +4,7 @@ import {
   queueGreekRetailAnalysis,
   queueGreekRetailFrameBuild,
   queueGreekRetailInviteBatch,
+  queueGreekRetailInviteReminderBatch,
   queueGreekRetailResultsNotifications,
   queueGreekRetailRewardDelivery,
   queueGreekRetailSampleDraw,
@@ -24,6 +25,10 @@ type Body = {
   bodyText?: string;
   version?: string;
   releaseVersion?: string;
+  purpose?: "research_invitation" | "research_reminder";
+  minAgeDays?: number;
+  minGapDays?: number;
+  maxReminders?: number;
 };
 
 export async function POST(request: Request, context: { params: Promise<{ slug: string }> }) {
@@ -40,7 +45,8 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
       const result = await saveGreekRetailRecruitmentTemplate(principal, {
         subject: String(body.subject ?? ""),
         bodyText: String(body.bodyText ?? ""),
-        version: body.version
+        version: body.version,
+        purpose: body.purpose
       });
       await recordAdminAudit(
         principal,
@@ -95,6 +101,31 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         slug,
         "Queue governed SES research invitation batch",
         { ...result, limit: Number(body.limit || 100) }
+      );
+      return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (body.action === "send_reminders") {
+      const result = await queueGreekRetailInviteReminderBatch(principal, {
+        limit: Number(body.limit || 100),
+        label: body.label,
+        minAgeDays: Number(body.minAgeDays || 5),
+        minGapDays: Number(body.minGapDays || 5),
+        maxReminders: Number(body.maxReminders || 2)
+      });
+      await recordAdminAudit(
+        principal,
+        "research.invite_reminder.queued",
+        "research_study",
+        slug,
+        "Queue governed SES research reminder batch",
+        {
+          ...result,
+          limit: Number(body.limit || 100),
+          minAgeDays: Number(body.minAgeDays || 5),
+          minGapDays: Number(body.minGapDays || 5),
+          maxReminders: Number(body.maxReminders || 2)
+        }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
