@@ -135,26 +135,55 @@ async function resolveGarment(userPublicId: string, productId: string) {
   return { product, image: garmentImage };
 }
 
-function providerError(value: unknown): string {
-  if (!value) return "TRY_ON_PROVIDER_FAILED";
-  if (typeof value === "string") return value.slice(0, 300);
-  if (typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    const name = typeof record.name === "string" ? record.name : "";
-    const message = typeof record.message === "string" ? record.message : "";
-    return [name, message].filter(Boolean).join(": ").slice(0, 300) || "TRY_ON_PROVIDER_FAILED";
+function providerError(value: unknown, message?: unknown): string {
+  const record = typeof value === "object" && value ? value as Record<string, unknown> : undefined;
+  const name = typeof record?.name === "string" ? record.name : typeof value === "string" ? value : "";
+  const detail = typeof record?.message === "string"
+    ? record.message
+    : typeof message === "string"
+      ? message
+      : "";
+  const haystack = `${name} ${detail}`.toLowerCase();
+
+  if (haystack.includes("poseerror") || haystack.includes("pose")) return "TRY_ON_POSE_REQUIRED";
+  if (haystack.includes("contentmoderation") || haystack.includes("moderation")) return "TRY_ON_CONTENT_BLOCKED";
+  if (haystack.includes("imageload") || haystack.includes("inputvalidation") || haystack.includes("badrequest")) {
+    return "TRY_ON_INPUT_INVALID";
   }
+  if (haystack.includes("outofcredits") || haystack.includes("out of credits")) return "TRY_ON_CREDITS_UNAVAILABLE";
+  if (
+    haystack.includes("ratelimit")
+    || haystack.includes("concurrency")
+    || haystack.includes("unavailable")
+    || haystack.includes("thirdparty")
+    || haystack.includes("pipeline")
+    || haystack.includes("internalserver")
+  ) return "TRY_ON_PROVIDER_BUSY";
+  if (haystack.includes("unauthorized")) return "TRY_ON_NOT_CONFIGURED";
   return "TRY_ON_PROVIDER_FAILED";
 }
 
-function wait(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+function wait(ms: number, signal?: AbortSignal) {
+  if (!signal) return new Promise<void>((resolve) => setTimeout(resolve, ms));
+  if (signal.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", abort);
+      resolve();
+    }, ms);
+    const abort = () => {
+      clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", abort, { once: true });
+  });
 }
 
 export async function generateCustomerTryOn(input: {
   userPublicId: string;
   productId: string;
   modelImageDataUrl: unknown;
+  signal?: AbortSignal;
 }): Promise<CustomerTryOnGeneration> {
   const model = decodeDataImage(input.modelImageDataUrl, MAX_MODEL_IMAGE_BYTES, new Set(["image/jpeg", "image/png", "image/webp"]));
   const { product, image: garmentImage } = await resolveGarment(input.userPublicId, input.productId.trim());
@@ -181,20 +210,22 @@ export async function generateCustomerTryOn(input: {
         return_base64: true
       }
     }),
-    cache: "no-store"
+    cache: "no-store",
+    signal: input.signal
   });
   const started = await runResponse.json().catch(() => ({})) as FashnRunResponse;
   if (!runResponse.ok || !started.id) {
-    throw new Error(started.message?.slice(0, 300) || providerError(started.error));
+    throw new Error(providerError(started.error, started.message));
   }
 
   const predictionId = safePredictionId(started.id);
   const deadline = Date.now() + 40_000;
   while (Date.now() < deadline) {
-    await wait(2_000);
+    await wait(2_000, input.signal);
     const statusResponse = await fetch(`${FASHN_BASE_URL}/status/${encodeURIComponent(predictionId)}`, {
       headers: { authorization: `Bearer ${apiKey}` },
-      cache: "no-store"
+      cache: "no-store",
+      signal: input.signal
     });
     const status = await statusResponse.json().catch(() => ({})) as FashnStatusResponse;
     if (!statusResponse.ok) throw new Error(providerError(status.error));
