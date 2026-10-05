@@ -21,6 +21,8 @@ const sampleDesignMigrationPath = "db/migrations/0424_research_sample_design_evi
 const sampleDesignChecksumPath = "db/migrations/checksums.0424.json";
 const sampleDesignIntegrityMigrationPath = "db/migrations/0425_research_sample_design_integrity.sql";
 const sampleDesignIntegrityChecksumPath = "db/migrations/checksums.0425.json";
+const protocolEvidenceMigrationPath = "db/migrations/0426_research_protocol_evidence.sql";
+const protocolEvidenceChecksumPath = "db/migrations/checksums.0426.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const deliveryMigration = readFileSync(deliveryMigrationPath, "utf8");
@@ -31,6 +33,7 @@ const experimentIntegrityMigration = readFileSync(experimentIntegrityMigrationPa
 const phaseIsolationMigration = readFileSync(phaseIsolationMigrationPath, "utf8");
 const sampleDesignMigration = readFileSync(sampleDesignMigrationPath, "utf8");
 const sampleDesignIntegrityMigration = readFileSync(sampleDesignIntegrityMigrationPath, "utf8");
+const protocolEvidenceMigration = readFileSync(protocolEvidenceMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
 const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
@@ -41,6 +44,7 @@ const experimentIntegrityChecksums = JSON.parse(readFileSync(experimentIntegrity
 const phaseIsolationChecksums = JSON.parse(readFileSync(phaseIsolationChecksumPath, "utf8")) as Record<string, string>;
 const sampleDesignChecksums = JSON.parse(readFileSync(sampleDesignChecksumPath, "utf8")) as Record<string, string>;
 const sampleDesignIntegrityChecksums = JSON.parse(readFileSync(sampleDesignIntegrityChecksumPath, "utf8")) as Record<string, string>;
+const protocolEvidenceChecksums = JSON.parse(readFileSync(protocolEvidenceChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
@@ -106,6 +110,7 @@ const experimentIntegritySha = createHash("sha256").update(experimentIntegrityMi
 const phaseIsolationSha = createHash("sha256").update(phaseIsolationMigration, "utf8").digest("hex");
 const sampleDesignSha = createHash("sha256").update(sampleDesignMigration, "utf8").digest("hex");
 const sampleDesignIntegritySha = createHash("sha256").update(sampleDesignIntegrityMigration, "utf8").digest("hex");
+const protocolEvidenceSha = createHash("sha256").update(protocolEvidenceMigration, "utf8").digest("hex");
 if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0416 checksum does not match migration bytes");
 }
@@ -136,7 +141,10 @@ if (sampleDesignChecksums["0424_research_sample_design_evidence.sql"] !== sample
 if (sampleDesignIntegrityChecksums["0425_research_sample_design_integrity.sql"] !== sampleDesignIntegritySha) {
   errors.push("0425 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 425")) errors.push("runtime schema head is not 425");
+if (protocolEvidenceChecksums["0426_research_protocol_evidence.sql"] !== protocolEvidenceSha) {
+  errors.push("0426 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 426")) errors.push("runtime schema head is not 426");
 if (!sampleDesignMigration.includes("CREATE TABLE public.research_sample_designs")) errors.push("sample design evidence table missing");
 if (!sampleDesignMigration.includes("CREATE TABLE public.research_sample_design_strata")) errors.push("sample design stratum evidence table missing");
 if (!sampleDesignMigration.includes("research_sample_designs_immutable")) errors.push("sample design immutability trigger missing");
@@ -148,6 +156,10 @@ if (!sampleDesignIntegrityMigration.includes("research_sample_designs_insert_gua
 if (!sampleDesignIntegrityMigration.includes("research_sample_design_strata_insert_guard")) errors.push("sample design stratum insert guard missing");
 if (!sampleDesignIntegrityMigration.includes("research sample design selected n does not match persisted sample units")) errors.push("sample design persisted-selection guard missing");
 if (!sampleDesignIntegrityMigration.includes("FROM PUBLIC;")) errors.push("sample design insert guard is not revoked from PUBLIC");
+if (!protocolEvidenceMigration.includes("CREATE TABLE public.research_protocol_events")) errors.push("protocol evidence table missing");
+if (!protocolEvidenceMigration.includes("research_protocol_events_immutable")) errors.push("protocol evidence immutability trigger missing");
+if (!protocolEvidenceMigration.includes("research_protocol_events_platform_runtime")) errors.push("protocol evidence RLS policy missing");
+if (!protocolEvidenceMigration.includes("research protocol evidence is immutable")) errors.push("protocol evidence mutation guard missing");
 if (!reminderMigration.includes("CREATE TABLE public.research_invite_access_tokens")) errors.push("reminder access-token table missing");
 if (!reminderMigration.includes("CREATE TABLE public.research_invite_messages")) errors.push("invitation attempt ledger missing");
 if (!reminderMigration.includes("ALTER TABLE public.research_invite_access_tokens ENABLE ROW LEVEL SECURITY;")) errors.push("reminder access-token RLS missing");
@@ -395,6 +407,9 @@ if (!samplingControls.includes("planningAssumptionsValid")) errors.push("sample 
 if (!jobs.includes("kontamou.research.sample-design.v1")) errors.push("sample design evidence document is not frozen by the sample worker");
 if (!surveyRuntime.includes("sds.target_complete_n")) errors.push("fieldwork balance does not read frozen sample-design completion targets");
 if (!release.includes("sample_design_sha256") || !release.includes("designEvidence")) errors.push("release artifact does not freeze sample design evidence");
+if (!surveyRuntime.includes("recordResearchProtocolEvent") || !surveyRuntime.includes("researchProtocolEvents")) errors.push("protocol evidence runtime missing");
+if (!release.includes("protocolEvidence") || !release.includes("RESEARCH_RELEASE_PROTOCOL_EVIDENCE_INTEGRITY_FAILED")) errors.push("release artifact does not freeze verified protocol evidence");
+if (!resultsPage.includes("Protocol deviations & amendments")) errors.push("public results do not disclose protocol evidence");
 if (!surveyRuntime.includes("RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("pilot lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes("RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("fieldwork lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes('"publish_release"')) errors.push("explicit publish lifecycle action missing");
@@ -402,7 +417,7 @@ if (!schemaRollout.includes("workflow_dispatch")) errors.push("research producti
 if (!schemaRollout.includes("environment: production")) errors.push("research production schema rollout lacks production environment gate");
 if (!schemaRollout.includes("if: ${{ inputs.apply }}")) errors.push("research schema mutation lacks explicit apply gate");
 if (!schemaRollout.includes("npm run db:migrate")) errors.push("research schema rollout bypasses checksum-aware migrator");
-if (!schemaPreflight.includes("expectedSourceVersion = 425")) errors.push("research schema rollout source-head guard missing");
+if (!schemaPreflight.includes("expectedSourceVersion = 426")) errors.push("research schema rollout source-head guard missing");
 if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
 if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
@@ -413,8 +428,8 @@ if (errors.length) {
 }
 console.log(JSON.stringify({
   ok: true,
-  schema: 425,
-  tables: created.length + 8,
+  schema: 426,
+  tables: created.length + 9,
   migrationSha256: sha,
   suppressionMigrationSha256: suppressionSha,
   deliveryMigrationSha256: deliverySha,
@@ -425,5 +440,6 @@ console.log(JSON.stringify({
   phaseIsolationMigrationSha256: phaseIsolationSha,
   sampleDesignMigrationSha256: sampleDesignSha,
   sampleDesignIntegrityMigrationSha256: sampleDesignIntegritySha,
+  protocolEvidenceMigrationSha256: protocolEvidenceSha,
   worker: pkg.scripts?.["worker:research"]
 }));
