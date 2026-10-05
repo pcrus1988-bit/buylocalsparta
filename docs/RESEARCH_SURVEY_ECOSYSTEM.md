@@ -88,6 +88,8 @@ Analysis v5 now carries those assignments and choices into the immutable dataset
 
 This experimental analysis is deliberately labelled `exploratory_not_preregistered`: EXP01 existed in the locked questionnaire, but its AMCE-style estimator was not in analysis-plan v1. The implementation therefore does not back-date the estimator into the preregistration.
 
+Schema 0422 closes the experiment-integrity loop at the database boundary. The randomized task identity, seed and both hypothetical profiles are immutable after insertion; only `selected` and `answered_at` may change while the parent response remains `in_progress`. Once a response is completed or otherwise closed, the experiment choice is immutable as well. Direct execution of the trigger guard is revoked from `PUBLIC`, `anon` and `authenticated`.
+
 ### Derived scores
 
 `research_response_scores` stores the scoring version and derived scores.
