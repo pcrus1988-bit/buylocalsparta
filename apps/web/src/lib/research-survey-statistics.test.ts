@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   normal95ConfidenceInterval,
+  proportionalStratumAllocation,
   stratifiedSrsMeanVariance
 } from "./research-survey-statistics.ts";
 
@@ -63,4 +64,27 @@ test("variance is withheld if later calibration creates unequal weights inside a
     { stratumId: "a", finalWeight: 11 }
   ]);
   assert.equal(result.reason, "unequal_within_stratum_weights");
+});
+
+
+test("sample allocation prefers two units per stratum when the requested n can cover them", () => {
+  const result = proportionalStratumAllocation([
+    { id: "a", populationCount: 100 },
+    { id: "b", populationCount: 10 },
+    { id: "c", populationCount: 1 }
+  ], 20, 2);
+  assert.equal(result.reduce((sum, item) => sum + item.sampleCount, 0), 20);
+  assert.ok((result.find((item) => item.id === "a")?.sampleCount ?? 0) >= 2);
+  assert.ok((result.find((item) => item.id === "b")?.sampleCount ?? 0) >= 2);
+  assert.equal(result.find((item) => item.id === "c")?.sampleCount, 1);
+});
+
+test("sample allocation falls back to one-per-stratum when n cannot cover the preferred floor", () => {
+  const result = proportionalStratumAllocation([
+    { id: "a", populationCount: 100 },
+    { id: "b", populationCount: 100 },
+    { id: "c", populationCount: 100 }
+  ], 4, 2);
+  assert.equal(result.reduce((sum, item) => sum + item.sampleCount, 0), 4);
+  assert.ok(result.every((item) => item.sampleCount >= 1));
 });
