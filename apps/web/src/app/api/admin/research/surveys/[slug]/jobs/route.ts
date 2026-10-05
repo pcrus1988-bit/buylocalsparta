@@ -7,6 +7,7 @@ import {
   queueGreekRetailSampleDraw,
   saveGreekRetailRecruitmentTemplate
 } from "../../../../../../../lib/research-survey-jobs";
+import { queueGreekRetailRelease } from "../../../../../../../lib/research-survey-release";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ type Body = {
   subject?: string;
   bodyText?: string;
   version?: string;
+  releaseVersion?: string;
 };
 
 export async function POST(request: Request, context: { params: Promise<{ slug: string }> }) {
@@ -103,6 +105,21 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         "research_study",
         slug,
         "Queue governed weighted research analysis",
+        result
+      );
+      return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (body.action === "build_release") {
+      const result = await queueGreekRetailRelease(principal, {
+        releaseVersion: body.releaseVersion
+      });
+      await recordAdminAudit(
+        principal,
+        "research.release.queued",
+        "research_study",
+        slug,
+        "Queue reproducible public research release",
         result
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
