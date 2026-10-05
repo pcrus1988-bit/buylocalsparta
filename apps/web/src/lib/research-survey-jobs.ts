@@ -198,6 +198,8 @@ export async function queueGreekRetailSampleDraw(
   principal: SessionPrincipal,
   input: Readonly<{
     targetN: number;
+    desiredCompleteN?: number;
+    expectedResponseRate?: number;
     randomSeed?: string;
     label?: string;
     fieldworkPhase?: "pilot" | "main";
@@ -208,6 +210,16 @@ export async function queueGreekRetailSampleDraw(
   const targetN = Math.floor(input.targetN);
   if (!Number.isSafeInteger(targetN) || targetN < 1 || targetN > 100_000) {
     throw new Error("RESEARCH_SAMPLE_TARGET_INVALID");
+  }
+  const expectedResponseRate = Number(input.expectedResponseRate ?? 0.15);
+  if (!Number.isFinite(expectedResponseRate) || expectedResponseRate <= 0 || expectedResponseRate > 1) {
+    throw new Error("RESEARCH_SAMPLE_EXPECTED_RESPONSE_INVALID");
+  }
+  const desiredCompleteN = Math.floor(Number(
+    input.desiredCompleteN ?? Math.max(1, Math.round(targetN * expectedResponseRate))
+  ));
+  if (!Number.isSafeInteger(desiredCompleteN) || desiredCompleteN < 1 || desiredCompleteN > targetN) {
+    throw new Error("RESEARCH_SAMPLE_DESIRED_COMPLETES_INVALID");
   }
   const randomSeed = input.randomSeed?.trim() || randomBytes(24).toString("hex");
   if (randomSeed.length < 16 || randomSeed.length > 200) throw new Error("RESEARCH_SAMPLE_SEED_INVALID");
@@ -262,7 +274,15 @@ export async function queueGreekRetailSampleDraw(
   if (existing.rows[0]) {
     const existingInput = objectValue(existing.rows[0].input);
     const existingPhase = text(existingInput.fieldworkPhase) === "pilot" ? "pilot" : "main";
-    if (existingPhase !== fieldworkPhase) throw new Error("RESEARCH_SAMPLE_JOB_ALREADY_RUNNING");
+    const existingDesiredCompleteN = Math.floor(numberValue(existingInput.desiredCompleteN));
+    const existingExpectedResponseRate = numberValue(existingInput.expectedResponseRate);
+    if (
+      existingPhase !== fieldworkPhase
+      || existingDesiredCompleteN !== desiredCompleteN
+      || Math.abs(existingExpectedResponseRate - expectedResponseRate) > 1e-9
+    ) {
+      throw new Error("RESEARCH_SAMPLE_JOB_ALREADY_RUNNING");
+    }
     return {
       jobId: text(existing.rows[0].id),
       randomSeed: text(existingInput.randomSeed) || randomSeed,
@@ -280,7 +300,9 @@ export async function queueGreekRetailSampleDraw(
         'targetN', $2::int,
         'randomSeed', $3::text,
         'label', $4::text,
-        'fieldworkPhase', $5::text
+        'fieldworkPhase', $5::text,
+        'desiredCompleteN', $6::int,
+        'expectedResponseRate', $7::numeric
       )
     )
     RETURNING id
@@ -289,7 +311,9 @@ export async function queueGreekRetailSampleDraw(
     targetN,
     randomSeed,
     input.label?.trim() || `${fieldworkPhase}-sample-${targetN}`,
-    fieldworkPhase
+    fieldworkPhase,
+    desiredCompleteN,
+    expectedResponseRate
   ]);
   return { jobId: text(job.rows[0]!.id), randomSeed, fieldworkPhase };
 }
@@ -956,11 +980,22 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
 async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string, unknown>> {
   const input = objectValue(job.input);
   const targetN = Math.floor(numberValue(input.targetN));
+  const desiredCompleteN = Math.floor(numberValue(input.desiredCompleteN));
+  const expectedResponseRate = numberValue(input.expectedResponseRate);
   const randomSeed = text(input.randomSeed);
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
   const minTargetN = fieldworkPhase === "pilot" ? 10 : 100;
   const maxTargetN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
-  if (!targetN || !randomSeed || targetN < minTargetN || targetN > maxTargetN) {
+  if (
+    !targetN
+    || !desiredCompleteN
+    || desiredCompleteN > targetN
+    || expectedResponseRate <= 0
+    || expectedResponseRate > 1
+    || !randomSeed
+    || targetN < minTargetN
+    || targetN > maxTargetN
+  ) {
     throw new Error("RESEARCH_SAMPLE_JOB_INVALID");
   }
 
@@ -1010,6 +1045,15 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
           st.code,
           st.population_count,
           count(fu.id) FILTER (
+            WHERE EXISTS (
+              SELECT 1
+              FROM research_contact_points cp
+              WHERE cp.frame_unit_id=fu.id
+                AND cp.contact_type='email'
+                AND cp.suppression_status='active'
+            )
+          )::int AS active_contact_count,
+          count(fu.id) FILTER (
             WHERE NOT EXISTS (
               SELECT 1
               FROM research_invites pri
@@ -1020,7 +1064,26 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
                 AND pri.sent_at IS NOT NULL
                 AND pfu.external_key_hash=fu.external_key_hash
             )
-          )::int AS main_population_count
+          )::int AS main_population_count,
+          count(fu.id) FILTER (
+            WHERE NOT EXISTS (
+              SELECT 1
+              FROM research_invites pri
+              JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+              JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
+              WHERE pri.study_id=$3
+                AND pri.fieldwork_phase='pilot'
+                AND pri.sent_at IS NOT NULL
+                AND pfu.external_key_hash=fu.external_key_hash
+            )
+            AND EXISTS (
+              SELECT 1
+              FROM research_contact_points cp
+              WHERE cp.frame_unit_id=fu.id
+                AND cp.contact_type='email'
+                AND cp.suppression_status='active'
+            )
+          )::int AS main_active_contact_count
         FROM research_strata st
         LEFT JOIN research_frame_units fu
           ON fu.stratum_id=st.id
@@ -1031,7 +1094,8 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       SELECT
         id,
         code,
-        CASE WHEN $2='main' THEN main_population_count ELSE population_count END AS population_count
+        CASE WHEN $2='main' THEN main_population_count ELSE population_count END AS population_count,
+        CASE WHEN $2='main' THEN main_active_contact_count ELSE active_contact_count END AS active_contact_count
       FROM phase_population
       WHERE CASE WHEN $2='main' THEN main_population_count ELSE population_count END > 0
       ORDER BY code
@@ -1048,6 +1112,56 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
     );
     const actualTargetN = allocations.reduce((sum, allocation) => sum + allocation.sampleCount, 0);
     if (!actualTargetN) throw new Error("RESEARCH_SAMPLE_EMPTY");
+    if (desiredCompleteN > actualTargetN) {
+      throw new Error("RESEARCH_SAMPLE_DESIRED_COMPLETES_EXCEED_DRAW");
+    }
+
+    const completionAllocations = proportionalStratumAllocation(
+      allocations.map((allocation) => ({ id: allocation.id, populationCount: allocation.sampleCount })),
+      desiredCompleteN,
+      0
+    );
+    const targetCompletesByStratum = new Map(
+      completionAllocations.map((allocation) => [allocation.id, allocation.sampleCount] as const)
+    );
+    const sourceStrataById = new Map(
+      strataResult.rows.map((row) => [text(row.id), row] as const)
+    );
+    const designStrata = allocations
+      .filter((allocation) => allocation.sampleCount > 0)
+      .map((allocation) => {
+        const source = sourceStrataById.get(allocation.id);
+        if (!source) throw new Error("RESEARCH_SAMPLE_DESIGN_STRATUM_MISSING");
+        const activeContactN = Math.min(
+          allocation.populationCount,
+          Math.max(0, Math.floor(numberValue(source.active_contact_count)))
+        );
+        const stratumContactabilityRate = allocation.populationCount > 0
+          ? activeContactN / allocation.populationCount
+          : 0;
+        const expectedContactableN = Math.min(
+          allocation.sampleCount,
+          Math.round(allocation.sampleCount * stratumContactabilityRate)
+        );
+        return {
+          stratumId: allocation.id,
+          code: text(source.code),
+          populationN: allocation.populationCount,
+          activeContactN,
+          selectedN: allocation.sampleCount,
+          targetCompleteN: targetCompletesByStratum.get(allocation.id) ?? 0,
+          expectedContactableN,
+          expectedCompleteN: Math.min(
+            expectedContactableN,
+            Math.round(expectedContactableN * expectedResponseRate)
+          )
+        };
+      });
+    const eligiblePopulationN = designStrata.reduce((sum, stratum) => sum + stratum.populationN, 0);
+    const activeContactN = designStrata.reduce((sum, stratum) => sum + stratum.activeContactN, 0);
+    const contactabilityRate = eligiblePopulationN > 0 ? activeContactN / eligiblePopulationN : 0;
+    const expectedContactableN = designStrata.reduce((sum, stratum) => sum + stratum.expectedContactableN, 0);
+    const expectedCompleteN = designStrata.reduce((sum, stratum) => sum + stratum.expectedCompleteN, 0);
 
     const draw = await client.query<SqlRow>(`
       INSERT INTO research_sample_draws (
@@ -1154,6 +1268,86 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       WHERE sample_draw_id=$1
     `, [drawId]);
 
+    const designDocument = {
+      schema: "kontamou.research.sample-design.v1",
+      sampleDrawId: drawId,
+      frameSnapshotId: text(frame.id),
+      frameContentSha256: text(frame.content_sha256),
+      fieldworkPhase,
+      desiredCompleteN,
+      expectedResponseRate,
+      eligiblePopulationN,
+      activeContactN,
+      contactabilityRate,
+      plannedSelectedN: actualTargetN,
+      expectedContactableN,
+      expectedCompleteN,
+      allocationMethod: "proportional_min2_v1",
+      strata: designStrata
+    };
+    const designJson = JSON.stringify(designDocument);
+    const designResult = await client.query<SqlRow>(`
+      INSERT INTO research_sample_designs (
+        sample_draw_id,
+        study_id,
+        fieldwork_phase,
+        desired_complete_n,
+        expected_response_rate,
+        eligible_population_n,
+        active_contact_n,
+        contactability_rate,
+        planned_selected_n,
+        expected_contactable_n,
+        expected_complete_n,
+        allocation_method,
+        design_json,
+        content_sha256
+      )
+      VALUES (
+        $1,$2,$3,$4,$5::numeric,$6,$7,$8::numeric,$9,$10,$11,'proportional_min2_v1',$12::jsonb,$13
+      )
+      RETURNING id
+    `, [
+      drawId,
+      job.study_id,
+      fieldworkPhase,
+      desiredCompleteN,
+      expectedResponseRate.toFixed(6),
+      eligiblePopulationN,
+      activeContactN,
+      contactabilityRate.toFixed(6),
+      actualTargetN,
+      expectedContactableN,
+      expectedCompleteN,
+      designJson,
+      sha256(designJson)
+    ]);
+    const designId = text(designResult.rows[0]!.id);
+    for (const stratum of designStrata) {
+      await client.query(`
+        INSERT INTO research_sample_design_strata (
+          design_id,
+          stratum_id,
+          population_n,
+          active_contact_n,
+          selected_n,
+          target_complete_n,
+          expected_contactable_n,
+          expected_complete_n
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `, [
+        designId,
+        stratum.stratumId,
+        stratum.populationN,
+        stratum.activeContactN,
+        stratum.selectedN,
+        stratum.targetCompleteN,
+        stratum.expectedContactableN,
+        stratum.expectedCompleteN
+      ]);
+    }
+
     await client.query(`
       UPDATE research_sample_draws
       SET status='superseded'
@@ -1174,6 +1368,12 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       frameSnapshotId: text(frame.id),
       frameContentSha256: text(frame.content_sha256),
       targetN: actualTargetN,
+      sampleDesignId: designId,
+      desiredCompleteN,
+      expectedResponseRate,
+      contactabilityRate,
+      expectedContactableN,
+      expectedCompleteN,
       algorithmVersion: "stratified-hash-rank-v2",
       randomSeed,
       fieldworkPhase,
