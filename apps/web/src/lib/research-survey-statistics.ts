@@ -173,6 +173,127 @@ export function benjaminiHochbergAdjustedPValues(rawPValues: readonly number[]):
 }
 
 
+export type ClusteredDifferenceObservation = Readonly<{
+  clusterId: string;
+  group: "level" | "reference";
+  value: number;
+  weight: number;
+}>;
+
+export type ClusteredDifferenceResult = Readonly<{
+  difference?: number;
+  levelMean?: number;
+  referenceMean?: number;
+  standardError?: number;
+  variance?: number;
+  clusterCount: number;
+  levelObservationCount: number;
+  referenceObservationCount: number;
+  levelClusterCount: number;
+  referenceClusterCount: number;
+  reason?: "no_observations" | "missing_group" | "invalid_weight" | "insufficient_clusters";
+}>;
+
+/**
+ * Weighted difference in means with respondent-clustered linearization.
+ *
+ * This is used for the randomized paired-profile experiment where each
+ * respondent contributes repeated profile evaluations. The point estimate is
+ * the survey-weighted difference in selection probability between one
+ * randomized attribute level and its reference level. The sandwich-style
+ * variance clusters all repeated tasks/profile sides by respondent so the
+ * within-respondent covariance is retained.
+ */
+export function weightedClusteredDifferenceInMeans(
+  observations: readonly ClusteredDifferenceObservation[]
+): ClusteredDifferenceResult {
+  const clean = observations.filter((observation) =>
+    observation.clusterId.trim().length > 0 &&
+    Number.isFinite(observation.value) &&
+    Number.isFinite(observation.weight) &&
+    observation.weight > 0
+  );
+  if (!clean.length) {
+    return {
+      clusterCount: 0,
+      levelObservationCount: 0,
+      referenceObservationCount: 0,
+      levelClusterCount: 0,
+      referenceClusterCount: 0,
+      reason: observations.length ? "invalid_weight" : "no_observations"
+    };
+  }
+  if (clean.length !== observations.length) {
+    return {
+      clusterCount: new Set(clean.map((observation) => observation.clusterId)).size,
+      levelObservationCount: clean.filter((observation) => observation.group === "level").length,
+      referenceObservationCount: clean.filter((observation) => observation.group === "reference").length,
+      levelClusterCount: new Set(clean.filter((observation) => observation.group === "level").map((observation) => observation.clusterId)).size,
+      referenceClusterCount: new Set(clean.filter((observation) => observation.group === "reference").map((observation) => observation.clusterId)).size,
+      reason: "invalid_weight"
+    };
+  }
+
+  const level = clean.filter((observation) => observation.group === "level");
+  const reference = clean.filter((observation) => observation.group === "reference");
+  const clusterCount = new Set(clean.map((observation) => observation.clusterId)).size;
+  const levelClusterCount = new Set(level.map((observation) => observation.clusterId)).size;
+  const referenceClusterCount = new Set(reference.map((observation) => observation.clusterId)).size;
+  const base = {
+    clusterCount,
+    levelObservationCount: level.length,
+    referenceObservationCount: reference.length,
+    levelClusterCount,
+    referenceClusterCount
+  };
+
+  if (!level.length || !reference.length) return { ...base, reason: "missing_group" };
+
+  const weightedGroupMean = (group: readonly ClusteredDifferenceObservation[]) => {
+    const denominator = group.reduce((sum, observation) => sum + observation.weight, 0);
+    const numerator = group.reduce((sum, observation) => sum + observation.weight * observation.value, 0);
+    return { mean: numerator / denominator, denominator };
+  };
+  const levelSummary = weightedGroupMean(level);
+  const referenceSummary = weightedGroupMean(reference);
+  const difference = levelSummary.mean - referenceSummary.mean;
+
+  if (clusterCount < 2) {
+    return {
+      ...base,
+      difference,
+      levelMean: levelSummary.mean,
+      referenceMean: referenceSummary.mean,
+      reason: "insufficient_clusters"
+    };
+  }
+
+  const influenceByCluster = new Map<string, number>();
+  for (const observation of clean) {
+    const contribution = observation.group === "level"
+      ? observation.weight * (observation.value - levelSummary.mean) / levelSummary.denominator
+      : -observation.weight * (observation.value - referenceSummary.mean) / referenceSummary.denominator;
+    influenceByCluster.set(
+      observation.clusterId,
+      (influenceByCluster.get(observation.clusterId) ?? 0) + contribution
+    );
+  }
+
+  const finiteSampleCorrection = clusterCount / (clusterCount - 1);
+  const variance = finiteSampleCorrection * [...influenceByCluster.values()]
+    .reduce((sum, influence) => sum + influence * influence, 0);
+
+  return {
+    ...base,
+    difference,
+    levelMean: levelSummary.mean,
+    referenceMean: referenceSummary.mean,
+    variance,
+    standardError: Math.sqrt(Math.max(0, variance))
+  };
+}
+
+
 export type ResearchFieldworkDispositionCount = Readonly<{
   dispositionCode: string;
   eligibility: string;
