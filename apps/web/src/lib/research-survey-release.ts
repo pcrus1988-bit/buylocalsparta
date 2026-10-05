@@ -323,6 +323,42 @@ export async function buildGreekRetailRelease(
       FROM invite_base ib
       JOIN research_responses rr ON rr.invite_id=ib.invite_id
       GROUP BY ib.stratum_id
+    ),
+    frame_phase AS (
+      SELECT
+        fu.id,
+        fu.stratum_id,
+        EXISTS (
+          SELECT 1
+          FROM research_invites pri
+          JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+          JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
+          WHERE pri.study_id=$3
+            AND pri.fieldwork_phase='pilot'
+            AND pri.sent_at IS NOT NULL
+            AND pfu.external_key_hash=fu.external_key_hash
+        ) AS pilot_exposed
+      FROM research_frame_units fu
+      WHERE fu.frame_snapshot_id=$1
+    ),
+    frame_phase_counts AS (
+      SELECT
+        fp.stratum_id,
+        count(*) FILTER (WHERE fp.pilot_exposed)::int AS pilot_exposed_units,
+        count(*) FILTER (WHERE NOT fp.pilot_exposed)::int AS main_eligible_population_count,
+        count(*) FILTER (
+          WHERE NOT fp.pilot_exposed
+            AND EXISTS (
+              SELECT 1
+              FROM research_contact_points cp
+              WHERE cp.frame_unit_id=fp.id
+                AND cp.contact_type='email'
+                AND cp.suppression_status='active'
+                AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+            )
+        )::int AS active_email_units
+      FROM frame_phase fp
+      GROUP BY fp.stratum_id
     )
     SELECT
       st.code,
@@ -330,19 +366,9 @@ export async function buildGreekRetailRelease(
       st.dimensions,
       st.population_count,
       st.target_complete_count,
-      (
-        SELECT count(DISTINCT fu.id)::int
-        FROM research_frame_units fu
-        WHERE fu.stratum_id=st.id
-          AND EXISTS (
-            SELECT 1
-            FROM research_contact_points cp
-            WHERE cp.frame_unit_id=fu.id
-              AND cp.contact_type='email'
-              AND cp.suppression_status='active'
-              AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
-          )
-      ) AS active_email_units,
+      COALESCE(fpc.pilot_exposed_units,0)::int AS pilot_exposed_units,
+      COALESCE(fpc.main_eligible_population_count,0)::int AS main_eligible_population_count,
+      COALESCE(fpc.active_email_units,0)::int AS active_email_units,
       COALESCE(sc.selected,0)::int AS selected,
       COALESCE(ic.sent,0)::int AS sent,
       COALESCE(iec.delivered,0)::int AS delivered,
@@ -351,6 +377,7 @@ export async function buildGreekRetailRelease(
       COALESCE(rc.completed,0)::int AS completed,
       COALESCE(rc.withdrawn,0)::int AS withdrawn
     FROM research_strata st
+    LEFT JOIN frame_phase_counts fpc ON fpc.stratum_id=st.id
     LEFT JOIN sample_counts sc ON sc.stratum_id=st.id
     LEFT JOIN invite_counts ic ON ic.stratum_id=st.id
     LEFT JOIN invite_event_counts iec ON iec.stratum_id=st.id
@@ -442,16 +469,24 @@ export async function buildGreekRetailRelease(
     count: numberValue(row.count)
   }));
   const pilotSummaryResult = await pool.query<SqlRow>(`
-    WITH pilot_invites AS (
-      SELECT ri.id,psu.frame_unit_id
+    WITH pilot_exposure_keys AS (
+      SELECT DISTINCT pfu.external_key_hash
       FROM research_invites ri
       JOIN research_sample_units psu ON psu.id=ri.sample_unit_id
+      JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
       WHERE ri.study_id=$1
         AND ri.fieldwork_phase='pilot'
         AND ri.sent_at IS NOT NULL
     )
     SELECT
-      (SELECT count(DISTINCT frame_unit_id)::int FROM pilot_invites) AS exposed_units,
+      (SELECT count(*)::int
+       FROM research_frame_units mfu
+       WHERE mfu.frame_snapshot_id=$2
+         AND EXISTS (
+           SELECT 1
+           FROM pilot_exposure_keys pek
+           WHERE pek.external_key_hash=mfu.external_key_hash
+         )) AS exposed_units,
       (SELECT count(*)::int
        FROM research_invites
        WHERE study_id=$1 AND fieldwork_phase='pilot' AND sent_at IS NOT NULL) AS sent,
@@ -465,7 +500,7 @@ export async function buildGreekRetailRelease(
        WHERE rr.study_id=$1
          AND ri.fieldwork_phase='pilot'
          AND rr.status='completed') AS completed
-  `, [studyId]);
+  `, [studyId, frameSnapshotId]);
   const pilotSummary = pilotSummaryResult.rows[0] ?? {};
 
   const fieldworkOutcome = researchFieldworkOutcomeSummary(
@@ -551,9 +586,12 @@ export async function buildGreekRetailRelease(
         label: text(row.label),
         dimensions: objectValue(row.dimensions),
         populationCount: numberValue(row.population_count),
+        frozenPopulationCount: numberValue(row.population_count),
+        pilotHoldoutExcludedUnits: numberValue(row.pilot_exposed_units),
+        mainEligiblePopulationCount: numberValue(row.main_eligible_population_count),
         targetCompleteCount: numberValue(row.target_complete_count),
         activeEmailUnits: numberValue(row.active_email_units),
-        emailContactabilityRate: rate(row.active_email_units, row.population_count),
+        emailContactabilityRate: rate(row.active_email_units, row.main_eligible_population_count),
         selected: numberValue(row.selected),
         sent: numberValue(row.sent),
         delivered: numberValue(row.delivered),
@@ -596,8 +634,12 @@ export async function buildGreekRetailRelease(
       phase: "main",
       startsAt: study.fieldwork_starts_at ?? null,
       activeEmailFrameUnits: strata.rows.reduce((sum, row) => sum + numberValue(row.active_email_units), 0),
-      emailContactabilityRate: numberValue(design.population_size) > 0
-        ? strata.rows.reduce((sum, row) => sum + numberValue(row.active_email_units), 0) / numberValue(design.population_size)
+      emailContactabilityRate: Math.max(
+        0,
+        numberValue(design.population_size) - numberValue(pilotSummary.exposed_units)
+      ) > 0
+        ? strata.rows.reduce((sum, row) => sum + numberValue(row.active_email_units), 0)
+          / Math.max(1, numberValue(design.population_size) - numberValue(pilotSummary.exposed_units))
         : 0,
       endsAt: study.fieldwork_ends_at ?? null,
       selected: numberValue(counts.selected),
