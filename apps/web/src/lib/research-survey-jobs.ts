@@ -1306,11 +1306,17 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       `, [inviteId]);
       await pool.query(`
         UPDATE research_invite_messages
-        SET status='sent',
-            provider_message_id=$2,
-            sent_at=now(),
+        SET status=CASE
+              WHEN status IN ('delivered','opened','bounced','complained') THEN status
+              ELSE 'sent'
+            END,
+            provider_message_id=COALESCE(provider_message_id,$2),
+            sent_at=COALESCE(sent_at,now()),
             updated_at=now(),
-            last_error=NULL
+            last_error=CASE
+              WHEN status IN ('bounced','complained') THEN last_error
+              ELSE NULL
+            END
         WHERE id=$1
       `, [attemptId, delivery.providerMessageId]);
       await pool.query(`
@@ -1639,11 +1645,17 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
 
       await pool.query(`
         UPDATE research_invite_messages
-        SET status='sent',
-            provider_message_id=$2,
-            sent_at=now(),
+        SET status=CASE
+              WHEN status IN ('delivered','opened','bounced','complained') THEN status
+              ELSE 'sent'
+            END,
+            provider_message_id=COALESCE(provider_message_id,$2),
+            sent_at=COALESCE(sent_at,now()),
             updated_at=now(),
-            last_error=NULL
+            last_error=CASE
+              WHEN status IN ('bounced','complained') THEN last_error
+              ELSE NULL
+            END
         WHERE id=$1
       `, [attemptId, delivery.providerMessageId]);
 
