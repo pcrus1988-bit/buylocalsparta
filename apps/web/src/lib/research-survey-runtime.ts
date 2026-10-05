@@ -742,12 +742,19 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       FROM research_responses WHERE study_id = s.id
     ) r ON true
     LEFT JOIN LATERAL (
+      WITH latest AS (
+        SELECT DISTINCT ON (qr.response_id)
+          qr.response_id,
+          qr.decision
+        FROM research_response_quality_reviews qr
+        JOIN research_responses rr ON rr.id = qr.response_id
+        WHERE rr.study_id = s.id
+        ORDER BY qr.response_id, qr.created_at DESC, qr.id DESC
+      )
       SELECT
-        count(*) FILTER (WHERE qr.decision = 'review') AS review_count,
-        count(*) FILTER (WHERE qr.decision = 'exclude') AS exclude_count
-      FROM research_response_quality_reviews qr
-      JOIN research_responses rr ON rr.id = qr.response_id
-      WHERE rr.study_id = s.id
+        count(*) FILTER (WHERE decision = 'review') AS review_count,
+        count(*) FILTER (WHERE decision = 'exclude') AS exclude_count
+      FROM latest
     ) q ON true
     LEFT JOIN LATERAL (
       SELECT
