@@ -37,7 +37,7 @@ export function ResearchStudySamplingControls({
   const [targetN, setTargetN] = useState("");
   const fieldworkPhase: "pilot" | "main" = ["draft","pilot"].includes(studyStatus) ? "pilot" : "main";
   const effectivePopulation = fieldworkPhase === "main" ? phasePopulation : framePopulation;
-  const [targetCompletes, setTargetCompletes] = useState("500");
+  const [targetCompletes, setTargetCompletes] = useState(fieldworkPhase === "pilot" ? "20" : "500");
   const [expectedResponsePct, setExpectedResponsePct] = useState("15");
   const [randomSeed, setRandomSeed] = useState("");
   const [message, setMessage] = useState("");
@@ -45,15 +45,24 @@ export function ResearchStudySamplingControls({
   const sampleN = Number(targetN);
   const minSampleN = fieldworkPhase === "pilot" ? 10 : 100;
   const maxSampleN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
-  const sampleValid = Number.isSafeInteger(sampleN) && sampleN >= minSampleN && sampleN <= maxSampleN;
   const desiredCompletes = Number(targetCompletes);
   const responseRate = Number(expectedResponsePct) / 100;
+  const planningAssumptionsValid = Number.isSafeInteger(desiredCompletes)
+    && desiredCompletes >= 1
+    && desiredCompletes <= Math.max(1, sampleN)
+    && Number.isFinite(responseRate)
+    && responseRate > 0
+    && responseRate <= 1;
+  const sampleValid = Number.isSafeInteger(sampleN)
+    && sampleN >= minSampleN
+    && sampleN <= maxSampleN
+    && planningAssumptionsValid;
   const contactabilityRate = effectivePopulation > 0 ? Math.min(1, activeContacts / effectivePopulation) : 0;
   const rawSuggested = fieldworkPhase === "main" && desiredCompletes > 0 && responseRate > 0 && contactabilityRate > 0
     ? Math.ceil(desiredCompletes / (responseRate * contactabilityRate))
     : 0;
   const suggestedSelected = rawSuggested > 0
-    ? Math.min(effectivePopulation, sampleMax, Math.max(sampleMin, rawSuggested))
+    ? Math.min(effectivePopulation, maxSampleN, Math.max(minSampleN, rawSuggested))
     : 0;
   const expectedInvitable = Math.round(suggestedSelected * contactabilityRate);
   const expectedCompletesAtSuggestion = Math.round(expectedInvitable * responseRate);
@@ -165,7 +174,7 @@ export function ResearchStudySamplingControls({
         </div>
         <small>
           {fieldworkPhase === "pilot"
-            ? "Pilot sizing is diagnostic rather than inferential: choose 10–1,000 units to test comprehension, routing and fieldwork operations. The main sample is calculated only after the pilot holdout is sealed."
+            ? "Pilot sizing is diagnostic rather than inferential: choose 10–1,000 units and an explicit pilot-completion target to test comprehension, routing and fieldwork operations. The assumptions are frozen with the draw; the main sample is calculated only after the pilot holdout is sealed."
             : suggestedSelected
               ? `Suggested selected n: ${suggestedSelected.toLocaleString("el-GR")} → about ${expectedInvitable.toLocaleString("el-GR")} contactable units → about ${expectedCompletesAtSuggestion.toLocaleString("el-GR")} completes at ${expectedResponsePct || "0"}% invited-response assumption.`
               : "A suggestion appears once the frame has active contacts and valid completion/response assumptions."}
