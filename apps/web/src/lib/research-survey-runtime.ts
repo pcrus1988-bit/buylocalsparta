@@ -134,7 +134,8 @@ async function invitationRow(
       ri.status AS invite_status,
       ri.sample_unit_id,
       ri.contact_point_id,
-      ri.expires_at,
+      COALESCE(rat.expires_at,ri.expires_at) AS expires_at,
+      rat.id AS access_token_id,
       rs.id AS study_id,
       rs.slug,
       rs.title,
@@ -151,11 +152,22 @@ async function invitationRow(
     FROM research_invites ri
     JOIN research_studies rs ON rs.id = ri.study_id
     JOIN research_instruments rin ON rin.id = ri.instrument_id
-    WHERE rs.slug = $1 AND ri.token_hash = $2
+    LEFT JOIN research_invite_access_tokens rat
+      ON rat.invite_id=ri.id
+     AND rat.token_hash=$2
+     AND rat.status='active'
+    WHERE rs.slug = $1
+      AND (ri.token_hash = $2 OR rat.id IS NOT NULL)
     LIMIT 1
   `, [slug, sha256(token)]);
   const row = result.rows[0];
   if (!row) throw new Error("SURVEY_INVITE_NOT_FOUND");
+  if (row.access_token_id) {
+    await executor.query(
+      "UPDATE research_invite_access_tokens SET first_used_at=COALESCE(first_used_at,now()) WHERE id=$1",
+      [row.access_token_id]
+    );
+  }
   if (!options.allowExpired && row.expires_at && new Date(String(row.expires_at)).getTime() < Date.now()) {
     throw new Error("SURVEY_INVITE_EXPIRED");
   }
