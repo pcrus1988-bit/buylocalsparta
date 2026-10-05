@@ -1,5 +1,5 @@
 import { randomInt, randomUUID } from "node:crypto";
-import { serverObjectStorageFromEnv, type ServerObjectStorage } from "@buy-local-sparta/object-storage";
+import { S3ObjectStorage, objectStorageConfigFromEnv, serverObjectStorageFromEnv, type ServerObjectStorage } from "@buy-local-sparta/object-storage";
 import { getCatalogCard } from "./catalog-view";
 import { approvedCatalogImageGallery } from "./public-product-media-gallery";
 import { getPublicProductDetail } from "./public-product-detail";
@@ -129,10 +129,26 @@ async function deleteSupabaseFallback(objectKey: string): Promise<void> {
   if (!response.ok && response.status !== 404) throw new Error(`TRY_ON_STORAGE_DELETE_FAILED_${response.status}`);
 }
 
+let sharedCustomerTryOnStorage: ServerObjectStorage | undefined;
+
+function storage(): ServerObjectStorage {
+  if (sharedCustomerTryOnStorage) return sharedCustomerTryOnStorage;
+  try {
+    sharedCustomerTryOnStorage = serverObjectStorageFromEnv({
+      defaultBucket: process.env.TRY_ON_STORAGE_BUCKET?.trim() || "buy-local-sparta-private"
+    });
+    return sharedCustomerTryOnStorage;
+  } catch {
+    throw new Error("TRY_ON_STORAGE_NOT_CONFIGURED");
+  }
+}
+
+async function readPrivateObject(objectKey: string) {
+  return storage().read(objectKey);
+}
+
 async function deletePrivateObject(objectKey: string): Promise<void> {
-  const configured = configuredObjectStorage();
-  if (configured) return configured.delete(objectKey);
-  return deleteSupabaseFallback(objectKey);
+  await storage().delete(objectKey);
 }
 
 function fashnApiKey(): string {
