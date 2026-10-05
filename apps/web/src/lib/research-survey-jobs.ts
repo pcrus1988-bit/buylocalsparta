@@ -973,10 +973,11 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
               SELECT 1
               FROM research_invites pri
               JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+              JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
               WHERE pri.study_id=$3
                 AND pri.fieldwork_phase='pilot'
                 AND pri.sent_at IS NOT NULL
-                AND psu.frame_unit_id=fu.id
+                AND pfu.external_key_hash=fu.external_key_hash
             )
           )::int AS main_population_count
         FROM research_strata st
@@ -1047,10 +1048,11 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
                 SELECT 1
                 FROM research_invites pri
                 JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+                JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
                 WHERE pri.study_id=$10
                   AND pri.fieldwork_phase='pilot'
-                  AND pri.status <> 'expired'
-                  AND psu.frame_unit_id=fu.id
+                  AND pri.sent_at IS NOT NULL
+                  AND pfu.external_key_hash=fu.external_key_hash
               )
             )
           ORDER BY md5($3::text || ':' || fu.external_key_hash), fu.external_key_hash
@@ -1221,10 +1223,12 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
               SELECT 1
               FROM research_invites pri
               JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+              JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
+              JOIN research_frame_units cfu ON cfu.id=su.frame_unit_id
               WHERE pri.study_id=$2
                 AND pri.fieldwork_phase='pilot'
                 AND pri.sent_at IS NOT NULL
-                AND psu.frame_unit_id=su.frame_unit_id
+                AND pfu.external_key_hash=cfu.external_key_hash
             )
           )
         ORDER BY su.selection_order
