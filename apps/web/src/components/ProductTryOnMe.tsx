@@ -515,6 +515,39 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionChecked, quotaChecked, csrfToken, storageScope, modelImage, productId, result, quota?.remaining, autoTryOnEnabled]);
 
+  useEffect(() => {
+    if (!csrfToken || !quota?.resetAt) return;
+    let cancelled = false;
+    let timer = 0;
+    const resetAt = Date.parse(quota.resetAt);
+    if (!Number.isFinite(resetAt)) return;
+
+    const refreshAtBoundary = () => {
+      if (cancelled) return;
+      const remaining = resetAt - Date.now();
+      if (remaining > 0) {
+        timer = window.setTimeout(refreshAtBoundary, Math.min(remaining + 250, 6 * 60 * 60 * 1000));
+        return;
+      }
+      void fetch("/api/account/try-on/quota", { cache: "no-store" })
+        .then(async (response) => {
+          if (!response.ok || cancelled) return;
+          const payload = await response.json() as { quota?: TryOnQuota };
+          if (!cancelled && payload.quota) {
+            setQuota(payload.quota);
+            autoStarted.current = false;
+          }
+        })
+        .catch(() => undefined);
+    };
+
+    refreshAtBoundary();
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [csrfToken, quota?.resetAt]);
+
   async function choosePhoto(file: File | undefined) {
     if (quota?.remaining === 0) {
       setError(messageFor("TRY_ON_MONTHLY_LIMIT_REACHED"));
