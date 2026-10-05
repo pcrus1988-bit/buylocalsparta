@@ -323,20 +323,36 @@ function rowToSavedTryOn(row: SavedTryOnRow): CustomerSavedTryOn {
 }
 
 async function uploadPrivateObject(objectKey: string, contentType: string, bytes: Uint8Array): Promise<void> {
-  const signed = await storage().createUploadUrl({ objectKey, contentType, expiresInSeconds: 300 });
-  const response = await fetch(signed.url, {
-    method: "PUT",
-    headers: signed.headers,
-    body: Buffer.from(bytes),
-    cache: "no-store"
-  });
-  if (!response.ok) throw new Error(`TRY_ON_STORAGE_UPLOAD_FAILED_${response.status}`);
+  const configured = configuredObjectStorage();
+  if (configured) {
+    const signed = await configured.createUploadUrl({ objectKey, contentType, expiresInSeconds: 300 });
+    const response = await fetch(signed.url, {
+      method: "PUT",
+      headers: signed.headers,
+      body: Buffer.from(bytes),
+      cache: "no-store"
+    });
+    if (!response.ok) throw new Error(`TRY_ON_STORAGE_UPLOAD_FAILED_${response.status}`);
 
-  const metadata = await storage().head(objectKey);
-  if (!metadata || metadata.byteSize !== bytes.byteLength) {
-    await storage().delete(objectKey).catch(() => undefined);
+    const metadata = await configured.head(objectKey);
+    if (!metadata || metadata.byteSize !== bytes.byteLength) {
+      await configured.delete(objectKey).catch(() => undefined);
+      throw new Error("TRY_ON_STORAGE_VERIFY_FAILED");
+    }
+    return;
+  }
+
+  await uploadSupabaseFallback(objectKey, contentType, bytes);
+  const verified = await readSupabaseFallback(objectKey);
+  if (verified.byteSize !== bytes.byteLength) {
+    await deleteSupabaseFallback(objectKey).catch(() => undefined);
     throw new Error("TRY_ON_STORAGE_VERIFY_FAILED");
   }
+}
+
+async function readPrivateObject(objectKey: string) {
+  const configured = configuredObjectStorage();
+  return configured ? configured.read(objectKey) : readSupabaseFallback(objectKey);
 }
 
 async function existingSavedTryOn(userPublicId: string, predictionId: string, productId: string): Promise<CustomerSavedTryOn | undefined> {
@@ -414,7 +430,7 @@ export async function saveCustomerTryOn(input: {
     if (!row) throw new Error("TRY_ON_ACCOUNT_OR_PRODUCT_NOT_FOUND");
     return rowToSavedTryOn(row);
   } catch (error) {
-    await storage().delete(objectKey).catch(() => undefined);
+    await deletePrivateObject(objectKey).catch(() => undefined);
     throw error;
   }
 }
@@ -452,14 +468,14 @@ async function ownedSavedObject(userPublicId: string, savedId: string): Promise<
 export async function readCustomerSavedTryOnImage(userPublicId: string, savedId: string) {
   const owned = await ownedSavedObject(userPublicId, savedId);
   if (!owned) return undefined;
-  const object = await storage().read(owned.objectKey);
+  const object = await readPrivateObject(owned.objectKey);
   return { ...object, contentType: owned.contentType || object.contentType || "image/jpeg" };
 }
 
 export async function deleteCustomerSavedTryOn(userPublicId: string, savedId: string): Promise<boolean> {
   const owned = await ownedSavedObject(userPublicId, savedId);
   if (!owned) return false;
-  await storage().delete(owned.objectKey);
+  await deletePrivateObject(owned.objectKey);
   const result = await getProductionPostgresRuntime().nativePool.query(`
     DELETE FROM public.customer_try_on_saves t
     USING public.users u
@@ -478,7 +494,7 @@ export async function purgeCustomerTryOnAssets(userPublicId: string): Promise<nu
     JOIN public.users u ON u.id=t.user_id
     WHERE u.public_id=$1 OR u.id::text=$1
   `, [userPublicId]);
-  for (const row of result.rows) await storage().delete(row.object_key);
+  for (const row of result.rows) await deletePrivateObject(row.object_key);
   const removed = await getProductionPostgresRuntime().nativePool.query(`
     DELETE FROM public.customer_try_on_saves t
     USING public.users u
