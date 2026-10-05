@@ -132,6 +132,9 @@ if (!sampleDesignMigration.includes("CREATE TABLE public.research_sample_designs
 if (!sampleDesignMigration.includes("CREATE TABLE public.research_sample_design_strata")) errors.push("sample design stratum evidence table missing");
 if (!sampleDesignMigration.includes("research_sample_designs_immutable")) errors.push("sample design immutability trigger missing");
 if (!sampleDesignMigration.includes("research_sample_design_strata_immutable")) errors.push("sample design stratum immutability trigger missing");
+if (!sampleDesignMigration.includes("research_sample_draws_id_study_phase_unique")) errors.push("sample design draw/study/phase foreign-key anchor missing");
+if (!sampleDesignMigration.includes("ALTER TABLE public.research_sample_designs ENABLE ROW LEVEL SECURITY;")) errors.push("sample design RLS missing");
+if (!sampleDesignMigration.includes("ALTER TABLE public.research_sample_design_strata ENABLE ROW LEVEL SECURITY;")) errors.push("sample design stratum RLS missing");
 if (!reminderMigration.includes("CREATE TABLE public.research_invite_access_tokens")) errors.push("reminder access-token table missing");
 if (!reminderMigration.includes("CREATE TABLE public.research_invite_messages")) errors.push("invitation attempt ledger missing");
 if (!reminderMigration.includes("ALTER TABLE public.research_invite_access_tokens ENABLE ROW LEVEL SECURITY;")) errors.push("reminder access-token RLS missing");
@@ -373,6 +376,10 @@ if (!release.includes("latestDispositionCounts")) errors.push("release does not 
 if (!release.includes("completionRateOfSent")) errors.push("release does not freeze explicit fieldwork denominators");
 if (!resultsPage.includes("Sent→complete")) errors.push("public results do not disclose frozen fieldwork conversion rate");
 if (!release.includes("idempotentReplay")) errors.push("release idempotence contract missing");
+if (!jobs.includes("desiredCompleteN") || !jobs.includes("expectedResponseRate")) errors.push("sample planner assumptions are not persisted into sample jobs");
+if (!jobs.includes("kontamou.research.sample-design.v1")) errors.push("sample design evidence document is not frozen by the sample worker");
+if (!surveyRuntime.includes("sds.target_complete_n")) errors.push("fieldwork balance does not read frozen sample-design completion targets");
+if (!release.includes("sample_design_sha256") || !release.includes("designEvidence")) errors.push("release artifact does not freeze sample design evidence");
 if (!surveyRuntime.includes("RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("pilot lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes("RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("fieldwork lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes('"publish_release"')) errors.push("explicit publish lifecycle action missing");
@@ -392,7 +399,7 @@ if (errors.length) {
 console.log(JSON.stringify({
   ok: true,
   schema: 424,
-  tables: created.length + 6,
+  tables: created.length + 8,
   migrationSha256: sha,
   suppressionMigrationSha256: suppressionSha,
   deliveryMigrationSha256: deliverySha,
