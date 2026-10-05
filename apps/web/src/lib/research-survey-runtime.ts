@@ -815,6 +815,48 @@ export async function researchFieldworkStrata(
       JOIN study s ON s.id=d.study_id
       ORDER BY d.created_at DESC
       LIMIT 1
+    ),
+    sample AS (
+      SELECT su.id,su.stratum_id
+      FROM research_sample_units su
+      JOIN latest_draw ld ON ld.id=su.sample_draw_id
+    ),
+    sample_counts AS (
+      SELECT stratum_id,count(*)::int AS selected
+      FROM sample
+      GROUP BY stratum_id
+    ),
+    invite_base AS (
+      SELECT ri.id AS invite_id,su.stratum_id,ri.status
+      FROM research_invites ri
+      JOIN sample su ON su.id=ri.sample_unit_id
+      JOIN study s ON s.id=ri.study_id
+    ),
+    invite_counts AS (
+      SELECT
+        stratum_id,
+        count(*) FILTER (WHERE status IN ('sent','opened','started','completed'))::int AS sent
+      FROM invite_base
+      GROUP BY stratum_id
+    ),
+    invite_event_counts AS (
+      SELECT
+        ib.stratum_id,
+        count(DISTINCT ib.invite_id) FILTER (WHERE ie.event_type='delivered')::int AS delivered,
+        count(DISTINCT ib.invite_id) FILTER (WHERE ie.event_type='opened')::int AS opened
+      FROM invite_base ib
+      JOIN research_invite_events ie ON ie.invite_id=ib.invite_id
+      GROUP BY ib.stratum_id
+    ),
+    response_counts AS (
+      SELECT
+        ib.stratum_id,
+        count(rr.id)::int AS started,
+        count(rr.id) FILTER (WHERE rr.status='completed')::int AS completed,
+        count(rr.id) FILTER (WHERE rr.status='withdrawn')::int AS withdrawn
+      FROM invite_base ib
+      JOIN research_responses rr ON rr.invite_id=ib.invite_id
+      GROUP BY ib.stratum_id
     )
     SELECT
       st.code,
@@ -822,69 +864,19 @@ export async function researchFieldworkStrata(
       st.dimensions,
       st.population_count,
       st.target_complete_count,
-      (
-        SELECT count(*)::int
-        FROM research_sample_units su
-        WHERE su.sample_draw_id=ld.id AND su.stratum_id=st.id
-      ) AS selected,
-      (
-        SELECT count(*)::int
-        FROM research_invites ri
-        JOIN research_sample_units su ON su.id=ri.sample_unit_id
-        WHERE ri.study_id=(SELECT id FROM study)
-          AND su.sample_draw_id=ld.id
-          AND su.stratum_id=st.id
-          AND ri.status IN ('sent','opened','started','completed')
-      ) AS sent,
-      (
-        SELECT count(DISTINCT ri.id)::int
-        FROM research_invites ri
-        JOIN research_sample_units su ON su.id=ri.sample_unit_id
-        JOIN research_invite_events ie ON ie.invite_id=ri.id AND ie.event_type='delivered'
-        WHERE ri.study_id=(SELECT id FROM study)
-          AND su.sample_draw_id=ld.id
-          AND su.stratum_id=st.id
-      ) AS delivered,
-      (
-        SELECT count(DISTINCT ri.id)::int
-        FROM research_invites ri
-        JOIN research_sample_units su ON su.id=ri.sample_unit_id
-        JOIN research_invite_events ie ON ie.invite_id=ri.id AND ie.event_type='opened'
-        WHERE ri.study_id=(SELECT id FROM study)
-          AND su.sample_draw_id=ld.id
-          AND su.stratum_id=st.id
-      ) AS opened,
-      (
-        SELECT count(*)::int
-        FROM research_responses rr
-        JOIN research_invites ri ON ri.id=rr.invite_id
-        JOIN research_sample_units su ON su.id=ri.sample_unit_id
-        WHERE rr.study_id=(SELECT id FROM study)
-          AND su.sample_draw_id=ld.id
-          AND su.stratum_id=st.id
-      ) AS started,
-      (
-        SELECT count(*)::int
-        FROM research_responses rr
-        JOIN research_invites ri ON ri.id=rr.invite_id
-        JOIN research_sample_units su ON su.id=ri.sample_unit_id
-        WHERE rr.study_id=(SELECT id FROM study)
-          AND rr.status='completed'
-          AND su.sample_draw_id=ld.id
-          AND su.stratum_id=st.id
-      ) AS completed,
-      (
-        SELECT count(*)::int
-        FROM research_responses rr
-        JOIN research_invites ri ON ri.id=rr.invite_id
-        JOIN research_sample_units su ON su.id=ri.sample_unit_id
-        WHERE rr.study_id=(SELECT id FROM study)
-          AND rr.status='withdrawn'
-          AND su.sample_draw_id=ld.id
-          AND su.stratum_id=st.id
-      ) AS withdrawn
+      COALESCE(sc.selected,0)::int AS selected,
+      COALESCE(ic.sent,0)::int AS sent,
+      COALESCE(iec.delivered,0)::int AS delivered,
+      COALESCE(iec.opened,0)::int AS opened,
+      COALESCE(rc.started,0)::int AS started,
+      COALESCE(rc.completed,0)::int AS completed,
+      COALESCE(rc.withdrawn,0)::int AS withdrawn
     FROM latest_draw ld
     JOIN research_strata st ON st.frame_snapshot_id=ld.frame_snapshot_id
+    LEFT JOIN sample_counts sc ON sc.stratum_id=st.id
+    LEFT JOIN invite_counts ic ON ic.stratum_id=st.id
+    LEFT JOIN invite_event_counts iec ON iec.stratum_id=st.id
+    LEFT JOIN response_counts rc ON rc.stratum_id=st.id
     ORDER BY st.code
   `, [slug]);
 
