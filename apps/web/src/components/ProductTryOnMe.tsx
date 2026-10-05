@@ -6,6 +6,7 @@ import styles from "./ProductTryOnMe.module.css";
 
 const MODEL_PREFIX = "km:try-on:model:v2:";
 const PREVIEW_PREFIX = "km:try-on:preview:v2:";
+const ACTIVE_SCOPE_KEY = "km:try-on:active-scope:v2";
 const LEGACY_MODEL_KEY = "km:try-on:model:v1";
 const LEGACY_PREVIEW_PREFIX = "km:try-on:preview:v1:";
 const PREVIEW_TTL_MS = 5 * 60 * 1000;
@@ -20,6 +21,7 @@ type TryOnResult = Readonly<{
   imageDataUrl: string;
   saveToken: string;
   generatedAt: string;
+  expiresAt?: string;
 }>;
 type CachedPreview = Readonly<{ expiresAt: number; result: TryOnResult }>;
 type SharedGeneration = Readonly<{ controller: AbortController; promise: Promise<TryOnResult> }>;
@@ -28,6 +30,7 @@ const sharedGenerations = new Map<string, SharedGeneration>();
 const latestGenerationBySlot = new Map<string, string>();
 
 function messageFor(error: string): string {
+  if (error === "AUTH_REQUIRED") return "Η σύνδεσή σου έληξε. Συνδέσου ξανά για να συνεχίσεις με το Try On Me.";
   if (error === "TRY_ON_NOT_CONFIGURED") return "Το Try On Me δεν έχει ενεργοποιηθεί ακόμη στο περιβάλλον.";
   if (error === "TRY_ON_TIMEOUT") return "Η προεπισκόπηση άργησε περισσότερο από το αναμενόμενο. Δοκίμασε ξανά.";
   if (error === "TRY_ON_PRODUCT_UNSUPPORTED") return "Το συγκεκριμένο προϊόν δεν υποστηρίζεται ακόμη από το virtual try-on.";
@@ -72,6 +75,13 @@ function photoFingerprint(value: string): string {
 
 function generationKey(scope: string, productId: string, photo: string): string {
   return `${previewKey(scope, productId)}:${photo.length.toString(36)}:${photoFingerprint(photo)}`;
+}
+
+function resultExpiresAt(result: TryOnResult): number {
+  const serverExpiry = result.expiresAt ? Date.parse(result.expiresAt) : Number.NaN;
+  if (Number.isFinite(serverExpiry)) return serverExpiry;
+  const generatedAt = Date.parse(result.generatedAt);
+  return Number.isFinite(generatedAt) ? generatedAt + PREVIEW_TTL_MS : Date.now() + PREVIEW_TTL_MS;
 }
 
 function readStoredModel(scope: string): string | undefined {
@@ -176,12 +186,10 @@ function requestSharedGeneration(input: {
   })
     .then(async (response) => {
       const payload = await response.json() as { result?: TryOnResult; error?: string };
+      if (response.status === 401) reconcileActiveTryOnScope(undefined);
       if (!response.ok || !payload.result) throw new Error(payload.error || "TRY_ON_FAILED");
       if (latestGenerationBySlot.get(slot) === key) {
-        const generatedAt = Date.parse(payload.result.generatedAt);
-        const expiresAt = Number.isFinite(generatedAt)
-          ? generatedAt + PREVIEW_TTL_MS
-          : Date.now() + PREVIEW_TTL_MS;
+        const expiresAt = resultExpiresAt(payload.result);
         if (expiresAt > Date.now()) writePreview(input.scope, input.productId, payload.result, expiresAt);
       }
       return payload.result;
@@ -204,6 +212,47 @@ function clearTryOnPreviews(scope: string) {
     }
   } catch {
     // Browser privacy settings may block sessionStorage.
+  }
+}
+
+function removeStoredModel(scope: string) {
+  const key = modelKey(scope);
+  try { window.localStorage.removeItem(key); } catch {}
+  try { window.sessionStorage.removeItem(key); } catch {}
+}
+
+function cancelSharedGenerationsForScope(scope: string) {
+  const prefix = `${PREVIEW_PREFIX}${scope}:`;
+  for (const [slot, activeKey] of latestGenerationBySlot.entries()) {
+    if (!slot.startsWith(prefix)) continue;
+    sharedGenerations.get(activeKey)?.controller.abort();
+    latestGenerationBySlot.delete(slot);
+  }
+}
+
+function clearTryOnArtifactsForScope(scope: string) {
+  cancelSharedGenerationsForScope(scope);
+  removeStoredModel(scope);
+  clearTryOnPreviews(scope);
+}
+
+function activeTryOnScope(): string | undefined {
+  try {
+    const value = window.localStorage.getItem(ACTIVE_SCOPE_KEY)?.trim();
+    return value || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function reconcileActiveTryOnScope(nextScope: string | undefined) {
+  const previousScope = activeTryOnScope();
+  if (previousScope && previousScope !== nextScope) clearTryOnArtifactsForScope(previousScope);
+  try {
+    if (nextScope) window.localStorage.setItem(ACTIVE_SCOPE_KEY, nextScope);
+    else window.localStorage.removeItem(ACTIVE_SCOPE_KEY);
+  } catch {
+    // The account-specific keys still protect data if the marker cannot be persisted.
   }
 }
 
@@ -280,12 +329,9 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
       });
       if (generationAttempt.current !== attempt) return;
       const cached = readPreview(scope, productId);
-      const generatedAt = Date.parse(generated.generatedAt);
       const expiresAt = cached?.result.predictionId === generated.predictionId
         ? cached.expiresAt
-        : Number.isFinite(generatedAt)
-          ? generatedAt + PREVIEW_TTL_MS
-          : Date.now() + PREVIEW_TTL_MS;
+        : resultExpiresAt(generated);
       if (expiresAt <= Date.now()) throw new Error("TRY_ON_SAVE_TOKEN_EXPIRED");
       setResult(generated);
       setPreviewExpiresAt(expiresAt);
@@ -316,6 +362,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
       .then(async (response) => {
         if (!active) return;
         if (!response.ok) {
+          if (response.status === 401) reconcileActiveTryOnScope(undefined);
           setSessionChecked(true);
           return;
         }
@@ -329,6 +376,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
         }
 
         const available = payload.tryOnAvailable !== false;
+        reconcileActiveTryOnScope(scope);
         setStorageScope(scope);
         setCsrfToken(token);
         setTryOnAvailable(available);
@@ -385,11 +433,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   function removePhoto() {
     generationAttempt.current += 1;
     if (storageScope) {
-      cancelSharedGeneration(storageScope, productId);
-      const key = modelKey(storageScope);
-      try { window.localStorage.removeItem(key); } catch {}
-      try { window.sessionStorage.removeItem(key); } catch {}
-      clearTryOnPreviews(storageScope);
+      clearTryOnArtifactsForScope(storageScope);
     }
     setModelImage(undefined);
     setResult(undefined);
@@ -495,7 +539,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
 
       {!modelImage ? (
         <>
-          <p>Βάλε μία καθαρή φωτογραφία σου. Το KONTA MOY την αποθηκεύει μόνο στη συσκευή σου· για τη δημιουργία της προεπισκόπησης αποστέλλεται προσωρινά στον πάροχο FASHN και δεν αποθηκεύεται ως φωτογραφία προφίλ.</p>
+          <p>Βάλε μία καθαρή φωτογραφία σου. Το KONTA MOY την αποθηκεύει μόνο στη συσκευή σου· για τη δημιουργία της προεπισκόπησης αποστέλλεται προσωρινά στον πάροχο FASHN και δεν αποθηκεύεται ως φωτογραφία προφίλ. Σε αλλαγή λογαριασμού ή ληγμένη σύνδεση, τα τοπικά Try On δεδομένα του προηγούμενου λογαριασμού καθαρίζονται.</p>
           <label className={styles.upload}>
             <span>{busy === "photo" ? "Ετοιμασία φωτογραφίας…" : "Πρόσθεσε φωτογραφία σου"}</span>
             <input
