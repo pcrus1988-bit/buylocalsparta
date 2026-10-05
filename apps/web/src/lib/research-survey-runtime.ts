@@ -819,15 +819,18 @@ export async function researchFieldworkStrata(
 
   const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
     WITH study AS (
-      SELECT id
+      SELECT
+        id,
+        CASE WHEN status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END AS active_phase
       FROM research_studies
       WHERE slug=$1
       LIMIT 1
     ),
     latest_draw AS (
-      SELECT d.id,d.frame_snapshot_id
+      SELECT d.id,d.frame_snapshot_id,d.fieldwork_phase
       FROM research_sample_draws d
       JOIN study s ON s.id=d.study_id
+      WHERE d.fieldwork_phase=s.active_phase
       ORDER BY d.created_at DESC
       LIMIT 1
     ),
@@ -846,6 +849,7 @@ export async function researchFieldworkStrata(
       FROM research_invites ri
       JOIN sample su ON su.id=ri.sample_unit_id
       JOIN study s ON s.id=ri.study_id
+      WHERE ri.fieldwork_phase=s.active_phase
     ),
     invite_counts AS (
       SELECT
@@ -918,7 +922,8 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
   }
   const rows = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
     SELECT
-      s.id, s.slug, s.title, s.status, s.fieldwork_starts_at, s.fieldwork_ends_at, s.public_results_url,
+      s.id, s.slug, s.title, s.status, s.pilot_started_at, s.pilot_ended_at,
+      s.fieldwork_starts_at, s.fieldwork_ends_at, s.public_results_url,
       latest_i.version AS instrument_version, latest_i.status AS instrument_status,
       latest_ap.version AS analysis_plan_version,
       latest_ap.status AS analysis_plan_status,
@@ -930,12 +935,23 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       latest_rrt.subject AS reminder_template_subject,
       COALESCE(f.frames, 0)::int AS frame_count,
       COALESCE(lf.population_size, 0)::int AS frame_population,
+      GREATEST(
+        COALESCE(lf.population_size,0)
+        - CASE
+            WHEN s.status IN ('fielding','closed','analysis','published','archived')
+              THEN COALESCE(ph.exposed_units,0)
+            ELSE 0
+          END,
+        0
+      )::int AS phase_population,
+      COALESCE(ph.exposed_units,0)::int AS pilot_holdout_units,
       COALESCE(lf.strata_count, 0)::int AS latest_frame_strata,
       lf.status AS latest_frame_status,
       lf.content_sha256 AS latest_frame_sha256,
       COALESCE(sd.draws, 0)::int AS sample_draw_count,
       COALESCE(ls.sample_units, 0)::int AS sample_units,
       ls.status AS latest_sample_status,
+      ls.fieldwork_phase AS latest_sample_phase,
       ls.target_n AS latest_sample_target,
       COALESCE(cp.active_contacts, 0)::int AS active_contacts,
       COALESCE(cp.suppressed_contacts, 0)::int AS suppressed_contacts,
@@ -1014,6 +1030,21 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       LIMIT 1
     ) lf ON true
     LEFT JOIN LATERAL (
+      SELECT count(*)::int AS exposed_units
+      FROM research_frame_units fu
+      WHERE fu.frame_snapshot_id=lf.id
+        AND EXISTS (
+          SELECT 1
+          FROM research_invites pri
+          JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+          JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
+          WHERE pri.study_id=s.id
+            AND pri.fieldwork_phase='pilot'
+            AND pri.sent_at IS NOT NULL
+            AND pfu.external_key_hash=fu.external_key_hash
+        )
+    ) ph ON true
+    LEFT JOIN LATERAL (
       SELECT count(*) AS draws
       FROM research_sample_draws d
       WHERE d.study_id = s.id
@@ -1022,10 +1053,12 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       SELECT
         d.id,
         d.status,
+        d.fieldwork_phase,
         d.target_n,
         (SELECT count(*)::int FROM research_sample_units u WHERE u.sample_draw_id=d.id) AS sample_units
       FROM research_sample_draws d
       WHERE d.study_id = s.id
+        AND d.fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
       ORDER BY d.created_at DESC
       LIMIT 1
     ) ls ON true
@@ -1047,11 +1080,25 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       FROM research_frame_units fu
       JOIN research_contact_points cp ON cp.frame_unit_id = fu.id
       WHERE fu.frame_snapshot_id = lf.id
+        AND (
+          s.status IN ('draft','pilot')
+          OR NOT EXISTS (
+            SELECT 1
+            FROM research_invites pri
+            JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+            JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
+            WHERE pri.study_id=s.id
+              AND pri.fieldwork_phase='pilot'
+              AND pri.sent_at IS NOT NULL
+              AND pfu.external_key_hash=fu.external_key_hash
+          )
+        )
     ) cp ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS batches
       FROM research_invite_batches
       WHERE study_id = s.id
+        AND fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
     ) ib ON true
     LEFT JOIN LATERAL (
       SELECT
@@ -1061,16 +1108,21 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
           SELECT count(DISTINCT ie.invite_id)
           FROM research_invite_events ie
           JOIN research_invites event_invite ON event_invite.id=ie.invite_id
-          WHERE event_invite.study_id=s.id AND ie.event_type='delivered'
+          WHERE event_invite.study_id=s.id
+            AND event_invite.fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
+            AND ie.event_type='delivered'
         ) AS delivered,
         (
           SELECT count(DISTINCT ie.invite_id)
           FROM research_invite_events ie
           JOIN research_invites event_invite ON event_invite.id=ie.invite_id
-          WHERE event_invite.study_id=s.id AND ie.event_type='opened'
+          WHERE event_invite.study_id=s.id
+            AND event_invite.fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
+            AND ie.event_type='opened'
         ) AS opened
       FROM research_invites
       WHERE study_id = s.id
+        AND fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
     ) i ON true
     LEFT JOIN LATERAL (
       SELECT
@@ -1085,14 +1137,17 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       FROM research_invite_messages m
       JOIN research_invites ri ON ri.id=m.invite_id
       WHERE ri.study_id=s.id
+        AND ri.fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
     ) im ON true
     LEFT JOIN LATERAL (
       SELECT
         count(*) AS started,
         count(*) FILTER (WHERE status = 'completed') AS completed,
         count(*) FILTER (WHERE status = 'withdrawn') AS withdrawn
-      FROM research_responses
-      WHERE study_id = s.id
+      FROM research_responses rr
+      JOIN research_invites ri ON ri.id=rr.invite_id
+      WHERE rr.study_id = s.id
+        AND ri.fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
     ) r ON true
     LEFT JOIN LATERAL (
       WITH latest AS (
@@ -1101,7 +1156,9 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
           qr.decision
         FROM research_response_quality_reviews qr
         JOIN research_responses rr ON rr.id = qr.response_id
+        JOIN research_invites ri ON ri.id=rr.invite_id
         WHERE rr.study_id = s.id
+          AND ri.fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
         ORDER BY qr.response_id, qr.created_at DESC, qr.id DESC
       )
       SELECT
@@ -1161,6 +1218,9 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       slug: text(row.slug),
       title: text(row.title),
       status: text(row.status),
+      activeFieldworkPhase: ["draft","pilot"].includes(text(row.status)) ? "pilot" : "main",
+      pilotStartedAt: optionalText(row.pilot_started_at),
+      pilotEndedAt: optionalText(row.pilot_ended_at),
       fieldworkStartsAt: optionalText(row.fieldwork_starts_at),
       fieldworkEndsAt: optionalText(row.fieldwork_ends_at),
       publicResultsUrl: optionalText(row.public_results_url),
@@ -1176,12 +1236,15 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       reminderTemplateSubject: optionalText(row.reminder_template_subject),
       frameCount: numberValue(row.frame_count),
       framePopulation: numberValue(row.frame_population),
+      phasePopulation: numberValue(row.phase_population),
+      pilotHoldoutUnits: numberValue(row.pilot_holdout_units),
       latestFrameStrata: numberValue(row.latest_frame_strata),
       latestFrameStatus: optionalText(row.latest_frame_status),
       latestFrameSha256: optionalText(row.latest_frame_sha256),
       sampleDrawCount: numberValue(row.sample_draw_count),
       sampleUnits: numberValue(row.sample_units),
       latestSampleStatus: optionalText(row.latest_sample_status),
+      latestSamplePhase: optionalText(row.latest_sample_phase),
       latestSampleTarget: numberValue(row.latest_sample_target),
       activeContacts: numberValue(row.active_contacts),
       suppressedContacts: numberValue(row.suppressed_contacts),
