@@ -330,7 +330,7 @@ export async function buildGreekRetailRelease(
       "Non-response adjustment is performed within the governed sampling strata.",
       varianceMethod === "not_estimated"
         ? "Design-based variance has not been estimated for this release; confidence intervals and a conventional margin of sampling error are therefore not published."
-        : "Variance estimates follow the analysis method recorded for this release."
+        : "Design-aware confidence intervals use the recorded stratified sampling method with finite-population correction where the metric has complete observations within contributing strata. Intervals are withheld for unsupported post-hoc domains or insufficient stratum bases."
     ]
   };
 
@@ -396,6 +396,10 @@ export type PublishedResearchEstimate = Readonly<{
   metricKey: string;
   segment: Record<string, unknown>;
   estimate: number | null;
+  standardError: number | null;
+  confidenceLevel: number | null;
+  ciLower: number | null;
+  ciUpper: number | null;
   unweightedN: number;
   weightedN: number | null;
   suppressed: boolean;
@@ -425,7 +429,8 @@ export async function getPublishedGreekRetailResults(slug: string): Promise<Read
   if (!row) return undefined;
 
   const estimatesResult = await pool.query<SqlRow>(`
-    SELECT metric_key,segment,estimate,unweighted_n,weighted_n,suppressed,metadata
+    SELECT metric_key,segment,estimate,standard_error,confidence_level,ci_lower,ci_upper,
+           unweighted_n,weighted_n,suppressed,metadata
     FROM research_analysis_estimates
     WHERE analysis_run_id=$1
     ORDER BY metric_key,segment::text
@@ -441,6 +446,10 @@ export async function getPublishedGreekRetailResults(slug: string): Promise<Read
       metricKey: text(estimate.metric_key),
       segment: objectValue(estimate.segment),
       estimate: Boolean(estimate.suppressed) || estimate.estimate == null ? null : numberValue(estimate.estimate),
+      standardError: Boolean(estimate.suppressed) || estimate.standard_error == null ? null : numberValue(estimate.standard_error),
+      confidenceLevel: Boolean(estimate.suppressed) || estimate.confidence_level == null ? null : numberValue(estimate.confidence_level),
+      ciLower: Boolean(estimate.suppressed) || estimate.ci_lower == null ? null : numberValue(estimate.ci_lower),
+      ciUpper: Boolean(estimate.suppressed) || estimate.ci_upper == null ? null : numberValue(estimate.ci_upper),
       unweightedN: numberValue(estimate.unweighted_n),
       weightedN: estimate.weighted_n == null ? null : numberValue(estimate.weighted_n),
       suppressed: Boolean(estimate.suppressed),
