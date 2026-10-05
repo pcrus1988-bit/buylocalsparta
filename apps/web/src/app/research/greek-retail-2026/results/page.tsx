@@ -25,6 +25,14 @@ function numeric(value: unknown): number {
   return Number.isFinite(result) ? result : 0;
 }
 
+function formatOptionalPercent(value: unknown): string {
+  if (value == null) return "—";
+  const result = Number(value);
+  return Number.isFinite(result)
+    ? new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 1 }).format(result)
+    : "—";
+}
+
 function formatEstimate(value: number, metadata: Record<string, unknown>): string {
   return metadata.format === "proportion"
     ? new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 1 }).format(value)
@@ -123,6 +131,15 @@ export default async function GreekRetailResultsPage() {
         Email-contactable μονάδες στο frozen frame: <strong>{numeric(fieldwork.activeEmailFrameUnits).toLocaleString("el-GR")}</strong>
         {" · "}contactability: <strong>{new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 2 }).format(numeric(fieldwork.emailContactabilityRate))}</strong>.
         Η κάλυψη email είναι ξεχωριστή από την πιθανότητα επιλογής και αποτελεί ρητό limitation της μελέτης.
+      </p>
+      <p>
+        Delivered: <strong>{numeric(fieldwork.delivered).toLocaleString("el-GR")}</strong> ·
+        {" "}opened: <strong>{numeric(fieldwork.opened).toLocaleString("el-GR")}</strong> ·
+        {" "}started: <strong>{numeric(fieldwork.started).toLocaleString("el-GR")}</strong> ·
+        {" "}withdrawn: <strong>{numeric(fieldwork.withdrawn).toLocaleString("el-GR")}</strong>.
+        {" "}Sent→complete: <strong>{formatOptionalPercent(fieldwork.completionRateOfSent)}</strong> ·
+        {" "}start→complete: <strong>{formatOptionalPercent(fieldwork.completionRateOfStarted)}</strong>.
+        Οι παρονομαστές αυτοί δημοσιεύονται ρητά και δεν παρουσιάζονται ως AAPOR response-rate classification.
       </p>
       <p>
         Weight version: <strong>{String(analysis.weightVersion ?? "—")}</strong>. Variance method: <strong>{String(analysis.varianceMethod ?? "—")}</strong>.
