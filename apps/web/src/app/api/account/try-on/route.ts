@@ -1,5 +1,6 @@
 import { requireAccountSession } from "../../../../lib/account-session";
-import { customerTryOnGenerationConfigured, generateCustomerTryOn } from "../../../../lib/try-on-runtime";
+import { customerTryOnGenerationConfigured } from "../../../../lib/try-on-config";
+import { generateCustomerTryOn } from "../../../../lib/try-on-runtime";
 import { consumeCustomerTryOnRateLimit } from "../../../../lib/customer-state-runtime";
 
 export const maxDuration = 60;
