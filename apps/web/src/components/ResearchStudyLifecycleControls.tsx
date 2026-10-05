@@ -62,8 +62,10 @@ export function ResearchStudyLifecycleControls({
       setMessage(raw === "RESEARCH_FIELDING_REQUIRES_FROZEN_FRAME"
         ? "Για να κλείσει το pilot και να ανοίξει το κύριο fieldwork απαιτείται frozen population frame. Το main sample draw γίνεται αμέσως μετά, ώστε να αποκλειστούν οριστικά όσοι εκτέθηκαν στο pilot."
         : raw === "RESEARCH_PILOT_CLOSE_CONTACT_JOB_RUNNING"
-          ? "Υπάρχει ακόμη ενεργό pilot invitation/reminder job. Το pilot δεν κλείνει μέχρι να ολοκληρωθεί ο sender."
-          : raw === "RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN" || raw === "RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN"
+          ? "Υπάρχει ακόμη ενεργό pilot sample/invitation/reminder job. Το pilot δεν κλείνει μέχρι να ολοκληρωθεί."
+          : raw === "RESEARCH_FIELDWORK_CLOSE_REQUIRES_MAIN_SAMPLE"
+            ? "Το κύριο fieldwork δεν μπορεί να κλείσει χωρίς locked main probability sample."
+            : raw === "RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN" || raw === "RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN"
             ? "Πριν από pilot ή fieldwork πρέπει να υπάρχει locked pre-fieldwork analysis plan για το ενεργό questionnaire."
             : raw);
     } finally {
