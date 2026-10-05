@@ -137,6 +137,8 @@ Automated completion checks can append a `review` decision without modifying the
 - Publishing a release queues a results-notification worker. It selects only completed responses whose latest `results_notification` consent is granted; marketing consent is neither read nor required.
 - `research_participant_deliveries` stores the operational state and content hashes for thank-you and results messages. `research_participant_delivery_events` is append-only evidence for planned/sending/sent/delivered/opened/bounced/complained/failed outcomes.
 - A published chart/table must therefore be traceable to a release snapshot and analysis run.
+- The public evidence endpoint `/api/research/:slug/release` reconstructs the exact canonical `kontamou.research.release.v1` artifact used for the stored artifact SHA-256. If reconstruction no longer hashes to the frozen fingerprint, the endpoint fails closed instead of serving a silently divergent artifact.
+- The public results page exposes both the human-oriented results API and the canonical downloadable evidence JSON. The downloaded bytes can be hashed directly with SHA-256 and compared with the published Artifact SHA-256 fingerprint.
 
 ## Lifecycle
 
@@ -167,6 +169,8 @@ Contact values and responses are kept in separate relational domains even though
 - `/research/greek-retail-2026` — public study overview.
 - `/research/greek-retail-2026/methodology` — methodology and reproducibility statement.
 - `/research/:slug/t/:token` — tokenized participant survey.
+- `/api/research/:slug/results` — machine-readable published results with release fingerprints.
+- `/api/research/:slug/release` — canonical downloadable evidence artifact whose response bytes match the stored artifact SHA-256.
 - `POST /api/research/:slug/t/:token` — server-side consent/save/complete endpoint plus token-authenticated refusal, future-research opt-out, and post-completion optional-consent preference updates.
 
 ## Admin routes
