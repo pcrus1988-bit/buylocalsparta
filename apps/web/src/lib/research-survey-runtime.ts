@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { researchReleaseArtifactIntegrity } from "./research-survey-release";
 import {
   scoreGreekRetail2026,
   validateResearchAnswers,
@@ -1258,6 +1259,10 @@ export async function transitionResearchStudy(
       if (text(release.analysis_status) !== "succeeded") throw new Error("RESEARCH_RELEASE_ANALYSIS_NOT_SUCCEEDED");
       if (text(release.dataset_sha256) !== text(release.analysis_dataset_sha256)) {
         throw new Error("RESEARCH_RELEASE_DATASET_HASH_MISMATCH");
+      }
+      const artifactIntegrity = await researchReleaseArtifactIntegrity(client, text(release.id));
+      if (!artifactIntegrity || !artifactIntegrity.integrityOk) {
+        throw new Error("RESEARCH_RELEASE_ARTIFACT_HASH_MISMATCH");
       }
       await client.query(`
         UPDATE research_release_snapshots
