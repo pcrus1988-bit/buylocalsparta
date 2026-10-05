@@ -780,6 +780,130 @@ export async function savePublicResearchSurvey(input: Readonly<{
   }
 }
 
+export type ResearchFieldworkStratum = Readonly<{
+  code: string;
+  label: string;
+  dimensions: Record<string, unknown>;
+  populationCount: number;
+  targetCompleteCount: number;
+  selected: number;
+  sent: number;
+  delivered: number;
+  opened: number;
+  started: number;
+  completed: number;
+  withdrawn: number;
+}>;
+
+export async function researchFieldworkStrata(
+  principal: SessionPrincipal,
+  slug: string
+): Promise<readonly ResearchFieldworkStratum[]> {
+  assertAdminPermission(principal, "research.read");
+  if (!productionDatabaseConfigured()) return [];
+
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    WITH study AS (
+      SELECT id
+      FROM research_studies
+      WHERE slug=$1
+      LIMIT 1
+    ),
+    latest_draw AS (
+      SELECT d.id,d.frame_snapshot_id
+      FROM research_sample_draws d
+      JOIN study s ON s.id=d.study_id
+      ORDER BY d.created_at DESC
+      LIMIT 1
+    )
+    SELECT
+      st.code,
+      st.label,
+      st.dimensions,
+      st.population_count,
+      st.target_complete_count,
+      (
+        SELECT count(*)::int
+        FROM research_sample_units su
+        WHERE su.sample_draw_id=ld.id AND su.stratum_id=st.id
+      ) AS selected,
+      (
+        SELECT count(*)::int
+        FROM research_invites ri
+        JOIN research_sample_units su ON su.id=ri.sample_unit_id
+        WHERE ri.study_id=(SELECT id FROM study)
+          AND su.sample_draw_id=ld.id
+          AND su.stratum_id=st.id
+          AND ri.status IN ('sent','opened','started','completed')
+      ) AS sent,
+      (
+        SELECT count(DISTINCT ri.id)::int
+        FROM research_invites ri
+        JOIN research_sample_units su ON su.id=ri.sample_unit_id
+        JOIN research_invite_events ie ON ie.invite_id=ri.id AND ie.event_type='delivered'
+        WHERE ri.study_id=(SELECT id FROM study)
+          AND su.sample_draw_id=ld.id
+          AND su.stratum_id=st.id
+      ) AS delivered,
+      (
+        SELECT count(DISTINCT ri.id)::int
+        FROM research_invites ri
+        JOIN research_sample_units su ON su.id=ri.sample_unit_id
+        JOIN research_invite_events ie ON ie.invite_id=ri.id AND ie.event_type='opened'
+        WHERE ri.study_id=(SELECT id FROM study)
+          AND su.sample_draw_id=ld.id
+          AND su.stratum_id=st.id
+      ) AS opened,
+      (
+        SELECT count(*)::int
+        FROM research_responses rr
+        JOIN research_invites ri ON ri.id=rr.invite_id
+        JOIN research_sample_units su ON su.id=ri.sample_unit_id
+        WHERE rr.study_id=(SELECT id FROM study)
+          AND su.sample_draw_id=ld.id
+          AND su.stratum_id=st.id
+      ) AS started,
+      (
+        SELECT count(*)::int
+        FROM research_responses rr
+        JOIN research_invites ri ON ri.id=rr.invite_id
+        JOIN research_sample_units su ON su.id=ri.sample_unit_id
+        WHERE rr.study_id=(SELECT id FROM study)
+          AND rr.status='completed'
+          AND su.sample_draw_id=ld.id
+          AND su.stratum_id=st.id
+      ) AS completed,
+      (
+        SELECT count(*)::int
+        FROM research_responses rr
+        JOIN research_invites ri ON ri.id=rr.invite_id
+        JOIN research_sample_units su ON su.id=ri.sample_unit_id
+        WHERE rr.study_id=(SELECT id FROM study)
+          AND rr.status='withdrawn'
+          AND su.sample_draw_id=ld.id
+          AND su.stratum_id=st.id
+      ) AS withdrawn
+    FROM latest_draw ld
+    JOIN research_strata st ON st.frame_snapshot_id=ld.frame_snapshot_id
+    ORDER BY st.code
+  `, [slug]);
+
+  return result.rows.map((row) => ({
+    code: text(row.code),
+    label: text(row.label),
+    dimensions: objectValue(row.dimensions),
+    populationCount: numberValue(row.population_count),
+    targetCompleteCount: numberValue(row.target_complete_count),
+    selected: numberValue(row.selected),
+    sent: numberValue(row.sent),
+    delivered: numberValue(row.delivered),
+    opened: numberValue(row.opened),
+    started: numberValue(row.started),
+    completed: numberValue(row.completed),
+    withdrawn: numberValue(row.withdrawn)
+  }));
+}
+
 export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
   assertAdminPermission(principal, "research.read");
   if (!productionDatabaseConfigured()) {
