@@ -19,9 +19,10 @@ const stages = [
   ["5", "Consent", "Η συγκατάθεση συμμετοχής είναι χωριστή από ενημέρωση αποτελεσμάτων, κωδικό ευχαριστίας και marketing."],
   ["6", "Instrument", "Το ερωτηματολόγιο έχει immutable version. Μετά το κλείδωμα δεν μπορούν να αλλάξουν οι ερωτήσεις του ίδιου version."],
   ["7", "Responses", "Η ολοκληρωμένη απάντηση κλειδώνει. Οι raw answers παραμένουν συνδεδεμένες με την ακριβή έκδοση του instrument."],
-  ["8", "Weights", "Base weight, non-response adjustment και calibration adjustment έχουν ξεχωριστό version."],
-  ["9", "Analysis", "Κάθε analysis run αποθηκεύει code version, parameters, instrument version, weight version και dataset hash."],
-  ["10", "Release", "Κάθε δημόσια έκδοση συνδέεται με methodology snapshot, dataset hash και artifact hash."]
+  ["8", "Pre-analysis plan", "Το greek-retail-2026-plan-v1 κλειδώνει primary/secondary analyses, weighting, variance και disclosure rules πριν από pilot/fieldwork."],
+  ["9", "Weights", "Base weight, non-response adjustment και calibration adjustment έχουν ξεχωριστό version."],
+  ["10", "Analysis", "Κάθε analysis run συνδέεται με το immutable analysis-plan ID και αποθηκεύει code version, parameters, instrument version, weight version και dataset hash."],
+  ["11", "Release", "Κάθε δημόσια έκδοση περιέχει το analysis-plan version/hash μαζί με methodology snapshot, dataset hash και artifact hash."]
 ] as const;
 
 export default function GreekRetailMethodologyPage() {
@@ -43,6 +44,21 @@ export default function GreekRetailMethodologyPage() {
         <strong>{number.padStart(2, "0")} · {title}</strong>
         <p>{description}</p>
       </article>)}
+    </section>
+
+    <section className={styles.invalid}>
+      <div className={styles.brand}>Pre-fieldwork registration</div>
+      <h2>Η ανάλυση δεν αποφασίζεται αφού δούμε τα αποτελέσματα.</h2>
+      <p>
+        Το <strong>greek-retail-2026-plan-v1</strong> κλειδώνεται πριν από pilot ή κανονικό fieldwork.
+        Ορίζει ως primary outcomes τους δείκτες Digital Readiness και Retail Friction, ως pre-specified secondary
+        analyses τις περιγραφικές αναλύσεις του κλειδωμένου instrument και ως exploratory τις pairwise συγκρίσεις
+        περιοχής/κλάδου με Benjamini–Hochberg correction.
+      </p>
+      <p>
+        Κάθε analysis run αποθηκεύει το analysis-plan ID/version/hash. Το release δημοσιεύει το ίδιο fingerprint,
+        ώστε μια μεταγενέστερη exploratory ανάλυση να μην μπορεί να παρουσιαστεί σαν εκ των προτέρων υπόθεση.
+      </p>
     </section>
 
     <section className={styles.invalid}>
