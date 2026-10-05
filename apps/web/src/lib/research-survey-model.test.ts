@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   digitalReadinessBand,
+  researchQualitySignals,
   scoreGreekRetail2026,
   validateResearchAnswers,
   type ResearchQuestion
@@ -72,4 +73,46 @@ test("readiness bands stay stable at documented boundaries", () => {
   assert.equal(digitalReadinessBand(61), "Omnichannel");
   assert.equal(digitalReadinessBand(80), "Omnichannel");
   assert.equal(digitalReadinessBand(81), "Digitally Integrated");
+});
+
+
+test("none is exclusive in multi-select questions", () => {
+  const question: ResearchQuestion = {
+    id: "q-none", code: "Q03", sectionCode: "A", position: 3, type: "multi",
+    prompt: "Channels", required: true, analysisKey: "sales_channels",
+    config: { options: [["physical","Physical"],["none","None"]] }
+  };
+  const result = validateResearchAnswers([question], { Q03: ["physical", "none"] });
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.invalid, ["Q03"]);
+});
+
+test("quality signals flag deterministic cross-question contradictions for review", () => {
+  const result = researchQualitySignals({
+    Q03: ["physical"],
+    Q04: "26_50",
+    Q13: "current"
+  }, 240);
+  assert.equal(result.review, true);
+  assert.ok(result.reasonCodes.includes("digital_share_channel_mismatch"));
+  assert.ok(result.reasonCodes.includes("marketplace_status_mismatch"));
+  assert.ok(!result.reasonCodes.includes("rapid_completion"));
+});
+
+test("quality signals flag repeated matrix straightlining but never auto-exclude", () => {
+  const repeated = Object.fromEntries(["a","b","c","d","e"].map((key) => [key, "5"]));
+  const result = researchQualitySignals({
+    Q07: repeated,
+    Q14: repeated,
+    Q15: repeated
+  }, 300);
+  assert.equal(result.review, true);
+  assert.ok(result.reasonCodes.includes("multi_matrix_straightline"));
+  assert.equal((result.metrics as Record<string, unknown>).durationSeconds, 300);
+});
+
+test("quality signals retain the rapid-completion review rule", () => {
+  const result = researchQualitySignals({}, 45);
+  assert.equal(result.review, true);
+  assert.deepEqual(result.reasonCodes, ["rapid_completion"]);
 });
