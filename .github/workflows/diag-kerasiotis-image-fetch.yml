@@ -34,5 +34,11 @@ jobs:
           echo "HTTP_STATUS=$code"
           echo "BYTES=$bytes"
           echo "MIME=$mime"
-          if [ "$code" != "200" ]; then exit 1; fi
+          if [ "$code" != "200" ]; then
+            echo "RESPONSE_PREVIEW_START"
+            head -c 800 /tmp/garment.jpg | tr '\\n' ' ' | sed 's/[[:space:]]\\+/ /g'
+            echo
+            echo "RESPONSE_PREVIEW_END"
+            exit 1
+          fi
           case "$mime" in image/*) ;; *) exit 1 ;; esac
