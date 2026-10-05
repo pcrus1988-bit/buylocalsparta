@@ -57,15 +57,70 @@ export type CustomerTryOnGeneration = Readonly<{
 }>;
 
 let customerTryOnStorage: S3ObjectStorage | undefined;
+let customerTryOnStorageResolved = false;
 
-function storage(): S3ObjectStorage {
-  if (customerTryOnStorage) return customerTryOnStorage;
+function configuredObjectStorage(): S3ObjectStorage | undefined {
+  if (customerTryOnStorageResolved) return customerTryOnStorage;
+  customerTryOnStorageResolved = true;
   try {
     customerTryOnStorage = new S3ObjectStorage(objectStorageConfigFromEnv());
-    return customerTryOnStorage;
   } catch {
-    throw new Error("TRY_ON_STORAGE_NOT_CONFIGURED");
+    customerTryOnStorage = undefined;
   }
+  return customerTryOnStorage;
+}
+
+function supabaseStorageFallbackConfig() {
+  const baseUrl = (process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL)?.trim().replace(/\/+$/, "");
+  const apiKey = process.env.SUPABASE_SECRET_KEY?.trim();
+  const bucket = process.env.TRY_ON_STORAGE_BUCKET?.trim() || "buy-local-sparta-private";
+  if (!baseUrl || !apiKey) throw new Error("TRY_ON_STORAGE_NOT_CONFIGURED");
+  return { baseUrl, apiKey, bucket };
+}
+
+function supabaseStorageObjectUrl(objectKey: string) {
+  const { baseUrl, apiKey, bucket } = supabaseStorageFallbackConfig();
+  const encodedKey = objectKey.split("/").map((part) => encodeURIComponent(part)).join("/");
+  return {
+    url: `${baseUrl}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedKey}`,
+    apiKey
+  };
+}
+
+async function uploadSupabaseFallback(objectKey: string, contentType: string, bytes: Uint8Array): Promise<void> {
+  const { url, apiKey } = supabaseStorageObjectUrl(objectKey);
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { apikey: apiKey, "content-type": contentType, "x-upsert": "false" },
+    body: Buffer.from(bytes),
+    cache: "no-store"
+  });
+  if (!response.ok) throw new Error(`TRY_ON_STORAGE_UPLOAD_FAILED_${response.status}`);
+}
+
+async function readSupabaseFallback(objectKey: string) {
+  const { url, apiKey } = supabaseStorageObjectUrl(objectKey);
+  const response = await fetch(url, { headers: { apikey: apiKey }, cache: "no-store" });
+  if (!response.ok) throw new Error(`TRY_ON_STORAGE_READ_FAILED_${response.status}`);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  return {
+    objectKey,
+    stream: (async function* () { yield bytes; })(),
+    byteSize: bytes.byteLength,
+    contentType: response.headers.get("content-type")?.split(";")[0]?.trim() || undefined
+  };
+}
+
+async function deleteSupabaseFallback(objectKey: string): Promise<void> {
+  const { url, apiKey } = supabaseStorageObjectUrl(objectKey);
+  const response = await fetch(url, { method: "DELETE", headers: { apikey: apiKey }, cache: "no-store" });
+  if (!response.ok && response.status !== 404) throw new Error(`TRY_ON_STORAGE_DELETE_FAILED_${response.status}`);
+}
+
+async function deletePrivateObject(objectKey: string): Promise<void> {
+  const configured = configuredObjectStorage();
+  if (configured) return configured.delete(objectKey);
+  return deleteSupabaseFallback(objectKey);
 }
 
 function fashnApiKey(): string {
