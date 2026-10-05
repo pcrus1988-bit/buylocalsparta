@@ -15,6 +15,8 @@ const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "u
 const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
+const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
+const surveyForm = readFileSync("apps/web/src/components/ResearchSurveyForm.tsx", "utf8");
 const jobs = readFileSync("apps/web/src/lib/research-survey-jobs.ts", "utf8");
 const release = readFileSync("apps/web/src/lib/research-survey-release.ts", "utf8");
 const researchMail = readFileSync("apps/web/src/lib/research-survey-mail.ts", "utf8");
@@ -116,6 +118,11 @@ if (/\btoken\s+text\b/i.test(migration)) errors.push("plaintext invitation token
 if (!surveyRuntime.includes("SELECT DISTINCT ON (consent_kind) consent_kind, granted")) {
   errors.push("survey resume path does not read latest optional consent state");
 }
+if (!surveyRuntime.includes("updatePublicResearchConsents")) errors.push("post-completion consent update runtime missing");
+if (!surveyRuntime.includes("survey_ui_preferences")) errors.push("post-completion consent events are not source-labelled");
+if (!surveyRuntime.includes("participant_consent_revoked")) errors.push("consent revocation does not cancel unsent participant deliveries");
+if (!surveyRoute.includes('body.action === "preferences"')) errors.push("token API preference action missing");
+if (!surveyForm.includes("Αποθήκευση επιλογών")) errors.push("completed survey preference controls missing");
 if (!surveyRuntime.includes("research_response_quality_reviews")) errors.push("survey completion QA ledger missing");
 if (!surveyRuntime.includes("research_reward_entitlements")) errors.push("reward entitlement separation missing");
 if (!surveyRuntime.includes("research_sample_disposition_events")) errors.push("fieldwork disposition events missing");
