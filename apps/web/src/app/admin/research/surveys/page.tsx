@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { ResearchStudyLifecycleControls } from "../../../../components/ResearchStudyLifecycleControls";
+import { ResearchStudySamplingControls } from "../../../../components/ResearchStudySamplingControls";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, WorkspaceStatusBadge } from "../../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
@@ -68,6 +69,21 @@ export default async function ResearchSurveysAdminPage() {
                 <strong>{study.fieldworkStartsAt ? new Date(study.fieldworkStartsAt).toLocaleString("el-GR") : "Not started"} → {study.fieldworkEndsAt ? new Date(study.fieldworkEndsAt).toLocaleString("el-GR") : "open"}</strong>
               </div>
             </div>
+
+            {hasAdminPermission(principal, "research.manage") && <ResearchStudySamplingControls
+              slug={study.slug}
+              csrfToken={principal.csrfToken}
+              latestFrameStatus={study.latestFrameStatus}
+              framePopulation={study.framePopulation}
+              latestSampleStatus={study.latestSampleStatus}
+              latestSampleTarget={study.latestSampleTarget}
+              queuedJobs={study.queuedJobs}
+              runningJobs={study.runningJobs}
+            />}
+
+            {study.failedJobs > 0 && <div className="workspace-inline-note form-error">
+              {study.failedJobs} research job(s) require review before relying on the evidence chain.
+            </div>}
 
             {hasAdminPermission(principal, "research.manage") && <ResearchStudyLifecycleControls
               slug={study.slug}
