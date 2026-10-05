@@ -165,6 +165,8 @@ if (!surveyRuntime.includes("research_response_quality_reviews")) errors.push("s
 if (!surveyRuntime.includes("research_reward_entitlements")) errors.push("reward entitlement separation missing");
 if (!surveyRuntime.includes("research_sample_disposition_events")) errors.push("fieldwork disposition events missing");
 if (!surveyRuntime.includes("'fieldwork_closeout'")) errors.push("fieldwork closeout disposition sealing missing");
+if (!surveyRuntime.includes("RESEARCH_FIELDWORK_CLOSE_CONTACT_JOB_RUNNING")) errors.push("fieldwork close does not guard running contact jobs");
+if (!surveyRuntime.includes("cancelled_by_fieldwork_closeout")) errors.push("fieldwork close does not cancel queued contact jobs");
 if (!surveyRuntime.includes("greek-retail-2026-fieldwork-closeout-v1")) errors.push("fieldwork closeout version marker missing");
 if (!jobs.includes("gemiResearchFrameRecords")) errors.push("GEMI frame worker bridge missing");
 if (!jobs.includes("stratified-hash-rank-v2")) errors.push("minimum-aware reproducible sample algorithm missing");
