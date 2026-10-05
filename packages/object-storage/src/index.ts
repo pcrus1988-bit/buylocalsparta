@@ -151,7 +151,7 @@ export class SupabaseRestObjectStorage implements ServerObjectStorage {
         ...this.#headers(input.contentType),
         "x-upsert": "false"
       },
-      body: input.body
+      body: Buffer.from(input.body)
     });
     if (!response.ok) throw new Error(`Object storage upload failed with HTTP ${response.status}`);
   }
