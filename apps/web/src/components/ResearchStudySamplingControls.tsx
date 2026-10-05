@@ -104,7 +104,7 @@ export function ResearchStudySamplingControls({
   }
 
   async function drawSample() {
-    if (!sampleValid || !designValid) return;
+    if (!sampleValid) return;
     setBusy("sample");
     setMessage("");
     try {
@@ -235,7 +235,7 @@ export function ResearchStudySamplingControls({
         />
         <button
           className="button"
-          disabled={Boolean(busy) || workerBusy || latestFrameStatus !== "frozen" || !sampleValid || !designValid || (fieldworkPhase === "main" && studyStatus !== "fielding")}
+          disabled={Boolean(busy) || workerBusy || latestFrameStatus !== "frozen" || !sampleValid || (fieldworkPhase === "main" && studyStatus !== "fielding")}
           onClick={() => void drawSample()}
           type="button"
         >{busy === "sample" ? "Queueing…" : "Draw reproducible sample"}</button>
