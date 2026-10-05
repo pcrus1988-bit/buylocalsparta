@@ -23,8 +23,8 @@ CREATE TABLE public.research_analysis_plans (
   )
 );
 
-CREATE UNIQUE INDEX research_analysis_plans_one_locked_per_study_idx
-  ON public.research_analysis_plans(study_id)
+CREATE UNIQUE INDEX research_analysis_plans_one_locked_per_instrument_idx
+  ON public.research_analysis_plans(study_id,instrument_id)
   WHERE status='locked';
 
 ALTER TABLE public.research_analysis_runs
