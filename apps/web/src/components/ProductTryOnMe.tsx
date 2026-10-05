@@ -11,7 +11,7 @@ const LEGACY_PREVIEW_PREFIX = "km:try-on:preview:v1:";
 const PREVIEW_TTL_MS = 5 * 60 * 1000;
 const MAX_MODEL_DATA_URL_CHARS = 3_450_000;
 
-type SessionPayload = Readonly<{ csrfToken?: string; tryOnStorageScope?: string }>;
+type SessionPayload = Readonly<{ csrfToken?: string; tryOnStorageScope?: string; tryOnAvailable?: boolean }>;
 type TryOnResult = Readonly<{
   productId: string;
   productTitle: string;
@@ -256,6 +256,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   const generationAttempt = useRef(0);
   const [csrfToken, setCsrfToken] = useState<string>();
   const [storageScope, setStorageScope] = useState<string>();
+  const [tryOnAvailable, setTryOnAvailable] = useState<boolean>();
   const [sessionChecked, setSessionChecked] = useState(false);
   const [modelImage, setModelImage] = useState<string>();
   const [result, setResult] = useState<TryOnResult>();
@@ -304,6 +305,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     setSessionChecked(false);
     setCsrfToken(undefined);
     setStorageScope(undefined);
+    setTryOnAvailable(undefined);
     setModelImage(undefined);
     setResult(undefined);
     setPreviewExpiresAt(undefined);
@@ -326,13 +328,17 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
           return;
         }
 
-        clearLegacyUnscopedTryOnData();
-        const cached = readPreview(scope, productId);
+        const available = payload.tryOnAvailable !== false;
         setStorageScope(scope);
         setCsrfToken(token);
-        setModelImage(readStoredModel(scope));
-        setResult(cached?.result);
-        setPreviewExpiresAt(cached?.expiresAt);
+        setTryOnAvailable(available);
+        clearLegacyUnscopedTryOnData();
+        if (available) {
+          const cached = readPreview(scope, productId);
+          setModelImage(readStoredModel(scope));
+          setResult(cached?.result);
+          setPreviewExpiresAt(cached?.expiresAt);
+        }
         setSessionChecked(true);
       })
       .catch(() => {
@@ -442,6 +448,21 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
 
   if (!sessionChecked) {
     return <section className={styles.card} aria-label="Try On Me"><div className={styles.loading}>Try On Me…</div></section>;
+  }
+
+  if (csrfToken && tryOnAvailable === false) {
+    return (
+      <section className={styles.card} aria-labelledby={`try-on-${productId}`}>
+        <div className={styles.heading}>
+          <div>
+            <span className={styles.eyebrow}>KONTA MOY · TRY ON ME</span>
+            <h2 id={`try-on-${productId}`}>Δες το πάνω σου</h2>
+          </div>
+          <span className={styles.spark}>✦</span>
+        </div>
+        <p>Το Try On Me δεν είναι ενεργό σε αυτό το περιβάλλον ακόμη. Η φωτογραφία σου δεν αποστέλλεται και δεν καταναλώνεται generation credit.</p>
+      </section>
+    );
   }
 
   if (!csrfToken) {
