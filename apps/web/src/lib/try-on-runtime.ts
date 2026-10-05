@@ -134,13 +134,16 @@ async function resolveGarment(userPublicId: string, productId: string) {
     getPublicProductDetail(product.id)
   ]);
   const primary = gallery[0];
+  // Prefer KONTA MOY-controlled image endpoints so FASHN always receives a
+  // publicly reachable image response with a correct image Content-Type.
+  // Supplier CDNs can reject hotlinking or non-browser user agents even when
+  // the same URL renders correctly in a shopper's browser.
   const image = primary
     ? `${publicOrigin()}/api/media/${encodeURIComponent(primary.mediaId)}`
-    : product.previewImageSrc
-      ?? detail?.sourceImageUrls?.[0]
-      ?? (product.sourceImageAvailable
-        ? `${publicOrigin()}/api/catalog-source-image/${encodeURIComponent(product.id)}`
-        : undefined);
+    : product.sourceImageAvailable
+      ? `${publicOrigin()}/api/catalog-source-image/${encodeURIComponent(product.id)}`
+      : product.previewImageSrc
+        ?? detail?.sourceImageUrls?.[0];
   if (!image) throw new Error("TRY_ON_PRODUCT_IMAGE_REQUIRED");
   const garmentImage = image.startsWith("data:") ? image : new URL(image, publicOrigin()).toString();
   return { product, image: garmentImage };
@@ -158,9 +161,12 @@ function providerError(value: unknown, message?: unknown): string {
 
   if (haystack.includes("poseerror") || haystack.includes("pose")) return "TRY_ON_POSE_REQUIRED";
   if (haystack.includes("contentmoderation") || haystack.includes("moderation")) return "TRY_ON_CONTENT_BLOCKED";
-  if (haystack.includes("imageload") || haystack.includes("inputvalidation") || haystack.includes("badrequest")) {
+  if (haystack.includes("imageload")) {
+    if (haystack.includes("garment") || haystack.includes("product")) return "TRY_ON_PRODUCT_IMAGE_LOAD_FAILED";
+    if (haystack.includes("model")) return "TRY_ON_MODEL_IMAGE_LOAD_FAILED";
     return "TRY_ON_INPUT_INVALID";
   }
+  if (haystack.includes("inputvalidation") || haystack.includes("badrequest")) return "TRY_ON_INPUT_INVALID";
   if (haystack.includes("outofcredits") || haystack.includes("out of credits")) return "TRY_ON_CREDITS_UNAVAILABLE";
   if (
     haystack.includes("ratelimit")
@@ -172,6 +178,36 @@ function providerError(value: unknown, message?: unknown): string {
   ) return "TRY_ON_PROVIDER_BUSY";
   if (haystack.includes("unauthorized") || haystack.includes("forbidden")) return "TRY_ON_NOT_CONFIGURED";
   return "TRY_ON_PROVIDER_FAILED";
+}
+
+function logProviderFailure(input: {
+  phase: "run" | "status";
+  productId: string;
+  predictionId?: string;
+  status?: number;
+  value: unknown;
+  message?: unknown;
+}): void {
+  const record = typeof input.value === "object" && input.value ? input.value as Record<string, unknown> : undefined;
+  const name = typeof record?.name === "string" ? record.name : typeof input.value === "string" ? input.value : "";
+  const detail = typeof record?.message === "string"
+    ? record.message
+    : typeof input.message === "string"
+      ? input.message
+      : "";
+  const safeDetail = detail
+    .replace(/data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+/gi, "<base64-image>")
+    .slice(0, 500);
+  console.warn(JSON.stringify({
+    level: "warn",
+    event: "try_on.fashn_failed",
+    phase: input.phase,
+    productId: input.productId,
+    predictionId: input.predictionId,
+    httpStatus: input.status,
+    providerErrorName: name.slice(0, 120),
+    providerMessage: safeDetail
+  }));
 }
 
 function providerHttpError(status: number, value: unknown, message?: unknown): string {
@@ -247,6 +283,13 @@ export async function generateCustomerTryOn(input: {
   });
   const started = await runResponse.json().catch(() => ({})) as FashnRunResponse;
   if (!runResponse.ok || !started.id) {
+    logProviderFailure({
+      phase: "run",
+      productId: product.id,
+      status: runResponse.status,
+      value: started.error,
+      message: started.message
+    });
     throw new Error(providerHttpError(runResponse.status, started.error, started.message));
   }
 
@@ -264,8 +307,26 @@ export async function generateCustomerTryOn(input: {
       await wait(retryAfterMs(statusResponse), input.signal);
       continue;
     }
-    if (!statusResponse.ok) throw new Error(providerHttpError(statusResponse.status, status.error));
-    if (status.status === "failed") throw new Error(providerError(status.error));
+    if (!statusResponse.ok) {
+      logProviderFailure({
+        phase: "status",
+        productId: product.id,
+        predictionId,
+        status: statusResponse.status,
+        value: status.error
+      });
+      throw new Error(providerHttpError(statusResponse.status, status.error));
+    }
+    if (status.status === "failed") {
+      logProviderFailure({
+        phase: "status",
+        productId: product.id,
+        predictionId,
+        status: statusResponse.status,
+        value: status.error
+      });
+      throw new Error(providerError(status.error));
+    }
     if (status.status !== "completed") continue;
     const output = status.output?.[0];
     const result = decodeDataImage(output, MAX_SAVED_IMAGE_BYTES, new Set(["image/jpeg", "image/png"]));
