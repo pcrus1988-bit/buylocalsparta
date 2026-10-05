@@ -3,11 +3,12 @@ import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import {
   normal95ConfidenceInterval,
+  normalTwoSidedPValue,
   researchWeightDiagnostics,
   stratifiedSrsMeanVariance
 } from "./research-survey-statistics";
 
-const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v2";
+const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v3";
 const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v1";
 const MIN_PUBLIC_BASE = 30;
 const VARIANCE_METHOD = "stratified_srs_fpc_v1";
@@ -555,6 +556,145 @@ export async function runGreekRetailAnalysis(
         })
       ]);
       estimateCount += 1;
+    }
+  }
+
+  const comparisonSource = await pool.query<SqlRow>(`
+    SELECT
+      metric_key,
+      segment,
+      estimate,
+      standard_error,
+      unweighted_n,
+      weighted_n,
+      metadata
+    FROM research_analysis_estimates
+    WHERE analysis_run_id=$1
+      AND method='nonresponse_adjusted_stratified_descriptive_v2'
+      AND metric_key IN ('digital_readiness.mean','retail_friction.mean')
+      AND suppressed=false
+      AND estimate IS NOT NULL
+      AND standard_error IS NOT NULL
+      AND (
+        segment ? 'regionCode'
+        OR segment ? 'sectorCode'
+      )
+    ORDER BY metric_key,segment::text
+  `, [analysisRunId]);
+
+  const comparisonGroups = new Map<string, Array<{
+    metricKey: string;
+    dimension: "regionCode" | "sectorCode";
+    level: string;
+    estimate: number;
+    standardError: number;
+    unweightedN: number;
+    weightedN: number | null;
+    metadata: Record<string, unknown>;
+  }>>();
+
+  for (const row of comparisonSource.rows) {
+    const segment = objectValue(row.segment);
+    const dimension = typeof segment.regionCode === "string"
+      ? "regionCode"
+      : typeof segment.sectorCode === "string"
+        ? "sectorCode"
+        : undefined;
+    if (!dimension) continue;
+    const level = text(segment[dimension]).trim();
+    const estimate = numberValue(row.estimate);
+    const standardError = numberValue(row.standard_error);
+    if (!level || !Number.isFinite(estimate) || !Number.isFinite(standardError) || standardError < 0) continue;
+    const key = `${text(row.metric_key)}:${dimension}`;
+    const group = comparisonGroups.get(key) ?? [];
+    group.push({
+      metricKey: text(row.metric_key),
+      dimension,
+      level,
+      estimate,
+      standardError,
+      unweightedN: numberValue(row.unweighted_n),
+      weightedN: row.weighted_n == null ? null : numberValue(row.weighted_n),
+      metadata: objectValue(row.metadata)
+    });
+    comparisonGroups.set(key, group);
+  }
+
+  for (const group of comparisonGroups.values()) {
+    group.sort((a, b) => a.level.localeCompare(b.level, "el"));
+    for (let leftIndex = 0; leftIndex < group.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < group.length; rightIndex += 1) {
+        const left = group[leftIndex]!;
+        const right = group[rightIndex]!;
+        const difference = left.estimate - right.estimate;
+        const standardError = Math.sqrt(
+          left.standardError * left.standardError +
+          right.standardError * right.standardError
+        );
+        const confidence = standardError > 0
+          ? normal95ConfidenceInterval(difference, standardError, "mean")
+          : { lower: difference, upper: difference };
+        const zScore = standardError > 0
+          ? difference / standardError
+          : difference === 0
+            ? 0
+            : difference > 0
+              ? Number.POSITIVE_INFINITY
+              : Number.NEGATIVE_INFINITY;
+        const pValue = Number.isFinite(zScore)
+          ? normalTwoSidedPValue(zScore)
+          : 0;
+        const weightedN = left.weightedN != null && right.weightedN != null
+          ? left.weightedN + right.weightedN
+          : null;
+
+        await pool.query(`
+          INSERT INTO research_analysis_estimates (
+            analysis_run_id,metric_key,segment,estimate,standard_error,confidence_level,
+            ci_lower,ci_upper,unweighted_n,weighted_n,method,suppressed,metadata
+          )
+          VALUES (
+            $1,$2,$3::jsonb,$4,$5,0.95,$6,$7,$8,$9,
+            'pairwise_independent_strata_difference_v1',false,$10::jsonb
+          )
+        `, [
+          analysisRunId,
+          `${left.metricKey}.pairwise_difference`,
+          JSON.stringify({
+            comparisonDimension: left.dimension,
+            levelA: left.level,
+            levelB: right.level
+          }),
+          difference,
+          standardError,
+          confidence.lower,
+          confidence.upper,
+          left.unweightedN + right.unweightedN,
+          weightedN,
+          JSON.stringify({
+            format: "difference",
+            sourceMetricKey: left.metricKey,
+            sourceFormat: left.metadata.format ?? "mean",
+            comparisonDimension: left.dimension,
+            levelA: left.level,
+            levelB: right.level,
+            estimateA: left.estimate,
+            estimateB: right.estimate,
+            standardErrorA: left.standardError,
+            standardErrorB: right.standardError,
+            unweightedNA: left.unweightedN,
+            unweightedNB: right.unweightedN,
+            weightedNA: left.weightedN,
+            weightedNB: right.weightedN,
+            zScore: Number.isFinite(zScore) ? zScore : null,
+            pValue,
+            pValueAdjustment: "none",
+            exploratory: true,
+            independenceBasis: "disjoint_unions_of_sampling_strata"
+          })
+        ]);
+        estimateCount += 1;
+      }
     }
   }
 
