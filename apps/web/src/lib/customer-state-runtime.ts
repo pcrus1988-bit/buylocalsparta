@@ -177,6 +177,30 @@ async function reserveCustomerTryOnMonthlyQuota(input: { userId: string; now: nu
   return { allowed: false, quota };
 }
 
+export async function releaseCustomerTryOnMonthlyGeneration(input: { userId: string; now: number }): Promise<CustomerTryOnMonthlyQuota> {
+  if (customerStateBackend() === "memory") {
+    const usage = customerTryOnMemoryUsage();
+    const key = customerTryOnMemoryUsageKey(input.userId, input.now);
+    const used = usage.get(key) ?? 0;
+    const next = Math.max(0, used - 1);
+    usage.set(key, next);
+    return customerTryOnQuotaSnapshot(next, input.now);
+  }
+
+  const window = customerTryOnQuotaWindow(input.now);
+  await postgresServices().runtime.nativePool.query(`
+    UPDATE public.customer_try_on_monthly_usage q
+    SET generation_count=GREATEST(0,q.generation_count-1),
+        updated_at=now()
+    FROM public.users u
+    WHERE q.user_id=u.id
+      AND (u.public_id::text=$1 OR u.id::text=$1)
+      AND q.month_start=$2::date
+      AND q.generation_count > 0
+  `, [input.userId, window.monthStart]);
+  return customerTryOnMonthlyQuota(input);
+}
+
 export async function reserveCustomerTryOnGeneration(input: { userId: string; now: number }): Promise<{
   allowed: boolean;
   reason?: "burst" | "monthly";
