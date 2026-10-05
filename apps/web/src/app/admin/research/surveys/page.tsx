@@ -34,16 +34,22 @@ export default async function ResearchSurveysAdminPage() {
     </div></section>
 
     {!overview.databaseConfigured
-      ? <section className="shell vendor-section"><WorkspaceEmptyState title="Research database is not available." body="The admin surface will activate after schema 411 is deployed." /></section>
+      ? <section className="shell vendor-section"><WorkspaceEmptyState title="Research database is not available." body="The admin surface will activate after schema 412 is deployed." /></section>
       : overview.studies.length === 0
         ? <section className="shell vendor-section"><WorkspaceEmptyState title="No research studies have been created." /></section>
         : overview.studies.map((study) => <div key={study.id}>
           <WorkspaceMetricStrip items={[
             { label: "Population frame", value: study.framePopulation.toLocaleString("el-GR"), hint: String(study.frameCount) + " snapshot(s)" },
             { label: "Selected sample", value: study.sampleUnits.toLocaleString("el-GR"), hint: String(study.sampleDrawCount) + " draw(s)" },
-            { label: "Invitations", value: study.invites.toLocaleString("el-GR"), hint: String(study.sent) + " sent/opened/started" },
-            { label: "Completed", value: study.completed.toLocaleString("el-GR"), hint: String(study.started) + " responses started" },
-            { label: "Evidence releases", value: study.releases, hint: String(study.analysisRuns) + " analysis run(s)" }
+            { label: "Active contacts", value: study.activeContacts.toLocaleString("el-GR"), hint: String(study.suppressedContacts) + " suppressed/invalid · " + String(study.bouncedContacts) + " bounced" },
+            { label: "Invitations", value: study.invites.toLocaleString("el-GR"), hint: String(study.inviteBatches) + " batch(es) · " + String(study.sent) + " sent/opened/started" },
+            { label: "Completed", value: study.completed.toLocaleString("el-GR"), hint: String(study.started) + " responses started" }
+          ]} />
+          <WorkspaceMetricStrip items={[
+            { label: "QA review", value: study.qualityReview.toLocaleString("el-GR"), hint: String(study.qualityExclude) + " excluded by reviewed rules" },
+            { label: "Reward eligible", value: study.rewardEligible.toLocaleString("el-GR"), hint: String(study.rewardIssued) + " issued · " + String(study.rewardRedeemed) + " redeemed" },
+            { label: "Analysis estimates", value: study.analysisEstimates.toLocaleString("el-GR"), hint: String(study.analysisRuns) + " analysis run(s)" },
+            { label: "Evidence releases", value: study.releases, hint: "Versioned methodology + dataset/artifact hashes" }
           ]} />
           <section className="shell vendor-section">
             <WorkspaceSectionHeading
