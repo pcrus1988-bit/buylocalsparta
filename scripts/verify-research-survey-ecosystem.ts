@@ -41,6 +41,7 @@ const fieldworkControls = readFileSync("apps/web/src/components/ResearchStudyFie
 const lifecycleControls = readFileSync("apps/web/src/components/ResearchStudyLifecycleControls.tsx", "utf8");
 const fieldworkBalance = readFileSync("apps/web/src/components/ResearchStudyFieldworkBalance.tsx", "utf8");
 const statistics = readFileSync("apps/web/src/lib/research-survey-statistics.ts", "utf8");
+const statisticsTests = readFileSync("apps/web/src/lib/research-survey-statistics.test.ts", "utf8");
 const analysis = readFileSync("apps/web/src/lib/research-survey-analysis.ts", "utf8");
 const resultsPage = readFileSync("apps/web/src/app/research/greek-retail-2026/results/page.tsx", "utf8");
 const releaseRoute = readFileSync("apps/web/src/app/api/research/[slug]/release/route.ts", "utf8");
@@ -246,7 +247,12 @@ if (!statistics.includes("unequal_within_stratum_weights")) errors.push("varianc
 if (!analysis.includes('VARIANCE_METHOD = "stratified_srs_fpc_v1"')) errors.push("analysis variance method is not versioned");
 if (!analysis.includes("'weightDiagnostics',$3::jsonb")) errors.push("analysis run does not persist weighting diagnostics");
 if (!statistics.includes("normalTwoSidedPValue")) errors.push("pairwise normal p-value helper missing");
-if (!analysis.includes('ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v4"')) errors.push("analysis code version is not v4");
+if (!analysis.includes('ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v5"')) errors.push("analysis code version is not v5");
+if (!statistics.includes("weightedClusteredDifferenceInMeans")) errors.push("respondent-clustered experimental estimator missing");
+if (!statisticsTests.includes("clustered experimental contrast keeps repeated profile evaluations inside respondent clusters")) errors.push("experimental clustered estimator test missing");
+if (!analysis.includes("randomized_profile_amce_clustered_v1")) errors.push("randomized profile experiment analysis missing");
+if (!analysis.includes('analysisClassification: "exploratory_not_preregistered"')) errors.push("experimental analysis is not explicitly labelled non-preregistered");
+if (!analysis.includes("experiments: (experimentsByResponse.get(response.responseId)")) errors.push("experiment assignments are not bound into the analysis dataset hash");
 if (!analysis.includes("RESEARCH_ANALYSIS_PLAN_MISSING")) errors.push("analysis does not require a locked preregistration plan");
 if (!analysis.includes("RESEARCH_ANALYSIS_PLAN_BINDING_MISMATCH")) errors.push("analysis retry does not enforce immutable plan binding");
 if (!analysis.includes("RESEARCH_ANALYSIS_PLAN_CODE_MISMATCH")) errors.push("analysis does not fail closed when preregistered methods diverge from executable code");
@@ -258,6 +264,10 @@ if (!analysis.includes('adjustedPValueMethod: "benjamini_hochberg"')) errors.pus
 if (!resultsPage.includes("Pre-fieldwork analysis plan")) errors.push("public preregistration disclosure section missing");
 if (!resultsPage.includes("analysisPlan.contentSha256")) errors.push("public preregistration fingerprint missing");
 if (!resultsPage.includes("Exploratory pairwise inference")) errors.push("public pairwise inference section missing");
+if (!resultsPage.includes("Randomized platform-choice experiment · Exploratory")) errors.push("public randomized experiment section missing");
+if (!resultsPage.includes("exploratory / not preregistered")) errors.push("public randomized experiment preregistration disclosure missing");
+if (!release.includes("experimentDiagnostics: objectValue(parameters.experimentDiagnostics)")) errors.push("release does not freeze experiment diagnostics");
+if (!release.includes("randomizedExperimentExploratoryPublished")) errors.push("release experimental disclosure flag missing");
 if (!resultsPage.includes("Benjamini–Hochberg FDR-adjusted q-value")) errors.push("public pairwise FDR disclosure missing");
 
 if (!release.includes("analysisPlan: {")) errors.push("release does not freeze the preregistered analysis plan");
