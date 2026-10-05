@@ -15,6 +15,11 @@ export function ResearchStudySamplingControls({
   activeContacts,
   latestSampleStatus,
   latestSampleTarget,
+  latestSampleDesignSha256,
+  latestSampleDesiredCompletes,
+  latestSampleExpectedResponseRate,
+  latestSampleContactabilityRate,
+  latestSampleExpectedCompletes,
   queuedJobs,
   runningJobs
 }: {
@@ -29,6 +34,11 @@ export function ResearchStudySamplingControls({
   activeContacts: number;
   latestSampleStatus?: string;
   latestSampleTarget: number;
+  latestSampleDesignSha256?: string;
+  latestSampleDesiredCompletes: number;
+  latestSampleExpectedResponseRate: number;
+  latestSampleContactabilityRate: number;
+  latestSampleExpectedCompletes: number;
   queuedJobs: number;
   runningJobs: number;
 }) {
@@ -197,6 +207,12 @@ export function ResearchStudySamplingControls({
         {latestSampleStatus
           ? `Latest: ${latestSampleStatus} · ${latestSampleTarget.toLocaleString("el-GR")} selected units`
           : "Set the number of selected businesses. This is not the target number of completed questionnaires."}
+        {latestSampleDesignSha256 ? <><br />
+          Frozen design: {latestSampleDesiredCompletes.toLocaleString("el-GR")} desired completes · {" "}
+          {new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 1 }).format(latestSampleExpectedResponseRate)} invited-response assumption · {" "}
+          {new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 1 }).format(latestSampleContactabilityRate)} contactability · {" "}
+          {latestSampleExpectedCompletes.toLocaleString("el-GR")} expected completes · {latestSampleDesignSha256.slice(0, 12)}…
+        </> : null}
       </span>
       <div className="workspace-action-buttons">
         <strong>{fieldworkPhase === "pilot" ? "Pilot holdout" : "Main fieldwork"}</strong>
