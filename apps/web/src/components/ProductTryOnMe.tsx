@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import styles from "./ProductTryOnMe.module.css";
-import { TryOnGenerationOverlay } from "./TryOnGenerationOverlay";
+import { TryOnGenerationOverlay3D } from "./TryOnGenerationOverlay3D";
 import {
   TRY_ON_ACTIVE_SCOPE_KEY,
   TRY_ON_AUTO_PREFIX,
@@ -713,7 +713,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   return (
     <section id={`try-on-card-${productId}`} className={styles.card} aria-labelledby={`try-on-${productId}`}>
       {generationOverlay ? (
-        <TryOnGenerationOverlay
+        <TryOnGenerationOverlay3D
           modelImage={generationOverlay.photo}
           resultImage={generationOverlay.resultImage}
           productTitle={productTitle}
