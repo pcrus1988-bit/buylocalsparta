@@ -1,7 +1,7 @@
 import { requireAccountSession } from "../../../../lib/account-session";
 import { customerTryOnGenerationConfigured } from "../../../../lib/try-on-config";
 import { generateCustomerTryOn } from "../../../../lib/try-on-runtime";
-import { reserveCustomerTryOnGeneration } from "../../../../lib/customer-state-runtime";
+import { releaseCustomerTryOnMonthlyGeneration, reserveCustomerTryOnGeneration } from "../../../../lib/customer-state-runtime";
 import type { CustomerTryOnMonthlyQuota } from "../../../../lib/try-on-quota";
 
 export const maxDuration = 60;
@@ -58,6 +58,13 @@ export async function POST(request: Request) {
         if (!guard.allowed) {
           throw new Error(guard.reason === "monthly" ? "TRY_ON_MONTHLY_LIMIT_REACHED" : "TRY_ON_RATE_LIMITED");
         }
+      },
+      onProviderFailure: async () => {
+        if (!guard?.allowed) return;
+        guard = {
+          ...guard,
+          quota: await releaseCustomerTryOnMonthlyGeneration({ userId: principal.userId, now: Date.now() })
+        };
       }
     });
 
