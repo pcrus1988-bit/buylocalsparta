@@ -206,7 +206,7 @@ export async function queueGreekRetailSampleDraw(
   assertAdminPermission(principal, "research.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const targetN = Math.floor(input.targetN);
-  if (!Number.isSafeInteger(targetN) || targetN < 100 || targetN > 100_000) {
+  if (!Number.isSafeInteger(targetN) || targetN < 1 || targetN > 100_000) {
     throw new Error("RESEARCH_SAMPLE_TARGET_INVALID");
   }
   const randomSeed = input.randomSeed?.trim() || randomBytes(24).toString("hex");
@@ -218,6 +218,13 @@ export async function queueGreekRetailSampleDraw(
   const studyStatus = text(study.rows[0].status);
   const fieldworkPhase: "pilot" | "main" = input.fieldworkPhase
     ?? (["draft","pilot"].includes(studyStatus) ? "pilot" : "main");
+  const minTargetN = fieldworkPhase === "pilot" ? 10 : 100;
+  const maxTargetN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
+  if (targetN < minTargetN || targetN > maxTargetN) {
+    throw new Error(fieldworkPhase === "pilot"
+      ? "RESEARCH_PILOT_SAMPLE_TARGET_INVALID"
+      : "RESEARCH_SAMPLE_TARGET_INVALID");
+  }
   if (fieldworkPhase === "pilot" && !["draft","pilot"].includes(studyStatus)) {
     throw new Error("RESEARCH_PILOT_SAMPLE_PHASE_CLOSED");
   }
@@ -951,7 +958,11 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
   const targetN = Math.floor(numberValue(input.targetN));
   const randomSeed = text(input.randomSeed);
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
-  if (!targetN || !randomSeed) throw new Error("RESEARCH_SAMPLE_JOB_INVALID");
+  const minTargetN = fieldworkPhase === "pilot" ? 10 : 100;
+  const maxTargetN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
+  if (!targetN || !randomSeed || targetN < minTargetN || targetN > maxTargetN) {
+    throw new Error("RESEARCH_SAMPLE_JOB_INVALID");
+  }
 
   const client = await getProductionPostgresRuntime().sqlPool.connect();
   try {
