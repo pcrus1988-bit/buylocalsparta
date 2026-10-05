@@ -296,9 +296,10 @@ function lowMotionDevice(): boolean {
 }
 
 function buildScene(canvas: HTMLCanvasElement, modelImage: string, onContextLost: () => void): SceneController {
-  const gl = (canvas.getContext("webgl", { alpha: true, antialias: true, powerPreference: "high-performance" })
+  const maybeGl = (canvas.getContext("webgl", { alpha: true, antialias: true, powerPreference: "high-performance" })
     || canvas.getContext("webgl2", { alpha: true, antialias: true, powerPreference: "high-performance" })) as GL | null;
-  if (!gl) throw new Error("WEBGL_UNAVAILABLE");
+  if (!maybeGl) throw new Error("WEBGL_UNAVAILABLE");
+  const gl: GL = maybeGl;
 
   const texturedProgram = program(gl, `
     attribute vec2 a_position;
