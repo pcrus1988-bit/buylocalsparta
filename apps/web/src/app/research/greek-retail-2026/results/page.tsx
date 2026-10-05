@@ -268,9 +268,9 @@ export default async function GreekRetailResultsPage() {
       <h2>Είναι οι διαφορές μεταξύ περιοχών ή κλάδων μεγαλύτερες από την αβεβαιότητα του δείγματος;</h2>
       <p>
         Οι παρακάτω διαφορές υπολογίζονται μόνο όταν και οι δύο συγκρινόμενες εκτιμήσεις έχουν design-aware standard error
-        και αντιστοιχούν σε μη επικαλυπτόμενες ενώσεις των πραγματικών sampling strata. Τα p-values είναι δύο όψεων,
-        <strong> χωρίς διόρθωση για πολλαπλές συγκρίσεις</strong>, άρα είναι exploratory evidence και όχι αυτόματος κανόνας
-        «στατιστικά σημαντικού» ευρήματος.
+        και αντιστοιχούν σε μη επικαλυπτόμενες ενώσεις των πραγματικών sampling strata. Δημοσιεύεται το raw δύο-όψεων p-value
+        μαζί με <strong>Benjamini–Hochberg FDR-adjusted q-value</strong> μέσα στην οικογένεια κάθε metric × διάστασης.
+        Παραμένουν exploratory evidence και όχι αυτόματος κανόνας «στατιστικά σημαντικού» ευρήματος.
       </p>
       {pairwiseComparisons.length === 0
         ? <p>Δεν υπάρχουν pairwise comparisons με επαρκή design-based uncertainty για αυτό το release.</p>
@@ -282,7 +282,8 @@ export default async function GreekRetailResultsPage() {
               <th style={{ textAlign: "left", padding: "10px 6px" }}>Μέτρο</th>
               <th style={{ textAlign: "right", padding: "10px 6px" }}>Διαφορά A−B</th>
               <th style={{ textAlign: "right", padding: "10px 6px" }}>95% CI</th>
-              <th style={{ textAlign: "right", padding: "10px 6px" }}>p</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>raw p</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>BH q</th>
               <th style={{ textAlign: "right", padding: "10px 6px" }}>n A/B</th>
             </tr></thead>
             <tbody>{pairwiseComparisons.map((estimate) => {
@@ -306,6 +307,9 @@ export default async function GreekRetailResultsPage() {
                   {formatPValue(estimate.metadata.pValue)}
                 </td>
                 <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>
+                  {formatPValue(estimate.metadata.adjustedPValue)}
+                </td>
+                <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>
                   {numeric(estimate.metadata.unweightedNA).toLocaleString("el-GR")}/
                   {numeric(estimate.metadata.unweightedNB).toLocaleString("el-GR")}
                 </td>
@@ -315,7 +319,7 @@ export default async function GreekRetailResultsPage() {
         </div>}
       <p>
         Η κατεύθυνση είναι A−B: θετική τιμή σημαίνει υψηλότερο score στο A. Η ερμηνεία πρέπει να εξετάζει μαζί
-        το μέγεθος της διαφοράς, το interval, τις βάσεις και το πλήθος των συγκρίσεων — όχι μόνο το p-value.
+        το μέγεθος της διαφοράς, το interval, τις βάσεις και το πλήθος των συγκρίσεων — όχι μόνο το raw p ή το adjusted q.
       </p>
     </section>
 
