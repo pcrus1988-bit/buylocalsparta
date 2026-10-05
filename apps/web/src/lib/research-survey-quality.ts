@@ -102,49 +102,58 @@ export async function resolveResearchQualityReview(
   if (!/^[0-9a-f-]{36}$/i.test(input.responseId)) throw new Error("RESEARCH_QA_RESPONSE_INVALID");
 
   const note = input.note?.trim().replace(/[\r\n]+/g, " ").slice(0, 500) || "";
-  const pool = getProductionPostgresRuntime().sqlPool;
-  const current = await pool.query<SqlRow>(`
-    WITH latest AS (
-      SELECT DISTINCT ON (qr.response_id)
-        qr.response_id,
-        qr.decision
-      FROM research_response_quality_reviews qr
-      WHERE qr.response_id=$2
-      ORDER BY qr.response_id,qr.created_at DESC,qr.id DESC
-    )
-    SELECT rr.id,rr.status,latest.decision
-    FROM research_responses rr
-    JOIN research_studies s ON s.id=rr.study_id
-    JOIN latest ON latest.response_id=rr.id
-    WHERE s.slug=$1 AND rr.id=$2
-    LIMIT 1
-  `, [input.slug, input.responseId]);
+  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  try {
+    await client.query("BEGIN");
+    const responseResult = await client.query<SqlRow>(`
+      SELECT rr.id,rr.status
+      FROM research_responses rr
+      JOIN research_studies s ON s.id=rr.study_id
+      WHERE s.slug=$1 AND rr.id=$2
+      LIMIT 1
+      FOR UPDATE OF rr
+    `, [input.slug, input.responseId]);
+    const response = responseResult.rows[0];
+    if (!response) throw new Error("RESEARCH_QA_RESPONSE_NOT_FOUND");
+    if (text(response.status) !== "completed") throw new Error("RESEARCH_QA_RESPONSE_NOT_COMPLETED");
 
-  const row = current.rows[0];
-  if (!row) throw new Error("RESEARCH_QA_RESPONSE_NOT_FOUND");
-  if (text(row.status) !== "completed") throw new Error("RESEARCH_QA_RESPONSE_NOT_COMPLETED");
-  if (text(row.decision) !== "review") throw new Error("RESEARCH_QA_ALREADY_RESOLVED");
+    const latestResult = await client.query<SqlRow>(`
+      SELECT decision
+      FROM research_response_quality_reviews
+      WHERE response_id=$1
+      ORDER BY created_at DESC,id DESC
+      LIMIT 1
+    `, [input.responseId]);
+    if (text(latestResult.rows[0]?.decision) !== "review") {
+      throw new Error("RESEARCH_QA_ALREADY_RESOLVED");
+    }
 
-  await pool.query(`
-    INSERT INTO research_response_quality_reviews (
-      response_id,rule_version,decision,reason_codes,metrics,source
-    )
-    VALUES (
-      $1,'greek-retail-2026-manual-qc-v1',$2,$3::text[],
-      jsonb_build_object(
-        'reviewNote',$4::text,
-        'reviewedBy',$5::text,
-        'resolution','manual'
-      ),
-      'admin'
-    )
-  `, [
-    input.responseId,
-    input.decision,
-    [input.decision === "include" ? "manual_include" : "manual_exclude"],
-    note,
-    principal.userId
-  ]);
-
-  return { responseId: input.responseId, decision: input.decision };
+    await client.query(`
+      INSERT INTO research_response_quality_reviews (
+        response_id,rule_version,decision,reason_codes,metrics,source
+      )
+      VALUES (
+        $1,'greek-retail-2026-manual-qc-v1',$2,$3::text[],
+        jsonb_build_object(
+          'reviewNote',$4::text,
+          'reviewedBy',$5::text,
+          'resolution','manual'
+        ),
+        'admin'
+      )
+    `, [
+      input.responseId,
+      input.decision,
+      [input.decision === "include" ? "manual_include" : "manual_exclude"],
+      note,
+      principal.userId
+    ]);
+    await client.query("COMMIT");
+    return { responseId: input.responseId, decision: input.decision };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
