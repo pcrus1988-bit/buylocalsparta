@@ -14,15 +14,16 @@ export function generateMetadata(): Promise<Metadata> {
 const stages = [
   ["1", "Population frame", "Παγωμένο snapshot του επιλέξιμου πληθυσμού επιχειρήσεων, με ακριβείς κανόνες ένταξης και hash περιεχομένου."],
   ["2", "Stratification", "Στρώματα βάσει γεωγραφίας, κλάδου και μεγέθους ώστε η επιλογή και η ανάλυση να είναι ελέγξιμες."],
-  ["3", "Sample draw", "Αποθηκεύονται algorithm version, random seed, πιθανότητα ένταξης και base weight κάθε επιλεγμένης μονάδας."],
-  ["4", "Invitation", "Ο προσωπικός σύνδεσμος περιέχει τυχαίο token. Στη βάση αποθηκεύεται μόνο SHA-256 hash του token."],
-  ["5", "Consent", "Η συγκατάθεση συμμετοχής είναι χωριστή από ενημέρωση αποτελεσμάτων, κωδικό ευχαριστίας και marketing."],
-  ["6", "Instrument", "Το ερωτηματολόγιο έχει immutable version. Μετά το κλείδωμα δεν μπορούν να αλλάξουν οι ερωτήσεις του ίδιου version."],
-  ["7", "Responses", "Η ολοκληρωμένη απάντηση κλειδώνει. Οι raw answers παραμένουν συνδεδεμένες με την ακριβή έκδοση του instrument."],
-  ["8", "Pre-analysis plan", "Το greek-retail-2026-plan-v1 κλειδώνει primary/secondary analyses, weighting, variance και disclosure rules πριν από pilot/fieldwork."],
-  ["9", "Weights", "Base weight, non-response adjustment και calibration adjustment έχουν ξεχωριστό version."],
-  ["10", "Analysis", "Κάθε analysis run συνδέεται με το immutable analysis-plan ID και αποθηκεύει code version, parameters, instrument version, weight version και dataset hash."],
-  ["11", "Release", "Κάθε δημόσια έκδοση περιέχει το analysis-plan version/hash μαζί με methodology snapshot, dataset hash και artifact hash."]
+  ["3", "Pilot holdout", "Το pilot έχει δικό του sample/invitations και timestamps. Κάθε επιχείρηση στην οποία στάλθηκε pilot πρόσκληση εξαιρείται οριστικά από το main sample, ακόμη και αν ανανεωθεί το frame."],
+  ["4", "Main sample draw", "Μετά το κλείσιμο του pilot γίνεται νέο reproducible draw από τον main-eligible population. Αποθηκεύονται algorithm version, random seed, πιθανότητα ένταξης και base weight."],
+  ["5", "Invitation", "Ο προσωπικός σύνδεσμος περιέχει τυχαίο token. Στη βάση αποθηκεύεται μόνο SHA-256 hash του token. Μετά την πρώτη πραγματική αποστολή το sample της φάσης δεν μπορεί να ξανακληρωθεί."],
+  ["6", "Consent", "Η συγκατάθεση συμμετοχής είναι χωριστή από ενημέρωση αποτελεσμάτων, κωδικό ευχαριστίας και marketing."],
+  ["7", "Instrument", "Το ερωτηματολόγιο έχει immutable version. Μετά το κλείδωμα δεν μπορούν να αλλάξουν οι ερωτήσεις του ίδιου version."],
+  ["8", "Responses", "Η ολοκληρωμένη απάντηση κλειδώνει. Οι raw answers παραμένουν συνδεδεμένες με την ακριβή έκδοση του instrument."],
+  ["9", "Pre-analysis plan", "Το greek-retail-2026-plan-v1 κλειδώνει primary/secondary analyses, weighting, variance και disclosure rules πριν από pilot/fieldwork."],
+  ["10", "Weights", "Base weight, non-response adjustment και calibration adjustment έχουν ξεχωριστό version και αφορούν αποκλειστικά το main fieldwork."],
+  ["11", "Analysis", "Κάθε analysis run συνδέεται με το immutable analysis-plan ID και αποθηκεύει code version, parameters, instrument version, weight version, fieldwork phase και dataset hash."],
+  ["12", "Release", "Κάθε δημόσια έκδοση περιέχει pilot holdout disclosure, το analysis-plan version/hash, methodology snapshot, dataset hash και artifact hash."]
 ] as const;
 
 export default function GreekRetailMethodologyPage() {
@@ -44,6 +45,14 @@ export default function GreekRetailMethodologyPage() {
         <strong>{number.padStart(2, "0")} · {title}</strong>
         <p>{description}</p>
       </article>)}
+    </section>
+
+    <section className={styles.invalid}>
+      <div className={styles.brand}>Pilot isolation</div>
+      <h2>Το pilot ελέγχει το instrument· δεν γίνεται μέρος του τελικού δείγματος.</h2>
+      <p>Το pilot και το main fieldwork έχουν διαφορετικό fieldwork phase, διαφορετικά sample draws και διαφορετικά invitation ledgers. Με τη μετάβαση στο main fieldwork παγώνει το pilot exposure boundary: queued pilot send jobs ακυρώνονται, active sender αποτρέπει τη μετάβαση και οι ανοικτοί pilot σύνδεσμοι λήγουν.</p>
+      <p>Η εξαίρεση γίνεται πάνω στο stable external business hash και όχι στο ID μιας γραμμής frame. Έτσι μια επιχείρηση που εκτέθηκε στο pilot δεν μπορεί να επανεισαχθεί επειδή δημιουργήθηκε νεότερο G.E.MI. snapshot. Το main sample draw επιτρέπεται μόνο αφού κλείσει αυτό το boundary.</p>
+      <p>Το public release δημοσιεύει πόσες pilot-exposed μονάδες αφαιρέθηκαν από το τρέχον frozen frame και χρησιμοποιεί τον post-pilot πληθυσμό στους main contactability denominators.</p>
     </section>
 
     <section className={styles.invalid}>
