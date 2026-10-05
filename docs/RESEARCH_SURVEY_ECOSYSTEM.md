@@ -142,6 +142,7 @@ Automated completion checks can append a `review` decision without modifying the
 - `research_participant_deliveries` stores the operational state and content hashes for thank-you and results messages. `research_participant_delivery_events` is append-only evidence for planned/sending/sent/delivered/opened/bounced/complained/failed outcomes.
 - A published chart/table must therefore be traceable to a release snapshot and analysis run.
 - The public evidence endpoint `/api/research/:slug/release` reconstructs the exact canonical `kontamou.research.release.v1` artifact used for the stored artifact SHA-256. If reconstruction no longer hashes to the frozen fingerprint, the endpoint fails closed instead of serving a silently divergent artifact.
+- Publication itself now uses the same reconstruction inside the publication transaction. A release cannot transition the study to `published` if its current methodology + estimate rows no longer reproduce the stored artifact SHA-256, so integrity is enforced before publication as well as during later download.
 - The public results page exposes both the human-oriented results API and the canonical downloadable evidence JSON. The downloaded bytes can be hashed directly with SHA-256 and compared with the published Artifact SHA-256 fingerprint.
 
 ## Lifecycle
