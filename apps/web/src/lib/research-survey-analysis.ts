@@ -237,18 +237,39 @@ export async function runGreekRetailAnalysis(
       )
       VALUES (
         $1,'Automated weighted descriptive analysis',$2,$3,$4,
-        jsonb_build_object('jobId',$5::text,'varianceMethod','pending_design_based_v1'),
+        jsonb_build_object(
+          'jobId',$5::text,
+          'varianceMethod','not_estimated',
+          'sampleDrawId',$6::text,
+          'frameSnapshotId',$7::text,
+          'publicMinimumBase',$8::int
+        ),
         'running',now()
       )
       RETURNING id
-    `, [studyId, ANALYSIS_CODE_VERSION, instrument.version, weightVersion, jobId]);
+    `, [
+      studyId,
+      ANALYSIS_CODE_VERSION,
+      instrument.version,
+      weightVersion,
+      jobId,
+      draw.id,
+      draw.frame_snapshot_id,
+      MIN_PUBLIC_BASE
+    ]);
     analysisRunId = text(runResult.rows[0]!.id);
   } else {
     await pool.query(`
       UPDATE research_analysis_runs
-      SET status='running', started_at=now(), completed_at=NULL, dataset_sha256=NULL
+      SET status='running', started_at=now(), completed_at=NULL, dataset_sha256=NULL,
+          parameters=parameters || jsonb_build_object(
+            'varianceMethod','not_estimated',
+            'sampleDrawId',$2::text,
+            'frameSnapshotId',$3::text,
+            'publicMinimumBase',$4::int
+          )
       WHERE id=$1
-    `, [analysisRunId]);
+    `, [analysisRunId, draw.id, draw.frame_snapshot_id, MIN_PUBLIC_BASE]);
     await pool.query("DELETE FROM research_analysis_estimates WHERE analysis_run_id=$1", [analysisRunId]);
   }
 
