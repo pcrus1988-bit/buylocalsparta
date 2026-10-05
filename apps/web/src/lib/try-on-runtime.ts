@@ -2,9 +2,11 @@ import { randomInt, randomUUID } from "node:crypto";
 import { serverObjectStorageFromEnv, type ServerObjectStorage } from "@buy-local-sparta/object-storage";
 import { getCatalogCard } from "./catalog-view";
 import { approvedCatalogImageGallery } from "./public-product-media-gallery";
+import { getPublicCatalogSourceImageAtIndex } from "./public-catalog-source-gallery";
 import { getPublicProductDetail } from "./public-product-detail";
 import { publicOrigin } from "./public-origin";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { issueTryOnGarmentProxyToken } from "./try-on-garment-proxy";
 import { isTryOnGarmentCandidate } from "./try-on-eligibility";
 import { assertCustomerTryOnSaveToken, CUSTOMER_TRY_ON_EPHEMERAL_TTL_MS, issueCustomerTryOnSaveToken } from "./try-on-security";
 
@@ -129,23 +131,28 @@ async function resolveGarment(userPublicId: string, productId: string) {
   if (!product) throw new Error("TRY_ON_PRODUCT_NOT_FOUND");
   if (!isTryOnGarmentCandidate(product)) throw new Error("TRY_ON_PRODUCT_UNSUPPORTED");
 
-  const [gallery, detail] = await Promise.all([
+  const [gallery, detail, governedSource] = await Promise.all([
     approvedCatalogImageGallery({ canonicalVariantId: product.id, preferredVendorId: product.vendorId }),
-    getPublicProductDetail(product.id)
+    getPublicProductDetail(product.id),
+    getPublicCatalogSourceImageAtIndex(product.id, 0).catch(() => undefined)
   ]);
   const primary = gallery[0];
-  // Prefer KONTA MOY-controlled image endpoints so FASHN always receives a
-  // publicly reachable image response with a correct image Content-Type.
-  // Supplier CDNs can reject hotlinking or non-browser user agents even when
-  // the same URL renders correctly in a shopper's browser.
   const image = primary
     ? `${publicOrigin()}/api/media/${encodeURIComponent(primary.mediaId)}`
-    : (product.sourceImageAvailable || Boolean(detail?.sourceImageUrls?.[0]))
-      ? `${publicOrigin()}/api/catalog-source-image/${encodeURIComponent(product.id)}`
-      : product.previewImageSrc;
+    : governedSource?.src
+      ?? product.previewImageSrc
+      ?? detail?.sourceImageUrls?.[0];
   if (!image) throw new Error("TRY_ON_PRODUCT_IMAGE_REQUIRED");
-  const garmentImage = image.startsWith("data:") ? image : new URL(image, publicOrigin()).toString();
-  return { product, image: garmentImage };
+  if (image.startsWith("data:")) return { product, image };
+
+  const resolved = new URL(image, publicOrigin());
+  const origin = new URL(publicOrigin()).origin;
+  if (resolved.origin === origin) return { product, image: resolved.toString() };
+
+  const token = await issueTryOnGarmentProxyToken(resolved.toString());
+  const proxy = new URL("/api/try-on/garment-proxy", origin);
+  proxy.searchParams.set("token", token);
+  return { product, image: proxy.toString() };
 }
 
 function providerError(value: unknown, message?: unknown): string {
