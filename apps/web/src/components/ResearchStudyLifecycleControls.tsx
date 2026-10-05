@@ -3,26 +3,31 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Action = "lock_instrument" | "start_pilot" | "start_fielding" | "close_fieldwork" | "begin_analysis";
+type Action = "lock_instrument" | "start_pilot" | "start_fielding" | "close_fieldwork" | "begin_analysis" | "publish_release";
 
 const LABELS: Record<Action, string> = {
   lock_instrument: "Κλείδωμα questionnaire",
   start_pilot: "Έναρξη pilot",
   start_fielding: "Έναρξη fieldwork",
   close_fieldwork: "Κλείσιμο fieldwork",
-  begin_analysis: "Έναρξη analysis"
+  begin_analysis: "Έναρξη analysis",
+  publish_release: "Δημοσίευση release"
 };
 
 export function ResearchStudyLifecycleControls({
   slug,
   csrfToken,
   studyStatus,
-  instrumentStatus
+  instrumentStatus,
+  latestReleaseVersion,
+  latestReleasePublishedAt
 }: {
   slug: string;
   csrfToken: string;
   studyStatus: string;
   instrumentStatus?: string;
+  latestReleaseVersion?: string;
+  latestReleasePublishedAt?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<Action | null>(null);
@@ -34,6 +39,7 @@ export function ResearchStudyLifecycleControls({
   if (studyStatus === "pilot") actions.push("start_fielding", "close_fieldwork");
   if (studyStatus === "fielding") actions.push("close_fieldwork");
   if (studyStatus === "closed") actions.push("begin_analysis");
+  if (studyStatus === "analysis" && latestReleaseVersion && !latestReleasePublishedAt) actions.push("publish_release");
 
   async function run(action: Action) {
     setBusy(action);
@@ -46,7 +52,7 @@ export function ResearchStudyLifecycleControls({
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Research lifecycle transition failed");
-      setMessage("Η μετάβαση καταχωρήθηκε.");
+      setMessage(action === "publish_release" ? "Το reproducible release δημοσιεύτηκε." : "Η μετάβαση καταχωρήθηκε.");
       router.refresh();
     } catch (error) {
       const raw = error instanceof Error ? error.message : "Η ενέργεια απέτυχε.";
