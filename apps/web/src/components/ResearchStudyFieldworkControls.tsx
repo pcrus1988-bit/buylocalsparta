@@ -179,7 +179,7 @@ export function ResearchStudyFieldworkControls({
     <div className="workspace-action-bar">
       <span>
         <strong>SES fieldwork</strong><br />
-        {activeContacts.toLocaleString("el-GR")} ενεργά email contact points · {completed.toLocaleString("el-GR")} ολοκληρωμένες απαντήσεις.
+        {activeContacts.toLocaleString("el-GR")} contactable frame units · {completed.toLocaleString("el-GR")} ολοκληρωμένες απαντήσεις.
       </span>
       <div className="workspace-action-buttons">
         <input
