@@ -651,12 +651,12 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     : "";
 
   if (!sessionChecked) {
-    return <section className={styles.card} aria-label="Try On Me"><div className={styles.loading}>Try On Me…</div></section>;
+    return <section id={`try-on-${productId}`} className={styles.card} aria-label="Try On Me"><div className={styles.loading}>Try On Me…</div></section>;
   }
 
   if (csrfToken && tryOnAvailable === false) {
     return (
-      <section className={styles.card} aria-labelledby={`try-on-${productId}`}>
+      <section id={`try-on-${productId}`} className={styles.card} aria-labelledby={`try-on-${productId}`}>
         <div className={styles.heading}>
           <div>
             <span className={styles.eyebrow}>KONTA MOY · TRY ON ME</span>
@@ -671,7 +671,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
 
   if (!csrfToken) {
     return (
-      <section className={styles.card} aria-labelledby={`try-on-${productId}`}>
+      <section id={`try-on-${productId}`} className={styles.card} aria-labelledby={`try-on-${productId}`}>
         <div className={styles.heading}>
           <div>
             <span className={styles.eyebrow}>KONTA MOY · TRY ON ME</span>
@@ -688,7 +688,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   }
 
   return (
-    <section className={styles.card} aria-labelledby={`try-on-${productId}`}>
+    <section id={`try-on-${productId}`} className={styles.card} aria-labelledby={`try-on-${productId}`}>
       <div className={styles.heading}>
         <div>
           <span className={styles.eyebrow}>KONTA MOY · TRY ON ME</span>
