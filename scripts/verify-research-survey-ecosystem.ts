@@ -8,6 +8,7 @@ const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<strin
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const jobs = readFileSync("apps/web/src/lib/research-survey-jobs.ts", "utf8");
+const release = readFileSync("apps/web/src/lib/research-survey-release.ts", "utf8");
 const researchMail = readFileSync("apps/web/src/lib/research-survey-mail.ts", "utf8");
 const sesEvents = readFileSync("apps/web/src/lib/research-survey-ses-events.ts", "utf8");
 const sesSender = readFileSync("apps/web/src/lib/admin-mail-ses.ts", "utf8");
@@ -48,7 +49,7 @@ const sha = createHash("sha256").update(migration, "utf8").digest("hex");
 if (checksums["0414_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0414 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 414")) errors.push("runtime schema head is not 412");
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 414")) errors.push("runtime schema head is not 414");
 if ((migration.match(/^BEGIN;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one BEGIN");
 if ((migration.match(/^COMMIT;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one COMMIT");
 
@@ -71,6 +72,12 @@ if (!migration.includes("research_guard_answer_mutation")) errors.push("complete
 if (!migration.includes("research_consents_append_only")) errors.push("append-only consent ledger guard missing");
 if (!migration.includes("research_sample_dispositions_append_only")) errors.push("append-only sample disposition guard missing");
 if (!migration.includes("research_recruitment_templates_locked_immutable")) errors.push("locked recruitment template immutability guard missing");
+if (!migration.includes("research_frame_snapshots_frozen_immutable")) errors.push("frozen frame immutability guard missing");
+if (!migration.includes("research_sample_draws_locked_immutable")) errors.push("locked sample immutability guard missing");
+if (!migration.includes("research_analysis_runs_succeeded_immutable")) errors.push("succeeded analysis immutability guard missing");
+if (!migration.includes("research_analysis_estimates_frozen_with_run")) errors.push("analysis estimate immutability guard missing");
+if (!migration.includes("research_weights_frozen_with_analysis")) errors.push("analysis weight immutability guard missing");
+if (!migration.includes("research_release_snapshots_immutable")) errors.push("release snapshot immutability guard missing");
 if (!migration.includes("token_hash text NOT NULL UNIQUE")) errors.push("hashed invitation token contract missing");
 if (/\btoken\s+text\b/i.test(migration)) errors.push("plaintext invitation token column detected");
 
@@ -84,6 +91,8 @@ if (!jobs.includes("gemiResearchFrameRecords")) errors.push("GEMI frame worker b
 if (!jobs.includes("stratified-hash-rank-v1")) errors.push("reproducible sample algorithm missing");
 if (!jobs.includes("processInviteBatchJob")) errors.push("worker-managed invitation delivery missing");
 if (!jobs.includes("runGreekRetailAnalysis(job.study_id, job.id)")) errors.push("analysis job bridge missing");
+if (!jobs.includes('job.job_type === "release"')) errors.push("release job bridge missing");
+if (!jobs.includes("buildGreekRetailRelease")) errors.push("release worker implementation missing");
 if (!jobs.includes("assertResearchSurveyEmailReady")) errors.push("research email readiness gate missing");
 if (!researchMail.includes("BLS_RESEARCH_SES_CONFIGURATION_SET")) errors.push("dedicated SES configuration set gate missing");
 if (!researchMail.includes("research_invite")) errors.push("SES research message tags missing");
@@ -95,6 +104,11 @@ if (surveyRuntime.includes("generateResearchInvitationBatch")) errors.push("lega
 if (surveyRuntime.includes("SURVEY_EXPERIMENT_INCOMPLETE")) errors.push("optional experiment still blocks completion");
 if (!surveyRuntime.includes('"eligibilityBasis":"completed_response"')) errors.push("reward eligibility is not completion-based");
 if (!gemi.includes("export async function* gemiResearchFrameRecords")) errors.push("GEMI governed record stream missing");
+if (!release.includes("artifactSha256 = sha256Canonical(artifact)")) errors.push("canonical public release artifact hash missing");
+if (!release.includes("RESEARCH_RELEASE_REQUIRES_QA_RESOLUTION")) errors.push("release QA gate missing");
+if (!release.includes("confidenceIntervalsPublished")) errors.push("release disclosure contract missing");
+if (!release.includes("idempotentReplay")) errors.push("release idempotence contract missing");
+if (!surveyRuntime.includes('"publish_release"')) errors.push("explicit publish lifecycle action missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
 
 if (errors.length) {
