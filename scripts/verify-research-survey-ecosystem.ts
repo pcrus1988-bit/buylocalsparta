@@ -24,6 +24,7 @@ const sesEvents = readFileSync("apps/web/src/lib/research-survey-ses-events.ts",
 const quality = readFileSync("apps/web/src/lib/research-survey-quality.ts", "utf8");
 const qualityControls = readFileSync("apps/web/src/components/ResearchStudyQualityControls.tsx", "utf8");
 const fieldworkControls = readFileSync("apps/web/src/components/ResearchStudyFieldworkControls.tsx", "utf8");
+const fieldworkBalance = readFileSync("apps/web/src/components/ResearchStudyFieldworkBalance.tsx", "utf8");
 const statistics = readFileSync("apps/web/src/lib/research-survey-statistics.ts", "utf8");
 const analysis = readFileSync("apps/web/src/lib/research-survey-analysis.ts", "utf8");
 const resultsPage = readFileSync("apps/web/src/app/research/greek-retail-2026/results/page.tsx", "utf8");
@@ -124,6 +125,11 @@ if (!surveyRuntime.includes("participant_consent_revoked")) errors.push("consent
 if (!surveyRoute.includes('body.action === "preferences"')) errors.push("token API preference action missing");
 if (!surveyForm.includes("Αποθήκευση επιλογών")) errors.push("completed survey preference controls missing");
 if (!surveyRuntime.includes("AS delivered") || !surveyRuntime.includes("AS opened")) errors.push("admin fieldwork funnel event counts missing");
+if (!surveyRuntime.includes("researchFieldworkStrata")) errors.push("sampling-stratum fieldwork balance query missing");
+if (!surveyRuntime.includes("sample_counts AS") || !surveyRuntime.includes("response_counts AS")) errors.push("stratum fieldwork balance is not aggregated by CTE");
+if (!fieldworkBalance.includes("Fieldwork balance · sampling strata")) errors.push("stratum fieldwork balance admin view missing");
+if (!fieldworkBalance.includes("additional sampling strata")) errors.push("full stratum fieldwork balance is not inspectable");
+
 if (!surveyRuntime.includes("research_response_quality_reviews")) errors.push("survey completion QA ledger missing");
 if (!surveyRuntime.includes("research_reward_entitlements")) errors.push("reward entitlement separation missing");
 if (!surveyRuntime.includes("research_sample_disposition_events")) errors.push("fieldwork disposition events missing");
