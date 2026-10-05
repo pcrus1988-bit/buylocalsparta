@@ -47,6 +47,7 @@ New draws use algorithm `stratified-hash-rank-v2`. When the requested sample siz
 - The admin sample planner combines frame contactability, a user-supplied expected invited-response rate and desired completes to show a feasibility estimate. It never silently changes the sample target.
 - The frozen release stores overall and per-stratum email contactability. Low email coverage is therefore an explicit fieldwork limitation rather than being hidden inside the final response rate.
 - The admin control centre exposes the live fieldwork funnel as selected sample → sent → delivered → opened → started → completed, with stage-specific conversion percentages and withdrawals. These are operational diagnostics, not a substitute for the governed release methodology or an AAPOR response-rate classification.
+- The same admin view ranks sampling strata by completion shortfall and shows selected/sent/delivered/opened/started/completed counts for each frozen region/sector cell. This is an early non-response-balance warning: it helps fieldwork operators see where completion is lagging before weights are calculated, while keeping the full stratum list inspectable.
 
 ### Invitations
 
