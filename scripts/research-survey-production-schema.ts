@@ -16,7 +16,8 @@ const requiredTables = [
   "research_invite_messages",
   "research_analysis_plans",
   "research_sample_designs",
-  "research_sample_design_strata"
+  "research_sample_design_strata",
+  "research_protocol_events"
 ] as const;
 
 const migrationNames = (await readdir(new URL("../db/migrations/", import.meta.url)))
