@@ -1,0 +1,173 @@
+.card {
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 34%),
+    var(--white);
+  box-shadow: 0 12px 30px rgba(35, 32, 27, 0.06);
+}
+
+.heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.heading h2 {
+  margin: 4px 0 0;
+  font-size: clamp(21px, 3vw, 28px);
+}
+
+.eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
+}
+
+.spark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  font-size: 20px;
+}
+
+.card > p {
+  margin: 12px 0;
+  line-height: 1.55;
+}
+
+.loading {
+  min-height: 72px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+.upload {
+  min-height: 52px;
+  display: grid;
+  place-items: center;
+  margin-top: 14px;
+  border: 1px dashed color-mix(in srgb, var(--ink) 35%, var(--line));
+  border-radius: 15px;
+  cursor: pointer;
+  font-weight: 800;
+  background: color-mix(in srgb, var(--white) 88%, var(--cream, #f5f1e8));
+}
+
+.upload input,
+.textAction input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.modelControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--white) 80%, var(--cream, #f5f1e8));
+  font-size: 13px;
+}
+
+.modelControls span {
+  flex: 1 1 210px;
+  color: var(--ink-soft);
+}
+
+.textAction {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.generating {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 3px 10px;
+  align-items: center;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.generating small {
+  grid-column: 2;
+  color: var(--ink-soft);
+}
+
+.pulse {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: tryOnPulse 1.25s ease-in-out infinite;
+}
+
+.preview {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.preview img {
+  width: 100%;
+  max-height: 720px;
+  object-fit: contain;
+  border-radius: 18px;
+  background: #f3f1ed;
+}
+
+.previewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.expiry,
+.disclaimer {
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.error {
+  color: #9a261f;
+  font-weight: 700;
+}
+
+@keyframes tryOnPulse {
+  0%, 100% { opacity: .35; transform: scale(.78); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 620px) {
+  .card { padding: 15px; border-radius: 18px; }
+  .previewActions > * { flex: 1 1 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse { animation: none; }
+}
