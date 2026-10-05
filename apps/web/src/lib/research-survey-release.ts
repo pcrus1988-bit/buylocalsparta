@@ -322,6 +322,22 @@ export async function buildGreekRetailRelease(
     ORDER BY st.code
   `, [frameSnapshotId, sampleDrawId, studyId]);
 
+  const instrumentQuestions = await pool.query<SqlRow>(`
+    SELECT
+      code,
+      section_code,
+      position,
+      question_type,
+      prompt_el,
+      help_el,
+      required,
+      analysis_key,
+      config
+    FROM research_questions
+    WHERE instrument_id=$1
+    ORDER BY position,code
+  `, [study.instrument_id]);
+
   const estimatesResult = await pool.query<SqlRow>(`
     SELECT metric_key,segment,estimate,standard_error,confidence_level,ci_lower,ci_upper,
            unweighted_n,weighted_n,method,suppressed,metadata
@@ -345,7 +361,18 @@ export async function buildGreekRetailRelease(
     instrument: {
       version: text(study.instrument_version),
       contentSha256: text(study.instrument_sha256),
-      consentStatementVersion: text(study.consent_statement_version)
+      consentStatementVersion: text(study.consent_statement_version),
+      questions: instrumentQuestions.rows.map((row) => ({
+        code: text(row.code),
+        sectionCode: text(row.section_code),
+        position: numberValue(row.position),
+        type: text(row.question_type),
+        promptEl: text(row.prompt_el),
+        helpEl: text(row.help_el) || null,
+        required: Boolean(row.required),
+        analysisKey: text(row.analysis_key),
+        config: objectValue(row.config)
+      }))
     },
     frame: {
       id: text(design.frame_snapshot_id),
