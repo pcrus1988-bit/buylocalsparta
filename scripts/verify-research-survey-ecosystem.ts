@@ -17,6 +17,8 @@ const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
 const surveyForm = readFileSync("apps/web/src/components/ResearchSurveyForm.tsx", "utf8");
+const schemaRollout = readFileSync(".github/workflows/research-survey-schema-rollout.yml", "utf8");
+const schemaPreflight = readFileSync("scripts/research-survey-production-schema.ts", "utf8");
 const jobs = readFileSync("apps/web/src/lib/research-survey-jobs.ts", "utf8");
 const release = readFileSync("apps/web/src/lib/research-survey-release.ts", "utf8");
 const researchMail = readFileSync("apps/web/src/lib/research-survey-mail.ts", "utf8");
@@ -212,6 +214,13 @@ if (!release.includes("completionRateOfSent")) errors.push("release does not fre
 if (!resultsPage.includes("Sent→complete")) errors.push("public results do not disclose frozen fieldwork conversion rate");
 if (!release.includes("idempotentReplay")) errors.push("release idempotence contract missing");
 if (!surveyRuntime.includes('"publish_release"')) errors.push("explicit publish lifecycle action missing");
+if (!schemaRollout.includes("workflow_dispatch")) errors.push("research production schema rollout is not manual-only");
+if (!schemaRollout.includes("environment: production")) errors.push("research production schema rollout lacks production environment gate");
+if (!schemaRollout.includes("if: ${{ inputs.apply }}")) errors.push("research schema mutation lacks explicit apply gate");
+if (!schemaRollout.includes("npm run db:migrate")) errors.push("research schema rollout bypasses checksum-aware migrator");
+if (!schemaPreflight.includes("expectedSourceVersion = 418")) errors.push("research schema rollout source-head guard missing");
+if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
+if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
 
 if (errors.length) {
