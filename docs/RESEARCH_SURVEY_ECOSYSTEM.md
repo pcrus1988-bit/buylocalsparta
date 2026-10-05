@@ -187,6 +187,21 @@ Contact values and responses are kept in separate relational domains even though
 
 Invitation delivery is intentionally gated. It requires a locked/fielded probability sample, a locked recruitment-template version, study status `pilot` or `fielding`, and explicit production enablement through `BLS_RESEARCH_EMAIL_DELIVERY_ENABLED=true`. The worker sends through the existing SES sender using the dedicated `BLS_RESEARCH_SES_CONFIGURATION_SET`; SES message tags carry only internal study/invite/batch identifiers, never the raw token.
 
+### Governed reminder / recontact protocol
+
+Schema 0419 deliberately separates the **canonical invitation identity** from later contact attempts:
+
+- `research_invites` remains the one canonical sample-unit invitation. `research_responses.invite_id` still binds a participant to exactly one response identity.
+- `research_invite_access_tokens` stores only SHA-256 hashes of reminder/reissue tokens. The raw token exists only in worker memory while the email is assembled.
+- `research_invite_messages` records each initial/reminder/reissue contact attempt, its locked recruitment template, selected contact point, sequence number, SES provider ID and delivery state.
+- A reminder resolves back to the canonical invite before any response is loaded or saved. It cannot create a second response row and it never increments the invitation denominator.
+- Reminder jobs are explicitly queued with a batch limit, minimum age of the original invitation, minimum inter-reminder gap and per-invite cap. Completed, withdrawn, excluded, expired, suppressed or globally suppressed contacts are ineligible.
+- A failed or uncertain attempt is not automatically resent inside the same reminder job. This is fail-closed to reduce accidental duplicate email; a later governed job is an explicit new contact decision.
+- The release snapshot freezes both the reminder copy actually used and contact-attempt paradata, while the fieldwork funnel remains based on distinct canonical invites.
+
+The admin control centre treats invitation copy and reminder copy as separate versioned templates. SES tags may include an internal `research_attempt` UUID so a signed SNS callback can reconcile a delivery/open/bounce even if it arrives before the worker has persisted the SES provider message ID; no raw survey token is placed in SES tags.
+
+
 The SNS endpoint requires `BLS_RESEARCH_SES_SNS_TOPIC_ARN`, rejects messages for any other topic, validates the AWS signing-certificate URL and SNS signature, and writes delivery/open/bounce/complaint outcomes back into either the invitation ledgers or the participant-delivery ledger by SES provider message ID. Bounces and complaints suppress every matching research contact row and append the normalized contact hash to the cross-wave suppression ledger. A future-research opt-out alone does not cancel a separately requested thank-you or results message; a bounce, complaint or invalid contact does.
 
 ## G.E.MI. integration boundary
@@ -216,6 +231,8 @@ A release is not scientifically ready until it has:
 - invitations / starts / completes / response disposition counts
 - questionnaire version, exact wording, response configuration and analysis keys
 - recruitment copy/version/hash used during fieldwork
+- reminder/recontact copy plus attempt counts by attempt kind and delivery state
+- explicit denominator rule proving reminders do not create additional invitation identities
 - overall and per-stratum fieldwork funnel, explicit denominators and final disposition counts
 - weighting version and diagnostics
 - unweighted and weighted bases for published estimates
@@ -236,12 +253,12 @@ The research schema is deployed through the repository's checksum-aware migratio
 `.github/workflows/research-survey-schema-rollout.yml` is a manual-only production workflow. Its default execution is preflight-only. Before any mutation it:
 
 - verifies the immutable migration checksum manifest;
-- requires the repository migration head to be exactly 418;
-- requires the production application ledger to be either clean schema 415 or already-complete schema 418;
+- requires the repository migration head to be exactly 419;
+- requires the production application ledger to be either clean schema 415 or already-complete schema 419;
 - rejects a schema-415 database if any key research table already exists, preventing a partial-state rollout;
 - uses the protected `production` environment and its `DATABASE_URL` secret.
 
-Only an explicit workflow dispatch with `apply=true` runs `npm run db:migrate`. The existing migrator applies missing SQL and inserts the exact filename/SHA-256 into `public.schema_migrations` in the same guarded migration transaction. Postcheck then requires schema 418 and the key research relations before application readiness is evaluated.
+Only an explicit workflow dispatch with `apply=true` runs `npm run db:migrate`. The existing migrator applies missing SQL and inserts the exact filename/SHA-256 into `public.schema_migrations` in the same guarded migration transaction. Postcheck then requires schema 419 and the key research relations before application readiness is evaluated.
 
 The rollout workflow does not enable research email delivery or start fieldwork. Those remain separate governed actions.
 
