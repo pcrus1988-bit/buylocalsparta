@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AccountSavedClient } from "../../../components/AccountSavedClient";
 import { AccountSavedLooksPanel } from "../../../components/AccountSavedLooksPanel";
+import { AccountSavedTryOnsPanel } from "../../../components/AccountSavedTryOnsPanel";
 import { AccountSectionNavigation } from "../../../components/AccountSectionNavigation";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { getAccountSession } from "../../../lib/account-session";
@@ -19,5 +20,6 @@ export default async function AccountSavedPage() {
     <AccountSectionNavigation />
     <AccountSavedClient initialProducts={dashboard.savedProducts} searches={dashboard.savedSearches} csrfToken={dashboard.csrfToken} />
     <AccountSavedLooksPanel csrfToken={dashboard.csrfToken} />
+    <AccountSavedTryOnsPanel csrfToken={dashboard.csrfToken} />
   </main>;
 }
