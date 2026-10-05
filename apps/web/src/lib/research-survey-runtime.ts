@@ -920,6 +920,10 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
     SELECT
       s.id, s.slug, s.title, s.status, s.fieldwork_starts_at, s.fieldwork_ends_at, s.public_results_url,
       latest_i.version AS instrument_version, latest_i.status AS instrument_status,
+      latest_ap.version AS analysis_plan_version,
+      latest_ap.status AS analysis_plan_status,
+      latest_ap.content_sha256 AS analysis_plan_sha256,
+      latest_ap.locked_at AS analysis_plan_locked_at,
       latest_rt.version AS recruitment_template_version,
       latest_rt.subject AS recruitment_template_subject,
       latest_rrt.version AS reminder_template_version,
@@ -963,9 +967,16 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       rel.latest_release_published_at
     FROM research_studies s
     LEFT JOIN LATERAL (
-      SELECT version, status FROM research_instruments
+      SELECT id, version, status FROM research_instruments
       WHERE study_id = s.id ORDER BY created_at DESC LIMIT 1
     ) latest_i ON true
+    LEFT JOIN LATERAL (
+      SELECT version, status, content_sha256, locked_at
+      FROM research_analysis_plans
+      WHERE study_id=s.id AND instrument_id=latest_i.id
+      ORDER BY created_at DESC
+      LIMIT 1
+    ) latest_ap ON true
     LEFT JOIN LATERAL (
       SELECT version, subject
       FROM research_recruitment_templates
@@ -1155,6 +1166,10 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       publicResultsUrl: optionalText(row.public_results_url),
       instrumentVersion: optionalText(row.instrument_version),
       instrumentStatus: optionalText(row.instrument_status),
+      analysisPlanVersion: optionalText(row.analysis_plan_version),
+      analysisPlanStatus: optionalText(row.analysis_plan_status),
+      analysisPlanSha256: optionalText(row.analysis_plan_sha256),
+      analysisPlanLockedAt: optionalText(row.analysis_plan_locked_at),
       recruitmentTemplateVersion: optionalText(row.recruitment_template_version),
       recruitmentTemplateSubject: optionalText(row.recruitment_template_subject),
       reminderTemplateVersion: optionalText(row.reminder_template_version),
@@ -1249,6 +1264,16 @@ export async function transitionResearchStudy(
       if (!["draft", "pilot"].includes(studyStatus) || !["locked", "fielding"].includes(instrumentStatus)) {
         throw new Error("RESEARCH_LIFECYCLE_INVALID");
       }
+      const planReady = await client.query<SqlRow>(`
+        SELECT EXISTS(
+          SELECT 1
+          FROM research_analysis_plans
+          WHERE study_id=$1 AND instrument_id=$2 AND status='locked'
+        ) AS locked_analysis_plan
+      `, [row.study_id, row.instrument_id]);
+      if (!Boolean(planReady.rows[0]?.locked_analysis_plan)) {
+        throw new Error("RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN");
+      }
       await client.query(`
         UPDATE research_studies
         SET status = 'pilot', fieldwork_starts_at = COALESCE(fieldwork_starts_at, now()), updated_at = now()
@@ -1264,10 +1289,17 @@ export async function transitionResearchStudy(
       const readiness = await client.query<SqlRow>(`
         SELECT
           EXISTS(SELECT 1 FROM research_frame_snapshots WHERE study_id = $1 AND status = 'frozen') AS frozen_frame,
-          EXISTS(SELECT 1 FROM research_sample_draws WHERE study_id = $1 AND status IN ('locked','fielded')) AS locked_sample
-      `, [row.study_id]);
+          EXISTS(SELECT 1 FROM research_sample_draws WHERE study_id = $1 AND status IN ('locked','fielded')) AS locked_sample,
+          EXISTS(
+            SELECT 1 FROM research_analysis_plans
+            WHERE study_id=$1 AND instrument_id=$2 AND status='locked'
+          ) AS locked_analysis_plan
+      `, [row.study_id, row.instrument_id]);
       if (!Boolean(readiness.rows[0]?.frozen_frame) || !Boolean(readiness.rows[0]?.locked_sample)) {
         throw new Error("RESEARCH_FIELDING_REQUIRES_FRAME_AND_SAMPLE");
+      }
+      if (!Boolean(readiness.rows[0]?.locked_analysis_plan)) {
+        throw new Error("RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN");
       }
       await client.query(`
         UPDATE research_studies
