@@ -1,5 +1,5 @@
 -- KONTA MOY — governed survey research ecosystem.
--- Schema 412 introduces a versioned research ledger for population frames,
+-- Schema 414 introduces a versioned research ledger for population frames,
 -- probability samples, invitations, consent, responses, experiments, weighting,
 -- analysis runs and public releases. Public survey traffic never talks to these
 -- tables through the Supabase Data API; the Next.js server owns all mutations.
@@ -549,6 +549,202 @@ $research$;
 CREATE TRIGGER research_recruitment_templates_locked_immutable
 BEFORE UPDATE OR DELETE ON public.research_recruitment_templates
 FOR EACH ROW EXECUTE FUNCTION public.research_guard_recruitment_template_mutation();
+
+
+CREATE OR REPLACE FUNCTION public.research_guard_frame_snapshot_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $research$
+BEGIN
+  IF OLD.status IN ('frozen','superseded') THEN
+    IF TG_OP = 'UPDATE'
+       AND OLD.status = 'frozen'
+       AND NEW.status = 'superseded'
+       AND (to_jsonb(NEW) - 'status') IS NOT DISTINCT FROM (to_jsonb(OLD) - 'status') THEN
+      RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'research frame snapshot is immutable in status %', OLD.status;
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$research$;
+
+CREATE TRIGGER research_frame_snapshots_frozen_immutable
+BEFORE UPDATE OR DELETE ON public.research_frame_snapshots
+FOR EACH ROW EXECUTE FUNCTION public.research_guard_frame_snapshot_mutation();
+
+CREATE OR REPLACE FUNCTION public.research_guard_frame_child_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $research$
+DECLARE frame_status text;
+DECLARE frame_id uuid;
+BEGIN
+  frame_id := COALESCE(NEW.frame_snapshot_id, OLD.frame_snapshot_id);
+  IF TG_OP = 'UPDATE' AND NEW.frame_snapshot_id IS DISTINCT FROM OLD.frame_snapshot_id THEN
+    RAISE EXCEPTION 'research frame child cannot move between snapshots';
+  END IF;
+  SELECT status INTO frame_status FROM public.research_frame_snapshots WHERE id=frame_id;
+  IF frame_status IS DISTINCT FROM 'building' THEN
+    RAISE EXCEPTION 'research frame evidence is immutable in status %', frame_status;
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$research$;
+
+CREATE TRIGGER research_strata_frozen_frame_immutable
+BEFORE INSERT OR UPDATE OR DELETE ON public.research_strata
+FOR EACH ROW EXECUTE FUNCTION public.research_guard_frame_child_mutation();
+
+CREATE TRIGGER research_frame_units_frozen_frame_immutable
+BEFORE INSERT OR UPDATE OR DELETE ON public.research_frame_units
+FOR EACH ROW EXECUTE FUNCTION public.research_guard_frame_child_mutation();
+
+CREATE OR REPLACE FUNCTION public.research_guard_sample_draw_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $research$
+BEGIN
+  IF OLD.status IN ('locked','fielded','superseded') THEN
+    IF TG_OP = 'UPDATE'
+       AND OLD.status IN ('locked','fielded')
+       AND NEW.status = 'superseded'
+       AND (to_jsonb(NEW) - 'status') IS NOT DISTINCT FROM (to_jsonb(OLD) - 'status') THEN
+      RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'research sample draw is immutable in status %', OLD.status;
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$research$;
+
+CREATE TRIGGER research_sample_draws_locked_immutable
+BEFORE UPDATE OR DELETE ON public.research_sample_draws
+FOR EACH ROW EXECUTE FUNCTION public.research_guard_sample_draw_mutation();
+
+CREATE OR REPLACE FUNCTION public.research_guard_sample_unit_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $research$
+DECLARE draw_status text;
+DECLARE draw_id uuid;
+BEGIN
+  draw_id := COALESCE(NEW.sample_draw_id, OLD.sample_draw_id);
+  IF TG_OP = 'UPDATE' AND NEW.sample_draw_id IS DISTINCT FROM OLD.sample_draw_id THEN
+    RAISE EXCEPTION 'research sample unit cannot move between draws';
+  END IF;
+  SELECT status INTO draw_status FROM public.research_sample_draws WHERE id=draw_id;
+  IF draw_status IS DISTINCT FROM 'draft' THEN
+    RAISE EXCEPTION 'research sample evidence is immutable in status %', draw_status;
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$research$;
+
+CREATE TRIGGER research_sample_units_locked_draw_immutable
+BEFORE INSERT OR UPDATE OR DELETE ON public.research_sample_units
+FOR EACH ROW EXECUTE FUNCTION public.research_guard_sample_unit_mutation();
+
+CREATE TRIGGER research_quality_reviews_append_only
+BEFORE UPDATE OR DELETE ON public.research_response_quality_reviews
+FOR EACH ROW EXECUTE FUNCTION public.prevent_history_mutation();
+
+CREATE OR REPLACE FUNCTION public.research_guard_analysis_run_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $research$
+BEGIN
+  IF OLD.status = 'succeeded' THEN
+    RAISE EXCEPTION 'succeeded research analysis run is immutable';
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$research$;
+
+CREATE TRIGGER research_analysis_runs_succeeded_immutable
+BEFORE UPDATE OR DELETE ON public.research_analysis_runs
+FOR EACH ROW EXECUTE FUNCTION public.research_guard_analysis_run_mutation();
+
+CREATE OR REPLACE FUNCTION public.research_guard_analysis_estimate_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $research$
+DECLARE run_status text;
+DECLARE run_id uuid;
+BEGIN
+  run_id := COALESCE(NEW.analysis_run_id, OLD.analysis_run_id);
+  IF TG_OP = 'UPDATE' AND NEW.analysis_run_id IS DISTINCT FROM OLD.analysis_run_id THEN
+    RAISE EXCEPTION 'research estimate cannot move between analysis runs';
+  END IF;
+  SELECT status INTO run_status FROM public.research_analysis_runs WHERE id=run_id;
+  IF run_status = 'succeeded' THEN
+    RAISE EXCEPTION 'research estimate is immutable after analysis succeeds';
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$research$;
+
+CREATE TRIGGER research_analysis_estimates_frozen_with_run
+BEFORE INSERT OR UPDATE OR DELETE ON public.research_analysis_estimates
+FOR EACH ROW EXECUTE FUNCTION public.research_guard_analysis_estimate_mutation();
+
+CREATE OR REPLACE FUNCTION public.research_guard_weight_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $research$
+DECLARE frozen boolean;
+DECLARE weight_version text;
+BEGIN
+  weight_version := COALESCE(NEW.version, OLD.version);
+  SELECT EXISTS(
+    SELECT 1 FROM public.research_analysis_runs
+    WHERE weight_version=weight_version AND status='succeeded'
+  ) INTO frozen;
+  IF frozen THEN
+    RAISE EXCEPTION 'research weights are immutable after analysis succeeds';
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$research$;
+
+CREATE TRIGGER research_weights_frozen_with_analysis
+BEFORE UPDATE OR DELETE ON public.research_weights
+FOR EACH ROW EXECUTE FUNCTION public.research_guard_weight_mutation();
+
+CREATE OR REPLACE FUNCTION public.research_guard_release_snapshot_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $research$
+BEGIN
+  IF TG_OP = 'UPDATE'
+     AND OLD.published_at IS NULL
+     AND NEW.published_at IS NOT NULL
+     AND (to_jsonb(NEW) - 'published_at') IS NOT DISTINCT FROM (to_jsonb(OLD) - 'published_at') THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'research release snapshot is immutable after creation except for first publication timestamp';
+END;
+$research$;
+
+CREATE TRIGGER research_release_snapshots_immutable
+BEFORE UPDATE OR DELETE ON public.research_release_snapshots
+FOR EACH ROW EXECUTE FUNCTION public.research_guard_release_snapshot_mutation();
 
 INSERT INTO public.research_studies (
   id, slug, title, subtitle, sponsor, population_definition, methodology_summary, status, default_locale
