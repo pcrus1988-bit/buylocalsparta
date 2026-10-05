@@ -4,6 +4,8 @@ import {
   queueGreekRetailAnalysis,
   queueGreekRetailFrameBuild,
   queueGreekRetailInviteBatch,
+  queueGreekRetailResultsNotifications,
+  queueGreekRetailRewardDelivery,
   queueGreekRetailSampleDraw,
   saveGreekRetailRecruitmentTemplate
 } from "../../../../../../../lib/research-survey-jobs";
@@ -92,6 +94,38 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         "research_study",
         slug,
         "Queue governed SES research invitation batch",
+        { ...result, limit: Number(body.limit || 100) }
+      );
+      return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (body.action === "deliver_rewards") {
+      const result = await queueGreekRetailRewardDelivery(principal, {
+        limit: Number(body.limit || 100),
+        label: body.label
+      });
+      await recordAdminAudit(
+        principal,
+        "research.reward_delivery.queued",
+        "research_study",
+        slug,
+        "Queue consent-scoped participant thank-you delivery",
+        { ...result, limit: Number(body.limit || 100) }
+      );
+      return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (body.action === "notify_results") {
+      const result = await queueGreekRetailResultsNotifications(principal, {
+        limit: Number(body.limit || 100),
+        label: body.label
+      });
+      await recordAdminAudit(
+        principal,
+        "research.results_notification.queued",
+        "research_study",
+        slug,
+        "Queue consent-scoped published-results notification",
         { ...result, limit: Number(body.limit || 100) }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
