@@ -120,7 +120,11 @@ if (!securityHardeningMigration.includes("ALTER FUNCTION public.research_prepare
 if (!securityHardeningMigration.includes("ALTER FUNCTION public.research_guard_analysis_plan_delete()\n  SECURITY INVOKER;")) {
   errors.push("analysis-plan delete guard remains SECURITY DEFINER");
 }
-if (!securityHardeningMigration.includes("FROM PUBLIC, anon, authenticated;")) {
+if (!securityHardeningMigration.includes("FROM PUBLIC;")
+    || !securityHardeningMigration.includes("rolname = 'anon'")
+    || !securityHardeningMigration.includes("rolname = 'authenticated'")
+    || !securityHardeningMigration.includes("FROM anon;")
+    || !securityHardeningMigration.includes("FROM authenticated;")) {
   errors.push("analysis-plan trigger functions are not revoked from public API roles");
 }
 if (!securityHardeningMigration.includes("TO bls_platform_runtime;")) {
