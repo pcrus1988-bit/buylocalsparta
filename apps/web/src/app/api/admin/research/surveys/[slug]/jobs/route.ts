@@ -1,8 +1,11 @@
 import { recordAdminAudit } from "../../../../../../../lib/admin-runtime";
 import { requireAdminSession } from "../../../../../../../lib/admin-session";
 import {
+  queueGreekRetailAnalysis,
   queueGreekRetailFrameBuild,
-  queueGreekRetailSampleDraw
+  queueGreekRetailInviteBatch,
+  queueGreekRetailSampleDraw,
+  saveGreekRetailRecruitmentTemplate
 } from "../../../../../../../lib/research-survey-jobs";
 
 export const runtime = "nodejs";
@@ -13,6 +16,10 @@ type Body = {
   targetN?: number;
   randomSeed?: string;
   label?: string;
+  limit?: number;
+  subject?: string;
+  bodyText?: string;
+  version?: string;
 };
 
 export async function POST(request: Request, context: { params: Promise<{ slug: string }> }) {
@@ -24,6 +31,23 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
       return Response.json({ error: "RESEARCH_JOB_STUDY_UNSUPPORTED" }, { status: 400 });
     }
     const body = await request.json() as Body;
+
+    if (body.action === "save_recruitment_template") {
+      const result = await saveGreekRetailRecruitmentTemplate(principal, {
+        subject: String(body.subject ?? ""),
+        bodyText: String(body.bodyText ?? ""),
+        version: body.version
+      });
+      await recordAdminAudit(
+        principal,
+        "research.recruitment_template.locked",
+        "research_study",
+        slug,
+        "Lock versioned research invitation copy",
+        result
+      );
+      return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
 
     if (body.action === "build_frame") {
       const result = await queueGreekRetailFrameBuild(principal);
@@ -51,6 +75,35 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         slug,
         "Queue reproducible stratified sample draw",
         { jobId: result.jobId, targetN: Number(body.targetN), randomSeed: result.randomSeed }
+      );
+      return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (body.action === "send_invites") {
+      const result = await queueGreekRetailInviteBatch(principal, {
+        limit: Number(body.limit || 100),
+        label: body.label
+      });
+      await recordAdminAudit(
+        principal,
+        "research.invite_batch.queued",
+        "research_study",
+        slug,
+        "Queue governed SES research invitation batch",
+        { ...result, limit: Number(body.limit || 100) }
+      );
+      return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (body.action === "run_analysis") {
+      const result = await queueGreekRetailAnalysis(principal);
+      await recordAdminAudit(
+        principal,
+        "research.analysis.queued",
+        "research_study",
+        slug,
+        "Queue governed weighted research analysis",
+        result
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
