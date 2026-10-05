@@ -6,6 +6,7 @@ import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { getPublicBrandGuide } from "../../../lib/brand-guide-runtime";
 import { getSeoGlobalSettingsSnapshot } from "../../../lib/seo-settings";
+import { storefrontCategoryForCode, storefrontLeafForSubcategory } from "../../../lib/storefront-taxonomy";
 import styles from "./page.module.css";
 
 type Props = Readonly<{ params: Promise<{ slug: string }> }>;
@@ -82,10 +83,17 @@ export default async function BrandGuidePage({ params }: Props) {
     ...brand.guide.productFamilies
   ].filter((value, index, all) => all.indexOf(value) === index).slice(0, 8);
 
-  const categoryLabelByCode = new Map(brand.categories.map((category) => [category.code, category.label] as const));
+  const categoryByCode = new Map(brand.categories.map((category) => [category.code, category] as const));
   const catalogueHighlights = (brand.guide.catalogueProfile?.topCategories ?? [])
-    .map((category) => categoryLabelByCode.get(category.slug))
-    .filter((label): label is string => Boolean(label))
+    .map((profileCategory) => {
+      const liveCategory = categoryByCode.get(profileCategory.slug);
+      const department = storefrontCategoryForCode(profileCategory.slug, liveCategory?.departmentSlug);
+      return storefrontLeafForSubcategory(
+        department.slug,
+        profileCategory.slug,
+        liveCategory?.label ?? ""
+      )?.label ?? liveCategory?.label ?? department.label;
+    })
     .filter((label, index, all) => all.indexOf(label) === index)
     .slice(0, 3);
   const liveCatalogueHighlights = catalogueHighlights.length
