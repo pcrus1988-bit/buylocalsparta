@@ -8,6 +8,7 @@ import { AddToCartButton } from "../../../components/AddToCartButton";
 import { ProductAnalyticsTracker } from "../../../components/ProductAnalyticsTracker";
 import { SiteHeader } from "../../../components/SiteHeader";
 import { ProductAccountActions } from "../../../components/ProductAccountActions";
+import { ProductTryOnMe } from "../../../components/ProductTryOnMe";
 import { ProductDetailSections, type ProductDetailRow } from "../../../components/ProductDetailSections";
 import { ProductSuitability } from "../../../components/ProductSuitability";
 import { SportFitProductIntelligence } from "../../../components/SportFitProductIntelligence";
@@ -32,6 +33,7 @@ import { approvedCatalogImageGallery } from "../../../lib/public-product-media-g
 import { isCompatibilityPresentationKey, plausibleProductManualUrl } from "../../../lib/product-presentation-guards";
 import { publicCatalogHasOfferPrice, publicCatalogPriceLabel, publicCatalogueTitleLabel } from "../../../lib/public-data-integrity";
 import { getPublicDropshipPresentation } from "../../../lib/public-dropship-presentation";
+import { isTryOnGarmentCandidate } from "../../../lib/try-on-eligibility";
 
 type ProductPageProps = Readonly<{ params: Promise<{ id: string }> }>;
 
@@ -526,6 +528,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         : undefined);
   const hasProductImage = Boolean(primaryImage || supplierImageSrc);
   const cartImageUrl = primaryImage ? `/api/media/${encodeURIComponent(primaryImage.mediaId)}` : supplierImageSrc;
+  const tryOnEligible = isTryOnGarmentCandidate(product);
   const technicalAttributes = publicTechnicalAttributes(detail?.technicalAttributes ?? []);
   const suitability = await getPublicProductSuitability(product.id, technicalAttributes);
   const storefrontTechnicalAttributes = publicFields?.technicalAttributes === false
@@ -703,6 +706,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               ))}
             </div>
           ) : null}
+          {tryOnEligible ? <ProductTryOnMe productId={product.id} productTitle={displayTitle} /> : null}
         </div>
 
         <div className="product-detail-copy">
