@@ -22,6 +22,10 @@ type TryOnResult = Readonly<{
   generatedAt: string;
 }>;
 type CachedPreview = Readonly<{ expiresAt: number; result: TryOnResult }>;
+type SharedGeneration = Readonly<{ controller: AbortController; promise: Promise<TryOnResult> }>;
+
+const sharedGenerations = new Map<string, SharedGeneration>();
+const latestGenerationBySlot = new Map<string, string>();
 
 function messageFor(error: string): string {
   if (error === "TRY_ON_NOT_CONFIGURED") return "Το Try On Me δεν έχει ενεργοποιηθεί ακόμη στο περιβάλλον.";
@@ -53,6 +57,21 @@ function modelKey(scope: string): string {
 
 function previewKey(scope: string, productId: string): string {
   return `${PREVIEW_PREFIX}${scope}:${productId}`;
+}
+
+function photoFingerprint(value: string): string {
+  // This never leaves the browser; it only prevents duplicate paid generations.
+  let hash = 2166136261;
+  const stride = Math.max(1, Math.floor(value.length / 4096));
+  for (let index = 0; index < value.length; index += stride) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function generationKey(scope: string, productId: string, photo: string): string {
+  return `${previewKey(scope, productId)}:${photo.length.toString(36)}:${photoFingerprint(photo)}`;
 }
 
 function readStoredModel(scope: string): string | undefined {
@@ -121,6 +140,61 @@ function removePreview(scope: string, productId: string) {
   try { window.sessionStorage.removeItem(previewKey(scope, productId)); } catch {}
 }
 
+function cancelSharedGeneration(scope: string, productId: string) {
+  const slot = previewKey(scope, productId);
+  const activeKey = latestGenerationBySlot.get(slot);
+  if (!activeKey) return;
+  sharedGenerations.get(activeKey)?.controller.abort();
+  latestGenerationBySlot.delete(slot);
+}
+
+function requestSharedGeneration(input: {
+  scope: string;
+  productId: string;
+  photo: string;
+  csrfToken: string;
+}): Promise<TryOnResult> {
+  const slot = previewKey(input.scope, input.productId);
+  const key = generationKey(input.scope, input.productId, input.photo);
+  const existing = sharedGenerations.get(key);
+  if (existing) {
+    latestGenerationBySlot.set(slot, key);
+    return existing.promise;
+  }
+
+  const previousKey = latestGenerationBySlot.get(slot);
+  if (previousKey && previousKey !== key) sharedGenerations.get(previousKey)?.controller.abort();
+
+  const controller = new AbortController();
+  latestGenerationBySlot.set(slot, key);
+  const promise = fetch("/api/account/try-on", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-csrf-token": input.csrfToken },
+    body: JSON.stringify({ productId: input.productId, modelImageDataUrl: input.photo }),
+    cache: "no-store",
+    signal: controller.signal
+  })
+    .then(async (response) => {
+      const payload = await response.json() as { result?: TryOnResult; error?: string };
+      if (!response.ok || !payload.result) throw new Error(payload.error || "TRY_ON_FAILED");
+      if (latestGenerationBySlot.get(slot) === key) {
+        const generatedAt = Date.parse(payload.result.generatedAt);
+        const expiresAt = Number.isFinite(generatedAt)
+          ? generatedAt + PREVIEW_TTL_MS
+          : Date.now() + PREVIEW_TTL_MS;
+        if (expiresAt > Date.now()) writePreview(input.scope, input.productId, payload.result, expiresAt);
+      }
+      return payload.result;
+    })
+    .finally(() => {
+      sharedGenerations.delete(key);
+      if (latestGenerationBySlot.get(slot) === key) latestGenerationBySlot.delete(slot);
+    });
+
+  sharedGenerations.set(key, { controller, promise });
+  return promise;
+}
+
 function clearTryOnPreviews(scope: string) {
   const prefix = `${PREVIEW_PREFIX}${scope}:`;
   try {
@@ -179,7 +253,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   const router = useRouter();
   const pathname = usePathname();
   const autoStarted = useRef(false);
-  const generationAbort = useRef<AbortController | undefined>(undefined);
+  const generationAttempt = useRef(0);
   const [csrfToken, setCsrfToken] = useState<string>();
   const [storageScope, setStorageScope] = useState<string>();
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -191,47 +265,41 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   const [error, setError] = useState("");
 
   async function generate(photo: string, token: string, scope: string) {
-    if (busy === "generate") return;
-    generationAbort.current?.abort();
-    const controller = new AbortController();
-    generationAbort.current = controller;
+    const attempt = generationAttempt.current + 1;
+    generationAttempt.current = attempt;
     setBusy("generate");
     setError("");
     setSaved(false);
     try {
-      const response = await fetch("/api/account/try-on", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-csrf-token": token },
-        body: JSON.stringify({ productId, modelImageDataUrl: photo }),
-        cache: "no-store",
-        signal: controller.signal
+      const generated = await requestSharedGeneration({
+        scope,
+        productId,
+        photo,
+        csrfToken: token
       });
-      const payload = await response.json() as { result?: TryOnResult; error?: string };
-      if (!response.ok || !payload.result) throw new Error(payload.error || "TRY_ON_FAILED");
-      if (generationAbort.current !== controller) return;
-      const generatedAt = Date.parse(payload.result.generatedAt);
-      const expiresAt = Number.isFinite(generatedAt)
-        ? generatedAt + PREVIEW_TTL_MS
-        : Date.now() + PREVIEW_TTL_MS;
+      if (generationAttempt.current !== attempt) return;
+      const cached = readPreview(scope, productId);
+      const generatedAt = Date.parse(generated.generatedAt);
+      const expiresAt = cached?.result.predictionId === generated.predictionId
+        ? cached.expiresAt
+        : Number.isFinite(generatedAt)
+          ? generatedAt + PREVIEW_TTL_MS
+          : Date.now() + PREVIEW_TTL_MS;
       if (expiresAt <= Date.now()) throw new Error("TRY_ON_SAVE_TOKEN_EXPIRED");
-      setResult(payload.result);
+      setResult(generated);
       setPreviewExpiresAt(expiresAt);
-      writePreview(scope, productId, payload.result, expiresAt);
     } catch (cause) {
-      if (controller.signal.aborted) return;
+      if (generationAttempt.current !== attempt) return;
+      if (cause instanceof DOMException && cause.name === "AbortError") return;
       setError(messageFor(cause instanceof Error ? cause.message : "TRY_ON_FAILED"));
     } finally {
-      if (generationAbort.current === controller) {
-        generationAbort.current = undefined;
-        setBusy("");
-      }
+      if (generationAttempt.current === attempt) setBusy("");
     }
   }
 
   useEffect(() => {
     let active = true;
-    generationAbort.current?.abort();
-    generationAbort.current = undefined;
+    generationAttempt.current += 1;
     autoStarted.current = false;
     setSessionChecked(false);
     setCsrfToken(undefined);
@@ -272,7 +340,9 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
       });
     return () => {
       active = false;
-      generationAbort.current?.abort();
+      // Deliberately keep an in-flight request alive across a quick route remount.
+      // The shared request writes only the five-minute account-scoped session cache.
+      generationAttempt.current += 1;
     };
   }, [productId]);
 
@@ -290,6 +360,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     setError("");
     try {
       const normalized = await normalizeModelPhoto(file);
+      cancelSharedGeneration(storageScope, productId);
       storeModelPhoto(storageScope, normalized);
       clearTryOnPreviews(storageScope);
       setModelImage(normalized);
@@ -306,9 +377,9 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   }
 
   function removePhoto() {
-    generationAbort.current?.abort();
-    generationAbort.current = undefined;
+    generationAttempt.current += 1;
     if (storageScope) {
+      cancelSharedGeneration(storageScope, productId);
       const key = modelKey(storageScope);
       try { window.localStorage.removeItem(key); } catch {}
       try { window.sessionStorage.removeItem(key); } catch {}
