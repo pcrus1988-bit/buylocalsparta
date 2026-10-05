@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   normal95ConfidenceInterval,
   proportionalStratumAllocation,
+  researchWeightDiagnostics,
   stratifiedSrsMeanVariance
 } from "./research-survey-statistics.ts";
 
@@ -87,4 +88,24 @@ test("sample allocation falls back to one-per-stratum when n cannot cover the pr
   ], 4, 2);
   assert.equal(result.reduce((sum, item) => sum + item.sampleCount, 0), 4);
   assert.ok(result.every((item) => item.sampleCount >= 1));
+});
+
+
+test("weight diagnostics preserve full effective n for equal weights", () => {
+  const result = researchWeightDiagnostics([2, 2, 2, 2]);
+  assert.equal(result.count, 4);
+  assert.equal(result.weightSum, 8);
+  assert.equal(result.minWeight, 2);
+  assert.equal(result.maxWeight, 2);
+  assert.equal(result.coefficientOfVariation, 0);
+  assert.equal(result.kishEffectiveN, 4);
+  assert.equal(result.weightingDesignEffect, 1);
+});
+
+test("weight diagnostics expose effective-sample loss from unequal weights", () => {
+  const result = researchWeightDiagnostics([1, 1, 1, 7]);
+  assert.equal(result.count, 4);
+  assert.ok((result.kishEffectiveN ?? 4) < 2);
+  assert.ok((result.weightingDesignEffect ?? 1) > 2);
+  assert.ok((result.coefficientOfVariation ?? 0) > 1);
 });
