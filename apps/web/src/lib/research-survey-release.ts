@@ -339,6 +339,21 @@ export async function buildGreekRetailRelease(
   `, [study.instrument_id]);
 
   const recruitmentTemplates = await pool.query<SqlRow>(`
+    WITH used_templates AS (
+      SELECT b.recruitment_template_id
+      FROM research_invite_batches b
+      WHERE b.study_id=$1
+        AND b.sample_draw_id=$2
+        AND b.status <> 'cancelled'
+      UNION
+      SELECT m.recruitment_template_id
+      FROM research_invite_messages m
+      JOIN research_invites ri ON ri.id=m.invite_id
+      JOIN research_sample_units su ON su.id=ri.sample_unit_id
+      WHERE ri.study_id=$1
+        AND su.sample_draw_id=$2
+        AND m.status <> 'cancelled'
+    )
     SELECT DISTINCT
       rt.version,
       rt.channel,
@@ -346,12 +361,23 @@ export async function buildGreekRetailRelease(
       rt.body_text,
       rt.body_sha256,
       rt.purpose
-    FROM research_invite_batches b
-    JOIN research_recruitment_templates rt ON rt.id=b.recruitment_template_id
-    WHERE b.study_id=$1
-      AND b.sample_draw_id=$2
-      AND b.status <> 'cancelled'
+    FROM used_templates u
+    JOIN research_recruitment_templates rt ON rt.id=u.recruitment_template_id
     ORDER BY rt.version,rt.channel
+  `, [studyId, sampleDrawId]);
+
+  const contactAttempts = await pool.query<SqlRow>(`
+    SELECT
+      m.attempt_kind,
+      m.status,
+      count(*)::int AS count
+    FROM research_invite_messages m
+    JOIN research_invites ri ON ri.id=m.invite_id
+    JOIN research_sample_units su ON su.id=ri.sample_unit_id
+    WHERE ri.study_id=$1
+      AND su.sample_draw_id=$2
+    GROUP BY m.attempt_kind,m.status
+    ORDER BY m.attempt_kind,m.status
   `, [studyId, sampleDrawId]);
 
   const dispositionCounts = await pool.query<SqlRow>(`
@@ -415,7 +441,13 @@ export async function buildGreekRetailRelease(
         bodyText: text(row.body_text),
         bodySha256: text(row.body_sha256),
         purpose: text(row.purpose)
-      }))
+      })),
+      contactAttempts: contactAttempts.rows.map((row) => ({
+        attemptKind: text(row.attempt_kind),
+        status: text(row.status),
+        count: numberValue(row.count)
+      })),
+      denominatorRule: "Each selected sample unit has at most one canonical research_invites identity; reminder/reissue messages are paradata and never increase the invitation or response denominator."
     },
     frame: {
       id: text(design.frame_snapshot_id),
@@ -504,6 +536,7 @@ export async function buildGreekRetailRelease(
       "The sampling frame depends on the frozen G.E.MI. source snapshot and the contact points available for that frame.",
       "Email contactability is reported for the frozen frame and by sampling stratum. Email-only fieldwork can still be biased if availability of a usable public email is related to survey outcomes after conditioning on the weighting strata.",
       "Non-response adjustment is performed within the governed sampling strata.",
+      "Reminder and reissue emails are counted as contact attempts only; they reuse the canonical invite identity and therefore do not inflate sent-invitation or response-rate denominators.",
       varianceMethod === "not_estimated"
         ? "Design-based variance has not been estimated for this release; confidence intervals and a conventional margin of sampling error are therefore not published."
         : "Design-aware confidence intervals use the recorded stratified sampling method with finite-population correction where the metric has complete observations within contributing strata. Intervals are withheld for unsupported post-hoc domains or insufficient stratum bases."
