@@ -592,10 +592,24 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
   };
 }
 
+export type ResearchInvitationDelivery = Readonly<{
+  inviteId: string;
+  sampleUnitId: string;
+  contact: string;
+  url: string;
+  expiresAt?: string;
+}>;
+
+export type ResearchInvitationBatchResult = Readonly<{
+  batchId?: string;
+  plannedCount: number;
+  deliveries: readonly ResearchInvitationDelivery[];
+}>;
+
 export async function generateResearchInvitationBatch(
   principal: SessionPrincipal,
-  input: Readonly<{ slug: string; limit?: number }>
-): Promise<readonly { contact: string; url: string }[]> {
+  input: Readonly<{ slug: string; limit?: number; label?: string }>
+): Promise<ResearchInvitationBatchResult> {
   assertAdminPermission(principal, "research.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const runtime = getProductionPostgresRuntime();
@@ -604,51 +618,126 @@ export async function generateResearchInvitationBatch(
   try {
     await client.query("BEGIN");
     const studyResult = await client.query<SqlRow>(`
-      SELECT s.id AS study_id, i.id AS instrument_id
+      SELECT
+        s.id AS study_id,
+        s.status AS study_status,
+        s.fieldwork_ends_at,
+        i.id AS instrument_id,
+        d.id AS sample_draw_id,
+        rt.id AS recruitment_template_id
       FROM research_studies s
-      JOIN research_instruments i ON i.study_id = s.id
-      WHERE s.slug = $1 AND i.status IN ('locked','fielding')
-      ORDER BY i.created_at DESC
+      JOIN LATERAL (
+        SELECT id
+        FROM research_instruments
+        WHERE study_id = s.id AND status IN ('locked','fielding')
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) i ON true
+      JOIN LATERAL (
+        SELECT id
+        FROM research_sample_draws
+        WHERE study_id = s.id AND status IN ('locked','fielded')
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) d ON true
+      LEFT JOIN LATERAL (
+        SELECT id
+        FROM research_recruitment_templates
+        WHERE study_id = s.id AND channel = 'email' AND status = 'locked'
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) rt ON true
+      WHERE s.slug = $1
       LIMIT 1
     `, [input.slug]);
     const study = studyResult.rows[0];
-    if (!study) throw new Error("SURVEY_INSTRUMENT_NOT_LOCKED");
+    if (!study) throw new Error("SURVEY_SAMPLE_NOT_READY");
+    if (!["pilot", "fielding"].includes(text(study.study_status))) throw new Error("SURVEY_NOT_OPEN");
 
     const candidates = await client.query<SqlRow>(`
-      SELECT su.id AS sample_unit_id, cp.id AS contact_point_id, cp.contact_value
+      SELECT
+        su.id AS sample_unit_id,
+        cp.id AS contact_point_id,
+        cp.contact_value
       FROM research_sample_units su
-      JOIN research_sample_draws sd ON sd.id = su.sample_draw_id AND sd.study_id = $1
-      JOIN research_contact_points cp ON cp.frame_unit_id = su.frame_unit_id
-        AND cp.contact_type = 'email'
-        AND cp.suppression_status = 'active'
-      LEFT JOIN research_invites ri ON ri.sample_unit_id = su.id AND ri.study_id = $1
-      WHERE ri.id IS NULL
+      JOIN LATERAL (
+        SELECT id, contact_value
+        FROM research_contact_points
+        WHERE frame_unit_id = su.frame_unit_id
+          AND contact_type = 'email'
+          AND suppression_status = 'active'
+        ORDER BY (verified_at IS NOT NULL) DESC, verified_at DESC NULLS LAST, created_at, id
+        LIMIT 1
+      ) cp ON true
+      LEFT JOIN research_invites ri
+        ON ri.sample_unit_id = su.id
+       AND ri.study_id = $1
+      WHERE su.sample_draw_id = $2
+        AND ri.id IS NULL
       ORDER BY su.selection_order
-      LIMIT $2
+      LIMIT $3
       FOR UPDATE OF su SKIP LOCKED
-    `, [study.study_id, limit]);
+    `, [study.study_id, study.sample_draw_id, limit]);
+
+    if (!candidates.rows.length) {
+      await client.query("COMMIT");
+      return { plannedCount: 0, deliveries: [] };
+    }
+
+    const batchResult = await client.query<SqlRow>(`
+      INSERT INTO research_invite_batches
+        (study_id, sample_draw_id, instrument_id, recruitment_template_id, label, channel, status, planned_count)
+      VALUES ($1, $2, $3, $4, $5, 'email', 'ready', $6)
+      RETURNING id
+    `, [
+      study.study_id,
+      study.sample_draw_id,
+      study.instrument_id,
+      study.recruitment_template_id ?? null,
+      input.label?.trim() || `email-${new Date().toISOString()}`,
+      candidates.rows.length
+    ]);
+    const batchId = text(batchResult.rows[0]!.id);
 
     const base = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://kontamou.site";
-    const created: Array<{ contact: string; url: string }> = [];
+    const deliveries: ResearchInvitationDelivery[] = [];
     for (const candidate of candidates.rows) {
       const token = randomBytes(32).toString("base64url");
       const insert = await client.query<SqlRow>(`
         INSERT INTO research_invites
-          (study_id, instrument_id, sample_unit_id, contact_point_id, token_hash, channel, status)
-        VALUES ($1, $2, $3, $4, $5, 'email', 'created')
-        RETURNING id
-      `, [study.study_id, study.instrument_id, candidate.sample_unit_id, candidate.contact_point_id, sha256(token)]);
+          (study_id, instrument_id, sample_unit_id, contact_point_id, batch_id, token_hash, channel, status, expires_at)
+        VALUES ($1, $2, $3, $4, $5, $6, 'email', 'created',
+                COALESCE($7::timestamptz, now() + interval '30 days'))
+        RETURNING id, expires_at
+      `, [
+        study.study_id,
+        study.instrument_id,
+        candidate.sample_unit_id,
+        candidate.contact_point_id,
+        batchId,
+        sha256(token),
+        study.fieldwork_ends_at ?? null
+      ]);
+      const invite = insert.rows[0]!;
       await client.query(`
         INSERT INTO research_invite_events (invite_id, event_type, metadata)
-        VALUES ($1, 'created', '{"source":"admin_batch"}'::jsonb)
-      `, [insert.rows[0]!.id]);
-      created.push({
+        VALUES ($1, 'created', jsonb_build_object('source','admin_batch','batchId',$2::text))
+      `, [invite.id, batchId]);
+      await client.query(`
+        INSERT INTO research_sample_disposition_events
+          (sample_unit_id, disposition_code, eligibility, source, metadata)
+        VALUES ($1, 'invited', 'eligible', 'admin_batch', jsonb_build_object('batchId',$2::text))
+      `, [candidate.sample_unit_id, batchId]);
+      deliveries.push({
+        inviteId: text(invite.id),
+        sampleUnitId: text(candidate.sample_unit_id),
         contact: text(candidate.contact_value),
-        url: `${base.replace(/\/$/, "")}/research/${encodeURIComponent(input.slug)}/t/${encodeURIComponent(token)}`
+        url: `${base.replace(/\/$/, "")}/research/${encodeURIComponent(input.slug)}/t/${encodeURIComponent(token)}`,
+        expiresAt: optionalText(invite.expires_at)
       });
     }
     await client.query("COMMIT");
-    return created;
+    return { batchId, plannedCount: deliveries.length, deliveries };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
     throw error;
@@ -656,7 +745,6 @@ export async function generateResearchInvitationBatch(
     client.release();
   }
 }
-
 
 export type ResearchLifecycleAction =
   | "lock_instrument"
