@@ -90,6 +90,41 @@ function formatPValue(value: unknown): string {
   return new Intl.NumberFormat("el-GR", { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(result);
 }
 
+function experimentAttributeLabel(value: unknown): string {
+  return ({
+    monthly_fee_eur: "Μηνιαίο κόστος",
+    commission_pct: "Προμήθεια ανά πώληση",
+    reach: "Εμβέλεια",
+    catalog: "Διαχείριση καταλόγου",
+    customer_relationship: "Σχέση με πελάτη",
+    stock_sync: "Συγχρονισμός αποθέματος",
+    operations: "Λειτουργική υποστήριξη"
+  } as Record<string, string>)[String(value ?? "")] ?? String(value ?? "—");
+}
+
+function experimentLevelLabel(attribute: unknown, value: unknown): string {
+  const attributeKey = String(attribute ?? "");
+  const normalized = String(value ?? "");
+  if (attributeKey === "monthly_fee_eur") return normalized + " € / μήνα";
+  if (attributeKey === "commission_pct") return normalized + "%";
+  const labels: Record<string, Record<string, string>> = {
+    reach: { local: "Τοπική", national: "Πανελλαδική", local_national: "Τοπική + πανελλαδική" },
+    catalog: { manual: "Χειροκίνητη", single_import: "Μία εισαγωγή", automatic_sync: "Αυτόματος συγχρονισμός" },
+    customer_relationship: { platform_only: "Μόνο μέσω πλατφόρμας", merchant_access: "Άμεση πρόσβαση επιχείρησης" },
+    stock_sync: { none: "Χωρίς συγχρονισμό", daily: "Καθημερινά", realtime: "Σχεδόν πραγματικός χρόνος" },
+    operations: { listing_only: "Μόνο προβολή", payments: "Πληρωμές", payments_shipping_returns: "Πληρωμές + αποστολές + επιστροφές" }
+  };
+  return labels[attributeKey]?.[normalized] ?? normalized || "—";
+}
+
+function formatPercentagePointEffect(value: unknown): string {
+  if (value == null) return "—";
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return "—";
+  const formatter = new Intl.NumberFormat("el-GR", { maximumFractionDigits: 1, signDisplay: "always" });
+  return formatter.format(numericValue * 100) + " π.μ.";
+}
+
 export default async function GreekRetailResultsPage() {
   const release = await getPublishedGreekRetailResults("greek-retail-2026");
 
@@ -114,6 +149,7 @@ export default async function GreekRetailResultsPage() {
   const analysisPlan = objectValue(methodology.analysisPlan);
   const analysis = objectValue(methodology.analysis);
   const weightDiagnostics = objectValue(analysis.weightDiagnostics);
+  const experimentDiagnostics = objectValue(analysis.experimentDiagnostics);
   const overall = release.estimates.filter((estimate) =>
     !estimate.suppressed &&
     estimate.estimate != null &&
@@ -136,6 +172,11 @@ export default async function GreekRetailResultsPage() {
     !estimate.suppressed &&
     estimate.estimate != null &&
     estimate.method === "pairwise_independent_strata_difference_v1"
+  );
+  const experimentalContrasts = release.estimates.filter((estimate) =>
+    !estimate.suppressed &&
+    estimate.estimate != null &&
+    estimate.method === "randomized_profile_amce_clustered_v1"
   );
 
   return <main className={styles.shell}>
@@ -203,6 +244,66 @@ export default async function GreekRetailResultsPage() {
         είναι pre-specified secondary analyses. Οι pairwise συγκρίσεις μεταξύ περιοχών/κλάδων παραμένουν
         ρητά <strong>exploratory</strong> και δεν παρουσιάζονται ως εκ των προτέρων κύριες υποθέσεις.
       </p>
+    </section>
+
+    <section className={styles.invalid}>
+      <div className={styles.brand}>Randomized platform-choice experiment · Exploratory</div>
+      <h2>Ποια χαρακτηριστικά αλλάζουν την πιθανότητα επιλογής μιας ψηφιακής εμπορικής υπηρεσίας;</h2>
+      <p>
+        Το προαιρετικό EXP01 παρουσίασε σε κάθε συμμετέχοντα τρεις τυχαιοποιημένες συγκρίσεις δύο υποθετικών υπηρεσιών.
+        Οι παρακάτω εκτιμήσεις είναι survey-weighted marginal differences στην πιθανότητα επιλογής ενός profile,
+        με repeated tasks clustered στο respondent. Επειδή αυτή η ανάλυση προστέθηκε μετά το locked analysis plan,
+        δημοσιεύεται ρητά ως <strong>exploratory / not preregistered</strong> και όχι ως confirmatory αποτέλεσμα.
+      </p>
+      <p>
+        Απαντημένα tasks: <strong>{numeric(experimentDiagnostics.answeredTasks).toLocaleString("el-GR")}</strong> ·
+        {" "}respondents: <strong>{numeric(experimentDiagnostics.respondentCount).toLocaleString("el-GR")}</strong> ·
+        {" "}profile observations: <strong>{numeric(experimentDiagnostics.profileObservations).toLocaleString("el-GR")}</strong>.
+        Τα p-values διορθώνονται με Benjamini–Hochberg μέσα στην οικογένεια όλων των attribute-level contrasts.
+      </p>
+      {experimentalContrasts.length === 0
+        ? <p>Δεν υπάρχουν ακόμη experimental contrasts με επαρκή βάση και ολοκληρωμένη uncertainty estimate.</p>
+        : <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr>
+              <th style={{ textAlign: "left", padding: "10px 6px" }}>Χαρακτηριστικό</th>
+              <th style={{ textAlign: "left", padding: "10px 6px" }}>Level − reference</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>Effect</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>95% CI</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>raw p</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>BH q</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>respondents</th>
+            </tr></thead>
+            <tbody>{experimentalContrasts.map((estimate) => {
+              const attribute = estimate.segment.attribute;
+              const level = estimate.segment.level;
+              const referenceLevel = estimate.segment.referenceLevel;
+              return <tr key={estimate.metricKey}>
+                <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px" }}>{experimentAttributeLabel(attribute)}</td>
+                <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px" }}>
+                  {experimentLevelLabel(attribute, level)} − {experimentLevelLabel(attribute, referenceLevel)}
+                </td>
+                <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>
+                  {formatPercentagePointEffect(estimate.estimate)}
+                </td>
+                <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>
+                  {estimate.ciLower != null && estimate.ciUpper != null
+                    ? formatPercentagePointEffect(estimate.ciLower) + " – " + formatPercentagePointEffect(estimate.ciUpper)
+                    : "withheld"}
+                </td>
+                <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>
+                  {formatPValue(estimate.metadata.rawPValue)}
+                </td>
+                <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>
+                  {formatPValue(estimate.metadata.adjustedPValue)}
+                </td>
+                <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>
+                  {estimate.unweightedN.toLocaleString("el-GR")}
+                </td>
+              </tr>;
+            })}</tbody>
+          </table>
+        </div>}
     </section>
 
     <section className={styles.invalid}>
