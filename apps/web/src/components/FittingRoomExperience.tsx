@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { productPublicPath } from "../lib/product-url";
+import { isTryOnGarmentCandidate } from "../lib/try-on-eligibility";
+import { FittingRoomTryOn } from "./FittingRoomTryOn";
 import { styleLookShareCodeFromToken } from "../lib/style-look-share-code";
 import styles from "./FittingRoomExperience.module.css";
 
@@ -849,6 +851,27 @@ export function FittingRoomExperience({
   }, [brandSearch, facets.brands]);
 
   const currentLook = looks[activeLook];
+  const fittingRoomTryOnGarments = useMemo(() => {
+    if (!currentLook) return [] as Array<{ id: string; title: string; slot: "main" | "bottom" | "layer" }>;
+
+    const candidates: Array<{ slot: "main" | "bottom" | "layer"; product?: Product }> = isStandaloneOutfit(currentLook.slots.main)
+      ? [
+          { slot: "main", product: currentLook.slots.main },
+          { slot: "layer", product: currentLook.slots.layer }
+        ]
+      : [
+          { slot: "bottom", product: currentLook.slots.bottom },
+          { slot: "main", product: currentLook.slots.main },
+          { slot: "layer", product: currentLook.slots.layer }
+        ];
+
+    const seen = new Set<string>();
+    return candidates.flatMap(({ slot, product }) => {
+      if (!product || seen.has(product.id) || !isTryOnGarmentCandidate(product)) return [];
+      seen.add(product.id);
+      return [{ id: product.id, title: product.title, slot }];
+    });
+  }, [currentLook]);
 
   useEffect(() => {
     setProducts([]);
@@ -1498,6 +1521,12 @@ export function FittingRoomExperience({
               </article>;
             })}
           </div>
+
+          <FittingRoomTryOn
+            garments={fittingRoomTryOnGarments}
+            lookName={currentLook.name}
+            csrfToken={csrfToken}
+          />
         </div>
       </div>
 
