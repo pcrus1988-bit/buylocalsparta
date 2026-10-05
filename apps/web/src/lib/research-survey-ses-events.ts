@@ -131,7 +131,8 @@ async function processResearchSesEvent(
         await disposition(client, text(invite.sample_unit_id), "opened", "eligible", metadata);
       }
     } else if (eventType === "Bounce") {
-      if (invite.contact_value_hash) {
+      const permanentBounce = event.bounce?.bounceType === "Permanent";
+      if (permanentBounce && invite.contact_value_hash) {
         await client.query(`
           INSERT INTO research_contact_suppression_events (
             contact_type,contact_value_hash,action,reason,study_id,invite_id,source,metadata
@@ -144,6 +145,8 @@ async function processResearchSesEvent(
           WHERE contact_type='email' AND contact_value_hash=$1
         `, [invite.contact_value_hash]);
       } else if (invite.contact_point_id) {
+        // Transient/undetermined bounces close the current contact row, but are
+        // not promoted into a cross-wave suppression without permanent evidence.
         await client.query(`
           UPDATE research_contact_points
           SET suppression_status='bounced'
