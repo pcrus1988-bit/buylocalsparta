@@ -459,14 +459,18 @@ async function flushFrameBuffer(snapshotId: string, records: readonly FrameBuffe
       incoming.email,
       incoming.contact_hash,
       'gemi_public_registry',
-      'active'
+      CASE
+        WHEN public.research_contact_is_suppressed('email', incoming.contact_hash) THEN 'suppressed'
+        ELSE 'active'
+      END
     FROM units
     JOIN incoming USING (external_key_hash)
     WHERE incoming.email <> '' AND incoming.contact_hash <> ''
     ON CONFLICT (frame_unit_id, contact_type, contact_value_hash)
     DO UPDATE SET
       contact_value=EXCLUDED.contact_value,
-      source_kind=EXCLUDED.source_kind
+      source_kind=EXCLUDED.source_kind,
+      suppression_status=EXCLUDED.suppression_status
   `, [
     snapshotId,
     records.map((record) => record.externalKeyHash),
@@ -902,6 +906,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
             WHERE cp.frame_unit_id=su.frame_unit_id
               AND cp.contact_type='email'
               AND cp.suppression_status='active'
+              AND NOT public.research_contact_is_suppressed(cp.contact_type, cp.contact_value_hash)
           )
           AND NOT EXISTS (
             SELECT 1 FROM research_invites ri
@@ -1021,6 +1026,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         WHERE frame_unit_id=su.frame_unit_id
           AND contact_type='email'
           AND suppression_status='active'
+          AND NOT public.research_contact_is_suppressed(contact_type, contact_value_hash)
         ORDER BY (verified_at IS NOT NULL) DESC,verified_at DESC NULLS LAST,created_at,id
         LIMIT 1
       ) cp ON true
