@@ -5,6 +5,7 @@ import {
   normal95ConfidenceInterval,
   normalTwoSidedPValue,
   proportionalStratumAllocation,
+  researchFieldworkOutcomeSummary,
   researchWeightDiagnostics,
   stratifiedSrsMeanVariance
 } from "./research-survey-statistics.ts";
@@ -135,4 +136,39 @@ test("Benjamini-Hochberg adjustment is monotone in sorted p-value order", () => 
 
 test("Benjamini-Hochberg adjustment clamps invalid probability inputs", () => {
   assert.deepEqual(benjaminiHochbergAdjustedPValues([-1, 2]), [0, 1]);
+});
+
+
+test("fieldwork outcome summary seals a complete final-disposition ledger and freezes denominator rules", () => {
+  const result = researchFieldworkOutcomeSummary(100, [
+    { dispositionCode: "complete", eligibility: "eligible", count: 40 },
+    { dispositionCode: "partial", eligibility: "eligible", count: 5 },
+    { dispositionCode: "refusal", eligibility: "eligible", count: 10 },
+    { dispositionCode: "withdrawn", eligibility: "eligible", count: 2 },
+    { dispositionCode: "noncontact", eligibility: "unknown", count: 20 },
+    { dispositionCode: "bounce", eligibility: "unknown", count: 8 },
+    { dispositionCode: "ineligible", eligibility: "ineligible", count: 10 },
+    { dispositionCode: "out_of_scope", eligibility: "ineligible", count: 5 }
+  ]);
+
+  assert.equal(result.sealed, true);
+  assert.equal(result.latestDispositionTotal, 100);
+  assert.equal(result.netSample, 85);
+  assert.equal(result.completed, 40);
+  assert.equal(result.partial, 5);
+  assert.equal(result.unknownEligibility, 28);
+  assert.equal(result.completionRateOfNetSample, 40 / 85);
+  assert.equal(result.participationRateOfNetSample, 45 / 85);
+  assert.equal(result.explicitDecisionCompletionShare, 40 / 57);
+  assert.equal(result.explicitDecisionRefusalShare, 10 / 57);
+});
+
+test("fieldwork outcome summary refuses to call progress-state dispositions sealed", () => {
+  const result = researchFieldworkOutcomeSummary(10, [
+    { dispositionCode: "complete", eligibility: "eligible", count: 8 },
+    { dispositionCode: "opened", eligibility: "eligible", count: 2 }
+  ]);
+  assert.equal(result.latestDispositionTotal, 10);
+  assert.equal(result.unresolved, 2);
+  assert.equal(result.sealed, false);
 });
