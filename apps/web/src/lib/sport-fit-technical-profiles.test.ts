@@ -272,3 +272,63 @@ test("volleyball high-frequency use gets an explicit sport-specific requirement"
   ));
   assert.ok(scored.appliedRules.includes("court.high_frequency_use"));
 });
+
+
+test("Cloud X Tempo exact hybrid use cases make strength and cardio deterministic without invented footwear profiles", () => {
+  const genericGym = product({
+    id: "generic-hybrid-gym",
+    title: "Generic Hybrid Gym Trainer",
+    categoryCode: "mens-sneakers",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["gym_training"]
+    }
+  });
+  const cloudXTempo = product({
+    id: "on-cloud-x-tempo-hybrid",
+    title: "On Cloud X Tempo",
+    categoryCode: "mens-sneakers",
+    brand: "ON",
+    knowledge: {
+      status: "partial",
+      identityQuality: "strong",
+      activities: ["gym_training", "running"],
+      useCases: ["gym_functional", "gym_strength", "gym_cardio"],
+      fitLengthProfile: "true_to_size",
+      dropMm: 8,
+      weightG: 307
+    }
+  });
+
+  for (const gymTrainingType of ["strength", "cardio"] as const) {
+    const answers = {
+      activity: "gym" as const,
+      audience: "men" as const,
+      gymTrainingType
+    };
+    const generic = scoreSportFitProduct(genericGym, answers);
+    const exact = scoreSportFitProduct(cloudXTempo, answers);
+
+    assert.equal(generic.technicalEligible, true);
+    assert.equal(exact.technicalEligible, true);
+    assert.ok(generic.technicalRequirements.some((item) =>
+      item.id === "requirement.gym_training_type" && item.status === "unknown"
+    ));
+    assert.ok(exact.technicalRequirements.some((item) =>
+      item.id === "requirement.gym_training_type" && item.status === "match"
+    ));
+    assert.ok(exact.technicalScore > generic.technicalScore);
+  }
+
+  const functional = scoreSportFitProduct(cloudXTempo, {
+    activity: "gym",
+    audience: "men",
+    gymTrainingType: "functional"
+  });
+  assert.ok(functional.technicalRequirements.some((item) =>
+    item.id === "requirement.gym_training_type" && item.status === "match"
+  ));
+  assert.equal(cloudXTempo.knowledge?.cushioningLevel, undefined);
+  assert.equal(cloudXTempo.knowledge?.supportLevel, undefined);
+});
