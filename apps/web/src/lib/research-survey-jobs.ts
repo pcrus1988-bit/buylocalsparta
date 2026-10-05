@@ -232,18 +232,36 @@ export async function queueGreekRetailSampleDraw(
   `, [study.rows[0].id]);
   if (!frame.rows[0]) throw new Error("RESEARCH_SAMPLE_REQUIRES_FROZEN_FRAME");
 
+  const contacted = await pool.query<SqlRow>(`
+    SELECT EXISTS(
+      SELECT 1
+      FROM research_invites
+      WHERE study_id=$1
+        AND fieldwork_phase=$2
+        AND sent_at IS NOT NULL
+    ) AS has_contacted_units
+  `, [study.rows[0].id, fieldworkPhase]);
+  if (Boolean(contacted.rows[0]?.has_contacted_units)) {
+    throw new Error("RESEARCH_SAMPLE_REDRAW_AFTER_CONTACT");
+  }
+
   const existing = await pool.query<SqlRow>(`
-    SELECT id
+    SELECT id,input
     FROM research_study_jobs
     WHERE study_id=$1 AND job_type='sample_draw' AND status IN ('queued','running')
     ORDER BY created_at DESC
     LIMIT 1
   `, [study.rows[0].id]);
-  if (existing.rows[0]) return {
-    jobId: text(existing.rows[0].id),
-    randomSeed,
-    fieldworkPhase
-  };
+  if (existing.rows[0]) {
+    const existingInput = objectValue(existing.rows[0].input);
+    const existingPhase = text(existingInput.fieldworkPhase) === "pilot" ? "pilot" : "main";
+    if (existingPhase !== fieldworkPhase) throw new Error("RESEARCH_SAMPLE_JOB_ALREADY_RUNNING");
+    return {
+      jobId: text(existing.rows[0].id),
+      randomSeed: text(existingInput.randomSeed) || randomSeed,
+      fieldworkPhase
+    };
+  }
 
   const job = await pool.query<SqlRow>(`
     INSERT INTO research_study_jobs (study_id, job_type, status, input)
@@ -950,6 +968,18 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       || (fieldworkPhase === "main" && currentStatus !== "fielding")
     ) {
       throw new Error("RESEARCH_SAMPLE_FIELDWORK_PHASE_CHANGED");
+    }
+    const contacted = await client.query<SqlRow>(`
+      SELECT EXISTS(
+        SELECT 1
+        FROM research_invites
+        WHERE study_id=$1
+          AND fieldwork_phase=$2
+          AND sent_at IS NOT NULL
+      ) AS has_contacted_units
+    `, [job.study_id, fieldworkPhase]);
+    if (Boolean(contacted.rows[0]?.has_contacted_units)) {
+      throw new Error("RESEARCH_SAMPLE_REDRAW_AFTER_CONTACT");
     }
     const frameResult = await client.query<SqlRow>(`
       SELECT id, population_size, content_sha256
