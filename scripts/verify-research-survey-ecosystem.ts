@@ -123,6 +123,7 @@ if (!surveyRuntime.includes("survey_ui_preferences")) errors.push("post-completi
 if (!surveyRuntime.includes("participant_consent_revoked")) errors.push("consent revocation does not cancel unsent participant deliveries");
 if (!surveyRoute.includes('body.action === "preferences"')) errors.push("token API preference action missing");
 if (!surveyForm.includes("Αποθήκευση επιλογών")) errors.push("completed survey preference controls missing");
+if (!surveyRuntime.includes("AS delivered") || !surveyRuntime.includes("AS opened")) errors.push("admin fieldwork funnel event counts missing");
 if (!surveyRuntime.includes("research_response_quality_reviews")) errors.push("survey completion QA ledger missing");
 if (!surveyRuntime.includes("research_reward_entitlements")) errors.push("reward entitlement separation missing");
 if (!surveyRuntime.includes("research_sample_disposition_events")) errors.push("fieldwork disposition events missing");
