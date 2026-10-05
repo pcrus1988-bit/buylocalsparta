@@ -333,6 +333,7 @@ export async function queueGreekRetailInviteBatch(
   const row = study.rows[0];
   if (!row) throw new Error("RESEARCH_STUDY_NOT_FOUND");
   if (!["pilot","fielding"].includes(text(row.status))) throw new Error("SURVEY_NOT_OPEN");
+  const fieldworkPhase = text(row.status) === "pilot" ? "pilot" : "main";
   if (!Boolean(row.sample_ready)) throw new Error("RESEARCH_INVITE_SAMPLE_NOT_READY");
   if (!Boolean(row.template_ready)) throw new Error("RESEARCH_RECRUITMENT_TEMPLATE_NOT_READY");
 
@@ -347,10 +348,19 @@ export async function queueGreekRetailInviteBatch(
     INSERT INTO research_study_jobs (study_id,job_type,status,input)
     VALUES (
       $1,'invite_batch','queued',
-      jsonb_build_object('limit',$2::int,'label',$3::text)
+      jsonb_build_object(
+        'limit',$2::int,
+        'label',$3::text,
+        'fieldworkPhase',$4::text
+      )
     )
     RETURNING id
-  `, [row.id, limit, input.label?.trim() || `research-email-${new Date().toISOString()}`]);
+  `, [
+    row.id,
+    limit,
+    input.label?.trim() || `${fieldworkPhase}-research-email-${new Date().toISOString()}`,
+    fieldworkPhase
+  ]);
   return { jobId: text(job.rows[0]!.id) };
 }
 
@@ -396,6 +406,7 @@ export async function queueGreekRetailInviteReminderBatch(
   const row = study.rows[0];
   if (!row) throw new Error("RESEARCH_REMINDER_TEMPLATE_NOT_READY");
   if (!["pilot","fielding"].includes(text(row.status))) throw new Error("SURVEY_NOT_OPEN");
+  const fieldworkPhase = text(row.status) === "pilot" ? "pilot" : "main";
 
   const existing = await pool.query<SqlRow>(`
     SELECT id
@@ -425,7 +436,8 @@ export async function queueGreekRetailInviteReminderBatch(
         'minAgeDays',$4::int,
         'minGapDays',$5::int,
         'maxReminders',$6::int,
-        'label',$7::text
+        'label',$7::text,
+        'fieldworkPhase',$8::text
       )
     )
     RETURNING id
@@ -436,7 +448,8 @@ export async function queueGreekRetailInviteReminderBatch(
     minAgeDays,
     minGapDays,
     maxReminders,
-    input.label?.trim() || `research-reminder-${new Date().toISOString()}`
+    input.label?.trim() || `${fieldworkPhase}-research-reminder-${new Date().toISOString()}`,
+    fieldworkPhase
   ]);
 
   return {
@@ -1511,6 +1524,7 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
   const pool = getProductionPostgresRuntime().sqlPool;
   const input = objectValue(job.input);
   const templateId = text(input.templateId);
+  const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
   const limit = Math.max(1, Math.min(500, Math.floor(numberValue(input.limit) || 100)));
   const minAgeDays = Math.max(1, Math.min(90, Math.floor(numberValue(input.minAgeDays) || 5)));
   const minGapDays = Math.max(1, Math.min(90, Math.floor(numberValue(input.minGapDays) || 5)));
@@ -1566,6 +1580,7 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
       LEFT JOIN research_responses rr ON rr.invite_id=ri.id
       LEFT JOIN reminder_stats stats ON stats.invite_id=ri.id
       WHERE ri.study_id=$1
+        AND ri.fieldwork_phase=$6
         AND ri.sent_at IS NOT NULL
         AND ri.status IN ('sent','opened','started')
         AND (ri.expires_at IS NULL OR ri.expires_at > now())
@@ -1587,7 +1602,7 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
         ri.created_at,
         ri.id
       LIMIT $5
-    `, [job.study_id, minAgeDays, maxReminders, minGapDays, limit]);
+    `, [job.study_id, minAgeDays, maxReminders, minGapDays, limit, fieldworkPhase]);
     inviteIds = candidates.rows.map((row) => text(row.invite_id));
 
     await pool.query(`
