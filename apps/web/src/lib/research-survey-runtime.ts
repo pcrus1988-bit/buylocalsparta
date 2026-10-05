@@ -845,7 +845,7 @@ export async function researchFieldworkStrata(
       GROUP BY stratum_id
     ),
     invite_base AS (
-      SELECT ri.id AS invite_id,su.stratum_id,ri.status
+      SELECT ri.id AS invite_id,su.stratum_id,ri.status,ri.sent_at
       FROM research_invites ri
       JOIN sample su ON su.id=ri.sample_unit_id
       JOIN study s ON s.id=ri.study_id
@@ -854,7 +854,7 @@ export async function researchFieldworkStrata(
     invite_counts AS (
       SELECT
         stratum_id,
-        count(*) FILTER (WHERE status IN ('sent','opened','started','completed'))::int AS sent
+        count(*) FILTER (WHERE sent_at IS NOT NULL)::int AS sent
       FROM invite_base
       GROUP BY stratum_id
     ),
@@ -1103,7 +1103,7 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
     LEFT JOIN LATERAL (
       SELECT
         count(*) AS invites,
-        count(*) FILTER (WHERE status IN ('sent','opened','started','completed')) AS sent,
+        count(*) FILTER (WHERE sent_at IS NOT NULL) AS sent,
         (
           SELECT count(DISTINCT ie.invite_id)
           FROM research_invite_events ie
