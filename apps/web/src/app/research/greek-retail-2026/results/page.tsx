@@ -111,6 +111,7 @@ export default async function GreekRetailResultsPage() {
 
   const methodology = objectValue(release.methodology);
   const fieldwork = objectValue(methodology.fieldwork);
+  const analysisPlan = objectValue(methodology.analysisPlan);
   const analysis = objectValue(methodology.analysis);
   const weightDiagnostics = objectValue(analysis.weightDiagnostics);
   const overall = release.estimates.filter((estimate) =>
@@ -185,6 +186,22 @@ export default async function GreekRetailResultsPage() {
         {" "}weight CV: <strong>{formatOptionalNumber(weightDiagnostics.coefficientOfVariation, 2)}</strong> ·
         {" "}max non-response adjustment: <strong>{formatOptionalNumber(weightDiagnostics.nonresponseAdjustmentMax, 2)}×</strong>.
         Τα diagnostics αυτά δείχνουν πόση αποτελεσματική πληροφορία χάνεται από άνισα βάρη.
+      </p>
+    </section>
+
+    <section className={styles.invalid}>
+      <div className={styles.brand}>Pre-fieldwork analysis plan</div>
+      <h2>Τι είχε οριστεί πριν ξεκινήσει η συλλογή δεδομένων</h2>
+      <p>
+        Plan version: <strong>{String(analysisPlan.version ?? "—")}</strong> ·
+        {" "}locked: <strong>{analysisPlan.lockedAt ? new Date(String(analysisPlan.lockedAt)).toLocaleString("el-GR") : "—"}</strong>.
+      </p>
+      <p>Plan SHA-256: <code>{String(analysisPlan.contentSha256 ?? "—")}</code></p>
+      <p>
+        Οι δύο κύριοι δείκτες — ψηφιακή ετοιμότητα και λειτουργική τριβή — είναι
+        <strong> pre-specified primary outcomes</strong>. Οι περιγραφικές αναλύσεις του κλειδωμένου ερωτηματολογίου
+        είναι pre-specified secondary analyses. Οι pairwise συγκρίσεις μεταξύ περιοχών/κλάδων παραμένουν
+        ρητά <strong>exploratory</strong> και δεν παρουσιάζονται ως εκ των προτέρων κύριες υποθέσεις.
       </p>
     </section>
 
