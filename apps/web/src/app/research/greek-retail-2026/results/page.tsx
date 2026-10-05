@@ -73,6 +73,23 @@ function metricLabel(metricKey: string, metadata: Record<string, unknown>): stri
   return metricKey;
 }
 
+function pairwiseMetricLabel(metadata: Record<string, unknown>): string {
+  const sourceMetricKey = typeof metadata.sourceMetricKey === "string" ? metadata.sourceMetricKey : "";
+  return metricLabel(sourceMetricKey, metadata);
+}
+
+function pairwiseDimensionLabel(value: unknown): string {
+  return value === "regionCode" ? "Περιοχή" : value === "sectorCode" ? "Κλάδος" : String(value ?? "—");
+}
+
+function formatPValue(value: unknown): string {
+  if (value == null) return "—";
+  const result = Number(value);
+  if (!Number.isFinite(result)) return "—";
+  if (result < 0.001) return "<0,001";
+  return new Intl.NumberFormat("el-GR", { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(result);
+}
+
 export default async function GreekRetailResultsPage() {
   const release = await getPublishedGreekRetailResults("greek-retail-2026");
 
@@ -113,6 +130,11 @@ export default async function GreekRetailResultsPage() {
     estimate.estimate != null &&
     headlineKeys.has(estimate.metricKey) &&
     typeof estimate.segment.sectorCode === "string"
+  );
+  const pairwiseComparisons = release.estimates.filter((estimate) =>
+    !estimate.suppressed &&
+    estimate.estimate != null &&
+    estimate.method === "pairwise_independent_strata_difference_v1"
   );
 
   return <main className={styles.shell}>
@@ -239,6 +261,62 @@ export default async function GreekRetailResultsPage() {
             </tr>)}</tbody>
           </table>
         </div>}
+    </section>
+
+    <section className={styles.invalid}>
+      <div className={styles.brand}>Exploratory pairwise inference</div>
+      <h2>Είναι οι διαφορές μεταξύ περιοχών ή κλάδων μεγαλύτερες από την αβεβαιότητα του δείγματος;</h2>
+      <p>
+        Οι παρακάτω διαφορές υπολογίζονται μόνο όταν και οι δύο συγκρινόμενες εκτιμήσεις έχουν design-aware standard error
+        και αντιστοιχούν σε μη επικαλυπτόμενες ενώσεις των πραγματικών sampling strata. Τα p-values είναι δύο όψεων,
+        <strong> χωρίς διόρθωση για πολλαπλές συγκρίσεις</strong>, άρα είναι exploratory evidence και όχι αυτόματος κανόνας
+        «στατιστικά σημαντικού» ευρήματος.
+      </p>
+      {pairwiseComparisons.length === 0
+        ? <p>Δεν υπάρχουν pairwise comparisons με επαρκή design-based uncertainty για αυτό το release.</p>
+        : <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr>
+              <th style={{ textAlign: "left", padding: "10px 6px" }}>Διάσταση</th>
+              <th style={{ textAlign: "left", padding: "10px 6px" }}>Σύγκριση</th>
+              <th style={{ textAlign: "left", padding: "10px 6px" }}>Μέτρο</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>Διαφορά A−B</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>95% CI</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>p</th>
+              <th style={{ textAlign: "right", padding: "10px 6px" }}>n A/B</th>
+            </tr></thead>
+            <tbody>{pairwiseComparisons.map((estimate) => {
+              const levelA = String(estimate.segment.levelA ?? "—");
+              const levelB = String(estimate.segment.levelB ?? "—");
+              return <tr key={estimate.metricKey + ":" + levelA + ":" + levelB}>
+                <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px" }}>
+                  {pairwiseDimensionLabel(estimate.segment.comparisonDimension)}
+                </td>
+                <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px" }}>{levelA} − {levelB}</td>
+                <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px" }}>{pairwiseMetricLabel(estimate.metadata)}</td>
+                <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>
+                  {formatOptionalNumber(estimate.estimate, 2)}
+                </td>
+                <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>
+                  {estimate.ciLower != null && estimate.ciUpper != null
+                    ? formatOptionalNumber(estimate.ciLower, 2) + "–" + formatOptionalNumber(estimate.ciUpper, 2)
+                    : "withheld"}
+                </td>
+                <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>
+                  {formatPValue(estimate.metadata.pValue)}
+                </td>
+                <td style={{ borderTop: "1px solid #d6cfbf", padding: "10px 6px", textAlign: "right" }}>
+                  {numeric(estimate.metadata.unweightedNA).toLocaleString("el-GR")}/
+                  {numeric(estimate.metadata.unweightedNB).toLocaleString("el-GR")}
+                </td>
+              </tr>;
+            })}</tbody>
+          </table>
+        </div>}
+      <p>
+        Η κατεύθυνση είναι A−B: θετική τιμή σημαίνει υψηλότερο score στο A. Η ερμηνεία πρέπει να εξετάζει μαζί
+        το μέγεθος της διαφοράς, το interval, τις βάσεις και το πλήθος των συγκρίσεων — όχι μόνο το p-value.
+      </p>
     </section>
 
     <section className={styles.invalid}>
