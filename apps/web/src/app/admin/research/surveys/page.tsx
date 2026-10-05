@@ -52,7 +52,7 @@ export default async function ResearchSurveysAdminPage() {
           <WorkspaceMetricStrip items={[
             { label: "Population frame", value: study.framePopulation.toLocaleString("el-GR"), hint: String(study.frameCount) + " snapshot(s)" },
             { label: "Selected sample", value: study.sampleUnits.toLocaleString("el-GR"), hint: String(study.sampleDrawCount) + " draw(s)" },
-            { label: "Active contacts", value: study.activeContacts.toLocaleString("el-GR"), hint: String(study.suppressedContacts) + " suppressed/invalid · " + String(study.bouncedContacts) + " bounced" },
+            { label: "Contactable units", value: study.activeContacts.toLocaleString("el-GR"), hint: String(study.suppressedContacts) + " suppressed/invalid · " + String(study.bouncedContacts) + " bounced" },
             { label: "Invitations", value: study.invites.toLocaleString("el-GR"), hint: String(study.inviteBatches) + " batch(es) · " + String(study.sent) + " sent/opened/started" },
             { label: "Completed", value: study.completed.toLocaleString("el-GR"), hint: String(study.started) + " responses started" }
           ]} />
