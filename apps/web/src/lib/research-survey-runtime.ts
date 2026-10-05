@@ -721,6 +721,10 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       COALESCE(rw.eligible_count, 0)::int AS reward_eligible,
       COALESCE(rw.issued_count, 0)::int AS reward_issued,
       COALESCE(rw.redeemed_count, 0)::int AS reward_redeemed,
+      COALESCE(pd.reward_sent, 0)::int AS reward_delivery_sent,
+      COALESCE(pd.reward_failed, 0)::int AS reward_delivery_failed,
+      COALESCE(pd.results_sent, 0)::int AS results_notification_sent,
+      COALESCE(pd.results_failed, 0)::int AS results_notification_failed,
       COALESCE(a.analysis_runs, 0)::int AS analysis_runs,
       COALESCE(a.succeeded_runs, 0)::int AS succeeded_analysis_runs,
       COALESCE(a.estimates, 0)::int AS analysis_estimates,
@@ -829,6 +833,15 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
     ) rw ON true
     LEFT JOIN LATERAL (
       SELECT
+        count(*) FILTER (WHERE message_kind='thank_you_code' AND status='sent') AS reward_sent,
+        count(*) FILTER (WHERE message_kind='thank_you_code' AND status='failed') AS reward_failed,
+        count(*) FILTER (WHERE message_kind='results_notification' AND status='sent') AS results_sent,
+        count(*) FILTER (WHERE message_kind='results_notification' AND status='failed') AS results_failed
+      FROM research_participant_deliveries
+      WHERE study_id=s.id
+    ) pd ON true
+    LEFT JOIN LATERAL (
+      SELECT
         count(DISTINCT ar.id) AS analysis_runs,
         count(DISTINCT ar.id) FILTER (WHERE ar.status='succeeded') AS succeeded_runs,
         count(ae.id) AS estimates
@@ -890,6 +903,10 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       rewardEligible: numberValue(row.reward_eligible),
       rewardIssued: numberValue(row.reward_issued),
       rewardRedeemed: numberValue(row.reward_redeemed),
+      rewardDeliverySent: numberValue(row.reward_delivery_sent),
+      rewardDeliveryFailed: numberValue(row.reward_delivery_failed),
+      resultsNotificationSent: numberValue(row.results_notification_sent),
+      resultsNotificationFailed: numberValue(row.results_notification_failed),
       analysisRuns: numberValue(row.analysis_runs),
       succeededAnalysisRuns: numberValue(row.succeeded_analysis_runs),
       analysisEstimates: numberValue(row.analysis_estimates),
