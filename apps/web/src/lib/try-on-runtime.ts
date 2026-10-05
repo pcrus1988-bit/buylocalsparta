@@ -91,7 +91,12 @@ async function uploadSupabaseFallback(objectKey: string, contentType: string, by
   const { url, apiKey } = supabaseStorageObjectUrl(objectKey);
   const response = await fetch(url, {
     method: "POST",
-    headers: { apikey: apiKey, "content-type": contentType, "x-upsert": "false" },
+    headers: {
+      apikey: apiKey,
+      authorization: `Bearer ${apiKey}`,
+      "content-type": contentType,
+      "x-upsert": "false"
+    },
     body: Buffer.from(bytes),
     cache: "no-store"
   });
@@ -100,7 +105,10 @@ async function uploadSupabaseFallback(objectKey: string, contentType: string, by
 
 async function readSupabaseFallback(objectKey: string) {
   const { url, apiKey } = supabaseStorageObjectUrl(objectKey);
-  const response = await fetch(url, { headers: { apikey: apiKey }, cache: "no-store" });
+  const response = await fetch(url, {
+    headers: { apikey: apiKey, authorization: `Bearer ${apiKey}` },
+    cache: "no-store"
+  });
   if (!response.ok) throw new Error(`TRY_ON_STORAGE_READ_FAILED_${response.status}`);
   const bytes = new Uint8Array(await response.arrayBuffer());
   return {
@@ -113,7 +121,11 @@ async function readSupabaseFallback(objectKey: string) {
 
 async function deleteSupabaseFallback(objectKey: string): Promise<void> {
   const { url, apiKey } = supabaseStorageObjectUrl(objectKey);
-  const response = await fetch(url, { method: "DELETE", headers: { apikey: apiKey }, cache: "no-store" });
+  const response = await fetch(url, {
+    method: "DELETE",
+    headers: { apikey: apiKey, authorization: `Bearer ${apiKey}` },
+    cache: "no-store"
+  });
   if (!response.ok && response.status !== 404) throw new Error(`TRY_ON_STORAGE_DELETE_FAILED_${response.status}`);
 }
 
