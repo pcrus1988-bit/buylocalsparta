@@ -29,6 +29,14 @@ function existingImages(wrapper: HTMLElement, fallbackAlt: string): ProductMedia
   return images;
 }
 
+function mediaElementsToHide(wrapper: HTMLElement, art: HTMLElement): HTMLElement[] {
+  return [...wrapper.children].filter((element): element is HTMLElement => {
+    if (!(element instanceof HTMLElement)) return false;
+    if (element === art) return true;
+    return element.getAttribute("aria-label") === "Επιπλέον φωτογραφίες προϊόντος";
+  });
+}
+
 export function ProductMediaGalleryEnhancer({ canonicalVariantId }: Readonly<{ canonicalVariantId: string }>) {
   const [target, setTarget] = useState<PortalTarget>();
   const [images, setImages] = useState<readonly ProductMediaGalleryImage[]>([]);
@@ -44,14 +52,15 @@ export function ProductMediaGalleryEnhancer({ canonicalVariantId }: Readonly<{ c
     const placeholderLabel = art.querySelector<HTMLElement>(".detail-category")?.textContent?.trim() || "Προϊόν";
     const placeholderSymbol = art.querySelector<HTMLElement>(".detail-symbol")?.textContent?.trim() || "•";
     const artClass = [...art.classList].filter((name) => name !== "product-detail-art").join(" ");
-    const hidden = [...wrapper.children]
-      .filter((element): element is HTMLElement => element instanceof HTMLElement)
+    const hidden = mediaElementsToHide(wrapper, art)
       .map((element) => ({ element, display: element.style.display }));
     for (const item of hidden) item.element.style.display = "none";
 
     const host = document.createElement("div");
     host.dataset.productMediaGallery = "enhanced";
-    wrapper.appendChild(host);
+    // Keep the enhanced gallery in the original artwork slot. Other product-column
+    // children (including Try On Me CTA/card) must remain visible after hydration.
+    wrapper.insertBefore(host, art);
     setTarget({ host, hidden, badge, placeholderLabel, placeholderSymbol, artClass });
     setImages(initialImages);
 
