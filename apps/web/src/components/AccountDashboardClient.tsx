@@ -7,6 +7,7 @@ import { CustomerActionCard, CustomerHowItWorks, CustomerLifecycle, customerOrde
 import styles from "./CustomerAccountExperience.module.css";
 import { productPublicPath } from "../lib/product-url";
 import { clearCustomerTryOnBrowserStorage } from "../lib/try-on-browser-storage";
+import { AccountTryOnSetupClient } from "./AccountTryOnSetupClient";
 
 type Dashboard = {
   account: { email: string };
@@ -156,6 +157,8 @@ export function AccountDashboardClient({ initial }: { initial: Dashboard }) {
         </div>
       </article>
     </section>
+
+    <AccountTryOnSetupClient variant="dashboard" />
 
     <section className="shell customer-overview-attention" id="overview" aria-labelledby="customer-attention-title">
       <div className="customer-overview-attention-head"><div><div className="eyebrow">Τώρα</div><h2 id="customer-attention-title">{attentionCount ? "Χρειάζεται κάτι από εσένα" : "Όλα κυλούν κανονικά"}</h2></div><p>{attentionCount ? "Εδώ εμφανίζονται μόνο όσα χρειάζονται δική σου ενέργεια. Τα υπόλοιπα συνεχίζουν από κατάστημα, πλατφόρμα ή μεταφορέα." : "Δεν υπάρχει κάποια ενέργεια που να περιμένει από εσένα αυτή τη στιγμή."}</p></div>
