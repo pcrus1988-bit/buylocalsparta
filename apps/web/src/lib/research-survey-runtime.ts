@@ -284,7 +284,6 @@ export async function refusePublicResearchInvite(input: Readonly<{
   try {
     await client.query("BEGIN");
     const invite = await invitationRow(client, input.slug, input.token, { allowExpired: true });
-    if (text(invite.invite_status) === "completed") throw new Error("SURVEY_ALREADY_COMPLETED");
 
     const responseResult = await client.query<SqlRow>(`
       SELECT id,status
@@ -293,10 +292,12 @@ export async function refusePublicResearchInvite(input: Readonly<{
       FOR UPDATE
     `, [invite.invite_id]);
     const response = responseResult.rows[0];
-    if (response && text(response.status) === "completed") throw new Error("SURVEY_ALREADY_COMPLETED");
+    const previousResponseStatus = text(response?.status);
+    const withdrawalWasCompleted = previousResponseStatus === "completed";
+    let responseWithdrawn = previousResponseStatus === "withdrawn";
+    let dispositionRecorded = false;
 
-    let responseWithdrawn = false;
-    if (response && text(response.status) === "in_progress") {
+    if (response && ["in_progress", "completed"].includes(previousResponseStatus)) {
       await client.query(`
         UPDATE research_responses
         SET status='withdrawn',withdrawn_at=now(),last_saved_at=now()
@@ -307,15 +308,22 @@ export async function refusePublicResearchInvite(input: Readonly<{
         VALUES ($1,'research_participation',$2,false,'survey_ui')
       `, [response.id, invite.consent_statement_version]);
       responseWithdrawn = true;
+      dispositionRecorded = true;
+    } else if (!response && text(invite.invite_status) !== "suppressed") {
+      dispositionRecorded = true;
     }
 
-    const alreadySuppressed = text(invite.invite_status) === "suppressed";
-    if (!alreadySuppressed) {
-      await client.query(`
-        UPDATE research_invites
-        SET status='suppressed'
-        WHERE id=$1 AND status <> 'completed'
-      `, [invite.invite_id]);
+    if (text(invite.invite_status) !== "suppressed" && previousResponseStatus !== "withdrawn") {
+      // A completed invitation remains historically completed when its response
+      // is later withdrawn. The response status + append-only consent/disposition
+      // ledgers carry the current participation state.
+      if (text(invite.invite_status) !== "completed") {
+        await client.query(`
+          UPDATE research_invites
+          SET status='suppressed'
+          WHERE id=$1
+        `, [invite.invite_id]);
+      }
       await client.query(`
         INSERT INTO research_invite_events (invite_id,event_type,metadata)
         VALUES (
@@ -328,21 +336,24 @@ export async function refusePublicResearchInvite(input: Readonly<{
         )
       `, [
         invite.invite_id,
-        responseWithdrawn ? "participant_withdrawal" : "participant_refusal",
+        responseWithdrawn
+          ? withdrawalWasCompleted ? "participant_withdrawal_after_completion" : "participant_withdrawal"
+          : "participant_refusal",
         Boolean(input.suppressFutureResearch)
       ]);
-      if (invite.sample_unit_id) {
-        await client.query(`
-          INSERT INTO research_sample_disposition_events (
-            sample_unit_id,disposition_code,eligibility,source,metadata
-          )
-          VALUES ($1,$2,'eligible','survey_ui',jsonb_build_object('inviteId',$3::text))
-        `, [
-          invite.sample_unit_id,
-          responseWithdrawn ? "withdrawn" : "refusal",
-          invite.invite_id
-        ]);
-      }
+    }
+
+    if (invite.sample_unit_id && dispositionRecorded) {
+      await client.query(`
+        INSERT INTO research_sample_disposition_events (
+          sample_unit_id,disposition_code,eligibility,source,metadata
+        )
+        VALUES ($1,$2,'eligible','survey_ui',jsonb_build_object('inviteId',$3::text))
+      `, [
+        invite.sample_unit_id,
+        responseWithdrawn ? "withdrawn" : "refusal",
+        invite.invite_id
+      ]);
     }
 
     let futureResearchSuppressed = false;
