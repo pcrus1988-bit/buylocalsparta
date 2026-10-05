@@ -17,7 +17,7 @@ const DEFAULT_BODY = `Καλησπέρα,
 
 Η συμμετοχή ή μη συμμετοχή σας δεν επηρεάζει οποιαδήποτε εμπορική σχέση με το KONTA MOY. Οι επιλογές για ενημέρωση αποτελεσμάτων, κωδικό ευχαριστίας ή εμπορική επικοινωνία είναι ξεχωριστές από τη συγκατάθεση συμμετοχής στην έρευνα.`;
 
-type Busy = "template" | "send" | "analysis" | "release" | null;
+type Busy = "template" | "send" | "rewards" | "analysis" | "release" | "results" | null;
 
 export function ResearchStudyFieldworkControls({
   slug,
@@ -26,9 +26,15 @@ export function ResearchStudyFieldworkControls({
   recruitmentTemplateVersion,
   activeContacts,
   completed,
+  rewardEligible,
+  rewardIssued,
+  rewardDeliveryFailed,
   pendingQualityReviews,
   succeededAnalysisRuns,
   latestReleaseVersion,
+  latestReleasePublishedAt,
+  resultsNotificationSent,
+  resultsNotificationFailed,
   queuedJobs,
   runningJobs
 }: {
@@ -38,9 +44,15 @@ export function ResearchStudyFieldworkControls({
   recruitmentTemplateVersion?: string;
   activeContacts: number;
   completed: number;
+  rewardEligible: number;
+  rewardIssued: number;
+  rewardDeliveryFailed: number;
   pendingQualityReviews: number;
   succeededAnalysisRuns: number;
   latestReleaseVersion?: string;
+  latestReleasePublishedAt?: string;
+  resultsNotificationSent: number;
+  resultsNotificationFailed: number;
   queuedJobs: number;
   runningJobs: number;
 }) {
@@ -98,6 +110,48 @@ export function ResearchStudyFieldworkControls({
       router.refresh();
     } catch (error) {
       const raw = error instanceof Error ? error.message : "Η αποστολή δεν μπήκε στην ουρά.";
+      setMessage(raw === "RESEARCH_EMAIL_DELIVERY_DISABLED"
+        ? "Η ερευνητική αποστολή SES είναι απενεργοποιημένη. Ενεργοποιήστε ρητά το BLS_RESEARCH_EMAIL_DELIVERY_ENABLED."
+        : raw);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function deliverRewards() {
+    setBusy("rewards");
+    setMessage("");
+    try {
+      const result = await post({
+        action: "deliver_rewards",
+        limit: 100,
+        label: "reward-delivery-" + new Date().toISOString()
+      });
+      setMessage("Η αποστολή κωδικών ευχαριστίας μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
+      router.refresh();
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : "Η αποστολή κωδικών δεν μπήκε στην ουρά.";
+      setMessage(raw === "RESEARCH_EMAIL_DELIVERY_DISABLED"
+        ? "Η ερευνητική αποστολή SES είναι απενεργοποιημένη. Ενεργοποιήστε ρητά το BLS_RESEARCH_EMAIL_DELIVERY_ENABLED."
+        : raw);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function notifyResults() {
+    setBusy("results");
+    setMessage("");
+    try {
+      const result = await post({
+        action: "notify_results",
+        limit: 100,
+        label: "results-notification-" + new Date().toISOString()
+      });
+      setMessage("Η ενημέρωση δημοσιευμένων αποτελεσμάτων μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
+      router.refresh();
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : "Η ενημέρωση αποτελεσμάτων δεν μπήκε στην ουρά.";
       setMessage(raw === "RESEARCH_EMAIL_DELIVERY_DISABLED"
         ? "Η ερευνητική αποστολή SES είναι απενεργοποιημένη. Ενεργοποιήστε ρητά το BLS_RESEARCH_EMAIL_DELIVERY_ENABLED."
         : raw);
@@ -202,6 +256,20 @@ export function ResearchStudyFieldworkControls({
 
     <div className="workspace-action-bar">
       <span>
+        <strong>Participant thank-you delivery</strong><br />
+        {rewardEligible.toLocaleString("el-GR")} entitlement(s) παραμένουν eligible · {rewardIssued.toLocaleString("el-GR")} issued · {rewardDeliveryFailed.toLocaleString("el-GR")} failed delivery record(s).
+        Η αποστολή απαιτεί μόνο τη χωριστή επιλογή “thank-you code” και δεν διαβάζει marketing consent.
+      </span>
+      <button
+        className="button button-secondary"
+        disabled={Boolean(busy) || workerBusy || rewardEligible < 1}
+        onClick={() => void deliverRewards()}
+        type="button"
+      >{busy === "rewards" ? "Queueing…" : "Deliver pending thank-you codes"}</button>
+    </div>
+
+    <div className="workspace-action-bar">
+      <span>
         <strong>Analysis pipeline</strong><br />
         {pendingQualityReviews > 0
           ? `Υπάρχουν ${pendingQualityReviews} εκκρεμή quality review(s). Resolve include/exclude πριν από analysis.`
@@ -228,6 +296,21 @@ export function ResearchStudyFieldworkControls({
         onClick={() => void buildRelease()}
         type="button"
       >{busy === "release" ? "Queueing…" : "Build release snapshot"}</button>
+    </div>
+
+    <div className="workspace-action-bar">
+      <span>
+        <strong>Published-results notification</strong><br />
+        {latestReleasePublishedAt
+          ? `${resultsNotificationSent.toLocaleString("el-GR")} sent · ${resultsNotificationFailed.toLocaleString("el-GR")} failed for the published release. Re-queueing is idempotent for already-sent recipients.`
+          : "Η ενημέρωση ενεργοποιείται μόνο μετά την πραγματική δημοσίευση release και μόνο για όσους ζήτησαν ενημέρωση αποτελεσμάτων."}
+      </span>
+      <button
+        className="button button-secondary"
+        disabled={Boolean(busy) || workerBusy || studyStatus !== "published" || !latestReleasePublishedAt}
+        onClick={() => void notifyResults()}
+        type="button"
+      >{busy === "results" ? "Queueing…" : "Notify opted-in participants"}</button>
     </div>
 
     <div className="workspace-inline-note">
