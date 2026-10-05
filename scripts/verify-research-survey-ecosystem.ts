@@ -28,6 +28,7 @@ const fieldworkBalance = readFileSync("apps/web/src/components/ResearchStudyFiel
 const statistics = readFileSync("apps/web/src/lib/research-survey-statistics.ts", "utf8");
 const analysis = readFileSync("apps/web/src/lib/research-survey-analysis.ts", "utf8");
 const resultsPage = readFileSync("apps/web/src/app/research/greek-retail-2026/results/page.tsx", "utf8");
+const releaseRoute = readFileSync("apps/web/src/app/api/research/[slug]/release/route.ts", "utf8");
 const sesSender = readFileSync("apps/web/src/lib/admin-mail-ses.ts", "utf8");
 const gemi = readFileSync("apps/web/src/lib/gemi-admin-export.ts", "utf8");
 const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts?: Record<string, string> };
@@ -177,6 +178,13 @@ if (!surveyRuntime.includes("'reward_delivery','queued'")) errors.push("completi
 if (!surveyRuntime.includes("'results_notification','queued'")) errors.push("publication does not queue results notification");
 if (!gemi.includes("export async function* gemiResearchFrameRecords")) errors.push("GEMI governed record stream missing");
 if (!release.includes("artifactSha256 = sha256Canonical(artifact)")) errors.push("canonical public release artifact hash missing");
+if (!release.includes("getPublishedGreekRetailReleaseArtifact")) errors.push("published release artifact reconstruction missing");
+if (!release.includes("recomputedSha256 === published.artifactSha256")) errors.push("published release artifact integrity check missing");
+if (!release.includes("method: text(estimate.method)")) errors.push("published artifact reconstruction drops estimate method");
+if (!releaseRoute.includes("X-Konta-Mou-Artifact-SHA256")) errors.push("canonical release endpoint does not expose artifact hash");
+if (!releaseRoute.includes("Content-Disposition")) errors.push("canonical release endpoint is not downloadable");
+if (!resultsPage.includes("Download canonical JSON")) errors.push("public results page does not expose evidence artifact download");
+
 if (!release.includes("RESEARCH_RELEASE_REQUIRES_QA_RESOLUTION")) errors.push("release QA gate missing");
 if (!release.includes("confidenceIntervalsPublished")) errors.push("release disclosure contract missing");
 if (!release.includes("emailContactabilityRate")) errors.push("release does not freeze frame contactability");
