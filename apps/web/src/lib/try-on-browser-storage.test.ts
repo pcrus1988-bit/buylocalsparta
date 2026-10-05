@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   clearCustomerTryOnBrowserStorage,
   TRY_ON_ACTIVE_SCOPE_KEY,
+  TRY_ON_AUTO_PREFIX,
   TRY_ON_LEGACY_MODEL_KEY,
   TRY_ON_LEGACY_PREVIEW_PREFIX,
   TRY_ON_MODEL_PREFIX,
@@ -35,6 +36,7 @@ test("Try On logout cleanup removes model photos, previews and scope markers onl
   local.setItem(`${TRY_ON_MODEL_PREFIX}scope-a`, "photo-a");
   local.setItem(`${TRY_ON_MODEL_PREFIX}scope-b`, "photo-b");
   local.setItem(TRY_ON_ACTIVE_SCOPE_KEY, "scope-a");
+  local.setItem(`${TRY_ON_AUTO_PREFIX}scope-a`, "off");
   local.setItem(TRY_ON_LEGACY_MODEL_KEY, "legacy-photo");
   local.setItem("km:cart:v1", "keep-cart");
 
@@ -44,7 +46,7 @@ test("Try On logout cleanup removes model photos, previews and scope markers onl
 
   const removed = clearCustomerTryOnBrowserStorage({ localStorage: local, sessionStorage: session });
 
-  assert.equal(removed, 6);
+  assert.equal(removed, 7);
   assert.deepEqual([...local.values.keys()], ["km:cart:v1"]);
   assert.deepEqual([...session.values.keys()], ["checkout:return-url"]);
 });
