@@ -729,9 +729,19 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
     ) ls ON true
     LEFT JOIN LATERAL (
       SELECT
-        count(*) FILTER (WHERE cp.suppression_status = 'active') AS active_contacts,
-        count(*) FILTER (WHERE cp.suppression_status IN ('suppressed','invalid')) AS suppressed_contacts,
-        count(*) FILTER (WHERE cp.suppression_status = 'bounced') AS bounced_contacts
+        count(DISTINCT fu.id) FILTER (
+          WHERE cp.contact_type='email'
+            AND cp.suppression_status='active'
+            AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+        ) AS active_contacts,
+        count(DISTINCT fu.id) FILTER (
+          WHERE cp.contact_type='email'
+            AND cp.suppression_status IN ('suppressed','invalid')
+        ) AS suppressed_contacts,
+        count(DISTINCT fu.id) FILTER (
+          WHERE cp.contact_type='email'
+            AND cp.suppression_status='bounced'
+        ) AS bounced_contacts
       FROM research_frame_units fu
       JOIN research_contact_points cp ON cp.frame_unit_id = fu.id
       WHERE fu.frame_snapshot_id = lf.id
