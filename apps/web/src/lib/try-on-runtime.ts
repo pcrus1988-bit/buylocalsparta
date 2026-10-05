@@ -407,6 +407,7 @@ export async function saveCustomerTryOn(input: {
   predictionId: unknown;
   imageDataUrl: unknown;
   saveToken: unknown;
+  outfitName?: unknown;
 }): Promise<CustomerSavedTryOn> {
   if (!productionDatabaseConfigured()) throw new Error("TRY_ON_STORAGE_NOT_CONFIGURED");
   const predictionId = safePredictionId(input.predictionId);
@@ -422,6 +423,8 @@ export async function saveCustomerTryOn(input: {
   const existing = await existingSavedTryOn(input.userPublicId, predictionId, productId);
   if (existing) return existing;
   const { product } = await resolveGarment(input.userPublicId, productId);
+  const requestedOutfitName = typeof input.outfitName === "string" ? input.outfitName.trim().replace(/\s+/g, " ").slice(0, 180) : "";
+  const savedTitle = requestedOutfitName ? `Fitting Room · ${requestedOutfitName}`.slice(0, 240) : product.title.slice(0, 240);
   const publicId = randomUUID();
   const extension = image.contentType === "image/png" ? "png" : "jpg";
   const objectKey = `private/customer-try-on/${safeStorageSegment(input.userPublicId)}/${publicId}.${extension}`;
@@ -447,7 +450,7 @@ export async function saveCustomerTryOn(input: {
       input.userPublicId,
       product.id,
       publicId,
-      product.title.slice(0, 240),
+      savedTitle,
       product.slug.slice(0, 180),
       TRY_ON_MODEL,
       predictionId,
