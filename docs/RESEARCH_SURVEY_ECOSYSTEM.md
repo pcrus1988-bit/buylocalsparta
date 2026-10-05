@@ -84,6 +84,10 @@ New draws use algorithm `stratified-hash-rank-v2`. When the requested sample siz
 
 `research_experiment_assignments` stores the exact hypothetical profiles shown in each choice task. The generator is deterministic per response/task, so an assignment can be reproduced. The experimental module is optional and does not block completion of the core questionnaire.
 
+Analysis v5 now carries those assignments and choices into the immutable dataset hash and derives weighted attribute-level marginal selection contrasts from the randomized profile exposures. Repeated profile evaluations are clustered by respondent, uncertainty is reported with 95% intervals, and raw p-values receive Benjamini–Hochberg FDR correction across the full EXP01 contrast family. The release publishes the contributing respondent/profile counts and the exact method identifier `randomized_profile_amce_clustered_v1`.
+
+This experimental analysis is deliberately labelled `exploratory_not_preregistered`: EXP01 existed in the locked questionnaire, but its AMCE-style estimator was not in analysis-plan v1. The implementation therefore does not back-date the estimator into the preregistration.
+
 ### Derived scores
 
 `research_response_scores` stores the scoring version and derived scores.
