@@ -149,6 +149,10 @@ export default async function GreekRetailResultsPage() {
   const sample = objectValue(methodology.sample);
   const designEvidence = objectValue(sample.designEvidence);
   const fieldwork = objectValue(methodology.fieldwork);
+  const protocolEvidence = objectValue(methodology.protocolEvidence);
+  const protocolEvents = Array.isArray(protocolEvidence.events)
+    ? protocolEvidence.events.map((event) => objectValue(event))
+    : [];
   const analysisPlan = objectValue(methodology.analysisPlan);
   const analysis = objectValue(methodology.analysis);
   const weightDiagnostics = objectValue(analysis.weightDiagnostics);
@@ -246,6 +250,33 @@ export default async function GreekRetailResultsPage() {
         {" "}max non-response adjustment: <strong>{formatOptionalNumber(weightDiagnostics.nonresponseAdjustmentMax, 2)}×</strong>.
         Τα diagnostics αυτά δείχνουν πόση αποτελεσματική πληροφορία χάνεται από άνισα βάρη.
       </p>
+    </section>
+
+    <section className={styles.invalid}>
+      <div className={styles.brand}>Protocol deviations & amendments</div>
+      <h2>Τι άλλαξε ή αποκλίνει από το αρχικό protocol</h2>
+      {protocolEvents.length === 0
+        ? <p>Δεν έχουν καταγραφεί protocol deviations, amendments ή resolutions σε αυτό το release.</p>
+        : <>
+          <p>
+            Καταγεγραμμένα events: <strong>{protocolEvents.length.toLocaleString("el-GR")}</strong> ·
+            {" "}unresolved material/critical: <strong>{numeric(protocolEvidence.unresolvedMaterialOrCriticalCount).toLocaleString("el-GR")}</strong>.
+            Κάθε event είναι append-only, έχει δικό του SHA-256 και περιλαμβάνεται στο immutable release artifact.
+          </p>
+          <div style={{ display: "grid", gap: 10 }}>
+            {protocolEvents.map((event) => <article className={styles.invalid} key={String(event.id)}>
+              <strong>{String(event.severity ?? "").toUpperCase()} · {String(event.eventType ?? "")} · {String(event.title ?? "")}</strong>
+              <p>{String(event.description ?? "")}</p>
+              <small>
+                {String(event.lifecyclePhase ?? "")} / {String(event.category ?? "")} ·
+                {" "}{event.occurredAt ? new Date(String(event.occurredAt)).toLocaleString("el-GR") : "—"} ·
+                {" "}SHA {String(event.contentSha256 ?? "—")}
+              </small>
+              {event.impactAssessment && <p><strong>Impact:</strong> {String(event.impactAssessment)}</p>}
+              {event.correctiveAction && <p><strong>Corrective action:</strong> {String(event.correctiveAction)}</p>}
+            </article>)}
+          </div>
+        </>}
     </section>
 
     <section className={styles.invalid}>
