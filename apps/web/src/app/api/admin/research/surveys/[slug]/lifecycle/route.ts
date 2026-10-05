@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ACTIONS = new Set<ResearchLifecycleAction>([
-  "lock_instrument", "start_pilot", "start_fielding", "close_fieldwork", "begin_analysis"
+  "lock_instrument", "start_pilot", "start_fielding", "close_fieldwork", "begin_analysis", "publish_release"
 ]);
 
 export async function POST(request: Request, context: { params: Promise<{ slug: string }> }) {
