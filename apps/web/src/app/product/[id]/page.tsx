@@ -689,6 +689,30 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {primaryImage ? <Image src={`/api/media/${encodeURIComponent(primaryImage.mediaId)}`} alt={primaryImage.altText ?? displayTitle} fill sizes="(max-width: 900px) 100vw, 48vw" priority style={productImageStyle} /> : supplierImageSrc ? <img src={supplierImageSrc} alt={displayTitle} loading="eager" fetchPriority="high" style={productImageStyle} /> : null}
             <span className="product-badge">{product.available ? (isDropship ? "Διαθέσιμο για αποστολή" : "Σε τοπικό απόθεμα") : "Προσωρινά μη διαθέσιμο"}</span>
           </div>
+          {tryOnEligible ? (
+            <a
+              className="button"
+              href={`#try-on-${product.id}`}
+              style={{
+                width: "100%",
+                minHeight: 54,
+                marginTop: 12,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 14,
+                borderRadius: 16,
+                paddingInline: 18
+              }}
+              aria-label={`Try On Me · Δες το ${displayTitle} πάνω σου`}
+            >
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
+                <span aria-hidden="true" style={{ fontSize: 19 }}>✦</span>
+                <strong>TRY ON ME</strong>
+              </span>
+              <span style={{ fontSize: 12, opacity: .82 }}>Δες το πάνω σου</span>
+            </a>
+          ) : null}
           {mediaGallery.length > 1 ? (
             <div aria-label="Επιπλέον φωτογραφίες προϊόντος" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
               {mediaGallery.slice(1).map((image) => (
