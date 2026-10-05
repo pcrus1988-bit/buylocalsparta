@@ -101,6 +101,37 @@ export async function consumeCustomerLoginRateLimit(input: { visitorKey: string;
   return postgresServices().rateLimiter.consume({ route: "customer-login", key: input.visitorKey, limit: 5, windowMs: 15 * 60 * 1000, now: input.now });
 }
 
+export async function consumeCustomerTryOnRateLimit(input: { userId: string; now: number }) {
+  const shortWindow = customerStateBackend() === "memory"
+    ? getAccountRuntime().rateLimiter.consume({
+        key: `try-on-generate-minute:${input.userId}`,
+        rule: { limit: 6, windowMs: 60 * 1000 },
+        now: input.now
+      })
+    : await postgresServices().rateLimiter.consume({
+        route: "customer-try-on-generate-minute",
+        key: input.userId,
+        limit: 6,
+        windowMs: 60 * 1000,
+        now: input.now
+      });
+  if (!shortWindow.allowed) return shortWindow;
+
+  return customerStateBackend() === "memory"
+    ? getAccountRuntime().rateLimiter.consume({
+        key: `try-on-generate-hour:${input.userId}`,
+        rule: { limit: 60, windowMs: 60 * 60 * 1000 },
+        now: input.now
+      })
+    : postgresServices().rateLimiter.consume({
+        route: "customer-try-on-generate-hour",
+        key: input.userId,
+        limit: 60,
+        windowMs: 60 * 60 * 1000,
+        now: input.now
+      });
+}
+
 export async function customerStateSnapshot(userId: string, now = Date.now()): Promise<CustomerStateSnapshot> {
   if (customerStateBackend() === "memory") {
     const memory = getAccountRuntime();
