@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type VendorConfirmationRequest = Readonly<{
   title: string;
@@ -16,6 +16,14 @@ export function useVendorConfirmation() {
   const dialogRef = useRef<HTMLElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
+  const closeAndRestoreFocus = useCallback(() => {
+    const target = returnFocusRef.current;
+    returnFocusRef.current = null;
+    target?.focus();
+    setPending(null);
+    return target;
+  }, []);
+
   useEffect(() => {
     if (!pending) return;
     const previousOverflow = document.body.style.overflow;
@@ -30,7 +38,7 @@ export function useVendorConfirmation() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        setPending(null);
+        closeAndRestoreFocus();
         return;
       }
       if (event.key !== "Tab") return;
@@ -57,11 +65,13 @@ export function useVendorConfirmation() {
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
-      const target = returnFocusRef.current;
-      returnFocusRef.current = null;
-      target?.focus();
     };
-  }, [pending]);
+  }, [pending, closeAndRestoreFocus]);
+
+  useEffect(() => () => {
+    returnFocusRef.current?.focus();
+    returnFocusRef.current = null;
+  }, []);
 
   function requestConfirmation(request: VendorConfirmationRequest) {
     returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -70,14 +80,18 @@ export function useVendorConfirmation() {
 
   async function confirmPending() {
     const action = pending?.onConfirm;
-    setPending(null);
-    if (action) await action();
+    const target = closeAndRestoreFocus();
+    try {
+      if (action) await action();
+    } finally {
+      if (target?.isConnected && !target.matches(":disabled")) target.focus();
+    }
   }
 
   const confirmationDialog = pending ? <div
     className="vendor-confirmation-backdrop"
     role="presentation"
-    onMouseDown={() => setPending(null)}
+    onMouseDown={closeAndRestoreFocus}
   >
     <section
       ref={dialogRef}
@@ -92,7 +106,7 @@ export function useVendorConfirmation() {
       <h2 id="vendor-confirmation-title">{pending.title}</h2>
       <p id="vendor-confirmation-body">{pending.body}</p>
       <div className="vendor-confirmation-actions">
-        <button className="button button-secondary" type="button" onClick={() => setPending(null)}>
+        <button className="button button-secondary" type="button" onClick={closeAndRestoreFocus}>
           {pending.cancelLabel ?? "Ακύρωση"}
         </button>
         <button className={pending.tone === "danger" ? "button vendor-confirmation-danger" : "button"} type="button" onClick={() => void confirmPending()}>
