@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import styles from "./ProductTryOnMe.module.css";
 import {
   TRY_ON_ACTIVE_SCOPE_KEY,
+  TRY_ON_AUTO_PREFIX,
   TRY_ON_LEGACY_MODEL_KEY,
   TRY_ON_LEGACY_PREVIEW_PREFIX,
   TRY_ON_MODEL_PREFIX,
@@ -14,6 +15,7 @@ import {
 const MODEL_PREFIX = TRY_ON_MODEL_PREFIX;
 const PREVIEW_PREFIX = TRY_ON_PREVIEW_PREFIX;
 const ACTIVE_SCOPE_KEY = TRY_ON_ACTIVE_SCOPE_KEY;
+const AUTO_PREFIX = TRY_ON_AUTO_PREFIX;
 const LEGACY_MODEL_KEY = TRY_ON_LEGACY_MODEL_KEY;
 const LEGACY_PREVIEW_PREFIX = TRY_ON_LEGACY_PREVIEW_PREFIX;
 const PREVIEW_TTL_MS = 5 * 60 * 1000;
@@ -85,6 +87,39 @@ function modelKey(scope: string): string {
 
 function previewKey(scope: string, productId: string): string {
   return `${PREVIEW_PREFIX}${scope}:${productId}`;
+}
+
+function autoModeKey(scope: string): string {
+  return `${AUTO_PREFIX}${scope}`;
+}
+
+function readAutoTryOn(scope: string): boolean {
+  const key = autoModeKey(scope);
+  try {
+    const value = window.localStorage.getItem(key);
+    if (value) return value !== "off";
+  } catch {
+    // Fall through to session storage.
+  }
+  try {
+    const value = window.sessionStorage.getItem(key);
+    return value !== "off";
+  } catch {
+    return true;
+  }
+}
+
+function storeAutoTryOn(scope: string, enabled: boolean): void {
+  const key = autoModeKey(scope);
+  const value = enabled ? "on" : "off";
+  try {
+    window.localStorage.setItem(key, value);
+    try { window.sessionStorage.removeItem(key); } catch {}
+    return;
+  } catch {
+    // Private browsing can reject localStorage.
+  }
+  try { window.sessionStorage.setItem(key, value); } catch {}
 }
 
 function photoFingerprint(value: string): string {
@@ -348,6 +383,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
   const [tryOnAvailable, setTryOnAvailable] = useState<boolean>();
   const [quota, setQuota] = useState<TryOnQuota>();
   const [quotaChecked, setQuotaChecked] = useState(false);
+  const [autoTryOnEnabled, setAutoTryOnEnabled] = useState(true);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [modelImage, setModelImage] = useState<string>();
   const [result, setResult] = useState<TryOnResult>();
@@ -403,6 +439,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
     setTryOnAvailable(undefined);
     setQuota(undefined);
     setQuotaChecked(false);
+    setAutoTryOnEnabled(true);
     setModelImage(undefined);
     setResult(undefined);
     setPreviewExpiresAt(undefined);
@@ -447,6 +484,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
           }
           if (!active) return;
           const cached = readPreview(scope, productId);
+          setAutoTryOnEnabled(readAutoTryOn(scope));
           setModelImage(readStoredModel(scope));
           setResult(cached?.result);
           setPreviewExpiresAt(cached?.expiresAt);
@@ -470,12 +508,12 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
 
   useEffect(() => {
     if (!sessionChecked || !quotaChecked || !csrfToken || !storageScope || !modelImage || result || autoStarted.current) return;
-    if (quota?.remaining === 0) return;
+    if (!autoTryOnEnabled || quota?.remaining === 0) return;
     autoStarted.current = true;
     void generate(modelImage, csrfToken, storageScope);
   // generate is deliberately driven only by resolved session/model/product state.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionChecked, quotaChecked, csrfToken, storageScope, modelImage, productId, result, quota?.remaining]);
+  }, [sessionChecked, quotaChecked, csrfToken, storageScope, modelImage, productId, result, quota?.remaining, autoTryOnEnabled]);
 
   async function choosePhoto(file: File | undefined) {
     if (quota?.remaining === 0) {
@@ -500,6 +538,17 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
       setError(messageFor(cause instanceof Error ? cause.message : "INVALID_TRY_ON_IMAGE"));
     } finally {
       setBusy("");
+    }
+  }
+
+  function toggleAutoTryOn() {
+    if (!storageScope) return;
+    const next = !autoTryOnEnabled;
+    storeAutoTryOn(storageScope, next);
+    setAutoTryOnEnabled(next);
+    if (next && modelImage && !result && quota?.remaining !== 0 && csrfToken) {
+      autoStarted.current = true;
+      void generate(modelImage, csrfToken, storageScope);
     }
   }
 
@@ -622,7 +671,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
             <span>{quota.used}/{quota.limit} χρησιμοποιήθηκαν</span>
           </div>
           <progress className={styles.quotaProgress} value={quota.used} max={quota.limit} aria-label={`${quota.used} από ${quota.limit} Try On προεπισκοπήσεις χρησιμοποιήθηκαν`} />
-          <small>Κάθε νέα προεπισκόπηση μετράει ως 1 χρήση. Η αποθήκευση look δεν μετράει. Επαναφορά {quotaResetLabel}.</small>
+          <small>Κάθε νέα προεπισκόπηση μετράει ως 1 χρήση. Η αποθήκευση look δεν μετράει. Το Auto Try On μπορεί να απενεργοποιηθεί για οικονομία χρήσεων. Επαναφορά {quotaResetLabel}.</small>
         </div>
       ) : null}
 
@@ -650,6 +699,15 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
         <>
           <div className={styles.modelControls}>
             <span>Η φωτογραφία σου είναι ενεργή για Try On Me.</span>
+            <button
+              className={styles.autoToggle}
+              type="button"
+              aria-pressed={autoTryOnEnabled}
+              onClick={toggleAutoTryOn}
+              disabled={Boolean(busy)}
+            >
+              Auto Try On: {autoTryOnEnabled ? "ON" : "OFF"}
+            </button>
             {!quotaExhausted ? (
               <label className={styles.textAction}>
                 Αλλαγή
@@ -679,7 +737,7 @@ export function ProductTryOnMe({ productId, productTitle }: { productId: string;
               disabled={Boolean(busy) || !storageScope || quotaExhausted}
               onClick={() => storageScope && void generate(modelImage, csrfToken, storageScope)}
             >
-              Δοκίμασε ξανά
+              {autoTryOnEnabled ? "Δοκίμασε ξανά" : "Δημιούργησε προεπισκόπηση"}
             </button>
           ) : null}
 
