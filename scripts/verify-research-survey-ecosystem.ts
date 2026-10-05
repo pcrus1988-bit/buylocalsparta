@@ -100,7 +100,7 @@ if (!reminderMigration.includes("ALTER TABLE public.research_invite_access_token
 if (!reminderMigration.includes("ALTER TABLE public.research_invite_messages ENABLE ROW LEVEL SECURITY;")) errors.push("invitation attempt RLS missing");
 if (!reminderMigration.includes("'invite_reminder'")) errors.push("invite_reminder job type missing from schema");
 if (!analysisPlanMigration.includes("CREATE TABLE public.research_analysis_plans")) errors.push("analysis preregistration table missing");
-if (!analysisPlanMigration.includes("research_analysis_plans_one_locked_per_study_idx")) errors.push("single locked analysis-plan invariant missing");
+if (!analysisPlanMigration.includes("research_analysis_plans_one_locked_per_instrument_idx")) errors.push("single locked analysis-plan invariant missing");
 if (!analysisPlanMigration.includes("research_analysis_plans_locked_immutable")) errors.push("locked analysis-plan immutability guard missing");
 if (!analysisPlanMigration.includes("ADD COLUMN analysis_plan_id")) errors.push("analysis runs are not bound to an analysis plan");
 if (!analysisPlanMigration.includes("kontamou.research.analysis-plan.v1")) errors.push("seeded analysis-plan contract missing");
