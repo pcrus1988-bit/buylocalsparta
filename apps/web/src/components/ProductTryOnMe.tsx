@@ -62,6 +62,8 @@ function messageFor(error: string): string {
   if (error === "TRY_ON_TIMEOUT") return "Η προεπισκόπηση άργησε περισσότερο από το αναμενόμενο. Δοκίμασε ξανά.";
   if (error === "TRY_ON_PRODUCT_UNSUPPORTED") return "Το συγκεκριμένο προϊόν δεν υποστηρίζεται ακόμη από το virtual try-on.";
   if (error === "TRY_ON_PRODUCT_IMAGE_REQUIRED") return "Χρειάζεται καθαρή φωτογραφία προϊόντος για να γίνει η δοκιμή.";
+  if (error === "TRY_ON_PRODUCT_IMAGE_LOAD_FAILED") return "Η φωτογραφία του προϊόντος δεν μπόρεσε να φορτωθεί για Try On Me. Δοκίμασε ξανά σε λίγο.";
+  if (error === "TRY_ON_MODEL_IMAGE_LOAD_FAILED") return "Η φωτογραφία σου δεν μπόρεσε να διαβαστεί από το Try On Me. Δοκίμασε να την ανεβάσεις ξανά.";
   if (error === "INVALID_TRY_ON_IMAGE") return "Χρησιμοποίησε καθαρή φωτογραφία JPG, PNG ή WebP.";
   if (error === "TRY_ON_IMAGE_TOO_LARGE") return "Η φωτογραφία είναι πολύ μεγάλη. Διάλεξε άλλη φωτογραφία.";
   if (error === "TRY_ON_STORAGE_NOT_CONFIGURED") return "Η αποθήκευση looks δεν είναι διαθέσιμη αυτή τη στιγμή.";
