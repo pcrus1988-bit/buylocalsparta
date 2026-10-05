@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import {
+  benjaminiHochbergAdjustedPValues,
   normal95ConfidenceInterval,
   normalTwoSidedPValue,
   researchWeightDiagnostics,
@@ -622,6 +623,17 @@ export async function runGreekRetailAnalysis(
 
   for (const group of comparisonGroups.values()) {
     group.sort((a, b) => a.level.localeCompare(b.level, "el"));
+    const pairs: Array<{
+      left: typeof group[number];
+      right: typeof group[number];
+      difference: number;
+      standardError: number;
+      confidence: Readonly<{ lower: number; upper: number }>;
+      zScore: number;
+      pValue: number;
+      weightedN: number | null;
+    }> = [];
+
     for (let leftIndex = 0; leftIndex < group.length; leftIndex += 1) {
       for (let rightIndex = leftIndex + 1; rightIndex < group.length; rightIndex += 1) {
         const left = group[leftIndex]!;
@@ -642,59 +654,68 @@ export async function runGreekRetailAnalysis(
               ? Number.POSITIVE_INFINITY
               : Number.NEGATIVE_INFINITY;
         const pValue = Number.isFinite(zScore)
-          ? normalTwoSidedPValue(zScore)
+          ? normalTwoSidedPValue(zScore) ?? 1
           : 0;
         const weightedN = left.weightedN != null && right.weightedN != null
           ? left.weightedN + right.weightedN
           : null;
-
-        await pool.query(`
-          INSERT INTO research_analysis_estimates (
-            analysis_run_id,metric_key,segment,estimate,standard_error,confidence_level,
-            ci_lower,ci_upper,unweighted_n,weighted_n,method,suppressed,metadata
-          )
-          VALUES (
-            $1,$2,$3::jsonb,$4,$5,0.95,$6,$7,$8,$9,
-            'pairwise_independent_strata_difference_v1',false,$10::jsonb
-          )
-        `, [
-          analysisRunId,
-          `${left.metricKey}.pairwise_difference`,
-          JSON.stringify({
-            comparisonDimension: left.dimension,
-            levelA: left.level,
-            levelB: right.level
-          }),
-          difference,
-          standardError,
-          confidence.lower,
-          confidence.upper,
-          left.unweightedN + right.unweightedN,
-          weightedN,
-          JSON.stringify({
-            format: "difference",
-            sourceMetricKey: left.metricKey,
-            sourceFormat: left.metadata.format ?? "mean",
-            comparisonDimension: left.dimension,
-            levelA: left.level,
-            levelB: right.level,
-            estimateA: left.estimate,
-            estimateB: right.estimate,
-            standardErrorA: left.standardError,
-            standardErrorB: right.standardError,
-            unweightedNA: left.unweightedN,
-            unweightedNB: right.unweightedN,
-            weightedNA: left.weightedN,
-            weightedNB: right.weightedN,
-            zScore: Number.isFinite(zScore) ? zScore : null,
-            pValue,
-            pValueAdjustment: "none",
-            exploratory: true,
-            independenceBasis: "disjoint_unions_of_sampling_strata"
-          })
-        ]);
-        estimateCount += 1;
+        pairs.push({ left, right, difference, standardError, confidence, zScore, pValue, weightedN });
       }
+    }
+
+    const adjustedPValues = benjaminiHochbergAdjustedPValues(pairs.map((pair) => pair.pValue));
+    for (let pairIndex = 0; pairIndex < pairs.length; pairIndex += 1) {
+      const pair = pairs[pairIndex]!;
+      const adjustedPValue = adjustedPValues[pairIndex] ?? 1;
+      await pool.query(`
+        INSERT INTO research_analysis_estimates (
+          analysis_run_id,metric_key,segment,estimate,standard_error,confidence_level,
+          ci_lower,ci_upper,unweighted_n,weighted_n,method,suppressed,metadata
+        )
+        VALUES (
+          $1,$2,$3::jsonb,$4,$5,0.95,$6,$7,$8,$9,
+          'pairwise_independent_strata_difference_v1',false,$10::jsonb
+        )
+      `, [
+        analysisRunId,
+        `${pair.left.metricKey}.pairwise_difference`,
+        JSON.stringify({
+          comparisonDimension: pair.left.dimension,
+          levelA: pair.left.level,
+          levelB: pair.right.level
+        }),
+        pair.difference,
+        pair.standardError,
+        pair.confidence.lower,
+        pair.confidence.upper,
+        pair.left.unweightedN + pair.right.unweightedN,
+        pair.weightedN,
+        JSON.stringify({
+          format: "difference",
+          sourceMetricKey: pair.left.metricKey,
+          sourceFormat: pair.left.metadata.format ?? "mean",
+          comparisonDimension: pair.left.dimension,
+          levelA: pair.left.level,
+          levelB: pair.right.level,
+          estimateA: pair.left.estimate,
+          estimateB: pair.right.estimate,
+          standardErrorA: pair.left.standardError,
+          standardErrorB: pair.right.standardError,
+          unweightedNA: pair.left.unweightedN,
+          unweightedNB: pair.right.unweightedN,
+          weightedNA: pair.left.weightedN,
+          weightedNB: pair.right.weightedN,
+          zScore: Number.isFinite(pair.zScore) ? pair.zScore : null,
+          pValue: pair.pValue,
+          rawPValueAdjustment: "none",
+          adjustedPValue,
+          adjustedPValueMethod: "benjamini_hochberg",
+          adjustmentFamily: `${pair.left.metricKey}:${pair.left.dimension}`,
+          exploratory: true,
+          independenceBasis: "disjoint_unions_of_sampling_strata"
+        })
+      ]);
+      estimateCount += 1;
     }
   }
 
