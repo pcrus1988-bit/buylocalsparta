@@ -103,6 +103,21 @@ Bands:
 
 Q07 values are normalized with `(answer - 1) / 4 * 100`. `Not applicable` is excluded from the denominator, not scored as zero. Dimensions are catalogue, growth and operations.
 
+### Pre-fieldwork analysis plan
+
+Schema 0420 adds `research_analysis_plans` as the immutable scientific contract that sits between the locked instrument and any analysis run.
+
+For Greek Retail 2026, `greek-retail-2026-plan-v1` is locked before pilot or fieldwork can start. The plan freezes:
+
+- the two primary outcomes: `digital_readiness.mean` and `retail_friction.mean`;
+- the locked-questionnaire descriptive outputs as pre-specified secondary analyses;
+- region/sector pairwise differences as explicitly exploratory analyses rather than retroactive primary hypotheses;
+- the weighting method, variance estimator, 95% confidence level and interval-withholding rules;
+- the minimum public unweighted base and small-cell disclosure rule;
+- QA gating and the interpretation rule that design-based sampling error requires maintained probability sampling.
+
+A locked plan is immutable and has its own SHA-256 fingerprint. `research_analysis_runs.analysis_plan_id` binds the code execution to that exact plan. The release snapshot embeds the plan version, lock timestamp, JSON contract and SHA-256 hash.
+
 ### Weighting
 
 `research_weights` separates:
@@ -117,7 +132,7 @@ Weight versions are not overwritten. A new weighting methodology creates a new v
 
 ### Variance and confidence intervals
 
-Analysis version `greek-retail-2026-analysis-v3` uses `stratified_srs_fpc_v1` for design-aware variance when the estimate is a whole-study, region or sector estimate that can be expressed as a union of the actual sampling strata. The estimator applies the finite-population correction within each contributing stratum and publishes a 95% normal confidence interval.
+Analysis version `greek-retail-2026-analysis-v4` is bound to the locked analysis plan and uses `stratified_srs_fpc_v1` for design-aware variance when the estimate is a whole-study, region or sector estimate that can be expressed as a union of the actual sampling strata. The estimator applies the finite-population correction within each contributing stratum and publishes a 95% normal confidence interval.
 
 The engine deliberately withholds an interval when any of the following is true:
 - a contributing stratum has fewer than two analyzed responses;
@@ -127,7 +142,7 @@ The engine deliberately withholds an interval when any of the following is true:
 
 This is a conservative disclosure rule: absence of an interval means the implemented design-based estimator does not justify one, not that uncertainty is zero.
 
-For the two headline 0–100 indices, analysis v3 also creates exploratory pairwise differences across region and sector levels when both component estimates have design-supported standard errors. Because these domains are disjoint unions of sampling strata, the difference standard error is calculated from the two component variances. Each comparison freezes A−B, its 95% interval, z-score and raw two-sided normal p-value. Within each metric × comparison-dimension family, the engine also freezes a Benjamini–Hochberg false-discovery-rate adjusted q-value. The raw p-value is preserved separately, and the adjustment family/method are explicit in metadata. Pairwise output remains exploratory evidence and must be interpreted with effect size, uncertainty, sample bases and the number of comparisons rather than a mechanical threshold rule.
+For the two headline 0–100 indices, analysis v4 also creates exploratory pairwise differences across region and sector levels when both component estimates have design-supported standard errors. Because these domains are disjoint unions of sampling strata, the difference standard error is calculated from the two component variances. Each comparison freezes A−B, its 95% interval, z-score and raw two-sided normal p-value. Within each metric × comparison-dimension family, the engine also freezes a Benjamini–Hochberg false-discovery-rate adjusted q-value. The raw p-value is preserved separately, and the adjustment family/method are explicit in metadata. Pairwise output remains exploratory evidence and must be interpreted with effect size, uncertainty, sample bases and the number of comparisons rather than a mechanical threshold rule.
 
 ### Quality review
 
@@ -135,9 +150,9 @@ Automated completion checks can append a `review` decision without modifying the
 
 ### Analysis and publication
 
-- `research_analysis_runs` records code version, instrument version, weight version, parameters and dataset hash.
+- `research_analysis_runs` records the immutable analysis-plan ID together with code version, instrument version, weight version, parameters and dataset hash.
 - `research_release_snapshots` records the exact analysis run, methodology JSON, dataset SHA-256, artifact SHA-256, public URL and release version.
-- The frozen methodology now embeds the exact locked questionnaire wording/configuration, the recruitment template(s) actually used for the sampled fieldwork, overall and per-stratum sent/delivered/opened/started/completed/withdrawn counts, explicit conversion-rate denominators, and the latest final sample-disposition counts. These fieldwork facts therefore remain attached to the release even after the live study continues to evolve operationally.
+- The frozen methodology embeds the locked analysis-plan version/hash/JSON, exact questionnaire wording/configuration, the recruitment template(s) actually used for the sampled fieldwork, overall and per-stratum sent/delivered/opened/started/completed/withdrawn counts, explicit conversion-rate denominators, and the latest final sample-disposition counts. These fieldwork facts therefore remain attached to the release even after the live study continues to evolve operationally.
 - Publishing a release queues a results-notification worker. It selects only completed responses whose latest `results_notification` consent is granted; marketing consent is neither read nor required.
 - `research_participant_deliveries` stores the operational state and content hashes for thank-you and results messages. `research_participant_delivery_events` is append-only evidence for planned/sending/sent/delivered/opened/bounced/complained/failed outcomes.
 - A published chart/table must therefore be traceable to a release snapshot and analysis run.
@@ -237,6 +252,8 @@ A release is not scientifically ready until it has:
 - weighting version and diagnostics
 - unweighted and weighted bases for published estimates
 - quality/exclusion rules
+- locked pre-fieldwork analysis-plan version + SHA-256 fingerprint
+- primary/secondary/exploratory classification of published analyses
 - analysis code version + dataset hash
 - weighting dispersion / Kish effective sample size diagnostics
 - pairwise comparison method, intervals, raw p-values, FDR-adjusted q-values and explicit adjustment family where comparative inference is published
@@ -253,14 +270,14 @@ The research schema is deployed through the repository's checksum-aware migratio
 `.github/workflows/research-survey-schema-rollout.yml` is a manual-only production workflow. Its default execution is preflight-only. Before any mutation it:
 
 - verifies the immutable migration checksum manifest;
-- requires the repository migration head to be exactly 419;
-- requires the production application ledger to be either clean schema 415 or already-complete schema 419;
+- requires the repository migration head to be exactly 420;
+- requires the production application ledger to be either clean schema 415 or already-complete schema 420;
 - rejects a schema-415 database if any key research table already exists, preventing a partial-state rollout;
 - uses the protected `production` environment and its `DATABASE_URL` secret.
 
-Only an explicit workflow dispatch with `apply=true` runs `npm run db:migrate`. The existing migrator applies missing SQL and inserts the exact filename/SHA-256 into `public.schema_migrations` in the same guarded migration transaction. Postcheck then requires schema 419 and the key research relations before application readiness is evaluated.
+Only an explicit workflow dispatch with `apply=true` runs `npm run db:migrate`. The existing migrator applies missing SQL and inserts the exact filename/SHA-256 into `public.schema_migrations` in the same guarded migration transaction. Postcheck then requires schema 420 and the key research relations, including the locked analysis-plan table, before application readiness is evaluated.
 
-The rollout workflow does not enable research email delivery or start fieldwork. Those remain separate governed actions.
+The rollout workflow does not enable research email delivery or start fieldwork. Those remain separate governed actions. Pilot and fielding transitions additionally fail closed unless a locked analysis plan exists for the active instrument.
 
 ## Production research-delivery configuration
 
