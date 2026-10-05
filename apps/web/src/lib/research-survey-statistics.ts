@@ -153,6 +153,25 @@ export function normalTwoSidedPValue(zScore: number): number | undefined {
   return Math.max(0, Math.min(1, 2 * (1 - cdf)));
 }
 
+export function benjaminiHochbergAdjustedPValues(rawPValues: readonly number[]): readonly number[] {
+  if (!rawPValues.length) return [];
+  const indexed = rawPValues.map((raw, index) => ({
+    index,
+    p: Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 1
+  })).sort((a, b) => a.p - b.p || a.index - b.index);
+
+  const adjusted = new Array<number>(indexed.length);
+  let runningMinimum = 1;
+  for (let rankIndex = indexed.length - 1; rankIndex >= 0; rankIndex -= 1) {
+    const item = indexed[rankIndex]!;
+    const rank = rankIndex + 1;
+    const candidate = Math.min(1, item.p * indexed.length / rank);
+    runningMinimum = Math.min(runningMinimum, candidate);
+    adjusted[item.index] = runningMinimum;
+  }
+  return adjusted;
+}
+
 
 export type StratumAllocationInput = Readonly<{ id: string; populationCount: number }>;
 export type StratumAllocation = Readonly<{ id: string; populationCount: number; sampleCount: number }>;
