@@ -448,7 +448,7 @@ export async function buildGreekRetailRelease(
       JOIN research_sample_units psu ON psu.id=ri.sample_unit_id
       WHERE ri.study_id=$1
         AND ri.fieldwork_phase='pilot'
-        AND ri.status <> 'expired'
+        AND ri.sent_at IS NOT NULL
     )
     SELECT
       (SELECT count(DISTINCT frame_unit_id)::int FROM pilot_invites) AS exposed_units,
