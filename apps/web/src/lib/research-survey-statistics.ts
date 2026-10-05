@@ -12,7 +12,7 @@ export type StratifiedVarianceResult = Readonly<{
   standardError?: number;
   variance?: number;
   confidenceLevel?: number;
-  reason?: "no_observations" | "item_nonresponse" | "insufficient_stratum_n" | "invalid_design_weight";
+  reason?: "no_observations" | "item_nonresponse" | "insufficient_stratum_n" | "invalid_design_weight" | "unequal_within_stratum_weights";
 }>;
 
 const Z_95 = 1.959963984540054;
@@ -52,6 +52,12 @@ export function stratifiedSrsMeanVariance(
     const values = valuesByStratum.get(stratumId) ?? [];
     if (values.length !== weights.length) return { reason: "item_nonresponse" };
     if (values.length < 2) return { reason: "insufficient_stratum_n" };
+
+    const firstWeight = weights[0]!;
+    const tolerance = Math.max(1e-9, Math.abs(firstWeight) * 1e-9);
+    if (weights.some((weight) => Math.abs(weight - firstWeight) > tolerance)) {
+      return { reason: "unequal_within_stratum_weights" };
+    }
 
     const population = weights.reduce((sum, weight) => sum + weight, 0);
     const sampleN = values.length;
