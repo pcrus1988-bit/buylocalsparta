@@ -239,6 +239,7 @@ if (!surveyRuntime.includes("greek-retail-2026-fieldwork-closeout-v1")) errors.p
 if (!jobs.includes("gemiResearchFrameRecords")) errors.push("GEMI frame worker bridge missing");
 if (!jobs.includes("stratified-hash-rank-v2")) errors.push("minimum-aware reproducible sample algorithm missing");
 if (!jobs.includes("RESEARCH_SAMPLE_REDRAW_AFTER_CONTACT")) errors.push("sample draw is not frozen after participant contact");
+if (!jobs.includes("RESEARCH_PILOT_SAMPLE_TARGET_INVALID")) errors.push("pilot diagnostic sample bounds are not separated from main sampling");
 if (!jobs.includes("pfu.external_key_hash=fu.external_key_hash")) errors.push("pilot holdout does not survive frame refreshes");
 if (!jobs.includes("processInviteBatchJob")) errors.push("worker-managed invitation delivery missing");
 if (!jobs.includes("processRewardDeliveryJob")) errors.push("worker-managed reward delivery missing");
@@ -298,6 +299,7 @@ if (!analysis.includes('ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v6"'
 if (!analysis.includes("ri.fieldwork_phase='main'")) errors.push("analysis does not isolate main-fieldwork responses");
 if (!jobs.includes("pri.sent_at IS NOT NULL")) errors.push("main sample does not durably exclude pilot-exposed businesses");
 if (!surveyRuntime.includes("RESEARCH_PILOT_CLOSE_CONTACT_JOB_RUNNING")) errors.push("pilot closeout does not guard running contact jobs");
+if (!surveyRuntime.includes("RESEARCH_FIELDWORK_CLOSE_REQUIRES_MAIN_SAMPLE")) errors.push("main fieldwork can close without a governed sample");
 if (!surveyRuntime.includes("'sample_draw','invite_batch','invite_reminder'")) errors.push("fieldwork phase transitions do not serialize sample/contact jobs");
 if (!surveyRuntime.includes("phasePopulation: numberValue(row.phase_population)")) errors.push("admin sample planner is not using phase-aware population");
 if (!surveyRuntime.includes("pilot_ended_at")) errors.push("pilot closeout timestamp missing");
