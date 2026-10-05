@@ -552,13 +552,17 @@ export async function buildGreekRetailRelease(
       completedAt: study.analysis_completed_at ?? null,
       varianceMethod,
       publicMinimumBase: numberValue(parameters.publicMinimumBase) || 30,
-      weightDiagnostics: objectValue(parameters.weightDiagnostics)
+      weightDiagnostics: objectValue(parameters.weightDiagnostics),
+      experimentDiagnostics: objectValue(parameters.experimentDiagnostics)
     },
     disclosure: {
       smallBaseSuppression: true,
       confidenceIntervalsPublished: varianceMethod !== "not_estimated",
       conventionalMarginOfErrorPublished: false,
-      prespecifiedAnalysisPlanPublished: true
+      prespecifiedAnalysisPlanPublished: true,
+      randomizedExperimentExploratoryPublished: estimatesResult.rows.some(
+        (row) => text(row.method) === "randomized_profile_amce_clustered_v1" && !Boolean(row.suppressed)
+      )
     },
     limitations: [
       "The sampling frame depends on the frozen G.E.MI. source snapshot and the contact points available for that frame.",
@@ -566,6 +570,7 @@ export async function buildGreekRetailRelease(
       "Non-response adjustment is performed within the governed sampling strata.",
       "Reminder and reissue emails are counted as contact attempts only; they reuse the canonical invite identity and therefore do not inflate sent-invitation or response-rate denominators.",
       "The locked pre-fieldwork analysis plan distinguishes pre-specified primary and secondary analyses from explicitly exploratory pairwise comparisons; later analytical additions must be labelled rather than silently back-dated into the plan.",
+      "The optional EXP01 randomized profile experiment is analyzed only as exploratory evidence. Its attribute-level contrasts were added after the locked analysis plan, are labelled not preregistered, and use respondent-clustered weighted uncertainty rather than the descriptive stratified-SRS variance estimator.",
       varianceMethod === "not_estimated"
         ? "Design-based variance has not been estimated for this release; confidence intervals and a conventional margin of sampling error are therefore not published."
         : "Design-aware confidence intervals use the recorded stratified sampling method with finite-population correction where the metric has complete observations within contributing strata. Intervals are withheld for unsupported post-hoc domains or insufficient stratum bases."
