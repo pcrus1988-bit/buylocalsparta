@@ -57,7 +57,7 @@ export default async function ResearchSurveysAdminPage() {
     </div></section>
 
     {!overview.databaseConfigured
-      ? <section className="shell vendor-section"><WorkspaceEmptyState title="Research database is not available." body="The admin surface will activate after schema 418 is deployed." /></section>
+      ? <section className="shell vendor-section"><WorkspaceEmptyState title="Research database is not available." body="The admin surface will activate after schema 419 is deployed." /></section>
       : overview.studies.length === 0
         ? <section className="shell vendor-section"><WorkspaceEmptyState title="No research studies have been created." /></section>
         : overview.studies.map((study) => <div key={study.id}>
@@ -126,6 +126,9 @@ export default async function ResearchSurveysAdminPage() {
               csrfToken={principal.csrfToken}
               studyStatus={study.status}
               recruitmentTemplateVersion={study.recruitmentTemplateVersion}
+              reminderTemplateVersion={study.reminderTemplateVersion}
+              reminderSent={study.reminderSent}
+              reminderFailed={study.reminderFailed}
               activeContacts={study.activeContacts}
               completed={study.completed}
               rewardEligible={study.rewardEligible}
@@ -162,7 +165,7 @@ export default async function ResearchSurveysAdminPage() {
             <div className="analytics-workflow-grid">
               <article className="analytics-workflow-card"><span>01 · Frame</span><strong>Frozen target population</strong><small>G.E.MI. population snapshot, eligibility rules, stratum counts and content hash.</small></article>
               <article className="analytics-workflow-card"><span>02 · Sample</span><strong>Reproducible selection</strong><small>Algorithm version, random seed, inclusion probability and base weight for every selected unit.</small></article>
-              <article className="analytics-workflow-card"><span>03 · Fieldwork</span><strong>Tokenized invitations</strong><small>Random link token stored only as SHA-256, separate contact record and explicit research consent.</small></article>
+              <article className="analytics-workflow-card"><span>03 · Fieldwork</span><strong>Tokenized invitations + governed reminders</strong><small>One canonical invite/response identity, opaque SHA-256 token aliases for recontact, separate contact attempts and explicit research consent.</small></article>
               <article className="analytics-workflow-card"><span>04 · Evidence</span><strong>Immutable completed response</strong><small>Questionnaire version, raw answers, optional experiment assignment and scoring version.</small></article>
               <article className="analytics-workflow-card"><span>05 · Analysis</span><strong>Weights + code version</strong><small>Base, non-response and calibration weights tied to an auditable analysis run.</small></article>
               <article className="analytics-workflow-card"><span>06 · Release</span><strong>Public reproducibility snapshot</strong><small>Methodology JSON, dataset hash, artifact hash and exact publication version.</small></article>
