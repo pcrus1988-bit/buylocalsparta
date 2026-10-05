@@ -28,6 +28,7 @@ export function AccountSavedTryOnsPanel({ csrfToken }: { csrfToken: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [selected, setSelected] = useState<readonly string[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -59,11 +60,28 @@ export function AccountSavedTryOnsPanel({ csrfToken }: { csrfToken: string }) {
       const payload = await response.json() as { removed?: boolean; error?: string };
       if (!response.ok || !payload.removed) throw new Error(payload.error || "Δεν ήταν δυνατή η διαγραφή.");
       setItems((current) => current.filter((item) => item.id !== id));
+      setSelected((current) => current.filter((selectedId) => selectedId !== id));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η διαγραφή.");
     } finally {
       setBusy("");
     }
+  }
+
+  const selectedItems = selected
+    .map((id) => items.find((item) => item.id === id))
+    .filter((item): item is SavedTryOn => Boolean(item));
+
+  function toggleCompare(id: string) {
+    setError("");
+    setSelected((current) => {
+      if (current.includes(id)) return current.filter((selectedId) => selectedId !== id);
+      if (current.length >= 3) {
+        setError("Μπορείς να συγκρίνεις έως 3 Try On looks ταυτόχρονα.");
+        return current;
+      }
+      return [...current, id];
+    });
   }
 
   return (
@@ -80,16 +98,51 @@ export function AccountSavedTryOnsPanel({ csrfToken }: { csrfToken: string }) {
       {error ? <p className={styles.error} role="alert">{error}</p> : null}
       {loading ? <div className={styles.empty}>Φόρτωση Try On looks…</div> : null}
 
+      {!loading && selectedItems.length ? (
+        <aside className={styles.compareTray} aria-label="Σύγκριση Try On looks">
+          <div className={styles.compareHeader}>
+            <div>
+              <strong>{selectedItems.length === 1 ? "1 look επιλεγμένο" : `${selectedItems.length} looks επιλεγμένα`}</strong>
+              <span>{selectedItems.length < 2 ? "Επίλεξε ακόμη ένα για σύγκριση." : "Σύγκρινε τα looks δίπλα-δίπλα πριν αποφασίσεις."}</span>
+            </div>
+            <button type="button" onClick={() => setSelected([])}>Καθαρισμός</button>
+          </div>
+          {selectedItems.length >= 2 ? (
+            <div className={styles.compareGrid}>
+              {selectedItems.map((item) => (
+                <article className={styles.compareItem} key={item.id}>
+                  <img src={item.imageUrl} alt={`Σύγκριση Try On · ${item.productTitle}`} />
+                  <div>
+                    <strong>{item.productTitle}</strong>
+                    <Link href={`/product/${encodeURIComponent(item.productSlug)}`}>Προϊόν →</Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
+        </aside>
+      ) : null}
+
       {!loading && items.length ? (
         <div className={styles.grid}>
-          {items.map((item) => (
-            <article className={styles.card} key={item.id}>
+          {items.map((item) => {
+            const isSelected = selected.includes(item.id);
+            return (
+            <article className={isSelected ? `${styles.card} ${styles.cardSelected}` : styles.card} key={item.id}>
               <Link href={`/product/${encodeURIComponent(item.productSlug)}`} className={styles.imageLink}>
                 <img src={item.imageUrl} alt={`Try On Me · ${item.productTitle}`} loading="lazy" />
               </Link>
               <div className={styles.copy}>
                 <small>{dateLabel(item.createdAt)}</small>
                 <h3>{item.productTitle}</h3>
+                <button
+                  className={isSelected ? `${styles.compareButton} ${styles.compareButtonSelected}` : styles.compareButton}
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => toggleCompare(item.id)}
+                >
+                  {isSelected ? "✓ Στη σύγκριση" : "+ Σύγκριση"}
+                </button>
                 <div className={styles.actions}>
                   <Link href={`/product/${encodeURIComponent(item.productSlug)}`}>Άνοιξε το προϊόν →</Link>
                   <button type="button" disabled={Boolean(busy)} onClick={() => void remove(item.id)}>
@@ -98,7 +151,8 @@ export function AccountSavedTryOnsPanel({ csrfToken }: { csrfToken: string }) {
                 </div>
               </div>
             </article>
-          ))}
+          );
+          })}
         </div>
       ) : null}
 
