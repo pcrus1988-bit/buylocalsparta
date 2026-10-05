@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { normalizeTryOnModelPhoto, readTryOnModelPhoto, reconcileTryOnBrowserScope, storeTryOnModelPhoto } from "../lib/try-on-browser-profile";
 import { TryOnGenerationOverlay3D } from "./TryOnGenerationOverlay3D";
 import styles from "./FittingRoomTryOn.module.css";
@@ -83,6 +83,15 @@ export function FittingRoomTryOn({
   const insufficientQuota = quota ? quota.remaining < passesStillNeeded : false;
 
   const summary = useMemo(() => garments.map((garment) => layerLabel(garment.slot)).join(" + "), [garments]);
+  const outfitKey = useMemo(() => garments.map((garment) => `${garment.slot}:${garment.id}`).join("|"), [garments]);
+
+  useEffect(() => {
+    setOpen(false);
+    setFinalImage(undefined);
+    setResume(undefined);
+    setStage(0);
+    setError("");
+  }, [lookName, outfitKey]);
 
   async function resolveSession() {
     const response = await fetch("/api/account/session", { cache: "no-store" });
