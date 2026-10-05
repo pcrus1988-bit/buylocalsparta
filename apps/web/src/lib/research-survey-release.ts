@@ -240,10 +240,28 @@ export async function buildGreekRetailRelease(
   const counts = fieldworkCounts.rows[0] ?? {};
 
   const strata = await pool.query<SqlRow>(`
-    SELECT code,label,dimensions,population_count,target_complete_count
-    FROM research_strata
-    WHERE frame_snapshot_id=$1
-    ORDER BY code
+    SELECT
+      st.code,
+      st.label,
+      st.dimensions,
+      st.population_count,
+      st.target_complete_count,
+      (
+        SELECT count(DISTINCT fu.id)::int
+        FROM research_frame_units fu
+        WHERE fu.stratum_id=st.id
+          AND EXISTS (
+            SELECT 1
+            FROM research_contact_points cp
+            WHERE cp.frame_unit_id=fu.id
+              AND cp.contact_type='email'
+              AND cp.suppression_status='active'
+              AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+          )
+      ) AS active_email_units
+    FROM research_strata st
+    WHERE st.frame_snapshot_id=$1
+    ORDER BY st.code
   `, [frameSnapshotId]);
 
   const estimatesResult = await pool.query<SqlRow>(`
@@ -286,7 +304,11 @@ export async function buildGreekRetailRelease(
         label: text(row.label),
         dimensions: objectValue(row.dimensions),
         populationCount: numberValue(row.population_count),
-        targetCompleteCount: numberValue(row.target_complete_count)
+        targetCompleteCount: numberValue(row.target_complete_count),
+        activeEmailUnits: numberValue(row.active_email_units),
+        emailContactabilityRate: numberValue(row.population_count) > 0
+          ? numberValue(row.active_email_units) / numberValue(row.population_count)
+          : 0
       }))
     },
     sample: {
@@ -300,6 +322,10 @@ export async function buildGreekRetailRelease(
     },
     fieldwork: {
       startsAt: study.fieldwork_starts_at ?? null,
+      activeEmailFrameUnits: strata.rows.reduce((sum, row) => sum + numberValue(row.active_email_units), 0),
+      emailContactabilityRate: numberValue(design.population_size) > 0
+        ? strata.rows.reduce((sum, row) => sum + numberValue(row.active_email_units), 0) / numberValue(design.population_size)
+        : 0,
       endsAt: study.fieldwork_ends_at ?? null,
       selected: numberValue(counts.selected),
       sent: numberValue(counts.sent),
@@ -327,6 +353,7 @@ export async function buildGreekRetailRelease(
     },
     limitations: [
       "The sampling frame depends on the frozen G.E.MI. source snapshot and the contact points available for that frame.",
+      "Email contactability is reported for the frozen frame and by sampling stratum. Email-only fieldwork can still be biased if availability of a usable public email is related to survey outcomes after conditioning on the weighting strata.",
       "Non-response adjustment is performed within the governed sampling strata.",
       varianceMethod === "not_estimated"
         ? "Design-based variance has not been estimated for this release; confidence intervals and a conventional margin of sampling error are therefore not published."
