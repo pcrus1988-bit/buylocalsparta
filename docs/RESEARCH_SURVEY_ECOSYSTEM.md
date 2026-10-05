@@ -74,6 +74,7 @@ The sample planner is part of the reproducibility chain rather than transient ad
 - Pilot and main designs are phase-bound to the exact sample draw by a composite foreign key, so a planner record cannot be attached to a draw from another study or fieldwork phase.
 - The sample worker derives contactability from the same frozen frame and pilot-holdout boundary used for the draw. The assumptions and allocations are serialized as `kontamou.research.sample-design.v1` and SHA-256 fingerprinted.
 - The public release artifact freezes the main sample-design fingerprint and summary assumptions, allowing readers to distinguish the planned fieldwork design from the response rate that actually occurred.
+- Schema 0425 hardens this at the database boundary: design rows can only be inserted while their draw is still `draft`, draw/study/phase/target identity must match, each stratum must belong to the draw frame, and persisted selected counts must match the actual sample units before the draw can be locked.
 
 ### Invitations
 
@@ -305,12 +306,12 @@ The research schema is deployed through the repository's checksum-aware migratio
 `.github/workflows/research-survey-schema-rollout.yml` is a manual-only production workflow. Its default execution is preflight-only. Before any mutation it:
 
 - verifies the immutable migration checksum manifest;
-- requires the repository migration head to be exactly 424;
-- requires the production application ledger to be either clean schema 415 or already-complete schema 424;
+- requires the repository migration head to be exactly 425;
+- requires the production application ledger to be either clean schema 415 or already-complete schema 425;
 - rejects a schema-415 database if any key research table already exists, preventing a partial-state rollout;
 - uses the protected `production` environment and its `DATABASE_URL` secret.
 
-Only an explicit workflow dispatch with `apply=true` runs `npm run db:migrate`. The existing migrator applies missing SQL and inserts the exact filename/SHA-256 into `public.schema_migrations` in the same guarded migration transaction. Postcheck then requires schema 424 and the key research relations, including the locked analysis-plan and immutable sample-design tables, before application readiness is evaluated.
+Only an explicit workflow dispatch with `apply=true` runs `npm run db:migrate`. The existing migrator applies missing SQL and inserts the exact filename/SHA-256 into `public.schema_migrations` in the same guarded migration transaction. Postcheck then requires schema 425 and the key research relations, including the locked analysis-plan and immutable sample-design tables, before application readiness is evaluated.
 
 The rollout workflow does not enable research email delivery or start fieldwork. Those remain separate governed actions. Pilot and fielding transitions additionally fail closed unless a locked analysis plan exists for the active instrument.
 
