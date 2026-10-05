@@ -532,6 +532,24 @@ CREATE TRIGGER research_questions_draft_instrument_only
 BEFORE INSERT OR UPDATE OR DELETE ON public.research_questions
 FOR EACH ROW EXECUTE FUNCTION public.research_guard_locked_instrument();
 
+CREATE OR REPLACE FUNCTION public.research_guard_recruitment_template_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $
+BEGIN
+  IF OLD.status IS DISTINCT FROM 'draft' THEN
+    RAISE EXCEPTION 'research recruitment template is immutable in status %', OLD.status;
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$;
+
+CREATE TRIGGER research_recruitment_templates_locked_immutable
+BEFORE UPDATE OR DELETE ON public.research_recruitment_templates
+FOR EACH ROW EXECUTE FUNCTION public.research_guard_recruitment_template_mutation();
+
 INSERT INTO public.research_studies (
   id, slug, title, subtitle, sponsor, population_definition, methodology_summary, status, default_locale
 ) VALUES (
