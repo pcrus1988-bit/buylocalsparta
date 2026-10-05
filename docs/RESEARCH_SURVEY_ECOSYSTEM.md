@@ -127,7 +127,7 @@ The engine deliberately withholds an interval when any of the following is true:
 
 This is a conservative disclosure rule: absence of an interval means the implemented design-based estimator does not justify one, not that uncertainty is zero.
 
-For the two headline 0–100 indices, analysis v3 also creates exploratory pairwise differences across region and sector levels when both component estimates have design-supported standard errors. Because these domains are disjoint unions of sampling strata, the difference standard error is calculated from the two component variances. Each comparison freezes A−B, its 95% interval, z-score and two-sided normal p-value. P-values are explicitly marked `pValueAdjustment: none`: there is no family-wise or false-discovery correction, so pairwise output is exploratory evidence and must be interpreted with effect size, uncertainty, sample bases and the number of comparisons rather than a mechanical p<0.05 rule.
+For the two headline 0–100 indices, analysis v3 also creates exploratory pairwise differences across region and sector levels when both component estimates have design-supported standard errors. Because these domains are disjoint unions of sampling strata, the difference standard error is calculated from the two component variances. Each comparison freezes A−B, its 95% interval, z-score and raw two-sided normal p-value. Within each metric × comparison-dimension family, the engine also freezes a Benjamini–Hochberg false-discovery-rate adjusted q-value. The raw p-value is preserved separately, and the adjustment family/method are explicit in metadata. Pairwise output remains exploratory evidence and must be interpreted with effect size, uncertainty, sample bases and the number of comparisons rather than a mechanical threshold rule.
 
 ### Quality review
 
@@ -221,7 +221,7 @@ A release is not scientifically ready until it has:
 - quality/exclusion rules
 - analysis code version + dataset hash
 - weighting dispersion / Kish effective sample size diagnostics
-- pairwise comparison method, intervals and explicit multiple-comparison disclosure where comparative inference is published
+- pairwise comparison method, intervals, raw p-values, FDR-adjusted q-values and explicit adjustment family where comparative inference is published
 - limitations
 - release artifact hash
 
