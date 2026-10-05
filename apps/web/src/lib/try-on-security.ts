@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { accountAuthSecret } from "./account-runtime";
+import { accountAuthSecret } from "./account-auth-secret.ts";
 
 const SAVE_TOKEN_VERSION = "v1";
 const SAVE_TOKEN_TTL_MS = 5 * 60 * 1000;
