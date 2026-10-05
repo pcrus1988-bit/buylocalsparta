@@ -114,7 +114,7 @@ function experimentLevelLabel(attribute: unknown, value: unknown): string {
     stock_sync: { none: "Χωρίς συγχρονισμό", daily: "Καθημερινά", realtime: "Σχεδόν πραγματικός χρόνος" },
     operations: { listing_only: "Μόνο προβολή", payments: "Πληρωμές", payments_shipping_returns: "Πληρωμές + αποστολές + επιστροφές" }
   };
-  return labels[attributeKey]?.[normalized] ?? normalized || "—";
+  return (labels[attributeKey]?.[normalized] ?? normalized) || "—";
 }
 
 function formatPercentagePointEffect(value: unknown): string {
