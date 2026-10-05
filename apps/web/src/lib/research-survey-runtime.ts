@@ -1311,6 +1311,75 @@ export async function transitionResearchStudy(
       instrumentStatus = "fielding";
     } else if (input.action === "close_fieldwork") {
       if (!["pilot", "fielding"].includes(studyStatus)) throw new Error("RESEARCH_LIFECYCLE_INVALID");
+
+      // Seal the selected sample's latest disposition before fieldwork becomes
+      // immutable. Started-but-unfinished responses become partial interviews;
+      // every other still-open case is conservatively retained as unknown
+      // eligibility instead of being silently treated as a refusal or eligible
+      // nonresponse.
+      await client.query(`
+        WITH active_draw AS (
+          SELECT id
+          FROM research_sample_draws
+          WHERE study_id=$1 AND status IN ('locked','fielded')
+          ORDER BY drawn_at DESC NULLS LAST,created_at DESC
+          LIMIT 1
+        ),
+        latest AS (
+          SELECT DISTINCT ON (e.sample_unit_id)
+            e.sample_unit_id,
+            e.disposition_code
+          FROM research_sample_disposition_events e
+          JOIN research_sample_units su ON su.id=e.sample_unit_id
+          WHERE su.sample_draw_id=(SELECT id FROM active_draw)
+          ORDER BY e.sample_unit_id,e.occurred_at DESC,e.id DESC
+        ),
+        response_state AS (
+          SELECT
+            su.id AS sample_unit_id,
+            latest.disposition_code AS previous_disposition,
+            rr.status AS response_status
+          FROM research_sample_units su
+          LEFT JOIN latest ON latest.sample_unit_id=su.id
+          LEFT JOIN research_invites ri
+            ON ri.sample_unit_id=su.id
+           AND ri.study_id=$1
+          LEFT JOIN research_responses rr ON rr.invite_id=ri.id
+          WHERE su.sample_draw_id=(SELECT id FROM active_draw)
+        )
+        INSERT INTO research_sample_disposition_events (
+          sample_unit_id,disposition_code,eligibility,source,metadata
+        )
+        SELECT
+          sample_unit_id,
+          CASE WHEN response_status='in_progress' THEN 'partial' ELSE 'unknown_eligibility' END,
+          CASE WHEN response_status='in_progress' THEN 'eligible' ELSE 'unknown' END,
+          'fieldwork_closeout',
+          jsonb_build_object(
+            'previousDisposition',COALESCE(previous_disposition,'missing'),
+            'closeoutVersion','greek-retail-2026-fieldwork-closeout-v1'
+          )
+        FROM response_state
+        WHERE previous_disposition IS NULL
+           OR previous_disposition IN ('selected','contact_pending','invited','delivered','opened','started')
+      `, [row.study_id]);
+
+      await client.query(`
+        WITH expired AS (
+          UPDATE research_invites
+          SET status='expired'
+          WHERE study_id=$1
+            AND status IN ('created','sent','opened','started')
+          RETURNING id
+        )
+        INSERT INTO research_invite_events (invite_id,event_type,metadata)
+        SELECT
+          id,
+          'expired',
+          '{"source":"fieldwork_closeout","closeoutVersion":"greek-retail-2026-fieldwork-closeout-v1"}'::jsonb
+        FROM expired
+      `, [row.study_id]);
+
       await client.query(`
         UPDATE research_studies SET status = 'closed', fieldwork_ends_at = now(), updated_at = now()
         WHERE id = $1
