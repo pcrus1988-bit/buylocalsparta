@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-const migrationPath = "db/migrations/0412_research_survey_ecosystem.sql";
-const checksumPath = "db/migrations/checksums.0412.json";
+const migrationPath = "db/migrations/0414_research_survey_ecosystem.sql";
+const checksumPath = "db/migrations/checksums.0414.json";
 const migration = readFileSync(migrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
@@ -45,10 +45,10 @@ const expectedTables = [
 
 const errors: string[] = [];
 const sha = createHash("sha256").update(migration, "utf8").digest("hex");
-if (checksums["0412_research_survey_ecosystem.sql"] !== sha) {
-  errors.push("0412 checksum does not match migration bytes");
+if (checksums["0414_research_survey_ecosystem.sql"] !== sha) {
+  errors.push("0414 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 412")) errors.push("runtime schema head is not 412");
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 414")) errors.push("runtime schema head is not 412");
 if ((migration.match(/^BEGIN;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one BEGIN");
 if ((migration.match(/^COMMIT;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one COMMIT");
 
@@ -103,7 +103,7 @@ if (errors.length) {
 }
 console.log(JSON.stringify({
   ok: true,
-  schema: 412,
+  schema: 414,
   tables: created.length,
   migrationSha256: sha,
   worker: pkg.scripts?.["worker:research"]
