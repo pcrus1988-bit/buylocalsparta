@@ -188,6 +188,11 @@ if (!resultsPage.includes("Download canonical JSON")) errors.push("public result
 if (!release.includes("RESEARCH_RELEASE_REQUIRES_QA_RESOLUTION")) errors.push("release QA gate missing");
 if (!release.includes("confidenceIntervalsPublished")) errors.push("release disclosure contract missing");
 if (!release.includes("emailContactabilityRate")) errors.push("release does not freeze frame contactability");
+if (!release.includes("questions: instrumentQuestions.rows.map")) errors.push("release does not freeze exact questionnaire");
+if (!release.includes("recruitmentTemplates.rows.map")) errors.push("release does not freeze recruitment copy");
+if (!release.includes("latestDispositionCounts")) errors.push("release does not freeze final sample dispositions");
+if (!release.includes("completionRateOfSent")) errors.push("release does not freeze explicit fieldwork denominators");
+if (!resultsPage.includes("Sent→complete")) errors.push("public results do not disclose frozen fieldwork conversion rate");
 if (!release.includes("idempotentReplay")) errors.push("release idempotence contract missing");
 if (!surveyRuntime.includes('"publish_release"')) errors.push("explicit publish lifecycle action missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
