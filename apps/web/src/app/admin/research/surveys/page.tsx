@@ -32,6 +32,7 @@ export default async function ResearchSurveysAdminPage() {
       <p className="lead">Population frame → probability sample → invitation → consent → response → weighting → analysis → public release, with versioned evidence at every step.</p>
       <div className="hero-actions">
         <Link className="button button-secondary" href="/research/greek-retail-2026/methodology">Public methodology</Link>
+        <Link className="button button-secondary" href="/research/greek-retail-2026/results">Public results</Link>
       </div>
     </div></section>
 
@@ -89,6 +90,8 @@ export default async function ResearchSurveysAdminPage() {
               recruitmentTemplateVersion={study.recruitmentTemplateVersion}
               activeContacts={study.activeContacts}
               completed={study.completed}
+              succeededAnalysisRuns={study.succeededAnalysisRuns}
+              latestReleaseVersion={study.latestReleaseVersion}
               queuedJobs={study.queuedJobs}
               runningJobs={study.runningJobs}
             />}
@@ -102,6 +105,8 @@ export default async function ResearchSurveysAdminPage() {
               csrfToken={principal.csrfToken}
               studyStatus={study.status}
               instrumentStatus={study.instrumentStatus}
+              latestReleaseVersion={study.latestReleaseVersion}
+              latestReleasePublishedAt={study.latestReleasePublishedAt}
             />}
 
             <WorkspaceSectionHeading
