@@ -255,7 +255,11 @@ function quadBuffer(gl: GL): WebGLBuffer {
   return buffer;
 }
 
-function textureFromImage(gl: GL, src: string, onReady: (texture: WebGLTexture) => void): () => void {
+function textureFromImage(
+  gl: GL,
+  src: string,
+  onReady: (texture: WebGLTexture, aspect: number) => void
+): () => void {
   let cancelled = false;
   const image = new Image();
   image.decoding = "async";
@@ -270,7 +274,7 @@ function textureFromImage(gl: GL, src: string, onReady: (texture: WebGLTexture) 
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-    onReady(texture);
+    onReady(texture, Math.max(0.2, image.naturalWidth / Math.max(1, image.naturalHeight)));
   };
   image.src = src;
   return () => { cancelled = true; image.onload = null; };
@@ -395,6 +399,8 @@ function buildScene(canvas: HTMLCanvasElement, modelImage: string, onContextLost
 
   let modelTexture: WebGLTexture | undefined;
   let resultTexture: WebGLTexture | undefined;
+  let modelAspect = 0.78;
+  let resultAspect = 0.78;
   let resultCancel: (() => void) | undefined;
   let revealStartedAt = 0;
   let projection = perspective(Math.PI / 4.8, 1, 0.1, 30);
@@ -402,9 +408,10 @@ function buildScene(canvas: HTMLCanvasElement, modelImage: string, onContextLost
   let stopped = false;
   let visible = !document.hidden;
 
-  const cancelModelLoad = textureFromImage(gl, modelImage, (texture) => {
+  const cancelModelLoad = textureFromImage(gl, modelImage, (texture, aspect) => {
     if (modelTexture) gl.deleteTexture(modelTexture);
     modelTexture = texture;
+    modelAspect = aspect;
   });
 
   const onLost = (event: Event) => {
@@ -447,8 +454,22 @@ function buildScene(canvas: HTMLCanvasElement, modelImage: string, onContextLost
   const pointProjection = gl.getUniformLocation(pointProgram, "u_projection");
   const pointTime = gl.getUniformLocation(pointProgram, "u_time");
 
-  function drawPhoto(texture: WebGLTexture | undefined, alpha: number, brightness: number, z: number) {
+  function drawPhoto(
+    texture: WebGLTexture | undefined,
+    alpha: number,
+    brightness: number,
+    z: number,
+    aspect: number
+  ) {
     if (!texture || alpha <= 0.001) return;
+    const maxHalfWidth = 1.62;
+    const maxHalfHeight = 2.03;
+    let halfHeight = maxHalfHeight;
+    let halfWidth = maxHalfHeight * aspect;
+    if (halfWidth > maxHalfWidth) {
+      halfWidth = maxHalfWidth;
+      halfHeight = maxHalfWidth / Math.max(0.2, aspect);
+    }
     gl.useProgram(texturedProgram);
     gl.bindBuffer(gl.ARRAY_BUFFER, quad);
     gl.enableVertexAttribArray(texturedPosition);
@@ -457,7 +478,7 @@ function buildScene(canvas: HTMLCanvasElement, modelImage: string, onContextLost
     gl.vertexAttribPointer(texturedUv, 2, gl.FLOAT, false, 16, 8);
     gl.uniformMatrix4fv(texturedProjection, false, projection);
     gl.uniform3f(texturedCenter, 0, 0, z);
-    gl.uniform2f(texturedScale, 1.58, 2.03);
+    gl.uniform2f(texturedScale, halfWidth, halfHeight);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.uniform1i(texturedTexture, 0);
@@ -560,13 +581,13 @@ function buildScene(canvas: HTMLCanvasElement, modelImage: string, onContextLost
 
     drawParticles(time);
     drawGarments(time);
-    drawPhoto(modelTexture, resultTexture ? 0.42 : 1, resultTexture ? 0.62 : 0.94, -6.0);
+    drawPhoto(modelTexture, resultTexture ? 0.42 : 1, resultTexture ? 0.62 : 0.94, -6.0, modelAspect);
     drawScanner(time);
 
     if (resultTexture) {
       const elapsed = revealStartedAt ? Math.max(0, (timestamp - revealStartedAt) / 1000) : 1;
       const reveal = Math.min(1, elapsed / 0.72);
-      drawPhoto(resultTexture, reveal, 0.92 + reveal * 0.08, -5.92);
+      drawPhoto(resultTexture, reveal, 0.92 + reveal * 0.08, -5.92, resultAspect);
     }
 
     frame = window.requestAnimationFrame(render);
@@ -579,9 +600,10 @@ function buildScene(canvas: HTMLCanvasElement, modelImage: string, onContextLost
   return {
     setResultImage(value: string) {
       resultCancel?.();
-      resultCancel = textureFromImage(gl, value, (texture) => {
+      resultCancel = textureFromImage(gl, value, (texture, aspect) => {
         if (resultTexture) gl.deleteTexture(resultTexture);
         resultTexture = texture;
+        resultAspect = aspect;
         revealStartedAt = performance.now();
       });
     },
