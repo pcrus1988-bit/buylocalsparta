@@ -43,6 +43,7 @@ The scientific sample must be drawn from the frozen eligible population, not fro
 ### Invitations
 
 - `research_invites` stores only the SHA-256 hash of the random invitation token.
+- The raw token is generated inside the research worker, exists only in memory while the SES message is assembled/sent, and is never returned by an admin API or persisted in plaintext.
 - The raw token appears only in the link delivered to the selected business.
 - No AFM, G.E.MI. number, email or company name is placed in the URL.
 - `research_invite_events` records created/sent/delivered/opened/started/saved/completed/bounced/suppressed/expired events.
@@ -56,6 +57,7 @@ The scientific sample must be drawn from the frozen eligible population, not fro
   - thank-you code
   - KONTA MOY marketing
 - Research participation is required to create a response.
+- Completing the core study creates the thank-you reward entitlement. Reward eligibility does **not** depend on marketing consent or on asking to receive the code.
 - The three post-survey choices are independent and optional. A later change or withdrawal creates a new consent event; prior evidence is never overwritten.
 - `research_answers` stores raw versioned answers.
 - A trigger blocks answer modification after the response is no longer `in_progress`.
@@ -140,8 +142,12 @@ Contact values and responses are kept in separate relational domains even though
 
 - `/admin/research/surveys` — research control centre.
 - `POST /api/admin/research/surveys/:slug/lifecycle` — audited lifecycle transition.
+- `POST /api/admin/research/surveys/:slug/jobs` — audited frame, sample, invitation and analysis job queue plus immutable recruitment-copy locking.
+- `POST /api/webhooks/research-ses` — verified Amazon SNS endpoint for SES research delivery events.
 
-The invitation-batch runtime exists but should be connected to the approved outbound-mail workflow only after the study has a locked sample and the invitation communication/legal basis has been approved.
+Invitation delivery is intentionally gated. It requires a locked/fielded probability sample, a locked recruitment-template version, study status `pilot` or `fielding`, and explicit production enablement through `BLS_RESEARCH_EMAIL_DELIVERY_ENABLED=true`. The worker sends through the existing SES sender using the dedicated `BLS_RESEARCH_SES_CONFIGURATION_SET`; SES message tags carry only internal study/invite/batch identifiers, never the raw token.
+
+The SNS endpoint requires `BLS_RESEARCH_SES_SNS_TOPIC_ARN`, rejects messages for any other topic, validates the AWS signing-certificate URL and SNS signature, and writes delivery/open/bounce/complaint outcomes back into the invitation event and sample-disposition ledgers. Bounces and complaints suppress the affected research contact point.
 
 ## G.E.MI. integration boundary
 
@@ -177,3 +183,16 @@ A release is not scientifically ready until it has:
 - release artifact hash
 
 If probability sampling is not successfully maintained, do not present a conventional margin of sampling error as though the study were a probability sample.
+
+
+## Production research-delivery configuration
+
+Required before any research invitation job can send:
+
+- `BLS_RESEARCH_EMAIL_DELIVERY_ENABLED=true`
+- `BLS_RESEARCH_SES_CONFIGURATION_SET=<dedicated research configuration set>`
+- `BLS_RESEARCH_SES_SNS_TOPIC_ARN=<SNS topic used by that configuration set>`
+- AWS SES credentials already used by the admin-mail SES runtime
+- optional `BLS_RESEARCH_SES_FROM` and `BLS_RESEARCH_SES_REPLY_TO` (default: `partners@kontamou.site`)
+
+The SES configuration set should publish at least Delivery, Bounce and Complaint events to the configured SNS topic. Open events may also be enabled for fieldwork diagnostics; Click events are deliberately ignored by the research persistence layer.
