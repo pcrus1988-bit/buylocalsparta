@@ -3,6 +3,7 @@ import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import {
   benjaminiHochbergAdjustedPValues,
+  boundedRakeCalibration,
   normal95ConfidenceInterval,
   normalTwoSidedPValue,
   researchWeightDiagnostics,
@@ -10,10 +11,19 @@ import {
   weightedClusteredDifferenceInMeans
 } from "./research-survey-statistics";
 
-const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v6";
-const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v1";
+const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v7";
+const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v2";
 const MIN_PUBLIC_BASE = 30;
 const VARIANCE_METHOD = "stratified_srs_fpc_v1";
+const CALIBRATION_METHOD = "bounded_raking_frozen_frame_v1";
+const CALIBRATION_DIMENSIONS = ["region_code", "sector_code"] as const;
+const CALIBRATION_OPTIONS = {
+  maxIterations: 100,
+  tolerance: 0.01,
+  lowerAdjustmentBound: 0.25,
+  upperAdjustmentBound: 4,
+  maxWeightToMedianRatio: 6
+} as const;
 
 type ResponseRow = Readonly<{
   responseId: string;
@@ -294,11 +304,27 @@ export async function runGreekRetailAnalysis(
   const planConfidenceLevel = numberValue(planVariance.confidenceLevel);
   const planVarianceMethod = text(planVariance.method);
   const planNonresponseAdjustment = text(planWeighting.nonresponseAdjustment);
+  const planCalibrationAdjustment = text(planWeighting.calibrationAdjustment);
+  const planCalibrationDimensions = Array.isArray(planWeighting.calibrationDimensions)
+    ? planWeighting.calibrationDimensions.map(text)
+    : [];
+  const calibrationDimensionsMatch = (
+    planCalibrationDimensions.length === CALIBRATION_DIMENSIONS.length &&
+    CALIBRATION_DIMENSIONS.every((dimension) => planCalibrationDimensions.includes(dimension))
+  );
   if (
     planMinimumBase !== MIN_PUBLIC_BASE ||
     planConfidenceLevel !== 0.95 ||
     planVarianceMethod !== VARIANCE_METHOD ||
-    planNonresponseAdjustment !== "within_sampling_stratum"
+    planNonresponseAdjustment !== "within_sampling_stratum" ||
+    planCalibrationAdjustment !== CALIBRATION_METHOD ||
+    !calibrationDimensionsMatch ||
+    text(planWeighting.marginSource) !== "frozen_frame" ||
+    numberValue(planWeighting.maxIterations) !== CALIBRATION_OPTIONS.maxIterations ||
+    numberValue(planWeighting.tolerance) !== CALIBRATION_OPTIONS.tolerance ||
+    numberValue(planWeighting.lowerAdjustmentBound) !== CALIBRATION_OPTIONS.lowerAdjustmentBound ||
+    numberValue(planWeighting.upperAdjustmentBound) !== CALIBRATION_OPTIONS.upperAdjustmentBound ||
+    numberValue(planWeighting.maxWeightToMedianRatio) !== CALIBRATION_OPTIONS.maxWeightToMedianRatio
   ) {
     throw new Error("RESEARCH_ANALYSIS_PLAN_CODE_MISMATCH");
   }
@@ -490,22 +516,89 @@ export async function runGreekRetailAnalysis(
     if (respondentBase > 0) adjustmentByStratum.set(stratumId, representedWeight / respondentBase);
   }
 
+  const marginSetResult = await pool.query<SqlRow>(`
+    SELECT id,source_ref,source_sha256,methodology_version
+    FROM research_population_margin_sets
+    WHERE study_id=$1
+      AND frame_snapshot_id=$2
+      AND source_kind='frozen_frame'
+    ORDER BY created_at DESC
+    LIMIT 1
+  `, [studyId, draw.frame_snapshot_id]);
+  const marginSet = marginSetResult.rows[0];
+  if (!marginSet) throw new Error("RESEARCH_CALIBRATION_MARGIN_SET_MISSING");
+
+  const marginResult = await pool.query<SqlRow>(`
+    SELECT dimension,category,target_total
+    FROM research_population_margins
+    WHERE margin_set_id=$1
+      AND dimension=ANY($2::text[])
+    ORDER BY dimension,category
+  `, [marginSet.id, [...CALIBRATION_DIMENSIONS]]);
+  const calibrationMargins = marginResult.rows.map((row) => ({
+    dimension: text(row.dimension),
+    category: text(row.category),
+    targetTotal: numberValue(row.target_total)
+  }));
+  const marginDimensions = new Set(calibrationMargins.map((margin) => margin.dimension));
+  if (
+    calibrationMargins.length === 0 ||
+    CALIBRATION_DIMENSIONS.some((dimension) => !marginDimensions.has(dimension))
+  ) {
+    throw new Error("RESEARCH_CALIBRATION_MARGINS_INCOMPLETE");
+  }
+
+  const calibration = boundedRakeCalibration(
+    baseResponses.map((response) => {
+      const nonresponseAdjustment = adjustmentByStratum.get(response.stratumId);
+      if (!nonresponseAdjustment || !Number.isFinite(nonresponseAdjustment)) {
+        throw new Error(`RESEARCH_WEIGHTING_STRATUM_UNRESOLVED:${response.stratumId}`);
+      }
+      return {
+        id: response.responseId,
+        baseWeight: response.baseWeight * nonresponseAdjustment,
+        dimensions: {
+          region_code: response.regionCode,
+          sector_code: response.sectorCode
+        }
+      };
+    }),
+    calibrationMargins,
+    CALIBRATION_OPTIONS
+  );
+  if (!calibration.converged) {
+    throw new Error(
+      `RESEARCH_CALIBRATION_DID_NOT_CONVERGE:maxRelativeMarginError=${calibration.maxRelativeMarginError}`
+    );
+  }
+
   for (const response of baseResponses) {
     const nonresponseAdjustment = adjustmentByStratum.get(response.stratumId);
-    if (!nonresponseAdjustment || !Number.isFinite(nonresponseAdjustment)) {
-      throw new Error(`RESEARCH_WEIGHTING_STRATUM_UNRESOLVED:${response.stratumId}`);
+    const calibrationAdjustment = calibration.adjustments[response.responseId];
+    const finalWeight = calibration.finalWeights[response.responseId];
+    if (
+      !nonresponseAdjustment ||
+      !Number.isFinite(nonresponseAdjustment) ||
+      !calibrationAdjustment ||
+      !Number.isFinite(calibrationAdjustment) ||
+      !finalWeight ||
+      !Number.isFinite(finalWeight)
+    ) {
+      throw new Error(`RESEARCH_WEIGHTING_RESPONSE_UNRESOLVED:${response.responseId}`);
     }
-    const finalWeight = response.baseWeight * nonresponseAdjustment;
     await pool.query(`
       INSERT INTO research_weights (
         response_id,version,base_weight,nonresponse_adjustment,calibration_adjustment,final_weight,metadata
       )
       VALUES (
-        $1,$2,$3,$4,1,$5,
+        $1,$2,$3,$4,$5,$6,
         jsonb_build_object(
-          'method','within_stratum_nonresponse_adjustment',
-          'analysisRunId',$6::text,
-          'stratumId',$7::text
+          'method','within_stratum_nonresponse_plus_bounded_raking',
+          'analysisRunId',$7::text,
+          'stratumId',$8::text,
+          'populationMarginSetId',$9::text,
+          'populationMarginSourceSha256',$10::text,
+          'calibrationMethod',$11::text
         )
       )
     `, [
@@ -513,9 +606,13 @@ export async function runGreekRetailAnalysis(
       weightVersion,
       response.baseWeight,
       nonresponseAdjustment,
+      calibrationAdjustment,
       finalWeight,
       analysisRunId,
-      response.stratumId
+      response.stratumId,
+      marginSet.id,
+      marginSet.source_sha256,
+      CALIBRATION_METHOD
     ]);
   }
 
@@ -550,10 +647,13 @@ export async function runGreekRetailAnalysis(
 
   const weightedResponses: WeightedResponse[] = baseResponses.map((response) => ({
     ...response,
-    finalWeight: response.baseWeight * (adjustmentByStratum.get(response.stratumId) ?? 1),
+    finalWeight: calibration.finalWeights[response.responseId] ?? 0,
     answers: answerMap.get(response.responseId) ?? {},
     scores: scoreMap.get(response.responseId) ?? {}
   }));
+  if (weightedResponses.some((response) => !(response.finalWeight > 0))) {
+    throw new Error("RESEARCH_CALIBRATION_FINAL_WEIGHT_INVALID");
+  }
 
   const experimentResult = await pool.query<SqlRow>(`
     SELECT
@@ -627,11 +727,28 @@ export async function runGreekRetailAnalysis(
 
   const adjustmentValues = [...adjustmentByStratum.values()]
     .filter((value) => Number.isFinite(value) && value > 0);
+  const calibrationAdjustmentValues = Object.values(calibration.adjustments)
+    .filter((value) => Number.isFinite(value) && value > 0);
   const weightingDiagnostics = {
     ...researchWeightDiagnostics(weightedResponses.map((response) => response.finalWeight)),
     nonresponseAdjustmentMin: adjustmentValues.length ? Math.min(...adjustmentValues) : null,
     nonresponseAdjustmentMax: adjustmentValues.length ? Math.max(...adjustmentValues) : null,
-    adjustmentStrata: adjustmentValues.length
+    adjustmentStrata: adjustmentValues.length,
+    calibrationMethod: CALIBRATION_METHOD,
+    calibrationDimensions: [...CALIBRATION_DIMENSIONS],
+    calibrationAdjustmentMin: calibrationAdjustmentValues.length ? Math.min(...calibrationAdjustmentValues) : null,
+    calibrationAdjustmentMax: calibrationAdjustmentValues.length ? Math.max(...calibrationAdjustmentValues) : null,
+    calibrationConverged: calibration.converged,
+    calibrationIterations: calibration.iterations,
+    calibrationMaxRelativeMarginError: calibration.maxRelativeMarginError,
+    trimmedUnitCount: calibration.trimmedUnitCount,
+    lowerWeightCap: calibration.lowerWeightCap,
+    upperWeightCap: calibration.upperWeightCap,
+    populationMarginSetId: text(marginSet.id),
+    populationMarginSourceRef: text(marginSet.source_ref),
+    populationMarginSourceSha256: text(marginSet.source_sha256),
+    populationMarginMethodologyVersion: text(marginSet.methodology_version),
+    populationMarginDiagnostics: calibration.marginDiagnostics
   };
 
   const questionResult = await pool.query<SqlRow>(`
@@ -705,7 +822,7 @@ export async function runGreekRetailAnalysis(
         )
         VALUES (
           $1,$2,$3::jsonb,$4,$5,$6,$7,$8,$9,$10,
-          'nonresponse_adjusted_stratified_descriptive_v2',$11,$12::jsonb
+          'nonresponse_calibrated_stratified_descriptive_v3',$11,$12::jsonb
         )
       `, [
         analysisRunId,
