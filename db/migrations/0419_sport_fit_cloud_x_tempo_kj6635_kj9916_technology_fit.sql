@@ -5,7 +5,7 @@
 -- Adds:
 -- - On Cloud X Tempo (4 exact style families): CloudTec + Helion superfoam
 -- - adidas Duramo RC2 KJ6635: Regular manufacturer fit profile
--- - adidas Ultimashow 2.0 KJ9916: Cloudfoam technology + Regular fit
+-- KJ9916 is intentionally not repeated here: schema 417 already backfills its Cloudfoam + Regular-fit facts.
 --
 -- No ordinal cushioning/support/width/toe-box/weather facts are inferred.
 
@@ -52,7 +52,6 @@ CREATE TEMP TABLE _sport_419_family (
 
 INSERT INTO _sport_419_family(target_key,family_id,style_code) VALUES
   ('KJ6635','71160f78-433d-44d0-935a-8389c78da8d6','KJ6635'),
-  ('KJ9916','0511b3e5-61fd-4875-a99b-2e64d29eca8c','KJ9916'),
   ('3MG30110969','1af5f11a-0e5c-4c62-bdc3-b4c964bb28b3','3MG30110969'),
   ('3MG30116013','603565f3-93e7-46e2-a666-6a5d3d8c784a','3MG30116013'),
   ('3WG30090969','c2258fc2-bcb5-4178-b298-b49cdcc3f4db','3WG30090969'),
@@ -116,7 +115,6 @@ SET
   updated_at=now()
 WHERE source_key IN (
   'adidas_duramo_rc2_kj6635_official',
-  'adidas_ultimashow_2_kj9916_official',
   'on_cloud_x_tempo_m_3mg30110969_official',
   'on_cloud_x_tempo_m_3mg30116013_official',
   'on_cloud_x_tempo_w_3wg30090969_official',
@@ -140,18 +138,6 @@ INSERT INTO _sport_419_fact VALUES
   'adidas_duramo_rc2_kj6635_official',
   'Exact adidas KJ6635 product details state Regular fit.',
   'Product Details · Regular fit'
-),
-(
-  'KJ9916','footwear_technology',0,'cloudfoam',
-  'adidas_ultimashow_2_kj9916_official',
-  'Exact adidas KJ9916 description and details identify CLOUDFOAM technology.',
-  'Description / Details · CLOUDFOAM technology'
-),
-(
-  'KJ9916','footwear_fit_profile',0,'regular',
-  'adidas_ultimashow_2_kj9916_official',
-  'Exact adidas KJ9916 product details state Regular fit.',
-  'Details · Regular fit'
 ),
 (
   '3MG30110969','footwear_technology',0,'cloudtec',
@@ -272,8 +258,6 @@ SET
     CASE f.target_key
       WHEN 'KJ6635' THEN
         'Schema 419 records explicit adidas Regular fit as a manufacturer fit profile; cushioning/support intensity, width, geometry, use-case, toe-box, plate and weather remain unresolved.'
-      WHEN 'KJ9916' THEN
-        'Schema 419 records exact adidas Cloudfoam technology and Regular fit; neither is converted into an ordinal cushioning/support or width grade.'
       ELSE
         'Schema 419 records exact/current On Cloud X Tempo CloudTec and Helion superfoam technologies; ordinal cushioning/support, width, stack, plate, surface, toe-box and weather remain unresolved.'
     END
@@ -326,8 +310,8 @@ BEGIN
   JOIN public.attribute_values av ON av.id=pfav.attribute_value_id AND av.code=x.value_code
   WHERE pfav.confidence=1.00000;
 
-  IF v_count<>11 THEN
-    RAISE EXCEPTION 'Schema 419 expected eleven normalized facts, found %',v_count;
+  IF v_count<>9 THEN
+    RAISE EXCEPTION 'Schema 419 expected nine normalized facts, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_count
@@ -341,8 +325,8 @@ BEGIN
     AND e.confidence=1.00000
     AND e.identity_confidence=1.00000;
 
-  IF v_count<>11 THEN
-    RAISE EXCEPTION 'Schema 419 expected eleven exact manufacturer evidence rows, found %',v_count;
+  IF v_count<>9 THEN
+    RAISE EXCEPTION 'Schema 419 expected nine exact manufacturer evidence rows, found %',v_count;
   END IF;
 
   SELECT count(*) INTO v_bad
