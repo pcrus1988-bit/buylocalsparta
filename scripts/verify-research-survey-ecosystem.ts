@@ -31,6 +31,8 @@ const roleSeparationMigrationPath = "db/migrations/0429_research_role_separation
 const roleSeparationChecksumPath = "db/migrations/checksums.0429.json";
 const qualityV3MigrationPath = "db/migrations/0430_research_quality_v3.sql";
 const qualityV3ChecksumPath = "db/migrations/checksums.0430.json";
+const populationMarginsMigrationPath = "db/migrations/0431_research_population_margins.sql";
+const populationMarginsChecksumPath = "db/migrations/checksums.0431.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const deliveryMigration = readFileSync(deliveryMigrationPath, "utf8");
@@ -46,6 +48,7 @@ const hierarchyMigration = readFileSync(hierarchyMigrationPath, "utf8");
 const identityVaultMigration = readFileSync(identityVaultMigrationPath, "utf8");
 const roleSeparationMigration = readFileSync(roleSeparationMigrationPath, "utf8");
 const qualityV3Migration = readFileSync(qualityV3MigrationPath, "utf8");
+const populationMarginsMigration = readFileSync(populationMarginsMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
 const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
@@ -61,6 +64,7 @@ const hierarchyChecksums = JSON.parse(readFileSync(hierarchyChecksumPath, "utf8"
 const identityVaultChecksums = JSON.parse(readFileSync(identityVaultChecksumPath, "utf8")) as Record<string, string>;
 const roleSeparationChecksums = JSON.parse(readFileSync(roleSeparationChecksumPath, "utf8")) as Record<string, string>;
 const qualityV3Checksums = JSON.parse(readFileSync(qualityV3ChecksumPath, "utf8")) as Record<string, string>;
+const populationMarginsChecksums = JSON.parse(readFileSync(populationMarginsChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
@@ -136,6 +140,7 @@ const hierarchySha = createHash("sha256").update(hierarchyMigration, "utf8").dig
 const identityVaultSha = createHash("sha256").update(identityVaultMigration, "utf8").digest("hex");
 const roleSeparationSha = createHash("sha256").update(roleSeparationMigration, "utf8").digest("hex");
 const qualityV3Sha = createHash("sha256").update(qualityV3Migration, "utf8").digest("hex");
+const populationMarginsSha = createHash("sha256").update(populationMarginsMigration, "utf8").digest("hex");
 if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0416 checksum does not match migration bytes");
 }
@@ -181,7 +186,10 @@ if (roleSeparationChecksums["0429_research_role_separation.sql"] !== roleSeparat
 if (qualityV3Checksums["0430_research_quality_v3.sql"] !== qualityV3Sha) {
   errors.push("0430 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 430")) errors.push("runtime schema head is not 430");
+if (populationMarginsChecksums["0431_research_population_margins.sql"] !== populationMarginsSha) {
+  errors.push("0431 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 431")) errors.push("runtime schema head is not 431");
 if (!qualityV3Migration.includes("ADD COLUMN quality_score")) errors.push("research quality score column missing");
 if (!qualityV3Migration.includes("ADD COLUMN answer_pattern_sha256")) errors.push("research answer-pattern fingerprint column missing");
 if (!qualityV3Migration.includes("research_quality_answer_pattern_idx")) errors.push("research answer-pattern QA index missing");
@@ -202,8 +210,11 @@ if (!hierarchyMigration.includes("research_guard_wave_scope")) errors.push("rese
 if (!hierarchyMigration.includes("DISABLE TRIGGER USER")) errors.push("0427 does not explicitly protect structural backfill across immutable evidence");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_programmes ENABLE ROW LEVEL SECURITY;")) errors.push("research programme RLS missing");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_waves ENABLE ROW LEVEL SECURITY;")) errors.push("research wave RLS missing");
-if (!schemaPreflight.includes("expectedSourceVersion = 430")) errors.push("guarded research production rollout is not pinned to schema 0430");
-if (!schemaRollout.includes("0416–0430") || !schemaRollout.includes("through schema 0430")) errors.push("research schema rollout workflow does not advertise the complete 0416–0430 chain");
+if (!schemaPreflight.includes("expectedSourceVersion = 431")) errors.push("guarded research production rollout is not pinned to schema 0431");
+if (!schemaRollout.includes("0416–0431") || !schemaRollout.includes("through schema 0431")) errors.push("research schema rollout workflow does not advertise the complete 0416–0431 chain");
+if (!populationMarginsMigration.includes("CREATE TABLE public.research_population_margin_sets")) errors.push("governed population-margin set registry missing");
+if (!populationMarginsMigration.includes("CREATE TABLE public.research_population_margins")) errors.push("governed population-margin cells missing");
+if (!populationMarginsMigration.includes("CREATE TABLE public.research_analysis_plan_supersessions")) errors.push("analysis-plan supersession evidence missing");
 for (const role of ["research_superadmin","research_methodologist","research_fieldwork","research_analyst","research_publisher","research_privacy"]) {
   if (!roleSeparationMigration.includes("'" + role + "'")) errors.push(`0429 platform role constraint missing ${role}`);
   if (!rbac.includes('| "' + role + '"')) errors.push(`RBAC role union missing ${role}`);
@@ -517,7 +528,7 @@ if (errors.length) {
 }
 console.log(JSON.stringify({
   ok: true,
-  schema: 430,
+  schema: 431,
   tables: created.length + 11,
   migrationSha256: sha,
   suppressionMigrationSha256: suppressionSha,
@@ -534,5 +545,6 @@ console.log(JSON.stringify({
   identityVaultMigrationSha256: identityVaultSha,
   roleSeparationMigrationSha256: roleSeparationSha,
   qualityV3MigrationSha256: qualityV3Sha,
+  populationMarginsMigrationSha256: populationMarginsSha,
   worker: pkg.scripts?.["worker:research"]
 }));
