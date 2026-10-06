@@ -215,6 +215,20 @@ if (!schemaRollout.includes("0416–0431") || !schemaRollout.includes("through s
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_population_margin_sets")) errors.push("governed population-margin set registry missing");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_population_margins")) errors.push("governed population-margin cells missing");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_analysis_plan_supersessions")) errors.push("analysis-plan supersession evidence missing");
+if (!jobs.includes("INSERT INTO research_population_margin_sets")) errors.push("frozen-frame population margins are not materialized before sampling");
+if (!jobs.includes("RESEARCH_POPULATION_MARGIN_SOURCE_HASH_MISMATCH")) errors.push("population-margin provenance hash is not fail-closed");
+if (!jobs.includes("RESEARCH_POPULATION_MARGIN_REGISTRY_MISMATCH")) errors.push("population-margin registry is not verified against the frozen frame");
+if (!statistics.includes("boundedRakeCalibration")) errors.push("bounded raking calibration primitive missing");
+if (!statisticsTests.includes("bounded raking reproduces compatible region and sector margins")) errors.push("bounded raking convergence test missing");
+if (!statisticsTests.includes("bounded raking reports infeasible extreme margins")) errors.push("bounded raking trimming failure test missing");
+if (!analysis.includes("boundedRakeCalibration(")) errors.push("analysis does not apply governed bounded raking");
+if (!analysis.includes("RESEARCH_CALIBRATION_MARGIN_SET_MISSING")) errors.push("analysis does not require a governed margin set");
+if (!analysis.includes("RESEARCH_CALIBRATION_DID_NOT_CONVERGE")) errors.push("analysis does not fail closed on calibration non-convergence");
+if (!analysis.includes('CALIBRATION_METHOD = "bounded_raking_frozen_frame_v1"')) errors.push("analysis calibration method is not versioned");
+if (!analysis.includes('WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v2"')) errors.push("calibrated weight method is not versioned");
+if (!analysis.includes("'within_stratum_nonresponse_plus_bounded_raking'")) errors.push("persisted research weights do not record the calibration method");
+if (!analysis.includes("populationMarginSourceSha256")) errors.push("weight diagnostics do not preserve population-margin provenance");
+if (analysis.includes("calibration_adjustment,final_weight,metadata\n      )\n      VALUES (\n        $1,$2,$3,$4,1,$5")) errors.push("analysis still hard-codes calibration_adjustment=1");
 for (const role of ["research_superadmin","research_methodologist","research_fieldwork","research_analyst","research_publisher","research_privacy"]) {
   if (!roleSeparationMigration.includes("'" + role + "'")) errors.push(`0429 platform role constraint missing ${role}`);
   if (!rbac.includes('| "' + role + '"')) errors.push(`RBAC role union missing ${role}`);
@@ -429,7 +443,7 @@ if (!statistics.includes("unequal_within_stratum_weights")) errors.push("varianc
 if (!analysis.includes('VARIANCE_METHOD = "stratified_srs_fpc_v1"')) errors.push("analysis variance method is not versioned");
 if (!analysis.includes("'weightDiagnostics',$3::jsonb")) errors.push("analysis run does not persist weighting diagnostics");
 if (!statistics.includes("normalTwoSidedPValue")) errors.push("pairwise normal p-value helper missing");
-if (!analysis.includes('ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v6"')) errors.push("analysis code version is not v6");
+if (!analysis.includes('ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v7"')) errors.push("analysis code version is not v7");
 if (!analysis.includes("ri.fieldwork_phase='main'")) errors.push("analysis does not isolate main-fieldwork responses");
 if (!jobs.includes("pri.sent_at IS NOT NULL")) errors.push("main sample does not durably exclude pilot-exposed businesses");
 if (!surveyRuntime.includes("RESEARCH_PILOT_CLOSE_CONTACT_JOB_RUNNING")) errors.push("pilot closeout does not guard running contact jobs");
@@ -517,7 +531,7 @@ if (!schemaRollout.includes("workflow_dispatch")) errors.push("research producti
 if (!schemaRollout.includes("environment: production")) errors.push("research production schema rollout lacks production environment gate");
 if (!schemaRollout.includes("if: ${{ inputs.apply }}")) errors.push("research schema mutation lacks explicit apply gate");
 if (!schemaRollout.includes("npm run db:migrate")) errors.push("research schema rollout bypasses checksum-aware migrator");
-if (!schemaPreflight.includes("expectedSourceVersion = 430")) errors.push("research schema rollout source-head guard missing");
+if (!schemaPreflight.includes("expectedSourceVersion = 431")) errors.push("research schema rollout source-head guard missing");
 if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
 if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
