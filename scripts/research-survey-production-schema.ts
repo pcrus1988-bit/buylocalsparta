@@ -67,6 +67,15 @@ try {
   const present = requiredTables.filter((_table, index) => Boolean(row[`table_${index}`]));
   const missing = requiredTables.filter((_table, index) => !row[`table_${index}`]);
 
+  const ledgerResult = await pool.query("SELECT version, filename FROM public.schema_migrations ORDER BY version");
+  const ledgerByVersion = new Map<number, string>(
+    ledgerResult.rows.map((entry: { version: number | string; filename: string }) => [Number(entry.version), entry.filename])
+  );
+  const canonicalLedgerGaps = migrationNames.filter((filename) => {
+    const version = Number(filename.slice(0, 4));
+    return ledgerByVersion.get(version) !== filename;
+  });
+
   if (postcheck) {
     if (schemaVersion !== expectedSourceVersion) {
       throw new Error(`Postcheck expected schema ${expectedSourceVersion}; database reports ${schemaVersion}`);
@@ -74,11 +83,15 @@ try {
     if (missing.length) {
       throw new Error(`Postcheck missing research tables: ${missing.join(", ")}`);
     }
+    if (canonicalLedgerGaps.length) {
+      throw new Error(`Postcheck canonical migration ledger is incomplete or mismatched: ${canonicalLedgerGaps.join(", ")}`);
+    }
     console.log(JSON.stringify({
       ok: true,
       mode: "postcheck",
       schemaVersion,
-      requiredTables: requiredTables.length
+      requiredTables: requiredTables.length,
+      canonicalMigrations: migrationNames.length
     }));
   } else if (schemaVersion === expectedSourceVersion) {
     if (missing.length) {
@@ -107,7 +120,8 @@ try {
       mode: "preflight",
       state: "clean_upgrade",
       schemaVersion,
-      targetVersion: expectedSourceVersion
+      targetVersion: expectedSourceVersion,
+      pendingCanonicalMigrations: canonicalLedgerGaps.length
     }));
   }
 } finally {
