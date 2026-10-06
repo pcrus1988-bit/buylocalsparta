@@ -41,7 +41,7 @@ function postgresLimiter(): PostgresFixedWindowRateLimiter {
 }
 
 export function getAdminRuntime() { return memory.getAdminRuntime(); }
-export function isPlatformRole(role: Role): boolean { return ["super_admin","vendor_operations","catalog_qa","customer_support","platform_finance","content_seo","compliance","logistics","auditor"].includes(role); }
+export function isPlatformRole(role: Role): boolean { return ["super_admin","vendor_operations","catalog_qa","customer_support","platform_finance","content_seo","compliance","logistics","auditor","research_superadmin","research_methodologist","research_fieldwork","research_analyst","research_publisher","research_privacy"].includes(role); }
 export function hasAdminPermission(principal: SessionPrincipal, permission: Permission): boolean { return principal.roles.some((role) => isPlatformRole(role) && can(role, permission)); }
 export function assertAdminPermission(principal: SessionPrincipal, permission: Permission): void { if (!hasAdminPermission(principal, permission)) throw new Error(`Admin permission required: ${permission}`); }
 
