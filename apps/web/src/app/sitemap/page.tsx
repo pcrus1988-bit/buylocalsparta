@@ -62,7 +62,7 @@ async function governedVendorGroups(): Promise<readonly VendorGroup[]> {
     });
     if (!control.sitemapAllowed) return [];
     const taxonomy = vendor.taxonomies[0];
-    const defaultVendorPath = `${PUBLIC_VENDOR_PROFILE_PREFIX}${encodeURIComponent(vendor.id)}`;
+    const defaultVendorPath = `${PUBLIC_VENDOR_PROFILE_PREFIX}${encodeURIComponent(vendor.slug)}`;
     return [{
       vendor,
       href: new URL(override?.canonicalPath ?? defaultVendorPath, `${settings.canonicalOrigin}/`).toString(),
