@@ -26,7 +26,7 @@ const STATIC_ROUTE_MATRIX = [
 async function dismissPrivacyBanner(page) {
   const banner = page.locator("aside.privacy-consent-banner");
   if (!(await banner.isVisible().catch(() => false))) return;
-  const reject = banner.getByRole("button", { name: "Απόρριψη προαιρετικών" });
+  const reject = banner.getByRole("button", { name: /Απόρριψη προαιρετικών|Μόνο απαραίτητα/ });
   if (await reject.isVisible().catch(() => false)) {
     await reject.click();
     await expect(banner).toBeHidden();
@@ -193,7 +193,7 @@ test("location gateway exposes customer-facing lifecycle states and active hubs 
 
   const consentBanner = page.locator("aside.privacy-consent-banner");
   await expect(consentBanner).toBeVisible();
-  await consentBanner.getByRole("button", { name: "Απόρριψη προαιρετικών" }).click();
+  await consentBanner.getByRole("button", { name: /Απόρριψη προαιρετικών|Μόνο απαραίτητα/ }).click();
   await expect(consentBanner).toBeHidden();
 
   const search = page.getByRole("searchbox", { name: /Αναζήτηση πόλης, χωριού, περιοχής ή ταχυδρομικού κώδικα/ });
