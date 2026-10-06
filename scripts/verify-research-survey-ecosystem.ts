@@ -249,6 +249,11 @@ if (!surveyRuntime.includes("duplicate_answer_pattern")) errors.push("research d
 if (!surveyRuntime.includes("duplicatePatternReviewOnly: true")) errors.push("duplicate-pattern QA is not explicitly review-only");
 if (!quality.includes("quality_score")) errors.push("research QA queue does not surface quality score");
 if (!release.includes('assertAdminPermission(principal, "research.publish.manage")')) errors.push("research release creation is not publisher-separated");
+if (!jobs.includes("buildGreekRetailRelease(job.study_id, job.wave_id, job.id")) errors.push("release worker bridge is not wave-scoped");
+if (!release.includes("RESEARCH_RELEASE_WAVE_MISSING")) errors.push("release builder does not fail closed without a wave id");
+if (!release.includes("study_id,wave_id,analysis_run_id,release_version")) errors.push("release snapshot does not persist explicit wave scope");
+if (!release.includes("waveId: text(release.wave_id)")) errors.push("release artifact integrity hash omits wave identity");
+if (!release.includes("waveId: published.waveId")) errors.push("public release artifact reconstruction omits wave identity");
 if (!surveyRuntime.includes('assertAdminPermission(principal, "research.quality.manage")')) errors.push("research protocol governance is not permission-separated");
 if (jobs.includes('assertAdminPermission(principal, "research.manage")') || quality.includes('assertAdminPermission(principal, "research.manage")') || release.includes('assertAdminPermission(principal, "research.manage")')) {
   errors.push("research mutation paths still collapse to research.manage");
