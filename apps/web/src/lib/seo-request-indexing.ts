@@ -124,7 +124,7 @@ export function seoRequestIndexingDecision(pathname: string, searchParams?: Sear
   if (isExplicitlyNonIndexable(normalized)) {
     return {
       index: false,
-      follow: true,
+      follow: normalized !== "/choose-location",
       routePolicy,
       reason: "Public utility route is excluded from search results while remaining crawl-through for linked public content.",
       source: "route-inventory"
