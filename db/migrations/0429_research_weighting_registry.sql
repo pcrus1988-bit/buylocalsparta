@@ -76,7 +76,8 @@ CREATE TABLE public.research_weight_runs (
 );
 
 ALTER TABLE public.research_weights
-  ADD COLUMN weight_run_id uuid REFERENCES public.research_weight_runs(id) ON DELETE RESTRICT;
+  ADD COLUMN weight_run_id uuid REFERENCES public.research_weight_runs(id) ON DELETE RESTRICT,
+  ADD COLUMN trim_adjustment numeric(18,8) NOT NULL DEFAULT 1 CHECK (trim_adjustment > 0);
 
 CREATE INDEX research_population_margins_set_dimension_idx
   ON public.research_population_margins(margin_set_id,dimension_key,category_key);
