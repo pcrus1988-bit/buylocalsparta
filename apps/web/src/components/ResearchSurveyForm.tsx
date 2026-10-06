@@ -5,7 +5,7 @@ import type { ResearchExperimentAssignment, ResearchSurveyContext } from "../lib
 import { matrixItems, matrixScale, questionOptions, type ResearchAnswer, type ResearchAnswerMap, type ResearchQuestion } from "../lib/research-survey-model";
 import styles from "./ResearchSurveyForm.module.css";
 
-type ConsentState = Readonly<{ results_notification: boolean; thank_you_code: boolean; marketing: boolean }>;
+type ConsentState = Readonly<{ results_notification: boolean; thank_you_code: boolean }>;
 
 const SECTION_LABELS: Record<string, string> = {
   A: "Η επιχείρησή σας",
@@ -18,7 +18,7 @@ const SECTION_LABELS: Record<string, string> = {
 };
 
 function initialConsent(): ConsentState {
-  return { results_notification: false, thank_you_code: false, marketing: false };
+  return { results_notification: false, thank_you_code: false };
 }
 
 function asMutableAnswers(value: ResearchAnswerMap): Record<string, ResearchAnswer> {
@@ -355,7 +355,6 @@ export function ResearchSurveyForm({ slug, token, initial }: {
       <div className={styles.optionalConsents}>
         <label><input type="checkbox" checked={optionalConsents.results_notification} onChange={(event) => setOptionalConsents((state) => ({ ...state, results_notification: event.target.checked }))} /><span>Θέλω να ενημερωθώ όταν δημοσιευθούν τα αποτελέσματα.</span></label>
         <label><input type="checkbox" checked={optionalConsents.thank_you_code} onChange={(event) => setOptionalConsents((state) => ({ ...state, thank_you_code: event.target.checked }))} /><span>Θέλω να λάβω τον κωδικό ευχαριστίας που προσφέρεται στους συμμετέχοντες.</span></label>
-        <label><input type="checkbox" checked={optionalConsents.marketing} onChange={(event) => setOptionalConsents((state) => ({ ...state, marketing: event.target.checked }))} /><span>Θέλω να λαμβάνω πληροφορίες σχετικά με τις υπηρεσίες του KONTA MOY.</span></label>
       </div>
       <p>Η αλλαγή ισχύει για μελλοντικές αποστολές. Μήνυμα που έχει ήδη αποσταλεί δεν μπορεί να ανακληθεί.</p>
       {preferenceMessage && <p className={styles.success}>{preferenceMessage}</p>}
@@ -444,11 +443,10 @@ export function ResearchSurveyForm({ slug, token, initial }: {
       onSelect={(value) => setExperimentChoices((currentChoices) => ({ ...currentChoices, [String(assignment.taskNumber)]: value }))}
     />)}
 
-    {current.code === "DONE" && <div className={styles.optionalConsents}>
+    {current.code === "DONE" && <><div className={styles.optionalConsents}>
       <label><input type="checkbox" checked={optionalConsents.results_notification} onChange={(event) => setOptionalConsents((state) => ({ ...state, results_notification: event.target.checked }))} /><span>Θέλω να ενημερωθώ όταν δημοσιευθούν τα αποτελέσματα.</span></label>
       <label><input type="checkbox" checked={optionalConsents.thank_you_code} onChange={(event) => setOptionalConsents((state) => ({ ...state, thank_you_code: event.target.checked }))} /><span>Θέλω να λάβω τον κωδικό ευχαριστίας που προσφέρεται στους συμμετέχοντες.</span></label>
-      <label><input type="checkbox" checked={optionalConsents.marketing} onChange={(event) => setOptionalConsents((state) => ({ ...state, marketing: event.target.checked }))} /><span>Θέλω να λαμβάνω πληροφορίες σχετικά με τις υπηρεσίες του KONTA MOY.</span></label>
-    </div>}
+    </div><p>Η επιστημονική συμμετοχή ολοκληρώνεται εδώ. Δεν ζητείται εμπορική συγκατάθεση μέσα στο ερευνητικό ερωτηματολόγιο.</p></>}
 
     {message && <p className={styles.error}>{message}</p>}
     <div className={styles.actions}>
