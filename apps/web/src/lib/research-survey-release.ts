@@ -55,7 +55,7 @@ export async function queueGreekRetailRelease(
   const pool = getProductionPostgresRuntime().sqlPool;
 
   const study = await pool.query<SqlRow>(`
-    SELECT id,status
+    SELECT id,status,current_wave_id
     FROM research_studies
     WHERE slug=$1
     LIMIT 1
@@ -67,28 +67,28 @@ export async function queueGreekRetailRelease(
   const analysis = await pool.query<SqlRow>(`
     SELECT id,dataset_sha256
     FROM research_analysis_runs
-    WHERE study_id=$1 AND status='succeeded' AND dataset_sha256 IS NOT NULL
+    WHERE study_id=$1 AND wave_id=$2 AND status='succeeded' AND dataset_sha256 IS NOT NULL
     ORDER BY completed_at DESC NULLS LAST,created_at DESC
     LIMIT 1
-  `, [row.id]);
+  `, [row.id, row.current_wave_id]);
   const analysisRow = analysis.rows[0];
   if (!analysisRow) throw new Error("RESEARCH_RELEASE_REQUIRES_SUCCEEDED_ANALYSIS");
 
   const existingRelease = await pool.query<SqlRow>(`
     SELECT id
     FROM research_release_snapshots
-    WHERE study_id=$1 AND release_version=$2
+    WHERE study_id=$1 AND wave_id=$2 AND release_version=$3
     LIMIT 1
-  `, [row.id, version]);
+  `, [row.id, row.current_wave_id, version]);
   if (existingRelease.rows[0]) throw new Error("RESEARCH_RELEASE_VERSION_EXISTS");
 
   const existingJob = await pool.query<SqlRow>(`
     SELECT id,input
     FROM research_study_jobs
-    WHERE study_id=$1 AND job_type='release' AND status IN ('queued','running')
+    WHERE study_id=$1 AND wave_id=$2 AND job_type='release' AND status IN ('queued','running')
     ORDER BY created_at DESC
     LIMIT 1
-  `, [row.id]);
+  `, [row.id, row.current_wave_id]);
   if (existingJob.rows[0]) {
     const existingInput = objectValue(existingJob.rows[0].input);
     return {
@@ -99,16 +99,16 @@ export async function queueGreekRetailRelease(
   }
 
   const job = await pool.query<SqlRow>(`
-    INSERT INTO research_study_jobs (study_id,job_type,status,input)
+    INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
     VALUES (
-      $1,'release','queued',
+      $1,$2,'release','queued',
       jsonb_build_object(
-        'releaseVersion',$2::text,
-        'analysisRunId',$3::text
+        'releaseVersion',$3::text,
+        'analysisRunId',$4::text
       )
     )
     RETURNING id
-  `, [row.id, version, analysisRow.id]);
+  `, [row.id, row.current_wave_id, version, analysisRow.id]);
   return {
     jobId: text(job.rows[0]!.id),
     releaseVersion: version,
@@ -118,20 +118,22 @@ export async function queueGreekRetailRelease(
 
 export async function buildGreekRetailRelease(
   studyId: string,
+  waveId: string,
   jobId: string,
   input: Readonly<{ releaseVersion?: string; analysisRunId?: string }>
 ): Promise<Record<string, unknown>> {
   const pool = getProductionPostgresRuntime().sqlPool;
   const version = releaseVersion(input.releaseVersion);
   const analysisRunId = text(input.analysisRunId);
+  if (!waveId) throw new Error("RESEARCH_RELEASE_WAVE_MISSING");
   if (!analysisRunId) throw new Error("RESEARCH_RELEASE_ANALYSIS_RUN_REQUIRED");
 
   const existing = await pool.query<SqlRow>(`
     SELECT id,analysis_run_id,dataset_sha256,artifact_sha256,public_url
     FROM research_release_snapshots
-    WHERE study_id=$1 AND release_version=$2
+    WHERE study_id=$1 AND wave_id=$2 AND release_version=$3
     LIMIT 1
-  `, [studyId, version]);
+  `, [studyId, waveId, version]);
   if (existing.rows[0]) {
     const row = existing.rows[0];
     if (text(row.analysis_run_id) !== analysisRunId) throw new Error("RESEARCH_RELEASE_VERSION_EXISTS");
@@ -167,19 +169,21 @@ export async function buildGreekRetailRelease(
     JOIN LATERAL (
       SELECT id,version,content_sha256,consent_statement_version
       FROM research_instruments
-      WHERE study_id=s.id
+      WHERE study_id=s.id AND wave_id=$3
       ORDER BY created_at DESC
       LIMIT 1
     ) i ON true
-    JOIN research_analysis_runs ar ON ar.id=$2 AND ar.study_id=s.id AND ar.status='succeeded'
+    JOIN research_analysis_runs ar
+      ON ar.id=$2 AND ar.study_id=s.id AND ar.wave_id=$3 AND ar.status='succeeded'
     JOIN research_analysis_plans ap
       ON ap.id=ar.analysis_plan_id
       AND ap.study_id=s.id
+      AND ap.wave_id=$3
       AND ap.instrument_id=i.id
       AND ap.status='locked'
     WHERE s.id=$1
     LIMIT 1
-  `, [studyId, analysisRunId]);
+  `, [studyId, analysisRunId, waveId]);
   const study = studyResult.rows[0];
   if (!study) throw new Error("RESEARCH_RELEASE_ANALYSIS_NOT_FOUND");
   if (text(study.slug) !== STUDY_SLUG) throw new Error("RESEARCH_RELEASE_STUDY_UNSUPPORTED");
@@ -193,6 +197,7 @@ export async function buildGreekRetailRelease(
       JOIN research_responses rr ON rr.id=qr.response_id
       JOIN research_invites ri ON ri.id=rr.invite_id
       WHERE rr.study_id=$1
+        AND rr.wave_id=$2
         AND rr.status='completed'
         AND ri.fieldwork_phase='main'
       ORDER BY qr.response_id,qr.created_at DESC,qr.id DESC
@@ -201,7 +206,7 @@ export async function buildGreekRetailRelease(
       count(*) FILTER (WHERE decision='review')::int AS review_count,
       count(*) FILTER (WHERE decision='exclude')::int AS exclude_count
     FROM latest
-  `, [studyId]);
+  `, [studyId, waveId]);
   const reviewCount = numberValue(pendingReviews.rows[0]?.review_count);
   if (reviewCount > 0) throw new Error("RESEARCH_RELEASE_REQUIRES_QA_RESOLUTION");
 
@@ -214,11 +219,12 @@ export async function buildGreekRetailRelease(
       SELECT id,frame_snapshot_id
       FROM research_sample_draws
       WHERE study_id=$1
+        AND wave_id=$2
         AND fieldwork_phase='main'
         AND status IN ('locked','fielded')
       ORDER BY drawn_at DESC NULLS LAST,created_at DESC
       LIMIT 1
-    `, [studyId]);
+    `, [studyId, waveId]);
     if (!draw.rows[0]) throw new Error("RESEARCH_RELEASE_SAMPLE_MISSING");
     sampleDrawId = text(draw.rows[0].id);
     frameSnapshotId = text(draw.rows[0].frame_snapshot_id);
@@ -237,9 +243,9 @@ export async function buildGreekRetailRelease(
     FROM research_sample_draws d
     JOIN research_sample_designs sd ON sd.sample_draw_id=d.id
     JOIN research_frame_snapshots f ON f.id=d.frame_snapshot_id
-    WHERE d.id=$1 AND d.study_id=$2
+    WHERE d.id=$1 AND d.study_id=$2 AND d.wave_id=$3
     LIMIT 1
-  `, [sampleDrawId, studyId]);
+  `, [sampleDrawId, studyId, waveId]);
   const design = designResult.rows[0];
   if (!design) throw new Error("RESEARCH_RELEASE_DESIGN_MISSING");
   if (text(design.fieldwork_phase) !== "main") throw new Error("RESEARCH_RELEASE_REQUIRES_MAIN_FIELDWORK_SAMPLE");
@@ -527,9 +533,9 @@ export async function buildGreekRetailRelease(
       pe.title,pe.description,pe.rationale,pe.impact_assessment,pe.corrective_action,
       pe.related_event_id,pe.occurred_at,pe.recorded_at,pe.evidence_json,pe.content_sha256
     FROM research_protocol_events pe
-    WHERE pe.study_id=$1
+    WHERE pe.study_id=$1 AND pe.wave_id=$2
     ORDER BY pe.occurred_at,pe.recorded_at,pe.id
-  `, [studyId]);
+  `, [studyId, waveId]);
   const protocolEvents = protocolEventsResult.rows.map((row) => {
     const evidence = objectValue(row.evidence_json);
     if (sha256Canonical(evidence) !== text(row.content_sha256)) {
@@ -802,6 +808,7 @@ export async function buildGreekRetailRelease(
     releaseVersion: version,
     studySlug: text(study.slug),
     analysisRunId,
+    waveId,
     datasetSha256: text(study.dataset_sha256),
     methodology,
     estimates
@@ -810,13 +817,14 @@ export async function buildGreekRetailRelease(
 
   const inserted = await pool.query<SqlRow>(`
     INSERT INTO research_release_snapshots (
-      study_id,analysis_run_id,release_version,methodology_json,dataset_sha256,
+      study_id,wave_id,analysis_run_id,release_version,methodology_json,dataset_sha256,
       artifact_sha256,public_url,published_at
     )
-    VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,NULL)
+    VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,NULL)
     RETURNING id
   `, [
     studyId,
+    waveId,
     analysisRunId,
     version,
     JSON.stringify(methodology),
