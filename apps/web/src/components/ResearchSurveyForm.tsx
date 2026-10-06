@@ -5,7 +5,7 @@ import type { ResearchExperimentAssignment, ResearchSurveyContext } from "../lib
 import { matrixItems, matrixScale, questionOptions, type ResearchAnswer, type ResearchAnswerMap, type ResearchQuestion } from "../lib/research-survey-model";
 import styles from "./ResearchSurveyForm.module.css";
 
-type ConsentState = Readonly<{ results_notification: boolean; thank_you_code: boolean; marketing: boolean }>;
+type ConsentState = Readonly<{ results_notification: boolean; thank_you_code: boolean }>;
 
 const SECTION_LABELS: Record<string, string> = {
   A: "Η επιχείρησή σας",
@@ -18,7 +18,7 @@ const SECTION_LABELS: Record<string, string> = {
 };
 
 function initialConsent(): ConsentState {
-  return { results_notification: false, thank_you_code: false, marketing: false };
+  return { results_notification: false, thank_you_code: false };
 }
 
 function asMutableAnswers(value: ResearchAnswerMap): Record<string, ResearchAnswer> {
@@ -365,6 +365,10 @@ export function ResearchSurveyForm({ slug, token, initial }: {
           {saving ? "Αποθήκευση…" : "Αποθήκευση επιλογών"}
         </button>
       </div>
+
+      <h3>Ξεχωριστά από την έρευνα</h3>
+      <p>Η ερευνητική ροή τελειώνει εδώ. Αν θέλετε να ενημερωθείτε για εμπορική συνεργασία με το KONTA MOY, αυτό γίνεται σε ξεχωριστή σελίδα και δεν συνδέεται με τις απαντήσεις, την αποζημίωση ή τη συμμετοχή σας στη μελέτη.</p>
+      <a href="/join">Πληροφορίες συνεργασίας με το KONTA MOY →</a>
 
       <h3>Ανάκληση συμμετοχής</h3>
       <p>Μπορείτε να ανακαλέσετε τη συμμετοχή από αυτόν τον προσωπικό σύνδεσμο. Η ανάκληση εξαιρεί την απάντηση από νέες αναλύσεις. Ήδη δημοσιευμένα συγκεντρωτικά releases παραμένουν ως ιστορικά, αμετάβλητα ερευνητικά τεκμήρια και δεν μπορούν να ανασυντεθούν αναδρομικά σε ατομικό επίπεδο.</p>
