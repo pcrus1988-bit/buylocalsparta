@@ -26,6 +26,7 @@ const MAX_JOB_ATTEMPTS = 3;
 type ResearchJobRow = SqlRow & {
   id: string;
   study_id: string;
+  wave_id: string;
   job_type: string;
   input: Record<string, unknown>;
   output: Record<string, unknown>;
@@ -791,7 +792,7 @@ async function claimResearchJob(): Promise<ResearchJobRow | undefined> {
   try {
     await client.query("BEGIN");
     const result = await client.query<ResearchJobRow>(`
-      SELECT id, study_id, job_type, input, output, attempts
+      SELECT id, study_id, wave_id, job_type, input, output, attempts
       FROM research_study_jobs
       WHERE status='queued' AND available_at <= now()
         AND job_type IN ('frame_snapshot','sample_draw','invite_batch','invite_reminder','reward_delivery','analysis','release','results_notification','identity_destruction')
@@ -812,7 +813,7 @@ async function claimResearchJob(): Promise<ResearchJobRow | undefined> {
           finished_at=NULL,
           error_message=NULL
       WHERE id=$1
-      RETURNING id, study_id, job_type, input, output, attempts
+      RETURNING id, study_id, wave_id, job_type, input, output, attempts
     `, [job.id]);
     await client.query("COMMIT");
     return claimed.rows[0];
@@ -3112,7 +3113,7 @@ export async function processResearchStudyJobs(limit = 1): Promise<ResearchJobTi
               : job.job_type === "reward_delivery"
                 ? await processRewardDeliveryJob(job)
               : job.job_type === "analysis"
-                  ? await runGreekRetailAnalysis(job.study_id, job.id)
+                  ? await runGreekRetailAnalysis(job.study_id, job.wave_id, job.id)
                 : job.job_type === "release"
                     ? await buildGreekRetailRelease(job.study_id, job.id, objectValue(job.input))
                   : job.job_type === "results_notification"
