@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   benjaminiHochbergAdjustedPValues,
+  calibrateResearchWeights,
   normal95ConfidenceInterval,
   normalTwoSidedPValue,
   proportionalStratumAllocation,
@@ -202,4 +203,68 @@ test("fieldwork outcome summary refuses to call progress-state dispositions seal
   assert.equal(result.latestDispositionTotal, 10);
   assert.equal(result.unresolved, 2);
   assert.equal(result.sealed, false);
+});
+
+
+test("calibration rakes included responses to declared population margins", () => {
+  const result = calibrateResearchWeights([
+    { id: "1", initialWeight: 8, categories: { region_code: "A", sector_code: "X" } },
+    { id: "2", initialWeight: 2, categories: { region_code: "A", sector_code: "Y" } },
+    { id: "3", initialWeight: 3, categories: { region_code: "B", sector_code: "X" } },
+    { id: "4", initialWeight: 7, categories: { region_code: "B", sector_code: "Y" } }
+  ], [
+    { dimension: "region_code", category: "A", target: 50 },
+    { dimension: "region_code", category: "B", target: 50 },
+    { dimension: "sector_code", category: "X", target: 60 },
+    { dimension: "sector_code", category: "Y", target: 40 }
+  ], {
+    dimensions: ["region_code", "sector_code"],
+    maxIterations: 100,
+    tolerance: 1e-10
+  });
+
+  const weight = new Map(result.weights.map((item) => [item.id, item.finalWeight]));
+  assert.ok(Math.abs((weight.get("1") ?? 0) + (weight.get("2") ?? 0) - 50) < 1e-7);
+  assert.ok(Math.abs((weight.get("3") ?? 0) + (weight.get("4") ?? 0) - 50) < 1e-7);
+  assert.ok(Math.abs((weight.get("1") ?? 0) + (weight.get("3") ?? 0) - 60) < 1e-7);
+  assert.ok(Math.abs((weight.get("2") ?? 0) + (weight.get("4") ?? 0) - 40) < 1e-7);
+  assert.ok(result.diagnostics.maxRelativeMarginError <= 1e-10);
+});
+
+test("calibration fails closed when a positive target cell has no respondent", () => {
+  assert.throws(() => calibrateResearchWeights([
+    { id: "1", initialWeight: 1, categories: { region_code: "A" } }
+  ], [
+    { dimension: "region_code", category: "A", target: 50 },
+    { dimension: "region_code", category: "B", target: 50 }
+  ], {
+    dimensions: ["region_code"],
+    maxIterations: 20,
+    tolerance: 1e-8
+  }), /RESEARCH_CALIBRATION_EMPTY_CELL:region_code:B/);
+});
+
+test("median-ratio trimming is followed by bounded raking back to margins", () => {
+  const result = calibrateResearchWeights([
+    { id: "1", initialWeight: 100, categories: { region_code: "A" } },
+    { id: "2", initialWeight: 1, categories: { region_code: "A" } },
+    { id: "3", initialWeight: 1, categories: { region_code: "B" } },
+    { id: "4", initialWeight: 1, categories: { region_code: "B" } }
+  ], [
+    { dimension: "region_code", category: "A", target: 50 },
+    { dimension: "region_code", category: "B", target: 50 }
+  ], {
+    dimensions: ["region_code"],
+    maxIterations: 200,
+    tolerance: 1e-9,
+    trimMedianRatio: 1.5
+  });
+
+  assert.ok((result.diagnostics.trimmedUnitCount ?? 0) > 0);
+  assert.ok(result.diagnostics.trimCap !== null);
+  assert.ok(result.weights.every((item) => item.finalWeight <= result.diagnostics.trimCap! + 1e-7));
+  const byRegionA = result.weights[0]!.finalWeight + result.weights[1]!.finalWeight;
+  const byRegionB = result.weights[2]!.finalWeight + result.weights[3]!.finalWeight;
+  assert.ok(Math.abs(byRegionA - 50) < 1e-6);
+  assert.ok(Math.abs(byRegionB - 50) < 1e-6);
 });
