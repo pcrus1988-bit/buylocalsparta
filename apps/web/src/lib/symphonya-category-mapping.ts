@@ -64,8 +64,11 @@ export function resolveSymphonyaCategoryCode(payloadValue: unknown, sourceTitle 
     }
 
     if (scat === "bags & backpacks") {
-      if (containsAny(fashionEvidence, ["backpack", "rucksack"])) return "backpacks";
-      if (containsAny(fashionEvidence, ["travel bag", "luggage", "duffel", "weekender"])) return "luggage-travel-bags";
+      // The parent branch itself contains "backpacks", so subtype inference must
+      // use item-level evidence or every generic bag becomes a backpack.
+      const bagEvidence = `${sscat} ${title}`;
+      if (containsAny(bagEvidence, ["backpack", "rucksack"])) return "backpacks";
+      if (containsAny(bagEvidence, ["travel bag", "luggage", "duffel", "weekender"])) return "luggage-travel-bags";
       if (gender === "male" || gender === "men" || gender === "for men") return "mens-bags";
       if (gender === "female" || gender === "women" || gender === "for women") return "handbags";
       return "unisex-bags";
