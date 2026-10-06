@@ -27,6 +27,8 @@ const hierarchyMigrationPath = "db/migrations/0427_research_programme_study_wave
 const hierarchyChecksumPath = "db/migrations/checksums.0427.json";
 const identityVaultMigrationPath = "db/migrations/0428_research_private_identity_vault.sql";
 const identityVaultChecksumPath = "db/migrations/checksums.0428.json";
+const roleSeparationMigrationPath = "db/migrations/0429_research_role_separation.sql";
+const roleSeparationChecksumPath = "db/migrations/checksums.0429.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const deliveryMigration = readFileSync(deliveryMigrationPath, "utf8");
@@ -40,6 +42,7 @@ const sampleDesignIntegrityMigration = readFileSync(sampleDesignIntegrityMigrati
 const protocolEvidenceMigration = readFileSync(protocolEvidenceMigrationPath, "utf8");
 const hierarchyMigration = readFileSync(hierarchyMigrationPath, "utf8");
 const identityVaultMigration = readFileSync(identityVaultMigrationPath, "utf8");
+const roleSeparationMigration = readFileSync(roleSeparationMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
 const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
@@ -53,6 +56,7 @@ const sampleDesignIntegrityChecksums = JSON.parse(readFileSync(sampleDesignInteg
 const protocolEvidenceChecksums = JSON.parse(readFileSync(protocolEvidenceChecksumPath, "utf8")) as Record<string, string>;
 const hierarchyChecksums = JSON.parse(readFileSync(hierarchyChecksumPath, "utf8")) as Record<string, string>;
 const identityVaultChecksums = JSON.parse(readFileSync(identityVaultChecksumPath, "utf8")) as Record<string, string>;
+const roleSeparationChecksums = JSON.parse(readFileSync(roleSeparationChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
@@ -78,6 +82,9 @@ const researchPrivacyPage = readFileSync("apps/web/src/app/research/privacy/page
 const releaseRoute = readFileSync("apps/web/src/app/api/research/[slug]/release/route.ts", "utf8");
 const sesSender = readFileSync("apps/web/src/lib/admin-mail-ses.ts", "utf8");
 const gemi = readFileSync("apps/web/src/lib/gemi-admin-export.ts", "utf8");
+const rbac = readFileSync("packages/core/src/auth/rbac.ts", "utf8");
+const adminRuntime = readFileSync("apps/web/src/lib/admin-runtime.ts", "utf8");
+const identityPersistence = readFileSync("packages/core/src/persistence/postgres-identity-trust.ts", "utf8");
 const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts?: Record<string, string> };
 
 const expectedTables = [
@@ -123,6 +130,7 @@ const sampleDesignIntegritySha = createHash("sha256").update(sampleDesignIntegri
 const protocolEvidenceSha = createHash("sha256").update(protocolEvidenceMigration, "utf8").digest("hex");
 const hierarchySha = createHash("sha256").update(hierarchyMigration, "utf8").digest("hex");
 const identityVaultSha = createHash("sha256").update(identityVaultMigration, "utf8").digest("hex");
+const roleSeparationSha = createHash("sha256").update(roleSeparationMigration, "utf8").digest("hex");
 if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0416 checksum does not match migration bytes");
 }
@@ -162,7 +170,10 @@ if (hierarchyChecksums["0427_research_programme_study_wave.sql"] !== hierarchySh
 if (identityVaultChecksums["0428_research_private_identity_vault.sql"] !== identityVaultSha) {
   errors.push("0428 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 428")) errors.push("runtime schema head is not 428");
+if (roleSeparationChecksums["0429_research_role_separation.sql"] !== roleSeparationSha) {
+  errors.push("0429 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 429")) errors.push("runtime schema head is not 429");
 if (!identityVaultMigration.includes("CREATE SCHEMA IF NOT EXISTS research_private")) errors.push("research private identity schema missing");
 if (!identityVaultMigration.includes("CREATE TABLE research_private.contact_vault")) errors.push("research private contact vault missing");
 if (!identityVaultMigration.includes("DROP COLUMN contact_value")) errors.push("raw research contact value still remains in the public contact-point table");
@@ -180,8 +191,28 @@ if (!hierarchyMigration.includes("research_guard_wave_scope")) errors.push("rese
 if (!hierarchyMigration.includes("DISABLE TRIGGER USER")) errors.push("0427 does not explicitly protect structural backfill across immutable evidence");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_programmes ENABLE ROW LEVEL SECURITY;")) errors.push("research programme RLS missing");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_waves ENABLE ROW LEVEL SECURITY;")) errors.push("research wave RLS missing");
-if (!schemaPreflight.includes("expectedSourceVersion = 428")) errors.push("guarded research production rollout is not pinned to schema 0428");
-if (!schemaRollout.includes("0416–0428") || !schemaRollout.includes("through schema 0428")) errors.push("research schema rollout workflow does not advertise the complete 0416–0428 chain");
+if (!schemaPreflight.includes("expectedSourceVersion = 429")) errors.push("guarded research production rollout is not pinned to schema 0429");
+if (!schemaRollout.includes("0416–0429") || !schemaRollout.includes("through schema 0429")) errors.push("research schema rollout workflow does not advertise the complete 0416–0429 chain");
+for (const role of ["research_superadmin","research_methodologist","research_fieldwork","research_analyst","research_publisher","research_privacy"]) {
+  if (!roleSeparationMigration.includes("'" + role + "'")) errors.push(`0429 platform role constraint missing ${role}`);
+  if (!rbac.includes('| "' + role + '"')) errors.push(`RBAC role union missing ${role}`);
+  if (!adminRuntime.includes('"' + role + '"')) errors.push(`admin platform-role allowlist missing ${role}`);
+  if (!identityPersistence.includes('"' + role + '"')) errors.push(`identity persistence allowlist missing ${role}`);
+}
+for (const permission of ["research.design.manage","research.fieldwork.manage","research.quality.manage","research.analysis.manage","research.publish.manage","research.privacy.manage"]) {
+  if (!rbac.includes('| "' + permission + '"')) errors.push(`RBAC permission union missing ${permission}`);
+}
+if (!jobs.includes('assertAdminPermission(principal, "research.design.manage")')) errors.push("research sample/frame design is not permission-separated");
+if (!jobs.includes('assertAdminPermission(principal, "research.fieldwork.manage")')) errors.push("research fieldwork is not permission-separated");
+if (!jobs.includes('assertAdminPermission(principal, "research.analysis.manage")')) errors.push("research analysis is not permission-separated");
+if (!jobs.includes('assertAdminPermission(principal, "research.privacy.manage")')) errors.push("research privacy/destruction is not permission-separated");
+if (!jobs.includes('assertAdminPermission(principal, "research.publish.manage")')) errors.push("research participant results delivery is not publisher-separated");
+if (!quality.includes('assertAdminPermission(principal, "research.quality.manage")')) errors.push("research quality decisions are not permission-separated");
+if (!release.includes('assertAdminPermission(principal, "research.publish.manage")')) errors.push("research release creation is not publisher-separated");
+if (!surveyRuntime.includes('assertAdminPermission(principal, "research.quality.manage")')) errors.push("research protocol governance is not permission-separated");
+if (jobs.includes('assertAdminPermission(principal, "research.manage")') || quality.includes('assertAdminPermission(principal, "research.manage")') || release.includes('assertAdminPermission(principal, "research.manage")')) {
+  errors.push("research mutation paths still collapse to research.manage");
+}
 if (!sampleDesignMigration.includes("CREATE TABLE public.research_sample_designs")) errors.push("sample design evidence table missing");
 if (!sampleDesignMigration.includes("CREATE TABLE public.research_sample_design_strata")) errors.push("sample design stratum evidence table missing");
 if (!sampleDesignMigration.includes("research_sample_designs_immutable")) errors.push("sample design immutability trigger missing");
