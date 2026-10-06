@@ -37,6 +37,15 @@ async function visibleHomepageLink(page, href) {
   let link = page.locator(`a[href="${href}"]:visible`).first();
   if (await link.count()) return link;
 
+  if (href === "/cart") {
+    const cartButton = page.getByRole("button", { name: /^Καλάθι,/ });
+    if (await cartButton.isVisible().catch(() => false)) {
+      await cartButton.click();
+      link = page.locator('a[href="/cart"]:visible').first();
+      if (await link.count()) return link;
+    }
+  }
+
   const menuToggle = page.getByRole("button", { name: /Άνοιγμα μενού|Κλείσιμο μενού/ });
   if (await menuToggle.isVisible().catch(() => false)) {
     await menuToggle.click();
