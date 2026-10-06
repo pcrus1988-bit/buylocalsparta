@@ -209,6 +209,8 @@ if (!longitudinalLineageMigration.includes("CREATE TABLE public.research_longitu
 if (!longitudinalLineageMigration.includes("research_instruments_lock_longitudinal_registry")) errors.push("instrument lock does not freeze longitudinal lineage");
 if (!longitudinalLineageMigration.includes("locked longitudinal comparison requires an explicit harmonisation rule")) errors.push("longitudinal comparisons can lock without harmonisation evidence");
 if (!longitudinalLineageMigration.includes("harmonisation must point from an earlier wave to a later wave")) errors.push("harmonisation direction is not wave-governed");
+if (!longitudinalLineageMigration.includes("a comparability break cannot authorize a longitudinal estimate")) errors.push("comparability breaks can authorize longitudinal estimates");
+if (!longitudinalLineageMigration.includes("longitudinal comparison must be locked before publication")) errors.push("longitudinal comparison can bypass lock before publication");
 if (!longitudinalLineageMigration.includes("greek-retail-2026-v1")) errors.push("2026 headline-index scoring lineage missing");
 if (!longitudinalLineageMigration.includes("Q(0[1-9]|1[0-8])")) errors.push("2026 core Q01-Q18 lineage seed missing");
 if (!identityVaultMigration.includes("CREATE SCHEMA IF NOT EXISTS research_private")) errors.push("research private identity schema missing");
