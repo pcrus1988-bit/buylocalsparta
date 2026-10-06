@@ -64,6 +64,7 @@ DECLARE
   v_contact_count integer;
   v_detached_invites integer := 0;
   v_deleted_contacts integer := 0;
+  v_cancelled_invite_messages integer := 0;
   v_evidence jsonb;
   v_sha text;
 BEGIN
@@ -145,7 +146,7 @@ BEGIN
       AND m.status IN ('planned','failed')
     RETURNING m.id
   )
-  SELECT count(*) FROM cancelled;
+  SELECT count(*)::int INTO v_cancelled_invite_messages FROM cancelled;
 
   UPDATE public.research_invite_access_tokens t
   SET status='revoked', revoked_at=COALESCE(revoked_at,now())
@@ -201,6 +202,7 @@ BEGIN
     'contactPointCountBefore',v_contact_count,
     'detachedInviteCount',v_detached_invites,
     'deletedContactPointCount',v_deleted_contacts,
+    'cancelledInviteMessageCount',v_cancelled_invite_messages,
     'suppressionHashesRetained',true,
     'publishedAggregateEvidenceRetained',true,
     'rawInvitationTokenValidityDestroyed',true,
