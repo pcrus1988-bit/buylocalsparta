@@ -35,6 +35,8 @@ const populationMarginsMigrationPath = "db/migrations/0431_research_population_m
 const populationMarginsChecksumPath = "db/migrations/checksums.0431.json";
 const longitudinalLineageMigrationPath = "db/migrations/0432_research_longitudinal_lineage.sql";
 const longitudinalLineageChecksumPath = "db/migrations/checksums.0432.json";
+const releaseArchiveMigrationPath = "db/migrations/0433_research_release_archive.sql";
+const releaseArchiveChecksumPath = "db/migrations/checksums.0433.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const deliveryMigration = readFileSync(deliveryMigrationPath, "utf8");
@@ -52,6 +54,7 @@ const roleSeparationMigration = readFileSync(roleSeparationMigrationPath, "utf8"
 const qualityV3Migration = readFileSync(qualityV3MigrationPath, "utf8");
 const populationMarginsMigration = readFileSync(populationMarginsMigrationPath, "utf8");
 const longitudinalLineageMigration = readFileSync(longitudinalLineageMigrationPath, "utf8");
+const releaseArchiveMigration = readFileSync(releaseArchiveMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
 const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
@@ -69,6 +72,7 @@ const roleSeparationChecksums = JSON.parse(readFileSync(roleSeparationChecksumPa
 const qualityV3Checksums = JSON.parse(readFileSync(qualityV3ChecksumPath, "utf8")) as Record<string, string>;
 const populationMarginsChecksums = JSON.parse(readFileSync(populationMarginsChecksumPath, "utf8")) as Record<string, string>;
 const longitudinalLineageChecksums = JSON.parse(readFileSync(longitudinalLineageChecksumPath, "utf8")) as Record<string, string>;
+const releaseArchiveChecksums = JSON.parse(readFileSync(releaseArchiveChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
@@ -146,6 +150,7 @@ const roleSeparationSha = createHash("sha256").update(roleSeparationMigration, "
 const qualityV3Sha = createHash("sha256").update(qualityV3Migration, "utf8").digest("hex");
 const populationMarginsSha = createHash("sha256").update(populationMarginsMigration, "utf8").digest("hex");
 const longitudinalLineageSha = createHash("sha256").update(longitudinalLineageMigration, "utf8").digest("hex");
+const releaseArchiveSha = createHash("sha256").update(releaseArchiveMigration, "utf8").digest("hex");
 if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0416 checksum does not match migration bytes");
 }
@@ -197,7 +202,10 @@ if (populationMarginsChecksums["0431_research_population_margins.sql"] !== popul
 if (longitudinalLineageChecksums["0432_research_longitudinal_lineage.sql"] !== longitudinalLineageSha) {
   errors.push("0432 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 432")) errors.push("runtime schema head is not 432");
+if (releaseArchiveChecksums["0433_research_release_archive.sql"] !== releaseArchiveSha) {
+  errors.push("0433 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 433")) errors.push("runtime schema head is not 433");
 if (!qualityV3Migration.includes("ADD COLUMN quality_score")) errors.push("research quality score column missing");
 if (!qualityV3Migration.includes("ADD COLUMN answer_pattern_sha256")) errors.push("research answer-pattern fingerprint column missing");
 if (!qualityV3Migration.includes("research_quality_answer_pattern_idx")) errors.push("research answer-pattern QA index missing");
@@ -207,6 +215,8 @@ if (!longitudinalLineageMigration.includes("CREATE TABLE public.research_questio
 if (!longitudinalLineageMigration.includes("CREATE TABLE public.research_harmonisation_rules")) errors.push("cross-wave harmonisation registry missing");
 if (!longitudinalLineageMigration.includes("CREATE TABLE public.research_longitudinal_comparison_specs")) errors.push("pre-declared longitudinal comparison registry missing");
 if (!longitudinalLineageMigration.includes("research_instruments_lock_longitudinal_registry")) errors.push("instrument lock does not freeze longitudinal lineage");
+if (!releaseArchiveMigration.includes("CREATE TABLE public.research_release_archives")) errors.push("external canonical release archive registry missing");
+if (!releaseArchiveMigration.includes("content_addressed_no_overwrite_v1")) errors.push("release archive no-overwrite contract missing");
 if (!longitudinalLineageMigration.includes("locked longitudinal comparison requires an explicit harmonisation rule")) errors.push("longitudinal comparisons can lock without harmonisation evidence");
 if (!longitudinalLineageMigration.includes("harmonisation must point from an earlier wave to a later wave")) errors.push("harmonisation direction is not wave-governed");
 if (!longitudinalLineageMigration.includes("a comparability break cannot authorize a longitudinal estimate")) errors.push("comparability breaks can authorize longitudinal estimates");
@@ -230,8 +240,8 @@ if (!hierarchyMigration.includes("research_guard_wave_scope")) errors.push("rese
 if (!hierarchyMigration.includes("DISABLE TRIGGER USER")) errors.push("0427 does not explicitly protect structural backfill across immutable evidence");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_programmes ENABLE ROW LEVEL SECURITY;")) errors.push("research programme RLS missing");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_waves ENABLE ROW LEVEL SECURITY;")) errors.push("research wave RLS missing");
-if (!schemaPreflight.includes("expectedSourceVersion = 431")) errors.push("guarded research production rollout is not pinned to schema 0431");
-if (!schemaRollout.includes("0416–0431") || !schemaRollout.includes("through schema 0431")) errors.push("research schema rollout workflow does not advertise the complete 0416–0431 chain");
+if (!schemaPreflight.includes("expectedSourceVersion = 433")) errors.push("guarded research production rollout is not pinned to schema 0433");
+if (!schemaRollout.includes("0416–0433") || !schemaRollout.includes("through schema 0433")) errors.push("research schema rollout workflow does not advertise the complete 0416–0433 chain");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_population_margin_sets")) errors.push("governed population-margin set registry missing");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_population_margins")) errors.push("governed population-margin cells missing");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_analysis_plan_supersessions")) errors.push("analysis-plan supersession evidence missing");
@@ -586,7 +596,7 @@ if (!schemaRollout.includes("workflow_dispatch")) errors.push("research producti
 if (!schemaRollout.includes("environment: production")) errors.push("research production schema rollout lacks production environment gate");
 if (!schemaRollout.includes("if: ${{ inputs.apply }}")) errors.push("research schema mutation lacks explicit apply gate");
 if (!schemaRollout.includes("npm run db:migrate")) errors.push("research schema rollout bypasses checksum-aware migrator");
-if (!schemaPreflight.includes("expectedSourceVersion = 432")) errors.push("research schema rollout source-head guard missing");
+if (!schemaPreflight.includes("expectedSourceVersion = 433")) errors.push("research schema rollout source-head guard missing");
 if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
 if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
@@ -597,7 +607,7 @@ if (errors.length) {
 }
 console.log(JSON.stringify({
   ok: true,
-  schema: 432,
+  schema: 433,
   tables: created.length + 16,
   migrationSha256: sha,
   suppressionMigrationSha256: suppressionSha,
@@ -616,5 +626,6 @@ console.log(JSON.stringify({
   qualityV3MigrationSha256: qualityV3Sha,
   populationMarginsMigrationSha256: populationMarginsSha,
   longitudinalLineageMigrationSha256: longitudinalLineageSha,
+  releaseArchiveMigrationSha256: releaseArchiveSha,
   worker: pkg.scripts?.["worker:research"]
 }));
