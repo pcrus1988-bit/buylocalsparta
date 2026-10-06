@@ -325,7 +325,7 @@ export default async function Home() {
               })}
             </div>
           ) : (
-            <a className={styles.marketWalkFallback} href="/shops">Γνώρισε τα καταστήματα της Σπάρτης →</a>
+            <a className={styles.marketWalkFallback} href="/shops">Τα καταστήματα της Σπάρτης →</a>
           )}
         </div>
       </section>
@@ -353,7 +353,7 @@ export default async function Home() {
             <span className={styles.kicker}>Το δυνατό σημείο της τοπικής αγοράς</span>
             <h2>Υπάρχει άνθρωπος πίσω από το προϊόν.</h2>
             <p>Όταν η φωτογραφία και η περιγραφή δεν αρκούν, το ΚΟΝΤΑ ΜΟΥ σε φέρνει πιο κοντά σε ανθρώπους που γνωρίζουν αυτό που πουλάνε.</p>
-            <div className={styles.humanActions}><a className="button" href="/ask-local">Ρώτησε τοπικά</a><a href="/advice">Βρες συμβουλή από κατάστημα →</a></div>
+            <div className={styles.humanActions}><a className="button" href="/ask-local">Ask Local</a><a href="/advice">Βρες συμβουλή από κατάστημα →</a></div>
           </div>
         </div>
       </section>
