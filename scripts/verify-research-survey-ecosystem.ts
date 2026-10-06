@@ -192,6 +192,11 @@ if (surveyRuntime.includes('"results_notification" | "thank_you_code" | "marketi
 if (!weightingRegistryMigration.includes("CREATE TABLE public.research_population_margin_sets")) errors.push("population-margin registry missing");
 if (!weightingRegistryMigration.includes("CREATE TABLE public.research_weight_specs")) errors.push("weight specification registry missing");
 if (!weightingRegistryMigration.includes("research_freeze_frame_margins")) errors.push("frozen-frame margin builder missing");
+if (!weightingRegistryMigration.includes("ADD COLUMN trim_adjustment")) errors.push("weight trim adjustment ledger missing");
+if (!weightingRegistryMigration.includes("greek-retail-2026-weight-v2") || !weightingRegistryMigration.includes("'locked'")) errors.push("locked v2 weight specification missing");
+if (!weightingRegistryMigration.includes("greek-retail-2026-plan-v2")) errors.push("calibrated analysis-plan v2 missing");
+if (!analysis.includes("calibrateResearchWeights(")) errors.push("analysis runtime does not execute calibration");
+if (!analysis.includes("research_weight_runs") || !analysis.includes("weightRunSha256")) errors.push("analysis runtime does not persist weight-run evidence");
 if (!observatoryPage.includes("Παρατηρητήριο Ελληνικού Λιανεμπορίου")) errors.push("public Retail Observatory home missing");
 if (!researchPrivacyPage.includes("Contact vault")) errors.push("public research privacy page missing");
 for (const role of ["research_superadmin","research_methodologist","research_fieldwork","research_analyst","research_publisher","research_privacy"]) {
