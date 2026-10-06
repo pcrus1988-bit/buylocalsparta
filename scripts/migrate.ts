@@ -4,6 +4,11 @@ import { loadManifest, loadMigrations, migrationDirectoryFrom, verifyMigrationMa
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL is required");
 
+const EMPTY_CATALOGUE_ENRICHMENT_MIGRATIONS = new Set([
+  308, 311, 312, 313, 314, 315, 316,
+  317, 318, 319, 320, 321, 322, 324
+]);
+
 function usesLocalDatabase(url: string): boolean {
   try {
     const hostname = new URL(url).hostname.toLowerCase();
@@ -27,6 +32,7 @@ const migrations = await loadMigrations(directory);
 const manifest = await loadManifest(join(directory, "checksums.json"));
 verifyMigrationManifest(migrations, manifest);
 
+const localDatabase = usesLocalDatabase(connectionString);
 const pool = new Pool({ connectionString, max: 2, application_name: "buy-local-sparta-migrator" });
 try {
   const client = await pool.connect();
@@ -35,7 +41,7 @@ try {
     // Supabase stack. Keep the production migration immutable while providing
     // only the minimal Storage topology it references. This is intentionally
     // restricted to loopback hosts and can never bootstrap a remote database.
-    if (usesLocalDatabase(connectionString)) {
+    if (localDatabase) {
       await client.query(`
         CREATE SCHEMA IF NOT EXISTS storage;
         CREATE TABLE IF NOT EXISTS storage.buckets (
@@ -90,6 +96,7 @@ try {
     `);
     const applied = await client.query("SELECT version, filename, sha256 FROM schema_migrations ORDER BY version");
     const byVersion = new Map<number, { filename: string; sha256: string }>(applied.rows.map((row: any) => [Number(row.version), { filename: row.filename, sha256: row.sha256 }]));
+    let localCatalogueEmpty: boolean | undefined;
 
     for (const migration of migrations) {
       const existing = byVersion.get(migration.version);
@@ -100,6 +107,35 @@ try {
         console.log(`skip ${migration.filename}`);
         continue;
       }
+      if (localDatabase && EMPTY_CATALOGUE_ENRICHMENT_MIGRATIONS.has(migration.version)) {
+        if (localCatalogueEmpty === undefined) {
+          const catalogueState = await client.query(
+            "SELECT NOT EXISTS (SELECT 1 FROM public.product_families LIMIT 1) AS empty"
+          );
+          localCatalogueEmpty = Boolean(catalogueState.rows[0]?.empty);
+        }
+        if (localCatalogueEmpty) {
+          // These immutable migrations enrich exact live catalogue identities and
+          // intentionally fail closed when a referenced family is absent. A fresh
+          // loopback CI database has no production catalogue, so record the exact
+          // immutable checksum as a data no-op rather than rewriting history.
+          console.log(`no-op ${migration.filename} (empty loopback catalogue)`);
+          await client.query("BEGIN");
+          try {
+            await client.query("SELECT pg_advisory_xact_lock(hashtext('buy_local_sparta_schema_migrations'))");
+            await client.query(
+              "INSERT INTO schema_migrations(version, filename, sha256) VALUES ($1, $2, $3)",
+              [migration.version, migration.filename, migration.sha256]
+            );
+            await client.query("COMMIT");
+          } catch (error) {
+            await client.query("ROLLBACK");
+            throw error;
+          }
+          continue;
+        }
+      }
+
       console.log(`apply ${migration.filename}`);
       await client.query("BEGIN");
       try {
