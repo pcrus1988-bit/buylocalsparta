@@ -90,7 +90,7 @@ try {
   const vendorApi = source("apps/web/src/app/api/vendor/advice/appointments/route.ts");
   expect(customerApi.includes("requireAccountSession(request, true)"), "Customer appointment creation route is not CSRF protected");
   expect(customerActionApi.includes("requireAccountSession(request, true)"), "Customer appointment mutation route is not CSRF protected");
-  expect(vendorApi.includes("requireVendorSession(request, true)"), "Vendor appointment mutation route is not CSRF protected");
+  expect(vendorApi.includes('requireVendorCapability("ask_local.manage", request, true)'), "Vendor appointment mutation route is not capability-scoped and CSRF protected");
   expect([customerApi, customerActionApi, vendorApi].every((value) => value.includes('"Cache-Control": "no-store"')), "Appointment APIs must disable response caching");
 
   await saveAccount({ id: customerId, email: customerEmail, password: "Customer!12345", roles: ["customer"], createdAt: now });
