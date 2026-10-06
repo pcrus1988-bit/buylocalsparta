@@ -23,6 +23,12 @@ const sampleDesignIntegrityMigrationPath = "db/migrations/0425_research_sample_d
 const sampleDesignIntegrityChecksumPath = "db/migrations/checksums.0425.json";
 const protocolEvidenceMigrationPath = "db/migrations/0426_research_protocol_evidence.sql";
 const protocolEvidenceChecksumPath = "db/migrations/checksums.0426.json";
+const observatoryHierarchyMigrationPath = "db/migrations/0427_research_observatory_hierarchy.sql";
+const observatoryHierarchyChecksumPath = "db/migrations/checksums.0427.json";
+const privacyLinkageMigrationPath = "db/migrations/0428_research_privacy_linkage_destruction.sql";
+const privacyLinkageChecksumPath = "db/migrations/checksums.0428.json";
+const weightingRegistryMigrationPath = "db/migrations/0429_research_weighting_registry.sql";
+const weightingRegistryChecksumPath = "db/migrations/checksums.0429.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const deliveryMigration = readFileSync(deliveryMigrationPath, "utf8");
@@ -34,6 +40,9 @@ const phaseIsolationMigration = readFileSync(phaseIsolationMigrationPath, "utf8"
 const sampleDesignMigration = readFileSync(sampleDesignMigrationPath, "utf8");
 const sampleDesignIntegrityMigration = readFileSync(sampleDesignIntegrityMigrationPath, "utf8");
 const protocolEvidenceMigration = readFileSync(protocolEvidenceMigrationPath, "utf8");
+const observatoryHierarchyMigration = readFileSync(observatoryHierarchyMigrationPath, "utf8");
+const privacyLinkageMigration = readFileSync(privacyLinkageMigrationPath, "utf8");
+const weightingRegistryMigration = readFileSync(weightingRegistryMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
 const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
@@ -45,6 +54,9 @@ const phaseIsolationChecksums = JSON.parse(readFileSync(phaseIsolationChecksumPa
 const sampleDesignChecksums = JSON.parse(readFileSync(sampleDesignChecksumPath, "utf8")) as Record<string, string>;
 const sampleDesignIntegrityChecksums = JSON.parse(readFileSync(sampleDesignIntegrityChecksumPath, "utf8")) as Record<string, string>;
 const protocolEvidenceChecksums = JSON.parse(readFileSync(protocolEvidenceChecksumPath, "utf8")) as Record<string, string>;
+const observatoryHierarchyChecksums = JSON.parse(readFileSync(observatoryHierarchyChecksumPath, "utf8")) as Record<string, string>;
+const privacyLinkageChecksums = JSON.parse(readFileSync(privacyLinkageChecksumPath, "utf8")) as Record<string, string>;
+const weightingRegistryChecksums = JSON.parse(readFileSync(weightingRegistryChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
@@ -65,6 +77,9 @@ const statistics = readFileSync("apps/web/src/lib/research-survey-statistics.ts"
 const statisticsTests = readFileSync("apps/web/src/lib/research-survey-statistics.test.ts", "utf8");
 const analysis = readFileSync("apps/web/src/lib/research-survey-analysis.ts", "utf8");
 const resultsPage = readFileSync("apps/web/src/app/research/greek-retail-2026/results/page.tsx", "utf8");
+const observatoryPage = readFileSync("apps/web/src/app/research/page.tsx", "utf8");
+const researchPrivacyPage = readFileSync("apps/web/src/app/research/privacy/page.tsx", "utf8");
+const rbac = readFileSync("packages/core/src/auth/rbac.ts", "utf8");
 const releaseRoute = readFileSync("apps/web/src/app/api/research/[slug]/release/route.ts", "utf8");
 const sesSender = readFileSync("apps/web/src/lib/admin-mail-ses.ts", "utf8");
 const gemi = readFileSync("apps/web/src/lib/gemi-admin-export.ts", "utf8");
@@ -96,7 +111,16 @@ const expectedTables = [
   "research_analysis_runs",
   "research_analysis_estimates",
   "research_release_snapshots",
-  "research_study_jobs"
+  "research_study_jobs",
+  "research_programmes",
+  "research_study_series",
+  "research_core_question_concepts",
+  "research_core_question_bindings",
+  "research_linkage_destruction_events",
+  "research_population_margin_sets",
+  "research_population_margins",
+  "research_weight_specs",
+  "research_weight_runs"
 ] as const;
 
 const errors: string[] = [];
@@ -111,6 +135,9 @@ const phaseIsolationSha = createHash("sha256").update(phaseIsolationMigration, "
 const sampleDesignSha = createHash("sha256").update(sampleDesignMigration, "utf8").digest("hex");
 const sampleDesignIntegritySha = createHash("sha256").update(sampleDesignIntegrityMigration, "utf8").digest("hex");
 const protocolEvidenceSha = createHash("sha256").update(protocolEvidenceMigration, "utf8").digest("hex");
+const observatoryHierarchySha = createHash("sha256").update(observatoryHierarchyMigration, "utf8").digest("hex");
+const privacyLinkageSha = createHash("sha256").update(privacyLinkageMigration, "utf8").digest("hex");
+const weightingRegistrySha = createHash("sha256").update(weightingRegistryMigration, "utf8").digest("hex");
 if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0416 checksum does not match migration bytes");
 }
@@ -144,7 +171,32 @@ if (sampleDesignIntegrityChecksums["0425_research_sample_design_integrity.sql"] 
 if (protocolEvidenceChecksums["0426_research_protocol_evidence.sql"] !== protocolEvidenceSha) {
   errors.push("0426 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 426")) errors.push("runtime schema head is not 426");
+if (observatoryHierarchyChecksums["0427_research_observatory_hierarchy.sql"] !== observatoryHierarchySha) {
+  errors.push("0427 checksum does not match migration bytes");
+}
+if (privacyLinkageChecksums["0428_research_privacy_linkage_destruction.sql"] !== privacyLinkageSha) {
+  errors.push("0428 checksum does not match migration bytes");
+}
+if (weightingRegistryChecksums["0429_research_weighting_registry.sql"] !== weightingRegistrySha) {
+  errors.push("0429 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 429")) errors.push("runtime schema head is not 429");
+if (!observatoryHierarchyMigration.includes("CREATE TABLE public.research_programmes")) errors.push("research programme hierarchy missing");
+if (!observatoryHierarchyMigration.includes("CREATE TABLE public.research_study_series")) errors.push("research study-series hierarchy missing");
+if (!observatoryHierarchyMigration.includes("research_core_question_bindings")) errors.push("longitudinal core-question binding missing");
+if (!privacyLinkageMigration.includes("research_destroy_study_linkage")) errors.push("post-publication linkage destruction function missing");
+if (!privacyLinkageMigration.includes("ALTER COLUMN invite_id DROP NOT NULL")) errors.push("response-to-invite detachment support missing");
+if (privacyLinkageMigration.includes("marketing'))")) errors.push("research consent schema still permits marketing");
+if (surveyForm.includes("optionalConsents.marketing")) errors.push("survey UI still contains marketing consent");
+if (surveyRuntime.includes('"results_notification" | "thank_you_code" | "marketing"')) errors.push("research runtime still models marketing consent");
+if (!weightingRegistryMigration.includes("CREATE TABLE public.research_population_margin_sets")) errors.push("population-margin registry missing");
+if (!weightingRegistryMigration.includes("CREATE TABLE public.research_weight_specs")) errors.push("weight specification registry missing");
+if (!weightingRegistryMigration.includes("research_freeze_frame_margins")) errors.push("frozen-frame margin builder missing");
+if (!observatoryPage.includes("Παρατηρητήριο Ελληνικού Λιανεμπορίου")) errors.push("public Retail Observatory home missing");
+if (!researchPrivacyPage.includes("Contact vault")) errors.push("public research privacy page missing");
+for (const role of ["research_superadmin","research_methodologist","research_fieldwork","research_analyst","research_publisher","research_privacy"]) {
+  if (!rbac.includes(role)) errors.push(`research RBAC role missing: ${role}`);
+}
 if (!sampleDesignMigration.includes("CREATE TABLE public.research_sample_designs")) errors.push("sample design evidence table missing");
 if (!sampleDesignMigration.includes("CREATE TABLE public.research_sample_design_strata")) errors.push("sample design stratum evidence table missing");
 if (!sampleDesignMigration.includes("research_sample_designs_immutable")) errors.push("sample design immutability trigger missing");
