@@ -3,6 +3,7 @@ import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import {
   benjaminiHochbergAdjustedPValues,
+  calibrateResearchWeights,
   normal95ConfidenceInterval,
   normalTwoSidedPValue,
   researchWeightDiagnostics,
@@ -10,8 +11,8 @@ import {
   weightedClusteredDifferenceInMeans
 } from "./research-survey-statistics";
 
-const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v6";
-const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v1";
+const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v7";
+const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v2";
 const MIN_PUBLIC_BASE = 30;
 const VARIANCE_METHOD = "stratified_srs_fpc_v1";
 
@@ -21,6 +22,7 @@ type ResponseRow = Readonly<{
   stratumCode: string;
   regionCode: string;
   sectorCode: string;
+  sizeBand: string;
   baseWeight: number;
 }>;
 
@@ -80,6 +82,10 @@ function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String) : [];
 }
 
 function canonical(value: unknown): string {
@@ -294,11 +300,21 @@ export async function runGreekRetailAnalysis(
   const planConfidenceLevel = numberValue(planVariance.confidenceLevel);
   const planVarianceMethod = text(planVariance.method);
   const planNonresponseAdjustment = text(planWeighting.nonresponseAdjustment);
+  const planCalibrationAdjustment = text(planWeighting.calibrationAdjustment);
+  const planWeightSpecVersion = text(planWeighting.weightSpecVersion);
+  const planCalibrationDimensions = stringArray(planWeighting.calibrationDimensions);
+  const planTrimMethod = text(planWeighting.trimMethod);
+  const planTrimParameter = numberValue(planWeighting.trimParameter);
   if (
     planMinimumBase !== MIN_PUBLIC_BASE ||
     planConfidenceLevel !== 0.95 ||
     planVarianceMethod !== VARIANCE_METHOD ||
-    planNonresponseAdjustment !== "within_sampling_stratum"
+    planNonresponseAdjustment !== "within_sampling_stratum" ||
+    planCalibrationAdjustment !== "raking_to_frozen_frame_margins" ||
+    planWeightSpecVersion !== WEIGHT_METHOD_VERSION ||
+    planCalibrationDimensions.join("|") !== "region_code|sector_code|size_band" ||
+    planTrimMethod !== "cap_median_ratio" ||
+    planTrimParameter !== 4
   ) {
     throw new Error("RESEARCH_ANALYSIS_PLAN_CODE_MISMATCH");
   }
@@ -314,6 +330,69 @@ export async function runGreekRetailAnalysis(
   `, [studyId]);
   const draw = drawResult.rows[0];
   if (!draw) throw new Error("RESEARCH_ANALYSIS_SAMPLE_MISSING");
+
+  const weightSpecResult = await pool.query<SqlRow>(`
+    SELECT
+      id,version,content_sha256,base_method,nonresponse_method,
+      calibration_method,calibration_dimensions,trim_method,trim_parameter,
+      max_iterations,convergence_tolerance
+    FROM research_weight_specs
+    WHERE study_id=$1 AND version=$2 AND status='locked'
+    LIMIT 1
+  `, [studyId, WEIGHT_METHOD_VERSION]);
+  const weightSpec = weightSpecResult.rows[0];
+  if (!weightSpec) throw new Error("RESEARCH_WEIGHT_SPEC_MISSING");
+  const calibrationDimensions = stringArray(weightSpec.calibration_dimensions);
+  const trimParameter = numberValue(weightSpec.trim_parameter);
+  const maxIterations = numberValue(weightSpec.max_iterations);
+  const convergenceTolerance = numberValue(weightSpec.convergence_tolerance);
+  if (
+    text(weightSpec.base_method) !== "inverse_recorded_inclusion_probability" ||
+    text(weightSpec.nonresponse_method) !== "within_sampling_stratum" ||
+    text(weightSpec.calibration_method) !== "raking" ||
+    calibrationDimensions.join("|") !== planCalibrationDimensions.join("|") ||
+    text(weightSpec.trim_method) !== "cap_median_ratio" ||
+    trimParameter !== planTrimParameter ||
+    maxIterations < 1 ||
+    !(convergenceTolerance > 0)
+  ) {
+    throw new Error("RESEARCH_WEIGHT_SPEC_CODE_MISMATCH");
+  }
+
+  const marginSetVersion = `${WEIGHT_METHOD_VERSION}:frame:${text(draw.frame_snapshot_id)}`;
+  let marginSetResult = await pool.query<SqlRow>(`
+    SELECT id,version,content_sha256
+    FROM research_population_margin_sets
+    WHERE study_id=$1 AND frame_snapshot_id=$2 AND status='frozen'
+    ORDER BY frozen_at DESC,created_at DESC
+    LIMIT 1
+  `, [studyId, draw.frame_snapshot_id]);
+  if (!marginSetResult.rows[0]) {
+    const frozen = await pool.query<SqlRow>(
+      "SELECT research_freeze_frame_margins($1,$2,$3) AS id",
+      [studyId, draw.frame_snapshot_id, marginSetVersion]
+    );
+    marginSetResult = await pool.query<SqlRow>(`
+      SELECT id,version,content_sha256
+      FROM research_population_margin_sets
+      WHERE id=$1 AND status='frozen'
+    `, [frozen.rows[0]?.id]);
+  }
+  const marginSet = marginSetResult.rows[0];
+  if (!marginSet || !text(marginSet.content_sha256)) {
+    throw new Error("RESEARCH_POPULATION_MARGINS_MISSING");
+  }
+  const populationMarginsResult = await pool.query<SqlRow>(`
+    SELECT dimension_key,category_key,population_count
+    FROM research_population_margins
+    WHERE margin_set_id=$1
+    ORDER BY dimension_key,category_key
+  `, [marginSet.id]);
+  const populationMargins = populationMarginsResult.rows.map((row) => ({
+    dimension: text(row.dimension_key),
+    category: text(row.category_key),
+    target: numberValue(row.population_count)
+  }));
 
   let runResult = await pool.query<SqlRow>(`
     SELECT id,status,dataset_sha256,code_version,weight_version,analysis_plan_id
@@ -412,6 +491,61 @@ export async function runGreekRetailAnalysis(
   // this run's not-yet-released weight version before reconstructing it.
   await pool.query("DELETE FROM research_weights WHERE version=$1", [weightVersion]);
 
+  let weightRunResult = await pool.query<SqlRow>(`
+    SELECT id,status
+    FROM research_weight_runs
+    WHERE study_id=$1 AND version=$2
+    LIMIT 1
+  `, [studyId, weightVersion]);
+  let weightRunId = text(weightRunResult.rows[0]?.id);
+  if (weightRunId && text(weightRunResult.rows[0]?.status) === "succeeded") {
+    throw new Error("RESEARCH_WEIGHT_RUN_SUCCEEDED_WITHOUT_ANALYSIS");
+  }
+  if (!weightRunId) {
+    weightRunResult = await pool.query<SqlRow>(`
+      INSERT INTO research_weight_runs (
+        study_id,sample_draw_id,margin_set_id,weight_spec_id,version,status,diagnostics
+      )
+      VALUES ($1,$2,$3,$4,$5,'running','{}'::jsonb)
+      RETURNING id
+    `, [studyId, draw.id, marginSet.id, weightSpec.id, weightVersion]);
+    weightRunId = text(weightRunResult.rows[0]?.id);
+  } else {
+    await pool.query(`
+      UPDATE research_weight_runs
+      SET status='running',
+          sample_draw_id=$2,
+          margin_set_id=$3,
+          weight_spec_id=$4,
+          diagnostics='{}'::jsonb,
+          content_sha256=NULL,
+          started_at=now(),
+          completed_at=NULL
+      WHERE id=$1
+    `, [weightRunId, draw.id, marginSet.id, weightSpec.id]);
+  }
+
+  await pool.query(`
+    UPDATE research_analysis_runs
+    SET parameters=parameters || jsonb_build_object(
+      'weightSpecVersion',$2::text,
+      'weightSpecSha256',$3::text,
+      'weightRunId',$4::text,
+      'populationMarginSetId',$5::text,
+      'populationMarginSetVersion',$6::text,
+      'populationMarginSetSha256',$7::text
+    )
+    WHERE id=$1
+  `, [
+    analysisRunId,
+    WEIGHT_METHOD_VERSION,
+    weightSpec.content_sha256,
+    weightRunId,
+    marginSet.id,
+    marginSet.version,
+    marginSet.content_sha256
+  ]);
+
   const eligibleByStratum = await pool.query<SqlRow>(`
     WITH latest_disposition AS (
       SELECT DISTINCT ON (e.sample_unit_id)
@@ -451,6 +585,7 @@ export async function runGreekRetailAnalysis(
       st.code AS stratum_code,
       COALESCE(fu.region_code,'unknown') AS region_code,
       COALESCE(fu.sector_code,'unknown') AS sector_code,
+      COALESCE(fu.size_band,'unknown') AS size_band,
       su.base_weight
     FROM research_responses r
     JOIN research_invites ri ON ri.id=r.invite_id AND ri.fieldwork_phase='main'
@@ -470,6 +605,7 @@ export async function runGreekRetailAnalysis(
     stratumCode: text(row.stratum_code),
     regionCode: text(row.region_code),
     sectorCode: text(row.sector_code),
+    sizeBand: text(row.size_band),
     baseWeight: numberValue(row.base_weight)
   }));
 
@@ -490,22 +626,61 @@ export async function runGreekRetailAnalysis(
     if (respondentBase > 0) adjustmentByStratum.set(stratumId, representedWeight / respondentBase);
   }
 
+  const nonresponseWeightByResponse = new Map<string, number>();
   for (const response of baseResponses) {
     const nonresponseAdjustment = adjustmentByStratum.get(response.stratumId);
     if (!nonresponseAdjustment || !Number.isFinite(nonresponseAdjustment)) {
       throw new Error(`RESEARCH_WEIGHTING_STRATUM_UNRESOLVED:${response.stratumId}`);
     }
-    const finalWeight = response.baseWeight * nonresponseAdjustment;
+    nonresponseWeightByResponse.set(
+      response.responseId,
+      response.baseWeight * nonresponseAdjustment
+    );
+  }
+
+  const calibration = calibrateResearchWeights(
+    baseResponses.map((response) => ({
+      id: response.responseId,
+      initialWeight: nonresponseWeightByResponse.get(response.responseId)!,
+      categories: {
+        region_code: response.regionCode,
+        sector_code: response.sectorCode,
+        size_band: response.sizeBand
+      }
+    })),
+    populationMargins,
+    {
+      dimensions: calibrationDimensions,
+      maxIterations,
+      tolerance: convergenceTolerance,
+      trimMedianRatio: trimParameter
+    }
+  );
+  const calibratedByResponse = new Map(
+    calibration.weights.map((weight) => [weight.id, weight] as const)
+  );
+
+  for (const response of baseResponses) {
+    const nonresponseAdjustment = adjustmentByStratum.get(response.stratumId)!;
+    const calibrated = calibratedByResponse.get(response.responseId);
+    if (!calibrated) throw new Error("RESEARCH_CALIBRATION_RESPONSE_MISSING");
+
     await pool.query(`
       INSERT INTO research_weights (
-        response_id,version,base_weight,nonresponse_adjustment,calibration_adjustment,final_weight,metadata
+        response_id,version,base_weight,nonresponse_adjustment,
+        calibration_adjustment,trim_adjustment,final_weight,weight_run_id,metadata
       )
       VALUES (
-        $1,$2,$3,$4,1,$5,
+        $1,$2,$3,$4,$5,$6,$7,$8,
         jsonb_build_object(
-          'method','within_stratum_nonresponse_adjustment',
-          'analysisRunId',$6::text,
-          'stratumId',$7::text
+          'method','design_nonresponse_raking_trim_v2',
+          'analysisRunId',$9::text,
+          'stratumId',$10::text,
+          'weightSpecVersion',$11::text,
+          'weightSpecSha256',$12::text,
+          'populationMarginSetId',$13::text,
+          'populationMarginSetSha256',$14::text,
+          'combinedPostNonresponseAdjustment',$15::numeric
         )
       )
     `, [
@@ -513,9 +688,17 @@ export async function runGreekRetailAnalysis(
       weightVersion,
       response.baseWeight,
       nonresponseAdjustment,
-      finalWeight,
+      calibrated.rakingAdjustment,
+      calibrated.trimAdjustment,
+      calibrated.finalWeight,
+      weightRunId,
       analysisRunId,
-      response.stratumId
+      response.stratumId,
+      WEIGHT_METHOD_VERSION,
+      weightSpec.content_sha256,
+      marginSet.id,
+      marginSet.content_sha256,
+      calibrated.combinedAdjustment
     ]);
   }
 
@@ -550,10 +733,13 @@ export async function runGreekRetailAnalysis(
 
   const weightedResponses: WeightedResponse[] = baseResponses.map((response) => ({
     ...response,
-    finalWeight: response.baseWeight * (adjustmentByStratum.get(response.stratumId) ?? 1),
+    finalWeight: calibratedByResponse.get(response.responseId)?.finalWeight ?? 0,
     answers: answerMap.get(response.responseId) ?? {},
     scores: scoreMap.get(response.responseId) ?? {}
   }));
+  if (weightedResponses.some((response) => !(response.finalWeight > 0))) {
+    throw new Error("RESEARCH_CALIBRATION_FINAL_WEIGHT_MISSING");
+  }
 
   const experimentResult = await pool.query<SqlRow>(`
     SELECT
@@ -629,10 +815,41 @@ export async function runGreekRetailAnalysis(
     .filter((value) => Number.isFinite(value) && value > 0);
   const weightingDiagnostics = {
     ...researchWeightDiagnostics(weightedResponses.map((response) => response.finalWeight)),
+    method: "design_nonresponse_raking_trim_v2",
+    weightSpecVersion: WEIGHT_METHOD_VERSION,
+    weightSpecSha256: text(weightSpec.content_sha256),
+    populationMarginSetId: text(marginSet.id),
+    populationMarginSetVersion: text(marginSet.version),
+    populationMarginSetSha256: text(marginSet.content_sha256),
     nonresponseAdjustmentMin: adjustmentValues.length ? Math.min(...adjustmentValues) : null,
     nonresponseAdjustmentMax: adjustmentValues.length ? Math.max(...adjustmentValues) : null,
-    adjustmentStrata: adjustmentValues.length
+    adjustmentStrata: adjustmentValues.length,
+    calibration: calibration.diagnostics
   };
+
+  const weightRunEvidence = {
+    schema: "kontamou.research.weight-run.v1",
+    studyId,
+    sampleDrawId: text(draw.id),
+    frameSnapshotId: text(draw.frame_snapshot_id),
+    weightSpecVersion: WEIGHT_METHOD_VERSION,
+    weightSpecSha256: text(weightSpec.content_sha256),
+    populationMarginSetId: text(marginSet.id),
+    populationMarginSetSha256: text(marginSet.content_sha256),
+    diagnostics: weightingDiagnostics,
+    weights: calibration.weights
+      .map((weight) => ({
+        responseId: weight.id,
+        initialWeight: Number(weight.initialWeight.toFixed(10)),
+        rakingAdjustment: Number(weight.rakingAdjustment.toFixed(10)),
+        trimAdjustment: Number(weight.trimAdjustment.toFixed(10)),
+        finalWeight: Number(weight.finalWeight.toFixed(10))
+      }))
+      .sort((a, b) => a.responseId.localeCompare(b.responseId))
+  };
+  const weightRunSha256 = createHash("sha256")
+    .update(canonical(weightRunEvidence), "utf8")
+    .digest("hex");
 
   const questionResult = await pool.query<SqlRow>(`
     SELECT code,question_type,analysis_key,config
@@ -705,7 +922,7 @@ export async function runGreekRetailAnalysis(
         )
         VALUES (
           $1,$2,$3::jsonb,$4,$5,$6,$7,$8,$9,$10,
-          'nonresponse_adjusted_stratified_descriptive_v2',$11,$12::jsonb
+          'calibrated_stratified_descriptive_v3',$11,$12::jsonb
         )
       `, [
         analysisRunId,
@@ -875,7 +1092,7 @@ export async function runGreekRetailAnalysis(
       metadata
     FROM research_analysis_estimates
     WHERE analysis_run_id=$1
-      AND method='nonresponse_adjusted_stratified_descriptive_v2'
+      AND method='calibrated_stratified_descriptive_v3'
       AND metric_key IN ('digital_readiness.mean','retail_friction.mean')
       AND suppressed=false
       AND estimate IS NOT NULL
@@ -1025,17 +1242,32 @@ export async function runGreekRetailAnalysis(
   }
 
   await pool.query(`
+    WITH completed_weight_run AS (
+      UPDATE research_weight_runs
+      SET status='succeeded',
+          diagnostics=$3::jsonb,
+          content_sha256=$4,
+          completed_at=now()
+      WHERE id=$2
+      RETURNING id
+    )
     UPDATE research_analysis_runs
-    SET dataset_sha256=$2,
+    SET dataset_sha256=$5,
         status='succeeded',
         completed_at=now(),
         parameters=parameters || jsonb_build_object(
-          'weightDiagnostics',$3::jsonb,
-          'experimentDiagnostics',$4::jsonb
+          'weightDiagnostics',$6::jsonb,
+          'experimentDiagnostics',$7::jsonb,
+          'weightRunId',$2::text,
+          'weightRunSha256',$4::text
         )
     WHERE id=$1
+      AND EXISTS (SELECT 1 FROM completed_weight_run)
   `, [
     analysisRunId,
+    weightRunId,
+    JSON.stringify(weightingDiagnostics),
+    weightRunSha256,
     datasetSha256,
     JSON.stringify(weightingDiagnostics),
     JSON.stringify(experimentDiagnostics)
@@ -1053,6 +1285,10 @@ export async function runGreekRetailAnalysis(
     analysisPlanVersion: text(analysisPlan.version),
     analysisPlanSha256: text(analysisPlan.content_sha256),
     weightingDiagnostics,
-    experimentDiagnostics
+    experimentDiagnostics,
+    weightRunId,
+    weightRunSha256,
+    weightSpecVersion: WEIGHT_METHOD_VERSION,
+    populationMarginSetSha256: text(marginSet.content_sha256)
   };
 }
