@@ -170,7 +170,7 @@ function frameRecord(record: GemiResearchFrameRecord): FrameBufferRecord | undef
 }
 
 export async function queueGreekRetailFrameBuild(principal: SessionPrincipal): Promise<{ jobId: string }> {
-  assertAdminPermission(principal, "research.manage");
+  assertAdminPermission(principal, "research.design.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const pool = getProductionPostgresRuntime().sqlPool;
   const study = await pool.query<SqlRow>("SELECT id FROM research_studies WHERE slug=$1 LIMIT 1", [STUDY_SLUG]);
@@ -214,7 +214,7 @@ export async function queueGreekRetailSampleDraw(
     fieldworkPhase?: "pilot" | "main";
   }>
 ): Promise<{ jobId: string; randomSeed: string; fieldworkPhase: "pilot" | "main" }> {
-  assertAdminPermission(principal, "research.manage");
+  assertAdminPermission(principal, "research.design.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const targetN = Math.floor(input.targetN);
   if (!Number.isSafeInteger(targetN) || targetN < 1 || targetN > 100_000) {
@@ -336,7 +336,7 @@ export async function saveGreekRetailRecruitmentTemplate(
     purpose?: "research_invitation" | "research_reminder";
   }>
 ): Promise<{ templateId: string; version: string; purpose: string }> {
-  assertAdminPermission(principal, "research.manage");
+  assertAdminPermission(principal, "research.fieldwork.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const subject = input.subject.trim();
   const bodyText = input.bodyText.trim();
@@ -374,7 +374,7 @@ export async function queueGreekRetailInviteBatch(
   principal: SessionPrincipal,
   input: Readonly<{ limit?: number; label?: string }>
 ): Promise<{ jobId: string }> {
-  assertAdminPermission(principal, "research.manage");
+  assertAdminPermission(principal, "research.fieldwork.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   assertResearchSurveyEmailReady();
   const limit = Math.max(1, Math.min(500, Math.floor(input.limit ?? 100)));
@@ -441,7 +441,7 @@ export async function queueGreekRetailInviteReminderBatch(
     maxReminders?: number;
   }> = {}
 ): Promise<{ jobId: string; templateId: string }> {
-  assertAdminPermission(principal, "research.manage");
+  assertAdminPermission(principal, "research.fieldwork.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   assertResearchSurveyEmailReady();
 
@@ -529,7 +529,7 @@ export async function queueGreekRetailRewardDelivery(
   principal: SessionPrincipal,
   input: Readonly<{ limit?: number; label?: string }> = {}
 ): Promise<{ jobId: string }> {
-  assertAdminPermission(principal, "research.manage");
+  assertAdminPermission(principal, "research.fieldwork.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   assertResearchSurveyEmailReady();
   researchRewardSecret();
@@ -570,7 +570,7 @@ export async function queueGreekRetailResultsNotifications(
   principal: SessionPrincipal,
   input: Readonly<{ limit?: number; label?: string }> = {}
 ): Promise<{ jobId: string; releaseSnapshotId: string }> {
-  assertAdminPermission(principal, "research.manage");
+  assertAdminPermission(principal, "research.publish.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   assertResearchSurveyEmailReady();
   const limit = Math.max(1, Math.min(250, Math.floor(input.limit ?? 100)));
@@ -635,7 +635,7 @@ export async function setGreekRetailIdentityRetentionPolicy(
   principal: SessionPrincipal,
   input: Readonly<{ retentionUntil: string }>
 ): Promise<{ waveId: string; retentionUntil: string }> {
-  assertAdminPermission(principal, "research.manage");
+  assertAdminPermission(principal, "research.privacy.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
 
   const retentionDate = new Date(input.retentionUntil);
@@ -680,7 +680,7 @@ export async function setGreekRetailIdentityRetentionPolicy(
 export async function queueGreekRetailIdentityDestruction(
   principal: SessionPrincipal
 ): Promise<{ jobId: string; waveId: string }> {
-  assertAdminPermission(principal, "research.manage");
+  assertAdminPermission(principal, "research.privacy.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const pool = getProductionPostgresRuntime().sqlPool;
 
@@ -760,7 +760,7 @@ export async function queueGreekRetailIdentityDestruction(
 export async function queueGreekRetailAnalysis(
   principal: SessionPrincipal
 ): Promise<{ jobId: string }> {
-  assertAdminPermission(principal, "research.manage");
+  assertAdminPermission(principal, "research.analysis.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const pool = getProductionPostgresRuntime().sqlPool;
   const study = await pool.query<SqlRow>(
