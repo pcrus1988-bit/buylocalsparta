@@ -69,7 +69,7 @@ const vendorDashboardQuery = between(vendorOperations, "async dashboard", "async
 for (const forbidden of ["->>'recipientName'", "->>'recipientEmail'", "->>'recipientPhone'", "->>'line1'", "->>'phone'"]) {
   forbidText(vendorDashboardQuery, forbidden, `Vendor dashboard must not preload personal delivery field ${forbidden}`);
 }
-requireText(vendorDeliveryRoute, "requireVendorSession(request, true)", "Vendor delivery-contact endpoint must remain authenticated and CSRF protected even when disclosure is denied");
+if (!vendorDeliveryRoute.includes("requireVendorSession(request, true)") && !vendorDeliveryRoute.includes('requireVendorCapability("fulfilment.manage", request, true)')) {\n  throw new Error("Vendor delivery-contact endpoint must remain authenticated and CSRF protected even when disclosure is denied");\n}
 requireText(vendorDeliveryRoute, "διαθέσιμη μόνο στον ανατεθειμένο οδηγό", "Vendor delivery-contact endpoint must deny customer destination disclosure");
 requireText(vendorDeliveryRoute, '"cache-control": "no-store, private"', "Vendor delivery-contact denial responses must not be cached");
 requireText(vendorOrdersClient, 'const deliveryRevealStatuses = new Set<string>();', "Vendor workspace must never make KONTA MOY local-delivery destination PII revealable");
