@@ -495,9 +495,9 @@ export default async function GreekRetailResultsPage() {
       <h2>Ακριβές αποτύπωμα του release</h2>
       <p>Dataset SHA-256: <code>{release.datasetSha256}</code></p>
       <p>Artifact SHA-256: <code>{release.artifactSha256}</code></p>
-      <p>Machine-readable published output: <Link href="/api/research/greek-retail-2026/results">Results API →</Link></p>
+      <p>Machine-readable published output: <a href={"/api/research/greek-retail-2026/results"}>Results API →</a></p>
       <p>
-        Verifiable evidence artifact: <a href="/api/research/greek-retail-2026/release">Download canonical JSON →</a>.
+        Verifiable evidence artifact: <a href={"/api/research/greek-retail-2026/release"} download>Download canonical JSON →</a>.
         The downloaded bytes hash directly to the Artifact SHA-256 above.
       </p>
     </section>
