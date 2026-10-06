@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   benjaminiHochbergAdjustedPValues,
+  boundedRakeCalibration,
   normal95ConfidenceInterval,
   normalTwoSidedPValue,
   proportionalStratumAllocation,
@@ -112,6 +113,63 @@ test("weight diagnostics expose effective-sample loss from unequal weights", () 
   assert.ok((result.kishEffectiveN ?? 4) < 2);
   assert.ok((result.weightingDesignEffect ?? 1) > 2);
   assert.ok((result.coefficientOfVariation ?? 0) > 1);
+});
+
+test("bounded raking reproduces compatible region and sector margins", () => {
+  const result = boundedRakeCalibration([
+    { id: "a", baseWeight: 10, dimensions: { regionCode: "north", sectorCode: "fashion" } },
+    { id: "b", baseWeight: 10, dimensions: { regionCode: "north", sectorCode: "home" } },
+    { id: "c", baseWeight: 10, dimensions: { regionCode: "south", sectorCode: "fashion" } },
+    { id: "d", baseWeight: 10, dimensions: { regionCode: "south", sectorCode: "home" } }
+  ], [
+    { dimension: "regionCode", category: "north", targetTotal: 60 },
+    { dimension: "regionCode", category: "south", targetTotal: 40 },
+    { dimension: "sectorCode", category: "fashion", targetTotal: 50 },
+    { dimension: "sectorCode", category: "home", targetTotal: 50 }
+  ], {
+    maxIterations: 100,
+    tolerance: 1e-8,
+    lowerAdjustmentBound: 0.1,
+    upperAdjustmentBound: 10,
+    maxWeightToMedianRatio: 10
+  });
+  assert.equal(result.converged, true);
+  assert.ok(result.maxRelativeMarginError < 1e-8);
+  assert.ok(Math.abs(Object.values(result.finalWeights).reduce((sum, weight) => sum + weight, 0) - 100) < 1e-8);
+});
+
+test("bounded raking reports infeasible extreme margins instead of hiding trimming error", () => {
+  const result = boundedRakeCalibration([
+    { id: "a", baseWeight: 10, dimensions: { regionCode: "north" } },
+    { id: "b", baseWeight: 10, dimensions: { regionCode: "south" } }
+  ], [
+    { dimension: "regionCode", category: "north", targetTotal: 99 },
+    { dimension: "regionCode", category: "south", targetTotal: 1 }
+  ], {
+    maxIterations: 20,
+    tolerance: 1e-8,
+    lowerAdjustmentBound: 0.5,
+    upperAdjustmentBound: 2,
+    maxWeightToMedianRatio: 2
+  });
+  assert.equal(result.converged, false);
+  assert.ok(result.trimmedUnitCount > 0);
+  assert.ok(result.maxRelativeMarginError > 0.1);
+});
+
+test("bounded raking refuses population-margin cells with no respondent support", () => {
+  assert.throws(() => boundedRakeCalibration([
+    { id: "a", baseWeight: 10, dimensions: { regionCode: "north" } }
+  ], [
+    { dimension: "regionCode", category: "north", targetTotal: 50 },
+    { dimension: "regionCode", category: "south", targetTotal: 50 }
+  ], {
+    maxIterations: 20,
+    tolerance: 1e-8,
+    lowerAdjustmentBound: 0.5,
+    upperAdjustmentBound: 2,
+    maxWeightToMedianRatio: 2
+  }), /RESEARCH_CALIBRATION_EMPTY_CELL:regionCode:south/);
 });
 
 
