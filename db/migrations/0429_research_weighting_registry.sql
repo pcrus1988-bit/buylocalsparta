@@ -230,8 +230,8 @@ INSERT INTO public.research_weight_specs (
   max_iterations,convergence_tolerance,spec_json,content_sha256
 ) VALUES (
   '1b1bc971-705a-4b97-92c5-202600000001',
-  'greek-retail-2026-weight-v2-candidate',
-  'draft',
+  'greek-retail-2026-weight-v2',
+  'locked',
   'inverse_recorded_inclusion_probability',
   'within_sampling_stratum',
   'raking',
@@ -243,6 +243,58 @@ INSERT INTO public.research_weight_specs (
   '{}'::jsonb,
   repeat('0',64)
 ) ON CONFLICT (study_id,version) DO NOTHING;
+
+-- Preserve the immutable v1 preregistration and append a new pre-fieldwork
+-- contract for the Observatory weighting engine. Nothing here rewrites v1.
+INSERT INTO public.research_analysis_plans (
+  study_id,
+  instrument_id,
+  version,
+  title,
+  status,
+  plan_json,
+  content_sha256,
+  locked_at
+)
+SELECT
+  study_id,
+  instrument_id,
+  'greek-retail-2026-plan-v2',
+  'Greek Retail 2026 pre-fieldwork analysis plan v2 — calibrated weighting',
+  'locked',
+  plan_json || jsonb_build_object(
+    'schema','kontamou.research.analysis-plan.v2',
+    'weighting',jsonb_build_object(
+      'weightSpecVersion','greek-retail-2026-weight-v2',
+      'baseWeight','inverse_recorded_inclusion_probability',
+      'nonresponseAdjustment','within_sampling_stratum',
+      'calibrationAdjustment','raking_to_frozen_frame_margins',
+      'calibrationDimensions',jsonb_build_array('region_code','sector_code','size_band'),
+      'trimMethod','cap_median_ratio',
+      'trimParameter',4,
+      'maxIterations',50,
+      'convergenceTolerance',0.000001,
+      'emptyTargetCellPolicy','fail_closed',
+      'trimCalibrationPolicy','bounded_rerake_to_declared_margins',
+      'variancePolicy','withhold_stratified_srs_fpc_when_calibration_creates_unequal_within_stratum_weights',
+      'extremeWeightDiagnostics',jsonb_build_array(
+        'coefficient_of_variation',
+        'kish_effective_n',
+        'weighting_design_effect',
+        'adjustment_range',
+        'raking_iterations',
+        'max_relative_margin_error',
+        'trim_cap',
+        'trimmed_unit_count'
+      )
+    )
+  ),
+  repeat('0',64),
+  now()
+FROM public.research_analysis_plans
+WHERE study_id='1b1bc971-705a-4b97-92c5-202600000001'
+  AND version='greek-retail-2026-plan-v1'
+ON CONFLICT (study_id,version) DO NOTHING;
 
 ALTER TABLE public.research_population_margin_sets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.research_population_margins ENABLE ROW LEVEL SECURITY;
