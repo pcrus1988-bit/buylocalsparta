@@ -1018,3 +1018,17 @@ The exact migration passed a live schema-410 transaction ending in `ROLLBACK`. E
 Migration SHA-256: `ab7857be1e483e7c053febc6a12e1572e09d41beedfbe42f8204151d6ab8c720`.
 
 The runtime schema gate on this change is **411**.
+
+## Schema 418–419 priority footwear enrichment
+
+Schema 418 extends the technology vocabulary beyond the initial Cloudfoam family and applies it to high-priority sellable footwear. Named systems such as LIGHTMOTION, Adiwear, RAIN.RDY, Traxion, Lightstrike Pro, CloudTec, Helion, CleanCloud, PWRRUN PB, SPEEDROLL and XT-900 are stored as technical facts when exact manufacturer evidence identifies them.
+
+The same migration resolves only surface/use-case fields that have direct manufacturer classification:
+
+- Terrex Anylander RAIN.RDY `JR9087`: official Day Hiking classification.
+- On Cloud X 5 `3MG30081043`: indoor/studio training surface from exact studio/gym positioning.
+- Saucony Endorphin Azura `S21070`: Road and Treadmill surfaces from Saucony's own model collection filters.
+
+Schema 419 adds CloudTec + Helion technology facts to four exact Cloud X Tempo families and records explicit Regular fit for Duramo RC2 `KJ6635`. It intentionally does not infer indoor surface, support grade, cushioning intensity, width, toe-box or weather protection from qualitative copy when those fields remain unclassified.
+
+Across both migrations, existing ordinal cushioning/support/fit/weather facts are snapshotted and regression-checked so technology enrichment cannot silently change recommendation-critical grades.
