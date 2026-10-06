@@ -10,15 +10,19 @@ The first governed study is `greek-retail-2026`, instrument `0.2.0`.
 
 Every publishable result must be reconstructable through:
 
-`study -> frame snapshot -> strata -> sample draw -> sample unit -> invite -> consent -> response -> score/weight -> analysis run -> release snapshot`
+`programme -> study -> wave -> frame snapshot -> strata -> sample draw -> sample unit -> invite -> consent -> response -> score/weight -> analysis run -> release snapshot`
 
 Each object has a stable identifier. Methodological objects are never silently overwritten after they become part of fieldwork.
 
 ## Data domains
 
-### Study governance
+### Programme / study / wave governance
 
-- `research_studies` — study identity, target population, lifecycle and field dates.
+- `research_programmes` — permanent institutional research programme identity. The first programme is the Παρατηρητήριο Ελληνικού Λιανεμπορίου.
+- `research_studies` — stable study identity inside a programme, including a programme-scoped `study_code` and an explicit `current_wave_id`.
+- `research_waves` — annual or thematic waves beneath a stable study. Wave rows preserve wave code, public slug, lifecycle and field dates.
+- Schema 0427 binds every direct study-scoped evidence table to a `wave_id` and enforces the wave↔study pair with composite foreign keys. Existing runtime inserts fail closed onto the study's explicit current wave rather than relying on an implicit year.
+- The 0427 structural backfill temporarily disables only user-defined immutability triggers inside the migration transaction, annotates pre-existing governed evidence with its wave, then re-enables the guards before commit.
 - `research_instruments` — immutable questionnaire versions and content hashes.
 - `research_questions` — exact wording, type, routing/config and analysis key.
 - A database trigger prevents question mutation once an instrument leaves `draft`.
@@ -100,16 +104,16 @@ Study departures are now governed evidence rather than informal admin notes.
 ### Consent and response
 
 - `research_responses` contains the response lifecycle.
-- `research_consents` is an append-only event ledger and stores separate choices for:
+- `research_consents` is an append-only event ledger used by the participant research flow for separate choices for:
   - research participation
   - results notification
   - thank-you code
-  - KONTA MOY marketing
 - Research participation is required to create a response.
-- Completing the core study creates the thank-you reward entitlement. Reward eligibility does **not** depend on marketing consent or on asking to receive the code.
+- Commercial marketing consent is not collected by the scientific questionnaire and is rejected by the participant research runtime. Any commercial opt-in belongs to a separate KONTA MOY commercial flow after the research endpoint.
+- Completing the core study creates the thank-you reward entitlement. Reward eligibility does **not** depend on commercial consent or on asking to receive the code.
 - Delivery of the thank-you code is a separate operational step and occurs only when the latest `thank_you_code` choice is granted. The reward code is deterministically derived with HMAC from the entitlement ID and a server-only secret; only its SHA-256 hash is persisted after successful delivery.
-- The three post-survey choices are independent and optional. A later change or withdrawal creates a new consent event; prior evidence is never overwritten.
-- The personal token link remains a privacy/preferences control after completion. Participants can change results-notification, thank-you-code and marketing choices without reopening or mutating the completed questionnaire. Revoking a participant-delivery consent cancels any planned/failed unsent delivery; already-sent messages remain immutable delivery evidence.
+- The two post-survey research-contact choices are independent and optional. A later change or withdrawal creates a new consent event; prior evidence is never overwritten.
+- The personal token link remains a privacy/preferences control after completion. Participants can change results-notification and thank-you-code choices without reopening or mutating the completed questionnaire. Revoking a participant-delivery consent cancels any planned/failed unsent delivery; already-sent messages remain immutable delivery evidence.
 - `research_answers` stores raw versioned answers.
 - A trigger blocks answer modification after the response is no longer `in_progress`.
 - The participant UI does not collect IP address as research data.
@@ -279,7 +283,7 @@ Later source updates never mutate a frozen frame. They create a new snapshot.
 
 ## Repeat waves
 
-2027 and later waves should create new study/instrument/frame/sample records while preserving stable analysis keys for longitudinal measures. Wording changes require a new instrument version and must be called out in the methodology. Cross-wave contact suppression is checked during frame ingestion and again immediately before delivery, so a later wave does not override an earlier research opt-out, complaint or bounce.
+Schema 0427 makes the longitudinal hierarchy explicit. 2027 and later waves create a new `research_waves` row beneath the stable programme/study identity, then create new wave-bound instrument/frame/sample/fieldwork/analysis/release evidence while preserving stable analysis keys for longitudinal measures. Wording changes require a new instrument version and must be called out in the methodology. Cross-wave contact suppression is checked during frame ingestion and again immediately before delivery, so a later wave does not override an earlier research opt-out, complaint or bounce.
 
 ## Release checklist
 
@@ -317,12 +321,12 @@ The research schema is deployed through the repository's checksum-aware migratio
 `.github/workflows/research-survey-schema-rollout.yml` is a manual-only production workflow. Its default execution is preflight-only. Before any mutation it:
 
 - verifies the immutable migration checksum manifest;
-- requires the repository migration head to be exactly 425;
-- requires the production application ledger to be either clean schema 415 or already-complete schema 425;
+- requires the repository migration head to be exactly 427;
+- requires the production application ledger to be either clean schema 415 or already-complete schema 427;
 - rejects a schema-415 database if any key research table already exists, preventing a partial-state rollout;
 - uses the protected `production` environment and its `DATABASE_URL` secret.
 
-Only an explicit workflow dispatch with `apply=true` runs `npm run db:migrate`. The existing migrator applies missing SQL and inserts the exact filename/SHA-256 into `public.schema_migrations` in the same guarded migration transaction. Postcheck then requires schema 425 and the key research relations, including the locked analysis-plan and immutable sample-design tables, before application readiness is evaluated.
+Only an explicit workflow dispatch with `apply=true` runs `npm run db:migrate`. The existing migrator applies missing SQL and inserts the exact filename/SHA-256 into `public.schema_migrations` in the same guarded migration transaction. Postcheck then requires schema 427 and the key research relations, including programme/wave hierarchy, locked analysis-plan and immutable sample-design tables, before application readiness is evaluated.
 
 The rollout workflow does not enable research email delivery or start fieldwork. Those remain separate governed actions. Pilot and fielding transitions additionally fail closed unless a locked analysis plan exists for the active instrument.
 
