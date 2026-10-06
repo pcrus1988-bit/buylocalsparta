@@ -254,6 +254,20 @@ if (!release.includes("RESEARCH_RELEASE_WAVE_MISSING")) errors.push("release bui
 if (!release.includes("study_id,wave_id,analysis_run_id,release_version")) errors.push("release snapshot does not persist explicit wave scope");
 if (!release.includes("waveId: text(release.wave_id)")) errors.push("release artifact integrity hash omits wave identity");
 if (!release.includes("waveId: published.waveId")) errors.push("public release artifact reconstruction omits wave identity");
+if (!jobs.includes("RESEARCH_SAMPLE_JOB_WAVE_CHANGED")) errors.push("delayed sample jobs do not fail closed when the current wave changes");
+if (!jobs.includes("INSERT INTO research_frame_snapshots (\n        study_id,\n        wave_id")) errors.push("frame snapshots rely on implicit current-wave stamping");
+if (!jobs.includes("INSERT INTO research_sample_draws (\n        study_id,\n        wave_id")) errors.push("sample draws rely on implicit current-wave stamping");
+if (!jobs.includes("INSERT INTO research_sample_designs (\n        sample_draw_id,\n        study_id,\n        wave_id")) errors.push("sample-design evidence relies on implicit current-wave stamping");
+if (!jobs.includes("study_id,wave_id,sample_draw_id,instrument_id,recruitment_template_id")) errors.push("invite batches do not persist queued wave explicitly");
+if (!jobs.includes("study_id,wave_id,instrument_id,sample_unit_id,contact_point_id")) errors.push("invitations do not persist queued wave explicitly");
+if (!jobs.includes("study_id,wave_id,response_id,contact_point_id,reward_entitlement_id")) errors.push("reward delivery ledger does not persist queued wave explicitly");
+if (!jobs.includes("study_id,wave_id,response_id,contact_point_id,release_snapshot_id")) errors.push("results delivery ledger does not persist queued wave explicitly");
+if (!jobs.includes("pri.wave_id=$11")) errors.push("main sample pilot holdout is not wave-scoped");
+if (!surveyRuntime.includes("ri.wave_id AS wave_id")) errors.push("public invitation resolution does not expose immutable invite wave");
+if (!surveyRuntime.includes("research_responses (study_id, wave_id, instrument_id, invite_id")) errors.push("public response creation relies on current-wave trigger defaults");
+if (!surveyRuntime.includes("s.current_wave_id AS wave_id")) errors.push("research lifecycle does not bind to the study current wave");
+if (!surveyRuntime.includes("AND rs.wave_id=$2")) errors.push("release publication is not current-wave scoped");
+if (!surveyRuntime.includes("INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)")) errors.push("runtime-created participant jobs rely on implicit current-wave stamping");
 if (!surveyRuntime.includes('assertAdminPermission(principal, "research.quality.manage")')) errors.push("research protocol governance is not permission-separated");
 if (jobs.includes('assertAdminPermission(principal, "research.manage")') || quality.includes('assertAdminPermission(principal, "research.manage")') || release.includes('assertAdminPermission(principal, "research.manage")')) {
   errors.push("research mutation paths still collapse to research.manage");
