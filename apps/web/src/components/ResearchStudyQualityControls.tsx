@@ -69,7 +69,7 @@ export function ResearchStudyQualityControls({
       <div style={{ flex: 1, minWidth: 260 }}>
         <strong>{item.regionCode} · {item.sectorCode}</strong><br />
         <small>
-          {item.durationSeconds}s · flags: {item.reasonCodes.join(", ") || "manual review"} ·
+          {item.durationSeconds}s · quality {item.qualityScore ?? "—"}/100 · flags: {item.reasonCodes.join(", ") || "manual review"} ·
           readiness {item.digitalReadinessScore ?? "—"} · friction {item.frictionOverallScore ?? "—"}
         </small>
         <input
