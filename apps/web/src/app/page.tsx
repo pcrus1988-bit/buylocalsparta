@@ -242,7 +242,7 @@ export default async function Home() {
         <div className={styles.discoveryProducts}>
           <div className={styles.discoverySubheading}>
             <strong>Προϊόντα</strong>
-            <a href="/shop">Πλήρης κατάλογος →</a>
+            <a href="/shop">Όλα τα προϊόντα →</a>
           </div>
           {featuredProducts.length ? (
             <div className={styles.productRail}>
