@@ -80,6 +80,47 @@ JOIN (VALUES
  AND x.value_code=av.code
 ON CONFLICT (attribute_value_id,locale) DO UPDATE SET label=EXCLUDED.label;
 
+-- Register the new governed attributes on the footwear product types before
+-- family facts are inserted. Technology may contain multiple named systems on
+-- one model; manufacturer fit profile is singular.
+INSERT INTO public.product_type_attributes(
+  product_type_id,attribute_id,requirement_level,value_level,
+  filterable,searchable,customer_visible,comparable,
+  variant_defining,allow_multiple,sort_order
+)
+SELECT
+  pt.id,
+  ad.id,
+  'optional',
+  'family',
+  true,
+  false,
+  true,
+  true,
+  false,
+  CASE WHEN ad.code='footwear_technology' THEN true ELSE false END,
+  CASE
+    WHEN pt.code='running_shoe' AND ad.code='footwear_technology' THEN 220
+    WHEN pt.code='running_shoe' AND ad.code='footwear_fit_profile' THEN 230
+    WHEN pt.code='footwear' AND ad.code='footwear_technology' THEN 200
+    ELSE 210
+  END
+FROM public.product_types pt
+CROSS JOIN public.attribute_definitions ad
+WHERE pt.code IN ('running_shoe','footwear')
+  AND ad.code IN ('footwear_technology','footwear_fit_profile')
+ON CONFLICT (product_type_id,attribute_id) DO UPDATE SET
+  requirement_level=EXCLUDED.requirement_level,
+  value_level=EXCLUDED.value_level,
+  filterable=EXCLUDED.filterable,
+  searchable=EXCLUDED.searchable,
+  customer_visible=EXCLUDED.customer_visible,
+  comparable=EXCLUDED.comparable,
+  variant_defining=EXCLUDED.variant_defining,
+  allow_multiple=EXCLUDED.allow_multiple,
+  sort_order=EXCLUDED.sort_order,
+  updated_at=now();
+
 CREATE TEMP TABLE _sport_417_context (
   enforce_data boolean NOT NULL
 ) ON COMMIT DROP;
