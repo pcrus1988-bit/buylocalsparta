@@ -84,6 +84,9 @@ CREATE TABLE public.research_response_design_context (
     REFERENCES public.research_sample_draws(id) ON DELETE RESTRICT,
   stratum_id uuid NOT NULL
     REFERENCES public.research_strata(id) ON DELETE RESTRICT,
+  region_code text NOT NULL,
+  sector_code text NOT NULL,
+  size_band text NOT NULL,
   inclusion_probability numeric(20,12) NOT NULL
     CHECK (inclusion_probability > 0 AND inclusion_probability <= 1),
   base_weight numeric(20,8) NOT NULL CHECK (base_weight > 0),
