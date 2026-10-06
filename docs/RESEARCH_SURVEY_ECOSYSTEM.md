@@ -106,6 +106,8 @@ Study departures are now governed evidence rather than informal admin notes.
   - thank-you code
   - KONTA MOY marketing
 - Research participation is required to create a response.
+- Results-notification and thank-you delivery remain optional research/participant-service purposes.
+- Commercial KONTA MOY marketing consent is deliberately not collected in the research consent ledger or questionnaire completion UI. Any later commercial interaction must occur outside the scientific instrument.
 - Completing the core study creates the thank-you reward entitlement. Reward eligibility does **not** depend on marketing consent or on asking to receive the code.
 - Delivery of the thank-you code is a separate operational step and occurs only when the latest `thank_you_code` choice is granted. The reward code is deterministically derived with HMAC from the entitlement ID and a server-only secret; only its SHA-256 hash is persisted after successful delivery.
 - The three post-survey choices are independent and optional. A later change or withdrawal creates a new consent event; prior evidence is never overwritten.
@@ -349,3 +351,58 @@ The SES configuration set should publish at least Delivery, Bounce and Complaint
 - SES message content is not persisted; only subject/body SHA-256 hashes and provider message IDs are stored.
 - The worker may retry a failed reward email with the same derived code because the code can be regenerated from the entitlement ID and server-only HMAC secret.
 - No monetary discount percentage or credit amount is hard-coded in the research engine. Commercial reward terms remain a separately governed KONTA MOY decision.
+
+
+## Retail Observatory hierarchy
+
+Schema 0427 promotes the subsystem from one survey into the permanent **KONTA MOY Retail Observatory / Παρατηρητήριο Ελληνικού Λιανεμπορίου**.
+
+The stable hierarchy is:
+
+`research_programmes -> research_study_series -> research_studies (operational wave)`
+
+The historical `research_studies` table name is intentionally retained as the operational wave record so migrations 0416–0426 and every fieldwork foreign key remain stable. The 2026 row is bound to programme `retail-observatory`, series `greek-retail-digital-transformation`, wave code `2026`.
+
+`research_core_question_concepts` and `research_core_question_bindings` create the longitudinal contract. A later instrument binds a stable concept as `exact`, `comparable` or `break`; cross-wave comparison is therefore explicit rather than inferred from similar wording.
+
+## Post-publication identity unlinking
+
+Schema 0428 introduces an irreversible, evidence-producing linkage destruction boundary.
+
+No retention duration is silently invented in code. A privacy-authorized administrator must set `linkage_retention_until` explicitly. Destruction is blocked until that deadline has elapsed and a frozen release has been published.
+
+The destruction operation:
+
+- revokes personal reissue/reminder tokens;
+- cancels unsent participant/invitation deliveries;
+- detaches `research_responses.invite_id`;
+- detaches invitations from sample/contact identity and invalidates their original token hashes;
+- removes contact references from delivery evidence;
+- deletes the wave's `research_contact_points`;
+- preserves append-only hash suppression evidence so opt-outs, complaints and hard bounces survive future waves;
+- preserves frozen releases and aggregate reproducibility evidence;
+- emits one immutable `research_linkage_destruction_events` record.
+
+## Research separation of duties
+
+The application now has dedicated research roles:
+
+- `research_superadmin`
+- `research_methodologist`
+- `research_fieldwork`
+- `research_analyst`
+- `research_publisher`
+- `research_privacy`
+
+Fieldwork/contact access, analysis, publication and privacy destruction are separate permissions. The general `super_admin` remains an override, but ordinary research roles do not inherit the full chain.
+
+## Population margins and weighting registry
+
+Schema 0429 adds governed weighting objects:
+
+- `research_population_margin_sets`
+- `research_population_margins`
+- `research_weight_specs`
+- `research_weight_runs`
+
+`research_freeze_frame_margins(...)` can freeze region, sector and size-band calibration targets from an exact frozen frame. Calibration and extreme-weight trimming are not silently activated by analysis code; they require a locked weight specification. The seeded `greek-retail-2026-weight-v2-candidate` remains **draft** pending methodology sign-off.
