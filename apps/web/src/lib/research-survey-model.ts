@@ -129,6 +129,19 @@ function matrixStraightlined(answer: ResearchAnswer | undefined, minimumItems = 
   return values.length >= minimumItems && new Set(values).size === 1;
 }
 
+function suspiciousOpenText(answer: ResearchAnswer | undefined): boolean {
+  if (typeof answer !== "string") return false;
+  const normalized = answer.trim().toLocaleLowerCase("el-GR");
+  if (normalized.length < 12) return false;
+  const alphaNumeric = [...normalized].filter((character) => /[\p{L}\p{N}]/u.test(character));
+  if (alphaNumeric.length < 8) return false;
+  const unique = new Set(alphaNumeric);
+  if (unique.size <= 2) return true;
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+  if (tokens.length >= 4 && new Set(tokens).size === 1) return true;
+  return /(.)\1{7,}/u.test(normalized);
+}
+
 export function researchQualitySignals(
   answers: ResearchAnswerMap,
   durationSeconds: number
@@ -137,6 +150,9 @@ export function researchQualitySignals(
   const channels = Array.isArray(answers.Q03) ? answers.Q03.map(String) : [];
   const digitalChannels = ["own_eshop", "marketplace", "social"];
   const hasDeclaredDigitalChannel = channels.some((channel) => digitalChannels.includes(channel));
+  if (channels.includes("none") && channels.length > 1) {
+    reasonCodes.push("sales_channel_none_conflict");
+  }
   const digitalShare = typeof answers.Q04 === "string" ? answers.Q04 : "";
   const positiveDigitalShare = ["1_10", "11_25", "26_50", "51_75", "76_100"].includes(digitalShare);
 
@@ -166,6 +182,10 @@ export function researchQualitySignals(
     reasonCodes.push("rapid_completion");
   }
 
+  if (suspiciousOpenText(answers.Q18)) {
+    reasonCodes.push("open_text_pattern_review");
+  }
+
   return {
     review: reasonCodes.length > 0,
     reasonCodes,
@@ -174,7 +194,8 @@ export function researchQualitySignals(
       declaredDigitalChannels: channels.filter((channel) => digitalChannels.includes(channel)),
       digitalShare,
       marketplaceExperience,
-      straightlinedMatrices
+      straightlinedMatrices,
+      openTextPatternReview: suspiciousOpenText(answers.Q18)
     }
   };
 }
