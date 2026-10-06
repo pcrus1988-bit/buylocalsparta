@@ -25,6 +25,8 @@ const protocolEvidenceMigrationPath = "db/migrations/0426_research_protocol_evid
 const protocolEvidenceChecksumPath = "db/migrations/checksums.0426.json";
 const hierarchyMigrationPath = "db/migrations/0427_research_programme_study_wave.sql";
 const hierarchyChecksumPath = "db/migrations/checksums.0427.json";
+const identityVaultMigrationPath = "db/migrations/0428_research_private_identity_vault.sql";
+const identityVaultChecksumPath = "db/migrations/checksums.0428.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const deliveryMigration = readFileSync(deliveryMigrationPath, "utf8");
@@ -37,6 +39,7 @@ const sampleDesignMigration = readFileSync(sampleDesignMigrationPath, "utf8");
 const sampleDesignIntegrityMigration = readFileSync(sampleDesignIntegrityMigrationPath, "utf8");
 const protocolEvidenceMigration = readFileSync(protocolEvidenceMigrationPath, "utf8");
 const hierarchyMigration = readFileSync(hierarchyMigrationPath, "utf8");
+const identityVaultMigration = readFileSync(identityVaultMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
 const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
@@ -49,6 +52,7 @@ const sampleDesignChecksums = JSON.parse(readFileSync(sampleDesignChecksumPath, 
 const sampleDesignIntegrityChecksums = JSON.parse(readFileSync(sampleDesignIntegrityChecksumPath, "utf8")) as Record<string, string>;
 const protocolEvidenceChecksums = JSON.parse(readFileSync(protocolEvidenceChecksumPath, "utf8")) as Record<string, string>;
 const hierarchyChecksums = JSON.parse(readFileSync(hierarchyChecksumPath, "utf8")) as Record<string, string>;
+const identityVaultChecksums = JSON.parse(readFileSync(identityVaultChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
@@ -118,6 +122,7 @@ const sampleDesignSha = createHash("sha256").update(sampleDesignMigration, "utf8
 const sampleDesignIntegritySha = createHash("sha256").update(sampleDesignIntegrityMigration, "utf8").digest("hex");
 const protocolEvidenceSha = createHash("sha256").update(protocolEvidenceMigration, "utf8").digest("hex");
 const hierarchySha = createHash("sha256").update(hierarchyMigration, "utf8").digest("hex");
+const identityVaultSha = createHash("sha256").update(identityVaultMigration, "utf8").digest("hex");
 if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0416 checksum does not match migration bytes");
 }
@@ -154,7 +159,18 @@ if (protocolEvidenceChecksums["0426_research_protocol_evidence.sql"] !== protoco
 if (hierarchyChecksums["0427_research_programme_study_wave.sql"] !== hierarchySha) {
   errors.push("0427 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 427")) errors.push("runtime schema head is not 427");
+if (identityVaultChecksums["0428_research_private_identity_vault.sql"] !== identityVaultSha) {
+  errors.push("0428 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 428")) errors.push("runtime schema head is not 428");
+if (!identityVaultMigration.includes("CREATE SCHEMA IF NOT EXISTS research_private")) errors.push("research private identity schema missing");
+if (!identityVaultMigration.includes("CREATE TABLE research_private.contact_vault")) errors.push("research private contact vault missing");
+if (!identityVaultMigration.includes("DROP COLUMN contact_value")) errors.push("raw research contact value still remains in the public contact-point table");
+if (!identityVaultMigration.includes("CREATE TABLE public.research_response_design_context")) errors.push("research response design context freeze missing");
+if (!identityVaultMigration.includes("CREATE TABLE public.research_identity_destruction_events")) errors.push("research identity destruction evidence ledger missing");
+if (!identityVaultMigration.includes("research_private_contact_vault_platform_runtime")) errors.push("research private contact vault RLS policy missing");
+if (!identityVaultMigration.includes("research_identity_destruction_events_append_only")) errors.push("research identity destruction evidence is not append-only");
+if (!identityVaultMigration.includes("'identity_destruction'")) errors.push("research identity destruction job type missing");
 if (!hierarchyMigration.includes("CREATE TABLE public.research_programmes")) errors.push("research programme hierarchy table missing");
 if (!hierarchyMigration.includes("CREATE TABLE public.research_waves")) errors.push("research wave hierarchy table missing");
 if (!hierarchyMigration.includes("ADD COLUMN programme_id")) errors.push("research study is not bound to a programme");
@@ -164,6 +180,8 @@ if (!hierarchyMigration.includes("research_guard_wave_scope")) errors.push("rese
 if (!hierarchyMigration.includes("DISABLE TRIGGER USER")) errors.push("0427 does not explicitly protect structural backfill across immutable evidence");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_programmes ENABLE ROW LEVEL SECURITY;")) errors.push("research programme RLS missing");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_waves ENABLE ROW LEVEL SECURITY;")) errors.push("research wave RLS missing");
+if (!schemaPreflight.includes("expectedSourceVersion = 428")) errors.push("guarded research production rollout is not pinned to schema 0428");
+if (!schemaRollout.includes("0416–0428") || !schemaRollout.includes("through schema 0428")) errors.push("research schema rollout workflow does not advertise the complete 0416–0428 chain");
 if (!sampleDesignMigration.includes("CREATE TABLE public.research_sample_designs")) errors.push("sample design evidence table missing");
 if (!sampleDesignMigration.includes("CREATE TABLE public.research_sample_design_strata")) errors.push("sample design stratum evidence table missing");
 if (!sampleDesignMigration.includes("research_sample_designs_immutable")) errors.push("sample design immutability trigger missing");
