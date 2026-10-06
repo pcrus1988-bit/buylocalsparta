@@ -293,7 +293,7 @@ export function ResearchSurveyForm({ slug, token, initial }: {
 
   async function completeSurvey() {
     try {
-      await save({ answers, experimentChoices, optionalConsents, complete: true });
+      await save({ answers, experimentChoices, complete: true });
       setCompleted(true);
     } catch (error) {
       const errorText = error instanceof Error ? error.message : "Δεν ήταν δυνατή η ολοκλήρωση.";
@@ -430,7 +430,7 @@ export function ResearchSurveyForm({ slug, token, initial }: {
       <span className={styles.kicker}>{current.code === "X" ? "Προαιρετικό" : current.code === "DONE" ? "Τελικό βήμα" : "Ενότητα " + current.code}</span>
       <h2>{current.title}</h2>
       {current.code === "X" && <p>Οι επιλογές αυτές είναι ερευνητικά σενάρια και όχι πραγματικές εμπορικές προσφορές. Μπορείτε να παραλείψετε ολόκληρη την ενότητα.</p>}
-      {current.code === "DONE" && <p>Οι παρακάτω επιλογές είναι χωριστές από τη συμμετοχή στην έρευνα. Καμία δεν είναι προϋπόθεση για την καταχώρηση της απάντησής σας.</p>}
+      {current.code === "DONE" && <p>Με την ολοκλήρωση η ερευνητική απάντηση κλειδώνει. Οι προαιρετικές επιλογές ενημέρωσης αποτελεσμάτων και κωδικού ευχαριστίας εμφανίζονται μόνο αφού ολοκληρωθεί η έρευνα.</p>}
     </header>
 
     {current.questions.map((question) => <ResearchQuestionCard
@@ -446,11 +446,6 @@ export function ResearchSurveyForm({ slug, token, initial }: {
       selected={experimentChoices[String(assignment.taskNumber)]}
       onSelect={(value) => setExperimentChoices((currentChoices) => ({ ...currentChoices, [String(assignment.taskNumber)]: value }))}
     />)}
-
-    {current.code === "DONE" && <div className={styles.optionalConsents}>
-      <label><input type="checkbox" checked={optionalConsents.results_notification} onChange={(event) => setOptionalConsents((state) => ({ ...state, results_notification: event.target.checked }))} /><span>Θέλω να ενημερωθώ όταν δημοσιευθούν τα αποτελέσματα.</span></label>
-      <label><input type="checkbox" checked={optionalConsents.thank_you_code} onChange={(event) => setOptionalConsents((state) => ({ ...state, thank_you_code: event.target.checked }))} /><span>Θέλω να λάβω τον κωδικό ευχαριστίας που προσφέρεται στους συμμετέχοντες.</span></label>
-    </div>}
 
     {message && <p className={styles.error}>{message}</p>}
     <div className={styles.actions}>
