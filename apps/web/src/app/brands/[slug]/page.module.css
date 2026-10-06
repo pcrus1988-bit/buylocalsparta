@@ -91,6 +91,17 @@
   font-size: 1.03rem;
   line-height: 1.7;
 }
+.storyStack {
+  display: grid;
+  gap: 12px;
+}
+.catalogueNote {
+  max-width: 760px;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: .82rem;
+  line-height: 1.55;
+}
 .departmentGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
