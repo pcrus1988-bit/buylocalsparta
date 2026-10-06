@@ -5,7 +5,7 @@ const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL is required");
 
 const EMPTY_CATALOGUE_ENRICHMENT_MIGRATIONS = new Set([
-  308, 311, 312, 313, 314, 315, 316,
+  308, 310, 311, 312, 313, 314, 315, 316,
   317, 318, 319, 320, 321, 322, 324
 ]);
 
