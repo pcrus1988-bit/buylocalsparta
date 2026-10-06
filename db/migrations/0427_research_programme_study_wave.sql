@@ -128,6 +128,17 @@ ALTER TABLE public.research_analysis_plans ADD COLUMN wave_id uuid;
 ALTER TABLE public.research_sample_designs ADD COLUMN wave_id uuid;
 ALTER TABLE public.research_protocol_events ADD COLUMN wave_id uuid;
 
+-- Structural backfill must be able to annotate already-frozen evidence without
+-- weakening the runtime immutability contract after this migration commits.
+ALTER TABLE public.research_recruitment_templates DISABLE TRIGGER USER;
+ALTER TABLE public.research_frame_snapshots DISABLE TRIGGER USER;
+ALTER TABLE public.research_sample_draws DISABLE TRIGGER USER;
+ALTER TABLE public.research_analysis_runs DISABLE TRIGGER USER;
+ALTER TABLE public.research_release_snapshots DISABLE TRIGGER USER;
+ALTER TABLE public.research_analysis_plans DISABLE TRIGGER USER;
+ALTER TABLE public.research_sample_designs DISABLE TRIGGER USER;
+ALTER TABLE public.research_protocol_events DISABLE TRIGGER USER;
+
 UPDATE public.research_instruments t
 SET wave_id=rs.current_wave_id
 FROM public.research_studies rs
@@ -202,6 +213,15 @@ UPDATE public.research_protocol_events t
 SET wave_id=rs.current_wave_id
 FROM public.research_studies rs
 WHERE t.study_id=rs.id AND t.wave_id IS NULL;
+
+ALTER TABLE public.research_recruitment_templates ENABLE TRIGGER USER;
+ALTER TABLE public.research_frame_snapshots ENABLE TRIGGER USER;
+ALTER TABLE public.research_sample_draws ENABLE TRIGGER USER;
+ALTER TABLE public.research_analysis_runs ENABLE TRIGGER USER;
+ALTER TABLE public.research_release_snapshots ENABLE TRIGGER USER;
+ALTER TABLE public.research_analysis_plans ENABLE TRIGGER USER;
+ALTER TABLE public.research_sample_designs ENABLE TRIGGER USER;
+ALTER TABLE public.research_protocol_events ENABLE TRIGGER USER;
 
 ALTER TABLE public.research_instruments
   ALTER COLUMN wave_id SET NOT NULL,
