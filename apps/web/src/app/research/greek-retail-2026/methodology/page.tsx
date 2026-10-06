@@ -21,7 +21,7 @@ const stages = [
   ["6", "Consent", "Η συγκατάθεση συμμετοχής είναι χωριστή από ενημέρωση αποτελεσμάτων, κωδικό ευχαριστίας και marketing."],
   ["7", "Instrument", "Το ερωτηματολόγιο έχει immutable version. Μετά το κλείδωμα δεν μπορούν να αλλάξουν οι ερωτήσεις του ίδιου version."],
   ["8", "Responses", "Η ολοκληρωμένη απάντηση κλειδώνει. Οι raw answers παραμένουν συνδεδεμένες με την ακριβή έκδοση του instrument."],
-  ["9", "Pre-analysis plan", "Το greek-retail-2026-plan-v1 κλειδώνει primary/secondary analyses, weighting, variance και disclosure rules πριν από pilot/fieldwork."],
+  ["9", "Pre-analysis plan", "Το greek-retail-2026-plan-v2 είναι το ενεργό κλειδωμένο pre-fieldwork plan. Διατηρεί το v1 ως ιστορικό τεκμήριο και προσθέτει governed calibration χωρίς respondent data."],
   ["10", "Weights", "Base weight, non-response adjustment και calibration adjustment έχουν ξεχωριστό version και αφορούν αποκλειστικά το main fieldwork."],
   ["11", "Analysis", "Κάθε analysis run συνδέεται με το immutable analysis-plan ID και αποθηκεύει code version, parameters, instrument version, weight version, fieldwork phase και dataset hash."],
   ["12", "Release", "Κάθε δημόσια έκδοση περιέχει pilot holdout disclosure, το analysis-plan version/hash, methodology snapshot, dataset hash και artifact hash."]
@@ -60,8 +60,8 @@ export default function GreekRetailMethodologyPage() {
       <div className={styles.brand}>Pre-fieldwork registration</div>
       <h2>Η ανάλυση δεν αποφασίζεται αφού δούμε τα αποτελέσματα.</h2>
       <p>
-        Το <strong>greek-retail-2026-plan-v1</strong> κλειδώνεται πριν από pilot ή κανονικό fieldwork.
-        Ορίζει ως primary outcomes τους δείκτες Digital Readiness και Retail Friction, ως pre-specified secondary
+        Το <strong>greek-retail-2026-plan-v2</strong> είναι το ενεργό κλειδωμένο plan πριν από pilot ή κανονικό fieldwork.
+        Υπερκαλύπτει το v1 πριν παρατηρηθούν respondent data, κρατώντας το v1 αμετάβλητο ως ιστορικό evidence. Ορίζει ως primary outcomes τους δείκτες Digital Readiness και Retail Friction, ως pre-specified secondary
         analyses τις περιγραφικές αναλύσεις του κλειδωμένου instrument και ως exploratory τις pairwise συγκρίσεις
         περιοχής/κλάδου με Benjamini–Hochberg correction.
       </p>
