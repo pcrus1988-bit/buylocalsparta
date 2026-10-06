@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/research/greek-retail-2026/results", {
     title: "Αποτελέσματα · Ελληνικό Λιανεμπόριο 2026 · KONTA MOY Research",
-    description: "Δημοσιευμένα, σταθμισμένα και αναπαραγώγιμα αποτελέσματα της μελέτης Ελληνικό Λιανεμπόριο 2026."
+    description: "Δημοσιευμένα, σταθμισμένα και αναπαραγώγιμα αποτελέσματα της μελέτης Ελληνικό Λιανεμπόριο 2026.",
+    keywords: ["αποτελέσματα Ελληνικό Λιανεμπόριο 2026", "στατιστικά ελληνικού λιανεμπορίου", "ψηφιακή ετοιμότητα αποτελέσματα", "Retail Friction Index", "Greek retail results 2026", "σταθμισμένα αποτελέσματα επιχειρήσεων"]
   });
 }
 
