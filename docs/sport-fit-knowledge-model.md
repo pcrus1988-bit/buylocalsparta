@@ -29,6 +29,8 @@ Examples:
 - use case
 - cushioning
 - support
+- named footwear technology (for example Cloudfoam / Cloudfoam+)
+- manufacturer fit profile (for example Regular fit)
 - heel-to-toe drop
 - stack height
 - shoe weight
@@ -113,6 +115,8 @@ Preferred source for:
 - official product weight
 - stated heel-to-toe drop
 - stated cushioning/support classification
+- named manufacturer technologies and the component they are applied to
+- explicit manufacturer fit labels such as Regular fit
 - plate technology
 - waterproof/windproof claims
 - official football surface code
@@ -247,7 +251,26 @@ The duplicate-family case is deliberate evidence that the knowledge layer fails 
 - Thin & Light Sportswear Ankle `JZ0528`: ankle height, gym/training context and explicit arch support.
 - Think Linear Ankle `IC1306`: ankle height only where the manufacturer statement is unambiguous.
 
-Marketing terms such as “cushioned”, “soft” or “stable” are not automatically converted to normalized cushioning/support levels unless the source provides a sufficiently clear classification.
+Descriptive adjectives such as “cushioned”, “soft” or “stable” are not automatically converted to normalized cushioning/support levels unless the source provides a sufficiently clear classification. Named manufacturer technologies are different: a source that explicitly identifies Cloudfoam, Cloudfoam+ or another technical system may support a structured technology fact even when cushioning/support intensity remains unknown.
+
+## Technology and fit semantics
+
+Named manufacturer technologies are first-class technical knowledge. The database stores the technology identity separately from any performance grade.
+
+- `footwear_technology=cloudfoam` means the exact product is documented as using adidas Cloudfoam technology.
+- `footwear_technology=cloudfoam_plus` preserves the specific Cloudfoam+ variant rather than collapsing it to generic Cloudfoam.
+- `footwear_technology=cloudfoam_comfort` preserves Cloudfoam Comfort where the manufacturer identifies that system, including sockliner applications.
+- A Cloudfoam fact may support an explanation that the model uses that technology, but it does not automatically create `cushioning_level=high`, `support_level=...` or another graded fact unless separate evidence supports the grade.
+- Technology component/location belongs in evidence and value metadata when known (for example midsole or sockliner).
+
+Manufacturer fit wording is also preserved without conflating different fit dimensions.
+
+- Explicit `Regular fit` is normalized as `footwear_fit_profile=regular`.
+- `footwear_fit_profile` is separate from `footwear_width_profile`; Regular fit is not automatically rewritten as standard width.
+- `footwear_fit_profile` is separate from `fit_length_profile`; Regular fit is not a substitute for true-to-size/short/long sizing advice.
+- When a manufacturer separately publishes Regular fit, Wide fit and/or true-to-size guidance, those facts may coexist because they describe different aspects of fit.
+
+Schema 417 applies this policy to current exact adidas families with first-party evidence, while regression guards require cushioning, support, width and length facts to remain unchanged by the technology/fit backfill.
 
 ## Size-guide knowledge
 
@@ -995,3 +1018,34 @@ The exact migration passed a live schema-410 transaction ending in `ROLLBACK`. E
 Migration SHA-256: `ab7857be1e483e7c053febc6a12e1572e09d41beedfbe42f8204151d6ab8c720`.
 
 The runtime schema gate on this change is **411**.
+
+## Schema 418–419 priority footwear enrichment
+
+Schema 418 extends the technology vocabulary beyond the initial Cloudfoam family and applies it to high-priority sellable footwear. Named systems such as LIGHTMOTION, Adiwear, RAIN.RDY, Traxion, Lightstrike Pro, CloudTec, Helion, CleanCloud, PWRRUN PB, SPEEDROLL and XT-900 are stored as technical facts when exact manufacturer evidence identifies them.
+
+The same migration resolves only surface/use-case fields that have direct manufacturer classification:
+
+- Terrex Anylander RAIN.RDY `JR9087`: official Day Hiking classification.
+- On Cloud X 5 `3MG30081043`: indoor/studio training surface from exact studio/gym positioning.
+- Saucony Endorphin Azura `S21070`: Road and Treadmill surfaces from Saucony's own model collection filters.
+
+Schema 419 adds CloudTec + Helion technology facts to four exact Cloud X Tempo families and records explicit Regular fit for Duramo RC2 `KJ6635`. It intentionally does not infer indoor surface, support grade, cushioning intensity, width, toe-box or weather protection from qualitative copy when those fields remain unclassified.
+
+Across both migrations, existing ordinal cushioning/support/fit/weather facts are snapshotted and regression-checked so technology enrichment cannot silently change recommendation-critical grades.
+
+## Schema 420–422 high-priority enrichment and taxonomy correction
+
+Schema 420 adds exact/current manufacturer knowledge for Runfalcon 6 ATR `IH1838` and manufacturer-model-line corroboration for Terrex Eastrail 3 `JR4007` and Terrex Trailmaker 2 `JS0499`:
+
+- `IH1838`: Cloudfoam technology + Regular manufacturer fit profile.
+- `JR4007`: Traxion technology + Regular fit where the target independently matches the model-line weight/drop geometry.
+- `JS0499`: Traxion technology + Regular fit + governed `day_hike` use where the target independently matches the model-line weight/drop/stack geometry.
+
+Schema 421 resolves additional explicit manufacturer classifications:
+
+- Ultrarun 5 TR `JQ6920`: Bounce + Adiwear technologies, Regular fit, Neutral support/pronation and explicit men’s Regular width normalized to `footwear_width_profile=standard`.
+- Terrex Anylander `JR6599`: Traxion technology, Regular fit, true-to-size length guidance and `day_hike` use.
+
+Schema 422 corrects a taxonomy/recommendation bug for Eclyptix 2000 `JH6911`. Adidas classifies the exact product as Women • Sportswear and describes retro-running-inspired everyday comfort. Therefore the canonical family and active variants move from `running_shoe` / `womens-running-shoes` to generic `footwear` / `womens-sneakers`. The knowledge layer records `casual_lifestyle`, Cloudfoam and Regular fit, while the obsolete performance-running enrichment queue is completed instead of fabricating drop, stack, support or plate data.
+
+These migrations preserve the key distinction between product identity, manufacturer technology and recommendation grades: a named foam/outsole technology is a technical fact, while cushioning/support intensity remains unknown unless the manufacturer supplies a controlled classification.
