@@ -111,8 +111,7 @@ export async function submitVendorApplication(input: {
 
       const plan = await tx.query<SqlRow>(`
         SELECT code,name,listing_fee_minor,monthly_price_minor,annual_price_minor,term_price_minor,term_months,sales_fee_bps
-        FROM vendor_plans
-        WHERE market_id=$1 AND code=$2 AND status='active'
+        FROM vendor_plans WHERE market_id=$1 AND code=$2 AND status='active'
         LIMIT 1
       `, [marketUuid, application.requestedPlanCode]);
       if (!plan.rowCount) throw new Error("PLAN_UNAVAILABLE");
