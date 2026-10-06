@@ -195,6 +195,8 @@ export function parseBrandGuide(metadata: unknown): BrandGuideContent {
   };
 }
 
+export const BRAND_GUIDE_MIN_INDEX_SCORE = 85;
+
 export function brandGuideQualityScore(input: BrandGuideQualityInput): number {
   let score = 0;
   if (input.website) score += 8;
@@ -208,6 +210,16 @@ export function brandGuideQualityScore(input: BrandGuideQualityInput): number {
   if (input.guide.sourceUrls.length >= 1) score += 10;
   if (input.guide.foundedYear) score += 4;
   if (input.liveProductCount > 0) score += 8;
+
+  // Reward original KONTA MOY catalogue intelligence. These signals represent
+  // customer-facing, current catalogue context rather than generic identity
+  // metadata, so a well-researched live Brand Guide is not penalized simply
+  // because a niche label has no reliable founding-year or corporate profile.
+  if ((input.guide.catalogueSummary?.trim().length ?? 0) >= 80) score += 5;
+  if ((input.guide.catalogueStoryBridge?.trim().length ?? 0) >= 80) score += 4;
+  if ((input.guide.catalogueProfile?.activeFamilyCount ?? 0) > 0) score += 5;
+  if ((input.guide.catalogueProfile?.topCategories.length ?? 0) >= 1) score += 3;
+
   return Math.min(100, score);
 }
 
@@ -218,7 +230,7 @@ export function brandGuideCanIndex(input: BrandGuideQualityInput): boolean {
     && (input.description?.trim().length ?? 0) >= 70
     && (input.guide.whyItStandsOut?.length ?? 0) >= 100
     && input.guide.sourceUrls.length >= 1
-    && brandGuideQualityScore(input) >= 65;
+    && brandGuideQualityScore(input) >= BRAND_GUIDE_MIN_INDEX_SCORE;
 }
 
 export function brandGuideStatusLabel(status: BrandGuideStatus): string {
