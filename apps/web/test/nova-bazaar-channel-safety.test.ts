@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { bazaarSourceLabel } from "../src/lib/bazaar-catalog.ts";
+import { bazaarSourceLabel } from "../src/lib/bazaar-source.ts";
 import { classifyNovaSupplierCondition } from "../src/lib/bazaar-commerce.ts";
 
 const channelMigrationUrl = new URL("../../../db/migrations/0236_bazaar_commerce_channel.sql", import.meta.url);
