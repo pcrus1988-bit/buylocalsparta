@@ -190,7 +190,7 @@ export default async function ResearchSurveysAdminPage() {
               analysisPlanStatus={study.analysisPlanStatus}
               latestReleaseVersion={study.latestReleaseVersion}
               latestReleasePublishedAt={study.latestReleasePublishedAt}
-            />
+            />}
 
             {hasAdminPermission(principal, "research.privacy.manage") && <ResearchStudyPrivacyControls
               slug={study.slug}
@@ -199,7 +199,7 @@ export default async function ResearchSurveysAdminPage() {
               linkageRetentionUntil={study.linkageRetentionUntil}
               linkageDestroyedAt={study.linkageDestroyedAt}
               linkageDestructionVersion={study.linkageDestructionVersion}
-            />}}
+            />}
 
             <WorkspaceSectionHeading
               eyebrow="Evidence chain"
