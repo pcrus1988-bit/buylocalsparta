@@ -36,7 +36,7 @@ type Body = {
 
 export async function POST(request: Request, context: { params: Promise<{ slug: string }> }) {
   try {
-    const principal = await requireAdminSession(request, { csrf: true, permission: "research.manage" });
+    const principal = await requireAdminSession(request, { csrf: true, permission: "research.read" });
     const { slug: rawSlug } = await context.params;
     const slug = decodeURIComponent(rawSlug);
     if (slug !== "greek-retail-2026") {
