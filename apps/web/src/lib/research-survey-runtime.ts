@@ -691,6 +691,22 @@ export async function savePublicResearchSurvey(input: Readonly<{
       `, [response.id]);
       const durationSeconds = numberValue(completion.rows[0]?.duration_seconds);
       const quality = researchQualitySignals(allAnswers, durationSeconds);
+      const answerFingerprint = sha256(JSON.stringify(
+        Object.entries(allAnswers).sort(([left], [right]) => left.localeCompare(right))
+      ));
+      const duplicatePattern = await client.query<SqlRow>(`
+        SELECT count(DISTINCT qr.response_id)::int AS count
+        FROM research_response_quality_reviews qr
+        JOIN research_responses existing_response ON existing_response.id=qr.response_id
+        WHERE existing_response.study_id=$1
+          AND qr.response_id<>$2
+          AND qr.source='automated'
+          AND qr.metrics->>'answerFingerprint'=$3
+      `, [invite.study_id, response.id, answerFingerprint]);
+      const duplicateAnswerPatternCount = numberValue(duplicatePattern.rows[0]?.count);
+      const reasonCodes = duplicateAnswerPatternCount > 0
+        ? [...quality.reasonCodes, "duplicate_answer_pattern"]
+        : [...quality.reasonCodes];
       const experimentCount = await client.query<SqlRow>(`
         SELECT count(*)::int AS count
         FROM research_experiment_assignments
@@ -700,13 +716,15 @@ export async function savePublicResearchSurvey(input: Readonly<{
       await client.query(`
         INSERT INTO research_response_quality_reviews
           (response_id, rule_version, decision, reason_codes, metrics, source)
-        VALUES ($1, 'greek-retail-2026-qc-v2', $2, $3::text[], $4::jsonb, 'automated')
+        VALUES ($1, 'greek-retail-2026-qc-v3', $2, $3::text[], $4::jsonb, 'automated')
       `, [
         response.id,
-        quality.review ? "review" : "include",
-        quality.reasonCodes,
+        reasonCodes.length ? "review" : "include",
+        reasonCodes,
         JSON.stringify({
           ...quality.metrics,
+          answerFingerprint,
+          duplicateAnswerPatternCount,
           requiredAnswerValidation: "passed",
           experimentTasksAnswered: answeredExperimentTasks,
           experimentModuleRequired: false,
