@@ -506,7 +506,7 @@ if (!schemaRollout.includes("workflow_dispatch")) errors.push("research producti
 if (!schemaRollout.includes("environment: production")) errors.push("research production schema rollout lacks production environment gate");
 if (!schemaRollout.includes("if: ${{ inputs.apply }}")) errors.push("research schema mutation lacks explicit apply gate");
 if (!schemaRollout.includes("npm run db:migrate")) errors.push("research schema rollout bypasses checksum-aware migrator");
-if (!schemaPreflight.includes("expectedSourceVersion = 427")) errors.push("research schema rollout source-head guard missing");
+if (!schemaPreflight.includes("expectedSourceVersion = 430")) errors.push("research schema rollout source-head guard missing");
 if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
 if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
@@ -517,7 +517,7 @@ if (errors.length) {
 }
 console.log(JSON.stringify({
   ok: true,
-  schema: 427,
+  schema: 430,
   tables: created.length + 11,
   migrationSha256: sha,
   suppressionMigrationSha256: suppressionSha,
@@ -531,5 +531,8 @@ console.log(JSON.stringify({
   sampleDesignIntegrityMigrationSha256: sampleDesignIntegritySha,
   protocolEvidenceMigrationSha256: protocolEvidenceSha,
   hierarchyMigrationSha256: hierarchySha,
+  identityVaultMigrationSha256: identityVaultSha,
+  roleSeparationMigrationSha256: roleSeparationSha,
+  qualityV3MigrationSha256: qualityV3Sha,
   worker: pkg.scripts?.["worker:research"]
 }));
