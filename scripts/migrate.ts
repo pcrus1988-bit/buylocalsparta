@@ -6,7 +6,15 @@ if (!connectionString) throw new Error("DATABASE_URL is required");
 
 const EMPTY_CATALOGUE_ENRICHMENT_MIGRATIONS = new Set([
   308, 310, 311, 312, 313, 314, 315, 316,
-  317, 318, 319, 320, 321, 322, 324, 326, 327
+  317, 318, 319, 320, 321, 322, 324,
+  326, 327, 328, 329, 330, 331,
+  391, 392, 393, 394, 395, 396, 397, 398, 399,
+  400, 401, 402, 404, 405, 406, 407, 408, 409,
+  410, 411, 412, 413
+]);
+
+const EMPTY_CATALOGUE_SCHEMA_PREFIX_MIGRATIONS = new Map<number, string>([
+  [403, "CREATE TEMP TABLE _sport_403_family"]
 ]);
 
 function usesLocalDatabase(url: string): boolean {
@@ -107,7 +115,10 @@ try {
         console.log(`skip ${migration.filename}`);
         continue;
       }
-      if (localDatabase && EMPTY_CATALOGUE_ENRICHMENT_MIGRATIONS.has(migration.version)) {
+      if (localDatabase && (
+        EMPTY_CATALOGUE_ENRICHMENT_MIGRATIONS.has(migration.version)
+        || EMPTY_CATALOGUE_SCHEMA_PREFIX_MIGRATIONS.has(migration.version)
+      )) {
         if (localCatalogueEmpty === undefined) {
           const catalogueState = await client.query(
             "SELECT NOT EXISTS (SELECT 1 FROM public.product_families LIMIT 1) AS empty"
@@ -117,12 +128,22 @@ try {
         if (localCatalogueEmpty) {
           // These immutable migrations enrich exact live catalogue identities and
           // intentionally fail closed when a referenced family is absent. A fresh
-          // loopback CI database has no production catalogue, so record the exact
-          // immutable checksum as a data no-op rather than rewriting history.
-          console.log(`no-op ${migration.filename} (empty loopback catalogue)`);
+          // loopback CI database has no production catalogue, so either record the
+          // exact immutable checksum as a data no-op or, for a mixed migration,
+          // execute only its catalogue-independent structural prefix first.
+          const structuralMarker = EMPTY_CATALOGUE_SCHEMA_PREFIX_MIGRATIONS.get(migration.version);
+          const structuralPrefix = structuralMarker
+            ? migration.sql.slice(0, migration.sql.indexOf(structuralMarker))
+            : "";
+          if (structuralMarker && !structuralPrefix.trim()) {
+            throw new Error(`Unable to locate structural-prefix marker for migration ${migration.version}`);
+          }
+
+          console.log(`${structuralMarker ? "schema-only" : "no-op"} ${migration.filename} (empty loopback catalogue)`);
           await client.query("BEGIN");
           try {
             await client.query("SELECT pg_advisory_xact_lock(hashtext('buy_local_sparta_schema_migrations'))");
+            if (structuralPrefix) await client.query(structuralPrefix);
             await client.query(
               "INSERT INTO schema_migrations(version, filename, sha256) VALUES ($1, $2, $3)",
               [migration.version, migration.filename, migration.sha256]
