@@ -1032,3 +1032,20 @@ The same migration resolves only surface/use-case fields that have direct manufa
 Schema 419 adds CloudTec + Helion technology facts to four exact Cloud X Tempo families and records explicit Regular fit for Duramo RC2 `KJ6635`. It intentionally does not infer indoor surface, support grade, cushioning intensity, width, toe-box or weather protection from qualitative copy when those fields remain unclassified.
 
 Across both migrations, existing ordinal cushioning/support/fit/weather facts are snapshotted and regression-checked so technology enrichment cannot silently change recommendation-critical grades.
+
+## Schema 420–422 high-priority enrichment and taxonomy correction
+
+Schema 420 adds exact/current manufacturer knowledge for Runfalcon 6 ATR `IH1838` and manufacturer-model-line corroboration for Terrex Eastrail 3 `JR4007` and Terrex Trailmaker 2 `JS0499`:
+
+- `IH1838`: Cloudfoam technology + Regular manufacturer fit profile.
+- `JR4007`: Traxion technology + Regular fit where the target independently matches the model-line weight/drop geometry.
+- `JS0499`: Traxion technology + Regular fit + governed `day_hike` use where the target independently matches the model-line weight/drop/stack geometry.
+
+Schema 421 resolves additional explicit manufacturer classifications:
+
+- Ultrarun 5 TR `JQ6920`: Bounce + Adiwear technologies, Regular fit, Neutral support/pronation and explicit men’s Regular width normalized to `footwear_width_profile=standard`.
+- Terrex Anylander `JR6599`: Traxion technology, Regular fit, true-to-size length guidance and `day_hike` use.
+
+Schema 422 corrects a taxonomy/recommendation bug for Eclyptix 2000 `JH6911`. Adidas classifies the exact product as Women • Sportswear and describes retro-running-inspired everyday comfort. Therefore the canonical family and active variants move from `running_shoe` / `womens-running-shoes` to generic `footwear` / `womens-sneakers`. The knowledge layer records `casual_lifestyle`, Cloudfoam and Regular fit, while the obsolete performance-running enrichment queue is completed instead of fabricating drop, stack, support or plate data.
+
+These migrations preserve the key distinction between product identity, manufacturer technology and recommendation grades: a named foam/outsole technology is a technical fact, while cushioning/support intensity remains unknown unless the manufacturer supplies a controlled classification.
