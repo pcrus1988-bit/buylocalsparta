@@ -394,7 +394,7 @@ if (!jobs.includes("processRewardDeliveryJob")) errors.push("worker-managed rewa
 if (!jobs.includes("processResultsNotificationJob")) errors.push("worker-managed results notification missing");
 if (!jobs.includes("createHmac")) errors.push("deterministic non-plaintext reward code derivation missing");
 if (!jobs.includes("research_participant_deliveries")) errors.push("participant delivery ledger worker bridge missing");
-if (!jobs.includes("runGreekRetailAnalysis(job.study_id, job.id)")) errors.push("analysis job bridge missing");
+if (!jobs.includes("runGreekRetailAnalysis(job.study_id, job.wave_id, job.id)")) errors.push("wave-scoped analysis job bridge missing");
 if (!jobs.includes('job.job_type === "release"')) errors.push("release job bridge missing");
 if (!jobs.includes("buildGreekRetailRelease")) errors.push("release worker implementation missing");
 if (!jobs.includes("assertResearchSurveyEmailReady")) errors.push("research email readiness gate missing");
@@ -460,6 +460,10 @@ if (!analysis.includes('analysisClassification: "exploratory_not_preregistered"'
 if (!analysis.includes("experiments: (experimentsByResponse.get(response.responseId)")) errors.push("experiment assignments are not bound into the analysis dataset hash");
 if (!analysis.includes("RESEARCH_ANALYSIS_PLAN_MISSING")) errors.push("analysis does not require a locked preregistration plan");
 if (!analysis.includes("RESEARCH_ANALYSIS_PLAN_BINDING_MISMATCH")) errors.push("analysis retry does not enforce immutable plan binding");
+if (!analysis.includes("RESEARCH_ANALYSIS_WAVE_MISSING")) errors.push("analysis does not fail closed without a wave id");
+if (!analysis.includes("study_id,wave_id,label,code_version")) errors.push("analysis run does not persist explicit wave scope");
+if (!analysis.includes("WHERE study_id=$1 AND wave_id=$2 AND instrument_id=$3")) errors.push("analysis plan lookup is not wave-scoped");
+if (!analysis.includes("WHERE study_id=$1\n      AND wave_id=$2\n      AND fieldwork_phase='main'")) errors.push("analysis sample lookup is not wave-scoped");
 if (!analysis.includes("RESEARCH_ANALYSIS_PLAN_CODE_MISMATCH")) errors.push("analysis does not fail closed when preregistered methods diverge from executable code");
 if (!analysis.includes('analysisClassification: "prespecified_secondary"')) errors.push("pre-specified secondary estimate classification missing");
 if (!analysis.includes('"prespecified_primary"')) errors.push("pre-specified primary estimate classification missing");
