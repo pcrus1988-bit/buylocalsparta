@@ -48,9 +48,31 @@ CROSS JOIN LATERAL (
     )
 ) resolved;
 
-DO $$
-DECLARE r record; v_count integer;
+-- Clean database installs intentionally have no catalogue identities yet. In that
+-- state this data-enrichment migration is a no-op while still registering schema
+-- 416. Once any active canonical catalogue exists, the exact production identity
+-- and commerce guards below remain fail-closed.
+CREATE TEMP TABLE _sport_416_context (
+  enforce_data boolean NOT NULL
+) ON COMMIT DROP;
+
+INSERT INTO _sport_416_context(enforce_data)
+SELECT EXISTS (
+  SELECT 1
+  FROM public.canonical_variants
+  WHERE active=true
+    AND suppressed=false
+    AND recalled=false
+);
+
+DO $
+DECLARE r record; v_count integer; v_enforce boolean;
 BEGIN
+  SELECT enforce_data INTO v_enforce FROM _sport_416_context;
+  IF NOT v_enforce THEN
+    RETURN;
+  END IF;
+
   FOR r IN SELECT * FROM (VALUES
     ('JH6911'::text),('JP6592'::text),('KJ1750'::text),('KJ1757'::text),('KJ4150'::text)
   ) x(style_code)
@@ -71,9 +93,14 @@ $$;
 -- These are live, high-value queue targets. Stock itself is intentionally not a
 -- migration precondition because availability can change after research; each
 -- family must still have an approved, visible and unpaused commercial offer.
-DO $$
-DECLARE r record; v_count integer;
+DO $
+DECLARE r record; v_count integer; v_enforce boolean;
 BEGIN
+  SELECT enforce_data INTO v_enforce FROM _sport_416_context;
+  IF NOT v_enforce THEN
+    RETURN;
+  END IF;
+
   FOR r IN SELECT * FROM _sport_416_family
   LOOP
     SELECT count(DISTINCT vo.id) INTO v_count
@@ -96,9 +123,14 @@ BEGIN
 END
 $$;
 
-DO $$
-DECLARE v_bad integer;
+DO $
+DECLARE v_bad integer; v_enforce boolean;
 BEGIN
+  SELECT enforce_data INTO v_enforce FROM _sport_416_context;
+  IF NOT v_enforce THEN
+    RETURN;
+  END IF;
+
   SELECT count(*) INTO v_bad
   FROM _sport_416_family f
   LEFT JOIN public.sport_knowledge_enrichment_queue q ON q.family_id=f.family_id
@@ -152,11 +184,17 @@ SET
 WHERE s.source_key='adidas_response_2_kj1750_official'
   AND s.source_type='manufacturer_product'
   AND s.publisher='adidas'
-  AND s.url='https://www.adidas.com/kw/en/response-2-running-shoes/KJ1750.html';
+  AND s.url='https://www.adidas.com/kw/en/response-2-running-shoes/KJ1750.html'
+  AND EXISTS (SELECT 1 FROM _sport_416_context WHERE enforce_data);
 
-DO $$
-DECLARE v_count integer;
+DO $
+DECLARE v_count integer; v_enforce boolean;
 BEGIN
+  SELECT enforce_data INTO v_enforce FROM _sport_416_context;
+  IF NOT v_enforce THEN
+    RETURN;
+  END IF;
+
   SELECT count(*) INTO v_count
   FROM public.sport_knowledge_sources s
   WHERE s.source_key='adidas_response_2_kj1750_official'
@@ -207,9 +245,14 @@ SELECT evidence_id,keeper_id
 FROM ranked
 WHERE rn>1;
 
-DO $$
-DECLARE v_count integer;
+DO $
+DECLARE v_count integer; v_enforce boolean;
 BEGIN
+  SELECT enforce_data INTO v_enforce FROM _sport_416_context;
+  IF NOT v_enforce THEN
+    RETURN;
+  END IF;
+
   SELECT count(*) INTO v_count FROM _sport_416_duplicate_evidence;
   IF v_count<>6 THEN
     RAISE EXCEPTION
@@ -228,9 +271,14 @@ WHERE e.id=d.evidence_id;
 -- The live audit found 39 queue requests that are either already normalized
 -- for these five exact families or are the non-applicable football outsole field.
 -- Fail closed if the target state has drifted before this migration is applied.
-DO $$
-DECLARE v_count integer;
+DO $
+DECLARE v_count integer; v_enforce boolean;
 BEGIN
+  SELECT enforce_data INTO v_enforce FROM _sport_416_context;
+  IF NOT v_enforce THEN
+    RETURN;
+  END IF;
+
   SELECT count(*) INTO v_count
   FROM _sport_416_family f
   JOIN public.sport_knowledge_enrichment_queue q ON q.family_id=f.family_id
@@ -310,7 +358,9 @@ BEGIN
   FROM _sport_416_family
   WHERE style_code='KJ1750';
 
-  PERFORM bls_private.refresh_sport_product_knowledge(v_family);
+  IF v_family IS NOT NULL THEN
+    PERFORM bls_private.refresh_sport_product_knowledge(v_family);
+  END IF;
 END
 $$;
 
@@ -328,9 +378,14 @@ WHERE f.style_code='KJ1750'
   AND k.family_id=f.family_id;
 
 -- Regression guards.
-DO $$
-DECLARE v_count integer; v_bad integer;
+DO $
+DECLARE v_count integer; v_bad integer; v_enforce boolean;
 BEGIN
+  SELECT enforce_data INTO v_enforce FROM _sport_416_context;
+  IF NOT v_enforce THEN
+    RETURN;
+  END IF;
+
   SELECT count(*) INTO v_count
   FROM public.sport_product_fact_evidence e
   JOIN _sport_416_duplicate_evidence d ON d.evidence_id=e.id
