@@ -11,7 +11,7 @@ const ACTIONS = new Set<ResearchLifecycleAction>([
 
 export async function POST(request: Request, context: { params: Promise<{ slug: string }> }) {
   try {
-    const principal = await requireAdminSession(request, { csrf: true, permission: "research.manage" });
+    const principal = await requireAdminSession(request, { csrf: true, permission: "research.read" });
     const { slug } = await context.params;
     const body = await request.json() as { action?: string };
     if (!body.action || !ACTIONS.has(body.action as ResearchLifecycleAction)) {
