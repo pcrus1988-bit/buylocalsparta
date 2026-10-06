@@ -84,14 +84,64 @@ try {
       // Create a non-login compatibility role only on loopback databases so the
       // immutable production migrations execute under the same role topology.
       await client.query(`
-        DO $$
+        DO $
         BEGIN
           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'postgres') THEN
             CREATE ROLE postgres NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
           END IF;
         END
-        $$;
+        $;
       `);
+
+      // Hosted Supabase provides pg_cron. Plain PostGIS CI does not, but immutable
+      // migrations legitimately register refresh jobs. On loopback only, provide
+      // the minimal pg_cron surface those migrations use so schema replay remains
+      // deterministic without requiring the extension in the test container.
+      const cronExtension = await client.query(
+        "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_cron') AS installed"
+      );
+      if (!cronExtension.rows[0]?.installed) {
+        await client.query(`
+          CREATE SCHEMA IF NOT EXISTS cron;
+          CREATE TABLE IF NOT EXISTS cron.job (
+            jobid bigserial PRIMARY KEY,
+            jobname text NOT NULL UNIQUE,
+            schedule text NOT NULL,
+            command text NOT NULL
+          );
+
+          CREATE OR REPLACE FUNCTION cron.schedule(
+            p_jobname text,
+            p_schedule text,
+            p_command text
+          )
+          RETURNS bigint
+          LANGUAGE plpgsql
+          AS $
+          DECLARE v_jobid bigint;
+          BEGIN
+            INSERT INTO cron.job(jobname,schedule,command)
+            VALUES (p_jobname,p_schedule,p_command)
+            ON CONFLICT (jobname) DO UPDATE
+              SET schedule=EXCLUDED.schedule, command=EXCLUDED.command
+            RETURNING jobid INTO v_jobid;
+            RETURN v_jobid;
+          END
+          $;
+
+          CREATE OR REPLACE FUNCTION cron.unschedule(p_jobname text)
+          RETURNS boolean
+          LANGUAGE plpgsql
+          AS $
+          DECLARE v_deleted integer;
+          BEGIN
+            DELETE FROM cron.job WHERE jobname=p_jobname;
+            GET DIAGNOSTICS v_deleted = ROW_COUNT;
+            RETURN v_deleted > 0;
+          END
+          $;
+        `);
+      }
     }
 
     await client.query(`
