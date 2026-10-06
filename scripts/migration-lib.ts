@@ -50,7 +50,7 @@ const LEGACY_NONCANONICAL_SQL = new Set([
   "20261002_vendor_locations_rls_empty_context.sql",
 ]);
 
-const CANONICAL_MIGRATION_NAME = /^\\d{4}_[a-z0-9_-]+\\.sql$/i;
+const CANONICAL_MIGRATION_NAME = /^\d{4}_[a-z0-9_-]+\.sql$/i;
 
 export function sha256(text: string): string {
   return createHash("sha256").update(text).digest("hex");
