@@ -361,7 +361,7 @@ CREATE TEMP TABLE _sport_417_semantic_guard (
 INSERT INTO _sport_417_semantic_guard(family_id,graded_fit_count)
 SELECT
   f.family_id,
-  count(pfav.*)::integer
+  count(ad.id)::integer
 FROM _sport_417_family f
 LEFT JOIN public.product_family_attribute_values pfav
   ON pfav.family_id=f.family_id
@@ -629,7 +629,7 @@ BEGIN
   JOIN (
     SELECT
       f.family_id,
-      count(pfav.*)::integer AS graded_fit_count
+      count(ad.id)::integer AS graded_fit_count
     FROM _sport_417_family f
     LEFT JOIN public.product_family_attribute_values pfav
       ON pfav.family_id=f.family_id
