@@ -7,7 +7,8 @@ import styles from "../../../components/ResearchSurveyPage.module.css";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/research/greek-retail-2026", {
     title: "Ελληνικό Λιανεμπόριο 2026 · KONTA MOY Research",
-    description: "Μελέτη για την ψηφιακή ετοιμότητα, τις λειτουργικές δυσκολίες και τις ανάγκες των ελληνικών εμπορικών επιχειρήσεων."
+    description: "Μελέτη για την ψηφιακή ετοιμότητα, τις λειτουργικές δυσκολίες και τις ανάγκες των ελληνικών εμπορικών επιχειρήσεων.",
+    keywords: ["Ελληνικό Λιανεμπόριο 2026", "έρευνα εμπορικών επιχειρήσεων", "ψηφιακή ετοιμότητα επιχειρήσεων", "λειτουργικές δυσκολίες λιανεμπορίου", "marketplaces ελληνικές επιχειρήσεις", "Greek retail study 2026"]
   });
 }
 
