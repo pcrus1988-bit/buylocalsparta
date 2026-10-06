@@ -445,8 +445,8 @@ export async function updatePublicResearchConsents(input: Readonly<{
     `, [invite.invite_id]);
     const response = responseResult.rows[0];
     if (!response) throw new Error("RESEARCH_RESPONSE_NOT_FOUND");
-    if (!["in_progress", "completed"].includes(text(response.status))) {
-      throw new Error("SURVEY_RESPONSE_CLOSED");
+    if (text(response.status) !== "completed") {
+      throw new Error("RESEARCH_PREFERENCES_REQUIRE_COMPLETION");
     }
 
     for (const [consentKind, granted] of Object.entries(input.optionalConsents)) {
@@ -521,7 +521,6 @@ export async function savePublicResearchSurvey(input: Readonly<{
   answers?: ResearchAnswerMap;
   researchConsent?: boolean;
   complete?: boolean;
-  optionalConsents?: Partial<Record<"results_notification" | "thank_you_code", boolean>>;
   experimentChoices?: Readonly<Record<string, "a" | "b" | "none">>;
 }>): Promise<Readonly<{ status: string; experiments: readonly ResearchExperimentAssignment[] }>> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
@@ -622,23 +621,6 @@ export async function savePublicResearchSurvey(input: Readonly<{
         SET selected = $3, answered_at = now()
         WHERE response_id = $1 AND experiment_code = 'EXP01' AND task_number = $2
       `, [response.id, taskNumber, selected]);
-    }
-
-    for (const [consentKind, granted] of Object.entries(input.optionalConsents ?? {})) {
-      if (!["results_notification", "thank_you_code"].includes(consentKind)) continue;
-      const previousConsent = await client.query<SqlRow>(`
-        SELECT granted
-        FROM research_consents
-        WHERE response_id = $1 AND consent_kind = $2
-        ORDER BY occurred_at DESC, id DESC
-        LIMIT 1
-      `, [response.id, consentKind]);
-      if (!previousConsent.rows[0] || Boolean(previousConsent.rows[0].granted) !== Boolean(granted)) {
-        await client.query(`
-          INSERT INTO research_consents (response_id, consent_kind, statement_version, granted, source)
-          VALUES ($1, $2, $3, $4, 'survey_ui')
-        `, [response.id, consentKind, invite.consent_statement_version, Boolean(granted)]);
-      }
     }
 
     await client.query(`
