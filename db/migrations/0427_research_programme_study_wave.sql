@@ -303,6 +303,27 @@ ALTER TABLE public.research_contact_suppression_events
   ADD CONSTRAINT research_contact_suppression_wave_study_fk
     FOREIGN KEY (wave_id,study_id) REFERENCES public.research_waves(id,study_id) ON DELETE SET NULL;
 
+-- Version labels restart cleanly inside each wave. This is required for annual
+-- waves to use conventional labels such as instrument 1.0.0 and release v1
+-- without colliding with an earlier wave under the same stable study.
+ALTER TABLE public.research_instruments
+  DROP CONSTRAINT research_instruments_study_id_version_key,
+  ADD CONSTRAINT research_instruments_wave_version_unique UNIQUE (wave_id,version);
+
+ALTER TABLE public.research_recruitment_templates
+  DROP CONSTRAINT research_recruitment_templates_study_id_version_channel_key,
+  ADD CONSTRAINT research_recruitment_templates_wave_version_channel_unique
+    UNIQUE (wave_id,version,channel);
+
+ALTER TABLE public.research_release_snapshots
+  DROP CONSTRAINT research_release_snapshots_study_id_release_version_key,
+  ADD CONSTRAINT research_release_snapshots_wave_release_version_unique
+    UNIQUE (wave_id,release_version);
+
+ALTER TABLE public.research_analysis_plans
+  DROP CONSTRAINT research_analysis_plans_study_id_version_key,
+  ADD CONSTRAINT research_analysis_plans_wave_version_unique UNIQUE (wave_id,version);
+
 CREATE INDEX research_instruments_wave_idx ON public.research_instruments(wave_id,created_at);
 CREATE INDEX research_frame_snapshots_wave_idx ON public.research_frame_snapshots(wave_id,created_at);
 CREATE INDEX research_sample_draws_wave_idx ON public.research_sample_draws(wave_id,created_at);
