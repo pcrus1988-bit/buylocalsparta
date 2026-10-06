@@ -140,6 +140,18 @@ try {
             RETURN v_deleted > 0;
           END
           $unschedule$;
+
+          CREATE OR REPLACE FUNCTION cron.unschedule(p_jobid bigint)
+          RETURNS boolean
+          LANGUAGE plpgsql
+          AS $unschedule_id$
+          DECLARE v_deleted integer;
+          BEGIN
+            DELETE FROM cron.job WHERE jobid=p_jobid;
+            GET DIAGNOSTICS v_deleted = ROW_COUNT;
+            RETURN v_deleted > 0;
+          END
+          $unschedule_id$;
         `);
       }
     }
