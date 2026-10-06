@@ -174,33 +174,35 @@ export async function queueGreekRetailFrameBuild(principal: SessionPrincipal): P
   assertAdminPermission(principal, "research.design.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const pool = getProductionPostgresRuntime().sqlPool;
-  const study = await pool.query<SqlRow>("SELECT id FROM research_studies WHERE slug=$1 LIMIT 1", [STUDY_SLUG]);
+  const study = await pool.query<SqlRow>("SELECT id,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1", [STUDY_SLUG]);
   if (!study.rows[0]) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+  if (!text(study.rows[0].current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
 
   const existing = await pool.query<SqlRow>(`
     SELECT id
     FROM research_study_jobs
-    WHERE study_id=$1 AND job_type='frame_snapshot' AND status IN ('queued','running')
+    WHERE study_id=$1 AND wave_id=$2 AND job_type='frame_snapshot' AND status IN ('queued','running')
     ORDER BY created_at DESC
     LIMIT 1
-  `, [study.rows[0].id]);
+  `, [study.rows[0].id, study.rows[0].current_wave_id]);
   if (existing.rows[0]) return { jobId: text(existing.rows[0].id) };
 
   const job = await pool.query<SqlRow>(`
-    INSERT INTO research_study_jobs (study_id, job_type, status, input)
+    INSERT INTO research_study_jobs (study_id, wave_id, job_type, status, input)
     VALUES (
       $1,
+      $2,
       'frame_snapshot',
       'queued',
       jsonb_build_object(
         'activityGroupIds', jsonb_build_array('retail-non-food'),
         'activeOnly', true,
         'scope', 'all-greece',
-        'classificationVersion', $2::text
+        'classificationVersion', $3::text
       )
     )
     RETURNING id
-  `, [study.rows[0].id, FRAME_CLASSIFICATION_VERSION]);
+  `, [study.rows[0].id, study.rows[0].current_wave_id, FRAME_CLASSIFICATION_VERSION]);
   return { jobId: text(job.rows[0]!.id) };
 }
 
@@ -235,8 +237,9 @@ export async function queueGreekRetailSampleDraw(
   if (randomSeed.length < 16 || randomSeed.length > 200) throw new Error("RESEARCH_SAMPLE_SEED_INVALID");
 
   const pool = getProductionPostgresRuntime().sqlPool;
-  const study = await pool.query<SqlRow>("SELECT id,status FROM research_studies WHERE slug=$1 LIMIT 1", [STUDY_SLUG]);
+  const study = await pool.query<SqlRow>("SELECT id,status,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1", [STUDY_SLUG]);
   if (!study.rows[0]) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+  if (!text(study.rows[0].current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
   const studyStatus = text(study.rows[0].status);
   const fieldworkPhase: "pilot" | "main" = input.fieldworkPhase
     ?? (["draft","pilot"].includes(studyStatus) ? "pilot" : "main");
@@ -255,10 +258,10 @@ export async function queueGreekRetailSampleDraw(
   }
   const frame = await pool.query<SqlRow>(`
     SELECT id FROM research_frame_snapshots
-    WHERE study_id=$1 AND status='frozen'
+    WHERE study_id=$1 AND wave_id=$2 AND status='frozen'
     ORDER BY frozen_at DESC NULLS LAST, created_at DESC
     LIMIT 1
-  `, [study.rows[0].id]);
+  `, [study.rows[0].id, study.rows[0].current_wave_id]);
   if (!frame.rows[0]) throw new Error("RESEARCH_SAMPLE_REQUIRES_FROZEN_FRAME");
 
   const contacted = await pool.query<SqlRow>(`
@@ -266,10 +269,11 @@ export async function queueGreekRetailSampleDraw(
       SELECT 1
       FROM research_invites
       WHERE study_id=$1
-        AND fieldwork_phase=$2
+        AND wave_id=$2
+        AND fieldwork_phase=$3
         AND sent_at IS NOT NULL
     ) AS has_contacted_units
-  `, [study.rows[0].id, fieldworkPhase]);
+  `, [study.rows[0].id, study.rows[0].current_wave_id, fieldworkPhase]);
   if (Boolean(contacted.rows[0]?.has_contacted_units)) {
     throw new Error("RESEARCH_SAMPLE_REDRAW_AFTER_CONTACT");
   }
@@ -277,10 +281,10 @@ export async function queueGreekRetailSampleDraw(
   const existing = await pool.query<SqlRow>(`
     SELECT id,input
     FROM research_study_jobs
-    WHERE study_id=$1 AND job_type='sample_draw' AND status IN ('queued','running')
+    WHERE study_id=$1 AND wave_id=$2 AND job_type='sample_draw' AND status IN ('queued','running')
     ORDER BY created_at DESC
     LIMIT 1
-  `, [study.rows[0].id]);
+  `, [study.rows[0].id, study.rows[0].current_wave_id]);
   if (existing.rows[0]) {
     const existingInput = objectValue(existing.rows[0].input);
     const existingPhase = text(existingInput.fieldworkPhase) === "pilot" ? "pilot" : "main";
@@ -301,23 +305,25 @@ export async function queueGreekRetailSampleDraw(
   }
 
   const job = await pool.query<SqlRow>(`
-    INSERT INTO research_study_jobs (study_id, job_type, status, input)
+    INSERT INTO research_study_jobs (study_id, wave_id, job_type, status, input)
     VALUES (
       $1,
+      $2,
       'sample_draw',
       'queued',
       jsonb_build_object(
-        'targetN', $2::int,
-        'randomSeed', $3::text,
-        'label', $4::text,
-        'fieldworkPhase', $5::text,
-        'desiredCompleteN', $6::int,
-        'expectedResponseRate', $7::numeric
+        'targetN', $3::int,
+        'randomSeed', $4::text,
+        'label', $5::text,
+        'fieldworkPhase', $6::text,
+        'desiredCompleteN', $7::int,
+        'expectedResponseRate', $8::numeric
       )
     )
     RETURNING id
   `, [
     study.rows[0].id,
+    study.rows[0].current_wave_id,
     targetN,
     randomSeed,
     input.label?.trim() || `${fieldworkPhase}-sample-${targetN}`,
@@ -349,11 +355,12 @@ export async function saveGreekRetailRecruitmentTemplate(
   if (bodyText.length < 40 || bodyText.length > 12_000) throw new Error("RESEARCH_RECRUITMENT_BODY_INVALID");
   const pool = getProductionPostgresRuntime().sqlPool;
   const study = await pool.query<SqlRow>(
-    "SELECT id,status FROM research_studies WHERE slug=$1 LIMIT 1",
+    "SELECT id,status,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1",
     [STUDY_SLUG]
   );
   const row = study.rows[0];
   if (!row) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+  if (!text(row.current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
   if (["closed","analysis","published","archived"].includes(text(row.status))) {
     throw new Error("RESEARCH_RECRUITMENT_LOCKED_AFTER_FIELDWORK");
   }
@@ -363,11 +370,11 @@ export async function saveGreekRetailRecruitmentTemplate(
 
   const inserted = await pool.query<SqlRow>(`
     INSERT INTO research_recruitment_templates (
-      study_id,version,channel,subject,body_text,body_sha256,purpose,status,locked_at
+      study_id,wave_id,version,channel,subject,body_text,body_sha256,purpose,status,locked_at
     )
-    VALUES ($1,$2,'email',$3,$4,$5,$6,'locked',now())
+    VALUES ($1,$2,$3,'email',$4,$5,$6,$7,'locked',now())
     RETURNING id
-  `, [row.id, version, subject, bodyText, sha256(bodyText), purpose]);
+  `, [row.id, row.current_wave_id, version, subject, bodyText, sha256(bodyText), purpose]);
   return { templateId: text(inserted.rows[0]!.id), version, purpose };
 }
 
@@ -382,16 +389,17 @@ export async function queueGreekRetailInviteBatch(
   const pool = getProductionPostgresRuntime().sqlPool;
   const study = await pool.query<SqlRow>(`
     SELECT
-      s.id,s.status,
+      s.id,s.status,s.current_wave_id,
       EXISTS(
         SELECT 1 FROM research_sample_draws d
         WHERE d.study_id=s.id
+          AND d.wave_id=s.current_wave_id
           AND d.status IN ('locked','fielded')
           AND d.fieldwork_phase=CASE WHEN s.status='pilot' THEN 'pilot' ELSE 'main' END
       ) AS sample_ready,
       EXISTS(
         SELECT 1 FROM research_recruitment_templates rt
-        WHERE rt.study_id=s.id AND rt.channel='email' AND rt.status='locked'
+        WHERE rt.study_id=s.id AND rt.wave_id=s.current_wave_id AND rt.channel='email' AND rt.status='locked'
           AND rt.purpose='research_invitation'
       ) AS template_ready
     FROM research_studies s
@@ -400,6 +408,7 @@ export async function queueGreekRetailInviteBatch(
   `, [STUDY_SLUG]);
   const row = study.rows[0];
   if (!row) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+  if (!text(row.current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
   if (!["pilot","fielding"].includes(text(row.status))) throw new Error("SURVEY_NOT_OPEN");
   const fieldworkPhase = text(row.status) === "pilot" ? "pilot" : "main";
   if (!Boolean(row.sample_ready)) throw new Error("RESEARCH_INVITE_SAMPLE_NOT_READY");
@@ -407,24 +416,25 @@ export async function queueGreekRetailInviteBatch(
 
   const existing = await pool.query<SqlRow>(`
     SELECT id FROM research_study_jobs
-    WHERE study_id=$1 AND job_type='invite_batch' AND status IN ('queued','running')
+    WHERE study_id=$1 AND wave_id=$2 AND job_type='invite_batch' AND status IN ('queued','running')
     ORDER BY created_at DESC LIMIT 1
-  `, [row.id]);
+  `, [row.id, row.current_wave_id]);
   if (existing.rows[0]) return { jobId: text(existing.rows[0].id) };
 
   const job = await pool.query<SqlRow>(`
-    INSERT INTO research_study_jobs (study_id,job_type,status,input)
+    INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
     VALUES (
-      $1,'invite_batch','queued',
+      $1,$2,'invite_batch','queued',
       jsonb_build_object(
-        'limit',$2::int,
-        'label',$3::text,
-        'fieldworkPhase',$4::text
+        'limit',$3::int,
+        'label',$4::text,
+        'fieldworkPhase',$5::text
       )
     )
     RETURNING id
   `, [
     row.id,
+    row.current_wave_id,
     limit,
     input.label?.trim() || `${fieldworkPhase}-research-email-${new Date().toISOString()}`,
     fieldworkPhase
@@ -456,12 +466,14 @@ export async function queueGreekRetailInviteReminderBatch(
     SELECT
       s.id,
       s.status,
+      s.current_wave_id,
       rt.id AS reminder_template_id
     FROM research_studies s
     JOIN LATERAL (
       SELECT id
       FROM research_recruitment_templates
       WHERE study_id=s.id
+        AND wave_id=s.current_wave_id
         AND channel='email'
         AND status='locked'
         AND purpose='research_reminder'
@@ -473,6 +485,7 @@ export async function queueGreekRetailInviteReminderBatch(
   `, [STUDY_SLUG]);
   const row = study.rows[0];
   if (!row) throw new Error("RESEARCH_REMINDER_TEMPLATE_NOT_READY");
+  if (!text(row.current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
   if (!["pilot","fielding"].includes(text(row.status))) throw new Error("SURVEY_NOT_OPEN");
   const fieldworkPhase = text(row.status) === "pilot" ? "pilot" : "main";
 
@@ -480,11 +493,12 @@ export async function queueGreekRetailInviteReminderBatch(
     SELECT id
     FROM research_study_jobs
     WHERE study_id=$1
+      AND wave_id=$2
       AND job_type='invite_reminder'
       AND status IN ('queued','running')
     ORDER BY created_at DESC
     LIMIT 1
-  `, [row.id]);
+  `, [row.id, row.current_wave_id]);
   if (existing.rows[0]) {
     return {
       jobId: text(existing.rows[0].id),
@@ -493,24 +507,26 @@ export async function queueGreekRetailInviteReminderBatch(
   }
 
   const job = await pool.query<SqlRow>(`
-    INSERT INTO research_study_jobs (study_id,job_type,status,input)
+    INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
     VALUES (
       $1,
+      $2,
       'invite_reminder',
       'queued',
       jsonb_build_object(
-        'templateId',$2::text,
-        'limit',$3::int,
-        'minAgeDays',$4::int,
-        'minGapDays',$5::int,
-        'maxReminders',$6::int,
-        'label',$7::text,
-        'fieldworkPhase',$8::text
+        'templateId',$3::text,
+        'limit',$4::int,
+        'minAgeDays',$5::int,
+        'minGapDays',$6::int,
+        'maxReminders',$7::int,
+        'label',$8::text,
+        'fieldworkPhase',$9::text
       )
     )
     RETURNING id
   `, [
     row.id,
+    row.current_wave_id,
     row.reminder_template_id,
     limit,
     minAgeDays,
@@ -537,33 +553,35 @@ export async function queueGreekRetailRewardDelivery(
   const limit = Math.max(1, Math.min(250, Math.floor(input.limit ?? 100)));
   const pool = getProductionPostgresRuntime().sqlPool;
   const study = await pool.query<SqlRow>(
-    "SELECT id,status FROM research_studies WHERE slug=$1 LIMIT 1",
+    "SELECT id,status,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1",
     [STUDY_SLUG]
   );
   const row = study.rows[0];
   if (!row) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+  if (!text(row.current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
   if (text(row.status) === "archived") throw new Error("RESEARCH_REWARD_DELIVERY_ARCHIVED");
 
   const existing = await pool.query<SqlRow>(`
     SELECT id
     FROM research_study_jobs
     WHERE study_id=$1
+      AND wave_id=$2
       AND job_type='reward_delivery'
       AND status IN ('queued','running')
       AND COALESCE(input->>'responseId','')=''
     ORDER BY created_at DESC
     LIMIT 1
-  `, [row.id]);
+  `, [row.id, row.current_wave_id]);
   if (existing.rows[0]) return { jobId: text(existing.rows[0].id) };
 
   const job = await pool.query<SqlRow>(`
-    INSERT INTO research_study_jobs (study_id,job_type,status,input)
+    INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
     VALUES (
-      $1,'reward_delivery','queued',
-      jsonb_build_object('limit',$2::int,'label',$3::text)
+      $1,$2,'reward_delivery','queued',
+      jsonb_build_object('limit',$3::int,'label',$4::text)
     )
     RETURNING id
-  `, [row.id, limit, input.label?.trim() || `reward-delivery-${new Date().toISOString()}`]);
+  `, [row.id, row.current_wave_id, limit, input.label?.trim() || `reward-delivery-${new Date().toISOString()}`]);
   return { jobId: text(job.rows[0]!.id) };
 }
 
@@ -577,12 +595,12 @@ export async function queueGreekRetailResultsNotifications(
   const limit = Math.max(1, Math.min(250, Math.floor(input.limit ?? 100)));
   const pool = getProductionPostgresRuntime().sqlPool;
   const release = await pool.query<SqlRow>(`
-    SELECT s.id AS study_id,rs.id AS release_snapshot_id
+    SELECT s.id AS study_id,s.current_wave_id AS wave_id,rs.id AS release_snapshot_id
     FROM research_studies s
     JOIN LATERAL (
       SELECT id
       FROM research_release_snapshots
-      WHERE study_id=s.id AND published_at IS NOT NULL
+      WHERE study_id=s.id AND wave_id=s.current_wave_id AND published_at IS NOT NULL
       ORDER BY published_at DESC,created_at DESC
       LIMIT 1
     ) rs ON true
@@ -591,17 +609,19 @@ export async function queueGreekRetailResultsNotifications(
   `, [STUDY_SLUG]);
   const row = release.rows[0];
   if (!row) throw new Error("RESEARCH_RESULTS_NOTIFICATION_REQUIRES_PUBLISHED_RELEASE");
+  if (!text(row.wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
 
   const existing = await pool.query<SqlRow>(`
     SELECT id
     FROM research_study_jobs
     WHERE study_id=$1
+      AND wave_id=$2
       AND job_type='results_notification'
       AND status IN ('queued','running')
-      AND input->>'releaseSnapshotId'=$2
+      AND input->>'releaseSnapshotId'=$3
     ORDER BY created_at DESC
     LIMIT 1
-  `, [row.study_id, row.release_snapshot_id]);
+  `, [row.study_id, row.wave_id, row.release_snapshot_id]);
   if (existing.rows[0]) {
     return {
       jobId: text(existing.rows[0].id),
@@ -610,18 +630,19 @@ export async function queueGreekRetailResultsNotifications(
   }
 
   const job = await pool.query<SqlRow>(`
-    INSERT INTO research_study_jobs (study_id,job_type,status,input)
+    INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
     VALUES (
-      $1,'results_notification','queued',
+      $1,$2,'results_notification','queued',
       jsonb_build_object(
-        'releaseSnapshotId',$2::text,
-        'limit',$3::int,
-        'label',$4::text
+        'releaseSnapshotId',$3::text,
+        'limit',$4::int,
+        'label',$5::text
       )
     )
     RETURNING id
   `, [
     row.study_id,
+    row.wave_id,
     row.release_snapshot_id,
     limit,
     input.label?.trim() || `results-notification-${new Date().toISOString()}`
@@ -721,6 +742,7 @@ export async function queueGreekRetailIdentityDestruction(
     SELECT id
     FROM research_study_jobs
     WHERE study_id=$1
+      AND wave_id=$2
       AND job_type='identity_destruction'
       AND status IN ('queued','running')
       AND input->>'waveId'=$2
@@ -735,9 +757,9 @@ export async function queueGreekRetailIdentityDestruction(
   }
 
   const job = await pool.query<SqlRow>(`
-    INSERT INTO research_study_jobs (study_id,job_type,status,input)
+    INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
     VALUES (
-      $1,'identity_destruction','queued',
+      $1,$2,'identity_destruction','queued',
       jsonb_build_object(
         'waveId',$2::text,
         'executedBy',$3::text,
