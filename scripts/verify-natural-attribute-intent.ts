@@ -126,7 +126,7 @@ const catalogViewBase = readFileSync(new URL("../apps/web/src/lib/catalog-view-b
 const catalogSources = `${catalogView}\n${catalogViewBase}`;
 for (const contract of [
   "getShopCatalogPage({",
-  "getPublishedDropshipCatalogPage({",
+  "getCachedPublishedDropshipShopPage({",
   "query: catalogQuery",
   "attributeFilters,",
   "filterCatalogCardsByAttributes(crawlerProducts, attributeFilters)",
