@@ -265,6 +265,11 @@ if (!jobs.includes("study_id,wave_id,response_id,contact_point_id,release_snapsh
 if (!jobs.includes("pri.wave_id=$11")) errors.push("main sample pilot holdout is not wave-scoped");
 if (!surveyRuntime.includes("ri.wave_id AS wave_id")) errors.push("public invitation resolution does not expose immutable invite wave");
 if (!surveyRuntime.includes("research_responses (study_id, wave_id, instrument_id, invite_id")) errors.push("public response creation relies on current-wave trigger defaults");
+if (surveyForm.includes("answers, experimentChoices, optionalConsents, complete: true")) errors.push("questionnaire completion still bundles post-research participant preferences");
+if (surveyForm.includes('current.code === "DONE" && <div className={styles.optionalConsents}>')) errors.push("participant preferences still appear inside the scientific questionnaire flow");
+if (surveyRoute.includes("optionalConsents: body.optionalConsents")) errors.push("generic survey-save API still accepts optional participant preferences");
+if (surveyRuntime.includes("Object.entries(input.optionalConsents ?? {})")) errors.push("generic survey runtime still mutates optional participant preferences");
+if (!surveyRuntime.includes('throw new Error("RESEARCH_PREFERENCES_REQUIRE_COMPLETION")')) errors.push("participant preference endpoint does not require questionnaire completion");
 if (!surveyRuntime.includes("s.current_wave_id AS wave_id")) errors.push("research lifecycle does not bind to the study current wave");
 if (!surveyRuntime.includes("AND rs.wave_id=$2")) errors.push("release publication is not current-wave scoped");
 if (!surveyRuntime.includes("INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)")) errors.push("runtime-created participant jobs rely on implicit current-wave stamping");
