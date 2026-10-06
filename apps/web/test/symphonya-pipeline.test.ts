@@ -64,14 +64,16 @@ test("Symphonya publication batch excludes already-converged rows before LIMIT",
   assert.match(source, /[\s\S]*publicationState[\s\S]*ORDER BY vo\.id[\s\S]*LIMIT \$2/);
 });
 
-test("API-authoritative checkout live-revalidates Symphonya stock and buying cost", () => {
+test("API-authoritative checkout revalidates Symphonya live when configured and fails over only to fresh cache", () => {
   const source = readFileSync(new URL("../src/lib/dropship-checkout-runtime.ts", import.meta.url), "utf8");
   assert.match(source, /SYMPHONYA_SUPPLIER_CODE = "symphonya"/);
+  assert.match(source, /SYMPHONYA_API_KEY/);
   assert.match(source, /new SymphonyaHttpTransport/);
   assert.match(source, /getStock\(\{ productIds: \[row\.external_product_id\] \}\)/);
   assert.match(source, /stock\.wholesaleCostMinor/);
+  assert.match(source, /availabilityValidation = "fresh_cache"/);
+  assert.match(source, /dso\.availability_expires_at>now\(\)/);
   assert.match(source, /row\.order_forwarding_enabled/);
-  assert.match(source, /SYMPHONYA_ENABLED/);
   assert.match(source, /minimum_procurement_minor/);
 });
 
@@ -90,11 +92,13 @@ test("Symphonya all-phase pipeline leaves automatic supplier stock I/O to the de
   assert.match(source, /const publication = runAll \|\| phase === "publication"/);
 });
 
-test("Symphonya enrichment prioritizes latest, fresh, untranslated in-stock evidence", () => {
+test("Symphonya enrichment prioritizes bounded current in-stock source evidence", () => {
   const preparation = readFileSync(new URL("../src/lib/symphonya-enrichment-runtime.ts", import.meta.url), "utf8");
   const generation = readFileSync(new URL("../src/lib/catalogue-enrichment-generation-runtime.ts", import.meta.url), "utf8");
-  assert.match(preparation, /FROM public\.catalog_source_products p/);
-  assert.match(preparation, /ORDER BY p\.created_at DESC,p\.id DESC/);
+  assert.match(preparation, /candidate_keys AS MATERIALIZED/);
+  assert.match(preparation, /dso\.source_product_id IS NOT NULL/);
+  assert.match(preparation, /JOIN public\.catalog_source_products source/);
+  assert.match(preparation, /ORDER BY bounded\.in_stock DESC,bounded\.external_product_id/);
   assert.match(preparation, /dso\.cached_available=true/);
   assert.match(generation, /\$4::text='symphonya'/);
   assert.match(generation, /dso\.cached_available=true/);
@@ -203,11 +207,11 @@ test("Symphonya long-running worker generates Greek copy before promotion and pu
 });
 
 
-test("vendor storefront surfaces newly published Symphonya families before the hourly read-model refresh", () => {
+test("vendor storefront surfaces newly published live supplier families before read-model refresh", () => {
   const source = readFileSync(new URL("../src/lib/vendor-dropship-fast-page.ts", import.meta.url), "utf8");
-  assert.match(source, /hot_symphonya AS MATERIALIZED/);
-  assert.match(source, /supplier\.code='symphonya'/);
-  assert.match(source, /NOT EXISTS \([\s\S]*storefront_dropship_family_read_model projected/);
+  assert.match(source, /vendor_suppliers AS MATERIALIZED/);
+  assert.match(source, /bls_private\.storefront_dropship_live_family/);
+  assert.match(source, /fallback_suppliers AS MATERIALIZED/);
   assert.match(source, /LEFT JOIN public\.storefront_catalog_read_model rm/);
   assert.match(source, /vo\.status='approved'/);
   assert.match(source, /dso\.availability_expires_at>now\(\)/);
