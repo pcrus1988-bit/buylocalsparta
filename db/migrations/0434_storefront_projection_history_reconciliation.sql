@@ -237,11 +237,6 @@ COMMENT ON MATERIALIZED VIEW public.storefront_catalog_read_model IS
 
 -- Refresh away from customer requests. Concurrent refresh keeps the previous
 -- projection readable while PostgreSQL builds the next one.
-SELECT cron.schedule(
-  'refresh-storefront-catalog-read-model',
-  '*/2 * * * *',
-  'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_catalog_read_model'
-);
 
 
 -- Reconciled from historical live migration: 20260915_storefront_dropship_family_read_model.sql
@@ -295,11 +290,6 @@ CREATE INDEX IF NOT EXISTS storefront_dropship_family_read_model_search_gin
 CREATE INDEX IF NOT EXISTS storefront_dropship_family_read_model_sizes_trgm
   ON public.storefront_dropship_family_read_model USING gin (lower(coalesce(sizes_text,'')) gin_trgm_ops);
 
-SELECT cron.schedule(
-  'refresh-storefront-dropship-family-read-model',
-  '1-59/2 * * * *',
-  'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_dropship_family_read_model'
-);
 
 
 -- Reconciled from historical live migration: 20260915_storefront_filter_read_model.sql
@@ -351,23 +341,6 @@ CREATE INDEX IF NOT EXISTS storefront_filter_read_model_available_idx
   ON public.storefront_filter_read_model(available_until);
 
 -- Stagger dependent projections so refresh work cannot pile up on the same minute.
-SELECT cron.unschedule('refresh-storefront-catalog-read-model');
-SELECT cron.unschedule('refresh-storefront-dropship-family-read-model');
-SELECT cron.schedule(
-  'refresh-storefront-catalog-read-model',
-  '0-59/3 * * * *',
-  'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_catalog_read_model'
-);
-SELECT cron.schedule(
-  'refresh-storefront-dropship-family-read-model',
-  '1-59/3 * * * *',
-  'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_dropship_family_read_model'
-);
-SELECT cron.schedule(
-  'refresh-storefront-filter-read-model',
-  '2-59/3 * * * *',
-  'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_filter_read_model'
-);
 
 
 -- Reconciled from historical live migration: 20260915_storefront_facet_read_model.sql
@@ -424,29 +397,6 @@ CREATE INDEX IF NOT EXISTS storefront_facet_read_model_available_idx
 -- Stagger refresh work: public discovery can be five minutes stale without
 -- compromising checkout because requests still enforce availability expiry and
 -- checkout revalidates authoritative stock/pricing.
-SELECT cron.unschedule('refresh-storefront-catalog-read-model');
-SELECT cron.unschedule('refresh-storefront-dropship-family-read-model');
-SELECT cron.unschedule('refresh-storefront-filter-read-model');
-SELECT cron.schedule(
-  'refresh-storefront-catalog-read-model',
-  '0-55/5 * * * *',
-  'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_catalog_read_model'
-);
-SELECT cron.schedule(
-  'refresh-storefront-dropship-family-read-model',
-  '1-56/5 * * * *',
-  'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_dropship_family_read_model'
-);
-SELECT cron.schedule(
-  'refresh-storefront-facet-read-model',
-  '2-57/5 * * * *',
-  'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_facet_read_model'
-);
-SELECT cron.schedule(
-  'refresh-storefront-filter-read-model',
-  '3-58/10 * * * *',
-  'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_filter_read_model'
-);
 
 
 -- Reconciled from historical live migration: 20260915_storefront_dropship_family_filter_read_model.sql
@@ -534,11 +484,6 @@ CREATE INDEX IF NOT EXISTS storefront_dropship_family_filter_sizes_gin
 CREATE INDEX IF NOT EXISTS storefront_dropship_family_filter_search_gin
   ON public.storefront_dropship_family_filter_read_model USING gin(search_vector);
 
-SELECT cron.schedule(
-  'refresh-storefront-dropship-family-filter-read-model',
-  '4-59/5 * * * *',
-  'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_dropship_family_filter_read_model'
-);
 
 
 -- Reconciled from historical live migration: 20260915_storefront_dropship_vendor_facets.sql
@@ -584,11 +529,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS storefront_dropship_vendor_facets_uidx
 CREATE INDEX IF NOT EXISTS storefront_dropship_vendor_facets_lookup_idx
   ON public.storefront_dropship_vendor_facets(supplier_id,facet_type,label,value);
 
-SELECT cron.schedule(
-  'refresh-storefront-dropship-vendor-facets',
-  '5-59/5 * * * *',
-  'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_dropship_vendor_facets'
-);
 
 
 -- Reconciled from historical live migration: 20260915_storefront_vendor_assortment_read_model.sql
@@ -624,11 +564,55 @@ CREATE UNIQUE INDEX IF NOT EXISTS storefront_vendor_assortment_public_uidx
 -- Run last in the hourly storefront projection pipeline. Public vendor assortment
 -- metadata may be up to roughly one hour stale; transactional availability and
 -- checkout remain independent and authoritative.
-SELECT cron.unschedule('refresh-storefront-vendor-assortment-read-model')
-WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname='refresh-storefront-vendor-assortment-read-model');
-SELECT cron.schedule(
-  'refresh-storefront-vendor-assortment-read-model',
-  '55 * * * *',
-  $$SET statement_timeout='240s'; REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_vendor_assortment_read_model$$
-);
 
+-- Canonical final refresh schedule. pg_cron is available in Supabase production
+-- but is intentionally optional for portable fresh-database CI/development.
+-- The schema/read models are always created; scheduling is installed only when
+-- the cron extension is present.
+DO $do$
+BEGIN
+  IF to_regclass('cron.job') IS NOT NULL THEN
+    EXECUTE 'SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = ANY ($1)'
+      USING ARRAY[
+        'refresh-storefront-catalog-read-model',
+        'refresh-storefront-dropship-family-read-model',
+        'refresh-storefront-facet-read-model',
+        'refresh-storefront-filter-read-model',
+        'refresh-storefront-dropship-family-filter-read-model',
+        'refresh-storefront-dropship-vendor-facets',
+        'refresh-storefront-vendor-assortment-read-model'
+      ]::text[];
+
+    EXECUTE 'SELECT cron.schedule($1::text,$2::text,$3::text)'
+      USING 'refresh-storefront-catalog-read-model',
+            '0-55/5 * * * *',
+            'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_catalog_read_model';
+    EXECUTE 'SELECT cron.schedule($1::text,$2::text,$3::text)'
+      USING 'refresh-storefront-dropship-family-read-model',
+            '1-56/5 * * * *',
+            'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_dropship_family_read_model';
+    EXECUTE 'SELECT cron.schedule($1::text,$2::text,$3::text)'
+      USING 'refresh-storefront-facet-read-model',
+            '2-57/5 * * * *',
+            'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_facet_read_model';
+    EXECUTE 'SELECT cron.schedule($1::text,$2::text,$3::text)'
+      USING 'refresh-storefront-filter-read-model',
+            '3-58/10 * * * *',
+            'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_filter_read_model';
+    EXECUTE 'SELECT cron.schedule($1::text,$2::text,$3::text)'
+      USING 'refresh-storefront-dropship-family-filter-read-model',
+            '4-59/5 * * * *',
+            'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_dropship_family_filter_read_model';
+    EXECUTE 'SELECT cron.schedule($1::text,$2::text,$3::text)'
+      USING 'refresh-storefront-dropship-vendor-facets',
+            '5-59/5 * * * *',
+            'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_dropship_vendor_facets';
+    EXECUTE 'SELECT cron.schedule($1::text,$2::text,$3::text)'
+      USING 'refresh-storefront-vendor-assortment-read-model',
+            '55 * * * *',
+            'SET statement_timeout=''240s''; REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_vendor_assortment_read_model';
+  ELSE
+    RAISE NOTICE 'pg_cron is unavailable; storefront projection refresh jobs were not scheduled';
+  END IF;
+END
+$do$;
