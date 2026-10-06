@@ -355,7 +355,6 @@ export function ResearchSurveyForm({ slug, token, initial }: {
       <div className={styles.optionalConsents}>
         <label><input type="checkbox" checked={optionalConsents.results_notification} onChange={(event) => setOptionalConsents((state) => ({ ...state, results_notification: event.target.checked }))} /><span>Θέλω να ενημερωθώ όταν δημοσιευθούν τα αποτελέσματα.</span></label>
         <label><input type="checkbox" checked={optionalConsents.thank_you_code} onChange={(event) => setOptionalConsents((state) => ({ ...state, thank_you_code: event.target.checked }))} /><span>Θέλω να λάβω τον κωδικό ευχαριστίας που προσφέρεται στους συμμετέχοντες.</span></label>
-        <label><input type="checkbox" checked={optionalConsents.marketing} onChange={(event) => setOptionalConsents((state) => ({ ...state, marketing: event.target.checked }))} /><span>Θέλω να λαμβάνω πληροφορίες σχετικά με τις υπηρεσίες του KONTA MOY.</span></label>
       </div>
       <p>Η αλλαγή ισχύει για μελλοντικές αποστολές. Μήνυμα που έχει ήδη αποσταλεί δεν μπορεί να ανακληθεί.</p>
       {preferenceMessage && <p className={styles.success}>{preferenceMessage}</p>}
@@ -451,7 +450,6 @@ export function ResearchSurveyForm({ slug, token, initial }: {
     {current.code === "DONE" && <div className={styles.optionalConsents}>
       <label><input type="checkbox" checked={optionalConsents.results_notification} onChange={(event) => setOptionalConsents((state) => ({ ...state, results_notification: event.target.checked }))} /><span>Θέλω να ενημερωθώ όταν δημοσιευθούν τα αποτελέσματα.</span></label>
       <label><input type="checkbox" checked={optionalConsents.thank_you_code} onChange={(event) => setOptionalConsents((state) => ({ ...state, thank_you_code: event.target.checked }))} /><span>Θέλω να λάβω τον κωδικό ευχαριστίας που προσφέρεται στους συμμετέχοντες.</span></label>
-      <label><input type="checkbox" checked={optionalConsents.marketing} onChange={(event) => setOptionalConsents((state) => ({ ...state, marketing: event.target.checked }))} /><span>Θέλω να λαμβάνω πληροφορίες σχετικά με τις υπηρεσίες του KONTA MOY.</span></label>
     </div>}
 
     {message && <p className={styles.error}>{message}</p>}
