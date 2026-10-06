@@ -7,7 +7,8 @@ import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/research/privacy", {
     title: "Ιδιωτικότητα Έρευνας · KONTA MOY Retail Observatory",
-    description: "Πώς διαχωρίζονται πρόσκληση, συγκατάθεση, απαντήσεις, επικοινωνία, rewards και δημόσια ερευνητικά releases στο Παρατηρητήριο Ελληνικού Λιανεμπορίου."
+    description: "Πώς διαχωρίζονται πρόσκληση, συγκατάθεση, απαντήσεις, επικοινωνία, rewards και δημόσια ερευνητικά releases στο Παρατηρητήριο Ελληνικού Λιανεμπορίου.",
+    keywords: ["ιδιωτικότητα ερευνητικής συμμετοχής", "προστασία δεδομένων έρευνας", "research privacy Greece", "συγκατάθεση συμμετοχής έρευνα", "ανώνυμες απαντήσεις λιανεμπορίου", "retention ερευνητικών δεδομένων"]
   });
 }
 
