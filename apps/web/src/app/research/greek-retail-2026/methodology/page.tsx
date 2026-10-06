@@ -7,7 +7,8 @@ import styles from "../../../../components/ResearchSurveyPage.module.css";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/research/greek-retail-2026/methodology", {
     title: "Μεθοδολογία · Ελληνικό Λιανεμπόριο 2026",
-    description: "Μεθοδολογική τεκμηρίωση, sampling, consent, weighting και reproducibility protocol της μελέτης Ελληνικό Λιανεμπόριο 2026."
+    description: "Μεθοδολογική τεκμηρίωση, sampling, consent, weighting και reproducibility protocol της μελέτης Ελληνικό Λιανεμπόριο 2026.",
+    keywords: ["μεθοδολογία Ελληνικό Λιανεμπόριο 2026", "δειγματοληψία λιανεμπορίου Ελλάδα", "στάθμιση ερευνητικού δείγματος", "research methodology Greece", "αναπαραγωγιμότητα έρευνας λιανεμπορίου", "probability sample Greek retail"]
   });
 }
 
