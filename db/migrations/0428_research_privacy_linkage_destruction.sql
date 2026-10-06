@@ -13,6 +13,9 @@ ALTER TABLE public.research_consents
   ADD CONSTRAINT research_consents_consent_kind_check
   CHECK (consent_kind IN ('research_participation','results_notification','thank_you_code'));
 
+ALTER TABLE public.research_responses
+  ALTER COLUMN invite_id DROP NOT NULL;
+
 ALTER TABLE public.research_participant_deliveries
   ALTER COLUMN contact_point_id DROP NOT NULL;
 
@@ -81,7 +84,11 @@ BEGIN
     RAISE EXCEPTION 'research linkage may be destroyed only after publication';
   END IF;
 
-  IF v_study.linkage_retention_until IS NOT NULL AND now() < v_study.linkage_retention_until THEN
+  IF v_study.linkage_retention_until IS NULL THEN
+    RAISE EXCEPTION 'research linkage retention policy has not been explicitly set';
+  END IF;
+
+  IF now() < v_study.linkage_retention_until THEN
     RAISE EXCEPTION 'research linkage retention period has not elapsed';
   END IF;
 
@@ -159,7 +166,7 @@ BEGIN
     AND i.study_id=p_study_id
     AND m.contact_point_id IS NOT NULL;
 
-  UPDATE public.research_contact_suppression_events
+  UPDATE public.research_responses
   SET invite_id=NULL
   WHERE study_id=p_study_id
     AND invite_id IS NOT NULL;
