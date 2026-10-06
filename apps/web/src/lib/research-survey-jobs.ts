@@ -765,25 +765,26 @@ export async function queueGreekRetailAnalysis(
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const pool = getProductionPostgresRuntime().sqlPool;
   const study = await pool.query<SqlRow>(
-    "SELECT id,status FROM research_studies WHERE slug=$1 LIMIT 1",
+    "SELECT id,status,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1",
     [STUDY_SLUG]
   );
   const row = study.rows[0];
   if (!row) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+  if (!text(row.current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
   if (text(row.status) !== "analysis") throw new Error("RESEARCH_ANALYSIS_REQUIRES_ANALYSIS_STATUS");
 
   const existing = await pool.query<SqlRow>(`
     SELECT id FROM research_study_jobs
-    WHERE study_id=$1 AND job_type='analysis' AND status IN ('queued','running')
+    WHERE study_id=$1 AND wave_id=$2 AND job_type='analysis' AND status IN ('queued','running')
     ORDER BY created_at DESC LIMIT 1
-  `, [row.id]);
+  `, [row.id, row.current_wave_id]);
   if (existing.rows[0]) return { jobId: text(existing.rows[0].id) };
 
   const job = await pool.query<SqlRow>(`
-    INSERT INTO research_study_jobs (study_id,job_type,status,input)
-    VALUES ($1,'analysis','queued','{}'::jsonb)
+    INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
+    VALUES ($1,$2,'analysis','queued','{}'::jsonb)
     RETURNING id
-  `, [row.id]);
+  `, [row.id, row.current_wave_id]);
   return { jobId: text(job.rows[0]!.id) };
 }
 
