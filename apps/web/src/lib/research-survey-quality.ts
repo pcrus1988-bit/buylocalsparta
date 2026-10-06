@@ -100,7 +100,7 @@ export async function resolveResearchQualityReview(
     note?: string;
   }>
 ): Promise<Readonly<{ responseId: string; decision: "include" | "exclude" }>> {
-  assertAdminPermission(principal, "research.manage");
+  assertAdminPermission(principal, "research.quality.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   if (!/^[0-9a-f-]{36}$/i.test(input.responseId)) throw new Error("RESEARCH_QA_RESPONSE_INVALID");
 
