@@ -97,6 +97,7 @@ test("quality signals flag deterministic cross-question contradictions for revie
   assert.ok(result.reasonCodes.includes("digital_share_channel_mismatch"));
   assert.ok(result.reasonCodes.includes("marketplace_status_mismatch"));
   assert.ok(!result.reasonCodes.includes("rapid_completion"));
+  assert.ok(result.qualityScore < 100);
 });
 
 test("quality signals flag repeated matrix straightlining but never auto-exclude", () => {
@@ -115,4 +116,19 @@ test("quality signals retain the rapid-completion review rule", () => {
   const result = researchQualitySignals({}, 45);
   assert.equal(result.review, true);
   assert.deepEqual(result.reasonCodes, ["rapid_completion"]);
+  assert.equal(result.qualityScore, 70);
+});
+
+test("quality signals flag digital-system and acquisition contradictions without auto-exclusion", () => {
+  const result = researchQualitySignals({
+    Q03: ["physical"],
+    Q05: { catalog: "yes", stock_sync: "yes" },
+    Q06: "none",
+    Q09: ["marketplace"],
+    Q13: "never"
+  }, 300);
+  assert.equal(result.review, true);
+  assert.ok(result.reasonCodes.includes("digital_system_capability_mismatch"));
+  assert.ok(result.reasonCodes.includes("marketplace_acquisition_experience_mismatch"));
+  assert.ok(result.qualityScore < 100);
 });
