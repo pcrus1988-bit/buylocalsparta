@@ -184,6 +184,9 @@ if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 429")) errors.push("runtime sch
 if (!observatoryHierarchyMigration.includes("CREATE TABLE public.research_programmes")) errors.push("research programme hierarchy missing");
 if (!observatoryHierarchyMigration.includes("CREATE TABLE public.research_study_series")) errors.push("research study-series hierarchy missing");
 if (!observatoryHierarchyMigration.includes("research_core_question_bindings")) errors.push("longitudinal core-question binding missing");
+if (!observatoryHierarchyMigration.includes("binding_version") || !observatoryHierarchyMigration.includes("harmonisation_json")) errors.push("versioned longitudinal harmonisation binding missing");
+if (!observatoryHierarchyMigration.includes("digital_readiness_score") || !observatoryHierarchyMigration.includes("retail_friction_index")) errors.push("headline longitudinal concepts missing");
+if (!observatoryHierarchyMigration.includes("research_core_question_bindings_append_only")) errors.push("longitudinal bindings are not append-only");
 if (!privacyLinkageMigration.includes("research_destroy_study_linkage")) errors.push("post-publication linkage destruction function missing");
 if (!privacyLinkageMigration.includes("ALTER COLUMN invite_id DROP NOT NULL")) errors.push("response-to-invite detachment support missing");
 if (privacyLinkageMigration.includes("marketing'))")) errors.push("research consent schema still permits marketing");
