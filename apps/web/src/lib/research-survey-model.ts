@@ -117,6 +117,7 @@ export function validateResearchAnswers(
 
 export type ResearchQualitySignals = Readonly<{
   review: boolean;
+  qualityScore: number;
   reasonCodes: readonly string[];
   metrics: Readonly<Record<string, unknown>>;
 }>;
@@ -172,6 +173,21 @@ export function researchQualitySignals(
     reasonCodes.push("marketplace_status_mismatch");
   }
 
+  const acquisitionSources = Array.isArray(answers.Q09) ? answers.Q09.map(String) : [];
+  if (marketplaceExperience === "never" && acquisitionSources.includes("marketplace")) {
+    reasonCodes.push("marketplace_acquisition_experience_mismatch");
+  }
+
+  const digitalCapabilities = isObject(answers.Q05) ? answers.Q05 : {};
+  const catalogUpdateFrequency = typeof answers.Q06 === "string" ? answers.Q06 : "";
+  if (
+    catalogUpdateFrequency === "none" &&
+    (String(digitalCapabilities.catalog ?? "") === "yes" ||
+      String(digitalCapabilities.stock_sync ?? "") === "yes")
+  ) {
+    reasonCodes.push("digital_system_capability_mismatch");
+  }
+
   const straightlinedMatrices = ["Q07", "Q14", "Q15"]
     .filter((code) => matrixStraightlined(answers[code]));
   if (straightlinedMatrices.length >= 2) {
@@ -186,14 +202,37 @@ export function researchQualitySignals(
     reasonCodes.push("open_text_pattern_review");
   }
 
+  const penaltyByReason: Readonly<Record<string, number>> = {
+    sales_channel_none_conflict: 25,
+    digital_share_channel_mismatch: 15,
+    marketplace_status_mismatch: 20,
+    marketplace_acquisition_experience_mismatch: 15,
+    digital_system_capability_mismatch: 15,
+    multi_matrix_straightline: 20,
+    rapid_completion: 30,
+    open_text_pattern_review: 20
+  };
+  const qualityPenalty = Math.min(
+    100,
+    reasonCodes.reduce((sum, reason) => sum + (penaltyByReason[reason] ?? 10), 0)
+  );
+  const qualityScore = Math.max(0, 100 - qualityPenalty);
+
   return {
     review: reasonCodes.length > 0,
+    qualityScore,
     reasonCodes,
     metrics: {
       durationSeconds,
+      responseQualityScore: qualityScore,
+      qualityPenalty,
       declaredDigitalChannels: channels.filter((channel) => digitalChannels.includes(channel)),
       digitalShare,
       marketplaceExperience,
+      acquisitionSources,
+      catalogUpdateFrequency,
+      digitalCapabilityCatalog: String(digitalCapabilities.catalog ?? ""),
+      digitalCapabilityStockSync: String(digitalCapabilities.stock_sync ?? ""),
       straightlinedMatrices,
       openTextPatternReview: suspiciousOpenText(answers.Q18)
     }
