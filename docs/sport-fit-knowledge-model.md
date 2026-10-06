@@ -29,6 +29,8 @@ Examples:
 - use case
 - cushioning
 - support
+- named footwear technology (for example Cloudfoam / Cloudfoam+)
+- manufacturer fit profile (for example Regular fit)
 - heel-to-toe drop
 - stack height
 - shoe weight
@@ -113,6 +115,8 @@ Preferred source for:
 - official product weight
 - stated heel-to-toe drop
 - stated cushioning/support classification
+- named manufacturer technologies and the component they are applied to
+- explicit manufacturer fit labels such as Regular fit
 - plate technology
 - waterproof/windproof claims
 - official football surface code
@@ -247,7 +251,26 @@ The duplicate-family case is deliberate evidence that the knowledge layer fails 
 - Thin & Light Sportswear Ankle `JZ0528`: ankle height, gym/training context and explicit arch support.
 - Think Linear Ankle `IC1306`: ankle height only where the manufacturer statement is unambiguous.
 
-Marketing terms such as “cushioned”, “soft” or “stable” are not automatically converted to normalized cushioning/support levels unless the source provides a sufficiently clear classification.
+Descriptive adjectives such as “cushioned”, “soft” or “stable” are not automatically converted to normalized cushioning/support levels unless the source provides a sufficiently clear classification. Named manufacturer technologies are different: a source that explicitly identifies Cloudfoam, Cloudfoam+ or another technical system may support a structured technology fact even when cushioning/support intensity remains unknown.
+
+## Technology and fit semantics
+
+Named manufacturer technologies are first-class technical knowledge. The database stores the technology identity separately from any performance grade.
+
+- `footwear_technology=cloudfoam` means the exact product is documented as using adidas Cloudfoam technology.
+- `footwear_technology=cloudfoam_plus` preserves the specific Cloudfoam+ variant rather than collapsing it to generic Cloudfoam.
+- `footwear_technology=cloudfoam_comfort` preserves Cloudfoam Comfort where the manufacturer identifies that system, including sockliner applications.
+- A Cloudfoam fact may support an explanation that the model uses that technology, but it does not automatically create `cushioning_level=high`, `support_level=...` or another graded fact unless separate evidence supports the grade.
+- Technology component/location belongs in evidence and value metadata when known (for example midsole or sockliner).
+
+Manufacturer fit wording is also preserved without conflating different fit dimensions.
+
+- Explicit `Regular fit` is normalized as `footwear_fit_profile=regular`.
+- `footwear_fit_profile` is separate from `footwear_width_profile`; Regular fit is not automatically rewritten as standard width.
+- `footwear_fit_profile` is separate from `fit_length_profile`; Regular fit is not a substitute for true-to-size/short/long sizing advice.
+- When a manufacturer separately publishes Regular fit, Wide fit and/or true-to-size guidance, those facts may coexist because they describe different aspects of fit.
+
+Schema 417 applies this policy to current exact adidas families with first-party evidence, while regression guards require cushioning, support, width and length facts to remain unchanged by the technology/fit backfill.
 
 ## Size-guide knowledge
 
