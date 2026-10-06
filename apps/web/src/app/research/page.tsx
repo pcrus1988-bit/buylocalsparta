@@ -7,7 +7,8 @@ import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/research", {
     title: "Παρατηρητήριο Ελληνικού Λιανεμπορίου · KONTA MOY Research",
-    description: "Το μόνιμο Παρατηρητήριο Ελληνικού Λιανεμπορίου του KONTA MOY: ετήσιες ερευνητικές κυματομορφές, μεθοδολογία, δημόσια releases και αναπαραγώγιμα τεκμήρια."
+    description: "Το μόνιμο Παρατηρητήριο Ελληνικού Λιανεμπορίου του KONTA MOY: ετήσιες ερευνητικές κυματομορφές, μεθοδολογία, δημόσια releases και αναπαραγώγιμα τεκμήρια.",
+    keywords: ["Παρατηρητήριο Ελληνικού Λιανεμπορίου", "έρευνα ελληνικού λιανεμπορίου", "Retail Observatory Greece", "στοιχεία λιανεμπορίου Ελλάδα", "μελέτες εμπορικών επιχειρήσεων", "ψηφιακή ωριμότητα λιανεμπορίου"]
   });
 }
 
