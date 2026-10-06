@@ -49,7 +49,7 @@ export async function queueGreekRetailRelease(
   principal: SessionPrincipal,
   input: Readonly<{ releaseVersion?: string }> = {}
 ): Promise<Readonly<{ jobId: string; releaseVersion: string; analysisRunId: string }>> {
-  assertAdminPermission(principal, "research.manage");
+  assertAdminPermission(principal, "research.publish");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const version = releaseVersion(input.releaseVersion);
   const pool = getProductionPostgresRuntime().sqlPool;
