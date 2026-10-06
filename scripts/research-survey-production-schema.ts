@@ -4,7 +4,7 @@ const connectionString = process.env.DATABASE_URL?.trim();
 if (!connectionString) throw new Error("DATABASE_URL is required");
 
 const postcheck = process.argv.includes("--postcheck");
-const expectedSourceVersion = 428;
+const expectedSourceVersion = 429;
 const expectedCurrentVersion = 415;
 const requiredTables = [
   "research_programmes",
