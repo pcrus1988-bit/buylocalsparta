@@ -249,8 +249,10 @@ function estimateSpecs(
 
 export async function runGreekRetailAnalysis(
   studyId: string,
+  waveId: string,
   jobId: string
 ): Promise<Record<string, unknown>> {
+  if (!waveId) throw new Error("RESEARCH_ANALYSIS_WAVE_MISSING");
   const pool = getProductionPostgresRuntime().sqlPool;
 
   const pendingReviews = await pool.query<SqlRow>(`
@@ -260,12 +262,13 @@ export async function runGreekRetailAnalysis(
       JOIN research_responses r ON r.id=qr.response_id
       JOIN research_invites ri ON ri.id=r.invite_id
       WHERE r.study_id=$1
+        AND r.wave_id=$2
         AND r.status='completed'
         AND ri.fieldwork_phase='main'
       ORDER BY qr.response_id, qr.created_at DESC, qr.id DESC
     )
     SELECT count(*)::int AS count FROM latest WHERE decision='review'
-  `, [studyId]);
+  `, [studyId, waveId]);
   if (numberValue(pendingReviews.rows[0]?.count) > 0) {
     throw new Error("RESEARCH_ANALYSIS_REQUIRES_QA_RESOLUTION");
   }
@@ -273,20 +276,20 @@ export async function runGreekRetailAnalysis(
   const instrumentResult = await pool.query<SqlRow>(`
     SELECT id, version
     FROM research_instruments
-    WHERE study_id=$1
+    WHERE study_id=$1 AND wave_id=$2
     ORDER BY created_at DESC
     LIMIT 1
-  `, [studyId]);
+  `, [studyId, waveId]);
   const instrument = instrumentResult.rows[0];
   if (!instrument) throw new Error("RESEARCH_ANALYSIS_INSTRUMENT_MISSING");
 
   const analysisPlanResult = await pool.query<SqlRow>(`
     SELECT id,version,title,plan_json,content_sha256,locked_at
     FROM research_analysis_plans
-    WHERE study_id=$1 AND instrument_id=$2 AND status='locked'
+    WHERE study_id=$1 AND wave_id=$2 AND instrument_id=$3 AND status='locked'
     ORDER BY locked_at DESC,created_at DESC
     LIMIT 1
-  `, [studyId, instrument.id]);
+  `, [studyId, waveId, instrument.id]);
   const analysisPlan = analysisPlanResult.rows[0];
   if (!analysisPlan) throw new Error("RESEARCH_ANALYSIS_PLAN_MISSING");
   const analysisPlanJson = objectValue(analysisPlan.plan_json);
@@ -333,21 +336,22 @@ export async function runGreekRetailAnalysis(
     SELECT id, frame_snapshot_id
     FROM research_sample_draws
     WHERE study_id=$1
+      AND wave_id=$2
       AND fieldwork_phase='main'
       AND status IN ('locked','fielded')
     ORDER BY created_at DESC
     LIMIT 1
-  `, [studyId]);
+  `, [studyId, waveId]);
   const draw = drawResult.rows[0];
   if (!draw) throw new Error("RESEARCH_ANALYSIS_SAMPLE_MISSING");
 
   let runResult = await pool.query<SqlRow>(`
     SELECT id,status,dataset_sha256,code_version,weight_version,analysis_plan_id
     FROM research_analysis_runs
-    WHERE study_id=$1 AND parameters->>'jobId'=$2
+    WHERE study_id=$1 AND wave_id=$2 AND parameters->>'jobId'=$3
     ORDER BY created_at DESC
     LIMIT 1
-  `, [studyId, jobId]);
+  `, [studyId, waveId, jobId]);
   let analysisRunId = text(runResult.rows[0]?.id);
   const weightVersion = `${WEIGHT_METHOD_VERSION}:${jobId}`;
   if (analysisRunId && text(runResult.rows[0]?.analysis_plan_id) !== text(analysisPlan.id)) {
@@ -376,25 +380,27 @@ export async function runGreekRetailAnalysis(
   if (!analysisRunId) {
     runResult = await pool.query<SqlRow>(`
       INSERT INTO research_analysis_runs (
-        study_id,label,code_version,instrument_version,weight_version,analysis_plan_id,parameters,status,started_at
+        study_id,wave_id,label,code_version,instrument_version,weight_version,analysis_plan_id,parameters,status,started_at
       )
       VALUES (
-        $1,'Main-fieldwork weighted descriptive + randomized-profile exploratory analysis',$2,$3,$4,$10,
+        $1,$2,'Main-fieldwork weighted descriptive + randomized-profile exploratory analysis',$3,$4,$5,$11,
         jsonb_build_object(
-          'jobId',$5::text,
-          'varianceMethod',$9::text,
-          'sampleDrawId',$6::text,
-          'frameSnapshotId',$7::text,
-          'publicMinimumBase',$8::int,
-          'analysisPlanVersion',$11::text,
-          'analysisPlanSha256',$12::text,
-          'fieldworkPhase','main'
+          'jobId',$6::text,
+          'varianceMethod',$10::text,
+          'sampleDrawId',$7::text,
+          'frameSnapshotId',$8::text,
+          'publicMinimumBase',$9::int,
+          'analysisPlanVersion',$12::text,
+          'analysisPlanSha256',$13::text,
+          'fieldworkPhase','main',
+          'waveId',$2::text
         ),
         'running',now()
       )
       RETURNING id
     `, [
       studyId,
+      waveId,
       ANALYSIS_CODE_VERSION,
       instrument.version,
       weightVersion,
@@ -469,6 +475,7 @@ export async function runGreekRetailAnalysis(
       FROM research_response_quality_reviews qr
       JOIN research_responses rr ON rr.id=qr.response_id
       WHERE rr.study_id=$1
+        AND rr.wave_id=$2
       ORDER BY qr.response_id, qr.created_at DESC, qr.id DESC
     )
     SELECT
@@ -480,14 +487,16 @@ export async function runGreekRetailAnalysis(
       su.base_weight
     FROM research_responses r
     JOIN research_invites ri ON ri.id=r.invite_id AND ri.fieldwork_phase='main'
-    JOIN research_sample_units su ON su.id=ri.sample_unit_id AND su.sample_draw_id=$2
+    JOIN research_sample_units su ON su.id=ri.sample_unit_id AND su.sample_draw_id=$3
     JOIN research_strata st ON st.id=su.stratum_id
     JOIN research_frame_units fu ON fu.id=su.frame_unit_id
     LEFT JOIN latest_quality q ON q.response_id=r.id
-    WHERE r.status='completed'
+    WHERE r.study_id=$1
+      AND r.wave_id=$2
+      AND r.status='completed'
       AND COALESCE(q.decision,'include') <> 'exclude'
     ORDER BY r.id
-  `, [studyId, draw.id]);
+  `, [studyId, waveId, draw.id]);
   if (!responseResult.rows.length) throw new Error("RESEARCH_ANALYSIS_NO_INCLUDED_RESPONSES");
 
   const baseResponses: ResponseRow[] = responseResult.rows.map((row) => ({
@@ -520,11 +529,12 @@ export async function runGreekRetailAnalysis(
     SELECT id,source_ref,source_sha256,methodology_version
     FROM research_population_margin_sets
     WHERE study_id=$1
-      AND frame_snapshot_id=$2
+      AND wave_id=$2
+      AND frame_snapshot_id=$3
       AND source_kind='frozen_frame'
     ORDER BY created_at DESC
     LIMIT 1
-  `, [studyId, draw.frame_snapshot_id]);
+  `, [studyId, waveId, draw.frame_snapshot_id]);
   const marginSet = marginSetResult.rows[0];
   if (!marginSet) throw new Error("RESEARCH_CALIBRATION_MARGIN_SET_MISSING");
 
@@ -621,9 +631,9 @@ export async function runGreekRetailAnalysis(
     FROM research_answers a
     JOIN research_questions q ON q.id=a.question_id
     JOIN research_responses r ON r.id=a.response_id
-    WHERE r.study_id=$1 AND a.response_id=ANY($2::uuid[])
+    WHERE r.study_id=$1 AND r.wave_id=$2 AND a.response_id=ANY($3::uuid[])
     ORDER BY a.response_id, q.position, q.code
-  `, [studyId, baseResponses.map((response) => response.responseId)]);
+  `, [studyId, waveId, baseResponses.map((response) => response.responseId)]);
   const answerMap = new Map<string, Record<string, unknown>>();
   for (const row of answersResult.rows) {
     const id = text(row.response_id);
