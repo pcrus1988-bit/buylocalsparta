@@ -565,58 +565,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS storefront_vendor_assortment_public_uidx
 -- metadata may be up to roughly one hour stale; transactional availability and
 -- checkout remain independent and authoritative.
 
--- Canonical final refresh schedule. pg_cron is available in Supabase production
--- but is intentionally optional for portable fresh-database CI/development.
--- The schema/read models are always created; scheduling is installed only when
--- the cron extension is present.
-DO $do$
-BEGIN
-  IF to_regclass('cron.job') IS NOT NULL THEN
-    EXECUTE 'SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = ANY ($1)'
-      USING ARRAY[
-        'refresh-storefront-catalog-read-model',
-        'refresh-storefront-dropship-family-read-model',
-        'refresh-storefront-facet-read-model',
-        'refresh-storefront-filter-read-model',
-        'refresh-storefront-dropship-family-filter-read-model',
-        'refresh-storefront-dropship-vendor-facets',
-        'refresh-storefront-vendor-assortment-read-model'
-      ]::text[];
-
-    EXECUTE 'SELECT cron.schedule($1::text,$2::text,$3::text)'
-      USING 'refresh-storefront-catalog-read-model',
-            '0-55/5 * * * *',
-            'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_catalog_read_model';
-    EXECUTE 'SELECT cron.schedule($1::text,$2::text,$3::text)'
-      USING 'refresh-storefront-dropship-family-read-model',
-            '1-56/5 * * * *',
-            'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_dropship_family_read_model';
-    EXECUTE 'SELECT cron.schedule($1::text,$2::text,$3::text)'
-      USING 'refresh-storefront-facet-read-model',
-            '2-57/5 * * * *',
-            'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_facet_read_model';
-    EXECUTE 'SELECT cron.schedule($1::text,$2::text,$3::text)'
-      USING 'refresh-storefront-filter-read-model',
-            '3-58/10 * * * *',
-            'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_filter_read_model';
-    EXECUTE 'SELECT cron.schedule($1::text,$2::text,$3::text)'
-      USING 'refresh-storefront-dropship-family-filter-read-model',
-            '4-59/5 * * * *',
-            'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_dropship_family_filter_read_model';
-    EXECUTE 'SELECT cron.schedule($1::text,$2::text,$3::text)'
-      USING 'refresh-storefront-dropship-vendor-facets',
-            '5-59/5 * * * *',
-            'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_dropship_vendor_facets';
-    EXECUTE 'SELECT cron.schedule($1::text,$2::text,$3::text)'
-      USING 'refresh-storefront-vendor-assortment-read-model',
-            '55 * * * *',
-            'SET statement_timeout=''240s''; REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_vendor_assortment_read_model';
-  ELSE
-    RAISE NOTICE 'pg_cron is unavailable; storefront projection refresh jobs were not scheduled';
-  END IF;
-END
-$do$;
-
 -- Reconciled from historical live migration: 20261001_admin_storefront_media_blob_fallback.sql
 -- Emergency fallback for Admin storefront media when the external object-storage
 -- pipeline is unavailable. Bytes remain in the private schema and are never exposed
@@ -644,3 +592,902 @@ END $$;
 
 COMMENT ON TABLE bls_private.vendor_storefront_media_blobs IS
   'Private emergency storage for Admin vendor storefront images when the S3 media pipeline is unavailable.';
+
+-- Reconciled from historical live migration: 20260917_storefront_dropship_rich_filter_facets.sql
+CREATE MATERIALIZED VIEW IF NOT EXISTS public.storefront_dropship_family_filter_read_model_v2 AS
+WITH latest_source_product AS (
+  SELECT DISTINCT ON (csp.source_id,csp.source_product_key)
+    csp.source_id,
+    csp.source_product_key,
+    csp.title,
+    csp.raw_payload
+  FROM public.catalog_source_products csp
+  JOIN public.dropship_suppliers ds
+    ON ds.catalog_source_id=csp.source_id
+   AND ds.active=true
+  ORDER BY csp.source_id,csp.source_product_key,csp.created_at DESC,csp.id DESC
+), source_attribute_values AS (
+  SELECT
+    lsp.source_id,
+    lsp.source_product_key,
+    lower(trim(both ':' from btrim(coalesce(attribute.value->>'name','')))) AS attribute_name,
+    btrim(option_value.value) AS option_value
+  FROM latest_source_product lsp
+  CROSS JOIN LATERAL jsonb_array_elements(
+    CASE
+      WHEN jsonb_typeof(lsp.raw_payload->'attributes')='array' THEN lsp.raw_payload->'attributes'
+      ELSE '[]'::jsonb
+    END
+  ) attribute(value)
+  CROSS JOIN LATERAL jsonb_array_elements_text(
+    CASE
+      WHEN jsonb_typeof(attribute.value->'options')='array' THEN attribute.value->'options'
+      WHEN jsonb_typeof(attribute.value->'options')='string' THEN jsonb_build_array(attribute.value->'options')
+      ELSE '[]'::jsonb
+    END
+  ) option_value(value)
+  WHERE btrim(option_value.value)<>''
+), source_colors AS (
+  SELECT source_id,source_product_key,
+    array_agg(DISTINCT option_value ORDER BY option_value) AS colors
+  FROM source_attribute_values
+  WHERE attribute_name IN ('color','colour','colors','colours')
+  GROUP BY source_id,source_product_key
+), source_material_tags AS (
+  SELECT DISTINCT
+    sav.source_id,
+    sav.source_product_key,
+    material.tag
+  FROM source_attribute_values sav
+  CROSS JOIN LATERAL (VALUES
+    ('cotton','cotton'),
+    ('wool','wool'),
+    ('cashmere','cashmere'),
+    ('silk','silk'),
+    ('linen','linen'),
+    ('polyester','polyester'),
+    ('viscose','viscose'),
+    ('rayon','rayon'),
+    ('acrylic','acrylic'),
+    ('polyamide','polyamide'),
+    ('nylon','nylon'),
+    ('elastane','elastane'),
+    ('spandex','elastane'),
+    ('leather','leather'),
+    ('suede','suede'),
+    ('denim','denim'),
+    ('modal','modal'),
+    ('lyocell','lyocell'),
+    ('tencel','lyocell'),
+    ('acetate','acetate'),
+    ('polyurethane','polyurethane'),
+    ('rubber','rubber')
+  ) AS material(needle,tag)
+  WHERE sav.attribute_name IN ('material','materials')
+    AND lower(sav.option_value) LIKE '%' || material.needle || '%'
+), source_materials AS (
+  SELECT source_id,source_product_key,
+    array_agg(DISTINCT tag ORDER BY tag) AS materials
+  FROM source_material_tags
+  GROUP BY source_id,source_product_key
+), source_explicit_fits AS (
+  SELECT source_id,source_product_key,
+    array_agg(DISTINCT lower(option_value) ORDER BY lower(option_value)) AS fits
+  FROM source_attribute_values
+  WHERE attribute_name IN ('fit','fitting')
+  GROUP BY source_id,source_product_key
+), source_title_fits AS (
+  SELECT
+    lsp.source_id,
+    lsp.source_product_key,
+    array_remove(ARRAY[
+      CASE WHEN lower(coalesce(lsp.title,'')) ~ '(^|[^a-z])slim( fit)?([^a-z]|$)' THEN 'slim' END,
+      CASE WHEN lower(coalesce(lsp.title,'')) ~ '(^|[^a-z])regular( fit)?([^a-z]|$)' THEN 'regular' END,
+      CASE WHEN lower(coalesce(lsp.title,'')) ~ '(^|[^a-z])relaxed( fit)?([^a-z]|$)' THEN 'relaxed' END,
+      CASE WHEN lower(coalesce(lsp.title,'')) ~ '(^|[^a-z])oversized([^a-z]|$)' THEN 'oversized' END,
+      CASE WHEN lower(coalesce(lsp.title,'')) ~ '(^|[^a-z])skinny( fit)?([^a-z]|$)' THEN 'skinny' END,
+      CASE WHEN lower(coalesce(lsp.title,'')) ~ '(^|[^a-z])straight( fit)?([^a-z]|$)' THEN 'straight' END,
+      CASE WHEN lower(coalesce(lsp.title,'')) ~ '(^|[^a-z])loose( fit)?([^a-z]|$)' THEN 'loose' END,
+      CASE WHEN lower(coalesce(lsp.title,'')) ~ '(^|[^a-z])tapered( fit)?([^a-z]|$)' THEN 'tapered' END
+    ]::text[],NULL) AS fits
+  FROM latest_source_product lsp
+), enriched AS (
+  SELECT
+    fm.*,
+    coalesce(lsp.title,'') AS sort_title,
+    COALESCE((
+      SELECT array_agg(DISTINCT value ORDER BY value)
+      FROM unnest(coalesce(fm.colors,'{}'::text[]) || coalesce(sc.colors,'{}'::text[])) AS merged(value)
+      WHERE btrim(value)<>''
+    ),'{}'::text[]) AS enriched_colors,
+    COALESCE((
+      SELECT array_agg(DISTINCT value ORDER BY value)
+      FROM unnest(
+        coalesce(fr.fits,'{}'::text[])
+        || coalesce(sef.fits,'{}'::text[])
+        || coalesce(stf.fits,'{}'::text[])
+      ) AS merged(value)
+      WHERE btrim(value)<>''
+    ),'{}'::text[]) AS enriched_fits,
+    coalesce(sm.materials,'{}'::text[]) AS materials
+  FROM public.storefront_dropship_family_filter_read_model fm
+  JOIN public.dropship_suppliers ds
+    ON ds.id::text=fm.dropship_supplier_id
+  LEFT JOIN latest_source_product lsp
+    ON lsp.source_id=ds.catalog_source_id
+   AND lsp.source_product_key=fm.dropship_external_product_id
+  LEFT JOIN source_colors sc
+    ON sc.source_id=ds.catalog_source_id
+   AND sc.source_product_key=fm.dropship_external_product_id
+  LEFT JOIN source_materials sm
+    ON sm.source_id=ds.catalog_source_id
+   AND sm.source_product_key=fm.dropship_external_product_id
+  LEFT JOIN source_explicit_fits sef
+    ON sef.source_id=ds.catalog_source_id
+   AND sef.source_product_key=fm.dropship_external_product_id
+  LEFT JOIN source_title_fits stf
+    ON stf.source_id=ds.catalog_source_id
+   AND stf.source_product_key=fm.dropship_external_product_id
+  LEFT JOIN public.storefront_dropship_family_read_model fr
+    ON fr.dropship_supplier_id=fm.dropship_supplier_id
+   AND fr.dropship_external_product_id=fm.dropship_external_product_id
+)
+SELECT
+  dropship_supplier_id,
+  dropship_external_product_id,
+  available_until,
+  newest_at,
+  min_price_minor,
+  max_msrp_minor,
+  category_codes,
+  department_codes,
+  brand_names,
+  brand_names_normalized,
+  enriched_colors AS colors,
+  sizes,
+  enriched_fits AS fits,
+  materials,
+  sort_title,
+  search_vector,
+  total_families,
+  projected_at
+FROM enriched;
+
+CREATE UNIQUE INDEX IF NOT EXISTS storefront_dropship_family_filter_v2_uidx
+  ON public.storefront_dropship_family_filter_read_model_v2(dropship_supplier_id,dropship_external_product_id);
+CREATE INDEX IF NOT EXISTS storefront_dropship_family_filter_v2_supplier_newest_idx
+  ON public.storefront_dropship_family_filter_read_model_v2(dropship_supplier_id,newest_at DESC,dropship_external_product_id);
+CREATE INDEX IF NOT EXISTS storefront_dropship_family_filter_v2_supplier_price_idx
+  ON public.storefront_dropship_family_filter_read_model_v2(dropship_supplier_id,min_price_minor,dropship_external_product_id);
+CREATE INDEX IF NOT EXISTS storefront_dropship_family_filter_v2_supplier_title_idx
+  ON public.storefront_dropship_family_filter_read_model_v2(dropship_supplier_id,lower(sort_title),dropship_external_product_id);
+CREATE INDEX IF NOT EXISTS storefront_dropship_family_filter_v2_categories_gin
+  ON public.storefront_dropship_family_filter_read_model_v2 USING gin(category_codes);
+CREATE INDEX IF NOT EXISTS storefront_dropship_family_filter_v2_brands_gin
+  ON public.storefront_dropship_family_filter_read_model_v2 USING gin(brand_names_normalized);
+CREATE INDEX IF NOT EXISTS storefront_dropship_family_filter_v2_colors_gin
+  ON public.storefront_dropship_family_filter_read_model_v2 USING gin(colors);
+CREATE INDEX IF NOT EXISTS storefront_dropship_family_filter_v2_sizes_gin
+  ON public.storefront_dropship_family_filter_read_model_v2 USING gin(sizes);
+CREATE INDEX IF NOT EXISTS storefront_dropship_family_filter_v2_fits_gin
+  ON public.storefront_dropship_family_filter_read_model_v2 USING gin(fits);
+CREATE INDEX IF NOT EXISTS storefront_dropship_family_filter_v2_materials_gin
+  ON public.storefront_dropship_family_filter_read_model_v2 USING gin(materials);
+CREATE INDEX IF NOT EXISTS storefront_dropship_family_filter_v2_search_gin
+  ON public.storefront_dropship_family_filter_read_model_v2 USING gin(search_vector);
+
+-- Reconciled from historical live migration: 20260920202509_nova_availability_burst_and_projection_refresh.sql
+CREATE OR REPLACE FUNCTION bls_private.refresh_storefront_projection_after_nova(
+  p_trigger text DEFAULT 'nova_cycle'
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $function$
+DECLARE
+  v_cycle_at timestamptz;
+  v_last_cycle_at timestamptz;
+  v_last_refreshed_at timestamptz;
+  v_started_at timestamptz := clock_timestamp();
+BEGIN
+  IF p_trigger NOT IN ('nova_cycle', 'fallback') THEN
+    RAISE EXCEPTION 'unsupported storefront projection refresh trigger: %', p_trigger;
+  END IF;
+
+  SELECT
+    NULLIF(metadata #>> '{novaAvailabilityFailover,lastCompletedAt}', '')::timestamptz,
+    NULLIF(metadata #>> '{storefrontProjectionRefresh,lastNovaCycleAt}', '')::timestamptz,
+    NULLIF(metadata #>> '{storefrontProjectionRefresh,lastRefreshedAt}', '')::timestamptz
+  INTO v_cycle_at, v_last_cycle_at, v_last_refreshed_at
+  FROM public.catalog_sources
+  WHERE code='nova-brandsgateway'
+  LIMIT 1;
+
+  IF p_trigger='nova_cycle' THEN
+    IF v_cycle_at IS NULL OR (v_last_cycle_at IS NOT NULL AND v_cycle_at <= v_last_cycle_at) THEN
+      RETURN;
+    END IF;
+  ELSE
+    IF v_last_refreshed_at IS NOT NULL
+       AND v_last_refreshed_at > now() - interval '55 minutes' THEN
+      RETURN;
+    END IF;
+  END IF;
+
+  -- Do not allow the reactive and fallback pipelines to compete for DB I/O.
+  IF NOT pg_try_advisory_xact_lock(
+    hashtextextended('kontamou:storefront-projection-refresh', 0)
+  ) THEN
+    RETURN;
+  END IF;
+
+  -- Re-check after obtaining the lock in case another invocation completed
+  -- immediately before this one.
+  SELECT
+    NULLIF(metadata #>> '{novaAvailabilityFailover,lastCompletedAt}', '')::timestamptz,
+    NULLIF(metadata #>> '{storefrontProjectionRefresh,lastNovaCycleAt}', '')::timestamptz,
+    NULLIF(metadata #>> '{storefrontProjectionRefresh,lastRefreshedAt}', '')::timestamptz
+  INTO v_cycle_at, v_last_cycle_at, v_last_refreshed_at
+  FROM public.catalog_sources
+  WHERE code='nova-brandsgateway'
+  LIMIT 1;
+
+  IF p_trigger='nova_cycle' THEN
+    IF v_cycle_at IS NULL OR (v_last_cycle_at IS NOT NULL AND v_cycle_at <= v_last_cycle_at) THEN
+      RETURN;
+    END IF;
+  ELSE
+    IF v_last_refreshed_at IS NOT NULL
+       AND v_last_refreshed_at > now() - interval '55 minutes' THEN
+      RETURN;
+    END IF;
+  END IF;
+
+  PERFORM set_config('lock_timeout', '30000', true);
+
+  PERFORM set_config('statement_timeout', '480000', true);
+  EXECUTE 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_catalog_read_model';
+
+  PERFORM set_config('statement_timeout', '480000', true);
+  EXECUTE 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_dropship_family_read_model';
+
+  PERFORM set_config('statement_timeout', '360000', true);
+  EXECUTE 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_dropship_family_filter_read_model';
+
+  PERFORM set_config('statement_timeout', '360000', true);
+  EXECUTE 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_dropship_family_filter_read_model_v2';
+
+  PERFORM set_config('statement_timeout', '120000', true);
+  EXECUTE 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_dropship_vendor_facets';
+
+  PERFORM set_config('statement_timeout', '240000', true);
+  EXECUTE 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_facet_read_model';
+
+  PERFORM set_config('statement_timeout', '480000', true);
+  EXECUTE 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_filter_read_model';
+
+  PERFORM set_config('statement_timeout', '240000', true);
+  EXECUTE 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.storefront_vendor_assortment_read_model';
+
+  UPDATE public.catalog_sources
+  SET metadata=jsonb_set(
+        COALESCE(metadata, '{}'::jsonb),
+        '{storefrontProjectionRefresh}',
+        COALESCE(metadata->'storefrontProjectionRefresh', '{}'::jsonb)
+          || jsonb_build_object(
+            'lastRefreshedAt', clock_timestamp(),
+            'lastNovaCycleAt', v_cycle_at,
+            'lastTrigger', p_trigger,
+            'durationMs',
+              round(extract(epoch from (clock_timestamp() - v_started_at)) * 1000)
+          ),
+        true
+      ),
+      updated_at=now()
+  WHERE code='nova-brandsgateway';
+END
+$function$;
+
+REVOKE ALL
+ON FUNCTION bls_private.refresh_storefront_projection_after_nova(text)
+FROM PUBLIC;
+
+GRANT EXECUTE
+ON FUNCTION bls_private.refresh_storefront_projection_after_nova(text)
+TO postgres;
+
+-- Reconciled from historical live migration: 20260920205125_nova_live_storefront_incremental_projection.sql
+-- Incremental Nova/BrandsGateway storefront availability projection.
+--
+-- Availability remains supplier-authoritative and expires on the existing offer TTL.
+-- This compact private table is updated for only the supplier product IDs touched by
+-- each availability batch. Fresh unavailable evidence is represented by a tombstone
+-- row so an older materialized-view row cannot leak back into the storefront.
+
+CREATE TABLE IF NOT EXISTS bls_private.storefront_dropship_live_family (
+  supplier_id uuid NOT NULL,
+  external_product_id text NOT NULL,
+  sellable boolean NOT NULL DEFAULT false,
+  available_until timestamptz NOT NULL,
+  newest_at timestamptz NOT NULL DEFAULT now(),
+  min_price_minor bigint,
+  max_msrp_minor bigint,
+  category_codes text[] NOT NULL DEFAULT '{}'::text[],
+  department_codes text[] NOT NULL DEFAULT '{}'::text[],
+  brand_names text[] NOT NULL DEFAULT '{}'::text[],
+  brand_names_normalized text[] NOT NULL DEFAULT '{}'::text[],
+  colors text[] NOT NULL DEFAULT '{}'::text[],
+  sizes text[] NOT NULL DEFAULT '{}'::text[],
+  sizes_text text NOT NULL DEFAULT '[]',
+  fits text[] NOT NULL DEFAULT '{}'::text[],
+  materials text[] NOT NULL DEFAULT '{}'::text[],
+  sort_title text NOT NULL DEFAULT '',
+  search_vector tsvector NOT NULL DEFAULT ''::tsvector,
+  projected_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (supplier_id, external_product_id)
+);
+
+CREATE INDEX IF NOT EXISTS storefront_dropship_live_family_available_idx
+  ON bls_private.storefront_dropship_live_family
+  (supplier_id, sellable, available_until DESC, newest_at DESC, external_product_id);
+
+CREATE INDEX IF NOT EXISTS storefront_dropship_live_family_price_idx
+  ON bls_private.storefront_dropship_live_family
+  (supplier_id, min_price_minor, external_product_id)
+  WHERE sellable=true;
+
+CREATE INDEX IF NOT EXISTS storefront_dropship_live_family_categories_gin
+  ON bls_private.storefront_dropship_live_family USING gin(category_codes);
+CREATE INDEX IF NOT EXISTS storefront_dropship_live_family_departments_gin
+  ON bls_private.storefront_dropship_live_family USING gin(department_codes);
+CREATE INDEX IF NOT EXISTS storefront_dropship_live_family_brands_gin
+  ON bls_private.storefront_dropship_live_family USING gin(brand_names_normalized);
+CREATE INDEX IF NOT EXISTS storefront_dropship_live_family_colors_gin
+  ON bls_private.storefront_dropship_live_family USING gin(colors);
+CREATE INDEX IF NOT EXISTS storefront_dropship_live_family_sizes_gin
+  ON bls_private.storefront_dropship_live_family USING gin(sizes);
+CREATE INDEX IF NOT EXISTS storefront_dropship_live_family_fits_gin
+  ON bls_private.storefront_dropship_live_family USING gin(fits);
+CREATE INDEX IF NOT EXISTS storefront_dropship_live_family_materials_gin
+  ON bls_private.storefront_dropship_live_family USING gin(materials);
+CREATE INDEX IF NOT EXISTS storefront_dropship_live_family_search_gin
+  ON bls_private.storefront_dropship_live_family USING gin(search_vector);
+
+REVOKE ALL ON bls_private.storefront_dropship_live_family FROM PUBLIC;
+
+CREATE OR REPLACE FUNCTION bls_private.refresh_nova_storefront_live_families(
+  p_external_product_ids text[]
+)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = pg_catalog, public, bls_private
+AS $function$
+DECLARE
+  v_supplier_id uuid;
+  v_catalog_source_id uuid;
+  v_projected integer := 0;
+BEGIN
+  IF COALESCE(cardinality(p_external_product_ids),0)=0 THEN
+    RETURN 0;
+  END IF;
+
+  SELECT ds.id,ds.catalog_source_id
+  INTO v_supplier_id,v_catalog_source_id
+  FROM public.dropship_suppliers ds
+  WHERE ds.code='nova_brandsgateway'
+    AND ds.active=true
+    AND ds.api_authoritative_availability=true
+  LIMIT 1;
+
+  IF v_supplier_id IS NULL THEN
+    RETURN 0;
+  END IF;
+
+  DELETE FROM bls_private.storefront_dropship_live_family lf
+  WHERE lf.supplier_id=v_supplier_id
+    AND lf.external_product_id=ANY(p_external_product_ids);
+
+  INSERT INTO bls_private.storefront_dropship_live_family (
+    supplier_id,external_product_id,sellable,available_until,newest_at,projected_at
+  )
+  SELECT
+    v_supplier_id,
+    ids.external_product_id,
+    false,
+    MAX(dso.availability_expires_at),
+    MAX(dso.updated_at),
+    clock_timestamp()
+  FROM (
+    SELECT DISTINCT value AS external_product_id
+    FROM unnest(p_external_product_ids) value
+    WHERE value IS NOT NULL AND btrim(value)<>''
+  ) ids
+  JOIN public.dropship_supplier_offers dso
+    ON dso.supplier_id=v_supplier_id
+   AND dso.external_product_id=ids.external_product_id
+   AND dso.active=true
+   AND dso.availability_expires_at IS NOT NULL
+   AND dso.availability_expires_at>now()
+  GROUP BY ids.external_product_id;
+
+  WITH RECURSIVE
+  ids AS MATERIALIZED (
+    SELECT DISTINCT value AS external_product_id
+    FROM unnest(p_external_product_ids) value
+    WHERE value IS NOT NULL AND btrim(value)<>''
+  ),
+  category_tree AS MATERIALIZED (
+    SELECT c.id,c.parent_id,c.code,c.code AS department_code
+    FROM public.categories c
+    JOIN public.markets m ON m.id=c.market_id
+    WHERE m.code='sparta' AND c.parent_id IS NULL
+    UNION ALL
+    SELECT child.id,child.parent_id,child.code,parent.department_code
+    FROM public.categories child
+    JOIN category_tree parent ON child.parent_id=parent.id
+  ),
+  latest_source_product AS MATERIALIZED (
+    SELECT DISTINCT ON (csp.source_product_key)
+      csp.source_product_key,csp.title,csp.raw_payload
+    FROM public.catalog_source_products csp
+    JOIN ids ON ids.external_product_id=csp.source_product_key
+    WHERE csp.source_id=v_catalog_source_id
+    ORDER BY csp.source_product_key,csp.created_at DESC,csp.id DESC
+  ),
+  source_attribute_values AS MATERIALIZED (
+    SELECT
+      lsp.source_product_key,
+      lower(trim(both ':' from btrim(COALESCE(attribute.value->>'name','')))) AS attribute_name,
+      btrim(option_value.value) AS option_value
+    FROM latest_source_product lsp
+    CROSS JOIN LATERAL jsonb_array_elements(
+      CASE
+        WHEN jsonb_typeof(lsp.raw_payload->'attributes')='array'
+        THEN lsp.raw_payload->'attributes'
+        ELSE '[]'::jsonb
+      END
+    ) attribute(value)
+    CROSS JOIN LATERAL jsonb_array_elements_text(
+      CASE
+        WHEN jsonb_typeof(attribute.value->'options')='array'
+        THEN attribute.value->'options'
+        WHEN jsonb_typeof(attribute.value->'options')='string'
+        THEN jsonb_build_array(attribute.value->'options')
+        ELSE '[]'::jsonb
+      END
+    ) option_value(value)
+    WHERE btrim(option_value.value)<>''
+  ),
+  source_colors AS (
+    SELECT source_product_key,
+           array_agg(DISTINCT lower(option_value) ORDER BY lower(option_value)) AS colors
+    FROM source_attribute_values
+    WHERE attribute_name IN ('color','colour','colors','colours')
+    GROUP BY source_product_key
+  ),
+  source_sizes AS (
+    SELECT source_product_key,
+           array_agg(DISTINCT option_value ORDER BY option_value) AS sizes
+    FROM source_attribute_values
+    WHERE attribute_name IN ('size','sizes')
+    GROUP BY source_product_key
+  ),
+  source_material_tags AS (
+    SELECT DISTINCT sav.source_product_key,material.tag
+    FROM source_attribute_values sav
+    CROSS JOIN LATERAL (VALUES
+      ('cotton','cotton'),('wool','wool'),('cashmere','cashmere'),
+      ('silk','silk'),('linen','linen'),('polyester','polyester'),
+      ('viscose','viscose'),('rayon','rayon'),('acrylic','acrylic'),
+      ('polyamide','polyamide'),('nylon','nylon'),('elastane','elastane'),
+      ('spandex','elastane'),('leather','leather'),('suede','suede'),
+      ('denim','denim'),('modal','modal'),('lyocell','lyocell'),
+      ('tencel','lyocell'),('acetate','acetate'),
+      ('polyurethane','polyurethane'),('rubber','rubber')
+    ) material(needle,tag)
+    WHERE sav.attribute_name IN ('material','materials')
+      AND lower(sav.option_value) LIKE '%'||material.needle||'%'
+  ),
+  source_materials AS (
+    SELECT source_product_key,array_agg(DISTINCT tag ORDER BY tag) AS materials
+    FROM source_material_tags
+    GROUP BY source_product_key
+  ),
+  source_explicit_fits AS (
+    SELECT source_product_key,
+           array_agg(DISTINCT lower(option_value) ORDER BY lower(option_value)) AS fits
+    FROM source_attribute_values
+    WHERE attribute_name IN ('fit','fitting')
+    GROUP BY source_product_key
+  ),
+  source_title_fits AS (
+    SELECT
+      lsp.source_product_key,
+      array_remove(ARRAY[
+        CASE WHEN lower(COALESCE(lsp.title,'')) ~ '(^|[^a-z])slim( fit)?([^a-z]|$)' THEN 'slim' END,
+        CASE WHEN lower(COALESCE(lsp.title,'')) ~ '(^|[^a-z])regular( fit)?([^a-z]|$)' THEN 'regular' END,
+        CASE WHEN lower(COALESCE(lsp.title,'')) ~ '(^|[^a-z])relaxed( fit)?([^a-z]|$)' THEN 'relaxed' END,
+        CASE WHEN lower(COALESCE(lsp.title,'')) ~ '(^|[^a-z])oversized([^a-z]|$)' THEN 'oversized' END,
+        CASE WHEN lower(COALESCE(lsp.title,'')) ~ '(^|[^a-z])skinny( fit)?([^a-z]|$)' THEN 'skinny' END,
+        CASE WHEN lower(COALESCE(lsp.title,'')) ~ '(^|[^a-z])straight( fit)?([^a-z]|$)' THEN 'straight' END,
+        CASE WHEN lower(COALESCE(lsp.title,'')) ~ '(^|[^a-z])loose( fit)?([^a-z]|$)' THEN 'loose' END,
+        CASE WHEN lower(COALESCE(lsp.title,'')) ~ '(^|[^a-z])tapered( fit)?([^a-z]|$)' THEN 'tapered' END
+      ]::text[],NULL) AS fits
+    FROM latest_source_product lsp
+  ),
+  variant_facts AS MATERIALIZED (
+    SELECT
+      dso.supplier_id,
+      dso.external_product_id,
+      dso.availability_expires_at,
+      vo.updated_at AS offer_updated_at,
+      vo.customer_price_minor,
+      vo.msrp_minor,
+      c.code AS category_code,
+      tree.department_code,
+      NULLIF(btrim(COALESCE(b.name,pfb.name,'')),'') AS brand_name,
+      lower(NULLIF(btrim(COALESCE(
+        el.specifications->>'color',
+        en.specifications->>'color',
+        cv.variant_attributes->>'color',
+        ''
+      )),'')) AS color,
+      NULLIF(btrim(size_entry.value),'') AS size_value,
+      lower(NULLIF(btrim(COALESCE(
+        el.specifications->>'fit',
+        en.specifications->>'fit',
+        ''
+      )),'')) AS fit,
+      COALESCE(el.title,en.title,cv.model,cv.slug) AS title,
+      cv.gtin,
+      cv.mpn
+    FROM ids
+    JOIN public.dropship_supplier_offers dso
+      ON dso.supplier_id=v_supplier_id
+     AND dso.external_product_id=ids.external_product_id
+    JOIN public.dropship_suppliers ds
+      ON ds.id=dso.supplier_id
+     AND ds.active=true
+     AND ds.api_authoritative_availability=true
+    JOIN public.vendor_offers vo
+      ON vo.id=dso.vendor_offer_id
+     AND vo.vendor_id=ds.owner_vendor_id
+    JOIN public.canonical_variants cv ON cv.id=vo.canonical_variant_id
+    JOIN public.categories c ON c.id=cv.category_id
+    JOIN category_tree tree ON tree.id=cv.category_id
+    JOIN public.vendor_businesses v ON v.id=vo.vendor_id
+    JOIN public.vendor_locations l ON l.id=vo.location_id
+    LEFT JOIN public.product_families pf ON pf.id=cv.family_id
+    LEFT JOIN public.brands b ON b.id=cv.brand_id
+    LEFT JOIN public.brands pfb ON pfb.id=pf.brand_id
+    LEFT JOIN public.product_translations el
+      ON el.canonical_variant_id=cv.id AND el.locale='el'
+    LEFT JOIN public.product_translations en
+      ON en.canonical_variant_id=cv.id AND en.locale='en'
+    LEFT JOIN LATERAL unnest(array_remove(ARRAY[
+      cv.variant_attributes->>'italian_size_men',
+      cv.variant_attributes->>'italian_size_women',
+      cv.variant_attributes->>'shoe_size_women',
+      cv.variant_attributes->>'shoe_size_men',
+      cv.variant_attributes->>'waist_size',
+      cv.variant_attributes->>'belt_size',
+      cv.variant_attributes->>'waist_length_size',
+      cv.variant_attributes->>'hat_size',
+      cv.variant_attributes->>'swimwear_sleepwear_size',
+      cv.variant_attributes->>'shoe_size',
+      cv.variant_attributes->>'earrings_size',
+      cv.variant_attributes->>'bracelets_size',
+      cv.variant_attributes->>'gloves_size_women',
+      cv.variant_attributes->>'ring_size',
+      cv.variant_attributes->>'gloves_size_men',
+      cv.variant_attributes->>'size'
+    ]::text[],NULL)) AS size_entry(value) ON true
+    WHERE dso.active=true
+      AND dso.cached_available=true
+      AND (dso.cached_quantity IS NULL OR dso.cached_quantity>=1)
+      AND dso.availability_expires_at IS NOT NULL
+      AND dso.availability_expires_at>now()
+      AND vo.status='approved'
+      AND vo.merchant_visible=true
+      AND vo.merchant_pause_active=false
+      AND vo.customer_price_minor>0
+      AND (vo.cost_ceiling_minor IS NULL OR vo.supplier_unit_price_minor<=vo.cost_ceiling_minor)
+      AND COALESCE(cv.commerce_channel,'normal')='normal'
+      AND cv.active=true
+      AND cv.suppressed=false
+      AND cv.recalled=false
+      AND v.status='active'
+      AND l.active=true
+      AND bls_private.vendor_category_effectively_visible(vo.vendor_id,cv.category_id)
+  ),
+  grouped AS MATERIALIZED (
+    SELECT
+      vf.supplier_id,
+      vf.external_product_id,
+      MAX(vf.availability_expires_at) AS available_until,
+      MAX(vf.offer_updated_at) AS newest_at,
+      MIN(vf.customer_price_minor)::bigint AS min_price_minor,
+      MAX(vf.msrp_minor)::bigint AS max_msrp_minor,
+      COALESCE(array_agg(DISTINCT vf.category_code)
+        FILTER (WHERE vf.category_code IS NOT NULL),'{}'::text[]) AS category_codes,
+      COALESCE(array_agg(DISTINCT vf.department_code)
+        FILTER (WHERE vf.department_code IS NOT NULL),'{}'::text[]) AS department_codes,
+      COALESCE(array_agg(DISTINCT lower(vf.brand_name))
+        FILTER (WHERE vf.brand_name IS NOT NULL),'{}'::text[]) AS brand_names,
+      COALESCE(array_agg(DISTINCT vf.color)
+        FILTER (WHERE vf.color IS NOT NULL),'{}'::text[]) AS colors,
+      COALESCE(array_agg(DISTINCT vf.size_value)
+        FILTER (WHERE vf.size_value IS NOT NULL),'{}'::text[]) AS sizes,
+      COALESCE(array_agg(DISTINCT vf.fit)
+        FILTER (WHERE vf.fit IS NOT NULL),'{}'::text[]) AS fits,
+      MAX(vf.title) AS sort_title,
+      to_tsvector(
+        'simple',
+        COALESCE(string_agg(DISTINCT concat_ws(
+          ' ',vf.title,COALESCE(vf.brand_name,''),COALESCE(vf.gtin,''),
+          COALESCE(vf.mpn,''),vf.category_code,vf.department_code
+        ),' '),'')
+      ) AS search_vector
+    FROM variant_facts vf
+    GROUP BY vf.supplier_id,vf.external_product_id
+  ),
+  enriched AS (
+    SELECT
+      g.*,
+      COALESCE((
+        SELECT array_agg(DISTINCT value ORDER BY value)
+        FROM unnest(g.colors||COALESCE(sc.colors,'{}'::text[])) merged(value)
+        WHERE btrim(value)<>''
+      ),'{}'::text[]) AS enriched_colors,
+      COALESCE((
+        SELECT array_agg(DISTINCT value ORDER BY value)
+        FROM unnest(g.sizes||COALESCE(ss.sizes,'{}'::text[])) merged(value)
+        WHERE btrim(value)<>''
+      ),'{}'::text[]) AS enriched_sizes,
+      COALESCE((
+        SELECT array_agg(DISTINCT value ORDER BY value)
+        FROM unnest(
+          g.fits||COALESCE(sef.fits,'{}'::text[])||COALESCE(stf.fits,'{}'::text[])
+        ) merged(value)
+        WHERE btrim(value)<>''
+      ),'{}'::text[]) AS enriched_fits,
+      COALESCE(sm.materials,'{}'::text[]) AS materials,
+      COALESCE(NULLIF(lsp.title,''),g.sort_title,'') AS enriched_sort_title
+    FROM grouped g
+    LEFT JOIN latest_source_product lsp ON lsp.source_product_key=g.external_product_id
+    LEFT JOIN source_colors sc ON sc.source_product_key=g.external_product_id
+    LEFT JOIN source_sizes ss ON ss.source_product_key=g.external_product_id
+    LEFT JOIN source_materials sm ON sm.source_product_key=g.external_product_id
+    LEFT JOIN source_explicit_fits sef ON sef.source_product_key=g.external_product_id
+    LEFT JOIN source_title_fits stf ON stf.source_product_key=g.external_product_id
+  )
+  INSERT INTO bls_private.storefront_dropship_live_family (
+    supplier_id,external_product_id,sellable,available_until,newest_at,
+    min_price_minor,max_msrp_minor,category_codes,department_codes,
+    brand_names,brand_names_normalized,colors,sizes,sizes_text,fits,
+    materials,sort_title,search_vector,projected_at
+  )
+  SELECT
+    e.supplier_id,e.external_product_id,true,e.available_until,e.newest_at,
+    e.min_price_minor,e.max_msrp_minor,e.category_codes,e.department_codes,
+    e.brand_names,e.brand_names,e.enriched_colors,e.enriched_sizes,
+    to_jsonb(e.enriched_sizes)::text,e.enriched_fits,e.materials,
+    e.enriched_sort_title,
+    e.search_vector||to_tsvector('simple',e.enriched_sort_title),
+    clock_timestamp()
+  FROM enriched e
+  ON CONFLICT (supplier_id,external_product_id) DO UPDATE
+  SET sellable=EXCLUDED.sellable,
+      available_until=EXCLUDED.available_until,
+      newest_at=EXCLUDED.newest_at,
+      min_price_minor=EXCLUDED.min_price_minor,
+      max_msrp_minor=EXCLUDED.max_msrp_minor,
+      category_codes=EXCLUDED.category_codes,
+      department_codes=EXCLUDED.department_codes,
+      brand_names=EXCLUDED.brand_names,
+      brand_names_normalized=EXCLUDED.brand_names_normalized,
+      colors=EXCLUDED.colors,
+      sizes=EXCLUDED.sizes,
+      sizes_text=EXCLUDED.sizes_text,
+      fits=EXCLUDED.fits,
+      materials=EXCLUDED.materials,
+      sort_title=EXCLUDED.sort_title,
+      search_vector=EXCLUDED.search_vector,
+      projected_at=EXCLUDED.projected_at;
+
+  GET DIAGNOSTICS v_projected = ROW_COUNT;
+  RETURN v_projected;
+END
+$function$;
+
+REVOKE ALL
+ON FUNCTION bls_private.refresh_nova_storefront_live_families(text[])
+FROM PUBLIC;
+GRANT EXECUTE
+ON FUNCTION bls_private.refresh_nova_storefront_live_families(text[])
+TO postgres;
+
+-- Reconciled from historical live migration: 20260915_storefront_catalog_autocomplete_expression.sql
+CREATE INDEX IF NOT EXISTS storefront_catalog_read_model_autocomplete_trgm_idx
+  ON public.storefront_catalog_read_model USING gin (
+    (lower(title || ' ' || coalesce(brand_name, ''))) gin_trgm_ops
+  );
+
+-- Reconciled from historical live migration: 20260915_storefront_catalog_trigram_search.sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE INDEX IF NOT EXISTS storefront_catalog_read_model_title_trgm_idx
+  ON public.storefront_catalog_read_model USING gin (lower(title) gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS storefront_catalog_read_model_brand_trgm_idx
+  ON public.storefront_catalog_read_model USING gin (lower(brand_name) gin_trgm_ops)
+  WHERE brand_name IS NOT NULL;
+
+-- Reconciled from historical live migration: 20260915_storefront_category_availability_index.sql
+-- Homepage/category navigation only needs the tiny set of category/department
+-- pairs that still have projected sellable inventory. Keep that lookup index-only
+-- instead of reading the wide facet materialized view.
+CREATE INDEX IF NOT EXISTS storefront_facet_category_availability_idx
+  ON public.storefront_facet_read_model (category_code, department_code, available_until);
+
+COMMENT ON INDEX public.storefront_facet_category_availability_idx IS
+  'Covering index for currently available storefront category/department navigation.';
+
+-- Reconciled from historical live migration: 20260915_storefront_dropship_family_covering_index.sql
+CREATE INDEX IF NOT EXISTS storefront_catalog_read_model_dropship_live_cover_idx
+  ON public.storefront_catalog_read_model (
+    dropship_available_until,
+    dropship_supplier_id,
+    dropship_external_product_id,
+    created_at DESC
+  )
+  INCLUDE (min_price_minor)
+  WHERE dropship_sellable = true
+    AND dropship_supplier_id IS NOT NULL
+    AND dropship_external_product_id IS NOT NULL;
+
+-- Reconciled from historical live migration: 20260915_storefront_local_candidate_index.sql
+-- Keep local candidate discovery O(page size) even when the imported catalogue is
+-- overwhelmingly dropship inventory. The partial index is tiny when no local
+-- offers are sellable and supports newest-first storefront/crawler discovery.
+CREATE INDEX IF NOT EXISTS storefront_catalog_read_model_local_newest_idx
+  ON public.storefront_catalog_read_model (created_at DESC, canonical_public_id)
+  INCLUDE (canonical_variant_id, department_code, local_available_until, min_price_minor)
+  WHERE local_sellable = true;
+
+COMMENT ON INDEX public.storefront_catalog_read_model_local_newest_idx IS
+  'Newest-first bounded local storefront candidates; avoids scanning the dropship-heavy read model when local inventory is absent or sparse.';
+
+-- Reconciled from historical live migration: 20260915_storefront_seo_signal_indexes.sql
+CREATE INDEX IF NOT EXISTS storefront_catalog_read_model_title_normalized_idx
+  ON public.storefront_catalog_read_model(lower(btrim(title)));
+CREATE INDEX IF NOT EXISTS storefront_catalog_read_model_slug_idx
+  ON public.storefront_catalog_read_model(slug);
+
+-- Reconciled from historical live migration: 20260915_vendor_family_read_model_index.sql
+CREATE INDEX IF NOT EXISTS storefront_dropship_family_supplier_newest_idx
+  ON public.storefront_dropship_family_read_model(
+    dropship_supplier_id,
+    newest_at DESC,
+    dropship_external_product_id
+  );
+
+-- Reconciled from historical live migration: 20260929_p0_vendor_local_catalog_fast_index.sql
+-- P0: keep large mixed vendor storefronts from scanning supplier-backed offers
+-- when the initial local/assigned assortment is requested. The supplier-offer
+-- anti-join remains in the read path as the final correctness check.
+CREATE INDEX IF NOT EXISTS vendor_offers_vendor_local_catalog_idx
+ON public.vendor_offers (vendor_id, updated_at DESC, id)
+INCLUDE (canonical_variant_id, location_id, customer_price_minor)
+WHERE status='approved'
+  AND COALESCE(merchant_visible,true)=true
+  AND COALESCE(merchant_pause_active,false)=false
+  AND customer_price_minor>0
+  AND COALESCE(source_payload->>'dropship','false') <> 'true';
+
+-- Reconciled from historical live migration: 20261002_merchant_sync_strict_shard_index.sql
+-- Bound Google Merchant catalogue selection to the declared 144-way shard.
+-- The previous candidate path allowed unsynced products to bypass the shard
+-- predicate, forcing a catalogue-wide live-offer scan every ten minutes.
+CREATE INDEX IF NOT EXISTS canonical_variants_merchant_shard_144_idx
+ON public.canonical_variants (
+  (mod(abs(hashtext(public_id)::bigint), 144))
+)
+WHERE active=true AND suppressed=false AND recalled=false;
+
+-- Reconciled structural state from historical live migration: 20261002_seo_recovery_load_shedding.sql
+CREATE INDEX IF NOT EXISTS storefront_catalog_read_model_seo_shard_idx
+ON public.storefront_catalog_read_model (
+  (mod(get_byte(decode(md5(canonical_public_id), 'hex'), 0), 64)),
+  canonical_public_id
+);
+
+-- Reconciled from historical live migration: 20261001_vendor_instagram_storefront.sql
+-- KONTA MOY — vendor Instagram storefront connection metadata and encrypted OAuth token storage.
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS public.vendor_instagram_connections (
+  vendor_id uuid PRIMARY KEY REFERENCES public.vendor_businesses(id) ON DELETE CASCADE,
+  instagram_user_id text NOT NULL,
+  username text NOT NULL,
+  account_type text,
+  profile_picture_url text,
+  access_token_ciphertext text NOT NULL,
+  token_expires_at timestamptz,
+  connected_at timestamptz NOT NULL DEFAULT now(),
+  refreshed_at timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT vendor_instagram_connections_username_check
+    CHECK (username ~ '^[A-Za-z0-9._]{1,30}$'),
+  CONSTRAINT vendor_instagram_connections_account_type_check
+    CHECK (account_type IS NULL OR account_type IN ('BUSINESS','MEDIA_CREATOR','CREATOR'))
+);
+
+ALTER TABLE public.vendor_instagram_connections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.vendor_instagram_connections FORCE ROW LEVEL SECURITY;
+
+REVOKE ALL ON public.vendor_instagram_connections FROM PUBLIC;
+REVOKE ALL ON public.vendor_instagram_connections FROM anon;
+REVOKE ALL ON public.vendor_instagram_connections FROM authenticated;
+GRANT SELECT,INSERT,UPDATE,DELETE ON public.vendor_instagram_connections TO bls_app_runtime;
+GRANT SELECT,INSERT,UPDATE,DELETE ON public.vendor_instagram_connections TO bls_platform_runtime;
+
+DROP POLICY IF EXISTS vendor_instagram_connections_scope ON public.vendor_instagram_connections;
+CREATE POLICY vendor_instagram_connections_scope
+ON public.vendor_instagram_connections
+FOR ALL
+TO bls_app_runtime
+USING (
+  (SELECT bls_private.is_platform_runtime())
+  OR vendor_id = (SELECT bls_private.current_vendor_scope_id())
+)
+WITH CHECK (
+  (SELECT bls_private.is_platform_runtime())
+  OR vendor_id = (SELECT bls_private.current_vendor_scope_id())
+);
+
+DROP POLICY IF EXISTS vendor_instagram_connections_platform ON public.vendor_instagram_connections;
+CREATE POLICY vendor_instagram_connections_platform
+ON public.vendor_instagram_connections
+FOR ALL
+TO bls_platform_runtime
+USING (true)
+WITH CHECK (true);
+
+COMMENT ON TABLE public.vendor_instagram_connections IS
+  'Vendor-scoped Instagram professional account connection for storefront media. OAuth tokens are application-encrypted and never returned to browser clients.';
+COMMENT ON COLUMN public.vendor_instagram_connections.access_token_ciphertext IS
+  'AES-256-GCM encrypted long-lived Instagram access token. Decryption key is derived server-side from BLS_AUTH_SECRET.';
+
+-- Reconciled from historical live migration: 20261002_vendor_locations_rls_empty_context.sql
+-- Harden vendor_locations RLS against an unset vendor session context.
+-- Platform-runtime jobs intentionally run without app.vendor_id. PostgreSQL may
+-- evaluate both sides of an OR policy expression, so casting current_setting()
+-- directly can raise 22P02 on the empty string before the platform bypass wins.
+
+ALTER POLICY vendor_locations_vendor_read
+ON public.vendor_locations
+USING (
+  vendor_id = NULLIF(current_setting('app.vendor_id', true), '')::uuid
+  OR (SELECT bls_private.is_platform_runtime())
+);
+
+ALTER POLICY vendor_locations_vendor_insert
+ON public.vendor_locations
+WITH CHECK (
+  vendor_id = NULLIF(current_setting('app.vendor_id', true), '')::uuid
+  OR (SELECT bls_private.is_platform_runtime())
+);
+
+ALTER POLICY vendor_locations_vendor_update
+ON public.vendor_locations
+USING (
+  vendor_id = NULLIF(current_setting('app.vendor_id', true), '')::uuid
+  OR (SELECT bls_private.is_platform_runtime())
+)
+WITH CHECK (
+  vendor_id = NULLIF(current_setting('app.vendor_id', true), '')::uuid
+  OR (SELECT bls_private.is_platform_runtime())
+);
