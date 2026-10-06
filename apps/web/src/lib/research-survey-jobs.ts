@@ -790,32 +790,47 @@ async function flushFrameBuffer(snapshotId: string, records: readonly FrameBuffe
         sampling_attributes=EXCLUDED.sampling_attributes
       RETURNING id, external_key_hash
     )
-    INSERT INTO research_contact_points (
-      frame_unit_id,
-      contact_type,
-      contact_value,
-      contact_value_hash,
-      source_kind,
-      suppression_status
+    , contacts AS (
+      INSERT INTO research_contact_points (
+        frame_unit_id,
+        contact_type,
+        contact_value_hash,
+        source_kind,
+        suppression_status
+      )
+      SELECT
+        units.id,
+        'email',
+        incoming.contact_hash,
+        'gemi_public_registry',
+        CASE
+          WHEN public.research_contact_is_suppressed('email', incoming.contact_hash) THEN 'suppressed'
+          ELSE 'active'
+        END
+      FROM units
+      JOIN incoming USING (external_key_hash)
+      WHERE incoming.email <> '' AND incoming.contact_hash <> ''
+      ON CONFLICT (frame_unit_id, contact_type, contact_value_hash)
+      DO UPDATE SET
+        source_kind=EXCLUDED.source_kind,
+        suppression_status=EXCLUDED.suppression_status
+      RETURNING id,frame_unit_id,contact_value_hash
+    )
+    INSERT INTO research_private.contact_vault (
+      contact_point_id,contact_value,updated_at
     )
     SELECT
-      units.id,
-      'email',
+      contacts.id,
       incoming.email,
-      incoming.contact_hash,
-      'gemi_public_registry',
-      CASE
-        WHEN public.research_contact_is_suppressed('email', incoming.contact_hash) THEN 'suppressed'
-        ELSE 'active'
-      END
-    FROM units
+      now()
+    FROM contacts
+    JOIN units ON units.id=contacts.frame_unit_id
     JOIN incoming USING (external_key_hash)
-    WHERE incoming.email <> '' AND incoming.contact_hash <> ''
-    ON CONFLICT (frame_unit_id, contact_type, contact_value_hash)
+    WHERE incoming.contact_hash=contacts.contact_value_hash
+    ON CONFLICT (contact_point_id)
     DO UPDATE SET
       contact_value=EXCLUDED.contact_value,
-      source_kind=EXCLUDED.source_kind,
-      suppression_status=EXCLUDED.suppression_status
+      updated_at=now()
   `, [
     snapshotId,
     records.map((record) => record.externalKeyHash),
@@ -1592,7 +1607,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       FROM research_sample_units su
       JOIN LATERAL (
         SELECT id,contact_value
-        FROM research_contact_points
+        FROM research_private.contact_points_with_value
         WHERE frame_unit_id=su.frame_unit_id
           AND contact_type='email'
           AND suppression_status='active'
@@ -1968,7 +1983,7 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
       CROSS JOIN reminder_stats stats
       JOIN LATERAL (
         SELECT id,contact_value
-        FROM research_contact_points
+        FROM research_private.contact_points_with_value
         WHERE frame_unit_id=su.frame_unit_id
           AND contact_type='email'
           AND suppression_status='active'
@@ -2158,7 +2173,7 @@ async function processRewardDeliveryJob(job: ResearchJobRow): Promise<Record<str
     JOIN research_responses rr ON rr.id=re.response_id
     JOIN research_studies s ON s.id=rr.study_id
     JOIN research_invites ri ON ri.id=rr.invite_id
-    JOIN research_contact_points cp ON cp.id=ri.contact_point_id
+    JOIN research_private.contact_points_with_value cp ON cp.id=ri.contact_point_id
     JOIN latest_consent consent ON consent.response_id=rr.id AND consent.granted=true
     LEFT JOIN LATERAL (
       SELECT e.action,e.reason
@@ -2382,7 +2397,7 @@ async function processResultsNotificationJob(job: ResearchJobRow): Promise<Recor
       cp.contact_value
     FROM research_responses rr
     JOIN research_invites ri ON ri.id=rr.invite_id
-    JOIN research_contact_points cp ON cp.id=ri.contact_point_id
+    JOIN research_private.contact_points_with_value cp ON cp.id=ri.contact_point_id
     JOIN latest_consent consent ON consent.response_id=rr.id AND consent.granted=true
     LEFT JOIN LATERAL (
       SELECT e.action,e.reason
@@ -2561,7 +2576,7 @@ async function processResultsNotificationJob(job: ResearchJobRow): Promise<Recor
     SELECT count(*)::int AS count
     FROM research_responses rr
     JOIN research_invites ri ON ri.id=rr.invite_id
-    JOIN research_contact_points cp ON cp.id=ri.contact_point_id
+    JOIN research_private.contact_points_with_value cp ON cp.id=ri.contact_point_id
     JOIN latest_consent consent ON consent.response_id=rr.id AND consent.granted=true
     LEFT JOIN LATERAL (
       SELECT e.action,e.reason
