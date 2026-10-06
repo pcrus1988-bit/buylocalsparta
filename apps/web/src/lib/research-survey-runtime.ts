@@ -131,6 +131,7 @@ async function invitationRow(
   const result = await executor.query<SqlRow>(`
     SELECT
       ri.id AS invite_id,
+      ri.wave_id AS wave_id,
       ri.status AS invite_status,
       ri.sample_unit_id,
       ri.contact_point_id,
@@ -548,10 +549,10 @@ export async function savePublicResearchSurvey(input: Readonly<{
     if (!response) {
       if (input.researchConsent !== true) throw new Error("RESEARCH_CONSENT_REQUIRED");
       responseResult = await client.query<SqlRow>(`
-        INSERT INTO research_responses (study_id, instrument_id, invite_id, status, locale)
-        VALUES ($1, $2, $3, 'in_progress', 'el-GR')
+        INSERT INTO research_responses (study_id, wave_id, instrument_id, invite_id, status, locale)
+        VALUES ($1, $2, $3, $4, 'in_progress', 'el-GR')
         RETURNING id, status, started_at
-      `, [invite.study_id, invite.instrument_id, invite.invite_id]);
+      `, [invite.study_id, invite.wave_id, invite.instrument_id, invite.invite_id]);
       response = responseResult.rows[0]!;
       await client.query(`
         INSERT INTO research_consents (response_id, consent_kind, statement_version, granted, source)
@@ -766,14 +767,14 @@ export async function savePublicResearchSurvey(input: Readonly<{
         ON CONFLICT (response_id, reward_kind, reward_version) DO NOTHING
       `, [response.id]);
       await client.query(`
-        INSERT INTO research_study_jobs (study_id,job_type,status,input)
+        INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
         SELECT
-          $1,'reward_delivery','queued',
-          jsonb_build_object('responseId',$2::text,'source','survey_completion')
+          $1,$2,'reward_delivery','queued',
+          jsonb_build_object('responseId',$3::text,'source','survey_completion')
         WHERE EXISTS (
           SELECT 1
           FROM research_consents rc
-          WHERE rc.response_id=$2
+          WHERE rc.response_id=$3
             AND rc.consent_kind='thank_you_code'
           ORDER BY rc.occurred_at DESC,rc.id DESC
           LIMIT 1
@@ -781,7 +782,7 @@ export async function savePublicResearchSurvey(input: Readonly<{
         AND (
           SELECT rc.granted
           FROM research_consents rc
-          WHERE rc.response_id=$2
+          WHERE rc.response_id=$3
             AND rc.consent_kind='thank_you_code'
           ORDER BY rc.occurred_at DESC,rc.id DESC
           LIMIT 1
@@ -790,11 +791,12 @@ export async function savePublicResearchSurvey(input: Readonly<{
           SELECT 1
           FROM research_study_jobs j
           WHERE j.study_id=$1
+            AND j.wave_id=$2
             AND j.job_type='reward_delivery'
-            AND j.input->>'responseId'=$2::text
+            AND j.input->>'responseId'=$3::text
             AND j.status IN ('queued','running','succeeded')
         )
-      `, [invite.study_id, response.id]);
+      `, [invite.study_id, invite.wave_id, response.id]);
     }
 
     const experimentResult = await client.query<SqlRow>(`
@@ -1504,18 +1506,20 @@ export async function transitionResearchStudy(
     await client.query("BEGIN");
     const rowResult = await client.query<SqlRow>(`
       SELECT
-        s.id AS study_id, s.status AS study_status,
+        s.id AS study_id, s.status AS study_status, s.current_wave_id AS wave_id,
         i.id AS instrument_id, i.status AS instrument_status
       FROM research_studies s
       JOIN LATERAL (
         SELECT id, status FROM research_instruments
-        WHERE study_id = s.id ORDER BY created_at DESC LIMIT 1
+        WHERE study_id = s.id AND wave_id = s.current_wave_id
+        ORDER BY created_at DESC LIMIT 1
       ) i ON true
       WHERE s.slug = $1
       FOR UPDATE OF s
     `, [input.slug]);
     const row = rowResult.rows[0];
     if (!row) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+    if (!text(row.wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
 
     let studyStatus = text(row.study_status);
     let instrumentStatus = text(row.instrument_status);
@@ -1535,9 +1539,9 @@ export async function transitionResearchStudy(
         SELECT EXISTS(
           SELECT 1
           FROM research_analysis_plans
-          WHERE study_id=$1 AND instrument_id=$2 AND status='locked'
+          WHERE study_id=$1 AND wave_id=$2 AND instrument_id=$3 AND status='locked'
         ) AS locked_analysis_plan
-      `, [row.study_id, row.instrument_id]);
+      `, [row.study_id, row.wave_id, row.instrument_id]);
       if (!Boolean(planReady.rows[0]?.locked_analysis_plan)) {
         throw new Error("RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN");
       }
@@ -1557,12 +1561,15 @@ export async function transitionResearchStudy(
       }
       const readiness = await client.query<SqlRow>(`
         SELECT
-          EXISTS(SELECT 1 FROM research_frame_snapshots WHERE study_id = $1 AND status = 'frozen') AS frozen_frame,
+          EXISTS(
+            SELECT 1 FROM research_frame_snapshots
+            WHERE study_id=$1 AND wave_id=$2 AND status='frozen'
+          ) AS frozen_frame,
           EXISTS(
             SELECT 1 FROM research_analysis_plans
-            WHERE study_id=$1 AND instrument_id=$2 AND status='locked'
+            WHERE study_id=$1 AND wave_id=$2 AND instrument_id=$3 AND status='locked'
           ) AS locked_analysis_plan
-      `, [row.study_id, row.instrument_id]);
+      `, [row.study_id, row.wave_id, row.instrument_id]);
       if (!Boolean(readiness.rows[0]?.frozen_frame)) {
         throw new Error("RESEARCH_FIELDING_REQUIRES_FROZEN_FRAME");
       }
@@ -1578,18 +1585,20 @@ export async function transitionResearchStudy(
             finished_at=COALESCE(finished_at,now()),
             error_message=COALESCE(error_message,'cancelled_by_pilot_closeout')
           WHERE study_id=$1
+            AND wave_id=$2
             AND job_type IN ('sample_draw','invite_batch','invite_reminder')
             AND status='queued'
             AND COALESCE(input->>'fieldworkPhase','pilot')='pilot'
-        `, [row.study_id]);
+        `, [row.study_id, row.wave_id]);
         const runningPilotJobs = await client.query<SqlRow>(`
           SELECT count(*)::int AS count
           FROM research_study_jobs
           WHERE study_id=$1
+            AND wave_id=$2
             AND job_type IN ('sample_draw','invite_batch','invite_reminder')
             AND status='running'
             AND COALESCE(input->>'fieldworkPhase','pilot')='pilot'
-        `, [row.study_id]);
+        `, [row.study_id, row.wave_id]);
         if (numberValue(runningPilotJobs.rows[0]?.count) > 0) {
           throw new Error("RESEARCH_PILOT_CLOSE_CONTACT_JOB_RUNNING");
         }
@@ -1598,6 +1607,7 @@ export async function transitionResearchStudy(
             UPDATE research_invites
             SET status='expired'
             WHERE study_id=$1
+              AND wave_id=$2
               AND fieldwork_phase='pilot'
               AND status IN ('created','sent','opened','started')
             RETURNING id
@@ -1608,7 +1618,7 @@ export async function transitionResearchStudy(
             'expired',
             '{"source":"pilot_closeout","reason":"main_fieldwork_started"}'::jsonb
           FROM expired
-        `, [row.study_id]);
+        `, [row.study_id, row.wave_id]);
       }
 
       await client.query(`
@@ -1633,10 +1643,11 @@ export async function transitionResearchStudy(
           SELECT 1
           FROM research_sample_draws
           WHERE study_id=$1
+            AND wave_id=$2
             AND fieldwork_phase='main'
             AND status IN ('locked','fielded')
         ) AS ready
-      `, [row.study_id]);
+      `, [row.study_id, row.wave_id]);
       if (!Boolean(mainSampleReady.rows[0]?.ready)) {
         throw new Error("RESEARCH_FIELDWORK_CLOSE_REQUIRES_MAIN_SAMPLE");
       }
@@ -1652,18 +1663,20 @@ export async function transitionResearchStudy(
           finished_at=COALESCE(finished_at,now()),
           error_message=COALESCE(error_message,'cancelled_by_fieldwork_closeout')
         WHERE study_id=$1
+          AND wave_id=$2
           AND job_type IN ('sample_draw','invite_batch','invite_reminder')
           AND status='queued'
           AND COALESCE(input->>'fieldworkPhase','main')='main'
-      `, [row.study_id]);
+      `, [row.study_id, row.wave_id]);
       const runningContactJobs = await client.query<SqlRow>(`
         SELECT count(*)::int AS count
         FROM research_study_jobs
         WHERE study_id=$1
+          AND wave_id=$2
           AND job_type IN ('sample_draw','invite_batch','invite_reminder')
           AND status='running'
           AND COALESCE(input->>'fieldworkPhase','main')='main'
-      `, [row.study_id]);
+      `, [row.study_id, row.wave_id]);
       if (numberValue(runningContactJobs.rows[0]?.count) > 0) {
         throw new Error("RESEARCH_FIELDWORK_CLOSE_CONTACT_JOB_RUNNING");
       }
@@ -1678,6 +1691,7 @@ export async function transitionResearchStudy(
           SELECT id
           FROM research_sample_draws
           WHERE study_id=$1
+            AND wave_id=$2
             AND fieldwork_phase='main'
             AND status IN ('locked','fielded')
           ORDER BY drawn_at DESC NULLS LAST,created_at DESC
@@ -1702,6 +1716,7 @@ export async function transitionResearchStudy(
           LEFT JOIN research_invites ri
             ON ri.sample_unit_id=su.id
            AND ri.study_id=$1
+           AND ri.wave_id=$2
            AND ri.fieldwork_phase='main'
           LEFT JOIN research_responses rr ON rr.invite_id=ri.id
           WHERE su.sample_draw_id=(SELECT id FROM active_draw)
@@ -1721,13 +1736,14 @@ export async function transitionResearchStudy(
         FROM response_state
         WHERE previous_disposition IS NULL
            OR previous_disposition IN ('selected','contact_pending','invited','delivered','opened','started')
-      `, [row.study_id]);
+      `, [row.study_id, row.wave_id]);
 
       await client.query(`
         WITH expired AS (
           UPDATE research_invites
           SET status='expired'
           WHERE study_id=$1
+            AND wave_id=$2
             AND fieldwork_phase='main'
             AND status IN ('created','sent','opened','started')
           RETURNING id
@@ -1738,7 +1754,7 @@ export async function transitionResearchStudy(
           'expired',
           '{"source":"fieldwork_closeout","closeoutVersion":"greek-retail-2026-fieldwork-closeout-v1"}'::jsonb
         FROM expired
-      `, [row.study_id]);
+      `, [row.study_id, row.wave_id]);
 
       await client.query(`
         UPDATE research_studies SET status = 'closed', fieldwork_ends_at = now(), updated_at = now()
@@ -1760,10 +1776,11 @@ export async function transitionResearchStudy(
         FROM research_release_snapshots rs
         JOIN research_analysis_runs ar ON ar.id=rs.analysis_run_id
         WHERE rs.study_id=$1
+          AND rs.wave_id=$2
         ORDER BY rs.created_at DESC
         LIMIT 1
         FOR UPDATE OF rs
-      `, [row.study_id]);
+      `, [row.study_id, row.wave_id]);
       const release = releaseResult.rows[0];
       if (!release || !text(release.artifact_sha256)) throw new Error("RESEARCH_RELEASE_NOT_READY");
       if (text(release.analysis_status) !== "succeeded") throw new Error("RESEARCH_RELEASE_ANALYSIS_NOT_SUCCEEDED");
@@ -1785,11 +1802,11 @@ export async function transitionResearchStudy(
         WHERE id=$1
       `, [row.study_id, release.public_url]);
       await client.query(`
-        INSERT INTO research_study_jobs (study_id,job_type,status,input)
+        INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
         SELECT
-          $1,'results_notification','queued',
+          $1,$2,'results_notification','queued',
           jsonb_build_object(
-            'releaseSnapshotId',$2::text,
+            'releaseSnapshotId',$3::text,
             'limit',100,
             'source','release_publication'
           )
@@ -1797,11 +1814,12 @@ export async function transitionResearchStudy(
           SELECT 1
           FROM research_study_jobs j
           WHERE j.study_id=$1
+            AND j.wave_id=$2
             AND j.job_type='results_notification'
-            AND j.input->>'releaseSnapshotId'=$2::text
+            AND j.input->>'releaseSnapshotId'=$3::text
             AND j.status IN ('queued','running','succeeded')
         )
-      `, [row.study_id, release.id]);
+      `, [row.study_id, row.wave_id, release.id]);
       studyStatus = "published";
     }
 
