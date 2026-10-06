@@ -63,6 +63,196 @@ export function researchWeightDiagnostics(rawWeights: readonly number[]): Resear
   };
 }
 
+export type CalibrationUnit = Readonly<{
+  id: string;
+  baseWeight: number;
+  dimensions: Readonly<Record<string, string>>;
+}>;
+
+export type CalibrationMargin = Readonly<{
+  dimension: string;
+  category: string;
+  targetTotal: number;
+}>;
+
+export type BoundedRakingResult = Readonly<{
+  converged: boolean;
+  iterations: number;
+  maxRelativeMarginError: number;
+  adjustments: Readonly<Record<string, number>>;
+  finalWeights: Readonly<Record<string, number>>;
+  trimmedUnitCount: number;
+  lowerWeightCap: number;
+  upperWeightCap: number;
+  marginDiagnostics: readonly Readonly<{
+    dimension: string;
+    category: string;
+    targetTotal: number;
+    achievedTotal: number;
+    relativeError: number;
+  }>[];
+}>;
+
+function median(values: readonly number[]): number {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2
+    ? sorted[middle]!
+    : (sorted[middle - 1]! + sorted[middle]!) / 2;
+}
+
+export function boundedRakeCalibration(
+  units: readonly CalibrationUnit[],
+  margins: readonly CalibrationMargin[],
+  options: Readonly<{
+    maxIterations: number;
+    tolerance: number;
+    lowerAdjustmentBound: number;
+    upperAdjustmentBound: number;
+    maxWeightToMedianRatio: number;
+  }>
+): BoundedRakingResult {
+  if (!units.length || !margins.length) throw new Error("RESEARCH_CALIBRATION_INPUT_EMPTY");
+  if (
+    !Number.isInteger(options.maxIterations) || options.maxIterations < 1 ||
+    !Number.isFinite(options.tolerance) || options.tolerance <= 0 ||
+    !Number.isFinite(options.lowerAdjustmentBound) || options.lowerAdjustmentBound <= 0 ||
+    !Number.isFinite(options.upperAdjustmentBound) || options.upperAdjustmentBound < options.lowerAdjustmentBound ||
+    !Number.isFinite(options.maxWeightToMedianRatio) || options.maxWeightToMedianRatio <= 1
+  ) {
+    throw new Error("RESEARCH_CALIBRATION_OPTIONS_INVALID");
+  }
+
+  const seenIds = new Set<string>();
+  for (const unit of units) {
+    if (!unit.id || seenIds.has(unit.id) || !Number.isFinite(unit.baseWeight) || unit.baseWeight <= 0) {
+      throw new Error("RESEARCH_CALIBRATION_UNIT_INVALID");
+    }
+    seenIds.add(unit.id);
+  }
+
+  const dimensionOrder = [...new Set(margins.map((margin) => margin.dimension))];
+  if (!dimensionOrder.length || margins.some((margin) =>
+    !margin.dimension ||
+    !margin.category ||
+    !Number.isFinite(margin.targetTotal) ||
+    margin.targetTotal <= 0
+  )) {
+    throw new Error("RESEARCH_CALIBRATION_MARGIN_INVALID");
+  }
+
+  const targetTotalByDimension = new Map<string, number>();
+  for (const dimension of dimensionOrder) {
+    const total = margins
+      .filter((margin) => margin.dimension === dimension)
+      .reduce((sum, margin) => sum + margin.targetTotal, 0);
+    targetTotalByDimension.set(dimension, total);
+  }
+  const targetTotals = [...targetTotalByDimension.values()];
+  const referenceTargetTotal = targetTotals[0]!;
+  if (targetTotals.some((total) =>
+    Math.abs(total - referenceTargetTotal) / referenceTargetTotal > Math.max(options.tolerance, 1e-9)
+  )) {
+    throw new Error("RESEARCH_CALIBRATION_MARGIN_TOTAL_MISMATCH");
+  }
+
+  for (const margin of margins) {
+    if (!units.some((unit) => unit.dimensions[margin.dimension] === margin.category)) {
+      throw new Error(`RESEARCH_CALIBRATION_EMPTY_CELL:${margin.dimension}:${margin.category}`);
+    }
+  }
+
+  const baselineMedian = median(units.map((unit) => unit.baseWeight));
+  if (!(baselineMedian > 0)) throw new Error("RESEARCH_CALIBRATION_MEDIAN_INVALID");
+  const lowerWeightCap = baselineMedian / options.maxWeightToMedianRatio;
+  const upperWeightCap = baselineMedian * options.maxWeightToMedianRatio;
+  const adjustments: Record<string, number> = Object.fromEntries(units.map((unit) => [unit.id, 1]));
+
+  const clampAdjustment = (unit: CalibrationUnit, rawAdjustment: number): number => {
+    const factorBounded = Math.min(
+      options.upperAdjustmentBound,
+      Math.max(options.lowerAdjustmentBound, rawAdjustment)
+    );
+    const finalWeight = unit.baseWeight * factorBounded;
+    const weightBounded = Math.min(upperWeightCap, Math.max(lowerWeightCap, finalWeight));
+    return weightBounded / unit.baseWeight;
+  };
+
+  const diagnostics = () => margins.map((margin) => {
+    const achievedTotal = units.reduce((sum, unit) => (
+      unit.dimensions[margin.dimension] === margin.category
+        ? sum + unit.baseWeight * adjustments[unit.id]!
+        : sum
+    ), 0);
+    const relativeError = Math.abs(achievedTotal - margin.targetTotal) / margin.targetTotal;
+    return {
+      dimension: margin.dimension,
+      category: margin.category,
+      targetTotal: margin.targetTotal,
+      achievedTotal,
+      relativeError
+    };
+  });
+
+  let iterations = 0;
+  let marginDiagnostics = diagnostics();
+  let maxRelativeMarginError = Math.max(...marginDiagnostics.map((item) => item.relativeError));
+  let converged = maxRelativeMarginError <= options.tolerance;
+
+  while (!converged && iterations < options.maxIterations) {
+    iterations += 1;
+    for (const dimension of dimensionOrder) {
+      for (const margin of margins.filter((item) => item.dimension === dimension)) {
+        const matching = units.filter((unit) => unit.dimensions[dimension] === margin.category);
+        const currentTotal = matching.reduce(
+          (sum, unit) => sum + unit.baseWeight * adjustments[unit.id]!,
+          0
+        );
+        if (!(currentTotal > 0)) {
+          throw new Error(`RESEARCH_CALIBRATION_ZERO_WEIGHT_CELL:${dimension}:${margin.category}`);
+        }
+        const ratio = margin.targetTotal / currentTotal;
+        for (const unit of matching) {
+          adjustments[unit.id] = clampAdjustment(unit, adjustments[unit.id]! * ratio);
+        }
+      }
+    }
+    marginDiagnostics = diagnostics();
+    maxRelativeMarginError = Math.max(...marginDiagnostics.map((item) => item.relativeError));
+    converged = maxRelativeMarginError <= options.tolerance;
+  }
+
+  const finalWeights = Object.fromEntries(units.map((unit) => [
+    unit.id,
+    unit.baseWeight * adjustments[unit.id]!
+  ]));
+  const boundaryTolerance = 1e-9;
+  const trimmedUnitCount = units.filter((unit) => {
+    const adjustment = adjustments[unit.id]!;
+    const finalWeight = finalWeights[unit.id]!;
+    return (
+      adjustment <= options.lowerAdjustmentBound + boundaryTolerance ||
+      adjustment >= options.upperAdjustmentBound - boundaryTolerance ||
+      finalWeight <= lowerWeightCap + boundaryTolerance ||
+      finalWeight >= upperWeightCap - boundaryTolerance
+    );
+  }).length;
+
+  return {
+    converged,
+    iterations,
+    maxRelativeMarginError,
+    adjustments,
+    finalWeights,
+    trimmedUnitCount,
+    lowerWeightCap,
+    upperWeightCap,
+    marginDiagnostics
+  };
+}
+
+
 const Z_95 = 1.959963984540054;
 
 export function stratifiedSrsMeanVariance(
