@@ -415,9 +415,21 @@ DECLARE
   rule_from_wave_id uuid;
   rule_to_wave_id uuid;
   rule_status text;
+  rule_comparability_status text;
 BEGIN
-  IF TG_OP='UPDATE' AND OLD.status IN ('locked','published') THEN
-    RAISE EXCEPTION 'locked longitudinal comparison specification is immutable';
+  IF TG_OP='UPDATE' AND OLD.status='published' THEN
+    RAISE EXCEPTION 'published longitudinal comparison specification is immutable';
+  END IF;
+
+  IF TG_OP='UPDATE' AND OLD.status='locked' THEN
+    IF NEW.status<>'published'
+       OR (to_jsonb(NEW) - 'status') IS DISTINCT FROM (to_jsonb(OLD) - 'status') THEN
+      RAISE EXCEPTION 'locked longitudinal comparison specification only permits status-only publication';
+    END IF;
+  END IF;
+
+  IF TG_OP='UPDATE' AND OLD.status='draft' AND NEW.status='published' THEN
+    RAISE EXCEPTION 'longitudinal comparison must be locked before publication';
   END IF;
 
   IF TG_OP='DELETE' THEN
@@ -460,8 +472,9 @@ BEGIN
       hr.variable_id,
       from_version.wave_id,
       to_version.wave_id,
-      hr.status
-    INTO rule_variable_id,rule_from_wave_id,rule_to_wave_id,rule_status
+      hr.status,
+      hr.comparability_status
+    INTO rule_variable_id,rule_from_wave_id,rule_to_wave_id,rule_status,rule_comparability_status
     FROM public.research_harmonisation_rules hr
     JOIN public.research_variable_versions from_version ON from_version.id=hr.from_variable_version_id
     JOIN public.research_variable_versions to_version ON to_version.id=hr.to_variable_version_id
@@ -472,6 +485,9 @@ BEGIN
        OR rule_from_wave_id IS DISTINCT FROM NEW.baseline_wave_id
        OR rule_to_wave_id IS DISTINCT FROM NEW.comparison_wave_id THEN
       RAISE EXCEPTION 'longitudinal comparison requires a matching locked harmonisation rule';
+    END IF;
+    IF rule_comparability_status='break' THEN
+      RAISE EXCEPTION 'a comparability break cannot authorize a longitudinal estimate';
     END IF;
 
     IF NEW.locked_at IS NULL THEN
