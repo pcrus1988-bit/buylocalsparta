@@ -118,7 +118,7 @@ export default async function ResearchSurveysAdminPage() {
               </div>
             </div>
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudySamplingControls
+            {hasAdminPermission(principal, "research.methodology.manage") && <ResearchStudySamplingControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
               latestFrameStatus={study.latestFrameStatus}
@@ -141,13 +141,13 @@ export default async function ResearchSurveysAdminPage() {
 
             <ResearchStudyFieldworkBalance strata={fieldworkStrata.get(study.slug) ?? []} />
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudyQualityControls
+            {hasAdminPermission(principal, "research.analysis.manage") && <ResearchStudyQualityControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
               initialItems={qualityQueues.get(study.slug) ?? []}
             />}
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudyFieldworkControls
+            {hasAdminPermission(principal, "research.fieldwork.manage") && <ResearchStudyFieldworkControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
               studyStatus={study.status}
@@ -174,14 +174,14 @@ export default async function ResearchSurveysAdminPage() {
               {study.failedJobs} research job(s) require review before relying on the evidence chain.
             </div>}
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudyProtocolControls
+            {hasAdminPermission(principal, "research.methodology.manage") && <ResearchStudyProtocolControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
               studyStatus={study.status}
               events={protocolEvents.get(study.slug) ?? []}
             />}
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudyLifecycleControls
+            {(hasAdminPermission(principal, "research.methodology.manage") || hasAdminPermission(principal, "research.fieldwork.manage") || hasAdminPermission(principal, "research.analysis.manage") || hasAdminPermission(principal, "research.publish")) && <ResearchStudyLifecycleControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
               studyStatus={study.status}
