@@ -29,6 +29,7 @@ export type ResearchQualityReviewItem = Readonly<{
   sectorCode: string;
   reasonCodes: readonly string[];
   metrics: Record<string, unknown>;
+  qualityScore?: number;
   digitalReadinessScore?: number;
   frictionOverallScore?: number;
 }>;
@@ -47,6 +48,7 @@ export async function researchQualityReviewQueue(
         qr.decision,
         qr.reason_codes,
         qr.metrics,
+        qr.quality_score,
         qr.created_at
       FROM research_response_quality_reviews qr
       JOIN research_responses rr ON rr.id=qr.response_id
@@ -65,6 +67,7 @@ export async function researchQualityReviewQueue(
       COALESCE(fu.sector_code,'unknown') AS sector_code,
       latest.reason_codes,
       latest.metrics,
+      latest.quality_score,
       scores.digital_readiness_score,
       scores.friction_overall_score
     FROM latest
@@ -86,6 +89,7 @@ export async function researchQualityReviewQueue(
     sectorCode: text(row.sector_code),
     reasonCodes: stringArray(row.reason_codes),
     metrics: objectValue(row.metrics),
+    qualityScore: row.quality_score == null ? undefined : numberValue(row.quality_score),
     digitalReadinessScore: row.digital_readiness_score == null ? undefined : numberValue(row.digital_readiness_score),
     frictionOverallScore: row.friction_overall_score == null ? undefined : numberValue(row.friction_overall_score)
   }));
