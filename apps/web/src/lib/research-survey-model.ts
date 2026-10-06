@@ -117,6 +117,7 @@ export function validateResearchAnswers(
 
 export type ResearchQualitySignals = Readonly<{
   review: boolean;
+  score: number;
   reasonCodes: readonly string[];
   metrics: Readonly<Record<string, unknown>>;
 }>;
@@ -127,6 +128,38 @@ function matrixStraightlined(answer: ResearchAnswer | undefined, minimumItems = 
     .map(String)
     .filter((value) => value && value !== "na");
   return values.length >= minimumItems && new Set(values).size === 1;
+}
+
+function suspiciousOpenText(answer: ResearchAnswer | undefined): Readonly<{
+  suspicious: boolean;
+  reason?: string;
+  length: number;
+}> {
+  if (typeof answer !== "string") return { suspicious: false, length: 0 };
+  const value = answer.trim();
+  if (!value) return { suspicious: false, length: 0 };
+  const normalized = value.toLocaleLowerCase("el-GR").normalize("NFKC");
+  const compact = normalized.replace(/\s+/g, "");
+  const lettersOrNumbers = normalized.match(/[\p{L}\p{N}]/gu) ?? [];
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+  const uniqueTokens = new Set(tokens);
+  const mostCommonCharacter = compact.length
+    ? Math.max(...[...new Set(compact)].map((character) => compact.split(character).length - 1)) / compact.length
+    : 0;
+
+  if (/^(test|testing|asdf+|qwerty+|δοκιμ[ηή])$/iu.test(normalized)) {
+    return { suspicious: true, reason: "test_string", length: value.length };
+  }
+  if (compact.length >= 8 && mostCommonCharacter >= 0.75) {
+    return { suspicious: true, reason: "repeated_character", length: value.length };
+  }
+  if (value.length >= 12 && lettersOrNumbers.length / value.length < 0.25) {
+    return { suspicious: true, reason: "low_alphanumeric_share", length: value.length };
+  }
+  if (tokens.length >= 4 && uniqueTokens.size / tokens.length <= 0.25) {
+    return { suspicious: true, reason: "repeated_tokens", length: value.length };
+  }
+  return { suspicious: false, length: value.length };
 }
 
 export function researchQualitySignals(
@@ -156,6 +189,19 @@ export function researchQualitySignals(
     reasonCodes.push("marketplace_status_mismatch");
   }
 
+  const capabilities = isObject(answers.Q05) ? answers.Q05 : {};
+  const stock = String(capabilities.stock ?? "");
+  const stockSync = String(capabilities.stock_sync ?? "");
+  if (stockSync === "yes" && stock === "no") {
+    reasonCodes.push("capability_hierarchy_mismatch");
+  }
+  const capabilityValues = Object.values(capabilities).map(String).filter(Boolean);
+  const allCapabilitiesAbsent = capabilityValues.length >= 5 && capabilityValues.every((value) => value === "no");
+  const updateFrequency = typeof answers.Q06 === "string" ? answers.Q06 : "";
+  if (allCapabilitiesAbsent && ["realtime", "daily", "few_week", "weekly"].includes(updateFrequency)) {
+    reasonCodes.push("digital_system_frequency_mismatch");
+  }
+
   const straightlinedMatrices = ["Q07", "Q14", "Q15"]
     .filter((code) => matrixStraightlined(answers[code]));
   if (straightlinedMatrices.length >= 2) {
@@ -166,15 +212,36 @@ export function researchQualitySignals(
     reasonCodes.push("rapid_completion");
   }
 
+  const openText = suspiciousOpenText(answers.Q18);
+  if (openText.suspicious) {
+    reasonCodes.push("open_text_garbage");
+  }
+
+  const penaltyByReason: Readonly<Record<string, number>> = {
+    digital_share_channel_mismatch: 15,
+    marketplace_status_mismatch: 15,
+    capability_hierarchy_mismatch: 20,
+    digital_system_frequency_mismatch: 15,
+    multi_matrix_straightline: 15,
+    rapid_completion: 30,
+    open_text_garbage: 20
+  };
+  const score = Math.max(0, 100 - [...new Set(reasonCodes)]
+    .reduce((sum, reason) => sum + (penaltyByReason[reason] ?? 10), 0));
+
   return {
     review: reasonCodes.length > 0,
+    score,
     reasonCodes,
     metrics: {
       durationSeconds,
       declaredDigitalChannels: channels.filter((channel) => digitalChannels.includes(channel)),
       digitalShare,
       marketplaceExperience,
-      straightlinedMatrices
+      updateFrequency,
+      straightlinedMatrices,
+      openTextLength: openText.length,
+      openTextSuspicion: openText.reason ?? null
     }
   };
 }
