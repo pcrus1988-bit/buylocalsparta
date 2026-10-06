@@ -4,7 +4,7 @@ const connectionString = process.env.DATABASE_URL?.trim();
 if (!connectionString) throw new Error("DATABASE_URL is required");
 
 const postcheck = process.argv.includes("--postcheck");
-const expectedSourceVersion = 430;
+const expectedSourceVersion = 431;
 const expectedCurrentVersion = 415;
 const requiredTables = [
   "research_programmes",
@@ -19,7 +19,10 @@ const requiredTables = [
   "research_analysis_plans",
   "research_sample_designs",
   "research_sample_design_strata",
-  "research_protocol_events"
+  "research_protocol_events",
+  "research_population_margin_sets",
+  "research_population_margins",
+  "research_analysis_plan_supersessions"
 ] as const;
 
 const migrationNames = (await readdir(new URL("../db/migrations/", import.meta.url)))
