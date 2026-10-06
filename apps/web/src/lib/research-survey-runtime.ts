@@ -1016,7 +1016,7 @@ export async function recordResearchProtocolEvent(
     occurredAt?: string;
   }>
 ): Promise<Readonly<{ id: string; contentSha256: string }>> {
-  assertAdminPermission(principal, "research.manage");
+  assertAdminPermission(principal, "research.methodology.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
 
   const eventTypes = new Set(["deviation","amendment","resolution"]);
@@ -1481,7 +1481,15 @@ export async function transitionResearchStudy(
   principal: SessionPrincipal,
   input: Readonly<{ slug: string; action: ResearchLifecycleAction }>
 ): Promise<Readonly<{ studyStatus: string; instrumentStatus: string }>> {
-  assertAdminPermission(principal, "research.manage");
+  if (["lock_instrument","start_pilot","start_fielding"].includes(input.action)) {
+    assertAdminPermission(principal, "research.methodology.manage");
+  } else if (input.action === "close_fieldwork") {
+    assertAdminPermission(principal, "research.fieldwork.manage");
+  } else if (input.action === "begin_analysis") {
+    assertAdminPermission(principal, "research.analysis.manage");
+  } else if (input.action === "publish_release") {
+    assertAdminPermission(principal, "research.publish");
+  }
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const client = await getProductionPostgresRuntime().sqlPool.connect();
   try {
