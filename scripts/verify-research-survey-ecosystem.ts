@@ -29,6 +29,8 @@ const identityVaultMigrationPath = "db/migrations/0428_research_private_identity
 const identityVaultChecksumPath = "db/migrations/checksums.0428.json";
 const roleSeparationMigrationPath = "db/migrations/0429_research_role_separation.sql";
 const roleSeparationChecksumPath = "db/migrations/checksums.0429.json";
+const qualityV3MigrationPath = "db/migrations/0430_research_quality_v3.sql";
+const qualityV3ChecksumPath = "db/migrations/checksums.0430.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const deliveryMigration = readFileSync(deliveryMigrationPath, "utf8");
@@ -43,6 +45,7 @@ const protocolEvidenceMigration = readFileSync(protocolEvidenceMigrationPath, "u
 const hierarchyMigration = readFileSync(hierarchyMigrationPath, "utf8");
 const identityVaultMigration = readFileSync(identityVaultMigrationPath, "utf8");
 const roleSeparationMigration = readFileSync(roleSeparationMigrationPath, "utf8");
+const qualityV3Migration = readFileSync(qualityV3MigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
 const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
@@ -57,6 +60,7 @@ const protocolEvidenceChecksums = JSON.parse(readFileSync(protocolEvidenceChecks
 const hierarchyChecksums = JSON.parse(readFileSync(hierarchyChecksumPath, "utf8")) as Record<string, string>;
 const identityVaultChecksums = JSON.parse(readFileSync(identityVaultChecksumPath, "utf8")) as Record<string, string>;
 const roleSeparationChecksums = JSON.parse(readFileSync(roleSeparationChecksumPath, "utf8")) as Record<string, string>;
+const qualityV3Checksums = JSON.parse(readFileSync(qualityV3ChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
@@ -131,6 +135,7 @@ const protocolEvidenceSha = createHash("sha256").update(protocolEvidenceMigratio
 const hierarchySha = createHash("sha256").update(hierarchyMigration, "utf8").digest("hex");
 const identityVaultSha = createHash("sha256").update(identityVaultMigration, "utf8").digest("hex");
 const roleSeparationSha = createHash("sha256").update(roleSeparationMigration, "utf8").digest("hex");
+const qualityV3Sha = createHash("sha256").update(qualityV3Migration, "utf8").digest("hex");
 if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0416 checksum does not match migration bytes");
 }
@@ -173,7 +178,13 @@ if (identityVaultChecksums["0428_research_private_identity_vault.sql"] !== ident
 if (roleSeparationChecksums["0429_research_role_separation.sql"] !== roleSeparationSha) {
   errors.push("0429 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 429")) errors.push("runtime schema head is not 429");
+if (qualityV3Checksums["0430_research_quality_v3.sql"] !== qualityV3Sha) {
+  errors.push("0430 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 430")) errors.push("runtime schema head is not 430");
+if (!qualityV3Migration.includes("ADD COLUMN quality_score")) errors.push("research quality score column missing");
+if (!qualityV3Migration.includes("ADD COLUMN answer_pattern_sha256")) errors.push("research answer-pattern fingerprint column missing");
+if (!qualityV3Migration.includes("research_quality_answer_pattern_idx")) errors.push("research answer-pattern QA index missing");
 if (!identityVaultMigration.includes("CREATE SCHEMA IF NOT EXISTS research_private")) errors.push("research private identity schema missing");
 if (!identityVaultMigration.includes("CREATE TABLE research_private.contact_vault")) errors.push("research private contact vault missing");
 if (!identityVaultMigration.includes("DROP COLUMN contact_value")) errors.push("raw research contact value still remains in the public contact-point table");
@@ -191,8 +202,8 @@ if (!hierarchyMigration.includes("research_guard_wave_scope")) errors.push("rese
 if (!hierarchyMigration.includes("DISABLE TRIGGER USER")) errors.push("0427 does not explicitly protect structural backfill across immutable evidence");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_programmes ENABLE ROW LEVEL SECURITY;")) errors.push("research programme RLS missing");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_waves ENABLE ROW LEVEL SECURITY;")) errors.push("research wave RLS missing");
-if (!schemaPreflight.includes("expectedSourceVersion = 429")) errors.push("guarded research production rollout is not pinned to schema 0429");
-if (!schemaRollout.includes("0416–0429") || !schemaRollout.includes("through schema 0429")) errors.push("research schema rollout workflow does not advertise the complete 0416–0429 chain");
+if (!schemaPreflight.includes("expectedSourceVersion = 430")) errors.push("guarded research production rollout is not pinned to schema 0430");
+if (!schemaRollout.includes("0416–0430") || !schemaRollout.includes("through schema 0430")) errors.push("research schema rollout workflow does not advertise the complete 0416–0430 chain");
 for (const role of ["research_superadmin","research_methodologist","research_fieldwork","research_analyst","research_publisher","research_privacy"]) {
   if (!roleSeparationMigration.includes("'" + role + "'")) errors.push(`0429 platform role constraint missing ${role}`);
   if (!rbac.includes('| "' + role + '"')) errors.push(`RBAC role union missing ${role}`);
@@ -208,6 +219,10 @@ if (!jobs.includes('assertAdminPermission(principal, "research.analysis.manage")
 if (!jobs.includes('assertAdminPermission(principal, "research.privacy.manage")')) errors.push("research privacy/destruction is not permission-separated");
 if (!jobs.includes('assertAdminPermission(principal, "research.publish.manage")')) errors.push("research participant results delivery is not publisher-separated");
 if (!quality.includes('assertAdminPermission(principal, "research.quality.manage")')) errors.push("research quality decisions are not permission-separated");
+if (!surveyRuntime.includes("'greek-retail-2026-qc-v3'")) errors.push("research completion is not using QA rule version v3");
+if (!surveyRuntime.includes("duplicate_answer_pattern")) errors.push("research duplicate-pattern review signal missing");
+if (!surveyRuntime.includes("duplicatePatternReviewOnly: true")) errors.push("duplicate-pattern QA is not explicitly review-only");
+if (!quality.includes("quality_score")) errors.push("research QA queue does not surface quality score");
 if (!release.includes('assertAdminPermission(principal, "research.publish.manage")')) errors.push("research release creation is not publisher-separated");
 if (!surveyRuntime.includes('assertAdminPermission(principal, "research.quality.manage")')) errors.push("research protocol governance is not permission-separated");
 if (jobs.includes('assertAdminPermission(principal, "research.manage")') || quality.includes('assertAdminPermission(principal, "research.manage")') || release.includes('assertAdminPermission(principal, "research.manage")')) {
