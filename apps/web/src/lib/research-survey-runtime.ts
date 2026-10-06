@@ -704,6 +704,8 @@ export async function savePublicResearchSurvey(input: Readonly<{
           AND qr.metrics->>'answerFingerprint'=$3
       `, [invite.study_id, response.id, answerFingerprint]);
       const duplicateAnswerPatternCount = numberValue(duplicatePattern.rows[0]?.count);
+      const duplicatePatternPenalty = duplicateAnswerPatternCount > 0 ? 30 : 0;
+      const responseQualityScore = Math.max(0, quality.qualityScore - duplicatePatternPenalty);
       const reasonCodes = duplicateAnswerPatternCount > 0
         ? [...quality.reasonCodes, "duplicate_answer_pattern"]
         : [...quality.reasonCodes];
@@ -716,13 +718,16 @@ export async function savePublicResearchSurvey(input: Readonly<{
       await client.query(`
         INSERT INTO research_response_quality_reviews
           (response_id, rule_version, decision, reason_codes, metrics, source)
-        VALUES ($1, 'greek-retail-2026-qc-v3', $2, $3::text[], $4::jsonb, 'automated')
+        VALUES ($1, 'greek-retail-2026-qc-v4', $2, $3::text[], $4::jsonb, 'automated')
       `, [
         response.id,
         reasonCodes.length ? "review" : "include",
         reasonCodes,
         JSON.stringify({
           ...quality.metrics,
+          baseResponseQualityScore: quality.qualityScore,
+          duplicatePatternPenalty,
+          responseQualityScore,
           answerFingerprint,
           duplicateAnswerPatternCount,
           requiredAnswerValidation: "passed",
