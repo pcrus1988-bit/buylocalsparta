@@ -137,6 +137,12 @@ export function VendorMapDirectory({ vendors, facets, initialVendorId }: { vendo
   const [geoMessage, setGeoMessage] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(() => initialVendorId && vendors.some((vendor) => vendor.id === initialVendorId) ? initialVendorId : null);
 
+  useEffect(() => {
+    if (initialVendorId) return;
+    const requested = new URLSearchParams(window.location.search).get("vendor")?.slice(0, 160);
+    if (requested && vendors.some((vendor) => vendor.id === requested)) setSelectedId(requested);
+  }, [initialVendorId, vendors]);
+
   const filteredVendors = useMemo(() => {
     const needle = normalizedSearch(query);
     return vendors

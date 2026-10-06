@@ -399,15 +399,25 @@ async function withTransientDatabaseRetry<T>(operation: () => Promise<T>): Promi
   }
 }
 
+const loadPersistedPublicVendorDirectory = unstable_cache(
+  async (): Promise<readonly PublicVendorDirectoryEntry[]> => {
+    if (!productionDatabaseConfigured()) return [];
+    const directory = await withTransientDatabaseRetry(() => databaseDirectory());
+    const partnerIds = directory.filter((vendor) => vendor.directoryStatus === "partner").map((vendor) => vendor.id);
+    // The public directory changes far less often than shopper traffic. Keep the
+    // expensive profile/media projection warm and let checkout/order boundaries
+    // remain authoritative for transactional state.
+    const profileMedia = await withTransientDatabaseRetry(() => approvedVendorProfileMedia(partnerIds));
+    const fallbackImages = await withTransientDatabaseRetry(() => approvedVendorImages(partnerIds));
+    const fallbackByVendor = new Map(fallbackImages.map((image) => [image.vendorId, image]));
+    return directory.map((vendor) => directoryPresentation(vendor, profileMedia, fallbackByVendor.get(vendor.id)));
+  },
+  ["public-vendor-directory-v1-performance"],
+  { revalidate: 300 }
+);
+
 export async function getPublicVendorDirectory(): Promise<readonly PublicVendorDirectoryEntry[]> {
-  if (!productionDatabaseConfigured()) return [];
-  const directory = await databaseDirectory();
-  const partnerIds = directory.filter((vendor) => vendor.directoryStatus === "partner").map((vendor) => vendor.id);
-  // Avoid opening two extra pool connections at once after the already-heavy directory read.
-  const profileMedia = await approvedVendorProfileMedia(partnerIds);
-  const fallbackImages = await approvedVendorImages(partnerIds);
-  const fallbackByVendor = new Map(fallbackImages.map((image) => [image.vendorId, image]));
-  return directory.map((vendor) => directoryPresentation(vendor, profileMedia, fallbackByVendor.get(vendor.id)));
+  return loadPersistedPublicVendorDirectory();
 }
 
 const loadPersistedPublicVendorDirectoryEntry = unstable_cache(
@@ -427,8 +437,8 @@ const loadPersistedPublicVendorDirectoryEntry = unstable_cache(
     const fallback = fallbackImages[0];
     return fallback ? { ...vendor, mediaId: fallback.mediaId, mediaAlt: fallback.altText } : vendor;
   },
-  ["public-vendor-directory-entry-v4"],
-  { revalidate: 60 }
+  ["public-vendor-directory-entry-v5-performance"],
+  { revalidate: 300 }
 );
 
 // React cache deduplicates generateMetadata/page consumers inside one render;

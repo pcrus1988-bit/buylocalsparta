@@ -254,7 +254,10 @@ export async function getCachedBazaarCatalog(filters: BazaarFilters = {}): Promi
 export async function getBazaarProductBySlug(slug: string): Promise<BazaarCard | undefined> {
   const normalized = slug.trim();
   if (!normalized) return undefined;
-  const cards = await getBazaarCatalog({ limit: 1, slugOrId: normalized });
+  // Metadata and page rendering both resolve the same product. Reuse the public
+  // discovery cache so one cold product request never performs duplicate catalogue
+  // reads; cart/order validation remains authoritative and uncached.
+  const cards = await getCachedBazaarCatalog({ limit: 1, slugOrId: normalized });
   return cards[0];
 }
 

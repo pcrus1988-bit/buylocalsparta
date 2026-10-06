@@ -82,8 +82,8 @@ async function loadInitialVendorCatalogPage(vendorId: string): Promise<InitialVe
 
 const getCachedInitialVendorCatalogPage = unstable_cache(
   async (vendorId: string) => loadInitialVendorCatalogPage(vendorId),
-  ["vendor-storefront-initial-catalog-page-v1"],
-  { revalidate: 15 }
+  ["vendor-storefront-initial-catalog-page-v2-performance"],
+  { revalidate: 300 }
 );
 
 function isTransientVendorDatabaseError(error: unknown): boolean {
