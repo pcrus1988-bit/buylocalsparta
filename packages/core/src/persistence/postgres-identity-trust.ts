@@ -9,7 +9,7 @@ import type { AuditEvent } from "../audit/log.ts";
 import { PostgresUnitOfWork, requireSingleRow, type DatabaseScope, type SqlExecutor, type SqlPool, type SqlRow } from "./sql.ts";
 
 const VENDOR_ROLES = new Set<Role>(["vendor_owner", "vendor_catalog", "vendor_fulfilment", "vendor_adviser", "vendor_finance"]);
-const PLATFORM_ROLES = new Set<Role>(["super_admin", "vendor_operations", "catalog_qa", "customer_support", "platform_finance", "content_seo", "compliance", "logistics", "auditor"]);
+const PLATFORM_ROLES = new Set<Role>(["super_admin", "vendor_operations", "catalog_qa", "customer_support", "platform_finance", "content_seo", "compliance", "logistics", "research_superadmin", "research_methodologist", "research_fieldwork", "research_analyst", "research_publisher", "research_privacy", "auditor"]);
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
