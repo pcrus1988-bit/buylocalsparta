@@ -132,12 +132,13 @@ try {
           // exact immutable checksum as a data no-op or, for a mixed migration,
           // execute only its catalogue-independent structural prefix first.
           const structuralMarker = EMPTY_CATALOGUE_SCHEMA_PREFIX_MIGRATIONS.get(migration.version);
-          const structuralPrefix = structuralMarker
-            ? migration.sql.slice(0, migration.sql.indexOf(structuralMarker))
-            : "";
-          if (structuralMarker && !structuralPrefix.trim()) {
+          const structuralMarkerIndex = structuralMarker ? migration.sql.indexOf(structuralMarker) : -1;
+          if (structuralMarker && structuralMarkerIndex <= 0) {
             throw new Error(`Unable to locate structural-prefix marker for migration ${migration.version}`);
           }
+          const structuralPrefix = structuralMarkerIndex > 0
+            ? migration.sql.slice(0, structuralMarkerIndex)
+            : "";
 
           console.log(`${structuralMarker ? "schema-only" : "no-op"} ${migration.filename} (empty loopback catalogue)`);
           await client.query("BEGIN");
