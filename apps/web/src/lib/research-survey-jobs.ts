@@ -631,6 +631,132 @@ export async function queueGreekRetailResultsNotifications(
   };
 }
 
+export async function setGreekRetailIdentityRetentionPolicy(
+  principal: SessionPrincipal,
+  input: Readonly<{ retentionUntil: string }>
+): Promise<{ waveId: string; retentionUntil: string }> {
+  assertAdminPermission(principal, "research.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+
+  const retentionDate = new Date(input.retentionUntil);
+  if (!Number.isFinite(retentionDate.getTime())) {
+    throw new Error("RESEARCH_IDENTITY_RETENTION_DATE_INVALID");
+  }
+  if (retentionDate.getTime() <= Date.now()) {
+    throw new Error("RESEARCH_IDENTITY_RETENTION_MUST_BE_FUTURE");
+  }
+
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const study = await pool.query<SqlRow>(`
+    SELECT id,status,current_wave_id
+    FROM research_studies
+    WHERE slug=$1
+    LIMIT 1
+  `, [STUDY_SLUG]);
+  const row = study.rows[0];
+  if (!row) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+  if (text(row.status) !== "draft") {
+    throw new Error("RESEARCH_IDENTITY_RETENTION_LOCKED_AFTER_DRAFT");
+  }
+
+  const updated = await pool.query<SqlRow>(`
+    UPDATE research_waves
+    SET identity_retention_until=$3::timestamptz,
+        updated_at=now()
+    WHERE id=$2
+      AND study_id=$1
+      AND identity_destroyed_at IS NULL
+    RETURNING id,identity_retention_until
+  `, [row.id, row.current_wave_id, retentionDate.toISOString()]);
+  const wave = updated.rows[0];
+  if (!wave) throw new Error("RESEARCH_WAVE_NOT_FOUND");
+
+  return {
+    waveId: text(wave.id),
+    retentionUntil: new Date(String(wave.identity_retention_until)).toISOString()
+  };
+}
+
+export async function queueGreekRetailIdentityDestruction(
+  principal: SessionPrincipal
+): Promise<{ jobId: string; waveId: string }> {
+  assertAdminPermission(principal, "research.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+  const pool = getProductionPostgresRuntime().sqlPool;
+
+  const study = await pool.query<SqlRow>(`
+    SELECT
+      s.id,
+      s.status,
+      s.current_wave_id,
+      rw.identity_retention_until,
+      rw.identity_destroyed_at
+    FROM research_studies s
+    JOIN research_waves rw
+      ON rw.id=s.current_wave_id
+     AND rw.study_id=s.id
+    WHERE s.slug=$1
+    LIMIT 1
+  `, [STUDY_SLUG]);
+  const row = study.rows[0];
+  if (!row) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+  if (row.identity_destroyed_at) {
+    throw new Error("RESEARCH_IDENTITY_ALREADY_DESTROYED");
+  }
+  if (!["closed","analysis","published","archived"].includes(text(row.status))) {
+    throw new Error("RESEARCH_IDENTITY_DESTRUCTION_REQUIRES_CLOSED_FIELDWORK");
+  }
+  const retentionUntil = row.identity_retention_until
+    ? new Date(String(row.identity_retention_until))
+    : undefined;
+  if (!retentionUntil || !Number.isFinite(retentionUntil.getTime())) {
+    throw new Error("RESEARCH_IDENTITY_RETENTION_POLICY_MISSING");
+  }
+  if (retentionUntil.getTime() > Date.now()) {
+    throw new Error("RESEARCH_IDENTITY_RETENTION_NOT_ELAPSED");
+  }
+
+  const existing = await pool.query<SqlRow>(`
+    SELECT id
+    FROM research_study_jobs
+    WHERE study_id=$1
+      AND job_type='identity_destruction'
+      AND status IN ('queued','running')
+      AND input->>'waveId'=$2
+    ORDER BY created_at DESC
+    LIMIT 1
+  `, [row.id, row.current_wave_id]);
+  if (existing.rows[0]) {
+    return {
+      jobId: text(existing.rows[0].id),
+      waveId: text(row.current_wave_id)
+    };
+  }
+
+  const job = await pool.query<SqlRow>(`
+    INSERT INTO research_study_jobs (study_id,job_type,status,input)
+    VALUES (
+      $1,'identity_destruction','queued',
+      jsonb_build_object(
+        'waveId',$2::text,
+        'executedBy',$3::text,
+        'retentionUntil',$4::text
+      )
+    )
+    RETURNING id
+  `, [
+    row.id,
+    row.current_wave_id,
+    principal.userId,
+    retentionUntil.toISOString()
+  ]);
+
+  return {
+    jobId: text(job.rows[0]!.id),
+    waveId: text(row.current_wave_id)
+  };
+}
+
 export async function queueGreekRetailAnalysis(
   principal: SessionPrincipal
 ): Promise<{ jobId: string }> {
@@ -668,7 +794,7 @@ async function claimResearchJob(): Promise<ResearchJobRow | undefined> {
       SELECT id, study_id, job_type, input, output, attempts
       FROM research_study_jobs
       WHERE status='queued' AND available_at <= now()
-        AND job_type IN ('frame_snapshot','sample_draw','invite_batch','invite_reminder','reward_delivery','analysis','release','results_notification')
+        AND job_type IN ('frame_snapshot','sample_draw','invite_batch','invite_reminder','reward_delivery','analysis','release','results_notification','identity_destruction')
       ORDER BY created_at
       FOR UPDATE SKIP LOCKED
       LIMIT 1
@@ -2644,6 +2770,216 @@ async function processResultsNotificationJob(job: ResearchJobRow): Promise<Recor
   };
 }
 
+async function processIdentityDestructionJob(job: ResearchJobRow): Promise<Record<string, unknown>> {
+  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const waveResult = await client.query<SqlRow>(`
+      SELECT
+        rw.id,
+        rw.identity_retention_until,
+        rw.identity_destroyed_at,
+        s.status AS study_status
+      FROM research_waves rw
+      JOIN research_studies s ON s.id=rw.study_id
+      WHERE rw.id=$1
+        AND rw.study_id=$2
+      FOR UPDATE OF rw
+    `, [text(objectValue(job.input).waveId), job.study_id]);
+    const wave = waveResult.rows[0];
+    if (!wave) throw new Error("RESEARCH_WAVE_NOT_FOUND");
+
+    if (wave.identity_destroyed_at) {
+      const existing = await client.query<SqlRow>(`
+        SELECT id,content_sha256,occurred_at
+        FROM research_identity_destruction_events
+        WHERE wave_id=$1
+        LIMIT 1
+      `, [wave.id]);
+      await client.query("COMMIT");
+      return {
+        waveId: text(wave.id),
+        alreadyDestroyed: true,
+        destructionEventId: existing.rows[0] ? text(existing.rows[0].id) : undefined,
+        destructionSha256: existing.rows[0] ? text(existing.rows[0].content_sha256) : undefined
+      };
+    }
+
+    if (!["closed","analysis","published","archived"].includes(text(wave.study_status))) {
+      throw new Error("RESEARCH_IDENTITY_DESTRUCTION_REQUIRES_CLOSED_FIELDWORK");
+    }
+    const retentionUntil = wave.identity_retention_until
+      ? new Date(String(wave.identity_retention_until))
+      : undefined;
+    if (!retentionUntil || !Number.isFinite(retentionUntil.getTime())) {
+      throw new Error("RESEARCH_IDENTITY_RETENTION_POLICY_MISSING");
+    }
+    if (retentionUntil.getTime() > Date.now()) {
+      throw new Error("RESEARCH_IDENTITY_RETENTION_NOT_ELAPSED");
+    }
+
+    const nonterminalInvites = await client.query<SqlRow>(`
+      SELECT count(*)::int AS count
+      FROM research_invites
+      WHERE wave_id=$1
+        AND status NOT IN ('completed','suppressed','expired')
+    `, [wave.id]);
+    if (numberValue(nonterminalInvites.rows[0]?.count) > 0) {
+      throw new Error("RESEARCH_IDENTITY_DESTRUCTION_FIELDWORK_NOT_TERMINAL");
+    }
+
+    const pendingDeliveries = await client.query<SqlRow>(`
+      SELECT count(*)::int AS count
+      FROM research_participant_deliveries
+      WHERE wave_id=$1
+        AND status NOT IN ('sent','cancelled')
+    `, [wave.id]);
+    if (numberValue(pendingDeliveries.rows[0]?.count) > 0) {
+      throw new Error("RESEARCH_IDENTITY_DESTRUCTION_DELIVERIES_PENDING");
+    }
+
+    const frozen = await client.query(`
+      INSERT INTO research_response_design_context (
+        response_id,study_id,wave_id,sample_draw_id,stratum_id,
+        region_code,sector_code,size_band,
+        inclusion_probability,base_weight,fieldwork_phase
+      )
+      SELECT
+        rr.id,
+        rr.study_id,
+        rr.wave_id,
+        su.sample_draw_id,
+        su.stratum_id,
+        COALESCE(fu.region_code,'unknown'),
+        COALESCE(fu.sector_code,'unknown'),
+        COALESCE(fu.size_band,'unknown'),
+        su.inclusion_probability,
+        su.base_weight,
+        ri.fieldwork_phase
+      FROM research_responses rr
+      JOIN research_invites ri ON ri.id=rr.invite_id
+      JOIN research_sample_units su ON su.id=ri.sample_unit_id
+      JOIN research_frame_units fu ON fu.id=su.frame_unit_id
+      WHERE rr.wave_id=$1
+      ON CONFLICT (response_id) DO NOTHING
+    `, [wave.id]);
+
+    const contextCoverage = await client.query<SqlRow>(`
+      SELECT
+        (SELECT count(*)::int FROM research_responses WHERE wave_id=$1) AS response_count,
+        (SELECT count(*)::int FROM research_response_design_context WHERE wave_id=$1) AS context_count
+    `, [wave.id]);
+    const responseCount = numberValue(contextCoverage.rows[0]?.response_count);
+    const contextCount = numberValue(contextCoverage.rows[0]?.context_count);
+    if (responseCount !== contextCount) {
+      throw new Error("RESEARCH_IDENTITY_DESTRUCTION_DESIGN_CONTEXT_INCOMPLETE");
+    }
+
+    const inviteMessagesDetached = await client.query(`
+      UPDATE research_invite_messages rim
+      SET contact_point_id=NULL,
+          updated_at=now()
+      FROM research_invites ri
+      WHERE rim.invite_id=ri.id
+        AND ri.wave_id=$1
+        AND rim.contact_point_id IS NOT NULL
+    `, [wave.id]);
+
+    const deliveriesDetached = await client.query(`
+      UPDATE research_participant_deliveries
+      SET contact_point_id=NULL,
+          updated_at=now()
+      WHERE wave_id=$1
+        AND contact_point_id IS NOT NULL
+    `, [wave.id]);
+
+    const invitesDetached = await client.query(`
+      UPDATE research_invites
+      SET contact_point_id=NULL,
+          sample_unit_id=NULL
+      WHERE wave_id=$1
+        AND (contact_point_id IS NOT NULL OR sample_unit_id IS NOT NULL)
+    `, [wave.id]);
+
+    const destroyedContacts = await client.query(`
+      DELETE FROM public.research_contact_points cp
+      USING public.research_frame_units fu,
+            public.research_frame_snapshots fs
+      WHERE cp.frame_unit_id=fu.id
+        AND fu.frame_snapshot_id=fs.id
+        AND fs.wave_id=$1
+    `, [wave.id]);
+
+    const occurredAt = new Date().toISOString();
+    const evidence = {
+      version: "kontamou.research.identity-destruction.v1",
+      studyId: job.study_id,
+      waveId: text(wave.id),
+      jobId: job.id,
+      retentionUntil: retentionUntil.toISOString(),
+      responseContextsFrozen: contextCount,
+      invitesDetached: invitesDetached.rowCount,
+      inviteMessagesDetached: inviteMessagesDetached.rowCount,
+      participantDeliveriesDetached: deliveriesDetached.rowCount,
+      contactPointsDestroyed: destroyedContacts.rowCount,
+      occurredAt
+    };
+    const evidenceJson = canonicalResearchJson(evidence);
+    const evidenceSha256 = sha256(evidenceJson);
+    const executedBy = text(objectValue(job.input).executedBy) || "research_worker";
+
+    const destructionEvent = await client.query<SqlRow>(`
+      INSERT INTO research_identity_destruction_events (
+        study_id,wave_id,response_contexts_frozen,invites_detached,
+        invite_messages_detached,participant_deliveries_detached,
+        contact_points_destroyed,evidence_json,content_sha256,executed_by,occurred_at
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11::timestamptz
+      )
+      RETURNING id
+    `, [
+      job.study_id,
+      wave.id,
+      contextCount,
+      invitesDetached.rowCount,
+      inviteMessagesDetached.rowCount,
+      deliveriesDetached.rowCount,
+      destroyedContacts.rowCount,
+      evidenceJson,
+      evidenceSha256,
+      executedBy,
+      occurredAt
+    ]);
+
+    await client.query(`
+      UPDATE research_waves
+      SET identity_destroyed_at=$2::timestamptz,
+          updated_at=now()
+      WHERE id=$1
+    `, [wave.id, occurredAt]);
+
+    await client.query("COMMIT");
+    return {
+      waveId: text(wave.id),
+      destructionEventId: text(destructionEvent.rows[0]!.id),
+      destructionSha256: evidenceSha256,
+      responseContextsFrozen: contextCount,
+      newlyFrozenContexts: frozen.rowCount,
+      invitesDetached: invitesDetached.rowCount,
+      inviteMessagesDetached: inviteMessagesDetached.rowCount,
+      participantDeliveriesDetached: deliveriesDetached.rowCount,
+      contactPointsDestroyed: destroyedContacts.rowCount
+    };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function processResearchStudyJobs(limit = 1): Promise<ResearchJobTick> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const safeLimit = Math.max(1, Math.min(5, Math.floor(limit)));
@@ -2673,7 +3009,9 @@ export async function processResearchStudyJobs(limit = 1): Promise<ResearchJobTi
                     ? await buildGreekRetailRelease(job.study_id, job.id, objectValue(job.input))
                   : job.job_type === "results_notification"
                       ? await processResultsNotificationJob(job)
-                    : (() => { throw new Error("RESEARCH_JOB_TYPE_UNSUPPORTED"); })();
+                    : job.job_type === "identity_destruction"
+                        ? await processIdentityDestructionJob(job)
+                      : (() => { throw new Error("RESEARCH_JOB_TYPE_UNSUPPORTED"); })();
       await markJobSucceeded(job.id, { ...objectValue(job.output), ...output });
       processed += 1;
     } catch (error) {
