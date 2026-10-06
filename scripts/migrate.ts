@@ -84,13 +84,13 @@ try {
       // Create a non-login compatibility role only on loopback databases so the
       // immutable production migrations execute under the same role topology.
       await client.query(`
-        DO $
+        DO $role$
         BEGIN
           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'postgres') THEN
             CREATE ROLE postgres NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
           END IF;
         END
-        $;
+        $role$;
       `);
 
       // Hosted Supabase provides pg_cron. Plain PostGIS CI does not, but immutable
@@ -117,7 +117,7 @@ try {
           )
           RETURNS bigint
           LANGUAGE plpgsql
-          AS $
+          AS $schedule$
           DECLARE v_jobid bigint;
           BEGIN
             INSERT INTO cron.job(jobname,schedule,command)
@@ -127,19 +127,19 @@ try {
             RETURNING jobid INTO v_jobid;
             RETURN v_jobid;
           END
-          $;
+          $schedule$;
 
           CREATE OR REPLACE FUNCTION cron.unschedule(p_jobname text)
           RETURNS boolean
           LANGUAGE plpgsql
-          AS $
+          AS $unschedule$
           DECLARE v_deleted integer;
           BEGIN
             DELETE FROM cron.job WHERE jobname=p_jobname;
             GET DIAGNOSTICS v_deleted = ROW_COUNT;
             RETURN v_deleted > 0;
           END
-          $;
+          $unschedule$;
         `);
       }
     }
