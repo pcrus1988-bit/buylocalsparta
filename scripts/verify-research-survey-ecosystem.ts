@@ -269,12 +269,29 @@ if (!experimentIntegrityMigration.includes("FROM PUBLIC;")
 if ((migration.match(/^BEGIN;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one BEGIN");
 if ((migration.match(/^COMMIT;$/gm) ?? []).length !== 1) errors.push("migration must contain exactly one COMMIT");
 
-const created = [...migration.matchAll(/CREATE TABLE public\.([a-z0-9_]+)/g)].map((match) => match[1]!);
+const researchSchemaMigrations = [
+  migration,
+  suppressionMigration,
+  deliveryMigration,
+  reminderMigration,
+  analysisPlanMigration,
+  securityHardeningMigration,
+  experimentIntegrityMigration,
+  phaseIsolationMigration,
+  sampleDesignMigration,
+  sampleDesignIntegrityMigration,
+  protocolEvidenceMigration,
+  observatoryHierarchyMigration,
+  privacyLinkageMigration,
+  weightingRegistryMigration
+].join("\n");
+
+const created = [...researchSchemaMigrations.matchAll(/CREATE TABLE public\.([a-z0-9_]+)/g)].map((match) => match[1]!);
 const duplicates = created.filter((name, index) => created.indexOf(name) !== index);
 if (duplicates.length) errors.push(`duplicate CREATE TABLE blocks: ${[...new Set(duplicates)].join(", ")}`);
 for (const table of expectedTables) {
   if (!created.includes(table)) errors.push(`missing table ${table}`);
-  if (!migration.includes(`ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;`)) {
+  if (!researchSchemaMigrations.includes(`ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;`)) {
     errors.push(`RLS not enabled on ${table}`);
   }
 }
