@@ -1096,6 +1096,7 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
     SELECT
       s.id, s.slug, s.title, s.status, s.pilot_started_at, s.pilot_ended_at,
       s.fieldwork_starts_at, s.fieldwork_ends_at, s.public_results_url,
+      s.linkage_retention_until, s.linkage_destroyed_at, s.linkage_destruction_version,
       latest_i.version AS instrument_version, latest_i.status AS instrument_status,
       latest_ap.version AS analysis_plan_version,
       latest_ap.status AS analysis_plan_status,
@@ -1462,11 +1463,57 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       releases: numberValue(row.releases),
       latestReleaseVersion: optionalText(row.latest_release_version),
       latestReleasePublishedAt: optionalText(row.latest_release_published_at),
+      linkageRetentionUntil: optionalText(row.linkage_retention_until),
+      linkageDestroyedAt: optionalText(row.linkage_destroyed_at),
+      linkageDestructionVersion: optionalText(row.linkage_destruction_version),
       queuedJobs: numberValue(row.queued_jobs),
       runningJobs: numberValue(row.running_jobs),
       failedJobs: numberValue(row.failed_jobs)
     }))
   };
+}
+
+
+export async function setResearchLinkageRetention(
+  principal: SessionPrincipal,
+  input: Readonly<{ slug: string; retainUntil: string }>
+): Promise<Readonly<{ retainUntil: string }>> {
+  assertAdminPermission(principal, "research.privacy.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+  const retainUntil = new Date(input.retainUntil);
+  if (!Number.isFinite(retainUntil.getTime()) || retainUntil.getTime() <= Date.now()) {
+    throw new Error("RESEARCH_RETENTION_DATE_INVALID");
+  }
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    UPDATE research_studies
+    SET linkage_retention_until=$2::timestamptz, updated_at=now()
+    WHERE slug=$1
+      AND linkage_destroyed_at IS NULL
+    RETURNING linkage_retention_until
+  `, [input.slug, retainUntil.toISOString()]);
+  if (!result.rows[0]) throw new Error("RESEARCH_STUDY_NOT_FOUND_OR_LINKAGE_DESTROYED");
+  return { retainUntil: new Date(result.rows[0].linkage_retention_until as string | Date).toISOString() };
+}
+
+export async function destroyResearchLinkage(
+  principal: SessionPrincipal,
+  input: Readonly<{ slug: string; reason: string }>
+): Promise<Readonly<{ destructionEventId: string }>> {
+  assertAdminPermission(principal, "research.privacy.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+  const reason = input.reason.trim();
+  if (reason.length < 10 || reason.length > 4000) throw new Error("RESEARCH_LINKAGE_REASON_INVALID");
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT public.research_destroy_study_linkage(
+      s.id,
+      $2::text,
+      $3::text
+    ) AS destruction_event_id
+    FROM research_studies s
+    WHERE s.slug=$1
+  `, [input.slug, principal.userId, reason]);
+  if (!result.rows[0]) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+  return { destructionEventId: text(result.rows[0].destruction_event_id) };
 }
 
 export type ResearchLifecycleAction =
