@@ -116,3 +116,26 @@ test("quality signals retain the rapid-completion review rule", () => {
   assert.equal(result.review, true);
   assert.deepEqual(result.reasonCodes, ["rapid_completion"]);
 });
+
+test("quality score quantifies deterministic review signals without auto-excluding", () => {
+  const result = researchQualitySignals({
+    Q03: ["physical"],
+    Q04: "26_50",
+    Q05: { stock: "no", stock_sync: "yes", catalog: "no", payments: "no", orders: "no", tracking: "no" },
+    Q06: "daily",
+    Q18: "asdf"
+  }, 45);
+  assert.equal(result.review, true);
+  assert.ok(result.score >= 0 && result.score < 50);
+  assert.ok(result.reasonCodes.includes("capability_hierarchy_mismatch"));
+  assert.ok(result.reasonCodes.includes("open_text_garbage"));
+  assert.ok(result.reasonCodes.includes("rapid_completion"));
+});
+
+test("quality signals flag repetitive open text but preserve plausible short answers", () => {
+  const garbage = researchQualitySignals({ Q18: "aaaaaaaaaaaa" }, 240);
+  assert.ok(garbage.reasonCodes.includes("open_text_garbage"));
+  const plausible = researchQualitySignals({ Q18: "Γραφειοκρατία" }, 240);
+  assert.equal(plausible.review, false);
+  assert.equal(plausible.score, 100);
+});
