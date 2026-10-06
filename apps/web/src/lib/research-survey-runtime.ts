@@ -63,7 +63,7 @@ export type ResearchSurveyContext = Readonly<{
   questions: readonly ResearchQuestion[];
   answers: ResearchAnswerMap;
   experiments: readonly ResearchExperimentAssignment[];
-  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>>;
+  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code", boolean>>>;
 }>;
 
 function questionFromRow(row: SqlRow): ResearchQuestion {
@@ -222,7 +222,7 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
 
   let answers: ResearchAnswerMap = {};
   let experiments: readonly ResearchExperimentAssignment[] = [];
-  let consents: Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>> = {};
+  let consents: Partial<Record<"results_notification" | "thank_you_code", boolean>> = {};
   if (response) {
     const [answerResult, experimentResult, consentResult] = await Promise.all([
       pool.query<SqlRow>(`
@@ -241,7 +241,7 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
         SELECT DISTINCT ON (consent_kind) consent_kind, granted
         FROM research_consents
         WHERE response_id = $1
-          AND consent_kind IN ('results_notification','thank_you_code','marketing')
+          AND consent_kind IN ('results_notification','thank_you_code')
         ORDER BY consent_kind, occurred_at DESC, id DESC
       `, [response.id])
     ]);
@@ -425,10 +425,10 @@ export async function refusePublicResearchInvite(input: Readonly<{
 export async function updatePublicResearchConsents(input: Readonly<{
   slug: string;
   token: string;
-  optionalConsents: Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>;
+  optionalConsents: Partial<Record<"results_notification" | "thank_you_code", boolean>>;
 }>): Promise<Readonly<{
   status: "preferences_updated";
-  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>>;
+  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code", boolean>>>;
 }>> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const client = await getProductionPostgresRuntime().sqlPool.connect();
@@ -449,7 +449,7 @@ export async function updatePublicResearchConsents(input: Readonly<{
     }
 
     for (const [consentKind, granted] of Object.entries(input.optionalConsents)) {
-      if (!["results_notification", "thank_you_code", "marketing"].includes(consentKind)) continue;
+      if (!["results_notification", "thank_you_code"].includes(consentKind)) continue;
       const normalizedGranted = Boolean(granted);
       const previousConsent = await client.query<SqlRow>(`
         SELECT granted
@@ -466,7 +466,7 @@ export async function updatePublicResearchConsents(input: Readonly<{
         `, [response.id, consentKind, invite.consent_statement_version, normalizedGranted]);
       }
 
-      if (!normalizedGranted && consentKind !== "marketing") {
+      if (!normalizedGranted) {
         await client.query(`
           WITH cancelled AS (
             UPDATE research_participant_deliveries
@@ -497,12 +497,12 @@ export async function updatePublicResearchConsents(input: Readonly<{
       SELECT DISTINCT ON (consent_kind) consent_kind,granted
       FROM research_consents
       WHERE response_id=$1
-        AND consent_kind IN ('results_notification','thank_you_code','marketing')
+        AND consent_kind IN ('results_notification','thank_you_code')
       ORDER BY consent_kind,occurred_at DESC,id DESC
     `, [response.id]);
     const consents = Object.fromEntries(
       latest.rows.map((row) => [text(row.consent_kind), Boolean(row.granted)])
-    ) as Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>;
+    ) as Partial<Record<"results_notification" | "thank_you_code", boolean>>;
 
     await client.query("COMMIT");
     return { status: "preferences_updated", consents };
@@ -520,7 +520,7 @@ export async function savePublicResearchSurvey(input: Readonly<{
   answers?: ResearchAnswerMap;
   researchConsent?: boolean;
   complete?: boolean;
-  optionalConsents?: Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>;
+  optionalConsents?: Partial<Record<"results_notification" | "thank_you_code", boolean>>;
   experimentChoices?: Readonly<Record<string, "a" | "b" | "none">>;
 }>): Promise<Readonly<{ status: string; experiments: readonly ResearchExperimentAssignment[] }>> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
@@ -624,7 +624,7 @@ export async function savePublicResearchSurvey(input: Readonly<{
     }
 
     for (const [consentKind, granted] of Object.entries(input.optionalConsents ?? {})) {
-      if (!["results_notification", "thank_you_code", "marketing"].includes(consentKind)) continue;
+      if (!["results_notification", "thank_you_code"].includes(consentKind)) continue;
       const previousConsent = await client.query<SqlRow>(`
         SELECT granted
         FROM research_consents
@@ -728,7 +728,7 @@ export async function savePublicResearchSurvey(input: Readonly<{
         `, [invite.sample_unit_id]);
       }
 
-      // Reward eligibility follows completion only. Optional contact/marketing
+      // Reward eligibility follows completion only. Optional participant-delivery
       // choices are recorded separately and never determine research compensation.
       await client.query(`
         INSERT INTO research_reward_entitlements
