@@ -876,6 +876,7 @@ export async function researchReleaseArtifactIntegrity(
   const releaseResult = await executor.query<SqlRow>(`
     SELECT
       rs.release_version,
+      rs.wave_id,
       rs.analysis_run_id,
       rs.dataset_sha256,
       rs.artifact_sha256,
@@ -920,6 +921,7 @@ export async function researchReleaseArtifactIntegrity(
     releaseVersion: text(release.release_version),
     studySlug: text(release.slug),
     analysisRunId: text(release.analysis_run_id),
+    waveId: text(release.wave_id),
     datasetSha256: text(release.dataset_sha256),
     methodology: objectValue(release.methodology_json),
     estimates
@@ -937,6 +939,7 @@ export async function getPublishedGreekRetailResults(slug: string): Promise<Read
   releaseVersion: string;
   publishedAt: string;
   analysisRunId: string;
+  waveId: string;
   datasetSha256: string;
   artifactSha256: string;
   methodology: Record<string, unknown>;
@@ -946,7 +949,7 @@ export async function getPublishedGreekRetailResults(slug: string): Promise<Read
   const pool = getProductionPostgresRuntime().sqlPool;
   const release = await pool.query<SqlRow>(`
     SELECT rs.release_version,rs.published_at,rs.dataset_sha256,rs.artifact_sha256,
-           rs.methodology_json,rs.analysis_run_id
+           rs.methodology_json,rs.analysis_run_id,rs.wave_id
     FROM research_release_snapshots rs
     JOIN research_studies s ON s.id=rs.study_id
     WHERE s.slug=$1 AND rs.published_at IS NOT NULL
@@ -968,6 +971,7 @@ export async function getPublishedGreekRetailResults(slug: string): Promise<Read
     releaseVersion: text(row.release_version),
     publishedAt: new Date(row.published_at as string | Date).toISOString(),
     analysisRunId: text(row.analysis_run_id),
+    waveId: text(row.wave_id),
     datasetSha256: text(row.dataset_sha256),
     artifactSha256: text(row.artifact_sha256),
     methodology: objectValue(row.methodology_json),
@@ -994,6 +998,7 @@ export type PublishedResearchReleaseArtifact = Readonly<{
   releaseVersion: string;
   studySlug: string;
   analysisRunId: string;
+  waveId: string;
   datasetSha256: string;
   methodology: Record<string, unknown>;
   estimates: readonly PublishedResearchEstimate[];
@@ -1013,6 +1018,7 @@ export async function getPublishedGreekRetailReleaseArtifact(slug: string): Prom
     releaseVersion: published.releaseVersion,
     studySlug: slug,
     analysisRunId: published.analysisRunId,
+    waveId: published.waveId,
     datasetSha256: published.datasetSha256,
     methodology: published.methodology,
     estimates: published.estimates
