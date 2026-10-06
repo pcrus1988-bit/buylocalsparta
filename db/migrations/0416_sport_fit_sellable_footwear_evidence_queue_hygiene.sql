@@ -65,7 +65,7 @@ SELECT EXISTS (
     AND recalled=false
 );
 
-DO $
+DO $$
 DECLARE r record; v_count integer; v_enforce boolean;
 BEGIN
   SELECT enforce_data INTO v_enforce FROM _sport_416_context;
@@ -93,7 +93,7 @@ $$;
 -- These are live, high-value queue targets. Stock itself is intentionally not a
 -- migration precondition because availability can change after research; each
 -- family must still have an approved, visible and unpaused commercial offer.
-DO $
+DO $$
 DECLARE r record; v_count integer; v_enforce boolean;
 BEGIN
   SELECT enforce_data INTO v_enforce FROM _sport_416_context;
@@ -123,7 +123,7 @@ BEGIN
 END
 $$;
 
-DO $
+DO $$
 DECLARE v_bad integer; v_enforce boolean;
 BEGIN
   SELECT enforce_data INTO v_enforce FROM _sport_416_context;
@@ -187,7 +187,7 @@ WHERE s.source_key='adidas_response_2_kj1750_official'
   AND s.url='https://www.adidas.com/kw/en/response-2-running-shoes/KJ1750.html'
   AND EXISTS (SELECT 1 FROM _sport_416_context WHERE enforce_data);
 
-DO $
+DO $$
 DECLARE v_count integer; v_enforce boolean;
 BEGIN
   SELECT enforce_data INTO v_enforce FROM _sport_416_context;
@@ -245,7 +245,7 @@ SELECT evidence_id,keeper_id
 FROM ranked
 WHERE rn>1;
 
-DO $
+DO $$
 DECLARE v_count integer; v_enforce boolean;
 BEGIN
   SELECT enforce_data INTO v_enforce FROM _sport_416_context;
@@ -271,7 +271,7 @@ WHERE e.id=d.evidence_id;
 -- The live audit found 39 queue requests that are either already normalized
 -- for these five exact families or are the non-applicable football outsole field.
 -- Fail closed if the target state has drifted before this migration is applied.
-DO $
+DO $$
 DECLARE v_count integer; v_enforce boolean;
 BEGIN
   SELECT enforce_data INTO v_enforce FROM _sport_416_context;
@@ -378,7 +378,7 @@ WHERE f.style_code='KJ1750'
   AND k.family_id=f.family_id;
 
 -- Regression guards.
-DO $
+DO $$
 DECLARE v_count integer; v_bad integer; v_enforce boolean;
 BEGIN
   SELECT enforce_data INTO v_enforce FROM _sport_416_context;
