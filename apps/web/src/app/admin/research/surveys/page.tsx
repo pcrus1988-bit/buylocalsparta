@@ -7,6 +7,7 @@ import { ResearchStudyFieldworkBalance } from "../../../../components/ResearchSt
 import { ResearchStudyLifecycleControls } from "../../../../components/ResearchStudyLifecycleControls";
 import { ResearchStudyQualityControls } from "../../../../components/ResearchStudyQualityControls";
 import { ResearchStudyProtocolControls } from "../../../../components/ResearchStudyProtocolControls";
+import { ResearchStudyPrivacyControls } from "../../../../components/ResearchStudyPrivacyControls";
 import { ResearchStudySamplingControls } from "../../../../components/ResearchStudySamplingControls";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, WorkspaceStatusBadge } from "../../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
@@ -189,7 +190,16 @@ export default async function ResearchSurveysAdminPage() {
               analysisPlanStatus={study.analysisPlanStatus}
               latestReleaseVersion={study.latestReleaseVersion}
               latestReleasePublishedAt={study.latestReleasePublishedAt}
-            />}
+            />
+
+            {hasAdminPermission(principal, "research.privacy.manage") && <ResearchStudyPrivacyControls
+              slug={study.slug}
+              csrfToken={principal.csrfToken}
+              studyStatus={study.status}
+              linkageRetentionUntil={study.linkageRetentionUntil}
+              linkageDestroyedAt={study.linkageDestroyedAt}
+              linkageDestructionVersion={study.linkageDestructionVersion}
+            />}}
 
             <WorkspaceSectionHeading
               eyebrow="Evidence chain"
