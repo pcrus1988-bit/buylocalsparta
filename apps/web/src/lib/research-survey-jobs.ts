@@ -3115,7 +3115,7 @@ export async function processResearchStudyJobs(limit = 1): Promise<ResearchJobTi
               : job.job_type === "analysis"
                   ? await runGreekRetailAnalysis(job.study_id, job.wave_id, job.id)
                 : job.job_type === "release"
-                    ? await buildGreekRetailRelease(job.study_id, job.id, objectValue(job.input))
+                    ? await buildGreekRetailRelease(job.study_id, job.wave_id, job.id, objectValue(job.input))
                   : job.job_type === "results_notification"
                       ? await processResultsNotificationJob(job)
                     : job.job_type === "identity_destruction"
