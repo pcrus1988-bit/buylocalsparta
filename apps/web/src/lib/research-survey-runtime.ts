@@ -691,6 +691,22 @@ export async function savePublicResearchSurvey(input: Readonly<{
       `, [response.id]);
       const durationSeconds = numberValue(completion.rows[0]?.duration_seconds);
       const quality = researchQualitySignals(allAnswers, durationSeconds);
+      const answerPatternSha256 = sha256(canonicalResearchEvidence(allAnswers));
+      const duplicatePatterns = await client.query<SqlRow>(`
+        SELECT count(DISTINCT qr.response_id)::int AS count
+        FROM research_response_quality_reviews qr
+        JOIN research_responses other ON other.id=qr.response_id
+        WHERE other.study_id=$1
+          AND other.status='completed'
+          AND qr.response_id<>$2
+          AND qr.answer_pattern_sha256=$3
+      `, [invite.study_id, response.id, answerPatternSha256]);
+      const duplicatePatternCount = numberValue(duplicatePatterns.rows[0]?.count);
+      const reasonCodes = [...new Set([
+        ...quality.reasonCodes,
+        ...(duplicatePatternCount > 0 ? ["duplicate_answer_pattern"] : [])
+      ])];
+      const qualityScore = Math.max(0, quality.score - (duplicatePatternCount > 0 ? 30 : 0));
       const experimentCount = await client.query<SqlRow>(`
         SELECT count(*)::int AS count
         FROM research_experiment_assignments
@@ -699,19 +715,29 @@ export async function savePublicResearchSurvey(input: Readonly<{
       const answeredExperimentTasks = numberValue(experimentCount.rows[0]?.count);
       await client.query(`
         INSERT INTO research_response_quality_reviews
-          (response_id, rule_version, decision, reason_codes, metrics, source)
-        VALUES ($1, 'greek-retail-2026-qc-v2', $2, $3::text[], $4::jsonb, 'automated')
+          (
+            response_id, rule_version, decision, reason_codes, metrics, source,
+            quality_score, answer_pattern_sha256
+          )
+        VALUES (
+          $1, 'greek-retail-2026-qc-v3', $2, $3::text[], $4::jsonb, 'automated',
+          $5,$6
+        )
       `, [
         response.id,
-        quality.review ? "review" : "include",
-        quality.reasonCodes,
+        reasonCodes.length > 0 ? "review" : "include",
+        reasonCodes,
         JSON.stringify({
           ...quality.metrics,
           requiredAnswerValidation: "passed",
           experimentTasksAnswered: answeredExperimentTasks,
           experimentModuleRequired: false,
+          duplicatePatternCount,
+          duplicatePatternReviewOnly: true,
           automaticExclusion: false
-        })
+        }),
+        qualityScore,
+        answerPatternSha256
       ]);
       await client.query(`
         UPDATE research_invites SET status = 'completed' WHERE id = $1
