@@ -1178,7 +1178,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       throw new Error("RESEARCH_SAMPLE_REDRAW_AFTER_CONTACT");
     }
     const frameResult = await client.query<SqlRow>(`
-      SELECT id, population_size, content_sha256
+      SELECT id, wave_id, population_size, content_sha256
       FROM research_frame_snapshots
       WHERE study_id=$1 AND status='frozen'
       ORDER BY frozen_at DESC NULLS LAST, created_at DESC
@@ -1187,6 +1187,114 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
     `, [job.study_id]);
     const frame = frameResult.rows[0];
     if (!frame) throw new Error("RESEARCH_SAMPLE_REQUIRES_FROZEN_FRAME");
+
+    // Freeze population margins from the exact frame before any sample is drawn.
+    // The source is response-independent and deterministic, so pilot/main draws
+    // can reuse the same append-only evidence set for this frame.
+    const populationMarginRows = await client.query<SqlRow>(`
+      SELECT dimension,category,target_total
+      FROM (
+        SELECT
+          'region_code'::text AS dimension,
+          COALESCE(region_code,'unknown')::text AS category,
+          count(*)::numeric AS target_total
+        FROM research_frame_units
+        WHERE frame_snapshot_id=$1
+        GROUP BY COALESCE(region_code,'unknown')
+        UNION ALL
+        SELECT
+          'sector_code'::text AS dimension,
+          COALESCE(sector_code,'unknown')::text AS category,
+          count(*)::numeric AS target_total
+        FROM research_frame_units
+        WHERE frame_snapshot_id=$1
+        GROUP BY COALESCE(sector_code,'unknown')
+      ) margins
+      ORDER BY dimension,category
+    `, [frame.id]);
+    if (!populationMarginRows.rows.length) {
+      throw new Error("RESEARCH_POPULATION_MARGINS_EMPTY");
+    }
+    const populationMargins = populationMarginRows.rows.map((row) => ({
+      dimension: text(row.dimension),
+      category: text(row.category),
+      targetTotal: numberValue(row.target_total)
+    }));
+    const marginSourceSha256 = sha256(canonicalResearchJson({
+      schema: "kontamou.research.population-margins.v1",
+      frameSnapshotId: text(frame.id),
+      frameContentSha256: text(frame.content_sha256),
+      margins: populationMargins
+    }));
+
+    const marginSetInsert = await client.query<SqlRow>(`
+      INSERT INTO research_population_margin_sets (
+        study_id,wave_id,frame_snapshot_id,label,source_kind,source_ref,source_sha256,methodology_version
+      )
+      VALUES (
+        $1,$2,$3,
+        'Frozen frame region + sector margins',
+        'frozen_frame',
+        'research_frame_snapshot:' || $3::text,
+        $4,
+        'frozen-frame-region-sector-margins-v1'
+      )
+      ON CONFLICT (wave_id,frame_snapshot_id,source_kind) DO NOTHING
+      RETURNING id,source_sha256
+    `, [job.study_id, frame.wave_id, frame.id, marginSourceSha256]);
+
+    const marginSet = marginSetInsert.rows[0] ?? (await client.query<SqlRow>(`
+      SELECT id,source_sha256
+      FROM research_population_margin_sets
+      WHERE study_id=$1
+        AND wave_id=$2
+        AND frame_snapshot_id=$3
+        AND source_kind='frozen_frame'
+      LIMIT 1
+    `, [job.study_id, frame.wave_id, frame.id])).rows[0];
+    if (!marginSet) throw new Error("RESEARCH_POPULATION_MARGIN_SET_MISSING");
+    if (text(marginSet.source_sha256) !== marginSourceSha256) {
+      throw new Error("RESEARCH_POPULATION_MARGIN_SOURCE_HASH_MISMATCH");
+    }
+
+    for (const margin of populationMargins) {
+      await client.query(`
+        INSERT INTO research_population_margins (
+          margin_set_id,dimension,category,target_total,evidence_json
+        )
+        VALUES (
+          $1,$2,$3,$4,
+          jsonb_build_object(
+            'frameSnapshotId',$5::text,
+            'frameContentSha256',$6::text,
+            'source','frozen_frame'
+          )
+        )
+        ON CONFLICT (margin_set_id,dimension,category) DO NOTHING
+      `, [
+        marginSet.id,
+        margin.dimension,
+        margin.category,
+        margin.targetTotal,
+        frame.id,
+        frame.content_sha256
+      ]);
+    }
+
+    const storedMarginRows = await client.query<SqlRow>(`
+      SELECT dimension,category,target_total
+      FROM research_population_margins
+      WHERE margin_set_id=$1
+      ORDER BY dimension,category
+    `, [marginSet.id]);
+    const storedMargins = storedMarginRows.rows.map((row) => ({
+      dimension: text(row.dimension),
+      category: text(row.category),
+      targetTotal: numberValue(row.target_total)
+    }));
+    if (canonicalResearchJson(storedMargins) !== canonicalResearchJson(populationMargins)) {
+      throw new Error("RESEARCH_POPULATION_MARGIN_REGISTRY_MISMATCH");
+    }
 
     const strataResult = await client.query<SqlRow>(`
       WITH phase_population AS (
