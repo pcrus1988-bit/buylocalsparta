@@ -1,6 +1,6 @@
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
-import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
@@ -41,7 +41,7 @@ export async function researchQualityReviewQueue(
   assertAdminPermission(principal, "research.read");
   if (!productionDatabaseConfigured()) return [];
 
-  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+  const result = await getAdminPostgresRuntime().sqlPool.query<SqlRow>(`
     WITH latest AS (
       SELECT DISTINCT ON (qr.response_id)
         qr.response_id,
@@ -109,7 +109,7 @@ export async function resolveResearchQualityReview(
   if (!/^[0-9a-f-]{36}$/i.test(input.responseId)) throw new Error("RESEARCH_QA_RESPONSE_INVALID");
 
   const note = input.note?.trim().replace(/[\r\n]+/g, " ").slice(0, 500) || "";
-  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  const client = await getAdminPostgresRuntime().sqlPool.connect();
   try {
     await client.query("BEGIN");
     const responseResult = await client.query<SqlRow>(`
