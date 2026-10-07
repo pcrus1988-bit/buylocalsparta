@@ -153,13 +153,25 @@ function MatrixQuestion({ question, value, onChange }: {
   </div>;
 }
 
+function answerPresent(value: ResearchAnswer | undefined): boolean {
+  if (value == null) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+}
+
 function ResearchQuestionCard({ question, value, onChange }: {
   question: ResearchQuestion;
   value: ResearchAnswer | undefined;
   onChange: (value: ResearchAnswer) => void;
 }) {
-  return <article className={styles.question}>
-    <div className={styles.questionNumber}>{question.code}</div>
+  const answered = answerPresent(value);
+  return <article className={styles.question + (answered ? " " + styles.questionAnswered : "")}>
+    <div className={styles.questionMeta}>
+      <div className={styles.questionNumber}>{question.code}</div>
+      {answered && <span className={styles.answered}>Απαντήθηκε</span>}
+    </div>
     <h3>{question.prompt}</h3>
     {question.help && <p className={styles.help}>{question.help}</p>}
     {question.type === "single" && <SingleQuestion question={question} value={value} onChange={onChange} />}
@@ -243,6 +255,8 @@ export function ResearchSurveyForm({ slug, token, initial }: {
   }, [initial.questions]);
   const allSections = [...questionSections, { code: "X", title: SECTION_LABELS.X, questions: [] as ResearchQuestion[] }, { code: "DONE", title: "Ολοκλήρωση", questions: [] as ResearchQuestion[] }];
   const current = allSections[sectionIndex];
+  const currentAnswered = current.questions.filter((question) => answerPresent(answers[question.code])).length;
+  const currentQuestionCount = current.questions.length;
 
   async function save(payload: Record<string, unknown>) {
     setSaving(true);
@@ -394,6 +408,11 @@ export function ResearchSurveyForm({ slug, token, initial }: {
     return <div className={styles.consent}>
       <span className={styles.kicker}>Πριν ξεκινήσετε</span>
       <h2>Συγκατάθεση συμμετοχής</h2>
+      <div className={styles.consentFacts}>
+        <span>Προαιρετική συμμετοχή</span>
+        <span>Προσωπικός σύνδεσμος δείγματος</span>
+        <span>Χωρίς ΑΦΜ / email στο questionnaire</span>
+      </div>
       <p>Η συμμετοχή είναι προαιρετική. Ο προσωπικός σύνδεσμος χρησιμοποιείται για να επιβεβαιώνει ότι η απάντηση ανήκει στο επιλεγμένο δείγμα και για να αποφεύγονται διπλές συμμετοχές. Δεν εμφανίζεται ΑΦΜ, email ή όνομα επιχείρησης στο ερωτηματολόγιο.</p>
       <label className={styles.consentChoice}>
         <input type="checkbox" checked={researchConsent} onChange={(event) => setResearchConsent(event.target.checked)} />
@@ -422,12 +441,27 @@ export function ResearchSurveyForm({ slug, token, initial }: {
   const progress = Math.round((sectionIndex / (allSections.length - 1)) * 100);
   return <div className={styles.form}>
     <div className={styles.progress}>
-      <div><span>Πρόοδος</span><strong>{progress}%</strong></div>
+      <div className={styles.progressTop}>
+        <div>
+          <span>Βήμα {sectionIndex + 1} από {allSections.length}</span>
+          <strong>{current.title}</strong>
+        </div>
+        <strong className={styles.progressPercent}>{progress}%</strong>
+      </div>
       <div className={styles.progressTrack}><span style={{ width: String(progress) + "%" }} /></div>
+      <div className={styles.stepDots} aria-hidden="true">
+        {allSections.map((section, index) => <span
+          key={section.code}
+          className={index < sectionIndex ? styles.stepDone : index === sectionIndex ? styles.stepActive : ""}
+        />)}
+      </div>
     </div>
 
     <header className={styles.sectionHeader}>
-      <span className={styles.kicker}>{current.code === "X" ? "Προαιρετικό" : current.code === "DONE" ? "Τελικό βήμα" : "Ενότητα " + current.code}</span>
+      <div className={styles.sectionMeta}>
+        <span className={styles.kicker}>{current.code === "X" ? "Προαιρετικό" : current.code === "DONE" ? "Τελικό βήμα" : "Ενότητα " + current.code}</span>
+        {currentQuestionCount > 0 && <span>{currentAnswered} / {currentQuestionCount} απαντημένες</span>}
+      </div>
       <h2>{current.title}</h2>
       {current.code === "X" && <p>Οι επιλογές αυτές είναι ερευνητικά σενάρια και όχι πραγματικές εμπορικές προσφορές. Μπορείτε να παραλείψετε ολόκληρη την ενότητα.</p>}
       {current.code === "DONE" && <p>Με την ολοκλήρωση η ερευνητική απάντηση κλειδώνει. Οι προαιρετικές επιλογές ενημέρωσης αποτελεσμάτων και κωδικού ευχαριστίας εμφανίζονται μόνο αφού ολοκληρωθεί η έρευνα.</p>}
