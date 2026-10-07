@@ -43,11 +43,17 @@ function safeRatio(numerator: number, denominator: number): number {
   return Math.min(Math.max(numerator / denominator, 0), 1);
 }
 
+function isLiveStatus(status: string): boolean {
+  return status === "fielding" || status === "pilot";
+}
+
 export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicResearchStudySummary }) {
   const [study, setStudy] = useState(initialStudy);
   const [lastRefresh, setLastRefresh] = useState(() => new Date().toISOString());
 
   useEffect(() => {
+    if (!isLiveStatus(study.status)) return;
+
     let cancelled = false;
     async function refresh() {
       try {
@@ -71,11 +77,11 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [initialStudy.slug, initialStudy.waveSlug]);
+  }, [initialStudy.slug, initialStudy.waveSlug, study.status]);
 
   const activeStage = stageIndex(study.status);
   const completion = Math.min(Math.max(study.completionRate, 0), 1);
-  const isLive = study.status === "fielding" || study.status === "pilot";
+  const isLive = isLiveStatus(study.status);
   const remaining = study.targetCompletes > 0 ? Math.max(study.targetCompletes - study.completed, 0) : 0;
   const deliveryRate = safeRatio(study.delivered, study.sent);
   const startRate = safeRatio(study.started, study.opened || study.sent);
