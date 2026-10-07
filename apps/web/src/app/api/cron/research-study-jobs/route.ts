@@ -1,4 +1,4 @@
-import { processResearchStudyJobs, RESEARCH_JOB_TYPES, type ResearchJobType } from "../../../../lib/research-survey-jobs";
+import { processResearchStudyJobs, type ResearchJobType } from "../../../../lib/research-survey-jobs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,10 +11,11 @@ const EMAIL_JOB_TYPES: readonly ResearchJobType[] = [
   "results_notification"
 ];
 
-const EMAIL_JOB_TYPE_SET = new Set<ResearchJobType>(EMAIL_JOB_TYPES);
-const OPERATIONAL_JOB_TYPES = RESEARCH_JOB_TYPES.filter(
-  (jobType) => !EMAIL_JOB_TYPE_SET.has(jobType)
-);
+const SERVERLESS_OPERATIONAL_JOB_TYPES: readonly ResearchJobType[] = [
+  "sample_draw",
+  "release",
+  "identity_destruction"
+];
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET?.trim();
@@ -23,20 +24,18 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Always drain governed non-email work first so frame/sample/analysis/release
-    // jobs cannot be stranded behind the email-delivery lane. Email jobs keep
-    // their separate delivery readiness guard inside the worker implementation.
-    const operational = await processResearchStudyJobs(1, OPERATIONAL_JOB_TYPES);
-    if (operational.claimed > 0) {
-      return Response.json(
-        { ok: true, lane: "operational", ...operational },
-        { headers: { "cache-control": "no-store" } }
-      );
-    }
-
+    // Long-running frame acquisition and analysis are intentionally excluded
+    // from Vercel. They run through the production one-shot Action where the
+    // execution window is measured in hours rather than minutes.
+    //
+    // Drain one bounded operational job and one email job every invocation so
+    // neither lane can starve the other. The email implementation still fails
+    // closed unless the dedicated Research SES readiness gate is configured.
+    const operational = await processResearchStudyJobs(1, SERVERLESS_OPERATIONAL_JOB_TYPES);
     const email = await processResearchStudyJobs(1, EMAIL_JOB_TYPES);
+
     return Response.json(
-      { ok: true, lane: "email", ...email },
+      { ok: true, operational, email },
       { headers: { "cache-control": "no-store" } }
     );
   } catch (error) {
