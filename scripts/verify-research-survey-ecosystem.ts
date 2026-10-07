@@ -97,7 +97,6 @@ const methodologyPage = readFileSync("apps/web/src/app/research/greek-retail-202
 const observatoryPage = readFileSync("apps/web/src/app/research/page.tsx", "utf8");
 const researchPrivacyPage = readFileSync("apps/web/src/app/research/privacy/page.tsx", "utf8");
 const researchAdmin = readFileSync("apps/web/src/app/admin/research/surveys/page.tsx", "utf8");
-const researchAdminLoading = readFileSync("apps/web/src/app/admin/research/surveys/loading.tsx", "utf8");
 const researchAdminSection = readFileSync("apps/web/src/app/admin/research/surveys/[slug]/[section]/page.tsx", "utf8");
 const researchSurveyAdminNav = readFileSync("apps/web/src/components/ResearchSurveyAdminNav.tsx", "utf8");
 const researchQuestionsEditor = readFileSync("apps/web/src/components/ResearchSurveyQuestionsEditor.tsx", "utf8");
@@ -108,6 +107,8 @@ const sesSender = readFileSync("apps/web/src/lib/admin-mail-ses.ts", "utf8");
 const gemi = readFileSync("apps/web/src/lib/gemi-admin-export.ts", "utf8");
 const rbac = readFileSync("packages/core/src/auth/rbac.ts", "utf8");
 const adminRuntime = readFileSync("apps/web/src/lib/admin-runtime.ts", "utf8");
+const postgresRuntime = readFileSync("apps/web/src/lib/postgres-runtime.ts", "utf8");
+const postgresAdminAuth = readFileSync("packages/postgres-runtime/src/admin-auth.ts", "utf8");
 const identityPersistence = readFileSync("packages/core/src/persistence/postgres-identity-trust.ts", "utf8");
 const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts?: Record<string, string> };
 
@@ -606,7 +607,10 @@ if (!release.includes("sample_design_sha256") || !release.includes("designEviden
 if (!surveyRuntime.includes("researchSurveyAdminIndexOverview")) errors.push("lightweight Research survey index loader missing");
 if (!researchAdmin.includes("researchSurveyAdminIndexOverview")) errors.push("survey index does not use lightweight loader");
 if (researchAdmin.includes("researchSurveyAdminOverview")) errors.push("survey index regressed to the heavyweight operational overview");
-if (!researchAdminLoading.includes("Loading survey workspaces")) errors.push("survey index loading state missing");
+if (!surveyRuntime.includes("getAdminPostgresRuntime().sqlPool.query<SqlRow>(`\n    WITH completed AS")) errors.push("survey index is not reusing the Admin database connection");
+if (!postgresRuntime.includes('const ADMIN_DB_IDLE_TIMEOUT_MS = "120000"')) errors.push("Admin database lane is not kept warm long enough for fast navigation");
+if (!identityPersistence.includes("UPDATE user_sessions us") || !identityPersistence.includes("SET last_seen_at=$2")) errors.push("Admin session lookup is not validating and touching in one database statement");
+if (postgresAdminAuth.includes("await this.#identity.verifyCsrf({ sessionId: persisted.sessionId") || postgresAdminAuth.includes("await this.#identity.touchSession({ sessionId: persisted.sessionId")) errors.push("Admin session reads still perform redundant database round trips");
 if (researchAdmin.includes("#survey-")) errors.push("survey admin still relies on hash-anchor navigation");
 if (!researchAdmin.includes('href="/admin/research/settings"')) errors.push("survey index does not separate global Research settings");
 if (!researchGlobalSettings.includes("Global Research settings")) errors.push("dedicated global Research settings page missing");
