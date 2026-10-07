@@ -34,7 +34,7 @@ export default async function ResearchSurveyTokenPage({ params }: {
   return <main className={styles.shell}>
     <header className={styles.hero}>
       <div className={styles.brand}>KONTA MOY · RESEARCH</div>
-      <span>Μελέτη {context.instrument.version}</span>
+      <span>Πρόσκληση συμμετοχής</span>
       <h1>{context.study.title}</h1>
       {context.study.subtitle && <p>{context.study.subtitle}</p>}
       <div className={styles.meta}>
@@ -43,8 +43,8 @@ export default async function ResearchSurveyTokenPage({ params }: {
       </div>
       <div className={styles.trust}>
         <span>Προαιρετική συμμετοχή</span>
-        <span>Privacy-first research flow</span>
-        <span>Οι απαντήσεις κλειδώνουν στην ολοκλήρωση</span>
+        <span>Προστασία προσωπικών δεδομένων</span>
+        <span>Μετά την ολοκλήρωση οι απαντήσεις δεν αλλάζουν</span>
       </div>
     </header>
     <ResearchSurveyForm slug={slug} token={token} initial={context} />
