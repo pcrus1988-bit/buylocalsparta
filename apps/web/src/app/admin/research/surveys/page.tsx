@@ -128,6 +128,7 @@ export default async function ResearchSurveysAdminPage() {
 
             {operationalWorkspaces.get(study.slug) && <ResearchStudyOperationsDirectory
               slug={study.slug}
+              csrfToken={principal.csrfToken}
               workspace={operationalWorkspaces.get(study.slug)!}
             />}
 
