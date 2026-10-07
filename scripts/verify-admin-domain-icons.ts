@@ -29,16 +29,42 @@ const renderer = readFileSync(`${root}/apps/web/src/components/AdminDomainNaviga
 for (const requirement of ["AdminNavIcon", '<AdminNavIcon name={group.icon ?? "overview"} />']) if (!renderer.includes(requirement)) failures.push(`AdminDomainNavigation is missing ${requirement}`);
 if (renderer.includes('{group.icon ?? group.links[0]?.icon ?? "·"}')) failures.push("Admin sidebar must not render raw Unicode group icons");
 
-const researchControlCenter = readFileSync(`${root}/apps/web/src/app/admin/research/surveys/page.tsx`, "utf8");
+const researchSurveyList = readFileSync(`${root}/apps/web/src/app/admin/research/surveys/page.tsx`, "utf8");
+for (const requirement of ["All surveys", "Open survey", 'href={"/admin/research/surveys/" + encodeURIComponent(study.slug)}']) {
+  if (!researchSurveyList.includes(requirement)) failures.push(`Research survey list is missing ${requirement}`);
+}
+
+const researchSurveyNav = readFileSync(`${root}/apps/web/src/components/ResearchSurveyAdminNav.tsx`, "utf8");
 for (const requirement of [
-  "Survey Control Center",
-  'id={"survey-" + study.slug}',
-  'id={"survey-settings-" + study.slug}',
-  'href={"#survey-sampling-" + study.slug}',
-  'href={"#survey-fieldwork-" + study.slug}',
-  'href={"#survey-quality-" + study.slug}',
-  'href={"#survey-lifecycle-" + study.slug}'
-]) if (!researchControlCenter.includes(requirement)) failures.push(`Research survey control center is missing ${requirement}`);
+  "sampling",
+  "fieldwork",
+  "balance",
+  "contacts",
+  "invitations",
+  "kad",
+  "consent",
+  "delivery",
+  "quality",
+  "protocol",
+  "lifecycle",
+  "evidence"
+]) if (!researchSurveyNav.includes(`key: "${requirement}"`)) failures.push(`Research survey navigation is missing dedicated ${requirement} page`);
+
+const researchSurveySection = readFileSync(`${root}/apps/web/src/app/admin/research/surveys/[slug]/[section]/page.tsx`, "utf8");
+for (const requirement of [
+  'section === "sampling"',
+  'section === "fieldwork"',
+  'section === "balance"',
+  'section === "contacts"',
+  'section === "invitations"',
+  'section === "kad"',
+  'section === "consent"',
+  'section === "delivery"',
+  'section === "quality"',
+  'section === "protocol"',
+  'section === "lifecycle"',
+  'section === "evidence"'
+]) if (!researchSurveySection.includes(requirement)) failures.push(`Research dedicated-page router is missing ${requirement}`);
 
 const icons = readFileSync(`${root}/apps/web/src/components/AdminNavIcon.tsx`, "utf8");
 for (const icon of expected.values()) if (!icons.includes(`case "${icon}"`)) failures.push(`AdminNavIcon is missing ${icon}`);
