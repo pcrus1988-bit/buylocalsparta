@@ -78,14 +78,15 @@ export default async function ResearchSurveysAdminPage() {
           <WorkspaceMetricStrip items={[
             { label: "Sent", value: study.sent.toLocaleString("el-GR"), hint: percentage(study.sent, study.sampleUnits) + " of selected sample" },
             { label: "Delivered", value: study.delivered.toLocaleString("el-GR"), hint: percentage(study.delivered, study.sent) + " of sent invitations" },
+            { label: "Temporarily delayed", value: (study.invitationDelayed + study.reminderDelayed).toLocaleString("el-GR"), hint: String(study.invitationDelayed) + " initial · " + String(study.reminderDelayed) + " reminders · SES still retrying" },
             { label: "Opened", value: study.opened.toLocaleString("el-GR"), hint: percentage(study.opened, study.delivered || study.sent) + " of delivered" },
             { label: "Started", value: study.started.toLocaleString("el-GR"), hint: percentage(study.started, study.opened || study.sent) + " of opened" },
             { label: "Completed", value: study.completed.toLocaleString("el-GR"), hint: percentage(study.completed, study.sent) + " of sent · " + percentage(study.completed, study.started) + " of starts · " + String(study.withdrawn) + " withdrawn" }
           ]} />
           <WorkspaceMetricStrip items={[
             { label: "QA review", value: study.qualityReview.toLocaleString("el-GR"), hint: String(study.qualityExclude) + " excluded by reviewed rules" },
-            { label: "Reward eligible", value: study.rewardEligible.toLocaleString("el-GR"), hint: String(study.rewardIssued) + " issued · " + String(study.rewardRedeemed) + " redeemed · " + String(study.rewardDeliveryFailed) + " delivery failures" },
-            { label: "Results notices", value: study.resultsNotificationSent.toLocaleString("el-GR"), hint: String(study.resultsNotificationFailed) + " delivery failures" },
+            { label: "Reward eligible", value: study.rewardEligible.toLocaleString("el-GR"), hint: String(study.rewardIssued) + " issued · " + String(study.rewardRedeemed) + " redeemed · " + String(study.rewardDeliveryDelayed) + " delayed · " + String(study.rewardDeliveryFailed) + " failed" },
+            { label: "Results notices", value: study.resultsNotificationSent.toLocaleString("el-GR"), hint: String(study.resultsNotificationDelayed) + " delayed · " + String(study.resultsNotificationFailed) + " failed" },
             { label: "Analysis estimates", value: study.analysisEstimates.toLocaleString("el-GR"), hint: String(study.analysisRuns) + " analysis run(s)" },
             { label: "Evidence releases", value: study.releases, hint: "Versioned methodology + dataset/artifact hashes" }
           ]} />
