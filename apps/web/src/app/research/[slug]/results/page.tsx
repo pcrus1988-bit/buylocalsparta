@@ -36,7 +36,7 @@ export default async function ResearchResultsPage({ params }: PageProps) {
   const { slug } = await params;
   const study = await publicResearchStudy(slug);
   if (!study) notFound();
-  const release = await getPublishedResearchResults(study.slug);
+  const release = await getPublishedResearchResults(study.waveSlug);
 
   const overall = release?.estimates.filter((estimate) =>
     !estimate.suppressed &&
