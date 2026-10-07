@@ -223,16 +223,17 @@ function ExperimentCard({ assignment, selected, onSelect }: {
   </article>;
 }
 
-export function ResearchSurveyForm({ slug, token, initial }: {
+export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent = false }: {
   slug: string;
   token: string;
   initial: ResearchSurveyContext;
+  initialOptOutIntent?: boolean;
 }) {
   const [started, setStarted] = useState(Boolean(initial.response) && initial.response?.status === "in_progress");
   const [completed, setCompleted] = useState(initial.response?.status === "completed");
   const [declined, setDeclined] = useState(initial.response?.status === "withdrawn" || initial.invite.status === "suppressed");
   const [futureResearchSuppressed, setFutureResearchSuppressed] = useState(false);
-  const [suppressFutureResearch, setSuppressFutureResearch] = useState(false);
+  const [suppressFutureResearch, setSuppressFutureResearch] = useState(initialOptOutIntent);
   const [researchConsent, setResearchConsent] = useState(Boolean(initial.response) && initial.response?.status === "in_progress");
   const [answers, setAnswers] = useState<Record<string, ResearchAnswer>>(asMutableAnswers(initial.answers));
   const [experiments, setExperiments] = useState<readonly ResearchExperimentAssignment[]>(initial.experiments);
@@ -414,6 +415,7 @@ export function ResearchSurveyForm({ slug, token, initial }: {
         <span>Χωρίς ΑΦΜ / email στο questionnaire</span>
       </div>
       <p>Η συμμετοχή είναι προαιρετική. Ο προσωπικός σύνδεσμος χρησιμοποιείται για να επιβεβαιώνει ότι η απάντηση ανήκει στο επιλεγμένο δείγμα και για να αποφεύγονται διπλές συμμετοχές. Δεν εμφανίζεται ΑΦΜ, email ή όνομα επιχείρησης στο ερωτηματολόγιο.</p>
+      {initialOptOutIntent && <p className={styles.success}>Ανοίξατε τον σύνδεσμο opt-out. Η επιλογή «να μη λάβω άλλη πρόσκληση» έχει προεπιλεγεί· πατήστε «Δεν επιθυμώ να συμμετάσχω» για να καταχωρηθεί.</p>}
       <label className={styles.consentChoice}>
         <input type="checkbox" checked={researchConsent} onChange={(event) => setResearchConsent(event.target.checked)} />
         <span>Έχω ενημερωθεί για τον σκοπό της έρευνας και συμφωνώ να συμμετάσχω.</span>
