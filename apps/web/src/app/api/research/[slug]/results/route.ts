@@ -18,7 +18,6 @@ export async function GET(_request: Request, context: { params: Promise<{ slug: 
   }
   return Response.json({
     schema: "kontamou.research.public-results.v1",
-    studySlug: slug,
     ...release
   }, {
     headers: {
