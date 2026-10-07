@@ -149,6 +149,7 @@ export default async function ResearchSurveysAdminPage() {
 
             {hasAdminPermission(principal, "research.manage") && <ResearchStudyFieldworkControls
               slug={study.slug}
+              studyTitle={study.title}
               csrfToken={principal.csrfToken}
               studyStatus={study.status}
               recruitmentTemplateVersion={study.recruitmentTemplateVersion}
