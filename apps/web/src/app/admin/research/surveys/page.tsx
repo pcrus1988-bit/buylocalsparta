@@ -7,12 +7,13 @@ import { ResearchStudyFieldworkBalance } from "../../../../components/ResearchSt
 import { ResearchStudyLifecycleControls } from "../../../../components/ResearchStudyLifecycleControls";
 import { ResearchStudyQualityControls } from "../../../../components/ResearchStudyQualityControls";
 import { ResearchStudyProtocolControls } from "../../../../components/ResearchStudyProtocolControls";
+import { ResearchStudyOperationsPanel } from "../../../../components/ResearchStudyOperationsPanel";
 import { ResearchStudySamplingControls } from "../../../../components/ResearchStudySamplingControls";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, WorkspaceStatusBadge } from "../../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { researchQualityReviewQueue } from "../../../../lib/research-survey-quality";
-import { researchDeliveryDelayQueue, researchFieldworkStrata, researchProtocolEvents, researchSurveyAdminOverview } from "../../../../lib/research-survey-runtime";
+import { researchDeliveryDelayQueue, researchFieldworkStrata, researchProtocolEvents, researchSurveyAdminOverview, researchSurveyOperationsOverview } from "../../../../lib/research-survey-runtime";
 
 export const metadata: Metadata = {
   title: "Admin · Survey Control Center",
@@ -56,6 +57,12 @@ export default async function ResearchSurveysAdminPage() {
       await researchDeliveryDelayQueue(principal, study.slug)
     ] as const))
   );
+  const operations = new Map(
+    await Promise.all(overview.studies.map(async (study) => [
+      study.slug,
+      await researchSurveyOperationsOverview(principal, study.slug)
+    ] as const))
+  );
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Research · Surveys" />
@@ -86,7 +93,7 @@ export default async function ResearchSurveysAdminPage() {
     </section>}
 
     {!overview.databaseConfigured
-      ? <section className="shell vendor-section"><WorkspaceEmptyState title="Research database is not available." body="The admin surface will activate after schema 426 is deployed." /></section>
+      ? <section className="shell vendor-section"><WorkspaceEmptyState title="Research database is not available." body="The Research admin surface will activate when the production Research schema is available." /></section>
       : overview.studies.length === 0
         ? <section className="shell vendor-section"><WorkspaceEmptyState title="No research studies have been created." /></section>
         : overview.studies.map((study) => <div id={"survey-" + study.slug} key={study.id}>
@@ -129,7 +136,11 @@ export default async function ResearchSurveysAdminPage() {
               </div>
               <div className="workspace-action-buttons" style={{ flexWrap: "wrap" }}>
                 <a className="button button-secondary" href={"#survey-sampling-" + study.slug}>Sampling</a>
-                <a className="button button-secondary" href={"#survey-fieldwork-" + study.slug}>Email & fieldwork</a>
+                <a className="button button-secondary" href={"#survey-fieldwork-" + study.slug}>Email templates & fieldwork</a>
+                <a className="button button-secondary" href={"#survey-contacts-" + study.slug}>Email contacts</a>
+                <a className="button button-secondary" href={"#survey-invitations-" + study.slug}>Invitations</a>
+                <a className="button button-secondary" href={"#survey-kad-" + study.slug}>ΚΑΔ</a>
+                <a className="button button-secondary" href={"#survey-consent-" + study.slug}>Consent</a>
                 <a className="button button-secondary" href={"#survey-delivery-" + study.slug}>Delivery</a>
                 <a className="button button-secondary" href={"#survey-quality-" + study.slug}>Quality</a>
                 <a className="button button-secondary" href={"#survey-protocol-" + study.slug}>Protocol</a>
@@ -196,7 +207,11 @@ export default async function ResearchSurveysAdminPage() {
               csrfToken={principal.csrfToken}
               studyStatus={study.status}
               recruitmentTemplateVersion={study.recruitmentTemplateVersion}
+              recruitmentTemplateSubject={study.recruitmentTemplateSubject}
+              recruitmentTemplateBody={study.recruitmentTemplateBody}
               reminderTemplateVersion={study.reminderTemplateVersion}
+              reminderTemplateSubject={study.reminderTemplateSubject}
+              reminderTemplateBody={study.reminderTemplateBody}
               reminderSent={study.reminderSent}
               reminderFailed={study.reminderFailed}
               activeContacts={study.activeContacts}
@@ -213,6 +228,21 @@ export default async function ResearchSurveysAdminPage() {
               queuedJobs={study.queuedJobs}
               runningJobs={study.runningJobs}
             /></div>}
+
+            <ResearchStudyOperationsPanel
+              slug={study.slug}
+              data={operations.get(study.slug) ?? {
+                databaseConfigured: overview.databaseConfigured,
+                studyFound: false,
+                canViewContactValues: false,
+                totalContacts: 0,
+                templates: [],
+                contacts: [],
+                invitations: [],
+                kadGroups: [],
+                consents: []
+              }}
+            />
 
             <div id={"survey-delivery-" + study.slug}>
             {(deliveryDelays.get(study.slug)?.length ?? 0) > 0 && <div className="workspace-queue-card">
