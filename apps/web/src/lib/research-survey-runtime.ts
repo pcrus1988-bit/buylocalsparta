@@ -1256,7 +1256,7 @@ export async function researchStudyKadOverview(
       ORDER BY fs.frozen_at DESC NULLS LAST,fs.created_at DESC
       LIMIT 1
     )
-    SELECT code,count(DISTINCT fu.id)::int AS population
+    SELECT kad.code,count(DISTINCT fu.id)::int AS population
     FROM latest_frame lf
     JOIN research_frame_units fu ON fu.frame_snapshot_id=lf.id
     CROSS JOIN LATERAL jsonb_array_elements_text(
@@ -1265,9 +1265,9 @@ export async function researchStudyKadOverview(
           THEN fu.sampling_attributes->'matchedActivityCodes'
         ELSE '[]'::jsonb
       END
-    ) AS code
-    GROUP BY code
-    ORDER BY population DESC,code
+    ) AS kad(code)
+    GROUP BY kad.code
+    ORDER BY population DESC,kad.code
     LIMIT 80
   `, [slug]);
 
