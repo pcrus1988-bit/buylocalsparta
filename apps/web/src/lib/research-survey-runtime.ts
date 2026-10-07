@@ -1178,6 +1178,57 @@ export async function researchDeliveryDelayQueue(
   }));
 }
 
+export async function researchSurveyAdminIndexOverview(principal: SessionPrincipal) {
+  assertAdminPermission(principal, "research.read");
+  if (!productionDatabaseConfigured()) {
+    return { databaseConfigured: false, studies: [] as const };
+  }
+
+  const rows = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    WITH completed AS (
+      SELECT
+        study_id,
+        count(*) FILTER (WHERE status='completed')::int AS completed
+      FROM research_responses
+      GROUP BY study_id
+    )
+    SELECT
+      s.id,
+      s.slug,
+      s.title,
+      s.status,
+      s.fieldwork_ends_at,
+      latest_i.version AS instrument_version,
+      latest_i.status AS instrument_status,
+      COALESCE(completed.completed,0)::int AS completed
+    FROM research_studies s
+    LEFT JOIN LATERAL (
+      SELECT version,status
+      FROM research_instruments
+      WHERE study_id=s.id
+      ORDER BY created_at DESC
+      LIMIT 1
+    ) latest_i ON true
+    LEFT JOIN completed ON completed.study_id=s.id
+    ORDER BY s.created_at DESC
+    LIMIT 100
+  `);
+
+  return {
+    databaseConfigured: true,
+    studies: rows.rows.map((row) => ({
+      id: text(row.id),
+      slug: text(row.slug),
+      title: text(row.title),
+      status: text(row.status),
+      fieldworkEndsAt: optionalText(row.fieldwork_ends_at),
+      instrumentVersion: optionalText(row.instrument_version),
+      instrumentStatus: optionalText(row.instrument_status),
+      completed: numberValue(row.completed)
+    }))
+  };
+}
+
 export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
   assertAdminPermission(principal, "research.read");
   if (!productionDatabaseConfigured()) {
