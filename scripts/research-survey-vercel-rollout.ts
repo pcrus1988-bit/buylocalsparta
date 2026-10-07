@@ -3,18 +3,27 @@ import { readdir } from "node:fs/promises";
 
 const EXPECTED_SOURCE_HEAD = 434;
 const EXPECTED_PRODUCTION_HEAD = 415;
+const EXPECTED_RECOVERY_HEAD = 419;
 const EXPECTED_PENDING_VERSIONS = new Set([
   334,
   ...Array.from({ length: 19 }, (_value, index) => 416 + index)
 ]);
+const EXPECTED_RECOVERY_PENDING_VERSIONS = new Set(
+  Array.from({ length: 15 }, (_value, index) => 420 + index)
+);
 
 if (process.env.VERCEL_ENV !== "production") {
   console.log(`Research one-shot rollout skipped for VERCEL_ENV=${process.env.VERCEL_ENV ?? "unset"}.`);
   process.exit(0);
 }
-if (process.env.BLS_RESEARCH_SCHEMA_APPLY_ONCE !== "true") {
+const applyOnce = process.env.BLS_RESEARCH_SCHEMA_APPLY_ONCE === "true";
+const recover0420Once = process.env.BLS_RESEARCH_SCHEMA_RECOVER_0420_ONCE === "true";
+if (!applyOnce && !recover0420Once) {
   console.log("Research one-shot rollout is not enabled; no database mutation requested.");
   process.exit(0);
+}
+if (applyOnce && recover0420Once) {
+  throw new Error("Research rollout apply and 0420 recovery flags cannot both be enabled");
 }
 
 const migrationNames = (await readdir(new URL("../db/migrations/", import.meta.url)))
@@ -29,26 +38,36 @@ if (repositoryHead !== EXPECTED_SOURCE_HEAD) {
 
 run("npm", ["run", "db:verify"], process.env);
 
-const preflight = runAndParseJson(
-  "node",
-  ["--experimental-strip-types", "scripts/research-survey-production-schema.ts", "--vercel-production-only"],
-  process.env
-);
+const expectedStartingHead = recover0420Once ? EXPECTED_RECOVERY_HEAD : EXPECTED_PRODUCTION_HEAD;
+const expectedPreflightState = recover0420Once ? "recover_0420" : "clean_upgrade";
+const expectedPendingVersions = recover0420Once
+  ? EXPECTED_RECOVERY_PENDING_VERSIONS
+  : EXPECTED_PENDING_VERSIONS;
+const preflightArgs = [
+  "--experimental-strip-types",
+  "scripts/research-survey-production-schema.ts",
+  "--vercel-production-only",
+  ...(recover0420Once ? ["--recover-0420"] : [])
+];
+const preflight = runAndParseJson("node", preflightArgs, process.env);
 if (preflight?.mode !== "preflight"
-    || preflight?.state !== "clean_upgrade"
-    || Number(preflight?.schemaVersion) !== EXPECTED_PRODUCTION_HEAD
+    || preflight?.state !== expectedPreflightState
+    || Number(preflight?.schemaVersion) !== expectedStartingHead
     || Number(preflight?.targetVersion) !== EXPECTED_SOURCE_HEAD) {
-  throw new Error(`Research production preflight did not report the required clean ${EXPECTED_PRODUCTION_HEAD} -> ${EXPECTED_SOURCE_HEAD} state`);
+  throw new Error(
+    `Research production preflight did not report required ${expectedPreflightState} ${expectedStartingHead} -> ${EXPECTED_SOURCE_HEAD} state`
+  );
 }
 
 const pendingFiles = Array.isArray(preflight?.pendingCanonicalMigrationFiles)
   ? preflight.pendingCanonicalMigrationFiles.map(String)
   : [];
 const pendingVersions = new Set(pendingFiles.map((filename) => Number(filename.slice(0, 4))));
-if (pendingVersions.size !== EXPECTED_PENDING_VERSIONS.size
-    || [...EXPECTED_PENDING_VERSIONS].some((version) => !pendingVersions.has(version))) {
+if (pendingVersions.size !== expectedPendingVersions.size
+    || [...expectedPendingVersions].some((version) => !pendingVersions.has(version))) {
+  const expectedLabel = recover0420Once ? "0420-0434" : "0334 plus 0416-0434";
   throw new Error(
-    `Research rollout expected missing migrations 0334 plus 0416-0434; preflight reported: ${pendingFiles.join(", ") || "none"}`
+    `Research rollout expected missing migrations ${expectedLabel}; preflight reported: ${pendingFiles.join(", ") || "none"}`
   );
 }
 
@@ -76,8 +95,9 @@ run("npm", ["run", "db:ready"], childEnv);
 console.log(JSON.stringify({
   ok: true,
   mode: "vercel_one_shot_research_rollout",
-  from: EXPECTED_PRODUCTION_HEAD,
+  from: expectedStartingHead,
   to: EXPECTED_SOURCE_HEAD,
+  recovery: recover0420Once,
   appliedCanonicalMigrations: pendingFiles
 }));
 
