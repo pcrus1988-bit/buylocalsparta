@@ -13,11 +13,11 @@ if (!connectionString) throw new Error("DATABASE_URL or POSTGRES_URL is required
 
 const postcheck = process.argv.includes("--postcheck");
 const recovery0420 = process.argv.includes("--recover-0420");
-const expectedSourceVersion = 434;
+const expectedSourceVersion = 435;
 const expectedCurrentVersion = 415;
 const expectedRecoveryVersion = 419;
 const expectedRecoveryPendingVersions = new Set(
-  Array.from({ length: 15 }, (_value, index) => 420 + index)
+  Array.from({ length: 16 }, (_value, index) => 420 + index)
 );
 const expectedRecoveryResearchTables = new Set([
   "research_analysis_estimates",
@@ -74,7 +74,12 @@ const requiredTables = [
   "research_question_lineage",
   "research_harmonisation_rules",
   "research_longitudinal_comparison_specs",
-  "research_release_archives"
+  "research_release_archives",
+  "research_business_categories",
+  "research_business_activity_observations",
+  "research_business_activity_aliases",
+  "research_business_canonical_assignments",
+  "research_business_classification_events"
 ] as const;
 
 const migrationNames = (await readdir(new URL("../db/migrations/", import.meta.url)))
@@ -177,7 +182,7 @@ try {
     if (pendingVersions.size !== expectedRecoveryPendingVersions.size
         || [...expectedRecoveryPendingVersions].some((version) => !pendingVersions.has(version))) {
       throw new Error(
-        `Research 0420 recovery requires exact pending migrations 0420-0434; found: ${pendingCanonicalMigrations.join(", ") || "none"}`
+        `Research 0420 recovery requires exact pending migrations 0420-0435; found: ${pendingCanonicalMigrations.join(", ") || "none"}`
       );
     }
     const actualResearchTables = new Set(researchTables);
