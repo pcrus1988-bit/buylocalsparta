@@ -86,6 +86,7 @@ const sesEvents = readFileSync("apps/web/src/lib/research-survey-ses-events.ts",
 const quality = readFileSync("apps/web/src/lib/research-survey-quality.ts", "utf8");
 const qualityControls = readFileSync("apps/web/src/components/ResearchStudyQualityControls.tsx", "utf8");
 const fieldworkControls = readFileSync("apps/web/src/components/ResearchStudyFieldworkControls.tsx", "utf8");
+const researchAdmin = readFileSync("apps/web/src/app/admin/research/surveys/page.tsx", "utf8");
 const lifecycleControls = readFileSync("apps/web/src/components/ResearchStudyLifecycleControls.tsx", "utf8");
 const fieldworkBalance = readFileSync("apps/web/src/components/ResearchStudyFieldworkBalance.tsx", "utf8");
 const samplingControls = readFileSync("apps/web/src/components/ResearchStudySamplingControls.tsx", "utf8");
