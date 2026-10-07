@@ -273,8 +273,11 @@ export const DEFAULT_PRODUCT_INDEX_SCORE = 5;
  * Suppressed, recalled, inactive and otherwise unsafe products never reach this
  * function. An approved platform image or a source image admitted through an
  * approved source-product link is a hard requirement for organic promotion.
- * Products also need a currently sellable local offer; unavailable catalog records
- * remain human-readable but are not promoted into search or the sitemap.
+ * Product publication/indexability is deliberately durable across temporary stock
+ * gaps. Fresh availability controls commerce and sitemap promotion, not whether an
+ * otherwise useful active product page may remain in Google's index. Permanently
+ * retired products must be deactivated/suppressed at the canonical layer instead of
+ * flapping meta robots whenever a supplier availability TTL expires.
  */
 export function productIndexEligibility(
   product: ProductIndexCandidate,
@@ -338,10 +341,10 @@ export function productIndexEligibility(
   if (Number(product.duplicateTitleCount) > 1 && !hasStrongDifferentiator) {
     blockingReasons.push("duplicate title without a public identifier or variant differentiator");
   }
-  if (product.offerAvailable !== true) {
-    blockingReasons.push("no active local offer with fresh sellable stock");
-  } else {
+  if (product.offerAvailable === true) {
     reasons.push("active local offer with fresh sellable stock");
+  } else {
+    reasons.push("temporarily unavailable or stock freshness pending; organic indexability preserved");
   }
 
   return {
