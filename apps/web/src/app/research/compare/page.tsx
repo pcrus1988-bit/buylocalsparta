@@ -53,11 +53,24 @@ function interval(metric: PublicResearchPublishedMetric): string {
   return f(metric.ciLower) + " – " + f(metric.ciUpper);
 }
 
+function metricWidth(metric: PublicResearchPublishedMetric): number {
+  if (metric.metadata.format !== "proportion") return 100;
+  return Math.min(Math.max(metric.estimate * 100, 2), 100);
+}
+
 function comparabilityLabel(value?: string, policy?: string): string {
   if (value === "exact" || policy === "core_exact") return "Exact";
   if (value === "harmonised" || policy === "core_harmonisable") return "Harmonised";
   if (value === "break" || policy === "not_comparable") return "Break";
   return "Wave-specific";
+}
+
+function comparabilityClass(value?: string, policy?: string): string {
+  const label = comparabilityLabel(value, policy);
+  if (label === "Exact") return styles.chipExact;
+  if (label === "Harmonised") return styles.chipHarmonised;
+  if (label === "Break") return styles.chipBreak;
+  return "";
 }
 
 export default async function ResearchComparePage() {
@@ -73,13 +86,15 @@ export default async function ResearchComparePage() {
     group.push(metric);
     metricGroups.set(metric.metricKey, group);
   }
+
   const comparableMetricGroups = [...metricGroups.entries()]
     .filter(([, values]) => values.length >= 2)
-    .slice(0, 16);
+    .slice(0, 20);
 
   const exact = comparisons.filter((item) => item.harmonisationStatus === "exact" || item.comparabilityPolicy === "core_exact").length;
   const harmonised = comparisons.filter((item) => item.harmonisationStatus === "harmonised" || item.comparabilityPolicy === "core_harmonisable").length;
   const breaks = comparisons.filter((item) => item.harmonisationStatus === "break" || item.comparabilityPolicy === "not_comparable").length;
+  const publishedWaves = new Set(metrics.map((metric) => metric.waveSlug)).size;
 
   return <main className={styles.shell}>
     <div className={styles.frame}>
@@ -95,14 +110,31 @@ export default async function ResearchComparePage() {
       <header className={styles.hero}>
         <div>
           <div className={styles.eyebrow}>Cross-study explorer</div>
-          <h1>Σύγκριση με κανόνες, όχι με ομοιότητες τίτλων.</h1>
-          <p>Το Observatory συγκρίνει μόνο governed metrics από δημοσιευμένα releases. Η variable lineage και τα harmonisation rules δηλώνουν αν δύο waves είναι exact comparable, harmonised ή αποτελούν methodological break.</p>
+          <h1>Trend lines μόνο όταν η σύγκριση επιτρέπεται.</h1>
+          <p>Το Observatory δεν ενώνει δύο waves επειδή μοιάζουν οι τίτλοι τους. Συγκρίνει μόνο governed metrics από published releases και εμφανίζει ρητά αν η σχέση είναι Exact, Harmonised ή methodological Break.</p>
+
+          <div className={styles.heroBadges}>
+            <span className={[styles.badge, styles.badgeDark].join(" ")}>{publishedWaves} published waves</span>
+            <span className={styles.badge}>{comparisons.length} comparison specs</span>
+            <span className={styles.badge}>{metrics.length} public metrics</span>
+          </div>
+
+          <div className={styles.tabbar}>
+            <Link href="/research">Μελέτες</Link>
+            <Link className={styles.primaryButton} href="/research/compare">Σύγκριση</Link>
+            <Link href="/research/privacy">Privacy</Link>
+          </div>
         </div>
+
         <aside className={styles.heroAside}>
-          <span>Studies / current waves</span>
+          <span>Public study waves</span>
           <strong>{snapshot.studies.length}</strong>
-          <span>Locked / published comparison specs</span>
-          <strong>{comparisons.length}</strong>
+          <hr />
+          <span>Exact comparisons</span>
+          <strong>{exact}</strong>
+          <hr />
+          <span>Harmonised / breaks</span>
+          <strong>{harmonised} / {breaks}</strong>
         </aside>
       </header>
 
@@ -112,28 +144,33 @@ export default async function ResearchComparePage() {
             <div className={styles.eyebrow}>Comparability registry</div>
             <h2>Τι επιτρέπεται να συγκριθεί;</h2>
           </div>
-          <p>Η κατάσταση comparability είναι μέρος του research evidence. Ένα methodological break δεν κρύβεται· εμφανίζεται ρητά και εμποδίζει μια παραπλανητική trend line.</p>
+          <p>Η comparability είναι μέρος του research evidence. Ένα methodological break δεν κρύβεται και δεν μετατρέπεται σε trend line απλώς για να είναι πιο όμορφο το chart.</p>
         </div>
+
         <div className={styles.metrics}>
           <article className={styles.metric}><span>Exact</span><strong>{exact}</strong><small>ίδιο construct / locked identity</small></article>
-          <article className={styles.metric}><span>Harmonised</span><strong>{harmonised}</strong><small>επιτρεπτή σύγκριση μέσω rule</small></article>
-          <article className={styles.metric}><span>Break</span><strong>{breaks}</strong><small>μη άμεση σύγκριση</small></article>
+          <article className={styles.metric}><span>Harmonised</span><strong>{harmonised}</strong><small>σύγκριση μέσω explicit rule</small></article>
+          <article className={styles.metric}><span>Break</span><strong>{breaks}</strong><small>μη άμεση longitudinal σύγκριση</small></article>
           <article className={styles.metric}><span>Published metrics</span><strong>{metrics.length}</strong><small>unsuppressed overall estimates</small></article>
         </div>
 
-        {comparisons.length > 0 ? <div className={styles.panel} style={{ marginTop: 16 }}>
+        {comparisons.length > 0 ? <div className={styles.compareTableWrap} style={{ marginTop: 16 }}>
           <table className={styles.compareTable}>
-            <thead><tr><th>Μεταβλητή</th><th>Baseline</th><th>Comparison</th><th>Κατάσταση</th><th>Estimator</th></tr></thead>
-            <tbody>{comparisons.map((item) => <tr key={[item.variableKey,item.baselineWaveSlug,item.comparisonWaveSlug].join(":")}>
-              <td><strong>{item.variableLabel}</strong><br /><span className={styles.mono}>{item.variableKey}</span></td>
-              <td>{item.baselineWaveTitle}</td>
-              <td>{item.comparisonWaveTitle}</td>
-              <td>{comparabilityLabel(item.harmonisationStatus,item.comparabilityPolicy)}</td>
-              <td>{item.estimator}</td>
-            </tr>)}</tbody>
+            <thead><tr><th>Μεταβλητή</th><th>Baseline</th><th>Comparison</th><th>Comparability</th><th>Estimator</th></tr></thead>
+            <tbody>{comparisons.map((item) => {
+              const label = comparabilityLabel(item.harmonisationStatus, item.comparabilityPolicy);
+              return <tr key={[item.variableKey,item.baselineWaveSlug,item.comparisonWaveSlug].join(":")}>
+                <td><strong>{item.variableLabel}</strong><br /><span className={styles.mono}>{item.variableKey}</span></td>
+                <td>{item.baselineWaveTitle}</td>
+                <td>{item.comparisonWaveTitle}</td>
+                <td><span className={[styles.chip, comparabilityClass(item.harmonisationStatus, item.comparabilityPolicy)].filter(Boolean).join(" ")}>{label}</span></td>
+                <td>{item.estimator}</td>
+              </tr>;
+            })}</tbody>
           </table>
         </div> : <div className={styles.empty} style={{ marginTop: 16 }}>
-          Δεν υπάρχει ακόμη κλειδωμένο longitudinal pair. Αυτό είναι αναμενόμενο όσο υπάρχει μόνο μία δημοσιευμένη wave. Η registry θα ενεργοποιηθεί όταν προστεθεί δεύτερη wave και κλειδωθεί η comparability specification.
+          <strong>Δεν υπάρχει ακόμη locked longitudinal pair.</strong><br />
+          Αυτό είναι αναμενόμενο όσο υπάρχει μόνο μία δημοσιευμένη wave. Η registry ενεργοποιείται όταν υπάρχει δεύτερη wave και έχει κλειδωθεί η comparability specification.
         </div>}
       </section>
 
@@ -141,41 +178,54 @@ export default async function ResearchComparePage() {
         <div className={styles.sectionHead}>
           <div>
             <div className={styles.eyebrow}>Published metrics</div>
-            <h2>Αποτελέσματα δίπλα-δίπλα</h2>
+            <h2>Δίπλα-δίπλα, με uncertainty ορατό.</h2>
           </div>
-          <p>Εδώ εμφανίζονται μόνο overall, unsuppressed estimates από immutable public releases. Η απλή εμφάνιση δίπλα-δίπλα δεν υποκαθιστά το comparability status παραπάνω.</p>
+          <p>Οι κάρτες παρακάτω εμφανίζουν μόνο overall, unsuppressed estimates από immutable public releases. Η οπτική σύγκριση δεν υπερισχύει ποτέ του comparability status.</p>
         </div>
 
         {comparableMetricGroups.length > 0
-          ? <div className={styles.resultsGrid}>{comparableMetricGroups.map(([key, values]) => <article className={styles.resultCard} key={key}>
-              <div className={styles.eyebrow}>{metricLabel(values[0]!)}</div>
-              {values.map((metric) => <div key={metric.waveSlug} style={{ marginTop: 16 }}>
-                <strong>{metricValue(metric)}</strong>
-                <span>{metric.waveTitle} · 95% CI {interval(metric)} · n={metric.unweightedN.toLocaleString("el-GR")}</span>
-              </div>)}
+          ? <div className={styles.compareCards}>{comparableMetricGroups.map(([key, values]) => <article className={styles.compareCard} key={key}>
+              <div className={styles.compareCardHead}>
+                <div>
+                  <div className={styles.eyebrow}>Governed metric</div>
+                  <h3>{metricLabel(values[0]!)}</h3>
+                </div>
+                <span className={styles.chip}>{values.length} waves</span>
+              </div>
+
+              <div className={styles.compareRows}>
+                {values.map((metric) => <div className={styles.compareRow} key={metric.waveSlug}>
+                  <span>{metric.waveTitle}</span>
+                  <div>
+                    <div className={styles.compareMiniBar} aria-hidden="true"><i style={{ width: metricWidth(metric).toFixed(1) + "%" }} /></div>
+                    <span>95% CI {interval(metric)} · n={metric.unweightedN.toLocaleString("el-GR")}</span>
+                  </div>
+                  <strong>{metricValue(metric)}</strong>
+                </div>)}
+              </div>
             </article>)}</div>
           : <div className={styles.empty}>
-              Χρειάζονται τουλάχιστον δύο published waves με το ίδιο governed metric key για άμεση side-by-side απεικόνιση.
+              <strong>Χρειάζονται τουλάχιστον δύο published waves.</strong><br />
+              Μόλις δύο releases μοιράζονται το ίδιο governed metric key, το side-by-side evidence view ενεργοποιείται εδώ.
             </div>}
       </section>
 
       <section className={styles.section}>
         <div className={styles.sectionHead}>
           <div>
-            <div className={styles.eyebrow}>Evaluation</div>
-            <h2>Πώς αξιολογείται μια μελέτη;</h2>
+            <div className={styles.eyebrow}>Evaluation framework</div>
+            <h2>Αξιολόγηση χωρίς έναν αδιαφανή “μαγικό” βαθμό.</h2>
           </div>
-          <p>Το evaluation layer θα συνδυάζει completeness, response behaviour, QA, weighting diagnostics, uncertainty και release integrity — χωρίς να συμπυκνώνει την επιστημονική ποιότητα σε έναν αδιαφανή “μαγικό” βαθμό.</p>
+          <p>Η ποιότητα δεν συμπυκνώνεται σε ένα score. Το UX διαχωρίζει τις διαφορετικές διαστάσεις ώστε ο αναγνώστης να βλέπει πού είναι ισχυρή ή περιορισμένη μια μελέτη.</p>
         </div>
-        <div className={styles.split}>
-          <article className={styles.panel}>
-            <h3>Fieldwork quality</h3>
-            <ul><li>στόχος και ολοκληρώσεις</li><li>response rate</li><li>coverage / strata balance</li><li>QA review και exclusions</li></ul>
-          </article>
-          <article className={styles.panel}>
-            <h3>Analytical quality</h3>
-            <ul><li>weight diagnostics</li><li>confidence intervals</li><li>suppression / disclosure rules</li><li>dataset + artifact integrity</li></ul>
-          </article>
+
+        <div className={styles.trustGrid}>
+          <article className={styles.trustCard}><div className={styles.eyebrow}>01 · Coverage</div><strong>Sample & completeness</strong><p>Selected sample, target completes, actual completions και strata/coverage diagnostics όταν είναι διαθέσιμα.</p></article>
+          <article className={styles.trustCard}><div className={styles.eyebrow}>02 · Fieldwork</div><strong>Response behaviour</strong><p>Delivery, starts, completion και response rate ως operational evidence — όχι ως υποκατάστατο representativeness.</p></article>
+          <article className={styles.trustCard}><div className={styles.eyebrow}>03 · Analysis</div><strong>Uncertainty & weighting</strong><p>Confidence intervals, analytical n, weighting diagnostics και suppression rules παραμένουν μέρος της ανάγνωσης.</p></article>
+          <article className={styles.trustCard}><div className={styles.eyebrow}>04 · Integrity</div><strong>Release provenance</strong><p>Dataset hash, artifact hash και analysis run συνδέουν τη δημοσίευση με το evidence που την παρήγαγε.</p></article>
+          <article className={styles.trustCard}><div className={styles.eyebrow}>05 · Longitudinal</div><strong>Comparability</strong><p>Exact, harmonised και break classifications εμποδίζουν ψευδείς trend claims όταν αλλάζει το construct ή το instrument.</p></article>
+          <article className={styles.trustCard}><div className={styles.eyebrow}>06 · Transparency</div><strong>Public method</strong><p>Η μεθοδολογία μένει προσβάσιμη από κάθε study και results view, όχι μόνο από ένα απομονωμένο technical appendix.</p></article>
         </div>
       </section>
 
