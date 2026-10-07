@@ -218,7 +218,7 @@ if (releaseArchiveChecksums["0433_research_release_archive.sql"] !== releaseArch
 if (marketingConsentChecksums["0435_research_marketing_contact_consent.sql"] !== marketingConsentSha) {
   errors.push("0435 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 435")) errors.push("runtime schema head is not 434");
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 435")) errors.push("runtime schema head is not 435");
 if (!qualityV3Migration.includes("ADD COLUMN quality_score")) errors.push("research quality score column missing");
 if (!qualityV3Migration.includes("ADD COLUMN answer_pattern_sha256")) errors.push("research answer-pattern fingerprint column missing");
 if (!qualityV3Migration.includes("research_quality_answer_pattern_idx")) errors.push("research answer-pattern QA index missing");
@@ -632,6 +632,7 @@ if (!schemaRollout.includes("if: ${{ inputs.apply }}")) errors.push("research sc
 if (!schemaRollout.includes("npm run db:migrate")) errors.push("research schema rollout bypasses checksum-aware migrator");
 if (!schemaPreflight.includes("expectedSourceVersion = 435")) errors.push("research schema rollout source-head guard missing");
 if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
+if (!schemaPreflight.includes("expectedIncrementalVersion = 434")) errors.push("research schema 0434 incremental-upgrade guard missing");
 if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
 
@@ -641,8 +642,8 @@ if (errors.length) {
 }
 console.log(JSON.stringify({
   ok: true,
-  schema: 434,
-  tables: created.length + 16,
+  schema: 435,
+  tables: created.length + 18,
   migrationSha256: sha,
   suppressionMigrationSha256: suppressionSha,
   deliveryMigrationSha256: deliverySha,
