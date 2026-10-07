@@ -474,7 +474,7 @@ if (!sesEvents.includes("provider_message_not_research_message")) errors.push("S
 if (!jobs.includes("research_contact_is_suppressed")) errors.push("research worker does not enforce cross-wave suppression");
 if (!jobs.includes("queueGreekRetailInviteReminderBatch")) errors.push("governed reminder queue missing");
 if (!jobs.includes("processInviteReminderJob")) errors.push("governed reminder worker missing");
-if (!jobs.includes("'invite_batch','invite_reminder'")) errors.push("reminder jobs are not claimable by the research worker");
+if (!jobs.includes('"invite_reminder"') || !jobs.includes("job_type = ANY($1::text[])")) errors.push("reminder jobs are not claimable by a governed research executor");
 if (!jobs.includes("PRIOR_ATTEMPT_NOT_RETRIED")) errors.push("reminder retries are not fail-closed");
 if (!jobs.includes("attemptKind: \"reminder\"")) errors.push("reminder SES attempt tagging missing");
 if (!surveyRuntime.includes("research_invite_access_tokens")) errors.push("public survey does not resolve token aliases");
