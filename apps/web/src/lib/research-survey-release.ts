@@ -938,6 +938,7 @@ export async function researchReleaseArtifactIntegrity(
 export async function getPublishedGreekRetailResults(slug: string): Promise<Readonly<{
   releaseVersion: string;
   publishedAt: string;
+  studySlug: string;
   analysisRunId: string;
   waveId: string;
   datasetSha256: string;
@@ -949,7 +950,7 @@ export async function getPublishedGreekRetailResults(slug: string): Promise<Read
   const pool = getProductionPostgresRuntime().sqlPool;
   const release = await pool.query<SqlRow>(`
     SELECT rs.release_version,rs.published_at,rs.dataset_sha256,rs.artifact_sha256,
-           rs.methodology_json,rs.analysis_run_id,rs.wave_id
+           rs.methodology_json,rs.analysis_run_id,rs.wave_id,s.slug AS study_slug
     FROM research_release_snapshots rs
     JOIN research_studies s ON s.id=rs.study_id
     JOIN research_waves w ON w.id=rs.wave_id AND w.study_id=s.id
@@ -975,6 +976,7 @@ export async function getPublishedGreekRetailResults(slug: string): Promise<Read
   return {
     releaseVersion: text(row.release_version),
     publishedAt: new Date(row.published_at as string | Date).toISOString(),
+    studySlug: text(row.study_slug),
     analysisRunId: text(row.analysis_run_id),
     waveId: text(row.wave_id),
     datasetSha256: text(row.dataset_sha256),
@@ -1021,7 +1023,7 @@ export async function getPublishedGreekRetailReleaseArtifact(slug: string): Prom
   const artifact: PublishedResearchReleaseArtifact = {
     schema: "kontamou.research.release.v1",
     releaseVersion: published.releaseVersion,
-    studySlug: slug,
+    studySlug: published.studySlug,
     analysisRunId: published.analysisRunId,
     waveId: published.waveId,
     datasetSha256: published.datasetSha256,
