@@ -35,9 +35,9 @@ export default async function ResearchMethodologyPage({ params }: PageProps) {
       <div className={styles.topbar}>
         <Link className={styles.brand} href="/research">KONTA MOY · RETAIL OBSERVATORY</Link>
         <nav className={styles.nav} aria-label="Research">
-          <Link href={"/research/" + study.slug}>Επισκόπηση</Link>
-          <Link href={"/research/" + study.slug + "/methodology"}>Μεθοδολογία</Link>
-          <Link href={"/research/" + study.slug + "/results"}>Αποτελέσματα</Link>
+          <Link href={"/research/" + study.waveSlug}>Επισκόπηση</Link>
+          <Link href={"/research/" + study.waveSlug + "/methodology"}>Μεθοδολογία</Link>
+          <Link href={"/research/" + study.waveSlug + "/results"}>Αποτελέσματα</Link>
           <Link href="/research/compare">Σύγκριση</Link>
         </nav>
       </div>
@@ -93,7 +93,7 @@ export default async function ResearchMethodologyPage({ params }: PageProps) {
             <h3>Analysis evidence</h3>
             <p className={styles.mono}>run {release.analysisRunId}</p>
             <p>{release.estimates.length.toLocaleString("el-GR")} stored estimates in the published release.</p>
-            <Link className={styles.cardLink} href={"/research/" + study.slug + "/results"}>Άνοιγμα published evidence →</Link>
+            <Link className={styles.cardLink} href={"/research/" + study.waveSlug + "/results"}>Άνοιγμα published evidence →</Link>
           </article>
         </div> : <div className={styles.empty}>Δεν υπάρχει ακόμη published release. Η μεθοδολογία της ενεργής μελέτης παραμένει ορατή, ενώ τα τελικά hashes και το analytical evidence εμφανίζονται μετά το governed release.</div>}
       </section>
