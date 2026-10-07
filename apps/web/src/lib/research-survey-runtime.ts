@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -1095,8 +1095,10 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       latest_ap.locked_at AS analysis_plan_locked_at,
       latest_rt.version AS recruitment_template_version,
       latest_rt.subject AS recruitment_template_subject,
+      latest_rt.body_text AS recruitment_template_body_text,
       latest_rrt.version AS reminder_template_version,
       latest_rrt.subject AS reminder_template_subject,
+      latest_rrt.body_text AS reminder_template_body_text,
       COALESCE(f.frames, 0)::int AS frame_count,
       COALESCE(lf.population_size, 0)::int AS frame_population,
       GREATEST(
@@ -1163,7 +1165,7 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       LIMIT 1
     ) latest_ap ON true
     LEFT JOIN LATERAL (
-      SELECT version, subject
+      SELECT version, subject, body_text
       FROM research_recruitment_templates
       WHERE study_id = s.id
         AND channel='email'
@@ -1173,7 +1175,7 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       LIMIT 1
     ) latest_rt ON true
     LEFT JOIN LATERAL (
-      SELECT version, subject
+      SELECT version, subject, body_text
       FROM research_recruitment_templates
       WHERE study_id = s.id
         AND channel='email'
@@ -1407,8 +1409,10 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       analysisPlanLockedAt: optionalText(row.analysis_plan_locked_at),
       recruitmentTemplateVersion: optionalText(row.recruitment_template_version),
       recruitmentTemplateSubject: optionalText(row.recruitment_template_subject),
+      recruitmentTemplateBodyText: optionalText(row.recruitment_template_body_text),
       reminderTemplateVersion: optionalText(row.reminder_template_version),
       reminderTemplateSubject: optionalText(row.reminder_template_subject),
+      reminderTemplateBodyText: optionalText(row.reminder_template_body_text),
       frameCount: numberValue(row.frame_count),
       framePopulation: numberValue(row.frame_population),
       phasePopulation: numberValue(row.phase_population),
@@ -1459,6 +1463,366 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       failedJobs: numberValue(row.failed_jobs)
     }))
   };
+}
+
+
+export type ResearchAdminStudyOperations = Readonly<{
+  templates: readonly Readonly<{
+    id: string;
+    purpose: string;
+    version: string;
+    subject: string;
+    bodyText: string;
+    status: string;
+    lockedAt?: string;
+    createdAt?: string;
+  }>[];
+  contacts: readonly Readonly<{
+    id: string;
+    businessName: string;
+    email: string;
+    sourceRecordRef: string;
+    regionCode: string;
+    sectorCode: string;
+    activityCodes: readonly string[];
+    sourceKind: string;
+    suppressionStatus: string;
+    verifiedAt?: string;
+  }>[];
+  invitations: readonly Readonly<{
+    id: string;
+    businessName: string;
+    email: string;
+    sourceRecordRef: string;
+    fieldworkPhase: string;
+    status: string;
+    responseStatus?: string;
+    sentAt?: string;
+    firstOpenedAt?: string;
+    expiresAt?: string;
+    attemptCount: number;
+  }>[];
+  kadOverview: readonly Readonly<{
+    code: string;
+    businesses: number;
+    contactable: number;
+  }>[];
+  consent: Readonly<{
+    responseCount: number;
+    summary: readonly Readonly<{
+      kind: "research_participation" | "results_notification" | "thank_you_code";
+      granted: number;
+      declined: number;
+      notSet: number;
+    }>[];
+    recentEvents: readonly Readonly<{
+      id: string;
+      responseId: string;
+      kind: string;
+      granted: boolean;
+      statementVersion: string;
+      source: string;
+      occurredAt?: string;
+      responseStatus: string;
+    }>[];
+  }>;
+}>;
+
+function stringArray(value: unknown): readonly string[] {
+  return Array.isArray(value) ? value.map((item) => text(item).trim()).filter(Boolean) : [];
+}
+
+export async function researchStudyAdminOperations(
+  principal: SessionPrincipal,
+  slug: string
+): Promise<ResearchAdminStudyOperations> {
+  assertAdminPermission(principal, "research.read");
+  if (!productionDatabaseConfigured()) {
+    return { templates: [], contacts: [], invitations: [], kadOverview: [], consent: { responseCount: 0, summary: [], recentEvents: [] } };
+  }
+
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const studyResult = await pool.query<SqlRow>(`
+    SELECT id,current_wave_id
+    FROM research_studies
+    WHERE slug=$1
+    LIMIT 1
+  `, [slug]);
+  const study = studyResult.rows[0];
+  if (!study) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+  const studyId = text(study.id);
+  const waveId = text(study.current_wave_id);
+  if (!waveId) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
+
+  const [templatesResult, contactsResult, invitationsResult, kadResult, responseCountResult, consentSummaryResult, consentEventsResult] = await Promise.all([
+    pool.query<SqlRow>(`
+      SELECT id,purpose,version,COALESCE(subject,'') AS subject,body_text,status,locked_at,created_at
+      FROM research_recruitment_templates
+      WHERE study_id=$1 AND wave_id=$2 AND channel='email'
+      ORDER BY created_at DESC
+      LIMIT 24
+    `, [studyId, waveId]),
+    pool.query<SqlRow>(`
+      WITH latest_frame AS (
+        SELECT id
+        FROM research_frame_snapshots
+        WHERE study_id=$1 AND wave_id=$2
+        ORDER BY created_at DESC
+        LIMIT 1
+      )
+      SELECT
+        cp.id,
+        COALESCE(fu.sampling_attributes->>'legalName','') AS business_name,
+        cp.contact_value,
+        COALESCE(fu.source_record_ref,'') AS source_record_ref,
+        COALESCE(fu.region_code,'') AS region_code,
+        COALESCE(fu.sector_code,'') AS sector_code,
+        CASE
+          WHEN jsonb_typeof(fu.sampling_attributes->'matchedActivityCodes')='array'
+            THEN fu.sampling_attributes->'matchedActivityCodes'
+          WHEN jsonb_typeof(fu.sampling_attributes->'activityCodes')='array'
+            THEN fu.sampling_attributes->'activityCodes'
+          ELSE '[]'::jsonb
+        END AS activity_codes,
+        cp.source_kind,
+        cp.suppression_status,
+        cp.verified_at
+      FROM latest_frame lf
+      JOIN research_frame_units fu ON fu.frame_snapshot_id=lf.id
+      JOIN research_private.contact_points_with_value cp ON cp.frame_unit_id=fu.id
+      WHERE cp.contact_type='email'
+      ORDER BY
+        CASE WHEN cp.suppression_status='active' THEN 0 ELSE 1 END,
+        COALESCE(fu.sampling_attributes->>'legalName',''),
+        cp.contact_value
+      LIMIT 100
+    `, [studyId, waveId]),
+    pool.query<SqlRow>(`
+      SELECT
+        ri.id,
+        COALESCE(fu.sampling_attributes->>'legalName','') AS business_name,
+        COALESCE(cp.contact_value,'') AS email,
+        COALESCE(fu.source_record_ref,'') AS source_record_ref,
+        ri.fieldwork_phase,
+        ri.status,
+        rr.status AS response_status,
+        ri.sent_at,
+        ri.first_opened_at,
+        ri.expires_at,
+        (
+          SELECT count(*)::int
+          FROM research_invite_messages m
+          WHERE m.invite_id=ri.id
+        ) AS attempt_count
+      FROM research_invites ri
+      LEFT JOIN research_sample_units su ON su.id=ri.sample_unit_id
+      LEFT JOIN research_frame_units fu ON fu.id=su.frame_unit_id
+      LEFT JOIN research_private.contact_points_with_value cp ON cp.id=ri.contact_point_id
+      LEFT JOIN research_responses rr ON rr.invite_id=ri.id
+      WHERE ri.study_id=$1 AND ri.wave_id=$2
+      ORDER BY ri.created_at DESC
+      LIMIT 100
+    `, [studyId, waveId]),
+    pool.query<SqlRow>(`
+      WITH latest_frame AS (
+        SELECT id
+        FROM research_frame_snapshots
+        WHERE study_id=$1 AND wave_id=$2
+        ORDER BY created_at DESC
+        LIMIT 1
+      ),
+      frame_codes AS (
+        SELECT fu.id AS frame_unit_id, code.value AS code
+        FROM latest_frame lf
+        JOIN research_frame_units fu ON fu.frame_snapshot_id=lf.id
+        CROSS JOIN LATERAL jsonb_array_elements_text(
+          CASE
+            WHEN jsonb_typeof(fu.sampling_attributes->'matchedActivityCodes')='array'
+              AND jsonb_array_length(fu.sampling_attributes->'matchedActivityCodes') > 0
+              THEN fu.sampling_attributes->'matchedActivityCodes'
+            WHEN jsonb_typeof(fu.sampling_attributes->'activityCodes')='array'
+              THEN fu.sampling_attributes->'activityCodes'
+            ELSE '[]'::jsonb
+          END
+        ) code(value)
+      )
+      SELECT
+        fc.code,
+        count(DISTINCT fc.frame_unit_id)::int AS businesses,
+        count(DISTINCT fc.frame_unit_id) FILTER (
+          WHERE EXISTS (
+            SELECT 1
+            FROM research_contact_points cp
+            WHERE cp.frame_unit_id=fc.frame_unit_id
+              AND cp.contact_type='email'
+              AND cp.suppression_status='active'
+              AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+          )
+        )::int AS contactable
+      FROM frame_codes fc
+      GROUP BY fc.code
+      ORDER BY businesses DESC,fc.code
+      LIMIT 200
+    `, [studyId, waveId]),
+    pool.query<SqlRow>(`
+      SELECT count(*)::int AS response_count
+      FROM research_responses
+      WHERE study_id=$1 AND wave_id=$2
+    `, [studyId, waveId]),
+    pool.query<SqlRow>(`
+      WITH latest AS (
+        SELECT DISTINCT ON (rc.response_id,rc.consent_kind)
+          rc.response_id,rc.consent_kind,rc.granted
+        FROM research_consents rc
+        JOIN research_responses rr ON rr.id=rc.response_id
+        WHERE rr.study_id=$1
+          AND rr.wave_id=$2
+          AND rc.consent_kind IN ('research_participation','results_notification','thank_you_code')
+        ORDER BY rc.response_id,rc.consent_kind,rc.occurred_at DESC,rc.id DESC
+      )
+      SELECT
+        consent_kind,
+        count(*) FILTER (WHERE granted)::int AS granted,
+        count(*) FILTER (WHERE NOT granted)::int AS declined
+      FROM latest
+      GROUP BY consent_kind
+    `, [studyId, waveId]),
+    pool.query<SqlRow>(`
+      SELECT
+        rc.id,rc.response_id,rc.consent_kind,rc.granted,rc.statement_version,rc.source,rc.occurred_at,
+        rr.status AS response_status
+      FROM research_consents rc
+      JOIN research_responses rr ON rr.id=rc.response_id
+      WHERE rr.study_id=$1
+        AND rr.wave_id=$2
+        AND rc.consent_kind IN ('research_participation','results_notification','thank_you_code')
+      ORDER BY rc.occurred_at DESC,rc.id DESC
+      LIMIT 100
+    `, [studyId, waveId])
+  ]);
+
+  const responseCount = numberValue(responseCountResult.rows[0]?.response_count);
+  const consentMap = new Map(consentSummaryResult.rows.map((row) => [
+    text(row.consent_kind),
+    { granted: numberValue(row.granted), declined: numberValue(row.declined) }
+  ]));
+  const consentKinds = ["research_participation","results_notification","thank_you_code"] as const;
+
+  return {
+    templates: templatesResult.rows.map((row) => ({
+      id: text(row.id),
+      purpose: text(row.purpose),
+      version: text(row.version),
+      subject: text(row.subject),
+      bodyText: text(row.body_text),
+      status: text(row.status),
+      lockedAt: optionalText(row.locked_at),
+      createdAt: optionalText(row.created_at)
+    })),
+    contacts: contactsResult.rows.map((row) => ({
+      id: text(row.id),
+      businessName: text(row.business_name),
+      email: text(row.contact_value),
+      sourceRecordRef: text(row.source_record_ref),
+      regionCode: text(row.region_code),
+      sectorCode: text(row.sector_code),
+      activityCodes: stringArray(row.activity_codes),
+      sourceKind: text(row.source_kind),
+      suppressionStatus: text(row.suppression_status),
+      verifiedAt: optionalText(row.verified_at)
+    })),
+    invitations: invitationsResult.rows.map((row) => ({
+      id: text(row.id),
+      businessName: text(row.business_name),
+      email: text(row.email),
+      sourceRecordRef: text(row.source_record_ref),
+      fieldworkPhase: text(row.fieldwork_phase),
+      status: text(row.status),
+      responseStatus: optionalText(row.response_status),
+      sentAt: optionalText(row.sent_at),
+      firstOpenedAt: optionalText(row.first_opened_at),
+      expiresAt: optionalText(row.expires_at),
+      attemptCount: numberValue(row.attempt_count)
+    })),
+    kadOverview: kadResult.rows.map((row) => ({
+      code: text(row.code),
+      businesses: numberValue(row.businesses),
+      contactable: numberValue(row.contactable)
+    })),
+    consent: {
+      responseCount,
+      summary: consentKinds.map((kind) => {
+        const current = consentMap.get(kind) ?? { granted: 0, declined: 0 };
+        return {
+          kind,
+          granted: current.granted,
+          declined: current.declined,
+          notSet: Math.max(0, responseCount - current.granted - current.declined)
+        };
+      }),
+      recentEvents: consentEventsResult.rows.map((row) => ({
+        id: text(row.id),
+        responseId: text(row.response_id),
+        kind: text(row.consent_kind),
+        granted: Boolean(row.granted),
+        statementVersion: text(row.statement_version),
+        source: text(row.source),
+        occurredAt: optionalText(row.occurred_at),
+        responseStatus: text(row.response_status)
+      }))
+    }
+  };
+}
+
+export async function reissueResearchInviteAccessLink(
+  principal: SessionPrincipal,
+  input: Readonly<{ slug: string; inviteId: string }>
+): Promise<Readonly<{ token: string; expiresAt: string }>> {
+  assertAdminPermission(principal, "research.fieldwork.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+
+  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query<SqlRow>(`
+      SELECT ri.id,ri.status,ri.expires_at,s.status AS study_status
+      FROM research_invites ri
+      JOIN research_studies s ON s.id=ri.study_id
+      WHERE s.slug=$1 AND ri.id=$2
+      FOR UPDATE OF ri
+    `, [input.slug, input.inviteId]);
+    const row = result.rows[0];
+    if (!row) throw new Error("RESEARCH_INVITE_NOT_FOUND");
+    if (!["pilot","fielding"].includes(text(row.study_status))) throw new Error("SURVEY_NOT_OPEN");
+    if (!["created","sent","opened","started"].includes(text(row.status))) throw new Error("RESEARCH_INVITE_LINK_NOT_REISSUABLE");
+
+    const inviteExpiry = row.expires_at ? new Date(String(row.expires_at)) : undefined;
+    if (inviteExpiry && inviteExpiry.getTime() <= Date.now()) throw new Error("SURVEY_INVITE_EXPIRED");
+    const shortExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const expiresAt = inviteExpiry && inviteExpiry.getTime() < shortExpiry.getTime() ? inviteExpiry : shortExpiry;
+    const token = randomBytes(32).toString("base64url");
+
+    await client.query(`
+      UPDATE research_invite_access_tokens
+      SET status='revoked',revoked_at=now()
+      WHERE invite_id=$1
+        AND token_kind='reissue'
+        AND status='active'
+    `, [input.inviteId]);
+    await client.query(`
+      INSERT INTO research_invite_access_tokens (
+        invite_id,token_hash,token_kind,status,expires_at
+      )
+      VALUES ($1,$2,'reissue','active',$3)
+    `, [input.inviteId, sha256(token), expiresAt.toISOString()]);
+    await client.query("COMMIT");
+    return { token, expiresAt: expiresAt.toISOString() };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export type ResearchLifecycleAction =
