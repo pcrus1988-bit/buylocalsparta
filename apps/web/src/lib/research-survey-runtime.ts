@@ -26,6 +26,9 @@ function numberValue(value: unknown): number {
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(text).map((item) => item.trim()).filter(Boolean) : [];
+}
 function sha256(value: string): string { return createHash("sha256").update(value).digest("hex"); }
 
 export type ResearchExperimentAssignment = Readonly<{
@@ -1079,6 +1082,292 @@ export async function recordResearchProtocolEvent(
   return { id: text(inserted.rows[0].id), contentSha256 };
 }
 
+
+export type ResearchFieldworkDirectoryRow = Readonly<{
+  contactPointId: string;
+  email: string;
+  legalName?: string;
+  sourceKind: string;
+  suppressionStatus: string;
+  regionCode?: string;
+  sectorCode?: string;
+  kadCodes: readonly string[];
+  inviteId?: string;
+  inviteStatus?: string;
+  fieldworkPhase?: string;
+  sentAt?: string;
+  firstOpenedAt?: string;
+  expiresAt?: string;
+  lastAttemptKind?: string;
+  lastAttemptStatus?: string;
+}>;
+
+export async function researchStudyFieldworkDirectory(
+  principal: SessionPrincipal,
+  slug: string
+): Promise<readonly ResearchFieldworkDirectoryRow[]> {
+  assertAdminPermission(principal, "research.fieldwork.manage");
+  if (!productionDatabaseConfigured()) return [];
+
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    WITH study AS (
+      SELECT id,current_wave_id
+      FROM research_studies
+      WHERE slug=$1
+      LIMIT 1
+    ),
+    latest_frame AS (
+      SELECT fs.id
+      FROM research_frame_snapshots fs
+      JOIN study s ON s.id=fs.study_id
+      WHERE fs.wave_id=s.current_wave_id
+        AND fs.status='frozen'
+      ORDER BY fs.frozen_at DESC NULLS LAST,fs.created_at DESC
+      LIMIT 1
+    )
+    SELECT
+      cp.id AS contact_point_id,
+      cp.contact_value,
+      cp.source_kind,
+      cp.suppression_status,
+      fu.region_code,
+      fu.sector_code,
+      fu.sampling_attributes->>'legalName' AS legal_name,
+      COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb) AS matched_activity_codes,
+      ri.id AS invite_id,
+      ri.status AS invite_status,
+      ri.fieldwork_phase,
+      ri.sent_at,
+      ri.first_opened_at,
+      ri.expires_at,
+      im.attempt_kind AS last_attempt_kind,
+      im.status AS last_attempt_status
+    FROM latest_frame lf
+    JOIN research_frame_units fu ON fu.frame_snapshot_id=lf.id
+    JOIN research_private.contact_points_with_value cp
+      ON cp.frame_unit_id=fu.id
+     AND cp.contact_type='email'
+    CROSS JOIN study s
+    LEFT JOIN LATERAL (
+      SELECT id,status,fieldwork_phase,sent_at,first_opened_at,expires_at,created_at
+      FROM research_invites
+      WHERE study_id=s.id
+        AND wave_id=s.current_wave_id
+        AND contact_point_id=cp.id
+      ORDER BY created_at DESC
+      LIMIT 1
+    ) ri ON true
+    LEFT JOIN LATERAL (
+      SELECT attempt_kind,status
+      FROM research_invite_messages
+      WHERE invite_id=ri.id
+      ORDER BY created_at DESC,id DESC
+      LIMIT 1
+    ) im ON true
+    ORDER BY
+      CASE cp.suppression_status WHEN 'active' THEN 0 ELSE 1 END,
+      COALESCE(fu.sampling_attributes->>'legalName',''),
+      cp.contact_value
+    LIMIT 250
+  `, [slug]);
+
+  return result.rows.map((row) => ({
+    contactPointId: text(row.contact_point_id),
+    email: text(row.contact_value),
+    legalName: optionalText(row.legal_name),
+    sourceKind: text(row.source_kind),
+    suppressionStatus: text(row.suppression_status),
+    regionCode: optionalText(row.region_code),
+    sectorCode: optionalText(row.sector_code),
+    kadCodes: stringArray(row.matched_activity_codes),
+    inviteId: optionalText(row.invite_id),
+    inviteStatus: optionalText(row.invite_status),
+    fieldworkPhase: optionalText(row.fieldwork_phase),
+    sentAt: optionalText(row.sent_at),
+    firstOpenedAt: optionalText(row.first_opened_at),
+    expiresAt: optionalText(row.expires_at),
+    lastAttemptKind: optionalText(row.last_attempt_kind),
+    lastAttemptStatus: optionalText(row.last_attempt_status)
+  }));
+}
+
+export type ResearchKadOverview = Readonly<{
+  sectors: readonly Readonly<{
+    sectorCode: string;
+    population: number;
+    contactableEmails: number;
+  }>[];
+  codes: readonly Readonly<{
+    code: string;
+    population: number;
+  }>[];
+}>;
+
+export async function researchStudyKadOverview(
+  principal: SessionPrincipal,
+  slug: string
+): Promise<ResearchKadOverview> {
+  assertAdminPermission(principal, "research.read");
+  if (!productionDatabaseConfigured()) return { sectors: [], codes: [] };
+
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const sectors = await pool.query<SqlRow>(`
+    WITH study AS (
+      SELECT id,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1
+    ),
+    latest_frame AS (
+      SELECT fs.id
+      FROM research_frame_snapshots fs
+      JOIN study s ON s.id=fs.study_id
+      WHERE fs.wave_id=s.current_wave_id
+        AND fs.status='frozen'
+      ORDER BY fs.frozen_at DESC NULLS LAST,fs.created_at DESC
+      LIMIT 1
+    )
+    SELECT
+      COALESCE(fu.sector_code,'unknown') AS sector_code,
+      count(*)::int AS population,
+      count(*) FILTER (
+        WHERE EXISTS (
+          SELECT 1
+          FROM research_contact_points cp
+          WHERE cp.frame_unit_id=fu.id
+            AND cp.contact_type='email'
+            AND cp.suppression_status='active'
+            AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+        )
+      )::int AS contactable_emails
+    FROM latest_frame lf
+    JOIN research_frame_units fu ON fu.frame_snapshot_id=lf.id
+    GROUP BY COALESCE(fu.sector_code,'unknown')
+    ORDER BY population DESC,sector_code
+  `, [slug]);
+
+  const codes = await pool.query<SqlRow>(`
+    WITH study AS (
+      SELECT id,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1
+    ),
+    latest_frame AS (
+      SELECT fs.id
+      FROM research_frame_snapshots fs
+      JOIN study s ON s.id=fs.study_id
+      WHERE fs.wave_id=s.current_wave_id
+        AND fs.status='frozen'
+      ORDER BY fs.frozen_at DESC NULLS LAST,fs.created_at DESC
+      LIMIT 1
+    )
+    SELECT code,count(DISTINCT fu.id)::int AS population
+    FROM latest_frame lf
+    JOIN research_frame_units fu ON fu.frame_snapshot_id=lf.id
+    CROSS JOIN LATERAL jsonb_array_elements_text(
+      CASE
+        WHEN jsonb_typeof(fu.sampling_attributes->'matchedActivityCodes')='array'
+          THEN fu.sampling_attributes->'matchedActivityCodes'
+        ELSE '[]'::jsonb
+      END
+    ) AS code
+    GROUP BY code
+    ORDER BY population DESC,code
+    LIMIT 80
+  `, [slug]);
+
+  return {
+    sectors: sectors.rows.map((row) => ({
+      sectorCode: text(row.sector_code),
+      population: numberValue(row.population),
+      contactableEmails: numberValue(row.contactable_emails)
+    })),
+    codes: codes.rows.map((row) => ({
+      code: text(row.code),
+      population: numberValue(row.population)
+    }))
+  };
+}
+
+export type ResearchConsentOverview = Readonly<{
+  totals: readonly Readonly<{
+    consentKind: string;
+    granted: number;
+    declined: number;
+  }>[];
+  recent: readonly Readonly<{
+    responseId: string;
+    consentKind: string;
+    granted: boolean;
+    statementVersion: string;
+    source: string;
+    occurredAt: string;
+  }>[];
+}>;
+
+export async function researchStudyConsentOverview(
+  principal: SessionPrincipal,
+  slug: string
+): Promise<ResearchConsentOverview> {
+  assertAdminPermission(principal, "research.privacy.manage");
+  if (!productionDatabaseConfigured()) return { totals: [], recent: [] };
+  const pool = getProductionPostgresRuntime().sqlPool;
+
+  const totals = await pool.query<SqlRow>(`
+    WITH study AS (
+      SELECT id,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1
+    ),
+    latest AS (
+      SELECT DISTINCT ON (c.response_id,c.consent_kind)
+        c.response_id,c.consent_kind,c.granted
+      FROM research_consents c
+      JOIN research_responses r ON r.id=c.response_id
+      JOIN study s ON s.id=r.study_id
+      WHERE r.wave_id=s.current_wave_id
+        AND c.consent_kind IN ('research_participation','results_notification','thank_you_code')
+      ORDER BY c.response_id,c.consent_kind,c.occurred_at DESC,c.id DESC
+    )
+    SELECT
+      consent_kind,
+      count(*) FILTER (WHERE granted=true)::int AS granted,
+      count(*) FILTER (WHERE granted=false)::int AS declined
+    FROM latest
+    GROUP BY consent_kind
+    ORDER BY consent_kind
+  `, [slug]);
+
+  const recent = await pool.query<SqlRow>(`
+    WITH study AS (
+      SELECT id,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1
+    )
+    SELECT
+      c.response_id,
+      c.consent_kind,
+      c.granted,
+      c.statement_version,
+      c.source,
+      c.occurred_at
+    FROM research_consents c
+    JOIN research_responses r ON r.id=c.response_id
+    JOIN study s ON s.id=r.study_id
+    WHERE r.wave_id=s.current_wave_id
+      AND c.consent_kind IN ('research_participation','results_notification','thank_you_code')
+    ORDER BY c.occurred_at DESC,c.id DESC
+    LIMIT 100
+  `, [slug]);
+
+  return {
+    totals: totals.rows.map((row) => ({
+      consentKind: text(row.consent_kind),
+      granted: numberValue(row.granted),
+      declined: numberValue(row.declined)
+    })),
+    recent: recent.rows.map((row) => ({
+      responseId: text(row.response_id),
+      consentKind: text(row.consent_kind),
+      granted: Boolean(row.granted),
+      statementVersion: text(row.statement_version),
+      source: text(row.source),
+      occurredAt: new Date(row.occurred_at as string | Date).toISOString()
+    }))
+  };
+}
+
 export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
   assertAdminPermission(principal, "research.read");
   if (!productionDatabaseConfigured()) {
@@ -1095,8 +1384,10 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       latest_ap.locked_at AS analysis_plan_locked_at,
       latest_rt.version AS recruitment_template_version,
       latest_rt.subject AS recruitment_template_subject,
+      latest_rt.body_text AS recruitment_template_body,
       latest_rrt.version AS reminder_template_version,
       latest_rrt.subject AS reminder_template_subject,
+      latest_rrt.body_text AS reminder_template_body,
       COALESCE(f.frames, 0)::int AS frame_count,
       COALESCE(lf.population_size, 0)::int AS frame_population,
       GREATEST(
@@ -1163,7 +1454,7 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       LIMIT 1
     ) latest_ap ON true
     LEFT JOIN LATERAL (
-      SELECT version, subject
+      SELECT version, subject, body_text
       FROM research_recruitment_templates
       WHERE study_id = s.id
         AND channel='email'
@@ -1173,7 +1464,7 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       LIMIT 1
     ) latest_rt ON true
     LEFT JOIN LATERAL (
-      SELECT version, subject
+      SELECT version, subject, body_text
       FROM research_recruitment_templates
       WHERE study_id = s.id
         AND channel='email'
@@ -1407,8 +1698,10 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       analysisPlanLockedAt: optionalText(row.analysis_plan_locked_at),
       recruitmentTemplateVersion: optionalText(row.recruitment_template_version),
       recruitmentTemplateSubject: optionalText(row.recruitment_template_subject),
+      recruitmentTemplateBody: optionalText(row.recruitment_template_body),
       reminderTemplateVersion: optionalText(row.reminder_template_version),
       reminderTemplateSubject: optionalText(row.reminder_template_subject),
+      reminderTemplateBody: optionalText(row.reminder_template_body),
       frameCount: numberValue(row.frame_count),
       framePopulation: numberValue(row.frame_population),
       phasePopulation: numberValue(row.phase_population),
