@@ -22,6 +22,11 @@ const FRAME_CLASSIFICATION_VERSION = "greek-retail-kad-sector-v1";
 const FRAME_SOURCE_REFERENCE = "gemi-opendata:retail-non-food:active:all-greece";
 const FRAME_FLUSH_SIZE = 500;
 const MAX_JOB_ATTEMPTS = 3;
+const AUTO_REMINDER_BATCH_SIZE = 100;
+const AUTO_REMINDER_MIN_AGE_DAYS = 5;
+const AUTO_REMINDER_MIN_GAP_DAYS = 5;
+const AUTO_REMINDER_MAX_COUNT = 2;
+const AUTO_REMINDER_COOLDOWN_MINUTES = 60;
 
 type ResearchJobRow = SqlRow & {
   id: string;
@@ -123,7 +128,6 @@ function assertResearchEmailBatchApproval(
 function assertQueuedResearchEmailApproval(job: ResearchJobRow): void {
   const expectedPurpose: Partial<Record<ResearchJobType, ResearchEmailApprovalPurpose>> = {
     invite_batch: "research_invitation",
-    invite_reminder: "research_reminder",
     reward_delivery: "thank_you_code",
     results_notification: "results_notification"
   };
@@ -578,11 +582,6 @@ export async function queueGreekRetailInviteReminderBatch(
   if (!text(row.current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
   if (!["pilot","fielding"].includes(text(row.status))) throw new Error("SURVEY_NOT_OPEN");
   const fieldworkPhase = text(row.status) === "pilot" ? "pilot" : "main";
-  assertResearchEmailBatchApproval(input.emailApproval, {
-    studyTitle: text(row.title),
-    purpose: "research_reminder",
-    maxEmails: limit
-  });
 
   const existing = await pool.query<SqlRow>(`
     SELECT id
@@ -636,6 +635,172 @@ export async function queueGreekRetailInviteReminderBatch(
   return {
     jobId: text(job.rows[0]!.id),
     templateId: text(row.reminder_template_id)
+  };
+}
+
+export async function ensureGreekRetailAutomaticReminderBatch(): Promise<Readonly<{
+  queued: boolean;
+  jobId?: string;
+  candidateCount: number;
+  reason: string;
+}>> {
+  if (!productionDatabaseConfigured()) {
+    return { queued: false, candidateCount: 0, reason: "database_unavailable" };
+  }
+  try {
+    assertResearchSurveyEmailReady();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { queued: false, candidateCount: 0, reason: message };
+  }
+
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const studyResult = await pool.query<SqlRow>(`
+    SELECT
+      s.id,
+      s.status,
+      s.current_wave_id,
+      rt.id AS reminder_template_id
+    FROM research_studies s
+    JOIN LATERAL (
+      SELECT id
+      FROM research_recruitment_templates
+      WHERE study_id=s.id
+        AND wave_id=s.current_wave_id
+        AND channel='email'
+        AND status='locked'
+        AND purpose='research_reminder'
+      ORDER BY locked_at DESC NULLS LAST,created_at DESC
+      LIMIT 1
+    ) rt ON true
+    WHERE s.slug=$1
+    LIMIT 1
+  `, [STUDY_SLUG]);
+  const study = studyResult.rows[0];
+  if (!study) return { queued: false, candidateCount: 0, reason: "reminder_template_not_ready" };
+  if (!["pilot","fielding"].includes(text(study.status))) {
+    return { queued: false, candidateCount: 0, reason: "study_not_fielding" };
+  }
+  const waveId = text(study.current_wave_id);
+  if (!waveId) return { queued: false, candidateCount: 0, reason: "current_wave_missing" };
+  const fieldworkPhase = text(study.status) === "pilot" ? "pilot" : "main";
+
+  const existing = await pool.query<SqlRow>(`
+    SELECT id
+    FROM research_study_jobs
+    WHERE study_id=$1
+      AND wave_id=$2
+      AND job_type='invite_reminder'
+      AND (
+        status IN ('queued','running')
+        OR (
+          COALESCE((input->>'automatic')::boolean,false)=true
+          AND created_at > now() - ($3::int * interval '1 minute')
+        )
+      )
+    ORDER BY created_at DESC
+    LIMIT 1
+  `, [study.id, waveId, AUTO_REMINDER_COOLDOWN_MINUTES]);
+  if (existing.rows[0]) {
+    return {
+      queued: false,
+      jobId: text(existing.rows[0].id),
+      candidateCount: 0,
+      reason: "reminder_job_active_or_cooldown"
+    };
+  }
+
+  const candidates = await pool.query<SqlRow>(`
+    WITH reminder_stats AS (
+      SELECT
+        invite_id,
+        count(*) FILTER (
+          WHERE attempt_kind='reminder'
+            AND status IN ('sent','delivered','opened')
+        )::int AS sent_reminders,
+        max(sent_at) FILTER (
+          WHERE attempt_kind='reminder'
+            AND status IN ('sent','delivered','opened')
+        ) AS last_reminder_sent_at
+      FROM research_invite_messages
+      GROUP BY invite_id
+    )
+    SELECT count(*)::int AS count
+    FROM (
+      SELECT ri.id
+      FROM research_invites ri
+      JOIN research_sample_units su ON su.id=ri.sample_unit_id
+      LEFT JOIN research_responses rr ON rr.invite_id=ri.id
+      LEFT JOIN reminder_stats stats ON stats.invite_id=ri.id
+      WHERE ri.study_id=$1
+        AND ri.wave_id=$2
+        AND ri.fieldwork_phase=$6
+        AND ri.sent_at IS NOT NULL
+        AND ri.status IN ('sent','opened','started')
+        AND (ri.expires_at IS NULL OR ri.expires_at > now())
+        AND ri.sent_at <= now() - ($3::int * interval '1 day')
+        AND COALESCE(rr.status,'') NOT IN ('completed','withdrawn','excluded')
+        AND COALESCE(stats.sent_reminders,0) < $4
+        AND COALESCE(stats.last_reminder_sent_at,ri.sent_at)
+              <= now() - ($5::int * interval '1 day')
+        AND EXISTS (
+          SELECT 1
+          FROM research_contact_points cp
+          WHERE cp.frame_unit_id=su.frame_unit_id
+            AND cp.contact_type='email'
+            AND cp.suppression_status='active'
+            AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+        )
+      ORDER BY COALESCE(stats.last_reminder_sent_at,ri.sent_at),ri.created_at,ri.id
+      LIMIT $7
+    ) eligible
+  `, [
+    study.id,
+    waveId,
+    AUTO_REMINDER_MIN_AGE_DAYS,
+    AUTO_REMINDER_MAX_COUNT,
+    AUTO_REMINDER_MIN_GAP_DAYS,
+    fieldworkPhase,
+    AUTO_REMINDER_BATCH_SIZE
+  ]);
+  const candidateCount = numberValue(candidates.rows[0]?.count);
+  if (candidateCount < 1) {
+    return { queued: false, candidateCount: 0, reason: "no_eligible_reminders" };
+  }
+
+  const job = await pool.query<SqlRow>(`
+    INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
+    VALUES (
+      $1,$2,'invite_reminder','queued',
+      jsonb_build_object(
+        'templateId',$3::text,
+        'limit',$4::int,
+        'minAgeDays',$5::int,
+        'minGapDays',$6::int,
+        'maxReminders',$7::int,
+        'label',$8::text,
+        'fieldworkPhase',$9::text,
+        'automatic',true
+      )
+    )
+    RETURNING id
+  `, [
+    study.id,
+    waveId,
+    study.reminder_template_id,
+    AUTO_REMINDER_BATCH_SIZE,
+    AUTO_REMINDER_MIN_AGE_DAYS,
+    AUTO_REMINDER_MIN_GAP_DAYS,
+    AUTO_REMINDER_MAX_COUNT,
+    `${fieldworkPhase}-automatic-research-reminder-${new Date().toISOString()}`,
+    fieldworkPhase
+  ]);
+
+  return {
+    queued: true,
+    jobId: text(job.rows[0]!.id),
+    candidateCount,
+    reason: "queued"
   };
 }
 
