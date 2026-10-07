@@ -40,6 +40,14 @@ const SECURITY_HEADERS = [
   { key: "X-DNS-Prefetch-Control", value: "off" }
 ] as const;
 
+const RETIRED_PUBLIC_HOSTS = [
+  "www.kontamou.site",
+  "kontamou.info",
+  "www.kontamou.info",
+  "buylocalsparta.gr",
+  "www.buylocalsparta.gr"
+] as const;
+
 const SEARCH_EXCLUDED_HEADERS = [
   { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive, nosnippet" },
   { key: "Cache-Control", value: "private, no-store, max-age=0" }
@@ -131,24 +139,16 @@ const nextConfig: NextConfig = {
     // warm at the edge so repeat visits avoid re-fetching full-resolution originals.
     minimumCacheTTL: 86_400
   },
-  // kontamou.site is the only public SEO authority. Keep the retired .info host
-  // attached only long enough to preserve old links and redirect every path with
-  // a permanent host-level redirect instead of serving duplicate indexable HTML.
+  // kontamou.site is the only public SEO authority. Redirect every alternate or
+  // retired public hostname at the application layer as defense in depth, even when
+  // Vercel also owns an edge-level redirect. Every path is preserved and permanent.
   async redirects() {
-    return [
-      {
-        source: "/:path*",
-        has: [{ type: "host", value: "kontamou.info" }],
-        destination: "https://kontamou.site/:path*",
-        permanent: true
-      },
-      {
-        source: "/:path*",
-        has: [{ type: "host", value: "www.kontamou.info" }],
-        destination: "https://kontamou.site/:path*",
-        permanent: true
-      }
-    ];
+    return RETIRED_PUBLIC_HOSTS.map((host) => ({
+      source: "/:path*",
+      has: [{ type: "host" as const, value: host }],
+      destination: "https://kontamou.site/:path*",
+      permanent: true
+    }));
   },
   // QuickAddWorkbench is shared by vendor-owner and Daily operator surfaces. When a
   // Daily session cookie is present, keep its existing client URLs but route the two
