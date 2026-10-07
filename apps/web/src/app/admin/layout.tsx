@@ -23,6 +23,7 @@ import "../admin-customers-operational.css";
 import "../admin-finance-operational.css";
 import "../admin-trust-operational.css";
 import "../admin-analytics-operational.css";
+import "../admin-research.css";
 import "../admin-content-operational.css";
 import "../admin-platform-operational.css";
 import "../admin-launchcontrol.css";
