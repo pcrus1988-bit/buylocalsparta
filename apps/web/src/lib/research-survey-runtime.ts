@@ -751,37 +751,9 @@ export async function savePublicResearchSurvey(input: Readonly<{
         )
         ON CONFLICT (response_id, reward_kind, reward_version) DO NOTHING
       `, [response.id]);
-      await client.query(`
-        INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
-        SELECT
-          $1,$2,'reward_delivery','queued',
-          jsonb_build_object('responseId',$3::text,'source','survey_completion')
-        WHERE EXISTS (
-          SELECT 1
-          FROM research_consents rc
-          WHERE rc.response_id=$3
-            AND rc.consent_kind='thank_you_code'
-          ORDER BY rc.occurred_at DESC,rc.id DESC
-          LIMIT 1
-        )
-        AND (
-          SELECT rc.granted
-          FROM research_consents rc
-          WHERE rc.response_id=$3
-            AND rc.consent_kind='thank_you_code'
-          ORDER BY rc.occurred_at DESC,rc.id DESC
-          LIMIT 1
-        ) = true
-        AND NOT EXISTS (
-          SELECT 1
-          FROM research_study_jobs j
-          WHERE j.study_id=$1
-            AND j.wave_id=$2
-            AND j.job_type='reward_delivery'
-            AND j.input->>'responseId'=$3::text
-            AND j.status IN ('queued','running','succeeded')
-        )
-      `, [invite.study_id, invite.wave_id, response.id]);
+      // Delivery is intentionally not queued here. The entitlement remains eligible
+      // until a Research Fieldwork operator reviews the exact recipient count and
+      // completes the required two-step email confirmation in the admin workspace.
     }
 
     const experimentResult = await client.query<SqlRow>(`
@@ -2076,25 +2048,9 @@ export async function transitionResearchStudy(
         SET status='published',public_results_url=$2,updated_at=now()
         WHERE id=$1
       `, [row.study_id, release.public_url]);
-      await client.query(`
-        INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
-        SELECT
-          $1,$2,'results_notification','queued',
-          jsonb_build_object(
-            'releaseSnapshotId',$3::text,
-            'limit',100,
-            'source','release_publication'
-          )
-        WHERE NOT EXISTS (
-          SELECT 1
-          FROM research_study_jobs j
-          WHERE j.study_id=$1
-            AND j.wave_id=$2
-            AND j.job_type='results_notification'
-            AND j.input->>'releaseSnapshotId'=$3::text
-            AND j.status IN ('queued','running','succeeded')
-        )
-      `, [row.study_id, row.wave_id, release.id]);
+      // Publication never triggers email automatically. Results notifications are
+      // queued only from the Research admin workspace after the required two-step
+      // confirmation shows the study, purpose and exact eligible recipient count.
       studyStatus = "published";
     }
 
