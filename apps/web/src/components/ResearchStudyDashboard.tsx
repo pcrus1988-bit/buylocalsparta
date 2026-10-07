@@ -34,8 +34,8 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
         <Link className={styles.brand} href="/research">KONTA MOY · RETAIL OBSERVATORY</Link>
         <nav className={styles.nav} aria-label="Research">
           <Link href="/research">Μελέτες</Link>
-          <Link href={"/research/" + study.slug + "/methodology"}>Μεθοδολογία</Link>
-          <Link href={"/research/" + study.slug + "/results"}>Αποτελέσματα</Link>
+          <Link href={"/research/" + study.waveSlug + "/methodology"}>Μεθοδολογία</Link>
+          <Link href={"/research/" + study.waveSlug + "/results"}>Αποτελέσματα</Link>
           <Link href="/research/compare">Σύγκριση & αξιολόγηση</Link>
         </nav>
       </div>
@@ -46,9 +46,9 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
           <h1>{study.title}</h1>
           <p>{study.subtitle || study.methodologySummary}</p>
           <div className={styles.tabbar}>
-            <Link href={"/research/" + study.slug}>Επισκόπηση</Link>
-            <Link href={"/research/" + study.slug + "/methodology"}>Μεθοδολογία</Link>
-            <Link href={"/research/" + study.slug + "/results"}>{isPublished ? "Δημοσιευμένα αποτελέσματα" : "Αποτελέσματα μετά το κλείσιμο"}</Link>
+            <Link href={"/research/" + study.waveSlug}>Επισκόπηση</Link>
+            <Link href={"/research/" + study.waveSlug + "/methodology"}>Μεθοδολογία</Link>
+            <Link href={"/research/" + study.waveSlug + "/results"}>{isPublished ? "Δημοσιευμένα αποτελέσματα" : "Αποτελέσματα μετά το κλείσιμο"}</Link>
             <Link href="/research/compare">Σύγκριση</Link>
           </div>
         </div>
@@ -78,7 +78,7 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
             <h3>Τι μετράμε</h3>
             <p>{study.methodologySummary}</p>
             <p><strong>Πληθυσμός:</strong> {study.populationDefinition}</p>
-            <Link className={styles.cardLink} href={"/research/" + study.slug + "/methodology"}>Πλήρης μεθοδολογία →</Link>
+            <Link className={styles.cardLink} href={"/research/" + study.waveSlug + "/methodology"}>Πλήρης μεθοδολογία →</Link>
           </article>
           <article className={styles.panel}>
             <div className={styles.eyebrow}>Δημοσίευση</div>
@@ -86,7 +86,7 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
             <p>{isPublished
               ? "Το δημόσιο release είναι δεμένο με dataset hash, methodology snapshot και analysis run. Μπορεί να συγκριθεί μόνο με waves που έχουν τεκμηριωμένη lineage."
               : "Μετά το κλείσιμο ακολουθούν έλεγχος ποιότητας, weighting, ανάλυση και release approval. Η ίδια σελίδα μετατρέπεται τότε σε dashboard αποτελεσμάτων."}</p>
-            <Link className={styles.cardLink} href={"/research/" + study.slug + "/results"}>
+            <Link className={styles.cardLink} href={"/research/" + study.waveSlug + "/results"}>
               {isPublished ? "Άνοιγμα αποτελεσμάτων →" : "Σελίδα αποτελεσμάτων →"}
             </Link>
           </article>
