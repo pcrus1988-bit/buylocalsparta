@@ -18,7 +18,10 @@ export function generateMetadata(): Promise<Metadata> {
 
 export default async function GreekRetailResearchPage() {
   const study = await publicResearchStudy("greek-retail-2026");
-  if (study) return <>\n    <ResearchStudyDashboard study={study} />\n    <SiteFooter />\n  </>;
+  if (study) return <>
+    <ResearchStudyDashboard study={study} />
+    <SiteFooter />
+  </>;
 
   return <main className={styles.shell}>
     <div className={styles.frame}>
