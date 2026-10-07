@@ -248,6 +248,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [preferenceMessage, setPreferenceMessage] = useState("");
+  const [marketingMessage, setMarketingMessage] = useState("");
 
   const questionSections = useMemo(() => {
     const codes = ["A", "B", "C", "D", "E", "F"];
@@ -338,7 +339,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
   }
 
   async function saveMarketingPreference() {
-    setPreferenceMessage("");
+    setMarketingMessage("");
     try {
       const result = await save({
         action: "preferences",
@@ -348,7 +349,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
         setOptionalConsents((state) => ({ ...state, ...result.consents as Partial<ConsentState> }));
       }
       setMarketingDecisionRecorded(true);
-      setPreferenceMessage(optionalConsents.marketing
+      setMarketingMessage(optionalConsents.marketing
         ? "Η συγκατάθεση για εμπορική ενημέρωση καταχωρήθηκε."
         : "Η επιλογή μη λήψης εμπορικής ενημέρωσης καταχωρήθηκε.");
     } catch (error) {
@@ -419,6 +420,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
           ? "Η διεύθυνση αυτή έχει ενεργή συγκατάθεση για εμπορική ενημέρωση."
           : "Η διεύθυνση αυτή δεν έχει ενεργή συγκατάθεση για εμπορική ενημέρωση."
         : "Δεν έχει καταχωρηθεί ακόμη επιλογή για εμπορική ενημέρωση."}</p>
+      {marketingMessage && <p className={styles.success}>{marketingMessage}</p>}
       <div className={styles.actions}>
         <button type="button" className={styles.secondary} disabled={saving} onClick={() => void saveMarketingPreference()}>
           {saving ? "Αποθήκευση…" : "Αποθήκευση εμπορικής επιλογής"}
