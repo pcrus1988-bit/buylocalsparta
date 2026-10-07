@@ -1,5 +1,9 @@
 export type ResearchQuestionType = "single" | "multi" | "scale" | "matrix" | "text" | "experiment";
 
+export const RESEARCH_MARKETING_CONSENT_VERSION = "kontamou-marketing-email-el-v1";
+export const RESEARCH_MARKETING_CONSENT_STATEMENT_EL =
+  "Θέλω να λαμβάνω μέσω email νέα, προτάσεις συνεργασίας και εμπορικές ενημερώσεις από το KONTA MOY. Η επιλογή είναι προαιρετική και μπορώ να την ανακαλέσω οποτεδήποτε.";
+
 export type ResearchQuestion = Readonly<{
   id: string;
   code: string;
