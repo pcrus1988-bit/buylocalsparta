@@ -65,6 +65,21 @@ export const RESEARCH_JOB_TYPES = [
 export type ResearchJobType = (typeof RESEARCH_JOB_TYPES)[number];
 const RESEARCH_JOB_TYPE_SET = new Set<string>(RESEARCH_JOB_TYPES);
 
+export type ResearchEmailApprovalPurpose =
+  | "research_invitation"
+  | "research_reminder"
+  | "thank_you_code"
+  | "results_notification";
+
+export type ResearchEmailBatchApproval = Readonly<{
+  studySlug?: string;
+  studyTitle?: string;
+  purpose?: ResearchEmailApprovalPurpose;
+  maxEmails?: number;
+  reviewConfirmed?: boolean;
+  finalConfirmed?: boolean;
+}>;
+
 function text(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
 }
@@ -78,6 +93,57 @@ function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
+}
+
+function assertResearchEmailBatchApproval(
+  approval: ResearchEmailBatchApproval | undefined,
+  expected: Readonly<{
+    studyTitle: string;
+    purpose: ResearchEmailApprovalPurpose;
+    maxEmails: number;
+  }>
+): void {
+  if (!approval || approval.reviewConfirmed !== true || approval.finalConfirmed !== true) {
+    throw new Error("RESEARCH_EMAIL_DOUBLE_CONFIRMATION_REQUIRED");
+  }
+  if (text(approval.studySlug) !== STUDY_SLUG) {
+    throw new Error("RESEARCH_EMAIL_CONFIRMATION_STUDY_MISMATCH");
+  }
+  if (text(approval.studyTitle) !== expected.studyTitle) {
+    throw new Error("RESEARCH_EMAIL_CONFIRMATION_STUDY_MISMATCH");
+  }
+  if (approval.purpose !== expected.purpose) {
+    throw new Error("RESEARCH_EMAIL_CONFIRMATION_PURPOSE_MISMATCH");
+  }
+  if (Math.floor(numberValue(approval.maxEmails)) !== expected.maxEmails) {
+    throw new Error("RESEARCH_EMAIL_CONFIRMATION_COUNT_MISMATCH");
+  }
+}
+
+function assertQueuedResearchEmailApproval(job: ResearchJobRow): void {
+  const expectedPurpose: Partial<Record<ResearchJobType, ResearchEmailApprovalPurpose>> = {
+    invite_batch: "research_invitation",
+    invite_reminder: "research_reminder",
+    reward_delivery: "thank_you_code",
+    results_notification: "results_notification"
+  };
+  const purpose = expectedPurpose[job.job_type as ResearchJobType];
+  if (!purpose) return;
+  const input = objectValue(job.input);
+  const approval = objectValue(input.emailApproval) as ResearchEmailBatchApproval;
+  const limit = Math.floor(numberValue(input.limit));
+  if (
+    !approval ||
+    approval.reviewConfirmed !== true ||
+    approval.finalConfirmed !== true ||
+    text(approval.studySlug) !== STUDY_SLUG ||
+    approval.purpose !== purpose ||
+    !Number.isSafeInteger(limit) ||
+    limit < 1 ||
+    Math.floor(numberValue(approval.maxEmails)) !== limit
+  ) {
+    throw new Error("RESEARCH_EMAIL_DOUBLE_CONFIRMATION_REQUIRED");
+  }
 }
 
 function sha256(value: string): string {
@@ -370,7 +436,7 @@ export async function saveGreekRetailRecruitmentTemplate(
   if (bodyText.length < 40 || bodyText.length > 12_000) throw new Error("RESEARCH_RECRUITMENT_BODY_INVALID");
   const pool = getProductionPostgresRuntime().sqlPool;
   const study = await pool.query<SqlRow>(
-    "SELECT id,status,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1",
+    "SELECT id,title,status,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1",
     [STUDY_SLUG]
   );
   const row = study.rows[0];
@@ -395,7 +461,7 @@ export async function saveGreekRetailRecruitmentTemplate(
 
 export async function queueGreekRetailInviteBatch(
   principal: SessionPrincipal,
-  input: Readonly<{ limit?: number; label?: string }>
+  input: Readonly<{ limit?: number; label?: string; emailApproval?: ResearchEmailBatchApproval }>
 ): Promise<{ jobId: string }> {
   assertAdminPermission(principal, "research.fieldwork.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
@@ -404,7 +470,7 @@ export async function queueGreekRetailInviteBatch(
   const pool = getProductionPostgresRuntime().sqlPool;
   const study = await pool.query<SqlRow>(`
     SELECT
-      s.id,s.status,s.current_wave_id,
+      s.id,s.title,s.status,s.current_wave_id,
       EXISTS(
         SELECT 1 FROM research_sample_draws d
         WHERE d.study_id=s.id
@@ -426,6 +492,11 @@ export async function queueGreekRetailInviteBatch(
   if (!text(row.current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
   if (!["pilot","fielding"].includes(text(row.status))) throw new Error("SURVEY_NOT_OPEN");
   const fieldworkPhase = text(row.status) === "pilot" ? "pilot" : "main";
+  assertResearchEmailBatchApproval(input.emailApproval, {
+    studyTitle: text(row.title),
+    purpose: "research_invitation",
+    maxEmails: limit
+  });
   if (!Boolean(row.sample_ready)) throw new Error("RESEARCH_INVITE_SAMPLE_NOT_READY");
   if (!Boolean(row.template_ready)) throw new Error("RESEARCH_RECRUITMENT_TEMPLATE_NOT_READY");
 
@@ -443,7 +514,8 @@ export async function queueGreekRetailInviteBatch(
       jsonb_build_object(
         'limit',$3::int,
         'label',$4::text,
-        'fieldworkPhase',$5::text
+        'fieldworkPhase',$5::text,
+        'emailApproval',$6::jsonb
       )
     )
     RETURNING id
@@ -452,7 +524,8 @@ export async function queueGreekRetailInviteBatch(
     row.current_wave_id,
     limit,
     input.label?.trim() || `${fieldworkPhase}-research-email-${new Date().toISOString()}`,
-    fieldworkPhase
+    fieldworkPhase,
+    JSON.stringify(input.emailApproval)
   ]);
   return { jobId: text(job.rows[0]!.id) };
 }
@@ -465,6 +538,7 @@ export async function queueGreekRetailInviteReminderBatch(
     minAgeDays?: number;
     minGapDays?: number;
     maxReminders?: number;
+    emailApproval?: ResearchEmailBatchApproval;
   }> = {}
 ): Promise<{ jobId: string; templateId: string }> {
   assertAdminPermission(principal, "research.fieldwork.manage");
@@ -480,6 +554,7 @@ export async function queueGreekRetailInviteReminderBatch(
   const study = await pool.query<SqlRow>(`
     SELECT
       s.id,
+      s.title,
       s.status,
       s.current_wave_id,
       rt.id AS reminder_template_id
@@ -503,6 +578,11 @@ export async function queueGreekRetailInviteReminderBatch(
   if (!text(row.current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
   if (!["pilot","fielding"].includes(text(row.status))) throw new Error("SURVEY_NOT_OPEN");
   const fieldworkPhase = text(row.status) === "pilot" ? "pilot" : "main";
+  assertResearchEmailBatchApproval(input.emailApproval, {
+    studyTitle: text(row.title),
+    purpose: "research_reminder",
+    maxEmails: limit
+  });
 
   const existing = await pool.query<SqlRow>(`
     SELECT id
@@ -535,7 +615,8 @@ export async function queueGreekRetailInviteReminderBatch(
         'minGapDays',$6::int,
         'maxReminders',$7::int,
         'label',$8::text,
-        'fieldworkPhase',$9::text
+        'fieldworkPhase',$9::text,
+        'emailApproval',$10::jsonb
       )
     )
     RETURNING id
@@ -548,7 +629,8 @@ export async function queueGreekRetailInviteReminderBatch(
     minGapDays,
     maxReminders,
     input.label?.trim() || `${fieldworkPhase}-research-reminder-${new Date().toISOString()}`,
-    fieldworkPhase
+    fieldworkPhase,
+    JSON.stringify(input.emailApproval)
   ]);
 
   return {
@@ -559,7 +641,7 @@ export async function queueGreekRetailInviteReminderBatch(
 
 export async function queueGreekRetailRewardDelivery(
   principal: SessionPrincipal,
-  input: Readonly<{ limit?: number; label?: string }> = {}
+  input: Readonly<{ limit?: number; label?: string; emailApproval?: ResearchEmailBatchApproval }> = {}
 ): Promise<{ jobId: string }> {
   assertAdminPermission(principal, "research.fieldwork.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
@@ -575,6 +657,11 @@ export async function queueGreekRetailRewardDelivery(
   if (!row) throw new Error("RESEARCH_STUDY_NOT_FOUND");
   if (!text(row.current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
   if (text(row.status) === "archived") throw new Error("RESEARCH_REWARD_DELIVERY_ARCHIVED");
+  assertResearchEmailBatchApproval(input.emailApproval, {
+    studyTitle: text(row.title),
+    purpose: "thank_you_code",
+    maxEmails: limit
+  });
 
   const existing = await pool.query<SqlRow>(`
     SELECT id
@@ -593,16 +680,22 @@ export async function queueGreekRetailRewardDelivery(
     INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
     VALUES (
       $1,$2,'reward_delivery','queued',
-      jsonb_build_object('limit',$3::int,'label',$4::text)
+      jsonb_build_object('limit',$3::int,'label',$4::text,'emailApproval',$5::jsonb)
     )
     RETURNING id
-  `, [row.id, row.current_wave_id, limit, input.label?.trim() || `reward-delivery-${new Date().toISOString()}`]);
+  `, [
+    row.id,
+    row.current_wave_id,
+    limit,
+    input.label?.trim() || `reward-delivery-${new Date().toISOString()}`,
+    JSON.stringify(input.emailApproval)
+  ]);
   return { jobId: text(job.rows[0]!.id) };
 }
 
 export async function queueGreekRetailResultsNotifications(
   principal: SessionPrincipal,
-  input: Readonly<{ limit?: number; label?: string }> = {}
+  input: Readonly<{ limit?: number; label?: string; emailApproval?: ResearchEmailBatchApproval }> = {}
 ): Promise<{ jobId: string; releaseSnapshotId: string }> {
   assertAdminPermission(principal, "research.publish.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
@@ -610,7 +703,7 @@ export async function queueGreekRetailResultsNotifications(
   const limit = Math.max(1, Math.min(250, Math.floor(input.limit ?? 100)));
   const pool = getProductionPostgresRuntime().sqlPool;
   const release = await pool.query<SqlRow>(`
-    SELECT s.id AS study_id,s.current_wave_id AS wave_id,rs.id AS release_snapshot_id
+    SELECT s.id AS study_id,s.title AS study_title,s.current_wave_id AS wave_id,rs.id AS release_snapshot_id
     FROM research_studies s
     JOIN LATERAL (
       SELECT id
@@ -625,6 +718,11 @@ export async function queueGreekRetailResultsNotifications(
   const row = release.rows[0];
   if (!row) throw new Error("RESEARCH_RESULTS_NOTIFICATION_REQUIRES_PUBLISHED_RELEASE");
   if (!text(row.wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
+  assertResearchEmailBatchApproval(input.emailApproval, {
+    studyTitle: text(row.study_title),
+    purpose: "results_notification",
+    maxEmails: limit
+  });
 
   const existing = await pool.query<SqlRow>(`
     SELECT id
@@ -651,7 +749,8 @@ export async function queueGreekRetailResultsNotifications(
       jsonb_build_object(
         'releaseSnapshotId',$3::text,
         'limit',$4::int,
-        'label',$5::text
+        'label',$5::text,
+        'emailApproval',$6::jsonb
       )
     )
     RETURNING id
@@ -660,7 +759,8 @@ export async function queueGreekRetailResultsNotifications(
     row.wave_id,
     row.release_snapshot_id,
     limit,
-    input.label?.trim() || `results-notification-${new Date().toISOString()}`
+    input.label?.trim() || `results-notification-${new Date().toISOString()}`,
+    JSON.stringify(input.emailApproval)
   ]);
   return {
     jobId: text(job.rows[0]!.id),
@@ -2980,30 +3080,9 @@ async function processResultsNotificationJob(job: ResearchJobRow): Promise<Recor
       )
   `, [job.study_id, releaseSnapshotId]);
   const remainingCount = numberValue(remaining.rows[0]?.count);
-  let continuationJobId: string | undefined;
-  if (remainingCount > 0) {
-    const next = await pool.query<SqlRow>(`
-      INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
-      SELECT
-        $1,$2,'results_notification','queued',
-        jsonb_build_object(
-          'releaseSnapshotId',$3::text,
-          'limit',$4::int,
-          'label','results-notification-continuation'
-        )
-      WHERE NOT EXISTS (
-        SELECT 1
-        FROM research_study_jobs
-        WHERE study_id=$1
-          AND wave_id=$2
-          AND job_type='results_notification'
-          AND status='queued'
-          AND input->>'releaseSnapshotId'=$3
-      )
-      RETURNING id
-    `, [job.study_id, job.wave_id, releaseSnapshotId, limit]);
-    continuationJobId = next.rows[0] ? text(next.rows[0].id) : undefined;
-  }
+  // Never create a follow-up email batch automatically. Any remaining
+  // opted-in recipients require a fresh two-step admin confirmation.
+  const continuationJobId: string | undefined = undefined;
 
   return {
     releaseSnapshotId,
@@ -3245,6 +3324,7 @@ export async function processResearchStudyJobs(
     if (!job) break;
     claimed += 1;
     try {
+      assertQueuedResearchEmailApproval(job);
       const output = job.job_type === "frame_snapshot"
         ? await processFrameSnapshotJob(job)
         : job.job_type === "sample_draw"
