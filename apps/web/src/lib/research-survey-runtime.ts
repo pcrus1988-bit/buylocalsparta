@@ -4,6 +4,8 @@ import { assertAdminPermission } from "./admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { researchReleaseArtifactIntegrity } from "./research-survey-release";
 import {
+  RESEARCH_MARKETING_CONSENT_STATEMENT_EL,
+  RESEARCH_MARKETING_CONSENT_VERSION,
   researchQualitySignals,
   scoreGreekRetail2026,
   validateResearchAnswers,
@@ -63,7 +65,7 @@ export type ResearchSurveyContext = Readonly<{
   questions: readonly ResearchQuestion[];
   answers: ResearchAnswerMap;
   experiments: readonly ResearchExperimentAssignment[];
-  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code", boolean>>>;
+  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>>;
 }>;
 
 function questionFromRow(row: SqlRow): ResearchQuestion {
@@ -188,6 +190,32 @@ async function questionsForInstrument(
   return result.rows.map(questionFromRow);
 }
 
+async function marketingConsentForContact(
+  executor: { query<Row extends SqlRow = SqlRow>(text: string, params?: readonly unknown[]): Promise<{ rows: readonly Row[] }> },
+  contactPointId: unknown
+): Promise<boolean | undefined> {
+  const id = text(contactPointId).trim();
+  if (!id) return undefined;
+  const result = await executor.query<SqlRow>(`
+    SELECT latest.granted
+    FROM research_contact_points cp
+    JOIN research_frame_units fu ON fu.id=cp.frame_unit_id
+    JOIN LATERAL (
+      SELECT e.granted
+      FROM research_private.marketing_consent_events e
+      WHERE e.company_key_hash=fu.external_key_hash
+        AND e.contact_value_hash=cp.contact_value_hash
+      ORDER BY e.occurred_at DESC,e.id DESC
+      LIMIT 1
+    ) latest ON true
+    WHERE cp.id=$1
+      AND cp.contact_type='email'
+    LIMIT 1
+  `, [id]);
+  if (!result.rows[0]) return undefined;
+  return Boolean(result.rows[0].granted);
+}
+
 export async function publicResearchSurvey(slug: string, token: string): Promise<ResearchSurveyContext> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const pool = getProductionPostgresRuntime().sqlPool;
@@ -223,7 +251,7 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
 
   let answers: ResearchAnswerMap = {};
   let experiments: readonly ResearchExperimentAssignment[] = [];
-  let consents: Partial<Record<"results_notification" | "thank_you_code", boolean>> = {};
+  let consents: Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>> = {};
   if (response) {
     const [answerResult, experimentResult, consentResult] = await Promise.all([
       pool.query<SqlRow>(`
@@ -255,6 +283,9 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
     }));
     consents = Object.fromEntries(consentResult.rows.map((row) => [text(row.consent_kind), Boolean(row.granted)])) as typeof consents;
   }
+
+  const marketingConsent = await marketingConsentForContact(pool, invite.contact_point_id);
+  if (marketingConsent !== undefined) consents = { ...consents, marketing: marketingConsent };
 
   return {
     study: {
@@ -426,10 +457,10 @@ export async function refusePublicResearchInvite(input: Readonly<{
 export async function updatePublicResearchConsents(input: Readonly<{
   slug: string;
   token: string;
-  optionalConsents: Partial<Record<"results_notification" | "thank_you_code", boolean>>;
+  optionalConsents: Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>;
 }>): Promise<Readonly<{
   status: "preferences_updated";
-  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code", boolean>>>;
+  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>>;
 }>> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const client = await getProductionPostgresRuntime().sqlPool.connect();
@@ -447,6 +478,75 @@ export async function updatePublicResearchConsents(input: Readonly<{
     if (!response) throw new Error("RESEARCH_RESPONSE_NOT_FOUND");
     if (text(response.status) !== "completed") {
       throw new Error("RESEARCH_PREFERENCES_REQUIRE_COMPLETION");
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input.optionalConsents, "marketing")) {
+      if (!invite.contact_point_id) throw new Error("RESEARCH_MARKETING_CONTACT_UNAVAILABLE");
+      const contactResult = await client.query<SqlRow>(`
+        SELECT
+          cp.id,
+          cp.contact_value_hash,
+          fu.external_key_hash AS company_key_hash,
+          NULLIF(BTRIM(COALESCE(fu.sampling_attributes->>'legalName','')),'') AS company_name,
+          cv.contact_value AS email
+        FROM research_contact_points cp
+        JOIN research_frame_units fu ON fu.id=cp.frame_unit_id
+        JOIN research_private.contact_vault cv ON cv.contact_point_id=cp.id
+        WHERE cp.id=$1
+          AND cp.contact_type='email'
+        FOR UPDATE OF cp
+      `, [invite.contact_point_id]);
+      const contact = contactResult.rows[0];
+      if (!contact || !text(contact.email).trim()) throw new Error("RESEARCH_MARKETING_CONTACT_UNAVAILABLE");
+
+      const normalizedGranted = Boolean(input.optionalConsents.marketing);
+      const previous = await client.query<SqlRow>(`
+        SELECT granted
+        FROM research_private.marketing_consent_events
+        WHERE company_key_hash=$1
+          AND contact_value_hash=$2
+        ORDER BY occurred_at DESC,id DESC
+        LIMIT 1
+      `, [contact.company_key_hash, contact.contact_value_hash]);
+
+      await client.query(`
+        INSERT INTO research_private.marketing_contacts (
+          company_key_hash,contact_value_hash,email,company_name,
+          source_study_id,source_contact_point_id,first_recorded_at,updated_at
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,now(),now())
+        ON CONFLICT (company_key_hash,contact_value_hash)
+        DO UPDATE SET
+          email=EXCLUDED.email,
+          company_name=COALESCE(EXCLUDED.company_name,research_private.marketing_contacts.company_name),
+          source_study_id=EXCLUDED.source_study_id,
+          source_contact_point_id=EXCLUDED.source_contact_point_id,
+          updated_at=now()
+      `, [
+        contact.company_key_hash,
+        contact.contact_value_hash,
+        text(contact.email).trim().toLowerCase(),
+        optionalText(contact.company_name) ?? null,
+        invite.study_id,
+        invite.contact_point_id
+      ]);
+
+      if (!previous.rows[0] || Boolean(previous.rows[0].granted) !== normalizedGranted) {
+        await client.query(`
+          INSERT INTO research_private.marketing_consent_events (
+            company_key_hash,contact_value_hash,source_study_id,granted,
+            statement_version,statement_text,source
+          )
+          VALUES ($1,$2,$3,$4,$5,$6,'survey_completion_preferences')
+        `, [
+          contact.company_key_hash,
+          contact.contact_value_hash,
+          invite.study_id,
+          normalizedGranted,
+          RESEARCH_MARKETING_CONSENT_VERSION,
+          RESEARCH_MARKETING_CONSENT_STATEMENT_EL
+        ]);
+      }
     }
 
     for (const [consentKind, granted] of Object.entries(input.optionalConsents)) {
@@ -501,9 +601,11 @@ export async function updatePublicResearchConsents(input: Readonly<{
         AND consent_kind IN ('results_notification','thank_you_code')
       ORDER BY consent_kind,occurred_at DESC,id DESC
     `, [response.id]);
-    const consents = Object.fromEntries(
+    let consents = Object.fromEntries(
       latest.rows.map((row) => [text(row.consent_kind), Boolean(row.granted)])
-    ) as Partial<Record<"results_notification" | "thank_you_code", boolean>>;
+    ) as Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>;
+    const marketingConsent = await marketingConsentForContact(client, invite.contact_point_id);
+    if (marketingConsent !== undefined) consents = { ...consents, marketing: marketingConsent };
 
     await client.query("COMMIT");
     return { status: "preferences_updated", consents };
