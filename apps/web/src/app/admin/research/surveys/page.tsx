@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
+import { ResearchBusinessClassificationControls } from "../../../../components/ResearchBusinessClassificationControls";
 import { ResearchStudyFieldworkControls } from "../../../../components/ResearchStudyFieldworkControls";
 import { ResearchStudyFieldworkBalance } from "../../../../components/ResearchStudyFieldworkBalance";
 import { ResearchStudyLifecycleControls } from "../../../../components/ResearchStudyLifecycleControls";
@@ -12,6 +13,7 @@ import { ResearchStudySamplingControls } from "../../../../components/ResearchSt
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, WorkspaceStatusBadge } from "../../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
+import { researchBusinessClassificationWorkspace } from "../../../../lib/research-business-classification";
 import { researchQualityReviewQueue } from "../../../../lib/research-survey-quality";
 import { researchDeliveryDelayQueue, researchFieldworkStrata, researchProtocolEvents, researchSurveyAdminOverview, researchSurveyOperationsOverview } from "../../../../lib/research-survey-runtime";
 
@@ -61,6 +63,12 @@ export default async function ResearchSurveysAdminPage() {
     await Promise.all(overview.studies.map(async (study) => [
       study.slug,
       await researchSurveyOperationsOverview(principal, study.slug)
+    ] as const))
+  );
+  const businessClassifications = new Map(
+    await Promise.all(overview.studies.map(async (study) => [
+      study.slug,
+      await researchBusinessClassificationWorkspace(principal, study.slug)
     ] as const))
   );
 
@@ -140,6 +148,7 @@ export default async function ResearchSurveysAdminPage() {
                 <a className="button button-secondary" href={"#survey-contacts-" + study.slug}>Email contacts</a>
                 <a className="button button-secondary" href={"#survey-invitations-" + study.slug}>Invitations</a>
                 <a className="button button-secondary" href={"#survey-kad-" + study.slug}>ΚΑΔ</a>
+                <a className="button button-secondary" href={"#survey-business-classification-" + study.slug}>Business categories</a>
                 <a className="button button-secondary" href={"#survey-consent-" + study.slug}>Consent</a>
                 <a className="button button-secondary" href={"#survey-delivery-" + study.slug}>Delivery</a>
                 <a className="button button-secondary" href={"#survey-quality-" + study.slug}>Quality</a>
@@ -241,6 +250,25 @@ export default async function ResearchSurveysAdminPage() {
                 invitations: [],
                 kadGroups: [],
                 consents: []
+              }}
+            />
+
+            <ResearchBusinessClassificationControls
+              slug={study.slug}
+              csrfToken={principal.csrfToken}
+              canManage={hasAdminPermission(principal, "research.design.manage")}
+              initial={businessClassifications.get(study.slug) ?? {
+                databaseConfigured: overview.databaseConfigured,
+                studyFound: false,
+                categories: [],
+                items: [],
+                counts: {
+                  contactable: 0,
+                  withRespondentActivity: 0,
+                  suggested: 0,
+                  confirmed: 0,
+                  pending: 0
+                }
               }}
             />
 
