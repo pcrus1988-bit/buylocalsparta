@@ -55,7 +55,7 @@ export function ResearchSurveySettingsPanel({
     setBusy(true);
     setMessage("");
     try {
-      const response = await fetch("/api/admin/research/surveys/" + encodeURIComponent(slug) + "/design", {
+      const response = await fetch("/api/admin/research/surveys/" + encodeURIComponent(slug) + "/lifecycle", {
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
         body: JSON.stringify({
