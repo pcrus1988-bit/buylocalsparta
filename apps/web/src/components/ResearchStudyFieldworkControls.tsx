@@ -34,9 +34,14 @@ type Busy = "template" | "reminderTemplate" | "send" | "reminders" | "rewards" |
 export function ResearchStudyFieldworkControls({
   slug,
   csrfToken,
+  studyTitle,
   studyStatus,
   recruitmentTemplateVersion,
+  recruitmentTemplateSubject,
+  recruitmentTemplateBody,
   reminderTemplateVersion,
+  reminderTemplateSubject,
+  reminderTemplateBody,
   reminderSent,
   reminderFailed,
   activeContacts,
@@ -55,9 +60,14 @@ export function ResearchStudyFieldworkControls({
 }: {
   slug: string;
   csrfToken: string;
+  studyTitle: string;
   studyStatus: string;
   recruitmentTemplateVersion?: string;
+  recruitmentTemplateSubject?: string;
+  recruitmentTemplateBody?: string;
   reminderTemplateVersion?: string;
+  reminderTemplateSubject?: string;
+  reminderTemplateBody?: string;
   reminderSent: number;
   reminderFailed: number;
   activeContacts: number;
@@ -76,10 +86,10 @@ export function ResearchStudyFieldworkControls({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<Busy>(null);
-  const [subject, setSubject] = useState(DEFAULT_SUBJECT);
-  const [bodyText, setBodyText] = useState(DEFAULT_BODY);
-  const [reminderSubject, setReminderSubject] = useState(DEFAULT_REMINDER_SUBJECT);
-  const [reminderBodyText, setReminderBodyText] = useState(DEFAULT_REMINDER_BODY);
+  const [subject, setSubject] = useState(recruitmentTemplateSubject || DEFAULT_SUBJECT);
+  const [bodyText, setBodyText] = useState(recruitmentTemplateBody || DEFAULT_BODY);
+  const [reminderSubject, setReminderSubject] = useState(reminderTemplateSubject || DEFAULT_REMINDER_SUBJECT);
+  const [reminderBodyText, setReminderBodyText] = useState(reminderTemplateBody || DEFAULT_REMINDER_BODY);
   const [batchSize, setBatchSize] = useState("100");
   const [reminderBatchSize, setReminderBatchSize] = useState("100");
   const [reminderMinAgeDays, setReminderMinAgeDays] = useState("5");
@@ -111,6 +121,47 @@ export function ResearchStudyFieldworkControls({
     return result as Record<string, unknown>;
   }
 
+  async function confirmBulkEmail(input: {
+    purpose: "initial_invitations" | "reminders" | "thank_you_codes" | "published_results";
+    purposeLabel: string;
+    limit: number;
+    minAgeDays?: number;
+    minGapDays?: number;
+    maxReminders?: number;
+  }): Promise<number | undefined> {
+    const preview = await post({
+      action: "preview_email_send",
+      emailPurpose: input.purpose,
+      limit: input.limit,
+      minAgeDays: input.minAgeDays,
+      minGapDays: input.minGapDays,
+      maxReminders: input.maxReminders
+    });
+    const candidateCount = Number(preview.candidateCount || 0);
+    if (!Number.isSafeInteger(candidateCount) || candidateCount < 1) {
+      setMessage("Δεν υπάρχουν επιλέξιμοι παραλήπτες για αυτή την αποστολή.");
+      return undefined;
+    }
+
+    const firstConfirmed = window.confirm(
+      "ΕΠΙΒΕΒΑΙΩΣΗ ΑΠΟΣΤΟΛΗΣ EMAIL\n\n" +
+      "Μελέτη: " + studyTitle + "\n" +
+      "Σκοπός: " + input.purposeLabel + "\n" +
+      "Emails που θα μπουν στην παρτίδα: " + candidateCount.toLocaleString("el-GR") + "\n\n" +
+      "Επιβεβαιώνετε ότι θέλετε να προχωρήσετε;"
+    );
+    if (!firstConfirmed) return undefined;
+
+    const finalConfirmed = window.confirm(
+      "ΤΕΛΙΚΗ ΕΠΙΒΕΒΑΙΩΣΗ\n\n" +
+      "Μελέτη: " + studyTitle + "\n" +
+      "Σκοπός: " + input.purposeLabel + "\n" +
+      "Ακριβής αριθμός emails: " + candidateCount.toLocaleString("el-GR") + "\n\n" +
+      "Με OK η παρτίδα θα προστεθεί στην ουρά αποστολής."
+    );
+    return finalConfirmed ? candidateCount : undefined;
+  }
+
   async function lockTemplate() {
     setBusy("template");
     setMessage("");
@@ -121,7 +172,7 @@ export function ResearchStudyFieldworkControls({
         subject,
         bodyText
       });
-      setMessage("Η έκδοση πρόσκλησης κλειδώθηκε: " + String(result.version || ""));
+      setMessage("Η νέα έκδοση πρόσκλησης αποθηκεύτηκε και κλειδώθηκε: " + String(result.version || ""));
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Η πρόσκληση δεν αποθηκεύτηκε.");
@@ -140,7 +191,7 @@ export function ResearchStudyFieldworkControls({
         subject: reminderSubject,
         bodyText: reminderBodyText
       });
-      setMessage("Η έκδοση υπενθύμισης κλειδώθηκε: " + String(result.version || ""));
+      setMessage("Η νέα έκδοση υπενθύμισης αποθηκεύτηκε και κλειδώθηκε: " + String(result.version || ""));
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Η υπενθύμιση δεν αποθηκεύτηκε.");
@@ -154,13 +205,26 @@ export function ResearchStudyFieldworkControls({
     setBusy("reminders");
     setMessage("");
     try {
+      const confirmedRecipientCount = await confirmBulkEmail({
+        purpose: "reminders",
+        purposeLabel: "Υπενθύμιση συμμετοχής",
+        limit: reminderBatchN,
+        minAgeDays: reminderAgeN,
+        minGapDays: reminderGapN,
+        maxReminders: reminderMaxN
+      });
+      if (!confirmedRecipientCount) return;
       const result = await post({
         action: "send_reminders",
         limit: reminderBatchN,
         minAgeDays: reminderAgeN,
         minGapDays: reminderGapN,
         maxReminders: reminderMaxN,
-        label: "fieldwork-reminder-" + new Date().toISOString()
+        label: "fieldwork-reminder-" + new Date().toISOString(),
+        confirmedEmailSend: true,
+        confirmedRecipientCount,
+        confirmedEmailPurpose: "reminders",
+        confirmedSurveySlug: slug
       });
       setMessage("Η παρτίδα υπενθυμίσεων μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
       router.refresh();
@@ -179,10 +243,20 @@ export function ResearchStudyFieldworkControls({
     setBusy("send");
     setMessage("");
     try {
+      const confirmedRecipientCount = await confirmBulkEmail({
+        purpose: "initial_invitations",
+        purposeLabel: "Αρχική πρόσκληση συμμετοχής",
+        limit: batchN
+      });
+      if (!confirmedRecipientCount) return;
       const result = await post({
         action: "send_invites",
         limit: batchN,
-        label: "fieldwork-" + new Date().toISOString()
+        label: "fieldwork-" + new Date().toISOString(),
+        confirmedEmailSend: true,
+        confirmedRecipientCount,
+        confirmedEmailPurpose: "initial_invitations",
+        confirmedSurveySlug: slug
       });
       setMessage("Η παρτίδα προσκλήσεων μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
       router.refresh();
@@ -200,10 +274,20 @@ export function ResearchStudyFieldworkControls({
     setBusy("rewards");
     setMessage("");
     try {
+      const confirmedRecipientCount = await confirmBulkEmail({
+        purpose: "thank_you_codes",
+        purposeLabel: "Αποστολή κωδικού ευχαριστίας",
+        limit: 100
+      });
+      if (!confirmedRecipientCount) return;
       const result = await post({
         action: "deliver_rewards",
         limit: 100,
-        label: "reward-delivery-" + new Date().toISOString()
+        label: "reward-delivery-" + new Date().toISOString(),
+        confirmedEmailSend: true,
+        confirmedRecipientCount,
+        confirmedEmailPurpose: "thank_you_codes",
+        confirmedSurveySlug: slug
       });
       setMessage("Η αποστολή κωδικών ευχαριστίας μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
       router.refresh();
@@ -221,10 +305,20 @@ export function ResearchStudyFieldworkControls({
     setBusy("results");
     setMessage("");
     try {
+      const confirmedRecipientCount = await confirmBulkEmail({
+        purpose: "published_results",
+        purposeLabel: "Ενημέρωση δημοσιευμένων αποτελεσμάτων",
+        limit: 100
+      });
+      if (!confirmedRecipientCount) return;
       const result = await post({
         action: "notify_results",
         limit: 100,
-        label: "results-notification-" + new Date().toISOString()
+        label: "results-notification-" + new Date().toISOString(),
+        confirmedEmailSend: true,
+        confirmedRecipientCount,
+        confirmedEmailPurpose: "published_results",
+        confirmedSurveySlug: slug
       });
       setMessage("Η ενημέρωση δημοσιευμένων αποτελεσμάτων μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
       router.refresh();
@@ -266,17 +360,17 @@ export function ResearchStudyFieldworkControls({
     }
   }
 
-  return <div className="workspace-queue-card">
+  return <div className="workspace-queue-card" id={"research-email-" + slug}>
     <div className="workspace-action-bar">
       <span>
-        <strong>Recruitment protocol</strong><br />
+        <strong>Email templates · Πρόσκληση</strong><br />
         {recruitmentTemplateVersion
-          ? "Locked invitation version: " + recruitmentTemplateVersion
+          ? "Τρέχουσα κλειδωμένη έκδοση: " + recruitmentTemplateVersion + ". Μπορείτε να επεξεργαστείτε το κείμενο παρακάτω και να αποθηκεύσετε νέα έκδοση."
           : "Δεν υπάρχει ακόμη κλειδωμένη έκδοση της ερευνητικής πρόσκλησης."}
       </span>
     </div>
 
-    {!recruitmentTemplateVersion && <div className="workspace-action-bar">
+    <div className="workspace-action-bar">
       <div style={{ width: "100%", display: "grid", gap: 10 }}>
         <label>
           <strong>Θέμα email</strong><br />
@@ -303,14 +397,14 @@ export function ResearchStudyFieldworkControls({
             disabled={Boolean(busy)}
             onClick={() => void lockTemplate()}
             type="button"
-          >{busy === "template" ? "Κλείδωμα…" : "Κλείδωμα έκδοσης πρόσκλησης"}</button>
+          >{busy === "template" ? "Αποθήκευση…" : recruitmentTemplateVersion ? "Αποθήκευση νέας έκδοσης πρόσκλησης" : "Αποθήκευση πρώτης έκδοσης πρόσκλησης"}</button>
         </div>
       </div>
-    </div>}
+    </div>
 
     <div className="workspace-action-bar">
       <span>
-        <strong>SES fieldwork</strong><br />
+        <strong>Αποστολή προσκλήσεων</strong><br />
         {activeContacts.toLocaleString("el-GR")} contactable frame units · {completed.toLocaleString("el-GR")} ολοκληρωμένες απαντήσεις.
       </span>
       <div className="workspace-action-buttons">
@@ -328,20 +422,20 @@ export function ResearchStudyFieldworkControls({
           disabled={Boolean(busy) || workerBusy || !fielding || !recruitmentTemplateVersion || !batchValid}
           onClick={() => void sendInvites()}
           type="button"
-        >{busy === "send" ? "Queueing…" : "Queue SES invitation batch"}</button>
+        >{busy === "send" ? "Προετοιμασία…" : "Αποστολή παρτίδας προσκλήσεων"}</button>
       </div>
     </div>
 
     <div className="workspace-action-bar">
       <span>
-        <strong>Reminder protocol</strong><br />
+        <strong>Email templates · Υπενθύμιση</strong><br />
         {reminderTemplateVersion
-          ? `Locked reminder version: ${reminderTemplateVersion} · ${reminderSent.toLocaleString("el-GR")} sent · ${reminderFailed.toLocaleString("el-GR")} failed.`
-          : "Δεν υπάρχει κλειδωμένη έκδοση υπενθύμισης. Οι υπενθυμίσεις δεν μπορούν να σταλούν χωρίς ξεχωριστό versioned template."}
+          ? `Τρέχουσα κλειδωμένη έκδοση: ${reminderTemplateVersion} · ${reminderSent.toLocaleString("el-GR")} απεσταλμένα · ${reminderFailed.toLocaleString("el-GR")} αποτυχημένα. Μπορείτε να δημιουργήσετε νέα έκδοση παρακάτω.`
+          : "Δεν υπάρχει κλειδωμένη έκδοση υπενθύμισης. Οι υπενθυμίσεις δεν μπορούν να σταλούν χωρίς ξεχωριστό template."}
       </span>
     </div>
 
-    {!reminderTemplateVersion && <div className="workspace-action-bar">
+    <div className="workspace-action-bar">
       <div style={{ width: "100%", display: "grid", gap: 10 }}>
         <label>
           <strong>Θέμα υπενθύμισης</strong><br />
@@ -367,14 +461,14 @@ export function ResearchStudyFieldworkControls({
           disabled={Boolean(busy)}
           onClick={() => void lockReminderTemplate()}
           type="button"
-        >{busy === "reminderTemplate" ? "Κλείδωμα…" : "Κλείδωμα έκδοσης υπενθύμισης"}</button>
+        >{busy === "reminderTemplate" ? "Αποθήκευση…" : reminderTemplateVersion ? "Αποθήκευση νέας έκδοσης υπενθύμισης" : "Αποθήκευση πρώτης έκδοσης υπενθύμισης"}</button>
       </div>
-    </div>}
+    </div>
 
     <div className="workspace-action-bar">
       <span>
-        <strong>Governed reminders</strong><br />
-        Ο ίδιος canonical invite/response παραμένει ενεργός. Κάθε email παίρνει νέο opaque token hash και καταγράφεται ως contact attempt, χωρίς να αυξάνει τον αριθμό των invitations ή το response-rate denominator.
+        <strong>Υπενθυμίσεις συμμετοχής</strong><br />
+        Κάθε υπενθύμιση επιστρέφει στην ίδια συμμετοχή και δεν δημιουργεί δεύτερη απάντηση. Ο ακριβής αριθμός παραληπτών εμφανίζεται πριν από την υποχρεωτική διπλή επιβεβαίωση.
       </span>
       <div className="workspace-action-buttons" style={{ flexWrap: "wrap" }}>
         <label>
@@ -430,7 +524,7 @@ export function ResearchStudyFieldworkControls({
           disabled={Boolean(busy) || workerBusy || !fielding || !reminderTemplateVersion || !reminderValid}
           onClick={() => void sendReminders()}
           type="button"
-        >{busy === "reminders" ? "Queueing…" : "Queue reminder batch"}</button>
+        >{busy === "reminders" ? "Προετοιμασία…" : "Αποστολή παρτίδας υπενθυμίσεων"}</button>
       </div>
     </div>
 
@@ -445,7 +539,7 @@ export function ResearchStudyFieldworkControls({
         disabled={Boolean(busy) || workerBusy || rewardEligible < 1}
         onClick={() => void deliverRewards()}
         type="button"
-      >{busy === "rewards" ? "Queueing…" : "Deliver pending thank-you codes"}</button>
+      >{busy === "rewards" ? "Προετοιμασία…" : "Αποστολή κωδικών ευχαριστίας"}</button>
     </div>
 
     <div className="workspace-action-bar">
@@ -490,7 +584,7 @@ export function ResearchStudyFieldworkControls({
         disabled={Boolean(busy) || workerBusy || studyStatus !== "published" || !latestReleasePublishedAt}
         onClick={() => void notifyResults()}
         type="button"
-      >{busy === "results" ? "Queueing…" : "Notify opted-in participants"}</button>
+      >{busy === "results" ? "Προετοιμασία…" : "Ενημέρωση συμμετεχόντων για αποτελέσματα"}</button>
     </div>
 
     <div className="workspace-inline-note">
