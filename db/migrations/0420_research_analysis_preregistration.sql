@@ -45,7 +45,7 @@ BEGIN
   END IF;
 
   NEW.content_sha256 := encode(
-    digest(convert_to(NEW.plan_json::text, 'UTF8'), 'sha256'),
+    extensions.digest(convert_to(NEW.plan_json::text, 'UTF8'), 'sha256'),
     'hex'
   );
 
