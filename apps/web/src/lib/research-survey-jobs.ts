@@ -247,6 +247,8 @@ function frameRecord(record: GemiResearchFrameRecord): FrameBufferRecord | undef
       city: record.city || null,
       postcode: record.postcode || null,
       activityCodes: record.activityCodes,
+      activityDetails: record.activityDetails,
+      sourcePrimaryActivityCode: record.sourcePrimaryActivityCode || null,
       matchedActivityCodes: matchedCodes,
       website: record.website || null
     }),
