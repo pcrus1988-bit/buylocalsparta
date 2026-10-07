@@ -385,6 +385,34 @@ export type ResearchEmailSendPurpose =
   | "thank_you_codes"
   | "published_results";
 
+function confirmedEmailJobLimit(
+  job: ResearchJobRow,
+  purpose: ResearchEmailSendPurpose,
+  maxLimit: number
+): number {
+  const input = objectValue(job.input);
+  if (input.confirmedEmailSend !== true || text(input.confirmedEmailPurpose) !== purpose) {
+    throw new Error("RESEARCH_EMAIL_CONFIRMATION_MISSING");
+  }
+  const confirmedRecipientCount = Math.floor(numberValue(input.confirmedRecipientCount));
+  if (confirmedRecipientCount < 1 || confirmedRecipientCount > maxLimit) {
+    throw new Error("RESEARCH_EMAIL_CONFIRMATION_INVALID");
+  }
+  const requestedLimit = Math.floor(numberValue(input.limit) || confirmedRecipientCount);
+  return Math.max(1, Math.min(maxLimit, requestedLimit, confirmedRecipientCount));
+}
+
+function requireQueueConfirmation(
+  confirmedRecipientCount: unknown,
+  maxLimit: number
+): number {
+  const count = Math.floor(numberValue(confirmedRecipientCount));
+  if (count < 1 || count > maxLimit) {
+    throw new Error("RESEARCH_EMAIL_DOUBLE_CONFIRMATION_REQUIRED");
+  }
+  return count;
+}
+
 export async function previewGreekRetailEmailSend(
   principal: SessionPrincipal,
   input: Readonly<{
@@ -413,6 +441,8 @@ export async function previewGreekRetailEmailSend(
   const minAgeDays = Math.max(1, Math.min(90, Math.floor(input.minAgeDays ?? 5)));
   const minGapDays = Math.max(1, Math.min(90, Math.floor(input.minGapDays ?? 5)));
   const maxReminders = Math.max(1, Math.min(5, Math.floor(input.maxReminders ?? 2)));
+  const confirmedRecipientCount = requireQueueConfirmation(input.confirmedRecipientCount, 500);
+  if (confirmedRecipientCount > limit) throw new Error("RESEARCH_EMAIL_DOUBLE_CONFIRMATION_REQUIRED");
   const pool = getProductionPostgresRuntime().sqlPool;
   const studyResult = await pool.query<SqlRow>(`
     SELECT id,slug,title,status,current_wave_id
@@ -651,12 +681,14 @@ export async function previewGreekRetailEmailSend(
 
 export async function queueGreekRetailInviteBatch(
   principal: SessionPrincipal,
-  input: Readonly<{ limit?: number; label?: string }>
+  input: Readonly<{ limit?: number; label?: string; confirmedRecipientCount?: number }>
 ): Promise<{ jobId: string }> {
   assertAdminPermission(principal, "research.fieldwork.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   assertResearchSurveyEmailReady();
   const limit = Math.max(1, Math.min(500, Math.floor(input.limit ?? 100)));
+  const confirmedRecipientCount = requireQueueConfirmation(input.confirmedRecipientCount, 500);
+  if (confirmedRecipientCount > limit) throw new Error("RESEARCH_EMAIL_DOUBLE_CONFIRMATION_REQUIRED");
   const pool = getProductionPostgresRuntime().sqlPool;
   const study = await pool.query<SqlRow>(`
     SELECT
@@ -688,6 +720,7 @@ export async function queueGreekRetailInviteBatch(
   const existing = await pool.query<SqlRow>(`
     SELECT id FROM research_study_jobs
     WHERE study_id=$1 AND wave_id=$2 AND job_type='invite_batch' AND status IN ('queued','running')
+      AND input->>'confirmedEmailSend'='true'
     ORDER BY created_at DESC LIMIT 1
   `, [row.id, row.current_wave_id]);
   if (existing.rows[0]) return { jobId: text(existing.rows[0].id) };
@@ -699,7 +732,11 @@ export async function queueGreekRetailInviteBatch(
       jsonb_build_object(
         'limit',$3::int,
         'label',$4::text,
-        'fieldworkPhase',$5::text
+        'fieldworkPhase',$5::text,
+        'confirmedEmailSend',true,
+        'confirmedRecipientCount',$6::int,
+        'confirmedEmailPurpose','initial_invitations',
+        'confirmedBy',$7::text
       )
     )
     RETURNING id
@@ -708,7 +745,9 @@ export async function queueGreekRetailInviteBatch(
     row.current_wave_id,
     limit,
     input.label?.trim() || `${fieldworkPhase}-research-email-${new Date().toISOString()}`,
-    fieldworkPhase
+    fieldworkPhase,
+    confirmedRecipientCount,
+    principal.userId
   ]);
   return { jobId: text(job.rows[0]!.id) };
 }
@@ -721,6 +760,7 @@ export async function queueGreekRetailInviteReminderBatch(
     minAgeDays?: number;
     minGapDays?: number;
     maxReminders?: number;
+    confirmedRecipientCount?: number;
   }> = {}
 ): Promise<{ jobId: string; templateId: string }> {
   assertAdminPermission(principal, "research.fieldwork.manage");
@@ -767,6 +807,7 @@ export async function queueGreekRetailInviteReminderBatch(
       AND wave_id=$2
       AND job_type='invite_reminder'
       AND status IN ('queued','running')
+      AND input->>'confirmedEmailSend'='true'
     ORDER BY created_at DESC
     LIMIT 1
   `, [row.id, row.current_wave_id]);
@@ -791,7 +832,11 @@ export async function queueGreekRetailInviteReminderBatch(
         'minGapDays',$6::int,
         'maxReminders',$7::int,
         'label',$8::text,
-        'fieldworkPhase',$9::text
+        'fieldworkPhase',$9::text,
+        'confirmedEmailSend',true,
+        'confirmedRecipientCount',$10::int,
+        'confirmedEmailPurpose','reminders',
+        'confirmedBy',$11::text
       )
     )
     RETURNING id
@@ -804,7 +849,9 @@ export async function queueGreekRetailInviteReminderBatch(
     minGapDays,
     maxReminders,
     input.label?.trim() || `${fieldworkPhase}-research-reminder-${new Date().toISOString()}`,
-    fieldworkPhase
+    fieldworkPhase,
+    confirmedRecipientCount,
+    principal.userId
   ]);
 
   return {
@@ -815,13 +862,15 @@ export async function queueGreekRetailInviteReminderBatch(
 
 export async function queueGreekRetailRewardDelivery(
   principal: SessionPrincipal,
-  input: Readonly<{ limit?: number; label?: string }> = {}
+  input: Readonly<{ limit?: number; label?: string; confirmedRecipientCount?: number }> = {}
 ): Promise<{ jobId: string }> {
   assertAdminPermission(principal, "research.fieldwork.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   assertResearchSurveyEmailReady();
   researchRewardSecret();
   const limit = Math.max(1, Math.min(250, Math.floor(input.limit ?? 100)));
+  const confirmedRecipientCount = requireQueueConfirmation(input.confirmedRecipientCount, 250);
+  if (confirmedRecipientCount > limit) throw new Error("RESEARCH_EMAIL_DOUBLE_CONFIRMATION_REQUIRED");
   const pool = getProductionPostgresRuntime().sqlPool;
   const study = await pool.query<SqlRow>(
     "SELECT id,status,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1",
@@ -840,6 +889,7 @@ export async function queueGreekRetailRewardDelivery(
       AND job_type='reward_delivery'
       AND status IN ('queued','running')
       AND COALESCE(input->>'responseId','')=''
+      AND input->>'confirmedEmailSend'='true'
     ORDER BY created_at DESC
     LIMIT 1
   `, [row.id, row.current_wave_id]);
@@ -849,21 +899,37 @@ export async function queueGreekRetailRewardDelivery(
     INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
     VALUES (
       $1,$2,'reward_delivery','queued',
-      jsonb_build_object('limit',$3::int,'label',$4::text)
+      jsonb_build_object(
+        'limit',$3::int,
+        'label',$4::text,
+        'confirmedEmailSend',true,
+        'confirmedRecipientCount',$5::int,
+        'confirmedEmailPurpose','thank_you_codes',
+        'confirmedBy',$6::text
+      )
     )
     RETURNING id
-  `, [row.id, row.current_wave_id, limit, input.label?.trim() || `reward-delivery-${new Date().toISOString()}`]);
+  `, [
+    row.id,
+    row.current_wave_id,
+    limit,
+    input.label?.trim() || `reward-delivery-${new Date().toISOString()}`,
+    confirmedRecipientCount,
+    principal.userId
+  ]);
   return { jobId: text(job.rows[0]!.id) };
 }
 
 export async function queueGreekRetailResultsNotifications(
   principal: SessionPrincipal,
-  input: Readonly<{ limit?: number; label?: string }> = {}
+  input: Readonly<{ limit?: number; label?: string; confirmedRecipientCount?: number }> = {}
 ): Promise<{ jobId: string; releaseSnapshotId: string }> {
   assertAdminPermission(principal, "research.publish.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   assertResearchSurveyEmailReady();
   const limit = Math.max(1, Math.min(250, Math.floor(input.limit ?? 100)));
+  const confirmedRecipientCount = requireQueueConfirmation(input.confirmedRecipientCount, 250);
+  if (confirmedRecipientCount > limit) throw new Error("RESEARCH_EMAIL_DOUBLE_CONFIRMATION_REQUIRED");
   const pool = getProductionPostgresRuntime().sqlPool;
   const release = await pool.query<SqlRow>(`
     SELECT s.id AS study_id,s.current_wave_id AS wave_id,rs.id AS release_snapshot_id
@@ -890,6 +956,7 @@ export async function queueGreekRetailResultsNotifications(
       AND job_type='results_notification'
       AND status IN ('queued','running')
       AND input->>'releaseSnapshotId'=$3
+      AND input->>'confirmedEmailSend'='true'
     ORDER BY created_at DESC
     LIMIT 1
   `, [row.study_id, row.wave_id, row.release_snapshot_id]);
@@ -907,7 +974,11 @@ export async function queueGreekRetailResultsNotifications(
       jsonb_build_object(
         'releaseSnapshotId',$3::text,
         'limit',$4::int,
-        'label',$5::text
+        'label',$5::text,
+        'confirmedEmailSend',true,
+        'confirmedRecipientCount',$6::int,
+        'confirmedEmailPurpose','published_results',
+        'confirmedBy',$7::text
       )
     )
     RETURNING id
@@ -916,7 +987,9 @@ export async function queueGreekRetailResultsNotifications(
     row.wave_id,
     row.release_snapshot_id,
     limit,
-    input.label?.trim() || `results-notification-${new Date().toISOString()}`
+    input.label?.trim() || `results-notification-${new Date().toISOString()}`,
+    confirmedRecipientCount,
+    principal.userId
   ]);
   return {
     jobId: text(job.rows[0]!.id),
@@ -1962,7 +2035,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   assertResearchSurveyEmailReady();
   const pool = getProductionPostgresRuntime().sqlPool;
   const input = objectValue(job.input);
-  const limit = Math.max(1, Math.min(500, Math.floor(numberValue(input.limit) || 100)));
+  const limit = confirmedEmailJobLimit(job, "initial_invitations", 500);
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
   const currentOutput = objectValue(job.output);
   let batchId = text(currentOutput.batchId);
@@ -2369,7 +2442,7 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
   const input = objectValue(job.input);
   const templateId = text(input.templateId);
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
-  const limit = Math.max(1, Math.min(500, Math.floor(numberValue(input.limit) || 100)));
+  const limit = confirmedEmailJobLimit(job, "reminders", 500);
   const minAgeDays = Math.max(1, Math.min(90, Math.floor(numberValue(input.minAgeDays) || 5)));
   const minGapDays = Math.max(1, Math.min(90, Math.floor(numberValue(input.minGapDays) || 5)));
   const maxReminders = Math.max(1, Math.min(5, Math.floor(numberValue(input.maxReminders) || 2)));
@@ -2701,9 +2774,7 @@ async function processRewardDeliveryJob(job: ResearchJobRow): Promise<Record<str
   const pool = getProductionPostgresRuntime().sqlPool;
   const input = objectValue(job.input);
   const requestedResponseId = text(input.responseId).trim();
-  const limit = requestedResponseId
-    ? 1
-    : Math.max(1, Math.min(250, Math.floor(numberValue(input.limit) || 100)));
+  const limit = confirmedEmailJobLimit(job, "thank_you_codes", 250);
 
   const candidates = await pool.query<SqlRow>(`
     WITH latest_consent AS (
@@ -2915,7 +2986,7 @@ async function processResultsNotificationJob(job: ResearchJobRow): Promise<Recor
   const pool = getProductionPostgresRuntime().sqlPool;
   const input = objectValue(job.input);
   const releaseSnapshotId = text(input.releaseSnapshotId).trim();
-  const limit = Math.max(1, Math.min(250, Math.floor(numberValue(input.limit) || 100)));
+  const limit = confirmedEmailJobLimit(job, "published_results", 250);
   if (!releaseSnapshotId) throw new Error("RESEARCH_RESULTS_NOTIFICATION_JOB_INVALID");
 
   const releaseResult = await pool.query<SqlRow>(`
@@ -3160,30 +3231,6 @@ async function processResultsNotificationJob(job: ResearchJobRow): Promise<Recor
       )
   `, [job.study_id, releaseSnapshotId]);
   const remainingCount = numberValue(remaining.rows[0]?.count);
-  let continuationJobId: string | undefined;
-  if (remainingCount > 0) {
-    const next = await pool.query<SqlRow>(`
-      INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
-      SELECT
-        $1,$2,'results_notification','queued',
-        jsonb_build_object(
-          'releaseSnapshotId',$3::text,
-          'limit',$4::int,
-          'label','results-notification-continuation'
-        )
-      WHERE NOT EXISTS (
-        SELECT 1
-        FROM research_study_jobs
-        WHERE study_id=$1
-          AND wave_id=$2
-          AND job_type='results_notification'
-          AND status='queued'
-          AND input->>'releaseSnapshotId'=$3
-      )
-      RETURNING id
-    `, [job.study_id, job.wave_id, releaseSnapshotId, limit]);
-    continuationJobId = next.rows[0] ? text(next.rows[0].id) : undefined;
-  }
 
   return {
     releaseSnapshotId,
@@ -3192,7 +3239,7 @@ async function processResultsNotificationJob(job: ResearchJobRow): Promise<Recor
     skippedCount,
     failedCount: 0,
     remainingCount,
-    continuationJobId
+    requiresNewConfirmation: remainingCount > 0
   };
 }
 
