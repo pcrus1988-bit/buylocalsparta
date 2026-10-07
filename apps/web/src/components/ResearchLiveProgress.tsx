@@ -25,7 +25,7 @@ function statusLabel(status: string): string {
     analysis: "Ανάλυση",
     published: "Δημοσιευμένη",
     archived: "Αρχειοθετημένη"
-  } as Record<string, string>)[status] ?? status;
+  } as Record<string, string>)[status] ?? "Ενημέρωση σε εξέλιξη";
 }
 
 function formatUpdated(value?: string): string {
