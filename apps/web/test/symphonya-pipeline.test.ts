@@ -191,8 +191,8 @@ test("Symphonya Vercel stock cron completes full freshness cycles inside the TTL
   const pipeline = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-pipeline");
   const materialization = config.crons.find((entry: { path: string }) => entry.path === "/api/cron/symphonya-materialization");
   assert.equal(catalogue?.schedule, "2 * * * *");
-  assert.equal(stock?.schedule, "5 */12 * * *");
-  assert.equal(pipeline?.schedule, "28 * * * *");
+  assert.equal(stock?.schedule, "5 * * * *");
+  assert.equal(pipeline?.schedule, "9 * * * *");
   assert.equal(materialization, undefined);
 });
 
