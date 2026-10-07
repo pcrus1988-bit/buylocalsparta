@@ -1,4 +1,6 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { loadManifest } from "./migration-lib.ts";
 
 const productionOnly = process.argv.includes("--vercel-production-only");
 if (productionOnly && process.env.VERCEL_ENV !== "production") {
@@ -43,9 +45,9 @@ const migrationNames = (await readdir(new URL("../db/migrations/", import.meta.u
 const sourceHead = migrationNames.length
   ? Number(migrationNames[migrationNames.length - 1]!.slice(0, 4))
   : 0;
-const checksumManifest = JSON.parse(
-  await readFile(new URL("../db/migrations/checksums.json", import.meta.url), "utf8")
-) as Record<string, string>;
+const checksumManifest = await loadManifest(
+  fileURLToPath(new URL("../db/migrations/checksums.json", import.meta.url))
+);
 if (sourceHead !== expectedSourceVersion) {
   throw new Error(
     `Research schema rollout is pinned to source head ${expectedSourceVersion}; repository head is ${sourceHead}. Re-review the rollout before applying newer migrations.`
@@ -80,7 +82,7 @@ try {
   const ledgerByVersion = new Map<number, { filename: string; sha256: string }>(
     ledgerResult.rows.map((entry: { version: number | string; filename: string; sha256: string }) => [
       Number(entry.version),
-      { filename: entry.filename, sha256: entry.sha256 }
+      { filename: entry.filename, sha256: String(entry.sha256).trim() }
     ])
   );
   const canonicalLedgerMismatches = migrationNames.filter((filename) => {
