@@ -32,6 +32,14 @@ type Body = {
   minAgeDays?: number;
   minGapDays?: number;
   maxReminders?: number;
+  emailApproval?: {
+    studySlug?: string;
+    studyTitle?: string;
+    purpose?: "research_invitation" | "research_reminder" | "thank_you_code" | "results_notification";
+    maxEmails?: number;
+    reviewConfirmed?: boolean;
+    finalConfirmed?: boolean;
+  };
 };
 
 export async function POST(request: Request, context: { params: Promise<{ slug: string }> }) {
@@ -98,7 +106,8 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     if (body.action === "send_invites") {
       const result = await queueGreekRetailInviteBatch(principal, {
         limit: Number(body.limit || 100),
-        label: body.label
+        label: body.label,
+        emailApproval: body.emailApproval
       });
       await recordAdminAudit(
         principal,
@@ -117,7 +126,8 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         label: body.label,
         minAgeDays: Number(body.minAgeDays || 5),
         minGapDays: Number(body.minGapDays || 5),
-        maxReminders: Number(body.maxReminders || 2)
+        maxReminders: Number(body.maxReminders || 2),
+        emailApproval: body.emailApproval
       });
       await recordAdminAudit(
         principal,
@@ -139,7 +149,8 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     if (body.action === "deliver_rewards") {
       const result = await queueGreekRetailRewardDelivery(principal, {
         limit: Number(body.limit || 100),
-        label: body.label
+        label: body.label,
+        emailApproval: body.emailApproval
       });
       await recordAdminAudit(
         principal,
@@ -155,7 +166,8 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     if (body.action === "notify_results") {
       const result = await queueGreekRetailResultsNotifications(principal, {
         limit: Number(body.limit || 100),
-        label: body.label
+        label: body.label,
+        emailApproval: body.emailApproval
       });
       await recordAdminAudit(
         principal,
