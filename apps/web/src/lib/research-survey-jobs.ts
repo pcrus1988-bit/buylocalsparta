@@ -638,6 +638,104 @@ export async function queueGreekRetailInviteReminderBatch(
   };
 }
 
+export async function suppressGreekRetailResearchEmail(
+  principal: SessionPrincipal,
+  input: Readonly<{ email: string; note?: string }>
+): Promise<Readonly<{ matchedContacts: number; suppressedInvites: number; alreadySuppressed: boolean }>> {
+  assertAdminPermission(principal, "research.fieldwork.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+
+  const email = input.email.trim().toLowerCase();
+  if (
+    email.length < 3 ||
+    email.length > 320 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  ) {
+    throw new Error("RESEARCH_CONTACT_EMAIL_INVALID");
+  }
+  const contactHash = sha256(email);
+  const note = input.note?.trim().slice(0, 500) || "";
+  const client = await getProductionPostgresRuntime().sqlPool.connect();
+
+  try {
+    await client.query("BEGIN");
+    const study = await client.query<SqlRow>(
+      "SELECT id FROM research_studies WHERE slug=$1 LIMIT 1",
+      [STUDY_SLUG]
+    );
+    const studyId = text(study.rows[0]?.id);
+    if (!studyId) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+
+    const contacts = await client.query<SqlRow>(`
+      SELECT id
+      FROM research_contact_points
+      WHERE contact_type='email' AND contact_value_hash=$1
+      FOR UPDATE
+    `, [contactHash]);
+
+    const current = await client.query<SqlRow>(`
+      SELECT action
+      FROM research_contact_suppression_events
+      WHERE contact_type='email' AND contact_value_hash=$1
+      ORDER BY occurred_at DESC,id DESC
+      LIMIT 1
+    `, [contactHash]);
+    const alreadySuppressed = text(current.rows[0]?.action) === "suppress";
+
+    if (!alreadySuppressed) {
+      await client.query(`
+        INSERT INTO research_contact_suppression_events (
+          contact_type,contact_value_hash,action,reason,study_id,source,metadata
+        )
+        VALUES (
+          'email',$1,'suppress','manual',$2,'admin_research_ui',
+          jsonb_build_object('note',$3::text)
+        )
+      `, [contactHash, studyId, note]);
+    }
+
+    await client.query(`
+      UPDATE research_contact_points
+      SET suppression_status='suppressed'
+      WHERE contact_type='email' AND contact_value_hash=$1
+    `, [contactHash]);
+
+    const suppressedInvites = await client.query<SqlRow>(`
+      UPDATE research_invites ri
+      SET status='suppressed'
+      FROM research_contact_points cp
+      WHERE ri.contact_point_id=cp.id
+        AND cp.contact_type='email'
+        AND cp.contact_value_hash=$1
+        AND ri.status IN ('created','sent','opened','started')
+      RETURNING ri.id
+    `, [contactHash]);
+
+    if (suppressedInvites.rows.length) {
+      await client.query(`
+        INSERT INTO research_invite_events (invite_id,event_type,metadata)
+        SELECT id,'suppressed',jsonb_build_object(
+          'source','admin_research_ui',
+          'reason','manual_contact_suppression'
+        )
+        FROM unnest($1::uuid[]) AS id
+      `, [suppressedInvites.rows.map((row) => text(row.id))]);
+    }
+
+    await client.query("COMMIT");
+    return {
+      matchedContacts: contacts.rows.length,
+      suppressedInvites: suppressedInvites.rows.length,
+      alreadySuppressed
+    };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function ensureGreekRetailAutomaticReminderBatch(): Promise<Readonly<{
   queued: boolean;
   jobId?: string;
