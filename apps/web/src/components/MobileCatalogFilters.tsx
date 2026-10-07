@@ -27,8 +27,9 @@ export function MobileCatalogFilters() {
   const [open, setOpen] = useState(false);
   const [resultLabel, setResultLabel] = useState("");
   const [activeFilterCount, setActiveFilterCount] = useState(0);
+  const [privacyBannerVisible, setPrivacyBannerVisible] = useState(true);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const visible = isCatalogPath(pathname);
+  const visible = isCatalogPath(pathname) && !privacyBannerVisible;
 
   function close(returnFocus = true) {
     setOpen(false);
@@ -36,8 +37,22 @@ export function MobileCatalogFilters() {
   }
 
   useEffect(() => {
+    const updatePrivacyBannerState = () => {
+      setPrivacyBannerVisible(Boolean(document.querySelector(".privacy-consent-banner")));
+    };
+    updatePrivacyBannerState();
+    const observer = new MutationObserver(updatePrivacyBannerState);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     setOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!visible) setOpen(false);
+  }, [visible]);
 
   useEffect(() => {
     if (!visible) {
