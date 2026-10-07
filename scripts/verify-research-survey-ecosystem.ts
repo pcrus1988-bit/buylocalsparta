@@ -99,6 +99,8 @@ const researchLiveProgress = readFileSync("apps/web/src/components/ResearchLiveP
 const researchPrivacyPage = readFileSync("apps/web/src/app/research/privacy/page.tsx", "utf8");
 const releaseRoute = readFileSync("apps/web/src/app/api/research/[slug]/release/route.ts", "utf8");
 const researchCron = readFileSync("apps/web/src/app/api/cron/research-study-jobs/route.ts", "utf8");
+const researchLongJobScript = readFileSync("scripts/process-research-long-job.ts", "utf8");
+const researchLongJobWorkflow = readFileSync(".github/workflows/research-long-jobs.yml", "utf8");
 const appVercelConfig = readFileSync("apps/web/vercel.json", "utf8");
 const sesSender = readFileSync("apps/web/src/lib/admin-mail-ses.ts", "utf8");
 const gemi = readFileSync("apps/web/src/lib/gemi-admin-export.ts", "utf8");
@@ -610,8 +612,16 @@ if (!schemaPreflight.includes("expectedSourceVersion = 434")) errors.push("resea
 if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
 if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
-if (!researchCron.includes("OPERATIONAL_JOB_TYPES") || !researchCron.includes("RESEARCH_JOB_TYPES.filter")) errors.push("Vercel Research cron does not process governed non-email operational jobs");
-if (!researchCron.includes("EMAIL_JOB_TYPES") || !researchCron.includes("assertResearchSurveyEmailReady") && !jobs.includes("assertResearchSurveyEmailReady")) errors.push("Research email jobs are not protected by the delivery readiness gate");
+if (!researchCron.includes("SERVERLESS_OPERATIONAL_JOB_TYPES") || !researchCron.includes('\"sample_draw\"') || !researchCron.includes('\"release\"') || !researchCron.includes('\"identity_destruction\"')) errors.push("Vercel Research cron does not process the bounded non-email operational lane");
+if (researchCron.match(/SERVERLESS_OPERATIONAL_JOB_TYPES:[\\s\\S]*?\"frame_snapshot\"/) || researchCron.match(/SERVERLESS_OPERATIONAL_JOB_TYPES:[\\s\\S]*?\"analysis\"/)) errors.push("Vercel Research cron includes an unbounded long-running job type");
+if (!researchCron.includes("const operational = await processResearchStudyJobs") || !researchCron.includes("const email = await processResearchStudyJobs")) errors.push("Vercel Research cron does not give both operational and email lanes a turn");
+if (researchCron.includes("if (operational.claimed > 0)")) errors.push("Vercel Research cron can starve the email lane behind operational backlog");
+if (!researchCron.includes("EMAIL_JOB_TYPES") || !jobs.includes("assertResearchSurveyEmailReady")) errors.push("Research email jobs are not protected by the delivery readiness gate");
+if (!jobs.includes("reclaimed_stale_running_lease") || !jobs.includes("LONG_JOB_STALE_AFTER_MINUTES = 390") || !jobs.includes("RECLAIMABLE_JOB_TYPES")) errors.push("deterministic Research jobs lack stale-running lease recovery");
+if (!researchLongJobScript.includes('[\"frame_snapshot\", \"analysis\"]') || !researchLongJobScript.includes("processResearchStudyJobs")) errors.push("one-shot long Research executor does not own frame acquisition and analysis");
+if (!researchLongJobWorkflow.includes("workflow_dispatch") || /^\\s*schedule:/m.test(researchLongJobWorkflow)) errors.push("long Research executor must remain explicit/manual rather than recurring");
+if (!researchLongJobWorkflow.includes("environment: production") || !researchLongJobWorkflow.includes("timeout-minutes: 360")) errors.push("long Research executor lacks the governed production execution window");
+if (!researchLongJobWorkflow.includes("secrets.DATABASE_URL") || !researchLongJobWorkflow.includes("scripts/process-research-long-job.ts")) errors.push("long Research executor is not bound to the production DB one-shot script");
 if (!appVercelConfig.includes("\"/api/cron/research-study-jobs\"") || !appVercelConfig.includes("\"*/5 * * * *\"")) errors.push("effective apps/web Vercel config does not schedule the Research job cron");
 
 if (errors.length) {
