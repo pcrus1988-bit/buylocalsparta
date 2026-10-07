@@ -7,12 +7,13 @@ import { ResearchStudyFieldworkBalance } from "../../../../components/ResearchSt
 import { ResearchStudyLifecycleControls } from "../../../../components/ResearchStudyLifecycleControls";
 import { ResearchStudyQualityControls } from "../../../../components/ResearchStudyQualityControls";
 import { ResearchStudyProtocolControls } from "../../../../components/ResearchStudyProtocolControls";
+import { ResearchStudyOperationsPanel } from "../../../../components/ResearchStudyOperationsPanel";
 import { ResearchStudySamplingControls } from "../../../../components/ResearchStudySamplingControls";
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, WorkspaceStatusBadge } from "../../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { researchQualityReviewQueue } from "../../../../lib/research-survey-quality";
-import { researchFieldworkStrata, researchProtocolEvents, researchSurveyAdminOverview } from "../../../../lib/research-survey-runtime";
+import { researchFieldworkStrata, researchProtocolEvents, researchSurveyAdminOverview, researchSurveyOperationsOverview } from "../../../../lib/research-survey-runtime";
 
 export const metadata: Metadata = {
   title: "Admin · Research Studies",
@@ -50,6 +51,12 @@ export default async function ResearchSurveysAdminPage() {
       await researchProtocolEvents(principal, study.slug)
     ] as const))
   );
+  const operations = new Map(
+    await Promise.all(overview.studies.map(async (study) => [
+      study.slug,
+      await researchSurveyOperationsOverview(principal, study.slug)
+    ] as const))
+  );
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Research Studies" />
@@ -58,6 +65,11 @@ export default async function ResearchSurveysAdminPage() {
       <h1>Research Studies</h1>
       <p className="lead">Population frame → probability sample → invitation → consent → response → weighting → analysis → public release, with versioned evidence at every step.</p>
       <div className="hero-actions">
+        <a className="button" href="#email-templates">Email templates</a>
+        <a className="button button-secondary" href="#contact-list">Email contacts</a>
+        <a className="button button-secondary" href="#invitation-links">Invitation links</a>
+        <a className="button button-secondary" href="#kad-overview">ΚΑΔ overview</a>
+        <a className="button button-secondary" href="#consent-overview">Consent</a>
         <Link className="button button-secondary" href="/research/greek-retail-2026/methodology">Public methodology</Link>
         <Link className="button button-secondary" href="/research/greek-retail-2026/results">Public results</Link>
       </div>
@@ -154,7 +166,11 @@ export default async function ResearchSurveysAdminPage() {
               csrfToken={principal.csrfToken}
               studyStatus={study.status}
               recruitmentTemplateVersion={study.recruitmentTemplateVersion}
+              recruitmentTemplateSubject={study.recruitmentTemplateSubject}
+              recruitmentTemplateBody={study.recruitmentTemplateBody}
               reminderTemplateVersion={study.reminderTemplateVersion}
+              reminderTemplateSubject={study.reminderTemplateSubject}
+              reminderTemplateBody={study.reminderTemplateBody}
               reminderSent={study.reminderSent}
               reminderFailed={study.reminderFailed}
               activeContacts={study.activeContacts}
@@ -171,6 +187,18 @@ export default async function ResearchSurveysAdminPage() {
               queuedJobs={study.queuedJobs}
               runningJobs={study.runningJobs}
             />}
+
+            <ResearchStudyOperationsPanel data={operations.get(study.slug) ?? {
+              databaseConfigured: overview.databaseConfigured,
+              studyFound: false,
+              canViewContactValues: false,
+              totalContacts: 0,
+              templates: [],
+              contacts: [],
+              invitations: [],
+              kadGroups: [],
+              consents: []
+            }} />
 
             {study.failedJobs > 0 && <div className="workspace-inline-note form-error">
               {study.failedJobs} research job(s) require review before relying on the evidence chain.
