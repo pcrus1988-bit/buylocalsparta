@@ -106,6 +106,14 @@ export default async function ResearchSurveysAdminPage() {
               note={"Instrument " + (study.instrumentVersion ?? "—")}
               action={<WorkspaceStatusBadge status={study.status} label={study.status} />}
             />
+            {canManageResearch && <div className="hero-actions" style={{ marginBottom: 18, flexWrap: "wrap" }}>
+              <a className="button button-secondary" href={"#research-email-" + study.slug}>Email</a>
+              <a className="button button-secondary" href={"#research-contacts-" + study.slug}>Επαφές</a>
+              <a className="button button-secondary" href={"#research-invitations-" + study.slug}>Προσκλήσεις</a>
+              <a className="button button-secondary" href={"#research-kad-" + study.slug}>ΚΑΔ</a>
+              <a className="button button-secondary" href={"#research-consent-" + study.slug}>Συγκατάθεση</a>
+            </div>}
+
             <div className="workspace-queue-card">
               <div className="workspace-action-bar">
                 <span>Instrument status</span>
