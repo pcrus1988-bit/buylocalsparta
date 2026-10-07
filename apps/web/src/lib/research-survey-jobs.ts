@@ -841,6 +841,13 @@ export async function ensureGreekRetailAutomaticReminderBatch(): Promise<Readonl
         AND COALESCE(stats.sent_reminders,0) < $4
         AND COALESCE(stats.last_reminder_sent_at,ri.sent_at)
               <= now() - ($5::int * interval '1 day')
+        AND NOT EXISTS (
+          SELECT 1
+          FROM research_invite_messages pending_delay
+          WHERE pending_delay.invite_id=ri.id
+            AND pending_delay.status='sent'
+            AND pending_delay.last_error LIKE 'SES delivery delay:%'
+        )
         AND EXISTS (
           SELECT 1
           FROM research_contact_points cp
@@ -2616,6 +2623,13 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
         AND COALESCE(stats.sent_reminders,0) < $3
         AND COALESCE(stats.last_reminder_sent_at,ri.sent_at)
               <= now() - ($4::int * interval '1 day')
+        AND NOT EXISTS (
+          SELECT 1
+          FROM research_invite_messages pending_delay
+          WHERE pending_delay.invite_id=ri.id
+            AND pending_delay.status='sent'
+            AND pending_delay.last_error LIKE 'SES delivery delay:%'
+        )
         AND EXISTS (
           SELECT 1
           FROM research_contact_points cp
@@ -2735,6 +2749,13 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
         AND stats.sent_reminders < $4
         AND COALESCE(stats.last_reminder_sent_at,ri.sent_at)
               <= now() - ($5::int * interval '1 day')
+        AND NOT EXISTS (
+          SELECT 1
+          FROM research_invite_messages pending_delay
+          WHERE pending_delay.invite_id=ri.id
+            AND pending_delay.status='sent'
+            AND pending_delay.last_error LIKE 'SES delivery delay:%'
+        )
       LIMIT 1
     `, [inviteId, job.study_id, minAgeDays, maxReminders, minGapDays]);
     const row = candidate.rows[0];
