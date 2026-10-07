@@ -15,6 +15,7 @@ const postcheck = process.argv.includes("--postcheck");
 const recovery0420 = process.argv.includes("--recover-0420");
 const expectedSourceVersion = 435;
 const expectedCurrentVersion = 415;
+const expectedIncrementalVersion = 434;
 const expectedRecoveryVersion = 419;
 const expectedRecoveryPendingVersions = new Set(
   Array.from({ length: 16 }, (_value, index) => 420 + index)
@@ -52,6 +53,14 @@ const expectedRecoveryResearchTables = new Set([
   "research_study_jobs",
   "research_weights"
 ]);
+const classificationTables = [
+  "research_business_categories",
+  "research_business_activity_observations",
+  "research_business_activity_aliases",
+  "research_business_canonical_assignments",
+  "research_business_classification_events"
+] as const;
+
 const requiredTables = [
   "research_programmes",
   "research_studies",
@@ -216,10 +225,42 @@ try {
       schemaVersion,
       requiredTables: requiredTables.length
     }));
+  } else if (schemaVersion === expectedIncrementalVersion) {
+    const expectedPending = ["0435_research_business_classification.sql"];
+    const missingPriorTables = missing.filter(
+      (table) => !classificationTables.includes(table as typeof classificationTables[number])
+    );
+    const prematurelyPresent = classificationTables.filter((table) => present.includes(table));
+    if (missingPriorTables.length) {
+      throw new Error(
+        `Schema ${expectedIncrementalVersion} is missing pre-0435 research tables: ${missingPriorTables.join(", ")}`
+      );
+    }
+    if (prematurelyPresent.length) {
+      throw new Error(
+        `Schema ${expectedIncrementalVersion} already has partial 0435 tables: ${prematurelyPresent.join(", ")}. Refusing a partial-state rollout.`
+      );
+    }
+    if (
+      pendingCanonicalMigrations.length !== expectedPending.length
+      || pendingCanonicalMigrations.some((filename, index) => filename !== expectedPending[index])
+    ) {
+      throw new Error(
+        `Schema ${expectedIncrementalVersion} must have only 0435 pending; found: ${pendingCanonicalMigrations.join(", ") || "none"}`
+      );
+    }
+    console.log(JSON.stringify({
+      ok: true,
+      mode: "preflight",
+      state: "incremental_0435",
+      schemaVersion,
+      targetVersion: expectedSourceVersion,
+      pendingCanonicalMigrationFiles: pendingCanonicalMigrations
+    }));
   } else {
     if (schemaVersion !== expectedCurrentVersion) {
       throw new Error(
-        `Research rollout requires clean schema ${expectedCurrentVersion} or already-applied ${expectedSourceVersion}; database reports ${schemaVersion}`
+        `Research rollout requires clean schema ${expectedCurrentVersion}, incremental schema ${expectedIncrementalVersion}, or already-applied ${expectedSourceVersion}; database reports ${schemaVersion}`
       );
     }
     if (present.length) {
