@@ -590,8 +590,9 @@ if (surveyForm.includes("optionalConsents.marketing")) errors.push("scientific s
 if (surveyRuntime.includes('"marketing"')) errors.push("participant research runtime still accepts marketing consent");
 if (!surveyForm.includes('href="/join"')) errors.push("commercial follow-up is not separated behind a post-research route");
 if (!observatoryPage.includes("Programme → Study → Wave → Evidence Release")) errors.push("permanent Retail Observatory landing does not expose the longitudinal hierarchy");
-if (!researchComparePage.includes("approvedMetricGroups") || !researchComparePage.includes("approvedWaves.has(metric.waveSlug)")) errors.push("public Research comparison UI is not lineage-gated");
-if (researchComparePage.includes("metricGroups.get(metric.metricKey)")) errors.push("public Research comparison UI still groups unrelated studies by metric key alone");
+if (!researchComparePage.includes("approvedMetricPairs") || !researchComparePage.includes("metricBelongsToVariable") || !researchComparePage.includes("item.baselineWaveSlug") || !researchComparePage.includes("item.comparisonWaveSlug")) errors.push("public Research comparison UI is not lineage- and pair-gated");
+if (!researchComparePage.includes("digital_readiness_score: [\"digital_readiness.\"]") || !researchComparePage.includes("retail_friction_index: [\"retail_friction.\"]")) errors.push("public Research comparison UI does not map derived lineage variables to published metric families");
+if (researchComparePage.includes("metricGroups.get(metric.metricKey)") || researchComparePage.includes("approvedMetricGroups")) errors.push("public Research comparison UI still merges comparison pairs into transitive metric groups");
 if (!researchLiveProgress.includes("if (!isLiveStatus(study.status)) return;") || !researchLiveProgress.includes("study.status]")) errors.push("public Research progress still polls outside live fieldwork");
 if (!release.includes("s.slug AS study_slug") || !release.includes("studySlug: text(row.study_slug)") || !release.includes("studySlug: published.studySlug")) errors.push("public Research release artifact does not preserve canonical study slug");
 if (!researchPrivacyPage.includes("Η συμμετοχή στην έρευνα δεν είναι εμπορική συγκατάθεση.")) errors.push("dedicated research privacy boundary is missing");
