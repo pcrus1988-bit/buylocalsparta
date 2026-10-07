@@ -26,7 +26,8 @@ export default async function ResearchSurveysAdminPage() {
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div>
       <div className="eyebrow">Research · Surveys</div>
       <h1>Surveys</h1>
-      <p className="lead">Global Research configuration is separate from each survey. Choose a survey to manage its settings, questions, evaluation, sampling and fieldwork on dedicated pages.</p>\n      <div className="hero-actions"><Link className="button button-secondary" href="/admin/research/settings">Global Research settings</Link></div>
+      <p className="lead">Global Research configuration is separate from each survey. Choose a survey to manage its settings, questions, evaluation, sampling and fieldwork on dedicated pages.</p>
+      <div className="hero-actions"><Link className="button button-secondary" href="/admin/research/settings">Global Research settings</Link></div>
     </div></section>
 
     <section className="shell vendor-section">
