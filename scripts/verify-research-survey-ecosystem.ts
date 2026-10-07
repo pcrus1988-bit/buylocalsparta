@@ -98,6 +98,8 @@ const researchComparePage = readFileSync("apps/web/src/app/research/compare/page
 const researchLiveProgress = readFileSync("apps/web/src/components/ResearchLiveProgress.tsx", "utf8");
 const researchPrivacyPage = readFileSync("apps/web/src/app/research/privacy/page.tsx", "utf8");
 const releaseRoute = readFileSync("apps/web/src/app/api/research/[slug]/release/route.ts", "utf8");
+const researchCron = readFileSync("apps/web/src/app/api/cron/research-study-jobs/route.ts", "utf8");
+const appVercelConfig = readFileSync("apps/web/vercel.json", "utf8");
 const sesSender = readFileSync("apps/web/src/lib/admin-mail-ses.ts", "utf8");
 const gemi = readFileSync("apps/web/src/lib/gemi-admin-export.ts", "utf8");
 const rbac = readFileSync("packages/core/src/auth/rbac.ts", "utf8");
@@ -608,6 +610,9 @@ if (!schemaPreflight.includes("expectedSourceVersion = 434")) errors.push("resea
 if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
 if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
+if (!researchCron.includes("OPERATIONAL_JOB_TYPES") || !researchCron.includes("RESEARCH_JOB_TYPES.filter")) errors.push("Vercel Research cron does not process governed non-email operational jobs");
+if (!researchCron.includes("EMAIL_JOB_TYPES") || !researchCron.includes("assertResearchSurveyEmailReady") && !jobs.includes("assertResearchSurveyEmailReady")) errors.push("Research email jobs are not protected by the delivery readiness gate");
+if (!appVercelConfig.includes("\"/api/cron/research-study-jobs\"") || !appVercelConfig.includes("\"*/5 * * * *\"")) errors.push("effective apps/web Vercel config does not schedule the Research job cron");
 
 if (errors.length) {
   console.error(["Research survey ecosystem verification failed:", ...errors.map((error) => `- ${error}`)].join("\n"));
