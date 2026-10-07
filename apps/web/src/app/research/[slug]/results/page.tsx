@@ -15,8 +15,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   const study = await publicResearchStudy(slug);
   return governedStaticSeoMetadata("/research/" + slug + "/results", {
-    title: (study?.title ?? "Research study") + " · Αποτελέσματα · KONTA MOY Research",
-    description: "Δημοσιευμένα, governed αποτελέσματα της μελέτης με uncertainty και provenance."
+    title: (study?.title ?? "Μελέτη") + " · Αποτελέσματα · KONTA MOY Research",
+    description: "Δημοσιευμένα αποτελέσματα της μελέτης με μέγεθος δείγματος και διαστήματα εμπιστοσύνης όπου είναι διαθέσιμα."
   });
 }
 
@@ -41,9 +41,9 @@ export default async function ResearchResultsPage({ params }: PageProps) {
   const { slug } = await params;
   const study = await publicResearchStudy(slug);
   if (!study) notFound();
-  const release = await getPublishedResearchResults(study.waveSlug);
+  const published = await getPublishedResearchResults(study.waveSlug);
 
-  const overall = release?.estimates.filter((estimate) =>
+  const overall = published?.estimates.filter((estimate) =>
     !estimate.suppressed &&
     estimate.estimate != null &&
     Object.keys(estimate.segment).length === 0
@@ -52,8 +52,8 @@ export default async function ResearchResultsPage({ params }: PageProps) {
   return <main className={styles.shell}>
     <div className={styles.frame}>
       <div className={styles.topbar}>
-        <Link className={styles.brand} href="/research">KONTA MOY · RETAIL OBSERVATORY</Link>
-        <nav className={styles.nav} aria-label="Research">
+        <Link className={styles.brand} href="/research">KONTA MOY · ΕΡΕΥΝΑ</Link>
+        <nav className={styles.nav} aria-label="Έρευνα">
           <Link href={"/research/" + study.waveSlug}>Επισκόπηση</Link>
           <Link href={"/research/" + study.waveSlug + "/methodology"}>Μεθοδολογία</Link>
           <Link href={"/research/" + study.waveSlug + "/results"}>Αποτελέσματα</Link>
@@ -63,46 +63,46 @@ export default async function ResearchResultsPage({ params }: PageProps) {
 
       <header className={styles.hero}>
         <div>
-          <div className={styles.eyebrow}>{study.programmeTitle} · {study.waveTitle}</div>
-          <h1>{release ? "Το evidence dashboard." : "Τα αποτελέσματα δεν έχουν δημοσιευθεί ακόμη."}</h1>
-          <p>{release
-            ? "Κάθε αριθμός σε αυτή τη σελίδα προέρχεται από το immutable public release. Suppressed ή unpublished estimates δεν εμφανίζονται, ενώ uncertainty και analytical base παραμένουν δίπλα στο αποτέλεσμα."
-            : "Τα ουσιαστικά findings εμφανίζονται μόνο αφού κλείσει η fieldwork, ολοκληρωθούν QA, weighting και analysis και εγκριθεί το governed public release."}</p>
+          <div className={styles.eyebrow}>{study.programmeTitle}</div>
+          <h1>{published ? "Αποτελέσματα" : "Τα αποτελέσματα δεν έχουν δημοσιευθεί ακόμη."}</h1>
+          <p>{published
+            ? "Παρακάτω εμφανίζονται τα δημοσιευμένα αποτελέσματα της μελέτης. Κάθε τιμή συνοδεύεται από το μέγεθος του δείγματος και, όπου είναι διαθέσιμο, από διάστημα εμπιστοσύνης."
+            : "Τα αποτελέσματα θα εμφανιστούν αφού ολοκληρωθούν η συλλογή απαντήσεων, οι έλεγχοι ποιότητας και η ανάλυση."}</p>
 
           <div className={styles.heroBadges}>
-            <span className={[styles.badge, release ? styles.badgeDark : styles.badgeWarm].join(" ")}>{release ? "Published evidence" : "Release pending"}</span>
-            <span className={styles.badge}>No preliminary findings</span>
+            <span className={[styles.badge, published ? styles.badgeDark : styles.badgeWarm].join(" ")}>{published ? "Δημοσιευμένα" : "Αναμένονται"}</span>
+            <span className={styles.badge}>Μόνο τελικά αποτελέσματα</span>
           </div>
 
           <div className={styles.tabbar}>
             <Link href={"/research/" + study.waveSlug}>Επισκόπηση</Link>
             <Link href={"/research/" + study.waveSlug + "/methodology"}>Μεθοδολογία</Link>
-            <Link className={release ? styles.primaryButton : ""} href={"/research/" + study.waveSlug + "/results"}>Αποτελέσματα</Link>
-            <Link href="/research/compare">Σύγκριση waves</Link>
+            <Link className={published ? styles.primaryButton : ""} href={"/research/" + study.waveSlug + "/results"}>Αποτελέσματα</Link>
+            <Link href="/research/compare">Σύγκριση μελετών</Link>
           </div>
         </div>
 
         <aside className={styles.heroAside}>
-          <span>Release</span>
-          <strong>{release?.releaseVersion ?? "Pending"}</strong>
+          <span>Κατάσταση</span>
+          <strong>{published ? "Δημοσιευμένα" : "Σε αναμονή"}</strong>
           <hr />
-          <span>Published overall metrics</span>
+          <span>Δημοσιευμένοι δείκτες</span>
           <strong>{overall.length}</strong>
           <hr />
-          <span>Analytical base</span>
+          <span>Μεγαλύτερο δείγμα</span>
           <strong>{overall.length > 0 ? Math.max(...overall.map((item) => item.unweightedN)).toLocaleString("el-GR") : "—"}</strong>
-          {release?.publishedAt && <span>{new Date(release.publishedAt).toLocaleString("el-GR")}</span>}
+          {published?.publishedAt && <span>Δημοσιεύτηκε {new Date(published.publishedAt).toLocaleDateString("el-GR")}</span>}
         </aside>
       </header>
 
-      {release ? <>
+      {published ? <>
         <section className={styles.section}>
           <div className={styles.sectionHead}>
             <div>
-              <div className={styles.eyebrow}>Headline evidence</div>
-              <h2>Τα δημοσιευμένα overall estimates</h2>
+              <div className={styles.eyebrow}>Κύρια αποτελέσματα</div>
+              <h2>Οι βασικοί δημοσιευμένοι δείκτες</h2>
             </div>
-            <p>Οι κάρτες δείχνουν estimate, 95% confidence interval όπου υπάρχει και το unweighted analytical n. Για proportions, η μπάρα είναι απλώς οπτική κλίμακα του δημοσιευμένου estimate — όχι ξεχωριστός υπολογισμός.</p>
+            <p>Το 95% διάστημα εμπιστοσύνης δείχνει την αβεβαιότητα της εκτίμησης όταν αυτή μπορεί να υπολογιστεί. Το n δείχνει πόσες απαντήσεις χρησιμοποιήθηκαν.</p>
           </div>
 
           <div className={styles.resultsGrid}>
@@ -113,7 +113,7 @@ export default async function ResearchResultsPage({ params }: PageProps) {
                 <strong>{value(estimate, estimate.estimate!)}</strong>
                 <span>
                   {estimate.ciLower != null && estimate.ciUpper != null
-                    ? "95% CI " + value(estimate, estimate.ciLower) + " – " + value(estimate, estimate.ciUpper) + " · "
+                    ? "95% διάστημα εμπιστοσύνης " + value(estimate, estimate.ciLower) + " – " + value(estimate, estimate.ciUpper) + " · "
                     : ""}
                   n={estimate.unweightedN.toLocaleString("el-GR")}
                 </span>
@@ -126,40 +126,36 @@ export default async function ResearchResultsPage({ params }: PageProps) {
         <section className={styles.section}>
           <div className={styles.sectionHead}>
             <div>
-              <div className={styles.eyebrow}>Release integrity</div>
-              <h2>Το αποτέλεσμα συνοδεύεται από provenance.</h2>
+              <div className={styles.eyebrow}>Σωστή ανάγνωση</div>
+              <h2>Δείτε το αποτέλεσμα μαζί με τη μέθοδο.</h2>
             </div>
-            <p>Το δημόσιο release συνδέεται με συγκεκριμένο dataset και analysis run, ώστε η ιστορική δημοσίευση να είναι ελέγξιμη και αναπαραγώγιμη.</p>
+            <p>Ένα ποσοστό ή ένας δείκτης δεν πρέπει να διαβάζεται μόνος του. Η μεθοδολογία εξηγεί ποιον αφορά η μελέτη, πόσοι συμμετείχαν και ποιοι περιορισμοί πρέπει να ληφθούν υπόψη.</p>
           </div>
 
-          <div className={styles.provenanceGrid}>
+          <div className={styles.split}>
             <article className={styles.panel}>
-              <div className={styles.eyebrow}>Immutable evidence</div>
-              <h3>{release.releaseVersion}</h3>
-              <div className={styles.hashBlock}><span className={styles.eyebrow}>Dataset SHA-256</span><p className={styles.mono}>{release.datasetSha256}</p></div>
-              <div className={styles.hashBlock}><span className={styles.eyebrow}>Artifact SHA-256</span><p className={styles.mono}>{release.artifactSha256}</p></div>
-              <div className={styles.hashBlock}><span className={styles.eyebrow}>Analysis run</span><p className={styles.mono}>{release.analysisRunId}</p></div>
+              <div className={styles.eyebrow}>Μεθοδολογία</div>
+              <h3>Πώς έγινε η μελέτη</h3>
+              <p>Δείτε τον πληθυσμό, το δείγμα, την περίοδο συλλογής και τις βασικές αρχές ανάλυσης.</p>
+              <Link className={styles.cardLink} href={"/research/" + study.waveSlug + "/methodology"}>Άνοιγμα μεθοδολογίας →</Link>
             </article>
             <article className={styles.panel}>
-              <div className={styles.eyebrow}>Context</div>
-              <h3>Μην διαβάζετε ένα estimate μόνο του.</h3>
-              <p>Χρησιμοποιήστε τη μεθοδολογία για να δείτε population και fieldwork και το comparison explorer για να ελέγξετε αν μια άλλη wave είναι πραγματικά συγκρίσιμη.</p>
-              <div className={styles.sectionActions}>
-                <Link className={[styles.actionButton, styles.primaryButton].join(" ")} href="/research/compare">Σύγκριση waves</Link>
-                <Link className={styles.actionButton} href={"/research/" + study.waveSlug + "/methodology"}>Μεθοδολογία</Link>
-              </div>
+              <div className={styles.eyebrow}>Σύγκριση</div>
+              <h3>Συγκρίνετε με προσοχή</h3>
+              <p>Η σελίδα σύγκρισης δείχνει πότε δύο αποτελέσματα είναι άμεσα συγκρίσιμα και πότε χρειάζεται προσοχή.</p>
+              <Link className={styles.cardLink} href="/research/compare">Σύγκριση μελετών →</Link>
             </article>
           </div>
         </section>
       </> : <section className={styles.section}>
         <div className={styles.empty}>
-          <strong>Το public release δεν υπάρχει ακόμη.</strong><br />
-          Μπορείτε να παρακολουθείτε τη live πρόοδο της μελέτης χωρίς να βλέπετε πρόωρα findings. Όταν εγκριθεί το governed release, αυτή η ίδια σελίδα θα μετατραπεί αυτόματα σε evidence dashboard.
-          <br /><br /><Link className={styles.cardLink} href={"/research/" + study.waveSlug}>Επιστροφή στη live επισκόπηση →</Link>
+          <strong>Δεν έχουν δημοσιευθεί αποτελέσματα ακόμη.</strong><br />
+          Μπορείτε να παρακολουθείτε την πρόοδο της μελέτης μέχρι να ολοκληρωθεί η ανάλυση.
+          <br /><br /><Link className={styles.cardLink} href={"/research/" + study.waveSlug}>Επιστροφή στην επισκόπηση →</Link>
         </div>
       </section>}
 
-      <div className={styles.footer}>Only governed public releases become public results.</div>
+      <div className={styles.footer}>KONTA MOY Research · Δημοσιευμένα αποτελέσματα</div>
     </div>
     <SiteFooter />
   </main>;
