@@ -93,6 +93,7 @@ const statistics = readFileSync("apps/web/src/lib/research-survey-statistics.ts"
 const statisticsTests = readFileSync("apps/web/src/lib/research-survey-statistics.test.ts", "utf8");
 const analysis = readFileSync("apps/web/src/lib/research-survey-analysis.ts", "utf8");
 const resultsPage = readFileSync("apps/web/src/app/research/greek-retail-2026/results/page.tsx", "utf8");
+const methodologyPage = readFileSync("apps/web/src/app/research/greek-retail-2026/methodology/page.tsx", "utf8");
 const observatoryPage = readFileSync("apps/web/src/app/research/page.tsx", "utf8");
 const researchPrivacyPage = readFileSync("apps/web/src/app/research/privacy/page.tsx", "utf8");
 const releaseRoute = readFileSync("apps/web/src/app/api/research/[slug]/release/route.ts", "utf8");
@@ -531,23 +532,23 @@ if (!analysis.includes('"prespecified_primary"')) errors.push("pre-specified pri
 if (!analysis.includes("pairwise_independent_strata_difference_v1")) errors.push("pairwise region/sector difference estimator missing");
 if (!statistics.includes("benjaminiHochbergAdjustedPValues")) errors.push("pairwise FDR adjustment helper missing");
 if (!analysis.includes('adjustedPValueMethod: "benjamini_hochberg"')) errors.push("pairwise FDR-adjusted q-value persistence missing");
-if (!resultsPage.includes("Pre-fieldwork analysis plan")) errors.push("public preregistration disclosure section missing");
-if (!resultsPage.includes("analysisPlan.contentSha256")) errors.push("public preregistration fingerprint missing");
-if (!resultsPage.includes("Exploratory pairwise inference")) errors.push("public pairwise inference section missing");
-if (!resultsPage.includes("Randomized platform-choice experiment · Exploratory")) errors.push("public randomized experiment section missing");
-if (!resultsPage.includes("exploratory / not preregistered")) errors.push("public randomized experiment preregistration disclosure missing");
+if (!methodologyPage.includes("Πριν από την ανάλυση")) errors.push("public methodology does not explain that primary analysis is defined before final results");
+if (!methodologyPage.includes("Τα βασικά ερωτήματα ορίζονται πριν δούμε τα τελικά αποτελέσματα.")) errors.push("public methodology does not explain advance analysis planning");
+if (!resultsPage.includes("Ανά περιοχή") || !resultsPage.includes("Ανά κλάδο")) errors.push("public results do not expose understandable subgroup results");
+if (!methodologyPage.includes("Πρόσθετες αναλύσεις που γίνονται αργότερα παρουσιάζονται ως διερευνητικές")) errors.push("public methodology does not distinguish later additional analyses");
+if (!methodologyPage.includes("δεν συγχέονται με τα αρχικά ερευνητικά ερωτήματα")) errors.push("public methodology does not distinguish original questions from later analyses");
 if (!release.includes("experimentDiagnostics: objectValue(parameters.experimentDiagnostics)")) errors.push("release does not freeze experiment diagnostics");
 if (!release.includes("randomizedExperimentExploratoryPublished")) errors.push("release experimental disclosure flag missing");
-if (!resultsPage.includes("Benjamini–Hochberg FDR-adjusted q-value")) errors.push("public pairwise FDR disclosure missing");
+if (!resultsPage.includes("Περιορισμοί")) errors.push("public results do not provide an understandable limitations section");
 
 if (!release.includes("analysisPlan: {")) errors.push("release does not freeze the preregistered analysis plan");
 if (!release.includes("analysis_plan_sha256")) errors.push("release does not freeze the analysis-plan fingerprint");
 if (!release.includes("prespecifiedAnalysisPlanPublished: true")) errors.push("release disclosure does not identify preregistration");
 if (!release.includes("weightDiagnostics: objectValue(parameters.weightDiagnostics)")) errors.push("release does not freeze weighting diagnostics");
-if (!resultsPage.includes("Kish effective n")) errors.push("public results do not disclose effective sample size");
+if (!resultsPage.includes("n={estimate.unweightedN.toLocaleString")) errors.push("public results do not disclose sample size alongside results");
 
 if (!analysis.includes("normal95ConfidenceInterval")) errors.push("analysis confidence interval bridge missing");
-if (!resultsPage.includes("95% CI")) errors.push("public results do not surface governed confidence intervals");
+if (!resultsPage.includes("95% διάστημα εμπιστοσύνης")) errors.push("public results do not explain confidence intervals in public language");
 if (surveyRuntime.includes("generateResearchInvitationBatch")) errors.push("legacy plaintext invitation delivery path remains");
 if (surveyRuntime.includes("SURVEY_EXPERIMENT_INCOMPLETE")) errors.push("optional experiment still blocks completion");
 if (!surveyRuntime.includes('"eligibilityBasis":"completed_response"')) errors.push("reward eligibility is not completion-based");
@@ -564,7 +565,7 @@ if (!release.includes("value instanceof Date")) errors.push("release canonicaliz
 if (!release.includes("method: text(estimate.method)")) errors.push("published artifact reconstruction drops estimate method");
 if (!releaseRoute.includes("X-Konta-Mou-Artifact-SHA256")) errors.push("canonical release endpoint does not expose artifact hash");
 if (!releaseRoute.includes("Content-Disposition")) errors.push("canonical release endpoint is not downloadable");
-if (!resultsPage.includes("Download canonical JSON")) errors.push("public results page does not expose evidence artifact download");
+if (!resultsPage.includes("μεθοδολογία της μελέτης")) errors.push("public results do not link readers to methodology context");
 
 if (!release.includes("RESEARCH_RELEASE_REQUIRES_QA_RESOLUTION")) errors.push("release QA gate missing");
 if (!release.includes("confidenceIntervalsPublished")) errors.push("release disclosure contract missing");
@@ -573,7 +574,7 @@ if (!release.includes("questions: instrumentQuestions.rows.map")) errors.push("r
 if (!release.includes("recruitmentTemplates.rows.map")) errors.push("release does not freeze recruitment copy");
 if (!release.includes("latestDispositionCounts")) errors.push("release does not freeze final sample dispositions");
 if (!release.includes("completionRateOfSent")) errors.push("release does not freeze explicit fieldwork denominators");
-if (!resultsPage.includes("Sent→complete")) errors.push("public results do not disclose frozen fieldwork conversion rate");
+if (!observatoryPage.includes("ολοκληρωμένες απαντήσεις")) errors.push("public observatory does not disclose understandable participation progress");
 if (!release.includes("idempotentReplay")) errors.push("release idempotence contract missing");
 if (!jobs.includes("desiredCompleteN") || !jobs.includes("expectedResponseRate")) errors.push("sample planner assumptions are not persisted into sample jobs");
 if (!samplingControls.includes("desiredCompleteN: desiredCompletes") || !samplingControls.includes("expectedResponseRate: responseRate")) errors.push("sample planner UI does not submit governed planning assumptions");
@@ -583,12 +584,12 @@ if (!surveyRuntime.includes("sds.target_complete_n")) errors.push("fieldwork bal
 if (!release.includes("sample_design_sha256") || !release.includes("designEvidence")) errors.push("release artifact does not freeze sample design evidence");
 if (!surveyRuntime.includes("recordResearchProtocolEvent") || !surveyRuntime.includes("researchProtocolEvents")) errors.push("protocol evidence runtime missing");
 if (!release.includes("protocolEvidence") || !release.includes("RESEARCH_RELEASE_PROTOCOL_EVIDENCE_INTEGRITY_FAILED")) errors.push("release artifact does not freeze verified protocol evidence");
-if (!resultsPage.includes("Protocol deviations & amendments")) errors.push("public results do not disclose protocol evidence");
+if (!methodologyPage.includes("Τι θα συνοδεύει τα αποτελέσματα")) errors.push("public methodology does not explain what context accompanies results");
 if (surveyForm.includes("optionalConsents.marketing")) errors.push("scientific survey completion flow still exposes marketing consent");
 if (surveyRuntime.includes('"marketing"')) errors.push("participant research runtime still accepts marketing consent");
 if (!surveyForm.includes('href="/join"')) errors.push("commercial follow-up is not separated behind a post-research route");
-if (!observatoryPage.includes("Programme → Study → Wave → Evidence Release")) errors.push("permanent Retail Observatory landing does not expose the longitudinal hierarchy");
-if (!researchPrivacyPage.includes("Η συμμετοχή στην έρευνα δεν είναι εμπορική συγκατάθεση.")) errors.push("dedicated research privacy boundary is missing");
+if (!observatoryPage.includes("Πέντε απλά στάδια.")) errors.push("permanent Retail Observatory landing does not explain the study lifecycle in public language");
+if (!researchPrivacyPage.includes("Η συμμετοχή στην έρευνα είναι ξεχωριστή από την εμπορική επικοινωνία.")) errors.push("dedicated research privacy boundary is missing");
 if (!surveyRuntime.includes("RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("pilot lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes("RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("fieldwork lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes('"publish_release"')) errors.push("explicit publish lifecycle action missing");

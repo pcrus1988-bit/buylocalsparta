@@ -20,12 +20,12 @@ function statusLabel(status: string): string {
   return ({
     draft: "Σχεδιασμός",
     pilot: "Πιλοτική φάση",
-    fielding: "Συλλογή δεδομένων",
-    closed: "Η συλλογή έκλεισε",
+    fielding: "Συλλογή απαντήσεων",
+    closed: "Η συλλογή ολοκληρώθηκε",
     analysis: "Ανάλυση",
     published: "Δημοσιευμένη",
     archived: "Αρχειοθετημένη"
-  } as Record<string, string>)[status] ?? status;
+  } as Record<string, string>)[status] ?? "Ενημέρωση σε εξέλιξη";
 }
 
 function formatUpdated(value?: string): string {
@@ -61,7 +61,7 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
           setLastRefresh(snapshot.generatedAt);
         }
       } catch {
-        // Keep the last successful public snapshot visible.
+        // Keep the last successful public data visible.
       }
     }
 
@@ -80,37 +80,37 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
   const deliveryRate = safeRatio(study.delivered, study.sent);
   const startRate = safeRatio(study.started, study.opened || study.sent);
   const stages = useMemo(() => [
-    { title: "Σχεδιασμός", detail: "instrument & sample" },
-    { title: "Πιλοτική", detail: "validation" },
-    { title: "Συλλογή", detail: "fieldwork" },
-    { title: "Ανάλυση", detail: "QA & weighting" },
-    { title: "Δημοσίευση", detail: "governed release" }
+    { title: "Σχεδιασμός", detail: "ερωτήματα και δείγμα" },
+    { title: "Πιλοτική", detail: "δοκιμή της έρευνας" },
+    { title: "Συλλογή", detail: "συγκέντρωση απαντήσεων" },
+    { title: "Ανάλυση", detail: "έλεγχος και υπολογισμοί" },
+    { title: "Δημοσίευση", detail: "τελικά αποτελέσματα" }
   ], []);
 
-  const funnel = [
+  const participation = [
     { label: "Απεστάλησαν", value: study.sent },
     { label: "Παραδόθηκαν", value: study.delivered },
     { label: "Άνοιξαν", value: study.opened },
     { label: "Ξεκίνησαν", value: study.started },
     { label: "Ολοκλήρωσαν", value: study.completed }
   ];
-  const funnelMax = Math.max(study.sent, study.selected, 1);
+  const participationMax = Math.max(study.sent, study.selected, 1);
 
   return <section className={styles.livePanel} aria-live="polite">
     <div className={styles.liveHead}>
       <div>
-        <div className={styles.eyebrow}>Live study command center · {study.waveTitle}</div>
+        <div className={styles.eyebrow}>Πρόοδος μελέτης</div>
         <h2>{statusLabel(study.status)}</h2>
         <div className={styles.heroBadges}>
           <span className={[styles.badge, isLive ? styles.badgeLive : ""].filter(Boolean).join(" ")}>
             {isLive && <span className={styles.dot} aria-hidden="true" />}
-            {isLive ? "Live fieldwork" : "Public snapshot"}
+            {isLive ? "Σε εξέλιξη" : "Τελευταία διαθέσιμη ενημέρωση"}
           </span>
-          <span className={styles.badge}>Privacy-safe aggregates</span>
+          <span className={styles.badge}>Συγκεντρωτικά στοιχεία</span>
         </div>
       </div>
       <div className={styles.liveNote}>
-        {isLive ? "Αυτόματη ανανέωση ανά 30″" : "Τελευταία δημόσια ενημέρωση"}
+        {isLive ? "Αυτόματη ανανέωση ανά 30″" : "Τελευταία ενημέρωση"}
         <br />
         <strong>{formatUpdated(study.updatedAt ?? lastRefresh)}</strong>
       </div>
@@ -122,8 +122,8 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
         <strong>{study.targetCompletes > 0 ? percent(completion) : "—"}</strong>
         <small>
           {study.targetCompletes > 0
-            ? study.completed.toLocaleString("el-GR") + " από " + study.targetCompletes.toLocaleString("el-GR") + " ολοκληρώσεις · απομένουν " + remaining.toLocaleString("el-GR")
-            : "Ο τελικός στόχος ολοκληρώσεων δεν έχει κλειδώσει ακόμη."}
+            ? study.completed.toLocaleString("el-GR") + " από " + study.targetCompletes.toLocaleString("el-GR") + " ολοκληρωμένες απαντήσεις · απομένουν " + remaining.toLocaleString("el-GR")
+            : "Ο τελικός στόχος δεν έχει οριστεί ακόμη."}
         </small>
       </div>
 
@@ -136,11 +136,11 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
           <span>στόχος <strong>{study.targetCompletes > 0 ? study.targetCompletes.toLocaleString("el-GR") : "—"}</strong></span>
         </div>
 
-        <div className={styles.funnel} aria-label="Fieldwork funnel">
-          {funnel.map((item) => <div className={styles.funnelStep} key={item.label}>
+        <div className={styles.funnel} aria-label="Πορεία συμμετοχής">
+          {participation.map((item) => <div className={styles.funnelStep} key={item.label}>
             <span>{item.label}</span>
             <div className={styles.funnelBar} aria-hidden="true">
-              <div className={styles.funnelFill} style={{ width: (safeRatio(item.value, funnelMax) * 100).toFixed(1) + "%" }} />
+              <div className={styles.funnelFill} style={{ width: (safeRatio(item.value, participationMax) * 100).toFixed(1) + "%" }} />
             </div>
             <strong>{item.value.toLocaleString("el-GR")}</strong>
           </div>)}
@@ -152,26 +152,26 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
       <article className={styles.metric}>
         <span>Επιλεγμένο δείγμα</span>
         <strong>{study.selected.toLocaleString("el-GR")}</strong>
-        <small>μονάδες στο ενεργό sample draw</small>
+        <small>μονάδες που επιλέχθηκαν για τη μελέτη</small>
       </article>
       <article className={styles.metric}>
-        <span>Delivery rate</span>
+        <span>Ποσοστό παράδοσης</span>
         <strong>{study.sent > 0 ? percent(deliveryRate) : "—"}</strong>
-        <small>{study.delivered.toLocaleString("el-GR")} από {study.sent.toLocaleString("el-GR")} αποστολές</small>
+        <small>{study.delivered.toLocaleString("el-GR")} από {study.sent.toLocaleString("el-GR")} προσκλήσεις</small>
       </article>
       <article className={styles.metric}>
-        <span>Start rate</span>
+        <span>Ποσοστό έναρξης</span>
         <strong>{(study.opened > 0 || study.sent > 0) ? percent(startRate) : "—"}</strong>
-        <small>{study.started.toLocaleString("el-GR")} survey starts</small>
+        <small>{study.started.toLocaleString("el-GR")} συμμετέχοντες ξεκίνησαν</small>
       </article>
       <article className={styles.metric}>
-        <span>Response rate</span>
+        <span>Ποσοστό ανταπόκρισης</span>
         <strong>{study.sent > 0 ? percent(study.responseRate) : "—"}</strong>
-        <small>ολοκληρωμένες / απεσταλμένες</small>
+        <small>ολοκληρωμένες απαντήσεις σε σχέση με τις προσκλήσεις</small>
       </article>
     </div>
 
-    <div className={styles.timeline} aria-label="Κύκλος ζωής μελέτης">
+    <div className={styles.timeline} aria-label="Στάδια μελέτης">
       {stages.map((stage, index) => <div
         key={stage.title}
         className={[

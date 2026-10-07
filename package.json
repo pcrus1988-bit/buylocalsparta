@@ -108,12 +108,13 @@
     "test:sport-fit": "node --experimental-strip-types --test apps/web/src/lib/sport-fit-engine.test.ts apps/web/src/lib/sport-fit-technical-profiles.test.ts apps/web/src/lib/sport-fit-kit-engine.test.ts apps/web/src/lib/sport-fit-versatility.test.ts apps/web/src/lib/sport-fit-size-guide.test.ts",
     "test:try-on": "node --experimental-strip-types --test apps/web/src/lib/try-on-eligibility.test.ts apps/web/src/lib/try-on-security.test.ts apps/web/src/lib/try-on-browser-storage.test.ts apps/web/src/lib/try-on-quota.test.ts",
     "test:color-finder": "node --experimental-strip-types --test apps/web/src/lib/color-finder.test.ts",
-    "test:research-survey": "node --experimental-strip-types --test apps/web/src/lib/research-survey-model.test.ts apps/web/src/lib/research-survey-statistics.test.ts && node --experimental-strip-types scripts/verify-research-survey-ecosystem.ts",
+    "test:research-survey": "node --experimental-strip-types --test apps/web/src/lib/research-survey-model.test.ts apps/web/src/lib/research-survey-statistics.test.ts && node --experimental-strip-types scripts/verify-research-survey-ecosystem.ts && npm run check:research-public-language",
     "test:paint-consultant": "node --experimental-strip-types --test apps/web/src/lib/paint-consultant.test.ts",
     "test:build-consultant": "node --experimental-strip-types --test apps/web/src/lib/build-consultant.test.ts",
     "test:symphonya-commerce-policy": "node --experimental-strip-types --test apps/web/src/lib/symphonya-commerce-policy.test.ts",
     "worker:symphonya": "node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs workers/symphonya-worker.ts",
-    "test:build-guidance": "node --experimental-strip-types --test apps/web/src/lib/build-guidance-runtime.test.ts apps/web/src/lib/build-guidance-scenario-map.test.ts apps/web/src/lib/paint-build-project-kit.test.ts"
+    "test:build-guidance": "node --experimental-strip-types --test apps/web/src/lib/build-guidance-runtime.test.ts apps/web/src/lib/build-guidance-scenario-map.test.ts apps/web/src/lib/paint-build-project-kit.test.ts",
+    "check:research-public-language": "node --experimental-strip-types scripts/verify-research-public-language.ts"
   },
   "dependencies": {
     "pg": "8.22.0"
