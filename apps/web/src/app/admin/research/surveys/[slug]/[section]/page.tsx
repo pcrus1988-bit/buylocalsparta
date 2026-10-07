@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { notFound, redirect } from "next/navigation";
 import { AdminWorkspaceHeader } from "../../../../../../components/AdminWorkspaceHeader";
-import { ResearchStudyFieldworkBalance } from "../../../../../../components/ResearchStudyFieldworkBalance";\nimport { ResearchSurveySettingsPanel } from "../../../../../../components/ResearchSurveySettingsPanel";\nimport { ResearchEvaluationPlanEditor, ResearchSurveyQuestionsEditor } from "../../../../../../components/ResearchSurveyQuestionsEditor";
+import { ResearchStudyFieldworkBalance } from "../../../../../../components/ResearchStudyFieldworkBalance";
+import { ResearchSurveySettingsPanel } from "../../../../../../components/ResearchSurveySettingsPanel";
+import { ResearchEvaluationPlanEditor, ResearchSurveyQuestionsEditor } from "../../../../../../components/ResearchSurveyQuestionsEditor";
 import { ResearchStudyFieldworkControls } from "../../../../../../components/ResearchStudyFieldworkControls";
 import { ResearchStudyLifecycleControls } from "../../../../../../components/ResearchStudyLifecycleControls";
 import { ResearchStudyOperationsPanel } from "../../../../../../components/ResearchStudyOperationsPanel";
@@ -13,7 +15,8 @@ import { RESEARCH_SURVEY_ADMIN_SECTIONS, ResearchSurveyAdminNav, type ResearchSu
 import { WorkspaceSectionHeading, WorkspaceStatusBadge } from "../../../../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../../../lib/admin-session";
-import { researchQualityReviewQueue } from "../../../../../../lib/research-survey-quality";\nimport { researchSurveyDesignAdminOverview } from "../../../../../../lib/research-survey-admin-design";
+import { researchQualityReviewQueue } from "../../../../../../lib/research-survey-quality";
+import { researchSurveyDesignAdminOverview } from "../../../../../../lib/research-survey-admin-design";
 import {
   researchDeliveryDelayQueue,
   researchFieldworkStrata,
@@ -49,7 +52,9 @@ export default async function ResearchSurveySectionPage({ params }: {
   const study = overview.studies.find((item) => item.slug === slug);
   if (!study) notFound();
 
-  const canManage = hasAdminPermission(principal, "research.manage");\n  const canDesign = hasAdminPermission(principal, "research.design.manage");\n  const canAnalyze = hasAdminPermission(principal, "research.analysis.manage");
+  const canManage = hasAdminPermission(principal, "research.manage");
+  const canDesign = hasAdminPermission(principal, "research.design.manage");
+  const canAnalyze = hasAdminPermission(principal, "research.analysis.manage");
   const sectionMeta = RESEARCH_SURVEY_ADMIN_SECTIONS.find((item) => item.key === section);
   let content: ReactNode = null;
 
