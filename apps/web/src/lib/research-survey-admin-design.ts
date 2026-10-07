@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -46,6 +46,22 @@ function questionFromRow(row: SqlRow): ResearchQuestion {
   };
 }
 
+export type ResearchLaterEvaluationDefinition = Readonly<{
+  eventId: string;
+  definitionId: string;
+  revision: number;
+  title: string;
+  researchQuestion: string;
+  metricKey: string;
+  method: string;
+  segments: readonly string[];
+  filters: string;
+  interpretation: string;
+  publicationLabel: string;
+  createdAt: string;
+  contentSha256: string;
+}>;
+
 export type ResearchSurveyDesignAdminOverview = Readonly<{
   databaseConfigured: boolean;
   studyFound: boolean;
@@ -69,6 +85,7 @@ export type ResearchSurveyDesignAdminOverview = Readonly<{
     consentStatementVersion: string;
   }>;
   questions: readonly ResearchQuestion[];
+  laterEvaluations: readonly ResearchLaterEvaluationDefinition[];
   analysisPlan?: Readonly<{
     id: string;
     version: string;
@@ -92,7 +109,8 @@ const EMPTY_OVERVIEW: ResearchSurveyDesignAdminOverview = {
     methodologySummary: "",
     defaultLocale: "el-GR"
   },
-  questions: []
+  questions: [],
+  laterEvaluations: []
 };
 
 export async function researchSurveyDesignAdminOverview(
@@ -123,6 +141,40 @@ export async function researchSurveyDesignAdminOverview(
       )
     : { rows: [] as readonly SqlRow[] };
 
+  const laterEvaluationRows = await pool.query<SqlRow>(`
+    SELECT DISTINCT ON (pe.evidence_json->>'definitionId')
+      pe.id,pe.evidence_json,pe.content_sha256,pe.occurred_at
+    FROM research_protocol_events pe
+    WHERE pe.study_id=$1
+      AND pe.category='analysis'
+      AND pe.evidence_json->>'schema'='kontamou.research.exploratory-evaluation.v1'
+    ORDER BY
+      pe.evidence_json->>'definitionId',
+      COALESCE(NULLIF(pe.evidence_json->>'revision','')::int,1) DESC,
+      pe.recorded_at DESC,
+      pe.id DESC
+  `, [row.study_id]);
+
+  const laterEvaluations = laterEvaluationRows.rows.flatMap((laterRow) => {
+    const evidence = objectValue(laterRow.evidence_json);
+    if (text(evidence.action) === "archive") return [];
+    return [{
+      eventId: text(laterRow.id),
+      definitionId: text(evidence.definitionId),
+      revision: Number(evidence.revision ?? 1),
+      title: text(evidence.title),
+      researchQuestion: text(evidence.researchQuestion),
+      metricKey: text(evidence.metricKey),
+      method: text(evidence.method),
+      segments: Array.isArray(evidence.segments) ? evidence.segments.map(String).filter(Boolean) : [],
+      filters: text(evidence.filters),
+      interpretation: text(evidence.interpretation),
+      publicationLabel: text(evidence.publicationLabel),
+      createdAt: new Date(laterRow.occurred_at as string | Date).toISOString(),
+      contentSha256: text(laterRow.content_sha256)
+    }];
+  }).sort((a, b) => a.title.localeCompare(b.title, "el"));
+
   return {
     databaseConfigured: true,
     studyFound: true,
@@ -146,6 +198,7 @@ export async function researchSurveyDesignAdminOverview(
       consentStatementVersion: text(row.consent_statement_version)
     } : undefined,
     questions: questions.rows.map(questionFromRow),
+    laterEvaluations,
     analysisPlan: row.analysis_plan_id ? {
       id: text(row.analysis_plan_id),
       version: text(row.analysis_plan_version),
@@ -528,6 +581,140 @@ export async function saveResearchAnalysisPlanDraft(
   );
   if (!result.rows[0]) throw new Error("RESEARCH_ANALYSIS_PLAN_LOCKED");
   return { contentSha256: text(result.rows[0].content_sha256) };
+}
+
+export async function saveResearchLaterEvaluation(
+  principal: SessionPrincipal,
+  slug: string,
+  input: Readonly<{
+    priorEventId?: string;
+    title: string;
+    researchQuestion: string;
+    metricKey: string;
+    method: string;
+    segments: readonly string[];
+    filters?: string;
+    interpretation?: string;
+    publicationLabel?: string;
+  }>
+): Promise<Readonly<{ eventId: string; definitionId: string; revision: number; contentSha256: string }>> {
+  assertAdminPermission(principal, "research.analysis.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+
+  const title = input.title.trim();
+  const researchQuestion = input.researchQuestion.trim();
+  const metricKey = input.metricKey.trim();
+  const method = input.method.trim();
+  const filters = input.filters?.trim() || "";
+  const interpretation = input.interpretation?.trim() || "";
+  const publicationLabel = input.publicationLabel?.trim() || title;
+  const segments = [...new Set(input.segments.map((item) => item.trim()).filter(Boolean))];
+
+  if (title.length < 3 || title.length > 180) throw new Error("RESEARCH_LATER_EVALUATION_TITLE_INVALID");
+  if (researchQuestion.length < 5 || researchQuestion.length > 2_000) throw new Error("RESEARCH_LATER_EVALUATION_QUESTION_INVALID");
+  if (!/^[A-Za-z0-9._-]{1,96}$/.test(metricKey)) throw new Error("RESEARCH_LATER_EVALUATION_METRIC_KEY_INVALID");
+  if (method.length < 3 || method.length > 180) throw new Error("RESEARCH_LATER_EVALUATION_METHOD_INVALID");
+  if (segments.length > 24) throw new Error("RESEARCH_LATER_EVALUATION_SEGMENTS_INVALID");
+  if (filters.length > 2_000 || interpretation.length > 4_000 || publicationLabel.length > 240) {
+    throw new Error("RESEARCH_LATER_EVALUATION_TEXT_INVALID");
+  }
+
+  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  try {
+    await client.query("BEGIN");
+    const studyResult = await client.query<SqlRow>(
+      "SELECT id,status FROM research_studies WHERE slug=$1 FOR UPDATE",
+      [slug]
+    );
+    const study = studyResult.rows[0];
+    if (!study) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+    if (text(study.status) === "draft") throw new Error("RESEARCH_LATER_EVALUATION_REQUIRES_STARTED_STUDY");
+    if (text(study.status) === "archived") throw new Error("RESEARCH_STUDY_ARCHIVED");
+
+    let definitionId = randomUUID();
+    let revision = 1;
+    let relatedEventId = "";
+    const priorEventId = input.priorEventId?.trim() || "";
+    if (priorEventId) {
+      const priorResult = await client.query<SqlRow>(`
+        SELECT pe.id,pe.evidence_json
+        FROM research_protocol_events pe
+        WHERE pe.id=$1
+          AND pe.study_id=$2
+          AND pe.category='analysis'
+          AND pe.evidence_json->>'schema'='kontamou.research.exploratory-evaluation.v1'
+        FOR UPDATE
+      `, [priorEventId, study.id]);
+      const prior = priorResult.rows[0];
+      if (!prior) throw new Error("RESEARCH_LATER_EVALUATION_NOT_FOUND");
+      const priorEvidence = objectValue(prior.evidence_json);
+      definitionId = text(priorEvidence.definitionId) || definitionId;
+      revision = Math.max(1, Number(priorEvidence.revision ?? 1)) + 1;
+      relatedEventId = text(prior.id);
+    }
+
+    const lifecyclePhase = text(study.status) === "pilot"
+      ? "pilot"
+      : ["fielding","closed"].includes(text(study.status))
+        ? "main"
+        : text(study.status) === "published"
+          ? "publication"
+          : "analysis";
+    const occurredAt = new Date().toISOString();
+    const evidence = {
+      schema: "kontamou.research.exploratory-evaluation.v1",
+      action: "upsert",
+      studySlug: slug,
+      definitionId,
+      revision,
+      classification: "exploratory_post_registration",
+      title,
+      researchQuestion,
+      metricKey,
+      method,
+      segments,
+      filters: filters || null,
+      interpretation: interpretation || null,
+      publicationLabel,
+      basedOnEventId: relatedEventId || null,
+      occurredAt
+    };
+    const contentSha256 = sha256(canonical(evidence));
+    const inserted = await client.query<SqlRow>(`
+      INSERT INTO research_protocol_events (
+        study_id,event_type,lifecycle_phase,category,severity,title,description,
+        rationale,impact_assessment,corrective_action,related_event_id,occurred_at,
+        recorded_by,evidence_json,content_sha256
+      )
+      VALUES (
+        $1,'amendment',$2,'analysis','info',$3,$4,
+        $5,$6,NULL,NULLIF($7,'')::uuid,$8::timestamptz,
+        $9,$10::jsonb,$11
+      )
+      RETURNING id
+    `, [
+      study.id,
+      lifecyclePhase,
+      "Exploratory evaluation · " + title,
+      researchQuestion,
+      "Added after the preregistered evaluation plan was locked; this definition is classified as exploratory.",
+      interpretation || "Interpret separately from preregistered primary and secondary analyses.",
+      relatedEventId,
+      occurredAt,
+      principal.userId,
+      JSON.stringify(evidence),
+      contentSha256
+    ]);
+    const eventId = text(inserted.rows[0]?.id);
+    if (!eventId) throw new Error("RESEARCH_LATER_EVALUATION_SAVE_FAILED");
+    await client.query("COMMIT");
+    return { eventId, definitionId, revision, contentSha256 };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function lockResearchAnalysisPlanDraft(
