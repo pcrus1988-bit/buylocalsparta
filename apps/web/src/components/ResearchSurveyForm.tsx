@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import type { ResearchExperimentAssignment, ResearchSurveyContext } from "../lib/research-survey-runtime";
-import { matrixItems, matrixScale, questionOptions, type ResearchAnswer, type ResearchAnswerMap, type ResearchQuestion } from "../lib/research-survey-model";
+import { RESEARCH_MARKETING_CONSENT_STATEMENT_EL, matrixItems, matrixScale, questionOptions, type ResearchAnswer, type ResearchAnswerMap, type ResearchQuestion } from "../lib/research-survey-model";
 import styles from "./ResearchSurveyForm.module.css";
 
-type ConsentState = Readonly<{ results_notification: boolean; thank_you_code: boolean }>;
+type ConsentState = Readonly<{ results_notification: boolean; thank_you_code: boolean; marketing?: boolean }>;
 
 const SECTION_LABELS: Record<string, string> = {
   A: "Η επιχείρησή σας",
@@ -241,6 +241,9 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
     Object.fromEntries(initial.experiments.flatMap((item) => item.selected ? [[String(item.taskNumber), item.selected]] : []))
   );
   const [optionalConsents, setOptionalConsents] = useState<ConsentState>({ ...initialConsent(), ...initial.consents });
+  const [marketingDecisionRecorded, setMarketingDecisionRecorded] = useState(
+    Object.prototype.hasOwnProperty.call(initial.consents, "marketing")
+  );
   const [sectionIndex, setSectionIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -334,6 +337,25 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
     }
   }
 
+  async function saveMarketingPreference() {
+    setPreferenceMessage("");
+    try {
+      const result = await save({
+        action: "preferences",
+        optionalConsents: { marketing: optionalConsents.marketing === true }
+      });
+      if (result.consents && typeof result.consents === "object" && !Array.isArray(result.consents)) {
+        setOptionalConsents((state) => ({ ...state, ...result.consents as Partial<ConsentState> }));
+      }
+      setMarketingDecisionRecorded(true);
+      setPreferenceMessage(optionalConsents.marketing
+        ? "Η συγκατάθεση για εμπορική ενημέρωση καταχωρήθηκε."
+        : "Η επιλογή μη λήψης εμπορικής ενημέρωσης καταχωρήθηκε.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Δεν ήταν δυνατή η ενημέρωση της εμπορικής επιλογής.");
+    }
+  }
+
   async function declineParticipation() {
     try {
       const result = await save({
@@ -380,9 +402,29 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
         </button>
       </div>
 
-      <h3>Ξεχωριστά από την έρευνα</h3>
-      <p>Η ερευνητική ροή τελειώνει εδώ. Αν θέλετε να ενημερωθείτε για εμπορική συνεργασία με το KONTA MOY, αυτό γίνεται σε ξεχωριστή σελίδα και δεν συνδέεται με τις απαντήσεις, την αποζημίωση ή τη συμμετοχή σας στη μελέτη.</p>
-      <a href="/join">Πληροφορίες συνεργασίας με το KONTA MOY →</a>
+      <h3>Εμπορική ενημέρωση — ξεχωριστή επιλογή</h3>
+      <p>Η επιλογή αυτή είναι ανεξάρτητη από τη συμμετοχή στην έρευνα, τις απαντήσεις σας, την ενημέρωση αποτελεσμάτων και τον κωδικό ευχαριστίας. Αφορά μόνο τη διεύθυνση email στην οποία στάλθηκε ο προσωπικός σύνδεσμος.</p>
+      <div className={styles.optionalConsents}>
+        <label>
+          <input
+            type="checkbox"
+            checked={optionalConsents.marketing === true}
+            onChange={(event) => setOptionalConsents((state) => ({ ...state, marketing: event.target.checked }))}
+          />
+          <span>{RESEARCH_MARKETING_CONSENT_STATEMENT_EL}</span>
+        </label>
+      </div>
+      <p>{marketingDecisionRecorded
+        ? optionalConsents.marketing
+          ? "Η διεύθυνση αυτή έχει ενεργή συγκατάθεση για εμπορική ενημέρωση."
+          : "Η διεύθυνση αυτή δεν έχει ενεργή συγκατάθεση για εμπορική ενημέρωση."
+        : "Δεν έχει καταχωρηθεί ακόμη επιλογή για εμπορική ενημέρωση."}</p>
+      <div className={styles.actions}>
+        <button type="button" className={styles.secondary} disabled={saving} onClick={() => void saveMarketingPreference()}>
+          {saving ? "Αποθήκευση…" : "Αποθήκευση εμπορικής επιλογής"}
+        </button>
+        <a href="/join">Πληροφορίες συνεργασίας με το KONTA MOY →</a>
+      </div>
 
       <h3>Ανάκληση συμμετοχής</h3>
       <p>Μπορείτε να ανακαλέσετε τη συμμετοχή από αυτόν τον προσωπικό σύνδεσμο. Η ανάκληση εξαιρεί την απάντηση από νέες αναλύσεις. Αποτελέσματα που έχουν ήδη δημοσιευθεί σε συγκεντρωτική μορφή παραμένουν μέρος της δημοσιευμένης μελέτης και δεν μπορούν να μετατραπούν αναδρομικά σε ατομικές απαντήσεις.</p>
