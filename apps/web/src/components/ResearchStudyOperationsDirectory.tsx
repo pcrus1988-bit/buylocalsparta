@@ -7,8 +7,7 @@ const consentLabels: Record<string,string> = {
   research_participation: "Συμμετοχή στην έρευνα",
   results_notification: "Ενημέρωση για αποτελέσματα",
   thank_you_code: "Κωδικός ευχαριστίας",
-  marketing: "Εμπορική επικοινωνία"
-};
+ };
 
 const sectorLabels: Record<string,string> = {
   fashion_footwear: "Ένδυση & υπόδηση",
@@ -101,7 +100,7 @@ export function ResearchStudyOperationsDirectory({
     <section id={"contacts-" + slug} className="workspace-queue-card">
       <WorkspaceSectionHeading
         eyebrow="Επαφές"
-        title={"Email contact directory · " + workspace.contactsTotal.toLocaleString("el-GR")}
+        title={"Επαφές email · " + workspace.contactsTotal.toLocaleString("el-GR")}
         note={workspace.canViewContactValues
           ? "Οι επαφές συνδέονται με επιχειρήσεις του παγωμένου πλαισίου και εμφανίζονται εδώ μαζί με πηγή, ΚΑΔ, περιοχή, κατάσταση δείγματος και πρόσκλησης. Προβάλλονται έως 200 εγγραφές."
           : "Η λίστα επαφών υπάρχει, αλλά οι πλήρεις διευθύνσεις email εμφανίζονται μόνο σε ρόλους fieldwork/privacy."}
@@ -128,7 +127,7 @@ export function ResearchStudyOperationsDirectory({
     <section id={"invites-" + slug} className="workspace-queue-card">
       <WorkspaceSectionHeading
         eyebrow="Προσκλήσεις"
-        title={"Invitation ledger · " + workspace.invitesTotal.toLocaleString("el-GR")}
+        title={"Προσκλήσεις & σύνδεσμοι · " + workspace.invitesTotal.toLocaleString("el-GR")}
         note="Κάθε επιλεγμένη επιχείρηση λαμβάνει μοναδικό προσωπικό link. Το αρχικό μυστικό token δημιουργείται τη στιγμή της αποστολής και αποθηκεύεται μόνο ως hash. Για χειροκίνητη αποστολή μπορείτε να εκδώσετε νέο προσωρινό link, το οποίο εμφανίζεται μόνο στην τρέχουσα συνεδρία και λήγει το αργότερο σε 24 ώρες."
       />
       {workspace.invites.length === 0
@@ -159,8 +158,8 @@ export function ResearchStudyOperationsDirectory({
     <section id={"kad-" + slug} className="workspace-queue-card">
       <WorkspaceSectionHeading
         eyebrow="ΚΑΔ"
-        title="Κάλυψη πλαισίου ανά ΚΑΔ"
-        note="Ο πίνακας δείχνει τι υπάρχει στο παγωμένο πλαίσιο, πόσες επιχειρήσεις έχουν ενεργό email, πόσες επιλέχθηκαν, προσκλήθηκαν και ολοκλήρωσαν."
+        title="Κάλυψη επιχειρήσεων ανά ΚΑΔ"
+        note="Ο πίνακας δείχνει πόσες επιχειρήσεις αντιστοιχούν σε κάθε ΚΑΔ, πόσες έχουν ενεργό email, πόσες επιλέχθηκαν, προσκλήθηκαν και ολοκλήρωσαν."
       />
       {workspace.kad.length === 0
         ? <WorkspaceEmptyState title="Δεν υπάρχει ακόμη ΚΑΔ breakdown." body="Θα εμφανιστεί αφού δημιουργηθεί το frozen frame." />
@@ -181,8 +180,8 @@ export function ResearchStudyOperationsDirectory({
     <section id={"consent-" + slug} className="workspace-queue-card">
       <WorkspaceSectionHeading
         eyebrow="Συγκαταθέσεις"
-        title="Consent ledger"
-        note="Οι συγκαταθέσεις είναι versioned και χωριστές ανά σκοπό. Δεν συγχέουμε τη συμμετοχή στην έρευνα με ενημέρωση αποτελεσμάτων, κωδικό ευχαριστίας ή εμπορική επικοινωνία."
+        title="Συγκαταθέσεις"
+        note="Η συγκατάθεση συμμετοχής, η ενημέρωση αποτελεσμάτων και ο κωδικός ευχαριστίας παρακολουθούνται χωριστά. Εμπορική επικοινωνία δεν αποτελεί συγκατάθεση της έρευνας."
       />
       {workspace.consentSummary.length === 0
         ? <WorkspaceEmptyState
