@@ -13,11 +13,11 @@ if (!connectionString) throw new Error("DATABASE_URL or POSTGRES_URL is required
 
 const postcheck = process.argv.includes("--postcheck");
 const recovery0420 = process.argv.includes("--recover-0420");
-const expectedSourceVersion = 434;
+const expectedSourceVersion = 435;
 const expectedCurrentVersion = 415;
 const expectedRecoveryVersion = 419;
 const expectedRecoveryPendingVersions = new Set(
-  Array.from({ length: 15 }, (_value, index) => 420 + index)
+  Array.from({ length: 16 }, (_value, index) => 420 + index)
 );
 const expectedRecoveryResearchTables = new Set([
   "research_analysis_estimates",
