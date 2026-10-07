@@ -15,7 +15,19 @@ export const dynamic = "force-dynamic";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/research/compare", {
     title: "Σύγκριση & αξιολόγηση · KONTA MOY Research",
-    description: "Συγκρίνετε δημοσιευμένες waves και αξιολογήστε comparability, uncertainty και provenance στο KONTA MOY Retail Observatory."
+    description: "Συγκρίνετε δημοσιευμένες waves και αξιολογήστε comparability, uncertainty και provenance στο KONTA MOY Retail Observatory.",
+    keywords: [
+      "σύγκριση ερευνών λιανεμπορίου",
+      "σύγκριση waves έρευνας",
+      "αξιολόγηση ερευνητικών αποτελεσμάτων",
+      "Retail Observatory Greece",
+      "longitudinal retail research",
+      "comparability research waves",
+      "research uncertainty intervals",
+      "research methodology provenance",
+      "Greek retail trends",
+      "KONTA MOY Research"
+    ]
   });
 }
 
