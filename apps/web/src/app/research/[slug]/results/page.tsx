@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 function label(estimate: PublishedResearchEstimate): string {
   const value = estimate.metadata.label;
-  return typeof value === "string" && value.trim() ? value : estimate.metricKey;
+  return typeof value === "string" && value.trim() ? value : "Δημοσιευμένος δείκτης";
 }
 
 function value(estimate: PublishedResearchEstimate, raw: number): string {
