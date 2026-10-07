@@ -164,7 +164,8 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         limit: Number(body.limit || 100),
         minAgeDays: Number(body.minAgeDays || 5),
         minGapDays: Number(body.minGapDays || 5),
-        maxReminders: Number(body.maxReminders || 2)
+        maxReminders: Number(body.maxReminders || 2),
+        confirmedRecipientCount: preview.candidateCount
       });
       if (preview.candidateCount < 1) throw new Error("RESEARCH_EMAIL_NO_ELIGIBLE_RECIPIENTS");
       assertBulkEmailConfirmation(body, {
