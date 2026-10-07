@@ -471,6 +471,9 @@ if (!sesEvents.includes("suppression_status='bounced'")) errors.push("bounce sup
 if (!sesEvents.includes("research_contact_suppression_events")) errors.push("SES events do not persist cross-wave suppression");
 if (!sesEvents.includes("research_participant_delivery_events")) errors.push("SES events do not audit participant delivery outcomes");
 if (!sesEvents.includes("provider_message_not_research_message")) errors.push("SES event routing does not recognize participant messages");
+if (!sesEvents.includes('eventType === "DeliveryDelay"')) errors.push("SES delivery-delay callback handling missing");
+if (!sesEvents.includes("deliveryDelayMetadata")) errors.push("SES delivery-delay diagnostics are not normalized");
+if (!jobs.includes("pending_delay.last_error LIKE 'SES delivery delay:%'")) errors.push("automatic reminders do not pause for active SES delivery delays");
 if (!jobs.includes("research_contact_is_suppressed")) errors.push("research worker does not enforce cross-wave suppression");
 if (!jobs.includes("queueGreekRetailInviteReminderBatch")) errors.push("governed reminder queue missing");
 if (!jobs.includes("processInviteReminderJob")) errors.push("governed reminder worker missing");
@@ -478,7 +481,7 @@ if (!jobs.includes('"invite_reminder"') || !jobs.includes("job_type = ANY($1::te
 if (!jobs.includes("PRIOR_ATTEMPT_NOT_RETRIED")) errors.push("reminder retries are not fail-closed");
 if (!jobs.includes("attemptKind: \"reminder\"")) errors.push("reminder SES attempt tagging missing");
 if (!surveyRuntime.includes("research_invite_access_tokens")) errors.push("public survey does not resolve token aliases");
-if (!fieldworkControls.includes("Queue reminder batch")) errors.push("admin reminder controls missing");
+if (!fieldworkControls.includes("Automatic reminder protocol") || !fieldworkControls.includes("Run reminder check now")) errors.push("automatic reminder controls missing");
 if (!sesEvents.includes("research_attempt")) errors.push("SES callback attempt recovery missing");
 if (!sesEvents.includes("research_invite_messages")) errors.push("SES callback does not update attempt ledger");
 if (!release.includes("denominatorRule")) errors.push("release does not freeze reminder denominator rule");
