@@ -65,7 +65,7 @@ export async function recordAdminSecurityEvent(input:{type:SecurityEventType;sev
   memory.getAdminRuntime().securityEvents.record(input);
 }
 
-export type AdminPersonalDataPurpose = "customer_management" | "customer_support" | "privacy_operations" | "order_fulfilment" | "finance_tax" | "security_investigation";
+export type AdminPersonalDataPurpose = "customer_management" | "customer_support" | "privacy_operations" | "order_fulfilment" | "finance_tax" | "security_investigation" | "research_fieldwork";
 export async function recordAdminPersonalDataAccess(principal:SessionPrincipal,input:{eventType?:Extract<SecurityEventType,"personal_data.accessed"|"personal_data.revealed"|"personal_data.exported">;route:string;method?:string;resourceType:string;resourceId:string;purpose:AdminPersonalDataPurpose;dataClasses:readonly string[];recordCount?:number;accessScope?:"individual"|"bulk"}){
   const eventType=input.eventType??"personal_data.accessed";
   const subjectHash=createHash("sha256").update(`${input.resourceType}:${input.resourceId}`).digest("hex");
