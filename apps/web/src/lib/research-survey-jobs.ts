@@ -3024,7 +3024,6 @@ async function processResultsNotificationJob(job: ResearchJobRow): Promise<Recor
       failedCount: 0,
       confirmedRecipientCount: confirmedLimit,
       sentBeforeThisAttempt,
-      remainingCount: 0,
       requiresNewConfirmation: true,
       reason: "confirmed_recipient_limit_reached"
     };
