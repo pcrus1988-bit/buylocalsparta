@@ -8,7 +8,8 @@ import {
   queueGreekRetailResultsNotifications,
   queueGreekRetailRewardDelivery,
   queueGreekRetailSampleDraw,
-  saveGreekRetailRecruitmentTemplate
+  saveGreekRetailRecruitmentTemplate,
+  suppressGreekRetailResearchEmail
 } from "../../../../../../../lib/research-survey-jobs";
 import { queueGreekRetailRelease } from "../../../../../../../lib/research-survey-release";
 
@@ -32,6 +33,8 @@ type Body = {
   minAgeDays?: number;
   minGapDays?: number;
   maxReminders?: number;
+  email?: string;
+  note?: string;
   emailApproval?: {
     studySlug?: string;
     studyTitle?: string;
@@ -99,6 +102,22 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         slug,
         "Queue reproducible stratified sample draw",
 { jobId: result.jobId, targetN: Number(body.targetN), desiredCompleteN: body.desiredCompleteN ?? null, expectedResponseRate: body.expectedResponseRate ?? null, randomSeed: result.randomSeed, fieldworkPhase: result.fieldworkPhase }
+      );
+      return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (body.action === "suppress_contact") {
+      const result = await suppressGreekRetailResearchEmail(principal, {
+        email: String(body.email ?? ""),
+        note: body.note
+      });
+      await recordAdminAudit(
+        principal,
+        "research.contact.suppressed",
+        "research_study",
+        slug,
+        "Suppress research email contact from current and future research sends",
+        { ...result, emailHashRecorded: true }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
