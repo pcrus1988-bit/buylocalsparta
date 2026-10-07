@@ -242,6 +242,7 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
       { label: "Performance", href: "/admin/analytics", icon: "∿", permission: "analytics.market.read" },
       { label: "Demand", href: "/admin/demand", icon: "◎", permission: "analytics.market.read" },
       { label: "Research Studies", href: "/admin/research/surveys", icon: "◌", permission: "research.read" },
+      { label: "Marketing Opt-ins", href: "/admin/research/contacts", icon: "✉", permission: "research.privacy.manage" },
       { label: "Reports", href: "/admin/reports", icon: "▤", permission: "analytics.market.read" }
     ]
   },
