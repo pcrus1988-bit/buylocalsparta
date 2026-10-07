@@ -205,6 +205,13 @@ const STATIC_SEARCH_INTENTS: Readonly<Record<string, readonly string[]>> = {
     "δεδομένα τοπικής αγοράς Λακωνία",
     "έρευνες ΚΟΝΤΑ ΜΟΥ"
   ],
+  "/research/compare": [
+    "σύγκριση ερευνών λιανεμπορίου",
+    "σύγκριση waves έρευνας",
+    "αξιολόγηση ερευνητικών αποτελεσμάτων",
+    "longitudinal retail research Greece",
+    "μεθοδολογία σύγκρισης λιανεμπορίου"
+  ],
   "/research/privacy": [
     "ιδιωτικότητα έρευνας λιανεμπορίου",
     "GDPR έρευνα Σπάρτη",
