@@ -43,7 +43,7 @@ type CustomerGuide = {
 type QuantityEstimate = {
   status: "available" | "missing_manufacturer_values" | "manufacturer_not_selected";
   areaM2: number;
-  unit?: "L";
+  unit?: "L" | "kg";
   min?: number;
   max?: number;
   coatsMin?: number;
@@ -453,7 +453,7 @@ function ProjectKitScreen({
 
       <div className={styles.kitSummaryGrid}>
         <div><small>ΕΠΙΦΑΝΕΙΑ</small><strong>{areaM2} m²</strong></div>
-        <div><small>ΘΕΩΡΗΤΙΚΗ ΑΠΑΙΤΗΣΗ</small><strong>{projectKit.quantityEstimate.status === "available" ? `${projectKit.quantityEstimate.min}–${projectKit.quantityEstimate.max} L` : "Μη διαθέσιμη"}</strong></div>
+        <div><small>ΘΕΩΡΗΤΙΚΗ ΑΠΑΙΤΗΣΗ</small><strong>{projectKit.quantityEstimate.status === "available" ? `${projectKit.quantityEstimate.min}–${projectKit.quantityEstimate.max} ${projectKit.quantityEstimate.unit ?? "L"}` : "Μη διαθέσιμη"}</strong></div>
         <div><small>ΠΡΟΤΕΙΝΟΜΕΝΗ ΑΓΟΡΑ</small><strong>{projectKit.packPlan ? projectKit.packPlan.lines.map((line) => `${line.quantity}×${paintBuildPackageLabel(`${line.variant.packValue}${line.variant.packUnit}`)}`).join(" + ") : "Απαιτείται συμπλήρωση δεδομένων"}</strong></div>
       </div>
 
