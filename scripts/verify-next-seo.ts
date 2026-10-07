@@ -179,7 +179,8 @@ const strongProduct = {
 } as const;
 if (!productIndexEligibility(strongProduct).eligible) failures.push("Useful admitted products must pass the product SEO quality gate");
 if (!productIndexEligibility({ ...strongProduct, mediaId: undefined, sourceImageAvailable: true }).eligible) failures.push("Approved catalogue-source imagery must satisfy the public image gate");
-if (!productIndexEligibility({ ...strongProduct, offerAvailable: false }).blockingReasons.some((reason) => reason.includes("active local offer"))) failures.push("Products without a fresh sellable local offer must stay out of the index");
+const temporarilyUnavailableStrongProduct = productIndexEligibility({ ...strongProduct, offerAvailable: false });
+if (!temporarilyUnavailableStrongProduct.eligible || !temporarilyUnavailableStrongProduct.reasons.some((reason) => reason.includes("temporarily unavailable"))) failures.push("Temporary stock gaps must preserve index eligibility for otherwise useful active product pages");
 if (productIndexEligibility({ title: "Product", categoryCode: "", duplicateTitleCount: 1 }).eligible) failures.push("Placeholder products without classification/content must stay out of the index");
 if (!productIndexEligibility({ ...strongProduct, description: undefined, mediaId: undefined, brand: undefined, duplicateTitleCount: 2 }).blockingReasons.some((reason) => reason.includes("duplicate title"))) failures.push("Undifferentiated duplicate product titles must be a hard index blocker");
 
