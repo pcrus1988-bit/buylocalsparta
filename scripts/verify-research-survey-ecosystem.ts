@@ -473,6 +473,8 @@ if (!sesEvents.includes("research_participant_delivery_events")) errors.push("SE
 if (!sesEvents.includes("provider_message_not_research_message")) errors.push("SES event routing does not recognize participant messages");
 if (!sesEvents.includes('eventType === "DeliveryDelay"')) errors.push("SES delivery-delay callback handling missing");
 if (!sesEvents.includes("deliveryDelayMetadata")) errors.push("SES delivery-delay diagnostics are not normalized");
+if (!surveyRuntime.includes("researchDeliveryDelayQueue")) errors.push("admin SES delivery-delay diagnostic queue missing");
+if (!researchAdmin.includes("Temporarily delayed") || !researchAdmin.includes("SES delivery delays")) errors.push("admin SES delivery-delay status surface missing");
 if (!jobs.includes("pending_delay.last_error LIKE 'SES delivery delay:%'")) errors.push("automatic reminders do not pause for active SES delivery delays");
 if (!jobs.includes("research_contact_is_suppressed")) errors.push("research worker does not enforce cross-wave suppression");
 if (!jobs.includes("queueGreekRetailInviteReminderBatch")) errors.push("governed reminder queue missing");
