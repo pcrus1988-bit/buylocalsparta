@@ -1,6 +1,6 @@
 {
-  "version": 24,
-  "updatedAt": "2026-10-04",
+  "version": 25,
+  "updatedAt": "2026-10-07",
   "sources": [
     {
       "sourceKey": "opi_nail_lacquer_catalogue",
@@ -7284,6 +7284,893 @@
           "relation": "historical_for"
         }
       ]
+    },
+    {
+      "sourceKey": "eu_cosmetics_regulation_1223_2009",
+      "publisher": "European Union",
+      "title": "Regulation (EC) No 1223/2009 on cosmetic products",
+      "sourceFamily": "law",
+      "authorityLevel": 5,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://eur-lex.europa.eu/eli/reg/2009/1223/oj",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "cosmetics",
+        "scope": "base_regulation_and_consolidated_versions"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "note": "EUR-Lex exposes historical consolidated versions; preserve effective dates rather than overwriting.",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "eu_regulation_2025_877",
+      "publisher": "European Union",
+      "title": "Commission Regulation (EU) 2025/877",
+      "sourceFamily": "law",
+      "authorityLevel": 5,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://eur-lex.europa.eu/eli/reg/2025/877/oj/eng",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": true,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "cosmetics",
+        "topic": "CMR substances including TPO",
+        "effectiveDate": "2025-09-01"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "eu_cosing",
+      "publisher": "European Commission",
+      "title": "CosIng cosmetic ingredient database",
+      "sourceFamily": "regulatory_database",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://single-market-economy.ec.europa.eu/sectors/cosmetics/cosmetic-ingredient-database_en",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "ingredients",
+        "includes": [
+          "INCI",
+          "CAS",
+          "EC",
+          "historical_entries",
+          "SCCS_references"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "legalCaveat": "Informative only; no legal value. Regulatory status must resolve to Regulation 1223/2009 and its Annexes.",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "eu_sccs",
+      "publisher": "European Commission",
+      "title": "Scientific Committee on Consumer Safety (SCCS)",
+      "sourceFamily": "scientific_opinion_index",
+      "authorityLevel": 5,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://health.ec.europa.eu/scientific-committees/scientific-committee-consumer-safety-sccs_en",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetic_ingredient_safety",
+        "includes": [
+          "opinions",
+          "statements",
+          "notes_of_guidance"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "eu_echa_clh",
+      "publisher": "European Chemicals Agency",
+      "title": "Harmonised classification and labelling (CLH)",
+      "sourceFamily": "chemical_hazard_registry",
+      "authorityLevel": 5,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://echa.europa.eu/regulations/clp/harmonised-classification-and-labelling",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "chemical_hazards",
+        "includes": [
+          "CMR",
+          "sensitisation",
+          "ED",
+          "PBT",
+          "vPvB",
+          "PMT",
+          "vPvM"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "legalCaveat": "Use Annex VI/Official Journal for legally binding harmonised classifications.",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "eu_safety_gate",
+      "publisher": "European Commission",
+      "title": "Safety Gate alerts search",
+      "sourceFamily": "recall_system",
+      "authorityLevel": 5,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://ec.europa.eu/safety-gate-alerts/screen/search?resetSearch=true",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "continuous",
+      "coverage": {
+        "domain": "dangerous_non_food_products",
+        "category": "cosmetics"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "capabilities": [
+          "search",
+          "alert_detail",
+          "export"
+        ],
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "gb_opss_cosmetics",
+      "publisher": "Office for Product Safety and Standards",
+      "title": "Consumer products: cosmetics",
+      "sourceFamily": "regulatory_guidance",
+      "authorityLevel": 5,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.gov.uk/guidance/consumer-products-cosmetics",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "cosmetics",
+        "scope": "Great Britain"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "gb_opss_cosmetics_recalls",
+      "publisher": "Office for Product Safety and Standards",
+      "title": "Product Safety Alerts, Reports and Recalls — Cosmetics",
+      "sourceFamily": "recall_system",
+      "authorityLevel": 5,
+      "jurisdiction": "GB",
+      "language": "en",
+      "canonicalUrl": "https://www.gov.uk/product-safety-alerts-reports-recalls?product_category=cosmetics",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "continuous",
+      "coverage": {
+        "domain": "product_safety",
+        "category": "cosmetics"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "us_fda_mocra",
+      "publisher": "U.S. Food and Drug Administration",
+      "title": "Modernization of Cosmetics Regulation Act of 2022 (MoCRA)",
+      "sourceFamily": "regulatory_guidance",
+      "authorityLevel": 5,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.fda.gov/cosmetics/cosmetics-laws-regulations/modernization-cosmetics-regulation-act-2022-mocra",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "cosmetics",
+        "includes": [
+          "mandatory_recall_authority",
+          "adverse_events",
+          "facility_registration",
+          "product_listing"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "us_fda_cosmetics_enforcement",
+      "publisher": "U.S. Food and Drug Administration",
+      "title": "Cosmetics Compliance & Enforcement",
+      "sourceFamily": "recall_system",
+      "authorityLevel": 5,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.fda.gov/cosmetics/cosmetics-compliance-enforcement",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "continuous",
+      "coverage": {
+        "domain": "cosmetics",
+        "includes": [
+          "recalls",
+          "warning_letters",
+          "import_alerts",
+          "enforcement_reports"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "us_fda_cosmetic_adverse_events",
+      "publisher": "U.S. Food and Drug Administration",
+      "title": "Cosmetic product complaints and adverse-event reporting",
+      "sourceFamily": "regulatory_guidance",
+      "authorityLevel": 5,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://www.fda.gov/cosmetics/resources-consumers-cosmetics/what-should-i-do-if-i-have-reaction-side-effect-cosmetic-product",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "cosmetic_adverse_events",
+        "includes": [
+          "AEMS",
+          "serious_adverse_event_reporting"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "ca_health_canada_hotlist",
+      "publisher": "Health Canada",
+      "title": "Cosmetic Ingredient Hotlist",
+      "sourceFamily": "regulatory_database",
+      "authorityLevel": 5,
+      "jurisdiction": "CA",
+      "language": "en",
+      "canonicalUrl": "https://www.canada.ca/en/health-canada/services/consumer-product-safety/cosmetics/cosmetic-ingredient-hotlist-prohibited-restricted-ingredients/hotlist.html",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "irregular",
+      "coverage": {
+        "domain": "cosmetic_ingredients",
+        "includes": [
+          "prohibited",
+          "restricted",
+          "conditions_of_use",
+          "maximum_concentration"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "legalCaveat": "Administrative tool; underlying Food and Drugs Act and Cosmetic Regulations govern.",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "ca_recalls",
+      "publisher": "Government of Canada",
+      "title": "Find recalls, advisories and safety alerts",
+      "sourceFamily": "recall_system",
+      "authorityLevel": 5,
+      "jurisdiction": "CA",
+      "language": "en",
+      "canonicalUrl": "https://recalls-rappels.canada.ca/en",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "daily",
+      "coverage": {
+        "domain": "recalls",
+        "availableFeeds": [
+          "CSV",
+          "JSON"
+        ],
+        "feedUpdate": "daily"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "note": "Official portal advertises active and archived CSV/JSON datasets updated daily.",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "au_aicis_cosmetics",
+      "publisher": "Australian Industrial Chemicals Introduction Scheme",
+      "title": "Personal care, skincare, make-up and other cosmetic products",
+      "sourceFamily": "regulatory_database",
+      "authorityLevel": 5,
+      "jurisdiction": "AU",
+      "language": "en",
+      "canonicalUrl": "https://www.industrialchemicals.gov.au/cosmetics-and-soap/personal-care-skincare-make-and-other-cosmetic-products",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "cosmetic_ingredients",
+        "includes": [
+          "industrial_chemical_inventory",
+          "introduction_categories"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "au_accc_recalls",
+      "publisher": "Australian Competition and Consumer Commission",
+      "title": "Search consumer product recalls",
+      "sourceFamily": "recall_system",
+      "authorityLevel": 5,
+      "jurisdiction": "AU",
+      "language": "en",
+      "canonicalUrl": "https://www.productsafety.gov.au/recalls",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "continuous",
+      "coverage": {
+        "domain": "product_recalls",
+        "topic": "cosmetic_and_health_products"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "jp_pmda_cosmetics_recalls",
+      "publisher": "Pharmaceuticals and Medical Devices Agency",
+      "title": "Cosmetics and quasi-drugs recall information",
+      "sourceFamily": "recall_system",
+      "authorityLevel": 5,
+      "jurisdiction": "JP",
+      "language": "ja",
+      "canonicalUrl": "https://www.pmda.go.jp/safety/info-services/qdrugs-cosmetics/0002.html",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "continuous",
+      "coverage": {
+        "domain": "recalls",
+        "category": "cosmetics_and_quasi_drugs",
+        "coverageFrom": "FY2024"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "cn_nmpa_iecic",
+      "publisher": "National Medical Products Administration",
+      "title": "Inventory of Existing Cosmetic Ingredients (IECIC) administration",
+      "sourceFamily": "regulatory_database",
+      "authorityLevel": 5,
+      "jurisdiction": "CN",
+      "language": "en",
+      "canonicalUrl": "https://english.nmpa.gov.cn/2025-07/21/c_1118071.htm",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": true,
+      "manufacturerPrimary": false,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "domain": "cosmetic_ingredients",
+        "topic": "IECIC",
+        "updateModel": "dynamic"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "note": "NMPA states future inventory changes will be continuously disclosed through its official cosmetics query channel.",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "tgb_sds",
+      "publisher": "The GelBottle Inc",
+      "title": "SDS Safety Sheets",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://thegelbottle.com/pro-hub/sds-safety-sheets/",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": false,
+      "manufacturerPrimary": true,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "The GelBottle Inc",
+        "includes": [
+          "original_TPO_formulations",
+          "TPO_free_reformulations",
+          "BIAB",
+          "gel_colour"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "importantVersioningSignal": "Manufacturer explicitly separates original TPO-containing SDS from TPO-free reformulations.",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "apres_sds",
+      "publisher": "Aprés Nail",
+      "title": "Safety Data Sheets",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://help.apresnail.com/en-US/safety-data-sheets-3782116",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": false,
+      "manufacturerPrimary": true,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Aprés Nail",
+        "includes": [
+          "Gel Couleur",
+          "Extend Gel",
+          "builders",
+          "collections"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "importantVersioningSignal": "Current SDS library identifies the 2025 200 Gel Couleur collection as TPO+HEMA free.",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "kiara_sky_sds",
+      "publisher": "Kiara Sky Professional Nails",
+      "title": "Safety Data Sheets",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://kiarasky.com/pages/sds",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": false,
+      "manufacturerPrimary": true,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Kiara Sky",
+        "includes": [
+          "gel_polish",
+          "dip_powder",
+          "acrylic",
+          "essentials"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "opi_product_ingredients",
+      "publisher": "OPI",
+      "title": "OPI product pages with ingredient lists",
+      "sourceFamily": "manufacturer_product",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.opi.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": false,
+      "manufacturerPrimary": true,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "OPI",
+        "scope": "product_pages",
+        "fields": [
+          "shade",
+          "system",
+          "ingredients",
+          "usage"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "importantVersioningSignal": "Regional/current product pages can expose materially different ingredient lists; capture URL, market and retrieval date per product.",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "essie_product_ingredients",
+      "publisher": "essie",
+      "title": "essie product pages with ingredient lists",
+      "sourceFamily": "manufacturer_product",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.essie.com/",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": false,
+      "manufacturerPrimary": true,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "essie",
+        "scope": "product_pages",
+        "fields": [
+          "shade",
+          "line",
+          "ingredients",
+          "usage"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "consolidatedFromMigration": "db/migrations/0411_nyxi_source_atlas.sql"
+      }
+    },
+    {
+      "sourceKey": "cnd_shellac_colours",
+      "publisher": "Creative Nail Design",
+      "title": "CND SHELLAC Color Collection",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://www.cnd.com/collections/cnd%E2%84%A2-shellac%E2%84%A2-color-shades",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": false,
+      "manufacturerPrimary": true,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "CND",
+        "line": "SHELLAC",
+        "scope": "colour_collection"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "consolidatedFromMigration": "db/migrations/0412_nyxi_source_collector_support.sql"
+      }
+    },
+    {
+      "sourceKey": "kokoist_sds",
+      "publisher": "KOKOIST USA",
+      "title": "Safety Data Sheets",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://kokoistusa.com/pages/sds",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": false,
+      "manufacturerPrimary": true,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "KOKOIST",
+        "includes": [
+          "base",
+          "top",
+          "colour_gel",
+          "builder",
+          "magnetic"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "preserveLinkedPdfs": true,
+        "historicalFormulaNote": "Manufacturer states prior product/formula SDS can be requested separately.",
+        "consolidatedFromMigration": "db/migrations/0412_nyxi_source_collector_support.sql"
+      }
+    },
+    {
+      "sourceKey": "indigo_sds",
+      "publisher": "Indigo Nails",
+      "title": "Safety Data Sheets",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://www.indigo-nails.com/uk-en/safety-data-sheets",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": false,
+      "manufacturerPrimary": true,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Indigo Nails",
+        "scope": "safety_data_sheets"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "preserveLinkedPdfs": true,
+        "consolidatedFromMigration": "db/migrations/0412_nyxi_source_collector_support.sql"
+      }
+    },
+    {
+      "sourceKey": "light_elegance_sds",
+      "publisher": "Light Elegance",
+      "title": "SDS Downloads",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "US",
+      "language": "en",
+      "canonicalUrl": "https://lightelegance.com/pages/sds",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": false,
+      "manufacturerPrimary": true,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Light Elegance",
+        "includes": [
+          "colour_gel",
+          "gel_polish",
+          "builder",
+          "bases",
+          "tops",
+          "acrylic"
+        ]
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "preserveLinkedPdfs": true,
+        "consolidatedFromMigration": "db/migrations/0412_nyxi_source_collector_support.sql"
+      }
+    },
+    {
+      "sourceKey": "akzentz_products",
+      "publisher": "Akzentz",
+      "title": "Products",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://akzentz.com/products/",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": false,
+      "manufacturerPrimary": true,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Akzentz",
+        "scope": "product_index"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "consolidatedFromMigration": "db/migrations/0412_nyxi_source_collector_support.sql"
+      }
+    },
+    {
+      "sourceKey": "akzentz_luxio_collections",
+      "publisher": "Akzentz",
+      "title": "Luxio Collections",
+      "sourceFamily": "manufacturer_catalogue",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://akzentz.com/collections/luxio%C2%A9-collections",
+      "retrievalMethod": "html",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": false,
+      "manufacturerPrimary": true,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Akzentz / Luxio",
+        "line": "Luxio",
+        "scope": "colour_collections"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "consolidatedFromMigration": "db/migrations/0412_nyxi_source_collector_support.sql"
+      }
+    },
+    {
+      "sourceKey": "akzentz_luxio_build_sds_eu_2025",
+      "publisher": "Akzentz",
+      "title": "Luxio Build SDS EU",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://akzentz.com/wp-content/uploads/2025/08/Luxio-Build-SDS-EU.pdf",
+      "retrievalMethod": "pdf",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": false,
+      "manufacturerPrimary": true,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Akzentz / Luxio",
+        "product": "Luxio Build",
+        "market": "EU"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "rawDocumentPriority": "high",
+        "consolidatedFromMigration": "db/migrations/0412_nyxi_source_collector_support.sql"
+      }
+    },
+    {
+      "sourceKey": "akzentz_luxio_base_hema_free_sds_2024",
+      "publisher": "Akzentz",
+      "title": "Luxio Base HEMA-free SDS",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "GLOBAL",
+      "language": "en",
+      "canonicalUrl": "https://akzentz.com/wp-content/uploads/2025/06/Luxio-Base-HEMA-free-SDS.pdf",
+      "retrievalMethod": "pdf",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": false,
+      "manufacturerPrimary": true,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Akzentz / Luxio",
+        "product": "Luxio Base",
+        "document_variant": "HEMA-free"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "rawDocumentPriority": "high",
+        "consolidatedFromMigration": "db/migrations/0412_nyxi_source_collector_support.sql"
+      }
+    },
+    {
+      "sourceKey": "akzentz_luxio_base_sds_eu_2025",
+      "publisher": "Akzentz",
+      "title": "Luxio Base SDS EU",
+      "sourceFamily": "manufacturer_sds",
+      "authorityLevel": 4,
+      "jurisdiction": "EU",
+      "language": "en",
+      "canonicalUrl": "https://akzentz.com/wp-content/uploads/2025/08/Luxio-Base-SDS-EU.pdf",
+      "retrievalMethod": "pdf",
+      "official": true,
+      "legallyBinding": false,
+      "regulatory": false,
+      "manufacturerPrimary": true,
+      "sourceStatus": "verified",
+      "updateFrequency": "event_driven",
+      "coverage": {
+        "brand": "Akzentz / Luxio",
+        "product": "Luxio Base",
+        "market": "EU"
+      },
+      "metadata": {
+        "discoveryDate": "2026-10-04",
+        "rawDocumentPriority": "high",
+        "consolidatedFromMigration": "db/migrations/0412_nyxi_source_collector_support.sql"
+      }
     }
   ]
 }
