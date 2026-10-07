@@ -10,12 +10,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 55;
 
-// Scheduled stock discovery runs only every 12 hours. Complete the current
-// Symphonya feed in one bounded concurrent burst so a 12-hour cadence does not
-// stretch one authoritative sweep across multiple days. Checkout/pre-fulfilment
-// validation remains targeted and live between scheduled runs. Publication remains
-// handled by the existing hourly pipeline; manual mode=priority remains available
-// for targeted storefront recovery.
+// Scheduled stock discovery runs hourly. Each invocation advances up to eight
+// 500-row pages, so the ~10k-row supplier feed completes a full authoritative cycle
+// in roughly three hours with ample margin inside the 12-hour availability TTL.
+// Checkout/pre-fulfilment validation remains targeted and live between scheduled
+// runs. Publication remains handled by the hourly pipeline; manual mode=priority
+// remains available for targeted storefront recovery.
 const PRIORITY_BATCH_LIMIT = 200;
 const PUBLISHED_REFRESH_LIMIT = 120;
 const PRIORITY_REFRESH_WINDOW_MINUTES = 60;
