@@ -2043,3 +2043,175 @@ export async function transitionResearchStudy(
     client.release();
   }
 }
+
+export type ResearchMarketingConsentStatus = "opted_in" | "opted_out" | "no_decision";
+
+export type ResearchMarketingContactEntry = Readonly<{
+  companyName: string;
+  email: string;
+  marketingStatus: ResearchMarketingConsentStatus;
+  consentRecordedAt?: string;
+  consentVersion?: string;
+  consentSource?: string;
+  researchContactStatus: string;
+  companyOptedInContacts: number;
+  companyTotalContacts: number;
+}>;
+
+export type ResearchMarketingContactDirectory = Readonly<{
+  studySlug: string;
+  summary: Readonly<{
+    totalContacts: number;
+    optedIn: number;
+    optedOut: number;
+    noDecision: number;
+    matching: number;
+    returned: number;
+  }>;
+  contacts: readonly ResearchMarketingContactEntry[];
+}>;
+
+export async function researchMarketingContactDirectory(
+  principal: SessionPrincipal,
+  input: Readonly<{
+    studySlug: string;
+    status?: ResearchMarketingConsentStatus | "all";
+    query?: string;
+    limit?: number;
+  }>
+): Promise<ResearchMarketingContactDirectory> {
+  assertAdminPermission(principal, "research.privacy.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+
+  const studySlug = input.studySlug.trim();
+  if (!studySlug) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const rows = await pool.query<SqlRow>(`
+    WITH live_contacts AS (
+      SELECT DISTINCT ON (fu.external_key_hash,cp.contact_value_hash)
+        fu.external_key_hash AS company_key_hash,
+        cp.contact_value_hash,
+        cv.contact_value AS email,
+        COALESCE(
+          NULLIF(BTRIM(COALESCE(fu.sampling_attributes->>'legalName','')),''),
+          NULLIF(BTRIM(COALESCE(fu.source_record_ref,'')),''),
+          'Άγνωστη επιχείρηση'
+        ) AS company_name,
+        cp.suppression_status AS research_contact_status,
+        cp.created_at
+      FROM research_studies s
+      JOIN research_frame_snapshots fs ON fs.study_id=s.id
+      JOIN research_frame_units fu ON fu.frame_snapshot_id=fs.id
+      JOIN research_contact_points cp ON cp.frame_unit_id=fu.id
+      JOIN research_private.contact_vault cv ON cv.contact_point_id=cp.id
+      WHERE s.slug=$1
+        AND cp.contact_type='email'
+      ORDER BY fu.external_key_hash,cp.contact_value_hash,cp.created_at DESC
+    ),
+    registered_contacts AS (
+      SELECT
+        mc.company_key_hash,
+        mc.contact_value_hash
+      FROM research_private.marketing_contacts mc
+      JOIN research_studies s ON s.id=mc.source_study_id
+      WHERE s.slug=$1
+    ),
+    contact_keys AS (
+      SELECT company_key_hash,contact_value_hash FROM live_contacts
+      UNION
+      SELECT company_key_hash,contact_value_hash FROM registered_contacts
+    )
+    SELECT
+      keys.company_key_hash,
+      keys.contact_value_hash,
+      COALESCE(mc.email,live.email) AS email,
+      COALESCE(NULLIF(BTRIM(COALESCE(mc.company_name,'')),''),live.company_name,'Άγνωστη επιχείρηση') AS company_name,
+      COALESCE(live.research_contact_status,'not_in_research_vault') AS research_contact_status,
+      latest.granted,
+      latest.statement_version,
+      latest.source AS consent_source,
+      latest.occurred_at AS consent_occurred_at
+    FROM contact_keys keys
+    LEFT JOIN live_contacts live
+      ON live.company_key_hash=keys.company_key_hash
+     AND live.contact_value_hash=keys.contact_value_hash
+    LEFT JOIN research_private.marketing_contacts mc
+      ON mc.company_key_hash=keys.company_key_hash
+     AND mc.contact_value_hash=keys.contact_value_hash
+    LEFT JOIN LATERAL (
+      SELECT e.granted,e.statement_version,e.source,e.occurred_at
+      FROM research_private.marketing_consent_events e
+      WHERE e.company_key_hash=keys.company_key_hash
+        AND e.contact_value_hash=keys.contact_value_hash
+      ORDER BY e.occurred_at DESC,e.id DESC
+      LIMIT 1
+    ) latest ON true
+    WHERE COALESCE(mc.email,live.email) IS NOT NULL
+    ORDER BY company_name,email
+  `, [studySlug]);
+
+  const all = rows.rows.map((row) => {
+    const marketingStatus: ResearchMarketingConsentStatus = row.granted == null
+      ? "no_decision"
+      : Boolean(row.granted)
+        ? "opted_in"
+        : "opted_out";
+    return {
+      companyKeyHash: text(row.company_key_hash),
+      companyName: text(row.company_name) || "Άγνωστη επιχείρηση",
+      email: text(row.email).trim().toLowerCase(),
+      marketingStatus,
+      consentRecordedAt: optionalText(row.consent_occurred_at),
+      consentVersion: optionalText(row.statement_version),
+      consentSource: optionalText(row.consent_source),
+      researchContactStatus: text(row.research_contact_status) || "unknown"
+    };
+  }).filter((row) => row.email);
+
+  const companyTotals = new Map<string, { total: number; optedIn: number }>();
+  for (const row of all) {
+    const counts = companyTotals.get(row.companyKeyHash) ?? { total: 0, optedIn: 0 };
+    counts.total += 1;
+    if (row.marketingStatus === "opted_in") counts.optedIn += 1;
+    companyTotals.set(row.companyKeyHash, counts);
+  }
+
+  const status = input.status && ["all","opted_in","opted_out","no_decision"].includes(input.status)
+    ? input.status
+    : "all";
+  const query = input.query?.trim().toLowerCase() ?? "";
+  const matching = all.filter((row) => {
+    if (status !== "all" && row.marketingStatus !== status) return false;
+    if (!query) return true;
+    return row.companyName.toLowerCase().includes(query) || row.email.toLowerCase().includes(query);
+  });
+  const limit = Math.max(1, Math.min(50000, Math.floor(input.limit ?? 1000)));
+  const contacts = matching.slice(0, limit).map((row): ResearchMarketingContactEntry => {
+    const counts = companyTotals.get(row.companyKeyHash) ?? { total: 1, optedIn: 0 };
+    return {
+      companyName: row.companyName,
+      email: row.email,
+      marketingStatus: row.marketingStatus,
+      consentRecordedAt: row.consentRecordedAt,
+      consentVersion: row.consentVersion,
+      consentSource: row.consentSource,
+      researchContactStatus: row.researchContactStatus,
+      companyOptedInContacts: counts.optedIn,
+      companyTotalContacts: counts.total
+    };
+  });
+
+  return {
+    studySlug,
+    summary: {
+      totalContacts: all.length,
+      optedIn: all.filter((row) => row.marketingStatus === "opted_in").length,
+      optedOut: all.filter((row) => row.marketingStatus === "opted_out").length,
+      noDecision: all.filter((row) => row.marketingStatus === "no_decision").length,
+      matching: matching.length,
+      returned: contacts.length
+    },
+    contacts
+  };
+}
+
