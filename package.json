@@ -115,7 +115,8 @@
     "worker:symphonya": "node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs workers/symphonya-worker.ts",
     "test:build-guidance": "node --experimental-strip-types --test apps/web/src/lib/build-guidance-runtime.test.ts apps/web/src/lib/build-guidance-scenario-map.test.ts apps/web/src/lib/paint-build-project-kit.test.ts",
     "nyxi:sources:sync": "node --experimental-strip-types scripts/nyxi-source-registry-sync.ts",
-    "worker:nyxi-sources": "node --experimental-strip-types workers/nyxi-source-collector-worker.ts"
+    "worker:nyxi-sources": "node --experimental-strip-types workers/nyxi-source-collector-worker.ts",
+    "verify:nyxi": "node --experimental-strip-types scripts/verify-nyxi-corpus.ts"
   },
   "dependencies": {
     "pg": "8.22.0"
