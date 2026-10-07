@@ -1,7 +1,13 @@
 import { readdir } from "node:fs/promises";
 
-const connectionString = process.env.DATABASE_URL?.trim();
-if (!connectionString) throw new Error("DATABASE_URL is required");
+const productionOnly = process.argv.includes("--vercel-production-only");
+if (productionOnly && process.env.VERCEL_ENV !== "production") {
+  console.log(`Research schema preflight skipped for VERCEL_ENV=${process.env.VERCEL_ENV ?? "unset"}.`);
+  process.exit(0);
+}
+
+const connectionString = resolveProductionDatabaseUrl();
+if (!connectionString) throw new Error("DATABASE_URL or POSTGRES_URL is required");
 
 const postcheck = process.argv.includes("--postcheck");
 const expectedSourceVersion = 434;
@@ -126,4 +132,25 @@ try {
   }
 } finally {
   await pool.end();
+}
+
+
+function resolveProductionDatabaseUrl(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const explicit = env.DATABASE_URL?.trim();
+  if (explicit) return explicit;
+
+  const direct = env.POSTGRES_URL_NON_POOLING?.trim();
+  const marketplace = direct || env.POSTGRES_URL?.trim();
+  if (!marketplace) return undefined;
+
+  try {
+    const url = new URL(marketplace);
+    const hostname = url.hostname.toLowerCase();
+    if (hostname.endsWith(".supabase.co") || hostname.endsWith(".supabase.com")) {
+      url.searchParams.set("sslmode", "no-verify");
+    }
+    return url.toString();
+  } catch {
+    return marketplace;
+  }
 }
