@@ -48,7 +48,11 @@ export function ResearchStudyFieldworkControls({
   csrfToken,
   studyStatus,
   recruitmentTemplateVersion,
+  recruitmentTemplateSubject,
+  recruitmentTemplateBody,
   reminderTemplateVersion,
+  reminderTemplateSubject,
+  reminderTemplateBody,
   reminderSent,
   reminderFailed,
   activeContacts,
@@ -70,7 +74,11 @@ export function ResearchStudyFieldworkControls({
   csrfToken: string;
   studyStatus: string;
   recruitmentTemplateVersion?: string;
+  recruitmentTemplateSubject?: string;
+  recruitmentTemplateBody?: string;
   reminderTemplateVersion?: string;
+  reminderTemplateSubject?: string;
+  reminderTemplateBody?: string;
   reminderSent: number;
   reminderFailed: number;
   activeContacts: number;
@@ -89,10 +97,10 @@ export function ResearchStudyFieldworkControls({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<Busy>(null);
-  const [subject, setSubject] = useState(DEFAULT_SUBJECT);
-  const [bodyText, setBodyText] = useState(DEFAULT_BODY);
-  const [reminderSubject, setReminderSubject] = useState(DEFAULT_REMINDER_SUBJECT);
-  const [reminderBodyText, setReminderBodyText] = useState(DEFAULT_REMINDER_BODY);
+  const [subject, setSubject] = useState(recruitmentTemplateSubject || DEFAULT_SUBJECT);
+  const [bodyText, setBodyText] = useState(recruitmentTemplateBody || DEFAULT_BODY);
+  const [reminderSubject, setReminderSubject] = useState(reminderTemplateSubject || DEFAULT_REMINDER_SUBJECT);
+  const [reminderBodyText, setReminderBodyText] = useState(reminderTemplateBody || DEFAULT_REMINDER_BODY);
   const [batchSize, setBatchSize] = useState("100");
   const [reminderBatchSize, setReminderBatchSize] = useState("100");
   const [reminderMinAgeDays, setReminderMinAgeDays] = useState("5");
@@ -349,17 +357,17 @@ export function ResearchStudyFieldworkControls({
     }
   }
 
-  return <div className="workspace-queue-card">
+  return <div className="workspace-queue-card" id="email-templates">
     <div className="workspace-action-bar">
       <span>
         <strong>Recruitment protocol</strong><br />
         {recruitmentTemplateVersion
-          ? "Locked invitation version: " + recruitmentTemplateVersion
-          : "Δεν υπάρχει ακόμη κλειδωμένη έκδοση της ερευνητικής πρόσκλησης."}
+          ? "Τρέχουσα έκδοση πρόσκλησης: " + recruitmentTemplateVersion + ". Μπορείτε να επεξεργαστείτε το κείμενο παρακάτω· η αποθήκευση δημιουργεί νέα έκδοση και δεν αλλάζει το ιστορικό."
+          : "Δεν υπάρχει ακόμη έκδοση της ερευνητικής πρόσκλησης. Δημιουργήστε την παρακάτω."}
       </span>
     </div>
 
-    {!recruitmentTemplateVersion && <div className="workspace-action-bar">
+    <div className="workspace-action-bar">
       <div style={{ width: "100%", display: "grid", gap: 10 }}>
         <label>
           <strong>Θέμα email</strong><br />
@@ -386,14 +394,14 @@ export function ResearchStudyFieldworkControls({
             disabled={Boolean(busy)}
             onClick={() => void lockTemplate()}
             type="button"
-          >{busy === "template" ? "Κλείδωμα…" : "Κλείδωμα έκδοσης πρόσκλησης"}</button>
+          >{busy === "template" ? "Αποθήκευση…" : recruitmentTemplateVersion ? "Αποθήκευση ως νέα έκδοση" : "Δημιουργία έκδοσης πρόσκλησης"}</button>
         </div>
       </div>
-    </div>}
+    </div>
 
     <div className="workspace-action-bar">
       <span>
-        <strong>SES fieldwork</strong><br />
+        <strong>Αποστολή προσκλήσεων</strong><br />
         {activeContacts.toLocaleString("el-GR")} contactable frame units · {completed.toLocaleString("el-GR")} ολοκληρωμένες απαντήσεις.
       </span>
       <div className="workspace-action-buttons">
@@ -411,7 +419,7 @@ export function ResearchStudyFieldworkControls({
           disabled={Boolean(busy) || workerBusy || !fielding || !recruitmentTemplateVersion || !batchValid}
           onClick={() => void sendInvites()}
           type="button"
-        >{busy === "send" ? "Queueing…" : "Queue SES invitation batch"}</button>
+        >{busy === "send" ? "Προετοιμασία…" : "Αποστολή παρτίδας προσκλήσεων"}</button>
       </div>
     </div>
 
@@ -419,12 +427,12 @@ export function ResearchStudyFieldworkControls({
       <span>
         <strong>Reminder protocol</strong><br />
         {reminderTemplateVersion
-          ? `Locked reminder version: ${reminderTemplateVersion} · ${reminderSent.toLocaleString("el-GR")} sent · ${reminderFailed.toLocaleString("el-GR")} failed.`
-          : "Δεν υπάρχει κλειδωμένη έκδοση υπενθύμισης. Οι υπενθυμίσεις δεν μπορούν να σταλούν χωρίς ξεχωριστό versioned template."}
+          ? `Τρέχουσα έκδοση υπενθύμισης: ${reminderTemplateVersion} · ${reminderSent.toLocaleString("el-GR")} απεσταλμένες · ${reminderFailed.toLocaleString("el-GR")} αποτυχημένες. Μπορείτε να δημιουργήσετε νέα έκδοση παρακάτω.`
+          : "Δεν υπάρχει ακόμη έκδοση υπενθύμισης. Οι υπενθυμίσεις δεν μπορούν να σταλούν πριν δημιουργηθεί."}
       </span>
     </div>
 
-    {!reminderTemplateVersion && <div className="workspace-action-bar">
+    <div className="workspace-action-bar">
       <div style={{ width: "100%", display: "grid", gap: 10 }}>
         <label>
           <strong>Θέμα υπενθύμισης</strong><br />
@@ -450,13 +458,13 @@ export function ResearchStudyFieldworkControls({
           disabled={Boolean(busy)}
           onClick={() => void lockReminderTemplate()}
           type="button"
-        >{busy === "reminderTemplate" ? "Κλείδωμα…" : "Κλείδωμα έκδοσης υπενθύμισης"}</button>
+        >{busy === "reminderTemplate" ? "Αποθήκευση…" : reminderTemplateVersion ? "Αποθήκευση ως νέα έκδοση" : "Δημιουργία έκδοσης υπενθύμισης"}</button>
       </div>
-    </div>}
+    </div>
 
     <div className="workspace-action-bar">
       <span>
-        <strong>Automatic reminder protocol</strong><br />
+        <strong>Αυτόματες υπενθυμίσεις</strong><br />
         Οι υπενθυμίσεις ελέγχονται αυτόματα από το Research cron. Προεπιλογή: πρώτη υπενθύμιση μετά από 5 ημέρες, ελάχιστο διάστημα 5 ημερών και έως 2 υπενθυμίσεις. Δεν αποστέλλεται υπενθύμιση σε ολοκληρωμένη/ανακληθείσα συμμετοχή, opt-out, bounce ή complaint. Τα πεδία δεξιά χρησιμοποιούνται μόνο για χειροκίνητο έκτακτο έλεγχο.
       </span>
       <div className="workspace-action-buttons" style={{ flexWrap: "wrap" }}>
@@ -513,13 +521,13 @@ export function ResearchStudyFieldworkControls({
           disabled={Boolean(busy) || workerBusy || !fielding || !reminderTemplateVersion || !reminderValid}
           onClick={() => void sendReminders()}
           type="button"
-        >{busy === "reminders" ? "Έλεγχος…" : "Run reminder check now"}</button>
+        >{busy === "reminders" ? "Έλεγχος…" : "Έλεγχος υπενθυμίσεων τώρα"}</button>
       </div>
     </div>
 
     <div className="workspace-action-bar">
       <span>
-        <strong>Manual research contact suppression</strong><br />
+        <strong>Να μην ξανασταλεί email</strong><br />
         Χρησιμοποιήστε το όταν κάποιος ζητήσει να μη λάβει άλλη ερευνητική επικοινωνία. Η διεύθυνση δεν διαγράφεται από το ιστορικό evidence εκείνη τη στιγμή· αποκλείεται άμεσα από όλες τις επόμενες ερευνητικές αποστολές και καταγράφεται append-only suppression event.
       </span>
       <div className="workspace-action-buttons" style={{ flexWrap: "wrap" }}>
@@ -542,7 +550,7 @@ export function ResearchStudyFieldworkControls({
           disabled={Boolean(busy) || !manualSuppressEmail.trim()}
           onClick={() => void suppressContact()}
           type="button"
-        >{busy === "suppress" ? "Αποκλεισμός…" : "Suppress research email"}</button>
+        >{busy === "suppress" ? "Αποκλεισμός…" : "Αποκλεισμός email"}</button>
       </div>
     </div>
 
@@ -710,7 +718,7 @@ export function ResearchStudyFieldworkControls({
     <div className="workspace-inline-note">
       {message || (workerBusy
         ? "Υπάρχει ήδη research worker job σε αναμονή ή εκτέλεση."
-        : "Τα invitation/reminder tokens δημιουργούνται μέσα στον worker και δεν αποθηκεύονται ποτέ σε plaintext. Οι υπενθυμίσεις επαναχρησιμοποιούν το ίδιο canonical invite και καταγράφονται ως ξεχωριστά contact attempts. Bounces/complaints επιστρέφουν στη suppression ledger μέσω του SES SNS webhook.")}
+        : "Οι προσωπικοί σύνδεσμοι συμμετοχής δημιουργούνται με ασφάλεια κατά την αποστολή και δεν αποθηκεύονται ως αναγνώσιμοι σύνδεσμοι. Στο admin εμφανίζεται η κατάσταση κάθε πρόσκλησης, η λήξη της και το ιστορικό αποστολής. Αν χρειαστεί νέα πρόσβαση, εκδίδεται νέος ασφαλής σύνδεσμος.")}
     </div>
   </div>;
 }
