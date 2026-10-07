@@ -31,8 +31,20 @@ const DEFAULT_REMINDER_BODY = `Καλησπέρα,
 
 type Busy = "template" | "reminderTemplate" | "send" | "reminders" | "rewards" | "analysis" | "release" | "results" | null;
 
+type EmailPurpose = "research_invitation" | "research_reminder" | "thank_you_code" | "results_notification";
+
+type PendingEmailSend = Readonly<{
+  action: "send_invites" | "send_reminders" | "deliver_rewards" | "notify_results";
+  busy: "send" | "reminders" | "rewards" | "results";
+  purpose: EmailPurpose;
+  purposeLabel: string;
+  maxEmails: number;
+  payload: Record<string, unknown>;
+}>;
+
 export function ResearchStudyFieldworkControls({
   slug,
+  studyTitle,
   csrfToken,
   studyStatus,
   recruitmentTemplateVersion,
@@ -54,6 +66,7 @@ export function ResearchStudyFieldworkControls({
   runningJobs
 }: {
   slug: string;
+  studyTitle: string;
   csrfToken: string;
   studyStatus: string;
   recruitmentTemplateVersion?: string;
@@ -86,6 +99,9 @@ export function ResearchStudyFieldworkControls({
   const [reminderMinGapDays, setReminderMinGapDays] = useState("5");
   const [reminderMaxCount, setReminderMaxCount] = useState("2");
   const [message, setMessage] = useState("");
+  const [pendingEmail, setPendingEmail] = useState<PendingEmailSend | null>(null);
+  const [confirmationStep, setConfirmationStep] = useState<1 | 2>(1);
+  const [confirmationText, setConfirmationText] = useState("");
   const workerBusy = queuedJobs > 0 || runningJobs > 0;
   const batchN = Number(batchSize);
   const batchValid = Number.isSafeInteger(batchN) && batchN >= 1 && batchN <= 500;
@@ -149,90 +165,123 @@ export function ResearchStudyFieldworkControls({
     }
   }
 
-  async function sendReminders() {
-    if (!reminderValid) return;
-    setBusy("reminders");
+  function openEmailConfirmation(input: PendingEmailSend) {
     setMessage("");
-    try {
-      const result = await post({
+    setPendingEmail(input);
+    setConfirmationStep(1);
+    setConfirmationText("");
+  }
+
+  function closeEmailConfirmation() {
+    if (busy) return;
+    setPendingEmail(null);
+    setConfirmationStep(1);
+    setConfirmationText("");
+  }
+
+  function sendReminders() {
+    if (!reminderValid) return;
+    openEmailConfirmation({
+      action: "send_reminders",
+      busy: "reminders",
+      purpose: "research_reminder",
+      purposeLabel: "Υπενθύμιση συμμετοχής στη μελέτη",
+      maxEmails: reminderBatchN,
+      payload: {
         action: "send_reminders",
         limit: reminderBatchN,
         minAgeDays: reminderAgeN,
         minGapDays: reminderGapN,
         maxReminders: reminderMaxN,
         label: "fieldwork-reminder-" + new Date().toISOString()
-      });
-      setMessage("Η παρτίδα υπενθυμίσεων μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
-      router.refresh();
-    } catch (error) {
-      const raw = error instanceof Error ? error.message : "Η υπενθύμιση δεν μπήκε στην ουρά.";
-      setMessage(raw === "RESEARCH_EMAIL_DELIVERY_DISABLED"
-        ? "Η ερευνητική αποστολή SES είναι απενεργοποιημένη. Ενεργοποιήστε ρητά το BLS_RESEARCH_EMAIL_DELIVERY_ENABLED."
-        : raw);
-    } finally {
-      setBusy(null);
-    }
+      }
+    });
   }
 
-  async function sendInvites() {
+  function sendInvites() {
     if (!batchValid) return;
-    setBusy("send");
-    setMessage("");
-    try {
-      const result = await post({
+    openEmailConfirmation({
+      action: "send_invites",
+      busy: "send",
+      purpose: "research_invitation",
+      purposeLabel: "Αρχική πρόσκληση συμμετοχής",
+      maxEmails: batchN,
+      payload: {
         action: "send_invites",
         limit: batchN,
         label: "fieldwork-" + new Date().toISOString()
-      });
-      setMessage("Η παρτίδα προσκλήσεων μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
-      router.refresh();
-    } catch (error) {
-      const raw = error instanceof Error ? error.message : "Η αποστολή δεν μπήκε στην ουρά.";
-      setMessage(raw === "RESEARCH_EMAIL_DELIVERY_DISABLED"
-        ? "Η ερευνητική αποστολή SES είναι απενεργοποιημένη. Ενεργοποιήστε ρητά το BLS_RESEARCH_EMAIL_DELIVERY_ENABLED."
-        : raw);
-    } finally {
-      setBusy(null);
-    }
+      }
+    });
   }
 
-  async function deliverRewards() {
-    setBusy("rewards");
-    setMessage("");
-    try {
-      const result = await post({
+  function deliverRewards() {
+    const maxEmails = Math.max(1, Math.min(100, rewardEligible));
+    openEmailConfirmation({
+      action: "deliver_rewards",
+      busy: "rewards",
+      purpose: "thank_you_code",
+      purposeLabel: "Αποστολή κωδικού ευχαριστίας",
+      maxEmails,
+      payload: {
         action: "deliver_rewards",
-        limit: 100,
+        limit: maxEmails,
         label: "reward-delivery-" + new Date().toISOString()
-      });
-      setMessage("Η αποστολή κωδικών ευχαριστίας μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
-      router.refresh();
-    } catch (error) {
-      const raw = error instanceof Error ? error.message : "Η αποστολή κωδικών δεν μπήκε στην ουρά.";
-      setMessage(raw === "RESEARCH_EMAIL_DELIVERY_DISABLED"
-        ? "Η ερευνητική αποστολή SES είναι απενεργοποιημένη. Ενεργοποιήστε ρητά το BLS_RESEARCH_EMAIL_DELIVERY_ENABLED."
-        : raw);
-    } finally {
-      setBusy(null);
-    }
+      }
+    });
   }
 
-  async function notifyResults() {
-    setBusy("results");
-    setMessage("");
-    try {
-      const result = await post({
+  function notifyResults() {
+    openEmailConfirmation({
+      action: "notify_results",
+      busy: "results",
+      purpose: "results_notification",
+      purposeLabel: "Ενημέρωση δημοσίευσης αποτελεσμάτων",
+      maxEmails: 100,
+      payload: {
         action: "notify_results",
         limit: 100,
         label: "results-notification-" + new Date().toISOString()
+      }
+    });
+  }
+
+  async function confirmEmailSend() {
+    if (!pendingEmail || confirmationStep !== 2) return;
+    if (confirmationText.trim() !== String(pendingEmail.maxEmails)) return;
+    setBusy(pendingEmail.busy);
+    setMessage("");
+    try {
+      const result = await post({
+        ...pendingEmail.payload,
+        emailApproval: {
+          studySlug: slug,
+          studyTitle,
+          purpose: pendingEmail.purpose,
+          maxEmails: pendingEmail.maxEmails,
+          reviewConfirmed: true,
+          finalConfirmed: true
+        }
       });
-      setMessage("Η ενημέρωση δημοσιευμένων αποτελεσμάτων μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
+      if (pendingEmail.action === "send_invites") {
+        setMessage("Η παρτίδα προσκλήσεων μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
+      } else if (pendingEmail.action === "send_reminders") {
+        setMessage("Η παρτίδα υπενθυμίσεων μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
+      } else if (pendingEmail.action === "deliver_rewards") {
+        setMessage("Η αποστολή κωδικών ευχαριστίας μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
+      } else {
+        setMessage("Η ενημέρωση δημοσιευμένων αποτελεσμάτων μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
+      }
+      setPendingEmail(null);
+      setConfirmationStep(1);
+      setConfirmationText("");
       router.refresh();
     } catch (error) {
-      const raw = error instanceof Error ? error.message : "Η ενημέρωση αποτελεσμάτων δεν μπήκε στην ουρά.";
+      const raw = error instanceof Error ? error.message : "Η αποστολή email δεν μπήκε στην ουρά.";
       setMessage(raw === "RESEARCH_EMAIL_DELIVERY_DISABLED"
         ? "Η ερευνητική αποστολή SES είναι απενεργοποιημένη. Ενεργοποιήστε ρητά το BLS_RESEARCH_EMAIL_DELIVERY_ENABLED."
-        : raw);
+        : raw === "RESEARCH_EMAIL_DOUBLE_CONFIRMATION_REQUIRED"
+          ? "Η αποστολή απορρίφθηκε επειδή δεν ολοκληρώθηκε η διπλή επιβεβαίωση."
+          : raw);
     } finally {
       setBusy(null);
     }
@@ -492,6 +541,105 @@ export function ResearchStudyFieldworkControls({
         type="button"
       >{busy === "results" ? "Queueing…" : "Notify opted-in participants"}</button>
     </div>
+
+    {pendingEmail && <div
+      aria-modal="true"
+      role="dialog"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 10000,
+        background: "rgba(14, 24, 20, 0.68)",
+        display: "grid",
+        placeItems: "center",
+        padding: 20
+      }}
+    >
+      <div style={{
+        width: "min(620px, 100%)",
+        maxHeight: "90vh",
+        overflow: "auto",
+        background: "var(--surface, #fffdf8)",
+        borderRadius: 20,
+        padding: 24,
+        boxShadow: "0 24px 80px rgba(0,0,0,.28)",
+        display: "grid",
+        gap: 18
+      }}>
+        <div>
+          <small style={{ fontWeight: 800, letterSpacing: ".08em" }}>
+            ΑΠΟΣΤΟΛΗ EMAIL · ΕΠΙΒΕΒΑΙΩΣΗ {confirmationStep}/2
+          </small>
+          <h2 style={{ margin: "8px 0 0" }}>
+            {confirmationStep === 1 ? "Έλεγχος πριν από την αποστολή" : "Τελική επιβεβαίωση"}
+          </h2>
+        </div>
+
+        <div style={{ display: "grid", gap: 10 }}>
+          <div><strong>Μελέτη:</strong> {studyTitle}</div>
+          <div><strong>Σκοπός:</strong> {pendingEmail.purposeLabel}</div>
+          <div>
+            <strong>Μέγιστος αριθμός email αυτής της παρτίδας:</strong>{" "}
+            {pendingEmail.maxEmails.toLocaleString("el-GR")}
+          </div>
+          <div>
+            <strong>Αυτόματη επόμενη παρτίδα:</strong> Όχι. Κάθε νέα παρτίδα απαιτεί νέα διπλή επιβεβαίωση.
+          </div>
+        </div>
+
+        {confirmationStep === 1 ? <>
+          <div className="workspace-inline-note">
+            Ελέγξτε τη μελέτη, τον σκοπό και το ανώτατο πλήθος παραληπτών. Κανένα email δεν μπαίνει στην ουρά σε αυτό το βήμα.
+          </div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+            <button className="button button-secondary" onClick={closeEmailConfirmation} type="button">
+              Ακύρωση
+            </button>
+            <button className="button" onClick={() => setConfirmationStep(2)} type="button">
+              Επιβεβαίωση 1 · Τα έλεγξα
+            </button>
+          </div>
+        </> : <>
+          <label style={{ display: "grid", gap: 8 }}>
+            <strong>
+              Για την τελική επιβεβαίωση, πληκτρολογήστε {pendingEmail.maxEmails.toLocaleString("el-GR")}
+            </strong>
+            <input
+              aria-label="Final research email confirmation count"
+              autoFocus
+              inputMode="numeric"
+              onChange={(event) => setConfirmationText(event.target.value.replace(/[^0-9]/g, ""))}
+              type="text"
+              value={confirmationText}
+            />
+          </label>
+          <div className="workspace-inline-note">
+            Με την τελική επιβεβαίωση εγκρίνετε μόνο αυτή την παρτίδα και έως το παραπάνω πλήθος email.
+          </div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+            <button
+              className="button button-secondary"
+              disabled={Boolean(busy)}
+              onClick={() => {
+                setConfirmationStep(1);
+                setConfirmationText("");
+              }}
+              type="button"
+            >
+              Πίσω
+            </button>
+            <button
+              className="button"
+              disabled={Boolean(busy) || confirmationText.trim() !== String(pendingEmail.maxEmails)}
+              onClick={() => void confirmEmailSend()}
+              type="button"
+            >
+              {busy ? "Αποστολή στην ουρά…" : "Επιβεβαίωση 2 · Έγκριση αποστολής"}
+            </button>
+          </div>
+        </>}
+      </div>
+    </div>}
 
     <div className="workspace-inline-note">
       {message || (workerBusy
