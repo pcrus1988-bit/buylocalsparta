@@ -445,11 +445,13 @@ export function ResearchEvaluationPlanEditor({
   slug,
   csrfToken,
   canEdit,
+  canAddLater,
   data
 }: {
   slug: string;
   csrfToken: string;
   canEdit: boolean;
+  canAddLater: boolean;
   data: ResearchSurveyDesignAdminOverview;
 }) {
   const router = useRouter();
@@ -466,8 +468,18 @@ export function ResearchEvaluationPlanEditor({
   const [exploratory, setExploratory] = useState(JSON.stringify(Array.isArray(planJson.exploratoryAnalyses) ? planJson.exploratoryAnalyses : [], null, 2));
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
+  const [laterEventId, setLaterEventId] = useState("");
+  const [laterTitle, setLaterTitle] = useState("");
+  const [laterResearchQuestion, setLaterResearchQuestion] = useState("");
+  const [laterMetricKey, setLaterMetricKey] = useState("");
+  const [laterMethod, setLaterMethod] = useState("weighted_population_mean");
+  const [laterSegments, setLaterSegments] = useState("overall");
+  const [laterFilters, setLaterFilters] = useState("");
+  const [laterInterpretation, setLaterInterpretation] = useState("");
+  const [laterPublicationLabel, setLaterPublicationLabel] = useState("");
   const editable = Boolean(canEdit && data.study.status === "draft" && plan?.status === "draft");
   const canRevise = Boolean(canEdit && data.study.status === "draft" && data.instrument && plan?.status === "locked");
+  const laterEditable = Boolean(canAddLater && data.study.status !== "draft" && data.study.status !== "archived");
 
   async function save() {
     if (!plan) return;
@@ -531,6 +543,60 @@ export function ResearchEvaluationPlanEditor({
     }
   }
 
+  function resetLaterEvaluation() {
+    setLaterEventId("");
+    setLaterTitle("");
+    setLaterResearchQuestion("");
+    setLaterMetricKey("");
+    setLaterMethod("weighted_population_mean");
+    setLaterSegments("overall");
+    setLaterFilters("");
+    setLaterInterpretation("");
+    setLaterPublicationLabel("");
+  }
+
+  function editLaterEvaluation(item: ResearchSurveyDesignAdminOverview["laterEvaluations"][number]) {
+    setLaterEventId(item.eventId);
+    setLaterTitle(item.title);
+    setLaterResearchQuestion(item.researchQuestion);
+    setLaterMetricKey(item.metricKey);
+    setLaterMethod(item.method);
+    setLaterSegments(item.segments.join(", "));
+    setLaterFilters(item.filters);
+    setLaterInterpretation(item.interpretation);
+    setLaterPublicationLabel(item.publicationLabel);
+    setMessage("");
+  }
+
+  async function saveLaterEvaluation() {
+    setBusy("save_later");
+    setMessage("");
+    try {
+      if (!laterTitle.trim() || !laterResearchQuestion.trim() || !laterMetricKey.trim() || !laterMethod.trim()) {
+        throw new Error("Title, research question, metric key and method are required.");
+      }
+      const result = await designPost(slug, csrfToken, {
+        action: "save_later_evaluation",
+        priorEventId: laterEventId || undefined,
+        title: laterTitle,
+        researchQuestion: laterResearchQuestion,
+        metricKey: laterMetricKey,
+        method: laterMethod,
+        segments: laterSegments.split(",").map((part) => part.trim()).filter(Boolean),
+        filters: laterFilters,
+        interpretation: laterInterpretation,
+        publicationLabel: laterPublicationLabel
+      });
+      setMessage("Later evaluation saved as exploratory revision " + String(result.revision || "1") + ".");
+      resetLaterEvaluation();
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Later evaluation could not be saved.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   if (!data.instrument) {
     return <section className="shell vendor-section"><div className="workspace-inline-note form-error">No questionnaire exists for this survey.</div></section>;
   }
@@ -568,9 +634,9 @@ export function ResearchEvaluationPlanEditor({
       <label><strong>Secondary evaluation scope</strong><br /><textarea disabled={!editable} onChange={(event) => setSecondaryScope(event.target.value)} rows={4} style={{ width: "100%" }} value={secondaryScope} /></label>
       <label><strong>Standard breakdowns</strong><br /><input disabled={!editable} onChange={(event) => setSecondarySegments(event.target.value)} placeholder="overall, regionCode, sectorCode, sizeBand" style={{ width: "100%" }} value={secondarySegments} /></label>
       <label>
-        <strong>Exploratory / later evaluation definitions</strong><br />
+        <strong>Planned exploratory analyses (before fieldwork)</strong><br />
         <textarea disabled={!editable} onChange={(event) => setExploratory(event.target.value)} rows={12} style={{ width: "100%", fontFamily: "monospace" }} value={exploratory} />
-        <small>Stored separately as exploratory analyses, so later evaluation is never presented as if it had been pre-specified.</small>
+        <small>These belong to the pre-fieldwork plan. Analyses added after the plan is locked are managed separately below and are always labelled exploratory.</small>
       </label>
     </div>
 
@@ -588,9 +654,60 @@ export function ResearchEvaluationPlanEditor({
       </div>
     </div>}
     {!editable && message && <div className="workspace-inline-note">{message}</div>}
-    {!editable && data.study.status !== "draft" && <div className="workspace-action-bar" style={{ marginTop: 16 }}>
-      <span><strong>Additional analysis after fieldwork</strong><br />Record the new question, reason and exploratory classification in Protocol without changing the original plan.</span>
-      <button className="button button-secondary" onClick={() => router.push("/admin/research/surveys/" + encodeURIComponent(slug) + "/protocol")} type="button">Open Protocol</button>
-    </div>}
+
+    <div className="workspace-queue-card" style={{ display: "grid", gap: 16, marginTop: 22 }}>
+      <div className="workspace-action-bar">
+        <span>
+          <strong>Later evaluation</strong><br />
+          Add or revise analyses after the original plan has been locked. They remain clearly classified as exploratory and never overwrite the preregistered plan.
+        </span>
+        <span><strong>{data.laterEvaluations.length}</strong> active definition(s)</span>
+      </div>
+
+      {data.study.status === "draft" && <div className="workspace-inline-note">
+        Later evaluation becomes available once the survey leaves Draft. While still in Draft, add planned analyses to the evaluation plan above.
+      </div>}
+
+      {data.laterEvaluations.length > 0 && <div style={{ display: "grid", gap: 10 }}>
+        {data.laterEvaluations.map((item) => <article className="analytics-workflow-card" key={item.definitionId}>
+          <span>Exploratory · revision {item.revision}</span>
+          <strong>{item.title}</strong>
+          <small>{item.researchQuestion}</small>
+          <small>Metric: {item.metricKey} · Method: {item.method}</small>
+          <small>Breakdowns: {item.segments.length ? item.segments.join(", ") : "overall"}</small>
+          {item.filters && <small>Filters: {item.filters}</small>}
+          <div className="workspace-action-buttons">
+            <button className="button button-secondary" disabled={!laterEditable || Boolean(busy)} onClick={() => editLaterEvaluation(item)} type="button">Edit as new revision</button>
+          </div>
+        </article>)}
+      </div>}
+
+      {laterEditable && <div style={{ display: "grid", gap: 12 }}>
+        <div className="workspace-action-bar">
+          <span><strong>{laterEventId ? "Revise later evaluation" : "Add later evaluation"}</strong><br />Saving an edit creates a new revision and preserves the earlier definition.</span>
+          {laterEventId && <button className="button button-secondary" disabled={Boolean(busy)} onClick={resetLaterEvaluation} type="button">Cancel edit</button>}
+        </div>
+        <label><strong>Title</strong><br /><input onChange={(event) => setLaterTitle(event.target.value)} style={{ width: "100%" }} value={laterTitle} /></label>
+        <label><strong>Research question</strong><br /><textarea onChange={(event) => setLaterResearchQuestion(event.target.value)} rows={3} style={{ width: "100%" }} value={laterResearchQuestion} /></label>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+          <label><strong>Metric / evaluation key</strong><br /><input onChange={(event) => setLaterMetricKey(event.target.value)} placeholder="digital_readiness.mean" style={{ width: "100%" }} value={laterMetricKey} /></label>
+          <label><strong>Method</strong><br /><input onChange={(event) => setLaterMethod(event.target.value)} placeholder="weighted_population_mean" style={{ width: "100%" }} value={laterMethod} /></label>
+        </div>
+        <label><strong>Breakdowns</strong><br /><input onChange={(event) => setLaterSegments(event.target.value)} placeholder="overall, regionCode, sectorCode" style={{ width: "100%" }} value={laterSegments} /><small>Comma-separated.</small></label>
+        <label><strong>Filters / population subset</strong><br /><textarea onChange={(event) => setLaterFilters(event.target.value)} placeholder="Optional inclusion/filter rule" rows={2} style={{ width: "100%" }} value={laterFilters} /></label>
+        <label><strong>Interpretation / reason for adding later</strong><br /><textarea onChange={(event) => setLaterInterpretation(event.target.value)} rows={3} style={{ width: "100%" }} value={laterInterpretation} /></label>
+        <label><strong>Public label</strong><br /><input onChange={(event) => setLaterPublicationLabel(event.target.value)} placeholder={laterTitle || "Label shown in results"} style={{ width: "100%" }} value={laterPublicationLabel} /></label>
+        <div className="workspace-action-bar">
+          <span>Classification is fixed: <strong>Exploratory / added after registration</strong>.</span>
+          <button className="button" disabled={Boolean(busy) || !laterTitle.trim() || !laterResearchQuestion.trim() || !laterMetricKey.trim() || !laterMethod.trim()} onClick={() => void saveLaterEvaluation()} type="button">
+            {busy === "save_later" ? "Saving…" : laterEventId ? "Save new revision" : "Add later evaluation"}
+          </button>
+        </div>
+      </div>}
+
+      {!laterEditable && data.study.status !== "draft" && <div className="workspace-inline-note">
+        You have read-only access to later evaluation definitions. Research analysis permission is required to add or revise them.
+      </div>}
+    </div>
   </section>;
 }
