@@ -2774,7 +2774,26 @@ async function processRewardDeliveryJob(job: ResearchJobRow): Promise<Record<str
   const pool = getProductionPostgresRuntime().sqlPool;
   const input = objectValue(job.input);
   const requestedResponseId = text(input.responseId).trim();
-  const limit = confirmedEmailJobLimit(job, "thank_you_codes", 250);
+  const confirmedLimit = confirmedEmailJobLimit(job, "thank_you_codes", 250);
+  const priorSent = await pool.query<SqlRow>(`
+    SELECT count(DISTINCT delivery_id)::int AS count
+    FROM research_participant_delivery_events
+    WHERE event_type='sent'
+      AND metadata->>'jobId'=$1
+  `, [job.id]);
+  const sentBeforeThisAttempt = numberValue(priorSent.rows[0]?.count);
+  const limit = Math.max(0, confirmedLimit - sentBeforeThisAttempt);
+  if (limit < 1) {
+    return {
+      candidateCount: 0,
+      sentCount: 0,
+      skippedCount: 0,
+      failedCount: 0,
+      confirmedRecipientCount: confirmedLimit,
+      sentBeforeThisAttempt,
+      reason: "confirmed_recipient_limit_reached"
+    };
+  }
 
   const candidates = await pool.query<SqlRow>(`
     WITH latest_consent AS (
@@ -2986,8 +3005,30 @@ async function processResultsNotificationJob(job: ResearchJobRow): Promise<Recor
   const pool = getProductionPostgresRuntime().sqlPool;
   const input = objectValue(job.input);
   const releaseSnapshotId = text(input.releaseSnapshotId).trim();
-  const limit = confirmedEmailJobLimit(job, "published_results", 250);
+  const confirmedLimit = confirmedEmailJobLimit(job, "published_results", 250);
   if (!releaseSnapshotId) throw new Error("RESEARCH_RESULTS_NOTIFICATION_JOB_INVALID");
+  const priorSent = await pool.query<SqlRow>(`
+    SELECT count(DISTINCT delivery_id)::int AS count
+    FROM research_participant_delivery_events
+    WHERE event_type='sent'
+      AND metadata->>'jobId'=$1
+  `, [job.id]);
+  const sentBeforeThisAttempt = numberValue(priorSent.rows[0]?.count);
+  const limit = Math.max(0, confirmedLimit - sentBeforeThisAttempt);
+  if (limit < 1) {
+    return {
+      releaseSnapshotId,
+      candidateCount: 0,
+      sentCount: 0,
+      skippedCount: 0,
+      failedCount: 0,
+      confirmedRecipientCount: confirmedLimit,
+      sentBeforeThisAttempt,
+      remainingCount: 0,
+      requiresNewConfirmation: true,
+      reason: "confirmed_recipient_limit_reached"
+    };
+  }
 
   const releaseResult = await pool.query<SqlRow>(`
     SELECT
