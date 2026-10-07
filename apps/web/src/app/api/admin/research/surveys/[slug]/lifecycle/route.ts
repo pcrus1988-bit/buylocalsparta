@@ -6,6 +6,7 @@ import {
   lockResearchAnalysisPlanDraft,
   moveResearchQuestionDraft,
   saveResearchAnalysisPlanDraft,
+  saveResearchLaterEvaluation,
   saveResearchQuestionDraft,
   updateResearchStudyDraftSettings,
   type ResearchQuestionDraftInput
@@ -110,6 +111,28 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     if (action === "lock_analysis_plan") {
       const result = await lockResearchAnalysisPlanDraft(principal, slug);
       await recordAdminAudit(principal, "research.analysis_plan.lock", "research_study", slug, result.version, { contentSha256: result.contentSha256 });
+      return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (action === "save_later_evaluation") {
+      const result = await saveResearchLaterEvaluation(principal, slug, {
+        priorEventId: stringValue(body.priorEventId) || undefined,
+        title: stringValue(body.title),
+        researchQuestion: stringValue(body.researchQuestion),
+        metricKey: stringValue(body.metricKey),
+        method: stringValue(body.method),
+        segments: Array.isArray(body.segments) ? body.segments.map(stringValue) : [],
+        filters: stringValue(body.filters) || undefined,
+        interpretation: stringValue(body.interpretation) || undefined,
+        publicationLabel: stringValue(body.publicationLabel) || undefined
+      });
+      await recordAdminAudit(principal, "research.later_evaluation.save", "research_study", slug, stringValue(body.title), {
+        eventId: result.eventId,
+        definitionId: result.definitionId,
+        revision: result.revision,
+        classification: "exploratory_post_registration",
+        contentSha256: result.contentSha256
+      });
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
 
