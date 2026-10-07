@@ -78,7 +78,7 @@
     },
     {
       "path": "/api/cron/research-study-jobs",
-      "schedule": "*/5 * * * *"
+      "schedule": "* * * * *"
     }
   ]
 }
