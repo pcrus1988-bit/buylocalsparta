@@ -60,7 +60,7 @@ export default async function ResearchSurveysAdminPage() {
         : <section className="shell vendor-section">
             <WorkspaceSectionHeading
               eyebrow="Studies"
-              title="Your surveys"
+              title="All surveys"
               note="This screen stays intentionally lightweight. Detailed operational counts load only after you open a survey."
             />
             <div className="analytics-workflow-grid">
@@ -79,7 +79,7 @@ export default async function ResearchSurveysAdminPage() {
                   </small>
                   <small>{deadlineLabel(study.fieldworkEndsAt)}</small>
                   <div className="workspace-action-buttons">
-                    <Link className="button" href={root}>Open survey</Link>
+                    <Link className="button" href={"/admin/research/surveys/" + encodeURIComponent(study.slug)}>Open survey</Link>
                     <Link className="button button-secondary" href={root + "/questions"}>Questions</Link>
                     <Link className="button button-secondary" href={root + "/evaluation"}>Evaluation</Link>
                   </div>
