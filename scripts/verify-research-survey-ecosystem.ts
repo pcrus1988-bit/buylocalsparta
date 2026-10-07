@@ -92,7 +92,7 @@ const samplingControls = readFileSync("apps/web/src/components/ResearchStudySamp
 const statistics = readFileSync("apps/web/src/lib/research-survey-statistics.ts", "utf8");
 const statisticsTests = readFileSync("apps/web/src/lib/research-survey-statistics.test.ts", "utf8");
 const analysis = readFileSync("apps/web/src/lib/research-survey-analysis.ts", "utf8");
-const resultsPage = readFileSync("apps/web/src/app/research/greek-retail-2026/results/page.tsx", "utf8");
+const resultsPage = readFileSync("apps/web/src/app/research/greek-retail-2026/results/page.tsx", "utf8");\nconst methodologyPage = readFileSync("apps/web/src/app/research/greek-retail-2026/methodology/page.tsx", "utf8");
 const observatoryPage = readFileSync("apps/web/src/app/research/page.tsx", "utf8");
 const researchPrivacyPage = readFileSync("apps/web/src/app/research/privacy/page.tsx", "utf8");
 const releaseRoute = readFileSync("apps/web/src/app/api/research/[slug]/release/route.ts", "utf8");
