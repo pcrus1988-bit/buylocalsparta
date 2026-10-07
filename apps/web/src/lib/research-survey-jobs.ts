@@ -22,6 +22,8 @@ const FRAME_CLASSIFICATION_VERSION = "greek-retail-kad-sector-v1";
 const FRAME_SOURCE_REFERENCE = "gemi-opendata:retail-non-food:active:all-greece";
 const FRAME_FLUSH_SIZE = 500;
 const MAX_JOB_ATTEMPTS = 3;
+const SERVERLESS_JOB_STALE_AFTER_MINUTES = 15;
+const LONG_JOB_STALE_AFTER_MINUTES = 390;
 
 type ResearchJobRow = SqlRow & {
   id: string;
@@ -64,6 +66,16 @@ export const RESEARCH_JOB_TYPES = [
 
 export type ResearchJobType = (typeof RESEARCH_JOB_TYPES)[number];
 const RESEARCH_JOB_TYPE_SET = new Set<string>(RESEARCH_JOB_TYPES);
+const LONG_RUNNING_JOB_TYPES: readonly ResearchJobType[] = ["frame_snapshot", "analysis"];
+const RECLAIMABLE_JOB_TYPES: readonly ResearchJobType[] = [
+  "frame_snapshot",
+  "sample_draw",
+  "analysis",
+  "release",
+  "identity_destruction"
+];
+const LONG_RUNNING_JOB_TYPE_SET = new Set<ResearchJobType>(LONG_RUNNING_JOB_TYPES);
+const RECLAIMABLE_JOB_TYPE_SET = new Set<ResearchJobType>(RECLAIMABLE_JOB_TYPES);
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
@@ -832,6 +844,36 @@ async function claimResearchJob(
   const client = await getProductionPostgresRuntime().sqlPool.connect();
   try {
     await client.query("BEGIN");
+
+    // Recover only deterministic non-email jobs after the execution platform's
+    // maximum lifetime has definitely elapsed. Email jobs are intentionally not
+    // auto-reclaimed here because an interrupted provider call could otherwise
+    // be replayed and create duplicate participant messages.
+    const reclaimable = allowedJobTypes.filter((jobType) => RECLAIMABLE_JOB_TYPE_SET.has(jobType));
+    if (reclaimable.length) {
+      const longRunning = reclaimable.filter((jobType) => LONG_RUNNING_JOB_TYPE_SET.has(jobType));
+      await client.query(`
+        UPDATE research_study_jobs
+        SET status='queued',
+            available_at=now(),
+            started_at=NULL,
+            finished_at=NULL,
+            error_message='reclaimed_stale_running_lease'
+        WHERE status='running'
+          AND job_type = ANY($1::text[])
+          AND started_at IS NOT NULL
+          AND started_at < now() - CASE
+            WHEN job_type = ANY($2::text[]) THEN ($3::int * interval '1 minute')
+            ELSE ($4::int * interval '1 minute')
+          END
+      `, [
+        reclaimable,
+        longRunning,
+        LONG_JOB_STALE_AFTER_MINUTES,
+        SERVERLESS_JOB_STALE_AFTER_MINUTES
+      ]);
+    }
+
     const result = await client.query<ResearchJobRow>(`
       SELECT id, study_id, wave_id, job_type, input, output, attempts
       FROM research_study_jobs
