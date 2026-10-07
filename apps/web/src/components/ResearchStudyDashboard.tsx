@@ -16,7 +16,7 @@ function statusLabel(status: string): string {
     draft: "Σχεδιασμός",
     pilot: "Πιλοτική φάση",
     fielding: "Σε εξέλιξη",
-    closed: "Η συλλογή έκλεισε",
+    closed: "Η συλλογή ολοκληρώθηκε",
     analysis: "Ανάλυση",
     published: "Δημοσιευμένη",
     archived: "Αρχείο"
@@ -29,24 +29,24 @@ function percent(value: number): string {
 
 function nextStep(status: string): { title: string; body: string } {
   if (status === "draft") return {
-    title: "Κλείδωμα instrument και sample design",
-    body: "Η μελέτη βρίσκεται ακόμη στη φάση σχεδιασμού. Το public layer θα αρχίσει να εμφανίζει fieldwork aggregates όταν ενεργοποιηθεί η pilot ή η κύρια συλλογή."
+    title: "Προετοιμασία ερωτηματολογίου και δείγματος",
+    body: "Η μελέτη βρίσκεται στη φάση σχεδιασμού. Όταν ξεκινήσει η συλλογή, η σελίδα θα εμφανίζει την πρόοδο της συμμετοχής."
   };
   if (status === "pilot") return {
-    title: "Έλεγχος pilot πριν το κύριο fieldwork",
-    body: "Η πιλοτική φάση χρησιμοποιείται για validation του questionnaire, των flows και των operational rules πριν κλειδώσει η κύρια wave."
+    title: "Πιλοτικός έλεγχος",
+    body: "Μια μικρή πιλοτική δοκιμή βοηθά να ελεγχθεί το ερωτηματολόγιο πριν ξεκινήσει η κύρια συλλογή απαντήσεων."
   };
   if (status === "fielding") return {
-    title: "Ολοκλήρωση fieldwork χωρίς πρόωρα ευρήματα",
-    body: "Εμφανίζονται μόνο λειτουργικά aggregates. Οι κατανομές απαντήσεων παραμένουν κλειδωμένες ώστε η δημόσια σελίδα να μην επηρεάζει μεταγενέστερους συμμετέχοντες."
+    title: "Συλλογή απαντήσεων",
+    body: "Όσο η μελέτη βρίσκεται σε εξέλιξη εμφανίζονται μόνο στοιχεία προόδου. Τα ευρήματα παραμένουν κλειστά μέχρι να ολοκληρωθεί η ανάλυση."
   };
   if (status === "closed" || status === "analysis") return {
-    title: "QA, weighting, analysis και release approval",
-    body: "Μετά το κλείσιμο της συλλογής, η μελέτη περνά από quality controls και governed analysis. Τα αποτελέσματα γίνονται δημόσια μόνο μέσα από εγκεκριμένο immutable release."
+    title: "Έλεγχος και ανάλυση",
+    body: "Μετά το τέλος της συλλογής ελέγχουμε την ποιότητα των δεδομένων και υπολογίζουμε τα τελικά αποτελέσματα."
   };
   return {
-    title: "Το evidence release είναι δημόσιο",
-    body: "Τα δημοσιευμένα αποτελέσματα συνοδεύονται από uncertainty, analytical base, methodology snapshot και provenance ώστε κάθε αριθμός να μπορεί να ελεγχθεί."
+    title: "Τα αποτελέσματα έχουν δημοσιευθεί",
+    body: "Μπορείτε να δείτε τα βασικά ευρήματα, το μέγεθος του δείγματος, τα διαστήματα εμπιστοσύνης όπου υπάρχουν και τη μεθοδολογία της μελέτης."
   };
 }
 
@@ -59,8 +59,8 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
   return <main className={styles.shell}>
     <div className={styles.frame}>
       <div className={styles.topbar}>
-        <Link className={styles.brand} href="/research">KONTA MOY · RETAIL OBSERVATORY</Link>
-        <nav className={styles.nav} aria-label="Research">
+        <Link className={styles.brand} href="/research">KONTA MOY · ΕΡΕΥΝΑ</Link>
+        <nav className={styles.nav} aria-label="Έρευνα">
           <Link href="/research">Μελέτες</Link>
           <Link href={"/research/" + study.waveSlug + "/methodology"}>Μεθοδολογία</Link>
           <Link href={"/research/" + study.waveSlug + "/results"}>Αποτελέσματα</Link>
@@ -70,7 +70,7 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
 
       <header className={styles.hero}>
         <div>
-          <div className={styles.eyebrow}>{study.programmeTitle} · {study.waveTitle}</div>
+          <div className={styles.eyebrow}>{study.programmeTitle}</div>
           <h1>{study.title}</h1>
           <p>{study.subtitle || study.methodologySummary}</p>
 
@@ -79,17 +79,16 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
               {isLive && <span className={styles.dot} aria-hidden="true" />}
               {statusLabel(study.status)}
             </span>
-            <span className={styles.badge}>{study.studyCode}</span>
-            <span className={styles.badge}>Wave {study.waveOrdinal}</span>
+            <span className={styles.badge}>Μεθοδολογία διαθέσιμη</span>
           </div>
 
           <div className={styles.tabbar}>
             <Link href={"/research/" + study.waveSlug}>Επισκόπηση</Link>
             <Link href={"/research/" + study.waveSlug + "/methodology"}>Μεθοδολογία</Link>
             <Link className={isPublished ? styles.primaryButton : ""} href={"/research/" + study.waveSlug + "/results"}>
-              {isPublished ? "Δημοσιευμένα αποτελέσματα" : "Αποτελέσματα μετά το release"}
+              {isPublished ? "Δημοσιευμένα αποτελέσματα" : "Αποτελέσματα μετά την ολοκλήρωση"}
             </Link>
-            <Link href="/research/compare">Σύγκριση waves</Link>
+            <Link href="/research/compare">Σύγκριση μελετών</Link>
           </div>
         </div>
 
@@ -97,12 +96,11 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
           <span>Κατάσταση</span>
           <strong>{statusLabel(study.status)}</strong>
           <hr />
-          <span>Fieldwork</span>
+          <span>Περίοδος συλλογής</span>
           <strong style={{ fontSize: 22 }}>{dateRange(study)}</strong>
           <hr />
           <span>Ολοκλήρωση στόχου</span>
           <strong>{study.targetCompletes > 0 ? percent(completion) : "—"}</strong>
-          {study.releaseVersion && <span>Release {study.releaseVersion}</span>}
         </aside>
       </header>
 
@@ -121,21 +119,21 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
 
         <div className={styles.split}>
           <article className={styles.panel}>
-            <div className={styles.eyebrow}>Study brief</div>
+            <div className={styles.eyebrow}>Σχετικά με τη μελέτη</div>
             <h3>Τι μετράμε</h3>
             <p>{study.methodologySummary}</p>
             <p><strong>Πληθυσμός:</strong> {study.populationDefinition}</p>
-            <Link className={styles.cardLink} href={"/research/" + study.waveSlug + "/methodology"}>Δείτε πώς σχεδιάστηκε η μελέτη →</Link>
+            <Link className={styles.cardLink} href={"/research/" + study.waveSlug + "/methodology"}>Δείτε τη μεθοδολογία →</Link>
           </article>
 
           <article className={styles.panel}>
-            <div className={styles.eyebrow}>Public release</div>
-            <h3>{isPublished ? "Τα αποτελέσματα είναι evidence object." : "Τα αποτελέσματα παραμένουν κλειδωμένα."}</h3>
+            <div className={styles.eyebrow}>Αποτελέσματα</div>
+            <h3>{isPublished ? "Τα αποτελέσματα είναι διαθέσιμα." : "Τα αποτελέσματα δεν έχουν δημοσιευθεί ακόμη."}</h3>
             <p>{isPublished
-              ? "Το δημόσιο release είναι δεμένο με dataset hash, methodology snapshot και analysis run. Η ιστορική εικόνα δεν αλλάζει σιωπηλά μετά τη δημοσίευση."
-              : "Η σελίδα αποτελεσμάτων ενεργοποιείται από governed release και όχι από live queries πάνω στις απαντήσεις. Έτσι αποφεύγονται πρόωρα συμπεράσματα και drift."}</p>
+              ? "Η σελίδα αποτελεσμάτων παρουσιάζει τα δημοσιευμένα ευρήματα μαζί με το μέγεθος του δείγματος και την αβεβαιότητα όπου αυτή μπορεί να υπολογιστεί."
+              : "Η δημοσίευση γίνεται μόνο αφού ολοκληρωθούν η συλλογή, οι έλεγχοι ποιότητας και η ανάλυση."}</p>
             <Link className={styles.cardLink} href={"/research/" + study.waveSlug + "/results"}>
-              {isPublished ? "Άνοιγμα evidence dashboard →" : "Δείτε τη διαδικασία publication →"}
+              {isPublished ? "Άνοιγμα αποτελεσμάτων →" : "Δείτε πότε θα εμφανιστούν →"}
             </Link>
           </article>
         </div>
@@ -144,41 +142,41 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
       <section className={styles.section}>
         <div className={styles.sectionHead}>
           <div>
-            <div className={styles.eyebrow}>Trust layer</div>
-            <h2>Η ποιότητα της έρευνας είναι μέρος του UI.</h2>
+            <div className={styles.eyebrow}>Διαφάνεια</div>
+            <h2>Τι χρειάζεται να γνωρίζει ο αναγνώστης.</h2>
           </div>
-          <p>Το Observatory δεν κρύβει τη μεθοδολογία σε υποσημειώσεις. Τα βασικά στοιχεία αξιολόγησης παραμένουν ορατά δίπλα στην πρόοδο και στα αποτελέσματα.</p>
+          <p>Η μεθοδολογία, το δείγμα και οι βασικοί περιορισμοί της μελέτης παραμένουν εύκολα προσβάσιμα δίπλα στα αποτελέσματα.</p>
         </div>
 
         <div className={styles.trustGrid}>
           <article className={styles.trustCard}>
-            <div className={styles.eyebrow}>01 · Privacy</div>
-            <strong>Χωρίς live απαντήσεις</strong>
-            <p>Κατά το fieldwork δημοσιεύονται μόνο operational aggregates. Δεν εμφανίζονται distributions ή ευρήματα που θα μπορούσαν να δημιουργήσουν feedback effects.</p>
+            <div className={styles.eyebrow}>01 · Ιδιωτικότητα</div>
+            <strong>Χωρίς πρόωρα ευρήματα</strong>
+            <p>Όσο η συλλογή συνεχίζεται, η δημόσια σελίδα δείχνει μόνο την πρόοδο και όχι τις απαντήσεις ή τα προσωρινά αποτελέσματα.</p>
           </article>
           <article className={styles.trustCard}>
-            <div className={styles.eyebrow}>02 · Method</div>
-            <strong>Programme → Study → Wave</strong>
-            <p>Population, sample, wave identity και methodology παραμένουν προσβάσιμα ώστε ο χρήστης να ξέρει ποιο ακριβώς research object βλέπει.</p>
+            <div className={styles.eyebrow}>02 · Μεθοδολογία</div>
+            <strong>Σκοπός, πληθυσμός και δείγμα</strong>
+            <p>Ο αναγνώστης μπορεί να δει ποιον αφορά η μελέτη, πώς οργανώθηκε και πόσες απαντήσεις συγκεντρώθηκαν.</p>
           </article>
           <article className={styles.trustCard}>
-            <div className={styles.eyebrow}>03 · Evidence</div>
-            <strong>Immutable release</strong>
-            <p>Μετά τη δημοσίευση, provenance και analytical evidence συνοδεύουν τα αποτελέσματα και τις longitudinal comparisons.</p>
+            <div className={styles.eyebrow}>03 · Αποτελέσματα</div>
+            <strong>Με το απαραίτητο πλαίσιο</strong>
+            <p>Όπου είναι διαθέσιμα, τα αποτελέσματα συνοδεύονται από μέγεθος δείγματος, διαστήματα εμπιστοσύνης και σαφείς περιορισμούς.</p>
           </article>
         </div>
 
         <div className={styles.sectionActions}>
-          <Link className={[styles.actionButton, styles.primaryButton].join(" ")} href="/research/compare">Σύγκριση & αξιολόγηση</Link>
+          <Link className={[styles.actionButton, styles.primaryButton].join(" ")} href="/research/compare">Σύγκριση μελετών</Link>
           <Link className={styles.actionButton} href="/research/privacy">Πώς προστατεύονται τα δεδομένα</Link>
         </div>
       </section>
 
       {isLive && <div className={styles.notice}>
-        <strong>Live ≠ preliminary results.</strong> Η ζωντανή πρόοδος αφορά μόνο τη λειτουργία της μελέτης. Τα ουσιαστικά findings παραμένουν κλειδωμένα έως το governed public release.
+        Η ζωντανή πρόοδος δείχνει μόνο πώς προχωρά η συλλογή. Δεν αποτελεί προσωρινό αποτέλεσμα της μελέτης.
       </div>}
 
-      <div className={styles.footer}>Public research surface · privacy-safe aggregates · governed evidence releases</div>
+      <div className={styles.footer}>KONTA MOY Research · Μεθοδολογία · Πρόοδος · Αποτελέσματα</div>
     </div>
   </main>;
 }
