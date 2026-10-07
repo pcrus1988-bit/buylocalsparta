@@ -8,6 +8,11 @@ on:
         required: true
         default: false
         type: boolean
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/research-survey-schema-rollout.yml
 
 permissions:
   contents: read
@@ -58,19 +63,19 @@ jobs:
         run: node --experimental-strip-types scripts/research-survey-production-schema.ts
 
       - name: Preflight-only summary
-        if: ${{ !inputs.apply }}
+        if: ${{ github.event_name == 'push' || !inputs.apply }}
         run: |
           echo "Research schema preflight passed."
           echo "No database mutation was requested."
 
       - name: Apply checksum-aware migrations through schema 0434
-        if: ${{ inputs.apply }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.apply }}
         run: npm run db:migrate
 
       - name: Verify research schema and tables after migration
-        if: ${{ inputs.apply }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.apply }}
         run: node --experimental-strip-types scripts/research-survey-production-schema.ts --postcheck
 
       - name: Verify application database readiness
-        if: ${{ inputs.apply }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.apply }}
         run: npm run db:ready
