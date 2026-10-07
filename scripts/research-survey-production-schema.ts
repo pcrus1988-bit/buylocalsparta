@@ -1,4 +1,4 @@
-import { readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 
 const productionOnly = process.argv.includes("--vercel-production-only");
 if (productionOnly && process.env.VERCEL_ENV !== "production") {
@@ -43,6 +43,9 @@ const migrationNames = (await readdir(new URL("../db/migrations/", import.meta.u
 const sourceHead = migrationNames.length
   ? Number(migrationNames[migrationNames.length - 1]!.slice(0, 4))
   : 0;
+const checksumManifest = JSON.parse(
+  await readFile(new URL("../db/migrations/checksums.json", import.meta.url), "utf8")
+) as Record<string, string>;
 if (sourceHead !== expectedSourceVersion) {
   throw new Error(
     `Research schema rollout is pinned to source head ${expectedSourceVersion}; repository head is ${sourceHead}. Re-review the rollout before applying newer migrations.`
@@ -73,14 +76,28 @@ try {
   const present = requiredTables.filter((_table, index) => Boolean(row[`table_${index}`]));
   const missing = requiredTables.filter((_table, index) => !row[`table_${index}`]);
 
-  const ledgerResult = await pool.query("SELECT version, filename FROM public.schema_migrations ORDER BY version");
-  const ledgerByVersion = new Map<number, string>(
-    ledgerResult.rows.map((entry: { version: number | string; filename: string }) => [Number(entry.version), entry.filename])
+  const ledgerResult = await pool.query("SELECT version, filename, sha256 FROM public.schema_migrations ORDER BY version");
+  const ledgerByVersion = new Map<number, { filename: string; sha256: string }>(
+    ledgerResult.rows.map((entry: { version: number | string; filename: string; sha256: string }) => [
+      Number(entry.version),
+      { filename: entry.filename, sha256: entry.sha256 }
+    ])
   );
-  const canonicalLedgerGaps = migrationNames.filter((filename) => {
+  const canonicalLedgerMismatches = migrationNames.filter((filename) => {
     const version = Number(filename.slice(0, 4));
-    return ledgerByVersion.get(version) !== filename;
+    const existing = ledgerByVersion.get(version);
+    if (!existing) return false;
+    return existing.filename !== filename || existing.sha256 !== checksumManifest[filename];
   });
+  const pendingCanonicalMigrations = migrationNames.filter((filename) => {
+    const version = Number(filename.slice(0, 4));
+    return !ledgerByVersion.has(version);
+  });
+  if (canonicalLedgerMismatches.length) {
+    throw new Error(
+      `Canonical migration ledger filename/checksum mismatch: ${canonicalLedgerMismatches.join(", ")}`
+    );
+  }
 
   if (postcheck) {
     if (schemaVersion !== expectedSourceVersion) {
@@ -89,15 +106,16 @@ try {
     if (missing.length) {
       throw new Error(`Postcheck missing research tables: ${missing.join(", ")}`);
     }
-    if (canonicalLedgerGaps.length) {
-      throw new Error(`Postcheck canonical migration ledger is incomplete or mismatched: ${canonicalLedgerGaps.join(", ")}`);
+    if (pendingCanonicalMigrations.length) {
+      throw new Error(`Postcheck canonical migration ledger is incomplete: ${pendingCanonicalMigrations.join(", ")}`);
     }
     console.log(JSON.stringify({
       ok: true,
       mode: "postcheck",
       schemaVersion,
       requiredTables: requiredTables.length,
-      canonicalMigrations: migrationNames.length
+      canonicalMigrations: migrationNames.length,
+      pendingCanonicalMigrations
     }));
   } else if (schemaVersion === expectedSourceVersion) {
     if (missing.length) {
@@ -127,7 +145,8 @@ try {
       state: "clean_upgrade",
       schemaVersion,
       targetVersion: expectedSourceVersion,
-      pendingCanonicalMigrations: canonicalLedgerGaps.length
+      pendingCanonicalMigrations: pendingCanonicalMigrations.length,
+      pendingCanonicalMigrationFiles: pendingCanonicalMigrations
     }));
   }
 } finally {
