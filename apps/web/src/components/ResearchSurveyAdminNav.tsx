@@ -29,7 +29,7 @@ export const RESEARCH_SURVEY_ADMIN_SECTIONS: ReadonlyArray<Readonly<{
   { key: "overview", label: "Overview", description: "Live survey state, readiness and key metrics.", group: "design" },
   { key: "settings", label: "Survey settings", description: "Title, population, methodology, language, deadline and public results destination.", group: "design" },
   { key: "questions", label: "Questions", description: "Questionnaire structure, wording, answer options, order and analysis keys.", group: "design" },
-  { key: "evaluation", label: "Evaluation", description: "Pre-defined metrics, breakdowns, uncertainty and publication rules.", group: "design" },
+  { key: "evaluation", label: "Evaluation & analysis", description: "Preregistered evaluation plus versioned later exploratory analyses.", group: "design" },
   { key: "sampling", label: "Sampling", description: "Population frame and reproducible sample draws.", group: "fieldwork" },
   { key: "fieldwork", label: "Email & fieldwork", description: "Templates, invitation batches, reminders and fieldwork actions.", group: "fieldwork" },
   { key: "balance", label: "Fieldwork balance", description: "Response balance across the frozen sampling strata.", group: "fieldwork" },
