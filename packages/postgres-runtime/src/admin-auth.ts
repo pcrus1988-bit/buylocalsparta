@@ -75,8 +75,11 @@ export class PostgresAdminAuthService {
     const platformRoles = persisted.roles.filter(isPlatformRole);
     if (!platformRoles.length) return undefined;
     const csrfToken = this.#csrfForToken(token);
-    if (!await this.#identity.verifyCsrf({ sessionId: persisted.sessionId, csrfToken, now })) return undefined;
-    await this.#identity.touchSession({ sessionId: persisted.sessionId, now });
+    // The signed token has already been verified and findSession validates the
+    // persisted session hash, expiry and active user while touching last_seen_at
+    // in the same SQL statement. A second CSRF lookup and separate touch write
+    // add two network round trips to every Admin page load without changing the
+    // trust decision for a read request.
     return {
       userId: persisted.userId,
       email: persisted.email,

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
-import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import type { ResearchQuestion, ResearchQuestionType } from "./research-survey-model";
 
 function text(value: unknown): string {
@@ -120,7 +120,7 @@ export async function researchSurveyDesignAdminOverview(
   assertAdminPermission(principal, "research.read");
   if (!productionDatabaseConfigured()) return EMPTY_OVERVIEW;
 
-  const pool = getProductionPostgresRuntime().sqlPool;
+  const pool = getAdminPostgresRuntime().sqlPool;
   const result = await pool.query<SqlRow>(
     "SELECT s.id AS study_id,s.slug,s.title,s.subtitle,s.status,s.population_definition,s.methodology_summary,s.default_locale,s.fieldwork_ends_at,s.public_results_url," +
     " i.id AS instrument_id,i.version AS instrument_version,i.status AS instrument_status,i.content_sha256 AS instrument_sha256,i.consent_statement_version," +
@@ -300,7 +300,7 @@ export async function createResearchSurveyDesignRevision(
 ): Promise<Readonly<{ instrumentVersion: string; analysisPlanVersion: string }>> {
   assertAdminPermission(principal, "research.design.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
-  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  const client = await getAdminPostgresRuntime().sqlPool.connect();
   try {
     await client.query("BEGIN");
     const source = await latestInstrumentForUpdate(client, slug);
@@ -398,7 +398,7 @@ export async function saveResearchQuestionDraft(
   assertAdminPermission(principal, "research.design.manage");
   validateQuestionInput(input);
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
-  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  const client = await getAdminPostgresRuntime().sqlPool.connect();
   try {
     await client.query("BEGIN");
     const instrument = await latestInstrumentForUpdate(client, slug);
@@ -460,7 +460,7 @@ export async function deleteResearchQuestionDraft(
 ): Promise<Readonly<{ contentSha256: string }>> {
   assertAdminPermission(principal, "research.design.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
-  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  const client = await getAdminPostgresRuntime().sqlPool.connect();
   try {
     await client.query("BEGIN");
     const instrument = await latestInstrumentForUpdate(client, slug);
@@ -490,7 +490,7 @@ export async function moveResearchQuestionDraft(
 ): Promise<Readonly<{ contentSha256: string }>> {
   assertAdminPermission(principal, "research.design.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
-  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  const client = await getAdminPostgresRuntime().sqlPool.connect();
   try {
     await client.query("BEGIN");
     const instrument = await latestInstrumentForUpdate(client, slug);
@@ -555,7 +555,7 @@ export async function updateResearchStudyDraftSettings(
   if (url) {
     try { new URL(url); } catch { throw new Error("RESEARCH_RESULTS_URL_INVALID"); }
   }
-  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(
+  const result = await getAdminPostgresRuntime().sqlPool.query<SqlRow>(
     "UPDATE research_studies SET title=$2,subtitle=NULLIF($3,''),population_definition=$4,methodology_summary=$5,default_locale=$6,fieldwork_ends_at=NULLIF($7,'')::timestamptz,public_results_url=NULLIF($8,''),updated_at=now() WHERE slug=$1 AND status='draft' RETURNING id",
     [slug, title, input.subtitle?.trim() || "", population, methodology, locale, fieldworkEndsAt, url]
   );
@@ -575,7 +575,7 @@ export async function saveResearchAnalysisPlanDraft(
   const title = input.title.trim();
   if (title.length < 3 || title.length > 240) throw new Error("RESEARCH_ANALYSIS_PLAN_TITLE_INVALID");
   const plan = { ...input.plan, studySlug: slug, instrumentVersion: overview.instrument.version };
-  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(
+  const result = await getAdminPostgresRuntime().sqlPool.query<SqlRow>(
     "UPDATE research_analysis_plans SET title=$2,plan_json=$3::jsonb WHERE id=$1 AND status='draft' RETURNING content_sha256",
     [overview.analysisPlan.id, title, JSON.stringify(plan)]
   );
@@ -619,7 +619,7 @@ export async function saveResearchLaterEvaluation(
     throw new Error("RESEARCH_LATER_EVALUATION_TEXT_INVALID");
   }
 
-  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  const client = await getAdminPostgresRuntime().sqlPool.connect();
   try {
     await client.query("BEGIN");
     const studyResult = await client.query<SqlRow>(
@@ -723,7 +723,7 @@ export async function lockResearchAnalysisPlanDraft(
 ): Promise<Readonly<{ version: string; contentSha256: string }>> {
   assertAdminPermission(principal, "research.analysis.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
-  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  const client = await getAdminPostgresRuntime().sqlPool.connect();
   try {
     await client.query("BEGIN");
     const instrument = await latestInstrumentForUpdate(client, slug);

@@ -12,7 +12,7 @@ const WEB_DB_POOL_MAX = "2";
 const WEB_DB_CONNECT_TIMEOUT_MS = "15000";
 const WEB_DB_IDLE_TIMEOUT_MS = "5000";
 const ADMIN_DB_CONNECT_TIMEOUT_MS = "8000";
-const ADMIN_DB_IDLE_TIMEOUT_MS = "15000";
+const ADMIN_DB_IDLE_TIMEOUT_MS = "120000";
 
 export function resolveDatabaseUrlFromEnv(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const explicit = env.DATABASE_URL?.trim();
