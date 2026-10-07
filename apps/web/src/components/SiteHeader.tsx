@@ -116,8 +116,6 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
             placeholder="Αναζήτηση"
             maxLength={120}
             autoComplete="off"
-            aria-expanded={showSearchDiscovery}
-            aria-controls="site-header-search-discovery"
           />
           <SearchDiscoveryPanel
             id="site-header-search-discovery"

@@ -10,13 +10,68 @@ export type MigrationFile = Readonly<{
   sha256: string;
 }>;
 
+/**
+ * Frozen pre-canonical SQL snapshots. These files were historically applied
+ * outside the numbered application ledger and are retained only as evidence.
+ * They are never executable migrations. Any additional noncanonical .sql file
+ * in db/migrations is rejected so a second migration history cannot reappear.
+ */
+const LEGACY_NONCANONICAL_SQL = new Set([
+  "20260915_drop_unused_vendor_assortment_covering_indexes.sql",
+  "20260915_storefront_catalog_autocomplete_expression.sql",
+  "20260915_storefront_catalog_read_model.sql",
+  "20260915_storefront_catalog_trigram_search.sql",
+  "20260915_storefront_category_availability_index.sql",
+  "20260915_storefront_dropship_family_covering_index.sql",
+  "20260915_storefront_dropship_family_filter_read_model.sql",
+  "20260915_storefront_dropship_family_read_model.sql",
+  "20260915_storefront_dropship_vendor_facets.sql",
+  "20260915_storefront_facet_read_model.sql",
+  "20260915_storefront_filter_read_model.sql",
+  "20260915_storefront_local_candidate_index.sql",
+  "20260915_storefront_read_model_refresh_schedule.sql",
+  "20260915_storefront_read_model_refresh_schedule_v2.sql",
+  "20260915_storefront_seo_signal_indexes.sql",
+  "20260915_storefront_vendor_assortment_read_model.sql",
+  "20260915_vendor_family_read_model_index.sql",
+  "20260915_vendor_public_assortment_covering_indexes.sql",
+  "20260917_storefront_dropship_rich_filter_facets.sql",
+  "20260919_storefront_refresh_command_repair.sql",
+  "20260919_storefront_refresh_load_shedding.sql",
+  "20260920202509_nova_availability_burst_and_projection_refresh.sql",
+  "20260920205125_nova_live_storefront_incremental_projection.sql",
+  "20260920_nova_availability_failover_staggered_acceleration.sql",
+  "20260920_nova_availability_failover_staggered_acceleration_v2.sql",
+  "20260929_p0_vendor_local_catalog_fast_index.sql",
+  "20261001_admin_storefront_media_blob_fallback.sql",
+  "20261001_vendor_instagram_storefront.sql",
+  "20261002_merchant_sync_strict_shard_index.sql",
+  "20261002_seo_recovery_load_shedding.sql",
+  "20261002_vendor_locations_rls_empty_context.sql",
+]);
+
+const CANONICAL_MIGRATION_NAME = /^\d{4}_[a-z0-9_-]+\.sql$/i;
+
 export function sha256(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
 export async function loadMigrations(directory: string): Promise<readonly MigrationFile[]> {
-  const names = (await readdir(directory))
-    .filter((name) => /^\d{4}_[a-z0-9_-]+\.sql$/i.test(name))
+  const directoryNames = await readdir(directory);
+  const unexpectedSql = directoryNames.filter(
+    (name) => name.toLowerCase().endsWith(".sql") &&
+      !CANONICAL_MIGRATION_NAME.test(name) &&
+      !LEGACY_NONCANONICAL_SQL.has(name)
+  );
+  if (unexpectedSql.length) {
+    throw new Error(
+      "Noncanonical SQL migration filenames are forbidden: " + unexpectedSql.sort().join(", ") +
+      ". Use the next four-digit migration version and register its checksum."
+    );
+  }
+
+  const names = directoryNames
+    .filter((name) => CANONICAL_MIGRATION_NAME.test(name))
     .sort((a, b) => a.localeCompare(b));
   const seen = new Set<number>();
   const result: MigrationFile[] = [];

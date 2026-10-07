@@ -49,6 +49,14 @@ const SHOP_INDEXABLE_QUERY_KEYS = new Set([
   "fit"
 ]);
 
+const SHOP_TRACKING_QUERY_KEYS = new Set([
+  "gclid",
+  "fbclid",
+  "msclkid",
+  "mc_cid",
+  "mc_eid"
+]);
+
 type ShopProps = Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>;
 type ShopCard = CatalogCard & Readonly<{
   previewImageSrc?: string;
@@ -205,7 +213,10 @@ export async function generateMetadata({ searchParams }: ShopProps): Promise<Met
   const params = await searchParams;
   const hasQueryState = Object.entries(params).some(([key, value]) => {
     if (!valueOf(value).trim()) return false;
-    return SHOP_INDEXABLE_QUERY_KEYS.has(key) || key.startsWith("attr_");
+    return SHOP_INDEXABLE_QUERY_KEYS.has(key)
+      || key.startsWith("attr_")
+      || key.startsWith("utm_")
+      || SHOP_TRACKING_QUERY_KEYS.has(key);
   });
   if (!hasQueryState) return base;
   const category = storefrontCategoryBySlug(valueOf(params.category));

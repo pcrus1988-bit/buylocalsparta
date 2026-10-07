@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { bazaarSourceLabel } from "../src/lib/bazaar-catalog.ts";
+import { bazaarSourceLabel } from "../src/lib/bazaar-source.ts";
 import { classifyNovaSupplierCondition } from "../src/lib/bazaar-commerce.ts";
 
 const channelMigrationUrl = new URL("../../../db/migrations/0236_bazaar_commerce_channel.sql", import.meta.url);
@@ -16,6 +16,8 @@ const catalogViewUrl = new URL("../src/lib/catalog-view.ts", import.meta.url);
 const shopCatalogPageUrl = new URL("../src/lib/shop-catalog-page-fast.ts", import.meta.url);
 const merchantCenterFeedUrl = new URL("../src/app/merchant-center/products.xml/route.ts", import.meta.url);
 const productSitemapUrl = new URL("../src/app/sitemaps/products/[shard]/route.ts", import.meta.url);
+const productSitemapInventoryUrl = new URL("../src/lib/product-sitemap-inventory.ts", import.meta.url);
+const publicDiscoveryReadModelsUrl = new URL("../../../db/migrations/0390_public_discovery_read_models.sql", import.meta.url);
 const siteHeaderUrl = new URL("../src/components/SiteHeader.tsx", import.meta.url);
 
 test("NOVA condition routing keeps second-life stock out of the normal catalogue", () => {
@@ -77,10 +79,15 @@ test("existing second-life backfill is NOVA-scoped and fails closed on mixed evi
 });
 
 test("BAZAAR dropship discovery uses the same fail-closed supplier and cost gates as normal discovery", async () => {
-  const source = await readFile(bazaarCatalogUrl, "utf8");
-  assert.match(source, /ds\.api_authoritative_availability=true/);
-  assert.match(source, /vo\.cost_ceiling_minor IS NULL OR vo\.supplier_unit_price_minor<=vo\.cost_ceiling_minor/);
-  assert.match(source, /dso\.availability_expires_at>now\(\)/);
+  const [catalog, readModels] = await Promise.all([
+    readFile(bazaarCatalogUrl, "utf8"),
+    readFile(publicDiscoveryReadModelsUrl, "utf8")
+  ]);
+  assert.match(catalog, /FROM public\.storefront_bazaar_read_model brm/);
+  assert.match(readModels, /CREATE MATERIALIZED VIEW public\.storefront_bazaar_read_model/);
+  assert.match(readModels, /ds\.api_authoritative_availability=true/);
+  assert.match(readModels, /vo\.cost_ceiling_minor IS NULL[\s\S]*?vo\.supplier_unit_price_minor<=vo\.cost_ceiling_minor/);
+  assert.match(readModels, /dso\.availability_expires_at>now\(\)/);
 });
 
 test("normal catalogue read models explicitly reject BAZAAR canonicals", async () => {
@@ -110,9 +117,10 @@ test("normal catalogue read models explicitly reject BAZAAR canonicals", async (
 });
 
 test("secondary SEO and Merchant discovery stay attached to normal-channel read models", async () => {
-  const [merchantFeed, productSitemap] = await Promise.all([
+  const [merchantFeed, productSitemap, productSitemapInventory] = await Promise.all([
     readFile(merchantCenterFeedUrl, "utf8"),
-    readFile(productSitemapUrl, "utf8")
+    readFile(productSitemapUrl, "utf8"),
+    readFile(productSitemapInventoryUrl, "utf8")
   ]);
 
   // Merchant Center must intersect SEO inventory with the crawler projection. Both
@@ -123,12 +131,15 @@ test("secondary SEO and Merchant discovery stay attached to normal-channel read 
   assert.match(merchantFeed, /const cards = await getCrawlerCatalogCards\(SPARTA_POSTCODE\)/);
   assert.match(merchantFeed, /recordById = new Map\(inventory\.products/);
 
-  // Product sitemap inventory now reads the governed storefront projection.
-  // That projection is normal-channel only; the route must also re-check that at
-  // least one local or dropship offer remains fresh before emitting a URL.
-  assert.match(productSitemap, /FROM public\.storefront_catalog_read_model rm/);
-  assert.match(productSitemap, /rm\.eligible_offer_count>0/);
-  assert.match(productSitemap, /rm\.dropship_sellable=true AND rm\.dropship_available_until>now\(\)/);
+  // Product sitemap SQL now lives behind a bounded inventory helper rather than
+  // directly in the route. Keep the channel boundary asserted at that abstraction:
+  // the helper must read the normal storefront projection, never the BAZAAR view,
+  // and must require fresh local or dropship availability before returning a URL.
+  assert.match(productSitemap, /getPublicProductSitemapInventoryShard/);
+  assert.match(productSitemapInventory, /FROM public\.storefront_catalog_read_model rm/);
+  assert.doesNotMatch(productSitemapInventory, /storefront_bazaar_read_model/);
+  assert.match(productSitemapInventory, /rm\.local_sellable=true AND rm\.local_available_until>now\(\)/);
+  assert.match(productSitemapInventory, /rm\.dropship_sellable=true[\s\S]*?rm\.dropship_available_until>now\(\)/);
   assert.match(productSitemap, /productPublicPath\(product\)/);
 });
 

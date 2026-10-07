@@ -210,7 +210,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
     {show("promotions") && <section className="shell vendor-section" id="promotions">
       <WorkspaceSectionHeading eyebrow="Προωθήσεις" title="Πρότεινε μία προωθητική τιμή" note="Διάλεξε προϊόν, τιμή και διάρκεια. Η προώθηση εμφανίζεται δημόσια μόνο όταν ολοκληρωθεί ο απαραίτητος έλεγχος." />
       <WorkspaceHowItWorks>
-        <p><strong>Δεν αλλάζει άμεσα η δημόσια τιμή.</strong> Το αίτημα κρατά καταγραφή της τρέχουσας τιμής και περνά έλεγχο πριν εφαρμοστεί.</p>
+        <p><strong>Δεν αλλάζει άμεσα η δημόσια τιμή.</strong> Η τελική δημόσια προωθητική τιμή ενεργοποιείται μόνο μετά τον έλεγχο της πλατφόρμας. Το αίτημα κρατά καταγραφή της τρέχουσας τιμής πριν εφαρμοστεί.</p>
         <p><strong>Ιστορικό τιμών:</strong> παραμένει κεντρικό ώστε οι ανακοινώσεις έκπτωσης να είναι ελέγξιμες.</p>
       </WorkspaceHowItWorks>
       {workspace.promotions.offers.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν ενεργές προσφορές προϊόντων." body="Μόλις υπάρχουν εγκεκριμένα προϊόντα, θα μπορείς να προτείνεις προώθηση." /> : <div className="workspace-tool-panel" style={{ padding: "1rem" }}>
@@ -231,7 +231,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
     </section>}
 
     {show("aade") && <section className="vendor-section section-tint" id="aade"><div className="shell">
-      <WorkspaceSectionHeading eyebrow="AADE" title="Παραστατικά & myDATA" note="Δες τι έχει σταλεί στην AADE και ζήτησε έλεγχο, συμφωνία ή ασφαλή επανάληψη όταν χρειάζεται." />
+      <WorkspaceSectionHeading eyebrow="AADE" title="Παραστατικά & myDATA" note="Δες τι έχει σταλεί στην AADE και ζήτησε έλεγχο, συμφωνία ή ασφαλή επανάληψη όταν χρειάζεται. Επανάληψη ή συμφωνία δεν εκτελείται αυτόματα· το αίτημα ελέγχεται πριν από οποιαδήποτε ενέργεια." />
       {workspace.aade.documents.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν φορολογικά έγγραφα του καταστήματος." body="Όταν δημιουργηθούν σχετικά παραστατικά, η κατάσταση AADE θα εμφανίζεται εδώ." /> : <>
         <div className="workspace-tool-panel" style={{ padding: "1rem" }}>
           <label className="workspace-form-field"><span>Παραστατικό</span><select value={aade.documentId} onChange={(event) => setAade((current) => ({ ...current, documentId: event.target.value }))}>{workspace.aade.documents.map((document) => <option value={document.id} key={document.id}>{document.documentNumber ?? document.id} · {vendorSettingStatus(document.transmissionStatus)} · {euro(document.grossMinor)}</option>)}</select></label>
@@ -249,7 +249,7 @@ export function VendorHubControlsClient({ initial, sections }: { initial: Vendor
     </div></section>}
 
     {show("subscription") && <section className="shell vendor-section" id="subscription">
-      <WorkspaceSectionHeading eyebrow="Πλάνο" title="Πλάνο συνεργασίας" note="Δες το ενεργό πλάνο σου και, όταν υπάρχει διαθέσιμη επιλογή, ζήτησε αλλαγή. Η νέα χρέωση ενεργοποιείται μόνο αφού ολοκληρωθεί ο απαραίτητος έλεγχος." />
+      <WorkspaceSectionHeading eyebrow="Πλάνο" title="Πλάνο συνεργασίας" note="Δες το ενεργό πλάνο σου και, όταν υπάρχει διαθέσιμη επιλογή, ζήτησε αλλαγή. Οι αιτούμενες αλλαγές που επηρεάζουν εμπορική συμφωνία ενεργοποιούνται μόνο αφού ολοκληρωθεί ο απαραίτητος έλεγχος." />
       {workspace.subscription.current ? <WorkspaceMetricStrip items={[
         { label: "Τρέχον πλάνο", value: workspace.subscription.current.planName },
         { label: "Κατάσταση", value: vendorSettingStatus(workspace.subscription.current.status) },

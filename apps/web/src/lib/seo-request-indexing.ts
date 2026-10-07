@@ -41,6 +41,14 @@ const PUBLIC_QUERY_NOINDEX_RULES = new Map<string, readonly string[]>([
   ["/shops", ["q", "category", "subcategory", "status"]]
 ]);
 
+const SHOP_TRACKING_QUERY_KEYS = new Set([
+  "gclid",
+  "fbclid",
+  "msclkid",
+  "mc_cid",
+  "mc_eid"
+]);
+
 function normalizePathname(pathname: string): string {
   if (!pathname) return "/";
   const withSlash = pathname.startsWith("/") ? pathname : `/${pathname}`;
@@ -72,7 +80,7 @@ function hasQueryState(pathname: string, searchParams?: SearchParamsLike): boole
   for (const [key, value] of searchParams.entries()) {
     if (!value.trim()) continue;
     if (rule.includes(key)) return true;
-    if (normalized === "/shop" && key.startsWith("attr_")) return true;
+    if (normalized === "/shop" && (key.startsWith("attr_") || key.startsWith("utm_") || SHOP_TRACKING_QUERY_KEYS.has(key))) return true;
   }
   return false;
 }
@@ -116,7 +124,7 @@ export function seoRequestIndexingDecision(pathname: string, searchParams?: Sear
   if (isExplicitlyNonIndexable(normalized)) {
     return {
       index: false,
-      follow: true,
+      follow: normalized !== "/choose-location",
       routePolicy,
       reason: "Public utility route is excluded from search results while remaining crawl-through for linked public content.",
       source: "route-inventory"

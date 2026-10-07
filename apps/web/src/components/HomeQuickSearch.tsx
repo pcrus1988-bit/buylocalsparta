@@ -37,8 +37,6 @@ export function HomeQuickSearch() {
           placeholder="π.χ. σχολική τσάντα, φωτιστικό, ακουστικά…"
           maxLength={120}
           autoComplete="off"
-          aria-expanded={shouldShow}
-          aria-controls="home-search-discovery"
         />
         <button type="submit">Αναζήτηση <span aria-hidden="true">→</span></button>
         <SearchDiscoveryPanel

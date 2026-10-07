@@ -3,19 +3,12 @@ import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { approvedCatalogImages } from "./public-media-service";
 import { publicDescriptionText } from "./public-description-text";
+import { bazaarSourceLabel, type BazaarSource } from "./bazaar-source";
+
+export { bazaarSourceLabel };
+export type { BazaarSource };
 
 export type BazaarCondition = "preloved" | "preowned_defect" | "open_box" | "new" | "refurbished" | "used";
-export type BazaarSource =
-  | "supplier_preloved"
-  | "supplier_preowned_defect"
-  | "supplier_tester"
-  | "supplier_sample"
-  | "customer_return"
-  | "open_box"
-  | "display_stock"
-  | "damaged_packaging"
-  | "admin_curated";
-
 export type BazaarCard = Readonly<{
   id: string;
   slug: string;
@@ -266,20 +259,6 @@ export function bazaarConditionLabel(condition: BazaarCondition): string {
     case "new": return "NEW / RETURN";
     case "refurbished": return "REFURBISHED";
     case "used": return "PREOWNED";
-  }
-}
-
-export function bazaarSourceLabel(source: BazaarSource): string {
-  switch (source) {
-    case "supplier_preloved": return "Supplier Preloved";
-    case "supplier_preowned_defect": return "Supplier Preowned / Defect";
-    case "supplier_tester": return "Tester προμηθευτή";
-    case "supplier_sample": return "Sample προμηθευτή";
-    case "customer_return": return "Επιστροφή πελάτη";
-    case "open_box": return "Open box";
-    case "display_stock": return "Εκθεσιακό τεμάχιο";
-    case "damaged_packaging": return "Φθαρμένη συσκευασία";
-    case "admin_curated": return "Επιλογή BAZAAR";
   }
 }
 

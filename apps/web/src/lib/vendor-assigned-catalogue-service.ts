@@ -1,6 +1,5 @@
 import { PostgresUnitOfWork, formatMoney, money, type SessionPrincipal, type SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
-import { postgresVendorRuntimeEnabled } from "./vendor-runtime";
 
 export type VendorAssignedCatalogueProduct = Readonly<{
   id: string;
@@ -43,6 +42,10 @@ function requiredVendorId(principal: SessionPrincipal): string {
 
 function vendorScope(principal: SessionPrincipal) {
   return { actorUserId: principal.userId, vendorId: requiredVendorId(principal), marketId: "sparta" } as const;
+}
+
+function postgresVendorRuntimeEnabled(): boolean {
+  return Boolean(process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim());
 }
 
 function unitOfWork() {

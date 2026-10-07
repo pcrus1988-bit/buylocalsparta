@@ -228,7 +228,7 @@ export default async function Home() {
               <a href="/shop">Όλες οι κατηγορίες →</a>
             </div>
             <div className={styles.categoryRail}>
-              {visibleCategories.slice(0, 4).map((category) => (
+              {visibleCategories.map((category) => (
                 <a className={styles.categoryCard} href={`/category/${category.slug}`} key={category.slug}>
                   <span className={styles.categoryMark}>{category.symbol}</span>
                   <span><strong>{category.label}</strong><small>{category.name}</small></span>
@@ -242,7 +242,7 @@ export default async function Home() {
         <div className={styles.discoveryProducts}>
           <div className={styles.discoverySubheading}>
             <strong>Προϊόντα</strong>
-            <a href="/shop">Πλήρης κατάλογος →</a>
+            <a href="/shop">Όλα τα προϊόντα →</a>
           </div>
           {featuredProducts.length ? (
             <div className={styles.productRail}>
@@ -325,7 +325,7 @@ export default async function Home() {
               })}
             </div>
           ) : (
-            <a className={styles.marketWalkFallback} href="/shops">Γνώρισε τα καταστήματα της Σπάρτης →</a>
+            <a className={styles.marketWalkFallback} href="/shops">Τα καταστήματα της Σπάρτης →</a>
           )}
         </div>
       </section>
@@ -353,7 +353,7 @@ export default async function Home() {
             <span className={styles.kicker}>Το δυνατό σημείο της τοπικής αγοράς</span>
             <h2>Υπάρχει άνθρωπος πίσω από το προϊόν.</h2>
             <p>Όταν η φωτογραφία και η περιγραφή δεν αρκούν, το ΚΟΝΤΑ ΜΟΥ σε φέρνει πιο κοντά σε ανθρώπους που γνωρίζουν αυτό που πουλάνε.</p>
-            <div className={styles.humanActions}><a className="button" href="/ask-local">Ρώτησε τοπικά</a><a href="/advice">Βρες συμβουλή από κατάστημα →</a></div>
+            <div className={styles.humanActions}><a className="button" href="/ask-local">Ask Local</a><a href="/advice">Βρες συμβουλή από κατάστημα →</a></div>
           </div>
         </div>
       </section>

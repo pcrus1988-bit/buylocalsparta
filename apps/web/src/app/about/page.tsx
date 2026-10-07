@@ -7,7 +7,7 @@ import styles from "./page.module.css";
 
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/about", {
-    title: "Η ιστορία του ΚΟΝΤΑ ΜΟΥ · Από τη Σπάρτη για την Ελλάδα",
+    title: "Τι είναι το ΚΟΝΤΑ ΜΟΥ Σπάρτη",
     description: "Γιατί δημιουργήθηκε το ΚΟΝΤΑ ΜΟΥ στη Σπάρτη, πώς συνδέει πελάτες, τοπικά καταστήματα και παράδοση και ποιο είναι το όραμά του για μια πιο ανθρώπινη ψηφιακή αγορά στην Ελλάδα."
   });
 }
@@ -76,6 +76,18 @@ export default function AboutPage() {
           </div>
         </div>
       </div>
+    </section>
+
+    <section id="what-is-kontamou" className="shell content-section" aria-labelledby="what-is-kontamou-title">
+      <div className="content-heading">
+        <div>
+          <div className="eyebrow">Τι είναι το ΚΟΝΤΑ ΜΟΥ;</div>
+          <h2 id="what-is-kontamou-title">Υποδομή για μικρές επιχειρήσεις</h2>
+        </div>
+        <p>Το ΚΟΝΤΑ ΜΟΥ είναι πλατφόρμα τοπικού εμπορίου από τη Σπάρτη.</p>
+      </div>
+      <p>Συνδέει προϊόντα και πραγματικά καταστήματα σε μία κοινή εμπειρία αναζήτησης και αγοράς, με ένα καλάθι και μία διαδικασία ολοκλήρωσης αγοράς.</p>
+      <p>Για την επιχείρηση λειτουργεί ως κοινή ψηφιακή υποδομή για κατάλογο, διαθεσιμότητα, παραγγελίες και προβολή, χωρίς να χρειάζεται να συντηρεί μόνο του ένα πλήρες ηλεκτρονικό κατάστημα.</p>
     </section>
 
     <section className={`shell content-section ${styles.opening}`}>
