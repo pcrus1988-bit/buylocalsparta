@@ -43,6 +43,8 @@ export default async function ResearchSurveysAdminPage() {
   const canFieldwork = hasAdminPermission(principal, "research.fieldwork.manage");
   const canQuality = hasAdminPermission(principal, "research.quality.manage");
   const canPrivacy = hasAdminPermission(principal, "research.privacy.manage");
+  const canAnalyze = hasAdminPermission(principal, "research.analysis.manage");
+  const canPublish = hasAdminPermission(principal, "research.publish.manage");
 
   const overview = await researchSurveyAdminOverview(principal);
   const qualityQueues = new Map(
@@ -189,6 +191,8 @@ export default async function ResearchSurveysAdminPage() {
               latestReleasePublishedAt={study.latestReleasePublishedAt}
               resultsNotificationSent={study.resultsNotificationSent}
               resultsNotificationFailed={study.resultsNotificationFailed}
+              canAnalyze={canAnalyze}
+              canPublish={canPublish}
               queuedJobs={study.queuedJobs}
               runningJobs={study.runningJobs}
             />}
