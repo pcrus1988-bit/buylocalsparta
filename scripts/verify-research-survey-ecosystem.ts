@@ -94,6 +94,8 @@ const statisticsTests = readFileSync("apps/web/src/lib/research-survey-statistic
 const analysis = readFileSync("apps/web/src/lib/research-survey-analysis.ts", "utf8");
 const resultsPage = readFileSync("apps/web/src/app/research/greek-retail-2026/results/page.tsx", "utf8");
 const observatoryPage = readFileSync("apps/web/src/app/research/page.tsx", "utf8");
+const researchComparePage = readFileSync("apps/web/src/app/research/compare/page.tsx", "utf8");
+const researchLiveProgress = readFileSync("apps/web/src/components/ResearchLiveProgress.tsx", "utf8");
 const researchPrivacyPage = readFileSync("apps/web/src/app/research/privacy/page.tsx", "utf8");
 const releaseRoute = readFileSync("apps/web/src/app/api/research/[slug]/release/route.ts", "utf8");
 const sesSender = readFileSync("apps/web/src/lib/admin-mail-ses.ts", "utf8");
@@ -588,6 +590,11 @@ if (surveyForm.includes("optionalConsents.marketing")) errors.push("scientific s
 if (surveyRuntime.includes('"marketing"')) errors.push("participant research runtime still accepts marketing consent");
 if (!surveyForm.includes('href="/join"')) errors.push("commercial follow-up is not separated behind a post-research route");
 if (!observatoryPage.includes("Programme → Study → Wave → Evidence Release")) errors.push("permanent Retail Observatory landing does not expose the longitudinal hierarchy");
+if (!researchComparePage.includes("approvedMetricPairs") || !researchComparePage.includes("metricBelongsToVariable") || !researchComparePage.includes("item.baselineWaveSlug") || !researchComparePage.includes("item.comparisonWaveSlug")) errors.push("public Research comparison UI is not lineage- and pair-gated");
+if (!researchComparePage.includes("digital_readiness_score: [\"digital_readiness.\"]") || !researchComparePage.includes("retail_friction_index: [\"retail_friction.\"]")) errors.push("public Research comparison UI does not map derived lineage variables to published metric families");
+if (researchComparePage.includes("metricGroups.get(metric.metricKey)") || researchComparePage.includes("comparableMetricGroups")) errors.push("public Research comparison UI still groups unrelated or transitive wave sets by metric key alone");
+if (!researchLiveProgress.includes("if (!isLiveStatus(study.status)) return;") || !researchLiveProgress.includes("study.status]")) errors.push("public Research progress still polls outside live fieldwork");
+if (!release.includes("s.slug AS study_slug") || !release.includes("studySlug: text(row.study_slug)") || !release.includes("studySlug: published.studySlug")) errors.push("public Research release artifact does not preserve canonical study slug");
 if (!researchPrivacyPage.includes("Η συμμετοχή στην έρευνα δεν είναι εμπορική συγκατάθεση.")) errors.push("dedicated research privacy boundary is missing");
 if (!surveyRuntime.includes("RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("pilot lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes("RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("fieldwork lifecycle is not gated by preregistration");
