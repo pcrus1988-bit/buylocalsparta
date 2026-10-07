@@ -15,6 +15,7 @@ const postcheck = process.argv.includes("--postcheck");
 const recovery0420 = process.argv.includes("--recover-0420");
 const expectedSourceVersion = 435;
 const expectedCurrentVersion = 415;
+const expectedIncrementalVersion = 434;
 const expectedRecoveryVersion = 419;
 const expectedRecoveryPendingVersions = new Set(
   Array.from({ length: 16 }, (_value, index) => 420 + index)
@@ -76,6 +77,10 @@ const requiredTables = [
   "research_longitudinal_comparison_specs",
   "research_release_archives"
 ] as const;
+const requiredPrivateTables = [
+  "marketing_contacts",
+  "marketing_consent_events"
+] as const;
 
 const migrationNames = (await readdir(new URL("../db/migrations/", import.meta.url)))
   .filter((name) => /^\d{4}_[a-z0-9_-]+\.sql$/i.test(name))
@@ -115,6 +120,13 @@ try {
   const schemaVersion = Number(row.schema_version ?? 0);
   const present = requiredTables.filter((_table, index) => Boolean(row[`table_${index}`]));
   const missing = requiredTables.filter((_table, index) => !row[`table_${index}`]);
+  const privateTablesResult = await pool.query(`
+    SELECT
+      ${requiredPrivateTables.map((table, index) => `to_regclass('research_private.${table}')::text AS table_${index}`).join(",\n      ")}
+  `);
+  const privateRow = privateTablesResult.rows[0] ?? {};
+  const privatePresent = requiredPrivateTables.filter((_table, index) => Boolean(privateRow[`table_${index}`]));
+  const privateMissing = requiredPrivateTables.filter((_table, index) => !privateRow[`table_${index}`]);
   const researchTablesResult = await pool.query(
     "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'research_%' ORDER BY tablename"
   );
@@ -151,8 +163,10 @@ try {
     if (schemaVersion !== expectedSourceVersion) {
       throw new Error(`Postcheck expected schema ${expectedSourceVersion}; database reports ${schemaVersion}`);
     }
-    if (missing.length) {
-      throw new Error(`Postcheck missing research tables: ${missing.join(", ")}`);
+    if (missing.length || privateMissing.length) {
+      throw new Error(
+        `Postcheck missing research tables: ${[...missing, ...privateMissing.map((table) => "research_private." + table)].join(", ")}`
+      );
     }
     if (pendingCanonicalMigrations.length) {
       throw new Error(`Postcheck canonical migration ledger is incomplete: ${pendingCanonicalMigrations.join(", ")}`);
@@ -201,15 +215,40 @@ try {
       pendingCanonicalMigrationFiles: pendingCanonicalMigrations
     }));
   } else if (schemaVersion === expectedSourceVersion) {
-    if (missing.length) {
-      throw new Error(`Schema is already ${expectedSourceVersion} but research tables are incomplete: ${missing.join(", ")}`);
+    if (missing.length || privateMissing.length) {
+      throw new Error(
+        `Schema is already ${expectedSourceVersion} but research tables are incomplete: ${[...missing, ...privateMissing.map((table) => "research_private." + table)].join(", ")}`
+      );
     }
     console.log(JSON.stringify({
       ok: true,
       mode: "preflight",
       state: "already_applied",
       schemaVersion,
-      requiredTables: requiredTables.length
+      requiredTables: requiredTables.length + requiredPrivateTables.length
+    }));
+  } else if (schemaVersion === expectedIncrementalVersion) {
+    const pendingVersions = pendingCanonicalMigrations.map((filename) => Number(filename.slice(0, 4)));
+    if (missing.length) {
+      throw new Error(`Incremental schema ${expectedIncrementalVersion} is missing existing research tables: ${missing.join(", ")}`);
+    }
+    if (privatePresent.length) {
+      throw new Error(
+        `Schema ${expectedIncrementalVersion} has a partial 0435 marketing-consent state: ${privatePresent.join(", ")}`
+      );
+    }
+    if (pendingVersions.length !== 1 || pendingVersions[0] !== expectedSourceVersion) {
+      throw new Error(
+        `Incremental research rollout requires only schema ${expectedSourceVersion} pending; found: ${pendingCanonicalMigrations.join(", ") || "none"}`
+      );
+    }
+    console.log(JSON.stringify({
+      ok: true,
+      mode: "preflight",
+      state: "incremental_upgrade",
+      schemaVersion,
+      targetVersion: expectedSourceVersion,
+      pendingCanonicalMigrationFiles: pendingCanonicalMigrations
     }));
   } else {
     if (schemaVersion !== expectedCurrentVersion) {
@@ -217,9 +256,9 @@ try {
         `Research rollout requires clean schema ${expectedCurrentVersion} or already-applied ${expectedSourceVersion}; database reports ${schemaVersion}`
       );
     }
-    if (present.length) {
+    if (present.length || privatePresent.length) {
       throw new Error(
-        `Schema is ${expectedCurrentVersion} but research tables already exist: ${present.join(", ")}. Refusing a partial-state rollout.`
+        `Schema is ${expectedCurrentVersion} but research tables already exist: ${[...present, ...privatePresent.map((table) => "research_private." + table)].join(", ")}. Refusing a partial-state rollout.`
       );
     }
     console.log(JSON.stringify({
