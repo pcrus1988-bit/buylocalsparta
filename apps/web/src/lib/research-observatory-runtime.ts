@@ -150,7 +150,7 @@ export async function publicResearchObservatory(): Promise<PublicResearchObserva
         ) AS updated_at
       FROM research_studies s
       JOIN research_programmes p ON p.id=s.programme_id
-      JOIN research_waves w ON w.id=s.current_wave_id AND w.study_id=s.id
+      JOIN research_waves w ON w.study_id=s.id
       LEFT JOIN LATERAL (
         SELECT d.id,d.target_n,d.created_at
         FROM research_sample_draws d
@@ -280,7 +280,7 @@ export async function publicResearchObservatory(): Promise<PublicResearchObserva
 
 export async function publicResearchStudy(slug: string): Promise<PublicResearchStudySummary | undefined> {
   const snapshot = await publicResearchObservatory();
-  return snapshot.studies.find((study) => study.slug === slug || study.waveSlug === slug);
+  return snapshot.studies.find((study) => study.waveSlug === slug)\n    ?? snapshot.studies.find((study) => study.slug === slug && study.isCurrentWave);
 }
 
 export async function publicResearchComparisons(): Promise<readonly PublicResearchComparison[]> {
