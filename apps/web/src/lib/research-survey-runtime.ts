@@ -1079,6 +1079,105 @@ export async function recordResearchProtocolEvent(
   return { id: text(inserted.rows[0].id), contentSha256 };
 }
 
+export type ResearchDeliveryDelayItem = Readonly<{
+  id: string;
+  messageKind: string;
+  delayType?: string;
+  smtpStatus?: string;
+  diagnosticCode?: string;
+  expirationTime?: string;
+  occurredAt?: string;
+}>;
+
+export async function researchDeliveryDelayQueue(
+  principal: SessionPrincipal,
+  slug: string
+): Promise<readonly ResearchDeliveryDelayItem[]> {
+  assertAdminPermission(principal, "research.read");
+  if (!productionDatabaseConfigured()) return [];
+  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+    WITH target_study AS (
+      SELECT id
+      FROM research_studies
+      WHERE slug=$1
+      LIMIT 1
+    ),
+    invite_delays AS (
+      SELECT
+        m.id::text AS id,
+        CASE
+          WHEN m.attempt_kind='reminder' THEN 'Reminder'
+          WHEN m.attempt_kind='reissue' THEN 'Reissued invitation'
+          ELSE 'Initial invitation'
+        END AS message_kind,
+        delay_event.metadata->>'delayType' AS delay_type,
+        delay_event.metadata->>'smtpStatus' AS smtp_status,
+        delay_event.metadata->>'diagnosticCode' AS diagnostic_code,
+        delay_event.metadata->>'expirationTime' AS expiration_time,
+        delay_event.occurred_at
+      FROM research_invite_messages m
+      JOIN research_invites ri ON ri.id=m.invite_id
+      JOIN target_study s ON s.id=ri.study_id
+      LEFT JOIN LATERAL (
+        SELECT e.metadata,e.occurred_at
+        FROM research_invite_events e
+        WHERE e.invite_id=ri.id
+          AND e.metadata->>'providerEventType'='DeliveryDelay'
+          AND (
+            e.metadata->>'attemptId'=m.id::text
+            OR e.metadata->>'providerMessageId'=m.provider_message_id
+          )
+        ORDER BY e.occurred_at DESC,e.id DESC
+        LIMIT 1
+      ) delay_event ON true
+      WHERE m.status='sent'
+        AND m.last_error LIKE 'SES delivery delay:%'
+    ),
+    participant_delays AS (
+      SELECT
+        d.id::text AS id,
+        CASE
+          WHEN d.message_kind='thank_you_code' THEN 'Thank-you code'
+          ELSE 'Results notification'
+        END AS message_kind,
+        delay_event.metadata->>'delayType' AS delay_type,
+        delay_event.metadata->>'smtpStatus' AS smtp_status,
+        delay_event.metadata->>'diagnosticCode' AS diagnostic_code,
+        delay_event.metadata->>'expirationTime' AS expiration_time,
+        delay_event.occurred_at
+      FROM research_participant_deliveries d
+      JOIN target_study s ON s.id=d.study_id
+      LEFT JOIN LATERAL (
+        SELECT e.metadata,e.occurred_at
+        FROM research_participant_delivery_events e
+        WHERE e.delivery_id=d.id
+          AND e.metadata->>'providerEventType'='DeliveryDelay'
+        ORDER BY e.occurred_at DESC,e.id DESC
+        LIMIT 1
+      ) delay_event ON true
+      WHERE d.status='sent'
+        AND d.last_error LIKE 'SES delivery delay:%'
+    )
+    SELECT *
+    FROM (
+      SELECT * FROM invite_delays
+      UNION ALL
+      SELECT * FROM participant_delays
+    ) delayed
+    ORDER BY occurred_at DESC NULLS LAST,id
+    LIMIT 25
+  `, [slug]);
+  return result.rows.map((row) => ({
+    id: text(row.id),
+    messageKind: text(row.message_kind),
+    delayType: optionalText(row.delay_type),
+    smtpStatus: optionalText(row.smtp_status),
+    diagnosticCode: optionalText(row.diagnostic_code),
+    expirationTime: optionalText(row.expiration_time),
+    occurredAt: optionalText(row.occurred_at)
+  }));
+}
+
 export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
   assertAdminPermission(principal, "research.read");
   if (!productionDatabaseConfigured()) {
