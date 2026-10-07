@@ -5,6 +5,7 @@ import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeade
 import { ResearchStudyFieldworkControls } from "../../../../components/ResearchStudyFieldworkControls";
 import { ResearchStudyFieldworkBalance } from "../../../../components/ResearchStudyFieldworkBalance";
 import { ResearchStudyLifecycleControls } from "../../../../components/ResearchStudyLifecycleControls";
+import { ResearchStudyOperationsRegistry } from "../../../../components/ResearchStudyOperationsRegistry";
 import { ResearchStudyQualityControls } from "../../../../components/ResearchStudyQualityControls";
 import { ResearchStudyProtocolControls } from "../../../../components/ResearchStudyProtocolControls";
 import { ResearchStudySamplingControls } from "../../../../components/ResearchStudySamplingControls";
@@ -12,7 +13,7 @@ import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, Wor
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { researchQualityReviewQueue } from "../../../../lib/research-survey-quality";
-import { researchFieldworkStrata, researchProtocolEvents, researchSurveyAdminOverview } from "../../../../lib/research-survey-runtime";
+import { researchFieldworkStrata, researchProtocolEvents, researchStudyAdminOperations, researchSurveyAdminOverview } from "../../../../lib/research-survey-runtime";
 
 export const metadata: Metadata = {
   title: "Admin · Research Studies",
@@ -32,6 +33,15 @@ export default async function ResearchSurveysAdminPage() {
   if (!hasAdminPermission(principal, "research.read")) redirect("/admin");
 
   const overview = await researchSurveyAdminOverview(principal);
+  const canManageResearch = hasAdminPermission(principal, "research.manage");
+  const studyOperations = new Map(
+    canManageResearch
+      ? await Promise.all(overview.studies.map(async (study) => [
+          study.slug,
+          await researchStudyAdminOperations(principal, study.slug)
+        ] as const))
+      : []
+  );
   const qualityQueues = new Map(
     await Promise.all(overview.studies.map(async (study) => [
       study.slug,
@@ -152,7 +162,11 @@ export default async function ResearchSurveysAdminPage() {
               csrfToken={principal.csrfToken}
               studyStatus={study.status}
               recruitmentTemplateVersion={study.recruitmentTemplateVersion}
+              recruitmentTemplateSubject={study.recruitmentTemplateSubject}
+              recruitmentTemplateBodyText={study.recruitmentTemplateBodyText}
               reminderTemplateVersion={study.reminderTemplateVersion}
+              reminderTemplateSubject={study.reminderTemplateSubject}
+              reminderTemplateBodyText={study.reminderTemplateBodyText}
               reminderSent={study.reminderSent}
               reminderFailed={study.reminderFailed}
               activeContacts={study.activeContacts}
@@ -169,6 +183,19 @@ export default async function ResearchSurveysAdminPage() {
               queuedJobs={study.queuedJobs}
               runningJobs={study.runningJobs}
             />}
+
+            {canManageResearch && studyOperations.get(study.slug) && <>
+              <WorkspaceSectionHeading
+                eyebrow="Study operations"
+                title="Email · Επαφές · Προσκλήσεις · ΚΑΔ · Συγκατάθεση"
+                note="Το καθημερινό operational workspace της μελέτης. Προσωπικά στοιχεία παραμένουν μόνο στο Research Admin."
+              />
+              <ResearchStudyOperationsRegistry
+                slug={study.slug}
+                csrfToken={principal.csrfToken}
+                operations={studyOperations.get(study.slug)!}
+              />
+            </>}
 
             {study.failedJobs > 0 && <div className="workspace-inline-note form-error">
               {study.failedJobs} research job(s) require review before relying on the evidence chain.
