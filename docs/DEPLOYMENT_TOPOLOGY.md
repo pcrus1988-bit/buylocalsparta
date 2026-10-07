@@ -70,6 +70,7 @@ docker run --env-file worker.env -e BLS_WORKER_ROLE=crawler buy-local-sparta-wor
 docker run --env-file worker.env -e BLS_WORKER_ROLE=nova-catalogue buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=nova-order-reconciliation buy-local-sparta-worker
 docker run --env-file worker.env -e BLS_WORKER_ROLE=symphonya buy-local-sparta-worker
+docker run --env-file worker.env -e BLS_WORKER_ROLE=research -e BLS_RESEARCH_JOB_TYPES=frame_snapshot,sample_draw,analysis,release,identity_destruction buy-local-sparta-worker
 ```
 
 Do not combine these roles into one process. Separate roles reduce blast radius, allow different network/provider access, and allow independent restart/scaling.
