@@ -137,7 +137,7 @@ export default async function ResearchObservatoryPage() {
         Η public Research βάση δεν είναι ακόμη ενεργή στο τρέχον deployment. Το UX είναι έτοιμο να ενεργοποιηθεί μόλις το production schema φτάσει στο Research schema head.
       </div>}
 
-      <div className={styles.footer}>KONTA MOY Research · Programme → Study → Wave → governed release</div>
+      <div className={styles.footer}>KONTA MOY Research · Programme → Study → Wave → Evidence Release</div>
     </div>
     <SiteFooter />
   </main>;
