@@ -222,9 +222,18 @@ Lifecycle transitions use `research.manage`, CSRF protection and the existing ad
 
 ## RBAC
 
-- `research.read`: super_admin, compliance, auditor.
-- `research.manage`: super_admin only.
+Research duties are separated explicitly in the application role model introduced with schema 0429:
+
+- `super_admin` and `research_superadmin` hold the complete research permission set.
+- `research_methodologist` holds `research.read`, `research.design.manage`, `research.quality.manage` and `research.analysis.manage`.
+- `research_fieldwork` holds `research.read` and `research.fieldwork.manage`.
+- `research_analyst` holds `research.read` and `research.analysis.manage`.
+- `research_publisher` holds `research.read` and `research.publish.manage`.
+- `research_privacy` holds `research.read` and `research.privacy.manage`.
+- `compliance` and `auditor` retain read-only `research.read` access.
 - Public participants have no direct database role access to research tables.
+
+The legacy aggregate `research.manage` permission remains available to the two super-admin research roles for backwards-compatible high-level controls, while new operational surfaces should prefer the narrower duty-specific permissions.
 
 ## Database / API security
 
@@ -316,17 +325,20 @@ If probability sampling is not successfully maintained, do not present a convent
 
 ## Production schema rollout
 
-The research schema is deployed through the repository's checksum-aware migration ledger, not by applying the SQL files independently through a second migration system.
+The research schema is deployed through the repository's checksum-aware application migration ledger, not by applying the Research SQL files independently through a second migration system. This preserves one canonical branch, one migration history and one schema head across application and Research infrastructure.
 
 `.github/workflows/research-survey-schema-rollout.yml` is a manual-only production workflow. Its default execution is preflight-only. Before any mutation it:
 
 - verifies the immutable migration checksum manifest;
-- requires the repository migration head to be exactly 427;
-- requires the production application ledger to be either clean schema 415 or already-complete schema 427;
-- rejects a schema-415 database if any key research table already exists, preventing a partial-state rollout;
+- requires the repository migration head to be exactly 434;
+- requires the production application ledger to be either clean schema 415 or already-complete schema 434;
+- rejects a schema-415 database if any required Research relation already exists, preventing a partial-state rollout;
+- verifies the canonical filename/version ledger rather than accepting an equivalent-looking but divergent migration history;
 - uses the protected `production` environment and its `DATABASE_URL` secret.
 
-Only an explicit workflow dispatch with `apply=true` runs `npm run db:migrate`. The existing migrator applies missing SQL and inserts the exact filename/SHA-256 into `public.schema_migrations` in the same guarded migration transaction. Postcheck then requires schema 427 and the key research relations, including programme/wave hierarchy, locked analysis-plan and immutable sample-design tables, before application readiness is evaluated.
+Only an explicit workflow dispatch with `apply=true` runs `npm run db:migrate`. The existing migrator applies the complete missing canonical chain from 0416 through 0434 and inserts the exact filename/SHA-256 into `public.schema_migrations` in the same guarded migration transaction. Schema 0434 is included because the Research rollout is pinned to the whole application schema head; it reconciles historical storefront/read-model state so Research is not deployed on a divergent migration lineage.
+
+Postcheck requires schema 434, the canonical migration ledger, and the required Research relations including programme/wave hierarchy, private identity boundary evidence, role separation, population-margin governance, longitudinal lineage and release-archive evidence before application readiness is evaluated.
 
 The rollout workflow does not enable research email delivery or start fieldwork. Those remain separate governed actions. Pilot and fielding transitions additionally fail closed unless a locked analysis plan exists for the active instrument.
 
