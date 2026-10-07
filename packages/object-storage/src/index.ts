@@ -43,6 +43,22 @@ export class S3ObjectStorage {
     }));
   }
 
+  async write(input: { objectKey: string; body: Uint8Array; contentType?: string; cacheControl?: string; metadata?: Readonly<Record<string,string>> }): Promise<StoredObjectMetadata> {
+    const body = Buffer.from(input.body);
+    const result = await this.#client.send(new PutObjectCommand({
+      Bucket: this.#config.bucket,
+      Key: input.objectKey,
+      Body: body,
+      ContentType: input.contentType,
+      CacheControl: input.cacheControl,
+      Metadata: input.metadata ? { ...input.metadata } : undefined
+    }));
+    const stored = await this.head(input.objectKey);
+    if (!stored) throw new Error("Object storage write could not be verified");
+    if (stored.byteSize !== body.length) throw new Error("Object storage write size mismatch");
+    return { ...stored, etag: stored.etag ?? result.ETag };
+  }
+
   async createUploadUrl(input: { objectKey: string; contentType: string; expiresInSeconds?: number }): Promise<{ url: string; headers: Readonly<Record<string,string>>; expiresInSeconds: number }> {
     const expiresInSeconds = input.expiresInSeconds ?? this.#config.uploadTtlSeconds;
     if (!Number.isSafeInteger(expiresInSeconds) || expiresInSeconds < 60 || expiresInSeconds > 3600) throw new Error("Upload URL expiry must be between 60 and 3600 seconds");
