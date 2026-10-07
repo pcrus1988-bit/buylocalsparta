@@ -5,6 +5,7 @@ import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeade
 import { ResearchStudyFieldworkControls } from "../../../../components/ResearchStudyFieldworkControls";
 import { ResearchStudyFieldworkBalance } from "../../../../components/ResearchStudyFieldworkBalance";
 import { ResearchStudyLifecycleControls } from "../../../../components/ResearchStudyLifecycleControls";
+import { ResearchStudyOperationsDirectory } from "../../../../components/ResearchStudyOperationsDirectory";
 import { ResearchStudyQualityControls } from "../../../../components/ResearchStudyQualityControls";
 import { ResearchStudyProtocolControls } from "../../../../components/ResearchStudyProtocolControls";
 import { ResearchStudySamplingControls } from "../../../../components/ResearchStudySamplingControls";
@@ -12,6 +13,7 @@ import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, Wor
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { researchQualityReviewQueue } from "../../../../lib/research-survey-quality";
+import { researchAdminOperationalWorkspace } from "../../../../lib/research-survey-admin-directory";
 import { researchFieldworkStrata, researchProtocolEvents, researchSurveyAdminOverview } from "../../../../lib/research-survey-runtime";
 
 export const metadata: Metadata = {
@@ -50,6 +52,12 @@ export default async function ResearchSurveysAdminPage() {
       await researchProtocolEvents(principal, study.slug)
     ] as const))
   );
+  const operationalWorkspaces = new Map(
+    await Promise.all(overview.studies.map(async (study) => [
+      study.slug,
+      await researchAdminOperationalWorkspace(principal, study.slug)
+    ] as const))
+  );
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Research Studies" />
@@ -64,7 +72,7 @@ export default async function ResearchSurveysAdminPage() {
     </div></section>
 
     {!overview.databaseConfigured
-      ? <section className="shell vendor-section"><WorkspaceEmptyState title="Research database is not available." body="The admin surface will activate after schema 426 is deployed." /></section>
+      ? <section className="shell vendor-section"><WorkspaceEmptyState title="Research database is not available." body="The admin surface will activate when the Research schema is available." /></section>
       : overview.studies.length === 0
         ? <section className="shell vendor-section"><WorkspaceEmptyState title="No research studies have been created." /></section>
         : overview.studies.map((study) => <div key={study.id}>
@@ -118,7 +126,13 @@ export default async function ResearchSurveysAdminPage() {
               </div>
             </div>
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudySamplingControls
+            {operationalWorkspaces.get(study.slug) && <ResearchStudyOperationsDirectory
+              slug={study.slug}
+              csrfToken={principal.csrfToken}
+              workspace={operationalWorkspaces.get(study.slug)!}
+            />}
+
+            {hasAdminPermission(principal, "research.design.manage") && <ResearchStudySamplingControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
               latestFrameStatus={study.latestFrameStatus}
@@ -141,19 +155,24 @@ export default async function ResearchSurveysAdminPage() {
 
             <ResearchStudyFieldworkBalance strata={fieldworkStrata.get(study.slug) ?? []} />
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudyQualityControls
+            {hasAdminPermission(principal, "research.quality.manage") && <ResearchStudyQualityControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
               initialItems={qualityQueues.get(study.slug) ?? []}
             />}
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudyFieldworkControls
+            {hasAdminPermission(principal, "research.fieldwork.manage") && <div id={"email-" + study.slug}>
+              <ResearchStudyFieldworkControls
               slug={study.slug}
               studyTitle={study.title}
               csrfToken={principal.csrfToken}
               studyStatus={study.status}
               recruitmentTemplateVersion={study.recruitmentTemplateVersion}
+              recruitmentTemplateSubject={operationalWorkspaces.get(study.slug)?.templates.find((item) => item.purpose === "research_invitation")?.subject}
+              recruitmentTemplateBodyText={operationalWorkspaces.get(study.slug)?.templates.find((item) => item.purpose === "research_invitation")?.bodyText}
               reminderTemplateVersion={study.reminderTemplateVersion}
+              reminderTemplateSubject={operationalWorkspaces.get(study.slug)?.templates.find((item) => item.purpose === "research_reminder")?.subject}
+              reminderTemplateBodyText={operationalWorkspaces.get(study.slug)?.templates.find((item) => item.purpose === "research_reminder")?.bodyText}
               reminderSent={study.reminderSent}
               reminderFailed={study.reminderFailed}
               activeContacts={study.activeContacts}
@@ -169,13 +188,14 @@ export default async function ResearchSurveysAdminPage() {
               resultsNotificationFailed={study.resultsNotificationFailed}
               queuedJobs={study.queuedJobs}
               runningJobs={study.runningJobs}
-            />}
+            />
+            </div>}
 
             {study.failedJobs > 0 && <div className="workspace-inline-note form-error">
               {study.failedJobs} research job(s) require review before relying on the evidence chain.
             </div>}
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudyProtocolControls
+            {hasAdminPermission(principal, "research.quality.manage") && <ResearchStudyProtocolControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
               studyStatus={study.status}

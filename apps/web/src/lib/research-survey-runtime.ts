@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
@@ -1459,6 +1459,61 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       failedJobs: numberValue(row.failed_jobs)
     }))
   };
+}
+
+export async function reissueResearchInviteAccessLink(
+  principal: SessionPrincipal,
+  input: Readonly<{ slug: string; inviteId: string }>
+): Promise<Readonly<{ token: string; expiresAt: string }>> {
+  assertAdminPermission(principal, "research.fieldwork.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+
+  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query<SqlRow>(`
+      SELECT ri.id,ri.status,ri.expires_at,s.status AS study_status
+      FROM research_invites ri
+      JOIN research_studies s ON s.id=ri.study_id
+      WHERE s.slug=$1 AND ri.id=$2
+      FOR UPDATE OF ri
+    `, [input.slug, input.inviteId]);
+    const row = result.rows[0];
+    if (!row) throw new Error("RESEARCH_INVITE_NOT_FOUND");
+    if (!["pilot","fielding"].includes(text(row.study_status))) throw new Error("SURVEY_NOT_OPEN");
+    if (!["created","sent","opened","started"].includes(text(row.status))) {
+      throw new Error("RESEARCH_INVITE_LINK_NOT_REISSUABLE");
+    }
+
+    const inviteExpiry = row.expires_at ? new Date(String(row.expires_at)) : undefined;
+    if (inviteExpiry && inviteExpiry.getTime() <= Date.now()) throw new Error("SURVEY_INVITE_EXPIRED");
+    const shortExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const expiresAt = inviteExpiry && inviteExpiry.getTime() < shortExpiry.getTime()
+      ? inviteExpiry
+      : shortExpiry;
+    const token = randomBytes(32).toString("base64url");
+
+    await client.query(`
+      UPDATE research_invite_access_tokens
+      SET status='revoked',revoked_at=now()
+      WHERE invite_id=$1
+        AND token_kind='reissue'
+        AND status='active'
+    `, [input.inviteId]);
+    await client.query(`
+      INSERT INTO research_invite_access_tokens (
+        invite_id,token_hash,token_kind,status,expires_at
+      )
+      VALUES ($1,$2,'reissue','active',$3)
+    `, [input.inviteId, sha256(token), expiresAt.toISOString()]);
+    await client.query("COMMIT");
+    return { token, expiresAt: expiresAt.toISOString() };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export type ResearchLifecycleAction =
