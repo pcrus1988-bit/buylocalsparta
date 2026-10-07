@@ -29,7 +29,7 @@ const DEFAULT_REMINDER_BODY = `Καλησπέρα,
 
 Δεν θα αποσταλούν περισσότερες υπενθυμίσεις από το προκαθορισμένο όριο της μελέτης. Η συμμετοχή ή μη συμμετοχή δεν επηρεάζει οποιαδήποτε εμπορική σχέση με το KONTA MOY.`;
 
-type Busy = "template" | "reminderTemplate" | "send" | "reminders" | "rewards" | "analysis" | "release" | "results" | null;
+type Busy = "template" | "reminderTemplate" | "send" | "reminders" | "suppress" | "rewards" | "analysis" | "release" | "results" | null;
 
 type EmailPurpose = "research_invitation" | "research_reminder" | "thank_you_code" | "results_notification";
 
@@ -98,6 +98,8 @@ export function ResearchStudyFieldworkControls({
   const [reminderMinAgeDays, setReminderMinAgeDays] = useState("5");
   const [reminderMinGapDays, setReminderMinGapDays] = useState("5");
   const [reminderMaxCount, setReminderMaxCount] = useState("2");
+  const [manualSuppressEmail, setManualSuppressEmail] = useState("");
+  const [manualSuppressNote, setManualSuppressNote] = useState("");
   const [message, setMessage] = useState("");
   const [pendingEmail, setPendingEmail] = useState<PendingEmailSend | null>(null);
   const [confirmationStep, setConfirmationStep] = useState<1 | 2>(1);
@@ -179,23 +181,55 @@ export function ResearchStudyFieldworkControls({
     setConfirmationText("");
   }
 
-  function sendReminders() {
+  async function sendReminders() {
     if (!reminderValid) return;
-    openEmailConfirmation({
-      action: "send_reminders",
-      busy: "reminders",
-      purpose: "research_reminder",
-      purposeLabel: "Υπενθύμιση συμμετοχής στη μελέτη",
-      maxEmails: reminderBatchN,
-      payload: {
+    setBusy("reminders");
+    setMessage("");
+    try {
+      const result = await post({
         action: "send_reminders",
         limit: reminderBatchN,
         minAgeDays: reminderAgeN,
         minGapDays: reminderGapN,
         maxReminders: reminderMaxN,
-        label: "fieldwork-reminder-" + new Date().toISOString()
-      }
-    });
+        label: "manual-reminder-check-" + new Date().toISOString()
+      });
+      setMessage("Ο χειροκίνητος έλεγχος υπενθυμίσεων μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
+      router.refresh();
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : "Ο έλεγχος υπενθυμίσεων δεν μπήκε στην ουρά.";
+      setMessage(raw === "RESEARCH_EMAIL_DELIVERY_DISABLED"
+        ? "Η ερευνητική αποστολή SES είναι απενεργοποιημένη."
+        : raw);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function suppressContact() {
+    const email = manualSuppressEmail.trim().toLowerCase();
+    if (!email) return;
+    setBusy("suppress");
+    setMessage("");
+    try {
+      const result = await post({
+        action: "suppress_contact",
+        email,
+        note: manualSuppressNote
+      });
+      setMessage(
+        "Η διεύθυνση αποκλείστηκε από ερευνητικές αποστολές. " +
+        String(result.matchedContacts || 0) + " εγγραφή(ές) επαφής · " +
+        String(result.suppressedInvites || 0) + " ενεργή(ές) πρόσκληση(εις) έκλεισαν."
+      );
+      setManualSuppressEmail("");
+      setManualSuppressNote("");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Δεν ήταν δυνατός ο αποκλεισμός της διεύθυνσης.");
+    } finally {
+      setBusy(null);
+    }
   }
 
   function sendInvites() {
@@ -422,8 +456,8 @@ export function ResearchStudyFieldworkControls({
 
     <div className="workspace-action-bar">
       <span>
-        <strong>Governed reminders</strong><br />
-        Ο ίδιος canonical invite/response παραμένει ενεργός. Κάθε email παίρνει νέο opaque token hash και καταγράφεται ως contact attempt, χωρίς να αυξάνει τον αριθμό των invitations ή το response-rate denominator.
+        <strong>Automatic reminder protocol</strong><br />
+        Οι υπενθυμίσεις ελέγχονται αυτόματα από το Research cron. Προεπιλογή: πρώτη υπενθύμιση μετά από 5 ημέρες, ελάχιστο διάστημα 5 ημερών και έως 2 υπενθυμίσεις. Δεν αποστέλλεται υπενθύμιση σε ολοκληρωμένη/ανακληθείσα συμμετοχή, opt-out, bounce ή complaint. Τα πεδία δεξιά χρησιμοποιούνται μόνο για χειροκίνητο έκτακτο έλεγχο.
       </span>
       <div className="workspace-action-buttons" style={{ flexWrap: "wrap" }}>
         <label>
@@ -479,7 +513,36 @@ export function ResearchStudyFieldworkControls({
           disabled={Boolean(busy) || workerBusy || !fielding || !reminderTemplateVersion || !reminderValid}
           onClick={() => void sendReminders()}
           type="button"
-        >{busy === "reminders" ? "Queueing…" : "Queue reminder batch"}</button>
+        >{busy === "reminders" ? "Έλεγχος…" : "Run reminder check now"}</button>
+      </div>
+    </div>
+
+    <div className="workspace-action-bar">
+      <span>
+        <strong>Manual research contact suppression</strong><br />
+        Χρησιμοποιήστε το όταν κάποιος ζητήσει να μη λάβει άλλη ερευνητική επικοινωνία. Η διεύθυνση δεν διαγράφεται από το ιστορικό evidence εκείνη τη στιγμή· αποκλείεται άμεσα από όλες τις επόμενες ερευνητικές αποστολές και καταγράφεται append-only suppression event.
+      </span>
+      <div className="workspace-action-buttons" style={{ flexWrap: "wrap" }}>
+        <input
+          aria-label="Email to suppress from research"
+          onChange={(event) => setManualSuppressEmail(event.target.value)}
+          placeholder="email@example.gr"
+          type="email"
+          value={manualSuppressEmail}
+        />
+        <input
+          aria-label="Research suppression note"
+          onChange={(event) => setManualSuppressNote(event.target.value)}
+          placeholder="Αιτία / σημείωση (προαιρετικό)"
+          type="text"
+          value={manualSuppressNote}
+        />
+        <button
+          className="button button-secondary"
+          disabled={Boolean(busy) || !manualSuppressEmail.trim()}
+          onClick={() => void suppressContact()}
+          type="button"
+        >{busy === "suppress" ? "Αποκλεισμός…" : "Suppress research email"}</button>
       </div>
     </div>
 
@@ -583,7 +646,10 @@ export function ResearchStudyFieldworkControls({
             {pendingEmail.maxEmails.toLocaleString("el-GR")}
           </div>
           <div>
-            <strong>Αυτόματη επόμενη παρτίδα:</strong> Όχι. Κάθε νέα παρτίδα απαιτεί νέα διπλή επιβεβαίωση.
+            <strong>Αυτόματη επόμενη παρτίδα:</strong>{" "}
+            {pendingEmail.purpose === "research_invitation"
+              ? "Όχι για νέες προσκλήσεις. Οι προβλεπόμενες υπενθυμίσεις μπορούν να ακολουθήσουν αυτόματα μόνο για μη απαντημένους, ενεργούς και μη αποκλεισμένους παραλήπτες."
+              : "Όχι. Κάθε νέα παρτίδα αυτού του τύπου απαιτεί νέα διπλή επιβεβαίωση."}
           </div>
         </div>
 
