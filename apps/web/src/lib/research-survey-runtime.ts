@@ -827,7 +827,7 @@ export async function researchFieldworkStrata(
   assertAdminPermission(principal, "research.read");
   if (!productionDatabaseConfigured()) return [];
 
-  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+  const result = await getAdminPostgresRuntime().sqlPool.query<SqlRow>(`
     WITH study AS (
       SELECT
         id,
@@ -962,7 +962,7 @@ export async function researchProtocolEvents(
 ): Promise<readonly ResearchProtocolEvent[]> {
   assertAdminPermission(principal, "research.read");
   if (!productionDatabaseConfigured()) return [];
-  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+  const result = await getAdminPostgresRuntime().sqlPool.query<SqlRow>(`
     SELECT
       pe.id,pe.event_type,pe.lifecycle_phase,pe.category,pe.severity,
       pe.title,pe.description,pe.rationale,pe.impact_assessment,pe.corrective_action,
@@ -1055,7 +1055,7 @@ export async function recordResearchProtocolEvent(
     occurredAt
   };
   const contentSha256 = sha256(canonicalResearchEvidence(evidence));
-  const pool = getProductionPostgresRuntime().sqlPool;
+  const pool = getAdminPostgresRuntime().sqlPool;
   const inserted = await pool.query<SqlRow>(`
     INSERT INTO research_protocol_events (
       study_id,event_type,lifecycle_phase,category,severity,title,description,
@@ -1095,7 +1095,7 @@ export async function researchDeliveryDelayQueue(
 ): Promise<readonly ResearchDeliveryDelayItem[]> {
   assertAdminPermission(principal, "research.read");
   if (!productionDatabaseConfigured()) return [];
-  const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+  const result = await getAdminPostgresRuntime().sqlPool.query<SqlRow>(`
     WITH target_study AS (
       SELECT id
       FROM research_studies
@@ -1184,7 +1184,7 @@ export async function researchSurveyAdminIndexOverview(principal: SessionPrincip
     return { databaseConfigured: false, studies: [] as const };
   }
 
-  const rows = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+  const rows = await getAdminPostgresRuntime().sqlPool.query<SqlRow>(`
     WITH completed AS (
       SELECT
         study_id,
@@ -1234,7 +1234,7 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
   if (!productionDatabaseConfigured()) {
     return { databaseConfigured: false, studies: [] as const };
   }
-  const rows = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
+  const rows = await getAdminPostgresRuntime().sqlPool.query<SqlRow>(`
     SELECT
       s.id, s.slug, s.title, s.status, s.pilot_started_at, s.pilot_ended_at,
       s.fieldwork_starts_at, s.fieldwork_ends_at, s.public_results_url,
@@ -1728,7 +1728,7 @@ export async function researchSurveyOperationsOverview(
     hasAdminPermission(principal, "research.fieldwork.manage") ||
     hasAdminPermission(principal, "research.manage");
 
-  const pool = getProductionPostgresRuntime().sqlPool;
+  const pool = getAdminPostgresRuntime().sqlPool;
   const study = await pool.query<SqlRow>(
     "SELECT id,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1",
     [slug]
@@ -2039,7 +2039,7 @@ export async function transitionResearchStudy(
     assertAdminPermission(principal, "research.publish.manage");
   }
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
-  const client = await getProductionPostgresRuntime().sqlPool.connect();
+  const client = await getAdminPostgresRuntime().sqlPool.connect();
   try {
     await client.query("BEGIN");
     const rowResult = await client.query<SqlRow>(`
