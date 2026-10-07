@@ -122,6 +122,16 @@ Required:
 
 Production media scanning is scheduled by `.github/workflows/media-worker-production.yml` every five minutes. The workflow pulls the image built from `deploy/media-worker.Dockerfile`, starts its loopback-only `clamd`, runs the queue worker in bounded `drain` mode, and exits. No Railway service, separate ClamAV service, or public scanner endpoint is required. Configure the GitHub repository secrets `MEDIA_DATABASE_URL`, `MEDIA_OBJECT_STORAGE_ACCESS_KEY_ID`, and `MEDIA_OBJECT_STORAGE_SECRET_ACCESS_KEY` before activation.
 
+## `research` worker
+
+- `DATABASE_URL`
+- `BLS_WORKER_ROLE=research`
+- `BLS_RESEARCH_JOB_TYPES=frame_snapshot,sample_draw,analysis,release,identity_destruction`
+- `BLS_RESEARCH_POLL_MS=10000`
+- `BLS_RESEARCH_BATCH_SIZE=1`
+
+The long-running Research worker is deliberately restricted to non-email workloads because frame construction can stream the full eligible G.E.M.I. population and must not share a short serverless execution budget. Email-bearing jobs (`invite_batch`, `invite_reminder`, `reward_delivery`, `results_notification`) are claimed only by the bounded Vercel cron at `/api/cron/research-study-jobs`, where the existing production SES credentials live. Keep these job classes disjoint to prevent a worker without mail credentials from claiming delivery work.
+
 ## `reports` worker
 
 Required:

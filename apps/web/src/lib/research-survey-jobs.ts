@@ -50,6 +50,21 @@ export type ResearchJobTick = Readonly<{
   failed: number;
 }>;
 
+export const RESEARCH_JOB_TYPES = [
+  "frame_snapshot",
+  "sample_draw",
+  "invite_batch",
+  "invite_reminder",
+  "reward_delivery",
+  "analysis",
+  "release",
+  "results_notification",
+  "identity_destruction"
+] as const;
+
+export type ResearchJobType = (typeof RESEARCH_JOB_TYPES)[number];
+const RESEARCH_JOB_TYPE_SET = new Set<string>(RESEARCH_JOB_TYPES);
+
 function text(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
 }
@@ -810,7 +825,10 @@ export async function queueGreekRetailAnalysis(
   return { jobId: text(job.rows[0]!.id) };
 }
 
-async function claimResearchJob(): Promise<ResearchJobRow | undefined> {
+async function claimResearchJob(
+  allowedJobTypes: readonly ResearchJobType[]
+): Promise<ResearchJobRow | undefined> {
+  if (!allowedJobTypes.length) return undefined;
   const client = await getProductionPostgresRuntime().sqlPool.connect();
   try {
     await client.query("BEGIN");
@@ -818,11 +836,11 @@ async function claimResearchJob(): Promise<ResearchJobRow | undefined> {
       SELECT id, study_id, wave_id, job_type, input, output, attempts
       FROM research_study_jobs
       WHERE status='queued' AND available_at <= now()
-        AND job_type IN ('frame_snapshot','sample_draw','invite_batch','invite_reminder','reward_delivery','analysis','release','results_notification','identity_destruction')
+        AND job_type = ANY($1::text[])
       ORDER BY created_at
       FOR UPDATE SKIP LOCKED
       LIMIT 1
-    `);
+    `, [allowedJobTypes]);
     const job = result.rows[0];
     if (!job) {
       await client.query("COMMIT");
@@ -3135,16 +3153,22 @@ async function processIdentityDestructionJob(job: ResearchJobRow): Promise<Recor
   }
 }
 
-export async function processResearchStudyJobs(limit = 1): Promise<ResearchJobTick> {
+export async function processResearchStudyJobs(
+  limit = 1,
+  allowedJobTypes: readonly string[] = RESEARCH_JOB_TYPES
+): Promise<ResearchJobTick> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const safeLimit = Math.max(1, Math.min(5, Math.floor(limit)));
+  const normalizedJobTypes = [...new Set(allowedJobTypes)]
+    .filter((jobType): jobType is ResearchJobType => RESEARCH_JOB_TYPE_SET.has(jobType));
+  if (!normalizedJobTypes.length) return { claimed: 0, processed: 0, requeued: 0, failed: 0 };
   let claimed = 0;
   let processed = 0;
   let requeued = 0;
   let failed = 0;
 
   for (let index = 0; index < safeLimit; index += 1) {
-    const job = await claimResearchJob();
+    const job = await claimResearchJob(normalizedJobTypes);
     if (!job) break;
     claimed += 1;
     try {

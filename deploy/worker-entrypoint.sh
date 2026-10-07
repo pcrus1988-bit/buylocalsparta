@@ -33,8 +33,11 @@ case "$role" in
   symphonya)
     exec node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs workers/symphonya-worker.ts
     ;;
+  research)
+    exec node --experimental-strip-types --loader ./scripts/resolve-typescript-extension.mjs workers/research-survey-worker.ts
+    ;;
   "")
-    echo "BLS_WORKER_ROLE is required (postgres|search|notifications|media|reports|crawler|nova-catalogue|nova-order-reconciliation|symphonya)" >&2
+    echo "BLS_WORKER_ROLE is required (postgres|search|notifications|media|reports|crawler|nova-catalogue|nova-order-reconciliation|symphonya|research)" >&2
     exit 64
     ;;
   *)
