@@ -1,4 +1,4 @@
-import type { ResearchSurveyOperationsOverview } from "../lib/research-survey-runtime";
+import type { ResearchSurveyOperationsOverview, ResearchSurveyOperationsSection } from "../lib/research-survey-runtime";
 import { WorkspaceSectionHeading, WorkspaceStatusBadge } from "./WorkspacePagePrimitives";
 
 const KAD_GROUPS: Record<string, { label: string; prefixes: string }> = {
@@ -45,11 +45,20 @@ function invitationState(value?: string): string {
   return labels[value || ""] || value || "—";
 }
 
-export function ResearchStudyOperationsPanel({ data, slug }: { data: ResearchSurveyOperationsOverview; slug: string }) {
+export function ResearchStudyOperationsPanel({
+  data,
+  slug,
+  section = "all"
+}: {
+  data: ResearchSurveyOperationsOverview;
+  slug: string;
+  section?: ResearchSurveyOperationsSection;
+}) {
   if (!data.databaseConfigured || !data.studyFound) return null;
+  const show = (value: Exclude<ResearchSurveyOperationsSection, "all">) => section === "all" || section === value;
 
   return <>
-    <section className="shell vendor-section" id={"survey-contacts-" + slug}>
+    {show("contacts") && <section className="shell vendor-section" id={"survey-contacts-" + slug}>
       <WorkspaceSectionHeading
         eyebrow="Επαφές"
         title="Λίστα email του τρέχοντος πλαισίου"
@@ -83,9 +92,9 @@ export function ResearchStudyOperationsPanel({ data, slug }: { data: ResearchSur
           </tr>)}</tbody>
         </table>
       </div>}
-    </section>
+    </section>}
 
-    <section className="shell vendor-section" id={"survey-invitations-" + slug}>
+    {show("invitations") && <section className="shell vendor-section" id={"survey-invitations-" + slug}>
       <WorkspaceSectionHeading
         eyebrow="Προσκλήσεις"
         title="Προσωπικοί σύνδεσμοι συμμετοχής"
@@ -114,9 +123,9 @@ export function ResearchStudyOperationsPanel({ data, slug }: { data: ResearchSur
           </tr>)}</tbody>
         </table>
       </div>}
-    </section>
+    </section>}
 
-    <section className="shell vendor-section" id={"survey-kad-" + slug}>
+    {show("kad") && <section className="shell vendor-section" id={"survey-kad-" + slug}>
       <WorkspaceSectionHeading
         eyebrow="ΚΑΔ"
         title="Σύνθεση του ερευνητικού πλαισίου"
@@ -134,9 +143,9 @@ export function ResearchStudyOperationsPanel({ data, slug }: { data: ResearchSur
           </article>;
         })}
       </div>
-    </section>
+    </section>}
 
-    <section className="shell vendor-section" id={"survey-consent-" + slug}>
+    {show("consents") && <section className="shell vendor-section" id={"survey-consent-" + slug}>
       <WorkspaceSectionHeading
         eyebrow="Συγκατάθεση"
         title="Τρέχουσα εικόνα επιλογών συμμετεχόντων"
@@ -149,9 +158,9 @@ export function ResearchStudyOperationsPanel({ data, slug }: { data: ResearchSur
           <small>{item.declined.toLocaleString("el-GR")} Όχι · {item.total.toLocaleString("el-GR")} συνολικά</small>
         </article>)}
       </div>}
-    </section>
+    </section>}
 
-    <section className="shell vendor-section" id={"survey-template-history-" + slug}>
+    {show("templates") && <section className="shell vendor-section" id={"survey-template-history-" + slug}>
       <WorkspaceSectionHeading
         eyebrow="Ιστορικό email"
         title="Εκδόσεις πρόσκλησης και υπενθύμισης"
@@ -172,6 +181,6 @@ export function ResearchStudyOperationsPanel({ data, slug }: { data: ResearchSur
           <small>{dateTime(template.lockedAt || template.createdAt)}</small>
         </article>)}
       </div>}
-    </section>
+    </section>}
   </>;
 }

@@ -97,6 +97,11 @@ const methodologyPage = readFileSync("apps/web/src/app/research/greek-retail-202
 const observatoryPage = readFileSync("apps/web/src/app/research/page.tsx", "utf8");
 const researchPrivacyPage = readFileSync("apps/web/src/app/research/privacy/page.tsx", "utf8");
 const researchAdmin = readFileSync("apps/web/src/app/admin/research/surveys/page.tsx", "utf8");
+const researchAdminSection = readFileSync("apps/web/src/app/admin/research/surveys/[slug]/[section]/page.tsx", "utf8");
+const researchSurveyAdminNav = readFileSync("apps/web/src/components/ResearchSurveyAdminNav.tsx", "utf8");
+const researchQuestionsEditor = readFileSync("apps/web/src/components/ResearchSurveyQuestionsEditor.tsx", "utf8");
+const researchAdminDesign = readFileSync("apps/web/src/lib/research-survey-admin-design.ts", "utf8");
+const researchGlobalSettings = readFileSync("apps/web/src/app/admin/research/settings/page.tsx", "utf8");
 const releaseRoute = readFileSync("apps/web/src/app/api/research/[slug]/release/route.ts", "utf8");
 const sesSender = readFileSync("apps/web/src/lib/admin-mail-ses.ts", "utf8");
 const gemi = readFileSync("apps/web/src/lib/gemi-admin-export.ts", "utf8");
@@ -476,7 +481,10 @@ if (!sesEvents.includes("provider_message_not_research_message")) errors.push("S
 if (!sesEvents.includes('eventType === "DeliveryDelay"')) errors.push("SES delivery-delay callback handling missing");
 if (!sesEvents.includes("deliveryDelayMetadata")) errors.push("SES delivery-delay diagnostics are not normalized");
 if (!surveyRuntime.includes("researchDeliveryDelayQueue")) errors.push("admin SES delivery-delay diagnostic queue missing");
-if (!researchAdmin.includes("Temporarily delayed") || !researchAdmin.includes("SES delivery delays")) errors.push("admin SES delivery-delay status surface missing");
+if (
+  !(researchAdmin.includes("Temporarily delayed") || researchAdminSection.includes("Email deliverability")) ||
+  !(researchAdmin.includes("SES delivery delays") || researchAdminSection.includes("SES delivery delays"))
+) errors.push("admin SES delivery-delay status surface missing");
 if (!jobs.includes("pending_delay.last_error LIKE 'SES delivery delay:%'")) errors.push("automatic reminders do not pause for active SES delivery delays");
 if (!jobs.includes("research_contact_is_suppressed")) errors.push("research worker does not enforce cross-wave suppression");
 if (!jobs.includes("queueGreekRetailInviteReminderBatch")) errors.push("governed reminder queue missing");
@@ -550,7 +558,10 @@ if (!resultsPage.includes("μεθοδολογία της μελέτης")) error
 if (!observatoryPage.includes("ολοκληρωμένες απαντήσεις")) errors.push("public observatory does not disclose understandable participation progress");
 if (!methodologyPage.includes("Τι θα συνοδεύει τα αποτελέσματα")) errors.push("public methodology does not explain what context accompanies results");
 if (!observatoryPage.includes("Πέντε απλά στάδια.")) errors.push("permanent Retail Observatory landing does not explain the study lifecycle in public language");
-if (!researchPrivacyPage.includes("Η συμμετοχή στην έρευνα είναι ξεχωριστή από την εμπορική επικοινωνία.")) errors.push("dedicated research privacy boundary is missing");
+if (
+  !researchPrivacyPage.includes("Η συμμετοχή στην έρευνα είναι ξεχωριστή από την εμπορική επικοινωνία.") &&
+  !researchPrivacyPage.includes("Η συμμετοχή στην έρευνα δεν αποτελεί συγκατάθεση για marketing.")
+) errors.push("dedicated research privacy boundary is missing");
 if (!release.includes("experimentDiagnostics: objectValue(parameters.experimentDiagnostics)")) errors.push("release does not freeze experiment diagnostics");
 if (!release.includes("randomizedExperimentExploratoryPublished")) errors.push("release experimental disclosure flag missing");
 
@@ -591,6 +602,14 @@ if (!samplingControls.includes("planningAssumptionsValid")) errors.push("sample 
 if (!jobs.includes("kontamou.research.sample-design.v1")) errors.push("sample design evidence document is not frozen by the sample worker");
 if (!surveyRuntime.includes("sds.target_complete_n")) errors.push("fieldwork balance does not read frozen sample-design completion targets");
 if (!release.includes("sample_design_sha256") || !release.includes("designEvidence")) errors.push("release artifact does not freeze sample design evidence");
+if (researchAdmin.includes("#survey-")) errors.push("survey admin still relies on hash-anchor navigation");
+if (!researchAdmin.includes('href="/admin/research/settings"')) errors.push("survey index does not separate global Research settings");
+if (!researchGlobalSettings.includes("Global Research settings")) errors.push("dedicated global Research settings page missing");
+if (!researchAdminSection.includes('section === "settings"') || !researchAdminSection.includes('section === "questions"') || !researchAdminSection.includes('section === "evaluation"')) errors.push("dedicated survey design routes missing");
+if (!researchSurveyAdminNav.includes('key: "questions"') || !researchSurveyAdminNav.includes('key: "evaluation"')) errors.push("survey navigation is missing Questions or Evaluation");
+if (!researchQuestionsEditor.includes("save_question") || !researchQuestionsEditor.includes("Add question")) errors.push("editable survey question authoring UI missing");
+if (!researchQuestionsEditor.includes("save_later_evaluation") || !researchQuestionsEditor.includes("Edit as new revision")) errors.push("editable later evaluation UI missing");
+if (!researchAdminDesign.includes("kontamou.research.exploratory-evaluation.v1") || !researchAdminDesign.includes("exploratory_post_registration")) errors.push("versioned post-registration evaluation evidence missing");
 if (!surveyRuntime.includes("recordResearchProtocolEvent") || !surveyRuntime.includes("researchProtocolEvents")) errors.push("protocol evidence runtime missing");
 if (!release.includes("protocolEvidence") || !release.includes("RESEARCH_RELEASE_PROTOCOL_EVIDENCE_INTEGRITY_FAILED")) errors.push("release artifact does not freeze verified protocol evidence");
 if (surveyForm.includes("optionalConsents.marketing")) errors.push("scientific survey completion flow still exposes marketing consent");

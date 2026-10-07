@@ -1645,9 +1645,18 @@ export type ResearchSurveyOperationsOverview = Readonly<{
   }>[];
 }>;
 
+export type ResearchSurveyOperationsSection =
+  | "all"
+  | "templates"
+  | "contacts"
+  | "invitations"
+  | "kad"
+  | "consents";
+
 export async function researchSurveyOperationsOverview(
   principal: SessionPrincipal,
-  slug: string
+  slug: string,
+  section: ResearchSurveyOperationsSection = "all"
 ): Promise<ResearchSurveyOperationsOverview> {
   assertAdminPermission(principal, "research.read");
   const empty: ResearchSurveyOperationsOverview = {
@@ -1679,7 +1688,11 @@ export async function researchSurveyOperationsOverview(
   const studyId = text(studyRow.id);
   const waveId = text(studyRow.current_wave_id);
 
-  const templates = await pool.query<SqlRow>(`
+  const includeAll = section === "all";
+  const emptyRows: { rows: readonly SqlRow[] } = { rows: [] };
+
+  const templates = includeAll || section === "templates"
+    ? await pool.query<SqlRow>(`
     SELECT purpose,version,subject,body_text,status,locked_at,created_at
     FROM research_recruitment_templates
     WHERE study_id=$1
@@ -1687,7 +1700,8 @@ export async function researchSurveyOperationsOverview(
       AND channel='email'
     ORDER BY created_at DESC
     LIMIT 24
-  `, [studyId, waveId || null]);
+  `, [studyId, waveId || null])
+    : emptyRows;
 
   const contactSql = canViewContactValues ? `
     WITH latest_frame AS (
@@ -1774,7 +1788,9 @@ export async function researchSurveyOperationsOverview(
     ORDER BY cp.created_at DESC
     LIMIT 200
   `;
-  const contacts = await pool.query<SqlRow>(contactSql, [studyId, waveId || null]);
+  const contacts = includeAll || section === "contacts"
+    ? await pool.query<SqlRow>(contactSql, [studyId, waveId || null])
+    : emptyRows;
 
   const invitationSql = canViewContactValues ? `
     SELECT
@@ -1814,9 +1830,12 @@ export async function researchSurveyOperationsOverview(
     ORDER BY ri.created_at DESC
     LIMIT 200
   `;
-  const invitations = await pool.query<SqlRow>(invitationSql, [studyId, waveId || null]);
+  const invitations = includeAll || section === "invitations"
+    ? await pool.query<SqlRow>(invitationSql, [studyId, waveId || null])
+    : emptyRows;
 
-  const kadGroups = await pool.query<SqlRow>(`
+  const kadGroups = includeAll || section === "kad"
+    ? await pool.query<SqlRow>(`
     WITH latest_frame AS (
       SELECT id
       FROM research_frame_snapshots
@@ -1852,9 +1871,11 @@ export async function researchSurveyOperationsOverview(
     WHERE fu.frame_snapshot_id=(SELECT id FROM latest_frame)
     GROUP BY COALESCE(NULLIF(fu.sector_code,''),'unknown')
     ORDER BY count(*) DESC, sector_code
-  `, [studyId, waveId || null]);
+  `, [studyId, waveId || null])
+    : emptyRows;
 
-  const consents = await pool.query<SqlRow>(`
+  const consents = includeAll || section === "consents"
+    ? await pool.query<SqlRow>(`
     WITH latest AS (
       SELECT DISTINCT ON (rc.response_id,rc.consent_kind)
         rc.response_id,
@@ -1876,11 +1897,12 @@ export async function researchSurveyOperationsOverview(
     FROM latest
     GROUP BY consent_kind
     ORDER BY consent_kind
-  `, [studyId, waveId || null]);
+  `, [studyId, waveId || null])
+    : emptyRows;
 
   if (canViewContactValues && contacts.rows.length) {
     await recordAdminPersonalDataAccess(principal, {
-      route: "/admin/research/surveys",
+      route: "/admin/research/surveys/" + encodeURIComponent(slug) + "/contacts",
       resourceType: "research_contact_list",
       resourceId: slug,
       purpose: "privacy_operations",

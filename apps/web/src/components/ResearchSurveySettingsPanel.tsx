@@ -1,0 +1,193 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { ResearchSurveyDesignAdminOverview } from "../lib/research-survey-admin-design";
+
+function localDateTime(value?: string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return [
+    date.getFullYear(),
+    "-",
+    pad(date.getMonth() + 1),
+    "-",
+    pad(date.getDate()),
+    "T",
+    pad(date.getHours()),
+    ":",
+    pad(date.getMinutes())
+  ].join("");
+}
+
+export function ResearchSurveySettingsPanel({
+  slug,
+  csrfToken,
+  canEdit,
+  data
+}: {
+  slug: string;
+  csrfToken: string;
+  canEdit: boolean;
+  data: ResearchSurveyDesignAdminOverview;
+}) {
+  const router = useRouter();
+  const [title, setTitle] = useState(data.study.title);
+  const [subtitle, setSubtitle] = useState(data.study.subtitle ?? "");
+  const [populationDefinition, setPopulationDefinition] = useState(data.study.populationDefinition);
+  const [methodologySummary, setMethodologySummary] = useState(data.study.methodologySummary);
+  const [defaultLocale, setDefaultLocale] = useState(data.study.defaultLocale || "el-GR");
+  const [fieldworkEndsAt, setFieldworkEndsAt] = useState(localDateTime(data.study.fieldworkEndsAt));
+  const [publicResultsUrl, setPublicResultsUrl] = useState(data.study.publicResultsUrl ?? "");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const editable = canEdit && data.study.status === "draft";
+  const deadlinePreview = useMemo(() => {
+    if (!fieldworkEndsAt) return "No deadline set";
+    const date = new Date(fieldworkEndsAt);
+    return Number.isFinite(date.getTime()) ? date.toLocaleString("el-GR") : "Invalid deadline";
+  }, [fieldworkEndsAt]);
+
+  async function save() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/admin/research/surveys/" + encodeURIComponent(slug) + "/lifecycle", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+        body: JSON.stringify({
+          action: "save_study_settings",
+          title,
+          subtitle,
+          populationDefinition,
+          methodologySummary,
+          defaultLocale,
+          fieldworkEndsAt: fieldworkEndsAt ? new Date(fieldworkEndsAt).toISOString() : "",
+          publicResultsUrl
+        })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Research survey settings could not be saved.");
+      setMessage("Survey settings saved.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Survey settings could not be saved.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <section className="shell vendor-section">
+    <div className="workspace-action-bar">
+      <span>
+        <strong>Survey-specific settings</strong><br />
+        These values belong to <strong>{data.study.title}</strong> only. They do not change other Research surveys.
+      </span>
+      <span>
+        <strong>Status:</strong> {data.study.status}
+      </span>
+    </div>
+
+    {!editable && <div className="workspace-inline-note">
+      {canEdit
+        ? "This survey is no longer in draft. Its fieldwork identity is frozen; settings are read-only so historic evidence cannot be silently rewritten."
+        : "You have read-only Research access. Editing survey design requires Research design permission."}
+    </div>}
+
+    <div className="workspace-queue-card" style={{ display: "grid", gap: 16 }}>
+      <label>
+        <strong>Survey title</strong><br />
+        <input
+          disabled={!editable}
+          maxLength={240}
+          onChange={(event) => setTitle(event.target.value)}
+          style={{ width: "100%" }}
+          type="text"
+          value={title}
+        />
+      </label>
+
+      <label>
+        <strong>Subtitle</strong><br />
+        <input
+          disabled={!editable}
+          maxLength={320}
+          onChange={(event) => setSubtitle(event.target.value)}
+          style={{ width: "100%" }}
+          type="text"
+          value={subtitle}
+        />
+      </label>
+
+      <label>
+        <strong>Target population</strong><br />
+        <textarea
+          disabled={!editable}
+          onChange={(event) => setPopulationDefinition(event.target.value)}
+          rows={5}
+          style={{ width: "100%" }}
+          value={populationDefinition}
+        />
+        <small>Who the study is intended to represent.</small>
+      </label>
+
+      <label>
+        <strong>Methodology summary</strong><br />
+        <textarea
+          disabled={!editable}
+          onChange={(event) => setMethodologySummary(event.target.value)}
+          rows={7}
+          style={{ width: "100%" }}
+          value={methodologySummary}
+        />
+        <small>Plain-language study design shown in the Research methodology surfaces.</small>
+      </label>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 14 }}>
+        <label>
+          <strong>Default language</strong><br />
+          <select disabled={!editable} onChange={(event) => setDefaultLocale(event.target.value)} value={defaultLocale}>
+            <option value="el-GR">Ελληνικά (el-GR)</option>
+            <option value="en-GB">English (en-GB)</option>
+          </select>
+        </label>
+
+        <label>
+          <strong>Survey deadline</strong><br />
+          <input
+            disabled={!editable}
+            onChange={(event) => setFieldworkEndsAt(event.target.value)}
+            type="datetime-local"
+            value={fieldworkEndsAt}
+          />
+          <small>{deadlinePreview}</small>
+        </label>
+      </div>
+
+      <label>
+        <strong>Public results URL</strong><br />
+        <input
+          disabled={!editable}
+          onChange={(event) => setPublicResultsUrl(event.target.value)}
+          placeholder="https://kontamou.site/research/…/results"
+          style={{ width: "100%" }}
+          type="url"
+          value={publicResultsUrl}
+        />
+      </label>
+
+      {editable && <div className="workspace-action-buttons">
+        <button className="button" disabled={busy} onClick={() => void save()} type="button">
+          {busy ? "Saving…" : "Save survey settings"}
+        </button>
+      </div>}
+
+      {message && <div className={message === "Survey settings saved." ? "workspace-inline-note" : "workspace-inline-note form-error"}>
+        {message}
+      </div>}
+    </div>
+  </section>;
+}
