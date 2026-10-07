@@ -20,7 +20,7 @@ function statusLabel(status: string): string {
     analysis: "Ανάλυση",
     published: "Δημοσιευμένη",
     archived: "Αρχείο"
-  } as Record<string, string>)[status] ?? status;
+  } as Record<string, string>)[status] ?? "Ενημέρωση σε εξέλιξη";
 }
 
 function percent(value: number): string {
