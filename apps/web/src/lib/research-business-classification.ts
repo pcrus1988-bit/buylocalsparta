@@ -569,13 +569,14 @@ export async function canonicalizeResearchBusiness(
     const respondentNormalized = respondentUsesRevenueActivity
       ? optionalText(unit.declared_primary_revenue_activity_normalized)
       : optionalText(unit.declared_main_activity_normalized);
+    const sourceActivitySummary = sourceCodes.join(", ").trim();
     const basisActivity = respondentActivity
-      ?? sourcePrimary
-      ?? sourceCodes.join(", ")
-      ?? "manual classification";
+      || sourcePrimary
+      || sourceActivitySummary
+      || "manual classification";
     const basisNormalized = respondentNormalized
-      ?? normalizeResearchBusinessActivity(basisActivity)
-      ?? "manual classification";
+      || normalizeResearchBusinessActivity(basisActivity)
+      || "manual classification";
 
     const previous = await client.query<SqlRow>(`
       SELECT category_code,status
