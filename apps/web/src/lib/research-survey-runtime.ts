@@ -1183,9 +1183,9 @@ export async function researchStudyFieldworkDirectory(
     inviteId: optionalText(row.invite_id),
     inviteStatus: optionalText(row.invite_status),
     fieldworkPhase: optionalText(row.fieldwork_phase),
-    sentAt: optionalText(row.sent_at),
-    firstOpenedAt: optionalText(row.first_opened_at),
-    expiresAt: optionalText(row.expires_at),
+    sentAt: row.sent_at ? new Date(row.sent_at as string | Date).toISOString() : undefined,
+    firstOpenedAt: row.first_opened_at ? new Date(row.first_opened_at as string | Date).toISOString() : undefined,
+    expiresAt: row.expires_at ? new Date(row.expires_at as string | Date).toISOString() : undefined,
     lastAttemptKind: optionalText(row.last_attempt_kind),
     lastAttemptStatus: optionalText(row.last_attempt_status)
   }));
