@@ -154,6 +154,7 @@ export function CartDrawer() {
               <strong>Το καλάθι σου είναι άδειο.</strong>
               <p>Συνέχισε την περιήγηση και πρόσθεσε προϊόντα χωρίς να χάσεις τη θέση σου.</p>
               <button type="button" onClick={closeCart}>Συνέχεια αγορών</button>
+              <Link className={styles.fullCart} href="/cart" onClick={closeCart}>Προβολή πλήρους καλαθιού</Link>
             </div>
           ) : !detailsReady ? (
             <>
