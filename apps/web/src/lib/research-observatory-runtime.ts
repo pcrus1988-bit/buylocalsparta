@@ -280,7 +280,8 @@ export async function publicResearchObservatory(): Promise<PublicResearchObserva
 
 export async function publicResearchStudy(slug: string): Promise<PublicResearchStudySummary | undefined> {
   const snapshot = await publicResearchObservatory();
-  return snapshot.studies.find((study) => study.waveSlug === slug)\n    ?? snapshot.studies.find((study) => study.slug === slug && study.isCurrentWave);
+  return snapshot.studies.find((study) => study.waveSlug === slug)
+    ?? snapshot.studies.find((study) => study.slug === slug && study.isCurrentWave);
 }
 
 export async function publicResearchComparisons(): Promise<readonly PublicResearchComparison[]> {
