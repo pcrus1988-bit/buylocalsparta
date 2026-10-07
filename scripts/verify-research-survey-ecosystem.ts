@@ -37,6 +37,8 @@ const longitudinalLineageMigrationPath = "db/migrations/0432_research_longitudin
 const longitudinalLineageChecksumPath = "db/migrations/checksums.0432.json";
 const releaseArchiveMigrationPath = "db/migrations/0433_research_release_archive.sql";
 const releaseArchiveChecksumPath = "db/migrations/checksums.0433.json";
+const marketingConsentMigrationPath = "db/migrations/0435_research_marketing_contact_consent.sql";
+const marketingConsentChecksumPath = "db/migrations/checksums.0435.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const deliveryMigration = readFileSync(deliveryMigrationPath, "utf8");
@@ -55,6 +57,7 @@ const qualityV3Migration = readFileSync(qualityV3MigrationPath, "utf8");
 const populationMarginsMigration = readFileSync(populationMarginsMigrationPath, "utf8");
 const longitudinalLineageMigration = readFileSync(longitudinalLineageMigrationPath, "utf8");
 const releaseArchiveMigration = readFileSync(releaseArchiveMigrationPath, "utf8");
+const marketingConsentMigration = readFileSync(marketingConsentMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
 const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
@@ -73,6 +76,7 @@ const qualityV3Checksums = JSON.parse(readFileSync(qualityV3ChecksumPath, "utf8"
 const populationMarginsChecksums = JSON.parse(readFileSync(populationMarginsChecksumPath, "utf8")) as Record<string, string>;
 const longitudinalLineageChecksums = JSON.parse(readFileSync(longitudinalLineageChecksumPath, "utf8")) as Record<string, string>;
 const releaseArchiveChecksums = JSON.parse(readFileSync(releaseArchiveChecksumPath, "utf8")) as Record<string, string>;
+const marketingConsentChecksums = JSON.parse(readFileSync(marketingConsentChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
@@ -97,6 +101,9 @@ const methodologyPage = readFileSync("apps/web/src/app/research/greek-retail-202
 const observatoryPage = readFileSync("apps/web/src/app/research/page.tsx", "utf8");
 const researchPrivacyPage = readFileSync("apps/web/src/app/research/privacy/page.tsx", "utf8");
 const researchAdmin = readFileSync("apps/web/src/app/admin/research/surveys/page.tsx", "utf8");
+const marketingAdmin = readFileSync("apps/web/src/app/admin/research/contacts/page.tsx", "utf8");
+const marketingExport = readFileSync("apps/web/src/app/api/admin/research/contacts/export/route.ts", "utf8");
+const workspaceNavigation = readFileSync("apps/web/src/lib/workspace-navigation.ts", "utf8");
 const releaseRoute = readFileSync("apps/web/src/app/api/research/[slug]/release/route.ts", "utf8");
 const sesSender = readFileSync("apps/web/src/lib/admin-mail-ses.ts", "utf8");
 const gemi = readFileSync("apps/web/src/lib/gemi-admin-export.ts", "utf8");
@@ -153,6 +160,7 @@ const qualityV3Sha = createHash("sha256").update(qualityV3Migration, "utf8").dig
 const populationMarginsSha = createHash("sha256").update(populationMarginsMigration, "utf8").digest("hex");
 const longitudinalLineageSha = createHash("sha256").update(longitudinalLineageMigration, "utf8").digest("hex");
 const releaseArchiveSha = createHash("sha256").update(releaseArchiveMigration, "utf8").digest("hex");
+const marketingConsentSha = createHash("sha256").update(marketingConsentMigration, "utf8").digest("hex");
 if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0416 checksum does not match migration bytes");
 }
@@ -207,7 +215,10 @@ if (longitudinalLineageChecksums["0432_research_longitudinal_lineage.sql"] !== l
 if (releaseArchiveChecksums["0433_research_release_archive.sql"] !== releaseArchiveSha) {
   errors.push("0433 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 434")) errors.push("runtime schema head is not 434");
+if (marketingConsentChecksums["0435_research_marketing_contact_consent.sql"] !== marketingConsentSha) {
+  errors.push("0435 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 435")) errors.push("runtime schema head is not 434");
 if (!qualityV3Migration.includes("ADD COLUMN quality_score")) errors.push("research quality score column missing");
 if (!qualityV3Migration.includes("ADD COLUMN answer_pattern_sha256")) errors.push("research answer-pattern fingerprint column missing");
 if (!qualityV3Migration.includes("research_quality_answer_pattern_idx")) errors.push("research answer-pattern QA index missing");
@@ -233,6 +244,12 @@ if (!identityVaultMigration.includes("CREATE TABLE public.research_identity_dest
 if (!identityVaultMigration.includes("research_private_contact_vault_platform_runtime")) errors.push("research private contact vault RLS policy missing");
 if (!identityVaultMigration.includes("research_identity_destruction_events_append_only")) errors.push("research identity destruction evidence is not append-only");
 if (!identityVaultMigration.includes("'identity_destruction'")) errors.push("research identity destruction job type missing");
+if (!marketingConsentMigration.includes("CREATE TABLE research_private.marketing_contacts")) errors.push("restricted marketing contact registry missing");
+if (!marketingConsentMigration.includes("CREATE TABLE research_private.marketing_consent_events")) errors.push("append-only marketing consent event ledger missing");
+if (!marketingConsentMigration.includes("research_private_marketing_consent_events_append_only")) errors.push("marketing consent evidence is not append-only");
+if (!marketingConsentMigration.includes("ALTER TABLE research_private.marketing_contacts ENABLE ROW LEVEL SECURITY")) errors.push("marketing contact registry RLS missing");
+if (!marketingConsentMigration.includes("ALTER TABLE research_private.marketing_consent_events ENABLE ROW LEVEL SECURITY")) errors.push("marketing consent event RLS missing");
+if (!marketingConsentMigration.includes("statement_version") || !marketingConsentMigration.includes("statement_text")) errors.push("marketing consent wording/version evidence missing");
 if (!hierarchyMigration.includes("CREATE TABLE public.research_programmes")) errors.push("research programme hierarchy table missing");
 if (!hierarchyMigration.includes("CREATE TABLE public.research_waves")) errors.push("research wave hierarchy table missing");
 if (!hierarchyMigration.includes("ADD COLUMN programme_id")) errors.push("research study is not bound to a programme");
@@ -242,8 +259,8 @@ if (!hierarchyMigration.includes("research_guard_wave_scope")) errors.push("rese
 if (!hierarchyMigration.includes("DISABLE TRIGGER USER")) errors.push("0427 does not explicitly protect structural backfill across immutable evidence");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_programmes ENABLE ROW LEVEL SECURITY;")) errors.push("research programme RLS missing");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_waves ENABLE ROW LEVEL SECURITY;")) errors.push("research wave RLS missing");
-if (!schemaPreflight.includes("expectedSourceVersion = 434")) errors.push("guarded research production rollout is not pinned to schema 0434");
-if (!schemaRollout.includes("0416–0434") || !schemaRollout.includes("through schema 0434")) errors.push("research schema rollout workflow does not advertise the complete 0416–0434 chain");
+if (!schemaPreflight.includes("expectedSourceVersion = 435")) errors.push("guarded research production rollout is not pinned to schema 0435");
+if (!schemaRollout.includes("0416–0435") || !schemaRollout.includes("through schema 0435")) errors.push("research schema rollout workflow does not advertise the complete 0416–0435 chain");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_population_margin_sets")) errors.push("governed population-margin set registry missing");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_population_margins")) errors.push("governed population-margin cells missing");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_analysis_plan_supersessions")) errors.push("analysis-plan supersession evidence missing");
@@ -593,9 +610,18 @@ if (!surveyRuntime.includes("sds.target_complete_n")) errors.push("fieldwork bal
 if (!release.includes("sample_design_sha256") || !release.includes("designEvidence")) errors.push("release artifact does not freeze sample design evidence");
 if (!surveyRuntime.includes("recordResearchProtocolEvent") || !surveyRuntime.includes("researchProtocolEvents")) errors.push("protocol evidence runtime missing");
 if (!release.includes("protocolEvidence") || !release.includes("RESEARCH_RELEASE_PROTOCOL_EVIDENCE_INTEGRITY_FAILED")) errors.push("release artifact does not freeze verified protocol evidence");
-if (surveyForm.includes("optionalConsents.marketing")) errors.push("scientific survey completion flow still exposes marketing consent");
-if (surveyRuntime.includes('"marketing"')) errors.push("participant research runtime still accepts marketing consent");
-if (!surveyForm.includes('href="/join"')) errors.push("commercial follow-up is not separated behind a post-research route");
+if (!surveyForm.includes("saveMarketingPreference")) errors.push("post-completion marketing consent control missing");
+if (!surveyForm.includes("marketingDecisionRecorded")) errors.push("marketing no-decision state is not preserved");
+if (!surveyForm.includes("RESEARCH_MARKETING_CONSENT_STATEMENT_EL")) errors.push("versioned marketing consent wording is not rendered");
+if (!surveyRuntime.includes("research_private.marketing_consent_events")) errors.push("marketing consent runtime does not use the dedicated event ledger");
+if (!surveyRuntime.includes("research_private.marketing_contacts")) errors.push("marketing consent runtime does not preserve the company/email identity registry");
+if (!surveyRuntime.includes("survey_completion_preferences")) errors.push("marketing consent events are not source-labelled");
+if (!surveyRuntime.includes('assertAdminPermission(principal, "research.privacy.manage")')) errors.push("marketing identity directory is not privacy-permission gated");
+if (!marketingAdmin.includes('research.privacy.manage')) errors.push("marketing consent admin page lacks privacy permission enforcement");
+if (!marketingAdmin.includes("companyOptedInContacts") || !marketingAdmin.includes("companyTotalContacts")) errors.push("company-level marketing consent coverage is not surfaced");
+if (!marketingExport.includes('status: "opted_in"')) errors.push("marketing export is not hard-filtered to current opt-ins");
+if (!workspaceNavigation.includes('href: "/admin/research/contacts"') || !workspaceNavigation.includes('permission: "research.privacy.manage"')) errors.push("marketing consent directory missing from privacy-gated admin navigation");
+if (!surveyForm.includes('href="/join"')) errors.push("commercial collaboration information link missing from post-research flow");
 if (!surveyRuntime.includes("RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("pilot lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes("RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("fieldwork lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes('"publish_release"')) errors.push("explicit publish lifecycle action missing");
@@ -604,7 +630,7 @@ if (/^\s*push:/m.test(schemaRollout)) errors.push("research production schema ro
 if (!schemaRollout.includes("environment: production")) errors.push("research production schema rollout lacks production environment gate");
 if (!schemaRollout.includes("if: ${{ inputs.apply }}")) errors.push("research schema mutation lacks explicit apply gate");
 if (!schemaRollout.includes("npm run db:migrate")) errors.push("research schema rollout bypasses checksum-aware migrator");
-if (!schemaPreflight.includes("expectedSourceVersion = 434")) errors.push("research schema rollout source-head guard missing");
+if (!schemaPreflight.includes("expectedSourceVersion = 435")) errors.push("research schema rollout source-head guard missing");
 if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
 if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
@@ -635,5 +661,6 @@ console.log(JSON.stringify({
   populationMarginsMigrationSha256: populationMarginsSha,
   longitudinalLineageMigrationSha256: longitudinalLineageSha,
   releaseArchiveMigrationSha256: releaseArchiveSha,
+  marketingConsentMigrationSha256: marketingConsentSha,
   worker: pkg.scripts?.["worker:research"]
 }));
