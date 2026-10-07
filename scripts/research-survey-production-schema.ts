@@ -12,8 +12,46 @@ const connectionString = resolveProductionDatabaseUrl();
 if (!connectionString) throw new Error("DATABASE_URL or POSTGRES_URL is required");
 
 const postcheck = process.argv.includes("--postcheck");
+const recovery0420 = process.argv.includes("--recover-0420");
 const expectedSourceVersion = 434;
 const expectedCurrentVersion = 415;
+const expectedRecoveryVersion = 419;
+const expectedRecoveryPendingVersions = new Set(
+  Array.from({ length: 15 }, (_value, index) => 420 + index)
+);
+const expectedRecoveryResearchTables = new Set([
+  "research_analysis_estimates",
+  "research_analysis_runs",
+  "research_answers",
+  "research_consents",
+  "research_contact_points",
+  "research_contact_suppression_events",
+  "research_experiment_assignments",
+  "research_frame_snapshots",
+  "research_frame_units",
+  "research_instruments",
+  "research_invite_access_tokens",
+  "research_invite_batches",
+  "research_invite_events",
+  "research_invite_messages",
+  "research_invites",
+  "research_participant_deliveries",
+  "research_participant_delivery_events",
+  "research_questions",
+  "research_recruitment_templates",
+  "research_release_snapshots",
+  "research_response_quality_reviews",
+  "research_response_scores",
+  "research_responses",
+  "research_reward_entitlements",
+  "research_sample_disposition_events",
+  "research_sample_draws",
+  "research_sample_units",
+  "research_strata",
+  "research_studies",
+  "research_study_jobs",
+  "research_weights"
+]);
 const requiredTables = [
   "research_programmes",
   "research_studies",
@@ -77,6 +115,10 @@ try {
   const schemaVersion = Number(row.schema_version ?? 0);
   const present = requiredTables.filter((_table, index) => Boolean(row[`table_${index}`]));
   const missing = requiredTables.filter((_table, index) => !row[`table_${index}`]);
+  const researchTablesResult = await pool.query(
+    "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'research_%' ORDER BY tablename"
+  );
+  const researchTables = researchTablesResult.rows.map((entry: { tablename: string }) => entry.tablename);
 
   const ledgerResult = await pool.query("SELECT version, filename, sha256 FROM public.schema_migrations ORDER BY version");
   const ledgerByVersion = new Map<number, { filename: string; sha256: string }>(
@@ -101,6 +143,10 @@ try {
     );
   }
 
+  if (postcheck && recovery0420) {
+    throw new Error("Research schema verifier cannot combine --postcheck with --recover-0420");
+  }
+
   if (postcheck) {
     if (schemaVersion !== expectedSourceVersion) {
       throw new Error(`Postcheck expected schema ${expectedSourceVersion}; database reports ${schemaVersion}`);
@@ -118,6 +164,41 @@ try {
       requiredTables: requiredTables.length,
       canonicalMigrations: migrationNames.length,
       pendingCanonicalMigrations
+    }));
+  } else if (recovery0420) {
+    if (schemaVersion !== expectedRecoveryVersion) {
+      throw new Error(
+        `Research 0420 recovery requires exact schema ${expectedRecoveryVersion}; database reports ${schemaVersion}`
+      );
+    }
+    const pendingVersions = new Set(
+      pendingCanonicalMigrations.map((filename) => Number(filename.slice(0, 4)))
+    );
+    if (pendingVersions.size !== expectedRecoveryPendingVersions.size
+        || [...expectedRecoveryPendingVersions].some((version) => !pendingVersions.has(version))) {
+      throw new Error(
+        `Research 0420 recovery requires exact pending migrations 0420-0434; found: ${pendingCanonicalMigrations.join(", ") || "none"}`
+      );
+    }
+    const actualResearchTables = new Set(researchTables);
+    const missingRecoveryTables = [...expectedRecoveryResearchTables]
+      .filter((table) => !actualResearchTables.has(table));
+    const unexpectedRecoveryTables = researchTables
+      .filter((table) => !expectedRecoveryResearchTables.has(table));
+    if (missingRecoveryTables.length || unexpectedRecoveryTables.length) {
+      throw new Error(
+        `Research 0420 recovery table state mismatch. Missing: ${missingRecoveryTables.join(", ") || "none"}; unexpected: ${unexpectedRecoveryTables.join(", ") || "none"}`
+      );
+    }
+    console.log(JSON.stringify({
+      ok: true,
+      mode: "preflight",
+      state: "recover_0420",
+      schemaVersion,
+      targetVersion: expectedSourceVersion,
+      researchTables: researchTables.length,
+      pendingCanonicalMigrations: pendingCanonicalMigrations.length,
+      pendingCanonicalMigrationFiles: pendingCanonicalMigrations
     }));
   } else if (schemaVersion === expectedSourceVersion) {
     if (missing.length) {

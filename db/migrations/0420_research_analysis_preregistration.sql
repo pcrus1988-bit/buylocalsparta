@@ -37,7 +37,7 @@ CREATE OR REPLACE FUNCTION public.research_prepare_analysis_plan()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = extensions, public, pg_temp
 AS $$
 BEGIN
   IF TG_OP='UPDATE' AND OLD.status='locked' THEN

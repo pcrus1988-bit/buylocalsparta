@@ -10,7 +10,9 @@ test("production SEO authority is locked to kontamou.site", () => {
 
   assert.match(publicOrigin, /PRODUCTION_PUBLIC_ORIGIN = "https:\/\/kontamou\.site"/);
   assert.match(publicOrigin, /process\.env\.VERCEL_ENV === "production"/);
-  assert.match(nextConfig, /value: "kontamou\.info"/);
+  assert.match(nextConfig, /const RETIRED_PUBLIC_HOSTS = \[/);
+  assert.match(nextConfig, /"kontamou\.info"/);
+  assert.match(nextConfig, /return RETIRED_PUBLIC_HOSTS\.map/);
   assert.match(nextConfig, /destination: "https:\/\/kontamou\.site\/:path\*"/);
   assert.match(nextConfig, /permanent: true/);
 });
