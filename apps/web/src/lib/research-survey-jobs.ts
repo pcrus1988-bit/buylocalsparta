@@ -2,7 +2,7 @@ import { createHash, createHmac, randomBytes } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
 import {
-  gemiResearchFrameRecords,
+  gemiResearchFrameChunk,
   normalizeGemiAdminFilters,
   type GemiResearchFrameRecord
 } from "./gemi-admin-export";
@@ -832,6 +832,23 @@ async function claimResearchJob(
   const client = await getProductionPostgresRuntime().sqlPool.connect();
   try {
     await client.query("BEGIN");
+    // Vercel can terminate a long frame build at the function wall-clock limit.
+    // Reclaim only stale frame jobs here; other job types may legitimately use
+    // long-running dedicated workers and must not be duplicated.
+    await client.query(`
+      UPDATE research_study_jobs
+      SET status='queued',
+          attempts=GREATEST(attempts-1,0),
+          available_at=now(),
+          started_at=NULL,
+          finished_at=NULL,
+          error_message=COALESCE(error_message,'RESEARCH_STALE_FRAME_RECOVERED')
+      WHERE status='running'
+        AND job_type='frame_snapshot'
+        AND started_at < now() - interval '6 minutes'
+        AND job_type = ANY($1::text[])
+    `, [allowedJobTypes]);
+
     const result = await client.query<ResearchJobRow>(`
       SELECT id, study_id, wave_id, job_type, input, output, attempts
       FROM research_study_jobs
@@ -864,6 +881,24 @@ async function claimResearchJob(
   } finally {
     client.release();
   }
+}
+
+async function markJobRequeued(
+  jobId: string,
+  output: Record<string, unknown>,
+  delaySeconds = 1
+): Promise<void> {
+  await getProductionPostgresRuntime().sqlPool.query(`
+    UPDATE research_study_jobs
+    SET status='queued',
+        output=$2::jsonb,
+        attempts=GREATEST(attempts-1,0),
+        available_at=now() + ($3::int * interval '1 second'),
+        started_at=NULL,
+        finished_at=NULL,
+        error_message=NULL
+    WHERE id=$1
+  `, [jobId, JSON.stringify(output), Math.max(1, Math.min(60, Math.floor(delaySeconds)))]);
 }
 
 async function markJobSucceeded(jobId: string, output: Record<string, unknown>): Promise<void> {
@@ -1059,37 +1094,57 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
     `, [job.id, snapshotId]);
   }
 
-  // A retry always starts the still-building snapshot from a clean slate. This
-  // prevents an upstream G.E.MI. change between attempts from leaving stale units.
-  await pool.query("DELETE FROM research_strata WHERE frame_snapshot_id=$1", [snapshotId]);
-  await pool.query("DELETE FROM research_frame_units WHERE frame_snapshot_id=$1", [snapshotId]);
   await pool.query(`
     UPDATE research_frame_snapshots
     SET status='building', population_size=0, content_sha256=NULL, captured_at=NULL, frozen_at=NULL
-    WHERE id=$1
+    WHERE id=$1 AND status<>'frozen'
   `, [snapshotId]);
 
+  const cursorValue = objectValue(currentOutput.frameCursor);
+  const cursor = {
+    batchIndex: Math.max(0, Math.floor(numberValue(cursorValue.batchIndex))),
+    offset: Math.max(0, Math.floor(numberValue(cursorValue.offset)))
+  };
   const filters = normalizeGemiAdminFilters({
     activityGroupIds: ["retail-non-food"],
     activeOnly: true
   });
-  const contentHash = createHash("sha256");
-  const buffer: FrameBufferRecord[] = [];
-  let streamed = 0;
-  let withEmail = 0;
-
-  for await (const raw of gemiResearchFrameRecords(filters)) {
+  const chunk = await gemiResearchFrameChunk(filters, cursor, 12);
+  const records = chunk.records.flatMap((raw) => {
     const record = frameRecord(raw);
-    if (!record) continue;
-    contentHash.update(`${record.externalKeyHash}|${record.regionCode}|${record.sectorCode}\n`, "utf8");
-    buffer.push(record);
-    streamed += 1;
-    if (record.email) withEmail += 1;
-    if (buffer.length >= FRAME_FLUSH_SIZE) {
-      await flushFrameBuffer(snapshotId, buffer.splice(0, buffer.length));
-    }
+    return record ? [record] : [];
+  });
+  if (records.length) await flushFrameBuffer(snapshotId, records);
+
+  const progress = await pool.query<SqlRow>(`
+    SELECT
+      count(*)::int AS persisted_units,
+      count(*) FILTER (
+        WHERE EXISTS (
+          SELECT 1 FROM research_contact_points cp
+          WHERE cp.frame_unit_id=fu.id
+            AND cp.contact_type='email'
+            AND cp.suppression_status='active'
+        )
+      )::int AS active_email_count
+    FROM research_frame_units fu
+    WHERE frame_snapshot_id=$1
+  `, [snapshotId]);
+  const persistedUnits = numberValue(progress.rows[0]?.persisted_units);
+  const activeEmailCount = numberValue(progress.rows[0]?.active_email_count);
+
+  if (!chunk.done && chunk.nextCursor) {
+    return {
+      __requeue: true,
+      __delaySeconds: 1,
+      frameSnapshotId: snapshotId,
+      frameCursor: chunk.nextCursor,
+      persistedUnits,
+      activeEmailCount,
+      pagesFetched: chunk.pagesFetched,
+      queryBatchCount: chunk.queryBatchCount
+    };
   }
-  if (buffer.length) await flushFrameBuffer(snapshotId, buffer.splice(0, buffer.length));
 
   await pool.query(`
     INSERT INTO research_strata (
@@ -1140,11 +1195,27 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
     WHERE frame_snapshot_id=$1
   `, [snapshotId]);
   const populationSize = numberValue(countResult.rows[0]?.population_size);
-  const activeEmailCount = numberValue(countResult.rows[0]?.active_email_count);
-  if (populationSize !== streamed) {
-    throw new Error(`RESEARCH_FRAME_COUNT_MISMATCH:streamed=${streamed};persisted=${populationSize}`);
-  }
-  const digest = contentHash.digest("hex");
+  const finalActiveEmailCount = numberValue(countResult.rows[0]?.active_email_count);
+
+  const hashResult = await pool.query<SqlRow>(`
+    SELECT encode(
+      digest(
+        COALESCE(
+          string_agg(
+            external_key_hash || '|' || COALESCE(region_code,'') || '|' || COALESCE(sector_code,'') || E'\\n',
+            '' ORDER BY external_key_hash
+          ),
+          ''
+        ),
+        'sha256'
+      ),
+      'hex'
+    ) AS content_sha256
+    FROM research_frame_units
+    WHERE frame_snapshot_id=$1
+  `, [snapshotId]);
+  const digest = text(hashResult.rows[0]?.content_sha256);
+  if (!populationSize || !digest) throw new Error("RESEARCH_FRAME_FINALIZATION_EMPTY");
 
   await pool.query(`
     UPDATE research_frame_snapshots
@@ -1163,12 +1234,14 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
 
   return {
     frameSnapshotId: snapshotId,
+    frameCursor: null,
     populationSize,
-    activeEmailCount,
-    streamedWithEmail: withEmail,
+    activeEmailCount: finalActiveEmailCount,
+    streamedWithEmail: finalActiveEmailCount,
     contentSha256: digest,
     classificationVersion: FRAME_CLASSIFICATION_VERSION,
-    sourceReference: FRAME_SOURCE_REFERENCE
+    sourceReference: FRAME_SOURCE_REFERENCE,
+    queryBatchCount: chunk.queryBatchCount
   };
 }
 
@@ -3191,8 +3264,18 @@ export async function processResearchStudyJobs(
                     : job.job_type === "identity_destruction"
                         ? await processIdentityDestructionJob(job)
                       : (() => { throw new Error("RESEARCH_JOB_TYPE_UNSUPPORTED"); })();
-      await markJobSucceeded(job.id, { ...objectValue(job.output), ...output });
-      processed += 1;
+      const outputRecord = objectValue(output);
+      if (outputRecord.__requeue === true) {
+        const mergedOutput = { ...objectValue(job.output), ...outputRecord };
+        const delaySeconds = Math.max(1, Math.floor(numberValue(mergedOutput.__delaySeconds) || 1));
+        delete mergedOutput.__requeue;
+        delete mergedOutput.__delaySeconds;
+        await markJobRequeued(job.id, mergedOutput, delaySeconds);
+        requeued += 1;
+      } else {
+        await markJobSucceeded(job.id, { ...objectValue(job.output), ...outputRecord });
+        processed += 1;
+      }
     } catch (error) {
       const outcome = await markJobError(job, error);
       if (outcome === "requeued") requeued += 1;
