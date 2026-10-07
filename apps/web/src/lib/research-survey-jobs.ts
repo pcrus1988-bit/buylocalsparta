@@ -378,6 +378,277 @@ export async function saveGreekRetailRecruitmentTemplate(
   return { templateId: text(inserted.rows[0]!.id), version, purpose };
 }
 
+
+export type ResearchEmailSendPurpose =
+  | "initial_invitations"
+  | "reminders"
+  | "thank_you_codes"
+  | "published_results";
+
+export async function previewGreekRetailEmailSend(
+  principal: SessionPrincipal,
+  input: Readonly<{
+    purpose: ResearchEmailSendPurpose;
+    limit?: number;
+    minAgeDays?: number;
+    minGapDays?: number;
+    maxReminders?: number;
+  }>
+): Promise<Readonly<{
+  purpose: ResearchEmailSendPurpose;
+  studySlug: string;
+  studyTitle: string;
+  candidateCount: number;
+  requestedLimit: number;
+}>> {
+  if (input.purpose === "published_results") {
+    assertAdminPermission(principal, "research.publish.manage");
+  } else {
+    assertAdminPermission(principal, "research.fieldwork.manage");
+  }
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+
+  const maxLimit = input.purpose === "initial_invitations" || input.purpose === "reminders" ? 500 : 250;
+  const limit = Math.max(1, Math.min(maxLimit, Math.floor(input.limit ?? 100)));
+  const minAgeDays = Math.max(1, Math.min(90, Math.floor(input.minAgeDays ?? 5)));
+  const minGapDays = Math.max(1, Math.min(90, Math.floor(input.minGapDays ?? 5)));
+  const maxReminders = Math.max(1, Math.min(5, Math.floor(input.maxReminders ?? 2)));
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const studyResult = await pool.query<SqlRow>(`
+    SELECT id,slug,title,status,current_wave_id
+    FROM research_studies
+    WHERE slug=$1
+    LIMIT 1
+  `, [STUDY_SLUG]);
+  const study = studyResult.rows[0];
+  if (!study) throw new Error("RESEARCH_STUDY_NOT_FOUND");
+  const waveId = text(study.current_wave_id);
+  if (!waveId) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
+  const fieldworkPhase = text(study.status) === "pilot" ? "pilot" : "main";
+  let candidateCount = 0;
+
+  if (input.purpose === "initial_invitations") {
+    if (!["pilot","fielding"].includes(text(study.status))) throw new Error("SURVEY_NOT_OPEN");
+    const count = await pool.query<SqlRow>(`
+      WITH draw AS (
+        SELECT id
+        FROM research_sample_draws
+        WHERE study_id=$1
+          AND wave_id=$2
+          AND status IN ('locked','fielded')
+          AND fieldwork_phase=$3
+        ORDER BY created_at DESC
+        LIMIT 1
+      )
+      SELECT count(*)::int AS candidate_count
+      FROM (
+        SELECT su.id
+        FROM research_sample_units su
+        WHERE su.sample_draw_id=(SELECT id FROM draw)
+          AND EXISTS (
+            SELECT 1 FROM research_contact_points cp
+            WHERE cp.frame_unit_id=su.frame_unit_id
+              AND cp.contact_type='email'
+              AND cp.suppression_status='active'
+              AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM research_invites ri
+            WHERE ri.study_id=$1
+              AND ri.wave_id=$2
+              AND ri.sample_unit_id=su.id
+              AND ri.fieldwork_phase=$3
+              AND ri.status <> 'expired'
+          )
+          AND (
+            $3::text <> 'main'
+            OR NOT EXISTS (
+              SELECT 1
+              FROM research_invites pri
+              JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+              JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
+              JOIN research_frame_units cfu ON cfu.id=su.frame_unit_id
+              WHERE pri.study_id=$1
+                AND pri.wave_id=$2
+                AND pri.fieldwork_phase='pilot'
+                AND pri.sent_at IS NOT NULL
+                AND pfu.external_key_hash=cfu.external_key_hash
+            )
+          )
+        ORDER BY su.selection_order
+        LIMIT $4
+      ) candidates
+    `, [study.id,waveId,fieldworkPhase,limit]);
+    candidateCount = numberValue(count.rows[0]?.candidate_count);
+  } else if (input.purpose === "reminders") {
+    if (!["pilot","fielding"].includes(text(study.status))) throw new Error("SURVEY_NOT_OPEN");
+    const count = await pool.query<SqlRow>(`
+      WITH reminder_stats AS (
+        SELECT
+          invite_id,
+          count(*) FILTER (
+            WHERE attempt_kind='reminder'
+              AND status IN ('sent','delivered','opened')
+          )::int AS sent_reminders,
+          max(sent_at) FILTER (
+            WHERE attempt_kind='reminder'
+              AND status IN ('sent','delivered','opened')
+          ) AS last_reminder_sent_at
+        FROM research_invite_messages
+        GROUP BY invite_id
+      )
+      SELECT count(*)::int AS candidate_count
+      FROM (
+        SELECT ri.id
+        FROM research_invites ri
+        JOIN research_sample_units su ON su.id=ri.sample_unit_id
+        LEFT JOIN research_responses rr ON rr.invite_id=ri.id
+        LEFT JOIN reminder_stats stats ON stats.invite_id=ri.id
+        WHERE ri.study_id=$1
+          AND ri.wave_id=$2
+          AND ri.fieldwork_phase=$3
+          AND ri.sent_at IS NOT NULL
+          AND ri.status IN ('sent','opened','started')
+          AND (ri.expires_at IS NULL OR ri.expires_at > now())
+          AND ri.sent_at <= now() - ($4::int * interval '1 day')
+          AND COALESCE(rr.status,'') NOT IN ('completed','withdrawn','excluded')
+          AND COALESCE(stats.sent_reminders,0) < $5
+          AND COALESCE(stats.last_reminder_sent_at,ri.sent_at)
+                <= now() - ($6::int * interval '1 day')
+          AND EXISTS (
+            SELECT 1
+            FROM research_contact_points cp
+            WHERE cp.frame_unit_id=su.frame_unit_id
+              AND cp.contact_type='email'
+              AND cp.suppression_status='active'
+              AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+          )
+        ORDER BY COALESCE(stats.last_reminder_sent_at,ri.sent_at),ri.created_at,ri.id
+        LIMIT $7
+      ) candidates
+    `, [study.id,waveId,fieldworkPhase,minAgeDays,maxReminders,minGapDays,limit]);
+    candidateCount = numberValue(count.rows[0]?.candidate_count);
+  } else if (input.purpose === "thank_you_codes") {
+    const count = await pool.query<SqlRow>(`
+      WITH latest_consent AS (
+        SELECT DISTINCT ON (rc.response_id)
+          rc.response_id,rc.granted
+        FROM research_consents rc
+        WHERE rc.consent_kind='thank_you_code'
+        ORDER BY rc.response_id,rc.occurred_at DESC,rc.id DESC
+      )
+      SELECT count(*)::int AS candidate_count
+      FROM (
+        SELECT re.id
+        FROM research_reward_entitlements re
+        JOIN research_responses rr ON rr.id=re.response_id
+        JOIN research_invites ri ON ri.id=rr.invite_id
+        JOIN research_private.contact_points_with_value cp ON cp.id=ri.contact_point_id
+        JOIN latest_consent consent ON consent.response_id=rr.id AND consent.granted=true
+        LEFT JOIN LATERAL (
+          SELECT e.action,e.reason
+          FROM research_contact_suppression_events e
+          WHERE e.contact_type=cp.contact_type
+            AND e.contact_value_hash=cp.contact_value_hash
+          ORDER BY e.occurred_at DESC,e.id DESC
+          LIMIT 1
+        ) suppression ON true
+        WHERE rr.study_id=$1
+          AND rr.wave_id=$2
+          AND rr.status='completed'
+          AND re.reward_kind='thank_you_code'
+          AND re.status IN ('eligible','issued')
+          AND cp.contact_type='email'
+          AND cp.contact_value <> ''
+          AND cp.suppression_status NOT IN ('invalid','bounced')
+          AND (
+            cp.suppression_status='active'
+            OR suppression.action='restore'
+            OR (suppression.action='suppress' AND suppression.reason='participant_research_opt_out')
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM research_participant_deliveries d
+            WHERE d.reward_entitlement_id=re.id
+              AND d.message_kind='thank_you_code'
+              AND d.status='sent'
+          )
+        ORDER BY re.created_at,re.id
+        LIMIT $3
+      ) candidates
+    `, [study.id,waveId,limit]);
+    candidateCount = numberValue(count.rows[0]?.candidate_count);
+  } else {
+    const release = await pool.query<SqlRow>(`
+      SELECT id
+      FROM research_release_snapshots
+      WHERE study_id=$1
+        AND wave_id=$2
+        AND published_at IS NOT NULL
+      ORDER BY published_at DESC,created_at DESC
+      LIMIT 1
+    `, [study.id,waveId]);
+    const releaseId = text(release.rows[0]?.id);
+    if (!releaseId) throw new Error("RESEARCH_RESULTS_NOTIFICATION_REQUIRES_PUBLISHED_RELEASE");
+
+    const count = await pool.query<SqlRow>(`
+      WITH latest_consent AS (
+        SELECT DISTINCT ON (rc.response_id)
+          rc.response_id,rc.granted
+        FROM research_consents rc
+        WHERE rc.consent_kind='results_notification'
+        ORDER BY rc.response_id,rc.occurred_at DESC,rc.id DESC
+      )
+      SELECT count(*)::int AS candidate_count
+      FROM (
+        SELECT rr.id
+        FROM research_responses rr
+        JOIN research_invites ri ON ri.id=rr.invite_id
+        JOIN research_private.contact_points_with_value cp ON cp.id=ri.contact_point_id
+        JOIN latest_consent consent ON consent.response_id=rr.id AND consent.granted=true
+        LEFT JOIN LATERAL (
+          SELECT e.action,e.reason
+          FROM research_contact_suppression_events e
+          WHERE e.contact_type=cp.contact_type
+            AND e.contact_value_hash=cp.contact_value_hash
+          ORDER BY e.occurred_at DESC,e.id DESC
+          LIMIT 1
+        ) suppression ON true
+        WHERE rr.study_id=$1
+          AND rr.wave_id=$2
+          AND rr.status='completed'
+          AND cp.contact_type='email'
+          AND cp.contact_value <> ''
+          AND cp.suppression_status NOT IN ('invalid','bounced')
+          AND (
+            cp.suppression_status='active'
+            OR suppression.action='restore'
+            OR (suppression.action='suppress' AND suppression.reason='participant_research_opt_out')
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM research_participant_deliveries d
+            WHERE d.response_id=rr.id
+              AND d.release_snapshot_id=$3
+              AND d.message_kind='results_notification'
+              AND d.status='sent'
+          )
+        ORDER BY rr.completed_at,rr.id
+        LIMIT $4
+      ) candidates
+    `, [study.id,waveId,releaseId,limit]);
+    candidateCount = numberValue(count.rows[0]?.candidate_count);
+  }
+
+  return {
+    purpose: input.purpose,
+    studySlug: text(study.slug),
+    studyTitle: text(study.title),
+    candidateCount,
+    requestedLimit: limit
+  };
+}
+
 export async function queueGreekRetailInviteBatch(
   principal: SessionPrincipal,
   input: Readonly<{ limit?: number; label?: string }>
