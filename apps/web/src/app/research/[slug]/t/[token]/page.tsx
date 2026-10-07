@@ -41,6 +41,11 @@ export default async function ResearchSurveyTokenPage({ params }: {
         <span>Ερευνητικός φορέας: {context.study.sponsor}</span>
         <a href={"/research/" + encodeURIComponent(slug) + "/methodology"}>Μεθοδολογία & διαφάνεια</a>
       </div>
+      <div className={styles.trust}>
+        <span>Προαιρετική συμμετοχή</span>
+        <span>Privacy-first research flow</span>
+        <span>Οι απαντήσεις κλειδώνουν στην ολοκλήρωση</span>
+      </div>
     </header>
     <ResearchSurveyForm slug={slug} token={token} initial={context} />
   </main>;
