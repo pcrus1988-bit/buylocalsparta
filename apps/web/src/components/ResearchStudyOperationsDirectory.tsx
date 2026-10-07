@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ResearchAdminOperationalWorkspace } from "../lib/research-survey-admin-directory";
+import { ResearchInviteLinkControl } from "./ResearchInviteLinkControl";
 import { WorkspaceEmptyState, WorkspaceSectionHeading, WorkspaceStatusBadge } from "./WorkspacePagePrimitives";
 
 const consentLabels: Record<string,string> = {
@@ -51,9 +52,11 @@ function td(children: ReactNode) {
 
 export function ResearchStudyOperationsDirectory({
   slug,
+  csrfToken,
   workspace
 }: {
   slug: string;
+  csrfToken: string;
   workspace: ResearchAdminOperationalWorkspace;
 }) {
   if (!workspace.databaseConfigured) return null;
@@ -126,7 +129,7 @@ export function ResearchStudyOperationsDirectory({
       <WorkspaceSectionHeading
         eyebrow="Προσκλήσεις"
         title={"Invitation ledger · " + workspace.invitesTotal.toLocaleString("el-GR")}
-        note="Κάθε επιλεγμένη επιχείρηση λαμβάνει μοναδικό προσωπικό link. Το μυστικό token δημιουργείται τη στιγμή της αποστολής και δεν αποθηκεύεται σε αναγνώσιμη μορφή· εδώ παρακολουθούμε την πρόσκληση, την παράδοση, το άνοιγμα και την έναρξη."
+        note="Κάθε επιλεγμένη επιχείρηση λαμβάνει μοναδικό προσωπικό link. Το αρχικό μυστικό token δημιουργείται τη στιγμή της αποστολής και αποθηκεύεται μόνο ως hash. Για χειροκίνητη αποστολή μπορείτε να εκδώσετε νέο προσωρινό link, το οποίο εμφανίζεται μόνο στην τρέχουσα συνεδρία και λήγει το αργότερο σε 24 ώρες."
       />
       {workspace.invites.length === 0
         ? <WorkspaceEmptyState
@@ -134,7 +137,7 @@ export function ResearchStudyOperationsDirectory({
           body="Μόλις ξεκινήσει pilot/main fieldwork και σταλεί η πρώτη παρτίδα, εδώ θα εμφανιστούν οι επιχειρήσεις, η κατάσταση αποστολής και το ιστορικό. Δεν υπάρχει ακόμη link για προβολή επειδή δεν έχει εκδοθεί κανένα invitation token."
         />
         : compactTable(<>
-          <thead><tr>{th("Επιχείρηση")}{th("Email")}{th("Φάση")}{th("Κατάσταση")}{th("Αποστολή")}{th("Άνοιγμα")}{th("Τελευταία προσπάθεια")}</tr></thead>
+          <thead><tr>{th("Επιχείρηση")}{th("Email")}{th("Φάση")}{th("Κατάσταση")}{th("Αποστολή")}{th("Άνοιγμα")}{th("Τελευταία προσπάθεια")}{th("Προσωρινός σύνδεσμος")}</tr></thead>
           <tbody>{workspace.invites.map((item) => <tr key={item.id}>
             {td(<strong>{item.businessName}</strong>)}
             {td(item.email ?? "Κρυφό λόγω δικαιωμάτων")}
@@ -143,6 +146,12 @@ export function ResearchStudyOperationsDirectory({
             {td(dateTime(item.sentAt))}
             {td(dateTime(item.openedAt))}
             {td(<>{item.latestAttemptKind ?? "—"} · {item.latestAttemptStatus ?? "—"}<br /><small>{dateTime(item.latestAttemptAt)}</small></>)}
+            {td(<ResearchInviteLinkControl
+              slug={slug}
+              inviteId={item.id}
+              csrfToken={csrfToken}
+              canReissue={["created","sent","opened","started"].includes(item.status)}
+            />)}
           </tr>)}</tbody>
         </>)}
     </section>
