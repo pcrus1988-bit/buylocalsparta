@@ -11,6 +11,7 @@ import {
   saveGreekRetailRecruitmentTemplate
 } from "../../../../../../../lib/research-survey-jobs";
 import { queueGreekRetailRelease } from "../../../../../../../lib/research-survey-release";
+import { reissueResearchInviteAccessLink } from "../../../../../../../lib/research-survey-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,7 @@ type Body = {
   minAgeDays?: number;
   minGapDays?: number;
   maxReminders?: number;
+  inviteId?: string;
   emailApproval?: {
     studySlug?: string;
     studyTitle?: string;
@@ -44,7 +46,7 @@ type Body = {
 
 export async function POST(request: Request, context: { params: Promise<{ slug: string }> }) {
   try {
-    const principal = await requireAdminSession(request, { csrf: true, permission: "research.manage" });
+    const principal = await requireAdminSession(request, { csrf: true, permission: "research.read" });
     const { slug: rawSlug } = await context.params;
     const slug = decodeURIComponent(rawSlug);
     if (slug !== "greek-retail-2026") {
@@ -99,6 +101,21 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         slug,
         "Queue reproducible stratified sample draw",
 { jobId: result.jobId, targetN: Number(body.targetN), desiredCompleteN: body.desiredCompleteN ?? null, expectedResponseRate: body.expectedResponseRate ?? null, randomSeed: result.randomSeed, fieldworkPhase: result.fieldworkPhase }
+      );
+      return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (body.action === "reissue_invite_link") {
+      const inviteId = String(body.inviteId ?? "").trim();
+      if (!inviteId) return Response.json({ error: "RESEARCH_INVITE_ID_REQUIRED" }, { status: 400 });
+      const result = await reissueResearchInviteAccessLink(principal, { slug, inviteId });
+      await recordAdminAudit(
+        principal,
+        "research.invite_link.reissued",
+        "research_invite",
+        inviteId,
+        "Issue temporary admin-copy invitation link",
+        { expiresAt: result.expiresAt }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
