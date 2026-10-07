@@ -986,7 +986,7 @@ async function claimResearchJob(
 async function markJobRequeued(
   jobId: string,
   output: Record<string, unknown>,
-  delaySeconds = 1
+  delaySeconds = 0
 ): Promise<void> {
   await getProductionPostgresRuntime().sqlPool.query(`
     UPDATE research_study_jobs
@@ -998,7 +998,7 @@ async function markJobRequeued(
         finished_at=NULL,
         error_message=NULL
     WHERE id=$1
-  `, [jobId, JSON.stringify(output), Math.max(1, Math.min(60, Math.floor(delaySeconds)))]);
+  `, [jobId, JSON.stringify(output), Math.max(0, Math.min(60, Math.floor(delaySeconds)))]);
 }
 
 async function markJobSucceeded(jobId: string, output: Record<string, unknown>): Promise<void> {
@@ -1236,7 +1236,7 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
   if (!chunk.done && chunk.nextCursor) {
     return {
       __requeue: true,
-      __delaySeconds: 1,
+      __delaySeconds: 0,
       frameSnapshotId: snapshotId,
       frameCursor: chunk.nextCursor,
       persistedUnits,
@@ -3347,7 +3347,7 @@ export async function processResearchStudyJobs(
       const outputRecord = objectValue(output);
       if (outputRecord.__requeue === true) {
         const mergedOutput = { ...objectValue(job.output), ...outputRecord };
-        const delaySeconds = Math.max(1, Math.floor(numberValue(mergedOutput.__delaySeconds) || 1));
+        const delaySeconds = Math.max(0, Math.floor(numberValue(mergedOutput.__delaySeconds) || 0));
         delete mergedOutput.__requeue;
         delete mergedOutput.__delaySeconds;
         await markJobRequeued(job.id, mergedOutput, delaySeconds);
