@@ -49,7 +49,8 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
         const response = await fetch("/api/research/observatory", { cache: "no-store" });
         if (!response.ok) return;
         const snapshot = await response.json() as PublicResearchObservatorySnapshot;
-        const next = snapshot.studies.find((item) => item.waveSlug === initialStudy.waveSlug)\n          ?? snapshot.studies.find((item) => item.slug === initialStudy.slug && item.isCurrentWave);
+        const next = snapshot.studies.find((item) => item.waveSlug === initialStudy.waveSlug)
+          ?? snapshot.studies.find((item) => item.slug === initialStudy.slug && item.isCurrentWave);
         if (!cancelled && next) {
           setStudy(next);
           setLastRefresh(snapshot.generatedAt);
