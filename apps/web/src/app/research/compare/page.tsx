@@ -67,13 +67,30 @@ export default async function ResearchComparePage() {
     publicResearchPublishedMetrics()
   ]);
 
-  const metricGroups = new Map<string, PublicResearchPublishedMetric[]>();
-  for (const metric of metrics) {
-    const group = metricGroups.get(metric.metricKey) ?? [];
-    group.push(metric);
-    metricGroups.set(metric.metricKey, group);
+  const approvedMetricGroups = new Map<string, Set<string>>();
+  for (const item of comparisons) {
+    const approved =
+      (item.harmonisationStatus === "exact" || item.harmonisationStatus === "harmonised")
+      && item.comparabilityPolicy !== "not_comparable";
+    if (!approved) continue;
+    const key = [item.programmeSlug, item.studySlug, item.variableKey].join(":");
+    const waves = approvedMetricGroups.get(key) ?? new Set<string>();
+    waves.add(item.baselineWaveSlug);
+    waves.add(item.comparisonWaveSlug);
+    approvedMetricGroups.set(key, waves);
   }
-  const comparableMetricGroups = [...metricGroups.entries()]
+
+  const comparableMetricGroups = [...approvedMetricGroups.entries()]
+    .map(([key, approvedWaves]) => {
+      const [programmeSlug, studySlug, metricKey] = key.split(":");
+      const values = metrics.filter((metric) =>
+        metric.programmeSlug === programmeSlug
+        && metric.studySlug === studySlug
+        && metric.metricKey === metricKey
+        && approvedWaves.has(metric.waveSlug)
+      );
+      return [key, values] as const;
+    })
     .filter(([, values]) => values.length >= 2)
     .slice(0, 16);
 
@@ -143,7 +160,7 @@ export default async function ResearchComparePage() {
             <div className={styles.eyebrow}>Published metrics</div>
             <h2>Αποτελέσματα δίπλα-δίπλα</h2>
           </div>
-          <p>Εδώ εμφανίζονται μόνο overall, unsuppressed estimates από immutable public releases. Η απλή εμφάνιση δίπλα-δίπλα δεν υποκαθιστά το comparability status παραπάνω.</p>
+          <p>Εδώ εμφανίζονται μόνο overall, unsuppressed estimates από immutable public releases και μόνο όταν υπάρχει locked exact ή harmonised comparison specification. Methodological breaks δεν ομαδοποιούνται ποτέ ως trend.</p>
         </div>
 
         {comparableMetricGroups.length > 0
@@ -155,7 +172,7 @@ export default async function ResearchComparePage() {
               </div>)}
             </article>)}</div>
           : <div className={styles.empty}>
-              Χρειάζονται τουλάχιστον δύο published waves με το ίδιο governed metric key για άμεση side-by-side απεικόνιση.
+              Χρειάζονται τουλάχιστον δύο published waves που συνδέονται από locked exact ή harmonised comparison specification για άμεση side-by-side απεικόνιση.
             </div>}
       </section>
 
