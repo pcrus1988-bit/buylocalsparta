@@ -1,8 +1,23 @@
 import { readFileSync } from "node:fs";
 import { INDEXABLE_STATIC_ROUTES, NON_INDEXABLE_PAGE_ROUTES } from "../apps/web/src/lib/site-navigation.ts";
 import { seoDocumentRobotsHeader, seoRequestIndexingDecision } from "../apps/web/src/lib/seo-request-indexing.ts";
+import { productIndexEligibility } from "../apps/web/src/lib/seo-visibility-policy.ts";
 
 const failures: string[] = [];
+const temporarilyUnavailableProduct = productIndexEligibility({
+  title: "Chopard Oud Malaki Eau De Parfum 80 ml",
+  categoryCode: "beauty-fragrance",
+  description: "A sufficiently detailed public product description that remains useful to customers while supplier stock is temporarily unavailable.",
+  brand: "Chopard",
+  gtin: "1234567890123",
+  sourceImageAvailable: true,
+  offerAvailable: false,
+  duplicateTitleCount: 1
+});
+if (!temporarilyUnavailableProduct.eligible) {
+  failures.push("Temporary stock unavailability must not flap an otherwise eligible product page to noindex");
+}
+
 const fail = (message: string) => failures.push(message);
 
 function examplePath(pattern: string): string {
