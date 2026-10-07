@@ -1033,3 +1033,12 @@ export async function getPublishedGreekRetailReleaseArtifact(slug: string): Prom
     integrityOk: recomputedSha256 === published.artifactSha256
   };
 }
+
+
+/**
+ * Generic public release reader for Observatory study routes.
+ * The existing Greek Retail name is kept for compatibility with the first wave.
+ */
+export async function getPublishedResearchResults(slug: string) {
+  return getPublishedGreekRetailResults(slug);
+}
