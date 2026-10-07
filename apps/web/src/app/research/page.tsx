@@ -47,7 +47,7 @@ function studyCard(study: PublicResearchStudySummary) {
       <div><span>Ολοκληρώσεις</span><strong>{study.completed.toLocaleString("el-GR")}{study.targetCompletes > 0 ? " / " + study.targetCompletes.toLocaleString("el-GR") : ""}</strong></div>
       <div><span>Fieldwork έως</span><strong>{date(study.fieldworkEndsAt)}</strong></div>
     </div>
-    <Link className={styles.cardLink} href={"/research/" + study.slug}>Άνοιγμα μελέτης →</Link>
+    <Link className={styles.cardLink} href={"/research/" + study.waveSlug}>Άνοιγμα μελέτης →</Link>
   </article>;
 }
 
