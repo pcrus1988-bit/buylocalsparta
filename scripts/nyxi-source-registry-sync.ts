@@ -17,10 +17,10 @@ type RegistrySource = Readonly<{
   language: string;
   canonicalUrl: string;
   retrievalMethod: string;
-  official?: boolean;
+  official: boolean;
   legallyBinding?: boolean;
   regulatory?: boolean;
-  manufacturerPrimary?: boolean;
+  manufacturerPrimary: boolean;
   sourceStatus?: string;
   updateFrequency: string;
   coverage?: Record<string, unknown>;
@@ -98,10 +98,10 @@ try {
       source.language,
       source.canonicalUrl,
       source.retrievalMethod,
-      source.official ?? true,
+      source.official,
       source.legallyBinding ?? false,
       source.regulatory ?? false,
-      source.manufacturerPrimary ?? true,
+      source.manufacturerPrimary,
       source.sourceStatus ?? "verified",
       source.updateFrequency,
       JSON.stringify(source.coverage ?? {}),
@@ -124,45 +124,40 @@ try {
 
     for (const target of source.targets ?? []) {
       const targetKey = researchTargetKey(target.type, target.displayName);
-      let targetResult = await client.query<{ id: string }>(`
-        SELECT id::text
-        FROM public.nyxi_research_targets
-        WHERE target_type=$1 AND target_key=$2
-        LIMIT 1
-      `, [target.type, targetKey]);
-
-      if (!targetResult.rows[0]?.id && target.type === "brand") {
-        targetResult = await client.query<{ id: string }>(`
-          INSERT INTO public.nyxi_research_targets(
-            target_type,target_key,display_name,priority,research_status,
-            required_source_families,metadata
+      const targetResult = await client.query<{ id: string }>(`
+        INSERT INTO public.nyxi_research_targets(
+          target_type,target_key,display_name,priority,research_status,
+          required_source_families,metadata
+        )
+        VALUES(
+          $1,$2,$3,50,'queued',$4::text[],
+          jsonb_build_object(
+            'phase',0,
+            'autoCreatedBy','nyxi-source-registry',
+            'registryVersion',$5::integer,
+            'objective','Map authoritative evidence coverage before semantic interpretation.'
           )
-          VALUES(
-            'brand',$1,$2,50,'queued',
-            ARRAY[
-              'manufacturer_root',
-              'manufacturer_product',
-              'manufacturer_sds',
-              'manufacturer_catalogue',
-              'historical_archive'
-            ],
-            jsonb_build_object(
-              'phase',0,
-              'autoCreatedBy','nyxi-source-registry',
-              'registryVersion',$3::integer,
-              'objective','Discover primary product, ingredient, SDS, catalogue, colour-chart, reformulation and archive sources before classification.'
-            )
-          )
-          ON CONFLICT (target_type,target_key) DO UPDATE SET
-            display_name=EXCLUDED.display_name,
-            metadata=public.nyxi_research_targets.metadata || EXCLUDED.metadata,
-            updated_at=now()
-          RETURNING id::text
-        `, [targetKey, target.displayName, registry.version]);
-      }
+        )
+        ON CONFLICT (target_type,target_key) DO UPDATE SET
+          display_name=EXCLUDED.display_name,
+          required_source_families=CASE
+            WHEN cardinality(public.nyxi_research_targets.required_source_families)=0
+              THEN EXCLUDED.required_source_families
+            ELSE public.nyxi_research_targets.required_source_families
+          END,
+          metadata=public.nyxi_research_targets.metadata || EXCLUDED.metadata,
+          updated_at=now()
+        RETURNING id::text
+      `, [
+        target.type,
+        targetKey,
+        target.displayName,
+        requiredSourceFamiliesForTarget(target.type),
+        registry.version
+      ]);
 
       const targetId = targetResult.rows[0]?.id;
-      if (!targetId) throw new Error(`Missing NYXI research target ${target.type} / ${target.displayName} (${targetKey})`);
+      if (!targetId) throw new Error(`NYXI research target upsert returned no id for ${target.type} / ${target.displayName} (${targetKey})`);
       await client.query(`
         INSERT INTO public.nyxi_source_target_links(source_id,target_id,relation,metadata)
         VALUES($1,$2,$3,jsonb_build_object('registryVersion',$4::integer))
@@ -190,6 +185,25 @@ console.log(JSON.stringify({
   synced,
   linked
 }));
+
+function requiredSourceFamiliesForTarget(type: string): readonly string[] {
+  switch (type) {
+    case "brand":
+      return ["manufacturer_root","manufacturer_product","manufacturer_sds","manufacturer_catalogue","historical_archive"];
+    case "jurisdiction":
+      return ["law","regulatory_database","regulatory_guidance","recall_system"];
+    case "ingredient":
+      return ["regulatory_database","scientific_opinion_index","chemical_hazard_registry","scientific_literature","manufacturer_sds"];
+    case "regulation":
+      return ["law","regulatory_guidance"];
+    case "recall_system":
+      return ["recall_system"];
+    case "scientific_topic":
+      return ["scientific_opinion_index","scientific_literature"];
+    default:
+      throw new Error(`Unsupported NYXI research target type ${type}`);
+  }
+}
 
 function researchTargetKey(type: string, displayName: string): string {
   if (type !== "brand") {
@@ -219,6 +233,7 @@ function researchTargetKey(type: string, displayName: string): string {
 function validateSource(source: RegistrySource): void {
   if (!/^[a-z0-9][a-z0-9_-]{2,127}$/.test(source.sourceKey)) throw new Error(`Invalid source key ${source.sourceKey}`);
   if (!source.publisher.trim() || !source.title.trim()) throw new Error(`Source ${source.sourceKey} requires publisher/title`);
+  if (typeof source.official !== "boolean" || typeof source.manufacturerPrimary !== "boolean") throw new Error(`Source ${source.sourceKey} requires explicit official/manufacturerPrimary flags`);
   if (!Number.isSafeInteger(source.authorityLevel) || source.authorityLevel < 1 || source.authorityLevel > 5) throw new Error(`Invalid authority for ${source.sourceKey}`);
   const url = new URL(source.canonicalUrl);
   if (url.protocol !== "https:") throw new Error(`Source ${source.sourceKey} must use HTTPS`);
