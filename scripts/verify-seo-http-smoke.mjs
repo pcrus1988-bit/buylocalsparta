@@ -144,9 +144,56 @@ async function run() {
   const sitemapResponse = await request("/sitemap.xml");
   const sitemap = await sitemapResponse.text();
   assert(sitemapResponse.status === 200, `sitemap.xml returned ${sitemapResponse.status}, expected 200`);
-  assert(/<urlset\b/i.test(sitemap), "sitemap.xml must return a URL set");
+
+  const sitemapIsIndex = /<sitemapindex\b/i.test(sitemap);
+  const sitemapIsUrlSet = /<urlset\b/i.test(sitemap);
+  assert(sitemapIsIndex || sitemapIsUrlSet, "sitemap.xml must return a sitemap index or URL set");
+
+  const sitemapBodies = [sitemap];
+  let productSitemap = sitemap;
+
+  if (sitemapIsIndex) {
+    const childLocations = sitemapLocations(sitemap);
+    assert(childLocations.length > 0, "sitemap.xml index must advertise at least one child sitemap");
+
+    const coreLocation = childLocations.find((location) => {
+      try {
+        return new URL(location, origin).pathname === "/sitemaps/core/sitemap.xml";
+      } catch {
+        return false;
+      }
+    });
+    assert(Boolean(coreLocation), "sitemap.xml index must advertise /sitemaps/core/sitemap.xml");
+
+    if (coreLocation) {
+      const coreUrl = new URL(coreLocation, origin);
+      const coreResponse = await request(`${coreUrl.pathname}${coreUrl.search}`);
+      const coreSitemap = await coreResponse.text();
+      assert(coreResponse.status === 200, `core sitemap returned ${coreResponse.status}, expected 200`);
+      assert(/<urlset\b/i.test(coreSitemap), "core sitemap must return a URL set");
+      sitemapBodies.push(coreSitemap);
+    }
+
+    const productLocation = childLocations.find((location) => {
+      try {
+        return new URL(location, origin).pathname.startsWith("/sitemaps/products/");
+      } catch {
+        return false;
+      }
+    });
+    if (productLocation) {
+      const productUrl = new URL(productLocation, origin);
+      const productResponse = await request(`${productUrl.pathname}${productUrl.search}`);
+      productSitemap = await productResponse.text();
+      assert(productResponse.status === 200, `product sitemap returned ${productResponse.status}, expected 200`);
+      assert(/<urlset\b/i.test(productSitemap), "product sitemap shard must return a URL set");
+      sitemapBodies.push(productSitemap);
+    }
+  }
+
+  const inspectedSitemaps = sitemapBodies.join("\n");
   for (const forbidden of ["/admin/", "/account/", "/checkout/", "/api/", "/vendor/finance"]) {
-    assert(!sitemap.includes(forbidden), `sitemap.xml must not contain private/internal path ${forbidden}`);
+    assert(!inspectedSitemaps.includes(forbidden), `sitemaps must not contain private/internal path ${forbidden}`);
   }
 
   const homeResponse = await request("/", { headers: seoMonitorHeaders });
@@ -183,7 +230,7 @@ async function run() {
   const crawlerShopResponse = await request("/shop", { headers: googlebotHeaders });
   assert(crawlerShopResponse.status === 200, `Googlebot catalogue rendering returned ${crawlerShopResponse.status}, expected 200`);
 
-  const productLocation = sitemapLocations(sitemap).find((location) => {
+  const productLocation = sitemapLocations(productSitemap).find((location) => {
     try {
       return new URL(location, origin).pathname.startsWith("/product/");
     } catch {
