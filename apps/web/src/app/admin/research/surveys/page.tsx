@@ -76,7 +76,7 @@ export default async function ResearchSurveysAdminPage() {
     </div></section>
 
     {!overview.databaseConfigured
-      ? <section className="shell vendor-section"><WorkspaceEmptyState title="Research database is not available." body="The admin surface will activate after schema 426 is deployed." /></section>
+      ? <section className="shell vendor-section"><WorkspaceEmptyState title="Research database is not available." body="The Research admin surface will activate when the production Research schema is available." /></section>
       : overview.studies.length === 0
         ? <section className="shell vendor-section"><WorkspaceEmptyState title="No research studies have been created." /></section>
         : overview.studies.map((study) => <div key={study.id}>
