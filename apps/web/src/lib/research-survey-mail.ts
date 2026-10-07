@@ -60,6 +60,7 @@ export async function sendResearchSurveyInvitation(input: Readonly<{
   };
   const subject = renderRecruitmentTemplate(input.subjectTemplate, replacements).trim();
   const optOutUrl = `${input.surveyUrl}?optout=1`;
+  const privacyUrl = new URL("/research/privacy", input.surveyUrl).toString();
   let text = renderRecruitmentTemplate(input.bodyTemplate, replacements).trim();
   if (!subject) throw new Error("RESEARCH_RECRUITMENT_SUBJECT_EMPTY");
   if (!text) throw new Error("RESEARCH_RECRUITMENT_BODY_EMPTY");
@@ -68,6 +69,9 @@ export async function sendResearchSurveyInvitation(input: Readonly<{
   }
   if (!text.includes(input.methodologyUrl)) {
     text += `\n\nΜεθοδολογία: ${input.methodologyUrl}`;
+  }
+  if (!text.includes(privacyUrl)) {
+    text += `\n\nΓιατί λάβατε την πρόσκληση & προστασία δεδομένων: ${privacyUrl}`;
   }
   text += `\n\nΔεν επιθυμείτε άλλη ερευνητική επικοινωνία από το KONTA MOY; ${optOutUrl}`;
 
@@ -79,7 +83,7 @@ export async function sendResearchSurveyInvitation(input: Readonly<{
     replyTo: [replyToAddress],
     subject,
     text,
-    html: researchInvitationHtml(subject, text, input.surveyUrl, input.methodologyUrl, optOutUrl),
+    html: researchInvitationHtml(subject, text, input.surveyUrl, input.methodologyUrl, privacyUrl, optOutUrl),
     internetMessageIdDomain: DEFAULT_DOMAIN
   });
 
@@ -289,6 +293,7 @@ function researchInvitationHtml(
   text: string,
   surveyUrl: string,
   methodologyUrl: string,
+  privacyUrl: string,
   optOutUrl: string
 ): string {
   const paragraphs = text
@@ -311,8 +316,9 @@ function researchInvitationHtml(
         <tr><td style="padding:32px">
           ${paragraphs}
           <p style="margin:24px 0"><a href="${escapeHtml(surveyUrl)}" style="display:inline-block;padding:14px 22px;border-radius:999px;background:#183027;color:#fffdf8;text-decoration:none;font-weight:800">Συμμετοχή στην έρευνα →</a></p>
-          <p style="font-size:13px;line-height:1.6;color:#58645f">Ο σύνδεσμος είναι προσωπικός για το επιλεγμένο δείγμα. Δεν περιέχει ΑΦΜ, email ή επωνυμία. <a href="${escapeHtml(methodologyUrl)}" style="color:#183027">Μεθοδολογία και πληροφορίες μελέτης</a>.</p>
-          <p style="font-size:13px;line-height:1.6;color:#58645f">Δεν επιθυμείτε άλλη ερευνητική επικοινωνία; <a href="${escapeHtml(optOutUrl)}" style="color:#183027">Καταχώρηση opt-out από μελλοντικές προσκλήσεις έρευνας</a>.</p>
+          <p style="font-size:13px;line-height:1.6;color:#58645f">Ο σύνδεσμος είναι προσωπικός για την επιλεγμένη συμμετοχή. Δεν περιέχει ΑΦΜ, email ή επωνυμία. <a href="${escapeHtml(methodologyUrl)}" style="color:#183027">Μεθοδολογία και πληροφορίες μελέτης</a>.</p>
+          <p style="font-size:13px;line-height:1.6;color:#58645f"><a href="${escapeHtml(privacyUrl)}" style="color:#183027;font-weight:700">Γιατί λάβατε αυτή την πρόσκληση, από πού προήλθαν τα στοιχεία και πώς χρησιμοποιούνται σύμφωνα με τον GDPR</a>.</p>
+          <p style="font-size:13px;line-height:1.6;color:#58645f">Δεν επιθυμείτε άλλη ερευνητική επικοινωνία; <a href="${escapeHtml(optOutUrl)}" style="color:#183027">Να μη λάβω άλλες ερευνητικές προσκλήσεις</a>.</p>
         </td></tr>
       </table>
     </td></tr>
