@@ -28,7 +28,7 @@ export default async function ResearchMethodologyPage({ params }: PageProps) {
   const { slug } = await params;
   const study = await publicResearchStudy(slug);
   if (!study) notFound();
-  const release = await getPublishedResearchResults(study.slug);
+  const release = await getPublishedResearchResults(study.waveSlug);
 
   return <main className={styles.shell}>
     <div className={styles.frame}>
