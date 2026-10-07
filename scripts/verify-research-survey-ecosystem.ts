@@ -622,7 +622,7 @@ if (!researchLongJobScript.includes('[\"frame_snapshot\", \"analysis\"]') || !re
 if (!researchLongJobWorkflow.includes("workflow_dispatch") || /^\\s*schedule:/m.test(researchLongJobWorkflow)) errors.push("long Research executor must remain explicit/manual rather than recurring");
 if (!researchLongJobWorkflow.includes("environment: production") || !researchLongJobWorkflow.includes("timeout-minutes: 360")) errors.push("long Research executor lacks the governed production execution window");
 if (!researchLongJobWorkflow.includes("secrets.DATABASE_URL") || !researchLongJobWorkflow.includes("scripts/process-research-long-job.ts")) errors.push("long Research executor is not bound to the production DB one-shot script");
-if (!appVercelConfig.includes("\"/api/cron/research-study-jobs\"") || !appVercelConfig.includes("\"*/5 * * * *\"")) errors.push("effective apps/web Vercel config does not schedule the Research job cron");
+if (!appVercelConfig.includes("\"/api/cron/research-study-jobs\"") || !appVercelConfig.includes("\"* * * * *\"")) errors.push("effective apps/web Vercel config does not schedule the one-minute Research job cron");
 
 if (errors.length) {
   console.error(["Research survey ecosystem verification failed:", ...errors.map((error) => `- ${error}`)].join("\n"));
