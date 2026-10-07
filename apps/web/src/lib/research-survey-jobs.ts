@@ -718,7 +718,7 @@ export async function suppressGreekRetailResearchEmail(
           'source','admin_research_ui',
           'reason','manual_contact_suppression'
         )
-        FROM unnest($1::uuid[]) AS id
+        FROM unnest($1::uuid[]) AS u(id)
       `, [suppressedInvites.rows.map((row) => text(row.id))]);
     }
 
