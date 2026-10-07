@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     // Always drain governed non-email work first so frame/sample/analysis/release
     // jobs cannot be stranded behind the email-delivery lane. Email jobs keep
     // their separate delivery readiness guard inside the worker implementation.
-    const operational = await processResearchStudyJobs(1, OPERATIONAL_JOB_TYPES);
+    const operational = await processResearchStudyJobs(3, OPERATIONAL_JOB_TYPES);
     if (operational.claimed > 0) {
       return Response.json(
         { ok: true, lane: "operational", ...operational },
