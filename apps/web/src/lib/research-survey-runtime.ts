@@ -1130,7 +1130,9 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       COALESCE(i.sent, 0)::int AS sent,
       COALESCE(i.delivered, 0)::int AS delivered,
       COALESCE(i.opened, 0)::int AS opened,
+      COALESCE(im.initial_delayed, 0)::int AS invitation_delayed,
       COALESCE(im.reminder_sent, 0)::int AS reminder_sent,
+      COALESCE(im.reminder_delayed, 0)::int AS reminder_delayed,
       COALESCE(im.reminder_failed, 0)::int AS reminder_failed,
       COALESCE(r.started, 0)::int AS started,
       COALESCE(r.completed, 0)::int AS completed,
@@ -1141,8 +1143,10 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       COALESCE(rw.issued_count, 0)::int AS reward_issued,
       COALESCE(rw.redeemed_count, 0)::int AS reward_redeemed,
       COALESCE(pd.reward_sent, 0)::int AS reward_delivery_sent,
+      COALESCE(pd.reward_delayed, 0)::int AS reward_delivery_delayed,
       COALESCE(pd.reward_failed, 0)::int AS reward_delivery_failed,
       COALESCE(pd.results_sent, 0)::int AS results_notification_sent,
+      COALESCE(pd.results_delayed, 0)::int AS results_notification_delayed,
       COALESCE(pd.results_failed, 0)::int AS results_notification_failed,
       COALESCE(a.analysis_runs, 0)::int AS analysis_runs,
       COALESCE(a.succeeded_runs, 0)::int AS succeeded_analysis_runs,
@@ -1302,9 +1306,19 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
     LEFT JOIN LATERAL (
       SELECT
         count(*) FILTER (
+          WHERE m.attempt_kind='initial'
+            AND m.status='sent'
+            AND m.last_error LIKE 'SES delivery delay:%'
+        ) AS initial_delayed,
+        count(*) FILTER (
           WHERE m.attempt_kind='reminder'
             AND m.status IN ('sent','delivered','opened')
         ) AS reminder_sent,
+        count(*) FILTER (
+          WHERE m.attempt_kind='reminder'
+            AND m.status='sent'
+            AND m.last_error LIKE 'SES delivery delay:%'
+        ) AS reminder_delayed,
         count(*) FILTER (
           WHERE m.attempt_kind='reminder'
             AND m.status='failed'
@@ -1353,8 +1367,18 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
     LEFT JOIN LATERAL (
       SELECT
         count(*) FILTER (WHERE message_kind='thank_you_code' AND status='sent') AS reward_sent,
+        count(*) FILTER (
+          WHERE message_kind='thank_you_code'
+            AND status='sent'
+            AND last_error LIKE 'SES delivery delay:%'
+        ) AS reward_delayed,
         count(*) FILTER (WHERE message_kind='thank_you_code' AND status='failed') AS reward_failed,
         count(*) FILTER (WHERE message_kind='results_notification' AND status='sent') AS results_sent,
+        count(*) FILTER (
+          WHERE message_kind='results_notification'
+            AND status='sent'
+            AND last_error LIKE 'SES delivery delay:%'
+        ) AS results_delayed,
         count(*) FILTER (WHERE message_kind='results_notification' AND status='failed') AS results_failed
       FROM research_participant_deliveries
       WHERE study_id=s.id
@@ -1434,7 +1458,9 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       sent: numberValue(row.sent),
       delivered: numberValue(row.delivered),
       opened: numberValue(row.opened),
+      invitationDelayed: numberValue(row.invitation_delayed),
       reminderSent: numberValue(row.reminder_sent),
+      reminderDelayed: numberValue(row.reminder_delayed),
       reminderFailed: numberValue(row.reminder_failed),
       started: numberValue(row.started),
       completed: numberValue(row.completed),
@@ -1445,8 +1471,10 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       rewardIssued: numberValue(row.reward_issued),
       rewardRedeemed: numberValue(row.reward_redeemed),
       rewardDeliverySent: numberValue(row.reward_delivery_sent),
+      rewardDeliveryDelayed: numberValue(row.reward_delivery_delayed),
       rewardDeliveryFailed: numberValue(row.reward_delivery_failed),
       resultsNotificationSent: numberValue(row.results_notification_sent),
+      resultsNotificationDelayed: numberValue(row.results_notification_delayed),
       resultsNotificationFailed: numberValue(row.results_notification_failed),
       analysisRuns: numberValue(row.analysis_runs),
       succeededAnalysisRuns: numberValue(row.succeeded_analysis_runs),
