@@ -49,9 +49,9 @@ export default async function ResearchResultsPage({ params }: PageProps) {
       <div className={styles.topbar}>
         <Link className={styles.brand} href="/research">KONTA MOY · RETAIL OBSERVATORY</Link>
         <nav className={styles.nav} aria-label="Research">
-          <Link href={"/research/" + study.slug}>Επισκόπηση</Link>
-          <Link href={"/research/" + study.slug + "/methodology"}>Μεθοδολογία</Link>
-          <Link href={"/research/" + study.slug + "/results"}>Αποτελέσματα</Link>
+          <Link href={"/research/" + study.waveSlug}>Επισκόπηση</Link>
+          <Link href={"/research/" + study.waveSlug + "/methodology"}>Μεθοδολογία</Link>
+          <Link href={"/research/" + study.waveSlug + "/results"}>Αποτελέσματα</Link>
           <Link href="/research/compare">Σύγκριση</Link>
         </nav>
       </div>
@@ -112,7 +112,7 @@ export default async function ResearchResultsPage({ params }: PageProps) {
       </> : <section className={styles.section}>
         <div className={styles.empty}>
           Δεν έχει δημοσιευθεί ακόμη release για αυτή τη wave. Μπορείτε να παρακολουθείτε τη live πρόοδο χωρίς να βλέπετε πρόωρα ευρήματα.
-          <br /><Link className={styles.cardLink} href={"/research/" + study.slug}>Επιστροφή στη live επισκόπηση →</Link>
+          <br /><Link className={styles.cardLink} href={"/research/" + study.waveSlug}>Επιστροφή στη live επισκόπηση →</Link>
         </div>
       </section>}
 
