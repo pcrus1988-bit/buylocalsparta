@@ -12,6 +12,7 @@ const expected = new Map([
   ["/admin/trust", "trust"],
   ["/admin/finance", "finance"],
   ["/admin/content", "content"],
+  ["/admin/research/surveys", "research"],
   ["/admin/analytics", "analytics"],
   ["/admin/platform", "platform"]
 ]);
@@ -28,6 +29,17 @@ const renderer = readFileSync(`${root}/apps/web/src/components/AdminDomainNaviga
 for (const requirement of ["AdminNavIcon", '<AdminNavIcon name={group.icon ?? "overview"} />']) if (!renderer.includes(requirement)) failures.push(`AdminDomainNavigation is missing ${requirement}`);
 if (renderer.includes('{group.icon ?? group.links[0]?.icon ?? "·"}')) failures.push("Admin sidebar must not render raw Unicode group icons");
 
+const researchControlCenter = readFileSync(`${root}/apps/web/src/app/admin/research/surveys/page.tsx`, "utf8");
+for (const requirement of [
+  "Survey Control Center",
+  'id={"survey-" + study.slug}',
+  'id={"survey-settings-" + study.slug}',
+  'href={"#survey-sampling-" + study.slug}',
+  'href={"#survey-fieldwork-" + study.slug}',
+  'href={"#survey-quality-" + study.slug}',
+  'href={"#survey-lifecycle-" + study.slug}'
+]) if (!researchControlCenter.includes(requirement)) failures.push(`Research survey control center is missing ${requirement}`);
+
 const icons = readFileSync(`${root}/apps/web/src/components/AdminNavIcon.tsx`, "utf8");
 for (const icon of expected.values()) if (!icons.includes(`case "${icon}"`)) failures.push(`AdminNavIcon is missing ${icon}`);
 for (const requirement of ["<svg", 'stroke: "currentColor"', '"aria-hidden": true']) if (!icons.includes(requirement)) failures.push(`AdminNavIcon is missing ${requirement}`);
@@ -41,4 +53,4 @@ if (failures.length) {
   console.error("Admin domain icon checks failed:\n" + failures.map((failure) => `- ${failure}`).join("\n"));
   process.exit(1);
 }
-console.log("Admin domain icon checks passed: ten semantic SVG domain icons, one stable renderer and reduced-motion styling verified.");
+console.log("Admin domain icon checks passed: semantic SVG domain icons, one stable renderer and reduced-motion styling verified.");

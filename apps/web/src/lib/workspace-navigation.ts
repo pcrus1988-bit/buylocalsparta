@@ -233,6 +233,16 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     ]
   },
   {
+    label: "Research",
+    href: "/admin/research/surveys",
+    icon: "research",
+    section: "Διακυβέρνηση & ανάπτυξη",
+    description: "Survey control center, fieldwork, consent, evidence και publication",
+    links: [
+      { label: "Survey Control Center", href: "/admin/research/surveys", icon: "◌", permission: "research.read" }
+    ]
+  },
+  {
     label: "Αναλύσεις",
     href: "/admin/analytics",
     icon: "analytics",
@@ -241,7 +251,6 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     links: [
       { label: "Performance", href: "/admin/analytics", icon: "∿", permission: "analytics.market.read" },
       { label: "Demand", href: "/admin/demand", icon: "◎", permission: "analytics.market.read" },
-      { label: "Research Studies", href: "/admin/research/surveys", icon: "◌", permission: "research.read" },
       { label: "Reports", href: "/admin/reports", icon: "▤", permission: "analytics.market.read" }
     ]
   },

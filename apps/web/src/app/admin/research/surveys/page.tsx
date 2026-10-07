@@ -15,7 +15,7 @@ import { researchQualityReviewQueue } from "../../../../lib/research-survey-qual
 import { researchDeliveryDelayQueue, researchFieldworkStrata, researchProtocolEvents, researchSurveyAdminOverview } from "../../../../lib/research-survey-runtime";
 
 export const metadata: Metadata = {
-  title: "Admin · Research Studies",
+  title: "Admin · Survey Control Center",
   robots: { index: false, follow: false }
 };
 
@@ -58,22 +58,38 @@ export default async function ResearchSurveysAdminPage() {
   );
 
   return <main className="vendor-app admin-app">
-    <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Research Studies" />
+    <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Research · Surveys" />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div>
-      <div className="eyebrow">Research · governed evidence</div>
-      <h1>Research Studies</h1>
-      <p className="lead">Population frame → probability sample → invitation → consent → response → weighting → analysis → public release, with versioned evidence at every step.</p>
+      <div className="eyebrow">Research · Survey Control Center</div>
+      <h1>Survey Control Center</h1>
+      <p className="lead">Choose a survey, review its live state and manage its sampling, fieldwork, email, quality, protocol, lifecycle and publication settings from one place.</p>
       <div className="hero-actions">
         <Link className="button button-secondary" href="/research/greek-retail-2026/methodology">Public methodology</Link>
         <Link className="button button-secondary" href="/research/greek-retail-2026/results">Public results</Link>
       </div>
     </div></section>
 
+    {overview.databaseConfigured && overview.studies.length > 0 && <section className="shell vendor-section">
+      <WorkspaceSectionHeading
+        eyebrow="Research"
+        title="Surveys"
+        note="Each survey has its own control center and settings below. Choose one to jump directly to it."
+      />
+      <div className="analytics-workflow-grid">
+        {overview.studies.map((study) => <article className="analytics-workflow-card" key={study.id}>
+          <span>{study.status.toUpperCase()}</span>
+          <strong>{study.title}</strong>
+          <small>{study.slug} · instrument {study.instrumentVersion ?? "—"} · {study.completed.toLocaleString("el-GR")} completed</small>
+          <Link className="button button-secondary" href={"#survey-" + study.slug}>Open control center</Link>
+        </article>)}
+      </div>
+    </section>}
+
     {!overview.databaseConfigured
       ? <section className="shell vendor-section"><WorkspaceEmptyState title="Research database is not available." body="The admin surface will activate after schema 426 is deployed." /></section>
       : overview.studies.length === 0
         ? <section className="shell vendor-section"><WorkspaceEmptyState title="No research studies have been created." /></section>
-        : overview.studies.map((study) => <div key={study.id}>
+        : overview.studies.map((study) => <div id={"survey-" + study.slug} key={study.id}>
           <WorkspaceMetricStrip items={[
             { label: "Population frame", value: study.framePopulation.toLocaleString("el-GR"), hint: String(study.frameCount) + " snapshot(s)" },
             { label: "Selected sample", value: study.sampleUnits.toLocaleString("el-GR"), hint: String(study.sampleDrawCount) + " draw(s)" },
@@ -98,11 +114,29 @@ export default async function ResearchSurveysAdminPage() {
           ]} />
           <section className="shell vendor-section">
             <WorkspaceSectionHeading
-              eyebrow={"Study · " + study.slug}
+              eyebrow={"Survey · " + study.slug}
               title={study.title}
               note={"Instrument " + (study.instrumentVersion ?? "—")}
               action={<WorkspaceStatusBadge status={study.status} label={study.status} />}
             />
+            <div className="workspace-queue-card" id={"survey-settings-" + study.slug}>
+              <div className="workspace-action-bar">
+                <span>
+                  <strong>Survey settings</strong><br />
+                  All controls below apply only to <strong>{study.title}</strong>. Use this navigation to move between the survey's configuration areas.
+                </span>
+                <WorkspaceStatusBadge status={study.status} label={study.status} />
+              </div>
+              <div className="workspace-action-buttons" style={{ flexWrap: "wrap" }}>
+                <a className="button button-secondary" href={"#survey-sampling-" + study.slug}>Sampling</a>
+                <a className="button button-secondary" href={"#survey-fieldwork-" + study.slug}>Email & fieldwork</a>
+                <a className="button button-secondary" href={"#survey-delivery-" + study.slug}>Delivery</a>
+                <a className="button button-secondary" href={"#survey-quality-" + study.slug}>Quality</a>
+                <a className="button button-secondary" href={"#survey-protocol-" + study.slug}>Protocol</a>
+                <a className="button button-secondary" href={"#survey-lifecycle-" + study.slug}>Lifecycle & publication</a>
+                <a className="button button-secondary" href={"#survey-evidence-" + study.slug}>Evidence</a>
+              </div>
+            </div>
             <div className="workspace-queue-card">
               <div className="workspace-action-bar">
                 <span>Instrument status</span>
@@ -125,7 +159,7 @@ export default async function ResearchSurveysAdminPage() {
               </div>
             </div>
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudySamplingControls
+            {hasAdminPermission(principal, "research.manage") && <div id={"survey-sampling-" + study.slug}><ResearchStudySamplingControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
               latestFrameStatus={study.latestFrameStatus}
@@ -144,17 +178,19 @@ export default async function ResearchSurveysAdminPage() {
               latestSampleExpectedCompletes={study.latestSampleExpectedCompletes}
               queuedJobs={study.queuedJobs}
               runningJobs={study.runningJobs}
-            />}
+            /></div>}
 
-            <ResearchStudyFieldworkBalance strata={fieldworkStrata.get(study.slug) ?? []} />
+            <div id={"survey-balance-" + study.slug}>
+              <ResearchStudyFieldworkBalance strata={fieldworkStrata.get(study.slug) ?? []} />
+            </div>
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudyQualityControls
+            {hasAdminPermission(principal, "research.manage") && <div id={"survey-quality-" + study.slug}><ResearchStudyQualityControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
               initialItems={qualityQueues.get(study.slug) ?? []}
-            />}
+            /></div>}
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudyFieldworkControls
+            {hasAdminPermission(principal, "research.manage") && <div id={"survey-fieldwork-" + study.slug}><ResearchStudyFieldworkControls
               slug={study.slug}
               studyTitle={study.title}
               csrfToken={principal.csrfToken}
@@ -176,8 +212,9 @@ export default async function ResearchSurveysAdminPage() {
               resultsNotificationFailed={study.resultsNotificationFailed}
               queuedJobs={study.queuedJobs}
               runningJobs={study.runningJobs}
-            />}
+            /></div>}
 
+            <div id={"survey-delivery-" + study.slug}>
             {(deliveryDelays.get(study.slug)?.length ?? 0) > 0 && <div className="workspace-queue-card">
               <div className="workspace-action-bar">
                 <span>
@@ -202,19 +239,20 @@ export default async function ResearchSurveysAdminPage() {
                 </small>
               </div>)}
             </div>}
+            </div>
 
             {study.failedJobs > 0 && <div className="workspace-inline-note form-error">
               {study.failedJobs} research job(s) require review before relying on the evidence chain.
             </div>}
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudyProtocolControls
+            {hasAdminPermission(principal, "research.manage") && <div id={"survey-protocol-" + study.slug}><ResearchStudyProtocolControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
               studyStatus={study.status}
               events={protocolEvents.get(study.slug) ?? []}
-            />}
+            /></div>}
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudyLifecycleControls
+            {hasAdminPermission(principal, "research.manage") && <div id={"survey-lifecycle-" + study.slug}><ResearchStudyLifecycleControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
               studyStatus={study.status}
@@ -222,8 +260,9 @@ export default async function ResearchSurveysAdminPage() {
               analysisPlanStatus={study.analysisPlanStatus}
               latestReleaseVersion={study.latestReleaseVersion}
               latestReleasePublishedAt={study.latestReleasePublishedAt}
-            />}
+            /></div>}
 
+            <div id={"survey-evidence-" + study.slug}>
             <WorkspaceSectionHeading
               eyebrow="Evidence chain"
               title="The release must be reconstructable"
@@ -236,6 +275,7 @@ export default async function ResearchSurveysAdminPage() {
               <article className="analytics-workflow-card"><span>04 · Evidence</span><strong>Immutable completed response</strong><small>Questionnaire version, raw answers, optional experiment assignment and scoring version.</small></article>
               <article className="analytics-workflow-card"><span>05 · Analysis</span><strong>Locked plan + weights + code</strong><small>Pre-fieldwork analysis-plan hash, base/non-response weights and code version bound to the same auditable analysis run.</small></article>
               <article className="analytics-workflow-card"><span>06 · Release</span><strong>Public reproducibility snapshot</strong><small>Methodology JSON, dataset hash, artifact hash and exact publication version.</small></article>
+            </div>
             </div>
           </section>
         </div>)}
