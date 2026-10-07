@@ -441,8 +441,6 @@ export async function previewGreekRetailEmailSend(
   const minAgeDays = Math.max(1, Math.min(90, Math.floor(input.minAgeDays ?? 5)));
   const minGapDays = Math.max(1, Math.min(90, Math.floor(input.minGapDays ?? 5)));
   const maxReminders = Math.max(1, Math.min(5, Math.floor(input.maxReminders ?? 2)));
-  const confirmedRecipientCount = requireQueueConfirmation(input.confirmedRecipientCount, 500);
-  if (confirmedRecipientCount > limit) throw new Error("RESEARCH_EMAIL_DOUBLE_CONFIRMATION_REQUIRED");
   const pool = getProductionPostgresRuntime().sqlPool;
   const studyResult = await pool.query<SqlRow>(`
     SELECT id,slug,title,status,current_wave_id
@@ -771,6 +769,8 @@ export async function queueGreekRetailInviteReminderBatch(
   const minAgeDays = Math.max(1, Math.min(90, Math.floor(input.minAgeDays ?? 5)));
   const minGapDays = Math.max(1, Math.min(90, Math.floor(input.minGapDays ?? 5)));
   const maxReminders = Math.max(1, Math.min(5, Math.floor(input.maxReminders ?? 2)));
+  const confirmedRecipientCount = requireQueueConfirmation(input.confirmedRecipientCount, 500);
+  if (confirmedRecipientCount > limit) throw new Error("RESEARCH_EMAIL_DOUBLE_CONFIRMATION_REQUIRED");
   const pool = getProductionPostgresRuntime().sqlPool;
 
   const study = await pool.query<SqlRow>(`
