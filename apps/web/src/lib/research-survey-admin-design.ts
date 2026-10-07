@@ -631,7 +631,7 @@ export async function saveResearchLaterEvaluation(
     if (text(study.status) === "draft") throw new Error("RESEARCH_LATER_EVALUATION_REQUIRES_STARTED_STUDY");
     if (text(study.status) === "archived") throw new Error("RESEARCH_STUDY_ARCHIVED");
 
-    let definitionId = randomUUID();
+    let definitionId: string = randomUUID();
     let revision = 1;
     let relatedEventId = "";
     const priorEventId = input.priorEventId?.trim() || "";
