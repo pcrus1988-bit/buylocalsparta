@@ -63,7 +63,7 @@ export function ResearchStudyOperationsPanel({ data, slug }: { data: ResearchSur
             <th style={{ textAlign: "left", padding: 10 }}>Email</th>
             <th style={{ textAlign: "left", padding: 10 }}>Επιχείρηση</th>
             <th style={{ textAlign: "left", padding: 10 }}>Περιοχή</th>
-            <th style={{ textAlign: "left", padding: 10 }}>ΚΑΔ</th>
+            <th style={{ textAlign: "left", padding: 10 }}>ΚΑΔ πηγής</th>
             <th style={{ textAlign: "left", padding: 10 }}>Πηγή</th>
             <th style={{ textAlign: "left", padding: 10 }}>Επικοινωνία</th>
             <th style={{ textAlign: "left", padding: 10 }}>Πρόσκληση</th>
@@ -72,7 +72,10 @@ export function ResearchStudyOperationsPanel({ data, slug }: { data: ResearchSur
             <td style={{ padding: 10, borderTop: "1px solid var(--border, #e8e5df)" }}>{contact.email || "Περιορισμένη προβολή"}</td>
             <td style={{ padding: 10, borderTop: "1px solid var(--border, #e8e5df)" }}>{contact.legalName || "—"}</td>
             <td style={{ padding: 10, borderTop: "1px solid var(--border, #e8e5df)" }}>{[contact.municipality, contact.prefecture].filter(Boolean).join(" · ") || "—"}</td>
-            <td style={{ padding: 10, borderTop: "1px solid var(--border, #e8e5df)" }}>{contact.kadCodes || "—"}</td>
+            <td style={{ padding: 10, borderTop: "1px solid var(--border, #e8e5df)" }}>
+              <strong>Κύριος:</strong> {contact.sourcePrimaryKad || "Δεν δηλώνεται"}<br />
+              <small>Όλοι: {contact.kadCodes || "—"}</small>
+            </td>
             <td style={{ padding: 10, borderTop: "1px solid var(--border, #e8e5df)" }}>{contact.source || "—"}</td>
             <td style={{ padding: 10, borderTop: "1px solid var(--border, #e8e5df)" }}>
               <WorkspaceStatusBadge status={contact.status} label={contact.status} />
@@ -120,7 +123,7 @@ export function ResearchStudyOperationsPanel({ data, slug }: { data: ResearchSur
       <WorkspaceSectionHeading
         eyebrow="ΚΑΔ"
         title="Σύνθεση του ερευνητικού πλαισίου"
-        note="Η ομαδοποίηση ακολουθεί τους ΚΑΔ που χρησιμοποιούνται για τη στρωματοποίηση του δείγματος. Οι πραγματικοί ΚΑΔ κάθε επιχείρησης φαίνονται και στη λίστα επαφών."
+        note="Η ομαδοποίηση δείγματος είναι ξεχωριστή από τον κύριο ΚΑΔ. Στη λίστα επαφών εμφανίζονται όλοι οι ΚΑΔ της πηγής και «Κύριος» μόνο όταν η ίδια η πηγή τον χαρακτηρίζει ρητά έτσι."
       />
       <div className="analytics-workflow-grid">
         {data.kadGroups.map((group) => {
