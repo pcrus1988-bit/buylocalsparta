@@ -17,7 +17,7 @@ class PersistenceClient {
 
   async query<Row extends SqlRow = SqlRow>(text: string, params: readonly unknown[] = []): Promise<SqlQueryResult<Row>> {
     this.calls.push({ text, params });
-    if (/SELECT us\.public_id AS session_public_id/i.test(text)) {
+    if (/(?:SELECT|RETURNING)[\s\S]*us\.public_id AS session_public_id/i.test(text)) {
       return { rowCount: 1, rows: [{
         session_public_id: "ses-public", expires_at: new Date("2026-08-15T09:00:00Z"), last_seen_at: new Date("2026-08-14T09:00:00Z"),
         user_public_id: "usr-public", email: "buyer@example.test", status: "active", email_verified_at: new Date("2026-08-14T08:00:00Z"),
