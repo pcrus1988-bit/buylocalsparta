@@ -59,6 +59,7 @@ export async function sendResearchSurveyInvitation(input: Readonly<{
     study_title: input.studyTitle
   };
   const subject = renderRecruitmentTemplate(input.subjectTemplate, replacements).trim();
+  const optOutUrl = `${input.surveyUrl}?optout=1`;
   let text = renderRecruitmentTemplate(input.bodyTemplate, replacements).trim();
   if (!subject) throw new Error("RESEARCH_RECRUITMENT_SUBJECT_EMPTY");
   if (!text) throw new Error("RESEARCH_RECRUITMENT_BODY_EMPTY");
@@ -68,6 +69,7 @@ export async function sendResearchSurveyInvitation(input: Readonly<{
   if (!text.includes(input.methodologyUrl)) {
     text += `\n\nΜεθοδολογία: ${input.methodologyUrl}`;
   }
+  text += `\n\nΔεν επιθυμείτε άλλη ερευνητική επικοινωνία από το KONTA MOY; ${optOutUrl}`;
 
   const fromAddress = mailAddress(configuration.from, "KONTA MOY Research");
   const replyToAddress = mailAddress(configuration.replyTo);
@@ -77,7 +79,7 @@ export async function sendResearchSurveyInvitation(input: Readonly<{
     replyTo: [replyToAddress],
     subject,
     text,
-    html: researchInvitationHtml(subject, text, input.surveyUrl, input.methodologyUrl),
+    html: researchInvitationHtml(subject, text, input.surveyUrl, input.methodologyUrl, optOutUrl),
     internetMessageIdDomain: DEFAULT_DOMAIN
   });
 
@@ -282,7 +284,13 @@ function researchParticipantHtml(
 </html>`;
 }
 
-function researchInvitationHtml(subject: string, text: string, surveyUrl: string, methodologyUrl: string): string {
+function researchInvitationHtml(
+  subject: string,
+  text: string,
+  surveyUrl: string,
+  methodologyUrl: string,
+  optOutUrl: string
+): string {
   const paragraphs = text
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
@@ -304,6 +312,7 @@ function researchInvitationHtml(subject: string, text: string, surveyUrl: string
           ${paragraphs}
           <p style="margin:24px 0"><a href="${escapeHtml(surveyUrl)}" style="display:inline-block;padding:14px 22px;border-radius:999px;background:#183027;color:#fffdf8;text-decoration:none;font-weight:800">Συμμετοχή στην έρευνα →</a></p>
           <p style="font-size:13px;line-height:1.6;color:#58645f">Ο σύνδεσμος είναι προσωπικός για το επιλεγμένο δείγμα. Δεν περιέχει ΑΦΜ, email ή επωνυμία. <a href="${escapeHtml(methodologyUrl)}" style="color:#183027">Μεθοδολογία και πληροφορίες μελέτης</a>.</p>
+          <p style="font-size:13px;line-height:1.6;color:#58645f">Δεν επιθυμείτε άλλη ερευνητική επικοινωνία; <a href="${escapeHtml(optOutUrl)}" style="color:#183027">Καταχώρηση opt-out από μελλοντικές προσκλήσεις έρευνας</a>.</p>
         </td></tr>
       </table>
     </td></tr>
