@@ -2,6 +2,11 @@ import { createHash } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission, hasAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import {
+  publicResearchBusinessProfile,
+  savePublicResearchBusinessProfile,
+  type ResearchBusinessProfile
+} from "./research-business-classification";
 import { researchReleaseArtifactIntegrity } from "./research-survey-release";
 import {
   researchQualitySignals,
@@ -60,6 +65,7 @@ export type ResearchSurveyContext = Readonly<{
     startedAt: string;
     completedAt?: string;
   };
+  businessProfile?: ResearchBusinessProfile;
   questions: readonly ResearchQuestion[];
   answers: ResearchAnswerMap;
   experiments: readonly ResearchExperimentAssignment[];
@@ -224,6 +230,7 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
   let answers: ResearchAnswerMap = {};
   let experiments: readonly ResearchExperimentAssignment[] = [];
   let consents: Partial<Record<"results_notification" | "thank_you_code", boolean>> = {};
+  let businessProfile: ResearchBusinessProfile | undefined;
   if (response) {
     const [answerResult, experimentResult, consentResult] = await Promise.all([
       pool.query<SqlRow>(`
@@ -254,6 +261,7 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
       selected: optionalText(row.selected) as "a" | "b" | "none" | undefined
     }));
     consents = Object.fromEntries(consentResult.rows.map((row) => [text(row.consent_kind), Boolean(row.granted)])) as typeof consents;
+    businessProfile = await publicResearchBusinessProfile(pool, text(response.id));
   }
 
   return {
@@ -281,6 +289,7 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
       startedAt: text(response.started_at),
       completedAt: optionalText(response.completed_at)
     } : undefined,
+    businessProfile,
     questions,
     answers,
     experiments,
@@ -519,6 +528,7 @@ export async function savePublicResearchSurvey(input: Readonly<{
   slug: string;
   token: string;
   answers?: ResearchAnswerMap;
+  businessProfile?: ResearchBusinessProfile;
   researchConsent?: boolean;
   complete?: boolean;
   experimentChoices?: Readonly<Record<string, "a" | "b" | "none">>;
@@ -592,6 +602,14 @@ export async function savePublicResearchSurvey(input: Readonly<{
 
     if (text(response.status) !== "in_progress") throw new Error("SURVEY_RESPONSE_CLOSED");
 
+    if (input.businessProfile !== undefined) {
+      await savePublicResearchBusinessProfile(client, {
+        responseId: text(response.id),
+        sampleUnitId: optionalText(invite.sample_unit_id),
+        profile: input.businessProfile
+      });
+    }
+
     const questions = await questionsForInstrument(client, text(invite.instrument_id));
     const suppliedAnswers = input.answers ?? {};
     const suppliedCodes = new Set(Object.keys(suppliedAnswers));
@@ -632,6 +650,14 @@ export async function savePublicResearchSurvey(input: Readonly<{
     `, [invite.invite_id]);
 
     if (input.complete) {
+      const businessProfileResult = await client.query<SqlRow>(`
+        SELECT response_id
+        FROM research_business_activity_observations
+        WHERE response_id=$1
+        LIMIT 1
+      `, [response.id]);
+      if (!businessProfileResult.rows[0]) throw new Error("RESEARCH_BUSINESS_PROFILE_REQUIRED");
+
       const allAnswersResult = await client.query<SqlRow>(`
         SELECT q.code, a.answer
         FROM research_answers a
@@ -1615,6 +1641,7 @@ export type ResearchSurveyOperationsOverview = Readonly<{
     prefecture?: string;
     municipality?: string;
     kadCodes: string;
+    sourcePrimaryKad?: string;
     inviteId?: string;
     inviteStatus?: string;
     inviteSentAt?: string;
@@ -1705,10 +1732,11 @@ export async function researchSurveyOperationsOverview(
       fu.sampling_attributes->>'legalName' AS legal_name,
       fu.sampling_attributes->>'prefecture' AS prefecture,
       fu.sampling_attributes->>'municipality' AS municipality,
+      fu.sampling_attributes->>'sourcePrimaryActivityCode' AS source_primary_kad,
       COALESCE((
         SELECT string_agg(code, ', ' ORDER BY code)
         FROM jsonb_array_elements_text(
-          COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb)
+          COALESCE(fu.sampling_attributes->'activityCodes','[]'::jsonb)
         ) AS code
       ), '') AS kad_codes,
       invite.id AS invite_id,
@@ -1747,10 +1775,11 @@ export async function researchSurveyOperationsOverview(
       fu.sampling_attributes->>'legalName' AS legal_name,
       fu.sampling_attributes->>'prefecture' AS prefecture,
       fu.sampling_attributes->>'municipality' AS municipality,
+      fu.sampling_attributes->>'sourcePrimaryActivityCode' AS source_primary_kad,
       COALESCE((
         SELECT string_agg(code, ', ' ORDER BY code)
         FROM jsonb_array_elements_text(
-          COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb)
+          COALESCE(fu.sampling_attributes->'activityCodes','[]'::jsonb)
         ) AS code
       ), '') AS kad_codes,
       invite.id AS invite_id,
@@ -1913,6 +1942,7 @@ export async function researchSurveyOperationsOverview(
       prefecture: optionalText(row.prefecture),
       municipality: optionalText(row.municipality),
       kadCodes: text(row.kad_codes),
+      sourcePrimaryKad: optionalText(row.source_primary_kad),
       inviteId: optionalText(row.invite_id),
       inviteStatus: optionalText(row.invite_status),
       inviteSentAt: optionalText(row.invite_sent_at),

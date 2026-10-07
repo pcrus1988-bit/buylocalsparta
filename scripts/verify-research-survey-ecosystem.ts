@@ -37,6 +37,8 @@ const longitudinalLineageMigrationPath = "db/migrations/0432_research_longitudin
 const longitudinalLineageChecksumPath = "db/migrations/checksums.0432.json";
 const releaseArchiveMigrationPath = "db/migrations/0433_research_release_archive.sql";
 const releaseArchiveChecksumPath = "db/migrations/checksums.0433.json";
+const businessClassificationMigrationPath = "db/migrations/0435_research_business_classification.sql";
+const businessClassificationChecksumPath = "db/migrations/checksums.0435.json";
 const migration = readFileSync(migrationPath, "utf8");
 const suppressionMigration = readFileSync(suppressionMigrationPath, "utf8");
 const deliveryMigration = readFileSync(deliveryMigrationPath, "utf8");
@@ -55,6 +57,7 @@ const qualityV3Migration = readFileSync(qualityV3MigrationPath, "utf8");
 const populationMarginsMigration = readFileSync(populationMarginsMigrationPath, "utf8");
 const longitudinalLineageMigration = readFileSync(longitudinalLineageMigrationPath, "utf8");
 const releaseArchiveMigration = readFileSync(releaseArchiveMigrationPath, "utf8");
+const businessClassificationMigration = readFileSync(businessClassificationMigrationPath, "utf8");
 const checksums = JSON.parse(readFileSync(checksumPath, "utf8")) as Record<string, string>;
 const suppressionChecksums = JSON.parse(readFileSync(suppressionChecksumPath, "utf8")) as Record<string, string>;
 const deliveryChecksums = JSON.parse(readFileSync(deliveryChecksumPath, "utf8")) as Record<string, string>;
@@ -73,6 +76,7 @@ const qualityV3Checksums = JSON.parse(readFileSync(qualityV3ChecksumPath, "utf8"
 const populationMarginsChecksums = JSON.parse(readFileSync(populationMarginsChecksumPath, "utf8")) as Record<string, string>;
 const longitudinalLineageChecksums = JSON.parse(readFileSync(longitudinalLineageChecksumPath, "utf8")) as Record<string, string>;
 const releaseArchiveChecksums = JSON.parse(readFileSync(releaseArchiveChecksumPath, "utf8")) as Record<string, string>;
+const businessClassificationChecksums = JSON.parse(readFileSync(businessClassificationChecksumPath, "utf8")) as Record<string, string>;
 const runtime = readFileSync("packages/postgres-runtime/src/index.ts", "utf8");
 const surveyRuntime = readFileSync("apps/web/src/lib/research-survey-runtime.ts", "utf8");
 const surveyRoute = readFileSync("apps/web/src/app/api/research/[slug]/t/[token]/route.ts", "utf8");
@@ -100,6 +104,8 @@ const researchAdmin = readFileSync("apps/web/src/app/admin/research/surveys/page
 const releaseRoute = readFileSync("apps/web/src/app/api/research/[slug]/release/route.ts", "utf8");
 const sesSender = readFileSync("apps/web/src/lib/admin-mail-ses.ts", "utf8");
 const gemi = readFileSync("apps/web/src/lib/gemi-admin-export.ts", "utf8");
+const businessClassification = readFileSync("apps/web/src/lib/research-business-classification.ts", "utf8");
+const businessClassificationControls = readFileSync("apps/web/src/components/ResearchBusinessClassificationControls.tsx", "utf8");
 const rbac = readFileSync("packages/core/src/auth/rbac.ts", "utf8");
 const adminRuntime = readFileSync("apps/web/src/lib/admin-runtime.ts", "utf8");
 const identityPersistence = readFileSync("packages/core/src/persistence/postgres-identity-trust.ts", "utf8");
@@ -153,6 +159,7 @@ const qualityV3Sha = createHash("sha256").update(qualityV3Migration, "utf8").dig
 const populationMarginsSha = createHash("sha256").update(populationMarginsMigration, "utf8").digest("hex");
 const longitudinalLineageSha = createHash("sha256").update(longitudinalLineageMigration, "utf8").digest("hex");
 const releaseArchiveSha = createHash("sha256").update(releaseArchiveMigration, "utf8").digest("hex");
+const businessClassificationSha = createHash("sha256").update(businessClassificationMigration, "utf8").digest("hex");
 if (checksums["0416_research_survey_ecosystem.sql"] !== sha) {
   errors.push("0416 checksum does not match migration bytes");
 }
@@ -207,7 +214,21 @@ if (longitudinalLineageChecksums["0432_research_longitudinal_lineage.sql"] !== l
 if (releaseArchiveChecksums["0433_research_release_archive.sql"] !== releaseArchiveSha) {
   errors.push("0433 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 434")) errors.push("runtime schema head is not 434");
+if (businessClassificationChecksums["0435_research_business_classification.sql"] !== businessClassificationSha) {
+  errors.push("0435 checksum does not match migration bytes");
+}
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 435")) errors.push("runtime schema head is not 435");
+if (!businessClassificationMigration.includes("CREATE TABLE public.research_business_activity_observations")) errors.push("respondent business activity observation table missing");
+if (!businessClassificationMigration.includes("CREATE TABLE public.research_business_canonical_assignments")) errors.push("canonical business assignment table missing");
+if (!businessClassificationMigration.includes("CREATE TABLE public.research_business_activity_aliases")) errors.push("reusable business activity alias table missing");
+if (!businessClassificationMigration.includes("research_business_classification_events_append_only")) errors.push("business classification audit ledger is not append-only");
+if (!businessClassificationMigration.includes("source evidence is never rewritten")) errors.push("business classification provenance contract missing");
+if (!gemi.includes("activityDetails") || !gemi.includes("sourcePrimaryActivityCode")) errors.push("GEMI frame does not retain full KAD evidence and explicit primary activity");
+if (!surveyRuntime.includes("savePublicResearchBusinessProfile")) errors.push("survey runtime does not persist respondent business activity");
+if (!surveyForm.includes("Ποια είναι σήμερα η κύρια δραστηριότητα της επιχείρησής σας;")) errors.push("respondent main-business question missing");
+if (!businessClassification.includes("canonicalizeResearchBusiness")) errors.push("admin canonicalization runtime missing");
+if (!businessClassification.includes("similarity(normalized_activity,$1) >= 0.86")) errors.push("confirmed activity aliases are not reused for similar future answers");
+if (!businessClassificationControls.includes("Επιβεβαίωση κατηγορίας")) errors.push("admin business canonicalization control missing");
 if (!qualityV3Migration.includes("ADD COLUMN quality_score")) errors.push("research quality score column missing");
 if (!qualityV3Migration.includes("ADD COLUMN answer_pattern_sha256")) errors.push("research answer-pattern fingerprint column missing");
 if (!qualityV3Migration.includes("research_quality_answer_pattern_idx")) errors.push("research answer-pattern QA index missing");
@@ -242,8 +263,8 @@ if (!hierarchyMigration.includes("research_guard_wave_scope")) errors.push("rese
 if (!hierarchyMigration.includes("DISABLE TRIGGER USER")) errors.push("0427 does not explicitly protect structural backfill across immutable evidence");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_programmes ENABLE ROW LEVEL SECURITY;")) errors.push("research programme RLS missing");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_waves ENABLE ROW LEVEL SECURITY;")) errors.push("research wave RLS missing");
-if (!schemaPreflight.includes("expectedSourceVersion = 434")) errors.push("guarded research production rollout is not pinned to schema 0434");
-if (!schemaRollout.includes("0416–0434") || !schemaRollout.includes("through schema 0434")) errors.push("research schema rollout workflow does not advertise the complete 0416–0434 chain");
+if (!schemaPreflight.includes("expectedSourceVersion = 435")) errors.push("guarded research production rollout is not pinned to schema 0435");
+if (!schemaRollout.includes("0416–0435") || !schemaRollout.includes("through schema 0435")) errors.push("research schema rollout workflow does not advertise the complete 0416–0435 chain");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_population_margin_sets")) errors.push("governed population-margin set registry missing");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_population_margins")) errors.push("governed population-margin cells missing");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_analysis_plan_supersessions")) errors.push("analysis-plan supersession evidence missing");
@@ -550,7 +571,7 @@ if (!resultsPage.includes("μεθοδολογία της μελέτης")) error
 if (!observatoryPage.includes("ολοκληρωμένες απαντήσεις")) errors.push("public observatory does not disclose understandable participation progress");
 if (!methodologyPage.includes("Τι θα συνοδεύει τα αποτελέσματα")) errors.push("public methodology does not explain what context accompanies results");
 if (!observatoryPage.includes("Πέντε απλά στάδια.")) errors.push("permanent Retail Observatory landing does not explain the study lifecycle in public language");
-if (!researchPrivacyPage.includes("Η συμμετοχή στην έρευνα είναι ξεχωριστή από την εμπορική επικοινωνία.")) errors.push("dedicated research privacy boundary is missing");
+if (!researchPrivacyPage.includes("Η συμμετοχή στην έρευνα δεν αποτελεί συγκατάθεση για marketing.")) errors.push("dedicated research privacy boundary is missing");
 if (!release.includes("experimentDiagnostics: objectValue(parameters.experimentDiagnostics)")) errors.push("release does not freeze experiment diagnostics");
 if (!release.includes("randomizedExperimentExploratoryPublished")) errors.push("release experimental disclosure flag missing");
 
@@ -604,7 +625,7 @@ if (/^\s*push:/m.test(schemaRollout)) errors.push("research production schema ro
 if (!schemaRollout.includes("environment: production")) errors.push("research production schema rollout lacks production environment gate");
 if (!schemaRollout.includes("if: ${{ inputs.apply }}")) errors.push("research schema mutation lacks explicit apply gate");
 if (!schemaRollout.includes("npm run db:migrate")) errors.push("research schema rollout bypasses checksum-aware migrator");
-if (!schemaPreflight.includes("expectedSourceVersion = 434")) errors.push("research schema rollout source-head guard missing");
+if (!schemaPreflight.includes("expectedSourceVersion = 435")) errors.push("research schema rollout source-head guard missing");
 if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
 if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");
@@ -615,7 +636,7 @@ if (errors.length) {
 }
 console.log(JSON.stringify({
   ok: true,
-  schema: 434,
+  schema: 435,
   tables: created.length + 16,
   migrationSha256: sha,
   suppressionMigrationSha256: suppressionSha,

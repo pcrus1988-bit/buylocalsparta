@@ -94,6 +94,14 @@ export type GemiAdminPreview = Readonly<{
   rows: readonly GemiAdminPreviewRow[];
 }>;
 
+export type GemiResearchActivityDetail = Readonly<{
+  code: string;
+  description: string;
+  type: string;
+  kadVersion: string;
+  primary: boolean;
+}>;
+
 export type GemiResearchFrameRecord = Readonly<{
   gemiNumber: string;
   afm: string;
@@ -107,6 +115,8 @@ export type GemiResearchFrameRecord = Readonly<{
   email: string;
   website: string;
   activityCodes: readonly string[];
+  activityDetails: readonly GemiResearchActivityDetail[];
+  sourcePrimaryActivityCode?: string;
   matchedActivityCodes: readonly string[];
 }>;
 
@@ -794,6 +804,37 @@ function activityTypes(company: GemiCompany): string {
   return companyActivities(company).map((entry) => asString(entry.type)).filter(Boolean).join(" | ");
 }
 
+function activityTypeMarksPrimary(value: string): boolean {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLocaleUpperCase("el-GR")
+    .replace(/[^\p{Letter}\p{Number}]+/gu, " ")
+    .trim();
+  return /(^| )(ΚΥΡΙΑ|ΚΥΡΙΟΣ|PRIMARY|MAIN)( |$)/u.test(normalized);
+}
+
+function researchActivityDetails(company: GemiCompany): GemiResearchActivityDetail[] {
+  return companyActivities(company).flatMap((entry) => {
+    const activity = objectField(entry.activity);
+    const code = activity ? asString(activity.id) : "";
+    if (!code) return [];
+    const type = asString(entry.type);
+    return [{
+      code,
+      description: activity ? asString(activity.descr) : "",
+      type,
+      kadVersion: activity ? asString(activity.kadVersion) : "",
+      primary: activityTypeMarksPrimary(type)
+    }];
+  });
+}
+
+function explicitPrimaryActivityCode(details: readonly GemiResearchActivityDetail[]): string | undefined {
+  const codes = [...new Set(details.filter((item) => item.primary).map((item) => item.code))];
+  return codes.length === 1 ? codes[0] : undefined;
+}
+
 function activityValuesFromEntries(entries: readonly Record<string, unknown>[], field: "id" | "descr" | "kadVersion"): string {
   return entries.map((entry) => {
     const activity = objectField(entry.activity);
@@ -866,6 +907,7 @@ function researchFrameRecordFromCompany(
   selection: GemiResolvedActivitySelection
 ): GemiResearchFrameRecord {
   const matchedEntries = matchedCompanyActivityEntries(company, selection);
+  const activityDetails = researchActivityDetails(company);
   return {
     gemiNumber: asString(company.arGemi),
     afm: asString(company.afm),
@@ -878,11 +920,9 @@ function researchFrameRecordFromCompany(
     postcode: asString(company.zipCode),
     email: asString(company.email).trim().toLowerCase(),
     website: asString(company.url),
-    activityCodes: companyActivities(company).flatMap((entry) => {
-      const activity = objectField(entry.activity);
-      const id = activity ? asString(activity.id) : "";
-      return id ? [id] : [];
-    }),
+    activityCodes: activityDetails.map((item) => item.code),
+    activityDetails,
+    sourcePrimaryActivityCode: explicitPrimaryActivityCode(activityDetails),
     matchedActivityCodes: matchedEntries.flatMap((entry) => {
       const activity = objectField(entry.activity);
       const id = activity ? asString(activity.id) : "";
@@ -967,6 +1007,7 @@ export async function* gemiResearchFrameRecords(
         if (!dedupeKey || seen.has(dedupeKey)) continue;
         seen.add(dedupeKey);
         const matchedEntries = matchedCompanyActivityEntries(company, selection);
+        const activityDetails = researchActivityDetails(company);
         yield {
           gemiNumber,
           afm,
@@ -979,11 +1020,9 @@ export async function* gemiResearchFrameRecords(
           postcode: asString(company.zipCode),
           email: asString(company.email).trim().toLowerCase(),
           website: asString(company.url),
-          activityCodes: companyActivities(company).flatMap((entry) => {
-            const activity = objectField(entry.activity);
-            const id = activity ? asString(activity.id) : "";
-            return id ? [id] : [];
-          }),
+          activityCodes: activityDetails.map((item) => item.code),
+          activityDetails,
+          sourcePrimaryActivityCode: explicitPrimaryActivityCode(activityDetails),
           matchedActivityCodes: matchedEntries.flatMap((entry) => {
             const activity = objectField(entry.activity);
             const id = activity ? asString(activity.id) : "";

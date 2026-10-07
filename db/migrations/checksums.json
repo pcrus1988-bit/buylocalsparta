@@ -281,5 +281,6 @@
   "0287_fournarakis_catalogue_assignment_readiness.sql": "cbb90a25471be1c117a6bf0fa0663aa91f3faab1164f32126d8d93417646af50",
   "0297_hub_prospect_vendor_trial.sql": "36a19a4a2f9e5782c23ee633494af243a7c8542d0a2a1d9d62400c09053dcdac",
   "0298_admin_mailbox.sql": "a8c615d425f1acd7b340aabfe3061c617a94ff57fbb6b62fdbd8478b0d9c523b",
-  "0299_admin_mail_trash_state.sql": "97a53bcb57f9b82020c0a231e4f1e70163ca9e06b2b190276f28cd3941b3f3f9"
+  "0299_admin_mail_trash_state.sql": "97a53bcb57f9b82020c0a231e4f1e70163ca9e06b2b190276f28cd3941b3f3f9",
+  "0435_research_business_classification.sql": "8c7dcdb67e87052d7480d6b8996245417c918a080a0f5fc517f2be36a541391d"
 }

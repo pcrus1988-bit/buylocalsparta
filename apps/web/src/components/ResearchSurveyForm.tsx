@@ -235,6 +235,15 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
   const [futureResearchSuppressed, setFutureResearchSuppressed] = useState(false);
   const [suppressFutureResearch, setSuppressFutureResearch] = useState(initialOptOutIntent);
   const [researchConsent, setResearchConsent] = useState(Boolean(initial.response) && initial.response?.status === "in_progress");
+  const [businessProfile, setBusinessProfile] = useState<{
+    mainActivity: string;
+    isPrimaryRevenue?: boolean;
+    primaryRevenueActivity: string;
+  }>({
+    mainActivity: initial.businessProfile?.mainActivity ?? "",
+    isPrimaryRevenue: initial.businessProfile?.isPrimaryRevenue,
+    primaryRevenueActivity: initial.businessProfile?.primaryRevenueActivity ?? ""
+  });
   const [answers, setAnswers] = useState<Record<string, ResearchAnswer>>(asMutableAnswers(initial.answers));
   const [experiments, setExperiments] = useState<readonly ResearchExperimentAssignment[]>(initial.experiments);
   const [experimentChoices, setExperimentChoices] = useState<Record<string, "a" | "b" | "none">>(
@@ -254,10 +263,23 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
       questions: initial.questions.filter((question) => question.sectionCode === code && question.type !== "experiment")
     }));
   }, [initial.questions]);
-  const allSections = [...questionSections, { code: "X", title: SECTION_LABELS.X, questions: [] as ResearchQuestion[] }, { code: "DONE", title: "Ολοκλήρωση", questions: [] as ResearchQuestion[] }];
+  const allSections = [
+    { code: "PROFILE", title: "Η κύρια δραστηριότητά σας", questions: [] as ResearchQuestion[] },
+    ...questionSections,
+    { code: "X", title: SECTION_LABELS.X, questions: [] as ResearchQuestion[] },
+    { code: "DONE", title: "Ολοκλήρωση", questions: [] as ResearchQuestion[] }
+  ];
   const current = allSections[sectionIndex];
-  const currentAnswered = current.questions.filter((question) => answerPresent(answers[question.code])).length;
-  const currentQuestionCount = current.questions.length;
+  const profileQuestionCount = businessProfile.isPrimaryRevenue === false ? 3 : 2;
+  const profileAnswered = [
+    businessProfile.mainActivity.trim().length >= 2,
+    typeof businessProfile.isPrimaryRevenue === "boolean",
+    businessProfile.isPrimaryRevenue !== false || businessProfile.primaryRevenueActivity.trim().length >= 2
+  ].filter(Boolean).length - (businessProfile.isPrimaryRevenue === false ? 0 : 1);
+  const currentAnswered = current.code === "PROFILE"
+    ? profileAnswered
+    : current.questions.filter((question) => answerPresent(answers[question.code])).length;
+  const currentQuestionCount = current.code === "PROFILE" ? profileQuestionCount : current.questions.length;
 
   async function save(payload: Record<string, unknown>) {
     setSaving(true);
@@ -292,7 +314,21 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
 
   async function next() {
     try {
-      if (current.code !== "X" && current.code !== "DONE") {
+      if (current.code === "PROFILE") {
+        if (businessProfile.mainActivity.trim().length < 2) {
+          setMessage("Περιγράψτε με λίγες λέξεις την κύρια δραστηριότητα της επιχείρησής σας.");
+          return;
+        }
+        if (typeof businessProfile.isPrimaryRevenue !== "boolean") {
+          setMessage("Επιλέξτε αν αυτή η δραστηριότητα είναι σήμερα η κύρια πηγή εσόδων.");
+          return;
+        }
+        if (businessProfile.isPrimaryRevenue === false && businessProfile.primaryRevenueActivity.trim().length < 2) {
+          setMessage("Συμπληρώστε ποια δραστηριότητα είναι σήμερα η κύρια πηγή εσόδων.");
+          return;
+        }
+        await save({ businessProfile });
+      } else if (current.code !== "X" && current.code !== "DONE") {
         const codes = new Set(current.questions.map((question) => question.code));
         const sectionAnswers = Object.fromEntries(Object.entries(answers).filter(([code]) => codes.has(code)));
         await save({ answers: sectionAnswers, experimentChoices });
@@ -308,13 +344,15 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
 
   async function completeSurvey() {
     try {
-      await save({ answers, experimentChoices, complete: true });
+      await save({ answers, businessProfile, experimentChoices, complete: true });
       setCompleted(true);
     } catch (error) {
       const errorText = error instanceof Error ? error.message : "Δεν ήταν δυνατή η ολοκλήρωση.";
       setMessage(errorText.includes("SURVEY_INCOMPLETE")
         ? "Λείπουν μία ή περισσότερες υποχρεωτικές απαντήσεις. Επιστρέψτε στις προηγούμενες ενότητες και συμπληρώστε τες."
-        : errorText);
+        : errorText.includes("RESEARCH_BUSINESS_PROFILE")
+          ? "Λείπουν τα στοιχεία για την κύρια δραστηριότητα της επιχείρησης. Επιστρέψτε στο πρώτο βήμα και συμπληρώστε τα."
+          : errorText);
     }
   }
 
@@ -461,13 +499,67 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
 
     <header className={styles.sectionHeader}>
       <div className={styles.sectionMeta}>
-        <span className={styles.kicker}>{current.code === "X" ? "Προαιρετικό" : current.code === "DONE" ? "Τελικό βήμα" : "Ενότητα " + current.code}</span>
+        <span className={styles.kicker}>{current.code === "PROFILE" ? "Στοιχεία επιχείρησης" : current.code === "X" ? "Προαιρετικό" : current.code === "DONE" ? "Τελικό βήμα" : "Ενότητα " + current.code}</span>
         {currentQuestionCount > 0 && <span>{currentAnswered} / {currentQuestionCount} απαντημένες</span>}
       </div>
       <h2>{current.title}</h2>
+      {current.code === "PROFILE" && <p>Η σύντομη περιγραφή σας μας βοηθά να ομαδοποιούμε σωστά παρόμοιες επιχειρήσεις, ακόμη όταν τα μητρώα περιλαμβάνουν περισσότερες από μία δραστηριότητες.</p>}
       {current.code === "X" && <p>Οι επιλογές αυτές είναι ερευνητικά σενάρια και όχι πραγματικές εμπορικές προσφορές. Μπορείτε να παραλείψετε ολόκληρη την ενότητα.</p>}
       {current.code === "DONE" && <p>Με την ολοκλήρωση η ερευνητική απάντηση κλειδώνει. Οι προαιρετικές επιλογές ενημέρωσης αποτελεσμάτων και κωδικού ευχαριστίας εμφανίζονται μόνο αφού ολοκληρωθεί η έρευνα.</p>}
     </header>
+
+    {current.code === "PROFILE" && <>
+      <article className={styles.question}>
+        <div className={styles.questionMeta}><div className={styles.questionNumber}>1</div></div>
+        <h3>Ποια είναι σήμερα η κύρια δραστηριότητα της επιχείρησής σας;</h3>
+        <p className={styles.help}>Γράψτε το με απλά λόγια, π.χ. «Βιβλιοπωλείο», «Κατάστημα υποδημάτων» ή «Κομμωτήριο».</p>
+        <textarea
+          className={styles.textarea}
+          rows={2}
+          maxLength={200}
+          value={businessProfile.mainActivity}
+          onChange={(event) => setBusinessProfile((currentProfile) => ({ ...currentProfile, mainActivity: event.target.value }))}
+        />
+      </article>
+
+      <article className={styles.question}>
+        <div className={styles.questionMeta}><div className={styles.questionNumber}>2</div></div>
+        <h3>Αυτή η δραστηριότητα είναι σήμερα η κύρια πηγή εσόδων της επιχείρησης;</h3>
+        <div className={styles.options}>
+          <label className={styles.option}>
+            <input
+              type="radio"
+              name="business-primary-revenue"
+              checked={businessProfile.isPrimaryRevenue === true}
+              onChange={() => setBusinessProfile((currentProfile) => ({ ...currentProfile, isPrimaryRevenue: true, primaryRevenueActivity: "" }))}
+            />
+            <span>Ναι</span>
+          </label>
+          <label className={styles.option}>
+            <input
+              type="radio"
+              name="business-primary-revenue"
+              checked={businessProfile.isPrimaryRevenue === false}
+              onChange={() => setBusinessProfile((currentProfile) => ({ ...currentProfile, isPrimaryRevenue: false }))}
+            />
+            <span>Όχι</span>
+          </label>
+        </div>
+      </article>
+
+      {businessProfile.isPrimaryRevenue === false && <article className={styles.question}>
+        <div className={styles.questionMeta}><div className={styles.questionNumber}>3</div></div>
+        <h3>Ποια δραστηριότητα είναι σήμερα η κύρια πηγή εσόδων;</h3>
+        <p className={styles.help}>Αρκεί μια σύντομη περιγραφή με δικά σας λόγια.</p>
+        <textarea
+          className={styles.textarea}
+          rows={2}
+          maxLength={200}
+          value={businessProfile.primaryRevenueActivity}
+          onChange={(event) => setBusinessProfile((currentProfile) => ({ ...currentProfile, primaryRevenueActivity: event.target.value }))}
+        />
+      </article>}
+    </>}
 
     {current.questions.map((question) => <ResearchQuestionCard
       key={question.code}

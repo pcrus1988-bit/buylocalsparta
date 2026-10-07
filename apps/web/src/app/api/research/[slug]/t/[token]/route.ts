@@ -39,6 +39,9 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
       token,
       researchConsent: body.researchConsent === true,
       complete: body.complete === true,
+      businessProfile: body.businessProfile && typeof body.businessProfile === "object" && !Array.isArray(body.businessProfile)
+        ? body.businessProfile as never
+        : undefined,
       answers: body.answers && typeof body.answers === "object" && !Array.isArray(body.answers)
         ? body.answers as never
         : undefined,
