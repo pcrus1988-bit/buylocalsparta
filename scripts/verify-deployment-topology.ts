@@ -44,6 +44,7 @@ const allowedVercelCrons = new Map([
   ["/api/cron/zendrop-pipeline", "17 * * * *"],
   ["/api/cron/seo-url-registry", "53 4 * * *"],
   ["/api/cron/seo-gsc-diagnostics", "47 */6 * * *"],
+  ["/api/cron/research-study-jobs", "*/5 * * * *"],
 ]);
 assert(
   vercelCrons.every((cron: Record<string, unknown>) =>
@@ -91,7 +92,7 @@ for (const workflow of [productionCi, stagingActivation, stagingEvidence]) {
   assert(workflow.includes("npm ci --ignore-scripts"), "release/staging workflows must consume the committed npm lockfile");
   assert(!workflow.includes("npm install --ignore-scripts"), "release/staging workflows must not re-resolve dependencies with npm install");
 }
-for (const role of ["postgres", "search", "notifications", "media", "reports", "crawler", "nova-catalogue", "nova-order-reconciliation", "symphonya"]) assert(entrypoint.includes(`${role})`), `worker entrypoint is missing ${role} role`);
+for (const role of ["postgres", "search", "notifications", "media", "reports", "crawler", "nova-catalogue", "nova-order-reconciliation", "symphonya", "research"]) assert(entrypoint.includes(`${role})`), `worker entrypoint is missing ${role} role`);
 assert(entrypoint.includes("Unsupported BLS_WORKER_ROLE"), "worker entrypoint must fail closed on unknown roles");
 assert(dockerfile.includes("FROM node:24-"), "worker container must run Node 24");
 assert(dockerfile.includes("COPY package.json package-lock.json ./"), "worker image must copy the committed root lockfile before installing dependencies");
@@ -136,10 +137,11 @@ for (const path of [
   "../workers/catalog-crawler-worker.ts",
   "../workers/nova-catalogue-worker.ts",
   "../workers/nova-order-reconciliation-worker.ts",
-  "../workers/symphonya-worker.ts"
+  "../workers/symphonya-worker.ts",
+  "../workers/research-survey-worker.ts"
 ]) {
   await stat(new URL(path, import.meta.url));
 }
-console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, bounded web crons, and eleven isolated Node 24 worker roles including Nova and Symphonya verified.");
+console.log("Deployment topology OK: locked monorepo installs, source-agnostic HTTPS catalogue images, Vercel-safe immutable production schema gate, bounded web crons, and isolated Node 24 worker roles including Nova, Symphonya and Research verified.");
 
 function assert(condition: unknown, message: string): asserts condition { if (!condition) throw new Error(message); }
