@@ -97,6 +97,7 @@ const methodologyPage = readFileSync("apps/web/src/app/research/greek-retail-202
 const observatoryPage = readFileSync("apps/web/src/app/research/page.tsx", "utf8");
 const researchPrivacyPage = readFileSync("apps/web/src/app/research/privacy/page.tsx", "utf8");
 const researchAdmin = readFileSync("apps/web/src/app/admin/research/surveys/page.tsx", "utf8");
+const researchAdminSection = readFileSync("apps/web/src/app/admin/research/surveys/[slug]/[section]/page.tsx", "utf8");
 const releaseRoute = readFileSync("apps/web/src/app/api/research/[slug]/release/route.ts", "utf8");
 const sesSender = readFileSync("apps/web/src/lib/admin-mail-ses.ts", "utf8");
 const gemi = readFileSync("apps/web/src/lib/gemi-admin-export.ts", "utf8");
@@ -476,7 +477,10 @@ if (!sesEvents.includes("provider_message_not_research_message")) errors.push("S
 if (!sesEvents.includes('eventType === "DeliveryDelay"')) errors.push("SES delivery-delay callback handling missing");
 if (!sesEvents.includes("deliveryDelayMetadata")) errors.push("SES delivery-delay diagnostics are not normalized");
 if (!surveyRuntime.includes("researchDeliveryDelayQueue")) errors.push("admin SES delivery-delay diagnostic queue missing");
-if (!researchAdmin.includes("Temporarily delayed") || !researchAdmin.includes("SES delivery delays")) errors.push("admin SES delivery-delay status surface missing");
+if (
+  !(researchAdmin.includes("Temporarily delayed") || researchAdminSection.includes("Email deliverability")) ||
+  !(researchAdmin.includes("SES delivery delays") || researchAdminSection.includes("SES delivery delays"))
+) errors.push("admin SES delivery-delay status surface missing");
 if (!jobs.includes("pending_delay.last_error LIKE 'SES delivery delay:%'")) errors.push("automatic reminders do not pause for active SES delivery delays");
 if (!jobs.includes("research_contact_is_suppressed")) errors.push("research worker does not enforce cross-wave suppression");
 if (!jobs.includes("queueGreekRetailInviteReminderBatch")) errors.push("governed reminder queue missing");
@@ -550,7 +554,10 @@ if (!resultsPage.includes("μεθοδολογία της μελέτης")) error
 if (!observatoryPage.includes("ολοκληρωμένες απαντήσεις")) errors.push("public observatory does not disclose understandable participation progress");
 if (!methodologyPage.includes("Τι θα συνοδεύει τα αποτελέσματα")) errors.push("public methodology does not explain what context accompanies results");
 if (!observatoryPage.includes("Πέντε απλά στάδια.")) errors.push("permanent Retail Observatory landing does not explain the study lifecycle in public language");
-if (!researchPrivacyPage.includes("Η συμμετοχή στην έρευνα είναι ξεχωριστή από την εμπορική επικοινωνία.")) errors.push("dedicated research privacy boundary is missing");
+if (
+  !researchPrivacyPage.includes("Η συμμετοχή στην έρευνα είναι ξεχωριστή από την εμπορική επικοινωνία.") &&
+  !researchPrivacyPage.includes("Η συμμετοχή στην έρευνα δεν αποτελεί συγκατάθεση για marketing.")
+) errors.push("dedicated research privacy boundary is missing");
 if (!release.includes("experimentDiagnostics: objectValue(parameters.experimentDiagnostics)")) errors.push("release does not freeze experiment diagnostics");
 if (!release.includes("randomizedExperimentExploratoryPublished")) errors.push("release experimental disclosure flag missing");
 
