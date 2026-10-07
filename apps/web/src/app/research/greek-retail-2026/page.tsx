@@ -1,35 +1,53 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../../components/SiteFooter";
+import { ResearchStudyDashboard } from "../../../components/ResearchStudyDashboard";
+import styles from "../../../components/ResearchObservatory.module.css";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
-import styles from "../../../components/ResearchSurveyPage.module.css";
+import { publicResearchStudy } from "../../../lib/research-observatory-runtime";
+
+export const dynamic = "force-dynamic";
 
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/research/greek-retail-2026", {
     title: "Ελληνικό Λιανεμπόριο 2026 · KONTA MOY Research",
-    description: "Μελέτη για την ψηφιακή ετοιμότητα, τις λειτουργικές δυσκολίες και τις ανάγκες των ελληνικών εμπορικών επιχειρήσεων.",
+    description: "Ζωντανή πρόοδος, μεθοδολογία και δημοσιευμένα αποτελέσματα της μελέτης Ελληνικό Λιανεμπόριο 2026.",
     keywords: ["Ελληνικό Λιανεμπόριο 2026", "έρευνα εμπορικών επιχειρήσεων", "ψηφιακή ετοιμότητα επιχειρήσεων", "λειτουργικές δυσκολίες λιανεμπορίου", "marketplaces ελληνικές επιχειρήσεις", "Greek retail study 2026"]
   });
 }
 
-export default function GreekRetailResearchPage() {
+export default async function GreekRetailResearchPage() {
+  const study = await publicResearchStudy("greek-retail-2026");
+  if (study) return <ResearchStudyDashboard study={study} />;
+
   return <main className={styles.shell}>
-    <header className={styles.hero}>
-      <div className={styles.brand}>KONTA MOY · RESEARCH</div>
-      <span>Greek Retail Observatory · Wave 2026</span>
-      <h1>Ελληνικό Λιανεμπόριο 2026</h1>
-      <p>Μια επαναλήψιμη μελέτη για το πώς λειτουργούν, ψηφιοποιούνται, προσεγγίζουν πελάτες και αντιμετωπίζουν καθημερινά εμπόδια οι ελληνικές εμπορικές επιχειρήσεις.</p>
-      <div className={styles.meta}>
-        <span>Η συμμετοχή γίνεται μόνο μέσω προσωπικής πρόσκλησης του δείγματος.</span>
-        <Link href="/research/greek-retail-2026/methodology">Μεθοδολογία & διαφάνεια</Link>
+    <div className={styles.frame}>
+      <div className={styles.topbar}>
+        <Link className={styles.brand} href="/research">KONTA MOY · RETAIL OBSERVATORY</Link>
+        <nav className={styles.nav} aria-label="Research">
+          <Link href="/research">Μελέτες</Link>
+          <Link href="/research/greek-retail-2026/methodology">Μεθοδολογία</Link>
+          <Link href="/research/greek-retail-2026/results">Αποτελέσματα</Link>
+          <Link href="/research/compare">Σύγκριση</Link>
+        </nav>
       </div>
-    </header>
-    <section className={styles.invalid}>
-      <div className={styles.brand}>Τι μετράμε</div>
-      <h2>Από την απλή παρουσία online έως την πραγματική ψηφιακή λειτουργία.</h2>
-      <p>Η βασική μελέτη μετρά ψηφιακή ετοιμότητα, λειτουργική τριβή, απόκτηση πελατών, τοπικότητα, χρήση marketplaces και προθέσεις επένδυσης. Οι εμπορικές προτιμήσεις του KONTA MOY δεν αποτελούν μέρος των βασικών ερωτήσεων.</p>
-      <Link href="/research/greek-retail-2026/methodology">Δείτε πώς θα μπορούν να αναπαραχθούν τα αποτελέσματα →</Link>
-    </section>
+      <header className={styles.hero}>
+        <div>
+          <div className={styles.eyebrow}>Greek Retail Observatory · Wave 2026</div>
+          <h1>Ελληνικό Λιανεμπόριο 2026</h1>
+          <p>Μια επαναλήψιμη μελέτη για το πώς λειτουργούν, ψηφιοποιούνται, προσεγγίζουν πελάτες και αντιμετωπίζουν καθημερινά εμπόδια οι ελληνικές εμπορικές επιχειρήσεις.</p>
+        </div>
+        <aside className={styles.heroAside}>
+          <span>Live data</span>
+          <strong>Pending schema activation</strong>
+          <span>Η σελίδα θα αρχίσει να εμφανίζει αυτόματα governed aggregates μόλις ενεργοποιηθεί το Research schema στην production βάση.</span>
+        </aside>
+      </header>
+      <section className={styles.section}>
+        <div className={styles.notice}>Το UX/UI της δημόσιας μελέτης είναι ενεργό, αλλά δεν εμφανίζουμε κατασκευασμένους αριθμούς όταν το Research database projection δεν είναι διαθέσιμο.</div>
+      </section>
+      <div className={styles.footer}>KONTA MOY Research · governed public evidence</div>
+    </div>
     <SiteFooter />
   </main>;
 }
