@@ -1,4 +1,4 @@
-export type AdminNavIconName = "overview" | "operations" | "partners" | "catalog" | "customers" | "trust" | "finance" | "content" | "search" | "analytics" | "platform";
+export type AdminNavIconName = "overview" | "operations" | "partners" | "catalog" | "customers" | "trust" | "finance" | "content" | "search" | "analytics" | "research" | "platform";
 
 const common = { width: 16, height: 16, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, focusable: false, "aria-hidden": true };
 
@@ -14,6 +14,7 @@ export function AdminNavIcon({ name }: { name: string }) {
     case "content": return <svg {...common}><path d="M3.25 2.5h6l3.5 3.5v7.5h-9.5Z" /><path d="M9.25 2.5V6h3.5M5.25 8.5h5.5M5.25 11h4" /></svg>;
     case "search": return <svg {...common}><circle cx="6.75" cy="6.75" r="3.75" /><path d="m9.6 9.6 3.15 3.15" /><path d="M5.25 6.75h3M6.75 5.25v3" /></svg>;
     case "analytics": return <svg {...common}><path d="M2.5 13.25V3M2.5 13.25h11" /><path d="m4.25 10.5 2.4-2.55 2 1.4 3.1-4.1" /><circle cx="11.75" cy="5.25" r=".8" fill="currentColor" stroke="none" /></svg>;
+    case "research": return <svg {...common}><path d="M4.25 2.5h7.5v11h-7.5Z" /><path d="M6.25 5h3.5M6.25 7.75h3.5M6.25 10.5h2" /><circle cx="11.75" cy="11.75" r="1.75" /></svg>;
     case "platform": return <svg {...common}><circle cx="8" cy="8" r="2.1" /><path d="M8 2.25v1.4M8 12.35v1.4M2.25 8h1.4M12.35 8h1.4M3.95 3.95l1 1M11.05 11.05l1 1M12.05 3.95l-1 1M4.95 11.05l-1 1" /></svg>;
     default: return <svg {...common}><circle cx="8" cy="8" r="4.5" /></svg>;
   }
