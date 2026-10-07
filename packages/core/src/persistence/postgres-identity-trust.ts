@@ -204,15 +204,26 @@ export class PostgresIdentityRepository {
 
   async findSession(input: { tokenHash: string; now: number }): Promise<PersistedSessionIdentity | undefined> {
     const result = await this.#db.query<SqlRow>(`
-      SELECT us.public_id AS session_public_id, us.expires_at, us.last_seen_at,
-             u.public_id AS user_public_id, u.email::text AS email, u.status::text AS status, u.email_verified_at,
-             EXISTS(SELECT 1 FROM customer_profiles cp WHERE cp.user_id=u.id) AS is_customer,
-             COALESCE((SELECT array_agg(DISTINCT pur.role) FROM platform_user_roles pur WHERE pur.user_id=u.id), ARRAY[]::text[]) AS platform_roles,
-             COALESCE((SELECT array_agg(DISTINCT vur.role) FROM vendor_users vu JOIN vendor_user_roles vur ON vur.vendor_user_id=vu.id WHERE vu.user_id=u.id AND vu.active), ARRAY[]::text[]) AS vendor_roles,
-             (SELECT vb.public_id FROM vendor_users vu JOIN vendor_businesses vb ON vb.id=vu.vendor_id WHERE vu.user_id=u.id AND vu.active ORDER BY vu.created_at LIMIT 1) AS vendor_public_id
-      FROM user_sessions us
-      JOIN users u ON u.id=us.user_id
-      WHERE us.session_hash=$1 AND us.expires_at>$2 AND u.status='active' AND u.email_verified_at IS NOT NULL
+      UPDATE user_sessions us
+      SET last_seen_at=$2
+      FROM users u
+      WHERE us.user_id=u.id
+        AND us.session_hash=$1
+        AND us.expires_at>$2
+        AND u.status='active'
+        AND u.email_verified_at IS NOT NULL
+      RETURNING
+        us.public_id AS session_public_id,
+        us.expires_at,
+        us.last_seen_at,
+        u.public_id AS user_public_id,
+        u.email::text AS email,
+        u.status::text AS status,
+        u.email_verified_at,
+        EXISTS(SELECT 1 FROM customer_profiles cp WHERE cp.user_id=u.id) AS is_customer,
+        COALESCE((SELECT array_agg(DISTINCT pur.role) FROM platform_user_roles pur WHERE pur.user_id=u.id), ARRAY[]::text[]) AS platform_roles,
+        COALESCE((SELECT array_agg(DISTINCT vur.role) FROM vendor_users vu JOIN vendor_user_roles vur ON vur.vendor_user_id=vu.id WHERE vu.user_id=u.id AND vu.active), ARRAY[]::text[]) AS vendor_roles,
+        (SELECT vb.public_id FROM vendor_users vu JOIN vendor_businesses vb ON vb.id=vu.vendor_id WHERE vu.user_id=u.id AND vu.active ORDER BY vu.created_at LIMIT 1) AS vendor_public_id
     `, [input.tokenHash, new Date(input.now)]);
     if (result.rowCount === 0) return undefined;
     const row = result.rows[0];
