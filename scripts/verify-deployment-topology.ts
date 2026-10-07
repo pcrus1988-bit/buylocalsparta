@@ -35,7 +35,7 @@ const allowedVercelCrons = new Map([
   ["/api/cron/nova-canonical-media", "27 * * * *"],
   ["/api/cron/nova-availability-failover", "*/5 * * * *"],
   ["/api/cron/symphonya-catalogue", "2 * * * *"],
-  ["/api/cron/symphonya-stock", "5 */12 * * *"],
+  ["/api/cron/symphonya-stock", "5 * * * *"],
   ["/api/cron/symphonya-pipeline", "9 * * * *"],
   ["/api/cron/dropship-order-reconciliation", "*/5 * * * *"],
   ["/api/cron/flash-sale-availability", "*/5 * * * *"],
@@ -62,7 +62,7 @@ for (const [path, schedule] of allowedVercelCrons) {
 const appVercelCrons = Array.isArray(appVercel.crons) ? appVercel.crons : [];
 const recoveryCriticalCrons = new Map([
   ["/api/cron/nova-availability-failover", "*/5 * * * *"],
-  ["/api/cron/symphonya-stock", "5 */12 * * *"],
+  ["/api/cron/symphonya-stock", "5 * * * *"],
   ["/api/cron/seo-url-registry", "53 4 * * *"],
   ["/api/cron/seo-gsc-diagnostics", "47 */6 * * *"],
 ]);
