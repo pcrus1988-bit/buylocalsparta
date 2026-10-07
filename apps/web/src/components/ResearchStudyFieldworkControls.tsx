@@ -55,6 +55,8 @@ export function ResearchStudyFieldworkControls({
   latestReleasePublishedAt,
   resultsNotificationSent,
   resultsNotificationFailed,
+  canAnalyze,
+  canPublish,
   queuedJobs,
   runningJobs
 }: {
@@ -81,6 +83,8 @@ export function ResearchStudyFieldworkControls({
   latestReleasePublishedAt?: string;
   resultsNotificationSent: number;
   resultsNotificationFailed: number;
+  canAnalyze: boolean;
+  canPublish: boolean;
   queuedJobs: number;
   runningJobs: number;
 }) {
@@ -542,7 +546,7 @@ export function ResearchStudyFieldworkControls({
       >{busy === "rewards" ? "Προετοιμασία…" : "Αποστολή κωδικών ευχαριστίας"}</button>
     </div>
 
-    <div className="workspace-action-bar">
+    {canAnalyze && <div className="workspace-action-bar">
       <span>
         <strong>Analysis pipeline</strong><br />
         {pendingQualityReviews > 0
@@ -555,9 +559,9 @@ export function ResearchStudyFieldworkControls({
         onClick={() => void runAnalysis()}
         type="button"
       >{busy === "analysis" ? "Queueing…" : "Run weighted analysis"}</button>
-    </div>
+    </div>}
 
-    <div className="workspace-action-bar">
+    {canPublish && <div className="workspace-action-bar">
       <span>
         <strong>Reproducible release</strong><br />
         {latestReleaseVersion
@@ -570,13 +574,13 @@ export function ResearchStudyFieldworkControls({
         onClick={() => void buildRelease()}
         type="button"
       >{busy === "release" ? "Queueing…" : "Build release snapshot"}</button>
-    </div>
+    </div>}
 
-    <div className="workspace-action-bar">
+    {canPublish && <div className="workspace-action-bar">
       <span>
         <strong>Published-results notification</strong><br />
         {latestReleasePublishedAt
-          ? `${resultsNotificationSent.toLocaleString("el-GR")} sent · ${resultsNotificationFailed.toLocaleString("el-GR")} failed for the published release. Re-queueing is idempotent for already-sent recipients.`
+          ? `${resultsNotificationSent.toLocaleString("el-GR")} sent · ${resultsNotificationFailed.toLocaleString("el-GR")} failed for the published release. Κάθε νέα παρτίδα απαιτεί νέα διπλή επιβεβαίωση.`
           : "Η ενημέρωση ενεργοποιείται μόνο μετά την πραγματική δημοσίευση release και μόνο για όσους ζήτησαν ενημέρωση αποτελεσμάτων."}
       </span>
       <button
@@ -585,9 +589,10 @@ export function ResearchStudyFieldworkControls({
         onClick={() => void notifyResults()}
         type="button"
       >{busy === "results" ? "Προετοιμασία…" : "Ενημέρωση συμμετεχόντων για αποτελέσματα"}</button>
-    </div>
+    </div>}
 
     <div className="workspace-inline-note">
+      <strong>Ασφάλεια αποστολών:</strong> κανένα Research email δεν αποστέλλεται αυτόματα. Κάθε παρτίδα δείχνει πρώτα μελέτη, σκοπό και ακριβή αριθμό παραληπτών και απαιτεί δύο επιβεβαιώσεις.<br />
       {message || (workerBusy
         ? "Υπάρχει ήδη research worker job σε αναμονή ή εκτέλεση."
         : "Οι προσωπικοί σύνδεσμοι δημιουργούνται μόνο κατά την αποστολή και ο πλήρης σύνδεσμος δεν αποθηκεύεται. Οι υπενθυμίσεις δημιουργούν νέο ασφαλή σύνδεσμο για την ίδια συμμετοχή. Αποτυχημένες ή απορριφθείσες διευθύνσεις αποκλείονται αυτόματα από επόμενες αποστολές.")}
