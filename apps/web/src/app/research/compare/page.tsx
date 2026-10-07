@@ -28,7 +28,7 @@ export function generateMetadata(): Promise<Metadata> {
 
 function metricLabel(metric: PublicResearchPublishedMetric): string {
   const label = metric.metadata.label;
-  return typeof label === "string" && label.trim() ? label : metric.metricKey;
+  return typeof label === "string" && label.trim() ? label : "Δημοσιευμένος δείκτης";
 }
 
 function metricValue(metric: PublicResearchPublishedMetric): string {
