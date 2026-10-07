@@ -9,6 +9,7 @@ function text(value: unknown): string {
 }
 
 function optionalText(value: unknown): string | undefined {
+  if (value instanceof Date) return value.toISOString();
   const result = typeof value === "string" ? value.trim() : "";
   return result || undefined;
 }
