@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
-import { assertAdminPermission } from "./admin-runtime";
+import { assertAdminPermission, hasAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { researchReleaseArtifactIntegrity } from "./research-survey-release";
 import {
@@ -1095,8 +1095,10 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       latest_ap.locked_at AS analysis_plan_locked_at,
       latest_rt.version AS recruitment_template_version,
       latest_rt.subject AS recruitment_template_subject,
+      latest_rt.body_text AS recruitment_template_body,
       latest_rrt.version AS reminder_template_version,
       latest_rrt.subject AS reminder_template_subject,
+      latest_rrt.body_text AS reminder_template_body,
       COALESCE(f.frames, 0)::int AS frame_count,
       COALESCE(lf.population_size, 0)::int AS frame_population,
       GREATEST(
@@ -1167,7 +1169,7 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       LIMIT 1
     ) latest_ap ON true
     LEFT JOIN LATERAL (
-      SELECT version, subject
+      SELECT version, subject, body_text
       FROM research_recruitment_templates
       WHERE study_id = s.id
         AND channel='email'
@@ -1177,7 +1179,7 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       LIMIT 1
     ) latest_rt ON true
     LEFT JOIN LATERAL (
-      SELECT version, subject
+      SELECT version, subject, body_text
       FROM research_recruitment_templates
       WHERE study_id = s.id
         AND channel='email'
@@ -1431,8 +1433,10 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       analysisPlanLockedAt: optionalText(row.analysis_plan_locked_at),
       recruitmentTemplateVersion: optionalText(row.recruitment_template_version),
       recruitmentTemplateSubject: optionalText(row.recruitment_template_subject),
+      recruitmentTemplateBody: optionalText(row.recruitment_template_body),
       reminderTemplateVersion: optionalText(row.reminder_template_version),
       reminderTemplateSubject: optionalText(row.reminder_template_subject),
+      reminderTemplateBody: optionalText(row.reminder_template_body),
       frameCount: numberValue(row.frame_count),
       framePopulation: numberValue(row.frame_population),
       phasePopulation: numberValue(row.phase_population),
@@ -1485,6 +1489,359 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       queuedJobs: numberValue(row.queued_jobs),
       runningJobs: numberValue(row.running_jobs),
       failedJobs: numberValue(row.failed_jobs)
+    }))
+  };
+}
+
+
+export type ResearchSurveyOperationsOverview = Readonly<{
+  databaseConfigured: boolean;
+  studyFound: boolean;
+  canViewContactValues: boolean;
+  totalContacts: number;
+  templates: readonly Readonly<{
+    purpose: string;
+    version: string;
+    subject?: string;
+    bodyText: string;
+    status: string;
+    lockedAt?: string;
+    createdAt: string;
+  }>[];
+  contacts: readonly Readonly<{
+    id: string;
+    email?: string;
+    status: string;
+    source: string;
+    legalName?: string;
+    prefecture?: string;
+    municipality?: string;
+    kadCodes: string;
+    inviteId?: string;
+    inviteStatus?: string;
+    inviteSentAt?: string;
+    inviteExpiresAt?: string;
+  }>[];
+  invitations: readonly Readonly<{
+    id: string;
+    email?: string;
+    status: string;
+    fieldworkPhase?: string;
+    batchLabel?: string;
+    sentAt?: string;
+    expiresAt?: string;
+    responseStatus?: string;
+    createdAt: string;
+  }>[];
+  kadGroups: readonly Readonly<{
+    sectorCode: string;
+    population: number;
+    contactable: number;
+    selected: number;
+  }>[];
+  consents: readonly Readonly<{
+    kind: string;
+    granted: number;
+    declined: number;
+    total: number;
+  }>[];
+}>;
+
+export async function researchSurveyOperationsOverview(
+  principal: SessionPrincipal,
+  slug: string
+): Promise<ResearchSurveyOperationsOverview> {
+  assertAdminPermission(principal, "research.read");
+  const empty: ResearchSurveyOperationsOverview = {
+    databaseConfigured: productionDatabaseConfigured(),
+    studyFound: false,
+    canViewContactValues: false,
+    totalContacts: 0,
+    templates: [],
+    contacts: [],
+    invitations: [],
+    kadGroups: [],
+    consents: []
+  };
+  if (!empty.databaseConfigured) return empty;
+
+  const canViewContactValues =
+    hasAdminPermission(principal, "research.privacy.manage") ||
+    hasAdminPermission(principal, "research.fieldwork.manage") ||
+    hasAdminPermission(principal, "research.manage");
+
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const study = await pool.query<SqlRow>(
+    "SELECT id,current_wave_id FROM research_studies WHERE slug=$1 LIMIT 1",
+    [slug]
+  );
+  const studyRow = study.rows[0];
+  if (!studyRow) return { ...empty, databaseConfigured: true, canViewContactValues };
+
+  const studyId = text(studyRow.id);
+  const waveId = text(studyRow.current_wave_id);
+
+  const templates = await pool.query<SqlRow>(`
+    SELECT purpose,version,subject,body_text,status,locked_at,created_at
+    FROM research_recruitment_templates
+    WHERE study_id=$1
+      AND ($2::uuid IS NULL OR wave_id=$2::uuid)
+      AND channel='email'
+    ORDER BY created_at DESC
+    LIMIT 24
+  `, [studyId, waveId || null]);
+
+  const contactSql = canViewContactValues ? `
+    WITH latest_frame AS (
+      SELECT id
+      FROM research_frame_snapshots
+      WHERE study_id=$1
+      ORDER BY created_at DESC
+      LIMIT 1
+    )
+    SELECT
+      cp.id,
+      cp.contact_value,
+      cp.suppression_status,
+      cp.source_kind,
+      fu.sampling_attributes->>'legalName' AS legal_name,
+      fu.sampling_attributes->>'prefecture' AS prefecture,
+      fu.sampling_attributes->>'municipality' AS municipality,
+      COALESCE((
+        SELECT string_agg(code, ', ' ORDER BY code)
+        FROM jsonb_array_elements_text(
+          COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb)
+        ) AS code
+      ), '') AS kad_codes,
+      invite.id AS invite_id,
+      invite.status AS invite_status,
+      invite.sent_at AS invite_sent_at,
+      invite.expires_at AS invite_expires_at,
+      count(*) OVER ()::int AS total_count
+    FROM research_private.contact_points_with_value cp
+    JOIN research_frame_units fu ON fu.id=cp.frame_unit_id
+    LEFT JOIN LATERAL (
+      SELECT ri.id,ri.status,ri.sent_at,ri.expires_at
+      FROM research_invites ri
+      WHERE ri.contact_point_id=cp.id
+        AND ri.study_id=$1
+        AND ($2::uuid IS NULL OR ri.wave_id=$2::uuid)
+      ORDER BY ri.created_at DESC
+      LIMIT 1
+    ) invite ON true
+    WHERE fu.frame_snapshot_id=(SELECT id FROM latest_frame)
+      AND cp.contact_type='email'
+    ORDER BY cp.created_at DESC
+    LIMIT 200
+  ` : `
+    WITH latest_frame AS (
+      SELECT id
+      FROM research_frame_snapshots
+      WHERE study_id=$1
+      ORDER BY created_at DESC
+      LIMIT 1
+    )
+    SELECT
+      cp.id,
+      NULL::text AS contact_value,
+      cp.suppression_status,
+      cp.source_kind,
+      fu.sampling_attributes->>'legalName' AS legal_name,
+      fu.sampling_attributes->>'prefecture' AS prefecture,
+      fu.sampling_attributes->>'municipality' AS municipality,
+      COALESCE((
+        SELECT string_agg(code, ', ' ORDER BY code)
+        FROM jsonb_array_elements_text(
+          COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb)
+        ) AS code
+      ), '') AS kad_codes,
+      invite.id AS invite_id,
+      invite.status AS invite_status,
+      invite.sent_at AS invite_sent_at,
+      invite.expires_at AS invite_expires_at,
+      count(*) OVER ()::int AS total_count
+    FROM research_contact_points cp
+    JOIN research_frame_units fu ON fu.id=cp.frame_unit_id
+    LEFT JOIN LATERAL (
+      SELECT ri.id,ri.status,ri.sent_at,ri.expires_at
+      FROM research_invites ri
+      WHERE ri.contact_point_id=cp.id
+        AND ri.study_id=$1
+        AND ($2::uuid IS NULL OR ri.wave_id=$2::uuid)
+      ORDER BY ri.created_at DESC
+      LIMIT 1
+    ) invite ON true
+    WHERE fu.frame_snapshot_id=(SELECT id FROM latest_frame)
+      AND cp.contact_type='email'
+    ORDER BY cp.created_at DESC
+    LIMIT 200
+  `;
+  const contacts = await pool.query<SqlRow>(contactSql, [studyId, waveId || null]);
+
+  const invitationSql = canViewContactValues ? `
+    SELECT
+      ri.id,
+      cp.contact_value,
+      ri.status,
+      ri.fieldwork_phase,
+      ib.label AS batch_label,
+      ri.sent_at,
+      ri.expires_at,
+      rr.status AS response_status,
+      ri.created_at
+    FROM research_invites ri
+    LEFT JOIN research_private.contact_points_with_value cp ON cp.id=ri.contact_point_id
+    LEFT JOIN research_invite_batches ib ON ib.id=ri.batch_id
+    LEFT JOIN research_responses rr ON rr.invite_id=ri.id
+    WHERE ri.study_id=$1
+      AND ($2::uuid IS NULL OR ri.wave_id=$2::uuid)
+    ORDER BY ri.created_at DESC
+    LIMIT 200
+  ` : `
+    SELECT
+      ri.id,
+      NULL::text AS contact_value,
+      ri.status,
+      ri.fieldwork_phase,
+      ib.label AS batch_label,
+      ri.sent_at,
+      ri.expires_at,
+      rr.status AS response_status,
+      ri.created_at
+    FROM research_invites ri
+    LEFT JOIN research_invite_batches ib ON ib.id=ri.batch_id
+    LEFT JOIN research_responses rr ON rr.invite_id=ri.id
+    WHERE ri.study_id=$1
+      AND ($2::uuid IS NULL OR ri.wave_id=$2::uuid)
+    ORDER BY ri.created_at DESC
+    LIMIT 200
+  `;
+  const invitations = await pool.query<SqlRow>(invitationSql, [studyId, waveId || null]);
+
+  const kadGroups = await pool.query<SqlRow>(`
+    WITH latest_frame AS (
+      SELECT id
+      FROM research_frame_snapshots
+      WHERE study_id=$1
+      ORDER BY created_at DESC
+      LIMIT 1
+    )
+    SELECT
+      COALESCE(NULLIF(fu.sector_code,''),'unknown') AS sector_code,
+      count(*)::int AS population,
+      count(*) FILTER (
+        WHERE EXISTS (
+          SELECT 1
+          FROM research_contact_points cp
+          WHERE cp.frame_unit_id=fu.id
+            AND cp.contact_type='email'
+            AND cp.suppression_status='active'
+            AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+        )
+      )::int AS contactable,
+      count(*) FILTER (
+        WHERE EXISTS (
+          SELECT 1
+          FROM research_sample_units su
+          JOIN research_sample_draws sd ON sd.id=su.sample_draw_id
+          WHERE su.frame_unit_id=fu.id
+            AND sd.study_id=$1
+            AND ($2::uuid IS NULL OR sd.wave_id=$2::uuid)
+            AND sd.status IN ('locked','fielded')
+        )
+      )::int AS selected
+    FROM research_frame_units fu
+    WHERE fu.frame_snapshot_id=(SELECT id FROM latest_frame)
+    GROUP BY COALESCE(NULLIF(fu.sector_code,''),'unknown')
+    ORDER BY count(*) DESC, sector_code
+  `, [studyId, waveId || null]);
+
+  const consents = await pool.query<SqlRow>(`
+    WITH latest AS (
+      SELECT DISTINCT ON (rc.response_id,rc.consent_kind)
+        rc.response_id,
+        rc.consent_kind,
+        rc.granted
+      FROM research_consents rc
+      JOIN research_responses rr ON rr.id=rc.response_id
+      JOIN research_invites ri ON ri.id=rr.invite_id
+      WHERE rr.study_id=$1
+        AND ($2::uuid IS NULL OR ri.wave_id=$2::uuid)
+        AND rc.consent_kind IN ('research_participation','results_notification','thank_you_code')
+      ORDER BY rc.response_id,rc.consent_kind,rc.occurred_at DESC,rc.id DESC
+    )
+    SELECT
+      consent_kind,
+      count(*) FILTER (WHERE granted)::int AS granted,
+      count(*) FILTER (WHERE NOT granted)::int AS declined,
+      count(*)::int AS total
+    FROM latest
+    GROUP BY consent_kind
+    ORDER BY consent_kind
+  `, [studyId, waveId || null]);
+
+  if (canViewContactValues && contacts.rows.length) {
+    await recordAdminPersonalDataAccess(principal, {
+      route: "/admin/research/surveys",
+      resourceType: "research_contact_list",
+      resourceId: slug,
+      purpose: "privacy_operations",
+      dataClasses: ["research_contact_email", "research_sampling_frame"],
+      recordCount: contacts.rows.length,
+      accessScope: "bulk"
+    });
+  }
+
+  return {
+    databaseConfigured: true,
+    studyFound: true,
+    canViewContactValues,
+    totalContacts: numberValue(contacts.rows[0]?.total_count),
+    templates: templates.rows.map((row) => ({
+      purpose: text(row.purpose),
+      version: text(row.version),
+      subject: optionalText(row.subject),
+      bodyText: text(row.body_text),
+      status: text(row.status),
+      lockedAt: optionalText(row.locked_at),
+      createdAt: text(row.created_at)
+    })),
+    contacts: contacts.rows.map((row) => ({
+      id: text(row.id),
+      email: optionalText(row.contact_value),
+      status: text(row.suppression_status),
+      source: text(row.source_kind),
+      legalName: optionalText(row.legal_name),
+      prefecture: optionalText(row.prefecture),
+      municipality: optionalText(row.municipality),
+      kadCodes: text(row.kad_codes),
+      inviteId: optionalText(row.invite_id),
+      inviteStatus: optionalText(row.invite_status),
+      inviteSentAt: optionalText(row.invite_sent_at),
+      inviteExpiresAt: optionalText(row.invite_expires_at)
+    })),
+    invitations: invitations.rows.map((row) => ({
+      id: text(row.id),
+      email: optionalText(row.contact_value),
+      status: text(row.status),
+      fieldworkPhase: optionalText(row.fieldwork_phase),
+      batchLabel: optionalText(row.batch_label),
+      sentAt: optionalText(row.sent_at),
+      expiresAt: optionalText(row.expires_at),
+      responseStatus: optionalText(row.response_status),
+      createdAt: text(row.created_at)
+    })),
+    kadGroups: kadGroups.rows.map((row) => ({
+      sectorCode: text(row.sector_code),
+      population: numberValue(row.population),
+      contactable: numberValue(row.contactable),
+      selected: numberValue(row.selected)
+    })),
+    consents: consents.rows.map((row) => ({
+      kind: text(row.consent_kind),
+      granted: numberValue(row.granted),
+      declined: numberValue(row.declined),
+      total: numberValue(row.total)
     }))
   };
 }
