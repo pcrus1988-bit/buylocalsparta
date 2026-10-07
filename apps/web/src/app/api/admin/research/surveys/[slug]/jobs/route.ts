@@ -8,6 +8,7 @@ import {
   queueGreekRetailResultsNotifications,
   queueGreekRetailRewardDelivery,
   queueGreekRetailSampleDraw,
+  previewGreekRetailEmailSend,
   saveGreekRetailRecruitmentTemplate
 } from "../../../../../../../lib/research-survey-jobs";
 import { queueGreekRetailRelease } from "../../../../../../../lib/research-survey-release";
@@ -32,17 +33,51 @@ type Body = {
   minAgeDays?: number;
   minGapDays?: number;
   maxReminders?: number;
+  emailPurpose?: "initial_invitations" | "reminders" | "thank_you_codes" | "published_results";
+  confirmedEmailSend?: boolean;
+  confirmedRecipientCount?: number;
+  confirmedEmailPurpose?: "initial_invitations" | "reminders" | "thank_you_codes" | "published_results";
+  confirmedSurveySlug?: string;
 };
+
+
+function assertBulkEmailConfirmation(
+  body: Body,
+  input: Readonly<{ slug: string; purpose: NonNullable<Body["confirmedEmailPurpose"]>; candidateCount: number }>
+): void {
+  if (
+    body.confirmedEmailSend !== true
+    || body.confirmedSurveySlug !== input.slug
+    || body.confirmedEmailPurpose !== input.purpose
+    || Number(body.confirmedRecipientCount) !== input.candidateCount
+  ) {
+    throw new Error("RESEARCH_EMAIL_DOUBLE_CONFIRMATION_REQUIRED");
+  }
+}
 
 export async function POST(request: Request, context: { params: Promise<{ slug: string }> }) {
   try {
-    const principal = await requireAdminSession(request, { csrf: true, permission: "research.manage" });
+    const principal = await requireAdminSession(request, { csrf: true, permission: "research.read" });
     const { slug: rawSlug } = await context.params;
     const slug = decodeURIComponent(rawSlug);
     if (slug !== "greek-retail-2026") {
       return Response.json({ error: "RESEARCH_JOB_STUDY_UNSUPPORTED" }, { status: 400 });
     }
     const body = await request.json() as Body;
+
+    if (body.action === "preview_email_send") {
+      if (!body.emailPurpose) {
+        return Response.json({ error: "RESEARCH_EMAIL_PURPOSE_REQUIRED" }, { status: 400 });
+      }
+      const preview = await previewGreekRetailEmailSend(principal, {
+        purpose: body.emailPurpose,
+        limit: Number(body.limit || 100),
+        minAgeDays: Number(body.minAgeDays || 5),
+        minGapDays: Number(body.minGapDays || 5),
+        maxReminders: Number(body.maxReminders || 2)
+      });
+      return Response.json(preview, { headers: { "Cache-Control": "no-store" } });
+    }
 
     if (body.action === "save_recruitment_template") {
       const result = await saveGreekRetailRecruitmentTemplate(principal, {
@@ -96,6 +131,16 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     }
 
     if (body.action === "send_invites") {
+      const preview = await previewGreekRetailEmailSend(principal, {
+        purpose: "initial_invitations",
+        limit: Number(body.limit || 100)
+      });
+      if (preview.candidateCount < 1) throw new Error("RESEARCH_EMAIL_NO_ELIGIBLE_RECIPIENTS");
+      assertBulkEmailConfirmation(body, {
+        slug,
+        purpose: "initial_invitations",
+        candidateCount: preview.candidateCount
+      });
       const result = await queueGreekRetailInviteBatch(principal, {
         limit: Number(body.limit || 100),
         label: body.label
@@ -106,12 +151,25 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         "research_study",
         slug,
         "Queue governed SES research invitation batch",
-        { ...result, limit: Number(body.limit || 100) }
+        { ...result, limit: Number(body.limit || 100), confirmedRecipientCount: preview.candidateCount }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
 
     if (body.action === "send_reminders") {
+      const preview = await previewGreekRetailEmailSend(principal, {
+        purpose: "reminders",
+        limit: Number(body.limit || 100),
+        minAgeDays: Number(body.minAgeDays || 5),
+        minGapDays: Number(body.minGapDays || 5),
+        maxReminders: Number(body.maxReminders || 2)
+      });
+      if (preview.candidateCount < 1) throw new Error("RESEARCH_EMAIL_NO_ELIGIBLE_RECIPIENTS");
+      assertBulkEmailConfirmation(body, {
+        slug,
+        purpose: "reminders",
+        candidateCount: preview.candidateCount
+      });
       const result = await queueGreekRetailInviteReminderBatch(principal, {
         limit: Number(body.limit || 100),
         label: body.label,
@@ -130,13 +188,24 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
           limit: Number(body.limit || 100),
           minAgeDays: Number(body.minAgeDays || 5),
           minGapDays: Number(body.minGapDays || 5),
-          maxReminders: Number(body.maxReminders || 2)
+          maxReminders: Number(body.maxReminders || 2),
+          confirmedRecipientCount: preview.candidateCount
         }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
 
     if (body.action === "deliver_rewards") {
+      const preview = await previewGreekRetailEmailSend(principal, {
+        purpose: "thank_you_codes",
+        limit: Number(body.limit || 100)
+      });
+      if (preview.candidateCount < 1) throw new Error("RESEARCH_EMAIL_NO_ELIGIBLE_RECIPIENTS");
+      assertBulkEmailConfirmation(body, {
+        slug,
+        purpose: "thank_you_codes",
+        candidateCount: preview.candidateCount
+      });
       const result = await queueGreekRetailRewardDelivery(principal, {
         limit: Number(body.limit || 100),
         label: body.label
@@ -147,12 +216,22 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         "research_study",
         slug,
         "Queue consent-scoped participant thank-you delivery",
-        { ...result, limit: Number(body.limit || 100) }
+        { ...result, limit: Number(body.limit || 100), confirmedRecipientCount: preview.candidateCount }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
 
     if (body.action === "notify_results") {
+      const preview = await previewGreekRetailEmailSend(principal, {
+        purpose: "published_results",
+        limit: Number(body.limit || 100)
+      });
+      if (preview.candidateCount < 1) throw new Error("RESEARCH_EMAIL_NO_ELIGIBLE_RECIPIENTS");
+      assertBulkEmailConfirmation(body, {
+        slug,
+        purpose: "published_results",
+        candidateCount: preview.candidateCount
+      });
       const result = await queueGreekRetailResultsNotifications(principal, {
         limit: Number(body.limit || 100),
         label: body.label
@@ -163,7 +242,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         "research_study",
         slug,
         "Queue consent-scoped published-results notification",
-        { ...result, limit: Number(body.limit || 100) }
+        { ...result, limit: Number(body.limit || 100), confirmedRecipientCount: preview.candidateCount }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
