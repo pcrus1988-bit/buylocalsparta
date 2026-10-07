@@ -66,6 +66,7 @@ export default async function ResearchSurveysAdminPage() {
       <div className="hero-actions">
         <Link className="button button-secondary" href="/research/greek-retail-2026/methodology">Public methodology</Link>
         <Link className="button button-secondary" href="/research/greek-retail-2026/results">Public results</Link>
+        {hasAdminPermission(principal, "research.privacy.manage") && <Link className="button button-secondary" href="/admin/research/contacts">Marketing opt-ins</Link>}
       </div>
     </div></section>
 
