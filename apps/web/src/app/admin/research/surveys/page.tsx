@@ -12,7 +12,7 @@ import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, Wor
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { researchQualityReviewQueue } from "../../../../lib/research-survey-quality";
-import { researchFieldworkStrata, researchProtocolEvents, researchSurveyAdminOverview } from "../../../../lib/research-survey-runtime";
+import { researchDeliveryDelayQueue, researchFieldworkStrata, researchProtocolEvents, researchSurveyAdminOverview } from "../../../../lib/research-survey-runtime";
 
 export const metadata: Metadata = {
   title: "Admin · Research Studies",
@@ -48,6 +48,12 @@ export default async function ResearchSurveysAdminPage() {
     await Promise.all(overview.studies.map(async (study) => [
       study.slug,
       await researchProtocolEvents(principal, study.slug)
+    ] as const))
+  );
+  const deliveryDelays = new Map(
+    await Promise.all(overview.studies.map(async (study) => [
+      study.slug,
+      await researchDeliveryDelayQueue(principal, study.slug)
     ] as const))
   );
 
@@ -171,6 +177,31 @@ export default async function ResearchSurveysAdminPage() {
               queuedJobs={study.queuedJobs}
               runningJobs={study.runningJobs}
             />}
+
+            {(deliveryDelays.get(study.slug)?.length ?? 0) > 0 && <div className="workspace-queue-card">
+              <div className="workspace-action-bar">
+                <span>
+                  <strong>SES delivery delays</strong><br />
+                  Temporary delivery problems. SES is still retrying; these addresses are not suppressed unless a later permanent bounce or complaint is received.
+                </span>
+                <WorkspaceStatusBadge status="warning" label={(deliveryDelays.get(study.slug)?.length ?? 0) + " active"} />
+              </div>
+              {(deliveryDelays.get(study.slug) ?? []).map((item) => <div className="workspace-action-bar" key={item.id}>
+                <span>
+                  <strong>{item.messageKind}</strong><br />
+                  {item.delayType ?? "Undetermined"}
+                  {item.smtpStatus ? " · SMTP " + item.smtpStatus : ""}
+                  {item.diagnosticCode ? " · " + item.diagnosticCode : ""}
+                </span>
+                <small>
+                  {item.expirationTime
+                    ? "SES retries until " + new Date(item.expirationTime).toLocaleString("el-GR")
+                    : item.occurredAt
+                      ? "Reported " + new Date(item.occurredAt).toLocaleString("el-GR")
+                      : "Temporary delay"}
+                </small>
+              </div>)}
+            </div>}
 
             {study.failedJobs > 0 && <div className="workspace-inline-note form-error">
               {study.failedJobs} research job(s) require review before relying on the evidence chain.
