@@ -1,4 +1,4 @@
-import { processResearchStudyJobs, type ResearchJobType } from "../../../../../lib/research-survey-jobs";
+import { processResearchStudyJobs, type ResearchJobType } from "../../../../lib/research-survey-jobs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
