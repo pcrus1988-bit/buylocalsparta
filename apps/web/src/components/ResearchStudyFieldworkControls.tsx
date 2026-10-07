@@ -48,7 +48,11 @@ export function ResearchStudyFieldworkControls({
   csrfToken,
   studyStatus,
   recruitmentTemplateVersion,
+  recruitmentTemplateSubject,
+  recruitmentTemplateBodyText,
   reminderTemplateVersion,
+  reminderTemplateSubject,
+  reminderTemplateBodyText,
   reminderSent,
   reminderFailed,
   activeContacts,
@@ -70,7 +74,11 @@ export function ResearchStudyFieldworkControls({
   csrfToken: string;
   studyStatus: string;
   recruitmentTemplateVersion?: string;
+  recruitmentTemplateSubject?: string;
+  recruitmentTemplateBodyText?: string;
   reminderTemplateVersion?: string;
+  reminderTemplateSubject?: string;
+  reminderTemplateBodyText?: string;
   reminderSent: number;
   reminderFailed: number;
   activeContacts: number;
@@ -89,10 +97,10 @@ export function ResearchStudyFieldworkControls({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<Busy>(null);
-  const [subject, setSubject] = useState(DEFAULT_SUBJECT);
-  const [bodyText, setBodyText] = useState(DEFAULT_BODY);
-  const [reminderSubject, setReminderSubject] = useState(DEFAULT_REMINDER_SUBJECT);
-  const [reminderBodyText, setReminderBodyText] = useState(DEFAULT_REMINDER_BODY);
+  const [subject, setSubject] = useState(recruitmentTemplateSubject || DEFAULT_SUBJECT);
+  const [bodyText, setBodyText] = useState(recruitmentTemplateBodyText || DEFAULT_BODY);
+  const [reminderSubject, setReminderSubject] = useState(reminderTemplateSubject || DEFAULT_REMINDER_SUBJECT);
+  const [reminderBodyText, setReminderBodyText] = useState(reminderTemplateBodyText || DEFAULT_REMINDER_BODY);
   const [batchSize, setBatchSize] = useState("100");
   const [reminderBatchSize, setReminderBatchSize] = useState("100");
   const [reminderMinAgeDays, setReminderMinAgeDays] = useState("5");
@@ -325,8 +333,11 @@ export function ResearchStudyFieldworkControls({
       </span>
     </div>
 
-    {!recruitmentTemplateVersion && <div className="workspace-action-bar">
+    <div className="workspace-action-bar">
       <div style={{ width: "100%", display: "grid", gap: 10 }}>
+        {recruitmentTemplateVersion && <div className="workspace-inline-note">
+          Η τρέχουσα έκδοση είναι κλειδωμένη και δεν αλλάζει ιστορικά. Επεξεργαστείτε το κείμενο και αποθηκεύστε το ως νέα έκδοση για τις επόμενες αποστολές.
+        </div>}
         <label>
           <strong>Θέμα email</strong><br />
           <input
@@ -352,10 +363,10 @@ export function ResearchStudyFieldworkControls({
             disabled={Boolean(busy)}
             onClick={() => void lockTemplate()}
             type="button"
-          >{busy === "template" ? "Κλείδωμα…" : "Κλείδωμα έκδοσης πρόσκλησης"}</button>
+          >{busy === "template" ? "Αποθήκευση…" : recruitmentTemplateVersion ? "Αποθήκευση ως νέα έκδοση" : "Κλείδωμα πρώτης έκδοσης πρόσκλησης"}</button>
         </div>
       </div>
-    </div>}
+    </div>
 
     <div className="workspace-action-bar">
       <span>
@@ -390,8 +401,11 @@ export function ResearchStudyFieldworkControls({
       </span>
     </div>
 
-    {!reminderTemplateVersion && <div className="workspace-action-bar">
+    <div className="workspace-action-bar">
       <div style={{ width: "100%", display: "grid", gap: 10 }}>
+        {reminderTemplateVersion && <div className="workspace-inline-note">
+          Η τρέχουσα υπενθύμιση παραμένει κλειδωμένη. Οι αλλαγές αποθηκεύονται ως νέα έκδοση και δεν ξαναγράφουν το ιστορικό.
+        </div>}
         <label>
           <strong>Θέμα υπενθύμισης</strong><br />
           <input
@@ -416,9 +430,9 @@ export function ResearchStudyFieldworkControls({
           disabled={Boolean(busy)}
           onClick={() => void lockReminderTemplate()}
           type="button"
-        >{busy === "reminderTemplate" ? "Κλείδωμα…" : "Κλείδωμα έκδοσης υπενθύμισης"}</button>
+        >{busy === "reminderTemplate" ? "Αποθήκευση…" : reminderTemplateVersion ? "Αποθήκευση ως νέα έκδοση" : "Κλείδωμα πρώτης έκδοσης υπενθύμισης"}</button>
       </div>
-    </div>}
+    </div>
 
     <div className="workspace-action-bar">
       <span>
