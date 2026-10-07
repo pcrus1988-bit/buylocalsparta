@@ -1,0 +1,69 @@
+name: Production Research Long Jobs
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_type:
+        description: Run one queued long Research job type, or both governed long lanes
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - frame_snapshot
+          - analysis
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-research-long-jobs
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: Drain governed long Research jobs
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 360
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PGSSLMODE: require
+      BLS_DB_APPLICATION_NAME: github-actions:research-long-job
+
+    steps:
+      - name: Checkout selected ref
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Require production database credential
+        shell: bash
+        run: |
+          if [[ -z "${DATABASE_URL}" ]]; then
+            echo "::error::Production DATABASE_URL secret is missing."
+            exit 78
+          fi
+
+      - name: Verify immutable migration checksums
+        run: npm run db:verify
+
+      - name: Verify production database readiness
+        run: npm run db:ready
+
+      - name: Process queued long Research work
+        run: >-
+          node --experimental-strip-types
+          --loader ./scripts/resolve-typescript-extension.mjs
+          scripts/process-research-long-job.ts
+          "${{ inputs.job_type }}"
