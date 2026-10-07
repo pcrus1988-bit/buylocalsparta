@@ -64,6 +64,7 @@ export function ResearchStudyOperationsPanel({ data }: { data: ResearchSurveyOpe
             <th style={{ textAlign: "left", padding: 10 }}>Επιχείρηση</th>
             <th style={{ textAlign: "left", padding: 10 }}>Περιοχή</th>
             <th style={{ textAlign: "left", padding: 10 }}>ΚΑΔ</th>
+            <th style={{ textAlign: "left", padding: 10 }}>Πηγή</th>
             <th style={{ textAlign: "left", padding: 10 }}>Επικοινωνία</th>
             <th style={{ textAlign: "left", padding: 10 }}>Πρόσκληση</th>
           </tr></thead>
@@ -72,6 +73,7 @@ export function ResearchStudyOperationsPanel({ data }: { data: ResearchSurveyOpe
             <td style={{ padding: 10, borderTop: "1px solid var(--border, #e8e5df)" }}>{contact.legalName || "—"}</td>
             <td style={{ padding: 10, borderTop: "1px solid var(--border, #e8e5df)" }}>{[contact.municipality, contact.prefecture].filter(Boolean).join(" · ") || "—"}</td>
             <td style={{ padding: 10, borderTop: "1px solid var(--border, #e8e5df)" }}>{contact.kadCodes || "—"}</td>
+            <td style={{ padding: 10, borderTop: "1px solid var(--border, #e8e5df)" }}>{contact.source || "—"}</td>
             <td style={{ padding: 10, borderTop: "1px solid var(--border, #e8e5df)" }}>
               <WorkspaceStatusBadge status={contact.status} label={contact.status} />
             </td>
