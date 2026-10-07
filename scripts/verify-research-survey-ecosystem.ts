@@ -97,6 +97,7 @@ const methodologyPage = readFileSync("apps/web/src/app/research/greek-retail-202
 const observatoryPage = readFileSync("apps/web/src/app/research/page.tsx", "utf8");
 const researchPrivacyPage = readFileSync("apps/web/src/app/research/privacy/page.tsx", "utf8");
 const researchAdmin = readFileSync("apps/web/src/app/admin/research/surveys/page.tsx", "utf8");
+const researchAdminLoading = readFileSync("apps/web/src/app/admin/research/surveys/loading.tsx", "utf8");
 const researchAdminSection = readFileSync("apps/web/src/app/admin/research/surveys/[slug]/[section]/page.tsx", "utf8");
 const researchSurveyAdminNav = readFileSync("apps/web/src/components/ResearchSurveyAdminNav.tsx", "utf8");
 const researchQuestionsEditor = readFileSync("apps/web/src/components/ResearchSurveyQuestionsEditor.tsx", "utf8");
@@ -602,6 +603,10 @@ if (!samplingControls.includes("planningAssumptionsValid")) errors.push("sample 
 if (!jobs.includes("kontamou.research.sample-design.v1")) errors.push("sample design evidence document is not frozen by the sample worker");
 if (!surveyRuntime.includes("sds.target_complete_n")) errors.push("fieldwork balance does not read frozen sample-design completion targets");
 if (!release.includes("sample_design_sha256") || !release.includes("designEvidence")) errors.push("release artifact does not freeze sample design evidence");
+if (!surveyRuntime.includes("researchSurveyAdminIndexOverview")) errors.push("lightweight Research survey index loader missing");
+if (!researchAdmin.includes("researchSurveyAdminIndexOverview")) errors.push("survey index does not use lightweight loader");
+if (researchAdmin.includes("researchSurveyAdminOverview")) errors.push("survey index regressed to the heavyweight operational overview");
+if (!researchAdminLoading.includes("Loading survey workspaces")) errors.push("survey index loading state missing");
 if (researchAdmin.includes("#survey-")) errors.push("survey admin still relies on hash-anchor navigation");
 if (!researchAdmin.includes('href="/admin/research/settings"')) errors.push("survey index does not separate global Research settings");
 if (!researchGlobalSettings.includes("Global Research settings")) errors.push("dedicated global Research settings page missing");
