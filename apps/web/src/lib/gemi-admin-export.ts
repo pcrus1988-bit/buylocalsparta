@@ -110,6 +110,19 @@ export type GemiResearchFrameRecord = Readonly<{
   matchedActivityCodes: readonly string[];
 }>;
 
+export type GemiResearchFrameCursor = Readonly<{
+  batchIndex: number;
+  offset: number;
+}>;
+
+export type GemiResearchFrameChunk = Readonly<{
+  records: readonly GemiResearchFrameRecord[];
+  nextCursor?: GemiResearchFrameCursor;
+  done: boolean;
+  queryBatchCount: number;
+  pagesFetched: number;
+}>;
+
 type GemiActivityGroupDefinition = Readonly<{
   id: string;
   label: string;
@@ -846,6 +859,89 @@ function companyCsvRow(
   const values = companyCsvValues(company, filters, selection);
   const valueByField = new Map(CSV_HEADERS.map((header, index) => [header, values[index]] as const));
   return exportFields.map((field) => csvCell(valueByField.get(field))).join(",") + "\r\n";
+}
+
+function researchFrameRecordFromCompany(
+  company: GemiCompany,
+  selection: GemiResolvedActivitySelection
+): GemiResearchFrameRecord {
+  const matchedEntries = matchedCompanyActivityEntries(company, selection);
+  return {
+    gemiNumber: asString(company.arGemi),
+    afm: asString(company.afm),
+    legalName: asString(company.coNameEl),
+    prefectureId: nestedId(company.prefecture),
+    prefecture: nestedDescr(company.prefecture),
+    municipalityId: nestedId(company.municipality),
+    municipality: nestedDescr(company.municipality),
+    city: asString(company.city),
+    postcode: asString(company.zipCode),
+    email: asString(company.email).trim().toLowerCase(),
+    website: asString(company.url),
+    activityCodes: companyActivities(company).flatMap((entry) => {
+      const activity = objectField(entry.activity);
+      const id = activity ? asString(activity.id) : "";
+      return id ? [id] : [];
+    }),
+    matchedActivityCodes: matchedEntries.flatMap((entry) => {
+      const activity = objectField(entry.activity);
+      const id = activity ? asString(activity.id) : "";
+      return id ? [id] : [];
+    })
+  };
+}
+
+export async function gemiResearchFrameChunk(
+  filters: GemiAdminFilters,
+  cursor: GemiResearchFrameCursor = { batchIndex: 0, offset: 0 },
+  maxPages = 12,
+  apiKey?: string
+): Promise<GemiResearchFrameChunk> {
+  const selection = await resolveActivitySelection(filters, apiKey);
+  const batches = activityQueryBatches(selection.activityIds);
+  let batchIndex = Math.max(0, Math.min(batches.length, Math.floor(cursor.batchIndex || 0)));
+  let offset = Math.max(0, Math.floor(cursor.offset || 0));
+  const pageBudget = Math.max(1, Math.min(20, Math.floor(maxPages)));
+  let pagesFetched = 0;
+  const records: GemiResearchFrameRecord[] = [];
+  const seen = new Set<string>();
+
+  while (batchIndex < batches.length && pagesFetched < pageBudget) {
+    const batch = batches[batchIndex]!;
+    const page = await searchCompaniesBatch(filters, batch, offset, PAGE_SIZE, apiKey);
+    pagesFetched += 1;
+
+    for (const company of page.companies) {
+      const gemiNumber = asString(company.arGemi);
+      const afm = asString(company.afm);
+      const dedupeKey = gemiNumber || `${afm}:${asString(company.coNameEl)}`;
+      if (!dedupeKey || seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      records.push(researchFrameRecordFromCompany(company, selection));
+    }
+
+    const nextOffset = offset + page.companies.length;
+    const batchDone =
+      !page.companies.length ||
+      nextOffset >= page.totalCount ||
+      page.companies.length < PAGE_SIZE;
+
+    if (batchDone) {
+      batchIndex += 1;
+      offset = 0;
+    } else {
+      offset = nextOffset;
+    }
+  }
+
+  const done = batchIndex >= batches.length;
+  return {
+    records,
+    nextCursor: done ? undefined : { batchIndex, offset },
+    done,
+    queryBatchCount: batches.length,
+    pagesFetched
+  };
 }
 
 export async function* gemiResearchFrameRecords(
