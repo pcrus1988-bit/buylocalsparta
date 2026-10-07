@@ -1641,6 +1641,7 @@ export type ResearchSurveyOperationsOverview = Readonly<{
     prefecture?: string;
     municipality?: string;
     kadCodes: string;
+    sourcePrimaryKad?: string;
     inviteId?: string;
     inviteStatus?: string;
     inviteSentAt?: string;
@@ -1731,10 +1732,11 @@ export async function researchSurveyOperationsOverview(
       fu.sampling_attributes->>'legalName' AS legal_name,
       fu.sampling_attributes->>'prefecture' AS prefecture,
       fu.sampling_attributes->>'municipality' AS municipality,
+      fu.sampling_attributes->>'sourcePrimaryActivityCode' AS source_primary_kad,
       COALESCE((
         SELECT string_agg(code, ', ' ORDER BY code)
         FROM jsonb_array_elements_text(
-          COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb)
+          COALESCE(fu.sampling_attributes->'activityCodes','[]'::jsonb)
         ) AS code
       ), '') AS kad_codes,
       invite.id AS invite_id,
@@ -1773,10 +1775,11 @@ export async function researchSurveyOperationsOverview(
       fu.sampling_attributes->>'legalName' AS legal_name,
       fu.sampling_attributes->>'prefecture' AS prefecture,
       fu.sampling_attributes->>'municipality' AS municipality,
+      fu.sampling_attributes->>'sourcePrimaryActivityCode' AS source_primary_kad,
       COALESCE((
         SELECT string_agg(code, ', ' ORDER BY code)
         FROM jsonb_array_elements_text(
-          COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb)
+          COALESCE(fu.sampling_attributes->'activityCodes','[]'::jsonb)
         ) AS code
       ), '') AS kad_codes,
       invite.id AS invite_id,
@@ -1939,6 +1942,7 @@ export async function researchSurveyOperationsOverview(
       prefecture: optionalText(row.prefecture),
       municipality: optionalText(row.municipality),
       kadCodes: text(row.kad_codes),
+      sourcePrimaryKad: optionalText(row.source_primary_kad),
       inviteId: optionalText(row.invite_id),
       inviteStatus: optionalText(row.invite_status),
       inviteSentAt: optionalText(row.invite_sent_at),
