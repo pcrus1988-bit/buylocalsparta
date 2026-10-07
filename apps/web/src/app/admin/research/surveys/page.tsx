@@ -26,8 +26,25 @@ export default async function ResearchSurveysAdminPage() {
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div>
       <div className="eyebrow">Research · Surveys</div>
       <h1>Surveys</h1>
-      <p className="lead">Choose a survey first. Each operational area then opens on its own page so this overview stays fast, focused and easy to navigate.</p>
+      <p className="lead">Global Research configuration is separate from each survey. Choose a survey to manage its settings, questions, evaluation, sampling and fieldwork on dedicated pages.</p>\n      <div className="hero-actions"><Link className="button button-secondary" href="/admin/research/settings">Global Research settings</Link></div>
     </div></section>
+
+    <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Global vs survey-specific" title="Two separate levels" note="System-wide delivery and privacy rules live outside individual studies." />
+      <div className="analytics-workflow-grid">
+        <article className="analytics-workflow-card">
+          <span>Global Research</span>
+          <strong>Shared infrastructure & safeguards</strong>
+          <small>Email delivery, sender identity, suppression and system-wide privacy rules.</small>
+          <Link className="button button-secondary" href="/admin/research/settings">Open global settings</Link>
+        </article>
+        <article className="analytics-workflow-card">
+          <span>Survey workspaces</span>
+          <strong>Study-specific design & operations</strong>
+          <small>Title, questions, evaluation, sample, invitations, consent, quality and publication belong to one survey.</small>
+        </article>
+      </div>
+    </section>
 
     {!overview.databaseConfigured
       ? <section className="shell vendor-section"><WorkspaceEmptyState title="Research database is not available." body="The Research admin surface will activate when the production Research schema is available." /></section>
