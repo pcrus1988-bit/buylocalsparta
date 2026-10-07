@@ -952,8 +952,13 @@ export async function getPublishedGreekRetailResults(slug: string): Promise<Read
            rs.methodology_json,rs.analysis_run_id,rs.wave_id
     FROM research_release_snapshots rs
     JOIN research_studies s ON s.id=rs.study_id
-    WHERE s.slug=$1 AND rs.published_at IS NOT NULL
-    ORDER BY rs.published_at DESC,rs.created_at DESC
+    JOIN research_waves w ON w.id=rs.wave_id AND w.study_id=s.id
+    WHERE rs.published_at IS NOT NULL
+      AND (w.slug=$1 OR (s.slug=$1 AND w.is_current))
+    ORDER BY
+      CASE WHEN w.slug=$1 THEN 0 ELSE 1 END,
+      rs.published_at DESC,
+      rs.created_at DESC
     LIMIT 1
   `, [slug]);
   const row = release.rows[0];
