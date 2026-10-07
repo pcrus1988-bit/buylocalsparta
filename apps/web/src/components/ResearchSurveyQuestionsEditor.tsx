@@ -52,7 +52,7 @@ function defaultConfig(type: ResearchQuestionType): Record<string, unknown> {
 }
 
 async function designPost(slug: string, csrfToken: string, body: Record<string, unknown>) {
-  const response = await fetch("/api/admin/research/surveys/" + encodeURIComponent(slug) + "/design", {
+  const response = await fetch("/api/admin/research/surveys/" + encodeURIComponent(slug) + "/lifecycle", {
     method: "POST",
     headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
     body: JSON.stringify(body)
@@ -412,5 +412,185 @@ export function ResearchSurveyQuestionsEditor({
     </div>
 
     {editable && <div style={{ marginTop: 16 }}><NewQuestionPanel csrfToken={csrfToken} slug={slug} /></div>}
+  </section>;
+}
+
+
+function evaluationObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+function evaluationArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+}
+function evaluationOutcomesText(value: unknown): string {
+  if (!Array.isArray(value)) return "";
+  return value.map((raw) => {
+    const item = evaluationObject(raw);
+    return [String(item.metricKey ?? ""), String(item.label ?? ""), evaluationArray(item.segments).join(",")].join(" | ");
+  }).join("\n");
+}
+function parseEvaluationOutcomes(value: string) {
+  return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
+    const parts = line.split("|").map((part) => part.trim());
+    return {
+      metricKey: parts[0] || "",
+      label: parts[1] || parts[0] || "",
+      estimand: "weighted_population_mean",
+      segments: (parts[2] || "overall").split(",").map((part) => part.trim()).filter(Boolean)
+    };
+  }).filter((item) => item.metricKey);
+}
+
+export function ResearchEvaluationPlanEditor({
+  slug,
+  csrfToken,
+  canEdit,
+  data
+}: {
+  slug: string;
+  csrfToken: string;
+  canEdit: boolean;
+  data: ResearchSurveyDesignAdminOverview;
+}) {
+  const router = useRouter();
+  const plan = data.analysisPlan;
+  const planJson = plan?.plan ?? {};
+  const secondary = evaluationObject(planJson.secondaryAnalyses);
+  const disclosure = evaluationObject(planJson.disclosure);
+  const variance = evaluationObject(planJson.variance);
+  const weighting = evaluationObject(planJson.weighting);
+  const [title, setTitle] = useState(plan?.title ?? "Survey evaluation plan");
+  const [primary, setPrimary] = useState(evaluationOutcomesText(planJson.primaryOutcomes));
+  const [secondaryScope, setSecondaryScope] = useState(String(secondary.scope ?? ""));
+  const [secondarySegments, setSecondarySegments] = useState(evaluationArray(secondary.segments).join(", "));
+  const [exploratory, setExploratory] = useState(JSON.stringify(Array.isArray(planJson.exploratoryAnalyses) ? planJson.exploratoryAnalyses : [], null, 2));
+  const [busy, setBusy] = useState("");
+  const [message, setMessage] = useState("");
+  const editable = Boolean(canEdit && data.study.status === "draft" && plan?.status === "draft");
+  const canRevise = Boolean(canEdit && data.study.status === "draft" && data.instrument && plan?.status === "locked");
+
+  async function save() {
+    if (!plan) return;
+    setBusy("save");
+    setMessage("");
+    try {
+      const exploratoryValue = JSON.parse(exploratory) as unknown;
+      if (!Array.isArray(exploratoryValue)) throw new Error("Exploratory evaluation must be a list.");
+      const primaryOutcomes = parseEvaluationOutcomes(primary);
+      if (!primaryOutcomes.length) throw new Error("At least one primary outcome is required.");
+      await designPost(slug, csrfToken, {
+        action: "save_analysis_plan",
+        title,
+        plan: {
+          ...planJson,
+          primaryOutcomes,
+          secondaryAnalyses: {
+            ...secondary,
+            scope: secondaryScope.trim(),
+            segments: secondarySegments.split(",").map((part) => part.trim()).filter(Boolean),
+            classification: "prespecified_secondary"
+          },
+          exploratoryAnalyses: exploratoryValue
+        }
+      });
+      setMessage("Evaluation plan saved.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Evaluation plan could not be saved.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function lock() {
+    if (!window.confirm("Lock this evaluation plan? A locked plan cannot be edited in place.")) return;
+    setBusy("lock");
+    setMessage("");
+    try {
+      await designPost(slug, csrfToken, { action: "lock_analysis_plan" });
+      setMessage("Evaluation plan locked.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Evaluation plan could not be locked.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function revise() {
+    setBusy("revision");
+    setMessage("");
+    try {
+      const result = await designPost(slug, csrfToken, { action: "create_revision" });
+      setMessage("Editable revision created: " + String(result.analysisPlanVersion || ""));
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Editable revision could not be created.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  if (!data.instrument) {
+    return <section className="shell vendor-section"><div className="workspace-inline-note form-error">No questionnaire exists for this survey.</div></section>;
+  }
+  if (!plan) {
+    return <section className="shell vendor-section">
+      <div className="workspace-inline-note">No evaluation plan exists for the current questionnaire.</div>
+      {canEdit && data.study.status === "draft" && <button className="button" disabled={Boolean(busy)} onClick={() => void revise()} type="button">Create evaluation draft</button>}
+    </section>;
+  }
+
+  return <section className="shell vendor-section">
+    <div className="workspace-action-bar">
+      <span><strong>{plan.title}</strong><br />Version {plan.version} · {plan.status}</span>
+      <span style={{ fontFamily: "monospace", fontSize: 12 }}>fingerprint {plan.contentSha256.slice(0, 12)}…</span>
+    </div>
+    <div className="workspace-inline-note">
+      This page defines how answers will later be evaluated: headline metrics, standard breakdowns and explicitly exploratory analyses. It never changes raw responses.
+    </div>
+    {!editable && <div className="workspace-inline-note">
+      This plan is frozen evidence and cannot be rewritten.
+      {canRevise ? " The survey is still in draft, so you can create a new editable design revision." : " Any later analysis must remain explicitly exploratory and be documented without changing the original plan."}
+    </div>}
+    {canRevise && <div className="workspace-action-bar">
+      <span><strong>Revise before fieldwork</strong><br />Keep this locked version and create a new draft questionnaire + evaluation revision.</span>
+      <button className="button" disabled={Boolean(busy)} onClick={() => void revise()} type="button">{busy === "revision" ? "Creating…" : "Create editable revision"}</button>
+    </div>}
+
+    <div className="workspace-queue-card" style={{ display: "grid", gap: 16, marginTop: 16 }}>
+      <label><strong>Evaluation plan title</strong><br /><input disabled={!editable} onChange={(event) => setTitle(event.target.value)} style={{ width: "100%" }} value={title} /></label>
+      <label>
+        <strong>Headline metrics</strong><br />
+        <textarea disabled={!editable} onChange={(event) => setPrimary(event.target.value)} rows={7} style={{ width: "100%", fontFamily: "monospace" }} value={primary} />
+        <small>One metric per line: metric key | public label | breakdowns. Example: digital_readiness.mean | Digital Readiness | overall,regionCode,sectorCode</small>
+      </label>
+      <label><strong>Secondary evaluation scope</strong><br /><textarea disabled={!editable} onChange={(event) => setSecondaryScope(event.target.value)} rows={4} style={{ width: "100%" }} value={secondaryScope} /></label>
+      <label><strong>Standard breakdowns</strong><br /><input disabled={!editable} onChange={(event) => setSecondarySegments(event.target.value)} placeholder="overall, regionCode, sectorCode, sizeBand" style={{ width: "100%" }} value={secondarySegments} /></label>
+      <label>
+        <strong>Exploratory / later evaluation definitions</strong><br />
+        <textarea disabled={!editable} onChange={(event) => setExploratory(event.target.value)} rows={12} style={{ width: "100%", fontFamily: "monospace" }} value={exploratory} />
+        <small>Stored separately as exploratory analyses, so later evaluation is never presented as if it had been pre-specified.</small>
+      </label>
+    </div>
+
+    <div className="analytics-workflow-grid" style={{ marginTop: 16 }}>
+      <article className="analytics-workflow-card"><span>Confidence level</span><strong>{Math.round(Number(variance.confidenceLevel ?? 0.95) * 100)}%</strong><small>{String(variance.method ?? "stratified_srs_fpc_v1")} · fixed to executable analysis code.</small></article>
+      <article className="analytics-workflow-card"><span>Public minimum base</span><strong>n ≥ {String(disclosure.minimumUnweightedBase ?? 30)}</strong><small>{Boolean(disclosure.smallBaseSuppression) ? "Small-base results are suppressed." : "See locked disclosure rules."}</small></article>
+      <article className="analytics-workflow-card"><span>Weighting</span><strong>{String(weighting.calibrationAdjustment ?? "—")}</strong><small>Statistical implementation stays code-bound and versioned.</small></article>
+    </div>
+
+    {editable && <div className="workspace-action-bar" style={{ marginTop: 16 }}>
+      <span>{message || "Save the draft as often as needed. Lock only when the evaluation design is ready."}</span>
+      <div className="workspace-action-buttons" style={{ flexWrap: "wrap" }}>
+        <button className="button button-secondary" disabled={Boolean(busy)} onClick={() => void save()} type="button">{busy === "save" ? "Saving…" : "Save evaluation draft"}</button>
+        <button className="button" disabled={Boolean(busy) || !parseEvaluationOutcomes(primary).length} onClick={() => void lock()} type="button">{busy === "lock" ? "Locking…" : "Lock evaluation plan"}</button>
+      </div>
+    </div>}
+    {!editable && message && <div className="workspace-inline-note">{message}</div>}
+    {!editable && data.study.status !== "draft" && <div className="workspace-action-bar" style={{ marginTop: 16 }}>
+      <span><strong>Additional analysis after fieldwork</strong><br />Record the new question, reason and exploratory classification in Protocol without changing the original plan.</span>
+      <button className="button button-secondary" onClick={() => router.push("/admin/research/surveys/" + encodeURIComponent(slug) + "/protocol")} type="button">Open Protocol</button>
+    </div>}
   </section>;
 }
