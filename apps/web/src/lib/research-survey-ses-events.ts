@@ -43,6 +43,8 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
 }
 
+// Keep SES diagnostics useful for operations without copying the delayed
+// recipient address into the research event ledger.
 function deliveryDelayMetadata(event: SesResearchEvent): Record<string, unknown> {
   const delay = event.deliveryDelay;
   const recipient = delay?.delayedRecipients?.[0];
