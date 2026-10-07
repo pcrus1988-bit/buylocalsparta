@@ -79,6 +79,13 @@ for (const pathname of ["/api/media/example", "/api/catalog-source-image/example
   if (seoDocumentRobotsHeader(pathname) !== undefined) fail(`${pathname} must not receive the HTML-document X-Robots-Tag fallback`);
 }
 
+const nextConfig = readFileSync(`${process.cwd()}/apps/web/next.config.ts`, "utf8");
+for (const host of ["www.kontamou.site", "kontamou.info", "www.kontamou.info", "buylocalsparta.gr", "www.buylocalsparta.gr"]) {
+  if (!nextConfig.includes(`"${host}"`)) fail(`next.config.ts is missing permanent canonical-host redirect coverage for ${host}`);
+}
+if (!nextConfig.includes('destination: "https://kontamou.site/:path*"')) fail("next.config.ts alternate-host redirects must converge on https://kontamou.site while preserving path");
+if (!nextConfig.includes("RETIRED_PUBLIC_HOSTS.map")) fail("next.config.ts must apply canonical-host redirect policy uniformly to every governed alternate host");
+
 const proxy = readFileSync(`${process.cwd()}/apps/web/src/proxy.ts`, "utf8");
 for (const contract of [
   'import { seoDocumentRobotsHeader } from "./lib/seo-request-indexing"',
