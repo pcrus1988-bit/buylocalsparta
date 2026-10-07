@@ -11,10 +11,13 @@ export const metadata: Metadata = {
   referrer: "no-referrer"
 };
 
-export default async function ResearchSurveyTokenPage({ params }: {
+export default async function ResearchSurveyTokenPage({ params, searchParams }: {
   params: Promise<{ slug: string; token: string }>;
+  searchParams: Promise<{ optout?: string | string[] }>;
 }) {
   const { slug, token } = await params;
+  const query = await searchParams;
+  const optOutIntent = Array.isArray(query.optout) ? query.optout.includes("1") : query.optout === "1";
   let context;
   try {
     context = await publicResearchSurvey(slug, token);
@@ -47,6 +50,6 @@ export default async function ResearchSurveyTokenPage({ params }: {
         <span>Οι απαντήσεις κλειδώνουν στην ολοκλήρωση</span>
       </div>
     </header>
-    <ResearchSurveyForm slug={slug} token={token} initial={context} />
+    <ResearchSurveyForm slug={slug} token={token} initial={context} initialOptOutIntent={optOutIntent} />
   </main>;
 }
