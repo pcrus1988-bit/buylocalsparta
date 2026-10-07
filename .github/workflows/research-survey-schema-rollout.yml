@@ -69,7 +69,7 @@ jobs:
           echo "No database mutation was requested."
 
       - name: Apply checksum-aware migrations through schema 0434
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.apply }}
+        if: ${{ inputs.apply }}
         run: npm run db:migrate
 
       - name: Verify research schema and tables after migration
