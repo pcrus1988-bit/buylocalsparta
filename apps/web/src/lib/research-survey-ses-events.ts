@@ -26,10 +26,45 @@ type SesResearchEvent = Readonly<{
   bounce?: Readonly<{ bounceType?: string; bounceSubType?: string }>;
   complaint?: Readonly<Record<string, unknown>>;
   delivery?: Readonly<Record<string, unknown>>;
+  deliveryDelay?: Readonly<{
+    delayType?: string;
+    delayedRecipients?: readonly Readonly<{
+      emailAddress?: string;
+      status?: string;
+      diagnosticCode?: string;
+    }>[];
+    expirationTime?: string;
+    reportingMTA?: string;
+    timestamp?: string;
+  }>;
 }>;
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
+}
+
+function deliveryDelayMetadata(event: SesResearchEvent): Record<string, unknown> {
+  const delay = event.deliveryDelay;
+  const recipient = delay?.delayedRecipients?.[0];
+  return {
+    delayType: text(delay?.delayType).slice(0, 120) || null,
+    smtpStatus: text(recipient?.status).slice(0, 80) || null,
+    diagnosticCode: text(recipient?.diagnosticCode).replace(/[\r\n]+/g, " ").slice(0, 500) || null,
+    expirationTime: text(delay?.expirationTime).slice(0, 80) || null,
+    reportingMTA: text(delay?.reportingMTA).slice(0, 200) || null,
+    delayTimestamp: text(delay?.timestamp).slice(0, 80) || null
+  };
+}
+
+function deliveryDelaySummary(event: SesResearchEvent): string {
+  const details = deliveryDelayMetadata(event);
+  const parts = [
+    "SES delivery delay",
+    text(details.delayType) || "Undetermined",
+    text(details.smtpStatus),
+    text(details.diagnosticCode)
+  ].filter(Boolean);
+  return parts.join(": ").slice(0, 1000);
 }
 
 export async function handleResearchSesSnsWebhook(
@@ -151,13 +186,40 @@ async function processResearchSesEvent(
         providerMessageId,
         providerEventType: eventType,
         bounceType: event.bounce?.bounceType ?? null,
-        bounceSubType: event.bounce?.bounceSubType ?? null
+        bounceSubType: event.bounce?.bounceSubType ?? null,
+        ...(eventType === "DeliveryDelay" ? deliveryDelayMetadata(event) : {})
       };
-      let deliveryEventType: "delivered" | "opened" | "bounced" | "complained" | "failed" | undefined;
+      let deliveryEventType: "sent" | "delivered" | "opened" | "bounced" | "complained" | "failed" | undefined;
       if (eventType === "Delivery") {
         deliveryEventType = "delivered";
+        await client.query(`
+          UPDATE research_participant_deliveries
+          SET last_error=CASE
+                WHEN last_error LIKE 'SES delivery delay:%' THEN NULL
+                ELSE last_error
+              END,
+              updated_at=now()
+          WHERE id=$1
+        `, [delivery.delivery_id]);
       } else if (eventType === "Open") {
         deliveryEventType = "opened";
+        await client.query(`
+          UPDATE research_participant_deliveries
+          SET last_error=CASE
+                WHEN last_error LIKE 'SES delivery delay:%' THEN NULL
+                ELSE last_error
+              END,
+              updated_at=now()
+          WHERE id=$1
+        `, [delivery.delivery_id]);
+      } else if (eventType === "DeliveryDelay") {
+        deliveryEventType = "sent";
+        await client.query(`
+          UPDATE research_participant_deliveries
+          SET last_error=$2,updated_at=now()
+          WHERE id=$1
+            AND status NOT IN ('failed','cancelled')
+        `, [delivery.delivery_id, deliveryDelaySummary(event)]);
       } else if (eventType === "Bounce") {
         deliveryEventType = "bounced";
         const permanentBounce = event.bounce?.bounceType === "Permanent";
@@ -265,7 +327,8 @@ async function processResearchSesEvent(
       providerEventType: eventType,
       attemptId: text(invite.message_id) || attemptTag || null,
       bounceType: event.bounce?.bounceType ?? null,
-      bounceSubType: event.bounce?.bounceSubType ?? null
+      bounceSubType: event.bounce?.bounceSubType ?? null,
+      ...(eventType === "DeliveryDelay" ? deliveryDelayMetadata(event) : {})
     };
 
     if (eventType === "Delivery") {
@@ -282,6 +345,10 @@ async function processResearchSesEvent(
               provider_message_id=COALESCE(provider_message_id,$2),
               sent_at=COALESCE(sent_at,now()),
               delivered_at=COALESCE(delivered_at,now()),
+              last_error=CASE
+                WHEN last_error LIKE 'SES delivery delay:%' THEN NULL
+                ELSE last_error
+              END,
               updated_at=now()
           WHERE id=$1
         `, [invite.message_id, providerMessageId]);
@@ -305,6 +372,10 @@ async function processResearchSesEvent(
               provider_message_id=COALESCE(provider_message_id,$2),
               sent_at=COALESCE(sent_at,now()),
               opened_at=COALESCE(opened_at,now()),
+              last_error=CASE
+                WHEN last_error LIKE 'SES delivery delay:%' THEN NULL
+                ELSE last_error
+              END,
               updated_at=now()
           WHERE id=$1
         `, [invite.message_id, providerMessageId]);
@@ -316,6 +387,23 @@ async function processResearchSesEvent(
       if (invite.sample_unit_id) {
         await disposition(client, text(invite.sample_unit_id), "opened", "eligible", metadata);
       }
+    } else if (eventType === "DeliveryDelay") {
+      if (invite.message_id) {
+        await client.query(`
+          UPDATE research_invite_messages
+          SET provider_message_id=COALESCE(provider_message_id,$2),
+              last_error=$3,
+              updated_at=now()
+          WHERE id=$1
+            AND status NOT IN ('delivered','opened','bounced','complained','failed','cancelled')
+        `, [invite.message_id, providerMessageId, deliveryDelaySummary(event)]);
+      }
+      // Keep the canonical invitation active. A delivery delay is temporary,
+      // so it must not suppress the address or change sample disposition.
+      await client.query(`
+        INSERT INTO research_invite_events (invite_id,event_type,metadata)
+        VALUES ($1,'sent',$2::jsonb)
+      `, [invite.invite_id, JSON.stringify(metadata)]);
     } else if (eventType === "Bounce") {
       const permanentBounce = event.bounce?.bounceType === "Permanent";
       if (invite.message_id) {
