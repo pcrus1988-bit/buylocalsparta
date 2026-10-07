@@ -5,6 +5,7 @@ import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeade
 import { ResearchStudyFieldworkControls } from "../../../../components/ResearchStudyFieldworkControls";
 import { ResearchStudyFieldworkBalance } from "../../../../components/ResearchStudyFieldworkBalance";
 import { ResearchStudyLifecycleControls } from "../../../../components/ResearchStudyLifecycleControls";
+import { ResearchStudyOperationsOverview } from "../../../../components/ResearchStudyOperationsOverview";
 import { ResearchStudyQualityControls } from "../../../../components/ResearchStudyQualityControls";
 import { ResearchStudyProtocolControls } from "../../../../components/ResearchStudyProtocolControls";
 import { ResearchStudySamplingControls } from "../../../../components/ResearchStudySamplingControls";
@@ -12,7 +13,14 @@ import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, Wor
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { researchQualityReviewQueue } from "../../../../lib/research-survey-quality";
-import { researchFieldworkStrata, researchProtocolEvents, researchSurveyAdminOverview } from "../../../../lib/research-survey-runtime";
+import {
+  researchFieldworkStrata,
+  researchProtocolEvents,
+  researchStudyConsentOverview,
+  researchStudyFieldworkDirectory,
+  researchStudyKadOverview,
+  researchSurveyAdminOverview
+} from "../../../../lib/research-survey-runtime";
 
 export const metadata: Metadata = {
   title: "Admin · Research Studies",
@@ -30,6 +38,11 @@ export default async function ResearchSurveysAdminPage() {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
   if (!hasAdminPermission(principal, "research.read")) redirect("/admin");
+
+  const canDesign = hasAdminPermission(principal, "research.design.manage");
+  const canFieldwork = hasAdminPermission(principal, "research.fieldwork.manage");
+  const canQuality = hasAdminPermission(principal, "research.quality.manage");
+  const canPrivacy = hasAdminPermission(principal, "research.privacy.manage");
 
   const overview = await researchSurveyAdminOverview(principal);
   const qualityQueues = new Map(
@@ -50,13 +63,35 @@ export default async function ResearchSurveysAdminPage() {
       await researchProtocolEvents(principal, study.slug)
     ] as const))
   );
+  const kadOverview = new Map(
+    await Promise.all(overview.studies.map(async (study) => [
+      study.slug,
+      await researchStudyKadOverview(principal, study.slug)
+    ] as const))
+  );
+  const fieldworkDirectory = new Map(
+    canFieldwork
+      ? await Promise.all(overview.studies.map(async (study) => [
+          study.slug,
+          await researchStudyFieldworkDirectory(principal, study.slug)
+        ] as const))
+      : []
+  );
+  const consentOverview = new Map(
+    canPrivacy
+      ? await Promise.all(overview.studies.map(async (study) => [
+          study.slug,
+          await researchStudyConsentOverview(principal, study.slug)
+        ] as const))
+      : []
+  );
 
   return <main className="vendor-app admin-app">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Research Studies" />
     <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div>
-      <div className="eyebrow">Research · governed evidence</div>
+      <div className="eyebrow">Retail Observatory · Research</div>
       <h1>Research Studies</h1>
-      <p className="lead">Population frame → probability sample → invitation → consent → response → weighting → analysis → public release, with versioned evidence at every step.</p>
+      <p className="lead">Study setup, email invitations, contact frame, ΚΑΔ, consent, fieldwork progress and published evidence in one operator workspace.</p>
       <div className="hero-actions">
         <Link className="button button-secondary" href="/research/greek-retail-2026/methodology">Public methodology</Link>
         <Link className="button button-secondary" href="/research/greek-retail-2026/results">Public results</Link>
@@ -118,7 +153,56 @@ export default async function ResearchSurveysAdminPage() {
               </div>
             </div>
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudySamplingControls
+            <div className="workspace-queue-card">
+              <div className="workspace-action-bar">
+                <span><strong>Research operations</strong><br />Email templates, contacts, invitation state, ΚΑΔ and consent are now directly accessible for this study.</span>
+                <div className="workspace-action-buttons" style={{ flexWrap: "wrap" }}>
+                  {canFieldwork && <a className="button button-secondary" href={"#research-email-" + study.slug}>Email templates</a>}
+                  {canFieldwork && <a className="button button-secondary" href={"#research-contacts-" + study.slug}>Contacts & invitations</a>}
+                  <a className="button button-secondary" href={"#research-kad-" + study.slug}>ΚΑΔ overview</a>
+                  {canPrivacy && <a className="button button-secondary" href={"#research-consent-" + study.slug}>Consent</a>}
+                </div>
+              </div>
+            </div>
+
+            {canFieldwork && <ResearchStudyFieldworkControls
+              slug={study.slug}
+              csrfToken={principal.csrfToken}
+              studyTitle={study.title}
+              studyStatus={study.status}
+              recruitmentTemplateVersion={study.recruitmentTemplateVersion}
+              recruitmentTemplateSubject={study.recruitmentTemplateSubject}
+              recruitmentTemplateBody={study.recruitmentTemplateBody}
+              reminderTemplateVersion={study.reminderTemplateVersion}
+              reminderTemplateSubject={study.reminderTemplateSubject}
+              reminderTemplateBody={study.reminderTemplateBody}
+              reminderSent={study.reminderSent}
+              reminderFailed={study.reminderFailed}
+              activeContacts={study.activeContacts}
+              completed={study.completed}
+              rewardEligible={study.rewardEligible}
+              rewardIssued={study.rewardIssued}
+              rewardDeliveryFailed={study.rewardDeliveryFailed}
+              pendingQualityReviews={study.qualityReview}
+              succeededAnalysisRuns={study.succeededAnalysisRuns}
+              latestReleaseVersion={study.latestReleaseVersion}
+              latestReleasePublishedAt={study.latestReleasePublishedAt}
+              resultsNotificationSent={study.resultsNotificationSent}
+              resultsNotificationFailed={study.resultsNotificationFailed}
+              queuedJobs={study.queuedJobs}
+              runningJobs={study.runningJobs}
+            />}
+
+            <ResearchStudyOperationsOverview
+              slug={study.slug}
+              canFieldwork={canFieldwork}
+              canPrivacy={canPrivacy}
+              contacts={fieldworkDirectory.get(study.slug) ?? []}
+              kad={kadOverview.get(study.slug) ?? { sectors: [], codes: [] }}
+              consents={consentOverview.get(study.slug) ?? { totals: [], recent: [] }}
+            />
+
+            {canDesign && <ResearchStudySamplingControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
               latestFrameStatus={study.latestFrameStatus}
@@ -141,40 +225,17 @@ export default async function ResearchSurveysAdminPage() {
 
             <ResearchStudyFieldworkBalance strata={fieldworkStrata.get(study.slug) ?? []} />
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudyQualityControls
+            {canQuality && <ResearchStudyQualityControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
               initialItems={qualityQueues.get(study.slug) ?? []}
-            />}
-
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudyFieldworkControls
-              slug={study.slug}
-              csrfToken={principal.csrfToken}
-              studyStatus={study.status}
-              recruitmentTemplateVersion={study.recruitmentTemplateVersion}
-              reminderTemplateVersion={study.reminderTemplateVersion}
-              reminderSent={study.reminderSent}
-              reminderFailed={study.reminderFailed}
-              activeContacts={study.activeContacts}
-              completed={study.completed}
-              rewardEligible={study.rewardEligible}
-              rewardIssued={study.rewardIssued}
-              rewardDeliveryFailed={study.rewardDeliveryFailed}
-              pendingQualityReviews={study.qualityReview}
-              succeededAnalysisRuns={study.succeededAnalysisRuns}
-              latestReleaseVersion={study.latestReleaseVersion}
-              latestReleasePublishedAt={study.latestReleasePublishedAt}
-              resultsNotificationSent={study.resultsNotificationSent}
-              resultsNotificationFailed={study.resultsNotificationFailed}
-              queuedJobs={study.queuedJobs}
-              runningJobs={study.runningJobs}
             />}
 
             {study.failedJobs > 0 && <div className="workspace-inline-note form-error">
               {study.failedJobs} research job(s) require review before relying on the evidence chain.
             </div>}
 
-            {hasAdminPermission(principal, "research.manage") && <ResearchStudyProtocolControls
+            {canQuality && <ResearchStudyProtocolControls
               slug={study.slug}
               csrfToken={principal.csrfToken}
               studyStatus={study.status}
