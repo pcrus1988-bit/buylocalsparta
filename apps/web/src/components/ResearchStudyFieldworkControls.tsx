@@ -15,7 +15,7 @@ const DEFAULT_BODY = `Καλησπέρα,
 Η μεθοδολογία, ο σκοπός και ο τρόπος επεξεργασίας των δεδομένων είναι διαθέσιμα εδώ:
 {{methodology_url}}
 
-Η συμμετοχή ή μη συμμετοχή σας δεν επηρεάζει οποιαδήποτε εμπορική σχέση με το KONTA MOY. Οι επιλογές για ενημέρωση αποτελεσμάτων, κωδικό ευχαριστίας ή εμπορική επικοινωνία είναι ξεχωριστές από τη συγκατάθεση συμμετοχής στην έρευνα.`;
+Η συμμετοχή ή μη συμμετοχή σας δεν επηρεάζει οποιαδήποτε εμπορική σχέση με το KONTA MOY. Οι επιλογές για ενημέρωση αποτελεσμάτων ή κωδικό ευχαριστίας είναι ξεχωριστές από τη συγκατάθεση συμμετοχής στην έρευνα.`;
 
 const DEFAULT_REMINDER_SUBJECT = "Υπενθύμιση συμμετοχής στη μελέτη «Ελληνικό Λιανεμπόριο 2026»";
 const DEFAULT_REMINDER_BODY = `Καλησπέρα,
@@ -36,7 +36,11 @@ export function ResearchStudyFieldworkControls({
   csrfToken,
   studyStatus,
   recruitmentTemplateVersion,
+  recruitmentTemplateSubject,
+  recruitmentTemplateBodyText,
   reminderTemplateVersion,
+  reminderTemplateSubject,
+  reminderTemplateBodyText,
   reminderSent,
   reminderFailed,
   activeContacts,
@@ -57,7 +61,11 @@ export function ResearchStudyFieldworkControls({
   csrfToken: string;
   studyStatus: string;
   recruitmentTemplateVersion?: string;
+  recruitmentTemplateSubject?: string;
+  recruitmentTemplateBodyText?: string;
   reminderTemplateVersion?: string;
+  reminderTemplateSubject?: string;
+  reminderTemplateBodyText?: string;
   reminderSent: number;
   reminderFailed: number;
   activeContacts: number;
@@ -76,10 +84,10 @@ export function ResearchStudyFieldworkControls({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<Busy>(null);
-  const [subject, setSubject] = useState(DEFAULT_SUBJECT);
-  const [bodyText, setBodyText] = useState(DEFAULT_BODY);
-  const [reminderSubject, setReminderSubject] = useState(DEFAULT_REMINDER_SUBJECT);
-  const [reminderBodyText, setReminderBodyText] = useState(DEFAULT_REMINDER_BODY);
+  const [subject, setSubject] = useState(recruitmentTemplateSubject || DEFAULT_SUBJECT);
+  const [bodyText, setBodyText] = useState(recruitmentTemplateBodyText || DEFAULT_BODY);
+  const [reminderSubject, setReminderSubject] = useState(reminderTemplateSubject || DEFAULT_REMINDER_SUBJECT);
+  const [reminderBodyText, setReminderBodyText] = useState(reminderTemplateBodyText || DEFAULT_REMINDER_BODY);
   const [batchSize, setBatchSize] = useState("100");
   const [reminderBatchSize, setReminderBatchSize] = useState("100");
   const [reminderMinAgeDays, setReminderMinAgeDays] = useState("5");
@@ -276,8 +284,13 @@ export function ResearchStudyFieldworkControls({
       </span>
     </div>
 
-    {!recruitmentTemplateVersion && <div className="workspace-action-bar">
+    <div className="workspace-action-bar" id={"research-email-" + slug}>
       <div style={{ width: "100%", display: "grid", gap: 10 }}>
+        <div className="workspace-inline-note">
+          {recruitmentTemplateVersion
+            ? "Η έκδοση " + recruitmentTemplateVersion + " παραμένει κλειδωμένη για το audit trail. Αλλάξτε το κείμενο εδώ και αποθηκεύστε νέα έκδοση· η προηγούμενη δεν μεταβάλλεται."
+            : "Δημιουργήστε την πρώτη κλειδωμένη έκδοση της πρόσκλησης."}
+        </div>
         <label>
           <strong>Θέμα email</strong><br />
           <input
@@ -303,10 +316,10 @@ export function ResearchStudyFieldworkControls({
             disabled={Boolean(busy)}
             onClick={() => void lockTemplate()}
             type="button"
-          >{busy === "template" ? "Κλείδωμα…" : "Κλείδωμα έκδοσης πρόσκλησης"}</button>
+          >{busy === "template" ? "Αποθήκευση…" : recruitmentTemplateVersion ? "Αποθήκευση νέας έκδοσης πρόσκλησης" : "Κλείδωμα πρώτης έκδοσης πρόσκλησης"}</button>
         </div>
       </div>
-    </div>}
+    </div>
 
     <div className="workspace-action-bar">
       <span>
@@ -341,8 +354,13 @@ export function ResearchStudyFieldworkControls({
       </span>
     </div>
 
-    {!reminderTemplateVersion && <div className="workspace-action-bar">
+    <div className="workspace-action-bar">
       <div style={{ width: "100%", display: "grid", gap: 10 }}>
+        <div className="workspace-inline-note">
+          {reminderTemplateVersion
+            ? "Η έκδοση " + reminderTemplateVersion + " παραμένει κλειδωμένη. Οι αλλαγές αποθηκεύονται ως νέα έκδοση υπενθύμισης."
+            : "Δημιουργήστε ξεχωριστή έκδοση υπενθύμισης πριν ενεργοποιήσετε reminders."}
+        </div>
         <label>
           <strong>Θέμα υπενθύμισης</strong><br />
           <input
@@ -367,9 +385,9 @@ export function ResearchStudyFieldworkControls({
           disabled={Boolean(busy)}
           onClick={() => void lockReminderTemplate()}
           type="button"
-        >{busy === "reminderTemplate" ? "Κλείδωμα…" : "Κλείδωμα έκδοσης υπενθύμισης"}</button>
+        >{busy === "reminderTemplate" ? "Αποθήκευση…" : reminderTemplateVersion ? "Αποθήκευση νέας έκδοσης υπενθύμισης" : "Κλείδωμα πρώτης έκδοσης υπενθύμισης"}</button>
       </div>
-    </div>}
+    </div>
 
     <div className="workspace-action-bar">
       <span>
