@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { SiteFooter } from "./SiteFooter";
 import type { PublicResearchStudySummary } from "../lib/research-observatory-runtime";
 import { ResearchLiveProgress } from "./ResearchLiveProgress";
 import styles from "./ResearchObservatory.module.css";
@@ -126,6 +125,5 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
 
       <div className={styles.footer}>Public research surface · privacy-safe aggregates · governed releases</div>
     </div>
-    <SiteFooter />
   </main>;
 }
