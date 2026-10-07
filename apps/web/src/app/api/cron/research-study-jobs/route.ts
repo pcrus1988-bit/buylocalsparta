@@ -1,4 +1,9 @@
-import { processResearchStudyJobs, RESEARCH_JOB_TYPES, type ResearchJobType } from "../../../../lib/research-survey-jobs";
+import {
+  ensureGreekRetailAutomaticReminderBatch,
+  processResearchStudyJobs,
+  RESEARCH_JOB_TYPES,
+  type ResearchJobType
+} from "../../../../lib/research-survey-jobs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,9 +39,10 @@ export async function GET(request: Request) {
       );
     }
 
+    const automaticReminder = await ensureGreekRetailAutomaticReminderBatch();
     const email = await processResearchStudyJobs(1, EMAIL_JOB_TYPES);
     return Response.json(
-      { ok: true, lane: "email", ...email },
+      { ok: true, lane: "email", automaticReminder, ...email },
       { headers: { "cache-control": "no-store" } }
     );
   } catch (error) {
