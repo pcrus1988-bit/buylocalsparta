@@ -412,6 +412,7 @@ export async function researchAdminOperationalWorkspace(
       JOIN research_invites ri ON ri.id=rr.invite_id
       JOIN study s ON s.id=rr.study_id
       WHERE ri.wave_id=s.current_wave_id
+        AND rc.consent_kind IN ('research_participation','results_notification','thank_you_code')
       ORDER BY rc.response_id,rc.consent_kind,rc.occurred_at DESC,rc.id DESC
     )
     SELECT
@@ -435,6 +436,7 @@ export async function researchAdminOperationalWorkspace(
     JOIN research_invites ri ON ri.id=rr.invite_id
     JOIN study s ON s.id=rr.study_id
     WHERE ri.wave_id=s.current_wave_id
+      AND rc.consent_kind IN ('research_participation','results_notification','thank_you_code')
     ORDER BY rc.occurred_at DESC,rc.id DESC
     LIMIT 100
   `, [slug]);
