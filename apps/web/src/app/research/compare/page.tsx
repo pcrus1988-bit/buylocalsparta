@@ -67,31 +67,56 @@ export default async function ResearchComparePage() {
     publicResearchPublishedMetrics()
   ]);
 
-  const approvedMetricGroups = new Map<string, Set<string>>();
-  for (const item of comparisons) {
-    const approved =
-      (item.harmonisationStatus === "exact" || item.harmonisationStatus === "harmonised")
-      && item.comparabilityPolicy !== "not_comparable";
-    if (!approved) continue;
-    const key = [item.programmeSlug, item.studySlug, item.variableKey].join(":");
-    const waves = approvedMetricGroups.get(key) ?? new Set<string>();
-    waves.add(item.baselineWaveSlug);
-    waves.add(item.comparisonWaveSlug);
-    approvedMetricGroups.set(key, waves);
-  }
+  const publishedMetricFamilyAliases: Readonly<Record<string, readonly string[]>> = {
+    digital_readiness_score: ["digital_readiness."],
+    retail_friction_index: ["retail_friction."]
+  };
+  const metricBelongsToVariable = (variableKey: string, metricKey: string): boolean =>
+    metricKey === variableKey
+    || metricKey.startsWith(variableKey + ".")
+    || (publishedMetricFamilyAliases[variableKey] ?? []).some((prefix) => metricKey.startsWith(prefix));
 
-  const comparableMetricGroups = [...approvedMetricGroups.entries()]
-    .map(([key, approvedWaves]) => {
-      const [programmeSlug, studySlug, metricKey] = key.split(":");
-      const values = metrics.filter((metric) =>
-        metric.programmeSlug === programmeSlug
-        && metric.studySlug === studySlug
-        && metric.metricKey === metricKey
-        && approvedWaves.has(metric.waveSlug)
+  const approvedMetricPairs = comparisons
+    .filter((item) =>
+      (item.harmonisationStatus === "exact" || item.harmonisationStatus === "harmonised")
+      && item.comparabilityPolicy !== "not_comparable"
+    )
+    .flatMap((item) => {
+      const baseline = metrics.filter((metric) =>
+        metric.programmeSlug === item.programmeSlug
+        && metric.studySlug === item.studySlug
+        && metric.waveSlug === item.baselineWaveSlug
+        && metricBelongsToVariable(item.variableKey, metric.metricKey)
       );
-      return [key, values] as const;
+      const comparisonByMetricKey = new Map(
+        metrics
+          .filter((metric) =>
+            metric.programmeSlug === item.programmeSlug
+            && metric.studySlug === item.studySlug
+            && metric.waveSlug === item.comparisonWaveSlug
+            && metricBelongsToVariable(item.variableKey, metric.metricKey)
+          )
+          .map((metric) => [metric.metricKey, metric] as const)
+      );
+      return baseline.flatMap((baselineMetric) => {
+        const comparisonMetric = comparisonByMetricKey.get(baselineMetric.metricKey);
+        return comparisonMetric
+          ? [{
+              key: [
+                item.programmeSlug,
+                item.studySlug,
+                item.variableKey,
+                item.baselineWaveSlug,
+                item.comparisonWaveSlug,
+                baselineMetric.metricKey
+              ].join(":"),
+              variableLabel: item.variableLabel,
+              metricKey: baselineMetric.metricKey,
+              values: [baselineMetric, comparisonMetric] as const
+            }]
+          : [];
+      });
     })
-    .filter(([, values]) => values.length >= 2)
     .slice(0, 16);
 
   const exact = comparisons.filter((item) => item.harmonisationStatus === "exact" || item.comparabilityPolicy === "core_exact").length;
@@ -163,16 +188,17 @@ export default async function ResearchComparePage() {
           <p>Εδώ εμφανίζονται μόνο overall, unsuppressed estimates από immutable public releases και μόνο όταν υπάρχει locked exact ή harmonised comparison specification. Methodological breaks δεν ομαδοποιούνται ποτέ ως trend.</p>
         </div>
 
-        {comparableMetricGroups.length > 0
-          ? <div className={styles.resultsGrid}>{comparableMetricGroups.map(([key, values]) => <article className={styles.resultCard} key={key}>
-              <div className={styles.eyebrow}>{metricLabel(values[0]!)}</div>
-              {values.map((metric) => <div key={metric.waveSlug} style={{ marginTop: 16 }}>
+        {approvedMetricPairs.length > 0
+          ? <div className={styles.resultsGrid}>{approvedMetricPairs.map((pair) => <article className={styles.resultCard} key={pair.key}>
+              <div className={styles.eyebrow}>{pair.variableLabel}</div>
+              <span className={styles.mono}>{pair.metricKey}</span>
+              {pair.values.map((metric) => <div key={metric.waveSlug} style={{ marginTop: 16 }}>
                 <strong>{metricValue(metric)}</strong>
                 <span>{metric.waveTitle} · 95% CI {interval(metric)} · n={metric.unweightedN.toLocaleString("el-GR")}</span>
               </div>)}
             </article>)}</div>
           : <div className={styles.empty}>
-              Χρειάζονται τουλάχιστον δύο published waves που συνδέονται από locked exact ή harmonised comparison specification για άμεση side-by-side απεικόνιση.
+              Χρειάζεται locked exact ή harmonised comparison specification και κοινό governed published metric μέσα στην ίδια εγκεκριμένη wave pair.
             </div>}
       </section>
 
