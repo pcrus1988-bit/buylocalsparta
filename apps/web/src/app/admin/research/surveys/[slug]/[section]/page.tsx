@@ -80,7 +80,13 @@ export default async function ResearchSurveySectionPage({ params }: {
       <section className="shell vendor-section">
         <WorkspaceSectionHeading eyebrow="Survey design" title="Evaluation" note="Define headline metrics, standard breakdowns and clearly classified exploratory analyses before results are produced." />
       </section>
-      <ResearchEvaluationPlanEditor slug={study.slug} csrfToken={principal.csrfToken} canEdit={canAnalyze && canDesign} data={design} />
+      <ResearchEvaluationPlanEditor
+        slug={study.slug}
+        csrfToken={principal.csrfToken}
+        canEdit={canAnalyze && canDesign}
+        canAddLater={canAnalyze}
+        data={design}
+      />
     </>;
   } else if (section === "sampling") {
     content = <section className="shell vendor-section">
