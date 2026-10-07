@@ -58,7 +58,7 @@ jobs:
           DATABASE_URL: ${{ secrets.NYXI_DATABASE_URL || secrets.MEDIA_DATABASE_URL }}
           BLS_OBJECT_STORAGE_ACCESS_KEY_ID: ${{ secrets.NYXI_OBJECT_STORAGE_ACCESS_KEY_ID || secrets.MEDIA_OBJECT_STORAGE_ACCESS_KEY_ID }}
           BLS_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${{ secrets.NYXI_OBJECT_STORAGE_SECRET_ACCESS_KEY || secrets.MEDIA_OBJECT_STORAGE_SECRET_ACCESS_KEY }}
-          BLS_OBJECT_STORAGE_BUCKET: buy-local-sparta-private
+          BLS_OBJECT_STORAGE_BUCKET: nyxi-evidence
           BLS_OBJECT_STORAGE_REGION: us-east-1
           BLS_OBJECT_STORAGE_ENDPOINT: https://eemihhfreggbigxejjhj.storage.supabase.co/storage/v1/s3
           BLS_OBJECT_STORAGE_FORCE_PATH_STYLE: 'true'
