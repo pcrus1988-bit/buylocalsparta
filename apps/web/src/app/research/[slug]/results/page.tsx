@@ -57,6 +57,7 @@ export default async function ResearchResultsPage({ params }: PageProps) {
           <Link href={"/research/" + study.waveSlug}>Επισκόπηση</Link>
           <Link href={"/research/" + study.waveSlug + "/methodology"}>Μεθοδολογία</Link>
           <Link href={"/research/" + study.waveSlug + "/results"}>Αποτελέσματα</Link>
+          <Link href="/research/market-sentiment">Άλλοι φορείς</Link>
           <Link href="/research/compare">Σύγκριση</Link>
         </nav>
       </div>
