@@ -20,7 +20,7 @@ function statusLabel(status: string): string {
   return ({
     draft: "Σχεδιασμός",
     pilot: "Πιλοτική φάση",
-    fielding: "Συλλογή απαντήσεων",
+    fielding: "Κύρια συλλογή απαντήσεων",
     closed: "Η συλλογή ολοκληρώθηκε",
     analysis: "Ανάλυση",
     published: "Δημοσιευμένη",
@@ -75,7 +75,7 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
 
   const activeStage = stageIndex(study.status);
   const completion = Math.min(Math.max(study.completionRate, 0), 1);
-  const isLive = study.status === "fielding" || study.status === "pilot";
+  const isLive = study.status === "fielding";
   const remaining = study.targetCompletes > 0 ? Math.max(study.targetCompletes - study.completed, 0) : 0;
   const deliveryRate = safeRatio(study.delivered, study.sent);
   const startRate = safeRatio(study.started, study.opened || study.sent);
@@ -150,9 +150,9 @@ export function ResearchLiveProgress({ initialStudy }: { initialStudy: PublicRes
 
     <div className={styles.metrics}>
       <article className={styles.metric}>
-        <span>Επιλεγμένο δείγμα</span>
+        <span>Επιχειρήσεις κύριας έρευνας</span>
         <strong>{study.selected.toLocaleString("el-GR")}</strong>
-        <small>μονάδες που επιλέχθηκαν για τη μελέτη</small>
+        <small>μονάδες των ενεργών ομάδων της κύριας συλλογής</small>
       </article>
       <article className={styles.metric}>
         <span>Ποσοστό παράδοσης</span>
