@@ -150,10 +150,10 @@ export function ResearchStudySamplingControls({
       </span>
       <button
         className="button button-secondary"
-        disabled={Boolean(busy) || workerBusy}
+        disabled={Boolean(busy) || workerBusy || (fieldworkPhase === "pilot" && usableFrame)}
         onClick={() => void buildFrame()}
         type="button"
-      >{busy === "frame" ? "Queueing…" : workerBusy ? "Frame build in progress" : usableFrame ? "Refresh frame" : "Build frozen frame"}</button>
+      >{busy === "frame" ? "Queueing…" : workerBusy ? "Cohort B build in progress" : fieldworkPhase === "pilot" && usableFrame ? "Cohort A already frozen" : usableFrame ? "Refresh frame" : "Build frozen frame"}</button>
     </div>
 
     <div className="workspace-action-bar">
