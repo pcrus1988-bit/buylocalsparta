@@ -291,25 +291,28 @@ export async function queueGreekRetailSampleDraw(
     label?: string;
     fieldworkPhase?: "pilot" | "main";
     cohort?: "A" | "B";
+    selectionMode?: "sample" | "census";
   }>
 ): Promise<{ jobId: string; randomSeed: string; fieldworkPhase: "pilot" | "main" }> {
   assertAdminPermission(principal, "research.design.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
-  const targetN = Math.floor(input.targetN);
-  if (!Number.isSafeInteger(targetN) || targetN < 1 || targetN > 100_000) {
+  const census = input.selectionMode === "census";
+  const targetN = census ? 0 : Math.floor(input.targetN);
+  if (!census && (!Number.isSafeInteger(targetN) || targetN < 1 || targetN > 100_000)) {
     throw new Error("RESEARCH_SAMPLE_TARGET_INVALID");
   }
   const expectedResponseRate = Number(input.expectedResponseRate ?? 0.15);
   if (!Number.isFinite(expectedResponseRate) || expectedResponseRate <= 0 || expectedResponseRate > 1) {
     throw new Error("RESEARCH_SAMPLE_EXPECTED_RESPONSE_INVALID");
   }
-  const desiredCompleteN = Math.floor(Number(
+  const desiredCompleteN = census ? 0 : Math.floor(Number(
     input.desiredCompleteN ?? Math.max(1, Math.round(targetN * expectedResponseRate))
   ));
-  if (!Number.isSafeInteger(desiredCompleteN) || desiredCompleteN < 1 || desiredCompleteN > targetN) {
+  if (!census && (!Number.isSafeInteger(desiredCompleteN) || desiredCompleteN < 1 || desiredCompleteN > targetN)) {
     throw new Error("RESEARCH_SAMPLE_DESIRED_COMPLETES_INVALID");
   }
-  const randomSeed = input.randomSeed?.trim() || randomBytes(24).toString("hex");
+  // A census has no random selection; this fixed marker preserves the existing evidence schema.
+  const randomSeed = census ? "contactable-census-no-random-draw-v1" : (input.randomSeed?.trim() || randomBytes(24).toString("hex"));
   if (randomSeed.length < 16 || randomSeed.length > 200) throw new Error("RESEARCH_SAMPLE_SEED_INVALID");
 
   const pool = getProductionPostgresRuntime().sqlPool;
@@ -325,11 +328,12 @@ export async function queueGreekRetailSampleDraw(
   }
   const minTargetN = fieldworkPhase === "pilot" ? 10 : 100;
   const maxTargetN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
-  if (targetN < minTargetN || targetN > maxTargetN) {
+  if (!census && (targetN < minTargetN || targetN > maxTargetN)) {
     throw new Error(fieldworkPhase === "pilot"
       ? "RESEARCH_PILOT_SAMPLE_TARGET_INVALID"
       : "RESEARCH_SAMPLE_TARGET_INVALID");
   }
+  if (census && fieldworkPhase !== "main") throw new Error("RESEARCH_CENSUS_MAIN_ONLY");
   if (fieldworkPhase === "pilot" && !["draft","pilot"].includes(studyStatus)) {
     throw new Error("RESEARCH_PILOT_SAMPLE_PHASE_CLOSED");
   }
@@ -376,6 +380,7 @@ export async function queueGreekRetailSampleDraw(
     if (
       existingPhase !== fieldworkPhase
       || text(existingInput.cohort) !== cohort
+      || (text(existingInput.selectionMode) === "census") !== census
       || existingDesiredCompleteN !== desiredCompleteN
       || Math.abs(existingExpectedResponseRate - expectedResponseRate) > 1e-9
     ) {
@@ -403,7 +408,8 @@ export async function queueGreekRetailSampleDraw(
         'desiredCompleteN', $7::int,
         'expectedResponseRate', $8::numeric,
         'cohort', $9::text,
-        'frameSnapshotId', $10::text
+        'frameSnapshotId', $10::text,
+        'selectionMode', $11::text
       )
     )
     RETURNING id
@@ -412,12 +418,13 @@ export async function queueGreekRetailSampleDraw(
     study.rows[0].current_wave_id,
     targetN,
     randomSeed,
-    input.label?.trim() || `${fieldworkPhase}-sample-${targetN}`,
+    input.label?.trim() || (census ? `main-contactable-census-${cohort}` : `${fieldworkPhase}-sample-${targetN}`),
     fieldworkPhase,
     desiredCompleteN,
     expectedResponseRate,
     cohort,
-    text(frame.rows[0].id)
+    text(frame.rows[0].id),
+    census ? "census" : "sample"
   ]);
   return { jobId: text(job.rows[0]!.id), randomSeed, fieldworkPhase };
 }
