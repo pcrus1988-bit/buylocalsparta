@@ -382,7 +382,7 @@ export function ResearchSurveyQuestionsEditor({
     if (!canInstallSentiment || !instrument) return;
     if (!window.confirm(
       "Add Q19–Q27 (9 questions) and preregister the Greek Retail Business Confidence Index for questionnaire " + instrument.version +
-      "?\\n\\nThe questions will be added to the current editable draft only. No invitations will be sent. Review the new fingerprint before locking."
+      "?\n\nThe questions will be added to the current editable draft only. No invitations will be sent. Review the new fingerprint before locking."
     )) return;
     setBusy(true);
     setMessage("");
@@ -400,10 +400,10 @@ export function ResearchSurveyQuestionsEditor({
   async function lockQuestionnaire() {
     if (!instrument || !canLockQuestionnaire) return;
     const confirmed = window.confirm(
-      "Lock this questionnaire version?\\n\\n" +
-      "Version: " + instrument.version + "\\n" +
-      "Questions: " + data.questions.length + "\\n" +
-      "Fingerprint: " + instrument.contentSha256 + "\\n\\n" +
+      "Lock this questionnaire version?\n\n" +
+      "Version: " + instrument.version + "\n" +
+      "Questions: " + data.questions.length + "\n" +
+      "Fingerprint: " + instrument.contentSha256 + "\n\n" +
       "The questions will become read-only. Any later changes require a new draft revision. " +
       "This does not lock the evaluation plan, start the pilot, or send invitations."
     );
@@ -425,21 +425,6 @@ export function ResearchSurveyQuestionsEditor({
       } else {
         setMessage(error instanceof Error ? error.message : "Questionnaire could not be locked.");
       }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function installSentiment() {
-    if (!window.confirm("Install the 9-question economic/sentiment extension and register the Greek Retail Business Confidence Index in this editable draft? No invitation will be sent.")) return;
-    setBusy(true);
-    setMessage("");
-    try {
-      const result = await designPost(slug, csrfToken, { action: "install_retail_sentiment_2026" });
-      setMessage("Installed " + String(result.installed ?? 0) + " questions and registered the confidence index in the draft analysis plan.");
-      router.refresh();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Economic sentiment extension could not be installed.");
     } finally {
       setBusy(false);
     }
