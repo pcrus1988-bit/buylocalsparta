@@ -1,0 +1,60 @@
+.currentNav{background:#173128!important;color:white!important}
+.jumpNav{display:flex;flex-wrap:wrap;gap:10px;padding:26px 0 0}
+.jumpNav a{
+  display:inline-flex;align-items:center;justify-content:space-between;gap:24px;
+  padding:14px 18px;border:1px solid rgba(35,56,47,.13);border-radius:16px;
+  background:rgba(255,255,255,.68);color:#193328;text-decoration:none;
+  font-size:12px;font-weight:800;transition:background .2s ease,transform .2s ease
+}
+.jumpNav a:hover,.jumpNav a:focus-visible{background:white;transform:translateY(-2px)}
+.jumpNav a span{color:#78915f}
+.sourceGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.sourceCard{
+  display:flex;flex-direction:column;min-width:0;gap:0;padding:28px;
+  border:1px solid rgba(35,56,47,.13);border-radius:24px;
+  background:rgba(255,255,255,.7);box-shadow:0 12px 38px rgba(27,44,36,.04)
+}
+.cardHeading{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.organisation{font-size:11px;font-weight:900;letter-spacing:.055em;color:#41624d}
+.geography{max-width:260px;text-align:right;color:#6e7c72;font-size:11px;line-height:1.45}
+.sourceCard h3{
+  margin:24px 0 6px;font:500 clamp(24px,2.6vw,34px)/1.1 Georgia,"Times New Roman",serif;
+  letter-spacing:-.025em;color:#13251f
+}
+.period{margin:0;color:#79877e;font-size:11px;font-weight:700}
+.figure{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px 14px;margin:26px 0 20px;padding:17px 0;border-block:1px solid rgba(35,56,47,.12)}
+.figure strong{font:500 clamp(36px,5vw,57px)/1 Georgia,serif;letter-spacing:-.045em;color:#173128}
+.figure span{flex:1 1 160px;color:#516b58;font-size:12px;line-height:1.5}
+.description{margin:21px 0 0;font-size:14px;line-height:1.7;color:#425a4e}
+.figure+.description{margin-top:0}
+.context{margin:16px 0 22px;padding:13px 15px;border-radius:14px;background:#edf1e8;font-size:12px;line-height:1.65;color:#4a604f}
+.context strong{color:#234535}
+.sourceLink{
+  display:inline-flex;align-items:center;justify-content:space-between;gap:20px;
+  margin-top:auto;padding:15px 0 0;border-top:1px solid rgba(35,56,47,.12);
+  color:#183e2c;font-size:12px;font-weight:850;line-height:1.5;text-underline-offset:3px;
+  overflow-wrap:anywhere
+}
+.sourceLink:hover{color:#587a43}
+.sourceLink span{font-size:18px;white-space:nowrap}
+.asideTitle{font-size:30px!important;line-height:1.07!important}
+.asideText{font-size:22px!important;line-height:1.2!important}
+.disclaimer{
+  display:grid;grid-template-columns:.8fr 1.2fr;gap:18px 38px;
+  padding:28px;border:1px solid rgba(35,56,47,.14);border-radius:24px;background:rgba(255,255,255,.6)
+}
+.disclaimer h2{font:500 34px/1.07 Georgia,serif;letter-spacing:-.035em;margin:10px 0 0}
+.disclaimer p{margin:0;color:#50645a;font-size:13px;line-height:1.8}
+.disclaimer a{grid-column:2}
+@media(max-width:850px){
+  .sourceGrid{grid-template-columns:1fr}
+  .disclaimer{grid-template-columns:1fr}
+  .disclaimer a{grid-column:auto}
+}
+@media(max-width:620px){
+  .jumpNav{display:grid;grid-template-columns:1fr;gap:8px}
+  .sourceCard{padding:21px}
+  .geography{text-align:left}
+  .sourceCard h3{margin-top:17px}
+}
+@media(prefers-reduced-motion:reduce){.jumpNav a{transition:none}}
