@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../components/SiteFooter";
+import { ResearchPurposeCards } from "../../components/ResearchPurposeCards";
 import styles from "../../components/ResearchObservatory.module.css";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
 import { publicResearchObservatory, type PublicResearchStudySummary } from "../../lib/research-observatory-runtime";
@@ -131,6 +132,10 @@ export default async function ResearchObservatoryPage() {
           <span>Τελευταία ενημέρωση {new Date(snapshot.generatedAt).toLocaleString("el-GR")}</span>
         </aside>
       </header>
+
+      <section className={styles.section} aria-label="Ο σκοπός της μελέτης">
+        <ResearchPurposeCards />
+      </section>
 
       <section className={styles.section}>
         <div className={styles.quickGrid}>

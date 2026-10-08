@@ -15,6 +15,7 @@ const PUBLIC_RESEARCH_FILES = [
   "apps/web/src/app/research/privacy/page.tsx",
   "apps/web/src/app/research/[slug]/t/[token]/page.tsx",
   "apps/web/src/components/ResearchSurveyForm.tsx",
+  "apps/web/src/components/ResearchPurposeCards.tsx",
   "apps/web/src/app/research/greek-retail-2026/page.tsx",
   "apps/web/src/app/research/greek-retail-2026/methodology/page.tsx",
   "apps/web/src/app/research/greek-retail-2026/results/page.tsx"

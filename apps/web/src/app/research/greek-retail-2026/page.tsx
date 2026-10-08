@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { ResearchStudyDashboard } from "../../../components/ResearchStudyDashboard";
+import { ResearchPurposeCards } from "../../../components/ResearchPurposeCards";
 import styles from "../../../components/ResearchObservatory.module.css";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 import { publicResearchStudy } from "../../../lib/research-observatory-runtime";
@@ -47,6 +48,9 @@ export default async function GreekRetailResearchPage() {
           <span>Η σελίδα θα ενημερωθεί όταν αρχίσει η δημόσια παρακολούθηση της μελέτης.</span>
         </aside>
       </header>
+      <section className={styles.section} aria-label="Ο σκοπός της μελέτης">
+        <ResearchPurposeCards />
+      </section>
       <section className={styles.section}>
         <div className={styles.notice}>Δεν εμφανίζουμε προσωρινούς ή δοκιμαστικούς αριθμούς. Τα στοιχεία προόδου θα εμφανιστούν όταν η μελέτη ξεκινήσει κανονικά.</div>
       </section>
