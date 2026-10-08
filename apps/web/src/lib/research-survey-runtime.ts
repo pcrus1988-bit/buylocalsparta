@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission, hasAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
-import { getAdminPostgresRuntime, getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { getAdminPostgresRuntime, getAdminResearchOverviewPostgresRuntime, getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { researchReleaseArtifactIntegrity } from "./research-survey-release";
 import {
   researchQualitySignals,
@@ -2400,7 +2400,7 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
   if (!productionDatabaseConfigured()) {
     return { databaseConfigured: false as const, study: undefined };
   }
-  const result = await getAdminPostgresRuntime().sqlPool.query<SqlRow>(`
+  const result = await getAdminResearchOverviewPostgresRuntime().sqlPool.query<SqlRow>(`
     SELECT
       s.slug, s.title, s.status, s.pilot_started_at, s.pilot_ended_at,
       s.fieldwork_starts_at, s.fieldwork_ends_at,
