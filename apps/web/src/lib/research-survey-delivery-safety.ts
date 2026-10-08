@@ -1,7 +1,8 @@
 /** A bounded, sample-size-aware delivery safeguard for continuous research campaigns.
- * A 20% threshold on very early results is NOT a safe SES account reputation limit.
- * At sustained volume the stop returns to 5%; SES may independently pause accounts.
+ * Study-level review thresholds are NOT the AWS SES account reputation limit.
+ * AWS may review the SES account independently when hard bounces reach 5%.
  */
+export const RESEARCH_BOUNCE_POLICY_VERSION = "2026-10-staged-main-bounce-v2" as const;
 export type ResearchDeliveryOutcomes = Readonly<{
   delivered: number;
   hardBounced: number;
@@ -33,9 +34,25 @@ export function graduatedResearchStopRate(decisions: number): number | null {
   return 0.05;
 }
 
+/** Requested, study-level hard-bounce stop stages. These do NOT change the
+ * independent 5% pre-delivery validation suppression hold, SES account
+ * restrictions or complaint and recipient suppression rules.
+ * Retain existing conservative early guards below 1,000 decisions; a 5% stop
+ * remains permanently in force from 25,000 decisions onward, including 50k+.
+ */
+export function graduatedResearchHardBounceStopRate(decisions: number): number | null {
+  if (!Number.isFinite(decisions) || decisions < 20) return null;
+  if (decisions < 100) return 0.20;
+  if (decisions < 1000) return 0.08;
+  if (decisions < 5000) return 0.10;
+  if (decisions < 10000) return 0.09;
+  if (decisions < 25000) return 0.07;
+  return 0.05;
+}
+
 export function evaluateResearchDeliverySafety(metrics: ResearchDeliveryOutcomes): ResearchSafetyDecision {
   const actualDecisions = metrics.delivered + metrics.hardBounced;
-  const hardBounceThreshold = graduatedResearchStopRate(actualDecisions);
+  const hardBounceThreshold = graduatedResearchHardBounceStopRate(actualDecisions);
   const validationThreshold = graduatedResearchStopRate(metrics.decided);
   const hardBounceRate = actualDecisions > 0 ? metrics.hardBounced / actualDecisions : 0;
   const validationSuppressionRate = metrics.decided > 0 ? metrics.validationSuppressed / metrics.decided : 0;
@@ -53,7 +70,7 @@ export function evaluateResearchDeliverySafety(metrics: ResearchDeliveryOutcomes
 /** Reporting milestones are distinct from stop thresholds and do not send
  * email or automatically authorize new recipients. Evaluated against
  * provider-classified delivery outcomes, not the full cohort population.
- * 1k, 5k, 10k, then every subsequent 10k.
+ * 1k, 5k, 10k, 25k, 50k, then every additional 10k.
  */
 export function researchDeliveryReviewMilestones(decisions: number): Readonly<{
   completedMilestone: number | null;
@@ -63,6 +80,8 @@ export function researchDeliveryReviewMilestones(decisions: number): Readonly<{
   if (n < 1000) return {completedMilestone:null,nextMilestone:1000};
   if (n < 5000) return {completedMilestone:1000,nextMilestone:5000};
   if (n < 10000) return {completedMilestone:5000,nextMilestone:10000};
+  if (n < 25000) return {completedMilestone:10000,nextMilestone:25000};
+  if (n < 50000) return {completedMilestone:25000,nextMilestone:50000};
   const completedMilestone=Math.floor(n/10000)*10000;
   return {completedMilestone,nextMilestone:completedMilestone+10000};
 }
