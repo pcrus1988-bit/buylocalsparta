@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { buildAdminMailRawMime, type AdminMailAddress } from "./admin-mail-mime";
 import { sendRawSesEmail, sesMailConfigFromEnv } from "./admin-mail-ses";
 
-const DEFAULT_FROM = "partners@kontamou.site";
-const DEFAULT_REPLY_TO = "partners@kontamou.site";
+const DEFAULT_FROM = "research@kontamou.site";
+const DEFAULT_REPLY_TO = "research@kontamou.site";
 const DEFAULT_DOMAIN = "kontamou.site";
 
 export type ResearchSurveyEmailConfiguration = Readonly<{
@@ -23,6 +23,22 @@ export function researchSurveyEmailConfiguration(
     replyTo: env.BLS_RESEARCH_SES_REPLY_TO?.trim() || DEFAULT_REPLY_TO,
     configurationSetName: env.BLS_RESEARCH_SES_CONFIGURATION_SET?.trim() || undefined
   };
+}
+
+/**
+ * One-to-one workflow rehearsals are independent of actual survey fieldwork.
+ * They use the existing SES credentials but never unlock the live job queue.
+ * A configuration set is optional here; it remains mandatory for live Research.
+ */
+export function assertResearchSimulationEmailReady(
+  env: NodeJS.ProcessEnv = process.env
+): ResearchSurveyEmailConfiguration {
+  if (env.BLS_RESEARCH_SIMULATION_EMAIL_ENABLED !== "true") {
+    throw new Error("RESEARCH_SIMULATION_EMAIL_DISABLED");
+  }
+  const configuration = researchSurveyEmailConfiguration(env);
+  sesMailConfigFromEnv(env);
+  return configuration;
 }
 
 export function assertResearchSurveyEmailReady(env: NodeJS.ProcessEnv = process.env): ResearchSurveyEmailConfiguration {
