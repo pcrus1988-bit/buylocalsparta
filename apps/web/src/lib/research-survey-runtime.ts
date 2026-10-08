@@ -145,6 +145,7 @@ async function invitationRow(
       rs.population_definition,
       rs.methodology_summary,
       rs.status AS study_status,
+      rs.fieldwork_ends_at AS study_deadline,
       rin.id AS instrument_id,
       rin.version AS instrument_version,
       rin.status AS instrument_status,
@@ -168,6 +169,9 @@ async function invitationRow(
       "UPDATE research_invite_access_tokens SET first_used_at=COALESCE(first_used_at,now()) WHERE id=$1",
       [row.access_token_id]
     );
+  }
+  if (!options.allowExpired && row.study_deadline && new Date(String(row.study_deadline)).getTime() <= Date.now()) {
+    throw new Error("SURVEY_INVITE_EXPIRED");
   }
   if (!options.allowExpired && row.expires_at && new Date(String(row.expires_at)).getTime() < Date.now()) {
     throw new Error("SURVEY_INVITE_EXPIRED");
@@ -2038,6 +2042,26 @@ export async function transitionResearchStudy(
   } else {
     assertAdminPermission(principal, "research.publish.manage");
   }
+  return transitionResearchStudyInternal(input, false);
+}
+
+/** Only the authenticated Research cron may call this after the frozen Athens-time deadline.
+ * It cannot start fieldwork, modify the instrument, or bypass publication integrity checks.
+ */
+export async function transitionResearchStudyAfterDeadline(
+  input: Readonly<{ slug: string; action: "close_fieldwork" | "begin_analysis" | "publish_release" }>
+): Promise<Readonly<{ studyStatus: string; instrumentStatus: string }>> {
+  if (input.slug !== GREEK_RETAIL_2026_SLUG ||
+      !["close_fieldwork", "begin_analysis", "publish_release"].includes(input.action)) {
+    throw new Error("RESEARCH_AUTOMATION_ACTION_INVALID");
+  }
+  return transitionResearchStudyInternal(input, true);
+}
+
+async function transitionResearchStudyInternal(
+  input: Readonly<{ slug: string; action: ResearchLifecycleAction }>,
+  automated: boolean
+): Promise<Readonly<{ studyStatus: string; instrumentStatus: string }>> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const client = await getAdminPostgresRuntime().sqlPool.connect();
   try {
@@ -2045,6 +2069,7 @@ export async function transitionResearchStudy(
     const rowResult = await client.query<SqlRow>(`
       SELECT
         s.id AS study_id, s.status AS study_status, s.current_wave_id AS wave_id,
+        (s.fieldwork_ends_at IS NOT NULL AND s.fieldwork_ends_at <= now()) AS deadline_reached,
         i.id AS instrument_id, i.status AS instrument_status
       FROM research_studies s
       JOIN LATERAL (
@@ -2058,6 +2083,9 @@ export async function transitionResearchStudy(
     const row = rowResult.rows[0];
     if (!row) throw new Error("RESEARCH_STUDY_NOT_FOUND");
     if (!text(row.wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
+    if (automated && !Boolean(row.deadline_reached)) {
+      throw new Error("RESEARCH_AUTOMATION_DEADLINE_NOT_REACHED");
+    }
 
     let studyStatus = text(row.study_status);
     let instrumentStatus = text(row.instrument_status);
@@ -2094,6 +2122,7 @@ export async function transitionResearchStudy(
       studyStatus = "pilot";
       instrumentStatus = "fielding";
     } else if (input.action === "start_fielding") {
+      if (Boolean(row.deadline_reached)) throw new Error("RESEARCH_FIELDWORK_DEADLINE_ELAPSED");
       if (!["draft", "pilot"].includes(studyStatus) || !["locked", "fielding"].includes(instrumentStatus)) {
         throw new Error("RESEARCH_LIFECYCLE_INVALID");
       }
@@ -2295,9 +2324,12 @@ export async function transitionResearchStudy(
       `, [row.study_id, row.wave_id]);
 
       await client.query(`
-        UPDATE research_studies SET status = 'closed', fieldwork_ends_at = now(), updated_at = now()
+        UPDATE research_studies
+        SET status = 'closed',
+            fieldwork_ends_at = CASE WHEN $2::boolean THEN fieldwork_ends_at ELSE now() END,
+            updated_at = now()
         WHERE id = $1
-      `, [row.study_id]);
+      `, [row.study_id, automated]);
       await client.query("UPDATE research_instruments SET status = 'retired' WHERE id = $1", [row.instrument_id]);
       studyStatus = "closed";
       instrumentStatus = "retired";
@@ -2339,25 +2371,8 @@ export async function transitionResearchStudy(
         SET status='published',public_results_url=$2,updated_at=now()
         WHERE id=$1
       `, [row.study_id, release.public_url]);
-      await client.query(`
-        INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
-        SELECT
-          $1,$2,'results_notification','queued',
-          jsonb_build_object(
-            'releaseSnapshotId',$3::text,
-            'limit',100,
-            'source','release_publication'
-          )
-        WHERE NOT EXISTS (
-          SELECT 1
-          FROM research_study_jobs j
-          WHERE j.study_id=$1
-            AND j.wave_id=$2
-            AND j.job_type='results_notification'
-            AND j.input->>'releaseSnapshotId'=$3::text
-            AND j.status IN ('queued','running','succeeded')
-        )
-      `, [row.study_id, row.wave_id, release.id]);
+      // Publication never authorizes a bulk email send. Results notifications
+      // must be queued separately after the two-step Admin confirmation.
       studyStatus = "published";
     }
 

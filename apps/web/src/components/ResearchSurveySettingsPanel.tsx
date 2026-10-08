@@ -3,24 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ResearchSurveyDesignAdminOverview } from "../lib/research-survey-admin-design";
-
-function localDateTime(value?: string): string {
-  if (!value) return "";
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return "";
-  const pad = (part: number) => String(part).padStart(2, "0");
-  return [
-    date.getFullYear(),
-    "-",
-    pad(date.getMonth() + 1),
-    "-",
-    pad(date.getDate()),
-    "T",
-    pad(date.getHours()),
-    ":",
-    pad(date.getMinutes())
-  ].join("");
-}
+import { athensDeadlineInputToIso, isoToAthensDeadlineInput } from "../lib/research-survey-athens-deadline";
 
 export function ResearchSurveySettingsPanel({
   slug,
@@ -39,7 +22,7 @@ export function ResearchSurveySettingsPanel({
   const [populationDefinition, setPopulationDefinition] = useState(data.study.populationDefinition);
   const [methodologySummary, setMethodologySummary] = useState(data.study.methodologySummary);
   const [defaultLocale, setDefaultLocale] = useState(data.study.defaultLocale || "el-GR");
-  const [fieldworkEndsAt, setFieldworkEndsAt] = useState(localDateTime(data.study.fieldworkEndsAt));
+  const [fieldworkEndsAt, setFieldworkEndsAt] = useState(isoToAthensDeadlineInput(data.study.fieldworkEndsAt));
   const [publicResultsUrl, setPublicResultsUrl] = useState(data.study.publicResultsUrl ?? "");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -47,8 +30,7 @@ export function ResearchSurveySettingsPanel({
   const editable = canEdit && data.study.status === "draft";
   const deadlinePreview = useMemo(() => {
     if (!fieldworkEndsAt) return "No deadline set";
-    const date = new Date(fieldworkEndsAt);
-    return Number.isFinite(date.getTime()) ? date.toLocaleString("el-GR") : "Invalid deadline";
+    return fieldworkEndsAt.replace("T", " ") + " (Europe/Athens)";
   }, [fieldworkEndsAt]);
 
   async function save() {
@@ -65,7 +47,7 @@ export function ResearchSurveySettingsPanel({
           populationDefinition,
           methodologySummary,
           defaultLocale,
-          fieldworkEndsAt: fieldworkEndsAt ? new Date(fieldworkEndsAt).toISOString() : "",
+          fieldworkEndsAt: fieldworkEndsAt ? athensDeadlineInputToIso(fieldworkEndsAt) : "",
           publicResultsUrl
         })
       });
@@ -156,14 +138,14 @@ export function ResearchSurveySettingsPanel({
         </label>
 
         <label>
-          <strong>Survey deadline</strong><br />
+          <strong>Survey deadline · Athens time</strong><br />
           <input
             disabled={!editable}
             onChange={(event) => setFieldworkEndsAt(event.target.value)}
             type="datetime-local"
             value={fieldworkEndsAt}
           />
-          <small>{deadlinePreview}</small>
+          <small>{deadlinePreview}. When the deadline passes, submission closes and automated evaluation begins. Unresolved quality checks pause publication.</small>
         </label>
       </div>
 
