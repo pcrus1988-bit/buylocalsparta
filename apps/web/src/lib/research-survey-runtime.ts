@@ -2596,7 +2596,11 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       campaign.output->>'safetyHold' AS campaign_safety_hold,
       campaign.output->'deliverySafety' AS campaign_delivery_safety,
       campaign.error_message AS campaign_error_message,
-      campaign.output->'recoveryReview' AS campaign_recovery_review
+      campaign.output->'recoveryReview' AS campaign_recovery_review,
+      COALESCE(campaign.output->>'lastAttemptFailureReason',
+        campaign.output->'failures'->0->>'error') AS campaign_last_submission_error,
+      campaign.output->>'campaignSubmissionFailureCount' AS campaign_submission_failures,
+      campaign.output->>'lastBatchFailureCount' AS campaign_last_batch_failures
     FROM research_studies s
     LEFT JOIN LATERAL (
       SELECT version,subject,body_text FROM research_recruitment_templates
@@ -2727,6 +2731,9 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       safetyHold:optionalText(row.campaign_safety_hold),
       lastError:optionalText(row.campaign_error_message),
       recoveryReviewed:Boolean(row.campaign_recovery_review),
+      lastSubmissionError:optionalText(row.campaign_last_submission_error)?.slice(0,500),
+      submissionFailures:numberValue(row.campaign_submission_failures),
+      lastBatchFailures:numberValue(row.campaign_last_batch_failures),
       classifiedDeliveryCount,
       completedReviewMilestone:reviewMilestones.completedMilestone,
       nextReviewMilestone:reviewMilestones.nextMilestone
