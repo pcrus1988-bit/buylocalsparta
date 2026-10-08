@@ -26,8 +26,10 @@ test("main research hard-bounce stop stages are exact at every boundary", () => 
     [1000, 0.10], [4999, 0.10],
     [5000, 0.09], [9999, 0.09],
     [10000, 0.07], [24999, 0.07],
-    [25000, 0.05], [49999, 0.05],
-    [50000, 0.05], [182852, 0.05]
+    [25000, 0.10], [49999, 0.10],
+    [50000, 0.10], [74999, 0.10],
+    [75000, 0.08], [99999, 0.08],
+    [182852, 0.08]
   ];
   for (const [n, expected] of cases) assert.equal(graduatedResearchHardBounceStopRate(n), expected, String(n));
 });
@@ -118,8 +120,11 @@ test("monitoring checkpoints are at 1000, 5000, 10000, then each additional 1000
   assert.deepEqual(researchDeliveryReviewMilestones(24999), {completedMilestone:10000,nextMilestone:25000});
   assert.deepEqual(researchDeliveryReviewMilestones(25000), {completedMilestone:25000,nextMilestone:50000});
   assert.deepEqual(researchDeliveryReviewMilestones(49999), {completedMilestone:25000,nextMilestone:50000});
-  assert.deepEqual(researchDeliveryReviewMilestones(50000), {completedMilestone:50000,nextMilestone:60000});
-  assert.deepEqual(researchDeliveryReviewMilestones(101500), {completedMilestone:100000,nextMilestone:110000});
+  assert.deepEqual(researchDeliveryReviewMilestones(50000), {completedMilestone:50000,nextMilestone:75000});
+  assert.deepEqual(researchDeliveryReviewMilestones(74999), {completedMilestone:50000,nextMilestone:75000});
+  assert.deepEqual(researchDeliveryReviewMilestones(75000), {completedMilestone:75000,nextMilestone:85000});
+  assert.deepEqual(researchDeliveryReviewMilestones(84999), {completedMilestone:75000,nextMilestone:85000});
+  assert.deepEqual(researchDeliveryReviewMilestones(101500), {completedMilestone:95000,nextMilestone:105000});
 });
 
 test("one isolated SES submission rejection is audited but does not strand the approved cohort", () => {
