@@ -24,6 +24,7 @@ import {
   researchProtocolEvents,
   researchSurveyAdminOverview,
   researchSurveyAdminFastOverview,
+  researchSurveyAdminFieldworkOverview,
   researchSurveyAdminCohortOverview,
   researchSurveyOperationsOverview
 } from "../../../../../../lib/research-survey-runtime";
@@ -79,6 +80,68 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
         </div>
       </section>}
       <ResearchSurveyDirectoryPanel slug={slug} kind={section} data={directory} />
+    </main>;
+  }
+
+
+  // Fieldwork is an independent fast-path: never run the global, multi-study
+  // invitation/quality/evidence aggregates before showing the send controls.
+  if (section === "fieldwork") {
+    const [study, cohorts, operations] = await Promise.all([
+      researchSurveyAdminFieldworkOverview(principal, slug),
+      researchSurveyAdminCohortOverview(principal, slug),
+      researchSurveyOperationsOverview(principal, slug, "templates")
+    ]);
+    if (!study || !operations.studyFound) notFound();
+    const canManage = hasAdminPermission(principal, "research.manage");
+    const sectionMeta = RESEARCH_SURVEY_ADMIN_SECTIONS.find((item) => item.key === section);
+    return <main className="vendor-app admin-app">
+      <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel={"Research · " + study.title} />
+      <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div>
+        <div className="eyebrow">Research · {sectionMeta?.label ?? section}</div>
+        <h1>{study.title}</h1>
+        <p className="lead">{sectionMeta?.description}</p>
+      </div></section>
+      <ResearchSurveyAdminNav slug={study.slug} current={section} />
+      <section className="shell vendor-section">
+        <WorkspaceSectionHeading eyebrow="Email & fieldwork" title="Templates and controlled sends" note="Email templates, invitation batches, reminders and fieldwork actions are isolated here." />
+        {canManage ? <ResearchStudyFieldworkControls
+          slug={study.slug}
+          studyTitle={study.title}
+          csrfToken={principal.csrfToken}
+          studyStatus={study.status}
+          cohortAStatus={cohorts?.a.status}
+          cohortASampleStatus={cohorts?.a.sampleStatus}
+          cohortARecruitmentMode={cohorts?.a.recruitmentMode}
+          cohortBStatus={cohorts?.b.status}
+          cohortBSampleStatus={cohorts?.b.sampleStatus}
+          cohortBRecruitmentMode={cohorts?.b.recruitmentMode}
+          queuedSampleJobs={study.queuedSampleJobs}
+          runningSampleJobs={study.runningSampleJobs}
+          recruitmentTemplateVersion={study.recruitmentTemplateVersion}
+          recruitmentTemplateSubject={study.recruitmentTemplateSubject}
+          recruitmentTemplateBody={study.recruitmentTemplateBody}
+          reminderTemplateVersion={study.reminderTemplateVersion}
+          reminderTemplateSubject={study.reminderTemplateSubject}
+          reminderTemplateBody={study.reminderTemplateBody}
+          reminderSent={study.reminderSent}
+          reminderFailed={study.reminderFailed}
+          activeContacts={study.activeContacts}
+          completed={study.completed}
+          rewardEligible={study.rewardEligible}
+          rewardIssued={study.rewardIssued}
+          rewardDeliveryFailed={study.rewardDeliveryFailed}
+          pendingQualityReviews={study.qualityReview}
+          succeededAnalysisRuns={study.succeededAnalysisRuns}
+          latestReleaseVersion={study.latestReleaseVersion}
+          latestReleasePublishedAt={study.latestReleasePublishedAt}
+          resultsNotificationSent={study.resultsNotificationSent}
+          resultsNotificationFailed={study.resultsNotificationFailed}
+          queuedJobs={study.queuedJobs}
+          runningJobs={study.runningJobs}
+        /> : <div className="workspace-inline-note">Read-only access. Fieldwork mutations require Research management permission.</div>}
+      </section>
+      <ResearchStudyOperationsPanel slug={study.slug} data={operations} section="templates" />
     </main>;
   }
 
@@ -162,50 +225,6 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
         runningJobs={study.runningJobs}
       /> : <div className="workspace-inline-note">Read-only access. Sampling mutations require Research management permission.</div>}
     </section>;
-  } else if (section === "fieldwork") {
-    const cohorts = await researchSurveyAdminCohortOverview(principal, study.slug);
-    const operations = await researchSurveyOperationsOverview(principal, study.slug, "templates");
-    content = <>
-      <section className="shell vendor-section">
-        <WorkspaceSectionHeading eyebrow="Email & fieldwork" title="Templates and controlled sends" note="Email templates, invitation batches, reminders and fieldwork actions are isolated here." />
-        {canManage ? <ResearchStudyFieldworkControls
-          slug={study.slug}
-          studyTitle={study.title}
-          csrfToken={principal.csrfToken}
-          studyStatus={study.status}
-          cohortAStatus={cohorts?.a.status}
-          cohortASampleStatus={cohorts?.a.sampleStatus}
-        cohortARecruitmentMode={cohorts?.a.recruitmentMode}
-          cohortBStatus={cohorts?.b.status}
-          cohortBSampleStatus={cohorts?.b.sampleStatus}
-        cohortBRecruitmentMode={cohorts?.b.recruitmentMode}
-          queuedSampleJobs={study.queuedSampleJobs}
-          runningSampleJobs={study.runningSampleJobs}
-          recruitmentTemplateVersion={study.recruitmentTemplateVersion}
-          recruitmentTemplateSubject={study.recruitmentTemplateSubject}
-          recruitmentTemplateBody={study.recruitmentTemplateBody}
-          reminderTemplateVersion={study.reminderTemplateVersion}
-          reminderTemplateSubject={study.reminderTemplateSubject}
-          reminderTemplateBody={study.reminderTemplateBody}
-          reminderSent={study.reminderSent}
-          reminderFailed={study.reminderFailed}
-          activeContacts={study.activeContacts}
-          completed={study.completed}
-          rewardEligible={study.rewardEligible}
-          rewardIssued={study.rewardIssued}
-          rewardDeliveryFailed={study.rewardDeliveryFailed}
-          pendingQualityReviews={study.qualityReview}
-          succeededAnalysisRuns={study.succeededAnalysisRuns}
-          latestReleaseVersion={study.latestReleaseVersion}
-          latestReleasePublishedAt={study.latestReleasePublishedAt}
-          resultsNotificationSent={study.resultsNotificationSent}
-          resultsNotificationFailed={study.resultsNotificationFailed}
-          queuedJobs={study.queuedJobs}
-          runningJobs={study.runningJobs}
-        /> : <div className="workspace-inline-note">Read-only access. Fieldwork mutations require Research management permission.</div>}
-      </section>
-      <ResearchStudyOperationsPanel slug={study.slug} data={operations} section="templates" />
-    </>;
   } else if (section === "balance") {
     const strata = await researchFieldworkStrata(principal, study.slug);
     content = <section className="shell vendor-section">
