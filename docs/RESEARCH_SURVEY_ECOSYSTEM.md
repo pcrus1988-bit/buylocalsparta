@@ -351,7 +351,7 @@ Required before any research invitation job can send:
 - `BLS_RESEARCH_SES_SNS_TOPIC_ARN=<SNS topic used by that configuration set>`
 - `BLS_RESEARCH_REWARD_SECRET=<at least 32 random characters>` for deterministic thank-you code derivation without plaintext code storage
 - AWS SES credentials already used by the admin-mail SES runtime
-- optional `BLS_RESEARCH_SES_FROM` and `BLS_RESEARCH_SES_REPLY_TO` (default: `partners@kontamou.site`)
+- optional `BLS_RESEARCH_SES_FROM` and `BLS_RESEARCH_SES_REPLY_TO` (default: `research@kontamou.site`)
 
 The SES configuration set should publish at least Delivery, Bounce and Complaint events to the configured SNS topic. Open events may also be enabled for fieldwork diagnostics; Click events are deliberately ignored by the research persistence layer.
 
@@ -365,3 +365,12 @@ The SES configuration set should publish at least Delivery, Bounce and Complaint
 - SES message content is not persisted; only subject/body SHA-256 hashes and provider message IDs are stored.
 - The worker may retry a failed reward email with the same derived code because the code can be regenerated from the entitlement ID and server-only HMAC secret.
 - No monetary discount percentage or credit amount is hard-coded in the research engine. Commercial reward terms remain a separately governed KONTA MOY decision.
+
+## Dedicated Research SES identity and workflow rehearsal (October 2026)
+
+- **Sender / Reply-To:** `research@kontamou.site`, labeled `KONTA MOY Research`. This is separate from `partners@`, general Admin Mail and marketing email. Provisioning the outbound sender does **not** provision an inbound mailbox; the SES inbound receipt rule and operational mailbox routing must be separately verified.
+- **One-to-one simulation only:** `BLS_RESEARCH_SIMULATION_EMAIL_ENABLED=true` allows manually confirmed single-destination invitation and Admin-notice test sends in `/admin/research/surveys/<slug>/simulation`. This setting does **not** enable `BLS_RESEARCH_EMAIL_DELIVERY_ENABLED`, add a Research contact, launch a Pilot or touch research responses. An SES configuration set is optional for this isolated rehearsal, and a self-controlled inbox must be checked manually.
+- **Live Pilot / Main:** Keep `BLS_RESEARCH_EMAIL_DELIVERY_ENABLED` unset/false until the domain identity is verified in the sending AWS region, the delivery configuration set and subscribed SNS topic are real and tested, bounce/complaint/delay handling is verified, and the governed survey prerequisites are satisfied. A named configuration set and topic ARN in environment variables are not, by themselves, AWS verification.
+- **AWS:** Use SES's sending region matching `BLS_MAIL_AWS_REGION`, verify `kontamou.site` identity, DKIM/SPF/DMARC and MAIL FROM status. Check the previously reported revoked `info.kontamou.site` custom MAIL FROM: either repair its published MX/SPF and make SES report success or use a deliberate SES default MAIL FROM fallback; do not assume that merely changing the visible From address fixes this. A dedicated subdomain (e.g. `bounce.kontamou.site`) may be chosen with matching DNS records if desired.
+- **Events:** Create the dedicated research configuration set with SES event destinations for delivery, bounce, complaint and delivery delay (and optionally open), delivered via SNS to `/api/webhooks/research-ses`. Set `BLS_RESEARCH_SES_CONFIGURATION_SET` and `BLS_RESEARCH_SES_SNS_TOPIC_ARN` only to verified existing AWS resources, never invented names. The webhook verifies SNS signatures and topic ARN; run a real bounce/delivery test before live enablement.
+- **Rehearsal:** In the simulation page, manually approve exactly one recipient, send an actual test invitation, inspect the inbox and spam folder, follow the test link, submit sample answers, verify the receipt, and approve the Admin notice. The AWS SES mailbox simulator additionally supports controlled delivery/bounce/complaint diagnostics but does not substitute for end-to-end testing of a human mailbox.
