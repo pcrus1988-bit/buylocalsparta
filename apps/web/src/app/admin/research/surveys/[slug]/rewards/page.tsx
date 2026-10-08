@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { AdminWorkspaceHeader } from "../../../../../../components/AdminWorkspaceHeader";
 import { ResearchSurveyAdminNav } from "../../../../../../components/ResearchSurveyAdminNav";
+import { ResearchRewardAdminActions } from "../../../../../../components/ResearchRewardAdminActions";
 import { hasAdminPermission } from "../../../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../../../lib/admin-session";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../../../lib/postgres-runtime";
@@ -29,6 +30,7 @@ export default async function SurveyRewardsAdminPage({ params, searchParams }: {
   const { slug } = await params;
   const query = await searchParams;
   const searching = query.search === "1";
+  const canManage = hasAdminPermission(principal, "research.manage");
   const status = statuses.find(item => item === query.status) ?? "all";
   const q = (query.q ?? "").trim().slice(0, 90);
   const prepared = productionDatabaseConfigured();
@@ -131,7 +133,7 @@ export default async function SurveyRewardsAdminPage({ params, searchParams }: {
         {searching && <section className="workspace-queue-card" style={{ marginTop: 16 }}>
           <strong>Found {rows.length} (first 50 matching entries)</strong>
           {rows.length === 0 ? <p>No matching records.</p> : <div style={{ overflowX: "auto", marginTop: 12 }}><table style={{ width: "100%", minWidth: 780, textAlign: "left" }}>
-            <thead><tr><th>Reward ID</th><th>Status</th><th>Issued</th><th>Redeemed</th><th>Application / business</th><th>One-time fee</th></tr></thead>
+            <thead><tr><th>Reward ID</th><th>Status</th><th>Issued</th><th>Redeemed</th><th>Application / business</th><th>One-time fee</th>{canManage && <th>Manage</th>}</tr></thead>
             <tbody>{rows.map(row => <tr key={String(row.id)}>
               <td><code>{String(row.id).slice(0, 8)}…</code></td>
               <td><strong>{String(row.status)}</strong></td>
@@ -139,6 +141,7 @@ export default async function SurveyRewardsAdminPage({ params, searchParams }: {
               <td>{fmtDate(row.redeemed_at)}</td>
               <td>{row.application_reference ? <>{String(row.business_name ?? "")}<br /><small>{String(row.application_reference)}</small></> : "—"}</td>
               <td>{row.setup_fee_original_cents != null ? <><s>{euro(row.setup_fee_original_cents)}</s> → <strong>{euro(row.setup_fee_payable_cents)}</strong></> : "—"}</td>
+              {canManage && <td>{["eligible","issued"].includes(String(row.status)) ? <ResearchRewardAdminActions slug={slug} id={String(row.id)} csrfToken={principal.csrfToken} /> : "—"}</td>}
             </tr>)}</tbody>
           </table></div>}
         </section>}
