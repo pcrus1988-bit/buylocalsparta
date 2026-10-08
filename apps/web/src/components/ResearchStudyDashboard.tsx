@@ -16,7 +16,7 @@ function statusLabel(status: string): string {
   return ({
     draft: "Σχεδιασμός",
     pilot: "Πιλοτική φάση",
-    fielding: "Σε εξέλιξη",
+    fielding: "Κύρια έρευνα σε εξέλιξη",
     closed: "Η συλλογή ολοκληρώθηκε",
     analysis: "Ανάλυση",
     published: "Δημοσιευμένη",
@@ -39,7 +39,7 @@ function nextStep(status: string): { title: string; body: string } {
   };
   if (status === "fielding") return {
     title: "Συλλογή απαντήσεων",
-    body: "Όσο η μελέτη βρίσκεται σε εξέλιξη εμφανίζονται μόνο στοιχεία προόδου. Τα ευρήματα παραμένουν κλειστά μέχρι να ολοκληρωθεί η ανάλυση."
+    body: "Στην κύρια έρευνα εμφανίζεται αποκλειστικά η πρόοδος των πραγματικών προσκλήσεων και απαντήσεων. Τα ευρήματα παραμένουν κλειστά μέχρι να ολοκληρωθεί η ανάλυση."
   };
   if (status === "closed" || status === "analysis") return {
     title: "Έλεγχος και ανάλυση",
@@ -52,7 +52,7 @@ function nextStep(status: string): { title: string; body: string } {
 }
 
 export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySummary }) {
-  const isLive = study.status === "fielding" || study.status === "pilot";
+  const isLive = study.status === "fielding";
   const isPublished = study.status === "published" && Boolean(study.releasePublishedAt);
   const completion = study.targetCompletes > 0 ? Math.min(Math.max(study.completionRate, 0), 1) : 0;
   const upcoming = nextStep(study.status);
@@ -97,6 +97,16 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
           <strong>{study.targetCompletes > 0 ? percent(completion) : "—"}</strong>
         </aside>
       </header>
+
+      {study.slug === "greek-retail-2026" && <section className={styles.section}>
+        <div className={styles.notice}>
+          <strong>Η πιλοτική δοκιμή έχει ολοκληρωθεί.</strong>{" "}
+          Χρησίμευσε μόνο για τον έλεγχο της διαδικασίας. Οι πιλοτικές προσκλήσεις και απαντήσεις
+          δεν προσμετρώνται στην κύρια έρευνα και δεν θα αξιολογηθούν ή δημοσιευθούν ως ευρήματα.
+          Η πρόοδος παρακάτω αφορά αποκλειστικά την κύρια συλλογή, αρχικά από την ομάδα Α και
+          στη συνέχεια από την ομάδα Β.
+        </div>
+      </section>}
 
       <section className={styles.section}>
         <ResearchLiveProgress initialStudy={study} />
