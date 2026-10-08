@@ -486,6 +486,13 @@ export async function queueGreekRetailInviteBatch(
   if (!text(row.current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
   if (!["pilot","fielding"].includes(text(row.status))) throw new Error("SURVEY_NOT_OPEN");
   const fieldworkPhase = text(row.status) === "pilot" ? "pilot" : "main";
+  if (fieldworkPhase === "main") {
+    const census = await pool.query<SqlRow>(
+      "SELECT EXISTS (SELECT 1 FROM public.research_recruitment_campaigns WHERE study_id=$1 AND wave_id=$2 AND status<>'cancelled') AS active",
+      [row.id,row.current_wave_id]
+    );
+    if (census.rows[0]?.active) throw new Error("RESEARCH_SEND_THROUGH_COHORT_CAMPAIGNS");
+  }
   assertResearchEmailBatchApproval(input.emailApproval, {
     studyTitle: text(row.title),
     purpose: "research_invitation",
