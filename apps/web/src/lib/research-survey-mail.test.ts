@@ -44,10 +44,28 @@ test("A live send needs both explicit enablement and SES event configuration", (
     }),
     /BLS_RESEARCH_SES_CONFIGURATION_SET/
   );
+  assert.throws(
+    () => assertResearchSurveyEmailReady({
+      ...sesTestEnv,
+      BLS_RESEARCH_EMAIL_DELIVERY_ENABLED: "true",
+      BLS_RESEARCH_SES_CONFIGURATION_SET: "research-events"
+    }),
+    /BLS_RESEARCH_SES_SNS_TOPIC_ARN/
+  );
+  assert.throws(
+    () => assertResearchSurveyEmailReady({
+      ...sesTestEnv,
+      BLS_RESEARCH_EMAIL_DELIVERY_ENABLED: "true",
+      BLS_RESEARCH_SES_CONFIGURATION_SET: "research-events",
+      BLS_RESEARCH_SES_SNS_TOPIC_ARN: "arn:aws:sns:us-east-1:123456789012:research-events"
+    }),
+    /RESEARCH_SES_SNS_TOPIC_REGION_OR_ARN_INVALID/
+  );
   assert.equal(assertResearchSurveyEmailReady({
     ...sesTestEnv,
     BLS_RESEARCH_EMAIL_DELIVERY_ENABLED: "true",
-    BLS_RESEARCH_SES_CONFIGURATION_SET: "research-events"
+    BLS_RESEARCH_SES_CONFIGURATION_SET: "research-events",
+    BLS_RESEARCH_SES_SNS_TOPIC_ARN: "arn:aws:sns:eu-north-1:123456789012:research-events"
   }).configurationSetName, "research-events");
 });
 
