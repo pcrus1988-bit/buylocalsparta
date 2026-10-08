@@ -1,4 +1,5 @@
 import type { SqlRow } from "@buy-local-sparta/core";
+import { unstable_cache } from "next/cache";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { canonicalResearchResultsUrl } from "./research-results-url";
 
@@ -105,7 +106,7 @@ function emptySnapshot(): PublicResearchObservatorySnapshot {
   };
 }
 
-export async function publicResearchObservatory(): Promise<PublicResearchObservatorySnapshot> {
+async function queryPublicResearchObservatory(): Promise<PublicResearchObservatorySnapshot> {
   if (!productionDatabaseConfigured()) return emptySnapshot();
 
   try {
@@ -274,6 +275,18 @@ export async function publicResearchObservatory(): Promise<PublicResearchObserva
     // Public research pages must remain available while production schema rollout is pending.
     return emptySnapshot();
   }
+}
+
+// Aggregate-only public data is shared across requests. Align the cache lifetime
+// with the 30-second client refresh to avoid repeated 100k+ invite/event scans.
+const cachedPublicResearchObservatory = unstable_cache(
+  queryPublicResearchObservatory,
+  ["research-public-main-fieldwork-progress-v1"],
+  { revalidate: 30 }
+);
+
+export async function publicResearchObservatory(): Promise<PublicResearchObservatorySnapshot> {
+  return cachedPublicResearchObservatory();
 }
 
 export async function publicResearchStudy(slug: string): Promise<PublicResearchStudySummary | undefined> {
