@@ -249,8 +249,8 @@ if (!hierarchyMigration.includes("research_guard_wave_scope")) errors.push("rese
 if (!hierarchyMigration.includes("DISABLE TRIGGER USER")) errors.push("0427 does not explicitly protect structural backfill across immutable evidence");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_programmes ENABLE ROW LEVEL SECURITY;")) errors.push("research programme RLS missing");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_waves ENABLE ROW LEVEL SECURITY;")) errors.push("research wave RLS missing");
-if (!schemaPreflight.includes("expectedSourceVersion = 435")) errors.push("guarded research production rollout is not pinned to schema 0435");
-if (!schemaRollout.includes("0416–0435") || !schemaRollout.includes("through schema 0435")) errors.push("research schema rollout workflow does not advertise the complete 0416–0435 chain");
+if (!schemaPreflight.includes("expectedSourceVersion = 436")) errors.push("guarded research production rollout is not pinned to schema 0436");
+if (!schemaRollout.includes("0416–0436") || !schemaRollout.includes("through schema 0436")) errors.push("research schema rollout workflow does not advertise the complete 0416–0436 chain");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_population_margin_sets")) errors.push("governed population-margin set registry missing");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_population_margins")) errors.push("governed population-margin cells missing");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_analysis_plan_supersessions")) errors.push("analysis-plan supersession evidence missing");
