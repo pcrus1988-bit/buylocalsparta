@@ -3,6 +3,7 @@ import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
 import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import type { ResearchQuestion, ResearchQuestionType } from "./research-survey-model";
+import { RETAIL_SENTIMENT_2026_QUESTIONS, withRetailConfidencePreregistration } from "./research-retail-sentiment-2026";
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
@@ -387,6 +388,82 @@ function validateQuestionInput(input: ResearchQuestionDraftInput) {
   if (!input.prompt.trim() || input.prompt.trim().length > 4000) throw new Error("RESEARCH_QUESTION_PROMPT_INVALID");
   if (!new Set<ResearchQuestionType>(["single","multi","scale","matrix","text","experiment"]).has(input.type)) {
     throw new Error("RESEARCH_QUESTION_TYPE_INVALID");
+  }
+}
+
+/**
+ * Admin-triggered installation. Never edits a locked instrument/plan and never
+ * silently changes a questionnaire with invitations already bound to it.
+ * Requires an explicit revision first when the original design is frozen.
+ */
+export async function installRetailSentiment2026(
+  principal: SessionPrincipal,
+  slug: string
+): Promise<Readonly<{ installed: number; instrumentVersion: string; contentSha256: string }>> {
+  assertAdminPermission(principal, "research.design.manage");
+  assertAdminPermission(principal, "research.analysis.manage");
+  if (slug !== "greek-retail-2026") throw new Error("RESEARCH_MODULE_STUDY_MISMATCH");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+  const client = await getAdminPostgresRuntime().sqlPool.connect();
+  try {
+    await client.query("BEGIN");
+    const instrument = await latestInstrumentForUpdate(client, slug);
+    if (text(instrument.study_status) !== "draft" || text(instrument.status) !== "draft") {
+      throw new Error("RESEARCH_MODULE_REQUIRES_EDITABLE_REVISION");
+    }
+    const invites = await client.query<SqlRow>(
+      "SELECT id FROM research_invites WHERE instrument_id=$1 LIMIT 1",
+      [instrument.id]
+    );
+    if (invites.rows.length) throw new Error("RESEARCH_MODULE_INSTRUMENT_ALREADY_INVITED");
+
+    const planResult = await client.query<SqlRow>(
+      "SELECT id,status,plan_json FROM research_analysis_plans WHERE study_id=$1 AND wave_id=$2 AND instrument_id=$3 ORDER BY created_at DESC LIMIT 1 FOR UPDATE",
+      [instrument.study_id, instrument.wave_id, instrument.id]
+    );
+    const plan = planResult.rows[0];
+    if (!plan || text(plan.status) !== "draft") throw new Error("RESEARCH_MODULE_REQUIRES_DRAFT_ANALYSIS_PLAN");
+
+    const existing = await client.query<SqlRow>(
+      "SELECT code FROM research_questions WHERE instrument_id=$1 AND code=ANY($2::text[])",
+      [instrument.id, RETAIL_SENTIMENT_2026_QUESTIONS.map((q) => q.code)]
+    );
+    if (existing.rows.length && existing.rows.length !== RETAIL_SENTIMENT_2026_QUESTIONS.length) {
+      throw new Error("RESEARCH_MODULE_PARTIAL_INSTALL_REQUIRES_MANUAL_REVIEW");
+    }
+    let installed = 0;
+    if (!existing.rows.length) {
+      const nextPosition = await client.query<SqlRow>(
+        "SELECT COALESCE(MAX(position),0)::int AS position FROM research_questions WHERE instrument_id=$1",
+        [instrument.id]
+      );
+      const basePosition = Number(nextPosition.rows[0]?.position ?? 0);
+      for (const [index, question] of RETAIL_SENTIMENT_2026_QUESTIONS.entries()) {
+        await client.query(
+          "INSERT INTO research_questions (instrument_id,code,section_code,position,question_type,prompt_el,help_el,required,analysis_key,config)" +
+          " VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)",
+          [
+            instrument.id,question.code,question.sectionCode,basePosition+index+1,
+            question.type,question.prompt,question.help ?? null,question.required,
+            question.analysisKey,JSON.stringify(question.config)
+          ]
+        );
+        installed += 1;
+      }
+    }
+    const revisedPlan = withRetailConfidencePreregistration(objectValue(plan.plan_json), text(instrument.version));
+    await client.query(
+      "UPDATE research_analysis_plans SET plan_json=$2::jsonb WHERE id=$1 AND status='draft'",
+      [plan.id, JSON.stringify(revisedPlan)]
+    );
+    const contentSha256 = await refreshInstrumentHash(client, text(instrument.id));
+    await client.query("COMMIT");
+    return { installed, instrumentVersion: text(instrument.version), contentSha256 };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
   }
 }
 
