@@ -1,3 +1,4 @@
+import { advanceGreekRetailDeadline } from "../../../../lib/research-survey-deadline-automation";
 import {
   ensureGreekRetailAutomaticReminderBatch,
   processResearchStudyJobs,
@@ -31,10 +32,11 @@ export async function GET(request: Request) {
     // Always drain governed non-email work first so frame/sample/analysis/release
     // jobs cannot be stranded behind the email-delivery lane. Email jobs keep
     // their separate delivery readiness guard inside the worker implementation.
+    const lifecycle = await advanceGreekRetailDeadline();
     const operational = await processResearchStudyJobs(3, OPERATIONAL_JOB_TYPES);
     if (operational.claimed > 0) {
       return Response.json(
-        { ok: true, lane: "operational", ...operational },
+        { ok: true, lane: "operational", lifecycle, ...operational },
         { headers: { "cache-control": "no-store" } }
       );
     }
@@ -42,7 +44,7 @@ export async function GET(request: Request) {
     const automaticReminder = await ensureGreekRetailAutomaticReminderBatch();
     const email = await processResearchStudyJobs(1, EMAIL_JOB_TYPES);
     return Response.json(
-      { ok: true, lane: "email", automaticReminder, ...email },
+      { ok: true, lane: "email", lifecycle, automaticReminder, ...email },
       { headers: { "cache-control": "no-store" } }
     );
   } catch (error) {
