@@ -1358,20 +1358,14 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       ORDER BY fs.created_at DESC
       LIMIT 1
     ) lf ON true
+    -- Count only pilot-exposed sample identities. Never scan the frozen 253k frame
+    -- just to determine a holdout number on every Admin navigation.
     LEFT JOIN LATERAL (
-      SELECT count(*)::int AS exposed_units
-      FROM research_frame_units fu
-      WHERE fu.frame_snapshot_id=lf.id
-        AND EXISTS (
-          SELECT 1
-          FROM research_invites pri
-          JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
-          JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
-          WHERE pri.study_id=s.id
-            AND pri.fieldwork_phase='pilot'
-            AND pri.sent_at IS NOT NULL
-            AND pfu.external_key_hash=fu.external_key_hash
-        )
+      SELECT count(DISTINCT pfu.external_key_hash)::int AS exposed_units
+      FROM research_invites pri
+      JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+      JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
+      WHERE pri.study_id=s.id AND pri.fieldwork_phase='pilot' AND pri.sent_at IS NOT NULL
     ) ph ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS draws
@@ -1397,37 +1391,22 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       ORDER BY d.created_at DESC
       LIMIT 1
     ) ls ON true
+    -- Contactability is a captured frame-level summary, not a live COUNT(DISTINCT)
+    -- over all contact rows. Current bounces/suppressions are inspected in the
+    -- dedicated directory and validated again when invitations are dispatched.
     LEFT JOIN LATERAL (
       SELECT
-        count(DISTINCT fu.id) FILTER (
-          WHERE cp.contact_type='email'
-            AND cp.suppression_status='active'
-            AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
-        ) AS active_contacts,
-        count(DISTINCT fu.id) FILTER (
-          WHERE cp.contact_type='email'
-            AND cp.suppression_status IN ('suppressed','invalid')
-        ) AS suppressed_contacts,
-        count(DISTINCT fu.id) FILTER (
-          WHERE cp.contact_type='email'
-            AND cp.suppression_status='bounced'
-        ) AS bounced_contacts
-      FROM research_frame_units fu
-      JOIN research_contact_points cp ON cp.frame_unit_id = fu.id
-      WHERE fu.frame_snapshot_id = lf.id
-        AND (
-          s.status IN ('draft','pilot')
-          OR NOT EXISTS (
-            SELECT 1
-            FROM research_invites pri
-            JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
-            JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
-            WHERE pri.study_id=s.id
-              AND pri.fieldwork_phase='pilot'
-              AND pri.sent_at IS NOT NULL
-              AND pfu.external_key_hash=fu.external_key_hash
-          )
-        )
+        GREATEST((j.output->>'activeEmailCount')::int -
+          CASE WHEN s.status IN ('fielding','closed','analysis','published','archived')
+            THEN COALESCE(ph.exposed_units,0) ELSE 0 END, 0) AS active_contacts,
+        0::int AS suppressed_contacts,
+        0::int AS bounced_contacts
+      FROM research_study_jobs j
+      WHERE j.study_id=s.id AND j.job_type='frame_snapshot'
+        AND j.status='succeeded'
+        AND j.output->>'frameSnapshotId'=lf.id::text
+        AND j.output->>'activeEmailCount' ~ '^[0-9]+$'
+      ORDER BY j.finished_at DESC LIMIT 1
     ) cp ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS batches
