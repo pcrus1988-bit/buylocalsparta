@@ -32,7 +32,7 @@ export const RESEARCH_SURVEY_ADMIN_SECTIONS: ReadonlyArray<Readonly<{
   { key: "settings", label: "Survey settings", description: "Title, population, methodology, language, deadline and public results destination.", group: "design" },
   { key: "questions", label: "Questions", description: "Questionnaire structure, wording, answer options, order and analysis keys.", group: "design" },
   { key: "evaluation", label: "Evaluation & analysis", description: "Preregistered evaluation plus versioned later exploratory analyses.", group: "design" },
-  { key: "sampling", label: "Sampling", description: "Population frame and reproducible sample draws.", group: "fieldwork" },
+  { key: "sampling", label: "Cohort recruitment", description: "Full-cohort main fieldwork, Pilot-only sample draws.", group: "fieldwork" },
   { key: "fieldwork", label: "Email & fieldwork", description: "Templates, invitation batches, reminders and fieldwork actions.", group: "fieldwork" },
   { key: "balance", label: "Fieldwork balance", description: "Response balance across the frozen sampling strata.", group: "fieldwork" },
   { key: "contacts", label: "Email contacts", description: "Current contactable research frame and suppression state.", group: "fieldwork" },

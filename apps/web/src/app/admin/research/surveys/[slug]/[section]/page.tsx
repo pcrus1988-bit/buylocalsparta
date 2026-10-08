@@ -126,7 +126,7 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
   } else if (section === "sampling") {
     const cohorts = await researchSurveyAdminCohortOverview(principal, study.slug);
     content = <section className="shell vendor-section">
-      <WorkspaceSectionHeading eyebrow="Sampling" title="Population frame & sample" note="Only sampling controls are loaded on this page." />
+      <WorkspaceSectionHeading eyebrow="Recruitment preparation" title="Population frame & full-cohort outreach" note="Official study: complete contactable Cohort A first, Cohort B afterwards. Sampling applies only to the diagnostic Pilot." />
       {canManage ? <ResearchStudySamplingControls
         slug={study.slug}
         csrfToken={principal.csrfToken}
@@ -134,11 +134,13 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
         cohortAPopulation={cohorts?.a.population}
         cohortAContacts={cohorts?.a.contactable}
         cohortASampleStatus={cohorts?.a.sampleStatus}
+        cohortARecruitmentMode={cohorts?.a.recruitmentMode}
         cohortASampleSelected={cohorts?.a.sampleSelected}
         cohortBStatus={cohorts?.b.status}
         cohortBPopulation={cohorts?.b.population}
         cohortBContacts={cohorts?.b.contactable}
         cohortBSampleStatus={cohorts?.b.sampleStatus}
+        cohortBRecruitmentMode={cohorts?.b.recruitmentMode}
         cohortBSampleSelected={cohorts?.b.sampleSelected}
         queuedSampleJobs={study.queuedSampleJobs}
         runningSampleJobs={study.runningSampleJobs}
@@ -173,8 +175,10 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
           studyStatus={study.status}
           cohortAStatus={cohorts?.a.status}
           cohortASampleStatus={cohorts?.a.sampleStatus}
+        cohortARecruitmentMode={cohorts?.a.recruitmentMode}
           cohortBStatus={cohorts?.b.status}
           cohortBSampleStatus={cohorts?.b.sampleStatus}
+        cohortBRecruitmentMode={cohorts?.b.recruitmentMode}
           queuedSampleJobs={study.queuedSampleJobs}
           runningSampleJobs={study.runningSampleJobs}
           recruitmentTemplateVersion={study.recruitmentTemplateVersion}

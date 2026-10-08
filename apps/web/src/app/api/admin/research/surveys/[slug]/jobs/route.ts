@@ -87,6 +87,23 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
 
+    // Main study census: prepare every currently contactable eligible business.
+    // This queues a governed recipient-register job; it NEVER sends an email.
+    if (body.action === "enroll_cohort") {
+      if (body.cohort !== "A" && body.cohort !== "B") throw new Error("RESEARCH_CENSUS_COHORT_REQUIRED");
+      const result = await queueGreekRetailSampleDraw(principal, {
+        targetN: 0,
+        fieldworkPhase: "main",
+        selectionMode: "census",
+        cohort: body.cohort,
+        label: "main-contactable-census-" + body.cohort
+      });
+      await recordAdminAudit(principal, "research.census.queued", "research_study", slug,
+        "Prepare complete contactable cohort register without probability sampling",
+        { ...result, cohort: body.cohort, recruitmentMode: "full_cohort_census", sendsEmails: false });
+      return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+
     if (body.action === "draw_sample") {
       const result = await queueGreekRetailSampleDraw(principal, {
         targetN: Number(body.targetN),

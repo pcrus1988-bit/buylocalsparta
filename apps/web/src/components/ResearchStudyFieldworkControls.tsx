@@ -8,18 +8,18 @@ const DEFAULT_BODY = `{{company_greeting}}
 
 Το KONTA MOY σας προσκαλεί να συμμετάσχετε στη μελέτη «{{study_title}}» για την πραγματικότητα των ελληνικών εμπορικών επιχειρήσεων.
 
-Η επιχείρησή σας έχει επιλεγεί στο ερευνητικό δείγμα από το παγωμένο πλαίσιο της μελέτης. Η συμμετοχή είναι απολύτως προαιρετική. Οι απαντήσεις χρησιμοποιούνται αποκλειστικά για ερευνητικούς σκοπούς και δημοσιεύονται μόνο ως συγκεντρωτικά αποτελέσματα.
+Η επιχείρησή σας περιλαμβάνεται στο πλαίσιο επικοινωνίας της μελέτης, που απευθύνεται σε όλες τις επιλέξιμες επιχειρήσεις με διαθέσιμη διεύθυνση επικοινωνίας. Η συμμετοχή είναι απολύτως προαιρετική. Οι απαντήσεις χρησιμοποιούνται αποκλειστικά για ερευνητικούς σκοπούς και δημοσιεύονται μόνο ως συγκεντρωτικά αποτελέσματα.
 
 Συμμετοχή: {{survey_url}}
 
-Μεθοδολογία, ιδιωτικότητα και τρόπος επιλογής του δείγματος: {{methodology_url}}
+Μεθοδολογία, ιδιωτικότητα και προέλευση στοιχείων επικοινωνίας: {{methodology_url}}
 
 Αν δεν επιθυμείτε να συμμετάσχετε, μπορείτε να αγνοήσετε την πρόσκληση ή να χρησιμοποιήσετε την επιλογή άρνησης στη σελίδα της μελέτης. Η πρόσκληση αυτή δεν αποτελεί εμπορική επικοινωνία ούτε συγκατάθεση marketing.`;
 
 const DEFAULT_REMINDER_SUBJECT = "Υπενθύμιση συμμετοχής στη μελέτη «{{study_title}}»";
 const DEFAULT_REMINDER_BODY = `{{company_greeting}}
 
-Σας υπενθυμίζουμε την πρόσκληση συμμετοχής στη μελέτη «{{study_title}}». Η επιχείρησή σας ανήκει στο επιλεγμένο ερευνητικό δείγμα.
+Σας υπενθυμίζουμε την πρόσκληση συμμετοχής στη μελέτη «{{study_title}}». Η επιχείρησή σας περιλαμβάνεται στο πλαίσιο επικοινωνίας της μελέτης.
 
 Η συμμετοχή παραμένει απολύτως προαιρετική. Αν έχετε ήδη ολοκληρώσει το ερωτηματολόγιο, δεν χρειάζεται να κάνετε τίποτα.
 
@@ -51,8 +51,10 @@ export function ResearchStudyFieldworkControls({
   studyStatus,
   cohortAStatus,
   cohortASampleStatus,
+  cohortARecruitmentMode,
   cohortBStatus,
   cohortBSampleStatus,
+  cohortBRecruitmentMode,
   queuedSampleJobs,
   runningSampleJobs,
   recruitmentTemplateVersion,
@@ -83,8 +85,10 @@ export function ResearchStudyFieldworkControls({
   studyStatus: string;
   cohortAStatus?: string;
   cohortASampleStatus?: string;
+  cohortARecruitmentMode?: string;
   cohortBStatus?: string;
   cohortBSampleStatus?: string;
+  cohortBRecruitmentMode?: string;
   queuedSampleJobs: number;
   runningSampleJobs: number;
   recruitmentTemplateVersion?: string;
@@ -136,7 +140,9 @@ export function ResearchStudyFieldworkControls({
   const [confirmationText, setConfirmationText] = useState("");
   const workerBusy = queuedSampleJobs > 0 || runningSampleJobs > 0;
   const selectedCohortSample = cohort === "A" ? cohortASampleStatus : cohortBSampleStatus;
-  const cohortSampleReady = selectedCohortSample === "locked" || selectedCohortSample === "fielded";
+  const selectedRecruitmentMode = cohort === "A" ? cohortARecruitmentMode : cohortBRecruitmentMode;
+  const cohortSampleReady = (selectedCohortSample === "locked" || selectedCohortSample === "fielded")
+    && (studyStatus === "pilot" || selectedRecruitmentMode === "full_cohort_census");
   const cohortReady = cohort === "A"
     ? cohortAStatus === "frozen" || cohortAStatus === "superseded"
     : cohortBStatus === "frozen";
@@ -462,7 +468,7 @@ export function ResearchStudyFieldworkControls({
       <span>
         <strong>Αποστολή προσκλήσεων · Cohort {cohort}</strong><br />
         {activeContacts.toLocaleString("el-GR")} contactable frame units in the most recent frozen snapshot · {completed.toLocaleString("el-GR")} ολοκληρωμένες απαντήσεις.
-        <div className="workspace-inline-note">{cohort === "A" ? "Cohort A: frozen baseline, Pilot can begin while B builds." : "Cohort B: new, deduplicated businesses only; main fieldwork after A."} {cohortReady ? "Snapshot ready." : "Frame not ready; invitations blocked."} {cohortSampleReady ? "Cohort sample locked." : "Matching cohort draw not locked; invitations blocked."}</div>
+        <div className="workspace-inline-note">{cohort === "A" ? "Cohort A: frozen baseline, Pilot can begin while B builds." : "Cohort B: new, deduplicated businesses only; main fieldwork after A."} {cohortReady ? "Snapshot ready." : "Frame not ready; invitations blocked."} {cohortSampleReady ? "Recipient register ready." : "Full-cohort recipient register not ready; invitations blocked."}</div>
       </span>
       <div className="workspace-action-buttons">
         <label><small>Recipient cohort</small><br />

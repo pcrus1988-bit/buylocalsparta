@@ -291,25 +291,28 @@ export async function queueGreekRetailSampleDraw(
     label?: string;
     fieldworkPhase?: "pilot" | "main";
     cohort?: "A" | "B";
+    selectionMode?: "sample" | "census";
   }>
 ): Promise<{ jobId: string; randomSeed: string; fieldworkPhase: "pilot" | "main" }> {
   assertAdminPermission(principal, "research.design.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
-  const targetN = Math.floor(input.targetN);
-  if (!Number.isSafeInteger(targetN) || targetN < 1 || targetN > 100_000) {
+  const census = input.selectionMode === "census";
+  const targetN = census ? 0 : Math.floor(input.targetN);
+  if (!census && (!Number.isSafeInteger(targetN) || targetN < 1 || targetN > 100_000)) {
     throw new Error("RESEARCH_SAMPLE_TARGET_INVALID");
   }
   const expectedResponseRate = Number(input.expectedResponseRate ?? 0.15);
   if (!Number.isFinite(expectedResponseRate) || expectedResponseRate <= 0 || expectedResponseRate > 1) {
     throw new Error("RESEARCH_SAMPLE_EXPECTED_RESPONSE_INVALID");
   }
-  const desiredCompleteN = Math.floor(Number(
+  const desiredCompleteN = census ? 0 : Math.floor(Number(
     input.desiredCompleteN ?? Math.max(1, Math.round(targetN * expectedResponseRate))
   ));
-  if (!Number.isSafeInteger(desiredCompleteN) || desiredCompleteN < 1 || desiredCompleteN > targetN) {
+  if (!census && (!Number.isSafeInteger(desiredCompleteN) || desiredCompleteN < 1 || desiredCompleteN > targetN)) {
     throw new Error("RESEARCH_SAMPLE_DESIRED_COMPLETES_INVALID");
   }
-  const randomSeed = input.randomSeed?.trim() || randomBytes(24).toString("hex");
+  // A census has no random selection; this fixed marker preserves the existing evidence schema.
+  const randomSeed = census ? "contactable-census-no-random-draw-v1" : (input.randomSeed?.trim() || randomBytes(24).toString("hex"));
   if (randomSeed.length < 16 || randomSeed.length > 200) throw new Error("RESEARCH_SAMPLE_SEED_INVALID");
 
   const pool = getProductionPostgresRuntime().sqlPool;
@@ -325,11 +328,12 @@ export async function queueGreekRetailSampleDraw(
   }
   const minTargetN = fieldworkPhase === "pilot" ? 10 : 100;
   const maxTargetN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
-  if (targetN < minTargetN || targetN > maxTargetN) {
+  if (!census && (targetN < minTargetN || targetN > maxTargetN)) {
     throw new Error(fieldworkPhase === "pilot"
       ? "RESEARCH_PILOT_SAMPLE_TARGET_INVALID"
       : "RESEARCH_SAMPLE_TARGET_INVALID");
   }
+  if (census && fieldworkPhase !== "main") throw new Error("RESEARCH_CENSUS_MAIN_ONLY");
   if (fieldworkPhase === "pilot" && !["draft","pilot"].includes(studyStatus)) {
     throw new Error("RESEARCH_PILOT_SAMPLE_PHASE_CLOSED");
   }
@@ -376,6 +380,7 @@ export async function queueGreekRetailSampleDraw(
     if (
       existingPhase !== fieldworkPhase
       || text(existingInput.cohort) !== cohort
+      || (text(existingInput.selectionMode) === "census") !== census
       || existingDesiredCompleteN !== desiredCompleteN
       || Math.abs(existingExpectedResponseRate - expectedResponseRate) > 1e-9
     ) {
@@ -403,7 +408,8 @@ export async function queueGreekRetailSampleDraw(
         'desiredCompleteN', $7::int,
         'expectedResponseRate', $8::numeric,
         'cohort', $9::text,
-        'frameSnapshotId', $10::text
+        'frameSnapshotId', $10::text,
+        'selectionMode', $11::text
       )
     )
     RETURNING id
@@ -412,12 +418,13 @@ export async function queueGreekRetailSampleDraw(
     study.rows[0].current_wave_id,
     targetN,
     randomSeed,
-    input.label?.trim() || `${fieldworkPhase}-sample-${targetN}`,
+    input.label?.trim() || (census ? `main-contactable-census-${cohort}` : `${fieldworkPhase}-sample-${targetN}`),
     fieldworkPhase,
     desiredCompleteN,
     expectedResponseRate,
     cohort,
-    text(frame.rows[0].id)
+    text(frame.rows[0].id),
+    census ? "census" : "sample"
   ]);
   return { jobId: text(job.rows[0]!.id), randomSeed, fieldworkPhase };
 }
@@ -466,6 +473,62 @@ export async function saveGreekRetailRecruitmentTemplate(
   return { templateId: text(inserted.rows[0]!.id), version, purpose };
 }
 
+
+/** Do not begin Cohort B until every still-reachable Cohort A inbox has been invited.
+ * Live suppression and previous sends are checked, not frozen counters. Fail closed.
+ */
+async function assertCohortAOutreachComplete(
+  pool: ReturnType<typeof getProductionPostgresRuntime>["sqlPool"],
+  studyId: string,
+  waveId: string
+): Promise<void> {
+  const check = await pool.query<SqlRow>(`
+    SELECT
+      EXISTS (
+        SELECT 1 FROM research_invites ri
+        JOIN research_sample_units su ON su.id=ri.sample_unit_id
+        JOIN research_sample_designs ds ON ds.sample_draw_id=su.sample_draw_id
+        WHERE ri.study_id=$1 AND ri.wave_id=$2 AND ri.fieldwork_phase='main'
+          AND ri.sent_at IS NOT NULL AND ds.design_json->>'cohort'='A'
+          AND ds.design_json->>'recruitmentMode'='full_cohort_census'
+      ) AS launched,
+      EXISTS (
+        SELECT 1 FROM research_study_jobs j WHERE j.study_id=$1 AND j.wave_id=$2
+          AND j.job_type='invite_batch' AND j.status IN ('queued','running')
+          AND j.input->>'cohort'='A'
+      ) AS a_worker_busy,
+      EXISTS (
+        SELECT 1
+        FROM research_sample_units su
+        JOIN research_sample_draws d ON d.id=su.sample_draw_id
+        JOIN research_sample_designs ds ON ds.sample_draw_id=d.id
+        JOIN LATERAL (
+          SELECT cp.contact_value_hash
+          FROM research_contact_points cp
+          WHERE cp.frame_unit_id=su.frame_unit_id AND cp.contact_type='email'
+            AND cp.suppression_status='active'
+            AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+          ORDER BY (cp.verified_at IS NOT NULL) DESC, cp.verified_at DESC NULLS LAST,cp.created_at,cp.id
+          LIMIT 1
+        ) cp ON true
+        WHERE d.study_id=$1 AND d.wave_id=$2 AND d.fieldwork_phase='main'
+          AND d.status IN ('locked','fielded')
+          AND ds.design_json->>'cohort'='A'
+          AND ds.design_json->>'recruitmentMode'='full_cohort_census'
+          AND NOT EXISTS (
+            SELECT 1 FROM research_invites ri
+            JOIN research_contact_points sent_cp ON sent_cp.id=ri.contact_point_id
+            WHERE ri.study_id=$1 AND ri.sent_at IS NOT NULL
+              AND sent_cp.contact_value_hash=cp.contact_value_hash
+          )
+      ) AS a_pending
+  `, [studyId, waveId]);
+  if (!Boolean(check.rows[0]?.launched)) throw new Error("RESEARCH_COHORT_B_REQUIRES_A_FIRST");
+  if (Boolean(check.rows[0]?.a_worker_busy) || Boolean(check.rows[0]?.a_pending)) {
+    throw new Error("RESEARCH_COHORT_A_NOT_COMPLETE");
+  }
+}
+
 export async function queueGreekRetailInviteBatch(
   principal: SessionPrincipal,
   input: Readonly<{ limit?: number; label?: string; cohort?: "A" | "B"; emailApproval?: ResearchEmailBatchApproval }>
@@ -487,7 +550,8 @@ export async function queueGreekRetailInviteBatch(
           AND d.status IN ('locked','fielded')
           AND d.fieldwork_phase=CASE WHEN s.status='pilot' THEN 'pilot' ELSE 'main' END
           AND EXISTS (SELECT 1 FROM research_sample_designs ds
-            WHERE ds.sample_draw_id=d.id AND ds.design_json->>'cohort'=$2)
+            WHERE ds.sample_draw_id=d.id AND ds.design_json->>'cohort'=$2
+            AND (s.status='pilot' OR ds.design_json->>'recruitmentMode'='full_cohort_census'))
       ) AS sample_ready,
       EXISTS(
         SELECT 1 FROM research_recruitment_templates rt
@@ -505,14 +569,7 @@ export async function queueGreekRetailInviteBatch(
   const fieldworkPhase = text(row.status) === "pilot" ? "pilot" : "main";
   if (fieldworkPhase === "pilot" && cohort !== "A") throw new Error("RESEARCH_PILOT_REQUIRES_COHORT_A");
   if (fieldworkPhase === "main" && cohort === "B") {
-    const priorA = await pool.query<SqlRow>(`
-      SELECT EXISTS(SELECT 1 FROM research_invites ri
-        JOIN research_sample_units su ON su.id=ri.sample_unit_id
-        JOIN research_sample_designs ds ON ds.sample_draw_id=su.sample_draw_id
-        WHERE ri.study_id=$1 AND ri.wave_id=$2 AND ri.fieldwork_phase='main'
-          AND ri.sent_at IS NOT NULL AND ds.design_json->>'cohort'='A') AS launched
-    `, [row.id, row.current_wave_id]);
-    if (!Boolean(priorA.rows[0]?.launched)) throw new Error("RESEARCH_COHORT_B_REQUIRES_A_FIRST");
+    await assertCohortAOutreachComplete(pool, text(row.id), text(row.current_wave_id));
   }
   assertResearchEmailBatchApproval(input.emailApproval, {
     studyTitle: text(row.title),
@@ -1694,8 +1751,9 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
 
 async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string, unknown>> {
   const input = objectValue(job.input);
+  const census = text(input.selectionMode) === "census";
   const targetN = Math.floor(numberValue(input.targetN));
-  const desiredCompleteN = Math.floor(numberValue(input.desiredCompleteN));
+  let desiredCompleteN = Math.floor(numberValue(input.desiredCompleteN));
   const expectedResponseRate = numberValue(input.expectedResponseRate);
   const randomSeed = text(input.randomSeed);
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
@@ -1706,7 +1764,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
   }
   const minTargetN = fieldworkPhase === "pilot" ? 10 : 100;
   const maxTargetN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
-  if (
+  if ((!census && (
     !targetN
     || !desiredCompleteN
     || desiredCompleteN > targetN
@@ -1715,7 +1773,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
     || !randomSeed
     || targetN < minTargetN
     || targetN > maxTargetN
-  ) {
+  )) || (census && fieldworkPhase !== "main")) {
     throw new Error("RESEARCH_SAMPLE_JOB_INVALID");
   }
 
@@ -1955,16 +2013,21 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
     `, [frame.id, fieldworkPhase, job.study_id, job.wave_id, cohort, cohortAFrameId || null]);
     if (!strataResult.rows.length) throw new Error("RESEARCH_SAMPLE_STRATA_MISSING");
 
-    const allocations = proportionalStratumAllocation(
-      strataResult.rows.map((row) => ({
-        id: text(row.id),
-        populationCount: numberValue(row.population_count)
-      })),
-      targetN,
-      2
-    );
+    // Enumerate the complete reachable frame for a census; no random draw or sample size.
+    const allocations = census
+      ? strataResult.rows.filter((row) => numberValue(row.active_contact_count) > 0).map((row) => ({
+          id: text(row.id),
+          populationCount: numberValue(row.population_count),
+          sampleCount: numberValue(row.active_contact_count)
+        }))
+      : proportionalStratumAllocation(
+          strataResult.rows.map((row) => ({ id: text(row.id), populationCount: numberValue(row.population_count) })),
+          targetN,
+          2
+        );
     const actualTargetN = allocations.reduce((sum, allocation) => sum + allocation.sampleCount, 0);
     if (!actualTargetN) throw new Error("RESEARCH_SAMPLE_EMPTY");
+    if (census) desiredCompleteN = Math.max(1, Math.round(actualTargetN * expectedResponseRate));
     if (desiredCompleteN > actualTargetN) {
       throw new Error("RESEARCH_SAMPLE_DESIRED_COMPLETES_EXCEED_DRAW");
     }
@@ -1992,7 +2055,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         const stratumContactabilityRate = allocation.populationCount > 0
           ? activeContactN / allocation.populationCount
           : 0;
-        const expectedContactableN = Math.min(
+        const expectedContactableN = census ? allocation.sampleCount : Math.min(
           allocation.sampleCount,
           Math.round(allocation.sampleCount * stratumContactabilityRate)
         );
@@ -2028,7 +2091,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         status,
         fieldwork_phase
       )
-      VALUES ($1,$2,$3,$4,'stratified-hash-rank-v2',$5,$6,'draft',$7)
+      VALUES ($1,$2,$3,$4,$8,$5,$6,'draft',$7)
       RETURNING id
     `, [
       job.study_id,
@@ -2037,15 +2100,16 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       text(input.label) || `${fieldworkPhase}-sample-${actualTargetN}`,
       randomSeed,
       actualTargetN,
-      fieldworkPhase
+      fieldworkPhase,
+      census ? "contactable-census-v1" : "stratified-hash-rank-v2"
     ]);
     const drawId = text(draw.rows[0]!.id);
 
     let selectionOffset = 0;
     for (const allocation of allocations) {
       if (!allocation.sampleCount) continue;
-      const probability = allocation.sampleCount / allocation.populationCount;
-      const baseWeight = allocation.populationCount / allocation.sampleCount;
+      const probability = census ? 1 : allocation.sampleCount / allocation.populationCount;
+      const baseWeight = census ? 1 : allocation.populationCount / allocation.sampleCount;
       const inserted = await client.query<SqlRow>(`
         WITH chosen AS (
           SELECT fu.id, fu.external_key_hash
@@ -2068,15 +2132,17 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
                   AND pfu.external_key_hash=fu.external_key_hash
               )
             )
-          ORDER BY md5($3::text || ':' || fu.external_key_hash), fu.external_key_hash
+          ${census ? `AND EXISTS (SELECT 1 FROM research_contact_points cp WHERE cp.frame_unit_id=fu.id AND cp.contact_type='email' AND cp.suppression_status='active' AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash))` : ""}
+          ORDER BY ${census ? "fu.external_key_hash" : "md5($3::text || ':' || fu.external_key_hash), fu.external_key_hash"}
           LIMIT $4
         ),
         numbered AS (
           SELECT id, row_number() OVER (
-            ORDER BY md5($3::text || ':' || external_key_hash), external_key_hash
+            ORDER BY ${census ? "external_key_hash" : "md5($3::text || ':' || external_key_hash), external_key_hash"}
           ) AS within_order
           FROM chosen
-        )
+        ),
+        inserted AS (
         INSERT INTO research_sample_units (
           sample_draw_id,
           frame_unit_id,
@@ -2093,7 +2159,8 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
           $7::numeric,
           $8::numeric
         FROM numbered
-        RETURNING id
+        RETURNING 1
+        ) SELECT count(*)::int AS inserted_count FROM inserted
       `, [
         frame.id,
         allocation.id,
@@ -2109,7 +2176,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         cohort,
         cohortAFrameId || null
       ]);
-      if (inserted.rows.length !== allocation.sampleCount) {
+      if (numberValue(inserted.rows[0]?.inserted_count) !== allocation.sampleCount) {
         throw new Error(`RESEARCH_SAMPLE_STRATUM_COUNT_MISMATCH:${allocation.id}`);
       }
       selectionOffset += allocation.sampleCount;
@@ -2124,14 +2191,15 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         metadata
       )
       SELECT id, 'selected', 'eligible', 'sample_draw',
-             jsonb_build_object('drawId',($1::uuid)::text,'algorithmVersion','stratified-hash-rank-v2')
+             jsonb_build_object('drawId',($1::uuid)::text,'algorithmVersion',$2::text,'recruitmentMode',$3::text)
       FROM research_sample_units
       WHERE sample_draw_id=$1::uuid
-    `, [drawId]);
+    `, [drawId, census ? "contactable-census-v1" : "stratified-hash-rank-v2", census ? "full_cohort_census" : "probability_sample"]);
 
     const designDocument = {
       schema: "kontamou.research.sample-design.v1",
       cohort,
+      recruitmentMode: census ? "full_cohort_census" : "probability_sample",
       cohortAFrameSnapshotId: cohortAFrameId || null,
       sampleDrawId: drawId,
       frameSnapshotId: text(frame.id),
@@ -2145,7 +2213,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       plannedSelectedN: actualTargetN,
       expectedContactableN,
       expectedCompleteN,
-      allocationMethod: "proportional_min2_v1",
+      allocationMethod: census ? "full_contactable_census_v1" : "proportional_min2_v1",
       strata: designStrata
     };
     const designJson = canonicalResearchJson(designDocument);
@@ -2168,7 +2236,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         content_sha256
       )
       VALUES (
-        $1,$2,$3,$4,$5,$6::numeric,$7,$8,$9::numeric,$10,$11,$12,'proportional_min2_v1',$13::jsonb,$14
+        $1,$2,$3,$4,$5,$6::numeric,$7,$8,$9::numeric,$10,$11,$12,$15,$13::jsonb,$14
       )
       RETURNING id
     `, [
@@ -2185,7 +2253,8 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       expectedContactableN,
       expectedCompleteN,
       designJson,
-      sha256(designJson)
+      sha256(designJson),
+      census ? "full_contactable_census_v1" : "proportional_min2_v1"
     ]);
     const designId = text(designResult.rows[0]!.id);
     for (const stratum of designStrata) {
@@ -2244,7 +2313,8 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       contactabilityRate,
       expectedContactableN,
       expectedCompleteN,
-      algorithmVersion: "stratified-hash-rank-v2",
+      algorithmVersion: census ? "contactable-census-v1" : "stratified-hash-rank-v2",
+      recruitmentMode: census ? "full_cohort_census" : "probability_sample",
       randomSeed,
       fieldworkPhase,
       strata: allocations.filter((allocation) => allocation.sampleCount > 0).length
@@ -2266,6 +2336,9 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   const cohort = text(input.cohort);
   if (cohort !== "A" && cohort !== "B") throw new Error("RESEARCH_INVITE_COHORT_REQUIRED");
   if (fieldworkPhase === "pilot" && cohort !== "A") throw new Error("RESEARCH_PILOT_REQUIRES_COHORT_A");
+  if (fieldworkPhase === "main" && cohort === "B") {
+    await assertCohortAOutreachComplete(pool, job.study_id, job.wave_id);
+  }
   const currentOutput = objectValue(job.output);
   let batchId = text(currentOutput.batchId);
   let sampleUnitIds = Array.isArray(currentOutput.sampleUnitIds)
@@ -2296,7 +2369,8 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
             AND d.status IN ('locked','fielded')
             AND d.fieldwork_phase=$2
             AND EXISTS(SELECT 1 FROM research_sample_designs ds
-              WHERE ds.sample_draw_id=d.id AND ds.design_json->>'cohort'=$4)
+              WHERE ds.sample_draw_id=d.id AND ds.design_json->>'cohort'=$4
+              AND ($2::text='pilot' OR ds.design_json->>'recruitmentMode'='full_cohort_census'))
           ORDER BY d.created_at DESC LIMIT 1
         ) d ON true
         JOIN LATERAL (

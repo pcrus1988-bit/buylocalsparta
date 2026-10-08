@@ -11,11 +11,13 @@ export function ResearchStudySamplingControls({
   cohortAPopulation,
   cohortAContacts,
   cohortASampleStatus,
+  cohortARecruitmentMode,
   cohortASampleSelected,
   cohortBStatus,
   cohortBPopulation,
   cohortBContacts,
   cohortBSampleStatus,
+  cohortBRecruitmentMode,
   cohortBSampleSelected,
   queuedSampleJobs,
   runningSampleJobs,
@@ -42,11 +44,13 @@ export function ResearchStudySamplingControls({
   cohortAPopulation?: number;
   cohortAContacts?: number;
   cohortASampleStatus?: string;
+  cohortARecruitmentMode?: string;
   cohortASampleSelected?: number;
   cohortBStatus?: string;
   cohortBPopulation?: number;
   cohortBContacts?: number;
   cohortBSampleStatus?: string;
+  cohortBRecruitmentMode?: string;
   cohortBSampleSelected?: number;
   queuedSampleJobs: number;
   runningSampleJobs: number;
@@ -67,7 +71,7 @@ export function ResearchStudySamplingControls({
   runningJobs: number;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState<"frame" | "sample" | null>(null);
+  const [busy, setBusy] = useState<"frame" | "sample" | "census" | null>(null);
   const [targetN, setTargetN] = useState("");
   const [cohort, setCohort] = useState<"A" | "B">("A");
   const fieldworkPhase: "pilot" | "main" = ["draft","pilot"].includes(studyStatus) ? "pilot" : "main";
@@ -86,6 +90,8 @@ export function ResearchStudySamplingControls({
   const sampleWorkerBusy = queuedSampleJobs > 0 || runningSampleJobs > 0;
   const cohortStatus = cohort === "A" ? cohortAStatus : cohortBStatus;
   const selectedDrawStatus = cohort === "A" ? cohortASampleStatus : cohortBSampleStatus;
+  const selectedRecruitmentMode = cohort === "A" ? cohortARecruitmentMode : cohortBRecruitmentMode;
+  const censusPrepared = selectedRecruitmentMode === "full_cohort_census" && (selectedDrawStatus === "locked" || selectedDrawStatus === "fielded");
   const selectedDrawCount = cohort === "A" ? cohortASampleSelected : cohortBSampleSelected;
   const cohortReady = cohort === "A"
     ? cohortStatus === "frozen" || cohortStatus === "superseded"
@@ -165,6 +171,53 @@ export function ResearchStudySamplingControls({
     }
   }
 
+  // The official first run is a full-contactable-frame census. Probability
+  // sampling remains available only for the separate diagnostic Pilot.
+  async function prepareEntireCohort() {
+    if (fieldworkPhase !== "main" || !cohortReady || sampleWorkerBusy || censusPrepared) return;
+    if (!window.confirm(`Prepare the COMPLETE contactable Cohort ${cohort} register? This writes enrollment records but sends NO emails.`)) return;
+    setBusy("census");
+    setMessage("");
+    try {
+      const result = await post({ action: "enroll_cohort", cohort });
+      setMessage(`Full Cohort ${cohort} enrollment queued (job ${result.jobId}). No invitations have been sent. Review the register before fieldwork.`);
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Full-cohort preparation failed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (fieldworkPhase === "main") return <div className="workspace-queue-card">
+    <div className="workspace-inline-note">
+      <strong>Official first run · full-cohort invitation, not probability sampling</strong><br />
+      All eligible businesses with an active, non-suppressed email in the frozen cohort are enrolled. Previously contacted Pilot units are excluded. Preparing the register does not send email; sending remains a separate, confirmed action.
+    </div>
+    <div className="workspace-action-bar" style={{ marginTop: 12 }}>
+      <label><strong>Recipient cohort</strong><br />
+        <select aria-label="Recipient cohort" value={cohort} onChange={(event) => setCohort(event.target.value as "A" | "B")}>
+          <option value="A">Stage 1 · All of Cohort A</option>
+          <option value="B">Stage 2 · All additional Cohort B businesses</option>
+        </select>
+      </label>
+      <div>
+        <strong>{cohort === "A" ? "Original retail cohort" : "Additional retail cohort"}</strong><br />
+        <small>Frozen businesses: {selectedPopulation.toLocaleString("el-GR")} · active-email businesses at freeze: {selectedContacts.toLocaleString("el-GR")}</small><br />
+        <small>{cohortReady ? "Frozen frame ready" : "Frame still pending"} · {censusPrepared ? "Full cohort register ready" : "Full cohort register not yet prepared"}</small>
+      </div>
+    </div>
+    <div className="workspace-action-buttons" style={{ marginTop: 12 }}>
+      <button className="button" type="button" disabled={Boolean(busy) || sampleWorkerBusy || !cohortReady || censusPrepared || studyStatus !== "fielding"} onClick={() => void prepareEntireCohort()}>
+        {busy === "census" ? "Queueing complete cohort…" : censusPrepared ? "Full cohort prepared" : "Prepare entire Cohort " + cohort}
+      </button>
+      <a className="button button-secondary" href={"/admin/research/surveys/" + encodeURIComponent(slug) + "/fieldwork"}>Review email &amp; controlled sending</a>
+    </div>
+    <div className="workspace-inline-note" style={{ marginTop: 12 }}>
+      {message || (sampleWorkerBusy ? "Enrollment worker busy. Check Jobs and refresh; do not queue repeatedly." : cohort === "B" ? "Cohort B may be invited only after eligible Cohort A outreach is complete. Email identity deduplication and opt-outs still apply." : "Stage 1 is Cohort A. There is no target n, seed, or random sampling for this official run.")}
+    </div>
+  </div>;
+
   return <div className="workspace-queue-card">
     <div className="workspace-action-bar">
       <span>
@@ -172,9 +225,7 @@ export function ResearchStudySamplingControls({
         {cohortAStatus === "frozen" || cohortAStatus === "superseded"
           ? `Cohort A: ${(cohortAPopulation ?? 0).toLocaleString("el-GR")} frozen businesses · Cohort B: ${cohortBStatus || "not started"}`
           : "Cohort A has not been frozen yet."}
-        {fieldworkPhase === "main" && pilotHoldoutUnits > 0
-          ? ` · ${pilotHoldoutUnits.toLocaleString("el-GR")} pilot holdout → ${effectivePopulation.toLocaleString("el-GR")} main-eligible`
-          : ""}
+        
       </span>
       <button
         className="button button-secondary"
@@ -189,7 +240,7 @@ export function ResearchStudySamplingControls({
         <label><strong>Sampling cohort</strong><br />
           <select aria-label="Sampling cohort" value={cohort} onChange={(event) => { setCohort(event.target.value as "A" | "B"); setTargetN(""); }}>
             <option value="A">Cohort A · frozen original retail population</option>
-            {fieldworkPhase === "main" && <option value="B">Cohort B · new businesses only (excludes A)</option>}
+            
           </select>
         </label>
         <div className="workspace-inline-note">
@@ -284,7 +335,7 @@ export function ResearchStudySamplingControls({
         />
         <button
           className="button"
-          disabled={Boolean(busy) || sampleWorkerBusy || !cohortReady || !sampleValid || (fieldworkPhase === "main" && studyStatus !== "fielding")}
+          disabled={Boolean(busy) || sampleWorkerBusy || !cohortReady || !sampleValid || false}
           onClick={() => void drawSample()}
           type="button"
         >{busy === "sample" ? "Queueing…" : "Draw reproducible sample"}</button>
