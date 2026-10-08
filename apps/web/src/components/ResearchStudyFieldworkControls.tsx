@@ -31,7 +31,7 @@ const DEFAULT_REMINDER_BODY = `{{company_greeting}}
 
 const TEMPLATE_VARIABLES = "{{study_title}}, {{company_name}}, {{company_greeting}}, {{survey_url}}, {{methodology_url}}, {{privacy_url}}, {{optout_url}}";
 
-type Busy = "template" | "reminderTemplate" | "send" | "reminders" | "suppress" | "rewards" | "analysis" | "release" | "results" | null;
+type Busy = "template" | "reminderTemplate" | "send" | "campaign" | "reminders" | "suppress" | "rewards" | "analysis" | "release" | "results" | null;
 
 type EmailPurpose = "research_invitation" | "research_reminder" | "thank_you_code" | "results_notification";
 
@@ -57,6 +57,7 @@ export function ResearchStudyFieldworkControls({
   cohortBSampleStatus,
   cohortBRecruitmentMode,
   cohortBSampleSelected,
+  campaign,
   queuedSampleJobs,
   runningSampleJobs,
   recruitmentTemplateVersion,
@@ -93,6 +94,7 @@ export function ResearchStudyFieldworkControls({
   cohortBSampleStatus?: string;
   cohortBRecruitmentMode?: string;
   cohortBSampleSelected?: number;
+  campaign?: {id:string;status:string;cohort:string;paused:boolean;approvedMaxEmails:number;processedCount:number;sentCount:number;safetyHold?:string};
   queuedSampleJobs: number;
   runningSampleJobs: number;
   recruitmentTemplateVersion?: string;
@@ -307,6 +309,20 @@ export function ResearchStudyFieldworkControls({
     }
   }
 
+  async function setCampaignPaused(paused:boolean) {
+    setBusy("campaign");
+    setMessage("");
+    try {
+      await post({action:paused ? "pause_invite_campaign" : "resume_invite_campaign"});
+      setMessage(paused ? "Η εκστρατεία τέθηκε σε παύση. Οι ήδη εγκεκριμένες προσκλήσεις διατηρούνται." : "Η ίδια ήδη εγκεκριμένη εκστρατεία συνεχίζεται. Δεν δημιουργείται νέα αποστολή.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Η αλλαγή κατάστασης της εκστρατείας απέτυχε.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function sendInvites() {
     if (!batchValid || !cohortReady || !cohortSampleReady || (studyStatus === "pilot" && cohort !== "A")) return;
     openEmailConfirmation({
@@ -507,6 +523,20 @@ export function ResearchStudyFieldworkControls({
         >{busy === "send" ? "Προετοιμασία…" : wholeCohortCampaign ? "Εκκίνηση ενιαίας εκστρατείας Cohort " + cohort : "Αποστολή παρτίδας προσκλήσεων"}</button>
       </div>
     </div>
+
+    {campaign && <div className="workspace-queue-card" role="status" aria-label="Πρόοδος ενιαίας ερευνητικής εκστρατείας">
+      <strong>Ενιαία εκστρατεία Cohort {campaign.cohort}</strong>
+      <p>Κατάσταση: <strong>{campaign.paused ? "Σε παύση" : campaign.safetyHold ? "Παύση ασφαλείας" : campaign.status}</strong>
+        {" · "}Απεσταλμένα {campaign.sentCount.toLocaleString("el-GR")}
+        {" · "}Επεξεργασμένα {campaign.processedCount.toLocaleString("el-GR")} από έως {campaign.approvedMaxEmails.toLocaleString("el-GR")} εγκεκριμένες εγγραφές.
+      </p>
+      {campaign.safetyHold && <p className="workspace-inline-note form-error">Η αποστολή διακόπηκε αυτόματα για προστασία της αξιοπιστίας παράδοσης: {campaign.safetyHold}. Δεν παρακάμπτεται με απλή συνέχιση.</p>}
+      {(campaign.status === "queued" || campaign.status === "running") && <div className="workspace-action-buttons">
+        <button type="button" className="button button-secondary" disabled={Boolean(busy)} onClick={() => void setCampaignPaused(!campaign.paused)}>
+          {campaign.paused ? "Συνέχεια ήδη εγκεκριμένης εκστρατείας" : "Παύση εκστρατείας"}
+        </button>
+      </div>}
+    </div>}
 
     <div className="workspace-action-bar">
       <span>
