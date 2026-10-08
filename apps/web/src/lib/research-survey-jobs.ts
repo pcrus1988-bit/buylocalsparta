@@ -2910,10 +2910,11 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       continue;
     }
 
-    // STRICT one-attempt-per-inbox policy for this study. An SES handoff can
-    // succeed while the worker crashes before persisting sent_at/MessageId.
-    // Treat ALL earlier initial attempts (including failed, expired, and
-    // ambiguous sending) as potentially contacted, not just confirmed sends.
+    // STRICT one-invitation-per-inbox policy for this study. An SES handoff
+    // can succeed while the worker crashes before persisting sent_at/MessageId.
+    // Treat ANY previous invite row (even expired or created with no message
+    // ledger yet) as potentially contacted. Missing some recipients is safer
+    // than risking a repeated initial invitation.
     // Covers shared mailboxes across Pilot, Cohort A and Cohort B.
     const contactAlreadyInvited = await pool.query<SqlRow>(`
       SELECT EXISTS (
@@ -2921,11 +2922,9 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         JOIN research_contact_points prior_cp ON prior_cp.id=prior.contact_point_id
         WHERE prior.study_id=$1 AND prior_cp.contact_type='email'
           AND prior_cp.contact_value_hash=$2
-          AND (prior.sent_at IS NOT NULL OR prior.status='created'
-            OR EXISTS (
-              SELECT 1 FROM research_invite_messages m
-              WHERE m.invite_id=prior.id AND m.attempt_kind='initial'
-            ))
+          -- An invite row alone means the address may already have been
+          -- handed to SES, regardless of local completion/expiry status.
+          -- Never risk a second initial invitation to this inbox.
       ) AS duplicate
     `, [job.study_id, contact.contact_value_hash]);
     if (Boolean(contactAlreadyInvited.rows[0]?.duplicate)) {
