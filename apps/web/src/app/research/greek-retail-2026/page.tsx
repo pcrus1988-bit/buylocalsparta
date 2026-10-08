@@ -1,4 +1,5 @@
 import { ResearchPublicNavigation } from "../../../components/ResearchPublicNavigation";
+import { SiteFooter } from "../../../components/SiteFooter";
 import type { Metadata } from "next";
 import styles from "../../../components/ResearchObservatory.module.css";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
@@ -29,7 +30,8 @@ export default async function GreekRetailResearchPage() {
   const status = study ? (studyStatusLabels[study.status] ?? "Ενημέρωση σε εξέλιξη") : "Ενημέρωση σε εξέλιξη";
   const isLive = study?.status === "fielding";
 
-  return <main className={styles.shell}>
+  return <>
+    <main className={styles.shell}>
     <div className={styles.frame}>
       <ResearchPublicNavigation active="overview" studySlug="greek-retail-2026" />
       <header className={styles.hero} style={{ gridTemplateColumns: "minmax(0, 1fr)" }}>
@@ -45,5 +47,7 @@ export default async function GreekRetailResearchPage() {
         </div>
       </header>
     </div>
-  </main>;
+    </main>
+    <SiteFooter />
+  </>;
 }
