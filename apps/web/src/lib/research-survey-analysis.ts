@@ -10,7 +10,7 @@ import {
   stratifiedSrsMeanVariance,
   weightedClusteredDifferenceInMeans
 } from "./research-survey-statistics";
-import { scoreGreekRetail2026 } from "./research-survey-model";
+import { scoreGreekRetail2026, type ResearchAnswerMap } from "./research-survey-model";
 
 const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v8";
 const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v2";
@@ -239,6 +239,11 @@ function estimateSpecs(
       observations,
       metadata: {
         format: "mean",
+        label: ({
+          "digital_readiness.mean": "Δείκτης ψηφιακής ετοιμότητας",
+          "retail_friction.mean": "Δείκτης λειτουργικών δυσκολιών",
+          "retail_confidence.mean": "Δείκτης επιχειρηματικής εμπιστοσύνης"
+        } as Record<string, string>)[metricKey],
         derived: true,
         analysisClassification: primaryMetricKeys.has(metricKey)
           ? "prespecified_primary"
@@ -663,7 +668,7 @@ export async function runGreekRetailAnalysis(
     answers: answerMap.get(response.responseId) ?? {},
     scores: {
       ...(scoreMap.get(response.responseId) ?? {}),
-      businessConfidence: scoreGreekRetail2026(answerMap.get(response.responseId) ?? {}).businessConfidenceScore
+      businessConfidence: scoreGreekRetail2026((answerMap.get(response.responseId) ?? {}) as ResearchAnswerMap).businessConfidenceScore
     }
   }));
   if (weightedResponses.some((response) => !(response.finalWeight > 0))) {
