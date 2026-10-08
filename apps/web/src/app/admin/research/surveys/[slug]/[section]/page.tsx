@@ -144,6 +144,7 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
         latestSampleExpectedCompletes={study.latestSampleExpectedCompletes}
         queuedJobs={study.queuedJobs}
         runningJobs={study.runningJobs}
+        blockingSamplingJobs={study.blockingSamplingJobs}
       /> : <div className="workspace-inline-note">Read-only access. Sampling mutations require Research management permission.</div>}
     </section>;
   } else if (section === "fieldwork") {
