@@ -650,3 +650,22 @@
     padding-bottom: 16px;
   }
 }
+
+/* Give catalogue tiles independent visual boundaries, especially when the
+   desktop grid expands to four columns. Keep the compact mobile two-up layout. */
+.catalog-results > .catalog-product-grid {
+  column-gap: clamp(14px, 1.2vw, 20px);
+  row-gap: clamp(16px, 1.6vw, 24px);
+}
+
+.catalog-results > .catalog-product-grid > .product-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  .catalog-results > .catalog-product-grid {
+    column-gap: 10px;
+    row-gap: 12px;
+  }
+}

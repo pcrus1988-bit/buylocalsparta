@@ -48,13 +48,13 @@
   padding: 0;
   background: #f4f1ea;
   z-index: 1;
-  transform: scale(1.04);
+  transform: scale(1);
   transform-origin: center top;
   transition: transform .28s ease;
 }
 
 .visualCard:hover .catalogImage {
-  transform: scale(1.07);
+  transform: scale(1.025);
 }
 
 .visualBody {
@@ -228,12 +228,12 @@
   .catalogImage {
     padding: 0;
     object-position: center top;
-    transform: scale(1.06);
+    transform: scale(1);
     transform-origin: center top;
   }
 
   .visualCard:hover .catalogImage {
-    transform: scale(1.08);
+    transform: scale(1.025);
   }
 
   .visualBody {
@@ -319,11 +319,11 @@
 
   .catalogImage {
     padding: 0;
-    transform: scale(1.045);
+    transform: scale(1);
   }
 
   .visualCard:hover .catalogImage {
-    transform: scale(1.07);
+    transform: scale(1.025);
   }
 
   .visualBody {
