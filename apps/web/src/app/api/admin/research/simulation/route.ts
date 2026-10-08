@@ -12,6 +12,15 @@ export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store, max-age=0" };
 const recentSends = new Map<string, number>();
 
+function simulationBaseUrl(): string {
+  // Preview tests must stay on their preview deployment; never trust request Host.
+  const preview = process.env.VERCEL_URL?.trim();
+  if (process.env.VERCEL_ENV === "preview" && preview && /^[a-z0-9-]+\.vercel\.app$/i.test(preview)) {
+    return "https://" + preview;
+  }
+  return "https://kontamou.site";
+}
+
 function failure(error: unknown): Response {
   const message = error instanceof Error ? error.message : "SIMULATION_FAILED";
   const status = message.includes("AUTH") ? 401 : message.includes("permission") || message.includes("CSRF") ? 403
@@ -88,7 +97,7 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({
         ok: true, status: "dry_run_no_email", runId: invitation.runId,
         expiresAt: invitation.expiresAt,
-        previewLink: "https://kontamou.site/research/simulation/" + encodeURIComponent(invitation.token)
+        previewLink: simulationBaseUrl() + "/research/simulation/" + encodeURIComponent(invitation.token)
       }, { headers: noStore });
     }
 
@@ -104,7 +113,7 @@ export async function POST(request: Request): Promise<Response> {
       try {
         const invitation = createSimulationInvitation(slug, to);
         // Do not construct test links from request Host or Forwarded headers.
-        const link = "https://kontamou.site/research/simulation/" + encodeURIComponent(invitation.token);
+        const link = simulationBaseUrl() + "/research/simulation/" + encodeURIComponent(invitation.token);
         const messageId = await sendTestMessage({
           to, slug, runId: invitation.runId, kind: "invitation", link
         });
