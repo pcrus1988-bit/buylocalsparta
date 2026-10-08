@@ -226,7 +226,7 @@ export async function prepareResearchCohortTick(): Promise<Readonly<{ action: st
       "ORDER BY fu.id LIMIT $3"
     ].join(" "), [campaign.frame_snapshot_id,campaign.cursor_frame_unit_id,PAGE]);
     const eligible = page.rows.filter((r) => Boolean(r.contact_point_id));
-    let inserted: SqlRow[] = [];
+    let inserted: readonly SqlRow[] = [];
     if (eligible.length) {
       const records = JSON.stringify(eligible.map((r) => ({
         frame_unit_id:r.id, contact_point_id:r.contact_point_id,
