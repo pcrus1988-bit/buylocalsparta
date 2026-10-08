@@ -239,7 +239,9 @@ export const ADMIN_WORKSPACE_NAVIGATION: ReadonlyArray<WorkspaceNavGroup> = [
     section: "Διακυβέρνηση & ανάπτυξη",
     description: "Survey control center, fieldwork, consent, evidence και publication",
     links: [
-      { label: "Survey Control Center", href: "/admin/research/surveys", icon: "◌", permission: "research.read" }
+      { label: "Survey Control Center", href: "/admin/research/surveys", icon: "◌", permission: "research.read" },
+      { label: "Admin handbook", href: "/admin/research/handbook", icon: "▤", permission: "research.read" },
+      { label: "Global settings", href: "/admin/research/settings", icon: "⚙", permission: "research.read" }
     ]
   },
   {
