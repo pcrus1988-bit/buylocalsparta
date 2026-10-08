@@ -1,0 +1,124 @@
+import { createHash } from "node:crypto";
+import type { SqlExecutor, SqlRow } from "@buy-local-sparta/core";
+import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
+import { getProductionPostgresRuntime } from "./postgres-runtime";
+
+/**
+ * Redeem only a code actually issued for a completed research response.
+ * Codes are never stored in plaintext and neither merchant records nor this
+ * public endpoint can fetch research answers or contact identity.
+ */
+const RESEARCH_STUDY_SLUG = "greek-retail-2026";
+const REWARD_KIND = "thank_you_code";
+const globals = globalThis as typeof globalThis & {
+  __hubRewardCheckLimiter?: PostgresFixedWindowRateLimiter;
+};
+
+export type HubRewardQuote = Readonly<{
+  entitlementId: string;
+  studyId: string;
+  originalFeeCents: number;
+  discountCents: number;
+  payableFeeCents: number;
+  discountPercent: 50;
+}>;
+
+export class HubResearchRewardError extends Error {
+  readonly status: number;
+  readonly code: string;
+  constructor(code: string, message: string, status = 422) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.name = "HubResearchRewardError";
+  }
+}
+
+export function normalizedResearchCode(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string") throw new HubResearchRewardError("reward_invalid", "Ο κωδικός δεν είναι έγκυρος.");
+  const code = value.trim().toUpperCase();
+  if (!/^KM26-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}$/.test(code)) {
+    throw new HubResearchRewardError("reward_invalid", "Ο κωδικός δεν είναι έγκυρος.");
+  }
+  return code;
+}
+
+export function rewardHash(code: string): string {
+  return createHash("sha256").update(code, "utf8").digest("hex");
+}
+
+export function halfSetupFee(originalFeeCents: number): number {
+  if (!Number.isSafeInteger(originalFeeCents) || originalFeeCents <= 0 || originalFeeCents % 2 !== 0) {
+    throw new HubResearchRewardError("reward_not_applicable", "Ο κωδικός ισχύει μόνο για πλάνο με εφάπαξ κόστος ένταξης.");
+  }
+  return originalFeeCents / 2;
+}
+
+export async function consumeHubRewardLookupRateLimit(visitorKey: string, now: number) {
+  const limiter = globals.__hubRewardCheckLimiter ??= new PostgresFixedWindowRateLimiter(getProductionPostgresRuntime().sqlPool);
+  return limiter.consume({ route: "research-onboarding-reward-check", key: visitorKey, limit: 10, windowMs: 60 * 60 * 1000, now });
+}
+
+async function readEligibleReward(tx: SqlExecutor, code: string, lock: boolean): Promise<{ entitlementId: string; studyId: string }> {
+  const result = await tx.query<SqlRow>(`
+    SELECT re.id::text AS entitlement_id, rs.id::text AS study_id
+    FROM research_reward_entitlements re
+    JOIN research_responses rr ON rr.id = re.response_id
+    JOIN research_studies rs ON rs.id = rr.study_id
+    WHERE re.code_hash = $1
+      AND re.reward_kind = $2
+      AND re.status = 'issued'
+      AND rr.status = 'completed'
+      AND rs.slug = $3
+      AND (re.expires_at IS NULL OR re.expires_at > now())
+    LIMIT 1
+    ${lock ? "FOR UPDATE OF re" : ""}
+  `, [rewardHash(code), REWARD_KIND, RESEARCH_STUDY_SLUG]);
+  const row = result.rows[0];
+  if (!row) throw new HubResearchRewardError("reward_unavailable", "Ο κωδικός έχει λήξει, έχει χρησιμοποιηθεί ή δεν είναι έγκυρος.");
+  return { entitlementId: String(row.entitlement_id), studyId: String(row.study_id) };
+}
+
+function quote(entitlementId: string, studyId: string, originalFeeCents: number): HubRewardQuote {
+  const discountCents = halfSetupFee(originalFeeCents);
+  return {
+    entitlementId, studyId, originalFeeCents, discountCents,
+    payableFeeCents: originalFeeCents - discountCents, discountPercent: 50
+  };
+}
+
+export async function previewHubResearchReward(tx: SqlExecutor, code: string, originalFeeCents: number): Promise<HubRewardQuote> {
+  const reward = await readEligibleReward(tx, code, false);
+  return quote(reward.entitlementId, reward.studyId, originalFeeCents);
+}
+
+export async function lockHubResearchRewardForApplication(
+  tx: SqlExecutor, code: string, originalFeeCents: number
+): Promise<HubRewardQuote> {
+  const reward = await readEligibleReward(tx, code, true);
+  return quote(reward.entitlementId, reward.studyId, originalFeeCents);
+}
+
+export async function finalizeHubResearchReward(
+  tx: SqlExecutor,
+  reward: HubRewardQuote,
+  prospectId: string
+): Promise<void> {
+  const redeemed = await tx.query(`
+    UPDATE research_reward_entitlements
+    SET status='redeemed',redeemed_at=now(),
+        metadata=metadata || jsonb_build_object('redemption','business_onboarding_50','prospectId',$2::text)
+    WHERE id=$1 AND status='issued'
+  `, [reward.entitlementId, prospectId]);
+  if (redeemed.rowCount !== 1) throw new HubResearchRewardError("reward_unavailable", "Ο κωδικός χρησιμοποιήθηκε ήδη.");
+  await tx.query(`
+    INSERT INTO research_reward_redemptions (
+      entitlement_id,prospect_id,study_id,discount_kind,
+      setup_fee_original_cents,setup_discount_cents,setup_fee_payable_cents
+    ) VALUES ($1,$2,$3,'business_onboarding_50',$4,$5,$6)
+  `, [
+    reward.entitlementId, prospectId, reward.studyId,
+    reward.originalFeeCents, reward.discountCents, reward.payableFeeCents
+  ]);
+}
