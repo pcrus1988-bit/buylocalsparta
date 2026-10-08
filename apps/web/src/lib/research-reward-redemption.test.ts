@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { SqlExecutor } from "@buy-local-sparta/core";
-import {
-  finalizeHubResearchReward, halfSetupFee,
-  HubResearchRewardError, lockHubResearchRewardForApplication,
-  normalizedResearchCode, previewHubResearchReward, rewardHash
-} from "./research-reward-redemption.ts";
+import { halfSetupFee, HubResearchRewardError, normalizedResearchCode, rewardHash } from "./research-reward-code.ts";
+import { finalizeHubResearchReward, lockHubResearchRewardForApplication, previewHubResearchReward } from "./research-reward-redemption-operations.ts";
 
 const example = "KM26-ABCD-1234-FFFF";
 const makeTx = (queries: string[], rowCount = 1): SqlExecutor => ({
