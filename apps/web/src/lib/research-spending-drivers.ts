@@ -104,6 +104,6 @@ export function indexedDrivers(id:DriversSeriesId,from:number,to:number,baseYear
 export function spendingDriversCsv(from:number,to:number,lag:0|1,real:boolean):string{
   const head="income_reference_year,spending_year,equivalised_income_eur_annual,household_spending_eur_monthly,inflation_adjusted_2019,source_income,source_spending,source_prices";
   const pairs=spendingIncomePairs({from,to,lag,real});
-  const csvCell=(s:string|number)=>'"'+String(s).replace(/"/g,'""')+'"';
+  const csvCell=(s:string|number|boolean)=>'"'+String(s).replace(/"/g,'""')+'"';
   return [head,...pairs.map(p=>[p.incomeYear,p.spendingYear,p.income.toFixed(2),p.spending.toFixed(2),real,DRIVERS_SOURCES.silc,DRIVERS_SOURCES.hbs,DRIVERS_SOURCES.prices].map(csvCell).join(","))].join("\r\n")+"\r\n";
 }
