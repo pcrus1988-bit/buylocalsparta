@@ -2618,20 +2618,28 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     hardBounced: number;
     validationSuppressed: number;
     decided: number;
+    permanentBounced: number;
+    transientBounced: number;
+    unknownBounced: number;
+    accountSuppressed: number;
   }> = [];
   if (continuous) {
     const events = await pool.query<SqlRow>(`
       WITH classified AS (
         SELECT i.fieldwork_phase,m.status,
-          (m.status='bounced' AND EXISTS (
-            SELECT 1 FROM research_invite_events e
-            WHERE e.invite_id=i.id AND e.event_type='bounced'
-              AND e.metadata->>'bounceType'='Permanent'
-              AND e.metadata->>'bounceSubType'='EmailValidationSuppressed'
-              AND e.metadata->>'providerMessageId'=m.provider_message_id
-          )) AS validation_suppressed
+          bounce.bounce_type,bounce.bounce_sub_type,
+          (m.status='bounced' AND bounce.bounce_type='Permanent'
+            AND bounce.bounce_sub_type='EmailValidationSuppressed') AS validation_suppressed
         FROM research_invite_messages m
         JOIN research_invites i ON i.id=m.invite_id
+        LEFT JOIN LATERAL (
+          SELECT e.metadata->>'bounceType' AS bounce_type,
+                 e.metadata->>'bounceSubType' AS bounce_sub_type
+          FROM research_invite_events e
+          WHERE e.invite_id=i.id AND e.event_type='bounced'
+            AND e.metadata->>'providerMessageId'=m.provider_message_id
+          LIMIT 1
+        ) bounce ON true
         WHERE i.study_id=$1 AND m.attempt_kind='initial'
           AND m.status IN ('bounced','delivered')
       )
@@ -2639,6 +2647,13 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         count(*) FILTER (WHERE status='delivered')::int AS delivered,
         count(*) FILTER (WHERE status='bounced' AND NOT validation_suppressed)::int AS hard_bounced,
         count(*) FILTER (WHERE status='bounced' AND validation_suppressed)::int AS validation_suppressed,
+        count(*) FILTER (WHERE status='bounced' AND bounce_type='Permanent'
+          AND NOT validation_suppressed)::int AS permanent_bounced,
+        count(*) FILTER (WHERE status='bounced' AND bounce_type='Transient')::int AS transient_bounced,
+        count(*) FILTER (WHERE status='bounced'
+          AND (bounce_type IS NULL OR bounce_type NOT IN ('Permanent','Transient')))::int AS unknown_bounced,
+        count(*) FILTER (WHERE status='bounced' AND bounce_sub_type IN
+          ('OnAccountSuppressionList','OnTenantSuppressionList','UnsubscribedRecipient'))::int AS account_suppressed,
         count(*)::int AS decided
       FROM classified
       GROUP BY fieldwork_phase
@@ -2648,7 +2663,11 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       delivered: numberValue(row.delivered),
       hardBounced: numberValue(row.hard_bounced),
       validationSuppressed: numberValue(row.validation_suppressed),
-      decided: numberValue(row.decided)
+      decided: numberValue(row.decided),
+      permanentBounced: numberValue(row.permanent_bounced),
+      transientBounced: numberValue(row.transient_bounced),
+      unknownBounced: numberValue(row.unknown_bounced),
+      accountSuppressed: numberValue(row.account_suppressed)
     }));
     for (const metrics of deliverySafety) {
       const result = evaluateResearchDeliverySafety(metrics);
@@ -2659,6 +2678,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
           safetyHold: result.hardBounceHold
             ? "SES_HARD_BOUNCE_RATE_ABOVE_GRADUATED_SAFETY_LIMIT"
             : "SES_VALIDATION_SUPPRESSION_RATE_ABOVE_GRADUATED_SAFETY_LIMIT",
+          safetyHoldPhase: metrics.phase,
           deliverySafety,
           safetyThreshold: result.hardBounceHold
             ? result.hardBounceThreshold
