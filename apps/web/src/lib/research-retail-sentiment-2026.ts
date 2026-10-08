@@ -171,6 +171,15 @@ export function withRetailConfidencePreregistration(
         segments: ["overall", "regionCode", "sectorCode"]
       }
     ],
+    exploratoryAnalyses: (Array.isArray(plan.exploratoryAnalyses) ? plan.exploratoryAnalyses : [])
+      .map((item) => {
+        const analysis = item as { family?: string; metrics?: string[] };
+        if (analysis.family !== "headline_pairwise_region_sector") return item;
+        return {
+          ...analysis,
+          metrics: [...new Set([...(Array.isArray(analysis.metrics) ? analysis.metrics : []), "retail_confidence.mean"])]
+        };
+      }),
     confidenceIndex: {
       schema: "greek-retail-confidence-v1",
       metricKey: "retail_confidence.mean",
