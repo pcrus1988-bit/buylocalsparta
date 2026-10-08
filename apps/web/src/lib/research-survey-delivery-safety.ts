@@ -66,3 +66,22 @@ export function researchDeliveryReviewMilestones(decisions: number): Readonly<{
   const completedMilestone=Math.floor(n/10000)*10000;
   return {completedMilestone,nextMilestone:completedMilestone+10000};
 }
+
+/** Isolated SES submission rejects must not fail an already-approved census.
+ * At most one failed submission per 50-recipient step, subject to a cumulative
+ * 1% cap (rounded up); failures after SES acceptance are NOT eligible.
+ * This does not alter delivery/bounce, validation, complaint or SES-account holds.
+ */
+export function allowIsolatedResearchSubmissionFailure(input: Readonly<{
+  continuous: boolean;
+  batchFailures: number;
+  postAcceptanceFailures: number;
+  previousFailures: number;
+  processedAfterBatch: number;
+}>): boolean {
+  if (!input.continuous || input.batchFailures !== 1 || input.postAcceptanceFailures > 0) return false;
+  const processed = Math.floor(input.processedAfterBatch);
+  if (!Number.isFinite(processed) || processed < 1) return false;
+  const previous = Math.max(0, Math.floor(input.previousFailures));
+  return previous + 1 <= Math.max(1, Math.ceil(processed * 0.01));
+}
