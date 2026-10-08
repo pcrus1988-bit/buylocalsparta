@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { HubResearchRewardError } from "../../../lib/research-reward-redemption";
 import { getHubExpansionPlan, type HubBillingCycle, type HubExpansionPlanCode } from "../../../lib/hub-expansion-plans";
 import { getAccountSession } from "../../../lib/account-session";
 import { assertCustomerCsrf } from "../../../lib/customer-state-runtime";
@@ -65,7 +66,8 @@ export async function POST(request: Request) {
       primaryCategory: stringField(body.primaryCategory),
       websiteUrl: optionalStringField(body.websiteUrl),
       currentSalesChannels: optionalStringField(body.currentSalesChannels),
-      notes: optionalStringField(body.notes)
+      notes: optionalStringField(body.notes),
+      rewardCode: optionalStringField(body.rewardCode)
     };
 
     const receipt = await submitHubProspectApplication({ application, principal, now });
@@ -152,6 +154,9 @@ export async function POST(request: Request) {
           : `Το ενδιαφέρον συνεργασίας καταχωρίστηκε με ${receipt.billingCycle === "annual" ? "ετήσια" : "μηνιαία"} χρέωση για το HUB που αντιστοιχεί στην επαληθευμένη τοποθεσία Γ.Ε.ΜΗ. Δεν έγινε χρέωση.`
     }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    if (error instanceof HubResearchRewardError) {
+      return Response.json({ code: error.code, error: error.message }, { status: error.status, headers: { "Cache-Control": "no-store" } });
+    }
     if (error instanceof HubProspectApplicationError) {
       return Response.json(
         {
