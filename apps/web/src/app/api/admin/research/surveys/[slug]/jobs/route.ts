@@ -23,6 +23,7 @@ type Body = {
   expectedResponseRate?: number;
   randomSeed?: string;
   fieldworkPhase?: "pilot" | "main";
+  cohort?: "A" | "B";
   label?: string;
   limit?: number;
   subject?: string;
@@ -93,6 +94,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         expectedResponseRate: body.expectedResponseRate === undefined ? undefined : Number(body.expectedResponseRate),
         randomSeed: body.randomSeed,
         fieldworkPhase: body.fieldworkPhase,
+        cohort: body.cohort,
         label: body.label
       });
       await recordAdminAudit(
@@ -101,7 +103,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         "research_study",
         slug,
         "Queue reproducible stratified sample draw",
-{ jobId: result.jobId, targetN: Number(body.targetN), desiredCompleteN: body.desiredCompleteN ?? null, expectedResponseRate: body.expectedResponseRate ?? null, randomSeed: result.randomSeed, fieldworkPhase: result.fieldworkPhase }
+{ jobId: result.jobId, targetN: Number(body.targetN), desiredCompleteN: body.desiredCompleteN ?? null, expectedResponseRate: body.expectedResponseRate ?? null, randomSeed: result.randomSeed, fieldworkPhase: result.fieldworkPhase, cohort: body.cohort ?? "A" }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
