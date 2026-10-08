@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
+import { KONTA_MOY_EMAIL_COMPANY } from "@buy-local-sparta/resend-notifications";
 import { buildAdminMailRawMime, type AdminMailAddress } from "./admin-mail-mime";
 import { sendRawSesEmail, sesMailConfigFromEnv } from "./admin-mail-ses";
 
 const DEFAULT_FROM = "partners@kontamou.site";
 const DEFAULT_REPLY_TO = "partners@kontamou.site";
 const DEFAULT_DOMAIN = "kontamou.site";
+const SPARTA_BRANCH_ADDRESS = "Σειρήνων 11, 23100 Σπάρτη";
 
 export type ResearchSurveyEmailConfiguration = Readonly<{
   enabled: boolean;
@@ -51,17 +53,29 @@ export async function sendResearchSurveyInvitation(input: Readonly<{
   methodologyUrl: string;
   subjectTemplate: string;
   bodyTemplate: string;
+  companyName?: string;
 }>): Promise<Readonly<{ providerMessageId: string }>> {
   const configuration = assertResearchSurveyEmailReady();
+  const optOutUrl = `${input.surveyUrl}?optout=1`;
+  const privacyUrl = new URL("/research/privacy", input.surveyUrl).toString();
+  const companyName = input.companyName?.trim() || "";
+  const companyGreeting = companyName
+    ? `Προς την επιχείρηση «${companyName}»,`
+    : "Προς την επιλεγμένη επιχείρηση,";
   const replacements = {
     survey_url: input.surveyUrl,
     methodology_url: input.methodologyUrl,
-    study_title: input.studyTitle
+    privacy_url: privacyUrl,
+    optout_url: optOutUrl,
+    study_title: input.studyTitle,
+    company_name: companyName,
+    company_greeting: companyGreeting
   };
   const subject = renderRecruitmentTemplate(input.subjectTemplate, replacements).trim();
-  const optOutUrl = `${input.surveyUrl}?optout=1`;
-  const privacyUrl = new URL("/research/privacy", input.surveyUrl).toString();
   let text = renderRecruitmentTemplate(input.bodyTemplate, replacements).trim();
+  if (!/\{\{company_(?:name|greeting)\}\}/i.test(input.bodyTemplate)) {
+    text = `${companyGreeting}\n\n${text}`;
+  }
   if (!subject) throw new Error("RESEARCH_RECRUITMENT_SUBJECT_EMPTY");
   if (!text) throw new Error("RESEARCH_RECRUITMENT_BODY_EMPTY");
   if (!text.includes(input.surveyUrl)) {
@@ -73,7 +87,10 @@ export async function sendResearchSurveyInvitation(input: Readonly<{
   if (!text.includes(privacyUrl)) {
     text += `\n\nΓιατί λάβατε την πρόσκληση & προστασία δεδομένων: ${privacyUrl}`;
   }
-  text += `\n\nΔεν επιθυμείτε άλλη ερευνητική επικοινωνία από το KONTA MOY; ${optOutUrl}`;
+  if (!text.includes(optOutUrl)) {
+    text += `\n\nΔεν επιθυμείτε άλλη ερευνητική επικοινωνία από το KONTA MOY; ${optOutUrl}`;
+  }
+  text += `\n\n${researchPlainTextFooter()}`;
 
   const fromAddress = mailAddress(configuration.from, "KONTA MOY Research");
   const replyToAddress = mailAddress(configuration.replyTo);
@@ -83,7 +100,16 @@ export async function sendResearchSurveyInvitation(input: Readonly<{
     replyTo: [replyToAddress],
     subject,
     text,
-    html: researchInvitationHtml(subject, text, input.surveyUrl, input.methodologyUrl, privacyUrl, optOutUrl),
+    html: researchInvitationHtml({
+      subject,
+      text,
+      surveyUrl: input.surveyUrl,
+      methodologyUrl: input.methodologyUrl,
+      privacyUrl,
+      optOutUrl,
+      companyName,
+      attemptKind: input.attemptKind
+    }),
     internetMessageIdDomain: DEFAULT_DOMAIN
   });
 
@@ -281,6 +307,7 @@ function researchParticipantHtml(
           <p style="margin:24px 0"><a href="${escapeHtml(primaryUrl)}" style="display:inline-block;padding:14px 22px;border-radius:999px;background:#183027;color:#fffdf8;text-decoration:none;font-weight:800">${escapeHtml(primaryLabel)}</a></p>
           <p style="font-size:13px;line-height:1.6;color:#58645f">Η επικοινωνία αυτή ανήκει στη μελέτη και ακολουθεί την αντίστοιχη επιλογή συγκατάθεσής σας. <a href="${escapeHtml(methodologyUrl)}" style="color:#183027">Μεθοδολογία και πληροφορίες μελέτης</a>.</p>
         </td></tr>
+        ${researchEmailFooterHtml()}
       </table>
     </td></tr>
   </table>
@@ -288,43 +315,135 @@ function researchParticipantHtml(
 </html>`;
 }
 
-function researchInvitationHtml(
-  subject: string,
-  text: string,
-  surveyUrl: string,
-  methodologyUrl: string,
-  privacyUrl: string,
-  optOutUrl: string
-): string {
-  const paragraphs = text
+function researchPlainTextFooter(): string {
+  return [
+    "—",
+    "KONTA MOY · Buy Local Sparta",
+    KONTA_MOY_EMAIL_COMPANY.legalName,
+    \`ΑΦΜ \${KONTA_MOY_EMAIL_COMPANY.taxNumber} · ΓΕΜΗ \${KONTA_MOY_EMAIL_COMPANY.gemiNumber}\`,
+    \`Έδρα: \${KONTA_MOY_EMAIL_COMPANY.address}\`,
+    \`Υποκατάστημα Σπάρτης: \${SPARTA_BRANCH_ADDRESS}\`,
+    \`Email: \${KONTA_MOY_EMAIL_COMPANY.email} · Τηλ.: \${KONTA_MOY_EMAIL_COMPANY.phone}\`,
+    \`Website: \${KONTA_MOY_EMAIL_COMPANY.website}\`
+  ].join("\n");
+}
+
+function researchEmailFooterHtml(): string {
+  const website = KONTA_MOY_EMAIL_COMPANY.website.replace(/\/$/, "");
+  return \`<tr><td style="background:#101f18;padding:26px 32px;color:#cfd8d1;font-size:11px;line-height:1.7">
+    <div style="font-size:13px;font-weight:800;color:#fffdf8;letter-spacing:.07em;margin-bottom:6px">KONTA MOY · BUY LOCAL SPARTA</div>
+    <div style="color:#fffdf8;font-weight:700;margin-bottom:8px">ΚΟΝΤΑ ΜΟΥ: Η Σπάρτη δίπλα σου</div>
+    <strong style="color:#fffdf8">\${escapeHtml(KONTA_MOY_EMAIL_COMPANY.legalName)}</strong><br>
+    ΑΦΜ \${escapeHtml(KONTA_MOY_EMAIL_COMPANY.taxNumber)} · ΓΕΜΗ \${escapeHtml(KONTA_MOY_EMAIL_COMPANY.gemiNumber)}<br>
+    Έδρα: \${escapeHtml(KONTA_MOY_EMAIL_COMPANY.address)}<br>
+    Υποκατάστημα Σπάρτης: \${escapeHtml(SPARTA_BRANCH_ADDRESS)}<br>
+    <a href="mailto:\${escapeHtml(KONTA_MOY_EMAIL_COMPANY.email)}" style="color:#fffdf8">\${escapeHtml(KONTA_MOY_EMAIL_COMPANY.email)}</a>
+    &nbsp;·&nbsp;
+    <a href="tel:+30\${escapeHtml(KONTA_MOY_EMAIL_COMPANY.phone)}" style="color:#fffdf8">\${escapeHtml(KONTA_MOY_EMAIL_COMPANY.phone)}</a>
+    &nbsp;·&nbsp;
+    <a href="\${escapeHtml(website)}" style="color:#fffdf8">kontamou.site</a>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.12);color:#91a098">
+      <a href="\${escapeHtml(website + "/privacy")}" style="color:#cfd8d1">Ιδιωτικότητα</a>
+      &nbsp;·&nbsp;
+      <a href="\${escapeHtml(website + "/help")}" style="color:#cfd8d1">Βοήθεια & επικοινωνία</a>
+    </div>
+  </td></tr>\`;
+}
+
+function researchInvitationHtml(input: Readonly<{
+  subject: string;
+  text: string;
+  surveyUrl: string;
+  methodologyUrl: string;
+  privacyUrl: string;
+  optOutUrl: string;
+  companyName: string;
+  attemptKind?: "initial" | "reminder" | "reissue";
+}>): string {
+  const actionUrls = [input.surveyUrl, input.methodologyUrl, input.privacyUrl, input.optOutUrl];
+  const paragraphs = input.text
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean)
-    .map((paragraph) => `<p style="margin:0 0 16px;line-height:1.65">${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
+    .filter((paragraph) => !actionUrls.some((url) => paragraph.includes(url)))
+    .filter((paragraph) => !paragraph.startsWith("—\nKONTA MOY"))
+    .map((paragraph) => \`<p style="margin:0 0 17px;font-size:15px;line-height:1.7;color:#263d34">\${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>\`)
     .join("");
 
-  return `<!doctype html>
+  const reminder = input.attemptKind === "reminder";
+  const preheader = reminder
+    ? \`Υπενθύμιση συμμετοχής στη μελέτη «\${input.subject}»\`
+    : input.subject;
+  const companyLabel = input.companyName
+    ? \`<div style="margin-top:20px;display:inline-block;padding:7px 11px;border:1px solid rgba(255,255,255,.22);border-radius:999px;color:#e8ede9;font-size:11px;line-height:1.3">ΠΡΟΣ · \${escapeHtml(input.companyName)}</div>\`
+    : "";
+  const primaryLabel = reminder ? "Συνέχεια στη μελέτη" : "Συμμετοχή στη μελέτη";
+
+  return \`<!doctype html>
 <html lang="el">
+<head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;background:#f4f0e8;font-family:Arial,Helvetica,sans-serif;color:#183027">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px 12px;background:#f4f0e8">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">\${escapeHtml(preheader)}</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;background:#f4f0e8;padding:28px 12px">
     <tr><td align="center">
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#fffdf8;border:1px solid #d6cfbf;border-radius:20px;overflow:hidden">
-        <tr><td style="background:#183027;color:#fffdf8;padding:28px 32px">
-          <div style="font-size:11px;letter-spacing:.14em;font-weight:800;color:#d8d8c7">KONTA MOY · ΕΡΕΥΝΑ ΛΙΑΝΕΜΠΟΡΙΟΥ</div>
-          <h1 style="font-family:Georgia,'Times New Roman',serif;font-weight:500;font-size:31px;line-height:1.1;margin:12px 0 0">${escapeHtml(subject)}</h1>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;max-width:680px;background:#fffdf8;border:1px solid #d6cfbf;border-radius:24px;overflow:hidden">
+        <tr><td style="background:#183027;color:#fffdf8;padding:30px 32px">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+            <tr>
+              <td valign="middle">
+                <div style="width:46px;height:46px;border:1px solid #f4f0e8;border-radius:50%;line-height:46px;text-align:center;font-size:11px;font-weight:800;letter-spacing:.12em;color:#fffdf8">KM</div>
+              </td>
+              <td valign="middle" align="right" style="font-size:10px;line-height:1.4;letter-spacing:.14em;font-weight:800;color:#d8d8c7">KONTA MOY<br>ΕΡΕΥΝΑ ΛΙΑΝΕΜΠΟΡΙΟΥ</td>
+            </tr>
+          </table>
+          \${companyLabel}
+          <div style="margin-top:20px;font-size:11px;letter-spacing:.14em;font-weight:800;color:#c7c9a8">\${reminder ? "ΥΠΕΝΘΥΜΙΣΗ" : "ΠΡΟΣΚΛΗΣΗ ΣΥΜΜΕΤΟΧΗΣ"}</div>
+          <h1 style="font-family:Georgia,'Times New Roman',serif;font-weight:500;font-size:32px;line-height:1.1;letter-spacing:-.02em;margin:10px 0 0;color:#fffdf8">\${escapeHtml(input.subject)}</h1>
         </td></tr>
         <tr><td style="padding:32px">
-          ${paragraphs}
-          <p style="margin:24px 0"><a href="${escapeHtml(surveyUrl)}" style="display:inline-block;padding:14px 22px;border-radius:999px;background:#183027;color:#fffdf8;text-decoration:none;font-weight:800">Συμμετοχή στην έρευνα →</a></p>
-          <p style="font-size:13px;line-height:1.6;color:#58645f">Ο σύνδεσμος είναι προσωπικός για την επιλεγμένη συμμετοχή. Δεν περιέχει ΑΦΜ, email ή επωνυμία. <a href="${escapeHtml(methodologyUrl)}" style="color:#183027">Μεθοδολογία και πληροφορίες μελέτης</a>.</p>
-          <p style="font-size:13px;line-height:1.6;color:#58645f"><a href="${escapeHtml(privacyUrl)}" style="color:#183027;font-weight:700">Γιατί λάβατε αυτή την πρόσκληση, από πού προήλθαν τα στοιχεία και πώς χρησιμοποιούνται σύμφωνα με τον GDPR</a>.</p>
-          <p style="font-size:13px;line-height:1.6;color:#58645f">Δεν επιθυμείτε άλλη ερευνητική επικοινωνία; <a href="${escapeHtml(optOutUrl)}" style="color:#183027">Να μη λάβω άλλες ερευνητικές προσκλήσεις</a>.</p>
+          \${paragraphs}
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:8px 0 24px">
+            <tr><td style="padding:14px 16px;border-left:3px solid #b29661;background:#f4f0e8;border-radius:10px;font-size:13px;line-height:1.6;color:#405149">
+              <strong style="color:#183027">Η συμμετοχή είναι απολύτως προαιρετική.</strong><br>
+              Οι απαντήσεις χρησιμοποιούνται για ερευνητικούς σκοπούς και τα δημοσιευμένα αποτελέσματα παρουσιάζονται συγκεντρωτικά.
+            </td></tr>
+          </table>
+          <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 14px">
+            <tr><td style="border-radius:999px;background:#183027">
+              <a href="\${escapeHtml(input.surveyUrl)}" style="display:inline-block;padding:15px 23px;color:#fffdf8;text-decoration:none;font-size:14px;font-weight:800">\${primaryLabel} →</a>
+            </td></tr>
+          </table>
+          <div style="margin-bottom:26px;font-size:11px;line-height:1.55;color:#758078">
+            Αν το κουμπί δεν ανοίγει, χρησιμοποιήστε τον προσωπικό σύνδεσμο:<br>
+            <a href="\${escapeHtml(input.surveyUrl)}" style="color:#405149;word-break:break-all">\${escapeHtml(input.surveyUrl)}</a>
+          </div>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-top:1px solid #d6cfbf;border-bottom:1px solid #d6cfbf;margin:0 0 22px">
+            <tr><td style="padding:14px 0;font-size:13px;line-height:1.55">
+              <strong>Μεθοδολογία & επιλογή δείγματος</strong><br>
+              <a href="\${escapeHtml(input.methodologyUrl)}" style="color:#183027;text-decoration:underline;text-underline-offset:3px">Δείτε πώς σχεδιάστηκε η μελέτη</a>
+            </td></tr>
+            <tr><td style="padding:14px 0;border-top:1px solid #e6e0d5;font-size:13px;line-height:1.55">
+              <strong>Ιδιωτικότητα & προέλευση στοιχείων</strong><br>
+              <a href="\${escapeHtml(input.privacyUrl)}" style="color:#183027;text-decoration:underline;text-underline-offset:3px">Γιατί λάβατε την πρόσκληση και πώς χρησιμοποιούνται τα δεδομένα</a>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 12px;font-size:12px;line-height:1.65;color:#58645f">
+            Ο προσωπικός σύνδεσμος εξυπηρετεί αποκλειστικά τη συγκεκριμένη επιλεγμένη συμμετοχή και την αποτροπή διπλών απαντήσεων. Δεν χρειάζεται να πληκτρολογήσετε ΑΦΜ, email ή επωνυμία στο ερωτηματολόγιο.
+          </p>
+          <p style="margin:0 0 12px;font-size:12px;line-height:1.65;color:#58645f">
+            Η πρόσκληση αυτή αφορά αποκλειστικά ερευνητική επικοινωνία και δεν αποτελεί εμπορική επικοινωνία ούτε συγκατάθεση marketing.
+          </p>
+          <p style="margin:0;font-size:12px;line-height:1.65;color:#58645f">
+            Δεν επιθυμείτε άλλη ερευνητική επικοινωνία;
+            <a href="\${escapeHtml(input.optOutUrl)}" style="color:#183027;text-decoration:underline;text-underline-offset:3px">Να μη λάβω άλλες ερευνητικές προσκλήσεις</a>.
+          </p>
         </td></tr>
+        \${researchEmailFooterHtml()}
       </table>
     </td></tr>
   </table>
 </body>
-</html>`;
+</html>\`;
 }
 
 function escapeHtml(value: string): string {
