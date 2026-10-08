@@ -2584,7 +2584,15 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       COALESCE(jobs.queued_sample,0)::int AS queued_sample_jobs,
       COALESCE(jobs.running_sample,0)::int AS running_sample_jobs,
       COALESCE(jobs.queued,0)::int AS queued_jobs,
-      COALESCE(jobs.running,0)::int AS running_jobs
+      COALESCE(jobs.running,0)::int AS running_jobs,
+      campaign.status AS campaign_status,
+      campaign.id AS campaign_id,
+      campaign.input->>'cohort' AS campaign_cohort,
+      campaign.input->>'paused' AS campaign_paused,
+      campaign.input->>'limit' AS campaign_approved_limit,
+      campaign.output->>'campaignProcessedCount' AS campaign_processed,
+      campaign.output->>'campaignSentCount' AS campaign_sent,
+      campaign.output->>'safetyHold' AS campaign_safety_hold
     FROM research_studies s
     LEFT JOIN LATERAL (
       SELECT version,subject,body_text FROM research_recruitment_templates
@@ -2662,6 +2670,12 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
              count(*) FILTER (WHERE status='running' AND job_type IN ('sample_draw','invite_batch','invite_reminder')) AS running_sample
       FROM research_study_jobs WHERE study_id=s.id AND wave_id=s.current_wave_id
     ) jobs ON true
+    LEFT JOIN LATERAL (
+      SELECT id,status,input,output FROM research_study_jobs
+      WHERE study_id=s.id AND wave_id=s.current_wave_id
+        AND job_type='invite_batch' AND input->>'mode'='continuous'
+      ORDER BY created_at DESC LIMIT 1
+    ) campaign ON true
     WHERE s.slug=$1 LIMIT 1
   `, [slug]);
   const row = result.rows[0];
@@ -2692,6 +2706,14 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
     queuedSampleJobs: numberValue(row.queued_sample_jobs),
     runningSampleJobs: numberValue(row.running_sample_jobs),
     queuedJobs: numberValue(row.queued_jobs),
-    runningJobs: numberValue(row.running_jobs)
+    runningJobs: numberValue(row.running_jobs),
+    campaign: row.campaign_id ? {
+      id:text(row.campaign_id),status:text(row.campaign_status),cohort:text(row.campaign_cohort),
+      paused:text(row.campaign_paused)==="true",
+      approvedMaxEmails:numberValue(row.campaign_approved_limit),
+      processedCount:numberValue(row.campaign_processed),
+      sentCount:numberValue(row.campaign_sent),
+      safetyHold:optionalText(row.campaign_safety_hold)
+    } : undefined
   };
 }
