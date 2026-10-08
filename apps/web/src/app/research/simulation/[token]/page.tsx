@@ -1,3 +1,5 @@
+import { SiteFooter } from "../../../../components/SiteFooter";
+import { ResearchPublicNavigation } from "../../../../components/ResearchPublicNavigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ResearchSimulationParticipant } from "../../../../components/ResearchSimulationParticipant";
@@ -19,20 +21,24 @@ export default async function ResearchSimulationLinkPage({ params }: {
   try {
     invitation = readSimulationToken(token, "invitation");
   } catch {
-    return <main className="vendor-app" style={{ padding: "40px 16px" }}>
+    return <main className="vendor-app" style={{ padding: "18px 16px 40px" }}>
+      <div style={{ maxWidth: 1160, margin: "0 auto" }}><ResearchPublicNavigation /></div>
       <div className="shell vendor-section" style={{ maxWidth: 760, margin: "0 auto" }}>
         <div className="eyebrow">KONTA MOY · TEST ONLY</div>
         <h1>Ο δοκιμαστικός σύνδεσμος δεν είναι πλέον διαθέσιμος.</h1>
         <p>Η πρόσκληση έληξε ή ο σύνδεσμος δεν είναι έγκυρος. Δημιουργήστε νέο τεστ από τη διαχείριση.</p>
         <Link href="/research">Παρατηρητήριο Ελληνικού Λιανεμπορίου</Link>
       </div>
+      <SiteFooter />
     </main>;
   }
-  return <main className="vendor-app" style={{ padding: "40px 16px" }}>
+  return <main className="vendor-app" style={{ padding: "18px 16px 40px" }}>
+      <div style={{ maxWidth: 1160, margin: "0 auto" }}><ResearchPublicNavigation /></div>
     <ResearchSimulationParticipant
       slug={invitation.slug}
       token={token}
       expiresAt={invitation.expiresAt}
     />
+    <SiteFooter />
   </main>;
 }

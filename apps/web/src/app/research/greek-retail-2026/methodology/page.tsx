@@ -1,3 +1,4 @@
+import { ResearchPublicNavigation } from "../../../../components/ResearchPublicNavigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../../../components/SiteFooter";
@@ -27,6 +28,7 @@ const stages = [
 
 export default function GreekRetailMethodologyPage() {
   return <main className={styles.shell}>
+    <ResearchPublicNavigation active="methodology" studySlug="greek-retail-2026" />
     <header className={styles.hero}>
       <div className={styles.brand}>KONTA MOY · ΜΕΘΟΔΟΛΟΓΙΑ ΕΡΕΥΝΑΣ</div>
       <span>Ελληνικό Λιανεμπόριο 2026</span>

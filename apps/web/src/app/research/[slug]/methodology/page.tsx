@@ -1,3 +1,4 @@
+import { ResearchPublicNavigation } from "../../../../components/ResearchPublicNavigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -35,16 +36,7 @@ export default async function ResearchMethodologyPage({ params }: PageProps) {
 
   return <main className={styles.shell}>
     <div className={styles.frame}>
-      <div className={styles.topbar}>
-        <Link className={styles.brand} href="/research">KONTA MOY · ΕΡΕΥΝΑ</Link>
-        <nav className={styles.nav} aria-label="Έρευνα">
-          <Link href={"/research/" + study.waveSlug}>Επισκόπηση</Link>
-          <Link href={"/research/" + study.waveSlug + "/methodology"}>Μεθοδολογία</Link>
-          <Link href={"/research/" + study.waveSlug + "/results"}>Αποτελέσματα</Link>
-          <Link href="/research/market-sentiment">Άλλοι φορείς</Link>
-          <Link href="/research/compare">Σύγκριση</Link>
-        </nav>
-      </div>
+      <ResearchPublicNavigation active="methodology" studySlug={study.waveSlug} />
 
       <header className={styles.hero}>
         <div>

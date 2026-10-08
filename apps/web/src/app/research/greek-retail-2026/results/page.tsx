@@ -1,3 +1,4 @@
+import { ResearchPublicNavigation } from "../../../../components/ResearchPublicNavigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../../../components/SiteFooter";
@@ -46,6 +47,7 @@ export default async function GreekRetailResultsPage() {
 
   if (!published) {
     return <main className={styles.shell}>
+    <ResearchPublicNavigation active="results" studySlug="greek-retail-2026" />
       <header className={styles.hero}>
         <div className={styles.brand}>KONTA MOY · ΑΠΟΤΕΛΕΣΜΑΤΑ ΕΡΕΥΝΑΣ</div>
         <span>Ελληνικό Λιανεμπόριο 2026</span>
@@ -66,6 +68,7 @@ export default async function GreekRetailResultsPage() {
   const sector = visible.filter((estimate) => typeof estimate.segment.sectorCode === "string");
 
   return <main className={styles.shell}>
+    <ResearchPublicNavigation active="results" studySlug="greek-retail-2026" />
     <header className={styles.hero}>
       <div className={styles.brand}>KONTA MOY · ΑΠΟΤΕΛΕΣΜΑΤΑ ΕΡΕΥΝΑΣ</div>
       <span>Ελληνικό Λιανεμπόριο 2026</span>

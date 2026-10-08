@@ -1,3 +1,4 @@
+import { ResearchPublicNavigation } from "./ResearchPublicNavigation";
 import Link from "next/link";
 import type { PublicResearchStudySummary } from "../lib/research-observatory-runtime";
 import { ResearchLiveProgress } from "./ResearchLiveProgress";
@@ -58,16 +59,7 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
 
   return <main className={styles.shell}>
     <div className={styles.frame}>
-      <div className={styles.topbar}>
-        <Link className={styles.brand} href="/research">KONTA MOY · ΕΡΕΥΝΑ</Link>
-        <nav className={styles.nav} aria-label="Έρευνα">
-          <Link href="/research">Μελέτες</Link>
-          <Link href={"/research/" + study.waveSlug + "/methodology"}>Μεθοδολογία</Link>
-          <Link href={"/research/" + study.waveSlug + "/results"}>Αποτελέσματα</Link>
-          <Link href="/research/market-sentiment">Άλλοι φορείς</Link>
-          <Link href="/research/compare">Σύγκριση</Link>
-        </nav>
-      </div>
+      <ResearchPublicNavigation active="overview" studySlug={study.waveSlug} />
 
       <header className={styles.hero}>
         <div>

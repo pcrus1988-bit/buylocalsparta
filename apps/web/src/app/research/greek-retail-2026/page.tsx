@@ -1,3 +1,4 @@
+import { ResearchPublicNavigation } from "../../../components/ResearchPublicNavigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../../components/SiteFooter";
@@ -25,16 +26,7 @@ export default async function GreekRetailResearchPage() {
 
   return <main className={styles.shell}>
     <div className={styles.frame}>
-      <div className={styles.topbar}>
-        <Link className={styles.brand} href="/research">KONTA MOY · ΕΡΕΥΝΑ</Link>
-        <nav className={styles.nav} aria-label="Έρευνα">
-          <Link href="/research">Μελέτες</Link>
-          <Link href="/research/greek-retail-2026/methodology">Μεθοδολογία</Link>
-          <Link href="/research/greek-retail-2026/results">Αποτελέσματα</Link>
-          <Link href="/research/market-sentiment">Άλλοι φορείς</Link>
-          <Link href="/research/compare">Σύγκριση</Link>
-        </nav>
-      </div>
+      <ResearchPublicNavigation active="overview" studySlug={"greek-retail-2026"} />
       <header className={styles.hero}>
         <div>
           <div className={styles.eyebrow}>Παρατηρητήριο Ελληνικού Λιανεμπορίου</div>

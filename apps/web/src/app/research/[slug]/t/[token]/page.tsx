@@ -1,3 +1,5 @@
+import { SiteFooter } from "../../../../../components/SiteFooter";
+import { ResearchPublicNavigation } from "../../../../../components/ResearchPublicNavigation";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ResearchSurveyForm } from "../../../../../components/ResearchSurveyForm";
@@ -25,16 +27,19 @@ export default async function ResearchSurveyTokenPage({ params, searchParams }: 
     const message = error instanceof Error ? error.message : "";
     if (message === "SURVEY_INVITE_NOT_FOUND") notFound();
     return <main className={styles.shell}>
+      <ResearchPublicNavigation studySlug={slug} />
       <div className={styles.invalid}>
         <div className={styles.brand}>KONTA MOY · RESEARCH</div>
         <h1>Η πρόσκληση δεν είναι διαθέσιμη.</h1>
         <p>{message === "SURVEY_INVITE_EXPIRED" ? "Ο προσωπικός σύνδεσμος έχει λήξει." : "Η μελέτη δεν είναι διαθέσιμη αυτή τη στιγμή."}</p>
         <a href={"/research/" + encodeURIComponent(slug) + "/methodology"}>Μεθοδολογία μελέτης</a>
       </div>
+      <SiteFooter />
     </main>;
   }
 
   return <main className={styles.shell}>
+      <ResearchPublicNavigation studySlug={slug} />
     <header className={styles.hero}>
       <div className={styles.brand}>KONTA MOY · RESEARCH</div>
       <span>Πρόσκληση συμμετοχής</span>
@@ -51,5 +56,6 @@ export default async function ResearchSurveyTokenPage({ params, searchParams }: 
       </div>
     </header>
     <ResearchSurveyForm slug={slug} token={token} initial={context} initialOptOutIntent={optOutIntent} />
+    <SiteFooter />
   </main>;
 }
