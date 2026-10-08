@@ -156,6 +156,7 @@ export default function ExternalMarketSentimentPage() {
         <div className={styles.sectionActions}>
           <Link className={[styles.actionButton, styles.primaryButton].join(" ")} href="/research/compare">Ανοίξτε το εργαστήριο συγκρίσεων →</Link>
           <Link className={styles.actionButton} href="/research/compare?view=ours">Οι μελέτες KONTA MOY →</Link>
+          <Link className={styles.actionButton} href="/research/compare#income-spending-relations">Εισόδημα, πληθωρισμός & δαπάνες →</Link>
         </div>
       </section>
 
