@@ -560,6 +560,7 @@ export async function queueGreekRetailInviteReminderBatch(
       s.id,
       s.title,
       s.status,
+      s.fieldwork_ends_at,
       s.current_wave_id,
       rt.id AS reminder_template_id
     FROM research_studies s
@@ -778,6 +779,9 @@ export async function ensureGreekRetailAutomaticReminderBatch(): Promise<Readonl
   if (!study) return { queued: false, candidateCount: 0, reason: "reminder_template_not_ready" };
   if (!["pilot","fielding"].includes(text(study.status))) {
     return { queued: false, candidateCount: 0, reason: "study_not_fielding" };
+  }
+  if (study.fieldwork_ends_at && new Date(String(study.fieldwork_ends_at)).getTime() <= Date.now()) {
+    return { queued: false, candidateCount: 0, reason: "fieldwork_deadline_passed" };
   }
   const waveId = text(study.current_wave_id);
   if (!waveId) return { queued: false, candidateCount: 0, reason: "current_wave_missing" };
@@ -2196,6 +2200,9 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       `, [job.study_id, fieldworkPhase, job.wave_id]);
       const row = study.rows[0];
       if (!row) throw new Error("RESEARCH_INVITE_BATCH_NOT_READY");
+      if (row.fieldwork_ends_at && new Date(String(row.fieldwork_ends_at)).getTime() <= Date.now()) {
+        throw new Error("SURVEY_INVITE_EXPIRED");
+      }
       if (!["pilot","fielding"].includes(text(row.study_status))) throw new Error("SURVEY_NOT_OPEN");
       const currentPhase = text(row.study_status) === "pilot" ? "pilot" : "main";
       if (currentPhase !== fieldworkPhase || text(row.fieldwork_phase) !== fieldworkPhase) {
@@ -2302,6 +2309,9 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   const batchRow = batch.rows[0];
   if (!batchRow) throw new Error("RESEARCH_INVITE_BATCH_NOT_FOUND");
   if (text(batchRow.wave_id) !== job.wave_id) throw new Error("RESEARCH_INVITE_BATCH_WAVE_MISMATCH");
+  if (batchRow.fieldwork_ends_at && new Date(String(batchRow.fieldwork_ends_at)).getTime() <= Date.now()) {
+    throw new Error("SURVEY_INVITE_EXPIRED");
+  }
   await pool.query(`
     UPDATE research_invite_batches
     SET status='sending',started_at=COALESCE(started_at,now())
@@ -2315,6 +2325,9 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   const failures: Array<{ sampleUnitId: string; error: string }> = [];
 
   for (const sampleUnitId of sampleUnitIds) {
+    if (batchRow.fieldwork_ends_at && new Date(String(batchRow.fieldwork_ends_at)).getTime() <= Date.now()) {
+      throw new Error("SURVEY_INVITE_EXPIRED");
+    }
     const prior = await pool.query<SqlRow>(`
       SELECT id,status
       FROM research_invites
@@ -2573,7 +2586,8 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
       rt.version AS template_version,
       s.slug,
       s.title,
-      s.status AS study_status
+      s.status AS study_status,
+      s.fieldwork_ends_at
     FROM research_recruitment_templates rt
     JOIN research_studies s ON s.id=rt.study_id
     WHERE rt.id=$1
@@ -2585,6 +2599,9 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
   `, [templateId, job.study_id]);
   const template = templateResult.rows[0];
   if (!template) throw new Error("RESEARCH_REMINDER_TEMPLATE_NOT_READY");
+  if (template.fieldwork_ends_at && new Date(String(template.fieldwork_ends_at)).getTime() <= Date.now()) {
+    throw new Error("SURVEY_INVITE_EXPIRED");
+  }
   if (!["pilot","fielding"].includes(text(template.study_status))) throw new Error("SURVEY_NOT_OPEN");
 
   const currentOutput = objectValue(job.output);
