@@ -1,4 +1,4 @@
-import { ResendEmailProvider, ResendWebhookVerifier, resendConfigFromEnv, resendDeliveryEnabled } from "@buy-local-sparta/resend-notifications";
+import { ResendEmailProvider, ResendWebhookVerifier, canonicalKontaMoyBranding, resendConfigFromEnv, resendDeliveryEnabled } from "@buy-local-sparta/resend-notifications";
 import type { Notification } from "@buy-local-sparta/core";
 import { buildAdminMailRawMime } from "./admin-mail-mime";
 import { indexDeliveredSesMail } from "./admin-mail-outbound-index";
@@ -26,7 +26,7 @@ export function transactionalEmailConfigured(env: NodeJS.ProcessEnv = process.en
 
 export async function sendTransactionalEmail(input: TransactionalEmailInput): Promise<{ providerMessageId: string }> {
   if (!transactionalEmailConfigured()) throw new Error("Transactional email delivery is not enabled");
-  const resolved = await resolveAutomaticEmailTemplate({
+  const template = await resolveAutomaticEmailTemplate({
     subject: input.subject,
     text: input.text,
     eventType: input.eventType,
@@ -34,6 +34,7 @@ export async function sendTransactionalEmail(input: TransactionalEmailInput): Pr
     purpose: "transactional",
     payload: input.payload
   });
+  const resolved = { ...template, subject: canonicalKontaMoyBranding(template.subject), text: canonicalKontaMoyBranding(template.text) };
   const destination = normalizeEmail(input.to);
 
   // SES is the primary delivery path for KONTA MOU. This keeps application,
@@ -42,7 +43,7 @@ export async function sendTransactionalEmail(input: TransactionalEmailInput): Pr
   // notification/webhook flows are migrated.
   if (sesMailConfigured()) {
     const fromAddress = normalizeEmail(requiredEnv("BLS_MAIL_FROM"));
-    const fromName = process.env.BLS_MAIL_FROM_NAME?.trim() || "KONTA MOY";
+    const fromName = "KONTA MOY";
     const replyTo = optionalEmail(process.env.BLS_MAIL_REPLY_TO);
     const domain = process.env.BLS_MAIL_MESSAGE_ID_DOMAIN?.trim() || fromAddress.split("@")[1] || "kontamou.site";
     const mime = buildAdminMailRawMime({
@@ -197,7 +198,7 @@ export async function forwardReceivedEmailToOperations(input: { webhookEventId: 
     throw new Error("Inbound forwarding destination must not be the same Resend receiving address");
   }
   const body = [
-    "Inbound email received by Buy Local Sparta",
+    "Inbound email received by KONTA MOY",
     "",
     `From: ${received.from}`,
     `To: ${received.to.join(", ") || "—"}`,

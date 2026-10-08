@@ -58,8 +58,8 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
 
   return (
     <header className={`site-header shell${compact ? " is-compact" : ""}${menuOpen ? " is-menu-open" : ""}`}>
-      <Link className="brand" href="/" aria-label="ΚΟΝΤΑ ΜΟΥ Σπάρτη · αρχική" onClick={() => setMenuOpen(false)}>
-        <img src="/brand/kontamou-sparta-logo.webp" alt="ΚΟΝΤΑ ΜΟΥ Σπάρτη" width={96} height={64} style={{ display: "block", width: "96px", height: "64px", objectFit: "contain" }} />
+      <Link className="brand" href="/" aria-label="KONTA MOY · αρχική" onClick={() => setMenuOpen(false)}>
+        <strong style={{ display: "block", fontSize: "16px", fontWeight: 800, lineHeight: "64px", letterSpacing: "-.02em", whiteSpace: "nowrap" }}>KONTA MOY</strong>
       </Link>
 
       <Link

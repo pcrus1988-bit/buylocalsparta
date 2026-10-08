@@ -14,18 +14,10 @@ export function SiteFooter() {
     <footer className="footer site-footer" aria-label="Υποσέλιδο">
       <div className="shell site-footer-main">
         <div className="site-footer-intro">
-          <section className="site-footer-brand-block" aria-label="ΚΟΝΤΑ ΜΟΥ Σπάρτη">
-            <Link className="brand footer-brand" href="/" aria-label="ΚΟΝΤΑ ΜΟΥ Σπάρτη · αρχική">
-              <img
-                src="/brand/kontamou-sparta-logo.webp"
-                alt="ΚΟΝΤΑ ΜΟΥ Σπάρτη"
-                width={108}
-                height={72}
-                style={{ display: "block", width: "108px", height: "72px", objectFit: "contain" }}
-              />
+          <section className="site-footer-brand-block" aria-label="KONTA MOY">
+            <Link className="brand footer-brand" href="/" aria-label="KONTA MOY · αρχική">
+              <span style={{ display: "block", fontWeight: 800, fontSize: "24px", letterSpacing: ".04em" }}>KONTA MOY</span>
             </Link>
-            <p>ΚΟΝΤΑ ΜΟΥ: Η Σπάρτη δίπλα σου</p>
-            <small>Μία ανθρώπινη ψηφιακή αγορά για τη Σπάρτη και τη γύρω περιοχή.</small>
           </section>
 
           <section className="site-footer-business" aria-labelledby="footer-business-title">
@@ -118,7 +110,7 @@ export function SiteFooter() {
       </div>
 
       <div className="shell site-footer-bottom">
-        <span>© {new Date().getFullYear()} ΚΟΝΤΑ ΜΟΥ Σπάρτη · {BUSINESS_NAME}</span>
+        <span>© {new Date().getFullYear()} KONTA MOY · {BUSINESS_NAME}</span>
         <nav className="site-footer-legal-links" aria-label={LEGAL_FOOTER_NAVIGATION.title}>
           {LEGAL_FOOTER_NAVIGATION.links.map((link) => <Link href={link.href} key={link.href}>{link.label}</Link>)}
           <CookieSettingsButton className="site-footer-cookie-button" />
