@@ -1701,8 +1701,9 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
 
 async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string, unknown>> {
   const input = objectValue(job.input);
+  const census = text(input.selectionMode) === "census";
   const targetN = Math.floor(numberValue(input.targetN));
-  const desiredCompleteN = Math.floor(numberValue(input.desiredCompleteN));
+  let desiredCompleteN = Math.floor(numberValue(input.desiredCompleteN));
   const expectedResponseRate = numberValue(input.expectedResponseRate);
   const randomSeed = text(input.randomSeed);
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
@@ -1713,7 +1714,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
   }
   const minTargetN = fieldworkPhase === "pilot" ? 10 : 100;
   const maxTargetN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
-  if (
+  if ((!census && (
     !targetN
     || !desiredCompleteN
     || desiredCompleteN > targetN
@@ -1722,7 +1723,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
     || !randomSeed
     || targetN < minTargetN
     || targetN > maxTargetN
-  ) {
+  )) || (census && fieldworkPhase !== "main")) {
     throw new Error("RESEARCH_SAMPLE_JOB_INVALID");
   }
 
@@ -1962,16 +1963,21 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
     `, [frame.id, fieldworkPhase, job.study_id, job.wave_id, cohort, cohortAFrameId || null]);
     if (!strataResult.rows.length) throw new Error("RESEARCH_SAMPLE_STRATA_MISSING");
 
-    const allocations = proportionalStratumAllocation(
-      strataResult.rows.map((row) => ({
-        id: text(row.id),
-        populationCount: numberValue(row.population_count)
-      })),
-      targetN,
-      2
-    );
+    // Enumerate the complete reachable frame for a census; no random draw or sample size.
+    const allocations = census
+      ? strataResult.rows.filter((row) => numberValue(row.active_contact_count) > 0).map((row) => ({
+          id: text(row.id),
+          populationCount: numberValue(row.population_count),
+          sampleCount: numberValue(row.active_contact_count)
+        }))
+      : proportionalStratumAllocation(
+          strataResult.rows.map((row) => ({ id: text(row.id), populationCount: numberValue(row.population_count) })),
+          targetN,
+          2
+        );
     const actualTargetN = allocations.reduce((sum, allocation) => sum + allocation.sampleCount, 0);
     if (!actualTargetN) throw new Error("RESEARCH_SAMPLE_EMPTY");
+    if (census) desiredCompleteN = Math.max(1, Math.round(actualTargetN * expectedResponseRate));
     if (desiredCompleteN > actualTargetN) {
       throw new Error("RESEARCH_SAMPLE_DESIRED_COMPLETES_EXCEED_DRAW");
     }
@@ -1999,7 +2005,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         const stratumContactabilityRate = allocation.populationCount > 0
           ? activeContactN / allocation.populationCount
           : 0;
-        const expectedContactableN = Math.min(
+        const expectedContactableN = census ? allocation.sampleCount : Math.min(
           allocation.sampleCount,
           Math.round(allocation.sampleCount * stratumContactabilityRate)
         );
@@ -2035,7 +2041,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         status,
         fieldwork_phase
       )
-      VALUES ($1,$2,$3,$4,'stratified-hash-rank-v2',$5,$6,'draft',$7)
+      VALUES ($1,$2,$3,$4,$8,$5,$6,'draft',$7)
       RETURNING id
     `, [
       job.study_id,
@@ -2044,15 +2050,16 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       text(input.label) || `${fieldworkPhase}-sample-${actualTargetN}`,
       randomSeed,
       actualTargetN,
-      fieldworkPhase
+      fieldworkPhase,
+      census ? "contactable-census-v1" : "stratified-hash-rank-v2"
     ]);
     const drawId = text(draw.rows[0]!.id);
 
     let selectionOffset = 0;
     for (const allocation of allocations) {
       if (!allocation.sampleCount) continue;
-      const probability = allocation.sampleCount / allocation.populationCount;
-      const baseWeight = allocation.populationCount / allocation.sampleCount;
+      const probability = census ? 1 : allocation.sampleCount / allocation.populationCount;
+      const baseWeight = census ? 1 : allocation.populationCount / allocation.sampleCount;
       const inserted = await client.query<SqlRow>(`
         WITH chosen AS (
           SELECT fu.id, fu.external_key_hash
@@ -2075,12 +2082,13 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
                   AND pfu.external_key_hash=fu.external_key_hash
               )
             )
-          ORDER BY md5($3::text || ':' || fu.external_key_hash), fu.external_key_hash
+          ${census ? `AND EXISTS (SELECT 1 FROM research_contact_points cp WHERE cp.frame_unit_id=fu.id AND cp.contact_type='email' AND cp.suppression_status='active' AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash))` : ""}
+          ORDER BY ${census ? "fu.external_key_hash" : "md5($3::text || ':' || fu.external_key_hash), fu.external_key_hash"}
           LIMIT $4
         ),
         numbered AS (
           SELECT id, row_number() OVER (
-            ORDER BY md5($3::text || ':' || external_key_hash), external_key_hash
+            ORDER BY ${census ? "external_key_hash" : "md5($3::text || ':' || external_key_hash), external_key_hash"}
           ) AS within_order
           FROM chosen
         )
@@ -2131,14 +2139,15 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         metadata
       )
       SELECT id, 'selected', 'eligible', 'sample_draw',
-             jsonb_build_object('drawId',($1::uuid)::text,'algorithmVersion','stratified-hash-rank-v2')
+             jsonb_build_object('drawId',($1::uuid)::text,'algorithmVersion',$2::text,'recruitmentMode',$3::text)
       FROM research_sample_units
       WHERE sample_draw_id=$1::uuid
-    `, [drawId]);
+    `, [drawId, census ? "contactable-census-v1" : "stratified-hash-rank-v2", census ? "full_cohort_census" : "probability_sample"]);
 
     const designDocument = {
       schema: "kontamou.research.sample-design.v1",
       cohort,
+      recruitmentMode: census ? "full_cohort_census" : "probability_sample",
       cohortAFrameSnapshotId: cohortAFrameId || null,
       sampleDrawId: drawId,
       frameSnapshotId: text(frame.id),
@@ -2152,7 +2161,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       plannedSelectedN: actualTargetN,
       expectedContactableN,
       expectedCompleteN,
-      allocationMethod: "proportional_min2_v1",
+      allocationMethod: census ? "full_contactable_census_v1" : "proportional_min2_v1",
       strata: designStrata
     };
     const designJson = canonicalResearchJson(designDocument);
@@ -2175,7 +2184,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         content_sha256
       )
       VALUES (
-        $1,$2,$3,$4,$5,$6::numeric,$7,$8,$9::numeric,$10,$11,$12,'proportional_min2_v1',$13::jsonb,$14
+        $1,$2,$3,$4,$5,$6::numeric,$7,$8,$9::numeric,$10,$11,$12,$15,$13::jsonb,$14
       )
       RETURNING id
     `, [
@@ -2192,7 +2201,8 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       expectedContactableN,
       expectedCompleteN,
       designJson,
-      sha256(designJson)
+      sha256(designJson),
+      census ? "full_contactable_census_v1" : "proportional_min2_v1"
     ]);
     const designId = text(designResult.rows[0]!.id);
     for (const stratum of designStrata) {
@@ -2251,7 +2261,8 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       contactabilityRate,
       expectedContactableN,
       expectedCompleteN,
-      algorithmVersion: "stratified-hash-rank-v2",
+      algorithmVersion: census ? "contactable-census-v1" : "stratified-hash-rank-v2",
+      recruitmentMode: census ? "full_cohort_census" : "probability_sample",
       randomSeed,
       fieldworkPhase,
       strata: allocations.filter((allocation) => allocation.sampleCount > 0).length
