@@ -121,6 +121,11 @@ function experimentAssignments(seed: string): readonly ResearchExperimentAssignm
   });
 }
 
+/** Representative profiles for an Admin-only, non-persisted questionnaire preview. */
+export function researchPreviewExperimentAssignments(seed: string): readonly ResearchExperimentAssignment[] {
+  return experimentAssignments("preview:" + seed);
+}
+
 async function invitationRow(
   executor: { query<Row extends SqlRow = SqlRow>(text: string, params?: readonly unknown[]): Promise<{ rows: readonly Row[] }> },
   slug: string,

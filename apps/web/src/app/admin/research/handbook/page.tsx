@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 const TOPICS = [
   {
-    heading: "0. Isolated workflow simulation (before Pilot)",
+    heading: "0. Pre-Pilot simulation — workflow check or real questionnaire preview",
     description: "Open Workflow simulation inside your survey. This is a separate safe rehearsal, not Pilot and not official fieldwork. The sample form tests mechanics only; it is not the full official instrument.",
     checks: ["Run a no-email preview to check link opening and expiry.", "Optionally send exactly one manually approved real SES email to an inbox you control.", "Check whether you actually received it; SES acceptance alone is not delivery proof.", "Submit the sample test answers, copy the receipt and verify it in Admin.", "Send and manually confirm the separate Admin test notice. Reset the simulation when finished.", "For genuine question branching, consent, opt-out and duplicate prevention, additionally test a real limited Pilot invitation."]
   },
