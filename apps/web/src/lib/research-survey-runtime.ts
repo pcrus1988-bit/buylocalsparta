@@ -1910,7 +1910,7 @@ export type ResearchLifecycleAction =
 
 export async function transitionResearchStudy(
   principal: SessionPrincipal,
-  input: Readonly<{ slug: string; action: ResearchLifecycleAction }>
+  input: Readonly<{ slug: string; action: ResearchLifecycleAction; expectedInstrumentVersion?: string; expectedInstrumentSha256?: string }>
 ): Promise<Readonly<{ studyStatus: string; instrumentStatus: string }>> {
   if (input.action === "lock_instrument") {
     assertAdminPermission(principal, "research.design.manage");
@@ -1938,7 +1938,7 @@ export async function transitionResearchStudyAfterDeadline(
 }
 
 async function transitionResearchStudyInternal(
-  input: Readonly<{ slug: string; action: ResearchLifecycleAction }>,
+  input: Readonly<{ slug: string; action: ResearchLifecycleAction; expectedInstrumentVersion?: string; expectedInstrumentSha256?: string }>,
   automated: boolean
 ): Promise<Readonly<{ studyStatus: string; instrumentStatus: string }>> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
@@ -1949,10 +1949,11 @@ async function transitionResearchStudyInternal(
       SELECT
         s.id AS study_id, s.status AS study_status, s.current_wave_id AS wave_id,
         (s.fieldwork_ends_at IS NOT NULL AND s.fieldwork_ends_at <= now()) AS deadline_reached,
-        i.id AS instrument_id, i.status AS instrument_status
+        i.id AS instrument_id, i.status AS instrument_status,
+        i.version AS instrument_version, i.content_sha256 AS instrument_sha256
       FROM research_studies s
       JOIN LATERAL (
-        SELECT id, status FROM research_instruments
+        SELECT id, status, version, content_sha256 FROM research_instruments
         WHERE study_id = s.id AND wave_id = s.current_wave_id
         ORDER BY created_at DESC LIMIT 1
       ) i ON true
@@ -1971,6 +1972,10 @@ async function transitionResearchStudyInternal(
 
     if (input.action === "lock_instrument") {
       if (studyStatus !== "draft" || instrumentStatus !== "draft") throw new Error("RESEARCH_LIFECYCLE_INVALID");
+      if ((input.expectedInstrumentVersion && input.expectedInstrumentVersion !== text(row.instrument_version)) ||
+          (input.expectedInstrumentSha256 && input.expectedInstrumentSha256 !== text(row.instrument_sha256))) {
+        throw new Error("RESEARCH_INSTRUMENT_CHANGED_REFRESH");
+      }
       await client.query(`
         UPDATE research_instruments SET status = 'locked', published_at = now()
         WHERE id = $1
