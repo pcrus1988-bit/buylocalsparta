@@ -21,15 +21,15 @@ export type ResearchSafetyDecision = Readonly<{
 
 /**
  * Under 20 outcomes: report rates without automatic study-level pause.
- * 20-99 outcomes: 20% emergency guard; 100-499: 8% early guard.
- * 500+ outcomes: return to the 5% sustained-quality threshold.
+ * 20-99 outcomes: 20% emergency guard; 100-999: 8% early guard.
+ * 1,000+ outcomes: return to the 5% sustained-quality threshold.
  * Actual hard bounces and SES pre-delivery validation suppressions are
  * evaluated separately; suppressions are not counted as actual hard bounces.
  */
 export function graduatedResearchStopRate(decisions: number): number | null {
   if (!Number.isFinite(decisions) || decisions < 20) return null;
   if (decisions < 100) return 0.20;
-  if (decisions < 500) return 0.08;
+  if (decisions < 1000) return 0.08;
   return 0.05;
 }
 
@@ -48,4 +48,21 @@ export function evaluateResearchDeliverySafety(metrics: ResearchDeliveryOutcomes
     validationHold: validationThreshold !== null && validationSuppressionRate >= validationThreshold,
     earlyWarning: actualDecisions >= 100 && hardBounceRate >= 0.05
   };
+}
+
+/** Reporting milestones are distinct from stop thresholds and do not send
+ * email or automatically authorize new recipients. Evaluated against
+ * provider-classified delivery outcomes, not the full cohort population.
+ * 1k, 5k, 10k, then every subsequent 10k.
+ */
+export function researchDeliveryReviewMilestones(decisions: number): Readonly<{
+  completedMilestone: number | null;
+  nextMilestone: number;
+}> {
+  const n = Math.max(0,Math.floor(Number.isFinite(decisions) ? decisions : 0));
+  if (n < 1000) return {completedMilestone:null,nextMilestone:1000};
+  if (n < 5000) return {completedMilestone:1000,nextMilestone:5000};
+  if (n < 10000) return {completedMilestone:5000,nextMilestone:10000};
+  const completedMilestone=Math.floor(n/10000)*10000;
+  return {completedMilestone,nextMilestone:completedMilestone+10000};
 }

@@ -3,6 +3,7 @@ import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission, hasAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
 import { getAdminPostgresRuntime, getAdminResearchOverviewPostgresRuntime, getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { researchReleaseArtifactIntegrity } from "./research-survey-release";
+import { researchDeliveryReviewMilestones } from "./research-survey-delivery-safety";
 import {
   researchQualitySignals,
   scoreGreekRetail2026,
@@ -2592,7 +2593,8 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       campaign.input->>'limit' AS campaign_approved_limit,
       campaign.output->>'campaignProcessedCount' AS campaign_processed,
       campaign.output->>'campaignSentCount' AS campaign_sent,
-      campaign.output->>'safetyHold' AS campaign_safety_hold
+      campaign.output->>'safetyHold' AS campaign_safety_hold,
+      campaign.output->'deliverySafety' AS campaign_delivery_safety
     FROM research_studies s
     LEFT JOIN LATERAL (
       SELECT version,subject,body_text FROM research_recruitment_templates
@@ -2680,6 +2682,13 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
   `, [slug]);
   const row = result.rows[0];
   if (!row) return undefined;
+  // Use the worker's saved delivery snapshot; do not scan hundreds of thousands
+  // of contact rows merely to display milestone progress in Admin.
+  const classifiedMetrics = Array.isArray(row.campaign_delivery_safety)
+    ? row.campaign_delivery_safety.map(objectValue).find((item) => text(item.phase) === "main")
+    : undefined;
+  const classifiedDeliveryCount = numberValue(classifiedMetrics?.decided);
+  const reviewMilestones = researchDeliveryReviewMilestones(classifiedDeliveryCount);
   return {
     slug: text(row.slug),
     title: text(row.title),
@@ -2713,7 +2722,10 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       approvedMaxEmails:numberValue(row.campaign_approved_limit),
       processedCount:numberValue(row.campaign_processed),
       sentCount:numberValue(row.campaign_sent),
-      safetyHold:optionalText(row.campaign_safety_hold)
+      safetyHold:optionalText(row.campaign_safety_hold),
+      classifiedDeliveryCount,
+      completedReviewMilestone:reviewMilestones.completedMilestone,
+      nextReviewMilestone:reviewMilestones.nextMilestone
     } : undefined
   };
 }

@@ -94,7 +94,7 @@ export function ResearchStudyFieldworkControls({
   cohortBSampleStatus?: string;
   cohortBRecruitmentMode?: string;
   cohortBSampleSelected?: number;
-  campaign?: {id:string;status:string;cohort:string;paused:boolean;approvedMaxEmails:number;processedCount:number;sentCount:number;safetyHold?:string};
+  campaign?: {id:string;status:string;cohort:string;paused:boolean;approvedMaxEmails:number;processedCount:number;sentCount:number;safetyHold?:string;classifiedDeliveryCount:number;completedReviewMilestone:number|null;nextReviewMilestone:number};
   queuedSampleJobs: number;
   runningSampleJobs: number;
   recruitmentTemplateVersion?: string;
@@ -530,7 +530,16 @@ export function ResearchStudyFieldworkControls({
         {" · "}Απεσταλμένα {campaign.sentCount.toLocaleString("el-GR")}
         {" · "}Επεξεργασμένα {campaign.processedCount.toLocaleString("el-GR")} από έως {campaign.approvedMaxEmails.toLocaleString("el-GR")} εγκεκριμένες εγγραφές.
       </p>
-      {campaign.safetyHold && <p className="workspace-inline-note form-error">Η αποστολή διακόπηκε αυτόματα για προστασία της αξιοπιστίας παράδοσης: {campaign.safetyHold}. Δεν παρακάμπτεται με απλή συνέχιση.</p>}
+      <p className="workspace-inline-note">
+        Αποτελέσματα παράδοσης που έχουν ταξινομηθεί: <strong>{campaign.classifiedDeliveryCount.toLocaleString("el-GR")}</strong>.
+        {" "}Επόμενο σημείο αξιολόγησης: <strong>{campaign.nextReviewMilestone.toLocaleString("el-GR")}</strong>.
+        {campaign.completedReviewMilestone !== null && <> Τελευταίο σημείο αξιολόγησης: {campaign.completedReviewMilestone.toLocaleString("el-GR")}.</>}
+        {" "}Ο κανόνας παύσης λόγω παραδόσεων γίνεται 5% από 1.000 αποτελέσματα, ενώ συνεχίζουν να ισχύουν οι χωριστές δικλίδες SES.
+      </p>
+      {campaign.safetyHold && <p className="workspace-inline-note form-error">
+        {campaign.paused ? "Τελευταία καταγεγραμμένη παύση ασφαλείας" : "Καταγεγραμμένη παύση ασφαλείας"}: {campaign.safetyHold}.
+        {" "}Η κατάσταση αξιολογείται ξανά στον επόμενο κύκλο επεξεργασίας.
+      </p>}
       {(campaign.status === "queued" || campaign.status === "running") && <div className="workspace-action-buttons">
         <button type="button" className="button button-secondary" disabled={Boolean(busy)} onClick={() => void setCampaignPaused(!campaign.paused)}>
           {campaign.paused ? "Συνέχεια ήδη εγκεκριμένης εκστρατείας" : "Παύση εκστρατείας"}
