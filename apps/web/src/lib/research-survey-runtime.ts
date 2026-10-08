@@ -1374,8 +1374,8 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
         fs.population_size,
         (SELECT count(*)::int FROM research_strata st WHERE st.frame_snapshot_id=fs.id) AS strata_count
       FROM research_frame_snapshots fs
-      WHERE fs.study_id = s.id
-      ORDER BY fs.created_at DESC
+      WHERE fs.study_id = s.id AND fs.status='frozen'
+      ORDER BY fs.frozen_at DESC NULLS LAST, fs.created_at DESC
       LIMIT 1
     ) lf ON true
     -- Only scan pilot invitation identities; never rescan the entire frozen frame.
@@ -1557,6 +1557,8 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       SELECT
         count(*) FILTER (WHERE status='queued') AS queued_jobs,
         count(*) FILTER (WHERE status='running') AS running_jobs,
+        count(*) FILTER (WHERE status='queued' AND job_type IN ('sample_draw','invite_batch','invite_reminder')) AS queued_sample_jobs,
+        count(*) FILTER (WHERE status='running' AND job_type IN ('sample_draw','invite_batch','invite_reminder')) AS running_sample_jobs,
         count(*) FILTER (WHERE status='failed') AS failed_jobs
       FROM research_study_jobs
       WHERE study_id = s.id
@@ -1639,6 +1641,8 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       latestReleasePublishedAt: optionalText(row.latest_release_published_at),
       queuedJobs: numberValue(row.queued_jobs),
       runningJobs: numberValue(row.running_jobs),
+      queuedSampleJobs: numberValue(row.queued_sample_jobs),
+      runningSampleJobs: numberValue(row.running_sample_jobs),
       failedJobs: numberValue(row.failed_jobs)
     }))
   };
