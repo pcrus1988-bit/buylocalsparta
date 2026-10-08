@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ResearchExperimentAssignment, ResearchSurveyContext } from "../lib/research-survey-runtime";
-import { matrixItems, matrixScale, questionOptions, type ResearchAnswer, type ResearchAnswerMap, type ResearchQuestion } from "../lib/research-survey-model";
+import { matrixItems, matrixScale, questionOptions, validateResearchAnswers, type ResearchAnswer, type ResearchAnswerMap, type ResearchQuestion } from "../lib/research-survey-model";
 import styles from "./ResearchSurveyForm.module.css";
 
 type ConsentState = Readonly<{ results_notification: boolean; thank_you_code: boolean }>;
@@ -223,11 +223,13 @@ function ExperimentCard({ assignment, selected, onSelect }: {
   </article>;
 }
 
-export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent = false }: {
+export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent = false, previewMode = false }: {
   slug: string;
   token: string;
   initial: ResearchSurveyContext;
   initialOptOutIntent?: boolean;
+  /** A local-only reproduction of the real participant flow: never sends requests. */
+  previewMode?: boolean;
 }) {
   const [started, setStarted] = useState(Boolean(initial.response) && initial.response?.status === "in_progress");
   const [completed, setCompleted] = useState(initial.response?.status === "completed");
@@ -247,19 +249,27 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
   const [preferenceMessage, setPreferenceMessage] = useState("");
 
   const questionSections = useMemo(() => {
-    const codes = ["A", "B", "C", "D", "E", "F"];
+    const questions = [...initial.questions].filter((item) => item.type !== "experiment")
+      .sort((left, right) => left.position - right.position || left.code.localeCompare(right.code));
+    const codes = [...new Set(questions.map((item) => item.sectionCode))];
     return codes.map((code) => ({
       code,
-      title: SECTION_LABELS[code],
-      questions: initial.questions.filter((question) => question.sectionCode === code && question.type !== "experiment")
+      title: SECTION_LABELS[code] ?? "Ενότητα " + code,
+      questions: questions.filter((question) => question.sectionCode === code)
     }));
   }, [initial.questions]);
-  const allSections = [...questionSections, { code: "X", title: SECTION_LABELS.X, questions: [] as ResearchQuestion[] }, { code: "DONE", title: "Ολοκλήρωση", questions: [] as ResearchQuestion[] }];
+  const hasExperiment = initial.questions.some((question) => question.type === "experiment") || experiments.length > 0;
+  const allSections = [
+    ...questionSections,
+    ...(hasExperiment ? [{ code: "X", title: SECTION_LABELS.X, questions: [] as ResearchQuestion[] }] : []),
+    { code: "DONE", title: "Ολοκλήρωση", questions: [] as ResearchQuestion[] }
+  ];
   const current = allSections[sectionIndex];
   const currentAnswered = current.questions.filter((question) => answerPresent(answers[question.code])).length;
   const currentQuestionCount = current.questions.length;
 
   async function save(payload: Record<string, unknown>) {
+    if (previewMode) return {} as Record<string, unknown>;
     setSaving(true);
     setMessage("");
     try {
@@ -292,6 +302,15 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
 
   async function next() {
     try {
+      if (previewMode && current.questions.length) {
+        const validation = validateResearchAnswers(current.questions, answers);
+        if (!validation.ok) {
+          setMessage("Συμπληρώστε τις υποχρεωτικές απαντήσεις και διορθώστε τυχόν μη έγκυρες επιλογές: " +
+            [...validation.missing, ...validation.invalid].join(", "));
+          return;
+        }
+      }
+      setMessage("");
       if (current.code !== "X" && current.code !== "DONE") {
         const codes = new Set(current.questions.map((question) => question.code));
         const sectionAnswers = Object.fromEntries(Object.entries(answers).filter(([code]) => codes.has(code)));
@@ -308,6 +327,17 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
 
   async function completeSurvey() {
     try {
+      if (previewMode) {
+        const validation = validateResearchAnswers(initial.questions, answers);
+        if (!validation.ok) {
+          setMessage("Λείπουν ή είναι μη έγκυρες οι απαντήσεις: " + [...validation.missing, ...validation.invalid].join(", ") +
+            ". Επιστρέψτε στις προηγούμενες ενότητες.");
+          return;
+        }
+        if (hasExperiment && experiments.length && experiments.some((task) => !experimentChoices[String(task.taskNumber)])) {
+          // The experiment is optional in the real flow, so it remains optional here.
+        }
+      }
       await save({ answers, experimentChoices, complete: true });
       setCompleted(true);
     } catch (error) {
@@ -328,7 +358,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
       if (result.consents && typeof result.consents === "object" && !Array.isArray(result.consents)) {
         setOptionalConsents((state) => ({ ...state, ...result.consents as Partial<ConsentState> }));
       }
-      setPreferenceMessage("Οι επιλογές επικοινωνίας ενημερώθηκαν.");
+      setPreferenceMessage(previewMode ? "Οι δοκιμαστικές επιλογές ενημερώθηκαν μόνο σε αυτή τη σελίδα." : "Οι επιλογές επικοινωνίας ενημερώθηκαν.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Δεν ήταν δυνατή η ενημέρωση των επιλογών.");
     }
@@ -340,7 +370,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
         action: "refuse",
         suppressFutureResearch
       });
-      setFutureResearchSuppressed(Boolean(result.futureResearchSuppressed));
+      setFutureResearchSuppressed(previewMode ? suppressFutureResearch : Boolean(result.futureResearchSuppressed));
       setDeclined(true);
       setStarted(false);
     } catch (error) {
@@ -350,8 +380,9 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
 
   if (declined) {
     return <div className={styles.complete}>
-      <span className={styles.kicker}>Η επιλογή σας καταχωρήθηκε</span>
+      <span className={styles.kicker}>{previewMode ? "Προσομοίωση επιλογής" : "Η επιλογή σας καταχωρήθηκε"}</span>
       <h2>Δεν θα ζητηθεί απάντηση σε αυτή τη μελέτη.</h2>
+      {previewMode && <p>ΔΟΚΙΜΗ ΜΟΝΟ — καμία εξαίρεση ή επιλογή επικοινωνίας δεν αποθηκεύτηκε.</p>}
       <p>{futureResearchSuppressed
         ? "Καταχωρήθηκε επίσης ότι δεν επιθυμείτε μελλοντικές προσκλήσεις για έρευνες του KONTA MOY. Η επιλογή αυτή είναι ανεξάρτητη από οποιαδήποτε εμπορική συγκατάθεση."
         : "Η συγκεκριμένη πρόσκληση έκλεισε χωρίς να δημιουργηθεί υποχρέωση συμμετοχής."}</p>
@@ -361,12 +392,12 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
 
   if (completed) {
     return <div className={styles.complete}>
-      <span className={styles.kicker}>Η απάντηση καταχωρήθηκε</span>
+      <span className={styles.kicker}>{previewMode ? "Δοκιμαστική ολοκλήρωση — χωρίς αποθήκευση" : "Η απάντηση καταχωρήθηκε"}</span>
       <h2>Ευχαριστούμε για τη συμμετοχή σας.</h2>
-      <p>Η απάντησή σας έχει κλειδωθεί ως ολοκληρωμένη και θα χρησιμοποιηθεί μόνο στο πλαίσιο της μελέτης και των επιλογών συγκατάθεσης που δώσατε.</p>
+      <p>{previewMode ? "Ολοκληρώσατε την προεπισκόπηση. Οι απαντήσεις σας δεν αποθηκεύτηκαν, δεν δημιουργήθηκε συμμετοχή και δεν εστάλη καμία ειδοποίηση." : "Η απάντησή σας έχει κλειδωθεί ως ολοκληρωμένη και θα χρησιμοποιηθεί μόνο στο πλαίσιο της μελέτης και των επιλογών συγκατάθεσης που δώσατε."}</p>
 
       <h3>Επιλογές επικοινωνίας</h3>
-      <p>Ο προσωπικός σύνδεσμος παραμένει διαθέσιμος για να αλλάξετε αυτές τις επιλογές χωρίς να ανοίξει ξανά ή να αλλάξει η απάντησή σας.</p>
+      <p>{previewMode ? "Δοκιμάστε την εμφάνιση αυτών των επιλογών. Δεν πραγματοποιείται αποθήκευση ή αποστολή." : "Ο προσωπικός σύνδεσμος παραμένει διαθέσιμος για να αλλάξετε αυτές τις επιλογές χωρίς να ανοίξει ξανά ή να αλλάξει η απάντησή σας."}</p>
       <div className={styles.optionalConsents}>
         <label><input type="checkbox" checked={optionalConsents.results_notification} onChange={(event) => setOptionalConsents((state) => ({ ...state, results_notification: event.target.checked }))} /><span>Θέλω να ενημερωθώ όταν δημοσιευθούν τα αποτελέσματα.</span></label>
         <label><input type="checkbox" checked={optionalConsents.thank_you_code} onChange={(event) => setOptionalConsents((state) => ({ ...state, thank_you_code: event.target.checked }))} /><span>Θέλω να λάβω τον κωδικό ευχαριστίας που προσφέρεται στους συμμετέχοντες.</span></label>
@@ -414,7 +445,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
         <span>Προσωπικός σύνδεσμος δείγματος</span>
         <span>Χωρίς ΑΦΜ ή email στο ερωτηματολόγιο</span>
       </div>
-      <p>Η συμμετοχή είναι προαιρετική. Ο προσωπικός σύνδεσμος χρησιμοποιείται για να επιβεβαιώνει ότι η απάντηση ανήκει στο επιλεγμένο δείγμα και για να αποφεύγονται διπλές συμμετοχές. Δεν εμφανίζεται ΑΦΜ, email ή όνομα επιχείρησης στο ερωτηματολόγιο.</p>
+      <p>{previewMode ? "Προεπισκόπηση για τον διαχειριστή: δείτε τη διαδρομή του συμμετέχοντα πριν από την πιλοτική φάση. Δεν υπάρχει πραγματικός προσωπικός σύνδεσμος και τίποτα δεν καταχωρείται." : "Η συμμετοχή είναι προαιρετική. Ο προσωπικός σύνδεσμος χρησιμοποιείται για να επιβεβαιώνει ότι η απάντηση ανήκει στο επιλεγμένο δείγμα και για να αποφεύγονται διπλές συμμετοχές. Δεν εμφανίζεται ΑΦΜ, email ή όνομα επιχείρησης στο ερωτηματολόγιο."}</p>
       {initialOptOutIntent && <p className={styles.success}>Ανοίξατε τον σύνδεσμο μη συμμετοχής. Η επιλογή «να μη λάβω άλλη πρόσκληση» έχει προεπιλεγεί· πατήστε «Δεν επιθυμώ να συμμετάσχω» για να καταχωρηθεί.</p>}
       <label className={styles.consentChoice}>
         <input type="checkbox" checked={researchConsent} onChange={(event) => setResearchConsent(event.target.checked)} />
@@ -442,6 +473,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
 
   const progress = Math.round((sectionIndex / (allSections.length - 1)) * 100);
   return <div className={styles.form}>
+    {previewMode && <div role="status" style={{ padding: 15, marginBottom: 18, borderRadius: 14, background: "#fff3cd", color: "#5b4300", fontWeight: 700 }}>ΠΡΟΕΠΙΣΚΟΠΗΣΗ · Δεν αποθηκεύονται απαντήσεις · Δεν αποστέλλονται μηνύματα</div>}
     <div className={styles.progress}>
       <div className={styles.progressTop}>
         <div>
@@ -487,8 +519,8 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
     <div className={styles.actions}>
       {sectionIndex > 0 && <button type="button" className={styles.secondary} disabled={saving} onClick={() => setSectionIndex((index) => Math.max(0, index - 1))}>Πίσω</button>}
       {current.code !== "DONE"
-        ? <button type="button" className={styles.primary} disabled={saving} onClick={next}>{saving ? "Αποθήκευση…" : current.code === "X" ? "Συνέχεια" : "Αποθήκευση & συνέχεια"}</button>
-        : <button type="button" className={styles.primary} disabled={saving} onClick={completeSurvey}>{saving ? "Ολοκλήρωση…" : "Ολοκλήρωση έρευνας"}</button>}
+        ? <button type="button" className={styles.primary} disabled={saving} onClick={next}>{saving ? "Αποθήκευση…" : current.code === "X" ? "Συνέχεια" : previewMode ? "Επόμενο βήμα" : "Αποθήκευση & συνέχεια"}</button>
+        : <button type="button" className={styles.primary} disabled={saving} onClick={completeSurvey}>{saving ? "Ολοκλήρωση…" : previewMode ? "Ολοκλήρωση προεπισκόπησης" : "Ολοκλήρωση έρευνας"}</button>}
     </div>
   </div>;
 }
