@@ -5,7 +5,10 @@ on:
     branches: [main]
     paths:
       - "apps/web/src/lib/research-kad-coverage.ts"
-      - "scripts/research-b2c-frame-queue.ts"
+      - "apps/web/src/lib/research-b2c-frame-onboarding.ts"
+      - "apps/web/src/app/api/cron/research-study-jobs/route.ts"
+      - "apps/web/src/app/api/research/greek-retail-2026/frame-onboarding-status/route.ts"
+      - ".github/workflows/research-b2c-retail-frame-onboard.yml"
   workflow_dispatch:
 
 permissions:
@@ -17,51 +20,55 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  queue-frame:
-    name: Safely queue expanded GEMI retail frame
+  verify-frame:
+    name: Verify production B2C retail frame handoff
     runs-on: ubuntu-latest
-    environment: production
-    timeout-minutes: 20
-    env:
-      NODE_ENV: production
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      PGSSLMODE: require
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: npm
-
-      - run: npm ci --ignore-scripts
-
-      # Do not let the existing production cron claim the v2 job using the
-      # OLD non-food worker code before the main Vercel deployment completes.
+      # The authenticated Vercel Research cron owns the DB connection.
+      # GitHub must never require or copy production DATABASE_URL.
       - name: Wait for matching production application deployment
         if: ${{ github.event_name == 'push' }}
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          for attempt in $(seq 1 60); do
+          for attempt in $(seq 1 90); do
             state="$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/status" \
               --jq '[.statuses[] | select(.context=="Vercel")] | if length > 0 then .[0].state else "pending" end')"
             if [[ "$state" == success ]]; then
-              echo "Vercel deployment for commit ${{ github.sha }} succeeded."
+              echo "Vercel deployed commit ${{ github.sha }}."
               exit 0
             fi
             if [[ "$state" == failure || "$state" == error ]]; then
-              echo "::error::Vercel deployment failed ($state). Frame build NOT queued."
+              echo "::error::Vercel deployment failed ($state). B2C frame handoff not verified."
               exit 1
             fi
-            echo "Waiting for production Vercel status ($state) attempt $attempt/60."
+            echo "Waiting for matching Vercel deployment ($state) attempt $attempt/90."
             sleep 10
           done
-          echo "::error::Production Vercel did not report success. Frame build NOT queued."
+          echo "::error::Timed out waiting for production deployment."
           exit 1
 
-      - name: Queue frame without sampling or sending emails
-        run: node --experimental-strip-types scripts/research-b2c-frame-queue.ts
+      - name: Verify the production Research cron queued the complete B2C frame
+        shell: bash
+        run: |
+          url="https://kontamou.site/api/research/greek-retail-2026/frame-onboarding-status"
+          for attempt in $(seq 1 30); do
+            payload="$(curl --silent --show-error --location --max-time 15 \
+              --header 'Cache-Control: no-cache' "$url" || true)"
+            state="$(jq -r '.state // "unavailable"' <<< "$payload" 2>/dev/null || echo unavailable)"
+            reason="$(jq -r '.reason // ""' <<< "$payload" 2>/dev/null || true)"
+            echo "Research frame status: $state ${reason:+($reason)}"
+            if [[ "$state" == ready || "$state" == running || "$state" == queued ]]; then
+              echo "B2C frame handoff verified: $state"
+              exit 0
+            fi
+            if [[ "$state" == failed || "$state" == blocked ]]; then
+              echo "::error::Research B2C onboarding is $state: $reason. Check Research sampling / current-wave governance."
+              exit 1
+            fi
+            sleep 20
+          done
+          echo "::error::Research cron did not queue the B2C frame within ten minutes."
+          exit 1
