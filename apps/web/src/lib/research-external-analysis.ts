@@ -53,6 +53,134 @@ export const EXTERNAL_STUDIES: readonly ExternalStudy[] = [
 
 export const EXTERNAL_GROUPS: readonly ExternalGroup[] = [
   {
+    id: "household-spending-history",
+    title: "Μέση μηνιαία δαπάνη νοικοκυριού",
+    subtitle: "ΕΛΣΤΑΤ · Ελλάδα, 2019–2025 · ονομαστικές τιμές",
+    unit: "euro", frequency: "annual", comparison: "direct", sourceIds: ["hbs-2024","hbs-2025"],
+    caution: "Μέσος όρος ανά νοικοκυριό σε τρέχοντα ευρώ, όχι κατά κεφαλήν και όχι πραγματική δαπάνη. Η αύξηση αντανακλά και μεταβολές τιμών. Έρευνες διαφορετικών ετών· η ΕΟΠ 2024 άλλαξε ταξινόμηση αγαθών.",
+    series: [{id:"hbs-monthly-average",label:"Μέση μηνιαία δαπάνη",points:annual([1454.76,1309.17,1399.71,1579.81,1663.82,1724.54,1820.20],2019)}]
+  },
+  {
+    id: "household-urban-rural",
+    title: "Δαπάνες νοικοκυριών · αστικές και αγροτικές περιοχές",
+    subtitle: "Έρευνα Οικογενειακών Προϋπολογισμών 2024–2025",
+    unit: "euro", frequency: "annual", comparison: "direct", sourceIds: ["hbs-2024","hbs-2025"],
+    caution: "Μέσες μηνιαίες ονομαστικές δαπάνες ανά νοικοκυριό, όχι ανά κάτοικο. Η διαφορά αστικών/αγροτικών περιοχών δεν εξηγείται αιτιωδώς από τη γεωγραφία και δεν είναι μέτρο ακρίβειας.",
+    series: [
+      {id:"hbs-urban",label:"Αστικές περιοχές",points:annual([1821.26,1892.86],2024)},
+      {id:"hbs-rural",label:"Αγροτικές περιοχές",points:annual([1296.41,1386.11],2024)}
+    ]
+  },
+  {
+    id: "household-budget-mix",
+    title: "Πού κατανέμεται ο οικογενειακός προϋπολογισμός",
+    subtitle: "Μερίδια συνολικής μηνιαίας δαπάνης · 2024–2025",
+    unit: "percent", frequency: "annual", comparison: "trend-only", sourceIds: ["hbs-2024","hbs-2025"],
+    caution: "Ποσοστά επιμέρους κατηγοριών επί του συνολικού προϋπολογισμού, όχι μεταβολές τιμών. Παρουσιάζονται έξι επιλεγμένες κατηγορίες, όχι το σύνολο του καλαθιού. Διαφορά ετών σε ποσοστιαίες μονάδες.",
+    series: [
+      {id:"hbs-food-share",label:"Τρόφιμα και μη αλκοολούχα",points:annual([20.7,20.4],2024)},
+      {id:"hbs-housing-share",label:"Στέγαση",points:annual([14.4,14.7],2024)},
+      {id:"hbs-transport-share",label:"Μεταφορές",points:annual([13.3,13.6],2024)},
+      {id:"hbs-clothing-share",label:"Ένδυση και υπόδηση",points:annual([5.0,4.9],2024)},
+      {id:"hbs-durables-share",label:"Διαρκή αγαθά",points:annual([4.3,4.4],2024)},
+      {id:"hbs-culture-share",label:"Αναψυχή και πολιτισμός",points:annual([4.0,4.1],2024)}
+    ]
+  },
+  {
+    id: "household-food-spending",
+    title: "Μηνιαία δαπάνη σε είδη διατροφής",
+    subtitle: "Επιλεγμένες ομάδες αγαθών · ΕΛΣΤΑΤ 2024–2025",
+    unit: "euro", frequency: "annual", comparison: "trend-only", sourceIds: ["hbs-2024","hbs-2025"],
+    caution: "Ευρώ ανά μέσο νοικοκυριό σε τρέχουσες τιμές. Η μεταβολή δαπάνης αντανακλά τιμές, ποσότητες και σύνθεση αγορών· δεν ισούται με πληθωρισμό συγκεκριμένων τροφίμων.",
+    series: [
+      {id:"food-meat",label:"Κρέας",points:annual([76.11,83.66],2024)},
+      {id:"food-dairy",label:"Γάλα, τυρί και αυγά",points:annual([56.58,59.37],2024)},
+      {id:"food-vegetables",label:"Λαχανικά",points:annual([49.84,50.16],2024)},
+      {id:"food-bread",label:"Ψωμί και δημητριακά",points:annual([48.64,49.60],2024)},
+      {id:"food-fish",label:"Ψάρια",points:annual([24.99,27.00],2024)},
+      {id:"food-coffee",label:"Καφές, τσάι και κακάο",points:annual([9.56,10.70],2024)}
+    ]
+  },
+  {
+    id: "retail-annual-2024-2025",
+    title: "Λιανικό εμπόριο · κύκλος εργασιών και όγκος",
+    subtitle: "ΕΛΣΤΑΤ · μέσος ετήσιος δείκτης, βάση 2021=100",
+    unit: "index", frequency: "annual", comparison: "trend-only", sourceIds: ["elstat-greece-2026q3"],
+    caution: "Οι δύο σειρές έχουν κοινό έτος βάσης αλλά διαφορετικό περιεχόμενο: ο κύκλος εργασιών είναι σε τρέχουσες τιμές, ο όγκος σε σταθερές. Η διαφορά επιπέδων δεν αποτελεί μέτρηση πληθωρισμού. Τα στοιχεία 2025 είναι προσωρινά.",
+    series: [
+      {id:"retail-turnover-annual",label:"Κύκλος εργασιών (ονομαστικός)",points:annual([118.4,122.2],2024)},
+      {id:"retail-volume-annual",label:"Όγκος (σταθερές τιμές)",points:annual([98.2,100.3],2024)}
+    ]
+  },
+  {
+    id: "retail-2026-monthly-indices",
+    title: "Πωλήσεις λιανεμπορίου · μηνιαία πορεία 2026",
+    subtitle: "ΕΛΣΤΑΤ · Ιανουάριος–Ιούλιος 2026 · βάση 2021=100",
+    unit: "index", frequency: "month-of-year", comparison: "trend-only", sourceIds: ["elstat-greece-2026q3"],
+    caution: "Μη εποχικά διορθωμένοι δείκτες, αναγμένοι σε τυπικό μήνα. Μη συγκρίνετε διαδοχικούς μήνες ως καθαρή αύξηση, λόγω εποχικότητας. Ο όγκος αφαιρεί την επίδραση τιμών, ο τζίρος όχι. Ιούλιος προσωρινός.",
+    series: [
+      {id:"retail-2026-turnover",label:"Κύκλος εργασιών · 2026",points:months([112.4,119.4,124.4,125.4,132.1,133.8,136.2],2026)},
+      {id:"retail-2026-volume",label:"Όγκος · 2026",points:months([92.2,98.2,98.9,99.0,104.5,105.9,111.5],2026)}
+    ]
+  },
+  {
+    id: "retail-sectors-2026",
+    title: "Λιανικό εμπόριο · τρόφιμα έναντι λοιπών αγαθών",
+    subtitle: "Κλαδικός κύκλος εργασιών · Ιανουάριος–Ιούλιος 2026",
+    unit: "index", frequency: "month-of-year", comparison: "trend-only", sourceIds: ["elstat-greece-2026q3"],
+    caution: "Κλαδικοί ονομαστικοί δείκτες βάσης 2021=100, εκτός καυσίμων για τα μη τρόφιμα. Διαφορετικά μεγέθη κλάδων και προϊόντα. Δεν είναι απόλυτοι τζίροι· Ιούλιος προσωρινός, εποχικότητα μη προσαρμοσμένη.",
+    series: [
+      {id:"retail-food-sector-2026",label:"Τρόφιμα",points:months([120.2,126.1,129.9,134.2,138.1,138.6,141.1],2026)},
+      {id:"retail-nonfood-sector-2026",label:"Μη τρόφιμα (χωρίς καύσιμα)",points:months([110.8,119.0,120.2,122.5,131.7,135.6,137.3],2026)}
+    ]
+  },
+  {
+    id: "retail-june-growth",
+    title: "Ιούνιος · ετήσια μεταβολή λιανεμπορίου",
+    subtitle: "Αρχικές ανακοινώσεις ΕΛΣΤΑΤ · Ιούνιος 2025 και 2026",
+    unit: "percent", frequency: "annual", comparison: "trend-only", sourceIds: ["elstat-june-2025","elstat-june-2026"],
+    caution: "Κάθε τιμή είναι ετήσιος ρυθμός μεταβολής του Ιουνίου σε σχέση με τον προηγούμενο Ιούνιο (ποσοστό, όχι δείκτης). Συνδυάζονται οι αρχικές εκδόσεις 2025 και 2026. Οι στατιστικές ενδέχεται να αναθεωρηθούν: η νεότερη έκδοση ΕΛΣΤΑΤ Q3/2026 δίνει +4,1% για ονομαστικό Ιούνιο 2026 αντί αρχικού +4,2%.",
+    series: [
+      {id:"june-turnover-growth",label:"Κύκλος εργασιών · ετήσια %",points:annual([3.0,4.2],2025)},
+      {id:"june-volume-growth",label:"Όγκος · ετήσια %",points:annual([1.8,1.9],2025)}
+    ]
+  },
+  {
+    id: "esee-summer-2025-survey",
+    title: "Θερινές εκπτώσεις · εμπειρία εμπόρων",
+    subtitle: "Έρευνα ΕΣΕΕ/ΙΝΕΜΥ · Αύγουστος 2025",
+    unit: "percent", frequency: "annual", comparison: "descriptive", sourceIds: ["esee-summer-2025"],
+    caution: "Τα ποσοστά προέρχονται από διαφορετικές ερωτήσεις στην ίδια έρευνα και δεν αθροίζονται. Εμπειρίες και εκτιμήσεις συμμετεχουσών επιχειρήσεων — όχι εθνικό στατιστικό σύνολο πωλήσεων.",
+    series: [
+      {id:"summer-sales-down",label:"Χειρότερες πωλήσεις από 2024",points:[{period:"2025",year:2025,value:59}]},
+      {id:"summer-footfall-down",label:"Χαμηλότερη επισκεψιμότητα",points:[{period:"2025",year:2025,value:51}]},
+      {id:"summer-dissatisfied",label:"Λίγο ή καθόλου ικανοποιημένοι",points:[{period:"2025",year:2025,value:47}]},
+      {id:"summer-keep-discounts",label:"Σχεδίαζαν συνέχιση προσφορών",points:[{period:"2025",year:2025,value:37}]}
+    ]
+  },
+  {
+    id: "ielka-food-choice-2025",
+    title: "Πώς επιλέγουν τρόφιμα οι καταναλωτές",
+    subtitle: "Έρευνα ΙΕΛΚΑ · 1.500 άτομα · Φεβρουάριος 2025",
+    unit: "percent", frequency: "annual", comparison: "descriptive", sourceIds: ["ielka-consumer-2025"],
+    caution: "Κύριο κριτήριο επιλογής τροφίμων ανά συμμετέχοντα. Εμφανίζονται μόνο οι δύο δημοσιευμένες εδώ κατηγορίες, όχι όλες οι πιθανές απαντήσεις. Διαφορετικό δείγμα από τις έρευνες επιχειρήσεων ΕΣΕΕ.",
+    series: [
+      {id:"ielka-cost-choice",label:"Χρηματική δαπάνη",points:[{period:"2025",year:2025,value:47}]},
+      {id:"ielka-quality-choice",label:"Ποιότητα",points:[{period:"2025",year:2025,value:30}]}
+    ]
+  },
+  {
+    id: "ielka-offers-2025",
+    title: "Συμπεριφορά απέναντι σε προσφορές",
+    subtitle: "Ετήσια έρευνα ΙΕΛΚΑ · Φεβρουάριος 2025",
+    unit: "percent", frequency: "annual", comparison: "descriptive", sourceIds: ["ielka-consumer-2025"],
+    caution: "Δύο διαφορετικές ερωτήσεις: 58% αναζητούν ενεργά προσφορές, αλλά μόνο 19% λένε ότι προτιμούν προσφορές αντί χαμηλών σταθερών τιμών. Δεν είναι συμπληρωματικά ποσοστά ούτε δείκτης μεταβολής.",
+    series: [
+      {id:"ielka-offers-seek",label:"Αναζητούν ενεργά προσφορές",points:[{period:"2025",year:2025,value:58}]},
+      {id:"ielka-offers-prefer",label:"Προτιμούν προσφορές από χαμηλές τιμές",points:[{period:"2025",year:2025,value:19}]}
+    ]
+  },
+  {
     id: "annual-esi",
     title: "Οικονομικό κλίμα · ετήσιο",
     subtitle: "Ελλάδα, ΕΕ-27 και Ευρωζώνη · 2022–2025",
