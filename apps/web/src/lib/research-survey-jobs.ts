@@ -1482,22 +1482,12 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
   });
   if (records.length) await flushFrameBuffer(snapshotId, records);
 
-  const progress = await pool.query<SqlRow>(`
-    SELECT
-      count(*)::int AS persisted_units,
-      count(*) FILTER (
-        WHERE EXISTS (
-          SELECT 1 FROM research_contact_points cp
-          WHERE cp.frame_unit_id=fu.id
-            AND cp.contact_type='email'
-            AND cp.suppression_status='active'
-        )
-      )::int AS active_email_count
-    FROM research_frame_units fu
-    WHERE frame_snapshot_id=$1
-  `, [snapshotId]);
-  const persistedUnits = numberValue(progress.rows[0]?.persisted_units);
-  const activeEmailCount = numberValue(progress.rows[0]?.active_email_count);
+  // An all-retail frame may contain hundreds of thousands of businesses.
+  // Avoid COUNT/EXISTS across the entire growing frame on every 12-page
+  // worker tick; exact, deduplicated totals are calculated ONCE at freeze.
+  const persistedUnits = numberValue(currentOutput.persistedUnits) + records.length;
+  const activeEmailCount = numberValue(currentOutput.activeEmailCount)
+    + records.filter((record) => Boolean(record.email)).length;
 
   if (!chunk.done && chunk.nextCursor) {
     return {
