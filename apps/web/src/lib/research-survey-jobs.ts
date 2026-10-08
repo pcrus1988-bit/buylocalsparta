@@ -531,14 +531,19 @@ async function assertCohortAOutreachComplete(
 
 export async function queueGreekRetailInviteBatch(
   principal: SessionPrincipal,
-  input: Readonly<{ limit?: number; label?: string; cohort?: "A" | "B"; emailApproval?: ResearchEmailBatchApproval }>
+  input: Readonly<{ limit?: number; label?: string; cohort?: "A" | "B"; mode?: "continuous"; emailApproval?: ResearchEmailBatchApproval }>
 ): Promise<{ jobId: string }> {
   assertAdminPermission(principal, "research.fieldwork.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   assertResearchSurveyEmailReady();
   const cohort = input.cohort;
   if (cohort !== "A" && cohort !== "B") throw new Error("RESEARCH_INVITE_COHORT_REQUIRED");
-  const limit = Math.max(1, Math.min(500, Math.floor(input.limit ?? 100)));
+  const continuous = input.mode === "continuous";
+  const requestedLimit = Math.floor(input.limit ?? 100);
+  if (!Number.isSafeInteger(requestedLimit) || requestedLimit < 1 || requestedLimit > 500_000) {
+    throw new Error("RESEARCH_INVITE_CAMPAIGN_SIZE_INVALID");
+  }
+  const limit = continuous ? requestedLimit : Math.min(500, requestedLimit);
   const pool = getProductionPostgresRuntime().sqlPool;
   const study = await pool.query<SqlRow>(`
     SELECT
@@ -568,6 +573,22 @@ export async function queueGreekRetailInviteBatch(
   if (!["pilot","fielding"].includes(text(row.status))) throw new Error("SURVEY_NOT_OPEN");
   const fieldworkPhase = text(row.status) === "pilot" ? "pilot" : "main";
   if (fieldworkPhase === "pilot" && cohort !== "A") throw new Error("RESEARCH_PILOT_REQUIRES_COHORT_A");
+  if (continuous) {
+    if (fieldworkPhase !== "main") throw new Error("RESEARCH_CONTINUOUS_REQUIRES_MAIN");
+    const lockedCensus = await pool.query<SqlRow>(`
+      SELECT d.target_n FROM research_sample_draws d
+      JOIN research_sample_designs ds ON ds.sample_draw_id=d.id
+      WHERE d.study_id=$1 AND d.wave_id=$2 AND d.fieldwork_phase='main'
+        AND d.status IN ('locked','fielded')
+        AND ds.design_json->>'cohort'=$3
+        AND ds.design_json->>'recruitmentMode'='full_cohort_census'
+      ORDER BY d.created_at DESC LIMIT 1
+    `, [row.id,row.current_wave_id,cohort]);
+    const approvedFrameSize = Math.floor(numberValue(lockedCensus.rows[0]?.target_n));
+    if (approvedFrameSize < 1 || limit !== approvedFrameSize) {
+      throw new Error("RESEARCH_CAMPAIGN_APPROVAL_MUST_MATCH_LOCKED_COHORT");
+    }
+  }
   if (fieldworkPhase === "main" && cohort === "B") {
     await assertCohortAOutreachComplete(pool, text(row.id), text(row.current_wave_id));
   }
@@ -595,7 +616,8 @@ export async function queueGreekRetailInviteBatch(
         'label',$4::text,
         'fieldworkPhase',$5::text,
         'emailApproval',$6::jsonb,
-        'cohort',$7::text
+        'cohort',$7::text,
+        'mode',$8::text
       )
     )
     RETURNING id
@@ -606,7 +628,8 @@ export async function queueGreekRetailInviteBatch(
     input.label?.trim() || `${fieldworkPhase}-research-email-${new Date().toISOString()}`,
     fieldworkPhase,
     JSON.stringify(input.emailApproval),
-    cohort
+    cohort,
+    continuous ? "continuous" : "batch"
   ]);
   return { jobId: text(job.rows[0]!.id) };
 }
