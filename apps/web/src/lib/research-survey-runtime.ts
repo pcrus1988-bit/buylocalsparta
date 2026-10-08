@@ -2370,3 +2370,117 @@ export async function transitionResearchStudy(
     client.release();
   }
 }
+
+
+/**
+ * Navigation-critical overview only. The full researchSurveyAdminOverview is
+ * reserved for detailed operational areas; its expensive frame/contact and
+ * invitation-event aggregations must not run before the survey shell renders.
+ *
+ * One bounded study and small-count query, without scanning contact points or
+ * the 250k+ population frame. All values shown here come from live SQL.
+ */
+export async function researchSurveyAdminFastOverview(principal: SessionPrincipal, slug: string) {
+  assertAdminPermission(principal, "research.read");
+  if (!productionDatabaseConfigured()) {
+    return { databaseConfigured: false as const, study: undefined };
+  }
+  const result = await getAdminPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT
+      s.slug, s.title, s.status, s.pilot_started_at, s.pilot_ended_at,
+      s.fieldwork_starts_at, s.fieldwork_ends_at,
+      instrument.version AS instrument_version,
+      instrument.status AS instrument_status,
+      plan.version AS analysis_plan_version,
+      plan.status AS analysis_plan_status,
+      COALESCE(frames.frame_count, 0)::int AS frame_count,
+      COALESCE(frame.population_size, 0)::int AS frame_population,
+      COALESCE(draws.draw_count, 0)::int AS sample_draw_count,
+      COALESCE(draw.sample_units, 0)::int AS sample_units,
+      COALESCE(batches.batch_count, 0)::int AS invite_batches,
+      COALESCE(invites.invite_count, 0)::int AS invites,
+      COALESCE(invites.sent_count, 0)::int AS sent,
+      COALESCE(responses.completed_count, 0)::int AS completed,
+      COALESCE(jobs.failed_count, 0)::int AS failed_jobs
+    FROM research_studies s
+    LEFT JOIN LATERAL (
+      SELECT id, version, status FROM research_instruments
+      WHERE study_id=s.id ORDER BY created_at DESC LIMIT 1
+    ) instrument ON true
+    LEFT JOIN LATERAL (
+      SELECT version, status FROM research_analysis_plans
+      WHERE study_id=s.id AND instrument_id=instrument.id
+      ORDER BY created_at DESC LIMIT 1
+    ) plan ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS frame_count FROM research_frame_snapshots
+      WHERE study_id=s.id
+    ) frames ON true
+    LEFT JOIN LATERAL (
+      SELECT id, population_size FROM research_frame_snapshots
+      WHERE study_id=s.id ORDER BY created_at DESC LIMIT 1
+    ) frame ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS draw_count FROM research_sample_draws
+      WHERE study_id=s.id
+    ) draws ON true
+    LEFT JOIN LATERAL (
+      SELECT
+        (SELECT count(*)::int FROM research_sample_units u WHERE u.sample_draw_id=d.id) AS sample_units
+      FROM research_sample_draws d
+      WHERE d.study_id=s.id
+        AND d.fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
+      ORDER BY d.created_at DESC LIMIT 1
+    ) draw ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS batch_count FROM research_invite_batches
+      WHERE study_id=s.id
+        AND fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
+    ) batches ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS invite_count,
+             count(*) FILTER (WHERE sent_at IS NOT NULL) AS sent_count
+      FROM research_invites
+      WHERE study_id=s.id
+        AND fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
+    ) invites ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS completed_count FROM research_responses rr
+      JOIN research_invites ri ON ri.id=rr.invite_id
+      WHERE rr.study_id=s.id AND rr.status='completed'
+        AND ri.fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
+    ) responses ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS failed_count FROM research_study_jobs
+      WHERE study_id=s.id AND status='failed'
+    ) jobs ON true
+    WHERE s.slug=$1
+    LIMIT 1
+  `, [slug]);
+  const row = result.rows[0];
+  return {
+    databaseConfigured: true as const,
+    study: row ? {
+      slug: text(row.slug),
+      title: text(row.title),
+      status: text(row.status),
+      pilotStartedAt: optionalText(row.pilot_started_at),
+      pilotEndedAt: optionalText(row.pilot_ended_at),
+      fieldworkStartsAt: optionalText(row.fieldwork_starts_at),
+      fieldworkEndsAt: optionalText(row.fieldwork_ends_at),
+      instrumentVersion: optionalText(row.instrument_version),
+      instrumentStatus: optionalText(row.instrument_status),
+      analysisPlanVersion: optionalText(row.analysis_plan_version),
+      analysisPlanStatus: optionalText(row.analysis_plan_status),
+      frameCount: numberValue(row.frame_count),
+      framePopulation: numberValue(row.frame_population),
+      sampleDrawCount: numberValue(row.sample_draw_count),
+      sampleUnits: numberValue(row.sample_units),
+      inviteBatches: numberValue(row.invite_batches),
+      invites: numberValue(row.invites),
+      sent: numberValue(row.sent),
+      completed: numberValue(row.completed),
+      failedJobs: numberValue(row.failed_jobs)
+    } : undefined
+  };
+}
