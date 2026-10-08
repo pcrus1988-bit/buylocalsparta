@@ -69,7 +69,8 @@ export async function researchDirectorySearch(
   // MATERIALIZED forces the bounded ID selection to finish before any private
   // vault is joined by indexed contact_point_id. No email values are fetched during paging.
   const privateJoin = canViewEmail
-    ? "LEFT JOIN research_private.contact_vault pv ON pv.contact_point_id=page.id"
+    ? "LEFT JOIN research_private.contact_vault pv ON pv.contact_point_id=" +
+      (kind === "contacts" ? "page.id" : "page.contact_point_id")
     : "";
   const privateSelect = canViewEmail ? "pv.contact_value" : "NULL::text AS contact_value";
   const rows = kind === "contacts"
