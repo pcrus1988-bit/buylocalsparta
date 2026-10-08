@@ -27,9 +27,9 @@ export function ResearchSurveyDirectoryPanel({ slug, kind, data }: {
         <label style={{ flex: "1 1 240px" }}>
           Search
           <input name="q" type="search"
-            aria-label={isContact ? "Email, business or municipality" : "Invitation ID or email"}
+            aria-label={isContact ? "Full email (exact), business or municipality" : "Invitation ID or full email"}
             defaultValue={data.q}
-            placeholder={isContact ? (data.canViewEmail ? "Email, business or municipality" : "Business or municipality") : (data.canViewEmail ? "Invitation ID or email" : "Invitation ID")}
+            placeholder={isContact ? (data.canViewEmail ? "Full email (exact), business or municipality" : "Business or municipality") : (data.canViewEmail ? "Invitation ID or full email" : "Invitation ID")}
             maxLength={120} style={{ display: "block", width: "100%", marginTop: 6 }} />
         </label>
         <label style={{ flex: "1 1 180px" }}>
@@ -43,7 +43,7 @@ export function ResearchSurveyDirectoryPanel({ slug, kind, data }: {
         <button className="button" type="submit" style={{ alignSelf: "end" }}>Search / filter</button>
         <Link className="button button-secondary" href={root} style={{ alignSelf: "end" }}>Clear</Link>
       </div>
-      <small>Search is server-side, never a download of the full directory. At most 25 records per page. Email visibility follows Admin permissions and access is audited.</small>
+      <small>Search is server-side and on demand. Enter a full email for an exact private lookup, or search by business/municipality. At most 25 records per page. Email visibility follows Admin permissions and access is audited.</small>
     </form>
     {!data.requested
       ? <div className="workspace-inline-note" role="status">No records preloaded. Use the search or status filter above to retrieve a page.</div>
