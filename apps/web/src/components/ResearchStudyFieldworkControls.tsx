@@ -31,6 +31,22 @@ const DEFAULT_REMINDER_BODY = `{{company_greeting}}
 
 const TEMPLATE_VARIABLES = "{{study_title}}, {{company_name}}, {{company_greeting}}, {{survey_url}}, {{methodology_url}}, {{privacy_url}}, {{optout_url}}";
 
+type CampaignBounceMetrics = Readonly<{
+  phase: string;
+  delivered: number;
+  hardBounced: number;
+  validationSuppressed: number;
+  decided: number;
+  permanentBounced: number | null;
+  transientBounced: number | null;
+  unknownBounced: number | null;
+  accountSuppressed: number | null;
+  hardBounceRate: number;
+  hardBounceThreshold: number | null;
+  hardBounceHold: boolean;
+  validationHold: boolean;
+}>;
+
 type Busy = "template" | "reminderTemplate" | "send" | "recover" | "campaign" | "reminders" | "suppress" | "rewards" | "analysis" | "release" | "results" | null;
 
 type EmailPurpose = "research_invitation" | "research_reminder" | "thank_you_code" | "results_notification";
@@ -94,7 +110,7 @@ export function ResearchStudyFieldworkControls({
   cohortBSampleStatus?: string;
   cohortBRecruitmentMode?: string;
   cohortBSampleSelected?: number;
-  campaign?: {id:string;status:string;cohort:string;paused:boolean;approvedMaxEmails:number;processedCount:number;sentCount:number;safetyHold?:string;lastError?:string;lastSubmissionError?:string;submissionFailures?:number;lastBatchFailures?:number;invalidRecipientSkippedCount?:number;recoveryReviewed?:boolean;classifiedDeliveryCount:number;completedReviewMilestone:number|null;nextReviewMilestone:number};
+  campaign?: {id:string;status:string;cohort:string;paused:boolean;approvedMaxEmails:number;processedCount:number;sentCount:number;safetyHold?:string;safetyHoldPhase?:string;deliverySafetyBreakdown?:CampaignBounceMetrics[];lastError?:string;lastSubmissionError?:string;submissionFailures?:number;lastBatchFailures?:number;invalidRecipientSkippedCount?:number;recoveryReviewed?:boolean;classifiedDeliveryCount:number;completedReviewMilestone:number|null;nextReviewMilestone:number};
   queuedSampleJobs: number;
   runningSampleJobs: number;
   recruitmentTemplateVersion?: string;
@@ -569,6 +585,27 @@ export function ResearchStudyFieldworkControls({
         {campaign.paused ? "Τελευταία καταγεγραμμένη παύση ασφαλείας" : "Καταγεγραμμένη παύση ασφαλείας"}: {campaign.safetyHold}.
         {" "}Η κατάσταση αξιολογείται ξανά στον επόμενο κύκλο επεξεργασίας.
       </p>}
+      {campaign.safetyHold && Boolean(campaign.deliverySafetyBreakdown?.length) && <div className="workspace-inline-note">
+        <strong>Ανάλυση επιστροφών ανά φάση (από τα καταγεγραμμένα αποτελέσματα SES)</strong>
+        {campaign.safetyHoldPhase && <p>Φάση που ενεργοποίησε την παύση: <strong>{campaign.safetyHoldPhase === "pilot" ? "Πιλοτική" : campaign.safetyHoldPhase === "main" ? "Κύρια" : campaign.safetyHoldPhase}</strong>.</p>}
+        {campaign.deliverySafetyBreakdown?.map((metric) => <p key={metric.phase}>
+          <strong>{metric.phase === "pilot" ? "Πιλοτική" : metric.phase === "main" ? "Κύρια μελέτη" : metric.phase}</strong>:
+          {" "}Παραδόθηκαν {metric.delivered.toLocaleString("el-GR")} ·
+          {" "}Επιστροφές που μετρά ο υφιστάμενος έλεγχος {metric.hardBounced.toLocaleString("el-GR")} ·
+          {" "}Ποσοστό {(metric.hardBounceRate * 100).toLocaleString("el-GR", {maximumFractionDigits:2})}% ·
+          {" "}Όριο {metric.hardBounceThreshold === null ? "δεν ισχύει ακόμη" : (metric.hardBounceThreshold * 100).toLocaleString("el-GR", {maximumFractionDigits:2}) + "%"}.
+          {metric.permanentBounced !== null && <>
+            {" "}Από αυτά: Permanent {metric.permanentBounced.toLocaleString("el-GR")},
+            {" "}Transient {(metric.transientBounced ?? 0).toLocaleString("el-GR")},
+            {" "}άγνωστου τύπου {(metric.unknownBounced ?? 0).toLocaleString("el-GR")},
+            {" "}εξαιρέσεις λίστας SES {(metric.accountSuppressed ?? 0).toLocaleString("el-GR")}.
+          </>}
+          {" "}Validation-suppressed: {metric.validationSuppressed.toLocaleString("el-GR")}.
+          {metric.hardBounceHold && <strong> Η φάση υπερβαίνει το όριο επιστροφών.</strong>}
+          {metric.validationHold && <strong> Η φάση υπερβαίνει το όριο προληπτικών αποκλεισμών.</strong>}
+        </p>)}
+        <p>Το υφιστάμενο ποσοστό ασφαλείας περιλαμβάνει και Transient/μη ταξινομημένες επιστροφές. Οι υποτύποι εμφανίζονται για έλεγχο και δεν μειώνουν αυτόματα την παύση. Το παραπάνω ποσοστό αφορά τη μελέτη, όχι το συνολικό ποσοστό φήμης του λογαριασμού SES.</p>
+      </div>}
       {campaign.status === "failed" && <div className="workspace-action-buttons">
         <button type="button" className="button button-secondary"
           disabled={Boolean(busy)} onClick={() => void recoverCampaign()}>

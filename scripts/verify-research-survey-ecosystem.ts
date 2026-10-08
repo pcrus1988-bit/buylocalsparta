@@ -322,8 +322,9 @@ for (const [label, config] of [["root", researchRootCronConfig], ["web", researc
   )) errors.push(`${label} cron config does not schedule dedicated email worker each minute`);
 }
 
-if (!jobs.includes("e.metadata->>'bounceSubType'='EmailValidationSuppressed'"))
-  errors.push("SES validation-suppressed messages are not separately classified");
+if (!jobs.includes("bounce.bounce_sub_type='EmailValidationSuppressed'") ||
+    !jobs.includes("COALESCE((m.status='bounced'"))
+  errors.push("SES validation-suppressed messages are not separately classified with unknown metadata failing closed");
 if (!jobs.includes("e.metadata->>'providerMessageId'=m.provider_message_id"))
   errors.push("SES suppression classification is not tied to the delivery message");
 if (!jobs.includes("SES_HARD_BOUNCE_RATE_ABOVE_GRADUATED_SAFETY_LIMIT")
@@ -530,6 +531,14 @@ if (!jobs.includes("invalidResearchRecipientAddressReason(contact.contact_value)
     !surveyRuntime.includes("campaign_invalid_recipient_skips") ||
     !fieldworkControls.includes("Μη έγκυρες διευθύνσεις που παραλείφθηκαν πριν το SES")) {
   errors.push("research sender must validate mailbox syntax before SES and separately report skip counts");
+}
+if (!jobs.includes("safetyHoldPhase: metrics.phase") ||
+    !jobs.includes("transient_bounced") ||
+    !jobs.includes("permanent_bounced") ||
+    !jobs.includes("COALESCE((m.status='bounced'") ||
+    !surveyRuntime.includes("deliverySafetyBreakdown") ||
+    !fieldworkControls.includes("Ανάλυση επιστροφών ανά φάση")) {
+  errors.push("research delivery safety hold must expose Pilot/Main and true SES permanent/transient breakdown without relaxing unknown-bounce stops");
 }
 if (!jobs.includes("allowIsolatedResearchSubmissionFailure") ||
     !jobs.includes("postAcceptanceFailures") ||
