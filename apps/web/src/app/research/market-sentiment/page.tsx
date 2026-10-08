@@ -1,3 +1,4 @@
+import { ResearchPublicNavigation } from "../../../components/ResearchPublicNavigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../../components/SiteFooter";
@@ -132,15 +133,7 @@ const sections: ReadonlyArray<{ id: SourceKind; eyebrow: string; title: string; 
 export default function ExternalMarketSentimentPage() {
   return <main className={styles.shell}>
     <div className={styles.frame}>
-      <div className={styles.topbar}>
-        <Link className={styles.brand} href="/research">KONTA MOY · ΕΡΕΥΝΑ</Link>
-        <nav className={styles.nav} aria-label="Έρευνα">
-          <Link href="/research">Οι μελέτες μας</Link>
-          <Link href="/research/market-sentiment" aria-current="page" className={external.currentNav}>Άλλοι φορείς</Link>
-          <Link href="/research/compare">Σύγκριση</Link>
-          <Link href="/research/privacy">Ιδιωτικότητα</Link>
-        </nav>
-      </div>
+      <ResearchPublicNavigation active="other-research" />
 
       <header className={styles.hero}>
         <div>
