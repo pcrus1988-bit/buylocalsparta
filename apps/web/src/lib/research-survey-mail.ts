@@ -26,9 +26,8 @@ export function researchSurveyEmailConfiguration(
 }
 
 /**
- * One-to-one workflow rehearsals are independent of actual survey fieldwork.
- * They use the existing SES credentials but never unlock the live job queue.
- * A configuration set is optional here; it remains mandatory for live Research.
+ * Isolated one-to-one SES rehearsal. This does not unlock production delivery.
+ * Real Research email still requires its dedicated configuration set and SNS topic.
  */
 export function assertResearchSimulationEmailReady(
   env: NodeJS.ProcessEnv = process.env
@@ -54,58 +53,8 @@ export function assertResearchSurveyEmailReady(env: NodeJS.ProcessEnv = process.
   const ses = sesMailConfigFromEnv(env);
   const topicArn = env.BLS_RESEARCH_SES_SNS_TOPIC_ARN?.trim();
   if (!topicArn) throw new Error("BLS_RESEARCH_SES_SNS_TOPIC_ARN is required for governed research delivery");
-  if (!new RegExp(`^arn:aws:sns:${ses.region}:[0-9]{12}:[A-Za-z0-9_-]+(?:\\.fifo)?import { createHash } from "node:crypto";
-import { buildAdminMailRawMime, type AdminMailAddress } from "./admin-mail-mime";
-import { sendRawSesEmail, sesMailConfigFromEnv } from "./admin-mail-ses";
-
-const DEFAULT_FROM = "research@kontamou.site";
-const DEFAULT_REPLY_TO = "research@kontamou.site";
-const DEFAULT_DOMAIN = "kontamou.site";
-
-export type ResearchSurveyEmailConfiguration = Readonly<{
-  enabled: boolean;
-  from: string;
-  replyTo: string;
-  configurationSetName?: string;
-}>;
-
-export function researchSurveyEmailConfiguration(
-  env: NodeJS.ProcessEnv = process.env
-): ResearchSurveyEmailConfiguration {
-  const enabled = env.BLS_RESEARCH_EMAIL_DELIVERY_ENABLED === "true";
-  return {
-    enabled,
-    from: env.BLS_RESEARCH_SES_FROM?.trim() || DEFAULT_FROM,
-    replyTo: env.BLS_RESEARCH_SES_REPLY_TO?.trim() || DEFAULT_REPLY_TO,
-    configurationSetName: env.BLS_RESEARCH_SES_CONFIGURATION_SET?.trim() || undefined
-  };
-}
-
-/**
- * One-to-one workflow rehearsals are independent of actual survey fieldwork.
- * They use the existing SES credentials but never unlock the live job queue.
- * A configuration set is optional here; it remains mandatory for live Research.
- */
-export function assertResearchSimulationEmailReady(
-  env: NodeJS.ProcessEnv = process.env
-): ResearchSurveyEmailConfiguration {
-  if (env.BLS_RESEARCH_SIMULATION_EMAIL_ENABLED !== "true") {
-    throw new Error("RESEARCH_SIMULATION_EMAIL_DISABLED");
-  }
-  const configuration = researchSurveyEmailConfiguration(env);
-  sesMailConfigFromEnv(env);
-  return configuration;
-}
-
-export function assertResearchSurveyEmailReady(env: NodeJS.ProcessEnv = process.env): ResearchSurveyEmailConfiguration {
-  const configuration = researchSurveyEmailConfiguration(env);
-  if (!configuration.enabled) {
-    throw new Error("RESEARCH_EMAIL_DELIVERY_DISABLED");
-  }
-  if (!configuration.configurationSetName) {
-    throw new Error("BLS_RESEARCH_SES_CONFIGURATION_SET is required for governed research delivery");
-  }
-).test(topicArn)) {
+  const topicPattern = /^arn:aws:sns:[a-z0-9-]+:[0-9]{12}:[A-Za-z0-9_.-]+$/;
+  if (!topicPattern.test(topicArn) || !topicArn.startsWith("arn:aws:sns:" + ses.region + ":")) {
     throw new Error("RESEARCH_SES_SNS_TOPIC_REGION_OR_ARN_INVALID");
   }
   return configuration;
