@@ -1,7 +1,6 @@
 import { advanceGreekRetailDeadline } from "../../../../lib/research-survey-deadline-automation";
 import { ensureGreekRetailB2cFrameOnboarded } from "../../../../lib/research-b2c-frame-onboarding";
 import {
-  ensureGreekRetailAutomaticReminderBatch,
   processResearchStudyJobs,
   RESEARCH_JOB_TYPES,
   type ResearchJobType
@@ -55,18 +54,11 @@ export async function GET(request: Request) {
     if (frameOnboarding.state === "queued" || frameOnboarding.state === "blocked" || frameOnboarding.state === "failed") {
       console.log(JSON.stringify({ level: "info", event: "research.b2c_frame_onboarding", ...frameOnboarding }));
     }
+    // GEMI imports can take minutes. Invitation sending is handled only by
+    // /api/cron/research-study-email-jobs, independently of this operational lane.
     const operational = await processResearchStudyJobs(3, OPERATIONAL_JOB_TYPES);
-    if (operational.claimed > 0) {
-      return Response.json(
-        { ok: true, lane: "operational", lifecycle, frameOnboarding, ...operational },
-        { headers: { "cache-control": "no-store" } }
-      );
-    }
-
-    const automaticReminder = await ensureGreekRetailAutomaticReminderBatch();
-    const email = await processResearchStudyJobs(1, EMAIL_JOB_TYPES);
     return Response.json(
-      { ok: true, lane: "email", lifecycle, frameOnboarding, automaticReminder, ...email },
+      { ok: true, lane: "operational", lifecycle, frameOnboarding, ...operational },
       { headers: { "cache-control": "no-store" } }
     );
   } catch (error) {
