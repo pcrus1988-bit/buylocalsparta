@@ -24,6 +24,7 @@ import {
   researchProtocolEvents,
   researchSurveyAdminOverview,
   researchSurveyAdminFastOverview,
+  researchSurveyAdminCohortOverview,
   researchSurveyOperationsOverview
 } from "../../../../../../lib/research-survey-runtime";
 import { researchDirectorySearch } from "../../../../../../lib/research-survey-directory";
@@ -123,11 +124,20 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
       />
     </>;
   } else if (section === "sampling") {
+    const cohorts = await researchSurveyAdminCohortOverview(principal, study.slug);
     content = <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Sampling" title="Population frame & sample" note="Only sampling controls are loaded on this page." />
       {canManage ? <ResearchStudySamplingControls
         slug={study.slug}
         csrfToken={principal.csrfToken}
+        cohortAStatus={cohorts?.a.status}
+        cohortAPopulation={cohorts?.a.population}
+        cohortAContacts={cohorts?.a.contactable}
+        cohortBStatus={cohorts?.b.status}
+        cohortBPopulation={cohorts?.b.population}
+        cohortBContacts={cohorts?.b.contactable}
+        queuedSampleJobs={study.queuedSampleJobs}
+        runningSampleJobs={study.runningSampleJobs}
         latestFrameStatus={study.latestFrameStatus}
         studyStatus={study.status}
         framePopulation={study.framePopulation}
@@ -147,6 +157,7 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
       /> : <div className="workspace-inline-note">Read-only access. Sampling mutations require Research management permission.</div>}
     </section>;
   } else if (section === "fieldwork") {
+    const cohorts = await researchSurveyAdminCohortOverview(principal, study.slug);
     const operations = await researchSurveyOperationsOverview(principal, study.slug, "templates");
     content = <>
       <section className="shell vendor-section">
@@ -156,6 +167,10 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
           studyTitle={study.title}
           csrfToken={principal.csrfToken}
           studyStatus={study.status}
+          cohortAStatus={cohorts?.a.status}
+          cohortBStatus={cohorts?.b.status}
+          queuedSampleJobs={study.queuedSampleJobs}
+          runningSampleJobs={study.runningSampleJobs}
           recruitmentTemplateVersion={study.recruitmentTemplateVersion}
           recruitmentTemplateSubject={study.recruitmentTemplateSubject}
           recruitmentTemplateBody={study.recruitmentTemplateBody}
