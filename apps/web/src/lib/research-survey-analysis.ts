@@ -10,8 +10,9 @@ import {
   stratifiedSrsMeanVariance,
   weightedClusteredDifferenceInMeans
 } from "./research-survey-statistics";
+import { scoreGreekRetail2026, type ResearchAnswerMap } from "./research-survey-model";
 
-const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v7";
+const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v8";
 const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v2";
 const MIN_PUBLIC_BASE = 30;
 const VARIANCE_METHOD = "stratified_srs_fpc_v1";
@@ -207,25 +208,86 @@ function estimateSpecs(
       }
     } else if (question.questionType === "matrix") {
       const items = configPairs(question.config, "items");
+      const scale = configPairs(question.config, "scale");
+      const quantitative = scale.filter(([option]) => option.trim() !== "" && Number.isFinite(Number(option))).length >= 2;
       for (const [item, label] of items) {
-        const observations = responses.flatMap((response) => {
-          const answer = objectValue(response.answers[question.code]);
-          const value = Number(answer[item]);
-          return Number.isFinite(value) ? [{ response, value }] : [];
-        });
-        if (!observations.length) continue;
-        specs.push({
-          metricKey: `${question.analysisKey}.${item}.mean`,
-          observations,
-          metadata: { questionCode: question.code, matrixItem: item, label, format: "mean", analysisClassification: "prespecified_secondary" }
-        });
+        if (quantitative) {
+          const observations = responses.flatMap((response) => {
+            const answer = objectValue(response.answers[question.code]);
+            const raw = answer[item];
+            if (raw === undefined || raw === null || raw === "") return [];
+            const value = Number(raw);
+            return Number.isFinite(value) ? [{ response, value }] : [];
+          });
+          if (!observations.length) continue;
+          specs.push({
+            metricKey: `${question.analysisKey}.${item}.mean`,
+            observations,
+            metadata: { questionCode: question.code, matrixItem: item, label, format: "mean", analysisClassification: "prespecified_secondary" }
+          });
+        } else {
+          // Ordinal/category-coded matrix rows are not numeric means. Publish
+          // each choice as a share, retaining unknown/refusal in the denominator
+          // so respondents are not silently recoded or imputed.
+          const allowed = new Set(scale.map(([option]) => option));
+          const answered = responses.filter((response) =>
+            allowed.has(String(objectValue(response.answers[question.code])[item] ?? ""))
+          );
+          for (const [option, optionLabel] of scale) {
+            if (!answered.length) continue;
+            specs.push({
+              metricKey: `${question.analysisKey}.${item}.share.${option}`,
+              observations: answered.map((response) => ({
+                response,
+                value: String(objectValue(response.answers[question.code])[item]) === option ? 1 : 0
+              })),
+              metadata: {
+                questionCode: question.code, matrixItem: item, option,
+                label: `${label} — ${optionLabel}`,
+                format: "proportion", analysisClassification: "prespecified_secondary"
+              }
+            });
+          }
+        }
       }
+    }
+  }
+
+  // Pre-specified cross-tab: rising reported turnover alongside falling
+  // profitability. Only respondents reporting an actual direction in both
+  // components are included; unknown/refusals are excluded, not coded neutral.
+  if (questions.some((question) => question.code === "Q21" && question.analysisKey === "business_financial_trends_12m")) {
+    const knownTrends = new Set(["increased", "stable", "decreased"]);
+    const comparable = responses.filter((response) => {
+      const trend = objectValue(response.answers.Q21);
+      return knownTrends.has(String(trend.turnover ?? "")) &&
+        knownTrends.has(String(trend.profitability ?? ""));
+    });
+    if (comparable.length) {
+      specs.push({
+        metricKey: "business_financial_divergence.share.turnover_up_profit_down",
+        observations: comparable.map((response) => {
+          const trend = objectValue(response.answers.Q21);
+          return {
+            response,
+            value: trend.turnover === "increased" && trend.profitability === "decreased" ? 1 : 0
+          };
+        }),
+        metadata: {
+          label: "Αύξηση τζίρου με μείωση κερδοφορίας",
+          format: "proportion",
+          questionCode: "Q21",
+          estimand: "share_among_valid_turnover_and_profit_trends",
+          analysisClassification: "prespecified_secondary"
+        }
+      });
     }
   }
 
   const derived: Array<readonly [string, keyof WeightedResponse["scores"]]> = [
     ["digital_readiness.mean", "digitalReadiness"],
-    ["retail_friction.mean", "frictionOverall"]
+    ["retail_friction.mean", "frictionOverall"],
+    ["retail_confidence.mean", "businessConfidence"]
   ];
   for (const [metricKey, key] of derived) {
     const observations = responses.flatMap((response) => {
@@ -237,6 +299,11 @@ function estimateSpecs(
       observations,
       metadata: {
         format: "mean",
+        label: ({
+          "digital_readiness.mean": "Δείκτης ψηφιακής ετοιμότητας",
+          "retail_friction.mean": "Δείκτης λειτουργικών δυσκολιών",
+          "retail_confidence.mean": "Δείκτης επιχειρηματικής εμπιστοσύνης"
+        } as Record<string, string>)[metricKey],
         derived: true,
         analysisClassification: primaryMetricKeys.has(metricKey)
           ? "prespecified_primary"
@@ -659,7 +726,10 @@ export async function runGreekRetailAnalysis(
     ...response,
     finalWeight: calibration.finalWeights[response.responseId] ?? 0,
     answers: answerMap.get(response.responseId) ?? {},
-    scores: scoreMap.get(response.responseId) ?? {}
+    scores: {
+      ...(scoreMap.get(response.responseId) ?? {}),
+      businessConfidence: scoreGreekRetail2026((answerMap.get(response.responseId) ?? {}) as ResearchAnswerMap).businessConfidenceScore
+    }
   }));
   if (weightedResponses.some((response) => !(response.finalWeight > 0))) {
     throw new Error("RESEARCH_CALIBRATION_FINAL_WEIGHT_INVALID");
@@ -1003,7 +1073,7 @@ export async function runGreekRetailAnalysis(
     FROM research_analysis_estimates
     WHERE analysis_run_id=$1
       AND method='nonresponse_adjusted_stratified_descriptive_v2'
-      AND metric_key IN ('digital_readiness.mean','retail_friction.mean')
+      AND metric_key IN ('digital_readiness.mean','retail_friction.mean','retail_confidence.mean')
       AND suppressed=false
       AND estimate IS NOT NULL
       AND standard_error IS NOT NULL

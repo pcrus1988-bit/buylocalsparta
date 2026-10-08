@@ -214,7 +214,7 @@ if (longitudinalLineageChecksums["0432_research_longitudinal_lineage.sql"] !== l
 if (releaseArchiveChecksums["0433_research_release_archive.sql"] !== releaseArchiveSha) {
   errors.push("0433 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 435")) errors.push("runtime schema head is not 435");
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 436")) errors.push("runtime schema head is not 436");
 if (!qualityV3Migration.includes("ADD COLUMN quality_score")) errors.push("research quality score column missing");
 if (!qualityV3Migration.includes("ADD COLUMN answer_pattern_sha256")) errors.push("research answer-pattern fingerprint column missing");
 if (!qualityV3Migration.includes("research_quality_answer_pattern_idx")) errors.push("research answer-pattern QA index missing");
@@ -521,7 +521,7 @@ if (!statistics.includes("unequal_within_stratum_weights")) errors.push("varianc
 if (!analysis.includes('VARIANCE_METHOD = "stratified_srs_fpc_v1"')) errors.push("analysis variance method is not versioned");
 if (!analysis.includes("'weightDiagnostics',$3::jsonb")) errors.push("analysis run does not persist weighting diagnostics");
 if (!statistics.includes("normalTwoSidedPValue")) errors.push("pairwise normal p-value helper missing");
-if (!analysis.includes('ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v7"')) errors.push("analysis code version is not v7");
+if (!analysis.includes('ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v8"')) errors.push("analysis code version is not v8");
 if (!analysis.includes("ri.fieldwork_phase='main'")) errors.push("analysis does not isolate main-fieldwork responses");
 if (!jobs.includes("pri.sent_at IS NOT NULL")) errors.push("main sample does not durably exclude pilot-exposed businesses");
 if (!surveyRuntime.includes("RESEARCH_PILOT_CLOSE_CONTACT_JOB_RUNNING")) errors.push("pilot closeout does not guard running contact jobs");
@@ -622,9 +622,22 @@ if (!researchQuestionsEditor.includes("save_later_evaluation") || !researchQuest
 if (!researchAdminDesign.includes("kontamou.research.exploratory-evaluation.v1") || !researchAdminDesign.includes("exploratory_post_registration")) errors.push("versioned post-registration evaluation evidence missing");
 if (!surveyRuntime.includes("recordResearchProtocolEvent") || !surveyRuntime.includes("researchProtocolEvents")) errors.push("protocol evidence runtime missing");
 if (!release.includes("protocolEvidence") || !release.includes("RESEARCH_RELEASE_PROTOCOL_EVIDENCE_INTEGRITY_FAILED")) errors.push("release artifact does not freeze verified protocol evidence");
-if (surveyForm.includes("optionalConsents.marketing")) errors.push("scientific survey completion flow still exposes marketing consent");
-if (surveyRuntime.includes('"marketing"')) errors.push("participant research runtime still accepts marketing consent");
-if (!surveyForm.includes('href="/join"')) errors.push("commercial follow-up is not separated behind a post-research route");
+// Marketing opt-in is allowed only after the questionnaire has been completed.
+const completedSurveyUiOffset = surveyForm.indexOf("if (completed) {");
+const marketingPreferenceUiOffset = surveyForm.indexOf("checked={optionalConsents.marketing}");
+if (marketingPreferenceUiOffset >= 0 && (completedSurveyUiOffset < 0 || marketingPreferenceUiOffset < completedSurveyUiOffset)) {
+  errors.push("marketing consent must not appear during the scientific questionnaire");
+}
+const preferenceHandler = surveyRuntime.indexOf("export async function updatePublicResearchConsents");
+const questionnaireHandler = surveyRuntime.indexOf("export async function savePublicResearchSurvey");
+if (preferenceHandler < 0 || questionnaireHandler < 0 ||
+    surveyRuntime.slice(questionnaireHandler, surveyRuntime.indexOf("export async function ", questionnaireHandler + 1)).includes('"marketing"') ||
+    !surveyRuntime.includes('RESEARCH_PREFERENCES_REQUIRE_COMPLETION')) {
+  errors.push("marketing preferences must remain separate from questionnaire submission and gated on completed responses");
+}
+if (!surveyForm.includes("Η επιλογή είναι προαιρετική και ανεξάρτητη από την έρευνα.")) {
+  errors.push("post-completion commercial preference must be visibly separate from research participation");
+}
 if (!surveyRuntime.includes("RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("pilot lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes("RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("fieldwork lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes('"publish_release"')) errors.push("explicit publish lifecycle action missing");

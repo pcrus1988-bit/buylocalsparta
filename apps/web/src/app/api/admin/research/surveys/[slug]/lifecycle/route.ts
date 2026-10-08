@@ -2,6 +2,7 @@ import { recordAdminAudit } from "../../../../../../../lib/admin-runtime";
 import { requireAdminSession } from "../../../../../../../lib/admin-session";
 import {
   createResearchSurveyDesignRevision,
+  installRetailSentiment2026,
   deleteResearchQuestionDraft,
   lockResearchAnalysisPlanDraft,
   moveResearchQuestionDraft,
@@ -53,6 +54,13 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     if (action === "create_revision") {
       const result = await createResearchSurveyDesignRevision(principal, slug);
       await recordAdminAudit(principal, "research.design.revision", "research_study", slug, "Created editable survey design revision", result);
+      return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (action === "install_retail_sentiment_2026") {
+      const result = await installRetailSentiment2026(principal, slug);
+      await recordAdminAudit(principal, "research.module.install", "research_study", slug,
+        "Installed economic sentiment module in draft", result);
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
 

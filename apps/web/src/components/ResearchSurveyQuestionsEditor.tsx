@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ResearchQuestion, ResearchQuestionType } from "../lib/research-survey-model";
+import { RETAIL_SENTIMENT_2026_QUESTIONS } from "../lib/research-retail-sentiment-2026";
 import type { ResearchSurveyDesignAdminOverview } from "../lib/research-survey-admin-design";
 
 function pairs(value: unknown): ReadonlyArray<readonly [string, string]> {
@@ -344,11 +345,13 @@ export function ResearchSurveyQuestionsEditor({
   slug,
   csrfToken,
   canEdit,
+  canAnalyze,
   data
 }: {
   slug: string;
   csrfToken: string;
   canEdit: boolean;
+  canAnalyze: boolean;
   data: ResearchSurveyDesignAdminOverview;
 }) {
   const router = useRouter();
@@ -356,8 +359,10 @@ export function ResearchSurveyQuestionsEditor({
   const [message, setMessage] = useState("");
   const instrument = data.instrument;
   const editable = Boolean(canEdit && data.study.status === "draft" && instrument?.status === "draft");
-  const canCreateRevision = Boolean(canEdit && data.study.status === "draft" && instrument && instrument.status !== "draft");
+  const canCreateRevision = Boolean(canEdit && data.study.status === "draft" && instrument && (instrument.status !== "draft" || data.analysisPlan?.status === "locked"));
   const canLockQuestionnaire = Boolean(editable && data.questions.length > 0);
+  const moduleInstalled = RETAIL_SENTIMENT_2026_QUESTIONS.every((item) => data.questions.some((question) => question.code === item.code));
+  const canInstallSentiment = Boolean(editable && canAnalyze && data.analysisPlan?.status === "draft" && !moduleInstalled && slug === "greek-retail-2026");
 
   async function createRevision() {
     setBusy(true);
@@ -368,6 +373,25 @@ export function ResearchSurveyQuestionsEditor({
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Editable revision could not be created.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function installSentiment() {
+    if (!canInstallSentiment || !instrument) return;
+    if (!window.confirm(
+      "Add Q19–Q27 (9 questions) and preregister the Greek Retail Business Confidence Index for questionnaire " + instrument.version +
+      "?\\n\\nThe questions will be added to the current editable draft only. No invitations will be sent. Review the new fingerprint before locking."
+    )) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await designPost(slug, csrfToken, { action: "install_retail_sentiment_2026" });
+      setMessage("Installed " + String(result.installed ?? 0) + " new questions (Q19–Q27) and preregistered the confidence index.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not install Q19–Q27.");
     } finally {
       setBusy(false);
     }
@@ -406,6 +430,21 @@ export function ResearchSurveyQuestionsEditor({
     }
   }
 
+  async function installSentiment() {
+    if (!window.confirm("Install the 9-question economic/sentiment extension and register the Greek Retail Business Confidence Index in this editable draft? No invitation will be sent.")) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await designPost(slug, csrfToken, { action: "install_retail_sentiment_2026" });
+      setMessage("Installed " + String(result.installed ?? 0) + " questions and registered the confidence index in the draft analysis plan.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Economic sentiment extension could not be installed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!instrument) {
     return <section className="shell vendor-section"><div className="workspace-inline-note form-error">No questionnaire instrument exists for this survey.</div></section>;
   }
@@ -426,6 +465,26 @@ export function ResearchSurveyQuestionsEditor({
           {canCreateRevision ? " Create a new draft revision to make changes before fieldwork begins." : ""}
         </div>}
 
+    {!moduleInstalled && slug === "greek-retail-2026" && <div className="workspace-queue-card" style={{ display: "grid", gap: 8, marginTop: 14 }}>
+      <strong>Προτεινόμενη νέα ενότητα · Οικονομική κατάσταση και επιχειρηματική εμπιστοσύνη (Q19–Q27)</strong>
+      <p>Οι παρακάτω εννέα ερωτήσεις δεν έχουν προστεθεί ακόμη σε αυτό το ερωτηματολόγιο.</p>
+      <ol style={{ paddingLeft: 25, margin: 0 }}>
+        {RETAIL_SENTIMENT_2026_QUESTIONS.map((question) => <li key={question.code}><strong>{question.code}.</strong> {question.prompt}</li>)}
+      </ol>
+      <small>Πρώτα εγκατάσταση στο draft, μετά έλεγχος και κλείδωμα. Δεν γίνεται αποστολή email.</small>
+    </div>}
+
+    {editable && !moduleInstalled && slug === "greek-retail-2026" && <div className="workspace-action-bar">
+      <span><strong>Install Q19–Q27</strong><br />
+        Add nine sentiment questions and register the 0–100 Greek Retail Business Confidence Index in the draft analysis plan.
+        {data.analysisPlan?.status !== "draft" && <><br /><small>The evaluation plan must be an editable draft; create a new design revision first.</small></>}
+        {!canAnalyze && <><br /><small>Research analysis permission is required to update the preregistered index.</small></>}
+      </span>
+      <button className="button button-secondary" disabled={busy || !canInstallSentiment} onClick={() => void installSentiment()} type="button">
+        {busy ? "Installing…" : "Install Q19–Q27"}
+      </button>
+    </div>}
+
     {editable && <div className="workspace-action-bar">
       <span><strong>Ready to freeze this questionnaire?</strong><br />
         Lock version <strong>{instrument.version}</strong> with {data.questions.length} question(s) and its current fingerprint.
@@ -437,11 +496,11 @@ export function ResearchSurveyQuestionsEditor({
     </div>}
 
     {canCreateRevision && <div className="workspace-action-bar">
-      <span><strong>Need to change a locked questionnaire?</strong><br />Create a new draft version with the same questions and a matching draft evaluation plan.</span>
+      <span><strong>Need to revise a locked questionnaire or evaluation plan?</strong><br />Create a new draft version with the same questions and a matching draft evaluation plan.</span>
       <button className="button" disabled={busy} onClick={() => void createRevision()} type="button">{busy ? "Creating…" : "Create editable revision"}</button>
     </div>}
 
-    {message && <div role="status" className={message.startsWith("Editable") || message.startsWith("Questionnaire locked:") ? "workspace-inline-note" : "workspace-inline-note form-error"}>{message}</div>}
+    {message && <div role="status" className={message.startsWith("Editable") || message.startsWith("Questionnaire locked:") || message.startsWith("Installed") ? "workspace-inline-note" : "workspace-inline-note form-error"}>{message}</div>}
 
     <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
       {data.questions.map((question, index) => <QuestionEditorCard
