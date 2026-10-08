@@ -349,14 +349,14 @@ export async function queueGreekRetailSampleDraw(
 
   const contacted = await pool.query<SqlRow>(`
     SELECT EXISTS(
-      SELECT 1
-      FROM research_invites
-      WHERE study_id=$1
-        AND wave_id=$2
-        AND fieldwork_phase=$3
-        AND sent_at IS NOT NULL
+      SELECT 1 FROM research_invites ri
+      JOIN research_sample_units su ON su.id=ri.sample_unit_id
+      JOIN research_sample_designs ds ON ds.sample_draw_id=su.sample_draw_id
+      WHERE ri.study_id=$1 AND ri.wave_id=$2
+        AND ri.fieldwork_phase=$3 AND ri.sent_at IS NOT NULL
+        AND ds.design_json->>'cohort'=$4
     ) AS has_contacted_units
-  `, [study.rows[0].id, study.rows[0].current_wave_id, fieldworkPhase]);
+  `, [study.rows[0].id, study.rows[0].current_wave_id, fieldworkPhase, cohort]);
   if (Boolean(contacted.rows[0]?.has_contacted_units)) {
     throw new Error("RESEARCH_SAMPLE_REDRAW_AFTER_CONTACT");
   }
@@ -1737,14 +1737,13 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
     }
     const contacted = await client.query<SqlRow>(`
       SELECT EXISTS(
-        SELECT 1
-        FROM research_invites
-        WHERE study_id=$1
-          AND wave_id=$2
-          AND fieldwork_phase=$3
-          AND sent_at IS NOT NULL
+        SELECT 1 FROM research_invites ri
+        JOIN research_sample_units su ON su.id=ri.sample_unit_id
+        JOIN research_sample_designs ds ON ds.sample_draw_id=su.sample_draw_id
+        WHERE ri.study_id=$1 AND ri.wave_id=$2 AND ri.fieldwork_phase=$3
+          AND ri.sent_at IS NOT NULL AND ds.design_json->>'cohort'=$4
       ) AS has_contacted_units
-    `, [job.study_id, job.wave_id, fieldworkPhase]);
+    `, [job.study_id, job.wave_id, fieldworkPhase, cohort]);
     if (Boolean(contacted.rows[0]?.has_contacted_units)) {
       throw new Error("RESEARCH_SAMPLE_REDRAW_AFTER_CONTACT");
     }
@@ -2219,7 +2218,10 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         AND id<>$3
         AND status='locked'
         AND fieldwork_phase=$4
-    `, [job.study_id, job.wave_id, drawId, fieldworkPhase]);
+        AND EXISTS (SELECT 1 FROM research_sample_designs ds
+          WHERE ds.sample_draw_id=research_sample_draws.id
+            AND ds.design_json->>'cohort'=$5)
+    `, [job.study_id, job.wave_id, drawId, fieldworkPhase, cohort]);
     await client.query(`
       UPDATE research_sample_draws
       SET status='locked', drawn_at=now()
