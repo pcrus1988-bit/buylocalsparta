@@ -3,7 +3,7 @@ import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission, hasAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
 import { getAdminPostgresRuntime, getAdminResearchOverviewPostgresRuntime, getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { researchReleaseArtifactIntegrity } from "./research-survey-release";
-import { evaluateResearchDeliverySafety, researchDeliveryReviewMilestones } from "./research-survey-delivery-safety";
+import { evaluateResearchDeliverySafety, researchDeliveryReviewMilestones, RESEARCH_BOUNCE_POLICY_VERSION } from "./research-survey-delivery-safety";
 import {
   researchQualitySignals,
   scoreGreekRetail2026,
@@ -2590,6 +2590,7 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       campaign.id AS campaign_id,
       campaign.input->>'cohort' AS campaign_cohort,
       campaign.input->>'paused' AS campaign_paused,
+      campaign.input->>'bouncePolicyAcknowledgedVersion' AS campaign_bounce_policy_acknowledged_version,
       campaign.input->>'limit' AS campaign_approved_limit,
       campaign.output->>'campaignProcessedCount' AS campaign_processed,
       campaign.output->>'campaignSentCount' AS campaign_sent,
@@ -2750,6 +2751,10 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       sentCount:numberValue(row.campaign_sent),
       safetyHold:optionalText(row.campaign_safety_hold),
       safetyHoldPhase:optionalText(row.campaign_safety_hold_phase),
+      requiresBouncePolicyConfirmation:
+        ["SES_HARD_BOUNCE_RATE_ABOVE_GRADUATED_SAFETY_LIMIT",
+         "RESEARCH_BOUNCE_POLICY_CONFIRMATION_REQUIRED"].includes(text(row.campaign_safety_hold)) &&
+        text(row.campaign_bounce_policy_acknowledged_version) !== RESEARCH_BOUNCE_POLICY_VERSION,
       deliverySafetyBreakdown,
       lastError:optionalText(row.campaign_error_message),
       recoveryReviewed:Boolean(row.campaign_recovery_review),
