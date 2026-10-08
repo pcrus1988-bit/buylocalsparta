@@ -39,11 +39,12 @@ function safeBulkAction(value: string): AdminMailBulkAction {
   throw new Error("Choose a valid bulk action");
 }
 
-function redirectWithError(error: unknown, compose = false): never {
+function redirectWithError(error: unknown, compose = false, mailbox = "all"): never {
   const raw = error instanceof Error ? error.message : "Mail operation failed";
   const safe = raw.replace(/[\r\n]+/g, " ").slice(0, 240);
   const params = new URLSearchParams({ error: safe });
   if (compose) params.set("compose", "1");
+  if (mailbox !== "all") params.set("mailbox", mailbox);
   redirect(`/admin/mail?${params.toString()}`);
 }
 
@@ -86,7 +87,7 @@ export async function sendMailAction(formData: FormData) {
       attachments
     });
   } catch (error) {
-    redirectWithError(error, true);
+    redirectWithError(error, true, text(formData.get("mailbox")));
   }
 
   try {
@@ -111,7 +112,7 @@ export async function sendMailAction(formData: FormData) {
     }));
   }
   revalidatePath("/admin/mail");
-  redirect(`/admin/mail?folder=sent&message=${encodeURIComponent(result.publicId)}&sent=1`);
+  redirect(`/admin/mail?folder=sent&mailbox=${encodeURIComponent(text(formData.get("from")))}&message=${encodeURIComponent(result.publicId)}&sent=1`);
 }
 
 export async function toggleReadMailAction(formData: FormData) {
