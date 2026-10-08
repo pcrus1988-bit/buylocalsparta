@@ -290,6 +290,7 @@ export async function queueGreekRetailSampleDraw(
     randomSeed?: string;
     label?: string;
     fieldworkPhase?: "pilot" | "main";
+    cohort?: "A" | "B";
   }>
 ): Promise<{ jobId: string; randomSeed: string; fieldworkPhase: "pilot" | "main" }> {
   assertAdminPermission(principal, "research.design.manage");
@@ -318,6 +319,10 @@ export async function queueGreekRetailSampleDraw(
   const studyStatus = text(study.rows[0].status);
   const fieldworkPhase: "pilot" | "main" = input.fieldworkPhase
     ?? (["draft","pilot"].includes(studyStatus) ? "pilot" : "main");
+  const cohort = input.cohort || (fieldworkPhase === "pilot" ? "A" : "");
+  if (!["A","B"].includes(cohort) || (fieldworkPhase === "pilot" && cohort !== "A")) {
+    throw new Error("RESEARCH_SAMPLE_COHORT_INVALID");
+  }
   const minTargetN = fieldworkPhase === "pilot" ? 10 : 100;
   const maxTargetN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
   if (targetN < minTargetN || targetN > maxTargetN) {
@@ -333,22 +338,25 @@ export async function queueGreekRetailSampleDraw(
   }
   const frame = await pool.query<SqlRow>(`
     SELECT id FROM research_frame_snapshots
-    WHERE study_id=$1 AND wave_id=$2 AND status='frozen'
-    ORDER BY frozen_at DESC NULLS LAST, created_at DESC
-    LIMIT 1
-  `, [study.rows[0].id, study.rows[0].current_wave_id]);
+    WHERE study_id=$1 AND wave_id=$2
+      AND (($3='A' AND status IN ('frozen','superseded')
+        AND selection_criteria->'activityGroupIds' @> '["retail-non-food"]'::jsonb)
+        OR ($3='B' AND status='frozen'
+        AND selection_criteria->'activityGroupIds' @> '["retail-all"]'::jsonb))
+    ORDER BY frozen_at DESC NULLS LAST, created_at DESC LIMIT 1
+  `, [study.rows[0].id, study.rows[0].current_wave_id, cohort]);
   if (!frame.rows[0]) throw new Error("RESEARCH_SAMPLE_REQUIRES_FROZEN_FRAME");
 
   const contacted = await pool.query<SqlRow>(`
     SELECT EXISTS(
-      SELECT 1
-      FROM research_invites
-      WHERE study_id=$1
-        AND wave_id=$2
-        AND fieldwork_phase=$3
-        AND sent_at IS NOT NULL
+      SELECT 1 FROM research_invites ri
+      JOIN research_sample_units su ON su.id=ri.sample_unit_id
+      JOIN research_sample_designs ds ON ds.sample_draw_id=su.sample_draw_id
+      WHERE ri.study_id=$1 AND ri.wave_id=$2
+        AND ri.fieldwork_phase=$3 AND ri.sent_at IS NOT NULL
+        AND ds.design_json->>'cohort'=$4
     ) AS has_contacted_units
-  `, [study.rows[0].id, study.rows[0].current_wave_id, fieldworkPhase]);
+  `, [study.rows[0].id, study.rows[0].current_wave_id, fieldworkPhase, cohort]);
   if (Boolean(contacted.rows[0]?.has_contacted_units)) {
     throw new Error("RESEARCH_SAMPLE_REDRAW_AFTER_CONTACT");
   }
@@ -367,6 +375,7 @@ export async function queueGreekRetailSampleDraw(
     const existingExpectedResponseRate = numberValue(existingInput.expectedResponseRate);
     if (
       existingPhase !== fieldworkPhase
+      || text(existingInput.cohort) !== cohort
       || existingDesiredCompleteN !== desiredCompleteN
       || Math.abs(existingExpectedResponseRate - expectedResponseRate) > 1e-9
     ) {
@@ -392,7 +401,9 @@ export async function queueGreekRetailSampleDraw(
         'label', $5::text,
         'fieldworkPhase', $6::text,
         'desiredCompleteN', $7::int,
-        'expectedResponseRate', $8::numeric
+        'expectedResponseRate', $8::numeric,
+        'cohort', $9::text,
+        'frameSnapshotId', $10::text
       )
     )
     RETURNING id
@@ -404,7 +415,9 @@ export async function queueGreekRetailSampleDraw(
     input.label?.trim() || `${fieldworkPhase}-sample-${targetN}`,
     fieldworkPhase,
     desiredCompleteN,
-    expectedResponseRate
+    expectedResponseRate,
+    cohort,
+    text(frame.rows[0].id)
   ]);
   return { jobId: text(job.rows[0]!.id), randomSeed, fieldworkPhase };
 }
@@ -455,11 +468,13 @@ export async function saveGreekRetailRecruitmentTemplate(
 
 export async function queueGreekRetailInviteBatch(
   principal: SessionPrincipal,
-  input: Readonly<{ limit?: number; label?: string; emailApproval?: ResearchEmailBatchApproval }>
+  input: Readonly<{ limit?: number; label?: string; cohort?: "A" | "B"; emailApproval?: ResearchEmailBatchApproval }>
 ): Promise<{ jobId: string }> {
   assertAdminPermission(principal, "research.fieldwork.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   assertResearchSurveyEmailReady();
+  const cohort = input.cohort;
+  if (cohort !== "A" && cohort !== "B") throw new Error("RESEARCH_INVITE_COHORT_REQUIRED");
   const limit = Math.max(1, Math.min(500, Math.floor(input.limit ?? 100)));
   const pool = getProductionPostgresRuntime().sqlPool;
   const study = await pool.query<SqlRow>(`
@@ -471,6 +486,8 @@ export async function queueGreekRetailInviteBatch(
           AND d.wave_id=s.current_wave_id
           AND d.status IN ('locked','fielded')
           AND d.fieldwork_phase=CASE WHEN s.status='pilot' THEN 'pilot' ELSE 'main' END
+          AND EXISTS (SELECT 1 FROM research_sample_designs ds
+            WHERE ds.sample_draw_id=d.id AND ds.design_json->>'cohort'=$2)
       ) AS sample_ready,
       EXISTS(
         SELECT 1 FROM research_recruitment_templates rt
@@ -480,12 +497,23 @@ export async function queueGreekRetailInviteBatch(
     FROM research_studies s
     WHERE s.slug=$1
     LIMIT 1
-  `, [STUDY_SLUG]);
+  `, [STUDY_SLUG, cohort]);
   const row = study.rows[0];
   if (!row) throw new Error("RESEARCH_STUDY_NOT_FOUND");
   if (!text(row.current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
   if (!["pilot","fielding"].includes(text(row.status))) throw new Error("SURVEY_NOT_OPEN");
   const fieldworkPhase = text(row.status) === "pilot" ? "pilot" : "main";
+  if (fieldworkPhase === "pilot" && cohort !== "A") throw new Error("RESEARCH_PILOT_REQUIRES_COHORT_A");
+  if (fieldworkPhase === "main" && cohort === "B") {
+    const priorA = await pool.query<SqlRow>(`
+      SELECT EXISTS(SELECT 1 FROM research_invites ri
+        JOIN research_sample_units su ON su.id=ri.sample_unit_id
+        JOIN research_sample_designs ds ON ds.sample_draw_id=su.sample_draw_id
+        WHERE ri.study_id=$1 AND ri.wave_id=$2 AND ri.fieldwork_phase='main'
+          AND ri.sent_at IS NOT NULL AND ds.design_json->>'cohort'='A') AS launched
+    `, [row.id, row.current_wave_id]);
+    if (!Boolean(priorA.rows[0]?.launched)) throw new Error("RESEARCH_COHORT_B_REQUIRES_A_FIRST");
+  }
   assertResearchEmailBatchApproval(input.emailApproval, {
     studyTitle: text(row.title),
     purpose: "research_invitation",
@@ -509,7 +537,8 @@ export async function queueGreekRetailInviteBatch(
         'limit',$3::int,
         'label',$4::text,
         'fieldworkPhase',$5::text,
-        'emailApproval',$6::jsonb
+        'emailApproval',$6::jsonb,
+        'cohort',$7::text
       )
     )
     RETURNING id
@@ -519,7 +548,8 @@ export async function queueGreekRetailInviteBatch(
     limit,
     input.label?.trim() || `${fieldworkPhase}-research-email-${new Date().toISOString()}`,
     fieldworkPhase,
-    JSON.stringify(input.emailApproval)
+    JSON.stringify(input.emailApproval),
+    cohort
   ]);
   return { jobId: text(job.rows[0]!.id) };
 }
@@ -1218,7 +1248,10 @@ async function claimResearchJob(
       FROM research_study_jobs
       WHERE status='queued' AND available_at <= now()
         AND job_type = ANY($1::text[])
-      ORDER BY created_at
+      -- Short deterministic sample draws must not starve behind the older
+      -- instantly requeued, multi-hour retail-all frame import.
+      ORDER BY CASE WHEN job_type='sample_draw' THEN 0
+                    WHEN job_type='frame_snapshot' THEN 2 ELSE 1 END, created_at
       FOR UPDATE SKIP LOCKED
       LIMIT 1
     `, [allowedJobTypes]);
@@ -1666,6 +1699,11 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
   const expectedResponseRate = numberValue(input.expectedResponseRate);
   const randomSeed = text(input.randomSeed);
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
+  const cohort = text(input.cohort);
+  const frameSnapshotId = text(input.frameSnapshotId);
+  if (!["A","B"].includes(cohort) || (fieldworkPhase === "pilot" && cohort !== "A") || !/^[a-f0-9-]{36}$/i.test(frameSnapshotId)) {
+    throw new Error("RESEARCH_SAMPLE_JOB_COHORT_INVALID");
+  }
   const minTargetN = fieldworkPhase === "pilot" ? 10 : 100;
   const maxTargetN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
   if (
@@ -1702,29 +1740,40 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
     }
     const contacted = await client.query<SqlRow>(`
       SELECT EXISTS(
-        SELECT 1
-        FROM research_invites
-        WHERE study_id=$1
-          AND wave_id=$2
-          AND fieldwork_phase=$3
-          AND sent_at IS NOT NULL
+        SELECT 1 FROM research_invites ri
+        JOIN research_sample_units su ON su.id=ri.sample_unit_id
+        JOIN research_sample_designs ds ON ds.sample_draw_id=su.sample_draw_id
+        WHERE ri.study_id=$1 AND ri.wave_id=$2 AND ri.fieldwork_phase=$3
+          AND ri.sent_at IS NOT NULL AND ds.design_json->>'cohort'=$4
       ) AS has_contacted_units
-    `, [job.study_id, job.wave_id, fieldworkPhase]);
+    `, [job.study_id, job.wave_id, fieldworkPhase, cohort]);
     if (Boolean(contacted.rows[0]?.has_contacted_units)) {
       throw new Error("RESEARCH_SAMPLE_REDRAW_AFTER_CONTACT");
     }
     const frameResult = await client.query<SqlRow>(`
       SELECT id, wave_id, population_size, content_sha256
       FROM research_frame_snapshots
-      WHERE study_id=$1 AND wave_id=$2 AND status='frozen'
-      ORDER BY frozen_at DESC NULLS LAST, created_at DESC
-      LIMIT 1
+      WHERE study_id=$1 AND wave_id=$2 AND id=$3::uuid AND content_sha256 IS NOT NULL
+        AND (($4='A' AND status IN ('frozen','superseded')
+          AND selection_criteria->'activityGroupIds' @> '["retail-non-food"]'::jsonb)
+        OR ($4='B' AND status='frozen'
+          AND selection_criteria->'activityGroupIds' @> '["retail-all"]'::jsonb))
       FOR UPDATE
-    `, [job.study_id, job.wave_id]);
+    `, [job.study_id, job.wave_id, frameSnapshotId, cohort]);
     const frame = frameResult.rows[0];
     if (!frame) throw new Error("RESEARCH_SAMPLE_REQUIRES_FROZEN_FRAME");
 
-    // Freeze population margins from the exact frame before any sample is drawn.
+    // Cohort B uses the expanded frame, excluding every business identity in frozen A.
+    const originalA = cohort === "B" ? await client.query<SqlRow>(`
+      SELECT id FROM research_frame_snapshots WHERE study_id=$1 AND wave_id=$2
+        AND status IN ('frozen','superseded')
+        AND selection_criteria->'activityGroupIds' @> '["retail-non-food"]'::jsonb
+      ORDER BY frozen_at ASC NULLS LAST LIMIT 1
+    `, [job.study_id, job.wave_id]) : null;
+    const cohortAFrameId = cohort === "B" ? text(originalA?.rows[0]?.id) : "";
+    if (cohort === "B" && !cohortAFrameId) throw new Error("RESEARCH_COHORT_B_REQUIRES_FROZEN_A");
+
+    // Freeze population margins for the cohort, not its overlapping source frame.
     // The source is response-independent and deterministic, so pilot/main draws
     // can reuse the same append-only evidence set for this frame.
     const populationMarginRows = await client.query<SqlRow>(`
@@ -1734,20 +1783,24 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
           'region_code'::text AS dimension,
           COALESCE(region_code,'unknown')::text AS category,
           count(*)::numeric AS target_total
-        FROM research_frame_units
-        WHERE frame_snapshot_id=$1
+        FROM research_frame_units fu
+        WHERE fu.frame_snapshot_id=$1
+          AND ($2::text <> 'B' OR NOT EXISTS (SELECT 1 FROM research_frame_units fa
+            WHERE fa.frame_snapshot_id=$3::uuid AND fa.external_key_hash=fu.external_key_hash))
         GROUP BY COALESCE(region_code,'unknown')
         UNION ALL
         SELECT
           'sector_code'::text AS dimension,
           COALESCE(sector_code,'unknown')::text AS category,
           count(*)::numeric AS target_total
-        FROM research_frame_units
-        WHERE frame_snapshot_id=$1
+        FROM research_frame_units fu
+        WHERE fu.frame_snapshot_id=$1
+          AND ($2::text <> 'B' OR NOT EXISTS (SELECT 1 FROM research_frame_units fa
+            WHERE fa.frame_snapshot_id=$3::uuid AND fa.external_key_hash=fu.external_key_hash))
         GROUP BY COALESCE(sector_code,'unknown')
       ) margins
       ORDER BY dimension,category
-    `, [frame.id]);
+    `, [frame.id, cohort, cohortAFrameId || null]);
     if (!populationMarginRows.rows.length) {
       throw new Error("RESEARCH_POPULATION_MARGINS_EMPTY");
     }
@@ -1837,7 +1890,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         SELECT
           st.id,
           st.code,
-          st.population_count,
+          count(fu.id)::int AS population_count,
           count(fu.id) FILTER (
             WHERE EXISTS (
               SELECT 1
@@ -1886,8 +1939,10 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         LEFT JOIN research_frame_units fu
           ON fu.stratum_id=st.id
          AND fu.frame_snapshot_id=st.frame_snapshot_id
+         AND ($5::text <> 'B' OR NOT EXISTS (SELECT 1 FROM research_frame_units fa
+           WHERE fa.frame_snapshot_id=$6::uuid AND fa.external_key_hash=fu.external_key_hash))
         WHERE st.frame_snapshot_id=$1
-        GROUP BY st.id,st.code,st.population_count
+        GROUP BY st.id,st.code
       )
       SELECT
         id,
@@ -1897,7 +1952,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       FROM phase_population
       WHERE CASE WHEN $2='main' THEN main_population_count ELSE population_count END > 0
       ORDER BY code
-    `, [frame.id, fieldworkPhase, job.study_id, job.wave_id]);
+    `, [frame.id, fieldworkPhase, job.study_id, job.wave_id, cohort, cohortAFrameId || null]);
     if (!strataResult.rows.length) throw new Error("RESEARCH_SAMPLE_STRATA_MISSING");
 
     const allocations = proportionalStratumAllocation(
@@ -1997,6 +2052,8 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
           FROM research_frame_units fu
           WHERE fu.frame_snapshot_id=$1
             AND fu.stratum_id=$2
+            AND ($12::text <> 'B' OR NOT EXISTS (SELECT 1 FROM research_frame_units fa
+              WHERE fa.frame_snapshot_id=$13::uuid AND fa.external_key_hash=fu.external_key_hash))
             AND (
               $9::text <> 'main'
               OR NOT EXISTS (
@@ -2048,7 +2105,9 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         baseWeight.toFixed(8),
         fieldworkPhase,
         job.study_id,
-        job.wave_id
+        job.wave_id,
+        cohort,
+        cohortAFrameId || null
       ]);
       if (inserted.rows.length !== allocation.sampleCount) {
         throw new Error(`RESEARCH_SAMPLE_STRATUM_COUNT_MISMATCH:${allocation.id}`);
@@ -2072,6 +2131,8 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
 
     const designDocument = {
       schema: "kontamou.research.sample-design.v1",
+      cohort,
+      cohortAFrameSnapshotId: cohortAFrameId || null,
       sampleDrawId: drawId,
       frameSnapshotId: text(frame.id),
       frameContentSha256: text(frame.content_sha256),
@@ -2160,7 +2221,10 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         AND id<>$3
         AND status='locked'
         AND fieldwork_phase=$4
-    `, [job.study_id, job.wave_id, drawId, fieldworkPhase]);
+        AND EXISTS (SELECT 1 FROM research_sample_designs ds
+          WHERE ds.sample_draw_id=research_sample_draws.id
+            AND ds.design_json->>'cohort'=$5)
+    `, [job.study_id, job.wave_id, drawId, fieldworkPhase, cohort]);
     await client.query(`
       UPDATE research_sample_draws
       SET status='locked', drawn_at=now()
@@ -2172,6 +2236,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       sampleDrawId: drawId,
       frameSnapshotId: text(frame.id),
       frameContentSha256: text(frame.content_sha256),
+      cohort,
       targetN: actualTargetN,
       sampleDesignId: designId,
       desiredCompleteN,
@@ -2198,6 +2263,9 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   const input = objectValue(job.input);
   const limit = Math.max(1, Math.min(500, Math.floor(numberValue(input.limit) || 100)));
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
+  const cohort = text(input.cohort);
+  if (cohort !== "A" && cohort !== "B") throw new Error("RESEARCH_INVITE_COHORT_REQUIRED");
+  if (fieldworkPhase === "pilot" && cohort !== "A") throw new Error("RESEARCH_PILOT_REQUIRES_COHORT_A");
   const currentOutput = objectValue(job.output);
   let batchId = text(currentOutput.batchId);
   let sampleUnitIds = Array.isArray(currentOutput.sampleUnitIds)
@@ -2222,12 +2290,14 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
           ORDER BY created_at DESC LIMIT 1
         ) i ON true
         JOIN LATERAL (
-          SELECT id,fieldwork_phase FROM research_sample_draws
-          WHERE study_id=s.id
-            AND wave_id=$3
-            AND status IN ('locked','fielded')
-            AND fieldwork_phase=$2
-          ORDER BY created_at DESC LIMIT 1
+          SELECT d.id,d.fieldwork_phase FROM research_sample_draws d
+          WHERE d.study_id=s.id
+            AND d.wave_id=$3
+            AND d.status IN ('locked','fielded')
+            AND d.fieldwork_phase=$2
+            AND EXISTS(SELECT 1 FROM research_sample_designs ds
+              WHERE ds.sample_draw_id=d.id AND ds.design_json->>'cohort'=$4)
+          ORDER BY d.created_at DESC LIMIT 1
         ) d ON true
         JOIN LATERAL (
           SELECT id FROM research_recruitment_templates
@@ -2237,7 +2307,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         ) rt ON true
         WHERE s.id=$1
         FOR UPDATE OF s
-      `, [job.study_id, fieldworkPhase, job.wave_id]);
+      `, [job.study_id, fieldworkPhase, job.wave_id, cohort]);
       const row = study.rows[0];
       if (!row) throw new Error("RESEARCH_INVITE_BATCH_NOT_READY");
       if (row.fieldwork_ends_at && new Date(String(row.fieldwork_ends_at)).getTime() <= Date.now()) {
@@ -2400,11 +2470,12 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         su.id AS sample_unit_id,
         cp.id AS contact_point_id,
         cp.contact_value,
+        cp.contact_value_hash,
         fu.sampling_attributes->>'legalName' AS legal_name
       FROM research_sample_units su
       JOIN research_frame_units fu ON fu.id=su.frame_unit_id
       JOIN LATERAL (
-        SELECT id,contact_value
+        SELECT id,contact_value,contact_value_hash
         FROM research_private.contact_points_with_value
         WHERE frame_unit_id=su.frame_unit_id
           AND contact_type='email'
@@ -2420,6 +2491,21 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     if (!contact) {
       failedCount += 1;
       failures.push({ sampleUnitId, error: "NO_ACTIVE_EMAIL_CONTACT" });
+      continue;
+    }
+
+    // Different companies sometimes share an inbox. Never invite an address twice
+    // across Pilot, Cohort A and Cohort B after an earlier successful send.
+    const contactAlreadyInvited = await pool.query<SqlRow>(`
+      SELECT EXISTS (SELECT 1 FROM research_invites prior
+        JOIN research_contact_points prior_cp ON prior_cp.id=prior.contact_point_id
+        WHERE prior.study_id=$1 AND prior.sent_at IS NOT NULL
+          AND prior_cp.contact_type='email'
+          AND prior_cp.contact_value_hash=$2) AS duplicate
+    `, [job.study_id, contact.contact_value_hash]);
+    if (Boolean(contactAlreadyInvited.rows[0]?.duplicate)) {
+      failedCount += 1;
+      failures.push({ sampleUnitId, error: "ALREADY_CONTACTED_IN_ANOTHER_COHORT" });
       continue;
     }
 
