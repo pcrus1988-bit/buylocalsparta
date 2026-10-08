@@ -83,6 +83,24 @@ function isModuleSpecifier(node: ts.StringLiteralLike): boolean {
   return (ts.isImportDeclaration(parent) || ts.isExportDeclaration(parent)) && parent.moduleSpecifier === node;
 }
 
+// IDs and fragment references are implementation-only identifiers, not reader-facing copy.
+// Preserve scanning of visible JSX text and content strings (including aria labels).
+function isNonVisibleIdentifier(node: ts.StringLiteralLike): boolean {
+  const parent = node.parent;
+  if (ts.isJsxAttribute(parent) && parent.initializer === node) {
+    const attribute = parent.name.getText();
+    if (attribute === "id" || attribute === "href" || attribute === "aria-labelledby") return true;
+  }
+  // Tuples in the methodology table of contents are [fragmentId, visibleLabel].
+  // Never exclude the visible label in the second position.
+  if (ts.isArrayLiteralExpression(parent) && parent.elements[0] === node) {
+    let ancestor: ts.Node | undefined = parent.parent;
+    while (ancestor && !ts.isVariableDeclaration(ancestor)) ancestor = ancestor.parent;
+    if (ancestor && ancestor.name.getText() === "contents") return true;
+  }
+  return false;
+}
+
 function inspectText(
   file: string,
   source: ts.SourceFile,
@@ -125,7 +143,8 @@ for (const relativeFile of PUBLIC_RESEARCH_FILES) {
       inspectText(relativeFile, source, node, node.getText(source), violations);
     } else if (
       (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) &&
-      !isModuleSpecifier(node)
+      !isModuleSpecifier(node) &&
+      !isNonVisibleIdentifier(node)
     ) {
       inspectText(relativeFile, source, node, node.text, violations);
     }

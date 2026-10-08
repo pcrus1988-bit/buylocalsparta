@@ -2506,6 +2506,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   let sentCount = 0;
   let failedCount = 0;
   let alreadySentCount = 0;
+  let duplicateSkippedCount = 0;
   const failures: Array<{ sampleUnitId: string; error: string }> = [];
 
   for (const sampleUnitId of sampleUnitIds) {
@@ -2578,8 +2579,10 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
           AND prior_cp.contact_value_hash=$2) AS duplicate
     `, [job.study_id, contact.contact_value_hash]);
     if (Boolean(contactAlreadyInvited.rows[0]?.duplicate)) {
-      failedCount += 1;
-      failures.push({ sampleUnitId, error: "ALREADY_CONTACTED_IN_ANOTHER_COHORT" });
+      // A shared inbox has already received this study's invitation. Skipping it
+      // is an intended protection, not an email delivery failure. Treating it
+      // as failed would leave an otherwise complete batch retrying indefinitely.
+      duplicateSkippedCount += 1;
       continue;
     }
 
@@ -2739,6 +2742,14 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     }
   }
 
+  // A retry skips previously sent invitations. Persist the cumulative count
+  // from the batch ledger rather than overwriting it with this attempt's count.
+  const sentTotal = await pool.query<SqlRow>(`
+    SELECT count(*)::int AS count FROM research_invites
+    WHERE batch_id=$1 AND sent_at IS NOT NULL
+  `, [batchId]);
+  const batchSentCount = numberValue(sentTotal.rows[0]?.count);
+
   const completed = failedCount === 0;
   await pool.query(`
     UPDATE research_invite_batches
@@ -2752,8 +2763,9 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   `, [job.id, JSON.stringify({
     batchId,
     plannedCount: sampleUnitIds.length,
-    sentCount,
+    sentCount: batchSentCount,
     alreadySentCount,
+    duplicateSkippedCount,
     failedCount,
     failures: failures.slice(0, 25)
   })]);
@@ -2765,8 +2777,9 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   return {
     batchId,
     plannedCount: sampleUnitIds.length,
-    sentCount,
+    sentCount: batchSentCount,
     alreadySentCount,
+    duplicateSkippedCount,
     failedCount: 0
   };
 }
