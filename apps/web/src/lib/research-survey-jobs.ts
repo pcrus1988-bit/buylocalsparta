@@ -3193,7 +3193,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     ...(continuous ? {campaignProcessedCount:completed?nextProcessed:campaignProcessed,
       campaignSentCount:completed?nextSent:campaignSent,deliverySafety,
       campaignSubmissionFailureCount:previousSubmissionFailures+failedCount,
-      campaignInvalidRecipientSkippedCount:numberValue(currentOutput.campaignInvalidRecipientSkippedCount)+invalidRecipientSkippedCount,
+      campaignInvalidRecipientSkippedCount:numberValue(currentOutput.campaignInvalidRecipientSkippedCount)+(completed ? invalidRecipientSkippedCount : 0),
       lastAttemptFailureReason:failures[0]?.error ?? currentOutput.lastAttemptFailureReason,
       lastAttemptFailureAfterAcceptance:postAcceptanceFailures>0 ||
         currentOutput.lastAttemptFailureAfterAcceptance===true} : {})
