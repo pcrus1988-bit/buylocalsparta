@@ -188,12 +188,6 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
       <ResearchStudyFieldworkBalance strata={strata} />
       {strata.length === 0 && <div className="workspace-inline-note">No fieldwork strata are available yet.</div>}
     </section>;
-  } else if (section === "contacts") {
-    const operations = await researchSurveyOperationsOverview(principal, study.slug, "contacts");
-    content = <ResearchStudyOperationsPanel slug={study.slug} data={operations} section="contacts" />;
-  } else if (section === "invitations") {
-    const operations = await researchSurveyOperationsOverview(principal, study.slug, "invitations");
-    content = <ResearchStudyOperationsPanel slug={study.slug} data={operations} section="invitations" />;
   } else if (section === "kad") {
     const operations = await researchSurveyOperationsOverview(principal, study.slug, "kad");
     content = <ResearchStudyOperationsPanel slug={study.slug} data={operations} section="kad" />;
