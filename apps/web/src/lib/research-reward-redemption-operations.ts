@@ -19,11 +19,13 @@ async function readEligibleReward(tx: SqlExecutor, code: string, lock: boolean):
     SELECT re.id::text AS entitlement_id, rs.id::text AS study_id
     FROM research_reward_entitlements re
     JOIN research_responses rr ON rr.id = re.response_id
+    JOIN research_invites ri ON ri.id = rr.invite_id
     JOIN research_studies rs ON rs.id = rr.study_id
     WHERE re.code_hash = $1
       AND re.reward_kind = $2
       AND re.status = 'issued'
       AND rr.status = 'completed'
+      AND ri.fieldwork_phase = 'main'
       AND rs.slug = $3
       AND (re.expires_at IS NULL OR re.expires_at > now())
     LIMIT 1
