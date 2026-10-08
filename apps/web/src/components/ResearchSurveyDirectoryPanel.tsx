@@ -41,7 +41,7 @@ export function ResearchSurveyDirectoryPanel({ slug, kind, data }: {
           </select>
         </label>
         <button className="button" type="submit" style={{ alignSelf: "end" }}>Search / filter</button>
-        <Link className="button button-secondary" href={root} style={{ alignSelf: "end" }}>Clear</Link>
+        <Link prefetch={false} className="button button-secondary" href={root} style={{ alignSelf: "end" }}>Clear</Link>
       </div>
       <small>Search is server-side and on demand. Enter a full email for an exact private lookup, or search by business/municipality. At most 25 records per page. Email visibility follows Admin permissions and access is audited.</small>
     </form>
@@ -86,7 +86,7 @@ export function ResearchSurveyDirectoryPanel({ slug, kind, data }: {
             </table>
           </div>
           {data.nextCursor && <div className="workspace-action-buttons" style={{ marginTop: 12 }}>
-            <Link className="button button-secondary" href={root + "?" + nextParams.toString()}>Next 25 results →</Link>
+            <Link prefetch={false} className="button button-secondary" href={root + "?" + nextParams.toString()}>Next 25 results →</Link>
           </div>}
         </>}
   </section>;
