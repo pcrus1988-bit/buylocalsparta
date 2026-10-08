@@ -202,19 +202,19 @@ export function ResearchStudySamplingControls({
         </select>
       </label>
       <div>
-        <strong>${cohort === "A" ? "Original retail cohort" : "Additional retail cohort"}</strong><br />
-        <small>Frozen businesses: ${selectedPopulation.toLocaleString("el-GR")} · active-email businesses at freeze: ${selectedContacts.toLocaleString("el-GR")}</small><br />
-        <small>${cohortReady ? "Frozen frame ready" : "Frame still pending"} · ${censusPrepared ? "Full cohort register ready" : "Full cohort register not yet prepared"}</small>
+        <strong>{cohort === "A" ? "Original retail cohort" : "Additional retail cohort"}</strong><br />
+        <small>Frozen businesses: {selectedPopulation.toLocaleString("el-GR")} · active-email businesses at freeze: {selectedContacts.toLocaleString("el-GR")}</small><br />
+        <small>{cohortReady ? "Frozen frame ready" : "Frame still pending"} · {censusPrepared ? "Full cohort register ready" : "Full cohort register not yet prepared"}</small>
       </div>
     </div>
     <div className="workspace-action-buttons" style={{ marginTop: 12 }}>
       <button className="button" type="button" disabled={Boolean(busy) || sampleWorkerBusy || !cohortReady || censusPrepared || studyStatus !== "fielding"} onClick={() => void prepareEntireCohort()}>
-        ${busy === "census" ? "Queueing complete cohort…" : censusPrepared ? "Full cohort prepared" : "Prepare entire Cohort " + cohort}
+        {busy === "census" ? "Queueing complete cohort…" : censusPrepared ? "Full cohort prepared" : "Prepare entire Cohort " + cohort}
       </button>
       <a className="button button-secondary" href={"/admin/research/surveys/" + encodeURIComponent(slug) + "/fieldwork"}>Review email &amp; controlled sending</a>
     </div>
     <div className="workspace-inline-note" style={{ marginTop: 12 }}>
-      ${message || (sampleWorkerBusy ? "Enrollment worker busy. Check Jobs and refresh; do not queue repeatedly." : cohort === "B" ? "Cohort B may be invited only after eligible Cohort A outreach is complete. Email identity deduplication and opt-outs still apply." : "Stage 1 is Cohort A. There is no target n, seed, or random sampling for this official run.")}
+      {message || (sampleWorkerBusy ? "Enrollment worker busy. Check Jobs and refresh; do not queue repeatedly." : cohort === "B" ? "Cohort B may be invited only after eligible Cohort A outreach is complete. Email identity deduplication and opt-outs still apply." : "Stage 1 is Cohort A. There is no target n, seed, or random sampling for this official run.")}
     </div>
   </div>;
 
