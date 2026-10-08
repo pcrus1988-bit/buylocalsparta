@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
+import { AdminWorkspaceHeader } from "../../../../../../../components/AdminWorkspaceHeader";
 import { ResearchSurveySimulationView } from "../../../../../../../components/ResearchSurveySimulationView";
 import { hasAdminPermission } from "../../../../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../../../../lib/admin-session";
@@ -27,6 +28,9 @@ export default async function FullScreenSurveyPreview({ params, searchParams }: 
   const context = await loadResearchSimulationContext(principal, survey);
   if (!context || !context.questions.length) notFound();
   return <main>
+    <div className="vendor-app admin-app">
+      <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Research · Survey Preview" />
+    </div>
     <ResearchSurveySimulationView
       context={context}
       returnHref={"/admin/research/surveys/" + encodeURIComponent(slug) + "/simulation?mode=survey&survey=" + encodeURIComponent(survey)}
