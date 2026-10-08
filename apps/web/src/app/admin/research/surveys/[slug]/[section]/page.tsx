@@ -8,6 +8,7 @@ import { ResearchEvaluationPlanEditor, ResearchSurveyQuestionsEditor } from "../
 import { ResearchStudyFieldworkControls } from "../../../../../../components/ResearchStudyFieldworkControls";
 import { ResearchStudyLifecycleControls } from "../../../../../../components/ResearchStudyLifecycleControls";
 import { ResearchStudyOperationsPanel } from "../../../../../../components/ResearchStudyOperationsPanel";
+import { ResearchSurveyDirectoryPanel } from "../../../../../../components/ResearchSurveyDirectoryPanel";
 import { ResearchStudyProtocolControls } from "../../../../../../components/ResearchStudyProtocolControls";
 import { ResearchStudyQualityControls } from "../../../../../../components/ResearchStudyQualityControls";
 import { ResearchStudySamplingControls } from "../../../../../../components/ResearchStudySamplingControls";
@@ -22,8 +23,10 @@ import {
   researchFieldworkStrata,
   researchProtocolEvents,
   researchSurveyAdminOverview,
+  researchSurveyAdminFastOverview,
   researchSurveyOperationsOverview
 } from "../../../../../../lib/research-survey-runtime";
+import { researchDirectorySearch } from "../../../../../../lib/research-survey-directory";
 
 export const metadata: Metadata = {
   title: "Admin · Survey",
@@ -36,8 +39,9 @@ const VALID_SECTIONS = new Set(
   RESEARCH_SURVEY_ADMIN_SECTIONS.filter((item) => item.key !== "overview").map((item) => item.key)
 );
 
-export default async function ResearchSurveySectionPage({ params }: {
+export default async function ResearchSurveySectionPage({ params, searchParams }: {
   params: Promise<{ slug: string; section: string }>;
+  searchParams: Promise<{ search?: string; q?: string; status?: string; cursor?: string }>;
 }) {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
@@ -46,6 +50,36 @@ export default async function ResearchSurveySectionPage({ params }: {
   const { slug, section: rawSection } = await params;
   if (!VALID_SECTIONS.has(rawSection as ResearchSurveyAdminSection)) notFound();
   const section = rawSection as Exclude<ResearchSurveyAdminSection, "overview">;
+
+  // Directory navigation never executes the expensive global survey overview.
+  // No contact or invitation rows are fetched until the Admin submits Search.
+  if (section === "contacts" || section === "invitations") {
+    const summary = await researchSurveyAdminFastOverview(principal, slug);
+    if (!summary.databaseConfigured || !summary.study) notFound();
+    const query = await searchParams;
+    const directory = await researchDirectorySearch(principal, slug, section, {
+      search: query.search === "1", q: query.q, status: query.status, cursor: query.cursor
+    });
+    return <main className="vendor-app admin-app">
+      <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel={"Research · " + summary.study.title} />
+      <section className="shell vendor-hero vendor-hero-compact dashboard-hero-refined"><div>
+        <div className="eyebrow">Research · {section === "contacts" ? "Email contacts" : "Invitations"}</div>
+        <h1>{summary.study.title}</h1>
+        <p className="lead">No directory records are preloaded. Search and filter only when you need specific entries.</p>
+      </div></section>
+      <ResearchSurveyAdminNav slug={slug} current={section} />
+      {section === "contacts" && <section className="shell vendor-section">
+        <div className="workspace-action-bar">
+          <span>
+            <strong>{summary.study.snapshotActiveContacts === undefined ? "Not available" : summary.study.snapshotActiveContacts.toLocaleString("el-GR")}</strong>
+            <small> active email contacts at the latest frozen-frame snapshot</small>
+          </span>
+          <small>Snapshot count, not a live recalculation. Opt-outs and bounces are shown in filtered results.</small>
+        </div>
+      </section>}
+      <ResearchSurveyDirectoryPanel slug={slug} kind={section} data={directory} />
+    </main>;
+  }
 
   const overview = await researchSurveyAdminOverview(principal);
   if (!overview.databaseConfigured) notFound();
