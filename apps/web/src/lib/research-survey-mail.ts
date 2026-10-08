@@ -93,7 +93,7 @@ export function previewResearchRecruitmentEmail(input: Readonly<{
   subjectTemplate: string;
   bodyTemplate: string;
   companyName?: string;
-  attemptKind?: "initial" | "reminder";
+  attemptKind?: "initial" | "reminder" | "reissue";
 }>): Readonly<{ subject: string; text: string; html: string }> {
   const optOutUrl = `${input.surveyUrl}?optout=1`;
   const privacyUrl = new URL("/research/privacy", input.surveyUrl).toString();
