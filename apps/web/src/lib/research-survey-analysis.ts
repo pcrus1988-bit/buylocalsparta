@@ -10,8 +10,9 @@ import {
   stratifiedSrsMeanVariance,
   weightedClusteredDifferenceInMeans
 } from "./research-survey-statistics";
+import { scoreGreekRetail2026 } from "./research-survey-model";
 
-const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v7";
+const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v8";
 const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v2";
 const MIN_PUBLIC_BASE = 30;
 const VARIANCE_METHOD = "stratified_srs_fpc_v1";
@@ -225,7 +226,8 @@ function estimateSpecs(
 
   const derived: Array<readonly [string, keyof WeightedResponse["scores"]]> = [
     ["digital_readiness.mean", "digitalReadiness"],
-    ["retail_friction.mean", "frictionOverall"]
+    ["retail_friction.mean", "frictionOverall"],
+    ["retail_confidence.mean", "businessConfidence"]
   ];
   for (const [metricKey, key] of derived) {
     const observations = responses.flatMap((response) => {
@@ -659,7 +661,10 @@ export async function runGreekRetailAnalysis(
     ...response,
     finalWeight: calibration.finalWeights[response.responseId] ?? 0,
     answers: answerMap.get(response.responseId) ?? {},
-    scores: scoreMap.get(response.responseId) ?? {}
+    scores: {
+      ...(scoreMap.get(response.responseId) ?? {}),
+      businessConfidence: scoreGreekRetail2026(answerMap.get(response.responseId) ?? {}).businessConfidenceScore
+    }
   }));
   if (weightedResponses.some((response) => !(response.finalWeight > 0))) {
     throw new Error("RESEARCH_CALIBRATION_FINAL_WEIGHT_INVALID");
@@ -1003,7 +1008,7 @@ export async function runGreekRetailAnalysis(
     FROM research_analysis_estimates
     WHERE analysis_run_id=$1
       AND method='nonresponse_adjusted_stratified_descriptive_v2'
-      AND metric_key IN ('digital_readiness.mean','retail_friction.mean')
+      AND metric_key IN ('digital_readiness.mean','retail_friction.mean','retail_confidence.mean')
       AND suppressed=false
       AND estimate IS NOT NULL
       AND standard_error IS NOT NULL
