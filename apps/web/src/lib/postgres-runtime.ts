@@ -134,3 +134,31 @@ export function getAdminAuthPostgresRuntime(): ProductionPostgresRuntime {
   };
   return (adminAuthGlobals[adminAuthGlobalKey] = createPostgresRuntimeFromEnv({ env, applicationName: "buy-local-sparta-web-admin-auth" }));
 }
+
+
+/**
+ * A Research overview read must never queue behind full Admin workspaces.
+ * Keep this latency-critical read on its own single connection; fail quickly
+ * and let the page stream the operational navigation if the pooler stalls.
+ * Reuse the one connection on a warm instance and avoid enlarging general pools.
+ */
+const researchOverviewGlobalKey = "__buyLocalSpartaResearchOverviewPostgresRuntime" as const;
+const researchOverviewGlobals = globalThis as typeof globalThis & {
+  [researchOverviewGlobalKey]?: ProductionPostgresRuntime;
+};
+
+export function getAdminResearchOverviewPostgresRuntime(): ProductionPostgresRuntime {
+  if (!productionDatabaseConfigured()) throw new Error("Production database is not configured");
+  if (researchOverviewGlobals[researchOverviewGlobalKey]) return researchOverviewGlobals[researchOverviewGlobalKey];
+  const env = {
+    ...buildWebPostgresRuntimeEnv(),
+    BLS_DB_APPLICATION_NAME: "buy-local-sparta-web-research-overview",
+    BLS_DB_POOL_MAX: "1",
+    BLS_DB_CONNECT_TIMEOUT_MS: "1800",
+    BLS_DB_IDLE_TIMEOUT_MS: "60000"
+  };
+  return (researchOverviewGlobals[researchOverviewGlobalKey] = createPostgresRuntimeFromEnv({
+    env,
+    applicationName: "buy-local-sparta-web-research-overview"
+  }));
+}
