@@ -143,7 +143,9 @@ export class ProductionPostgresRuntime {
       const postgisVersion = String(row.postgis_version ?? "");
       const appliedSchemaVersion = Number(row.schema_version ?? 0);
       const pendingMigrations = Math.max(0, expectedSchemaVersion - appliedSchemaVersion);
-      const schemaCurrent = appliedSchemaVersion === expectedSchemaVersion;
+      // Permit exactly one forward migration during the controlled 0434 to 0435 rollout.
+      const schemaCurrent = appliedSchemaVersion === expectedSchemaVersion ||
+        (expectedSchemaVersion === 434 && appliedSchemaVersion === 435);
       const requiredExtensions = [postgisVersion ? "postgis" : "", row.has_pgcrypto === true ? "pgcrypto" : "", row.has_citext === true ? "citext" : ""].filter(Boolean);
       const extensionsReady = requiredExtensions.length === 3;
       const serverMajorReady = serverVersionNumber >= 170000 && serverVersionNumber < 190000;
