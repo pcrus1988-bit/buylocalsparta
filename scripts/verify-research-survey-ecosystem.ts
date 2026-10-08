@@ -510,6 +510,16 @@ if (!researchEmailCron.includes("processResearchStudyJobs(1, EMAIL_JOB_TYPES)") 
       researchEmailCron.indexOf("automaticReminder = await ensureGreekRetailAutomaticReminderBatch")) {
   errors.push("research email cron must drain approved campaign before costly reminder scan");
 }
+if (!jobs.includes("allowIsolatedResearchSubmissionFailure") ||
+    !jobs.includes("postAcceptanceFailures") ||
+    !jobs.includes("campaignSubmissionFailureCount") ||
+    !jobs.includes("if (failedCount > 0 && !isolatedFailureAllowed)")) {
+  errors.push("single isolated SES submission error must be journaled and bounded without stopping the whole cohort");
+}
+if (!surveyRuntime.includes("campaign_last_submission_error") ||
+    !fieldworkControls.includes("Αιτία τελευταίας αποτυχημένης προσπάθειας SES")) {
+  errors.push("admin must show the actual underlying failed attempt reason, not only PARTIAL_FAILURE:1");
+}
 if (!jobs.includes("processInviteBatchJob")) errors.push("worker-managed invitation delivery missing");
 if (!jobs.includes("recoverGreekRetailFailedInvitationCampaign") ||
     !jobs.includes("RESEARCH_CAMPAIGN_RECOVERY_REQUIRED") ||

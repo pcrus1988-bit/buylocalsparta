@@ -9,7 +9,7 @@ import {
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { runGreekRetailAnalysis } from "./research-survey-analysis";
 import { proportionalStratumAllocation } from "./research-survey-statistics";
-import { evaluateResearchDeliverySafety } from "./research-survey-delivery-safety";
+import { allowIsolatedResearchSubmissionFailure, evaluateResearchDeliverySafety } from "./research-survey-delivery-safety";
 import { buildGreekRetailRelease } from "./research-survey-release";
 import { greekRetailSector, greekRetailSectorV1, isRetailKad, RETAIL_ACTIVITY_GROUP_IDS, RETAIL_CLASSIFICATION_VERSION, RETAIL_SOURCE_REFERENCE } from "./research-kad-coverage";
 import {
@@ -705,7 +705,8 @@ export async function recoverGreekRetailFailedInvitationCampaign(
       SELECT COALESCE(sum(CASE WHEN b.id=$4::uuid THEN 0 ELSE b.planned_count END),0)::bigint AS processed,
              COALESCE(sum(CASE WHEN b.id=$4::uuid THEN 0 ELSE sent.sent_count END),0)::bigint AS sent,
              count(*) FILTER (WHERE b.id=$4::uuid)::int AS current_batch_count,
-             COALESCE(sum(ambiguous.unresolved_count),0)::bigint AS unresolved
+             COALESCE(sum(ambiguous.unresolved_count),0)::bigint AS unresolved,
+             COALESCE(sum(attempt_failures.failed_count),0)::bigint AS attempt_failed
       FROM research_invite_batches b
       LEFT JOIN LATERAL (
         SELECT count(*)::int AS sent_count FROM research_invites i
@@ -717,6 +718,12 @@ export async function recoverGreekRetailFailedInvitationCampaign(
         JOIN research_invite_messages m ON m.invite_id=i.id AND m.attempt_kind='initial'
         WHERE i.batch_id=b.id AND (i.status='created' OR m.status='sending')
       ) ambiguous ON true
+      LEFT JOIN LATERAL (
+        SELECT count(*)::int AS failed_count
+        FROM research_invites i
+        JOIN research_invite_messages m ON m.invite_id=i.id AND m.attempt_kind='initial'
+        WHERE i.batch_id=b.id AND m.status='failed'
+      ) attempt_failures ON true
       WHERE b.study_id=$1 AND b.wave_id=$2 AND b.label=$3
     `,[job.study_id,job.wave_id,label,currentBatchId||null]);
     if (currentBatchId && numberValue(ledger.rows[0]?.current_batch_count)!==1) {
@@ -730,9 +737,17 @@ export async function recoverGreekRetailFailedInvitationCampaign(
     }
     const previousError=text(job.error_message);
     const unresolved=numberValue(ledger.rows[0]?.unresolved);
+    const attemptFailed=numberValue(ledger.rows[0]?.attempt_failed);
+    const previousFailures=Array.isArray(output.failures) ? output.failures : [];
+    const latestFailure=previousFailures.length && previousFailures[0] &&
+      typeof previousFailures[0]==="object"
+      ? text((previousFailures[0] as Record<string,unknown>).error) : "";
     const recoveredOutput={...output,campaignProcessedCount:processed,campaignSentCount:sent,
+      campaignSubmissionFailureCount:Math.max(attemptFailed,numberValue(output.campaignSubmissionFailureCount)),
+      lastAttemptFailureReason:text(output.lastAttemptFailureReason)||latestFailure,
       recoveryReview:{at:new Date().toISOString(),previousError,processedCount:processed,
-        sentCount:sent,unresolvedAttempts:unresolved,rule:"skip_every_prior_provider_attempt"},
+        sentCount:sent,unresolvedAttempts:unresolved,attemptFailures:attemptFailed,
+        rule:"skip_every_prior_provider_attempt"},
       safetyHold:output.safetyHold??null};
     await client.query(`
       UPDATE research_study_jobs
@@ -2834,6 +2849,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   const base = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://kontamou.site").replace(/\/$/, "");
   let sentCount = 0;
   let failedCount = 0;
+  let postAcceptanceFailures = 0;
   let alreadySentCount = 0;
   let duplicateSkippedCount = 0;
   const failures: Array<{ sampleUnitId: string; error: string }> = [];
@@ -2992,6 +3008,9 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
 
     const surveyUrl = `${base}/research/${encodeURIComponent(text(batchRow.slug))}/t/${encodeURIComponent(token)}`;
     const methodologyUrl = `${base}/research/${encodeURIComponent(text(batchRow.slug))}/methodology`;
+    // Distinguish an isolated SES submission failure from database persistence
+    // failing AFTER SES accepted the message. Only the former is tolerated.
+    let acceptedBySes = false;
     try {
       if (continuous) {
         const gap = previousSesAttemptAt + minSendIntervalMs - Date.now();
@@ -3012,6 +3031,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         bodyTemplate: text(batchRow.body_text),
         companyName: text(contact.legal_name).trim() || undefined
       });
+      acceptedBySes = true;
       await pool.query(`
         UPDATE research_invites
         SET status='sent',sent_at=now()
@@ -3091,6 +3111,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
           VALUES ($1,'expired',jsonb_build_object('source','research_worker','reason','send_failed','error',$2::text))
         `, [inviteId, message]);
         failedCount += 1;
+        if (acceptedBySes) postAcceptanceFailures += 1;
         failures.push({ sampleUnitId, error: message });
       }
     }
@@ -3104,9 +3125,17 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   `, [batchId]);
   const batchSentCount = numberValue(sentTotal.rows[0]?.count);
 
-  const completed = failedCount === 0;
   const nextProcessed = campaignProcessed + sampleUnitIds.length;
   const nextSent = campaignSent + batchSentCount;
+  const previousSubmissionFailures = Math.max(0,Math.floor(numberValue(currentOutput.campaignSubmissionFailureCount)));
+  const isolatedFailureAllowed = allowIsolatedResearchSubmissionFailure({
+    continuous, batchFailures:failedCount, postAcceptanceFailures,
+    previousFailures:previousSubmissionFailures, processedAfterBatch:nextProcessed
+  });
+  // One isolated, journaled SES rejection should not make 180k unrelated
+  // invitations fail. Two failures in a step, a cumulative-rate breach or
+  // any failure after SES acceptance must still hold and require review.
+  const completed = failedCount === 0 || isolatedFailureAllowed;
   if (continuous && (nextProcessed > campaignMax || nextSent > campaignMax)) {
     throw new Error("RESEARCH_CAMPAIGN_AUTHORIZED_LIMIT_EXCEEDED");
   }
@@ -3128,10 +3157,14 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     failedCount,
     failures: failures.slice(0, 25),
     ...(continuous ? {campaignProcessedCount:completed?nextProcessed:campaignProcessed,
-      campaignSentCount:completed?nextSent:campaignSent,deliverySafety} : {})
+      campaignSentCount:completed?nextSent:campaignSent,deliverySafety,
+      campaignSubmissionFailureCount:previousSubmissionFailures+failedCount,
+      lastAttemptFailureReason:failures[0]?.error ?? currentOutput.lastAttemptFailureReason,
+      lastAttemptFailureAfterAcceptance:postAcceptanceFailures>0 ||
+        currentOutput.lastAttemptFailureAfterAcceptance===true} : {})
   })]);
 
-  if (failedCount > 0) {
+  if (failedCount > 0 && !isolatedFailureAllowed) {
     throw new Error(`RESEARCH_INVITE_PARTIAL_FAILURE:${failedCount}`);
   }
 
@@ -3146,7 +3179,10 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       safetyHold:null,
       lastBatchSentCount:batchSentCount,
       lastBatchDuplicateSkippedCount:duplicateSkippedCount,
-      failedCount:0
+      lastBatchFailureCount:failedCount,
+      campaignSubmissionFailureCount:previousSubmissionFailures+failedCount,
+      lastAttemptFailureReason:failures[0]?.error ?? currentOutput.lastAttemptFailureReason,
+      failedCount
     };
   }
   return {
@@ -3155,8 +3191,11 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     sentCount: batchSentCount,
     alreadySentCount,
     duplicateSkippedCount,
-    failedCount: 0,
-    ...(continuous ? {campaignComplete:true,campaignProcessedCount:nextProcessed,campaignSentCount:nextSent,approvedMaxEmails:campaignMax,deliverySafety,safetyHold:null} : {})
+    failedCount,
+    ...(continuous ? {campaignComplete:true,campaignProcessedCount:nextProcessed,campaignSentCount:nextSent,
+      campaignSubmissionFailureCount:previousSubmissionFailures+failedCount,
+      lastAttemptFailureReason:failures[0]?.error ?? currentOutput.lastAttemptFailureReason,
+      approvedMaxEmails:campaignMax,deliverySafety,safetyHold:null} : {})
   };
 }
 

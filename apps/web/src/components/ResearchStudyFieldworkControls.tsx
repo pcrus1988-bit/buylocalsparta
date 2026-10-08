@@ -94,7 +94,7 @@ export function ResearchStudyFieldworkControls({
   cohortBSampleStatus?: string;
   cohortBRecruitmentMode?: string;
   cohortBSampleSelected?: number;
-  campaign?: {id:string;status:string;cohort:string;paused:boolean;approvedMaxEmails:number;processedCount:number;sentCount:number;safetyHold?:string;lastError?:string;recoveryReviewed?:boolean;classifiedDeliveryCount:number;completedReviewMilestone:number|null;nextReviewMilestone:number};
+  campaign?: {id:string;status:string;cohort:string;paused:boolean;approvedMaxEmails:number;processedCount:number;sentCount:number;safetyHold?:string;lastError?:string;lastSubmissionError?:string;submissionFailures?:number;lastBatchFailures?:number;recoveryReviewed?:boolean;classifiedDeliveryCount:number;completedReviewMilestone:number|null;nextReviewMilestone:number};
   queuedSampleJobs: number;
   runningSampleJobs: number;
   recruitmentTemplateVersion?: string;
@@ -534,7 +534,7 @@ export function ResearchStudyFieldworkControls({
             />}
         <button
           className="button"
-          disabled={Boolean(busy) || workerBusy || !cohortReady || !cohortSampleReady || !fielding || !recruitmentTemplateVersion || !batchValid}
+          disabled={Boolean(busy) || workerBusy || !cohortReady || !cohortSampleReady || !fielding || !recruitmentTemplateVersion || !batchValid || Boolean(wholeCohortCampaign && campaign && campaign.cohort===cohort)}
           onClick={() => void sendInvites()}
           type="button"
         >{busy === "send" ? "Προετοιμασία…" : wholeCohortCampaign ? "Εκκίνηση ενιαίας εκστρατείας Cohort " + cohort : "Αποστολή παρτίδας προσκλήσεων"}</button>
@@ -548,7 +548,12 @@ export function ResearchStudyFieldworkControls({
         {" · "}Επεξεργασμένα {campaign.processedCount.toLocaleString("el-GR")} από έως {campaign.approvedMaxEmails.toLocaleString("el-GR")} εγκεκριμένες εγγραφές.
       </p>
       {campaign.lastError && <p className="workspace-inline-note form-error">
-        Τελευταίο σφάλμα: {campaign.lastError}
+        Τελευταίο σφάλμα εργασίας: {campaign.lastError}
+      </p>}
+      {campaign.lastSubmissionError && <p className="workspace-inline-note">
+        Αιτία τελευταίας αποτυχημένης προσπάθειας SES: <strong>{campaign.lastSubmissionError}</strong>.
+        {" "}Σύνολο καταγεγραμμένων αποτυχημένων προσπαθειών: {(campaign.submissionFailures ?? 0).toLocaleString("el-GR")}.
+        Η συγκεκριμένη διεύθυνση αποκλείεται από νέα αρχική πρόσκληση.
       </p>}
       <p className="workspace-inline-note">
         Αποτελέσματα παράδοσης που έχουν ταξινομηθεί: <strong>{campaign.classifiedDeliveryCount.toLocaleString("el-GR")}</strong>.

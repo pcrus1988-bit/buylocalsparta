@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { evaluateResearchDeliverySafety, graduatedResearchStopRate, researchDeliveryReviewMilestones } from "./research-survey-delivery-safety.ts";
+import { allowIsolatedResearchSubmissionFailure, evaluateResearchDeliverySafety, graduatedResearchStopRate, researchDeliveryReviewMilestones } from "./research-survey-delivery-safety.ts";
 
 test("early campaign stop thresholds graduate with independently observed outcomes", () => {
   assert.equal(graduatedResearchStopRate(0), null);
@@ -81,4 +81,35 @@ test("monitoring checkpoints are at 1000, 5000, 10000, then each additional 1000
   assert.deepEqual(researchDeliveryReviewMilestones(19999), {completedMilestone:10000,nextMilestone:20000});
   assert.deepEqual(researchDeliveryReviewMilestones(20000), {completedMilestone:20000,nextMilestone:30000});
   assert.deepEqual(researchDeliveryReviewMilestones(101500), {completedMilestone:100000,nextMilestone:110000});
+});
+
+test("one isolated SES submission rejection is audited but does not strand the approved cohort", () => {
+  assert.equal(allowIsolatedResearchSubmissionFailure({
+    continuous:true,batchFailures:1,postAcceptanceFailures:0,
+    previousFailures:0,processedAfterBatch:310
+  }),true);
+  assert.equal(allowIsolatedResearchSubmissionFailure({
+    continuous:true,batchFailures:2,postAcceptanceFailures:0,
+    previousFailures:0,processedAfterBatch:310
+  }),false);
+  assert.equal(allowIsolatedResearchSubmissionFailure({
+    continuous:false,batchFailures:1,postAcceptanceFailures:0,
+    previousFailures:0,processedAfterBatch:310
+  }),false);
+  assert.equal(allowIsolatedResearchSubmissionFailure({
+    continuous:true,batchFailures:1,postAcceptanceFailures:1,
+    previousFailures:0,processedAfterBatch:310
+  }),false);
+  assert.equal(allowIsolatedResearchSubmissionFailure({
+    continuous:true,batchFailures:1,postAcceptanceFailures:0,
+    previousFailures:4,processedAfterBatch:310
+  }),false);
+  assert.equal(allowIsolatedResearchSubmissionFailure({
+    continuous:true,batchFailures:1,postAcceptanceFailures:0,
+    previousFailures:2,processedAfterBatch:310
+  }),true);
+  assert.equal(allowIsolatedResearchSubmissionFailure({
+    continuous:true,batchFailures:1,postAcceptanceFailures:0,
+    previousFailures:1,processedAfterBatch:50
+  }),false);
 });
