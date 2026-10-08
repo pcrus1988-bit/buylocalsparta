@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "../../../../../../../lib/admin-session";
 import { getAdminMailAttachment } from "../../../../../../../lib/admin-mail-runtime";
+import { buildAdminMailAttachmentHeaders } from "../../../../../../../lib/admin-mail-attachment-headers";
 import { recordAdminPersonalDataAccess } from "../../../../../../../lib/admin-runtime";
 
 export const dynamic = "force-dynamic";
@@ -29,19 +30,24 @@ export async function GET(
       accessScope: "individual"
     });
 
-    const filename = attachment.filename.replace(/[\r\n"]/g, "").slice(0, 180) || "attachment";
     return new NextResponse(Buffer.from(attachment.bytes), {
       status: 200,
-      headers: {
-        "content-type": attachment.contentType || "application/octet-stream",
-        "content-disposition": `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
-        "cache-control": "private, no-store, max-age=0",
-        "x-content-type-options": "nosniff"
-      }
+      headers: buildAdminMailAttachmentHeaders(attachment.filename, attachment.contentType)
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Attachment unavailable";
-    const status = message === "ADMIN_AUTH_REQUIRED" ? 401 : message.includes("permission") ? 403 : 404;
-    return NextResponse.json({ error: status === 404 ? "Attachment unavailable" : message }, { status });
+    const status = message === "ADMIN_AUTH_REQUIRED"
+      ? 401
+      : message.includes("permission")
+        ? 403
+        : /Attachment (source is not available|not found|blocked)/.test(message)
+          ? 404
+          : 500;
+    if (status === 500) console.error("Admin Mail attachment download failed", error);
+    return NextResponse.json({
+      error: status === 401 ? "Authentication required"
+        : status === 403 ? "Permission denied"
+          : status === 404 ? "Attachment unavailable" : "Attachment download failed"
+    }, { status });
   }
 }
