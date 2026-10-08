@@ -13,11 +13,12 @@ if (!connectionString) throw new Error("DATABASE_URL or POSTGRES_URL is required
 
 const postcheck = process.argv.includes("--postcheck");
 const recovery0420 = process.argv.includes("--recover-0420");
-const expectedSourceVersion = 434;
+const expectedSourceVersion = 435;
+const expectedIncrementalVersion = 434;
 const expectedCurrentVersion = 415;
 const expectedRecoveryVersion = 419;
 const expectedRecoveryPendingVersions = new Set(
-  Array.from({ length: 15 }, (_value, index) => 420 + index)
+  Array.from({ length: 16 }, (_value, index) => 420 + index)
 );
 const expectedRecoveryResearchTables = new Set([
   "research_analysis_estimates",
@@ -177,7 +178,7 @@ try {
     if (pendingVersions.size !== expectedRecoveryPendingVersions.size
         || [...expectedRecoveryPendingVersions].some((version) => !pendingVersions.has(version))) {
       throw new Error(
-        `Research 0420 recovery requires exact pending migrations 0420-0434; found: ${pendingCanonicalMigrations.join(", ") || "none"}`
+        `Research 0420 recovery requires exact pending migrations 0420-0435; found: ${pendingCanonicalMigrations.join(", ") || "none"}`
       );
     }
     const actualResearchTables = new Set(researchTables);
@@ -211,10 +212,26 @@ try {
       schemaVersion,
       requiredTables: requiredTables.length
     }));
+  } else if (schemaVersion === expectedIncrementalVersion) {
+    const expectedFilename = "0435_research_reward_hub_redemption.sql";
+    if (missing.length) {
+      throw new Error(`Research reward rollout needs the complete schema 0434. Missing: ${missing.join(", ")}`);
+    }
+    if (pendingCanonicalMigrations.length !== 1 || pendingCanonicalMigrations[0] !== expectedFilename) {
+      throw new Error(`Research incremental rollout requires only ${expectedFilename} to be pending; found ${pendingCanonicalMigrations.join(", ") || "none"}`);
+    }
+    console.log(JSON.stringify({
+      ok: true,
+      mode: "preflight",
+      state: "incremental_reward_upgrade",
+      schemaVersion,
+      targetVersion: expectedSourceVersion,
+      pendingCanonicalMigrations
+    }));
   } else {
     if (schemaVersion !== expectedCurrentVersion) {
       throw new Error(
-        `Research rollout requires clean schema ${expectedCurrentVersion} or already-applied ${expectedSourceVersion}; database reports ${schemaVersion}`
+        `Research rollout requires clean schema ${expectedCurrentVersion}, safe incremental schema ${expectedIncrementalVersion}, or already-applied ${expectedSourceVersion}; database reports ${schemaVersion}`
       );
     }
     if (present.length) {

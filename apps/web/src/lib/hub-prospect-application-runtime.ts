@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { finalizeHubResearchReward, lockHubResearchRewardForApplication, normalizedResearchCode } from "./research-reward-redemption";
 import { PostgresUnitOfWork, id, type SessionPrincipal, type SqlExecutor, type SqlRow } from "@buy-local-sparta/core";
 import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
 import { normalizeGreekAfm, resolveGemiCompanyByAfm } from "./gemi-runtime";
@@ -25,6 +26,7 @@ export type HubProspectApplicationInput = Readonly<{
   websiteUrl?: string;
   currentSalesChannels?: string;
   notes?: string;
+  rewardCode?: string;
 }>;
 
 type HubProspectTrial = Readonly<{ applicationId: string; vendorId: string; ownerUserId: string; startedAt: number; expiresAt: number }>;
@@ -37,6 +39,9 @@ export type HubProspectApplicationReceipt = Readonly<{
   planCode: HubExpansionPlanCode;
   billingCycle: HubBillingCycle;
   setupFeeCents: number;
+  originalSetupFeeCents: number;
+  setupDiscountCents: number;
+  rewardRedeemed: boolean;
   recurringFeeCents: number;
   commissionBps: number;
   paymentRequired: false;
@@ -161,6 +166,10 @@ export async function submitHubProspectApplication(input: {
         throw new HubProspectApplicationError(409, "application_exists", "Υπάρχει ήδη ενεργή αίτηση για αυτή την επιχείρηση.");
       }
 
+      const reward = application.rewardCode
+        ? await lockHubResearchRewardForApplication(tx, application.rewardCode, plan.setupFeeCents)
+        : undefined;
+
       const owner = shouldTrial
         ? input.principal
           ? await authenticatedOwner(tx, input.principal)
@@ -174,10 +183,11 @@ export async function submitHubProspectApplication(input: {
           business_name,legal_name,contact_name,email,phone,address_line,postal_code,primary_category,
           website_url,current_sales_channels,notes,source,status,setup_fee_cents,monthly_fee_cents,annual_fee_cents,
           recurring_fee_cents,commission_bps,payment_state,consent_at,registry_checked_at,hub_resolution_method,
-          hub_resolution_latitude,hub_resolution_longitude,hub_distance_km,created_at,updated_at
+          hub_resolution_latitude,hub_resolution_longitude,hub_distance_km,created_at,updated_at,
+          research_reward_entitlement_id,setup_fee_original_cents,setup_discount_cents
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
-          'hub_expansion_join','pending',$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$34
+          'hub_expansion_join','pending',$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$34,$35,$36,$37
         )
       `, [
         applicationUuid,
@@ -201,7 +211,7 @@ export async function submitHubProspectApplication(input: {
         application.websiteUrl ?? registry.url ?? null,
         application.currentSalesChannels ?? null,
         application.notes ?? null,
-        plan.setupFeeCents,
+        reward?.payableFeeCents ?? plan.setupFeeCents,
         plan.monthlyFeeCents,
         plan.annualFeeCents,
         recurringFeeCents,
@@ -213,7 +223,10 @@ export async function submitHubProspectApplication(input: {
         resolution.latitude ?? null,
         resolution.longitude ?? null,
         resolution.distanceKm ?? null,
-        createdAt
+        createdAt,
+        reward?.entitlementId ?? null,
+        plan.setupFeeCents,
+        reward?.discountCents ?? 0
       ]);
 
       const trial = owner && marketUuid
@@ -233,6 +246,11 @@ export async function submitHubProspectApplication(input: {
           })
         : undefined;
 
+      // A reward is redeemed ONLY after the completed application insert/provisioning
+      // has succeeded. All writes share this serializable transaction; any failure
+      // rolls back both the application and the code consumption.
+      if (reward) await finalizeHubResearchReward(tx, reward, applicationUuid);
+
       return {
         reference,
         status: "pending" as const,
@@ -240,7 +258,10 @@ export async function submitHubProspectApplication(input: {
         hubName: hub.nameEl,
         planCode: plan.code,
         billingCycle: application.billingCycle,
-        setupFeeCents: plan.setupFeeCents,
+        setupFeeCents: reward?.payableFeeCents ?? plan.setupFeeCents,
+        originalSetupFeeCents: plan.setupFeeCents,
+        setupDiscountCents: reward?.discountCents ?? 0,
+        rewardRedeemed: Boolean(reward),
         recurringFeeCents,
         commissionBps: plan.commissionBps,
         paymentRequired: false as const,
@@ -639,7 +660,8 @@ function normalizeApplication(input: HubProspectApplicationInput): HubProspectAp
     primaryCategory: requiredLimited(input.primaryCategory, "Κατηγορία", 100),
     websiteUrl,
     currentSalesChannels: optionalLimited(input.currentSalesChannels, 600),
-    notes: optionalLimited(input.notes, 1500)
+    notes: optionalLimited(input.notes, 1500),
+    rewardCode: normalizedResearchCode(input.rewardCode)
   };
 }
 

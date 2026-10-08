@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { SiteHeader } from "../../../components/SiteHeader";
-import { HUB_EXPANSION_PLANS } from "../../../lib/hub-expansion-plans";
+import { HubJoinRewardComparison } from "../../../components/HubJoinRewardComparison";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 import styles from "./page.module.css";
 
@@ -67,42 +67,7 @@ export default function HubExpansionJoinPage() {
           <p>CLAIM για δωρεάν παρουσία ή εμπορικό πλάνο όταν θέλεις περισσότερες λειτουργίες. Μηνιαία ή ετήσια χρέωση επιλέγεται πριν την υποβολή· καμία πληρωμή δεν γίνεται μέσα στην αίτηση.</p>
         </div>
 
-        <div className={styles.tableWrap} tabIndex={0} aria-label="Οριζόντια σύγκριση προγραμμάτων">
-          <table className={styles.comparisonTable}>
-            <thead>
-              <tr>
-                <th scope="col">Περιλαμβάνει</th>
-                {HUB_EXPANSION_PLANS.map((plan) => <th scope="col" className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}>
-                  <span>{plan.eyebrow}</span>
-                  <strong>{plan.name}</strong>
-                  {plan.featured && <b>Marketplace</b>}
-                </th>)}
-              </tr>
-            </thead>
-            <tbody>
-              <tr className={styles.priceRow}><th scope="row">Ένταξη</th>{HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}><strong>{plan.setupLabel}</strong></td>)}</tr>
-              <tr className={styles.priceRow}><th scope="row">Μηνιαία</th>{HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}><strong>{plan.monthlyLabel}</strong></td>)}</tr>
-              <tr className={styles.priceRow}><th scope="row">Ετήσια</th>{HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}><strong>{plan.annualLabel}</strong></td>)}</tr>
-              <tr className={styles.priceRow}><th scope="row">Προμήθεια</th>{HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}><strong>{plan.commissionLabel}</strong></td>)}</tr>
-              {featureRows.map((row) => <tr key={row.label}>
-                <th scope="row">{row.label}</th>
-                {HUB_EXPANSION_PLANS.map((plan) => {
-                  const included = (row.plans as readonly string[]).includes(plan.code);
-                  return <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}>
-                    <span className={included ? styles.check : styles.dash} aria-hidden="true">{included ? "✓" : "—"}</span>
-                    <span className={styles.srOnly}>{included ? "Περιλαμβάνεται" : "Δεν περιλαμβάνεται"}</span>
-                  </td>;
-                })}
-              </tr>)}
-              <tr className={styles.actionRow}>
-                <th scope="row"><span className={styles.srOnly}>Επιλογή προγράμματος</span></th>
-                {HUB_EXPANSION_PLANS.map((plan) => <td className={plan.featured ? styles.featuredColumn : undefined} key={plan.code}>
-                  <a className={`button ${styles.planButton}`} href={`/hubs/join/apply?plan=${plan.code}&billing=annual#application-form`}>{plan.code === "claim" ? "Δωρεάν CLAIM" : `Επίλεξε ${plan.name}`}</a>
-                </td>)}
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <HubJoinRewardComparison featureRows={featureRows} />
         <p className={styles.swipeHint}>Σε κινητό: σύρε οριζόντια για να συγκρίνεις όλα τα πλάνα. Η ετήσια επιλογή αντιστοιχεί περίπου σε δύο μήνες χωρίς συνδρομή σε σχέση με τη μηνιαία.</p>
         <p className={styles.footnote}>Οι τιμές εμφανίζονται προ ΦΠΑ όπου εφαρμόζεται. Το CLAIM δεν απαιτεί πληρωμή. Τα υψηλότερα πλάνα αγοράζουν περισσότερες υπηρεσίες και χαμηλότερη προμήθεια — όχι προνομιακή κατάταξη. Η δίκαιη συμμετοχή παραμένει κοινή για όλους.</p>
       </div>

@@ -19,7 +19,7 @@ import { PostgresBoxNowShippingService } from "./boxnow-shipping.ts";
 import { PostgresActivationEvidenceService } from "./activation-evidence.ts";
 import { PostgresCartRecoveryService } from "./cart-recovery.ts";
 
-export const EXPECTED_SCHEMA_VERSION = 434;
+export const EXPECTED_SCHEMA_VERSION = 435;
 // Compatibility marker for migration-specific static verifiers that still assert the historical schema-122 baseline.
 // EXPECTED_SCHEMA_VERSION = 122
 
@@ -143,9 +143,7 @@ export class ProductionPostgresRuntime {
       const postgisVersion = String(row.postgis_version ?? "");
       const appliedSchemaVersion = Number(row.schema_version ?? 0);
       const pendingMigrations = Math.max(0, expectedSchemaVersion - appliedSchemaVersion);
-      // Permit exactly one forward migration during the controlled 0434 to 0435 rollout.
-      const schemaCurrent = appliedSchemaVersion === expectedSchemaVersion ||
-        (expectedSchemaVersion === 434 && appliedSchemaVersion === 435);
+      const schemaCurrent = appliedSchemaVersion === expectedSchemaVersion;
       const requiredExtensions = [postgisVersion ? "postgis" : "", row.has_pgcrypto === true ? "pgcrypto" : "", row.has_citext === true ? "citext" : ""].filter(Boolean);
       const extensionsReady = requiredExtensions.length === 3;
       const serverMajorReady = serverVersionNumber >= 170000 && serverVersionNumber < 190000;
