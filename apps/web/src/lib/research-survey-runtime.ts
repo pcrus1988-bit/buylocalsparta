@@ -2751,9 +2751,10 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       sentCount:numberValue(row.campaign_sent),
       safetyHold:optionalText(row.campaign_safety_hold),
       safetyHoldPhase:optionalText(row.campaign_safety_hold_phase),
+      // All existing unacknowledged continuous campaigns must explicitly
+      // accept a newer study-level stop policy, even if not currently held.
       requiresBouncePolicyConfirmation:
-        ["SES_HARD_BOUNCE_RATE_ABOVE_GRADUATED_SAFETY_LIMIT",
-         "RESEARCH_BOUNCE_POLICY_CONFIRMATION_REQUIRED"].includes(text(row.campaign_safety_hold)) &&
+        ["queued","running"].includes(text(row.campaign_status)) &&
         text(row.campaign_bounce_policy_acknowledged_version) !== RESEARCH_BOUNCE_POLICY_VERSION,
       deliverySafetyBreakdown,
       lastError:optionalText(row.campaign_error_message),
