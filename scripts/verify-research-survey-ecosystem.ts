@@ -214,7 +214,7 @@ if (longitudinalLineageChecksums["0432_research_longitudinal_lineage.sql"] !== l
 if (releaseArchiveChecksums["0433_research_release_archive.sql"] !== releaseArchiveSha) {
   errors.push("0433 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 435")) errors.push("runtime schema head is not 435");
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 436")) errors.push("runtime schema head is not 436");
 if (!qualityV3Migration.includes("ADD COLUMN quality_score")) errors.push("research quality score column missing");
 if (!qualityV3Migration.includes("ADD COLUMN answer_pattern_sha256")) errors.push("research answer-pattern fingerprint column missing");
 if (!qualityV3Migration.includes("research_quality_answer_pattern_idx")) errors.push("research answer-pattern QA index missing");
@@ -622,9 +622,26 @@ if (!researchQuestionsEditor.includes("save_later_evaluation") || !researchQuest
 if (!researchAdminDesign.includes("kontamou.research.exploratory-evaluation.v1") || !researchAdminDesign.includes("exploratory_post_registration")) errors.push("versioned post-registration evaluation evidence missing");
 if (!surveyRuntime.includes("recordResearchProtocolEvent") || !surveyRuntime.includes("researchProtocolEvents")) errors.push("protocol evidence runtime missing");
 if (!release.includes("protocolEvidence") || !release.includes("RESEARCH_RELEASE_PROTOCOL_EVIDENCE_INTEGRITY_FAILED")) errors.push("release artifact does not freeze verified protocol evidence");
-if (surveyForm.includes("optionalConsents.marketing")) errors.push("scientific survey completion flow still exposes marketing consent");
-if (surveyRuntime.includes('"marketing"')) errors.push("participant research runtime still accepts marketing consent");
-if (!surveyForm.includes('href="/join"')) errors.push("commercial follow-up is not separated behind a post-research route");
+// Optional commercial email consent is allowed ONLY after the scientific
+// questionnaire is completed, with its own post-completion preferences action.
+// Never count such consent as research-participation consent.
+const completedViewStart = surveyForm.indexOf("if (completed) {");
+const questionnaireViewStart = surveyForm.indexOf("if (!started) {", completedViewStart);
+const completedView = completedViewStart >= 0 && questionnaireViewStart > completedViewStart
+  ? surveyForm.slice(completedViewStart, questionnaireViewStart)
+  : "";
+const questionnaireView = questionnaireViewStart >= 0 ? surveyForm.slice(questionnaireViewStart) : surveyForm;
+if (!completedView.includes("checked={optionalConsents.marketing}") ||
+    questionnaireView.includes("checked={optionalConsents.marketing}")) {
+  errors.push("commercial email consent must remain opt-in and post-completion only");
+}
+if (genericSurveyRuntime.includes('"marketing"') ||
+    !surveyRuntime.includes('if (text(response.status) !== "completed")')) {
+  errors.push("commercial email consent must be handled by the completed-response preference endpoint only");
+}
+if (!completedView.includes('href="/hubs/join"')) {
+  errors.push("commercial business follow-up must be on a separate post-completion joining route");
+}
 if (!surveyRuntime.includes("RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("pilot lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes("RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("fieldwork lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes('"publish_release"')) errors.push("explicit publish lifecycle action missing");
