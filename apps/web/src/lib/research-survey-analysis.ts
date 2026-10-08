@@ -209,7 +209,7 @@ function estimateSpecs(
     } else if (question.questionType === "matrix") {
       const items = configPairs(question.config, "items");
       const scale = configPairs(question.config, "scale");
-      const quantitative = scale.filter(([option]) => /^-?(?:\\d+)(?:\\.\\d+)?$/.test(option)).length >= 2;
+      const quantitative = scale.filter(([option]) => option.trim() !== "" && Number.isFinite(Number(option))).length >= 2;
       for (const [item, label] of items) {
         if (quantitative) {
           const observations = responses.flatMap((response) => {
