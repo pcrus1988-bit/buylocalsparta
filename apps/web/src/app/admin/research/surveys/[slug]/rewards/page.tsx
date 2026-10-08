@@ -34,7 +34,7 @@ export default async function SurveyRewardsAdminPage({ params, searchParams }: {
   const prepared = productionDatabaseConfigured();
   let studyTitle = slug;
   let counts: SqlRow = {};
-  let rows: SqlRow[] = [];
+  let rows: readonly SqlRow[] = [];
   let unavailable = "";
 
   if (prepared) {
