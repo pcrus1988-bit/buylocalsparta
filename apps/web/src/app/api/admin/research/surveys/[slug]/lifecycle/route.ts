@@ -38,7 +38,14 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     const action = stringValue(body.action);
 
     if (LIFECYCLE_ACTIONS.has(action as ResearchLifecycleAction)) {
-      const result = await transitionResearchStudy(principal, { slug, action: action as ResearchLifecycleAction });
+      const result = await transitionResearchStudy(principal, {
+        slug,
+        action: action as ResearchLifecycleAction,
+        ...(action === "lock_instrument" ? {
+          expectedInstrumentVersion: stringValue(body.expectedInstrumentVersion) || undefined,
+          expectedInstrumentSha256: stringValue(body.expectedInstrumentSha256) || undefined
+        } : {})
+      });
       await recordAdminAudit(principal, "research.lifecycle.transition", "research_study", slug, action, result);
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
