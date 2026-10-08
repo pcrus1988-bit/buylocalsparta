@@ -2410,6 +2410,8 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       plan.status AS analysis_plan_status,
       COALESCE(frames.frame_count, 0)::int AS frame_count,
       COALESCE(frame.population_size, 0)::int AS frame_population,
+      snapshot_contact_count.active_email_count AS snapshot_active_contacts,
+      snapshot_contact_count.captured_at AS contact_snapshot_at,
       COALESCE(draws.draw_count, 0)::int AS sample_draw_count,
       COALESCE(draw.sample_units, 0)::int AS sample_units,
       COALESCE(batches.batch_count, 0)::int AS invite_batches,
@@ -2435,6 +2437,81 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       SELECT id, population_size FROM research_frame_snapshots
       WHERE study_id=s.id ORDER BY created_at DESC LIMIT 1
     ) frame ON true
+    LEFT JOIN LATERAL (
+      SELECT (j.output->>'activeEmailCount')::int AS active_email_count,
+             j.finished_at AS captured_at
+      FROM research_study_jobs j
+      WHERE j.study_id=s.id AND j.job_type='frame_snapshot'
+        AND j.status='succeeded'
+        AND j.output->>'frameSnapshotId'=frame.id::text
+        AND j.output->>'activeEmailCount' ~ '^[0-9]+
+      WHERE study_id=s.id
+    ) draws ON true
+    LEFT JOIN LATERAL (
+      SELECT
+        (SELECT count(*)::int FROM research_sample_units u WHERE u.sample_draw_id=d.id) AS sample_units
+      FROM research_sample_draws d
+      WHERE d.study_id=s.id
+        AND d.fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
+      ORDER BY d.created_at DESC LIMIT 1
+    ) draw ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS batch_count FROM research_invite_batches
+      WHERE study_id=s.id
+        AND fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
+    ) batches ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS invite_count,
+             count(*) FILTER (WHERE sent_at IS NOT NULL) AS sent_count
+      FROM research_invites
+      WHERE study_id=s.id
+        AND fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
+    ) invites ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS completed_count FROM research_responses rr
+      JOIN research_invites ri ON ri.id=rr.invite_id
+      WHERE rr.study_id=s.id AND rr.status='completed'
+        AND ri.fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
+    ) responses ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS failed_count FROM research_study_jobs
+      WHERE study_id=s.id AND status='failed'
+    ) jobs ON true
+    WHERE s.slug=$1
+    LIMIT 1
+  `, [slug]);
+  const row = result.rows[0];
+  return {
+    databaseConfigured: true as const,
+    study: row ? {
+      slug: text(row.slug),
+      title: text(row.title),
+      status: text(row.status),
+      pilotStartedAt: optionalText(row.pilot_started_at),
+      pilotEndedAt: optionalText(row.pilot_ended_at),
+      fieldworkStartsAt: optionalText(row.fieldwork_starts_at),
+      fieldworkEndsAt: optionalText(row.fieldwork_ends_at),
+      instrumentVersion: optionalText(row.instrument_version),
+      instrumentStatus: optionalText(row.instrument_status),
+      analysisPlanVersion: optionalText(row.analysis_plan_version),
+      analysisPlanStatus: optionalText(row.analysis_plan_status),
+      frameCount: numberValue(row.frame_count),
+      framePopulation: numberValue(row.frame_population),
+      snapshotActiveContacts: row.snapshot_active_contacts == null ? undefined : numberValue(row.snapshot_active_contacts),
+      contactSnapshotAt: optionalText(row.contact_snapshot_at),
+      sampleDrawCount: numberValue(row.sample_draw_count),
+      sampleUnits: numberValue(row.sample_units),
+      inviteBatches: numberValue(row.invite_batches),
+      invites: numberValue(row.invites),
+      sent: numberValue(row.sent),
+      completed: numberValue(row.completed),
+      failedJobs: numberValue(row.failed_jobs)
+    } : undefined
+  };
+}
+
+      ORDER BY j.finished_at DESC LIMIT 1
+    ) snapshot_contact_count ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS draw_count FROM research_sample_draws
       WHERE study_id=s.id
