@@ -10,9 +10,13 @@ export function ResearchStudySamplingControls({
   cohortAStatus,
   cohortAPopulation,
   cohortAContacts,
+  cohortASampleStatus,
+  cohortASampleSelected,
   cohortBStatus,
   cohortBPopulation,
   cohortBContacts,
+  cohortBSampleStatus,
+  cohortBSampleSelected,
   queuedSampleJobs,
   runningSampleJobs,
   studyStatus,
@@ -37,9 +41,13 @@ export function ResearchStudySamplingControls({
   cohortAStatus?: string;
   cohortAPopulation?: number;
   cohortAContacts?: number;
+  cohortASampleStatus?: string;
+  cohortASampleSelected?: number;
   cohortBStatus?: string;
   cohortBPopulation?: number;
   cohortBContacts?: number;
+  cohortBSampleStatus?: string;
+  cohortBSampleSelected?: number;
   queuedSampleJobs: number;
   runningSampleJobs: number;
   studyStatus: string;
@@ -74,6 +82,8 @@ export function ResearchStudySamplingControls({
   // A frozen Cohort A is independently sampleable while B is importing.
   const sampleWorkerBusy = queuedSampleJobs > 0 || runningSampleJobs > 0;
   const cohortStatus = cohort === "A" ? cohortAStatus : cohortBStatus;
+  const selectedDrawStatus = cohort === "A" ? cohortASampleStatus : cohortBSampleStatus;
+  const selectedDrawCount = cohort === "A" ? cohortASampleSelected : cohortBSampleSelected;
   const cohortReady = cohort === "A"
     ? cohortStatus === "frozen" || cohortStatus === "superseded"
     : cohortStatus === "frozen";
@@ -240,9 +250,9 @@ export function ResearchStudySamplingControls({
     <div className="workspace-action-bar">
       <span>
         <strong>Probability sample</strong><br />
-        {latestSampleStatus
-          ? `Latest: ${latestSampleStatus} · ${latestSampleTarget.toLocaleString("el-GR")} selected units`
-          : "Set the number of selected businesses. This is not the target number of completed questionnaires."}
+        {selectedDrawStatus
+          ? `Cohort ${cohort} · ${selectedDrawStatus} · ${(selectedDrawCount ?? 0).toLocaleString("el-GR")} selected units`
+          : `Cohort ${cohort}: no sample yet. Enter selected businesses below; this is not the target number of completed questionnaires.`}
         {latestSampleDesignSha256 ? <><br />
           Frozen design: {latestSampleDesiredCompletes.toLocaleString("el-GR")} desired completes · {" "}
           {new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 1 }).format(latestSampleExpectedResponseRate)} invited-response assumption · {" "}
