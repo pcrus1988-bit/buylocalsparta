@@ -107,10 +107,11 @@ function Plot({lines,monthly,unit,type,indexed}: {lines:ChartLine[];monthly:bool
   </div>;
 }
 
-export function ResearchExternalAnalysis(){
-  const [groupId,setGroupId]=useState("annual-esi");
-  const [chosen,setChosen]=useState<string[]>(["esi-gr","esi-eu","esi-ea"]);
-  const [from,setFrom]=useState(2022),[until,setUntil]=useState(2026);
+export function ResearchExternalAnalysis({initialGroupId = "annual-esi"}: {initialGroupId?: string}){
+  const initialGroup = EXTERNAL_GROUPS.find(g=>g.id===initialGroupId)??EXTERNAL_GROUPS[0]!;
+  const [groupId,setGroupId]=useState(initialGroup.id);
+  const [chosen,setChosen]=useState<string[]>(initialGroup.series.map(s=>s.id));
+  const [from,setFrom]=useState(Math.min(2026,...initialGroup.series.flatMap(s=>s.points.map(p=>p.year)))),[until,setUntil]=useState(2026);
   const [chartType,setChartType]=useState<"line"|"bar">("line"),[index,setIndex]=useState(false);
   const [query,setQuery]=useState(""),[kind,setKind]=useState("all"),[archiveYear,setArchiveYear]=useState("all");
   const [leftStudy,setLeftStudy]=useState("iobe-2025"),[rightStudy,setRightStudy]=useState("iobe-2026");
