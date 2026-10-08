@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { ResearchExternalAnalysis } from "../../../components/ResearchExternalAnalysis";
+import { EXTERNAL_STUDIES } from "../../../lib/research-external-analysis";
 import styles from "../../../components/ResearchObservatory.module.css";
 import external from "../../../components/ResearchExternalSources.module.css";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
@@ -128,7 +129,7 @@ export default function ExternalMarketSentimentPage() {
           <h1>Η εικόνα της αγοράς, από περισσότερες φωνές.</h1>
           <p>Επιλεγμένες έρευνες, επιχειρηματικές προσδοκίες και στοιχεία αγοράς από αναγνωρισμένους φορείς. Διαβάστε τα βασικά ευρήματα και μεταβείτε απευθείας στις δημοσιεύσεις τους.</p>
           <div className={styles.heroBadges}>
-            <span className={styles.badge}>{sources.length} επιλεγμένες δημοσιεύσεις</span>
+            <span className={styles.badge}>{EXTERNAL_STUDIES.length} τεκμηριωμένες δημοσιεύσεις</span>
             <span className={styles.badge}>Πηγές με αναφορά φορέα</span>
             <span className={styles.badge}>Ενημέρωση επιλογής: 08/10/2026</span>
           </div>
@@ -157,7 +158,7 @@ export default function ExternalMarketSentimentPage() {
       {sections.map((section) => <section className={styles.section} id={section.id} key={section.id} aria-labelledby={section.id + "-heading"}>
         <div className={styles.sectionHead}>
           <div>
-            <span className={styles.eyebrow}>{section.eyebrow}</span>
+            <span className={styles.eyebrow}>{section.eyebrow} · Επιλεγμένη παρουσίαση</span>
             <h2 id={section.id + "-heading"}>{section.title}</h2>
           </div>
           <p>{section.explanation}</p>
