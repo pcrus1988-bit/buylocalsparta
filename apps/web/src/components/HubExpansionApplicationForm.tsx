@@ -47,6 +47,7 @@ type Receipt = Readonly<{
   originalSetupFeeCents?: number;
   setupDiscountCents?: number;
   rewardRedeemed?: boolean;
+  qaSimulation?: boolean;
   paymentRequired: false;
   message: string;
   redirectTo?: string;
@@ -232,6 +233,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
         originalSetupFeeCents: result.originalSetupFeeCents,
         setupDiscountCents: result.setupDiscountCents,
         rewardRedeemed: result.rewardRedeemed,
+        qaSimulation: result.qaSimulation,
         paymentRequired: false,
         message: result.message ?? "Η αίτηση καταχωρίστηκε.",
         redirectTo: result.redirectTo,
@@ -252,13 +254,15 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
     return <div className={styles.receipt} role="status">
       <span className={styles.receiptMark}>✓</span>
       <div>
-        <div className={styles.receiptEyebrow}>Η αίτηση καταχωρίστηκε</div>
+        <div className={styles.receiptEyebrow}>{receipt.qaSimulation ? "Επιτυχής δοκιμαστική υποβολή · QA" : "Η αίτηση καταχωρίστηκε"}</div>
         <h2>{receipt.hubName} · {receipt.planCode.toUpperCase()}</h2>
         <p>{receipt.message}</p>
         <div className={styles.reference}>Επιλογή <strong>{billingText}</strong></div>
         <div className={styles.reference}>Αριθμός αναφοράς <strong>{receipt.reference}</strong></div>
-        {receipt.rewardRedeemed && <div className={styles.reference}>Ο κωδικός εξαργυρώθηκε με την υποβολή της αίτησης · εφάπαξ ένταξη <strong><s>{euro(receipt.originalSetupFeeCents ?? 0)}</s> {euro(receipt.setupFeeCents ?? 0)}</strong></div>}
-        <p className={styles.receiptNote}>{receipt.redirectTo
+        {receipt.rewardRedeemed && <div className={styles.reference}>Ο κωδικός εξαργυρώθηκε με την υποβολή {receipt.qaSimulation ? "της προσομοίωσης" : "της αίτησης"} · εφάπαξ ένταξη <strong><s>{euro(receipt.originalSetupFeeCents ?? 0)}</s> {euro(receipt.setupFeeCents ?? 0)}</strong></div>}
+        <p className={styles.receiptNote}>{receipt.qaSimulation
+          ? "QA ONLY · Δεν καταχωρίστηκε πραγματικό ενδιαφέρον, δεν έγινε επαλήθευση συνεργασίας, δεν δημιουργήθηκε προμηθευτής και δεν εστάλη email."
+          : receipt.redirectTo
           ? "Το HUB επιβεβαιώθηκε ξανά server-side από τα στοιχεία Γ.Ε.ΜΗ. Η αίτηση παραμένει σε έλεγχο, αλλά δημιουργήθηκε ιδιωτικό DEMO workspace για το 3ήμερο Trial. Δεν έγινε χρέωση και οι δημόσιες πωλήσεις παραμένουν κλειδωμένες."
           : "Το HUB επιβεβαιώθηκε ξανά server-side από τα στοιχεία Γ.Ε.ΜΗ. Η επιλογή χρέωσης αποθηκεύτηκε με την αίτηση. Δεν έγινε χρέωση και δεν δημιουργήθηκε ενεργός vendor λογαριασμός."}</p>
         {receipt.redirectTo && <a className="button" href={receipt.redirectTo}>Άνοιξε το 3ήμερο Vendor Trial →</a>}
