@@ -1481,7 +1481,7 @@ async function claimResearchJob(
         AND job_type = ANY($1::text[])
     `, [allowedJobTypes]);
 
-    // A continuous campaign sends at most ten messages in a work step. A worker
+    // A continuous campaign processes bounded 50-recipient checkpoints. A worker
     // process lost mid-step must not strand the whole approved campaign forever.
     // Recovery is idempotent for sent messages and FAILS CLOSED for ambiguous
     // provider handoffs (research_invites.status='created').
@@ -2593,10 +2593,9 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   const currentOutput = objectValue(job.output);
   const campaignProcessed = Math.max(0,Math.floor(numberValue(currentOutput.campaignProcessedCount)));
   const campaignSent = Math.max(0,Math.floor(numberValue(currentOutput.campaignSentCount)));
-  // One authorization covers the locked census. Checkpoint after 50 recipients,
-  // rather than forcing a full minute between every 10. SES submissions are
-  // still paced below the stated 14-recipient/second account allowance.
-  // Keep steps modest so bounce, complaint and pause checks run frequently.
+  // One authorization covers the locked census. Keep each checkpoint to 50
+  // addresses so bounce/complaint thresholds and administrator pause state are
+  // re-evaluated regularly, even during a long-running cron drain.
   const limit = continuous
     ? Math.max(0,Math.min(50,campaignMax-campaignProcessed))
     : Math.max(1,Math.min(500,Math.floor(numberValue(input.limit) || 100)));
@@ -2853,11 +2852,16 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   let alreadySentCount = 0;
   let duplicateSkippedCount = 0;
   const failures: Array<{ sampleUnitId: string; error: string }> = [];
-  // At most eight research invite submissions per second on this serial worker,
-  // leaving SES headroom for other application emails. This is a ceiling, not
-  // a throughput guarantee: DB and SES latency can make the actual rate lower.
-  const minSendIntervalMs = continuous ? 125 : 0;
-  let previousSesAttemptAt = 0;
+  const batchStartedAt = Date.now();
+  // Cap this SINGLE approved campaign at ten starts/second, leaving room for
+  // other traffic under the previously reported 14/sec SES sending rate.
+  // SES limits can change; this is only a cap, not a verified account quota.
+  // Reserving the invitation synchronously BEFORE asynchronous provider sends
+  // preserves the no-resend guarantee for repeated/shared contact hashes.
+  const minSendIntervalMs = continuous ? 100 : 0;
+  let nextSesAttemptAt = 0;
+  const pendingSends: Array<Promise<void>> = [];
+  const maxInflightSends = continuous ? 10 : 1;
 
   for (const sampleUnitId of sampleUnitIds) {
     if (batchRow.fieldwork_ends_at && new Date(String(batchRow.fieldwork_ends_at)).getTime() <= Date.now()) {
@@ -3010,12 +3014,16 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     const methodologyUrl = `${base}/research/${encodeURIComponent(text(batchRow.slug))}/methodology`;
     // Distinguish an isolated SES submission failure from database persistence
     // failing AFTER SES accepted the message. Only the former is tolerated.
+    // Preparation is sequential: each candidate's durable invite/message row
+    // exists before its send promise begins or the next candidate is evaluated.
+    const submission = (async (): Promise<void> => {
     let acceptedBySes = false;
     try {
       if (continuous) {
-        const gap = previousSesAttemptAt + minSendIntervalMs - Date.now();
+        const sendSlot = Math.max(Date.now(), nextSesAttemptAt);
+        nextSesAttemptAt = sendSlot + minSendIntervalMs;
+        const gap = sendSlot - Date.now();
         if (gap > 0) await new Promise<void>((resolve) => setTimeout(resolve, gap));
-        previousSesAttemptAt = Date.now();
       }
       const delivery = await sendResearchSurveyInvitation({
         destination: text(contact.contact_value),
@@ -3115,7 +3123,16 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         failures.push({ sampleUnitId, error: message });
       }
     }
+    })();
+    pendingSends.push(submission);
+    // Backpressure: no more than 10 in flight, and every SES start is spaced
+    // at least 100ms apart. Do not advance the durable batch until all finish.
+    if (pendingSends.length >= maxInflightSends) {
+      await Promise.all(pendingSends);
+      pendingSends.length = 0;
+    }
   }
+  await Promise.all(pendingSends);
 
   // A retry skips previously sent invitations. Persist the cumulative count
   // from the batch ledger rather than overwriting it with this attempt's count.
@@ -3155,6 +3172,8 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     alreadySentCount,
     duplicateSkippedCount,
     failedCount,
+    lastBatchDurationMs:Date.now()-batchStartedAt,
+    lastBatchAcceptedPerSecond:Number((batchSentCount/Math.max(1,(Date.now()-batchStartedAt)/1000)).toFixed(2)),
     failures: failures.slice(0, 25),
     ...(continuous ? {campaignProcessedCount:completed?nextProcessed:campaignProcessed,
       campaignSentCount:completed?nextSent:campaignSent,deliverySafety,
@@ -3180,6 +3199,8 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       lastBatchSentCount:batchSentCount,
       lastBatchDuplicateSkippedCount:duplicateSkippedCount,
       lastBatchFailureCount:failedCount,
+      lastBatchDurationMs:Date.now()-batchStartedAt,
+      lastBatchAcceptedPerSecond:Number((batchSentCount/Math.max(1,(Date.now()-batchStartedAt)/1000)).toFixed(2)),
       campaignSubmissionFailureCount:previousSubmissionFailures+failedCount,
       lastAttemptFailureReason:failures[0]?.error ?? currentOutput.lastAttemptFailureReason,
       failedCount
