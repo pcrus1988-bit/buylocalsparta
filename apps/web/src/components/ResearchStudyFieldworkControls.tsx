@@ -50,7 +50,9 @@ export function ResearchStudyFieldworkControls({
   csrfToken,
   studyStatus,
   cohortAStatus,
+  cohortASampleStatus,
   cohortBStatus,
+  cohortBSampleStatus,
   queuedSampleJobs,
   runningSampleJobs,
   recruitmentTemplateVersion,
@@ -80,7 +82,9 @@ export function ResearchStudyFieldworkControls({
   csrfToken: string;
   studyStatus: string;
   cohortAStatus?: string;
+  cohortASampleStatus?: string;
   cohortBStatus?: string;
+  cohortBSampleStatus?: string;
   queuedSampleJobs: number;
   runningSampleJobs: number;
   recruitmentTemplateVersion?: string;
@@ -131,6 +135,8 @@ export function ResearchStudyFieldworkControls({
   const [confirmationStep, setConfirmationStep] = useState<1 | 2>(1);
   const [confirmationText, setConfirmationText] = useState("");
   const workerBusy = queuedSampleJobs > 0 || runningSampleJobs > 0;
+  const selectedCohortSample = cohort === "A" ? cohortASampleStatus : cohortBSampleStatus;
+  const cohortSampleReady = selectedCohortSample === "locked" || selectedCohortSample === "fielded";
   const cohortReady = cohort === "A"
     ? cohortAStatus === "frozen" || cohortAStatus === "superseded"
     : cohortBStatus === "frozen";
@@ -289,7 +295,7 @@ export function ResearchStudyFieldworkControls({
   }
 
   function sendInvites() {
-    if (!batchValid || !cohortReady || (studyStatus === "pilot" && cohort !== "A")) return;
+    if (!batchValid || !cohortReady || !cohortSampleReady || (studyStatus === "pilot" && cohort !== "A")) return;
     openEmailConfirmation({
       action: "send_invites",
       busy: "send",
@@ -456,7 +462,7 @@ export function ResearchStudyFieldworkControls({
       <span>
         <strong>Αποστολή προσκλήσεων · Cohort {cohort}</strong><br />
         {activeContacts.toLocaleString("el-GR")} contactable frame units in the most recent frozen snapshot · {completed.toLocaleString("el-GR")} ολοκληρωμένες απαντήσεις.
-        <div className="workspace-inline-note">{cohort === "A" ? "Cohort A: frozen baseline, Pilot can begin while B builds." : "Cohort B: new, deduplicated businesses only; main fieldwork after A."} {cohortReady ? "Snapshot ready." : "Frame not ready; invitations blocked."}</div>
+        <div className="workspace-inline-note">{cohort === "A" ? "Cohort A: frozen baseline, Pilot can begin while B builds." : "Cohort B: new, deduplicated businesses only; main fieldwork after A."} {cohortReady ? "Snapshot ready." : "Frame not ready; invitations blocked."} {cohortSampleReady ? "Cohort sample locked." : "Matching cohort draw not locked; invitations blocked."}</div>
       </span>
       <div className="workspace-action-buttons">
         <label><small>Recipient cohort</small><br />
@@ -476,7 +482,7 @@ export function ResearchStudyFieldworkControls({
         />
         <button
           className="button"
-          disabled={Boolean(busy) || workerBusy || !cohortReady || !fielding || !recruitmentTemplateVersion || !batchValid}
+          disabled={Boolean(busy) || workerBusy || !cohortReady || !cohortSampleReady || !fielding || !recruitmentTemplateVersion || !batchValid}
           onClick={() => void sendInvites()}
           type="button"
         >{busy === "send" ? "Προετοιμασία…" : "Αποστολή παρτίδας προσκλήσεων"}</button>
