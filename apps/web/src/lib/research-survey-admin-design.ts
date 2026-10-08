@@ -3,6 +3,7 @@ import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
 import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import type { ResearchQuestion, ResearchQuestionType } from "./research-survey-model";
+import { canonicalResearchResultsUrl } from "./research-results-url";
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
@@ -125,12 +126,14 @@ export async function researchSurveyDesignAdminOverview(
   const pool = getAdminPostgresRuntime().sqlPool;
   const result = await pool.query<SqlRow>(
     "SELECT s.id AS study_id,s.slug,s.title,s.subtitle,s.status,s.population_definition,s.methodology_summary,s.default_locale,s.fieldwork_ends_at,s.public_results_url," +
+    " COALESCE(w.slug,s.slug) AS results_wave_slug," +
     " (s.status='pilot' AND s.fieldwork_starts_at IS NULL" +
     " AND NOT EXISTS (SELECT 1 FROM research_invites ri WHERE ri.study_id=s.id)" +
     " AND NOT EXISTS (SELECT 1 FROM research_invite_batches rb WHERE rb.study_id=s.id)) AS pilot_deadline_mutable," +
     " i.id AS instrument_id,i.version AS instrument_version,i.status AS instrument_status,i.content_sha256 AS instrument_sha256,i.consent_statement_version," +
     " ap.id AS analysis_plan_id,ap.version AS analysis_plan_version,ap.title AS analysis_plan_title,ap.status AS analysis_plan_status,ap.plan_json,ap.content_sha256 AS analysis_plan_sha256,ap.locked_at AS analysis_plan_locked_at" +
     " FROM research_studies s" +
+    " LEFT JOIN research_waves w ON w.id=s.current_wave_id AND w.study_id=s.id" +
     " LEFT JOIN LATERAL (SELECT id,version,status,content_sha256,consent_statement_version FROM research_instruments WHERE study_id=s.id AND wave_id=s.current_wave_id ORDER BY created_at DESC LIMIT 1) i ON true" +
     " LEFT JOIN LATERAL (SELECT id,version,title,status,plan_json,content_sha256,locked_at FROM research_analysis_plans WHERE study_id=s.id AND wave_id=s.current_wave_id AND instrument_id=i.id ORDER BY created_at DESC LIMIT 1) ap ON true" +
     " WHERE s.slug=$1 LIMIT 1",
@@ -194,7 +197,7 @@ export async function researchSurveyDesignAdminOverview(
       methodologySummary: text(row.methodology_summary),
       defaultLocale: text(row.default_locale) || "el-GR",
       fieldworkEndsAt: optionalText(row.fieldwork_ends_at),
-      publicResultsUrl: optionalText(row.public_results_url)
+      publicResultsUrl: canonicalResearchResultsUrl(text(row.results_wave_slug))
     },
     instrument: row.instrument_id ? {
       id: text(row.instrument_id),
@@ -601,13 +604,13 @@ export async function updateResearchStudyDraftSettings(
   if (population.length < 10 || methodology.length < 10) throw new Error("RESEARCH_STUDY_DESCRIPTION_INVALID");
   const fieldworkEndsAt = input.fieldworkEndsAt?.trim() || "";
   if (fieldworkEndsAt && !Number.isFinite(new Date(fieldworkEndsAt).getTime())) throw new Error("RESEARCH_FIELDWORK_END_INVALID");
-  const url = input.publicResultsUrl?.trim() || "";
-  if (url) {
-    try { new URL(url); } catch { throw new Error("RESEARCH_RESULTS_URL_INVALID"); }
-  }
+  // Public results URLs are generated from the immutable current-wave slug.
+  // An editable settings request must never override the publication destination.
   const result = await getAdminPostgresRuntime().sqlPool.query<SqlRow>(
-    "UPDATE research_studies SET title=$2,subtitle=NULLIF($3,''),population_definition=$4,methodology_summary=$5,default_locale=$6,fieldwork_ends_at=NULLIF($7,'')::timestamptz,public_results_url=NULLIF($8,''),updated_at=now() WHERE slug=$1 AND status='draft' RETURNING id",
-    [slug, title, input.subtitle?.trim() || "", population, methodology, locale, fieldworkEndsAt, url]
+    "UPDATE research_studies SET title=$2,subtitle=NULLIF($3,''),population_definition=$4,methodology_summary=$5,default_locale=$6,fieldwork_ends_at=NULLIF($7,'')::timestamptz," +
+    " public_results_url='https://kontamou.site/research/' || COALESCE((SELECT w.slug FROM research_waves w WHERE w.id=research_studies.current_wave_id AND w.study_id=research_studies.id),slug) || '/results'," +
+    " updated_at=now() WHERE slug=$1 AND status='draft' RETURNING id",
+    [slug, title, input.subtitle?.trim() || "", population, methodology, locale, fieldworkEndsAt]
   );
   if (!result.rows[0]) throw new Error("RESEARCH_STUDY_SETTINGS_REQUIRE_DRAFT");
 }
