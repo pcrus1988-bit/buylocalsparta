@@ -31,6 +31,7 @@ export default async function GreekRetailResearchPage() {
           <Link href="/research">Μελέτες</Link>
           <Link href="/research/greek-retail-2026/methodology">Μεθοδολογία</Link>
           <Link href="/research/greek-retail-2026/results">Αποτελέσματα</Link>
+          <Link href="/research/market-sentiment">Άλλοι φορείς</Link>
           <Link href="/research/compare">Σύγκριση</Link>
         </nav>
       </div>

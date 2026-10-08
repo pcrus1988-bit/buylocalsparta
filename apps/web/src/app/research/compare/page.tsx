@@ -102,6 +102,7 @@ export default async function ResearchComparePage() {
         <Link className={styles.brand} href="/research">KONTA MOY · ΕΡΕΥΝΑ</Link>
         <nav className={styles.nav} aria-label="Έρευνα">
           <Link href="/research">Μελέτες</Link>
+          <Link href="/research/market-sentiment">Άλλοι φορείς</Link>
           <Link href="/research/compare">Σύγκριση</Link>
           <Link href="/research/privacy">Ιδιωτικότητα</Link>
         </nav>
@@ -122,6 +123,7 @@ export default async function ResearchComparePage() {
           <div className={styles.tabbar}>
             <Link href="/research">Μελέτες</Link>
             <Link className={styles.primaryButton} href="/research/compare">Σύγκριση</Link>
+            <Link href="/research/market-sentiment">Άλλοι φορείς</Link>
             <Link href="/research/privacy">Ιδιωτικότητα</Link>
           </div>
         </div>

@@ -26,6 +26,7 @@ export default function ResearchPrivacyPage() {
           <Link href="#why">Γιατί έλαβα πρόσκληση;</Link>
           <Link href="#gdpr">Χρήση δεδομένων</Link>
           <Link href="#faq">FAQ</Link>
+          <Link href="/research/market-sentiment">Άλλοι φορείς</Link>
           <Link href="/privacy">Γενική ιδιωτικότητα</Link>
         </div>
       </nav>

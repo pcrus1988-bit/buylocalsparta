@@ -94,6 +94,7 @@ export default async function ResearchObservatoryPage() {
         <Link className={styles.brand} href="/research">KONTA MOY · ΕΡΕΥΝΑ</Link>
         <nav className={styles.nav} aria-label="Έρευνα">
           <Link href="#studies">Μελέτες</Link>
+          <Link href="/research/market-sentiment">Άλλοι φορείς</Link>
           <Link href="/research/compare">Σύγκριση</Link>
           <Link href="/research/privacy">Ιδιωτικότητα</Link>
         </nav>
@@ -114,6 +115,7 @@ export default async function ResearchObservatoryPage() {
           <div className={styles.sectionActions}>
             {lead && <Link className={[styles.actionButton, styles.primaryButton].join(" ")} href={"/research/" + lead.waveSlug}>Δείτε την ενεργή μελέτη</Link>}
             <Link className={styles.actionButton} href="/research/compare">Σύγκριση μελετών</Link>
+            <Link className={styles.actionButton} href="/research/market-sentiment">Έρευνες άλλων φορέων</Link>
           </div>
         </div>
 
