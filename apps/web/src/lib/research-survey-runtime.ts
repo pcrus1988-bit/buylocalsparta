@@ -2550,3 +2550,148 @@ export async function researchSurveyAdminCohortOverview(principal: SessionPrinci
     }
   };
 }
+
+
+/**
+ * Fieldwork navigation fast-path. Do not call researchSurveyAdminOverview here:
+ * it aggregates every study, its invitation events, contact histories and
+ * analysis chain before the send controls can appear. This study-specific
+ * query only reads frozen-frame job metadata and indexed operational ledgers.
+ * No recipient identities or 250k+ frame units are fetched.
+ */
+export async function researchSurveyAdminFieldworkOverview(principal: SessionPrincipal, slug: string) {
+  assertAdminPermission(principal, "research.read");
+  if (!productionDatabaseConfigured()) return undefined;
+  const result = await getAdminResearchOverviewPostgresRuntime().sqlPool.query<SqlRow>(String.raw`
+    SELECT s.slug,s.title,s.status,
+      rt.version AS recruitment_template_version,rt.subject AS recruitment_template_subject,
+      rt.body_text AS recruitment_template_body,
+      rrt.version AS reminder_template_version,rrt.subject AS reminder_template_subject,
+      rrt.body_text AS reminder_template_body,
+      COALESCE(frame_contacts.active_contacts,0)::int AS active_contacts,
+      COALESCE(responses.completed,0)::int AS completed,
+      COALESCE(reminders.sent,0)::int AS reminder_sent,
+      COALESCE(reminders.failed,0)::int AS reminder_failed,
+      COALESCE(rewards.eligible,0)::int AS reward_eligible,
+      COALESCE(rewards.issued,0)::int AS reward_issued,
+      COALESCE(deliveries.reward_failed,0)::int AS reward_delivery_failed,
+      COALESCE(deliveries.results_sent,0)::int AS results_notification_sent,
+      COALESCE(deliveries.results_failed,0)::int AS results_notification_failed,
+      COALESCE(quality.review_count,0)::int AS quality_review,
+      COALESCE(analysis.succeeded,0)::int AS succeeded_analysis_runs,
+      release.release_version AS latest_release_version,
+      release.published_at AS latest_release_published_at,
+      COALESCE(jobs.queued_sample,0)::int AS queued_sample_jobs,
+      COALESCE(jobs.running_sample,0)::int AS running_sample_jobs,
+      COALESCE(jobs.queued,0)::int AS queued_jobs,
+      COALESCE(jobs.running,0)::int AS running_jobs
+    FROM research_studies s
+    LEFT JOIN LATERAL (
+      SELECT version,subject,body_text FROM research_recruitment_templates
+      WHERE study_id=s.id AND wave_id=s.current_wave_id AND channel='email'
+        AND purpose='research_invitation' AND status='locked'
+      ORDER BY locked_at DESC NULLS LAST,created_at DESC LIMIT 1
+    ) rt ON true
+    LEFT JOIN LATERAL (
+      SELECT version,subject,body_text FROM research_recruitment_templates
+      WHERE study_id=s.id AND wave_id=s.current_wave_id AND channel='email'
+        AND purpose='research_reminder' AND status='locked'
+      ORDER BY locked_at DESC NULLS LAST,created_at DESC LIMIT 1
+    ) rrt ON true
+    LEFT JOIN LATERAL (
+      SELECT (j.output->>'activeEmailCount')::int AS active_contacts
+      FROM research_frame_snapshots fs
+      JOIN research_study_jobs j ON j.study_id=fs.study_id
+        AND j.job_type='frame_snapshot' AND j.status='succeeded'
+        AND j.output->>'frameSnapshotId'=fs.id::text
+        AND j.output->>'activeEmailCount' ~ '^[0-9]+$'
+      WHERE fs.study_id=s.id AND fs.wave_id=s.current_wave_id
+        AND fs.status IN ('frozen','superseded')
+      ORDER BY fs.frozen_at DESC NULLS LAST,j.finished_at DESC LIMIT 1
+    ) frame_contacts ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) FILTER (WHERE rr.status='completed') AS completed
+      FROM research_responses rr JOIN research_invites ri ON ri.id=rr.invite_id
+      WHERE rr.study_id=s.id AND ri.wave_id=s.current_wave_id
+        AND ri.fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
+    ) responses ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) FILTER (WHERE m.status IN ('sent','delivered','opened')) AS sent,
+             count(*) FILTER (WHERE m.status='failed') AS failed
+      FROM research_invite_messages m JOIN research_invites ri ON ri.id=m.invite_id
+      WHERE ri.study_id=s.id AND ri.wave_id=s.current_wave_id
+        AND m.attempt_kind='reminder'
+    ) reminders ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) FILTER (WHERE re.status='eligible') AS eligible,
+             count(*) FILTER (WHERE re.status='issued') AS issued
+      FROM research_reward_entitlements re
+      JOIN research_responses rr ON rr.id=re.response_id
+      WHERE rr.study_id=s.id AND rr.wave_id=s.current_wave_id
+    ) rewards ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) FILTER (WHERE message_kind='thank_you_code' AND status='failed') AS reward_failed,
+             count(*) FILTER (WHERE message_kind='results_notification' AND status='sent') AS results_sent,
+             count(*) FILTER (WHERE message_kind='results_notification' AND status='failed') AS results_failed
+      FROM research_participant_deliveries
+      WHERE study_id=s.id AND wave_id=s.current_wave_id
+    ) deliveries ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) AS review_count FROM (
+        SELECT DISTINCT ON (qr.response_id) qr.decision
+        FROM research_response_quality_reviews qr
+        JOIN research_responses rr ON rr.id=qr.response_id
+        WHERE rr.study_id=s.id AND rr.wave_id=s.current_wave_id
+        ORDER BY qr.response_id,qr.created_at DESC,qr.id DESC
+      ) latest WHERE latest.decision='review'
+    ) quality ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) FILTER (WHERE status='succeeded') AS succeeded
+      FROM research_analysis_runs WHERE study_id=s.id AND wave_id=s.current_wave_id
+    ) analysis ON true
+    LEFT JOIN LATERAL (
+      SELECT release_version,published_at
+      FROM research_release_snapshots
+      WHERE study_id=s.id AND wave_id=s.current_wave_id
+      ORDER BY created_at DESC LIMIT 1
+    ) release ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) FILTER (WHERE status='queued') AS queued,
+             count(*) FILTER (WHERE status='running') AS running,
+             count(*) FILTER (WHERE status='queued' AND job_type IN ('sample_draw','invite_batch','invite_reminder')) AS queued_sample,
+             count(*) FILTER (WHERE status='running' AND job_type IN ('sample_draw','invite_batch','invite_reminder')) AS running_sample
+      FROM research_study_jobs WHERE study_id=s.id AND wave_id=s.current_wave_id
+    ) jobs ON true
+    WHERE s.slug=$1 LIMIT 1
+  `, [slug]);
+  const row = result.rows[0];
+  if (!row) return undefined;
+  return {
+    slug: text(row.slug),
+    title: text(row.title),
+    status: text(row.status),
+    recruitmentTemplateVersion: optionalText(row.recruitment_template_version),
+    recruitmentTemplateSubject: optionalText(row.recruitment_template_subject),
+    recruitmentTemplateBody: optionalText(row.recruitment_template_body),
+    reminderTemplateVersion: optionalText(row.reminder_template_version),
+    reminderTemplateSubject: optionalText(row.reminder_template_subject),
+    reminderTemplateBody: optionalText(row.reminder_template_body),
+    activeContacts: numberValue(row.active_contacts),
+    completed: numberValue(row.completed),
+    reminderSent: numberValue(row.reminder_sent),
+    reminderFailed: numberValue(row.reminder_failed),
+    rewardEligible: numberValue(row.reward_eligible),
+    rewardIssued: numberValue(row.reward_issued),
+    rewardDeliveryFailed: numberValue(row.reward_delivery_failed),
+    qualityReview: numberValue(row.quality_review),
+    succeededAnalysisRuns: numberValue(row.succeeded_analysis_runs),
+    latestReleaseVersion: optionalText(row.latest_release_version),
+    latestReleasePublishedAt: optionalText(row.latest_release_published_at),
+    resultsNotificationSent: numberValue(row.results_notification_sent),
+    resultsNotificationFailed: numberValue(row.results_notification_failed),
+    queuedSampleJobs: numberValue(row.queued_sample_jobs),
+    runningSampleJobs: numberValue(row.running_sample_jobs),
+    queuedJobs: numberValue(row.queued_jobs),
+    runningJobs: numberValue(row.running_jobs)
+  };
+}
