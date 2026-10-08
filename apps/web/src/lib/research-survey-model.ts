@@ -77,7 +77,7 @@ export function researchQuestionApplicable(question: ResearchQuestion, answers: 
 }
 
 /** Baseline 0–100 composite. Requires at least two independent expectation items. */
-export function greekRetailBusinessConfidence(answers: ResearchAnswerMap): number | undefined {
+export function greekRetailBusinessConfidence(answers: Readonly<Record<string, unknown>>) : number | undefined {
   const outlook: Record<string, number> = {
     down_large: 0, down_small: 25, stable: 50, up_small: 75, up_large: 100
   };
@@ -91,7 +91,7 @@ export function greekRetailBusinessConfidence(answers: ResearchAnswerMap): numbe
 }
 
 /** Association of self-reported trends, not an audited margin or causal claim. */
-export function greekRetailRevenueUpProfitDown(answers: ResearchAnswerMap): boolean | undefined {
+export function greekRetailRevenueUpProfitDown(answers: Readonly<Record<string, unknown>>) : boolean | undefined {
   const trend = answers.Q19;
   if (!trend || typeof trend !== "object" || Array.isArray(trend)) return undefined;
   const values = trend as Record<string, string | number>;
