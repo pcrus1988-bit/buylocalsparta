@@ -83,6 +83,17 @@ test("8% through 999, then staged hard-bounce stops and independent validation h
   assert.equal(validationAt1000.validationHold, false);
 });
 
+test("current Main 58/1061 stops under old 5% but requires explicit operator acknowledgment under staged 10%", () => {
+  const current = evaluateResearchDeliverySafety({
+    delivered:1003, hardBounced:58, validationSuppressed:22, decided:1083
+  });
+  assert.equal(current.hardBounceThreshold,0.10);
+  assert.equal(current.hardBounceHold,false);
+  assert.equal(current.earlyWarning,true);
+  assert.equal(current.validationThreshold,0.05);
+  assert.equal(current.validationHold,false);
+});
+
 test("validation suppressions are not counted as genuine SES bounces", () => {
   const decision = evaluateResearchDeliverySafety({
     delivered: 960, hardBounced: 0, validationSuppressed: 40, decided: 1000
