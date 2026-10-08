@@ -1,4 +1,4 @@
-import { externalGroup, type ExternalPoint } from "./research-external-analysis";
+import { externalGroup, type ExternalPoint } from "./research-external-analysis.ts";
 
 /**
  * Observational research atlas, pinned to source vintages (October 2026).
