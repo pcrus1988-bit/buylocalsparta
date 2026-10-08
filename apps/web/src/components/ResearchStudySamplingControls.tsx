@@ -225,9 +225,7 @@ export function ResearchStudySamplingControls({
         {cohortAStatus === "frozen" || cohortAStatus === "superseded"
           ? `Cohort A: ${(cohortAPopulation ?? 0).toLocaleString("el-GR")} frozen businesses · Cohort B: ${cohortBStatus || "not started"}`
           : "Cohort A has not been frozen yet."}
-        {fieldworkPhase === "main" && pilotHoldoutUnits > 0
-          ? ` · ${pilotHoldoutUnits.toLocaleString("el-GR")} pilot holdout → ${effectivePopulation.toLocaleString("el-GR")} main-eligible`
-          : ""}
+        
       </span>
       <button
         className="button button-secondary"
@@ -242,7 +240,7 @@ export function ResearchStudySamplingControls({
         <label><strong>Sampling cohort</strong><br />
           <select aria-label="Sampling cohort" value={cohort} onChange={(event) => { setCohort(event.target.value as "A" | "B"); setTargetN(""); }}>
             <option value="A">Cohort A · frozen original retail population</option>
-            {fieldworkPhase === "main" && <option value="B">Cohort B · new businesses only (excludes A)</option>}
+            
           </select>
         </label>
         <div className="workspace-inline-note">
@@ -337,7 +335,7 @@ export function ResearchStudySamplingControls({
         />
         <button
           className="button"
-          disabled={Boolean(busy) || sampleWorkerBusy || !cohortReady || !sampleValid || (fieldworkPhase === "main" && studyStatus !== "fielding")}
+          disabled={Boolean(busy) || sampleWorkerBusy || !cohortReady || !sampleValid || false}
           onClick={() => void drawSample()}
           type="button"
         >{busy === "sample" ? "Queueing…" : "Draw reproducible sample"}</button>
