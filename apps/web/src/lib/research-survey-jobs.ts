@@ -664,7 +664,7 @@ export async function recoverGreekRetailFailedInvitationCampaign(
   try {
     await client.query("BEGIN");
     const found=await client.query<ResearchJobRow & {status:string;study_status:string;fieldwork_ends_at:string|null;error_message:string|null}>(`
-      SELECT j.id,j.study_id,j.wave_id,j.job_type,j.input,j.output,j.attempts,
+      SELECT j.id,j.study_id,j.wave_id,j.job_type,j.status,j.input,j.output,j.attempts,
              j.error_message,s.status AS study_status,s.fieldwork_ends_at
       FROM research_study_jobs j
       JOIN research_studies s ON s.id=j.study_id AND s.current_wave_id=j.wave_id
