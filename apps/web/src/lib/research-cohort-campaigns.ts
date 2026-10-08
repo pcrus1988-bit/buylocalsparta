@@ -317,18 +317,22 @@ export async function researchCohortEvaluation(principal: SessionPrincipal, sele
     "GROUP BY c.cohort_code ORDER BY c.cohort_code"
   ].join(" "),[SLUG,cohort]);
   const choices = await pool().query<SqlRow>([
-    "SELECT q.code,q.prompt_el, a.answer #>> '{}' AS answer,",
+    "SELECT q.code,q.prompt_el, answers.answer AS answer,",
     "count(*)::int AS completed",
     "FROM public.research_answers a",
     "JOIN public.research_responses r ON r.id=a.response_id AND r.status='completed'",
-    "JOIN public.research_questions q ON q.id=a.question_id AND q.question_type='single'",
+    "JOIN public.research_questions q ON q.id=a.question_id",
+    "CROSS JOIN LATERAL jsonb_array_elements_text(CASE",
+    "WHEN q.question_type='multi' AND jsonb_typeof(a.answer)='array' THEN a.answer",
+    "ELSE jsonb_build_array(a.answer) END) AS answers(answer)",
     "JOIN public.research_invites ri ON ri.id=r.invite_id",
     "JOIN public.research_campaign_recipients rec ON rec.sample_unit_id=ri.sample_unit_id",
     "JOIN public.research_recruitment_campaigns c ON c.id=rec.campaign_id",
     "JOIN public.research_studies s ON s.id=c.study_id",
     "WHERE s.slug=$1 AND c.wave_id=s.current_wave_id",
+    "AND q.question_type IN ('single','multi','scale','matrix')",
     "AND ($2::text='all' OR c.cohort_code=$2::text)",
-    "GROUP BY q.code,q.prompt_el,a.answer",
+    "GROUP BY q.code,q.prompt_el,answers.answer",
     "ORDER BY q.code,completed DESC LIMIT 150"
   ].join(" "),[SLUG,cohort]);
   return {
