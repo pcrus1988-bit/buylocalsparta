@@ -51,3 +51,61 @@ test("CSV only exports chosen series and obeys year range",()=>{
   assert.ok(!csv.includes('"2025"'));
   assert.ok(!csv.includes('"ΕΕ-27"'));
 });
+
+
+test("new household surveys are tracked as nominal, dated observations",()=>{
+  const spend=externalGroup("household-spending-history");
+  assert.ok(spend);
+  assert.equal(spend.unit,"euro");
+  assert.deepEqual(spend.series[0].points.map(p=>p.year),[2019,2020,2021,2022,2023,2024,2025]);
+  assert.deepEqual(spend.series[0].points.slice(-2).map(p=>p.value),[1724.54,1820.2]);
+  assert.ok(spend.caution.includes("τρέχοντα ευρώ"));
+  const shares=externalGroup("household-budget-mix");
+  assert.ok(shares);
+  assert.deepEqual(shares.series.find(s=>s.id==="hbs-food-share")?.points.map(p=>p.value),[20.7,20.4]);
+  assert.equal(shares.comparison,"trend-only");
+});
+
+test("ELSTAT nominal and real indices are distinct with 2026 partial-year boundary",()=>{
+  const annualRetail=externalGroup("retail-annual-2024-2025");
+  const monthlyRetail=externalGroup("retail-2026-monthly-indices");
+  const sectorRetail=externalGroup("retail-sectors-2026");
+  assert.ok(annualRetail&&monthlyRetail&&sectorRetail);
+  assert.equal(annualRetail.comparison,"trend-only");
+  assert.deepEqual(annualRetail.series.find(s=>s.id==="retail-turnover-annual")?.points.map(p=>p.value),[118.4,122.2]);
+  assert.deepEqual(annualRetail.series.find(s=>s.id==="retail-volume-annual")?.points.map(p=>p.value),[98.2,100.3]);
+  assert.ok(monthlyRetail.series.every(s=>s.points.length===7 && s.points.at(-1)?.period==="07"));
+  assert.ok(sectorRetail.series.every(s=>s.points.length===7 && s.points.at(-1)?.period==="07"));
+  assert.ok(monthlyRetail.caution.includes("Ιούλιος προσωρινός"));
+});
+
+test("June comparison names the source vintage and revision",()=>{
+  const june=externalGroup("retail-june-growth");
+  assert.ok(june);
+  assert.deepEqual(june.series.find(s=>s.id==="june-turnover-growth")?.points.map(p=>p.value),[3.0,4.2]);
+  assert.ok(june.caution.includes("+4,1%"));
+  assert.ok(june.sourceIds.includes("elstat-june-2025")&&june.sourceIds.includes("elstat-june-2026"));
+});
+
+test("merchant and consumer survey outcomes remain descriptive, not composite statistics",()=>{
+  for(const groupId of ["esee-summer-2025-survey","ielka-food-choice-2025","ielka-offers-2025"]){
+    const group=externalGroup(groupId);
+    assert.ok(group);
+    assert.equal(group.comparison,"descriptive");
+    assert.ok(group.series.every(s=>s.points.length===1));
+  }
+  assert.deepEqual(externalGroup("esee-summer-2025-survey")?.series.map(s=>s.points[0].value),[59,51,47,37]);
+  assert.deepEqual(externalGroup("ielka-food-choice-2025")?.series.map(s=>s.points[0].value),[47,30]);
+});
+
+test("the expanded atlas has no duplicate studies, only traceable https sources",()=>{
+  assert.equal(EXTERNAL_STUDIES.length,22);
+  assert.equal(EXTERNAL_GROUPS.length,18);
+  assert.equal(new Set(EXTERNAL_STUDIES.map(s=>s.id)).size,EXTERNAL_STUDIES.length);
+  assert.equal(new Set(EXTERNAL_GROUPS.map(g=>g.id)).size,EXTERNAL_GROUPS.length);
+  assert.ok(EXTERNAL_STUDIES.every(s=>s.url.startsWith("https://")));
+  for(const group of EXTERNAL_GROUPS){
+    assert.ok(group.series.length<=6);
+    assert.ok(group.series.every(s=>s.points.every(p=>p.year<=2026)));
+  }
+});
