@@ -2425,6 +2425,8 @@ export async function researchSurveyAdminCohortOverview(principal: SessionPrinci
       CASE WHEN b.status IN ('frozen','superseded') THEN b.population_size END AS b_expanded_population,
       b.frozen_at AS b_frozen_at,
       bj.status AS b_job_status,
+      a_draw.status AS a_sample_status, a_draw.target_n AS a_sample_selected,
+      b_draw.status AS b_sample_status, b_draw.target_n AS b_sample_selected,
       CASE WHEN bj.status='running' AND bj.output->>'persistedUnits' ~ '^[0-9]+$'
         THEN (bj.output->>'persistedUnits')::int END AS b_processed_source_rows,
       CASE WHEN b.status IN ('frozen','superseded')
@@ -2467,6 +2469,21 @@ export async function researchSurveyAdminCohortOverview(principal: SessionPrinci
         AND j.output->>'frameSnapshotId'=b.id::text
       ORDER BY j.created_at DESC LIMIT 1
     ) bj ON true
+    LEFT JOIN LATERAL (
+      SELECT d.status,d.target_n FROM research_sample_draws d
+      JOIN research_sample_designs ds ON ds.sample_draw_id=d.id
+      WHERE d.study_id=s.id AND d.wave_id=s.current_wave_id
+        AND d.fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
+        AND ds.design_json->>'cohort'='A'
+      ORDER BY d.created_at DESC LIMIT 1
+    ) a_draw ON true
+    LEFT JOIN LATERAL (
+      SELECT d.status,d.target_n FROM research_sample_draws d
+      JOIN research_sample_designs ds ON ds.sample_draw_id=d.id
+      WHERE d.study_id=s.id AND d.wave_id=s.current_wave_id
+        AND d.fieldwork_phase='main' AND ds.design_json->>'cohort'='B'
+      ORDER BY d.created_at DESC LIMIT 1
+    ) b_draw ON true
     WHERE s.slug=$1
     LIMIT 1
   `, [slug]);
@@ -2484,7 +2501,9 @@ export async function researchSurveyAdminCohortOverview(principal: SessionPrinci
       status: optionalText(row.a_status) ?? "not_started",
       population: aPopulation,
       contactable: aContacts,
-      frozenAt: optionalText(row.a_frozen_at)
+      frozenAt: optionalText(row.a_frozen_at),
+      sampleStatus: optionalText(row.a_sample_status),
+      sampleSelected: optionalNumber(row.a_sample_selected)
     },
     b: {
       label: optionalText(row.b_label),
@@ -2494,7 +2513,9 @@ export async function researchSurveyAdminCohortOverview(principal: SessionPrinci
       processedSourceRows: optionalNumber(row.b_processed_source_rows),
       population: bPopulation,
       contactable: bContacts,
-      frozenAt: optionalText(row.b_frozen_at)
+      frozenAt: optionalText(row.b_frozen_at),
+      sampleStatus: optionalText(row.b_sample_status),
+      sampleSelected: optionalNumber(row.b_sample_selected)
     },
     combined: {
       population: aPopulation !== undefined && bPopulation !== undefined ? aPopulation + bPopulation : undefined,
