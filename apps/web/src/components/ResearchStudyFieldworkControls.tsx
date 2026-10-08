@@ -31,7 +31,7 @@ const DEFAULT_REMINDER_BODY = `{{company_greeting}}
 
 const TEMPLATE_VARIABLES = "{{study_title}}, {{company_name}}, {{company_greeting}}, {{survey_url}}, {{methodology_url}}, {{privacy_url}}, {{optout_url}}";
 
-type Busy = "template" | "reminderTemplate" | "send" | "campaign" | "reminders" | "suppress" | "rewards" | "analysis" | "release" | "results" | null;
+type Busy = "template" | "reminderTemplate" | "send" | "recover" | "campaign" | "reminders" | "suppress" | "rewards" | "analysis" | "release" | "results" | null;
 
 type EmailPurpose = "research_invitation" | "research_reminder" | "thank_you_code" | "results_notification";
 
@@ -94,7 +94,7 @@ export function ResearchStudyFieldworkControls({
   cohortBSampleStatus?: string;
   cohortBRecruitmentMode?: string;
   cohortBSampleSelected?: number;
-  campaign?: {id:string;status:string;cohort:string;paused:boolean;approvedMaxEmails:number;processedCount:number;sentCount:number;safetyHold?:string;classifiedDeliveryCount:number;completedReviewMilestone:number|null;nextReviewMilestone:number};
+  campaign?: {id:string;status:string;cohort:string;paused:boolean;approvedMaxEmails:number;processedCount:number;sentCount:number;safetyHold?:string;lastError?:string;recoveryReviewed?:boolean;classifiedDeliveryCount:number;completedReviewMilestone:number|null;nextReviewMilestone:number};
   queuedSampleJobs: number;
   runningSampleJobs: number;
   recruitmentTemplateVersion?: string;
@@ -307,6 +307,23 @@ export function ResearchStudyFieldworkControls({
     } finally {
       setBusy(null);
     }
+  }
+
+  async function recoverCampaign() {
+    if (!campaign || campaign.status !== "failed") return;
+    setBusy("recover");
+    setMessage("");
+    try {
+      const result=await post({action:"recover_invite_campaign"});
+      setMessage("Η υπάρχουσα εκστρατεία αποκαταστάθηκε ΧΩΡΙΣ αποστολή. " +
+        "Η αποστολή παραμένει σε παύση. Ελέγχθηκαν " +
+        String(result.processedCount) + " επεξεργασμένες εγγραφές και " +
+        String(result.sentCount) + " επιβεβαιωμένες αποστολές. " +
+        "Οι αβέβαιες παλαιότερες προσπάθειες αποκλείονται από νέα αποστολή.");
+      router.refresh();
+    } catch(error) {
+      setMessage(error instanceof Error ? error.message : "Η ασφαλής αποκατάσταση απέτυχε.");
+    } finally {setBusy(null);}
   }
 
   async function setCampaignPaused(paused:boolean) {
@@ -530,6 +547,9 @@ export function ResearchStudyFieldworkControls({
         {" · "}Απεσταλμένα {campaign.sentCount.toLocaleString("el-GR")}
         {" · "}Επεξεργασμένα {campaign.processedCount.toLocaleString("el-GR")} από έως {campaign.approvedMaxEmails.toLocaleString("el-GR")} εγκεκριμένες εγγραφές.
       </p>
+      {campaign.lastError && <p className="workspace-inline-note form-error">
+        Τελευταίο σφάλμα: {campaign.lastError}
+      </p>}
       <p className="workspace-inline-note">
         Αποτελέσματα παράδοσης που έχουν ταξινομηθεί: <strong>{campaign.classifiedDeliveryCount.toLocaleString("el-GR")}</strong>.
         {" "}Επόμενο σημείο αξιολόγησης: <strong>{campaign.nextReviewMilestone.toLocaleString("el-GR")}</strong>.
@@ -540,6 +560,16 @@ export function ResearchStudyFieldworkControls({
         {campaign.paused ? "Τελευταία καταγεγραμμένη παύση ασφαλείας" : "Καταγεγραμμένη παύση ασφαλείας"}: {campaign.safetyHold}.
         {" "}Η κατάσταση αξιολογείται ξανά στον επόμενο κύκλο επεξεργασίας.
       </p>}
+      {campaign.status === "failed" && <div className="workspace-action-buttons">
+        <button type="button" className="button button-secondary"
+          disabled={Boolean(busy)} onClick={() => void recoverCampaign()}>
+          {busy === "recover" ? "Έλεγχος…" : "Ασφαλής αποκατάσταση (χωρίς αποστολή)"}
+        </button>
+        <span className="workspace-inline-note">
+          Επαναφέρει μόνο την ίδια προηγουμένως εγκεκριμένη εκστρατεία.
+          Διατηρεί όλους τους αποκλεισμούς και αφήνει την αποστολή σε παύση μέχρι να επιλέξετε Συνέχεια.
+        </span>
+      </div>}
       {(campaign.status === "queued" || campaign.status === "running") && <div className="workspace-action-buttons">
         <button type="button" className="button button-secondary" disabled={Boolean(busy)} onClick={() => void setCampaignPaused(!campaign.paused)}>
           {campaign.paused ? "Συνέχεια ήδη εγκεκριμένης εκστρατείας" : "Παύση εκστρατείας"}
