@@ -55,7 +55,7 @@ export default function TermsPage() {
         <p>Τα συνεργαζόμενα τοπικά καταστήματα, οι προμηθευτές dropshipping και άλλοι συνεργάτες μπορούν να λειτουργούν ως προμηθευτές, σημεία παραλαβής ή fulfilment partners. Μπορεί να προετοιμάζουν, αποθηκεύουν, αποστέλλουν ή παραδίδουν προϊόντα για λογαριασμό της συναλλαγής, χωρίς να μεταφέρεται στον πελάτη η υποχρέωση να αναζητήσει μόνος του ποιος πρέπει να χειριστεί ένα νόμιμο αίτημα επιστροφής, εγγύησης ή αποκατάστασης.</p>
         <dl className="legal-contact">
           <div><dt>Επωνυμία</dt><dd>{CONTROLLER.legalName}</dd></div>
-          <div><dt>Εμπορικό σήμα</dt><dd>ΚΟΝΤΑ ΜΟΥ · Buy Local Sparta</dd></div>
+          <div><dt>Εμπορικό σήμα</dt><dd>KONTA MOY</dd></div>
           <div><dt>ΑΦΜ</dt><dd>{CONTROLLER.taxNumber}</dd></div>
           <div><dt>Γ.Ε.ΜΗ.</dt><dd>{CONTROLLER.gemiNumber}</dd></div>
           <div><dt>Έδρα</dt><dd>{CONTROLLER.address}</dd></div>

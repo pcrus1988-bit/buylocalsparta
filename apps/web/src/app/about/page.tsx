@@ -7,8 +7,8 @@ import styles from "./page.module.css";
 
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/about", {
-    title: "Τι είναι το ΚΟΝΤΑ ΜΟΥ Σπάρτη",
-    description: "Γιατί δημιουργήθηκε το ΚΟΝΤΑ ΜΟΥ στη Σπάρτη, πώς συνδέει πελάτες, τοπικά καταστήματα και παράδοση και ποιο είναι το όραμά του για μια πιο ανθρώπινη ψηφιακή αγορά στην Ελλάδα."
+    title: "Τι είναι το KONTA MOY",
+    description: "Γιατί δημιουργήθηκε το KONTA MOY στη Σπάρτη, πώς συνδέει πελάτες, τοπικά καταστήματα και παράδοση και ποιο είναι το όραμά του για μια πιο ανθρώπινη ψηφιακή αγορά στην Ελλάδα."
   });
 }
 
@@ -67,7 +67,7 @@ export default function AboutPage() {
             </div>
           </div>
           <div className={styles.heroMark} aria-label="Developed in Sparta for Greece">
-            <img src="/brand/kontamou-sparta-logo.webp" alt="ΚΟΝΤΑ ΜΟΥ Sparta" width={480} height={320} />
+            <span style={{ display: "block", fontSize: "clamp(36px, 5vw, 72px)", fontWeight: 800, letterSpacing: "-.03em", textAlign: "center" }}>KONTA MOY</span>
             <div className={styles.originStamp}>
               <span>DEVELOPED IN</span>
               <strong>SPARTA</strong>
