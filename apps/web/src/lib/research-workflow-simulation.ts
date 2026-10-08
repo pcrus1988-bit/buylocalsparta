@@ -111,6 +111,7 @@ export function readSimulationToken(token: string, expectedKind: SimulationPaylo
 export function createSimulationReceipt(invitation: SimulationInvitation,
   answers: Record<string, string>, now = Date.now(),
   env: NodeJS.ProcessEnv = process.env): string {
+  if (now > invitation.expiresAt) throw new Error("SIMULATION_INVITATION_EXPIRED");
   const allowedKeys = ["business", "online", "priority"];
   const entries = Object.entries(answers);
   if (entries.length !== allowedKeys.length
@@ -124,6 +125,7 @@ export function createSimulationReceipt(invitation: SimulationInvitation,
   return seal({
     kind: "receipt", slug: invitation.slug, recipient: invitation.recipient,
     runId: invitation.runId, submittedAt: now,
-    expiresAt: invitation.expiresAt, answersCount: allowedKeys.length, answerHash
+    // Keep the receipt valid for a full review window after submission.
+    expiresAt: now + SIMULATION_TTL_MS, answersCount: allowedKeys.length, answerHash
   }, env);
 }
