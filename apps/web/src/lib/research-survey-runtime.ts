@@ -3,7 +3,7 @@ import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission, hasAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
 import { getAdminPostgresRuntime, getAdminResearchOverviewPostgresRuntime, getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { researchReleaseArtifactIntegrity } from "./research-survey-release";
-import { researchDeliveryReviewMilestones } from "./research-survey-delivery-safety";
+import { evaluateResearchDeliverySafety, researchDeliveryReviewMilestones } from "./research-survey-delivery-safety";
 import {
   researchQualitySignals,
   scoreGreekRetail2026,
@@ -2594,6 +2594,7 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       campaign.output->>'campaignProcessedCount' AS campaign_processed,
       campaign.output->>'campaignSentCount' AS campaign_sent,
       campaign.output->>'safetyHold' AS campaign_safety_hold,
+      campaign.output->>'safetyHoldPhase' AS campaign_safety_hold_phase,
       campaign.output->'deliverySafety' AS campaign_delivery_safety,
       campaign.error_message AS campaign_error_message,
       campaign.output->'recoveryReview' AS campaign_recovery_review,
@@ -2691,9 +2692,27 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
   if (!row) return undefined;
   // Use the worker's saved delivery snapshot; do not scan hundreds of thousands
   // of contact rows merely to display milestone progress in Admin.
-  const classifiedMetrics = Array.isArray(row.campaign_delivery_safety)
-    ? row.campaign_delivery_safety.map(objectValue).find((item) => text(item.phase) === "main")
-    : undefined;
+  const deliverySafetyBreakdown = Array.isArray(row.campaign_delivery_safety)
+    ? row.campaign_delivery_safety.map(objectValue).map((item) => {
+      const delivered = numberValue(item.delivered);
+      const hardBounced = numberValue(item.hardBounced);
+      const validationSuppressed = numberValue(item.validationSuppressed);
+      const decided = numberValue(item.decided);
+      const evaluation = evaluateResearchDeliverySafety({ delivered, hardBounced, validationSuppressed, decided });
+      return {
+        phase: text(item.phase),
+        delivered, hardBounced, validationSuppressed, decided,
+        permanentBounced: item.permanentBounced == null ? null : numberValue(item.permanentBounced),
+        transientBounced: item.transientBounced == null ? null : numberValue(item.transientBounced),
+        unknownBounced: item.unknownBounced == null ? null : numberValue(item.unknownBounced),
+        accountSuppressed: item.accountSuppressed == null ? null : numberValue(item.accountSuppressed),
+        hardBounceRate: evaluation.hardBounceRate,
+        hardBounceThreshold: evaluation.hardBounceThreshold,
+        hardBounceHold: evaluation.hardBounceHold,
+        validationHold: evaluation.validationHold
+      };
+    }) : [];
+  const classifiedMetrics = deliverySafetyBreakdown.find((item) => item.phase === "main");
   const classifiedDeliveryCount = numberValue(classifiedMetrics?.decided);
   const reviewMilestones = researchDeliveryReviewMilestones(classifiedDeliveryCount);
   return {
@@ -2730,6 +2749,8 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       processedCount:numberValue(row.campaign_processed),
       sentCount:numberValue(row.campaign_sent),
       safetyHold:optionalText(row.campaign_safety_hold),
+      safetyHoldPhase:optionalText(row.campaign_safety_hold_phase),
+      deliverySafetyBreakdown,
       lastError:optionalText(row.campaign_error_message),
       recoveryReviewed:Boolean(row.campaign_recovery_review),
       lastSubmissionError:optionalText(row.campaign_last_submission_error)?.slice(0,500),
