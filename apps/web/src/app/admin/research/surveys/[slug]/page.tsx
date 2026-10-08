@@ -62,14 +62,14 @@ async function ResearchSurveyLiveOverview({ principal, slug }: {
     return <section className="shell vendor-section"><WorkspaceEmptyState
       title="This survey could not be found."
       body="Return to All surveys to select an existing study." />
-      <Link className="button button-secondary" href="/admin/research/surveys">All surveys</Link>
+      <Link prefetch={false} className="button button-secondary" href="/admin/research/surveys">All surveys</Link>
     </section>;
   }
   return <>
     <WorkspaceMetricStrip items={[
       { label: "Population frame", value: study.framePopulation.toLocaleString("el-GR"), hint: String(study.frameCount) + " snapshot(s)" },
       { label: "Selected sample", value: study.sampleUnits.toLocaleString("el-GR"), hint: String(study.sampleDrawCount) + " draw(s)" },
-      { label: "Contacts", value: "Dedicated workspace", hint: "Live contactability, bounces and opt-outs are available in Contacts" },
+      { label: "Email contacts", value: study.snapshotActiveContacts === undefined ? "—" : study.snapshotActiveContacts.toLocaleString("el-GR"), hint: "Active at frozen-frame snapshot · live statuses are in Contacts" },
       { label: "Invitations", value: study.invites.toLocaleString("el-GR"), hint: String(study.inviteBatches) + " batch(es)" },
       { label: "Completed", value: study.completed.toLocaleString("el-GR"), hint: percentage(study.completed, study.sent) + " of sent" }
     ]} />
@@ -123,11 +123,11 @@ export default async function ResearchSurveyOverviewPage({ params }: {
       <h1>{title}</h1>
       <p className="lead">Open a dedicated area below for questions, sampling, contacts, invitations, evaluation, and publication.</p>
       <div className="hero-actions">
-        <Link className="button button-secondary" href="/admin/research/surveys">All surveys</Link>
-        <Link className="button" href={root + "/workflow?phase=pilot"}>Guided Pilot</Link>
-        <Link className="button button-secondary" href={root + "/workflow?phase=main"}>Main study steps</Link>
-        <Link className="button button-secondary" href="/admin/research/handbook">Admin handbook</Link>
-        <Link className="button button-secondary" href={root + "/contacts"}>Contact details</Link>
+        <Link prefetch={false} className="button button-secondary" href="/admin/research/surveys">All surveys</Link>
+        <Link prefetch={false} className="button" href={root + "/workflow?phase=pilot"}>Guided Pilot</Link>
+        <Link prefetch={false} className="button button-secondary" href={root + "/workflow?phase=main"}>Main study steps</Link>
+        <Link prefetch={false} className="button button-secondary" href="/admin/research/handbook">Admin handbook</Link>
+        <Link prefetch={false} className="button button-secondary" href={root + "/contacts"}>Contact details</Link>
       </div>
     </div></section>
 
@@ -150,7 +150,7 @@ export default async function ResearchSurveyOverviewPage({ params }: {
         {RESEARCH_SURVEY_ADMIN_SECTIONS.filter((item) => item.key !== "overview").map((item) => <article className="analytics-workflow-card" key={item.key}>
           <span>{item.label}</span>
           <strong>{item.description}</strong>
-          <Link className="button button-secondary" href={root + "/" + item.key}>Open</Link>
+          <Link prefetch={false} className="button button-secondary" href={root + "/" + item.key}>Open</Link>
         </article>)}
       </div>
     </section>
