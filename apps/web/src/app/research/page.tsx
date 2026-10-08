@@ -1,3 +1,4 @@
+import { ResearchPublicNavigation } from "../../components/ResearchPublicNavigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../components/SiteFooter";
@@ -90,15 +91,7 @@ export default async function ResearchObservatoryPage() {
 
   return <main className={styles.shell}>
     <div className={styles.frame}>
-      <div className={styles.topbar}>
-        <Link className={styles.brand} href="/research">KONTA MOY · ΕΡΕΥΝΑ</Link>
-        <nav className={styles.nav} aria-label="Έρευνα">
-          <Link href="#studies">Μελέτες</Link>
-          <Link href="/research/market-sentiment">Άλλοι φορείς</Link>
-          <Link href="/research/compare">Σύγκριση</Link>
-          <Link href="/research/privacy">Ιδιωτικότητα</Link>
-        </nav>
-      </div>
+      <ResearchPublicNavigation active="studies" />
 
       <header className={styles.hero}>
         <div>
