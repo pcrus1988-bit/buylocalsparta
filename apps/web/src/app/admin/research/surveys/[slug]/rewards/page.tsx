@@ -5,6 +5,7 @@ import { PostgresUnitOfWork, type SqlRow } from "@buy-local-sparta/core";
 import { AdminWorkspaceHeader } from "../../../../../../components/AdminWorkspaceHeader";
 import { ResearchSurveyAdminNav } from "../../../../../../components/ResearchSurveyAdminNav";
 import { ResearchRewardAdminActions } from "../../../../../../components/ResearchRewardAdminActions";
+import { HubQaRewardAdmin } from "../../../../../../components/HubQaRewardAdmin";
 import { hasAdminPermission } from "../../../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../../../lib/admin-session";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../../../../lib/postgres-runtime";
@@ -98,6 +99,7 @@ export default async function SurveyRewardsAdminPage({ params, searchParams }: {
       </div>
     </section>
     <ResearchSurveyAdminNav slug={slug} current="rewards" />
+    {canManage && slug === "greek-retail-2026" && <section className="shell vendor-section"><HubQaRewardAdmin csrfToken={principal.csrfToken} /></section>}
     <section className="shell vendor-section">
       {unavailable ? <div className="workspace-inline-note form-error" role="alert">{unavailable}</div> : <>
         <div className="workspace-queue-card">
