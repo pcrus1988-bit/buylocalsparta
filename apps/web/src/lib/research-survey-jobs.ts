@@ -2340,8 +2340,13 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     }
 
     const candidate = await pool.query<SqlRow>(`
-      SELECT su.id AS sample_unit_id,cp.id AS contact_point_id,cp.contact_value
+      SELECT
+        su.id AS sample_unit_id,
+        cp.id AS contact_point_id,
+        cp.contact_value,
+        fu.sampling_attributes->>'legalName' AS legal_name
       FROM research_sample_units su
+      JOIN research_frame_units fu ON fu.id=su.frame_unit_id
       JOIN LATERAL (
         SELECT id,contact_value
         FROM research_private.contact_points_with_value
@@ -2431,7 +2436,8 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         surveyUrl,
         methodologyUrl,
         subjectTemplate: text(batchRow.subject),
-        bodyTemplate: text(batchRow.body_text)
+        bodyTemplate: text(batchRow.body_text),
+        companyName: text(contact.legal_name).trim() || undefined
       });
       await pool.query(`
         UPDATE research_invites
@@ -2723,11 +2729,13 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
         ri.expires_at,
         cp.id AS contact_point_id,
         cp.contact_value,
+        fu.sampling_attributes->>'legalName' AS legal_name,
         stats.sent_reminders,
         stats.last_reminder_sent_at,
         stats.max_sequence
       FROM research_invites ri
       JOIN research_sample_units su ON su.id=ri.sample_unit_id
+      JOIN research_frame_units fu ON fu.id=su.frame_unit_id
       LEFT JOIN research_responses rr ON rr.invite_id=ri.id
       CROSS JOIN reminder_stats stats
       JOIN LATERAL (
@@ -2808,7 +2816,8 @@ async function processInviteReminderJob(job: ResearchJobRow): Promise<Record<str
         surveyUrl,
         methodologyUrl,
         subjectTemplate: text(template.subject),
-        bodyTemplate: text(template.body_text)
+        bodyTemplate: text(template.body_text),
+        companyName: text(row.legal_name).trim() || undefined
       });
 
       await pool.query(`
