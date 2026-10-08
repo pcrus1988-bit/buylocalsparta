@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { ResearchExternalAnalysis } from "../../../components/ResearchExternalAnalysis";
+import { ResearchSpendingDrivers } from "../../../components/ResearchSpendingDrivers";
 import { EXTERNAL_STUDIES } from "../../../lib/research-external-analysis";
 import styles from "../../../components/ResearchObservatory.module.css";
 import external from "../../../components/ResearchExternalSources.module.css";
@@ -150,6 +151,7 @@ export default function ExternalMarketSentimentPage() {
       </header>
 
       <ResearchExternalAnalysis />
+      <ResearchSpendingDrivers />
 
       <nav className={external.jumpNav} aria-label="Θεματικές εξωτερικών ερευνών">
         {sections.map((section) => <a href={"#" + section.id} key={section.id}>{section.eyebrow} <span aria-hidden="true">↗</span></a>)}
