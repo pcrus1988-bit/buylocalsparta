@@ -5,7 +5,7 @@ import type { ResearchExperimentAssignment, ResearchSurveyContext } from "../lib
 import { matrixItems, matrixScale, questionOptions, validateResearchAnswers, type ResearchAnswer, type ResearchAnswerMap, type ResearchQuestion } from "../lib/research-survey-model";
 import styles from "./ResearchSurveyForm.module.css";
 
-type ConsentState = Readonly<{ results_notification: boolean; thank_you_code: boolean }>;
+type ConsentState = Readonly<{ results_notification: boolean; thank_you_code: boolean; marketing: boolean }>;
 
 const SECTION_LABELS: Record<string, string> = {
   A: "Η επιχείρησή σας",
@@ -18,7 +18,7 @@ const SECTION_LABELS: Record<string, string> = {
 };
 
 function initialConsent(): ConsentState {
-  return { results_notification: false, thank_you_code: false };
+  return { results_notification: false, thank_you_code: false, marketing: false };
 }
 
 function asMutableAnswers(value: ResearchAnswerMap): Record<string, ResearchAnswer> {
@@ -361,6 +361,31 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
     }
   }
 
+  async function updateMarketingEmailPreference(granted: boolean) {
+    if (saving) return;
+    const previous = optionalConsents.marketing;
+    setOptionalConsents((state) => ({ ...state, marketing: granted }));
+    setPreferenceMessage("");
+    try {
+      // Marketing permission is recorded separately from research/thank-you preferences.
+      // The server only accepts an explicit boolean for an affirmative grant.
+      const result = await save({
+        action: "preferences",
+        optionalConsents: { marketing: granted }
+      });
+      if (result.consents && typeof result.consents === "object" && !Array.isArray(result.consents)) {
+        setOptionalConsents((state) => ({ ...state, ...result.consents as Partial<ConsentState> }));
+      }
+      setPreferenceMessage(previewMode
+        ? "Προσομοίωση μόνο: η επιλογή δεν αποθηκεύτηκε και δεν θα σταλεί email."
+        : granted ? "Η συγκατάθεσή σας για ενημερώσεις του KONTA MOY καταχωρήθηκε."
+          : "Η συγκατάθεσή σας για εμπορικές ενημερώσεις ανακλήθηκε.");
+    } catch (error) {
+      setOptionalConsents((state) => ({ ...state, marketing: previous }));
+      setMessage(error instanceof Error ? error.message : "Δεν ήταν δυνατή η ενημέρωση της συγκατάθεσης.");
+    }
+  }
+
   async function declineParticipation() {
     try {
       const result = await save({
@@ -408,9 +433,21 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
         </button>
       </div>
 
-      <h3>Ξεχωριστά από την έρευνα</h3>
-      <p>Η ερευνητική ροή τελειώνει εδώ. Αν θέλετε να ενημερωθείτε για εμπορική συνεργασία με το KONTA MOY, αυτό γίνεται σε ξεχωριστή σελίδα και δεν συνδέεται με τις απαντήσεις, την αποζημίωση ή τη συμμετοχή σας στη μελέτη.</p>
-      <a href="/join">Πληροφορίες συνεργασίας με το KONTA MOY →</a>
+      <h3>Θέλετε να γνωρίσετε καλύτερα το KONTA MOY;</h3>
+      <div className={styles.optionalConsents}>
+        <label>
+          <input
+            type="checkbox"
+            checked={optionalConsents.marketing}
+            disabled={saving}
+            onChange={(event) => void updateMarketingEmailPreference(event.target.checked)}
+          />
+          <span>Ναι, θέλω να λαμβάνω ενημερώσεις μέσω email για συνεργασία, υπηρεσίες και προσφορές του KONTA MOY.</span>
+        </label>
+      </div>
+      <p>Η επιλογή είναι προαιρετική και ανεξάρτητη από την έρευνα. Μπορείτε να ανακαλέσετε τη συγκατάθεσή σας οποτεδήποτε, αποεπιλέγοντας το πλαίσιο ή μέσω του συνδέσμου διαγραφής στα email μας. Η επιλογή σας δεν επηρεάζει τη συμμετοχή ή τον κωδικό ευχαριστίας.</p>
+      {previewMode && <p>Προσομοίωση: η επιλογή αλλάζει μόνο σε αυτή τη σελίδα, χωρίς καταχώρηση ή αποστολή.</p>}
+      <p><a href="/research/privacy">Πληροφορίες προστασίας δεδομένων</a></p>
 
       <h3>Ανάκληση συμμετοχής</h3>
       <p>{previewMode ? "Εδώ ελέγχετε μόνο πώς εμφανίζεται η δυνατότητα ανάκλησης. Δεν υπάρχει πραγματική υποβολή για ανάκληση." : "Μπορείτε να ανακαλέσετε τη συμμετοχή από αυτόν τον προσωπικό σύνδεσμο. Η ανάκληση εξαιρεί την απάντηση από νέες αναλύσεις. Αποτελέσματα που έχουν ήδη δημοσιευθεί σε συγκεντρωτική μορφή παραμένουν μέρος της δημοσιευμένης μελέτης και δεν μπορούν να μετατραπούν αναδρομικά σε ατομικές απαντήσεις."}</p>
