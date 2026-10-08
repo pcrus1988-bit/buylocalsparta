@@ -1,7 +1,7 @@
 import { buildAdminMailRawMime } from "../../../../../lib/admin-mail-mime";
 import { sendRawSesEmail, sesMailConfigFromEnv } from "../../../../../lib/admin-mail-ses";
 import { requireAdminSession } from "../../../../../lib/admin-session";
-import { assertResearchSurveyEmailReady } from "../../../../../lib/research-survey-mail";
+import { assertResearchSimulationEmailReady } from "../../../../../lib/research-survey-mail";
 import {
   createSimulationInvitation, readSimulationToken, validSimulationEmail,
   validSimulationSlug
@@ -33,7 +33,7 @@ async function sendTestMessage(input: {
   to: string; slug: string; runId: string; kind: "invitation" | "admin_notification";
   link?: string; answerCount?: number;
 }): Promise<string> {
-  const config = assertResearchSurveyEmailReady();
+  const config = assertResearchSimulationEmailReady();
   const from = config.from.match(/<([^<>]+)>/)?.[1] ?? config.from;
   const title = input.kind === "invitation"
     ? "[TEST ONLY] KONTA MOY Research · Rehearsal invitation"
