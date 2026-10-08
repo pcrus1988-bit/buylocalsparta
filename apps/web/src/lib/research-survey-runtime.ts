@@ -2314,6 +2314,7 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       plan.version AS analysis_plan_version,
       plan.status AS analysis_plan_status,
       COALESCE(frames.frame_count, 0)::int AS frame_count,
+      COALESCE(frames.building_count, 0)::int AS frame_building_count,
       COALESCE(frame.population_size, 0)::int AS frame_population,
       snapshot_contact_count.active_email_count AS snapshot_active_contacts,
       snapshot_contact_count.captured_at AS contact_snapshot_at,
@@ -2337,7 +2338,7 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       ORDER BY created_at DESC LIMIT 1
     ) plan ON true
     LEFT JOIN LATERAL (
-      SELECT count(*) AS frame_count FROM research_frame_snapshots
+      SELECT count(*) AS frame_count, count(*) FILTER (WHERE status='building') AS building_count FROM research_frame_snapshots
       WHERE study_id=s.id
     ) frames ON true
     LEFT JOIN LATERAL (
@@ -2408,6 +2409,7 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       analysisPlanVersion: optionalText(row.analysis_plan_version),
       analysisPlanStatus: optionalText(row.analysis_plan_status),
       frameCount: numberValue(row.frame_count),
+      buildingFrames: numberValue(row.frame_building_count),
       framePopulation: numberValue(row.frame_population),
       snapshotActiveContacts: row.snapshot_active_contacts == null ? undefined : numberValue(row.snapshot_active_contacts),
       contactSnapshotAt: optionalText(row.contact_snapshot_at),
