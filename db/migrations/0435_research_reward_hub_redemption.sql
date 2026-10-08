@@ -62,4 +62,34 @@ COMMENT ON COLUMN public.hub_expansion_prospects.setup_fee_cents IS
 COMMENT ON COLUMN public.hub_expansion_prospects.research_reward_entitlement_id IS
   'Minimal link to eligible research entitlement; never link research answers to merchant CRM.';
 
+-- Production thank-you rewards must never originate from pilot invitations.
+-- A pilot may submit genuine answers for rehearsal; no entitlement is created.
+CREATE OR REPLACE FUNCTION bls_private.guard_live_research_reward_entitlement()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.research_responses response
+    JOIN public.research_invites invite ON invite.id=response.invite_id
+    JOIN public.research_studies study ON study.id=response.study_id
+    WHERE response.id=NEW.response_id
+      AND invite.fieldwork_phase='main'
+      AND study.status='fielding'
+      AND response.status='completed'
+  ) THEN
+    RETURN NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER research_reward_live_only_insert
+  BEFORE INSERT ON public.research_reward_entitlements
+  FOR EACH ROW EXECUTE FUNCTION bls_private.guard_live_research_reward_entitlement();
+
+
 COMMIT;
