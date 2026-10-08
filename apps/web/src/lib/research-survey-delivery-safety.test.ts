@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { allowIsolatedResearchSubmissionFailure, evaluateResearchDeliverySafety, graduatedResearchStopRate, invalidResearchRecipientAddressReason, researchDeliveryReviewMilestones } from "./research-survey-delivery-safety.ts";
+import { allowIsolatedResearchSubmissionFailure, evaluateResearchDeliverySafety, graduatedResearchHardBounceStopRate, graduatedResearchStopRate, invalidResearchRecipientAddressReason, researchDeliveryReviewMilestones } from "./research-survey-delivery-safety.ts";
 
 test("early campaign stop thresholds graduate with independently observed outcomes", () => {
   assert.equal(graduatedResearchStopRate(0), null);
@@ -13,6 +13,23 @@ test("early campaign stop thresholds graduate with independently observed outcom
   assert.equal(graduatedResearchStopRate(999), 0.08);
   assert.equal(graduatedResearchStopRate(1000), 0.05);
   assert.equal(graduatedResearchStopRate(10000), 0.05);
+  // Separate validation-suppression threshold never changes.
+  for (const n of [1000, 4999, 5000, 9999, 10000, 24999, 25000, 50000, 100000]) {
+    assert.equal(graduatedResearchStopRate(n), 0.05);
+  }
+});
+
+test("main research hard-bounce stop stages are exact at every boundary", () => {
+  const cases: Array<[number, number | null]> = [
+    [0, null], [19, null], [20, 0.20], [99, 0.20],
+    [100, 0.08], [999, 0.08],
+    [1000, 0.10], [4999, 0.10],
+    [5000, 0.09], [9999, 0.09],
+    [10000, 0.07], [24999, 0.07],
+    [25000, 0.05], [49999, 0.05],
+    [50000, 0.05], [182852, 0.05]
+  ];
+  for (const [n, expected] of cases) assert.equal(graduatedResearchHardBounceStopRate(n), expected, String(n));
 });
 
 test("current Main sample (101 delivered, six true bounces, two validation suppressions) warns but does not stop", () => {
@@ -40,22 +57,41 @@ test("20% emergency stop remains for very early, but not tiny samples", () => {
   }).hardBounceHold, true);
 });
 
-test("8% interim through 999 and 5% mature stop from 1000", () => {
+test("8% through 999, then staged hard-bounce stops and independent validation hold", () => {
   assert.equal(evaluateResearchDeliverySafety({
     delivered: 92, hardBounced: 8, validationSuppressed: 0, decided: 100
   }).hardBounceHold, true);
   assert.equal(evaluateResearchDeliverySafety({
     delivered: 925, hardBounced: 74, validationSuppressed: 0, decided: 999
   }).hardBounceHold, false);
-  assert.equal(evaluateResearchDeliverySafety({
+  const at1000 = evaluateResearchDeliverySafety({
     delivered: 920, hardBounced: 80, validationSuppressed: 0, decided: 1000
-  }).hardBounceHold, true);
+  });
+  assert.equal(at1000.hardBounceHold, false);
+  assert.equal(at1000.hardBounceThreshold, 0.10);
+  assert.equal(at1000.earlyWarning, true);
+  const at1000Limit = evaluateResearchDeliverySafety({
+    delivered: 900, hardBounced: 100, validationSuppressed: 0, decided: 1000
+  });
+  assert.equal(at1000Limit.hardBounceHold, true);
   assert.equal(evaluateResearchDeliverySafety({
     delivered: 950, hardBounced: 50, validationSuppressed: 0, decided: 1000
-  }).hardBounceHold, true);
-  assert.equal(evaluateResearchDeliverySafety({
-    delivered: 951, hardBounced: 49, validationSuppressed: 0, decided: 1000
   }).hardBounceHold, false);
+  const validationAt1000 = evaluateResearchDeliverySafety({
+    delivered: 950, hardBounced: 50, validationSuppressed: 50, decided: 1050
+  });
+  assert.equal(validationAt1000.validationHold, false);
+});
+
+test("current Main 58/1061 stops under old 5% but requires explicit operator acknowledgment under staged 10%", () => {
+  const current = evaluateResearchDeliverySafety({
+    delivered:1003, hardBounced:58, validationSuppressed:22, decided:1083
+  });
+  assert.equal(current.hardBounceThreshold,0.10);
+  assert.equal(current.hardBounceHold,false);
+  assert.equal(current.earlyWarning,true);
+  assert.equal(current.validationThreshold,0.05);
+  assert.equal(current.validationHold,false);
 });
 
 test("validation suppressions are not counted as genuine SES bounces", () => {
@@ -77,9 +113,12 @@ test("monitoring checkpoints are at 1000, 5000, 10000, then each additional 1000
   assert.deepEqual(researchDeliveryReviewMilestones(1000), {completedMilestone:1000,nextMilestone:5000});
   assert.deepEqual(researchDeliveryReviewMilestones(4999), {completedMilestone:1000,nextMilestone:5000});
   assert.deepEqual(researchDeliveryReviewMilestones(5000), {completedMilestone:5000,nextMilestone:10000});
-  assert.deepEqual(researchDeliveryReviewMilestones(10000), {completedMilestone:10000,nextMilestone:20000});
-  assert.deepEqual(researchDeliveryReviewMilestones(19999), {completedMilestone:10000,nextMilestone:20000});
-  assert.deepEqual(researchDeliveryReviewMilestones(20000), {completedMilestone:20000,nextMilestone:30000});
+  assert.deepEqual(researchDeliveryReviewMilestones(10000), {completedMilestone:10000,nextMilestone:25000});
+  assert.deepEqual(researchDeliveryReviewMilestones(19999), {completedMilestone:10000,nextMilestone:25000});
+  assert.deepEqual(researchDeliveryReviewMilestones(24999), {completedMilestone:10000,nextMilestone:25000});
+  assert.deepEqual(researchDeliveryReviewMilestones(25000), {completedMilestone:25000,nextMilestone:50000});
+  assert.deepEqual(researchDeliveryReviewMilestones(49999), {completedMilestone:25000,nextMilestone:50000});
+  assert.deepEqual(researchDeliveryReviewMilestones(50000), {completedMilestone:50000,nextMilestone:60000});
   assert.deepEqual(researchDeliveryReviewMilestones(101500), {completedMilestone:100000,nextMilestone:110000});
 });
 
