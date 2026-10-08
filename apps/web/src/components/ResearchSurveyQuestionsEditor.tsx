@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ResearchQuestion, ResearchQuestionType } from "../lib/research-survey-model";
 import { RETAIL_SENTIMENT_2026_QUESTIONS } from "../lib/research-retail-sentiment-2026";
+import { questionEvaluationMeasures, questionCoverageIsCurrent, planWithCurrentQuestionCoverage } from "../lib/research-survey-evaluation-coverage";
 import type { ResearchSurveyDesignAdminOverview } from "../lib/research-survey-admin-design";
 
 function pairs(value: unknown): ReadonlyArray<readonly [string, string]> {
@@ -567,6 +568,12 @@ export function ResearchEvaluationPlanEditor({
   const [laterPublicationLabel, setLaterPublicationLabel] = useState("");
   const editable = Boolean(canEdit && data.study.status === "draft" && plan?.status === "draft");
   const canRevise = Boolean(canEdit && data.study.status === "draft" && data.instrument && plan?.status === "locked");
+  const questionMeasures = questionEvaluationMeasures(data.questions);
+  const currentCoverage = Boolean(data.instrument && questionCoverageIsCurrent(
+    planJson, data.questions, data.instrument.version, data.instrument.contentSha256
+  ));
+  const metricCount = questionMeasures.reduce((total, item) => total + item.metricKeys.length, 0);
+  const manualCount = questionMeasures.filter((item) => item.metricKeys.length === 0).length;
   const laterEditable = Boolean(canAddLater && data.study.status !== "draft" && data.study.status !== "archived");
 
   async function save() {
@@ -578,22 +585,23 @@ export function ResearchEvaluationPlanEditor({
       if (!Array.isArray(exploratoryValue)) throw new Error("Exploratory evaluation must be a list.");
       const primaryOutcomes = parseEvaluationOutcomes(primary);
       if (!primaryOutcomes.length) throw new Error("At least one primary outcome is required.");
+      const preparedPlan = planWithCurrentQuestionCoverage({
+        ...planJson,
+        primaryOutcomes,
+        secondaryAnalyses: {
+          ...secondary,
+          scope: secondaryScope.trim(),
+          segments: secondarySegments.split(",").map((part) => part.trim()).filter(Boolean),
+          classification: "prespecified_secondary"
+        },
+        exploratoryAnalyses: exploratoryValue
+      }, data.questions, data.instrument!.version, data.instrument!.contentSha256);
       await designPost(slug, csrfToken, {
         action: "save_analysis_plan",
         title,
-        plan: {
-          ...planJson,
-          primaryOutcomes,
-          secondaryAnalyses: {
-            ...secondary,
-            scope: secondaryScope.trim(),
-            segments: secondarySegments.split(",").map((part) => part.trim()).filter(Boolean),
-            classification: "prespecified_secondary"
-          },
-          exploratoryAnalyses: exploratoryValue
-        }
+        plan: preparedPlan
       });
-      setMessage("Evaluation plan saved.");
+      setMessage("Evaluation plan saved with the current questionnaire's complete question-level coverage.");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Evaluation plan could not be saved.");
@@ -712,6 +720,36 @@ export function ResearchEvaluationPlanEditor({
       <button className="button" disabled={Boolean(busy)} onClick={() => void revise()} type="button">{busy === "revision" ? "Creating…" : "Create editable revision"}</button>
     </div>}
 
+    <div className="workspace-queue-card" style={{ display: "grid", gap: 12, marginTop: 16 }}>
+      <div className="workspace-action-bar">
+        <span><strong>Question-by-question evaluation coverage</strong><br />
+          Linked to questionnaire {data.instrument.version} · {data.questions.length} questions · {metricCount} possible quantitative result measures
+        </span>
+        <span><strong>{currentCoverage ? "Synchronized" : editable ? "Update needed" : "Historical plan"}</strong></span>
+      </div>
+      <div className="workspace-inline-note">
+        {currentCoverage
+          ? "The saved plan includes every question in the current questionnaire."
+          : editable
+            ? "New or modified questions are reflected below. Save the draft to register this coverage in the evaluation plan, without changing headline outcomes."
+            : "This locked plan is preserved exactly. Any newly added analysis must be explicitly documented as exploratory, or a new design revision created before fieldwork."}
+        {manualCount > 0 && <> {manualCount} question(s) require a separate text-coding or experimental analysis protocol.</>}
+      </div>
+      {questionMeasures.map((item) => <details key={item.questionCode} style={{ borderBottom: "1px solid var(--border-color, #ddd)", paddingBottom: 8 }}>
+        <summary style={{ cursor: "pointer" }}>
+          <strong>{item.questionCode} · {item.analysisKey}</strong> — {item.prompt}
+          <small style={{ display: "block" }}>{item.questionType} · {item.metricKeys.length} generated measure(s) · {item.classification.replaceAll("_", " ")}</small>
+        </summary>
+        <div style={{ padding: "8px 0 0 16px", display: "grid", gap: 5 }}>
+          <small><strong>Denominator:</strong> {item.denominator}</small>
+          <small><strong>Missing data:</strong> {item.missingness}</small>
+          {item.routing != null && <small><strong>Routing:</strong> {JSON.stringify(item.routing)}</small>}
+          {item.interpretation && <small><strong>Interpretation:</strong> {item.interpretation}</small>}
+          <small><strong>Output keys:</strong> {item.metricKeys.length ? item.metricKeys.join(", ") : "Requires separately registered protocol"}</small>
+        </div>
+      </details>)}
+    </div>
+
     <div className="workspace-queue-card" style={{ display: "grid", gap: 16, marginTop: 16 }}>
       <label><strong>Evaluation plan title</strong><br /><input disabled={!editable} onChange={(event) => setTitle(event.target.value)} style={{ width: "100%" }} value={title} /></label>
       <label>
@@ -737,7 +775,7 @@ export function ResearchEvaluationPlanEditor({
     {editable && <div className="workspace-action-bar" style={{ marginTop: 16 }}>
       <span>{message || "Save the draft as often as needed. Lock only when the evaluation design is ready."}</span>
       <div className="workspace-action-buttons" style={{ flexWrap: "wrap" }}>
-        <button className="button button-secondary" disabled={Boolean(busy)} onClick={() => void save()} type="button">{busy === "save" ? "Saving…" : "Save evaluation draft"}</button>
+        <button className="button button-secondary" disabled={Boolean(busy)} onClick={() => void save()} type="button">{busy === "save" ? "Saving…" : "Save & synchronize evaluation plan"}</button>
         <button className="button" disabled={Boolean(busy) || !parseEvaluationOutcomes(primary).length} onClick={() => void lock()} type="button">{busy === "lock" ? "Locking…" : "Lock evaluation plan"}</button>
       </div>
     </div>}
