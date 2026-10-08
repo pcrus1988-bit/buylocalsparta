@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../../components/SiteFooter";
+import { ResearchExternalAnalysis } from "../../../components/ResearchExternalAnalysis";
+import { EXTERNAL_GROUPS, EXTERNAL_STUDIES } from "../../../lib/research-external-analysis";
 import styles from "../../../components/ResearchObservatory.module.css";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 import {
   publicResearchComparisons,
-  publicResearchObservatory,
   publicResearchPublishedMetrics,
   type PublicResearchPublishedMetric
 } from "../../../lib/research-observatory-runtime";
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/research/compare", {
     title: "Σύγκριση μελετών · KONTA MOY Research",
-    description: "Συγκρίνετε δημοσιευμένα αποτελέσματα και δείτε πότε δύο μελέτες μπορούν να συγκριθούν με ασφάλεια.",
+    description: "Διαδραστική σύγκριση ελληνικών και ευρωπαϊκών δεικτών, ιστορικών μελετών και δημοσιευμένων αποτελεσμάτων του KONTA MOY με πηγές και μεθοδολογία.",
     keywords: [
       "σύγκριση ερευνών λιανεμπορίου",
       "σύγκριση μελετών λιανεμπορίου",
@@ -73,9 +74,105 @@ function comparisonClass(value?: string, policy?: string): string {
   return "";
 }
 
-export default async function ResearchComparePage() {
-  const [snapshot, comparisons, metrics] = await Promise.all([
-    publicResearchObservatory(),
+export default async function ResearchComparePage({
+  searchParams
+}: {
+  searchParams: Promise<{ view?: string; indicator?: string }>;
+}) {
+  const { view, indicator } = await searchParams;
+
+  // External public evidence is local, read-only and requires no database access.
+  // Only the explicitly selected own-study view loads published survey aggregates.
+  if (view !== "ours") {
+    const selectedGroup = EXTERNAL_GROUPS.find((group) => group.id === indicator) ?? EXTERNAL_GROUPS[0]!;
+    const directGroups = EXTERNAL_GROUPS.filter((group) => group.comparison === "direct").length;
+
+    return <main className={styles.shell}>
+      <div className={styles.frame}>
+        <div className={styles.topbar}>
+          <Link className={styles.brand} href="/research">KONTA MOY · ΕΡΕΥΝΑ</Link>
+          <nav className={styles.nav} aria-label="Έρευνα">
+            <Link href="/research">Μελέτες</Link>
+            <Link href="/research/market-sentiment">Άλλοι φορείς</Link>
+            <Link href="/research/compare" aria-current="page">Σύγκριση</Link>
+            <Link href="/research/privacy">Ιδιωτικότητα</Link>
+          </nav>
+        </div>
+
+        <header className={styles.hero}>
+          <div>
+            <div className={styles.eyebrow}>Παρατηρητήριο · Εργαστήριο συγκρίσεων</div>
+            <h1>Συγκρίνετε την αγορά μέσα από δεδομένα, μελέτες και πραγματικές χρονιές.</h1>
+            <p>Εξερευνήστε πώς αλλάζουν η δαπάνη των νοικοκυριών, οι τιμές, οι πωλήσεις και η εμπιστοσύνη στην αγορά. Συνδυάστε έτη και δείκτες μόνο όταν οι ορισμοί τους το επιτρέπουν.</p>
+            <div className={styles.heroBadges}>
+              <span className={[styles.badge, styles.badgeDark].join(" ")}>{EXTERNAL_STUDIES.length} πηγές και εκδόσεις</span>
+              <span className={styles.badge}>{EXTERNAL_GROUPS.length} διαθέσιμα γραφήματα</span>
+              <span className={styles.badge}>{directGroups} σειρές με άμεση σύγκριση</span>
+            </div>
+            <div className={styles.tabbar} aria-label="Είδος σύγκρισης">
+              <Link className={styles.primaryButton} href="/research/compare" aria-current="page">Δημοσιευμένα στοιχεία αγοράς</Link>
+              <Link href="/research/compare?view=ours">Μελέτες KONTA MOY</Link>
+              <Link href="/research/market-sentiment">Αρχικές δημοσιεύσεις</Link>
+            </div>
+          </div>
+          <aside className={styles.heroAside}>
+            <span>Διαδραστικά γραφήματα</span>
+            <strong>{EXTERNAL_GROUPS.length}</strong>
+            <hr />
+            <span>Αρχικές πηγές</span>
+            <strong>{EXTERNAL_STUDIES.length}</strong>
+            <hr />
+            <span>Συγκρίσεις ίδιου ορισμού</span>
+            <strong>{directGroups}</strong>
+          </aside>
+        </header>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHead}>
+            <div>
+              <div className={styles.eyebrow}>Ξεκινήστε από ένα ερώτημα</div>
+              <h2>Τι θέλετε να εξετάσετε;</h2>
+            </div>
+            <p>Επιλέξτε ένα θέμα ή χρησιμοποιήστε τις επιλογές του εργαστηρίου για τη δική σας ανάλυση.</p>
+          </div>
+          <div className={styles.quickGrid}>
+            <Link className={styles.quickLink} href="/research/compare?indicator=household-spending-history#research-workbench-title">
+              <span className={styles.eyebrow}>Νοικοκυριά</span>
+              <strong>Πώς εξελίσσεται η δαπάνη;</strong>
+              <span>Ιστορική πορεία 2019–2025 σε τρέχοντα ευρώ, με τις απαραίτητες επισημάνσεις.</span>
+            </Link>
+            <Link className={styles.quickLink} href="/research/compare?indicator=retail-monthly#research-workbench-title">
+              <span className={styles.eyebrow}>Λιανικό εμπόριο</span>
+              <strong>2025 απέναντι στο 2026</strong>
+              <span>Επικάλυψη ίδιων μηνών στις επιχειρηματικές προσδοκίες.</span>
+            </Link>
+            <Link className={styles.quickLink} href="/research/compare?indicator=annual-esi#research-workbench-title">
+              <span className={styles.eyebrow}>Ελλάδα και Ευρώπη</span>
+              <strong>Πώς αλλάζει το οικονομικό κλίμα;</strong>
+              <span>Παράλληλη προβολή εθνικών και ευρωπαϊκών δεικτών.</span>
+            </Link>
+          </div>
+        </section>
+
+        <ResearchExternalAnalysis key={selectedGroup.id} initialGroupId={selectedGroup.id} />
+
+        <section className={styles.section}>
+          <div className={styles.sectionHead}>
+            <div><div className={styles.eyebrow}>Μελέτες KONTA MOY</div><h2>Και τα δικά μας αποτελέσματα;</h2></div>
+            <p>Η δική μας έρευνα εμφανίζεται στη σύγκριση όταν δημοσιευθούν ελεγμένα αποτελέσματα. Δεν συνδυάζουμε πιλοτικές απαντήσεις με επίσημα στοιχεία.</p>
+          </div>
+          <div className={styles.sectionActions}>
+            <Link className={styles.actionButton} href="/research/compare?view=ours">Σύγκριση μελετών KONTA MOY →</Link>
+            <Link className={styles.actionButton} href="/research">Πρόοδος και μεθοδολογία →</Link>
+          </div>
+        </section>
+        <div className={styles.footer}>KONTA MOY Research · Διαδραστικές συγκρίσεις με αναφορά στην αρχική πηγή</div>
+      </div>
+      <SiteFooter />
+    </main>;
+  }
+
+  const [comparisons, metrics] = await Promise.all([
     publicResearchComparisons(),
     publicResearchPublishedMetrics()
   ]);
@@ -111,7 +208,7 @@ export default async function ResearchComparePage() {
       <header className={styles.hero}>
         <div>
           <div className={styles.eyebrow}>Σύγκριση μελετών</div>
-          <h1>Συγκρίνετε αποτελέσματα χωρίς παραπλανητικές συνδέσεις.</h1>
+          <h1>Οι δικές μας μελέτες, συγκρίσιμες όταν υπάρχουν ελεγμένα αποτελέσματα.</h1>
           <p>Δύο αποτελέσματα δεν είναι πάντα άμεσα συγκρίσιμα. Εδώ εμφανίζουμε μόνο τις συγκρίσεις που έχουν ελεγχθεί και εξηγούμε με απλά λόγια αν είναι άμεσες, αν χρειάζονται προσαρμογή ή αν δεν πρέπει να γίνουν.</p>
 
           <div className={styles.heroBadges}>
@@ -120,11 +217,10 @@ export default async function ResearchComparePage() {
             <span className={styles.badge}>{metrics.length} δημοσιευμένοι δείκτες</span>
           </div>
 
-          <div className={styles.tabbar}>
-            <Link href="/research">Μελέτες</Link>
-            <Link className={styles.primaryButton} href="/research/compare">Σύγκριση</Link>
-            <Link href="/research/market-sentiment">Άλλοι φορείς</Link>
-            <Link href="/research/privacy">Ιδιωτικότητα</Link>
+          <div className={styles.tabbar} aria-label="Είδος σύγκρισης">
+            <Link href="/research/compare">Δημοσιευμένα στοιχεία αγοράς</Link>
+            <Link className={styles.primaryButton} href="/research/compare?view=ours" aria-current="page">Μελέτες KONTA MOY</Link>
+            <Link href="/research/market-sentiment">Αρχικές δημοσιεύσεις</Link>
           </div>
         </div>
 
@@ -171,7 +267,7 @@ export default async function ResearchComparePage() {
           </table>
         </div> : <div className={styles.empty} style={{ marginTop: 16 }}>
           <strong>Δεν υπάρχουν ακόμη αρκετές δημοσιευμένες μελέτες για σύγκριση.</strong><br />
-          Η ενότητα θα ενημερωθεί όταν υπάρχουν αποτελέσματα από τουλάχιστον δύο κατάλληλες μελέτες.
+          Οι πιλοτικές απαντήσεις δεν δημοσιεύονται ως ευρήματα. Στο μεταξύ μπορείτε να αναλύσετε δημοσιευμένα στοιχεία άλλων φορέων. <Link className={styles.cardLink} href="/research/compare">Άνοιγμα συγκρίσεων αγοράς →</Link>
         </div>}
       </section>
 

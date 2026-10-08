@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../../components/SiteFooter";
-import { ResearchExternalAnalysis } from "../../../components/ResearchExternalAnalysis";
 import { EXTERNAL_STUDIES } from "../../../lib/research-external-analysis";
 import styles from "../../../components/ResearchObservatory.module.css";
 import external from "../../../components/ResearchExternalSources.module.css";
@@ -149,7 +148,16 @@ export default function ExternalMarketSentimentPage() {
         </aside>
       </header>
 
-      <ResearchExternalAnalysis />
+      <section className={styles.section} aria-labelledby="market-analysis-link-title">
+        <div className={styles.sectionHead}>
+          <div><span className={styles.eyebrow}>Εξερευνήστε τα δεδομένα</span><h2 id="market-analysis-link-title">Όλες οι συγκρίσεις σε ένα μέρος.</h2></div>
+          <p>Γραφήματα, μεταβολές ανά έτος, επικάλυψη περιόδων, σύγκριση πηγών και δική σας ανάλυση CSV βρίσκονται πλέον στο κοινό εργαστήριο.</p>
+        </div>
+        <div className={styles.sectionActions}>
+          <Link className={[styles.actionButton, styles.primaryButton].join(" ")} href="/research/compare">Ανοίξτε το εργαστήριο συγκρίσεων →</Link>
+          <Link className={styles.actionButton} href="/research/compare?view=ours">Οι μελέτες KONTA MOY →</Link>
+        </div>
+      </section>
 
       <nav className={external.jumpNav} aria-label="Θεματικές εξωτερικών ερευνών">
         {sections.map((section) => <a href={"#" + section.id} key={section.id}>{section.eyebrow} <span aria-hidden="true">↗</span></a>)}
@@ -192,7 +200,7 @@ export default function ExternalMarketSentimentPage() {
           </div>
           <p>Κάθε δημοσίευση διατηρεί τη δική της προέλευση, χρονική περίοδο, γεωγραφική κάλυψη και μέθοδο. Δεν συνδυάζουμε διαφορετικούς δείκτες σε έναν αυθαίρετο «βαθμό αγοράς», ούτε παρουσιάζουμε τις εξωτερικές έρευνες ως δικά μας αποτελέσματα.</p>
           <p>Η επιλογή είναι συντακτική και δεν ανανεώνεται αυτόματα. Για νεότερα στοιχεία ελέγξτε την πρωτότυπη πηγή. Οι σύνδεσμοι οδηγούν σε ιστοτόπους τρίτων.</p>
-          <Link className={styles.cardLink} href="/research/compare">Πώς συγκρίνουμε τις δικές μας μελέτες →</Link>
+          <Link className={styles.cardLink} href="/research/compare">Αναλύστε και συγκρίνετε τα διαθέσιμα στοιχεία →</Link>
         </div>
       </section>
 
