@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SqlRow } from "@buy-local-sparta/core";
+import { greekRetailBusinessConfidence, greekRetailRevenueUpProfitDown } from "./research-survey-model";
 import { getProductionPostgresRuntime } from "./postgres-runtime";
 import {
   benjaminiHochbergAdjustedPValues,
@@ -11,7 +12,7 @@ import {
   weightedClusteredDifferenceInMeans
 } from "./research-survey-statistics";
 
-const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v7";
+const ANALYSIS_CODE_VERSION = "greek-retail-2026-analysis-v8";
 const WEIGHT_METHOD_VERSION = "greek-retail-2026-weight-v2";
 const MIN_PUBLIC_BASE = 30;
 const VARIANCE_METHOD = "stratified_srs_fpc_v1";
@@ -43,6 +44,7 @@ type WeightedResponse = ResponseRow & Readonly<{
 type QuestionRow = Readonly<{
   code: string;
   questionType: string;
+  prompt: string;
   analysisKey: string;
   config: Record<string, unknown>;
 }>;
@@ -128,7 +130,8 @@ function segmentsFor(observations: readonly Observation[]): Array<Readonly<{
   const dimensions: Array<readonly [string, (response: WeightedResponse) => string]> = [
     ["regionCode", (response) => response.regionCode],
     ["sectorCode", (response) => response.sectorCode],
-    ["sizeBand", (response) => typeof response.answers.Q02 === "string" ? response.answers.Q02 : ""]
+    ["sizeBand", (response) => typeof response.answers.Q02 === "string" ? response.answers.Q02 : ""],
+    ["settlementBand", (response) => typeof response.answers.Q22 === "string" ? response.answers.Q22 : ""]
   ];
   for (const [key, getter] of dimensions) {
     const groups = new Map<string, Observation[]>();
@@ -177,7 +180,7 @@ function estimateSpecs(
             response,
             value: response.answers[question.code] === option ? 1 : 0
           })),
-          metadata: { questionCode: question.code, option, label, format: "proportion", analysisClassification: "prespecified_secondary" }
+          metadata: { questionCode: question.code, option, label: `${question.prompt} — ${label}`, format: "proportion", analysisClassification: "prespecified_secondary" }
         });
       }
     } else if (question.questionType === "multi") {
@@ -190,7 +193,7 @@ function estimateSpecs(
             response,
             value: (response.answers[question.code] as unknown[]).map(String).includes(option) ? 1 : 0
           })),
-          metadata: { questionCode: question.code, option, label, format: "proportion", multipleResponse: true, analysisClassification: "prespecified_secondary" }
+          metadata: { questionCode: question.code, option, label: `${question.prompt} — ${label}`, format: "proportion", multipleResponse: true, analysisClassification: "prespecified_secondary" }
         });
       }
     } else if (question.questionType === "scale") {
@@ -202,23 +205,45 @@ function estimateSpecs(
         specs.push({
           metricKey: `${question.analysisKey}.mean`,
           observations,
-          metadata: { questionCode: question.code, format: "mean", analysisClassification: "prespecified_secondary" }
+          metadata: { questionCode: question.code, label: question.prompt, format: "mean", analysisClassification: "prespecified_secondary" }
         });
       }
+
     } else if (question.questionType === "matrix") {
       const items = configPairs(question.config, "items");
-      for (const [item, label] of items) {
-        const observations = responses.flatMap((response) => {
+      const options = configPairs(question.config, "scale");
+      const numericScale = options.filter(([value]) => /^-?\d+(?:\.\d+)?$/.test(value)).length >= 2;
+      for (const [item, itemLabel] of items) {
+        const answered = responses.flatMap((response) => {
           const answer = objectValue(response.answers[question.code]);
-          const value = Number(answer[item]);
-          return Number.isFinite(value) ? [{ response, value }] : [];
+          const raw = answer[item];
+          return typeof raw === "string" || typeof raw === "number"
+            ? [{ response, raw: String(raw) }]
+            : [];
         });
-        if (!observations.length) continue;
-        specs.push({
-          metricKey: `${question.analysisKey}.${item}.mean`,
-          observations,
-          metadata: { questionCode: question.code, matrixItem: item, label, format: "mean", analysisClassification: "prespecified_secondary" }
-        });
+        if (numericScale) {
+          const observations = answered.flatMap(({ response, raw }) =>
+            /^-?\d+(?:\.\d+)?$/.test(raw) && options.some(([value]) => value === raw)
+              ? [{ response, value: Number(raw) }] : []
+          );
+          if (observations.length) specs.push({
+            metricKey: `${question.analysisKey}.${item}.mean`,
+            observations,
+            metadata: { questionCode: question.code, matrixItem: item, label: `${question.prompt} — ${itemLabel}`, format: "mean", analysisClassification: "prespecified_secondary" }
+          });
+        } else if (question.code === "Q19") {
+          // Categorical changes have no meaningful numeric mean. Report shares.
+          for (const [option, optionLabel] of options) {
+            specs.push({
+              metricKey: `${question.analysisKey}.${item}.share.${option}`,
+              observations: answered.map(({ response, raw }) => ({ response, value: raw === option ? 1 : 0 })),
+              metadata: {
+                questionCode: question.code, matrixItem: item, option, format: "proportion",
+                label: `${itemLabel}: ${optionLabel}`, analysisClassification: "prespecified_secondary"
+              }
+            });
+          }
+        }
       }
     }
   }
@@ -238,11 +263,72 @@ function estimateSpecs(
       metadata: {
         format: "mean",
         derived: true,
+        label: metricKey === "digital_readiness.mean" ? "Δείκτης Ψηφιακής Ετοιμότητας (0–100)" : "Δείκτης Εμποδίων Λιανεμπορίου (0–100)",
         analysisClassification: primaryMetricKeys.has(metricKey)
           ? "prespecified_primary"
           : "prespecified_secondary"
       }
     });
+  }
+
+  // The confidence construct is calculated from respondent-level expectation items.
+  // Older questionnaire versions cannot accidentally produce it.
+  if (questions.some((question) => question.code === "Q20")) {
+    const observations = responses.flatMap((response) => {
+      const value = greekRetailBusinessConfidence(response.answers);
+      return value === undefined ? [] : [{ response, value }];
+    });
+    if (observations.length) specs.push({
+      metricKey: "business_confidence.mean", observations,
+      metadata: {
+        label: "Δείκτης Επιχειρηματικής Εμπιστοσύνης (0–100)", format: "mean",
+        scoringVersion: "business-confidence-v1", components: ["Q20","Q17","Q21"],
+        minValidComponents: 2, selfReported: true, derived: true,
+        analysisClassification: primaryMetricKeys.has("business_confidence.mean") ? "prespecified_primary" : "prespecified_secondary"
+      }
+    });
+  }
+
+  if (questions.some((question) => question.code === "Q19")) {
+    const observations = responses.flatMap((response) => {
+      const value = greekRetailRevenueUpProfitDown(response.answers);
+      return value === undefined ? [] : [{ response, value: value ? 1 : 0 }];
+    });
+    if (observations.length) specs.push({
+      metricKey: "revenue_up_profit_down.share", observations,
+      metadata: {
+        label: "Αύξηση τζίρου με ταυτόχρονη μείωση κερδοφορίας", format: "proportion",
+        selfReported: true, associationOnly: true, questionCodes: ["Q19"],
+        denominator: "respondents with valid turnover and profitability comparisons",
+        analysisClassification: "prespecified_secondary"
+      }
+    });
+  }
+
+  if (questions.some((question) => question.code === "Q25")) {
+    for (const metric of [
+      { key: "marketplace_profitability_decline.share", item: "profitability", direction: "negative" },
+      { key: "marketplace_dependence_increase.share", item: "dependence", direction: "positive" }
+    ]) {
+      const observations = responses.flatMap((response) => {
+        const matrix = response.answers.Q25;
+        if (!matrix || typeof matrix !== "object" || Array.isArray(matrix)) return [];
+        const raw = String(matrix[metric.item] ?? "");
+        if (!["-2","-1","0","1","2"].includes(raw)) return [];
+        return [{ response, value: metric.direction === "negative" ? (Number(raw) < 0 ? 1 : 0) : (Number(raw) > 0 ? 1 : 0) }];
+      });
+      if (observations.length) specs.push({
+        metricKey: metric.key, observations,
+        metadata: {
+          label: metric.direction === "negative"
+            ? "Marketplaces: αναφερόμενη μείωση κερδοφορίας"
+            : "Marketplaces: αναφερόμενη αύξηση εξάρτησης",
+          format: "proportion", questionCodes: ["Q13","Q25"], selfReported: true,
+          denominator: "current or former marketplace users answering this item",
+          analysisClassification: "prespecified_secondary"
+        }
+      });
+    }
   }
   return specs;
 }
@@ -762,7 +848,7 @@ export async function runGreekRetailAnalysis(
   };
 
   const questionResult = await pool.query<SqlRow>(`
-    SELECT code,question_type,analysis_key,config
+    SELECT code,question_type,prompt_el,analysis_key,config
     FROM research_questions
     WHERE instrument_id=$1
     ORDER BY position
@@ -770,6 +856,7 @@ export async function runGreekRetailAnalysis(
   const questions: QuestionRow[] = questionResult.rows.map((row) => ({
     code: text(row.code),
     questionType: text(row.question_type),
+    prompt: text(row.prompt_el),
     analysisKey: text(row.analysis_key),
     config: objectValue(row.config)
   }));
@@ -803,7 +890,7 @@ export async function runGreekRetailAnalysis(
       if (result.estimate === undefined) continue;
       const unweightedN = segment.observations.length;
       const suppressed = unweightedN < MIN_PUBLIC_BASE;
-      const domainVarianceUnsupported = Boolean(segment.segment.sizeBand);
+      const domainVarianceUnsupported = Boolean(segment.segment.sizeBand || segment.segment.settlementBand);
       const designResponses = designResponsesForSegment(segment.segment, weightedResponses);
       const variance = domainVarianceUnsupported
         ? { reason: "unsupported_non_stratification_domain" as const }
@@ -852,6 +939,7 @@ export async function runGreekRetailAnalysis(
           publicMinimumBase: MIN_PUBLIC_BASE,
           varianceMethod: standardError === undefined ? "withheld" : VARIANCE_METHOD,
           varianceWithheldReason: standardError === undefined ? variance.reason ?? "unavailable" : null,
+          conditionalQuestion: Boolean(spec.metadata.denominator),
           finitePopulationCorrection: standardError !== undefined
         })
       ]);
@@ -1002,8 +1090,8 @@ export async function runGreekRetailAnalysis(
       metadata
     FROM research_analysis_estimates
     WHERE analysis_run_id=$1
-      AND method='nonresponse_adjusted_stratified_descriptive_v2'
-      AND metric_key IN ('digital_readiness.mean','retail_friction.mean')
+      AND method='nonresponse_calibrated_stratified_descriptive_v3'
+      AND metric_key IN ('digital_readiness.mean','retail_friction.mean','business_confidence.mean')
       AND suppressed=false
       AND estimate IS NOT NULL
       AND standard_error IS NOT NULL

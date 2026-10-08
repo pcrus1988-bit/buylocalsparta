@@ -49,6 +49,26 @@ export default async function ResearchResultsPage({ params }: PageProps) {
     Object.keys(estimate.segment).length === 0
   ) ?? [];
 
+  const themes = [
+    { title: "Επιχειρηματικό κλίμα και οικονομία", description: "Αυτοαναφερόμενες οικονομικές εξελίξεις και προσδοκίες — όχι λογιστικά επαληθευμένα στοιχεία.", keys: ["business_confidence.","revenue_up_profit_down.","business_optimism.","sales_outlook.","profit_outlook.","economic_trends.","economic_pressures."] },
+    { title: "Ηλεκτρονικό εμπόριο και πρώτη online πώληση", description: "Στάσεις, υφιστάμενα κανάλια και εμπόδια για επιχειρήσεις που δεν πωλούν online.", keys: ["ecommerce_attitude.","first_sale_barriers.","sales_channels.","digital_sales_share."] },
+    { title: "Marketplaces και εξάρτηση", description: "Αναφερόμενες εμπειρίες νυν και πρώην χρηστών · οι απαντήσεις δεν τεκμηριώνουν αιτιώδη επίδραση.", keys: ["marketplace_profitability_decline.","marketplace_dependence_increase.","marketplace_effects.","marketplace_revenue_dependence.","marketplace_experience."] },
+    { title: "Τοπική αγορά και ψηφιακή προβολή", description: "Διαφοροποιήσεις ανά περιοχή και αυτοαναφερόμενη επίδραση στο φυσικό κατάστημα.", keys: ["online_to_local_impact.","settlement_class.","local_product_discovery_importance.","local_customer_share."] },
+    { title: "Ετοιμότητα, λειτουργία και επόμενες επενδύσεις", description: "Ενδείξεις ψηφιακής ετοιμότητας, δυσκολιών και σχεδίων για την επόμενη χρονιά.", keys: ["digital_readiness.","retail_friction.","top_growth_barriers.","operational_friction.","investment_intentions."] }
+  ];
+  const seen = new Set<string>();
+  const resultSections = themes.map((theme) => {
+    const estimates = overall.filter((estimate) => theme.keys.some((key) => estimate.metricKey.startsWith(key))).slice(0,16);
+    estimates.forEach((estimate) => seen.add(estimate.metricKey));
+    return { title: theme.title, description: theme.description, estimates };
+  }).filter((section) => section.estimates.length > 0);
+  const otherEstimates = overall.filter((estimate) => !seen.has(estimate.metricKey)).slice(0,20);
+  if (otherEstimates.length) resultSections.push({
+    title: "Πρόσθετοι δημοσιευμένοι δείκτες",
+    description: "Περαιτέρω αποτελέσματα του ερωτηματολογίου.",
+    estimates: otherEstimates
+  });
+
   return <main className={styles.shell}>
     <div className={styles.frame}>
       <div className={styles.topbar}>
@@ -106,22 +126,27 @@ export default async function ResearchResultsPage({ params }: PageProps) {
             <p>Το 95% διάστημα εμπιστοσύνης δείχνει την αβεβαιότητα της εκτίμησης όταν αυτή μπορεί να υπολογιστεί. Το n δείχνει πόσες απαντήσεις χρησιμοποιήθηκαν.</p>
           </div>
 
-          <div className={styles.resultsGrid}>
-            {overall.slice(0,30).map((estimate) => {
-              const width = visualWidth(estimate);
-              return <article className={styles.resultCard} key={estimate.metricKey}>
-                <div className={styles.eyebrow}>{label(estimate)}</div>
-                <strong>{value(estimate, estimate.estimate!)}</strong>
-                <span>
-                  {estimate.ciLower != null && estimate.ciUpper != null
-                    ? "95% διάστημα εμπιστοσύνης " + value(estimate, estimate.ciLower) + " – " + value(estimate, estimate.ciUpper) + " · "
-                    : ""}
-                  n={estimate.unweightedN.toLocaleString("el-GR")}
-                </span>
-                {width != null && <div className={styles.resultBar} aria-hidden="true"><div className={styles.resultBarFill} style={{ width: width.toFixed(1) + "%" }} /></div>}
-              </article>;
-            })}
-          </div>
+          {resultSections.map((group) => <div key={group.title} style={{ marginBottom: 30 }}>
+            <h3 style={{ marginBottom: 8 }}>{group.title}</h3>
+            <p>{group.description}</p>
+            <div className={styles.resultsGrid}>
+              {group.estimates.map((estimate) => {
+                const width = visualWidth(estimate);
+                return <article className={styles.resultCard} key={estimate.metricKey}>
+                  <div className={styles.eyebrow}>{label(estimate)}</div>
+                  <strong>{value(estimate, estimate.estimate!)}</strong>
+                  <span>
+                    {estimate.ciLower != null && estimate.ciUpper != null
+                      ? "95% διάστημα εμπιστοσύνης " + value(estimate, estimate.ciLower) + " – " + value(estimate, estimate.ciUpper) + " · "
+                      : ""}
+                    n={estimate.unweightedN.toLocaleString("el-GR")}
+                    {typeof estimate.metadata.denominator === "string" ? " · Ειδική ομάδα ερωτηθέντων" : ""}
+                  </span>
+                  {width != null && <div className={styles.resultBar} aria-hidden="true"><div className={styles.resultBarFill} style={{ width: width.toFixed(1) + "%" }} /></div>}
+                </article>;
+              })}
+            </div>
+          </div>)}
         </section>
 
         <section className={styles.section}>
