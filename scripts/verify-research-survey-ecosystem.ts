@@ -343,8 +343,10 @@ if (!deliverySafety.includes("if (decisions < 100) return 0.20")
 if (!deliverySafety.includes("if (n < 1000) return {completedMilestone:null,nextMilestone:1000}")
     || !deliverySafety.includes("if (n < 5000) return {completedMilestone:1000,nextMilestone:5000}")
     || !deliverySafety.includes("if (n < 10000) return {completedMilestone:5000,nextMilestone:10000}")
-    || !deliverySafety.includes("Math.floor(n/10000)*10000"))
-  errors.push("campaign review milestone schedule must cover 1000, 5000, then 10k increments");
+    || !deliverySafety.includes("if (n < 25000) return {completedMilestone:10000,nextMilestone:25000}")
+    || !deliverySafety.includes("if (n < 75000) return {completedMilestone:50000,nextMilestone:75000}")
+    || !deliverySafety.includes("75000+Math.floor((n-75000)/10000)*10000"))
+  errors.push("campaign review milestones must include 1000, 5000, 10000, 25000, 50000 and 75000 thresholds");
 if (!jobs.includes("deliverySafety,\n      approvedMaxEmails"))
   errors.push("continuous campaign does not preserve the SES safety breakdown");
 
