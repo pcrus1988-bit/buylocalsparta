@@ -705,7 +705,8 @@ export async function recoverGreekRetailFailedInvitationCampaign(
       SELECT COALESCE(sum(CASE WHEN b.id=$4::uuid THEN 0 ELSE b.planned_count END),0)::bigint AS processed,
              COALESCE(sum(CASE WHEN b.id=$4::uuid THEN 0 ELSE sent.sent_count END),0)::bigint AS sent,
              count(*) FILTER (WHERE b.id=$4::uuid)::int AS current_batch_count,
-             COALESCE(sum(ambiguous.unresolved_count),0)::bigint AS unresolved
+             COALESCE(sum(ambiguous.unresolved_count),0)::bigint AS unresolved,
+             COALESCE(sum(attempt_failures.failed_count),0)::bigint AS attempt_failed
       FROM research_invite_batches b
       LEFT JOIN LATERAL (
         SELECT count(*)::int AS sent_count FROM research_invites i
@@ -717,6 +718,12 @@ export async function recoverGreekRetailFailedInvitationCampaign(
         JOIN research_invite_messages m ON m.invite_id=i.id AND m.attempt_kind='initial'
         WHERE i.batch_id=b.id AND (i.status='created' OR m.status='sending')
       ) ambiguous ON true
+      LEFT JOIN LATERAL (
+        SELECT count(*)::int AS failed_count
+        FROM research_invites i
+        JOIN research_invite_messages m ON m.invite_id=i.id AND m.attempt_kind='initial'
+        WHERE i.batch_id=b.id AND m.status='failed'
+      ) attempt_failures ON true
       WHERE b.study_id=$1 AND b.wave_id=$2 AND b.label=$3
     `,[job.study_id,job.wave_id,label,currentBatchId||null]);
     if (currentBatchId && numberValue(ledger.rows[0]?.current_batch_count)!==1) {
@@ -730,9 +737,17 @@ export async function recoverGreekRetailFailedInvitationCampaign(
     }
     const previousError=text(job.error_message);
     const unresolved=numberValue(ledger.rows[0]?.unresolved);
+    const attemptFailed=numberValue(ledger.rows[0]?.attempt_failed);
+    const previousFailures=Array.isArray(output.failures) ? output.failures : [];
+    const latestFailure=previousFailures.length && previousFailures[0] &&
+      typeof previousFailures[0]==="object"
+      ? text((previousFailures[0] as Record<string,unknown>).error) : "";
     const recoveredOutput={...output,campaignProcessedCount:processed,campaignSentCount:sent,
+      campaignSubmissionFailureCount:Math.max(attemptFailed,numberValue(output.campaignSubmissionFailureCount)),
+      lastAttemptFailureReason:text(output.lastAttemptFailureReason)||latestFailure,
       recoveryReview:{at:new Date().toISOString(),previousError,processedCount:processed,
-        sentCount:sent,unresolvedAttempts:unresolved,rule:"skip_every_prior_provider_attempt"},
+        sentCount:sent,unresolvedAttempts:unresolved,attemptFailures:attemptFailed,
+        rule:"skip_every_prior_provider_attempt"},
       safetyHold:output.safetyHold??null};
     await client.query(`
       UPDATE research_study_jobs
