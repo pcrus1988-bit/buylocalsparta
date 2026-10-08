@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { EXTERNAL_GROUPS, EXTERNAL_STUDIES, externalChange, externalCsv, externalGroup } from "./research-external-analysis.ts";
+import { RESEARCH_PRESET_CATEGORIES, RESEARCH_PRESET_COUNT } from "./research-comparison-presets.ts";
 
 test("annual sentiment uses a consistent source vintage and complete years only", () => {
   const group=externalGroup("annual-esi");
@@ -108,4 +109,21 @@ test("the expanded atlas has no duplicate studies, only traceable https sources"
     assert.ok(group.series.length<=6);
     assert.ok(group.series.every(s=>s.points.every(p=>p.year<=2026)));
   }
+});
+
+test("every published external chart has a unique, usable comparison preset", () => {
+  const presets = RESEARCH_PRESET_CATEGORIES.flatMap(category => category.presets);
+  const linked = presets.flatMap(preset => preset.indicator ? [preset.indicator] : []);
+  assert.equal(RESEARCH_PRESET_COUNT, 26);
+  assert.equal(presets.length, 26);
+  assert.equal(new Set(presets.map(preset => preset.id)).size, presets.length);
+  assert.equal(new Set(linked).size, linked.length);
+  assert.deepEqual(new Set(linked), new Set(EXTERNAL_GROUPS.map(group => group.id)));
+  for (const indicator of linked) {
+    const group = externalGroup(indicator);
+    assert.ok(group, indicator);
+    assert.ok(group.series.some(series => series.points.length > 0), indicator);
+  }
+  assert.equal(presets.filter(preset => !preset.indicator).length, 1);
+  assert.equal(new Set(RESEARCH_PRESET_CATEGORIES.map(category => category.id)).size, RESEARCH_PRESET_CATEGORIES.length);
 });
