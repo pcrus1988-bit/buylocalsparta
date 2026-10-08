@@ -1248,7 +1248,10 @@ async function claimResearchJob(
       FROM research_study_jobs
       WHERE status='queued' AND available_at <= now()
         AND job_type = ANY($1::text[])
-      ORDER BY created_at
+      -- Short deterministic sample draws must not starve behind the older
+      -- instantly requeued, multi-hour retail-all frame import.
+      ORDER BY CASE WHEN job_type='sample_draw' THEN 0
+                    WHEN job_type='frame_snapshot' THEN 2 ELSE 1 END, created_at
       FOR UPDATE SKIP LOCKED
       LIMIT 1
     `, [allowedJobTypes]);
