@@ -10,6 +10,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 import { runGreekRetailAnalysis } from "./research-survey-analysis";
 import { proportionalStratumAllocation } from "./research-survey-statistics";
 import { buildGreekRetailRelease } from "./research-survey-release";
+import { greekRetailSector, isRetailKad, RETAIL_ACTIVITY_GROUP_IDS, RETAIL_CLASSIFICATION_VERSION, RETAIL_SOURCE_REFERENCE } from "./research-kad-coverage";
 import {
   assertResearchSurveyEmailReady,
   sendResearchResultsNotification,
@@ -18,8 +19,8 @@ import {
 } from "./research-survey-mail";
 
 const STUDY_SLUG = "greek-retail-2026";
-const FRAME_CLASSIFICATION_VERSION = "greek-retail-kad-sector-v1";
-const FRAME_SOURCE_REFERENCE = "gemi-opendata:retail-non-food:active:all-greece";
+const FRAME_CLASSIFICATION_VERSION = RETAIL_CLASSIFICATION_VERSION;
+const FRAME_SOURCE_REFERENCE = RETAIL_SOURCE_REFERENCE;
 const FRAME_FLUSH_SIZE = 500;
 const MAX_JOB_ATTEMPTS = 3;
 const AUTO_REMINDER_BATCH_SIZE = 100;
@@ -200,34 +201,15 @@ async function recordParticipantDeliveryEvent(
   `, [deliveryId, eventType, providerMessageId ?? null, JSON.stringify(metadata)]);
 }
 
-function kadMatches(code: string, prefix: string): boolean {
-  const normalized = code.trim().replace(/\s+/g, "");
-  const wanted = prefix.trim().replace(/\s+/g, "");
-  if (normalized === wanted || normalized.startsWith(wanted + ".")) return true;
-  const digits = normalized.replace(/\D/g, "");
-  const wantedDigits = wanted.replace(/\D/g, "");
-  return Boolean(digits && wantedDigits && digits.startsWith(wantedDigits));
-}
-
-export function greekRetailSector(activityCodes: readonly string[]): string {
-  const has = (...prefixes: string[]) => activityCodes.some((code) => prefixes.some((prefix) => kadMatches(code, prefix)));
-  if (has("47.71", "47.72")) return "fashion_footwear";
-  if (has("47.75")) return "beauty_personal_care";
-  if (has("47.51", "47.53", "47.54", "47.55", "47.59")) return "home_living";
-  if (has("47.52")) return "diy_building";
-  if (has("47.40", "47.41", "47.42", "47.43")) return "electronics";
-  if (has("47.61", "47.62", "47.63", "47.64", "47.69")) return "sports_books_hobby";
-  if (has("47.77")) return "jewellery_watches";
-  if (has("47.76")) return "flowers_pets";
-  if (has("47.79")) return "second_hand";
-  if (has("47.8")) return "automotive_trade";
-  return "other_non_food_retail";
-}
-
-function frameRecord(record: GemiResearchFrameRecord): FrameBufferRecord | undefined {
+function frameRecord(record: GemiResearchFrameRecord, classificationVersion: string): FrameBufferRecord | undefined {
   const identity = record.gemiNumber ? `gemi:${record.gemiNumber}` : record.afm ? `afm:${record.afm}` : "";
   if (!identity) return undefined;
-  const matchedCodes = record.matchedActivityCodes.length ? record.matchedActivityCodes : record.activityCodes;
+  // Match only current retail activity evidence; mixed wholesale companies must
+  // not be classified from unrelated secondary, historical or wholesale KADs.
+  const matchedCodes = (record.matchedActivityCodes.length
+    ? record.matchedActivityCodes
+    : record.activityCodes).filter(isRetailKad);
+  if (!matchedCodes.length) return undefined;
   const regionCode = record.prefectureId || "unknown";
   const sectorCode = greekRetailSector(matchedCodes);
   const email = record.email.trim().toLowerCase();
@@ -238,7 +220,7 @@ function frameRecord(record: GemiResearchFrameRecord): FrameBufferRecord | undef
     sectorCode,
     samplingAttributes: JSON.stringify({
       source: "gemi_opendata",
-      classificationVersion: FRAME_CLASSIFICATION_VERSION,
+      classificationVersion,
       legalName: record.legalName,
       prefectureId: record.prefectureId || null,
       prefecture: record.prefecture || null,
@@ -280,7 +262,7 @@ export async function queueGreekRetailFrameBuild(principal: SessionPrincipal): P
       'frame_snapshot',
       'queued',
       jsonb_build_object(
-        'activityGroupIds', jsonb_build_array('retail-non-food'),
+        'activityGroupIds', jsonb_build_array('retail-all'),
         'activeOnly', true,
         'scope', 'all-greece',
         'classificationVersion', $3::text
@@ -1422,6 +1404,16 @@ async function flushFrameBuffer(snapshotId: string, records: readonly FrameBuffe
 
 async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<string, unknown>> {
   const pool = getProductionPostgresRuntime().sqlPool;
+  // Keep already-queued v1 jobs reproducible instead of silently broadening
+  // them mid-run; every NEW request is all-retail v2.
+  const oldNonFoodJob = Array.isArray(job.input.activityGroupIds)
+    && job.input.activityGroupIds.length === 1
+    && job.input.activityGroupIds[0] === "retail-non-food";
+  const activityGroupIds = oldNonFoodJob ? ["retail-non-food"] : [...RETAIL_ACTIVITY_GROUP_IDS];
+  const classificationVersion = oldNonFoodJob ? "greek-retail-kad-sector-v1" : FRAME_CLASSIFICATION_VERSION;
+  const sourceReference = oldNonFoodJob
+    ? "gemi-opendata:retail-non-food:active:all-greece"
+    : FRAME_SOURCE_REFERENCE;
   const currentOutput = objectValue(job.output);
   let snapshotId = text(currentOutput.frameSnapshotId);
 
@@ -1451,13 +1443,13 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
     `, [
       job.study_id,
       job.wave_id,
-      `G.E.MI. retail non-food ${new Date().toISOString().slice(0, 10)}`,
-      FRAME_SOURCE_REFERENCE,
+      `G.E.MI. ${activityGroupIds[0]} ${new Date().toISOString().slice(0, 10)}`,
+      sourceReference,
       JSON.stringify({
-        activityGroupIds: ["retail-non-food"],
+        activityGroupIds,
         activeOnly: true,
         scope: "all-greece",
-        classificationVersion: FRAME_CLASSIFICATION_VERSION
+        classificationVersion
       })
     ]);
     snapshotId = text(snapshot.rows[0]!.id);
@@ -1480,12 +1472,12 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
     offset: Math.max(0, Math.floor(numberValue(cursorValue.offset)))
   };
   const filters = normalizeGemiAdminFilters({
-    activityGroupIds: ["retail-non-food"],
+    activityGroupIds,
     activeOnly: true
   });
   const chunk = await gemiResearchFrameChunk(filters, cursor, 12);
   const records = chunk.records.flatMap((raw) => {
-    const record = frameRecord(raw);
+    const record = frameRecord(raw, classificationVersion);
     return record ? [record] : [];
   });
   if (records.length) await flushFrameBuffer(snapshotId, records);
@@ -1613,8 +1605,8 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
     activeEmailCount: finalActiveEmailCount,
     streamedWithEmail: finalActiveEmailCount,
     contentSha256: digest,
-    classificationVersion: FRAME_CLASSIFICATION_VERSION,
-    sourceReference: FRAME_SOURCE_REFERENCE,
+    classificationVersion,
+    sourceReference,
     queryBatchCount: chunk.queryBatchCount
   };
 }
