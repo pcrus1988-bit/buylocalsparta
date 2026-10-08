@@ -577,7 +577,8 @@ if (surveyRuntime.includes("generateResearchInvitationBatch")) errors.push("lega
 if (surveyRuntime.includes("SURVEY_EXPERIMENT_INCOMPLETE")) errors.push("optional experiment still blocks completion");
 if (!surveyRuntime.includes('"eligibilityBasis":"completed_response"')) errors.push("reward eligibility is not completion-based");
 if (!surveyRuntime.includes("'reward_delivery','queued'")) errors.push("completion does not queue consent-scoped reward delivery");
-if (!surveyRuntime.includes("'results_notification','queued'")) errors.push("publication does not queue results notification");
+if (surveyRuntime.includes("'results_notification','queued'")) errors.push("publication bypasses explicit results-email double confirmation");
+if (!surveyRuntime.includes("Publication never authorizes a bulk email send")) errors.push("results notification governance comment missing");
 if (!gemi.includes("export async function* gemiResearchFrameRecords")) errors.push("GEMI governed record stream missing");
 if (!release.includes("artifactSha256 = sha256Canonical(artifact)")) errors.push("canonical public release artifact hash missing");
 if (!release.includes("getPublishedGreekRetailReleaseArtifact")) errors.push("published release artifact reconstruction missing");
