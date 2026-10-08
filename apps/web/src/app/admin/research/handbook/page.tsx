@@ -89,6 +89,18 @@ export default async function ResearchHandbookPage() {
       </div>
     </section>)}
     <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Greek Retail 2026" title="Cohort A, Cohort B and combined coverage"
+        note="The main study is one instrument with two ordered recruitment groups. A/B are distinct from Pilot/Main research phases." />
+      <div className="workspace-queue-card">
+        <p><strong>Cohort A:</strong> eligible contactable businesses in the original frozen non-food retail frame. Its frozen population and email-contactability counters are historical snapshot figures, not current delivery guarantees.</p>
+        <p><strong>Cohort B:</strong> additional eligible contactable businesses in the expanded all-retail frame, excluding business identities already in A and respecting suppression and prior-contact exclusions. A growing import must not be counted as a finalized B cohort.</p>
+        <p><strong>Combined:</strong> A plus only the new eligible businesses in B; the two overlapping raw source frames must never be summed. Count businesses separately from unique email addresses.</p>
+        <p><strong>Fieldwork order:</strong> finish the controlled Pilot; then recruit A before B for the same official questionnaire. Keep cohort assignment with invites and responses, preserve separately evaluated denominators, and combine only with an explicit weight/coverage rationale.</p>
+        <p><strong>Safety gate:</strong> these overview figures are ready for monitoring, but cohort-specific sampling, sending and analysis controls are not switched on by this dashboard. Do not use the existing unsegmented send action to launch A or B. Respect legal review, opt-outs, bounces, delivery throttles and two-stage send confirmation before any emails.</p>
+        <Link prefetch={false} className="button button-secondary" href="/admin/research/surveys/greek-retail-2026">Open cohort overview</Link>
+      </div>
+    </section>
+    <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="Safety" title="Before every irreversible action" note="A visual workflow is guidance; server permission and lifecycle guards remain authoritative." />
       <div className="analytics-workflow-grid">
         <article className="analytics-workflow-card"><strong>Sending invitations</strong><small>Check survey, phase (Pilot/Main), purpose, actual recipients, suppressed addresses, template, expiry and duplicate sends. Do not bypass the two-stage confirmation.</small></article>

@@ -2400,3 +2400,99 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
     } : undefined
   };
 }
+
+
+/**
+ * Cohort-ledger overview for the Greek Retail study.
+ * All queries touch only snapshot/job metadata: NEVER count or load frame/contact
+ * rows while the Admin page renders. Group B delta counts are persisted at freeze.
+ */
+export async function researchSurveyAdminCohortOverview(principal: SessionPrincipal, slug: string) {
+  assertAdminPermission(principal, "research.read");
+  if (!productionDatabaseConfigured() || slug !== GREEK_RETAIL_2026_SLUG) return undefined;
+  const result = await getAdminResearchOverviewPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT
+      a.id AS a_frame_id, a.label AS a_label, a.status AS a_status,
+      a.population_size AS a_population, a.frozen_at AS a_frozen_at,
+      (aj.output->>'activeEmailCount')::int AS a_contactable,
+      b.id AS b_frame_id, b.label AS b_label, b.status AS b_status,
+      CASE WHEN b.status IN ('frozen','superseded') THEN b.population_size END AS b_expanded_population,
+      b.frozen_at AS b_frozen_at,
+      bj.status AS b_job_status,
+      CASE WHEN bj.status='running' AND bj.output->>'persistedUnits' ~ '^[0-9]+$'
+        THEN (bj.output->>'persistedUnits')::int END AS b_processed_source_rows,
+      CASE WHEN b.status IN ('frozen','superseded')
+                  AND bj.status='succeeded'
+                  AND bj.output->>'cohortABaseFrameSnapshotId'=a.id::text
+                  AND bj.output->>'cohortBNewBusinessCount' ~ '^[0-9]+$'
+        THEN (bj.output->>'cohortBNewBusinessCount')::int END AS b_new_businesses,
+      CASE WHEN b.status IN ('frozen','superseded')
+                  AND bj.status='succeeded'
+                  AND bj.output->>'cohortABaseFrameSnapshotId'=a.id::text
+                  AND bj.output->>'cohortBContactableBusinessCount' ~ '^[0-9]+$'
+        THEN (bj.output->>'cohortBContactableBusinessCount')::int END AS b_contactable
+    FROM research_studies s
+    LEFT JOIN LATERAL (
+      SELECT id,label,status,population_size,frozen_at
+      FROM research_frame_snapshots
+      WHERE study_id=s.id AND wave_id=s.current_wave_id
+        AND status IN ('frozen','superseded')
+        AND selection_criteria->'activityGroupIds' @> '["retail-non-food"]'::jsonb
+      ORDER BY frozen_at ASC NULLS LAST, created_at ASC LIMIT 1
+    ) a ON true
+    LEFT JOIN LATERAL (
+      SELECT j.output FROM research_study_jobs j
+      WHERE j.study_id=s.id AND j.job_type='frame_snapshot'
+        AND j.status='succeeded'
+        AND j.output->>'frameSnapshotId'=a.id::text
+        AND j.output->>'activeEmailCount' ~ '^[0-9]+$'
+      ORDER BY j.finished_at DESC LIMIT 1
+    ) aj ON true
+    LEFT JOIN LATERAL (
+      SELECT id,label,status,population_size,frozen_at
+      FROM research_frame_snapshots
+      WHERE study_id=s.id AND wave_id=s.current_wave_id
+        AND selection_criteria->'activityGroupIds' @> '["retail-all"]'::jsonb
+      ORDER BY created_at DESC LIMIT 1
+    ) b ON true
+    LEFT JOIN LATERAL (
+      SELECT j.status,j.output FROM research_study_jobs j
+      WHERE j.study_id=s.id AND j.job_type='frame_snapshot'
+        AND j.output->>'frameSnapshotId'=b.id::text
+      ORDER BY j.created_at DESC LIMIT 1
+    ) bj ON true
+    WHERE s.slug=$1
+    LIMIT 1
+  `, [slug]);
+  const row = result.rows[0];
+  if (!row) return undefined;
+  const optionalNumber = (value: unknown): number | undefined =>
+    value === null || value === undefined ? undefined : numberValue(value);
+  const aPopulation = optionalNumber(row.a_population);
+  const aContacts = optionalNumber(row.a_contactable);
+  const bPopulation = optionalNumber(row.b_new_businesses);
+  const bContacts = optionalNumber(row.b_contactable);
+  return {
+    a: {
+      label: optionalText(row.a_label),
+      status: optionalText(row.a_status) ?? "not_started",
+      population: aPopulation,
+      contactable: aContacts,
+      frozenAt: optionalText(row.a_frozen_at)
+    },
+    b: {
+      label: optionalText(row.b_label),
+      status: optionalText(row.b_status) ?? "not_started",
+      jobStatus: optionalText(row.b_job_status),
+      expandedFramePopulation: optionalNumber(row.b_expanded_population),
+      processedSourceRows: optionalNumber(row.b_processed_source_rows),
+      population: bPopulation,
+      contactable: bContacts,
+      frozenAt: optionalText(row.b_frozen_at)
+    },
+    combined: {
+      population: aPopulation !== undefined && bPopulation !== undefined ? aPopulation + bPopulation : undefined,
+      contactable: aContacts !== undefined && bContacts !== undefined ? aContacts + bContacts : undefined
+    }
+  };
+}

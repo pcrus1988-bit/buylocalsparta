@@ -1581,6 +1581,55 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
   const digest = text(hashResult.rows[0]?.content_sha256);
   if (!populationSize || !digest) throw new Error("RESEARCH_FRAME_FINALIZATION_EMPTY");
 
+  // Cohort A is the original non-food frame. Cohort B consists strictly of
+  // businesses added by this wider all-retail frame. Reconcile ONCE at freeze,
+  // never during an Admin navigation request over hundreds of thousands of rows.
+  // This does not select recipients, launch fieldwork, or send invitations.
+  let cohortReconciliation: Record<string, number | string> = {};
+  if (!oldNonFoodJob) {
+    const original = await pool.query<SqlRow>(`
+      SELECT id
+      FROM research_frame_snapshots
+      WHERE study_id=$1 AND wave_id=$2 AND id<>$3
+        AND status IN ('frozen','superseded')
+        AND selection_criteria->'activityGroupIds' @> '["retail-non-food"]'::jsonb
+      ORDER BY frozen_at ASC NULLS LAST, created_at ASC
+      LIMIT 1
+    `, [job.study_id, job.wave_id, snapshotId]);
+    const originalId = text(original.rows[0]?.id);
+    if (originalId) {
+      const cohort = await pool.query<SqlRow>(`
+        SELECT
+          count(*)::int AS new_businesses,
+          count(*) FILTER (
+            WHERE EXISTS (
+              SELECT 1 FROM research_contact_points cp
+              WHERE cp.frame_unit_id=b.id AND cp.contact_type='email'
+                AND cp.suppression_status='active'
+                AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+                AND NOT EXISTS (
+                  SELECT 1 FROM research_invites ri
+                  JOIN research_contact_points prior ON prior.id=ri.contact_point_id
+                  WHERE ri.study_id=$3 AND ri.sent_at IS NOT NULL
+                    AND prior.contact_value_hash=cp.contact_value_hash
+                )
+            )
+          )::int AS contactable_businesses
+        FROM research_frame_units b
+        WHERE b.frame_snapshot_id=$1 AND b.eligibility_status='eligible'
+          AND NOT EXISTS (
+            SELECT 1 FROM research_frame_units a
+            WHERE a.frame_snapshot_id=$2 AND a.external_key_hash=b.external_key_hash
+          )
+      `, [snapshotId, originalId, job.study_id]);
+      cohortReconciliation = {
+        cohortABaseFrameSnapshotId: originalId,
+        cohortBNewBusinessCount: numberValue(cohort.rows[0]?.new_businesses),
+        cohortBContactableBusinessCount: numberValue(cohort.rows[0]?.contactable_businesses)
+      };
+    }
+  }
+
   await pool.query(`
     UPDATE research_frame_snapshots
     SET population_size=$2,
@@ -1601,6 +1650,7 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
     frameCursor: null,
     populationSize,
     activeEmailCount: finalActiveEmailCount,
+    ...cohortReconciliation,
     streamedWithEmail: finalActiveEmailCount,
     contentSha256: digest,
     classificationVersion,
