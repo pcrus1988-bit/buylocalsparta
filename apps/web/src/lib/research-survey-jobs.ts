@@ -9,7 +9,7 @@ import {
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { runGreekRetailAnalysis } from "./research-survey-analysis";
 import { proportionalStratumAllocation } from "./research-survey-statistics";
-import { allowIsolatedResearchSubmissionFailure, evaluateResearchDeliverySafety } from "./research-survey-delivery-safety";
+import { allowIsolatedResearchSubmissionFailure, evaluateResearchDeliverySafety, invalidResearchRecipientAddressReason } from "./research-survey-delivery-safety";
 import { buildGreekRetailRelease } from "./research-survey-release";
 import { greekRetailSector, greekRetailSectorV1, isRetailKad, RETAIL_ACTIVITY_GROUP_IDS, RETAIL_CLASSIFICATION_VERSION, RETAIL_SOURCE_REFERENCE } from "./research-kad-coverage";
 import {
@@ -2851,6 +2851,8 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   let postAcceptanceFailures = 0;
   let alreadySentCount = 0;
   let duplicateSkippedCount = 0;
+  let invalidRecipientSkippedCount = 0;
+  const invalidRecipientSkipReasons: Record<string, number> = {};
   const failures: Array<{ sampleUnitId: string; error: string }> = [];
   const batchStartedAt = Date.now();
   // Cap this SINGLE approved campaign at ten starts/second, leaving room for
@@ -2952,6 +2954,17 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       // is an intended protection, not an email delivery failure. Treating it
       // as failed would leave an otherwise complete batch retrying indefinitely.
       duplicateSkippedCount += 1;
+      continue;
+    }
+
+    // Reject malformed values before creating any invitation or calling SES.
+    // Never trim/split: that would change the hashed identity and potentially
+    // defeat cross-wave suppression and no-repeat protections.
+    const invalidReason = invalidResearchRecipientAddressReason(contact.contact_value);
+    if (invalidReason) {
+      invalidRecipientSkippedCount += 1;
+      invalidRecipientSkipReasons[invalidReason] =
+        (invalidRecipientSkipReasons[invalidReason] || 0) + 1;
       continue;
     }
 
@@ -3172,12 +3185,15 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     alreadySentCount,
     duplicateSkippedCount,
     failedCount,
+    invalidRecipientSkippedCount,
+    invalidRecipientSkipReasons,
     lastBatchDurationMs:Date.now()-batchStartedAt,
     lastBatchAcceptedPerSecond:Number((batchSentCount/Math.max(1,(Date.now()-batchStartedAt)/1000)).toFixed(2)),
     failures: failures.slice(0, 25),
     ...(continuous ? {campaignProcessedCount:completed?nextProcessed:campaignProcessed,
       campaignSentCount:completed?nextSent:campaignSent,deliverySafety,
       campaignSubmissionFailureCount:previousSubmissionFailures+failedCount,
+      campaignInvalidRecipientSkippedCount:numberValue(currentOutput.campaignInvalidRecipientSkippedCount)+(completed ? invalidRecipientSkippedCount : 0),
       lastAttemptFailureReason:failures[0]?.error ?? currentOutput.lastAttemptFailureReason,
       lastAttemptFailureAfterAcceptance:postAcceptanceFailures>0 ||
         currentOutput.lastAttemptFailureAfterAcceptance===true} : {})
@@ -3199,9 +3215,12 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       lastBatchSentCount:batchSentCount,
       lastBatchDuplicateSkippedCount:duplicateSkippedCount,
       lastBatchFailureCount:failedCount,
+      lastBatchInvalidRecipientSkippedCount:invalidRecipientSkippedCount,
+      lastBatchInvalidRecipientSkipReasons:invalidRecipientSkipReasons,
       lastBatchDurationMs:Date.now()-batchStartedAt,
       lastBatchAcceptedPerSecond:Number((batchSentCount/Math.max(1,(Date.now()-batchStartedAt)/1000)).toFixed(2)),
       campaignSubmissionFailureCount:previousSubmissionFailures+failedCount,
+      campaignInvalidRecipientSkippedCount:numberValue(currentOutput.campaignInvalidRecipientSkippedCount)+invalidRecipientSkippedCount,
       lastAttemptFailureReason:failures[0]?.error ?? currentOutput.lastAttemptFailureReason,
       failedCount
     };
@@ -3213,8 +3232,11 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     alreadySentCount,
     duplicateSkippedCount,
     failedCount,
+    invalidRecipientSkippedCount,
+    invalidRecipientSkipReasons,
     ...(continuous ? {campaignComplete:true,campaignProcessedCount:nextProcessed,campaignSentCount:nextSent,
       campaignSubmissionFailureCount:previousSubmissionFailures+failedCount,
+      campaignInvalidRecipientSkippedCount:numberValue(currentOutput.campaignInvalidRecipientSkippedCount)+invalidRecipientSkippedCount,
       lastAttemptFailureReason:failures[0]?.error ?? currentOutput.lastAttemptFailureReason,
       approvedMaxEmails:campaignMax,deliverySafety,safetyHold:null} : {})
   };

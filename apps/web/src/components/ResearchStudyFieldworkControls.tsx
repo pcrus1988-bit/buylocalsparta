@@ -94,7 +94,7 @@ export function ResearchStudyFieldworkControls({
   cohortBSampleStatus?: string;
   cohortBRecruitmentMode?: string;
   cohortBSampleSelected?: number;
-  campaign?: {id:string;status:string;cohort:string;paused:boolean;approvedMaxEmails:number;processedCount:number;sentCount:number;safetyHold?:string;lastError?:string;lastSubmissionError?:string;submissionFailures?:number;lastBatchFailures?:number;recoveryReviewed?:boolean;classifiedDeliveryCount:number;completedReviewMilestone:number|null;nextReviewMilestone:number};
+  campaign?: {id:string;status:string;cohort:string;paused:boolean;approvedMaxEmails:number;processedCount:number;sentCount:number;safetyHold?:string;lastError?:string;lastSubmissionError?:string;submissionFailures?:number;lastBatchFailures?:number;invalidRecipientSkippedCount?:number;recoveryReviewed?:boolean;classifiedDeliveryCount:number;completedReviewMilestone:number|null;nextReviewMilestone:number};
   queuedSampleJobs: number;
   runningSampleJobs: number;
   recruitmentTemplateVersion?: string;
@@ -549,6 +549,10 @@ export function ResearchStudyFieldworkControls({
       </p>
       {campaign.lastError && <p className="workspace-inline-note form-error">
         Τελευταίο σφάλμα εργασίας: {campaign.lastError}
+      </p>}
+      {(campaign.invalidRecipientSkippedCount ?? 0) > 0 && <p className="workspace-inline-note">
+        Μη έγκυρες διευθύνσεις που παραλείφθηκαν πριν το SES: <strong>{(campaign.invalidRecipientSkippedCount ?? 0).toLocaleString("el-GR")}</strong>.
+        Δεν στάλθηκε μήνυμα ούτε έγινε αυτόματη διόρθωση στις διευθύνσεις αυτές.
       </p>}
       {campaign.lastSubmissionError && <p className="workspace-inline-note">
         Αιτία τελευταίας αποτυχημένης προσπάθειας SES: <strong>{campaign.lastSubmissionError}</strong>.

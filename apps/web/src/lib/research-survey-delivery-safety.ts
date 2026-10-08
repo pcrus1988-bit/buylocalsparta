@@ -85,3 +85,41 @@ export function allowIsolatedResearchSubmissionFailure(input: Readonly<{
   const previous = Math.max(0, Math.floor(input.previousFailures));
   return previous + 1 <= Math.max(1, Math.ceil(processed * 0.01));
 }
+
+/**
+ * SES invitation endpoints receive exactly one mailbox, not a contact-list
+ * field. Reject malformed/ambiguous source values before creating an invite
+ * or calling SES. Do not silently trim, split, or "repair" the recipient:
+ * changing the address here would invalidate its original contact hash and
+ * the inbox-level no-repeat/suppression guarantees.
+ *
+ * This intentionally supports the safe ASCII dot-atom mailbox subset only.
+ * Quoted addresses and non-ASCII local parts require a separate verified
+ * canonicalization process; they are never guessed here.
+ */
+export function invalidResearchRecipientAddressReason(value: unknown):
+  | "missing_or_too_long" | "whitespace_control_or_non_ascii"
+  | "multiple_or_formatted_addresses" | "invalid_local_part"
+  | "invalid_domain" | null {
+  if (typeof value !== "string" || value.length < 6 || value.length > 254) {
+    return "missing_or_too_long";
+  }
+  if (/[^\x21-\x7e]/.test(value)) return "whitespace_control_or_non_ascii";
+  if (/[;,:()<>\[\]\\"]/.test(value)) return "multiple_or_formatted_addresses";
+  const at = value.indexOf("@");
+  if (at <= 0 || at !== value.lastIndexOf("@")) return "invalid_local_part";
+  const local = value.slice(0, at);
+  const domain = value.slice(at + 1);
+  if (local.length > 64 ||
+      !/^[A-Za-z0-9!#$%&'*+/=?^_`{|}~.-]+$/.test(local) ||
+      local.startsWith(".") || local.endsWith(".") || local.includes("..")) {
+    return "invalid_local_part";
+  }
+  const labels = domain.split(".");
+  if (domain.length > 253 || labels.length < 2 ||
+      labels.some(label => !label || label.length > 63 ||
+        !/^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(label))) {
+    return "invalid_domain";
+  }
+  return null;
+}

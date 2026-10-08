@@ -524,6 +524,13 @@ if (!jobs.includes("const minSendIntervalMs = continuous ? 100 : 0") ||
     !jobs.includes("research_contact_is_suppressed")) {
   errors.push("fast SES path must maintain 10/sec pacing, 10-inflight backpressure and no-repeat/suppression guards");
 }
+if (!jobs.includes("invalidResearchRecipientAddressReason(contact.contact_value)") ||
+    !jobs.includes("campaignInvalidRecipientSkippedCount") ||
+    !jobs.includes("invalidRecipientSkipReasons") ||
+    !surveyRuntime.includes("campaign_invalid_recipient_skips") ||
+    !fieldworkControls.includes("Μη έγκυρες διευθύνσεις που παραλείφθηκαν πριν το SES")) {
+  errors.push("research sender must validate mailbox syntax before SES and separately report skip counts");
+}
 if (!jobs.includes("allowIsolatedResearchSubmissionFailure") ||
     !jobs.includes("postAcceptanceFailures") ||
     !jobs.includes("campaignSubmissionFailureCount") ||

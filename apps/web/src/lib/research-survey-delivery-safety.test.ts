@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { allowIsolatedResearchSubmissionFailure, evaluateResearchDeliverySafety, graduatedResearchStopRate, researchDeliveryReviewMilestones } from "./research-survey-delivery-safety.ts";
+import { allowIsolatedResearchSubmissionFailure, evaluateResearchDeliverySafety, graduatedResearchStopRate, invalidResearchRecipientAddressReason, researchDeliveryReviewMilestones } from "./research-survey-delivery-safety.ts";
 
 test("early campaign stop thresholds graduate with independently observed outcomes", () => {
   assert.equal(graduatedResearchStopRate(0), null);
@@ -112,4 +112,30 @@ test("one isolated SES submission rejection is audited but does not strand the a
     continuous:true,batchFailures:1,postAcceptanceFailures:0,
     previousFailures:1,processedAfterBatch:50
   }),false);
+});
+
+test("single research mailbox validation rejects control, whitespace and semicolon-separated source values", () => {
+  const ok = [
+    "hello@example.gr",
+    "research+cohort-a@kontamou.site",
+    "x_y.z@sub.example.com",
+    "a!b@example.org"
+  ];
+  for (const address of ok) assert.equal(invalidResearchRecipientAddressReason(address), null, address);
+  const bad = [
+    "", "unknown", "test@sample", "hello @example.gr",
+    "foo@exa mple.gr", "foo@site.gr;bar@site.gr",
+    "foo@site.gr,bar@site.gr", "Foo Name <foo@site.gr>",
+    "foo\t@site.gr", "foo\n@site.gr", "foo\r@site.gr",
+    "foo..bar@example.gr", ".foo@example.gr", "foo.@example.gr",
+    "foo@@example.gr", "foo@-example.gr",
+    "foo@example..gr", "foo@exämple.gr", "δοκιμή@example.gr",
+    "foo@example.gr ", " foo@example.gr",
+    "foo@example.gr\u0000"
+  ];
+  for (const address of bad) {
+    assert.notEqual(invalidResearchRecipientAddressReason(address), null, JSON.stringify(address));
+  }
+  assert.equal(invalidResearchRecipientAddressReason("foo@site.gr;bar@site.gr"), "multiple_or_formatted_addresses");
+  assert.equal(invalidResearchRecipientAddressReason("foo\t@site.gr"), "whitespace_control_or_non_ascii");
 });
