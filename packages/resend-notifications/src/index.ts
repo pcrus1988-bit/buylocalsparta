@@ -105,7 +105,6 @@ export function renderKontaMoyEmail(input: KontaMoyEmailInput, config: { publicB
 export function signedKontaMoyText(input: KontaMoyEmailInput, config: { publicBaseUrl?: string } = {}): string {
   const publicBaseUrl=(config.publicBaseUrl?.trim()||"https://kontamou.site").replace(/\/$/,"");
   const body=stripShortSignature(input.text);
-  const subject=canonicalKontaMoyBranding(input.subject);
   const cta=resolveCta(input,publicBaseUrl);
   const customerThanks=recipientKind(input.eventType)==="customer"?`\n\n${CUSTOMER_LOCAL_SUPPORT_LINE}`:"";
   const ctaLine=body.includes(cta.url)?"":`\n\n${cta.label}: ${cta.url}`;
@@ -198,7 +197,7 @@ export function resendConfigFromEnv(env:NodeJS.ProcessEnv=process.env):ResendCon
   const configuredFrom=env.RESEND_FROM?.trim()||`notifications@${domain}`;
   const configuredAddressMatch=configuredFrom.match(/<([^<>]+)>\s*$/);
   const configuredAddress=(configuredAddressMatch?.[1]??configuredFrom).trim();
-  const from=`ΚΟΝΤΑ ΜΟΥ <${configuredAddress}>`;
+  const from=`KONTA MOY <${configuredAddress}>`;
   const replyTo=env.RESEND_REPLY_TO?.trim()||`reply@${domain}`;
   return{apiKey,from,replyTo,baseUrl:env.RESEND_BASE_URL?.trim()||"https://api.resend.com",timeoutMs:positive(env.RESEND_TIMEOUT_MS,8_000,"RESEND_TIMEOUT_MS"),webhookSecret:env.RESEND_WEBHOOK_SECRET?.trim()||undefined};
 }
