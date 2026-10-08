@@ -16,24 +16,12 @@ export function generateMetadata(): Promise<Metadata> {
   });
 }
 
-const studyStatusLabels: Record<string, string> = {
-  draft: "Σχεδιασμός",
-  pilot: "Πιλοτική φάση",
-  fielding: "Κύρια έρευνα σε εξέλιξη",
-  closed: "Η συλλογή ολοκληρώθηκε",
-  analysis: "Ανάλυση",
-  published: "Δημοσιευμένη",
-  archived: "Αρχείο"
-};
-
 export default async function GreekRetailResearchPage() {
   const study = await publicResearchStudy("greek-retail-2026");
   if (study) return <>
     <ResearchStudyDashboard study={study} compactIntro />
     <SiteFooter />
   </>;
-  const status = study ? (studyStatusLabels[study.status] ?? "Ενημέρωση σε εξέλιξη") : "Ενημέρωση σε εξέλιξη";
-  const isLive = study?.status === "fielding";
 
   return <>
     <main className={styles.shell}>
@@ -44,10 +32,7 @@ export default async function GreekRetailResearchPage() {
           <h1>Ελληνικό Λιανεμπόριο 2026</h1>
           <p>Η πραγματικότητα της μικρής και μεσαίας εμπορικής επιχείρησης στην ψηφιακή εποχή</p>
           <div className={styles.heroBadges}>
-            <span className={[styles.badge, isLive ? styles.badgeLive : styles.badgeWarm].join(" ")}>
-              {isLive && <span className={styles.dot} aria-hidden="true" />}
-              {status}
-            </span>
+            <span className={[styles.badge, styles.badgeWarm].join(" ")}>Ενημέρωση σε εξέλιξη</span>
           </div>
         </div>
       </header>
