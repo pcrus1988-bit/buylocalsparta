@@ -17,7 +17,7 @@ export function isoToAthensDeadlineInput(iso?: string): string {
 
 /** Reject DST gaps and ambiguous repeated clock times instead of silently shifting deadlines. */
 export function athensDeadlineInputToIso(input: string): string {
-  const match = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})$/.exec(input);
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(input);
   if (!match) throw new Error("RESEARCH_ATHENS_DEADLINE_INVALID");
   const [year, month, day, hour, minute] = match.slice(1).map(Number);
   if (year < 2000 || year > 2100 || month < 1 || month > 12 ||
