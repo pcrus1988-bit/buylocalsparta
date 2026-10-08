@@ -9,6 +9,7 @@ import {
   queueGreekRetailRewardDelivery,
   queueGreekRetailSampleDraw,
   saveGreekRetailRecruitmentTemplate,
+  setGreekRetailInvitationCampaignPause,
   suppressGreekRetailResearchEmail
 } from "../../../../../../../lib/research-survey-jobs";
 import { queueGreekRetailRelease } from "../../../../../../../lib/research-survey-release";
@@ -140,6 +141,14 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         { ...result, emailHashRecorded: true }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (body.action === "pause_invite_campaign" || body.action === "resume_invite_campaign") {
+      const paused = body.action === "pause_invite_campaign";
+      const result = await setGreekRetailInvitationCampaignPause(principal,paused);
+      await recordAdminAudit(principal,"research.invite_campaign.state", "research_study",slug,
+        paused ? "Pause continuous invitation campaign" : "Resume same previously authorized invitation campaign",result);
+      return Response.json(result,{headers:{"Cache-Control":"no-store"}});
     }
 
     if (body.action === "send_invites") {
