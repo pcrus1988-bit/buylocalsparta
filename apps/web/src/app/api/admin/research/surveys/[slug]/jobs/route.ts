@@ -127,6 +127,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     if (body.action === "send_invites") {
       const result = await queueGreekRetailInviteBatch(principal, {
         limit: Number(body.limit || 100),
+        cohort: body.cohort,
         label: body.label,
         emailApproval: body.emailApproval
       });
@@ -136,7 +137,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         "research_study",
         slug,
         "Queue governed SES research invitation batch",
-        { ...result, limit: Number(body.limit || 100) }
+        { ...result, limit: Number(body.limit || 100), cohort: body.cohort ?? null }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
