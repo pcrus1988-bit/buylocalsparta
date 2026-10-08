@@ -378,11 +378,10 @@ for (const file of walk(appDir)) {
     // Real Next.js dynamic pages are valid targets for concrete href values.
     // Validate the entire route path, not an arbitrary prefix.
     const regexPattern = "/" + rel.split("/").map((segment) =>
-      segment.startsWith("[...") ? ".+" :
       segment.startsWith("[[...") ? ".*" :
+      segment.startsWith("[...") ? ".+" :
       segment.startsWith("[") && segment.endsWith("]") ? "[^/]+" :
-      segment.replace(/[.*+?^$|()\\[\\]{}]/g, "\\\\  if (!rel || rel.includes("[")) continue;
-  routes.add(`/${rel}`);")
+      segment.replaceAll(".", "\\.")
     ).join("/");
     parameterizedPagePatterns.push(new RegExp("^" + regexPattern + "$"));
     continue;
