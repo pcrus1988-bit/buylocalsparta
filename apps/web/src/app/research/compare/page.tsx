@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { ResearchExternalAnalysis } from "../../../components/ResearchExternalAnalysis";
+import { ResearchComparisonPresets } from "../../../components/ResearchComparisonPresets";
 import { ResearchSpendingDrivers } from "../../../components/ResearchSpendingDrivers";
 import { EXTERNAL_GROUPS, EXTERNAL_STUDIES } from "../../../lib/research-external-analysis";
 import styles from "../../../components/ResearchObservatory.module.css";
@@ -129,32 +130,7 @@ export default async function ResearchComparePage({
           </aside>
         </header>
 
-        <section className={styles.section}>
-          <div className={styles.sectionHead}>
-            <div>
-              <div className={styles.eyebrow}>Ξεκινήστε από ένα ερώτημα</div>
-              <h2>Τι θέλετε να εξετάσετε;</h2>
-            </div>
-            <p>Επιλέξτε ένα θέμα ή χρησιμοποιήστε τις επιλογές του εργαστηρίου για τη δική σας ανάλυση.</p>
-          </div>
-          <div className={styles.quickGrid}>
-            <Link className={styles.quickLink} href="/research/compare?indicator=household-spending-history#research-workbench-title">
-              <span className={styles.eyebrow}>Νοικοκυριά</span>
-              <strong>Πώς εξελίσσεται η δαπάνη;</strong>
-              <span>Ιστορική πορεία 2019–2025 σε τρέχοντα ευρώ, με τις απαραίτητες επισημάνσεις.</span>
-            </Link>
-            <Link className={styles.quickLink} href="/research/compare?indicator=retail-monthly#research-workbench-title">
-              <span className={styles.eyebrow}>Λιανικό εμπόριο</span>
-              <strong>2025 απέναντι στο 2026</strong>
-              <span>Επικάλυψη ίδιων μηνών στις επιχειρηματικές προσδοκίες.</span>
-            </Link>
-            <Link className={styles.quickLink} href="/research/compare?indicator=annual-esi#research-workbench-title">
-              <span className={styles.eyebrow}>Ελλάδα και Ευρώπη</span>
-              <strong>Πώς αλλάζει το οικονομικό κλίμα;</strong>
-              <span>Παράλληλη προβολή εθνικών και ευρωπαϊκών δεικτών.</span>
-            </Link>
-          </div>
-        </section>
+        <ResearchComparisonPresets activeIndicator={selectedGroup.id} />
 
         <ResearchExternalAnalysis key={selectedGroup.id} initialGroupId={selectedGroup.id} />
         <ResearchSpendingDrivers />
