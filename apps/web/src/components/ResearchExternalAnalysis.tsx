@@ -51,11 +51,11 @@ function importRows(text: string): ParsedCsv {
     units.add(unit);sourceCount++;
     const current=grouped.get(series)??[];
     if(current.some(p=>p.period===period && p.year===year))throw Error("Διπλή τιμή για ίδια σειρά και περίοδο.");
-    current.push({year,period,value});grouped.set(series,current);
+    current.push({year,period:period===String(year)?period:year+"-"+period,value,source});grouped.set(series,current);
   }
   if(units.size!==1)throw Error("Για ένα γράφημα χρειάζεται κοινή μονάδα. Χωρίστε διαφορετικές μονάδες σε διαφορετικά αρχεία.");
   if(grouped.size>6)throw Error("Επιτρέπονται έως έξι σειρές ανά γράφημα.");
-  return {lines:[...grouped].map(([label,points],i)=>({id:"import-"+i,label,points:points.sort((a,b)=>a.year-b.year||a.period.localeCompare(b.period))})),unit:[...units][0] as ParsedCsv["unit"],message:"Φορτώθηκαν "+sourceCount+" ιδιωτικές εγγραφές. Οι πηγές δεν έχουν επαληθευτεί."};
+  return {lines:[...grouped].map(([label,points],i)=>({id:"import-"+i,label,points:points.sort((a,b)=>a.year-b.year||a.period.localeCompare(b.period,undefined,{numeric:true}))})),unit:[...units][0] as ParsedCsv["unit"],message:"Φορτώθηκαν "+sourceCount+" ιδιωτικές εγγραφές. Οι πηγές δεν έχουν επαληθευτεί."};
 }
 
 function format(value:number,unit:ExternalGroup["unit"]):string{
@@ -65,9 +65,9 @@ function xLabel(key:string,monthly:boolean):string{
   return monthly?MONTHS[Number(key)-1]??key:key;
 }
 function Plot({lines,monthly,unit,type,indexed}: {lines:ChartLine[];monthly:boolean;unit:ExternalGroup["unit"];type:"line"|"bar";indexed:boolean}){
-  const keys=[...new Set(lines.flatMap(x=>x.points.map(p=>p.period)))].sort((a,b)=>Number(a)-Number(b));
+  const keys=[...new Set(lines.flatMap(x=>x.points.map(p=>p.period)))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   const comparable=lines.map(line=>{
-    const first=line.points.slice().sort((a,b)=>Number(a.period)-Number(b.period))[0]?.value;
+    const first=line.points.slice().sort((a,b)=>a.period.localeCompare(b.period,undefined,{numeric:true}))[0]?.value;
     return {...line,points:line.points.map(p=>({...p,value:indexed&&first&&first>0?100*p.value/first:p.value}))};
   });
   const values=comparable.flatMap(line=>line.points.map(p=>p.value));
@@ -141,7 +141,7 @@ export function ResearchExternalAnalysis(){
   function exportData(){
     const text=uploaded
       ? [ ["indicator","series","year","period","value","unit","source"].map(externalCsvCell).join(","),
-          ...selectedLines.flatMap(line=>line.points.map(p=>["Ιδιωτική εισαγωγή",line.label,p.year,p.period,p.value,activeUnit,"μη επαληθευμένο"].map(externalCsvCell).join(",")))].join("\r\n")+"\r\n"
+          ...selectedLines.flatMap(line=>line.points.map(p=>["Ιδιωτική εισαγωγή",line.label,p.year,p.period,p.value,activeUnit,p.source??"μη επαληθευμένο"].map(externalCsvCell).join(",")))].join("\r\n")+"\r\n"
       : externalCsv(group,chosen,from,until);
     const blob=new Blob(["\uFEFF",text],{type:"text/csv;charset=utf-8"});
     const href=URL.createObjectURL(blob);
