@@ -2410,8 +2410,10 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       plan.status AS analysis_plan_status,
       COALESCE(frames.frame_count, 0)::int AS frame_count,
       COALESCE(frame.population_size, 0)::int AS frame_population,
+      frame.status AS frame_status,
       COALESCE(draws.draw_count, 0)::int AS sample_draw_count,
       COALESCE(draw.sample_units, 0)::int AS sample_units,
+      draw.sample_status, draw.sample_phase,
       COALESCE(batches.batch_count, 0)::int AS invite_batches,
       COALESCE(invites.invite_count, 0)::int AS invites,
       COALESCE(invites.sent_count, 0)::int AS sent,
@@ -2432,7 +2434,7 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       WHERE study_id=s.id
     ) frames ON true
     LEFT JOIN LATERAL (
-      SELECT id, population_size FROM research_frame_snapshots
+      SELECT id, population_size, status FROM research_frame_snapshots
       WHERE study_id=s.id ORDER BY created_at DESC LIMIT 1
     ) frame ON true
     LEFT JOIN LATERAL (
@@ -2441,6 +2443,7 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
     ) draws ON true
     LEFT JOIN LATERAL (
       SELECT
+        d.status AS sample_status, d.fieldwork_phase AS sample_phase,
         (SELECT count(*)::int FROM research_sample_units u WHERE u.sample_draw_id=d.id) AS sample_units
       FROM research_sample_draws d
       WHERE d.study_id=s.id
@@ -2489,8 +2492,11 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       analysisPlanStatus: optionalText(row.analysis_plan_status),
       frameCount: numberValue(row.frame_count),
       framePopulation: numberValue(row.frame_population),
+      frameStatus: optionalText(row.frame_status),
       sampleDrawCount: numberValue(row.sample_draw_count),
       sampleUnits: numberValue(row.sample_units),
+      sampleStatus: optionalText(row.sample_status),
+      samplePhase: optionalText(row.sample_phase),
       inviteBatches: numberValue(row.invite_batches),
       invites: numberValue(row.invites),
       sent: numberValue(row.sent),
