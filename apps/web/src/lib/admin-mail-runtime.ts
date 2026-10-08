@@ -7,7 +7,7 @@ import { sendRawSesEmail, sesMailConfigFromEnv, type SesMailConfig } from "./adm
 
 const REQUIRED_REGION = "eu-north-1";
 const DEFAULT_BUCKET = "kontamou-inbound-emails";
-const DEFAULT_FROM = ["partners@kontamou.site", "info@kontamou.site"] as const;
+const DEFAULT_FROM = ["partners@kontamou.site", "info@kontamou.site", "research@kontamou.site"] as const;
 const MAX_RAW_BYTES = 30 * 1024 * 1024;
 const MAX_SYNC_PAGES_PER_RUN = 25;
 const MAX_SYNC_NEW = 40;
@@ -65,6 +65,7 @@ export type AdminMailWorkspace = Readonly<{
   configured: boolean;
   configurationMessage: string;
   fromAddresses: readonly string[];
+  mailbox: string;
   folder: MailFolder;
   query: string;
   filters: Readonly<{
@@ -232,6 +233,7 @@ export async function adminMailWorkspace(
   principal: SessionPrincipal,
   input: {
     folder?: string;
+    mailbox?: string;
     q?: string;
     selectedId?: string;
     read?: string;
@@ -244,6 +246,7 @@ export async function adminMailWorkspace(
   } = {}
 ): Promise<AdminMailWorkspace> {
   const configuration = adminMailConfiguration();
+  const mailbox = normalizeMailbox(input.mailbox, configuration.fromAddresses);
   const folder = normalizeFolder(input.folder);
   const query = (input.q || "").trim().slice(0, 200);
   const filters = {
@@ -260,6 +263,7 @@ export async function adminMailWorkspace(
       configured: false,
       configurationMessage: configuration.message,
       fromAddresses: configuration.fromAddresses,
+      mailbox,
       folder,
       query,
       filters,
@@ -272,9 +276,8 @@ export async function adminMailWorkspace(
   }
 
   const pool = getProductionPostgresRuntime().sqlPool;
-  if (input.selectedId && /^mail_[a-f0-9]{32}$/i.test(input.selectedId)) {
-    await markAdminMailRead(principal, input.selectedId, true);
-  }
+  const mailboxPredicate = mailbox === "all" ? "" : adminMailMailboxPredicate(2);
+  const mailboxParams: unknown[] = mailbox === "all" ? [principal.userId] : [principal.userId, mailbox];
   const metricsResult = await pool.query<SqlRow>(`
     SELECT
       count(*) FILTER (WHERE m.direction='incoming' AND s.archived_at IS NULL AND s.deleted_at IS NULL)::int AS inbox,
@@ -287,11 +290,12 @@ export async function adminMailWorkspace(
       max(m.received_at) FILTER (WHERE m.direction='incoming') AS last_inbound_at
     FROM admin_mail_messages m
     LEFT JOIN admin_mail_state s ON s.message_id=m.id AND s.user_public_id=$1
-  `, [principal.userId]);
+    ${mailboxPredicate ? `WHERE ${mailboxPredicate}` : ""}
+  `, mailboxParams);
   const metric = metricsResult.rows[0] || {};
 
-  const params: unknown[] = [principal.userId];
-  const where: string[] = [];
+  const params: unknown[] = [...mailboxParams];
+  const where: string[] = mailboxPredicate ? [mailboxPredicate] : [];
   if (folder === "inbox") {
     where.push("m.direction='incoming'", "s.archived_at IS NULL", "s.deleted_at IS NULL");
   } else if (folder === "sent") where.push("m.direction='outgoing'", "s.deleted_at IS NULL");
@@ -353,13 +357,11 @@ export async function adminMailWorkspace(
   const selectedId = input.selectedId && messages.some((message) => message.id === input.selectedId)
     ? input.selectedId
     : messages[0]?.id;
-  const autoSelected = !input.selectedId && selectedId
-    ? messages.find((message) => message.id === selectedId)
-    : undefined;
-  const autoSelectedUnread = Boolean(autoSelected && !autoSelected.isRead);
-  if (autoSelected && !autoSelected.isRead) {
-    await markAdminMailRead(principal, autoSelected.id, true);
-    messages = messages.map((message) => message.id === autoSelected.id ? { ...message, isRead: true } : message);
+  const selectedSummary = messages.find((message) => message.id === selectedId);
+  const selectedUnread = Boolean(selectedSummary && selectedSummary.direction === "incoming" && !selectedSummary.isRead);
+  if (selectedSummary && selectedUnread) {
+    await markAdminMailRead(principal, selectedSummary.id, true);
+    messages = messages.map((message) => message.id === selectedSummary.id ? { ...message, isRead: true } : message);
   }
   let thread: readonly AdminMailThreadMessage[] = [];
   if (selectedId) {
@@ -374,9 +376,10 @@ export async function adminMailWorkspace(
         FROM admin_mail_messages m
         LEFT JOIN admin_mail_state s ON s.message_id=m.id AND s.user_public_id=$1
         WHERE m.thread_key=$2
+        ${mailbox === "all" ? "" : `AND ${adminMailMailboxPredicate(3)}`}
         ORDER BY COALESCE(m.received_at,m.sent_at,m.created_at) ASC
         LIMIT 100
-      `, [principal.userId, threadKey]);
+      `, mailbox === "all" ? [principal.userId, threadKey] : [principal.userId, threadKey, mailbox]);
       thread = rows.rows.map(projectThread);
     }
   }
@@ -385,6 +388,7 @@ export async function adminMailWorkspace(
     configured: true,
     configurationMessage: configuration.message,
     fromAddresses: configuration.fromAddresses,
+    mailbox,
     folder,
     query,
     filters,
@@ -401,7 +405,7 @@ export async function adminMailWorkspace(
     },
     metrics: {
       inbox: Number(metric.inbox || 0),
-      unread: Math.max(0, Number(metric.unread || 0) - (autoSelectedUnread && autoSelected?.direction === "incoming" && !autoSelected.archived ? 1 : 0)),
+      unread: Math.max(0, Number(metric.unread || 0) - (selectedUnread && !selectedSummary?.archived && !selectedSummary?.deleted ? 1 : 0)),
       sent: Number(metric.sent || 0),
       starred: Number(metric.starred || 0),
       archived: Number(metric.archived || 0),
@@ -630,7 +634,7 @@ function resolveMailConfig(env: NodeJS.ProcessEnv = process.env): MailConfig {
   if (!bucket) throw new Error("Admin Mail inbound S3 bucket is missing");
   const explicitFromAddresses = env.BLS_MAIL_FROM_ADDRESSES || env.KONTAMOU_MAIL_FROM_ADDRESSES;
   const sourceList = explicitFromAddresses
-    ? explicitFromAddresses.split(",")
+    ? [...explicitFromAddresses.split(","), "research@kontamou.site"]
     : [env.BLS_MAIL_FROM || "", ...DEFAULT_FROM];
   const fromAddresses = [...new Set(sourceList.map((value) => value.trim()).filter(Boolean).map((value) => normalizeEmail(value)))];
   if (!fromAddresses.length) throw new Error("Admin Mail requires at least one From address");
@@ -848,6 +852,27 @@ function normalizeEmail(value: string): string {
   return email;
 }
 
+/** Mailbox addresses are validated against configured sender identities before querying. */
+function normalizeMailbox(value: string | undefined, allowedAddresses: readonly string[]): string {
+  const address = (value || "").trim().toLowerCase();
+  return allowedAddresses.includes(address) ? address : "all";
+}
+
+/** Matches an outbound sender or any inbound To, Cc or Bcc recipient, including display-name formats. */
+function adminMailMailboxPredicate(parameterNumber: number): string {
+  const address = `$${parameterNumber}`;
+  return `(
+    (m.direction = 'outgoing' AND (lower(trim(m.from_address)) = ${address} OR lower(trim(m.from_address)) LIKE '%<' || ${address} || '>'))
+    OR
+    (m.direction = 'incoming' AND EXISTS (
+      SELECT 1 FROM unnest(
+        COALESCE(m.to_addresses, ARRAY[]::text[]) || COALESCE(m.cc_addresses, ARRAY[]::text[]) || COALESCE(m.bcc_addresses, ARRAY[]::text[])
+      ) AS recipient(email)
+      WHERE lower(trim(recipient.email)) = ${address}
+         OR lower(trim(recipient.email)) LIKE '%<' || ${address} || '>'
+    ))
+  )`.replace(/\s+/g, " ");
+}
 function normalizeFolder(value?: string): MailFolder {
   return value === "sent" || value === "starred" || value === "archive" || value === "trash" || value === "all" ? value : "inbox";
 }

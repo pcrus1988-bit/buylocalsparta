@@ -46,6 +46,7 @@ function one(value: string | string[] | undefined): string {
 }
 
 type MailView = Readonly<{
+  mailbox: string;
   q: string;
   read: AdminMailWorkspace["filters"]["read"];
   direction: AdminMailWorkspace["filters"]["direction"];
@@ -57,6 +58,7 @@ type MailView = Readonly<{
 }>;
 
 function appendViewParams(params: URLSearchParams, view: MailView): void {
+  if (view.mailbox !== "all") params.set("mailbox", view.mailbox);
   if (view.q) params.set("q", view.q);
   if (view.read !== "all") params.set("read", view.read);
   if (view.direction !== "all") params.set("direction", view.direction);
@@ -70,6 +72,12 @@ function appendViewParams(params: URLSearchParams, view: MailView): void {
 function folderHref(folder: string, view: MailView): string {
   const params = new URLSearchParams({ folder });
   appendViewParams(params, { ...view, page: 1 });
+  return `/admin/mail?${params.toString()}`;
+}
+
+function mailboxHref(mailbox: string, view: MailView): string {
+  const params = new URLSearchParams({ folder: "inbox" });
+  appendViewParams(params, { ...view, mailbox, page: 1, q: "" });
   return `/admin/mail?${params.toString()}`;
 }
 
@@ -101,6 +109,7 @@ function composeHref(folder: string, messageId: string | undefined, mode: "compo
 function emptyWorkspace(
   configurationMessage: string,
   fromAddresses: readonly string[],
+  mailbox: string,
   folder: AdminMailWorkspace["folder"],
   q: string,
   filters: AdminMailWorkspace["filters"],
@@ -110,6 +119,7 @@ function emptyWorkspace(
     configured: false,
     configurationMessage,
     fromAddresses,
+    mailbox,
     folder,
     query: q,
     filters,
@@ -118,6 +128,19 @@ function emptyWorkspace(
     pagination: { page: 1, pageSize, total: 0, totalPages: 1, from: 0, to: 0 },
     metrics: { inbox: 0, unread: 0, sent: 0, starred: 0, archived: 0, trash: 0, all: 0 }
   };
+}
+
+function composeFromAddress(message: AdminMailThreadMessage | undefined, addresses: readonly string[], mailbox: string): string {
+  if (mailbox !== "all" && addresses.includes(mailbox)) return mailbox;
+  if (message) {
+    const candidates = message.direction === "incoming" ? [...message.to, ...message.cc] : [message.from];
+    const matched = addresses.find((address) => candidates.some((value) => {
+      const normalized = value.trim().toLowerCase();
+      return normalized === address || normalized.endsWith(`<${address}>`);
+    }));
+    if (matched) return matched;
+  }
+  return addresses[0] || "";
 }
 
 function replyRecipient(message: AdminMailThreadMessage | undefined): string {
@@ -170,6 +193,8 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
     sort: ["oldest", "sender", "subject"].includes(one(params.sort)) ? one(params.sort) as "oldest" | "sender" | "subject" : "newest"
   };
   const configuration = adminMailConfiguration();
+  const requestedMailbox = one(params.mailbox).trim().toLowerCase();
+  const mailbox = configuration.fromAddresses.includes(requestedMailbox) ? requestedMailbox : "all";
   let syncNotice = "";
   if (configuration.configured) {
     try {
@@ -186,10 +211,11 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
   let workspace: AdminMailWorkspace;
   try {
     workspace = configuration.configured
-      ? await adminMailWorkspace(principal, { folder, q: query, selectedId, page: requestedPage, pageSize: requestedPageSize, ...requestedFilters })
+      ? await adminMailWorkspace(principal, { folder, mailbox, q: query, selectedId, page: requestedPage, pageSize: requestedPageSize, ...requestedFilters })
       : emptyWorkspace(
           configuration.message,
           configuration.fromAddresses,
+          mailbox,
           folder === "sent" || folder === "starred" || folder === "archive" || folder === "trash" || folder === "all" ? folder : "inbox",
           query,
           requestedFilters,
@@ -199,6 +225,7 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
     workspace = emptyWorkspace(
       error instanceof Error ? `Mailbox data is not ready: ${error.message}` : "Mailbox data is not ready.",
       configuration.fromAddresses,
+      mailbox,
       folder === "sent" || folder === "starred" || folder === "archive" || folder === "trash" || folder === "all" ? folder : "inbox",
       query,
       requestedFilters,
@@ -217,12 +244,14 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
   const error = one(params.error);
   const sent = one(params.sent) === "1";
   const view: MailView = {
+    mailbox: workspace.mailbox,
     q: workspace.query,
     ...workspace.filters,
     page: workspace.pagination.page,
     pageSize: workspace.pagination.pageSize
   };
   const clearView: MailView = {
+    mailbox: workspace.mailbox,
     q: "",
     read: "all",
     direction: "all",
@@ -276,6 +305,7 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
     <section className="shell admin-mail-commandbar" aria-label="Mail search and filters">
       <form className="admin-mail-filter-form" action="/admin/mail" method="get">
         <input type="hidden" name="folder" value={workspace.folder} />
+        <input type="hidden" name="mailbox" value={workspace.mailbox} />
         <input type="hidden" name="pageSize" value={workspace.pagination.pageSize} />
         <div className="admin-mail-filter-search">
           <label>
@@ -309,23 +339,34 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
     <section className="shell admin-mail-shell" aria-label="Admin mailbox">
       <aside className="admin-mail-folders" aria-label="Mail folders">
         <Link className="admin-mail-compose-button" href={composeHref(workspace.folder, workspace.selectedId, "compose", view)}>＋ Compose</Link>
-        <nav>
+        <div className="admin-mail-mailbox-heading">Email accounts</div>
+        <nav className="admin-mail-mailboxes" aria-label="Choose email account">
+          <Link href={mailboxHref("all", view)} className={workspace.mailbox === "all" ? "is-active" : ""} aria-current={workspace.mailbox === "all" ? "page" : undefined}>
+            <span className="admin-mail-account-label">All mailboxes</span>
+          </Link>
+          {workspace.fromAddresses.map((address) => <Link
+            key={address}
+            href={mailboxHref(address, view)}
+            className={workspace.mailbox === address ? "is-active" : ""}
+            aria-current={workspace.mailbox === address ? "page" : undefined}
+          ><span className="admin-mail-account-label">{address}</span></Link>)}
+        </nav>
+        <div className="admin-mail-folder-note">
+          <strong>Folders · {workspace.mailbox === "all" ? "All mailboxes" : workspace.mailbox}</strong>
+        </div>
+        <nav aria-label="Mailbox folders">
           {folders.map((item) => <Link key={item.id} className={workspace.folder === item.id ? "is-active" : ""} href={folderHref(item.id, view)}>
             <span className="admin-mail-folder-label"><i aria-hidden="true">{item.icon}</i><span>{item.label}{item.secondary ? <small>{item.secondary}</small> : null}</span></span>
             <strong>{item.value}</strong>
           </Link>)}
         </nav>
-        <div className="admin-mail-folder-note">
-          <strong>Mailboxes</strong>
-          {workspace.fromAddresses.map((address) => <span key={address}>{address}</span>)}
-        </div>
       </aside>
 
       <div className="admin-mail-list-pane">
         <div className="admin-mail-list-head">
           <div className="admin-mail-list-summary">
             <strong>{workspace.pagination.from}–{workspace.pagination.to} of {workspace.pagination.total}</strong>
-            <span>{workspace.folder === "inbox" ? "Inbox" : workspace.folder === "sent" ? "Sent" : workspace.folder === "starred" ? "Starred" : workspace.folder === "archive" ? "Archive" : workspace.folder === "trash" ? "Trash" : "All mail"}</span>
+            <span>{workspace.mailbox === "all" ? "All mailboxes" : workspace.mailbox} · {workspace.folder === "inbox" ? "Inbox" : workspace.folder === "sent" ? "Sent" : workspace.folder === "starred" ? "Starred" : workspace.folder === "archive" ? "Archive" : workspace.folder === "trash" ? "Trash" : "All mail"}</span>
           </div>
           <AdminMailPageSizeSelect value={workspace.pagination.pageSize} />
         </div>
@@ -486,9 +527,10 @@ export default async function AdminMailPage({ searchParams }: { searchParams: Se
         <summary><span>{mode === "reply" ? "Reply" : mode === "forward" ? "Forward" : "New message"}</span><small>Send through AWS SES</small></summary>
         <form action={sendMailAction}>
           <input type="hidden" name="csrfToken" value={principal.csrfToken} />
+          <input type="hidden" name="mailbox" value={workspace.mailbox} />
           {mode === "reply" && selected ? <input type="hidden" name="inReplyToId" value={selected.id} /> : null}
           <div className="admin-mail-compose-grid">
-            <label><span>From</span><select name="from" defaultValue={workspace.fromAddresses[0] || ""} required>{workspace.fromAddresses.map((address) => <option key={address} value={address}>{address}</option>)}</select></label>
+            <label><span>From</span><select name="from" defaultValue={composeFromAddress(mode === "reply" || mode === "forward" ? selected : undefined, workspace.fromAddresses, workspace.mailbox)} required>{workspace.fromAddresses.map((address) => <option key={address} value={address}>{address}</option>)}</select></label>
             <label className="admin-mail-compose-wide"><span>To</span><input name="to" type="text" defaultValue={composeTo} placeholder="name@example.com" required /></label>
             <label><span>Cc</span><input name="cc" type="text" placeholder="Optional" /></label>
             <label><span>Bcc</span><input name="bcc" type="text" placeholder="Optional" /></label>
