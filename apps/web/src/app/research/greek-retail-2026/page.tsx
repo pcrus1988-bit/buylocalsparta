@@ -1,8 +1,6 @@
 import { ResearchPublicNavigation } from "../../../components/ResearchPublicNavigation";
-import type { Metadata } from "next";
-import Link from "next/link";
 import { SiteFooter } from "../../../components/SiteFooter";
-import { ResearchStudyDashboard } from "../../../components/ResearchStudyDashboard";
+import type { Metadata } from "next";
 import styles from "../../../components/ResearchObservatory.module.css";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
 import { publicResearchStudy } from "../../../lib/research-observatory-runtime";
@@ -12,38 +10,44 @@ export const dynamic = "force-dynamic";
 export function generateMetadata(): Promise<Metadata> {
   return governedStaticSeoMetadata("/research/greek-retail-2026", {
     title: "Ελληνικό Λιανεμπόριο 2026 · KONTA MOY Research",
-    description: "Πρόοδος, μεθοδολογία και αποτελέσματα της μελέτης Ελληνικό Λιανεμπόριο 2026.",
+    description: "Η πραγματικότητα της μικρής και μεσαίας εμπορικής επιχείρησης στην ψηφιακή εποχή",
     keywords: ["Ελληνικό Λιανεμπόριο 2026", "έρευνα εμπορικών επιχειρήσεων", "ψηφιακή ετοιμότητα επιχειρήσεων", "λειτουργικές δυσκολίες λιανεμπορίου", "marketplaces ελληνικές επιχειρήσεις"]
   });
 }
 
+const studyStatusLabels: Record<string, string> = {
+  draft: "Σχεδιασμός",
+  pilot: "Πιλοτική φάση",
+  fielding: "Κύρια έρευνα σε εξέλιξη",
+  closed: "Η συλλογή ολοκληρώθηκε",
+  analysis: "Ανάλυση",
+  published: "Δημοσιευμένη",
+  archived: "Αρχείο"
+};
+
 export default async function GreekRetailResearchPage() {
   const study = await publicResearchStudy("greek-retail-2026");
-  if (study) return <>
-    <ResearchStudyDashboard study={study} />
+  const status = study ? (studyStatusLabels[study.status] ?? "Ενημέρωση σε εξέλιξη") : "Ενημέρωση σε εξέλιξη";
+  const isLive = study?.status === "fielding";
+
+  return <>
+    <main className={styles.shell}>
+    <div className={styles.frame}>
+      <ResearchPublicNavigation active="overview" studySlug="greek-retail-2026" />
+      <header className={styles.hero} style={{ gridTemplateColumns: "minmax(0, 1fr)" }}>
+        <div>
+          <h1>Ελληνικό Λιανεμπόριο 2026</h1>
+          <p>Η πραγματικότητα της μικρής και μεσαίας εμπορικής επιχείρησης στην ψηφιακή εποχή</p>
+          <div className={styles.heroBadges}>
+            <span className={[styles.badge, isLive ? styles.badgeLive : styles.badgeWarm].join(" ")}>
+              {isLive && <span className={styles.dot} aria-hidden="true" />}
+              {status}
+            </span>
+          </div>
+        </div>
+      </header>
+    </div>
+    </main>
     <SiteFooter />
   </>;
-
-  return <main className={styles.shell}>
-    <div className={styles.frame}>
-      <ResearchPublicNavigation active="overview" studySlug={"greek-retail-2026"} />
-      <header className={styles.hero}>
-        <div>
-          <div className={styles.eyebrow}>Παρατηρητήριο Ελληνικού Λιανεμπορίου</div>
-          <h1>Ελληνικό Λιανεμπόριο 2026</h1>
-          <p>Μια μελέτη για το πώς λειτουργούν, ψηφιοποιούνται, προσεγγίζουν πελάτες και αντιμετωπίζουν καθημερινά εμπόδια οι ελληνικές εμπορικές επιχειρήσεις.</p>
-        </div>
-        <aside className={styles.heroAside}>
-          <span>Κατάσταση</span>
-          <strong>Η συλλογή δεν έχει ξεκινήσει ακόμη</strong>
-          <span>Η σελίδα θα ενημερωθεί όταν αρχίσει η δημόσια παρακολούθηση της μελέτης.</span>
-        </aside>
-      </header>
-      <section className={styles.section}>
-        <div className={styles.notice}>Δεν εμφανίζουμε προσωρινούς ή δοκιμαστικούς αριθμούς. Τα στοιχεία προόδου θα εμφανιστούν όταν η μελέτη ξεκινήσει κανονικά.</div>
-      </section>
-      <div className={styles.footer}>KONTA MOY Research · Ελληνικό Λιανεμπόριο 2026</div>
-    </div>
-    <SiteFooter />
-  </main>;
 }
