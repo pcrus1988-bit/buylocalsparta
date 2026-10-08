@@ -531,6 +531,14 @@ if (!jobs.includes("invalidResearchRecipientAddressReason(contact.contact_value)
     !fieldworkControls.includes("Μη έγκυρες διευθύνσεις που παραλείφθηκαν πριν το SES")) {
   errors.push("research sender must validate mailbox syntax before SES and separately report skip counts");
 }
+if (!jobs.includes("safetyHoldPhase: metrics.phase") ||
+    !jobs.includes("transient_bounced") ||
+    !jobs.includes("permanent_bounced") ||
+    !jobs.includes("COALESCE((m.status='bounced'") ||
+    !surveyRuntime.includes("deliverySafetyBreakdown") ||
+    !fieldworkControls.includes("Ανάλυση επιστροφών ανά φάση")) {
+  errors.push("research delivery safety hold must expose Pilot/Main and true SES permanent/transient breakdown without relaxing unknown-bounce stops");
+}
 if (!jobs.includes("allowIsolatedResearchSubmissionFailure") ||
     !jobs.includes("postAcceptanceFailures") ||
     !jobs.includes("campaignSubmissionFailureCount") ||
