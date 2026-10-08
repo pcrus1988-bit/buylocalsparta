@@ -114,8 +114,8 @@ test("the expanded atlas has no duplicate studies, only traceable https sources"
 test("every published external chart has a unique, usable comparison preset", () => {
   const presets = RESEARCH_PRESET_CATEGORIES.flatMap(category => category.presets);
   const linked = presets.flatMap(preset => preset.indicator ? [preset.indicator] : []);
-  assert.equal(RESEARCH_PRESET_COUNT, 19);
-  assert.equal(presets.length, 19);
+  assert.equal(RESEARCH_PRESET_COUNT, 26);
+  assert.equal(presets.length, 26);
   assert.equal(new Set(presets.map(preset => preset.id)).size, presets.length);
   assert.equal(new Set(linked).size, linked.length);
   assert.deepEqual(new Set(linked), new Set(EXTERNAL_GROUPS.map(group => group.id)));
