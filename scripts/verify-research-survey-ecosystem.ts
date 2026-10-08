@@ -538,6 +538,9 @@ if (!jobs.includes("RESEARCH_BOUNCE_POLICY_CONFIRMATION_REQUIRED") ||
     !surveyRuntime.includes("requiresBouncePolicyConfirmation") ||
     !fieldworkControls.includes("Επιβεβαίωση νέων ορίων και συνέχεια υπάρχουσας εκστρατείας") ||
     !fieldworkControls.includes("10% στα 1.000–4.999") ||
+    !fieldworkControls.includes("10% στα 25.000–74.999") ||
+    !fieldworkControls.includes("8% από τα 75.000") ||
+    !jobs.includes("'bouncePolicyAcknowledgedVersion',$9::text") ||
     !fieldworkControls.includes("άνω του 5%")) {
   errors.push("new research hard-bounce stages require explicit admin resume and a persistent 5% warning");
 }
