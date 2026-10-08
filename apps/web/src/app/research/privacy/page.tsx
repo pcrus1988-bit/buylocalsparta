@@ -22,6 +22,11 @@ export default function ResearchPrivacyPage() {
   return <main className={styles.shell}>
     <div className={styles.frame}>
       <ResearchPublicNavigation active="privacy" />
+      <nav className={styles.nav} aria-label="Ενότητες ιδιωτικότητας έρευνας" style={{ marginBottom: 18 }}>
+        <Link href="#why">Γιατί έλαβα πρόσκληση;</Link>
+        <Link href="#gdpr">Χρήση δεδομένων</Link>
+        <Link href="#faq">Συχνές ερωτήσεις</Link>
+      </nav>
 
       <header className={styles.hero}>
         <div>
