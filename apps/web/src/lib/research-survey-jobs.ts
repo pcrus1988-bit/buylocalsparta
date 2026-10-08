@@ -2462,10 +2462,12 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   const currentOutput = objectValue(job.output);
   const campaignProcessed = Math.max(0,Math.floor(numberValue(currentOutput.campaignProcessedCount)));
   const campaignSent = Math.max(0,Math.floor(numberValue(currentOutput.campaignSentCount)));
-  // One authorization covers the locked census; only ten messages are sent
-  // in each resumable processing step, with at least 60 seconds between steps.
+  // One authorization covers the locked census. Checkpoint after 50 recipients,
+  // rather than forcing a full minute between every 10. SES submissions are
+  // still paced below the stated 14-recipient/second account allowance.
+  // Keep steps modest so bounce, complaint and pause checks run frequently.
   const limit = continuous
-    ? Math.max(0,Math.min(10,campaignMax-campaignProcessed))
+    ? Math.max(0,Math.min(50,campaignMax-campaignProcessed))
     : Math.max(1,Math.min(500,Math.floor(numberValue(input.limit) || 100)));
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
   const cohort = text(input.cohort);
@@ -2719,6 +2721,11 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   let alreadySentCount = 0;
   let duplicateSkippedCount = 0;
   const failures: Array<{ sampleUnitId: string; error: string }> = [];
+  // At most eight research invite submissions per second on this serial worker,
+  // leaving SES headroom for other application emails. This is a ceiling, not
+  // a throughput guarantee: DB and SES latency can make the actual rate lower.
+  const minSendIntervalMs = continuous ? 125 : 0;
+  let previousSesAttemptAt = 0;
 
   for (const sampleUnitId of sampleUnitIds) {
     if (batchRow.fieldwork_ends_at && new Date(String(batchRow.fieldwork_ends_at)).getTime() <= Date.now()) {
@@ -2860,6 +2867,11 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     const surveyUrl = `${base}/research/${encodeURIComponent(text(batchRow.slug))}/t/${encodeURIComponent(token)}`;
     const methodologyUrl = `${base}/research/${encodeURIComponent(text(batchRow.slug))}/methodology`;
     try {
+      if (continuous) {
+        const gap = previousSesAttemptAt + minSendIntervalMs - Date.now();
+        if (gap > 0) await new Promise<void>((resolve) => setTimeout(resolve, gap));
+        previousSesAttemptAt = Date.now();
+      }
       const delivery = await sendResearchSurveyInvitation({
         destination: text(contact.contact_value),
         studySlug: text(batchRow.slug),
@@ -2998,7 +3010,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
 
   if (continuous && nextProcessed < campaignMax) {
     return {
-      __requeue:true,__delaySeconds:60,
+      __requeue:true,__delaySeconds:0,
       batchId:"",sampleUnitIds:[],
       campaignCursor:cursorAfterBatch,
       campaignProcessedCount:nextProcessed,campaignSentCount:nextSent,
