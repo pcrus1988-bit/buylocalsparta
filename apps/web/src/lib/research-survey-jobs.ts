@@ -634,6 +634,33 @@ export async function queueGreekRetailInviteBatch(
   return { jobId: text(job.rows[0]!.id) };
 }
 
+/** Pause or resume the SAME previously approved campaign; never authorize new recipients. */
+export async function setGreekRetailInvitationCampaignPause(
+  principal: SessionPrincipal,
+  paused: boolean
+): Promise<{jobId:string;status:string;paused:boolean}> {
+  assertAdminPermission(principal,"research.fieldwork.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+  const pool = getProductionPostgresRuntime().sqlPool;
+  const changed = await pool.query<SqlRow>(`
+    WITH chosen AS (
+      SELECT j.id FROM research_study_jobs j
+      JOIN research_studies s ON s.id=j.study_id AND s.current_wave_id=j.wave_id
+      WHERE s.slug=$1 AND j.job_type='invite_batch'
+        AND j.input->>'mode'='continuous'
+        AND j.status IN ('queued','running')
+      ORDER BY j.created_at DESC LIMIT 1
+    )
+    UPDATE research_study_jobs j
+    SET input=jsonb_set(j.input,'{paused}',to_jsonb($2::bool),true),
+        available_at=CASE WHEN $2::bool THEN 'infinity'::timestamptz ELSE now() END
+    WHERE j.id=(SELECT id FROM chosen)
+    RETURNING j.id,j.status
+  `,[STUDY_SLUG,paused]);
+  if (!changed.rows[0]) throw new Error("RESEARCH_ACTIVE_CONTINUOUS_CAMPAIGN_NOT_FOUND");
+  return {jobId:text(changed.rows[0].id),status:text(changed.rows[0].status),paused};
+}
+
 export async function queueGreekRetailInviteReminderBatch(
   principal: SessionPrincipal,
   input: Readonly<{
