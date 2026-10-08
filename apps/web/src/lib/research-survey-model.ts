@@ -94,8 +94,9 @@ export function greekRetailBusinessConfidence(answers: ResearchAnswerMap): numbe
 export function greekRetailRevenueUpProfitDown(answers: ResearchAnswerMap): boolean | undefined {
   const trend = answers.Q19;
   if (!trend || typeof trend !== "object" || Array.isArray(trend)) return undefined;
-  const turnover = String(trend.turnover ?? "");
-  const profitability = String(trend.profitability ?? "");
+  const values = trend as Record<string, string | number>;
+  const turnover = String(values.turnover ?? "");
+  const profitability = String(values.profitability ?? "");
   const valid = new Set(["up_large", "up_small", "stable", "down_small", "down_large"]);
   if (!valid.has(turnover) || !valid.has(profitability)) return undefined;
   return ["up_large","up_small"].includes(turnover) && ["down_small","down_large"].includes(profitability);

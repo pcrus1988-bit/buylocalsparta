@@ -313,7 +313,7 @@ function estimateSpecs(
       const observations = responses.flatMap((response) => {
         const matrix = response.answers.Q25;
         if (!matrix || typeof matrix !== "object" || Array.isArray(matrix)) return [];
-        const raw = String(matrix[metric.item] ?? "");
+        const raw = String((matrix as Record<string, string | number>)[metric.item] ?? "");
         if (!["-2","-1","0","1","2"].includes(raw)) return [];
         return [{ response, value: metric.direction === "negative" ? (Number(raw) < 0 ? 1 : 0) : (Number(raw) > 0 ? 1 : 0) }];
       });
