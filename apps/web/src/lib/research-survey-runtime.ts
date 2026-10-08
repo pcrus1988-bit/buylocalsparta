@@ -1358,20 +1358,13 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       ORDER BY fs.created_at DESC
       LIMIT 1
     ) lf ON true
+    -- Only scan pilot invitation identities; never rescan the entire frozen frame.
     LEFT JOIN LATERAL (
-      SELECT count(*)::int AS exposed_units
-      FROM research_frame_units fu
-      WHERE fu.frame_snapshot_id=lf.id
-        AND EXISTS (
-          SELECT 1
-          FROM research_invites pri
-          JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
-          JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
-          WHERE pri.study_id=s.id
-            AND pri.fieldwork_phase='pilot'
-            AND pri.sent_at IS NOT NULL
-            AND pfu.external_key_hash=fu.external_key_hash
-        )
+      SELECT count(DISTINCT pfu.external_key_hash)::int AS exposed_units
+      FROM research_invites pri
+      JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+      JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
+      WHERE pri.study_id=s.id AND pri.fieldwork_phase='pilot' AND pri.sent_at IS NOT NULL
     ) ph ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS draws
@@ -1397,37 +1390,21 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       ORDER BY d.created_at DESC
       LIMIT 1
     ) ls ON true
+    -- Snapshot summary captured at frame build. No large email table scan on navigation.
+    -- Do not interpret these as live suppression/bounce totals.
     LEFT JOIN LATERAL (
       SELECT
-        count(DISTINCT fu.id) FILTER (
-          WHERE cp.contact_type='email'
-            AND cp.suppression_status='active'
-            AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
-        ) AS active_contacts,
-        count(DISTINCT fu.id) FILTER (
-          WHERE cp.contact_type='email'
-            AND cp.suppression_status IN ('suppressed','invalid')
-        ) AS suppressed_contacts,
-        count(DISTINCT fu.id) FILTER (
-          WHERE cp.contact_type='email'
-            AND cp.suppression_status='bounced'
-        ) AS bounced_contacts
-      FROM research_frame_units fu
-      JOIN research_contact_points cp ON cp.frame_unit_id = fu.id
-      WHERE fu.frame_snapshot_id = lf.id
-        AND (
-          s.status IN ('draft','pilot')
-          OR NOT EXISTS (
-            SELECT 1
-            FROM research_invites pri
-            JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
-            JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
-            WHERE pri.study_id=s.id
-              AND pri.fieldwork_phase='pilot'
-              AND pri.sent_at IS NOT NULL
-              AND pfu.external_key_hash=fu.external_key_hash
-          )
-        )
+        GREATEST((j.output->>'activeEmailCount')::int -
+          CASE WHEN s.status IN ('fielding','closed','analysis','published','archived')
+            THEN COALESCE(ph.exposed_units,0) ELSE 0 END, 0) AS active_contacts,
+        0::int AS suppressed_contacts,
+        0::int AS bounced_contacts
+      FROM research_study_jobs j
+      WHERE j.study_id=s.id AND j.job_type='frame_snapshot'
+        AND j.status='succeeded'
+        AND j.output->>'frameSnapshotId'=lf.id::text
+        AND j.output->>'activeEmailCount' ~ '^[0-9]+$'
+      ORDER BY j.finished_at DESC LIMIT 1
     ) cp ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS batches
@@ -2410,6 +2387,8 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       plan.status AS analysis_plan_status,
       COALESCE(frames.frame_count, 0)::int AS frame_count,
       COALESCE(frame.population_size, 0)::int AS frame_population,
+      snapshot_contact_count.active_email_count AS snapshot_active_contacts,
+      snapshot_contact_count.captured_at AS contact_snapshot_at,
       frame.status AS frame_status,
       COALESCE(draws.draw_count, 0)::int AS sample_draw_count,
       COALESCE(draw.sample_units, 0)::int AS sample_units,
@@ -2437,6 +2416,16 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       SELECT id, population_size, status FROM research_frame_snapshots
       WHERE study_id=s.id ORDER BY created_at DESC LIMIT 1
     ) frame ON true
+    LEFT JOIN LATERAL (
+      SELECT (j.output->>'activeEmailCount')::int AS active_email_count,
+             j.finished_at AS captured_at
+      FROM research_study_jobs j
+      WHERE j.study_id=s.id AND j.job_type='frame_snapshot'
+        AND j.status='succeeded'
+        AND j.output->>'frameSnapshotId'=frame.id::text
+        AND j.output->>'activeEmailCount' ~ '^[0-9]+$'
+      ORDER BY j.finished_at DESC LIMIT 1
+    ) snapshot_contact_count ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS draw_count FROM research_sample_draws
       WHERE study_id=s.id
@@ -2492,6 +2481,8 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       analysisPlanStatus: optionalText(row.analysis_plan_status),
       frameCount: numberValue(row.frame_count),
       framePopulation: numberValue(row.frame_population),
+      snapshotActiveContacts: row.snapshot_active_contacts == null ? undefined : numberValue(row.snapshot_active_contacts),
+      contactSnapshotAt: optionalText(row.contact_snapshot_at),
       frameStatus: optionalText(row.frame_status),
       sampleDrawCount: numberValue(row.sample_draw_count),
       sampleUnits: numberValue(row.sample_units),
