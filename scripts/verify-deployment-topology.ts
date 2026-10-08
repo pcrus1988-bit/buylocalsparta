@@ -45,6 +45,7 @@ const allowedVercelCrons = new Map([
   ["/api/cron/seo-url-registry", "53 4 * * *"],
   ["/api/cron/seo-gsc-diagnostics", "47 */6 * * *"],
   ["/api/cron/research-study-jobs", "*/5 * * * *"],
+  ["/api/cron/research-study-email-jobs", "* * * * *"],
 ]);
 assert(
   vercelCrons.every((cron: Record<string, unknown>) =>
@@ -66,6 +67,7 @@ const recoveryCriticalCrons = new Map([
   ["/api/cron/symphonya-stock", "5 * * * *"],
   ["/api/cron/seo-url-registry", "53 4 * * *"],
   ["/api/cron/seo-gsc-diagnostics", "47 */6 * * *"],
+  ["/api/cron/research-study-email-jobs", "* * * * *"],
 ]);
 for (const [path, schedule] of recoveryCriticalCrons) {
   assert(
