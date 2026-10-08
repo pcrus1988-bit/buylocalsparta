@@ -302,6 +302,20 @@ if (!jobs.includes("study_id,wave_id,instrument_id,sample_unit_id,contact_point_
 if (!jobs.includes("study_id,wave_id,response_id,contact_point_id,reward_entitlement_id")) errors.push("reward delivery ledger does not persist queued wave explicitly");
 if (!jobs.includes("study_id,wave_id,response_id,contact_point_id,release_snapshot_id")) errors.push("results delivery ledger does not persist queued wave explicitly");
 if (!jobs.includes("pri.wave_id=$11")) errors.push("main sample pilot holdout is not wave-scoped");
+if (!jobs.includes("e.metadata->>'bounceSubType'='EmailValidationSuppressed'"))
+  errors.push("SES validation-suppressed messages are not separately classified");
+if (!jobs.includes("e.metadata->>'providerMessageId'=m.provider_message_id"))
+  errors.push("SES suppression classification is not tied to the delivery message");
+if (!jobs.includes("SES_HARD_BOUNCE_RATE_AT_OR_ABOVE_5_PERCENT")
+    || !jobs.includes("SES_VALIDATION_SUPPRESSION_RATE_AT_OR_ABOVE_5_PERCENT"))
+  errors.push("continuous research campaign lacks independent bounce and suppression safety holds");
+if (!jobs.includes("const deliveryDecisions = metrics.delivered + metrics.hardBounced")
+    || !jobs.includes("metrics.phase")
+    && !jobs.includes("phase: text(row.fieldwork_phase)"))
+  errors.push("campaign bounce guard does not use real delivery decisions by phase");
+if (!jobs.includes("deliverySafety,\n      approvedMaxEmails"))
+  errors.push("continuous campaign does not preserve the SES safety breakdown");
+
 if (!surveyRuntime.includes("ri.wave_id AS wave_id")) errors.push("public invitation resolution does not expose immutable invite wave");
 if (!surveyRuntime.includes("research_responses (study_id, wave_id, instrument_id, invite_id")) errors.push("public response creation relies on current-wave trigger defaults");
 if (surveyForm.includes("answers, experimentChoices, optionalConsents, complete: true")) errors.push("questionnaire completion still bundles post-research participant preferences");
