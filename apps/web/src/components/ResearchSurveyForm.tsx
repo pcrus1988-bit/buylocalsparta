@@ -334,9 +334,6 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
             ". Επιστρέψτε στις προηγούμενες ενότητες.");
           return;
         }
-        if (hasExperiment && experiments.length && experiments.some((task) => !experimentChoices[String(task.taskNumber)])) {
-          // The experiment is optional in the real flow, so it remains optional here.
-        }
       }
       await save({ answers, experimentChoices, complete: true });
       setCompleted(true);
@@ -383,7 +380,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
       <span className={styles.kicker}>{previewMode ? "Προσομοίωση επιλογής" : "Η επιλογή σας καταχωρήθηκε"}</span>
       <h2>Δεν θα ζητηθεί απάντηση σε αυτή τη μελέτη.</h2>
       {previewMode && <p>ΔΟΚΙΜΗ ΜΟΝΟ — καμία εξαίρεση ή επιλογή επικοινωνίας δεν αποθηκεύτηκε.</p>}
-      <p>{futureResearchSuppressed
+      <p>{previewMode ? "Η επιλογή μη συμμετοχής εμφανίζεται σωστά. Δεν καταχωρήθηκε πραγματική άρνηση, συγκατάθεση ή εξαίρεση από αποστολές." : futureResearchSuppressed
         ? "Καταχωρήθηκε επίσης ότι δεν επιθυμείτε μελλοντικές προσκλήσεις για έρευνες του KONTA MOY. Η επιλογή αυτή είναι ανεξάρτητη από οποιαδήποτε εμπορική συγκατάθεση."
         : "Η συγκεκριμένη πρόσκληση έκλεισε χωρίς να δημιουργηθεί υποχρέωση συμμετοχής."}</p>
       <a href={"/research/" + encodeURIComponent(slug) + "/methodology"}>Δείτε τη μεθοδολογία της μελέτης</a>
@@ -402,7 +399,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
         <label><input type="checkbox" checked={optionalConsents.results_notification} onChange={(event) => setOptionalConsents((state) => ({ ...state, results_notification: event.target.checked }))} /><span>Θέλω να ενημερωθώ όταν δημοσιευθούν τα αποτελέσματα.</span></label>
         <label><input type="checkbox" checked={optionalConsents.thank_you_code} onChange={(event) => setOptionalConsents((state) => ({ ...state, thank_you_code: event.target.checked }))} /><span>Θέλω να λάβω τον κωδικό ευχαριστίας που προσφέρεται στους συμμετέχοντες.</span></label>
       </div>
-      <p>Η αλλαγή ισχύει για μελλοντικές αποστολές. Μήνυμα που έχει ήδη αποσταλεί δεν μπορεί να ανακληθεί.</p>
+      <p>{previewMode ? "Σε αυτή τη δοκιμή δεν θα πραγματοποιηθεί καμία αποστολή ή αποθήκευση επιλογών." : "Η αλλαγή ισχύει για μελλοντικές αποστολές. Μήνυμα που έχει ήδη αποσταλεί δεν μπορεί να ανακληθεί."}</p>
       {preferenceMessage && <p className={styles.success}>{preferenceMessage}</p>}
       {message && <p className={styles.error}>{message}</p>}
       <div className={styles.actions}>
@@ -416,7 +413,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
       <a href="/join">Πληροφορίες συνεργασίας με το KONTA MOY →</a>
 
       <h3>Ανάκληση συμμετοχής</h3>
-      <p>Μπορείτε να ανακαλέσετε τη συμμετοχή από αυτόν τον προσωπικό σύνδεσμο. Η ανάκληση εξαιρεί την απάντηση από νέες αναλύσεις. Αποτελέσματα που έχουν ήδη δημοσιευθεί σε συγκεντρωτική μορφή παραμένουν μέρος της δημοσιευμένης μελέτης και δεν μπορούν να μετατραπούν αναδρομικά σε ατομικές απαντήσεις.</p>
+      <p>{previewMode ? "Εδώ ελέγχετε μόνο πώς εμφανίζεται η δυνατότητα ανάκλησης. Δεν υπάρχει πραγματική υποβολή για ανάκληση." : "Μπορείτε να ανακαλέσετε τη συμμετοχή από αυτόν τον προσωπικό σύνδεσμο. Η ανάκληση εξαιρεί την απάντηση από νέες αναλύσεις. Αποτελέσματα που έχουν ήδη δημοσιευθεί σε συγκεντρωτική μορφή παραμένουν μέρος της δημοσιευμένης μελέτης και δεν μπορούν να μετατραπούν αναδρομικά σε ατομικές απαντήσεις."}</p>
       <div className={styles.optionalConsents}>
         <label>
           <input
