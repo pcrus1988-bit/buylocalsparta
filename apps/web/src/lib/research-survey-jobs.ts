@@ -1836,7 +1836,6 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       SELECT status,current_wave_id
       FROM research_studies
       WHERE id=$1
-      FOR UPDATE
     `, [job.study_id]);
     if (text(phaseState.rows[0]?.current_wave_id) !== job.wave_id) {
       throw new Error("RESEARCH_SAMPLE_JOB_WAVE_CHANGED");
@@ -2397,6 +2396,15 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       SET status='locked', drawn_at=now()
       WHERE id=$1
     `, [drawId]);
+    // Hold the study row lock only for the final commit, not for the full
+    // 180k+ contactable cohort enumeration. Fail closed if phase/wave changed.
+    const finalStudyState = await client.query<SqlRow>(`
+      SELECT status,current_wave_id FROM research_studies WHERE id=$1 FOR UPDATE
+    `, [job.study_id]);
+    if (text(finalStudyState.rows[0]?.current_wave_id) !== job.wave_id ||
+        text(finalStudyState.rows[0]?.status) !== currentStatus) {
+      throw new Error("RESEARCH_SAMPLE_FIELDWORK_PHASE_CHANGED");
+    }
     await client.query("COMMIT");
 
     return {
