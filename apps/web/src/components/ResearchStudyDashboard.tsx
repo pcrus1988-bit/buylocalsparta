@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { PublicResearchStudySummary } from "../lib/research-observatory-runtime";
 import { ResearchLiveProgress } from "./ResearchLiveProgress";
+import { ResearchPurposeCards } from "./ResearchPurposeCards";
 import styles from "./ResearchObservatory.module.css";
 
 function dateRange(study: PublicResearchStudySummary): string {
@@ -103,6 +104,10 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
           <strong>{study.targetCompletes > 0 ? percent(completion) : "—"}</strong>
         </aside>
       </header>
+
+      {study.slug === "greek-retail-2026" && <section className={styles.section} aria-label="Ο σκοπός της μελέτης">
+        <ResearchPurposeCards />
+      </section>}
 
       <section className={styles.section}>
         <ResearchLiveProgress initialStudy={study} />
