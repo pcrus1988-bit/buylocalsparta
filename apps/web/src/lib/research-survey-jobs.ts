@@ -1821,10 +1821,10 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         study_id,wave_id,frame_snapshot_id,label,source_kind,source_ref,source_sha256,methodology_version
       )
       VALUES (
-        $1,$2,$3,
+        $1::uuid,$2::uuid,$3::uuid,
         'Frozen frame region + sector margins',
         'frozen_frame',
-        'research_frame_snapshot:' || $3::text,
+        'research_frame_snapshot:' || ($3::uuid)::text,
         $4,
         'frozen-frame-region-sector-margins-v1'
       )
@@ -2124,9 +2124,9 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         metadata
       )
       SELECT id, 'selected', 'eligible', 'sample_draw',
-             jsonb_build_object('drawId',$1::text,'algorithmVersion','stratified-hash-rank-v2')
+             jsonb_build_object('drawId',($1::uuid)::text,'algorithmVersion','stratified-hash-rank-v2')
       FROM research_sample_units
-      WHERE sample_draw_id=$1
+      WHERE sample_draw_id=$1::uuid
     `, [drawId]);
 
     const designDocument = {
