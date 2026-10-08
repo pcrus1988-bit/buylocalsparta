@@ -1,7 +1,14 @@
 .visualCard {
   position: relative;
   isolation: isolate;
-  min-height: 380px;
+  /* Grid tracks, not min-height + aspect-ratio, must determine the card width.
+     Otherwise the four-column shop layout can give cards an intrinsic width
+     wider than their track, visually covering the inter-card gutters. */
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
   aspect-ratio: 4 / 5;
   overflow: hidden;
   background: #f3f0e9;
