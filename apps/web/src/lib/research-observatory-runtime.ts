@@ -1,5 +1,6 @@
 import type { SqlRow } from "@buy-local-sparta/core";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
+import { canonicalResearchResultsUrl } from "./research-results-url";
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
@@ -262,7 +263,7 @@ export async function publicResearchObservatory(): Promise<PublicResearchObserva
         responseRate: sent > 0 ? completed / sent : 0,
         releaseVersion: optionalText(row.release_version),
         releasePublishedAt: isoDate(row.release_published_at),
-        publicResultsUrl: optionalText(row.public_results_url),
+        publicResultsUrl: canonicalResearchResultsUrl(text(row.wave_slug)),
         updatedAt: isoDate(row.updated_at)
       };
     });
