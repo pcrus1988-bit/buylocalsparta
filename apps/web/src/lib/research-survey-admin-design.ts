@@ -549,7 +549,7 @@ export async function updateResearchPilotDeadline(
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const normalized = newDeadline.trim();
   const parsed = new Date(normalized);
-  if (!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/.test(normalized)
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(normalized)
     || !Number.isFinite(parsed.getTime()) || parsed.toISOString() !== normalized
     || parsed.getTime() <= Date.now()) {
     throw new Error("RESEARCH_PILOT_DEADLINE_MUST_BE_FUTURE");
