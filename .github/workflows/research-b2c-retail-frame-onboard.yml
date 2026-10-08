@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  statuses: read
 
 concurrency:
   group: research-b2c-retail-frame-onboard
@@ -20,7 +21,7 @@ jobs:
     name: Safely queue expanded GEMI retail frame
     runs-on: ubuntu-latest
     environment: production
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       NODE_ENV: production
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -36,6 +37,31 @@ jobs:
           cache: npm
 
       - run: npm ci --ignore-scripts
+
+      # Do not let the existing production cron claim the v2 job using the
+      # OLD non-food worker code before the main Vercel deployment completes.
+      - name: Wait for matching production application deployment
+        if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          for attempt in $(seq 1 60); do
+            state="$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/status" \
+              --jq '[.statuses[] | select(.context=="Vercel")] | if length > 0 then .[0].state else "pending" end')"
+            if [[ "$state" == success ]]; then
+              echo "Vercel deployment for commit ${{ github.sha }} succeeded."
+              exit 0
+            fi
+            if [[ "$state" == failure || "$state" == error ]]; then
+              echo "::error::Vercel deployment failed ($state). Frame build NOT queued."
+              exit 1
+            fi
+            echo "Waiting for production Vercel status ($state) attempt $attempt/60."
+            sleep 10
+          done
+          echo "::error::Production Vercel did not report success. Frame build NOT queued."
+          exit 1
 
       - name: Queue frame without sampling or sending emails
         run: node --experimental-strip-types scripts/research-b2c-frame-queue.ts
