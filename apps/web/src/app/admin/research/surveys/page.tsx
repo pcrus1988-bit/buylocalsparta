@@ -81,7 +81,7 @@ export default async function ResearchSurveysAdminPage() {
                   <small>{deadlineLabel(study.fieldworkEndsAt)}</small>
                   <div className="workspace-action-buttons">
                     <Link className="button" href={root + "/workflow?phase=pilot"}>Start guided workflow</Link>
-                    <Link className="button button-secondary" href={root}>Survey overview</Link>
+                    <Link className="button button-secondary" href={"/admin/research/surveys/" + encodeURIComponent(study.slug)}>Open survey</Link>
                     <Link className="button button-secondary" href={root + "/questions"}>Questions</Link>
                     <Link className="button button-secondary" href={root + "/evaluation"}>Evaluation</Link>
                   </div>
