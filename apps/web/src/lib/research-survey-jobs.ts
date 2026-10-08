@@ -1679,6 +1679,11 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
   const expectedResponseRate = numberValue(input.expectedResponseRate);
   const randomSeed = text(input.randomSeed);
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
+  const cohort = text(input.cohort);
+  const frameSnapshotId = text(input.frameSnapshotId);
+  if (!["A","B"].includes(cohort) || (fieldworkPhase === "pilot" && cohort !== "A") || !/^[a-f0-9-]{36}$/i.test(frameSnapshotId)) {
+    throw new Error("RESEARCH_SAMPLE_JOB_COHORT_INVALID");
+  }
   const minTargetN = fieldworkPhase === "pilot" ? 10 : 100;
   const maxTargetN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
   if (
@@ -1729,15 +1734,27 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
     const frameResult = await client.query<SqlRow>(`
       SELECT id, wave_id, population_size, content_sha256
       FROM research_frame_snapshots
-      WHERE study_id=$1 AND wave_id=$2 AND status='frozen'
-      ORDER BY frozen_at DESC NULLS LAST, created_at DESC
-      LIMIT 1
+      WHERE study_id=$1 AND wave_id=$2 AND id=$3::uuid AND content_sha256 IS NOT NULL
+        AND (($4='A' AND status IN ('frozen','superseded')
+          AND selection_criteria->'activityGroupIds' @> '["retail-non-food"]'::jsonb)
+        OR ($4='B' AND status='frozen'
+          AND selection_criteria->'activityGroupIds' @> '["retail-all"]'::jsonb))
       FOR UPDATE
-    `, [job.study_id, job.wave_id]);
+    `, [job.study_id, job.wave_id, frameSnapshotId, cohort]);
     const frame = frameResult.rows[0];
     if (!frame) throw new Error("RESEARCH_SAMPLE_REQUIRES_FROZEN_FRAME");
 
-    // Freeze population margins from the exact frame before any sample is drawn.
+    // Cohort B uses the expanded frame, excluding every business identity in frozen A.
+    const originalA = cohort === "B" ? await client.query<SqlRow>(`
+      SELECT id FROM research_frame_snapshots WHERE study_id=$1 AND wave_id=$2
+        AND status IN ('frozen','superseded')
+        AND selection_criteria->'activityGroupIds' @> '["retail-non-food"]'::jsonb
+      ORDER BY frozen_at ASC NULLS LAST LIMIT 1
+    `, [job.study_id, job.wave_id]) : null;
+    const cohortAFrameId = cohort === "B" ? text(originalA?.rows[0]?.id) : "";
+    if (cohort === "B" && !cohortAFrameId) throw new Error("RESEARCH_COHORT_B_REQUIRES_FROZEN_A");
+
+    // Freeze population margins for the cohort, not its overlapping source frame.
     // The source is response-independent and deterministic, so pilot/main draws
     // can reuse the same append-only evidence set for this frame.
     const populationMarginRows = await client.query<SqlRow>(`
@@ -1747,20 +1764,24 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
           'region_code'::text AS dimension,
           COALESCE(region_code,'unknown')::text AS category,
           count(*)::numeric AS target_total
-        FROM research_frame_units
-        WHERE frame_snapshot_id=$1
+        FROM research_frame_units fu
+        WHERE fu.frame_snapshot_id=$1
+          AND ($2::text <> 'B' OR NOT EXISTS (SELECT 1 FROM research_frame_units fa
+            WHERE fa.frame_snapshot_id=$3::uuid AND fa.external_key_hash=fu.external_key_hash))
         GROUP BY COALESCE(region_code,'unknown')
         UNION ALL
         SELECT
           'sector_code'::text AS dimension,
           COALESCE(sector_code,'unknown')::text AS category,
           count(*)::numeric AS target_total
-        FROM research_frame_units
-        WHERE frame_snapshot_id=$1
+        FROM research_frame_units fu
+        WHERE fu.frame_snapshot_id=$1
+          AND ($2::text <> 'B' OR NOT EXISTS (SELECT 1 FROM research_frame_units fa
+            WHERE fa.frame_snapshot_id=$3::uuid AND fa.external_key_hash=fu.external_key_hash))
         GROUP BY COALESCE(sector_code,'unknown')
       ) margins
       ORDER BY dimension,category
-    `, [frame.id]);
+    `, [frame.id, cohort, cohortAFrameId || null]);
     if (!populationMarginRows.rows.length) {
       throw new Error("RESEARCH_POPULATION_MARGINS_EMPTY");
     }
@@ -1850,7 +1871,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         SELECT
           st.id,
           st.code,
-          st.population_count,
+          count(fu.id)::int AS population_count,
           count(fu.id) FILTER (
             WHERE EXISTS (
               SELECT 1
@@ -1899,8 +1920,10 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         LEFT JOIN research_frame_units fu
           ON fu.stratum_id=st.id
          AND fu.frame_snapshot_id=st.frame_snapshot_id
+         AND ($5::text <> 'B' OR NOT EXISTS (SELECT 1 FROM research_frame_units fa
+           WHERE fa.frame_snapshot_id=$6::uuid AND fa.external_key_hash=fu.external_key_hash))
         WHERE st.frame_snapshot_id=$1
-        GROUP BY st.id,st.code,st.population_count
+        GROUP BY st.id,st.code
       )
       SELECT
         id,
@@ -1910,7 +1933,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       FROM phase_population
       WHERE CASE WHEN $2='main' THEN main_population_count ELSE population_count END > 0
       ORDER BY code
-    `, [frame.id, fieldworkPhase, job.study_id, job.wave_id]);
+    `, [frame.id, fieldworkPhase, job.study_id, job.wave_id, cohort, cohortAFrameId || null]);
     if (!strataResult.rows.length) throw new Error("RESEARCH_SAMPLE_STRATA_MISSING");
 
     const allocations = proportionalStratumAllocation(
@@ -2010,6 +2033,8 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
           FROM research_frame_units fu
           WHERE fu.frame_snapshot_id=$1
             AND fu.stratum_id=$2
+            AND ($12::text <> 'B' OR NOT EXISTS (SELECT 1 FROM research_frame_units fa
+              WHERE fa.frame_snapshot_id=$13::uuid AND fa.external_key_hash=fu.external_key_hash))
             AND (
               $9::text <> 'main'
               OR NOT EXISTS (
@@ -2061,7 +2086,9 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         baseWeight.toFixed(8),
         fieldworkPhase,
         job.study_id,
-        job.wave_id
+        job.wave_id,
+        cohort,
+        cohortAFrameId || null
       ]);
       if (inserted.rows.length !== allocation.sampleCount) {
         throw new Error(`RESEARCH_SAMPLE_STRATUM_COUNT_MISMATCH:${allocation.id}`);
@@ -2085,6 +2112,8 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
 
     const designDocument = {
       schema: "kontamou.research.sample-design.v1",
+      cohort,
+      cohortAFrameSnapshotId: cohortAFrameId || null,
       sampleDrawId: drawId,
       frameSnapshotId: text(frame.id),
       frameContentSha256: text(frame.content_sha256),
@@ -2185,6 +2214,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       sampleDrawId: drawId,
       frameSnapshotId: text(frame.id),
       frameContentSha256: text(frame.content_sha256),
+      cohort,
       targetN: actualTargetN,
       sampleDesignId: designId,
       desiredCompleteN,
