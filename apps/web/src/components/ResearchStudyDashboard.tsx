@@ -64,6 +64,7 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
           <Link href="/research">Μελέτες</Link>
           <Link href={"/research/" + study.waveSlug + "/methodology"}>Μεθοδολογία</Link>
           <Link href={"/research/" + study.waveSlug + "/results"}>Αποτελέσματα</Link>
+          <Link href="/research/market-sentiment">Άλλοι φορείς</Link>
           <Link href="/research/compare">Σύγκριση</Link>
         </nav>
       </div>
@@ -89,6 +90,7 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
               {isPublished ? "Δημοσιευμένα αποτελέσματα" : "Αποτελέσματα μετά την ολοκλήρωση"}
             </Link>
             <Link href="/research/compare">Σύγκριση μελετών</Link>
+            <Link href="/research/market-sentiment">Έρευνες άλλων φορέων</Link>
           </div>
         </div>
 
