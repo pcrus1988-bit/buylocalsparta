@@ -532,6 +532,15 @@ if (!jobs.includes("invalidResearchRecipientAddressReason(contact.contact_value)
     !fieldworkControls.includes("Μη έγκυρες διευθύνσεις που παραλείφθηκαν πριν το SES")) {
   errors.push("research sender must validate mailbox syntax before SES and separately report skip counts");
 }
+if (!jobs.includes("RESEARCH_BOUNCE_POLICY_CONFIRMATION_REQUIRED") ||
+    !jobs.includes("text(input.bouncePolicyAcknowledgedVersion) !== RESEARCH_BOUNCE_POLICY_VERSION") ||
+    !jobs.includes("'{bouncePolicyAcknowledgedVersion}'") ||
+    !surveyRuntime.includes("requiresBouncePolicyConfirmation") ||
+    !fieldworkControls.includes("Επιβεβαίωση νέων ορίων και συνέχεια υπάρχουσας εκστρατείας") ||
+    !fieldworkControls.includes("10% στα 1.000–4.999") ||
+    !fieldworkControls.includes("άνω του 5%")) {
+  errors.push("new research hard-bounce stages require explicit admin resume and a persistent 5% warning");
+}
 if (!jobs.includes("safetyHoldPhase: metrics.phase") ||
     !jobs.includes("transient_bounced") ||
     !jobs.includes("permanent_bounced") ||
