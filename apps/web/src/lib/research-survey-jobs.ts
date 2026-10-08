@@ -2142,6 +2142,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
           ) AS within_order
           FROM chosen
         )
+        inserted AS (
         INSERT INTO research_sample_units (
           sample_draw_id,
           frame_unit_id,
@@ -2158,7 +2159,8 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
           $7::numeric,
           $8::numeric
         FROM numbered
-        RETURNING id
+        RETURNING 1
+        ) SELECT count(*)::int AS inserted_count FROM inserted
       `, [
         frame.id,
         allocation.id,
@@ -2174,7 +2176,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
         cohort,
         cohortAFrameId || null
       ]);
-      if (inserted.rows.length !== allocation.sampleCount) {
+      if (numberValue(inserted.rows[0]?.inserted_count) !== allocation.sampleCount) {
         throw new Error(`RESEARCH_SAMPLE_STRATUM_COUNT_MISMATCH:${allocation.id}`);
       }
       selectionOffset += allocation.sampleCount;
