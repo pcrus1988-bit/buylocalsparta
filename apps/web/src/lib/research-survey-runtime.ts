@@ -2503,7 +2503,7 @@ export async function researchSurveyAdminCohortOverview(principal: SessionPrinci
       ORDER BY d.created_at DESC LIMIT 1
     ) a_draw ON true
     LEFT JOIN LATERAL (
-      SELECT d.status,d.target_n FROM research_sample_draws d
+      SELECT d.status,d.target_n,ds.design_json->>'recruitmentMode' AS recruitment_mode FROM research_sample_draws d
       JOIN research_sample_designs ds ON ds.sample_draw_id=d.id
       WHERE d.study_id=s.id AND d.wave_id=s.current_wave_id
         AND d.fieldwork_phase='main' AND ds.design_json->>'cohort'='B'
