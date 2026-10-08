@@ -5,7 +5,7 @@ export type ExternalGroup = Readonly<{
   id: string;
   title: string;
   subtitle: string;
-  unit: "index" | "balance" | "percent" | "euro";
+  unit: "index" | "balance" | "percent" | "euro" | "days";
   frequency: "annual" | "month-of-year";
   comparison: "direct" | "trend-only" | "descriptive";
   sourceIds: readonly string[];
@@ -27,6 +27,14 @@ const months = (values: readonly number[], year: number): ExternalPoint[] =>
   values.map((value, offset) => ({ period: String(offset + 1).padStart(2, "0"), year, value }));
 
 export const EXTERNAL_STUDIES: readonly ExternalStudy[] = [
+  { id:"silc-2025", issuer:"ΕΛΣΤΑΤ · EU-SILC", title:"Εισόδημα και συνθήκες διαβίωσης 2025 (εισοδήματα 2024)", year:2025, kind:"survey", url:"https://www.statistics.gr/documents/20181/30dc21b1-d0b6-feb9-beca-62e75e6b0d86", detail:"Δελτίο 19/03/2026, σελ. 8: μέσο ετήσιο ισοδύναμο διαθέσιμο εισόδημα 2018–2024 σε ευρώ, χρονολογημένο βάσει έτους εισοδήματος. Έτος έρευνας = έτος εισοδήματος + 1." },
+  { id:"silc-2024", issuer:"ΕΛΣΤΑΤ · EU-SILC", title:"Κίνδυνος φτώχειας 2024 (εισοδήματα 2023)", year:2024, kind:"survey", url:"https://www.statistics.gr/documents/20181/18581077/DT_ftoxeia_2024_en.pdf/03f634ec-bb96-3df6-c3a5-99a25d3126d6", detail:"Δημοσίευση 16/04/2025 · μέσο ισοδύναμο εισόδημα 12.391 € (έτος εισοδήματος 2023), επιβεβαίωση της ιστορικής σειράς." },
+  { id:"elstat-cpi-2025", issuer:"ΕΛΣΤΑΤ", title:"Δείκτης Τιμών Καταναλωτή 2025 και επιμέρους κατηγορίες", year:2025, kind:"statistical", url:"https://lms.statistics.gr/documents/20181/18744362/DT_deiktis_timon_katanaloti_2025_%CE%95%CE%9D.pdf/fabbec7f-6c21-b455-5f6b-2319cbab2836", detail:"Δημοσίευση 13/01/2026 · μέση ετήσια μεταβολή εθνικού ΔΤΚ 2025 +2,5%. Κατηγορίες: τρόφιμα +2,0%, στέγαση +4,2%, μεταφορές +0,3%, εστίαση/καταλύματα +6,3%. Όχι η ετήσια μεταβολή Δεκεμβρίου." },
+  { id:"eurostat-hicp-2025", issuer:"Eurostat", title:"Εναρμονισμένος Δείκτης Τιμών · ετήσιες χρονοσειρές", year:2025, kind:"statistical", url:"https://ec.europa.eu/eurostat/databrowser/view/prc_hicp_aind/default/table?lang=en", detail:"Ετήσιος μέσος ΕνΔΤΚ Ελλάδας 2019–2025· παλαιά έκδοση με βάση 2015=100. Το ιστορικό αρχείο αντικαταστάθηκε από prc_hicp_ainr· διατηρείται η αρχική βάση και η στρογγυλοποίηση του επιλεγμένου στιγμιότυπου." },
+  { id:"gsevee-income-2023", issuer:"ΙΜΕ ΓΣΕΒΕΕ", title:"Εισόδημα και δαπάνες διαβίωσης νοικοκυριών 2023", year:2023, kind:"survey", url:"https://imegsevee.gr/%CE%B4%CE%B7%CE%BC%CE%BF%CF%83%CE%B9%CE%B5%CF%8D%CF%83%CE%B5%CE%B9%CF%82/etisia-erevna-gia-to-eisodima-tis-dapanes-diaviosis-noikokyrion-2023/", detail:"12η ετήσια έρευνα· για νοικοκυριά με ανεπαρκές εισόδημα αυτό διαρκούσε κατά μέσο όρο 19 ημέρες· οι αυξήσεις τιμών τροφίμων επηρέασαν το 72,7% των νοικοκυριών." },
+  { id:"gsevee-income-2024", issuer:"ΙΜΕ ΓΣΕΒΕΕ", title:"Εισόδημα και δαπάνες διαβίωσης νοικοκυριών 2024", year:2024, kind:"survey", url:"https://imegsevee.gr/%CE%B4%CE%B7%CE%BC%CE%BF%CF%83%CE%B9%CE%B5%CF%8D%CF%83%CE%B5%CE%B9%CF%82/etisia-erevna-gia-to-eisodima-tis-dapanes-diaviosis-noikokyrion-2024/", detail:"13η ετήσια έρευνα · εισόδημα επαρκεί κατά μέσο όρο 19 ημέρες για τις πληττόμενες οικογένειες, 81,6% δεν αποταμιεύει, 72,4% περικόπτουν άλλες δαπάνες λόγω ακρίβειας." },
+  { id:"gsevee-income-2025", issuer:"ΙΜΕ ΓΣΕΒΕΕ", title:"Εισόδημα και δαπάνες διαβίωσης νοικοκυριών 2025", year:2025, kind:"survey", url:"https://imegsevee.gr/%CE%B4%CE%B7%CE%BC%CE%BF%CF%83%CE%B9%CE%B5%CF%8D%CF%83%CE%B5%CE%B9%CF%82/etisia-erevna-gia-to-eisodima-tis-dapanes-diaviosis-ton-noikokyrion-2025/", detail:"14η ετήσια έρευνα, δημοσιεύθηκε Φεβρουάριο 2026· κατά μέσο όρο 18 ημέρες επάρκειας εισοδήματος, 54% περικοπές βασικών αναγκών, 55,7% δυσκολία έκτακτης δαπάνης 500€." },
+  { id:"silc-gini-2025", issuer:"ΕΛΣΤΑΤ · EU-SILC", title:"Ανισότητα εισοδήματος 2025 (εισοδηματικό έτος 2024)", year:2025, kind:"statistical", url:"https://www.statistics.gr/documents/20181/1a15bbfa-74f9-1101-7381-56a83db53ad9", detail:"Δελτίο 19/03/2026 · Συντελεστής Gini (0–100) για έτη έρευνας 2019–2025. Κάθε παρατήρηση αφορά το προηγούμενο έτος εισοδήματος." },
   { id: "hbs-2024", issuer: "ΕΛΣΤΑΤ", title: "Έρευνα Οικογενειακών Προϋπολογισμών 2024", year: 2024, kind: "survey", url: "https://www.statistics.gr/documents/20181/18678055/DT_eop_2024_EN.pdf/d33a2eda-0a74-7516-6cfe-75cfae8c4b40", detail: "Επίσημο ενημερωτικό γράφημα 25/09/2025· μέση μηνιαία δαπάνη, αστικές/αγροτικές περιοχές, μερίδια 13 κατηγοριών. Το 2024 υιοθετήθηκε η ταξινόμηση COICOP-HBS 2018." },
   { id: "hbs-2025", issuer: "ΕΛΣΤΑΤ", title: "Έρευνα Οικογενειακών Προϋπολογισμών 2025", year: 2025, kind: "survey", url: "https://www.statistics.gr/documents/20181/18958813/DT_eop_2025_en.pdf/5f6cedd1-de1b-f227-f783-508c5976295b", detail: "Επίσημο ενημερωτικό γράφημα 25/09/2026· δαπάνη νοικοκυριών 2009–2025, ποσοστά καταναλωτικού καλαθιού και έξοδα αγαθών σε ευρώ. Ονομαστικές τιμές." },
   { id: "elstat-greece-2026q3", issuer: "ΕΛΣΤΑΤ", title: "Greece in Figures · Ιούλιος–Σεπτέμβριος 2026", year: 2026, kind: "statistical", url: "https://www.statistics.gr/documents/20181/18849188/GreeceinFigures_2026Q3_EN.pdf/ea76cf13-0a2a-459a-6b06-fae9b76847bd", detail: "Σελίδα 90 (PDF σελ. 46): ετήσιοι δείκτες 2024–2025 και Ιανουάριος–Ιούλιος 2026. Κύκλος εργασιών, όγκος, τρόφιμα και λοιπά αγαθά· βάση 2021=100." },
@@ -52,6 +60,59 @@ export const EXTERNAL_STUDIES: readonly ExternalStudy[] = [
 ];
 
 export const EXTERNAL_GROUPS: readonly ExternalGroup[] = [
+  {
+    id:"income-refyear",title:"Διαθέσιμο εισόδημα στην Ελλάδα",subtitle:"EU-SILC · πραγματικό έτος εισοδήματος 2018–2024 · €/ισοδύναμο άτομο/έτος",
+    unit:"euro",frequency:"annual",comparison:"direct",sourceIds:["silc-2025","silc-2024"],
+    caution:"Το 2025 είναι το έτος ΕΡΕΥΝΑΣ, με αναφορά σε εισοδήματα του 2024. Το μέσο ισοδύναμο διαθέσιμο εισόδημα υπολογίζεται ΑΝΑ ισοδύναμο άτομο (όχι ανά νοικοκυριό ή μισθωτό), σε τρέχοντα ευρώ και όχι σε πραγματικές τιμές. Δεν ταυτίζεται σε ποσό με τον οικογενειακό προϋπολογισμό.",
+    series:[{id:"equivalised-income",label:"Μέσο διαθέσιμο εισόδημα · έτος εισοδήματος",points:annual([9382,10041,9952,10832,11546,12391,13381],2018)}]
+  },
+  {
+    id:"hicp-annual-index",title:"Σωρευτική αύξηση επιπέδου τιμών",subtitle:"Eurostat · ΕνΔΤΚ ετήσιος μέσος · βάση 2015=100",
+    unit:"index",frequency:"annual",comparison:"direct",sourceIds:["eurostat-hicp-2025"],
+    caution:"Εναρμονισμένος δείκτης τιμών καταναλωτή, ετήσιος μέσος Ελλάδας, παλαιά/παγωμένη έκδοση (2015=100) με μία δεκαδική. Ο δείκτης είναι ΕΠΙΠΕΔΟ τιμών, όχι ετήσιο ποσοστό πληθωρισμού. Για νέο vintage ελέγξτε τον διάδοχο Eurostat prc_hicp_ainr.",
+    series:[{id:"hicp-greece",label:"Ελλάδα · ΕνΔΤΚ",points:annual([102.5,101.2,101.8,111.2,115.8,119.3,122.8],2019)}]
+  },
+  {
+    id:"hicp-annual-inflation",title:"Ετήσιος μέσος πληθωρισμός",subtitle:"Eurostat · ΕνΔΤΚ Ελλάδας, 2020–2025 · % ανά έτος",
+    unit:"percent",frequency:"annual",comparison:"direct",sourceIds:["eurostat-hicp-2025"],
+    caution:"Ετήσια μέση μεταβολή ΕνΔΤΚ (Eurostat), ΟΧΙ ετήσιος πληθωρισμός Δεκεμβρίου, ούτε μεταβολή του εθνικού ΔΤΚ. Επίσης η μεταβολή μεταξύ στρογγυλοποιημένων επιπέδων ΕνΔΤΚ μπορεί να αποκλίνει κατά 0,1 μονάδα από τα δημοσιευμένα ποσοστά.",
+    series:[{id:"hicp-gr-annual",label:"Ελλάδα · ετήσιος μέσος %",points:annual([-1.3,0.6,9.3,4.2,3.0,2.9],2020)}]
+  },
+  {
+    id:"greek-cpi-2025-categories",title:"Πληθωρισμός ανά βασική ανάγκη",subtitle:"ΕΛΣΤΑΤ · εθνικός ΔΤΚ · μέσες ετήσιες μεταβολές 2025",
+    unit:"percent",frequency:"annual",comparison:"descriptive",sourceIds:["elstat-cpi-2025"],
+    caution:"Έξι ομάδες με διαφορετική βαρύτητα καταναλωτικού καλαθιού: μη αθροίζετε τα ποσοστά, ούτε ταυτίζετε αυξήσεις τιμών με αύξηση της κατανάλωσης. Εθνικός ΔΤΚ 2020=100· διαφέρει από ΕνΔΤΚ Eurostat.",
+    series:[
+      {id:"cpi-2025-food",label:"Τρόφιμα / μη αλκοολούχα",points:[{period:"2025",year:2025,value:2.0}]},
+      {id:"cpi-2025-housing",label:"Στέγαση",points:[{period:"2025",year:2025,value:4.2}]},
+      {id:"cpi-2025-hospitality",label:"Εστίαση / καταλύματα",points:[{period:"2025",year:2025,value:6.3}]},
+      {id:"cpi-2025-transport",label:"Μεταφορές",points:[{period:"2025",year:2025,value:0.3}]},
+      {id:"cpi-2025-health",label:"Υγεία",points:[{period:"2025",year:2025,value:1.5}]},
+      {id:"cpi-2025-overall",label:"Γενικός εθνικός ΔΤΚ",points:[{period:"2025",year:2025,value:2.5}]}
+    ]
+  },
+  {
+    id:"income-inequality-2019-2025",title:"Ανισότητα διαθέσιμου εισοδήματος",subtitle:"EU-SILC · συντελεστής Gini, έτη έρευνας 2019–2025",
+    unit:"index",frequency:"annual",comparison:"direct",sourceIds:["silc-gini-2025"],
+    caution:"Gini σε κλίμακα 0–100 (όχι ποσοστό): υψηλότερος δείκτης σημαίνει μεγαλύτερη ανισότητα. Κάθε έτος ΕΡΕΥΝΑΣ 2019–2025 αφορά εισοδήματα του προηγούμενου έτους. Δεν δείχνει μέσο εισόδημα ούτε μεταβολή των δαπανών.",
+    series:[{id:"income-gini-survey",label:"Gini · έτος έρευνας",points:annual([31.0,31.4,32.4,31.4,31.8,31.8,31.6],2019)}]
+  },
+  {
+    id:"gsevee-days-2023-2025",title:"Για πόσες ημέρες επαρκεί το εισόδημα;",subtitle:"ΙΜΕ ΓΣΕΒΕΕ · έρευνες 2023–2025 · υποκειμενική επάρκεια",
+    unit:"days",frequency:"annual",comparison:"trend-only",sourceIds:["gsevee-income-2023","gsevee-income-2024","gsevee-income-2025"],
+    caution:"Δείκτης αυτοαναφερόμενης επάρκειας μετρημένος σε ημέρες ανά μήνα. Αφορά κυρίως νοικοκυριά με μη επαρκές εισόδημα· η ακριβής σύνθεση δείγματος/διατύπωση μπορεί να αλλάζει από έτος σε έτος. Δεν αποτελεί επίσημη μέτρηση πραγματικού διαθέσιμου εισοδήματος.",
+    series:[{id:"days-affordable",label:"Ημέρες επάρκειας για οικονομικά πιεζόμενους",points:annual([19,19,18],2023)}]
+  },
+  {
+    id:"gsevee-budget-2025",title:"Πίεση εισοδήματος και περικοπές",subtitle:"ΙΜΕ ΓΣΕΒΕΕ · ετήσια έρευνα νοικοκυριών 2025",
+    unit:"percent",frequency:"annual",comparison:"descriptive",sourceIds:["gsevee-income-2025"],
+    caution:"Διαφορετικά ερωτήματα της ίδιας δειγματοληπτικής έρευνας. Δεν αθροίζονται μεταξύ τους και δεν μπορούν να συσχετιστούν σε ατομικό επίπεδο χωρίς μικροδεδομένα.",
+    series:[
+      {id:"gsevee-cut-essentials",label:"Περικοπές βασικών αναγκών",points:[{period:"2025",year:2025,value:54.0}]},
+      {id:"gsevee-emergency500",label:"Δυσκολία έκτακτου εξόδου 500€",points:[{period:"2025",year:2025,value:55.7}]},
+      {id:"gsevee-income-not-enough",label:"Εισόδημα δεν φτάνει τον μήνα (περίπου)",points:[{period:"2025",year:2025,value:60.0}]}
+    ]
+  },
   {
     id: "household-spending-history",
     title: "Μέση μηνιαία δαπάνη νοικοκυριού",

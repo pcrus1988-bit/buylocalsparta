@@ -99,8 +99,8 @@ test("merchant and consumer survey outcomes remain descriptive, not composite st
 });
 
 test("the expanded atlas has no duplicate studies, only traceable https sources",()=>{
-  assert.equal(EXTERNAL_STUDIES.length,22);
-  assert.equal(EXTERNAL_GROUPS.length,18);
+  assert.equal(EXTERNAL_STUDIES.length,30);
+  assert.equal(EXTERNAL_GROUPS.length,25);
   assert.equal(new Set(EXTERNAL_STUDIES.map(s=>s.id)).size,EXTERNAL_STUDIES.length);
   assert.equal(new Set(EXTERNAL_GROUPS.map(g=>g.id)).size,EXTERNAL_GROUPS.length);
   assert.ok(EXTERNAL_STUDIES.every(s=>s.url.startsWith("https://")));

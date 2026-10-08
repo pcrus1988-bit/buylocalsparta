@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../../components/SiteFooter";
 import { ResearchExternalAnalysis } from "../../../components/ResearchExternalAnalysis";
+import { ResearchSpendingDrivers } from "../../../components/ResearchSpendingDrivers";
 import { EXTERNAL_GROUPS, EXTERNAL_STUDIES } from "../../../lib/research-external-analysis";
 import styles from "../../../components/ResearchObservatory.module.css";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
@@ -113,6 +114,7 @@ export default async function ResearchComparePage({
               <Link className={styles.primaryButton} href="/research/compare" aria-current="page">Δημοσιευμένα στοιχεία αγοράς</Link>
               <Link href="/research/compare?view=ours">Μελέτες KONTA MOY</Link>
               <Link href="/research/market-sentiment">Αρχικές δημοσιεύσεις</Link>
+              <Link href="/research/compare#income-spending-relations">Εισόδημα & πληθωρισμός</Link>
             </div>
           </div>
           <aside className={styles.heroAside}>
@@ -155,6 +157,7 @@ export default async function ResearchComparePage({
         </section>
 
         <ResearchExternalAnalysis key={selectedGroup.id} initialGroupId={selectedGroup.id} />
+        <ResearchSpendingDrivers />
 
         <section className={styles.section}>
           <div className={styles.sectionHead}>
