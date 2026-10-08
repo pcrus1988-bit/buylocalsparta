@@ -24,9 +24,13 @@ export const RESEARCH_PRESET_CATEGORIES: readonly ResearchPresetCategory[] = [
     introduction: "Δαπάνες, κατανομή προϋπολογισμού και συσχέτιση με εισόδημα και τιμές.",
     presets: [
       { id: "household-spending", indicator: "household-spending-history", title: "Πώς μεταβλήθηκαν οι δαπάνες των νοικοκυριών;", description: "Μέση μηνιαία δαπάνη σε ονομαστικά ευρώ. Η αύξηση δεν ισούται με πραγματική κατανάλωση.", period: "2019–2025" },
+      { id: "household-income", indicator: "income-refyear", title: "Πώς εξελίχθηκε το διαθέσιμο εισόδημα;", description: "Μέσο ισοδύναμο εισόδημα ανά άτομο/έτος σε τρέχοντα ευρώ, όχι δαπάνη νοικοκυριού.", period: "2018–2024" },
       { id: "urban-rural", indicator: "household-urban-rural", title: "Αστικά και αγροτικά νοικοκυριά", description: "Δείτε το επίπεδο δαπανών ανά περιοχή, χωρίς να αποδίδουμε τη διαφορά μόνο στη γεωγραφία.", period: "2024–2025" },
       { id: "budget-mix", indicator: "household-budget-mix", title: "Πού πηγαίνει ο οικογενειακός προϋπολογισμός;", description: "Μερίδια σε τρόφιμα, στέγαση, ένδυση, μεταφορές και άλλες κατηγορίες.", period: "2024–2025" },
+      { id: "income-inequality", indicator: "income-inequality-2019-2025", title: "Η εισοδηματική ανισότητα αυξάνεται ή μειώνεται;", description: "Δείκτης Gini βάσει έτους έρευνας (διαφορετικό από το έτος εισοδήματος).", period: "2019–2025" },
       { id: "food-spending", indicator: "household-food-spending", title: "Πόσα ξοδεύουμε για τρόφιμα;", description: "Συγκρίνετε ονομαστικές δαπάνες σε ομάδες τροφίμων, όχι ποσοστά πληθωρισμού.", period: "2024–2025" },
+      { id: "income-days", indicator: "gsevee-days-2023-2025", title: "Για πόσες ημέρες επαρκεί το εισόδημα;", description: "Αυτοαναφερόμενη οικονομική επάρκεια νοικοκυριών· προσοχή στις διαφορές δείγματος ανά έτος.", period: "2023–2025" },
+      { id: "household-cuts", indicator: "gsevee-budget-2025", title: "Ποιες οικονομικές πιέσεις δηλώνουν τα νοικοκυριά;", description: "Περικοπές αναγκών και δυσκολία έκτακτων δαπανών, ως ανεξάρτητες απαντήσεις έρευνας.", period: "2025" },
       { id: "income-prices", title: "Εισόδημα, πληθωρισμός & πραγματική δαπάνη", description: "Κοινή βάση 2019=100, πραγματικές αξίες και διερεύνηση σχέσεων· όχι απόδειξη αιτιότητας.", period: "2019–2025" }
     ]
   },
@@ -49,6 +53,9 @@ export const RESEARCH_PRESET_CATEGORIES: readonly ResearchPresetCategory[] = [
     introduction: "Διαχρονικές μεταβολές τιμών, επιχειρηματικές προσδοκίες και εμπιστοσύνη σε Ελλάδα και Ευρώπη.",
     presets: [
       { id: "supermarket-prices", indicator: "supermarket-prices", title: "Πώς άλλαξε ο ρυθμός τιμών στα σούπερ μάρκετ;", description: "Ετήσιοι ρυθμοί μεταβολής τιμών, όχι επίπεδα τιμών· οι διαφορές μετρώνται σε μονάδες.", period: "Σεπ 2025–2026" },
+      { id: "hicp-price-level", indicator: "hicp-annual-index", title: "Πόσο ανέβηκε σωρευτικά το επίπεδο τιμών;", description: "ΕνΔΤΚ Ελλάδας ως επίπεδο δείκτη (βάση 2015=100), όχι ετήσιο ποσοστό.", period: "2019–2025" },
+      { id: "hicp-inflation", indicator: "hicp-annual-inflation", title: "Πώς κινήθηκε ο ετήσιος μέσος πληθωρισμός;", description: "Ποσοστιαία μεταβολή ΕνΔΤΚ, ξεχωριστά από το επίπεδο τιμών.", period: "2020–2025" },
+      { id: "cpi-needs", indicator: "greek-cpi-2025-categories", title: "Τι ακρίβυνε περισσότερο ανά βασική ανάγκη;", description: "Ετήσιες μεταβολές εθνικού ΔΤΚ ανά κατηγορία το 2025, χωρίς πρόσθεση ποσοστών.", period: "2025" },
       { id: "economic-sentiment", indicator: "annual-esi", title: "Οικονομικό κλίμα: Ελλάδα, ΕΕ & Ευρωζώνη", description: "Ετήσιες σειρές από εναρμονισμένη πηγή, όχι στοιχεία ετήσιου τζίρου.", period: "2022–2025" },
       { id: "economic-sentiment-monthly", indicator: "monthly-esi", title: "Οικονομικό κλίμα ανά μήνα: 2025 vs 2026", description: "Μηνιαίες επικαλύψεις ανά περιοχή, χωρίς τεχνητή συμπλήρωση μη διαθέσιμων μηνών.", period: "2025–2026" },
       { id: "sector-expectations", indicator: "annual-balances", title: "Καταναλωτές, εμπόριο & υπηρεσίες", description: "Ισοζύγια διαφορετικών κλάδων για σύγκριση πορείας, όχι απόλυτου επιπέδου.", period: "2022–2024" }
