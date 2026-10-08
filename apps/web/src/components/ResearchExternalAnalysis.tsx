@@ -113,6 +113,7 @@ export function ResearchExternalAnalysis(){
   const [from,setFrom]=useState(2022),[until,setUntil]=useState(2026);
   const [chartType,setChartType]=useState<"line"|"bar">("line"),[index,setIndex]=useState(false);
   const [query,setQuery]=useState(""),[kind,setKind]=useState("all");
+  const [leftStudy,setLeftStudy]=useState("iobe-2025"),[rightStudy,setRightStudy]=useState("iobe-2026");
   const [uploaded,setUploaded]=useState<ParsedCsv|null>(null),[uploadError,setUploadError]=useState("");
   const fileRef=useRef<HTMLInputElement>(null);
   const group=EXTERNAL_GROUPS.find(g=>g.id===groupId)??EXTERNAL_GROUPS[0];
@@ -128,6 +129,9 @@ export function ResearchExternalAnalysis(){
   const firstLine=selectedLines.find(s=>s.points.length>1);
   const ordered=firstLine?.points.slice().sort((a,b)=>a.year-b.year||Number(a.period)-Number(b.period))??[];
   const delta=ordered.length>1?externalChange(ordered[0].value,ordered[ordered.length-1].value):null;
+  const sharedGroups=EXTERNAL_GROUPS.filter(g=>g.sourceIds.includes(leftStudy)&&g.sourceIds.includes(rightStudy)&&leftStudy!==rightStudy);
+  const leftSource=EXTERNAL_STUDIES.find(s=>s.id===leftStudy);
+  const rightSource=EXTERNAL_STUDIES.find(s=>s.id===rightStudy);
   const studyMatches=EXTERNAL_STUDIES.filter(study=>(kind==="all"||study.kind===kind)&&(study.issuer+" "+study.title+" "+study.detail).toLocaleLowerCase("el-GR").includes(query.toLocaleLowerCase("el-GR")));
   function chooseGroup(id:string){
     const next=EXTERNAL_GROUPS.find(g=>g.id===id)??EXTERNAL_GROUPS[0];
@@ -189,6 +193,21 @@ export function ResearchExternalAnalysis(){
       <div><span className={styles.eyebrow}>Δικές σας αναλύσεις · ιδιωτική προεπισκόπηση</span><h3 id="custom-data-title">Αναλύστε και δικά σας δεδομένα.</h3><p>Εισαγάγετε αρχείο CSV με έως 1.000 γραμμές και 6 σειρές, χωρίς αποστολή σε διακομιστή. Χρειάζονται οι στήλες <code>series, year, period, value, unit, source</code>. Μονάδες: index, balance ή percent.</p>
         <div className={styles.importActions}><input ref={fileRef} type="file" accept=".csv,text/csv" onChange={e=>{void importFile(e.target.files?.[0]);e.target.value="";}} aria-label="Επιλέξτε αρχείο CSV"/><button type="button" onClick={()=>{const blob=new Blob(["\uFEFF",csvTemplate],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="research-import-template.csv";a.click();URL.revokeObjectURL(url);}}>Πρότυπο CSV ↓</button>{uploaded&&<button type="button" onClick={()=>chooseGroup("annual-esi")}>Επιστροφή στα δημοσιευμένα στοιχεία</button>}</div>
         {uploadError&&<p className={styles.error} role="alert">{uploadError}</p>}{uploaded&&<p className={styles.importSuccess} role="status">{uploaded.message}</p>}
+      </div>
+    </section>
+    <section className={styles.studyCompare} aria-labelledby="external-study-compare-title">
+      <div><span className={styles.eyebrow}>Σύγκριση δύο μελετών</span><h3 id="external-study-compare-title">Τι επιτρέπεται να συγκρίνουμε;</h3><p>Επιλέξτε δύο αρχικές δημοσιεύσεις. Θα εμφανιστούν κοινά, ελέγξιμα στοιχεία, όχι τεχνητές συσχετίσεις ανάμεσα σε διαφορετικούς δείκτες.</p></div>
+      <div className={styles.pairPicker}>
+        <label>Πρώτη μελέτη<select aria-label="Πρώτη μελέτη" value={leftStudy} onChange={e=>setLeftStudy(e.target.value)}>{EXTERNAL_STUDIES.map(s=><option key={s.id} value={s.id}>{s.issuer} · {s.year} — {s.title}</option>)}</select></label>
+        <label>Δεύτερη μελέτη<select aria-label="Δεύτερη μελέτη" value={rightStudy} onChange={e=>setRightStudy(e.target.value)}>{EXTERNAL_STUDIES.map(s=><option key={s.id} value={s.id}>{s.issuer} · {s.year} — {s.title}</option>)}</select></label>
+      </div>
+      <div className={styles.pairCards}>
+        {[leftSource,rightSource].map((s,i)=>s&&<article key={i}><span className={styles.eyebrow}>{i===0?"Α · Πρώτη πηγή":"Β · Δεύτερη πηγή"}</span><strong>{s.title}</strong><p>{s.issuer} · {s.detail}</p><a href={s.url} target="_blank" rel="noopener noreferrer">Δείτε τη δημοσίευση ↗</a></article>)}
+      </div>
+      <div className={sharedGroups.length?styles.compareAllowed:styles.compareBlocked} role="status">
+        <strong>{sharedGroups.length?"Υπάρχουν κοινές σειρές προς εξέταση":"Δεν υπάρχει τεκμηριωμένη κοινή αριθμητική σειρά"}</strong>
+        <p>{sharedGroups.length?"Μπορούν να εξεταστούν οι παρακάτω δείκτες, με τους περιορισμούς της κάθε μεθόδου:":"Οι πηγές δεν έχουν ίδια μετρήσιμη μεταβλητή ή περίοδο. Μπορούν να παρατεθούν ως διαφορετικές οπτικές, όχι να υπολογιστεί κοινός μέσος, διαφορά ή συσχέτιση."}</p>
+        {sharedGroups.map(g=><button type="button" key={g.id} onClick={()=>{chooseGroup(g.id);document.getElementById("research-workbench-title")?.scrollIntoView({behavior:"smooth",block:"start"});}}>{g.title} · {g.comparison==="direct"?"ίδιος ορισμός":"με προσοχή"} ↗</button>)}
       </div>
     </section>
     <section className={styles.catalog} aria-label="Αρχείο μελετών">
