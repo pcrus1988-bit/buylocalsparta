@@ -87,7 +87,7 @@ export function ResearchSurveyAdminNav({
         <div className="workspace-action-buttons" style={{ flexWrap: "wrap" }}>
           {RESEARCH_SURVEY_ADMIN_SECTIONS.filter((item) => item.group === group.key).map((item) => {
             const href = item.key === "overview" ? root : root + "/" + item.key;
-            return <Link
+            return <Link prefetch={false}
               aria-current={current === item.key ? "page" : undefined}
               className={current === item.key ? "button" : "button button-secondary"}
               href={href}
