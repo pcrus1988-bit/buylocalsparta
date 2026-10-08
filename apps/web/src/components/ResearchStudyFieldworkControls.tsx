@@ -579,9 +579,12 @@ export function ResearchStudyFieldworkControls({
         Αποτελέσματα παράδοσης που έχουν ταξινομηθεί: <strong>{campaign.classifiedDeliveryCount.toLocaleString("el-GR")}</strong>.
         {" "}Επόμενο σημείο αξιολόγησης: <strong>{campaign.nextReviewMilestone.toLocaleString("el-GR")}</strong>.
         {campaign.completedReviewMilestone !== null && <> Τελευταίο σημείο αξιολόγησης: {campaign.completedReviewMilestone.toLocaleString("el-GR")}.</>}
-        {" "}Στάδια ορίου επιστροφών της μελέτης: 10% στα 1.000–4.999 αποτελέσματα, 9% στα 5.000–9.999, 7% στα 10.000–24.999, 5% από τα 25.000 και μετά (και μετά τα 50.000).
+        {" "}Στάδια ορίου επιστροφών της μελέτης: 10% στα 1.000–4.999 αποτελέσματα, 9% στα 5.000–9.999, 7% στα 10.000–24.999, 10% στα 25.000–74.999 και 8% από τα 75.000 και μετά.
         {" "}Η προληπτική παύση για validation-suppressed παραμένει ανεξάρτητη· οι περιορισμοί φήμης AWS SES συνεχίζουν να ισχύουν.
       </p>
+      {campaign.requiresBouncePolicyConfirmation && <p className="workspace-inline-note form-error">
+        Απαιτείται νέα ρητή επιβεβαίωση των ορίων 10% / 9% / 7% / 10% / 8% πριν από οποιαδήποτε επιπλέον αποστολή.
+      </p>}
       {campaign.safetyHold && <p className="workspace-inline-note form-error">
         {campaign.paused ? "Τελευταία καταγεγραμμένη παύση ασφαλείας" : "Καταγεγραμμένη παύση ασφαλείας"}: {campaign.safetyHold}.
         {" "}{campaign.requiresBouncePolicyConfirmation
@@ -625,7 +628,7 @@ export function ResearchStudyFieldworkControls({
           onClick={() => {
             if (campaign.requiresBouncePolicyConfirmation && !window.confirm(
               "Επιβεβαιώνετε την άρση της παύσης για την ΙΔΙΑ εγκεκριμένη εκστρατεία Cohort " +
-              campaign.cohort + " με τα νέα στάδια επιστροφών (10% / 9% / 7% / 5%); " +
+              campaign.cohort + " με τα νέα στάδια επιστροφών (10% / 9% / 7% / 10% / 8%); " +
               "Το ποσοστό της μελέτης είναι ήδη πάνω από 5%. " +
               "Η επιβεβαίωση επανεκκινεί την αποστολή, εφόσον δεν ισχύει άλλη δικλίδα SES ή παύση."
             )) return;
