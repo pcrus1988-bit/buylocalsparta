@@ -48,3 +48,16 @@ test("simulation never accepts bulk recipient strings or newline-injected emails
   assert.equal(validSimulationEmail("test@example.com\nBcc:other@example.com"), false);
   assert.throws(() => createSimulationInvitation("bad slug", "test@example.com", at, env));
 });
+
+
+test("receipt remains verifiable after invitation closes, then expires itself", () => {
+  const issued = createSimulationInvitation("greek-retail-2026", "test@example.com", at, env);
+  const invitation = readSimulationToken(issued.token, "invitation", at, env);
+  const submittedAt = issued.expiresAt - 1000;
+  const receiptToken = createSimulationReceipt(invitation, answers, submittedAt, env);
+  const recovered = readSimulationToken(receiptToken, "receipt", issued.expiresAt + 1000, env);
+  assert.equal(recovered.expiresAt, submittedAt + SIMULATION_TTL_MS);
+  assert.equal(recovered.answersCount, 3);
+  assert.throws(() => readSimulationToken(receiptToken, "receipt", submittedAt + SIMULATION_TTL_MS + 1, env));
+  assert.throws(() => createSimulationReceipt(invitation, answers, issued.expiresAt + 1, env), /INVITATION_EXPIRED/);
+});
