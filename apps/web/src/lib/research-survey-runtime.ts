@@ -2600,7 +2600,8 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       COALESCE(campaign.output->>'lastAttemptFailureReason',
         campaign.output->'failures'->0->>'error') AS campaign_last_submission_error,
       campaign.output->>'campaignSubmissionFailureCount' AS campaign_submission_failures,
-      campaign.output->>'lastBatchFailureCount' AS campaign_last_batch_failures
+      campaign.output->>'lastBatchFailureCount' AS campaign_last_batch_failures,
+      campaign.output->>'campaignInvalidRecipientSkippedCount' AS campaign_invalid_recipient_skips
     FROM research_studies s
     LEFT JOIN LATERAL (
       SELECT version,subject,body_text FROM research_recruitment_templates
@@ -2734,6 +2735,7 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       lastSubmissionError:optionalText(row.campaign_last_submission_error)?.slice(0,500),
       submissionFailures:numberValue(row.campaign_submission_failures),
       lastBatchFailures:numberValue(row.campaign_last_batch_failures),
+      invalidRecipientSkippedCount:numberValue(row.campaign_invalid_recipient_skips),
       classifiedDeliveryCount,
       completedReviewMilestone:reviewMilestones.completedMilestone,
       nextReviewMilestone:reviewMilestones.nextMilestone
