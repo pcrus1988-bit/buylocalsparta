@@ -10,7 +10,7 @@ import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./po
 import { runGreekRetailAnalysis } from "./research-survey-analysis";
 import { proportionalStratumAllocation } from "./research-survey-statistics";
 import { buildGreekRetailRelease } from "./research-survey-release";
-import { greekRetailSector, isRetailKad, RETAIL_ACTIVITY_GROUP_IDS, RETAIL_CLASSIFICATION_VERSION, RETAIL_SOURCE_REFERENCE } from "./research-kad-coverage";
+import { greekRetailSector, greekRetailSectorV1, isRetailKad, RETAIL_ACTIVITY_GROUP_IDS, RETAIL_CLASSIFICATION_VERSION, RETAIL_SOURCE_REFERENCE } from "./research-kad-coverage";
 import {
   assertResearchSurveyEmailReady,
   sendResearchResultsNotification,
@@ -211,7 +211,9 @@ function frameRecord(record: GemiResearchFrameRecord, classificationVersion: str
     : record.activityCodes).filter(isRetailKad);
   if (!matchedCodes.length) return undefined;
   const regionCode = record.prefectureId || "unknown";
-  const sectorCode = greekRetailSector(matchedCodes);
+  const sectorCode = classificationVersion === "greek-retail-kad-sector-v1"
+    ? greekRetailSectorV1(matchedCodes)
+    : greekRetailSector(matchedCodes);
   const email = record.email.trim().toLowerCase();
   return {
     externalKeyHash: sha256(identity),
