@@ -351,7 +351,7 @@ Required before any research invitation job can send:
 - `BLS_RESEARCH_SES_SNS_TOPIC_ARN=<SNS topic used by that configuration set>`
 - `BLS_RESEARCH_REWARD_SECRET=<at least 32 random characters>` for deterministic thank-you code derivation without plaintext code storage
 - AWS SES credentials already used by the admin-mail SES runtime
-- optional `BLS_RESEARCH_SES_FROM` and `BLS_RESEARCH_SES_REPLY_TO` (default: `partners@kontamou.site`)
+- optional `BLS_RESEARCH_SES_FROM` and `BLS_RESEARCH_SES_REPLY_TO` (default: `research@kontamou.site`)
 
 The SES configuration set should publish at least Delivery, Bounce and Complaint events to the configured SNS topic. Open events may also be enabled for fieldwork diagnostics; Click events are deliberately ignored by the research persistence layer.
 
@@ -365,3 +365,12 @@ The SES configuration set should publish at least Delivery, Bounce and Complaint
 - SES message content is not persisted; only subject/body SHA-256 hashes and provider message IDs are stored.
 - The worker may retry a failed reward email with the same derived code because the code can be regenerated from the entitlement ID and server-only HMAC secret.
 - No monetary discount percentage or credit amount is hard-coded in the research engine. Commercial reward terms remain a separately governed KONTA MOY decision.
+
+
+## Dedicated KONTA MOY Research SES (October 2026)
+
+- Sender/Reply-to: research@kontamou.site, verified-domain sender separate from partners@. Outbound sender identity does not create an inbound mailbox.
+- Simulation: BLS_RESEARCH_SIMULATION_EMAIL_ENABLED=true permits only manually confirmed single-recipient workflow rehearsal; no fieldwork/sample records are created by the simulator and BLS_RESEARCH_EMAIL_DELIVERY_ENABLED remains false.
+- SES configuration set: kontamou-research in eu-north-1, with events to SNS topic arn:aws:sns:eu-north-1:708925321104:kontamou-research-events.
+- Webhook: https://kontamou.site/api/webhooks/research-ses; configure BLS_RESEARCH_SES_SNS_TOPIC_ARN before HTTPS subscription so SNS SubscriptionConfirmation can be authenticated and acknowledged.
+- Verify MAIL FROM info.kontamou.site DNS status, AWS sending permissions/sandbox, SNS subscription, delivery/bounce/delay processing and inbound routing separately before unlocking real Research emails.

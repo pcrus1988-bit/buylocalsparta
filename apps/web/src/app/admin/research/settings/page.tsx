@@ -6,6 +6,7 @@ import { WorkspaceSectionHeading, WorkspaceStatusBadge } from "../../../../compo
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { researchSurveyEmailConfiguration } from "../../../../lib/research-survey-mail";
+import { sesMailConfigFromEnv } from "../../../../lib/admin-mail-ses";
 
 export const metadata: Metadata = {
   title: "Admin · Global Research Settings",
@@ -21,6 +22,11 @@ export default async function ResearchGlobalSettingsPage() {
 
   const mail = researchSurveyEmailConfiguration();
   const snsConfigured = Boolean(process.env.BLS_RESEARCH_SES_SNS_TOPIC_ARN?.trim());
+  const simulationEnabled = process.env.BLS_RESEARCH_SIMULATION_EMAIL_ENABLED === "true";
+  let sesCredentialsConfigured = true;
+  try { sesMailConfigFromEnv(); } catch { sesCredentialsConfigured = false; }
+  const simulationReady = simulationEnabled && sesCredentialsConfigured;
+  const liveReady = mail.enabled && sesCredentialsConfigured && Boolean(mail.configurationSetName) && snsConfigured;
 
   return <main className="vendor-app admin-app admin-research-settings">
     <AdminWorkspaceHeader csrfToken={principal.csrfToken} entityLabel="Research · Global settings" />
@@ -43,9 +49,15 @@ export default async function ResearchGlobalSettingsPage() {
       <div className="research-settings-grid">
         <article className="research-settings-card">
           <span>Research email delivery</span>
-          <strong>{mail.enabled ? "Enabled" : "Disabled"}</strong>
-          <WorkspaceStatusBadge status={mail.enabled ? "active" : "warning"} label={mail.enabled ? "Active" : "Off"} />
-          <small>The global delivery gate must be enabled before any survey can send Research email.</small>
+          <strong>{liveReady ? "Enabled" : mail.enabled ? "Incomplete configuration" : "Disabled"}</strong>
+          <WorkspaceStatusBadge status={liveReady ? "active" : "warning"} label={liveReady ? "Active" : "Off"} />
+          <small>Live delivery needs its own gate, credentials, SES set and SNS topic. Simulation cannot start fieldwork.</small>
+        </article>
+        <article className="research-settings-card">
+          <span>One-recipient simulation email</span>
+          <strong>{simulationReady ? "SES test send configured" : "Not yet configured"}</strong>
+          <WorkspaceStatusBadge status={simulationReady ? "active" : "warning"} label={simulationReady ? "Enabled" : "Off"} />
+          <small>Independent from live delivery, with explicit confirmation per test send. AWS sending readiness must still be verified.</small>
         </article>
         <article className="research-settings-card">
           <span>Sender</span>
@@ -54,8 +66,8 @@ export default async function ResearchGlobalSettingsPage() {
         </article>
         <article className="research-settings-card">
           <span>SES event tracking</span>
-          <strong>{mail.configurationSetName ? "Configuration set ready" : "Configuration set missing"}</strong>
-          <small>{snsConfigured ? "Bounce, complaint and delivery event endpoint configured." : "SNS event topic is not configured."}</small>
+          <strong>{mail.configurationSetName ? "SES configuration set named" : "Configuration set missing"}</strong>
+          <small>{snsConfigured ? "SNS topic ARN configured; verify AWS subscription separately." : "SNS event topic is not configured."}</small>
         </article>
       </div>
     </section>
