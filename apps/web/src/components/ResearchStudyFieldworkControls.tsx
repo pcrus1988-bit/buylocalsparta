@@ -110,7 +110,7 @@ export function ResearchStudyFieldworkControls({
   cohortBSampleStatus?: string;
   cohortBRecruitmentMode?: string;
   cohortBSampleSelected?: number;
-  campaign?: {id:string;status:string;cohort:string;paused:boolean;approvedMaxEmails:number;processedCount:number;sentCount:number;safetyHold?:string;safetyHoldPhase?:string;deliverySafetyBreakdown?:CampaignBounceMetrics[];lastError?:string;lastSubmissionError?:string;submissionFailures?:number;lastBatchFailures?:number;invalidRecipientSkippedCount?:number;recoveryReviewed?:boolean;classifiedDeliveryCount:number;completedReviewMilestone:number|null;nextReviewMilestone:number};
+  campaign?: {id:string;status:string;cohort:string;paused:boolean;approvedMaxEmails:number;processedCount:number;sentCount:number;safetyHold?:string;safetyHoldPhase?:string;requiresBouncePolicyConfirmation?:boolean;deliverySafetyBreakdown?:CampaignBounceMetrics[];lastError?:string;lastSubmissionError?:string;submissionFailures?:number;lastBatchFailures?:number;invalidRecipientSkippedCount?:number;recoveryReviewed?:boolean;classifiedDeliveryCount:number;completedReviewMilestone:number|null;nextReviewMilestone:number};
   queuedSampleJobs: number;
   runningSampleJobs: number;
   recruitmentTemplateVersion?: string;
@@ -579,11 +579,14 @@ export function ResearchStudyFieldworkControls({
         Αποτελέσματα παράδοσης που έχουν ταξινομηθεί: <strong>{campaign.classifiedDeliveryCount.toLocaleString("el-GR")}</strong>.
         {" "}Επόμενο σημείο αξιολόγησης: <strong>{campaign.nextReviewMilestone.toLocaleString("el-GR")}</strong>.
         {campaign.completedReviewMilestone !== null && <> Τελευταίο σημείο αξιολόγησης: {campaign.completedReviewMilestone.toLocaleString("el-GR")}.</>}
-        {" "}Ο κανόνας παύσης λόγω παραδόσεων γίνεται 5% από 1.000 αποτελέσματα, ενώ συνεχίζουν να ισχύουν οι χωριστές δικλίδες SES.
+        {" "}Στάδια ορίου επιστροφών της μελέτης: 10% στα 1.000–4.999 αποτελέσματα, 9% στα 5.000–9.999, 7% στα 10.000–24.999, 5% από τα 25.000 και μετά (και μετά τα 50.000).
+        {" "}Η προληπτική παύση για validation-suppressed παραμένει ανεξάρτητη· οι περιορισμοί φήμης AWS SES συνεχίζουν να ισχύουν.
       </p>
       {campaign.safetyHold && <p className="workspace-inline-note form-error">
         {campaign.paused ? "Τελευταία καταγεγραμμένη παύση ασφαλείας" : "Καταγεγραμμένη παύση ασφαλείας"}: {campaign.safetyHold}.
-        {" "}Η κατάσταση αξιολογείται ξανά στον επόμενο κύκλο επεξεργασίας.
+        {" "}{campaign.requiresBouncePolicyConfirmation
+          ? "Η αλλαγή του ορίου δεν επανεκκινεί τις αποστολές χωρίς ρητή επιβεβαίωση και συνέχεια από διαχειριστή."
+          : "Η κατάσταση αξιολογείται ξανά στον επόμενο κύκλο επεξεργασίας."}
       </p>}
       {campaign.safetyHold && Boolean(campaign.deliverySafetyBreakdown?.length) && <div className="workspace-inline-note">
         <strong>Ανάλυση επιστροφών ανά φάση (από τα καταγεγραμμένα αποτελέσματα SES)</strong>
@@ -601,6 +604,7 @@ export function ResearchStudyFieldworkControls({
             {" "}εξαιρέσεις λίστας SES {(metric.accountSuppressed ?? 0).toLocaleString("el-GR")}.
           </>}
           {" "}Validation-suppressed: {metric.validationSuppressed.toLocaleString("el-GR")}.
+          {metric.hardBounceRate >= 0.05 && !metric.hardBounceHold && <strong> Προειδοποίηση: άνω του 5% — απαιτείται έλεγχος φήμης SES.</strong>}
           {metric.hardBounceHold && <strong> Η φάση υπερβαίνει το όριο επιστροφών.</strong>}
           {metric.validationHold && <strong> Η φάση υπερβαίνει το όριο προληπτικών αποκλεισμών.</strong>}
         </p>)}
@@ -617,8 +621,11 @@ export function ResearchStudyFieldworkControls({
         </span>
       </div>}
       {(campaign.status === "queued" || campaign.status === "running") && <div className="workspace-action-buttons">
-        <button type="button" className="button button-secondary" disabled={Boolean(busy)} onClick={() => void setCampaignPaused(!campaign.paused)}>
-          {campaign.paused ? "Συνέχεια ήδη εγκεκριμένης εκστρατείας" : "Παύση εκστρατείας"}
+        <button type="button" className="button button-secondary" disabled={Boolean(busy)}
+          onClick={() => void setCampaignPaused(campaign.requiresBouncePolicyConfirmation ? false : !campaign.paused)}>
+          {campaign.requiresBouncePolicyConfirmation
+            ? "Επιβεβαίωση νέων ορίων και συνέχεια υπάρχουσας εκστρατείας"
+            : campaign.paused ? "Συνέχεια ήδη εγκεκριμένης εκστρατείας" : "Παύση εκστρατείας"}
         </button>
       </div>}
     </div>}
