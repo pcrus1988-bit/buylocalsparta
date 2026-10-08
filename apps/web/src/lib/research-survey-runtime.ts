@@ -7,6 +7,7 @@ import {
   researchQualitySignals,
   scoreGreekRetail2026,
   validateResearchAnswers,
+  researchQuestionVisible,
   type ResearchAnswer,
   type ResearchAnswerMap,
   type ResearchQuestion
@@ -603,15 +604,33 @@ export async function savePublicResearchSurvey(input: Readonly<{
 
     const questions = await questionsForInstrument(client, text(invite.instrument_id));
     const suppliedAnswers = input.answers ?? {};
+    const storedAnswersResult = await client.query<SqlRow>(`
+      SELECT q.code, a.answer
+      FROM research_answers a
+      JOIN research_questions q ON q.id=a.question_id
+      WHERE a.response_id=$1
+    `, [response.id]);
+    const combinedAnswers: Record<string, ResearchAnswer> = Object.fromEntries(
+      storedAnswersResult.rows.map((row) => [text(row.code), row.answer as ResearchAnswer])
+    );
+    Object.assign(combinedAnswers, suppliedAnswers);
+    // Routing must be validated server-side. Hidden answers are removed if a
+    // parent answer changes, never counted as unanswered or used in analysis.
+    const applicable = new Set(questions
+      .filter((question) => researchQuestionVisible(question, combinedAnswers))
+      .map((question) => question.code));
     const suppliedCodes = new Set(Object.keys(suppliedAnswers));
     const suppliedQuestions = questions
-      .filter((question) => suppliedCodes.has(question.code) && question.type !== "experiment")
+      .filter((question) => suppliedCodes.has(question.code) && applicable.has(question.code) && question.type !== "experiment")
       .map((question) => ({ ...question, required: false }));
-    const partialValidation = validateResearchAnswers(suppliedQuestions, suppliedAnswers);
+    const applicableAnswers = Object.fromEntries(
+      Object.entries(suppliedAnswers).filter(([code]) => applicable.has(code))
+    );
+    const partialValidation = validateResearchAnswers(suppliedQuestions, combinedAnswers);
     if (partialValidation.invalid.length) throw new Error(`SURVEY_ANSWERS_INVALID:${partialValidation.invalid.join(",")}`);
 
     const questionByCode = new Map(questions.map((question) => [question.code, question]));
-    for (const [code, answer] of Object.entries(suppliedAnswers)) {
+    for (const [code, answer] of Object.entries(applicableAnswers)) {
       const question = questionByCode.get(code);
       if (!question || question.type === "experiment") continue;
       await client.query(`
@@ -620,6 +639,13 @@ export async function savePublicResearchSurvey(input: Readonly<{
         ON CONFLICT (response_id, question_id)
         DO UPDATE SET answer = EXCLUDED.answer, answered_at = now()
       `, [response.id, question.id, JSON.stringify(answer)]);
+    }
+    const hiddenIds = questions.filter((question) => !applicable.has(question.code)).map((question) => question.id);
+    if (hiddenIds.length) {
+      await client.query(
+        "DELETE FROM research_answers WHERE response_id=$1 AND question_id=ANY($2::uuid[])",
+        [response.id, hiddenIds]
+      );
     }
 
     for (const [taskKey, selected] of Object.entries(input.experimentChoices ?? {})) {
