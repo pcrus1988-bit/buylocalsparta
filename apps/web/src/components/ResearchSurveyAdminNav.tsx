@@ -10,6 +10,7 @@ export type ResearchSurveyAdminSection =
   | "balance"
   | "contacts"
   | "invitations"
+  | "simulation"
   | "kad"
   | "consent"
   | "delivery"
@@ -35,6 +36,7 @@ export const RESEARCH_SURVEY_ADMIN_SECTIONS: ReadonlyArray<Readonly<{
   { key: "balance", label: "Fieldwork balance", description: "Response balance across the frozen sampling strata.", group: "fieldwork" },
   { key: "contacts", label: "Email contacts", description: "Current contactable research frame and suppression state.", group: "fieldwork" },
   { key: "invitations", label: "Invitations", description: "Invitation lifecycle, expiry and response state.", group: "fieldwork" },
+  { key: "simulation", label: "Workflow simulation", description: "Test inbox, invitation link, submission, and Admin notification without actual Research records.", group: "fieldwork" },
   { key: "kad", label: "ΚΑΔ", description: "Research-frame composition by canonical activity group.", group: "fieldwork" },
   { key: "consent", label: "Consent", description: "Current participant consent choices.", group: "fieldwork" },
   { key: "delivery", label: "Delivery", description: "SES delivery delays and deliverability exceptions.", group: "fieldwork" },
@@ -73,6 +75,7 @@ export function ResearchSurveyAdminNav({
         <Link prefetch={false} className="button button-secondary" href="/admin/research/surveys">All surveys</Link>
         <Link prefetch={false} className="button" href={root + "/workflow?phase=pilot"}>Guided Pilot</Link>
         <Link prefetch={false} className="button button-secondary" href={root + "/workflow?phase=main"}>Guided main study</Link>
+        <Link prefetch={false} className="button button-secondary" href={root + "/simulation"}>Run simulation</Link>
         <Link prefetch={false} className="button button-secondary" href="/admin/research/handbook">Admin handbook</Link>
         <Link prefetch={false} className="button button-secondary" href="/admin/research/settings">Global Research settings</Link>
       </div>
