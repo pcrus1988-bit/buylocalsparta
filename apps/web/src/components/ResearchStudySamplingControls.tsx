@@ -7,6 +7,18 @@ export function ResearchStudySamplingControls({
   slug,
   csrfToken,
   latestFrameStatus,
+  cohortAStatus,
+  cohortAPopulation,
+  cohortAContacts,
+  cohortASampleStatus,
+  cohortASampleSelected,
+  cohortBStatus,
+  cohortBPopulation,
+  cohortBContacts,
+  cohortBSampleStatus,
+  cohortBSampleSelected,
+  queuedSampleJobs,
+  runningSampleJobs,
   studyStatus,
   framePopulation,
   phasePopulation,
@@ -26,6 +38,18 @@ export function ResearchStudySamplingControls({
   slug: string;
   csrfToken: string;
   latestFrameStatus?: string;
+  cohortAStatus?: string;
+  cohortAPopulation?: number;
+  cohortAContacts?: number;
+  cohortASampleStatus?: string;
+  cohortASampleSelected?: number;
+  cohortBStatus?: string;
+  cohortBPopulation?: number;
+  cohortBContacts?: number;
+  cohortBSampleStatus?: string;
+  cohortBSampleSelected?: number;
+  queuedSampleJobs: number;
+  runningSampleJobs: number;
   studyStatus: string;
   framePopulation: number;
   phasePopulation: number;
@@ -45,13 +69,27 @@ export function ResearchStudySamplingControls({
   const router = useRouter();
   const [busy, setBusy] = useState<"frame" | "sample" | null>(null);
   const [targetN, setTargetN] = useState("");
+  const [cohort, setCohort] = useState<"A" | "B">("A");
   const fieldworkPhase: "pilot" | "main" = ["draft","pilot"].includes(studyStatus) ? "pilot" : "main";
-  const effectivePopulation = fieldworkPhase === "main" ? phasePopulation : framePopulation;
+  const selectedPopulation = cohort === "A" ? (cohortAPopulation ?? 0) : (cohortBPopulation ?? 0);
+  const selectedContacts = cohort === "A" ? (cohortAContacts ?? 0) : (cohortBContacts ?? 0);
+  // Only Cohort A contains the pilot identities. B is already disjoint from A.
+  const effectivePopulation = fieldworkPhase === "main" && cohort === "A"
+    ? Math.max(0, selectedPopulation - pilotHoldoutUnits)
+    : selectedPopulation;
   const [targetCompletes, setTargetCompletes] = useState(fieldworkPhase === "pilot" ? "20" : "500");
   const [expectedResponsePct, setExpectedResponsePct] = useState("15");
   const [randomSeed, setRandomSeed] = useState("");
   const [message, setMessage] = useState("");
-  const workerBusy = queuedJobs > 0 || runningJobs > 0;
+  const frameWorkerBusy = queuedJobs > 0 || runningJobs > 0;
+  // A frozen Cohort A is independently sampleable while B is importing.
+  const sampleWorkerBusy = queuedSampleJobs > 0 || runningSampleJobs > 0;
+  const cohortStatus = cohort === "A" ? cohortAStatus : cohortBStatus;
+  const selectedDrawStatus = cohort === "A" ? cohortASampleStatus : cohortBSampleStatus;
+  const selectedDrawCount = cohort === "A" ? cohortASampleSelected : cohortBSampleSelected;
+  const cohortReady = cohort === "A"
+    ? cohortStatus === "frozen" || cohortStatus === "superseded"
+    : cohortStatus === "frozen";
   const sampleN = Number(targetN);
   const minSampleN = fieldworkPhase === "pilot" ? 10 : 100;
   const maxSampleN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
@@ -67,7 +105,7 @@ export function ResearchStudySamplingControls({
     && sampleN >= minSampleN
     && sampleN <= maxSampleN
     && planningAssumptionsValid;
-  const contactabilityRate = effectivePopulation > 0 ? Math.min(1, activeContacts / effectivePopulation) : 0;
+  const contactabilityRate = effectivePopulation > 0 ? Math.min(1, selectedContacts / effectivePopulation) : 0;
   const rawSuggested = fieldworkPhase === "main" && desiredCompletes > 0 && responseRate > 0 && contactabilityRate > 0
     ? Math.ceil(desiredCompletes / (responseRate * contactabilityRate))
     : 0;
@@ -114,7 +152,8 @@ export function ResearchStudySamplingControls({
         desiredCompleteN: desiredCompletes,
         expectedResponseRate: responseRate,
         randomSeed: randomSeed.trim() || undefined,
-        fieldworkPhase
+        fieldworkPhase,
+        cohort
       });
       if (result.randomSeed) setRandomSeed(result.randomSeed);
       setMessage(`Το ${fieldworkPhase === "pilot" ? "pilot" : "main"} sample draw μπήκε στην ουρά. Το random seed έχει παγώσει και καταγράφεται στο evidence chain.`);
@@ -130,16 +169,16 @@ export function ResearchStudySamplingControls({
     <div className="workspace-action-bar">
       <span>
         <strong>Population frame</strong><br />
-        {latestFrameStatus
-          ? `Latest: ${latestFrameStatus} · ${framePopulation.toLocaleString("el-GR")} frozen-frame businesses`
-          : "Δεν έχει παγώσει ακόμη population frame."}
+        {cohortAStatus === "frozen" || cohortAStatus === "superseded"
+          ? `Cohort A: ${(cohortAPopulation ?? 0).toLocaleString("el-GR")} frozen businesses · Cohort B: ${cohortBStatus || "not started"}`
+          : "Cohort A has not been frozen yet."}
         {fieldworkPhase === "main" && pilotHoldoutUnits > 0
           ? ` · ${pilotHoldoutUnits.toLocaleString("el-GR")} pilot holdout → ${effectivePopulation.toLocaleString("el-GR")} main-eligible`
           : ""}
       </span>
       <button
         className="button button-secondary"
-        disabled={Boolean(busy) || workerBusy}
+        disabled={Boolean(busy) || frameWorkerBusy}
         onClick={() => void buildFrame()}
         type="button"
       >{busy === "frame" ? "Queueing…" : latestFrameStatus === "frozen" ? "Refresh frame" : "Build frozen frame"}</button>
@@ -147,12 +186,22 @@ export function ResearchStudySamplingControls({
 
     <div className="workspace-action-bar">
       <div style={{ width: "100%", display: "grid", gap: 10 }}>
+        <label><strong>Sampling cohort</strong><br />
+          <select aria-label="Sampling cohort" value={cohort} onChange={(event) => { setCohort(event.target.value as "A" | "B"); setTargetN(""); }}>
+            <option value="A">Cohort A · frozen original retail population</option>
+            {fieldworkPhase === "main" && <option value="B">Cohort B · new businesses only (excludes A)</option>}
+          </select>
+        </label>
+        <div className="workspace-inline-note">
+          {cohort === "A" ? `Cohort A: ${(cohortAPopulation ?? 0).toLocaleString("el-GR")} businesses · ${(cohortAContacts ?? 0).toLocaleString("el-GR")} snapshot contacts. ` : `Cohort B: ${cohortBStatus || "not ready"} · ${cohortBPopulation == null ? "deduplication pending" : cohortBPopulation.toLocaleString("el-GR") + " new businesses"}. `}
+          {cohortReady ? "Selected cohort has a finalized evidence frame." : "This cohort is not finalized; sample drawing stays locked."}
+        </div>
         <span>
           <strong>Fieldwork feasibility & sample planner</strong><br />
           {fieldworkPhase === "pilot" ? "Pilot" : "Main"} contactability: {effectivePopulation > 0
             ? new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 2 }).format(contactabilityRate)
             : "—"}
-          {" · "}{activeContacts.toLocaleString("el-GR")} active email contacts / {effectivePopulation.toLocaleString("el-GR")} eligible units
+          {" · "}{selectedContacts.toLocaleString("el-GR")} snapshot email contacts / {effectivePopulation.toLocaleString("el-GR")} eligible units
           {" · "}{latestFrameStrata.toLocaleString("el-GR")} sampling strata.
         </span>
         <div className="workspace-action-buttons">
@@ -204,9 +253,9 @@ export function ResearchStudySamplingControls({
     <div className="workspace-action-bar">
       <span>
         <strong>Probability sample</strong><br />
-        {latestSampleStatus
-          ? `Latest: ${latestSampleStatus} · ${latestSampleTarget.toLocaleString("el-GR")} selected units`
-          : "Set the number of selected businesses. This is not the target number of completed questionnaires."}
+        {selectedDrawStatus
+          ? `Cohort ${cohort} · ${selectedDrawStatus} · ${(selectedDrawCount ?? 0).toLocaleString("el-GR")} selected units`
+          : `Cohort ${cohort}: no sample yet. Enter selected businesses below; this is not the target number of completed questionnaires.`}
         {latestSampleDesignSha256 ? <><br />
           Frozen design: {latestSampleDesiredCompletes.toLocaleString("el-GR")} desired completes · {" "}
           {new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 1 }).format(latestSampleExpectedResponseRate)} invited-response assumption · {" "}
@@ -215,7 +264,7 @@ export function ResearchStudySamplingControls({
         </> : null}
       </span>
       <div className="workspace-action-buttons">
-        <strong>{fieldworkPhase === "pilot" ? "Pilot holdout" : "Main fieldwork"}</strong>
+        <strong>{fieldworkPhase === "pilot" ? "Pilot holdout · Cohort A" : "Main fieldwork · Cohort " + cohort}</strong>
         <input
           aria-label="Selected businesses"
           inputMode="numeric"
@@ -235,7 +284,7 @@ export function ResearchStudySamplingControls({
         />
         <button
           className="button"
-          disabled={Boolean(busy) || workerBusy || latestFrameStatus !== "frozen" || !sampleValid || (fieldworkPhase === "main" && studyStatus !== "fielding")}
+          disabled={Boolean(busy) || sampleWorkerBusy || !cohortReady || !sampleValid || (fieldworkPhase === "main" && studyStatus !== "fielding")}
           onClick={() => void drawSample()}
           type="button"
         >{busy === "sample" ? "Queueing…" : "Draw reproducible sample"}</button>
@@ -243,9 +292,9 @@ export function ResearchStudySamplingControls({
     </div>
 
     <div className="workspace-inline-note">
-      {message || (workerBusy
-        ? `Worker jobs pending/running: ${queuedJobs + runningJobs}. Frame/sample actions remain locked until the current job finishes.`
-        : "Pilot and main samples are deliberately separate. Pilot draws use diagnostic bounds (10–1,000); main draws use inferential bounds (100–100,000) and exclude every business actually contacted during the pilot.")}
+      {message || (sampleWorkerBusy
+        ? `Sample or invitation worker busy: ${queuedSampleJobs + runningSampleJobs}. Another draw is temporarily locked.`
+        : "Cohort A can be sampled while Cohort B is building. Pilot draws are diagnostic (10–1,000); official A/B draws are separate, and main draws exclude contacted Pilot businesses.")}
     </div>
   </div>;
 }

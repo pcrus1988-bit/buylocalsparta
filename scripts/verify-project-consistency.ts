@@ -369,18 +369,27 @@ function walk(dir: string): string[] {
 
 const appDir = join(root, "apps/web/src/app");
 const routes = new Set<string>(["/"]);
-const dynamicPageRoutes: RegExp[] = [];
+const dynamicRoutes: string[] = [];
 for (const file of walk(appDir)) {
   if (!file.endsWith(`${sep}page.tsx`)) continue;
   const rel = relative(appDir, file).split(sep).join("/").replace(/\/page\.tsx$/, "");
   if (!rel) continue;
-  if (rel.includes("[")) {
-    // A concrete URL may correctly resolve to an App Router dynamic page.
-    const pattern = rel.replace(/\[[^\]]+\]/g, "[^/]+");
-    dynamicPageRoutes.push(new RegExp("^/" + pattern + "$"));
-    continue;
-  }
-  routes.add(`/${rel}`);
+  if (rel.includes("[")) dynamicRoutes.push(`/${rel}`);
+  else routes.add(`/${rel}`);
+}
+
+// Dynamic Next.js pages are valid destinations for literal links too.
+// For example /admin/research/surveys/[slug] matches a link to a real survey.
+function matchesDynamicPage(pathname: string): boolean {
+  const target = pathname.split("/").filter(Boolean);
+  return dynamicRoutes.some((route) => {
+    const segments = route.split("/").filter(Boolean);
+    return segments.length === target.length && segments.every((segment, index) =>
+      segment.startsWith("[") && segment.endsWith("]")
+        ? Boolean(target[index])
+        : segment === target[index]
+    );
+  });
 }
 
 for (const file of walk(join(root, "apps/web/src")).filter((path) => path.endsWith(".tsx"))) {
@@ -392,7 +401,7 @@ for (const file of walk(join(root, "apps/web/src")).filter((path) => path.endsWi
     // API hrefs resolve through app-router route.ts handlers, including dynamic segments.
     // This static check validates navigational page routes only; API contracts have dedicated verifiers.
     if (pathname.startsWith("/api/")) continue;
-    if (!routes.has(pathname) && !dynamicPageRoutes.some((pattern) => pattern.test(pathname))) errors.push(`Broken static Next.js link ${href} in ${relative(root, file)} (no ${pathname} page)`);
+    if (!routes.has(pathname) && !matchesDynamicPage(pathname)) errors.push(`Broken static Next.js link ${href} in ${relative(root, file)} (no ${pathname} page)`);
   }
 }
 

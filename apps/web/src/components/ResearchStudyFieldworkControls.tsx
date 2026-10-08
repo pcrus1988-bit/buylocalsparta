@@ -49,6 +49,12 @@ export function ResearchStudyFieldworkControls({
   studyTitle,
   csrfToken,
   studyStatus,
+  cohortAStatus,
+  cohortASampleStatus,
+  cohortBStatus,
+  cohortBSampleStatus,
+  queuedSampleJobs,
+  runningSampleJobs,
   recruitmentTemplateVersion,
   recruitmentTemplateSubject,
   recruitmentTemplateBody,
@@ -75,6 +81,12 @@ export function ResearchStudyFieldworkControls({
   studyTitle: string;
   csrfToken: string;
   studyStatus: string;
+  cohortAStatus?: string;
+  cohortASampleStatus?: string;
+  cohortBStatus?: string;
+  cohortBSampleStatus?: string;
+  queuedSampleJobs: number;
+  runningSampleJobs: number;
   recruitmentTemplateVersion?: string;
   recruitmentTemplateSubject?: string;
   recruitmentTemplateBody?: string;
@@ -104,6 +116,7 @@ export function ResearchStudyFieldworkControls({
   const [reminderSubject, setReminderSubject] = useState(reminderTemplateSubject || DEFAULT_REMINDER_SUBJECT);
   const [reminderBodyText, setReminderBodyText] = useState(reminderTemplateBody || DEFAULT_REMINDER_BODY);
   const [batchSize, setBatchSize] = useState("100");
+  const [cohort, setCohort] = useState<"A" | "B">("A");
   const [reminderBatchSize, setReminderBatchSize] = useState("100");
   const [reminderMinAgeDays, setReminderMinAgeDays] = useState("5");
   const [reminderMinGapDays, setReminderMinGapDays] = useState("5");
@@ -121,7 +134,12 @@ export function ResearchStudyFieldworkControls({
   const [pendingEmail, setPendingEmail] = useState<PendingEmailSend | null>(null);
   const [confirmationStep, setConfirmationStep] = useState<1 | 2>(1);
   const [confirmationText, setConfirmationText] = useState("");
-  const workerBusy = queuedJobs > 0 || runningJobs > 0;
+  const workerBusy = queuedSampleJobs > 0 || runningSampleJobs > 0;
+  const selectedCohortSample = cohort === "A" ? cohortASampleStatus : cohortBSampleStatus;
+  const cohortSampleReady = selectedCohortSample === "locked" || selectedCohortSample === "fielded";
+  const cohortReady = cohort === "A"
+    ? cohortAStatus === "frozen" || cohortAStatus === "superseded"
+    : cohortBStatus === "frozen";
   const batchN = Number(batchSize);
   const batchValid = Number.isSafeInteger(batchN) && batchN >= 1 && batchN <= 500;
   const reminderBatchN = Number(reminderBatchSize);
@@ -277,7 +295,7 @@ export function ResearchStudyFieldworkControls({
   }
 
   function sendInvites() {
-    if (!batchValid) return;
+    if (!batchValid || !cohortReady || !cohortSampleReady || (studyStatus === "pilot" && cohort !== "A")) return;
     openEmailConfirmation({
       action: "send_invites",
       busy: "send",
@@ -287,7 +305,8 @@ export function ResearchStudyFieldworkControls({
       payload: {
         action: "send_invites",
         limit: batchN,
-        label: "fieldwork-" + new Date().toISOString()
+        cohort,
+        label: "cohort-" + cohort + "-fieldwork-" + new Date().toISOString()
       }
     });
   }
@@ -441,10 +460,17 @@ export function ResearchStudyFieldworkControls({
 
     <div className="workspace-action-bar">
       <span>
-        <strong>Αποστολή προσκλήσεων</strong><br />
-        {activeContacts.toLocaleString("el-GR")} contactable frame units · {completed.toLocaleString("el-GR")} ολοκληρωμένες απαντήσεις.
+        <strong>Αποστολή προσκλήσεων · Cohort {cohort}</strong><br />
+        {activeContacts.toLocaleString("el-GR")} contactable frame units in the most recent frozen snapshot · {completed.toLocaleString("el-GR")} ολοκληρωμένες απαντήσεις.
+        <div className="workspace-inline-note">{cohort === "A" ? "Cohort A: frozen baseline, Pilot can begin while B builds." : "Cohort B: new, deduplicated businesses only; main fieldwork after A."} {cohortReady ? "Snapshot ready." : "Frame not ready; invitations blocked."} {cohortSampleReady ? "Cohort sample locked." : "Matching cohort draw not locked; invitations blocked."}</div>
       </span>
       <div className="workspace-action-buttons">
+        <label><small>Recipient cohort</small><br />
+          <select aria-label="Invitation cohort" value={cohort} onChange={(event) => setCohort(event.target.value as "A" | "B")}>
+            <option value="A">Cohort A · baseline</option>
+            {studyStatus !== "pilot" && <option value="B">Cohort B · additional businesses</option>}
+          </select>
+        </label>
         <input
           aria-label="Invitation batch size"
           inputMode="numeric"
@@ -456,7 +482,7 @@ export function ResearchStudyFieldworkControls({
         />
         <button
           className="button"
-          disabled={Boolean(busy) || workerBusy || !fielding || !recruitmentTemplateVersion || !batchValid}
+          disabled={Boolean(busy) || workerBusy || !cohortReady || !cohortSampleReady || !fielding || !recruitmentTemplateVersion || !batchValid}
           onClick={() => void sendInvites()}
           type="button"
         >{busy === "send" ? "Προετοιμασία…" : "Αποστολή παρτίδας προσκλήσεων"}</button>
@@ -725,6 +751,7 @@ export function ResearchStudyFieldworkControls({
         <div style={{ display: "grid", gap: 10 }}>
           <div><strong>Μελέτη:</strong> {studyTitle}</div>
           <div><strong>Σκοπός:</strong> {pendingEmail.purposeLabel}</div>
+          {pendingEmail.action === "send_invites" && <div><strong>Recipient cohort:</strong> {String(pendingEmail.payload.cohort || "Not selected")}</div>}
           <div>
             <strong>Μέγιστος αριθμός email αυτής της παρτίδας:</strong>{" "}
             {pendingEmail.maxEmails.toLocaleString("el-GR")}
