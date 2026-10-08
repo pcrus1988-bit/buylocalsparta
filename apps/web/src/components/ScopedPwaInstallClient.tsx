@@ -23,12 +23,14 @@ export function ScopedPwaInstallClient({
   appName,
   serviceWorkerPath,
   scope,
-  placement = "default"
+  placement = "default",
+  showInstallButton = true
 }: {
   appName: string;
   serviceWorkerPath: string;
   scope: string;
   placement?: "default" | "daily";
+  showInstallButton?: boolean;
 }) {
   const [mode, setMode] = useState<InstallMode>("hidden");
   const [platform, setPlatform] = useState<Platform>("other");
@@ -40,7 +42,7 @@ export function ScopedPwaInstallClient({
         console.warn("PWA service worker registration failed", error);
       });
     }
-    if (standalone()) return;
+    if (!showInstallButton || standalone()) return;
 
     const isIos = iosDevice();
     setPlatform(isIos ? "ios" : "other");
@@ -63,7 +65,7 @@ export function ScopedPwaInstallClient({
       window.removeEventListener("beforeinstallprompt", beforeInstall);
       window.removeEventListener("appinstalled", installed);
     };
-  }, [placement, scope, serviceWorkerPath]);
+  }, [placement, scope, serviceWorkerPath, showInstallButton]);
 
   async function install() {
     if (!promptEvent) {
@@ -77,7 +79,7 @@ export function ScopedPwaInstallClient({
     setPromptEvent(undefined);
   }
 
-  if (mode === "hidden") return null;
+  if (!showInstallButton || mode === "hidden") return null;
   const bottom = placement === "daily" ? undefined : 18;
   const top = placement === "daily" ? 78 : undefined;
 
