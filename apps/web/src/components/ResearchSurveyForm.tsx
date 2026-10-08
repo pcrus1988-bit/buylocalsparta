@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ResearchExperimentAssignment, ResearchSurveyContext } from "../lib/research-survey-runtime";
-import { matrixItems, matrixScale, questionOptions, validateResearchAnswers, type ResearchAnswer, type ResearchAnswerMap, type ResearchQuestion } from "../lib/research-survey-model";
+import { matrixItems, matrixScale, questionOptions, researchQuestionVisible, validateResearchAnswers, type ResearchAnswer, type ResearchAnswerMap, type ResearchQuestion } from "../lib/research-survey-model";
 import styles from "./ResearchSurveyForm.module.css";
 
 type ConsentState = Readonly<{ results_notification: boolean; thank_you_code: boolean }>;
@@ -14,6 +14,7 @@ const SECTION_LABELS: Record<string, string> = {
   D: "Πελάτες και τοπική αγορά",
   E: "Marketplaces και ψηφιακές πλατφόρμες",
   F: "Το επόμενο έτος",
+  G: "Οικονομική κατάσταση και προοπτικές",
   X: "Προαιρετικό ερευνητικό πείραμα"
 };
 
@@ -265,8 +266,9 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
     { code: "DONE", title: "Ολοκλήρωση", questions: [] as ResearchQuestion[] }
   ];
   const current = allSections[sectionIndex];
-  const currentAnswered = current.questions.filter((question) => answerPresent(answers[question.code])).length;
-  const currentQuestionCount = current.questions.length;
+  const currentVisibleQuestions = current.questions.filter((question) => researchQuestionVisible(question, answers));
+  const currentAnswered = currentVisibleQuestions.filter((question) => answerPresent(answers[question.code])).length;
+  const currentQuestionCount = currentVisibleQuestions.length;
 
   async function save(payload: Record<string, unknown>) {
     if (previewMode) return {} as Record<string, unknown>;
@@ -302,8 +304,8 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
 
   async function next() {
     try {
-      if (previewMode && current.questions.length) {
-        const validation = validateResearchAnswers(current.questions, answers);
+      if (previewMode && currentVisibleQuestions.length) {
+        const validation = validateResearchAnswers(currentVisibleQuestions, answers);
         if (!validation.ok) {
           setMessage("Συμπληρώστε τις υποχρεωτικές απαντήσεις και διορθώστε τυχόν μη έγκυρες επιλογές: " +
             [...validation.missing, ...validation.invalid].join(", "));
@@ -312,7 +314,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
       }
       setMessage("");
       if (current.code !== "X" && current.code !== "DONE") {
-        const codes = new Set(current.questions.map((question) => question.code));
+        const codes = new Set(currentVisibleQuestions.map((question) => question.code));
         const sectionAnswers = Object.fromEntries(Object.entries(answers).filter(([code]) => codes.has(code)));
         await save({ answers: sectionAnswers, experimentChoices });
       } else if (current.code === "X") {
@@ -498,7 +500,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
       {current.code === "DONE" && <p>Με την ολοκλήρωση η ερευνητική απάντηση κλειδώνει. Οι προαιρετικές επιλογές ενημέρωσης αποτελεσμάτων και κωδικού ευχαριστίας εμφανίζονται μόνο αφού ολοκληρωθεί η έρευνα.</p>}
     </header>
 
-    {current.questions.map((question) => <ResearchQuestionCard
+    {currentVisibleQuestions.map((question) => <ResearchQuestionCard
       key={question.code}
       question={question}
       value={answers[question.code]}
