@@ -2116,6 +2116,9 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
           FROM research_frame_units fu
           WHERE fu.frame_snapshot_id=$1
             AND fu.stratum_id=$2
+            -- The census order does not interpolate $3 into sorting. Keep the
+            -- fixed provenance marker typed, or pg rejects the unused bind.
+            AND length($3::text) > 0
             AND ($12::text <> 'B' OR NOT EXISTS (SELECT 1 FROM research_frame_units fa
               WHERE fa.frame_snapshot_id=$13::uuid AND fa.external_key_hash=fu.external_key_hash))
             AND (
