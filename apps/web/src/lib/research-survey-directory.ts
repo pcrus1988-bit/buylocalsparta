@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { SessionPrincipal, SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission, hasAdminPermission, recordAdminPersonalDataAccess } from "./admin-runtime";
 import { getAdminPostgresRuntime } from "./postgres-runtime";
@@ -57,50 +58,67 @@ export async function researchDirectorySearch(
   // Reject overly broad wildcard input; do not interpolate user input into SQL.
   const pattern = q ? "%" + q.replace(/[\\%_]/g, "\\$&") + "%" : null;
   const cursor = UUID.test(options.cursor ?? "") ? options.cursor! : null;
+  const isEmailSearch = q.includes("@");
+  // Exact email matching uses the public hash index values and does not decrypt
+  // or scan every address. Unauthorized roles cannot probe email existence.
+  if (isEmailSearch && !canViewEmail) return blank;
+  const emailHash = isEmailSearch
+    ? createHash("sha256").update(q.toLowerCase()).digest("hex") : null;
   const pool = getAdminPostgresRuntime().sqlPool;
 
+  // MATERIALIZED forces the bounded ID selection to finish before any private
+  // email view is joined. No private decryption is performed during paging.
+  const privateJoin = canViewEmail
+    ? "LEFT JOIN research_private.contact_points_with_value pv ON pv.id=page.id"
+    : "";
+  const privateSelect = canViewEmail ? "pv.contact_value" : "NULL::text AS contact_value";
   const rows = kind === "contacts"
     ? await pool.query<SqlRow>([
-      "SELECT cp.id, " + (canViewEmail ? "cp.contact_value" : "NULL::text AS contact_value") + ",",
-      "cp.suppression_status AS status, cp.source_kind,",
-      "fu.sampling_attributes->>'legalName' AS legal_name,",
-      "fu.sampling_attributes->>'municipality' AS municipality,",
-      "fu.sampling_attributes->>'prefecture' AS prefecture,",
-      "fu.sector_code,",
-      "invite.status AS invite_status",
-      "FROM " + (canViewEmail ? "research_private.contact_points_with_value" : "research_contact_points") + " cp",
-      "JOIN research_frame_units fu ON fu.id=cp.frame_unit_id",
-      "LEFT JOIN LATERAL (",
-      " SELECT ri.status FROM research_invites ri",
-      " WHERE ri.contact_point_id=cp.id AND ri.study_id=(SELECT id FROM research_studies WHERE slug=$1)",
-      " ORDER BY ri.created_at DESC LIMIT 1",
-      ") invite ON TRUE",
-      "WHERE fu.frame_snapshot_id=(",
-      " SELECT fs.id FROM research_frame_snapshots fs",
-      " JOIN research_studies s ON s.id=fs.study_id",
-      " WHERE s.slug=$1 ORDER BY fs.created_at DESC LIMIT 1",
-      ") AND cp.contact_type='email'",
-      "AND ($2::text IS NULL OR fu.sampling_attributes->>'legalName' ILIKE $2",
-      " OR fu.sampling_attributes->>'municipality' ILIKE $2",
-      (canViewEmail ? " OR cp.contact_value ILIKE $2" : "") + ")",
-      "AND ($3::text IS NULL OR cp.suppression_status=$3)",
-      "AND ($4::uuid IS NULL OR cp.id > $4::uuid)",
-      "ORDER BY cp.id ASC LIMIT 26"
-    ].join("\n"), [slug, pattern, status || null, cursor])
+      "WITH page AS MATERIALIZED (",
+      " SELECT cp.id, cp.frame_unit_id, cp.suppression_status AS status, cp.source_kind,",
+      "  fu.sampling_attributes->>'legalName' AS legal_name,",
+      "  fu.sampling_attributes->>'municipality' AS municipality,",
+      "  fu.sampling_attributes->>'prefecture' AS prefecture, fu.sector_code,",
+      "  (SELECT ri.status FROM research_invites ri",
+      "   WHERE ri.contact_point_id=cp.id AND ri.study_id=(SELECT id FROM research_studies WHERE slug=$1)",
+      "   ORDER BY ri.created_at DESC LIMIT 1) AS invite_status",
+      " FROM research_contact_points cp",
+      " JOIN research_frame_units fu ON fu.id=cp.frame_unit_id",
+      " WHERE fu.frame_snapshot_id=(",
+      "  SELECT fs.id FROM research_frame_snapshots fs",
+      "  JOIN research_studies s ON s.id=fs.study_id",
+      "  WHERE s.slug=$1 ORDER BY fs.created_at DESC LIMIT 1",
+      " ) AND cp.contact_type='email'",
+      " AND ($2::text IS NULL OR",
+      "   ($5::text IS NOT NULL AND cp.contact_value_hash=$5) OR",
+      "   ($5::text IS NULL AND (fu.sampling_attributes->>'legalName' ILIKE $2",
+      "     OR fu.sampling_attributes->>'municipality' ILIKE $2)))",
+      " AND ($3::text IS NULL OR cp.suppression_status=$3)",
+      " AND ($4::uuid IS NULL OR cp.id > $4::uuid)",
+      " ORDER BY cp.id ASC LIMIT 26",
+      ")",
+      "SELECT page.*, " + privateSelect,
+      "FROM page", privateJoin, "ORDER BY page.id ASC"
+    ].join("\n"), [slug, pattern, status || null, cursor, emailHash])
     : await pool.query<SqlRow>([
-      "SELECT ri.id, " + (canViewEmail ? "cp.contact_value" : "NULL::text AS contact_value") + ",",
-      "ri.status, ri.created_at, ri.sent_at, ri.expires_at, rr.status AS response_status",
-      "FROM research_invites ri",
-      (canViewEmail ? "LEFT JOIN research_private.contact_points_with_value cp" : "LEFT JOIN research_contact_points cp") + " ON cp.id=ri.contact_point_id",
-      "LEFT JOIN research_responses rr ON rr.invite_id=ri.id",
-      "JOIN research_studies s ON s.id=ri.study_id",
-      "WHERE s.slug=$1",
-      "AND ($2::text IS NULL OR ri.id::text ILIKE $2",
-      (canViewEmail ? " OR cp.contact_value ILIKE $2" : "") + ")",
-      "AND ($3::text IS NULL OR ri.status=$3)",
-      "AND ($4::uuid IS NULL OR ri.id < $4::uuid)",
-      "ORDER BY ri.id DESC LIMIT 26"
-    ].join("\n"), [slug, pattern, status || null, cursor]);
+      "WITH page AS MATERIALIZED (",
+      " SELECT ri.id, ri.contact_point_id, ri.status, ri.created_at,",
+      "   ri.sent_at, ri.expires_at, rr.status AS response_status",
+      " FROM research_invites ri",
+      " JOIN research_studies s ON s.id=ri.study_id",
+      " LEFT JOIN research_contact_points cp ON cp.id=ri.contact_point_id",
+      " LEFT JOIN research_responses rr ON rr.invite_id=ri.id",
+      " WHERE s.slug=$1",
+      " AND ($2::text IS NULL OR",
+      "   ($5::text IS NOT NULL AND cp.contact_value_hash=$5) OR",
+      "   ($5::text IS NULL AND ri.id::text ILIKE $2))",
+      " AND ($3::text IS NULL OR ri.status=$3)",
+      " AND ($4::uuid IS NULL OR ri.id < $4::uuid)",
+      " ORDER BY ri.id DESC LIMIT 26",
+      ")",
+      "SELECT page.*, " + privateSelect,
+      "FROM page", privateJoin, "ORDER BY page.id DESC"
+    ].join("\n"), [slug, pattern, status || null, cursor, emailHash]);
 
   const page = rows.rows.slice(0, PAGE_SIZE);
   if (canViewEmail && page.length > 0) {
