@@ -32,7 +32,14 @@ export async function GET(request: Request) {
     // Always drain governed non-email work first so frame/sample/analysis/release
     // jobs cannot be stranded behind the email-delivery lane. Email jobs keep
     // their separate delivery readiness guard inside the worker implementation.
-    const lifecycle = await advanceGreekRetailDeadline();
+    let lifecycle: Readonly<{ action: string; reason?: string }>;
+    try {
+      lifecycle = await advanceGreekRetailDeadline();
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "deadline_automation_failed";
+      lifecycle = { action: "error", reason };
+      console.error(JSON.stringify({ level: "error", event: "research.deadline_automation_failed", reason }));
+    }
     const operational = await processResearchStudyJobs(3, OPERATIONAL_JOB_TYPES);
     if (operational.claimed > 0) {
       return Response.json(
