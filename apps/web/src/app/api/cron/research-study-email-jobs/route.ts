@@ -24,8 +24,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Reminder preparation must never starve an independently authorized
-    // invitation campaign. Record its error, then drain the email queue.
+    // Drain existing authorized invitation/reward work FIRST. A costly
+    // reminder-eligibility scan must not consume the cron wall-clock budget
+    // before the main campaign's next checkpoint. No new emails are authorized.
+    const email = await processResearchStudyJobs(1, EMAIL_JOB_TYPES);
     let automaticReminder: Awaited<ReturnType<typeof ensureGreekRetailAutomaticReminderBatch>> | {state:string;reason:string};
     try {
       automaticReminder = await ensureGreekRetailAutomaticReminderBatch();
@@ -34,7 +36,6 @@ export async function GET(request: Request) {
       console.error(JSON.stringify({level:"error",event:"research.automatic_reminder_failed",reason}));
       automaticReminder = {state:"unavailable",reason};
     }
-    const email = await processResearchStudyJobs(1, EMAIL_JOB_TYPES);
     return Response.json(
       { ok: true, lane: "email", automaticReminder, ...email },
       { headers: { "cache-control": "no-store" } }
