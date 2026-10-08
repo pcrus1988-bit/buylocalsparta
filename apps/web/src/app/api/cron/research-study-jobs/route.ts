@@ -1,3 +1,4 @@
+import { tickResearchRecruitmentCampaigns } from "../../../../lib/research-cohort-worker";
 import { advanceGreekRetailDeadline } from "../../../../lib/research-survey-deadline-automation";
 import { ensureGreekRetailB2cFrameOnboarded } from "../../../../lib/research-b2c-frame-onboarding";
 import {
@@ -54,6 +55,14 @@ export async function GET(request: Request) {
     }
     if (frameOnboarding.state === "queued" || frameOnboarding.state === "blocked" || frameOnboarding.state === "failed") {
       console.log(JSON.stringify({ level: "info", event: "research.b2c_frame_onboarding", ...frameOnboarding }));
+    }
+    // Campaign sends run only after separate Admin approval; deployment never approves.
+    // Cohort preparation is incremental and never sends mail.
+    try {
+      await tickResearchRecruitmentCampaigns();
+    } catch (error) {
+      console.error(JSON.stringify({level:"error",event:"research.cohort_cron_failed",
+        reason:error instanceof Error?error.message:"unknown"}));
     }
     const operational = await processResearchStudyJobs(3, OPERATIONAL_JOB_TYPES);
     if (operational.claimed > 0) {
