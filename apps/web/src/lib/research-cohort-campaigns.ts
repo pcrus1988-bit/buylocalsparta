@@ -93,6 +93,16 @@ export async function controlResearchCohort(
     let campaign = existing.rows[0];
     if (input.command === "prepare") {
       if (campaign) throw new Error("RESEARCH_COHORT_ALREADY_EXISTS");
+      if (cohort === "A") {
+        const preexisting = await client.query<SqlRow>([
+          "SELECT EXISTS (SELECT 1 FROM public.research_invites",
+          "WHERE study_id=$1 AND wave_id=$2 AND fieldwork_phase='main'",
+          "AND sent_at IS NOT NULL) AS main_already_contacted"
+        ].join(" "),[study.id,study.current_wave_id]);
+        if (preexisting.rows[0]?.main_already_contacted) {
+          throw new Error("RESEARCH_COHORT_REQUIRES_UNCONTACTED_MAIN_WAVE");
+        }
+      }
       if (cohort === "B") {
         const first = await client.query<SqlRow>(
           "SELECT status FROM public.research_recruitment_campaigns WHERE study_id=$1 AND wave_id=$2 AND cohort_code='A'",
