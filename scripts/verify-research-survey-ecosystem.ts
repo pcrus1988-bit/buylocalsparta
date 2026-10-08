@@ -335,9 +335,14 @@ if (!deliverySafety.includes("metrics.delivered + metrics.hardBounced")
     || !jobs.includes("phase: text(row.fieldwork_phase)"))
   errors.push("campaign bounce guard does not distinguish real delivery decisions by fieldwork phase");
 if (!deliverySafety.includes("if (decisions < 100) return 0.20")
-    || !deliverySafety.includes("if (decisions < 500) return 0.08")
+    || !deliverySafety.includes("if (decisions < 1000) return 0.08")
     || !deliverySafety.includes("return 0.05"))
-  errors.push("campaign must restore the 5% stop once enough evidence is available");
+  errors.push("campaign must restore the 5% stop from 1000 classified outcomes");
+if (!deliverySafety.includes("if (n < 1000) return {completedMilestone:null,nextMilestone:1000}")
+    || !deliverySafety.includes("if (n < 5000) return {completedMilestone:1000,nextMilestone:5000}")
+    || !deliverySafety.includes("if (n < 10000) return {completedMilestone:5000,nextMilestone:10000}")
+    || !deliverySafety.includes("Math.floor(n/10000)*10000"))
+  errors.push("campaign review milestone schedule must cover 1000, 5000, then 10k increments");
 if (!jobs.includes("deliverySafety,\n      approvedMaxEmails"))
   errors.push("continuous campaign does not preserve the SES safety breakdown");
 
