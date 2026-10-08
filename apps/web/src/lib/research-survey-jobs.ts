@@ -2474,32 +2474,71 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   if (continuous && (fieldworkPhase !== "main" || campaignMax < 1 || campaignMax > 500_000 || campaignProcessed > campaignMax)) {
     throw new Error("RESEARCH_CONTINUOUS_CAMPAIGN_INVALID");
   }
+  // SES pre-delivery validation suppressions are not the same as actual
+  // delivery failures. Keep a separate 5% safety stop for EACH category.
+  // Unknown bounce classifications remain hard bounces (fail closed).
+  // Separately evaluate Pilot and Main, so Pilot results cannot mask elevated
+  // delivery failures during the main campaign.
+  let deliverySafety: Array<{
+    phase: string;
+    delivered: number;
+    hardBounced: number;
+    validationSuppressed: number;
+    decided: number;
+  }> = [];
   if (continuous) {
-    // Pause BEFORE sending if real SES bounce evidence is already elevated.
-    // The sample size guard avoids reacting to a handful of early events.
     const events = await pool.query<SqlRow>(`
-      SELECT count(*) FILTER (WHERE m.status='bounced')::int AS bounced,
-             count(*) FILTER (WHERE m.status IN ('bounced','delivered'))::int AS decided
-      FROM research_invite_messages m
-      JOIN research_invites i ON i.id=m.invite_id
-      WHERE i.study_id=$1 AND m.attempt_kind='initial'
+      WITH classified AS (
+        SELECT i.fieldwork_phase,m.status,
+          (m.status='bounced' AND EXISTS (
+            SELECT 1 FROM research_invite_events e
+            WHERE e.invite_id=i.id AND e.event_type='bounced'
+              AND e.metadata->>'bounceType'='Permanent'
+              AND e.metadata->>'bounceSubType'='EmailValidationSuppressed'
+              AND e.metadata->>'providerMessageId'=m.provider_message_id
+          )) AS validation_suppressed
+        FROM research_invite_messages m
+        JOIN research_invites i ON i.id=m.invite_id
+        WHERE i.study_id=$1 AND m.attempt_kind='initial'
+          AND m.status IN ('bounced','delivered')
+      )
+      SELECT fieldwork_phase,
+        count(*) FILTER (WHERE status='delivered')::int AS delivered,
+        count(*) FILTER (WHERE status='bounced' AND NOT validation_suppressed)::int AS hard_bounced,
+        count(*) FILTER (WHERE status='bounced' AND validation_suppressed)::int AS validation_suppressed,
+        count(*)::int AS decided
+      FROM classified
+      GROUP BY fieldwork_phase
     `,[job.study_id]);
-    const decided = numberValue(events.rows[0]?.decided);
-    const bounced = numberValue(events.rows[0]?.bounced);
-    if (decided >= 100 && bounced/decided >= 0.05) {
-      return {
-        __requeue: true,
-        __delaySeconds: 300,
-        safetyHold: "SES_BOUNCE_RATE_AT_OR_ABOVE_5_PERCENT",
-        decidedDeliveries: decided,
-        bouncedDeliveries: bounced,
-        campaignProcessedCount: campaignProcessed,
-        campaignSentCount: campaignSent
-      };
+    deliverySafety = events.rows.map((row) => ({
+      phase: text(row.fieldwork_phase),
+      delivered: numberValue(row.delivered),
+      hardBounced: numberValue(row.hard_bounced),
+      validationSuppressed: numberValue(row.validation_suppressed),
+      decided: numberValue(row.decided)
+    }));
+    for (const metrics of deliverySafety) {
+      const deliveryDecisions = metrics.delivered + metrics.hardBounced;
+      const hardBounceHold = deliveryDecisions >= 100
+        && metrics.hardBounced / deliveryDecisions >= 0.05;
+      const validationHold = metrics.decided >= 100
+        && metrics.validationSuppressed / metrics.decided >= 0.05;
+      if (hardBounceHold || validationHold) {
+        return {
+          __requeue: true,
+          __delaySeconds: 300,
+          safetyHold: hardBounceHold
+            ? "SES_HARD_BOUNCE_RATE_AT_OR_ABOVE_5_PERCENT"
+            : "SES_VALIDATION_SUPPRESSION_RATE_AT_OR_ABOVE_5_PERCENT",
+          deliverySafety,
+          campaignProcessedCount: campaignProcessed,
+          campaignSentCount: campaignSent
+        };
+      }
     }
   }
   if (continuous && limit === 0) {
-    return { campaignComplete:true,campaignProcessedCount:campaignProcessed,campaignSentCount:campaignSent,approvedMaxEmails:campaignMax };
+    return { campaignComplete:true,campaignProcessedCount:campaignProcessed,campaignSentCount:campaignSent,approvedMaxEmails:campaignMax,deliverySafety,safetyHold:null };
   }
   if (fieldworkPhase === "main" && cohort === "B") {
     await assertCohortAOutreachComplete(pool, job.study_id, job.wave_id);
@@ -2950,7 +2989,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     duplicateSkippedCount,
     failedCount,
     failures: failures.slice(0, 25),
-    ...(continuous ? {campaignProcessedCount:nextProcessed,campaignSentCount:nextSent} : {})
+    ...(continuous ? {campaignProcessedCount:nextProcessed,campaignSentCount:nextSent,deliverySafety} : {})
   })]);
 
   if (failedCount > 0) {
@@ -2963,6 +3002,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       batchId:"",sampleUnitIds:[],
       campaignCursor:cursorAfterBatch,
       campaignProcessedCount:nextProcessed,campaignSentCount:nextSent,
+      deliverySafety,
       approvedMaxEmails:campaignMax,
       safetyHold:null,
       lastBatchSentCount:batchSentCount,
@@ -2977,7 +3017,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     alreadySentCount,
     duplicateSkippedCount,
     failedCount: 0,
-    ...(continuous ? {campaignComplete:true,campaignProcessedCount:nextProcessed,campaignSentCount:nextSent,approvedMaxEmails:campaignMax} : {})
+    ...(continuous ? {campaignComplete:true,campaignProcessedCount:nextProcessed,campaignSentCount:nextSent,approvedMaxEmails:campaignMax,deliverySafety,safetyHold:null} : {})
   };
 }
 
