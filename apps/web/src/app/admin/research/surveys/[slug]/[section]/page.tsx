@@ -68,6 +68,15 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
         <p className="lead">No directory records are preloaded. Search and filter only when you need specific entries.</p>
       </div></section>
       <ResearchSurveyAdminNav slug={slug} current={section} />
+      {section === "contacts" && <section className="shell vendor-section">
+        <div className="workspace-action-bar">
+          <span>
+            <strong>{summary.study.snapshotActiveContacts === undefined ? "Not available" : summary.study.snapshotActiveContacts.toLocaleString("el-GR")}</strong>
+            <small> active email contacts at the latest frozen-frame snapshot</small>
+          </span>
+          <small>Snapshot count, not a live recalculation. Opt-outs and bounces are shown in filtered results.</small>
+        </div>
+      </section>}
       <ResearchSurveyDirectoryPanel slug={slug} kind={section} data={directory} />
     </main>;
   }
