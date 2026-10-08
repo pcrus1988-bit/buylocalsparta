@@ -10,12 +10,12 @@ export const maxDuration = 300;
 
 // Only email delivery work runs here. In particular, no GEMI frame fetch or
 // long-running frame_snapshot/sample_draw task can starve approved invitations.
-const EMAIL_JOB_TYPES: readonly ResearchJobType[] = [
-  "invite_batch",
-  "invite_reminder",
-  "reward_delivery",
-  "results_notification"
+const CAMPAIGN_JOB_TYPES: readonly ResearchJobType[] = ["invite_batch"];
+const OTHER_EMAIL_JOB_TYPES: readonly ResearchJobType[] = [
+  "invite_reminder", "reward_delivery", "results_notification"
 ];
+const MAX_CAMPAIGN_DRAIN_MS = 225_000;
+const MAX_CAMPAIGN_CHECKPOINTS = 200;
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET?.trim();
