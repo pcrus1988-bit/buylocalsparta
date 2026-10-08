@@ -9,6 +9,7 @@ import {
   queueGreekRetailRewardDelivery,
   queueGreekRetailSampleDraw,
   saveGreekRetailRecruitmentTemplate,
+  setGreekRetailInvitationCampaignPause,
   suppressGreekRetailResearchEmail
 } from "../../../../../../../lib/research-survey-jobs";
 import { queueGreekRetailRelease } from "../../../../../../../lib/research-survey-release";
@@ -26,6 +27,7 @@ type Body = {
   cohort?: "A" | "B";
   label?: string;
   limit?: number;
+  mode?: "continuous";
   subject?: string;
   bodyText?: string;
   version?: string;
@@ -141,10 +143,19 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
 
+    if (body.action === "pause_invite_campaign" || body.action === "resume_invite_campaign") {
+      const paused = body.action === "pause_invite_campaign";
+      const result = await setGreekRetailInvitationCampaignPause(principal,paused);
+      await recordAdminAudit(principal,"research.invite_campaign.state", "research_study",slug,
+        paused ? "Pause continuous invitation campaign" : "Resume same previously authorized invitation campaign",result);
+      return Response.json(result,{headers:{"Cache-Control":"no-store"}});
+    }
+
     if (body.action === "send_invites") {
       const result = await queueGreekRetailInviteBatch(principal, {
         limit: Number(body.limit || 100),
         cohort: body.cohort,
+        mode: body.mode,
         label: body.label,
         emailApproval: body.emailApproval
       });
@@ -154,7 +165,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         "research_study",
         slug,
         "Queue governed SES research invitation batch",
-        { ...result, limit: Number(body.limit || 100), cohort: body.cohort ?? null }
+        { ...result, limit: Number(body.limit || 100), cohort: body.cohort ?? null, mode: body.mode ?? "batch" }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }

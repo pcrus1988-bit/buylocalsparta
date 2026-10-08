@@ -113,9 +113,12 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
           cohortAStatus={cohorts?.a.status}
           cohortASampleStatus={cohorts?.a.sampleStatus}
           cohortARecruitmentMode={cohorts?.a.recruitmentMode}
+          cohortASampleSelected={cohorts?.a.sampleSelected}
           cohortBStatus={cohorts?.b.status}
           cohortBSampleStatus={cohorts?.b.sampleStatus}
           cohortBRecruitmentMode={cohorts?.b.recruitmentMode}
+          cohortBSampleSelected={cohorts?.b.sampleSelected}
+          campaign={study.campaign}
           queuedSampleJobs={study.queuedSampleJobs}
           runningSampleJobs={study.runningSampleJobs}
           recruitmentTemplateVersion={study.recruitmentTemplateVersion}

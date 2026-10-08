@@ -31,7 +31,7 @@ const DEFAULT_REMINDER_BODY = `{{company_greeting}}
 
 const TEMPLATE_VARIABLES = "{{study_title}}, {{company_name}}, {{company_greeting}}, {{survey_url}}, {{methodology_url}}, {{privacy_url}}, {{optout_url}}";
 
-type Busy = "template" | "reminderTemplate" | "send" | "reminders" | "suppress" | "rewards" | "analysis" | "release" | "results" | null;
+type Busy = "template" | "reminderTemplate" | "send" | "campaign" | "reminders" | "suppress" | "rewards" | "analysis" | "release" | "results" | null;
 
 type EmailPurpose = "research_invitation" | "research_reminder" | "thank_you_code" | "results_notification";
 
@@ -52,9 +52,12 @@ export function ResearchStudyFieldworkControls({
   cohortAStatus,
   cohortASampleStatus,
   cohortARecruitmentMode,
+  cohortASampleSelected,
   cohortBStatus,
   cohortBSampleStatus,
   cohortBRecruitmentMode,
+  cohortBSampleSelected,
+  campaign,
   queuedSampleJobs,
   runningSampleJobs,
   recruitmentTemplateVersion,
@@ -86,9 +89,12 @@ export function ResearchStudyFieldworkControls({
   cohortAStatus?: string;
   cohortASampleStatus?: string;
   cohortARecruitmentMode?: string;
+  cohortASampleSelected?: number;
   cohortBStatus?: string;
   cohortBSampleStatus?: string;
   cohortBRecruitmentMode?: string;
+  cohortBSampleSelected?: number;
+  campaign?: {id:string;status:string;cohort:string;paused:boolean;approvedMaxEmails:number;processedCount:number;sentCount:number;safetyHold?:string};
   queuedSampleJobs: number;
   runningSampleJobs: number;
   recruitmentTemplateVersion?: string;
@@ -146,8 +152,11 @@ export function ResearchStudyFieldworkControls({
   const cohortReady = cohort === "A"
     ? cohortAStatus === "frozen" || cohortAStatus === "superseded"
     : cohortBStatus === "frozen";
-  const batchN = Number(batchSize);
-  const batchValid = Number.isSafeInteger(batchN) && batchN >= 1 && batchN <= 500;
+  const wholeCohortCampaign = studyStatus === "fielding";
+  const batchN = wholeCohortCampaign
+    ? (cohort === "A" ? cohortASampleSelected : cohortBSampleSelected) ?? 0
+    : Number(batchSize);
+  const batchValid = Number.isSafeInteger(batchN) && batchN >= 1 && batchN <= (wholeCohortCampaign ? 500_000 : 500);
   const reminderBatchN = Number(reminderBatchSize);
   const reminderAgeN = Number(reminderMinAgeDays);
   const reminderGapN = Number(reminderMinGapDays);
@@ -300,18 +309,33 @@ export function ResearchStudyFieldworkControls({
     }
   }
 
+  async function setCampaignPaused(paused:boolean) {
+    setBusy("campaign");
+    setMessage("");
+    try {
+      await post({action:paused ? "pause_invite_campaign" : "resume_invite_campaign"});
+      setMessage(paused ? "Η εκστρατεία τέθηκε σε παύση. Οι ήδη εγκεκριμένες προσκλήσεις διατηρούνται." : "Η ίδια ήδη εγκεκριμένη εκστρατεία συνεχίζεται. Δεν δημιουργείται νέα αποστολή.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Η αλλαγή κατάστασης της εκστρατείας απέτυχε.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function sendInvites() {
     if (!batchValid || !cohortReady || !cohortSampleReady || (studyStatus === "pilot" && cohort !== "A")) return;
     openEmailConfirmation({
       action: "send_invites",
       busy: "send",
       purpose: "research_invitation",
-      purposeLabel: "Αρχική πρόσκληση συμμετοχής",
+      purposeLabel: wholeCohortCampaign ? "Μία εγκεκριμένη εκστρατεία σε ολόκληρη την Ομάδα " + cohort : "Αρχική πρόσκληση συμμετοχής",
       maxEmails: batchN,
       payload: {
         action: "send_invites",
         limit: batchN,
         cohort,
+        ...(wholeCohortCampaign ? {mode:"continuous"} : {}),
         label: "cohort-" + cohort + "-fieldwork-" + new Date().toISOString()
       }
     });
@@ -366,7 +390,7 @@ export function ResearchStudyFieldworkControls({
         }
       });
       if (pendingEmail.action === "send_invites") {
-        setMessage("Η παρτίδα προσκλήσεων μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
+        setMessage((pendingEmail.payload.mode === "continuous" ? "Η εκστρατεία πλήρους κάλυψης εγκρίθηκε και μπήκε στην ουρά. " : "Η παρτίδα προσκλήσεων μπήκε στην ουρά. ") + "Job " + String(result.jobId || "") + ".");
       } else if (pendingEmail.action === "send_reminders") {
         setMessage("Η παρτίδα υπενθυμίσεων μπήκε στην ουρά. Job " + String(result.jobId || "") + ".");
       } else if (pendingEmail.action === "deliver_rewards") {
@@ -477,23 +501,42 @@ export function ResearchStudyFieldworkControls({
             {studyStatus !== "pilot" && <option value="B">Cohort B · additional businesses</option>}
           </select>
         </label>
-        <input
-          aria-label="Invitation batch size"
-          inputMode="numeric"
-          max={500}
-          min={1}
-          onChange={(event) => setBatchSize(event.target.value.replace(/[^0-9]/g, ""))}
-          type="number"
-          value={batchSize}
-        />
+        {wholeCohortCampaign
+          ? <div className="workspace-inline-note">
+              <strong>Μία ενιαία εκστρατεία · έως {batchN.toLocaleString("el-GR")} επιλέξιμες εγγραφές</strong><br />
+              Η διπλή επιβεβαίωση εγκρίνει μία φορά ολόκληρη την επιλεγμένη Ομάδα. Το σύστημα αποστέλλει με εσωτερικά ελεγχόμενο ρυθμό (10 μηνύματα ανά βήμα, με ενδιάμεσα διαλείμματα), συνεχίζει αυτόματα μετά από επανεκκίνηση και σταματά όταν προκύπτει πρόβλημα παράδοσης. Δεν γίνονται νέες αποστολές χωρίς αυτή την επιβεβαίωση.
+            </div>
+          : <input
+              aria-label="Invitation batch size"
+              inputMode="numeric"
+              max={500}
+              min={1}
+              onChange={(event) => setBatchSize(event.target.value.replace(/[^0-9]/g, ""))}
+              type="number"
+              value={batchSize}
+            />}
         <button
           className="button"
           disabled={Boolean(busy) || workerBusy || !cohortReady || !cohortSampleReady || !fielding || !recruitmentTemplateVersion || !batchValid}
           onClick={() => void sendInvites()}
           type="button"
-        >{busy === "send" ? "Προετοιμασία…" : "Αποστολή παρτίδας προσκλήσεων"}</button>
+        >{busy === "send" ? "Προετοιμασία…" : wholeCohortCampaign ? "Εκκίνηση ενιαίας εκστρατείας Cohort " + cohort : "Αποστολή παρτίδας προσκλήσεων"}</button>
       </div>
     </div>
+
+    {campaign && <div className="workspace-queue-card" role="status" aria-label="Πρόοδος ενιαίας ερευνητικής εκστρατείας">
+      <strong>Ενιαία εκστρατεία Cohort {campaign.cohort}</strong>
+      <p>Κατάσταση: <strong>{campaign.paused ? "Σε παύση" : campaign.safetyHold ? "Παύση ασφαλείας" : campaign.status}</strong>
+        {" · "}Απεσταλμένα {campaign.sentCount.toLocaleString("el-GR")}
+        {" · "}Επεξεργασμένα {campaign.processedCount.toLocaleString("el-GR")} από έως {campaign.approvedMaxEmails.toLocaleString("el-GR")} εγκεκριμένες εγγραφές.
+      </p>
+      {campaign.safetyHold && <p className="workspace-inline-note form-error">Η αποστολή διακόπηκε αυτόματα για προστασία της αξιοπιστίας παράδοσης: {campaign.safetyHold}. Δεν παρακάμπτεται με απλή συνέχιση.</p>}
+      {(campaign.status === "queued" || campaign.status === "running") && <div className="workspace-action-buttons">
+        <button type="button" className="button button-secondary" disabled={Boolean(busy)} onClick={() => void setCampaignPaused(!campaign.paused)}>
+          {campaign.paused ? "Συνέχεια ήδη εγκεκριμένης εκστρατείας" : "Παύση εκστρατείας"}
+        </button>
+      </div>}
+    </div>}
 
     <div className="workspace-action-bar">
       <span>
@@ -759,12 +802,14 @@ export function ResearchStudyFieldworkControls({
           <div><strong>Σκοπός:</strong> {pendingEmail.purposeLabel}</div>
           {pendingEmail.action === "send_invites" && <div><strong>Recipient cohort:</strong> {String(pendingEmail.payload.cohort || "Not selected")}</div>}
           <div>
-            <strong>Μέγιστος αριθμός email αυτής της παρτίδας:</strong>{" "}
+            <strong>{pendingEmail.payload.mode === "continuous" ? "Ανώτατος αριθμός email ολόκληρης της εκστρατείας:" : "Μέγιστος αριθμός email αυτής της παρτίδας:"}</strong>{" "}
             {pendingEmail.maxEmails.toLocaleString("el-GR")}
           </div>
           <div>
             <strong>Αυτόματη επόμενη παρτίδα:</strong>{" "}
-            {pendingEmail.purpose === "research_invitation"
+            {pendingEmail.payload.mode === "continuous"
+              ? "Ναι, μόνο εντός αυτής της μίας ρητά εγκεκριμένης εκστρατείας έως το παραπάνω όριο, με ελέγχους αποκλεισμού και παράδοσης σε κάθε βήμα."
+              : pendingEmail.purpose === "research_invitation"
               ? "Όχι για νέες προσκλήσεις. Οι προβλεπόμενες υπενθυμίσεις μπορούν να ακολουθήσουν αυτόματα μόνο για μη απαντημένους, ενεργούς και μη αποκλεισμένους παραλήπτες."
               : "Όχι. Κάθε νέα παρτίδα αυτού του τύπου απαιτεί νέα διπλή επιβεβαίωση."}
           </div>
@@ -797,7 +842,7 @@ export function ResearchStudyFieldworkControls({
             />
           </label>
           <div className="workspace-inline-note">
-            Με την τελική επιβεβαίωση εγκρίνετε μόνο αυτή την παρτίδα και έως το παραπάνω πλήθος email.
+            Με την τελική επιβεβαίωση εγκρίνετε μόνο {pendingEmail.payload.mode === "continuous" ? "την ενιαία εκστρατεία και την αυτόματη συνέχεια των εσωτερικών βημάτων της" : "αυτή την παρτίδα"} και έως το παραπάνω πλήθος email.
           </div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
             <button
