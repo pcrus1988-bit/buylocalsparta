@@ -26,6 +26,7 @@ type Body = {
   cohort?: "A" | "B";
   label?: string;
   limit?: number;
+  mode?: "continuous";
   subject?: string;
   bodyText?: string;
   version?: string;
@@ -145,6 +146,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
       const result = await queueGreekRetailInviteBatch(principal, {
         limit: Number(body.limit || 100),
         cohort: body.cohort,
+        mode: body.mode,
         label: body.label,
         emailApproval: body.emailApproval
       });
@@ -154,7 +156,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         "research_study",
         slug,
         "Queue governed SES research invitation batch",
-        { ...result, limit: Number(body.limit || 100), cohort: body.cohort ?? null }
+        { ...result, limit: Number(body.limit || 100), cohort: body.cohort ?? null, mode: body.mode ?? "batch" }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
     }
