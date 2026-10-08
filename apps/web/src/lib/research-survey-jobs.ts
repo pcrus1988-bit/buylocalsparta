@@ -2141,7 +2141,7 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
             ORDER BY ${census ? "external_key_hash" : "md5($3::text || ':' || external_key_hash), external_key_hash"}
           ) AS within_order
           FROM chosen
-        )
+        ),
         inserted AS (
         INSERT INTO research_sample_units (
           sample_draw_id,
