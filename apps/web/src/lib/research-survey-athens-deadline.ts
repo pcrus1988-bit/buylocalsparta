@@ -19,7 +19,7 @@ export function isoToAthensDeadlineInput(iso?: string): string {
 export function athensDeadlineInputToIso(input: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(input);
   if (!match) throw new Error("RESEARCH_ATHENS_DEADLINE_INVALID");
-  const [year, month, day, hour, minute] = match.slice(1).map(Number);
+  const [year, month, day, hour, minute] = match.slice(1).map(Number) as [number, number, number, number, number];
   if (year < 2000 || year > 2100 || month < 1 || month > 12 ||
       day < 1 || day > 31 || hour > 23 || minute > 59) {
     throw new Error("RESEARCH_ATHENS_DEADLINE_INVALID");
