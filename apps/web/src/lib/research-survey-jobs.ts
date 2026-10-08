@@ -473,6 +473,62 @@ export async function saveGreekRetailRecruitmentTemplate(
   return { templateId: text(inserted.rows[0]!.id), version, purpose };
 }
 
+
+/** Do not begin Cohort B until every still-reachable Cohort A inbox has been invited.
+ * Live suppression and previous sends are checked, not frozen counters. Fail closed.
+ */
+async function assertCohortAOutreachComplete(
+  pool: ReturnType<typeof getProductionPostgresRuntime>["sqlPool"],
+  studyId: string,
+  waveId: string
+): Promise<void> {
+  const check = await pool.query<SqlRow>(`
+    SELECT
+      EXISTS (
+        SELECT 1 FROM research_invites ri
+        JOIN research_sample_units su ON su.id=ri.sample_unit_id
+        JOIN research_sample_designs ds ON ds.sample_draw_id=su.sample_draw_id
+        WHERE ri.study_id=$1 AND ri.wave_id=$2 AND ri.fieldwork_phase='main'
+          AND ri.sent_at IS NOT NULL AND ds.design_json->>'cohort'='A'
+          AND ds.design_json->>'recruitmentMode'='full_cohort_census'
+      ) AS launched,
+      EXISTS (
+        SELECT 1 FROM research_study_jobs j WHERE j.study_id=$1 AND j.wave_id=$2
+          AND j.job_type='invite_batch' AND j.status IN ('queued','running')
+          AND j.input->>'cohort'='A'
+      ) AS a_worker_busy,
+      EXISTS (
+        SELECT 1
+        FROM research_sample_units su
+        JOIN research_sample_draws d ON d.id=su.sample_draw_id
+        JOIN research_sample_designs ds ON ds.sample_draw_id=d.id
+        JOIN LATERAL (
+          SELECT cp.contact_value_hash
+          FROM research_contact_points cp
+          WHERE cp.frame_unit_id=su.frame_unit_id AND cp.contact_type='email'
+            AND cp.suppression_status='active'
+            AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+          ORDER BY (cp.verified_at IS NOT NULL) DESC, cp.verified_at DESC NULLS LAST,cp.created_at,cp.id
+          LIMIT 1
+        ) cp ON true
+        WHERE d.study_id=$1 AND d.wave_id=$2 AND d.fieldwork_phase='main'
+          AND d.status IN ('locked','fielded')
+          AND ds.design_json->>'cohort'='A'
+          AND ds.design_json->>'recruitmentMode'='full_cohort_census'
+          AND NOT EXISTS (
+            SELECT 1 FROM research_invites ri
+            JOIN research_contact_points sent_cp ON sent_cp.id=ri.contact_point_id
+            WHERE ri.study_id=$1 AND ri.sent_at IS NOT NULL
+              AND sent_cp.contact_value_hash=cp.contact_value_hash
+          )
+      ) AS a_pending
+  `, [studyId, waveId]);
+  if (!Boolean(check.rows[0]?.launched)) throw new Error("RESEARCH_COHORT_B_REQUIRES_A_FIRST");
+  if (Boolean(check.rows[0]?.a_worker_busy) || Boolean(check.rows[0]?.a_pending)) {
+    throw new Error("RESEARCH_COHORT_A_NOT_COMPLETE");
+  }
+}
+
 export async function queueGreekRetailInviteBatch(
   principal: SessionPrincipal,
   input: Readonly<{ limit?: number; label?: string; cohort?: "A" | "B"; emailApproval?: ResearchEmailBatchApproval }>
@@ -494,7 +550,8 @@ export async function queueGreekRetailInviteBatch(
           AND d.status IN ('locked','fielded')
           AND d.fieldwork_phase=CASE WHEN s.status='pilot' THEN 'pilot' ELSE 'main' END
           AND EXISTS (SELECT 1 FROM research_sample_designs ds
-            WHERE ds.sample_draw_id=d.id AND ds.design_json->>'cohort'=$2)
+            WHERE ds.sample_draw_id=d.id AND ds.design_json->>'cohort'=$2
+            AND (s.status='pilot' OR ds.design_json->>'recruitmentMode'='full_cohort_census'))
       ) AS sample_ready,
       EXISTS(
         SELECT 1 FROM research_recruitment_templates rt
@@ -512,14 +569,7 @@ export async function queueGreekRetailInviteBatch(
   const fieldworkPhase = text(row.status) === "pilot" ? "pilot" : "main";
   if (fieldworkPhase === "pilot" && cohort !== "A") throw new Error("RESEARCH_PILOT_REQUIRES_COHORT_A");
   if (fieldworkPhase === "main" && cohort === "B") {
-    const priorA = await pool.query<SqlRow>(`
-      SELECT EXISTS(SELECT 1 FROM research_invites ri
-        JOIN research_sample_units su ON su.id=ri.sample_unit_id
-        JOIN research_sample_designs ds ON ds.sample_draw_id=su.sample_draw_id
-        WHERE ri.study_id=$1 AND ri.wave_id=$2 AND ri.fieldwork_phase='main'
-          AND ri.sent_at IS NOT NULL AND ds.design_json->>'cohort'='A') AS launched
-    `, [row.id, row.current_wave_id]);
-    if (!Boolean(priorA.rows[0]?.launched)) throw new Error("RESEARCH_COHORT_B_REQUIRES_A_FIRST");
+    await assertCohortAOutreachComplete(pool, text(row.id), text(row.current_wave_id));
   }
   assertResearchEmailBatchApproval(input.emailApproval, {
     studyTitle: text(row.title),
@@ -2284,6 +2334,9 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   const cohort = text(input.cohort);
   if (cohort !== "A" && cohort !== "B") throw new Error("RESEARCH_INVITE_COHORT_REQUIRED");
   if (fieldworkPhase === "pilot" && cohort !== "A") throw new Error("RESEARCH_PILOT_REQUIRES_COHORT_A");
+  if (fieldworkPhase === "main" && cohort === "B") {
+    await assertCohortAOutreachComplete(pool, job.study_id, job.wave_id);
+  }
   const currentOutput = objectValue(job.output);
   let batchId = text(currentOutput.batchId);
   let sampleUnitIds = Array.isArray(currentOutput.sampleUnitIds)
@@ -2314,7 +2367,8 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
             AND d.status IN ('locked','fielded')
             AND d.fieldwork_phase=$2
             AND EXISTS(SELECT 1 FROM research_sample_designs ds
-              WHERE ds.sample_draw_id=d.id AND ds.design_json->>'cohort'=$4)
+              WHERE ds.sample_draw_id=d.id AND ds.design_json->>'cohort'=$4
+              AND ($2::text='pilot' OR ds.design_json->>'recruitmentMode'='full_cohort_census'))
           ORDER BY d.created_at DESC LIMIT 1
         ) d ON true
         JOIN LATERAL (
