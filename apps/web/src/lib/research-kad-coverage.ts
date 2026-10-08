@@ -48,3 +48,21 @@ export function greekRetailSector(activityCodes: readonly string[]): string {
   // Includes remaining division-47 classes: no B2C retail is silently discarded.
   return "other_retail";
 }
+
+/** Only for finishing already-queued v1 non-food snapshot jobs without reclassifying them. */
+export function greekRetailSectorV1(activityCodes: readonly string[]): string {
+  const has = (...prefixes: string[]) => activityCodes.some((code) =>
+    prefixes.some((prefix) => kadMatches(code, prefix))
+  );
+  if (has("47.71", "47.72")) return "fashion_footwear";
+  if (has("47.75")) return "beauty_personal_care";
+  if (has("47.51", "47.53", "47.54", "47.55", "47.59")) return "home_living";
+  if (has("47.52")) return "diy_building";
+  if (has("47.40", "47.41", "47.42", "47.43")) return "electronics";
+  if (has("47.61", "47.62", "47.63", "47.64", "47.69")) return "sports_books_hobby";
+  if (has("47.77")) return "jewellery_watches";
+  if (has("47.76")) return "flowers_pets";
+  if (has("47.79")) return "second_hand";
+  if (has("47.8")) return "automotive_trade";
+  return "other_non_food_retail";
+}
