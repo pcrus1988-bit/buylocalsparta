@@ -111,6 +111,13 @@ export function ResearchStudyFieldworkControls({
   const [manualSuppressEmail, setManualSuppressEmail] = useState("");
   const [manualSuppressNote, setManualSuppressNote] = useState("");
   const [message, setMessage] = useState("");
+  const [emailPreview, setEmailPreview] = useState<{ subject: string; text: string; html: string } | null>(null);
+  const [previewPurpose, setPreviewPurpose] = useState<"research_invitation" | "research_reminder">("research_invitation");
+  const [previewCompanyName, setPreviewCompanyName] = useState("ΒΙΒΛΙΟΠΩΛΕΙΟ ΣΠΑΡΤΗΣ");
+  const [previewMode, setPreviewMode] = useState<"html" | "text">("html");
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewError, setPreviewError] = useState("");
   const [pendingEmail, setPendingEmail] = useState<PendingEmailSend | null>(null);
   const [confirmationStep, setConfirmationStep] = useState<1 | 2>(1);
   const [confirmationText, setConfirmationText] = useState("");
@@ -137,6 +144,33 @@ export function ResearchStudyFieldworkControls({
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Research operation failed");
     return result as Record<string, unknown>;
+  }
+
+  async function openPreview(purpose: "research_invitation" | "research_reminder", companyName = previewCompanyName) {
+    setPreviewOpen(true);
+    setPreviewPurpose(purpose);
+    setPreviewCompanyName(companyName);
+    setEmailPreview(null);
+    setPreviewError("");
+    setPreviewLoading(true);
+    try {
+      const response = await fetch("/api/admin/research/surveys/" + encodeURIComponent(slug) + "/email-preview", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+        body: JSON.stringify({
+          purpose, studyTitle, companyName,
+          subject: purpose === "research_invitation" ? subject : reminderSubject,
+          bodyText: purpose === "research_invitation" ? bodyText : reminderBodyText
+        })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Preview unavailable");
+      setEmailPreview(result);
+    } catch (error) {
+      setPreviewError(error instanceof Error ? error.message : "Η προεπισκόπηση απέτυχε.");
+    } finally {
+      setPreviewLoading(false);
+    }
   }
 
   async function lockTemplate() {
@@ -400,6 +434,7 @@ export function ResearchStudyFieldworkControls({
             onClick={() => void lockTemplate()}
             type="button"
           >{busy === "template" ? "Αποθήκευση…" : recruitmentTemplateVersion ? "Αποθήκευση ως νέα έκδοση" : "Δημιουργία έκδοσης πρόσκλησης"}</button>
+          <button className="button button-secondary" style={{ marginLeft: 8 }} onClick={() => void openPreview("research_invitation")} type="button">Προεπισκόπηση email</button>
         </div>
       </div>
     </div>
@@ -467,6 +502,7 @@ export function ResearchStudyFieldworkControls({
           onClick={() => void lockReminderTemplate()}
           type="button"
         >{busy === "reminderTemplate" ? "Αποθήκευση…" : reminderTemplateVersion ? "Αποθήκευση ως νέα έκδοση" : "Δημιουργία έκδοσης υπενθύμισης"}</button>
+        <button className="button button-secondary" onClick={() => void openPreview("research_reminder")} type="button">Προεπισκόπηση υπενθύμισης</button>
       </div>
     </div>
 
@@ -621,6 +657,37 @@ export function ResearchStudyFieldworkControls({
         type="button"
       >{busy === "results" ? "Queueing…" : "Notify opted-in participants"}</button>
     </div>
+
+    {previewOpen && <div role="dialog" aria-modal="true" aria-label="Προεπισκόπηση email"
+      style={{ position: "fixed", inset: 0, zIndex: 11000, background: "rgba(14,24,20,.72)", display: "grid", placeItems: "center", padding: 14 }}>
+      <div style={{ background: "#fffdf8", width: "min(850px,100%)", maxHeight: "95vh", overflow: "auto", borderRadius: 18, padding: 20, display: "grid", gap: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
+          <div><strong>Προεπισκόπηση · {previewPurpose === "research_invitation" ? "Πρόσκληση" : "Υπενθύμιση"}</strong>
+            <div style={{ fontSize: 12, color: "#58645f" }}>Δοκιμαστική απόδοση — δεν αποστέλλεται email και δεν δημιουργείται πρόσκληση.</div>
+          </div>
+          <button className="button button-secondary" type="button" onClick={() => setPreviewOpen(false)}>Κλείσιμο</button>
+        </div>
+        <div style={{ display: "flex", alignItems: "end", flexWrap: "wrap", gap: 10 }}>
+          <label style={{ display: "grid", gap: 4, flex: "1 1 220px" }}><strong>Επωνυμία δοκιμαστικού παραλήπτη</strong>
+            <input aria-label="Preview company name" value={previewCompanyName} onChange={(event) => setPreviewCompanyName(event.target.value)} maxLength={300} />
+          </label>
+          <button className="button button-secondary" type="button" disabled={previewLoading} onClick={() => void openPreview(previewPurpose)}>Ανανέωση προεπισκόπησης</button>
+          <button className="button button-secondary" type="button" onClick={() => void openPreview(previewPurpose, "")}>Χωρίς επωνυμία</button>
+        </div>
+        {emailPreview && <>
+          <div style={{ fontSize: 13, overflowWrap: "anywhere" }}><strong>Θέμα:</strong> {emailPreview.subject}</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="button button-secondary" type="button" aria-pressed={previewMode === "html"} onClick={() => setPreviewMode("html")}>HTML</button>
+            <button className="button button-secondary" type="button" aria-pressed={previewMode === "text"} onClick={() => setPreviewMode("text")}>Απλό κείμενο</button>
+          </div>
+          {previewMode === "html"
+            ? <iframe title="Προεπισκόπηση email HTML" sandbox="" srcDoc={emailPreview.html} style={{ border: "1px solid #d6cfbf", width: "100%", height: "min(58vh,700px)", background: "white" }} />
+            : <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontFamily: "Arial, sans-serif", fontSize: 13, lineHeight: 1.6, maxHeight: "58vh", overflow: "auto", padding: 16, background: "#f4f0e8" }}>{emailPreview.text}</pre>}
+        </>}
+        {previewLoading && <p role="status">Δημιουργία προεπισκόπησης…</p>}
+        {previewError && <p role="alert" style={{ color: "#a33" }}>{previewError}</p>}
+      </div>
+    </div>}
 
     {pendingEmail && <div
       aria-modal="true"
