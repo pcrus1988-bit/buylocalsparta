@@ -109,3 +109,28 @@ export async function productionDatabaseReadiness() {
   if (!productionDatabaseConfigured()) return { ok: !databaseRuntimeRequired(), checkedAt: Date.now(), expectedSchemaVersion: WEB_EXPECTED_SCHEMA_VERSION, message: databaseRuntimeRequired() ? "DATABASE_URL or POSTGRES_URL is required in production" : "Database is not configured; development adapters remain active" } as const;
   return getProductionPostgresRuntime().readiness(WEB_EXPECTED_SCHEMA_VERSION);
 }
+
+
+/**
+ * Authentication is latency-critical and must not queue behind Research report
+ * aggregations or Admin mutations on the single-connection Admin pool. Keep a
+ * separate, bounded one-client lane; never use a cached principal to bypass the
+ * persisted session/revocation check.
+ */
+const adminAuthGlobalKey = "__buyLocalSpartaAdminAuthPostgresRuntime" as const;
+const adminAuthGlobals = globalThis as typeof globalThis & {
+  [adminAuthGlobalKey]?: ProductionPostgresRuntime;
+};
+
+export function getAdminAuthPostgresRuntime(): ProductionPostgresRuntime {
+  if (!productionDatabaseConfigured()) throw new Error("DATABASE_URL or POSTGRES_URL is required for production admin authentication");
+  if (adminAuthGlobals[adminAuthGlobalKey]) return adminAuthGlobals[adminAuthGlobalKey];
+  const env = {
+    ...buildWebPostgresRuntimeEnv(),
+    BLS_DB_APPLICATION_NAME: "buy-local-sparta-web-admin-auth",
+    BLS_DB_POOL_MAX: "1",
+    BLS_DB_CONNECT_TIMEOUT_MS: "5000",
+    BLS_DB_IDLE_TIMEOUT_MS: ADMIN_DB_IDLE_TIMEOUT_MS
+  };
+  return (adminAuthGlobals[adminAuthGlobalKey] = createPostgresRuntimeFromEnv({ env, applicationName: "buy-local-sparta-web-admin-auth" }));
+}

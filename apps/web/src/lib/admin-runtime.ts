@@ -14,7 +14,7 @@ import {
   platformScope
 } from "@buy-local-sparta/postgres-runtime";
 import * as memory from "./admin-memory-runtime";
-import { getAdminPostgresRuntime } from "./postgres-runtime";
+import { getAdminAuthPostgresRuntime, getAdminPostgresRuntime } from "./postgres-runtime";
 import { assertDatabaseLessPreviewCsrf, createDatabaseLessPreviewSession, databaseLessPreviewSessionEnabled, databaseLessPreviewSessionFromToken, previewCredentialMatches } from "./preview-auth";
 
 export const ADMIN_SESSION_COOKIE = "bls_admin_session";
@@ -32,7 +32,7 @@ function authSecret(): string {
 
 export function postgresAdminRuntimeEnabled(): boolean { return Boolean(process.env.DATABASE_URL?.trim()); }
 function postgresAuth(): PostgresAdminAuthService {
-  const runtime = getAdminPostgresRuntime();
+  const runtime = getAdminAuthPostgresRuntime();
   return globals[postgresAuthKey] ?? (globals[postgresAuthKey] = new PostgresAdminAuthService({ identity: runtime.persistence.identity, secret: authSecret(), sessionTtlMs: 6 * 60 * 60 * 1000 }));
 }
 function postgresLimiter(): PostgresFixedWindowRateLimiter {
