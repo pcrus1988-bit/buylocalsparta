@@ -663,7 +663,7 @@ export async function recoverGreekRetailFailedInvitationCampaign(
   const client=await getProductionPostgresRuntime().sqlPool.connect();
   try {
     await client.query("BEGIN");
-    const found=await client.query<ResearchJobRow & {study_status:string;fieldwork_ends_at:string|null;error_message:string|null}>(`
+    const found=await client.query<ResearchJobRow & {status:string;study_status:string;fieldwork_ends_at:string|null;error_message:string|null}>(`
       SELECT j.id,j.study_id,j.wave_id,j.job_type,j.input,j.output,j.attempts,
              j.error_message,s.status AS study_status,s.fieldwork_ends_at
       FROM research_study_jobs j
