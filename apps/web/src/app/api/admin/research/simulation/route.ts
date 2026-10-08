@@ -23,7 +23,9 @@ function simulationBaseUrl(): string {
 
 function failure(error: unknown): Response {
   const message = error instanceof Error ? error.message : "SIMULATION_FAILED";
-  const status = message.includes("AUTH") ? 401 : message.includes("permission") || message.includes("CSRF") ? 403
+  const status = message.includes("TOKEN_INVALID_OR_EXPIRED") || message.includes("INVITATION_EXPIRED") ? 410
+    : message.includes("STUDY_MISMATCH") ? 409
+    : message.includes("AUTH") ? 401 : message.includes("permission") || message.includes("CSRF") ? 403
     : message.includes("RATE_LIMIT") ? 429 : message.includes("SES") || message.includes("CONFIGURED")
       || message.includes("DISABLED") ? 503 : 400;
   return Response.json({ error: message }, { status, headers: noStore });
@@ -81,12 +83,13 @@ async function sendTestMessage(input: {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  let action = "unknown";
   try {
     const principal = await requireAdminSession(request, { csrf: true, permission: "research.manage" });
     const raw = await request.text();
     if (raw.length > 8192) throw new Error("SIMULATION_PAYLOAD_TOO_LARGE");
     const body = JSON.parse(raw) as Record<string, unknown>;
-    const action = body.action;
+    action = typeof body.action === "string" ? body.action : "unknown";
     const slug = typeof body.slug === "string" ? body.slug : "";
     if (!validSimulationSlug(slug)) throw new Error("SIMULATION_STUDY_INVALID");
 
@@ -155,6 +158,11 @@ export async function POST(request: Request): Promise<Response> {
     }
     throw new Error("SIMULATION_ACTION_INVALID");
   } catch (error) {
+    // Route handles expected errors itself: emit only a safe diagnostic code,
+    // never log addresses, encrypted receipts, invitation URLs or credentials.
+    const message = error instanceof Error ? error.message : "SIMULATION_FAILED";
+    const safeCode = /^[A-Z0-9_]{3,100}$/.test(message) ? message : "SIMULATION_OPERATION_ERROR";
+    console.warn(JSON.stringify({ level: "warn", event: "research.simulation_step_failed", action, code: safeCode }));
     return failure(error);
   }
 }
