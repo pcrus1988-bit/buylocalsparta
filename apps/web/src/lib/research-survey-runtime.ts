@@ -2450,8 +2450,8 @@ export async function researchSurveyAdminCohortOverview(principal: SessionPrinci
       CASE WHEN b.status IN ('frozen','superseded') THEN b.population_size END AS b_expanded_population,
       b.frozen_at AS b_frozen_at,
       bj.status AS b_job_status,
-      a_draw.status AS a_sample_status, a_draw.target_n AS a_sample_selected,
-      b_draw.status AS b_sample_status, b_draw.target_n AS b_sample_selected,
+      a_draw.status AS a_sample_status, a_draw.target_n AS a_sample_selected, a_draw.recruitment_mode AS a_recruitment_mode,
+      b_draw.status AS b_sample_status, b_draw.target_n AS b_sample_selected, b_draw.recruitment_mode AS b_recruitment_mode,
       CASE WHEN bj.status='running' AND bj.output->>'persistedUnits' ~ '^[0-9]+$'
         THEN (bj.output->>'persistedUnits')::int END AS b_processed_source_rows,
       CASE WHEN b.status IN ('frozen','superseded')
@@ -2495,7 +2495,7 @@ export async function researchSurveyAdminCohortOverview(principal: SessionPrinci
       ORDER BY j.created_at DESC LIMIT 1
     ) bj ON true
     LEFT JOIN LATERAL (
-      SELECT d.status,d.target_n FROM research_sample_draws d
+      SELECT d.status,d.target_n,ds.design_json->>'recruitmentMode' AS recruitment_mode FROM research_sample_draws d
       JOIN research_sample_designs ds ON ds.sample_draw_id=d.id
       WHERE d.study_id=s.id AND d.wave_id=s.current_wave_id
         AND d.fieldwork_phase=CASE WHEN s.status IN ('draft','pilot') THEN 'pilot' ELSE 'main' END
@@ -2528,6 +2528,7 @@ export async function researchSurveyAdminCohortOverview(principal: SessionPrinci
       contactable: aContacts,
       frozenAt: optionalText(row.a_frozen_at),
       sampleStatus: optionalText(row.a_sample_status),
+      recruitmentMode: optionalText(row.a_recruitment_mode),
       sampleSelected: optionalNumber(row.a_sample_selected)
     },
     b: {
@@ -2540,6 +2541,7 @@ export async function researchSurveyAdminCohortOverview(principal: SessionPrinci
       contactable: bContacts,
       frozenAt: optionalText(row.b_frozen_at),
       sampleStatus: optionalText(row.b_sample_status),
+      recruitmentMode: optionalText(row.b_recruitment_mode),
       sampleSelected: optionalNumber(row.b_sample_selected)
     },
     combined: {
