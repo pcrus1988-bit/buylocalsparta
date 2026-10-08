@@ -344,11 +344,13 @@ export function ResearchSurveyQuestionsEditor({
   slug,
   csrfToken,
   canEdit,
+  canAnalyze,
   data
 }: {
   slug: string;
   csrfToken: string;
   canEdit: boolean;
+  canAnalyze: boolean;
   data: ResearchSurveyDesignAdminOverview;
 }) {
   const router = useRouter();
@@ -367,6 +369,21 @@ export function ResearchSurveyQuestionsEditor({
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Editable revision could not be created.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function installSentiment() {
+    if (!window.confirm("Install the 9-question economic/sentiment extension and register the Greek Retail Business Confidence Index in this editable draft? No invitation will be sent.")) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await designPost(slug, csrfToken, { action: "install_retail_sentiment_2026" });
+      setMessage("Installed " + String(result.installed ?? 0) + " questions and registered the confidence index in the draft analysis plan.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Economic sentiment extension could not be installed.");
     } finally {
       setBusy(false);
     }
@@ -397,7 +414,16 @@ export function ResearchSurveyQuestionsEditor({
       <button className="button" disabled={busy} onClick={() => void createRevision()} type="button">{busy ? "Creating…" : "Create editable revision"}</button>
     </div>}
 
-    {message && <div className={message.startsWith("Editable") ? "workspace-inline-note" : "workspace-inline-note form-error"}>{message}</div>}
+    {editable && canAnalyze && slug === "greek-retail-2026" && <div className="workspace-action-bar">
+      <span><strong>Economic reality &amp; merchant confidence</strong><br />
+        Add nine conditional/prespecified sentiment questions to this draft, together with the 0–100 Greek Retail Business Confidence Index. No invitations or live responses are changed.
+      </span>
+      <button className="button button-secondary" disabled={busy} onClick={() => void installSentiment()} type="button">
+        {busy ? "Applying…" : "Install sentiment module"}
+      </button>
+    </div>}
+
+    {message && <div className={message.startsWith("Editable") || message.startsWith("Installed") ? "workspace-inline-note" : "workspace-inline-note form-error"}>{message}</div>}
 
     <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
       {data.questions.map((question, index) => <QuestionEditorCard
