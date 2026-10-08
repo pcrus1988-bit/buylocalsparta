@@ -2251,7 +2251,10 @@ async function transitionResearchStudyInternal(
  * invitation-event aggregations must not run before the survey shell renders.
  *
  * One bounded study and small-count query, without scanning contact points or
- * the 250k+ population frame. All values shown here come from live SQL.
+ * the 250k+ population frame. Select the latest frozen snapshot rather than
+ * an unfinished build (whose population_size is still zero); match the
+ * completed snapshot job for its recorded active-email count. All values are
+ * from persisted SQL, and no frozen snapshot is represented as unavailable.
  */
 export async function researchSurveyAdminFastOverview(principal: SessionPrincipal, slug: string) {
   assertAdminPermission(principal, "research.read");
@@ -2267,7 +2270,8 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       plan.version AS analysis_plan_version,
       plan.status AS analysis_plan_status,
       COALESCE(frames.frame_count, 0)::int AS frame_count,
-      COALESCE(frame.population_size, 0)::int AS frame_population,
+      COALESCE(frames.building_count, 0)::int AS frame_building_count,
+      frame.population_size AS frame_population,
       snapshot_contact_count.active_email_count AS snapshot_active_contacts,
       snapshot_contact_count.captured_at AS contact_snapshot_at,
       frame.status AS frame_status,
@@ -2290,12 +2294,15 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       ORDER BY created_at DESC LIMIT 1
     ) plan ON true
     LEFT JOIN LATERAL (
-      SELECT count(*) AS frame_count FROM research_frame_snapshots
+      SELECT count(*) AS frame_count,
+             count(*) FILTER (WHERE status='building') AS building_count
+      FROM research_frame_snapshots
       WHERE study_id=s.id
     ) frames ON true
     LEFT JOIN LATERAL (
       SELECT id, population_size, status FROM research_frame_snapshots
-      WHERE study_id=s.id ORDER BY created_at DESC LIMIT 1
+      WHERE study_id=s.id AND status='frozen'
+      ORDER BY frozen_at DESC NULLS LAST, created_at DESC LIMIT 1
     ) frame ON true
     LEFT JOIN LATERAL (
       SELECT (j.output->>'activeEmailCount')::int AS active_email_count,
@@ -2361,7 +2368,8 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       analysisPlanVersion: optionalText(row.analysis_plan_version),
       analysisPlanStatus: optionalText(row.analysis_plan_status),
       frameCount: numberValue(row.frame_count),
-      framePopulation: numberValue(row.frame_population),
+      buildingFrames: numberValue(row.frame_building_count),
+      framePopulation: row.frame_population == null ? undefined : numberValue(row.frame_population),
       snapshotActiveContacts: row.snapshot_active_contacts == null ? undefined : numberValue(row.snapshot_active_contacts),
       contactSnapshotAt: optionalText(row.contact_snapshot_at),
       frameStatus: optionalText(row.frame_status),
