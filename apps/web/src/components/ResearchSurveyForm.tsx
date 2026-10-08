@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { ResearchExperimentAssignment, ResearchSurveyContext } from "../lib/research-survey-runtime";
 import { matrixItems, matrixScale, questionOptions, type ResearchAnswer, type ResearchAnswerMap, type ResearchQuestion } from "../lib/research-survey-model";
 import styles from "./ResearchSurveyForm.module.css";
+import { ResearchPurposeCards } from "./ResearchPurposeCards";
 
 type ConsentState = Readonly<{ results_notification: boolean; thank_you_code: boolean }>;
 
@@ -407,6 +408,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
 
   if (!started) {
     return <div className={styles.consent}>
+      {!initialOptOutIntent && <ResearchPurposeCards compact />}
       <span className={styles.kicker}>Πριν ξεκινήσετε</span>
       <h2>Συγκατάθεση συμμετοχής</h2>
       <div className={styles.consentFacts}>
