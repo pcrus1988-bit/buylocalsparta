@@ -9,7 +9,7 @@ import {
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { runGreekRetailAnalysis } from "./research-survey-analysis";
 import { proportionalStratumAllocation } from "./research-survey-statistics";
-import { allowIsolatedResearchSubmissionFailure, evaluateResearchDeliverySafety, invalidResearchRecipientAddressReason } from "./research-survey-delivery-safety";
+import { allowIsolatedResearchSubmissionFailure, evaluateResearchDeliverySafety, invalidResearchRecipientAddressReason, RESEARCH_BOUNCE_POLICY_VERSION } from "./research-survey-delivery-safety";
 import { buildGreekRetailRelease } from "./research-survey-release";
 import { greekRetailSector, greekRetailSectorV1, isRetailKad, RETAIL_ACTIVITY_GROUP_IDS, RETAIL_CLASSIFICATION_VERSION, RETAIL_SOURCE_REFERENCE } from "./research-kad-coverage";
 import {
@@ -783,11 +783,16 @@ export async function setGreekRetailInvitationCampaignPause(
       ORDER BY j.created_at DESC LIMIT 1
     )
     UPDATE research_study_jobs j
-    SET input=jsonb_set(j.input,'{paused}',to_jsonb($2::bool),true),
+    SET input=CASE WHEN $2::bool
+          THEN jsonb_set(j.input,'{paused}','true'::jsonb,true)
+          ELSE jsonb_set(
+            jsonb_set(j.input,'{paused}','false'::jsonb,true),
+            '{bouncePolicyAcknowledgedVersion}',to_jsonb($3::text),true)
+        END,
         available_at=CASE WHEN $2::bool THEN 'infinity'::timestamptz ELSE now() END
     WHERE j.id=(SELECT id FROM chosen)
     RETURNING j.id,j.status
-  `,[STUDY_SLUG,paused]);
+  `,[STUDY_SLUG,paused,RESEARCH_BOUNCE_POLICY_VERSION]);
   if (!changed.rows[0]) throw new Error("RESEARCH_ACTIVE_CONTINUOUS_CAMPAIGN_NOT_FOUND");
   return {jobId:text(changed.rows[0].id),status:text(changed.rows[0].status),paused};
 }
@@ -2593,6 +2598,23 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   const currentOutput = objectValue(job.output);
   const campaignProcessed = Math.max(0,Math.floor(numberValue(currentOutput.campaignProcessedCount)));
   const campaignSent = Math.max(0,Math.floor(numberValue(currentOutput.campaignSentCount)));
+  // Changing a stop policy must never silently lift an existing active hold.
+  // The operator must explicitly press Continue for THIS already-approved job;
+  // that admin action acknowledges the new policy version without creating
+  // another campaign, resetting the ledger or sending to duplicate recipients.
+  const existingHold = text(currentOutput.safetyHold);
+  if (continuous &&
+      text(input.bouncePolicyAcknowledgedVersion) !== RESEARCH_BOUNCE_POLICY_VERSION &&
+      (existingHold === "SES_HARD_BOUNCE_RATE_ABOVE_GRADUATED_SAFETY_LIMIT" ||
+       existingHold === "RESEARCH_BOUNCE_POLICY_CONFIRMATION_REQUIRED")) {
+    return {
+      __requeue:true,__delaySeconds:300,
+      safetyHold:"RESEARCH_BOUNCE_POLICY_CONFIRMATION_REQUIRED",
+      safetyHoldPhase:text(currentOutput.safetyHoldPhase) || "main",
+      campaignProcessedCount:campaignProcessed,
+      campaignSentCount:campaignSent
+    };
+  }
   // One authorization covers the locked census. Keep each checkpoint to 50
   // addresses so bounce/complaint thresholds and administrator pause state are
   // re-evaluated regularly, even during a long-running cron drain.
@@ -2606,12 +2628,12 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   if (continuous && (fieldworkPhase !== "main" || campaignMax < 1 || campaignMax > 500_000 || campaignProcessed > campaignMax)) {
     throw new Error("RESEARCH_CONTINUOUS_CAMPAIGN_INVALID");
   }
-  // SES pre-delivery validation suppressions are not the same as actual
-  // delivery failures. Keep a separate 5% safety stop for EACH category.
-  // Unknown bounce classifications remain hard bounces (fail closed).
-  // Separately evaluate Pilot and Main. Small-sample stops rise to 20% for
-  // 20-99 outcomes and 8% for 100-499; the 5% stop returns at 500+.
-  // These are study-level pauses, NOT AWS SES reputation allowances.
+  // SES pre-delivery validation suppressions are NOT actual hard bounces.
+  // Retain their original independent emergency thresholds. Hard-bounce
+  // study-level stops now use the operator's 10/9/7/5% staged policy, with
+  // a separate, permanent 5% warning and SES's own account enforcement.
+  // Unknown/Transient bounce classifications still count until verified.
+  // Pilot and Main are evaluated separately.
   let deliverySafety: Array<{
     phase: string;
     delivered: number;
