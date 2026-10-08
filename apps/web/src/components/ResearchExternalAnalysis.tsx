@@ -45,7 +45,7 @@ function importRows(text: string): ParsedCsv {
     const unit=(row[idx("unit")]??"").trim();
     const source=(row[idx("source")]??"").trim();
     if(!series||!Number.isInteger(year)||year<1990||year>2026||!period||!Number.isFinite(value)||Math.abs(value)>1000000000)throw Error("Μη έγκυρη σειρά, χρονολογία ή αριθμητική τιμή.");
-    if(!["index","balance","percent"].includes(unit))throw Error("Η μονάδα πρέπει να είναι index, balance ή percent.");
+    if(!["index","balance","percent","euro"].includes(unit))throw Error("Η μονάδα πρέπει να είναι index, balance, percent ή euro.");
     if(!source)throw Error("Κάθε εγγραφή χρειάζεται πεδίο source.");
     if(unit==="percent" && Math.abs(value)>100)throw Error("Ποσοστό εκτός ορίων −100 έως 100.");
     units.add(unit);sourceCount++;
@@ -59,7 +59,7 @@ function importRows(text: string): ParsedCsv {
 }
 
 function format(value:number,unit:ExternalGroup["unit"]):string{
-  return locale.format(value)+(unit==="percent"?"%":"");
+  return unit==="euro"?new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR",maximumFractionDigits:2}).format(value):locale.format(value)+(unit==="percent"?"%":"");
 }
 function xLabel(key:string,monthly:boolean):string{
   return monthly?MONTHS[Number(key)-1]??key:key;
@@ -112,7 +112,7 @@ export function ResearchExternalAnalysis(){
   const [chosen,setChosen]=useState<string[]>(["esi-gr","esi-eu","esi-ea"]);
   const [from,setFrom]=useState(2022),[until,setUntil]=useState(2026);
   const [chartType,setChartType]=useState<"line"|"bar">("line"),[index,setIndex]=useState(false);
-  const [query,setQuery]=useState(""),[kind,setKind]=useState("all");
+  const [query,setQuery]=useState(""),[kind,setKind]=useState("all"),[archiveYear,setArchiveYear]=useState("all");
   const [leftStudy,setLeftStudy]=useState("iobe-2025"),[rightStudy,setRightStudy]=useState("iobe-2026");
   const [uploaded,setUploaded]=useState<ParsedCsv|null>(null),[uploadError,setUploadError]=useState("");
   const fileRef=useRef<HTMLInputElement>(null);
@@ -151,10 +151,10 @@ export function ResearchExternalAnalysis(){
   const sharedGroups=EXTERNAL_GROUPS.filter(g=>g.sourceIds.includes(leftStudy)&&g.sourceIds.includes(rightStudy)&&leftStudy!==rightStudy);
   const leftSource=EXTERNAL_STUDIES.find(s=>s.id===leftStudy);
   const rightSource=EXTERNAL_STUDIES.find(s=>s.id===rightStudy);
-  const studyMatches=EXTERNAL_STUDIES.filter(study=>(kind==="all"||study.kind===kind)&&(study.issuer+" "+study.title+" "+study.detail).toLocaleLowerCase("el-GR").includes(query.toLocaleLowerCase("el-GR")));
+  const studyMatches=EXTERNAL_STUDIES.filter(study=>(archiveYear==="all"||String(study.year)===archiveYear)&&(kind==="all"||study.kind===kind)&&(study.issuer+" "+study.title+" "+study.detail).toLocaleLowerCase("el-GR").includes(query.toLocaleLowerCase("el-GR")));
   function chooseGroup(id:string){
     const next=EXTERNAL_GROUPS.find(g=>g.id===id)??EXTERNAL_GROUPS[0];
-    setUploaded(null);setUploadError("");setGroupId(next.id);setChosen(next.series.map(s=>s.id));setFrom(2022);setUntil(2026);setIndex(false);
+    setUploaded(null);setUploadError("");setGroupId(next.id);setChosen(next.series.map(s=>s.id));setFrom(2019);setUntil(2026);setIndex(false);
     setChartType(next.id==="supermarket-prices"||next.id==="holiday-survey"?"bar":"line");
   }
   function exportData(){
@@ -177,14 +177,14 @@ export function ResearchExternalAnalysis(){
   const canNormalize=activeUnit==="index"&&selectedLines.every(s=>s.points.every(p=>p.value>0));
   return <section className={styles.workspace} aria-labelledby="research-workbench-title">
     <header className={styles.intro}>
-      <div><span className={styles.eyebrow}>Διαδραστική ανάλυση · 2022–2026</span><h2 id="research-workbench-title">Εργαστήριο δεδομένων αγοράς</h2><p>Επιλέξτε δείκτη, επικάλυψη ετών, μελέτες και τρόπο απεικόνισης. Δείτε τις πραγματικές τιμές, εξερευνήστε τις διαφορές και κατεβάστε τις επιλεγμένες παρατηρήσεις.</p></div>
+      <div><span className={styles.eyebrow}>Διαδραστική ανάλυση · 2019–2026</span><h2 id="research-workbench-title">Εργαστήριο δεδομένων αγοράς</h2><p>Επιλέξτε δείκτη, επικάλυψη ετών, μελέτες και τρόπο απεικόνισης. Δείτε τις πραγματικές τιμές, εξερευνήστε τις διαφορές και κατεβάστε τις επιλεγμένες παρατηρήσεις.</p></div>
       <div className={styles.introStat}><strong>{EXTERNAL_STUDIES.length}</strong><span>πηγές / εκδόσεις</span><strong>{EXTERNAL_GROUPS.length}</strong><span>αναλυτικές όψεις</span></div>
     </header>
     <div className={styles.workspaceGrid}>
       <aside className={styles.filters} aria-label="Επιλογές ανάλυσης">
         <label className={styles.field}><span>Ποιο στοιχείο θέλετε να αναλύσετε;</span><select value={groupId} disabled={Boolean(uploaded)} onChange={e=>chooseGroup(e.target.value)}>{EXTERNAL_GROUPS.map(g=><option key={g.id} value={g.id}>{g.title}</option>)}</select></label>
         <div className={styles.field}><span>Σειρές προς επικάλυψη</span><div className={styles.checks}>{activeSeries.map(s=><label key={s.id}><input type="checkbox" checked={chosen.includes(s.id)} onChange={e=>setChosen(old=>e.target.checked?[...old,s.id]:old.filter(id=>id!==s.id))}/><span className={styles.swatch} style={{background:COLORS[activeSeries.indexOf(s)%COLORS.length]}}/>{s.label}</label>)}</div></div>
-        <div className={styles.field}><span>Χρονικό εύρος</span><div className={styles.rangeFields}><select aria-label="Από έτος" value={from} onChange={e=>setFrom(Math.min(Number(e.target.value),until))}>{[...new Set([1990,...activeYears,2026])].filter(y=>!uploaded?y>=2022:y>=1990).sort((a,b)=>a-b).map(y=><option key={y} value={y}>{y}</option>)}</select><span>έως</span><select aria-label="Έως έτος" value={until} onChange={e=>setUntil(Math.max(Number(e.target.value),from))}>{[...new Set([1990,...activeYears,2026])].filter(y=>!uploaded?y>=2022:y>=1990).sort((a,b)=>a-b).map(y=><option key={y} value={y}>{y}</option>)}</select></div></div>
+        <div className={styles.field}><span>Χρονικό εύρος</span><div className={styles.rangeFields}><select aria-label="Από έτος" value={from} onChange={e=>setFrom(Math.min(Number(e.target.value),until))}>{[...new Set([1990,...activeYears,2026])].filter(y=>!uploaded?y>=2019:y>=1990).sort((a,b)=>a-b).map(y=><option key={y} value={y}>{y}</option>)}</select><span>έως</span><select aria-label="Έως έτος" value={until} onChange={e=>setUntil(Math.max(Number(e.target.value),from))}>{[...new Set([1990,...activeYears,2026])].filter(y=>!uploaded?y>=2022:y>=1990).sort((a,b)=>a-b).map(y=><option key={y} value={y}>{y}</option>)}</select></div></div>
         <div className={styles.field}><span>Απεικόνιση</span><div className={styles.segment}><button type="button" aria-pressed={chartType==="line"} onClick={()=>setChartType("line")}>Γραμμές</button><button type="button" aria-pressed={chartType==="bar"} onClick={()=>setChartType("bar")}>Στήλες</button></div></div>
         <label className={styles.toggle}><input type="checkbox" disabled={!canNormalize} checked={index&&canNormalize} onChange={e=>setIndex(e.target.checked)}/><span>Κοινή αφετηρία = 100 <small>Μόνο για θετικούς δείκτες. Συγκρίνει πορεία, όχι επίπεδο.</small></span></label>
         <button className={styles.reset} type="button" onClick={()=>chooseGroup("annual-esi")}>Επαναφορά αρχικών επιλογών</button>
@@ -199,7 +199,7 @@ export function ResearchExternalAnalysis(){
           <div><span>Διαφορά πρώτης / τελευταίας τιμής πρώτης σειράς</span><strong>{delta===null?"—":(delta>0?"+":"")+locale.format(delta)}</strong></div>
         </div>
         {!uploaded&&<section className={styles.changesPanel} aria-label="Μεταβολές ανά έτος">
-          <div className={styles.changesHead}><strong>Μεταβολές ανά έτος</strong><span>Διαφορά τιμών · {activeUnit==="percent"?"ποσοστιαίες μονάδες":"μονάδες δείκτη ή ισοζυγίου"}</span></div>
+          <div className={styles.changesHead}><strong>Μεταβολές ανά έτος</strong><span>Διαφορά τιμών · {activeUnit==="percent"?"ποσοστιαίες μονάδες":activeUnit==="euro"?"ευρώ ανά νοικοκυριό":"μονάδες δείκτη ή ισοζυγίου"}</span></div>
           {comparisonRows.length>0
             ? <div className={styles.changesRows}>{comparisonRows.map((row,i)=><div key={row.label+"-"+row.period+"-"+i}><span>{row.label}</span><small>{row.period}</small><strong className={row.change>=0?styles.positive:styles.negative}>{row.change>0?"+":""}{locale.format(row.change)}</strong></div>)}</div>
             : <p className={styles.noChange}>Δεν υπάρχουν δύο πλήρως αντίστοιχες περίοδοι για τον επιλεγμένο δείκτη. Δεν υπολογίζουμε αυθαίρετη μεταβολή.</p>}
@@ -213,9 +213,12 @@ export function ResearchExternalAnalysis(){
       <article><span>Οικονομικό κλίμα · 2025</span><strong>107,4 / 95,8</strong><p>Ελλάδα έναντι ΕΕ-27, διαφορά 11,6 μονάδων. Ίδιος δείκτης και ίδια έκδοση στοιχείων.</p></article>
       <article><span>Προσδοκίες λιανεμπορίου · Σεπτέμβριος</span><strong>+18,2</strong><p>Μονάδες από το 2025 (97,8) στο 2026 (116,0), στον εθνικό δείκτη ΙΟΒΕ. Δεν είναι αύξηση πωλήσεων.</p></article>
       <article><span>Τιμές σούπερ μάρκετ · Σεπτέμβριος</span><strong>−1,36 μ.</strong><p>Μεταβολή του ετήσιου ρυθμού από +0,61% (2025) σε −0,75% (2026), σε ποσοστιαίες μονάδες.</p></article>
+      <article><span>Δαπάνες ελληνικών νοικοκυριών · 2025</span><strong>1.820,20 €</strong><p>Μέση μηνιαία ονομαστική δαπάνη, έναντι 1.724,54 € το 2024. Δεν μετρά αποκλειστικά αύξηση κατανάλωσης.</p></article>
+      <article><span>Πραγματικός όγκος λιανεμπορίου · 2025</span><strong>100,3</strong><p>Ετήσιος δείκτης ΕΛΣΤΑΤ με βάση 2021=100, έναντι 98,2 το 2024. Διαχωρίζεται από τον ονομαστικό κύκλο εργασιών.</p></article>
+      <article><span>Θερινές εκπτώσεις · ΕΣΕΕ 2025</span><strong>59%</strong><p>Επιχειρήσεις του δείγματος ανέφεραν χειρότερες πωλήσεις από το 2024. Δεν αποτελεί άμεση μέτρηση εθνικού τζίρου.</p></article>
     </div>
     <section className={styles.importPanel} aria-labelledby="custom-data-title">
-      <div><span className={styles.eyebrow}>Δικές σας αναλύσεις · ιδιωτική προεπισκόπηση</span><h3 id="custom-data-title">Αναλύστε και δικά σας δεδομένα.</h3><p>Εισαγάγετε αρχείο CSV με έως 1.000 γραμμές και 6 σειρές, χωρίς αποστολή σε διακομιστή. Χρειάζονται οι στήλες <code>series, year, period, value, unit, source</code>. Μονάδες: index, balance ή percent.</p>
+      <div><span className={styles.eyebrow}>Δικές σας αναλύσεις · ιδιωτική προεπισκόπηση</span><h3 id="custom-data-title">Αναλύστε και δικά σας δεδομένα.</h3><p>Εισαγάγετε αρχείο CSV με έως 1.000 γραμμές και 6 σειρές, χωρίς αποστολή σε διακομιστή. Χρειάζονται οι στήλες <code>series, year, period, value, unit, source</code>. Μονάδες: index, balance, percent ή euro.</p>
         <div className={styles.importActions}><input ref={fileRef} type="file" accept=".csv,text/csv" onChange={e=>{void importFile(e.target.files?.[0]);e.target.value="";}} aria-label="Επιλέξτε αρχείο CSV"/><button type="button" onClick={()=>{const blob=new Blob(["\uFEFF",csvTemplate],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="research-import-template.csv";a.click();URL.revokeObjectURL(url);}}>Πρότυπο CSV ↓</button>{uploaded&&<button type="button" onClick={()=>chooseGroup("annual-esi")}>Επιστροφή στα δημοσιευμένα στοιχεία</button>}</div>
         {uploadError&&<p className={styles.error} role="alert">{uploadError}</p>}{uploaded&&<p className={styles.importSuccess} role="status">{uploaded.message}</p>}
       </div>
@@ -235,8 +238,8 @@ export function ResearchExternalAnalysis(){
         {sharedGroups.map(g=><button type="button" key={g.id} onClick={()=>{chooseGroup(g.id);document.getElementById("research-workbench-title")?.scrollIntoView({behavior:"smooth",block:"start"});}}>{g.title} · {g.comparison==="direct"?"ίδιος ορισμός":"με προσοχή"} ↗</button>)}
       </div>
     </section>
-    <section className={styles.catalog} aria-label="Αρχείο μελετών">
-      <div className={styles.catalogTop}><div><span className={styles.eyebrow}>Αρχείο φορέων · 2023–2026</span><h3>Μελέτες και αρχικές δημοσιεύσεις</h3></div><div className={styles.catalogFields}><input type="search" placeholder="Αναζήτηση φορέα ή θέματος…" aria-label="Αναζήτηση δημοσιεύσεων" value={query} onChange={e=>setQuery(e.target.value)}/><select value={kind} aria-label="Είδος δημοσίευσης" onChange={e=>setKind(e.target.value)}><option value="all">Όλες οι πηγές</option><option value="sentiment">Κλίμα αγοράς</option><option value="survey">Έρευνες</option><option value="statistical">Στατιστικά</option></select></div></div>
+    <section className={styles.catalog} id="external-studies" aria-label="Αρχείο μελετών">
+      <div className={styles.catalogTop}><div><span className={styles.eyebrow}>Αρχείο φορέων · 2023–2026</span><h3>Μελέτες και αρχικές δημοσιεύσεις</h3></div><div className={styles.catalogFields}><input type="search" placeholder="Αναζήτηση φορέα ή θέματος…" aria-label="Αναζήτηση δημοσιεύσεων" value={query} onChange={e=>setQuery(e.target.value)}/><select value={archiveYear} aria-label="Έτος δημοσίευσης" onChange={e=>setArchiveYear(e.target.value)}><option value="all">Όλα τα έτη</option>{[...new Set(EXTERNAL_STUDIES.map(s=>s.year))].sort((a,b)=>b-a).map(year=><option key={year} value={year}>{year}</option>)}</select><select value={kind} aria-label="Είδος δημοσίευσης" onChange={e=>setKind(e.target.value)}><option value="all">Όλες οι πηγές</option><option value="sentiment">Κλίμα αγοράς</option><option value="survey">Έρευνες</option><option value="statistical">Στατιστικά</option></select></div></div>
       <div className={styles.catalogGrid}>{studyMatches.map(s=><article key={s.id}><span className={styles.eyebrow}>{s.issuer} · {s.year}</span><h4>{s.title}</h4><p>{s.detail}</p><a href={s.url} target="_blank" rel="noopener noreferrer">Άνοιγμα αρχικής πηγής ↗</a></article>)}{!studyMatches.length&&<p>Δεν βρέθηκαν δημοσιεύσεις με αυτά τα φίλτρα.</p>}</div>
     </section>
   </section>;
