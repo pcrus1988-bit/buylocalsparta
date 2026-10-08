@@ -2405,6 +2405,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     await assertCohortAOutreachComplete(pool, job.study_id, job.wave_id);
   }
   let batchId = text(currentOutput.batchId);
+  let cursorAfterBatch = Math.floor(numberValue(currentOutput.campaignCursorAfterBatch));
   let sampleUnitIds = Array.isArray(currentOutput.sampleUnitIds)
     ? currentOutput.sampleUnitIds.map(text).filter(Boolean)
     : [];
@@ -2497,7 +2498,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         FOR UPDATE OF su SKIP LOCKED
       `, [row.sample_draw_id, row.study_id, limit, fieldworkPhase, job.wave_id,continuous ? Math.floor(numberValue(currentOutput.campaignCursor)) : 0]);
       sampleUnitIds = candidates.rows.map((candidate) => text(candidate.sample_unit_id));
-      const cursorAfterBatch = candidates.rows.length
+      cursorAfterBatch = candidates.rows.length
         ? Math.floor(numberValue(candidates.rows[candidates.rows.length - 1]?.selection_order))
         : Math.floor(numberValue(currentOutput.campaignCursor));
 
@@ -2860,7 +2861,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     return {
       __requeue:true,__delaySeconds:60,
       batchId:"",sampleUnitIds:[],
-      campaignCursor:Math.floor(numberValue(currentOutput.campaignCursorAfterBatch)),
+      campaignCursor:cursorAfterBatch,
       campaignProcessedCount:nextProcessed,campaignSentCount:nextSent,
       approvedMaxEmails:campaignMax,
       safetyHold:null,
