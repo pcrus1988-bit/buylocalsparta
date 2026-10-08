@@ -38,6 +38,12 @@ test("synchronizing coverage keeps primary outcomes and exploratory investigatio
   assert.equal((revised.secondaryAnalyses as { scope: string }).scope, "Original");
   assert.equal((revised.questionnaireCoverage as { questionCount: number }).questionCount, 9);
   assert.equal(questionCoverageIsCurrent(revised, questions, "0.3.0", "sha123"), true);
+  // PostgreSQL JSONB normalizes object property order on round trip.
+  const jsonbRoundTrip = JSON.parse(JSON.stringify(revised)) as Record<string, unknown>;
+  const secondary = jsonbRoundTrip.secondaryAnalyses as Record<string, unknown>;
+  secondary.questionMeasures = (secondary.questionMeasures as Array<Record<string, unknown>>)
+    .map((row) => Object.fromEntries(Object.entries(row).reverse()));
+  assert.equal(questionCoverageIsCurrent(jsonbRoundTrip, questions, "0.3.0", "sha123"), true);
   assert.deepEqual(planWithCurrentQuestionCoverage(revised, questions, "0.3.0", "sha123"), revised);
   assert.equal(questionCoverageIsCurrent(revised, questions, "0.3.0", "changed-instrument"), false);
 });
