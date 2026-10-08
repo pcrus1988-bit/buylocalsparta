@@ -75,7 +75,7 @@ export function ResearchSurveyAdminNav({
         <Link prefetch={false} className="button button-secondary" href="/admin/research/surveys">All surveys</Link>
         <Link prefetch={false} className="button" href={root + "/workflow?phase=pilot"}>Guided Pilot</Link>
         <Link prefetch={false} className="button button-secondary" href={root + "/workflow?phase=main"}>Guided main study</Link>
-        <Link prefetch={false} className="button button-secondary" href={root + "/simulation"}>Run simulation</Link>
+        <Link prefetch={false} className="button button-secondary" href={root + "/simulation"}>Simulation picker</Link>
         <Link prefetch={false} className="button button-secondary" href="/admin/research/handbook">Admin handbook</Link>
         <Link prefetch={false} className="button button-secondary" href="/admin/research/settings">Global Research settings</Link>
       </div>
