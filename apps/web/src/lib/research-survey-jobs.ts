@@ -631,7 +631,8 @@ export async function queueGreekRetailInviteBatch(
         'fieldworkPhase',$5::text,
         'emailApproval',$6::jsonb,
         'cohort',$7::text,
-        'mode',$8::text
+        'mode',$8::text,
+        'bouncePolicyAcknowledgedVersion',$9::text
       )
     )
     RETURNING id
@@ -643,7 +644,8 @@ export async function queueGreekRetailInviteBatch(
     fieldworkPhase,
     JSON.stringify(input.emailApproval),
     cohort,
-    continuous ? "continuous" : "batch"
+    continuous ? "continuous" : "batch",
+    continuous ? RESEARCH_BOUNCE_POLICY_VERSION : null
   ]);
   return { jobId: text(job.rows[0]!.id) };
 }
@@ -2598,15 +2600,12 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   const currentOutput = objectValue(job.output);
   const campaignProcessed = Math.max(0,Math.floor(numberValue(currentOutput.campaignProcessedCount)));
   const campaignSent = Math.max(0,Math.floor(numberValue(currentOutput.campaignSentCount)));
-  // Changing a stop policy must never silently lift an existing active hold.
-  // The operator must explicitly press Continue for THIS already-approved job;
-  // that admin action acknowledges the new policy version without creating
-  // another campaign, resetting the ledger or sending to duplicate recipients.
-  const existingHold = text(currentOutput.safetyHold);
+  // A policy increase may never silently apply to an existing, unpaused job.
+  // Require explicit Admin Continue before any remaining recipients are sent.
+  // New campaigns already double-confirmed under the current policy store
+  // this version in input at creation; earlier campaigns must re-acknowledge.
   if (continuous &&
-      text(input.bouncePolicyAcknowledgedVersion) !== RESEARCH_BOUNCE_POLICY_VERSION &&
-      (existingHold === "SES_HARD_BOUNCE_RATE_ABOVE_GRADUATED_SAFETY_LIMIT" ||
-       existingHold === "RESEARCH_BOUNCE_POLICY_CONFIRMATION_REQUIRED")) {
+      text(input.bouncePolicyAcknowledgedVersion) !== RESEARCH_BOUNCE_POLICY_VERSION) {
     return {
       __requeue:true,__delaySeconds:300,
       safetyHold:"RESEARCH_BOUNCE_POLICY_CONFIRMATION_REQUIRED",

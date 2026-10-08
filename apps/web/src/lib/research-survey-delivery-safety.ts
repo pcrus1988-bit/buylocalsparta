@@ -2,7 +2,7 @@
  * Study-level review thresholds are NOT the AWS SES account reputation limit.
  * AWS may review the SES account independently when hard bounces reach 5%.
  */
-export const RESEARCH_BOUNCE_POLICY_VERSION = "2026-10-staged-main-bounce-v2" as const;
+export const RESEARCH_BOUNCE_POLICY_VERSION = "2026-10-staged-main-bounce-v3" as const;
 export type ResearchDeliveryOutcomes = Readonly<{
   delivered: number;
   hardBounced: number;
@@ -35,8 +35,9 @@ export function graduatedResearchStopRate(decisions: number): number | null {
 /** Requested, study-level hard-bounce stop stages. These do NOT change the
  * independent 5% pre-delivery validation suppression hold, SES account
  * restrictions or complaint and recipient suppression rules.
- * Retain existing conservative early guards below 1,000 decisions; a 5% stop
- * remains permanently in force from 25,000 decisions onward, including 50k+.
+ * Retain existing conservative early guards below 1,000 decisions. The later
+ * stages are 10% for 25,000–74,999 and 8% from 75,000 onward.
+ * Independent AWS SES reputation enforcement is NOT relaxed by this policy.
  */
 export function graduatedResearchHardBounceStopRate(decisions: number): number | null {
   if (!Number.isFinite(decisions) || decisions < 20) return null;
@@ -45,7 +46,8 @@ export function graduatedResearchHardBounceStopRate(decisions: number): number |
   if (decisions < 5000) return 0.10;
   if (decisions < 10000) return 0.09;
   if (decisions < 25000) return 0.07;
-  return 0.05;
+  if (decisions < 75000) return 0.10;
+  return 0.08;
 }
 
 export function evaluateResearchDeliverySafety(metrics: ResearchDeliveryOutcomes): ResearchSafetyDecision {
@@ -68,7 +70,7 @@ export function evaluateResearchDeliverySafety(metrics: ResearchDeliveryOutcomes
 /** Reporting milestones are distinct from stop thresholds and do not send
  * email or automatically authorize new recipients. Evaluated against
  * provider-classified delivery outcomes, not the full cohort population.
- * 1k, 5k, 10k, 25k, 50k, then every additional 10k.
+ * 1k, 5k, 10k, 25k, 50k, 75k, then every additional 10k.
  */
 export function researchDeliveryReviewMilestones(decisions: number): Readonly<{
   completedMilestone: number | null;
@@ -80,7 +82,8 @@ export function researchDeliveryReviewMilestones(decisions: number): Readonly<{
   if (n < 10000) return {completedMilestone:5000,nextMilestone:10000};
   if (n < 25000) return {completedMilestone:10000,nextMilestone:25000};
   if (n < 50000) return {completedMilestone:25000,nextMilestone:50000};
-  const completedMilestone=Math.floor(n/10000)*10000;
+  if (n < 75000) return {completedMilestone:50000,nextMilestone:75000};
+  const completedMilestone=75000+Math.floor((n-75000)/10000)*10000;
   return {completedMilestone,nextMilestone:completedMilestone+10000};
 }
 
