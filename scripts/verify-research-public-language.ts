@@ -12,6 +12,7 @@ const PUBLIC_RESEARCH_FILES = [
   "apps/web/src/app/research/[slug]/methodology/page.tsx",
   "apps/web/src/app/research/compare/page.tsx",
   "apps/web/src/app/research/market-sentiment/page.tsx",
+  "apps/web/src/components/ResearchExternalAnalysis.tsx",
   "apps/web/src/app/research/privacy/page.tsx",
   "apps/web/src/app/research/[slug]/t/[token]/page.tsx",
   "apps/web/src/components/ResearchSurveyForm.tsx",
