@@ -67,12 +67,13 @@ async function ResearchSurveyLiveOverview({ principal, slug }: {
   }
   return <>
     <WorkspaceMetricStrip items={[
-      { label: "Population frame", value: study.framePopulation.toLocaleString("el-GR"), hint: String(study.frameCount) + " snapshot(s)" },
+      { label: "Population frame (frozen)", value: study.framePopulation === undefined ? "—" : study.framePopulation.toLocaleString("el-GR"), hint: String(study.frameCount) + " snapshot(s)" + (study.buildingFrames > 0 ? " · " + study.buildingFrames + " building" : "") },
       { label: "Selected sample", value: study.sampleUnits.toLocaleString("el-GR"), hint: String(study.sampleDrawCount) + " draw(s)" },
-      { label: "Email contacts", value: study.snapshotActiveContacts === undefined ? "—" : study.snapshotActiveContacts.toLocaleString("el-GR"), hint: "Active at frozen-frame snapshot · live statuses are in Contacts" },
+      { label: "Email contacts (frozen)", value: study.snapshotActiveContacts === undefined ? "—" : study.snapshotActiveContacts.toLocaleString("el-GR"), hint: "Active at latest frozen snapshot · live statuses are in Contacts" },
       { label: "Invitations", value: study.invites.toLocaleString("el-GR"), hint: String(study.inviteBatches) + " batch(es)" },
       { label: "Completed", value: study.completed.toLocaleString("el-GR"), hint: percentage(study.completed, study.sent) + " of sent" }
     ]} />
+    <div className="shell workspace-inline-note" role="status">Population and email counts come from the latest completed (frozen) frame. A snapshot still building is tracked separately and is not yet eligible for sampling. A dash means no completed snapshot data is available, not zero businesses.</div>
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="State" title="Study status" note={"Instrument " + (study.instrumentVersion ?? "—")} />
       <div className="workspace-queue-card">
