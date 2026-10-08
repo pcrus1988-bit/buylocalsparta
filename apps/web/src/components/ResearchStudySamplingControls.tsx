@@ -73,7 +73,10 @@ export function ResearchStudySamplingControls({
   const fieldworkPhase: "pilot" | "main" = ["draft","pilot"].includes(studyStatus) ? "pilot" : "main";
   const selectedPopulation = cohort === "A" ? (cohortAPopulation ?? 0) : (cohortBPopulation ?? 0);
   const selectedContacts = cohort === "A" ? (cohortAContacts ?? 0) : (cohortBContacts ?? 0);
-  const effectivePopulation = fieldworkPhase === "main" ? Math.max(0, selectedPopulation - pilotHoldoutUnits) : selectedPopulation;
+  // Only Cohort A contains the pilot identities. B is already disjoint from A.
+  const effectivePopulation = fieldworkPhase === "main" && cohort === "A"
+    ? Math.max(0, selectedPopulation - pilotHoldoutUnits)
+    : selectedPopulation;
   const [targetCompletes, setTargetCompletes] = useState(fieldworkPhase === "pilot" ? "20" : "500");
   const [expectedResponsePct, setExpectedResponsePct] = useState("15");
   const [randomSeed, setRandomSeed] = useState("");
