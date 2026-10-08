@@ -1,6 +1,6 @@
 # Greek Retail 2026 — economic and sentiment extension
 
-Instrument **0.3.0** is a new pre-fieldwork revision, not an alteration of the historical **0.2.0** questionnaire. Migration 0434 only installs it when the study is in **draft** and has no survey responses in the active wave. The attached analysis plan **greek-retail-2026-plan-v3-sentiment** is intentionally a **draft** until approved by the administrator after pilot QA; it must be locked before fieldwork.
+Instrument **0.3.0** is a new pre-fieldwork revision, not an alteration of the historical **0.2.0** questionnaire. Migration 0435 only installs it when the study is in **draft** and has no survey responses in the active wave. The attached analysis plan **greek-retail-2026-plan-v3-sentiment** is intentionally a **draft** until approved by the administrator after pilot QA; it must be locked before fieldwork.
 
 ## Research questions and data
 
@@ -33,7 +33,7 @@ Do not claim causal effects, report conditional-domain estimates as population-w
 
 ## Acceptance steps before launch
 
-1. Deploy migration 0434 after confirming active wave status is draft and has no real survey responses; otherwise create a new wave before changing the questionnaire.
+1. Deploy migration 0435 after confirming active wave status is draft and has no real survey responses; otherwise create a new wave before changing the questionnaire.
 2. Inspect the Admin Questions view for Q19–Q28 and the linked Analysis Plan v3. Validate routing in the read-only simulation preview and real isolated pilot.
 3. Review each translated Greek prompt with a retail-sector adviser. Time the questionnaire on desktop/mobile and check missingness and order effects.
 4. Validate the new confidence composite on pilot data; lock or revise and *then* lock the instrument and associated analysis plan as a pair.
