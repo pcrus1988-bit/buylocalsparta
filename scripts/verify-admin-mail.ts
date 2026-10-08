@@ -17,6 +17,10 @@ const files = {
 const checks: Array<[string, boolean]> = [
   ["Admin route renders the standard workspace header", files.page.includes("AdminWorkspaceHeader")],
   ["Admin route exposes Inbox/Sent/Starred/Archive", ["Inbox", "Sent", "Starred", "Archive"].every((value) => files.page.includes(value))],
+  ["Admin Mail offers separate identity tabs and an aggregate view", files.page.includes('mailboxHref("all", view)') && files.page.includes("workspace.fromAddresses.map") && files.page.includes('name="mailbox"') && files.runtime.includes("mailbox: string;")],
+  ["Research account is always configured for sending", files.runtime.includes('"research@kontamou.site"') && files.runtime.includes('[...explicitFromAddresses.split(","), "research@kontamou.site"]')],
+  ["Mailbox selection scopes incoming recipients and outgoing sender in SQL", files.runtime.includes("adminMailMailboxPredicate(2)") && files.runtime.includes("adminMailMailboxPredicate(3)") && ["m.from_address", "m.to_addresses", "m.cc_addresses", "m.bcc_addresses"].every((field) => files.runtime.includes(field))],
+  ["Mail filtering, navigation and replies retain selected identity", files.page.includes("appendViewParams") && files.page.includes('params.set("mailbox", view.mailbox)') && files.page.includes("composeFromAddress") && files.actions.includes('encodeURIComponent(text(formData.get("from")))')],
   ["Admin route exposes compose, reply and forward", ["Compose", "Reply", "Forward"].every((value) => files.page.includes(value))],
   ["Admin route exposes filter and sort controls", ["name=\"read\"", "name=\"direction\"", "name=\"status\"", "name=\"attachments\"", "name=\"sort\""].every((value) => files.page.includes(value))],
   ["Dynamic Admin Mail SQL uses positional bind placeholders", files.runtime.includes("m.status=$${params.length}") && files.runtime.includes("LIMIT $${limitParam}")],
