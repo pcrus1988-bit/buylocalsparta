@@ -2,12 +2,18 @@ import type { ResearchSurveyOperationsOverview, ResearchSurveyOperationsSection 
 import { WorkspaceSectionHeading, WorkspaceStatusBadge } from "./WorkspacePagePrimitives";
 
 const KAD_GROUPS: Record<string, { label: string; prefixes: string }> = {
+  food_groceries: { label: "Σούπερ μάρκετ, τρόφιμα, ποτά & παντοπωλεία", prefixes: "47.11 · 47.2*" },
+  general_merchandise: { label: "Γενικό λιανικό / πολυκαταστήματα", prefixes: "47.19" },
+  fuel_retail: { label: "Πρατήρια καυσίμων", prefixes: "47.3*" },
+  pharmacy_medical: { label: "Φαρμακεία & ιατρικά / ορθοπεδικά είδη", prefixes: "47.73 · 47.74" },
+  retail_intermediation: { label: "Διαμεσολάβηση λιανικής", prefixes: "47.9*" },
+  other_retail: { label: "Άλλες κατηγορίες λιανικού εμπορίου", prefixes: "υπόλοιποι ΚΑΔ 47.*" },
   fashion_footwear: { label: "Μόδα & Υπόδηση", prefixes: "47.71 · 47.72" },
   beauty_personal_care: { label: "Ομορφιά & Προσωπική φροντίδα", prefixes: "47.75" },
   home_living: { label: "Σπίτι & Είδη κατοικίας", prefixes: "47.51 · 47.53 · 47.54 · 47.55 · 47.59" },
   diy_building: { label: "DIY & Δομικά", prefixes: "47.52" },
   electronics: { label: "Ηλεκτρονικά", prefixes: "47.40 · 47.41 · 47.42 · 47.43" },
-  sports_books_hobby: { label: "Αθλητισμός, βιβλίο & hobby", prefixes: "47.61 · 47.62 · 47.63 · 47.64 · 47.69" },
+  sports_books_hobby: { label: "Αθλητισμός, βιβλίο & hobby", prefixes: "47.61 · 47.62 · 47.63 · 47.64 · 47.65 · 47.69" },
   jewellery_watches: { label: "Κοσμήματα & Ρολόγια", prefixes: "47.77" },
   flowers_pets: { label: "Άνθη & Κατοικίδια", prefixes: "47.76" },
   second_hand: { label: "Μεταχειρισμένα", prefixes: "47.79" },
@@ -129,7 +135,7 @@ export function ResearchStudyOperationsPanel({
       <WorkspaceSectionHeading
         eyebrow="ΚΑΔ"
         title="Σύνθεση του ερευνητικού πλαισίου"
-        note="Η ομαδοποίηση ακολουθεί τους ΚΑΔ που χρησιμοποιούνται για τη στρωματοποίηση του δείγματος. Οι πραγματικοί ΚΑΔ κάθε επιχείρησης φαίνονται και στη λίστα επαφών."
+        note="Καλύπτονται οι τρέχοντες ΚΑΔ λιανικού 47.*, μαζί με τρόφιμα, φαρμακεία και λοιπές καταναλωτικές πωλήσεις. Τα στοιχεία ανανεώνονται μόνο όταν ολοκληρωθεί νέο μητρώο ΓΕΜΗ· οι υφιστάμενες προσκλήσεις και τα δείγματα δεν αλλάζουν αυτόματα."
       />
       <div className="analytics-workflow-grid">
         {data.kadGroups.map((group) => {
