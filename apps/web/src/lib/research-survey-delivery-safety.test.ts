@@ -34,6 +34,36 @@ test("main research hard-bounce stop stages are exact at every boundary", () => 
   for (const [n, expected] of cases) assert.equal(graduatedResearchHardBounceStopRate(n), expected, String(n));
 });
 
+test("late-stage threshold increases preserve a 5% warning and independent validation hold", () => {
+  const at25k = evaluateResearchDeliverySafety({
+    delivered:23500, hardBounced:1500, validationSuppressed:0, decided:25000
+  });
+  assert.equal(at25k.hardBounceThreshold, 0.10);
+  assert.equal(at25k.hardBounceHold, false);
+  assert.equal(at25k.earlyWarning, true);
+  const reaches10 = evaluateResearchDeliverySafety({
+    delivered:22500, hardBounced:2500, validationSuppressed:0, decided:25000
+  });
+  assert.equal(reaches10.hardBounceHold, true);
+  const at75k = evaluateResearchDeliverySafety({
+    delivered:70500, hardBounced:4500, validationSuppressed:0, decided:75000
+  });
+  assert.equal(at75k.hardBounceThreshold, 0.08);
+  assert.equal(at75k.hardBounceHold, false);
+  assert.equal(at75k.earlyWarning, true);
+  assert.equal(evaluateResearchDeliverySafety({
+    delivered:69000, hardBounced:6000, validationSuppressed:0, decided:75000
+  }).hardBounceHold,true);
+  const validation = evaluateResearchDeliverySafety({
+    delivered:70500, hardBounced:4500, validationSuppressed:3750, decided:78750
+  });
+  assert.equal(validation.validationThreshold, 0.05);
+  assert.equal(validation.validationHold, false);
+  assert.equal(evaluateResearchDeliverySafety({
+    delivered:70500, hardBounced:4500, validationSuppressed:4000, decided:79000
+  }).validationHold,true);
+});
+
 test("current Main sample (101 delivered, six true bounces, two validation suppressions) warns but does not stop", () => {
   const decision = evaluateResearchDeliverySafety({
     delivered: 101,
