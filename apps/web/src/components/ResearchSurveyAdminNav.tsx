@@ -7,6 +7,7 @@ export type ResearchSurveyAdminSection =
   | "evaluation"
   | "sampling"
   | "fieldwork"
+  | "cohorts"
   | "balance"
   | "contacts"
   | "invitations"
@@ -34,6 +35,7 @@ export const RESEARCH_SURVEY_ADMIN_SECTIONS: ReadonlyArray<Readonly<{
   { key: "evaluation", label: "Evaluation & analysis", description: "Preregistered evaluation plus versioned later exploratory analyses.", group: "design" },
   { key: "sampling", label: "Sampling", description: "Population frame and reproducible sample draws.", group: "fieldwork" },
   { key: "fieldwork", label: "Email & fieldwork", description: "Templates, invitation batches, reminders and fieldwork actions.", group: "fieldwork" },
+  { key: "cohorts", label: "Group A / B campaigns", description: "Prepare and approve all eligible contacts separately for two cohorts.", group: "fieldwork" },
   { key: "balance", label: "Fieldwork balance", description: "Response balance across the frozen sampling strata.", group: "fieldwork" },
   { key: "contacts", label: "Email contacts", description: "Current contactable research frame and suppression state.", group: "fieldwork" },
   { key: "invitations", label: "Invitations", description: "Invitation lifecycle, expiry and response state.", group: "fieldwork" },

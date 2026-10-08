@@ -214,7 +214,7 @@ if (longitudinalLineageChecksums["0432_research_longitudinal_lineage.sql"] !== l
 if (releaseArchiveChecksums["0433_research_release_archive.sql"] !== releaseArchiveSha) {
   errors.push("0433 checksum does not match migration bytes");
 }
-if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 435")) errors.push("runtime schema head is not 435");
+if (!runtime.includes("EXPECTED_SCHEMA_VERSION = 437")) errors.push("runtime schema head is not 436");
 if (!qualityV3Migration.includes("ADD COLUMN quality_score")) errors.push("research quality score column missing");
 if (!qualityV3Migration.includes("ADD COLUMN answer_pattern_sha256")) errors.push("research answer-pattern fingerprint column missing");
 if (!qualityV3Migration.includes("research_quality_answer_pattern_idx")) errors.push("research answer-pattern QA index missing");
@@ -249,8 +249,8 @@ if (!hierarchyMigration.includes("research_guard_wave_scope")) errors.push("rese
 if (!hierarchyMigration.includes("DISABLE TRIGGER USER")) errors.push("0427 does not explicitly protect structural backfill across immutable evidence");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_programmes ENABLE ROW LEVEL SECURITY;")) errors.push("research programme RLS missing");
 if (!hierarchyMigration.includes("ALTER TABLE public.research_waves ENABLE ROW LEVEL SECURITY;")) errors.push("research wave RLS missing");
-if (!schemaPreflight.includes("expectedSourceVersion = 435")) errors.push("guarded research production rollout is not pinned to schema 0435");
-if (!schemaRollout.includes("0416–0435") || !schemaRollout.includes("through schema 0435")) errors.push("research schema rollout workflow does not advertise the complete 0416–0435 chain");
+if (!schemaPreflight.includes("expectedSourceVersion = 437")) errors.push("guarded research production rollout is not pinned to schema 0437");
+if (!schemaRollout.includes("0416–0437") || !schemaRollout.includes("through schema 0437")) errors.push("research schema rollout workflow does not advertise the complete 0416–0437 chain");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_population_margin_sets")) errors.push("governed population-margin set registry missing");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_population_margins")) errors.push("governed population-margin cells missing");
 if (!populationMarginsMigration.includes("CREATE TABLE public.research_analysis_plan_supersessions")) errors.push("analysis-plan supersession evidence missing");
@@ -622,9 +622,9 @@ if (!researchQuestionsEditor.includes("save_later_evaluation") || !researchQuest
 if (!researchAdminDesign.includes("kontamou.research.exploratory-evaluation.v1") || !researchAdminDesign.includes("exploratory_post_registration")) errors.push("versioned post-registration evaluation evidence missing");
 if (!surveyRuntime.includes("recordResearchProtocolEvent") || !surveyRuntime.includes("researchProtocolEvents")) errors.push("protocol evidence runtime missing");
 if (!release.includes("protocolEvidence") || !release.includes("RESEARCH_RELEASE_PROTOCOL_EVIDENCE_INTEGRITY_FAILED")) errors.push("release artifact does not freeze verified protocol evidence");
-if (surveyForm.includes("optionalConsents.marketing")) errors.push("scientific survey completion flow still exposes marketing consent");
-if (surveyRuntime.includes('"marketing"')) errors.push("participant research runtime still accepts marketing consent");
-if (!surveyForm.includes('href="/join"')) errors.push("commercial follow-up is not separated behind a post-research route");
+if (!surveyForm.includes("if (completed)") || !surveyForm.includes("updateMarketingEmailPreference(event.target.checked)")) errors.push("optional commercial consent must be separate from survey completion");
+if (!surveyRuntime.includes("RESEARCH_PREFERENCES_REQUIRE_COMPLETION") || !surveyRuntime.includes("typeof granted !== \"boolean\"")) errors.push("separate post-completion commercial consent guards missing");
+if (!surveyForm.includes("Η επιλογή είναι προαιρετική και ανεξάρτητη από την έρευνα")) errors.push("commercial follow-up must be explicitly separate and optional");
 if (!surveyRuntime.includes("RESEARCH_PILOT_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("pilot lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes("RESEARCH_FIELDING_REQUIRES_LOCKED_ANALYSIS_PLAN")) errors.push("fieldwork lifecycle is not gated by preregistration");
 if (!surveyRuntime.includes('"publish_release"')) errors.push("explicit publish lifecycle action missing");
@@ -633,7 +633,7 @@ if (/^\s*push:/m.test(schemaRollout)) errors.push("research production schema ro
 if (!schemaRollout.includes("environment: production")) errors.push("research production schema rollout lacks production environment gate");
 if (!schemaRollout.includes("if: ${{ inputs.apply }}")) errors.push("research schema mutation lacks explicit apply gate");
 if (!schemaRollout.includes("npm run db:migrate")) errors.push("research schema rollout bypasses checksum-aware migrator");
-if (!schemaPreflight.includes("expectedSourceVersion = 435")) errors.push("research schema rollout source-head guard missing");
+if (!schemaPreflight.includes("expectedSourceVersion = 437")) errors.push("research schema rollout source-head guard missing");
 if (!schemaPreflight.includes("expectedCurrentVersion = 415")) errors.push("research schema rollout starting-state guard missing");
 if (!schemaPreflight.includes("Refusing a partial-state rollout")) errors.push("research schema partial-state guard missing");
 if (!pkg.scripts?.["worker:research"]) errors.push("research worker script missing");

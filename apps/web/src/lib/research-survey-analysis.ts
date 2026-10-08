@@ -332,6 +332,20 @@ export async function runGreekRetailAnalysis(
     throw new Error("RESEARCH_ANALYSIS_PLAN_CODE_MISMATCH");
   }
 
+  // The legacy weighted release derives all estimates from ONE latest draw.
+  // Two full-frame cohorts require distinct designs and harmonized weighting.
+  // Never silently publish an analysis that omits the first recruitment group.
+  const mixedCohorts = await pool.query<SqlRow>([
+    "SELECT count(*)::int AS used FROM public.research_recruitment_campaigns c",
+    "WHERE c.study_id=$1 AND c.wave_id=$2",
+    "AND EXISTS (SELECT 1 FROM public.research_campaign_recipients rec",
+    "JOIN public.research_invites ri ON ri.sample_unit_id=rec.sample_unit_id",
+    "JOIN public.research_responses r ON r.invite_id=ri.id",
+    "WHERE rec.campaign_id=c.id AND r.status='completed')"
+  ].join(" "),[studyId,waveId]);
+  if (Number(mixedCohorts.rows[0]?.used ?? 0)>0) {
+    throw new Error("RESEARCH_COHORTS_NEED_HARMONIZED_WEIGHTED_RELEASE");
+  }
   const drawResult = await pool.query<SqlRow>(`
     SELECT id, frame_snapshot_id
     FROM research_sample_draws

@@ -486,6 +486,7 @@ export async function queueGreekRetailInviteBatch(
   if (!text(row.current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
   if (!["pilot","fielding"].includes(text(row.status))) throw new Error("SURVEY_NOT_OPEN");
   const fieldworkPhase = text(row.status) === "pilot" ? "pilot" : "main";
+  if (fieldworkPhase === "main") throw new Error("RESEARCH_MAIN_INVITES_REQUIRE_COHORT_CAMPAIGN");
   assertResearchEmailBatchApproval(input.emailApproval, {
     studyTitle: text(row.title),
     purpose: "research_invitation",
