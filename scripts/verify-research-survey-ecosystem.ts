@@ -504,6 +504,12 @@ if (!jobs.includes("stratified-hash-rank-v2")) errors.push("minimum-aware reprod
 if (!jobs.includes("RESEARCH_SAMPLE_REDRAW_AFTER_CONTACT")) errors.push("sample draw is not frozen after participant contact");
 if (!jobs.includes("RESEARCH_PILOT_SAMPLE_TARGET_INVALID")) errors.push("pilot diagnostic sample bounds are not separated from main sampling");
 if (!jobs.includes("pfu.external_key_hash=fu.external_key_hash")) errors.push("pilot holdout does not survive frame refreshes");
+if (!researchEmailCron.includes("processResearchStudyJobs(1, EMAIL_JOB_TYPES)") ||
+    !researchEmailCron.includes("ensureGreekRetailAutomaticReminderBatch") ||
+    researchEmailCron.indexOf("const email = await processResearchStudyJobs") >
+      researchEmailCron.indexOf("automaticReminder = await ensureGreekRetailAutomaticReminderBatch")) {
+  errors.push("research email cron must drain approved campaign before costly reminder scan");
+}
 if (!jobs.includes("processInviteBatchJob")) errors.push("worker-managed invitation delivery missing");
 if (!jobs.includes("recoverGreekRetailFailedInvitationCampaign") ||
     !jobs.includes("RESEARCH_CAMPAIGN_RECOVERY_REQUIRED") ||
