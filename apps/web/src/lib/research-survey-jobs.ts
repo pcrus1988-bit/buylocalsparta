@@ -2258,6 +2258,9 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   const input = objectValue(job.input);
   const limit = Math.max(1, Math.min(500, Math.floor(numberValue(input.limit) || 100)));
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
+  const cohort = text(input.cohort);
+  if (cohort !== "A" && cohort !== "B") throw new Error("RESEARCH_INVITE_COHORT_REQUIRED");
+  if (fieldworkPhase === "pilot" && cohort !== "A") throw new Error("RESEARCH_PILOT_REQUIRES_COHORT_A");
   const currentOutput = objectValue(job.output);
   let batchId = text(currentOutput.batchId);
   let sampleUnitIds = Array.isArray(currentOutput.sampleUnitIds)
@@ -2282,12 +2285,14 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
           ORDER BY created_at DESC LIMIT 1
         ) i ON true
         JOIN LATERAL (
-          SELECT id,fieldwork_phase FROM research_sample_draws
-          WHERE study_id=s.id
-            AND wave_id=$3
-            AND status IN ('locked','fielded')
-            AND fieldwork_phase=$2
-          ORDER BY created_at DESC LIMIT 1
+          SELECT d.id,d.fieldwork_phase FROM research_sample_draws d
+          WHERE d.study_id=s.id
+            AND d.wave_id=$3
+            AND d.status IN ('locked','fielded')
+            AND d.fieldwork_phase=$2
+            AND EXISTS(SELECT 1 FROM research_sample_designs ds
+              WHERE ds.sample_draw_id=d.id AND ds.design_json->>'cohort'=$4)
+          ORDER BY d.created_at DESC LIMIT 1
         ) d ON true
         JOIN LATERAL (
           SELECT id FROM research_recruitment_templates
@@ -2297,7 +2302,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         ) rt ON true
         WHERE s.id=$1
         FOR UPDATE OF s
-      `, [job.study_id, fieldworkPhase, job.wave_id]);
+      `, [job.study_id, fieldworkPhase, job.wave_id, cohort]);
       const row = study.rows[0];
       if (!row) throw new Error("RESEARCH_INVITE_BATCH_NOT_READY");
       if (row.fieldwork_ends_at && new Date(String(row.fieldwork_ends_at)).getTime() <= Date.now()) {
