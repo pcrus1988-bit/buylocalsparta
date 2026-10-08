@@ -13,6 +13,11 @@ export const metadata: Metadata = {
 
 const TOPICS = [
   {
+    heading: "0. Isolated workflow simulation (before Pilot)",
+    description: "Open Workflow simulation inside your survey. This is a separate safe rehearsal, not Pilot and not official fieldwork. The sample form tests mechanics only; it is not the full official instrument.",
+    checks: ["Run a no-email preview to check link opening and expiry.", "Optionally send exactly one manually approved real SES email to an inbox you control.", "Check whether you actually received it; SES acceptance alone is not delivery proof.", "Submit the sample test answers, copy the receipt and verify it in Admin.", "Send and manually confirm the separate Admin test notice. Reset the simulation when finished.", "For genuine question branching, consent, opt-out and duplicate prevention, additionally test a real limited Pilot invitation."]
+  },
+  {
     heading: "1. Study design",
     description: "Start in the survey workspace. Set the population, scope, methodology, closing time in Europe/Athens, and publication destination. Edit the questionnaire, including any primary-activity question needed for later ΚΑΔ canonicalization. Define analysis measures before any data are collected.",
     checks: ["Preview every question on mobile and desktop.", "Verify routing, required answers, consent language and the privacy FAQ.", "Lock the questionnaire and preregistered evaluation plan before starting the Pilot."]
@@ -56,6 +61,11 @@ export default async function ResearchHandbookPage() {
       <WorkspaceSectionHeading eyebrow="Start here" title="Pilot versus official study" note="The Pilot tests the research process; the main study provides the publishable sample." />
       <div className="analytics-workflow-grid">
         <article className="analytics-workflow-card">
+          <span>REHEARSAL · SIMULATION</span>
+          <strong>Test without touching study records</strong>
+          <small>Optional one-mail SES check, encrypted 30-minute link, sample answer submission and Admin notification test. No frame, invitations or Research response rows created.</small>
+        </article>
+        <article className="analytics-workflow-card">
           <span>TEST · PILOT</span>
           <strong>Validate before launching</strong>
           <small>Small diagnostic sample, real invitation links and potentially real emails. Pilot data are not to be counted as main-study responses or published as representative estimates.</small>
@@ -93,6 +103,7 @@ export default async function ResearchHandbookPage() {
         <p><strong>Global Research settings:</strong> shared infrastructure and organization-wide defaults, not survey-specific design.</p>
         <p><strong>Survey settings / Questions / Evaluation:</strong> the instrument and preregistration for one study.</p>
         <p><strong>Sampling / Contacts / ΚΑΔ:</strong> study frame, sectors, available recipients, phase-specific sample draw.</p>
+        <p><strong>Workflow simulation:</strong> independent single-mailbox rehearsal with no survey response data written.</p>
         <p><strong>Email &amp; fieldwork / Invitations / Delivery:</strong> approved templates, controlled sends, link expiry, reminders, bounces, opt-outs.</p>
         <p><strong>Quality / Protocol / Lifecycle / Evidence:</strong> exclusions, amendments, controlled study transitions and audit trail.</p>
       </div>
