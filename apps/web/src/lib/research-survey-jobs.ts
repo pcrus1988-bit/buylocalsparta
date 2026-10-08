@@ -134,6 +134,12 @@ function assertQueuedResearchEmailApproval(job: ResearchJobRow): void {
   };
   const purpose = expectedPurpose[job.job_type as ResearchJobType];
   if (!purpose) return;
+  // Completion-triggered thank-you delivery is one explicitly requested
+  // participant email. Bulk campaigns still require double approval.
+  const perResponse = objectValue(job.input);
+  if (job.job_type === "reward_delivery" &&
+      perResponse.source === "survey_completion" &&
+      /^[a-f0-9-]{36}$/i.test(text(perResponse.responseId))) return;
   const input = objectValue(job.input);
   const approval = objectValue(input.emailApproval) as ResearchEmailBatchApproval;
   const limit = Math.floor(numberValue(input.limit));
@@ -2979,7 +2985,7 @@ async function processRewardDeliveryJob(job: ResearchJobRow): Promise<Record<str
   let failedCount = 0;
   let skippedCount = 0;
   const failures: Array<{ responseId: string; error: string }> = [];
-  const joinUrl = absoluteResearchUrl("/join");
+  const joinUrl = absoluteResearchUrl("/hubs/join");
   const methodologyUrl = absoluteResearchUrl(`/research/${STUDY_SLUG}/methodology`);
 
   for (const candidate of candidates.rows) {

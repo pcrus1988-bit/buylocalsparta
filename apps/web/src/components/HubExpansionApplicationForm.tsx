@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import type { HubBillingCycle, HubExpansionPlanCode } from "../lib/hub-expansion-plans";
+import { getHubExpansionPlan, type HubBillingCycle, type HubExpansionPlanCode } from "../lib/hub-expansion-plans";
 import styles from "./HubExpansionApplicationForm.module.css";
 
 type LookupStage = "afm" | "loading" | "matched";
 
 const JOIN_AFM_STORAGE_KEY = "kontamou:vendor-join-afm";
+const REWARD_STORAGE_KEY = "kontamou:research-onboarding-reward";
 
 type GemiCompany = Readonly<{
   afm: string;
@@ -42,6 +43,10 @@ type Receipt = Readonly<{
   planCode: HubExpansionPlanCode;
   billingCycle: HubBillingCycle;
   recurringFeeCents: number;
+  setupFeeCents?: number;
+  originalSetupFeeCents?: number;
+  setupDiscountCents?: number;
+  rewardRedeemed?: boolean;
   paymentRequired: false;
   message: string;
   redirectTo?: string;
@@ -79,6 +84,38 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState<Receipt>();
   const restoredAfmRef = useRef(false);
+  const [rewardCode, setRewardCode] = useState("");
+  const [rewardVerified, setRewardVerified] = useState(false);
+  const [rewardChecking, setRewardChecking] = useState(false);
+  const [rewardError, setRewardError] = useState("");
+  const plan = getHubExpansionPlan(planCode)!;
+  const euro = (cents: number) => new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" }).format(cents / 100);
+
+  async function verifyReward(candidate: string) {
+    setRewardChecking(true);
+    setRewardVerified(false);
+    setRewardError("");
+    try {
+      const response = await fetch("/api/hub-research-reward", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: candidate, planCode })
+      });
+      const data = await response.json() as { valid?: boolean; error?: string };
+      if (!response.ok || !data.valid) throw new Error(data.error ?? "Ο κωδικός δεν είναι έγκυρος.");
+      setRewardVerified(true);
+      setRewardCode(candidate.trim().toUpperCase());
+      sessionStorage.setItem(REWARD_STORAGE_KEY, candidate.trim().toUpperCase());
+    } catch (cause) {
+      sessionStorage.removeItem(REWARD_STORAGE_KEY);
+      setRewardError(cause instanceof Error ? cause.message : "Δεν ήταν δυνατή η επαλήθευση.");
+    } finally { setRewardChecking(false); }
+  }
+
+  useEffect(() => {
+    if (planCode === "claim") return;
+    const stored = sessionStorage.getItem(REWARD_STORAGE_KEY);
+    if (stored) { setRewardCode(stored); void verifyReward(stored); }
+  }, [planCode]);
 
   const lookupCompany = useCallback(async (afmOverride?: string) => {
     const candidateAfm = (afmOverride ?? taxNumber).replace(/\D/g, "").slice(0, 9);
@@ -148,6 +185,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
     const form = event.currentTarget;
     const data = new FormData(form);
     const payload: Record<string, unknown> = Object.fromEntries(data.entries());
+    payload.rewardCode = rewardCode.trim() || undefined;
     payload.acceptedAccuracy = data.get("acceptedAccuracy") === "on";
     payload.acceptedPrivacy = data.get("acceptedPrivacy") === "on";
     payload.acceptedProspectStatus = data.get("acceptedProspectStatus") === "on";
@@ -182,6 +220,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
         throw new Error("Η αίτηση καταχωρίστηκε αλλά δεν επιστράφηκε έγκυρη απόδειξη.");
       }
       sessionStorage.removeItem(JOIN_AFM_STORAGE_KEY);
+      if (result.rewardRedeemed) sessionStorage.removeItem(REWARD_STORAGE_KEY);
       setReceipt({
         reference: result.reference,
         status: "pending",
@@ -189,6 +228,10 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
         planCode: result.planCode,
         billingCycle: result.billingCycle,
         recurringFeeCents: result.recurringFeeCents,
+        setupFeeCents: result.setupFeeCents,
+        originalSetupFeeCents: result.originalSetupFeeCents,
+        setupDiscountCents: result.setupDiscountCents,
+        rewardRedeemed: result.rewardRedeemed,
         paymentRequired: false,
         message: result.message ?? "Η αίτηση καταχωρίστηκε.",
         redirectTo: result.redirectTo,
@@ -214,6 +257,7 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
         <p>{receipt.message}</p>
         <div className={styles.reference}>Επιλογή <strong>{billingText}</strong></div>
         <div className={styles.reference}>Αριθμός αναφοράς <strong>{receipt.reference}</strong></div>
+        {receipt.rewardRedeemed && <div className={styles.reference}>Ο κωδικός εξαργυρώθηκε με την υποβολή της αίτησης · εφάπαξ ένταξη <strong><s>{euro(receipt.originalSetupFeeCents ?? 0)}</s> {euro(receipt.setupFeeCents ?? 0)}</strong></div>}
         <p className={styles.receiptNote}>{receipt.redirectTo
           ? "Το HUB επιβεβαιώθηκε ξανά server-side από τα στοιχεία Γ.Ε.ΜΗ. Η αίτηση παραμένει σε έλεγχο, αλλά δημιουργήθηκε ιδιωτικό DEMO workspace για το 3ήμερο Trial. Δεν έγινε χρέωση και οι δημόσιες πωλήσεις παραμένουν κλειδωμένες."
           : "Το HUB επιβεβαιώθηκε ξανά server-side από τα στοιχεία Γ.Ε.ΜΗ. Η επιλογή χρέωσης αποθηκεύτηκε με την αίτηση. Δεν έγινε χρέωση και δεν δημιουργήθηκε ενεργός vendor λογαριασμός."}</p>
@@ -226,6 +270,27 @@ export function HubExpansionApplicationForm({ planCode, billingCycle, csrfToken,
   return <form className={styles.form} onSubmit={submit}>
     <input type="hidden" name="planCode" value={planCode} />
     <input type="hidden" name="billingCycle" value={billingCycle} />
+    {planCode !== "claim" && <section className={styles.rewardPanel} aria-labelledby="hub-reward-title">
+      <div className={styles.stepLabel}>Έκπτωση συμμετοχής στην έρευνα</div>
+      <h2 id="hub-reward-title">Κωδικός ευχαριστίας · 50% στην ένταξη</h2>
+      <p>Έχεις λάβει κωδικό μετά τη συμμετοχή σου στην έρευνα; Ισχύει μόνο για το εφάπαξ κόστος ένταξης — όχι για τη συνδρομή ή την προμήθεια.</p>
+      <div className={styles.lookupRow}>
+        <input aria-label="Κωδικός επιβράβευσης" autoComplete="off" placeholder="KM26-XXXX-XXXX-XXXX"
+          value={rewardCode} maxLength={19} onChange={event => {
+            setRewardCode(event.target.value.toUpperCase()); setRewardVerified(false); setRewardError("");
+            sessionStorage.removeItem(REWARD_STORAGE_KEY);
+          }} />
+        <button type="button" className="button button-secondary" disabled={!rewardCode.trim() || rewardChecking}
+          onClick={() => void verifyReward(rewardCode)}>{rewardChecking ? "Έλεγχος…" : "Επαλήθευση κωδικού"}</button>
+      </div>
+      {rewardError && <div role="alert" className={styles.error}>{rewardError}</div>}
+      {rewardVerified && <p className={styles.rewardAccepted} role="status">✓ Έγκυρος κωδικός. Θα εξαργυρωθεί μόνο με επιτυχή υποβολή της αίτησης.</p>}
+      <div className={styles.rewardPrices}>
+        <div><small>Εφάπαξ κόστος ένταξης {plan.name}</small><strong>{rewardVerified ? <><s>{euro(plan.setupFeeCents)}</s> <span>{euro(plan.setupFeeCents / 2)}</span></> : euro(plan.setupFeeCents)}</strong></div>
+        <div><small>Συνδρομή — χωρίς έκπτωση</small><strong>{euro(billingCycle === "annual" ? plan.annualFeeCents : plan.monthlyFeeCents)} / {billingCycle === "annual" ? "έτος" : "μήνα"}</strong></div>
+      </div>
+      <small>Τιμές προ ΦΠΑ, όπου εφαρμόζεται. Δεν γίνεται πληρωμή κατά την αίτηση.</small>
+    </section>}
     <div className={styles.honeypot} aria-hidden="true"><label>Website<input name="companyWebsiteCheck" tabIndex={-1} autoComplete="off" /></label></div>
 
     <section className={styles.lookupPanel} aria-labelledby="afm-title">

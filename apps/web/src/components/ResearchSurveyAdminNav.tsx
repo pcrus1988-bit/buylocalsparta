@@ -13,6 +13,7 @@ export type ResearchSurveyAdminSection =
   | "simulation"
   | "kad"
   | "consent"
+  | "rewards"
   | "delivery"
   | "quality"
   | "protocol"
@@ -39,6 +40,7 @@ export const RESEARCH_SURVEY_ADMIN_SECTIONS: ReadonlyArray<Readonly<{
   { key: "simulation", label: "Workflow simulation", description: "Test inbox, invitation link, submission, and Admin notification without actual Research records.", group: "fieldwork" },
   { key: "kad", label: "ΚΑΔ", description: "Research-frame composition by canonical activity group.", group: "fieldwork" },
   { key: "consent", label: "Consent", description: "Current participant consent choices.", group: "fieldwork" },
+  { key: "rewards", label: "Rewards", description: "Survey reward codes, issues, redemptions and onboarding discounts.", group: "fieldwork" },
   { key: "delivery", label: "Delivery", description: "SES delivery delays and deliverability exceptions.", group: "fieldwork" },
   { key: "quality", label: "Quality", description: "Manual response-quality review queue.", group: "governance" },
   { key: "protocol", label: "Protocol", description: "Deviations, amendments and corrective evidence.", group: "governance" },
