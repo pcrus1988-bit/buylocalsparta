@@ -14,6 +14,24 @@ const LABELS: Record<Action, string> = {
   publish_release: "Δημοσίευση release"
 };
 
+const CONFIRM_WORD: Record<Action, string> = {
+  lock_instrument: "LOCK",
+  start_pilot: "PILOT",
+  start_fielding: "MAIN",
+  close_fieldwork: "CLOSE",
+  begin_analysis: "ANALYZE",
+  publish_release: "PUBLISH"
+};
+
+const IMPACT: Record<Action, string> = {
+  lock_instrument: "Locks the current questionnaire version. Review every question and consent text first.",
+  start_pilot: "Opens a real Pilot phase. Pilot responses are diagnostic only; any subsequent emails are real sends.",
+  start_fielding: "Ends Pilot activity and opens the official study. Confirm the frozen frame, holdout, consent and absence of running Pilot jobs.",
+  close_fieldwork: "Closes official data collection. Check the Athens-time deadline and outstanding invitations.",
+  begin_analysis: "Moves this study to formal analysis using its locked plan and reviewed data.",
+  publish_release: "Publishes the research release. Verify methods, anonymity, privacy and all public outputs."
+};
+
 export function ResearchStudyLifecycleControls({
   slug,
   csrfToken,
@@ -34,11 +52,13 @@ export function ResearchStudyLifecycleControls({
   const router = useRouter();
   const [busy, setBusy] = useState<Action | null>(null);
   const [message, setMessage] = useState("");
+  const [pendingAction, setPendingAction] = useState<Action | null>(null);
+  const [confirmationWord, setConfirmationWord] = useState("");
 
   const actions: Action[] = [];
   const analysisPlanLocked = analysisPlanStatus === "locked";
   if (studyStatus === "draft" && instrumentStatus === "draft") actions.push("lock_instrument");
-  if (studyStatus === "draft" && instrumentStatus === "locked" && analysisPlanLocked) actions.push("start_pilot", "start_fielding");
+  if (studyStatus === "draft" && instrumentStatus === "locked" && analysisPlanLocked) actions.push("start_pilot");
   if (studyStatus === "pilot" && analysisPlanLocked) actions.push("start_fielding");
   if (studyStatus === "fielding") actions.push("close_fieldwork");
   if (studyStatus === "closed") actions.push("begin_analysis");
@@ -56,6 +76,8 @@ export function ResearchStudyLifecycleControls({
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Research lifecycle transition failed");
       setMessage(action === "publish_release" ? "Το reproducible release δημοσιεύτηκε." : "Η μετάβαση καταχωρήθηκε.");
+      setPendingAction(null);
+      setConfirmationWord("");
       router.refresh();
     } catch (error) {
       const raw = error instanceof Error ? error.message : "Η ενέργεια απέτυχε.";
@@ -88,9 +110,25 @@ export function ResearchStudyLifecycleControls({
         className={action === "close_fieldwork" ? "button button-secondary" : "button"}
         disabled={Boolean(busy)}
         key={action}
-        onClick={() => run(action)}
+        onClick={() => { setPendingAction(action); setConfirmationWord(""); setMessage(""); }}
         type="button"
       >{busy === action ? "Εκτέλεση…" : LABELS[action]}</button>)}
     </div>
+    {pendingAction && <div className="workspace-queue-card" role="group" aria-label="Confirm research phase action" style={{ width: "100%", marginTop: 14 }}>
+      <strong>Confirm: {LABELS[pendingAction]}</strong>
+      <p>Survey: <strong>{slug}</strong>. {IMPACT[pendingAction]}</p>
+      <label htmlFor="research-action-confirm-word">To proceed, type <strong>{CONFIRM_WORD[pendingAction]}</strong>:</label>
+      <div className="workspace-action-buttons" style={{ marginTop: 10 }}>
+        <input id="research-action-confirm-word" autoComplete="off" spellCheck={false}
+          value={confirmationWord} onChange={(event) => setConfirmationWord(event.target.value)}
+          aria-label="Type the confirmation word" />
+        <button type="button" className="button" disabled={Boolean(busy) || confirmationWord.trim() !== CONFIRM_WORD[pendingAction]}
+          onClick={() => void run(pendingAction)}>
+          {busy === pendingAction ? "Working…" : "Confirm irreversible action"}
+        </button>
+        <button type="button" className="button button-secondary" disabled={Boolean(busy)}
+          onClick={() => { setPendingAction(null); setConfirmationWord(""); }}>Cancel</button>
+      </div>
+    </div>}
   </div>;
 }
