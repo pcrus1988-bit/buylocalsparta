@@ -28,6 +28,8 @@ export function ResearchSurveySettingsPanel({
   const [message, setMessage] = useState("");
 
   const editable = canEdit && data.study.status === "draft";
+  const pilotDeadlineEditable = canEdit && data.study.status === "pilot" && data.study.pilotDeadlineMutable;
+  const deadlineEditable = editable || pilotDeadlineEditable;
   const deadlinePreview = useMemo(() => {
     if (!fieldworkEndsAt) return "No deadline set";
     return fieldworkEndsAt.replace("T", " ") + " (Europe/Athens)";
@@ -62,6 +64,29 @@ export function ResearchSurveySettingsPanel({
     }
   }
 
+  async function savePilotDeadline() {
+    if (!fieldworkEndsAt) return;
+    setMessage("");
+    try {
+      const deadline = athensDeadlineInputToIso(fieldworkEndsAt);
+      if (!window.confirm("Set the official survey deadline to " + deadlinePreview + "?\n\nThis closes participant access at the selected time. The Pilot remains a separate phase. Other locked study settings will not change.")) return;
+      setBusy(true);
+      const response = await fetch("/api/admin/research/surveys/" + encodeURIComponent(slug) + "/lifecycle", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+        body: JSON.stringify({ action: "save_pilot_deadline", fieldworkEndsAt: deadline })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Pilot deadline could not be saved.");
+      setMessage("Pilot deadline saved.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Pilot deadline could not be saved.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return <section className="shell vendor-section">
     <div className="workspace-action-bar">
       <span>
@@ -75,7 +100,9 @@ export function ResearchSurveySettingsPanel({
 
     {!editable && <div className="workspace-inline-note">
       {canEdit
-        ? "This survey is no longer in draft. Its fieldwork identity is frozen; settings are read-only so historic evidence cannot be silently rewritten."
+        ? pilotDeadlineEditable
+          ? "The survey design is locked in Pilot. You may still set the official closing date before any invitation is issued. Other settings remain read-only, and the change is recorded in the Admin audit."
+          : "The survey design is locked. Deadline changes after recruitment starts require a governed amendment; other settings are read-only."
         : "You have read-only Research access. Editing survey design requires Research design permission."}
     </div>}
 
@@ -140,12 +167,12 @@ export function ResearchSurveySettingsPanel({
         <label>
           <strong>Survey deadline · Athens time</strong><br />
           <input
-            disabled={!editable}
+            disabled={!deadlineEditable}
             onChange={(event) => setFieldworkEndsAt(event.target.value)}
             type="datetime-local"
             value={fieldworkEndsAt}
           />
-          <small>{deadlinePreview}. When the deadline passes, submission closes and automated evaluation begins. Unresolved quality checks pause publication.</small>
+          <small>{deadlinePreview}. This is the official survey closing date (Europe/Athens), not the Pilot closeout date. After the deadline, participation closes; automated main-study evaluation follows governed lifecycle rules.</small>
         </label>
       </div>
 
@@ -161,13 +188,20 @@ export function ResearchSurveySettingsPanel({
         />
       </label>
 
+      {pilotDeadlineEditable && <div className="workspace-action-buttons">
+        <button className="button" disabled={busy || !fieldworkEndsAt} onClick={() => void savePilotDeadline()} type="button">
+          {busy ? "Saving…" : "Set official survey deadline"}
+        </button>
+        <small>Available only until the first invitation batch is created; audited change, no emails sent.</small>
+      </div>}
+
       {editable && <div className="workspace-action-buttons">
         <button className="button" disabled={busy} onClick={() => void save()} type="button">
           {busy ? "Saving…" : "Save survey settings"}
         </button>
       </div>}
 
-      {message && <div className={message === "Survey settings saved." ? "workspace-inline-note" : "workspace-inline-note form-error"}>
+      {message && <div className={["Survey settings saved.", "Pilot deadline saved."].includes(message) ? "workspace-inline-note" : "workspace-inline-note form-error"}>
         {message}
       </div>}
     </div>
