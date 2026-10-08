@@ -371,9 +371,7 @@ function researchInvitationHtml(input: Readonly<{
     .join("");
 
   const reminder = input.attemptKind === "reminder";
-  const preheader = reminder
-    ? `Υπενθύμιση συμμετοχής στη μελέτη «${input.subject}»`
-    : input.subject;
+  const preheader = input.subject;
   const companyLabel = input.companyName
     ? `<div style="margin-top:20px;display:inline-block;padding:7px 11px;border:1px solid rgba(255,255,255,.22);border-radius:999px;color:#e8ede9;font-size:11px;line-height:1.3">ΠΡΟΣ · ${escapeHtml(input.companyName)}</div>`
     : "";
