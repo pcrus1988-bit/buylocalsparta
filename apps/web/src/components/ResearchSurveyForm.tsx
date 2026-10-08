@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ResearchExperimentAssignment, ResearchSurveyContext } from "../lib/research-survey-runtime";
-import { matrixItems, matrixScale, questionOptions, validateResearchAnswers, type ResearchAnswer, type ResearchAnswerMap, type ResearchQuestion } from "../lib/research-survey-model";
+import { matrixItems, matrixScale, questionOptions, researchQuestionApplicable, validateResearchAnswers, type ResearchAnswer, type ResearchAnswerMap, type ResearchQuestion } from "../lib/research-survey-model";
 import styles from "./ResearchSurveyForm.module.css";
 
 type ConsentState = Readonly<{ results_notification: boolean; thank_you_code: boolean }>;
@@ -14,6 +14,10 @@ const SECTION_LABELS: Record<string, string> = {
   D: "Πελάτες και τοπική αγορά",
   E: "Marketplaces και ψηφιακές πλατφόρμες",
   F: "Το επόμενο έτος",
+  G: "Οικονομική κατάσταση και προσδοκίες",
+  H: "Ηλεκτρονικό εμπόριο και εμπόδια",
+  I: "Εμπειρία από marketplaces",
+  J: "Τοπικό εμπόριο και οικονομικές πιέσεις",
   X: "Προαιρετικό ερευνητικό πείραμα"
 };
 
@@ -260,7 +264,9 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
   }, [initial.questions]);
   const hasExperiment = initial.questions.some((question) => question.type === "experiment") || experiments.length > 0;
   const allSections = [
-    ...questionSections,
+    ...questionSections.map((section) => ({
+      ...section, questions: section.questions.filter((question) => researchQuestionApplicable(question, answers))
+    })).filter((section) => section.questions.length > 0),
     ...(hasExperiment ? [{ code: "X", title: SECTION_LABELS.X, questions: [] as ResearchQuestion[] }] : []),
     { code: "DONE", title: "Ολοκλήρωση", questions: [] as ResearchQuestion[] }
   ];

@@ -60,6 +60,48 @@ export function answerIsPresent(question: ResearchQuestion, answer: ResearchAnsw
   return false;
 }
 
+
+/** Versioned, declarative routing shared by the participant UI and server validator. */
+export function researchQuestionApplicable(question: ResearchQuestion, answers: ResearchAnswerMap): boolean {
+  const rule = question.config.showIf;
+  if (!rule || typeof rule !== "object" || Array.isArray(rule)) return true;
+  const { questionCode, oneOf, anyOf, noneOf } = rule as Record<string, unknown>;
+  if (typeof questionCode !== "string" || !questionCode) return false;
+  const source = answers[questionCode];
+  if (source === undefined || source === null) return false;
+  const values = Array.isArray(source) ? source.map(String) : [String(source)];
+  if (Array.isArray(oneOf)) return oneOf.map(String).some((item) => values.includes(item));
+  if (Array.isArray(anyOf)) return anyOf.map(String).some((item) => values.includes(item));
+  if (Array.isArray(noneOf)) return !noneOf.map(String).some((item) => values.includes(item));
+  return false;
+}
+
+/** Baseline 0–100 composite. Requires at least two independent expectation items. */
+export function greekRetailBusinessConfidence(answers: Readonly<Record<string, unknown>>) : number | undefined {
+  const outlook: Record<string, number> = {
+    down_large: 0, down_small: 25, stable: 50, up_small: 75, up_large: 100
+  };
+  const optimism = typeof answers.Q20 === "number" && Number.isInteger(answers.Q20) &&
+    answers.Q20 >= 0 && answers.Q20 <= 10 ? answers.Q20 * 10 : undefined;
+  const sales = typeof answers.Q17 === "string" ? outlook[answers.Q17] : undefined;
+  const profit = typeof answers.Q21 === "string" ? outlook[answers.Q21] : undefined;
+  const items = [optimism, sales, profit].filter((value): value is number => value !== undefined);
+  if (items.length < 2) return undefined;
+  return Math.round(items.reduce((sum, value) => sum + value, 0) / items.length * 100) / 100;
+}
+
+/** Association of self-reported trends, not an audited margin or causal claim. */
+export function greekRetailRevenueUpProfitDown(answers: Readonly<Record<string, unknown>>) : boolean | undefined {
+  const trend = answers.Q19;
+  if (!trend || typeof trend !== "object" || Array.isArray(trend)) return undefined;
+  const values = trend as Record<string, string | number>;
+  const turnover = String(values.turnover ?? "");
+  const profitability = String(values.profitability ?? "");
+  const valid = new Set(["up_large", "up_small", "stable", "down_small", "down_large"]);
+  if (!valid.has(turnover) || !valid.has(profitability)) return undefined;
+  return ["up_large","up_small"].includes(turnover) && ["down_small","down_large"].includes(profitability);
+}
+
 export function validateResearchAnswers(
   questions: readonly ResearchQuestion[],
   answers: ResearchAnswerMap
@@ -68,7 +110,7 @@ export function validateResearchAnswers(
   const invalid: string[] = [];
 
   for (const question of questions) {
-    if (question.type === "experiment") continue;
+    if (question.type === "experiment" || !researchQuestionApplicable(question, answers)) continue;
     const answer = answers[question.code];
     if (question.required && !answerIsPresent(question, answer)) {
       missing.push(question.code);

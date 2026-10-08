@@ -49,6 +49,49 @@ export default async function ResearchResultsPage({ params }: PageProps) {
     Object.keys(estimate.segment).length === 0
   ) ?? [];
 
+  const breakdownMetrics = new Set([
+    "business_confidence.mean",
+    "revenue_up_profit_down.share",
+    "digital_readiness.mean",
+    "retail_friction.mean",
+    "marketplace_dependence_increase.share"
+  ]);
+  const segmentNames: Record<string, string> = {
+    regionCode: "Περιφέρεια", sectorCode: "Κλάδος", sizeBand: "Μέγεθος επιχείρησης",
+    settlementBand: "Τύπος περιοχής"
+  };
+  const settlementNames: Record<string, string> = {
+    athens: "Αθήνα / Πειραιάς", thessaloniki: "Θεσσαλονίκη",
+    large_city: "Άλλη μεγάλη πόλη", small_city: "Μικρή πόλη / κωμόπολη",
+    village: "Χωριό / αγροτική περιοχή", online_only: "Μόνο online", unknown: "Άγνωστο"
+  };
+  const breakdowns = published?.estimates.filter((estimate) =>
+    !estimate.suppressed && estimate.estimate != null &&
+    breakdownMetrics.has(estimate.metricKey) &&
+    Object.keys(estimate.segment).length === 1 &&
+    ["regionCode","sectorCode","sizeBand","settlementBand"].some((key) => key in estimate.segment)
+  ).slice(0,120) ?? [];
+
+  const themes = [
+    { title: "Επιχειρηματικό κλίμα και οικονομία", description: "Αυτοαναφερόμενες οικονομικές εξελίξεις και προσδοκίες — όχι λογιστικά επαληθευμένα στοιχεία.", keys: ["business_confidence.","revenue_up_profit_down.","business_optimism.","sales_outlook.","profit_outlook.","economic_trends.","economic_pressures."] },
+    { title: "Ηλεκτρονικό εμπόριο και πρώτη online πώληση", description: "Στάσεις, υφιστάμενα κανάλια και εμπόδια για επιχειρήσεις που δεν πωλούν online.", keys: ["ecommerce_attitude.","first_sale_barriers.","sales_channels.","digital_sales_share."] },
+    { title: "Marketplaces και εξάρτηση", description: "Αναφερόμενες εμπειρίες νυν και πρώην χρηστών · οι απαντήσεις δεν τεκμηριώνουν αιτιώδη επίδραση.", keys: ["marketplace_profitability_decline.","marketplace_dependence_increase.","marketplace_effects.","marketplace_revenue_dependence.","marketplace_experience."] },
+    { title: "Τοπική αγορά και ψηφιακή προβολή", description: "Διαφοροποιήσεις ανά περιοχή και αυτοαναφερόμενη επίδραση στο φυσικό κατάστημα.", keys: ["online_to_local_impact.","settlement_class.","local_product_discovery_importance.","local_customer_share."] },
+    { title: "Ετοιμότητα, λειτουργία και επόμενες επενδύσεις", description: "Ενδείξεις ψηφιακής ετοιμότητας, δυσκολιών και σχεδίων για την επόμενη χρονιά.", keys: ["digital_readiness.","retail_friction.","top_growth_barriers.","operational_friction.","investment_intentions."] }
+  ];
+  const seen = new Set<string>();
+  const resultSections = themes.map((theme) => {
+    const estimates = overall.filter((estimate) => theme.keys.some((key) => estimate.metricKey.startsWith(key))).slice(0,16);
+    estimates.forEach((estimate) => seen.add(estimate.metricKey));
+    return { title: theme.title, description: theme.description, estimates };
+  }).filter((section) => section.estimates.length > 0);
+  const otherEstimates = overall.filter((estimate) => !seen.has(estimate.metricKey)).slice(0,20);
+  if (otherEstimates.length) resultSections.push({
+    title: "Πρόσθετοι δημοσιευμένοι δείκτες",
+    description: "Περαιτέρω αποτελέσματα του ερωτηματολογίου.",
+    estimates: otherEstimates
+  });
+
   return <main className={styles.shell}>
     <div className={styles.frame}>
       <div className={styles.topbar}>
@@ -106,23 +149,62 @@ export default async function ResearchResultsPage({ params }: PageProps) {
             <p>Το 95% διάστημα εμπιστοσύνης δείχνει την αβεβαιότητα της εκτίμησης όταν αυτή μπορεί να υπολογιστεί. Το n δείχνει πόσες απαντήσεις χρησιμοποιήθηκαν.</p>
           </div>
 
-          <div className={styles.resultsGrid}>
-            {overall.slice(0,30).map((estimate) => {
-              const width = visualWidth(estimate);
-              return <article className={styles.resultCard} key={estimate.metricKey}>
-                <div className={styles.eyebrow}>{label(estimate)}</div>
-                <strong>{value(estimate, estimate.estimate!)}</strong>
-                <span>
-                  {estimate.ciLower != null && estimate.ciUpper != null
-                    ? "95% διάστημα εμπιστοσύνης " + value(estimate, estimate.ciLower) + " – " + value(estimate, estimate.ciUpper) + " · "
-                    : ""}
-                  n={estimate.unweightedN.toLocaleString("el-GR")}
-                </span>
-                {width != null && <div className={styles.resultBar} aria-hidden="true"><div className={styles.resultBarFill} style={{ width: width.toFixed(1) + "%" }} /></div>}
-              </article>;
-            })}
-          </div>
+          {resultSections.map((group) => <div key={group.title} style={{ marginBottom: 30 }}>
+            <h3 style={{ marginBottom: 8 }}>{group.title}</h3>
+            <p>{group.description}</p>
+            <div className={styles.resultsGrid}>
+              {group.estimates.map((estimate) => {
+                const width = visualWidth(estimate);
+                return <article className={styles.resultCard} key={estimate.metricKey}>
+                  <div className={styles.eyebrow}>{label(estimate)}</div>
+                  <strong>{value(estimate, estimate.estimate!)}</strong>
+                  <span>
+                    {estimate.ciLower != null && estimate.ciUpper != null
+                      ? "95% διάστημα εμπιστοσύνης " + value(estimate, estimate.ciLower) + " – " + value(estimate, estimate.ciUpper) + " · "
+                      : ""}
+                    n={estimate.unweightedN.toLocaleString("el-GR")}
+                    {typeof estimate.metadata.denominator === "string" ? " · Ειδική ομάδα ερωτηθέντων" : ""}
+                  </span>
+                  {width != null && <div className={styles.resultBar} aria-hidden="true"><div className={styles.resultBarFill} style={{ width: width.toFixed(1) + "%" }} /></div>}
+                </article>;
+              })}
+            </div>
+          </div>)}
         </section>
+
+        {breakdowns.length > 0 && <section className={styles.section}>
+          <div className={styles.sectionHead}>
+            <div>
+              <div className={styles.eyebrow}>Ανά γεωγραφία και μέγεθος</div>
+              <h2>Πώς διαφοροποιούνται οι απαντήσεις</h2>
+            </div>
+            <p>Οι υποομάδες περιλαμβάνουν μόνο δημοσιεύσιμα αποτελέσματα (τουλάχιστον 30 απαντήσεις).
+              Όπου δεν τεκμηριώνεται έγκυρη εκτίμηση αβεβαιότητας, δεν εμφανίζεται διάστημα εμπιστοσύνης.
+              Οι διαφοροποιήσεις δεν αποδεικνύουν αιτιότητα.</p>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+              <thead><tr>
+                {["Δείκτης","Διάσταση","Κατηγορία","Αποτέλεσμα","Απαντήσεις","95% ΔΕ"].map((item) =>
+                  <th key={item} scope="col" style={{ padding: "10px 12px", borderBottom: "1px solid #ddd" }}>{item}</th>)}
+              </tr></thead>
+              <tbody>{breakdowns.map((estimate) => {
+                const dimension = Object.keys(estimate.segment)[0]!;
+                const code = String(estimate.segment[dimension] ?? "");
+                const category = dimension === "settlementBand" ? settlementNames[code] ?? code : code;
+                return <tr key={estimate.metricKey + ":" + dimension + ":" + code}>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #eee" }}>{label(estimate)}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #eee" }}>{segmentNames[dimension] ?? dimension}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #eee" }}>{category}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #eee" }}>{value(estimate, estimate.estimate!)}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #eee" }}>{estimate.unweightedN.toLocaleString("el-GR")}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #eee" }}>{estimate.ciLower != null && estimate.ciUpper != null
+                    ? value(estimate, estimate.ciLower) + "–" + value(estimate, estimate.ciUpper) : "—"}</td>
+                </tr>;
+              })}</tbody>
+            </table>
+          </div>
+        </section>}
 
         <section className={styles.section}>
           <div className={styles.sectionHead}>
