@@ -309,7 +309,7 @@ if (!jobs.includes("study_id,wave_id,instrument_id,sample_unit_id,contact_point_
 if (!jobs.includes("study_id,wave_id,response_id,contact_point_id,reward_entitlement_id")) errors.push("reward delivery ledger does not persist queued wave explicitly");
 if (!jobs.includes("study_id,wave_id,response_id,contact_point_id,release_snapshot_id")) errors.push("results delivery ledger does not persist queued wave explicitly");
 if (!jobs.includes("pri.wave_id=$11")) errors.push("main sample pilot holdout is not wave-scoped");
-if (!researchEmailCron.includes("processResearchStudyJobs(1, EMAIL_JOB_TYPES)")
+if (!researchEmailCron.includes("processResearchStudyJobs(1, CAMPAIGN_JOB_TYPES)")
     || researchEmailCron.includes("ensureGreekRetailB2cFrameOnboarded")
     || !researchEmailCron.includes('request.headers.get("authorization")'))
   errors.push("research email cron is not protected from GEMI data ingestion");
@@ -504,11 +504,25 @@ if (!jobs.includes("stratified-hash-rank-v2")) errors.push("minimum-aware reprod
 if (!jobs.includes("RESEARCH_SAMPLE_REDRAW_AFTER_CONTACT")) errors.push("sample draw is not frozen after participant contact");
 if (!jobs.includes("RESEARCH_PILOT_SAMPLE_TARGET_INVALID")) errors.push("pilot diagnostic sample bounds are not separated from main sampling");
 if (!jobs.includes("pfu.external_key_hash=fu.external_key_hash")) errors.push("pilot holdout does not survive frame refreshes");
-if (!researchEmailCron.includes("processResearchStudyJobs(1, EMAIL_JOB_TYPES)") ||
+if (!researchEmailCron.includes("processResearchStudyJobs(1, CAMPAIGN_JOB_TYPES)") ||
     !researchEmailCron.includes("ensureGreekRetailAutomaticReminderBatch") ||
-    researchEmailCron.indexOf("const email = await processResearchStudyJobs") >
+    researchEmailCron.indexOf("processResearchStudyJobs(1, CAMPAIGN_JOB_TYPES)") >
       researchEmailCron.indexOf("automaticReminder = await ensureGreekRetailAutomaticReminderBatch")) {
   errors.push("research email cron must drain approved campaign before costly reminder scan");
+}
+if (!researchEmailCron.includes("MAX_CAMPAIGN_DRAIN_MS = 225_000") ||
+    !researchEmailCron.includes("while (campaignCheckpoints < MAX_CAMPAIGN_CHECKPOINTS") ||
+    !researchEmailCron.includes("if (!tick.claimed) break") ||
+    !researchEmailCron.includes("if (tick.failed > 0) break") ||
+    !researchEmailCron.includes("OTHER_EMAIL_JOB_TYPES")) {
+  errors.push("dedicated email cron must drain bounded consecutive campaign checkpoints without starving other email jobs");
+}
+if (!jobs.includes("const minSendIntervalMs = continuous ? 100 : 0") ||
+    !jobs.includes("const maxInflightSends = continuous ? 10 : 1") ||
+    !jobs.includes("await Promise.all(pendingSends)") ||
+    !jobs.includes("contactAlreadyInvited") ||
+    !jobs.includes("research_contact_is_suppressed")) {
+  errors.push("fast SES path must maintain 10/sec pacing, 10-inflight backpressure and no-repeat/suppression guards");
 }
 if (!jobs.includes("allowIsolatedResearchSubmissionFailure") ||
     !jobs.includes("postAcceptanceFailures") ||
