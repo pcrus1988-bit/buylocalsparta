@@ -290,6 +290,7 @@ export async function queueGreekRetailSampleDraw(
     randomSeed?: string;
     label?: string;
     fieldworkPhase?: "pilot" | "main";
+    cohort?: "A" | "B";
   }>
 ): Promise<{ jobId: string; randomSeed: string; fieldworkPhase: "pilot" | "main" }> {
   assertAdminPermission(principal, "research.design.manage");
@@ -318,6 +319,10 @@ export async function queueGreekRetailSampleDraw(
   const studyStatus = text(study.rows[0].status);
   const fieldworkPhase: "pilot" | "main" = input.fieldworkPhase
     ?? (["draft","pilot"].includes(studyStatus) ? "pilot" : "main");
+  const cohort = input.cohort || (fieldworkPhase === "pilot" ? "A" : "");
+  if (!["A","B"].includes(cohort) || (fieldworkPhase === "pilot" && cohort !== "A")) {
+    throw new Error("RESEARCH_SAMPLE_COHORT_INVALID");
+  }
   const minTargetN = fieldworkPhase === "pilot" ? 10 : 100;
   const maxTargetN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
   if (targetN < minTargetN || targetN > maxTargetN) {
@@ -333,10 +338,13 @@ export async function queueGreekRetailSampleDraw(
   }
   const frame = await pool.query<SqlRow>(`
     SELECT id FROM research_frame_snapshots
-    WHERE study_id=$1 AND wave_id=$2 AND status='frozen'
-    ORDER BY frozen_at DESC NULLS LAST, created_at DESC
-    LIMIT 1
-  `, [study.rows[0].id, study.rows[0].current_wave_id]);
+    WHERE study_id=$1 AND wave_id=$2
+      AND (($3='A' AND status IN ('frozen','superseded')
+        AND selection_criteria->'activityGroupIds' @> '["retail-non-food"]'::jsonb)
+        OR ($3='B' AND status='frozen'
+        AND selection_criteria->'activityGroupIds' @> '["retail-all"]'::jsonb))
+    ORDER BY frozen_at DESC NULLS LAST, created_at DESC LIMIT 1
+  `, [study.rows[0].id, study.rows[0].current_wave_id, cohort]);
   if (!frame.rows[0]) throw new Error("RESEARCH_SAMPLE_REQUIRES_FROZEN_FRAME");
 
   const contacted = await pool.query<SqlRow>(`
@@ -367,6 +375,7 @@ export async function queueGreekRetailSampleDraw(
     const existingExpectedResponseRate = numberValue(existingInput.expectedResponseRate);
     if (
       existingPhase !== fieldworkPhase
+      || text(existingInput.cohort) !== cohort
       || existingDesiredCompleteN !== desiredCompleteN
       || Math.abs(existingExpectedResponseRate - expectedResponseRate) > 1e-9
     ) {
@@ -392,7 +401,9 @@ export async function queueGreekRetailSampleDraw(
         'label', $5::text,
         'fieldworkPhase', $6::text,
         'desiredCompleteN', $7::int,
-        'expectedResponseRate', $8::numeric
+        'expectedResponseRate', $8::numeric,
+        'cohort', $9::text,
+        'frameSnapshotId', $10::text
       )
     )
     RETURNING id
@@ -404,7 +415,9 @@ export async function queueGreekRetailSampleDraw(
     input.label?.trim() || `${fieldworkPhase}-sample-${targetN}`,
     fieldworkPhase,
     desiredCompleteN,
-    expectedResponseRate
+    expectedResponseRate,
+    cohort,
+    text(frame.rows[0].id)
   ]);
   return { jobId: text(job.rows[0]!.id), randomSeed, fieldworkPhase };
 }
