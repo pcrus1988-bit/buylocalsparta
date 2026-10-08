@@ -20,6 +20,10 @@ type ExternalSource = Readonly<{
   kind: SourceKind;
   organisation: string;
   title: string;
+  takeaway: string;
+  comparison?: string;
+  clarity: string;
+  visualPercent?: number;
   period: string;
   geography: string;
   description: string;
@@ -35,6 +39,9 @@ type ExternalSource = Readonly<{
 const sources: readonly ExternalSource[] = [
   {
     id: "iobe-september-2026",
+    takeaway: "Οι έμποροι είναι πιο συγκρατημένοι για το επόμενο τρίμηνο.",
+    comparison: "↓ 0,8 μονάδες από τον Ιούλιο (116,8 → 116,0)",
+    clarity: "Μειώθηκε λίγο η αισιοδοξία των επιχειρήσεων. Δεν σημαίνει ότι οι πωλήσεις μειώθηκαν κατά 0,8%.",
     kind: "sentiment",
     organisation: "ΙΟΒΕ · DG ECFIN",
     title: "Επιχειρηματικές προσδοκίες στο λιανικό εμπόριο",
@@ -49,6 +56,9 @@ const sources: readonly ExternalSource[] = [
   },
   {
     id: "ec-september-2026",
+    takeaway: "Το οικονομικό κλίμα στην Ευρώπη εξασθένησε ελαφρά.",
+    comparison: "↓ 0,4 μονάδες στην ΕΕ / ↓ 0,5 στην Ευρωζώνη από τον Αύγουστο",
+    clarity: "Το 100 είναι ο μακροχρόνιος μέσος όρος: το 97,9 είναι λίγο χαμηλότερα. Αφορά την ΕΕ και την Ευρωζώνη, όχι ειδικά την Ελλάδα ή τις πωλήσεις της.",
     kind: "sentiment",
     organisation: "Ευρωπαϊκή Επιτροπή · DG ECFIN",
     title: "Οικονομικό κλίμα και καταναλωτική εμπιστοσύνη",
@@ -63,6 +73,10 @@ const sources: readonly ExternalSource[] = [
   },
   {
     id: "inemy-holidays-2026",
+    takeaway: "Πάνω από τις μισές επιχειρήσεις δήλωσαν λιγότερες γιορτινές πωλήσεις.",
+    comparison: "Σύγκριση με την προηγούμενη εορταστική περίοδο",
+    clarity: "52% από τις 205 επιχειρήσεις που συμμετείχαν στην έρευνα — όχι 52% όλων των ελληνικών καταστημάτων.",
+    visualPercent: 52,
     kind: "survey",
     organisation: "ΕΣΕΕ · ΙΝΕΜΥ",
     title: "Η κίνηση των καταστημάτων την εορταστική περίοδο",
@@ -77,6 +91,9 @@ const sources: readonly ExternalSource[] = [
   },
   {
     id: "ielka-september-2026",
+    takeaway: "Η μέση αξία ανά προϊόν στα μεγάλα σούπερ μάρκετ μειώθηκε λίγο.",
+    comparison: "Σεπτέμβριος 2026 σε σύγκριση με Σεπτέμβριο 2025",
+    clarity: "Αφορά τη μέση μοναδιαία αξία στις αλυσίδες, όχι απαραίτητα την τιμή κάθε μεμονωμένου προϊόντος.",
     kind: "market",
     organisation: "ΙΕΛΚΑ",
     title: "Μεταβολές τιμών στις μεγάλες αλυσίδες σούπερ μάρκετ",
@@ -91,6 +108,9 @@ const sources: readonly ExternalSource[] = [
   },
   {
     id: "elstat-june-2026",
+    takeaway: "Τι δείχνουν οι πραγματικές πωλήσεις του λιανεμπορίου;",
+    comparison: "Επίσημα στοιχεία για τον Ιούνιο 2026",
+    clarity: "Η ΕΛΣΤΑΤ μετρά τζίρο και όγκο πωλήσεων. Υπάρχουν διαφορετικοί δείκτες, γι’ αυτό δεν τους συγχωνεύουμε σε ένα ποσοστό.",
     kind: "market",
     organisation: "ΕΛΣΤΑΤ",
     title: "Δείκτες κύκλου εργασιών και όγκου λιανικού εμπορίου",
@@ -104,9 +124,9 @@ const sources: readonly ExternalSource[] = [
 ];
 
 const sections: ReadonlyArray<{ id: SourceKind; eyebrow: string; title: string; explanation: string }> = [
-  { id: "sentiment", eyebrow: "01 · Κλίμα αγοράς", title: "Τι προσδοκούν επιχειρήσεις και καταναλωτές", explanation: "Δείκτες από απαντήσεις για την παρούσα κατάσταση και το προσεχές διάστημα. Δεν αποτυπώνουν απαραίτητα πραγματικές πωλήσεις." },
-  { id: "survey", eyebrow: "02 · Έρευνες φορέων", title: "Τι αναφέρουν οι ίδιες οι επιχειρήσεις", explanation: "Αποτελέσματα ερευνών με συγκεκριμένη περίοδο συλλογής, κοινό και μέθοδο." },
-  { id: "market", eyebrow: "03 · Στοιχεία αγοράς", title: "Τι δείχνουν οι μετρήσεις της αγοράς", explanation: "Δείκτες τιμών και πωλήσεων, ξεχωριστά από τις έρευνες απόψεων." }
+  { id: "sentiment", eyebrow: "01 · Κλίμα αγοράς", title: "Πώς βλέπουν την οικονομία οι επιχειρήσεις και οι καταναλωτές;", explanation: "Αυτά τα στοιχεία δείχνουν αισιοδοξία ή ανησυχία — όχι πόσο πραγματικά πουλήθηκε." },
+  { id: "survey", eyebrow: "02 · Έρευνες φορέων", title: "Τι είπαν τα καταστήματα στις έρευνες;", explanation: "Απαντήσεις επιχειρήσεων που συμμετείχαν σε συγκεκριμένες έρευνες, όχι στοιχεία για όλα τα καταστήματα." },
+  { id: "market", eyebrow: "03 · Στοιχεία αγοράς", title: "Τι άλλαξε πραγματικά στις πωλήσεις και στις τιμές;", explanation: "Μετρήσεις αγοράς και συναλλαγών, όχι εκτιμήσεις ή γνώμες." }
 ];
 
 export default function ExternalMarketSentimentPage() {
@@ -160,11 +180,16 @@ export default function ExternalMarketSentimentPage() {
         </div>
       </section>
 
+      <div className={external.readingGuide} role="note">
+        <strong>Με μια ματιά</strong>
+        <span>Πρώτα διαβάστε το συμπέρασμα. Ο αριθμός και η σύγκριση ακολουθούν. Αν θέλετε λεπτομέρειες, ανοίξτε το «Τι ακριβώς μετρήθηκε;».</span>
+      </div>
+
       <nav className={external.jumpNav} aria-label="Θεματικές εξωτερικών ερευνών">
         {sections.map((section) => <a href={"#" + section.id} key={section.id}>{section.eyebrow} <span aria-hidden="true">↗</span></a>)}
       </nav>
 
-      {sections.map((section) => <section className={styles.section} id={section.id} key={section.id} aria-labelledby={section.id + "-heading"}>
+      {sections.map((section) => <section className={[styles.section, external.sourceSection].join(" ")} id={section.id} key={section.id} aria-labelledby={section.id + "-heading"}>
         <div className={styles.sectionHead}>
           <div>
             <span className={styles.eyebrow}>{section.eyebrow} · Επιλεγμένη παρουσίαση</span>
@@ -178,16 +203,29 @@ export default function ExternalMarketSentimentPage() {
               <span className={external.organisation}>{item.organisation}</span>
               <span className={external.geography}>{item.geography}</span>
             </div>
-            <h3>{item.title}</h3>
-            <p className={external.period}>{item.period}</p>
+            <h3 className={external.takeaway}>{item.takeaway}</h3>
             {item.figure && <div className={external.figure}>
               <strong>{item.figure}</strong>
               <span>{item.figureLabel}</span>
             </div>}
-            <p className={external.description}>{item.description}</p>
-            <p className={external.context}><strong>Πώς διαβάζεται:</strong> {item.context}</p>
+            {typeof item.visualPercent === "number" && <div className={external.resultTrack}
+              role="img" aria-label={item.visualPercent + "% των επιχειρήσεων που συμμετείχαν ανέφεραν μείωση πωλήσεων"}>
+              <span style={{ width: item.visualPercent + "%" }} />
+            </div>}
+            {item.comparison && <p className={external.comparison}>{item.comparison}</p>}
+            <p className={external.clarity}>{item.clarity}</p>
+            <p className={external.period}>Πότε: {item.period}</p>
+            <details className={external.details}>
+              <summary>Τι ακριβώς μετρήθηκε;</summary>
+              <div className={external.detailsBody}>
+                <strong>{item.title}</strong>
+                <p>{item.description}</p>
+                <p>{item.context}</p>
+                <p>Πεδίο: {item.geography}</p>
+              </div>
+            </details>
             <a className={external.sourceLink} href={item.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label={"Άνοιγμα πηγής: " + item.sourceName}>
-              {item.sourceName} <span aria-hidden="true">↗</span>
+              Δείτε την αρχική δημοσίευση <span aria-hidden="true">↗</span>
             </a>
           </article>)}
         </div>
