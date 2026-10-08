@@ -53,6 +53,6 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
     : children;
   return <>
     {workspace}
-    <ScopedPwaInstallClient appName="Admin" serviceWorkerPath="/admin-sw.js" scope="/admin" />
+    <ScopedPwaInstallClient appName="Admin" serviceWorkerPath="/admin-sw.js" scope="/admin" showInstallButton={false} />
   </>;
 }
