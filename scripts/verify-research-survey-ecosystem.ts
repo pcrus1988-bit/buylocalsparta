@@ -322,8 +322,9 @@ for (const [label, config] of [["root", researchRootCronConfig], ["web", researc
   )) errors.push(`${label} cron config does not schedule dedicated email worker each minute`);
 }
 
-if (!jobs.includes("e.metadata->>'bounceSubType'='EmailValidationSuppressed'"))
-  errors.push("SES validation-suppressed messages are not separately classified");
+if (!jobs.includes("bounce.bounce_sub_type='EmailValidationSuppressed'") ||
+    !jobs.includes("COALESCE((m.status='bounced'"))
+  errors.push("SES validation-suppressed messages are not separately classified with unknown metadata failing closed");
 if (!jobs.includes("e.metadata->>'providerMessageId'=m.provider_message_id"))
   errors.push("SES suppression classification is not tied to the delivery message");
 if (!jobs.includes("SES_HARD_BOUNCE_RATE_ABOVE_GRADUATED_SAFETY_LIMIT")
