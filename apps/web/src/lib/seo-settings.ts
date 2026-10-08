@@ -12,10 +12,15 @@ export const SEO_GLOBAL_SETTINGS_KEY = "seo.visibility.global.v1";
 export const SEO_SETTINGS_AUDIT_ENTITY = "seo_global_settings";
 
 const LEGACY_SITE_NAME = "ΚΟΝΤΑ ΜΟΥ Sparta";
-export const LOCALIZED_SITE_NAME = "ΚΟΝΤΑ ΜΟΥ Σπάρτη";
+export const LOCALIZED_SITE_NAME = "KONTA MOY";
 
 export function localizeSeoBranding(value: string): string {
-  return value.replaceAll(LEGACY_SITE_NAME, LOCALIZED_SITE_NAME);
+  return value
+    .replace(/KONTA MOY\s*[·—–-]\s*BUY LOCAL SPARTA/gi, LOCALIZED_SITE_NAME)
+    .replaceAll("ΚΟΝΤΑ ΜΟΥ: Η Σπάρτη δίπλα σου", LOCALIZED_SITE_NAME)
+    .replaceAll("ΚΟΝΤΑ ΜΟΥ Σπάρτη", LOCALIZED_SITE_NAME)
+    .replaceAll(LEGACY_SITE_NAME, LOCALIZED_SITE_NAME)
+    .replaceAll("ΚΟΝΤΑ ΜΟΥ", LOCALIZED_SITE_NAME);
 }
 
 export type SeoSitemapSettings = Readonly<{
@@ -76,11 +81,11 @@ export function defaultSeoGlobalSettings(): SeoGlobalSettings {
   return {
     canonicalOrigin: publicOrigin(),
     siteName: LOCALIZED_SITE_NAME,
-    defaultTitle: "ΚΟΝΤΑ ΜΟΥ Σπάρτη | Η τοπική αγορά της Σπάρτης online",
-    titleTemplate: "%s | ΚΟΝΤΑ ΜΟΥ Σπάρτη",
+    defaultTitle: "KONTA MOY | Η τοπική αγορά της Σπάρτης online",
+    titleTemplate: "%s | KONTA MOY",
     defaultDescription: "Ανακάλυψε προϊόντα από καταστήματα της Σπάρτης, πάρε πραγματική συμβουλή από τοπικούς επαγγελματίες και αγόρασε με μία ενιαία εμπειρία checkout.",
     defaultOpenGraphTitle: LOCALIZED_SITE_NAME,
-    defaultOpenGraphDescription: "ΚΟΝΤΑ ΜΟΥ: Η Σπάρτη δίπλα σου",
+    defaultOpenGraphDescription: "Ανακάλυψε τοπικά καταστήματα και προϊόντα στο KONTA MOY.",
     defaultOpenGraphImage: "/brand/kontamou-sparta-logo.webp",
     indexingEnabled: true,
     researchVendorIndexingEnabled: true,

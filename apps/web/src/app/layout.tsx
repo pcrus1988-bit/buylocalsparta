@@ -63,7 +63,7 @@ import { KONTA_MOY_EMAIL_COMPANY } from "@buy-local-sparta/resend-notifications"
 const comfortaa = Comfortaa({ subsets: ["greek", "latin"], display: "swap", variable: "--font-comfortaa" });
 const notoSans = Noto_Sans({ subsets: ["greek", "latin"], display: "swap", variable: "--font-km-sans" });
 
-const LOCAL_COMMERCE_DESCRIPTION = "Το ΚΟΝΤΑ ΜΟΥ είναι πλατφόρμα τοπικού εμπορίου από τη Σπάρτη. Οι πελάτες μπορούν να ανακαλύπτουν προϊόντα, να ζητούν συμβουλή μέσω Ask Local και να αγοράζουν από περισσότερα τοπικά καταστήματα με ένα καλάθι και μία διαδικασία ολοκλήρωσης αγοράς. Για τις μικρές επιχειρήσεις προσφέρει ψηφιακή βιτρίνα, διαχείριση παραγγελιών και εκπλήρωσης, υποστήριξη παράδοσης και πανελλαδική ψηφιακή ορατότητα χωρίς να χρειάζεται να λειτουργούν δικό τους ηλεκτρονικό κατάστημα.";
+const LOCAL_COMMERCE_DESCRIPTION = "Το KONTA MOY είναι πλατφόρμα τοπικού εμπορίου από τη Σπάρτη. Οι πελάτες μπορούν να ανακαλύπτουν προϊόντα, να ζητούν συμβουλή μέσω Ask Local και να αγοράζουν από περισσότερα τοπικά καταστήματα με ένα καλάθι και μία διαδικασία ολοκλήρωσης αγοράς. Για τις μικρές επιχειρήσεις προσφέρει ψηφιακή βιτρίνα, διαχείριση παραγγελιών και εκπλήρωσης, υποστήριξη παράδοσης και πανελλαδική ψηφιακή ορατότητα χωρίς να χρειάζεται να λειτουργούν δικό τους ηλεκτρονικό κατάστημα.";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { settings } = await getSeoGlobalSettingsSnapshot();
@@ -147,7 +147,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       {
         "@type": "Service",
         "@id": serviceId,
-        name: "ΚΟΝΤΑ ΜΟΥ · Υποδομή τοπικού εμπορίου",
+        name: "KONTA MOY",
         alternateName: "KONTA MOU local-commerce platform",
         serviceType: "Local-commerce marketplace and merchant e-commerce infrastructure",
         description: LOCAL_COMMERCE_DESCRIPTION,
