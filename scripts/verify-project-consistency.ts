@@ -369,11 +369,23 @@ function walk(dir: string): string[] {
 
 const appDir = join(root, "apps/web/src/app");
 const routes = new Set<string>(["/"]);
+const dynamicRouteSegments: string[][] = [];
 for (const file of walk(appDir)) {
   if (!file.endsWith(`${sep}page.tsx`)) continue;
   const rel = relative(appDir, file).split(sep).join("/").replace(/\/page\.tsx$/, "");
-  if (!rel || rel.includes("[")) continue;
-  routes.add(`/${rel}`);
+  if (!rel) continue;
+  // A concrete link like /admin/research/surveys/greek-retail-2026 is valid
+  // when the App Router defines /admin/research/surveys/[slug]/page.tsx.
+  if (rel.includes("[")) dynamicRouteSegments.push(rel.split("/"));
+  else routes.add(`/${rel}`);
+}
+function matchesDynamicPageRoute(pathname: string): boolean {
+  const parts = pathname.slice(1).split("/");
+  return dynamicRouteSegments.some((segments) =>
+    segments.length === parts.length && segments.every((segment, index) =>
+      /^\[[^\]/]+\]$/.test(segment) ? parts[index].length > 0 : segment === parts[index]
+    )
+  );
 }
 
 for (const file of walk(join(root, "apps/web/src")).filter((path) => path.endsWith(".tsx"))) {
@@ -385,7 +397,7 @@ for (const file of walk(join(root, "apps/web/src")).filter((path) => path.endsWi
     // API hrefs resolve through app-router route.ts handlers, including dynamic segments.
     // This static check validates navigational page routes only; API contracts have dedicated verifiers.
     if (pathname.startsWith("/api/")) continue;
-    if (!routes.has(pathname)) errors.push(`Broken static Next.js link ${href} in ${relative(root, file)} (no ${pathname} page)`);
+    if (!routes.has(pathname) && !matchesDynamicPageRoute(pathname)) errors.push(`Broken static Next.js link ${href} in ${relative(root, file)} (no ${pathname} page)`);
   }
 }
 

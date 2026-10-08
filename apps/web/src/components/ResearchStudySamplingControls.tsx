@@ -21,7 +21,8 @@ export function ResearchStudySamplingControls({
   latestSampleContactabilityRate,
   latestSampleExpectedCompletes,
   queuedJobs,
-  runningJobs
+  runningJobs,
+  blockingSamplingJobs
 }: {
   slug: string;
   csrfToken: string;
@@ -41,6 +42,7 @@ export function ResearchStudySamplingControls({
   latestSampleExpectedCompletes: number;
   queuedJobs: number;
   runningJobs: number;
+  blockingSamplingJobs: number;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<"frame" | "sample" | null>(null);
@@ -52,6 +54,13 @@ export function ResearchStudySamplingControls({
   const [randomSeed, setRandomSeed] = useState("");
   const [message, setMessage] = useState("");
   const workerBusy = queuedJobs > 0 || runningJobs > 0;
+  // A Cohort B frame importer is independent of Pilot Cohort A sampling.
+  const samplingWorkerBusy = blockingSamplingJobs > 0;
+  const usableFrame = fieldworkPhase === "pilot"
+    ? latestFrameStatus === "frozen" || latestFrameStatus === "superseded"
+    : latestFrameStatus === "frozen";
+  const pilotAlreadyDrawn = fieldworkPhase === "pilot"
+    && (latestSampleStatus === "locked" || latestSampleStatus === "fielded");
   const sampleN = Number(targetN);
   const minSampleN = fieldworkPhase === "pilot" ? 10 : 100;
   const maxSampleN = fieldworkPhase === "pilot" ? 1_000 : 100_000;
@@ -131,25 +140,27 @@ export function ResearchStudySamplingControls({
       <span>
         <strong>Population frame</strong><br />
         {latestFrameStatus
-          ? `Latest: ${latestFrameStatus} · ${framePopulation.toLocaleString("el-GR")} frozen-frame businesses`
-          : "Δεν έχει παγώσει ακόμη population frame."}
+          ? fieldworkPhase === "pilot"
+            ? `Cohort A · original frozen baseline (${latestFrameStatus}) · ${framePopulation.toLocaleString("el-GR")} businesses`
+            : `Latest frozen main frame: ${latestFrameStatus} · ${framePopulation.toLocaleString("el-GR")} businesses`
+          : "No eligible frozen population frame exists for this phase."
         {fieldworkPhase === "main" && pilotHoldoutUnits > 0
           ? ` · ${pilotHoldoutUnits.toLocaleString("el-GR")} pilot holdout → ${effectivePopulation.toLocaleString("el-GR")} main-eligible`
           : ""}
       </span>
       <button
         className="button button-secondary"
-        disabled={Boolean(busy) || workerBusy}
+        disabled={Boolean(busy) || workerBusy || (fieldworkPhase === "pilot" && usableFrame)}
         onClick={() => void buildFrame()}
         type="button"
-      >{busy === "frame" ? "Queueing…" : latestFrameStatus === "frozen" ? "Refresh frame" : "Build frozen frame"}</button>
+      >{busy === "frame" ? "Queueing…" : workerBusy ? "Cohort B build in progress" : fieldworkPhase === "pilot" && usableFrame ? "Cohort A already frozen" : usableFrame ? "Refresh frame" : "Build frozen frame"}</button>
     </div>
 
     <div className="workspace-action-bar">
       <div style={{ width: "100%", display: "grid", gap: 10 }}>
         <span>
           <strong>Fieldwork feasibility & sample planner</strong><br />
-          {fieldworkPhase === "pilot" ? "Pilot" : "Main"} contactability: {effectivePopulation > 0
+          {fieldworkPhase === "pilot" ? "Pilot · Cohort A" : "Main"} contactability: {effectivePopulation > 0
             ? new Intl.NumberFormat("el-GR", { style: "percent", maximumFractionDigits: 2 }).format(contactabilityRate)
             : "—"}
           {" · "}{activeContacts.toLocaleString("el-GR")} active email contacts / {effectivePopulation.toLocaleString("el-GR")} eligible units
@@ -235,7 +246,7 @@ export function ResearchStudySamplingControls({
         />
         <button
           className="button"
-          disabled={Boolean(busy) || workerBusy || latestFrameStatus !== "frozen" || !sampleValid || (fieldworkPhase === "main" && studyStatus !== "fielding")}
+          disabled={Boolean(busy) || samplingWorkerBusy || !usableFrame || !sampleValid || pilotAlreadyDrawn || (fieldworkPhase === "main" && studyStatus !== "fielding")}
           onClick={() => void drawSample()}
           type="button"
         >{busy === "sample" ? "Queueing…" : "Draw reproducible sample"}</button>
@@ -243,9 +254,13 @@ export function ResearchStudySamplingControls({
     </div>
 
     <div className="workspace-inline-note">
-      {message || (workerBusy
-        ? `Worker jobs pending/running: ${queuedJobs + runningJobs}. Frame/sample actions remain locked until the current job finishes.`
-        : "Pilot and main samples are deliberately separate. Pilot draws use diagnostic bounds (10–1,000); main draws use inferential bounds (100–100,000) and exclude every business actually contacted during the pilot.")}
+      {message || (samplingWorkerBusy
+        ? `A sample or delivery job is running (${blockingSamplingJobs}). The draw remains locked until it finishes.`
+        : fieldworkPhase === "pilot" && usableFrame && workerBusy
+          ? "Cohort A is frozen and ready for diagnostic sampling. Cohort B is building independently; do not restart its frame job. No real emails are sent when drawing a sample."
+          : pilotAlreadyDrawn
+            ? "A Pilot sample has already been locked. Review it before considering any additional draw."
+            : "Pilot and main samples are deliberately separate. Pilot draws use diagnostic bounds (10–1,000); main draws use inferential bounds (100–100,000) and exclude every business actually contacted during the pilot.")}
     </div>
   </div>;
 }
