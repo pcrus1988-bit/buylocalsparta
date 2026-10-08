@@ -1350,6 +1350,20 @@ async function claimResearchJob(
         AND job_type = ANY($1::text[])
     `, [allowedJobTypes]);
 
+    // A continuous campaign sends at most ten messages in a work step. A worker
+    // process lost mid-step must not strand the whole approved campaign forever.
+    // Recovery is idempotent for sent messages and FAILS CLOSED for ambiguous
+    // provider handoffs (research_invites.status='created').
+    await client.query(`
+      UPDATE research_study_jobs
+      SET status='queued',available_at=now(),started_at=NULL,finished_at=NULL,
+          error_message='RESEARCH_STALE_CONTINUOUS_STEP_RECOVERED'
+      WHERE status='running' AND job_type='invite_batch'
+        AND input->>'mode'='continuous'
+        AND started_at < now() - interval '15 minutes'
+        AND job_type = ANY($1::text[])
+    `, [allowedJobTypes]);
+
     const result = await client.query<ResearchJobRow>(`
       SELECT id, study_id, wave_id, job_type, input, output, attempts
       FROM research_study_jobs
