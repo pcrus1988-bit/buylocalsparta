@@ -80,6 +80,7 @@ const surveyForm = readFileSync("apps/web/src/components/ResearchSurveyForm.tsx"
 const schemaRollout = readFileSync(".github/workflows/research-survey-schema-rollout.yml", "utf8");
 const schemaPreflight = readFileSync("scripts/research-survey-production-schema.ts", "utf8");
 const jobs = readFileSync("apps/web/src/lib/research-survey-jobs.ts", "utf8");
+const deliverySafety = readFileSync("apps/web/src/lib/research-survey-delivery-safety.ts", "utf8");
 const researchOperationalCron = readFileSync("apps/web/src/app/api/cron/research-study-jobs/route.ts", "utf8");
 const researchEmailCron = readFileSync("apps/web/src/app/api/cron/research-study-email-jobs/route.ts", "utf8");
 const researchRootCronConfig = JSON.parse(readFileSync("vercel.json", "utf8")) as { crons?: Array<{path:string;schedule:string}> };
@@ -324,13 +325,19 @@ if (!jobs.includes("e.metadata->>'bounceSubType'='EmailValidationSuppressed'"))
   errors.push("SES validation-suppressed messages are not separately classified");
 if (!jobs.includes("e.metadata->>'providerMessageId'=m.provider_message_id"))
   errors.push("SES suppression classification is not tied to the delivery message");
-if (!jobs.includes("SES_HARD_BOUNCE_RATE_AT_OR_ABOVE_5_PERCENT")
-    || !jobs.includes("SES_VALIDATION_SUPPRESSION_RATE_AT_OR_ABOVE_5_PERCENT"))
-  errors.push("continuous research campaign lacks independent bounce and suppression safety holds");
-if (!jobs.includes("const deliveryDecisions = metrics.delivered + metrics.hardBounced")
-    || !jobs.includes("metrics.phase")
-    && !jobs.includes("phase: text(row.fieldwork_phase)"))
-  errors.push("campaign bounce guard does not use real delivery decisions by phase");
+if (!jobs.includes("SES_HARD_BOUNCE_RATE_ABOVE_GRADUATED_SAFETY_LIMIT")
+    || !jobs.includes("SES_VALIDATION_SUPPRESSION_RATE_ABOVE_GRADUATED_SAFETY_LIMIT")
+    || !jobs.includes("evaluateResearchDeliverySafety(metrics)")
+    || !jobs.includes("result.hardBounceHold || result.validationHold"))
+  errors.push("continuous research campaign lacks independently enforced hard-bounce and validation-suppression stops");
+if (!deliverySafety.includes("metrics.delivered + metrics.hardBounced")
+    || !deliverySafety.includes("metrics.validationSuppressed / metrics.decided")
+    || !jobs.includes("phase: text(row.fieldwork_phase)"))
+  errors.push("campaign bounce guard does not distinguish real delivery decisions by fieldwork phase");
+if (!deliverySafety.includes("if (decisions < 100) return 0.20")
+    || !deliverySafety.includes("if (decisions < 500) return 0.08")
+    || !deliverySafety.includes("return 0.05"))
+  errors.push("campaign must restore the 5% stop once enough evidence is available");
 if (!jobs.includes("deliverySafety,\n      approvedMaxEmails"))
   errors.push("continuous campaign does not preserve the SES safety breakdown");
 

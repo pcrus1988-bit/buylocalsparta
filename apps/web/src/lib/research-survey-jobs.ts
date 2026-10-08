@@ -9,6 +9,7 @@ import {
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { runGreekRetailAnalysis } from "./research-survey-analysis";
 import { proportionalStratumAllocation } from "./research-survey-statistics";
+import { evaluateResearchDeliverySafety } from "./research-survey-delivery-safety";
 import { buildGreekRetailRelease } from "./research-survey-release";
 import { greekRetailSector, greekRetailSectorV1, isRetailKad, RETAIL_ACTIVITY_GROUP_IDS, RETAIL_CLASSIFICATION_VERSION, RETAIL_SOURCE_REFERENCE } from "./research-kad-coverage";
 import {
@@ -2479,8 +2480,9 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   // SES pre-delivery validation suppressions are not the same as actual
   // delivery failures. Keep a separate 5% safety stop for EACH category.
   // Unknown bounce classifications remain hard bounces (fail closed).
-  // Separately evaluate Pilot and Main, so Pilot results cannot mask elevated
-  // delivery failures during the main campaign.
+  // Separately evaluate Pilot and Main. Small-sample stops rise to 20% for
+  // 20-99 outcomes and 8% for 100-499; the 5% stop returns at 500+.
+  // These are study-level pauses, NOT AWS SES reputation allowances.
   let deliverySafety: Array<{
     phase: string;
     delivered: number;
@@ -2520,19 +2522,18 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       decided: numberValue(row.decided)
     }));
     for (const metrics of deliverySafety) {
-      const deliveryDecisions = metrics.delivered + metrics.hardBounced;
-      const hardBounceHold = deliveryDecisions >= 100
-        && metrics.hardBounced / deliveryDecisions >= 0.05;
-      const validationHold = metrics.decided >= 100
-        && metrics.validationSuppressed / metrics.decided >= 0.05;
-      if (hardBounceHold || validationHold) {
+      const result = evaluateResearchDeliverySafety(metrics);
+      if (result.hardBounceHold || result.validationHold) {
         return {
           __requeue: true,
           __delaySeconds: 300,
-          safetyHold: hardBounceHold
-            ? "SES_HARD_BOUNCE_RATE_AT_OR_ABOVE_5_PERCENT"
-            : "SES_VALIDATION_SUPPRESSION_RATE_AT_OR_ABOVE_5_PERCENT",
+          safetyHold: result.hardBounceHold
+            ? "SES_HARD_BOUNCE_RATE_ABOVE_GRADUATED_SAFETY_LIMIT"
+            : "SES_VALIDATION_SUPPRESSION_RATE_ABOVE_GRADUATED_SAFETY_LIMIT",
           deliverySafety,
+          safetyThreshold: result.hardBounceHold
+            ? result.hardBounceThreshold
+            : result.validationThreshold,
           campaignProcessedCount: campaignProcessed,
           campaignSentCount: campaignSent
         };
