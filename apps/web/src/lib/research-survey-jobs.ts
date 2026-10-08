@@ -2357,15 +2357,53 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   assertResearchSurveyEmailReady();
   const pool = getProductionPostgresRuntime().sqlPool;
   const input = objectValue(job.input);
-  const limit = Math.max(1, Math.min(500, Math.floor(numberValue(input.limit) || 100)));
+  const continuous = text(input.mode) === "continuous";
+  const campaignMax = Math.floor(numberValue(input.limit));
+  const currentOutput = objectValue(job.output);
+  const campaignProcessed = Math.max(0,Math.floor(numberValue(currentOutput.campaignProcessedCount)));
+  const campaignSent = Math.max(0,Math.floor(numberValue(currentOutput.campaignSentCount)));
+  // One authorization covers the locked census; only ten messages are sent
+  // in each resumable processing step, with at least 60 seconds between steps.
+  const limit = continuous
+    ? Math.max(0,Math.min(10,campaignMax-campaignProcessed))
+    : Math.max(1,Math.min(500,Math.floor(numberValue(input.limit) || 100)));
   const fieldworkPhase = text(input.fieldworkPhase) === "pilot" ? "pilot" : "main";
   const cohort = text(input.cohort);
   if (cohort !== "A" && cohort !== "B") throw new Error("RESEARCH_INVITE_COHORT_REQUIRED");
   if (fieldworkPhase === "pilot" && cohort !== "A") throw new Error("RESEARCH_PILOT_REQUIRES_COHORT_A");
+  if (continuous && (fieldworkPhase !== "main" || campaignMax < 1 || campaignMax > 500_000 || campaignProcessed > campaignMax)) {
+    throw new Error("RESEARCH_CONTINUOUS_CAMPAIGN_INVALID");
+  }
+  if (continuous) {
+    // Pause BEFORE sending if real SES bounce evidence is already elevated.
+    // The sample size guard avoids reacting to a handful of early events.
+    const events = await pool.query<SqlRow>(`
+      SELECT count(*) FILTER (WHERE m.status='bounced')::int AS bounced,
+             count(*) FILTER (WHERE m.status IN ('bounced','delivered'))::int AS decided
+      FROM research_invite_messages m
+      JOIN research_invites i ON i.id=m.invite_id
+      WHERE i.study_id=$1 AND m.attempt_kind='initial'
+    `,[job.study_id]);
+    const decided = numberValue(events.rows[0]?.decided);
+    const bounced = numberValue(events.rows[0]?.bounced);
+    if (decided >= 100 && bounced/decided >= 0.05) {
+      return {
+        __requeue: true,
+        __delaySeconds: 300,
+        safetyHold: "SES_BOUNCE_RATE_AT_OR_ABOVE_5_PERCENT",
+        decidedDeliveries: decided,
+        bouncedDeliveries: bounced,
+        campaignProcessedCount: campaignProcessed,
+        campaignSentCount: campaignSent
+      };
+    }
+  }
+  if (continuous && limit === 0) {
+    return { campaignComplete:true,campaignProcessedCount:campaignProcessed,campaignSentCount:campaignSent,approvedMaxEmails:campaignMax };
+  }
   if (fieldworkPhase === "main" && cohort === "B") {
     await assertCohortAOutreachComplete(pool, job.study_id, job.wave_id);
   }
-  const currentOutput = objectValue(job.output);
   let batchId = text(currentOutput.batchId);
   let sampleUnitIds = Array.isArray(currentOutput.sampleUnitIds)
     ? currentOutput.sampleUnitIds.map(text).filter(Boolean)
@@ -2420,9 +2458,10 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       }
 
       const candidates = await client.query<SqlRow>(`
-        SELECT su.id AS sample_unit_id
+        SELECT su.id AS sample_unit_id,su.selection_order
         FROM research_sample_units su
         WHERE su.sample_draw_id=$1
+          AND su.selection_order > $6::int
           AND EXISTS (
             SELECT 1 FROM research_contact_points cp
             WHERE cp.frame_unit_id=su.frame_unit_id
@@ -2456,8 +2495,11 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         ORDER BY su.selection_order
         LIMIT $3
         FOR UPDATE OF su SKIP LOCKED
-      `, [row.sample_draw_id, row.study_id, limit, fieldworkPhase, job.wave_id]);
+      `, [row.sample_draw_id, row.study_id, limit, fieldworkPhase, job.wave_id,continuous ? Math.floor(numberValue(currentOutput.campaignCursor)) : 0]);
       sampleUnitIds = candidates.rows.map((candidate) => text(candidate.sample_unit_id));
+      const cursorAfterBatch = candidates.rows.length
+        ? Math.floor(numberValue(candidates.rows[candidates.rows.length - 1]?.selection_order))
+        : Math.floor(numberValue(currentOutput.campaignCursor));
 
       if (!sampleUnitIds.length) {
         await client.query("COMMIT");
@@ -2466,7 +2508,8 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
           plannedCount: 0,
           sentCount: 0,
           failedCount: 0,
-          reason: "no_contactable_unsent_sample_units"
+          reason: "no_contactable_unsent_sample_units",
+          ...(continuous ? {campaignComplete:true,campaignProcessedCount:campaignProcessed,campaignSentCount:campaignSent,approvedMaxEmails:campaignMax} : {})
         };
       }
 
@@ -2492,10 +2535,11 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         SET output=output || jsonb_build_object(
           'batchId',$2::text,
           'sampleUnitIds',$3::jsonb,
-          'plannedCount',$4::int
+          'plannedCount',$4::int,
+          'campaignCursorAfterBatch',$5::int
         )
         WHERE id=$1
-      `, [job.id, batchId, JSON.stringify(sampleUnitIds), sampleUnitIds.length]);
+      `, [job.id, batchId, JSON.stringify(sampleUnitIds), sampleUnitIds.length,cursorAfterBatch]);
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
@@ -2508,7 +2552,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   const batch = await pool.query<SqlRow>(`
     SELECT
       b.id,b.study_id,b.wave_id,b.sample_draw_id,b.instrument_id,b.recruitment_template_id,b.fieldwork_phase,
-      s.slug,s.title,s.fieldwork_ends_at,
+      s.slug,s.title,s.status AS study_status,s.fieldwork_ends_at,
       rt.subject,rt.body_text,rt.version AS template_version
     FROM research_invite_batches b
     JOIN research_studies s ON s.id=b.study_id
@@ -2518,6 +2562,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   `, [batchId]);
   const batchRow = batch.rows[0];
   if (!batchRow) throw new Error("RESEARCH_INVITE_BATCH_NOT_FOUND");
+  if (continuous && text(batchRow.study_status)!=="fielding") throw new Error("RESEARCH_CAMPAIGN_STUDY_NOT_FIELDING");
   if (text(batchRow.wave_id) !== job.wave_id) throw new Error("RESEARCH_INVITE_BATCH_WAVE_MISMATCH");
   if (batchRow.fieldwork_ends_at && new Date(String(batchRow.fieldwork_ends_at)).getTime() <= Date.now()) {
     throw new Error("SURVEY_INVITE_EXPIRED");
@@ -2550,6 +2595,11 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     if (priorRow && ["sent","opened","started","completed","suppressed"].includes(text(priorRow.status))) {
       alreadySentCount += 1;
       continue;
+    }
+    if (continuous && priorRow && text(priorRow.status) === "created") {
+      // An ambiguous SES handoff must be investigated, never automatically
+      // recreated as a second invitation during a high-volume campaign.
+      throw new Error("RESEARCH_CAMPAIGN_AMBIGUOUS_DELIVERY_REQUIRES_REVIEW");
     }
     if (priorRow && text(priorRow.status) === "created") {
       // A process can terminate after the provider accepted a message but before
@@ -2777,6 +2827,11 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   const batchSentCount = numberValue(sentTotal.rows[0]?.count);
 
   const completed = failedCount === 0;
+  const nextProcessed = campaignProcessed + sampleUnitIds.length;
+  const nextSent = campaignSent + batchSentCount;
+  if (continuous && (nextProcessed > campaignMax || nextSent > campaignMax)) {
+    throw new Error("RESEARCH_CAMPAIGN_AUTHORIZED_LIMIT_EXCEEDED");
+  }
   await pool.query(`
     UPDATE research_invite_batches
     SET status=$2,completed_at=CASE WHEN $2='complete' THEN now() ELSE NULL END
@@ -2793,20 +2848,35 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     alreadySentCount,
     duplicateSkippedCount,
     failedCount,
-    failures: failures.slice(0, 25)
+    failures: failures.slice(0, 25),
+    ...(continuous ? {campaignProcessedCount:nextProcessed,campaignSentCount:nextSent} : {})
   })]);
 
   if (failedCount > 0) {
     throw new Error(`RESEARCH_INVITE_PARTIAL_FAILURE:${failedCount}`);
   }
 
+  if (continuous && nextProcessed < campaignMax) {
+    return {
+      __requeue:true,__delaySeconds:60,
+      batchId:"",sampleUnitIds:[],
+      campaignCursor:Math.floor(numberValue(currentOutput.campaignCursorAfterBatch)),
+      campaignProcessedCount:nextProcessed,campaignSentCount:nextSent,
+      approvedMaxEmails:campaignMax,
+      safetyHold:null,
+      lastBatchSentCount:batchSentCount,
+      lastBatchDuplicateSkippedCount:duplicateSkippedCount,
+      failedCount:0
+    };
+  }
   return {
     batchId,
     plannedCount: sampleUnitIds.length,
     sentCount: batchSentCount,
     alreadySentCount,
     duplicateSkippedCount,
-    failedCount: 0
+    failedCount: 0,
+    ...(continuous ? {campaignComplete:true,campaignProcessedCount:nextProcessed,campaignSentCount:nextSent,approvedMaxEmails:campaignMax} : {})
   };
 }
 
