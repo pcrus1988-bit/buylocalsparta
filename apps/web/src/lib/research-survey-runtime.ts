@@ -7,6 +7,7 @@ import {
   researchQualitySignals,
   scoreGreekRetail2026,
   validateResearchAnswers,
+  researchQuestionApplicable,
   type ResearchAnswer,
   type ResearchAnswerMap,
   type ResearchQuestion
@@ -607,7 +608,16 @@ export async function savePublicResearchSurvey(input: Readonly<{
     const suppliedQuestions = questions
       .filter((question) => suppliedCodes.has(question.code) && question.type !== "experiment")
       .map((question) => ({ ...question, required: false }));
-    const partialValidation = validateResearchAnswers(suppliedQuestions, suppliedAnswers);
+    const priorAnswersResult = await client.query<SqlRow>(`
+      SELECT q.code, a.answer
+      FROM research_answers a JOIN research_questions q ON q.id=a.question_id
+      WHERE a.response_id=$1
+    `, [response.id]);
+    const contextAnswers = {
+      ...Object.fromEntries(priorAnswersResult.rows.map((row) => [text(row.code), row.answer as ResearchAnswer])),
+      ...suppliedAnswers
+    };
+    const partialValidation = validateResearchAnswers(suppliedQuestions, contextAnswers);
     if (partialValidation.invalid.length) throw new Error(`SURVEY_ANSWERS_INVALID:${partialValidation.invalid.join(",")}`);
 
     const questionByCode = new Map(questions.map((question) => [question.code, question]));
@@ -648,6 +658,13 @@ export async function savePublicResearchSurvey(input: Readonly<{
         WHERE a.response_id = $1
       `, [response.id]);
       const allAnswers = Object.fromEntries(allAnswersResult.rows.map((row) => [text(row.code), row.answer as ResearchAnswer]));
+      // Erase answers made inapplicable by changed earlier choices, before locking.
+      for (const question of questions) {
+        if (!researchQuestionApplicable(question, allAnswers) && question.code in allAnswers) {
+          await client.query("DELETE FROM research_answers WHERE response_id=$1 AND question_id=$2", [response.id, question.id]);
+          delete allAnswers[question.code];
+        }
+      }
       const validation = validateResearchAnswers(questions, allAnswers);
       if (!validation.ok) {
         throw new Error(`SURVEY_INCOMPLETE:missing=${validation.missing.join(",")};invalid=${validation.invalid.join(",")}`);

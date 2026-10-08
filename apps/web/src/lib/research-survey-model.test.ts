@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   digitalReadinessBand,
+  greekRetailBusinessConfidence,
+  greekRetailRevenueUpProfitDown,
+  researchQuestionApplicable,
   researchQualitySignals,
   scoreGreekRetail2026,
   validateResearchAnswers,
@@ -138,4 +141,30 @@ test("quality signals flag repetitive open text but preserve plausible short ans
   const plausible = researchQualitySignals({ Q18: "Γραφειοκρατία" }, 240);
   assert.equal(plausible.review, false);
   assert.equal(plausible.score, 100);
+});
+
+test("conditional blocks are hidden and not required outside their routing branch", () => {
+  const question: ResearchQuestion = {
+    id: "offline", code: "Q24", sectionCode: "H", position: 24,
+    type: "multi", prompt: "First online sale", required: true, analysisKey: "first_sale_barriers",
+    config: { showIf: { questionCode: "Q03", noneOf: ["own_eshop","marketplace","social"] }, options: [["cost","Cost"],["none","None"]] }
+  };
+  assert.equal(researchQuestionApplicable(question, { Q03: ["physical"] }), true);
+  assert.equal(researchQuestionApplicable(question, { Q03: ["physical","own_eshop"] }), false);
+  assert.deepEqual(validateResearchAnswers([question], { Q03: ["physical","own_eshop"] }).missing, []);
+  assert.deepEqual(validateResearchAnswers([question], { Q03: ["physical"] }).missing, ["Q24"]);
+});
+
+test("business confidence is a transparent three-item score with minimum evidence", () => {
+  assert.equal(greekRetailBusinessConfidence({ Q20: 10, Q17: "up_large", Q21: "up_large" }), 100);
+  assert.equal(greekRetailBusinessConfidence({ Q20: 0, Q17: "down_large", Q21: "down_large" }), 0);
+  assert.equal(greekRetailBusinessConfidence({ Q20: 5, Q17: "stable", Q21: "stable" }), 50);
+  assert.equal(greekRetailBusinessConfidence({ Q20: 5 }), undefined);
+  assert.equal(greekRetailBusinessConfidence({ Q20: 11, Q17: "unknown" }), undefined);
+});
+
+test("revenue and profit divergence requires both valid observed trends", () => {
+  assert.equal(greekRetailRevenueUpProfitDown({ Q19: { turnover: "up_small", profitability: "down_large" } }), true);
+  assert.equal(greekRetailRevenueUpProfitDown({ Q19: { turnover: "stable", profitability: "down_small" } }), false);
+  assert.equal(greekRetailRevenueUpProfitDown({ Q19: { turnover: "up_small", profitability: "unknown" } }), undefined);
 });
