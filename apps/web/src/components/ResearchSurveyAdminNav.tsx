@@ -70,8 +70,8 @@ export function ResearchSurveyAdminNav({
         Everything below applies only to this survey. Global Research configuration is kept separately.
       </span>
       <div className="workspace-action-buttons" style={{ flexWrap: "wrap" }}>
-        <Link className="button button-secondary" href="/admin/research/surveys">All surveys</Link>
-        <Link className="button button-secondary" href="/admin/research/settings">Global Research settings</Link>
+        <Link prefetch={false} className="button button-secondary" href="/admin/research/surveys">All surveys</Link>
+        <Link prefetch={false} className="button button-secondary" href="/admin/research/settings">Global Research settings</Link>
       </div>
     </div>
 
