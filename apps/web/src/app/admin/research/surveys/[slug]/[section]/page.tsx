@@ -118,6 +118,7 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
           cohortBSampleStatus={cohorts?.b.sampleStatus}
           cohortBRecruitmentMode={cohorts?.b.recruitmentMode}
           cohortBSampleSelected={cohorts?.b.sampleSelected}
+          campaign={study.campaign}
           queuedSampleJobs={study.queuedSampleJobs}
           runningSampleJobs={study.runningSampleJobs}
           recruitmentTemplateVersion={study.recruitmentTemplateVersion}
