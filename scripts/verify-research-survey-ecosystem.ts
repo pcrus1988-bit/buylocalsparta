@@ -515,8 +515,8 @@ if (!jobs.includes("status='queued',attempts=0") ||
     !jobs.includes("assertQueuedResearchEmailApproval(job)")) {
   errors.push("recovery must preserve double approval and remain paused with no automatic SES send");
 }
-if (!jobs.includes("prior.sent_at IS NOT NULL OR prior.status='created'") ||
-    !jobs.includes("m.attempt_kind='initial'") ||
+if (!jobs.includes("Treat ANY previous invite row") ||
+    !jobs.includes("prior_cp.contact_value_hash=$2") ||
     !jobs.includes("duplicateSkippedCount += 1")) {
   errors.push("attempt-level shared-inbox dedupe must skip SES-ambiguous/failed contact attempts");
 }
