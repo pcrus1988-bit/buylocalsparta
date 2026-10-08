@@ -56,6 +56,45 @@ export async function sendResearchSurveyInvitation(input: Readonly<{
   companyName?: string;
 }>): Promise<Readonly<{ providerMessageId: string }>> {
   const configuration = assertResearchSurveyEmailReady();
+  const { subject, text, html } = previewResearchRecruitmentEmail(input);
+
+  const fromAddress = mailAddress(configuration.from, "KONTA MOY Research");
+  const replyToAddress = mailAddress(configuration.replyTo);
+  const mime = buildAdminMailRawMime({
+    from: fromAddress,
+    to: [{ address: input.destination }],
+    replyTo: [replyToAddress],
+    subject,
+    text,
+    html,
+    internetMessageIdDomain: DEFAULT_DOMAIN
+  });
+
+  return sendRawSesEmail({
+    config: sesMailConfigFromEnv(),
+    raw: mime.raw,
+    from: formatEnvelopeFrom(configuration.from),
+    to: [input.destination],
+    configurationSetName: configuration.configurationSetName,
+    emailTags: [
+      { name: "research_study", value: safeTagValue(input.studySlug) },
+      { name: "research_invite", value: safeTagValue(input.inviteId) },
+      ...(input.batchId ? [{ name: "research_batch", value: safeTagValue(input.batchId) }] : []),
+      ...(input.attemptId ? [{ name: "research_attempt", value: safeTagValue(input.attemptId) }] : []),
+      ...(input.attemptKind ? [{ name: "research_attempt_kind", value: safeTagValue(input.attemptKind) }] : [])
+    ]
+  });
+}
+
+export function previewResearchRecruitmentEmail(input: Readonly<{
+  studyTitle: string;
+  surveyUrl: string;
+  methodologyUrl: string;
+  subjectTemplate: string;
+  bodyTemplate: string;
+  companyName?: string;
+  attemptKind?: "initial" | "reminder";
+}>): Readonly<{ subject: string; text: string; html: string }> {
   const optOutUrl = `${input.surveyUrl}?optout=1`;
   const privacyUrl = new URL("/research/privacy", input.surveyUrl).toString();
   const companyName = input.companyName?.trim() || "";
@@ -92,41 +131,14 @@ export async function sendResearchSurveyInvitation(input: Readonly<{
   }
   text += `\n\n${researchPlainTextFooter()}`;
 
-  const fromAddress = mailAddress(configuration.from, "KONTA MOY Research");
-  const replyToAddress = mailAddress(configuration.replyTo);
-  const mime = buildAdminMailRawMime({
-    from: fromAddress,
-    to: [{ address: input.destination }],
-    replyTo: [replyToAddress],
+  return {
     subject,
     text,
     html: researchInvitationHtml({
-      subject,
-      text,
-      surveyUrl: input.surveyUrl,
-      methodologyUrl: input.methodologyUrl,
-      privacyUrl,
-      optOutUrl,
-      companyName,
-      attemptKind: input.attemptKind
-    }),
-    internetMessageIdDomain: DEFAULT_DOMAIN
-  });
-
-  return sendRawSesEmail({
-    config: sesMailConfigFromEnv(),
-    raw: mime.raw,
-    from: formatEnvelopeFrom(configuration.from),
-    to: [input.destination],
-    configurationSetName: configuration.configurationSetName,
-    emailTags: [
-      { name: "research_study", value: safeTagValue(input.studySlug) },
-      { name: "research_invite", value: safeTagValue(input.inviteId) },
-      ...(input.batchId ? [{ name: "research_batch", value: safeTagValue(input.batchId) }] : []),
-      ...(input.attemptId ? [{ name: "research_attempt", value: safeTagValue(input.attemptId) }] : []),
-      ...(input.attemptKind ? [{ name: "research_attempt_kind", value: safeTagValue(input.attemptKind) }] : [])
-    ]
-  });
+      subject, text, surveyUrl: input.surveyUrl, methodologyUrl: input.methodologyUrl,
+      privacyUrl, optOutUrl, companyName, attemptKind: input.attemptKind
+    })
+  };
 }
 
 export async function sendResearchThankYouCode(input: Readonly<{
