@@ -2628,8 +2628,8 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       WITH classified AS (
         SELECT i.fieldwork_phase,m.status,
           bounce.bounce_type,bounce.bounce_sub_type,
-          (m.status='bounced' AND bounce.bounce_type='Permanent'
-            AND bounce.bounce_sub_type='EmailValidationSuppressed') AS validation_suppressed
+          COALESCE((m.status='bounced' AND bounce.bounce_type='Permanent'
+            AND bounce.bounce_sub_type='EmailValidationSuppressed'),false) AS validation_suppressed
         FROM research_invite_messages m
         JOIN research_invites i ON i.id=m.invite_id
         LEFT JOIN LATERAL (
