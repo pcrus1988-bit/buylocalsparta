@@ -357,6 +357,7 @@ export function ResearchSurveyQuestionsEditor({
   const instrument = data.instrument;
   const editable = Boolean(canEdit && data.study.status === "draft" && instrument?.status === "draft");
   const canCreateRevision = Boolean(canEdit && data.study.status === "draft" && instrument && instrument.status !== "draft");
+  const canLockQuestionnaire = Boolean(editable && data.questions.length > 0);
 
   async function createRevision() {
     setBusy(true);
@@ -367,6 +368,39 @@ export function ResearchSurveyQuestionsEditor({
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Editable revision could not be created.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function lockQuestionnaire() {
+    if (!instrument || !canLockQuestionnaire) return;
+    const confirmed = window.confirm(
+      "Lock this questionnaire version?\\n\\n" +
+      "Version: " + instrument.version + "\\n" +
+      "Questions: " + data.questions.length + "\\n" +
+      "Fingerprint: " + instrument.contentSha256 + "\\n\\n" +
+      "The questions will become read-only. Any later changes require a new draft revision. " +
+      "This does not lock the evaluation plan, start the pilot, or send invitations."
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      await designPost(slug, csrfToken, {
+        action: "lock_instrument",
+        expectedInstrumentVersion: instrument.version,
+        expectedInstrumentSha256: instrument.contentSha256
+      });
+      setMessage("Questionnaire locked: " + instrument.version + ".");
+      router.refresh();
+    } catch (error) {
+      if (error instanceof Error && error.message === "RESEARCH_INSTRUMENT_CHANGED_REFRESH") {
+        setMessage("The draft was changed since this page loaded. Refresh and review its current fingerprint before locking.");
+        router.refresh();
+      } else {
+        setMessage(error instanceof Error ? error.message : "Questionnaire could not be locked.");
+      }
     } finally {
       setBusy(false);
     }
@@ -392,12 +426,22 @@ export function ResearchSurveyQuestionsEditor({
           {canCreateRevision ? " Create a new draft revision to make changes before fieldwork begins." : ""}
         </div>}
 
+    {editable && <div className="workspace-action-bar">
+      <span><strong>Ready to freeze this questionnaire?</strong><br />
+        Lock version <strong>{instrument.version}</strong> with {data.questions.length} question(s) and its current fingerprint.
+        <br /><small>Locking prevents further edits to this version. It does not lock the evaluation plan, start the pilot or send invitations.</small>
+      </span>
+      <button className="button" disabled={busy || !canLockQuestionnaire} onClick={() => void lockQuestionnaire()} type="button">
+        {busy ? "Locking…" : "Lock questionnaire"}
+      </button>
+    </div>}
+
     {canCreateRevision && <div className="workspace-action-bar">
       <span><strong>Need to change a locked questionnaire?</strong><br />Create a new draft version with the same questions and a matching draft evaluation plan.</span>
       <button className="button" disabled={busy} onClick={() => void createRevision()} type="button">{busy ? "Creating…" : "Create editable revision"}</button>
     </div>}
 
-    {message && <div className={message.startsWith("Editable") ? "workspace-inline-note" : "workspace-inline-note form-error"}>{message}</div>}
+    {message && <div role="status" className={message.startsWith("Editable") || message.startsWith("Questionnaire locked:") ? "workspace-inline-note" : "workspace-inline-note form-error"}>{message}</div>}
 
     <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
       {data.questions.map((question, index) => <QuestionEditorCard
