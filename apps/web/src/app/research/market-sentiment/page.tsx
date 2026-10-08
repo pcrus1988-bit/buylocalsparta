@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../../components/SiteFooter";
+import { ResearchExternalAnalysis } from "../../../components/ResearchExternalAnalysis";
 import styles from "../../../components/ResearchObservatory.module.css";
 import external from "../../../components/ResearchExternalSources.module.css";
 import { governedStaticSeoMetadata } from "../../../lib/seo-metadata";
@@ -146,6 +147,8 @@ export default function ExternalMarketSentimentPage() {
           <span>Τα στοιχεία αποδίδονται στους οργανισμούς που τα δημοσίευσαν. Δεν αποτελούν αποτελέσματα έρευνας του KONTA MOY.</span>
         </aside>
       </header>
+
+      <ResearchExternalAnalysis />
 
       <nav className={external.jumpNav} aria-label="Θεματικές εξωτερικών ερευνών">
         {sections.map((section) => <a href={"#" + section.id} key={section.id}>{section.eyebrow} <span aria-hidden="true">↗</span></a>)}
