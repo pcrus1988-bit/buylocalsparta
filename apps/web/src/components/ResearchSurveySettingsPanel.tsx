@@ -23,7 +23,7 @@ export function ResearchSurveySettingsPanel({
   const [methodologySummary, setMethodologySummary] = useState(data.study.methodologySummary);
   const [defaultLocale, setDefaultLocale] = useState(data.study.defaultLocale || "el-GR");
   const [fieldworkEndsAt, setFieldworkEndsAt] = useState(isoToAthensDeadlineInput(data.study.fieldworkEndsAt));
-  const [publicResultsUrl, setPublicResultsUrl] = useState(data.study.publicResultsUrl ?? "");
+  const publicResultsUrl = data.study.publicResultsUrl ?? "";
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -49,8 +49,7 @@ export function ResearchSurveySettingsPanel({
           populationDefinition,
           methodologySummary,
           defaultLocale,
-          fieldworkEndsAt: fieldworkEndsAt ? athensDeadlineInputToIso(fieldworkEndsAt) : "",
-          publicResultsUrl
+          fieldworkEndsAt: fieldworkEndsAt ? athensDeadlineInputToIso(fieldworkEndsAt) : ""
         })
       });
       const result = await response.json();
@@ -176,17 +175,29 @@ export function ResearchSurveySettingsPanel({
         </label>
       </div>
 
-      <label>
-        <strong>Public results URL</strong><br />
+      <div>
+        <label htmlFor="research-public-results-url"><strong>Public results URL · Αυτόματος σύνδεσμος</strong></label>
         <input
-          disabled={!editable}
-          onChange={(event) => setPublicResultsUrl(event.target.value)}
-          placeholder="https://kontamou.site/research/…/results"
-          style={{ width: "100%" }}
+          id="research-public-results-url"
+          aria-label="Public results URL"
+          readOnly
+          style={{ width: "100%", marginTop: 6 }}
           type="url"
           value={publicResultsUrl}
         />
-      </label>
+        <div className="workspace-action-buttons" style={{ marginTop: 8 }}>
+          <a className="button button-secondary" href={publicResultsUrl} target="_blank" rel="noreferrer noopener">
+            Open public results page ↗
+          </a>
+          <button className="button button-secondary" type="button"
+            onClick={() => void navigator.clipboard.writeText(publicResultsUrl)
+              .then(() => setMessage("Results URL copied."))
+              .catch(() => setMessage("Unable to copy automatically. Select the URL and copy it."))}>
+            Copy results URL
+          </button>
+        </div>
+        <small>Generated automatically from this survey's current wave. The link works before publication and displays a holding page until reviewed results are released. The address is read-only and is not a publication action.</small>
+      </div>
 
       {pilotDeadlineEditable && <div className="workspace-action-buttons">
         <button className="button" disabled={busy || !fieldworkEndsAt} onClick={() => void savePilotDeadline()} type="button">
@@ -201,7 +212,7 @@ export function ResearchSurveySettingsPanel({
         </button>
       </div>}
 
-      {message && <div className={["Survey settings saved.", "Pilot deadline saved."].includes(message) ? "workspace-inline-note" : "workspace-inline-note form-error"}>
+      {message && <div className={["Survey settings saved.", "Pilot deadline saved.", "Results URL copied."].includes(message) ? "workspace-inline-note" : "workspace-inline-note form-error"}>
         {message}
       </div>}
     </div>
