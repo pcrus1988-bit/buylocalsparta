@@ -69,7 +69,7 @@ async function ResearchSurveyLiveOverview({ principal, slug }: {
     <WorkspaceMetricStrip items={[
       { label: "Population frame", value: study.framePopulation.toLocaleString("el-GR"), hint: String(study.frameCount) + " snapshot(s)" },
       { label: "Selected sample", value: study.sampleUnits.toLocaleString("el-GR"), hint: String(study.sampleDrawCount) + " draw(s)" },
-      { label: "Contacts", value: "Dedicated workspace", hint: "Live contactability, bounces and opt-outs are available in Contacts" },
+      { label: "Email contacts", value: study.snapshotActiveContacts === undefined ? "—" : study.snapshotActiveContacts.toLocaleString("el-GR"), hint: "Active at frozen-frame snapshot · use Contacts for live statuses" },
       { label: "Invitations", value: study.invites.toLocaleString("el-GR"), hint: String(study.inviteBatches) + " batch(es)" },
       { label: "Completed", value: study.completed.toLocaleString("el-GR"), hint: percentage(study.completed, study.sent) + " of sent" }
     ]} />
