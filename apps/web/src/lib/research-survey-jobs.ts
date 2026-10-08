@@ -468,11 +468,13 @@ export async function saveGreekRetailRecruitmentTemplate(
 
 export async function queueGreekRetailInviteBatch(
   principal: SessionPrincipal,
-  input: Readonly<{ limit?: number; label?: string; emailApproval?: ResearchEmailBatchApproval }>
+  input: Readonly<{ limit?: number; label?: string; cohort?: "A" | "B"; emailApproval?: ResearchEmailBatchApproval }>
 ): Promise<{ jobId: string }> {
   assertAdminPermission(principal, "research.fieldwork.manage");
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   assertResearchSurveyEmailReady();
+  const cohort = input.cohort;
+  if (cohort !== "A" && cohort !== "B") throw new Error("RESEARCH_INVITE_COHORT_REQUIRED");
   const limit = Math.max(1, Math.min(500, Math.floor(input.limit ?? 100)));
   const pool = getProductionPostgresRuntime().sqlPool;
   const study = await pool.query<SqlRow>(`
@@ -484,6 +486,8 @@ export async function queueGreekRetailInviteBatch(
           AND d.wave_id=s.current_wave_id
           AND d.status IN ('locked','fielded')
           AND d.fieldwork_phase=CASE WHEN s.status='pilot' THEN 'pilot' ELSE 'main' END
+          AND EXISTS (SELECT 1 FROM research_sample_designs ds
+            WHERE ds.sample_draw_id=d.id AND ds.design_json->>'cohort'=$2)
       ) AS sample_ready,
       EXISTS(
         SELECT 1 FROM research_recruitment_templates rt
@@ -493,12 +497,23 @@ export async function queueGreekRetailInviteBatch(
     FROM research_studies s
     WHERE s.slug=$1
     LIMIT 1
-  `, [STUDY_SLUG]);
+  `, [STUDY_SLUG, cohort]);
   const row = study.rows[0];
   if (!row) throw new Error("RESEARCH_STUDY_NOT_FOUND");
   if (!text(row.current_wave_id)) throw new Error("RESEARCH_CURRENT_WAVE_MISSING");
   if (!["pilot","fielding"].includes(text(row.status))) throw new Error("SURVEY_NOT_OPEN");
   const fieldworkPhase = text(row.status) === "pilot" ? "pilot" : "main";
+  if (fieldworkPhase === "pilot" && cohort !== "A") throw new Error("RESEARCH_PILOT_REQUIRES_COHORT_A");
+  if (fieldworkPhase === "main" && cohort === "B") {
+    const priorA = await pool.query<SqlRow>(`
+      SELECT EXISTS(SELECT 1 FROM research_invites ri
+        JOIN research_sample_units su ON su.id=ri.sample_unit_id
+        JOIN research_sample_designs ds ON ds.sample_draw_id=su.sample_draw_id
+        WHERE ri.study_id=$1 AND ri.wave_id=$2 AND ri.fieldwork_phase='main'
+          AND ri.sent_at IS NOT NULL AND ds.design_json->>'cohort'='A') AS launched
+    `, [row.id, row.current_wave_id]);
+    if (!Boolean(priorA.rows[0]?.launched)) throw new Error("RESEARCH_COHORT_B_REQUIRES_A_FIRST");
+  }
   assertResearchEmailBatchApproval(input.emailApproval, {
     studyTitle: text(row.title),
     purpose: "research_invitation",
@@ -522,7 +537,8 @@ export async function queueGreekRetailInviteBatch(
         'limit',$3::int,
         'label',$4::text,
         'fieldworkPhase',$5::text,
-        'emailApproval',$6::jsonb
+        'emailApproval',$6::jsonb,
+        'cohort',$7::text
       )
     )
     RETURNING id
@@ -532,7 +548,8 @@ export async function queueGreekRetailInviteBatch(
     limit,
     input.label?.trim() || `${fieldworkPhase}-research-email-${new Date().toISOString()}`,
     fieldworkPhase,
-    JSON.stringify(input.emailApproval)
+    JSON.stringify(input.emailApproval),
+    cohort
   ]);
   return { jobId: text(job.rows[0]!.id) };
 }
