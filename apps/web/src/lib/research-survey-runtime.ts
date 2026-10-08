@@ -1720,7 +1720,7 @@ export async function researchSurveyOperationsOverview(
   const studyId = text(studyRow.id);
   const waveId = text(studyRow.current_wave_id);
 
-  const includeAll = section === "all";
+  const includeAll = false; // Never preload other operations for the retired all-in-one view.
   const emptyRows: { rows: readonly SqlRow[] } = { rows: [] };
 
   const templates = includeAll || section === "templates"
@@ -1735,136 +1735,12 @@ export async function researchSurveyOperationsOverview(
   `, [studyId, waveId || null])
     : emptyRows;
 
-  const contactSql = canViewContactValues ? `
-    WITH latest_frame AS (
-      SELECT id
-      FROM research_frame_snapshots
-      WHERE study_id=$1
-      ORDER BY created_at DESC
-      LIMIT 1
-    )
-    SELECT
-      cp.id,
-      cp.contact_value,
-      cp.suppression_status,
-      cp.source_kind,
-      fu.sampling_attributes->>'legalName' AS legal_name,
-      fu.sampling_attributes->>'prefecture' AS prefecture,
-      fu.sampling_attributes->>'municipality' AS municipality,
-      COALESCE((
-        SELECT string_agg(code, ', ' ORDER BY code)
-        FROM jsonb_array_elements_text(
-          COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb)
-        ) AS code
-      ), '') AS kad_codes,
-      invite.id AS invite_id,
-      invite.status AS invite_status,
-      invite.sent_at AS invite_sent_at,
-      invite.expires_at AS invite_expires_at,
-      count(*) OVER ()::int AS total_count
-    FROM research_private.contact_points_with_value cp
-    JOIN research_frame_units fu ON fu.id=cp.frame_unit_id
-    LEFT JOIN LATERAL (
-      SELECT ri.id,ri.status,ri.sent_at,ri.expires_at
-      FROM research_invites ri
-      WHERE ri.contact_point_id=cp.id
-        AND ri.study_id=$1
-        AND ($2::uuid IS NULL OR ri.wave_id=$2::uuid)
-      ORDER BY ri.created_at DESC
-      LIMIT 1
-    ) invite ON true
-    WHERE fu.frame_snapshot_id=(SELECT id FROM latest_frame)
-      AND cp.contact_type='email'
-    ORDER BY cp.created_at DESC
-    LIMIT 200
-  ` : `
-    WITH latest_frame AS (
-      SELECT id
-      FROM research_frame_snapshots
-      WHERE study_id=$1
-      ORDER BY created_at DESC
-      LIMIT 1
-    )
-    SELECT
-      cp.id,
-      NULL::text AS contact_value,
-      cp.suppression_status,
-      cp.source_kind,
-      fu.sampling_attributes->>'legalName' AS legal_name,
-      fu.sampling_attributes->>'prefecture' AS prefecture,
-      fu.sampling_attributes->>'municipality' AS municipality,
-      COALESCE((
-        SELECT string_agg(code, ', ' ORDER BY code)
-        FROM jsonb_array_elements_text(
-          COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb)
-        ) AS code
-      ), '') AS kad_codes,
-      invite.id AS invite_id,
-      invite.status AS invite_status,
-      invite.sent_at AS invite_sent_at,
-      invite.expires_at AS invite_expires_at,
-      count(*) OVER ()::int AS total_count
-    FROM research_contact_points cp
-    JOIN research_frame_units fu ON fu.id=cp.frame_unit_id
-    LEFT JOIN LATERAL (
-      SELECT ri.id,ri.status,ri.sent_at,ri.expires_at
-      FROM research_invites ri
-      WHERE ri.contact_point_id=cp.id
-        AND ri.study_id=$1
-        AND ($2::uuid IS NULL OR ri.wave_id=$2::uuid)
-      ORDER BY ri.created_at DESC
-      LIMIT 1
-    ) invite ON true
-    WHERE fu.frame_snapshot_id=(SELECT id FROM latest_frame)
-      AND cp.contact_type='email'
-    ORDER BY cp.created_at DESC
-    LIMIT 200
-  `;
-  const contacts = includeAll || section === "contacts"
-    ? await pool.query<SqlRow>(contactSql, [studyId, waveId || null])
-    : emptyRows;
-
-  const invitationSql = canViewContactValues ? `
-    SELECT
-      ri.id,
-      cp.contact_value,
-      ri.status,
-      ri.fieldwork_phase,
-      ib.label AS batch_label,
-      ri.sent_at,
-      ri.expires_at,
-      rr.status AS response_status,
-      ri.created_at
-    FROM research_invites ri
-    LEFT JOIN research_private.contact_points_with_value cp ON cp.id=ri.contact_point_id
-    LEFT JOIN research_invite_batches ib ON ib.id=ri.batch_id
-    LEFT JOIN research_responses rr ON rr.invite_id=ri.id
-    WHERE ri.study_id=$1
-      AND ($2::uuid IS NULL OR ri.wave_id=$2::uuid)
-    ORDER BY ri.created_at DESC
-    LIMIT 200
-  ` : `
-    SELECT
-      ri.id,
-      NULL::text AS contact_value,
-      ri.status,
-      ri.fieldwork_phase,
-      ib.label AS batch_label,
-      ri.sent_at,
-      ri.expires_at,
-      rr.status AS response_status,
-      ri.created_at
-    FROM research_invites ri
-    LEFT JOIN research_invite_batches ib ON ib.id=ri.batch_id
-    LEFT JOIN research_responses rr ON rr.invite_id=ri.id
-    WHERE ri.study_id=$1
-      AND ($2::uuid IS NULL OR ri.wave_id=$2::uuid)
-    ORDER BY ri.created_at DESC
-    LIMIT 200
-  `;
-  const invitations = includeAll || section === "invitations"
-    ? await pool.query<SqlRow>(invitationSql, [studyId, waveId || null])
-    : emptyRows;
+  // Legacy all-in-one operations used to fetch/decrypt 200 contact and invite
+  // records and run COUNT(*) OVER () as soon as an Admin page opened.
+  // Both directories are now search-only via researchDirectorySearch. Do not
+  // execute these queries, even if a legacy caller requests 'all'.
+  const contacts = emptyRows;
+  const invitations = emptyRows;
 
   const kadGroups = includeAll || section === "kad"
     ? await pool.query<SqlRow>(`
