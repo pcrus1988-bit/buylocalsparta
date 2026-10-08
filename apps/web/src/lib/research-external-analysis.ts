@@ -128,13 +128,13 @@ export function externalChange(first: number, last: number): number {
 }
 
 export function externalCsvCell(value: string | number): string {
-  const safe = String(value).replace(/^[\s]*[=+\-@]/, (prefix) => "'" + prefix);
+  const safe = typeof value === "number" ? String(value) : value.replace(/^[\s]*[=+\-@]/, (prefix) => "'" + prefix);
   return '"' + safe.replace(/"/g, '""') + '"';
 }
 
 export function externalCsv(group: ExternalGroup, chosenIds: readonly string[], start: number, end: number): string {
   const rows: (string | number)[][] = [["indicator","series","year","period","value","unit","source"]];
-  const sources = group.sourceIds.join("; ");
+  const sources = group.sourceIds.map(id => EXTERNAL_STUDIES.find(study => study.id === id)?.url ?? id).join("; ");
   for (const line of group.series) {
     if (!chosenIds.includes(line.id)) continue;
     for (const point of line.points) {
