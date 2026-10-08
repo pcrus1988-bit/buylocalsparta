@@ -408,7 +408,7 @@ export function ResearchSurveyForm({ slug, token, initial, initialOptOutIntent =
 
   if (!started) {
     return <div className={styles.consent}>
-      {!initialOptOutIntent && <ResearchPurposeCards compact />}
+      {!initialOptOutIntent && initial.study.slug === "greek-retail-2026" && <ResearchPurposeCards compact />}
       <span className={styles.kicker}>Πριν ξεκινήσετε</span>
       <h2>Συγκατάθεση συμμετοχής</h2>
       <div className={styles.consentFacts}>
