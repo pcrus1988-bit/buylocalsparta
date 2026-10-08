@@ -2123,7 +2123,7 @@ async function transitionResearchStudyInternal(
       instrumentStatus = "fielding";
     } else if (input.action === "start_fielding") {
       if (Boolean(row.deadline_reached)) throw new Error("RESEARCH_FIELDWORK_DEADLINE_ELAPSED");
-      if (["draft", "pilot"].includes(studyStatus) || !["locked", "fielding"].includes(instrumentStatus)) {
+      if (!["draft", "pilot"].includes(studyStatus) || !["locked", "fielding"].includes(instrumentStatus)) {
         throw new Error("RESEARCH_LIFECYCLE_INVALID");
       }
       const readiness = await client.query<SqlRow>(`
