@@ -1358,20 +1358,13 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       ORDER BY fs.created_at DESC
       LIMIT 1
     ) lf ON true
+    -- Only scan pilot invitation identities; never rescan the entire frozen frame.
     LEFT JOIN LATERAL (
-      SELECT count(*)::int AS exposed_units
-      FROM research_frame_units fu
-      WHERE fu.frame_snapshot_id=lf.id
-        AND EXISTS (
-          SELECT 1
-          FROM research_invites pri
-          JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
-          JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
-          WHERE pri.study_id=s.id
-            AND pri.fieldwork_phase='pilot'
-            AND pri.sent_at IS NOT NULL
-            AND pfu.external_key_hash=fu.external_key_hash
-        )
+      SELECT count(DISTINCT pfu.external_key_hash)::int AS exposed_units
+      FROM research_invites pri
+      JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+      JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
+      WHERE pri.study_id=s.id AND pri.fieldwork_phase='pilot' AND pri.sent_at IS NOT NULL
     ) ph ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS draws
@@ -1397,37 +1390,21 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       ORDER BY d.created_at DESC
       LIMIT 1
     ) ls ON true
+    -- Snapshot summary captured at frame build. No large email table scan on navigation.
+    -- Do not interpret these as live suppression/bounce totals.
     LEFT JOIN LATERAL (
       SELECT
-        count(DISTINCT fu.id) FILTER (
-          WHERE cp.contact_type='email'
-            AND cp.suppression_status='active'
-            AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
-        ) AS active_contacts,
-        count(DISTINCT fu.id) FILTER (
-          WHERE cp.contact_type='email'
-            AND cp.suppression_status IN ('suppressed','invalid')
-        ) AS suppressed_contacts,
-        count(DISTINCT fu.id) FILTER (
-          WHERE cp.contact_type='email'
-            AND cp.suppression_status='bounced'
-        ) AS bounced_contacts
-      FROM research_frame_units fu
-      JOIN research_contact_points cp ON cp.frame_unit_id = fu.id
-      WHERE fu.frame_snapshot_id = lf.id
-        AND (
-          s.status IN ('draft','pilot')
-          OR NOT EXISTS (
-            SELECT 1
-            FROM research_invites pri
-            JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
-            JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
-            WHERE pri.study_id=s.id
-              AND pri.fieldwork_phase='pilot'
-              AND pri.sent_at IS NOT NULL
-              AND pfu.external_key_hash=fu.external_key_hash
-          )
-        )
+        GREATEST((j.output->>'activeEmailCount')::int -
+          CASE WHEN s.status IN ('fielding','closed','analysis','published','archived')
+            THEN COALESCE(ph.exposed_units,0) ELSE 0 END, 0) AS active_contacts,
+        0::int AS suppressed_contacts,
+        0::int AS bounced_contacts
+      FROM research_study_jobs j
+      WHERE j.study_id=s.id AND j.job_type='frame_snapshot'
+        AND j.status='succeeded'
+        AND j.output->>'frameSnapshotId'=lf.id::text
+        AND j.output->>'activeEmailCount' ~ '^[0-9]+$'
+      ORDER BY j.finished_at DESC LIMIT 1
     ) cp ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS batches
@@ -1743,7 +1720,7 @@ export async function researchSurveyOperationsOverview(
   const studyId = text(studyRow.id);
   const waveId = text(studyRow.current_wave_id);
 
-  const includeAll = section === "all";
+  const includeAll = false; // Never preload other operations for the retired all-in-one view.
   const emptyRows: { rows: readonly SqlRow[] } = { rows: [] };
 
   const templates = includeAll || section === "templates"
@@ -1758,136 +1735,12 @@ export async function researchSurveyOperationsOverview(
   `, [studyId, waveId || null])
     : emptyRows;
 
-  const contactSql = canViewContactValues ? `
-    WITH latest_frame AS (
-      SELECT id
-      FROM research_frame_snapshots
-      WHERE study_id=$1
-      ORDER BY created_at DESC
-      LIMIT 1
-    )
-    SELECT
-      cp.id,
-      cp.contact_value,
-      cp.suppression_status,
-      cp.source_kind,
-      fu.sampling_attributes->>'legalName' AS legal_name,
-      fu.sampling_attributes->>'prefecture' AS prefecture,
-      fu.sampling_attributes->>'municipality' AS municipality,
-      COALESCE((
-        SELECT string_agg(code, ', ' ORDER BY code)
-        FROM jsonb_array_elements_text(
-          COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb)
-        ) AS code
-      ), '') AS kad_codes,
-      invite.id AS invite_id,
-      invite.status AS invite_status,
-      invite.sent_at AS invite_sent_at,
-      invite.expires_at AS invite_expires_at,
-      count(*) OVER ()::int AS total_count
-    FROM research_private.contact_points_with_value cp
-    JOIN research_frame_units fu ON fu.id=cp.frame_unit_id
-    LEFT JOIN LATERAL (
-      SELECT ri.id,ri.status,ri.sent_at,ri.expires_at
-      FROM research_invites ri
-      WHERE ri.contact_point_id=cp.id
-        AND ri.study_id=$1
-        AND ($2::uuid IS NULL OR ri.wave_id=$2::uuid)
-      ORDER BY ri.created_at DESC
-      LIMIT 1
-    ) invite ON true
-    WHERE fu.frame_snapshot_id=(SELECT id FROM latest_frame)
-      AND cp.contact_type='email'
-    ORDER BY cp.created_at DESC
-    LIMIT 200
-  ` : `
-    WITH latest_frame AS (
-      SELECT id
-      FROM research_frame_snapshots
-      WHERE study_id=$1
-      ORDER BY created_at DESC
-      LIMIT 1
-    )
-    SELECT
-      cp.id,
-      NULL::text AS contact_value,
-      cp.suppression_status,
-      cp.source_kind,
-      fu.sampling_attributes->>'legalName' AS legal_name,
-      fu.sampling_attributes->>'prefecture' AS prefecture,
-      fu.sampling_attributes->>'municipality' AS municipality,
-      COALESCE((
-        SELECT string_agg(code, ', ' ORDER BY code)
-        FROM jsonb_array_elements_text(
-          COALESCE(fu.sampling_attributes->'matchedActivityCodes','[]'::jsonb)
-        ) AS code
-      ), '') AS kad_codes,
-      invite.id AS invite_id,
-      invite.status AS invite_status,
-      invite.sent_at AS invite_sent_at,
-      invite.expires_at AS invite_expires_at,
-      count(*) OVER ()::int AS total_count
-    FROM research_contact_points cp
-    JOIN research_frame_units fu ON fu.id=cp.frame_unit_id
-    LEFT JOIN LATERAL (
-      SELECT ri.id,ri.status,ri.sent_at,ri.expires_at
-      FROM research_invites ri
-      WHERE ri.contact_point_id=cp.id
-        AND ri.study_id=$1
-        AND ($2::uuid IS NULL OR ri.wave_id=$2::uuid)
-      ORDER BY ri.created_at DESC
-      LIMIT 1
-    ) invite ON true
-    WHERE fu.frame_snapshot_id=(SELECT id FROM latest_frame)
-      AND cp.contact_type='email'
-    ORDER BY cp.created_at DESC
-    LIMIT 200
-  `;
-  const contacts = includeAll || section === "contacts"
-    ? await pool.query<SqlRow>(contactSql, [studyId, waveId || null])
-    : emptyRows;
-
-  const invitationSql = canViewContactValues ? `
-    SELECT
-      ri.id,
-      cp.contact_value,
-      ri.status,
-      ri.fieldwork_phase,
-      ib.label AS batch_label,
-      ri.sent_at,
-      ri.expires_at,
-      rr.status AS response_status,
-      ri.created_at
-    FROM research_invites ri
-    LEFT JOIN research_private.contact_points_with_value cp ON cp.id=ri.contact_point_id
-    LEFT JOIN research_invite_batches ib ON ib.id=ri.batch_id
-    LEFT JOIN research_responses rr ON rr.invite_id=ri.id
-    WHERE ri.study_id=$1
-      AND ($2::uuid IS NULL OR ri.wave_id=$2::uuid)
-    ORDER BY ri.created_at DESC
-    LIMIT 200
-  ` : `
-    SELECT
-      ri.id,
-      NULL::text AS contact_value,
-      ri.status,
-      ri.fieldwork_phase,
-      ib.label AS batch_label,
-      ri.sent_at,
-      ri.expires_at,
-      rr.status AS response_status,
-      ri.created_at
-    FROM research_invites ri
-    LEFT JOIN research_invite_batches ib ON ib.id=ri.batch_id
-    LEFT JOIN research_responses rr ON rr.invite_id=ri.id
-    WHERE ri.study_id=$1
-      AND ($2::uuid IS NULL OR ri.wave_id=$2::uuid)
-    ORDER BY ri.created_at DESC
-    LIMIT 200
-  `;
-  const invitations = includeAll || section === "invitations"
-    ? await pool.query<SqlRow>(invitationSql, [studyId, waveId || null])
-    : emptyRows;
+  // Legacy all-in-one operations used to fetch/decrypt 200 contact and invite
+  // records and run COUNT(*) OVER () as soon as an Admin page opened.
+  // Both directories are now search-only via researchDirectorySearch. Do not
+  // execute these queries, even if a legacy caller requests 'all'.
+  const contacts = emptyRows;
+  const invitations = emptyRows;
 
   const kadGroups = includeAll || section === "kad"
     ? await pool.query<SqlRow>(`
@@ -2410,6 +2263,8 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       plan.status AS analysis_plan_status,
       COALESCE(frames.frame_count, 0)::int AS frame_count,
       COALESCE(frame.population_size, 0)::int AS frame_population,
+      snapshot_contact_count.active_email_count AS snapshot_active_contacts,
+      snapshot_contact_count.captured_at AS contact_snapshot_at,
       frame.status AS frame_status,
       COALESCE(draws.draw_count, 0)::int AS sample_draw_count,
       COALESCE(draw.sample_units, 0)::int AS sample_units,
@@ -2437,6 +2292,16 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       SELECT id, population_size, status FROM research_frame_snapshots
       WHERE study_id=s.id ORDER BY created_at DESC LIMIT 1
     ) frame ON true
+    LEFT JOIN LATERAL (
+      SELECT (j.output->>'activeEmailCount')::int AS active_email_count,
+             j.finished_at AS captured_at
+      FROM research_study_jobs j
+      WHERE j.study_id=s.id AND j.job_type='frame_snapshot'
+        AND j.status='succeeded'
+        AND j.output->>'frameSnapshotId'=frame.id::text
+        AND j.output->>'activeEmailCount' ~ '^[0-9]+$'
+      ORDER BY j.finished_at DESC LIMIT 1
+    ) snapshot_contact_count ON true
     LEFT JOIN LATERAL (
       SELECT count(*) AS draw_count FROM research_sample_draws
       WHERE study_id=s.id
@@ -2492,6 +2357,8 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       analysisPlanStatus: optionalText(row.analysis_plan_status),
       frameCount: numberValue(row.frame_count),
       framePopulation: numberValue(row.frame_population),
+      snapshotActiveContacts: row.snapshot_active_contacts == null ? undefined : numberValue(row.snapshot_active_contacts),
+      contactSnapshotAt: optionalText(row.contact_snapshot_at),
       frameStatus: optionalText(row.frame_status),
       sampleDrawCount: numberValue(row.sample_draw_count),
       sampleUnits: numberValue(row.sample_units),
