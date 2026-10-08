@@ -419,3 +419,18 @@
     width:auto;
   }
 }
+
+
+/* Mailbox accounts: separate identities without collapsing the existing folder workflow. */
+.admin-mail-shell{grid-template-columns:240px minmax(360px,440px) minmax(0,1fr)}
+.admin-mail-mailbox-heading{margin:.6rem .55rem .35rem;font-size:.7rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted,#67706a)}
+.admin-mail-folders nav.admin-mail-mailboxes{gap:.12rem}
+.admin-mail-mailboxes a{min-width:0}
+.admin-mail-mailboxes .admin-mail-account-label{display:block!important;min-width:0;overflow-wrap:anywhere;font-size:.78rem;line-height:1.4}
+@media(max-width:1280px){.admin-mail-shell{grid-template-columns:215px minmax(330px,390px) minmax(0,1fr)}}
+@media(max-width:1020px){.admin-mail-shell{grid-template-columns:200px minmax(0,1fr)}}
+@media(max-width:760px){
+  .admin-mail-shell{display:block}
+  .admin-mail-folders nav.admin-mail-mailboxes{display:flex;flex-wrap:wrap;gap:.3rem}
+  .admin-mail-folders nav.admin-mail-mailboxes>a{flex:1 1 180px;min-width:0}
+}
