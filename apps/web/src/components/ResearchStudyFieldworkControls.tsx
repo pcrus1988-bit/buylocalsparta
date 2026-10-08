@@ -588,9 +588,9 @@ export function ResearchStudyFieldworkControls({
           ? "Η αλλαγή του ορίου δεν επανεκκινεί τις αποστολές χωρίς ρητή επιβεβαίωση και συνέχεια από διαχειριστή."
           : "Η κατάσταση αξιολογείται ξανά στον επόμενο κύκλο επεξεργασίας."}
       </p>}
-      {campaign.safetyHold && Boolean(campaign.deliverySafetyBreakdown?.length) && <div className="workspace-inline-note">
+      {Boolean(campaign.deliverySafetyBreakdown?.length) && <div className="workspace-inline-note">
         <strong>Ανάλυση επιστροφών ανά φάση (από τα καταγεγραμμένα αποτελέσματα SES)</strong>
-        {campaign.safetyHoldPhase && <p>Φάση που ενεργοποίησε την παύση: <strong>{campaign.safetyHoldPhase === "pilot" ? "Πιλοτική" : campaign.safetyHoldPhase === "main" ? "Κύρια" : campaign.safetyHoldPhase}</strong>.</p>}
+        {campaign.safetyHold && campaign.safetyHoldPhase && <p>Φάση που ενεργοποίησε την παύση: <strong>{campaign.safetyHoldPhase === "pilot" ? "Πιλοτική" : campaign.safetyHoldPhase === "main" ? "Κύρια" : campaign.safetyHoldPhase}</strong>.</p>}
         {campaign.deliverySafetyBreakdown?.map((metric) => <p key={metric.phase}>
           <strong>{metric.phase === "pilot" ? "Πιλοτική" : metric.phase === "main" ? "Κύρια μελέτη" : metric.phase}</strong>:
           {" "}Παραδόθηκαν {metric.delivered.toLocaleString("el-GR")} ·
@@ -622,7 +622,15 @@ export function ResearchStudyFieldworkControls({
       </div>}
       {(campaign.status === "queued" || campaign.status === "running") && <div className="workspace-action-buttons">
         <button type="button" className="button button-secondary" disabled={Boolean(busy)}
-          onClick={() => void setCampaignPaused(campaign.requiresBouncePolicyConfirmation ? false : !campaign.paused)}>
+          onClick={() => {
+            if (campaign.requiresBouncePolicyConfirmation && !window.confirm(
+              "Επιβεβαιώνετε την άρση της παύσης για την ΙΔΙΑ εγκεκριμένη εκστρατεία Cohort " +
+              campaign.cohort + " με τα νέα στάδια επιστροφών (10% / 9% / 7% / 5%); " +
+              "Το ποσοστό της μελέτης είναι ήδη πάνω από 5%. " +
+              "Η επιβεβαίωση επανεκκινεί την αποστολή, εφόσον δεν ισχύει άλλη δικλίδα SES ή παύση."
+            )) return;
+            void setCampaignPaused(campaign.requiresBouncePolicyConfirmation ? false : !campaign.paused);
+          }}>
           {campaign.requiresBouncePolicyConfirmation
             ? "Επιβεβαίωση νέων ορίων και συνέχεια υπάρχουσας εκστρατείας"
             : campaign.paused ? "Συνέχεια ήδη εγκεκριμένης εκστρατείας" : "Παύση εκστρατείας"}
