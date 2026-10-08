@@ -1,0 +1,31 @@
+.root{color:#183027}
+.heading{max-width:850px;margin-bottom:22px}
+.eyebrow{display:block;font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:#63795f;font-weight:850}
+.heading h2{font-family:Georgia,"Times New Roman",serif;font-size:clamp(30px,4.5vw,49px);font-weight:500;letter-spacing:-.035em;line-height:1.07;margin:8px 0 12px}
+.heading p{font-size:15px;line-height:1.65;color:#53655b;margin:0}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.card{padding:22px;border:1px solid rgba(35,56,47,.13);border-radius:21px;background:rgba(255,253,248,.83);box-shadow:0 8px 24px rgba(31,48,41,.04)}
+.cardNumber{font-size:11px;font-weight:900;letter-spacing:.13em;color:#66805b}
+.card h3{font-family:Georgia,"Times New Roman",serif;font-weight:500;font-size:23px;line-height:1.14;letter-spacing:-.02em;margin:14px 0 9px}
+.card p{font-size:13px;line-height:1.6;color:#516358;margin:0}
+.topics{margin-top:26px}
+.topics h3{font-family:Georgia,"Times New Roman",serif;font-size:24px;font-weight:500;margin:0 0 14px}
+.topics ul{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;list-style:none;padding:0;margin:0}
+.topics li{padding:12px 14px;border:1px solid rgba(35,56,47,.10);border-radius:12px;background:rgba(235,240,230,.55);font-size:13px;font-weight:650;line-height:1.4}
+.closing{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-top:23px;padding-top:19px;border-top:1px solid rgba(35,56,47,.14)}
+.closing p{font-size:12px;line-height:1.65;color:#617269;max-width:660px;margin:0}
+.links{display:flex;gap:10px 18px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0}
+.links a{color:#244737;text-decoration:underline;text-underline-offset:3px;font-size:12px;font-weight:800}
+.compact{margin:0 0 24px}
+.compact .heading{margin-bottom:18px}
+.compact .heading h2{font-size:clamp(27px,4vw,35px);margin-top:8px}
+.compact .heading p{font-size:13px}
+.compact .card{padding:16px;border-radius:16px;background:#f8f9f4}
+.compact .card h3{font-size:18px;margin:8px 0}
+.compact .card p{font-size:12px;line-height:1.55}
+.compact .closing{margin-top:15px;padding-top:15px;align-items:flex-start}
+.compact .closing p{font-size:11px}
+.compact .links{justify-content:flex-start}
+@media(max-width:900px){.closing{align-items:flex-start;flex-direction:column}.links{justify-content:flex-start}}
+@media(max-width:700px){.cards{grid-template-columns:1fr}.topics ul{grid-template-columns:1fr 1fr}.card{padding:18px}.card h3{font-size:21px}.compact .card{padding:14px}.compact .card h3{font-size:18px}}
+@media(max-width:440px){.topics ul{grid-template-columns:1fr}}
