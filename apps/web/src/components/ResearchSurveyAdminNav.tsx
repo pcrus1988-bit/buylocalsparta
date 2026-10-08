@@ -71,6 +71,9 @@ export function ResearchSurveyAdminNav({
       </span>
       <div className="workspace-action-buttons" style={{ flexWrap: "wrap" }}>
         <Link className="button button-secondary" href="/admin/research/surveys">All surveys</Link>
+        <Link className="button" href={root + "/workflow?phase=pilot"}>Guided Pilot</Link>
+        <Link className="button button-secondary" href={root + "/workflow?phase=main"}>Guided main study</Link>
+        <Link className="button button-secondary" href="/admin/research/handbook">Admin handbook</Link>
         <Link className="button button-secondary" href="/admin/research/settings">Global Research settings</Link>
       </div>
     </div>
