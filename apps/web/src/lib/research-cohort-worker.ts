@@ -138,6 +138,7 @@ export async function tickResearchRecruitmentCampaigns(): Promise<Readonly<{
   const preparation = await prepareResearchCohortTick();
   await completeCampaigns();
   const limit=Math.max(1,Math.min(50,Number(process.env.BLS_RESEARCH_COHORT_TICK_SIZE)||25));
+  const minimumIntervalMs=Math.max(1000,Math.min(10000,Number(process.env.BLS_RESEARCH_COHORT_MIN_INTERVAL_MS)||1100));
   let sent=0;
   let uncertain=0;
   for (let i=0;i<limit;i++) {
@@ -147,6 +148,7 @@ export async function tickResearchRecruitmentCampaigns(): Promise<Readonly<{
     );
     if (!hasRunning.rows[0]) break;
     assertResearchSurveyEmailReady();
+    if (i>0) await new Promise((resolve)=>setTimeout(resolve,minimumIntervalMs));
     const claimed=await claimOne();
     if (!claimed) break;
     if (!claimed.inviteId) continue; // suppressed after snapshot freeze
