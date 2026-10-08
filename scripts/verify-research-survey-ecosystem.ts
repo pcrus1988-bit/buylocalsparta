@@ -80,6 +80,11 @@ const surveyForm = readFileSync("apps/web/src/components/ResearchSurveyForm.tsx"
 const schemaRollout = readFileSync(".github/workflows/research-survey-schema-rollout.yml", "utf8");
 const schemaPreflight = readFileSync("scripts/research-survey-production-schema.ts", "utf8");
 const jobs = readFileSync("apps/web/src/lib/research-survey-jobs.ts", "utf8");
+const researchOperationalCron = readFileSync("apps/web/src/app/api/cron/research-study-jobs/route.ts", "utf8");
+const researchEmailCron = readFileSync("apps/web/src/app/api/cron/research-study-email-jobs/route.ts", "utf8");
+const researchRootCronConfig = JSON.parse(readFileSync("vercel.json", "utf8")) as { crons?: Array<{path:string;schedule:string}> };
+const researchWebCronConfig = JSON.parse(readFileSync("apps/web/vercel.json", "utf8")) as { crons?: Array<{path:string;schedule:string}> };
+
 const release = readFileSync("apps/web/src/lib/research-survey-release.ts", "utf8");
 const researchMail = readFileSync("apps/web/src/lib/research-survey-mail.ts", "utf8");
 const sesEvents = readFileSync("apps/web/src/lib/research-survey-ses-events.ts", "utf8");
@@ -302,6 +307,19 @@ if (!jobs.includes("study_id,wave_id,instrument_id,sample_unit_id,contact_point_
 if (!jobs.includes("study_id,wave_id,response_id,contact_point_id,reward_entitlement_id")) errors.push("reward delivery ledger does not persist queued wave explicitly");
 if (!jobs.includes("study_id,wave_id,response_id,contact_point_id,release_snapshot_id")) errors.push("results delivery ledger does not persist queued wave explicitly");
 if (!jobs.includes("pri.wave_id=$11")) errors.push("main sample pilot holdout is not wave-scoped");
+if (!researchEmailCron.includes("processResearchStudyJobs(1, EMAIL_JOB_TYPES)")
+    || researchEmailCron.includes("ensureGreekRetailB2cFrameOnboarded")
+    || !researchEmailCron.includes('request.headers.get("authorization")'))
+  errors.push("research email cron is not protected from GEMI data ingestion");
+if (researchOperationalCron.includes("processResearchStudyJobs(1, EMAIL_JOB_TYPES)")
+    || researchOperationalCron.includes("ensureGreekRetailAutomaticReminderBatch"))
+  errors.push("operational research cron still runs email jobs behind slow GEMI frame work");
+for (const [label, config] of [["root", researchRootCronConfig], ["web", researchWebCronConfig]] as const) {
+  if (!config.crons?.some((entry) =>
+    entry.path === "/api/cron/research-study-email-jobs" && entry.schedule === "* * * * *"
+  )) errors.push(`${label} cron config does not schedule dedicated email worker each minute`);
+}
+
 if (!jobs.includes("e.metadata->>'bounceSubType'='EmailValidationSuppressed'"))
   errors.push("SES validation-suppressed messages are not separately classified");
 if (!jobs.includes("e.metadata->>'providerMessageId'=m.provider_message_id"))
