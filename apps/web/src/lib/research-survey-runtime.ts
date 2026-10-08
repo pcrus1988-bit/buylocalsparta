@@ -63,7 +63,7 @@ export type ResearchSurveyContext = Readonly<{
   questions: readonly ResearchQuestion[];
   answers: ResearchAnswerMap;
   experiments: readonly ResearchExperimentAssignment[];
-  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code", boolean>>>;
+  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>>;
 }>;
 
 function questionFromRow(row: SqlRow): ResearchQuestion {
@@ -232,7 +232,7 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
 
   let answers: ResearchAnswerMap = {};
   let experiments: readonly ResearchExperimentAssignment[] = [];
-  let consents: Partial<Record<"results_notification" | "thank_you_code", boolean>> = {};
+  let consents: Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>> = {};
   if (response) {
     const [answerResult, experimentResult, consentResult] = await Promise.all([
       pool.query<SqlRow>(`
@@ -251,7 +251,7 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
         SELECT DISTINCT ON (consent_kind) consent_kind, granted
         FROM research_consents
         WHERE response_id = $1
-          AND consent_kind IN ('results_notification','thank_you_code')
+          AND consent_kind IN ('results_notification','thank_you_code','marketing')
         ORDER BY consent_kind, occurred_at DESC, id DESC
       `, [response.id])
     ]);
@@ -435,10 +435,10 @@ export async function refusePublicResearchInvite(input: Readonly<{
 export async function updatePublicResearchConsents(input: Readonly<{
   slug: string;
   token: string;
-  optionalConsents: Partial<Record<"results_notification" | "thank_you_code", boolean>>;
+  optionalConsents: Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>;
 }>): Promise<Readonly<{
   status: "preferences_updated";
-  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code", boolean>>>;
+  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>>;
 }>> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const client = await getProductionPostgresRuntime().sqlPool.connect();
@@ -459,8 +459,19 @@ export async function updatePublicResearchConsents(input: Readonly<{
     }
 
     for (const [consentKind, granted] of Object.entries(input.optionalConsents)) {
-      if (!["results_notification", "thank_you_code"].includes(consentKind)) continue;
-      const normalizedGranted = Boolean(granted);
+      if (!["results_notification", "thank_you_code", "marketing"].includes(consentKind)) continue;
+      // Only an actual boolean true counts as affirmative consent.
+      if (typeof granted !== "boolean") continue;
+      const normalizedGranted = granted === true;
+      if (consentKind === "marketing" && normalizedGranted) {
+        if (!invite.contact_point_id) throw new Error("RESEARCH_MARKETING_EMAIL_UNAVAILABLE");
+        const contact = await client.query<SqlRow>(`
+          SELECT id FROM research_contact_points
+          WHERE id=$1 AND contact_type='email' AND suppression_status='active'
+          LIMIT 1
+        `, [invite.contact_point_id]);
+        if (!contact.rows[0]) throw new Error("RESEARCH_MARKETING_EMAIL_UNAVAILABLE");
+      }
       const previousConsent = await client.query<SqlRow>(`
         SELECT granted
         FROM research_consents
@@ -473,7 +484,9 @@ export async function updatePublicResearchConsents(input: Readonly<{
         await client.query(`
           INSERT INTO research_consents (response_id,consent_kind,statement_version,granted,source)
           VALUES ($1,$2,$3,$4,'survey_ui_preferences')
-        `, [response.id, consentKind, invite.consent_statement_version, normalizedGranted]);
+        `, [response.id, consentKind,
+          consentKind === "marketing" ? "kontamou-commercial-email-v1" : invite.consent_statement_version,
+          normalizedGranted]);
       }
 
       if (!normalizedGranted) {
@@ -507,12 +520,12 @@ export async function updatePublicResearchConsents(input: Readonly<{
       SELECT DISTINCT ON (consent_kind) consent_kind,granted
       FROM research_consents
       WHERE response_id=$1
-        AND consent_kind IN ('results_notification','thank_you_code')
+        AND consent_kind IN ('results_notification','thank_you_code','marketing')
       ORDER BY consent_kind,occurred_at DESC,id DESC
     `, [response.id]);
     const consents = Object.fromEntries(
       latest.rows.map((row) => [text(row.consent_kind), Boolean(row.granted)])
-    ) as Partial<Record<"results_notification" | "thank_you_code", boolean>>;
+    ) as Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>;
 
     await client.query("COMMIT");
     return { status: "preferences_updated", consents };
@@ -1799,7 +1812,7 @@ export async function researchSurveyOperationsOverview(
       JOIN research_invites ri ON ri.id=rr.invite_id
       WHERE rr.study_id=$1
         AND ($2::uuid IS NULL OR ri.wave_id=$2::uuid)
-        AND rc.consent_kind IN ('research_participation','results_notification','thank_you_code')
+        AND rc.consent_kind IN ('research_participation','results_notification','thank_you_code','marketing')
       ORDER BY rc.response_id,rc.consent_kind,rc.occurred_at DESC,rc.id DESC
     )
     SELECT
