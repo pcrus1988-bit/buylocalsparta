@@ -81,6 +81,17 @@ export async function POST(request: Request): Promise<Response> {
     const slug = typeof body.slug === "string" ? body.slug : "";
     if (!validSimulationSlug(slug)) throw new Error("SIMULATION_STUDY_INVALID");
 
+    if (action === "preview") {
+      const to = typeof body.to === "string" ? body.to.trim().toLowerCase() : "";
+      if (!validSimulationEmail(to)) throw new Error("SIMULATION_RECIPIENT_INVALID");
+      const invitation = createSimulationInvitation(slug, to);
+      return Response.json({
+        ok: true, status: "dry_run_no_email", runId: invitation.runId,
+        expiresAt: invitation.expiresAt,
+        previewLink: "https://kontamou.site/research/simulation/" + encodeURIComponent(invitation.token)
+      }, { headers: noStore });
+    }
+
     if (action === "send") {
       if (body.confirm !== "SEND ONE TEST EMAIL") throw new Error("SIMULATION_SEND_NOT_CONFIRMED");
       const to = typeof body.to === "string" ? body.to.trim().toLowerCase() : "";
