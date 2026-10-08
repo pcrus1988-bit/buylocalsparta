@@ -45,7 +45,7 @@ function importRows(text: string): ParsedCsv {
     const unit=(row[idx("unit")]??"").trim();
     const source=(row[idx("source")]??"").trim();
     if(!series||!Number.isInteger(year)||year<1990||year>2026||!period||!Number.isFinite(value)||Math.abs(value)>1000000000)throw Error("Μη έγκυρη σειρά, χρονολογία ή αριθμητική τιμή.");
-    if(!["index","balance","percent","euro"].includes(unit))throw Error("Η μονάδα πρέπει να είναι index, balance, percent ή euro.");
+    if(!["index","balance","percent","euro","days"].includes(unit))throw Error("Η μονάδα πρέπει να είναι index, balance, percent, euro ή days.");
     if(!source)throw Error("Κάθε εγγραφή χρειάζεται πεδίο source.");
     if(unit==="percent" && Math.abs(value)>100)throw Error("Ποσοστό εκτός ορίων −100 έως 100.");
     units.add(unit);sourceCount++;
@@ -59,7 +59,7 @@ function importRows(text: string): ParsedCsv {
 }
 
 function format(value:number,unit:ExternalGroup["unit"]):string{
-  return unit==="euro"?new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR",maximumFractionDigits:2}).format(value):locale.format(value)+(unit==="percent"?"%":"");
+  return unit==="euro"?new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR",maximumFractionDigits:2}).format(value):locale.format(value)+(unit==="percent"?"%":unit==="days"?" ημέρες":"");
 }
 function xLabel(key:string,monthly:boolean):string{
   return monthly?MONTHS[Number(key)-1]??key:key;
@@ -154,7 +154,7 @@ export function ResearchExternalAnalysis(){
   const studyMatches=EXTERNAL_STUDIES.filter(study=>(archiveYear==="all"||String(study.year)===archiveYear)&&(kind==="all"||study.kind===kind)&&(study.issuer+" "+study.title+" "+study.detail).toLocaleLowerCase("el-GR").includes(query.toLocaleLowerCase("el-GR")));
   function chooseGroup(id:string){
     const next=EXTERNAL_GROUPS.find(g=>g.id===id)??EXTERNAL_GROUPS[0];
-    setUploaded(null);setUploadError("");setGroupId(next.id);setChosen(next.series.map(s=>s.id));setFrom(2019);setUntil(2026);setIndex(false);
+    setUploaded(null);setUploadError("");setGroupId(next.id);setChosen(next.series.map(s=>s.id));setFrom(2018);setUntil(2026);setIndex(false);
     setChartType(next.id==="supermarket-prices"||next.id==="holiday-survey"?"bar":"line");
   }
   function exportData(){
@@ -184,7 +184,7 @@ export function ResearchExternalAnalysis(){
       <aside className={styles.filters} aria-label="Επιλογές ανάλυσης">
         <label className={styles.field}><span>Ποιο στοιχείο θέλετε να αναλύσετε;</span><select value={groupId} disabled={Boolean(uploaded)} onChange={e=>chooseGroup(e.target.value)}>{EXTERNAL_GROUPS.map(g=><option key={g.id} value={g.id}>{g.title}</option>)}</select></label>
         <div className={styles.field}><span>Σειρές προς επικάλυψη</span><div className={styles.checks}>{activeSeries.map(s=><label key={s.id}><input type="checkbox" checked={chosen.includes(s.id)} onChange={e=>setChosen(old=>e.target.checked?[...old,s.id]:old.filter(id=>id!==s.id))}/><span className={styles.swatch} style={{background:COLORS[activeSeries.indexOf(s)%COLORS.length]}}/>{s.label}</label>)}</div></div>
-        <div className={styles.field}><span>Χρονικό εύρος</span><div className={styles.rangeFields}><select aria-label="Από έτος" value={from} onChange={e=>setFrom(Math.min(Number(e.target.value),until))}>{[...new Set([1990,...activeYears,2026])].filter(y=>!uploaded?y>=2019:y>=1990).sort((a,b)=>a-b).map(y=><option key={y} value={y}>{y}</option>)}</select><span>έως</span><select aria-label="Έως έτος" value={until} onChange={e=>setUntil(Math.max(Number(e.target.value),from))}>{[...new Set([1990,...activeYears,2026])].filter(y=>!uploaded?y>=2022:y>=1990).sort((a,b)=>a-b).map(y=><option key={y} value={y}>{y}</option>)}</select></div></div>
+        <div className={styles.field}><span>Χρονικό εύρος</span><div className={styles.rangeFields}><select aria-label="Από έτος" value={from} onChange={e=>setFrom(Math.min(Number(e.target.value),until))}>{[...new Set([1990,2018,...activeYears,2026])].filter(y=>!uploaded?y>=2018:y>=1990).sort((a,b)=>a-b).map(y=><option key={y} value={y}>{y}</option>)}</select><span>έως</span><select aria-label="Έως έτος" value={until} onChange={e=>setUntil(Math.max(Number(e.target.value),from))}>{[...new Set([1990,2018,...activeYears,2026])].filter(y=>!uploaded?y>=2018:y>=1990).sort((a,b)=>a-b).map(y=><option key={y} value={y}>{y}</option>)}</select></div></div>
         <div className={styles.field}><span>Απεικόνιση</span><div className={styles.segment}><button type="button" aria-pressed={chartType==="line"} onClick={()=>setChartType("line")}>Γραμμές</button><button type="button" aria-pressed={chartType==="bar"} onClick={()=>setChartType("bar")}>Στήλες</button></div></div>
         <label className={styles.toggle}><input type="checkbox" disabled={!canNormalize} checked={index&&canNormalize} onChange={e=>setIndex(e.target.checked)}/><span>Κοινή αφετηρία = 100 <small>Μόνο για θετικούς δείκτες. Συγκρίνει πορεία, όχι επίπεδο.</small></span></label>
         <button className={styles.reset} type="button" onClick={()=>chooseGroup("annual-esi")}>Επαναφορά αρχικών επιλογών</button>
@@ -218,7 +218,7 @@ export function ResearchExternalAnalysis(){
       <article><span>Θερινές εκπτώσεις · ΕΣΕΕ 2025</span><strong>59%</strong><p>Επιχειρήσεις του δείγματος ανέφεραν χειρότερες πωλήσεις από το 2024. Δεν αποτελεί άμεση μέτρηση εθνικού τζίρου.</p></article>
     </div>
     <section className={styles.importPanel} aria-labelledby="custom-data-title">
-      <div><span className={styles.eyebrow}>Δικές σας αναλύσεις · ιδιωτική προεπισκόπηση</span><h3 id="custom-data-title">Αναλύστε και δικά σας δεδομένα.</h3><p>Εισαγάγετε αρχείο CSV με έως 1.000 γραμμές και 6 σειρές, χωρίς αποστολή σε διακομιστή. Χρειάζονται οι στήλες <code>series, year, period, value, unit, source</code>. Μονάδες: index, balance, percent ή euro.</p>
+      <div><span className={styles.eyebrow}>Δικές σας αναλύσεις · ιδιωτική προεπισκόπηση</span><h3 id="custom-data-title">Αναλύστε και δικά σας δεδομένα.</h3><p>Εισαγάγετε αρχείο CSV με έως 1.000 γραμμές και 6 σειρές, χωρίς αποστολή σε διακομιστή. Χρειάζονται οι στήλες <code>series, year, period, value, unit, source</code>. Μονάδες: index, balance, percent, euro ή days.</p>
         <div className={styles.importActions}><input ref={fileRef} type="file" accept=".csv,text/csv" onChange={e=>{void importFile(e.target.files?.[0]);e.target.value="";}} aria-label="Επιλέξτε αρχείο CSV"/><button type="button" onClick={()=>{const blob=new Blob(["\uFEFF",csvTemplate],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="research-import-template.csv";a.click();URL.revokeObjectURL(url);}}>Πρότυπο CSV ↓</button>{uploaded&&<button type="button" onClick={()=>chooseGroup("annual-esi")}>Επιστροφή στα δημοσιευμένα στοιχεία</button>}</div>
         {uploadError&&<p className={styles.error} role="alert">{uploadError}</p>}{uploaded&&<p className={styles.importSuccess} role="status">{uploaded.message}</p>}
       </div>
