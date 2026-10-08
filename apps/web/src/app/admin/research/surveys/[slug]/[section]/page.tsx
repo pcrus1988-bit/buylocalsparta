@@ -133,9 +133,13 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
         cohortAStatus={cohorts?.a.status}
         cohortAPopulation={cohorts?.a.population}
         cohortAContacts={cohorts?.a.contactable}
+        cohortASampleStatus={cohorts?.a.sampleStatus}
+        cohortASampleSelected={cohorts?.a.sampleSelected}
         cohortBStatus={cohorts?.b.status}
         cohortBPopulation={cohorts?.b.population}
         cohortBContacts={cohorts?.b.contactable}
+        cohortBSampleStatus={cohorts?.b.sampleStatus}
+        cohortBSampleSelected={cohorts?.b.sampleSelected}
         queuedSampleJobs={study.queuedSampleJobs}
         runningSampleJobs={study.runningSampleJobs}
         latestFrameStatus={study.latestFrameStatus}
@@ -168,7 +172,9 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
           csrfToken={principal.csrfToken}
           studyStatus={study.status}
           cohortAStatus={cohorts?.a.status}
+          cohortASampleStatus={cohorts?.a.sampleStatus}
           cohortBStatus={cohorts?.b.status}
+          cohortBSampleStatus={cohorts?.b.sampleStatus}
           queuedSampleJobs={study.queuedSampleJobs}
           runningSampleJobs={study.runningSampleJobs}
           recruitmentTemplateVersion={study.recruitmentTemplateVersion}
