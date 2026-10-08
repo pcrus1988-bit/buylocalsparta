@@ -2979,7 +2979,7 @@ async function processRewardDeliveryJob(job: ResearchJobRow): Promise<Record<str
   let failedCount = 0;
   let skippedCount = 0;
   const failures: Array<{ responseId: string; error: string }> = [];
-  const joinUrl = absoluteResearchUrl("/join");
+  const joinUrl = absoluteResearchUrl("/hubs/join");
   const methodologyUrl = absoluteResearchUrl(`/research/${STUDY_SLUG}/methodology`);
 
   for (const candidate of candidates.rows) {
