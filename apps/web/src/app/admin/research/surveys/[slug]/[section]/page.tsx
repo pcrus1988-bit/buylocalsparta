@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { ResearchCohortCampaignPanel } from "../../../../../../components/ResearchCohortCampaignPanel";
+import { researchCohortOverview, researchCohortEvaluation } from "../../../../../../lib/research-cohort-campaigns";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { notFound, redirect } from "next/navigation";
@@ -41,7 +44,7 @@ const VALID_SECTIONS = new Set(
 
 export default async function ResearchSurveySectionPage({ params, searchParams }: {
   params: Promise<{ slug: string; section: string }>;
-  searchParams: Promise<{ search?: string; q?: string; status?: string; cursor?: string }>;
+  searchParams: Promise<{ search?: string; q?: string; status?: string; cursor?: string; cohort?: string }>;
 }) {
   const principal = await getAdminSession();
   if (!principal) redirect("/admin/login");
@@ -110,9 +113,40 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
     </>;
   } else if (section === "evaluation") {
     const design = await researchSurveyDesignAdminOverview(principal, study.slug);
+    const evaluationQuery = await searchParams;
+    const filter = evaluationQuery.cohort === "A" || evaluationQuery.cohort === "B" ? evaluationQuery.cohort : "all";
+    let cohortEvaluation: Awaited<ReturnType<typeof researchCohortEvaluation>> | null = null;
+    try { cohortEvaluation = await researchCohortEvaluation(principal,filter); } catch { /* Schema rollout may be pending. */ }
     content = <>
       <section className="shell vendor-section">
         <WorkspaceSectionHeading eyebrow="Survey design" title="Evaluation" note="Define headline metrics, standard breakdowns and clearly classified exploratory analyses before results are produced." />
+      </section>
+      <section className="shell vendor-section">
+        <WorkspaceSectionHeading eyebrow="Recruitment cohorts" title="Αποτελέσματα ομάδων A / B / συνδυαστικά"
+          note="Ίδιο ερωτηματολόγιο, διαφορετική προέλευση στρατολόγησης. Περιγραφικά στοιχεία συμμετεχόντων· δεν υποκαθιστούν σταθμισμένη ανάλυση." />
+        <div className="workspace-action-buttons">
+          {(["all","A","B"] as const).map((which) =>
+            <Link key={which} prefetch={false} className={filter===which?"button":"button button-secondary"}
+              href={"/admin/research/surveys/"+encodeURIComponent(study.slug)+"/evaluation?cohort="+which}>
+              {which==="all"?"Σύνολο A+B":"Ομάδα "+which}
+            </Link>)}
+        </div>
+        {cohortEvaluation ? <div className="workspace-queue-card">
+          <div className="analytics-workflow-grid">
+            {cohortEvaluation.counts.map((item)=><article className="analytics-workflow-card" key={item.cohort}>
+              <strong>Ομάδα {item.cohort}</strong>
+              <small>{item.sent.toLocaleString("el-GR")} απεσταλμένες προσκλήσεις</small>
+              <small>{item.started.toLocaleString("el-GR")} σε εξέλιξη</small>
+              <strong>{item.completed.toLocaleString("el-GR")} ολοκληρωμένες απαντήσεις</strong>
+            </article>)}
+          </div>
+          {cohortEvaluation.options.length>0 ? <table>
+            <thead><tr><th>Ερώτηση</th><th>Απάντηση</th><th>Συμμετέχοντες</th></tr></thead>
+            <tbody>{cohortEvaluation.options.map((item,i)=><tr key={item.code+":"+item.answer+":"+i}>
+              <td>{item.question}</td><td>{item.answer}</td><td>{item.count.toLocaleString("el-GR")}</td>
+            </tr>)}</tbody>
+          </table> : <div className="workspace-inline-note">Δεν υπάρχουν ακόμη ολοκληρωμένες απαντήσεις για αυτό το φίλτρο.</div>}
+        </div> : <div className="workspace-inline-note">Η ανάλυση ομάδων θα είναι διαθέσιμη μόλις εφαρμοστεί η νέα βάση στρατολόγησης.</div>}
       </section>
       <ResearchEvaluationPlanEditor
         slug={study.slug}
@@ -146,6 +180,15 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
         runningJobs={study.runningJobs}
       /> : <div className="workspace-inline-note">Read-only access. Sampling mutations require Research management permission.</div>}
     </section>;
+  } else if (section === "cohorts") {
+    let cohort: Awaited<ReturnType<typeof researchCohortOverview>> | null = null;
+    try { cohort=await researchCohortOverview(principal); } catch { /* Show migration readiness, not a crash. */ }
+    content=cohort ? <ResearchCohortCampaignPanel
+      slug={study.slug} csrfToken={principal.csrfToken} studyTitle={study.title}
+      studyStatus={study.status} initialCampaigns={cohort.campaigns}
+    /> : <section className="shell vendor-section"><div className="workspace-inline-note">
+      Δεν είναι ακόμη διαθέσιμο το μητρώο στρατολόγησης ομάδων. Χρειάζεται η migration 0436.
+    </div></section>;
   } else if (section === "fieldwork") {
     const operations = await researchSurveyOperationsOverview(principal, study.slug, "templates");
     content = <>
