@@ -45,7 +45,7 @@ export default async function ResearchSimulationAdminPage({ params }: {
       <div className="workspace-inline-note">
         <strong>This is a rehearsal, not the Pilot.</strong> The sample questions are specifically for validating link and submission mechanics; they are not the official questionnaire.
         Dry runs do not send email. A real test send is limited to one manually confirmed destination per action.
-        SES message acceptance is never presented as evidence of delivery.
+        SES message acceptance is never presented as evidence of delivery. Rehearsal email uses its own delivery switch; enabling it cannot start Pilot or Main sends.
         This page does not query Research contact, response, or invitation tables.
       </div>
     </section>
