@@ -7,6 +7,7 @@ import {
   researchQualitySignals,
   scoreGreekRetail2026,
   validateResearchAnswers,
+  researchQuestionVisible,
   type ResearchAnswer,
   type ResearchAnswerMap,
   type ResearchQuestion
@@ -618,15 +619,33 @@ export async function savePublicResearchSurvey(input: Readonly<{
 
     const questions = await questionsForInstrument(client, text(invite.instrument_id));
     const suppliedAnswers = input.answers ?? {};
+    const storedAnswersResult = await client.query<SqlRow>(`
+      SELECT q.code, a.answer
+      FROM research_answers a
+      JOIN research_questions q ON q.id=a.question_id
+      WHERE a.response_id=$1
+    `, [response.id]);
+    const combinedAnswers: Record<string, ResearchAnswer> = Object.fromEntries(
+      storedAnswersResult.rows.map((row) => [text(row.code), row.answer as ResearchAnswer])
+    );
+    Object.assign(combinedAnswers, suppliedAnswers);
+    // Routing must be validated server-side. Hidden answers are removed if a
+    // parent answer changes, never counted as unanswered or used in analysis.
+    const applicable = new Set(questions
+      .filter((question) => researchQuestionVisible(question, combinedAnswers))
+      .map((question) => question.code));
     const suppliedCodes = new Set(Object.keys(suppliedAnswers));
     const suppliedQuestions = questions
-      .filter((question) => suppliedCodes.has(question.code) && question.type !== "experiment")
+      .filter((question) => suppliedCodes.has(question.code) && applicable.has(question.code) && question.type !== "experiment")
       .map((question) => ({ ...question, required: false }));
-    const partialValidation = validateResearchAnswers(suppliedQuestions, suppliedAnswers);
+    const applicableAnswers = Object.fromEntries(
+      Object.entries(suppliedAnswers).filter(([code]) => applicable.has(code))
+    );
+    const partialValidation = validateResearchAnswers(suppliedQuestions, combinedAnswers);
     if (partialValidation.invalid.length) throw new Error(`SURVEY_ANSWERS_INVALID:${partialValidation.invalid.join(",")}`);
 
     const questionByCode = new Map(questions.map((question) => [question.code, question]));
-    for (const [code, answer] of Object.entries(suppliedAnswers)) {
+    for (const [code, answer] of Object.entries(applicableAnswers)) {
       const question = questionByCode.get(code);
       if (!question || question.type === "experiment") continue;
       await client.query(`
@@ -635,6 +654,13 @@ export async function savePublicResearchSurvey(input: Readonly<{
         ON CONFLICT (response_id, question_id)
         DO UPDATE SET answer = EXCLUDED.answer, answered_at = now()
       `, [response.id, question.id, JSON.stringify(answer)]);
+    }
+    const hiddenIds = questions.filter((question) => !applicable.has(question.code)).map((question) => question.id);
+    if (hiddenIds.length) {
+      await client.query(
+        "DELETE FROM research_answers WHERE response_id=$1 AND question_id=ANY($2::uuid[])",
+        [response.id, hiddenIds]
+      );
     }
 
     for (const [taskKey, selected] of Object.entries(input.experimentChoices ?? {})) {
@@ -1910,7 +1936,7 @@ export type ResearchLifecycleAction =
 
 export async function transitionResearchStudy(
   principal: SessionPrincipal,
-  input: Readonly<{ slug: string; action: ResearchLifecycleAction }>
+  input: Readonly<{ slug: string; action: ResearchLifecycleAction; expectedInstrumentVersion?: string; expectedInstrumentSha256?: string }>
 ): Promise<Readonly<{ studyStatus: string; instrumentStatus: string }>> {
   if (input.action === "lock_instrument") {
     assertAdminPermission(principal, "research.design.manage");
@@ -1938,7 +1964,7 @@ export async function transitionResearchStudyAfterDeadline(
 }
 
 async function transitionResearchStudyInternal(
-  input: Readonly<{ slug: string; action: ResearchLifecycleAction }>,
+  input: Readonly<{ slug: string; action: ResearchLifecycleAction; expectedInstrumentVersion?: string; expectedInstrumentSha256?: string }>,
   automated: boolean
 ): Promise<Readonly<{ studyStatus: string; instrumentStatus: string }>> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
@@ -1949,10 +1975,11 @@ async function transitionResearchStudyInternal(
       SELECT
         s.id AS study_id, s.status AS study_status, s.current_wave_id AS wave_id,
         (s.fieldwork_ends_at IS NOT NULL AND s.fieldwork_ends_at <= now()) AS deadline_reached,
-        i.id AS instrument_id, i.status AS instrument_status
+        i.id AS instrument_id, i.status AS instrument_status,
+        i.version AS instrument_version, i.content_sha256 AS instrument_sha256
       FROM research_studies s
       JOIN LATERAL (
-        SELECT id, status FROM research_instruments
+        SELECT id, status, version, content_sha256 FROM research_instruments
         WHERE study_id = s.id AND wave_id = s.current_wave_id
         ORDER BY created_at DESC LIMIT 1
       ) i ON true
@@ -1971,6 +1998,10 @@ async function transitionResearchStudyInternal(
 
     if (input.action === "lock_instrument") {
       if (studyStatus !== "draft" || instrumentStatus !== "draft") throw new Error("RESEARCH_LIFECYCLE_INVALID");
+      if ((input.expectedInstrumentVersion && input.expectedInstrumentVersion !== text(row.instrument_version)) ||
+          (input.expectedInstrumentSha256 && input.expectedInstrumentSha256 !== text(row.instrument_sha256))) {
+        throw new Error("RESEARCH_INSTRUMENT_CHANGED_REFRESH");
+      }
       await client.query(`
         UPDATE research_instruments SET status = 'locked', published_at = now()
         WHERE id = $1
@@ -2272,10 +2303,7 @@ async function transitionResearchStudyInternal(
  * invitation-event aggregations must not run before the survey shell renders.
  *
  * One bounded study and small-count query, without scanning contact points or
- * the 250k+ population frame. Select the latest frozen snapshot rather than
- * an unfinished build (whose population_size is still zero); match the
- * completed snapshot job for its recorded active-email count. All values are
- * from persisted SQL, and no frozen snapshot is represented as unavailable.
+ * the 250k+ population frame. All values shown here come from live SQL.
  */
 export async function researchSurveyAdminFastOverview(principal: SessionPrincipal, slug: string) {
   assertAdminPermission(principal, "research.read");
@@ -2292,7 +2320,7 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       plan.status AS analysis_plan_status,
       COALESCE(frames.frame_count, 0)::int AS frame_count,
       COALESCE(frames.building_count, 0)::int AS frame_building_count,
-      frame.population_size AS frame_population,
+      COALESCE(frame.population_size, 0)::int AS frame_population,
       snapshot_contact_count.active_email_count AS snapshot_active_contacts,
       snapshot_contact_count.captured_at AS contact_snapshot_at,
       frame.status AS frame_status,
@@ -2315,15 +2343,12 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       ORDER BY created_at DESC LIMIT 1
     ) plan ON true
     LEFT JOIN LATERAL (
-      SELECT count(*) AS frame_count,
-             count(*) FILTER (WHERE status='building') AS building_count
-      FROM research_frame_snapshots
+      SELECT count(*) AS frame_count, count(*) FILTER (WHERE status='building') AS building_count FROM research_frame_snapshots
       WHERE study_id=s.id
     ) frames ON true
     LEFT JOIN LATERAL (
       SELECT id, population_size, status FROM research_frame_snapshots
-      WHERE study_id=s.id AND status='frozen'
-      ORDER BY frozen_at DESC NULLS LAST, created_at DESC LIMIT 1
+      WHERE study_id=s.id ORDER BY created_at DESC LIMIT 1
     ) frame ON true
     LEFT JOIN LATERAL (
       SELECT (j.output->>'activeEmailCount')::int AS active_email_count,
@@ -2390,7 +2415,7 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       analysisPlanStatus: optionalText(row.analysis_plan_status),
       frameCount: numberValue(row.frame_count),
       buildingFrames: numberValue(row.frame_building_count),
-      framePopulation: row.frame_population == null ? undefined : numberValue(row.frame_population),
+      framePopulation: numberValue(row.frame_population),
       snapshotActiveContacts: row.snapshot_active_contacts == null ? undefined : numberValue(row.snapshot_active_contacts),
       contactSnapshotAt: optionalText(row.contact_snapshot_at),
       frameStatus: optionalText(row.frame_status),

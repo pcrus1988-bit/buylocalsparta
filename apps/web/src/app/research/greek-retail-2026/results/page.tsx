@@ -26,6 +26,7 @@ function metricLabel(metricKey: string, metadata: Record<string, unknown>): stri
   if (label) return label;
   if (metricKey === "digital_readiness.mean") return "Δείκτης ψηφιακής ετοιμότητας";
   if (metricKey === "retail_friction.mean") return "Δείκτης λειτουργικών δυσκολιών";
+  if (metricKey === "retail_confidence.mean") return "Δείκτης επιχειρηματικής εμπιστοσύνης";
   return "Δημοσιευμένος δείκτης";
 }
 

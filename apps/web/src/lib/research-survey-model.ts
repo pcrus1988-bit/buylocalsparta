@@ -20,6 +20,7 @@ export type ResearchScore = Readonly<{
   scoringVersion: "greek-retail-2026-v1";
   digitalReadinessScore?: number;
   frictionOverallScore?: number;
+  businessConfidenceScore?: number;
   frictionDimensions: Readonly<Record<string, number>>;
 }>;
 
@@ -47,6 +48,25 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+
+/**
+ * Conditional eligibility is part of the instrument, not just a UI convention.
+ * Unknown conditions fail closed. A respondent must never be required to answer
+ * a question whose configured routing condition is not met.
+ */
+export function researchQuestionVisible(question: ResearchQuestion, answers: ResearchAnswerMap): boolean {
+  const rule = question.config.showWhen;
+  if (rule === undefined) return true;
+  if (!isObject(rule) || typeof rule.code !== "string" || !Array.isArray(rule.values)) return false;
+  const values = rule.values.map(String);
+  if (!values.length) return false;
+  const answer = answers[rule.code];
+  if (rule.operator === "in") return typeof answer === "string" && values.includes(answer);
+  if (rule.operator === "contains_any") return Array.isArray(answer) && answer.some((value) => values.includes(String(value)));
+  if (rule.operator === "contains_none") return Array.isArray(answer) && !answer.some((value) => values.includes(String(value)));
+  return false;
+}
+
 export function answerIsPresent(question: ResearchQuestion, answer: ResearchAnswer | undefined): boolean {
   if (answer === undefined || answer === null) return false;
   if (typeof answer === "string") return answer.trim().length > 0;
@@ -68,7 +88,7 @@ export function validateResearchAnswers(
   const invalid: string[] = [];
 
   for (const question of questions) {
-    if (question.type === "experiment") continue;
+    if (question.type === "experiment" || !researchQuestionVisible(question, answers)) continue;
     const answer = answers[question.code];
     if (question.required && !answerIsPresent(question, answer)) {
       missing.push(question.code);
@@ -317,10 +337,33 @@ export function scoreGreekRetail2026(answers: ResearchAnswerMap): ResearchScore 
   );
 
   const overall = average(allFriction);
+
+  // Preregistered Greek Retail Business Confidence Index (0-100).
+  // Complete cases only; 'unknown' is never imputed as neutral.
+  const optimismValues: Record<string, number> = {
+    very_pessimistic: 0, pessimistic: 25, neutral: 50,
+    optimistic: 75, very_optimistic: 100
+  };
+  const salesValues: Record<string, number> = {
+    down_large: 0, down_small: 25, stable: 50, up_small: 75, up_large: 100
+  };
+  const capacityValues: Record<string, number> = {
+    very_unlikely: 0, unlikely: 25, neutral: 50,
+    likely: 75, very_likely: 100
+  };
+  const confidenceParts = [
+    typeof answers.Q19 === "string" ? optimismValues[answers.Q19] : undefined,
+    typeof answers.Q17 === "string" ? salesValues[answers.Q17] : undefined,
+    typeof answers.Q20 === "string" ? capacityValues[answers.Q20] : undefined
+  ];
+  const businessConfidenceScore = confidenceParts.every((value) => value !== undefined)
+    ? round2(confidenceParts.reduce<number>((sum, value) => sum + (value ?? 0), 0) / 3)
+    : undefined;
   return {
     scoringVersion: "greek-retail-2026-v1",
     digitalReadinessScore: readiness === undefined ? undefined : round2(readiness * 100),
     frictionOverallScore: overall === undefined ? undefined : round2(overall),
+    businessConfidenceScore,
     frictionDimensions
   };
 }
