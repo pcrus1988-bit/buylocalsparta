@@ -2467,11 +2467,12 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         su.id AS sample_unit_id,
         cp.id AS contact_point_id,
         cp.contact_value,
+        cp.contact_value_hash,
         fu.sampling_attributes->>'legalName' AS legal_name
       FROM research_sample_units su
       JOIN research_frame_units fu ON fu.id=su.frame_unit_id
       JOIN LATERAL (
-        SELECT id,contact_value
+        SELECT id,contact_value,contact_value_hash
         FROM research_private.contact_points_with_value
         WHERE frame_unit_id=su.frame_unit_id
           AND contact_type='email'
@@ -2487,6 +2488,21 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     if (!contact) {
       failedCount += 1;
       failures.push({ sampleUnitId, error: "NO_ACTIVE_EMAIL_CONTACT" });
+      continue;
+    }
+
+    // Different companies sometimes share an inbox. Never invite an address twice
+    // across Pilot, Cohort A and Cohort B after an earlier successful send.
+    const contactAlreadyInvited = await pool.query<SqlRow>(`
+      SELECT EXISTS (SELECT 1 FROM research_invites prior
+        JOIN research_contact_points prior_cp ON prior_cp.id=prior.contact_point_id
+        WHERE prior.study_id=$1 AND prior.sent_at IS NOT NULL
+          AND prior_cp.contact_type='email'
+          AND prior_cp.contact_value_hash=$2) AS duplicate
+    `, [job.study_id, contact.contact_value_hash]);
+    if (Boolean(contactAlreadyInvited.rows[0]?.duplicate)) {
+      failedCount += 1;
+      failures.push({ sampleUnitId, error: "ALREADY_CONTACTED_IN_ANOTHER_COHORT" });
       continue;
     }
 
