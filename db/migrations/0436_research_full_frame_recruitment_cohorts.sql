@@ -8,6 +8,7 @@ CREATE TABLE public.research_recruitment_campaigns (
   wave_id uuid NOT NULL REFERENCES public.research_waves(id) ON DELETE RESTRICT,
   frame_snapshot_id uuid NOT NULL REFERENCES public.research_frame_snapshots(id) ON DELETE RESTRICT,
   sample_draw_id uuid REFERENCES public.research_sample_draws(id) ON DELETE RESTRICT,
+  invite_batch_id uuid REFERENCES public.research_invite_batches(id) ON DELETE RESTRICT,
   cohort_code text NOT NULL CHECK (cohort_code IN ('A','B')),
   status text NOT NULL DEFAULT 'preparing'
     CHECK (status IN ('preparing','review','running','paused','completed','cancelled','failed')),
