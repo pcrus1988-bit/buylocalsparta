@@ -4,6 +4,7 @@ import { assertAdminPermission } from "./admin-runtime";
 import { getAdminPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import type { ResearchQuestion, ResearchQuestionType } from "./research-survey-model";
 import { RETAIL_SENTIMENT_2026_QUESTIONS, withRetailConfidencePreregistration } from "./research-retail-sentiment-2026";
+import { planWithCurrentQuestionCoverage } from "./research-survey-evaluation-coverage";
 import { canonicalResearchResultsUrl } from "./research-results-url";
 
 function text(value: unknown): string {
@@ -704,7 +705,15 @@ export async function saveResearchAnalysisPlanDraft(
   if (overview.study.status !== "draft" || overview.analysisPlan.status !== "draft") throw new Error("RESEARCH_ANALYSIS_PLAN_LOCKED");
   const title = input.title.trim();
   if (title.length < 3 || title.length > 240) throw new Error("RESEARCH_ANALYSIS_PLAN_TITLE_INVALID");
-  const plan = { ...input.plan, studySlug: slug, instrumentVersion: overview.instrument.version };
+  // Always rebuild the question-level registry from the server's current
+  // instrument. A stale Admin tab cannot silently omit newly added questions.
+  // This changes neither registered primary outcomes nor locked plans.
+  const plan = planWithCurrentQuestionCoverage(
+    { ...input.plan, studySlug: slug },
+    overview.questions,
+    overview.instrument.version,
+    overview.instrument.contentSha256
+  );
   const result = await getAdminPostgresRuntime().sqlPool.query<SqlRow>(
     "UPDATE research_analysis_plans SET title=$2,plan_json=$3::jsonb WHERE id=$1 AND status='draft' RETURNING content_sha256",
     [overview.analysisPlan.id, title, JSON.stringify(plan)]
