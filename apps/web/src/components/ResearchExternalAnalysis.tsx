@@ -129,6 +129,25 @@ export function ResearchExternalAnalysis(){
   const firstLine=selectedLines.find(s=>s.points.length>1);
   const ordered=firstLine?.points.slice().sort((a,b)=>a.year-b.year||Number(a.period)-Number(b.period))??[];
   const delta=ordered.length>1?externalChange(ordered[0].value,ordered[ordered.length-1].value):null;
+  const yearDeltas=!uploaded&&group.frequency==="annual"&&group.comparison!=="descriptive"
+    ?selectedLines.flatMap(line=>{
+      const sorted=[...line.points].sort((a,b)=>a.year-b.year);
+      return sorted.slice(1).flatMap((point,i)=>{
+        const previous=sorted[i];
+        return point.year-previous.year===1?[{label:line.label,period:previous.year+" → "+point.year,change:externalChange(previous.value,point.value)}]:[];
+      });
+    }):[];
+  const matchedMonthDeltas=!uploaded&&group.frequency==="month-of-year"
+    ?selectedLines.filter(s=>s.points.some(p=>p.year===2025)).flatMap(first=>{
+      const name=first.label.replace(/(?:\s*·\s*)?2025$/,"").trim();
+      const counterpart=selectedLines.find(other=>other.id!==first.id&&other.points.some(p=>p.year===2026)&&other.label.replace(/(?:\s*·\s*)?2026$/,"").trim()===name);
+      if(!counterpart)return [];
+      const matches=first.points.filter(p=>counterpart.points.some(q=>q.period===p.period));
+      const latestMatch=matches.sort((a,b)=>Number(b.period)-Number(a.period))[0];
+      const newValue=counterpart.points.find(p=>p.period===latestMatch?.period);
+      return latestMatch&&newValue?[{label:name||group.title,period:xLabel(latestMatch.period,true)+" · 2025 → 2026",change:externalChange(latestMatch.value,newValue.value)}]:[];
+    }):[];
+  const comparisonRows=[...yearDeltas,...matchedMonthDeltas];
   const sharedGroups=EXTERNAL_GROUPS.filter(g=>g.sourceIds.includes(leftStudy)&&g.sourceIds.includes(rightStudy)&&leftStudy!==rightStudy);
   const leftSource=EXTERNAL_STUDIES.find(s=>s.id===leftStudy);
   const rightSource=EXTERNAL_STUDIES.find(s=>s.id===rightStudy);
@@ -179,6 +198,12 @@ export function ResearchExternalAnalysis(){
           <div><span>Τελευταίο έτος</span><strong>{latestYear??"—"}</strong></div>
           <div><span>Διαφορά πρώτης / τελευταίας τιμής πρώτης σειράς</span><strong>{delta===null?"—":(delta>0?"+":"")+locale.format(delta)}</strong></div>
         </div>
+        {!uploaded&&<section className={styles.changesPanel} aria-label="Μεταβολές ανά έτος">
+          <div className={styles.changesHead}><strong>Μεταβολές ανά έτος</strong><span>Διαφορά τιμών · {activeUnit==="percent"?"ποσοστιαίες μονάδες":"μονάδες δείκτη ή ισοζυγίου"}</span></div>
+          {comparisonRows.length>0
+            ? <div className={styles.changesRows}>{comparisonRows.map((row,i)=><div key={row.label+"-"+row.period+"-"+i}><span>{row.label}</span><small>{row.period}</small><strong className={row.change>=0?styles.positive:styles.negative}>{row.change>0?"+":""}{locale.format(row.change)}</strong></div>)}</div>
+            : <p className={styles.noChange}>Δεν υπάρχουν δύο πλήρως αντίστοιχες περίοδοι για τον επιλεγμένο δείκτη. Δεν υπολογίζουμε αυθαίρετη μεταβολή.</p>}
+        </section>}
         <div className={styles.methodNotice}><strong>{uploaded?"Προσωπικό αρχείο":group.comparison==="direct"?"Άμεσα συγκρίσιμη σειρά":group.comparison==="trend-only"?"Επικάλυψη τάσεων με προσοχή":"Περιγραφικά ευρήματα — όχι χρονοσειρά"}</strong><p>{uploaded?"Τα στοιχεία εισάγονται μόνο στον φυλλομετρητή σας, δεν αποθηκεύονται ούτε δημοσιεύονται. Δεν έχει ελεγχθεί η συγκρισιμότητα, οι τιμές ή η προέλευση.":group.caution}</p></div>
         <details className={styles.dataTable}><summary>Προβολή αναλυτικού πίνακα ({points.length} εγγραφές)</summary><div className={styles.tableScroll}><table><thead><tr><th>Σειρά</th><th>Έτος</th><th>Περίοδος</th><th>Τιμή</th></tr></thead><tbody>{selectedLines.flatMap(line=>line.points.map(point=><tr key={line.id+"-"+point.year+"-"+point.period}><td>{line.label}</td><td>{point.year}</td><td>{!uploaded&&group.frequency==="month-of-year"?xLabel(point.period,true):point.period}</td><td>{format(point.value,activeUnit)}</td></tr>))}</tbody></table></div></details>
         {!uploaded&&<div className={styles.sources}><strong>Αρχικές εκδόσεις & επαλήθευση</strong>{group.sourceIds.map(id=>EXTERNAL_STUDIES.find(s=>s.id===id)).filter((s):s is (typeof EXTERNAL_STUDIES)[number]=>Boolean(s)).map(s=><a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer">{s.issuer} · {s.year} ↗</a>)}</div>}
