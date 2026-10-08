@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type SimulationState = {
   previewLink: string;
@@ -10,6 +10,19 @@ type SimulationState = {
   dryRun: boolean;
 };
 type Proof = { runId: string; answersCount: number; submittedAt: number };
+
+// Restore only non-secret per-tab metadata. Never store encrypted links or
+// submission receipts in browser storage.
+const SESSION_PREFIX = "kontamou-research-rehearsal:v1:";
+function simulationError(message: string): string {
+  if (message.includes("SIMULATION_TOKEN_INVALID_OR_EXPIRED")) return "The encrypted receipt is invalid or has expired. Please use the original copied receipt within 30 minutes of submitting the answers, or start a new rehearsal.";
+  if (message.includes("SIMULATION_STUDY_MISMATCH")) return "This receipt belongs to a different survey. Open the corresponding survey's workflow simulation.";
+  if (message.includes("SIMULATION_RATE_LIMIT")) return "This test action was repeated too quickly. Retry after the one-minute safety interval.";
+  if (message.includes("CSRF") || message.includes("AUTH")) return "Your Admin session may have expired. Sign in again and reopen this simulation; the active test is restorable in the same tab.";
+  if (message.includes("SIMULATION_RECEIPT_INVALID")) return "The copied receipt is not a valid Research simulation receipt. Please copy the entire receipt, without extra text.";
+  if (message.startsWith("SERVER_RESPONSE_")) return "The Research simulation server did not return a valid response. HTTP " + message.slice("SERVER_RESPONSE_".length) + ".";
+  return message;
+}
 
 export function ResearchWorkflowSimulator({ slug, csrfToken }: {
   slug: string; csrfToken: string;
@@ -24,6 +37,51 @@ export function ResearchWorkflowSimulator({ slug, csrfToken }: {
   const [receivedNotification, setReceivedNotification] = useState(false);
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
+  const [hydrated, setHydrated] = useState(false);
+  const [restored, setRestored] = useState(false);
+
+  useEffect(() => {
+    try {
+      const storageKey = SESSION_PREFIX + slug;
+      const saved = sessionStorage.getItem(storageKey);
+      if (!saved) return;
+      const data = JSON.parse(saved) as Record<string, unknown>;
+      // The invitation itself lasts 30 minutes. A receipt submitted in that
+      // window may remain valid for 30 minutes longer.
+      if (typeof data.runId !== "string" || !/^[0-9a-f-]{36}$/.test(data.runId)
+        || typeof data.expiresAt !== "number"
+        || data.expiresAt + 30 * 60 * 1000 <= Date.now()
+        || typeof data.email !== "string" || !data.email.includes("@")) {
+        sessionStorage.removeItem(storageKey);
+        return;
+      }
+      setEmail(data.email);
+      setApproved(true);
+      setRun({
+        previewLink: "", runId: data.runId, expiresAt: data.expiresAt,
+        messageId: typeof data.messageId === "string" ? data.messageId : undefined,
+        dryRun: data.dryRun === true
+      });
+      setReceivedInvitation(data.receivedInvitation === true);
+      setRestored(true);
+    } catch { /* Session storage may be disabled; normal in-tab operation still works. */ }
+    finally { setHydrated(true); }
+  }, [slug]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      const storageKey = SESSION_PREFIX + slug;
+      if (!run || run.expiresAt + 30 * 60 * 1000 <= Date.now()) {
+        sessionStorage.removeItem(storageKey);
+      } else {
+        sessionStorage.setItem(storageKey, JSON.stringify({
+          email, runId: run.runId, expiresAt: run.expiresAt,
+          messageId: run.messageId, dryRun: run.dryRun, receivedInvitation
+        }));
+      }
+    } catch { /* Browser storage is optional. */ }
+  }, [hydrated, slug, email, run, receivedInvitation]);
 
   async function post(body: Record<string, unknown>) {
     const response = await fetch("/api/admin/research/simulation", {
@@ -32,7 +90,9 @@ export function ResearchWorkflowSimulator({ slug, csrfToken }: {
       cache: "no-store",
       body: JSON.stringify({ ...body, slug })
     });
-    const data = await response.json() as Record<string, unknown>;
+    let data: Record<string, unknown>;
+    try { data = await response.json() as Record<string, unknown>; }
+    catch { throw new Error("SERVER_RESPONSE_" + response.status); }
     if (!response.ok || data.ok !== true) throw new Error(typeof data.error === "string" ? data.error : "Η δοκιμή απέτυχε.");
     return data;
   }
@@ -59,8 +119,9 @@ export function ResearchWorkflowSimulator({ slug, csrfToken }: {
       setNotificationMessageId("");
       setReceivedInvitation(false);
       setReceivedNotification(false);
+      setRestored(false);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Αδύνατη η δημιουργία δοκιμής.");
+      setError(simulationError(cause instanceof Error ? cause.message : "Αδύνατη η δημιουργία δοκιμής."));
     } finally {
       setLoading("");
     }
@@ -79,7 +140,7 @@ export function ResearchWorkflowSimulator({ slug, csrfToken }: {
       });
     } catch (cause) {
       setProof(null);
-      setError(cause instanceof Error ? cause.message : "Η απόδειξη δεν επαληθεύτηκε.");
+      setError(simulationError(cause instanceof Error ? cause.message : "Η απόδειξη δεν επαληθεύτηκε."));
     } finally {
       setLoading("");
     }
@@ -98,7 +159,7 @@ export function ResearchWorkflowSimulator({ slug, csrfToken }: {
       setNotificationMessageId(String(data.messageId));
       setReceivedNotification(false);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Η ειδοποίηση δεν στάλθηκε.");
+      setError(simulationError(cause instanceof Error ? cause.message : "Η ειδοποίηση δεν στάλθηκε."));
     } finally {
       setLoading("");
     }
@@ -112,6 +173,10 @@ export function ResearchWorkflowSimulator({ slug, csrfToken }: {
   const done = checks.filter(Boolean).length;
 
   return <div className="shell vendor-section" style={{ display: "grid", gap: 22 }}>
+    {restored && run && <div className="workspace-inline-note" role="status">
+      <strong>Existing rehearsal recovered in this tab.</strong> Your previously copied submission receipt can be pasted in step 3. No email was resent.
+      {run.expiresAt < Date.now() && <p>The original invitation has expired, but a receipt submitted shortly before its deadline may still be valid.</p>}
+    </div>}
     <div className="workspace-action-bar" style={{ alignItems: "flex-start" }}>
       <span><strong>Simulation progress · {done}/5 steps</strong><br />
         Each step is deliberately separate. SES accepted is not the same as delivered.
@@ -156,13 +221,13 @@ export function ResearchWorkflowSimulator({ slug, csrfToken }: {
           <input type="checkbox" checked={receivedInvitation} onChange={(event) => setReceivedInvitation(event.target.checked)} />
           I personally received the invitation in my mailbox.
         </label>}
-        <div className="workspace-action-buttons">
+        {run.previewLink ? <div className="workspace-action-buttons">
           <a className="button button-secondary" href={run.previewLink} target="_blank" rel="noreferrer noopener">
             Open test link in new tab
           </a>
           <button type="button" className="button button-secondary"
             onClick={() => void navigator.clipboard.writeText(run.previewLink)}>Copy test link</button>
-        </div>
+        </div> : <p>The original invitation URL is available in your received email. This restored Admin session does not store the private URL.</p>}
         <small>Opening this Admin preview link does not confirm email delivery. For email testing, open the link from the received message.</small>
       </>}
     </div>
@@ -214,7 +279,7 @@ export function ResearchWorkflowSimulator({ slug, csrfToken }: {
       <button type="button" className="button button-secondary" onClick={() => {
         setRun(null); setProof(null); setReceipt(""); setApproved(false);
         setReceivedInvitation(false); setReceivedNotification(false);
-        setNotificationMessageId(""); setError("");
+        setNotificationMessageId(""); setError(""); setRestored(false);
       }}>Reset simulation</button>
     </div>
     {error && <div className="workspace-inline-note form-error" role="alert">{error}</div>}
