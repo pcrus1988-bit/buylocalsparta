@@ -133,6 +133,14 @@ export function planWithCurrentQuestionCoverage(
   };
 }
 
+/** JSONB reorders object properties: compare by value, not insertion order. */
+function canonical(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
+  const record = value as Record<string, unknown>;
+  return "{" + Object.keys(record).sort().map((key) => JSON.stringify(key) + ":" + canonical(record[key])).join(",") + "}";
+}
+
 export function questionCoverageIsCurrent(
   plan: Record<string, unknown>,
   questions: readonly ResearchQuestion[],
@@ -143,5 +151,5 @@ export function questionCoverageIsCurrent(
   const secondary = objectValue(plan.secondaryAnalyses);
   if (previous.instrumentVersion !== instrumentVersion || previous.instrumentFingerprint !== instrumentFingerprint) return false;
   const actual = secondary.questionMeasures;
-  return JSON.stringify(actual) === JSON.stringify(questionEvaluationMeasures(questions));
+  return canonical(actual) === canonical(questionEvaluationMeasures(questions));
 }
