@@ -1329,7 +1329,9 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       COALESCE(a.estimates, 0)::int AS analysis_estimates,
       COALESCE(rel.releases, 0)::int AS releases,
       rel.latest_release_version,
-      rel.latest_release_published_at
+      rel.latest_release_published_at,
+      COALESCE(j.queued_sample_jobs,0)::int AS queued_sample_jobs,
+      COALESCE(j.running_sample_jobs,0)::int AS running_sample_jobs
     FROM research_studies s
     LEFT JOIN LATERAL (
       SELECT id, version, status FROM research_instruments
