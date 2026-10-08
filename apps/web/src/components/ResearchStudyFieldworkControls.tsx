@@ -441,8 +441,9 @@ export function ResearchStudyFieldworkControls({
 
     <div className="workspace-action-bar">
       <span>
-        <strong>Αποστολή προσκλήσεων</strong><br />
-        {activeContacts.toLocaleString("el-GR")} contactable frame units · {completed.toLocaleString("el-GR")} ολοκληρωμένες απαντήσεις.
+        <strong>{studyStatus === "pilot" ? "Αποστολή πιλοτικών προσκλήσεων" : "Αποστολή στη κύρια μελέτη μέσω Ομάδων A / B"}</strong><br />
+        {studyStatus === "pilot" ? "Η πιλοτική παρτίδα είναι ανεξάρτητη." : "Η κύρια έρευνα καλύπτει όλες τις επιλέξιμες επαφές χωρίς συνολικό όριο. Ανοίξτε την καρτέλα Ομάδες A / B."}
+        {" · "}{activeContacts.toLocaleString("el-GR")} contactable frame units · {completed.toLocaleString("el-GR")} ολοκληρωμένες απαντήσεις.
       </span>
       <div className="workspace-action-buttons">
         <input
@@ -456,7 +457,7 @@ export function ResearchStudyFieldworkControls({
         />
         <button
           className="button"
-          disabled={Boolean(busy) || workerBusy || !fielding || !recruitmentTemplateVersion || !batchValid}
+          disabled={Boolean(busy) || workerBusy || studyStatus !== "pilot" || !recruitmentTemplateVersion || !batchValid}
           onClick={() => void sendInvites()}
           type="button"
         >{busy === "send" ? "Προετοιμασία…" : "Αποστολή παρτίδας προσκλήσεων"}</button>
