@@ -131,7 +131,7 @@ export async function publicResearchObservatory(): Promise<PublicResearchObserva
         w.fieldwork_starts_at,
         w.fieldwork_ends_at,
         COALESCE(sample_counts.selected,0)::int AS selected,
-        COALESCE(sample_design.desired_complete_n,active_draw.target_n,0)::int AS target_completes,
+        COALESCE(sample_counts.target_completes,0)::int AS target_completes,
         COALESCE(invite_counts.invites,0)::int AS invites,
         COALESCE(invite_counts.sent,0)::int AS sent,
         COALESCE(invite_counts.delivered,0)::int AS delivered,
@@ -144,7 +144,7 @@ export async function publicResearchObservatory(): Promise<PublicResearchObserva
         GREATEST(
           s.updated_at,
           w.updated_at,
-          COALESCE(active_draw.created_at,s.updated_at),
+          COALESCE(sample_counts.last_activity_at,s.updated_at),
           COALESCE(invite_counts.last_activity_at,s.updated_at),
           COALESCE(response_counts.last_activity_at,s.updated_at),
           COALESCE(latest_release.published_at,s.updated_at)
@@ -152,32 +152,29 @@ export async function publicResearchObservatory(): Promise<PublicResearchObserva
       FROM research_studies s
       JOIN research_programmes p ON p.id=s.programme_id
       JOIN research_waves w ON w.study_id=s.id
+      -- The public observatory is MAIN-fieldwork only. The pilot is an
+      -- internal workflow test, never a denominator or a publishable response.
+      -- Sum all active main draws: cohort A and cohort B can have separate draws.
       LEFT JOIN LATERAL (
-        SELECT d.id,d.target_n,d.created_at
+        SELECT
+          COALESCE(SUM((
+            SELECT count(*) FROM research_sample_units su
+            WHERE su.sample_draw_id=d.id
+          )),0)::int AS selected,
+          COALESCE(SUM(COALESCE(sd.desired_complete_n,0)),0)::int AS target_completes,
+          max(d.created_at) AS last_activity_at
         FROM research_sample_draws d
+        LEFT JOIN LATERAL (
+          SELECT rsd.desired_complete_n
+          FROM research_sample_designs rsd
+          WHERE rsd.sample_draw_id=d.id
+          ORDER BY rsd.created_at DESC
+          LIMIT 1
+        ) sd ON true
         WHERE d.study_id=s.id
           AND d.wave_id=w.id
+          AND d.fieldwork_phase='main'
           AND d.status IN ('locked','fielded')
-        ORDER BY
-          CASE
-            WHEN w.status IN ('draft','pilot') AND d.fieldwork_phase='pilot' THEN 0
-            WHEN w.status NOT IN ('draft','pilot') AND d.fieldwork_phase='main' THEN 0
-            ELSE 1
-          END,
-          d.created_at DESC
-        LIMIT 1
-      ) active_draw ON true
-      LEFT JOIN LATERAL (
-        SELECT rsd.desired_complete_n
-        FROM research_sample_designs rsd
-        WHERE rsd.sample_draw_id=active_draw.id
-        ORDER BY rsd.created_at DESC
-        LIMIT 1
-      ) sample_design ON true
-      LEFT JOIN LATERAL (
-        SELECT count(*)::int AS selected
-        FROM research_sample_units su
-        WHERE su.sample_draw_id=active_draw.id
       ) sample_counts ON true
       LEFT JOIN LATERAL (
         SELECT
@@ -197,9 +194,9 @@ export async function publicResearchObservatory(): Promise<PublicResearchObserva
           )::int AS opened,
           max(COALESCE(ri.first_opened_at,ri.sent_at,ri.created_at)) AS last_activity_at
         FROM research_invites ri
-        JOIN research_sample_units su ON su.id=ri.sample_unit_id
-        WHERE su.sample_draw_id=active_draw.id
+        WHERE ri.study_id=s.id
           AND ri.wave_id=w.id
+          AND ri.fieldwork_phase='main'
       ) invite_counts ON true
       LEFT JOIN LATERAL (
         SELECT
@@ -208,9 +205,9 @@ export async function publicResearchObservatory(): Promise<PublicResearchObserva
           max(COALESCE(rr.completed_at,rr.started_at)) AS last_activity_at
         FROM research_responses rr
         JOIN research_invites ri ON ri.id=rr.invite_id
-        JOIN research_sample_units su ON su.id=ri.sample_unit_id
-        WHERE su.sample_draw_id=active_draw.id
+        WHERE rr.study_id=s.id
           AND rr.wave_id=w.id
+          AND ri.fieldwork_phase='main'
       ) response_counts ON true
       LEFT JOIN LATERAL (
         SELECT rs.release_version,rs.published_at,rs.public_url
