@@ -41,7 +41,7 @@ export default async function ResearchSurveysAdminPage() {
         <h1>Surveys</h1>
         <p className="lead">Choose a study first. Questions, evaluation, sampling, contacts, invitations and publication then open in their own dedicated workspace.</p>
         <div className="hero-actions">
-          <Link className="button button-secondary" href="/admin/research/settings">Global Research settings</Link>
+          <Link prefetch={false} className="button button-secondary" href="/admin/research/settings">Global Research settings</Link>
         </div>
       </div>
     </section>
@@ -79,9 +79,9 @@ export default async function ResearchSurveysAdminPage() {
                   </small>
                   <small>{deadlineLabel(study.fieldworkEndsAt)}</small>
                   <div className="workspace-action-buttons">
-                    <Link className="button" href={"/admin/research/surveys/" + encodeURIComponent(study.slug)}>Open survey</Link>
-                    <Link className="button button-secondary" href={root + "/questions"}>Questions</Link>
-                    <Link className="button button-secondary" href={root + "/evaluation"}>Evaluation</Link>
+                    <Link prefetch={false} className="button" href={"/admin/research/surveys/" + encodeURIComponent(study.slug)}>Open survey</Link>
+                    <Link prefetch={false} className="button button-secondary" href={root + "/questions"}>Questions</Link>
+                    <Link prefetch={false} className="button button-secondary" href={root + "/evaluation"}>Evaluation</Link>
                   </div>
                 </article>;
               })}
