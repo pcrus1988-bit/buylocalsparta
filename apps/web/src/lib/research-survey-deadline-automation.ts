@@ -44,7 +44,9 @@ export async function advanceGreekRetailDeadline(): Promise<Result> {
       SELECT DISTINCT ON (qr.response_id) qr.response_id,qr.decision
       FROM research_response_quality_reviews qr
       JOIN research_responses rr ON rr.id=qr.response_id
+      JOIN research_invites ri ON ri.id=rr.invite_id
       WHERE rr.study_id=$1 AND rr.wave_id=$2
+        AND rr.status='completed' AND ri.fieldwork_phase='main'
       ORDER BY qr.response_id,qr.created_at DESC,qr.id DESC
     )
     SELECT count(*)::int AS pending FROM latest WHERE decision='review'
