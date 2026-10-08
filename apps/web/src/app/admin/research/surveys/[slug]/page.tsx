@@ -8,7 +8,7 @@ import { RESEARCH_SURVEY_ADMIN_SECTIONS, ResearchSurveyAdminNav } from "../../..
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, WorkspaceStatusBadge } from "../../../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../../lib/admin-session";
-import { GREEK_RETAIL_2026_SLUG, researchSurveyAdminFastOverview } from "../../../../../lib/research-survey-runtime";
+import { GREEK_RETAIL_2026_SLUG, researchSurveyAdminCohortOverview, researchSurveyAdminFastOverview } from "../../../../../lib/research-survey-runtime";
 
 export const metadata: Metadata = {
   title: "Admin · Survey Overview",
@@ -31,9 +31,19 @@ async function ResearchSurveyLiveOverview({ principal, slug }: {
   slug: string;
 }) {
   let overview: Awaited<ReturnType<typeof researchSurveyAdminFastOverview>>;
+  let cohorts: Awaited<ReturnType<typeof researchSurveyAdminCohortOverview>>;
   const startedAt = Date.now();
   try {
-    overview = await researchSurveyAdminFastOverview(principal, slug);
+    const [overviewResult, cohortResult] = await Promise.allSettled([
+      researchSurveyAdminFastOverview(principal, slug),
+      researchSurveyAdminCohortOverview(principal, slug)
+    ]);
+    if (overviewResult.status === "rejected") throw overviewResult.reason;
+    overview = overviewResult.value;
+    cohorts = cohortResult.status === "fulfilled" ? cohortResult.value : undefined;
+    if (cohortResult.status === "rejected") {
+      console.error("research.admin_cohort_overview_unavailable", cohortResult.reason);
+    }
   } catch (error) {
     console.error(JSON.stringify({
       level: "error",
@@ -67,13 +77,57 @@ async function ResearchSurveyLiveOverview({ principal, slug }: {
   }
   return <>
     <WorkspaceMetricStrip items={[
-      { label: "Population frame (frozen)", value: study.framePopulation === undefined ? "—" : study.framePopulation.toLocaleString("el-GR"), hint: String(study.frameCount) + " snapshot(s)" + (study.buildingFrames > 0 ? " · " + study.buildingFrames + " building" : "") },
+      { label: "Latest frozen frame", value: study.framePopulation === undefined ? "—" : study.framePopulation.toLocaleString("el-GR"), hint: String(study.frameCount) + " snapshot(s)" + (study.buildingFrames > 0 ? " · " + study.buildingFrames + " building" : "") },
       { label: "Selected sample", value: study.sampleUnits.toLocaleString("el-GR"), hint: String(study.sampleDrawCount) + " draw(s)" },
       { label: "Email contacts (frozen)", value: study.snapshotActiveContacts === undefined ? "—" : study.snapshotActiveContacts.toLocaleString("el-GR"), hint: "Active at latest frozen snapshot · live statuses are in Contacts" },
       { label: "Invitations", value: study.invites.toLocaleString("el-GR"), hint: String(study.inviteBatches) + " batch(es)" },
       { label: "Completed", value: study.completed.toLocaleString("el-GR"), hint: percentage(study.completed, study.sent) + " of sent" }
     ]} />
     <div className="shell workspace-inline-note" role="status">Population and email counts come from the latest completed (frozen) frame. A snapshot still building is tracked separately and is not yet eligible for sampling. A dash means no completed snapshot data is available, not zero businesses.</div>
+    {slug === GREEK_RETAIL_2026_SLUG && <section className="shell vendor-section">
+      <WorkspaceSectionHeading eyebrow="Research cohorts" title="Group A · Group B · Combined"
+        note="One study and questionnaire. A is invited first; B comprises new, deduplicated businesses from the expanded frame. No messages are sent from this dashboard." />
+      {cohorts ? <>
+        <div className="analytics-workflow-grid">
+          <article className="analytics-workflow-card">
+            <span>Cohort A · Original retail frame</span>
+            <WorkspaceStatusBadge status={cohorts.a.status}
+              label={cohorts.a.population === undefined ? "Not ready" : "Frozen baseline"} />
+            <strong>Population: {cohorts.a.population === undefined ? "—" : cohorts.a.population.toLocaleString("el-GR")}</strong>
+            <strong>Businesses with active email: {cohorts.a.contactable === undefined ? "—" : cohorts.a.contactable.toLocaleString("el-GR")}</strong>
+            <small>Original frozen non-food retail frame · {cohorts.a.frozenAt ? new Date(cohorts.a.frozenAt).toLocaleDateString("el-GR") : "no snapshot yet"}. Frozen contact count, not a live opt-out tally.</small>
+          </article>
+          <article className="analytics-workflow-card">
+            <span>Cohort B · Additional retail businesses</span>
+            <WorkspaceStatusBadge status={cohorts.b.status}
+              label={cohorts.b.status === "building" ? "Frame building" : cohorts.b.population === undefined ? "Reconciliation pending" : "Deduplicated"} />
+            <strong>New businesses: {cohorts.b.population === undefined ? "—" : cohorts.b.population.toLocaleString("el-GR")}</strong>
+            <strong>Businesses with active email: {cohorts.b.contactable === undefined ? "—" : cohorts.b.contactable.toLocaleString("el-GR")}</strong>
+            <small>{cohorts.b.status === "building"
+              ? "Import in progress. Only new, eligible businesses not in A count after the completed frame is reconciled."
+              : cohorts.b.population === undefined
+                ? "No completed A/B deduplication yet. Do not interpret expanded-frame totals as Cohort B."
+                : "Incremental eligible businesses, excluding A-frame business identities and already contacted email identities."}</small>
+            {cohorts.b.processedSourceRows !== undefined && <small>{cohorts.b.processedSourceRows.toLocaleString("el-GR")} source records processed so far (not unique cohort businesses).</small>}
+            {cohorts.b.expandedFramePopulation !== undefined && <small>Full expanded frame: {cohorts.b.expandedFramePopulation.toLocaleString("el-GR")} businesses before A/B overlap removal.</small>}
+          </article>
+          <article className="analytics-workflow-card">
+            <span>Combined · Unduplicated coverage</span>
+            <WorkspaceStatusBadge status={cohorts.combined.population === undefined ? "pending" : "ready"}
+              label={cohorts.combined.population === undefined ? "Awaiting B" : "Cohorts reconciled"} />
+            <strong>Unique businesses: {cohorts.combined.population === undefined ? "—" : cohorts.combined.population.toLocaleString("el-GR")}</strong>
+            <strong>Businesses with active email: {cohorts.combined.contactable === undefined ? "—" : cohorts.combined.contactable.toLocaleString("el-GR")}</strong>
+            <small>Calculated as Cohort A plus *new* Cohort B businesses, never by adding two overlapping frames. Email figures count contactable businesses, not necessarily distinct email addresses.</small>
+          </article>
+        </div>
+        <div className="workspace-inline-note">
+          Invitation order: A → B. Keep recruitment records and analyses separate by cohort; aggregate them only with a stated denominator and appropriate weighting.
+          Suppressions and duplicate email identities must also be checked again at send time. A frozen count alone does not authorize sending.
+        </div>
+      </> : <div className="workspace-inline-note form-error" role="status">
+        Cohort counts are temporarily unavailable. They are not being replaced with zero or estimated from other snapshots.
+      </div>}
+    </section>}
     <section className="shell vendor-section">
       <WorkspaceSectionHeading eyebrow="State" title="Study status" note={"Instrument " + (study.instrumentVersion ?? "—")} />
       <div className="workspace-queue-card">
