@@ -6,7 +6,7 @@ import { RESEARCH_SURVEY_ADMIN_SECTIONS, ResearchSurveyAdminNav } from "../../..
 import { WorkspaceEmptyState, WorkspaceMetricStrip, WorkspaceSectionHeading, WorkspaceStatusBadge } from "../../../../../components/WorkspacePagePrimitives";
 import { hasAdminPermission } from "../../../../../lib/admin-runtime";
 import { getAdminSession } from "../../../../../lib/admin-session";
-import { researchSurveyAdminOverview } from "../../../../../lib/research-survey-runtime";
+import { researchSurveyAdminFastOverview } from "../../../../../lib/research-survey-runtime";
 
 export const metadata: Metadata = {
   title: "Admin · Survey Overview",
@@ -28,7 +28,7 @@ export default async function ResearchSurveyOverviewPage({ params }: {
   if (!hasAdminPermission(principal, "research.read")) redirect("/admin");
 
   const { slug } = await params;
-  const overview = await researchSurveyAdminOverview(principal);
+  const overview = await researchSurveyAdminFastOverview(principal, slug);
 
   if (!overview.databaseConfigured) {
     return <main className="vendor-app admin-app">
@@ -39,7 +39,7 @@ export default async function ResearchSurveyOverviewPage({ params }: {
     </main>;
   }
 
-  const study = overview.studies.find((item) => item.slug === slug);
+  const study = overview.study;
   if (!study) notFound();
 
   const root = "/admin/research/surveys/" + encodeURIComponent(study.slug);
@@ -53,6 +53,7 @@ export default async function ResearchSurveyOverviewPage({ params }: {
       <div className="hero-actions">
         <WorkspaceStatusBadge status={study.status} label={study.status} />
         <Link className="button button-secondary" href="/admin/research/surveys">All surveys</Link>
+        <Link className="button button-secondary" href={root + "/contacts"}>Contact details</Link>
       </div>
     </div></section>
 
@@ -61,7 +62,7 @@ export default async function ResearchSurveyOverviewPage({ params }: {
     <WorkspaceMetricStrip items={[
       { label: "Population frame", value: study.framePopulation.toLocaleString("el-GR"), hint: String(study.frameCount) + " snapshot(s)" },
       { label: "Selected sample", value: study.sampleUnits.toLocaleString("el-GR"), hint: String(study.sampleDrawCount) + " draw(s)" },
-      { label: "Contactable units", value: study.activeContacts.toLocaleString("el-GR"), hint: String(study.suppressedContacts) + " suppressed/invalid · " + String(study.bouncedContacts) + " bounced" },
+      { label: "Contacts", value: "Dedicated workspace", hint: "Live contactability, bounces and opt-outs are available in Contacts" },
       { label: "Invitations", value: study.invites.toLocaleString("el-GR"), hint: String(study.inviteBatches) + " batch(es)" },
       { label: "Completed", value: study.completed.toLocaleString("el-GR"), hint: percentage(study.completed, study.sent) + " of sent" }
     ]} />
