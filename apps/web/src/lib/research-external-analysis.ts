@@ -1,5 +1,5 @@
 /** Curated, dated, public-source series. Do not silently join different indicator definitions. */
-export type ExternalPoint = Readonly<{ period: string; year: number; value: number }>;
+export type ExternalPoint = Readonly<{ period: string; year: number; value: number; source?: string }>;
 export type ExternalSeries = Readonly<{ id: string; label: string; points: readonly ExternalPoint[] }>;
 export type ExternalGroup = Readonly<{
   id: string;
@@ -34,7 +34,7 @@ export const EXTERNAL_STUDIES: readonly ExternalStudy[] = [
   { id: "bog-2025", issuer: "Τράπεζα της Ελλάδος · ΙΟΒΕ / EC", title: "Note on the Greek Economy, 05/09/2025", year: 2025, kind: "sentiment", url: "https://www.bankofgreece.gr/Publications/Note_on_the_Greek_economy_05_09_2025.pdf", detail: "Πίνακας 6, σελ. 62: ετήσιοι δείκτες ισοζυγίων 2022–2024, εποχικά διορθωμένοι." },
   { id: "ielka-2025", issuer: "ΙΕΛΚΑ", title: "Τιμές σούπερ μάρκετ, Σεπτέμβριος 2025", year: 2025, kind: "statistical", url: "https://www.ese.gr/meiomenos-plithorismos-supermarket-septemvrio-2025/", detail: "Μεταβολή Σεπτεμβρίου 2025 έναντι Σεπτεμβρίου 2024, οργανωμένο λιανεμπόριο τροφίμων." },
   { id: "ielka-2026", issuer: "ΙΕΛΚΑ", title: "Τιμές σούπερ μάρκετ, Σεπτέμβριος 2026", year: 2026, kind: "statistical", url: "https://www.ese.gr/ekseliksi-timon-supermarket-septemvrios-2026/", detail: "Μεταβολή Σεπτεμβρίου 2026 έναντι Σεπτεμβρίου 2025, ίδιο ειδικό κανάλι." },
-  { id: "esee-2026", issuer: "ΕΣΕΕ · ΙΝΕΜΥ", title: "Κίνηση καταστημάτων, εορτές 2025–2026", year: 2026, kind: "survey", url: "https://www.esee.gr/", detail: "Δειγματοληπτική έρευνα σε εμπορικές επιχειρήσεις. Αναφορά στις αυτοδηλωμένες πωλήσεις, όχι στον συνολικό τζίρο." },
+  { id: "esee-2026", issuer: "ΕΣΕΕ · ΙΝΕΜΥ", title: "Κίνηση καταστημάτων, εορτές 2025–2026", year: 2026, kind: "survey", url: "https://www.poee-org.gr/index.php/nea-anakoinoseis/apotelesmata-tis-panelladikis-erevnas-pou-dieksigage-to-inemy-tis-esee-gia-tin-kinisi-ton-emporikon-katastimaton-kata-ti-diarkeia-tis-eortastikis-periodou-2025-2026", detail: "Δειγματοληπτική έρευνα σε εμπορικές επιχειρήσεις. Αναφορά στις αυτοδηλωμένες πωλήσεις, όχι στον συνολικό τζίρο." },
   { id: "elstat-2026", issuer: "ΕΛΣΤΑΤ", title: "Δείκτες κύκλου εργασιών και όγκου λιανικού εμπορίου", year: 2026, kind: "statistical", url: "https://www.statistics.gr/el/statistics/-/publication/DKT39/2026-M06", detail: "Επίσημες χρονοσειρές όγκου και κύκλου εργασιών. Δεν ταυτίζονται με δείκτες γνώμης." },
   { id: "ec-data", issuer: "Ευρωπαϊκή Επιτροπή · DG ECFIN", title: "Χρονοσειρές ερευνών επιχειρήσεων και καταναλωτών", year: 2026, kind: "sentiment", url: "https://economy-finance.ec.europa.eu/economic-forecast-and-surveys/business-and-consumer-surveys/download-business-and-consumer-survey-data/time-series_en", detail: "Εναρμονισμένες χρονοσειρές, με επισήμανση για εποχική διόρθωση και μεταγενέστερες αναθεωρήσεις." }
 ];
