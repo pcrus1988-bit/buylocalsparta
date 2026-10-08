@@ -1,4 +1,5 @@
 import { ResearchPublicNavigation } from "../../../components/ResearchPublicNavigation";
+import { ResearchStudyDashboard } from "../../../components/ResearchStudyDashboard";
 import { SiteFooter } from "../../../components/SiteFooter";
 import type { Metadata } from "next";
 import styles from "../../../components/ResearchObservatory.module.css";
@@ -27,6 +28,10 @@ const studyStatusLabels: Record<string, string> = {
 
 export default async function GreekRetailResearchPage() {
   const study = await publicResearchStudy("greek-retail-2026");
+  if (study) return <>
+    <ResearchStudyDashboard study={study} compactIntro />
+    <SiteFooter />
+  </>;
   const status = study ? (studyStatusLabels[study.status] ?? "Ενημέρωση σε εξέλιξη") : "Ενημέρωση σε εξέλιξη";
   const isLive = study?.status === "fielding";
 

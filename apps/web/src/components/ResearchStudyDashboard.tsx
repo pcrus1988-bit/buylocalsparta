@@ -51,7 +51,7 @@ function nextStep(status: string): { title: string; body: string } {
   };
 }
 
-export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySummary }) {
+export function ResearchStudyDashboard({ study, compactIntro = false }: { study: PublicResearchStudySummary; compactIntro?: boolean }) {
   const isLive = study.status === "fielding";
   const isPublished = study.status === "published" && Boolean(study.releasePublishedAt);
   const completion = study.targetCompletes > 0 ? Math.min(Math.max(study.completionRate, 0), 1) : 0;
@@ -61,21 +61,21 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
     <div className={styles.frame}>
       <ResearchPublicNavigation active="overview" studySlug={study.waveSlug} />
 
-      <header className={styles.hero}>
+      <header className={styles.hero} style={compactIntro ? { gridTemplateColumns: "minmax(0, 1fr)" } : undefined}>
         <div>
-          <div className={styles.eyebrow}>{study.programmeTitle}</div>
-          <h1>{study.title}</h1>
-          <p>{study.subtitle || study.methodologySummary}</p>
+          {!compactIntro && <div className={styles.eyebrow}>{study.programmeTitle}</div>}
+          <h1>{compactIntro ? "Ελληνικό Λιανεμπόριο 2026" : study.title}</h1>
+          <p>{compactIntro ? "Η πραγματικότητα της μικρής και μεσαίας εμπορικής επιχείρησης στην ψηφιακή εποχή" : (study.subtitle || study.methodologySummary)}</p>
 
           <div className={styles.heroBadges}>
             <span className={[styles.badge, isLive ? styles.badgeLive : isPublished ? styles.badgeDark : styles.badgeWarm].join(" ")}>
               {isLive && <span className={styles.dot} aria-hidden="true" />}
               {statusLabel(study.status)}
             </span>
-            <span className={styles.badge}>Μεθοδολογία διαθέσιμη</span>
+            {!compactIntro && <span className={styles.badge}>Μεθοδολογία διαθέσιμη</span>}
           </div>
 
-          <div className={styles.tabbar}>
+          {!compactIntro && <div className={styles.tabbar}>
             <Link href={"/research/" + study.waveSlug}>Επισκόπηση</Link>
             <Link href={"/research/" + study.waveSlug + "/methodology"}>Μεθοδολογία</Link>
             <Link className={isPublished ? styles.primaryButton : ""} href={"/research/" + study.waveSlug + "/results"}>
@@ -83,10 +83,10 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
             </Link>
             <Link href="/research/compare">Σύγκριση μελετών</Link>
             <Link href="/research/market-sentiment">Έρευνες άλλων φορέων</Link>
-          </div>
+          </div>}
         </div>
 
-        <aside className={styles.heroAside}>
+        {!compactIntro && <aside className={styles.heroAside}>
           <span>Κατάσταση</span>
           <strong>{statusLabel(study.status)}</strong>
           <hr />
@@ -95,10 +95,10 @@ export function ResearchStudyDashboard({ study }: { study: PublicResearchStudySu
           <hr />
           <span>Ολοκλήρωση στόχου</span>
           <strong>{study.targetCompletes > 0 ? percent(completion) : "—"}</strong>
-        </aside>
+        </aside>}
       </header>
 
-      {study.slug === "greek-retail-2026" && <section className={styles.section}>
+      {!compactIntro && study.slug === "greek-retail-2026" && <section className={styles.section}>
         <div className={styles.notice}>
           <strong>Η πιλοτική δοκιμή έχει ολοκληρωθεί.</strong>{" "}
           Χρησίμευσε μόνο για τον έλεγχο της διαδικασίας. Οι πιλοτικές προσκλήσεις και απαντήσεις
