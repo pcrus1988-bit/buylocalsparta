@@ -106,7 +106,7 @@ export default async function ResearchSurveySectionPage({ params, searchParams }
       <section className="shell vendor-section">
         <WorkspaceSectionHeading eyebrow="Survey design" title="Questions" note="Edit wording, answer options, order, required state and evaluation keys for the current questionnaire version." />
       </section>
-      <ResearchSurveyQuestionsEditor slug={study.slug} csrfToken={principal.csrfToken} canEdit={canDesign} data={design} />
+      <ResearchSurveyQuestionsEditor slug={study.slug} csrfToken={principal.csrfToken} canEdit={canDesign} canAnalyze={canAnalyze} data={design} />
     </>;
   } else if (section === "evaluation") {
     const design = await researchSurveyDesignAdminOverview(principal, study.slug);
