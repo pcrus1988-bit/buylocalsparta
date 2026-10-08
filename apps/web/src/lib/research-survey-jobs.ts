@@ -331,13 +331,26 @@ export async function queueGreekRetailSampleDraw(
   if (fieldworkPhase === "main" && studyStatus !== "fielding") {
     throw new Error("RESEARCH_MAIN_SAMPLE_REQUIRES_FIELDING");
   }
+  // The diagnostic Pilot draws exclusively from frozen Cohort A, even when the
+  // expanded Cohort B frame is still building or has superseded A.
+  // Main fieldwork uses the latest frozen full frame after Pilot closeout.
   const frame = await pool.query<SqlRow>(`
     SELECT id FROM research_frame_snapshots
-    WHERE study_id=$1 AND wave_id=$2 AND status='frozen'
-    ORDER BY frozen_at DESC NULLS LAST, created_at DESC
-    LIMIT 1
-  `, [study.rows[0].id, study.rows[0].current_wave_id]);
-  if (!frame.rows[0]) throw new Error("RESEARCH_SAMPLE_REQUIRES_FROZEN_FRAME");
+    WHERE study_id=$1 AND wave_id=$2 AND content_sha256 IS NOT NULL
+      AND (
+        ($3::text='pilot' AND status IN ('frozen','superseded')
+          AND selection_criteria->'activityGroupIds' @> '["retail-non-food"]'::jsonb)
+        OR ($3::text='main' AND status='frozen')
+      )
+    ORDER BY
+      CASE WHEN $3::text='pilot' THEN frozen_at END ASC NULLS LAST,
+      CASE WHEN $3::text='main' THEN frozen_at END DESC NULLS LAST,
+      created_at DESC LIMIT 1
+  `, [study.rows[0].id, study.rows[0].current_wave_id, fieldworkPhase]);
+  if (!frame.rows[0]) throw new Error(fieldworkPhase === "pilot"
+    ? "RESEARCH_PILOT_REQUIRES_FROZEN_COHORT_A"
+    : "RESEARCH_SAMPLE_REQUIRES_FROZEN_FRAME");
+  const pinnedFrameId = text(frame.rows[0].id);
 
   const contacted = await pool.query<SqlRow>(`
     SELECT EXISTS(
@@ -367,6 +380,8 @@ export async function queueGreekRetailSampleDraw(
     const existingExpectedResponseRate = numberValue(existingInput.expectedResponseRate);
     if (
       existingPhase !== fieldworkPhase
+      || text(existingInput.frameSnapshotId) !== pinnedFrameId
+      || Math.floor(numberValue(existingInput.targetN)) !== targetN
       || existingDesiredCompleteN !== desiredCompleteN
       || Math.abs(existingExpectedResponseRate - expectedResponseRate) > 1e-9
     ) {
@@ -392,7 +407,8 @@ export async function queueGreekRetailSampleDraw(
         'label', $5::text,
         'fieldworkPhase', $6::text,
         'desiredCompleteN', $7::int,
-        'expectedResponseRate', $8::numeric
+        'expectedResponseRate', $8::numeric,
+        'frameSnapshotId', $9::text
       )
     )
     RETURNING id
@@ -404,7 +420,8 @@ export async function queueGreekRetailSampleDraw(
     input.label?.trim() || `${fieldworkPhase}-sample-${targetN}`,
     fieldworkPhase,
     desiredCompleteN,
-    expectedResponseRate
+    expectedResponseRate,
+    pinnedFrameId
   ]);
   return { jobId: text(job.rows[0]!.id), randomSeed, fieldworkPhase };
 }
@@ -1713,14 +1730,28 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
     if (Boolean(contacted.rows[0]?.has_contacted_units)) {
       throw new Error("RESEARCH_SAMPLE_REDRAW_AFTER_CONTACT");
     }
+    // Preserve exact original sampling evidence across concurrent Cohort B freeze.
+    // A pinned Pilot Cohort A frame remains eligible if B supersedes its status.
+    const pinnedFrameId = text(input.frameSnapshotId);
+    if (pinnedFrameId && !/^[0-9a-f-]{36}$/i.test(pinnedFrameId)) {
+      throw new Error("RESEARCH_SAMPLE_PINNED_FRAME_INVALID");
+    }
     const frameResult = await client.query<SqlRow>(`
       SELECT id, wave_id, population_size, content_sha256
       FROM research_frame_snapshots
-      WHERE study_id=$1 AND wave_id=$2 AND status='frozen'
+      WHERE study_id=$1 AND wave_id=$2
+        AND (NULLIF($3::text,'')::uuid IS NULL OR id=NULLIF($3::text,'')::uuid)
+        AND (
+          status='frozen' OR (
+            $4::text='pilot' AND status='superseded'
+            AND selection_criteria->'activityGroupIds' @> '["retail-non-food"]'::jsonb
+          )
+        )
+        AND content_sha256 IS NOT NULL
       ORDER BY frozen_at DESC NULLS LAST, created_at DESC
       LIMIT 1
       FOR UPDATE
-    `, [job.study_id, job.wave_id]);
+    `, [job.study_id, job.wave_id, pinnedFrameId, fieldworkPhase]);
     const frame = frameResult.rows[0];
     if (!frame) throw new Error("RESEARCH_SAMPLE_REQUIRES_FROZEN_FRAME");
 
