@@ -9,7 +9,7 @@ import {
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "./postgres-runtime";
 import { runGreekRetailAnalysis } from "./research-survey-analysis";
 import { proportionalStratumAllocation } from "./research-survey-statistics";
-import { evaluateResearchDeliverySafety } from "./research-survey-delivery-safety";
+import { allowIsolatedResearchSubmissionFailure, evaluateResearchDeliverySafety } from "./research-survey-delivery-safety";
 import { buildGreekRetailRelease } from "./research-survey-release";
 import { greekRetailSector, greekRetailSectorV1, isRetailKad, RETAIL_ACTIVITY_GROUP_IDS, RETAIL_CLASSIFICATION_VERSION, RETAIL_SOURCE_REFERENCE } from "./research-kad-coverage";
 import {
@@ -2834,6 +2834,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   const base = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://kontamou.site").replace(/\/$/, "");
   let sentCount = 0;
   let failedCount = 0;
+  let postAcceptanceFailures = 0;
   let alreadySentCount = 0;
   let duplicateSkippedCount = 0;
   const failures: Array<{ sampleUnitId: string; error: string }> = [];
@@ -2992,6 +2993,9 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
 
     const surveyUrl = `${base}/research/${encodeURIComponent(text(batchRow.slug))}/t/${encodeURIComponent(token)}`;
     const methodologyUrl = `${base}/research/${encodeURIComponent(text(batchRow.slug))}/methodology`;
+    // Distinguish an isolated SES submission failure from database persistence
+    // failing AFTER SES accepted the message. Only the former is tolerated.
+    let acceptedBySes = false;
     try {
       if (continuous) {
         const gap = previousSesAttemptAt + minSendIntervalMs - Date.now();
@@ -3012,6 +3016,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
         bodyTemplate: text(batchRow.body_text),
         companyName: text(contact.legal_name).trim() || undefined
       });
+      acceptedBySes = true;
       await pool.query(`
         UPDATE research_invites
         SET status='sent',sent_at=now()
@@ -3091,6 +3096,7 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
           VALUES ($1,'expired',jsonb_build_object('source','research_worker','reason','send_failed','error',$2::text))
         `, [inviteId, message]);
         failedCount += 1;
+        if (acceptedBySes) postAcceptanceFailures += 1;
         failures.push({ sampleUnitId, error: message });
       }
     }
@@ -3104,9 +3110,17 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
   `, [batchId]);
   const batchSentCount = numberValue(sentTotal.rows[0]?.count);
 
-  const completed = failedCount === 0;
   const nextProcessed = campaignProcessed + sampleUnitIds.length;
   const nextSent = campaignSent + batchSentCount;
+  const previousSubmissionFailures = Math.max(0,Math.floor(numberValue(currentOutput.campaignSubmissionFailureCount)));
+  const isolatedFailureAllowed = allowIsolatedResearchSubmissionFailure({
+    continuous, batchFailures:failedCount, postAcceptanceFailures,
+    previousFailures:previousSubmissionFailures, processedAfterBatch:nextProcessed
+  });
+  // One isolated, journaled SES rejection should not make 180k unrelated
+  // invitations fail. Two failures in a step, a cumulative-rate breach or
+  // any failure after SES acceptance must still hold and require review.
+  const completed = failedCount === 0 || isolatedFailureAllowed;
   if (continuous && (nextProcessed > campaignMax || nextSent > campaignMax)) {
     throw new Error("RESEARCH_CAMPAIGN_AUTHORIZED_LIMIT_EXCEEDED");
   }
@@ -3128,10 +3142,14 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     failedCount,
     failures: failures.slice(0, 25),
     ...(continuous ? {campaignProcessedCount:completed?nextProcessed:campaignProcessed,
-      campaignSentCount:completed?nextSent:campaignSent,deliverySafety} : {})
+      campaignSentCount:completed?nextSent:campaignSent,deliverySafety,
+      campaignSubmissionFailureCount:previousSubmissionFailures+failedCount,
+      lastAttemptFailureReason:failures[0]?.error ?? currentOutput.lastAttemptFailureReason,
+      lastAttemptFailureAfterAcceptance:postAcceptanceFailures>0 ||
+        currentOutput.lastAttemptFailureAfterAcceptance===true} : {})
   })]);
 
-  if (failedCount > 0) {
+  if (failedCount > 0 && !isolatedFailureAllowed) {
     throw new Error(`RESEARCH_INVITE_PARTIAL_FAILURE:${failedCount}`);
   }
 
@@ -3146,7 +3164,10 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       safetyHold:null,
       lastBatchSentCount:batchSentCount,
       lastBatchDuplicateSkippedCount:duplicateSkippedCount,
-      failedCount:0
+      lastBatchFailureCount:failedCount,
+      campaignSubmissionFailureCount:previousSubmissionFailures+failedCount,
+      lastAttemptFailureReason:failures[0]?.error ?? currentOutput.lastAttemptFailureReason,
+      failedCount
     };
   }
   return {
@@ -3155,8 +3176,11 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     sentCount: batchSentCount,
     alreadySentCount,
     duplicateSkippedCount,
-    failedCount: 0,
-    ...(continuous ? {campaignComplete:true,campaignProcessedCount:nextProcessed,campaignSentCount:nextSent,approvedMaxEmails:campaignMax,deliverySafety,safetyHold:null} : {})
+    failedCount,
+    ...(continuous ? {campaignComplete:true,campaignProcessedCount:nextProcessed,campaignSentCount:nextSent,
+      campaignSubmissionFailureCount:previousSubmissionFailures+failedCount,
+      lastAttemptFailureReason:failures[0]?.error ?? currentOutput.lastAttemptFailureReason,
+      approvedMaxEmails:campaignMax,deliverySafety,safetyHold:null} : {})
   };
 }
 
