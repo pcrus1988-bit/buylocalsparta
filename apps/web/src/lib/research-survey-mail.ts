@@ -3,8 +3,8 @@ import { KONTA_MOY_EMAIL_COMPANY } from "@buy-local-sparta/resend-notifications"
 import { buildAdminMailRawMime, type AdminMailAddress } from "./admin-mail-mime";
 import { sendRawSesEmail, sesMailConfigFromEnv } from "./admin-mail-ses";
 
-const DEFAULT_FROM = "partners@kontamou.site";
-const DEFAULT_REPLY_TO = "partners@kontamou.site";
+const DEFAULT_FROM = "research@kontamou.site";
+const DEFAULT_REPLY_TO = "research@kontamou.site";
 const DEFAULT_DOMAIN = "kontamou.site";
 const SPARTA_BRANCH_ADDRESS = "Σειρήνων 11, 23100 Σπάρτη";
 
@@ -27,6 +27,18 @@ export function researchSurveyEmailConfiguration(
   };
 }
 
+/** Independent one-recipient SES simulation; does not open live fieldwork. */
+export function assertResearchSimulationEmailReady(
+  env: NodeJS.ProcessEnv = process.env
+): ResearchSurveyEmailConfiguration {
+  if (env.BLS_RESEARCH_SIMULATION_EMAIL_ENABLED !== "true") {
+    throw new Error("RESEARCH_SIMULATION_EMAIL_DISABLED");
+  }
+  const configuration = researchSurveyEmailConfiguration(env);
+  sesMailConfigFromEnv(env);
+  return configuration;
+}
+
 export function assertResearchSurveyEmailReady(env: NodeJS.ProcessEnv = process.env): ResearchSurveyEmailConfiguration {
   const configuration = researchSurveyEmailConfiguration(env);
   if (!configuration.enabled) {
@@ -35,9 +47,14 @@ export function assertResearchSurveyEmailReady(env: NodeJS.ProcessEnv = process.
   if (!configuration.configurationSetName) {
     throw new Error("BLS_RESEARCH_SES_CONFIGURATION_SET is required for governed research delivery");
   }
-  // Resolve credentials up-front so the admin queue action fails before a job is
-  // accepted if the dedicated research delivery path is not actually usable.
-  sesMailConfigFromEnv(env);
+  // Verify credentials and same-region SNS topic before accepting any live send.
+  const ses = sesMailConfigFromEnv(env);
+  const topicArn = env.BLS_RESEARCH_SES_SNS_TOPIC_ARN?.trim();
+  if (!topicArn) throw new Error("BLS_RESEARCH_SES_SNS_TOPIC_ARN is required for governed research delivery");
+  const topicPattern = /^arn:aws:sns:[a-z0-9-]+:[0-9]{12}:[A-Za-z0-9_.-]+$/;
+  if (!topicPattern.test(topicArn) || !topicArn.startsWith("arn:aws:sns:" + ses.region + ":")) {
+    throw new Error("RESEARCH_SES_SNS_TOPIC_REGION_OR_ARN_INVALID");
+  }
   return configuration;
 }
 
