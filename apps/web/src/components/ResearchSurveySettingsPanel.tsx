@@ -66,11 +66,11 @@ export function ResearchSurveySettingsPanel({
 
   async function savePilotDeadline() {
     if (!fieldworkEndsAt) return;
-    const deadline = athensDeadlineInputToIso(fieldworkEndsAt);
-    if (!window.confirm("Set the official survey deadline to " + deadlinePreview + "?\\n\\nThis closes participant access at the selected time. The Pilot remains a separate phase. Other locked study settings will not change.")) return;
-    setBusy(true);
     setMessage("");
     try {
+      const deadline = athensDeadlineInputToIso(fieldworkEndsAt);
+      if (!window.confirm("Set the official survey deadline to " + deadlinePreview + "?\n\nThis closes participant access at the selected time. The Pilot remains a separate phase. Other locked study settings will not change.")) return;
+      setBusy(true);
       const response = await fetch("/api/admin/research/surveys/" + encodeURIComponent(slug) + "/lifecycle", {
         method: "POST",
         headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
