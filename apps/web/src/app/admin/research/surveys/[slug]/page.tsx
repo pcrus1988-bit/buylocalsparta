@@ -121,8 +121,9 @@ async function ResearchSurveyLiveOverview({ principal, slug }: {
           </article>
         </div>
         <div className="workspace-inline-note">
-          Invitation order: A → B. Keep recruitment records and analyses separate by cohort; aggregate them only with a stated denominator and appropriate weighting.
-          Suppressions and duplicate email identities must also be checked again at send time. A frozen count alone does not authorize sending.
+          Intended invitation order: A → B, with separate cohort evaluation and a shared questionnaire. These cards are coverage counters, not cohort-specific send or analysis controls.
+          Cohort-aware recruitment and analysis must be configured before fieldwork; do not use the existing unsegmented send action as an A/B campaign.
+          Suppressions and duplicate email identities must be checked again at send time. A frozen count alone does not authorize sending.
         </div>
       </> : <div className="workspace-inline-note form-error" role="status">
         Cohort counts are temporarily unavailable. They are not being replaced with zero or estimated from other snapshots.
