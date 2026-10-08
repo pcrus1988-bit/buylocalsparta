@@ -58,6 +58,11 @@ function importRows(text: string): ParsedCsv {
   return {lines:[...grouped].map(([label,points],i)=>({id:"import-"+i,label,points:points.sort((a,b)=>a.year-b.year||a.period.localeCompare(b.period,undefined,{numeric:true}))})),unit:[...units][0] as ParsedCsv["unit"],message:"Φορτώθηκαν "+sourceCount+" ιδιωτικές εγγραφές. Οι πηγές δεν έχουν επαληθευτεί."};
 }
 
+function defaultChartType(group: ExternalGroup): "line" | "bar" {
+  return group.comparison === "descriptive" || group.id === "supermarket-prices" || group.id === "retail-june-growth"
+    ? "bar" : "line";
+}
+
 function format(value:number,unit:ExternalGroup["unit"]):string{
   return unit==="euro"?new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR",maximumFractionDigits:2}).format(value):locale.format(value)+(unit==="percent"?"%":unit==="days"?" ημέρες":"");
 }
@@ -112,7 +117,7 @@ export function ResearchExternalAnalysis({initialGroupId = "annual-esi"}: {initi
   const [groupId,setGroupId]=useState(initialGroup.id);
   const [chosen,setChosen]=useState<string[]>(initialGroup.series.map(s=>s.id));
   const [from,setFrom]=useState(Math.min(2026,...initialGroup.series.flatMap(s=>s.points.map(p=>p.year)))),[until,setUntil]=useState(2026);
-  const [chartType,setChartType]=useState<"line"|"bar">("line"),[index,setIndex]=useState(false);
+  const [chartType,setChartType]=useState<"line"|"bar">(defaultChartType(initialGroup)),[index,setIndex]=useState(false);
   const [query,setQuery]=useState(""),[kind,setKind]=useState("all"),[archiveYear,setArchiveYear]=useState("all");
   const [leftStudy,setLeftStudy]=useState("iobe-2025"),[rightStudy,setRightStudy]=useState("iobe-2026");
   const [uploaded,setUploaded]=useState<ParsedCsv|null>(null),[uploadError,setUploadError]=useState("");
@@ -156,7 +161,7 @@ export function ResearchExternalAnalysis({initialGroupId = "annual-esi"}: {initi
   function chooseGroup(id:string){
     const next=EXTERNAL_GROUPS.find(g=>g.id===id)??EXTERNAL_GROUPS[0];
     setUploaded(null);setUploadError("");setGroupId(next.id);setChosen(next.series.map(s=>s.id));setFrom(Math.min(2026,...next.series.flatMap(s=>s.points.map(p=>p.year))));setUntil(2026);setIndex(false);
-    setChartType(next.id==="supermarket-prices"||next.id==="holiday-survey"?"bar":"line");
+    setChartType(defaultChartType(next));
   }
   function exportData(){
     const text=uploaded
