@@ -126,16 +126,16 @@ test("single research mailbox validation rejects control, whitespace and semicol
     "", "unknown", "test@sample", "hello @example.gr",
     "foo@exa mple.gr", "foo@site.gr;bar@site.gr",
     "foo@site.gr,bar@site.gr", "Foo Name <foo@site.gr>",
-    "foo\\t@site.gr", "foo\\n@site.gr", "foo\\r@site.gr",
+    "foo\t@site.gr", "foo\n@site.gr", "foo\r@site.gr",
     "foo..bar@example.gr", ".foo@example.gr", "foo.@example.gr",
     "foo@@example.gr", "foo@-example.gr",
     "foo@example..gr", "foo@exämple.gr", "δοκιμή@example.gr",
     "foo@example.gr ", " foo@example.gr",
-    "foo@example.gr\\u0000"
+    "foo@example.gr\u0000"
   ];
   for (const address of bad) {
     assert.notEqual(invalidResearchRecipientAddressReason(address), null, JSON.stringify(address));
   }
   assert.equal(invalidResearchRecipientAddressReason("foo@site.gr;bar@site.gr"), "multiple_or_formatted_addresses");
-  assert.equal(invalidResearchRecipientAddressReason("foo\\t@site.gr"), "whitespace_control_or_non_ascii");
+  assert.equal(invalidResearchRecipientAddressReason("foo\t@site.gr"), "whitespace_control_or_non_ascii");
 });
