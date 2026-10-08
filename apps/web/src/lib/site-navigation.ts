@@ -138,6 +138,7 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/reset-password",
   "/flash-sale",
   "/research/[slug]/t/[token]",
+  "/research/simulation/[token]",
   "/terms",
   "/join/apply",
   "/hubs/join/apply",
