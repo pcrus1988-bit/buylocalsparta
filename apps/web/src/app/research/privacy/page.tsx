@@ -1,3 +1,4 @@
+import { ResearchPublicNavigation } from "../../../components/ResearchPublicNavigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "../../../components/SiteFooter";
@@ -20,16 +21,7 @@ export default function ResearchPrivacyPage() {
 
   return <main className={styles.shell}>
     <div className={styles.frame}>
-      <nav className={styles.topbar} aria-label="Πλοήγηση ιδιωτικότητας έρευνας">
-        <Link href="/research" className={styles.brand}>KONTA MOY · Research</Link>
-        <div className={styles.nav}>
-          <Link href="#why">Γιατί έλαβα πρόσκληση;</Link>
-          <Link href="#gdpr">Χρήση δεδομένων</Link>
-          <Link href="#faq">FAQ</Link>
-          <Link href="/research/market-sentiment">Άλλοι φορείς</Link>
-          <Link href="/privacy">Γενική ιδιωτικότητα</Link>
-        </div>
-      </nav>
+      <ResearchPublicNavigation active="privacy" />
 
       <header className={styles.hero}>
         <div>
