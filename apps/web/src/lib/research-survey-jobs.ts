@@ -1370,12 +1370,14 @@ async function markJobRequeued(
     SET status='queued',
         output=$2::jsonb,
         attempts=GREATEST(attempts-1,0),
-        available_at=now() + ($3::int * interval '1 second'),
+        available_at=CASE
+          WHEN input->>'paused'='true' THEN 'infinity'::timestamptz
+          ELSE now() + ($3::int * interval '1 second') END,
         started_at=NULL,
         finished_at=NULL,
         error_message=NULL
     WHERE id=$1
-  `, [jobId, JSON.stringify(output), Math.max(0, Math.min(60, Math.floor(delaySeconds)))]);
+  `, [jobId, JSON.stringify(output), Math.max(0, Math.min(300, Math.floor(delaySeconds)))]);
 }
 
 async function markJobSucceeded(jobId: string, output: Record<string, unknown>): Promise<void> {
@@ -2354,9 +2356,15 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
 }
 
 async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string, unknown>> {
+  const input = objectValue(job.input);
+  if (text(input.mode)==="continuous" && input.paused === true) {
+    return {__requeue:true,__delaySeconds:300,userPaused:true};
+  }
+  if (text(input.mode)==="continuous" && process.env.BLS_RESEARCH_EMAIL_DELIVERY_ENABLED !== "true") {
+    return {__requeue:true,__delaySeconds:300,safetyHold:"RESEARCH_EMAIL_DELIVERY_DISABLED"};
+  }
   assertResearchSurveyEmailReady();
   const pool = getProductionPostgresRuntime().sqlPool;
-  const input = objectValue(job.input);
   const continuous = text(input.mode) === "continuous";
   const campaignMax = Math.floor(numberValue(input.limit));
   const currentOutput = objectValue(job.output);
