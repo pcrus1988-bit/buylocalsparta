@@ -1,0 +1,41 @@
+name: Research B2C Retail Frame Onboarding
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/src/lib/research-kad-coverage.ts"
+      - "scripts/research-b2c-frame-queue.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: research-b2c-retail-frame-onboard
+  cancel-in-progress: false
+
+jobs:
+  queue-frame:
+    name: Safely queue expanded GEMI retail frame
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PGSSLMODE: require
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      - name: Queue frame without sampling or sending emails
+        run: node --experimental-strip-types scripts/research-b2c-frame-queue.ts
