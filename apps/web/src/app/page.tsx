@@ -156,7 +156,7 @@ export default async function Home() {
         "@type": "WebPage",
         "@id": "https://kontamou.site/#homepage",
         url: "https://kontamou.site/",
-        name: "ΚΟΝΤΑ ΜΟΥ Σπάρτη | Μια ολόκληρη πόλη. Κοντά σου.",
+        name: "KONTA MOY | Μια ολόκληρη πόλη. Κοντά σου.",
         description: "Ανακάλυψε προϊόντα και ανθρώπους από την τοπική αγορά της Σπάρτης, ζήτησε συμβουλή και αγόρασε με μία ενιαία εμπειρία.",
         inLanguage: "el-GR",
         isPartOf: { "@id": "https://kontamou.site/#website" },

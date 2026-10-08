@@ -1,4 +1,5 @@
 import { PostgresUnitOfWork } from "@buy-local-sparta/core";
+import { isQaHubRewardCode, previewQaHubReward } from "../../../lib/hub-reward-qa";
 import { getHubExpansionPlan } from "../../../lib/hub-expansion-plans";
 import { getProductionPostgresRuntime, productionDatabaseConfigured } from "../../../lib/postgres-runtime";
 import {
@@ -31,7 +32,9 @@ export async function POST(request: Request) {
     const uow = new PostgresUnitOfWork(getProductionPostgresRuntime().sqlPool);
     const quote = await uow.withTransaction(
       { platformAccess: true, marketId: "sparta", requestId: "public-hub-reward-quote" },
-      (tx) => previewHubResearchReward(tx, code, plan.setupFeeCents)
+      (tx) => isQaHubRewardCode(code)
+        ? previewQaHubReward(tx, code, plan.setupFeeCents)
+        : previewHubResearchReward(tx, code, plan.setupFeeCents)
     );
     // Never expose entitlement, response or study identifiers to a public caller.
     return Response.json({

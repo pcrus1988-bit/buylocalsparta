@@ -23,11 +23,13 @@ export function ResearchSurveySettingsPanel({
   const [methodologySummary, setMethodologySummary] = useState(data.study.methodologySummary);
   const [defaultLocale, setDefaultLocale] = useState(data.study.defaultLocale || "el-GR");
   const [fieldworkEndsAt, setFieldworkEndsAt] = useState(isoToAthensDeadlineInput(data.study.fieldworkEndsAt));
-  const [publicResultsUrl, setPublicResultsUrl] = useState(data.study.publicResultsUrl ?? "");
+  const publicResultsUrl = data.study.publicResultsUrl ?? "";
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
   const editable = canEdit && data.study.status === "draft";
+  const pilotDeadlineEditable = canEdit && data.study.status === "pilot" && data.study.pilotDeadlineMutable;
+  const deadlineEditable = editable || pilotDeadlineEditable;
   const deadlinePreview = useMemo(() => {
     if (!fieldworkEndsAt) return "No deadline set";
     return fieldworkEndsAt.replace("T", " ") + " (Europe/Athens)";
@@ -47,8 +49,7 @@ export function ResearchSurveySettingsPanel({
           populationDefinition,
           methodologySummary,
           defaultLocale,
-          fieldworkEndsAt: fieldworkEndsAt ? athensDeadlineInputToIso(fieldworkEndsAt) : "",
-          publicResultsUrl
+          fieldworkEndsAt: fieldworkEndsAt ? athensDeadlineInputToIso(fieldworkEndsAt) : ""
         })
       });
       const result = await response.json();
@@ -57,6 +58,29 @@ export function ResearchSurveySettingsPanel({
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Survey settings could not be saved.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function savePilotDeadline() {
+    if (!fieldworkEndsAt) return;
+    setMessage("");
+    try {
+      const deadline = athensDeadlineInputToIso(fieldworkEndsAt);
+      if (!window.confirm("Set the official survey deadline to " + deadlinePreview + "?\n\nThis closes participant access at the selected time. The Pilot remains a separate phase. Other locked study settings will not change.")) return;
+      setBusy(true);
+      const response = await fetch("/api/admin/research/surveys/" + encodeURIComponent(slug) + "/lifecycle", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
+        body: JSON.stringify({ action: "save_pilot_deadline", fieldworkEndsAt: deadline })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Pilot deadline could not be saved.");
+      setMessage("Pilot deadline saved.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Pilot deadline could not be saved.");
     } finally {
       setBusy(false);
     }
@@ -75,7 +99,9 @@ export function ResearchSurveySettingsPanel({
 
     {!editable && <div className="workspace-inline-note">
       {canEdit
-        ? "This survey is no longer in draft. Its fieldwork identity is frozen; settings are read-only so historic evidence cannot be silently rewritten."
+        ? pilotDeadlineEditable
+          ? "The survey design is locked in Pilot. You may still set the official closing date before any invitation is issued. Other settings remain read-only, and the change is recorded in the Admin audit."
+          : "The survey design is locked. Deadline changes after recruitment starts require a governed amendment; other settings are read-only."
         : "You have read-only Research access. Editing survey design requires Research design permission."}
     </div>}
 
@@ -140,26 +166,45 @@ export function ResearchSurveySettingsPanel({
         <label>
           <strong>Survey deadline · Athens time</strong><br />
           <input
-            disabled={!editable}
+            disabled={!deadlineEditable}
             onChange={(event) => setFieldworkEndsAt(event.target.value)}
             type="datetime-local"
             value={fieldworkEndsAt}
           />
-          <small>{deadlinePreview}. When the deadline passes, submission closes and automated evaluation begins. Unresolved quality checks pause publication.</small>
+          <small>{deadlinePreview}. This is the official survey closing date (Europe/Athens), not the Pilot closeout date. After the deadline, participation closes; automated main-study evaluation follows governed lifecycle rules.</small>
         </label>
       </div>
 
-      <label>
-        <strong>Public results URL</strong><br />
+      <div>
+        <label htmlFor="research-public-results-url"><strong>Public results URL · Αυτόματος σύνδεσμος</strong></label>
         <input
-          disabled={!editable}
-          onChange={(event) => setPublicResultsUrl(event.target.value)}
-          placeholder="https://kontamou.site/research/…/results"
-          style={{ width: "100%" }}
+          id="research-public-results-url"
+          aria-label="Public results URL"
+          readOnly
+          style={{ width: "100%", marginTop: 6 }}
           type="url"
           value={publicResultsUrl}
         />
-      </label>
+        <div className="workspace-action-buttons" style={{ marginTop: 8 }}>
+          <a className="button button-secondary" href={publicResultsUrl} target="_blank" rel="noreferrer noopener">
+            Open public results page ↗
+          </a>
+          <button className="button button-secondary" type="button"
+            onClick={() => void navigator.clipboard.writeText(publicResultsUrl)
+              .then(() => setMessage("Results URL copied."))
+              .catch(() => setMessage("Unable to copy automatically. Select the URL and copy it."))}>
+            Copy results URL
+          </button>
+        </div>
+        <small>Generated automatically from this survey's current wave. The link works before publication and displays a holding page until reviewed results are released. The address is read-only and is not a publication action.</small>
+      </div>
+
+      {pilotDeadlineEditable && <div className="workspace-action-buttons">
+        <button className="button" disabled={busy || !fieldworkEndsAt} onClick={() => void savePilotDeadline()} type="button">
+          {busy ? "Saving…" : "Set official survey deadline"}
+        </button>
+        <small>Available only until the first invitation batch is created; audited change, no emails sent.</small>
+      </div>}
 
       {editable && <div className="workspace-action-buttons">
         <button className="button" disabled={busy} onClick={() => void save()} type="button">
@@ -167,7 +212,7 @@ export function ResearchSurveySettingsPanel({
         </button>
       </div>}
 
-      {message && <div className={message === "Survey settings saved." ? "workspace-inline-note" : "workspace-inline-note form-error"}>
+      {message && <div className={["Survey settings saved.", "Pilot deadline saved.", "Results URL copied."].includes(message) ? "workspace-inline-note" : "workspace-inline-note form-error"}>
         {message}
       </div>}
     </div>

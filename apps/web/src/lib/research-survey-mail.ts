@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { KONTA_MOY_EMAIL_COMPANY } from "@buy-local-sparta/resend-notifications";
+import { KONTA_MOY_EMAIL_COMPANY, canonicalKontaMoyBranding } from "@buy-local-sparta/resend-notifications";
 import { buildAdminMailRawMime, type AdminMailAddress } from "./admin-mail-mime";
 import { sendRawSesEmail, sesMailConfigFromEnv } from "./admin-mail-ses";
 
@@ -75,7 +75,7 @@ export async function sendResearchSurveyInvitation(input: Readonly<{
   const configuration = assertResearchSurveyEmailReady();
   const { subject, text, html } = previewResearchRecruitmentEmail(input);
 
-  const fromAddress = mailAddress(configuration.from, "KONTA MOY Research");
+  const fromAddress = mailAddress(configuration.from, "KONTA MOY");
   const replyToAddress = mailAddress(configuration.replyTo);
   const mime = buildAdminMailRawMime({
     from: fromAddress,
@@ -127,8 +127,8 @@ export function previewResearchRecruitmentEmail(input: Readonly<{
     company_name: companyName,
     company_greeting: companyGreeting
   };
-  const subject = renderRecruitmentTemplate(input.subjectTemplate, replacements).trim();
-  let text = renderRecruitmentTemplate(input.bodyTemplate, replacements).trim();
+  const subject = canonicalKontaMoyBranding(renderRecruitmentTemplate(input.subjectTemplate, replacements)).trim();
+  let text = canonicalKontaMoyBranding(renderRecruitmentTemplate(input.bodyTemplate, replacements)).trim();
   if (!/\{\{company_(?:name|greeting)\}\}/i.test(input.bodyTemplate)) {
     text = `${companyGreeting}\n\n${text}`;
   }
@@ -237,7 +237,7 @@ async function sendResearchParticipantMessage(input: Readonly<{
   methodologyUrl: string;
 }>): Promise<Readonly<{ providerMessageId: string; subjectSha256: string; bodySha256: string }>> {
   const configuration = assertResearchSurveyEmailReady();
-  const fromAddress = mailAddress(configuration.from, "KONTA MOY Research");
+  const fromAddress = mailAddress(configuration.from, "KONTA MOY");
   const replyToAddress = mailAddress(configuration.replyTo);
   const mime = buildAdminMailRawMime({
     from: fromAddress,
@@ -292,7 +292,7 @@ function mailAddress(value: string, defaultName?: string): AdminMailAddress {
   const match = value.match(/^\s*([^<>]+?)?\s*<([^<>]+)>\s*$/);
   if (match) {
     return {
-      name: match[1]?.trim() || defaultName,
+      name: defaultName || match[1]?.trim(),
       address: match[2]!.trim()
     };
   }
@@ -300,7 +300,7 @@ function mailAddress(value: string, defaultName?: string): AdminMailAddress {
 }
 
 function formatEnvelopeFrom(value: string): string {
-  const parsed = mailAddress(value, "KONTA MOY Research");
+  const parsed = mailAddress(value, "KONTA MOY");
   return parsed.name ? `${parsed.name} <${parsed.address}>` : parsed.address;
 }
 
@@ -330,7 +330,7 @@ function researchParticipantHtml(
     <tr><td align="center">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#fffdf8;border:1px solid #d6cfbf;border-radius:20px;overflow:hidden">
         <tr><td style="background:#183027;color:#fffdf8;padding:28px 32px">
-          <div style="font-size:11px;letter-spacing:.14em;font-weight:800;color:#d8d8c7">KONTA MOY · ΕΡΕΥΝΑ ΛΙΑΝΕΜΠΟΡΙΟΥ</div>
+          <div style="font-size:11px;letter-spacing:.14em;font-weight:800;color:#d8d8c7">KONTA MOY</div>
           <h1 style="font-family:Georgia,'Times New Roman',serif;font-weight:500;font-size:31px;line-height:1.1;margin:12px 0 0">${escapeHtml(subject)}</h1>
         </td></tr>
         <tr><td style="padding:32px">
@@ -349,7 +349,7 @@ function researchParticipantHtml(
 function researchPlainTextFooter(): string {
   return [
     "—",
-    "KONTA MOY · Buy Local Sparta",
+    "KONTA MOY",
     KONTA_MOY_EMAIL_COMPANY.legalName,
     `ΑΦΜ ${KONTA_MOY_EMAIL_COMPANY.taxNumber} · ΓΕΜΗ ${KONTA_MOY_EMAIL_COMPANY.gemiNumber}`,
     `Έδρα: ${KONTA_MOY_EMAIL_COMPANY.address}`,
@@ -362,8 +362,7 @@ function researchPlainTextFooter(): string {
 function researchEmailFooterHtml(): string {
   const website = KONTA_MOY_EMAIL_COMPANY.website.replace(/\/$/, "");
   return `<tr><td style="background:#101f18;padding:26px 32px;color:#cfd8d1;font-size:11px;line-height:1.7">
-    <div style="font-size:13px;font-weight:800;color:#fffdf8;letter-spacing:.07em;margin-bottom:6px">KONTA MOY · BUY LOCAL SPARTA</div>
-    <div style="color:#fffdf8;font-weight:700;margin-bottom:8px">ΚΟΝΤΑ ΜΟΥ: Η Σπάρτη δίπλα σου</div>
+    <div style="font-size:13px;font-weight:800;color:#fffdf8;letter-spacing:.07em;margin-bottom:6px">KONTA MOY</div>
     <strong style="color:#fffdf8">${escapeHtml(KONTA_MOY_EMAIL_COMPANY.legalName)}</strong><br>
     ΑΦΜ ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.taxNumber)} · ΓΕΜΗ ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.gemiNumber)}<br>
     Έδρα: ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.address)}<br>
@@ -422,7 +421,7 @@ function researchInvitationHtml(input: Readonly<{
               <td valign="middle">
                 <div style="width:46px;height:46px;border:1px solid #f4f0e8;border-radius:50%;line-height:46px;text-align:center;font-size:11px;font-weight:800;letter-spacing:.12em;color:#fffdf8">KM</div>
               </td>
-              <td valign="middle" align="right" style="font-size:10px;line-height:1.4;letter-spacing:.14em;font-weight:800;color:#d8d8c7">KONTA MOY<br>ΕΡΕΥΝΑ ΛΙΑΝΕΜΠΟΡΙΟΥ</td>
+              <td valign="middle" align="right" style="font-size:10px;line-height:1.4;letter-spacing:.14em;font-weight:800;color:#d8d8c7">KONTA MOY</td>
             </tr>
           </table>
           ${companyLabel}

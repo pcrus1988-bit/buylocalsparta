@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isQaHubRewardCode, redeemQaHubReward } from "./hub-reward-qa";
 import { finalizeHubResearchReward, lockHubResearchRewardForApplication, normalizedResearchCode } from "./research-reward-redemption";
 import { PostgresUnitOfWork, id, type SessionPrincipal, type SqlExecutor, type SqlRow } from "@buy-local-sparta/core";
 import { PostgresFixedWindowRateLimiter } from "@buy-local-sparta/postgres-runtime";
@@ -42,6 +43,7 @@ export type HubProspectApplicationReceipt = Readonly<{
   originalSetupFeeCents: number;
   setupDiscountCents: number;
   rewardRedeemed: boolean;
+  qaSimulation?: boolean;
   recurringFeeCents: number;
   commissionBps: number;
   paymentRequired: false;
@@ -142,6 +144,30 @@ export async function submitHubProspectApplication(input: {
     throw new HubProspectApplicationError(422, "registry_postcode_missing", "Το Γ.Ε.ΜΗ. δεν επέστρεψε έγκυρο ταχυδρομικό κώδικα για την επιχείρηση.");
   }
   const registryAddress = registryAddressLine(registry.addressLine1, registry.city, registry.municipality, registryPostcode);
+
+  // Admin-generated QA rewards simulate a complete submission transaction.
+  // They never create a real prospect, vendor trial, research response or email.
+  if (application.rewardCode && isQaHubRewardCode(application.rewardCode)) {
+    const qaUow = new PostgresUnitOfWork(getProductionPostgresRuntime().sqlPool);
+    return qaUow.withTransaction(
+      { platformAccess: true, marketId: "sparta", requestId: "hub-qa-submission:" + randomUUID() },
+      async tx => {
+        const qa = await redeemQaHubReward(tx, application.rewardCode!, plan.setupFeeCents);
+        return {
+          reference: qa.qaReference, status: "pending" as const,
+          hubSlug: hub.slug, hubName: hub.nameEl, planCode: plan.code,
+          billingCycle: application.billingCycle,
+          setupFeeCents: qa.payableFeeCents,
+          originalSetupFeeCents: qa.originalFeeCents,
+          setupDiscountCents: qa.discountCents,
+          rewardRedeemed: true, qaSimulation: true,
+          recurringFeeCents, commissionBps: plan.commissionBps,
+          paymentRequired: false as const
+        };
+      },
+      { isolation: "serializable" }
+    );
+  }
 
   const runtime = getProductionPostgresRuntime();
   const uow = new PostgresUnitOfWork(runtime.sqlPool);

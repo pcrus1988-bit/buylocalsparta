@@ -15,9 +15,9 @@ export async function sendVendorApplicationReceiptEmail(input: {
   tradingName: string;
   applicationId: string;
 }) {
-  const subject = "Λάβαμε την αίτηση συνεργασίας σας · ΚΟΝΤΑ ΜΟΥ Sparta";
+  const subject = "Λάβαμε την αίτηση συνεργασίας σας · KONTA MOY";
   const text = [
-    `Καλησπέρα από το ΚΟΝΤΑ ΜΟΥ Sparta,`,
+    `Καλησπέρα από το KONTA MOY,`,
     "",
     `Λάβαμε την αίτηση συνεργασίας για το κατάστημα «${input.tradingName}».`,
     `Κωδικός αίτησης: ${input.applicationId}`,
@@ -27,7 +27,7 @@ export async function sendVendorApplicationReceiptEmail(input: {
     "",
     `Πληροφορίες συνεργασίας: ${publicBaseUrl()}/join`,
     "",
-    "ΚΟΝΤΑ ΜΟΥ Sparta"
+    "KONTA MOY"
   ].join("\n");
   return sendTransactionalEmailBestEffort({
     to: input.to,
@@ -47,9 +47,9 @@ export async function sendVendorApplicationStateEmail(input: {
   reason?: string;
 }) {
   const message = stateMessage(input.state);
-  const subject = `${message.subject} · ΚΟΝΤΑ ΜΟΥ Sparta`;
+  const subject = `${message.subject} · KONTA MOY`;
   const text = [
-    `Καλησπέρα από το ΚΟΝΤΑ ΜΟΥ Sparta,`,
+    `Καλησπέρα από το KONTA MOY,`,
     "",
     `Υπάρχει ενημέρωση για την αίτηση του καταστήματος «${input.tradingName}».`,
     `Κωδικός αίτησης: ${input.applicationId}`,
@@ -60,7 +60,7 @@ export async function sendVendorApplicationStateEmail(input: {
     "",
     message.link ? `${message.linkLabel}: ${publicBaseUrl()}${message.link}` : undefined,
     "",
-    "ΚΟΝΤΑ ΜΟΥ Sparta"
+    "KONTA MOY"
   ].filter((line): line is string => typeof line === "string").join("\n");
   return sendTransactionalEmailBestEffort({
     to: input.to,
@@ -80,11 +80,11 @@ export async function sendResearchVendorInvitationEmail(input: {
   const applyUrl = `${publicBaseUrl()}/join`;
   return sendTransactionalEmailBestEffort({
     to: input.to,
-    subject: "Πρόσκληση συνεργασίας · ΚΟΝΤΑ ΜΟΥ Sparta",
+    subject: "Πρόσκληση συνεργασίας · KONTA MOY",
     text: [
       `Καλησπέρα στην ομάδα του «${input.tradingName}»,`,
       "",
-      "Το ΚΟΝΤΑ ΜΟΥ Sparta δημιουργεί μια οργανωμένη τοπική αγορά για καταστήματα της Σπάρτης και της ευρύτερης περιοχής, με κοινή ψηφιακή βιτρίνα, vendor workspace και δίκαιη συμμετοχή στην προβολή προϊόντων.",
+      "Το KONTA MOY δημιουργεί μια οργανωμένη τοπική αγορά για καταστήματα της Σπάρτης και της ευρύτερης περιοχής, με κοινή ψηφιακή βιτρίνα, vendor workspace και δίκαιη συμμετοχή στην προβολή προϊόντων.",
       "",
       "Θα χαρούμε να εξετάσουμε μαζί τη συμμετοχή του καταστήματός σας. Η πρόσκληση δεν ενεργοποιεί λογαριασμό ούτε δημιουργεί οποιαδήποτε χρέωση· η επίσημη διαδικασία ξεκινά μόνο όταν ο ιδιοκτήτης ή εξουσιοδοτημένος εκπρόσωπος υποβάλει την αίτηση.",
       "",
@@ -92,7 +92,7 @@ export async function sendResearchVendorInvitationEmail(input: {
       "",
       "Μπορείτε επίσης να απαντήσετε απευθείας σε αυτό το email για οποιαδήποτε ερώτηση.",
       "",
-      "ΚΟΝΤΑ ΜΟΥ Sparta"
+      "KONTA MOY"
     ].join("\n"),
     eventType: "vendor.research_invitation",
     idempotencyKey: `research-vendor-invite:v1:${input.researchId}`,
@@ -111,7 +111,7 @@ export async function notifyOperationsOfVendorApplication(input: {
     to: APPLICATION_OPERATIONS_EMAIL,
     subject: `Νέα αίτηση vendor · ${input.tradingName}`,
     text: [
-      "Νέα αίτηση συνεργασίας καταχωρίστηκε στο ΚΟΝΤΑ ΜΟΥ Sparta.",
+      "Νέα αίτηση συνεργασίας καταχωρίστηκε στο KONTA MOY.",
       "",
       `Κατάστημα: ${input.tradingName}`,
       `Νομική ονομασία: ${input.legalName}`,
@@ -154,9 +154,9 @@ export async function sendHubProspectApplicationReceiptEmail(input: {
 
   return sendTransactionalEmailBestEffort({
     to: input.to,
-    subject: `Η αίτησή σας καταχωρίστηκε · ${input.reference} · ΚΟΝΤΑ ΜΟΥ`,
+    subject: `Η αίτησή σας καταχωρίστηκε · ${input.reference} · KONTA MOY`,
     text: [
-      "Καλησπέρα από το ΚΟΝΤΑ ΜΟΥ,",
+      "Καλησπέρα από το KONTA MOY,",
       "",
       `Λάβαμε την αίτηση συνεργασίας για το «${input.businessName}».`,
       `Αριθμός αίτησης: ${input.reference}`,
@@ -185,13 +185,13 @@ export async function sendHubProspectApplicationReceiptEmail(input: {
       "Επόμενα βήματα",
       "1. Εξερεύνησε το πραγματικό Vendor Dashboard και το onboarding wizard.",
       "2. Ρύθμισε storefront, στοιχεία καταστήματος και προϊόντα στο ιδιωτικό Trial.",
-      "3. Η ομάδα ΚΟΝΤΑ ΜΟΥ ελέγχει τα στοιχεία επιχείρησης, Γ.Ε.ΜΗ. και εκπροσώπησης.",
+      "3. Η ομάδα KONTA MOY ελέγχει τα στοιχεία επιχείρησης, Γ.Ε.ΜΗ. και εκπροσώπησης.",
       "4. Μετά το verification, η αίτηση προχωρά σε catalogue onboarding και test readiness.",
       "5. Δημόσια εμφάνιση, πραγματικές παραγγελίες και πληρωμές παραμένουν κλειδωμένες μέχρι την τελική ενεργοποίηση.",
       "",
       "Τα ποσά παραπάνω είναι το snapshot του προγράμματος που καταγράφηκε με την αίτηση.",
       "",
-      "ΚΟΝΤΑ ΜΟΥ"
+      "KONTA MOY"
     ].filter((line): line is string => typeof line === "string").join("\n"),
     eventType: "hub_prospect.application_received",
     idempotencyKey: `hub-prospect-application-received:v2:${input.reference}:${input.idempotencySuffix ?? "initial"}`,
@@ -207,7 +207,7 @@ export async function sendHubProspectStateEmail(input: {
   reason: string;
 }) {
   const messages: Record<typeof input.state, { subject: string; body: string }> = {
-    contacted: { subject: "Η αίτησή σας εξετάζεται", body: "Η ομάδα ΚΟΝΤΑ ΜΟΥ ανέλαβε την αίτησή σας και ξεκίνησε τον έλεγχο." },
+    contacted: { subject: "Η αίτησή σας εξετάζεται", body: "Η ομάδα KONTA MOY ανέλαβε την αίτησή σας και ξεκίνησε τον έλεγχο." },
     qualified: { subject: "Η αίτησή σας προχώρησε", body: "Ο αρχικός έλεγχος ολοκληρώθηκε και η αίτησή σας προχωρά στο στάδιο επαλήθευσης." },
     verified: { subject: "Η επαλήθευση ολοκληρώθηκε", body: "Τα βασικά στοιχεία της αίτησης έχουν επαληθευτεί. Επόμενο βήμα είναι η εμπορική και καταλογική ετοιμότητα." },
     approved: { subject: "Η αίτησή σας εγκρίθηκε για onboarding", body: "Η αίτησή σας εγκρίθηκε για να συνεχίσει στο governed onboarding πριν από οποιαδήποτε δημόσια ενεργοποίηση." },
@@ -218,9 +218,9 @@ export async function sendHubProspectStateEmail(input: {
 
   return sendTransactionalEmailBestEffort({
     to: input.to,
-    subject: `${message.subject} · ${input.reference} · ΚΟΝΤΑ ΜΟΥ`,
+    subject: `${message.subject} · ${input.reference} · KONTA MOY`,
     text: [
-      "Καλησπέρα από το ΚΟΝΤΑ ΜΟΥ,",
+      "Καλησπέρα από το KONTA MOY,",
       "",
       `Κατάστημα: ${input.businessName}`,
       `Αριθμός αίτησης: ${input.reference}`,
@@ -231,7 +231,7 @@ export async function sendHubProspectStateEmail(input: {
       "",
       "Το Vendor Trial, όπου υπάρχει, παραμένει ιδιωτικό και δεν ενεργοποιεί δημόσιες πωλήσεις ή πληρωμές.",
       "",
-      "ΚΟΝΤΑ ΜΟΥ"
+      "KONTA MOY"
     ].join("\n"),
     eventType: "hub_prospect.application_state_changed",
     idempotencyKey: `hub-prospect-state:${input.reference}:${input.state}:${Date.now()}`,
@@ -254,7 +254,7 @@ export async function notifyOperationsOfHubProspectApplication(input: {
     to: APPLICATION_OPERATIONS_EMAIL,
     subject: `Νέα αίτηση HUB · ${input.businessName}`,
     text: [
-      "Νέα αίτηση επέκτασης HUB καταχωρίστηκε στο ΚΟΝΤΑ ΜΟΥ.",
+      "Νέα αίτηση επέκτασης HUB καταχωρίστηκε στο KONTA MOY.",
       "",
       `Κατάστημα: ${input.businessName}`,
       `Υπεύθυνος: ${input.contactName}`,

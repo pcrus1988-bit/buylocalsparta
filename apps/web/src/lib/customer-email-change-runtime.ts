@@ -239,9 +239,9 @@ async function sendEmailChangeVerification(input: { userId: string; targetEmail:
     eventType: "account.email_change_verification",
     templateVersion: "v1",
     locale: "el",
-    title: "Επιβεβαίωσε το νέο email σου · ΚΟΝΤΑ ΜΟΥ Sparta",
+    title: "Επιβεβαίωσε το νέο email σου · KONTA MOY",
     body: [
-      "Ζήτησες να χρησιμοποιείς αυτή τη διεύθυνση για σύνδεση στο ΚΟΝΤΑ ΜΟΥ Sparta.",
+      "Ζήτησες να χρησιμοποιείς αυτή τη διεύθυνση για σύνδεση στο KONTA MOY.",
       "",
       "Επιβεβαίωσέ την μέσα στις επόμενες 24 ώρες:",
       verificationUrl.toString(),
@@ -271,7 +271,7 @@ async function sendPreviousEmailSecurityNotice(input: { userId: string; oldEmail
     eventType: "account.email_changed_security_notice",
     templateVersion: "v1",
     locale: "el",
-    title: "Το email σύνδεσης του λογαριασμού σου άλλαξε · ΚΟΝΤΑ ΜΟΥ Sparta",
+    title: "Το email σύνδεσης του λογαριασμού σου άλλαξε · KONTA MOY",
     body: [
       "Το email σύνδεσης του λογαριασμού σου άλλαξε επιτυχώς.",
       `Νέο email: ${input.newEmail}`,

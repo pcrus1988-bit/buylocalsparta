@@ -16,7 +16,7 @@ export function normalizedResearchCode(value: unknown): string | undefined {
   if (value === undefined || value === null || value === "") return undefined;
   if (typeof value !== "string") throw new HubResearchRewardError("reward_invalid", "Ο κωδικός δεν είναι έγκυρος.");
   const code = value.trim().toUpperCase();
-  if (!/^KM26-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}$/.test(code)) {
+  if (!/^(KM26|QA26)-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}$/.test(code)) {
     throw new HubResearchRewardError("reward_invalid", "Ο κωδικός δεν είναι έγκυρος.");
   }
   return code;

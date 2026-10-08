@@ -10,6 +10,7 @@ import {
   saveResearchLaterEvaluation,
   saveResearchQuestionDraft,
   updateResearchStudyDraftSettings,
+  updateResearchPilotDeadline,
   type ResearchQuestionDraftInput
 } from "../../../../../../../lib/research-survey-admin-design";
 import type { ResearchQuestionType } from "../../../../../../../lib/research-survey-model";
@@ -105,6 +106,16 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
       });
       await recordAdminAudit(principal, "research.study.settings.update", "research_study", slug, "Updated draft survey settings", {});
       return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (action === "save_pilot_deadline") {
+      const changed = await updateResearchPilotDeadline(principal, slug, stringValue(body.fieldworkEndsAt));
+      await recordAdminAudit(
+        principal, "research.study.pilot_deadline.set", "research_study", slug,
+        "Set Athens-time fieldwork deadline during Pilot before invitations",
+        { previousDeadline: changed.previousDeadline ?? null, newDeadline: changed.newDeadline }
+      );
+      return Response.json({ ok: true, deadline: changed.newDeadline }, { headers: { "Cache-Control": "no-store" } });
     }
 
     if (action === "save_analysis_plan") {

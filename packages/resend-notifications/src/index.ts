@@ -20,7 +20,7 @@ export type KontaMoyEmailInput = Readonly<{
 
 export const KONTA_MOY_EMAIL_COMPANY = Object.freeze({
   brand: "KONTA MOY",
-  descriptor: "Buy Local Sparta",
+  descriptor: "KONTA MOY",
   legalName: "SP BUSINESS LAB – ΠΟΛΙΑΚΟΦ ΣΤΑΝΙΣΛΑΒ",
   taxNumber: "182294894",
   gemiNumber: "193836403000",
@@ -32,6 +32,13 @@ export const KONTA_MOY_EMAIL_COMPANY = Object.freeze({
   website: "https://kontamou.site",
   representative: "Πολιάκοφ Στανισλάβ"
 });
+
+export function canonicalKontaMoyBranding(value: string): string {
+  return value
+    .replace(/KONTA\s+MOY\s*[·•|—–-]\s*BUY\s+LOCAL\s+SPARTA/gi, "KONTA MOY")
+    .replace(/ΚΟΝΤΑ\s+ΜΟΥ\s*:\s*Η\s+Σπάρτη\s+δίπλα\s+σου/giu, "KONTA MOY")
+    .replace(/ΚΟΝΤΑ\s+ΜΟΥ\s+Sparta(?:\s*[·•|—–-]\s*Η\s+Σπάρτη\s+δίπλα\s+σου)?/giu, "KONTA MOY");
+}
 
 const CUSTOMER_LOCAL_SUPPORT_LINE = "Σε ευχαριστούμε που, χρησιμοποιώντας το KONTA MOY, στηρίζεις τις τοπικές επιχειρήσεις. ❤️";
 
@@ -71,7 +78,10 @@ export class ResendEmailProvider implements NotificationProvider {
         payload: input.notification.payload
       };
       const publicBaseUrl=publicBaseUrlFromEnv();
-      const response=await this.#fetch(`${this.#config.baseUrl.replace(/\/$/,"")}/emails`,{method:"POST",headers:{authorization:`Bearer ${this.#config.apiKey}`,"content-type":"application/json","idempotency-key":input.idempotencyKey},body:JSON.stringify({from:this.#config.from,to:[input.destination],subject:input.notification.title,text:signedKontaMoyText(emailInput,{publicBaseUrl}),html:renderKontaMoyEmail(emailInput,{publicBaseUrl}),...(this.#config.replyTo?{reply_to:this.#config.replyTo}:{})}),signal:controller.signal});
+      const configuredFrom=this.#config.from.trim();
+      const fromEmail=configuredFrom.match(/<([^<>]+)>$/)?.[1]?.trim()||configuredFrom;
+      const brandedFrom=`KONTA MOY <${fromEmail}>`;
+      const response=await this.#fetch(`${this.#config.baseUrl.replace(/\/$/,"")}/emails`,{method:"POST",headers:{authorization:`Bearer ${this.#config.apiKey}`,"content-type":"application/json","idempotency-key":input.idempotencyKey},body:JSON.stringify({from:brandedFrom,to:[input.destination],subject:canonicalKontaMoyBranding(input.notification.title),text:signedKontaMoyText(emailInput,{publicBaseUrl}),html:renderKontaMoyEmail(emailInput,{publicBaseUrl}),...(this.#config.replyTo?{reply_to:this.#config.replyTo}:{})}),signal:controller.signal});
       const body=await response.json().catch(()=>({})) as {id?:unknown;message?:unknown};
       if(!response.ok||typeof body.id!=="string")throw new Error(`Resend send failed (${response.status}): ${typeof body.message==="string"?body.message:"unexpected response"}`);
       return{providerMessageId:body.id};
@@ -82,13 +92,14 @@ export class ResendEmailProvider implements NotificationProvider {
 export function renderKontaMoyEmail(input: KontaMoyEmailInput, config: { publicBaseUrl?: string } = {}): string {
   const publicBaseUrl=(config.publicBaseUrl?.trim()||"https://kontamou.site").replace(/\/$/,"");
   const body=stripShortSignature(input.text);
+  const subject=canonicalKontaMoyBranding(input.subject);
   const recipient=recipientKind(input.eventType);
   const tone=emailTone(input.eventType);
   const cta=resolveCta(input,publicBaseUrl);
   const paragraphs=body.split(/\n{2,}/).filter(Boolean).map((paragraph)=>`<p style="font-size:16px;line-height:1.65;margin:0 0 18px;white-space:pre-line;">${escapeHtml(paragraph)}</p>`).join("");
-  const preheader=escapeHtml(stringPayload(input.payload,"preheader")||body.split("\n").find(Boolean)||input.subject);
+  const preheader=escapeHtml(stringPayload(input.payload,"preheader")||body.split("\n").find(Boolean)||subject);
   const customerThanks=recipient==="customer"?`<div style="margin-top:26px;padding-top:22px;border-top:1px solid #d6cfbf;font-size:15px;line-height:1.6;font-weight:700;color:#405149;">${escapeHtml(CUSTOMER_LOCAL_SUPPORT_LINE)}</div>`:"";
-  return `<!doctype html><html lang="${escapeHtml(input.locale||"el")}"><body style="margin:0;background:#f4f0e8;font-family:Arial,Helvetica,sans-serif;color:#183027"><div style="display:none;max-height:0;overflow:hidden;opacity:0">${preheader}</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f0e8;padding:28px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#fffdf8;border:1px solid #d6cfbf;border-radius:24px;overflow:hidden"><tr><td style="background:#183027;padding:30px 34px;color:#fffdf8"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td><div style="width:46px;height:46px;border:1px solid #f4f0e8;border-radius:50%;line-height:46px;text-align:center;font-size:11px;font-weight:800;letter-spacing:.12em">KM</div></td><td style="text-align:right;font-size:11px;letter-spacing:.14em;font-weight:700;color:#d8d8c7">KONTA MOY · BUY LOCAL SPARTA</td></tr></table><div style="margin-top:26px;font-size:11px;letter-spacing:.14em;color:${tone.accent};font-weight:800">${escapeHtml(tone.label)}</div><h1 style="font-family:Georgia,'Times New Roman',serif;font-weight:500;font-size:34px;line-height:1.08;margin:10px 0 0;color:#fffdf8">${escapeHtml(input.subject)}</h1></td></tr><tr><td style="padding:34px">${paragraphs}<table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:8px"><tr><td style="border-radius:999px;background:#183027"><a href="${escapeHtml(cta.url)}" style="display:inline-block;padding:14px 22px;color:#fffdf8;text-decoration:none;font-size:14px;font-weight:800">${escapeHtml(cta.label)} →</a></td></tr></table>${customerThanks}</td></tr><tr><td style="background:#101f18;padding:26px 34px;color:#d9e1dc;font-size:11px;line-height:1.7"><div style="font-size:12px;font-weight:800;color:#fffdf8;letter-spacing:.07em;margin-bottom:7px">KONTA MOY · BUY LOCAL SPARTA</div><strong style="color:#fffdf8">${escapeHtml(KONTA_MOY_EMAIL_COMPANY.legalName)}</strong><br>ΑΦΜ ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.taxNumber)} · ΓΕΜΗ ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.gemiNumber)} (${escapeHtml(KONTA_MOY_EMAIL_COMPANY.gemiStatus)})<br>Αρμόδιο Επιμελητήριο: ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.gemiAuthority)}<br>Έδρα: ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.address)} · Νόμιμος εκπρόσωπος: ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.representative)}<br><a href="tel:+306936999686" style="color:#fffdf8">693 699 9686</a> · <a href="mailto:${escapeHtml(KONTA_MOY_EMAIL_COMPANY.email)}" style="color:#fffdf8">${escapeHtml(KONTA_MOY_EMAIL_COMPANY.email)}</a> · <a href="${escapeHtml(KONTA_MOY_EMAIL_COMPANY.website)}" style="color:#fffdf8">www.kontamou.site</a></td></tr></table></td></tr></table></body></html>`;
+  return `<!doctype html><html lang="${escapeHtml(input.locale||"el")}"><body style="margin:0;background:#f4f0e8;font-family:Arial,Helvetica,sans-serif;color:#183027"><div style="display:none;max-height:0;overflow:hidden;opacity:0">${preheader}</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f0e8;padding:28px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#fffdf8;border:1px solid #d6cfbf;border-radius:24px;overflow:hidden"><tr><td style="background:#183027;padding:30px 34px;color:#fffdf8"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td><div style="width:46px;height:46px;border:1px solid #f4f0e8;border-radius:50%;line-height:46px;text-align:center;font-size:11px;font-weight:800;letter-spacing:.12em">KM</div></td><td style="text-align:right;font-size:11px;letter-spacing:.14em;font-weight:700;color:#d8d8c7">KONTA MOY</td></tr></table><div style="margin-top:26px;font-size:11px;letter-spacing:.14em;color:${tone.accent};font-weight:800">${escapeHtml(tone.label)}</div><h1 style="font-family:Georgia,'Times New Roman',serif;font-weight:500;font-size:34px;line-height:1.08;margin:10px 0 0;color:#fffdf8">${escapeHtml(subject)}</h1></td></tr><tr><td style="padding:34px">${paragraphs}<table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:8px"><tr><td style="border-radius:999px;background:#183027"><a href="${escapeHtml(cta.url)}" style="display:inline-block;padding:14px 22px;color:#fffdf8;text-decoration:none;font-size:14px;font-weight:800">${escapeHtml(cta.label)} →</a></td></tr></table>${customerThanks}</td></tr><tr><td style="background:#101f18;padding:26px 34px;color:#d9e1dc;font-size:11px;line-height:1.7"><div style="font-size:12px;font-weight:800;color:#fffdf8;letter-spacing:.07em;margin-bottom:7px">KONTA MOY</div><strong style="color:#fffdf8">${escapeHtml(KONTA_MOY_EMAIL_COMPANY.legalName)}</strong><br>ΑΦΜ ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.taxNumber)} · ΓΕΜΗ ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.gemiNumber)} (${escapeHtml(KONTA_MOY_EMAIL_COMPANY.gemiStatus)})<br>Αρμόδιο Επιμελητήριο: ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.gemiAuthority)}<br>Έδρα: ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.address)} · Νόμιμος εκπρόσωπος: ${escapeHtml(KONTA_MOY_EMAIL_COMPANY.representative)}<br><a href="tel:+306936999686" style="color:#fffdf8">693 699 9686</a> · <a href="mailto:${escapeHtml(KONTA_MOY_EMAIL_COMPANY.email)}" style="color:#fffdf8">${escapeHtml(KONTA_MOY_EMAIL_COMPANY.email)}</a> · <a href="${escapeHtml(KONTA_MOY_EMAIL_COMPANY.website)}" style="color:#fffdf8">www.kontamou.site</a></td></tr></table></td></tr></table></body></html>`;
 }
 
 export function signedKontaMoyText(input: KontaMoyEmailInput, config: { publicBaseUrl?: string } = {}): string {
@@ -97,7 +108,7 @@ export function signedKontaMoyText(input: KontaMoyEmailInput, config: { publicBa
   const cta=resolveCta(input,publicBaseUrl);
   const customerThanks=recipientKind(input.eventType)==="customer"?`\n\n${CUSTOMER_LOCAL_SUPPORT_LINE}`:"";
   const ctaLine=body.includes(cta.url)?"":`\n\n${cta.label}: ${cta.url}`;
-  return `${body}${ctaLine}${customerThanks}\n\n—\n${KONTA_MOY_EMAIL_COMPANY.brand} · ${KONTA_MOY_EMAIL_COMPANY.descriptor}\n${KONTA_MOY_EMAIL_COMPANY.legalName}\nΑΦΜ ${KONTA_MOY_EMAIL_COMPANY.taxNumber} · ΓΕΜΗ ${KONTA_MOY_EMAIL_COMPANY.gemiNumber} (${KONTA_MOY_EMAIL_COMPANY.gemiStatus})\nΑρμόδιο Επιμελητήριο: ${KONTA_MOY_EMAIL_COMPANY.gemiAuthority}\nΈδρα: ${KONTA_MOY_EMAIL_COMPANY.address}\nΝόμιμος εκπρόσωπος: ${KONTA_MOY_EMAIL_COMPANY.representative}\nΤηλ.: ${KONTA_MOY_EMAIL_COMPANY.phone}\nEmail: ${KONTA_MOY_EMAIL_COMPANY.email}\nWebsite: ${KONTA_MOY_EMAIL_COMPANY.website}`;
+  return `${body}${ctaLine}${customerThanks}\n\n—\n${KONTA_MOY_EMAIL_COMPANY.brand}\n${KONTA_MOY_EMAIL_COMPANY.legalName}\nΑΦΜ ${KONTA_MOY_EMAIL_COMPANY.taxNumber} · ΓΕΜΗ ${KONTA_MOY_EMAIL_COMPANY.gemiNumber} (${KONTA_MOY_EMAIL_COMPANY.gemiStatus})\nΑρμόδιο Επιμελητήριο: ${KONTA_MOY_EMAIL_COMPANY.gemiAuthority}\nΈδρα: ${KONTA_MOY_EMAIL_COMPANY.address}\nΝόμιμος εκπρόσωπος: ${KONTA_MOY_EMAIL_COMPANY.representative}\nΤηλ.: ${KONTA_MOY_EMAIL_COMPANY.phone}\nEmail: ${KONTA_MOY_EMAIL_COMPANY.email}\nWebsite: ${KONTA_MOY_EMAIL_COMPANY.website}`;
 }
 
 function recipientKind(eventType:string):"customer"|"vendor"|"internal"{
@@ -138,7 +149,7 @@ function activationCtaLabel(eventType:string):string{
 }
 
 function stripShortSignature(value:string):string{
-  return String(value??"").replace(/\n*\s*KONTA MOY\s*[·|—-]\s*Buy Local Sparta\s*$/iu,"").trim();
+  return canonicalKontaMoyBranding(String(value??"")).replace(/(?:\r?\n)+\s*KONTA MOY\s*$/iu,"").trim();
 }
 
 function stringPayload(payload:Readonly<Record<string,unknown>>|undefined,key:string):string|undefined{
@@ -186,7 +197,7 @@ export function resendConfigFromEnv(env:NodeJS.ProcessEnv=process.env):ResendCon
   const configuredFrom=env.RESEND_FROM?.trim()||`notifications@${domain}`;
   const configuredAddressMatch=configuredFrom.match(/<([^<>]+)>\s*$/);
   const configuredAddress=(configuredAddressMatch?.[1]??configuredFrom).trim();
-  const from=`ΚΟΝΤΑ ΜΟΥ <${configuredAddress}>`;
+  const from=`KONTA MOY <${configuredAddress}>`;
   const replyTo=env.RESEND_REPLY_TO?.trim()||`reply@${domain}`;
   return{apiKey,from,replyTo,baseUrl:env.RESEND_BASE_URL?.trim()||"https://api.resend.com",timeoutMs:positive(env.RESEND_TIMEOUT_MS,8_000,"RESEND_TIMEOUT_MS"),webhookSecret:env.RESEND_WEBHOOK_SECRET?.trim()||undefined};
 }

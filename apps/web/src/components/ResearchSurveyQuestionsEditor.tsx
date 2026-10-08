@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ResearchQuestion, ResearchQuestionType } from "../lib/research-survey-model";
+import { RETAIL_SENTIMENT_2026_QUESTIONS } from "../lib/research-retail-sentiment-2026";
 import type { ResearchSurveyDesignAdminOverview } from "../lib/research-survey-admin-design";
 
 function pairs(value: unknown): ReadonlyArray<readonly [string, string]> {
@@ -359,6 +360,7 @@ export function ResearchSurveyQuestionsEditor({
   const instrument = data.instrument;
   const editable = Boolean(canEdit && data.study.status === "draft" && instrument?.status === "draft");
   const canCreateRevision = Boolean(canEdit && data.study.status === "draft" && instrument && instrument.status !== "draft");
+  const moduleInstalled = data.questions.some((question) => question.code === "Q19");
 
   async function createRevision() {
     setBusy(true);
@@ -408,6 +410,15 @@ export function ResearchSurveyQuestionsEditor({
           This questionnaire is frozen. It remains visible for audit and reproducibility, but its questions cannot be silently changed.
           {canCreateRevision ? " Create a new draft revision to make changes before fieldwork begins." : ""}
         </div>}
+
+    {!moduleInstalled && slug === "greek-retail-2026" && <div className="workspace-queue-card" style={{ display: "grid", gap: 8, marginTop: 14 }}>
+      <strong>Προτεινόμενη νέα ενότητα · Οικονομική κατάσταση και επιχειρηματική εμπιστοσύνη</strong>
+      <p>Οι παρακάτω 9 ερωτήσεις έχουν προετοιμαστεί αλλά δεν είναι ακόμη ενεργές στο συγκεκριμένο ερωτηματολόγιο.</p>
+      <ol style={{ paddingLeft: 25, margin: 0 }}>
+        {RETAIL_SENTIMENT_2026_QUESTIONS.map((question) => <li key={question.code}><strong>{question.code}.</strong> {question.prompt}</li>)}
+      </ol>
+      <small>Για να προστεθούν απαιτείται επεξεργάσιμη αναθεώρηση και εγκατάσταση της ενότητας. Οι υπάρχουσες απαντήσεις παραμένουν αμετάβλητες.</small>
+    </div>}
 
     {canCreateRevision && <div className="workspace-action-bar">
       <span><strong>Need to change a locked questionnaire?</strong><br />Create a new draft version with the same questions and a matching draft evaluation plan.</span>

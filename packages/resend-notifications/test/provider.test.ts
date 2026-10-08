@@ -17,7 +17,10 @@ test("sends transactional email with branded html, signed fallback and provider 
   assert.match(body.text,/SP BUSINESS LAB – ΠΟΛΙΑΚΟΦ ΣΤΑΝΙΣΛΑΒ/);
   assert.match(body.text,/ΓΕΜΗ 193836403000/);
   assert.match(body.text,/στηρίζεις τις τοπικές επιχειρήσεις/);
-  assert.match(body.html,/KONTA MOY · BUY LOCAL SPARTA/);
+  assert.equal(body.from,"KONTA MOY <hello@example.gr>");
+  assert.match(body.html,/KONTA MOY/);
+  assert.doesNotMatch(body.html,/BUY LOCAL SPARTA|Η Σπάρτη δίπλα σου/i);
+  assert.doesNotMatch(body.text,/BUY LOCAL SPARTA|Η Σπάρτη δίπλα σου/i);
   assert.match(body.html,/Προβολή παραγγελίας/);
   assert.match(body.html,/στηρίζεις τις τοπικές επιχειρήσεις/);
 });
@@ -29,7 +32,8 @@ test("renderer escapes content, keeps one legal signature and omits customer tha
   assert.match(html,/&lt;script&gt;/);
   assert.doesNotMatch(html,/<script>/);
   assert.equal((text.match(/SP BUSINESS LAB – ΠΟΛΙΑΚΟΦ ΣΤΑΝΙΣΛΑΒ/g)||[]).length,1);
-  assert.equal((text.match(/KONTA MOY · Buy Local Sparta/g)||[]).length,1);
+  assert.equal((text.match(/^KONTA MOY$/gm)||[]).length,1);
+  assert.doesNotMatch(text,/Buy Local Sparta|Η Σπάρτη δίπλα σου/i);
   assert.match(text,/Σε ευχαριστούμε που, χρησιμοποιώντας το KONTA MOY, στηρίζεις τις τοπικές επιχειρήσεις\. ❤️/);
   const vendor=signedKontaMoyText({subject:"SLA",text:"Απαιτείται ενέργεια",eventType:"vendor.sla_breached",payload:{orderId:"ord-1"}},{publicBaseUrl:"https://kontamou.site"});
   assert.doesNotMatch(vendor,/στηρίζεις τις τοπικές επιχειρήσεις/);

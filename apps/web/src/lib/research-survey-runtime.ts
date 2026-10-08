@@ -64,7 +64,7 @@ export type ResearchSurveyContext = Readonly<{
   questions: readonly ResearchQuestion[];
   answers: ResearchAnswerMap;
   experiments: readonly ResearchExperimentAssignment[];
-  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code", boolean>>>;
+  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>>;
 }>;
 
 function questionFromRow(row: SqlRow): ResearchQuestion {
@@ -233,7 +233,7 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
 
   let answers: ResearchAnswerMap = {};
   let experiments: readonly ResearchExperimentAssignment[] = [];
-  let consents: Partial<Record<"results_notification" | "thank_you_code", boolean>> = {};
+  let consents: Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>> = {};
   if (response) {
     const [answerResult, experimentResult, consentResult] = await Promise.all([
       pool.query<SqlRow>(`
@@ -252,7 +252,7 @@ export async function publicResearchSurvey(slug: string, token: string): Promise
         SELECT DISTINCT ON (consent_kind) consent_kind, granted
         FROM research_consents
         WHERE response_id = $1
-          AND consent_kind IN ('results_notification','thank_you_code')
+          AND consent_kind IN ('results_notification','thank_you_code','marketing')
         ORDER BY consent_kind, occurred_at DESC, id DESC
       `, [response.id])
     ]);
@@ -436,10 +436,10 @@ export async function refusePublicResearchInvite(input: Readonly<{
 export async function updatePublicResearchConsents(input: Readonly<{
   slug: string;
   token: string;
-  optionalConsents: Partial<Record<"results_notification" | "thank_you_code", boolean>>;
+  optionalConsents: Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>;
 }>): Promise<Readonly<{
   status: "preferences_updated";
-  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code", boolean>>>;
+  consents: Readonly<Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>>;
 }>> {
   if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
   const client = await getProductionPostgresRuntime().sqlPool.connect();
@@ -460,8 +460,21 @@ export async function updatePublicResearchConsents(input: Readonly<{
     }
 
     for (const [consentKind, granted] of Object.entries(input.optionalConsents)) {
-      if (!["results_notification", "thank_you_code"].includes(consentKind)) continue;
-      const normalizedGranted = Boolean(granted);
+      if (!["results_notification", "thank_you_code", "marketing"].includes(consentKind)) continue;
+      // Never coerce arbitrary strings or numbers into affirmative marketing consent.
+      if (typeof granted !== "boolean") continue;
+      const normalizedGranted = granted === true;
+      if (consentKind === "marketing" && normalizedGranted) {
+        if (!invite.contact_point_id) throw new Error("RESEARCH_MARKETING_EMAIL_UNAVAILABLE");
+        const contact = await client.query<SqlRow>(`
+          SELECT cp.id FROM research_contact_points cp
+          WHERE cp.id=$1 AND cp.contact_type='email'
+            AND cp.suppression_status='active'
+            AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+          LIMIT 1
+        `, [invite.contact_point_id]);
+        if (!contact.rows[0]) throw new Error("RESEARCH_MARKETING_EMAIL_UNAVAILABLE");
+      }
       const previousConsent = await client.query<SqlRow>(`
         SELECT granted
         FROM research_consents
@@ -474,7 +487,9 @@ export async function updatePublicResearchConsents(input: Readonly<{
         await client.query(`
           INSERT INTO research_consents (response_id,consent_kind,statement_version,granted,source)
           VALUES ($1,$2,$3,$4,'survey_ui_preferences')
-        `, [response.id, consentKind, invite.consent_statement_version, normalizedGranted]);
+        `, [response.id, consentKind,
+          consentKind === "marketing" ? "kontamou-commercial-email-v1" : invite.consent_statement_version,
+          normalizedGranted]);
       }
 
       if (!normalizedGranted) {
@@ -508,12 +523,12 @@ export async function updatePublicResearchConsents(input: Readonly<{
       SELECT DISTINCT ON (consent_kind) consent_kind,granted
       FROM research_consents
       WHERE response_id=$1
-        AND consent_kind IN ('results_notification','thank_you_code')
+        AND consent_kind IN ('results_notification','thank_you_code','marketing')
       ORDER BY consent_kind,occurred_at DESC,id DESC
     `, [response.id]);
     const consents = Object.fromEntries(
       latest.rows.map((row) => [text(row.consent_kind), Boolean(row.granted)])
-    ) as Partial<Record<"results_notification" | "thank_you_code", boolean>>;
+    ) as Partial<Record<"results_notification" | "thank_you_code" | "marketing", boolean>>;
 
     await client.query("COMMIT");
     return { status: "preferences_updated", consents };
@@ -1825,7 +1840,7 @@ export async function researchSurveyOperationsOverview(
       JOIN research_invites ri ON ri.id=rr.invite_id
       WHERE rr.study_id=$1
         AND ($2::uuid IS NULL OR ri.wave_id=$2::uuid)
-        AND rc.consent_kind IN ('research_participation','results_notification','thank_you_code')
+        AND rc.consent_kind IN ('research_participation','results_notification','thank_you_code','marketing')
       ORDER BY rc.response_id,rc.consent_kind,rc.occurred_at DESC,rc.id DESC
     )
     SELECT
@@ -2401,5 +2416,101 @@ export async function researchSurveyAdminFastOverview(principal: SessionPrincipa
       completed: numberValue(row.completed),
       failedJobs: numberValue(row.failed_jobs)
     } : undefined
+  };
+}
+
+
+/**
+ * Cohort-ledger overview for the Greek Retail study.
+ * All queries touch only snapshot/job metadata: NEVER count or load frame/contact
+ * rows while the Admin page renders. Group B delta counts are persisted at freeze.
+ */
+export async function researchSurveyAdminCohortOverview(principal: SessionPrincipal, slug: string) {
+  assertAdminPermission(principal, "research.read");
+  if (!productionDatabaseConfigured() || slug !== GREEK_RETAIL_2026_SLUG) return undefined;
+  const result = await getAdminResearchOverviewPostgresRuntime().sqlPool.query<SqlRow>(`
+    SELECT
+      a.id AS a_frame_id, a.label AS a_label, a.status AS a_status,
+      a.population_size AS a_population, a.frozen_at AS a_frozen_at,
+      (aj.output->>'activeEmailCount')::int AS a_contactable,
+      b.id AS b_frame_id, b.label AS b_label, b.status AS b_status,
+      CASE WHEN b.status IN ('frozen','superseded') THEN b.population_size END AS b_expanded_population,
+      b.frozen_at AS b_frozen_at,
+      bj.status AS b_job_status,
+      CASE WHEN bj.status='running' AND bj.output->>'persistedUnits' ~ '^[0-9]+$'
+        THEN (bj.output->>'persistedUnits')::int END AS b_processed_source_rows,
+      CASE WHEN b.status IN ('frozen','superseded')
+                  AND bj.status='succeeded'
+                  AND bj.output->>'cohortABaseFrameSnapshotId'=a.id::text
+                  AND bj.output->>'cohortBNewBusinessCount' ~ '^[0-9]+$'
+        THEN (bj.output->>'cohortBNewBusinessCount')::int END AS b_new_businesses,
+      CASE WHEN b.status IN ('frozen','superseded')
+                  AND bj.status='succeeded'
+                  AND bj.output->>'cohortABaseFrameSnapshotId'=a.id::text
+                  AND bj.output->>'cohortBContactableBusinessCount' ~ '^[0-9]+$'
+        THEN (bj.output->>'cohortBContactableBusinessCount')::int END AS b_contactable
+    FROM research_studies s
+    LEFT JOIN LATERAL (
+      SELECT id,label,status,population_size,frozen_at
+      FROM research_frame_snapshots
+      WHERE study_id=s.id AND wave_id=s.current_wave_id
+        AND status IN ('frozen','superseded')
+        AND selection_criteria->'activityGroupIds' @> '["retail-non-food"]'::jsonb
+      ORDER BY frozen_at ASC NULLS LAST, created_at ASC LIMIT 1
+    ) a ON true
+    LEFT JOIN LATERAL (
+      SELECT j.output FROM research_study_jobs j
+      WHERE j.study_id=s.id AND j.job_type='frame_snapshot'
+        AND j.status='succeeded'
+        AND j.output->>'frameSnapshotId'=a.id::text
+        AND j.output->>'activeEmailCount' ~ '^[0-9]+$'
+      ORDER BY j.finished_at DESC LIMIT 1
+    ) aj ON true
+    LEFT JOIN LATERAL (
+      SELECT id,label,status,population_size,frozen_at
+      FROM research_frame_snapshots
+      WHERE study_id=s.id AND wave_id=s.current_wave_id
+        AND selection_criteria->'activityGroupIds' @> '["retail-all"]'::jsonb
+      ORDER BY created_at DESC LIMIT 1
+    ) b ON true
+    LEFT JOIN LATERAL (
+      SELECT j.status,j.output FROM research_study_jobs j
+      WHERE j.study_id=s.id AND j.job_type='frame_snapshot'
+        AND j.output->>'frameSnapshotId'=b.id::text
+      ORDER BY j.created_at DESC LIMIT 1
+    ) bj ON true
+    WHERE s.slug=$1
+    LIMIT 1
+  `, [slug]);
+  const row = result.rows[0];
+  if (!row) return undefined;
+  const optionalNumber = (value: unknown): number | undefined =>
+    value === null || value === undefined ? undefined : numberValue(value);
+  const aPopulation = optionalNumber(row.a_population);
+  const aContacts = optionalNumber(row.a_contactable);
+  const bPopulation = optionalNumber(row.b_new_businesses);
+  const bContacts = optionalNumber(row.b_contactable);
+  return {
+    a: {
+      label: optionalText(row.a_label),
+      status: optionalText(row.a_status) ?? "not_started",
+      population: aPopulation,
+      contactable: aContacts,
+      frozenAt: optionalText(row.a_frozen_at)
+    },
+    b: {
+      label: optionalText(row.b_label),
+      status: optionalText(row.b_status) ?? "not_started",
+      jobStatus: optionalText(row.b_job_status),
+      expandedFramePopulation: optionalNumber(row.b_expanded_population),
+      processedSourceRows: optionalNumber(row.b_processed_source_rows),
+      population: bPopulation,
+      contactable: bContacts,
+      frozenAt: optionalText(row.b_frozen_at)
+    },
+    combined: {
+      population: aPopulation !== undefined && bPopulation !== undefined ? aPopulation + bPopulation : undefined,
+      contactable: aContacts !== undefined && bContacts !== undefined ? aContacts + bContacts : undefined
+    }
   };
 }
