@@ -43,6 +43,7 @@ export const SITE_LINKS = {
   hubExpansionJoin: { label: "Συνεργασία στα νέα HUB", href: "/hubs/join", description: "AFM-first ένταξη επιχειρήσεων στα 130 HUB επέκτασης του ΚΟΝΤΑ ΜΟΥ." },
   researchObservatory: { label: "Παρατηρητήριο Λιανεμπορίου", href: "/research", description: "Το μόνιμο KONTA MOY Retail Observatory για ετήσιες και θεματικές μελέτες του ελληνικού λιανεμπορίου." },
   researchPrivacy: { label: "Ιδιωτικότητα έρευνας", href: "/research/privacy", description: "Ο διαχωρισμός πρόσκλησης, απαντήσεων, συγκατάθεσης και ερευνητικής επικοινωνίας." },
+  researchExternal: { label: "Έρευνες άλλων φορέων & κλίμα αγοράς", href: "/research/market-sentiment", description: "Δημοσιευμένες έρευνες, δείκτες προσδοκιών και στατιστικές αγοράς από ανεξάρτητους φορείς, με σαφείς πηγές και περιορισμούς." },
   researchCompare: { label: "Σύγκριση & αξιολόγηση έρευνας", href: "/research/compare", description: "Σύγκριση δημοσιευμένων waves με governed variable lineage, harmonisation και evidence evaluation." },
   researchGreekRetail: { label: "Ελληνικό Λιανεμπόριο 2026", href: "/research/greek-retail-2026", description: "Η ετήσια μελέτη του KONTA MOY για την ψηφιακή ετοιμότητα και τις πραγματικές δυσκολίες του ελληνικού λιανεμπορίου." },
   researchGreekRetailMethodology: { label: "Μεθοδολογία έρευνας", href: "/research/greek-retail-2026/methodology", description: "Sampling, consent, weighting και reproducibility protocol για τη μελέτη Ελληνικό Λιανεμπόριο 2026." },
@@ -83,6 +84,7 @@ export const INDEXABLE_STATIC_ROUTES: ReadonlyArray<IndexableStaticRoute> = [
   { ...SITE_LINKS.joinRequirements, changeFrequency: "monthly", priority: 0.55 },
   { ...SITE_LINKS.hubExpansionJoin, changeFrequency: "monthly", priority: 0.6 },
   { ...SITE_LINKS.researchObservatory, changeFrequency: "monthly", priority: 0.65 },
+  { ...SITE_LINKS.researchExternal, changeFrequency: "monthly", priority: 0.58 },
   { ...SITE_LINKS.researchPrivacy, changeFrequency: "monthly", priority: 0.5 },
   { ...SITE_LINKS.researchCompare, changeFrequency: "weekly", priority: 0.56 },
   { ...SITE_LINKS.researchGreekRetail, changeFrequency: "monthly", priority: 0.62 },
@@ -117,7 +119,7 @@ export const HUMAN_SITEMAP_SECTIONS = [
   { title: "Νομικά & ιδιωτικότητα", links: [SITE_LINKS.terms, SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] },
   { title: "Κανόνες & υποστήριξη", links: [SITE_LINKS.fairness, SITE_LINKS.help, SITE_LINKS.about] },
   { title: "Για επιχειρήσεις", links: [SITE_LINKS.join, SITE_LINKS.joinRequirements, SITE_LINKS.hubExpansionJoin, SITE_LINKS.vendorApply] },
-  { title: "Έρευνα", links: [SITE_LINKS.researchObservatory, SITE_LINKS.researchCompare, SITE_LINKS.researchGreekRetail, SITE_LINKS.researchGreekRetailMethodology, SITE_LINKS.researchGreekRetailResults, SITE_LINKS.researchPrivacy] }
+  { title: "Έρευνα", links: [SITE_LINKS.researchObservatory, SITE_LINKS.researchExternal, SITE_LINKS.researchCompare, SITE_LINKS.researchGreekRetail, SITE_LINKS.researchGreekRetailMethodology, SITE_LINKS.researchGreekRetailResults, SITE_LINKS.researchPrivacy] }
 ] as const;
 
 export const ACCOUNT_UTILITY_NAVIGATION: ReadonlyArray<SiteLink> = [SITE_LINKS.login, SITE_LINKS.register];
