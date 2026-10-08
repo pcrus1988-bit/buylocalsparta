@@ -20,14 +20,14 @@ export type ResearchSafetyDecision = Readonly<{
 }>;
 
 /**
- * Under 50 outcomes: report rates without automatic study-level pause.
- * 50-99 outcomes: 20% emergency guard; 100-499: 8% early guard.
+ * Under 20 outcomes: report rates without automatic study-level pause.
+ * 20-99 outcomes: 20% emergency guard; 100-499: 8% early guard.
  * 500+ outcomes: return to the 5% sustained-quality threshold.
  * Actual hard bounces and SES pre-delivery validation suppressions are
  * evaluated separately; suppressions are not counted as actual hard bounces.
  */
 export function graduatedResearchStopRate(decisions: number): number | null {
-  if (!Number.isFinite(decisions) || decisions < 50) return null;
+  if (!Number.isFinite(decisions) || decisions < 20) return null;
   if (decisions < 100) return 0.20;
   if (decisions < 500) return 0.08;
   return 0.05;
