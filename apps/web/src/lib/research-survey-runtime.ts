@@ -1329,7 +1329,11 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       COALESCE(a.estimates, 0)::int AS analysis_estimates,
       COALESCE(rel.releases, 0)::int AS releases,
       rel.latest_release_version,
-      rel.latest_release_published_at
+      rel.latest_release_published_at,
+      COALESCE(j.queued_jobs, 0)::int AS queued_jobs,
+      COALESCE(j.running_jobs, 0)::int AS running_jobs,
+      COALESCE(j.blocking_sampling_jobs, 0)::int AS blocking_sampling_jobs,
+      COALESCE(j.failed_jobs, 0)::int AS failed_jobs
     FROM research_studies s
     LEFT JOIN LATERAL (
       SELECT id, version, status FROM research_instruments
@@ -1374,8 +1378,17 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
         fs.population_size,
         (SELECT count(*)::int FROM research_strata st WHERE st.frame_snapshot_id=fs.id) AS strata_count
       FROM research_frame_snapshots fs
-      WHERE fs.study_id = s.id
-      ORDER BY fs.created_at DESC
+      WHERE fs.study_id = s.id AND fs.wave_id=s.current_wave_id AND fs.content_sha256 IS NOT NULL
+        AND (
+          (s.status IN ('draft','pilot') AND fs.status IN ('frozen','superseded')
+            AND fs.selection_criteria->'activityGroupIds' @> '["retail-non-food"]'::jsonb)
+          OR
+          (s.status NOT IN ('draft','pilot') AND fs.status='frozen')
+        )
+      ORDER BY
+        CASE WHEN s.status IN ('draft','pilot') THEN fs.frozen_at END ASC NULLS LAST,
+        CASE WHEN s.status NOT IN ('draft','pilot') THEN fs.frozen_at END DESC NULLS LAST,
+        fs.created_at DESC
       LIMIT 1
     ) lf ON true
     -- Only scan pilot invitation identities; never rescan the entire frozen frame.
@@ -1557,6 +1570,7 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       SELECT
         count(*) FILTER (WHERE status='queued') AS queued_jobs,
         count(*) FILTER (WHERE status='running') AS running_jobs,
+        count(*) FILTER (WHERE status IN ('queued','running') AND job_type <> 'frame_snapshot') AS blocking_sampling_jobs,
         count(*) FILTER (WHERE status='failed') AS failed_jobs
       FROM research_study_jobs
       WHERE study_id = s.id
@@ -1639,6 +1653,7 @@ export async function researchSurveyAdminOverview(principal: SessionPrincipal) {
       latestReleasePublishedAt: optionalText(row.latest_release_published_at),
       queuedJobs: numberValue(row.queued_jobs),
       runningJobs: numberValue(row.running_jobs),
+      blockingSamplingJobs: numberValue(row.blocking_sampling_jobs),
       failedJobs: numberValue(row.failed_jobs)
     }))
   };
