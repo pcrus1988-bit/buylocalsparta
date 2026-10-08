@@ -71,6 +71,9 @@ export async function POST(request: Request) {
     };
 
     const receipt = await submitHubProspectApplication({ application, principal, now });
+    if (receipt.qaSimulation) {
+      return Response.json({ ...receipt, message: "Επιτυχής ΔΟΚΙΜΑΣΤΙΚΗ υποβολή. Ο QA κωδικός εξαργυρώθηκε. Δεν δημιουργήθηκε πραγματική αίτηση, vendor ή αποστολή email." }, { status: 201, headers: { "Cache-Control": "no-store" } });
+    }
 
     let trialAccessExpiresAt: number | undefined;
     let trialAccessUrl: string | undefined;

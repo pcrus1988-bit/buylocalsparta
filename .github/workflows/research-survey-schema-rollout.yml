@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       apply:
-        description: Apply schema 0416–0436 after the guarded preflight
+        description: Apply schema 0416–0437 after the guarded preflight
         required: true
         default: false
         type: boolean
@@ -63,7 +63,7 @@ jobs:
           echo "Research schema preflight passed."
           echo "No database mutation was requested."
 
-      - name: Apply checksum-aware migrations through schema 0436
+      - name: Apply checksum-aware migrations through schema 0437
         if: ${{ inputs.apply }}
         run: npm run db:migrate
 
