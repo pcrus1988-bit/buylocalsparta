@@ -1581,21 +1581,6 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
   const digest = text(hashResult.rows[0]?.content_sha256);
   if (!populationSize || !digest) throw new Error("RESEARCH_FRAME_FINALIZATION_EMPTY");
 
-  await pool.query(`
-    UPDATE research_frame_snapshots
-    SET population_size=$2,
-        content_sha256=$3,
-        status='frozen',
-        captured_at=now(),
-        frozen_at=now()
-    WHERE id=$1
-  `, [snapshotId, populationSize, digest]);
-  await pool.query(`
-    UPDATE research_frame_snapshots
-    SET status='superseded'
-    WHERE study_id=$1 AND id<>$2 AND status='frozen'
-  `, [job.study_id, snapshotId]);
-
   // Cohort A is the original non-food frame. Cohort B consists strictly of
   // businesses added by this wider all-retail frame. Reconcile ONCE at freeze,
   // never during an Admin navigation request over hundreds of thousands of rows.
@@ -1644,6 +1629,21 @@ async function processFrameSnapshotJob(job: ResearchJobRow): Promise<Record<stri
       };
     }
   }
+
+  await pool.query(`
+    UPDATE research_frame_snapshots
+    SET population_size=$2,
+        content_sha256=$3,
+        status='frozen',
+        captured_at=now(),
+        frozen_at=now()
+    WHERE id=$1
+  `, [snapshotId, populationSize, digest]);
+  await pool.query(`
+    UPDATE research_frame_snapshots
+    SET status='superseded'
+    WHERE study_id=$1 AND id<>$2 AND status='frozen'
+  `, [job.study_id, snapshotId]);
 
   return {
     frameSnapshotId: snapshotId,
