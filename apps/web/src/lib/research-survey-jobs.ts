@@ -602,11 +602,24 @@ export async function queueGreekRetailInviteBatch(
   if (!Boolean(row.template_ready)) throw new Error("RESEARCH_RECRUITMENT_TEMPLATE_NOT_READY");
 
   const existing = await pool.query<SqlRow>(`
-    SELECT id FROM research_study_jobs
-    WHERE study_id=$1 AND wave_id=$2 AND job_type='invite_batch' AND status IN ('queued','running')
+    SELECT id,status,input->>'mode' AS mode,input->>'cohort' AS cohort
+    FROM research_study_jobs
+    WHERE study_id=$1 AND wave_id=$2 AND job_type='invite_batch'
+      AND (status IN ('queued','running')
+        OR ($3::boolean AND input->>'mode'='continuous' AND input->>'cohort'=$4))
     ORDER BY created_at DESC LIMIT 1
-  `, [row.id, row.current_wave_id]);
-  if (existing.rows[0]) return { jobId: text(existing.rows[0].id) };
+  `, [row.id, row.current_wave_id, continuous, cohort]);
+  if (existing.rows[0]) {
+    const previous = existing.rows[0];
+    if (text(previous.status)==="queued" || text(previous.status)==="running") {
+      // Never create parallel invitation workers, even for a different cohort.
+      return { jobId:text(previous.id) };
+    }
+    // A failed campaign must be recovered IN PLACE; a completed census cannot
+    // be launched a second time even if Admin confirms another send dialog.
+    if (text(previous.status)==="failed") throw new Error("RESEARCH_CAMPAIGN_RECOVERY_REQUIRED");
+    throw new Error("RESEARCH_COHORT_CAMPAIGN_ALREADY_EXISTS");
+  }
 
   const job = await pool.query<SqlRow>(`
     INSERT INTO research_study_jobs (study_id,wave_id,job_type,status,input)
@@ -636,6 +649,108 @@ export async function queueGreekRetailInviteBatch(
 }
 
 /** Pause or resume the SAME previously approved campaign; never authorize new recipients. */
+/**
+ * Recover a failed, previously double-approved continuous campaign IN PLACE.
+ * Does not send mail: the recovered job stays paused until the admin explicitly
+ * resumes it. Count progress from distinct, durable batches and SES acceptances
+ * rather than the possibly double-incremented counters of failed retries.
+ */
+export async function recoverGreekRetailFailedInvitationCampaign(
+  principal: SessionPrincipal
+): Promise<{jobId:string;status:string;paused:true;processedCount:number;sentCount:number;unresolvedAttempts:number;previousError:string}> {
+  assertAdminPermission(principal,"research.fieldwork.manage");
+  if (!productionDatabaseConfigured()) throw new Error("SURVEY_DATABASE_UNAVAILABLE");
+  const client=await getProductionPostgresRuntime().sqlPool.connect();
+  try {
+    await client.query("BEGIN");
+    const found=await client.query<ResearchJobRow & {status:string;study_status:string;fieldwork_ends_at:string|null;error_message:string|null}>(`
+      SELECT j.id,j.study_id,j.wave_id,j.job_type,j.status,j.input,j.output,j.attempts,
+             j.error_message,s.status AS study_status,s.fieldwork_ends_at
+      FROM research_study_jobs j
+      JOIN research_studies s ON s.id=j.study_id AND s.current_wave_id=j.wave_id
+      WHERE s.slug=$1 AND j.job_type='invite_batch'
+        AND j.input->>'mode'='continuous'
+      ORDER BY j.created_at DESC LIMIT 1
+      FOR UPDATE OF j
+    `,[STUDY_SLUG]);
+    const job=found.rows[0];
+    if (!job || job.study_status!=="fielding") throw new Error("RESEARCH_CAMPAIGN_RECOVERY_UNAVAILABLE");
+    if (job.job_type!=="invite_batch" || text(job.input?.mode)!=="continuous" || !["A","B"].includes(text(job.input?.cohort))) {
+      throw new Error("RESEARCH_CAMPAIGN_RECOVERY_INVALID");
+    }
+    if (job.fieldwork_ends_at && new Date(job.fieldwork_ends_at).getTime() <= Date.now()) {
+      throw new Error("SURVEY_INVITE_EXPIRED");
+    }
+    assertQueuedResearchEmailApproval(job);
+    if (text(job.status)!=="failed") throw new Error("RESEARCH_CAMPAIGN_NOT_FAILED");
+    const active=await client.query<SqlRow>(`
+      SELECT count(*)::int AS count FROM research_study_jobs
+      WHERE study_id=$1 AND wave_id=$2 AND job_type='invite_batch'
+        AND status IN ('queued','running') AND id<>$3
+    `,[job.study_id,job.wave_id,job.id]);
+    if (numberValue(active.rows[0]?.count)>0) throw new Error("RESEARCH_CAMPAIGN_WORKER_ALREADY_ACTIVE");
+    const label=text(job.input?.label);
+    if (!label) throw new Error("RESEARCH_CAMPAIGN_LABEL_MISSING");
+    const conflicts=await client.query<SqlRow>(`
+      SELECT count(*)::int AS count FROM research_study_jobs
+      WHERE study_id=$1 AND wave_id=$2 AND job_type='invite_batch'
+        AND id<>$3 AND input->>'label'=$4
+    `,[job.study_id,job.wave_id,job.id,label]);
+    if (numberValue(conflicts.rows[0]?.count)>0) throw new Error("RESEARCH_CAMPAIGN_LEDGER_LABEL_NOT_UNIQUE");
+    const output=objectValue(job.output);
+    const currentBatchId=text(output.batchId);
+    // A batch is counted only after it finishes, so a partial failed batch is
+    // excluded from the baseline and will be retried only to SKIP prior attempts.
+    const ledger=await client.query<SqlRow>(`
+      SELECT COALESCE(sum(CASE WHEN b.id=$4::uuid THEN 0 ELSE b.planned_count END),0)::bigint AS processed,
+             COALESCE(sum(CASE WHEN b.id=$4::uuid THEN 0 ELSE sent.sent_count END),0)::bigint AS sent,
+             count(*) FILTER (WHERE b.id=$4::uuid)::int AS current_batch_count,
+             COALESCE(sum(ambiguous.unresolved_count),0)::bigint AS unresolved
+      FROM research_invite_batches b
+      LEFT JOIN LATERAL (
+        SELECT count(*)::int AS sent_count FROM research_invites i
+        WHERE i.batch_id=b.id AND i.sent_at IS NOT NULL
+      ) sent ON true
+      LEFT JOIN LATERAL (
+        SELECT count(*)::int AS unresolved_count
+        FROM research_invites i
+        JOIN research_invite_messages m ON m.invite_id=i.id AND m.attempt_kind='initial'
+        WHERE i.batch_id=b.id AND (i.status='created' OR m.status='sending')
+      ) ambiguous ON true
+      WHERE b.study_id=$1 AND b.wave_id=$2 AND b.label=$3
+    `,[job.study_id,job.wave_id,label,currentBatchId||null]);
+    if (currentBatchId && numberValue(ledger.rows[0]?.current_batch_count)!==1) {
+      throw new Error("RESEARCH_CAMPAIGN_CURRENT_BATCH_NOT_FOUND");
+    }
+    const processed=numberValue(ledger.rows[0]?.processed);
+    const sent=numberValue(ledger.rows[0]?.sent);
+    const approved=Math.floor(numberValue(job.input?.limit));
+    if (approved<1 || processed>approved || sent>processed) {
+      throw new Error("RESEARCH_CAMPAIGN_LEDGER_RECONCILIATION_FAILED");
+    }
+    const previousError=text(job.error_message);
+    const unresolved=numberValue(ledger.rows[0]?.unresolved);
+    const recoveredOutput={...output,campaignProcessedCount:processed,campaignSentCount:sent,
+      recoveryReview:{at:new Date().toISOString(),previousError,processedCount:processed,
+        sentCount:sent,unresolvedAttempts:unresolved,rule:"skip_every_prior_provider_attempt"},
+      safetyHold:output.safetyHold??null};
+    await client.query(`
+      UPDATE research_study_jobs
+      SET status='queued',attempts=0,
+          input=jsonb_set(input,'{paused}','true'::jsonb,true),
+          output=$2::jsonb,available_at='infinity'::timestamptz,
+          started_at=NULL,finished_at=NULL,error_message=NULL
+      WHERE id=$1 AND status='failed'
+    `,[job.id,JSON.stringify(recoveredOutput)]);
+    await client.query("COMMIT");
+    return {jobId:job.id,status:"queued",paused:true,processedCount:processed,
+      sentCount:sent,unresolvedAttempts:unresolved,previousError};
+  } catch(error) {
+    await client.query("ROLLBACK").catch(()=>undefined);
+    throw error;
+  } finally {client.release();}
+}
+
 export async function setGreekRetailInvitationCampaignPause(
   principal: SessionPrincipal,
   paused: boolean
@@ -2745,9 +2860,10 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
       continue;
     }
     if (continuous && priorRow && text(priorRow.status) === "created") {
-      // An ambiguous SES handoff must be investigated, never automatically
-      // recreated as a second invitation during a high-volume campaign.
-      throw new Error("RESEARCH_CAMPAIGN_AMBIGUOUS_DELIVERY_REQUIRES_REVIEW");
+      // An ambiguous SES handoff is treated as already contacted. Preserve
+      // the evidence and never create or send another token for this address.
+      duplicateSkippedCount += 1;
+      continue;
     }
     if (priorRow && text(priorRow.status) === "created") {
       // A process can terminate after the provider accepted a message but before
@@ -2788,19 +2904,28 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     `, [sampleUnitId, batchRow.sample_draw_id]);
     const contact = candidate.rows[0];
     if (!contact) {
-      failedCount += 1;
-      failures.push({ sampleUnitId, error: "NO_ACTIVE_EMAIL_CONTACT" });
+      // A newly suppressed/removed contact is an intended no-send, not a
+      // transient SES failure. Do not strand a full-cohort campaign on opt-outs.
+      duplicateSkippedCount += 1;
       continue;
     }
 
-    // Different companies sometimes share an inbox. Never invite an address twice
-    // across Pilot, Cohort A and Cohort B after an earlier successful send.
+    // STRICT one-invitation-per-inbox policy for this study. An SES handoff
+    // can succeed while the worker crashes before persisting sent_at/MessageId.
+    // Treat ANY previous invite row (even expired or created with no message
+    // ledger yet) as potentially contacted. Missing some recipients is safer
+    // than risking a repeated initial invitation.
+    // Covers shared mailboxes across Pilot, Cohort A and Cohort B.
     const contactAlreadyInvited = await pool.query<SqlRow>(`
-      SELECT EXISTS (SELECT 1 FROM research_invites prior
+      SELECT EXISTS (
+        SELECT 1 FROM research_invites prior
         JOIN research_contact_points prior_cp ON prior_cp.id=prior.contact_point_id
-        WHERE prior.study_id=$1 AND prior.sent_at IS NOT NULL
-          AND prior_cp.contact_type='email'
-          AND prior_cp.contact_value_hash=$2) AS duplicate
+        WHERE prior.study_id=$1 AND prior_cp.contact_type='email'
+          AND prior_cp.contact_value_hash=$2
+          -- An invite row alone means the address may already have been
+          -- handed to SES, regardless of local completion/expiry status.
+          -- Never risk a second initial invitation to this inbox.
+      ) AS duplicate
     `, [job.study_id, contact.contact_value_hash]);
     if (Boolean(contactAlreadyInvited.rows[0]?.duplicate)) {
       // A shared inbox has already received this study's invitation. Skipping it
@@ -3002,7 +3127,8 @@ async function processInviteBatchJob(job: ResearchJobRow): Promise<Record<string
     duplicateSkippedCount,
     failedCount,
     failures: failures.slice(0, 25),
-    ...(continuous ? {campaignProcessedCount:nextProcessed,campaignSentCount:nextSent,deliverySafety} : {})
+    ...(continuous ? {campaignProcessedCount:completed?nextProcessed:campaignProcessed,
+      campaignSentCount:completed?nextSent:campaignSent,deliverySafety} : {})
   })]);
 
   if (failedCount > 0) {

@@ -2594,7 +2594,9 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       campaign.output->>'campaignProcessedCount' AS campaign_processed,
       campaign.output->>'campaignSentCount' AS campaign_sent,
       campaign.output->>'safetyHold' AS campaign_safety_hold,
-      campaign.output->'deliverySafety' AS campaign_delivery_safety
+      campaign.output->'deliverySafety' AS campaign_delivery_safety,
+      campaign.error_message AS campaign_error_message,
+      campaign.output->'recoveryReview' AS campaign_recovery_review
     FROM research_studies s
     LEFT JOIN LATERAL (
       SELECT version,subject,body_text FROM research_recruitment_templates
@@ -2673,7 +2675,7 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       FROM research_study_jobs WHERE study_id=s.id AND wave_id=s.current_wave_id
     ) jobs ON true
     LEFT JOIN LATERAL (
-      SELECT id,status,input,output FROM research_study_jobs
+      SELECT id,status,input,output,error_message FROM research_study_jobs
       WHERE study_id=s.id AND wave_id=s.current_wave_id
         AND job_type='invite_batch' AND input->>'mode'='continuous'
       ORDER BY created_at DESC LIMIT 1
@@ -2723,6 +2725,8 @@ export async function researchSurveyAdminFieldworkOverview(principal: SessionPri
       processedCount:numberValue(row.campaign_processed),
       sentCount:numberValue(row.campaign_sent),
       safetyHold:optionalText(row.campaign_safety_hold),
+      lastError:optionalText(row.campaign_error_message),
+      recoveryReviewed:Boolean(row.campaign_recovery_review),
       classifiedDeliveryCount,
       completedReviewMilestone:reviewMilestones.completedMilestone,
       nextReviewMilestone:reviewMilestones.nextMilestone

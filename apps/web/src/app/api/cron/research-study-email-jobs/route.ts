@@ -24,7 +24,16 @@ export async function GET(request: Request) {
   }
 
   try {
-    const automaticReminder = await ensureGreekRetailAutomaticReminderBatch();
+    // Reminder preparation must never starve an independently authorized
+    // invitation campaign. Record its error, then drain the email queue.
+    let automaticReminder: Awaited<ReturnType<typeof ensureGreekRetailAutomaticReminderBatch>> | {state:string;reason:string};
+    try {
+      automaticReminder = await ensureGreekRetailAutomaticReminderBatch();
+    } catch(error) {
+      const reason = error instanceof Error ? error.message : "automatic_reminder_failed";
+      console.error(JSON.stringify({level:"error",event:"research.automatic_reminder_failed",reason}));
+      automaticReminder = {state:"unavailable",reason};
+    }
     const email = await processResearchStudyJobs(1, EMAIL_JOB_TYPES);
     return Response.json(
       { ok: true, lane: "email", automaticReminder, ...email },

@@ -8,6 +8,7 @@ import {
   queueGreekRetailResultsNotifications,
   queueGreekRetailRewardDelivery,
   queueGreekRetailSampleDraw,
+  recoverGreekRetailFailedInvitationCampaign,
   saveGreekRetailRecruitmentTemplate,
   setGreekRetailInvitationCampaignPause,
   suppressGreekRetailResearchEmail
@@ -141,6 +142,15 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         { ...result, emailHashRecorded: true }
       );
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (body.action === "recover_invite_campaign") {
+      // This recovers only the same failed/double-approved job, always PAUSED.
+      // Admin must explicitly resume after reviewing its reconciled counters.
+      const result = await recoverGreekRetailFailedInvitationCampaign(principal);
+      await recordAdminAudit(principal,"research.invite_campaign.recovered",
+        "research_study",slug,"Reconcile failed campaign in place; no mail sent",result);
+      return Response.json(result,{headers:{"Cache-Control":"no-store"}});
     }
 
     if (body.action === "pause_invite_campaign" || body.action === "resume_invite_campaign") {

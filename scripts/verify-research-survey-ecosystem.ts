@@ -83,6 +83,7 @@ const jobs = readFileSync("apps/web/src/lib/research-survey-jobs.ts", "utf8");
 const deliverySafety = readFileSync("apps/web/src/lib/research-survey-delivery-safety.ts", "utf8");
 const researchOperationalCron = readFileSync("apps/web/src/app/api/cron/research-study-jobs/route.ts", "utf8");
 const researchEmailCron = readFileSync("apps/web/src/app/api/cron/research-study-email-jobs/route.ts", "utf8");
+const researchJobsRoute = readFileSync("apps/web/src/app/api/admin/research/surveys/[slug]/jobs/route.ts", "utf8");
 const researchRootCronConfig = JSON.parse(readFileSync("vercel.json", "utf8")) as { crons?: Array<{path:string;schedule:string}> };
 const researchWebCronConfig = JSON.parse(readFileSync("apps/web/vercel.json", "utf8")) as { crons?: Array<{path:string;schedule:string}> };
 
@@ -504,6 +505,29 @@ if (!jobs.includes("RESEARCH_SAMPLE_REDRAW_AFTER_CONTACT")) errors.push("sample 
 if (!jobs.includes("RESEARCH_PILOT_SAMPLE_TARGET_INVALID")) errors.push("pilot diagnostic sample bounds are not separated from main sampling");
 if (!jobs.includes("pfu.external_key_hash=fu.external_key_hash")) errors.push("pilot holdout does not survive frame refreshes");
 if (!jobs.includes("processInviteBatchJob")) errors.push("worker-managed invitation delivery missing");
+if (!jobs.includes("recoverGreekRetailFailedInvitationCampaign") ||
+    !jobs.includes("RESEARCH_CAMPAIGN_RECOVERY_REQUIRED") ||
+    !jobs.includes("RESEARCH_COHORT_CAMPAIGN_ALREADY_EXISTS")) {
+  errors.push("failed approved cohort must be recovered in place, never replaced with a second campaign");
+}
+if (!jobs.includes("status='queued',attempts=0") ||
+    !jobs.includes("available_at='infinity'::timestamptz") ||
+    !jobs.includes("assertQueuedResearchEmailApproval(job)")) {
+  errors.push("recovery must preserve double approval and remain paused with no automatic SES send");
+}
+if (!jobs.includes("Treat ANY previous invite row") ||
+    !jobs.includes("prior_cp.contact_value_hash=$2") ||
+    !jobs.includes("duplicateSkippedCount += 1")) {
+  errors.push("attempt-level shared-inbox dedupe must skip SES-ambiguous/failed contact attempts");
+}
+if (!jobs.includes("campaignProcessedCount:completed?nextProcessed:campaignProcessed") ||
+    !jobs.includes("CASE WHEN b.id=$4::uuid THEN 0 ELSE b.planned_count END")) {
+  errors.push("campaign retry/recovery must not double-increment durable batch counters");
+}
+if (!researchJobsRoute.includes('body.action === "recover_invite_campaign"') ||
+    !fieldworkControls.includes("Ασφαλής αποκατάσταση (χωρίς αποστολή)")) {
+  errors.push("admin recovery action and no-send UI must remain connected");
+}
 if (!jobs.includes("processRewardDeliveryJob")) errors.push("worker-managed reward delivery missing");
 if (!jobs.includes("processResultsNotificationJob")) errors.push("worker-managed results notification missing");
 if (!jobs.includes("createHmac")) errors.push("deterministic non-plaintext reward code derivation missing");
