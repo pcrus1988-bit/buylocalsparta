@@ -234,7 +234,7 @@ export async function prepareResearchCohortTick(): Promise<Readonly<{ action: st
       })));
       const result = await client.query<SqlRow>([
         "WITH incoming AS (",
-        "SELECT * FROM jsonb_to_recordset($1::jsonb) AS row",
+        "SELECT * FROM jsonb_to_recordset($1::jsonb) AS item",
         "(frame_unit_id uuid,contact_point_id uuid,external_key_hash text,contact_value_hash text)",
         ") INSERT INTO public.research_campaign_recipients",
         "(campaign_id,wave_id,frame_unit_id,contact_point_id,external_key_hash,contact_value_hash)",
@@ -256,7 +256,7 @@ export async function prepareResearchCohortTick(): Promise<Readonly<{ action: st
     if (inserted.length) {
       const records = JSON.stringify(inserted.map((r) => ({ id:r.id,frame_unit_id:r.frame_unit_id })));
       await client.query<SqlRow>([
-        "WITH incoming AS (SELECT * FROM jsonb_to_recordset($1::jsonb) AS row",
+        "WITH incoming AS (SELECT * FROM jsonb_to_recordset($1::jsonb) AS item",
         "(id bigint,frame_unit_id uuid)), numbered AS (",
         "SELECT frame_unit_id,row_number() OVER (ORDER BY id) AS rn FROM incoming",
         ") INSERT INTO public.research_sample_units",
