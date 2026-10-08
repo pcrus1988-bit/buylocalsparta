@@ -1995,7 +1995,48 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       throw new Error("RESEARCH_POPULATION_MARGIN_REGISTRY_MISMATCH");
     }
 
-    const strataResult = await client.query<SqlRow>(`
+    // Large full-cohort enrollment needs a set-based contactability/holdout pass.
+    // Correlated eligibility subqueries per row timed out at 253k frame units.
+    const strataSql = census ? String.raw`
+      WITH pilot_holdout AS MATERIALIZED (
+        SELECT DISTINCT pfu.external_key_hash
+        FROM research_invites pri
+        JOIN research_sample_units psu ON psu.id=pri.sample_unit_id
+        JOIN research_frame_units pfu ON pfu.id=psu.frame_unit_id
+        WHERE pri.study_id=$3::uuid AND pri.wave_id=$4::uuid
+          AND pri.fieldwork_phase='pilot' AND pri.sent_at IS NOT NULL
+      ),
+      eligible_frame AS MATERIALIZED (
+        SELECT fu.id,fu.stratum_id,fu.external_key_hash
+        FROM research_frame_units fu
+        WHERE fu.frame_snapshot_id=$1::uuid AND $2::text='main'
+          AND ($5::text <> 'B' OR NOT EXISTS (
+            SELECT 1 FROM research_frame_units fa
+            WHERE fa.frame_snapshot_id=$6::uuid
+              AND fa.external_key_hash=fu.external_key_hash
+          ))
+      ),
+      contactable AS MATERIALIZED (
+        SELECT DISTINCT cp.frame_unit_id
+        FROM research_contact_points cp
+        JOIN eligible_frame ef ON ef.id=cp.frame_unit_id
+        WHERE cp.contact_type='email' AND cp.suppression_status='active'
+          AND NOT public.research_contact_is_suppressed(cp.contact_type,cp.contact_value_hash)
+      )
+      SELECT st.id,st.code,
+        count(ef.id) FILTER (WHERE ph.external_key_hash IS NULL)::int AS population_count,
+        count(ef.id) FILTER (
+          WHERE ph.external_key_hash IS NULL AND cp.frame_unit_id IS NOT NULL
+        )::int AS active_contact_count
+      FROM research_strata st
+      LEFT JOIN eligible_frame ef ON ef.stratum_id=st.id
+      LEFT JOIN pilot_holdout ph ON ph.external_key_hash=ef.external_key_hash
+      LEFT JOIN contactable cp ON cp.frame_unit_id=ef.id
+      WHERE st.frame_snapshot_id=$1::uuid
+      GROUP BY st.id,st.code
+      HAVING count(ef.id) FILTER (WHERE ph.external_key_hash IS NULL)>0
+      ORDER BY st.code
+` : String.raw`
       WITH phase_population AS (
         SELECT
           st.id,
@@ -2062,7 +2103,9 @@ async function processSampleDrawJob(job: ResearchJobRow): Promise<Record<string,
       FROM phase_population
       WHERE CASE WHEN $2='main' THEN main_population_count ELSE population_count END > 0
       ORDER BY code
-    `, [frame.id, fieldworkPhase, job.study_id, job.wave_id, cohort, cohortAFrameId || null]);
+    `;
+    const strataResult = await client.query<SqlRow>(strataSql,
+      [frame.id, fieldworkPhase, job.study_id, job.wave_id, cohort, cohortAFrameId || null]);
     if (!strataResult.rows.length) throw new Error("RESEARCH_SAMPLE_STRATA_MISSING");
 
     // Enumerate the complete reachable frame for a census; no random draw or sample size.
