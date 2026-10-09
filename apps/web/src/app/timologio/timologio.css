@@ -1,0 +1,34 @@
+.fiscal-shell{min-height:100vh;background:linear-gradient(145deg,#071922,#10323c 52%,#eef6f4 52%);color:#f6f7f5;padding:36px 5vw 90px;font-family:inherit}
+.fiscal-wrap{max-width:1140px;margin:auto}
+.fiscal-topbar{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;padding:12px 0 45px}
+.fiscal-brand{font-weight:850;letter-spacing:.08em;text-decoration:none;color:inherit;font-size:1.15rem}
+.fiscal-brand span{color:#b9dfd3}
+.fiscal-topbar nav{display:flex;gap:16px;flex-wrap:wrap}
+.fiscal-topbar nav a{color:inherit;text-decoration:none;opacity:.85}
+.fiscal-kicker{color:#9dd0c2;font-weight:700;font-size:.78rem;letter-spacing:.12em;text-transform:uppercase}
+.fiscal-hero{max-width:850px;padding:45px 0}
+.fiscal-hero h1{font-size:clamp(2.3rem,5vw,4.4rem);line-height:1.12;letter-spacing:-.05em;color:#fff}
+.fiscal-hero p{font-size:1.12rem;line-height:1.65;opacity:.85}
+.fiscal-actions{display:flex;gap:12px;flex-wrap:wrap;margin:30px 0}
+.fiscal-button{border:1px solid #74b3a4;border-radius:10px;background:#c0e2d6;color:#0a2832;display:inline-flex;justify-content:center;align-items:center;padding:12px 18px;text-decoration:none;font-weight:750;cursor:pointer;font-size:.96rem}
+.fiscal-button.secondary{background:transparent;color:inherit;border-color:#7f9f9d}
+.fiscal-button:disabled{opacity:.6;cursor:wait}
+.fiscal-panel{background:#fff;color:#142832;border-radius:18px;padding:26px;box-shadow:0 12px 35px #001a1a1c}
+.fiscal-panel h1,.fiscal-panel h2,.fiscal-panel h3{color:#10323c;line-height:1.2}
+.fiscal-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
+.fiscal-card{padding:22px;border:1px solid #d5e6e1;background:#f6faf8;color:#183b42;border-radius:12px;min-width:0}
+.fiscal-card h3{margin:0 0 8px;font-size:1.13rem}
+.fiscal-card p{margin:0;color:#49656a;line-height:1.5}
+.fiscal-card small{display:block;color:#62817e;margin-bottom:8px}
+.fiscal-section{padding:22px 0}
+.fiscal-form{display:grid;gap:14px;max-width:480px}
+.fiscal-form label{display:grid;gap:5px;font-weight:650;font-size:.91rem}
+.fiscal-form input{background:#fff;color:#102d34;border:1px solid #a9c3bd;padding:12px;border-radius:8px;width:100%}
+.fiscal-alert{background:#fff6e7;color:#765000;border:1px solid #d8bb80;padding:14px;border-radius:8px}
+.fiscal-error{color:#af2030;font-weight:650}
+.fiscal-stat{font-size:2rem;font-weight:850}
+.fiscal-table{width:100%;border-collapse:collapse;table-layout:fixed}
+.fiscal-table th,.fiscal-table td{text-align:left;padding:12px;border-bottom:1px solid #dce9e5;overflow-wrap:anywhere}
+.fiscal-muted{color:#557077}
+.fiscal-on-dark{color:#fff}
+@media(max-width:640px){.fiscal-shell{padding:20px 18px 60px}.fiscal-panel{padding:18px}.fiscal-topbar{padding-bottom:25px}.fiscal-table{font-size:.8rem}}
