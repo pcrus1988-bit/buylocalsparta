@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "atlasRegistryVersion": 25,
+  "decisionDate": "2026-10-09",
+  "decisionOwner": "NYXI Agent 1 — Source Atlas governance",
+  "sourceRegistryInvariant": "Do not create/rekey source records; use exact existing production source UUID and URL.",
+  "policyEvidence": [
+    "https://www.fda.gov/about-fda/about-website/website-policies",
+    "https://www.fda.gov/about-fda/website-policies/fda-name-and-logo-policy",
+    "https://www.fda.gov/robots.txt"
+  ],
+  "rightsRationale": "FDA states FDA-owned site text and graphics are public domain unless otherwise noted; external/third-party materials and marks excluded. This approval is restricted to the original HTML document at the exact URL, with no subresource downloads.",
+  "authorizationSemantics": {
+    "collectorMayFetchOnlyIf": "asset ID + source UUID + exact URL + method + MIME + rights/retention approval + current date + robots check all match AND production authorization enforcement is deployed",
+    "runtimeActivated": false,
+    "prohibit": [
+      "automatic link following",
+      "images and swatches",
+      "scripts/stylesheets as separate assets",
+      "third-party material",
+      "logo reuse",
+      "API crawling",
+      "personal data collection",
+      "public redistribution",
+      "unapproved Drive mirroring",
+      "bulk scraping"
+    ],
+    "robots": "Respect current robots.txt and minimum 30-second delay between FDA requests; stop on 403/429 and unexpected redirects.",
+    "redirectPolicy": "Fail closed on redirect to a different URL until independently approved.",
+    "headersToRecord": [
+      "final URL",
+      "HTTP status",
+      "ETag",
+      "Last-Modified",
+      "Content-Type",
+      "Content-Length",
+      "redirect chain"
+    ],
+    "archive": "Preserve original HTTP response body bytes unchanged with SHA-256, fetch timestamp, source UUID, asset ID, provenance and immutable version history.",
+    "retention": "Private immutable preservation of approved FDA-authored HTML evidence while rights remain valid; quarantine/restrict access upon policy changes or takedown requests; no public redistribution; review every 30 days.",
+    "reviewDate": "2026-11-09",
+    "authorizationExpiry": "2027-01-09"
+  },
+  "assets": [
+    {
+      "assetId": "nyxi-fda-mocra-html-v1",
+      "sourceId": "bbb058ea-09b8-40f6-b3dc-d66f6283aded",
+      "sourceKey": "us-fda-mocra",
+      "url": "https://www.fda.gov/cosmetics/cosmetics-laws-regulations/modernization-cosmetics-regulation-act-2022-mocra",
+      "method": "GET",
+      "mime": "text/html",
+      "acquisitionAuthorized": true,
+      "governanceApproved": true,
+      "activationState": "PENDING_DEPLOYED_FAIL_CLOSED_GATE",
+      "evidenceClass": [
+        "regulatory_guidance",
+        "statutory_framework_explainer"
+      ],
+      "attribution": "U.S. Food and Drug Administration; include exact source URL and retrieval date; no endorsement.",
+      "notes": "FDA explainer is not itself the binding MoCRA statute. Follow links only under separate approvals."
+    },
+    {
+      "assetId": "nyxi-fda-nail-care-html-v1",
+      "sourceId": "6ed4aafc-e2a3-46af-8483-c0b2d2dbf5d4",
+      "sourceKey": "us-fda-nail-care-products",
+      "url": "https://www.fda.gov/cosmetics/cosmetic-products/nail-care-products",
+      "method": "GET",
+      "mime": "text/html",
+      "acquisitionAuthorized": true,
+      "governanceApproved": true,
+      "activationState": "PENDING_DEPLOYED_FAIL_CLOSED_GATE",
+      "evidenceClass": [
+        "ingredient_safety_guidance",
+        "nail_product_terminology"
+      ],
+      "attribution": "U.S. Food and Drug Administration; include exact source URL and retrieval date; no endorsement.",
+      "notes": "Do not treat third-party CIR opinions linked from the page as FDA-owned works or binding law."
+    },
+    {
+      "assetId": "nyxi-fda-restricted-ingredients-html-v1",
+      "sourceId": "5e100658-ea96-47d6-8cb3-fab18dbbf78b",
+      "sourceKey": "us-fda-prohibited-restricted-cosmetic-ingredients",
+      "url": "https://www.fda.gov/cosmetics/cosmetics-laws-regulations/prohibited-restricted-ingredients-cosmetics",
+      "method": "GET",
+      "mime": "text/html",
+      "acquisitionAuthorized": true,
+      "governanceApproved": true,
+      "activationState": "PENDING_DEPLOYED_FAIL_CLOSED_GATE",
+      "evidenceClass": [
+        "ingredient_restrictions_guidance",
+        "regulatory_explainer"
+      ],
+      "attribution": "U.S. Food and Drug Administration; include exact source URL and retrieval date; no endorsement.",
+      "notes": "Restrictions must be linked to actual CFR/statutory provisions before treating as binding law."
+    }
+  ],
+  "stillBlocked": [
+    "All manufacturer SDS/TDS, images, shade charts and product listings without explicit rights",
+    "Artistic Nail Design — no commercial archival grant found",
+    "essie — applicable terms inaccessible, no commercial archival grant established",
+    "All EU/ECHA and other provider assets pending per-asset authorization"
+  ]
+}
