@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "nyxi.agent1.provider-rights-review-delta.v1",
+  "date": "2026-10-09",
+  "scope": "provider-policy review; no acquisition authorization",
+  "sourceOfTruth": "NYXI Research Workbench",
+  "registryVersion": 25,
+  "canonicalSourceCount": 282,
+  "updates": [
+    {
+      "sourceKey": "kiara_sky_sds",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "RESTRICTED / NONCOMMERCIAL_NO_SCRAPING",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "rightsReviewAction": "Kiara Sky official Terms §§4–5 grant personal site access only; reproduction/commercial reuse requires prior written consent and robots/spiders/crawlers are excluded. Official SDS index lists formulation-specific PDFs, including HEMA-free variants. Obtain explicit archive/reuse/retention permission; verify each PDF revision, jurisdiction and formula before capture. Terms: https://kiarasky.com/policies/terms-of-service",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED",
+      "termsUrl": "https://kiarasky.com/policies/terms-of-service",
+      "sdsIndexUrl": "https://kiarasky.com/pages/sds"
+    }
+  ],
+  "observedWorkbench": {
+    "prioritySources": 71,
+    "assessed": 51,
+    "pending": 20,
+    "policyReviewed": 35,
+    "restricted": 16
+  },
+  "repositoryDrift": {
+    "pendingSourceKeys": [
+      "apres_sds",
+      "cuccio_brush_builder_sds",
+      "gellifique_sds_2019_pdf",
+      "indigo_sds",
+      "kiara_sky_sds"
+    ],
+    "note": "Versioned full governance overlay still at 46/71; update rejected by execution safety checks; preserve delta."
+  },
+  "gate": "HOLD"
+}
