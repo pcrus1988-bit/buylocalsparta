@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "atlasRegistryVersion": 25,
+  "decisionDate": "2026-10-09",
+  "status": "GOVERNANCE_DELTA_NOT_YET_MERGED_INTO_CANONICAL_OVERLAY",
+  "sourceCountInvariant": 282,
+  "mergeBy": "sourceKey",
+  "preserve": [
+    "sourceKey",
+    "canonicalUrl",
+    "liveSourceId",
+    "origin",
+    "registryIdentityVerified"
+  ],
+  "acquisitionAuthorized": false,
+  "retentionPolicy": "UNASSESSED",
+  "changes": [
+    {
+      "sourceKey": "artistic_electric_euphoria_product",
+      "rightsPolicyStatus": "REVIEWED / NO_REUSE_GRANT_VERIFIED",
+      "assetCaptureGate": "NOT APPROVED — OWNER RIGHTS CHECK",
+      "policyUrl": "https://www.artisticnaildesign.com/products/artistic-colour-gloss-soak-off-gel-glowdelic-0-5-fl-oz",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED"
+    },
+    {
+      "sourceKey": "essie_product_ingredients",
+      "rightsPolicyStatus": "REVIEWED / TERMS_TEXT_UNAVAILABLE",
+      "assetCaptureGate": "NOT APPROVED — TERMS/ASSET CHECK",
+      "policyUrl": "https://www.essie.com/terms-of-use",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED"
+    },
+    {
+      "sourceKey": "mia_secret_biobuilder_sds_product",
+      "rightsPolicyStatus": "RESTRICTED / NO_COPY_NO_SCRAPING",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "policyUrl": "https://canada.miasecretstore.com/policies/terms-of-service",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED"
+    },
+    {
+      "sourceKey": "opi_product_ingredients",
+      "rightsPolicyStatus": "RESTRICTED / PERSONAL_NONCOMMERCIAL_NO_MINING",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "policyUrl": "https://www.wellacompany.com/terms-and-conditions",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED"
+    },
+    {
+      "sourceKey": "sally_hansen_insta_dri_ie",
+      "rightsPolicyStatus": "RESTRICTED / PERSONAL_ONLY_NO_TDM",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "policyUrl": "https://www.coty.com/terms-use",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED"
+    },
+    {
+      "sourceKey": "sally_hansen_insta_dri_us",
+      "rightsPolicyStatus": "RESTRICTED / PERSONAL_ONLY_NO_TDM",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "policyUrl": "https://www.coty.com/terms-use",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED"
+    },
+    {
+      "sourceKey": "kokoist_sds",
+      "rightsPolicyStatus": "RESTRICTED / WRITTEN_PERMISSION_NO_SCRAPING",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "policyUrl": "https://kokoistusa.com/policies/terms-of-service",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED"
+    },
+    {
+      "sourceKey": "light_elegance_sds",
+      "rightsPolicyStatus": "RESTRICTED / WRITTEN_PERMISSION_NO_SCRAPING",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "policyUrl": "https://lightelegance.com/policies/terms-of-service",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED"
+    }
+  ],
+  "summaryAfterMerge": {
+    "rightsQueueMapped": 71,
+    "rightsQueueReviewed": 71,
+    "rightsQueuePending": 0,
+    "acquisitionAuthorizations": 0
+  },
+  "licensingUnresolved": [
+    "artistic_electric_euphoria_product",
+    "essie_product_ingredients"
+  ]
+}
