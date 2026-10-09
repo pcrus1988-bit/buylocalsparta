@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS fiscal_audit_events (
 );
 CREATE INDEX IF NOT EXISTS fiscal_audit_org ON fiscal_audit_events(organization_id,created_at DESC);
 CREATE OR REPLACE FUNCTION fiscal_audit_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN RAISE EXCEPTION 'Fiscal audit is append-only'; END $$;
+BEGIN RAISE EXCEPTION 'Fiscal audit is append-only'; END; $;
 DROP TRIGGER IF EXISTS fiscal_audit_immutable_trigger ON fiscal_audit_events;
 CREATE TRIGGER fiscal_audit_immutable_trigger BEFORE UPDATE OR DELETE ON fiscal_audit_events
  FOR EACH ROW EXECUTE FUNCTION fiscal_audit_immutable();
