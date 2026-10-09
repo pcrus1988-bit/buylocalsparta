@@ -1,0 +1,59 @@
+name: Fiscal Foundation CI
+on:
+  pull_request:
+    paths:
+      - "apps/web/src/app/timologio/**"
+      - "apps/web/src/app/timologio-admin/**"
+      - "apps/web/src/lib/fiscal-*.ts"
+      - "apps/web/src/components/Fiscal*.tsx"
+      - "fiscal/**"
+      - "scripts/fiscal-*.mjs"
+      - ".github/workflows/fiscal-foundation-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/src/app/timologio/**"
+      - "apps/web/src/app/timologio-admin/**"
+      - "apps/web/src/lib/fiscal-*.ts"
+      - "apps/web/src/components/Fiscal*.tsx"
+      - "fiscal/**"
+      - "scripts/fiscal-*.mjs"
+jobs:
+  fiscal:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: fiscal_ci
+          POSTGRES_PASSWORD: ci-only-secret
+          POSTGRES_DB: fiscal_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U fiscal_ci -d fiscal_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      FISCAL_DATABASE_URL: postgresql://fiscal_ci:ci-only-secret@localhost:5432/fiscal_ci
+      DATABASE_URL: postgresql://fiscal_ci:ci-only-secret@localhost:5432/marketplace_ci
+      FISCAL_REGISTRATION_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+      - name: Create separate marketplace database for isolation validation
+        run: psql "$FISCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE marketplace_ci"
+      - name: Migrate only the dedicated fiscal database
+        run: node scripts/fiscal-migrate.mjs
+      - name: Verify schema and forbidden fiscal transitions
+        run: node scripts/fiscal-db-smoke.mjs
+      - name: Refuse migration against marketplace database
+        run: |
+          if FISCAL_DATABASE_URL="$DATABASE_URL" node scripts/fiscal-migrate.mjs; then
+            echo "Isolation test failed: marketplace database was accepted"; exit 1
+          fi
+      - name: Typecheck independent Next.js routes
+        run: npm --workspace @buy-local-sparta/web exec tsc -- --noEmit --incremental false
