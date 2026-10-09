@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "nyxi.agent1.provider-rights-review-delta.v1",
+  "date": "2026-10-09",
+  "scope": "provider-policy restriction; no acquisition authorization",
+  "provenance": {
+    "workbench": "NYXI Research Workbench / Registry Rights Queue",
+    "registry": "data/nyxi/source-registry.json",
+    "branch": "feature/nyxi-corpus-foundation-v2",
+    "termsUrl": "https://akzentz.com/policies/terms-of-service"
+  },
+  "baseline": {
+    "prioritySources": 71,
+    "assessedBefore": 41,
+    "pendingBefore": 30,
+    "repositoryAssessedBefore": 13
+  },
+  "result": {
+    "assessed": 44,
+    "pending": 27,
+    "providerReviewed": 34,
+    "restricted": 10,
+    "acquisitionAuthorizations": 0,
+    "retentionUnassessed": 303
+  },
+  "updates": [
+    {
+      "sourceKey": "akzentz_luxio_base_hema_free_sds_2024",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "RESTRICTED / WRITTEN_PERMISSION",
+      "rightsReviewAction": "Akzentz terms explicitly require express written permission for reproduction/distribution. PDF accessible; misleading HEMA-free filename; 2024 preparation/2022 page footers; TPO CAS 75980-60-8 in SDS; current formula and market unverified. Verify document identity, license, robots/access and retention before capture.",
+      "captureApproval": "NOT APPROVED — WRITTEN PERMISSION",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED",
+      "termsUrl": "https://akzentz.com/policies/terms-of-service"
+    },
+    {
+      "sourceKey": "akzentz_luxio_base_sds_eu_2025",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "RESTRICTED / WRITTEN_PERMISSION",
+      "rightsReviewAction": "Akzentz terms explicitly require express written permission for reproduction/distribution. Registered PDF returned HTTP 404; current canonical SDS location/version unknown. Verify document identity, license, robots/access and retention before capture.",
+      "captureApproval": "NOT APPROVED — WRITTEN PERMISSION",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED",
+      "termsUrl": "https://akzentz.com/policies/terms-of-service"
+    },
+    {
+      "sourceKey": "akzentz_luxio_build_sds_eu_2025",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "RESTRICTED / WRITTEN_PERMISSION",
+      "rightsReviewAction": "Akzentz terms explicitly require express written permission for reproduction/distribution. Registered PDF redirected to shop homepage; current canonical SDS location/version unknown. Verify document identity, license, robots/access and retention before capture.",
+      "captureApproval": "NOT APPROVED — WRITTEN PERMISSION",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED",
+      "termsUrl": "https://akzentz.com/policies/terms-of-service"
+    }
+  ]
+}

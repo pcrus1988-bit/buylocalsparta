@@ -39,6 +39,8 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Verify dependency-free domain/runtime suite
         run: npm run check
+      - name: Verify NYXI canonical corpus foundation
+        run: npm run verify:nyxi
       - name: Typecheck Core
         run: npm run typecheck:core
       - name: Typecheck Mollie payment adapter

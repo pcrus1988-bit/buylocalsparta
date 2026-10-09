@@ -1,0 +1,94 @@
+name: NYXI Source Collector
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      max_items:
+        description: Maximum source/candidate retrievals for this run
+        required: false
+        default: "282"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nyxi-source-collector
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.NYXI_COLLECTION_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NYXI_DATABASE_URL: ${{ secrets.NYXI_DATABASE_URL || secrets.DATABASE_URL || secrets.MEDIA_DATABASE_URL }}
+      NYXI_OBJECT_STORAGE_ACCESS_KEY_ID: ${{ secrets.NYXI_OBJECT_STORAGE_ACCESS_KEY_ID || secrets.MEDIA_OBJECT_STORAGE_ACCESS_KEY_ID }}
+      NYXI_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${{ secrets.NYXI_OBJECT_STORAGE_SECRET_ACCESS_KEY || secrets.MEDIA_OBJECT_STORAGE_SECRET_ACCESS_KEY }}
+
+    steps:
+      - name: Check NYXI source collector credentials
+        id: preflight
+        shell: bash
+        run: |
+          if [[ -z "${NYXI_DATABASE_URL}" || -z "${NYXI_OBJECT_STORAGE_ACCESS_KEY_ID}" || -z "${NYXI_OBJECT_STORAGE_SECRET_ACCESS_KEY}" ]]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::NYXI source collection is inactive until database and private object-storage credentials are configured."
+            exit 0
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        if: steps.preflight.outputs.configured == 'true'
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node 24
+        if: steps.preflight.outputs.configured == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install locked dependencies
+        if: steps.preflight.outputs.configured == 'true'
+        run: npm ci --ignore-scripts
+
+      - name: Verify database is at canonical NYXI schema head
+        if: steps.preflight.outputs.configured == 'true'
+        env:
+          DATABASE_URL: ${{ env.NYXI_DATABASE_URL }}
+          PGSSLMODE: require
+        run: node --experimental-strip-types scripts/nyxi-corpus-production-schema.ts --postcheck
+
+      - name: Synchronize canonical Source Atlas
+        if: steps.preflight.outputs.configured == 'true'
+        env:
+          DATABASE_URL: ${{ env.NYXI_DATABASE_URL }}
+        run: npm run nyxi:sources:sync
+
+      - name: Drain due NYXI evidence sources
+        if: steps.preflight.outputs.configured == 'true'
+        env:
+          DATABASE_URL: ${{ env.NYXI_DATABASE_URL }}
+          BLS_OBJECT_STORAGE_ACCESS_KEY_ID: ${{ env.NYXI_OBJECT_STORAGE_ACCESS_KEY_ID }}
+          BLS_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${{ env.NYXI_OBJECT_STORAGE_SECRET_ACCESS_KEY }}
+          BLS_OBJECT_STORAGE_BUCKET: nyxi-evidence
+          BLS_OBJECT_STORAGE_REGION: us-east-1
+          BLS_OBJECT_STORAGE_ENDPOINT: https://eemihhfreggbigxejjhj.storage.supabase.co/storage/v1/s3
+          BLS_OBJECT_STORAGE_FORCE_PATH_STYLE: "true"
+          BLS_MEDIA_UPLOAD_TTL_SECONDS: "600"
+          BLS_NYXI_SOURCE_MODE: drain
+          BLS_NYXI_SOURCE_MAX_ITEMS: ${{ github.event_name == 'workflow_dispatch' && inputs.max_items || '100' }}
+          BLS_NYXI_SOURCE_REQUEST_TIMEOUT_MS: "30000"
+          BLS_NYXI_SOURCE_MAX_RESPONSE_BYTES: "26214400"
+          BLS_NYXI_SOURCE_DISCOVERY_MAX_LINKS: "2000"
+          BLS_NYXI_SOURCE_DISCOVERY_MAX_BYTES: "8388608"
+          BLS_NYXI_CANDIDATE_RECHECK_DAYS: "90"
+          BLS_NYXI_SOURCE_LEASE_SECONDS: "300"
+          BLS_DB_POOL_MAX: "3"
+          BLS_NYXI_SOURCE_WORKER_ID: nyxi-gha-${{ github.run_id }}-${{ github.run_attempt }}
+        run: npm run worker:nyxi-sources

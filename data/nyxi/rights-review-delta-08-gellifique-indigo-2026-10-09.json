@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "nyxi.agent1.rights-delta.v1",
+  "asOf": "2026-10-09",
+  "workbenchVerified": true,
+  "acquisitionAuthorizations": 0,
+  "sourceUpdates": [
+    {
+      "sourceKey": "gellifique_sds_2019_pdf",
+      "canonicalUrl": "https://www.gellifique.co.uk/img/cms/EU%20CLP%20SDS%20-%20GELLIFIQUEPROFESSIONAL%20UVLED%20GEL%2020190411-3.pdf",
+      "rightsPolicyStatus": "RESTRICTED / WRITTEN_PERMISSION",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "rightsReviewAction": "GellifiQue T&C §13 permit personal/noncommercial display only, prohibit network storage, and require written permission for reproduction/commercial use. Registered SDS is version 1.0 issued 2019-02-25; historical, not proof of current formulation. Obtain written archival/retention permission and verify product/revision before capture.",
+      "retentionPolicy": "UNASSESSED",
+      "acquisitionAuthorized": false,
+      "authorityLevel": "4",
+      "evidenceReferences": [
+        "https://www.gellifique.co.uk/en/content/terms-conditions(3)",
+        "https://www.gellifique.co.uk/img/cms/EU%20CLP%20SDS%20-%20GELLIFIQUEPROFESSIONAL%20UVLED%20GEL%2020190411-3.pdf"
+      ]
+    },
+    {
+      "sourceKey": "indigo_sds",
+      "canonicalUrl": "https://www.indigo-nails.com/uk-en/safety-data-sheets",
+      "rightsPolicyStatus": "RESTRICTED / WRITTEN_PERMISSION",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "rightsReviewAction": "Indigo Nails Lab UK terms §2 allow personal/noncommercial use only and require written permission for copying/distribution/commercial reuse. SDS landing page links formulation-specific documents; verify document owner, versions, licensing, retention and jurisdiction before capture.",
+      "retentionPolicy": "UNASSESSED",
+      "acquisitionAuthorized": false,
+      "authorityLevel": "4",
+      "evidenceReferences": [
+        "https://www.indigo-nails.com/uk-en/terms-and-conditions-of-use",
+        "https://www.indigo-nails.com/uk-en/safety-data-sheets"
+      ]
+    }
+  ]
+}

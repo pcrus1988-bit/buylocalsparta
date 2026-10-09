@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "nyxi.agent1.provider-rights-review-delta.v1",
+  "date": "2026-10-09",
+  "scope": "provider terms assessment only; no acquisition approval",
+  "baseline": {
+    "prioritySources": 71,
+    "assessedBefore": 44,
+    "pendingBefore": 27,
+    "repositoryAssessedBefore": 13
+  },
+  "result": {
+    "assessed": 46,
+    "pending": 25,
+    "providerReviewed": 34,
+    "restricted": 12,
+    "acquisitionAuthorizations": 0,
+    "retentionUnassessed": 303
+  },
+  "updates": [
+    {
+      "sourceKey": "beetles_sds",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "RESTRICTED / WRITTEN_PERMISSION_NO_SCRAPING",
+      "rightsReviewAction": "2026-10-09: Official Beetles terms Section 2 require express written permission for reproduction/copying; Section 12 prohibits spider/crawl/scrape. Official SDS index currently lists distinct USA PDFs dated 2025-11-05 for HEMA+TPO-free, TPO-free, and other formulations. Do not conflate variants; verify per-asset document/version, third-party CDN rights, robots, retention, jurisdiction, and permission before capture. NO acquisition.",
+      "captureApproval": "NOT APPROVED — WRITTEN PERMISSION",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED",
+      "termsUrl": "https://www.beetlesgel.com/policies/terms-of-service",
+      "sourceUrl": "https://www.beetlesgel.com/pages/sds-forms"
+    },
+    {
+      "sourceKey": "cnd_sds",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "RESTRICTED / NONCOMMERCIAL_NO_SCRAPING",
+      "rightsReviewAction": "2026-10-09: Official CND terms Section 3 grant only personal non-commercial informational use and restrict reproduction/distribution; Section 6 prohibits page-scrape/robot/spider acquisition. SDS index links manufacturer PDFs via cdn.shopify.com; third-party and document rights need individual clearance. Request commercial archive/reuse permission and confirm jurisdiction, version, attribution, retention, and robots before capture. NO acquisition.",
+      "captureApproval": "NOT APPROVED — COMMERCIAL REUSE PERMISSION",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED",
+      "termsUrl": "https://www.cnd.com/pages/terms-of-use",
+      "sourceUrl": "https://www.cnd.com/pages/sds"
+    }
+  ]
+}

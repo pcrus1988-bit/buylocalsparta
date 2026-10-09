@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "updatedAt": "2026-10-09",
+  "storage": {
+    "provider": "supabase_storage_s3",
+    "projectRef": "eemihhfreggbigxejjhj",
+    "bucket": "nyxi-evidence",
+    "public": false,
+    "maxObjectBytes": 26214400,
+    "canonicalVerifiedSourcePrefix": "private/nyxi/source-archive/",
+    "canonicalCandidatePrefix": "private/nyxi/candidate-archive/"
+  },
+  "googleDrive": {
+    "root": {
+      "id": "14clSoR6yEPDIhMmRwmkfGEGhI5mrZZ_Q",
+      "name": "NYXI"
+    },
+    "folders": {
+      "sourceAtlas": {
+        "id": "1B5kF8cQKS28bvR9BtPlmkUoi-yOMGjcD",
+        "name": "00_SOURCE_ATLAS"
+      },
+      "regulations": {
+        "id": "1viiLJAvvCVMdjWYBM5V3CX9c9VkPVHvq",
+        "name": "01_REGULATIONS"
+      },
+      "brands": {
+        "id": "1LP0Qz_9xuLTBRKzDEllpdkS-PaGsSGtq",
+        "name": "02_BRANDS"
+      },
+      "sdsTds": {
+        "id": "1mBabRijIbJk8vGw98f72Fm3Ff4T5Ai8D",
+        "name": "03_SDS_TDS"
+      },
+      "catalogues": {
+        "id": "1DluZiSMokC4zNZPRAQ_hS_U6dCwvTmx9",
+        "name": "04_CATALOGUES"
+      },
+      "shadeCharts": {
+        "id": "11pyHkuAHPZQq4KRtI3vvtU5MaxCRQnyg",
+        "name": "05_SHADE_CHARTS"
+      },
+      "recalls": {
+        "id": "1iy3YB_Cp87OdyrVDGetWdEgjoepBsocA",
+        "name": "06_RECALLS"
+      },
+      "extractionReports": {
+        "id": "1xcvbicTP3sWWaOyfgydkPaQYDsnfWvCf",
+        "name": "07_EXTRACTION_REPORTS"
+      },
+      "reviewQueue": {
+        "id": "1IXpm7kDMUzQJR5y18UEIA-0MsoGWzKHx",
+        "name": "99_REVIEW_QUEUE"
+      }
+    }
+  }
+}

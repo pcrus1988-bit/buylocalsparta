@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "recordedOn": "2026-10-09",
+  "source": "NYXI Research Workbench / Registry Rights Queue",
+  "queueReviewed": 63,
+  "queuePending": 8,
+  "changes": [
+    {
+      "sourceKey": "the_manicure_company_zero_system",
+      "rightsPolicyStatus": "RESTRICTED / NO_SCRAPING_ASSET_PERMISSION",
+      "policyUrl": "https://www.themanicurecompany.com/pages/terms-of-service",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED"
+    },
+    {
+      "sourceKey": "madam_glam_ingredients",
+      "rightsPolicyStatus": "RESTRICTED / PERSONAL_NONCOMMERCIAL_ONLY",
+      "policyUrl": "https://www.madamglam.com/policies/terms-of-service",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED"
+    },
+    {
+      "sourceKey": "manucurist_green_flash_system",
+      "rightsPolicyStatus": "RESTRICTED / WRITTEN_PERMISSION",
+      "policyUrl": "https://www.manucurist.com/policies/legal-notice",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED"
+    },
+    {
+      "sourceKey": "chanel_le_vernis_gr",
+      "rightsPolicyStatus": "RESTRICTED / PERSONAL_NONCOMMERCIAL_ONLY",
+      "policyUrl": "https://www.chanel.com/ee/legal-statement/",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED"
+    },
+    {
+      "sourceKey": "dior_vernis",
+      "rightsPolicyStatus": "POLICY_REVIEWED / BEAUTY_ASSET_SCOPE_CHECK",
+      "policyUrl": "https://www.dior.com/en_us/fashion/legal-terms",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED"
+    },
+    {
+      "sourceKey": "dior_vernis_gr",
+      "rightsPolicyStatus": "POLICY_REVIEWED / BEAUTY_ASSET_SCOPE_CHECK",
+      "policyUrl": "https://www.dior.com/en_int/fashion/legal-terms",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED"
+    },
+    {
+      "sourceKey": "hermes_les_mains_rouge_h_gr",
+      "rightsPolicyStatus": "POLICY_REVIEWED / COUNTRY_ASSET_SCOPE_CHECK",
+      "policyUrl": "https://www.hermes.com/uk/en/legal/general-terms-and-conditions-of-use-uk/",
+      "acquisitionAuthorized": false,
+      "retentionPolicy": "UNASSESSED"
+    }
+  ],
+  "notice": "Policy assessment only; per-asset rights and retention remain unassessed; zero acquisition approvals."
+}

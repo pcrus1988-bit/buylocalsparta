@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "generatedOn": "2026-10-08",
+  "provenance": {
+    "source": "NYXI Research Workbench — Registry Rights Queue",
+    "spreadsheetId": "1dgAmsq_bA662vjZEFsNc4Q8Tg8ugi5SWQODkVMTCkW8",
+    "baselineRegistrySha": "5a219c380f79617b4a739a053d242b355f211966",
+    "branch": "feature/nyxi-corpus-foundation-v2",
+    "sourceGovernancePath": "data/nyxi/source-governance-v1.json"
+  },
+  "summary": {
+    "reviewed": 24,
+    "pending": 47,
+    "rightsQueueMapped": 71,
+    "drift": 11,
+    "acquisitionAuthorizations": 0
+  },
+  "policy": "Provider-policy assessments only; this delta must not authorize acquisition, storage, mirroring, or extraction.",
+  "updates": [
+    {
+      "sourceKey": "eu_regulation_2025_877",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "POLICY_REVIEWED / ASSET_CHECK",
+      "rightsReviewAction": "EUR-Lex provider reuse notice reviewed; check this act's document-specific exceptions, attribution, robots/access and retention before any capture.",
+      "captureApproval": "NOT APPROVED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "eu_safety_gate",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "POLICY_REVIEWED / ASSET_CHECK",
+      "rightsReviewAction": "EU-owned content reuse default reviewed; inspect individual alerts, third-party images, attribution, robots and retention. No capture approved.",
+      "captureApproval": "NOT APPROVED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "eu_sccs_notes_guidance_12",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "POLICY_REVIEWED / ASSET_CHECK",
+      "rightsReviewAction": "EC/SCCS provider policy reviewed; inspect page-specific credits, figures, third-party rights, access and retention before capture.",
+      "captureApproval": "NOT APPROVED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "eu_sccs_notes_guidance_12_pdf",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "POLICY_REVIEWED / PDF_ASSET_CHECK",
+      "rightsReviewAction": "Check SCCS PDF credits and embedded figures separately; confirm attribution, third-party exclusions, robots and retention before capture.",
+      "captureApproval": "NOT APPROVED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "gb_cosmetics_regulation_current",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "POLICY_REVIEWED / DUAL_LICENCE_ASSET_CHECK",
+      "rightsReviewAction": "2026-10-08: legislation.gov.uk contributor reuse notice: EU-origin law carries OGL v3 plus EU reuse attribution obligations. Confirm this version's provenance, document-specific credits, exceptions, access method and retention before capture. Provider policy only; source page returned unsupported XHTML during check. https://www.legislation.gov.uk/contributors",
+      "captureApproval": "NOT APPROVED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "gb_cosmetics_restrictions_2025_901",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "POLICY_REVIEWED / OGLv3_ASSET_CHECK",
+      "rightsReviewAction": "2026-10-08: UK statutory instrument text generally OGL v3 per legislation.gov.uk reuse notice; confirm instrument-specific third-party material, attribution, access/robots and retention. Source page returned unsupported XHTML during check. No capture approval. https://www.legislation.gov.uk/contributors",
+      "captureApproval": "NOT APPROVED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "gb_cosmetics_restrictions_2026_109",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "POLICY_REVIEWED / OGLv3_ASSET_CHECK",
+      "rightsReviewAction": "2026-10-08: UK statutory instrument text generally OGL v3 per legislation.gov.uk reuse notice; verify this instrument, third-party content, attribution, access/robots and retention. Source page returned HTTP 429 during check. No capture approval. https://www.legislation.gov.uk/contributors",
+      "captureApproval": "NOT APPROVED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "us_cpsc_recalls_api_docs",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "POLICY_REVIEWED / API_RIGHTS_CHECK",
+      "rightsReviewAction": "2026-10-08: CPSC explicitly offers recall API to businesses/developers in XML/JSON; API page https://www.cpsc.gov/Recalls/CPSC-Recalls-Application-Program-Interface-API-Information and public data notice https://www.cpsc.gov/Data. Confirm saferproducts.gov API terms, response-level third-party photos/content, data retention, rate limits and attribution before capture. No approval.",
+      "captureApproval": "NOT APPROVED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "us_fda_cosmetic_adverse_events",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "POLICY_REVIEWED / ASSET_REDIRECT_CHECK",
+      "rightsReviewAction": "2026-10-08: FDA website policy says FDA-authored text/graphics are public domain unless noted (https://www.fda.gov/about-fda/about-website/website-policies). Original URL redirects to https://www.fda.gov/cosmetics/cosmetics-compliance-enforcement/how-report-cosmetic-product-related-complaint ; verify canonical identity and page/embedded assets, privacy, freshness, access/robots and retention before capture. No approval.",
+      "captureApproval": "NOT APPROVED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "us_fda_cosmetics_enforcement",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "POLICY_REVIEWED / LINKED_RECORD_CHECK",
+      "rightsReviewAction": "2026-10-08: FDA website policy permits reuse of FDA-owned content unless otherwise noted (https://www.fda.gov/about-fda/about-website/website-policies). This enforcement hub links recalls, warning letters, external import alerts and PDFs; verify each linked source, third-party content, provenance, freshness, access/robots and retention independently. No approval.",
+      "captureApproval": "NOT APPROVED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "us_openfda_cosmetic_events_api",
+      "expectedOldStatus": "RIGHTS_REVIEW_REQUIRED",
+      "newStatus": "POLICY_REVIEWED / API_ASSET_CHECK",
+      "rightsReviewAction": "openFDA CC0/public-domain default, but third-party records excluded; terms https://open.fda.gov/terms/ ; API key/rate limits https://open.fda.gov/apis/authentication/ . Verify cosmetics endpoint record-level rights, privacy, retention, freshness, response meta license and service terms before capture. No approval.",
+      "captureApproval": "NOT APPROVED",
+      "acquisitionAuthorized": false
+    }
+  ]
+}

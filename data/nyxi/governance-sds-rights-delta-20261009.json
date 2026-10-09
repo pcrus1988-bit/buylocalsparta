@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "recordedOn": "2026-10-09",
+  "source": "NYXI Research Workbench / Registry Rights Queue",
+  "queueMapped": 71,
+  "queueReviewed": 56,
+  "queuePending": 15,
+  "changes": [
+    {
+      "sourceKey": "lechat_faq_sds_pointer",
+      "rightsPolicyStatus": "RESTRICTED / NONCOMMERCIAL_WRITTEN_PERMISSION",
+      "policyUrl": "https://lechatnails.com/terms/",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "retentionPolicy": "UNASSESSED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "lechat_sds_dropbox_repository",
+      "rightsPolicyStatus": "RESTRICTED / EXTERNAL_ASSET_RIGHTS_CHECK",
+      "policyUrl": "https://lechatnails.com/terms/",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "retentionPolicy": "UNASSESSED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "sns_essential_downloads",
+      "rightsPolicyStatus": "RESTRICTED / CONTENT_PERMISSION_REQUIRED",
+      "policyUrl": "https://snsacademy.mykajabi.com/pages/terms",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "retentionPolicy": "UNASSESSED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "tgb_sds",
+      "rightsPolicyStatus": "RESTRICTED / NONCOMMERCIAL_WRITTEN_PERMISSION",
+      "policyUrl": "https://thegelbottle.com/terms-conditions.html",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "retentionPolicy": "UNASSESSED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "the_manicure_company_msds",
+      "rightsPolicyStatus": "RESTRICTED / NO_SCRAPING_ASSET_PERMISSION",
+      "policyUrl": "https://www.themanicurecompany.com/pages/terms-of-service",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "retentionPolicy": "UNASSESSED",
+      "acquisitionAuthorized": false
+    }
+  ],
+  "notice": "Policy review only. Verify asset-level rights and retention. No acquisition approval. Merge into canonical overlay with original source keys."
+}
