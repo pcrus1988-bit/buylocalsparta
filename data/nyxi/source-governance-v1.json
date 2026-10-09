@@ -8,16 +8,16 @@
     "candidateClassification": "NYXI Research Workbench / Atlas Governance Candidates",
     "rightsQueue": "NYXI Research Workbench / Registry Rights Queue",
     "sourceOfTruth": "governance overlay; does not replace registry or grant acquisition rights",
-    "rightsReconciliation": "2026-10-09: integrated 17 fail-closed reviewed policy decisions from three delta files; Workbench Registry Rights Queue cross-checked"
+    "rightsReconciliation": "2026-10-10: all 71 priority rights queue decisions reconciled by sourceKey; final eight fail-closed decisions integrated from rights-reconciliation-final-eight-20261009.json; no acquisition granted at source level."
   },
   "summary": {
     "registrySources": 282,
     "liveOnlyCandidates": 21,
     "distinctCandidates": 303,
     "rightsQueueMapped": 71,
-    "rightsQueuePending": 8,
+    "rightsQueuePending": 0,
     "acquisitionAuthorizations": 0,
-    "rightsQueueReviewed": 63
+    "rightsQueueReviewed": 71
   },
   "policy": {
     "defaultAcquisitionAuthorized": false,
@@ -2877,14 +2877,15 @@
       "accessMethod": "html",
       "updateCadence": "event_driven",
       "downstreamRelevance": "product_claims_ingredients",
-      "rightsPolicyStatus": "RIGHTS_REVIEW_REQUIRED",
-      "assetCaptureGate": "NOT APPROVED",
+      "rightsPolicyStatus": "RESTRICTED / PERSONAL_ONLY_NO_TDM",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
       "retentionPolicy": "UNASSESSED",
       "priorityQueue": "P1",
       "identityGovernance": "REGISTRY_UNMERGED",
-      "rightsReviewAction": "Review provider license, robots/access rules, retention and attribution before capture",
+      "rightsReviewAction": "2026-10-09: Sally Hansen official site links Coty Terms (modified July 2025), covering brand sites; content reproduction only personal/private and prohibits extraction/text-data mining/AI training. Require express permission for US product, ingredient text, images/swatches and retention. https://www.coty.com/terms-use",
       "acquisitionAuthorized": false,
-      "registryIdentityVerified": true
+      "registryIdentityVerified": true,
+      "rightsPolicyUrl": "https://www.coty.com/terms-use"
     },
     {
       "sourceKey": "sally_hansen_insta_dri_ie",
@@ -2900,14 +2901,15 @@
       "accessMethod": "html",
       "updateCadence": "event_driven",
       "downstreamRelevance": "product_claims_ingredients",
-      "rightsPolicyStatus": "RIGHTS_REVIEW_REQUIRED",
-      "assetCaptureGate": "NOT APPROVED",
+      "rightsPolicyStatus": "RESTRICTED / PERSONAL_ONLY_NO_TDM",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
       "retentionPolicy": "UNASSESSED",
       "priorityQueue": "P1",
       "identityGovernance": "REGISTRY_UNMERGED",
-      "rightsReviewAction": "Review provider license, robots/access rules, retention and attribution before capture",
+      "rightsReviewAction": "2026-10-09: Sally Hansen official site links Coty Terms (modified July 2025), covering brand sites; content reproduction only personal/private and prohibits extraction/text-data mining/AI training. Confirm Ireland page's jurisdiction-specific scope and assets; no acquisition or shade images. https://www.coty.com/terms-use",
       "acquisitionAuthorized": false,
-      "registryIdentityVerified": true
+      "registryIdentityVerified": true,
+      "rightsPolicyUrl": "https://www.coty.com/terms-use"
     },
     {
       "sourceKey": "chanel_nail_colour_gr",
@@ -4949,14 +4951,17 @@
       "accessMethod": "html",
       "updateCadence": "event_driven",
       "downstreamRelevance": "product_claims_ingredients",
-      "rightsPolicyStatus": "RIGHTS_REVIEW_REQUIRED",
-      "assetCaptureGate": "NOT APPROVED",
+      "rightsPolicyStatus": "REVIEWED / NO_REUSE_GRANT_VERIFIED",
+      "assetCaptureGate": "NOT APPROVED — OWNER RIGHTS CHECK",
       "retentionPolicy": "UNASSESSED",
       "priorityQueue": "P1",
       "identityGovernance": "REGISTRY_UNMERGED",
-      "rightsReviewAction": "Review provider license, robots/access rules, retention and attribution before capture",
+      "rightsReviewAction": "2026-10-09: Official product page © Artistic Nail Design/Nail Alliance, with separately hosted official bottle/swatch assets; no accessible reuse/archival licence identified in page/footer. Verify owner terms, CDN image rights, robots/access, attribution and retention; request permission before capture. Source: https://www.artisticnaildesign.com/products/artistic-colour-gloss-soak-off-gel-glowdelic-0-5-fl-oz",
       "acquisitionAuthorized": false,
-      "registryIdentityVerified": true
+      "registryIdentityVerified": true,
+      "rightsPolicyUrl": "https://www.artisticnaildesign.com/products/artistic-colour-gloss-soak-off-gel-glowdelic-0-5-fl-oz",
+      "governanceDisposition": "blocked_pending_permission",
+      "governanceDispositionReason": "No verified commercial archival/reuse licence for source page or separately hosted bottle/swatch assets; owner permission required."
     },
     {
       "sourceKey": "artistic_artlife_2018_pdf",
@@ -5087,14 +5092,15 @@
       "accessMethod": "html",
       "updateCadence": "event_driven",
       "downstreamRelevance": "product_claims_ingredients",
-      "rightsPolicyStatus": "RIGHTS_REVIEW_REQUIRED",
-      "assetCaptureGate": "NOT APPROVED",
+      "rightsPolicyStatus": "RESTRICTED / NO_COPY_NO_SCRAPING",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
       "retentionPolicy": "UNASSESSED",
       "priorityQueue": "P1",
       "identityGovernance": "REGISTRY_UNMERGED",
-      "rightsReviewAction": "Review provider license, robots/access rules, retention and attribution before capture",
+      "rightsReviewAction": "2026-10-09: Official Canadian Mia Secret Store Terms §§2,12 prohibit reproducing/copying site service without express written permission and spider/crawl/scrape. Separate linked SDS ownership and revisions require verification; no archive/retention permission. https://canada.miasecretstore.com/policies/terms-of-service",
       "acquisitionAuthorized": false,
-      "registryIdentityVerified": true
+      "registryIdentityVerified": true,
+      "rightsPolicyUrl": "https://canada.miasecretstore.com/policies/terms-of-service"
     },
     {
       "sourceKey": "tammy_taylor_collections",
@@ -6286,14 +6292,15 @@
       "accessMethod": "html",
       "updateCadence": "event_driven",
       "downstreamRelevance": "product_claims_ingredients",
-      "rightsPolicyStatus": "RIGHTS_REVIEW_REQUIRED",
-      "assetCaptureGate": "NOT APPROVED",
+      "rightsPolicyStatus": "RESTRICTED / PERSONAL_NONCOMMERCIAL_NO_MINING",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
       "retentionPolicy": "UNASSESSED",
       "priorityQueue": "P1",
       "identityGovernance": "REGISTRY_UNMERGED",
-      "rightsReviewAction": "Review provider license, robots/access rules, retention and attribution before capture",
+      "rightsReviewAction": "2026-10-09: OPI footer links Wella Company Terms (last modified 2023-08-29), covering brand sites; licence personal/noncommercial only, prohibits product listing collection and data mining/robots. Require explicit rights for products, images, SDS and retention. https://www.wellacompany.com/terms-and-conditions",
       "acquisitionAuthorized": false,
-      "registryIdentityVerified": true
+      "registryIdentityVerified": true,
+      "rightsPolicyUrl": "https://www.wellacompany.com/terms-and-conditions"
     },
     {
       "sourceKey": "essie_product_ingredients",
@@ -6309,14 +6316,17 @@
       "accessMethod": "html",
       "updateCadence": "event_driven",
       "downstreamRelevance": "product_claims_ingredients",
-      "rightsPolicyStatus": "RIGHTS_REVIEW_REQUIRED",
-      "assetCaptureGate": "NOT APPROVED",
+      "rightsPolicyStatus": "REVIEWED / TERMS_TEXT_UNAVAILABLE",
+      "assetCaptureGate": "NOT APPROVED — TERMS/ASSET CHECK",
       "retentionPolicy": "UNASSESSED",
       "priorityQueue": "P1",
       "identityGovernance": "REGISTRY_UNMERGED",
-      "rightsReviewAction": "Review provider license, robots/access rules, retention and attribution before capture",
+      "rightsReviewAction": "2026-10-09: Official essie site links https://www.essie.com/terms-of-use, but legal page text was not retrievable in review; site reserves copyright. No commercial archival, image, formula or data-mining grant verified. Obtain accessible applicable terms and per-asset licence/retention before capture.",
       "acquisitionAuthorized": false,
-      "registryIdentityVerified": true
+      "registryIdentityVerified": true,
+      "rightsPolicyUrl": "https://www.essie.com/terms-of-use",
+      "governanceDisposition": "blocked_pending_permission",
+      "governanceDispositionReason": "Applicable site terms and per-asset archival/reuse rights unavailable; no commercial acquisition authorized."
     },
     {
       "sourceKey": "cnd_shellac_colours",
@@ -6355,14 +6365,15 @@
       "accessMethod": "html",
       "updateCadence": "event_driven",
       "downstreamRelevance": "formula_sds_safety",
-      "rightsPolicyStatus": "RIGHTS_REVIEW_REQUIRED",
-      "assetCaptureGate": "NOT APPROVED",
+      "rightsPolicyStatus": "RESTRICTED / WRITTEN_PERMISSION_NO_SCRAPING",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
       "retentionPolicy": "UNASSESSED",
       "priorityQueue": "P1",
       "identityGovernance": "REGISTRY_UNMERGED",
-      "rightsReviewAction": "Review provider license, robots/access rules, retention and attribution before capture",
+      "rightsReviewAction": "2026-10-09: KOKOIST USA Terms §2 require express written permission to reproduce/copy site content; §12 prohibits spider/crawl/scrape. SDS landing page states documents are updated 5.11.2026 and formula transitions occur; verify each PDF's revision, product, region, third-party rights, retention and permission. NO acquisition. Terms: https://kokoistusa.com/policies/terms-of-service",
       "acquisitionAuthorized": false,
-      "registryIdentityVerified": true
+      "registryIdentityVerified": true,
+      "rightsPolicyUrl": "https://kokoistusa.com/policies/terms-of-service"
     },
     {
       "sourceKey": "indigo_sds",
@@ -6401,14 +6412,15 @@
       "accessMethod": "html",
       "updateCadence": "event_driven",
       "downstreamRelevance": "formula_sds_safety",
-      "rightsPolicyStatus": "RIGHTS_REVIEW_REQUIRED",
-      "assetCaptureGate": "NOT APPROVED",
+      "rightsPolicyStatus": "RESTRICTED / WRITTEN_PERMISSION_NO_SCRAPING",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
       "retentionPolicy": "UNASSESSED",
       "priorityQueue": "P1",
       "identityGovernance": "REGISTRY_UNMERGED",
-      "rightsReviewAction": "Review provider license, robots/access rules, retention and attribution before capture",
+      "rightsReviewAction": "2026-10-09: Light Elegance Terms §2 require express written permission to reproduce/copy site content; §12 prohibits spider/crawl/scrape. SDS index/linked documents need individual asset owner, revision, market, rights and retention verification. NO acquisition. Terms: https://lightelegance.com/policies/terms-of-service",
       "acquisitionAuthorized": false,
-      "registryIdentityVerified": true
+      "registryIdentityVerified": true,
+      "rightsPolicyUrl": "https://lightelegance.com/policies/terms-of-service"
     },
     {
       "sourceKey": "akzentz_products",
@@ -7008,5 +7020,42 @@
       "acquisitionAuthorized": false,
       "registryIdentityVerified": false
     }
-  ]
+  ],
+  "release": {
+    "releaseName": "NYXI Source Atlas v1 — identity and governance",
+    "state": "FROZEN_GOVERNANCE_V1",
+    "frozenOn": "2026-10-10",
+    "scope": "Identity and governance overlay only; not a corpus, acquisition-wide authorization, schema deployment, or public release.",
+    "canonicalRegistryVersion": 25,
+    "canonicalRegistrySources": 282,
+    "liveOnlyUnpromotedCandidates": 21,
+    "governanceOverlayEntries": 303,
+    "priorityRightsReviewed": 71,
+    "priorityRightsPending": 0,
+    "providerPermissionBlocks": [
+      "artistic_electric_euphoria_product",
+      "essie_product_ingredients"
+    ],
+    "firstAcquisitionCohort": {
+      "assetApprovalIds": [
+        "212bf852-ea98-4772-840c-78dfd36ffd50",
+        "36188f3a-32ee-42a0-8b85-6ce6cc0f0dc6",
+        "4a2c89da-f9bf-4850-a211-13c4ddf42919"
+      ],
+      "activeExactAssetApprovals": 3,
+      "sourceWideAcquisitionApprovals": 0,
+      "mirrorAuthorizations": 0,
+      "reviewDueOn": "2026-11-09",
+      "expiresOn": "2027-01-09"
+    },
+    "invariants": [
+      "Preserve all sourceKey/canonicalUrl/liveSourceId/origin identities",
+      "Unreviewed or blocked source assets cannot be fetched or mirrored",
+      "Retention UNASSESSED prohibits acquisition without separate exact-asset approval",
+      "No mass sync of 282 registry entries until production schema compatibility and migration version collision are resolved",
+      "Never merge distinct endpoints by publisher or service alone"
+    ],
+    "deployment": "BRANCH_ONLY_PENDING_SAFE_MERGE_AND_SCHEMA_COMPATIBILITY",
+    "nextMode": "MAINTENANCE_AND_ASSET_SPECIFIC_REVIEW"
+  }
 }
