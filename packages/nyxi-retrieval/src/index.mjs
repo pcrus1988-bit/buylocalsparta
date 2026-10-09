@@ -13,7 +13,7 @@ function present(value) { return typeof value === "string" && value.trim().lengt
 function same(a, b) { return String(a ?? "").toLocaleLowerCase("en") === String(b ?? "").toLocaleLowerCase("en"); }
 function tokens(value) {
   return String(value ?? "").normalize("NFKC").toLocaleLowerCase("en")
-    .match(/[\\p{L}\\p{N}]+/gu) ?? [];
+    .match(/[\p{L}\p{N}]+/gu) ?? [];
 }
 
 /** Explicitly refuse orphaned, unapproved, expired, non-archived or unreviewed evidence. */
