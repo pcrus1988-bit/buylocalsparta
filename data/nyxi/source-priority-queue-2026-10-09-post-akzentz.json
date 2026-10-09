@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "nyxi.agent1.priority-queue.v1",
+  "asOf": "2026-10-09",
+  "scope": "remaining priority provider-policy assessments; no acquisition approval",
+  "counts": {
+    "prioritySources": 71,
+    "assessed": 44,
+    "restricted": 10,
+    "policyReviewed": 34,
+    "pending": 27,
+    "remainingSds": 14,
+    "remainingProducts": 13,
+    "acquisitionAuthorizations": 0
+  },
+  "batches": [
+    {
+      "priority": "P1a",
+      "sourceKeys": [
+        "apres_sds",
+        "beetles_sds",
+        "cnd_sds",
+        "cuccio_brush_builder_sds",
+        "gellifique_sds_2019_pdf",
+        "indigo_sds",
+        "kiara_sky_sds",
+        "kokoist_sds",
+        "lechat_faq_sds_pointer",
+        "lechat_sds_dropbox_repository",
+        "light_elegance_sds",
+        "sns_essential_downloads",
+        "tgb_sds",
+        "the_manicure_company_msds"
+      ],
+      "action": "Review manufacturer terms and each SDS document identity, rights, attribution, access, retention and current version; do not capture."
+    },
+    {
+      "priority": "P1b",
+      "sourceKeys": [
+        "artistic_electric_euphoria_product",
+        "chanel_le_vernis_gr",
+        "dior_vernis",
+        "dior_vernis_gr",
+        "essie_product_ingredients",
+        "hermes_les_mains_rouge_h_gr",
+        "madam_glam_ingredients",
+        "manucurist_green_flash_system",
+        "mia_secret_biobuilder_sds_product",
+        "opi_product_ingredients",
+        "sally_hansen_insta_dri_ie",
+        "sally_hansen_insta_dri_us",
+        "the_manicure_company_zero_system"
+      ],
+      "action": "Review product page terms, claims and market-specific variant/ingredient identities; no capture."
+    }
+  ],
+  "blockedFollowups": [
+    {
+      "sourceKeys": [
+        "akzentz_luxio_base_hema_free_sds_2024",
+        "akzentz_luxio_base_sds_eu_2025",
+        "akzentz_luxio_build_sds_eu_2025"
+      ],
+      "reason": "Written permission required; verify HEMA-free PDF formula/version and repair 404/redirect EU SDS URLs."
+    }
+  ],
+  "releaseGate": "HOLD"
+}
