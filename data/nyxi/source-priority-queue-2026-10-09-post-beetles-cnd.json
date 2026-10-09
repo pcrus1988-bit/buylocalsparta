@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "nyxi.agent1.priority-queue.v1",
+  "asOf": "2026-10-09",
+  "counts": {
+    "prioritySources": 71,
+    "assessed": 46,
+    "pending": 25,
+    "restricted": 12,
+    "policyReviewed": 34,
+    "remainingSds": 12,
+    "remainingProducts": 13,
+    "acquisitionAuthorizations": 0
+  },
+  "batches": [
+    {
+      "priority": "P1a",
+      "sourceKeys": [
+        "apres_sds",
+        "cuccio_brush_builder_sds",
+        "gellifique_sds_2019_pdf",
+        "indigo_sds",
+        "kiara_sky_sds",
+        "kokoist_sds",
+        "lechat_faq_sds_pointer",
+        "lechat_sds_dropbox_repository",
+        "light_elegance_sds",
+        "sns_essential_downloads",
+        "tgb_sds",
+        "the_manicure_company_msds"
+      ]
+    },
+    {
+      "priority": "P1b",
+      "sourceKeys": [
+        "artistic_electric_euphoria_product",
+        "chanel_le_vernis_gr",
+        "dior_vernis",
+        "dior_vernis_gr",
+        "essie_product_ingredients",
+        "hermes_les_mains_rouge_h_gr",
+        "madam_glam_ingredients",
+        "manucurist_green_flash_system",
+        "mia_secret_biobuilder_sds_product",
+        "opi_product_ingredients",
+        "sally_hansen_insta_dri_ie",
+        "sally_hansen_insta_dri_us",
+        "the_manicure_company_zero_system"
+      ]
+    }
+  ],
+  "releaseGate": "HOLD",
+  "reason": "All asset capture and retention approvals outstanding; no authorization to scrape Beetles/CND."
+}
