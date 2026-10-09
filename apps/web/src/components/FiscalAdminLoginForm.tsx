@@ -7,11 +7,11 @@ export function FiscalAdminLoginForm(){
  async function submit(event:FormEvent<HTMLFormElement>){
   event.preventDefault();setBusy(true);setError("");
   try{
-   const response=await fetch("/api/admin/login",{method:"POST",headers:{"content-type":"application/json"},
+   const response=await fetch("/timologio-admin/api/login",{method:"POST",headers:{"content-type":"application/json"},
     body:JSON.stringify({email,password})});
-   const data=await response.json() as {error?:string;roles?:string[]};
+   const data=await response.json() as {error?:string;role?:string};
    if(!response.ok)throw new Error(data.error||"Authentication failed");
-   if(!data.roles?.includes("super_admin"))throw new Error("Απαιτείται λογαριασμός super admin.");
+   if(!data.role==="super_admin")throw new Error("Απαιτείται λογαριασμός super admin.");
    router.replace("/timologio-admin");router.refresh();
   }catch(cause){setError(cause instanceof Error?cause.message:"Αποτυχία σύνδεσης");}
   finally{setBusy(false);}
