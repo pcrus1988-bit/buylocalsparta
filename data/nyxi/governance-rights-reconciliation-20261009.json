@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "recordedOn": "2026-10-09",
+  "source": "NYXI Research Workbench / Registry Rights Queue",
+  "registryVersion": 25,
+  "overlaySourceCount": 303,
+  "queueMapped": 71,
+  "queueReviewed": 51,
+  "queuePending": 20,
+  "changes": [
+    {
+      "sourceKey": "apres_sds",
+      "rightsPolicyStatus": "RESTRICTED / NONCOMMERCIAL_NO_SCRAPING",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "retentionPolicy": "UNASSESSED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "cuccio_brush_builder_sds",
+      "rightsPolicyStatus": "POLICY_REVIEWED / RIGHTS_CLEARANCE_REQUIRED",
+      "assetCaptureGate": "NOT APPROVED — ASSET LICENSE CHECK",
+      "retentionPolicy": "UNASSESSED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "gellifique_sds_2019_pdf",
+      "rightsPolicyStatus": "RESTRICTED / WRITTEN_PERMISSION",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "retentionPolicy": "UNASSESSED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "indigo_sds",
+      "rightsPolicyStatus": "RESTRICTED / WRITTEN_PERMISSION",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "retentionPolicy": "UNASSESSED",
+      "acquisitionAuthorized": false
+    },
+    {
+      "sourceKey": "kiara_sky_sds",
+      "rightsPolicyStatus": "RESTRICTED / NONCOMMERCIAL_NO_SCRAPING",
+      "assetCaptureGate": "NOT APPROVED — WRITTEN PERMISSION",
+      "retentionPolicy": "UNASSESSED",
+      "acquisitionAuthorized": false
+    }
+  ],
+  "warning": "RECONCILIATION DELTA ONLY. No capture authorized. Merge into source-governance-v1.json with exact source keys after reviewing original rights actions; do not overwrite source identities."
+}
