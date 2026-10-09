@@ -11,7 +11,7 @@ export function FiscalAdminLoginForm(){
     body:JSON.stringify({email,password})});
    const data=await response.json() as {error?:string;role?:string};
    if(!response.ok)throw new Error(data.error||"Authentication failed");
-   if(!data.role==="super_admin")throw new Error("Απαιτείται λογαριασμός super admin.");
+   if(data.role!=="super_admin")throw new Error("Απαιτείται λογαριασμός super admin.");
    router.replace("/timologio-admin");router.refresh();
   }catch(cause){setError(cause instanceof Error?cause.message:"Αποτυχία σύνδεσης");}
   finally{setBusy(false);}
