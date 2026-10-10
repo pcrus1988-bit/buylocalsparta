@@ -12,6 +12,11 @@ try{
  assert.ok(security.rows.every(row=>row.relrowsecurity===true),"Every Fiscal table must enable RLS");
  const inboxIndex=await db.query("SELECT 1 FROM pg_indexes WHERE schemaname='public' AND tablename='fiscal_document_intakes' AND indexname='fiscal_document_intakes_inbox_cursor_idx'");
  assert.equal(inboxIndex.rowCount,1,"Merchant inbox keyset index required");
+ const lineSecurity=await db.query("SELECT relrowsecurity FROM pg_class WHERE oid='public.fiscal_document_intake_lines'::regclass");
+ assert.equal(lineSecurity.rows[0].relrowsecurity,true,"Test lines must enable RLS");
+ const uniqueLink=await db.query("SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='fiscal_document_intakes_org_id_unique'");
+ assert.equal(uniqueLink.rowCount,1,"Composite tenant FK target required");
+
  const user=await db.query("INSERT INTO fiscal_users(email,password_hash) VALUES($1,$2) RETURNING id",["fiscal-smoke@example.test","not-a-login-secret"]);
  const merchant=await db.query("INSERT INTO fiscal_organizations(legal_name,vat_number) VALUES($1,$2) RETURNING id",["CI Fiscal Merchant","123456789"]);
  const uid=user.rows[0].id,oid=merchant.rows[0].id;
@@ -87,6 +92,46 @@ try{
   "INSERT INTO fiscal_document_intakes(organization_id,lane,source,external_id,status,payload,payload_digest) VALUES($1,'b2c','console','CONSOLE-smoke-0001','draft',$2::jsonb,$3) RETURNING id",
   [oid,JSON.stringify({reference:"merchant-preview",currency:"EUR",grossMinor:1500,issuerVatNumber:"123456789"}),"b".repeat(64)]);
  assert.equal(testConsoleDraft.rowCount,1);
+ const testLine=await db.query(
+  `INSERT INTO fiscal_document_intake_lines(
+   organization_id,draft_id,line_no,description,quantity_milli,unit_price_minor,
+   vat_rate_bps,discount_bps,before_discount_minor,discount_minor,net_minor,vat_minor,gross_minor)
+   VALUES($1,$2,1,'Test service',1000,1200,2500,0,1200,0,1200,300,1500)
+   RETURNING line_no`,[oid,testConsoleDraft.rows[0].id]);
+ assert.equal(testLine.rowCount,1);
+ const scopedLine=await db.query(
+  `SELECT l.line_no FROM fiscal_document_intake_lines l
+    JOIN fiscal_document_intakes d ON d.id=l.draft_id AND d.organization_id=l.organization_id
+    JOIN fiscal_memberships m ON m.organization_id=d.organization_id AND m.user_id=$3
+    WHERE l.organization_id=$1 AND l.draft_id=$2`,
+  [oid,testConsoleDraft.rows[0].id,uid]);
+ assert.equal(scopedLine.rowCount,1,"Owner can read their test draft lines");
+ const wrongLineTenant=await db.query(
+  "SELECT line_no FROM fiscal_document_intake_lines WHERE organization_id=$1 AND draft_id=$2",
+  [otherOrg.rows[0].id,testConsoleDraft.rows[0].id]);
+ assert.equal(wrongLineTenant.rowCount,0,"Never leak itemized lines across tenant IDs");
+ await db.query("SAVEPOINT line_fk_tenant");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_document_intake_lines(
+   organization_id,draft_id,line_no,description,quantity_milli,unit_price_minor,vat_rate_bps,
+   discount_bps,before_discount_minor,discount_minor,net_minor,vat_minor,gross_minor)
+   VALUES($1,$2,1,'Wrong tenant',1000,1200,2500,0,1200,0,1200,300,1500)`,
+  [otherOrg.rows[0].id,testConsoleDraft.rows[0].id]));
+ await db.query("ROLLBACK TO SAVEPOINT line_fk_tenant");
+ await db.query("SAVEPOINT line_immutable");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_document_intake_lines SET description='Tampered' WHERE organization_id=$1 AND draft_id=$2",
+  [oid,testConsoleDraft.rows[0].id]));
+ await db.query("ROLLBACK TO SAVEPOINT line_immutable");
+ await db.query("SAVEPOINT line_invalid_total");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_document_intake_lines(
+   organization_id,draft_id,line_no,description,quantity_milli,unit_price_minor,vat_rate_bps,
+   discount_bps,before_discount_minor,discount_minor,net_minor,vat_minor,gross_minor)
+   VALUES($1,$2,2,'Wrong arithmetic',1000,1200,2500,0,1200,0,1200,300,1499)`,
+  [oid,testConsoleDraft.rows[0].id]));
+ await db.query("ROLLBACK TO SAVEPOINT line_invalid_total");
+
  const consoleReplay=await db.query(
   "INSERT INTO fiscal_document_intakes(organization_id,lane,source,external_id,status,payload,payload_digest) VALUES($1,'b2c','console','CONSOLE-smoke-0001','draft',$2::jsonb,$3) ON CONFLICT(organization_id,source,external_id) DO NOTHING RETURNING id",
   [oid,JSON.stringify({reference:"merchant-preview",currency:"EUR",grossMinor:1500,issuerVatNumber:"123456789"}),"b".repeat(64)]);
@@ -134,6 +179,6 @@ try{
  const ssoAfter=await db.query("SELECT count(*)::int AS count FROM fiscal_superadmin_sessions WHERE token_hash=$1 AND revoked_at IS NULL",["c".repeat(64)]);
  assert.equal(ssoAfter.rows[0].count,0);
  await db.query("ROLLBACK");
- console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, approved-only console draft creation, idempotency, verified marketplace pairing, SSO replay protection, immutable audit");
+ console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, approved-only console draft creation, immutable tenant-bound item snapshots, idempotency, verified marketplace pairing, SSO replay protection, immutable audit");
 }catch(error){await db.query("ROLLBACK").catch(()=>{});throw error;}
 finally{await db.end();}
