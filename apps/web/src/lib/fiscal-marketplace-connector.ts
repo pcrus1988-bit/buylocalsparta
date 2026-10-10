@@ -1,3 +1,4 @@
+import {marketplaceLinkSignature} from "./fiscal-marketplace-links";
 /**
  * Marketplace-side optional, non-fiscal bridge.
  * No marketplace order trigger imports this module yet.
@@ -9,6 +10,7 @@
 export type MarketplaceFiscalDraftRequest=Readonly<{
   orderPublicReference:string;
   legalIssuerVatNumber:string;
+  marketplaceVendorPublicId:string;
   grossMinor:number;
   lane:"b2c"|"b2b";
 }>;
@@ -34,12 +36,24 @@ export async function sendMarketplaceFiscalPreview(input:MarketplaceFiscalDraftR
   if(!Number.isSafeInteger(input.grossMinor)||input.grossMinor<0||input.grossMinor>1e12)
     throw new Error("FISCAL_MARKETPLACE_AMOUNT_INVALID");
   if(!["b2b","b2c"].includes(input.lane))throw new Error("FISCAL_MARKETPLACE_LANE_INVALID");
+  if(!/^[A-Za-z0-9_-]{5,160}$/.test(input.marketplaceVendorPublicId))throw new Error("FISCAL_VENDOR_ID_INVALID");
   let url:URL;
   try{
     url=new URL("/timologio/api/v1/drafts",endpoint);
     if(url.protocol!=="https:" || url.username || url.password || url.hash)
       throw new Error("INSECURE_FISCAL_ENDPOINT");
   }catch{throw new Error("FISCAL_MARKETPLACE_URL_INVALID");}
+  // Pairing is an active, revocable authorisation. Verify it before every test draft sync.
+  const assertion=JSON.stringify({vendorPublicId:input.marketplaceVendorPublicId,vatNumber:input.legalIssuerVatNumber});
+  const timestamp=String(Date.now());
+  const verified=await fetch(new URL("/timologio/api/internal/marketplace-links/status",url),{
+    method:"POST",headers:{"content-type":"application/json","x-kmf-timestamp":timestamp,
+      "x-kmf-signature":marketplaceLinkSignature(assertion,timestamp)},
+    body:assertion,cache:"no-store",redirect:"error",signal:AbortSignal.timeout(8000)
+  });
+  if(!verified.ok)throw new Error("FISCAL_MARKETPLACE_LINK_CHECK_FAILED");
+  const current=await verified.json() as {linked?:boolean};
+  if(current.linked!==true)throw new Error("FISCAL_MARKETPLACE_LINK_INACTIVE");
   const response=await fetch(url,{
     method:"POST",
     headers:{"content-type":"application/json","authorization":'Bearer '+apiKey},
