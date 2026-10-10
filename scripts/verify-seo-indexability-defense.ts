@@ -102,6 +102,18 @@ if (!nextConfig.includes('destination: "https://kontamou.site/:path*"')) fail("n
 if (!nextConfig.includes("RETIRED_PUBLIC_HOSTS.map")) fail("next.config.ts must apply canonical-host redirect policy uniformly to every governed alternate host");
 
 const proxy = readFileSync(`${process.cwd()}/apps/web/src/proxy.ts`, "utf8");
+if (/primaryLocationGatewayResponse|shouldRedirectToPrimaryLocationGateway|BLS_PRIMARY_LOCATION_GATEWAY_ENABLED/.test(proxy)) {
+  fail("Homepage requests must never reroute through the location selector, regardless of cookies or crawler identity");
+}
+if (!INDEXABLE_STATIC_ROUTES.some((route) => route.href === "/choose-location")) {
+  fail("Location selector must be a first-class indexable sitemap route");
+}
+if (NON_INDEXABLE_PAGE_ROUTES.includes("/choose-location" as (typeof NON_INDEXABLE_PAGE_ROUTES)[number])) {
+  fail("Location selector must not appear in the noindex route inventory");
+}
+if (seoDocumentRobotsHeader("/choose-location") !== undefined) {
+  fail("Location selector must not emit a noindex X-Robots-Tag");
+}
 for (const contract of [
   'import { seoDocumentRobotsHeader } from "./lib/seo-request-indexing"',
   "seoDocumentRobotsHeader(request.nextUrl.pathname, request.nextUrl.searchParams)",
