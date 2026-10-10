@@ -115,3 +115,14 @@ This milestone adds a deterministic **engineering simulator**, not a legal tax e
 - This remains a staging-only **calculation preview**, not a customer billing, POS, B2G, Peppol, tax-engine or official invoicing feature.
 
 Production requires an independently reviewed tax-rule/versioning catalogue with dated legal evidence, counterparty identification, document semantics, corrections/credit notes, legal rounding specifications, certifications and external integration test evidence.
+
+## Milestone 10 — persisted itemized non-fiscal test drafts (2026-10-10)
+
+- Database migration `0009_nonfiscal_line_snapshots.sql` introduces `fiscal_document_intake_lines` for up to 30 items per document; every line holds a frozen description, milli-quantity, minor-unit price, user-supplied simulated tax/discount basis points, and server-computed amounts.
+- Composite `(organization_id,draft_id)` foreign keys enforce tenant identity at database level. All lines belong to a parent test draft; standalone primary keys and arithmetic CHECK constraints prevent accidental data inconsistency. The table has RLS enabled, PUBLIC/anon/authenticated privileges revoked, and UPDATE/DELETE prohibited by append-only triggers. Existing total-only drafts remain readable.
+- The test draft POST accepts optional `items` with a 16 KiB request bound. Each item is **recalculated on the server**, and its sum must match `grossMinor`; the user cannot force a different total. The transaction holds the approved-business membership lock through parent insert, all line inserts, and append-only actor audit.
+- A payload SHA-256 digest includes all calculated items, ensuring repeated external IDs cannot silently attach different lines or amounts. Failed validation/line insertion rolls back the entire transaction.
+- The merchant form transfers validated calculator lines, not merely the gross figure; editing the gross figure removes the pending item snapshot. The details page shows a read-only, tenant-scoped, line-item breakdown with net/discount/simulated VAT/gross, while explicitly disclaiming tax-law validity.
+- Dedicated CI regression tests inspect RLS, tenant FK constraints, line immutability, arithmetic checks, and item authorization, in addition to TypeScript, schema, route and standalone build checks. The health endpoint requires migration `0009` before returning foundational readiness.
+
+**Limitations:** These are laboratory snapshots, not a lawful invoicing ledger. They do not implement invoice numbers, tax exemptions, counterparty verification, legally determined VAT, myDATA/AADE submission, POS settlement, e-invoicing network access, immutable issuance events or certified signatures. Staging-only; production remains blocked.
