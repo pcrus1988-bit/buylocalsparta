@@ -215,6 +215,21 @@ function productPrefetchResponse(request: NextRequest): NextResponse | undefined
 }
 
 export async function proxy(request: NextRequest) {
+  // FISCAL's dedicated Vercel project is NOT allowed to serve marketplace routes
+  // or access marketplace admin/vendor session endpoints. This is a routing barrier,
+  // independent of the separate database and credentials.
+  if (process.env.FISCAL_STANDALONE_MODE === "true") {
+    const path = request.nextUrl.pathname;
+    const allowed = path === "/timologio" || path.startsWith("/timologio/") ||
+      path === "/timologio-admin" || path.startsWith("/timologio-admin/") ||
+      path.startsWith("/_next/") || path === "/favicon.ico";
+    const marketplaceOnly = path === "/timologio/marketplace-link" ||
+      path === "/timologio/api/marketplace-link/confirm" ||
+      path === "/timologio-admin/api/login";
+    if (path === "/") return NextResponse.redirect(new URL("/timologio", request.url),307);
+    if (!allowed || marketplaceOnly) return new NextResponse(null,{status:404,headers:{"cache-control":"no-store","x-robots-tag":"noindex"}});
+    return NextResponse.next();
+  }
   if (STATIC_ASSET_PATH.test(request.nextUrl.pathname)) return NextResponse.next();
 
   const prefetch = productPrefetchResponse(request);
