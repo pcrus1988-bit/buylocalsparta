@@ -162,8 +162,8 @@ function parseSitemapXml(xml: string, origin: URL): ParsedSitemapEntry[] {
 
 function parseSitemapIndexXml(xml: string, origin: URL, requiredCoreUrl: URL): void {
   if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error("Sitemap index declarations/entities are not accepted.");
-  if (!/<sitemapindex(?:\\s|>)/i.test(xml)) throw new Error("Production /sitemap.xml is not a sitemap index.");
-  const blocks = [...xml.matchAll(/<sitemap(?:\\s[^>]*)?>([\\s\\S]*?)<\\/sitemap>/gi)];
+  if (!/<sitemapindex(?:\s|>)/i.test(xml)) throw new Error("Production /sitemap.xml is not a sitemap index.");
+  const blocks = [...xml.matchAll(/<sitemap(?:\s[^>]*)?>([\s\S]*?)<\/sitemap>/gi)];
   const children = new Set<string>();
   const shardIndexes = new Set<number>();
   for (const [, block] of blocks) {
@@ -173,7 +173,7 @@ function parseSitemapIndexXml(xml: string, origin: URL, requiredCoreUrl: URL): v
     if (candidate.origin !== origin.origin || candidate.search || candidate.hash) throw new Error("Noncanonical sitemap index child.");
     if (children.has(candidate.toString())) throw new Error("Duplicate child in sitemap index.");
     children.add(candidate.toString());
-    const shard = candidate.pathname.match(/^\\/sitemaps\\/products\\/(\\d+)\\.xml$/);
+    const shard = candidate.pathname.match(/^\/sitemaps\/products\/(\d+)\.xml$/);
     if (shard) shardIndexes.add(Number(shard[1]));
   }
   if (!children.has(requiredCoreUrl.toString())) throw new Error("Core sitemap is absent from the public sitemap index.");
@@ -182,7 +182,7 @@ function parseSitemapIndexXml(xml: string, origin: URL, requiredCoreUrl: URL): v
   // Do not present these observations as verification of every product shard.
   if (!shardIndexes.size) throw new Error("Product sitemap shards are absent from the index.");
   for (let i = 0; i < shardIndexes.size; i += 1) {
-    if (!shardIndexes.has(i)) throw new Error(`Product sitemap shards are not contiguous at ${i}.`);
+    if (!shardIndexes.has(i)) throw new Error("Product sitemap shards are not contiguous at " + i + ".");
   }
 }
 
