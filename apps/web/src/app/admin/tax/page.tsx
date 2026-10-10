@@ -45,6 +45,7 @@ export default async function Page() {
   const acceptedDocuments = data.documents.filter(document => document.transmissionStatus === "accepted").length;
   const failedDocuments = data.documents.filter(document => Boolean(document.lastError)).length;
   const reconciliationDocuments = data.documents.filter(document => document.transmissionStatus === "manual_review" && document.documentNumber && !document.aadeMark).length;
+  const unnumberedManualReviewDocuments = data.documents.filter(document => document.transmissionStatus === "manual_review" && !document.documentNumber && !document.aadeMark).length;
   const editablePolicy = Boolean(policy && ["draft", "review"].includes(policy.status));
 
   return <main className="vendor-app admin-app">
@@ -59,12 +60,14 @@ export default async function Page() {
       { label: "VAT coverage", value: `${coverage.coveredVariants}/${coverage.activeVariants}`, tone: coverage.missingVariants ? "attention" : "positive", hint: coverage.missingVariants ? `${coverage.missingVariants} missing` : "approved active products" },
       { label: "Issuance switch", value: runtimeConfig.issuanceEnabled ? "ON" : "OFF", tone: runtimeConfig.issuanceEnabled ? "attention" : "default" },
       { label: "Ready / accepted", value: `${readyDocuments} / ${acceptedDocuments}` },
-      { label: "Transmission errors", value: failedDocuments, tone: failedDocuments ? "attention" : "positive" }
+      { label: "Transmission errors", value: failedDocuments, tone: failedDocuments ? "attention" : "positive" },
+      { label: "Manual accounting review", value: unnumberedManualReviewDocuments, tone: unnumberedManualReviewDocuments ? "attention" : "positive", hint: "unnumbered documents; no automatic retry" }
     ]} />
 
     <section id="tax-documents" className="shell vendor-section admin-anchor-section">
-      <WorkspaceSectionHeading eyebrow="Documents" title="Fiscal document register" note="Up to the latest 250 local tax documents, newest first. This register is operationally read-only except for the existing safe AADE reconciliation action when a numbered document has an uncertain outcome." />
-      {reconciliationDocuments > 0 && <div className="workspace-inline-note"><strong>{reconciliationDocuments}</strong> document(s) require read-only AADE reconciliation. Automatic resend remains blocked.</div>}
+      <WorkspaceSectionHeading eyebrow="Documents" title="Fiscal document register" note="Latest 250 fiscal documents plus up to 100 older unresolved manual-review documents, newest first. No automatic retransmission. Numbered uncertain documents may be reconciled with AADE read-only." />
+      {reconciliationDocuments > 0 && <div className="workspace-inline-note"><strong>{reconciliationDocuments}</strong> numbered document(s) require read-only AADE reconciliation. Automatic resend remains blocked.</div>}
+      {unnumberedManualReviewDocuments > 0 && <div className="workspace-inline-note"><strong>{unnumberedManualReviewDocuments}</strong> unnumbered fiscal document(s) require accountant review before a controlled recovery can resume. They are excluded from automatic retry and remain in this read-only register.</div>}
       {data.documents.length === 0 ? <WorkspaceEmptyState title="Δεν υπάρχουν ακόμη fiscal documents." body="Τα νέα παραστατικά θα εμφανίζονται εδώ όταν δημιουργείται το local tax-document record από το governed fiscal workflow." /> : <div className="admin-directory-table admin-tax-documents" role="table" aria-label="Fiscal documents">
         <div className="admin-directory-head" role="row"><span>Document</span><span>Order</span><span>Status</span><span>Gross</span><span>MARK / UID</span><span>Created</span><span aria-label="Actions" /></div>
         {data.documents.map((document) => {
