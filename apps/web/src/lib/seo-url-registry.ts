@@ -261,7 +261,27 @@ export async function getSeoUrlRegistryWorkspace(principal: SessionPrincipal): P
 
   try {
     const rows = await uow.withTransaction({ actorUserId: principal.userId, marketId: marketCode(), platformAccess: true }, (tx) => tx.query<RegistryRow>(`
-      WITH latest_sitemap AS (
+      -- Bound expensive joins FIRST. The prior query computed latest crawl,
+      -- all issue counts and window aggregates over 41k+ URLs before LIMIT,
+      -- and routinely exceeded the ten-second statement timeout.
+      WITH totals AS MATERIALIZED (
+        SELECT count(*) FILTER (WHERE active)::bigint AS metric_active,
+               count(*) FILTER (WHERE active AND desired_indexable)::bigint AS metric_desired_indexable,
+               count(*) FILTER (WHERE active AND desired_sitemap)::bigint AS metric_desired_sitemap
+        FROM seo_urls
+        WHERE market_id=nullif(current_setting('app.market_id',true),'')::uuid
+      ),
+      page AS MATERIALIZED (
+        SELECT public_id,source_key,kind,route,label,declared_canonical_url,
+               desired_indexable,desired_sitemap,inbound_sources,active,
+               first_seen_at,last_seen_at,deactivated_at
+        FROM seo_urls
+        WHERE market_id=nullif(current_setting('app.market_id',true),'')::uuid
+          AND active=true
+        ORDER BY desired_indexable DESC,desired_sitemap DESC,kind,route
+        LIMIT $1
+      ),
+      latest_sitemap AS (
         SELECT id,public_id,valid,captured_at,sitemap_url
         FROM seo_sitemap_snapshots
         WHERE market_id=nullif(current_setting('app.market_id',true),'')::uuid
@@ -274,17 +294,19 @@ export async function getSeoUrlRegistryWorkspace(principal: SessionPrincipal): P
           r.http_status,r.response_time_ms,r.final_url,r.title AS crawl_title,r.canonical AS crawl_canonical,
           r.robots AS crawl_robots,r.h1_count,r.issue_count AS crawl_issue_count
         FROM seo_crawl_results r
+        JOIN page p ON p.route=r.route
         JOIN seo_crawl_runs run ON run.id=r.run_id
         WHERE run.market_id=nullif(current_setting('app.market_id',true),'')::uuid
         ORDER BY r.route,r.captured_at DESC,r.id DESC
       ),
       issue_counts AS (
-        SELECT route,
-               count(*) FILTER (WHERE status='open')::int AS open_issue_count,
-               count(*) FILTER (WHERE status='open' AND severity='critical')::int AS critical_open_issue_count
-        FROM seo_crawl_issues
-        WHERE market_id=nullif(current_setting('app.market_id',true),'')::uuid
-        GROUP BY route
+        SELECT i.route,
+               count(*) FILTER (WHERE i.status='open')::int AS open_issue_count,
+               count(*) FILTER (WHERE i.status='open' AND i.severity='critical')::int AS critical_open_issue_count
+        FROM seo_crawl_issues i
+        JOIN page p ON p.route=i.route
+        WHERE i.market_id=nullif(current_setting('app.market_id',true),'')::uuid
+        GROUP BY i.route
       ),
       enriched AS (
         SELECT u.public_id,u.source_key,u.kind,u.route,u.label,u.declared_canonical_url,
@@ -293,8 +315,6 @@ export async function getSeoUrlRegistryWorkspace(principal: SessionPrincipal): P
                s.public_id AS sitemap_public_id,s.valid AS sitemap_valid,s.captured_at AS sitemap_captured_at,
                CASE
                  WHEN s.valid IS NOT TRUE THEN NULL
-                 -- A core URL-set snapshot does not verify the separate
-                 -- product shards advertised by the sitemap index.
                  WHEN s.sitemap_url LIKE '%/sitemaps/core/sitemap.xml' AND u.kind='product' THEN NULL
                  ELSE EXISTS(
                    SELECT 1 FROM seo_sitemap_snapshot_entries e WHERE e.snapshot_id=s.id AND e.route=u.route
@@ -304,34 +324,23 @@ export async function getSeoUrlRegistryWorkspace(principal: SessionPrincipal): P
                c.crawl_title,c.crawl_canonical,c.crawl_robots,c.h1_count,c.crawl_issue_count,
                COALESCE(i.open_issue_count,0) AS open_issue_count,
                COALESCE(i.critical_open_issue_count,0) AS critical_open_issue_count
-        FROM seo_urls u
+        FROM page u
         LEFT JOIN latest_sitemap s ON true
         LEFT JOIN latest_crawl c ON c.route=u.route
         LEFT JOIN issue_counts i ON i.route=u.route
-        WHERE u.market_id=nullif(current_setting('app.market_id',true),'')::uuid
       )
-      SELECT enriched.*,
-             count(*) FILTER (WHERE active) OVER() AS metric_active,
-             count(*) FILTER (WHERE active AND desired_indexable) OVER() AS metric_desired_indexable,
-             count(*) FILTER (WHERE active AND desired_sitemap) OVER() AS metric_desired_sitemap,
+      SELECT enriched.*,totals.metric_active,totals.metric_desired_indexable,totals.metric_desired_sitemap,
              count(*) FILTER (WHERE active AND actual_sitemap IS TRUE) OVER() AS metric_actual_sitemap,
              count(*) FILTER (WHERE active AND desired_sitemap AND actual_sitemap IS FALSE) OVER() AS metric_expected_missing,
              count(*) FILTER (WHERE active AND NOT desired_sitemap AND actual_sitemap IS TRUE) OVER() AS metric_unexpected_actual,
              count(*) FILTER (WHERE active AND open_issue_count>0) OVER() AS metric_with_open_issues,
              count(*) FILTER (WHERE active AND critical_open_issue_count>0) OVER() AS metric_with_critical_issues,
              count(*) FILTER (
-               WHERE active
-                 AND crawl_run_public_id IS NOT NULL
-                 AND (
-                   COALESCE(crawl_issue_count,0)>0
-                   OR http_status IS NULL
-                   OR http_status<200
-                   OR http_status>=300
-                 )
+               WHERE active AND crawl_run_public_id IS NOT NULL
+                 AND (COALESCE(crawl_issue_count,0)>0 OR http_status IS NULL OR http_status<200 OR http_status>=300)
              ) OVER() AS metric_unhealthy_latest_crawl
-      FROM enriched
+      FROM enriched CROSS JOIN totals
       ORDER BY active DESC,desired_indexable DESC,desired_sitemap DESC,kind,route
-      LIMIT $1
     `, [PAGE_LIMIT]), { readOnly: true });
 
     const mapped: SeoUrlRegistryRow[] = rows.rows.map((row) => {
