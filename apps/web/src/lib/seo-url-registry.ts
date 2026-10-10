@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import { cache } from "react";
 import { PostgresUnitOfWork, type SessionPrincipal, type SqlExecutor, type SqlRow } from "@buy-local-sparta/core";
 import { assertAdminPermission, recordAdminAudit } from "./admin-runtime";
 import { adminSeoCrawlGraph, systemSeoCrawlGraph, type SeoCrawlGraphNode } from "./seo-crawl-graph";
@@ -248,7 +249,7 @@ export async function syncSeoUrlRegistrySystem() {
   return persistSeoUrlRegistryGraph(graph);
 }
 
-export async function getSeoUrlRegistryWorkspace(principal: SessionPrincipal): Promise<SeoUrlRegistryWorkspace> {
+const readSeoUrlRegistryWorkspace = cache(async (principal: SessionPrincipal): Promise<SeoUrlRegistryWorkspace> => {
   assertAdminPermission(principal, "content.read");
   if (!productionDatabaseConfigured()) return {
     persistenceAvailable: false,
@@ -410,4 +411,8 @@ export async function getSeoUrlRegistryWorkspace(principal: SessionPrincipal): P
       metrics: { active: 0, desiredIndexable: 0, desiredSitemap: 0, actualSitemap: 0, expectedMissing: 0, unexpectedActual: 0, withOpenIssues: 0, withCriticalIssues: 0, unhealthyLatestCrawl: 0 }
     };
   }
+});
+
+export async function getSeoUrlRegistryWorkspace(principal: SessionPrincipal): Promise<SeoUrlRegistryWorkspace> {
+  return readSeoUrlRegistryWorkspace(principal);
 }
