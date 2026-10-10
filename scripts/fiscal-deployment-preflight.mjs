@@ -29,7 +29,7 @@ else notes.push("Independent Fiscal database not yet provisioned");
 if(mode==="activation"){
  if(!validOrigin(env.FISCAL_SERVICE_BASE_URL))bad("FISCAL_SERVICE_BASE_URL must be one HTTPS origin");
  if(!validOrigin(env.FISCAL_MARKETPLACE_BASE_URL))bad("FISCAL_MARKETPLACE_BASE_URL must be one HTTPS origin");
- if(env.FISCAL_SERVICE_BASE_URL&&env.FISCAL_MARKETPLACE_BASE_URL&&
+ if(validOrigin(env.FISCAL_SERVICE_BASE_URL)&&validOrigin(env.FISCAL_MARKETPLACE_BASE_URL)&&
   new URL(env.FISCAL_SERVICE_BASE_URL).origin===new URL(env.FISCAL_MARKETPLACE_BASE_URL).origin)
   bad("Fiscal and marketplace HTTPS origins must be different");
  const sso=env.FISCAL_SUPERADMIN_SSO_SECRET??"",link=env.FISCAL_MARKETPLACE_LINK_SECRET??"";
