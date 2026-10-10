@@ -56,12 +56,14 @@ async function inspectionCandidates(canonicalOrigin: string): Promise<readonly s
 
   const governed = await runtime.nativePool.query<CandidateRow>(`
     WITH last_inspection AS (
-      SELECT route,max(captured_at) AS last_inspected_at
+      -- Use the *latest* verdict per route: older noindex evidence must not
+      -- outrank a more recent successful recrawl.
+      SELECT DISTINCT ON (route) route,captured_at AS last_inspected_at,indexing_state
       FROM public.seo_gsc_url_inspections
       WHERE route IS NOT NULL
-      GROUP BY route
+      ORDER BY route,captured_at DESC
     ), eligible AS (
-      SELECT u.route,li.last_inspected_at
+      SELECT u.route,li.last_inspected_at,li.indexing_state
       FROM public.seo_urls u
       JOIN public.markets m ON m.id=u.market_id AND m.code=$2
       LEFT JOIN last_inspection li ON li.route=u.route
@@ -78,7 +80,10 @@ async function inspectionCandidates(canonicalOrigin: string): Promise<readonly s
       SELECT route,last_inspected_at
       FROM eligible
       WHERE route LIKE '/category/%'
-      ORDER BY last_inspected_at ASC NULLS FIRST,route
+      -- Recheck Google's previously blocked categories promptly, while
+      -- preserving least-recently-inspected rotation for all other categories.
+      ORDER BY CASE WHEN indexing_state='BLOCKED_BY_META_TAG' THEN 0 ELSE 1 END,
+        last_inspected_at ASC NULLS FIRST,route
       LIMIT 2
     ), vendors AS (
       SELECT route,last_inspected_at
@@ -146,7 +151,10 @@ async function reconcileSitemaps(canonicalOrigin: string) {
   if (!canonical.submitted) await submitSearchConsoleSitemap(canonicalUrl);
 
   const cleanupCandidates = [
-    new URL("/sitemap", `${canonicalOrigin.replace(/\/$/, "")}/`).toString()
+    new URL("/sitemap", `${canonicalOrigin.replace(/\/$/, "")}/`).toString(),
+    // Retired 65th product shard: the live sitemap index advertises 0..63.
+    // Remove its obsolete GSC submission, never resubmit a 404 URL.
+    new URL("/sitemaps/products/64.xml", `${canonicalOrigin.replace(/\/$/, "")}/`).toString()
   ];
   const origin = new URL(canonicalOrigin);
   if (origin.protocol === "https:") {
@@ -200,11 +208,13 @@ export async function syncSeoGscDiagnostics(): Promise<SeoGscDiagnosticsResult> 
   let unknown = 0;
   let blockedByMetaTag = 0;
   let canonicalMismatch = 0;
+  let inspected = 0;
 
   await mapConcurrent(candidates, CONCURRENCY, async (url) => {
     try {
       const saved = await inspectAndPersistSearchConsoleUrlSystem(url);
       const inspection = saved.inspection;
+      inspected += 1;
       if (inspection.verdict === "PASS") pass += 1;
       else if (inspection.verdict === "NEUTRAL") neutral += 1;
       else if (inspection.verdict === "FAIL") fail += 1;
@@ -228,7 +238,8 @@ export async function syncSeoGscDiagnostics(): Promise<SeoGscDiagnosticsResult> 
   return {
     history,
     historyError,
-    inspected: candidates.length - errors.length,
+    // History-persistence failures are independent of completed URL inspections.
+    inspected,
     pass,
     neutral,
     fail,
