@@ -17,7 +17,7 @@ export default async function FiscalAccess(){
     <p>Use your existing super-admin account to access the independent KONTA MOY FISCAL administration workspace.</p>
     <p>Signed in as <strong>{admin.email}</strong>. Fiscal will create its own time-limited session; it will not share the marketplace database or browser login cookie.</p>
     {!transfer?<p>The separate Fiscal admin sign-in is not configured. FISCAL_SERVICE_BASE_URL and FISCAL_SUPERADMIN_SSO_SECRET are required.</p>:
-      <form action={transfer.targetUrl} method="post" referrerPolicy="no-referrer">
+      <form action={transfer.targetUrl} method="post">
         <input type="hidden" name="ticket" value={transfer.ticket}/>
         <button type="submit" style={{padding:"13px 20px",borderRadius:10,cursor:"pointer"}}>Continue to FISCAL Admin</button>
       </form>}
