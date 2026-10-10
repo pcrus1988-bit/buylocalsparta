@@ -35,3 +35,9 @@
 
 .fiscal-form select{background:#fff;color:#102d34;border:1px solid #a9c3bd;padding:12px;border-radius:8px;width:100%}
 .fiscal-form button:focus-visible,.fiscal-button:focus-visible,.fiscal-form input:focus-visible,.fiscal-form select:focus-visible{outline:3px solid #50a797;outline-offset:2px}
+
+/* Merchant draft detail: deliberately read-only, not an invoice print layout. */
+.fiscal-draft-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:18px 0 28px}
+.fiscal-draft-details>div{padding:16px;border:1px solid #d5e6e1;border-radius:10px;background:#f6faf8;min-width:0}
+.fiscal-draft-details dt{font-weight:700;color:#557077;font-size:.8rem;margin-bottom:6px}
+.fiscal-draft-details dd{font-weight:650;color:#15323a;margin:0;overflow-wrap:anywhere;line-height:1.5}
