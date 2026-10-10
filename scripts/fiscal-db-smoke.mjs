@@ -14,6 +14,13 @@ try{
  assert.equal(inboxIndex.rowCount,1,"Merchant inbox keyset index required");
  const lineSecurity=await db.query("SELECT relrowsecurity FROM pg_class WHERE oid='public.fiscal_document_intake_lines'::regclass");
  assert.equal(lineSecurity.rows[0].relrowsecurity,true,"Test lines must enable RLS");
+ const counterpartySecurity=await db.query(
+  "SELECT relrowsecurity FROM pg_class WHERE oid='public.fiscal_counterparties'::regclass");
+ assert.equal(counterpartySecurity.rows[0].relrowsecurity,true,"Test counterparties must enable RLS");
+ const counterpartyIndex=await db.query(
+  "SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='fiscal_counterparties_tenant_recent_idx'");
+ assert.equal(counterpartyIndex.rowCount,1,"Tenant-bounded registry index required");
+
  const uniqueLink=await db.query("SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='fiscal_document_intakes_org_id_unique'");
  assert.equal(uniqueLink.rowCount,1,"Composite tenant FK target required");
 
@@ -88,6 +95,53 @@ try{
  await db.query("UPDATE fiscal_memberships SET role='accountant' WHERE organization_id=$1 AND user_id=$2",[oid,otherUser.rows[0].id]);
  const accountantConsole=await db.query(consoleAuthorizationSql,[oid,otherUser.rows[0].id]);
  assert.equal(accountantConsole.rowCount,1,"Approved accountants can create non-fiscal drafts");
+ // Counterparties are unverified synthetic test identities, isolated by tenant + kind.
+ const businessCounterparty=await db.query(
+  `INSERT INTO fiscal_counterparties(
+   organization_id,kind,legal_name,vat_number,created_by)
+   VALUES($1,'business','CI Example Business','111222333',$2)
+   RETURNING id,verification_status,kind`,[oid,uid]);
+ assert.equal(businessCounterparty.rows[0].verification_status,"unverified");
+ const publicCounterparty=await db.query(
+  `INSERT INTO fiscal_counterparties(
+   organization_id,kind,legal_name,vat_number,created_by)
+   VALUES($1,'public_body','CI Public Body','777666555',$2)
+   RETURNING id,kind`,[oid,uid]);
+ assert.equal(publicCounterparty.rows[0].kind,"public_body");
+ const businessId=businessCounterparty.rows[0].id;
+ const lookupBusiness=`SELECT id FROM fiscal_counterparties
+  WHERE organization_id=$1 AND id=$2 AND kind=$3`;
+ const correctBusiness=await db.query(lookupBusiness,[oid,businessId,"business"]);
+ assert.equal(correctBusiness.rowCount,1);
+ const wrongKind=await db.query(lookupBusiness,[oid,businessId,"public_body"]);
+ assert.equal(wrongKind.rowCount,0,"B2G must reject business-only counterparties");
+ const otherTenant=await db.query(lookupBusiness,[otherOrg.rows[0].id,businessId,"business"]);
+ assert.equal(otherTenant.rowCount,0,"Counterparty ID may not cross tenant boundaries");
+ const scopedCounterparty=await db.query(
+  `SELECT c.id FROM fiscal_counterparties c
+   JOIN fiscal_memberships m ON m.organization_id=c.organization_id AND m.user_id=$2
+   JOIN fiscal_users u ON u.id=m.user_id AND u.disabled_at IS NULL
+   WHERE c.organization_id=$1 AND c.id=$3`,
+  [oid,uid,businessId]);
+ assert.equal(scopedCounterparty.rowCount,1);
+ const deniedCounterparty=await db.query(
+  `SELECT c.id FROM fiscal_counterparties c
+   JOIN fiscal_memberships m ON m.organization_id=c.organization_id AND m.user_id=$2
+   JOIN fiscal_users u ON u.id=m.user_id AND u.disabled_at IS NULL
+   WHERE c.organization_id=$1 AND c.id=$3`,
+  [otherOrg.rows[0].id,uid,businessId]);
+ assert.equal(deniedCounterparty.rowCount,0);
+ const duplicateCounterparty=await db.query(
+  `INSERT INTO fiscal_counterparties(
+   organization_id,kind,legal_name,vat_number,created_by)
+   VALUES($1,'business','CI Example Business','111222333',$2)
+   ON CONFLICT(organization_id,kind,vat_number) DO NOTHING RETURNING id`,[oid,uid]);
+ assert.equal(duplicateCounterparty.rowCount,0,"Counterparty identity must be unique per tenant and kind");
+ await db.query("SAVEPOINT counterparty_immutable");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_counterparties SET legal_name='Changed' WHERE id=$1",[businessId]));
+ await db.query("ROLLBACK TO SAVEPOINT counterparty_immutable");
+
  const testConsoleDraft=await db.query(
   "INSERT INTO fiscal_document_intakes(organization_id,lane,source,external_id,status,payload,payload_digest) VALUES($1,'b2c','console','CONSOLE-smoke-0001','draft',$2::jsonb,$3) RETURNING id",
   [oid,JSON.stringify({reference:"merchant-preview",currency:"EUR",grossMinor:1500,issuerVatNumber:"123456789"}),"b".repeat(64)]);
@@ -179,6 +233,6 @@ try{
  const ssoAfter=await db.query("SELECT count(*)::int AS count FROM fiscal_superadmin_sessions WHERE token_hash=$1 AND revoked_at IS NULL",["c".repeat(64)]);
  assert.equal(ssoAfter.rows[0].count,0);
  await db.query("ROLLBACK");
- console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, approved-only console draft creation, immutable tenant-bound item snapshots, idempotency, verified marketplace pairing, SSO replay protection, immutable audit");
+ console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, approved-only console draft creation, immutable tenant-bound item snapshots, unverified counterparty registry, idempotency, verified marketplace pairing, SSO replay protection, immutable audit");
 }catch(error){await db.query("ROLLBACK").catch(()=>{});throw error;}
 finally{await db.end();}
