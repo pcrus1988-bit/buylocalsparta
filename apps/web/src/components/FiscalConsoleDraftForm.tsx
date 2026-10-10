@@ -78,7 +78,7 @@ export function FiscalConsoleDraftForm({organizationId,csrfToken}:{
    </label>
    <button type="submit" className="fiscal-button" disabled={busy}>{busy?"Αποθήκευση…":"Αποθήκευση δοκιμής"}</button>
   </form>
-  <FiscalPreviewWorkbench key={organizationId} csrfToken={csrfToken} lane={lane} onApplyGrossMinor={minor=>{
+  <FiscalPreviewWorkbench key={organizationId+":"+lane} csrfToken={csrfToken} lane={lane} onApplyGrossMinor={minor=>{
     setAmount(Math.floor(minor/100)+","+String(minor%100).padStart(2,"0"));
     edit();
   }}/>
