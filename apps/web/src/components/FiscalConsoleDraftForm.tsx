@@ -13,6 +13,8 @@ const messages:Record<string,string>={
  INVALID_GROSS_AMOUNT:"Ελέγξτε το δοκιμαστικό ποσό.",
  INVALID_REFERENCE:"Η αναφορά πρέπει να περιέχει 1–120 χαρακτήρες.",
  IDEMPOTENCY_CONFLICT:"Υπάρχει σύγκρουση στο αναγνωριστικό αυτής της δοκιμής.",
+ PREVIEW_TOTAL_MISMATCH:"Το συνολικό ποσό δεν συμφωνεί με τον επανυπολογισμό των γραμμών.",
+ PREVIEW_AMOUNT_OUT_OF_RANGE:"Το δοκιμαστικό ποσό υπερβαίνει το μέγιστο επιτρεπτό όριο.",
  CSRF_FAILED:"Η συνεδρία έληξε. Ανανεώστε τη σελίδα.",
  FISCAL_CONSOLE_UNAVAILABLE:"Η υπηρεσία δοκιμών δεν είναι προσωρινά διαθέσιμη."
 };
@@ -73,7 +75,7 @@ export function FiscalConsoleDraftForm({organizationId,csrfToken}:{
     </select>
    </label>
    <label>Αναφορά δοκιμής
-    <input value={reference} onChange={e=>{setReference(e.target.value);edit()}}
+    <input value={reference} onChange={e=>{setReference(e.target.value);externalIdRef.current=null;setError("");setResult(null)}}
      maxLength={120} required placeholder="π.χ. ΠΡΟΧΕΙΡΟ-001" disabled={busy}/>
    </label>
    <label>Συνολικό ποσό EUR (δοκιμή)
