@@ -11,8 +11,9 @@ export async function GET(){
     // A reachable PostgreSQL server is NOT sufficient for safe operation.
     // Verify the independently applied baseline AND super-admin SSO schema.
     const verified=await fiscalPool().query<{ready:boolean}>(
-      "SELECT EXISTS(SELECT 1 FROM fiscal_schema_migrations WHERE name='0008_draft_inbox_pagination.sql') "+
-      "AND to_regclass('public.fiscal_document_intakes') IS NOT NULL "+
+      "SELECT EXISTS(SELECT 1 FROM fiscal_schema_migrations WHERE name='0009_nonfiscal_line_snapshots.sql') "+
+      "AND to_regclass('public.fiscal_document_intakes') IS NOT NULL " +
+      "AND to_regclass('public.fiscal_document_intake_lines') IS NOT NULL "+
       "AND to_regclass('public.fiscal_marketplace_links') IS NOT NULL "+
       "AND to_regclass('public.fiscal_superadmin_sessions') IS NOT NULL AS ready"
     );
