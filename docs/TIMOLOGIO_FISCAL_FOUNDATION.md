@@ -87,3 +87,17 @@ At `/timologio/drafts`, an authenticated FISCAL merchant can review the non-fisc
 - No print, send, change-status, delete, export, issue or transmit actions are available.
 - PostgreSQL smoke tests verify cross-tenant denial and disjoint cursor pages. Standalone route-isolation checks require the new protected page.
 - **These records remain exclusively non-fiscal test drafts; no certified issuance, regulatory approval or production launch is implied.**
+
+## Milestone 8 — merchant console draft lifecycle (staging only)
+
+The merchant-facing `/timologio/drafts` now supports **creating test drafts in a browser**, reviewing them in the scoped inbox, and opening `/timologio/drafts/:id?organizationId=...` to inspect sanitized fields. The standalone `fiscal/service` exposes the same private routes.
+
+- The new `POST /timologio/api/console/drafts` rejects cross-origin calls, enforces session-based CSRF, caps JSON requests at 4 KiB, rejects unknown fields, and returns only the test draft ID and status.
+- The dedicated Fiscal PostgreSQL transaction checks an **approved** organization and active owner or accountant membership under share locks before writing. Pending, rejected, suspended and unowned organizations cannot create console drafts. Viewer membership remains read-only.
+- `externalId` is generated client-side for idempotent retries. The database constraint prevents duplicate console entries. Conflicting payload reuse returns HTTP 409. New inserts append actor-attributed audit events.
+- The server supplies the legal issuer's VAT number from the authorized organization; the browser cannot specify another issuer. Input normalization uses the existing strict draft contract.
+- The UI labels the test amount as **non-fiscal**. No itemized taxes, lawful invoice numbering, AADE/myDATA transmission, signed receipts, printing as an invoice, POS settlement, B2G submission or marketplace-order linkage has been enabled.
+- Each draft-detail query rechecks tenant membership in SQL and returns only whitelisted fields. Unknown or unauthorized IDs are shown as not found.
+- Fiscal CI covers the additional standalone routes, approved-only owner/accountant authorization, viewer rejection, idempotent drafts and cross-tenant detail isolation.
+
+**Release state:** independent production database, verified merchant KYB, email verification/MFA, certified provider functionality and security approvals are outstanding; this milestone is for protected staging only.
