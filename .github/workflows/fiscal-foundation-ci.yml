@@ -59,6 +59,8 @@ jobs:
           if FISCAL_DATABASE_URL="$DATABASE_URL" node scripts/fiscal-migrate.mjs; then
             echo "Isolation test failed: marketplace database was accepted"; exit 1
           fi
+      - name: Verify integer-only non-fiscal line calculations
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-preview-calculator.test.ts
       - name: Typecheck shared Fiscal route source
         run: npm --workspace @buy-local-sparta/web exec tsc -- --noEmit --incremental false
       - name: Validate standalone Fiscal route tree
