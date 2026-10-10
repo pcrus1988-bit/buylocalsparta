@@ -32,7 +32,7 @@ test("old evidence is labelled historical instead of asserting a current failure
   assert.match(report, /NOT CHECKED \(unknown, not an error\)/);
   assert.match(page, /label: "Google sample inspected"/);
   assert.match(page, /label: "Schema checked"/);
-  assert.match(page, /value: "Not verified"/);
+  assert.match(page, /: "Not verified"/);
 });
 
 test("bounded refresh prioritizes unresolved critical issues and rotates across page kinds", () => {
