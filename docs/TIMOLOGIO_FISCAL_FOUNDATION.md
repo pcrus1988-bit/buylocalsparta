@@ -101,3 +101,17 @@ The merchant-facing `/timologio/drafts` now supports **creating test drafts in a
 - Fiscal CI covers the additional standalone routes, approved-only owner/accountant authorization, viewer rejection, idempotent drafts and cross-tenant detail isolation.
 
 **Release state:** independent production database, verified merchant KYB, email verification/MFA, certified provider functionality and security approvals are outstanding; this milestone is for protected staging only.
+
+## Milestone 9 — independent non-fiscal multi-line calculation preview (2026-10-10)
+
+This milestone adds a deterministic **engineering simulator**, not a legal tax engine, inside the existing `/timologio/drafts` merchant console.
+
+- `apps/web/src/lib/fiscal-preview-calculator.ts` contains pure, deterministic, BigInt-based arithmetic for 1–30 lines with EUR minor-unit prices, fixed three-decimal quantities, user-specified VAT basis points and percentage discounts.
+- Calculation order is: quantity × VAT-exclusive unit price (round half-up to cents), minus rounded line discount, plus rounded line tax; line results are summed without a second invoice-level recomputation. All inputs are strict bounded integers after parsing and reject extra fields. Maximum total: €10 billion in minor units.
+- It does **not** infer a lawful VAT rate from product category, KAD, domestic/international supply, exemptions, geography, recipient or public procurement rules. No rate here represents regulatory approval.
+- The authenticated, CSRF-checked `POST /timologio/api/console/preview` exposes calculations; accepts ≤16 KiB, never stores requests, never contacts the marketplace or AADE, and always returns `issuanceEnabled:false` and `legalTaxClassification:false`.
+- A responsive client workbench supports up to 10 editable example lines, shows server-computed net/tax/discount/gross, and may **copy gross only** to the draft intake form. It does not persist calculation lines, imply legal VAT coding, sign invoices or populate myDATA fields.
+- The separate `fiscal/service` route tree explicitly exports this endpoint. Dedicated CI runs the calculator unit tests (rounding, discounts, abuse controls, all four lanes, forbidden metadata and size caps), typechecks the complete app, verifies route isolation and builds the independent service.
+- This remains a staging-only **calculation preview**, not a customer billing, POS, B2G, Peppol, tax-engine or official invoicing feature.
+
+Production requires an independently reviewed tax-rule/versioning catalogue with dated legal evidence, counterparty identification, document semantics, corrections/credit notes, legal rounding specifications, certifications and external integration test evidence.
