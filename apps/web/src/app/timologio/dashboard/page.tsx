@@ -25,6 +25,7 @@ export default async function FiscalDashboard(){
    <div className="fiscal-grid">{fiscalLanes.map(lane=><article key={lane.id} className="fiscal-card">
     <h3>{lane.title}</h3><p>{lane.detail}</p><small>Υπό ανάπτυξη / πιστοποίηση</small>
    </article>)}</div>
+   <p><Link href="/timologio/developers" className="fiscal-button">Διασυνδέσεις / Developer API</Link></p>
    <p className="fiscal-alert" style={{marginTop:20}}>Η δημιουργία, υπογραφή, διαβίβαση και επίσημη έκδοση παραστατικών δεν είναι διαθέσιμη. Θα ενεργοποιηθεί μόνο μετά από τις κατάλληλες πιστοποιήσεις και ελέγχους.</p>
   </section>
  </div></main>;
