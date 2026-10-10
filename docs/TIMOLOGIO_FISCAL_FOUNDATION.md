@@ -69,3 +69,10 @@ This is a technical planning register, not a substitute for formal AADE, All-in-
 ## Milestone 4 — independent seller identity pairing
 
 See `docs/TIMOLOGIO_MARKETPLACE_PAIRING.md` for the vendor/Fiscal-owner dual-consent protocol, ten-minute one-time pairing codes, HMAC-signed server-to-server confirmation, verified AFM enforcement, revocable links and draft-connector link-state checks. No marketplace order worker has been connected to the FISCAL engine. The full certified provider, KYB and production authorization tracks remain pending.
+
+
+## Fiscal database RLS and Data API isolation
+
+`0006_fiscal_private_tables.sql` enables RLS for every existing public-schema Fiscal table and revokes direct Data API grants from `PUBLIC`, `anon` and `authenticated` roles where present. No browser-side Fiscal table policies are provided; the product interfaces use the authenticated server services. The dedicated CI smoke test verifies the RLS bit for all matching tables. New migrations must enforce the same policy.
+
+Running the Fiscal application under a least-privilege database role, rather than a general database owner, remains a release gate. Review Supabase exposed schemas and default privileges before deployment. Do not route client-side Supabase JS directly to the Fiscal database.
