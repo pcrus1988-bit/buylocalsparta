@@ -44,11 +44,11 @@ try{
  assert.equal(wrongTenant.rowCount,0);
  // Merchant draft inbox is capped, stable-paginated and scoped by active membership.
  await db.query("INSERT INTO fiscal_document_intakes(organization_id,lane,source,external_id,payload) SELECT $1,'b2b','external_api','ci-inbox-'||n,jsonb_build_object('reference','CI-'||n,'grossMinor',1000) FROM generate_series(1,28) n",[oid]);
- const inboxSql="SELECT d.id,d.created_at FROM fiscal_document_intakes d JOIN fiscal_memberships m ON m.organization_id=d.organization_id AND m.user_id=$2 JOIN fiscal_users u ON u.id=m.user_id AND u.disabled_at IS NULL WHERE d.organization_id=$1 AND d.status='draft' AND ($3::timestamptz IS NULL OR (d.created_at,d.id)<($3::timestamptz,$4::uuid)) ORDER BY d.created_at DESC,d.id DESC LIMIT 25";
+ const inboxSql="SELECT d.id,to_char(d.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS created_at_exact FROM fiscal_document_intakes d JOIN fiscal_memberships m ON m.organization_id=d.organization_id AND m.user_id=$2 JOIN fiscal_users u ON u.id=m.user_id AND u.disabled_at IS NULL WHERE d.organization_id=$1 AND d.status='draft' AND ($3::timestamptz IS NULL OR (d.created_at,d.id)<($3::timestamptz,$4::uuid)) ORDER BY d.created_at DESC,d.id DESC LIMIT 25";
  const pageOne=await db.query(inboxSql,[oid,uid,null,null]);
  assert.equal(pageOne.rows.length,25);
  const last=pageOne.rows[pageOne.rows.length-1];
- const pageTwo=await db.query(inboxSql,[oid,uid,last.created_at,last.id]);
+ const pageTwo=await db.query(inboxSql,[oid,uid,last.created_at_exact,last.id]);
  assert.equal(pageTwo.rows.length,5);
  assert.equal(new Set([...pageOne.rows,...pageTwo.rows].map(row=>row.id)).size,30,"No duplicate drafts across cursor pages");
  const forbiddenInbox=await db.query(inboxSql,[oid,otherUser.rows[0].id,null,null]);
