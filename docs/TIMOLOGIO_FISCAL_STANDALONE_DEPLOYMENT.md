@@ -71,3 +71,12 @@ The standalone app contains only /timologio, /timologio-admin and their declared
 - Verify all other marketplace routes 404 on the isolated host.
 - Review dependency advisories from npm audit before unprotecting the service.
 - Add monitoring, vulnerability scans, secrets rotation, disaster recovery, audit retention, data residency, MFA/identity governance, and independent fiscal provider certification before production enrollment.
+
+## Release hardening — 2026-10-10
+
+- Each migration's SQL body and checksum insertion now commit in one transaction. Migration checksums continue to be verified, with an advisory lock preventing parallel application.
+- The independent health API checks the Fiscal schema version and required tables; PostgreSQL connectivity alone is not operational readiness or fiscal certification.
+- The standalone Vercel build runs a fail-closed environment preflight. Use `node scripts/fiscal-deployment-preflight.mjs --staging` from the repository root. A separate `--activation` mode verifies planned secrets and distinct service origins; neither mode prints secret contents.
+- The read-only npm audit reports production advisories for the shared workspace, which is a conservative superset of the standalone Fiscal runtime. Initial findings: Next.js critical (report suggests 16.4.0 as patch), Sharp high and source-map-js high.
+- Do not automatically alter the marketplace Next.js version without regression testing. Remediate or prove non-reachability of vulnerable packages in Fiscal before opening staging to customers.
+- Production launch is blocked until dedicated EU database, verified secrets, persistent service domain, backups, KYB, independent SSO testing and regulatory approval are completed.
