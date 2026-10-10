@@ -63,6 +63,11 @@ jobs:
         run: npm --workspace @buy-local-sparta/web exec tsc -- --noEmit --incremental false
       - name: Validate standalone Fiscal route tree
         run: node scripts/fiscal-route-isolation.mjs
+      - name: Fiscal standalone environment preflight
+        env:
+          DATABASE_URL: ""
+          POSTGRES_URL: ""
+        run: node scripts/fiscal-deployment-preflight.mjs --staging
       - name: Build standalone Fiscal app, without marketplace runtime credentials
         working-directory: fiscal/service
         env:
