@@ -129,6 +129,14 @@ export const ACCOUNT_UTILITY_NAVIGATION: ReadonlyArray<SiteLink> = [SITE_LINKS.l
 export const PUBLIC_DYNAMIC_ROUTE_PATTERNS = ["/category/[slug]", "/brands/[slug]", "/product/[id]", "/vendor/[id]", "/collections/[slug]", "/bazaar/product/[slug]", "/look/[code]", "/research/[slug]", "/research/[slug]/methodology", "/research/[slug]/results"] as const;
 
 export const NON_INDEXABLE_PAGE_ROUTES = [
+  "/timologio",
+  "/timologio/login",
+  "/timologio/register",
+  "/timologio/dashboard",
+  "/timologio/developers",
+  "/timologio/marketplace-link",
+  "/timologio-admin",
+  "/timologio-admin/login",
   "/cart",
   "/checkout",
   "/checkout/private-offer/[id]",
