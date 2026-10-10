@@ -29,6 +29,15 @@ for(const expected of [
  "timologio/page.tsx","timologio/api/v1/drafts/route.ts",
  "timologio-admin/page.tsx","timologio-admin/sso/callback/route.ts"
 ])assert.ok(routes.includes(expected),"Missing Fiscal route: "+expected);
+// Route re-exports do not inherit Next.js static segment configuration.
+for(const route of [
+ "timologio/dashboard/page.tsx","timologio/developers/page.tsx",
+ "timologio/login/page.tsx","timologio-admin/page.tsx",
+ "timologio-admin/login/page.tsx","timologio-admin/compliance/page.tsx"
+]){
+ const source=await readFile(resolve(app,route),"utf8");
+ assert.ok(source.includes('export const dynamic="force-dynamic"'),"Private Fiscal page incorrectly prerendered: "+route);
+}
 const config=JSON.parse(await readFile(resolve(root,"vercel.json"),"utf8"));
 assert.equal(config.framework,"nextjs");
 assert.ok(!Object.hasOwn(config,"crons"),"Standalone Fiscal must not schedule marketplace crons");
