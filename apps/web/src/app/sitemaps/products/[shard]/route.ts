@@ -58,16 +58,17 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
     overrideSnapshot = await getSeoEntityOverridesSnapshot();
     products = await getPublicProductSitemapInventoryShard(shard);
   } catch (error) {
-    // A public sitemap endpoint must remain fetchable even during temporary database
-    // connection pressure. Return an empty, explicitly degraded sitemap rather than
-    // a 5xx so crawlers can retry later without recording a server-error URL.
+    // A temporary database failure must NOT masquerade as a valid empty sitemap.
+    // HTTP 200 with zero URLs would silently withdraw eligible product canonicals
+    // from Google's discovery graph. Return a transient 503 so the crawler retries
+    // instead of treating the shard as successfully refreshed with no products.
     console.error(JSON.stringify({ level: "error", event: "seo.product_sitemap_shard_degraded", shard, message: String(error) }));
-    return new Response(emptySitemap(), {
-      status: 200,
+    return new Response("Product sitemap temporarily unavailable. Please retry.", {
+      status: 503,
       headers: {
-        "Content-Type": "application/xml; charset=utf-8",
+        "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-store",
-        "Retry-After": "60",
+        "Retry-After": "120",
         "X-Konta-Sitemap-Degraded": "1"
       }
     });
