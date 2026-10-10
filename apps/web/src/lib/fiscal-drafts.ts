@@ -1,6 +1,7 @@
 import {createHash} from "node:crypto";
 import { fiscalPool } from "./fiscal-runtime";
 import { FiscalApiError, type FiscalApiPrincipal } from "./fiscal-api-clients";
+import type { FiscalActor } from "./fiscal-auth";
 
 export type FiscalDraftLane="b2c"|"pos"|"b2b"|"b2g";
 type DraftInput=Readonly<{
@@ -67,4 +68,63 @@ export async function getFiscalDraft(actor:FiscalApiPrincipal,id:string){
   if(!result.rows[0])throw new FiscalApiError("DRAFT_NOT_FOUND",404);
   const {payload_digest,...draft}=result.rows[0];
   return draft;
+}
+
+/**
+ * Merchant console: draft intake only. Identity and approved tenant membership are
+ * verified inside the same database transaction as the write. No fiscal issuance.
+ */
+export async function createFiscalConsoleDraft(
+  actor:Pick<FiscalActor,"id">,organizationId:string,
+  input:{lane:unknown;externalId:unknown;reference:unknown;grossMinor:unknown}
+):Promise<{created:boolean;id:string}> {
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(organizationId))
+    throw new FiscalApiError("INVALID_ORGANIZATION",400);
+  const db=await fiscalPool().connect();
+  try {
+    await db.query("BEGIN");
+    const authorized=await db.query<{vat_number:string}>(
+      `SELECT o.vat_number FROM fiscal_organizations o
+       JOIN fiscal_memberships m ON m.organization_id=o.id
+       JOIN fiscal_users u ON u.id=m.user_id
+       WHERE o.id=$1 AND m.user_id=$2 AND m.role IN ('owner','accountant')
+         AND o.status='approved' AND u.disabled_at IS NULL
+       FOR SHARE OF o,m,u`,
+      [organizationId,actor.id]
+    );
+    if(!authorized.rows[0])throw new FiscalApiError("CONSOLE_DRAFT_NOT_AUTHORIZED",403);
+    const data=parseDraftInput({...input,currency:"EUR",issuerVatNumber:authorized.rows[0].vat_number},
+      authorized.rows[0].vat_number);
+    const payload={reference:data.reference,currency:"EUR",grossMinor:data.grossMinor,issuerVatNumber:data.issuerVatNumber};
+    const digest=createHash("sha256").update(JSON.stringify({lane:data.lane,...payload})).digest("hex");
+    const created=await db.query<{id:string}>(
+      `INSERT INTO fiscal_document_intakes
+       (organization_id,lane,source,external_id,status,payload,payload_digest)
+       VALUES ($1,$2,'console',$3,'draft',$4::jsonb,$5)
+       ON CONFLICT (organization_id,source,external_id) DO NOTHING RETURNING id`,
+      [organizationId,data.lane,data.externalId,JSON.stringify(payload),digest]
+    );
+    let id=created.rows[0]?.id;
+    if(id){
+      await db.query(
+        `INSERT INTO fiscal_audit_events(actor_kind,actor_ref,organization_id,action,details)
+         VALUES ('merchant',$1,$2,'draft.console_created',$3::jsonb)`,
+        [actor.id,organizationId,JSON.stringify({draftId:id,lane:data.lane})]
+      );
+    }else{
+      const existing=await db.query<{id:string;lane:string;payload_digest:string|null}>(
+        `SELECT id,lane,payload_digest FROM fiscal_document_intakes
+         WHERE organization_id=$1 AND source='console' AND external_id=$2 AND status='draft' LIMIT 1`,
+        [organizationId,data.externalId]
+      );
+      if(!existing.rows[0]||existing.rows[0].lane!==data.lane||existing.rows[0].payload_digest!==digest)
+        throw new FiscalApiError("IDEMPOTENCY_CONFLICT",409);
+      id=existing.rows[0].id;
+    }
+    await db.query("COMMIT");
+    return {created:created.rows.length>0,id};
+  }catch(error){
+    await db.query("ROLLBACK").catch(()=>undefined);
+    throw error;
+  }finally{db.release();}
 }
