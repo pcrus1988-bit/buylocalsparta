@@ -44,7 +44,35 @@ try{
  await db.query("UPDATE fiscal_api_clients SET revoked_at=now() WHERE id=$1",[apiKey.rows[0].id]);
  const active=await db.query("SELECT id FROM fiscal_api_clients WHERE id=$1 AND revoked_at IS NULL",[apiKey.rows[0].id]);
  assert.equal(active.rowCount,0);
+ // Guarded linking: pending businesses and mismatched VAT must fail even on direct SQL.
+ const vendorId="a8f1ad6c-7c2d-4e84-8d66-9d9e9ae15a10";
+ await db.query("SAVEPOINT link_pending");
+ await assert.rejects(()=>db.query(
+  "INSERT INTO fiscal_marketplace_links(organization_id,marketplace_vendor_id,marketplace_vendor_public_id,issuer_vat_number,authorized_by) VALUES($1,$2,'vendor_ci_verified','123456789',$3)",
+  [oid,vendorId,uid]));
+ await db.query("ROLLBACK TO SAVEPOINT link_pending");
+ await db.query("UPDATE fiscal_organizations SET status='approved' WHERE id=$1",[oid]);
+ await db.query("SAVEPOINT vat_mismatch");
+ await assert.rejects(()=>db.query(
+  "INSERT INTO fiscal_marketplace_links(organization_id,marketplace_vendor_id,marketplace_vendor_public_id,issuer_vat_number,authorized_by) VALUES($1,$2,'vendor_ci_verified','987654321',$3)",
+  [oid,vendorId,uid]));
+ await db.query("ROLLBACK TO SAVEPOINT vat_mismatch");
+ const linked=await db.query(
+  "INSERT INTO fiscal_marketplace_links(organization_id,marketplace_vendor_id,marketplace_vendor_public_id,issuer_vat_number,authorized_by) VALUES($1,$2,'vendor_ci_verified','123456789',$3) RETURNING id",
+  [oid,vendorId,uid]);
+ await db.query("SAVEPOINT immutable_link");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_marketplace_links SET issuer_vat_number='987654321' WHERE id=$1",[linked.rows[0].id]));
+ await db.query("ROLLBACK TO SAVEPOINT immutable_link");
+ await db.query("UPDATE fiscal_marketplace_links SET revoked_at=now() WHERE id=$1",[linked.rows[0].id]);
+ await db.query("SAVEPOINT restore_link");
+ await assert.rejects(()=>db.query("UPDATE fiscal_marketplace_links SET revoked_at=NULL WHERE id=$1",[linked.rows[0].id]));
+ await db.query("ROLLBACK TO SAVEPOINT restore_link");
+ const challenge=await db.query(
+  "INSERT INTO fiscal_marketplace_link_challenges(organization_id,created_by,code_hash,expires_at) VALUES($1,$2,$3,now()+interval '10 minutes') RETURNING id",
+  [oid,uid,'c'.repeat(64)]);
+ assert.ok(challenge.rows[0].id);
  await db.query("ROLLBACK");
- console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, immutable audit");
+ console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, verified marketplace pairing, immutable audit");
 }catch(error){await db.query("ROLLBACK").catch(()=>{});throw error;}
 finally{await db.end();}
