@@ -64,6 +64,26 @@ try{
 
  const lineSecurity=await db.query("SELECT relrowsecurity FROM pg_class WHERE oid='public.fiscal_document_intake_lines'::regclass");
  assert.equal(lineSecurity.rows[0].relrowsecurity,true,"Test lines must enable RLS");
+
+ const securedTriggers=await db.query(
+  `SELECT p.proname,p.proconfig,p.prosecdef,
+     COALESCE((SELECT bool_or(acl.grantee=0 AND acl.privilege_type='EXECUTE')
+      FROM aclexplode(COALESCE(p.proacl,'{}'::aclitem[])) acl),false) AS public_execute
+   FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+   WHERE n.nspname='public' AND p.proname=ANY($1::text[])`,
+  [[
+   "fiscal_audit_immutable","fiscal_marketplace_link_integrity",
+   "fiscal_intake_lines_immutable","fiscal_counterparties_immutable",
+   "fiscal_regulatory_immutable"
+  ]]);
+ assert.equal(securedTriggers.rowCount,5,"All trigger functions must be present");
+ for(const routine of securedTriggers.rows){
+  assert.equal(routine.prosecdef,false,"Fiscal trigger cannot bypass caller privileges");
+  assert.equal(routine.public_execute,false,"Fiscal trigger may not be called via PUBLIC EXECUTE");
+  assert.ok(routine.proconfig?.some(x=>x.replace(/\\s+/g,"")==="search_path=pg_catalog,public"),
+   "Fiscal trigger functions need pinned pg_catalog/public search paths");
+ }
+
  const counterpartySecurity=await db.query(
   "SELECT relrowsecurity FROM pg_class WHERE oid='public.fiscal_counterparties'::regclass");
  assert.equal(counterpartySecurity.rows[0].relrowsecurity,true,"Test counterparties must enable RLS");
