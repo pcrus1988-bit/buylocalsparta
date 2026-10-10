@@ -230,6 +230,7 @@ export async function proxy(request: NextRequest) {
     if (!allowed || marketplaceOnly) return new NextResponse(null,{status:404,headers:{"cache-control":"no-store","x-robots-tag":"noindex"}});
     return NextResponse.next();
   }
+  if (request.nextUrl.pathname.startsWith("/api/health")) return NextResponse.next();
   if (STATIC_ASSET_PATH.test(request.nextUrl.pathname)) return NextResponse.next();
 
   const prefetch = productPrefetchResponse(request);
@@ -297,5 +298,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/health).*)"]
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"]
 };
