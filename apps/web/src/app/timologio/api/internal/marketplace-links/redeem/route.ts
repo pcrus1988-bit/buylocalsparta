@@ -22,7 +22,7 @@ export async function POST(request:Request){
   const input=decoded as Record<string,unknown>;
   if(Object.keys(input).sort().join(",")!=="code,vatNumber,vendorId,vendorPublicId")
     return Response.json({error:"INVALID_ASSERTION"},{status:400,headers});
-  return Response.json(await redeemMarketplaceCode(input),{headers});
+  return Response.json(await redeemMarketplaceCode({code:input.code,vendorId:input.vendorId,vendorPublicId:input.vendorPublicId,vatNumber:input.vatNumber}),{headers});
  }catch(e){
   const status=e instanceof FiscalApiError?e.status:503;
   return Response.json({error:e instanceof FiscalApiError?e.code:"PAIRING_SERVICE_UNAVAILABLE"},{status,headers});
