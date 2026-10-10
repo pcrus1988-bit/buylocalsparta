@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FiscalReviewButton } from "../../components/FiscalReviewButton";
+import { FiscalSuperAdminLogout } from "../../components/FiscalSuperAdminLogout";
 import { fiscalAdminActor, fiscalAdminOverview } from "../../lib/fiscal-auth";
 import { fiscalDatabaseConfigured, fiscalLanes } from "../../lib/fiscal-runtime";
 export const dynamic="force-dynamic";
@@ -13,7 +14,9 @@ export default async function FiscalAdmin(){
  const counts=new Map(data?.counts.map(row=>[row.status,Number(row.count)])??[]);
  return <main className="fiscal-shell"><div className="fiscal-wrap">
   <header className="fiscal-topbar"><Link href="/timologio-admin" className="fiscal-brand">KONTA MOY <span>FISCAL · ADMIN</span></Link>
-   <nav><Link href="/timologio">Public service</Link>{actor.kind==="marketplace_super_admin"&&<Link href="/admin">KONTA MOY Super Admin</Link>}</nav></header>
+   <nav><Link href="/timologio">Public service</Link>{actor.kind==="marketplace_super_admin"&&(process.env.FISCAL_STANDALONE_MODE==="true"?
+      <FiscalSuperAdminLogout csrfToken={actor.csrfToken}/>:
+      <Link href="/admin">KONTA MOY Super Admin</Link>)}</nav></header>
   <section className="fiscal-hero"><div className="fiscal-kicker">Independent fiscal operations</div>
    <h1>FISCAL Control Centre</h1><p>Merchant onboarding, provider readiness and four parallel certification tracks, independently from marketplace operations.</p>
    <p style={{fontSize:".88rem"}}>Authenticated as {actor.email} · {actor.kind}</p>
