@@ -13,6 +13,10 @@ export type FiscalInboxRow={
 export type FiscalInboxDetail=FiscalInboxRow & {
  lines:FiscalCalculatedLine[];net_minor:string|null;vat_minor:string|null;
  discount_minor:string|null;calculation_kind:string|null;
+ counterparty:null|{
+  id:string;kind:"business"|"public_body";legalName:string;vatNumber:string;
+  countryCode:"GR";verificationStatus:"unverified"
+ };
 };
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -78,6 +82,7 @@ export async function getFiscalMerchantDraft(
       d.payload->>'vatMinor' AS vat_minor,
       d.payload->>'discountMinor' AS discount_minor,
       d.payload->>'calculationKind' AS calculation_kind,
+      d.payload->'counterparty' AS counterparty,
       COALESCE((
        SELECT jsonb_agg(jsonb_build_object(
         'description',l.description,'quantityMilli',l.quantity_milli,
