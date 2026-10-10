@@ -76,3 +76,14 @@ See `docs/TIMOLOGIO_MARKETPLACE_PAIRING.md` for the vendor/Fiscal-owner dual-con
 `0006_fiscal_private_tables.sql` enables RLS for every existing public-schema Fiscal table and revokes direct Data API grants from `PUBLIC`, `anon` and `authenticated` roles where present. No browser-side Fiscal table policies are provided; the product interfaces use the authenticated server services. The dedicated CI smoke test verifies the RLS bit for all matching tables. New migrations must enforce the same policy.
 
 Running the Fiscal application under a least-privilege database role, rather than a general database owner, remains a release gate. Review Supabase exposed schemas and default privileges before deployment. Do not route client-side Supabase JS directly to the Fiscal database.
+
+## Milestone 7 — authenticated merchant draft inbox (staging only)
+
+At `/timologio/drafts`, an authenticated FISCAL merchant can review the non-fiscal drafts belonging to their own organization membership. The standalone app exports the same page, and the merchant dashboard links to it.
+
+- Tenant authorization is enforced in each read query by joining `fiscal_memberships` on both the user and selected organization, plus the active-user check. A manipulated `organizationId` cannot reveal another tenant's records.
+- Every query is limited to 26 rows, rendering 25 at a time, with a stable `created_at,id` cursor; no all-documents scan is loaded into the page.
+- Merchant filters cover B2C, POS, B2B, B2G and draft origin. Amounts and times are localized for Greece; absent amounts are not treated as zero.
+- No print, send, change-status, delete, export, issue or transmit actions are available.
+- PostgreSQL smoke tests verify cross-tenant denial and disjoint cursor pages. Standalone route-isolation checks require the new protected page.
+- **These records remain exclusively non-fiscal test drafts; no certified issuance, regulatory approval or production launch is implied.**
