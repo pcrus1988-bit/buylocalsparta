@@ -78,3 +78,10 @@ jobs:
           DATABASE_URL: ""
           POSTGRES_URL: ""
         run: ../../node_modules/.bin/next build
+      - name: Live standalone HTTP acceptance against disposable Fiscal PostgreSQL
+        env:
+          CI: "true"
+          FISCAL_STANDALONE_MODE: "true"
+          FISCAL_REGISTRATION_ENABLED: "false"
+          FISCAL_ISSUANCE_ENABLED: "false"
+        run: node scripts/fiscal-http-e2e.mjs
