@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {redirect} from "next/navigation";
-import {fiscalMerchantAccounts,getFiscalActor} from "../../../lib/fiscal-auth";
+import {fiscalCsrfValue,fiscalMerchantAccounts,getFiscalActor} from "../../../lib/fiscal-auth";
+import {FiscalConsoleDraftForm} from "../../../components/FiscalConsoleDraftForm";
 import {fiscalInboxFilters,listFiscalMerchantInbox} from "../../../lib/fiscal-draft-inbox";
 export const dynamic="force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function FiscalDraftInbox({searchParams}:{
  const actor=await getFiscalActor();
  if(!actor)redirect("/timologio/login");
  if(actor.role!=="merchant")redirect("/timologio-admin");
- const [accounts,params]=await Promise.all([fiscalMerchantAccounts(actor),searchParams]);
+ const [accounts,params,csrf]=await Promise.all([fiscalMerchantAccounts(actor),searchParams,fiscalCsrfValue()]);
  const account=params.organizationId?accounts.find(a=>a.id===params.organizationId):accounts[0];
  const filters=fiscalInboxFilters(params);
  const inbox=account?await listFiscalMerchantInbox(actor,account.id,filters):{rows:[],nextCursor:null};
@@ -58,6 +59,9 @@ export default async function FiscalDraftInbox({searchParams}:{
       </label>
       <button type="submit" className="fiscal-button">Εφαρμογή φίλτρων</button>
      </form>
+     {account.status==="approved"&&["owner","accountant"].includes(account.role)&&csrf
+      ?<FiscalConsoleDraftForm key={account.id} organizationId={account.id} csrfToken={csrf}/>
+      :<p className="fiscal-muted">Η δημιουργία δοκιμαστικών drafts διατίθεται μετά την έγκριση της επιχείρησης, σε ιδιοκτήτη ή εξουσιοδοτημένο λογιστή.</p>}
      <div className="fiscal-section">
       <h2>Εγγραφές · {account.legal_name}</h2>
       <p className="fiscal-muted">Εμφανίζονται έως 25 εγγραφές ανά σελίδα, με τις νεότερες πρώτες. Δεν προφορτώνονται όλα τα δεδομένα.</p>
@@ -67,7 +71,7 @@ export default async function FiscalDraftInbox({searchParams}:{
          <thead><tr><th scope="col">Ημερομηνία</th><th scope="col">Κατηγορία</th><th scope="col">Πηγή</th><th scope="col">Αναφορά</th><th scope="col">Ποσό</th><th scope="col">Κατάσταση</th></tr></thead>
          <tbody>{inbox.rows.map(row=><tr key={row.id}>
           <td>{dateLabel(row.created_at)}</td><td>{laneLabel[row.lane]??row.lane}</td>
-          <td>{sourceLabel[row.source]??row.source}</td><td>{row.reference||row.external_id||"—"}</td>
+          <td>{sourceLabel[row.source]??row.source}</td><td><Link href={"/timologio/drafts/"+encodeURIComponent(row.id)+"?organizationId="+encodeURIComponent(account.id)}>{row.reference||row.external_id||"Προβολή"}</Link></td>
           <td>{moneyLabel(row.gross_minor)}</td><td>Draft · Δεν εκδόθηκε</td>
          </tr>)}</tbody>
         </table>
