@@ -38,6 +38,8 @@ jobs:
       FISCAL_DATABASE_URL: postgresql://fiscal_ci:ci-only-secret@localhost:5432/fiscal_ci
       DATABASE_URL: postgresql://fiscal_ci:ci-only-secret@localhost:5432/marketplace_ci
       FISCAL_REGISTRATION_ENABLED: "false"
+      FISCAL_STANDALONE_MODE: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -55,5 +57,13 @@ jobs:
           if FISCAL_DATABASE_URL="$DATABASE_URL" node scripts/fiscal-migrate.mjs; then
             echo "Isolation test failed: marketplace database was accepted"; exit 1
           fi
-      - name: Typecheck independent Next.js routes
+      - name: Typecheck shared Fiscal route source
         run: npm --workspace @buy-local-sparta/web exec tsc -- --noEmit --incremental false
+      - name: Validate standalone Fiscal route tree
+        run: node scripts/fiscal-route-isolation.mjs
+      - name: Build standalone Fiscal app, without marketplace runtime credentials
+        working-directory: fiscal/service
+        env:
+          DATABASE_URL: ""
+          POSTGRES_URL: ""
+        run: ../../node_modules/.bin/next build
