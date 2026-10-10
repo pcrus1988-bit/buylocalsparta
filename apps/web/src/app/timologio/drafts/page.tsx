@@ -2,6 +2,7 @@ import Link from "next/link";
 import {redirect} from "next/navigation";
 import {fiscalCsrfValue,fiscalMerchantAccounts,getFiscalActor} from "../../../lib/fiscal-auth";
 import {FiscalConsoleDraftForm} from "../../../components/FiscalConsoleDraftForm";
+import {listFiscalCounterparties} from "../../../lib/fiscal-counterparties";
 import {fiscalInboxFilters,listFiscalMerchantInbox} from "../../../lib/fiscal-draft-inbox";
 export const dynamic="force-dynamic";
 
@@ -24,7 +25,9 @@ export default async function FiscalDraftInbox({searchParams}:{
  const [accounts,params,csrf]=await Promise.all([fiscalMerchantAccounts(actor),searchParams,fiscalCsrfValue()]);
  const account=params.organizationId?accounts.find(a=>a.id===params.organizationId):accounts[0];
  const filters=fiscalInboxFilters(params);
- const inbox=account?await listFiscalMerchantInbox(actor,account.id,filters):{rows:[],nextCursor:null};
+ const [inbox,counterparties]=account?await Promise.all([
+  listFiscalMerchantInbox(actor,account.id,filters),listFiscalCounterparties(actor,account.id)
+ ]):[{rows:[],nextCursor:null},[]];
  const nextParams=new URLSearchParams();
  if(account)nextParams.set("organizationId",account.id);
  if(filters.lane)nextParams.set("lane",filters.lane);
@@ -32,7 +35,7 @@ export default async function FiscalDraftInbox({searchParams}:{
  if(inbox.nextCursor)nextParams.set("after",inbox.nextCursor);
  return <main className="fiscal-shell"><div className="fiscal-wrap">
   <header className="fiscal-topbar"><Link href="/timologio" className="fiscal-brand">KONTA MOY <span>FISCAL</span></Link>
-   <nav><Link href="/timologio/dashboard">Οι επιχειρήσεις μου</Link><Link href="/timologio/developers">Διασυνδέσεις</Link></nav>
+   <nav><Link href="/timologio/dashboard">Οι επιχειρήσεις μου</Link><Link href="/timologio/counterparties">Αντισυμβαλλόμενοι</Link><Link href="/timologio/developers">Διασυνδέσεις</Link></nav>
   </header>
   <section className="fiscal-hero"><div className="fiscal-kicker">Merchant workspace · Test records</div>
    <h1>Πρόχειρα παραστατικά</h1>
@@ -60,7 +63,7 @@ export default async function FiscalDraftInbox({searchParams}:{
       <button type="submit" className="fiscal-button">Εφαρμογή φίλτρων</button>
      </form>
      {account.status==="approved"&&["owner","accountant"].includes(account.role)&&csrf
-      ?<FiscalConsoleDraftForm key={account.id} organizationId={account.id} csrfToken={csrf}/>
+      ?<FiscalConsoleDraftForm key={account.id} organizationId={account.id} csrfToken={csrf} counterparties={counterparties}/>
       :<p className="fiscal-muted">Η δημιουργία δοκιμαστικών drafts διατίθεται μετά την έγκριση της επιχείρησης, σε ιδιοκτήτη ή εξουσιοδοτημένο λογιστή.</p>}
      <div className="fiscal-section">
       <h2>Εγγραφές · {account.legal_name}</h2>
