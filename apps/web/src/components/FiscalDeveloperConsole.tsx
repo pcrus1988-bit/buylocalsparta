@@ -22,7 +22,7 @@ export function FiscalDeveloperConsole({organizationId,csrfToken,initialClients}
     setClients(items=>[{id:result.id!,label,kind,tokenHint:result.token!.slice(0,18),expiresAt:result.expiresAt??"",revokedAt:null},...items]);
    }
    if(data.action==="revoke"){setClients(items=>items.map(item=>item.id===data.clientId?{...item,revokedAt:new Date().toISOString()}:item));setSecret("");}
-   router.refresh();
+   if(data.action==="revoke")router.refresh();
   }catch(cause){setError(cause instanceof Error?cause.message:"Δεν ολοκληρώθηκε η ενέργεια");}
   finally{setBusy(false);}
  }
