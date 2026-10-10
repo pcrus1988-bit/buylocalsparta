@@ -4,6 +4,9 @@ import {fiscalMerchantAccounts,getFiscalActor} from "../../../../lib/fiscal-auth
 import {getFiscalMerchantDraft} from "../../../../lib/fiscal-draft-inbox";
 export const dynamic="force-dynamic";
 
+const euro=(minor:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(minor/100);
+const quantity=(milli:number)=>new Intl.NumberFormat("el-GR",{maximumFractionDigits:3}).format(milli/1000);
+const percent=(basisPoints:number)=>new Intl.NumberFormat("el-GR",{maximumFractionDigits:2}).format(basisPoints/100)+"%";
 const lanes:Record<string,string>={b2c:"B2C · Λιανική",pos:"POS · Κατάστημα",b2b:"B2B · Επιχειρήσεις",b2g:"B2G · Δημόσιο"};
 const sources:Record<string,string>={console:"FISCAL Console",external_api:"Test Developer API",marketplace:"KONTA MOY"};
 export default async function FiscalDraftDetail({
@@ -43,6 +46,24 @@ export default async function FiscalDraftDetail({
     <div><dt>Κατάσταση</dt><dd>Draft · Δεν εκδόθηκε</dd></div>
     <div><dt>Αναγνωριστικό draft</dt><dd><code>{draft.id}</code></dd></div>
    </dl>
+   {draft.lines.length>0?<>
+    <h2>Αναλυτικές γραμμές μη φορολογικής δοκιμής</h2>
+    <p className="fiscal-muted">Στιγμιότυπο γραμμών όπως επανυπολογίστηκε στον server κατά την καταχώριση. Οι συντελεστές καταχωρίστηκαν από τον χρήστη και δεν έχουν ελεγχθεί ως νόμιμοι.</p>
+    <div style={{overflowX:"auto"}}><table className="fiscal-table" style={{tableLayout:"auto"}}>
+     <thead><tr><th>Είδος / υπηρεσία</th><th>Ποσότητα</th><th>Καθαρή τιμή/μονάδα</th><th>Έκπτωση</th><th>Ενδεικτικός ΦΠΑ</th><th>Καθαρό</th><th>ΦΠΑ</th><th>Σύνολο</th></tr></thead>
+     <tbody>{draft.lines.map((line,n)=><tr key={n}>
+      <td>{line.description}</td><td>{quantity(line.quantityMilli)}</td><td>{euro(line.unitPriceMinor)}</td>
+      <td>{percent(line.discountBps)}</td><td>{percent(line.vatRateBps)}</td>
+      <td>{euro(line.netMinor)}</td><td>{euro(line.vatMinor)}</td><td>{euro(line.grossMinor)}</td>
+     </tr>)}</tbody>
+    </table></div>
+    <div className="fiscal-preview-totals" aria-label="Σύνολα δοκιμής">
+     <span>Καθαρή αξία<strong>{euro(draft.lines.reduce((sum,line)=>sum+line.netMinor,0))}</strong></span>
+     <span>Έκπτωση<strong>{euro(draft.lines.reduce((sum,line)=>sum+line.discountMinor,0))}</strong></span>
+     <span>Ενδεικτικός ΦΠΑ<strong>{euro(draft.lines.reduce((sum,line)=>sum+line.vatMinor,0))}</strong></span>
+     <span>Σύνολο δοκιμής<strong>{euro(draft.lines.reduce((sum,line)=>sum+line.grossMinor,0))}</strong></span>
+    </div>
+   </>:<p className="fiscal-muted">Η παλαιότερη εγγραφή περιλαμβάνει μόνο συνολικό ποσό, χωρίς αναλυτικές γραμμές.</p>}
    <p className="fiscal-muted">Οι εγγραφές είναι μόνο για δοκιμή διασυνδέσεων και ροών. Δεν υπάρχουν ενέργειες έκδοσης, αποστολής, διαγραφής ή μετατροπής σε επίσημο παραστατικό.</p>
   </section>
  </div></main>;
