@@ -1,5 +1,6 @@
 import { fiscalPool } from "./fiscal-runtime";
 import type { FiscalActor } from "./fiscal-auth";
+import type {FiscalCalculatedLine} from "./fiscal-preview-calculator";
 
 export const FISCAL_INBOX_PAGE_SIZE=25;
 export type FiscalInboxLane="b2c"|"pos"|"b2b"|"b2g";
@@ -8,6 +9,10 @@ export type FiscalInboxFilters={lane?:FiscalInboxLane;source?:FiscalInboxSource;
 export type FiscalInboxRow={
   id:string;lane:FiscalInboxLane;source:FiscalInboxSource;external_id:string|null;
   reference:string|null;gross_minor:string|null;created_at:Date;created_at_exact:string;
+};
+export type FiscalInboxDetail=FiscalInboxRow & {
+ lines:FiscalCalculatedLine[];net_minor:string|null;vat_minor:string|null;
+ discount_minor:string|null;calculation_kind:string|null;
 };
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -42,7 +47,22 @@ export async function listFiscalMerchantInbox(
   const query=await fiscalPool().query<FiscalInboxRow>(
     `SELECT d.id,d.lane,d.source,d.external_id,
       left(d.payload->>'reference',120) AS reference,
-      d.payload->>'grossMinor' AS gross_minor,d.created_at,
+      d.payload->>'grossMinor' AS gross_minor,
+      d.payload->>'netMinor' AS net_minor,
+      d.payload->>'vatMinor' AS vat_minor,
+      d.payload->>'discountMinor' AS discount_minor,
+      d.payload->>'calculationKind' AS calculation_kind,
+      COALESCE((
+       SELECT jsonb_agg(jsonb_build_object(
+        'description',l.description,'quantityMilli',l.quantity_milli,
+        'unitPriceMinor',l.unit_price_minor,'vatRateBps',l.vat_rate_bps,
+        'discountBps',l.discount_bps,'beforeDiscountMinor',l.before_discount_minor,
+        'discountMinor',l.discount_minor,'netMinor',l.net_minor,
+        'vatMinor',l.vat_minor,'grossMinor',l.gross_minor
+       ) ORDER BY l.line_no)
+       FROM fiscal_document_intake_lines l
+       WHERE l.organization_id=d.organization_id AND l.draft_id=d.id
+      ),'[]'::jsonb) AS lines,d.created_at,
       to_char(d.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at_exact
      FROM fiscal_document_intakes d
      INNER JOIN fiscal_memberships m ON m.organization_id=d.organization_id AND m.user_id=$2
@@ -63,9 +83,9 @@ export async function listFiscalMerchantInbox(
 /** One read-only document view. Unknown IDs and cross-tenant IDs are indistinguishable. */
 export async function getFiscalMerchantDraft(
   actor:Pick<FiscalActor,"id">,organizationId:string,draftId:string
-):Promise<FiscalInboxRow|null>{
+):Promise<FiscalInboxDetail|null>{
  if(!UUID.test(organizationId)||!UUID.test(draftId)||!UUID.test(actor.id))return null;
- const result=await fiscalPool().query<FiscalInboxRow>(
+ const result=await fiscalPool().query<FiscalInboxDetail>(
    `SELECT d.id,d.lane,d.source,d.external_id,
       left(d.payload->>'reference',120) AS reference,
       d.payload->>'grossMinor' AS gross_minor,d.created_at,
