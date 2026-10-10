@@ -1,6 +1,6 @@
 import {createHash} from "node:crypto";
 import { fiscalPool } from "./fiscal-runtime";
-import { FiscalApiError, type FiscalApiPrincipal } from "./fiscal-api-clients";
+import { FiscalApiError, isFiscalUuid, type FiscalApiPrincipal } from "./fiscal-api-clients";
 import type { FiscalActor } from "./fiscal-auth";
 import {calculateFiscalPreview,type FiscalPreviewResult} from "./fiscal-preview-calculator";
 
@@ -79,7 +79,7 @@ export async function getFiscalDraft(actor:FiscalApiPrincipal,id:string){
  */
 export async function createFiscalConsoleDraft(
  actor:Pick<FiscalActor,"id">,organizationId:string,
- input:{lane:unknown;externalId:unknown;reference:unknown;grossMinor:unknown;items?:unknown}
+ input:{lane:unknown;externalId:unknown;reference:unknown;grossMinor:unknown;items?:unknown;counterpartyId?:unknown}
 ):Promise<{created:boolean;id:string}> {
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(organizationId))
   throw new FiscalApiError("INVALID_ORGANIZATION",400);
@@ -111,8 +111,32 @@ export async function createFiscalConsoleDraft(
     grossMinor:input.grossMinor,currency:"EUR",issuerVatNumber:authorized.rows[0].vat_number},
    authorized.rows[0].vat_number
   );
+  let counterparty:null|{
+   id:string;kind:"business"|"public_body";legalName:string;vatNumber:string;
+   countryCode:"GR";verificationStatus:"unverified"
+  }=null;
+  if(input.counterpartyId!==undefined&&input.counterpartyId!==null&&input.counterpartyId!==""){
+   if(data.lane!=="b2b"&&data.lane!=="b2g")
+    throw new FiscalApiError("COUNTERPARTY_NOT_SUPPORTED_FOR_LANE",400);
+   if(!isFiscalUuid(input.counterpartyId))
+    throw new FiscalApiError("INVALID_COUNTERPARTY_ID",400);
+   const expectedKind=data.lane==="b2b"?"business":"public_body";
+   const row=await db.query<{
+    id:string;kind:"business"|"public_body";legal_name:string;vat_number:string
+   }>(
+    `SELECT id,kind,legal_name,vat_number FROM fiscal_counterparties
+     WHERE organization_id=$1 AND id=$2 AND kind=$3
+     FOR SHARE`,
+    [organizationId,input.counterpartyId,expectedKind]
+   );
+   if(!row.rows[0])throw new FiscalApiError("COUNTERPARTY_NOT_FOUND",404);
+   counterparty={id:row.rows[0].id,kind:row.rows[0].kind,
+    legalName:row.rows[0].legal_name,vatNumber:row.rows[0].vat_number,
+    countryCode:"GR",verificationStatus:"unverified"};
+  }
   const payload={
    reference:data.reference,currency:"EUR",grossMinor:data.grossMinor,
+   ...(counterparty?{counterparty}:{}),
    issuerVatNumber:data.issuerVatNumber,
    ...(simulation?{
     calculationKind:"non_fiscal_test_preview",
