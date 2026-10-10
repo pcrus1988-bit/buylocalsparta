@@ -59,3 +59,21 @@ export async function listFiscalMerchantInbox(
   const rows=query.rows.slice(0,FISCAL_INBOX_PAGE_SIZE);
   return {rows,nextCursor:hasMore?fiscalInboxNextCursor(rows[rows.length-1]):null};
 }
+
+/** One read-only document view. Unknown IDs and cross-tenant IDs are indistinguishable. */
+export async function getFiscalMerchantDraft(
+  actor:Pick<FiscalActor,"id">,organizationId:string,draftId:string
+):Promise<FiscalInboxRow|null>{
+ if(!UUID.test(organizationId)||!UUID.test(draftId)||!UUID.test(actor.id))return null;
+ const result=await fiscalPool().query<FiscalInboxRow>(
+   `SELECT d.id,d.lane,d.source,d.external_id,
+      left(d.payload->>'reference',120) AS reference,
+      d.payload->>'grossMinor' AS gross_minor,d.created_at,
+      to_char(d.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at_exact
+    FROM fiscal_document_intakes d
+    INNER JOIN fiscal_memberships m ON m.organization_id=d.organization_id AND m.user_id=$2
+    INNER JOIN fiscal_users u ON u.id=m.user_id AND u.disabled_at IS NULL
+    WHERE d.organization_id=$1 AND d.id=$3 AND d.status='draft'
+    LIMIT 1`,[organizationId,actor.id,draftId]);
+ return result.rows[0]??null;
+}
