@@ -162,7 +162,7 @@ for (const contract of [
 ]) expect(rootLayout.includes(contract), `Root marketplace AEO schema is missing ${contract}`);
 
 for (const contract of [
-  'title: "Τι είναι το ΚΟΝΤΑ ΜΟΥ Σπάρτη"',
+  'title: "Τι είναι το KONTA MOY"',
   'id="what-is-kontamou"',
   'Το ΚΟΝΤΑ ΜΟΥ είναι πλατφόρμα τοπικού εμπορίου από τη Σπάρτη.',
   'με ένα καλάθι και μία διαδικασία ολοκλήρωσης αγοράς',
