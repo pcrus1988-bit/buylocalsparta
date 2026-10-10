@@ -20,8 +20,17 @@ try{
    if(previous.rows[0].sha256!==hash)throw new Error("Fiscal migration checksum mismatch: "+name);
    console.log("verified",name);continue;
   }
-  await db.query(source);
-  await db.query("INSERT INTO fiscal_schema_migrations(name,sha256) VALUES($1,$2)",[name,hash]);
+  // SQL files have legacy outer BEGIN/COMMIT wrappers. Execute their bodies
+  // in a transaction which also records the checksum, never separately.
+  // This prevents a partially applied version from lacking migration history.
+  const envelope=source.match(/^\s*BEGIN;\s*([\s\S]*?)\s*COMMIT;\s*$/i);
+  if(!envelope)throw new Error("Fiscal migration must have BEGIN/COMMIT envelope: "+name);
+  await db.query("BEGIN");
+  try{
+   await db.query(envelope[1]);
+   await db.query("INSERT INTO fiscal_schema_migrations(name,sha256) VALUES($1,$2)",[name,hash]);
+   await db.query("COMMIT");
+  }catch(e){await db.query("ROLLBACK").catch(()=>undefined);throw e;}
   console.log("applied",name);
  }
 }finally{
