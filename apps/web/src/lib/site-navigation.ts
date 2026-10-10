@@ -131,6 +131,8 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/timologio/login",
   "/timologio/register",
   "/timologio/dashboard",
+  "/timologio/developers",
+  "/timologio/marketplace-link",
   "/timologio-admin",
   "/timologio-admin/login",
   "/cart",
