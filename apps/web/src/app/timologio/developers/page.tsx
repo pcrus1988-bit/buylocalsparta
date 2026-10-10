@@ -26,6 +26,7 @@ export default async function Developers({searchParams}:{searchParams:Promise<{o
     </label><button className="fiscal-button" type="submit">Επιλογή</button>
    </form>
    <FiscalMarketplaceLinkConsole key={account.id+":marketplace"} organizationId={account.id} csrfToken={csrf} verified={account.status==="approved"}
+    marketplaceLinkUrl={(process.env.FISCAL_MARKETPLACE_BASE_URL||"https://kontamou.site").replace(/\/$/,"")+"/timologio/marketplace-link"}
     initialLinks={links.map(link=>({id:link.id,marketplace_vendor_public_id:link.marketplace_vendor_public_id,issuer_vat_number:link.issuer_vat_number,
       linked_at:String(link.linked_at),revoked_at:link.revoked_at?String(link.revoked_at):null}))}/>
    <hr style={{margin:"26px 0",borderColor:"#dce9e5"}}/>
