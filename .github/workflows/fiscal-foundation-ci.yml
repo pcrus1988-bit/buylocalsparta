@@ -46,6 +46,8 @@ jobs:
         with:
           node-version: 24
       - run: npm ci --ignore-scripts
+      - name: Inspect production dependency advisories (review gate)
+        run: node scripts/fiscal-security-audit.mjs
       - name: Create separate marketplace database for isolation validation
         run: psql "$FISCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE marketplace_ci"
       - name: Migrate only the dedicated fiscal database
