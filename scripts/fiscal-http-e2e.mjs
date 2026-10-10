@@ -61,8 +61,10 @@ try{
   [orgId,ownerId,otherId,outsiderId]);
 
  const port=await freePort();
- const base="http://127.0.0.1:"+port;
- server=spawn(process.execPath,["../../node_modules/next/dist/bin/next","start","-H","127.0.0.1","-p",String(port)],{
+ // Next.js normalizes production request URLs to localhost in this local runner.
+ // Keep the request Host and Origin equal to that canonical local authority.
+ const base="http://localhost:"+port;
+ server=spawn(process.execPath,["../../node_modules/next/dist/bin/next","start","-H","localhost","-p",String(port)],{
   cwd:"fiscal/service",
   env:{
    ...process.env,DATABASE_URL:"",POSTGRES_URL:"",
