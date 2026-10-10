@@ -163,3 +163,17 @@ The `/timologio-admin/compliance` page now exposes the initial evidence/referenc
 - Rates in AADE guidance depend on the particular good/service and applicable legislative scope, exemptions, date and special geographic rules; the TEDB database likewise requires category/context inspection. These sources must not be translated directly into automatic legal tax classifications.
 
 For an eventual **production** engine: archive each legally operative primary text and official technical specification by hash, record effective dates and supersession, model taxable-supply facts and exclusions, secure accountant/legal approval with segregation of duties, record decision provenance, and complete provider certification. Never enable fiscal issuance based solely on this internal atlas.
+
+## Milestone 14 — full standalone HTTP acceptance against disposable PostgreSQL (2026-10-10)
+
+To verify the independent FISCAL application beyond TypeScript checks and direct SQL, `scripts/fiscal-http-e2e.mjs` now boots the **built production-mode FISCAL Next.js service** on localhost in GitHub Actions, using synthetic test merchant records in disposable PostgreSQL 17. It is integrated into `Fiscal Foundation CI` after the standalone production build.
+
+- **Hard fail-closed scope:** the test script only runs when `CI=true`, `FISCAL_STANDALONE_MODE=true`, and `FISCAL_DATABASE_URL` points to localhost database `/fiscal_ci`. It cannot run against customer staging or production databases. The spawned standalone service explicitly clears `DATABASE_URL` and `POSTGRES_URL` to prohibit marketplace database access.
+- It seeds two independent approved **synthetic** test companies and users directly into the disposable database. It exercises the actual `POST /timologio/api/auth` login with scrypt test passwords, validates session and CSRF cookies, denies public registration, and rejects unauthenticated, wrong-origin or wrong-CSRF requests.
+- It calls the real authenticated `POST /timologio/api/console/preview`, persists an unverified synthetic business counterparty with `POST /timologio/api/console/counterparties`, and checks that cross-tenant counterparty creation is forbidden.
+- It creates a B2B itemized test draft through `POST /timologio/api/console/drafts`, verifies idempotent replay, rejects mismatched calculation totals, cross-tenant draft writes and attempts to associate a counterparty from another tenant.
+- It visits the actual SSR draft detail page, verifies stored line-item and counterparty presentation and the legally non-issuable preflight warning, and requires a cross-tenant request to return 404. The SQL readback checks one draft row, one line, one corresponding audit event, and **zero issued documents**.
+- Finally it logs out and asserts that the revoked session can no longer use the API. Test entities are synthetic and the entire GitHub Actions PostgreSQL instance is disposable.
+- **This is not a live staging integration test.** The protected Vercel project still requires a distinct, approved EU database, secret configuration and live staging tenant verification. Neither the two existing non-FISCAL Supabase projects nor the marketplace database may be reused. Creating a new billable Supabase project requires selection of the organization and explicit cost confirmation.
+
+`FISCAL_REGISTRATION_ENABLED`, live marketplace synchronization and fiscal issuance remain disabled. No main merge.
