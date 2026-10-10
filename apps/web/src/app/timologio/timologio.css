@@ -32,3 +32,6 @@
 .fiscal-muted{color:#557077}
 .fiscal-on-dark{color:#fff}
 @media(max-width:640px){.fiscal-shell{padding:20px 18px 60px}.fiscal-panel{padding:18px}.fiscal-topbar{padding-bottom:25px}.fiscal-table{font-size:.8rem}}
+
+.fiscal-form select{background:#fff;color:#102d34;border:1px solid #a9c3bd;padding:12px;border-radius:8px;width:100%}
+.fiscal-form button:focus-visible,.fiscal-button:focus-visible,.fiscal-form input:focus-visible,.fiscal-form select:focus-visible{outline:3px solid #50a797;outline-offset:2px}
