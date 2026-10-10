@@ -2,8 +2,8 @@
 import {useState} from "react";
 import {useRouter} from "next/navigation";
 type LinkRecord={id:string;marketplace_vendor_public_id:string;issuer_vat_number:string;linked_at:string;revoked_at:string|null};
-export function FiscalMarketplaceLinkConsole({organizationId,csrfToken,verified,initialLinks}:{
- organizationId:string;csrfToken:string;verified:boolean;initialLinks:LinkRecord[];
+export function FiscalMarketplaceLinkConsole({organizationId,csrfToken,verified,initialLinks,marketplaceLinkUrl}:{
+ organizationId:string;csrfToken:string;verified:boolean;initialLinks:LinkRecord[];marketplaceLinkUrl:string;
 }){
  const router=useRouter();
  const [code,setCode]=useState(""),[expires,setExpires]=useState("");
@@ -35,7 +35,7 @@ export function FiscalMarketplaceLinkConsole({organizationId,csrfToken,verified,
      <p style={{fontFamily:"monospace",overflowWrap:"anywhere",margin:"12px 0"}}>{code}</p>
      <p>Λήξη: {expires?new Date(expires).toLocaleString("el-GR"):"—"}</p>
      <button className="fiscal-button" type="button" onClick={()=>navigator.clipboard.writeText(code)}>Αντιγραφή</button>
-     <p>Συνδεθείτε με τον λογαριασμό ιδιοκτήτη καταστήματος και εισαγάγετέ τον στην <a href="/timologio/marketplace-link">επιβεβαίωση marketplace</a>.</p>
+     <p>Συνδεθείτε με τον λογαριασμό ιδιοκτήτη καταστήματος και εισαγάγετέ τον στην <a href={marketplaceLinkUrl}>επιβεβαίωση marketplace</a>.</p>
     </div>}
    </>}
   {error&&<p className="fiscal-error" role="alert">{error}</p>}
