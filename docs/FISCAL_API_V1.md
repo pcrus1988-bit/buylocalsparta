@@ -55,3 +55,8 @@ The marketplace-only bridge module is \`apps/web/src/lib/fiscal-marketplace-conn
 The bridge refuses calls for a different issuer identity and returns a draft ID only; it cannot turn a marketplace order into a legal invoice. The seller-of-record is the party contractually liable to the buyer; a vendor fulfilling the order is not automatically its fiscal issuer.
 
 Real account linking, merchant verification, formal consent, production OAuth, independent web deployment, signed webhooks, reconciliation and certified provider-specific issuance are separate tracked milestones.
+
+
+### Pairing integrity for the optional marketplace connector
+
+The input to `sendMarketplaceFiscalPreview` includes `marketplaceVendorPublicId`, the active KONTA MOY vendor identifier, in addition to the legal seller AFM, order reference and amount. Before creating any **draft**, the bridge requests an HMAC-authenticated live link status from the FISCAL service. Missing, revoked, suspended or unapproved links fail closed. This is a non-fiscal preview connector only, not an activated marketplace order worker.
