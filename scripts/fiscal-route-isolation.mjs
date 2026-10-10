@@ -26,12 +26,13 @@ const forbiddenInFiscal=[
 ];
 for(const path of forbiddenInFiscal)assert.ok(!routes.includes(path),"Forbidden Fiscal route: "+path);
 for(const expected of [
- "timologio/page.tsx","timologio/drafts/page.tsx","timologio/api/v1/drafts/route.ts",
+ "timologio/page.tsx","timologio/drafts/page.tsx","timologio/drafts/[id]/page.tsx",
+ "timologio/api/console/drafts/route.ts","timologio/api/v1/drafts/route.ts",
  "timologio-admin/page.tsx","timologio-admin/sso/callback/route.ts"
 ])assert.ok(routes.includes(expected),"Missing Fiscal route: "+expected);
 // Route re-exports do not inherit Next.js static segment configuration.
 for(const route of [
- "timologio/dashboard/page.tsx","timologio/developers/page.tsx","timologio/drafts/page.tsx",
+ "timologio/dashboard/page.tsx","timologio/developers/page.tsx","timologio/drafts/page.tsx","timologio/drafts/[id]/page.tsx",
  "timologio/login/page.tsx","timologio-admin/page.tsx",
  "timologio-admin/login/page.tsx","timologio-admin/compliance/page.tsx"
 ]){
