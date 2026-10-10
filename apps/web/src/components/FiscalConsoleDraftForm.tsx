@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import {FiscalPreviewWorkbench} from "./FiscalPreviewWorkbench";
+import type {FiscalPreviewResult} from "../lib/fiscal-preview-calculator";
 import {useRef,useState} from "react";
 import type {FormEvent} from "react";
 import {useRouter} from "next/navigation";
@@ -29,30 +30,33 @@ export function FiscalConsoleDraftForm({organizationId,csrfToken}:{
  const [lane,setLane]=useState<Lane>("b2b");
  const [reference,setReference]=useState("");
  const [amount,setAmount]=useState("");
+ const [appliedPreview,setAppliedPreview]=useState<FiscalPreviewResult|null>(null);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
  const [result,setResult]=useState<Result|null>(null);
  const externalIdRef=useRef<string|null>(null);
- const edit=()=>{externalIdRef.current=null;setError("");setResult(null)};
+ const edit=()=>{externalIdRef.current=null;setError("");setResult(null);setAppliedPreview(null)};
  async function submit(event:FormEvent<HTMLFormElement>){
   event.preventDefault();
   const grossMinor=eurosToMinor(amount);
   if(grossMinor===null){setError("Εισαγάγετε έγκυρο ποσό EUR με έως δύο δεκαδικά ψηφία.");return}
   if(!reference.trim()||reference.trim().length>120){setError(messages.INVALID_REFERENCE);return}
+  if(appliedPreview&&appliedPreview.totals.grossMinor!==grossMinor){setError("Το δοκιμαστικό σύνολο δεν συμφωνεί με τις γραμμές.");return}
   setBusy(true);setError("");setResult(null);
   const externalId=externalIdRef.current??("CONSOLE-"+crypto.randomUUID());
   externalIdRef.current=externalId;
   try{
    const response=await fetch("/timologio/api/console/drafts",{
     method:"POST",headers:{"content-type":"application/json","x-csrf-token":csrfToken},
-    body:JSON.stringify({organizationId,lane,externalId,reference:reference.trim(),grossMinor}),
+    body:JSON.stringify({organizationId,lane,externalId,reference:reference.trim(),grossMinor,
+     ...(appliedPreview?{items:appliedPreview.items.map(({description,quantityMilli,unitPriceMinor,vatRateBps,discountBps})=>({description,quantityMilli,unitPriceMinor,vatRateBps,discountBps}))}:{})}),
     cache:"no-store",signal:AbortSignal.timeout(12000)
    });
    const payload=await response.json() as {error?:string;id?:string;created?:boolean;status?:string};
    if(!response.ok||!payload.id||payload.status!=="draft")
     throw new Error(messages[payload.error??""]??"Η αποθήκευση του δοκιμαστικού draft απέτυχε.");
    setResult({id:payload.id,created:payload.created===true});
-   externalIdRef.current=null;setReference("");setAmount("");
+   externalIdRef.current=null;setReference("");setAmount("");setAppliedPreview(null);
    router.refresh();
   }catch(cause){
    setError(cause instanceof Error?cause.message:"Η αποθήκευση απέτυχε.");
@@ -78,10 +82,12 @@ export function FiscalConsoleDraftForm({organizationId,csrfToken}:{
    </label>
    <button type="submit" className="fiscal-button" disabled={busy}>{busy?"Αποθήκευση…":"Αποθήκευση δοκιμής"}</button>
   </form>
-  <FiscalPreviewWorkbench key={organizationId+":"+lane} csrfToken={csrfToken} lane={lane} onApplyGrossMinor={minor=>{
-    setAmount(Math.floor(minor/100)+","+String(minor%100).padStart(2,"0"));
+  <FiscalPreviewWorkbench key={organizationId+":"+lane} csrfToken={csrfToken} lane={lane} onApplyPreview={preview=>{
     edit();
+    setAmount(Math.floor(preview.totals.grossMinor/100)+","+String(preview.totals.grossMinor%100).padStart(2,"0"));
+    setAppliedPreview(preview);
   }}/>
+  {appliedPreview?<p className="fiscal-muted" role="status">{appliedPreview.items.length} γραμμές επισυνάφθηκαν στο δοκιμαστικό draft. Η αποθήκευση θα επανυπολογίσει το σύνολο στον server.</p>:null}
   {error?<p className="fiscal-error" role="alert">{error}</p>:null}
   {result?<p role="status" className="fiscal-muted">Το draft {result.created?"αποθηκεύτηκε":"υπήρχε ήδη"}.
    {" "}<Link href={"/timologio/drafts/"+encodeURIComponent(result.id)+"?organizationId="+encodeURIComponent(organizationId)}>Προβολή εγγραφής</Link>.
