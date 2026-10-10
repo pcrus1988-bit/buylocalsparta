@@ -23,7 +23,27 @@ export async function GET(){
     if(verified.rows[0]?.ready!==true)
       return Response.json({service:"konta-moy-fiscal",state:"schema_not_ready",issuanceEnabled:false},{status:503,headers});
     return Response.json({service:"konta-moy-fiscal",state:"operational_foundation",issuanceEnabled:false},{headers});
-  }catch{
+  }catch(error){
+    // Log only a whitelisted error category. Never log DSNs, usernames,
+    // database hostnames, credentials, query arguments or raw error messages.
+    const code=error&&typeof error==="object"&&"code" in error
+      &&typeof error.code==="string"?error.code:"";
+    const categories:Record<string,string>={
+      "28P01":"authentication_rejected",
+      "3D000":"database_missing",
+      "42501":"database_privilege_denied",
+      "42P01":"schema_missing",
+      "ECONNREFUSED":"network_refused",
+      "ETIMEDOUT":"network_timeout",
+      "ENOTFOUND":"dns_resolution",
+      "EAI_AGAIN":"dns_resolution",
+      "08P01":"pooler_protocol_error",
+      "57P03":"database_unavailable",
+      "ERR_TLS_CERT_ALTNAME_INVALID":"tls_certificate_mismatch",
+      "UNABLE_TO_VERIFY_LEAF_SIGNATURE":"tls_validation_failed",
+      "SELF_SIGNED_CERT_IN_CHAIN":"tls_validation_failed"
+    };
+    console.error("FISCAL_HEALTH_POSTGRES_FAILURE",categories[code]??"unclassified");
     return Response.json({service:"konta-moy-fiscal",state:"database_unreachable",issuanceEnabled:false},{status:503,headers});
   }
 }
