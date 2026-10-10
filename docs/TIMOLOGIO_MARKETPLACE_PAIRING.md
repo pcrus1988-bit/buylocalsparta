@@ -48,3 +48,10 @@ Do not set `FISCAL_SERVICE_BASE_URL` to a marketplace production domain merely t
 ### Acceptance testing
 
 Dedicated Fiscal CI tests prevent linking a pending Fiscal merchant and linking mismatched ΑΦΜ, forbid mutation of legal link identity, and prevent reactivation of revoked links. Typecheck covers the signed backchannel routes. A full two-browser end-to-end flow must be tested after an independently provisioned Fiscal environment and a safely approved **test** organization/vendor identity are available.
+
+
+### Active-link verification before draft synchronization
+
+The optional marketplace preview connector must receive the verified `marketplaceVendorPublicId` from its authoritative order/vendor state and must call the signed backchannel `POST /timologio/api/internal/marketplace-links/status` before sending any non-fiscal draft. The Fiscal service checks the current link, matching legal AFM, and approved organization status in its own database. A revoked link immediately fails the next link-status check.
+
+This draft integration remains disabled unless `FISCAL_MARKETPLACE_DRAFT_SYNC_ENABLED=true`, and no live orders call it. The API test key is separate from the pairing code; neither is a certified fiscal credential.
