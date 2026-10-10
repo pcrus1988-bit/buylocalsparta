@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { governedStaticSeoMetadata } from "../../lib/seo-metadata";
+import { SiteFooter } from "../../components/SiteFooter";
 import { LocationGatewayV2, type LocationGatewayRuntimeHubV2 } from "../../components/LocationGatewayV2";
 import { assertExpansionHubMaster } from "../../lib/expansion-hubs";
 import { getExpansionHubRuntimeSnapshot } from "../../lib/expansion-hub-runtime";
@@ -29,5 +30,10 @@ export default async function ChooseLocationPage() {
     isLive: hub.isLive
   })) as unknown as readonly LocationGatewayRuntimeHubV2[];
 
-  return <LocationGatewayV2 runtimeHubs={publicRuntimeHubs} />;
+  return (
+    <>
+      <LocationGatewayV2 runtimeHubs={publicRuntimeHubs} />
+      <SiteFooter />
+    </>
+  );
 }
