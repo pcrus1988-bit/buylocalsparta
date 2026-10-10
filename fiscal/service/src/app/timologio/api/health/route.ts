@@ -8,7 +8,16 @@ export async function GET(){
   if(!fiscalDatabaseConfigured())
     return Response.json({service:"konta-moy-fiscal",state:"database_not_provisioned",issuanceEnabled:false},{status:503,headers});
   try{
-    await fiscalPool().query("SELECT 1 AS healthy");
+    // A reachable PostgreSQL server is NOT sufficient for safe operation.
+    // Verify the independently applied baseline AND super-admin SSO schema.
+    const verified=await fiscalPool().query<{ready:boolean}>(
+      "SELECT EXISTS(SELECT 1 FROM fiscal_schema_migrations WHERE name='0007_fiscal_superadmin_sso.sql') "+
+      "AND to_regclass('public.fiscal_document_intakes') IS NOT NULL "+
+      "AND to_regclass('public.fiscal_marketplace_links') IS NOT NULL "+
+      "AND to_regclass('public.fiscal_superadmin_sessions') IS NOT NULL AS ready"
+    );
+    if(verified.rows[0]?.ready!==true)
+      return Response.json({service:"konta-moy-fiscal",state:"schema_not_ready",issuanceEnabled:false},{status:503,headers});
     return Response.json({service:"konta-moy-fiscal",state:"operational_foundation",issuanceEnabled:false},{headers});
   }catch{
     return Response.json({service:"konta-moy-fiscal",state:"database_unreachable",issuanceEnabled:false},{status:503,headers});
