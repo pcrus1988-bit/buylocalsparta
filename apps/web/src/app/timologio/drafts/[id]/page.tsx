@@ -2,6 +2,7 @@ import Link from "next/link";
 import {notFound,redirect} from "next/navigation";
 import {fiscalMerchantAccounts,getFiscalActor} from "../../../../lib/fiscal-auth";
 import {getFiscalMerchantDraft} from "../../../../lib/fiscal-draft-inbox";
+import {reviewFiscalSandboxDraft} from "../../../../lib/fiscal-draft-preflight";
 export const dynamic="force-dynamic";
 
 const euro=(minor:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(minor/100);
@@ -20,6 +21,17 @@ export default async function FiscalDraftDetail({
  if(!account)notFound();
  const draft=await getFiscalMerchantDraft(actor,account.id,id);
  if(!draft)notFound();
+ const preflight=reviewFiscalSandboxDraft({
+  lane:draft.lane,reference:draft.reference,grossMinor:draft.gross_minor,
+  netMinor:draft.net_minor,vatMinor:draft.vat_minor,discountMinor:draft.discount_minor,
+  calculationKind:draft.calculation_kind,lines:draft.lines,counterparty:draft.counterparty,
+  organizationStatus:account.status
+ });
+ const reviewLabel={
+  consistent_test_data:"Η εσωτερική αριθμητική της δοκιμής συμφωνεί.",
+  incomplete_test_data:"Η εγγραφή έχει ελλείψεις δοκιμαστικών στοιχείων.",
+  conflicting_test_data:"Εντοπίστηκε ασυμφωνία στα δοκιμαστικά στοιχεία."
+ }[preflight.status];
  const date=new Intl.DateTimeFormat("el-GR",{timeZone:"Europe/Athens",dateStyle:"medium",timeStyle:"short"}).format(new Date(draft.created_at));
  const value=draft.gross_minor&&/^\d{1,13}$/.test(draft.gross_minor)&&Number(draft.gross_minor)<=1e12
   ?new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(Number(draft.gross_minor)/100):"—";
@@ -34,6 +46,17 @@ export default async function FiscalDraftDetail({
   <section className="fiscal-panel">
    <p className="fiscal-alert" role="status"><strong>Δεν είναι φορολογικό παραστατικό.</strong> Αυτή η εγγραφή δεν έχει εκδοθεί, υπογραφεί, αριθμηθεί ή διαβιβαστεί στην ΑΑΔΕ/myDATA. Δεν αποτελεί έγκυρη απόδειξη ή τιμολόγιο.</p>
    {["b2b","b2g"].includes(draft.lane)?<p className="fiscal-alert">Κατάσταση αντισυμβαλλομένου: {draft.counterparty?"Συνδεδεμένη μη επαληθευμένη δοκιμαστική οντότητα.":"Δεν έχει συνδεθεί αντισυμβαλλόμενος. Το δοκιμαστικό draft είναι ελλιπές."} Δεν αποτελεί νόμιμο έλεγχο ταυτότητας ή φορολογικής εγκυρότητας.</p>:null}
+   <section className="fiscal-section" aria-label="Έλεγχος εσωτερικής συνέπειας δοκιμής">
+    <h2>Προέλεγχος στοιχείων δοκιμής</h2>
+    <p className="fiscal-muted"><strong>{reviewLabel}</strong> Ο έλεγχος είναι μόνο ανάγνωση, επανυπολογίζει τα αποθηκευμένα ποσά και εντοπίζει ελλείψεις. Δεν επιβεβαιώνει φορολογική συμμόρφωση.</p>
+    {preflight.checks.length>0?<ul className="fiscal-preflight-list">
+     {preflight.checks.map(check=><li key={check.code}>
+      <strong>{check.level==="conflict"?"Ασυμφωνία":check.level==="missing"?"Εκκρεμότητα":"Μη επαληθευμένο"}</strong>
+      <span>{check.message}</span>
+     </li>)}
+    </ul>:<p className="fiscal-muted">Δεν εντοπίστηκαν εσωτερικές ασυμφωνίες στον δοκιμαστικό έλεγχο.</p>}
+    <p className="fiscal-alert"><strong>Η φορολογική έκδοση παραμένει απενεργοποιημένη.</strong> Δεν έχει πιστοποιηθεί κανένας κανόνας ΦΠΑ, η ταυτοποίηση αντισυμβαλλομένου, το myDATA, η υπογραφή ή το σύστημα έκδοσης, ακόμη και όταν η αριθμητική της δοκιμής συμφωνεί.</p>
+   </section>
    <h2>Στοιχεία δοκιμής</h2>
    <dl className="fiscal-draft-details">
     <div><dt>Επιχείρηση</dt><dd>{account.legal_name}</dd></div>
