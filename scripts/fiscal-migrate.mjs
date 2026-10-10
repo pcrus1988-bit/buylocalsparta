@@ -23,7 +23,7 @@ try{
   // SQL files have legacy outer BEGIN/COMMIT wrappers. Execute their bodies
   // in a transaction which also records the checksum, never separately.
   // This prevents a partially applied version from lacking migration history.
-  const envelope=source.match(/^\s*BEGIN;\s*([\s\S]*?)\s*COMMIT;\s*$/i);
+  const envelope=source.match(/(?:^|\n)BEGIN;\s*([\s\S]*?)\s*COMMIT;\s*$/i);
   if(!envelope)throw new Error("Fiscal migration must have BEGIN/COMMIT envelope: "+name);
   await db.query("BEGIN");
   try{
