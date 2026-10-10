@@ -24,13 +24,13 @@ export async function POST(request:Request){
   if(!input||typeof input!=="object"||Array.isArray(input))
    return Response.json({error:"INVALID_DRAFT"},{status:400,headers});
   const data=input as Record<string,unknown>;
-  const allowed=["organizationId","lane","externalId","reference","grossMinor","items"];
+  const allowed=["organizationId","lane","externalId","reference","grossMinor","items","counterpartyId"];
   if(Object.keys(data).some(key=>!allowed.includes(key)))
    return Response.json({error:"UNEXPECTED_DRAFT_FIELDS"},{status:400,headers});
   if(typeof data.organizationId!=="string")
    return Response.json({error:"INVALID_ORGANIZATION"},{status:400,headers});
   const result=await createFiscalConsoleDraft(actor,data.organizationId,{
-   lane:data.lane,externalId:data.externalId,reference:data.reference,grossMinor:data.grossMinor,items:data.items
+   lane:data.lane,externalId:data.externalId,reference:data.reference,grossMinor:data.grossMinor,items:data.items,counterpartyId:data.counterpartyId
   });
   return Response.json({...result,status:"draft",fiscalIssuanceEnabled:false},
    {status:result.created?201:200,headers});
