@@ -8,11 +8,14 @@ import {useRouter} from "next/navigation";
 
 type Lane="b2c"|"pos"|"b2b"|"b2g";
 type Result={id:string;created:boolean};
+type TestCounterparty={id:string;kind:"business"|"public_body";legal_name:string;vat_number:string};
 const messages:Record<string,string>={
  CONSOLE_DRAFT_NOT_AUTHORIZED:"Η επιχείρηση πρέπει να είναι εγκεκριμένη και να έχετε ρόλο ιδιοκτήτη ή λογιστή.",
  INVALID_GROSS_AMOUNT:"Ελέγξτε το δοκιμαστικό ποσό.",
  INVALID_REFERENCE:"Η αναφορά πρέπει να περιέχει 1–120 χαρακτήρες.",
  IDEMPOTENCY_CONFLICT:"Υπάρχει σύγκρουση στο αναγνωριστικό αυτής της δοκιμής.",
+ COUNTERPARTY_NOT_FOUND:"Ο αντισυμβαλλόμενος δεν υπάρχει σε αυτήν την επιχείρηση ή δεν ταιριάζει με την κατηγορία.",
+ COUNTERPARTY_NOT_SUPPORTED_FOR_LANE:"Οι αντισυμβαλλόμενοι συνδέονται μόνο σε δοκιμές B2B και B2G.",
  PREVIEW_TOTAL_MISMATCH:"Το συνολικό ποσό δεν συμφωνεί με τον επανυπολογισμό των γραμμών.",
  PREVIEW_AMOUNT_OUT_OF_RANGE:"Το δοκιμαστικό ποσό υπερβαίνει το μέγιστο επιτρεπτό όριο.",
  CSRF_FAILED:"Η συνεδρία έληξε. Ανανεώστε τη σελίδα.",
@@ -25,11 +28,12 @@ function eurosToMinor(input:string):number|null{
  const value=Number(match[1])*100+Number((match[2]??"").padEnd(2,"0"));
  return Number.isSafeInteger(value)&&value>=0&&value<=1e12?value:null;
 }
-export function FiscalConsoleDraftForm({organizationId,csrfToken}:{
- organizationId:string;csrfToken:string;
+export function FiscalConsoleDraftForm({organizationId,csrfToken,counterparties}:{
+ organizationId:string;csrfToken:string;counterparties:TestCounterparty[];
 }){
  const router=useRouter();
  const [lane,setLane]=useState<Lane>("b2b");
+ const [counterpartyId,setCounterpartyId]=useState("");
  const [reference,setReference]=useState("");
  const [amount,setAmount]=useState("");
  const [appliedPreview,setAppliedPreview]=useState<FiscalPreviewResult|null>(null);
@@ -51,6 +55,7 @@ export function FiscalConsoleDraftForm({organizationId,csrfToken}:{
    const response=await fetch("/timologio/api/console/drafts",{
     method:"POST",headers:{"content-type":"application/json","x-csrf-token":csrfToken},
     body:JSON.stringify({organizationId,lane,externalId,reference:reference.trim(),grossMinor,
+     ...(counterpartyId?{counterpartyId}:{}),
      ...(appliedPreview?{items:appliedPreview.items.map(({description,quantityMilli,unitPriceMinor,vatRateBps,discountBps})=>({description,quantityMilli,unitPriceMinor,vatRateBps,discountBps}))}:{})}),
     cache:"no-store",signal:AbortSignal.timeout(12000)
    });
@@ -58,7 +63,7 @@ export function FiscalConsoleDraftForm({organizationId,csrfToken}:{
    if(!response.ok||!payload.id||payload.status!=="draft")
     throw new Error(messages[payload.error??""]??"Η αποθήκευση του δοκιμαστικού draft απέτυχε.");
    setResult({id:payload.id,created:payload.created===true});
-   externalIdRef.current=null;setReference("");setAmount("");setAppliedPreview(null);
+   externalIdRef.current=null;setReference("");setAmount("");setAppliedPreview(null);setCounterpartyId("");
    router.refresh();
   }catch(cause){
    setError(cause instanceof Error?cause.message:"Η αποθήκευση απέτυχε.");
@@ -69,11 +74,21 @@ export function FiscalConsoleDraftForm({organizationId,csrfToken}:{
   <p className="fiscal-muted">Η δημιουργία επιτρέπεται μόνο σε εγκεκριμένες επιχειρήσεις και εξουσιοδοτημένους ιδιοκτήτες/λογιστές. Κάθε εγγραφή είναι μη φορολογική.</p>
   <form className="fiscal-form" onSubmit={submit} style={{maxWidth:"100%",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",alignItems:"end"}}>
    <label>Κατηγορία
-    <select value={lane} onChange={e=>{setLane(e.target.value as Lane);edit()}} disabled={busy}>
+    <select value={lane} onChange={e=>{setLane(e.target.value as Lane);setCounterpartyId("");edit()}} disabled={busy}>
      <option value="b2c">B2C · Λιανική</option><option value="pos">POS · Κατάστημα</option>
      <option value="b2b">B2B · Επιχείρηση</option><option value="b2g">B2G · Δημόσιο</option>
     </select>
    </label>
+   {(lane==="b2b"||lane==="b2g")?<label>Αντισυμβαλλόμενος δοκιμής (προαιρετικό)
+    <select value={counterpartyId} disabled={busy} onChange={e=>{
+      setCounterpartyId(e.target.value);externalIdRef.current=null;setError("");setResult(null);
+    }}>
+     <option value="">Χωρίς αντισυμβαλλόμενο · Ελλιπές test draft</option>
+     {counterparties.filter(x=>x.kind===(lane==="b2b"?"business":"public_body"))
+       .map(x=><option key={x.id} value={x.id}>{x.legal_name} · {x.vat_number} · Μη επαληθευμένο</option>)}
+    </select>
+    <small><Link href={"/timologio/counterparties?organizationId="+encodeURIComponent(organizationId)}>Προσθήκη δοκιμαστικού αντισυμβαλλομένου</Link></small>
+   </label>:null}
    <label>Αναφορά δοκιμής
     <input value={reference} onChange={e=>{setReference(e.target.value);externalIdRef.current=null;setError("");setResult(null)}}
      maxLength={120} required placeholder="π.χ. ΠΡΟΧΕΙΡΟ-001" disabled={busy}/>
