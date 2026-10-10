@@ -22,6 +22,11 @@ try{
  await db.query("SAVEPOINT reject_audit_edit");
  await assert.rejects(()=>db.query("UPDATE fiscal_audit_events SET action='tampered' WHERE id=$1",[event.rows[0].id]));
  await db.query("ROLLBACK TO SAVEPOINT reject_audit_edit");
+ const certification=await db.query("SELECT lane,count(*)::int AS n FROM fiscal_certification_controls GROUP BY lane ORDER BY lane");
+ assert.deepEqual(certification.rows.map(r=>r.lane),["b2b","b2c","b2g","core","pos"]);
+ assert.ok(certification.rows.every(row=>row.n>=4));
+ const approval=await db.query("SELECT count(*)::int AS count FROM fiscal_certification_controls WHERE regulator_approved");
+ assert.equal(approval.rows[0].count,0);
  // FISCAL API keys are tenant-bound, and only non-fiscal drafts exist.
  const apiKey=await db.query("INSERT INTO fiscal_api_clients(organization_id,created_by,label,kind,token_hash,token_hint,expires_at) VALUES($1,$2,'CI smoke key','external_erp',$3,'kmf_test_ci',now()+interval '30 days') RETURNING id",[oid,uid,'f'.repeat(64)]);
  assert.ok(apiKey.rows[0].id);
