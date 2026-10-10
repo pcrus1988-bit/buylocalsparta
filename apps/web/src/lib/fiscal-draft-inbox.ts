@@ -47,22 +47,7 @@ export async function listFiscalMerchantInbox(
   const query=await fiscalPool().query<FiscalInboxRow>(
     `SELECT d.id,d.lane,d.source,d.external_id,
       left(d.payload->>'reference',120) AS reference,
-      d.payload->>'grossMinor' AS gross_minor,
-      d.payload->>'netMinor' AS net_minor,
-      d.payload->>'vatMinor' AS vat_minor,
-      d.payload->>'discountMinor' AS discount_minor,
-      d.payload->>'calculationKind' AS calculation_kind,
-      COALESCE((
-       SELECT jsonb_agg(jsonb_build_object(
-        'description',l.description,'quantityMilli',l.quantity_milli,
-        'unitPriceMinor',l.unit_price_minor,'vatRateBps',l.vat_rate_bps,
-        'discountBps',l.discount_bps,'beforeDiscountMinor',l.before_discount_minor,
-        'discountMinor',l.discount_minor,'netMinor',l.net_minor,
-        'vatMinor',l.vat_minor,'grossMinor',l.gross_minor
-       ) ORDER BY l.line_no)
-       FROM fiscal_document_intake_lines l
-       WHERE l.organization_id=d.organization_id AND l.draft_id=d.id
-      ),'[]'::jsonb) AS lines,d.created_at,
+      d.payload->>'grossMinor' AS gross_minor,d.created_at,
       to_char(d.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at_exact
      FROM fiscal_document_intakes d
      INNER JOIN fiscal_memberships m ON m.organization_id=d.organization_id AND m.user_id=$2
@@ -88,7 +73,22 @@ export async function getFiscalMerchantDraft(
  const result=await fiscalPool().query<FiscalInboxDetail>(
    `SELECT d.id,d.lane,d.source,d.external_id,
       left(d.payload->>'reference',120) AS reference,
-      d.payload->>'grossMinor' AS gross_minor,d.created_at,
+      d.payload->>'grossMinor' AS gross_minor,
+      d.payload->>'netMinor' AS net_minor,
+      d.payload->>'vatMinor' AS vat_minor,
+      d.payload->>'discountMinor' AS discount_minor,
+      d.payload->>'calculationKind' AS calculation_kind,
+      COALESCE((
+       SELECT jsonb_agg(jsonb_build_object(
+        'description',l.description,'quantityMilli',l.quantity_milli,
+        'unitPriceMinor',l.unit_price_minor,'vatRateBps',l.vat_rate_bps,
+        'discountBps',l.discount_bps,'beforeDiscountMinor',l.before_discount_minor,
+        'discountMinor',l.discount_minor,'netMinor',l.net_minor,
+        'vatMinor',l.vat_minor,'grossMinor',l.gross_minor
+       ) ORDER BY l.line_no)
+       FROM fiscal_document_intake_lines l
+       WHERE l.organization_id=d.organization_id AND l.draft_id=d.id
+      ),'[]'::jsonb) AS lines,d.created_at,
       to_char(d.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at_exact
     FROM fiscal_document_intakes d
     INNER JOIN fiscal_memberships m ON m.organization_id=d.organization_id AND m.user_id=$2
