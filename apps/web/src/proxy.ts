@@ -23,7 +23,7 @@ const DATABASE_RECOVERY_CRON_PATHS = [
 ] as const;
 
 const REDIRECT_PROTECTED_ROOTS = [
-  "/api", "/admin", "/account", "/daily", "/checkout", "/cart", "/choose-location",
+  "/api", "/admin", "/timologio", "/timologio-admin", "/account", "/daily", "/checkout", "/cart", "/choose-location",
   "/login", "/register", "/verify-email", "/confirm-email-change", "/forgot-password", "/reset-password", "/join/apply",
   "/vendor/login", "/vendor/advice", "/vendor/analytics", "/vendor/catalog", "/vendor/daily-access", "/vendor/finance",
   "/vendor/notifications", "/vendor/orders", "/vendor/pickup", "/vendor/reports", "/vendor/returns", "/vendor/shipping",
