@@ -7,7 +7,7 @@ export type FiscalInboxSource="console"|"external_api"|"marketplace";
 export type FiscalInboxFilters={lane?:FiscalInboxLane;source?:FiscalInboxSource;after?:string};
 export type FiscalInboxRow={
   id:string;lane:FiscalInboxLane;source:FiscalInboxSource;external_id:string|null;
-  reference:string|null;gross_minor:string|null;created_at:Date;
+  reference:string|null;gross_minor:string|null;created_at:Date;created_at_exact:string;
 };
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -21,13 +21,14 @@ function parseAfter(token:string|undefined):{createdAt:string;id:string}|null {
   try {
     const raw=Buffer.from(token,"base64url").toString("utf8");
     const [createdAt,id,...extra]=raw.split("|");
-    if(extra.length||!UUID.test(id??"")||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(createdAt??"")||
-      !Number.isFinite(Date.parse(createdAt))||new Date(createdAt).toISOString()!==createdAt)return null;
+    if(extra.length||!UUID.test(id??"")||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/.test(createdAt??"")||
+      !Number.isFinite(Date.parse(createdAt.slice(0,23)+"Z"))||
+      new Date(createdAt.slice(0,23)+"Z").toISOString()!==createdAt.slice(0,23)+"Z")return null;
     return {createdAt,id};
   }catch{return null;}
 }
 export function fiscalInboxNextCursor(row:FiscalInboxRow):string {
-  return Buffer.from(new Date(row.created_at).toISOString()+"|"+row.id,"utf8").toString("base64url");
+  return Buffer.from(row.created_at_exact+"|"+row.id,"utf8").toString("base64url");
 }
 
 /** Never load drafts by org alone. Membership is checked by PostgreSQL for every query. */
@@ -41,7 +42,8 @@ export async function listFiscalMerchantInbox(
   const query=await fiscalPool().query<FiscalInboxRow>(
     `SELECT d.id,d.lane,d.source,d.external_id,
       left(d.payload->>'reference',120) AS reference,
-      d.payload->>'grossMinor' AS gross_minor,d.created_at
+      d.payload->>'grossMinor' AS gross_minor,d.created_at,
+      to_char(d.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at_exact
      FROM fiscal_document_intakes d
      INNER JOIN fiscal_memberships m ON m.organization_id=d.organization_id AND m.user_id=$2
      INNER JOIN fiscal_users u ON u.id=m.user_id AND u.disabled_at IS NULL
