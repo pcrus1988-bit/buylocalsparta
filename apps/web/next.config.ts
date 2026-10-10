@@ -26,6 +26,13 @@ const CONTENT_SECURITY_POLICY = [
   "object-src 'none'"
 ].join("; ");
 
+// Only the marketplace's authenticated Fiscal SSO handoff may POST a form to the
+// independently hosted Fiscal service. No cross-origin forms are allowed elsewhere.
+const FISCAL_SSO_ORIGIN=normalizedOrigin(process.env.FISCAL_SERVICE_BASE_URL);
+const FISCAL_HANDOFF_CSP=FISCAL_SSO_ORIGIN?
+  CONTENT_SECURITY_POLICY.replace("form-action 'self'",`form-action 'self' ${FISCAL_SSO_ORIGIN}`):
+  CONTENT_SECURITY_POLICY;
+
 const SECURITY_HEADERS = [
   { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -174,6 +181,16 @@ const nextConfig: NextConfig = {
         source: "/(.*)",
         headers: [...SECURITY_HEADERS]
       },
+      ...(FISCAL_SSO_ORIGIN ? [{
+        source: "/admin/fiscal-access",
+        headers: [
+          {key:"Content-Security-Policy",value:FISCAL_HANDOFF_CSP},
+          {key:"Referrer-Policy",value:"no-referrer"},
+          {key:"Cache-Control",value:"private, no-store"}
+        ]
+      }] : []),
+      {source:"/timologio/:path*",headers:[...SEARCH_EXCLUDED_HEADERS]},
+      {source:"/timologio-admin/:path*",headers:[...SEARCH_EXCLUDED_HEADERS]},
       ...SEARCH_EXCLUDED_SOURCES.map((source) => ({ source, headers: [...SEARCH_EXCLUDED_HEADERS] }))
     ];
   }
