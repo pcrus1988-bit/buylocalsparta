@@ -31,7 +31,7 @@ export default async function FiscalAdmin(){
    </div>
   </section>
   <section className="fiscal-panel fiscal-section" style={{marginTop:20}}>
-   <h2>Parallel licensing workstreams</h2>
+   <h2>Parallel licensing workstreams</h2><p><Link className="fiscal-button" href="/timologio-admin/compliance">Open certification workboard</Link></p>
    <div className="fiscal-grid">{fiscalLanes.map(lane=><article key={lane.id} className="fiscal-card">
     <small>{lane.id.toUpperCase()}</small><h3>{lane.title}</h3><p>{lane.detail}</p>
     <p><strong>Foundation in development</strong></p></article>)}</div>
