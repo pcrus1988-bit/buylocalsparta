@@ -137,3 +137,16 @@ Production requires an independently reviewed tax-rule/versioning catalogue with
 - Dedicated CI asserts registration uniqueness, cross-tenant lookup denial, wrong-kind lookup denial, RLS, mutation refusal, and independent app route isolation. The health endpoint now requires migration `0010`.
 
 **Caution:** synthetic test entities only. Do not enter real customers or personal data into protected staging. A separately planned production-grade counterparty registry will need GDPR retention/correction/deletion procedures, legal identity verification, public-sector routing identifiers, accessibility review, and a provisioned independent FISCAL database.
+
+## Milestone 12 — deterministic read-only test-draft preflight (2026-10-10)
+
+The sandbox detail route `/timologio/drafts/[id]` now displays a deterministic, **read-only test data-integrity review**. No write endpoint, document status transition, regulatory approval or database migration is introduced.
+
+- Pure engine `apps/web/src/lib/fiscal-draft-preflight.ts` operates only on the specific draft already loaded by the existing membership-scoped query. It cannot inspect other organizations, access the marketplace DB or call tax APIs.
+- The review replays the independent integer/BigInt calculator against frozen item snapshots, checks each saved line amount and the draft-level net/tax/discount/gross totals, and flags malformed or missing amounts, unsupported metadata and lack of reference.
+- Test completeness rules flag a missing B2B/B2G counterparty, a mismatched business/public-body lane, an unexpected counterparty on B2C/POS, unapproved merchant organizations and lack of itemized data. Legacy amount-only drafts are reported as *incomplete*, not as corrupt, preserving compatibility.
+- The result is one of `consistent_test_data`, `incomplete_test_data` or `conflicting_test_data`, and always includes `fiscalIssuanceAllowed:false`, `taxClassificationVerified:false`, `identityVerified:false`, `legalReviewCompleted:false`. Consistent test arithmetic is never presented as legal eligibility or a certified invoice.
+- The Greek detail page shows actionable field discrepancies and keeps a prominent non-fiscal warning. The evaluator does **not** persist a score/status or change existing immutable audit trails.
+- Dedicated CI runs `fiscal-draft-preflight.test.ts` including line tampering, corrupt subtotals, missing reference/counterparty/lines, wrong lane, spoofed `verified` identity, absent amounts, pending merchant and zero-valued simulations; full TypeScript, DB and standalone Next.js checks remain in place.
+
+Outstanding independent DB provisioning, certified provider workflow, correct Greek tax law determinations, regulator approvals, actual identity checks and GDPR record lifecycle remain release blockers. No production merge or live issuance.
