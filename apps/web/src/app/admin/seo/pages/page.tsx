@@ -43,8 +43,8 @@ export default async function AdminSeoPagesPage() {
       </div>
       <aside className={data.metrics.withCriticalIssues || data.metrics.expectedMissing ? "dashboard-health-card needs-attention" : "dashboard-health-card"}>
         <span>Active governed URLs</span>
-        <strong>{data.metrics.active}</strong>
-        <p>{data.metrics.withOpenIssues} with open issues · {data.metrics.expectedMissing} missing from sitemap</p>
+        <strong>{data.persistenceAvailable ? data.metrics.active : "Unavailable"}</strong>
+        <p>{data.persistenceAvailable ? `${data.metrics.withOpenIssues} sampled URLs with open issues · ${data.metrics.expectedMissing} sampled URLs missing from sitemap` : "Registry database read failed; no URL deletion is implied."}</p>
       </aside>
     </section>
 
@@ -60,7 +60,7 @@ export default async function AdminSeoPagesPage() {
     </section>
 
     <WorkspaceMetricStrip items={[
-      { label: "Desired indexable", value: data.metrics.desiredIndexable, tone: "positive" },
+      { label: "Desired indexable", value: data.persistenceAvailable ? data.metrics.desiredIndexable : "Unavailable", tone: data.persistenceAvailable ? "positive" : "attention" },
       { label: "Desired sitemap", value: data.metrics.desiredSitemap, tone: data.metrics.expectedMissing ? "attention" : "positive" },
       { label: "Actually in sitemap", value: data.metrics.actualSitemap, tone: data.sitemapEvidenceAvailable && data.latestSitemapValid ? "positive" : "attention" },
       { label: "Open-issue URLs", value: data.metrics.withOpenIssues, tone: data.metrics.withOpenIssues ? "attention" : "positive", hint: `${data.metrics.withCriticalIssues} critical` }

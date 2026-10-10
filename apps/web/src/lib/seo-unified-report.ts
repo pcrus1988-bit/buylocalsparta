@@ -35,6 +35,8 @@ export type SeoEvidenceFreshness = Readonly<{
 
 export type SeoUnifiedReportWorkspace = Readonly<{
   generatedAt: string;
+  registryPersistenceAvailable: boolean;
+  googleCoveragePersistenceAvailable: boolean;
   status: "healthy" | "attention" | "blocked";
   checks: readonly SeoOperationalCheck[];
   metrics: Readonly<{
@@ -219,6 +221,8 @@ export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal):
 
   return {
     generatedAt,
+    registryPersistenceAvailable: registry.persistenceAvailable,
+    googleCoveragePersistenceAvailable: gscCoverage.persistenceAvailable,
     status: overallStatus(checks),
     checks,
     metrics: {
