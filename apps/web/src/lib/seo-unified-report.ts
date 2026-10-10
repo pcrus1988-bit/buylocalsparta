@@ -133,8 +133,8 @@ export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal):
   const regressionSignals = seoDiagnosticRegressionSignals(latestReport, previousReport);
   const googleCoverageHardFailures = gscCoverage.rows.filter((row) => !row.stale && (row.canonicalMismatch
     || row.verdict === "FAIL"
-    || Boolean(row.indexingState && row.indexingState !== "INDEXING_ALLOWED")
-    || Boolean(row.pageFetchState && row.pageFetchState !== "SUCCESSFUL"))).length;
+    || Boolean(row.indexingState && !["INDEXING_ALLOWED", "INDEXING_STATE_UNSPECIFIED"].includes(row.indexingState))
+    || Boolean(row.pageFetchState && !["SUCCESSFUL", "PAGE_FETCH_STATE_UNSPECIFIED"].includes(row.pageFetchState)))).length;
 
   const checks: SeoOperationalCheck[] = [
     check(
@@ -149,21 +149,21 @@ export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal):
     check(
       "crawl-issues",
       "Production crawl findings",
-      !crawl.persistenceAvailable || !latestCrawlCompletedAt ? "unknown" : crawl.metrics.criticalOpen > 0 ? "fail" : crawl.metrics.open > 0 || freshness.crawl.stale ? "warning" : "pass",
+      !crawl.persistenceAvailable || !latestCrawlCompletedAt ? "unknown" : freshness.crawl.stale ? "warning" : crawl.metrics.criticalOpen > 0 ? "fail" : crawl.metrics.open > 0 ? "warning" : "pass",
       !crawl.persistenceAvailable
         ? "Durable crawl history is unavailable."
         : !latestCrawlCompletedAt
           ? "No production crawl evidence has been retained yet."
-          : `${crawl.metrics.open} open findings · ${crawl.metrics.criticalOpen} critical · ${crawl.metrics.latestRunIssues} findings in latest run · ${freshnessLabel(freshness.crawl)}.`,
+          : `${crawl.metrics.open} retained open findings · ${crawl.metrics.criticalOpen} critical (not yet reverified) · ${crawl.metrics.latestRunIssues} findings in latest run · ${freshnessLabel(freshness.crawl)}.`,
       "/admin/seo/issues"
     ),
     check(
       "sitemap-evidence",
       "Production sitemap",
-      !sitemap.persistenceAvailable || !sitemap.latest ? "unknown" : !sitemap.latest.valid ? "fail" : sitemap.metrics.expectedMissing > 0 || sitemap.metrics.unexpectedActual > 0 || freshness.sitemap.stale ? "warning" : "pass",
+      !sitemap.persistenceAvailable || !sitemap.latest ? "unknown" : freshness.sitemap.stale ? "warning" : !sitemap.latest.valid ? "fail" : sitemap.metrics.expectedMissing > 0 || sitemap.metrics.unexpectedActual > 0 ? "warning" : "pass",
       !sitemap.latest
         ? "No production sitemap snapshot has been retained yet."
-        : `${sitemap.latest.valid ? "Valid" : "Invalid"} snapshot · ${sitemap.metrics.latestEntries} URLs · ${sitemap.metrics.expectedMissing} expected missing · ${sitemap.metrics.unexpectedActual} unexpected actual · ${freshnessLabel(freshness.sitemap)}.`,
+        : `${sitemap.latest.valid ? "Valid" : "Invalid"} ${sitemap.latest.sitemapUrl.endsWith("/sitemaps/core/sitemap.xml") ? "core URL-set" : "legacy root"} snapshot · ${sitemap.metrics.latestEntries} URLs · ${sitemap.metrics.expectedMissing} expected missing · ${sitemap.metrics.unexpectedActual} unexpected actual · ${freshnessLabel(freshness.sitemap)}. Product shards are separate from core evidence.`,
       "/admin/seo/sitemaps"
     ),
     check(
@@ -187,7 +187,7 @@ export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal):
             : "pass",
       !gscCoverage.persistenceAvailable
         ? "Retained Google URL Inspection coverage requires the PostgreSQL SEO URL registry and inspection evidence."
-        : `${gscCoverage.metrics.healthy}/${gscCoverage.metrics.governedIndexable} healthy · ${gscCoverage.metrics.inspected} inspected · ${gscCoverage.metrics.missing} missing · ${gscCoverage.metrics.stale} stale (>${gscCoverage.maxAgeHours / 24}d) · ${googleCoverageHardFailures} fresh URLs with hard Google failures · ${gscCoverage.metrics.canonicalMismatch} canonical mismatch · ${gscCoverage.metrics.failedVerdict} FAIL verdict · ${gscCoverage.metrics.indexingBlocked} indexing blocked · ${gscCoverage.metrics.fetchFailed} fetch failed · ${gscCoverage.metrics.partialVerdict} partial/other verdict.`,
+        : `${gscCoverage.metrics.inspected}/${gscCoverage.metrics.governedIndexable} inspected in the bounded registry sample (not all site URLs) · ${gscCoverage.metrics.healthy} verified healthy · ${gscCoverage.metrics.missing} never inspected · ${gscCoverage.metrics.stale} stale (>${gscCoverage.maxAgeHours / 24}d) · ${googleCoverageHardFailures} fresh explicit Google failures · ${gscCoverage.metrics.canonicalMismatch} canonical mismatches · ${gscCoverage.metrics.partialVerdict} partial/other verdicts. Stored Google decisions can lag live SEO fixes.`,
       "/admin/seo/search-console/index-coverage"
     ),
     check(
@@ -196,7 +196,7 @@ export async function getSeoUnifiedReportWorkspace(principal: SessionPrincipal):
       !schema.persistenceAvailable ? "unknown" : schema.metrics.invalid > 0 || schema.metrics.unexpected > 0 ? "fail" : schema.metrics.missing > 0 || schema.metrics.notChecked > 0 || (schema.metrics.managed > 0 && freshness.crawl.stale) ? "warning" : "pass",
       !schema.persistenceAvailable
         ? "Structured-data crawl evidence is unavailable."
-        : `${schema.metrics.healthy}/${schema.metrics.managed} healthy · ${schema.metrics.missing} missing · ${schema.metrics.invalid} invalid · ${schema.metrics.unexpected} unexpected · ${schema.metrics.notChecked} not checked${schema.metrics.managed > 0 ? ` · crawl evidence ${freshnessLabel(freshness.crawl)}` : ""}.`,
+        : `${schema.metrics.healthy} verified healthy of ${schema.metrics.managed} governed pages · ${schema.metrics.missing} observed missing · ${schema.metrics.invalid} observed invalid · ${schema.metrics.unexpected} unexpected · ${schema.metrics.notChecked} NOT CHECKED (unknown, not an error)${schema.metrics.managed > 0 ? ` · crawl evidence ${freshnessLabel(freshness.crawl)}` : ""}.`,
       "/admin/seo/schema"
     ),
     check(

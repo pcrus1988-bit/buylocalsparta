@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SessionPrincipal } from "@buy-local-sparta/core";
 import { adminSeoCrawlGraph } from "./seo-crawl-graph";
+import { getSeoCrawlHistorySnapshot } from "./seo-crawl-history";
 import { getSeoEntityOverridesSnapshot } from "./seo-entity-overrides";
 import { issueCodeForMissingSchemaType, missingSchemaTypes, schemaExpectationForNode, type SeoSchemaExpectation } from "./seo-schema-policy";
 import { getSeoGlobalSettingsSnapshot } from "./seo-settings";
@@ -268,16 +269,65 @@ function reportForRows(origin: URL, limit: number, startedAt: string, rows: read
   };
 }
 
+type GovernedCrawlNode = Awaited<ReturnType<typeof adminSeoCrawlGraph>>["nodes"][number];
+
+// A bounded audit must sample across real route kinds rather than always
+// taking the first N static/product routes from a 41k+ node crawl graph.
+// Recheck known critical routes first; rotate the rest every four hours.
+function selectCrawlTargets(
+  nodes: readonly GovernedCrawlNode[],
+  criticalRoutes: readonly string[],
+  limit: number,
+  nowMs = Date.now()
+): GovernedCrawlNode[] {
+  const eligible = nodes.filter((node) => node.indexAllowed);
+  const byRoute = new Map(eligible.map((node) => [node.route, node]));
+  const chosen: GovernedCrawlNode[] = [];
+  const seen = new Set<string>();
+  const push = (node: GovernedCrawlNode | undefined) => {
+    if (!node || seen.has(node.route) || chosen.length >= limit) return;
+    seen.add(node.route);
+    chosen.push(node);
+  };
+  for (const route of criticalRoutes) push(byRoute.get(route));
+  const kinds: readonly GovernedCrawlNode["kind"][] =
+    ["static", "category", "research_vendor", "partner_vendor", "product", "cms"];
+  const buckets = new Map(kinds.map((kind) => [kind, eligible.filter((node) => node.kind === kind)] as const));
+  const cycle = Math.floor(nowMs / (4 * 60 * 60 * 1000));
+  const offsets = new Map(kinds.map((kind) => {
+    const size = buckets.get(kind)?.length ?? 0;
+    return [kind, size ? (cycle * Math.max(1, limit)) % size : 0] as const;
+  }));
+  let round = 0;
+  while (chosen.length < limit) {
+    let advanced = false;
+    for (const kind of kinds) {
+      const pool = buckets.get(kind) ?? [];
+      if (round >= pool.length) continue;
+      advanced = true;
+      push(pool[((offsets.get(kind) ?? 0) + round) % pool.length]);
+      if (chosen.length === limit) break;
+    }
+    if (!advanced) break;
+    round += 1;
+  }
+  return chosen;
+}
+
 export async function runSeoLiveCrawl(principal: SessionPrincipal, requestedLimit = 40): Promise<SeoLiveCrawlReport> {
   const startedAt = new Date().toISOString();
-  const [{ settings }, graph, overrides] = await Promise.all([
+  const [{ settings }, graph, overrides, history] = await Promise.all([
     getSeoGlobalSettingsSnapshot(),
     adminSeoCrawlGraph(principal),
-    getSeoEntityOverridesSnapshot()
+    getSeoEntityOverridesSnapshot(),
+    getSeoCrawlHistorySnapshot(principal)
   ]);
   const origin = new URL(settings.canonicalOrigin);
   const limit = Math.max(1, Math.min(MAX_URLS, Math.floor(requestedLimit)));
-  const targets = graph.nodes.filter((node) => node.indexAllowed).slice(0, limit);
+  const criticalRoutes = history.issues
+    .filter((issue) => issue.status === "open" && issue.severity === "critical")
+    .map((issue) => issue.route);
+  const targets = selectCrawlTargets(graph.nodes, criticalRoutes, limit);
   const rows: SeoLiveCrawlRow[] = [];
 
   for (let offset = 0; offset < targets.length; offset += CONCURRENCY) {
