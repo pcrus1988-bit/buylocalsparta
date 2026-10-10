@@ -80,7 +80,7 @@ try{
  for(const routine of securedTriggers.rows){
   assert.equal(routine.prosecdef,false,"Fiscal trigger cannot bypass caller privileges");
   assert.equal(routine.public_execute,false,"Fiscal trigger may not be called via PUBLIC EXECUTE");
-  assert.ok(routine.proconfig?.some(x=>x.replace(/\\s+/g,"")==="search_path=pg_catalog,public"),
+  assert.ok(routine.proconfig?.some(x=>x.replaceAll(" ","")==="search_path=pg_catalog,public"),
    "Fiscal trigger functions need pinned pg_catalog/public search paths");
  }
 
