@@ -7,6 +7,9 @@ const db=new pg.Client({connectionString:url,connectionTimeoutMillis:5000});
 await db.connect();
 try{
  await db.query("BEGIN");
+ const security=await db.query("SELECT relname,relrowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relname LIKE 'fiscal_%'");
+ assert.ok(security.rows.length>=8);
+ assert.ok(security.rows.every(row=>row.relrowsecurity===true),"Every Fiscal table must enable RLS");
  const user=await db.query("INSERT INTO fiscal_users(email,password_hash) VALUES($1,$2) RETURNING id",["fiscal-smoke@example.test","not-a-login-secret"]);
  const merchant=await db.query("INSERT INTO fiscal_organizations(legal_name,vat_number) VALUES($1,$2) RETURNING id",["CI Fiscal Merchant","123456789"]);
  const uid=user.rows[0].id,oid=merchant.rows[0].id;
