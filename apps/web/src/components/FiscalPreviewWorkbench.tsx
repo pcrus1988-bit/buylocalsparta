@@ -10,7 +10,7 @@ const minorToInput=(minor:number)=>Math.floor(minor/100)+","+String(minor%100).p
 function decimal(value:string,places:number,max:number):number|null{
  const escaped=value.trim().replace(",",".");
  const parsed=/^([0-9]{1,11})(?:\.([0-9]+))?$/.exec(escaped);
- if(!parsed||parsed[2]?.length>places)return null;
+ if(!parsed||(parsed[2]??"").length>places)return null;
  const result=Number(parsed[1])*10**places+Number((parsed[2]??"").padEnd(places,"0"));
  return Number.isSafeInteger(result)&&result<=max?result:null;
 }
