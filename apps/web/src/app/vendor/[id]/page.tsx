@@ -173,6 +173,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // multiple acquisitions against its own pool slot.
   const vendor = await getCachedPublicVendorDirectoryEntry(id);
   if (!vendor) return { title: "Κατάστημα" };
+  // The page issues a permanent redirect for legacy opaque vendor IDs.
+  // Skip extra SEO/database/media lookups for a response Google will not index.
+  // This keeps pre-collapse vendor URLs fast while transferring their signals
+  // to the stable company-slug canonical URL.
+  if (id !== vendor.slug) return {};
   const isResearch = vendor.directoryStatus === "research";
   const profileMedia = isResearch ? [] : await getCachedApprovedVendorProfileMedia(vendor.id);
   const { settings } = await getCachedSeoGlobalSettingsSnapshot();
