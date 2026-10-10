@@ -57,3 +57,10 @@ Marketplace connector contract (not yet live): authenticated OAuth/client creden
 - Fiscal operators have a separate credential system.
 - Review action requires same-origin, CSRF, a permitted operator role, an atomic pending_review transition and an append-only audit row.
 - Every fiscal issuance path must remain impossible until lawful certification gates and real provider backend exist.
+
+
+## Milestone 3 — four-track internal certification workboard
+
+At `/timologio-admin/compliance`, the dedicated FISCAL Admin can view the 24 seeded engineering requirements grouped by core, B2C, POS, B2B and B2G. The data belongs exclusively to the FISCAL database and is initially read-only. All authority-approval indicators are explicitly false, cannot be marked approved by the current schema and never influence document issuance.
+
+This is a technical planning register, not a substitute for formal AADE, All-in-One or Peppol approvals.
