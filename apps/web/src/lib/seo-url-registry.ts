@@ -262,7 +262,7 @@ export async function getSeoUrlRegistryWorkspace(principal: SessionPrincipal): P
   try {
     const rows = await uow.withTransaction({ actorUserId: principal.userId, marketId: marketCode(), platformAccess: true }, (tx) => tx.query<RegistryRow>(`
       WITH latest_sitemap AS (
-        SELECT id,public_id,valid,captured_at
+        SELECT id,public_id,valid,captured_at,sitemap_url
         FROM seo_sitemap_snapshots
         WHERE market_id=nullif(current_setting('app.market_id',true),'')::uuid
         ORDER BY captured_at DESC
@@ -291,9 +291,15 @@ export async function getSeoUrlRegistryWorkspace(principal: SessionPrincipal): P
                u.desired_indexable,u.desired_sitemap,u.inbound_sources,u.active,
                u.first_seen_at,u.last_seen_at,u.deactivated_at,
                s.public_id AS sitemap_public_id,s.valid AS sitemap_valid,s.captured_at AS sitemap_captured_at,
-               CASE WHEN s.valid=true THEN EXISTS(
-                 SELECT 1 FROM seo_sitemap_snapshot_entries e WHERE e.snapshot_id=s.id AND e.route=u.route
-               ) ELSE NULL END AS actual_sitemap,
+               CASE
+                 WHEN s.valid IS NOT TRUE THEN NULL
+                 -- A core URL-set snapshot does not verify the separate
+                 -- product shards advertised by the sitemap index.
+                 WHEN s.sitemap_url LIKE '%/sitemaps/core/sitemap.xml' AND u.kind='product' THEN NULL
+                 ELSE EXISTS(
+                   SELECT 1 FROM seo_sitemap_snapshot_entries e WHERE e.snapshot_id=s.id AND e.route=u.route
+                 )
+               END AS actual_sitemap,
                c.crawl_run_public_id,c.crawl_captured_at,c.http_status,c.response_time_ms,c.final_url,
                c.crawl_title,c.crawl_canonical,c.crawl_robots,c.h1_count,c.crawl_issue_count,
                COALESCE(i.open_issue_count,0) AS open_issue_count,
