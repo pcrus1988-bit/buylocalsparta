@@ -75,7 +75,24 @@ try{
   "INSERT INTO fiscal_marketplace_link_challenges(organization_id,created_by,code_hash,expires_at) VALUES($1,$2,$3,now()+interval '10 minutes') RETURNING id",
   [oid,uid,'c'.repeat(64)]);
  assert.ok(challenge.rows[0].id);
+ // SSO tickets are one-time and give independent, revocable Fiscal admin sessions.
+ const ticket=await db.query(
+  "INSERT INTO fiscal_superadmin_sso_tickets(jti_hash,marketplace_user_id,expires_at) VALUES($1,'marketplace_ci_admin',now()+interval '1 minute') RETURNING jti_hash",
+  ["e".repeat(64)]);
+ assert.equal(ticket.rows.length,1);
+ await db.query("SAVEPOINT reject_sso_replay");
+ await assert.rejects(()=>db.query(
+  "INSERT INTO fiscal_superadmin_sso_tickets(jti_hash,marketplace_user_id,expires_at) VALUES($1,'marketplace_ci_admin',now()+interval '1 minute')",
+  ["e".repeat(64)]));
+ await db.query("ROLLBACK TO SAVEPOINT reject_sso_replay");
+ await db.query("INSERT INTO fiscal_superadmin_sessions(token_hash,csrf_hash,marketplace_user_id,marketplace_email,expires_at) VALUES($1,$2,'marketplace_ci_admin','ci@kontamou.test',now()+interval '2 hours')",
+  ["c".repeat(64),"d".repeat(64)]);
+ const ssoBefore=await db.query("SELECT count(*)::int AS count FROM fiscal_superadmin_sessions WHERE token_hash=$1 AND revoked_at IS NULL",["c".repeat(64)]);
+ assert.equal(ssoBefore.rows[0].count,1);
+ await db.query("UPDATE fiscal_superadmin_sessions SET revoked_at=now() WHERE token_hash=$1",["c".repeat(64)]);
+ const ssoAfter=await db.query("SELECT count(*)::int AS count FROM fiscal_superadmin_sessions WHERE token_hash=$1 AND revoked_at IS NULL",["c".repeat(64)]);
+ assert.equal(ssoAfter.rows[0].count,0);
  await db.query("ROLLBACK");
- console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, verified marketplace pairing, immutable audit");
+ console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, verified marketplace pairing, SSO replay protection, immutable audit");
 }catch(error){await db.query("ROLLBACK").catch(()=>{});throw error;}
 finally{await db.end();}
