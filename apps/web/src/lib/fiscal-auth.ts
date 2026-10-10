@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { fiscalDatabaseConfigured, fiscalPool } from "./fiscal-runtime";
 import { getAdminSession } from "./admin-session";
 import { assertAdminCsrf } from "./admin-runtime";
+import { getFiscalSsoAdmin } from "./fiscal-superadmin-sso";
 
 const SESSION_COOKIE="km_fiscal_session";
 const CSRF_COOKIE="km_fiscal_csrf";
@@ -103,9 +104,17 @@ export async function fiscalMerchantAccounts(actor:FiscalActor) {
  return res.rows;
 }
 export async function fiscalAdminActor():Promise<FiscalAdminActor|undefined> {
- const superAdmin=await getAdminSession();
- if(superAdmin?.roles.includes("super_admin")&&!superAdmin.vendorId)
-  return {kind:"marketplace_super_admin",id:superAdmin.userId,email:superAdmin.email,csrfToken:superAdmin.csrfToken};
+ if(process.env.FISCAL_STANDALONE_MODE==="true"){
+  if(fiscalDatabaseConfigured()){
+   const federated=await getFiscalSsoAdmin();
+   if(federated)return {kind:"marketplace_super_admin",...federated};
+  }
+ }else{
+  // Transitional embedded dashboard still honors existing marketplace session.
+  const superAdmin=await getAdminSession();
+  if(superAdmin?.roles.includes("super_admin")&&!superAdmin.vendorId)
+   return {kind:"marketplace_super_admin",id:superAdmin.userId,email:superAdmin.email,csrfToken:superAdmin.csrfToken};
+ }
  const actor=await getFiscalActor();
  if(actor?.role!=="fiscal_admin")return undefined;
  const csrf=await fiscalCsrfValue();
@@ -115,7 +124,7 @@ export async function requireFiscalAdmin(request:Request) {
  const actor=await fiscalAdminActor();
  if(!actor)throw new Error("FISCAL_ADMIN_AUTH_REQUIRED");
  const supplied=request.headers.get("x-csrf-token");
- if(actor.kind==="marketplace_super_admin") {
+ if(actor.kind==="marketplace_super_admin"&&process.env.FISCAL_STANDALONE_MODE!=="true") {
   const original=await getAdminSession();
   if(!original)throw new Error("ADMIN_SESSION_EXPIRED");
   assertAdminCsrf(original,supplied??undefined);
