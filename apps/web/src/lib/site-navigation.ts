@@ -13,6 +13,7 @@ type IndexableStaticRoute = SiteLink & Readonly<{
 
 export const SITE_LINKS = {
   home: { label: "Αρχική", href: "/", description: "Η κεντρική είσοδος στην τοπική αγορά της Σπάρτης." },
+  chooseLocation: { label: "Επίλεξε περιοχή", href: "/choose-location", description: "Ανακάλυψε τα ενεργά και επερχόμενα τοπικά HUB του ΚΟΝΤΑ ΜΟΥ σε όλη την Ελλάδα." },
   shop: { label: "Προϊόντα", href: "/shop", description: "Ο ενιαίος κατάλογος προϊόντων του marketplace." },
   brands: { label: "Brands", href: "/brands", description: "Brand Guides που συνδέουν την ταυτότητα κάθε brand με τις κατηγορίες και τα προϊόντα που είναι πραγματικά διαθέσιμα." },
   colorFinder: { label: "Color Finder", href: "/color-finder", description: "Διάλεξε χρώμα και βρες τις πιο κοντινές διαθέσιμες αποχρώσεις nail polish." },
@@ -56,6 +57,7 @@ export const SITE_LINKS = {
 
 export const INDEXABLE_STATIC_ROUTES: ReadonlyArray<IndexableStaticRoute> = [
   { ...SITE_LINKS.home, changeFrequency: "daily", priority: 1 },
+  { ...SITE_LINKS.chooseLocation, changeFrequency: "weekly", priority: 0.7 },
   { ...SITE_LINKS.shop, changeFrequency: "daily", priority: 0.9 },
   { ...SITE_LINKS.brands, changeFrequency: "daily", priority: 0.82 },
   { ...SITE_LINKS.colorFinder, changeFrequency: "daily", priority: 0.9 },
@@ -113,7 +115,7 @@ export const FOOTER_NAVIGATION = [
 ] as const;
 
 export const HUMAN_SITEMAP_SECTIONS = [
-  { title: "Ανακάλυψη", links: [SITE_LINKS.home, SITE_LINKS.shop, SITE_LINKS.brands, SITE_LINKS.colorFinder, SITE_LINKS.paintStudio, SITE_LINKS.fittingRoom, SITE_LINKS.sportFitStudio, SITE_LINKS.bazaar, SITE_LINKS.shops, SITE_LINKS.shopsMap] },
+  { title: "Ανακάλυψη", links: [SITE_LINKS.home, SITE_LINKS.chooseLocation, SITE_LINKS.shop, SITE_LINKS.brands, SITE_LINKS.colorFinder, SITE_LINKS.paintStudio, SITE_LINKS.fittingRoom, SITE_LINKS.sportFitStudio, SITE_LINKS.bazaar, SITE_LINKS.shops, SITE_LINKS.shopsMap] },
   { title: "Άνθρωποι & συμβουλή", links: [SITE_LINKS.advice, SITE_LINKS.askLocal] },
   { title: "Η εμπειρία αγοράς", links: [SITE_LINKS.howItWorks, SITE_LINKS.giftCards, SITE_LINKS.payments, SITE_LINKS.delivery, SITE_LINKS.returns] },
   { title: "Νομικά & ιδιωτικότητα", links: [SITE_LINKS.terms, SITE_LINKS.privacyNotice, SITE_LINKS.cookies, SITE_LINKS.privacy, SITE_LINKS.accessibility] },
@@ -142,7 +144,6 @@ export const NON_INDEXABLE_PAGE_ROUTES = [
   "/terms",
   "/join/apply",
   "/hubs/join/apply",
-  "/choose-location",
   "/account",
   "/account/ask-local",
   "/account/appointments",
