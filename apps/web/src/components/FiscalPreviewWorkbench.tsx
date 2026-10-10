@@ -6,7 +6,6 @@ import type {FiscalPreviewLane,FiscalPreviewResult} from "../lib/fiscal-preview-
 type Line={key:number;description:string;quantity:string;unitPrice:string;vatRate:string;discount:string};
 const initial:Line={key:1,description:"",quantity:"1",unitPrice:"10,00",vatRate:"24",discount:"0"};
 const money=(minor:number)=>new Intl.NumberFormat("el-GR",{style:"currency",currency:"EUR"}).format(minor/100);
-const minorToInput=(minor:number)=>Math.floor(minor/100)+","+String(minor%100).padStart(2,"0");
 function decimal(value:string,places:number,max:number):number|null{
  const escaped=value.trim().replace(",",".");
  const parsed=/^([0-9]{1,11})(?:\.([0-9]+))?$/.exec(escaped);
@@ -14,8 +13,8 @@ function decimal(value:string,places:number,max:number):number|null{
  const result=Number(parsed[1])*10**places+Number((parsed[2]??"").padEnd(places,"0"));
  return Number.isSafeInteger(result)&&result<=max?result:null;
 }
-export function FiscalPreviewWorkbench({csrfToken,lane,onApplyGrossMinor}:{
- csrfToken:string;lane:FiscalPreviewLane;onApplyGrossMinor:(minor:number)=>void
+export function FiscalPreviewWorkbench({csrfToken,lane,onApplyPreview}:{
+ csrfToken:string;lane:FiscalPreviewLane;onApplyPreview:(preview:FiscalPreviewResult)=>void
 }){
  const [items,setItems]=useState<Line[]>([initial]);
  const [nextId,setNextId]=useState(2);
@@ -58,7 +57,7 @@ export function FiscalPreviewWorkbench({csrfToken,lane,onApplyGrossMinor}:{
  }
  return <section className="fiscal-section fiscal-preview-workbench" aria-label="Δοκιμαστικός υπολογισμός γραμμών">
   <h3>Υπολογιστής γραμμών — προεπισκόπηση</h3>
-  <p className="fiscal-muted">Καταχωρίστε γραμμές, ποσότητες, καθαρή τιμή, ενδεικτικό ΦΠΑ και έκπτωση. Ο συντελεστής ΦΠΑ εισάγεται από εσάς και <strong>δεν επαληθεύεται νομικά</strong>. Δεν αποθηκεύονται γραμμές ούτε εκδίδεται παραστατικό.</p>
+  <p className="fiscal-muted">Καταχωρίστε γραμμές, ποσότητες, καθαρή τιμή, ενδεικτικό ΦΠΑ και έκπτωση. Ο συντελεστής ΦΠΑ εισάγεται από εσάς και <strong>δεν επαληθεύεται νομικά</strong>. Οι γραμμές μπορούν να αποθηκευτούν μόνο ως δοκιμαστικά δεδομένα, χωρίς έκδοση παραστατικού.</p>
   <form onSubmit={calculate}>
    {items.map((item,index)=><fieldset className="fiscal-card fiscal-preview-line" key={item.key} disabled={busy}>
     <legend>Γραμμή {index+1}</legend>
@@ -85,9 +84,9 @@ export function FiscalPreviewWorkbench({csrfToken,lane,onApplyGrossMinor}:{
     <span>Ενδεικτικός ΦΠΑ: <strong>{money(preview.totals.vatMinor)}</strong></span>
     <span>Σύνολο: <strong>{money(preview.totals.grossMinor)}</strong></span>
    </div>
-   <p className="fiscal-muted">Στρογγυλοποίηση ανά γραμμή, μισό προς τα πάνω. Το αποτέλεσμα δεν αποτελεί νόμιμο υπολογισμό ΦΠΑ και δεν μεταφέρει αναλυτικές γραμμές σε παραστατικό.</p>
-   <button type="button" className="fiscal-button" onClick={()=>onApplyGrossMinor(preview.totals.grossMinor)}>
-    Χρήση δοκιμαστικού συνόλου {minorToInput(preview.totals.grossMinor)} € στο draft
+   <p className="fiscal-muted">Στρογγυλοποίηση ανά γραμμή, μισό προς τα πάνω. Το αποτέλεσμα δεν αποτελεί νόμιμο υπολογισμό ΦΠΑ. Η αποθήκευση διατηρεί τις γραμμές μόνο ως μη φορολογικό snapshot.</p>
+   <button type="button" className="fiscal-button" onClick={()=>onApplyPreview(preview)}>
+    Μεταφορά {preview.items.length} γραμμών και συνόλου {money(preview.totals.grossMinor)} στο δοκιμαστικό draft
    </button>
   </div>:null}
  </section>;
