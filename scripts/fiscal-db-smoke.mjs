@@ -12,6 +12,56 @@ try{
  assert.ok(security.rows.every(row=>row.relrowsecurity===true),"Every Fiscal table must enable RLS");
  const inboxIndex=await db.query("SELECT 1 FROM pg_indexes WHERE schemaname='public' AND tablename='fiscal_document_intakes' AND indexname='fiscal_document_intakes_inbox_cursor_idx'");
  assert.equal(inboxIndex.rowCount,1,"Merchant inbox keyset index required");
+
+ // Regulatory source atlas and proposed rule versions are research-only, not a live tax engine.
+ const researchTables=await db.query(
+  "SELECT relname,relrowsecurity FROM pg_class WHERE oid IN ('public.fiscal_regulatory_sources'::regclass,'public.fiscal_tax_rule_candidates'::regclass)");
+ assert.equal(researchTables.rows.length,2);
+ assert.ok(researchTables.rows.every(row=>row.relrowsecurity),"Research reference tables must enable RLS");
+ const officialReferences=await db.query(
+  "SELECT code,source_url,evidence_state,evidence_sha256,reviewer_approved FROM fiscal_regulatory_sources ORDER BY code");
+ assert.equal(officialReferences.rows.length,3,"The evidence atlas must begin with three official research references");
+ assert.ok(officialReferences.rows.every(row=>row.evidence_state==="reference_only" &&
+  row.evidence_sha256===null && row.reviewer_approved===false));
+ assert.ok(officialReferences.rows.every(row=>row.source_url.startsWith("https://") ));
+ const unsafeRule=await db.query(
+  `INSERT INTO fiscal_tax_rule_candidates(candidate_code,version,lane,rule_family,
+   subject_code,proposed_rate_bps,valid_from,source_code,rationale)
+   VALUES('gr_vat_example',1,'b2b','vat_rate','synthetic_test',2400,'2026-10-10',
+    'aade_vat_guidance','Synthetic demonstration: not a verified transaction category')
+   RETURNING id,state,fiscal_use_authorized`);
+ assert.equal(unsafeRule.rows[0].state,"research_only");
+ assert.equal(unsafeRule.rows[0].fiscal_use_authorized,false);
+ await db.query("SAVEPOINT forbid_candidate_enable");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_tax_rule_candidates SET fiscal_use_authorized=true WHERE id=$1",
+  [unsafeRule.rows[0].id]));
+ await db.query("ROLLBACK TO SAVEPOINT forbid_candidate_enable");
+ await db.query("SAVEPOINT forbid_approved_rule_insert");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_tax_rule_candidates(candidate_code,version,lane,rule_family,
+   subject_code,valid_from,source_code,rationale,state,fiscal_use_authorized)
+   VALUES('gr_vat_bad_rule',1,'b2b','vat_rate','synthetic_test','2026-10-10',
+   'aade_vat_guidance','This candidate must not be accepted as a live tax rule','approved',true)`));
+ await db.query("ROLLBACK TO SAVEPOINT forbid_approved_rule_insert");
+ await db.query("SAVEPOINT forbid_candidate_bad_window");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_tax_rule_candidates(candidate_code,version,lane,rule_family,
+   subject_code,valid_from,valid_until,source_code,rationale)
+   VALUES('gr_vat_bad_window',1,'b2b','vat_rate','synthetic_test','2026-10-10',
+   '2026-10-01','aade_vat_guidance','The invalid validity window must not be accepted')`));
+ await db.query("ROLLBACK TO SAVEPOINT forbid_candidate_bad_window");
+ await db.query("SAVEPOINT forbid_bad_evidence_url");
+ await assert.rejects(()=>db.query(
+  `INSERT INTO fiscal_regulatory_sources(code,topic,authority,title,source_url,research_note)
+   VALUES('unauthorized_web_source','vat','aade','Fake evidence reference title',
+    'https://evil.example.invalid/','Unsupported evidence website')`));
+ await db.query("ROLLBACK TO SAVEPOINT forbid_bad_evidence_url");
+ await db.query("SAVEPOINT forbid_source_tamper");
+ await assert.rejects(()=>db.query(
+  "UPDATE fiscal_regulatory_sources SET evidence_state='archived_unreviewed' WHERE code='aade_vat_guidance'"));
+ await db.query("ROLLBACK TO SAVEPOINT forbid_source_tamper");
+
  const lineSecurity=await db.query("SELECT relrowsecurity FROM pg_class WHERE oid='public.fiscal_document_intake_lines'::regclass");
  assert.equal(lineSecurity.rows[0].relrowsecurity,true,"Test lines must enable RLS");
  const counterpartySecurity=await db.query(
@@ -233,6 +283,6 @@ try{
  const ssoAfter=await db.query("SELECT count(*)::int AS count FROM fiscal_superadmin_sessions WHERE token_hash=$1 AND revoked_at IS NULL",["c".repeat(64)]);
  assert.equal(ssoAfter.rows[0].count,0);
  await db.query("ROLLBACK");
- console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, approved-only console draft creation, immutable tenant-bound item snapshots, unverified counterparty registry, idempotency, verified marketplace pairing, SSO replay protection, immutable audit");
+ console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, approved-only console draft creation, immutable tenant-bound item snapshots, unverified counterparty registry, immutable regulatory atlas, disabled candidate tax rules, idempotency, verified marketplace pairing, SSO replay protection, immutable audit");
 }catch(error){await db.query("ROLLBACK").catch(()=>{});throw error;}
 finally{await db.end();}
