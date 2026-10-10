@@ -177,3 +177,17 @@ To verify the independent FISCAL application beyond TypeScript checks and direct
 - **This is not a live staging integration test.** The protected Vercel project still requires a distinct, approved EU database, secret configuration and live staging tenant verification. Neither the two existing non-FISCAL Supabase projects nor the marketplace database may be reused. Creating a new billable Supabase project requires selection of the organization and explicit cost confirmation.
 
 `FISCAL_REGISTRATION_ENABLED`, live marketplace synchronization and fiscal issuance remain disabled. No main merge.
+
+## Dedicated Supabase EU project created and secured (2026-10-10)
+
+**Actual deployed DB state, verified with the Supabase connector:** a NEW Supabase project `KONTA MOY FISCAL` (`kcpwxplxqtqdsfwlfsaa`) was created under **SP BUSINESS LAB**, region `eu-central-1` (Frankfurt), PostgreSQL 17.11. The recurring additional project fee of **$10/month** was explicitly accepted in the Supabase cost-confirmation workflow. Neither existing Supabase project nor the marketplace database was modified.
+
+- Existing migrations `0001` through `0011` were applied atomically from the verified FISCAL draft branch, preserving source-file SHA-256 checksums in `fiscal_schema_migrations` and recording a Supabase management migration.
+- Follow-up migration `0012_secure_trigger_function_paths.sql` pins `search_path=pg_catalog, public` on five SECURITY INVOKER trigger functions and revokes PUBLIC/anon/authenticated function execution.
+- Verified **12 custom checksummed migrations; 18 FISCAL tables; RLS enabled on all 18; zero tables readable/writable by anon/authenticated; zero FISCAL functions executable by those roles; no merchant accounts, tax approvals or issued documents**. The 24 certification controls and three official research source pointers exist, but are **not** certifications or reviewed tax mappings.
+- The Supabase security advisor's original five mutable-search-path warnings have been cleared. The remaining informational `rls_enabled_no_policy` notice is **intentional deny-all** for 18 server-only tables; do not add public Data API access or broad RLS policies to silence it.
+- Supabase management migrations: `fiscal_foundation_to_0011`, `fiscal_secure_trigger_functions_0012`. Both succeeded. Always use the repo's `fiscal-migrate.mjs` checksum checks for subsequent deployments.
+
+**Still NOT connected:** The independent Vercel `konta-moy-fiscal` project currently has no `FISCAL_DATABASE_URL` environment variable. The connector did not supply or expose a PostgreSQL password or verified pooler connection URL. Do not guess credentials, put secrets in GitHub or chat, reuse `DATABASE_URL`/`POSTGRES_URL`, or enable production/public registration. Use the Supabase project's official **Connect** panel to obtain a TLS-enabled session/transaction-pooler URI appropriate for Vercel, and store it as an encrypted server-side `FISCAL_DATABASE_URL` in the *protected staging/Preview environment only* via Vercel project settings; never prefix it with `NEXT_PUBLIC_`. See https://supabase.com/docs/guides/database/connecting-to-postgres . Redeploy only after the encrypted connection is configured, verify `/timologio/api/health`, and test with synthetic authenticated accounts before any wider launch.
+
+FISCAL retains separate session/authentication, B2C/POS/B2B/B2G laboratory draft flows, permanently blocked legal issuance, and disabled marketplace draft synchronization. PR #1431 remains draft and KONTA MOY production remains unchanged.
