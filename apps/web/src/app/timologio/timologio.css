@@ -41,3 +41,18 @@
 .fiscal-draft-details>div{padding:16px;border:1px solid #d5e6e1;border-radius:10px;background:#f6faf8;min-width:0}
 .fiscal-draft-details dt{font-weight:700;color:#557077;font-size:.8rem;margin-bottom:6px}
 .fiscal-draft-details dd{font-weight:650;color:#15323a;margin:0;overflow-wrap:anywhere;line-height:1.5}
+
+/* Non-fiscal calculation sandbox: compact and mobile-accessible. */
+.fiscal-preview-workbench{border-top:1px solid #dce9e5;margin-top:24px}
+.fiscal-preview-workbench h3{margin:0 0 12px}
+.fiscal-preview-workbench label{display:grid;gap:6px;font-size:.88rem;font-weight:650;color:#315c60;min-width:0}
+.fiscal-preview-workbench input{display:block;width:100%;background:#fff;color:#142832;border:1px solid #adc8bf;border-radius:8px;padding:10px;min-width:0}
+.fiscal-preview-line{margin:16px 0;display:grid;gap:12px;border:1px solid #d5e6e1}
+.fiscal-preview-line legend{font-weight:800;padding:0 6px;color:#173a40}
+.fiscal-preview-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.fiscal-preview-totals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:14px 0}
+.fiscal-preview-totals span{display:block;color:#42646a}
+.fiscal-preview-totals strong{display:block;color:#102d34;font-size:1.1rem}
+.fiscal-preview-workbench input:focus-visible{outline:3px solid #50a797;outline-offset:2px}
+@media(max-width:800px){.fiscal-preview-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:430px){.fiscal-preview-fields,.fiscal-preview-totals{grid-template-columns:1fr}}
