@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import {FiscalPreviewWorkbench} from "./FiscalPreviewWorkbench";
 import {useRef,useState} from "react";
 import type {FormEvent} from "react";
 import {useRouter} from "next/navigation";
@@ -77,6 +78,10 @@ export function FiscalConsoleDraftForm({organizationId,csrfToken}:{
    </label>
    <button type="submit" className="fiscal-button" disabled={busy}>{busy?"Αποθήκευση…":"Αποθήκευση δοκιμής"}</button>
   </form>
+  <FiscalPreviewWorkbench key={organizationId} csrfToken={csrfToken} lane={lane} onApplyGrossMinor={minor=>{
+    setAmount(Math.floor(minor/100)+","+String(minor%100).padStart(2,"0"));
+    edit();
+  }}/>
   {error?<p className="fiscal-error" role="alert">{error}</p>:null}
   {result?<p role="status" className="fiscal-muted">Το draft {result.created?"αποθηκεύτηκε":"υπήρχε ήδη"}.
    {" "}<Link href={"/timologio/drafts/"+encodeURIComponent(result.id)+"?organizationId="+encodeURIComponent(organizationId)}>Προβολή εγγραφής</Link>.
