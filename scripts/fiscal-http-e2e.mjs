@@ -102,14 +102,14 @@ try{
   action:"register",email:"disallowed-"+suffix+"@example.test",
   password,legalName:"Forbidden Registration",vatNumber:"666555444"
  });
- assert.equal(register.status,403,"Public registration must remain blocked");
+ assert.equal(register.status,403,"Public registration must remain blocked; response="+JSON.stringify(register.body));
  assert.equal(register.body.error,"REGISTRATION_NOT_OPEN");
  const unauth=await send("/timologio/api/console/preview",{lane:"b2b",items:[]});
- assert.equal(unauth.status,401,"Draft preview requires a merchant session");
+ assert.equal(unauth.status,401,"Draft preview requires a merchant session; response="+JSON.stringify(unauth.body));
 
  async function login(email){
   const response=await send("/timologio/api/auth",{action:"login",email,password});
-  assert.equal(response.status,200,"Synthetic merchant login must succeed");
+  assert.equal(response.status,200,"Synthetic merchant login must succeed; response="+JSON.stringify(response.body));
   assert.equal(response.body.role,"merchant");
   const values=response.cookieHeaders.map(x=>x.split(";")[0]);
   const session=values.find(v=>v.startsWith("km_fiscal_session="));
