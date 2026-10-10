@@ -1,5 +1,6 @@
 import { localePath, type SessionPrincipal } from "@buy-local-sparta/core";
 import { assertAdminPermission } from "./admin-runtime";
+import { EDITORIAL_COLLECTIONS } from "./editorial-collections";
 import { getPublicCmsPages } from "./public-cms";
 import { getPublicProductSitemapInventory } from "./product-sitemap-inventory";
 import { getPublicVendorSitemapInventory } from "./vendor-sitemap-inventory";
@@ -68,6 +69,27 @@ async function buildSeoCrawlGraph() {
       indexAllowed: control.indexAllowed,
       sitemapAllowed: control.sitemapAllowed,
       inboundSources: staticInboundSources(route.href)
+    });
+  }
+
+  // The production core sitemap also publishes curated editorial collections.
+  // Govern the SAME canonical collection definitions so the registry, crawl
+  // sampling and sitemap audit never disagree about these three public URLs.
+  // Treat them as static controls because this is how the admin SEO policy
+  // currently represents public landing-page overrides.
+  for (const collection of EDITORIAL_COLLECTIONS) {
+    const route = `/collections/${collection.slug}`;
+    const reference: SeoEntityReference = { kind: "static", id: route };
+    const { override, control } = controlled(reference, true, true);
+    nodes.push({
+      key: `editorial-collection:${collection.slug}`,
+      kind: "static",
+      label: collection.title,
+      route,
+      canonicalUrl: absoluteSeoCanonical(settings.canonicalOrigin, reference, override),
+      indexAllowed: control.indexAllowed,
+      sitemapAllowed: control.sitemapAllowed,
+      inboundSources: ["Homepage editorial collection rail"]
     });
   }
 
