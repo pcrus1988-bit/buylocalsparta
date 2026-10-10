@@ -1,4 +1,4 @@
-import {fiscalDatabaseConfigured,fiscalPool} from "../../../../../../apps/web/src/lib/fiscal-runtime";
+import {fiscalDatabaseConfigured,fiscalPool} from "../../../../../../../apps/web/src/lib/fiscal-runtime";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 export async function GET(){
