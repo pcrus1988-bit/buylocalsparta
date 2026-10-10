@@ -87,7 +87,7 @@ export default async function AdminSeoReportsPage({ searchParams }: Props) {
       <div>
         <div className="eyebrow">Content · SEO & Visibility · Reports</div>
         <h1>Unified SEO release report</h1>
-        <p className="lead">One operational view of governed URLs, production crawl findings, sitemap evidence, Google Search Console performance and index coverage, structured data and persisted regression baselines. Evidence freshness is part of the release signal: an old green check becomes attention instead of remaining green forever.</p>
+        <p className="lead">Operational release readiness, not a Google-wide indexing verdict. The Google coverage figure is a bounded sample, not all site URLs. Unchecked schema pages are unknown, not invalid. Old crawl/sitemap failures remain historical until fresh evidence verifies them. Current Google indexing decisions may still lag live site corrections.</p>
       </div>
       <aside className={data.status === "blocked" ? "dashboard-health-card needs-attention" : "dashboard-health-card"}>
         <span>Current release signal</span>
@@ -112,10 +112,10 @@ export default async function AdminSeoReportsPage({ searchParams }: Props) {
 
     <WorkspaceMetricStrip items={[
       { label: "Governed URLs", value: data.metrics.governedUrls, tone: "positive", hint: `${data.metrics.desiredIndexable} desired indexable` },
-      { label: "Open crawl issues", value: data.metrics.openIssues, tone: data.metrics.criticalOpenIssues ? "attention" : data.metrics.openIssues ? "attention" : "positive", hint: `${data.metrics.criticalOpenIssues} critical` },
-      { label: "Sitemap mismatches", value: data.metrics.sitemapExpectedMissing + data.metrics.sitemapUnexpectedActual, tone: data.metrics.sitemapExpectedMissing + data.metrics.sitemapUnexpectedActual ? "attention" : "positive", hint: `${data.metrics.sitemapExpectedMissing} expected missing · ${data.metrics.sitemapUnexpectedActual} unexpected` },
-      { label: "Google coverage", value: `${data.metrics.gscCoverageHealthy}/${data.metrics.gscCoverageGoverned}`, tone: data.metrics.gscCoverageHardFailures || data.metrics.gscCoverageMissing || data.metrics.gscCoverageStale || data.metrics.gscCoverageAttention ? "attention" : "positive", hint: `${data.metrics.gscCoverageMissing} missing · ${data.metrics.gscCoverageStale} stale · ${data.metrics.gscCoverageHardFailures} hard-failure URLs` },
-      { label: "Schema healthy", value: `${data.metrics.schemaHealthy}/${data.metrics.schemaManaged}`, tone: data.metrics.schemaInvalid || data.metrics.schemaUnexpected || data.metrics.schemaMissing ? "attention" : "positive", hint: `${data.metrics.schemaMissing} missing · ${data.metrics.schemaInvalid} invalid · ${data.metrics.schemaNotChecked} unchecked` }
+      { label: "Retained crawl issues", value: data.metrics.openIssues, tone: data.metrics.openIssues ? "attention" : "positive", hint: `${data.metrics.criticalOpenIssues} critical · ${freshnessLabel(data.freshness.crawl)}` },
+      { label: "Core sitemap mismatches", value: data.latestSitemapCapturedAt && !data.freshness.sitemap.stale ? data.metrics.sitemapExpectedMissing + data.metrics.sitemapUnexpectedActual : "Not verified", tone: data.freshness.sitemap.stale || data.metrics.sitemapExpectedMissing + data.metrics.sitemapUnexpectedActual ? "attention" : "positive", hint: `Core URL-set only · ${freshnessLabel(data.freshness.sitemap)}` },
+      { label: "Google sample inspected", value: `${data.metrics.gscCoverageInspected}/${data.metrics.gscCoverageGoverned}`, tone: data.metrics.gscCoverageHardFailures || data.metrics.gscCoverageMissing || data.metrics.gscCoverageStale || data.metrics.gscCoverageAttention ? "attention" : "positive", hint: `${data.metrics.gscCoverageHealthy} verified healthy · ${data.metrics.gscCoverageMissing} not inspected · ${data.metrics.gscCoverageHardFailures} hard failures` },
+      { label: "Schema checked", value: `${data.metrics.schemaHealthy + data.metrics.schemaMissing + data.metrics.schemaInvalid + data.metrics.schemaUnexpected}/${data.metrics.schemaManaged}`, tone: data.metrics.schemaInvalid || data.metrics.schemaUnexpected || data.metrics.schemaMissing || data.metrics.schemaNotChecked ? "attention" : "positive", hint: `${data.metrics.schemaHealthy} healthy · ${data.metrics.schemaInvalid} invalid · ${data.metrics.schemaNotChecked} unchecked (unknown)` }
     ]} />
 
     <section className="shell vendor-section">
