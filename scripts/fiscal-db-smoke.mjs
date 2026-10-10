@@ -67,7 +67,35 @@ try{
   "INSERT INTO fiscal_marketplace_links(organization_id,marketplace_vendor_id,marketplace_vendor_public_id,issuer_vat_number,authorized_by) VALUES($1,$2,'vendor_ci_verified','123456789',$3)",
   [oid,vendorId,uid]));
  await db.query("ROLLBACK TO SAVEPOINT link_pending");
+ // Console drafts are available only to approved organizations and owner/accountant memberships.
+ const consoleAuthorizationSql=`SELECT o.vat_number FROM fiscal_organizations o
+ JOIN fiscal_memberships m ON m.organization_id=o.id JOIN fiscal_users u ON u.id=m.user_id
+ WHERE o.id=$1 AND m.user_id=$2 AND m.role IN ('owner','accountant')
+ AND o.status='approved' AND u.disabled_at IS NULL FOR SHARE OF o,m,u`;
+ const pendingConsole=await db.query(consoleAuthorizationSql,[oid,uid]);
+ assert.equal(pendingConsole.rowCount,0,"Pending businesses cannot prepare console drafts");
  await db.query("UPDATE fiscal_organizations SET status='approved' WHERE id=$1",[oid]);
+ const approvedConsole=await db.query(consoleAuthorizationSql,[oid,uid]);
+ assert.equal(approvedConsole.rows[0]?.vat_number,"123456789");
+ await db.query("INSERT INTO fiscal_memberships(organization_id,user_id,role) VALUES($1,$2,'viewer')",[oid,otherUser.rows[0].id]);
+ const viewerConsole=await db.query(consoleAuthorizationSql,[oid,otherUser.rows[0].id]);
+ assert.equal(viewerConsole.rowCount,0,"Viewers cannot prepare a document draft");
+ await db.query("UPDATE fiscal_memberships SET role='accountant' WHERE organization_id=$1 AND user_id=$2",[oid,otherUser.rows[0].id]);
+ const accountantConsole=await db.query(consoleAuthorizationSql,[oid,otherUser.rows[0].id]);
+ assert.equal(accountantConsole.rowCount,1,"Approved accountants can create non-fiscal drafts");
+ const testConsoleDraft=await db.query(
+  "INSERT INTO fiscal_document_intakes(organization_id,lane,source,external_id,status,payload,payload_digest) VALUES($1,'b2c','console','CONSOLE-smoke-0001','draft',$2::jsonb,$3) RETURNING id",
+  [oid,JSON.stringify({reference:"merchant-preview",currency:"EUR",grossMinor:1500,issuerVatNumber:"123456789"}),"b".repeat(64)]);
+ assert.equal(testConsoleDraft.rowCount,1);
+ const consoleReplay=await db.query(
+  "INSERT INTO fiscal_document_intakes(organization_id,lane,source,external_id,status,payload,payload_digest) VALUES($1,'b2c','console','CONSOLE-smoke-0001','draft',$2::jsonb,$3) ON CONFLICT(organization_id,source,external_id) DO NOTHING RETURNING id",
+  [oid,JSON.stringify({reference:"merchant-preview",currency:"EUR",grossMinor:1500,issuerVatNumber:"123456789"}),"b".repeat(64)]);
+ assert.equal(consoleReplay.rowCount,0,"Console writes must be idempotent");
+ const draftDetailsUnauthorized=await db.query(
+  "SELECT d.id FROM fiscal_document_intakes d JOIN fiscal_memberships m ON m.organization_id=d.organization_id AND m.user_id=$2 WHERE d.organization_id=$1 AND d.id=$3",
+  [otherOrg.rows[0].id,uid,testConsoleDraft.rows[0].id]);
+ assert.equal(draftDetailsUnauthorized.rowCount,0,"Draft ID must not bypass tenant scope");
+ await db.query("UPDATE fiscal_memberships SET role='viewer' WHERE organization_id=$1 AND user_id=$2",[oid,otherUser.rows[0].id]);
  await db.query("SAVEPOINT vat_mismatch");
  await assert.rejects(()=>db.query(
   "INSERT INTO fiscal_marketplace_links(organization_id,marketplace_vendor_id,marketplace_vendor_public_id,issuer_vat_number,authorized_by) VALUES($1,$2,'vendor_ci_verified','987654321',$3)",
@@ -106,6 +134,6 @@ try{
  const ssoAfter=await db.query("SELECT count(*)::int AS count FROM fiscal_superadmin_sessions WHERE token_hash=$1 AND revoked_at IS NULL",["c".repeat(64)]);
  assert.equal(ssoAfter.rows[0].count,0);
  await db.query("ROLLBACK");
- console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, verified marketplace pairing, SSO replay protection, immutable audit");
+ console.log("FISCAL DATABASE SMOKE PASSED: pending onboarding, draft-only, tenant isolation, key revocation, approved-only console draft creation, idempotency, verified marketplace pairing, SSO replay protection, immutable audit");
 }catch(error){await db.query("ROLLBACK").catch(()=>{});throw error;}
 finally{await db.end();}
