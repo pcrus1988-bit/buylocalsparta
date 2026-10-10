@@ -33,6 +33,7 @@ export default async function FiscalDraftDetail({
   </section>
   <section className="fiscal-panel">
    <p className="fiscal-alert" role="status"><strong>Δεν είναι φορολογικό παραστατικό.</strong> Αυτή η εγγραφή δεν έχει εκδοθεί, υπογραφεί, αριθμηθεί ή διαβιβαστεί στην ΑΑΔΕ/myDATA. Δεν αποτελεί έγκυρη απόδειξη ή τιμολόγιο.</p>
+   {["b2b","b2g"].includes(draft.lane)?<p className="fiscal-alert">Κατάσταση αντισυμβαλλομένου: {draft.counterparty?"Συνδεδεμένη μη επαληθευμένη δοκιμαστική οντότητα.":"Δεν έχει συνδεθεί αντισυμβαλλόμενος. Το δοκιμαστικό draft είναι ελλιπές."} Δεν αποτελεί νόμιμο έλεγχο ταυτότητας ή φορολογικής εγκυρότητας.</p>:null}
    <h2>Στοιχεία δοκιμής</h2>
    <dl className="fiscal-draft-details">
     <div><dt>Επιχείρηση</dt><dd>{account.legal_name}</dd></div>
@@ -42,6 +43,9 @@ export default async function FiscalDraftDetail({
     <div><dt>Συνολικό δοκιμαστικό ποσό</dt><dd>{value}</dd></div>
     <div><dt>Αναφορά</dt><dd>{draft.reference||"—"}</dd></div>
     <div><dt>External ID</dt><dd>{draft.external_id||"—"}</dd></div>
+    <div><dt>Αντισυμβαλλόμενος</dt><dd>{draft.counterparty?.legalName??"Δεν έχει οριστεί"}</dd></div>
+    {draft.counterparty?<div><dt>Δοκιμαστικό ΑΦΜ αντισυμβαλλομένου</dt><dd>{draft.counterparty.vatNumber} · Μη επαληθευμένο</dd></div>:null}
+
     <div><dt>Καταχώριση</dt><dd>{date}</dd></div>
     <div><dt>Κατάσταση</dt><dd>Draft · Δεν εκδόθηκε</dd></div>
     <div><dt>Αναγνωριστικό draft</dt><dd><code>{draft.id}</code></dd></div>
