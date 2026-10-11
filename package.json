@@ -17,6 +17,7 @@
     "test:core": "node --experimental-strip-types --test packages/core/test/*.test.ts",
     "test:admin-mail-attachment": "node --experimental-strip-types --test apps/web/src/lib/admin-mail-attachment-headers.test.ts",
     "test:vendor-external-website": "node --experimental-strip-types --test apps/web/src/lib/vendor-external-website.test.ts",
+    "test:hub-claim-slugs": "node --experimental-strip-types --test apps/web/src/lib/hub-claim-public-url.test.ts",
     "test:dropship-suppliers": "npm --workspace @buy-local-sparta/dropship-suppliers test",
     "typecheck:dropship-suppliers": "npm --workspace @buy-local-sparta/dropship-suppliers run typecheck",
     "dev:core": "node --experimental-strip-types dev/server.ts",
