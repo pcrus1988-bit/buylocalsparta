@@ -29,8 +29,7 @@ export default async function PublicHubClaimPage({ params }: Params) {
 
   return <main>
     <SiteHeader compact />
-    <HubClaimPublicContent profile={profile} />}
-    </section>
+    <HubClaimPublicContent profile={profile} />
     <SiteFooter />
   </main>;
 }
