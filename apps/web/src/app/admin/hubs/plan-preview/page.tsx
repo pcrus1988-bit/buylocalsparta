@@ -3,14 +3,13 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
-import { HubClaimProfileEditor } from "../../../../components/HubClaimProfileEditor";
+import { HubClaimWorkspace } from "../../../../components/HubClaimWorkspace";
 import { VendorDashboardTools } from "../../../../components/VendorDashboardTools";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
 import { getHubExpansionPlan, HUB_EXPANSION_PLANS, type HubExpansionPlanCode } from "../../../../lib/hub-expansion-plans";
 import { getProductionPostgresRuntime } from "../../../../lib/postgres-runtime";
 import type { HubClaimPublicProfile } from "../../../../lib/hub-claim-runtime";
-import styles from "../../../hubs/claim/claim.module.css";
 
 export const metadata: Metadata = { title: "Admin · Vendor plan preview", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -20,6 +19,7 @@ type ApplicationSnapshot = Readonly<{
   businessName: string; hubSlug: string; hubCity: string; hubRegion: string;
   category: string; phone: string; address: string; postcode: string;
   website?: string; websiteEmbedEnabled?: boolean; planCode: HubExpansionPlanCode;
+  description?: string; openingHours?: string; publicEmail?: string; instagramUrl?: string;
 }>;
 
 async function applicationSnapshot(publicId: string): Promise<ApplicationSnapshot | undefined> {
@@ -28,6 +28,10 @@ async function applicationSnapshot(publicId: string): Promise<ApplicationSnapsho
     SELECT business_name,hub_slug,hub_city,hub_region,primary_category,phone,
            address_line,postal_code,website_url,
            COALESCE((to_jsonb(hub_expansion_prospects)->>'website_embed_enabled')::boolean,false) AS website_embed_enabled,
+           to_jsonb(hub_expansion_prospects)->>'claim_description' AS claim_description,
+           to_jsonb(hub_expansion_prospects)->>'claim_opening_hours' AS claim_opening_hours,
+           to_jsonb(hub_expansion_prospects)->>'claim_public_email' AS claim_public_email,
+           to_jsonb(hub_expansion_prospects)->>'claim_instagram_url' AS claim_instagram_url,
            plan_code
     FROM hub_expansion_prospects
     WHERE public_id=$1
@@ -44,6 +48,10 @@ async function applicationSnapshot(publicId: string): Promise<ApplicationSnapsho
     address: String(row.address_line), postcode: String(row.postal_code),
     website: row.website_url ? String(row.website_url) : undefined,
     websiteEmbedEnabled: row.website_embed_enabled === true,
+    description: row.claim_description ? String(row.claim_description) : undefined,
+    openingHours: row.claim_opening_hours ? String(row.claim_opening_hours) : undefined,
+    publicEmail: row.claim_public_email ? String(row.claim_public_email) : undefined,
+    instagramUrl: row.claim_instagram_url ? String(row.claim_instagram_url) : undefined,
     planCode: planCode as HubExpansionPlanCode
   };
 }
@@ -73,7 +81,9 @@ export default async function AdminHubPlanPreviewPage({ searchParams }: { search
     hubRegion: business.hubRegion, businessName: business.businessName,
     category: business.category, phone: business.phone, address: business.address,
     postcode: business.postcode, website: business.website,
-    websiteEmbedEnabled: business.websiteEmbedEnabled ?? false
+    websiteEmbedEnabled: business.websiteEmbedEnabled ?? false,
+    description: business.description, openingHours: business.openingHours,
+    publicEmail: business.publicEmail, instagramUrl: business.instagramUrl
   };
   const isClaim = plan.code === "claim";
   const selling = plan.ecommerce;
@@ -107,15 +117,7 @@ export default async function AdminHubPlanPreviewPage({ searchParams }: { search
     </section>
 
     {isClaim
-      ? <section className="shell vendor-section" aria-label="Actual CLAIM editor read-only">
-          <div className={styles.hero}>
-            <div className={styles.kicker}>KONTA MOY · Skinny Vendor Dashboard</div>
-            <h2 className={styles.title}>Το δωρεάν CLAIM σου.</h2>
-            <p className={styles.lead}>Ενημέρωσε την παρουσία της επιχείρησής σου στο τοπικό HUB. Δεν απαιτείται συνδρομή και δεν υπάρχει πρόσβαση σε παραγγελίες, εισπράξεις ή κατάλογο προϊόντων.</p>
-          </div>
-          <div className={styles.grid}><HubClaimProfileEditor profile={profile} preview /></div>
-          <p className={styles.footer}>Οι ίδιες φόρμες με το live CLAIM dashboard εμφανίζονται απενεργοποιημένες μόνο μέσα στην προεπισκόπηση.</p>
-        </section>
+      ? <HubClaimWorkspace profiles={[profile]} preview />
       : <section className="vendor-section section-tint">
           <div className="shell">
             <div className="eyebrow">Vendor Dashboard · {plan.name}</div>
@@ -135,7 +137,7 @@ export default async function AdminHubPlanPreviewPage({ searchParams }: { search
         </section>}
     <section className="shell vendor-section">
       <h2>Περιορισμοί της προεπισκόπησης</h2>
-      <p>Η προβολή είναι ασφαλής και μη επεξεργάσιμη. Δεν δημιουργεί dummy χρήστες, passwords ή vendor memberships. Το CLAIM μοιράζεται την πραγματική οθόνη καταχώρισης. Για τα υπόλοιπα πακέτα δείχνουμε τα σημερινά διαθέσιμα UI εργαλεία και τις συμβατικές δυνατότητες· η πλήρης ενεργοποίηση ανά plan απαιτεί ακόμη ενιαίο server-side capability enforcement.</p>
+      <p>Η προβολή είναι ασφαλής και μη επεξεργάσιμη. Δεν δημιουργεί dummy χρήστες, passwords ή vendor memberships. Το CLAIM χρησιμοποιεί ακριβώς το ίδιο workspace και το ίδιο δημόσιο component με τον πραγματικό ιδιοκτήτη. Για τα υπόλοιπα πακέτα δείχνουμε τα σημερινά διαθέσιμα UI εργαλεία και τις συμβατικές δυνατότητες· η πλήρης ενεργοποίηση ανά plan απαιτεί ακόμη ενιαίο server-side capability enforcement.</p>
     </section>
   </main>;
 }
