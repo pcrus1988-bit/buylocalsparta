@@ -132,19 +132,16 @@ function brandShopHref(name: string): string {
 }
 
 function departmentHref(name: string, departmentSlug: string): string {
-  const query = new URLSearchParams({
-    brand: name,
-    category: departmentSlug
-  });
+  const query = new URLSearchParams({ brand: name });
+  // local-finds is an unclassified presentation bucket, not a canonical
+  // storefront department. Never issue an invalid shop category filter.
+  if (departmentSlug !== "local-finds") query.set("category", departmentSlug);
   return `/shop?${query.toString()}`;
 }
 
 function categoryHref(name: string, departmentSlug: string, code: string): string {
-  const query = new URLSearchParams({
-    brand: name,
-    category: departmentSlug,
-    subcategory: code
-  });
+  const query = new URLSearchParams({ brand: name, subcategory: code });
+  if (departmentSlug !== "local-finds") query.set("category", departmentSlug);
   return `/shop?${query.toString()}`;
 }
 
