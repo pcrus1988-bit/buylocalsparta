@@ -117,9 +117,11 @@ export async function GET(request: Request) {
     } : plan.market === "sparta"
       ? await previewSpartaVendor(id)
       : await previewProspect(id, code, plan.billingCycle);
-    if ("setupFeeMinor" in source && source.setupFeeMinor !== undefined) {
-      if (!Number.isSafeInteger(source.setupFeeMinor) ||
-        source.setupFeeMinor < 0 || source.setupFeeMinor > plan.setupFeeMinor) {
+    if ("setupFeeMinor" in source) {
+      const savedSetupFee = source.setupFeeMinor;
+      if (typeof savedSetupFee !== "number" ||
+          !Number.isSafeInteger(savedSetupFee) ||
+          savedSetupFee < 0 || savedSetupFee > plan.setupFeeMinor) {
         throw new Error("Application setup fee cannot be reconciled with the plan catalogue");
       }
     }
