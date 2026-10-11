@@ -5,6 +5,7 @@ import { SiteFooter } from "../../../../../components/SiteFooter";
 import { HubClaimPublicContent } from "../../../../../components/HubClaimPublicContent";
 import { listPublicHubClaimMedia } from "../../../../../lib/hub-claim-media-runtime";
 import { getPublicHubClaim } from "../../../../../lib/hub-claim-runtime";
+import { hubClaimPublicPath } from "../../../../../lib/hub-claim-public-url";
 
 type Params = { params: Promise<{ hubSlug: string; id: string }> };
 
@@ -12,7 +13,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { hubSlug, id } = await params;
   const profile = await getPublicHubClaim(hubSlug, id);
   if (!profile) return { title: "Καταχώριση μη διαθέσιμη · KONTA MOY", robots: { index: false, follow: false } };
-  const canonical = "/hubs/" + hubSlug + "/business/" + profile.slug;
+  const canonical = hubClaimPublicPath(profile);
   const description = profile.businessName + " · " + profile.category + " στο KONTA MOY HUB " + profile.hubCity + ". Επαληθευμένη δωρεάν καταχώριση επιχείρησης.";
   return {
     title: profile.businessName + " · HUB " + profile.hubCity + " · KONTA MOY",
@@ -27,7 +28,7 @@ export default async function PublicHubClaimPage({ params }: Params) {
   const { hubSlug, id } = await params;
   const profile = await getPublicHubClaim(hubSlug, id);
   if (!profile) notFound();
-  if (id !== profile.slug) permanentRedirect("/hubs/" + hubSlug + "/business/" + profile.slug);
+  if (id !== profile.slug) permanentRedirect(hubClaimPublicPath(profile));
   const photos = await listPublicHubClaimMedia(profile.id);
   return <main>
     <SiteHeader compact />
