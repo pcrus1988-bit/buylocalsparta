@@ -85,7 +85,7 @@ export function vendorAgreementPlanTerms(
     const plan = SPARTA[code as SpartaAgreementPlanCode];
     return {
       planCode: code, name: plan.name, market: "sparta",
-      kind: "merchant", billingCycle: plan.recurringFeePeriod,
+      kind: "merchant", billingCycle: plan.recurringFeePeriod === "month" ? "monthly" : plan.recurringFeePeriod === "year" ? "annual" : "term",
       setupFeeMinor: plan.setupFeeMinor, recurringFeeMinor: plan.recurringFeeMinor,
       recurringFeePeriod: plan.recurringFeePeriod,
       commissionRateBps: plan.commissionRateBps, contractTerm: plan.contractTerm,
