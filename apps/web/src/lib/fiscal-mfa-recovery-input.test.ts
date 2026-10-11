@@ -8,7 +8,7 @@ test("only the signed-in target can request their own case via validated server 
  assert.deepEqual(parseFiscalRecoveryInput({action:"request",evidenceRef}),{action:"request",evidenceRef});
  for(const raw of [
   {action:"request",evidenceRef:"anything"},
-  {action:"request",evidenceRef:"REC-TOOSHORT"},
+  {action:"request",evidenceRef:"REC-SHORT"},
   {action:"request",evidenceRef,actorRef:"somebody-else"},
   {action:"request",evidenceRef:"REC-OFFLINE-CASE-001 ",admin:true},
   {action:"reset",caseId,evidenceRef},null,[],{}
