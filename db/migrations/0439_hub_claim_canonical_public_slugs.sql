@@ -63,7 +63,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS hub_claim_public_slug_hub_uidx
   WHERE public_slug IS NOT NULL;
 
 -- The live schema may have received this patch before the checked-in migrator runs.
-DO $
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conrelid = 'public.hub_expansion_prospects'::regclass
@@ -71,16 +71,10 @@ BEGIN
   ) THEN
     ALTER TABLE public.hub_expansion_prospects
       ADD CONSTRAINT hub_claim_public_slug_format_check
-      CHECK (public_slug IS NULL OR public_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*
-
-COMMENT ON COLUMN public.hub_expansion_prospects.public_slug IS
-  'Immutable, hub-scoped public route name for a verified CLAIM listing. Internal public_id remains admin-only.';
-
-COMMIT;
-);
+      CHECK (public_slug IS NULL OR public_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$');
   END IF;
 END;
-$;
+$$;
 
 COMMENT ON COLUMN public.hub_expansion_prospects.public_slug IS
   'Immutable, hub-scoped public route name for a verified CLAIM listing. Internal public_id remains admin-only.';
