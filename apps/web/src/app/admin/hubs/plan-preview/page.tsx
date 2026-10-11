@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import type { SqlRow } from "@buy-local-sparta/core";
 import { AdminWorkspaceHeader } from "../../../../components/AdminWorkspaceHeader";
 import { HubClaimProfileEditor } from "../../../../components/HubClaimProfileEditor";
+import { HubClaimMediaUpload } from "../../../../components/HubClaimMediaUpload";
 import { VendorDashboardTools } from "../../../../components/VendorDashboardTools";
 import { getAdminSession } from "../../../../lib/admin-session";
 import { hasAdminPermission } from "../../../../lib/admin-runtime";
@@ -19,18 +20,20 @@ type Search = { plan?: string | string[]; applicationId?: string | string[] };
 type ApplicationSnapshot = Readonly<{
   businessName: string; hubSlug: string; hubCity: string; hubRegion: string;
   category: string; phone: string; address: string; postcode: string;
-  website?: string; websiteEmbedEnabled?: boolean; planCode: HubExpansionPlanCode;
+  website?: string;websiteEmbedEnabled?: boolean;description?:string;openingHours?:string;instagramUrl?:string;facebookUrl?:string;planCode: HubExpansionPlanCode;
 }>;
 
 async function applicationSnapshot(publicId: string): Promise<ApplicationSnapshot | undefined> {
   if (!/^[a-zA-Z0-9_-]{8,110}$/.test(publicId)) return undefined;
   const result = await getProductionPostgresRuntime().sqlPool.query<SqlRow>(`
-    SELECT business_name,hub_slug,hub_city,hub_region,primary_category,phone,
-           address_line,postal_code,website_url,
-           COALESCE((to_jsonb(hub_expansion_prospects)->>'website_embed_enabled')::boolean,false) AS website_embed_enabled,
-           plan_code
-    FROM hub_expansion_prospects
-    WHERE public_id=$1
+    SELECT h.business_name,h.hub_slug,h.hub_city,h.hub_region,h.primary_category,h.phone,
+           h.address_line,h.postal_code,h.website_url,
+           COALESCE((to_jsonb(h)->>'website_embed_enabled')::boolean,false) AS website_embed_enabled,
+           COALESCE(cp.description,'') AS description,COALESCE(cp.opening_hours,'') AS opening_hours,
+           cp.instagram_url,cp.facebook_url,h.plan_code
+    FROM hub_expansion_prospects h
+    LEFT JOIN hub_claim_profiles cp ON cp.prospect_id=h.id
+    WHERE h.public_id=$1
     LIMIT 1
   `, [publicId]);
   if (!result.rowCount) return undefined;
@@ -44,6 +47,8 @@ async function applicationSnapshot(publicId: string): Promise<ApplicationSnapsho
     address: String(row.address_line), postcode: String(row.postal_code),
     website: row.website_url ? String(row.website_url) : undefined,
     websiteEmbedEnabled: row.website_embed_enabled === true,
+    description:String(row.description??""),openingHours:String(row.opening_hours??""),
+    instagramUrl:row.instagram_url?String(row.instagram_url):undefined,facebookUrl:row.facebook_url?String(row.facebook_url):undefined,
     planCode: planCode as HubExpansionPlanCode
   };
 }
@@ -73,7 +78,9 @@ export default async function AdminHubPlanPreviewPage({ searchParams }: { search
     hubRegion: business.hubRegion, businessName: business.businessName,
     category: business.category, phone: business.phone, address: business.address,
     postcode: business.postcode, website: business.website,
-    websiteEmbedEnabled: business.websiteEmbedEnabled ?? false
+    websiteEmbedEnabled: business.websiteEmbedEnabled ?? false,
+    description:business.description,openingHours:business.openingHours,
+    instagramUrl:business.instagramUrl,facebookUrl:business.facebookUrl
   };
   const isClaim = plan.code === "claim";
   const selling = plan.ecommerce;
@@ -113,7 +120,7 @@ export default async function AdminHubPlanPreviewPage({ searchParams }: { search
             <h2 className={styles.title}>Το δωρεάν CLAIM σου.</h2>
             <p className={styles.lead}>Ενημέρωσε την παρουσία της επιχείρησής σου στο τοπικό HUB. Δεν απαιτείται συνδρομή και δεν υπάρχει πρόσβαση σε παραγγελίες, εισπράξεις ή κατάλογο προϊόντων.</p>
           </div>
-          <div className={styles.grid}><HubClaimProfileEditor profile={profile} preview /></div>
+          <div className={styles.grid}><HubClaimProfileEditor profile={profile} preview /><HubClaimMediaUpload claimId={profile.id} items={[]} preview /></div>
           <p className={styles.footer}>Οι ίδιες φόρμες με το live CLAIM dashboard εμφανίζονται απενεργοποιημένες μόνο μέσα στην προεπισκόπηση.</p>
         </section>
       : <section className="vendor-section section-tint">
