@@ -50,8 +50,8 @@ The SQL in fiscal/migrations manages merchants, organizations, sessions, test AP
 
 1. Marketplace super_admin signs in normally at KONTA MOY.
 2. Authenticated super admin visits \`/admin/fiscal-access\`. Server validates existing session and constructs a signed, audience-bound, 60-second, one-time assertion.
-3. Browser POSTS assertion using a normal form to \`/timologio-admin/sso/callback\` at the configured Fiscal HTTPS origin. CSP permits the external form destination only on this admin access page; referrer policy is no-referrer.
-4. The Fiscal service verifies HMAC, audience, issuer, issue/expiry, browser Origin, one-use nonce and code format.
+3. Browser first establishes Vercel access to the independent FISCAL host, then obtains a fresh signed ticket. A top-level GET opens /timologio-admin/sso/bridge with the ticket in the URL fragment only.
+4. The standalone bridge clears the fragment, then sends a same-origin URL-encoded POST. The Fiscal service verifies HMAC, signed audience/issuer, expiry, nonce and format.
 5. Fiscal inserts ticket and a new, revocable, HttpOnly, Secure, SameSite-Strict two-hour session into its *own* database. Replaying the assertion fails through unique jti_hash.
 6. Fiscal supervises only the independently authorized administration UI. Merchant tenant role claims are not inherited from marketplace permissions.
 7. Fiscal sign out revokes its local session; the marketplace account remains signed in.
@@ -101,11 +101,19 @@ The marketplace proxy delegates `GET/HEAD /timologio/*` navigation by a private/
 
 **Manual protected-browser acceptance still required** after the PR is merged and marketplace deployment is READY:
 
-1. With an authorized marketplace super-admin session and Vercel Deployment Protection access to the FISCAL origin, open `https://kontamou.site/admin/fiscal-access`; confirm the handoff form appears and posts to the exact allowlisted FISCAL HTTPS origin.
-2. Submit once. Confirm a new independent FISCAL admin session can access `/timologio-admin`, is not scoped as a marketplace vendor, and that the marketplace session remains unaffected.
-3. Attempt a replay of the same 60-second assertion, a wrong Origin and an expired assertion; all must be denied. Confirm logout revokes the FISCAL session and a new handoff still requires marketplace login.
+1. Establish Vercel Deployment Protection access to FISCAL in a separate tab; return to marketplace /admin/fiscal-access, refresh for a fresh signed ticket, then open the fragment-based bridge.
+2. Confirm the bridge removes the ticket fragment before POST and that a new FISCAL admin session can access /timologio-admin without acquiring marketplace vendor permissions or sharing marketplace cookies.
+3. Attempt a replay of the same signed assertion, a wrong Origin, and an expired ticket; all must be denied and logout must revoke the session.
 4. Navigate from marketplace `/timologio/login` to the independent FISCAL origin (307, no-store, no leaked marketplace cookie). Confirm the independent merchant login still requires a FISCAL account and public registration stays disabled.
 5. Confirm vendor consent is still served on the marketplace and that other marketplace FISCAL APIs reject requests. Do not create live invoices, live order sync, taxpayer records or official accounting entries.
 6. Check independent `/timologio/api/health` with appropriate protected access, and verify application and database audit/log monitoring.
 
 **Caution:** Vercel Deployment Protection SSO is additional to marketplace-issued Fiscal SSO. The current protected production cannot serve arbitrary public users. A READY deployment or CI success alone does not prove actual browser SSO success.
+
+## Milestone 20 — Protected same-origin FISCAL SSO bridge
+
+Cross-site browser POSTs can be challenged by Vercel before they reach an app protected by Vercel Authentication. The marketplace therefore uses a top-level GET into an isolated FISCAL bridge with a 60-second signed assertion in its fragment; the fragment is not transmitted in that GET request.
+
+The bridge immediately clears the fragment from browser history and exchanges the signed ticket using a same-origin URL-encoded POST to FISCAL. The callback rejects other origins and malformed forms. Signed issuer/audience validation, single-use PostgreSQL replay protection, session isolation and audit logging remain mandatory.
+
+If Vercel Authentication sign-in discards the fragment, establish access to FISCAL first and then refresh the marketplace admin access page to issue a fresh ticket. Never share SSO links. Actual protected browser SSO acceptance is still pending even when CI security tests pass. Public merchant registration and legal fiscal issuance are still disabled.
