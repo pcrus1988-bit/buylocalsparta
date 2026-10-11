@@ -63,6 +63,8 @@ jobs:
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-preview-calculator.test.ts
       - name: Verify non-fiscal draft data integrity reviews
         run: node --experimental-strip-types --test apps/web/src/lib/fiscal-draft-preflight.test.ts
+      - name: Verify safe PostgreSQL endpoint diagnostics
+        run: node --experimental-strip-types --test apps/web/src/lib/fiscal-connection-diagnostics.test.ts
       - name: Typecheck shared Fiscal route source
         run: npm --workspace @buy-local-sparta/web exec tsc -- --noEmit --incremental false
       - name: Validate standalone Fiscal route tree
