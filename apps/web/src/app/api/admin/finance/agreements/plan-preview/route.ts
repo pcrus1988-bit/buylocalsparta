@@ -36,7 +36,8 @@ async function previewProspect(id: string, code: string, cycle: string) {
       contactEmail: field(row.email),
       phone: field(row.phone),
       registeredAddress: field(row.address_line),
-      legalRepresentative: field(row.contact_name)
+      // Application contact is not proof of legal representation; verify separately.
+      legalRepresentative: undefined
     },
     setupFeeMinor: Number(row.setup_fee_cents),
     reference: String(row.public_id)
